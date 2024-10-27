@@ -12,7 +12,6 @@
         see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "euresyscamera.h"
-#include "analyzer.h"
 #include <QImage>
 
 #if defined USE_EURESYS_EGRABBER
@@ -24,6 +23,7 @@ XRecursiveMutex XEGrabberInterface::s_mutex;
 
 REGISTER_TYPE(XDriverList, EGrabberCamera, "Coaxpress Camera via Euresys eGrabber");
 REGISTER_TYPE(XDriverList, GrablinkCamera, "Cameralink Camera via Euresys eGrabber");
+REGISTER_TYPE(XDriverList, C9100oGrablink, "Hamamatsu C9100 Camera via Euresys grablink");
 
 //---------------------------------------------------------------------------
 XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink) :
@@ -551,4 +551,41 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
     }
 }
 
-#endif // USE_LIBDC1394
+XHamamatsuCameraOverEGrabber::XHamamatsuCameraOverEGrabber(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool grablink) :
+    XEGrabberCamera(name, runtime, ref(tr_meas), meas, grablink) {
+    interface()->setSerialBaudRate(9600);
+    interface()->setSerialEOS("\r");
+}
+
+void
+XHamamatsuCameraOverEGrabber::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+}
+void
+XHamamatsuCameraOverEGrabber::setTriggerMode(TriggerMode mode) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+}
+void
+XHamamatsuCameraOverEGrabber::setBrightness(unsigned int brightness) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+}
+void
+XHamamatsuCameraOverEGrabber::setExposureTime(double shutter) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+    interface()->sendf("AET %luUS", lrint(shutter * 1e6));
+}
+void
+XHamamatsuCameraOverEGrabber::setCameraGain(double db) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+    interface()->sendf("EMG %lu", lrint(pow(10, db/10) / 100.0 * 256));
+}
+void
+XHamamatsuCameraOverEGrabber::open() {
+    XEGrabberCamera::open();
+
+    interface()->query("?CAI T");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+}
+
+#endif //USE_EURESYS_EGRABBER
