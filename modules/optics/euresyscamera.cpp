@@ -91,25 +91,7 @@ XEGrabberInterface::open() {
         int height = m_camera->getInteger<Euresys::RemoteModule>("Height");
         fprintf(stderr, "%s:%s %ix%i\n", str_intf.c_str(), str_dev.c_str(), width, height);
 
-        using namespace Euresys;
-        //Serial comm.
-        m_camera->setString<DeviceModule>("SerialOperationSelector", "Open");
-        m_camera->execute<DeviceModule>("SerialOperationExecute");
-        std::string status = m_camera->getString<DeviceModule>("SerialOperationStatus");
-        if(status != "Success")
-            throw std::runtime_error(status);
-
-        std::vector<std::string> serialBaudRateCand =
-                m_camera->getStringList<DeviceModule>(query::enumEntries("SerialBaudRate"));
-        std::string bratestr = formatString("%u", m_serialBaudRate);
-        auto baudit = std::find_if(serialBaudRateCand.begin(), serialBaudRateCand.end(), [&bratestr](auto &x){return (x.rfind(bratestr) != std::string::npos);});
-        if(baudit == serialBaudRateCand.end())
-            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
-        m_camera->setString<DeviceModule>("SerialBaudRate", *baudit);
-
-        m_serialEOS = "\r";
-        m_camera->setInteger<DeviceModule>("SerialTimeout", 1);
-        m_camera->setInteger<DeviceModule>("SerialAccessBufferLength", 4096);
+        m_bIsSerialPortOpened = false;
     }
     catch (const std::exception &e) {
         gErrPrint(XString("error: ") + e.what());
@@ -120,16 +102,60 @@ XEGrabberInterface::open() {
 void
 XEGrabberInterface::close() {
     if(m_camera) {
-        using namespace Euresys;
-        m_camera->setString<DeviceModule>("SerialOperationSelector", "Close");
-        m_camera->execute<DeviceModule>("SerialOperationExecute");
+        closeSerialPort();
 //        m_camera->stop();
         m_camera.reset();
     }
 }
+void
+XEGrabberInterface::lock() {
+    s_mutex.lock();
+}
+void
+XEGrabberInterface::unlock() {
+    closeSerialPort();
+    s_mutex.unlock();
+}
+void
+XEGrabberInterface::checkAndOpenSerialPort() {
+    assert(isLocked());
+    if( !m_bIsSerialPortOpened)
+        return;
+    using namespace Euresys;
+    //Serial comm.
+    m_camera->setString<DeviceModule>("SerialOperationSelector", "Open");
+    m_camera->execute<DeviceModule>("SerialOperationExecute");
+    std::string status = m_camera->getString<DeviceModule>("SerialOperationStatus");
+    if(status != "Success")
+        throw std::runtime_error(status);
+
+    std::vector<std::string> serialBaudRateCand =
+            m_camera->getStringList<DeviceModule>(query::enumEntries("SerialBaudRate"));
+    std::string bratestr = formatString("%u", m_serialBaudRate);
+    auto baudit = std::find_if(serialBaudRateCand.begin(), serialBaudRateCand.end(), [&bratestr](auto &x){return (x.rfind(bratestr) != std::string::npos);});
+    if(baudit == serialBaudRateCand.end())
+        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+    m_camera->setString<DeviceModule>("SerialBaudRate", *baudit);
+
+    m_serialEOS = "\r";
+    m_camera->setInteger<DeviceModule>("SerialTimeout", 1);
+    m_camera->setInteger<DeviceModule>("SerialAccessBufferLength", 4096);
+
+    m_bIsSerialPortOpened = true;
+}
+void
+XEGrabberInterface::closeSerialPort() {
+    if( !m_bIsSerialPortOpened)
+        return;
+    using namespace Euresys;
+    m_camera->setString<DeviceModule>("SerialOperationSelector", "Close");
+    m_camera->execute<DeviceModule>("SerialOperationExecute");
+    m_bIsSerialPortOpened = false;
+}
 
 void
 XEGrabberInterface::send(const char *buf) {
+    checkAndOpenSerialPort();
     XString str = buf + m_serialEOS;
     try {
         using namespace Euresys;
@@ -147,6 +173,7 @@ XEGrabberInterface::send(const char *buf) {
 }
 void
 XEGrabberInterface::receive() {
+    checkAndOpenSerialPort();
     try {
         using namespace Euresys;
         buffer_receive().clear();
@@ -566,6 +593,42 @@ XHamamatsuCameraOverGrablink::setVideoMode(unsigned int mode, unsigned int roix,
 void
 XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
+    char em = 'T'; //by AET
+    char pol = 'P';
+    char amd = 'N';
+    switch(mode) {
+    case TriggerMode::SINGLE:
+        em = 'E';
+        break;
+    case TriggerMode::CONTINUEOUS:
+        break;
+    case TriggerMode::EXT_POS_EDGE:
+        amd = 'E';
+        break;
+    case TriggerMode::EXT_POS_EXPOSURE:
+        amd = 'E';
+        em = 'L';
+        break;
+    case TriggerMode::EXT_NEG_EDGE:
+        amd = 'E';
+        pol = 'N';
+        break;
+    case TriggerMode::EXT_NEG_EXPOSURE:
+        amd = 'E';
+        pol = 'N';
+        em = 'L';
+        break;
+    }
+    interface()->queryf("EMD %c", em);
+    checkSerialError(__FILE__, __LINE__);
+    interface()->sendf("AMD %c", amd);
+    checkSerialError(__FILE__, __LINE__);
+    interface()->sendf("ATP %c", pol);
+    checkSerialError(__FILE__, __LINE__);
+//    if(mode == TriggerMode::SINGLE) {
+//        interface()->send("EST");
+//        checkSerialError(__FILE__, __LINE__);
+//    }
 }
 void
 XHamamatsuCameraOverGrablink::setBrightness(unsigned int brightness) {
@@ -680,33 +743,33 @@ XJAICameraOverGrablink::setTriggerMode(TriggerMode mode) {
         em = 2;
         break;
     }
-    interface()->sendf("EM=%u", em);
+    interface()->queryf("EM=%u", em);
     checkSerialError(__FILE__, __LINE__);
-    interface()->sendf("ASC=%u", asc);
+    interface()->queryf("ASC=%u", asc);
     checkSerialError(__FILE__, __LINE__);
-    interface()->sendf("TA=%u", act);
+    interface()->queryf("TA=%u", act);
     checkSerialError(__FILE__, __LINE__);
     if(mode == TriggerMode::SINGLE) {
-        interface()->send("STRG=0");
+        interface()->query("STRG=0");
         checkSerialError(__FILE__, __LINE__);
     }
 }
 void
 XJAICameraOverGrablink::setBrightness(unsigned int brightness) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    interface()->sendf("BL=%u", brightness);
+    interface()->queryf("BL=%u", brightness);
     checkSerialError(__FILE__, __LINE__);
 }
 void
 XJAICameraOverGrablink::setExposureTime(double shutter) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    interface()->sendf("PE=%lu", lrint(shutter * 1e6));
+    interface()->queryf("PE=%lu", lrint(shutter * 1e6));
     checkSerialError(__FILE__, __LINE__);
 }
 void
 XJAICameraOverGrablink::setCameraGain(double db) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    interface()->sendf("FGA=%lu", lrint(pow(10, db/10) * 100));
+    interface()->queryf("FGA=%lu", lrint(pow(10, db/10) * 100));
     checkSerialError(__FILE__, __LINE__);
 }
 void

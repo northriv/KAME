@@ -28,8 +28,8 @@ public:
 
     virtual bool isOpened() const override {return !!m_camera;}
 
-    void lock() {s_mutex.lock();} //!<overrides XInterface::lock().
-    void unlock() {s_mutex.unlock();}
+    void lock(); //!<overrides XInterface::lock().
+    void unlock();
     bool isLocked() const {return s_mutex.isLockedByCurrentThread();}
 
     //For cameralink cameras.
@@ -47,6 +47,10 @@ protected:
     virtual void close() override;
 
 private:
+    bool m_bIsSerialPortOpened;
+    void checkAndOpenSerialPort();
+    void closeSerialPort();
+
     static XRecursiveMutex s_mutex;
     shared_ptr<Euresys::EGrabber<>> m_camera;
     static unique_ptr<Euresys::EGenTL> s_gentl;
