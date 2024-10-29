@@ -97,6 +97,8 @@ protected:
     virtual void visualize(const Snapshot &shot) override;
   
 protected:
+    virtual void afterOpen() {};
+
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0,
         unsigned int roiw = 0, unsigned int roih = 0) = 0;
     virtual void setTriggerMode(TriggerMode mode) = 0;

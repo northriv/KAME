@@ -534,6 +534,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
             tr[ *x].setUIEnabled(true);
     });
 
+    afterOpen();
+
     XTime time_awared = XTime::now();
     XTime time;
     while( !terminated) {

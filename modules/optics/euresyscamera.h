@@ -35,8 +35,11 @@ public:
     //For cameralink cameras.
     virtual void send(const char *) override;
     virtual void receive() override;
+    void flush();
 
-    const shared_ptr<Euresys::EGrabber<>> &camera() const {return m_camera;}
+    using Camera = Euresys::EGrabber<>;
+
+    const shared_ptr<Camera> &camera() const {return m_camera;}
 
     //For cameralink cameras.
     void setSerialBaudRate(unsigned int rate) {m_serialBaudRate = rate;}
@@ -48,11 +51,12 @@ protected:
 
 private:
     static XRecursiveMutex s_mutex;
-    shared_ptr<Euresys::EGrabber<>> m_camera;
+    shared_ptr<Camera> m_camera;
     static unique_ptr<Euresys::EGenTL> s_gentl;
     static unique_ptr<Euresys::EGrabberDiscovery> s_discovery;
     static int s_refcnt;
 
+    const bool m_bIsGrablink;
     XString m_serialEOS;
     unsigned int m_serialBaudRate;
 };
@@ -166,8 +170,8 @@ protected:
     virtual void setBrightness(unsigned int gain) override;
     virtual void setCameraGain(double db) override;
     virtual void setExposureTime(double time) override;
-    //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() override;
+
+    virtual void afterOpen() override;
 
     void checkSerialError(const char *file, unsigned int line);
 };
@@ -190,8 +194,8 @@ protected:
     virtual void setBrightness(unsigned int gain) override;
     virtual void setCameraGain(double db) override;
     virtual void setExposureTime(double time) override;
-    //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() override;
+
+    virtual void afterOpen() override;
 
     void checkSerialError(const char *file, unsigned int line);
 };
