@@ -21,6 +21,8 @@ REGISTER_TYPE(XDriverList, LI5640, "NF LI5640 lock-in amp.");
 REGISTER_TYPE(XDriverList, HP4284A, "Agilent/HP4284A Precision LCR Meter");
 REGISTER_TYPE(XDriverList, AH2500A, "Andeen-Hagerling 2500A capacitance bridge");
 
+XMutex XLakeshoreM81LIA::s_mutex;
+
 XSR830::XSR830(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XCharDeviceDriver<XLIA>(name, runtime, ref(tr_meas), meas)
@@ -150,12 +152,16 @@ XLakeshoreM81LIA::XLakeshoreM81LIA(const char *name, bool runtime,
     });
     autoScaleY()->disable();
     output()->disable();
-    interface()->setEOS("\r\n");
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBUseSerialPollOnRead(false);
     interface()->setGPIBWaitBeforeWrite(40);
     //    ExclusiveWaitAfterWrite = 10;
+    interface()->setSerialEOS("\r\n");
     interface()->setGPIBWaitBeforeRead(40);
+    interface()->setSerialBaudRate(921600);
+    interface()->setSerial7Bits(false);
+    interface()->setSerialParity(XCharInterface::PARITY_NONE);
+
 }
 int
 XLakeshoreM81LIA::channel() {
@@ -167,14 +173,16 @@ XLakeshoreM81LIA::channel() {
 }
 void
 XLakeshoreM81LIA::get(double *cos, double *sin) {
-    XScopedLock<XInterface> lock( *interface());
+    XScopedLock<XMutex> lock(s_mutex);
     int ch = channel();
+//    interface()->queryf("FETCH:SENS%i:LIA:X?;Y?", ch);
     interface()->queryf("FETCH? MX,%i,MY,%i", ch, ch);
     if(interface()->scanf("%lf,%lf", cos, sin) != 2)
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLakeshoreM81LIA::open() {
+    XScopedLock<XMutex> lock(s_mutex);
     int ch = channel();
 //    interface()->queryf("SENS%i:VOLT:RANG:AUTO?", ch);
 //    trans( *autoScaleX()) = interface()->toInt();
@@ -211,14 +219,14 @@ XLakeshoreM81LIA::changeSensitivity(int x) {
 }
 void
 XLakeshoreM81LIA::changeTimeConst(int x) {
-    XScopedLock<XInterface> lock( *interface());
+    XScopedLock<XMutex> lock(s_mutex);
     double tc = pow(10, x * 0.5 - 5);
     int ch = channel();
     interface()->sendf("SENS%i:LIA:TIME %f", ch, tc);
 }
 void
 XLakeshoreM81LIA::changeFreq(double x) {
-    XScopedLock<XInterface> lock( *interface());
+    XScopedLock<XMutex> lock(s_mutex);
     int ch = channel();
     interface()->queryf("SENS%i:LIA:RSOURCE?", ch);
     int sch;

@@ -650,15 +650,16 @@ XLakeShoreBridge::XLakeShoreBridge(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
 	interface()->setEOS("\r\n");
-	interface()->setGPIBUseSerialPollOnWrite(false);
-	interface()->setGPIBUseSerialPollOnRead(false);
-	interface()->setGPIBWaitBeforeWrite(40);
-	//    ExclusiveWaitAfterWrite = 10;
-	interface()->setGPIBWaitBeforeRead(40);
-    interface()->setSerial7Bits(true);
+    interface()->setGPIBMAVbit(4); //valid read
+    interface()->setGPIBUseSerialPollOnWrite(false);
+    interface()->setGPIBUseSerialPollOnRead(false);
+    interface()->setGPIBWaitBeforeWrite(40);
+    //    ExclusiveWaitAfterWrite = 10;
+    interface()->setGPIBWaitBeforeRead(40);
     interface()->setSerialStopBits(1);
     interface()->setSerialBaudRate(9600);
     interface()->setSerialParity(XCharInterface::PARITY_ODD);
+//    interface()->setSerial7Bits(true);
     interface()->setSerialEOS("\r\n");
 }
 

@@ -55,6 +55,7 @@ protected:
     virtual void closeInterface();
 private:
     int channel();
+    static XMutex s_mutex;
 };
 
 //! NF LI 5640 Lock-in Amplifier
