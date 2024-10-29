@@ -660,7 +660,12 @@ XHamamatsuCameraOverGrablink::setBrightness(unsigned int brightness) {
 void
 XHamamatsuCameraOverGrablink::setExposureTime(double shutter) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    interface()->queryf("AET %.3f", shutter);
+    unsigned int mm = shutter / 60;
+    shutter -= mm * 60;
+    if(mm)
+        interface()->queryf("AET %u:%.3f", mm, shutter);
+    else
+        interface()->queryf("AET %.3f", shutter);
     checkSerialError(__FILE__, __LINE__);
 }
 void
@@ -699,7 +704,10 @@ XHamamatsuCameraOverGrablink::afterOpen() {
     interface()->query("?CAI O");
     checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    setExposureTime(0.1);
+    interface()->query("?TMP");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?RAT");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
 }
 void
 XHamamatsuCameraOverGrablink::checkSerialError(const char *file, unsigned int line) {
