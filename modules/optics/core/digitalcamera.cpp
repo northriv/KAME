@@ -517,6 +517,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 
     m_storeDarkInvoked = false;
 
+    afterOpen();
+
 	iterate_commit([=](Transaction &tr){
         m_lsnOnVideoModeChanged = tr[ *videoMode()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onVideoModeChanged);
@@ -533,8 +535,6 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(true);
     });
-
-    afterOpen();
 
     XTime time_awared = XTime::now();
     XTime time;

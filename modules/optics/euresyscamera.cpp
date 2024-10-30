@@ -612,6 +612,7 @@ XHamamatsuCameraOverGrablink::XHamamatsuCameraOverGrablink(const char *name, boo
 void
 XHamamatsuCameraOverGrablink::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
     XScopedLock<XEGrabberInterface> lock( *interface());
+//    XEGrabberCamera::setVideoMode(mode, 0, 0, 0, 0);
 }
 void
 XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
@@ -642,12 +643,14 @@ XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
         em = 'L';
         break;
     }
-    interface()->queryf("EMD %c", em);
+    interface()->queryf("AMD %c", amd);
     checkSerialError(__FILE__, __LINE__);
-    interface()->sendf("AMD %c", amd);
-    checkSerialError(__FILE__, __LINE__);
-    interface()->sendf("ATP %c", pol);
-    checkSerialError(__FILE__, __LINE__);
+    if(amd == 'E') {
+        interface()->queryf("ATP %c", pol);
+        checkSerialError(__FILE__, __LINE__);
+        interface()->queryf("EMD %c", em);
+        checkSerialError(__FILE__, __LINE__);
+    }
 //    if(mode == TriggerMode::SINGLE) {
 //        interface()->send("EST");
 //        checkSerialError(__FILE__, __LINE__);
@@ -656,6 +659,8 @@ XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
 void
 XHamamatsuCameraOverGrablink::setBrightness(unsigned int brightness) {
     XScopedLock<XEGrabberInterface> lock( *interface());
+    interface()->queryf("CEO %u", brightness);
+    checkSerialError(__FILE__, __LINE__);
 }
 void
 XHamamatsuCameraOverGrablink::setExposureTime(double shutter) {
@@ -667,11 +672,19 @@ XHamamatsuCameraOverGrablink::setExposureTime(double shutter) {
     else
         interface()->queryf("AET %.3f", shutter);
     checkSerialError(__FILE__, __LINE__);
+    interface()->query("?TMP");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?RAT");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
 }
 void
 XHamamatsuCameraOverGrablink::setCameraGain(double db) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    interface()->queryf("EMG %lu", lrint(pow(10, db/10) / 100.0 * 256));
+    unsigned int v = lrint(pow(10, db/10) / 100.0 * 256);
+    if(m_bIsEM)
+        interface()->queryf("EMG %u", v);
+    else
+        interface()->queryf("CEG %u", v);
     checkSerialError(__FILE__, __LINE__);
 }
 void
@@ -682,6 +695,14 @@ XHamamatsuCameraOverGrablink::afterOpen() {
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?CAI T");
     checkSerialError(__FILE__, __LINE__);
+    if(interface()->toStr().find("C4742-98")) {
+        m_bIsCooled = true;
+        m_bHasSlowScan = true;
+    }
+    else if(interface()->toStr().find("C9100")) {
+        m_bIsEM = true;
+        m_bIsCooled = true;
+    }
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?VER");
     checkSerialError(__FILE__, __LINE__);
@@ -689,35 +710,81 @@ XHamamatsuCameraOverGrablink::afterOpen() {
     interface()->query("?INF");
     checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    interface()->query("?CAI H");
-    checkSerialError(__FILE__, __LINE__);
-    fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    interface()->query("?CAI V");
-    checkSerialError(__FILE__, __LINE__);
-    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+//    interface()->query("?CAI H");
+//    checkSerialError(__FILE__, __LINE__);
+//    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+//    interface()->query("?CAI V");
+//    checkSerialError(__FILE__, __LINE__);
+//    fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?CAI A");
     checkSerialError(__FILE__, __LINE__);
+    unsigned int x, y;
+    if(interface()->scanf("CAI A%u,%u,%u,%u,%u,%u", &m_xdummypx, &x, &m_xdatapx, &m_ydummypx, &y, &m_ydatapx) != 6)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_xdummypx += x; m_ydummypx += y;
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?CAI I");
     checkSerialError(__FILE__, __LINE__);
+    if(interface()->scanf("CAI I%u", &m_maxBitsFast) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    if(m_bHasSlowScan) {
+        interface()->query("?CAI S");
+        checkSerialError(__FILE__, __LINE__);
+        if(interface()->scanf("CAI S%u", &m_maxBitsSlow) != 1)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    }
     interface()->query("?CAI O");
     checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?TMP");
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    double v;
     interface()->query("?RAT");
+    if(interface()->scanf("RAT%lf", &v) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    trans( *exposureTime()) = v;
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    if(m_bIsEM) {
+        interface()->query("?EMG");
+        if(interface()->scanf("EMG%d", &x) != 1)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        trans( *cameraGain()) = log10((double)x / 256.0 * 100.0) * 20.0;
+        fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    }
+    else {
+        interface()->query("?CEG");
+        if(interface()->scanf("CEG%d", &x) != 1)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        trans( *cameraGain()) = log10((double)x / 256.0 * 100.0) * 20.0;
+        fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    }
+    interface()->query("?CEO");
+    if(interface()->scanf("CEO%d", &x) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    trans( *brightness()) = x;
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+
+    interface()->query("?ATP");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?AMD");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?EMD");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?ESC");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?SPX");
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
 }
+
 void
 XHamamatsuCameraOverGrablink::checkSerialError(const char *file, unsigned int line) {
     XString str = interface()->toStrSimplified();
     if(str.empty())
         throw XInterface::XConvError(file, line);
-    if(str[0] == 'E') {
-        unsigned int code;
-        if(interface()->scanf("E%u", &code) != 1)
-            throw XInterface::XConvError(file, line);
+    unsigned int code;
+    if(interface()->scanf("E%u", &code) == 1) {
         switch(code) {
         case 1:
             throw XInterface::XInterfaceError(i18n("Comm. error."), file, line);
@@ -728,7 +795,7 @@ XHamamatsuCameraOverGrablink::checkSerialError(const char *file, unsigned int li
         case 4:
             throw XInterface::XInterfaceError(i18n("Command unsuitable for current condition."), file, line);
         case 5:
-            throw XInterface::XInterfaceError(i18n("Wrong parameter."), file, line);
+            throw XInterface::XInterfaceError(i18n("Wrong parameter"), file, line);
         case 6:
             throw XInterface::XInterfaceError(i18n("Parameter unsuitable for current condition."), file, line);
         default:

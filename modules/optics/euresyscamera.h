@@ -178,6 +178,12 @@ protected:
     virtual void afterOpen() override;
 
     void checkSerialError(const char *file, unsigned int line);
+
+    bool m_bIsEM = false;
+    bool m_bIsCooled = false;
+    unsigned int m_xdummypx, m_xdatapx, m_ydummypx, m_ydatapx; //dummy px, available px
+    unsigned int m_maxBitsFast, m_maxBitsSlow;
+    bool m_bHasSlowScan = false;
 };
 
 class XC9100oGrablink : public XHamamatsuCameraOverGrablink {
