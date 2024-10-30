@@ -659,8 +659,10 @@ XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
 void
 XHamamatsuCameraOverGrablink::setBrightness(unsigned int brightness) {
     XScopedLock<XEGrabberInterface> lock( *interface());
+    //todo EMO?
     interface()->queryf("CEO %u", brightness);
     checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
 }
 void
 XHamamatsuCameraOverGrablink::setExposureTime(double shutter) {
@@ -686,6 +688,7 @@ XHamamatsuCameraOverGrablink::setCameraGain(double db) {
     else
         interface()->queryf("CEG %u", v);
     checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
 }
 void
 XHamamatsuCameraOverGrablink::afterOpen() {
@@ -695,11 +698,11 @@ XHamamatsuCameraOverGrablink::afterOpen() {
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?CAI T");
     checkSerialError(__FILE__, __LINE__);
-    if(interface()->toStr().find("C4742-98")) {
+    if(interface()->toStr().find("C4742-98") != std::string::npos) {
         m_bIsCooled = true;
         m_bHasSlowScan = true;
     }
-    else if(interface()->toStr().find("C9100")) {
+    else if(interface()->toStr().find("C9100") != std::string::npos) {
         m_bIsEM = true;
         m_bIsCooled = true;
     }
