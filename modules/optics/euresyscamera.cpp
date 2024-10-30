@@ -23,7 +23,7 @@ XRecursiveMutex XEGrabberInterface::s_mutex;
 
 REGISTER_TYPE(XDriverList, EGrabberCamera, "Coaxpress Camera via Euresys eGrabber");
 REGISTER_TYPE(XDriverList, GrablinkCamera, "Cameralink Camera via Euresys eGrabber");
-REGISTER_TYPE(XDriverList, C9100oGrablink, "Hamamatsu C9100 Camera via Euresys grablink");
+REGISTER_TYPE(XDriverList, HamamatsuCameraOverGrablink, "Hamamatsu Camera via Euresys grablink");
 REGISTER_TYPE(XDriverList, JAICameraOverGrablink, "JAI Camera via Euresys grablink");
 
 //---------------------------------------------------------------------------
@@ -730,14 +730,6 @@ XHamamatsuCameraOverGrablink::afterOpen() {
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?CAI T");
     checkSerialError(__FILE__, __LINE__);
-    if(interface()->toStr().find("C4742-98") != std::string::npos) {
-        m_bIsCooled = true;
-        m_bHasSlowScan = true;
-    }
-    else if(interface()->toStr().find("C9100") != std::string::npos) {
-        m_bIsEM = true;
-        m_bIsCooled = true;
-    }
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?VER");
     checkSerialError(__FILE__, __LINE__);
@@ -745,6 +737,7 @@ XHamamatsuCameraOverGrablink::afterOpen() {
     interface()->query("?INF");
     checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
+
 //    interface()->query("?CAI H");
 //    checkSerialError(__FILE__, __LINE__);
 //    fprintf(stderr, "%s\n", interface()->toStr().c_str());
@@ -763,31 +756,35 @@ XHamamatsuCameraOverGrablink::afterOpen() {
     if(interface()->scanf("CAI I%u", &m_maxBitsFast) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    if(m_bHasSlowScan) {
-        interface()->query("?CAI S");
-        checkSerialError(__FILE__, __LINE__);
-        if(interface()->scanf("CAI S%u", &m_maxBitsSlow) != 1)
-            throw XInterface::XConvError(__FILE__, __LINE__);
-        fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    }
+
+    interface()->query("?CAI S");
+    checkSerialError(__FILE__, __LINE__);
+    if(interface()->scanf("CAI S%u", &m_maxBitsSlow) == 1)
+        m_bHasSlowScan = true;
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+
     interface()->query("?CAI O");
     checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    interface()->query("?TMP");
-    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+
     double v;
+    interface()->query("?TMP");
+    if(interface()->scanf("TMP %lf", &v) == 1)
+        m_bIsCooled = true;
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+
     interface()->query("?RAT");
     if(interface()->scanf("RAT%lf", &v) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     trans( *exposureTime()) = v;
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
+
     y = 0;
-    if(m_bIsEM) {
-        interface()->query("?EMG");
-        if(interface()->scanf("EMG%d", &y) != 1)
-            throw XInterface::XConvError(__FILE__, __LINE__);
-        fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    }
+    interface()->query("?EMG");
+    if(interface()->scanf("EMG%d", &y) == 1)
+        m_bIsEM = true;
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+
     interface()->query("?CEG");
     if(interface()->scanf("CEG%d", &x) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);

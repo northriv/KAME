@@ -187,13 +187,6 @@ protected:
     bool m_bHasSlowScan = false;
 };
 
-class XC9100oGrablink : public XHamamatsuCameraOverGrablink {
-public:
-   XC9100oGrablink(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-       XHamamatsuCameraOverGrablink(name, runtime, ref(tr_meas), meas) {}
-};
-
 class XJAICameraOverGrablink : public XEGrabberCamera {
 public:
     XJAICameraOverGrablink(const char *name, bool runtime,
