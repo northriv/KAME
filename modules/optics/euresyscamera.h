@@ -142,8 +142,8 @@ public:
 protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
     virtual void setTriggerMode(TriggerMode mode) override;
-    virtual void setBrightness(unsigned int gain) override;
-    virtual void setCameraGain(double db) override;
+    virtual void setBlackLevelOffset(unsigned int v) override;
+    virtual void setCameraGain(unsigned int g) override;
     virtual void setExposureTime(double time) override;
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
@@ -151,9 +151,10 @@ protected:
 
     virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
     virtual XTime acquireRaw(shared_ptr<RawData> &) override;
-private:
+
     void stopTransmission();
     atomic<bool> m_isTrasmitting;
+private:
 };
 //! Cameralink camera via Euresys egrabber
 class XGrablinkCamera : public XEGrabberCamera {
@@ -171,8 +172,8 @@ public:
 protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
     virtual void setTriggerMode(TriggerMode mode) override;
-    virtual void setBrightness(unsigned int gain) override;
-    virtual void setCameraGain(double db) override;
+    virtual void setBlackLevelOffset(unsigned int v) override;
+    virtual void setCameraGain(unsigned int g) override;
     virtual void setExposureTime(double time) override;
 
     virtual void afterOpen() override;
@@ -201,7 +202,7 @@ public:
 protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
     virtual void setTriggerMode(TriggerMode mode) override;
-    virtual void setBrightness(unsigned int gain) override;
+    virtual void setBlackLevelOffset(unsigned int gain) override;
     virtual void setCameraGain(double db) override;
     virtual void setExposureTime(double time) override;
 

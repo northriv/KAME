@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>767</width>
+    <width>713</width>
     <height>447</height>
    </rect>
   </property>
@@ -246,23 +246,7 @@
             <number>1</number>
            </property>
            <property name="maximum">
-            <double>20.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLabel" name="textLabel1_2_5_3_3_16">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>dB</string>
-           </property>
-           <property name="wordWrap">
-            <bool>false</bool>
+            <double>100000.000000000000000</double>
            </property>
           </widget>
          </item>
@@ -279,7 +263,7 @@
             </sizepolicy>
            </property>
            <property name="text">
-            <string>Brightness</string>
+            <string>Black Level Offset</string>
            </property>
            <property name="wordWrap">
             <bool>false</bool>

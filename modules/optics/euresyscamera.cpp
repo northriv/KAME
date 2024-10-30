@@ -291,7 +291,7 @@ XEGrabberCamera::open() {
         if(std::find(allfeatures.begin(), allfeatures.end(), "Blacklevel") != allfeatures.end()) {
             double blacklvl = camera->getFloat<RemoteModule>("Blacklevel");
             iterate_commit([=](Transaction &tr){
-                tr[ *brightness()] = blacklvl;
+                tr[ *blackLvlOffset()] = blacklvl;
             });
         }
         if(std::find(allfeatures.begin(), allfeatures.end(), "ExposureTime") != allfeatures.end()) {
@@ -419,13 +419,13 @@ XEGrabberCamera::setTriggerMode(TriggerMode mode) {
     m_isTrasmitting = true;
 }
 void
-XEGrabberCamera::setBrightness(unsigned int brightness) {
+XEGrabberCamera::setBlackLevelOffset(unsigned int blackLvlOffset) {
     XScopedLock<XEGrabberInterface> lock( *interface());
 //    stopTransmission();
     auto camera = interface()->camera();
     try {
         using namespace Euresys;
-        camera->setFloat<RemoteModule>("Blacklevel", brightness);
+        camera->setFloat<RemoteModule>("Blacklevel", blackLvlOffset);
     }
     catch (const std::exception &e) {
         throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
@@ -657,10 +657,9 @@ XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
 //    }
 }
 void
-XHamamatsuCameraOverGrablink::setBrightness(unsigned int brightness) {
+XHamamatsuCameraOverGrablink::setBlackLevelOffset(unsigned int v) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    //todo EMO?
-    interface()->queryf("CEO %u", brightness);
+    interface()->queryf("CEO %u", v);
     checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
 }
@@ -680,13 +679,11 @@ XHamamatsuCameraOverGrablink::setExposureTime(double shutter) {
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
 }
 void
-XHamamatsuCameraOverGrablink::setCameraGain(double db) {
+XHamamatsuCameraOverGrablink::setCameraGain(unsigned int v) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    unsigned int v = lrint(pow(10, db/10) / 100.0 * 256);
     if(m_bIsEM)
-        interface()->queryf("EMG %u", v);
-    else
-        interface()->queryf("CEG %u", v);
+        interface()->queryf("EMG %u", v / 256u);
+    interface()->queryf("CEG %u", v % 256u);
     checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
 }
@@ -749,29 +746,29 @@ XHamamatsuCameraOverGrablink::afterOpen() {
         throw XInterface::XConvError(__FILE__, __LINE__);
     trans( *exposureTime()) = v;
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    y = 0;
     if(m_bIsEM) {
         interface()->query("?EMG");
-        if(interface()->scanf("EMG%d", &x) != 1)
+        if(interface()->scanf("EMG%d", &y) != 1)
             throw XInterface::XConvError(__FILE__, __LINE__);
-        trans( *cameraGain()) = log10((double)x / 256.0 * 100.0) * 20.0;
         fprintf(stderr, "%s\n", interface()->toStr().c_str());
     }
-    else {
-        interface()->query("?CEG");
-        if(interface()->scanf("CEG%d", &x) != 1)
-            throw XInterface::XConvError(__FILE__, __LINE__);
-        trans( *cameraGain()) = log10((double)x / 256.0 * 100.0) * 20.0;
-        fprintf(stderr, "%s\n", interface()->toStr().c_str());
-    }
+    interface()->query("?CEG");
+    if(interface()->scanf("CEG%d", &x) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    trans( *cameraGain()) = x + y * 256;
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?CEO");
     if(interface()->scanf("CEO%d", &x) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
-    trans( *brightness()) = x;
+    trans( *blackLvlOffset()) = x;
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
 
     interface()->query("?ATP");
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?AMD");
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?SMD");
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?EMD");
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
@@ -855,9 +852,9 @@ XJAICameraOverGrablink::setTriggerMode(TriggerMode mode) {
     }
 }
 void
-XJAICameraOverGrablink::setBrightness(unsigned int brightness) {
+XJAICameraOverGrablink::setBlackLevelOffset(unsigned int v) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    interface()->queryf("BL=%u", brightness);
+    interface()->queryf("BL=%u", v);
     checkSerialError(__FILE__, __LINE__);
 }
 void
@@ -867,9 +864,9 @@ XJAICameraOverGrablink::setExposureTime(double shutter) {
     checkSerialError(__FILE__, __LINE__);
 }
 void
-XJAICameraOverGrablink::setCameraGain(double db) {
+XJAICameraOverGrablink::setCameraGain(unsigned int g) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    interface()->queryf("FGA=%lu", lrint(pow(10, db/10) * 100));
+    interface()->queryf("FGA=%u", g);
     checkSerialError(__FILE__, __LINE__);
 }
 void

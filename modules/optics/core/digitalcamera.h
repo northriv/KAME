@@ -43,8 +43,8 @@ public:
     const shared_ptr<XGraph> &graph() const {return m_graph;}
 
     //! driver specific part below
-    const shared_ptr<XDoubleNode> &cameraGain() const {return m_cameraGain;} //!< [dB]
-    const shared_ptr<XUIntNode> &brightness() const {return m_brightness;} //!< brightness for device
+    const shared_ptr<XDoubleNode> &cameraGain() const {return m_cameraGain;} //! integer, typ. 0--255
+    const shared_ptr<XUIntNode> &blackLvlOffset() const {return m_blackLvlOffset;} //!< offset black for device
     const shared_ptr<XDoubleNode> &exposureTime() const {return m_exposureTime;} //!< [s]
     const shared_ptr<XTouchableNode> &storeDark() const {return m_storeDark;}
     const shared_ptr<XBoolNode> &subtractDark() const {return m_subtractDark;}
@@ -58,7 +58,7 @@ public:
 
     struct Payload : public XPrimaryDriver::Payload {
 //        double cameraGain() const {return m_cameraGain;}
-        unsigned int brightness() const {return m_brightness;}
+        unsigned int blackLvlOffset() const {return m_blackLvlOffset;}
         double exposureTime() const {return m_exposureTime;} //! [s]
         double electricDark() const {return m_electric_dark;} //dark count
         unsigned int width() const {return m_width;}
@@ -72,7 +72,7 @@ public:
 //        double m_cameraGain;
         unsigned int m_stride;
         unsigned int m_firstPixel;
-        unsigned int m_brightness;
+        unsigned int m_blackLvlOffset;
         double m_exposureTime;
         XString m_status;
         double m_electric_dark;
@@ -102,8 +102,8 @@ protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0,
         unsigned int roiw = 0, unsigned int roih = 0) = 0;
     virtual void setTriggerMode(TriggerMode mode) = 0;
-    virtual void setBrightness(unsigned int gain ) = 0;
-    virtual void setCameraGain(double db) = 0;
+    virtual void setBlackLevelOffset(unsigned int lv) = 0;
+    virtual void setCameraGain(unsigned int g) = 0;
     virtual void setExposureTime(double time) = 0;
 
     virtual XTime acquireRaw(shared_ptr<RawData> &) = 0;
@@ -111,7 +111,7 @@ protected:
     void setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t width, uint32_t height, bool big_endian = false, bool mono16 = false);
 private:
     const shared_ptr<XDoubleNode> m_cameraGain;
-    const shared_ptr<XUIntNode> m_brightness;
+    const shared_ptr<XUIntNode> m_blackLvlOffset;
     const shared_ptr<XDoubleNode> m_exposureTime;
     const shared_ptr<XTouchableNode> m_storeDark;
     const shared_ptr<XTouchableNode> m_roiSelectionTool;
@@ -129,7 +129,7 @@ private:
     shared_ptr<Listener> m_lsnOnVideoModeChanged;
     shared_ptr<Listener> m_lsnOnTriggerModeChanged;
     shared_ptr<Listener> m_lsnOnCameraGainChanged;
-    shared_ptr<Listener> m_lsnOnBrightnessChanged;
+    shared_ptr<Listener> m_lsnOnBlackLevelOffsetChanged;
     shared_ptr<Listener> m_lsnOnExposureTimeChanged;
     shared_ptr<Listener> m_lsnOnStoreDarkTouched;
     shared_ptr<Listener> m_lsnOnROISelectionToolTouched;
@@ -139,7 +139,7 @@ private:
     void onVideoModeChanged(const Snapshot &shot, XValueNodeBase *);
     void onTriggerModeChanged(const Snapshot &shot, XValueNodeBase *);
     void onCameraGainChanged(const Snapshot &shot, XValueNodeBase *);
-    void onBrightnessChanged(const Snapshot &shot, XValueNodeBase *);
+    void onBlackLevelOffsetChanged(const Snapshot &shot, XValueNodeBase *);
     void onExposureTimeChanged(const Snapshot &shot, XValueNodeBase *);
 
     std::deque<xqcon_ptr> m_conUIs;
