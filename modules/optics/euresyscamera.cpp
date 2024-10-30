@@ -612,11 +612,36 @@ XHamamatsuCameraOverGrablink::XHamamatsuCameraOverGrablink(const char *name, boo
 void
 XHamamatsuCameraOverGrablink::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-//    XEGrabberCamera::setVideoMode(mode, 0, 0, 0, 0);
+    unsigned int binning = 1;
+    char smd = 'N';
+    if(binning)
+        smd = 'S';
+    else if(roix || (roiw < m_xdata) || roiy || (roih < m_ydata))
+            smd = 'A';
+    interface()->queryf("SMD %c", smd);
+    checkSerialError(__FILE__, __LINE__);
+    if(smd == 'S') {
+        interface()->queryf("SPX %u", binning);
+        checkSerialError(__FILE__, __LINE__);
+    }
+    else if(smd == 'A') {
+        interface()->queryf("SHO %u", roix);
+        checkSerialError(__FILE__, __LINE__);
+        interface()->queryf("SHW %u", roiw);
+        checkSerialError(__FILE__, __LINE__);
+        interface()->queryf("SVO %u", roiy);
+        checkSerialError(__FILE__, __LINE__);
+        interface()->queryf("SVW %u", roih);
+        checkSerialError(__FILE__, __LINE__);
+    }
+
+    m_bIsTransmitting = true;
 }
 void
 XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
+    stopTransmission();
+
     char em = 'T'; //by AET
     char pol = 'P';
     char amd = 'N';
@@ -655,6 +680,42 @@ XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
 //        interface()->send("EST");
 //        checkSerialError(__FILE__, __LINE__);
 //    }
+
+    auto camera = interface()->camera();
+    if(mode == TriggerMode::SINGLE){
+        try {
+            using namespace Euresys;
+            camera->reallocBuffers(1);
+            camera->start(1);
+        }
+        catch (const std::exception &e) {
+            throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+        }
+        m_isTrasmitting = true;
+        return;
+    }
+
+    if(mode != TriggerMode::CONTINUEOUS) {
+         try {
+             using namespace Euresys;
+             camera->reallocBuffers(1);
+             camera->start(GENTL_INFINITE);
+         }
+         catch (const std::exception &e) {
+             throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+         }
+    }
+    else {
+        try {
+            using namespace Euresys;
+            camera->reallocBuffers(1);
+            camera->start(GENTL_INFINITE);
+        }
+        catch (const std::exception &e) {
+            throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+        }
+    }
+    m_isTrasmitting = true;
 }
 void
 XHamamatsuCameraOverGrablink::setBlackLevelOffset(unsigned int v) {
