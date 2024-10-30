@@ -634,8 +634,7 @@ XHamamatsuCameraOverGrablink::setVideoMode(unsigned int mode, unsigned int roix,
         interface()->queryf("SVW %u", roih);
         checkSerialError(__FILE__, __LINE__);
     }
-
-    m_bIsTransmitting = true;
+//    setTriggerMode(static_cast<TriggerMode>((unsigned int)shot[ *triggerMode()]));
 }
 void
 XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
@@ -682,38 +681,13 @@ XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
 //    }
 
     auto camera = interface()->camera();
-    if(mode == TriggerMode::SINGLE){
-        try {
-            using namespace Euresys;
-            camera->reallocBuffers(1);
-            camera->start(1);
-        }
-        catch (const std::exception &e) {
-            throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
-        }
-        m_isTrasmitting = true;
-        return;
+    try {
+        using namespace Euresys;
+        camera->reallocBuffers(1);
+        camera->start((mode == TriggerMode::SINGLE) ? 1 : GENTL_INFINITE);
     }
-
-    if(mode != TriggerMode::CONTINUEOUS) {
-         try {
-             using namespace Euresys;
-             camera->reallocBuffers(1);
-             camera->start(GENTL_INFINITE);
-         }
-         catch (const std::exception &e) {
-             throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
-         }
-    }
-    else {
-        try {
-            using namespace Euresys;
-            camera->reallocBuffers(1);
-            camera->start(GENTL_INFINITE);
-        }
         catch (const std::exception &e) {
-            throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
-        }
+        throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
     }
     m_isTrasmitting = true;
 }
