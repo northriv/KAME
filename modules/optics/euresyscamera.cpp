@@ -28,7 +28,7 @@ REGISTER_TYPE(XDriverList, JAICameraOverGrablink, "JAI Camera via Euresys grabli
 
 //---------------------------------------------------------------------------
 XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink) :
-    XCustomCharInterface(name, runtime, driver), m_bIsGrablink(grablink) {
+    XCustomCharInterface(name, runtime, driver) {
     XScopedLock<XEGrabberInterface> lock( *this);
     XScopedLock<XRecursiveMutex> slock( s_mutex);
     if(s_refcnt++ == 0) {
@@ -246,9 +246,9 @@ XEGrabberCamera::open() {
     try {
         using namespace Euresys;
 
-        std::vector<std::string> allfeatures = camera->getStringList<RemoteModule>(query::features());
+        m_featuresInRemoteModule = camera->getStringList<RemoteModule>(query::features());
         fprintf(stderr, "Features:\n");
-        for(auto &f: allfeatures)
+        for(auto &f: m_featuresInRemoteModule)
             fprintf(stderr, "%s ", f.c_str());
         fprintf(stderr, "\n");
 //        std::string dvn = camera->getString<DeviceModule>(query::enumEntries("DeviceVendorName"));
@@ -257,14 +257,14 @@ XEGrabberCamera::open() {
 
         auto videomodes = camera->getStringList<RemoteModule>(
                     query::enumEntries("PixelFormat"));
-        if(std::find(allfeatures.begin(), allfeatures.end(), "TriggerSource") != allfeatures.end()) {
+        if(isFeatureAvailableInRemoteModule("TriggerSource")) {
             auto triggersources = camera->getStringList<RemoteModule>(
                         query::enumEntries("TriggerSource"));
         }
 
         bool feat_avail = true;
         for(auto &f: {"TriggerMode", "ExposureMode", "TriggerActivation"}) {
-            if(std::find(allfeatures.begin(), allfeatures.end(), f) == allfeatures.end())
+            if( !isFeatureAvailableInRemoteModule(f))
                 feat_avail = false;
         }
         if(feat_avail) {
@@ -288,19 +288,19 @@ XEGrabberCamera::open() {
             });
         }
 
-        if(std::find(allfeatures.begin(), allfeatures.end(), "Blacklevel") != allfeatures.end()) {
+        if(isFeatureAvailableInRemoteModule("Blacklevel")) {
             double blacklvl = camera->getFloat<RemoteModule>("Blacklevel");
             iterate_commit([=](Transaction &tr){
                 tr[ *blackLvlOffset()] = blacklvl;
             });
         }
-        if(std::find(allfeatures.begin(), allfeatures.end(), "ExposureTime") != allfeatures.end()) {
+        if(isFeatureAvailableInRemoteModule("ExposureTime")) {
             double exp_time = camera->getFloat<RemoteModule>("ExposureTime") * 1e-3; //to ms
             iterate_commit([=](Transaction &tr){
                 tr[ *exposureTime()] = exp_time;
             });
         }
-        if(std::find(allfeatures.begin(), allfeatures.end(), "Gain") != allfeatures.end()) {
+        if(isFeatureAvailableInRemoteModule("Gain")) {
             double gain_db = camera->getFloat<RemoteModule>("Gain"); //dB
             iterate_commit([=](Transaction &tr){
                 tr[ *cameraGain()] = gain_db;
@@ -348,19 +348,28 @@ XEGrabberCamera::setVideoMode(unsigned int mode, unsigned int roix, unsigned int
     try {
         using namespace Euresys;
         camera->setString<RemoteModule>("PixelFormat", shot[ *videoMode()].to_str());
-        unsigned int w = camera->getInteger<RemoteModule>("WidthMax");
-        unsigned int h = camera->getInteger<RemoteModule>("HeightMax");
-        roix = roix / 4 * 4;
-        roiy = roiy / 4 * 4;
-        roiw = (roiw + 3) / 4 * 4;
-        roih = (roih + 3) / 4 * 4;
-        if( !roiw || !roih || (roix + roiw >= w) || (roiy + roih >= h) || (roiw > w) || (roih > h)) {
-            roix = 0; roiy = 0; roiw = w; roih = h;
+
+        if(isFeatureAvailableInRemoteModule("OffsetX")) {
+            unsigned int w = camera->getInteger<RemoteModule>("WidthMax");
+            unsigned int h = camera->getInteger<RemoteModule>("HeightMax");
+            roix = roix / 4 * 4;
+            roiy = roiy / 4 * 4;
+            roiw = (roiw + 3) / 4 * 4;
+            roih = (roih + 3) / 4 * 4;
+            if( !roiw || !roih || (roix + roiw >= w) || (roiy + roih >= h) || (roiw > w) || (roih > h)) {
+                roix = 0; roiy = 0; roiw = w; roih = h;
+            }
+            camera->setInteger<RemoteModule>("Width", roiw);
+            camera->setInteger<RemoteModule>("Height", roih);
+            camera->setInteger<RemoteModule>("OffsetX", roix);
+            camera->setInteger<RemoteModule>("OffsetY", roiy);
         }
-        camera->setInteger<RemoteModule>("Width", roiw);
-        camera->setInteger<RemoteModule>("Height", roih);
-        camera->setInteger<RemoteModule>("OffsetX", roix);
-        camera->setInteger<RemoteModule>("OffsetY", roiy);
+        else {
+         //using serial commands.
+            auto v = setVideoModeViaSerial(roix, roiy, roiw, roih);
+            camera->setInteger<RemoteModule>("Width", v.first);
+            camera->setInteger<RemoteModule>("Height", v.second);
+        }
     }
     catch (const std::exception &e) {
         throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
@@ -446,12 +455,12 @@ XEGrabberCamera::setExposureTime(double shutter) {
     }
 }
 void
-XEGrabberCamera::setCameraGain(double db) {
+XEGrabberCamera::setCameraGain(unsigned int g) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     auto camera = interface()->camera();
     try {
         using namespace Euresys;
-        camera->setFloat<RemoteModule>("Gain", db);
+        camera->setFloat<RemoteModule>("Gain", g);
     }
     catch (const std::exception &e) {
         throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
@@ -460,27 +469,44 @@ XEGrabberCamera::setCameraGain(double db) {
 
 void
 XEGrabberCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
-    int64_t width = reader.pop<int64_t>();
-    int64_t height = reader.pop<int64_t>();
-    int64_t xpos = reader.pop<int64_t>();
-    int64_t ypos = reader.pop<int64_t>();
-    int64_t payloadsize = reader.pop<int64_t>();
+    union {
+        char shortname[8];
+        uint64_t v;
+    } feat;
     int feat_size = reader.pop<uint32_t>();
-    feat_size -= 5;
-    for(int i = 0; i < feat_size; ++i)
+    feat.v = reader.pop<uint64_t>();
+    int64_t width = reader.pop<int64_t>();
+    feat.v = reader.pop<uint64_t>();
+    int64_t height = reader.pop<int64_t>();
+//    feat.v = reader.pop<uint64_t>();
+    int64_t xpos = 0 ;//reader.pop<int64_t>();
+//    feat.v = reader.pop<uint64_t>();
+    int64_t ypos = 0 ;//reader.pop<int64_t>();
+    feat.v = reader.pop<uint64_t>();
+    int64_t payloadsize = reader.pop<int64_t>();
+    feat_size -= 3;
+    for(int i = 0; i < feat_size; ++i) {
+        feat.v = reader.pop<uint64_t>();
         reader.pop<int64_t>(); //remaining Integer features.
+    }
     feat_size = reader.pop<uint32_t>();
-    for(int i = 0; i < feat_size; ++i)
+    for(int i = 0; i < feat_size; ++i) {
+        feat.v = reader.pop<uint64_t>();
         reader.pop<int32_t>(); //remaining enum features.
+    }
     feat_size = reader.pop<uint32_t>();
-    for(int i = 0; i < feat_size; ++i)
+    for(int i = 0; i < feat_size; ++i) {
+        feat.v = reader.pop<uint64_t>();
         reader.pop<int16_t>(); //remaining Boolean features.
+    }
     feat_size = reader.pop<uint32_t>();
-    for(int i = 0; i < feat_size; ++i)
+    for(int i = 0; i < feat_size; ++i) {
+        feat.v = reader.pop<uint64_t>();
         reader.pop<double>(); //remaining Float features.
-    feat_size = reader.pop<uint32_t>();
-    reader.pop<int32_t>();
-    reader.popIterator() += feat_size; //for future use.
+    }
+
+    reader.popIterator() += reader.pop<int64_t>(); //for future use.
+
     uint64_t timestamp = reader.pop<uint64_t>();
     uint64_t image_bytes = reader.pop<uint64_t>();
     XTime time = {(long)(timestamp / 1000000uLL), (long)(timestamp % 1000000uLL)};
@@ -512,7 +538,7 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     Snapshot shot( *this);
     auto camera = interface()->camera();
-
+//DeviceVendorName DeviceModelName Width Height PixelFormat PixelSize PayloadSize DeviceTapGeometry AcquisitionMode AcquisitionStart AcquisitionStop DeviceClockSelector DeviceClockFrequency
     auto int_features = {
         "Width", "Height", "OffsetX", "OffsetY",
         "PayloadSize",
@@ -538,23 +564,47 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
 
         writer->push<uint32_t>(int_features.size());
         for(auto &feat: int_features) {
-            int64_t v = camera->getInteger<RemoteModule>(feat);
-            writer->push<int64_t>(v);
+            for(unsigned int i = 0; i < 8; ++i)
+                writer->push<char>((strlen(feat) > i) ? feat[i] : '\0'); //first 8 letters
+            if(isFeatureAvailableInRemoteModule(feat)) {
+                int64_t v = camera->getInteger<RemoteModule>(feat);
+                writer->push<int64_t>(v);
+            }
+            else if( !pushFeatureSerialCommand(writer, (char *)&*writer->end() - 8))
+                    writer->push<int64_t>(0);
         }
         writer->push<uint32_t>(enum_features.size());
         for(auto &feat: enum_features) {
-            int32_t v = camera->getInteger<RemoteModule>(feat);
-            writer->push<int32_t>(v);
+            for(unsigned int i = 0; i < 8; ++i)
+                writer->push<char>((strlen(feat) > i) ? feat[i] : '\0'); //first 8 letters
+            if(isFeatureAvailableInRemoteModule(feat)) {
+                int32_t v = camera->getInteger<RemoteModule>(feat);
+                writer->push<int32_t>(v);
+            }
+            else if( !pushFeatureSerialCommand(writer, (char *)&*writer->end() - 8))
+                    writer->push<int32_t>(0);
         }
         writer->push<uint32_t>(bool_features.size());
         for(auto &feat: bool_features) {
-            int16_t v = camera->getInteger<RemoteModule>(feat);
-            writer->push<int16_t>(v);
+            for(unsigned int i = 0; i < 8; ++i)
+                writer->push<char>((strlen(feat) > i) ? feat[i] : '\0'); //first 8 letters
+            if(isFeatureAvailableInRemoteModule(feat)) {
+                int16_t v = camera->getInteger<RemoteModule>(feat);
+                writer->push<int16_t>(v);
+            }
+            else if( !pushFeatureSerialCommand(writer, (char *)&*writer->end() - 8))
+                    writer->push<int16_t>(0);
         }
         writer->push<uint32_t>(float_features.size());
         for(auto &feat: float_features) {
-            double v = camera->getFloat<RemoteModule>(feat);
-            writer->push<double>(v);
+            for(unsigned int i = 0; i < 8; ++i)
+                writer->push<char>((strlen(feat) > i) ? feat[i] : '\0'); //first 8 letters
+            if(isFeatureAvailableInRemoteModule(feat)) {
+                double v = camera->getFloat<RemoteModule>(feat);
+                writer->push<double>(v);
+            }
+            else if( !pushFeatureSerialCommand(writer, (char *)&*writer->end() - 8))
+                    writer->push<double>(0.0);
         }
         writer->push<int64_t>(0); //for future use.
 
@@ -609,14 +659,23 @@ XHamamatsuCameraOverGrablink::XHamamatsuCameraOverGrablink(const char *name, boo
     interface()->setSerialEOS("\r");
 }
 
-void
-XHamamatsuCameraOverGrablink::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
-    XScopedLock<XEGrabberInterface> lock( *interface());
+std::pair<unsigned int, unsigned int>
+XHamamatsuCameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) {
+    roix = roix / 8 * 8;
+    roiy = roiy / 8 * 8;
+    roiw = (roiw + 7) / 8 * 8;
+    roih = (roih + 7) / 8 * 8;
+    unsigned int w = m_xdatapx;
+    unsigned int h = m_ydatapx;
+    if( !roiw || !roih || (roix + roiw >= w) || (roiy + roih >= h) || (roiw > w) || (roih > h)) {
+        roix = 0; roiy = 0; roiw = w; roih = h;
+    }
+
     unsigned int binning = 1;
     char smd = 'N';
     if(binning)
         smd = 'S';
-    else if(roix || (roiw < m_xdata) || roiy || (roih < m_ydata))
+    else if(roix || (roiw < w) || roiy || (roih < h))
             smd = 'A';
     interface()->queryf("SMD %c", smd);
     checkSerialError(__FILE__, __LINE__);
@@ -634,8 +693,9 @@ XHamamatsuCameraOverGrablink::setVideoMode(unsigned int mode, unsigned int roix,
         interface()->queryf("SVW %u", roih);
         checkSerialError(__FILE__, __LINE__);
     }
-//    setTriggerMode(static_cast<TriggerMode>((unsigned int)shot[ *triggerMode()]));
+    return {roiw, roih};
 }
+
 void
 XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
@@ -758,7 +818,6 @@ XHamamatsuCameraOverGrablink::afterOpen() {
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
 
     interface()->query("?CAI S");
-    checkSerialError(__FILE__, __LINE__);
     if(interface()->scanf("CAI S%u", &m_maxBitsSlow) == 1)
         m_bHasSlowScan = true;
     fprintf(stderr, "%s\n", interface()->toStr().c_str());

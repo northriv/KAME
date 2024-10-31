@@ -60,7 +60,6 @@ private:
     static unique_ptr<Euresys::EGrabberDiscovery> s_discovery;
     static int s_refcnt;
 
-    const bool m_bIsGrablink;
     XString m_serialEOS;
     unsigned int m_serialBaudRate;
 };
@@ -154,7 +153,15 @@ protected:
 
     void stopTransmission();
     atomic<bool> m_isTrasmitting;
+
+    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) {return false;}
+    virtual std::pair<unsigned int, unsigned int> setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) {return {};}
 private:
+    std::vector<std::string> m_featuresInRemoteModule;
+    bool isFeatureAvailableInRemoteModule(const std::string &s) const {
+        return
+            std::find(m_featuresInRemoteModule.begin(), m_featuresInRemoteModule.end(), s) != m_featuresInRemoteModule.end();
+    }
 };
 //! Cameralink camera via Euresys egrabber
 class XGrablinkCamera : public XEGrabberCamera {
@@ -170,13 +177,15 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XHamamatsuCameraOverGrablink() {}
 protected:
-    virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
     virtual void setTriggerMode(TriggerMode mode) override;
     virtual void setBlackLevelOffset(unsigned int v) override;
     virtual void setCameraGain(unsigned int g) override;
     virtual void setExposureTime(double time) override;
 
     virtual void afterOpen() override;
+
+    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) override {return false;}
+    virtual std::pair<unsigned int, unsigned int> setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) override;
 
     void checkSerialError(const char *file, unsigned int line);
 
@@ -195,11 +204,13 @@ public:
 protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
     virtual void setTriggerMode(TriggerMode mode) override;
-    virtual void setBlackLevelOffset(unsigned int gain) override;
-    virtual void setCameraGain(double db) override;
+    virtual void setBlackLevelOffset(unsigned int offset) override;
+    virtual void setCameraGain(unsigned int db) override;
     virtual void setExposureTime(double time) override;
 
     virtual void afterOpen() override;
+
+    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) {return false;}
 
     void checkSerialError(const char *file, unsigned int line);
 };
