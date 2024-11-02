@@ -380,52 +380,60 @@ void
 XEGrabberCamera::setTriggerMode(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     stopTransmission();
+
+    if(isFeatureAvailableInRemoteModule("TriggerMode")) {
+        auto camera = interface()->camera();
+        if(mode != TriggerMode::CONTINUEOUS) {
+             std::map<TriggerMode, std::pair<std::string, std::string>> modes = {
+                 {TriggerMode::EXT_POS_EDGE, {"Timed", "RisingEdge"}},
+                 {TriggerMode::EXT_NEG_EDGE, {"Timed", "FallingEdge"}},
+                 {TriggerMode::EXT_POS_EXPOSURE, {"TriggerWidth", "RisingEdge"}},
+                 {TriggerMode::EXT_NEG_EXPOSURE, {"TriggerWidth", "FallingEdge"}},
+             };
+             try {
+                 using namespace Euresys;
+                 camera->setString<RemoteModule>("TriggerMode", "ON");
+                 camera->setString<RemoteModule>("ExposureMode", modes.at(mode).first);
+                 camera->setString<RemoteModule>("TriggerActivation", modes.at(mode).second);
+             }
+             catch (const std::exception &e) {
+                 throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+             }
+        }
+        else {
+            try {
+                using namespace Euresys;
+                camera->setString<RemoteModule>("TriggerMode", "OFF");
+            }
+            catch (const std::exception &e) {
+                throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+            }
+        }
+        m_isTrasmitting = true;
+    }
+    else {
+        setTriggerModeViaSerial(mode);
+    }
+
     auto camera = interface()->camera();
+    try {
+        using namespace Euresys;
+        camera->reallocBuffers(0);
+        camera->start((mode == TriggerMode::SINGLE) ? 1 : GENTL_INFINITE);
+    }
+        catch (const std::exception &e) {
+        throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+    }
+    m_isTrasmitting = true;
     if(mode == TriggerMode::SINGLE){
         try {
             using namespace Euresys;
-            camera->reallocBuffers(1);
-            camera->start(1);
             camera->execute<Euresys::RemoteModule>("TriggerSoftware");
         }
         catch (const std::exception &e) {
             throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
         }
-        m_isTrasmitting = true;
-        return;
     }
-
-    if(mode != TriggerMode::CONTINUEOUS) {
-         std::map<TriggerMode, std::pair<std::string, std::string>> modes = {
-             {TriggerMode::EXT_POS_EDGE, {"Timed", "RisingEdge"}},
-             {TriggerMode::EXT_NEG_EDGE, {"Timed", "FallingEdge"}},
-             {TriggerMode::EXT_POS_EXPOSURE, {"TriggerWidth", "RisingEdge"}},
-             {TriggerMode::EXT_NEG_EXPOSURE, {"TriggerWidth", "FallingEdge"}},
-         };
-         try {
-             using namespace Euresys;
-             camera->setString<RemoteModule>("TriggerMode", "ON");
-             camera->setString<RemoteModule>("ExposureMode", modes.at(mode).first);
-             camera->setString<RemoteModule>("TriggerActivation", modes.at(mode).second);
-             camera->reallocBuffers(1);
-             camera->start(GENTL_INFINITE);
-         }
-         catch (const std::exception &e) {
-             throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
-         }
-    }
-    else {
-        try {
-            using namespace Euresys;
-            camera->setString<RemoteModule>("TriggerMode", "OFF");
-            camera->reallocBuffers(1);
-            camera->start(GENTL_INFINITE);
-        }
-        catch (const std::exception &e) {
-            throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
-        }
-    }
-    m_isTrasmitting = true;
 }
 void
 XEGrabberCamera::setBlackLevelOffset(unsigned int blackLvlOffset) {
@@ -455,7 +463,7 @@ XEGrabberCamera::setExposureTime(double shutter) {
     }
 }
 void
-XEGrabberCamera::setCameraGain(unsigned int g) {
+XEGrabberCamera::setGain(unsigned int g, unsigned int emgain) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     auto camera = interface()->camera();
     try {
@@ -556,7 +564,7 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
     auto bool_features = {"ReverseX", "ReverseY"};
     auto float_features = {"AcquisitionFrameRate", "TriggerDelay",
         "ExposureTime", //[us]
-        "Gain",//[dB]
+        "Gain",
         "Balcklevel", "Gamma"
         };
     try {
@@ -658,7 +666,35 @@ XHamamatsuCameraOverGrablink::XHamamatsuCameraOverGrablink(const char *name, boo
     interface()->setSerialBaudRate(9600);
     interface()->setSerialEOS("\r");
 }
-
+bool
+XHamamatsuCameraOverGrablink::pushFeatureSerialCommand(shared_ptr<RawData> &writer, const char shortname[8]) {
+    std::string str8(shortname);
+    if(str8 == "OffsetX") {
+        writer->push<int64_t>(m_offsetx);
+        return true;
+    }
+    if(str8 == "OffsetY") {
+        writer->push<int64_t>(m_offsety);
+        return true;
+    }
+    if(str8 == "SensorWi") {
+        writer->push<int64_t>(m_xdatapx);
+        return true;
+    }
+    if(str8 == "SensorHe") {
+        writer->push<int64_t>(m_ydatapx);
+        return true;
+    }
+    if(str8 == "Gain") {
+        writer->push<double>(m_ceg);
+        return true;
+    }
+    if(str8 == "Exposure") {
+        writer->push<double>(m_rat * 1e6);
+        return true;
+    }
+    return false;
+}
 std::pair<unsigned int, unsigned int>
 XHamamatsuCameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) {
     roix = roix / 8 * 8;
@@ -693,14 +729,14 @@ XHamamatsuCameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned 
         interface()->queryf("SVW %u", roih);
         checkSerialError(__FILE__, __LINE__);
     }
+    m_offsetx = roix;
+    m_offsety = roiy;
     return {roiw, roih};
 }
 
 void
-XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
+XHamamatsuCameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    stopTransmission();
-
     char em = 'T'; //by AET
     char pol = 'P';
     char amd = 'N';
@@ -739,17 +775,6 @@ XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
 //        interface()->send("EST");
 //        checkSerialError(__FILE__, __LINE__);
 //    }
-
-    auto camera = interface()->camera();
-    try {
-        using namespace Euresys;
-        camera->reallocBuffers(1);
-        camera->start((mode == TriggerMode::SINGLE) ? 1 : GENTL_INFINITE);
-    }
-        catch (const std::exception &e) {
-        throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
-    }
-    m_isTrasmitting = true;
 }
 void
 XHamamatsuCameraOverGrablink::setBlackLevelOffset(unsigned int v) {
@@ -772,16 +797,24 @@ XHamamatsuCameraOverGrablink::setExposureTime(double shutter) {
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?RAT");
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->scanf("RAT %lf", &m_rat);
 }
 void
-XHamamatsuCameraOverGrablink::setCameraGain(unsigned int v) {
+XHamamatsuCameraOverGrablink::setGain(unsigned int v, unsigned int emgain) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     if(m_bIsEM)
-        interface()->queryf("EMG %u", v / 256u);
-    interface()->queryf("CEG %u", v % 256u);
+        interface()->queryf("EMG %u", emgain);
+    interface()->queryf("CEG %u", v);
     checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?EMG");
+    if(interface()->scanf("EMG%d", &m_emg) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    interface()->query("?CEG");
+    if(interface()->scanf("CEG%d", &m_ceg) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }
+
 void
 XHamamatsuCameraOverGrablink::afterOpen() {
     XScopedLock<XEGrabberInterface> lock( *interface()); //for serial opening.
@@ -836,18 +869,25 @@ XHamamatsuCameraOverGrablink::afterOpen() {
     if(interface()->scanf("RAT%lf", &v) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     trans( *exposureTime()) = v;
+    m_rat = v;
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
 
     y = 0;
     interface()->query("?EMG");
-    if(interface()->scanf("EMG%d", &y) == 1)
+    if(interface()->scanf("EMG%d", &y) == 1) {
         m_bIsEM = true;
+        m_emg = y;
+        trans( *emGain()) = y;
+    }
+    else
+        emGain()->disable();
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
 
     interface()->query("?CEG");
     if(interface()->scanf("CEG%d", &x) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
-    trans( *cameraGain()) = x + y * 256;
+    m_ceg = x;
+    trans( *cameraGain()) = x;
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("?CEO");
     if(interface()->scanf("CEO%d", &x) != 1)
@@ -895,19 +935,48 @@ XHamamatsuCameraOverGrablink::checkSerialError(const char *file, unsigned int li
     }
 }
 
+
 XJAICameraOverGrablink::XJAICameraOverGrablink(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XEGrabberCamera(name, runtime, ref(tr_meas), meas, true) {
     interface()->setSerialBaudRate(9600);
     interface()->setSerialEOS("\r\n");
+    emGain()->disable();
+}
+
+std::pair<unsigned int, unsigned int>
+XJAICameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) {
+    roix = roix / 8 * 8;
+    roiy = roiy / 8 * 8;
+    roiw = (roiw + 7) / 8 * 8;
+    roih = (roih + 7) / 8 * 8;
+    unsigned int w = m_sensorWidth;
+    unsigned int h = m_sensorHeight;
+    if( !roiw || !roih || (roix + roiw >= w) || (roiy + roih >= h) || (roiw > w) || (roih > h)) {
+        roix = 0; roiy = 0; roiw = w; roih = h;
+    }
+
+    interface()->queryf("OFC %u", roix);
+    checkSerialError(__FILE__, __LINE__);
+    interface()->queryf("WTC %u", roiw);
+    checkSerialError(__FILE__, __LINE__);
+    interface()->queryf("OFL %u", roiy);
+    checkSerialError(__FILE__, __LINE__);
+    interface()->queryf("HTL %u", roih);
+    checkSerialError(__FILE__, __LINE__);
+
+    Snapshot shot( *this);
+    unsigned int mode = shot[ *videoMode()];
+    interface()->queryf("VPB %u", (mode == 2) ? 0 : 1); //12 bit
+    checkSerialError(__FILE__, __LINE__);
+    interface()->queryf("BA %u", mode);
+    checkSerialError(__FILE__, __LINE__);
+
+    return {roiw, roih};
 }
 
 void
-XJAICameraOverGrablink::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
-    XScopedLock<XEGrabberInterface> lock( *interface());
-}
-void
-XJAICameraOverGrablink::setTriggerMode(TriggerMode mode) {
+XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     unsigned int em = 1, act = 0, asc = 0;
     switch(mode) {
@@ -955,18 +1024,23 @@ XJAICameraOverGrablink::setExposureTime(double shutter) {
     checkSerialError(__FILE__, __LINE__);
 }
 void
-XJAICameraOverGrablink::setCameraGain(unsigned int g) {
+XJAICameraOverGrablink::setGain(unsigned int g, unsigned int emgain) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     interface()->queryf("FGA=%u", g);
     checkSerialError(__FILE__, __LINE__);
 }
 void
 XJAICameraOverGrablink::afterOpen() {
+    XScopedLock<XEGrabberInterface> lock( *interface()); //for serial opening.
     interface()->query("DVN?");
     checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("MD?");
     checkSerialError(__FILE__, __LINE__);
+    if(interface()->toStrSimplified().find("GO-2400") != std::string::npos) {
+        m_sensorWidth = 1936;
+        m_sensorHeight = 1216;
+    }
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("DV?");
     checkSerialError(__FILE__, __LINE__);

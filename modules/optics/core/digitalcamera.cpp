@@ -25,6 +25,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_cameraGain(create<XDoubleNode>("CameraGain", true)),
+    m_emGain(create<XDoubleNode>("CameraGain", true)),
     m_blackLvlOffset(create<XUIntNode>("BlaclLevelOffset", true)),
     m_exposureTime(create<XDoubleNode>("ExposureTime", true)),
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
@@ -51,6 +52,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(triggerMode(), m_form->m_cmbTrigger, Snapshot( *triggerMode())),
         xqcon_create<XQLineEditConnector>(exposureTime(), m_form->m_edExposure),
         xqcon_create<XQDoubleSpinBoxConnector>(cameraGain(), m_form->m_dblCameraGain),
+        xqcon_create<XQDoubleSpinBoxConnector>(emGain(), m_form->m_dblEMGain),
         xqcon_create<XQSpinBoxUnsignedConnector>(blackLvlOffset(), m_form->m_spbBrightness),
         xqcon_create<XQSpinBoxUnsignedConnector>(antiShakePixels(), m_form->m_spbAntiVibrationPixels),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainProcessed),
@@ -62,6 +64,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 
     std::vector<shared_ptr<XNode>> runtime_ui{
         cameraGain(),
+        emGain(),
         blackLvlOffset(),
         exposureTime(),
         videoMode(),
@@ -114,9 +117,9 @@ XDigitalCamera::onTriggerModeChanged(const Snapshot &shot, XValueNodeBase *) {
     }
 }
 void
-XDigitalCamera::onCameraGainChanged(const Snapshot &shot, XValueNodeBase *) {
+XDigitalCamera::onGainChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        setCameraGain(shot[ *cameraGain()]);
+        setGain(shot[ *cameraGain()], shot[ *emGain()]);
     }
     catch (XKameError &e) {
         e.print(getLabel() + " " + i18n(" Error"));
@@ -507,6 +510,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 
     std::vector<shared_ptr<XNode>> runtime_ui{
         cameraGain(),
+        emGain(),
         blackLvlOffset(),
         exposureTime(),
         videoMode(),
@@ -524,8 +528,9 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XDigitalCamera::onVideoModeChanged);
         m_lsnOnTriggerModeChanged = tr[ *triggerMode()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onTriggerModeChanged);
-        m_lsnOnCameraGainChanged = tr[ *cameraGain()].onValueChanged().connectWeakly(
-            shared_from_this(), &XDigitalCamera::onCameraGainChanged);
+        m_lsnOnGainChanged = tr[ *cameraGain()].onValueChanged().connectWeakly(
+            shared_from_this(), &XDigitalCamera::onGainChanged);
+        tr[ *cameraGain()].onValueChanged().connect(m_lsnOnGainChanged);
         m_lsnOnBlackLevelOffsetChanged = tr[ *blackLvlOffset()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onBlackLevelOffsetChanged);
         m_lsnOnExposureTimeChanged = tr[ *exposureTime()].onValueChanged().connectWeakly(
@@ -566,7 +571,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
             tr[ *x].setUIEnabled(false);
     });
 
-    m_lsnOnCameraGainChanged.reset();
+    m_lsnOnGainChanged.reset();
     m_lsnOnBlackLevelOffsetChanged.reset();
     m_lsnOnExposureTimeChanged.reset();
     m_lsnOnTriggerModeChanged.reset();

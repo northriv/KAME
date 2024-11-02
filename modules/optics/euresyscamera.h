@@ -142,7 +142,7 @@ protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
     virtual void setTriggerMode(TriggerMode mode) override;
     virtual void setBlackLevelOffset(unsigned int v) override;
-    virtual void setCameraGain(unsigned int g) override;
+    virtual void setGain(unsigned int g, unsigned int emgain) override;
     virtual void setExposureTime(double time) override;
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
@@ -156,6 +156,7 @@ protected:
 
     virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) {return false;}
     virtual std::pair<unsigned int, unsigned int> setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) {return {};}
+    virtual void setTriggerModeViaSerial(TriggerMode mode) {};
 private:
     std::vector<std::string> m_featuresInRemoteModule;
     bool isFeatureAvailableInRemoteModule(const std::string &s) const {
@@ -177,15 +178,15 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XHamamatsuCameraOverGrablink() {}
 protected:
-    virtual void setTriggerMode(TriggerMode mode) override;
     virtual void setBlackLevelOffset(unsigned int v) override;
-    virtual void setCameraGain(unsigned int g) override;
+    virtual void setGain(unsigned int g, unsigned int emgain) override;
     virtual void setExposureTime(double time) override;
 
     virtual void afterOpen() override;
 
-    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) override {return false;}
+    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) override;
     virtual std::pair<unsigned int, unsigned int> setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) override;
+    virtual void setTriggerModeViaSerial(TriggerMode mode);
 
     void checkSerialError(const char *file, unsigned int line);
 
@@ -194,6 +195,9 @@ protected:
     unsigned int m_xdummypx, m_xdatapx, m_ydummypx, m_ydatapx; //dummy px, available px
     unsigned int m_maxBitsFast, m_maxBitsSlow;
     bool m_bHasSlowScan = false;
+    unsigned int m_offsetx, m_offsety;
+    double m_rat;
+    unsigned int m_emg, m_ceg;
 };
 
 class XJAICameraOverGrablink : public XEGrabberCamera {
@@ -202,17 +206,19 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XJAICameraOverGrablink() {}
 protected:
-    virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
-    virtual void setTriggerMode(TriggerMode mode) override;
     virtual void setBlackLevelOffset(unsigned int offset) override;
-    virtual void setCameraGain(unsigned int db) override;
+    virtual void setGain(unsigned int g, unsigned int emgain) override;
     virtual void setExposureTime(double time) override;
 
     virtual void afterOpen() override;
 
     virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) {return false;}
+    virtual std::pair<unsigned int, unsigned int> setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) override;
+    virtual void setTriggerModeViaSerial(TriggerMode mode);
 
     void checkSerialError(const char *file, unsigned int line);
+
+    unsigned int m_sensorWidth, m_sensorHeight;
 };
 #endif //USE_EURESYS_EGRABBER
 

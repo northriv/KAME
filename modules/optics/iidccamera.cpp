@@ -91,6 +91,7 @@ XDC1394Interface::close() {
 XIIDCCamera::XIIDCCamera(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XDC1394Driver<XDigitalCamera>(name, runtime, ref(tr_meas), meas) {
+    emGain()->disable();
 }
 
 void
@@ -431,7 +432,7 @@ XIIDCCamera::setExposureTime(double shutter) {
     setTriggerMode(static_cast<TriggerMode>((unsigned int)Snapshot( *this)[ *triggerMode()]));
 }
 void
-XIIDCCamera::setCameraGain(unsigned int v) {
+XIIDCCamera::setGain(unsigned int v, unsigned int emgain) {
     XScopedLock<XDC1394Interface> lock( *interface());
 //    stopTransmission();
     if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, v))
