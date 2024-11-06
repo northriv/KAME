@@ -394,7 +394,7 @@
        <item>
         <widget class="QCheckBox" name="m_ckbAutoGainProcessed">
          <property name="text">
-          <string>Auto Gain</string>
+          <string>Auto Gain (16bit FS)</string>
          </property>
         </widget>
        </item>
