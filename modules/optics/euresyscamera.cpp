@@ -418,7 +418,7 @@ XEGrabberCamera::setTriggerMode(TriggerMode mode) {
     auto camera = interface()->camera();
     try {
         using namespace Euresys;
-        camera->reallocBuffers(0);
+        camera->reallocBuffers(3);
         camera->start((mode == TriggerMode::SINGLE) ? 1 : GENTL_INFINITE);
     }
         catch (const std::exception &e) {
@@ -536,7 +536,7 @@ XEGrabberCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 
     tr[ *this].m_status = formatString("%ux%u @(%u,%u), %u MB/s, %u fps",
         (unsigned int)width, (unsigned int)height, (unsigned int)xpos, (unsigned int)ypos,
-        (unsigned int)fr, (unsigned int)dr);
+        (unsigned int)dr, (unsigned int)fr);
 }
 
 XTime
@@ -578,7 +578,7 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
                 int64_t v = camera->getInteger<RemoteModule>(feat);
                 writer->push<int64_t>(v);
             }
-            else if( !pushFeatureSerialCommand(writer, (char *)&*writer->end() - 8))
+            else if( !pushFeatureSerialCommand(writer, feat))
                     writer->push<int64_t>(0);
         }
         writer->push<uint32_t>(enum_features.size());
@@ -589,7 +589,7 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
                 int32_t v = camera->getInteger<RemoteModule>(feat);
                 writer->push<int32_t>(v);
             }
-            else if( !pushFeatureSerialCommand(writer, (char *)&*writer->end() - 8))
+            else if( !pushFeatureSerialCommand(writer, feat))
                     writer->push<int32_t>(0);
         }
         writer->push<uint32_t>(bool_features.size());
@@ -600,7 +600,7 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
                 int16_t v = camera->getInteger<RemoteModule>(feat);
                 writer->push<int16_t>(v);
             }
-            else if( !pushFeatureSerialCommand(writer, (char *)&*writer->end() - 8))
+            else if( !pushFeatureSerialCommand(writer, feat))
                     writer->push<int16_t>(0);
         }
         writer->push<uint32_t>(float_features.size());
@@ -611,7 +611,7 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
                 double v = camera->getFloat<RemoteModule>(feat);
                 writer->push<double>(v);
             }
-            else if( !pushFeatureSerialCommand(writer, (char *)&*writer->end() - 8))
+            else if( !pushFeatureSerialCommand(writer, feat))
                     writer->push<double>(0.0);
         }
         writer->push<int64_t>(0); //for future use.
@@ -667,29 +667,28 @@ XHamamatsuCameraOverGrablink::XHamamatsuCameraOverGrablink(const char *name, boo
     interface()->setSerialEOS("\r");
 }
 bool
-XHamamatsuCameraOverGrablink::pushFeatureSerialCommand(shared_ptr<RawData> &writer, const char shortname[8]) {
-    std::string str8(shortname);
-    if(str8 == "OffsetX") {
+XHamamatsuCameraOverGrablink::pushFeatureSerialCommand(shared_ptr<RawData> &writer, const std::string &featname) {
+    if(featname == "OffsetX") {
         writer->push<int64_t>(m_offsetx);
         return true;
     }
-    if(str8 == "OffsetY") {
+    if(featname == "OffsetY") {
         writer->push<int64_t>(m_offsety);
         return true;
     }
-    if(str8 == "SensorWi") {
+    if(featname == "SensorWidth") {
         writer->push<int64_t>(m_xdatapx);
         return true;
     }
-    if(str8 == "SensorHe") {
+    if(featname == "SensorHeight") {
         writer->push<int64_t>(m_ydatapx);
         return true;
     }
-    if(str8 == "Gain") {
+    if(featname == "Gain") {
         writer->push<double>(m_ceg);
         return true;
     }
-    if(str8 == "Exposure") {
+    if(featname == "ExposureTime") {
         writer->push<double>(m_rat * 1e6);
         return true;
     }
@@ -956,20 +955,20 @@ XJAICameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int ro
         roix = 0; roiy = 0; roiw = w; roih = h;
     }
 
-    interface()->queryf("OFC %u", roix);
+    interface()->queryf("OFC=%u", roix);
     checkSerialError(__FILE__, __LINE__);
-    interface()->queryf("WTC %u", roiw);
+    interface()->queryf("WTC=%u", roiw);
     checkSerialError(__FILE__, __LINE__);
-    interface()->queryf("OFL %u", roiy);
+    interface()->queryf("OFL=%u", roiy);
     checkSerialError(__FILE__, __LINE__);
-    interface()->queryf("HTL %u", roih);
+    interface()->queryf("HTL=%u", roih);
     checkSerialError(__FILE__, __LINE__);
 
     Snapshot shot( *this);
     unsigned int mode = shot[ *videoMode()];
-    interface()->queryf("VPB %u", (mode == 2) ? 0 : 1); //12 bit
+    interface()->queryf("VPB=%u", (mode == 2) ? 0 : 1); //12 bit
     checkSerialError(__FILE__, __LINE__);
-    interface()->queryf("BA %u", mode);
+    interface()->queryf("BA=%u", mode);
     checkSerialError(__FILE__, __LINE__);
 
     return {roiw, roih};

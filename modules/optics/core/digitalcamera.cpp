@@ -117,7 +117,8 @@ XDigitalCamera::onTriggerModeChanged(const Snapshot &shot, XValueNodeBase *) {
     }
 }
 void
-XDigitalCamera::onGainChanged(const Snapshot &shot, XValueNodeBase *) {
+XDigitalCamera::onGainChanged(const Snapshot &, XValueNodeBase *) {
+    Snapshot shot( *this);
     try {
         setGain(shot[ *cameraGain()], shot[ *emGain()]);
     }
@@ -530,7 +531,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XDigitalCamera::onTriggerModeChanged);
         m_lsnOnGainChanged = tr[ *cameraGain()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onGainChanged);
-        tr[ *cameraGain()].onValueChanged().connect(m_lsnOnGainChanged);
+        tr[ *emGain()].onValueChanged().connect(m_lsnOnGainChanged);
         m_lsnOnBlackLevelOffsetChanged = tr[ *blackLvlOffset()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onBlackLevelOffsetChanged);
         m_lsnOnExposureTimeChanged = tr[ *exposureTime()].onValueChanged().connectWeakly(

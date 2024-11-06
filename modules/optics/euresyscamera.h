@@ -154,7 +154,7 @@ protected:
     void stopTransmission();
     atomic<bool> m_isTrasmitting;
 
-    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) {return false;}
+    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const std::string &featname) {return false;}
     virtual std::pair<unsigned int, unsigned int> setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) {return {};}
     virtual void setTriggerModeViaSerial(TriggerMode mode) {};
 private:
@@ -184,7 +184,7 @@ protected:
 
     virtual void afterOpen() override;
 
-    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) override;
+    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const std::string &featname) override;
     virtual std::pair<unsigned int, unsigned int> setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) override;
     virtual void setTriggerModeViaSerial(TriggerMode mode);
 
