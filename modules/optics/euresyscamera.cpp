@@ -955,6 +955,7 @@ XJAICameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int ro
         roix = 0; roiy = 0; roiw = w; roih = h;
     }
 
+    checkSerialError(__FILE__, __LINE__);
     interface()->queryf("OFC=%u", roix);
     checkSerialError(__FILE__, __LINE__);
     interface()->queryf("WTC=%u", roiw);
@@ -966,7 +967,7 @@ XJAICameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int ro
 
     Snapshot shot( *this);
     unsigned int mode = shot[ *videoMode()];
-    interface()->queryf("VPB=%u", (mode == 2) ? 0 : 1); //12 bit
+    interface()->queryf("VPB=%u", (mode >= 2) ? 0 : 1); //12 bit
     checkSerialError(__FILE__, __LINE__);
     interface()->queryf("BA=%u", mode);
     checkSerialError(__FILE__, __LINE__);
