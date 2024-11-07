@@ -955,7 +955,6 @@ XJAICameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int ro
         roix = 0; roiy = 0; roiw = w; roih = h;
     }
 
-    checkSerialError(__FILE__, __LINE__);
     interface()->queryf("OFC=%u", roix);
     checkSerialError(__FILE__, __LINE__);
     interface()->queryf("WTC=%u", roiw);
@@ -1000,14 +999,19 @@ XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
         em = 2;
         break;
     }
-    interface()->queryf("EM=%u", em);
+    interface()->queryf("TAGM=%u", 1u); //DeviceTapGeometry, Geometry_1X2_1Y
     checkSerialError(__FILE__, __LINE__);
-    interface()->queryf("ASC=%u", asc);
+    interface()->camera()->setInteger<Euresys::StreamModule>("DeviceTapGeometrySource", 1); //DataStream
+    interface()->camera()->setInteger<Euresys::StreamModule>("StripeArrangement", 1); //Geometry_1X2_1Y
+
+    interface()->queryf("EM=%u", em); //ExposureMode
     checkSerialError(__FILE__, __LINE__);
-    interface()->queryf("TA=%u", act);
+    interface()->queryf("ASC=%u", asc); //ExposureAuto
+    checkSerialError(__FILE__, __LINE__);
+    interface()->queryf("TA=%u", act); //FrameStartTrigActivation
     checkSerialError(__FILE__, __LINE__);
     if(mode == TriggerMode::SINGLE) {
-        interface()->query("STRG=0");
+        interface()->query("STRG=0"); //TriggerSoftware
         checkSerialError(__FILE__, __LINE__);
     }
 }
@@ -1020,8 +1024,11 @@ XJAICameraOverGrablink::setBlackLevelOffset(unsigned int v) {
 void
 XJAICameraOverGrablink::setExposureTime(double shutter) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    interface()->queryf("PE=%lu", lrint(shutter * 1e6));
+    interface()->queryf("PE=%lu", lrint(shutter * 1e6)); //ExposureTimeRaw
     checkSerialError(__FILE__, __LINE__);
+    interface()->query("TMP0?");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
 }
 void
 XJAICameraOverGrablink::setGain(unsigned int g, unsigned int emgain) {
@@ -1037,7 +1044,7 @@ XJAICameraOverGrablink::afterOpen() {
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
     interface()->query("MD?");
     checkSerialError(__FILE__, __LINE__);
-    if(interface()->toStrSimplified().find("GO-2400") != std::string::npos) {
+    if(interface()->toStrSimplified().find("GO-24") != std::string::npos) {
         m_sensorWidth = 1936;
         m_sensorHeight = 1216;
     }
