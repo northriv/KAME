@@ -1003,7 +1003,7 @@ XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
     interface()->queryf("TAGM=%u", 1u); //DeviceTapGeometry, Geometry_1X2_1Y
     checkSerialError(__FILE__, __LINE__);
     interface()->camera()->setString<Euresys::StreamModule>("DeviceTapGeometrySource", "DataStream");
-    interface()->camera()->setString<Euresys::StreamModule>("StripeArrangement", "Geometry_1X2_1Y");
+    interface()->camera()->setString<Euresys::StreamModule>("RemoteDeviceTapGeometry", "Geometry_1X2_1Y");
 
     interface()->queryf("EM=%u", em); //ExposureMode
     checkSerialError(__FILE__, __LINE__);
