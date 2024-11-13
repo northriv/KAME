@@ -344,7 +344,7 @@ XCharInterface::lock() {
 }
 void
 XCharInterface::unlock() {
-    if(isOpened())
+    if(isOpened() && openedPort()->isLocked())
         openedPort()->unlock();
     XInterface::unlock();
 }

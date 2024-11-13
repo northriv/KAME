@@ -189,6 +189,7 @@ public:
 
     virtual void lock() {} //must use XInterface::lock().
     virtual void unlock() {}
+    virtual bool isLocked() const {return false;}
 protected:
     //! XInterface::XCommError will be thrown if IO fails.
     virtual void send(const char *str) = 0;
@@ -238,6 +239,7 @@ public:
 
     virtual void lock() override {m_mutex.lock();}
     virtual void unlock() override {m_mutex.unlock();}
+    virtual bool isLocked() const {return m_mutex.isLockedByCurrentThread();}
 private:
     XRecursiveMutex m_mutex;
 };
