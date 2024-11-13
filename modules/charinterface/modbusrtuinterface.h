@@ -29,7 +29,7 @@ public:
     virtual void writeTo(XCharInterface *intf, const char *sendbuf, int size) override {write(sendbuf, size);}
     virtual void receiveFrom(XCharInterface *intf) override {receive();}
     virtual void receiveFrom(XCharInterface *intf, unsigned int length) override {receive(length);}
-private:
+
     XTime m_lastTimeStamp;
 };
 
@@ -61,14 +61,6 @@ public:
 	}
 
     virtual void open();
-	//! This can be called even if has already closed.
-	virtual void close();
-
-    //hack for Sigma, todo: mutex should be held by port, or wrapper.
-    virtual void send(const char *str);
-    virtual void receive();
-
-    virtual bool isOpened() const {return !!m_openedPort;}
 
 protected:
 	void query_unicast(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
@@ -89,15 +81,6 @@ private:
 		return get_word(ptr + 2) + get_word(ptr) * 0x10000uL;
 	}
     uint16_t crc16(const unsigned char *bytes, uint32_t count);
-
-    struct PortWrapper {
-        shared_ptr<XPort> port;
-        XTime lastTimeStamp;
-        XMutex mutex; //for the port.
-    };
-    shared_ptr<PortWrapper> m_openedPort;
-    static XMutex s_globalMutex;
-    static std::deque<weak_ptr<PortWrapper>> s_openedPorts; //should be guarded by s_globalMutex.
 };
 
 template <class T>

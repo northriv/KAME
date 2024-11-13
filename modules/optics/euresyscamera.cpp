@@ -1040,8 +1040,8 @@ XJAICameraOverGrablink::setGain(unsigned int g, unsigned int emgain) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     interface()->queryf("FGA=%lu", lrint((g / 256.0) * 1500 + 100));
     checkSerialError(__FILE__, __LINE__);
-    interface()->queryf("AGC=%u", 0); //AutoGainControl off
-    checkSerialError(__FILE__, __LINE__);
+//    interface()->queryf("AGC=%u", 0); //AutoGainControl off
+//    checkSerialError(__FILE__, __LINE__);
 }
 void
 XJAICameraOverGrablink::afterOpen() {

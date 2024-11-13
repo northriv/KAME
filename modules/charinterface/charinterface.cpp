@@ -195,7 +195,10 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
 			shared_from_this(), &XCharInterface::onQueryRequested);
     });
 }
-         
+
+void XCharInterface::openPort(shared_ptr<XPort> &&port) {
+    m_xport = port->open(this); //for XAddressedPort, returned port may be one already exists.
+}
 void
 XCharInterface::open() {
 	m_xport.reset();
@@ -233,8 +236,7 @@ XCharInterface::open() {
 		if( !port) {
 			throw XOpenInterfaceError(__FILE__, __LINE__);
 		}
-        port = port->open(this); //for XAddressedPort, returned port may be one already exists.
-        m_xport.swap(port);
+        openPort(std::move(port));
 	}
 }
 void
