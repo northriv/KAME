@@ -64,7 +64,7 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
 
             buf.resize(ret_buf.size() + 4);
             receive(2); //addr + func_code.
-            std::copy(buffer().begin(), buffer().end(), buf.begin());
+            std::copy(buffer_receive().begin(), buffer_receive().end(), buf.begin());
 
             if(buf[0] != slave_addr) {
                 if(buf[1] == slave_addr) {
@@ -99,11 +99,11 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
             }
 
             receive(ret_buf.size() + 2); //Rest of message.
-            std::copy(buffer().begin(), buffer().end(), buf.begin() + 2);
+            std::copy(buffer_receive().begin(), buffer_receive().end(), buf.begin() + 2);
             crc = crc16( &buf[0], buf.size() - 2);
             if(crc != get_word( &buf[buf.size() - 2]))
                 throw XInterfaceError("Modbus RTU CRC Error.", __FILE__, __LINE__);
-            std::copy(buffer().begin(), buffer().end() - 2, ret_buf.begin());
+            std::copy(buffer_receive().begin(), buffer_receive().end() - 2, ret_buf.begin());
 
             port->m_lastTimeStamp = XTime::now();
         }
