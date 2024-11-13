@@ -70,7 +70,7 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
                 if(buf[1] == slave_addr) {
                     buf[0] = buf[1];
                     receive(1); //func_code.
-                    buf[1] = buffer()[0];
+                    buf[1] = buffer_receive()[0];
                 }
                 else if((buf[1] & 0x7fu) == func_code) {
                     buf[0] = slave_addr;
@@ -84,7 +84,7 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
                 throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
             if(buf[1] != func_code) {
                 receive(3);
-                switch(buffer()[0]) {
+                switch(buffer_receive()[0]) {
                 case 0x01:
                     throw XInterfaceError("Modbus RTU Ill Function.", __FILE__, __LINE__);
                 case 0x02:

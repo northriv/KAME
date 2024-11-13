@@ -238,12 +238,6 @@ public:
 
     virtual void lock() override {m_mutex.lock();}
     virtual void unlock() override {m_mutex.unlock();}
-protected:
-    //! XInterface::XCommError will be thrown if IO fails.
-    virtual void send(const char *) override {}
-    virtual void write(const char *, int ) override {}
-    virtual void receive() override {}
-    virtual void receive(unsigned int) override {}
 private:
     XRecursiveMutex m_mutex;
 };
