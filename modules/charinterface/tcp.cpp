@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -73,7 +73,7 @@ XTCPSocketPort::reopen_socket() {
     open(0);
 }
 
-void
+shared_ptr<XPort>
 XTCPSocketPort::open(const XCharInterface *pInterface) {
     std::string ipaddr = portString();
 	int colpos = ipaddr.find_first_of(':');
@@ -121,6 +121,8 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
 #endif
         throw XInterface::XCommError(formatString_tr(I18N_NOOP("tcp open failed %u"), errno).c_str(), __FILE__, __LINE__);
 	}
+
+    return shared_from_this();
 }
 void
 XTCPSocketPort::send(const char *str) {

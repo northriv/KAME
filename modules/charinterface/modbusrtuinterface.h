@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -17,6 +17,21 @@
 #include "charinterface.h"
 #include "chardevicedriver.h"
 #include "serial.h"
+
+class XModbusRTUPort : public XAddressedPort<XSerialPort> {
+public:
+    XModbusRTUPort(XCharInterface *interface) : XAddressedPort<XSerialPort>(interface) {}
+    virtual ~XModbusRTUPort() {}
+
+    virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override {m_lastTimeStamp = XTime::now();}
+
+    virtual void sendTo(XCharInterface *intf, const char *str) override {send(str);}
+    virtual void writeTo(XCharInterface *intf, const char *sendbuf, int size) override {write(sendbuf, size);}
+    virtual void receiveFrom(XCharInterface *intf) override {receive();}
+    virtual void receiveFrom(XCharInterface *intf, unsigned int length) override {receive(length);}
+private:
+    XTime m_lastTimeStamp;
+};
 
 class XModbusRTUInterface : public XCharInterface {
 public:

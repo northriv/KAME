@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -28,10 +28,10 @@ XDummyPort::~XDummyPort()
 {
     m_stream.close();
 }
-void
-XDummyPort::open(const XCharInterface *pInterface)
+shared_ptr<XPort> XDummyPort::open(const XCharInterface *pInterface)
 {
     m_stream.open(DUMMYPORT_FILENAME, std::ios::out);
+    return shared_from_this();
 }
 void
 XDummyPort::send(const char *str)

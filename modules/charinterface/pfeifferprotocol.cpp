@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2020 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -73,8 +73,8 @@ XPfeifferProtocolInterface::action(unsigned int addr, bool iscontrol,
         csum += c;
     csum = csum % 0x100u;
     buf += formatString("%03u", csum);
-    port->send(buf.c_str());
-    port->receive();
+    port->sendTo(this, buf.c_str());
+    port->receiveFrom(this);
     unsigned int res_addr, res_action, res_param_no, res_len;
     if(scanf("%3u%2u%3u%2u", &res_addr, &res_action, &res_param_no, &res_len) != 4)
         throw XInterface::XConvError(__FILE__, __LINE__);

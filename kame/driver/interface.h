@@ -55,9 +55,9 @@ public:
 	//! True if interface is opened. Start/stop interface.
 	const shared_ptr<XBoolNode> &control() const {return m_control;}
 
-	void lock() {m_mutex.lock();}
-	void unlock() {m_mutex.unlock();}
-	bool isLocked() const {return m_mutex.isLockedByCurrentThread();}
+    virtual void lock() {m_mutex.lock();}
+    virtual void unlock() {m_mutex.unlock();}
+    virtual bool isLocked() const {return m_mutex.isLockedByCurrentThread();}
 
 	XRecursiveMutex &mutex() {return m_mutex;}
     

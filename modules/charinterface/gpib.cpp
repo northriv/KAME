@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,14 +12,133 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "gpib.h"
-
-#include <errno.h>
-
-#include <string.h>
-
 #include "support.h"
 
+shared_ptr<XPort>
+XPrologixGPIBPort::open(const XCharInterface *pInterface) {
+    auto p = XAddressedPort<XSerialPort>::open(pInterface);
+    XSerialPort::setEOS("\r");//CR
+    XSerialPort::send("++mode 1\r" "++auto 0\r" "++ifc\r");
+    XSerialPort::send("++eot_enable\r" "++eot_char 13\r"); //CR
+    return p;
+}
+
+void
+XPrologixGPIBPort::sendTo(XCharInterface *intf, const char *str) {
+    if(eos().empty())
+        writeTo(intf, str, strlen(str));
+    else
+        writeTo(intf, (str + eos()).c_str(), strlen(str) + eos().length());
+}
+void
+XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) {
+    std::string buf;
+    for(const char *p = sendbuf; p < sendbuf + size; ++p) {
+        switch( *p) {
+        case '\r':
+        case '\n':
+        case '+':
+            buf += 0x1b; //ESC
+            break;
+        default:
+            break;
+        }
+        buf += *p;
+    }
+    buf += '\r';
+
+    if(intf->gpibUseSerialPollOnWrite()) {
+        for(int i = 0; ; i++) {
+            if(i > 10) {
+                throw XInterface::XCommError(
+                    i18n("too many spoll timeouts"), __FILE__, __LINE__);
+            }
+            msecsleep(intf->gpibWaitBeforeSPoll());
+            setupAddrEOSAndSend(intf, "++spoll\r");
+            XSerialPort::receive();
+            unsigned char spr = intf->toUInt();
+            if((spr & intf->gpibMAVbit())) {
+                //MAV detected
+                if(i < 2) {
+                    msecsleep(5*i + 5);
+                    continue;
+                }
+                gErrPrint(i18n("ibrd before ibwrt asserted"));
+                // clear device's buffer
+                setupAddrEOSAndSend(intf, "++read eoi\r");
+                XSerialPort::receive();
+                break;
+            }
+            break;
+        }
+    }
+    if(intf->gpibWaitBeforeWrite())
+        msecsleep(intf->gpibWaitBeforeWrite());
+    setupAddrEOSAndSend(intf, buf);
+}
+void
+XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
+    gpib_spoll_before_read(intf);
+    if(intf->gpibWaitBeforeRead())
+        msecsleep(intf->gpibWaitBeforeRead());
+    setupAddrEOSAndSend(intf, "++read eoi\r");
+    XSerialPort::receive();
+}
+void
+XPrologixGPIBPort::receiveFrom(XCharInterface *intf, unsigned int length) {
+    gpib_spoll_before_read(intf);
+    if(intf->gpibWaitBeforeRead())
+        msecsleep(intf->gpibWaitBeforeRead());
+    setupAddrEOSAndSend(intf, formatString("++read %u\r", length));
+    XSerialPort::receive(length);
+}
+void
+XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
+    if(intf->gpibUseSerialPollOnRead()) {
+        for(int i = 0; ; i++) {
+            if(i > 30) {
+                throw XInterface::XCommError(
+                    i18n("too many spoll timeouts"), __FILE__, __LINE__);
+            }
+            msecsleep(intf->gpibWaitBeforeSPoll());
+            setupAddrEOSAndSend(intf, "++spoll\r");
+            XSerialPort::receive();
+            unsigned char spr = intf->toUInt();
+            if(((spr & intf->gpibMAVbit()) == 0)) {
+                //MAV isn't detected
+                msecsleep(10 * i + 10);
+                continue;
+            }
+            break;
+        }
+    }
+}
+void
+XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd) {
+    Snapshot shot( *intf);
+    if(shot[ *intf->address()] != m_lastAddr) {
+        m_lastAddr = shot[ *intf->address()];
+        std::string cmd = formatString("addr %u\r", m_lastAddr);
+        if(intf->eos() == "\r")
+            cmd += "++eos 1\r";
+        else if(intf->eos() == "\n")
+            cmd += "++eos 2\r";
+        else if(intf->eos() == "\r\n")
+            cmd += "++eos 0\r";
+        else
+            cmd += "++eos 3\r"; //none
+        cmd += extcmd;
+        XSerialPort::send(cmd.c_str());
+    }
+    else
+        XSerialPort::send(extcmd.c_str());
+}
+
 #ifdef HAVE_LINUX_GPIB
+
+#include <errno.h>
+#include <string.h>
+
 #define __inline__  __inline
 #include <gpib/ib.h>
 #endif
@@ -156,7 +275,7 @@ XNIGPIBPort::gpib_reset() {
     gpib_open();
 }
 
-void
+shared_ptr<XPort>
 XNIGPIBPort::open(const XCharInterface *pInterface) {
     Snapshot shot( *pInterface);
     m_address = shot[ *pInterface->address()];
@@ -167,6 +286,8 @@ XNIGPIBPort::open(const XCharInterface *pInterface) {
     m_bGPIBUseSerialPollOnWrite = pInterface->gpibUseSerialPollOnWrite();
     m_bGPIBUseSerialPollOnRead = pInterface->gpibUseSerialPollOnRead();
     m_gpibMAVbit = pInterface->gpibMAVbit();
+
+    return shared_from_this();
 }
 
 void

@@ -149,8 +149,8 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
     auto port = m_openedPort;
     XScopedLock<XMutex> lock(s_lock); //!\todo better to use port-by-port lock.
     msecsleep(1);
-    port->write( reinterpret_cast<char*>( &buf[0]), buf.size());
-    port->receive(1);
+    port->writeTo(this, reinterpret_cast<char*>( &buf[0]), buf.size());
+    port->receiveFrom(this, 1);
     switch(port->buffer()[0]) {
     case ACK:
         break;
@@ -161,7 +161,7 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
             __FILE__, __LINE__);
     }
     if(write) {
-        port->receive(1);
+        port->receiveFrom(this, 1);
         switch(port->buffer()[0]) {
         case ACK:
             break;
@@ -173,7 +173,7 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
         }
     }
     else {
-        port->receive(4);
+        port->receiveFrom(this, 4);
         if((port->buffer()[0] != 0) || (port->buffer()[1] != STX))
             throw XInterfaceError(
                 formatString("Fujikin Protocol Command Error ret=%4s.", (const char*)&port->buffer()[0]),
@@ -182,7 +182,7 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
         uint8_t checksum = 0;
         for(auto it = port->buffer().begin(); it != port->buffer().end(); ++it)
             checksum += *it;
-        port->receive(len + 2);
+        port->receiveFrom(this, len + 2);
 //		if((master->buffer()[0] != classid) || (master->buffer()[1] != instanceid) || (master->buffer()[2] != attributeid))
 //			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
         if((port->buffer()[len] != 0)) //pad

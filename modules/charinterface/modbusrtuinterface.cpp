@@ -93,17 +93,17 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
             uint16_t crc = crc16( &buf[0], buf.size() - 2);
             set_word( &buf[buf.size() - 2], crc);
 
-            port->port->write( reinterpret_cast<char*>(&buf[0]), buf.size());
+            port->port->writeTo(this, reinterpret_cast<char*>(&buf[0]), buf.size());
         //    msecsleep(buf.size() * msec_per_char + std::max(3.0, 3.5 * msec_per_char) + 0.5); //For O_NONBLOCK.
 
             buf.resize(ret_buf.size() + 4);
-            port->port->receive(2); //addr + func_code.
+            port->port->receiveFrom(this, 2); //addr + func_code.
             std::copy(port->port->buffer().begin(), port->port->buffer().end(), buf.begin());
 
             if(buf[0] != slave_addr) {
                 if(buf[1] == slave_addr) {
                     buf[0] = buf[1];
-                    port->port->receive(1); //func_code.
+                    port->port->receiveFrom(this, 1); //func_code.
                     buf[1] = port->port->buffer()[0];
                 }
                 else if((buf[1] & 0x7fu) == func_code) {
@@ -117,7 +117,7 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
             if((buf[1] & 0x7fu) != func_code)
                 throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
             if(buf[1] != func_code) {
-                port->port->receive(3);
+                port->port->receiveFrom(this, 3);
                 switch(port->port->buffer()[0]) {
                 case 0x01:
                     throw XInterfaceError("Modbus RTU Ill Function.", __FILE__, __LINE__);
@@ -132,7 +132,7 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
                 }
             }
 
-            port->port->receive( ret_buf.size() + 2); //Rest of message.
+            port->port->receiveFrom(this, ret_buf.size() + 2); //Rest of message.
             std::copy(port->port->buffer().begin(), port->port->buffer().end(), buf.begin() + 2);
             crc = crc16( &buf[0], buf.size() - 2);
             if(crc != get_word( &buf[buf.size() - 2]))
@@ -194,11 +194,11 @@ void
 XModbusRTUInterface::send(const char *str) {
     auto port = m_openedPort;
     XScopedLock<XMutex> portlock(port->mutex);
-    port->port->send(str);
+    port->port->sendTo(this, str);
 }
 void
 XModbusRTUInterface::receive() {
     auto port = m_openedPort;
     XScopedLock<XMutex> portlock(port->mutex);
-    port->port->receive();
+    port->port->receiveFrom(this);
 }

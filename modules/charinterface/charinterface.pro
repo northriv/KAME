@@ -62,12 +62,14 @@ win32 {
 }
 
 macx{
-    exists("/Library/Frameworks/NI4882.framework") {
-        INCLUDEPATH += /Library/Frameworks/NI4882.framework/Headers
-        LIBS += -F/Library/Frameworks -framework NI4882
-        DEFINES += HAVE_NI4882
-    }
-    else {
-        message("Missing library for NI488.2")
+    contains(QMAKE_HOST.arch, x86) | contains(QMAKE_HOST.arch, x86_64) {
+        exists("/Library/Frameworks/NI4882.framework") {
+            INCLUDEPATH += /Library/Frameworks/NI4882.framework/Headers
+            LIBS += -F/Library/Frameworks -framework NI4882
+            DEFINES += HAVE_NI4882
+        }
+        else {
+            message("Missing library for NI488.2")
+        }
     }
 }

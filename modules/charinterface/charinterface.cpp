@@ -28,6 +28,9 @@
 
 XThreadLocal<std::vector<char> > XCustomCharInterface::s_tlBuffer;
 
+std::deque<weak_ptr<XPort>> XPort::s_openedPorts; //should be guarded by s_mutex.
+XMutex XPort::s_mutex;
+
 XCustomCharInterface::XCustomCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
     XInterface(name, runtime, driver) {
 
@@ -173,8 +176,11 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
 
 	iterate_commit([=](Transaction &tr){
 	#ifdef USE_GPIB
-        tr[ *device()].add("GPIB");
-	#endif
+        if(typeid(XGPIBPort) == typeid(XPrologixGPIBPort))
+            tr[ *device()].add("GPIB");
+        else
+            tr[ *device()].add({"GPIB", "PrologixGPIBUSB"});
+    #endif
     #ifdef USE_SERIAL
         tr[ *device()].add("SERIAL");
     #endif
@@ -201,10 +207,14 @@ XCharInterface::open() {
 			port.reset(new XGPIBPort(this));
             port->setEOS(eos().c_str());
         }
-	#endif
+        else if(shot[ *device()].to_str() == "PrologixGPIBUSB") {
+            port.reset(new XPrologixGPIBPort(this));
+            port->setEOS(eos().c_str());
+        }
+    #endif
     #ifdef USE_SERIAL
         if(shot[ *device()].to_str() == "SERIAL") {
-			port.reset(new XSerialPort(this));
+            port.reset(new XSerialPort(this));
             const char *seos = eos().length() ? eos().c_str() : serialEOS().c_str();
             port->setEOS(seos);
         }
@@ -223,8 +233,8 @@ XCharInterface::open() {
 		if( !port) {
 			throw XOpenInterfaceError(__FILE__, __LINE__);
 		}
-        port->open(this);
-		m_xport.swap(port);
+        port = port->open(this); //for XAddressedPort, returned port may be one already exists.
+        m_xport.swap(port);
 	}
 }
 void
@@ -245,7 +255,8 @@ XCharInterface::send(const char *str) {
         if( !port)
             throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
-        port->send(str);
+        XScopedLock<XPort> plock( *port);
+        port->sendTo(this, str);
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" SendError, because "));
@@ -254,13 +265,14 @@ XCharInterface::send(const char *str) {
 }
 void
 XCharInterface::write(const char *sendbuf, int size) {
-    XScopedLock<XCharInterface> lock(*this);
+    Snapshot shot( *this);
     try {
         auto port = m_xport;
         if( !port)
             throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + formatString(" Sending %d bytes", size));
-        port->write(sendbuf, size);
+        XScopedLock<XPort> plock( *port);
+        port->writeTo(this, sendbuf, size);
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" SendError, because "));
@@ -275,7 +287,8 @@ XCharInterface::receive() {
         if( !port)
             throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + " Receiving...");
-        port->receive();
+        XScopedLock<XPort> plock( *port);
+        port->receiveFrom(this);
         assert(buffer().size());
         dbgPrint(driver()->getLabel() + " Received;\"" +
                  dumpCString((const char*)&buffer()[0]) + "\"");
@@ -288,12 +301,14 @@ XCharInterface::receive() {
 void
 XCharInterface::receive(unsigned int length) {
     XScopedLock<XCharInterface> lock(*this);
+    Snapshot shot( *this);
     try {
         auto port = m_xport;
         if( !port)
             throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + QString(" Receiving %1 bytes...").arg(length));
-        port->receive(length);
+        XScopedLock<XPort> plock( *port);
+        port->receiveFrom(this, length);
         dbgPrint(driver()->getLabel() + QString(" %1 bytes Received.").arg(buffer().size()));
     }
     catch (XCommError &e) {
@@ -318,4 +333,20 @@ XCharInterface::onQueryRequested(const Snapshot &shot, XValueNodeBase *) {
 		tr[ *m_script_query] = XString(&buffer()[0]);
 		tr.unmark(m_lsnOnQueryRequested);
     });
+}
+void
+XCharInterface::lock() {
+    XInterface::lock();
+    if(isOpened())
+        openedPort()->lock();
+}
+void
+XCharInterface::unlock() {
+    if(isOpened())
+        openedPort()->unlock();
+    XInterface::unlock();
+}
+bool
+XCharInterface::isLocked() const {
+    return XInterface::isLocked();
 }

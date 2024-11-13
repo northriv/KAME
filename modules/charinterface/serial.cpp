@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -48,7 +48,7 @@ XSerialPort::~XSerialPort() {
 }
 #endif /*SERIAL_WIN32*/
 
-void
+shared_ptr<XPort>
 XSerialPort::open(const XCharInterface *pInterface) {
     Snapshot shot( *pInterface);
 
@@ -151,6 +151,8 @@ XSerialPort::open(const XCharInterface *pInterface) {
     m_serialHasEchoBack = pInterface->serialHasEchoBack();
 
     fprintf(stderr, "Serial port opened w/ baudrate=%d\n", (int)pInterface->serialBaudRate());
+
+    return shared_from_this();
 }
 void
 XSerialPort::send(const char *str) {

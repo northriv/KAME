@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -34,11 +34,11 @@ public:
     XTCPSocketPort(XCharInterface *interface);
     virtual ~XTCPSocketPort();
  
-    virtual void open(const XCharInterface *pInterface);
-    virtual void send(const char *str);
-    virtual void write(const char *sendbuf, int size);
-    virtual void receive();
-    virtual void receive(unsigned int length);
+    virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override;
+    virtual void send(const char *str) override;
+    virtual void write(const char *sendbuf, int size) override;
+    virtual void receive() override;
+    virtual void receive(unsigned int length) override;
 private:
     void reopen_socket();
 	int m_socket;

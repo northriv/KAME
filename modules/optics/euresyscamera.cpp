@@ -1027,6 +1027,8 @@ XJAICameraOverGrablink::setExposureTime(double shutter) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     interface()->queryf("ASC=%u", 0); //ExposureAuto off
     checkSerialError(__FILE__, __LINE__);
+    interface()->queryf("AR=%lu", lrint(shutter * 1e6)); //Acq. Frame Period
+    checkSerialError(__FILE__, __LINE__);
     interface()->queryf("PE=%lu", lrint(shutter * 1e6)); //ExposureTimeRaw
     checkSerialError(__FILE__, __LINE__);
     interface()->query("TMP0?");
@@ -1036,9 +1038,9 @@ XJAICameraOverGrablink::setExposureTime(double shutter) {
 void
 XJAICameraOverGrablink::setGain(unsigned int g, unsigned int emgain) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    interface()->queryf("AGC=%u", 0); //AutoGainControl off
-    checkSerialError(__FILE__, __LINE__);
     interface()->queryf("FGA=%lu", lrint((g / 256.0) * 1500 + 100));
+    checkSerialError(__FILE__, __LINE__);
+    interface()->queryf("AGC=%u", 0); //AutoGainControl off
     checkSerialError(__FILE__, __LINE__);
 }
 void

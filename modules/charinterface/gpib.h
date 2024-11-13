@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,16 +16,33 @@
 
 #include "charinterface.h"
 
+#define USE_GPIB
+
+#include "serial.h"
+//Prologix GPIB USB
+class XPrologixGPIBPort : public XAddressedPort<XSerialPort> {
+public:
+    XPrologixGPIBPort(XCharInterface *interface) : XAddressedPort<XSerialPort>(interface) {}
+    virtual ~XPrologixGPIBPort() {}
+
+    virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override;
+
+    virtual void sendTo(XCharInterface *intf, const char *str) override;
+    virtual void writeTo(XCharInterface *intf, const char *sendbuf, int size) override;
+    virtual void receiveFrom(XCharInterface *intf) override;
+    virtual void receiveFrom(XCharInterface *intf, unsigned int length) override;
+private:
+    void setupAddrEOSAndSend(XCharInterface *intf, std::string cmd);
+    unsigned int m_lastAddr = 256u;
+    void gpib_spoll_before_read(XCharInterface *intf);
+};
+
 #ifdef HAVE_LINUX_GPIB
 #define GPIB_NI
 #endif
 
 #ifdef HAVE_NI4882
 #define GPIB_NI
-#endif
-
-#if defined GPIB_WIN32_IF_4304 || defined GPIB_NI
-#define USE_GPIB
 #endif
 
 #ifdef GPIB_NI
@@ -36,11 +53,11 @@ public:
 	XNIGPIBPort(XCharInterface *interface);
 	virtual ~XNIGPIBPort();
  
-    virtual void open(const XCharInterface *pInterface);
-    virtual void send(const char *str);
-    virtual void write(const char *sendbuf, int size);
-    virtual void receive();
-    virtual void receive(unsigned int length);
+    virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override;
+    virtual void send(const char *str) override;
+    virtual void write(const char *sendbuf, int size) override;
+    virtual void receive() override;
+    virtual void receive(unsigned int length) override;
 
 private:
 	int m_ud;
@@ -66,6 +83,8 @@ private:
 
 typedef XNIGPIBPort XGPIBPort;
 
+#else
+    using XGPIBPort = XPrologixGPIBPort;
 #endif /*GPIB_NI*/
 
 #endif /*GPIB_H_*/
