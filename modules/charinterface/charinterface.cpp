@@ -236,7 +236,7 @@ XCharInterface::open() {
 		if( !port) {
 			throw XOpenInterfaceError(__FILE__, __LINE__);
 		}
-        openPort(std::move(port));
+        openPort(port);
 	}
 }
 void
@@ -344,7 +344,7 @@ XCharInterface::lock() {
 }
 void
 XCharInterface::unlock() {
-    if(isOpened() && openedPort()->isLocked())
+    if(isOpened())
         openedPort()->unlock();
     XInterface::unlock();
 }

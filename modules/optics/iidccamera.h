@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,9 +27,9 @@ public:
 
     virtual bool isOpened() const override {return m_camera;}
 
-    void lock() {s_mutex.lock();} //!<overrides XInterface::lock().
-    void unlock() {s_mutex.unlock();}
-    bool isLocked() const {return s_mutex.isLockedByCurrentThread();}
+    virtual void lock() override {s_mutex.lock();} //!<overrides XInterface::lock().
+    virtual void unlock() override {s_mutex.unlock();}
+    virtual bool isLocked() const override {return s_mutex.isLockedByCurrentThread();}
 
     dc1394camera_t *camera() const {return m_camera;}
 protected:

@@ -28,9 +28,9 @@ public:
 
     virtual bool isOpened() const override {return !!m_camera;}
 
-    void lock(); //!<overrides XInterface::lock().
-    void unlock();
-    bool isLocked() const {return s_mutex.isLockedByCurrentThread();}
+    virtual void lock() override; //!<overrides XInterface::lock().
+    virtual void unlock() override;
+    virtual bool isLocked() const override {return s_mutex.isLockedByCurrentThread();}
 
     //For cameralink cameras.
     virtual void send(const char *) override;

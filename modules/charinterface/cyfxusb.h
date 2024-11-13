@@ -121,9 +121,9 @@ public:
     void initialize();
     void finalize();
 
-    void lock() {m_usbDevice->mutex.lock();} //!<overrides XInterface::lock().
-    void unlock() {m_usbDevice->mutex.unlock();}
-    bool isLocked() const {return m_usbDevice->mutex.isLockedByCurrentThread();}
+    virtual void lock() override {m_usbDevice->mutex.lock();} //!<overrides XInterface::lock().
+    virtual void unlock() override {m_usbDevice->mutex.unlock();}
+    virtual bool isLocked() const override {return m_usbDevice->mutex.isLockedByCurrentThread();}
 
     virtual void send(const char *) override {}
     virtual void receive() override {}

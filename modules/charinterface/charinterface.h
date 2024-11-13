@@ -163,6 +163,7 @@ private:
     shared_ptr<Listener> m_lsnOnQueryRequested;
 	void onSendRequested(const Snapshot &shot, XValueNodeBase *);
 	void onQueryRequested(const Snapshot &shot, XValueNodeBase *);
+    unsigned int m_portLockCnt = 0;
 };
 
 //! Low-level I/O for XCharInterface
@@ -209,6 +210,7 @@ template <class P>
 class XAddressedPort : public P {
 public:
     XAddressedPort(XCharInterface *interface) : P(interface) {}
+    virtual ~XAddressedPort() {}
 
     //! \return myself, or physical port that has already been opened.
     virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override {

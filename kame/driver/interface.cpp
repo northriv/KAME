@@ -72,51 +72,58 @@ XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
 
 void
 XInterface::start() {
-    XScopedLock<XInterface> lock( *this);
-    Transactional::setCurrentPriorityMode(Priority::NORMAL);
-    try {
-        if(isOpened()) {
-            gErrPrint(getLabel() + i18n("Port has already opened"));
+    m_mutex.lock(); //do not use scoped lock, to avoid additional mutex unlock after open.
+    {
+        Transactional::setCurrentPriorityMode(Priority::NORMAL);
+        try {
+            if(isOpened()) {
+                gErrPrint(getLabel() + i18n("Port has already opened"));
+                return;
+            }
+            open();
+        }
+        catch (XInterfaceError &e) {
+            e.print(getLabel() + i18n(": Opening interface failed, because "));
+            iterate_commit([=](Transaction &tr){
+                tr[ *control()] = false;
+                tr.unmark(lsnOnControlChanged);
+            });
+            m_mutex.unlock();
             return;
         }
-        open();
-    }
-    catch (XInterfaceError &e) {
-        e.print(getLabel() + i18n(": Opening interface failed, because "));
-        iterate_commit([=](Transaction &tr){
-            tr[ *control()] = false;
+
+        Snapshot shot = iterate_commit([=](Transaction &tr){
+            tr[ *device()].setUIEnabled(false);
+            tr[ *port()].setUIEnabled(false);
+            tr[ *address()].setUIEnabled(false);
+            tr[ *control()] = true; //to set a proper icon before enabling UI.
             tr.unmark(lsnOnControlChanged);
         });
-        return;
+        shot.talk(shot[ *this].onOpen(), this);
     }
-
-    Snapshot shot = iterate_commit([=](Transaction &tr){
-        tr[ *device()].setUIEnabled(false);
-        tr[ *port()].setUIEnabled(false);
-        tr[ *address()].setUIEnabled(false);
-        tr[ *control()] = true; //to set a proper icon before enabling UI.
-        tr.unmark(lsnOnControlChanged);
-    });
-    shot.talk(shot[ *this].onOpen(), this);
+    m_mutex.unlock();
 }
 void
 XInterface::stop() {
     m_threadStart.reset();
-	XScopedLock<XInterface> lock( *this);
-    Transactional::setCurrentPriorityMode(Priority::NORMAL);
-	try {
-		close();
-	}
-	catch (XInterfaceError &e) {
-        e.print(getLabel() + i18n(": Closing interface failed, because"));
-	}
+    m_mutex.lock(); //do not use scoped lock, to avoid additional mutex lock before close.
+    {
+        Transactional::setCurrentPriorityMode(Priority::NORMAL);
+        try {
+            close();
+        }
+        catch (XInterfaceError &e) {
+            e.print(getLabel() + i18n(": Closing interface failed, because"));
+        }
 
-	iterate_commit([=](Transaction &tr){
-		tr[ *device()].setUIEnabled(true);
-		tr[ *port()].setUIEnabled(true);
-		tr[ *address()].setUIEnabled(true);
-		tr[ *control()] = false;
-		tr.unmark(lsnOnControlChanged);
-    });
+        iterate_commit([=](Transaction &tr){
+            tr[ *device()].setUIEnabled(true);
+            tr[ *port()].setUIEnabled(true);
+            tr[ *address()].setUIEnabled(true);
+            tr[ *control()] = false;
+            tr.unmark(lsnOnControlChanged);
+        });
+    }
+    m_mutex.unlock();
     //g_statusPrinter->clear();
 }
