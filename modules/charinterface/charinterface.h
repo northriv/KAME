@@ -137,7 +137,7 @@ protected:
     virtual void close() override;
 
     shared_ptr<XPort> openedPort() const {return m_xport;}
-    void openPort(shared_ptr<XPort> &&p);
+    void openPort(shared_ptr<XPort> p);
 private:
     XString m_serialEOS;
 	bool m_bGPIBUseSerialPollOnWrite;

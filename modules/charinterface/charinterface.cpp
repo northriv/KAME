@@ -196,7 +196,7 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
     });
 }
 
-void XCharInterface::openPort(shared_ptr<XPort> &&port) {
+void XCharInterface::openPort(shared_ptr<XPort> port) {
     m_xport = port->open(this); //for XAddressedPort, returned port may be one already exists.
 }
 void

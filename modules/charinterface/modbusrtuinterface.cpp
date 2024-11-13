@@ -16,7 +16,7 @@ XModbusRTUInterface::open() {
     close();
     shared_ptr<XPort> port = std::make_shared<XModbusRTUPort>(this);
     port->setEOS(eos().c_str());
-    openPort(std::move(port));
+    openPort(port);
 }
 
 uint16_t

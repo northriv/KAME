@@ -20,10 +20,10 @@
 
 class XModbusRTUPort : public XAddressedPort<XSerialPort> {
 public:
-    XModbusRTUPort(XCharInterface *interface) : XAddressedPort<XSerialPort>(interface) {}
+    XModbusRTUPort(XCharInterface *interface) : XAddressedPort<XSerialPort>(interface) {
+        m_lastTimeStamp = XTime::now();
+    }
     virtual ~XModbusRTUPort() {}
-
-    virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override {m_lastTimeStamp = XTime::now();}
 
     virtual void sendTo(XCharInterface *intf, const char *str) override {send(str);}
     virtual void writeTo(XCharInterface *intf, const char *sendbuf, int size) override {write(sendbuf, size);}
