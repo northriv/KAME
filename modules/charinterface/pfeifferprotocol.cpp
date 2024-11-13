@@ -14,8 +14,18 @@
 //---------------------------------------------------------------------------
 #include "pfeifferprotocol.h"
 
-std::deque<weak_ptr<XPort> > XPfeifferProtocolInterface::s_openedPorts;
-XMutex XPfeifferProtocolInterface::s_lock;
+#include "serial.h"
+
+class XPfeifferProtocolPort : public XAddressedPort<XSerialPort> {
+public:
+    XPfeifferProtocolPort(XCharInterface *interface) : XAddressedPort<XSerialPort>(interface) {}
+    virtual ~XPfeifferProtocolPort() {}
+
+    virtual void sendTo(XCharInterface *intf, const char *str) override {send(str);}
+    virtual void writeTo(XCharInterface *intf, const char *sendbuf, int size) override {write(sendbuf, size);}
+    virtual void receiveFrom(XCharInterface *intf) override {receive();}
+    virtual void receiveFrom(XCharInterface *intf, unsigned int length) override {receive(length);}
+};
 
 XPfeifferProtocolInterface::XPfeifferProtocolInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
     XCharInterface(name, runtime, driver) {
@@ -27,43 +37,16 @@ XPfeifferProtocolInterface::XPfeifferProtocolInterface(const char *name, bool ru
 
 void
 XPfeifferProtocolInterface::open() {
-    XScopedLock<XPfeifferProtocolInterface> lock( *this);
-    {
-        Snapshot shot( *this);
-        XScopedLock<XMutex> glock(s_lock);
-        for(auto it = s_openedPorts.begin(); it != s_openedPorts.end();) {
-            if(auto pt = it->lock()) {
-                if(pt->portString() == (XString)shot[ *port()]) {
-                    m_openedPort = pt;
-                    //The COMM port has been already opened by m_master.
-                    return;
-                }
-                ++it;
-            }
-            else
-                it = s_openedPorts.erase(it); //cleans garbage.
-        }
-        //Opens new COMM device.
-        XCharInterface::open();
-        m_openedPort = openedPort();
-        s_openedPorts.push_back(m_openedPort);
-    }
-}
-void
-XPfeifferProtocolInterface::close() {
-    XScopedLock<XPfeifferProtocolInterface> lock( *this);
-    XScopedLock<XMutex> glock(s_lock);
-    m_openedPort.reset(); //release shared_ptr to the port if any.
-    XCharInterface::close(); //release shared_ptr to the port if any.
+    close();
+    shared_ptr<XPort> port = std::make_shared<XPfeifferProtocolPort>(this);
+    port->setEOS(eos().c_str());
+    openPort(port);
 }
 
 XString
 XPfeifferProtocolInterface::action(unsigned int addr, bool iscontrol,
     unsigned int param_no, const XString &str) {
-    XScopedLock<XPfeifferProtocolInterface> lock( *this);
-    XScopedLock<XMutex> glock(s_lock);
-    auto port = m_openedPort;
-
+    XScopedLock<XInterface> lock( *this);
     XString buf;
     buf = formatString("%03u%02u%03u%02u", addr,
         iscontrol ? 10u : 0u, param_no, (unsigned int)str.length());
@@ -73,8 +56,8 @@ XPfeifferProtocolInterface::action(unsigned int addr, bool iscontrol,
         csum += c;
     csum = csum % 0x100u;
     buf += formatString("%03u", csum);
-    port->sendTo(this, buf.c_str());
-    port->receiveFrom(this);
+    send(buf.c_str());
+    receive();
     unsigned int res_addr, res_action, res_param_no, res_len;
     if(scanf("%3u%2u%3u%2u", &res_addr, &res_action, &res_param_no, &res_len) != 4)
         throw XInterface::XConvError(__FILE__, __LINE__);

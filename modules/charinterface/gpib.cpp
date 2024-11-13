@@ -18,7 +18,7 @@ shared_ptr<XPort>
 XPrologixGPIBPort::open(const XCharInterface *pInterface) {
     auto p = XAddressedPort<XSerialPort>::open(pInterface);
     XSerialPort::setEOS("\r");//CR
-    XSerialPort::send("++mode 1\r" "++auto 0\r" "++ifc\r");
+    XSerialPort::send("++mode 1\r" "++auto 0\r" "++ifc\r" "++read_tmo_ms 2000\r");
     XSerialPort::send("++eot_enable\r" "++eot_char 13\r"); //CR
     return p;
 }

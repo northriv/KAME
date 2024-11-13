@@ -1,7 +1,17 @@
 #include "fujikininterface.h"
 
-std::deque<weak_ptr<XPort> > XFujikinInterface::s_openedPorts;
-XMutex XFujikinInterface::s_lock;
+#include "serial.h"
+
+class XFujikinProtocolPort : public XAddressedPort<XSerialPort> {
+public:
+    XFujikinProtocolPort(XCharInterface *interface) : XAddressedPort<XSerialPort>(interface) {}
+    virtual ~XFujikinProtocolPort() {}
+
+    virtual void sendTo(XCharInterface *intf, const char *str) override {send(str);}
+    virtual void writeTo(XCharInterface *intf, const char *sendbuf, int size) override {write(sendbuf, size);}
+    virtual void receiveFrom(XCharInterface *intf) override {receive();}
+    virtual void receiveFrom(XCharInterface *intf, unsigned int length) override {receive(length);}
+};
 
 XFujikinInterface::XFujikinInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
  XCharInterface(name, runtime, driver) {
@@ -17,34 +27,10 @@ XFujikinInterface::~XFujikinInterface() {
 
 void
 XFujikinInterface::open() {
-    XScopedLock<XFujikinInterface> lock( *this);
-    {
-        Snapshot shot( *this);
-        XScopedLock<XMutex> glock(s_lock);
-        for(auto it = s_openedPorts.begin(); it != s_openedPorts.end();) {
-            if(auto pt = it->lock()) {
-                if(pt->portString() == (XString)shot[ *port()]) {
-                    m_openedPort = pt;
-                    //The COMM port has been already opened by m_master.
-                    return;
-                }
-                ++it;
-            }
-            else
-                it = s_openedPorts.erase(it); //cleans garbage.
-        }
-    }
-    //Opens new COMM device.
-    XCharInterface::open();
-    m_openedPort = openedPort();
-    s_openedPorts.push_back(m_openedPort);
-}
-void
-XFujikinInterface::close() {
-	XScopedLock<XFujikinInterface> lock( *this);
-	XScopedLock<XMutex> glock(s_lock);
-    m_openedPort.reset(); //release shared_ptr to the port if any.
-    XCharInterface::close(); //release shared_ptr to the port if any.
+    close();
+    shared_ptr<XPort> port = std::make_shared<XFujikinProtocolPort>(this);
+    port->setEOS(eos().c_str());
+    openPort(port);
 }
 
 template <typename T>
@@ -146,55 +132,54 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
         checksum += *it; //from STX to data.back.
     buf.push_back(checksum);
 
-    auto port = m_openedPort;
-    XScopedLock<XMutex> lock(s_lock); //!\todo better to use port-by-port lock.
+    XScopedLock<XInterface> lock( *this);
     msecsleep(1);
-    port->writeTo(this, reinterpret_cast<char*>( &buf[0]), buf.size());
-    port->receiveFrom(this, 1);
-    switch(port->buffer()[0]) {
+    this->write(reinterpret_cast<char*>( &buf[0]), buf.size());
+    receive(1);
+    switch(buffer()[0]) {
     case ACK:
         break;
     case NAK:
     default:
         throw XInterfaceError(
-            formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)port->buffer()[0]),
+            formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)buffer()[0]),
             __FILE__, __LINE__);
     }
     if(write) {
-        port->receiveFrom(this, 1);
-        switch(port->buffer()[0]) {
+        receive(1);
+        switch(buffer()[0]) {
         case ACK:
             break;
         case NAK:
         default:
             throw XInterfaceError(
-                formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)port->buffer()[0]),
+                formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)buffer()[0]),
                 __FILE__, __LINE__);
         }
     }
     else {
-        port->receiveFrom(this, 4);
-        if((port->buffer()[0] != 0) || (port->buffer()[1] != STX))
+        receive(4);
+        if((buffer()[0] != 0) || (buffer()[1] != STX))
             throw XInterfaceError(
-                formatString("Fujikin Protocol Command Error ret=%4s.", (const char*)&port->buffer()[0]),
+                formatString("Fujikin Protocol Command Error ret=%4s.", (const char*)&buffer()[0]),
                 __FILE__, __LINE__);
-        int len = port->buffer()[3];
+        int len = buffer()[3];
         uint8_t checksum = 0;
-        for(auto it = port->buffer().begin(); it != port->buffer().end(); ++it)
+        for(auto it = buffer().begin(); it != buffer().end(); ++it)
             checksum += *it;
-        port->receiveFrom(this, len + 2);
+        receive(len + 2);
 //		if((master->buffer()[0] != classid) || (master->buffer()[1] != instanceid) || (master->buffer()[2] != attributeid))
 //			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
-        if((port->buffer()[len] != 0)) //pad
+        if((buffer()[len] != 0)) //pad
             throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
-        for(auto it = port->buffer().begin(); it != port->buffer().end(); ++it)
+        for(auto it = buffer().begin(); it != buffer().end(); ++it)
             checksum += *it;
-        checksum -= port->buffer().back() * 2;
+        checksum -= buffer().back() * 2;
         if(checksum != 0)
             throw XInterfaceError("Fujikin Protocol Check-Sum Error.", __FILE__, __LINE__);
         response->resize(len - 3);
         for(int i = 0; i < response->size(); ++i) {
-            response->at(i) = port->buffer()[i + 3];
+            response->at(i) = buffer()[i + 3];
         }
     }
 }

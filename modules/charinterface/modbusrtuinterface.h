@@ -16,22 +16,6 @@
 
 #include "charinterface.h"
 #include "chardevicedriver.h"
-#include "serial.h"
-
-class XModbusRTUPort : public XAddressedPort<XSerialPort> {
-public:
-    XModbusRTUPort(XCharInterface *interface) : XAddressedPort<XSerialPort>(interface) {
-        m_lastTimeStamp = XTime::now();
-    }
-    virtual ~XModbusRTUPort() {}
-
-    virtual void sendTo(XCharInterface *intf, const char *str) override {send(str);}
-    virtual void writeTo(XCharInterface *intf, const char *sendbuf, int size) override {write(sendbuf, size);}
-    virtual void receiveFrom(XCharInterface *intf) override {receive();}
-    virtual void receiveFrom(XCharInterface *intf, unsigned int length) override {receive(length);}
-
-    XTime m_lastTimeStamp;
-};
 
 class XModbusRTUInterface : public XCharInterface {
 public:

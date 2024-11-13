@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2020 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -45,15 +45,7 @@ public:
         DATATYPE data_type, unsigned int param_no, double data);
 protected:
     virtual void open();
-    //! This can be called even if has already closed.
-    virtual void close();
-
-    virtual bool isOpened() const {return !!m_openedPort;}
 private:
-    shared_ptr<XPort> m_openedPort;
-    static XMutex s_lock;
-    static std::deque<weak_ptr<XPort> > s_openedPorts; //guarded by s_lock.
-
     XString action(unsigned int address,
         bool iscontrol, unsigned int param_no, const XString &str);
 };
