@@ -245,7 +245,7 @@ protected:
     virtual void receive() override {}
     virtual void receive(unsigned int) override {}
 private:
-    XMutex m_mutex;
+    XRecursiveMutex m_mutex;
 };
 
 #endif /*CHARINTERFACE_H_*/

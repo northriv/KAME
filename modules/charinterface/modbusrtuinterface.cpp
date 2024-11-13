@@ -59,18 +59,18 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
             uint16_t crc = crc16( &buf[0], buf.size() - 2);
             set_word( &buf[buf.size() - 2], crc);
 
-            port->writeTo(this, reinterpret_cast<char*>(&buf[0]), buf.size());
+            write(reinterpret_cast<char*>(&buf[0]), buf.size());
         //    msecsleep(buf.size() * msec_per_char + std::max(3.0, 3.5 * msec_per_char) + 0.5); //For O_NONBLOCK.
 
             buf.resize(ret_buf.size() + 4);
-            port->receiveFrom(this, 2); //addr + func_code.
-            std::copy(port->buffer().begin(), port->buffer().end(), buf.begin());
+            receive(2); //addr + func_code.
+            std::copy(buffer().begin(), buffer().end(), buf.begin());
 
             if(buf[0] != slave_addr) {
                 if(buf[1] == slave_addr) {
                     buf[0] = buf[1];
-                    port->receiveFrom(this, 1); //func_code.
-                    buf[1] = port->buffer()[0];
+                    receive(1); //func_code.
+                    buf[1] = buffer()[0];
                 }
                 else if((buf[1] & 0x7fu) == func_code) {
                     buf[0] = slave_addr;
@@ -83,8 +83,8 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
             if((buf[1] & 0x7fu) != func_code)
                 throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
             if(buf[1] != func_code) {
-                port->receiveFrom(this, 3);
-                switch(port->buffer()[0]) {
+                receive(3);
+                switch(buffer()[0]) {
                 case 0x01:
                     throw XInterfaceError("Modbus RTU Ill Function.", __FILE__, __LINE__);
                 case 0x02:
@@ -98,12 +98,12 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
                 }
             }
 
-            port->receiveFrom(this, ret_buf.size() + 2); //Rest of message.
-            std::copy(port->buffer().begin(), port->buffer().end(), buf.begin() + 2);
+            receive(ret_buf.size() + 2); //Rest of message.
+            std::copy(buffer().begin(), buffer().end(), buf.begin() + 2);
             crc = crc16( &buf[0], buf.size() - 2);
             if(crc != get_word( &buf[buf.size() - 2]))
                 throw XInterfaceError("Modbus RTU CRC Error.", __FILE__, __LINE__);
-            std::copy(port->buffer().begin(), port->buffer().end() - 2, ret_buf.begin());
+            std::copy(buffer().begin(), buffer().end() - 2, ret_buf.begin());
 
             port->m_lastTimeStamp = XTime::now();
         }
