@@ -39,7 +39,7 @@ class QAction;
 class QActionGroup;
 class QMenu;
 class XMeasure;
-class XRubyThread;
+class XScriptingThread;
 class QMdiArea;
 class QMdiSubWindow;
 
@@ -112,11 +112,10 @@ private:
 	QMdiSubWindow* addDockableWindow(QMdiArea *area, QWidget *widget, bool closable);
 	QMdiArea *m_pMdiCentral, *m_pMdiLeft, *m_pMdiRight;
 	void closeEvent( QCloseEvent* ce );
-	shared_ptr<XRubyThread> runNewScript(const XString &label, const XString &filename);
+	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;
 	shared_ptr<XMeasure> m_measure;
-	xqcon_ptr m_conMeasRubyThread;
-	std::deque<xqcon_ptr> m_conRubyThreadList;
+	std::deque<xqcon_ptr> m_conScriptThreadList;
 };
 
 #endif /*KAME_H*/

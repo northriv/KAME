@@ -6,7 +6,7 @@ include(../kame.pri)
 
 macx: SCRIPT_DIR = Resources
 win32: SCRIPT_DIR = resources
-DEFINES += RUBYLINESHELL_DIR=\"quotedefined($${SCRIPT_DIR}/)\"
+DEFINES += LINESHELL_DIR=\"quotedefined($${SCRIPT_DIR}/)\"
 DEFINES += USE_STD_RANDOM
 
 CONFIG += CONSOLE
@@ -34,6 +34,8 @@ HEADERS += \
     graph/onscreenobject.h \
     graph/x2dimage.h \
     kame.h \
+    script/xscriptingthread.h \
+    script/xscriptingthreadconnector.h \
     threadlocal.h \
     transaction_impl.h \
     transaction_signal.h \
@@ -65,8 +67,6 @@ HEADERS += \
     analyzer/recordreader.h \
     script/xdotwriter.h \
     script/xrubysupport.h \
-    script/xrubythread.h \
-    script/xrubythreadconnector.h \
     script/xrubywriter.h \
     script/rubywrapper.h \
     xitemnode.h \
@@ -102,6 +102,8 @@ SOURCES += icons/icon.cpp \
     graph/graphntoolbox.cpp \
     graph/onscreenobject.cpp \
     graph/x2dimage.cpp \
+    script/xscriptingthread.cpp \
+    script/xscriptingthreadconnector.cpp \
     xthread.cpp \
     xtime.cpp \
     support.cpp \
@@ -125,8 +127,6 @@ SOURCES += icons/icon.cpp \
     math/spectrumsolver.cpp \
     script/xdotwriter.cpp \
     script/xrubysupport.cpp \
-    script/xrubythread.cpp \
-    script/xrubythreadconnector.cpp \
     script/xrubywriter.cpp \
     script/rubywrapper.cpp \
     measure.cpp \
@@ -170,16 +170,18 @@ FORMS += \
     forms/interfacetool.ui \
     forms/nodebrowserform.ui \
     forms/recordreaderform.ui \
-    forms/rubythreadtool.ui \
     forms/scalarentrytool.ui \
-    forms/messageform.ui
+    forms/messageform.ui \
+    forms/scriptingthreadtool.ui
 
 RESOURCES += \
     kame.qrc
 
 DESTDIR=$$OUT_PWD/../
 
-scriptfile.files = script/rubylineshell.rb
+scriptfile.files = script/rubylineshell.rb \
+    script/pythonlineshell.py
+
 macx {
     scriptfile.path = Contents/Resources
     QMAKE_BUNDLE_DATA += scriptfile
@@ -189,7 +191,8 @@ else {
         INSTALLS += scriptfile
     }
     else {
-        DISTFILES += script/rubylineshell.rb
+        DISTFILES += script/rubylineshell.rb  \
+            script/pythonlineshell.py
     }
 }
 
@@ -208,13 +211,27 @@ else:win32:!win32-g++:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$OUT_PWD/
 else:unix: PRE_TARGETDEPS += $$OUT_PWD/liblibkame.a
 
 
-
+#Ruby, pybind11
 macx {
     INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
     INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
     LIBS += -framework Ruby
 #for ruby.h incompatible with C++11
     QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
+
+    exists("/opt/local/include/pybind11/pytypes.h") {
+#        exists("/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/Current/Headers/Python.h") {
+        exists("/opt/local/Library/Frameworks/Python.framework/Versions/3.10/lib/libpython3.10.dylib") {
+#            INCLUDEPATH += /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/Current/Headers/
+#            LIBS += $$files(/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/Current/lib/libpython*.dylib)
+            INCLUDEPATH += /opt/local/Library/Frameworks/Python.framework/Versions/3.10/include/python3.10
+            INCLUDEPATH += /opt/local/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/pybind11/include
+            LIBS += /opt/local/Library/Frameworks/Python.framework/Versions/3.10/lib/libpython3.10.dylib
+            DEFINES += USE_PYBIND11
+            SOURCES += script/xpythonsupport.cpp
+            HEADERS += script/xpythonsupport.h
+        }
+    }
 }
 else:unix {
     INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
@@ -358,7 +375,8 @@ macx {
     }
 }
 
-DISTFILES +=
+DISTFILES += \
+    script/pythonlineshell.py
 
 
 

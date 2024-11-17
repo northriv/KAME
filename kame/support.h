@@ -96,7 +96,11 @@ public:
     XString(const XString&) = default;
     XString(XString&&) noexcept = default;
     XString(const char *str) : base_type(str) {}
-    XString(const QString &str) : base_type(str.toUtf8().data()) {}
+    XString(const QString &str) : base_type() {
+        const auto &s = str.toUtf8();
+        base_type x(s.constData());
+        x.swap( *this);
+    }
     XString(const base_type &str) : base_type(str) {}
     operator QString() const {return QString::fromUtf8(c_str());}
     XString operator+(const char *s) {return *this + base_type(s);}

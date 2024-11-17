@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,28 +11,29 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#ifndef xrubythreadH
-#define xrubythreadH
+#ifndef xscriptingthreadH
+#define xscriptingthreadH
 //---------------------------------------------------------------------------
 #include "xnode.h"
+#include "xlistnode.h"
 
-#define RUBY_THREAD_ACTION_KILL "kill"
-#define RUBY_THREAD_ACTION_WAKEUP "wakeup"
-#define RUBY_THREAD_ACTION_FAILURE "failure"
-#define RUBY_THREAD_ACTION_STARTING "starting"
+#define SCRIPTING_THREAD_ACTION_KILL "kill"
+#define SCRIPTING_THREAD_ACTION_WAKEUP "wakeup"
+#define SCRIPTING_THREAD_ACTION_FAILURE "failure"
+#define SCRIPTING_THREAD_ACTION_STARTING "starting"
 
-#define RUBY_THREAD_STATUS_RUN "run"
-#define RUBY_THREAD_STATUS_SLEEP "sleep"
-#define RUBY_THREAD_STATUS_ABORTING "aborting"
-#define RUBY_THREAD_STATUS_STARTING "starting"
-#define RUBY_THREAD_STATUS_N_A ""
+#define SCRIPTING_THREAD_STATUS_RUN "run"
+#define SCRIPTING_THREAD_STATUS_SLEEP "sleep"
+#define SCRIPTING_THREAD_STATUS_ABORTING "aborting"
+#define SCRIPTING_THREAD_STATUS_STARTING "starting"
+#define SCRIPTING_THREAD_STATUS_N_A ""
 //---------------------------------------------------------------------------
-//! XRubyThread object is a communicator for Ruby thread.
+//! XScriptingThread object is a communicator for Ruby thread.
 //! \sa XRubySupport
-class XRubyThread : public XNode {
+class XScriptingThread : public XNode {
 public:
-	XRubyThread(const char *name, bool runtime, const XString &filename);
-	virtual ~XRubyThread() {}
+    XScriptingThread(const char *name, bool runtime, const XString &filename);
+    virtual ~XScriptingThread() {}
 
 	bool isRunning() const;
 	bool isAlive() const;
@@ -67,5 +68,40 @@ private:
 	XMutex m_lineBufferMutex;
 };
 
+class XMeasure;
+
+//! Base class for cripting support.
+//! \sa XScriptingThread
+class XScriptingThreadList : public XAliasListNode<XScriptingThread> {
+public:
+    XScriptingThreadList(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
+    virtual ~XScriptingThreadList() {}
+
+    void terminate() {m_thread->terminate();}
+    void join() {m_thread->join();}
+
+    struct Payload : public XAliasListNode<XScriptingThread>::Payload {
+        struct tCreateChild {
+            XString type;
+            XString name;
+            shared_ptr<XListNodeBase> lnode;
+            XCondition cond;
+            shared_ptr<XNode> child;
+        };
+        using Talker = Talker<shared_ptr<tCreateChild>>;
+        Talker &onChildCreated() {return m_tlkOnChildCreated;}
+        const Talker &onChildCreated() const {return m_tlkOnChildCreated;}
+    private:
+        Talker m_tlkOnChildCreated;
+    };
+protected:
+    virtual void *execute(const atomic<bool> &) = 0;
+
+    shared_ptr<Listener> m_lsnChildCreated;
+    void onChildCreated(const Snapshot &shot, const shared_ptr<Payload::tCreateChild> &x);
+
+    const weak_ptr<XMeasure> m_measure;
+    unique_ptr<XThread> m_thread;
+};
 //---------------------------------------------------------------------------
-#endif
+#endif //scriptingthreadH

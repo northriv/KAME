@@ -1,80 +1,7 @@
-#rubyLine Shell.rb
-# -*- coding: utf-8 -*-
-
-greeting=[\
-"Use the Source, Luke.\n",\
-"404 Physics Not Found.\n",\
-"How many fails(0-15)?\n",\
-"We are Borg. You will be assimilated.\nResistance is futile.\n",\
-"404 Research Not Funded.\n",\
-"403 Forbidden Experiment.\n"]
-print greeting[Integer(rand()**2*greeting.size())]
-
-#Usuful contants.
-h = 6.626070040e-34
-hbar = h / 2 / PI
-c = 299792458.0
-mu0 = 4e-7 * PI
-epsilon0 = 8.854187817e-12
-e = 1.6021766208e-19
-g = 2.00231930436182
-mub = 927.4009994e-26
-kb = 1.38064852e-23
-NA = 6.022140857e23
-
-#Atomic weight
-#IUPAC 2005
-H=1.00794
-Li=6.941
-B=10.811
-C=12.0107
-N=14.0067
-O=15.9994
-F=18.9984032
-Na=22.98976928
-Mg=24.3050
-Al=26.9815386
-Si=28.0855
-P=30.973762
-S=32.065
-Cl=35.453
-K=39.0983
-Ca=40.078
-Sc=44.955912
-Ti=47.867
-V=50.9415
-Cr=51.9961
-Mn=54.938045
-Fe=55.845
-Co=58.933195
-Ni=58.6934
-Cu=63.546
-Zn=65.409
-Ga=69.723
-Ge=72.64
-As=74.92160
-Se=78.96
-Sr=87.62
-Y=88.90585
-Zr=91.224
-In=114.818
-Sn=118.710
-Sb=121.760
-Te=127.60
-Cs=132.9054519
-Ba=137.327
-La=138.90547
-Ce=140.116
-Sm=150.36
-Em=151.964
-Yb=173.04
-Lu=174.967
-Hf=178.49
-Pb=207.2
-Bi=208.98040
+import numpy as np
 
 #gyromagnetic ratio * 2 * PI [MHz/T]
-gnuc = [g * mub / h * 1e-6,\
+Gnuc = [0.0,\
 42.5763875, 6.5357348, 32.4344523, 0.0, 0.0, 6.2655778, 16.5468008, 0.0, -5.9827544,\
 4.5742615, 13.6601971, 0.0, 10.7058412, 3.0767047, -4.3158692, 0.0, -5.7718497, 0.0, 40.0618307,\
 0.0, -3.3611061, 0.0, 11.2622634, 0.0, -2.6063710, 0.0, 11.0940693, 0.0, -8.4587305,\
@@ -99,19 +26,18 @@ gnuc = [g * mub / h * 1e-6,\
 ]
 
 lineno = 1
-bind = binding()
-while(!XScriptingThreads.is_main_terminated())
-	begin
-		line = gets()
-		print "##{lineno}>>#{line}"
-	rescue ScriptError, StandardError
-		break
-	end
-	begin
-		p eval(line, bind, "User", lineno)
-	rescue ScriptError, StandardError, SystemExit
-		$! = RuntimeError.new("unknown exception raised") unless $!
-		print_exception($!)
-	end
+
+while not is_main_terminated():
+	try:
+		line = input()
+		print("{}>>{}".format(lineno, line))
+		print(eval(line))
+	except EOFError:
+		pass
+	except Exception as inst:
+		print(type(inst))
+		print(inst.args)
+		print(inst)
+		pass
 	lineno+=1
-end
+

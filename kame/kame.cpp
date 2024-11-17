@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xrubysupport.h"
+#include "xpythonsupport.h"
 #include <QTimer>
 #include <QAction>
 #include <QMenu>
@@ -42,7 +43,7 @@
 #include "interface.h"
 #include "xrubywriter.h"
 #include "xdotwriter.h"
-#include "xrubythreadconnector.h"
+#include "xscriptingthreadconnector.h"
 #include "ui_caltableform.h"
 #include "ui_recordreaderform.h"
 #include "ui_nodebrowserform.h"
@@ -61,7 +62,7 @@ FrmKameMain::FrmKameMain()
     :QMainWindow(NULL) {
     resize(0,0);
 
-	setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
 
     s_pMessageBox.reset(new XMessageBox(this));
 
@@ -377,7 +378,6 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
     else {
 		ce->accept();
 		printf("quit\n");
-		m_conMeasRubyThread.reset();
 		m_measure->terminate();
 
 		m_measure.reset();
@@ -385,7 +385,6 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 }
 
 void FrmKameMain::fileCloseAction_activated() {
-	m_conMeasRubyThread.reset();
 	m_measure->terminate();
 }
 
@@ -482,31 +481,43 @@ FrmKameMain::openMes(const XString &filename) {
     return -1;
 }
 
-shared_ptr<XRubyThread>
+shared_ptr<XScriptingThread>
 FrmKameMain::runNewScript(const XString &label, const XString &filename) {
     show();
     raise();
-	shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
-        create<XRubyThread>(label.c_str(), true, filename );
-	FrmRubyThread* form = new FrmRubyThread(this);
-	m_conRubyThreadList.push_back(xqcon_create<XRubyThreadConnector>(
-									  rbthread, form, m_measure->ruby()));
+    shared_ptr<XScriptingThread> scriptthread;
+#ifdef USE_PYBIND11
+    if(filename.rfind(".py") == filename.length() - 3) {
+        scriptthread = m_measure->python()->
+            create<XScriptingThread>(label.c_str(), true, filename);
+    } else
+#endif
+    {
+        scriptthread = m_measure->ruby()->
+            create<XScriptingThread>(label.c_str(), true, filename );
+    }
+    FrmScriptingThread* form = new FrmScriptingThread(this);
+    m_conScriptThreadList.push_back(xqcon_create<XScriptingThreadConnector>(
+                                      scriptthread, form, m_measure->ruby()));
 	addDockableWindow(m_pMdiCentral, form, true);
 
 	// erase unused xqcon_ptr
-	for(auto it = m_conRubyThreadList.begin(); it != m_conRubyThreadList.end(); ) {
+    for(auto it = m_conScriptThreadList.begin(); it != m_conScriptThreadList.end(); ) {
 		if((*it)->isAlive()) {
 			it++;
 		}
 		else {
-			it = m_conRubyThreadList.erase(it);
+            it = m_conScriptThreadList.erase(it);
 		}
 	}
-	return rbthread;
+    return scriptthread;
 }
 void FrmKameMain::scriptRunAction_activated() {
     QString filename = QFileDialog::getOpenFileName (
         this, i18n("Open Script File"), "",
+#ifdef USE_PYBIND11
+        "Python Script files (*.py);;"
+#endif
         "KAME Script files (*.seq);;"
         "Ruby Script files (*.rb);;"
         "All files (*.*);;"
@@ -518,17 +529,21 @@ void FrmKameMain::scriptRunAction_activated() {
 	}
 }
 
-#define RUBYLINESHELL_FILE "rubylineshell.rb"
+#ifdef USE_PYBIND11
+    #define LINESHELL_FILE "pythonlineshell.py"
+#else
+    #define LINESHELL_FILE "rubylineshell.rb"
+#endif
 
 void FrmKameMain::scriptLineShellAction_activated() {
 	QString filename =
 #ifdef WITH_KDE
-        KStandardDirs::locate("appdata", RUBYLINESHELL_FILE);
+        KStandardDirs::locate("appdata", LINESHELL_FILE);
 #else
         #if QT_VERSION >= QT_VERSION_CHECK(5,4,0)
-            QStandardPaths::locate(QStandardPaths::AppDataLocation, RUBYLINESHELL_FILE);
+            QStandardPaths::locate(QStandardPaths::AppDataLocation, LINESHELL_FILE);
         #else
-            QStandardPaths::locate(QStandardPaths::DataLocation, RUBYLINESHELL_FILE);
+            QStandardPaths::locate(QStandardPaths::DataLocation, LINESHELL_FILE);
         #endif
     if(filename.isEmpty()) {
         //for macosx/win
@@ -537,18 +552,19 @@ void FrmKameMain::scriptLineShellAction_activated() {
         //For macosx application bundle.
         dir.cdUp();
 #endif
-        QString path = RUBYLINESHELL_DIR RUBYLINESHELL_FILE;
+        QString path = LINESHELL_DIR LINESHELL_FILE;
         dir.filePath(path);
         if(dir.exists())
             filename = dir.absoluteFilePath(path);
     }
 #endif
     if(filename.isEmpty()) {
-        g_statusPrinter->printError("No KAME ruby support file installed.");
+        g_statusPrinter->printError("No KAME script support file installed.");
     }
     else {
         static unsigned int int_no = 1;
-        runNewScript(formatString("Line Shell%d", int_no), filename );
+        XString f = filename;
+        runNewScript(formatString("Line Shell%d", int_no), f );
         int_no++;
     }
 }

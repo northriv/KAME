@@ -9,5 +9,6 @@
         <file>script/xrubysupport.rb</file>
         <file>icons/rotate.svg</file>
         <file>forms/autolctuner.png</file>
+        <file>script/xpythonsupport.py</file>
     </qresource>
 </RCC>

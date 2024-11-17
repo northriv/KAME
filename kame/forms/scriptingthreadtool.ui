@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>FrmRubyThread</class>
- <widget class="QWidget" name="FrmRubyThread">
+ <class>FrmScriptingThread</class>
+ <widget class="QWidget" name="FrmScriptingThread">
   <property name="geometry">
    <rect>
     <x>0</x>

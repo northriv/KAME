@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xrubysupport.h"
+#include "xpythonsupport.h"
 #include "measure.h"
 #include "kame.h"
 
@@ -119,7 +120,10 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 
 	m_ruby = createOrphan<XRuby>("RubySupport", true,
 		dynamic_pointer_cast<XMeasure>(shared_from_this()));
-
+#ifdef USE_PYBIND11
+    m_python = createOrphan<XPython>("PythonSupport", true,
+        dynamic_pointer_cast<XMeasure>(shared_from_this()));
+#endif
 	initialize();
 }
 
@@ -127,10 +131,17 @@ XMeasure::~XMeasure() {
 	printf("terminate\n");
     m_rawStreamRecordReader->terminate();
 	m_ruby->terminate();
+#ifdef USE_PYBIND11
+    m_python->terminate();
+#endif
     m_rawStreamRecordReader->join();
     m_ruby->join();
     m_ruby.reset();
-	g_statusPrinter.reset();
+#ifdef USE_PYBIND11
+    m_python->join();
+    m_python.reset();
+#endif
+    g_statusPrinter.reset();
 }
 void XMeasure::initialize() {
 }

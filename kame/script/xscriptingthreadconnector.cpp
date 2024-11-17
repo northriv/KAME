@@ -12,8 +12,8 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xrubysupport.h"
-#include "xrubythreadconnector.h"
-#include "xrubythread.h"
+#include "xscriptingthreadconnector.h"
+#include "xscriptingthread.h"
 #include <QPushButton>
 #include <QLabel>
 #include <QTextBrowser>
@@ -23,21 +23,21 @@
 #include <QCloseEvent>
 #include <QStyle>
 
-FrmRubyThread::FrmRubyThread(QWidget *w) :
-    QForm<QWidget, Ui_FrmRubyThread>(w), m_closable(false) {
+FrmScriptingThread::FrmScriptingThread(QWidget *w) :
+    QForm<QWidget, Ui_FrmScriptingThread>(w), m_closable(false) {
 
 }
 
 void
-FrmRubyThread::closeEvent(QCloseEvent* ce) {
+FrmScriptingThread::closeEvent(QCloseEvent* ce) {
     if( !m_closable) {
         ce->ignore();
         gWarnPrint(i18n("Ruby thread is still running."));
     }
 }
 
-XRubyThreadConnector::XRubyThreadConnector(
-    const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,
+XScriptingThreadConnector::XScriptingThreadConnector(
+    const shared_ptr<XScriptingThread> &rbthread, FrmScriptingThread *form,
     const shared_ptr<XRuby> &rbsupport) :
     XQConnector(rbthread, form),
     m_resume(XNode::createOrphan<XTouchableNode>("Resume", true)),
@@ -67,24 +67,24 @@ XRubyThreadConnector::XRubyThreadConnector(
 
     m_resume->iterate_commit([=](Transaction &tr){
 		m_lsnOnResumeTouched = tr[ *m_resume].onTouch().connectWeakly(
-			shared_from_this(), &XRubyThreadConnector::onResumeTouched);
+			shared_from_this(), &XScriptingThreadConnector::onResumeTouched);
     });
     m_kill->iterate_commit([=](Transaction &tr){
 		m_lsnOnKillTouched = tr[ *m_kill].onTouch().connectWeakly(
-			shared_from_this(), &XRubyThreadConnector::onKillTouched);
+			shared_from_this(), &XScriptingThreadConnector::onKillTouched);
     });
     Snapshot shot = rbthread->iterate_commit([=](Transaction &tr){
 	    m_lsnOnDefout = tr[ *rbthread].onMessageOut().connectWeakly(
-            shared_from_this(), &XRubyThreadConnector::onDefout, Listener::FLAG_MAIN_THREAD_CALL);
+            shared_from_this(), &XScriptingThreadConnector::onDefout, Listener::FLAG_MAIN_THREAD_CALL);
 	    m_lsnOnStatusChanged = tr[ *rbthread->status()].onValueChanged().connectWeakly(
-	        shared_from_this(), &XRubyThreadConnector::onStatusChanged);
+	        shared_from_this(), &XScriptingThreadConnector::onStatusChanged);
     });
     onStatusChanged(shot, rbthread->status().get());
 
     form->setWindowIcon( *g_pIconScript);
     form->setWindowTitle(rbthread->getLabel());
 }
-XRubyThreadConnector::~XRubyThreadConnector() {
+XScriptingThreadConnector::~XScriptingThreadConnector() {
     if(isItemAlive()) {
         m_pForm->m_ptxtDefout->clear();
     }
@@ -92,7 +92,7 @@ XRubyThreadConnector::~XRubyThreadConnector() {
     m_rubySupport->release(m_rubyThread);
 }
 void
-XRubyThreadConnector::onStatusChanged(const Snapshot &shot, XValueNodeBase *) {
+XScriptingThreadConnector::onStatusChanged(const Snapshot &shot, XValueNodeBase *) {
     bool alive = m_rubyThread->isAlive();
     if(isItemAlive()) {
         m_pForm->m_closable = !alive;
@@ -102,14 +102,14 @@ XRubyThreadConnector::onStatusChanged(const Snapshot &shot, XValueNodeBase *) {
     m_resume->setUIEnabled(alive && !running);
 }
 void
-XRubyThreadConnector::onResumeTouched(const Snapshot &shot, XTouchableNode *node) {
+XScriptingThreadConnector::onResumeTouched(const Snapshot &shot, XTouchableNode *node) {
     m_rubyThread->resume();
 }
 void
-XRubyThreadConnector::onKillTouched(const Snapshot &shot, XTouchableNode *node) {
+XScriptingThreadConnector::onKillTouched(const Snapshot &shot, XTouchableNode *node) {
     m_rubyThread->kill();
 }
 void
-XRubyThreadConnector::onDefout(const Snapshot &shot, const shared_ptr<XString> &str) {
+XScriptingThreadConnector::onDefout(const Snapshot &shot, const shared_ptr<XString> &str) {
     m_pForm->m_ptxtDefout->append( *str);
 }

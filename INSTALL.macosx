@@ -1,18 +1,20 @@
 KAME instllation notes on Mac OS X.
 
 Open kame.pro from Qt Creator.
-MacPorts (assuming placed under /opt/local) versions of gsl, fftw3, libtool-ltdl, libusb, eigen3 are necessary for building.
+MacPorts (assuming placed under /opt/local) versions of gsl, fftw3, libtool-ltdl, libusb, eigen3, (libdc1394) are necessary for building.
 
 (If needed) Add /opt/local/bin to PATH in the build environment pane of Qt Creator.
 Do *NOT* install QT from MacPorts. Use the genuine open-source QT.
 (Note for Qt 6) Qt5 compatibility module must be bundled during installation of Qt.
 
-(Re)install Xcode command line tools from developer.apple.com, if ruby.h is not found.
+(Re)install Xcode command line tools from developer.apple.com, or xcode-select --install, if ruby.h is not found.
 
-(Note for x86/x86_64) Deactivate "Add build library search path..." in the executable environment pane.
+Deactivate "Add build library search path..." in the executable environment pane, otherwise, kame crashes just after lauched.
 
 (to build universal binary) maybe, fftw-3 requires variants: +universal +clang13 -gfortran
 	Qt creator: project->build step->Additional Arguments->ABIs: check both the ABIs.
 
 (Note for NI 488.2)
+Not working with apple silicon.
+On x86-64, see
 https://www.ni.com/ja-jp/support/documentation/bugs/22/ni-488-2-21-5-known-issues.html#

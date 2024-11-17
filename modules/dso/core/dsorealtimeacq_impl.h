@@ -53,7 +53,6 @@ XRealTimeAcqDSO<tDriver>::onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &)
 template <class tDriver>
 void
 XRealTimeAcqDSO<tDriver>::open() {
-    XScopedLock<XInterface> lock( *this->interface());
     m_running = false;
 
     onSoftTrigChanged(shared_ptr<SoftwareTrigger>());
@@ -73,8 +72,6 @@ XRealTimeAcqDSO<tDriver>::open() {
 template <class tDriver>
 void
 XRealTimeAcqDSO<tDriver>::close() {
-    XScopedLock<XInterface> lock( *this->interface());
-
     m_lsnOnSoftTrigChanged.reset();
 
     clearAll();

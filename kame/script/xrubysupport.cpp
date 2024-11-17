@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -22,13 +22,7 @@
 #define XRUBYSUPPORT_RB ":/script/xrubysupport.rb" //in the qrc.
 
 XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
-: XAliasListNode<XRubyThread>(name, runtime),
-m_measure(measure) {
-    iterate_commit([=](Transaction &tr){
-		m_lsnChildCreated = tr[ *this].onChildCreated().connectWeakly(shared_from_this(),
-            &XRuby::onChildCreated, Listener::FLAG_MAIN_THREAD_CALL);
-    });
-    m_thread.reset(new XThread(shared_from_this(), &XRuby::execute));
+    : XScriptingThreadList(name, runtime, measure) {
 }
 XRuby::~XRuby() {
 }
@@ -117,13 +111,6 @@ XRuby::rlistnode_create_child(const shared_ptr<XNode> &node, Ruby::Value rbtype,
             " name = %s, type = %s\n", node->getName().c_str(), name, type);
     }
     return rnode_create(child);
-}
-void
-XRuby::onChildCreated(const Snapshot &, const shared_ptr<Payload::tCreateChild> &x)  {
-	x->child = x->lnode->createByTypename(x->type, x->name);
-	x->lnode.reset();
-	XScopedLock<XCondition> lock(x->cond);
-	x->cond.signal();
 }
 Ruby::Value
 XRuby::rlistnode_release_child(const shared_ptr<XNode> &node, Ruby::Value rbchild) {
@@ -267,15 +254,15 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node) {
     return Ruby::Nil;
 }
 
-shared_ptr<XRubyThread>
+shared_ptr<XScriptingThread>
 XRuby::findRubyThread(const shared_ptr<XNode> &, Ruby::Value threadid)
 {
     XString id = Ruby::convert<const char*>(threadid);
-	shared_ptr<XRubyThread> rubythread;
+	shared_ptr<XScriptingThread> rubythread;
     Snapshot shot(*this);
 	if(shot.size()) {
 		for(XNode::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {
-			auto th = dynamic_pointer_cast<XRubyThread>( *it);
+			auto th = dynamic_pointer_cast<XScriptingThread>( *it);
 			assert(th);
             if(id == shot[ *th->threadID()].to_str())
 				rubythread = th;
@@ -286,7 +273,7 @@ XRuby::findRubyThread(const shared_ptr<XNode> &, Ruby::Value threadid)
 Ruby::Value
 XRuby::my_rbdefout(const shared_ptr<XNode> &node, Ruby::Value str, Ruby::Value threadid) {
     shared_ptr<XString> sstr(new XString(Ruby::convert<const char*>(str)));
-    shared_ptr<XRubyThread> rubythread(findRubyThread(node, threadid));
+    shared_ptr<XScriptingThread> rubythread(findRubyThread(node, threadid));
 	if(rubythread) {
 		Snapshot shot( *rubythread);
 		shot.talk(shot[ *rubythread].onMessageOut(), sstr);
@@ -299,7 +286,7 @@ XRuby::my_rbdefout(const shared_ptr<XNode> &node, Ruby::Value str, Ruby::Value t
 }
 Ruby::Value
 XRuby::my_rbdefin(const shared_ptr<XNode> &node, Ruby::Value threadid) {
-    shared_ptr<XRubyThread> rubythread(findRubyThread(node, threadid));
+    shared_ptr<XScriptingThread> rubythread(findRubyThread(node, threadid));
     if(rubythread) {
         XString line = rubythread->gets();
         if(line.length())
@@ -348,7 +335,7 @@ XRuby::execute(const atomic<bool> &terminated) {
     }
     {
         Ruby::Value rbRubyThreads = rnode_create(shared_from_this());
-        m_ruby->defineGlobalConst("XRubyThreads", rbRubyThreads);
+        m_ruby->defineGlobalConst("XScriptingThreads", rbRubyThreads);
         m_rubyClassNode->defineSingletonMethod<&XRuby::my_rbdefout>(
             rbRubyThreads, "my_rbdefout");
         m_rubyClassNode->defineSingletonMethod<&XRuby::my_rbdefin>(

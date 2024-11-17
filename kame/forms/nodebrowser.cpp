@@ -32,7 +32,7 @@ XNodeBrowser::XNodeBrowser
 
 	m_pTimer = new QTimer(this);
     connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(process()));
-	m_pTimer->start(500);
+    m_pTimer->start(500);
     form->m_txtDesc->setAcceptRichText(true);
 }
 

@@ -17,7 +17,7 @@ class << $stdout
 			line = line.gsub(/^/, "<font color=#008800>")
 			line = line.gsub(/$/, "</font>")
 		end
-		XRubyThreads.my_rbdefout(line, Thread.current.object_id.to_s)
+		XScriptingThreads.my_rbdefout(line, Thread.current.object_id.to_s)
 	}
   end
 end
@@ -32,7 +32,7 @@ class << $stderr
         line = line.gsub(/\n/, "")
         line = line.gsub(/^/, "<font color=#ff0000>")
         line = line.gsub(/$/, "</font>")
-        XRubyThreads.my_rbdefout(line, Thread.current.object_id.to_s)
+        XScriptingThreads.my_rbdefout(line, Thread.current.object_id.to_s)
     }
   end
 end
@@ -42,7 +42,7 @@ class Mystdin
 	end
 	def gets()
 		while(1)
-			line = XRubyThreads.my_rbdefin(Thread.current.object_id.to_s)
+			line = XScriptingThreads.my_rbdefin(Thread.current.object_id.to_s)
 			if !line then
 				sleep(0.15)
 				next
@@ -247,8 +247,8 @@ print "Ruby " + RUBY_VERSION + " " + RUBY_PLATFORM + " " + RUBY_RELEASE_DATE + "
 MONITOR_PERIOD=0.2
 
 begin
-	while ( !XRubyThreads.is_main_terminated() )
-	 XRubyThreads.each {|xrbthread|
+	while ( !XScriptingThreads.is_main_terminated() )
+	 XScriptingThreads.each {|xrbthread|
 	   xrbthread_status = xrbthread["Status"]
 	   xrbthread_action = xrbthread["Action"]
 	   xrbthread_threadid = xrbthread["ThreadID"]

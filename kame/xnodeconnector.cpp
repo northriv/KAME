@@ -178,11 +178,11 @@ XQLineEditConnector::XQLineEditConnector(
     if(forcereturn) {
         connect(item, SIGNAL( editingFinished() ), this, SLOT( onExit() ) );
         connect(item, SIGNAL( textEdited( const QString &) ),
-				this, SLOT( onTextChanged(const QString &) ) );
+                this, SLOT( onTextChanged(const QString &) ) );
     }
     else {
         connect(item, SIGNAL( textEdited( const QString &) ),
-				this, SLOT( onTextChanged2(const QString &) ) );
+                this, SLOT( onTextChanged2(const QString &) ) );
     }
     onValueChanged(Snapshot( *node), node.get());
 }

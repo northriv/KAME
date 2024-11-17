@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,22 +11,22 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#ifndef XRUBYTHREADCONNECTOR_H_
-#define XRUBYTHREADCONNECTOR_H_
+#ifndef XSCRIPTINGTHREADCONNECTOR_H_
+#define XSCRIPTINGTHREADCONNECTOR_H_
 
 #include "xnodeconnector.h"
 #include "ui_rubythreadtool.h"
 
-class XRubyThread;
+class XScriptingThread;
 class XRuby;
-class FrmRubyThread;
+class FrmScriptingThread;
 
-class XRubyThreadConnector : public XQConnector {
+class XScriptingThreadConnector : public XQConnector {
 	Q_OBJECT
 public:
-    XRubyThreadConnector(const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,
+    XScriptingThreadConnector(const shared_ptr<XScriptingThread> &rbthread, FrmScriptingThread *form,
 						 const shared_ptr<XRuby> &rbsupport);
-    virtual ~XRubyThreadConnector();
+    virtual ~XScriptingThreadConnector();
     
 	const shared_ptr<XTouchableNode> &resume() const {return m_resume;}
 	const shared_ptr<XTouchableNode> &kill() const {return m_kill;}
@@ -41,21 +41,21 @@ private:
     void onKillTouched(const Snapshot &shot, XTouchableNode *node);
     void onDefout(const Snapshot &shot, const shared_ptr<XString> &str);
     void onStatusChanged(const Snapshot &shot, XValueNodeBase *node);
-    FrmRubyThread *const m_pForm;
-    const shared_ptr<XRubyThread> m_rubyThread;
+    FrmScriptingThread *const m_pForm;
+    const shared_ptr<XScriptingThread> m_rubyThread;
     const shared_ptr<XRuby> m_rubySupport;
     xqcon_ptr m_conFilename, m_conStatus, m_conResume, m_conKill, m_conLineinput;
 };
 
 class QCloseEvent;
-class FrmRubyThread : public QForm<QWidget, Ui_FrmRubyThread> {
+class FrmScriptingThread : public QForm<QWidget, Ui_FrmScriptingThread> {
 public:
-    FrmRubyThread(QWidget *w);
+    FrmScriptingThread(QWidget *w);
 protected:
     void closeEvent(QCloseEvent* ce);
 private:
-    friend class XRubyThreadConnector;
+    friend class XScriptingThreadConnector;
     bool m_closable;
 };
 
-#endif /*XRUBYTHREADCONNECTOR_H_*/
+#endif /*XSCRIPTINGTHREADCONNECTOR_H_*/

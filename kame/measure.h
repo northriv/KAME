@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -32,6 +32,7 @@ class XTextWriter;
 class XRawStreamRecorder;
 class XRawStreamRecordReader;
 class XRuby;
+class XPython;
 
 /*! The root object of KAME.
  */
@@ -58,8 +59,14 @@ public:
 	const shared_ptr<XRawStreamRecordReader> &rawStreamRecordReader() const {return m_rawStreamRecordReader;}
 
 	const shared_ptr<XRuby> &ruby() const {return m_ruby;}
+#ifdef USE_PYBIND11
+    const shared_ptr<XPython> &python() const {return m_python;}
+#endif
 private:
 	shared_ptr<XRuby> m_ruby;
+#ifdef USE_PYBIND11
+    shared_ptr<XPython> m_python;
+#endif
 
 	const shared_ptr<XThermometerList> m_thermometers;
 	const shared_ptr<XScalarEntryList> m_scalarEntries;
@@ -72,11 +79,11 @@ private:
 	const shared_ptr<XRawStreamRecordReader> m_rawStreamRecordReader;
 
 	const xqcon_ptr m_conRecordReader,
-	m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs,
-	m_conTextWrite, m_conTextURL, m_conTextLastLine,
-	m_conLogURL, m_conLogWrite, m_conLogEvery,
-	m_conBinURL, m_conBinWrite, m_conUrlRubyThread,
-	m_conCalTable, m_conNodeBrowser;
+        m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs,
+        m_conTextWrite, m_conTextURL, m_conTextLastLine,
+        m_conLogURL, m_conLogWrite, m_conLogEvery,
+        m_conBinURL, m_conBinWrite, m_conUrlRubyThread,
+        m_conCalTable, m_conNodeBrowser;
 	shared_ptr<Listener> m_lsnOnReleaseDriver;
 	void onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 };

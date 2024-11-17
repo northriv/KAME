@@ -4736,7 +4736,7 @@ Analyzer</source>
     </message>
 </context>
 <context>
-    <name>FrmRubyThread</name>
+    <name>FrmScriptingThread</name>
     <message>
         <location filename="kame/forms/rubythreadtool.ui" line="+26"/>
         <source>Script</source>
