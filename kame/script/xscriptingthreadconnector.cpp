@@ -18,7 +18,7 @@
 #include <QLabel>
 #include <QTextBrowser>
 #include <QLineEdit>
-#include "ui_scriptthreadtool.h"
+#include "ui_scriptingthreadtool.h"
 #include "icons/icon.h"
 #include <QCloseEvent>
 #include <QStyle>
@@ -43,7 +43,7 @@ XScriptingThreadConnector::XScriptingThreadConnector(
     m_resume(XNode::createOrphan<XTouchableNode>("Resume", true)),
     m_kill(XNode::createOrphan<XTouchableNode>("Kill", true)),
     m_pForm(form),
-    m_rubyThread(rbthread),
+    m_scriptThread(rbthread),
     m_rubySupport(rbsupport),
     m_conFilename(xqcon_create<XQLabelConnector>(
     	rbthread->filename(), form->m_plblFilename)),
@@ -88,26 +88,26 @@ XScriptingThreadConnector::~XScriptingThreadConnector() {
     if(isItemAlive()) {
         m_pForm->m_ptxtDefout->clear();
     }
-//    m_rubyThread->kill();
-    m_rubySupport->release(m_rubyThread);
+//    m_scriptThread->kill();
+    m_rubySupport->release(m_scriptThread);
 }
 void
 XScriptingThreadConnector::onStatusChanged(const Snapshot &shot, XValueNodeBase *) {
-    bool alive = m_rubyThread->isAlive();
+    bool alive = m_scriptThread->isAlive();
     if(isItemAlive()) {
         m_pForm->m_closable = !alive;
     }
     m_kill->setUIEnabled(alive);
-    bool running = m_rubyThread->isRunning();
+    bool running = m_scriptThread->isRunning();
     m_resume->setUIEnabled(alive && !running);
 }
 void
 XScriptingThreadConnector::onResumeTouched(const Snapshot &shot, XTouchableNode *node) {
-    m_rubyThread->resume();
+    m_scriptThread->resume();
 }
 void
 XScriptingThreadConnector::onKillTouched(const Snapshot &shot, XTouchableNode *node) {
-    m_rubyThread->kill();
+    m_scriptThread->kill();
 }
 void
 XScriptingThreadConnector::onDefout(const Snapshot &shot, const shared_ptr<XString> &str) {

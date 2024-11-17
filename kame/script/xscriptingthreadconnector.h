@@ -15,7 +15,7 @@
 #define XSCRIPTINGTHREADCONNECTOR_H_
 
 #include "xnodeconnector.h"
-#include "ui_rubythreadtool.h"
+#include "ui_scriptingthreadtool.h"
 
 class XScriptingThread;
 class XRuby;
@@ -42,7 +42,7 @@ private:
     void onDefout(const Snapshot &shot, const shared_ptr<XString> &str);
     void onStatusChanged(const Snapshot &shot, XValueNodeBase *node);
     FrmScriptingThread *const m_pForm;
-    const shared_ptr<XScriptingThread> m_rubyThread;
+    const shared_ptr<XScriptingThread> m_scriptThread;
     const shared_ptr<XRuby> m_rubySupport;
     xqcon_ptr m_conFilename, m_conStatus, m_conResume, m_conKill, m_conLineinput;
 };
