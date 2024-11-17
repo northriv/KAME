@@ -18,7 +18,7 @@
 #include <QLabel>
 #include <QTextBrowser>
 #include <QLineEdit>
-#include "ui_rubythreadtool.h"
+#include "ui_scriptthreadtool.h"
 #include "icons/icon.h"
 #include <QCloseEvent>
 #include <QStyle>
