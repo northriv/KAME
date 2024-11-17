@@ -18,14 +18,14 @@
 #include "ui_scriptingthreadtool.h"
 
 class XScriptingThread;
-class XRuby;
+class XScriptingThreadList;
 class FrmScriptingThread;
 
 class XScriptingThreadConnector : public XQConnector {
 	Q_OBJECT
 public:
     XScriptingThreadConnector(const shared_ptr<XScriptingThread> &rbthread, FrmScriptingThread *form,
-						 const shared_ptr<XRuby> &rbsupport);
+                         const shared_ptr<XScriptingThreadList> &rbsupport);
     virtual ~XScriptingThreadConnector();
     
 	const shared_ptr<XTouchableNode> &resume() const {return m_resume;}
@@ -43,7 +43,7 @@ private:
     void onStatusChanged(const Snapshot &shot, XValueNodeBase *node);
     FrmScriptingThread *const m_pForm;
     const shared_ptr<XScriptingThread> m_scriptThread;
-    const shared_ptr<XRuby> m_rubySupport;
+    const shared_ptr<XScriptingThreadList> m_threadList;
     xqcon_ptr m_conFilename, m_conStatus, m_conResume, m_conKill, m_conLineinput;
 };
 

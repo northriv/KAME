@@ -11,7 +11,6 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include "xrubysupport.h"
 #include "xscriptingthreadconnector.h"
 #include "xscriptingthread.h"
 #include <QPushButton>
@@ -37,24 +36,24 @@ FrmScriptingThread::closeEvent(QCloseEvent* ce) {
 }
 
 XScriptingThreadConnector::XScriptingThreadConnector(
-    const shared_ptr<XScriptingThread> &rbthread, FrmScriptingThread *form,
-    const shared_ptr<XRuby> &rbsupport) :
-    XQConnector(rbthread, form),
+    const shared_ptr<XScriptingThread> &scrthread, FrmScriptingThread *form,
+    const shared_ptr<XScriptingThreadList> &threadlist) :
+    XQConnector(scrthread, form),
     m_resume(XNode::createOrphan<XTouchableNode>("Resume", true)),
     m_kill(XNode::createOrphan<XTouchableNode>("Kill", true)),
     m_pForm(form),
-    m_scriptThread(rbthread),
-    m_rubySupport(rbsupport),
+    m_scriptThread(scrthread),
+    m_threadList(threadlist),
     m_conFilename(xqcon_create<XQLabelConnector>(
-    	rbthread->filename(), form->m_plblFilename)),
+        scrthread->filename(), form->m_plblFilename)),
     m_conStatus(xqcon_create<XQLabelConnector>(
-    	rbthread->status(), form->m_plblStatus)),
+        scrthread->status(), form->m_plblStatus)),
     m_conResume(xqcon_create<XQButtonConnector>(
     	m_resume, (form->m_pbtnResume))),
     m_conKill(xqcon_create<XQButtonConnector>(
     	m_kill, form->m_pbtnKill)),
 	m_conLineinput(xqcon_create<XQLineEditConnector>(
-		rbthread->lineinput(), form->m_edLineinput)) {
+        scrthread->lineinput(), form->m_edLineinput)) {
 
     form->m_pbtnResume->setIcon(
         QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
@@ -73,23 +72,23 @@ XScriptingThreadConnector::XScriptingThreadConnector(
 		m_lsnOnKillTouched = tr[ *m_kill].onTouch().connectWeakly(
 			shared_from_this(), &XScriptingThreadConnector::onKillTouched);
     });
-    Snapshot shot = rbthread->iterate_commit([=](Transaction &tr){
-	    m_lsnOnDefout = tr[ *rbthread].onMessageOut().connectWeakly(
+    Snapshot shot = scrthread->iterate_commit([=](Transaction &tr){
+        m_lsnOnDefout = tr[ *scrthread].onMessageOut().connectWeakly(
             shared_from_this(), &XScriptingThreadConnector::onDefout, Listener::FLAG_MAIN_THREAD_CALL);
-	    m_lsnOnStatusChanged = tr[ *rbthread->status()].onValueChanged().connectWeakly(
+        m_lsnOnStatusChanged = tr[ *scrthread->status()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XScriptingThreadConnector::onStatusChanged);
     });
-    onStatusChanged(shot, rbthread->status().get());
+    onStatusChanged(shot, scrthread->status().get());
 
     form->setWindowIcon( *g_pIconScript);
-    form->setWindowTitle(rbthread->getLabel());
+    form->setWindowTitle(scrthread->getLabel());
 }
 XScriptingThreadConnector::~XScriptingThreadConnector() {
     if(isItemAlive()) {
         m_pForm->m_ptxtDefout->clear();
     }
 //    m_scriptThread->kill();
-    m_rubySupport->release(m_scriptThread);
+    m_threadList->release(m_scriptThread);
 }
 void
 XScriptingThreadConnector::onStatusChanged(const Snapshot &shot, XValueNodeBase *) {
