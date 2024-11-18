@@ -5,6 +5,7 @@ import threading
 import traceback
 import inspect
 import datetime
+import ctypes
 import numpy as np
 from kame import *
 STDOUT = sys.stdout
@@ -15,14 +16,6 @@ print("Hello! KAME Python support.")
 
 #Thread-monitor
 MONITOR_PERIOD=0.2
-
-# class Node:
-# 	def __getitem__(pos):
-# 		shot = Snapshot(self)
-# 		if isinstance(pos, int):
-# 			return shot[pos]
-# 		else:
-# 			return [x.getName() for x in list(shot)]
 
 TLS = threading.local()
 TLS.xscrthread = None# XScriptingThreads()[0]
@@ -147,13 +140,18 @@ while not is_main_terminated():
 					print("Loading "+ filename)
 					thread = threading.Thread(daemon=True, target=loadSequence)
 					thread.start()
-
+				if action == "kill":
+					time.sleep(0.5)
+					if action == "kill":
+						#cannot be killed by timer.
+						ctypes.pythonapi.PyThreadState_SetAsyncExc(
+							ctypes.c_long(int(str(xpythread_threadid))), 
+							ctypes.py_object(SystemExit)
+						)
 	except EOFError:
 		pass
 	except Exception as inst:
 		sys.stderr.write(str(traceback.format_exc()))
-#		sys.stderr.write(str(type(inst)))
-#		sys.stderr.write(str(inst))
 		pass
 for thread in threading.enumerate():
 	thread.join()
