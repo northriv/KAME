@@ -4,6 +4,7 @@ import sys
 import threading
 import traceback
 import inspect
+import datetime
 import numpy as np
 from kame import *
 STDOUT = sys.stdout
@@ -24,21 +25,25 @@ MONITOR_PERIOD=0.2
 # 			return [x.getName() for x in list(shot)]
 
 TLS = threading.local()
-TLS.xscrthread = False #XScriptingThreads()[0]
+TLS.xscrthread = None# XScriptingThreads()[0]
+TLS.logfile = None
 class MyDefIO:
 	def write(s):
-		if s[-1] == '\n':
-			s = s[0:-1]
-		for l in s.splitlines():
-			if len(l) and l[0] == "#":
-				l = l.replace("&", "&amp;")
-				l = l.replace("<", "&lt;")
-				l = l.replace(">", "&gt;")
-				l = "<font color=#008800>" + l + "</font" 
-			if TLS.xscrthread:
+		if TLS.xscrthread:
+			if s[-1] == '\n':
+				s = s[0:-1]
+			for l in s.splitlines():
+				if len(l) and l[0] == "#":
+					l = l.replace("&", "&amp;")
+					l = l.replace("<", "&lt;")
+					l = l.replace(">", "&gt;")
+					l = "<font color=#008800>" + l + "</font" 
 				my_defout(TLS.xscrthread, l)
-			else:
-				STDERR.write(s)
+			if TLS.logfile:
+				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
+		else:
+			STDERR.write(s)
+
 	def readline():
 		if TLS.xscrthread:
 			return my_defin(TLS.xscrthread)
@@ -47,17 +52,19 @@ class MyDefIO:
 		
 class MyDefOErr:
 	def write(s):
-		s = s.replace("&", "&amp;")
-		s = s.replace("<", "&lt;")
-		s = s.replace(">", "&gt;")
+		STDERR.write(s)
 		if s[-1] == '\n':
 			s = s[0:-1]
-		for l in s.splitlines():
-			l = "<font color=#ff0000>" + l + "</font" 
-			if TLS.xscrthread:
+		if TLS.xscrthread:
+			s = s.replace("&", "&amp;")
+			s = s.replace("<", "&lt;")
+			s = s.replace(">", "&gt;")
+			for l in s.splitlines():
+				l = "<font color=#ff0000>" + l + "</font" 
 				my_defout(TLS.xscrthread, l)
-			else:
-				STDERR.write(s)
+#this does not work why?
+#			if TLS.logfile:
+#				TLS.logfile.write("Err:" + str(datetime.datetime.now()) + ":" + s + '\n')
 
 sys.stdout = MyDefIO
 sys.stderr = MyDefOErr
@@ -91,20 +98,27 @@ def sleep(sec):
 				xpythread["Status"] = "{}s @{}".format(int(remain), inspect.currentframe().f_back)
 		if remain < 0:
 			break
-		event.wait(min([remain, 1]))
+		event.wait(min([remain, 0.33]))
 	if TLS.xscrthread:
 		xpythread = TLS.xscrthread
 		xpythread["Status"] = "run"
 
 def loadSequence():
 	TLS.xscrthread = xpythread #thread-local-storage
+	TLS.logfile = None
 	try:
-		print("#" + str(threading.current_thread()) + " started.")
-		#log files
 		xpythread_threadid.set(str(threading.current_thread().native_id))
 		xpythread["Status"] = "run"
-		exec(open(filename).read())
-		print(str(threading.current_thread()) + " Finished.")
+		if "lineshell" in filename:
+			print("#KAME Python interpreter>")
+			exec(open(filename).read())
+		else:
+			with open(filename + ".log", mode='a') as logfile:
+				TLS.logfile = logfile
+				print("#" + str(threading.current_thread()) + " started.")
+				exec(open(filename).read())
+				print(str(threading.current_thread()) + " Finished.")
+				TLS.logfile = None
 	except Exception as inst:
 		sys.stderr.write(str(traceback.format_exc()))
 		pass
@@ -133,15 +147,7 @@ while not is_main_terminated():
 					print("Loading "+ filename)
 					thread = threading.Thread(daemon=True, target=loadSequence)
 					thread.start()
-				else:
-					# if str(xpythread_status) != "":
-					# 	print("thread is dead.")
-					# 	xpythread_status.set("")
-					pass
-			
-		# line = input()
-		# print(">>{}".format(line))
-		# print(eval(line))
+
 	except EOFError:
 		pass
 	except Exception as inst:
