@@ -28,16 +28,24 @@ Gnuc = [0.0,\
 xpythread_status.set("")
 lineno = 1
 while not is_main_terminated():
-	try:
-		line = input()
-		print("{} >{}".format(lineno, line))
-		print(eval(line))
-	except EOFError:
-		time.sleep(0.2)
-		continue
-		pass
-	except Exception as inst:
-		sys.stderr.write(str(type(inst)))
-		sys.stderr.write(str(inst))
-		pass
-	lineno+=1
+    try:
+        line = input()
+        print("{} >{}".format(lineno, line))
+        print(repr(eval(line)))
+    except EOFError:
+        time.sleep(0.2)
+        continue
+        pass
+    except SyntaxError:
+        try:
+            exec(line)
+        except Exception as inst:
+            sys.stderr.write(str(type(inst)))
+            sys.stderr.write(str(inst))
+            pass
+        pass
+    except Exception as inst:
+        sys.stderr.write(str(type(inst)))
+        sys.stderr.write(str(inst))
+        pass
+    lineno+=1
