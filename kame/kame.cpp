@@ -485,20 +485,20 @@ shared_ptr<XScriptingThread>
 FrmKameMain::runNewScript(const XString &label, const XString &filename) {
     show();
     raise();
-    shared_ptr<XScriptingThread> scriptthread;
+    shared_ptr<XScriptingThreadList> threadlist;
 #ifdef USE_PYBIND11
     if(filename.rfind(".py") == filename.length() - 3) {
-        scriptthread = m_measure->python()->
-            create<XScriptingThread>(label.c_str(), true, filename);
+        threadlist = m_measure->python();
     } else
 #endif
     {
-        scriptthread = m_measure->ruby()->
-            create<XScriptingThread>(label.c_str(), true, filename );
+        threadlist = m_measure->ruby();
     }
+    shared_ptr<XScriptingThread> scriptthread =
+        threadlist->create<XScriptingThread>(label.c_str(), true, filename);
     FrmScriptingThread* form = new FrmScriptingThread(this);
     m_conScriptThreadList.push_back(xqcon_create<XScriptingThreadConnector>(
-                                      scriptthread, form, m_measure->ruby()));
+                                      scriptthread, form, threadlist));
 	addDockableWindow(m_pMdiCentral, form, true);
 
 	// erase unused xqcon_ptr
