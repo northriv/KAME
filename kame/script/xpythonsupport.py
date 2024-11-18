@@ -100,7 +100,7 @@ def loadSequence():
 	TLS.xscrthread = xpythread #thread-local-storage
 	TLS.logfile = None
 	try:
-		xpythread_threadid.set(str(threading.current_thread().native_id))
+		xpythread["ThreadID"] = str(threading.current_thread().native_id)
 		xpythread["Status"] = "run"
 		if "lineshell" in filename:
 			print("#KAME Python interpreter>")
@@ -115,7 +115,7 @@ def loadSequence():
 	except Exception as inst:
 		sys.stderr.write(str(traceback.format_exc()))
 		pass
-	xpythread["Status"] = ""
+	TLS.xscrthread["Status"] = ""
 
 print("#testing python interpreter.")
 while not is_main_terminated():
@@ -140,6 +140,7 @@ while not is_main_terminated():
 					print("Loading "+ filename)
 					thread = threading.Thread(daemon=True, target=loadSequence)
 					thread.start()
+					time.sleep(0.3)
 				if action == "kill":
 					time.sleep(0.5)
 					if action == "kill":
