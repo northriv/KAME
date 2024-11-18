@@ -62,7 +62,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     py::class_<XValueNodeBase, XNode, shared_ptr<XValueNodeBase>>(m, "ValueNode")
         .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XValueNodeBase>(x);}))
         .def("__str__", [](shared_ptr<XValueNodeBase> &self)->std::string{return Snapshot( *self)[*self].to_str();})
-        .def("str", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);});
+        .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);});
     py::class_<XItemNodeBase, XValueNodeBase, shared_ptr<XItemNodeBase>>(m, "ItemNode")
         .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XItemNodeBase>(x);}))
         .def("itemStrings", &XItemNodeBase::itemStrings)
@@ -137,36 +137,40 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
                 if(auto x = dynamic_pointer_cast<XIntNode>(y))
                     trans( *x) = v;
-                if(auto x = dynamic_pointer_cast<XUIntNode>(y))
+                else if(auto x = dynamic_pointer_cast<XUIntNode>(y))
                     trans( *x) = v;
-                if(auto x = dynamic_pointer_cast<XLongNode>(y))
+                else if(auto x = dynamic_pointer_cast<XLongNode>(y))
                     trans( *x) = v;
-                if(auto x = dynamic_pointer_cast<XULongNode>(y))
+                else if(auto x = dynamic_pointer_cast<XULongNode>(y))
                     trans( *x) = v;
-                if(auto x = dynamic_pointer_cast<XHexNode>(y))
+                else if(auto x = dynamic_pointer_cast<XHexNode>(y))
                     trans( *x) = v;
-                if(auto x = dynamic_pointer_cast<XBoolNode>(y))
+                else if(auto x = dynamic_pointer_cast<XBoolNode>(y))
                     trans( *x) = v;
-                if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
+                else if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
                     trans( *x) = v;
-                throw std::runtime_error("Error: type mismatch.");
+                else throw std::runtime_error("Error: type mismatch.");
             }
-            throw std::runtime_error("Error: not a value node.");
+            else
+                throw std::runtime_error("Error: not a value node.");
         })
         .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, const std::string &v){
             auto y = self->getChild(str);
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y))
                 trans( *x).str(v);
-            throw std::runtime_error("Error: not a value node.");
+            else
+                throw std::runtime_error("Error: not a value node.");
         })
         .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, double v){
             auto y = self->getChild(str);
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
                 if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
                     trans( *x) = v;
-                throw std::runtime_error("Error: type mismatch.");
+                else
+                    throw std::runtime_error("Error: type mismatch.");
             }
-            throw std::runtime_error("Error: not a value node.");
+            else
+                throw std::runtime_error("Error: not a value node.");
         });
 }
 
@@ -180,19 +184,26 @@ XPython::~XPython() {
 }
 
 void
-XPython::my_defout(const shared_ptr<XNode> &node, const std::string &msg, unsigned int threadid) {
-    shared_ptr<XNode> p = Snapshot(*m_measure.lock()->python()).list()->at(0);
-    auto scriptthread = dynamic_pointer_cast<XScriptingThread>(p);
-    Snapshot shot( *scriptthread);
-    shot.talk(shot[ *scriptthread].onMessageOut(), std::make_shared<XString>(msg));
-    dbgPrint(QString("Python [%1]; %2").arg(shot[ *scriptthread->filename()].to_str()).arg(msg.c_str()));
+XPython::my_defout(shared_ptr<XNode> node, const std::string &msg) {
+//    shared_ptr<XNode> p = Snapshot(*m_measure.lock()->python()).list()->at(0);
+    auto scriptthread = dynamic_pointer_cast<XScriptingThread>(node);
+    if(scriptthread) {
+        Snapshot shot( *scriptthread);
+        shot.talk(shot[ *scriptthread].onMessageOut(), std::make_shared<XString>(msg));
+        dbgPrint(QString("Python [%1]; %2").arg(shot[ *scriptthread->filename()].to_str()).arg(msg.c_str()));
+    }
+    else
+        fprintf(stderr, "%s\n", msg.c_str());
 }
 std::string
-XPython::my_defin(const shared_ptr<XNode> &node, unsigned int threadid) {
-    shared_ptr<XNode> p = Snapshot(*m_measure.lock()->python()).list()->at(0);
-    auto scriptthread = dynamic_pointer_cast<XScriptingThread>(p);
-    XString line = scriptthread->gets();
-    return line;
+XPython::my_defin(shared_ptr<XNode> node) {
+//    shared_ptr<XNode> p = Snapshot(*m_measure.lock()->python()).list()->at(0);
+    auto scriptthread = dynamic_pointer_cast<XScriptingThread>(node);
+    if(scriptthread) {
+        XString line = scriptthread->gets();
+        return line;
+    }
+    return "";
 }
 
 void *
@@ -217,8 +228,8 @@ XPython::execute(const atomic<bool> &terminated) {
         XString name = measure->getName();
         name[0] = toupper(name[0]);
         kame_module.def("Root", [=]()->shared_ptr<XNode>{return measure;});
-        kame_module.def("my_defout", [=](const std::string &str){this->my_defout({}, str, 0);});
-        kame_module.def("my_defin", [=]()->std::string{return this->my_defin({}, 0);});
+        kame_module.def("my_defout", [=](shared_ptr<XNode> scrthread, const std::string &str){this->my_defout(scrthread, str);});
+        kame_module.def("my_defin", [=](shared_ptr<XNode> scrthread)->std::string{return this->my_defin(scrthread);});
         kame_module.def("is_main_terminated", [=](){return this->m_thread->isTerminated();});
         kame_module.def("XScriptingThreads", [=]()->shared_ptr<XListNodeBase>{return dynamic_pointer_cast<XListNodeBase>(this->shared_from_this());});
 

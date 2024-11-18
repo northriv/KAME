@@ -31,8 +31,8 @@ public:
     virtual ~XPython();
 protected:
     virtual void *execute(const atomic<bool> &) override;
-    void my_defout(const shared_ptr<XNode> &node, const std::string &msg, unsigned int threadid);
-    std::string my_defin(const shared_ptr<XNode> &node, unsigned int threadid);
+    void my_defout(shared_ptr<XNode> node, const std::string &msg);
+    std::string my_defin(shared_ptr<XNode> node);
 private:
 };
 

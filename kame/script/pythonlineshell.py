@@ -25,19 +25,19 @@ Gnuc = [0.0,\
 0.0, -2.8149732, 0.0, 24.3209950, 0.0, 24.5596944, 0.0, 8.9072353, 0.0, 8.9072353
 ]
 
+xpythread_status.set("")
 lineno = 1
-
 while not is_main_terminated():
 	try:
 		line = input()
-		print("{}>>{}".format(lineno, line))
+		print("{} >{}".format(lineno, line))
 		print(eval(line))
 	except EOFError:
+		time.sleep(0.2)
+		continue
 		pass
 	except Exception as inst:
-		print(type(inst))
-		print(inst.args)
-		print(inst)
+		sys.stderr.write(str(type(inst)))
+		sys.stderr.write(str(inst))
 		pass
 	lineno+=1
-

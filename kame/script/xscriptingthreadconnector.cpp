@@ -31,7 +31,7 @@ void
 FrmScriptingThread::closeEvent(QCloseEvent* ce) {
     if( !m_closable) {
         ce->ignore();
-        gWarnPrint(i18n("Ruby thread is still running."));
+        gWarnPrint(i18n("Script is still running."));
     }
 }
 
