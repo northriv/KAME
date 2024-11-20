@@ -45,8 +45,18 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             return formatString("<Snapshot@%p>", &self);
         })
         .def("size", [](Snapshot &self, const shared_ptr<XNode>&node){return self.size(node);})
-        .def("list", [](Snapshot &self){return self.list();})
-        .def("list", [](Snapshot &self, const shared_ptr<XNode>&node){return self.list(node);})
+        .def("list", [](Snapshot &self)->std::vector<shared_ptr<XNode>>{
+            std::vector<shared_ptr<XNode>> v;
+            if(self.size())
+                v.insert(v.begin(), self.list()->begin(), self.list()->end());
+            return v;
+        })
+        .def("list", [](Snapshot &self, shared_ptr<XNode>&node){
+            std::vector<shared_ptr<XNode>> v;
+            if(self.size(node))
+                v.insert(v.begin(), self.list(node)->begin(), self.list(node)->end());
+            return v;
+        })
         .def("__len__", [](Snapshot &self){return self.size();})
         .def("__getitem__", [](Snapshot &self, unsigned int pos)->shared_ptr<XNode>{
             return self.size() ? self.list()->at(pos) : shared_ptr<XNode>();}
