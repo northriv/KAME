@@ -222,6 +222,11 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             }
             else
                 throw std::runtime_error("Error: not a value node.");
+        })
+        .def("iterate_commit", [](shared_ptr<XNode> &self, py::object pyfunc)->Snapshot {
+            return self->iterate_commit([=](Transaction &tr){
+                pyfunc(tr);
+            });
         });
 }
 
