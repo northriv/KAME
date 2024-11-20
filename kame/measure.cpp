@@ -37,7 +37,7 @@
 #include "ui_drivercreate.h"
 #include "ui_nodebrowserform.h"
 #include "ui_recordreaderform.h"
-#include "ui_rubythreadtool.h"
+#include "ui_scriptingthreadtool.h"
 #include "ui_graphtool.h"
 #include "ui_interfacetool.h"
 #include "ui_drivertool.h"
