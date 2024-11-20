@@ -16,19 +16,19 @@
 
 shared_ptr<XPort>
 XPrologixGPIBPort::open(const XCharInterface *pInterface) {
-    auto p = XAddressedPort<XSerialPort>::open(pInterface);
-    XSerialPort::setEOS("\r");//CR
-    XSerialPort::send("++mode 1\r");
+    auto p = static_pointer_cast<XAddressedPort<XSerialPort>>(XAddressedPort<XSerialPort>::open(pInterface));
+    p->setEOS("\r");//CR
+    p->send("++mode 1\r");
     msecsleep(1);
-    XSerialPort::send("++auto 0\r");
+    p->send("++auto 0\r");
     msecsleep(1);
-    XSerialPort::send("++ifc\r");
+    p->send("++ifc\r");
     msecsleep(1); //wait is needed after IFC.
-    XSerialPort::send("++read_tmo_ms 2000\r");
+    p->send("++read_tmo_ms 2000\r");
     msecsleep(1);
-    XSerialPort::send("++eot_enable 1\r");
+    p->send("++eot_enable 1\r");
     msecsleep(1);
-    XSerialPort::send("++eot_char 13\r"); //CR
+    p->send("++eot_char 13\r"); //CR
     return p;
 }
 

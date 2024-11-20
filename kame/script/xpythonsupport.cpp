@@ -52,6 +52,57 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             return self.size() ? self.list()->at(pos) : shared_ptr<XNode>();}
         )
         .def("isUpperOf", &Snapshot::isUpperOf);
+    py::class_<Transaction, Snapshot>(m, "Transaction")
+        .def(py::init([](const shared_ptr<XNode> &x){return Transaction(*x);}), py::keep_alive<1, 2>())
+//        .def("__enter__", ([](const shared_ptr<XNode> &x){return Transaction(*x);}), py::keep_alive<1, 2>())
+//        .def("__exit__", [](Transaction &self, pybind11::args){})
+        .def("__repr__", [](Transaction &self)->std::string{
+            return formatString("<Transaction@%p>", &self);
+        })
+        .def("commit", [](Transaction &self) {
+            return self.commit();
+        })
+        .def("commitOrNext", [](Transaction &self) {
+            return self.commitOrNext();
+        })
+        .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, int v){
+            if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
+                if(auto x = dynamic_pointer_cast<XIntNode>(y))
+                    self[ *x] = v;
+                else if(auto x = dynamic_pointer_cast<XUIntNode>(y))
+                    self[ *x] = v;
+                else if(auto x = dynamic_pointer_cast<XLongNode>(y))
+                    self[ *x] = v;
+                else if(auto x = dynamic_pointer_cast<XULongNode>(y))
+                    self[ *x] = v;
+                else if(auto x = dynamic_pointer_cast<XHexNode>(y))
+                    self[ *x] = v;
+                else if(auto x = dynamic_pointer_cast<XBoolNode>(y))
+                    self[ *x] = v;
+                else if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
+                    self[ *x] = v;
+                else throw std::runtime_error("Error: type mismatch.");
+            }
+            else
+                throw std::runtime_error("Error: not a value node.");
+        })
+        .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, const std::string &v){
+            if(auto x = dynamic_pointer_cast<XValueNodeBase>(y))
+                self[ *x].str(v);
+            else
+                throw std::runtime_error("Error: not a value node.");
+        })
+        .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, double v){
+            if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
+                if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
+                    self[ *x] = v;
+                else
+                    throw std::runtime_error("Error: type mismatch.");
+            }
+            else
+                throw std::runtime_error("Error: not a value node.");
+        });
+
     py::class_<XListNodeBase, XNode, shared_ptr<XListNodeBase>>(m, "ListNode")
         .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XListNodeBase>(x);}))
         .def("release", [](shared_ptr<XListNodeBase> &self, shared_ptr<XNode> &child){self->release(child);})
