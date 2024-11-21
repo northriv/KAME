@@ -249,7 +249,7 @@ win32-g++ {
 #    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0
 #    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0/x64-mingw32
 #    LIBS += $$files(c:/msys64/mingw64/lib/libx64-msvcrt-ruby*[0-9].dll.a)
-    pythons="python" $$files("c:/msys64/mingw64/bin/python*")
+    pythons=$$files("c:/msys64/mingw64/bin/python3*")
     for(PYTHON, pythons) {
         system("$${PYTHON} -m pybind11 --includes") {
             QMAKE_CXXFLAGS += `$${PYTHON} -m pybind11 --includes`
