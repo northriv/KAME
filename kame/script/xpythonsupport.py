@@ -7,6 +7,9 @@ import inspect
 import datetime
 import ctypes
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from kame import *
 STDOUT = sys.stdout
 STDERR = sys.stderr

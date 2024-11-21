@@ -14,6 +14,10 @@
 //---------------------------------------------------------------------------
 #include <pybind11/embed.h> //include before kame headers
 #include <pybind11/iostream.h>
+#include <pybind11/stl.h>
+#include <pybind11/complex.h>
+#include <pybind11/functional.h>
+#include <pybind11/chrono.h>
 
 namespace py = pybind11;
 
@@ -294,6 +298,7 @@ XPython::execute(const atomic<bool> &terminated) {
         XString name = measure->getName();
         name[0] = toupper(name[0]);
         kame_module.def("Root", [=]()->shared_ptr<XNode>{return measure;});
+        kame_module.def("Measurement", [=]()->shared_ptr<XNode>{return measure;});
         kame_module.def("my_defout", [=](shared_ptr<XNode> scrthread, const std::string &str){this->my_defout(scrthread, str);});
         kame_module.def("my_defin", [=](shared_ptr<XNode> scrthread)->std::string{return this->my_defin(scrthread);});
         kame_module.def("is_main_terminated", [=](){return this->m_thread->isTerminated();});
