@@ -221,9 +221,9 @@ macx {
     pythons="python3" $$files("/opt/local/bin/python3*") $$files("/usr/local/bin/python3*")
     for(PYTHON, pythons) {
         system("$${PYTHON} -m pybind11 --includes") {
-            QMAKE_CXXFLAGS += `$${PYTHON} -m pybind11 --includes`
-            QMAKE_CXXFLAGS += `$${PYTHON}-config --cflags`
-            QMAKE_LFLAGS += `$${PYTHON}-config --embed --ldflags`
+            QMAKE_CXXFLAGS += $$system($${PYTHON} -m pybind11 --includes)
+            QMAKE_CXXFLAGS += $$system($${PYTHON}-config --cflags)
+            QMAKE_LFLAGS += $$system($${PYTHON}-config --embed --ldflags)
             DEFINES += USE_PYBIND11
             SOURCES += script/xpythonsupport.cpp
             HEADERS += script/xpythonsupport.h
@@ -252,9 +252,9 @@ win32-g++ {
     pythons=$$files("c:/msys64/mingw64/bin/python3*")
     for(PYTHON, pythons) {
         system("$${PYTHON} -m pybind11 --includes") {
-            QMAKE_CXXFLAGS += `$${PYTHON} -m pybind11 --includes`
-            QMAKE_CXXFLAGS += `c:/msys64/msys2_shell.cmd -mingw64 $${PYTHON}-config --cflags`
-            QMAKE_LFLAGS += `c:/msys64/msys2_shell.cmd -mingw64 $${PYTHON}-config --embed --ldflags`
+            QMAKE_CXXFLAGS += $$system($${PYTHON} -m pybind11 --includes)
+            QMAKE_CXXFLAGS += $$system(c:/msys64/msys2_shell.cmd -mingw64 $${PYTHON}-config --cflags)
+            QMAKE_LFLAGS += $$system(c:/msys64/msys2_shell.cmd -mingw64 $${PYTHON}-config --embed --ldflags)
             DEFINES += USE_PYBIND11
             SOURCES += script/xpythonsupport.cpp
             HEADERS += script/xpythonsupport.h
