@@ -219,22 +219,17 @@ macx {
 #for ruby.h incompatible with C++11
     QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
 
-    exists("/opt/local/include/pybind11/pytypes.h") {
-#        exists("/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/Current/Headers/Python.h") {
-        exists("/opt/local/Library/Frameworks/Python.framework/Versions/3.10/lib/libpython3.10.dylib") {
-#            INCLUDEPATH += /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/Current/Headers/
-#            LIBS += $$files(/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/Current/lib/libpython*.dylib)
-
-#            INCLUDEPATH += `python3 -m pybind11 --includes`
-#            LIBS += `python3 --embed --ldflags`
-#            QMAKE_CXXFLAGS += `python3 --cflags --embed`
-
-            INCLUDEPATH += /opt/local/Library/Frameworks/Python.framework/Versions/3.10/include/python3.10
-            INCLUDEPATH += /opt/local/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/pybind11/include
-            LIBS += /opt/local/Library/Frameworks/Python.framework/Versions/3.10/lib/libpython3.10.dylib
+    pythons="python3" $$files("/opt/local/bin/python3*") $$files("/usr/local/bin/python3*")
+    for(PYTHON, pythons) {
+        system("$${PYTHON} -m pybind11 --includes") {
+            QMAKE_CXXFLAGS += `$${PYTHON} -m pybind11 --includes`
+            QMAKE_CXXFLAGS += `$${PYTHON}-config --cflags`
+            QMAKE_LFLAGS += `$${PYTHON}-config --embed --ldflags`
             DEFINES += USE_PYBIND11
             SOURCES += script/xpythonsupport.cpp
             HEADERS += script/xpythonsupport.h
+            message("Python scripting support enabled.")
+            break()
         }
     }
 }
