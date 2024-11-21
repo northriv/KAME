@@ -20,6 +20,7 @@ XMutex OnScreenTexture::garbagemutex;
 std::deque<GLuint> OnScreenTexture::unusedIDs;
 
 #if defined(WIN32)
+    #include <windows.h>
     PFNGLACTIVETEXTUREPROC glActiveTexture = (PFNGLACTIVETEXTUREPROC)wglGetProcAddress("glActiveTexture");
     PFNGLMULTITEXCOORD2FPROC glMultiTexCoord2f = (PFNGLMULTITEXCOORD2FPROC)wglGetProcAddress("glMultiTexCoord2f");
 #endif

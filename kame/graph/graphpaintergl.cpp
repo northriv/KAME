@@ -18,6 +18,9 @@
     #include <OpenGL/glu.h>
 //    #include <GLUT/glut.h>
 #else
+    #if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        #include <windows.h> //needed for Qt6.8 mingw64
+    #endif
     #include <GL/glu.h>
 //    #include <GL/glut.h>
 #endif
