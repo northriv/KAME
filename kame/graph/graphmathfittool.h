@@ -109,7 +109,7 @@ struct FuncGraph1DMathGaussianFitTool{
         }
         return true;
     }
-    static std::array<double, 2> result(unsigned int p, const double*params, const double*errors) {
+    static std::tuple<double, double> result(unsigned int p, const double*params, const double*errors) {
         switch(p) {
         default:
         case 0: return {params[0], errors[0]};
