@@ -191,8 +191,7 @@ else {
         INSTALLS += scriptfile
     }
     else {
-        DISTFILES += script/rubylineshell.rb  \
-            script/pythonlineshell.py
+        DISTFILES += script/rubylineshell.rb script/pythonlineshell.py
     }
 }
 
@@ -374,9 +373,6 @@ macx {
         QMAKE_BUNDLE_DATA += ezusbfiles
     }
 }
-
-DISTFILES += \
-    script/pythonlineshell.py
 
 
 
