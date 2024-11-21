@@ -237,16 +237,32 @@ else:unix {
     LIBS += -lruby
 }
 win32-g++ {
+    #for user-build ruby
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/x64-mingw64
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/x64-mingw32
     LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/lib*msvcrt-ruby*[0-9].dll.a)
+    #for msys64 ruby
     RUBYH = $$files(c:/msys64/mingw64/include/ruby-*[.0-9]/ruby.h)
     exists(RUBYH): INCLUDEPATH += $$dirname($$RUBYH)
 #    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0
 #    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0/x64-mingw32
 #    LIBS += $$files(c:/msys64/mingw64/lib/libx64-msvcrt-ruby*[0-9].dll.a)
+    pythons="python" $$files("c:/msys64/mingw64/bin/python*")
+    for(PYTHON, pythons) {
+        system("$${PYTHON} -m pybind11 --includes") {
+            QMAKE_CXXFLAGS += `$${PYTHON} -m pybind11 --includes`
+            QMAKE_CXXFLAGS += `$${PYTHON}-config --cflags`
+            QMAKE_LFLAGS += `$${PYTHON}-config --embed --ldflags`
+            DEFINES += USE_PYBIND11
+            SOURCES += script/xpythonsupport.cpp
+            HEADERS += script/xpythonsupport.h
+            message("Python scripting support enabled.")
+            break()
+        }
+    }
+
     LIBS += -lopengl32 -lglu32
 }
 win32-msvc* {
