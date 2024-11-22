@@ -23,12 +23,12 @@
 #include "ui_nodebrowserform.h"
 
 XNodeBrowser::XNodeBrowser
-(const shared_ptr<XNode> &root, FrmNodeBrowser *form)
+(const shared_ptr<XMeasure> &root, FrmNodeBrowser *form)
 	: XQConnector(root, form),
-	m_root(root),
+    m_root(root),
 	m_pForm(form),
 	m_desc(XNode::createOrphan<XStringNode>("Desc", true)),
-	m_conDesc(xqcon_create<XQTextBrowserConnector>(m_desc, form->m_txtDesc)) {
+    m_conDesc(xqcon_create<XQTextBrowserConnector>(m_desc, form->m_txtDesc)) {
 
 	m_pTimer = new QTimer(this);
     connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(process()));
@@ -67,9 +67,13 @@ XNodeBrowser::process() {
 		}
 	}
 
-	if( !node)
-		node = m_lastPointed;
-	if((node != m_lastPointed) && node) {
+    shared_ptr<XMeasure> rootnode(m_root);
+
+    if( !node)
+        node = rootnode->lastPointedByNodeBrowser();
+    if((node != rootnode->lastPointedByNodeBrowser()) && node) {
+        trans( *rootnode->pyInfoForNodeBrowser()) = ""; //erases old info.
+
 		Snapshot shot( *node);
 		auto valuenode(dynamic_pointer_cast<XValueNodeBase>(node));
 		auto listnode(dynamic_pointer_cast<XListNodeBase>(node));
@@ -92,8 +96,7 @@ XNodeBrowser::process() {
 		str += "<br>";
 		XString rbpath;
 		XNode *cnode = node.get();
-		shared_ptr<XNode> rootnode(m_root);
-		Snapshot rootshot( *rootnode);
+        Snapshot rootshot( *rootnode);
 		while(cnode) {
 			if((rbpath.length() > 64) ||
 				(cnode == m_root.lock().get())) {
@@ -129,5 +132,5 @@ XNodeBrowser::process() {
 		}
 		trans( *m_desc).str(str);
 	}
-	m_lastPointed = node;
+    rootnode->lastPointedByNodeBrowser() = node;
 }

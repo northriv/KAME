@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -21,22 +21,23 @@
 class Ui_FrmNodeBrowser;
 typedef QForm<QWidget, Ui_FrmNodeBrowser> FrmNodeBrowser;
 
+class XMeasure;
 class XNodeBrowser : public XQConnector {
 	Q_OBJECT
 public:
 	XNodeBrowser(
-		const shared_ptr<XNode> &root, FrmNodeBrowser *form);
+        const shared_ptr<XMeasure> &root, FrmNodeBrowser *form);
 	virtual ~XNodeBrowser();
+
 private slots:	
 	virtual void process();
 private:
 	QTimer *m_pTimer;
 
-	const weak_ptr<XNode> m_root;
+    const weak_ptr<XMeasure> m_root;
 	FrmNodeBrowser *const m_pForm;
 
-	shared_ptr<XNode> m_lastPointed;
-	const shared_ptr<XStringNode> m_desc;
+    const shared_ptr<XStringNode> m_desc;
 
 	shared_ptr<XNode> connectedNode(QWidget *widget);
 

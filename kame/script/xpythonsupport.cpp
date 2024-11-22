@@ -31,6 +31,33 @@ namespace py = pybind11;
 #include "xlistnode.h"
 #include "xitemnode.h"
 
+auto py_dynamic_cast = [](shared_ptr<XNode> &y)->py::object{
+    if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
+        if(auto x = dynamic_pointer_cast<XIntNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XUIntNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XLongNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XULongNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XHexNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XBoolNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XStringNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XItemNodeBase>(y))
+            return py::cast(x);
+    }
+    if(auto x = dynamic_pointer_cast<XListNodeBase>(y))
+        return py::cast(x);
+    if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
+        return py::cast(x);
+    return py::cast(y);
+};
 PYBIND11_EMBEDDED_MODULE(kame, m) {
     auto bound_xnode = py::class_<XNode, shared_ptr<XNode>>(m, "Node")
         .def("__repr__", [](shared_ptr<XNode> &self)->std::string{
@@ -169,33 +196,10 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             Snapshot shot( *self);
             return shot.size() ? shot.list()->at(pos) : shared_ptr<XNode>();
         })
+        .def("dynamic_cast", [](shared_ptr<XNode> &self)->py::object {return py_dynamic_cast(self);})
         .def("__getitem__", [](shared_ptr<XNode> &self, const std::string &str)->py::object{
             auto y = self->getChild(str);
-            if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
-                if(auto x = dynamic_pointer_cast<XIntNode>(y))
-                    return py::cast(x);
-                if(auto x = dynamic_pointer_cast<XUIntNode>(y))
-                    return py::cast(x);
-                if(auto x = dynamic_pointer_cast<XLongNode>(y))
-                    return py::cast(x);
-                if(auto x = dynamic_pointer_cast<XULongNode>(y))
-                    return py::cast(x);
-                if(auto x = dynamic_pointer_cast<XHexNode>(y))
-                    return py::cast(x);
-                if(auto x = dynamic_pointer_cast<XBoolNode>(y))
-                    return py::cast(x);
-                if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
-                    return py::cast(x);
-                if(auto x = dynamic_pointer_cast<XStringNode>(y))
-                    return py::cast(x);
-                if(auto x = dynamic_pointer_cast<XItemNodeBase>(y))
-                    return py::cast(x);
-            }
-            if(auto x = dynamic_pointer_cast<XListNodeBase>(y))
-                return py::cast(x);
-            if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
-                return py::cast(x);
-            return py::cast(y);
+            return py_dynamic_cast(y);
         })
         .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, int v){
             auto y = self->getChild(str);
@@ -299,6 +303,8 @@ XPython::execute(const atomic<bool> &terminated) {
         name[0] = toupper(name[0]);
         kame_module.def("Root", [=]()->shared_ptr<XNode>{return measure;});
         kame_module.def("Measurement", [=]()->shared_ptr<XNode>{return measure;});
+        kame_module.def("PyInfoForNodeBrowser", [=]()->shared_ptr<XStringNode>{return measure->pyInfoForNodeBrowser();});
+        kame_module.def("LastPointedByNodeBrowser", [=]()->py::object {return py_dynamic_cast(measure->lastPointedByNodeBrowser());});
         kame_module.def("my_defout", [=](shared_ptr<XNode> scrthread, const std::string &str){this->my_defout(scrthread, str);});
         kame_module.def("my_defin", [=](shared_ptr<XNode> scrthread)->std::string{return this->my_defin(scrthread);});
         kame_module.def("is_main_terminated", [=](){return this->m_thread->isTerminated();});

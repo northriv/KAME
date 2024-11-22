@@ -107,9 +107,9 @@ m_conBinWrite(xqcon_create<XQToggleButtonConnector>(
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_ckbBinRecWrite)),
 m_conUrlRubyThread(),
 m_conCalTable(xqcon_create<XConCalTable>(
-				m_thermometers, dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmCalTable)),
+                m_thermometers, dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmCalTable)),
 m_conNodeBrowser(xqcon_create<XNodeBrowser>(
-		shared_from_this(), dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmNodeBrowser)) {
+        dynamic_pointer_cast<XMeasure>(shared_from_this()), dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmNodeBrowser)) {
 
 	g_statusPrinter = XStatusPrinter::create();
 
@@ -124,7 +124,9 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
     m_python = createOrphan<XPython>("PythonSupport", true,
         dynamic_pointer_cast<XMeasure>(shared_from_this()));
 #endif
-	initialize();
+    m_pyInfoForNodeBrowser = XNode::createOrphan<XStringNode>("PyInfoForNodeBrowser", true);
+
+    initialize();
 }
 
 XMeasure::~XMeasure() {

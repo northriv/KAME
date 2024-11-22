@@ -33,6 +33,7 @@ class XRawStreamRecorder;
 class XRawStreamRecordReader;
 class XRuby;
 class XPython;
+class XNodeBrowser;
 
 /*! The root object of KAME.
  */
@@ -62,6 +63,10 @@ public:
 #ifdef USE_PYBIND11
     const shared_ptr<XPython> &python() const {return m_python;}
 #endif
+    //for description made by python monitor.
+    const shared_ptr<XStringNode> &pyInfoForNodeBrowser() const {return m_pyInfoForNodeBrowser;}
+    shared_ptr<XNode> &lastPointedByNodeBrowser() {return m_lastPointedByNodeBrowser;}
+
 private:
 	shared_ptr<XRuby> m_ruby;
 #ifdef USE_PYBIND11
@@ -78,7 +83,10 @@ private:
 	const shared_ptr<XRawStreamRecorder> m_rawStreamRecorder;
 	const shared_ptr<XRawStreamRecordReader> m_rawStreamRecordReader;
 
-	const xqcon_ptr m_conRecordReader,
+    shared_ptr<XNode> m_lastPointedByNodeBrowser;
+    shared_ptr<XStringNode> m_pyInfoForNodeBrowser;
+
+    const xqcon_ptr m_conRecordReader,
         m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs,
         m_conTextWrite, m_conTextURL, m_conTextLastLine,
         m_conLogURL, m_conLogWrite, m_conLogEvery,
