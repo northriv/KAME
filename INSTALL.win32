@@ -1,6 +1,6 @@
 KAME instllation notes on Windows systems.
 (64 bit)
-Qt 6.5 with mignw64 build is necessary. Launch kame via kame.bat (PATH environment should point to QT DLLs). 
+Qt 6.8 with mignw64 build is necessary. Launch kame via kame.bat (PATH environment should point to QT DLLs). 
 
 To build kame:
 
@@ -14,6 +14,7 @@ pacman -S mingw-w64-x86_64-zlib
 pacman -S mingw-w64-x86_64-fftw
 pacman -S mingw-w64-x86_64-gsl
 pacman -S mingw-w64-x86_64-eigen3
+pacman -S mingw-w64-x86_64-pybind11
 
 Deflate ruby-2.6.9.tar.gz to upper folder of kame source code.
 rename ruby-2.6.9 to ruby
@@ -28,7 +29,9 @@ Before executing kame,
 
 Copy libfttw3-3.dll, libgsl.dll, libgslcblas-0.dll, zlib1.dll (would be found in C:\msys64\mingw64\bin), ruby/x64-msvcrt-ruby260.dll beside the kame executable.
 
-Copy kame/script/rubylineshell.rb to ./Resources
+Copy kame/script/rubylineshell.rb and kame/script/pythonlineshell.py to ./Resources
+
+Use kame-msyspython.bat, or use appropriate PATH, variables accordingly.
 
 (32 bit)
 Qt 5.7 with mignw32 build is necessary. Launch kame via kame.bat (PATH environment should point to QT DLLs). 

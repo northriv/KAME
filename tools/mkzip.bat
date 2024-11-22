@@ -7,3 +7,6 @@ copy coremodules2\*.dll ..\kame-win32\coremodules2\
 copy coremodules\*.dll ..\kame-win32\coremodules\
 copy modules\*.dll ..\kame-win32\modules\
 remove ..\kame-win32\qtdir.txt
+remove ..\kame-win32\kame.log
+remove ..\kame-win32\resources\python*\__pycache__
+remove ..\kame-win32\.qmake*

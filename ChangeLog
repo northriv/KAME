@@ -1,3 +1,10 @@
+* Fri Nov 22 2024 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.0.0-1)
+- Python scripting is now possible. 
+- Prologix GPIB-USB controler, set default for GPIB when NI488.2 is not found.
+- Fix for bugs in JAI.
+- Experimental: Lakeshore M81
+
 * Thu Oct 17 2024 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (6.1.1-1)
 - Euresys: fix for startup

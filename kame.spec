@@ -1,11 +1,11 @@
-%global qtver 6.5
+%global qtver 6.8
 %global kdever 4.3
 
 Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 6.1.0
+Version: 7.0.0
 Release: 1
 License: GPL
 Group: Applications/Engineering
