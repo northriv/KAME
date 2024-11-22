@@ -5,7 +5,13 @@ import threading
 import traceback
 import inspect
 import datetime
-import ctypes
+import os
+if os.name == 'posix':
+	import ctypes
+else:
+	for p in os.environ['PATH'].split(os.pathsep):
+		if os.path.isdir(p):
+			os.add_dll_directory(p)	
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -145,13 +151,14 @@ while not is_main_terminated():
 					thread.start()
 					time.sleep(0.3)
 				if action == "kill":
-					time.sleep(0.5)
-					if action == "kill":
-						#cannot be killed by timer.
-						ctypes.pythonapi.PyThreadState_SetAsyncExc(
-							ctypes.c_long(int(str(xpythread_threadid))), 
-							ctypes.py_object(SystemExit)
-						)
+					if os.name == 'posix':
+						time.sleep(0.5)
+						if action == "kill":
+							#cannot be killed by timer.
+							ctypes.pythonapi.PyThreadState_SetAsyncExc(
+								ctypes.c_long(int(str(xpythread_threadid))), 
+								ctypes.py_object(SystemExit)
+							)
 	except EOFError:
 		pass
 	except Exception as inst:
