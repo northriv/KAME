@@ -1,5 +1,4 @@
-import numpy as np
-
+#import numpy as np
 #gyromagnetic ratio * 2 * PI [MHz/T]
 Gnuc = [0.0,\
 42.5763875, 6.5357348, 32.4344523, 0.0, 0.0, 6.2655778, 16.5468008, 0.0, -5.9827544,\

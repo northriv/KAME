@@ -8,14 +8,14 @@ import datetime
 import os
 if os.name == 'posix':
 	import ctypes
+	import numpy as np
+	import matplotlib
+	matplotlib.use('Agg')
+	import matplotlib.pyplot as plt
 else:
 	for p in os.environ['PATH'].split(os.pathsep):
 		if os.path.isdir(p):
 			os.add_dll_directory(p)	
-import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from kame import *
 STDOUT = sys.stdout
 STDERR = sys.stderr
