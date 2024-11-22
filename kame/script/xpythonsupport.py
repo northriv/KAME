@@ -5,17 +5,11 @@ import threading
 import traceback
 import inspect
 import datetime
-import os
-if os.name == 'posix':
-	import ctypes
-	import numpy as np
-	import matplotlib
-	matplotlib.use('Agg')
-	import matplotlib.pyplot as plt
-else:
-	for p in os.environ['PATH'].split(os.pathsep):
-		if os.path.isdir(p):
-			os.add_dll_directory(p)	
+import ctypes
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from kame import *
 STDOUT = sys.stdout
 STDERR = sys.stderr
@@ -151,14 +145,13 @@ while not is_main_terminated():
 					thread.start()
 					time.sleep(0.3)
 				if action == "kill":
-					if os.name == 'posix':
-						time.sleep(0.5)
-						if action == "kill":
-							#cannot be killed by timer.
-							ctypes.pythonapi.PyThreadState_SetAsyncExc(
-								ctypes.c_long(int(str(xpythread_threadid))), 
-								ctypes.py_object(SystemExit)
-							)
+					time.sleep(0.5)
+					if action == "kill":
+						#cannot be killed by timer.
+						ctypes.pythonapi.PyThreadState_SetAsyncExc(
+							ctypes.c_long(int(str(xpythread_threadid))), 
+							ctypes.py_object(SystemExit)
+						)
 	except EOFError:
 		pass
 	except Exception as inst:
