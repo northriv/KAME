@@ -6,13 +6,16 @@ import traceback
 import inspect
 import datetime
 import os
-os.add_dll_directory(os.getcwd())	
 if os.name == 'posix':
 	import ctypes
-import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+	import numpy as np
+	import matplotlib
+	matplotlib.use('Agg')
+	import matplotlib.pyplot as plt
+else:
+	for p in os.environ['PATH'].split(os.pathsep):
+		if os.path.isdir(p):
+			os.add_dll_directory(p)	
 from kame import *
 STDOUT = sys.stdout
 STDERR = sys.stderr
