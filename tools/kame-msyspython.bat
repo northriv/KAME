@@ -19,9 +19,7 @@ if not exist %QTDIR% (
 )
 set QTDIR=%QTDIR:\bin\Qt6Core.dll=%
 set PATH=%QTDIR%\bin;%PATH%
-#set PATH=C:\msys64\usr\bin;C:\msys64\mingw64\bin;C:\msys64\mingw64\lib;%PATH%
-#set PYTHONHOME=C:\msys64\mingw64
-#set PYTHONPATH=C:\msys64\mingw64\lib\python3.12;C:\msys64\mingw64\lib\python3.12\site-packages;C:\msys64\mingw64\lib\python3.12\lib-dynload
-unset PYTHONHOME
-set PYTHONPATH=.\resources\python3.12;.\resources\python3.12\site-packages;.\resources\python3.12\lib-dynload
+set PATH=C:\msys64\usr\bin;C:\msys64\mingw64\bin;C:\msys64\mingw64\lib;%PATH%
+set PYTHONHOME=C:\msys64\mingw64
+set PYTHONPATH=C:\msys64\mingw64\lib\python3.12;C:\msys64\mingw64\lib\python3.12\site-packages;C:\msys64\mingw64\lib\python3.12\lib-dynload
 kame.exe
