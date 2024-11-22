@@ -6,6 +6,7 @@ import traceback
 import inspect
 import datetime
 import os
+os.add_dll_directory(os.getcwd())	
 if os.name == 'posix':
 	import ctypes
 import numpy as np
