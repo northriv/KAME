@@ -1,3 +1,7 @@
+* Sat Nov 23 2024 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.0.1-1)
+- Fix for compilar flags
+
 * Fri Nov 22 2024 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.0.0-1)
 - Python scripting is now possible. 
