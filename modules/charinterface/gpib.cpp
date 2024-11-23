@@ -25,10 +25,9 @@ XPrologixGPIBPort::open(const XCharInterface *pInterface) {
     p->send("++ifc\r");
     msecsleep(1); //wait is needed after IFC.
     p->send("++read_tmo_ms 2000\r");
-    msecsleep(1);
     p->send("++eot_enable 1\r");
-    msecsleep(1);
     p->send("++eot_char 13\r"); //CR
+    msecsleep(1);
     return p;
 }
 
@@ -128,6 +127,7 @@ XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd)
     if(shot[ *intf->address()] != m_lastAddr) {
         m_lastAddr = shot[ *intf->address()];
         std::string cmd = formatString("++addr %u\r", m_lastAddr);
+        msecsleep(1);
         if(intf->eos() == "\r")
             cmd += "++eos 1\r";
         else if(intf->eos() == "\n")
