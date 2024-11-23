@@ -128,9 +128,12 @@ def loadSequence():
 
 print("#testing python interpreter.")
 while not is_main_terminated():
-	time.sleep(0.1)
+	time.sleep(MONITOR_PERIOD)
 	try:
-		time.sleep(MONITOR_PERIOD)
+		#For node browser pane
+		x = LastPointedByNodeBrowser()
+		PyInfoForNodeBrowser().set(str([y[0] for y in inspect.getmembers(x, inspect.ismethod)]))
+
 		for xpythread in XScriptingThreads():
 			xpythread_status = xpythread["Status"]
 			xpythread_action = xpythread["Action"]

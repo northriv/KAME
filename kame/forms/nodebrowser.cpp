@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -69,8 +69,6 @@ XNodeBrowser::process() {
 
     shared_ptr<XMeasure> rootnode(m_root);
 
-    if( !node)
-        node = rootnode->lastPointedByNodeBrowser();
     if((node != rootnode->lastPointedByNodeBrowser()) && node) {
         trans( *rootnode->pyInfoForNodeBrowser()) = ""; //erases old info.
 
@@ -94,14 +92,18 @@ XNodeBrowser::process() {
 		str += "<font color=#005500>Type:</font> ";
 		str += node->getTypename().c_str();
 		str += "<br>";
-		XString rbpath;
+        XString nodeabspath;
 		XNode *cnode = node.get();
         Snapshot rootshot( *rootnode);
 		while(cnode) {
-			if((rbpath.length() > 64) ||
+            if((nodeabspath.length() > 64) ||
 				(cnode == m_root.lock().get())) {
-				str += "<font color=#550000>Ruby object:</font><br> Measurement";
-				str += rbpath.c_str();
+#ifdef USE_PYBIND11
+                str += "<font color=#550000>Python object:</font><br> Root()";
+#else
+                str += "<font color=#550000>Ruby object:</font><br> Measurement";
+#endif
+                str += nodeabspath.c_str();
 				str += "<br><font color=#550000>Supported Ruby methods:</font>"
 					" name() touch() child(<font color=#000088><i>name/idx</i></font>)"
 					" [](<font color=#000088><i>name/idx</i></font>) count() each() to_ary()";
@@ -115,12 +117,12 @@ XNodeBrowser::process() {
 				str += "<br>";
 				break;
 			}
-			rbpath = formatString("[\"%s\"]%s", cnode->getName().c_str(), rbpath.c_str());
+            nodeabspath = formatString("[\"%s\"]%s", cnode->getName().c_str(), nodeabspath.c_str());
 			cnode = cnode->upperNode(rootshot);
 		}
 		if( !cnode) {
-			//			str += rbpath;
-			str += "Inaccessible from the root.<br>";		
+            //			str += nodeabspath;
+            str += "Inaccessible from the root.<br><br>";
 		}
 		if(shot.size()) {
 			str += formatString("<font color=#005500>%u Child(ren):</font> <br>", (unsigned int)shot.list()->size()).c_str();
@@ -132,5 +134,15 @@ XNodeBrowser::process() {
 		}
 		trans( *m_desc).str(str);
 	}
+    else if((node == rootnode->lastPointedByNodeBrowser()) && node) {
+        XString s = ***rootnode->pyInfoForNodeBrowser();
+        if(s.length())
+            m_desc->iterate_commit([=](Transaction &tr){
+                if(tr[ *m_desc].to_str().find("<br><br>") == std::string::npos) {
+                    tr[ *m_desc].str(tr[ *m_desc].to_str() + "<br><font color=#550000>Supported Python methods:</font>"
+                        + s + "<br><br>"); //python info has not yet been added.
+                }
+            });
+    }
     rootnode->lastPointedByNodeBrowser() = node;
 }

@@ -194,7 +194,9 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     //todo combo
     bound_xnode.def("__getitem__", [](shared_ptr<XNode> &self, unsigned int pos)->py::object {
             Snapshot shot( *self);
-            return shot.size() ? py_dynamic_cast(shot.list()->at(pos)) : py::none();
+            if( !shot.size())
+                throw std::out_of_range("Empty node.");
+            return py_dynamic_cast(shot.list()->at(pos));
         })
         .def("dynamic_cast", [](shared_ptr<XNode> &self)->py::object {return py_dynamic_cast(self);})
         .def("__getitem__", [](shared_ptr<XNode> &self, const std::string &str)->py::object{
