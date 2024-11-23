@@ -31,7 +31,7 @@ namespace py = pybind11;
 #include "xlistnode.h"
 #include "xitemnode.h"
 
-auto py_dynamic_cast = [](shared_ptr<XNode> &y)->py::object{
+auto py_dynamic_cast = [](shared_ptr<XNode> y)->py::object{
     if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
         if(auto x = dynamic_pointer_cast<XIntNode>(y))
             return py::cast(x);
@@ -192,9 +192,9 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         .def("__str__", [](shared_ptr<XStringNode> &self)->std::string{return ***self;})
         .def("set", [](shared_ptr<XStringNode> &self, const std::string &s){trans(*self) = s;});
     //todo combo
-    bound_xnode.def("__getitem__", [](shared_ptr<XNode> &self, unsigned int pos){
+    bound_xnode.def("__getitem__", [](shared_ptr<XNode> &self, unsigned int pos)->py::object {
             Snapshot shot( *self);
-            return shot.size() ? shot.list()->at(pos) : shared_ptr<XNode>();
+            return shot.size() ? py_dynamic_cast(shot.list()->at(pos)) : py::none();
         })
         .def("dynamic_cast", [](shared_ptr<XNode> &self)->py::object {return py_dynamic_cast(self);})
         .def("__getitem__", [](shared_ptr<XNode> &self, const std::string &str)->py::object{

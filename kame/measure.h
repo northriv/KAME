@@ -69,9 +69,7 @@ public:
 
 private:
 	shared_ptr<XRuby> m_ruby;
-#ifdef USE_PYBIND11
     shared_ptr<XPython> m_python;
-#endif
 
 	const shared_ptr<XThermometerList> m_thermometers;
 	const shared_ptr<XScalarEntryList> m_scalarEntries;

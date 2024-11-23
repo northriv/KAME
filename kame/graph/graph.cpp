@@ -357,7 +357,7 @@ XPlot::graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr) const 
 	scr->z = m_scr0.z + m_len.z * pt.z;
 	scr->w = std::min(std::max(pt.w, (XGraph::GFloat)0.0), (XGraph::GFloat)1.0);
 }
-inline void
+void
 XPlot::valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr) const {
 	gr->x = m_curAxisX->valToAxis(pt.x);
 	gr->y = m_curAxisY->valToAxis(pt.y);

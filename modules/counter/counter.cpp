@@ -40,7 +40,7 @@ XCounter::createChannels(Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
 	    	channel_names[i], false,
 	       dynamic_pointer_cast<XDriver>(shared_from_this()), "%.8g"));
 	     m_entries.push_back(entry);
-	     entries->insert(tr_meas, entry);
+         entries->insert(tr_meas, entry);
     }
 }
 void *

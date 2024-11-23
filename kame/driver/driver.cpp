@@ -29,8 +29,8 @@ XDriverList::createByTypename(const XString &type, const XString& name) {
     measure->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
 		ptr = creator(type)
             (name.c_str(), false, tr, measure);
-		if(ptr)
-			if( !insert(tr, ptr))
+        if(ptr)
+            if( !insert(tr, ptr))
                 return false;
         return true;
     });
