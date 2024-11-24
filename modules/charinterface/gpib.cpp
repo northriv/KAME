@@ -127,7 +127,6 @@ XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd)
     if(shot[ *intf->address()] != m_lastAddr) {
         m_lastAddr = shot[ *intf->address()];
         std::string cmd = formatString("++addr %u\r", m_lastAddr);
-        msecsleep(1);
         if(intf->eos() == "\r")
             cmd += "++eos 1\r";
         else if(intf->eos() == "\n")

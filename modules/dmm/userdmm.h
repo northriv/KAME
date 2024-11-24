@@ -75,7 +75,8 @@ public:
         });
 
 		interface()->setGPIBWaitBeforeRead(20);
-	}
+        interface()->setGPIBWaitBeforeSPoll(5);
+    }
 };
 
 
