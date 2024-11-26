@@ -94,12 +94,7 @@ private:
     inline T &XThreadLocal<T>::operator*() const {
         void *p = pthread_getspecific(m_key);
         if(p == NULL) {
-            int ret = pthread_setspecific(m_key, p =
-    #ifdef HAVE_LIBGCCPP
-                new (NoGC) T);
-    #else
-                new T);
-    #endif
+            int ret = pthread_setspecific(m_key, p = new T);
             assert( !ret);
         }
         return *static_cast<T*>(p);

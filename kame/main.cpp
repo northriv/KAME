@@ -69,12 +69,6 @@ int load_module(const char *filename, lt_ptr data) {
 
 int main(int argc, char *argv[]) {
     char dummy_for_mlock[8192];
-#ifdef HAVE_LIBGCCPP
-	//initialize GC
-	GC_INIT();
-	// GC_find_leak = 1;
-	//GC_dont_gc
-#endif  
 
 	Q_INIT_RESOURCE(kame);
 

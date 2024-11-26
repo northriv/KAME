@@ -33,7 +33,7 @@ XInterfaceListConnector::XInterfaceListConnector(
 	item->setColumnWidth(0, (int)(def * 1.5));
     item->setColumnWidth(1, (int)(def * 1.5));
 	item->setColumnWidth(2, (int)(def * 2));
-	item->setColumnWidth(3, (int)(def * 2));
+    item->setColumnWidth(3, (int)(def * 3));
 	item->setColumnWidth(4, (int)(def * 1));
 	QStringList labels;
 	labels += i18n("Driver");
@@ -97,7 +97,7 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 	m_pItem->setCellWidget(i, 2, cmbdev);
 	QLineEdit *edPort(new QLineEdit(m_pItem) );
 	con.conport = xqcon_create<XQLineEditConnector>(interface->port(), edPort, false);
-	m_pItem->setCellWidget(i, 3, edPort);
+    m_pItem->setCellWidget(i, 3, edPort);
 	QSpinBox *numAddr(new QSpinBox(m_pItem) );
     //Ranges should be preset in prior to connectors.
     numAddr->setRange(0, 255);

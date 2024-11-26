@@ -75,9 +75,13 @@ XMessageBox::post(XString msg, const QIcon &icon, bool popup, int duration_ms, X
         s_pFrmMessage->m_label->repaint();
         s_pFrmMessage->m_btn->setIcon(icon);
         if(duration_ms) {
+            static XTime last_raise = {};
             s_pFrmMessage->m_widget->show();
             s_pFrmMessage->showNormal();
-            s_pFrmMessage->raise();
+            if(XTime::now().diff_msec(last_raise) > std::min(20000, duration_ms)) {
+                last_raise = XTime::now(); //surpress frequent raise.
+                s_pFrmMessage->raise();
+            }
         }
         else {
             s_pFrmMessage->m_widget->hide();

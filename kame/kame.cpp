@@ -160,16 +160,16 @@ FrmKameMain::FrmKameMain()
     dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
     dockLeft->setWindowOpacity(0.8);
-    dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 64),
+    dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 80),
         std::max(rect.height() / 2, 360));
     dockLeft->move(0, rect.top());
     dockRight->setFloating(true);
     dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
     dockRight->setWindowOpacity(0.8);
-    dockRight->resize(std::max(rect.width() / 5, 400), dockLeft->height());
+    dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
     dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
-    resize(QSize(std::max(rect.width() / 5, 400), minimumHeight()));
+    resize(QSize(std::max(rect.width() / 5, 500), minimumHeight()));
     move((rect.width() - frameSize().width()) / 2, rect.top());
 
     // The root for all nodes.
@@ -347,13 +347,6 @@ FrmKameMain::processSignals() {
     bool idle = Transactional::SignalBuffer::synchronize();
 	if(idle) {
         msecsleep(5);
-	#ifdef HAVE_LIBGCCPP
-		static XTime last = XTime::now();
-		if(XTime::now() - last > 3) {
-			GC_gcollect();
-			last = XTime::now();
-		}
-	#endif
     }
     msecsleep(0);
 }

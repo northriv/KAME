@@ -102,9 +102,6 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
     auto ret = s_widgetMap.insert(std::pair<const QWidget*, weak_ptr<XNode> >(item, node));
     if( !ret.second)
     	gErrPrint("Connection to Widget Duplicated!");
-#ifdef HAVE_LIBGCCPP
-    GC_gcollect();
-#endif
 }
 XQConnector::~XQConnector() {
     if(isItemAlive()) {
@@ -117,10 +114,6 @@ XQConnector::~XQConnector() {
     else {
         dbgPrint(QString("connector %1 & widget released., addr=0x%2").arg(objectName()).arg((uintptr_t)this, 0, 16));
     }
-
-#ifdef HAVE_LIBGCCPP
-    GC_gcollect();
-#endif
 }
 shared_ptr<XNode>
 XQConnector::connectedNode(const QWidget *item) {
