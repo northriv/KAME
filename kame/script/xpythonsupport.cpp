@@ -38,18 +38,22 @@ XPython::XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &mea
 XPython::~XPython() {
 }
 
-void XPython::mainthread_callback(py::object *func, py::object *ret, py::object *status) {
+void XPython::mainthread_callback(py::object *scrthread, py::object *func, py::object *ret, py::object *status) {
     pybind11::gil_scoped_acquire guard;
     try {
+        py::object tls = py::eval("TLS");
+        auto setattr = tls.attr("__setattr__");
+        setattr("xscrthread", scrthread);
+        setattr("logfile", pybind11::none());
         *ret = py::reinterpret_borrow<py::function>( *func)();
         *status = py::cast(false);
     }
     catch (py::error_already_set& e) {
-        std::cout << "Python error.\n" << e.what() << "\n";
-        *status = py::cast(e);
+        std::cerr << "Python error.\n" << e.what() << "\n";
+        *status = py::cast(e.what());
     }
     catch (...) {
-        std::cout << "Python unknown error.\n" << "\n";
+        std::cerr << "Python unknown error.\n" << "\n";
     }
     XScopedLock<XCondition> lock(m_mainthread_cb_cond);
     m_mainthread_cb_cond.signal();
@@ -111,11 +115,17 @@ XPython::execute(const atomic<bool> &terminated) {
         kame_module.def("kame_mainthread", [=](py::object closure)->py::object{
             py::object ret, status;
             status = py::cast(true);
+            py::object scrthread = py::eval("TLS.xscrthread");
             pybind11::gil_scoped_release guard;
-            m_mainthread_cb_tlk.talk( &closure, &ret, &status);
+            m_mainthread_cb_tlk.talk( &scrthread, &closure, &ret, &status);
             XScopedLock<XCondition> lock(m_mainthread_cb_cond);
             while(status.is(py::cast(true)))
                 m_mainthread_cb_cond.wait();
+            if( !status.is(py::cast(false))) {
+                pybind11::gil_scoped_acquire guard;
+                py::set_error(PyExc_RuntimeError, py::cast<std::string>(status).c_str());
+                throw py::error_already_set();
+            }
             return ret;
         });
         m_mainthread_cb_lsn = m_mainthread_cb_tlk.connectWeakly(

@@ -41,10 +41,10 @@ protected:
 private:
     static std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>> s_xnodeDownCasters;
     XCondition m_mainthread_cb_cond;
-    Transactional::Talker<pybind11::object*, pybind11::object*, pybind11::object*> m_mainthread_cb_tlk;
+    Transactional::Talker<pybind11::object*, pybind11::object*, pybind11::object*, pybind11::object*> m_mainthread_cb_tlk;
     shared_ptr<Listener> m_mainthread_cb_lsn;
 
-    void mainthread_callback(pybind11::object *func, pybind11::object *ret, pybind11::object *status);
+    void mainthread_callback(pybind11::object *scrthread, pybind11::object *func, pybind11::object *ret, pybind11::object *status);
 };
 
 #endif //USE_PYBIND11

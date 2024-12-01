@@ -9,9 +9,9 @@ import os
 if os.name == 'posix':
 	import ctypes
 	import numpy as np
-	import matplotlib
-	matplotlib.use('Agg')
-	import matplotlib.pyplot as plt
+#	import matplotlib
+#	matplotlib.use('Agg')
+#	import matplotlib.pyplot as plt
 else:
 	for p in os.environ['PATH'].split(os.pathsep):
 		if os.path.isdir(p):
@@ -131,15 +131,14 @@ while not is_main_terminated():
 	time.sleep(MONITOR_PERIOD)
 	try:
 		#For node browser pane
-		x = LastPointedByNodeBrowser()
-		PyInfoForNodeBrowser().set(str([y[0] for y in inspect.getmembers(x, inspect.ismethod)]))
+		PyInfoForNodeBrowser().set(str([y[0] for y in inspect.getmembers(LastPointedByNodeBrowser(), inspect.ismethod)]))
 
 		for xpythread in XScriptingThreads():
 			xpythread_status = xpythread["Status"]
 			xpythread_action = xpythread["Action"]
 			xpythread_threadid = xpythread["ThreadID"]
 			xpythread_filename = xpythread["Filename"]
-			threadlist = [str(x) for x in threading.enumerate()]
+			threadlist = [str(pythread) for pythread in threading.enumerate()]
 			action = str(xpythread_action)
 			if str(xpythread_threadid) in threadlist:
 				pass
