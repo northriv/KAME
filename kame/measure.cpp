@@ -11,8 +11,8 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include "xrubysupport.h"
 #include "xpythonsupport.h"
+#include "xrubysupport.h"
 #include "measure.h"
 #include "kame.h"
 

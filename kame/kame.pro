@@ -225,8 +225,10 @@ macx {
 #            QMAKE_CXXFLAGS += $$system("$${PYTHON}-config --cflags")
             QMAKE_LFLAGS += $$system("$${PYTHON}-config --embed --ldflags")
             DEFINES += USE_PYBIND11
-            SOURCES += script/xpythonsupport.cpp
-            HEADERS += script/xpythonsupport.h
+            SOURCES += script/xpythonmodule.cpp \
+                script/xpythonsupport.cpp
+            HEADERS += script/xpythonmodule.h \
+                script/xpythonsupport.h
             message("Python scripting support enabled.")
             break()
         }
@@ -257,8 +259,10 @@ win32-g++ {
     #        QMAKE_LFLAGS += $$system("set PATH=c:/msys64/usr/bin;c:/msys64/mingw64/bin;%PATH% & c:/msys64/usr/bin/sh -c \"c:/msys64/mingw64/bin/python-config --embed --ldflags\"")
             LIBS += $$files(c:/msys64/mingw64/lib/libpython3*)
             DEFINES += USE_PYBIND11
-            SOURCES += script/xpythonsupport.cpp
-            HEADERS += script/xpythonsupport.h
+            SOURCES += script/xpythonmodule.cpp \
+                script/xpythonsupport.cpp
+            HEADERS += script/xpythonmodule.h \
+                script/xpythonsupport.h
             message("Python scripting support enabled.")
             break()
         }
