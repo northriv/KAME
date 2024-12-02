@@ -38,20 +38,26 @@ XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const sha
                         std::make_unique<EGenTL>(Grablink()) :
                         std::make_unique<EGenTL>(Coaxlink());
             s_discovery = std::make_unique<EGrabberDiscovery>( *s_gentl);
-            s_discovery->discover();
-            fprintf(stderr, "eGrabber count:%i; camera count:%i\n", s_discovery->egrabberCount(), s_discovery->cameraCount());
-            for (int i = 0; i < s_discovery->cameraCount(); ++i) {
-                 EGrabberCameraInfo info = s_discovery->cameras(i);
-                 EGrabberInfo grabber = info.grabbers[0];
-                 if(grabber.isRemoteAvailable) {
-                     trans( *device()).add(
-                        formatString("%i:", grabber.deviceIndex) + grabber.deviceModelName);
-                 }
-            }
         }
         catch (const std::exception &e) {                                                 // 7
             gErrPrint(XString("error: ") + e.what());
         }
+    }
+    try {
+        using namespace Euresys;
+        s_discovery->discover();
+        fprintf(stderr, "eGrabber count:%i; camera count:%i\n", s_discovery->egrabberCount(), s_discovery->cameraCount());
+        for (int i = 0; i < s_discovery->cameraCount(); ++i) {
+             EGrabberCameraInfo info = s_discovery->cameras(i);
+             EGrabberInfo grabber = info.grabbers[0];
+             if(grabber.isRemoteAvailable) {
+                 trans( *device()).add(
+                    formatString("%i:", grabber.deviceIndex) + grabber.deviceModelName);
+             }
+        }
+    }
+    catch (const std::exception &e) {                                                 // 7
+        gErrPrint(XString("error: ") + e.what());
     }
 }
 XEGrabberInterface::~XEGrabberInterface() {
