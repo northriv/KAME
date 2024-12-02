@@ -59,6 +59,8 @@ EXPORTXQCON_TO_PYBOJ(XQ??, Q??)
 
  */
 
+PYBIND11_DECLARE_HOLDER_TYPE(T, local_shared_ptr<T>, true)
+
 namespace py = pybind11;
 std::map<size_t, std::function<py::object(const shared_ptr<XNode>&)>> XPython::s_xnodeDownCasters;
 
@@ -116,7 +118,15 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         .def("getTypename", [](shared_ptr<XNode> &self)->std::string{return self->getTypename();})
         .def("isRuntime", [](shared_ptr<XNode> &self)->bool{return Snapshot( *self)[ *self].isRuntime();})
         .def("isDisabled", [](shared_ptr<XNode> &self)->bool{return Snapshot( *self)[ *self].isDisabled();})
+        .def("disable", [](shared_ptr<XNode> &self) {self->disable();})
+        .def("setUIEnabled", [](shared_ptr<XNode> &self, bool v) {self->setUIEnabled(v);})
         .def("isUIEnabled", [](shared_ptr<XNode> &self)->bool{return Snapshot( *self)[ *self].isUIEnabled();});
+    py::class_<XNode::Payload>(m, "Node::Payload")
+        .def("disable", [](XNode::Payload &self) {self.disable();})
+        .def("setUIEnabled", [](XNode::Payload &self, bool v) {self.setUIEnabled(v);})
+        .def("isRuntime", [](XNode::Payload &self)->bool{return self.isRuntime();})
+        .def("isDisabled", [](XNode::Payload &self)->bool{return self.isDisabled();})
+        .def("isUIEnabled", [](XNode::Payload &self)->bool{return self.isUIEnabled();});
     py::class_<Snapshot>(m, "Snapshot")
         .def(py::init([](const shared_ptr<XNode> &x){return Snapshot(*x);}), py::keep_alive<1, 2>())
         .def("__repr__", [](Snapshot &self)->std::string{
@@ -139,6 +149,9 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         .def("__getitem__", [](Snapshot &self, unsigned int pos)->shared_ptr<XNode>{
             return self.size() ? self.list()->at(pos) : shared_ptr<XNode>();}
         )
+        .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
+            return py::cast( &self[ *node]);
+        }, py::return_value_policy::reference_internal)
         .def("isUpperOf", &Snapshot::isUpperOf);
     py::class_<Transaction, Snapshot>(m, "Transaction")
         .def(py::init([](const shared_ptr<XNode> &x){return Transaction(*x);}), py::keep_alive<1, 2>())
@@ -153,6 +166,9 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         .def("commitOrNext", [](Transaction &self) {
             return self.commitOrNext();
         })
+        .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
+            return py::cast( &self[ *node]);
+        }, py::return_value_policy::reference_internal)
         .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, int v){
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
                 if(auto x = dynamic_pointer_cast<XIntNode>(y))
