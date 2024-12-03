@@ -33,6 +33,11 @@ public:
     virtual ~XPython();
 
     static pybind11::object cast_to_pyobject(shared_ptr<XNode> y);
+    static pybind11::object cast_to_pyobject(shared_ptr<XNode::Payload> y);
+    template <class N, class Base>
+    std::tuple<unique_ptr<pybind11::class_<N, Base, shared_ptr<N>>>,
+        unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload>>>
+    static export_xnode(pybind11::module_ &m);
 protected:
     virtual void *execute(const atomic<bool> &) override;
     void my_defout(shared_ptr<XNode> node, const std::string &msg);
@@ -40,6 +45,8 @@ protected:
 
 private:
     static std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>> s_xnodeDownCasters;
+    static std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode::Payload>&)>> s_payloadDownCasters;
+
     XCondition m_mainthread_cb_cond;
     Transactional::Talker<pybind11::object*, pybind11::object*, pybind11::object*, pybind11::object*> m_mainthread_cb_tlk;
     shared_ptr<Listener> m_mainthread_cb_lsn;

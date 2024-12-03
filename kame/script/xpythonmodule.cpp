@@ -58,12 +58,38 @@ EXPORTXQCON_TO_PYBOJ(XQ??, Q??)
 
 
  */
-
 PYBIND11_DECLARE_HOLDER_TYPE(T, local_shared_ptr<T>, true)
 
 namespace py = pybind11;
 std::map<size_t, std::function<py::object(const shared_ptr<XNode>&)>> XPython::s_xnodeDownCasters;
+std::map<size_t, std::function<py::object(const shared_ptr<XNode::Payload>&)>> XPython::s_payloadDownCasters;
 
+template <class N, class Base>
+std::tuple<unique_ptr<py::class_<N, Base, shared_ptr<N>>>,
+    unique_ptr<py::class_<typename N::Payload, typename Base::Payload>>>
+XPython::export_xnode(pybind11::module_ &m) {
+    XPython::s_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(), [](const shared_ptr<XNode>&x)->py::object{
+        return py::cast(dynamic_pointer_cast<N>(x));
+    }));
+    XPython::s_payloadDownCasters.insert(std::make_pair(typeid(typename N::Payload).hash_code(), [](const shared_ptr<XNode::Payload>&x)->py::object{
+        return py::cast(dynamic_pointer_cast<typename N::Payload>(x));
+    }));
+    XString name = typeid(N).name();
+    int i = name.find('X');
+    name = name.substr(i + 1);
+    auto pynode = std::make_unique<py::class_<N, Base, shared_ptr<N>>>(m, name.c_str());
+    pynode->def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
+    auto pypayload = std::make_unique<py::class_<typename N::Payload, typename Base::Payload>>(m, (name + "::Payload").c_str());
+    return {std::move(pynode), std::move(pypayload)};
+}
+
+py::object XPython::cast_to_pyobject(shared_ptr<XNode::Payload> y) {
+    auto it = s_payloadDownCasters.find(typeid(y).hash_code());
+    if(it != s_payloadDownCasters.end()) {
+        return (it->second)(y);
+    }
+    return py::cast(y);
+}
 py::object XPython::cast_to_pyobject(shared_ptr<XNode> y) {
     auto it = s_xnodeDownCasters.find(typeid(y).hash_code());
     if(it != s_xnodeDownCasters.end()) {
@@ -209,13 +235,22 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
                 throw std::runtime_error("Error: not a value node.");
         });
 
-    py::class_<XListNodeBase, XNode, shared_ptr<XListNodeBase>>(m, "ListNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XListNodeBase>(x);}))
+    auto [pylnb, pylnb_payload] = XPython::export_xnode<XListNodeBase, XNode>(m);
+    (*pylnb)
         .def("release", [](shared_ptr<XListNodeBase> &self, shared_ptr<XNode> &child){self->release(child);})
         .def("createByTypename", &XListNodeBase::createByTypename);
-    py::class_<XTouchableNode, XNode, shared_ptr<XTouchableNode>>(m, "TouchableNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XTouchableNode>(x);}))
+
+    auto [pytn, pytn_payload] = XPython::export_xnode<XTouchableNode, XNode>(m);
+    (*pytn)
         .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});
+
+//    py::class_<XListNodeBase, XNode, shared_ptr<XListNodeBase>>(m, "ListNode")
+//        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XListNodeBase>(x);}))
+//        .def("release", [](shared_ptr<XListNodeBase> &self, shared_ptr<XNode> &child){self->release(child);})
+//        .def("createByTypename", &XListNodeBase::createByTypename);
+//    py::class_<XTouchableNode, XNode, shared_ptr<XTouchableNode>>(m, "TouchableNode")
+//        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XTouchableNode>(x);}))
+//        .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});
     py::class_<XValueNodeBase, XNode, shared_ptr<XValueNodeBase>>(m, "ValueNode")
         .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XValueNodeBase>(x);}))
         .def("__str__", [](shared_ptr<XValueNodeBase> &self)->std::string{return Snapshot( *self)[*self].to_str();})
