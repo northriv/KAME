@@ -95,39 +95,40 @@ py::object XPython::cast_to_pyobject(shared_ptr<XNode> y) {
     if(it != s_xnodeDownCasters.end()) {
         return (it->second)(y);
     }
+//    //manages to use its super class.
+//    if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
+//        if(auto x = dynamic_pointer_cast<XIntNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XUIntNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XLongNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XULongNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XHexNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XBoolNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XStringNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XItemNodeBase>(y)) {
+//            if(auto z = dynamic_pointer_cast<XComboNode>(x))
+//                return py::cast(z);
+//            return py::cast(x);
+//        }
+//        return py::cast(x);
+//    }
+//    if(auto x = dynamic_pointer_cast<XListNodeBase>(y))
+//        return py::cast(x);
+//    if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
+//        return py::cast(x);
     //manages to use its super class.
-    if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
-        if(auto x = dynamic_pointer_cast<XIntNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XUIntNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XLongNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XULongNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XHexNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XBoolNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XStringNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XItemNodeBase>(y)) {
-            if(auto z = dynamic_pointer_cast<XComboNode>(x))
-                return py::cast(z);
-            return py::cast(x);
-        }
-        return py::cast(x);
-    }
-    if(auto x = dynamic_pointer_cast<XListNodeBase>(y))
-        return py::cast(x);
-    if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
-        return py::cast(x);
-    //manages to use its super class.
+    //todo find downest class.
     for(auto &&c: s_xnodeDownCasters) {
         auto x = (c.second)(y);
-        if(py::cast<bool>(x))
+        if(x.cast<shared_ptr<XNode>>())
             return x;
     }
     //end up with XNode.
@@ -235,64 +236,55 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
                 throw std::runtime_error("Error: not a value node.");
         });
 
-    auto [pylnb, pylnb_payload] = XPython::export_xnode<XListNodeBase, XNode>(m);
-    (*pylnb)
+    {   auto [node, payload] = XPython::export_xnode<XListNodeBase, XNode>(m);
+        (*node)
         .def("release", [](shared_ptr<XListNodeBase> &self, shared_ptr<XNode> &child){self->release(child);})
-        .def("createByTypename", &XListNodeBase::createByTypename);
-
-    auto [pytn, pytn_payload] = XPython::export_xnode<XTouchableNode, XNode>(m);
-    (*pytn)
-        .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});
-
-//    py::class_<XListNodeBase, XNode, shared_ptr<XListNodeBase>>(m, "ListNode")
-//        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XListNodeBase>(x);}))
-//        .def("release", [](shared_ptr<XListNodeBase> &self, shared_ptr<XNode> &child){self->release(child);})
-//        .def("createByTypename", &XListNodeBase::createByTypename);
-//    py::class_<XTouchableNode, XNode, shared_ptr<XTouchableNode>>(m, "TouchableNode")
-//        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XTouchableNode>(x);}))
-//        .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});
-    py::class_<XValueNodeBase, XNode, shared_ptr<XValueNodeBase>>(m, "ValueNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XValueNodeBase>(x);}))
+        .def("createByTypename", &XListNodeBase::createByTypename);}
+    {   auto [node, payload] = XPython::export_xnode<XTouchableNode, XNode>(m);
+        (*node)
+        .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});}
+    {   auto [node, payload] = XPython::export_xnode<XValueNodeBase, XNode>(m);
+        (*node)
         .def("__str__", [](shared_ptr<XValueNodeBase> &self)->std::string{return Snapshot( *self)[*self].to_str();})
-        .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);});
-    py::class_<XItemNodeBase, XValueNodeBase, shared_ptr<XItemNodeBase>>(m, "ItemNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XItemNodeBase>(x);}))
+        .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);});}
+    {   auto [node, payload] = XPython::export_xnode<XItemNodeBase, XValueNodeBase>(m);
+        (*node)
         .def("itemStrings", &XItemNodeBase::itemStrings)
-        .def("autoSetAny", &XItemNodeBase::autoSetAny);
-    py::class_<XIntNode, XNode, shared_ptr<XIntNode>>(m, "IntNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XIntNode>(x);}))
+        .def("autoSetAny", &XItemNodeBase::autoSetAny);}
+    {   auto [node, payload] = XPython::export_xnode<XIntNode, XValueNodeBase>(m);
+        (*node)
         .def("__int__", [](shared_ptr<XIntNode> &self)->int{return ***self;})
-        .def("set", [](shared_ptr<XIntNode> &self, int x){trans(*self) = x;});
-    py::class_<XUIntNode, XNode, shared_ptr<XUIntNode>>(m, "UIntNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XUIntNode>(x);}))
+        .def("set", [](shared_ptr<XIntNode> &self, int x){trans(*self) = x;});}
+    {   auto [node, payload] = XPython::export_xnode<XUIntNode, XValueNodeBase>(m);
+        (*node)
         .def("__int__", [](shared_ptr<XIntNode> &self)->unsigned int{return ***self;})
-        .def("set", [](shared_ptr<XUIntNode> &self, unsigned int x){trans(*self) = x;});
-    py::class_<XLongNode, XNode, shared_ptr<XLongNode>>(m, "LongNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XLongNode>(x);}))
+        .def("set", [](shared_ptr<XUIntNode> &self, unsigned int x){trans(*self) = x;});}
+    {   auto [node, payload] = XPython::export_xnode<XLongNode, XValueNodeBase>(m);
+        (*node)
         .def("__int__", [](shared_ptr<XLongNode> &self)->long{return ***self;})
-        .def("set", [](shared_ptr<XLongNode> &self, long x){trans(*self) = x;});
-    py::class_<XULongNode, XNode, shared_ptr<XULongNode>>(m, "ULongNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XULongNode>(x);}))
+        .def("set", [](shared_ptr<XLongNode> &self, long x){trans(*self) = x;});}
+    {   auto [node, payload] = XPython::export_xnode<XULongNode, XValueNodeBase>(m);
+        (*node)
         .def("__int__", [](shared_ptr<XULongNode> &self)->unsigned long{return ***self;})
-        .def("set", [](shared_ptr<XULongNode> &self, unsigned long x){trans(*self) = x;});
-    py::class_<XHexNode, XNode, shared_ptr<XHexNode>>(m, "HexNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XHexNode>(x);}))
+        .def("set", [](shared_ptr<XULongNode> &self, unsigned long x){trans(*self) = x;});}
+    {   auto [node, payload] = XPython::export_xnode<XHexNode, XValueNodeBase>(m);
+        (*node)
         .def("__int__", [](shared_ptr<XHexNode> &self)->unsigned long{return ***self;})
-        .def("set", [](shared_ptr<XHexNode> &self, unsigned long x){trans(*self) = x;});
-    py::class_<XBoolNode, XNode, shared_ptr<XBoolNode>>(m, "BoolNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XBoolNode>(x);}))
+        .def("set", [](shared_ptr<XHexNode> &self, unsigned long x){trans(*self) = x;});}
+    {   auto [node, payload] = XPython::export_xnode<XBoolNode, XValueNodeBase>(m);
+        (*node)
         .def("__int__", [](shared_ptr<XBoolNode> &self)->bool{return ***self;})
-        .def("set", [](shared_ptr<XBoolNode> &self, bool x){trans(*self) = x;});
-    py::class_<XDoubleNode, XNode, shared_ptr<XDoubleNode>>(m, "DoubleNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XDoubleNode>(x);}))
+        .def("set", [](shared_ptr<XBoolNode> &self, bool x){trans(*self) = x;});}
+    {   auto [node, payload] = XPython::export_xnode<XDoubleNode, XValueNodeBase>(m);
+        (*node)
         .def("__float__", [](shared_ptr<XDoubleNode> &self)->double{return ***self;})
-        .def("set", [](shared_ptr<XDoubleNode> &self, double x){trans(*self) = x;});
-    py::class_<XStringNode, XNode, shared_ptr<XStringNode>>(m, "StringNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XStringNode>(x);}))
+        .def("set", [](shared_ptr<XDoubleNode> &self, double x){trans(*self) = x;});}
+    {   auto [node, payload] = XPython::export_xnode<XStringNode, XValueNodeBase>(m);
+        (*node)
         .def("__str__", [](shared_ptr<XStringNode> &self)->std::string{return ***self;})
-        .def("set", [](shared_ptr<XStringNode> &self, const std::string &s){trans(*self) = s;});
-    py::class_<XComboNode, XNode, shared_ptr<XComboNode>>(m, "ComboNode")
-        .def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<XComboNode>(x);}))
+        .def("set", [](shared_ptr<XStringNode> &self, const std::string &s){trans(*self) = s;});}
+    {   auto [node, payload] = XPython::export_xnode<XComboNode, XValueNodeBase>(m);
+        (*node)
         .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);})
         .def("add", [](shared_ptr<XComboNode> &self, const std::vector<std::string> &strlist){
             self->iterate_commit([=](Transaction &tr){
@@ -301,7 +293,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             });
         })
         .def("set", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self) = s;})
-        .def("set", [](shared_ptr<XComboNode> &self, int x){trans(*self) = x;});
+        .def("set", [](shared_ptr<XComboNode> &self, int x){trans(*self) = x;});}
     bound_xnode.def("__getitem__", [](shared_ptr<XNode> &self, unsigned int pos)->py::object {
             Snapshot shot( *self);
             if( !shot.size())

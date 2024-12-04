@@ -31,9 +31,12 @@ class XPython : public XScriptingThreadList {
 public:
     XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
     virtual ~XPython();
-
+    //!internal use. down casters.
     static pybind11::object cast_to_pyobject(shared_ptr<XNode> y);
     static pybind11::object cast_to_pyobject(shared_ptr<XNode::Payload> y);
+    //! Wraps C++ XNode-derived classes N, along with N::Payload.
+    //! N derived from Base, and N::Payload derived from Base::Payload.
+    //! \return to be used by .def or else. use auto [node, payload] =....
     template <class N, class Base>
     std::tuple<unique_ptr<pybind11::class_<N, Base, shared_ptr<N>>>,
         unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload>>>
