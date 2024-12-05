@@ -31,6 +31,9 @@
 #include "primarydriverwiththread.h"
 #include "secondarydriver.h"
 
+#include "xnodeconnector.h"
+#include <QWidget>
+
 /*TODO
 
 with interfacelock (	 py::gil_scoped_release pyguard and spin)
@@ -156,7 +159,27 @@ py::object XPython::cast_to_pyobject(shared_ptr<XNode> y) {
     //end up with XNode.
     return py::cast(y);
 };
+
+
+//For XQ**Connector
+PYBIND11_DECLARE_HOLDER_TYPE(T, qshared_ptr<T>, true)
+
+template <class QN, class Base, class N>
+auto
+export_xqcon(pybind11::module_ &m) {
+    auto pyc = py::class_<XQConnectorHolder_, qshared_ptr<XQConnectorHolder_>>(m, typeid(QN).name());
+
+    pyc.def(py::init([](const shared_ptr<N> &node, py::object widget){
+        if( !isMainThread())
+            throw std::runtime_error("Be called from main thread.");
+        //todo getChild, main thread
+        return xqcon_create<QN>(node, py::cast<QWidget*>(widget));}));
+    return std::move(pyc);
+}
+
+
 PYBIND11_EMBEDDED_MODULE(kame, m) {
+
     auto bound_xnode = py::class_<XNode, shared_ptr<XNode>>(m, "Node")
         .def("__repr__", [](shared_ptr<XNode> &self)->std::string{
             return formatString("<node[%s]\"%s\"@%p>", self->getTypename().c_str(), self->getName().c_str(), &*self);
@@ -281,7 +304,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     XPython::export_xvaluenode<XBoolNode, bool>(m);
     XPython::export_xvaluenode<XDoubleNode, double>(m);
     XPython::export_xvaluenode<XStringNode, std::string>(m);
-    {   auto [node, payload] = XPython::export_xnode<XComboNode, XValueNodeBase>(m);
+    {   auto [node, payload] = XPython::export_xnode<XComboNode, XItemNodeBase>(m);
         (*node)
         .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);})
         .def("add", [](shared_ptr<XComboNode> &self, const std::vector<std::string> &strlist){
@@ -353,8 +376,11 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
 
     //Driver classes
     {   auto [node, payload] = XPython::export_xnode<XDriver, XNode>(m);
-//        (*node)
-//        .def("showForms", &XDriver::showForms); //be in main thread
+        (*node)
+        .def("showForms", [](shared_ptr<XDriver> &driver){
+            if( !isMainThread())
+                throw std::runtime_error("Be called from main thread.");
+            driver->showForms();});
         (*payload)
         .def("time", [](XDriver::Payload &self)->system_clock::time_point{return self.time();})
         .def("timeAwared", [](XDriver::Payload &self)->system_clock::time_point{return self.timeAwared();});}
@@ -375,4 +401,12 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
 //            .def("connect", [](const shared_ptr<XPointerItemNode<XDriverList> > &selecter){self->connect(selecter);});
 //        (*payload);
 //    }
+
+
+    //XQ**Connector
+    py::class_<XQConnectorHolder_, qshared_ptr<XQConnectorHolder_>>(m, "XQConnector")
+        .def("__repr__", [](qshared_ptr<XQConnectorHolder_> &self)->std::string{
+            return formatString("<xqconnector[%s] @%p>", typeid(self).name(), &*self);
+        });
+
 }
