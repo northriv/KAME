@@ -18,10 +18,6 @@
 #include <chrono>
 #include <thread>
 
-#ifdef USE_QTHREAD
-    #include <QThread>
-    #include <QDateTime>
-#endif
 #ifdef _MSC_VER
     #include <windows.h>
     #include <time.h>
@@ -31,9 +27,6 @@
 #endif
 
 void msecsleep(unsigned int ms) noexcept {
-#if defined USE_QTHREAD
-    QThread::msleep(ms);
-#else
     using namespace std::chrono;
     auto start = steady_clock::now();
 #ifdef __WIN32__
@@ -50,7 +43,6 @@ void msecsleep(unsigned int ms) noexcept {
     #endif
         rest -= duration_cast<duration<double, std::milli>>(steady_clock::now() - start);
     }
-#endif
 }
 
 timestamp_t timeStamp() noexcept {
@@ -94,16 +86,26 @@ DECLSPEC_KAME timestamp_t timeStampCountsPerMilliSec() noexcept {
 }
 
 
+XTime::XTime(const system_clock::time_point &p) {
+    duration d = p.time_since_epoch();
+    auto sec = duration_cast<seconds>(d);
+    tv_sec = sec.count();
+    d -= sec;
+    tv_usec = duration_cast<microseconds>(d).count();
+}
+XTime::operator system_clock::time_point() const {
+    system_clock::time_point p{};
+    p += seconds(tv_sec);
+    p += microseconds(tv_usec);
+    return p;
+}
+
+
 XTime
 XTime::now() noexcept {
-#ifdef USE_QTHREAD
-    qint64 x = QDateTime::currentMSecsSinceEpoch();
-    return XTime(x / 1000LL, (x % 1000LL) * 1000l);
-#else //USE_QTHREAD
     timeval tv;
     gettimeofday(&tv, NULL);
     return XTime(tv.tv_sec, tv.tv_usec);
-#endif //USE_QTHREAD
 };
 
 XString

@@ -23,6 +23,8 @@
 
 #include "xlistnode.h"
 #include "xitemnode.h"
+
+#include "driver.h"
 /*TODO
 
 with interfacelock (	 py::gil_scoped_release pyguard and spin)
@@ -65,8 +67,7 @@ std::map<size_t, std::function<py::object(const shared_ptr<XNode>&)>> XPython::s
 std::map<size_t, std::function<py::object(const shared_ptr<XNode::Payload>&)>> XPython::s_payloadDownCasters;
 
 template <class N, class Base>
-std::tuple<unique_ptr<py::class_<N, Base, shared_ptr<N>>>,
-    unique_ptr<py::class_<typename N::Payload, typename Base::Payload>>>
+XPython::classtype_xnode<N, Base>
 XPython::export_xnode(pybind11::module_ &m) {
     XPython::s_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(), [](const shared_ptr<XNode>&x)->py::object{
         return py::cast(dynamic_pointer_cast<N>(x));
@@ -83,6 +84,22 @@ XPython::export_xnode(pybind11::module_ &m) {
     return {std::move(pynode), std::move(pypayload)};
 }
 
+template <class N, class V>
+XPython::classtype_xnode<N, XValueNodeBase>
+XPython::export_xvaluenode(pybind11::module_ &m) {
+    constexpr const char *pyv = (std::is_integral<V>::value || std::is_same<V, bool>::value) ? "__int__" :
+        (std::is_floating_point<V>::value ? "__double__" :
+        (std::is_convertible<V, std::string>::value ? "__str__" : ""));
+    auto [pynode, pypayload] = export_xnode<N, XValueNodeBase>(m);
+    (*pynode)
+        .def(pyv, [](shared_ptr<N> &self)->V{return ***self;})
+        .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;});
+    (*pypayload)
+        .def(pyv, [](typename N::Payload &self)->V{ return self;})
+        .def("set", [](typename N::Payload &self, V x){self.operator=(x);});
+    return {std::move(pynode), std::move(pypayload)};
+}
+
 py::object XPython::cast_to_pyobject(shared_ptr<XNode::Payload> y) {
     auto it = s_payloadDownCasters.find(typeid(y).hash_code());
     if(it != s_payloadDownCasters.end()) {
@@ -95,37 +112,36 @@ py::object XPython::cast_to_pyobject(shared_ptr<XNode> y) {
     if(it != s_xnodeDownCasters.end()) {
         return (it->second)(y);
     }
-//    //manages to use its super class.
-//    if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
-//        if(auto x = dynamic_pointer_cast<XIntNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XUIntNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XLongNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XULongNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XHexNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XBoolNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XStringNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XItemNodeBase>(y)) {
-//            if(auto z = dynamic_pointer_cast<XComboNode>(x))
-//                return py::cast(z);
-//            return py::cast(x);
-//        }
-//        return py::cast(x);
-//    }
-//    if(auto x = dynamic_pointer_cast<XListNodeBase>(y))
-//        return py::cast(x);
-//    if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
-//        return py::cast(x);
     //manages to use its super class.
-    //todo find downest class.
+    if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
+        if(auto x = dynamic_pointer_cast<XIntNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XUIntNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XLongNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XULongNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XHexNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XBoolNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XStringNode>(y))
+            return py::cast(x);
+        if(auto x = dynamic_pointer_cast<XItemNodeBase>(y)) {
+            if(auto z = dynamic_pointer_cast<XComboNode>(x))
+                return py::cast(z);
+            return py::cast(x);
+        }
+        return py::cast(x);
+    }
+    if(auto x = dynamic_pointer_cast<XListNodeBase>(y))
+        return py::cast(x);
+    if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
+        return py::cast(x);
+    //manages to use its base class.
     for(auto &&c: s_xnodeDownCasters) {
         auto x = (c.second)(y);
         if(x.cast<shared_ptr<XNode>>())
@@ -251,38 +267,14 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         (*node)
         .def("itemStrings", &XItemNodeBase::itemStrings)
         .def("autoSetAny", &XItemNodeBase::autoSetAny);}
-    {   auto [node, payload] = XPython::export_xnode<XIntNode, XValueNodeBase>(m);
-        (*node)
-        .def("__int__", [](shared_ptr<XIntNode> &self)->int{return ***self;})
-        .def("set", [](shared_ptr<XIntNode> &self, int x){trans(*self) = x;});}
-    {   auto [node, payload] = XPython::export_xnode<XUIntNode, XValueNodeBase>(m);
-        (*node)
-        .def("__int__", [](shared_ptr<XIntNode> &self)->unsigned int{return ***self;})
-        .def("set", [](shared_ptr<XUIntNode> &self, unsigned int x){trans(*self) = x;});}
-    {   auto [node, payload] = XPython::export_xnode<XLongNode, XValueNodeBase>(m);
-        (*node)
-        .def("__int__", [](shared_ptr<XLongNode> &self)->long{return ***self;})
-        .def("set", [](shared_ptr<XLongNode> &self, long x){trans(*self) = x;});}
-    {   auto [node, payload] = XPython::export_xnode<XULongNode, XValueNodeBase>(m);
-        (*node)
-        .def("__int__", [](shared_ptr<XULongNode> &self)->unsigned long{return ***self;})
-        .def("set", [](shared_ptr<XULongNode> &self, unsigned long x){trans(*self) = x;});}
-    {   auto [node, payload] = XPython::export_xnode<XHexNode, XValueNodeBase>(m);
-        (*node)
-        .def("__int__", [](shared_ptr<XHexNode> &self)->unsigned long{return ***self;})
-        .def("set", [](shared_ptr<XHexNode> &self, unsigned long x){trans(*self) = x;});}
-    {   auto [node, payload] = XPython::export_xnode<XBoolNode, XValueNodeBase>(m);
-        (*node)
-        .def("__int__", [](shared_ptr<XBoolNode> &self)->bool{return ***self;})
-        .def("set", [](shared_ptr<XBoolNode> &self, bool x){trans(*self) = x;});}
-    {   auto [node, payload] = XPython::export_xnode<XDoubleNode, XValueNodeBase>(m);
-        (*node)
-        .def("__float__", [](shared_ptr<XDoubleNode> &self)->double{return ***self;})
-        .def("set", [](shared_ptr<XDoubleNode> &self, double x){trans(*self) = x;});}
-    {   auto [node, payload] = XPython::export_xnode<XStringNode, XValueNodeBase>(m);
-        (*node)
-        .def("__str__", [](shared_ptr<XStringNode> &self)->std::string{return ***self;})
-        .def("set", [](shared_ptr<XStringNode> &self, const std::string &s){trans(*self) = s;});}
+    XPython::export_xvaluenode<XIntNode, int>(m);
+    XPython::export_xvaluenode<XUIntNode, unsigned int>(m);
+    XPython::export_xvaluenode<XLongNode, long>(m);
+    XPython::export_xvaluenode<XULongNode, unsigned long>(m);
+    XPython::export_xvaluenode<XHexNode, unsigned long>(m);
+    XPython::export_xvaluenode<XBoolNode, bool>(m);
+    XPython::export_xvaluenode<XDoubleNode, double>(m);
+    XPython::export_xvaluenode<XStringNode, std::string>(m);
     {   auto [node, payload] = XPython::export_xnode<XComboNode, XValueNodeBase>(m);
         (*node)
         .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);})
@@ -352,4 +344,12 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
                 pyfunc(tr);
             });
         });
+
+    //Driver classes
+    {   auto [node, payload] = XPython::export_xnode<XDriver, XNode>(m);
+//        (*node)
+//        .def("showForms", &XDriver::showForms); //be in main thread
+        (*payload)
+        .def("time", [](XDriver::Payload &self)->system_clock::time_point{return self.time();})
+        .def("timeAwared", [](XDriver::Payload &self)->system_clock::time_point{return self.timeAwared();});}
 }

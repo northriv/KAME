@@ -16,12 +16,11 @@
 
 #include "support.h"
 #include <math.h>
-#if !defined USE_QTHREAD
-    #include <chrono>
-    //#include <thread>
-    using namespace std::chrono;
-    //using namespace std::this_thread;
-#endif
+
+#include <chrono>
+//#include <thread>
+using namespace std::chrono;
+//using namespace std::this_thread;
 
 //! Sleeps in ms
 DECLSPEC_KAME void msecsleep(unsigned int ms) noexcept; //<!\todo {std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
@@ -35,6 +34,9 @@ class DECLSPEC_KAME XTime {
 public:
     XTime() noexcept : tv_sec(0), tv_usec(0) {}
     XTime(long sec, long usec) noexcept : tv_sec(sec), tv_usec(usec) {}
+    XTime(const system_clock::time_point &);
+    operator system_clock::time_point() const;
+
     double operator-(const XTime &x) const noexcept {
         return (tv_sec - x.tv_sec) + (tv_usec - x.tv_usec) * 1e-6;
     }
@@ -92,6 +94,7 @@ public:
         __attribute__ ((format(strftime,2, 0)))
 #endif
     ;
+
 private:
     long tv_sec;
     long tv_usec;
