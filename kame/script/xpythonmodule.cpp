@@ -24,7 +24,13 @@
 #include "xlistnode.h"
 #include "xitemnode.h"
 
+#include "recorder.h"
 #include "driver.h"
+#include "analyzer.h"
+#include "primarydriver.h"
+#include "primarydriverwiththread.h"
+#include "secondarydriver.h"
+
 /*TODO
 
 with interfacelock (	 py::gil_scoped_release pyguard and spin)
@@ -352,4 +358,21 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         (*payload)
         .def("time", [](XDriver::Payload &self)->system_clock::time_point{return self.time();})
         .def("timeAwared", [](XDriver::Payload &self)->system_clock::time_point{return self.timeAwared();});}
+    {   auto [node, payload] = XPython::export_xnode<XScalarEntry, XNode>(m);
+        (*node)
+            .def("driver", &XScalarEntry::driver)
+            .def("value", [](shared_ptr<XScalarEntry> &self, Transaction &tr, double val){self->value(tr, val);})
+            .def("storeValue", [](shared_ptr<XScalarEntry> &self, Transaction &tr){ self->storeValue(tr);});
+        (*payload)
+            .def("isTriggered", &XScalarEntry::Payload::isTriggered);
+    }
+
+    XPython::export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>(m);
+
+//    {   auto [node, payload] = XPython::export_xnode<XSecondaryDriver, XDriver>(m);
+//        (*node)
+//            .def("requestAnalysis", &XSecondaryDriver::requestAnalysis)
+//            .def("connect", [](const shared_ptr<XPointerItemNode<XDriverList> > &selecter){self->connect(selecter);});
+//        (*payload);
+//    }
 }

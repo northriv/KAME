@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -76,11 +76,5 @@ private:
 };
 
 typedef XSecondaryDriverInterface<XDriver> XSecondaryDriver;
-
-//class XSecondaryDriver : public XSecondaryDriverInterface<XDriver> {
-//public:
-//	XSecondaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-//		XSecondaryDriverInterface<XDriver>(name, runtime, ref(tr_meas), meas) {}
-//};
 
 #endif /*SECONDARYDRIVER_H_*/
