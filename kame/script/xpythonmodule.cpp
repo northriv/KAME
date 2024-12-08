@@ -50,7 +50,6 @@
 #include <QLCDNumber>
 
 /*TODO
-
 with interfacelock (	 py::gil_scoped_release pyguard and spin)
 send (	 py::gil_scoped_release pyguard)
 receive(	 py::gil_scoped_release pyguard
@@ -74,10 +73,6 @@ EXPORTXDRIVER(???Driver, "notes")
     .def(bar()).def_readwrite(foo)
     creator of XItemNode<XDriverList, X???Driver>
 
-createByTypename(pytypename, label)
- ->
-REGISTER_TYPE(list, type, label)
-
  */
 PYBIND11_DECLARE_HOLDER_TYPE(T, local_shared_ptr<T>, true)
 
@@ -85,10 +80,9 @@ namespace py = pybind11;
 std::map<size_t, std::function<py::object(const shared_ptr<XNode>&)>> XPython::s_xnodeDownCasters;
 std::map<size_t, std::function<py::object(const shared_ptr<XNode::Payload>&)>> XPython::s_payloadDownCasters;
 
-template <class N, class Base, typename...Args>
-XPython::classtype_xnode<N, Base>
-XPython::export_xnode() {
-    auto &m = XPython::kame_module();
+template <class N>
+std::string
+XPython::declare_xnode_downcasters() {
     XPython::s_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(), [](const shared_ptr<XNode>&x)->py::object{
         return py::cast(dynamic_pointer_cast<N>(x));
     }));
@@ -98,6 +92,50 @@ XPython::export_xnode() {
     XString name = typeid(N).name();
     int i = name.find('X');
     name = name.substr(i); //squeezes C++ class name.
+    return name;
+}
+
+template <class N, class Base, class Trampoline, typename...Args>
+XPython::classtype_xnode_with_trampoline<N, Base, Trampoline>
+XPython::export_xnode_with_trampoline(const char *name_) {
+    auto &m = XPython::kame_module();
+    auto name = declare_xnode_downcasters<N>();
+    if(name_) name = name_; //overrides name given by typeid().name
+    auto pynode = std::make_unique<py::class_<N, Base, Trampoline, shared_ptr<N>>>(m, name.c_str());
+//for initialization of trampoline codes. N is base of Base(Trampoline class).
+    ( *pynode)
+//            .def(py::init_alias<const char *, bool, Args&&...>())
+//            .def(py::init_alias<const shared_ptr<XNode> &, const char *, bool, Args&&...>())
+//            .def(py::init_alias<const shared_ptr<XNode> &, Transaction &, const char *, bool, Args&&...>())
+        .def(py::init([](const char *name, bool runtime, Args&&... args){
+            auto node = XNode::createOrphan<Trampoline>(name, runtime, std::forward<Args>(args)...);
+//            *stl_nodeCreating = node; //to be used inside lambda creation fn of exportClass().
+            return node;
+        }))
+        .def(py::init([](const shared_ptr<XNode> &parent, const char *name, bool runtime, Args&&... args){
+            auto node = parent->create<Trampoline>(name, runtime, std::forward<Args>(args)...);
+//            *stl_nodeCreating = node;
+            return node;
+        }))
+        .def(py::init([](const shared_ptr<XNode> &parent, Transaction &tr, const char *name, bool runtime, Args&&... args){
+            auto node = parent->create<Trampoline>(tr, name, runtime, std::forward<Args>(args)...);
+//            *stl_nodeCreating = node;
+            return node;
+        }));
+
+    pynode->def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
+//! todo inheritance of Payload is awkward.
+//    if constexpr( !std::is_same<typename Base::Payload, typename N::Payload>::value) {
+    auto pypayload = std::make_unique<py::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>(m, (name + "::Payload").c_str());
+    return {std::move(pynode), std::move(pypayload)};
+}
+
+template <class N, class Base, typename...Args>
+XPython::classtype_xnode<N, Base>
+XPython::export_xnode(const char *name_) {
+    auto &m = XPython::kame_module();
+    auto name = declare_xnode_downcasters<N>();
+    if(name_) name = name_; //overrides name given by typeid().name
     auto pynode = std::make_unique<py::class_<N, Base, shared_ptr<N>>>(m, name.c_str());
     if constexpr(std::is_constructible<N, const char *, bool, Args&&...>::value) {
         //avoids compile error against abstract class creation.
@@ -109,28 +147,6 @@ XPython::export_xnode() {
             .def(py::init([](const shared_ptr<XNode> &parent, Transaction &tr, const char *name, bool runtime, Args&&... args){
             return parent->create<N>(tr, name, runtime, std::forward<Args>(args)...);}));
     }
-    if constexpr(std::is_base_of<N, Base>::value) {
-    //for initialization of trampoline codes. N is base of Base(Trampoline class).
-        ( *pynode)
-//            .def(py::init_alias<const char *, bool, Args&&...>())
-//            .def(py::init_alias<const shared_ptr<XNode> &, const char *, bool, Args&&...>())
-//            .def(py::init_alias<const shared_ptr<XNode> &, Transaction &, const char *, bool, Args&&...>())
-            .def(py::init([](const char *name, bool runtime, Args&&... args){
-                auto node = XNode::createOrphan<Base>(name, runtime, std::forward<Args>(args)...);
-                *stl_nodeCreating = node; //to be used inside lambda creation fn of exportClass().
-                return node;
-            }))
-            .def(py::init([](const shared_ptr<XNode> &parent, const char *name, bool runtime, Args&&... args){
-                auto node = parent->create<Base>(name, runtime, std::forward<Args>(args)...);
-                *stl_nodeCreating = node;
-                return node;
-            }))
-            .def(py::init([](const shared_ptr<XNode> &parent, Transaction &tr, const char *name, bool runtime, Args&&... args){
-                auto node = parent->create<Base>(tr, name, runtime, std::forward<Args>(args)...);
-                *stl_nodeCreating = node;
-                return node;
-            }));
-    }
     pynode->def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
 //! todo inheritance of Payload is awkward.
 //    if constexpr( !std::is_same<typename Base::Payload, typename N::Payload>::value) {
@@ -140,40 +156,18 @@ XPython::export_xnode() {
 
 template <class N, class V, typename...Args>
 XPython::classtype_xnode<N, XValueNodeBase>
-XPython::export_xvaluenode() {
-    constexpr const char *pyv = (std::is_integral<V>::value || std::is_same<V, bool>::value) ? "__int__" :
+XPython::export_xvaluenode(const char *name) {
+    constexpr const char *pyv = (std::is_integral<V>::value ? "__int__" :
+        (std::is_same<V, bool>::value ? "__bool__" :
         (std::is_floating_point<V>::value ? "__double__" :
-        (std::is_convertible<V, std::string>::value ? "__str__" : ""));
-    auto [pynode, pypayload] = export_xnode<N, XValueNodeBase>();
+        (std::is_convertible<V, std::string>::value ? "__str__" : ""))));
+    auto [pynode, pypayload] = export_xnode<N, XValueNodeBase>(name);
     (*pynode)
         .def(pyv, [](shared_ptr<N> &self)->V{return ***self;})
         .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;});
     (*pypayload)
         .def(pyv, [](typename N::Payload &self)->V{ return self;})
         .def("set", [](typename N::Payload &self, V x){self.operator=(x);});
-    return {std::move(pynode), std::move(pypayload)};
-}
-
-//! Trampoline should be helper class, with PYBIND11_OVERRIDE_PURE, PYBIND11_OVERRIDE...
-//! D should open pure virtual functions for public.
-template <class D, class Trampoline>
-XPython::classtype_xnode<D, Trampoline>
-XPython::export_xpythondriver() {
-    auto [pynode, pypayload] = export_xnode<D, Trampoline, std::reference_wrapper<Transaction>, const shared_ptr<XMeasure>&>();
-    (*pynode)
-        .def_static("exportClass", &D::exportClass)
-        .def("form", &D::form)
-        .def("loadUIFile", [](shared_ptr<D> &self, const std::string &loc) {
-            if( !isMainThread())
-                throw std::runtime_error("Be called from main thread.");
-            self->loadUIFile(loc);
-        });
-
-//    if constexpr(std::is_base_of<XSecondaryDriver, D>::value) {
-
-//    }
-//    else {
-//    }
     return {std::move(pynode), std::move(pypayload)};
 }
 
@@ -244,6 +238,7 @@ export_xqcon() {
     //one holder class for one connector class.
     struct XQConnectorHolder_TMP : public XQConnectorHolder_ {
         XQConnectorHolder_TMP(XQConnector *con) : XQConnectorHolder_(con) {}
+        ~XQConnectorHolder_TMP() {}
     };
 
     auto pyc = py::class_<XQConnectorHolder_TMP, XQConnectorHolder_, qshared_ptr<XQConnectorHolder_TMP>>(m, name.c_str());
@@ -256,7 +251,7 @@ export_xqcon() {
                     new QN(node, x, std::forward<Args>(args)...)));
         else
             throw std::runtime_error("Type mismatch.");
-        }), py::keep_alive<1, 2>());
+        }), py::keep_alive<0, 1>());
     return std::move(pyc);
 }
 
@@ -268,6 +263,8 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         .def("__repr__", [](shared_ptr<XNode> &self)->std::string{
             return formatString("<node[%s]\"%s\"@%p>", ("X" + self->getTypename()).c_str(), self->getName().c_str(), &*self);
         })
+        .def("insert", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){self->insert(child);})
+        .def("release", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){self->release(child);})
         .def("__len__", [](shared_ptr<XNode> &self){return Snapshot( *self).size();})
         .def("getLabel", [](shared_ptr<XNode> &self)->std::string{return self->getLabel();})
         .def("getName", [](shared_ptr<XNode> &self)->std::string{return self->getName();})
@@ -338,13 +335,19 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
                 else if(auto x = dynamic_pointer_cast<XHexNode>(y))
                     self[ *x] = v;
                 else if(auto x = dynamic_pointer_cast<XBoolNode>(y))
-                    self[ *x] = v;
+                    self[ *x] = v; //deprecated
                 else if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
                     self[ *x] = v;
                 else if(auto x = dynamic_pointer_cast<XComboNode>(y))
                     self[ *x] = v;
                 else throw std::runtime_error("Error: type mismatch.");
             }
+            else
+                throw std::runtime_error("Error: not a value node.");
+        })
+        .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, bool v){
+            if(auto x = dynamic_pointer_cast<XBoolNode>(y))
+                self[ *x] = v; //deprecated
             else
                 throw std::runtime_error("Error: not a value node.");
         })
@@ -367,7 +370,6 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
 
     {   auto [node, payload] = XPython::export_xnode<XListNodeBase, XNode>();
         (*node)
-        .def("release", [](shared_ptr<XListNodeBase> &self, shared_ptr<XNode> &child){self->release(child);})
         .def("createByTypename", &XListNodeBase::createByTypename);}
     {   auto [node, payload] = XPython::export_xnode<XTouchableNode, XNode>();
         (*node)
@@ -380,15 +382,15 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         (*node)
         .def("itemStrings", &XItemNodeBase::itemStrings)
         .def("autoSetAny", &XItemNodeBase::autoSetAny);}
-    XPython::export_xvaluenode<XIntNode, int>();
-    XPython::export_xvaluenode<XUIntNode, unsigned int>();
-    XPython::export_xvaluenode<XLongNode, long>();
-    XPython::export_xvaluenode<XULongNode, unsigned long>();
-    XPython::export_xvaluenode<XHexNode, unsigned long>();
-    XPython::export_xvaluenode<XBoolNode, bool>();
-    XPython::export_xvaluenode<XDoubleNode, double>();
-    XPython::export_xvaluenode<XStringNode, std::string>();
-    {   auto [node, payload] = XPython::export_xnode<XComboNode, XItemNodeBase>();
+    XPython::export_xvaluenode<XIntNode, int>("XIntNode");
+    XPython::export_xvaluenode<XUIntNode, unsigned int>("XUIntNode");
+    XPython::export_xvaluenode<XLongNode, long>("XLongNode");
+    XPython::export_xvaluenode<XULongNode, unsigned long>("XULongNode");
+    XPython::export_xvaluenode<XHexNode, unsigned long>("XHexNode");
+    XPython::export_xvaluenode<XBoolNode, bool>("XBoolNode");
+    XPython::export_xvaluenode<XDoubleNode, double>("XDoubleNode");
+    XPython::export_xvaluenode<XStringNode, std::string>("XStringNode");
+    {   auto [node, payload] = XPython::export_xnode<XComboNode, XItemNodeBase>("XComboNode");
         (*node)
         .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);})
         .def("add", [](shared_ptr<XComboNode> &self, const std::vector<std::string> &strlist){
@@ -424,7 +426,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
                 else if(auto x = dynamic_pointer_cast<XHexNode>(y))
                     trans( *x) = v;
                 else if(auto x = dynamic_pointer_cast<XBoolNode>(y))
-                    trans( *x) = v;
+                    trans( *x) = v; //deprecated feature.
                 else if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
                     trans( *x) = v;
                 else if(auto x = dynamic_pointer_cast<XComboNode>(y))
@@ -433,6 +435,12 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             }
             else
                 throw std::runtime_error("Error: not a value node.");
+        })
+        .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, bool v){
+            auto y = self->getChild(str);
+            if(auto x = dynamic_pointer_cast<XBoolNode>(y))
+                trans( *x) = v;
+            else throw std::runtime_error("Error: type mismatch.");
         })
         .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, const std::string &v){
             auto y = self->getChild(str);
@@ -478,10 +486,13 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             .def("isTriggered", &XScalarEntry::Payload::isTriggered);
     }
 
-    XPython::export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>();
+    XPython::export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>("XDriverItemNode");
     XPython::export_xnode<XMeasure, XNode>();
-    XPython::export_xnode<XSecondaryDriver, XDriver>();
-    {   auto [node, payload] = XPython::export_xpythondriver<XPythonSecondaryDriver, XPythonSecondaryDriverHelper>();
+    XPython::export_xnode<XPrimaryDriver, XDriver>();
+    XPython::export_xnode<XPrimaryDriverWithThread, XPrimaryDriver>();
+    XPython::export_xnode<XSecondaryDriver, XDriver>("XSecondaryDriver");
+    {   auto [node, payload] = XPython::export_xpythondriver
+        <XPythonSecondaryDriver, XSecondaryDriver, XPythonSecondaryDriverHelper>("XPythonSecondaryDriver");
         (*node)
             .def("visualize", &XPythonSecondaryDriver::visualize)
             .def("analyze", &XPythonSecondaryDriver::analyze)
@@ -508,7 +519,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             if( !isMainThread())
                 throw std::runtime_error("Be called from main thread.");
             return self->findChild<QWidget*>(name.c_str());
-        }, py::return_value_policy::reference);
+        }, py::return_value_policy::reference_internal);
 
 
     //XQ**Connector

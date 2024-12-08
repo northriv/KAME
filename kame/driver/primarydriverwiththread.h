@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,16 +16,18 @@
 
 #include "primarydriver.h"
 
-class XPrimaryDriverWithThread : public XPrimaryDriver {
+class DECLSPEC_KAME XPrimaryDriverWithThread : public XPrimaryDriver {
 public:
-	XPrimaryDriverWithThread(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-		XPrimaryDriver(name, runtime, ref(tr_meas), meas) {}
+    using XPrimaryDriver::XPrimaryDriver; //inherits constructors.
+//	XPrimaryDriverWithThread(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+//		XPrimaryDriver(name, runtime, ref(tr_meas), meas) {}
   
 	//! Shuts down your threads, unconnects GUI, and deactivates signals.\n
 	//! This function may be called even if driver has already stopped.
 	//! This should not cause an exception.
     virtual void stop() override;
-private:
+
+    class DECLSPEC_KAME Payload : public XPrimaryDriver::Payload {};
 protected:
 	//! Starts up your threads, connects GUI, and activates signals.
 	//! This function should not cause an exception.

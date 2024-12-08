@@ -191,7 +191,8 @@ else {
         INSTALLS += scriptfile
     }
     else {
-        DISTFILES += script/rubylineshell.rb script/pythonlineshell.py
+        DISTFILES += script/rubylineshell.rb  \
+            script/pythonlineshell.py
     }
 }
 

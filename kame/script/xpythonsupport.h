@@ -36,20 +36,28 @@ public:
     static pybind11::object cast_to_pyobject(shared_ptr<XNode> y);
     static pybind11::object cast_to_pyobject(shared_ptr<XNode::Payload> y);
 
+    template <class N, class Base, class Trampoline>
+    using classtype_xnode_with_trampoline = std::tuple<unique_ptr<pybind11::class_<N, Base, Trampoline, shared_ptr<N>>>,
+    unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>>;
     template <class N, class Base>
     using classtype_xnode = std::tuple<unique_ptr<pybind11::class_<N, Base, shared_ptr<N>>>,
     unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload>>>;
     //! Wraps C++ XNode-derived classes N, along with N::Payload.
     //! N derived from Base, and N::Payload derived from Base::Payload.
     //! \return to be used by .def or else. use auto [node, payload] =....
+    template <class N, class Base, class Trampoline, typename...Args>
+    classtype_xnode_with_trampoline<N, Base, Trampoline>
+    static export_xnode_with_trampoline(const char *name = nullptr);
+
     template <class N, class Base, typename...Args>
-    classtype_xnode<N, Base> static export_xnode();
+    classtype_xnode<N, Base> static export_xnode(const char *name = nullptr);
 
     template <class N, class V, typename...Args>
-    classtype_xnode<N, XValueNodeBase> static export_xvaluenode();
+    classtype_xnode<N, XValueNodeBase> static export_xvaluenode(const char *name = nullptr);
 
-    template <class D, class Base>
-    classtype_xnode<D, Base> static export_xpythondriver();
+    template <class D, class Base, class Trampoline>
+    classtype_xnode_with_trampoline<D, Base, Trampoline>
+    static export_xpythondriver(const char *name = nullptr);
 
     static pybind11::module_&kame_module() {return s_kame_module;}
     static pybind11::module_ s_kame_module;
@@ -68,8 +76,11 @@ private:
 
     void mainthread_callback(pybind11::object *scrthread, pybind11::object *func, pybind11::object *ret, pybind11::object *status);
 
-    template <class T> friend class XPythonDriver;
-    static XThreadLocal<shared_ptr<XNode>> stl_nodeCreating; //to be used inside lambda creation fn of exportClass().
+    template <class N>
+    static std::string declare_xnode_downcasters();
+
+//    template <class T> friend class XPythonDriver;
+//    static XThreadLocal<shared_ptr<XNode>> stl_nodeCreating; //to be used inside lambda creation fn of exportClass().
 };
 
 #endif //USE_PYBIND11

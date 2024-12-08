@@ -31,10 +31,11 @@ namespace py = pybind11;
 #include <iostream>
 
 //
-#define XPYTHONSUPPORT_RB ":/script/xpythonsupport.py" //in the qrc.
+#define XPYTHONSUPPORT_PY ":/script/xpythonsupport.py" //in the qrc.
+#define XPYTHONEXT_TEST_PY ":/script/pytestdriver.py" //in the qrc.
 
 pybind11::module_ XPython::s_kame_module;
-XThreadLocal<shared_ptr<XNode>> XPython::stl_nodeCreating;
+//XThreadLocal<shared_ptr<XNode>> XPython::stl_nodeCreating;
 
 XPython::XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
     : XScriptingThreadList(name, runtime, measure) {
@@ -91,15 +92,6 @@ XPython::execute(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
 
     {
-        QFile scriptfile(XPYTHONSUPPORT_RB);
-        if( !scriptfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            gErrPrint("No KAME python support file installed.");
-            return NULL;
-        }
-        fprintf(stderr, "Loading python scripting monitor.\n");
-        char data[65536];
-        QDataStream( &scriptfile).readRawData(data, sizeof(data));
-
         py::scoped_interpreter guard{}; // start the interpreter and keep it alive
 
         auto kame_module = py::module_::import("kame");
@@ -137,21 +129,34 @@ XPython::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XPython::mainthread_callback, Listener::FLAG_MAIN_THREAD_CALL);
 #endif
 
-        py::print("Hello, World!"); // use the Python API
-        while( !terminated) {
-            try {
-                py::object main_scope = py::module_::import("__main__").attr("__dict__");
-                py::exec(data, main_scope);
+        for(auto &filename: {XPYTHONEXT_TEST_PY, XPYTHONSUPPORT_PY}) {
+            QFile scriptfile(filename);
+            if( !scriptfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                gErrPrint("No KAME python support file installed.");
+                return NULL;
             }
-            catch (py::error_already_set& e) {
-                std::cout << "Python error.\n" << e.what() << "\n";
+            fprintf(stderr, "Loading python scripting support from %s.\n", filename);
+            char data[65536];
+            QDataStream( &scriptfile).readRawData(data, sizeof(data));
+//            py::print("Hello, World!"); // use the Python API
+            for(;;) {
+                try {
+                    py::object main_scope = py::module_::import("__main__").attr("__dict__");
+                    py::exec(data, main_scope);
+                }
+                catch (py::error_already_set& e) {
+                    std::cerr << "Python error.\n" << e.what() << "\n";
+                }
+                catch (...) {
+                    std::cerr << "Python unknown error.\n" << "\n";
+                }
+                if(terminated || (std::string(filename) != XPYTHONSUPPORT_PY))
+                    break;
+                //support routine may exit accidentally. Retries.
+                msecsleep(500);
             }
-            catch (...) {
-                std::cout << "Python unknown error.\n" << "\n";
-            }
-            msecsleep(1000);
         }
-        stl_nodeCreating->reset();
+//        stl_nodeCreating->reset();
         m_mainthread_cb_lsn.reset();
     }
 
