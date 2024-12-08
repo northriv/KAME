@@ -67,6 +67,7 @@ public:
     const shared_ptr<XStringNode> &pyInfoForNodeBrowser() const {return m_pyInfoForNodeBrowser;}
     shared_ptr<XNode> &lastPointedByNodeBrowser() {return m_lastPointedByNodeBrowser;}
 
+    struct Payload : public XNode::Payload {};
 private:
 	shared_ptr<XRuby> m_ruby;
     shared_ptr<XPython> m_python;

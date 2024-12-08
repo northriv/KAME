@@ -10,6 +10,8 @@ QT       += core gui
 #DEFINES += USE_QGLWIDGET
 #QT		 += opengl
 
+greaterThan(QT_MAJOR_VERSION, 5): QT += uitools
+
 greaterThan(QT_MAJOR_VERSION, 5): QT += opengl openglwidgets
 #For QTextCodec
 greaterThan(QT_MAJOR_VERSION, 5): QT += core5compat
@@ -27,7 +29,7 @@ else {
 #	 -stdlib=libc++
 }
 
-VERSTR = 7.0
+VERSTR = 7.1
 DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules

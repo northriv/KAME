@@ -26,11 +26,15 @@ namespace py = pybind11;
 #include "measure.h"
 #include <QFile>
 #include <QDataStream>
+#include <QWidget>
 #include <math.h>
 #include <iostream>
 
 //
 #define XPYTHONSUPPORT_RB ":/script/xpythonsupport.py" //in the qrc.
+
+pybind11::module_ XPython::s_kame_module;
+XThreadLocal<shared_ptr<XNode>> XPython::stl_nodeCreating;
 
 XPython::XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
     : XScriptingThreadList(name, runtime, measure) {
@@ -111,6 +115,7 @@ XPython::execute(const atomic<bool> &terminated) {
         kame_module.def("my_defin", [=](shared_ptr<XNode> scrthread)->std::string{return this->my_defin(scrthread);});
         kame_module.def("is_main_terminated", [=](){return this->m_thread->isTerminated();});
         kame_module.def("XScriptingThreads", [=]()->shared_ptr<XListNodeBase>{return dynamic_pointer_cast<XListNodeBase>(this->shared_from_this());});
+        kame_module.def("MainWindow", [=]()->QWidget*{return g_pFrmMain;}, py::return_value_policy::reference);
 #ifdef PYBIND11_NO_ASSERT_GIL_HELD_INCREF_DECREF
         kame_module.def("kame_mainthread", [=](py::object closure)->py::object{
             py::object ret, status;
@@ -146,7 +151,7 @@ XPython::execute(const atomic<bool> &terminated) {
             }
             msecsleep(1000);
         }
-
+        stl_nodeCreating->reset();
         m_mainthread_cb_lsn.reset();
     }
 

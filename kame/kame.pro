@@ -218,19 +218,22 @@ macx {
 #for ruby.h incompatible with C++11
     QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
 
-    pythons="python3" $$files("/opt/local/bin/python3*") $$files("/usr/local/bin/python3*")
-    for(PYTHON, pythons) {
-        system("$${PYTHON} -m pybind11 --includes") {
-            QMAKE_CXXFLAGS += $$system("$${PYTHON} -m pybind11 --includes")
-#            QMAKE_CXXFLAGS += $$system("$${PYTHON}-config --cflags")
-            QMAKE_LFLAGS += $$system("$${PYTHON}-config --embed --ldflags")
-            DEFINES += USE_PYBIND11
-            SOURCES += script/xpythonmodule.cpp \
-                script/xpythonsupport.cpp
-            HEADERS += script/xpythonmodule.h \
-                script/xpythonsupport.h
-            message("Python scripting support enabled.")
-            break()
+    greaterThan(QT_MAJOR_VERSION, 5) {
+        pythons="python3" $$files("/opt/local/bin/python3*") $$files("/usr/local/bin/python3*")
+        for(PYTHON, pythons) {
+            system("$${PYTHON} -m pybind11 --includes") {
+                QMAKE_CXXFLAGS += $$system("$${PYTHON} -m pybind11 --includes")
+    #            QMAKE_CXXFLAGS += $$system("$${PYTHON}-config --cflags")
+                QMAKE_LFLAGS += $$system("$${PYTHON}-config --embed --ldflags")
+                DEFINES += USE_PYBIND11
+                SOURCES += script/xpythonmodule.cpp \
+                    script/xpythonsupport.cpp
+                HEADERS += script/xpythonmodule.h \
+                    script/xpythonsupport.h \
+                    driver/pythondriver.h
+                message("Python scripting support enabled.")
+                break()
+            }
         }
     }
 }
@@ -251,20 +254,24 @@ win32-g++ {
 #    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0
 #    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0/x64-mingw32
 #    LIBS += $$files(c:/msys64/mingw64/lib/libx64-msvcrt-ruby*[0-9].dll.a)
-    pythons="c:/msys64/mingw64/bin/python.exe"
-    for(PYTHON, pythons) {
-        system("$${PYTHON} -m pybind11 --includes") {
-            QMAKE_CXXFLAGS += $$system("$${PYTHON} -m pybind11 --includes")
-#            QMAKE_CXXFLAGS += $$system("set PATH=c:/msys64/usr/bin;c:/msys64/mingw64/bin;%PATH% & c:/msys64/usr/bin/sh -c \"c:/msys64/mingw64/bin/python-config --cflags\"")
-    #        QMAKE_LFLAGS += $$system("set PATH=c:/msys64/usr/bin;c:/msys64/mingw64/bin;%PATH% & c:/msys64/usr/bin/sh -c \"c:/msys64/mingw64/bin/python-config --embed --ldflags\"")
-            LIBS += $$files(c:/msys64/mingw64/lib/libpython3*)
-            DEFINES += USE_PYBIND11
-            SOURCES += script/xpythonmodule.cpp \
-                script/xpythonsupport.cpp
-            HEADERS += script/xpythonmodule.h \
-                script/xpythonsupport.h
-            message("Python scripting support enabled.")
-            break()
+
+    greaterThan(QT_MAJOR_VERSION, 5) {
+        pythons="c:/msys64/mingw64/bin/python.exe"
+        for(PYTHON, pythons) {
+            system("$${PYTHON} -m pybind11 --includes") {
+                QMAKE_CXXFLAGS += $$system("$${PYTHON} -m pybind11 --includes")
+    #            QMAKE_CXXFLAGS += $$system("set PATH=c:/msys64/usr/bin;c:/msys64/mingw64/bin;%PATH% & c:/msys64/usr/bin/sh -c \"c:/msys64/mingw64/bin/python-config --cflags\"")
+        #        QMAKE_LFLAGS += $$system("set PATH=c:/msys64/usr/bin;c:/msys64/mingw64/bin;%PATH% & c:/msys64/usr/bin/sh -c \"c:/msys64/mingw64/bin/python-config --embed --ldflags\"")
+                LIBS += $$files(c:/msys64/mingw64/lib/libpython3*)
+                DEFINES += USE_PYBIND11
+                SOURCES += script/xpythonmodule.cpp \
+                    script/xpythonsupport.cpp
+                HEADERS += script/xpythonmodule.h \
+                    script/xpythonsupport.h \
+                    driver/pythondriver.h
+                message("Python scripting support enabled.")
+                break()
+            }
         }
     }
     LIBS += -lopengl32 -lglu32

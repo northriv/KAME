@@ -12,6 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
+#ifdef USE_PYBIND11
+    #include <pybind11/pybind11.h>
+#endif
 #include "driverlistconnector.h"
 #include "driver.h"
 #include "measure.h"
@@ -25,6 +28,7 @@
 #include <QPainter>
 #include <QPixmap>
 
+#include <iostream>
 typedef QForm<QDialog, Ui_DlgCreateDriver> DlgCreateDriver;
 
 XDriverListConnector::XDriverListConnector
@@ -184,9 +188,22 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
 	        gErrPrint(i18n("Duplicated name."));
 		}
 		else {
-           driver = m_list->createByTypename(static_pointer_cast<XDriverList>(m_list)->typenames()[idx],
+            try {
+               driver = m_list->createByTypename(static_pointer_cast<XDriverList>(m_list)->typenames()[idx],
 											  dlg->m_edName->text().toUtf8().data());
-		}
+            }
+#ifdef USE_PYBIND11
+            catch (pybind11::error_already_set& e) {
+                gErrPrint(i18n("Python error.") + e.what());
+            }
+#endif
+            catch (std::runtime_error &e) {
+                gErrPrint(i18n("Python error.") + e.what());
+            }
+            catch (...) {
+                gErrPrint(i18n("Unknown python error."));
+            }
+        }
 	}
 	if( !driver)
         gErrPrint(i18n("Driver creation failed."));

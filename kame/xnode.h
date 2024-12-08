@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -75,7 +75,7 @@ public:
     XString getName() const {return m_name;}
     //! \return i18n name for UI.
     virtual XString getLabel() const {return getName();}
-    XString getTypename() const;
+    virtual XString getTypename() const; //!< returns demangled name without leading 'X' by default.
 
     shared_ptr<XNode> getChild(const XString &var) const;
 

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -120,39 +120,58 @@ struct XTypeHolder {
             fprintf(stderr, "New typeholder\n");
 	}
 		
-    creator_t creator(const XString &tp) {
-		for(unsigned int i = 0; i < names.size(); i++) {
-            if(names[i] == tp) return creators[i];
-		}
-        return [](const char*, bool, ArgTypes&&...){return shared_ptr<XNode>();}; //empty
+    creator_t creator(const std::string &tp) {
+        XScopedLock<XMutex> lock(m_mutex);
+        try {
+            return m_map.at(tp).creator;
+        }
+        catch(std::out_of_range &e) {
+            return [](const char*, bool, ArgTypes&&...){return shared_ptr<XNode>();}; //empty
+        }
 	}
+    std::deque<XString> keys() const {
+        std::deque<XString> list;
+        for(auto &&x: m_map)
+            list.push_back(x.first);
+        return list;
+    }
+    std::deque<XString> labels() const {
+        std::deque<XString> list;
+        for(auto &&x: m_map)
+            list.push_back(x.second.label);
+        return list;
+    }
+    void insertCreator(const std::string &key, creator_t &&creator, const std::string &label) {
+        XScopedLock<XMutex> lock(m_mutex);
+        auto [it,ret] = m_map.insert(std::make_pair(key, XTypeHolder::CreatorInfo{creator, label}));
+        if( !ret) {
+            fprintf(stderr, "Duplicated key to typeholder.!\n");
+            return;
+        }
+        fprintf(stderr, "%s %s\n", key.c_str(), label.c_str());
+    }
+    void eraseCreator(const std::string &key) {
+        XScopedLock<XMutex> lock(m_mutex);
+        m_map.erase(key);
+    }
+    //Default creator wrapping create<>.
     template <class tChild>
     struct Creator {
         Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
             creator_t create_typed =
                     [](const char *name, bool runtime, ArgTypes&&... args)->shared_ptr<XNode>
                     {return XNode::createOrphan<tChild>(name, runtime, std::forward<ArgTypes>(args)...);};
-            assert(create_typed);
             if( !label)
                 label = name;
-            if(std::find(holder.names.begin(), holder.names.end(), XString(name)) != holder.names.end()) {
-                fprintf(stderr, "Duplicated name!\n");
-                return;
-            }
-            holder.creators.push_back(create_typed);
-            holder.names.push_back(XString(name));
-            holder.labels.push_back(XString(label));
-            fprintf(stderr, "%s %s\n", name, label);
-        }
-    private:
-        template <class T>
-        static shared_ptr<XNode> creator_(const char *name, bool runtime, ArgTypes&&... args) {
-            return XNode::createOrphan<T>(name, runtime, std::forward<ArgTypes>(args)...);
+            holder.insertCreator(name, std::move(create_typed), label);
         }
     };
-    template <class tChild> friend struct Creator;
-    std::deque<creator_t> creators;
-	std::deque<XString> names, labels;
+    struct CreatorInfo {
+        creator_t creator;
+        XString label;
+    };
+    std::map<std::string, CreatorInfo> m_map;
+    XMutex m_mutex;
 };
 
 #define DEFINE_TYPE_HOLDER(...) \
@@ -160,10 +179,10 @@ struct XTypeHolder {
     static TypeHolder s_types; \
     static TypeHolder::creator_t creator__(const XString &tp) {return s_types.creator(tp);} \
     virtual TypeHolder::creator_t creator(const XString &tp) {return creator__(tp);} \
-    static std::deque<XString> &typenames__() {return s_types.names;} \
-    static std::deque<XString> &typelabels__() {return s_types.labels;} \
-    virtual std::deque<XString> &typenames() {return typenames__();} \
-    virtual std::deque<XString> &typelabels() {return typelabels__();}
+    static std::deque<XString> typenames__() {return s_types.keys();} \
+    static std::deque<XString> typelabels__() {return s_types.labels();} \
+    virtual std::deque<XString> typenames() {return typenames__();} \
+    virtual std::deque<XString> typelabels() {return typelabels__();}
 
 #define DECLARE_TYPE_HOLDER(list) \
     list::TypeHolder list::s_types;

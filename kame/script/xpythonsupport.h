@@ -42,12 +42,17 @@ public:
     //! Wraps C++ XNode-derived classes N, along with N::Payload.
     //! N derived from Base, and N::Payload derived from Base::Payload.
     //! \return to be used by .def or else. use auto [node, payload] =....
-    template <class N, class Base>
-    classtype_xnode<N, Base> static export_xnode(pybind11::module_ &m);
+    template <class N, class Base, typename...Args>
+    classtype_xnode<N, Base> static export_xnode();
 
-    template <class N, class V>
-    classtype_xnode<N, XValueNodeBase> static export_xvaluenode(pybind11::module_ &m);
+    template <class N, class V, typename...Args>
+    classtype_xnode<N, XValueNodeBase> static export_xvaluenode();
 
+    template <class D, class Base>
+    classtype_xnode<D, Base> static export_xpythondriver();
+
+    static pybind11::module_&kame_module() {return s_kame_module;}
+    static pybind11::module_ s_kame_module;
 protected:
     virtual void *execute(const atomic<bool> &) override;
     void my_defout(shared_ptr<XNode> node, const std::string &msg);
@@ -62,6 +67,9 @@ private:
     shared_ptr<Listener> m_mainthread_cb_lsn;
 
     void mainthread_callback(pybind11::object *scrthread, pybind11::object *func, pybind11::object *ret, pybind11::object *status);
+
+    template <class T> friend class XPythonDriver;
+    static XThreadLocal<shared_ptr<XNode>> stl_nodeCreating; //to be used inside lambda creation fn of exportClass().
 };
 
 #endif //USE_PYBIND11

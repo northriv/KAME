@@ -31,7 +31,7 @@ TLS.xscrthread = None# XScriptingThreads()[0]
 TLS.logfile = None
 class MyDefIO:
 	def write(s):
-		if TLS.xscrthread:
+		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			if s[-1] == '\n':
 				s = s[0:-1]
 			for l in s.splitlines():
@@ -47,7 +47,7 @@ class MyDefIO:
 			STDERR.write(s)
 
 	def readline():
-		if TLS.xscrthread:
+		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			return my_defin(TLS.xscrthread)
 		else:
 			STDIN.readline()
@@ -57,7 +57,7 @@ class MyDefOErr:
 		STDERR.write(s)
 		if s[-1] == '\n':
 			s = s[0:-1]
-		if TLS.xscrthread:
+		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			s = s.replace("&", "&amp;")
 			s = s.replace("<", "&lt;")
 			s = s.replace(">", "&gt;")
