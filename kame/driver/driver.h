@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -98,6 +98,8 @@ public:
 		const shared_ptr<XMeasure> &
 		)
     virtual shared_ptr<XNode> createByTypename(const XString &type, const XString& name) override;
+
+    struct Payload : public XCustomTypeListNode<XDriver>::Payload {};
 private:
 	const weak_ptr<XMeasure> m_measure;
 };

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -29,7 +29,6 @@ public:
     bool autoSetAny() const {return !!m_lsnTryAutoSet;}
 
     struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
-        Payload() : XValueNodeBase::Payload() {}
         struct ListChangeEvent {
             Snapshot shot_of_list;
             XItemNodeBase *emitter;
@@ -120,6 +119,8 @@ class XItemNode;
 
 template <class TL>
 class XItemNode<TL> : public XPointerItemNode<TL> {
+public:
+    struct Payload : public XPointerItemNode<TL>::Payload {};
 protected:
     XItemNode(const char *name, bool runtime, Transaction &tr_list,
         const shared_ptr<TL> &list, bool auto_set_any = false)

@@ -137,8 +137,21 @@ XPython::export_xnode(const char *name_) {
     auto name = declare_xnode_downcasters<N>();
     if(name_) name = name_; //overrides name given by typeid().name
     auto pynode = std::make_unique<py::class_<N, Base, shared_ptr<N>>>(m, name.c_str());
-    if constexpr(std::is_constructible<N, const char *, bool, Args&&...>::value) {
+    if constexpr(std::is_constructible<N, const char *, bool, Args&&...>::value
+        || sizeof...(Args)) { //when Args exists. constructor is assumed to be present.
         //avoids compile error against abstract class creation.
+        if constexpr(sizeof...(Args) > 8) //disabled.
+        //Debug, For readable typeerror, unpacks and casts.
+        ( *pynode)
+            .def(py::init([](py::args args){
+                auto it = args.begin();
+                //!todo isinstance
+                std::string name = (it++)->cast<std::string>();
+                bool runtime = (it++)->cast<bool>();
+                return XNode::createOrphan<N>(name.c_str(), runtime,
+                     (it++)->cast<Args>()...);
+            }));
+        else
         ( *pynode)
             .def(py::init([](const char *name, bool runtime, Args&&... args){
             return XNode::createOrphan<N>(name, runtime, std::forward<Args>(args)...);}))
@@ -264,6 +277,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             return formatString("<node[%s]\"%s\"@%p>", ("X" + self->getTypename()).c_str(), self->getName().c_str(), &*self);
         })
         .def("insert", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){self->insert(child);})
+        .def("insert", [](shared_ptr<XNode> &self, Transaction &tr, shared_ptr<XNode> &child){self->insert(tr, child);})
         .def("release", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){self->release(child);})
         .def("__len__", [](shared_ptr<XNode> &self){return Snapshot( *self).size();})
         .def("getLabel", [](shared_ptr<XNode> &self)->std::string{return self->getLabel();})
@@ -390,7 +404,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     XPython::export_xvaluenode<XBoolNode, bool>("XBoolNode");
     XPython::export_xvaluenode<XDoubleNode, double>("XDoubleNode");
     XPython::export_xvaluenode<XStringNode, std::string>("XStringNode");
-    {   auto [node, payload] = XPython::export_xnode<XComboNode, XItemNodeBase>("XComboNode");
+    {   auto [node, payload] = XPython::export_xnode<XComboNode, XItemNodeBase, bool>("XComboNode");
         (*node)
         .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);})
         .def("add", [](shared_ptr<XComboNode> &self, const std::vector<std::string> &strlist){
@@ -477,7 +491,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         .def("time", [](XDriver::Payload &self)->system_clock::time_point{return self.time();})
         .def("timeAwared", [](XDriver::Payload &self)->system_clock::time_point{return self.timeAwared();});}
     {   auto [node, payload] = XPython::export_xnode<XScalarEntry, XNode,
-            const shared_ptr<XDriver> &,const char *>();
+            const shared_ptr<XDriver> &, const char *>();
         (*node)
             .def("driver", &XScalarEntry::driver)
             .def("value", [](shared_ptr<XScalarEntry> &self, Transaction &tr, double val){self->value(tr, val);})
@@ -485,8 +499,10 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         (*payload)
             .def("isTriggered", &XScalarEntry::Payload::isTriggered);
     }
-
-    XPython::export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>("XDriverItemNode");
+    XPython::export_xnode<XDriverList, XListNodeBase>("XDriverList"); //needed to be used as an argument.
+    XPython::export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>("XDriverPointerItemNode");
+    XPython::export_xnode<XItemNode<XDriverList, XDriver>, XPointerItemNode<XDriverList>,
+            Transaction &, shared_ptr<XDriverList> &, bool>("XDriverItemNode");
     XPython::export_xnode<XMeasure, XNode>();
     XPython::export_xnode<XPrimaryDriver, XDriver>();
     XPython::export_xnode<XPrimaryDriverWithThread, XPrimaryDriver>();
@@ -548,4 +564,6 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     export_xqcon<XColorConnector, XHexNode, QPushButton>();
 
 //    py::implicitly_convertible<system_clock::time_point, XTime>();
+    //Exceptions
+    py::register_exception<XNode::NodeNotFoundError>(m, "NodeNotFoundError", PyExc_RuntimeError);
 }

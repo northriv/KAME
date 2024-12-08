@@ -10,10 +10,17 @@ class Test4Res(XPythonSecondaryDriver):
         #adds nodes
         self.insert(XDoubleNode("Wait", False))
         self.insert(XBoolNode("Control", False))
-        self.conns = [] #stores UI connectors during the lifetime.
-        self.conns.append(
-            XQToggleButtonConnector(self["Control"], form.findChildWidget("Control"))
-            )
+        entry = XScalarEntry("Resistance", False, self, "%.3g")
+        self.insert(entry)  
+        meas["ScalarEntries"].insert(tr, entry)
+        self.insert(XDriverItemNode("Driver1", False, tr, meas["Drivers"], True))
+#        self.connect()
+        #stores UI connectors during the lifetime.
+        self.conns = [
+            XQDoubleSpinBoxConnector(self["Wait"], form.findChildWidget("Wait")),
+            XQToggleButtonConnector(self["Control"], form.findChildWidget("Control")),
+            XQComboBoxConnector(self["Driver1"], form.findChildWidget("Driver1"), tr),
+            ]
         return
 
     def checkDependency(shot_this, shot_emitter, shot_others, emitter):

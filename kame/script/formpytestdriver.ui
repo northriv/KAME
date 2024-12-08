@@ -70,7 +70,7 @@
      <string>TextLabel</string>
     </property>
    </widget>
-   <widget class="QLCDNumber" name="lcdValue">
+   <widget class="QLCDNumber" name="lcdResistance">
     <property name="geometry">
      <rect>
       <x>30</x>
