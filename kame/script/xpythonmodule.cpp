@@ -317,7 +317,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             return self.size() ? self.list()->at(pos) : shared_ptr<XNode>();}
         )
         .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
-            return py::cast( &self[ *node]);
+            return py::cast( &self.at( *node));
         }, py::return_value_policy::reference_internal)
         .def("isUpperOf", &Snapshot::isUpperOf);
     py::class_<Transaction, Snapshot>(m, "Transaction")
@@ -334,7 +334,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             return self.commitOrNext();
         })
         .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
-            return py::cast( &self[ *node]);
+            return py::cast( &self.at( *node));
         }, py::return_value_policy::reference_internal)
         .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, int v){
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
