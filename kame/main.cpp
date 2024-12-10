@@ -246,6 +246,19 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    //defers loading python modules.
+    for(auto it = modules.begin(); it != modules.end();) {
+        if(it->find("python") != std::string::npos) {
+            auto f = *it;
+            if(f == modules.back())
+                break;
+            it = modules.erase(it);
+            modules.push_back(f);
+        }
+        else
+            it++;
+    }
+
     int num_loaded_modules = 0;
     //loads modules.
     for(auto it = modules.begin(); it != modules.end(); it++) {

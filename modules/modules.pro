@@ -39,7 +39,8 @@ SUBDIRS += testdriver\
     opticscore\
     optics\
     arbfunc\
-    twoaxis
+    twoaxis\
+    python
 
 unix: SUBDIRS +=    montecarlo\
 

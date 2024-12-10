@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -55,6 +55,8 @@ public:
 	const shared_ptr<XComboNode> &range() const {
 		return m_range;
 	}
+
+    struct Payload : public XPrimaryDriver::Payload {};
 protected:
 	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
