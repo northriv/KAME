@@ -5,6 +5,7 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame/analyzer\
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame/driver\
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame/math\
+    $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame/script\
 
 
 win32 {

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,10 +12,15 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
+//#include "pythondriver.h"
 
 #include "userdmm.h"
 #include "charinterface.h"
-//---------------------------------------------------------------------------
+
+//#ifdef USE_PYBIND11
+//static auto [pynode, pypoad] =
+//    XPython::export_xdriver<XDMM, XPrimaryDriver>();
+//#endif
 
 REGISTER_TYPE(XDriverList, KE2000, "Keithley 2000/2001 DMM");
 REGISTER_TYPE(XDriverList, KE2182, "Keithley 2182 nanovolt meter");

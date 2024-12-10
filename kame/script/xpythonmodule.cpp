@@ -80,110 +80,6 @@ namespace py = pybind11;
 std::map<size_t, std::function<py::object(const shared_ptr<XNode>&)>> XPython::s_xnodeDownCasters;
 std::map<size_t, std::function<py::object(const shared_ptr<XNode::Payload>&)>> XPython::s_payloadDownCasters;
 
-template <class N>
-std::string
-XPython::declare_xnode_downcasters() {
-    XPython::s_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(), [](const shared_ptr<XNode>&x)->py::object{
-        return py::cast(dynamic_pointer_cast<N>(x));
-    }));
-    XPython::s_payloadDownCasters.insert(std::make_pair(typeid(typename N::Payload).hash_code(), [](const shared_ptr<XNode::Payload>&x)->py::object{
-        return py::cast(dynamic_pointer_cast<typename N::Payload>(x));
-    }));
-    XString name = typeid(N).name();
-    int i = name.find('X');
-    name = name.substr(i); //squeezes C++ class name.
-    return name;
-}
-
-template <class N, class Base, class Trampoline, typename...Args>
-XPython::classtype_xnode_with_trampoline<N, Base, Trampoline>
-XPython::export_xnode_with_trampoline(const char *name_) {
-    auto &m = XPython::kame_module();
-    auto name = declare_xnode_downcasters<N>();
-    if(name_) name = name_; //overrides name given by typeid().name
-    auto pynode = std::make_unique<py::class_<N, Base, Trampoline, shared_ptr<N>>>(m, name.c_str());
-//for initialization of trampoline codes. N is base of Base(Trampoline class).
-    ( *pynode)
-//            .def(py::init_alias<const char *, bool, Args&&...>())
-//            .def(py::init_alias<const shared_ptr<XNode> &, const char *, bool, Args&&...>())
-//            .def(py::init_alias<const shared_ptr<XNode> &, Transaction &, const char *, bool, Args&&...>())
-        .def(py::init([](const char *name, bool runtime, Args&&... args){
-            auto node = XNode::createOrphan<Trampoline>(name, runtime, std::forward<Args>(args)...);
-//            *stl_nodeCreating = node; //to be used inside lambda creation fn of exportClass().
-            return node;
-        }))
-        .def(py::init([](const shared_ptr<XNode> &parent, const char *name, bool runtime, Args&&... args){
-            auto node = parent->create<Trampoline>(name, runtime, std::forward<Args>(args)...);
-//            *stl_nodeCreating = node;
-            return node;
-        }))
-        .def(py::init([](const shared_ptr<XNode> &parent, Transaction &tr, const char *name, bool runtime, Args&&... args){
-            auto node = parent->create<Trampoline>(tr, name, runtime, std::forward<Args>(args)...);
-//            *stl_nodeCreating = node;
-            return node;
-        }));
-
-    pynode->def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
-//! todo inheritance of Payload is awkward.
-//    if constexpr( !std::is_same<typename Base::Payload, typename N::Payload>::value) {
-    auto pypayload = std::make_unique<py::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>(m, (name + "::Payload").c_str());
-    return {std::move(pynode), std::move(pypayload)};
-}
-
-template <class N, class Base, typename...Args>
-XPython::classtype_xnode<N, Base>
-XPython::export_xnode(const char *name_) {
-    auto &m = XPython::kame_module();
-    auto name = declare_xnode_downcasters<N>();
-    if(name_) name = name_; //overrides name given by typeid().name
-    auto pynode = std::make_unique<py::class_<N, Base, shared_ptr<N>>>(m, name.c_str());
-    if constexpr(std::is_constructible<N, const char *, bool, Args&&...>::value
-        || sizeof...(Args)) { //when Args exists. constructor is assumed to be present.
-        //avoids compile error against abstract class creation.
-        if constexpr(sizeof...(Args) > 8) //disabled.
-        //Debug, For readable typeerror, unpacks and casts.
-        ( *pynode)
-            .def(py::init([](py::args args){
-                auto it = args.begin();
-                //!todo isinstance
-                std::string name = (it++)->cast<std::string>();
-                bool runtime = (it++)->cast<bool>();
-                return XNode::createOrphan<N>(name.c_str(), runtime,
-                     (it++)->cast<Args>()...);
-            }));
-        else
-        ( *pynode)
-            .def(py::init([](const char *name, bool runtime, Args&&... args){
-            return XNode::createOrphan<N>(name, runtime, std::forward<Args>(args)...);}))
-            .def(py::init([](const shared_ptr<XNode> &parent, const char *name, bool runtime, Args&&... args){
-            return parent->create<N>(name, runtime, std::forward<Args>(args)...);}))
-            .def(py::init([](const shared_ptr<XNode> &parent, Transaction &tr, const char *name, bool runtime, Args&&... args){
-            return parent->create<N>(tr, name, runtime, std::forward<Args>(args)...);}));
-    }
-    pynode->def(py::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
-//! todo inheritance of Payload is awkward.
-//    if constexpr( !std::is_same<typename Base::Payload, typename N::Payload>::value) {
-    auto pypayload = std::make_unique<py::class_<typename N::Payload, typename Base::Payload>>(m, (name + "::Payload").c_str());
-    return {std::move(pynode), std::move(pypayload)};
-}
-
-template <class N, class V, typename...Args>
-XPython::classtype_xnode<N, XValueNodeBase>
-XPython::export_xvaluenode(const char *name) {
-    constexpr const char *pyv = (std::is_integral<V>::value ? "__int__" :
-        (std::is_same<V, bool>::value ? "__bool__" :
-        (std::is_floating_point<V>::value ? "__double__" :
-        (std::is_convertible<V, std::string>::value ? "__str__" : ""))));
-    auto [pynode, pypayload] = export_xnode<N, XValueNodeBase>(name);
-    (*pynode)
-        .def(pyv, [](shared_ptr<N> &self)->V{return ***self;})
-        .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;});
-    (*pypayload)
-        .def(pyv, [](typename N::Payload &self)->V{ return self;})
-        .def("set", [](typename N::Payload &self, V x){self.operator=(x);});
-    return {std::move(pynode), std::move(pypayload)};
-}
-
 py::object XPython::cast_to_pyobject(shared_ptr<XNode::Payload> y) {
     auto it = s_payloadDownCasters.find(typeid(y).hash_code());
     if(it != s_payloadDownCasters.end()) {
@@ -234,7 +130,6 @@ py::object XPython::cast_to_pyobject(shared_ptr<XNode> y) {
     //end up with XNode.
     return py::cast(y);
 };
-
 
 //For XQ**Connector, with customized deleter.
 PYBIND11_DECLARE_HOLDER_TYPE(T, qshared_ptr<T>, true)
@@ -396,14 +291,14 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         (*node)
         .def("itemStrings", &XItemNodeBase::itemStrings)
         .def("autoSetAny", &XItemNodeBase::autoSetAny);}
-    XPython::export_xvaluenode<XIntNode, int>("XIntNode");
-    XPython::export_xvaluenode<XUIntNode, unsigned int>("XUIntNode");
-    XPython::export_xvaluenode<XLongNode, long>("XLongNode");
-    XPython::export_xvaluenode<XULongNode, unsigned long>("XULongNode");
-    XPython::export_xvaluenode<XHexNode, unsigned long>("XHexNode");
-    XPython::export_xvaluenode<XBoolNode, bool>("XBoolNode");
-    XPython::export_xvaluenode<XDoubleNode, double>("XDoubleNode");
-    XPython::export_xvaluenode<XStringNode, std::string>("XStringNode");
+    XPython::export_xvaluenode<XIntNode, int, XValueNodeBase>("XIntNode");
+    XPython::export_xvaluenode<XUIntNode, unsigned int, XValueNodeBase>("XUIntNode");
+    XPython::export_xvaluenode<XLongNode, long, XValueNodeBase>("XLongNode");
+    XPython::export_xvaluenode<XULongNode, unsigned long, XValueNodeBase>("XULongNode");
+    XPython::export_xvaluenode<XHexNode, unsigned long, XValueNodeBase>("XHexNode");
+    XPython::export_xvaluenode<XBoolNode, bool, XValueNodeBase>("XBoolNode");
+    XPython::export_xvaluenode<XDoubleNode, double, XValueNodeBase>("XDoubleNode");
+    XPython::export_xvaluenode<XStringNode, std::string, XValueNodeBase>("XStringNode");
     {   auto [node, payload] = XPython::export_xnode<XComboNode, XItemNodeBase, bool>("XComboNode");
         (*node)
         .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);})
@@ -501,7 +396,8 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     }
     XPython::export_xnode<XDriverList, XListNodeBase>("XDriverList"); //needed to be used as an argument.
     XPython::export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>("XDriverPointerItemNode");
-    XPython::export_xnode<XItemNode<XDriverList, XDriver>, XPointerItemNode<XDriverList>,
+    XPython::export_xvaluenode<XItemNode<XDriverList, XDriver>,
+            shared_ptr<XDriver>, XPointerItemNode<XDriverList>,
             Transaction &, shared_ptr<XDriverList> &, bool>("XDriverItemNode");
     XPython::export_xnode<XMeasure, XNode>();
     XPython::export_xnode<XPrimaryDriver, XDriver>();

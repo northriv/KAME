@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,7 +11,6 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-//---------------------------------------------------------------------------
 #include "ui_dmmform.h"
 #include <QStatusBar>
 #include "dmm.h"

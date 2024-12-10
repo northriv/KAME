@@ -52,14 +52,21 @@ public:
     template <class N, class Base, typename...Args>
     classtype_xnode<N, Base> static export_xnode(const char *name = nullptr);
 
-    template <class N, class V, typename...Args>
-    classtype_xnode<N, XValueNodeBase> static export_xvaluenode(const char *name = nullptr);
+    //! For node with setter/getter of type V.
+    template <class N, class V, class Base, typename...Args>
+    classtype_xnode<N, Base> static export_xvaluenode(const char *name = nullptr);
+
+    //! For (abstract) driver classes open to python.
+    template <class D, class Base>
+    classtype_xnode<D, Base>
+    static export_xdriver(const char *name = nullptr);
 
     template <class D, class Base, class Trampoline>
     classtype_xnode_with_trampoline<D, Base, Trampoline>
     static export_xpythondriver(const char *name = nullptr);
 
-    static pybind11::module_&kame_module() {return s_kame_module;}
+    static pybind11::module_& kame_module() {return s_kame_module;}
+
     static pybind11::module_ s_kame_module;
 protected:
     virtual void *execute(const atomic<bool> &) override;
