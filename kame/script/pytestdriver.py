@@ -1,8 +1,15 @@
 #KAME extention by python
 import time
 import datetime
-time.sleep(2) #todo wainting for module loading.
-from kame import * #imports kame drivers.
+import inspect
+for i in range(50):
+    time.sleep(0.5) #todo wainting for module loading.
+    import kame #imports kame drivers.
+    Classes = str([y[0] for y in inspect.getmembers(kame, inspect.isclass)])
+    if "XDMM" in Classes:
+        break
+time.sleep(0.5) #todo wainting for module loading.
+from kame import *
 
 #Defines KAME driver class inside python.
 class Test4Res(XPythonSecondaryDriver):
