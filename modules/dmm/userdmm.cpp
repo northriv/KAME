@@ -18,7 +18,9 @@
 #include "charinterface.h"
 
 #ifdef USE_PYBIND11
-PyDriverExporter<XDMM, XPrimaryDriver> dmm;
+PyDriverExporter<XDMM, XPrimaryDriver> dmm([](auto node, auto payload){
+    payload.def("value", [](shared_ptr<XDMM::Payload> &self, unsigned int i){return self->value(i);});
+});
 #endif
 
 REGISTER_TYPE(XDriverList, KE2000, "Keithley 2000/2001 DMM");

@@ -1,6 +1,8 @@
 #KAME extention by python
+import time
 import datetime
-from kame import *
+time.sleep(2) #todo wainting for module loading.
+from kame import * #imports kame drivers.
 
 #Defines KAME driver class inside python.
 class Test4Res(XPythonSecondaryDriver):
@@ -13,7 +15,7 @@ class Test4Res(XPythonSecondaryDriver):
         entry = XScalarEntry("Resistance", False, self, "%.3g")
         self.insert(entry)  
         meas["ScalarEntries"].insert(tr, entry)
-        self.insert(XDriverItemNode("Driver1", False, tr, meas["Drivers"], True))
+        self.insert(XDMMItemNode("Driver1", False, tr, meas["Drivers"], True))
         #stores UI connectors during the lifetime.
         self.conns = [
             #synchronizes nodes and UIs.

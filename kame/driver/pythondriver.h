@@ -278,7 +278,7 @@ KAMEPyBind::export_xnode(const char *name_) {
     pynode->def(pybind11::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
 //! todo inheritance of Payload is awkward.
 //    if constexpr( !std::is_same<typename Base::Payload, typename N::Payload>::value) {
-    auto pypayload = std::make_unique<pybind11::class_<typename N::Payload, typename Base::Payload>>(m, (name + "::Payload").c_str());
+    auto pypayload = std::make_unique<pybind11::class_<typename N::Payload, typename Base::Payload>>(m, (name + "_Payload").c_str());
     return {std::move(pynode), std::move(pypayload)};
 }
 
@@ -335,13 +335,31 @@ KAMEPyBind::export_xdriver(const char *name_) {
     return {std::move(pynode), std::move(pypayload)};
 }
 
-template <class N, class Base>
+//! Helper struct to declare abstract driver classes to python side.
+//! Puts this struct inside module.
+//! Classes (NAME), (NAME)_Payload, (NAME)ItemNode will be defined.
+template <class D, class Base>
 struct PyDriverExporter {
-    PyDriverExporter() {
+    PyDriverExporter(const char *name = nullptr) {
         pybind11::gil_scoped_acquire guard;
-        pycls = XPython::bind.export_xdriver<N, Base>();
+        pycls = XPython::bind.export_xdriver<D, Base>(name);
     }
-    KAMEPyBind::classtype_xnode<N, Base> pycls;
+    //! to additionally define methods.
+    PyDriverExporter(std::function<void(pybind11::class_<D, Base, shared_ptr<D>>&,
+        pybind11::class_<typename D::Payload, typename Base::Payload>&)> fn)
+        : PyDriverExporter() {
+        pybind11::gil_scoped_acquire guard;
+        fn( *std::get<0>(pycls), *std::get<1>(pycls));
+    }
+    //! to additionally define methods and with preferred typename.
+    PyDriverExporter(const char *name, std::function<void(pybind11::class_<D, Base, shared_ptr<D>> &,
+        pybind11::class_<typename D::Payload, typename Base::Payload>&)> fn)
+        : PyDriverExporter(name) {
+        pybind11::gil_scoped_acquire guard;
+        fn( *std::get<0>(pycls), *std::get<1>(pycls));
+    }
+
+    KAMEPyBind::classtype_xnode<D, Base> pycls;
 };
 
 #endif //USE_PYBIND11

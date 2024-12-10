@@ -41,28 +41,22 @@ XPython::~XPython() {
 }
 
 void XPython::mainthread_callback(py::object *scrthread, py::object *func, py::object *ret, py::object *status) {
-    if( !func) {
-        //for the first time, empty callback is issued.
+    pybind11::gil_scoped_acquire guard;
+    try {
+        py::object tls = py::eval("TLS");
+        auto setattr = tls.attr("__setattr__");
+        setattr("xscrthread", scrthread);
+        setattr("logfile", pybind11::none());
+        *ret = py::reinterpret_borrow<py::function>( *func)();
         *status = py::cast(false);
     }
-    else {
-        pybind11::gil_scoped_acquire guard;
-        try {
-            py::object tls = py::eval("TLS");
-            auto setattr = tls.attr("__setattr__");
-            setattr("xscrthread", scrthread);
-            setattr("logfile", pybind11::none());
-            *ret = py::reinterpret_borrow<py::function>( *func)();
-            *status = py::cast(false);
-        }
-        catch (py::error_already_set& e) {
-            std::cerr << "Python error.\n" << e.what() << "\n";
-            *status = py::cast(e.what());
-        }
-        catch (...) {
-            std::cerr << "Python unknown error.\n" << "\n";
-            *status = py::cast("Python unknown error.\n");
-        }
+    catch (py::error_already_set& e) {
+        std::cerr << "Python error." << std::endl << e.what() << std::endl;
+        *status = py::cast(e.what());
+    }
+    catch (...) {
+        std::cerr << "Python unknown error." << std::endl;
+        *status = py::cast("Python unknown error.");
     }
     XScopedLock<XCondition> lock(m_mainthread_cb_cond);
     m_mainthread_cb_cond.signal();
@@ -96,18 +90,6 @@ XPython::execute(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
 
     {
-        m_mainthread_cb_lsn = m_mainthread_cb_tlk.connectWeakly(
-            shared_from_this(), &XPython::mainthread_callback, Listener::FLAG_MAIN_THREAD_CALL);
-        //Wait for main event loop, using dry run.
-        {
-            py::object status;
-            status = py::cast(true);
-            m_mainthread_cb_tlk.talk(nullptr, nullptr, nullptr, &status);
-            XScopedLock<XCondition> lock(m_mainthread_cb_cond);
-            while(status.is(py::cast(true)))
-                m_mainthread_cb_cond.wait();
-        }
-
         py::scoped_interpreter guard{}; // start the interpreter and keep it alive
 
         auto kame_module = py::module_::import("kame");
@@ -143,6 +125,8 @@ XPython::execute(const atomic<bool> &terminated) {
             }
             return ret;
         });
+        m_mainthread_cb_lsn = m_mainthread_cb_tlk.connectWeakly(
+            shared_from_this(), &XPython::mainthread_callback, Listener::FLAG_MAIN_THREAD_CALL);
 #endif
 
         for(auto &filename: {XPYTHONEXT_TEST_PY, XPYTHONSUPPORT_PY}) {
