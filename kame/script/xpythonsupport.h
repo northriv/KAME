@@ -24,18 +24,7 @@
 
 class XMeasure;
 
-//! Python scripting support, containing a thread running python monitor program.
-//! The monitor program synchronize Ruby threads and XScriptingThread objects.
-//! \sa XScriptingThread
-class XPython : public XScriptingThreadList {
-public:
-    XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
-    virtual ~XPython();
-
-    //!internal use. down casters.
-    static pybind11::object cast_to_pyobject(shared_ptr<XNode> y);
-    static pybind11::object cast_to_pyobject(shared_ptr<XNode::Payload> y);
-
+struct KAMEPyBind {
     template <class N, class Base, class Trampoline>
     using classtype_xnode_with_trampoline = std::tuple<unique_ptr<pybind11::class_<N, Base, Trampoline, shared_ptr<N>>>,
     unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>>;
@@ -47,44 +36,59 @@ public:
     //! \return to be used by .def or else. use auto [node, payload] =....
     template <class N, class Base, class Trampoline, typename...Args>
     classtype_xnode_with_trampoline<N, Base, Trampoline>
-    static export_xnode_with_trampoline(const char *name = nullptr);
+    export_xnode_with_trampoline(const char *name = nullptr);
 
     template <class N, class Base, typename...Args>
-    classtype_xnode<N, Base> static export_xnode(const char *name = nullptr);
+    classtype_xnode<N, Base> export_xnode(const char *name = nullptr);
 
     //! For node with setter/getter of type V.
     template <class N, class V, class Base, typename...Args>
-    classtype_xnode<N, Base> static export_xvaluenode(const char *name = nullptr);
+    classtype_xnode<N, Base> export_xvaluenode(const char *name = nullptr);
 
     //! For (abstract) driver classes open to python.
     template <class D, class Base>
     classtype_xnode<D, Base>
-    static export_xdriver(const char *name = nullptr);
+    export_xdriver(const char *name = nullptr);
 
     template <class D, class Base, class Trampoline>
     classtype_xnode_with_trampoline<D, Base, Trampoline>
-    static export_xpythondriver(const char *name = nullptr);
+    export_xpythondriver(const char *name = nullptr);
 
-    static pybind11::module_& kame_module() {return s_kame_module;}
+    pybind11::module_& kame_module() {return s_kame_module;}
+    pybind11::module_ s_kame_module;
 
-    static pybind11::module_ s_kame_module;
+    //!internal use. down casters.
+    pybind11::object cast_to_pyobject(shared_ptr<XNode> y);
+    pybind11::object cast_to_pyobject(shared_ptr<XNode::Payload> y);
+
+private:
+    std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>> m_xnodeDownCasters;
+    std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode::Payload>&)>> m_payloadDownCasters;
+
+    template <class N>
+    std::string declare_xnode_downcasters();
+};
+
+//! Python scripting support, containing a thread running python monitor program.
+//! The monitor program synchronize Ruby threads and XScriptingThread objects.
+//! \sa XScriptingThread
+class XPython : public XScriptingThreadList {
+public:
+    XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
+    virtual ~XPython();
+
+    static KAMEPyBind bind;
 protected:
     virtual void *execute(const atomic<bool> &) override;
     void my_defout(shared_ptr<XNode> node, const std::string &msg);
     std::string my_defin(shared_ptr<XNode> node);
 
 private:
-    static std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>> s_xnodeDownCasters;
-    static std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode::Payload>&)>> s_payloadDownCasters;
-
     XCondition m_mainthread_cb_cond;
     Transactional::Talker<pybind11::object*, pybind11::object*, pybind11::object*, pybind11::object*> m_mainthread_cb_tlk;
     shared_ptr<Listener> m_mainthread_cb_lsn;
 
     void mainthread_callback(pybind11::object *scrthread, pybind11::object *func, pybind11::object *ret, pybind11::object *status);
-
-    template <class N>
-    static std::string declare_xnode_downcasters();
 
 //    template <class T> friend class XPythonDriver;
 //    static XThreadLocal<shared_ptr<XNode>> stl_nodeCreating; //to be used inside lambda creation fn of exportClass().

@@ -34,9 +34,6 @@ namespace py = pybind11;
 #define XPYTHONSUPPORT_PY ":/script/xpythonsupport.py" //in the qrc.
 #define XPYTHONEXT_TEST_PY ":/script/pytestdriver.py" //in the qrc.
 
-pybind11::module_ XPython::s_kame_module;
-//XThreadLocal<shared_ptr<XNode>> XPython::stl_nodeCreating;
-
 XPython::XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
     : XScriptingThreadList(name, runtime, measure) {
 }
@@ -44,21 +41,28 @@ XPython::~XPython() {
 }
 
 void XPython::mainthread_callback(py::object *scrthread, py::object *func, py::object *ret, py::object *status) {
-    pybind11::gil_scoped_acquire guard;
-    try {
-        py::object tls = py::eval("TLS");
-        auto setattr = tls.attr("__setattr__");
-        setattr("xscrthread", scrthread);
-        setattr("logfile", pybind11::none());
-        *ret = py::reinterpret_borrow<py::function>( *func)();
+    if( !func) {
+        //for the first time, empty callback is issued.
         *status = py::cast(false);
     }
-    catch (py::error_already_set& e) {
-        std::cerr << "Python error.\n" << e.what() << "\n";
-        *status = py::cast(e.what());
-    }
-    catch (...) {
-        std::cerr << "Python unknown error.\n" << "\n";
+    else {
+        pybind11::gil_scoped_acquire guard;
+        try {
+            py::object tls = py::eval("TLS");
+            auto setattr = tls.attr("__setattr__");
+            setattr("xscrthread", scrthread);
+            setattr("logfile", pybind11::none());
+            *ret = py::reinterpret_borrow<py::function>( *func)();
+            *status = py::cast(false);
+        }
+        catch (py::error_already_set& e) {
+            std::cerr << "Python error.\n" << e.what() << "\n";
+            *status = py::cast(e.what());
+        }
+        catch (...) {
+            std::cerr << "Python unknown error.\n" << "\n";
+            *status = py::cast("Python unknown error.\n");
+        }
     }
     XScopedLock<XCondition> lock(m_mainthread_cb_cond);
     m_mainthread_cb_cond.signal();
@@ -92,9 +96,23 @@ XPython::execute(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
 
     {
+        m_mainthread_cb_lsn = m_mainthread_cb_tlk.connectWeakly(
+            shared_from_this(), &XPython::mainthread_callback, Listener::FLAG_MAIN_THREAD_CALL);
+        //Wait for main event loop, using dry run.
+        {
+            py::object status;
+            status = py::cast(true);
+            m_mainthread_cb_tlk.talk(nullptr, nullptr, nullptr, &status);
+            XScopedLock<XCondition> lock(m_mainthread_cb_cond);
+            while(status.is(py::cast(true)))
+                m_mainthread_cb_cond.wait();
+        }
+
         py::scoped_interpreter guard{}; // start the interpreter and keep it alive
 
         auto kame_module = py::module_::import("kame");
+//        bind.s_kame_module = kame_module; //not needed.
+
         shared_ptr<XMeasure> measure = m_measure.lock();
         assert(measure);
         XString name = measure->getName();
@@ -102,7 +120,7 @@ XPython::execute(const atomic<bool> &terminated) {
         kame_module.def("Root", [=]()->shared_ptr<XNode>{return measure;});
         kame_module.def("Measurement", [=]()->shared_ptr<XNode>{return measure;});
         kame_module.def("PyInfoForNodeBrowser", [=]()->shared_ptr<XStringNode>{return measure->pyInfoForNodeBrowser();});
-        kame_module.def("LastPointedByNodeBrowser", [=]()->py::object {return cast_to_pyobject(measure->lastPointedByNodeBrowser());});
+        kame_module.def("LastPointedByNodeBrowser", [=]()->py::object {return bind.cast_to_pyobject(measure->lastPointedByNodeBrowser());});
         kame_module.def("my_defout", [=](shared_ptr<XNode> scrthread, const std::string &str){this->my_defout(scrthread, str);});
         kame_module.def("my_defin", [=](shared_ptr<XNode> scrthread)->std::string{return this->my_defin(scrthread);});
         kame_module.def("is_main_terminated", [=](){return this->m_thread->isTerminated();});
@@ -125,8 +143,6 @@ XPython::execute(const atomic<bool> &terminated) {
             }
             return ret;
         });
-        m_mainthread_cb_lsn = m_mainthread_cb_tlk.connectWeakly(
-            shared_from_this(), &XPython::mainthread_callback, Listener::FLAG_MAIN_THREAD_CALL);
 #endif
 
         for(auto &filename: {XPYTHONEXT_TEST_PY, XPYTHONSUPPORT_PY}) {

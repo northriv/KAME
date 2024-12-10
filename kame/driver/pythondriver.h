@@ -197,11 +197,11 @@ struct XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
 
 template <class N>
 std::string
-XPython::declare_xnode_downcasters() {
-    XPython::s_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(), [](const shared_ptr<XNode>&x)->pybind11::object{
+KAMEPyBind::declare_xnode_downcasters() {
+    m_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(), [](const shared_ptr<XNode>&x)->pybind11::object{
         return pybind11::cast(dynamic_pointer_cast<N>(x));
     }));
-    XPython::s_payloadDownCasters.insert(std::make_pair(typeid(typename N::Payload).hash_code(), [](const shared_ptr<XNode::Payload>&x)->pybind11::object{
+    m_payloadDownCasters.insert(std::make_pair(typeid(typename N::Payload).hash_code(), [](const shared_ptr<XNode::Payload>&x)->pybind11::object{
         return pybind11::cast(dynamic_pointer_cast<typename N::Payload>(x));
     }));
     XString name = typeid(N).name();
@@ -211,9 +211,9 @@ XPython::declare_xnode_downcasters() {
 }
 
 template <class N, class Base, class Trampoline, typename...Args>
-XPython::classtype_xnode_with_trampoline<N, Base, Trampoline>
-XPython::export_xnode_with_trampoline(const char *name_) {
-    auto &m = XPython::kame_module();
+KAMEPyBind::classtype_xnode_with_trampoline<N, Base, Trampoline>
+KAMEPyBind::export_xnode_with_trampoline(const char *name_) {
+    auto &m = kame_module();
     auto name = declare_xnode_downcasters<N>();
     if(name_) name = name_; //overrides name given by typeid().name
     auto pynode = std::make_unique<pybind11::class_<N, Base, Trampoline, shared_ptr<N>>>(m, name.c_str());
@@ -246,9 +246,9 @@ XPython::export_xnode_with_trampoline(const char *name_) {
 }
 
 template <class N, class Base, typename...Args>
-XPython::classtype_xnode<N, Base>
-XPython::export_xnode(const char *name_) {
-    auto &m = XPython::kame_module();
+KAMEPyBind::classtype_xnode<N, Base>
+KAMEPyBind::export_xnode(const char *name_) {
+    auto &m = kame_module();
     auto name = declare_xnode_downcasters<N>();
     if(name_) name = name_; //overrides name given by typeid().name
     auto pynode = std::make_unique<pybind11::class_<N, Base, shared_ptr<N>>>(m, name.c_str());
@@ -283,8 +283,8 @@ XPython::export_xnode(const char *name_) {
 }
 
 template <class N, class V, class Base, typename...Args>
-XPython::classtype_xnode<N, Base>
-XPython::export_xvaluenode(const char *name) {
+KAMEPyBind::classtype_xnode<N, Base>
+KAMEPyBind::export_xvaluenode(const char *name) {
     constexpr const char *pyv = (std::is_integral<V>::value ? "__int__" :
         (std::is_same<V, bool>::value ? "__bool__" :
         (std::is_floating_point<V>::value ? "__double__" :
@@ -302,8 +302,8 @@ XPython::export_xvaluenode(const char *name) {
 //! Trampoline should be helper class, with PYBIND11_OVERRIDE_PURE, PYBIND11_OVERRIDE...
 //! D should open pure virtual functions for public, to be called from python side.
 template <class D, class Base, class Trampoline>
-XPython::classtype_xnode_with_trampoline<D, Base, Trampoline>
-XPython::export_xpythondriver(const char *name) {
+KAMEPyBind::classtype_xnode_with_trampoline<D, Base, Trampoline>
+KAMEPyBind::export_xpythondriver(const char *name) {
     auto [pynode, pypayload] = export_xnode_with_trampoline<D, Base, Trampoline,
             std::reference_wrapper<Transaction>, const shared_ptr<XMeasure>&>(name);
     (*pynode)
@@ -320,11 +320,11 @@ XPython::export_xpythondriver(const char *name) {
 
 //! For abstract driver classes open to python.
 template <class D, class Base>
-XPython::classtype_xnode<D, Base>
-XPython::export_xdriver(const char *name) {
+KAMEPyBind::classtype_xnode<D, Base>
+KAMEPyBind::export_xdriver(const char *name) {
     auto [pynode, pypayload] = export_xnode<D, Base>(name);
     //exports XItemNode<XDriverList, D> for secondary driver.
-    XPython::export_xvaluenode<XItemNode<XDriverList, D>,
+    export_xvaluenode<XItemNode<XDriverList, D>,
             shared_ptr<D>, XPointerItemNode<XDriverList>,
             Transaction &, shared_ptr<XDriverList> &, bool>((std::string(typeid(D).name()) + "ItemNode").c_str());
 //!todo py::type

@@ -77,19 +77,19 @@ EXPORTXDRIVER(???Driver, "notes")
 PYBIND11_DECLARE_HOLDER_TYPE(T, local_shared_ptr<T>, true)
 
 namespace py = pybind11;
-std::map<size_t, std::function<py::object(const shared_ptr<XNode>&)>> XPython::s_xnodeDownCasters;
-std::map<size_t, std::function<py::object(const shared_ptr<XNode::Payload>&)>> XPython::s_payloadDownCasters;
 
-py::object XPython::cast_to_pyobject(shared_ptr<XNode::Payload> y) {
-    auto it = s_payloadDownCasters.find(typeid(y).hash_code());
-    if(it != s_payloadDownCasters.end()) {
+KAMEPyBind XPython::bind; //should be here before PYBIND11_EMBEDDED_MODULE.
+
+py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode::Payload> y) {
+    auto it = m_payloadDownCasters.find(typeid(y).hash_code());
+    if(it != m_payloadDownCasters.end()) {
         return (it->second)(y);
     }
     return py::cast(y);
 }
-py::object XPython::cast_to_pyobject(shared_ptr<XNode> y) {
-    auto it = s_xnodeDownCasters.find(typeid(y).hash_code());
-    if(it != s_xnodeDownCasters.end()) {
+py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
+    auto it = m_xnodeDownCasters.find(typeid(y).hash_code());
+    if(it != m_xnodeDownCasters.end()) {
         return (it->second)(y);
     }
     //manages to use its super class.
@@ -122,7 +122,7 @@ py::object XPython::cast_to_pyobject(shared_ptr<XNode> y) {
     if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
         return py::cast(x);
     //manages to use its base class.
-    for(auto &&c: s_xnodeDownCasters) {
+    for(auto &&c: m_xnodeDownCasters) {
         auto x = (c.second)(y);
         if(x.cast<shared_ptr<XNode>>())
             return x;
@@ -137,7 +137,7 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, qshared_ptr<T>, true)
 template <class QN, class N, class QW, typename...Args>
 auto
 export_xqcon() {
-    auto &m = XPython::kame_module();
+    auto &m = XPython::bind.kame_module();
     XString name = typeid(QN).name();
     int i = name.find('X');
     name = name.substr(i);
@@ -165,7 +165,7 @@ export_xqcon() {
 
 
 PYBIND11_EMBEDDED_MODULE(kame, m) {
-    XPython::s_kame_module = m;
+    XPython::bind.s_kame_module = m;
 
     auto bound_xnode = py::class_<XNode, shared_ptr<XNode>>(m, "XNode")
         .def("__repr__", [](shared_ptr<XNode> &self)->std::string{
@@ -277,29 +277,29 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
                 throw std::runtime_error("Error: not a value node.");
         });
 
-    {   auto [node, payload] = XPython::export_xnode<XListNodeBase, XNode>();
+    {   auto [node, payload] = XPython::bind.export_xnode<XListNodeBase, XNode>();
         (*node)
         .def("createByTypename", &XListNodeBase::createByTypename);}
-    {   auto [node, payload] = XPython::export_xnode<XTouchableNode, XNode>();
+    {   auto [node, payload] = XPython::bind.export_xnode<XTouchableNode, XNode>();
         (*node)
         .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});}
-    {   auto [node, payload] = XPython::export_xnode<XValueNodeBase, XNode>();
+    {   auto [node, payload] = XPython::bind.export_xnode<XValueNodeBase, XNode>();
         (*node)
         .def("__str__", [](shared_ptr<XValueNodeBase> &self)->std::string{return Snapshot( *self)[*self].to_str();})
         .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);});}
-    {   auto [node, payload] = XPython::export_xnode<XItemNodeBase, XValueNodeBase>();
+    {   auto [node, payload] = XPython::bind.export_xnode<XItemNodeBase, XValueNodeBase>();
         (*node)
         .def("itemStrings", &XItemNodeBase::itemStrings)
         .def("autoSetAny", &XItemNodeBase::autoSetAny);}
-    XPython::export_xvaluenode<XIntNode, int, XValueNodeBase>("XIntNode");
-    XPython::export_xvaluenode<XUIntNode, unsigned int, XValueNodeBase>("XUIntNode");
-    XPython::export_xvaluenode<XLongNode, long, XValueNodeBase>("XLongNode");
-    XPython::export_xvaluenode<XULongNode, unsigned long, XValueNodeBase>("XULongNode");
-    XPython::export_xvaluenode<XHexNode, unsigned long, XValueNodeBase>("XHexNode");
-    XPython::export_xvaluenode<XBoolNode, bool, XValueNodeBase>("XBoolNode");
-    XPython::export_xvaluenode<XDoubleNode, double, XValueNodeBase>("XDoubleNode");
-    XPython::export_xvaluenode<XStringNode, std::string, XValueNodeBase>("XStringNode");
-    {   auto [node, payload] = XPython::export_xnode<XComboNode, XItemNodeBase, bool>("XComboNode");
+    XPython::bind.export_xvaluenode<XIntNode, int, XValueNodeBase>("XIntNode");
+    XPython::bind.export_xvaluenode<XUIntNode, unsigned int, XValueNodeBase>("XUIntNode");
+    XPython::bind.export_xvaluenode<XLongNode, long, XValueNodeBase>("XLongNode");
+    XPython::bind.export_xvaluenode<XULongNode, unsigned long, XValueNodeBase>("XULongNode");
+    XPython::bind.export_xvaluenode<XHexNode, unsigned long, XValueNodeBase>("XHexNode");
+    XPython::bind.export_xvaluenode<XBoolNode, bool, XValueNodeBase>("XBoolNode");
+    XPython::bind.export_xvaluenode<XDoubleNode, double, XValueNodeBase>("XDoubleNode");
+    XPython::bind.export_xvaluenode<XStringNode, std::string, XValueNodeBase>("XStringNode");
+    {   auto [node, payload] = XPython::bind.export_xnode<XComboNode, XItemNodeBase, bool>("XComboNode");
         (*node)
         .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);})
         .def("add", [](shared_ptr<XComboNode> &self, const std::vector<std::string> &strlist){
@@ -314,12 +314,12 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             Snapshot shot( *self);
             if( !shot.size())
                 throw std::out_of_range("Empty node.");
-            return XPython::cast_to_pyobject(shot.list()->at(pos));
+            return XPython::bind.cast_to_pyobject(shot.list()->at(pos));
         })
-        .def("dynamic_cast", [](shared_ptr<XNode> &self)->py::object {return XPython::cast_to_pyobject(self);})
+        .def("dynamic_cast", [](shared_ptr<XNode> &self)->py::object {return XPython::bind.cast_to_pyobject(self);})
         .def("__getitem__", [](shared_ptr<XNode> &self, const std::string &str)->py::object{
             auto y = self->getChild(str);
-            return XPython::cast_to_pyobject(y);
+            return XPython::bind.cast_to_pyobject(y);
         })
         .def("__setitem__", [](shared_ptr<XNode> &self, const std::string &str, int v){
             auto y = self->getChild(str);
@@ -376,7 +376,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         });
 
     //Driver classes
-    {   auto [node, payload] = XPython::export_xnode<XDriver, XNode>();
+    {   auto [node, payload] = XPython::bind.export_xnode<XDriver, XNode>();
         (*node)
         .def("showForms", [](shared_ptr<XDriver> &driver){
             if( !isMainThread())
@@ -385,7 +385,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         (*payload)
         .def("time", [](XDriver::Payload &self)->system_clock::time_point{return self.time();})
         .def("timeAwared", [](XDriver::Payload &self)->system_clock::time_point{return self.timeAwared();});}
-    {   auto [node, payload] = XPython::export_xnode<XScalarEntry, XNode,
+    {   auto [node, payload] = XPython::bind.export_xnode<XScalarEntry, XNode,
             const shared_ptr<XDriver> &, const char *>();
         (*node)
             .def("driver", &XScalarEntry::driver)
@@ -394,16 +394,16 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         (*payload)
             .def("isTriggered", &XScalarEntry::Payload::isTriggered);
     }
-    XPython::export_xnode<XDriverList, XListNodeBase>("XDriverList"); //needed to be used as an argument.
-    XPython::export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>("XDriverPointerItemNode");
-    XPython::export_xvaluenode<XItemNode<XDriverList, XDriver>,
+    XPython::bind.export_xnode<XDriverList, XListNodeBase>("XDriverList"); //needed to be used as an argument.
+    XPython::bind.export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>("XDriverPointerItemNode");
+    XPython::bind.export_xvaluenode<XItemNode<XDriverList, XDriver>,
             shared_ptr<XDriver>, XPointerItemNode<XDriverList>,
             Transaction &, shared_ptr<XDriverList> &, bool>("XDriverItemNode");
-    XPython::export_xnode<XMeasure, XNode>();
-    XPython::export_xnode<XPrimaryDriver, XDriver>();
-    XPython::export_xnode<XPrimaryDriverWithThread, XPrimaryDriver>();
-    XPython::export_xnode<XSecondaryDriver, XDriver>("XSecondaryDriver");
-    {   auto [node, payload] = XPython::export_xpythondriver
+    XPython::bind.export_xnode<XMeasure, XNode>();
+    XPython::bind.export_xnode<XPrimaryDriver, XDriver>();
+    XPython::bind.export_xnode<XPrimaryDriverWithThread, XPrimaryDriver>();
+    XPython::bind.export_xnode<XSecondaryDriver, XDriver>("XSecondaryDriver");
+    {   auto [node, payload] = XPython::bind.export_xpythondriver
         <XPythonSecondaryDriver, XSecondaryDriver, XPythonSecondaryDriverHelper>("XPythonSecondaryDriver");
         (*node)
             .def("visualize", &XPythonSecondaryDriver::visualize)

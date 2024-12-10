@@ -12,15 +12,24 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
-//#include "pythondriver.h"
+#include "pythondriver.h"
 
 #include "userdmm.h"
 #include "charinterface.h"
 
-//#ifdef USE_PYBIND11
-//static auto [pynode, pypoad] =
-//    XPython::export_xdriver<XDMM, XPrimaryDriver>();
-//#endif
+#ifdef USE_PYBIND11
+
+template <class N, class Base>
+struct PyDriverExporter {
+    PyDriverExporter() {
+        pybind11::gil_scoped_acquire guard;
+        pycls = XPython::bind.export_xdriver<N, Base>();
+    }
+    KAMEPyBind::classtype_xnode<N, Base> pycls;
+};
+
+static PyDriverExporter<XDMM, XPrimaryDriver> dmm;
+#endif
 
 REGISTER_TYPE(XDriverList, KE2000, "Keithley 2000/2001 DMM");
 REGISTER_TYPE(XDriverList, KE2182, "Keithley 2182 nanovolt meter");
