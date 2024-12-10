@@ -321,15 +321,28 @@ KAMEPyBind::export_xpythondriver(const char *name) {
 //! For abstract driver classes open to python.
 template <class D, class Base>
 KAMEPyBind::classtype_xnode<D, Base>
-KAMEPyBind::export_xdriver(const char *name) {
-    auto [pynode, pypayload] = export_xnode<D, Base>(name);
+KAMEPyBind::export_xdriver(const char *name_) {
+    auto [pynode, pypayload] = export_xnode<D, Base>(name_);
+
     //exports XItemNode<XDriverList, D> for secondary driver.
+    XString name = typeid(D).name();
+    int i = name.find('X');
+    name = name.substr(i); //squeezes C++ class name.
+    if(name_) name = name_;
     export_xvaluenode<XItemNode<XDriverList, D>,
             shared_ptr<D>, XPointerItemNode<XDriverList>,
-            Transaction &, shared_ptr<XDriverList> &, bool>((std::string(typeid(D).name()) + "ItemNode").c_str());
-//!todo py::type
+            Transaction &, shared_ptr<XDriverList> &, bool>((name + "ItemNode").c_str());
     return {std::move(pynode), std::move(pypayload)};
 }
+
+template <class N, class Base>
+struct PyDriverExporter {
+    PyDriverExporter() {
+        pybind11::gil_scoped_acquire guard;
+        pycls = XPython::bind.export_xdriver<N, Base>();
+    }
+    KAMEPyBind::classtype_xnode<N, Base> pycls;
+};
 
 #endif //USE_PYBIND11
 
