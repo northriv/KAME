@@ -71,24 +71,15 @@ public:
     }
 
     struct DECLSPEC_KAME Payload : public T::Payload {
-        Payload() : T::Payload() {}
-        Payload(const Payload &p) : T::Payload(p) {
-            if(static_cast<XPythonDriver<T>&>(this->node()).m_creation_key.empty())
-                return; //yet to be exported.
+        pybind11::object local() {
             pybind11::gil_scoped_acquire guard;
-            //deepcopy __dict__ //do this in helper
-//            auto obj = XPython::bind.cast_to_pyobject( &p);
-//            auto dict = obj.attr("__dict__");
-//            auto self = XPython::bind.cast_to_pyobject(this);
-//            self.attr("__dict__") = dict.attr("copy")();
+            if( !dict)
+                dict = pybind11::dict();
+            else
+                dict = dict.attr("copy")();
+            return dict;
         }
-//        pybind11::object local() {
-//            if(dict.is_none()) {
-//                dict = pybind11::dict();
-//            }
-//            return dict;
-//        }
-//        pybind11::object dict;
+        pybind11::object dict;
     };
 
 protected:
@@ -258,8 +249,7 @@ KAMEPyBind::export_xnode_with_trampoline(const char *name_) {
 //! todo inheritance of Payload is awkward.
 //    if constexpr( !std::is_same<typename Base::Payload, typename N::Payload>::value) {
     auto pypayload = std::make_unique<pybind11::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>
-            (m, (name + "_Payload").c_str(),
-             pybind11::dynamic_attr()); //allowing __dict__ for payload
+            (m, (name + "_Payload").c_str());
     return {std::move(pynode), std::move(pypayload)};
 }
 
@@ -334,7 +324,8 @@ KAMEPyBind::export_xpythondriver(const char *name) {
             self->loadUIFile(loc);
             return self->form();
         }, pybind11::return_value_policy::reference_internal);
-    (*pypayload);
+    (*pypayload)
+        .def("local", &D::Payload::local);
     return {std::move(pynode), std::move(pypayload)};
 }
 
