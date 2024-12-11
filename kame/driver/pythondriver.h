@@ -72,7 +72,16 @@ public:
         }, label);
     }
 
-    struct DECLSPEC_KAME Payload : public T::Payload {};
+    struct DECLSPEC_KAME Payload : public T::Payload {
+        pybind11::object getitem(const std::string &str) const {return pyobjs->at(str);}
+        void setitem(const std::string &str, pybind11::object newobj) {
+            //deep copy
+            pyobjs = std::make_shared<std::map<std::string, pybind11::object>>( *pyobjs);
+            pyobjs->insert_or_assign(str, newobj);
+        }
+        //! user objects from python side
+        shared_ptr<std::map<std::string, pybind11::object>> pyobjs;
+    };
 
 protected:
     qshared_ptr<QWidget> m_form;
@@ -201,8 +210,8 @@ KAMEPyBind::declare_xnode_downcasters() {
     m_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(), [](const shared_ptr<XNode>&x)->pybind11::object{
         return pybind11::cast(dynamic_pointer_cast<N>(x));
     }));
-    m_payloadDownCasters.insert(std::make_pair(typeid(typename N::Payload).hash_code(), [](const shared_ptr<XNode::Payload>&x)->pybind11::object{
-        return pybind11::cast(dynamic_pointer_cast<typename N::Payload>(x));
+    m_payloadDownCasters.insert(std::make_pair(typeid(typename N::Payload).hash_code(), [](XNode::Payload *x)->pybind11::object{
+        return pybind11::cast(dynamic_cast<typename N::Payload*>(x));
     }));
     XString name = typeid(N).name();
     int i = name.find('X');
@@ -308,6 +317,7 @@ KAMEPyBind::export_xpythondriver(const char *name) {
             std::reference_wrapper<Transaction>, const shared_ptr<XMeasure>&>(name);
     (*pynode)
         .def_static("exportClass", &D::exportClass)
+        .def("skipRecord", [](){throw XDriver::XSkippedRecordError(__FILE__, __LINE__);})
         .def("form", &D::form, pybind11::return_value_policy::reference_internal)
         .def("loadUIFile", [](shared_ptr<D> &self, const std::string &loc)->QWidget* {
             if( !isMainThread())
@@ -315,6 +325,9 @@ KAMEPyBind::export_xpythondriver(const char *name) {
             self->loadUIFile(loc);
             return self->form();
         }, pybind11::return_value_policy::reference_internal);
+    (*pypayload)
+        .def("__getitem__", &D::Payload::getitem)
+        .def("__setitem__", &D::Payload::setitem);
     return {std::move(pynode), std::move(pypayload)};
 }
 

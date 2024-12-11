@@ -80,7 +80,7 @@ namespace py = pybind11;
 
 KAMEPyBind XPython::bind; //should be here before PYBIND11_EMBEDDED_MODULE.
 
-py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode::Payload> y) {
+py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     auto it = m_payloadDownCasters.find(typeid(y).hash_code());
     if(it != m_payloadDownCasters.end()) {
         return (it->second)(y);
@@ -212,7 +212,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             return self.size() ? self.list()->at(pos) : shared_ptr<XNode>();}
         )
         .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
-            return py::cast( &self.at( *node));
+            return XPython::bind.cast_to_pyobject( &self.at( *node));
         }, py::return_value_policy::reference_internal)
         .def("isUpperOf", &Snapshot::isUpperOf);
     py::class_<Transaction, Snapshot>(m, "Transaction")
@@ -229,7 +229,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             return self.commitOrNext();
         })
         .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
-            return py::cast( &self.at( *node));
+            return XPython::bind.cast_to_pyobject( &self.at( *node));
         }, py::return_value_policy::reference_internal)
         .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, int v){
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
@@ -459,6 +459,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     export_xqcon<XQComboBoxConnector, XItemNodeBase, QComboBox, const Snapshot &>();
     export_xqcon<XColorConnector, XHexNode, QPushButton>();
 
+    //todo XTime
 //    py::implicitly_convertible<system_clock::time_point, XTime>();
     //Exceptions
     py::register_exception<XNode::NodeNotFoundError>(m, "NodeNotFoundError", PyExc_RuntimeError);

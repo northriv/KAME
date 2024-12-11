@@ -59,11 +59,14 @@ struct KAMEPyBind {
 
     //!internal use. down casters.
     pybind11::object cast_to_pyobject(shared_ptr<XNode> y);
-    pybind11::object cast_to_pyobject(shared_ptr<XNode::Payload> y);
+    pybind11::object cast_to_pyobject(XNode::Payload *y);
+    pybind11::object cast_to_pyobject(const XNode::Payload *y) {
+        return cast_to_pyobject(const_cast<XNode::Payload *>(y));
+    }
 
 private:
     std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>> m_xnodeDownCasters;
-    std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode::Payload>&)>> m_payloadDownCasters;
+    std::map<size_t, std::function<pybind11::object(XNode::Payload *)>> m_payloadDownCasters;
 
     template <class N>
     std::string declare_xnode_downcasters();

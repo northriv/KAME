@@ -14,15 +14,21 @@
 //---------------------------------------------------------------------------
 #include "pythondriver.h"
 
-#include "dcsource.h"
-
 #ifdef USE_PYBIND11
-PyDriverExporter<XDCSource, XPrimaryDriver> dcsource([](auto node, auto payload){
-    node.def("changeFunction", &XDCSource::changeFunction);
-    node.def("changeOutput", &XDCSource::changeOutput);
-    node.def("changeValue", &XDCSource::changeValue);
-    node.def("changeRange", &XDCSource::changeRange);
-    node.def("queryStatus", &XDCSource::queryStatus);
-    node.def("max", &XDCSource::max);
+
+#include "dmm.h"
+PyDriverExporter<XDMM, XPrimaryDriver> dmm([](auto node, auto payload){
+    payload.def("value", [](shared_ptr<XDMM::Payload> &self, unsigned int i){return self->value(i);});
 });
-#endif
+
+#include "dcsource.h"
+PyDriverExporter<XDCSource, XPrimaryDriver> dcsource([](auto node, auto payload){
+    node.def("changeFunction", &XDCSource::changeFunction)
+        .def("changeOutput", &XDCSource::changeOutput)
+        .def("changeValue", &XDCSource::changeValue)
+        .def("changeRange", &XDCSource::changeRange)
+        .def("queryStatus", &XDCSource::queryStatus)
+        .def("max", &XDCSource::max);
+});
+
+#endif //USE_PYBIND11

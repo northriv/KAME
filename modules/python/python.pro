@@ -7,8 +7,7 @@ INCLUDEPATH += \
 HEADERS += \
 
 SOURCES += \
-    dmm.cpp \
-    dcsource.cpp
+    basicdrivers.cpp
 
 FORMS += \
     fourresform.ui
