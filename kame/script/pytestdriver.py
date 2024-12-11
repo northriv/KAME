@@ -65,19 +65,20 @@ class Test4Res(XPythonSecondaryDriver):
         dcsource = tr[self["DCSource"]].get() #selected driver.
         dmmch = int(tr[self["DMMChannel"]])
         curr = float(shot_others[dcsource]["Value"])
+        storage = tr[self].local()
         try:
-            recent = tr["Recent"]
+            recent = storage["Recent"]
         except ValueError:
-            tr[ "Recent"]
+            storage[ "Recent"]
             skipRecord()
         except IndexError:
             skipRecord()
         if prev_curr != -curr:
             skipRecord()
         
-        tr["Current"] = curr
+        storage["Current"] = curr
         volt = shot_emitter[dmm].value(dmmch)
-        tr["Resistance"] = volt
+        storage["Resistance"] = volt
         res = volt / curr
         self["Resistance"].value(tr, res)
         return

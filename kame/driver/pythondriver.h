@@ -316,7 +316,7 @@ KAMEPyBind::export_xpythondriver(const char *name) {
             std::reference_wrapper<Transaction>, const shared_ptr<XMeasure>&>(name);
     (*pynode)
         .def_static("exportClass", &D::exportClass)
-        .def("skipRecord", [](){throw XDriver::XSkippedRecordError(__FILE__, __LINE__);})
+        .def("skipRecord", [](shared_ptr<D> &self){throw XDriver::XSkippedRecordError(__FILE__, __LINE__);})
         .def("form", &D::form, pybind11::return_value_policy::reference_internal)
         .def("loadUIFile", [](shared_ptr<D> &self, const std::string &loc)->QWidget* {
             if( !isMainThread())
