@@ -62,8 +62,6 @@ public:
             pybind11::object obj = cls(name, runtime, ref(tr), meas); //createOrphan in python side.
 //            auto driver = obj.cast<shared_ptr<XPythonDriver<T>>>(); //casting from python-side class to C++ class fails.
             auto driver = dynamic_pointer_cast<XPythonDriver<T>>(obj.cast<shared_ptr<XNode>>());
-//            auto driver = dynamic_pointer_cast<XPythonDriver<T>>( *XPython::stl_nodeCreating); //using temporally value set in "__init__" at export_xnode().
-//            XPython::stl_nodeCreating->reset();
             if( !driver)
                 throw std::runtime_error("Driver creation failed.");
             driver->m_self = obj; //for persistence of python-side class.
@@ -73,14 +71,24 @@ public:
     }
 
     struct DECLSPEC_KAME Payload : public T::Payload {
-        pybind11::object getitem(const std::string &str) const {return pyobjs->at(str);}
-        void setitem(const std::string &str, pybind11::object newobj) {
-            //deep copy
-            pyobjs = std::make_shared<std::map<std::string, pybind11::object>>( *pyobjs);
-            pyobjs->insert_or_assign(str, newobj);
+        Payload() : T::Payload() {}
+        Payload(const Payload &p) : T::Payload(p) {
+            if(static_cast<XPythonDriver<T>&>(this->node()).m_creation_key.empty())
+                return; //yet to be exported.
+            pybind11::gil_scoped_acquire guard;
+            //deepcopy __dict__ //do this in helper
+//            auto obj = XPython::bind.cast_to_pyobject( &p);
+//            auto dict = obj.attr("__dict__");
+//            auto self = XPython::bind.cast_to_pyobject(this);
+//            self.attr("__dict__") = dict.attr("copy")();
         }
-        //! user objects from python side
-        shared_ptr<std::map<std::string, pybind11::object>> pyobjs;
+//        pybind11::object local() {
+//            if(dict.is_none()) {
+//                dict = pybind11::dict();
+//            }
+//            return dict;
+//        }
+//        pybind11::object dict;
     };
 
 protected:
@@ -223,6 +231,8 @@ template <class N, class Base, class Trampoline, typename...Args>
 KAMEPyBind::classtype_xnode_with_trampoline<N, Base, Trampoline>
 KAMEPyBind::export_xnode_with_trampoline(const char *name_) {
     auto &m = kame_module();
+    declare_xnode_downcasters<Trampoline>(); //not working
+//    declare_xnode_downcasters<Base>(); //for XPythonDriver<>
     auto name = declare_xnode_downcasters<N>();
     if(name_) name = name_; //overrides name given by typeid().name
     auto pynode = std::make_unique<pybind11::class_<N, Base, Trampoline, shared_ptr<N>>>(m, name.c_str());
@@ -233,24 +243,23 @@ KAMEPyBind::export_xnode_with_trampoline(const char *name_) {
 //            .def(py::init_alias<const shared_ptr<XNode> &, Transaction &, const char *, bool, Args&&...>())
         .def(pybind11::init([](const char *name, bool runtime, Args&&... args){
             auto node = XNode::createOrphan<Trampoline>(name, runtime, std::forward<Args>(args)...);
-//            *stl_nodeCreating = node; //to be used inside lambda creation fn of exportClass().
             return node;
         }))
         .def(pybind11::init([](const shared_ptr<XNode> &parent, const char *name, bool runtime, Args&&... args){
             auto node = parent->create<Trampoline>(name, runtime, std::forward<Args>(args)...);
-//            *stl_nodeCreating = node;
             return node;
         }))
         .def(pybind11::init([](const shared_ptr<XNode> &parent, Transaction &tr, const char *name, bool runtime, Args&&... args){
             auto node = parent->create<Trampoline>(tr, name, runtime, std::forward<Args>(args)...);
-//            *stl_nodeCreating = node;
             return node;
         }));
 
     pynode->def(pybind11::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
 //! todo inheritance of Payload is awkward.
 //    if constexpr( !std::is_same<typename Base::Payload, typename N::Payload>::value) {
-    auto pypayload = std::make_unique<pybind11::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>(m, (name + "::Payload").c_str());
+    auto pypayload = std::make_unique<pybind11::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>
+            (m, (name + "_Payload").c_str(),
+             pybind11::dynamic_attr()); //allowing __dict__ for payload
     return {std::move(pynode), std::move(pypayload)};
 }
 
@@ -325,9 +334,7 @@ KAMEPyBind::export_xpythondriver(const char *name) {
             self->loadUIFile(loc);
             return self->form();
         }, pybind11::return_value_policy::reference_internal);
-    (*pypayload)
-        .def("__getitem__", &D::Payload::getitem)
-        .def("__setitem__", &D::Payload::setitem);
+    (*pypayload);
     return {std::move(pynode), std::move(pypayload)};
 }
 

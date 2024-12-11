@@ -85,6 +85,13 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     if(it != m_payloadDownCasters.end()) {
         return (it->second)(y);
     }
+    //manages to use its base class.
+    for(auto rit = m_payloadDownCasters.rbegin(); rit != m_payloadDownCasters.rend(); ++rit) {
+        auto x = (rit->second)(y);
+        if(x.cast<XNode::Payload*>())
+            return x;
+    }
+    //end up with XNode::Payload.
     return py::cast(y);
 }
 py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
@@ -122,8 +129,8 @@ py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
     if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
         return py::cast(x);
     //manages to use its base class.
-    for(auto &&c: m_xnodeDownCasters) {
-        auto x = (c.second)(y);
+    for(auto rit = m_xnodeDownCasters.rbegin(); rit != m_xnodeDownCasters.rend(); ++rit) {
+        auto x = (rit->second)(y);
         if(x.cast<shared_ptr<XNode>>())
             return x;
     }
@@ -228,8 +235,8 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         .def("commitOrNext", [](Transaction &self) {
             return self.commitOrNext();
         })
-        .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
-            return XPython::bind.cast_to_pyobject( &self.at( *node));
+        .def("__getitem__", [](Transaction &self, shared_ptr<XNode> &node)->py::object{
+            return XPython::bind.cast_to_pyobject( &self[ *node]); //Transaction has no at().
         }, py::return_value_policy::reference_internal)
         .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, int v){
             if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
@@ -403,6 +410,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     XPython::bind.export_xnode<XPrimaryDriver, XDriver>();
     XPython::bind.export_xnode<XPrimaryDriverWithThread, XPrimaryDriver>();
     XPython::bind.export_xnode<XSecondaryDriver, XDriver>("XSecondaryDriver");
+//    XPython::bind.export_xnode<XPythonDriver<XSecondaryDriver>, XSecondaryDriver>();
     {   auto [node, payload] = XPython::bind.export_xpythondriver
         <XPythonSecondaryDriver, XSecondaryDriver, XPythonSecondaryDriverHelper>("XPythonSecondaryDriver");
         (*node)
