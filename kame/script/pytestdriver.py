@@ -5,8 +5,7 @@ import inspect
 for i in range(50):
     time.sleep(0.3) #todo wainting for module loading.
     import kame #imports kame drivers.
-    Classes = str([y[0] for y in inspect.getmembers(kame, inspect.isclass)])
-    if "XDMM" in Classes:
+    if hasattr(kame, "XDMM"):
         break
 time.sleep(0.5) #todo wainting for module loading.
 from kame import *
@@ -45,49 +44,88 @@ class Test4Res(XPythonSecondaryDriver):
         return
 
     #Pickups valid snapshots before going to analyze().
-    # shot_this: Snapshot for self.
+    # shot_self: Snapshot for self.
     # shot_emitter: Snapshot for the event emitting driver.
     # shot_others: Snapshot for the other connected dirvers.
-    def checkDependency(shot_this, shot_emitter, shot_others, emitter):
+    def checkDependency(self, shot_self, shot_emitter, shot_others, emitter):
         dmm = shot_this[self["DMM"]].get() #selected driver.
-        dcsource = shot[self["DCSource"]].get() #selected driver.
-        if emitter != dmm:
-            return False #skipping this record.
-        wait = float(shot_this[self["Wait"]]) * 1e-3 #[s]
-        if shot_emitter[dmm].timeAwared() < shot_others[dcsource].time() + wait:
-            return False #Bad case, DC source has been changed after dmm reading.
-        return True #Good, approved
+        dcsrc = shot[self["DCSource"]].get() #selected driver.
+        if emitter == dmm:
+            shot_dcsrc = shot_others
+            shot_dmm = shot_emitter
+            wait = float(tr[self["Wait"]]) * 1e-3 #[s]
+            if shot_dmm[dmm].timeAwared() < shot_dcsrc[dcsrc].time() + wait:
+                return False
+            return True #Good, approved
+        if not bool(shot_self[self["Control"]]) and emitter == dcsrc:
+            #dc source is controled by others.
+            return True #Good, approved
+        return False #skipping this record.
 
     #Analyzes data acquired by the connected drivers.
     #Never include I/O operations, because transaction might repreat many times.
-    def analyze(tr, shot_emitter, shot_others, emitter):
+    def analyze(self, tr, shot_emitter, shot_others, emitter):
+        if emitter == dcsrc:
+            shot_dmm = shot_others
+            shot_dcsrc = shot_emitter
+        else:
+            shot_dcsrc = shot_others
+            shot_dmm = shot_emitter
+        
+        shot_dmm = shot_others
+        shot_dcsrc = shot_emitter
         dmm = tr[self["DMM"]].get() #selected driver.
-        dcsource = tr[self["DCSource"]].get() #selected driver.
+        dcsrc = tr[self["DCSource"]].get() #selected driver.
         dmmch = int(tr[self["DMMChannel"]])
-        curr = float(shot_others[dcsource]["Value"])
-        storage = tr[self].local()
+        volt = shot_dmm[dmm].value(dmmch)
+        curr = float(shot_dcsrc[dcsrc]["Value"])
+ 
+        storage = tr[self].local() #dict for tr[self]
         try:
             recent = storage["Recent"]
-        except ValueError:
-            storage[ "Recent"]
-            skipRecord()
-        except IndexError:
-            skipRecord()
-        if prev_curr != -curr:
-            skipRecord()
-        
-        storage["Current"] = curr
-        volt = shot_emitter[dmm].value(dmmch)
-        storage["Resistance"] = volt
-        res = volt / curr
-        self["Resistance"].value(tr, res)
-        return
+        except KeyError:
+            storage[ "Recent"] = []
+            recent = storage["Recent"]
+
+        if emitter == dcsrc:
+            #this driver is NOT in charge of switching dc source polarity.
+            #finding bad events and erase them.
+            recent_copy = recent.copy()
+            for idx in range(len(recent)):
+                if recent_copy[idx]['dmm_start'] < shot_dcsrc[dcsrc].timeAwared():
+                    del recent[idx]
+        else:        
+            recent.append({'dmm_start':shot_emitter[dmm].timeAwared(),
+                'dmm_fin':shot_emitter[dmm].time(),
+                'curr':curr, 'vold':volt})
+            if recent[-1]['start'] - recent[0]['start'] > 30:
+                del recent[0] #erase too old record.
+
+            if not bool(tr[self["Control"]]):
+                #this driver is NOT in charge of switching dc source polarity.
+                skipRecord()
+            
+        if curr < 0:
+            skipRecord() #waits for positive current.
+
+        #searching for record with +curr.
+        for idx in range(len(recent) - 1, 0, -1):
+            if recent[idx]['curr'] == curr:
+                volt = recent[idx]['volt']
+                break
+
+        #searching for record with -curr.
+        for idx in range(len(recent) - 1, 0, -1):
+            if recent[idx]['curr'] == -curr:
+                res = (volt - recent[idx]['volt']) / curr / 2
+                self["Resistance"].value(tr, res)
+                return
+        skipRecord() #no valid record.
 
     #may perform I/O ops or graph ops using the snapshot after analyze().
-    def visualize(shot):
-        dcsource = shot[self["DCSource"]].get() #selected driver.
-        curr = float(shot_others[dcsource]["Value"])
-        dcsource.changeValue(0, -curr)
+    def visualize(self, shot):
+        dcsrc = shot[self["DCSource"]].get() #selected driver.
+        dcsrc.changeValue(0, -curr)
         return
 
 #Declares that python-side driver to C++ driver list.
