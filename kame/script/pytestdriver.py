@@ -84,16 +84,14 @@ class Test4Res(XPythonSecondaryDriver):
         try:
             recent = storage["Recent"]
         except KeyError:
-            storage[ "Recent"] = []
+            storage[ "Recent"] = [] #for the first time
             recent = storage["Recent"]
 
         if emitter == dcsrc:
             #this driver is NOT in charge of switching dc source polarity.
-            #finding bad events and erase them.
-            recent_copy = recent.copy()
-            for idx in range(len(recent)):
-                if recent_copy[idx]['dmm_start'] < shot_dcsrc[dcsrc].timeAwared():
-                    del recent[idx]
+            #eliminating bad events (dc source changed during the measurement).
+            recent = [x for x in recent if x['dmm_start'] < shot_dcsrc[dcsrc].timeAwared()]
+            storage["Recent"] = recent
         else:        
             recent.append({'dmm_start':shot_emitter[dmm].timeAwared(),
                 'dmm_fin':shot_emitter[dmm].time(),
@@ -108,13 +106,13 @@ class Test4Res(XPythonSecondaryDriver):
         if curr < 0:
             skipRecord() #waits for positive current.
 
-        #searching for record with +curr.
+        #searching for the newest record with +curr.
         for idx in range(len(recent) - 1, 0, -1):
             if recent[idx]['curr'] == curr:
                 volt = recent[idx]['volt']
                 break
 
-        #searching for record with -curr.
+        #searching for the newest record with -curr.
         for idx in range(len(recent) - 1, 0, -1):
             if recent[idx]['curr'] == -curr:
                 res = (volt - recent[idx]['volt']) / curr / 2
@@ -124,8 +122,16 @@ class Test4Res(XPythonSecondaryDriver):
 
     #may perform I/O ops or graph ops using the snapshot after analyze().
     def visualize(self, shot):
-        dcsrc = shot[self["DCSource"]].get() #selected driver.
-        dcsrc.changeValue(0, -curr)
+        if bool(tr[self["Control"]]):
+            #this driver is in charge of switching dc source polarity.
+            dcsrc = shot[self["DCSource"]].get() #selected driver.
+            try:
+                recent = storage["Recent"]
+            except KeyError:
+                return
+            curr = recent["curr"]
+            #switching polarity.
+            dcsrc.changeValue(0, -curr)
         return
 
 #Declares that python-side driver to C++ driver list.
