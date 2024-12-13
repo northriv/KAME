@@ -129,4 +129,4 @@ class Test4Res(XPythonSecondaryDriver):
         return
 
 #Declares that python-side driver to C++ driver list.
-XPythonSecondaryDriver.exportClass("Test4Res", Test4Res, "Test 4res terminal meas.")
+XPythonSecondaryDriver.exportClass("Test4Res", Test4Res, "Test python-based driver: 4-Terminal Resistance Measumrent")
