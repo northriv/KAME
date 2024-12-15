@@ -56,9 +56,7 @@ receive(	 py::gil_scoped_release pyguard
 query(	 py::gil_scoped_release pyguard
 PyQt?
 
-PY_MOD
-XScalarEntr
-xtime
+
 XWaven
 Payload->prop by macro?
 push
@@ -67,11 +65,6 @@ finishWriting ((	 py::gil_scoped_release pyguard??recursive?)
 execute
      py::gil_scoped_aquire pyguard
     or PYBIND11_OVERRIDE_PURE?
-
-DECLARE_TYPE ->
-EXPORTXDRIVER(???Driver, "notes")
-    .def(bar()).def_readwrite(foo)
-    creator of XItemNode<XDriverList, X???Driver>
 
  */
 PYBIND11_DECLARE_HOLDER_TYPE(T, local_shared_ptr<T>, true)
@@ -423,6 +416,16 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
                  const shared_ptr<XPointerItemNode<XDriverList> > &selecter){self->connect(selecter);});
         (*payload);
     }
+
+    {   auto [node, payload] = XPython::bind.export_xnode<XInterface, XNode>();
+        (*node)
+            .def("__enter__", [](shared_ptr<XInterface> &self){
+                py::gil_scoped_release pyguard;
+                self->lock();})
+            .def("__exit__", [](shared_ptr<XInterface> &self){self->unlock();});
+    }
+
+
     //QWidget
     py::class_<QWidget>(m, "QWidget")
         .def("objectName", [](const QWidget *self)->std::string{return self->objectName().toStdString();})
@@ -467,8 +470,20 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     export_xqcon<XQComboBoxConnector, XItemNodeBase, QComboBox, const Snapshot &>();
     export_xqcon<XColorConnector, XHexNode, QPushButton>();
 
-    //todo XTime
-//    py::implicitly_convertible<system_clock::time_point, XTime>();
+
+    py::class_<XTime>(m, "XTime")
+        .def(py::init([](const system_clock::time_point &t)->XTime{return {t};}));
+    py::implicitly_convertible<system_clock::time_point, XTime>();
+//    py::implicitly_convertible<XTime, system_clock::time_point>();
     //Exceptions
-    py::register_exception<XNode::NodeNotFoundError>(m, "NodeNotFoundError", PyExc_RuntimeError);
+    py::register_exception<XNode::NodeNotFoundError>(m, "KAMENodeNotFoundError", PyExc_RuntimeError);
+    py::register_exception<XKameError>(m, "KAMEError", PyExc_RuntimeError);
+    py::register_exception<XDriver::XRecordError>(m, "KAMERecordError", PyExc_RuntimeError);
+    py::register_exception<XDriver::XSkippedRecordError>(m, "KAMESkipRecordError", PyExc_RuntimeError);
+    py::register_exception<XDriver::XBufferUnderflowRecordError>(m, "KAMEBufferUnderflowRecordError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XInterfaceError>(m, "KAMEInterfaceError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XConvError>(m, "KAMEInterfaceConvError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XCommError>(m, "KAMEInterfaceCommError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XOpenInterfaceError>(m, "KAMEInterfaceOpenError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XUnsupportedFeatureError>(m, "KAMEInterfaceUnsupportedFeatureError", PyExc_RuntimeError);
 }
