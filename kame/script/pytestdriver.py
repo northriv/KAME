@@ -41,6 +41,8 @@ class Test4Res(XPythonSecondaryDriver):
         #setups link btw this driver and a selected driver.
         self.connect(self["DMM"])
         self.connect(self["DCSource"])
+        form = None #for GC
+        entry = None #for GC
         return
 
     #Pickups valid snapshots before going to analyze().
