@@ -150,7 +150,8 @@ bool
 XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, int y1, int y2,
 	int weight, int z) {
     const auto &graph(static_cast<XWaveNGraph &>(node()).graph());
-	assert( (y1 < 0) || (y2 < 0) );
+    if( !( (y1 < 0) || (y2 < 0) ))
+        throw std::out_of_range("Invalid column selection.");
 
 	if(weight >= 0) {
 		if((m_colw >= 0) && (m_colw != weight))
