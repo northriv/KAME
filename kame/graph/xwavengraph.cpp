@@ -242,6 +242,16 @@ void
 XWaveNGraph::OnPlotInsertion(const Snapshot &shot, XWaveNGraph *wave) {
     m_conTools = std::make_shared<XQGraph1DMathToolConnector>(shot[ *this].m_toolLists, m_btnMathTool, m_graphwidget);
 }
+void
+XWaveNGraph::Payload::setColCount(const std::initializer_list<std::string> &labels) {
+    unsigned int colcnt = labels.size();
+    m_cols.resize(colcnt);
+    m_labels.resize(colcnt);
+    m_precisions.resize(colcnt, 6);
+    auto it = labels.begin();
+    for(auto &&label: m_labels)
+        label = *it++;
+}
 
 void
 XWaveNGraph::Payload::setColCount(unsigned int colcnt, const char **labels) {
