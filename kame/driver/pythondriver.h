@@ -284,10 +284,14 @@ KAMEPyBind::export_xnode(const char *name_) {
             return parent->create<N>(tr, name, runtime, std::forward<Args>(args)...);}));
     }
     pynode->def(pybind11::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
-//! todo inheritance of Payload is awkward.
-//    if constexpr( !std::is_same<typename Base::Payload, typename N::Payload>::value) {
-    auto pypayload = std::make_unique<pybind11::class_<typename N::Payload, typename Base::Payload>>(m, (name + "_Payload").c_str());
-    return {std::move(pynode), std::move(pypayload)};
+    if constexpr( !std::is_base_of<typename N::Payload, typename Base::Payload>::value) {
+        //N::Payload is defined.
+        auto pypayload = std::make_unique<pybind11::class_<typename N::Payload, typename Base::Payload>>(m, (name + "_Payload").c_str());
+        return {std::move(pynode), std::move(pypayload)};
+    }
+    else {
+        return std::move(pynode);  //N::Payload is NOT defined.
+    }
 }
 
 template <class N, class V, class Base, typename...Args>
@@ -316,7 +320,6 @@ KAMEPyBind::export_xpythondriver(const char *name) {
             std::reference_wrapper<Transaction>, const shared_ptr<XMeasure>&>(name);
     (*pynode)
         .def_static("exportClass", &D::exportClass)
-        .def("skipRecord", [](shared_ptr<D> &self){throw XDriver::XSkippedRecordError(__FILE__, __LINE__);})
         .def("form", &D::form, pybind11::return_value_policy::reference_internal)
         .def("loadUIFile", [](shared_ptr<D> &self, const std::string &loc)->QWidget* {
             if( !isMainThread())

@@ -28,9 +28,13 @@ struct KAMEPyBind {
     template <class N, class Base, class Trampoline>
     using classtype_xnode_with_trampoline = std::tuple<unique_ptr<pybind11::class_<N, Base, Trampoline, shared_ptr<N>>>,
     unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>>;
+
     template <class N, class Base>
-    using classtype_xnode = std::tuple<unique_ptr<pybind11::class_<N, Base, shared_ptr<N>>>,
-    unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload>>>;
+    using classtype_xnode = typename std::conditional<
+        !std::is_base_of<typename N::Payload, typename Base::Payload>::value,
+            std::tuple<unique_ptr<pybind11::class_<N, Base, shared_ptr<N>>>, //N::Payload is defined.
+                unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload>>>,
+            unique_ptr<pybind11::class_<N, Base, shared_ptr<N>>>>::type; //N::Payload is NOT defined.
     //! Wraps C++ XNode-derived classes N, along with N::Payload.
     //! N derived from Base, and N::Payload derived from Base::Payload.
     //! \return to be used by .def or else. use auto [node, payload] =....
@@ -63,6 +67,12 @@ struct KAMEPyBind {
     pybind11::object cast_to_pyobject(const XNode::Payload *y) {
         return cast_to_pyobject(const_cast<XNode::Payload *>(y));
     }
+
+    static void export_embedded_module_basic(pybind11::module_&);
+    static void export_embedded_module_graph(pybind11::module_&);
+    static void export_embedded_module_basic_drivers(pybind11::module_&);
+    static void export_embedded_module_interface(pybind11::module_&);
+    static void export_embedded_module_xqcon(pybind11::module_&);
 
 private:
     std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>> m_xnodeDownCasters;

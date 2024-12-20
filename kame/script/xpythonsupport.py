@@ -123,7 +123,6 @@ def loadSequence():
 				TLS.logfile = None
 	except Exception as inst:
 		sys.stderr.write(str(traceback.format_exc()))
-		pass
 	TLS.xscrthread["Status"] = ""
 
 print("#testing python interpreter.")

@@ -32,8 +32,10 @@
 #include "primarydriverwiththread.h"
 #include "secondarydriver.h"
 #include "pythondriver.h"
-
 #include "xnodeconnector.h"
+#include "graph.h"
+#include "xwavengraph.h"
+#include "ui_graphnurlform.h"
 #include <QWidget>
 #include <QAbstractButton>
 #include <QLineEdit>
@@ -54,7 +56,6 @@ with interfacelock (	 py::gil_scoped_release pyguard and spin)
 send (	 py::gil_scoped_release pyguard)
 receive(	 py::gil_scoped_release pyguard
 query(	 py::gil_scoped_release pyguard
-PyQt?
 
 
 XWaven
@@ -72,6 +73,22 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, local_shared_ptr<T>, true)
 namespace py = pybind11;
 
 KAMEPyBind XPython::bind; //should be here before PYBIND11_EMBEDDED_MODULE.
+
+PYBIND11_EMBEDDED_MODULE(kame, m) {
+    XPython::bind.s_kame_module = m;
+
+    //Binding XNode, Snapshot, Transaction, X***ValueNode, XTime, ...
+    KAMEPyBind::export_embedded_module_basic(m);
+
+    //XWaveNGraph
+    KAMEPyBind::export_embedded_module_graph(m);
+
+    KAMEPyBind::export_embedded_module_basic_drivers(m);
+
+    KAMEPyBind::export_embedded_module_interface(m);
+
+    KAMEPyBind::export_embedded_module_xqcon(m);
+}
 
 py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     auto it = m_payloadDownCasters.find(typeid(y).hash_code());
@@ -159,14 +176,12 @@ export_xqcon() {
                     new QN(node, x, std::forward<Args>(args)...)));
         else
             throw std::runtime_error("Type mismatch.");
-        }), py::keep_alive<0, 1>());
+        })); //, py::keep_alive<0, 1>()
     return std::move(pyc);
 }
 
-
-PYBIND11_EMBEDDED_MODULE(kame, m) {
-    XPython::bind.s_kame_module = m;
-
+void
+KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     auto bound_xnode = py::class_<XNode, shared_ptr<XNode>>(m, "XNode")
         .def("__repr__", [](shared_ptr<XNode> &self)->std::string{
             return formatString("<node[%s]\"%s\"@%p>", ("X" + self->getTypename()).c_str(), self->getName().c_str(), &*self);
@@ -209,7 +224,8 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         })
         .def("__len__", [](Snapshot &self){return self.size();})
         .def("__getitem__", [](Snapshot &self, unsigned int pos)->shared_ptr<XNode>{
-            return self.size() ? self.list()->at(pos) : shared_ptr<XNode>();}
+            if(self.size()) return self.list()->at(pos);
+            throw XNode::NodeNotFoundError("out of range");}
         )
         .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
             return XPython::bind.cast_to_pyobject( &self.at( *node));
@@ -217,8 +233,13 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
         .def("isUpperOf", &Snapshot::isUpperOf);
     py::class_<Transaction, Snapshot>(m, "Transaction")
         .def(py::init([](const shared_ptr<XNode> &x){return Transaction(*x);}), py::keep_alive<1, 2>())
-//        .def("__enter__", ([](const shared_ptr<XNode> &x){return Transaction(*x);}), py::keep_alive<1, 2>())
-//        .def("__exit__", [](Transaction &self, pybind11::args){})
+        .def("__iter__", [](Transaction &self)->Transaction &{ return self; })
+        .def("__next__", [](Transaction &self)->Transaction &{
+            if(self.isModified() && self.commitOrNext())
+                throw pybind11::stop_iteration();
+            else
+                return self;
+        })
         .def("__repr__", [](Transaction &self)->std::string{
             return formatString("<Transaction@%p>", &self);
         })
@@ -313,7 +334,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     bound_xnode.def("__getitem__", [](shared_ptr<XNode> &self, unsigned int pos)->py::object {
             Snapshot shot( *self);
             if( !shot.size())
-                throw std::out_of_range("Empty node.");
+                throw XNode::NodeNotFoundError("out of range");
             return XPython::bind.cast_to_pyobject(shot.list()->at(pos));
         })
         .def("dynamic_cast", [](shared_ptr<XNode> &self)->py::object {return XPython::bind.cast_to_pyobject(self);})
@@ -375,6 +396,53 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             });
         });
 
+
+
+    py::class_<XTime>(m, "XTime")
+        .def(py::init([](const system_clock::time_point &t)->XTime{return {t};}));
+    py::implicitly_convertible<system_clock::time_point, XTime>();
+//    py::implicitly_convertible<XTime, system_clock::time_point>();
+    //Exceptions
+    py::register_exception<XNode::NodeNotFoundError>(m, "KAMENodeNotFoundError", PyExc_KeyError);
+    py::register_exception<XKameError>(m, "KAMEError", PyExc_RuntimeError);
+}
+void
+KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
+    {   auto [node, payload] = XPython::bind.export_xnode<XGraph, XNode>();
+        (*node);
+        (*payload);
+    }
+    XPython::bind.export_xnode<XAxis, XNode>();
+    XPython::bind.export_xnode<XPlot, XNode>();
+    XPython::bind.export_xnode<XXYPlot, XPlot>();
+    XPython::bind.export_xnode<X2DImagePlot, XPlot>();
+    XPython::bind.export_xnode<XGraphNToolBox, XNode>();
+    {   auto [node, payload] = XPython::bind.export_xnode<XWaveNGraph, XGraphNToolBox,
+                XQGraph *, QLineEdit *, QAbstractButton *, QPushButton *>();
+    (*node)
+        .def("drawGraph", &XWaveNGraph::drawGraph)
+        .def("clearPlots", &XWaveNGraph::clearPlots);
+    (*payload)
+        .def("clearPoints", &XWaveNGraph::Payload::clearPoints)
+        .def("insertPlot", [](XWaveNGraph::Payload &self,
+             Transaction &tr, const std::string &label, int colx, int coly1, int coly2, int colw, int colz){
+            return self.insertPlot(tr, label, colx, coly1, coly2, colw, colz);
+        })
+        .def("setCols", [](XWaveNGraph::Payload &self, std::initializer_list<std::string> &labels){
+            self.setCols(labels);
+        })
+        .def("colCount", &XWaveNGraph::Payload::colCount)
+        .def("rowCount", &XWaveNGraph::Payload::rowCount)
+        .def("numPlots", &XWaveNGraph::Payload::numPlots)
+        .def("setLabel", &XWaveNGraph::Payload::setLabel)
+        .def("setColumn", [](XWaveNGraph::Payload &self, unsigned int n, std::vector<double> &&data, unsigned int prec){
+            self.setColumn(n, std::move(data), prec);
+        });
+    }
+}
+
+void
+KAMEPyBind::export_embedded_module_basic_drivers(pybind11::module_& m) {
     //Driver classes
     {   auto [node, payload] = XPython::bind.export_xnode<XDriver, XNode>();
         (*node)
@@ -422,10 +490,25 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             .def("__enter__", [](shared_ptr<XInterface> &self){
                 py::gil_scoped_release pyguard;
                 self->lock();})
-            .def("__exit__", [](shared_ptr<XInterface> &self){self->unlock();});
+            .def("__exit__", [](shared_ptr<XInterface> &self, pybind11::args){self->unlock();});
     }
 
 
+    //Exceptions
+    py::register_exception<XDriver::XRecordError>(m, "KAMERecordError", PyExc_RuntimeError);
+    py::register_exception<XDriver::XSkippedRecordError>(m, "KAMESkippedRecordError", PyExc_RuntimeError);
+    py::register_exception<XDriver::XBufferUnderflowRecordError>(m, "KAMEBufferUnderflowRecordError", PyExc_RuntimeError);
+}
+void
+KAMEPyBind::export_embedded_module_interface(pybind11::module_& m) {
+    py::register_exception<XInterface::XInterfaceError>(m, "KAMEInterfaceError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XConvError>(m, "KAMEInterfaceConvError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XCommError>(m, "KAMEInterfaceCommError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XOpenInterfaceError>(m, "KAMEInterfaceOpenError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XUnsupportedFeatureError>(m, "KAMEInterfaceUnsupportedFeatureError", PyExc_RuntimeError);
+}
+void
+KAMEPyBind::export_embedded_module_xqcon(pybind11::module_& m) {
     //QWidget
     py::class_<QWidget>(m, "QWidget")
         .def("objectName", [](const QWidget *self)->std::string{return self->objectName().toStdString();})
@@ -442,7 +525,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
             if( !isMainThread())
                 throw std::runtime_error("Be called from main thread.");
             return self->findChild<QWidget*>(name.c_str());
-        }, py::return_value_policy::reference_internal);
+        }, py::return_value_policy::reference);
 
 
     //XQ**Connector
@@ -470,20 +553,5 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
     export_xqcon<XQComboBoxConnector, XItemNodeBase, QComboBox, const Snapshot &>();
     export_xqcon<XColorConnector, XHexNode, QPushButton>();
 
-
-    py::class_<XTime>(m, "XTime")
-        .def(py::init([](const system_clock::time_point &t)->XTime{return {t};}));
-    py::implicitly_convertible<system_clock::time_point, XTime>();
-//    py::implicitly_convertible<XTime, system_clock::time_point>();
-    //Exceptions
-    py::register_exception<XNode::NodeNotFoundError>(m, "KAMENodeNotFoundError", PyExc_RuntimeError);
-    py::register_exception<XKameError>(m, "KAMEError", PyExc_RuntimeError);
-    py::register_exception<XDriver::XRecordError>(m, "KAMERecordError", PyExc_RuntimeError);
-    py::register_exception<XDriver::XSkippedRecordError>(m, "KAMESkipRecordError", PyExc_RuntimeError);
-    py::register_exception<XDriver::XBufferUnderflowRecordError>(m, "KAMEBufferUnderflowRecordError", PyExc_RuntimeError);
-    py::register_exception<XInterface::XInterfaceError>(m, "KAMEInterfaceError", PyExc_RuntimeError);
-    py::register_exception<XInterface::XConvError>(m, "KAMEInterfaceConvError", PyExc_RuntimeError);
-    py::register_exception<XInterface::XCommError>(m, "KAMEInterfaceCommError", PyExc_RuntimeError);
-    py::register_exception<XInterface::XOpenInterfaceError>(m, "KAMEInterfaceOpenError", PyExc_RuntimeError);
-    py::register_exception<XInterface::XUnsupportedFeatureError>(m, "KAMEInterfaceUnsupportedFeatureError", PyExc_RuntimeError);
 }
+

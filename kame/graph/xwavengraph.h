@@ -54,7 +54,7 @@ public:
         const std::vector<XString> &labels() const {return m_labels;}
         unsigned int precision(unsigned int col) const {return m_cols.at(col)->precision;}
         void setRowCount(unsigned int rowcnt);
-        void setColCount(const std::initializer_list<std::string> &labels);
+        void setCols(const std::initializer_list<std::string> &labels);
         void setColCount(unsigned int colcnt, const char** labels);
         unsigned int rowCount() const {return m_rowCount; }
         unsigned int colCount() const {return m_cols.size();}
