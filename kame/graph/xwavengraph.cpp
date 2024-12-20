@@ -150,7 +150,8 @@ bool
 XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, int y1, int y2,
 	int weight, int z) {
     const auto &graph(static_cast<XWaveNGraph &>(node()).graph());
-	assert( (y1 < 0) || (y2 < 0) );
+    if( !( (y1 < 0) || (y2 < 0) ))
+        throw std::out_of_range("Invalid column selection.");
 
 	if(weight >= 0) {
 		if((m_colw >= 0) && (m_colw != weight))
@@ -241,6 +242,16 @@ XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, i
 void
 XWaveNGraph::OnPlotInsertion(const Snapshot &shot, XWaveNGraph *wave) {
     m_conTools = std::make_shared<XQGraph1DMathToolConnector>(shot[ *this].m_toolLists, m_btnMathTool, m_graphwidget);
+}
+void
+XWaveNGraph::Payload::setColCount(const std::initializer_list<std::string> &labels) {
+    unsigned int colcnt = labels.size();
+    m_cols.resize(colcnt);
+    m_labels.resize(colcnt);
+    m_precisions.resize(colcnt, 6);
+    auto it = labels.begin();
+    for(auto &&label: m_labels)
+        label = *it++;
 }
 
 void

@@ -52,8 +52,9 @@ public:
 
 		void setLabel(unsigned int col, const char *label);
         const std::vector<XString> &labels() const {return m_labels;}
-        unsigned int precision(unsigned int col) const {return m_cols[col]->precision;}
+        unsigned int precision(unsigned int col) const {return m_cols.at(col)->precision;}
         void setRowCount(unsigned int rowcnt);
+        void setColCount(const std::initializer_list<std::string> &labels);
         void setColCount(unsigned int colcnt, const char** labels);
         unsigned int rowCount() const {return m_rowCount; }
         unsigned int colCount() const {return m_cols.size();}
@@ -144,7 +145,8 @@ private:
 template <typename VALUE>
 void
 XWaveNGraph::Payload::setColumn(unsigned int n, std::vector<VALUE> &&column, unsigned int precision) {
-    assert(column.size() == m_rowCount);
+    if(column.size() != m_rowCount)
+        throw std::range_error("Invalid row count.");
     m_cols.at(n) = std::make_shared<Column<VALUE>>(std::move(column), precision);
 }
 

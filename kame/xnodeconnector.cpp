@@ -85,8 +85,9 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
 	: QObject(),
 	  m_pWidget(item)  {
 
-    assert(node);
-    assert(item);
+    if( !node || !item)
+        throw std::runtime_error("No valid node or item.");
+
     s_conCreating.push_back(shared_ptr<XQConnector>(this));
 
     node->iterate_commit([=](Transaction &tr){
