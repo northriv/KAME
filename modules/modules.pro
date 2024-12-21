@@ -84,3 +84,7 @@ arbfunc.depends += charinterface
 twoaxis.depends += motorcore
 opticscore.file = optics/core/opticscore.pro
 optics.depends += opticscore sgcore liacore motorcore charinterface
+python.depends += nmrpulsercore dmmcore dsocore sgcore magnetpscore
+python.depends += motorcore networkanalyzercore qdcore opticscore
+python.depends += sgcore liacore tempcontrol levelmetercore charinterface
+python.depends += nmr optics

@@ -26,8 +26,14 @@ class XMeasure;
 
 struct KAMEPyBind {
     template <class N, class Base, class Trampoline>
-    using classtype_xnode_with_trampoline = std::tuple<unique_ptr<pybind11::class_<N, Base, Trampoline, shared_ptr<N>>>,
-    unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>>;
+//    using classtype_xnode_with_trampoline = typename std::conditional<
+//        !std::is_base_of<typename N::Payload, typename Base::Payload>::value,
+//        std::tuple<unique_ptr<pybind11::class_<N, Base, Trampoline, shared_ptr<N>>>, //N::Payload is defined.
+//            unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>>,
+//        unique_ptr<pybind11::class_<N, Base, Trampoline, shared_ptr<N>>>>; //N::Payload is NOT defined.
+    using classtype_xnode_with_trampoline =
+        std::tuple<unique_ptr<pybind11::class_<N, Base, Trampoline, shared_ptr<N>>>,
+            unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload, typename Trampoline::Payload>>>; //N::Payload is NOT defined.
 
     template <class N, class Base>
     using classtype_xnode = typename std::conditional<
@@ -35,13 +41,16 @@ struct KAMEPyBind {
             std::tuple<unique_ptr<pybind11::class_<N, Base, shared_ptr<N>>>, //N::Payload is defined.
                 unique_ptr<pybind11::class_<typename N::Payload, typename Base::Payload>>>,
             unique_ptr<pybind11::class_<N, Base, shared_ptr<N>>>>::type; //N::Payload is NOT defined.
-    //! Wraps C++ XNode-derived classes N, along with N::Payload.
+    //! Wraps C++ XNode-derived classes N, along with N::Payload, with Trampoline class.
     //! N derived from Base, and N::Payload derived from Base::Payload.
     //! \return to be used by .def or else. use auto [node, payload] =....
     template <class N, class Base, class Trampoline, typename...Args>
     classtype_xnode_with_trampoline<N, Base, Trampoline>
     export_xnode_with_trampoline(const char *name = nullptr);
 
+    //! Wraps C++ XNode-derived classes N, (along with N::Payload if exists).
+    //! N derived from Base, (and N::Payload derived from Base::Payload).
+    //! \return to be used by .def or else. use auto [node, payload] =...., or auto node = ....
     template <class N, class Base, typename...Args>
     classtype_xnode<N, Base> export_xnode(const char *name = nullptr);
 
@@ -75,8 +84,9 @@ struct KAMEPyBind {
     static void export_embedded_module_xqcon(pybind11::module_&);
 
 private:
-    std::map<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>> m_xnodeDownCasters;
-    std::map<size_t, std::function<pybind11::object(XNode::Payload *)>> m_payloadDownCasters;
+    //typeid(x).hash_code(), serialno, down_caster_func.
+    std::map<size_t, std::pair<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>>> m_xnodeDownCasters;
+    std::map<size_t, std::pair<size_t, std::function<pybind11::object(XNode::Payload *)>>> m_payloadDownCasters;
 
     template <class N>
     std::string declare_xnode_downcasters();
@@ -102,9 +112,6 @@ private:
     shared_ptr<Listener> m_mainthread_cb_lsn;
 
     void mainthread_callback(pybind11::object *scrthread, pybind11::object *func, pybind11::object *ret, pybind11::object *status);
-
-//    template <class T> friend class XPythonDriver;
-//    static XThreadLocal<shared_ptr<XNode>> stl_nodeCreating; //to be used inside lambda creation fn of exportClass().
 };
 
 #endif //USE_PYBIND11

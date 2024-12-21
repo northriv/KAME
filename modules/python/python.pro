@@ -16,15 +16,65 @@ macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
 
+win32:LIBS += -lcharinterface
+
+INCLUDEPATH += $$PWD/../charinterface
+DEPENDPATH += $$PWD/../charinterface
+
+win32:LIBS +=  -lnmrpulsercore
+
+INCLUDEPATH += $$PWD/pulsercore
+DEPENDPATH += $$PWD/pulsercore
+
+win32:LIBS += -lsgcore
+
+INCLUDEPATH += $$PWD/../sg/core
+DEPENDPATH += $$PWD/../sg/core
+
+win32:LIBS += -ldsocore
+
+INCLUDEPATH += $$PWD/../dso/core
+DEPENDPATH += $$PWD/../dso/core
+
+win32:LIBS += -lmotorcore
+
+INCLUDEPATH += $$PWD/../motor/core
+DEPENDPATH += $$PWD/../motor/core
+
+win32:LIBS += -lnetworkanalyzercore
+
+INCLUDEPATH += $$PWD/../networkanalyzer/core
+DEPENDPATH += $$PWD/../networkanalyzer/core
+
 win32:LIBS += -ldmmcore
 
 INCLUDEPATH += $$PWD/../dmm/core
 DEPENDPATH += $$PWD/../dmm/core
 
+win32:LIBS += -lmagnetpscore
+
+INCLUDEPATH += $$PWD/../magnetps/core
+DEPENDPATH += $$PWD/../magnetps/core
+
+win32:LIBS += -lqdcore
+
+INCLUDEPATH += $$PWD/../qd/core
+DEPENDPATH += $$PWD/../qd/core
+
 win32:LIBS += -ldcsourcecore
 
 INCLUDEPATH += $$PWD/../dcsource/core
 DEPENDPATH += $$PWD/../dcsource/core
+
+win32:LIBS += -lopticscore
+
+INCLUDEPATH += $$PWD/core
+DEPENDPATH += $$PWD/core
+
+win32:LIBS += -lliacore
+
+INCLUDEPATH += $$PWD/../lia/core
+DEPENDPATH += $$PWD/../lia/core
 
 #pybind11
 macx {

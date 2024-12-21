@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -40,6 +40,7 @@ protected:
 	//! This function should not cause an exception.
 	virtual void closeInterface() = 0;
 
+public:
 	//! These are FIFO.
     struct RawData : public std::vector<char> {
 		//! Pushes raw data to raw record
@@ -84,6 +85,7 @@ protected:
         inline double pop_double();
 	};
 
+protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()

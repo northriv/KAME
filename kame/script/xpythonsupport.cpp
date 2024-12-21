@@ -54,6 +54,10 @@ void XPython::mainthread_callback(py::object *scrthread, py::object *func, py::o
         std::cerr << "Python error." << std::endl << e.what() << std::endl;
         *status = py::cast(e.what());
     }
+    catch (std::runtime_error &e) {
+        std::cerr << "Python KAME binding error: " << std::endl << e.what() << std::endl;
+        *status = py::cast(e.what());
+    }
     catch (...) {
         std::cerr << "Python unknown error." << std::endl;
         *status = py::cast("Python unknown error.");
@@ -144,11 +148,14 @@ XPython::execute(const atomic<bool> &terminated) {
                     py::object main_scope = py::module_::import("__main__").attr("__dict__");
                     py::exec(data, main_scope);
                 }
-                catch (py::error_already_set& e) {
-                    std::cerr << "Python error.\n" << e.what() << "\n";
+                catch (pybind11::error_already_set& e) {
+                    gErrPrint(i18n("Python error: ") + e.what());
+                }
+                catch (std::runtime_error &e) {
+                    gErrPrint(i18n("Python KAME binding error: ") + e.what());
                 }
                 catch (...) {
-                    std::cerr << "Python unknown error.\n" << "\n";
+                    gErrPrint(i18n("Unknown python error."));
                 }
                 if(terminated || (std::string(filename) != XPYTHONSUPPORT_PY))
                     break;
@@ -156,7 +163,6 @@ XPython::execute(const atomic<bool> &terminated) {
                 msecsleep(500);
             }
         }
-//        stl_nodeCreating->reset();
         m_mainthread_cb_lsn.reset();
     }
 

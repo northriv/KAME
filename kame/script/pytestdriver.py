@@ -143,3 +143,35 @@ class Test4Res(XPythonSecondaryDriver):
 
 #Declares that python-side driver to C++ driver list.
 XPythonSecondaryDriver.exportClass("Test4Res", Test4Res, "Test python-based driver: 4-Terminal Resistance Measumrent")
+
+#Defines KAME driver class inside python.
+class TestRandom(XPythonCharDeviceDriverWithThread):
+    def __init__(self, name, runtime, tr, meas):
+        XPythonCharDeviceDriverWithThread.__init__(self, name, runtime, tr, meas) #pybind11 requires this line, otherwise TypeError throws.
+        self["Interface"]["Device"] = "DUMMY"
+
+        entry = XScalarEntry("X", False, self, "%.5f")
+        self.insert(entry)
+        meas["ScalarEntries"].insert(tr, entry) #tr: transaction obj. during the creation.
+        entry = None #for GC
+
+    def analyzeRaw(self, reader, tr):
+        x = reader.pop_double()
+        storage = tr[self].local() #dict for tr[self]
+        storage["X"] = x
+        self["X"].value(tr, x)
+        return
+
+    def visualize(self, shot):
+        return
+
+    def executeInPython(self, is_terminated):
+        while not is_terminated():
+            time.sleep(0.01)
+            writer = RawData()
+            writer.push_double(float(np.random.random()))
+            self.finishWritingRaw(writer, datetime.datetime.now(), datetime.datetime.now())
+        return
+
+#Declares that python-side driver to C++ driver list.
+XPythonCharDeviceDriverWithThread.exportClass("TestRandom", TestRandom, "Test python-based driver: Random Number Generation")

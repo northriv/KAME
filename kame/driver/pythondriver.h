@@ -71,15 +71,19 @@ public:
     }
 
     struct DECLSPEC_KAME Payload : public T::Payload {
+        virtual ~Payload() {
+            pybind11::gil_scoped_acquire guard;
+            dict.reset();
+        }
         pybind11::object local() {
             pybind11::gil_scoped_acquire guard;
             if( !dict)
-                dict = pybind11::dict();
+                dict = std::make_shared<pybind11::object>(pybind11::dict());
             else
-                dict = dict.attr("copy")();
-            return dict;
+                dict = std::make_shared<pybind11::object>(dict->attr("copy")());
+            return *dict;
         }
-        pybind11::object dict;
+        shared_ptr<pybind11::object> dict;
     };
 
 protected:
@@ -96,30 +100,59 @@ class XPrimaryDriverWithThread;
 template<class tInterface = XCharInterface>
 struct XPythonCharDeviceDriverWithThread : public XPythonDriver<XCharDeviceDriver<XPrimaryDriverWithThread, tInterface>> {
     using tBaseDriver = XPythonDriver<XCharDeviceDriver<XPrimaryDriverWithThread, tInterface>>;
-    using tBaseDriver::XPythonDriver; //inherits constructors.
+    using tBaseDriver::tBaseDriver; //inherits constructors.
 
     ////originally protected, opened for public.
-    virtual void analyzeRaw(typename tBaseDriver::RawDataReader &reader, Transaction &tr) override = 0;
+    virtual void analyzeRaw(std::reference_wrapper<typename tBaseDriver::RawDataReader> reader, std::reference_wrapper<Transaction> tr) = 0;
     virtual void visualize(const Snapshot &shot) override = 0;
+    //! will call analyzeRaw()
+    //! \param rawdata the data being processed.
+    //! \param time_awared time when a visible phenomenon started
+    //! \param time_recorded usually pass \p XTime::now()
+    //! \sa Payload::timeAwared()
+    //! \sa Payload::time()
+    void finishWritingRaw(const shared_ptr<const typename tBaseDriver::RawData> &rawdata,
+        const XTime &time_awared, const XTime &time_recorded) {
+        tBaseDriver::finishWritingRaw(rawdata, time_awared, time_recorded);}
 
     struct DECLSPEC_KAME Payload : public tBaseDriver::Payload {};
+
+    virtual void executeInPython(const std::function<bool()> &is_terminated) = 0;
 protected:
-    virtual void *execute(const atomic<bool> &terminated) = 0;
+    virtual void analyzeRaw(typename tBaseDriver::RawDataReader &reader, Transaction &tr) override {
+        analyzeRaw(std::ref(reader), ref(tr)); //pybind11 does not accept reference to non-copyable obj for OVERRIDE func..
+    }
+
+    virtual void *execute(const atomic<bool> &terminated) override {
+        try {
+            executeInPython([&]()->bool{return terminated;});
+        }
+        catch (pybind11::error_already_set& e) {
+            gErrPrint(i18n("Python error: ") + e.what());
+        }
+        catch (std::runtime_error &e) {
+            gErrPrint(i18n("Python KAME binding error: ") + e.what());
+        }
+        catch (...) {
+            gErrPrint(i18n("Unknown python error."));
+        }
+        return nullptr;
+    }
 };
 template<class tInterface = XCharInterface>
 struct XPythonCharDeviceDriverWithThreadHelper : public XPythonCharDeviceDriverWithThread<tInterface> {
-    using XPythonCharDeviceDriverWithThreadHelper::XPythonCharDeviceDriverWithThreadHelper; //inherits constructors.
     using tBaseDriver = XPythonCharDeviceDriverWithThread<tInterface>;
+    using tBaseDriver::tBaseDriver; //inherits constructors.
 
     //! This function will be called when raw data are written.
     //! Implement this function to convert the raw data to the record (Payload).
     //! \sa analyze()
     //! XRecordError will be thrown if data is not propertly formatted.
-    virtual void analyzeRaw(typename tBaseDriver::RawDataReader &reader, Transaction &tr) override {
+    virtual void analyzeRaw(std::reference_wrapper<typename tBaseDriver::RawDataReader> reader, std::reference_wrapper<Transaction> tr) override {
         PYBIND11_OVERRIDE_PURE(
-            bool, /* Return type */
+            void, /* Return type */
             tBaseDriver,      /* Parent class */
-            checkDependency,          /* Name of function in C++ (must match Python name) */
+            analyzeRaw,          /* Name of function in C++ (must match Python name) */
             reader, tr      /* Argument(s) */
         );
     }
@@ -132,6 +165,16 @@ struct XPythonCharDeviceDriverWithThreadHelper : public XPythonCharDeviceDriverW
             tBaseDriver,      /* Parent class */
             visualize,          /* Name of function in C++ (must match Python name) */
             shot      /* Argument(s) */
+        );
+    }
+
+    virtual void executeInPython(const std::function<bool()> &is_terminated) override {
+        //include pybind11/functional.h.
+        PYBIND11_OVERRIDE_PURE(
+            void, /* Return type */
+            tBaseDriver,      /* Parent class */
+            executeInPython,          /* Name of function in C++ (must match Python name) */
+            is_terminated      /* Argument(s) */
         );
     }
 
@@ -154,11 +197,17 @@ struct DECLSPEC_KAME XPythonSecondaryDriver : public XPythonDriver<XSecondaryDri
     virtual bool checkDependency(const Snapshot &shot_this,
         const Snapshot &shot_emitter, const Snapshot &shot_others,
         XDriver *emitter) const override = 0;
-    virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-        XDriver *emitter) override = 0;
+    virtual void analyze(std::reference_wrapper<Transaction> tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+        XDriver *emitter) = 0;
     virtual void visualize(const Snapshot &shot) override = 0;
 
     struct DECLSPEC_KAME Payload : public XPythonDriver<XSecondaryDriver>::Payload {};
+protected:
+    virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+                         XDriver *emitter) override {
+        analyze(ref(tr), shot_emitter, shot_others, emitter); //pybind11 does not accept reference to non-copyable obj for OVERRIDE func..
+    }
+
 };
 
 struct XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
@@ -189,7 +238,7 @@ struct XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
         );
     }
     //! This function is called when a connected driver emit a signal
-    virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+    virtual void analyze(std::reference_wrapper<Transaction> tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
         XDriver *emitter) override {
         PYBIND11_OVERRIDE_PURE(
             void, /* Return type */
@@ -206,12 +255,18 @@ struct XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
 template <class N>
 std::string
 KAMEPyBind::declare_xnode_downcasters() {
-    m_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(), [](const shared_ptr<XNode>&x)->pybind11::object{
-        return pybind11::cast(dynamic_pointer_cast<N>(x));
-    }));
-    m_payloadDownCasters.insert(std::make_pair(typeid(typename N::Payload).hash_code(), [](XNode::Payload *x)->pybind11::object{
-        return pybind11::cast(dynamic_cast<typename N::Payload*>(x));
-    }));
+    m_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(),
+        std::make_pair(m_xnodeDownCasters.size(),
+            [](const shared_ptr<XNode>&x)->pybind11::object{
+                return pybind11::cast(dynamic_pointer_cast<N>(x));
+            })
+    ));
+    m_payloadDownCasters.insert(std::make_pair(typeid(typename N::Payload).hash_code(),
+        std::make_pair(m_payloadDownCasters.size(),
+            [](XNode::Payload *x)->pybind11::object{
+                return pybind11::cast(dynamic_cast<typename N::Payload*>(x));
+            })
+    ));
     XString name = typeid(N).name();
     int i = name.find('X');
     name = name.substr(i); //squeezes C++ class name.
@@ -301,14 +356,24 @@ KAMEPyBind::export_xvaluenode(const char *name) {
         (std::is_same<V, bool>::value ? "__bool__" :
         (std::is_floating_point<V>::value ? "__double__" :
         (std::is_convertible<V, std::string>::value ? "__str__" : "get"))));
-    auto [pynode, pypayload] = export_xnode<N, Base, Args...>(name);
-    (*pynode)
-        .def(pyv, [](shared_ptr<N> &self)->V{return ***self;})
-        .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;});
-    (*pypayload)
-        .def(pyv, [](typename N::Payload &self)->V{ return self;})
-        .def("set", [](typename N::Payload &self, V x){self.operator=(x);});
-    return {std::move(pynode), std::move(pypayload)};
+    if constexpr( !std::is_base_of<typename N::Payload, typename Base::Payload>::value) {
+        //N::Payload is defined.
+        auto [pynode, pypayload] = export_xnode<N, Base, Args...>(name);
+        (*pynode)
+            .def(pyv, [](shared_ptr<N> &self)->V{return ***self;})
+            .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;});
+        (*pypayload)
+            .def(pyv, [](typename N::Payload &self)->V{ return self;})
+            .def("set", [](typename N::Payload &self, V x){self.operator=(x);});
+        return {std::move(pynode), std::move(pypayload)};
+    }
+    else {
+        auto pynode = export_xnode<N, Base, Args...>(name);
+        (*pynode)
+            .def(pyv, [](shared_ptr<N> &self)->V{return ***self;})
+            .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;});
+        return std::move(pynode);  //N::Payload is NOT defined.
+    }
 }
 
 //! Trampoline should be helper class, with PYBIND11_OVERRIDE_PURE, PYBIND11_OVERRIDE...
@@ -374,6 +439,29 @@ struct PyDriverExporter {
     }
 
     KAMEPyBind::classtype_xnode<D, Base> pycls;
+};
+template <class D, class Base, class Trampoline>
+struct PyDriverExporterWithTrampoline {
+    PyDriverExporterWithTrampoline(const char *name = nullptr) {
+        pybind11::gil_scoped_acquire guard;
+        pycls = XPython::bind.export_xpythondriver<D, Base, Trampoline>(name);
+    }
+    //! to additionally define methods.
+    PyDriverExporterWithTrampoline(std::function<void(pybind11::class_<D, Base, Trampoline, shared_ptr<D>>&,
+        pybind11::class_<typename D::Payload, typename Base::Payload, typename Trampoline::Payload>&)> fn)
+        : PyDriverExporterWithTrampoline() {
+        pybind11::gil_scoped_acquire guard;
+        fn( *std::get<0>(pycls), *std::get<1>(pycls));
+    }
+    //! to additionally define methods and with preferred typename.
+    PyDriverExporterWithTrampoline(const char *name, std::function<void(pybind11::class_<D, Base, Trampoline, shared_ptr<D>>&,
+        pybind11::class_<typename D::Payload, typename Base::Payload, typename Trampoline::Payload>&)> fn)
+        : PyDriverExporterWithTrampoline(name) {
+        pybind11::gil_scoped_acquire guard;
+        fn( *std::get<0>(pycls), *std::get<1>(pycls));
+    }
+
+    KAMEPyBind::classtype_xnode_with_trampoline<D, Base, Trampoline> pycls;
 };
 
 #endif //USE_PYBIND11

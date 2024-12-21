@@ -204,11 +204,11 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
             }
 #ifdef USE_PYBIND11
             catch (pybind11::error_already_set& e) {
-                gErrPrint(i18n("Python error.") + e.what());
+                gErrPrint(i18n("Python error: ") + e.what());
             }
 #endif
             catch (std::runtime_error &e) {
-                gErrPrint(i18n("Python error.") + e.what());
+                gErrPrint(i18n("Python KAME binding error: ") + e.what());
             }
             catch (...) {
                 gErrPrint(i18n("Unknown python error."));

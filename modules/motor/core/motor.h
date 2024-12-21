@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -30,6 +30,8 @@ public:
 	virtual ~XMotorDriver() {}
 	//! Shows all forms belonging to driver
 	virtual void showForms();
+
+    struct Payload : public XPrimaryDriverWithThread::Payload {};
 protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).

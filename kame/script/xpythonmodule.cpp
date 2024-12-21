@@ -93,21 +93,23 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
 py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     auto it = m_payloadDownCasters.find(typeid(y).hash_code());
     if(it != m_payloadDownCasters.end()) {
-        return (it->second)(y);
+        return (it->second.second)(y);
     }
-    //manages to use its base class.
-    for(auto rit = m_payloadDownCasters.rbegin(); rit != m_payloadDownCasters.rend(); ++rit) {
-        auto x = (rit->second)(y);
+    //manages to use its downmost base class.
+    std::map<size_t, py::object> cand;
+    for(auto &c: m_payloadDownCasters) {
+        auto x = (c.second.second)(y);
         if(x.cast<XNode::Payload*>())
-            return x;
+            cand.insert(std::make_pair(c.second.first, x));
     }
-    //end up with XNode::Payload.
-    return py::cast(y);
+    if(cand.size())
+        return cand.rbegin()->second; //the oldest choice.
+    return py::cast(y); //end up with XNode::Payload*
 }
 py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
     auto it = m_xnodeDownCasters.find(typeid(y).hash_code());
     if(it != m_xnodeDownCasters.end()) {
-        return (it->second)(y);
+        return (it->second.second)(y);
     }
     //manages to use its super class.
     if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
@@ -138,12 +140,15 @@ py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
         return py::cast(x);
     if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
         return py::cast(x);
-    //manages to use its base class.
-    for(auto rit = m_xnodeDownCasters.rbegin(); rit != m_xnodeDownCasters.rend(); ++rit) {
-        auto x = (rit->second)(y);
+    //manages to use its downmost base class.
+    std::map<size_t, py::object> cand;
+    for(auto &c: m_xnodeDownCasters) {
+        auto x = (c.second.second)(y);
         if(x.cast<shared_ptr<XNode>>())
-            return x;
+            cand.insert(std::make_pair(c.second.first, x));
     }
+    if(cand.size())
+        return cand.rbegin()->second; //the oldest choice.
     //end up with XNode.
     return py::cast(y);
 };
@@ -396,8 +401,6 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             });
         });
 
-
-
     py::class_<XTime>(m, "XTime")
         .def(py::init([](const system_clock::time_point &t)->XTime{return {t};}));
     py::implicitly_convertible<system_clock::time_point, XTime>();
@@ -464,19 +467,44 @@ KAMEPyBind::export_embedded_module_basic_drivers(pybind11::module_& m) {
     }
     XPython::bind.export_xnode<XDriverList, XListNodeBase>("XDriverList"); //needed to be used as an argument.
     XPython::bind.export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>("XDriverPointerItemNode");
+    //for Driver selection
     XPython::bind.export_xvaluenode<XItemNode<XDriverList, XDriver>,
             shared_ptr<XDriver>, XPointerItemNode<XDriverList>,
             Transaction &, shared_ptr<XDriverList> &, bool>("XDriverItemNode");
+//    XPython::bind.export_xvaluenode<XItemNode<XDriverList, XMagnetPS, XDMM, XQDPPMS>,
+//            shared_ptr<XDriver>, XPointerItemNode<XDriverList>,
+//            Transaction &, shared_ptr<XDriverList> &, bool>("MagnetPSLikeItemNode");
     XPython::bind.export_xnode<XMeasure, XNode>();
     XPython::bind.export_xnode<XPrimaryDriver, XDriver>();
     XPython::bind.export_xnode<XPrimaryDriverWithThread, XPrimaryDriver>();
+
+
+    py::class_<XPrimaryDriver::RawData, shared_ptr<XPrimaryDriver::RawData>>(m, "RawData")
+        .def(py::init())
+        .def("push_int16", [](shared_ptr<XPrimaryDriver::RawData> &self, int16_t x){self->push(x);})
+        .def("push_uint16", [](shared_ptr<XPrimaryDriver::RawData> &self, uint16_t x){self->push(x);})
+        .def("push_int32", [](shared_ptr<XPrimaryDriver::RawData> &self, int32_t x){self->push(x);})
+        .def("push_uint32", [](shared_ptr<XPrimaryDriver::RawData> &self, uint32_t x){self->push(x);})
+        .def("push_int64", [](shared_ptr<XPrimaryDriver::RawData> &self, int64_t x){self->push(x);})
+        .def("push_uint64", [](shared_ptr<XPrimaryDriver::RawData> &self, uint64_t x){self->push(x);})
+        .def("push_double", [](shared_ptr<XPrimaryDriver::RawData> &self, double x){self->push(x);});
+    py::class_<XPrimaryDriver::RawDataReader>(m, "RawDataReader")
+        .def("pop_int16", [](XPrimaryDriver::RawDataReader &self){return self.pop<int16_t>();})
+        .def("pop_uint16", [](XPrimaryDriver::RawDataReader &self){return self.pop<uint16_t>();})
+        .def("pop_int32", [](XPrimaryDriver::RawDataReader &self){return self.pop<int32_t>();})
+        .def("pop_uint32", [](XPrimaryDriver::RawDataReader &self){return self.pop<uint32_t>();})
+        .def("pop_int64", [](XPrimaryDriver::RawDataReader &self){return self.pop<int64_t>();})
+        .def("pop_uint64", [](XPrimaryDriver::RawDataReader &self){return self.pop<uint64_t>();})
+        .def("pop_double", [](XPrimaryDriver::RawDataReader &self){return self.pop<double>();});
+
+
     XPython::bind.export_xnode<XSecondaryDriver, XDriver>("XSecondaryDriver");
 //    XPython::bind.export_xnode<XPythonDriver<XSecondaryDriver>, XSecondaryDriver>();
     {   auto [node, payload] = XPython::bind.export_xpythondriver
         <XPythonSecondaryDriver, XSecondaryDriver, XPythonSecondaryDriverHelper>("XPythonSecondaryDriver");
         (*node)
             .def("visualize", &XPythonSecondaryDriver::visualize)
-            .def("analyze", &XPythonSecondaryDriver::analyze)
+//            .def("analyze", &XPythonSecondaryDriver::analyze)
             .def("checkDependency", &XPythonSecondaryDriver::checkDependency)
             .def("requestAnalysis", [](shared_ptr<XPythonSecondaryDriver> &self){
                 self->requestAnalysis();})
@@ -485,6 +513,13 @@ KAMEPyBind::export_embedded_module_basic_drivers(pybind11::module_& m) {
         (*payload);
     }
 
+    //Exceptions
+    py::register_exception<XDriver::XRecordError>(m, "KAMERecordError", PyExc_RuntimeError);
+    py::register_exception<XDriver::XSkippedRecordError>(m, "KAMESkippedRecordError", PyExc_RuntimeError);
+    py::register_exception<XDriver::XBufferUnderflowRecordError>(m, "KAMEBufferUnderflowRecordError", PyExc_RuntimeError);
+}
+void
+KAMEPyBind::export_embedded_module_interface(pybind11::module_& m) {
     {   auto [node, payload] = XPython::bind.export_xnode<XInterface, XNode>();
         (*node)
             .def("__enter__", [](shared_ptr<XInterface> &self){
@@ -493,14 +528,6 @@ KAMEPyBind::export_embedded_module_basic_drivers(pybind11::module_& m) {
             .def("__exit__", [](shared_ptr<XInterface> &self, pybind11::args){self->unlock();});
     }
 
-
-    //Exceptions
-    py::register_exception<XDriver::XRecordError>(m, "KAMERecordError", PyExc_RuntimeError);
-    py::register_exception<XDriver::XSkippedRecordError>(m, "KAMESkippedRecordError", PyExc_RuntimeError);
-    py::register_exception<XDriver::XBufferUnderflowRecordError>(m, "KAMEBufferUnderflowRecordError", PyExc_RuntimeError);
-}
-void
-KAMEPyBind::export_embedded_module_interface(pybind11::module_& m) {
     py::register_exception<XInterface::XInterfaceError>(m, "KAMEInterfaceError", PyExc_RuntimeError);
     py::register_exception<XInterface::XConvError>(m, "KAMEInterfaceConvError", PyExc_RuntimeError);
     py::register_exception<XInterface::XCommError>(m, "KAMEInterfaceCommError", PyExc_RuntimeError);

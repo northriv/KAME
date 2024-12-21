@@ -25,6 +25,8 @@ public:
     XCharDeviceDriver(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas, Args&&... args);
     virtual ~XCharDeviceDriver() = default;
+
+    struct DECLSPEC_KAME Payload : public tDriver::Payload {};
 protected:
 	const shared_ptr<tInterface> &interface() const {return m_interface;}
 	//! Be called just after opening interface. Call start() inside this routine appropriately.

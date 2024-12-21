@@ -16,6 +16,23 @@
 
 #ifdef USE_PYBIND11
 
+#include "primarydriverwiththread.h"
+#include "charinterface.h"
+#include "chardevicedriver.h"
+PyDriverExporter<XCharDeviceDriver<XPrimaryDriverWithThread>, XPrimaryDriverWithThread>
+    chardriver([](auto node, auto payload){
+});
+PyDriverExporter<XPythonDriver<XCharDeviceDriver<XPrimaryDriverWithThread>>, XCharDeviceDriver<XPrimaryDriverWithThread>>
+    pychardriverbase([](auto node, auto payload){
+});
+PyDriverExporterWithTrampoline<XPythonCharDeviceDriverWithThread<>,
+    XPythonDriver<XCharDeviceDriver<XPrimaryDriverWithThread>>,
+    XPythonCharDeviceDriverWithThreadHelper<>>
+    pychardriver("XPythonCharDeviceDriverWithThread", [](auto node, auto payload){
+    node
+    .def("finishWritingRaw", &XPythonCharDeviceDriverWithThread<>::finishWritingRaw);
+});
+
 #include "dmm.h"
 PyDriverExporter<XDMM, XPrimaryDriver> dmm([](auto node, auto payload){
     payload.def("value", [](shared_ptr<XDMM::Payload> &self, unsigned int i){return self->value(i);});
@@ -30,5 +47,16 @@ PyDriverExporter<XDCSource, XPrimaryDriver> dcsource([](auto node, auto payload)
         .def("queryStatus", &XDCSource::queryStatus)
         .def("max", &XDCSource::max);
 });
+
+#include "motor.h"
+PyDriverExporter<XMotorDriver, XPrimaryDriver> motordriver([](auto node, auto payload){
+    node.def("runSequentially", &XMotorDriver::runSequentially);
+});
+
+#include "signalgenerator.h"
+PyDriverExporter<XSG, XPrimaryDriver> sg([](auto node, auto payload){
+    payload.def("freq", &XSG::Payload::freq);
+});
+
 
 #endif //USE_PYBIND11

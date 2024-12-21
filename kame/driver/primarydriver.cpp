@@ -30,7 +30,7 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 			try {
 				RawDataReader reader( *rawdata);
 				tr[ *this].m_rawData = rawdata;
-				analyzeRaw(reader, tr);
+                analyzeRaw(reader, tr);
 			}
 			catch (XSkippedRecordError& e) {
 				skipped = true;
