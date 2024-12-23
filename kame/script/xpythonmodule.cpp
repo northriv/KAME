@@ -51,23 +51,6 @@
 #include <QListWidget>
 #include <QLCDNumber>
 
-/*TODO
-with interfacelock (	 py::gil_scoped_release pyguard and spin)
-send (	 py::gil_scoped_release pyguard)
-receive(	 py::gil_scoped_release pyguard
-query(	 py::gil_scoped_release pyguard
-
-
-XWaven
-Payload->prop by macro?
-push
-pop
-finishWriting ((	 py::gil_scoped_release pyguard??recursive?)
-execute
-     py::gil_scoped_aquire pyguard
-    or PYBIND11_OVERRIDE_PURE?
-
- */
 PYBIND11_DECLARE_HOLDER_TYPE(T, local_shared_ptr<T>, true)
 
 namespace py = pybind11;
@@ -96,59 +79,73 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
         return (it->second.second)(y);
     }
     //manages to use its downmost base class.
-    std::map<size_t, py::object> cand;
+    std::map<size_t, decltype(m_payloadDownCasters.begin()->second.second)> cand;
     for(auto &c: m_payloadDownCasters) {
         auto x = (c.second.second)(y);
         if(x.cast<XNode::Payload*>())
-            cand.insert(std::make_pair(c.second.first, x));
+            cand.insert(std::make_pair(c.second.first, c.second.second));
     }
-    if(cand.size())
-        return cand.rbegin()->second; //the oldest choice.
+    if(cand.size()) {
+        //caches the best result.
+        m_payloadDownCasters.insert(std::make_pair(typeid(y).hash_code(),
+            std::make_pair(m_payloadDownCasters.size(), cand.rbegin()->second)
+        ));
+        return cand.rbegin()->second(y); //the oldest choice.
+    }
     return py::cast(y); //end up with XNode::Payload*
 }
 py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
+    if( !y) return py::none();
     auto it = m_xnodeDownCasters.find(typeid(y).hash_code());
     if(it != m_xnodeDownCasters.end()) {
         return (it->second.second)(y);
     }
-    //manages to use its super class.
-    if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
-        if(auto x = dynamic_pointer_cast<XIntNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XUIntNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XLongNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XULongNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XHexNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XBoolNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XStringNode>(y))
-            return py::cast(x);
-        if(auto x = dynamic_pointer_cast<XItemNodeBase>(y)) {
-            if(auto z = dynamic_pointer_cast<XComboNode>(x))
-                return py::cast(z);
-            return py::cast(x);
-        }
-        return py::cast(x);
-    }
-    if(auto x = dynamic_pointer_cast<XListNodeBase>(y))
-        return py::cast(x);
-    if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
-        return py::cast(x);
+//    //manages to use its super class.
+//    if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
+//        if(auto x = dynamic_pointer_cast<XIntNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XUIntNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XLongNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XULongNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XHexNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XBoolNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XStringNode>(y))
+//            return py::cast(x);
+//        if(auto x = dynamic_pointer_cast<XItemNodeBase>(y)) {
+//            if(auto z = dynamic_pointer_cast<XComboNode>(x))
+//                return py::cast(z);
+//            return py::cast(x);
+//        }
+//        return py::cast(x);
+//    }
+//    if(auto x = dynamic_pointer_cast<XListNodeBase>(y))
+//        return py::cast(x);
+//    if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
+//        return py::cast(x);
+
     //manages to use its downmost base class.
-    std::map<size_t, py::object> cand;
+    std::map<size_t, decltype(m_xnodeDownCasters.begin()->second.second)> cand;
     for(auto &c: m_xnodeDownCasters) {
         auto x = (c.second.second)(y);
         if(x.cast<shared_ptr<XNode>>())
-            cand.insert(std::make_pair(c.second.first, x));
+            cand.insert(std::make_pair(c.second.first, c.second.second));
     }
-    if(cand.size())
-        return cand.rbegin()->second; //the oldest choice.
+    if(cand.size()) {
+//TODO NoneType thrown in support code.
+//        //caches the best result.
+//        m_xnodeDownCasters.insert(std::make_pair(typeid(y).hash_code(),
+//            std::make_pair(m_xnodeDownCasters.size() + 10000u, cand.rbegin()->second)
+//        ));
+        return cand.rbegin()->second(y); //the oldest choice.
+    }
+
     //end up with XNode.
     return py::cast(y);
 };
@@ -303,20 +300,11 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
                 throw std::runtime_error("Error: not a value node.");
         });
 
-    {   auto [node, payload] = XPython::bind.export_xnode<XListNodeBase, XNode>();
-        (*node)
-        .def("createByTypename", &XListNodeBase::createByTypename);}
-    {   auto [node, payload] = XPython::bind.export_xnode<XTouchableNode, XNode>();
-        (*node)
-        .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});}
+    //XValueNodeBase and cousins.
     {   auto [node, payload] = XPython::bind.export_xnode<XValueNodeBase, XNode>();
         (*node)
         .def("__str__", [](shared_ptr<XValueNodeBase> &self)->std::string{return Snapshot( *self)[*self].to_str();})
         .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);});}
-    {   auto [node, payload] = XPython::bind.export_xnode<XItemNodeBase, XValueNodeBase>();
-        (*node)
-        .def("itemStrings", &XItemNodeBase::itemStrings)
-        .def("autoSetAny", &XItemNodeBase::autoSetAny);}
     XPython::bind.export_xvaluenode<XIntNode, int, XValueNodeBase>("XIntNode");
     XPython::bind.export_xvaluenode<XUIntNode, unsigned int, XValueNodeBase>("XUIntNode");
     XPython::bind.export_xvaluenode<XLongNode, long, XValueNodeBase>("XLongNode");
@@ -325,6 +313,10 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     XPython::bind.export_xvaluenode<XBoolNode, bool, XValueNodeBase>("XBoolNode");
     XPython::bind.export_xvaluenode<XDoubleNode, double, XValueNodeBase>("XDoubleNode");
     XPython::bind.export_xvaluenode<XStringNode, std::string, XValueNodeBase>("XStringNode");
+    {   auto [node, payload] = XPython::bind.export_xnode<XItemNodeBase, XValueNodeBase>();
+        (*node)
+        .def("itemStrings", &XItemNodeBase::itemStrings)
+        .def("autoSetAny", &XItemNodeBase::autoSetAny);}
     {   auto [node, payload] = XPython::bind.export_xnode<XComboNode, XItemNodeBase, bool>("XComboNode");
         (*node)
         .def("add", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self).add(s);})
@@ -336,6 +328,14 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         })
         .def("set", [](shared_ptr<XComboNode> &self, const std::string &s){trans(*self) = s;})
         .def("set", [](shared_ptr<XComboNode> &self, int x){trans(*self) = x;});}
+
+    {   auto [node, payload] = XPython::bind.export_xnode<XListNodeBase, XNode>();
+        (*node)
+        .def("createByTypename", &XListNodeBase::createByTypename);}
+    {   auto [node, payload] = XPython::bind.export_xnode<XTouchableNode, XNode>();
+        (*node)
+        .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});}
+
     bound_xnode.def("__getitem__", [](shared_ptr<XNode> &self, unsigned int pos)->py::object {
             Snapshot shot( *self);
             if( !shot.size())
@@ -520,12 +520,19 @@ KAMEPyBind::export_embedded_module_basic_drivers(pybind11::module_& m) {
 }
 void
 KAMEPyBind::export_embedded_module_interface(pybind11::module_& m) {
+    /*TODO
+    with interfacelock (	 py::gil_scoped_release pyguard and spin)
+    send (	 py::gil_scoped_release pyguard)
+    receive(	 py::gil_scoped_release pyguard
+    query(	 py::gil_scoped_release pyguard
+     */
     {   auto [node, payload] = XPython::bind.export_xnode<XInterface, XNode>();
         (*node)
             .def("__enter__", [](shared_ptr<XInterface> &self){
-                py::gil_scoped_release pyguard;
+                py::gil_scoped_release unguard;
                 self->lock();})
-            .def("__exit__", [](shared_ptr<XInterface> &self, pybind11::args){self->unlock();});
+            .def("__exit__", [](shared_ptr<XInterface> &self, pybind11::args){
+                self->unlock();});
     }
 
     py::register_exception<XInterface::XInterfaceError>(m, "KAMEInterfaceError", PyExc_RuntimeError);

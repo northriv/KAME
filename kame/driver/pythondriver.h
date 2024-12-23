@@ -27,9 +27,20 @@
 template <class T>
 class DECLSPEC_KAME XPythonDriver : public T {
 public:
-    using T::T; //inherits constructors.
+    template <typename... Args>
+    XPythonDriver(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, Args&&... args)
+        : T(name, runtime, ref(tr_meas), meas, std::forward<Args>(args)...) {
 
-    virtual ~XPythonDriver() = default;
+        m_lsnOnRelease = tr_meas[ *meas->drivers()].onRelease().connectWeakly(
+            this->shared_from_this(), &XPythonDriver::onRelease);
+    }
+
+    virtual ~XPythonDriver() {
+        //TODO -> onReleaseDriver
+        pybind11::gil_scoped_acquire guard;
+        m_self_creating = pybind11::none(); //clears an extra reference counting.
+    }
 
     virtual XString getTypename() const override { return m_creation_key;}
 
@@ -64,7 +75,7 @@ public:
             auto driver = dynamic_pointer_cast<XPythonDriver<T>>(obj.cast<shared_ptr<XNode>>());
             if( !driver)
                 throw std::runtime_error("Driver creation failed.");
-            driver->m_self = obj; //for persistence of python-side class.
+            driver->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
             driver->m_creation_key = key;
             return driver;
         }, label);
@@ -72,6 +83,7 @@ public:
 
     struct DECLSPEC_KAME Payload : public T::Payload {
         virtual ~Payload() {
+            if( !dict) return;
             pybind11::gil_scoped_acquire guard;
             dict.reset();
         }
@@ -83,13 +95,22 @@ public:
                 dict = std::make_shared<pybind11::object>(dict->attr("copy")());
             return *dict;
         }
-        shared_ptr<pybind11::object> dict;
+        shared_ptr<pybind11::object> dict; //GIL is mandatory.
     };
 
 protected:
+    pybind11::object m_self_creating; //to increase reference counter.
+
     qshared_ptr<QWidget> m_form;
     XString m_creation_key;
-    pybind11::object m_self; //to increase reference counter.
+private:
+    void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+        if(e.released != this->shared_from_this())
+            return;
+        pybind11::gil_scoped_acquire guard;
+        m_self_creating = pybind11::none(); //clears an extra reference counting.
+    }
+    shared_ptr<Listener> m_lsnOnRelease;
 };
 
 class XCharInterface;
@@ -161,21 +182,13 @@ struct XPythonCharDeviceDriverWithThreadHelper : public XPythonCharDeviceDriverW
     //! This might be called even if the record is invalid (time() == false).
     virtual void visualize(const Snapshot &shot) override {
         PYBIND11_OVERRIDE_PURE(
-            void, /* Return type */
-            tBaseDriver,      /* Parent class */
-            visualize,          /* Name of function in C++ (must match Python name) */
-            shot      /* Argument(s) */
-        );
+            void, tBaseDriver, visualize, shot);
     }
 
     virtual void executeInPython(const std::function<bool()> &is_terminated) override {
         //include pybind11/functional.h.
-        PYBIND11_OVERRIDE_PURE(
-            void, /* Return type */
-            tBaseDriver,      /* Parent class */
-            executeInPython,          /* Name of function in C++ (must match Python name) */
-            is_terminated      /* Argument(s) */
-        );
+        PYBIND11_OVERRIDE_PURE_NAME(
+            void, tBaseDriver, "execute", executeInPython, is_terminated);
     }
 
     struct Payload : public tBaseDriver::Payload {};
@@ -231,21 +244,13 @@ struct XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
     //! This might be called even if the record is invalid (time() == false).
     virtual void visualize(const Snapshot &shot) override {
         PYBIND11_OVERRIDE_PURE(
-            void, /* Return type */
-            XPythonSecondaryDriver,      /* Parent class */
-            visualize,          /* Name of function in C++ (must match Python name) */
-            shot      /* Argument(s) */
-        );
+            void, XPythonSecondaryDriver, visualize, shot);
     }
     //! This function is called when a connected driver emit a signal
     virtual void analyze(std::reference_wrapper<Transaction> tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
         XDriver *emitter) override {
         PYBIND11_OVERRIDE_PURE(
-            void, /* Return type */
-            XPythonSecondaryDriver,      /* Parent class */
-            analyze,          /* Name of function in C++ (must match Python name) */
-            tr, shot_emitter, shot_others, emitter      /* Argument(s) */
-        );
+            void, XPythonSecondaryDriver, analyze, tr, shot_emitter, shot_others, emitter);
     }
 
 
