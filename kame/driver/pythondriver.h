@@ -31,16 +31,11 @@ public:
     XPythonDriver(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas, Args&&... args)
         : T(name, runtime, ref(tr_meas), meas, std::forward<Args>(args)...) {
-
         m_lsnOnRelease = tr_meas[ *meas->drivers()].onRelease().connectWeakly(
             this->shared_from_this(), &XPythonDriver::onRelease);
     }
 
-    virtual ~XPythonDriver() {
-        //TODO -> onReleaseDriver
-        pybind11::gil_scoped_acquire guard;
-        m_self_creating = pybind11::none(); //clears an extra reference counting.
-    }
+    virtual ~XPythonDriver() = default;
 
     virtual XString getTypename() const override { return m_creation_key;}
 
@@ -107,8 +102,10 @@ private:
     void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
         if(e.released != this->shared_from_this())
             return;
+        //clears an extra reference counting.
         pybind11::gil_scoped_acquire guard;
-        m_self_creating = pybind11::none(); //clears an extra reference counting.
+        m_self_creating = pybind11::none();
+        //now python will free this.
     }
     shared_ptr<Listener> m_lsnOnRelease;
 };
@@ -419,8 +416,39 @@ KAMEPyBind::export_xdriver(const char *name_) {
     return {std::move(pynode), std::move(pypayload)};
 }
 
+//! Helper struct to declare xnode-based classes to python side.
+//! Classes (NAME), (NAME)_Payload will be defined.
+template <class N, class Base>
+struct PyXNodeExporter {
+    PyXNodeExporter(const char *name = nullptr) {
+        pybind11::gil_scoped_acquire guard;
+        pycls = XPython::bind.export_xnode<N, Base>(name);
+    }
+
+    //! to additionally define methods.
+    template <class Fn>
+    PyXNodeExporter(Fn fn)
+        : PyXNodeExporter() {
+        pybind11::gil_scoped_acquire guard;
+        if constexpr( !std::is_base_of<typename N::Payload, typename Base::Payload>::value)
+            fn( *std::get<0>(pycls), *std::get<1>(pycls));
+        else
+            fn( *pycls);
+    }
+    //! to additionally define methods and with preferred typename.
+    template <class Fn>
+    PyXNodeExporter(const char *name, Fn fn)
+        : PyXNodeExporter(name) {
+        pybind11::gil_scoped_acquire guard;
+        if constexpr( !std::is_base_of<typename N::Payload, typename Base::Payload>::value)
+            fn( *std::get<0>(pycls), *std::get<1>(pycls));
+        else
+            fn( *pycls);
+    }
+    KAMEPyBind::classtype_xnode<N, Base> pycls;
+};
+
 //! Helper struct to declare abstract driver classes to python side.
-//! Puts this struct inside module.
 //! Classes (NAME), (NAME)_Payload, (NAME)ItemNode will be defined.
 template <class D, class Base>
 struct PyDriverExporter {
@@ -429,15 +457,15 @@ struct PyDriverExporter {
         pycls = XPython::bind.export_xdriver<D, Base>(name);
     }
     //! to additionally define methods.
-    PyDriverExporter(std::function<void(pybind11::class_<D, Base, shared_ptr<D>>&,
-        pybind11::class_<typename D::Payload, typename Base::Payload>&)> fn)
+    template <class Fn>
+    PyDriverExporter(Fn fn)
         : PyDriverExporter() {
         pybind11::gil_scoped_acquire guard;
         fn( *std::get<0>(pycls), *std::get<1>(pycls));
     }
     //! to additionally define methods and with preferred typename.
-    PyDriverExporter(const char *name, std::function<void(pybind11::class_<D, Base, shared_ptr<D>> &,
-        pybind11::class_<typename D::Payload, typename Base::Payload>&)> fn)
+    template <class Fn>
+    PyDriverExporter(const char *name, Fn fn)
         : PyDriverExporter(name) {
         pybind11::gil_scoped_acquire guard;
         fn( *std::get<0>(pycls), *std::get<1>(pycls));
@@ -452,15 +480,15 @@ struct PyDriverExporterWithTrampoline {
         pycls = XPython::bind.export_xpythondriver<D, Base, Trampoline>(name);
     }
     //! to additionally define methods.
-    PyDriverExporterWithTrampoline(std::function<void(pybind11::class_<D, Base, Trampoline, shared_ptr<D>>&,
-        pybind11::class_<typename D::Payload, typename Base::Payload, typename Trampoline::Payload>&)> fn)
+    template <class Fn>
+    PyDriverExporterWithTrampoline(Fn fn)
         : PyDriverExporterWithTrampoline() {
         pybind11::gil_scoped_acquire guard;
         fn( *std::get<0>(pycls), *std::get<1>(pycls));
     }
     //! to additionally define methods and with preferred typename.
-    PyDriverExporterWithTrampoline(const char *name, std::function<void(pybind11::class_<D, Base, Trampoline, shared_ptr<D>>&,
-        pybind11::class_<typename D::Payload, typename Base::Payload, typename Trampoline::Payload>&)> fn)
+    template <class Fn>
+    PyDriverExporterWithTrampoline(const char *name, Fn fn)
         : PyDriverExporterWithTrampoline(name) {
         pybind11::gil_scoped_acquire guard;
         fn( *std::get<0>(pycls), *std::get<1>(pycls));

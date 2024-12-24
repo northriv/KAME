@@ -36,6 +36,7 @@
 #include "graph.h"
 #include "xwavengraph.h"
 #include "ui_graphnurlform.h"
+#include "graphmathtool.h"
 #include <QWidget>
 #include <QAbstractButton>
 #include <QLineEdit>
@@ -438,9 +439,91 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         .def("rowCount", &XWaveNGraph::Payload::rowCount)
         .def("numPlots", &XWaveNGraph::Payload::numPlots)
         .def("setLabel", &XWaveNGraph::Payload::setLabel)
+        .def("labels", [](XWaveNGraph::Payload &self){
+            std::vector<std::string> list;
+            for(auto &x: self.labels())
+                list.push_back(x);
+            return list;
+        })
         .def("setColumn", [](XWaveNGraph::Payload &self, unsigned int n, std::vector<double> &&data, unsigned int prec){
             self.setColumn(n, std::move(data), prec);
         });
+    }
+
+    XPython::bind.export_xnode<XGraphMathTool, XNode>();
+    XPython::bind.export_xnode<XGraph1DMathTool, XGraphMathTool>();
+    XPython::bind.export_xnode<XGraph2DMathTool, XGraphMathTool>();
+    struct PyFunc1DMathTool {
+        ~PyFunc1DMathTool() {
+            if( !pyfunc) return;
+            pybind11::gil_scoped_acquire guard;
+            pyfunc.reset();
+        }
+        using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
+        double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
+            std::vector<XGraph::VFloat> xvec, yvec;
+            xvec.insert(xvec.begin(), xbegin, xend);
+            yvec.insert(yvec.begin(), ybegin, yend);
+            pybind11::gil_scoped_acquire guard;
+            auto pf = pyfunc;
+            if( !pf)
+                return 0.0;
+            try {
+                return py::cast<double>((*pf)(xvec, yvec));
+            }
+            catch (pybind11::error_already_set& e) {
+                gErrPrint(i18n("Python error: ") + e.what());
+            }
+            catch (std::runtime_error &e) {
+                gErrPrint(i18n("Python KAME binding error: ") + e.what());
+            }
+            catch (...) {
+                gErrPrint(i18n("Unknown python error."));
+            }
+            return 0.0;
+        }
+        std::shared_ptr<py::object> pyfunc;
+    };
+    class XPythonGraph1DMathTool : public XGraph1DMathToolX<PyFunc1DMathTool> {
+    public:
+        using XGraph1DMathToolX<PyFunc1DMathTool>::XGraph1DMathToolX;
+        virtual XString getTypename() const override { return m_creation_key;}
+
+        //! registers run-time driver class defined in python, into XGraph1DMathToolList.
+        //! \sa XListNodeBase::createByTypename(), XNode::getTypename(), XTypeHolder<>.
+        static void exportClass(const std::string &key, pybind11::object cls, const std::string &label) {
+            XGraph1DMathToolList::s_types.eraseCreator(key); //erase previous info.
+            XGraph1DMathToolList::s_types.insertCreator(key, [key, cls](const char *name, bool runtime,
+                std::reference_wrapper<Transaction> tr,
+                const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+                const shared_ptr<XPlot> &plot, const char*entryname)->shared_ptr<XNode> {
+                pybind11::gil_scoped_acquire guard;
+                pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, entryname); //createOrphan in python side.
+                auto pytool = dynamic_pointer_cast<XPythonGraph1DMathTool>
+                    (obj.cast<shared_ptr<XNode>>());
+                if( !driver)
+                    throw std::runtime_error("Tool creation failed.");
+                pytool->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
+                pytool->m_creation_key = key;
+                return pytool;
+            }, label);
+        }
+    private:
+        pybind11::object m_self_creating; //to increase reference counter.
+        XString m_creation_key;
+    };
+    {   auto [node, payload] = XPython::bind.export_xnode<XPythonGraph1DMathTool, XGraph1DMathTool,
+                Transaction&, const shared_ptr<XScalarEntryList> &,
+                const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*>();
+        (*node)
+            .def_static("exportClass", &XPythonGraph1DMathTool::exportClass)
+            .def("setFunctor", [](shared_ptr<XPythonGraph1DMathTool> &self, py::object f){
+                trans( *self).functor.pyfunc = std::make_shared<py::object>(f);
+            });
+        (*payload)
+            .def("setFunctor", [](XPythonGraph1DMathTool::Payload &self, py::object f){
+                self.functor.pyfunc = std::make_shared<py::object>(f);
+            });
     }
 }
 
@@ -465,6 +548,7 @@ KAMEPyBind::export_embedded_module_basic_drivers(pybind11::module_& m) {
         (*payload)
             .def("isTriggered", &XScalarEntry::Payload::isTriggered);
     }
+    XPython::bind.export_xnode<XScalarEntryList, XListNodeBase>("XScalarEntryList"); //needed to be used as an argument.
     XPython::bind.export_xnode<XDriverList, XListNodeBase>("XDriverList"); //needed to be used as an argument.
     XPython::bind.export_xnode<XPointerItemNode<XDriverList>, XItemNodeBase>("XDriverPointerItemNode");
     //for Driver selection
@@ -520,19 +604,14 @@ KAMEPyBind::export_embedded_module_basic_drivers(pybind11::module_& m) {
 }
 void
 KAMEPyBind::export_embedded_module_interface(pybind11::module_& m) {
-    /*TODO
-    with interfacelock (	 py::gil_scoped_release pyguard and spin)
-    send (	 py::gil_scoped_release pyguard)
-    receive(	 py::gil_scoped_release pyguard
-    query(	 py::gil_scoped_release pyguard
-     */
     {   auto [node, payload] = XPython::bind.export_xnode<XInterface, XNode>();
         (*node)
             .def("__enter__", [](shared_ptr<XInterface> &self){
                 py::gil_scoped_release unguard;
                 self->lock();})
             .def("__exit__", [](shared_ptr<XInterface> &self, pybind11::args){
-                self->unlock();});
+                self->unlock();})
+            .def("isOpened", &XInterface::isOpened);
     }
 
     py::register_exception<XInterface::XInterfaceError>(m, "KAMEInterfaceError", PyExc_RuntimeError);

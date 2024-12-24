@@ -2,12 +2,14 @@ PRI_DIR = ../
 include($${PRI_DIR}/modules.pri)
 
 INCLUDEPATH += \
+    $${_PRO_FILE_PWD_}/../../kame/graph\
     $${_PRO_FILE_PWD_}/../../kame/script\
 
 HEADERS += \
 
 SOURCES += \
-    basicdrivers.cpp
+    basicdrivers.cpp \
+    pybindnmr.cpp
 
 FORMS += \
     fourresform.ui
@@ -23,8 +25,8 @@ DEPENDPATH += $$PWD/../charinterface
 
 win32:LIBS +=  -lnmrpulsercore
 
-INCLUDEPATH += $$PWD/pulsercore
-DEPENDPATH += $$PWD/pulsercore
+INCLUDEPATH += $$PWD/../nmr/pulsercore
+DEPENDPATH += $$PWD/../nmr/pulsercore
 
 win32:LIBS += -lsgcore
 
@@ -66,10 +68,15 @@ win32:LIBS += -ldcsourcecore
 INCLUDEPATH += $$PWD/../dcsource/core
 DEPENDPATH += $$PWD/../dcsource/core
 
+win32:LIBS += -lnmr
+
+INCLUDEPATH += $$PWD/../nmr
+DEPENDPATH += $$PWD/../nmr
+
 win32:LIBS += -lopticscore
 
-INCLUDEPATH += $$PWD/core
-DEPENDPATH += $$PWD/core
+INCLUDEPATH += $$PWD/../optics/core
+DEPENDPATH += $$PWD/../optics/core
 
 win32:LIBS += -lliacore
 

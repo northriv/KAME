@@ -19,12 +19,62 @@
 #include "primarydriverwiththread.h"
 #include "charinterface.h"
 #include "chardevicedriver.h"
+
+PyXNodeExporter<XCustomCharInterface, XInterface>
+    customcharinterface([](auto node){
+    node
+    .def("query", [](shared_ptr<XCustomCharInterface> &self, const char *str){
+        pybind11::gil_scoped_release unguard;
+        self->query(str);
+    })
+    .def("send", [](shared_ptr<XCustomCharInterface> &self, const char *str){
+        pybind11::gil_scoped_release unguard;
+        self->send(str);
+    })
+    .def("receive", [](shared_ptr<XCustomCharInterface> &self){
+        pybind11::gil_scoped_release unguard;
+        self->receive();
+    })
+    .def("buffer", &XCustomCharInterface::buffer)
+    .def("toDouble", &XCustomCharInterface::toDouble)
+    .def("toInt", &XCustomCharInterface::toInt)
+    .def("toUInt", &XCustomCharInterface::toUInt)
+    .def("toStr", &XCustomCharInterface::toStr)
+    .def("toStrSimplified", &XCustomCharInterface::toStrSimplified)
+    .def("eos", &XCustomCharInterface::eos)
+    .def("setEOS", &XCustomCharInterface::setEOS);
+});
+PyXNodeExporter<XCharInterface, XCustomCharInterface>
+    charinterface([](auto node){
+    node
+    .def("write", [](shared_ptr<XCharInterface> &self, const char *sendbuf, int size){
+        pybind11::gil_scoped_release unguard;
+        self->write(sendbuf, size);
+    })
+    .def("receive", [](shared_ptr<XCharInterface> &self, unsigned int length){
+        pybind11::gil_scoped_release unguard;
+        self->receive(length);
+    })
+    .def("setGPIBUseSerialPollOnWrite", &XCharInterface::setGPIBUseSerialPollOnWrite)
+    .def("setGPIBUseSerialPollOnRead", &XCharInterface::setGPIBUseSerialPollOnRead)
+    .def("setGPIBWaitBeforeWrite", &XCharInterface::setGPIBWaitBeforeWrite)
+    .def("setGPIBWaitBeforeRead", &XCharInterface::setGPIBWaitBeforeRead)
+    .def("setGPIBWaitBeforeSPoll", &XCharInterface::setGPIBWaitBeforeSPoll)
+    .def("setGPIBMAVbit", &XCharInterface::setGPIBMAVbit)
+    .def("setSerialBaudRate", &XCharInterface::setSerialBaudRate)
+    .def("setSerialStopBits", &XCharInterface::setSerialStopBits)
+    .def("setSerialParity", &XCharInterface::setSerialParity)
+    .def("setSerial7Bits", &XCharInterface::setSerial7Bits)
+    .def("setSerialFlushBeforeWrite", &XCharInterface::setSerialFlushBeforeWrite)
+    .def("setSerialEOS", &XCharInterface::setSerialEOS)
+    .def("setSerialHasEchoBack", &XCharInterface::setSerialHasEchoBack);
+});
+
+
 PyDriverExporter<XCharDeviceDriver<XPrimaryDriverWithThread>, XPrimaryDriverWithThread>
-    chardriver([](auto node, auto payload){
-});
+    chardriver;
 PyDriverExporter<XPythonDriver<XCharDeviceDriver<XPrimaryDriverWithThread>>, XCharDeviceDriver<XPrimaryDriverWithThread>>
-    pychardriverbase([](auto node, auto payload){
-});
+    pychardriverbase;
 PyDriverExporterWithTrampoline<XPythonCharDeviceDriverWithThread<>,
     XPythonDriver<XCharDeviceDriver<XPrimaryDriverWithThread>>,
     XPythonCharDeviceDriverWithThreadHelper<>>
@@ -83,6 +133,7 @@ PyDriverExporter<XCharDeviceDriver<XDMM>, XDMM> chardmm([](auto node, auto paylo
 PyDriverExporter<XPythonDriver<XCharDeviceDriver<XDMM>>, XCharDeviceDriver<XDMM>> pydmmbase([](auto node, auto payload){
 });
 PyDriverExporterWithTrampoline<XPythonDMM, XDMM, XPythonDMMHelper> pydmm("XPythonDMM", [](auto node, auto payload){
+    //TODO         pybind11::gil_scoped_release unguard;
     node
         .def("oneShotRead", &XPythonDMM::oneShotRead)
         .def("oneShotMultiRead", &XPythonDMM::oneShotMultiRead)
@@ -91,6 +142,7 @@ PyDriverExporterWithTrampoline<XPythonDMM, XDMM, XPythonDMMHelper> pydmm("XPytho
 
 #include "dcsource.h"
 PyDriverExporter<XDCSource, XPrimaryDriver> dcsource([](auto node, auto payload){
+    //TODO         pybind11::gil_scoped_release unguard;
     node.def("changeFunction", &XDCSource::changeFunction)
         .def("changeOutput", &XDCSource::changeOutput)
         .def("changeValue", &XDCSource::changeValue)
@@ -101,6 +153,7 @@ PyDriverExporter<XDCSource, XPrimaryDriver> dcsource([](auto node, auto payload)
 
 #include "motor.h"
 PyDriverExporter<XMotorDriver, XPrimaryDriver> motordriver([](auto node, auto payload){
+    //TODO         pybind11::gil_scoped_release unguard;
     node.def("runSequentially", &XMotorDriver::runSequentially);
 });
 

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,6 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
+#ifdef USE_PYBIND11
+    #include <pybind11/pybind11.h>
+#endif
 
 #include "graphlistconnector.h"
 
@@ -78,7 +81,20 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
 void
 XGraphListConnector::onNewGraph (const Snapshot &shot, XTouchableNode *) {
 	static int graphidx = 1;
-    m_graphlist->createByTypename("", formatString("Graph-%d", graphidx++));
+    try {
+        m_graphlist->createByTypename("", formatString("Graph-%d", graphidx++));
+    }
+#ifdef USE_PYBIND11
+    catch (pybind11::error_already_set& e) {
+        gErrPrint(std::string("Python error: ") + e.what());
+    }
+#endif
+    catch (std::runtime_error &e) {
+        gErrPrint(std::string("Python KAME binding error: ") + e.what());
+    }
+    catch (...) {
+        gErrPrint(std::string("Unknown python error."));
+    }
 }
 void
 XGraphListConnector::onDeleteGraph (const Snapshot &shot, XTouchableNode *) {

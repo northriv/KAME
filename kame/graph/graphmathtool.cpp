@@ -11,6 +11,10 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
+#ifdef USE_PYBIND11
+    #include <pybind11/pybind11.h>
+#endif
+
 #include "graphmathtool.h"
 #include "graphmathfittool.h"
 #include "measure.h"
@@ -332,7 +336,22 @@ XGraph1DMathToolList::onAxisSelectedByToolForCreate(const Snapshot &shot,
         idx++;
     }
     Snapshot shot_this( *this);
-    auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
+    shared_ptr<XNode> node;
+    try {
+        node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
+    }
+#ifdef USE_PYBIND11
+    catch (pybind11::error_already_set& e) {
+        gErrPrint(std::string("Python error: ") + e.what());
+    }
+#endif
+    catch (std::runtime_error &e) {
+        gErrPrint(std::string("Python KAME binding error: ") + e.what());
+    }
+    catch (...) {
+        gErrPrint(std::string("Unknown python error."));
+    }
+    if( !node) return;
     auto tool = static_pointer_cast<XGraph1DMathTool>(node);
     Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
         if(src > dst)
@@ -359,7 +378,22 @@ XGraph2DMathToolList::onPlaneSelectedByToolForCreate(const Snapshot &shot,
         idx++;
     }
     Snapshot shot_this( *this);
-    auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
+    shared_ptr<XNode> node;
+    try {
+        node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
+    }
+#ifdef USE_PYBIND11
+    catch (pybind11::error_already_set& e) {
+        gErrPrint(std::string("Python error: ") + e.what());
+    }
+#endif
+    catch (std::runtime_error &e) {
+        gErrPrint(std::string("Python KAME binding error: ") + e.what());
+    }
+    catch (...) {
+        gErrPrint(std::string("Unknown python error."));
+    }
+    if( !node) return;
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
     Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
         if(src.x > dst.x)

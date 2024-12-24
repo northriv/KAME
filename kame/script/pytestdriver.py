@@ -184,3 +184,12 @@ class TestRandom(XPythonCharDeviceDriverWithThread):
 
 #Declares that python-side driver to C++ driver list.
 XPythonCharDeviceDriverWithThread.exportClass("TestRandom", TestRandom, "Test python-based driver: Random Number Generation")
+
+#Third example, 1DMathTool
+class Test1DMathTool(XPythonGraph1DMathTool):
+    def __init__(self, name, runtime, tr, entries, driver, plot, entryname):
+        XPythonGraph1DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, entryname) #pybind11 requires this line, otherwise TypeError throws.
+        self.setFunctor(lambda x, y: np.sum(np.array(y)))
+        return
+
+XPythonGraph1DMathTool.exportClass("NumPySum", Test1DMathTool, "NumPy Sum")
