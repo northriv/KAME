@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -135,6 +135,10 @@ public:
     virtual ~XGraph2DMathToolX() {}
     virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient) override {
+//        using namespace Eigen;
+//        using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
+//        auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
+//            leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
         double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
         m_entry->value(tr, v);
 //        updateOnScreenObjects(tr, graphwidget);

@@ -133,22 +133,47 @@ PyDriverExporter<XCharDeviceDriver<XDMM>, XDMM> chardmm([](auto node, auto paylo
 PyDriverExporter<XPythonDriver<XCharDeviceDriver<XDMM>>, XCharDeviceDriver<XDMM>> pydmmbase([](auto node, auto payload){
 });
 PyDriverExporterWithTrampoline<XPythonDMM, XDMM, XPythonDMMHelper> pydmm("XPythonDMM", [](auto node, auto payload){
-    //TODO         pybind11::gil_scoped_release unguard;
     node
-        .def("oneShotRead", &XPythonDMM::oneShotRead)
-        .def("oneShotMultiRead", &XPythonDMM::oneShotMultiRead)
-        .def("changeFunction", &XPythonDMM::changeFunction);
+        .def("oneShotRead", [](shared_ptr<XPythonDMM> &self){
+            pybind11::gil_scoped_release unguard;
+            self->oneShotRead();
+        })
+        .def("oneShotMultiRead", [](shared_ptr<XPythonDMM> &self){
+            pybind11::gil_scoped_release unguard;
+            self->oneShotMultiRead();
+        })
+        .def("changeFunction", [](shared_ptr<XPythonDMM> &self){
+            pybind11::gil_scoped_release unguard;
+            self->changeFunction();
+        });
 });
 
 #include "dcsource.h"
 PyDriverExporter<XDCSource, XPrimaryDriver> dcsource([](auto node, auto payload){
-    //TODO         pybind11::gil_scoped_release unguard;
-    node.def("changeFunction", &XDCSource::changeFunction)
-        .def("changeOutput", &XDCSource::changeOutput)
-        .def("changeValue", &XDCSource::changeValue)
-        .def("changeRange", &XDCSource::changeRange)
-        .def("queryStatus", &XDCSource::queryStatus)
-        .def("max", &XDCSource::max);
+    node.def("changeFunction", [](shared_ptr<XDCSource> &self, int ch, int x){
+            pybind11::gil_scoped_release unguard;
+            self->changeFunction(ch, x);
+        })
+        .def("changeOutput", [](shared_ptr<XDCSource> &self, int ch, bool x){
+            pybind11::gil_scoped_release unguard;
+            self->changeOutput(ch, x);
+        })
+        .def("changeValue", [](shared_ptr<XDCSource> &self, int ch, double x, bool autorange){
+            pybind11::gil_scoped_release unguard;
+            self->changeValue(ch, x, autorange);
+        })
+        .def("changeRange", [](shared_ptr<XDCSource> &self, int ch, int x){
+            pybind11::gil_scoped_release unguard;
+            self->changeRange(ch, x);
+        })
+        .def("queryStatus", [](shared_ptr<XDCSource> &self, Transaction &tr, int ch){
+            pybind11::gil_scoped_release unguard;
+            self->queryStatus(tr, ch);
+        })
+        .def("max", [](shared_ptr<XDCSource> &self, int ch, bool autorange){
+            pybind11::gil_scoped_release unguard;
+            self->max(ch, autorange);
+        });
 });
 
 #include "motor.h"

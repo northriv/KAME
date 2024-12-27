@@ -525,6 +525,84 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
                 self.functor.pyfunc = std::make_shared<py::object>(f);
             });
     }
+
+
+    struct PyFunc2DMathTool {
+        ~PyFunc2DMathTool() {
+            if( !pyfunc) return;
+            pybind11::gil_scoped_acquire guard;
+            pyfunc.reset();
+        }
+        using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
+        double operator()(const uint32_t *leftupper, unsigned int width,
+                          unsigned int stride, unsigned int numlines, double coefficient){
+            using namespace Eigen;
+            using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
+            auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
+                leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
+            pybind11::gil_scoped_acquire guard;
+            auto pf = pyfunc;
+            if( !pf)
+                return 0.0;
+            try {
+                return py::cast<double>((*pf)(Ref<const RMatrixXu32>(cmatrix),
+                    width, stride, numlines, coefficient));
+            }
+            catch (pybind11::error_already_set& e) {
+                gErrPrint(i18n("Python error: ") + e.what());
+            }
+            catch (std::runtime_error &e) {
+                gErrPrint(i18n("Python KAME binding error: ") + e.what());
+            }
+            catch (...) {
+                gErrPrint(i18n("Unknown python error."));
+            }
+            return 0.0;
+        }
+        std::shared_ptr<py::object> pyfunc;
+    };
+    class XPythonGraph2DMathTool : public XGraph2DMathToolX<PyFunc2DMathTool> {
+    public:
+        using XGraph2DMathToolX<PyFunc2DMathTool>::XGraph2DMathToolX;
+        virtual XString getTypename() const override { return m_creation_key;}
+
+        //! registers run-time driver class defined in python, into XGraph1DMathToolList.
+        //! \sa XListNodeBase::createByTypename(), XNode::getTypename(), XTypeHolder<>.
+        static void exportClass(const std::string &key, pybind11::object cls, const std::string &label) {
+            XGraph2DMathToolList::s_types.eraseCreator(key); //erase previous info.
+            XGraph2DMathToolList::s_types.insertCreator(key, [key, cls](const char *name, bool runtime,
+                std::reference_wrapper<Transaction> tr,
+                const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+                const shared_ptr<XPlot> &plot, const char*entryname)->shared_ptr<XNode> {
+                pybind11::gil_scoped_acquire guard;
+                pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, entryname); //createOrphan in python side.
+                auto pytool = dynamic_pointer_cast<XPythonGraph2DMathTool>
+                    (obj.cast<shared_ptr<XNode>>());
+                if( !driver)
+                    throw std::runtime_error("Tool creation failed.");
+                pytool->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
+                pytool->m_creation_key = key;
+                return pytool;
+            }, label);
+        }
+    private:
+        pybind11::object m_self_creating; //to increase reference counter.
+        XString m_creation_key;
+    };
+    {   auto [node, payload] = XPython::bind.export_xnode<XPythonGraph2DMathTool, XGraph2DMathTool,
+                Transaction&, const shared_ptr<XScalarEntryList> &,
+                const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*>();
+        (*node)
+            .def_static("exportClass", &XPythonGraph2DMathTool::exportClass)
+            .def("setFunctor", [](shared_ptr<XPythonGraph2DMathTool> &self, py::object f){
+                trans( *self).functor.pyfunc = std::make_shared<py::object>(f);
+            });
+        (*payload)
+            .def("setFunctor", [](XPythonGraph2DMathTool::Payload &self, py::object f){
+                self.functor.pyfunc = std::make_shared<py::object>(f);
+            });
+    }
+
 }
 
 void
