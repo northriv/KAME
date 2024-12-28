@@ -187,5 +187,31 @@ PyDriverExporter<XSG, XPrimaryDriver> sg([](auto node, auto payload){
     payload.def("freq", &XSG::Payload::freq);
 });
 
+#include "dso.h"
+PyDriverExporter<XDSO, XPrimaryDriver> dso([](auto node, auto payload){
+    payload.def("trigPos", &XDSO::Payload::trigPos)
+        .def("numChannels", &XDSO::Payload::numChannels)
+        .def("timeInterval", &XDSO::Payload::timeInterval)
+    .def("length", &XDSO::Payload::length)
+    .def("wave", [](XDSO::Payload &self, unsigned int ch){
+        using namespace Eigen;
+        auto cvector = Map<const VectorXd, 0>(
+            self.wave(ch), self.length());
+        return Ref<const VectorXd>(cvector);
+    })
+    .def("setParameters", &XDSO::Payload::setParameters)
+    .def("lengthDisp", &XDSO::Payload::lengthDisp)
+    .def("waveDisp", [](XDSO::Payload &self, unsigned int ch){
+        using namespace Eigen;
+        auto cvector = Map<const VectorXd, 0>(
+            self.waveDisp(ch), self.lengthDisp());
+        return Ref<const VectorXd>(cvector);
+    })
+    .def("trigPosDisp", &XDSO::Payload::trigPosDisp)
+    .def("numChannelsDisp", &XDSO::Payload::numChannelsDisp)
+    .def("timeIntervalDisp", &XDSO::Payload::timeIntervalDisp)
+    .def("shotDescription", &XDSO::Payload::shortDescription);
+});
+
 
 #endif //USE_PYBIND11

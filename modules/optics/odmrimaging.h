@@ -61,13 +61,19 @@ public:
     enum class Sequence {OFF_ON = 2, OFF_OFF_ON = 3, OFF_OFF_OFF_ON = 4};
     struct Payload : public XSecondaryDriver::Payload {
         const std::vector<double> &sampleIntensities(unsigned int i) const {
-            assert(i < sequenceLength()); return m_sampleIntensities[i];
+            if(i >= sequenceLength())
+                throw std::out_of_range("index larger than sequence length!");
+            return m_sampleIntensities[i];
         }
         const std::vector<double> &sampleIntensitiesCorrected(unsigned int i) const {
-            assert(i < sequenceLength()); return m_sampleIntensitiesCorrected[i];
+            if(i >= sequenceLength())
+                throw std::out_of_range("index larger than sequence length!");
+            return m_sampleIntensitiesCorrected[i];
         }
         const std::vector<double> &referenceIntensities(unsigned int i) const {
-            assert(i < sequenceLength()); return m_referenceIntensities[i];
+            if(i >= sequenceLength())
+                throw std::out_of_range("index larger than sequence length!");
+            return m_referenceIntensities[i];
         }
         double plRaw(unsigned int idx_in_seq, unsigned int i) const {
             double pl__ = sampleIntensities(idx_in_seq)[i];

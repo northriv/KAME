@@ -55,9 +55,13 @@ public:
 
     struct Payload : public XSecondaryDriver::Payload {
         const std::vector<double> &intensities(unsigned int i) const {
-            assert(i < 3); return m_intensities[i];
+            if(i >= 3)
+                throw std::out_of_range("Index beyond RGB.");
+            return m_intensities[i];
         }
         double raw(unsigned int idx_in_seq, unsigned int i) const {
+            if(i >= 3)
+                throw std::out_of_range("Index beyond RGB.");
             double pl__ = intensities(idx_in_seq)[i];
             return pl__;
         }

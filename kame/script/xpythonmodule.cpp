@@ -533,7 +533,6 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
             pybind11::gil_scoped_acquire guard;
             pyfunc.reset();
         }
-        using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
         double operator()(const uint32_t *leftupper, unsigned int width,
                           unsigned int stride, unsigned int numlines, double coefficient){
             using namespace Eigen;

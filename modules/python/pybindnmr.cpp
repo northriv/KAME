@@ -33,4 +33,30 @@ PyDriverExporter<XNMRPulseAnalyzer, XSecondaryDriver> nmrpulse("XNMRPulseAnalyze
     .def("ftWidth", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->ftWidth();});
 });
 
+#include "nmrspectrum.h"
+PyDriverExporter<XNMRSpectrum, XSecondaryDriver> nmrspectrum([](auto node, auto payload){
+    payload.def("wave", &XNMRSpectrum::Payload::wave)
+        .def("weights", &XNMRSpectrum::Payload::weights)
+        .def("darkPSD", &XNMRSpectrum::Payload::darkPSD)
+        .def("res", &XNMRSpectrum::Payload::res)
+        .def("min", &XNMRSpectrum::Payload::min);
+});
+
+#include "nmrfspectrum.h"
+PyDriverExporter<XNMRFSpectrum, XSecondaryDriver> nmrfspectrum([](auto node, auto payload){
+    payload.def("wave", &XNMRFSpectrum::Payload::wave)
+        .def("weights", &XNMRFSpectrum::Payload::weights)
+        .def("darkPSD", &XNMRFSpectrum::Payload::darkPSD)
+        .def("res", &XNMRFSpectrum::Payload::res)
+        .def("min", &XNMRFSpectrum::Payload::min);
+});
+
+#include "nmrrelax.h"
+PyDriverExporter<XNMRT1, XSecondaryDriver> nmrt1([](auto node, auto payload){
+});
+
+#include "autolctuner.h"
+PyDriverExporter<XAutoLCTuner, XSecondaryDriver> autolctuner([](auto node, auto payload){
+});
+
 #endif //USE_PYBIND11

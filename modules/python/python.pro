@@ -9,7 +9,8 @@ HEADERS += \
 
 SOURCES += \
     basicdrivers.cpp \
-    pybindnmr.cpp
+    pybindnmr.cpp \
+    pybindodmr.cpp
 
 FORMS += \
     fourresform.ui
@@ -77,6 +78,11 @@ win32:LIBS += -lopticscore
 
 INCLUDEPATH += $$PWD/../optics/core
 DEPENDPATH += $$PWD/../optics/core
+
+win32:LIBS += -loptics
+
+INCLUDEPATH += $$PWD/../optics
+DEPENDPATH += $$PWD/../optics
 
 win32:LIBS += -lliacore
 
