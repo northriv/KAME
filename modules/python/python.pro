@@ -21,7 +21,7 @@ macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
 
-win32: LIBS += -L$${PRI_DIR}../modules/
+win32: LIBS += -L$${PRI_DIR}/modules/
 
 win32:LIBS += -lcharinterface
 
