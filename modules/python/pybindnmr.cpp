@@ -20,17 +20,32 @@
 #include "nmrpulse.h"
 
 PyDriverExporter<XNMRPulseAnalyzer, XSecondaryDriver> nmrpulse("XNMRPulseAnalyzer", [](auto node, auto payload){
-    payload.def("wave", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->wave();})
-    .def("darkPSD", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->darkPSD();})
-    .def("darkPSDFactorToVoltSq", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->darkPSDFactorToVoltSq();})
-    .def("echoesT2", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->echoesT2();})
-    .def("dFreq", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->dFreq();})
-    .def("interval", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->interval();})
-    .def("startTime", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->startTime();})
-    .def("waveWidth", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->waveWidth();})
-    .def("waveFTPos", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->waveFTPos();})
-    .def("ftWave", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->ftWave();})
-    .def("ftWidth", [](shared_ptr<XNMRPulseAnalyzer::Payload> &self){return self->ftWidth();});
+    payload.def("wave", [](XNMRPulseAnalyzer::Payload &self){
+        using namespace Eigen;
+        auto cvector = Map<const VectorXcd, 0>(
+            &self.wave()[0], self.waveWidth());
+        return Ref<const VectorXcd>(cvector);
+    })
+    .def("darkPSD", [](XNMRPulseAnalyzer::Payload &self){
+        using namespace Eigen;
+        auto cvector = Map<const VectorXd, 0>(
+            &self.darkPSD()[0], self.ftWidth());
+        return Ref<const VectorXd>(cvector);
+    })
+    .def("darkPSDFactorToVoltSq", [](XNMRPulseAnalyzer::Payload &self){return self.darkPSDFactorToVoltSq();})
+    .def("echoesT2", [](XNMRPulseAnalyzer::Payload &self){return self.echoesT2();})
+    .def("dFreq", [](XNMRPulseAnalyzer::Payload &self){return self.dFreq();})
+    .def("interval", [](XNMRPulseAnalyzer::Payload &self){return self.interval();})
+    .def("startTime", [](XNMRPulseAnalyzer::Payload &self){return self.startTime();})
+    .def("waveWidth", [](XNMRPulseAnalyzer::Payload &self){return self.waveWidth();})
+    .def("waveFTPos", [](XNMRPulseAnalyzer::Payload &self){return self.waveFTPos();})
+    .def("ftWave", [](XNMRPulseAnalyzer::Payload &self){
+        using namespace Eigen;
+        auto cvector = Map<const VectorXcd, 0>(
+            &self.ftWave()[0], self.ftWidth());
+        return Ref<const VectorXcd>(cvector);
+    })
+    .def("ftWidth", [](XNMRPulseAnalyzer::Payload &self){return self.ftWidth();});
 });
 
 #include "nmrspectrum.h"

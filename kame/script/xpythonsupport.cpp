@@ -31,8 +31,9 @@ namespace py = pybind11;
 #include <iostream>
 
 //
-#define XPYTHONSUPPORT_PY ":/script/xpythonsupport.py" //in the qrc.
-#define XPYTHONEXT_TEST_PY ":/script/pytestdriver.py" //in the qrc.
+#define XPYTHONEXT_TEST_PY ":/script/pytestdriver.py" //in the kame.qrc.
+#define XPYTHONEXT_PY ":/python/pydrivers.py" //in the pydrivers.qrc of the python module.
+#define XPYTHONSUPPORT_PY ":/script/xpythonsupport.py" //in the kame.qrc.
 
 XPython::XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
     : XScriptingThreadList(name, runtime, measure) {
@@ -133,11 +134,13 @@ XPython::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XPython::mainthread_callback, Listener::FLAG_MAIN_THREAD_CALL);
 #endif
 
-        for(auto &filename: {XPYTHONEXT_TEST_PY, XPYTHONSUPPORT_PY}) {
+        for(auto &filename: {XPYTHONEXT_TEST_PY, XPYTHONEXT_PY, XPYTHONSUPPORT_PY}) {
+//            QStringList fileList = QDir(":").entryList(QStringList() << path, QDir::Files);
+//            foreach(QString qfilename, fileList) {
             QFile scriptfile(filename);
             if( !scriptfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
                 gErrPrint("No KAME python support file installed.");
-                return NULL;
+                continue;
             }
             fprintf(stderr, "Loading python scripting support from %s.\n", filename);
             char data[65536] = {};

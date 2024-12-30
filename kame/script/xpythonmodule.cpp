@@ -461,15 +461,15 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         }
         using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
         double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
-            std::vector<XGraph::VFloat> xvec, yvec;
-            xvec.insert(xvec.begin(), xbegin, xend);
-            yvec.insert(yvec.begin(), ybegin, yend);
             pybind11::gil_scoped_acquire guard;
             auto pf = pyfunc;
             if( !pf)
                 return 0.0;
             try {
-                return py::cast<double>((*pf)(xvec, yvec));
+                using namespace Eigen;
+                auto xvec = Map<const VectorXd, 0>( &*xbegin, xend - xbegin);
+                auto yvec = Map<const VectorXd, 0>( &*ybegin, yend - ybegin);
+                return py::cast<double>((*pf)(Ref<const VectorXd>(xvec), Ref<const VectorXd>(yvec)));
             }
             catch (pybind11::error_already_set& e) {
                 gErrPrint(i18n("Python error: ") + e.what());

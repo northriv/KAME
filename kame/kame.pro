@@ -213,6 +213,13 @@ else:unix: PRE_TARGETDEPS += $$OUT_PWD/liblibkame.a
 
 #Ruby, pybind11
 macx {
+##for macports ruby3
+#    RUBYH = $$files("/opt/local/include/ruby-*")
+#    INCLUDEPATH += $${RUBYH}
+#    INCLUDEPATH += $${RUBYH}/arm64-darwin23
+#    LIBS += $$files(/opt/local/lib/libruby.*.dylib)
+#    message("using ruby from macports.")
+
     INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
     INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
     LIBS += -framework Ruby
@@ -243,19 +250,23 @@ else:unix {
     LIBS += -lruby
 }
 win32-g++ {
+    exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include/ruby.h) {
     #for user-build ruby
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/x64-mingw64
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/x64-mingw32
-    LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/lib*msvcrt-ruby*[0-9].dll.a)
+        INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
+        INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
+        INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/x64-mingw64
+        INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/x64-mingw32
+        LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/lib*msvcrt-ruby*[0-9].dll.a)
+        message("using ruby from ../ruby.")
+    }
+    else {
     #for msys64 ruby
-    RUBYH = $$files(c:/msys64/mingw64/include/ruby-*[.0-9]/ruby.h)
-    exists(RUBYH): INCLUDEPATH += $$dirname($$RUBYH)
-#    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0
-#    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0/x64-mingw32
-#    LIBS += $$files(c:/msys64/mingw64/lib/libx64-msvcrt-ruby*[0-9].dll.a)
-
+        RUBYH = $$files("c:/msys64/mingw64/include/ruby-*")
+        INCLUDEPATH += $${RUBYH}
+        INCLUDEPATH += $${RUBYH}/x64-mingw32
+        LIBS += $$files(c:/msys64/mingw64/lib/libx64-msvcrt-ruby*[0-9].dll.a)
+        message("using ruby from msys2.")
+    }
     greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="c:/msys64/mingw64/bin/python.exe"
         for(PYTHON, pythons) {

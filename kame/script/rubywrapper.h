@@ -71,9 +71,8 @@ public:
         static_assert(sizeof(Ptr) == sizeof(wrapped_t), "");
         //! prepares a C-style function pointer to be called from Ruby.
         //! \tparam Func a pointer to a C++ member function.
-        //! \return # of arguments in the ruby function.
         template<class tFunc, tFunc Func, typename ...Args>
-        int create_function(Value(**func)(Value, Args...)) {
+        static void create_function(Value(**func)(Value, Args...)) {
             *func = [](Value self, Args...args)->Value {
                 char errstr[256];
                     try {
@@ -89,9 +88,12 @@ public:
                         snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
                     emit_error(errstr); return Nil;
             };
+        }
+        //! \return # of arguments in the ruby function.
+        template<class tFunc, tFunc Func, typename ...Args>
+        static constexpr int argnumofFn(Value(**func)(Value, Args...)) {
             return sizeof...(Args);
         }
-
         std::weak_ptr<P> m_parent;
         Value m_rbObj;
     };
@@ -103,8 +105,10 @@ private:
     static Value wrap_obj(Value cl, void *p, void (*)(void *));
     static void *unwrap_obj(Value self);
 
-    static void define_method(Value cl, const char *rbname, Value (*func)(...), int argnum);
-    static void define_singleton_method(Value obj, const char *rbname, Value (*func)(...), int argnum);
+    template <int argnum>
+    static void define_method(Value cl, const char *rbname, Value (*func)(...));
+    template <int argnum>
+    static void define_singleton_method(Value obj, const char *rbname, Value (*func)(...));
     static Value define_class(const char *rbname, Value super);
 
     //!C++ objects should be destroyed before.
@@ -121,8 +125,9 @@ void
 Ruby::Class<P,T>::defineMethod(const char *rbname) {
     Value (*func)(Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<decltype(Func), Func>(&func);
-    define_method(m_rbObj, rbname, reinterpret_cast<fp>(func), arg_num);
+    create_function<decltype(Func), Func>(&func);
+    constexpr int arg_num = argnumofFn<decltype(Func), Func>(&func);
+    define_method<arg_num>(m_rbObj, rbname, reinterpret_cast<fp>(func));
 }
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value)>
@@ -130,8 +135,9 @@ void
 Ruby::Class<P,T>::defineMethod(const char *rbname) {
     Value (*func)(Value,Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<decltype(Func), Func>(&func);
-    define_method(m_rbObj, rbname, reinterpret_cast<fp>(func), arg_num);
+    create_function<decltype(Func), Func>(&func);
+    constexpr int arg_num = argnumofFn<decltype(Func), Func>(&func);
+    define_method<arg_num>(m_rbObj, rbname, reinterpret_cast<fp>(func));
 }
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value,Ruby::Value)>
@@ -139,8 +145,9 @@ void
 Ruby::Class<P,T>::defineMethod(const char *rbname) {
     Value (*func)(Value,Value,Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<decltype(Func), Func>(&func);
-    define_method(m_rbObj, rbname, reinterpret_cast<fp>(func), arg_num);
+    create_function<decltype(Func), Func>(&func);
+    constexpr int arg_num = argnumofFn<decltype(Func), Func>(&func);
+    define_method<arg_num>(m_rbObj, rbname, reinterpret_cast<fp>(func));
 }
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&)>
@@ -148,8 +155,9 @@ void
 Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
     Value (*func)(Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<decltype(Func), Func>(&func);
-    define_singleton_method(obj, rbname, reinterpret_cast<fp>(func), arg_num);
+    create_function<decltype(Func), Func>(&func);
+    constexpr int arg_num = argnumofFn<decltype(Func), Func>(&func);
+    define_singleton_method<arg_num>(obj, rbname, reinterpret_cast<fp>(func));
 }
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value)>
@@ -157,8 +165,9 @@ void
 Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
     Value (*func)(Value,Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<decltype(Func), Func>(&func);
-    define_singleton_method(obj, rbname, reinterpret_cast<fp>(func), arg_num);
+    create_function<decltype(Func), Func>(&func);
+    constexpr int arg_num = argnumofFn<decltype(Func), Func>(&func);
+    define_singleton_method<arg_num>(obj, rbname, reinterpret_cast<fp>(func));
 }
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value,Ruby::Value)>
@@ -166,8 +175,9 @@ void
 Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
     Value (*func)(Value,Value,Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<decltype(Func), Func>(&func);
-    define_singleton_method(obj, rbname, reinterpret_cast<fp>(func), arg_num);
+    create_function<decltype(Func), Func>(&func);
+    constexpr int arg_num = argnumofFn<decltype(Func), Func>(&func);
+    define_singleton_method<arg_num>(obj, rbname, reinterpret_cast<fp>(func));
 }
 template <class P, class T>
 Ruby::Value

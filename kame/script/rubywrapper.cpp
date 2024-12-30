@@ -42,14 +42,31 @@ Ruby::unwrap_obj(Value self) {
 	return ptr;
 }
 
-void 
-Ruby::define_method(Value cl, const char *rbname, Value (*func)(...), int argnum) {
+template <int argnum>
+void
+Ruby::define_method(Value cl, const char *rbname, Value (*func)(...)) {
     rb_define_method(cl, rbname, func, argnum);
 }
+template <int argnum>
 void
-Ruby::define_singleton_method(Value obj, const char *rbname, Value (*func)(...), int argnum) {
+Ruby::define_singleton_method(Value obj, const char *rbname, Value (*func)(...)) {
     rb_define_singleton_method(obj, rbname, func, argnum);
 }
+
+template
+void Ruby::define_method<0>(Value cl, const char *rbname, Value (*func)(...));
+template
+void Ruby::define_method<1>(Value cl, const char *rbname, Value (*func)(...));
+template
+void Ruby::define_method<2>(Value cl, const char *rbname, Value (*func)(...));
+template
+void Ruby::define_singleton_method<0>(Value obj, const char *rbname, Value (*func)(...));
+template
+void Ruby::define_singleton_method<1>(Value obj, const char *rbname, Value (*func)(...));
+template
+void Ruby::define_singleton_method<2>(Value obj, const char *rbname, Value (*func)(...));
+
+
 Ruby::Value
 Ruby::define_class(const char *rbname, Value super) {
     Value c = rb_define_class(rbname, (super != Nil) ? super : rb_cObject);
@@ -81,6 +98,8 @@ bool Ruby::isConvertible<bool>(Value v) {
 template <>
 const char* Ruby::convert(Value v) {
     if( !isConvertible<const char*>(v))
+        throw "Type mismatch to STRING.";
+    if(RSTRING_PTR(v)[RSTRING_LEN(v) + 1] != 0)
         throw "Type mismatch to STRING.";
     return RSTRING_PTR(v);
 }

@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/python">
+        <file>pydrivers.py</file>
+        <file>formpytestdriver.ui</file>
+        <file>fourresform.ui</file>
+    </qresource>
+</RCC>

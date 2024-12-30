@@ -17,7 +17,7 @@ class << $stdout
 			line = line.gsub(/^/, "<font color=#008800>")
 			line = line.gsub(/$/, "</font>")
 		end
-		XScriptingThreads.my_rbdefout(line, Thread.current.object_id.to_s)
+		XScriptingThreads.my_rbdefout(line, Thread.current.inspect[/0x[0-9a-f]*/])
 	}
   end
 end
@@ -32,7 +32,7 @@ class << $stderr
         line = line.gsub(/\n/, "")
         line = line.gsub(/^/, "<font color=#ff0000>")
         line = line.gsub(/$/, "</font>")
-        XScriptingThreads.my_rbdefout(line, Thread.current.object_id.to_s)
+        XScriptingThreads.my_rbdefout(line, Thread.current.inspect[/0x[0-9a-f]*/])
     }
   end
 end
@@ -42,7 +42,7 @@ class Mystdin
 	end
 	def gets()
 		while(1)
-			line = XScriptingThreads.my_rbdefin(Thread.current.object_id.to_s)
+			line = XScriptingThreads.my_rbdefin(Thread.current.inspect[/0x[0-9a-f]*/])
 			if !line then
 				sleep(0.15)
 				next
@@ -253,7 +253,7 @@ begin
 	   xrbthread_action = xrbthread["Action"]
 	   xrbthread_threadid = xrbthread["ThreadID"]
 	   xrbthread_filename = xrbthread["Filename"]
-	   thread = Thread.list.find {|x| x.object_id.to_s == xrbthread_threadid.value }
+	   thread = Thread.list.find {|x| x.inspect[/0x[0-9a-f]*/] == xrbthread_threadid.value }
 	   action = xrbthread_action.value
 	   if thread then
 	     if thread.status == "starting" then
@@ -283,34 +283,37 @@ begin
 	     end
 	   else
 	      if action == "starting" then
-         	  sleep(0.5)
+       	  sleep(0.5)
 		      xrbthread_action.value = ""
-			  print "Starting a new thread\n"
-			  filename = xrbthread_filename.value()
-			  print "Loading #{filename}.\n";
-		      thread = Thread.new {
-		          Thread.pass
+				  print "Starting a new thread\n"
+			  	filename = xrbthread_filename.value()
+			  	print "Loading #{filename}.\n"
+		      thread = Thread.new do
+#						$stderr.print("a2\n")
+						Thread.pass
 		          begin
 		             print thread.inspect + "\n"
-					 filename.untaint
-					 if /\.seq/i =~ filename then
-					    Thread.current[:logfile] = File.open(filename + ".log", "a")
-						Thread.current[:logfile].sync = true
-					    Thread.current[:logfile].puts("Started @#{Time.now()} \n")
-					 else
-					    Thread.current[:load_kam] = true
-					 end
-					 Thread.current[:xrbthread] = xrbthread;
-					 load filename
-		             print thread.to_s + " Finished.\n"
-		          rescue ScriptError, StandardError, SystemExit
-	    		     $! = RuntimeError.new("unknown exception raised") unless $!
-	    		     print_exception($!)
-		     	  end
-				  Thread.current[:logfile].close() if Thread.current[:logfile]
-		       }
+								filename.untaint
+								print "b\n"
+								if /\.seq/i =~ filename then
+									Thread.current[:logfile] = File.open(filename + ".log", "a")
+									Thread.current[:logfile].sync = true
+									Thread.current[:logfile].puts("Started @#{Time.now()} \n")
+								else
+									Thread.current[:load_kam] = true
+								end
+								Thread.current[:xrbthread] = xrbthread;
+								load filename
+								print thread.to_s + " Finished.\n"
+							rescue ScriptError, StandardError, SystemExit
+								$! = RuntimeError.new("unknown exception raised") unless $!
+								print_exception($!)
+							end
+						ensure
+							Thread.current[:logfile].close() if Thread.current[:logfile]
+						end
 		       if thread then
-		            xrbthread_threadid.value = thread.object_id.to_s
+		            xrbthread_threadid.value = thread.inspect[/0x[0-9a-f]*/]
 			        xrbthread_status.value = thread.status
 		       else
 		            xrbthread_action.value = "failure"

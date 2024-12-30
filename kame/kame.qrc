@@ -11,6 +11,5 @@
         <file>forms/autolctuner.png</file>
         <file>script/xpythonsupport.py</file>
         <file>script/pytestdriver.py</file>
-        <file>script/formpytestdriver.ui</file>
     </qresource>
 </RCC>

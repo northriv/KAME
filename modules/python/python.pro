@@ -12,8 +12,10 @@ SOURCES += \
     pybindnmr.cpp \
     pybindodmr.cpp
 
-FORMS += \
-    fourresform.ui
+FORMS +=
+
+RESOURCES += \
+    pydrivers.qrc
 
 macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
