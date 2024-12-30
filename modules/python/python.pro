@@ -21,6 +21,8 @@ macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
 
+win32: LIBS += -L$${PRI_DIR}../modules/
+
 win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
@@ -71,7 +73,7 @@ win32:LIBS += -ldcsourcecore
 INCLUDEPATH += $$PWD/../dcsource/core
 DEPENDPATH += $$PWD/../dcsource/core
 
-win32:LIBS += -lnmr
+win32:LIBS += -lnmr -lnmrpulser
 
 INCLUDEPATH += $$PWD/../nmr
 DEPENDPATH += $$PWD/../nmr
