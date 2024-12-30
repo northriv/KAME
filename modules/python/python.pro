@@ -115,7 +115,7 @@ win32-g++ {
             system("$${PYTHON} -m pybind11 --includes") {
                 QMAKE_CXXFLAGS += $$system("$${PYTHON} -m pybind11 --includes")
         #        QMAKE_LFLAGS += $$system("set PATH=c:/msys64/usr/bin;c:/msys64/mingw64/bin;%PATH% & c:/msys64/usr/bin/sh -c \"c:/msys64/mingw64/bin/python-config --embed --ldflags\"")
-#                LIBS += $$files(c:/msys64/mingw64/lib/libpython3*)
+                LIBS += $$files(c:/msys64/mingw64/lib/libpython3*)
                 DEFINES += USE_PYBIND11
                 message("Python scripting support enabled.")
                 break()
