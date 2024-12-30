@@ -115,12 +115,12 @@ struct XPythonDMMHelper : public XPythonDMM {
     }
     //! one-shot multi-channel reading
     virtual std::deque<double> oneShotMultiRead() override {
-        PYBIND11_OVERRIDE_PURE(
+        PYBIND11_OVERRIDE(
             std::deque<double>, tBaseDriver, oneShotMultiRead);
     }
     //! called when m_function is changed
     virtual void changeFunction() override {
-        PYBIND11_OVERRIDE(
+        PYBIND11_OVERRIDE_PURE(
             void, tBaseDriver, changeFunction);
     }
     struct Payload : public tBaseDriver::Payload {};
