@@ -34,7 +34,6 @@ while not is_main_terminated():
     except EOFError:
         time.sleep(0.2)
         continue
-        pass
     except SyntaxError:
         try:
             exec(line)

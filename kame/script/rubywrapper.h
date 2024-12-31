@@ -6,6 +6,11 @@
     #endif
 #endif
 
+#ifndef RUBYWRAPPER_H
+#define RUBYWRAPPER_H
+
+struct rb_data_type_struct;
+
 //! Wraps Ruby C interface and hides mysterious ruby.h from C++ libraries.
 class Ruby {
 private:
@@ -40,6 +45,7 @@ public:
     template <class P, class T>
     struct Class {
         Class(std::shared_ptr<P> parent, const char *rbname, Value super = Nil);
+        ~Class();
         template<typename R = void>
         void defineSingletonMethod(Value obj, const char *rbname); //dummy for MSVC
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
@@ -61,6 +67,12 @@ public:
         static std::weak_ptr<T> unwrap(Value v) {
             return unwrap_internal<Ptr>(v).second;
         }
+        template <class Y>
+        static Y &unwrap_internal(Value self) {
+            return *static_cast<Y*>(unwrap_obj(self));
+        }
+        static Value wrap_obj(Value cl, void *p);
+        static void *unwrap_obj(Value self);
     private:
 #ifdef _MSC_VER
     #define RUBYDECL __cdecl
@@ -96,15 +108,9 @@ public:
         }
         std::weak_ptr<P> m_parent;
         Value m_rbObj;
+        static std::shared_ptr<rb_data_type_struct> s_obj_type; //For TypedData_Wrap_Struct
     };
 private:
-    template <class Y>
-    static Y &unwrap_internal(Value self) {
-        return *static_cast<Y*>(unwrap_obj(self));
-    }
-    static Value wrap_obj(Value cl, void *p, void (*)(void *));
-    static void *unwrap_obj(Value self);
-
     template <int argnum>
     static void define_method(Value cl, const char *rbname, Value (*func)(...));
     template <int argnum>
@@ -116,10 +122,6 @@ private:
 };
 
 template <class P, class T>
-Ruby::Class<P,T>::Class(std::shared_ptr<P> parent, const char *rbname, Value super) : m_parent(parent) {
-    m_rbObj = define_class(rbname, super);
-}
-template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&)>
 void
 Ruby::Class<P,T>::defineMethod(const char *rbname) {
@@ -179,12 +181,4 @@ Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
     constexpr int arg_num = argnumofFn<decltype(Func), Func>(&func);
     define_singleton_method<arg_num>(obj, rbname, reinterpret_cast<fp>(func));
 }
-template <class P, class T>
-Ruby::Value
-Ruby::Class<P,T>::rubyClassObject() const {return m_rbObj;}
-template <class P, class T>
-Ruby::Value
-Ruby::Class<P,T>::rubyObject(const std::shared_ptr<T> &obj) const {
-    auto f = [](void *p){delete (Ptr*)p;};
-    return wrap_obj(m_rbObj, new Ptr(m_parent, obj), f);
-}
+#endif

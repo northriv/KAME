@@ -31,16 +31,6 @@ void
 Ruby::defineGlobalConst(const char *rbname, Value obj) {
 	rb_define_global_const(rbname, obj);
 }
-Ruby::Value
-Ruby::wrap_obj(Value cl, void *p, void (*f)(void *)) {
-	return Data_Wrap_Struct(cl, 0, f, p);
-}
-void *
-Ruby::unwrap_obj(Value self) {
-    wrapped_t *ptr;
-    Data_Get_Struct(self, wrapped_t, ptr);
-	return ptr;
-}
 
 template <int argnum>
 void
@@ -99,9 +89,10 @@ template <>
 const char* Ruby::convert(Value v) {
     if( !isConvertible<const char*>(v))
         throw "Type mismatch to STRING.";
-    if(RSTRING_PTR(v)[RSTRING_LEN(v) + 1] != 0)
-        throw "Type mismatch to STRING.";
-    return RSTRING_PTR(v);
+    return StringValueCStr(v);
+//    if(RSTRING_PTR(v)[RSTRING_LEN(v) + 1] != 0)
+//        throw "Type mismatch to STRING.";
+//    return RSTRING_PTR(v);
 }
 template <>
 long Ruby::convert(Value v) {
@@ -162,3 +153,50 @@ Ruby::printErrorInfo() {
     rb_p(rb_errinfo());
 }
 
+template <class P, class T>
+Ruby::Class<P,T>::Class(std::shared_ptr<P> parent, const char *rbname, Value super) :
+    m_parent(parent) {
+    auto f = [](void *p){delete (Ptr*)p;};
+    auto s = [](const void *)->size_t{return sizeof(std::pair<std::weak_ptr<Ruby>, std::weak_ptr<Ruby>>);};
+    rb_data_type_t t1{"XNode",
+        {0, f, s},
+        0, 0,
+        RUBY_TYPED_FREE_IMMEDIATELY};
+    s_obj_type = std::make_shared<rb_data_type_struct>(t1);
+
+    m_rbObj = define_class(rbname, super);
+}
+template <class P, class T>
+Ruby::Class<P,T>::Class::~Class() {
+
+}
+
+template <class P, class T>
+Ruby::Value
+Ruby::Class<P,T>::wrap_obj(Value cl, void *p) {
+    rb_undef_alloc_func(cl);
+    return TypedData_Wrap_Struct(cl, s_obj_type.get(), p);
+}
+template <class P, class T>
+void *
+Ruby::Class<P,T>::unwrap_obj(Value self) {
+    wrapped_t *ptr;
+    TypedData_Get_Struct(self, wrapped_t, s_obj_type.get(), ptr);
+    return ptr;
+}
+
+template <class P, class T>
+Ruby::Value
+Ruby::Class<P,T>::rubyClassObject() const {return m_rbObj;}
+template <class P, class T>
+Ruby::Value
+Ruby::Class<P,T>::rubyObject(const std::shared_ptr<T> &obj) const {
+    return wrap_obj(m_rbObj, new Ptr(m_parent, obj));
+}
+
+#include "xrubysupport.h"
+
+template <class P, class T>
+std::shared_ptr<rb_data_type_struct> Ruby::Class<P,T>::s_obj_type;
+
+template struct Ruby::Class<XRuby, XNode>;

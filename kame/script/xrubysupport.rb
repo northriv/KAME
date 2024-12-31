@@ -1,5 +1,5 @@
 #xrubysupport.rb
-#KAME2 xrubysuppport start-up code
+#KAME xrubysuppport start-up code
 # -*- encoding: utf-8 -*-
 # -*- coding: utf-8 -*-
 
@@ -11,14 +11,14 @@ class << $stdout
     str = str.gsub(/</, "&lt;")
     str = str.gsub(/>/, "&gt;")
 #  	str = str.gsub(/"/, "&quot;")
-	str.each_line {|line|
-		line = line.gsub(/\n/, "")
-		if /^\s*#/ =~ str then
-			line = line.gsub(/^/, "<font color=#008800>")
-			line = line.gsub(/$/, "</font>")
-		end
-		XScriptingThreads.my_rbdefout(line, Thread.current.inspect[/0x[0-9a-f]*/])
-	}
+		str.each_line {|line|
+			line = line.gsub(/\n/, "")
+			if /^\s*#/ =~ str then
+				line = line.gsub(/^/, "<font color=#008800>")
+				line = line.gsub(/$/, "</font>")
+			end
+			XScriptingThreads.my_rbdefout(line, Thread.current.inspect[/0x[0-9a-f]*/])
+		}
   end
 end
 class << $stderr
@@ -240,7 +240,9 @@ class XListNode
 	end
 end
 
+include GC
 print "Hello! KAME Ruby support.\n"
+#GC.start
 print "Ruby " + RUBY_VERSION + " " + RUBY_PLATFORM + " " + RUBY_RELEASE_DATE + "\n"
 
 #Thread-monitor
@@ -293,8 +295,7 @@ begin
 						Thread.pass
 		          begin
 		             print thread.inspect + "\n"
-								filename.untaint
-								print "b\n"
+#								print "b\n"
 								if /\.seq/i =~ filename then
 									Thread.current[:logfile] = File.open(filename + ".log", "a")
 									Thread.current[:logfile].sync = true

@@ -130,19 +130,9 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 }
 
 XMeasure::~XMeasure() {
-	printf("terminate\n");
-    m_rawStreamRecordReader->terminate();
-	m_ruby->terminate();
-#ifdef USE_PYBIND11
-    m_python->terminate();
-#endif
     m_rawStreamRecordReader->join();
     m_ruby->join();
     m_ruby.reset();
-#ifdef USE_PYBIND11
-    m_python->join();
-    m_python.reset();
-#endif
     g_statusPrinter.reset();
 }
 void XMeasure::initialize() {
@@ -154,6 +144,17 @@ void XMeasure::terminate() {
 	thermometers()->releaseAll();
     Snapshot shot( *this);
 	initialize();
+
+    printf("terminate\n");
+    m_rawStreamRecordReader->terminate();
+    m_ruby->terminate();
+#ifdef USE_PYBIND11
+    m_python->terminate(); //pybind11 will free shared_ptr to XMeasure
+#endif
+#ifdef USE_PYBIND11
+    m_python->join();
+    m_python.reset();
+#endif
 }
 void XMeasure::stop() {
 	Snapshot shot( *drivers());

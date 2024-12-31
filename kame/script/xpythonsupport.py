@@ -165,7 +165,20 @@ while not is_main_terminated():
 	except Exception as inst:
 		sys.stderr.write(str(traceback.format_exc()))
 		pass
-for thread in threading.enumerate():
-	thread.join()
 
-print("bye!")
+
+sys.stderr.write("bye")
+
+sys.stdout = STDOUT
+sys.stderr = STDERR
+sys.stdin = STDIN
+
+time.sleep(0.2) #for line interpreter
+for thread in threading.enumerate():
+	try:
+		thread.join()
+	except Exception as inst:
+		sys.stderr.write(str(traceback.format_exc()))
+		pass
+
+sys.stderr.write("bye!\n")
