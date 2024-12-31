@@ -10,7 +10,7 @@ if not exist qtdir.txt (
 
  echo Searching for QT 6.5 or later DLLs in %QTROOT%....
 
- dir /S/B %QTROOT% | findstr /r "6.[5-9]*\\mingw.*_64\\bin\\Qt6Core.dll" >qtdir.txt
+ dir /S/B %QTROOT% | findstr /r "6.[5-9]*\\mingw*_64\\bin\\Qt6Core.dll" >qtdir.txt
 
 )
 
