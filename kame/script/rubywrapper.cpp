@@ -16,6 +16,8 @@ Ruby::Ruby(const char *scriptname) {
 	ruby_init();
     ruby_script(scriptname);
     ruby_init_loadpath();
+    const char *argv[] = {"ruby",};
+    ruby_options(1, const_cast<char**>(argv)); //needed for ruby >= 3.
 }
 Ruby::~Ruby() {
 //    ruby_finalize();

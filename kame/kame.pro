@@ -213,18 +213,22 @@ else:unix: PRE_TARGETDEPS += $$OUT_PWD/liblibkame.a
 
 #Ruby, pybind11
 macx {
-##for macports ruby3
-    RUBYH = $$files("/opt/local/include/ruby-*")
-    INCLUDEPATH += $${RUBYH}
-    INCLUDEPATH += $${RUBYH}/arm64-darwin23
-    LIBS += $$files(/opt/local/lib/libruby.*.dylib)
-    message("using ruby from macports.")
-
-#    INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
-#    INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
-#    LIBS += -framework Ruby
-#for ruby.h incompatible with C++11
-#    QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
+    exists("/opt/local/include/ruby-*") {
+        #for macports ruby3
+        RUBYH = $$files("/opt/local/include/ruby-*")
+        INCLUDEPATH += $${RUBYH}
+        INCLUDEPATH += $${RUBYH}/arm64-darwin23
+        LIBS += $$files(/opt/local/lib/libruby.*.dylib)
+        message("using ruby from macports.")
+    }
+    else {
+        INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
+        INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
+        LIBS += -framework Ruby
+    #for ruby.h incompatible with C++11
+        QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
+        message("using framework ruby.")
+    }
 
     greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="python3" $$files("/opt/local/bin/python3*") $$files("/usr/local/bin/python3*")

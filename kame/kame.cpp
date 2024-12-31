@@ -186,7 +186,8 @@ FrmKameMain::FrmKameMain()
 //    connect( m_pMesRunAction, SIGNAL( triggered() ), this, SLOT( mesRunAction_activated() ) );
     connect( m_pMesStopAction, SIGNAL( triggered() ), this, SLOT( mesStopAction_activated() ) );
     connect( m_pScriptRunAction, SIGNAL( triggered() ), this, SLOT( scriptRunAction_activated() ) );
-    connect( m_pScriptLineShellAction, SIGNAL( triggered() ), this, SLOT( scriptLineShellAction_activated() ) );
+    connect( m_pRubyLineShellAction, SIGNAL( triggered() ), this, SLOT( rubyLineShellAction_activated() ) );
+    connect( m_pPythonLineShellAction, SIGNAL( triggered() ), this, SLOT( pythonLineShellAction_activated() ) );
     connect( m_pScriptDotSaveAction, SIGNAL( triggered() ), this, SLOT( scriptDotSaveAction_activated() ) );
     connect( m_pFileLogAction, SIGNAL( toggled(bool) ), this, SLOT( fileLogAction_toggled(bool) ) );
     connect( m_pGraphThemeNightAction, SIGNAL( toggled(bool) ), this, SLOT( graphThemeNightAction_toggled(bool) ) );
@@ -199,7 +200,11 @@ FrmKameMain::FrmKameMain()
     connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(processSignals()));
 	m_pTimer->start(0);
 
-	scriptLineShellAction_activated();
+#ifdef USE_PYBIND11
+    pythonLineShellAction_activated();
+#else
+    rubyLineShellAction_activated();
+#endif
 }
 
 struct MySubWindow : public QMdiSubWindow {
@@ -276,9 +281,15 @@ FrmKameMain::createActions() {
     m_pScriptRunAction = new QAction( this );
     m_pScriptRunAction->setEnabled( true );
     m_pScriptRunAction->setIcon( QIcon( *g_pIconScript) );
-    m_pScriptLineShellAction = new QAction( this );
-    m_pScriptLineShellAction->setEnabled( true );
-    m_pScriptLineShellAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    m_pPythonLineShellAction = new QAction( this );
+    m_pPythonLineShellAction->setEnabled( true );
+#ifndef USE_PYBIND11
+    m_pPythonLineShellAction->setEnabled( false );
+#endif
+    m_pPythonLineShellAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    m_pRubyLineShellAction = new QAction( this );
+    m_pRubyLineShellAction->setEnabled( true );
+    m_pRubyLineShellAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
     m_pScriptDotSaveAction = new QAction( this );
     m_pScriptDotSaveAction->setEnabled( true );
     m_pScriptDotSaveAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogSaveButton));
@@ -305,7 +316,8 @@ FrmKameMain::createActions() {
     m_pFileLogAction->setText( i18n( "&Log Debugging Info" ) );
     m_pMesStopAction->setText( i18n( "&Stop" ) );
     m_pScriptRunAction->setText( i18n( "&Run..." ) );
-    m_pScriptLineShellAction->setText( i18n( "&New Line Shell" ) );
+    m_pRubyLineShellAction->setText( i18n( "&New Ruby Line Shell" ) );
+    m_pPythonLineShellAction->setText( i18n( "&New Python Line Shell" ) );
     m_pScriptDotSaveAction->setText( i18n( "&Graphviz Save .dot..." ) );
     m_pFileCloseAction->setText( i18n( "&Close" ) );    
     m_pGraphThemeNightAction->setText( i18n( "&Night") );
@@ -329,7 +341,8 @@ FrmKameMain::createMenus() {
 
     m_pScriptMenu = menuBar()->addMenu( i18n( "&Script" ) );
     m_pScriptMenu->addAction(m_pScriptRunAction);
-    m_pScriptMenu->addAction(m_pScriptLineShellAction);
+    m_pScriptMenu->addAction(m_pRubyLineShellAction);
+    m_pScriptMenu->addAction(m_pPythonLineShellAction);
     m_pScriptMenu->addSeparator();
     m_pScriptMenu->addAction(m_pScriptDotSaveAction);
 
@@ -522,21 +535,26 @@ void FrmKameMain::scriptRunAction_activated() {
 	}
 }
 
-#ifdef USE_PYBIND11
-    #define LINESHELL_FILE "pythonlineshell.py"
-#else
-    #define LINESHELL_FILE "rubylineshell.rb"
-#endif
+#define PY_LINESHELL_FILE "pythonlineshell.py"
+#define RB_LINESHELL_FILE "rubylineshell.rb"
 
-void FrmKameMain::scriptLineShellAction_activated() {
-	QString filename =
+void FrmKameMain::pythonLineShellAction_activated() {
+    scriptLineShellAction_activated(PY_LINESHELL_FILE);
+}
+void FrmKameMain::rubyLineShellAction_activated() {
+    scriptLineShellAction_activated(RB_LINESHELL_FILE);
+}
+
+
+void FrmKameMain::scriptLineShellAction_activated(const char *name) {
+    QString filename =
 #ifdef WITH_KDE
         KStandardDirs::locate("appdata", LINESHELL_FILE);
 #else
         #if QT_VERSION >= QT_VERSION_CHECK(5,4,0)
-            QStandardPaths::locate(QStandardPaths::AppDataLocation, LINESHELL_FILE);
+            QStandardPaths::locate(QStandardPaths::AppDataLocation, name);
         #else
-            QStandardPaths::locate(QStandardPaths::DataLocation, LINESHELL_FILE);
+            QStandardPaths::locate(QStandardPaths::DataLocation, name);
         #endif
     if(filename.isEmpty()) {
         //for macosx/win
@@ -545,7 +563,7 @@ void FrmKameMain::scriptLineShellAction_activated() {
         //For macosx application bundle.
         dir.cdUp();
 #endif
-        QString path = LINESHELL_DIR LINESHELL_FILE;
+        QString path = QString(LINESHELL_DIR) + name;
         dir.filePath(path);
         if(dir.exists())
             filename = dir.absoluteFilePath(path);

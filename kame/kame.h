@@ -69,8 +69,9 @@ public:
 	//    QAction* m_pMesRunAction;
 	QAction* m_pMesStopAction;
 	QAction* m_pScriptRunAction;
-	QAction* m_pScriptLineShellAction;
-	QAction* m_pScriptDotSaveAction;
+    QAction* m_pRubyLineShellAction;
+    QAction* m_pPythonLineShellAction;
+    QAction* m_pScriptDotSaveAction;
 	QAction* m_pFileCloseAction;
     QAction* m_pGraphThemeNightAction;
     QAction* m_pGraphThemeDaylightAction;
@@ -98,7 +99,8 @@ public slots:
     //    virtual void mesRunAction_activated();
     virtual void mesStopAction_activated();
     virtual void scriptRunAction_activated();
-    virtual void scriptLineShellAction_activated();
+    virtual void rubyLineShellAction_activated();
+    virtual void pythonLineShellAction_activated();
     virtual void scriptDotSaveAction_activated();
     virtual void fileLogAction_toggled( bool var );
     virtual void graphThemeNightAction_toggled( bool var );
@@ -107,7 +109,8 @@ protected slots:
     virtual void aboutToQuit();
     virtual void processSignals();
 private:
-	void createActions();
+    void scriptLineShellAction_activated(const char *filename);
+    void createActions();
 	void createMenus();
 	QMdiSubWindow* addDockableWindow(QMdiArea *area, QWidget *widget, bool closable);
 	QMdiArea *m_pMdiCentral, *m_pMdiLeft, *m_pMdiRight;

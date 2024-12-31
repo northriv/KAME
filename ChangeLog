@@ -1,4 +1,9 @@
 * Wed Jan 1 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.1.1-1)
+- Fix for init. issue in ruby >= 3., fine with 3.3 in Mac.
+- Selectable scripting shell.
+
+* Wed Jan 1 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.1.0-1)
 - Compiles with ruby 3.3. Works with 3.2 in Mac.
 - Python scripting for several drivers, 1D/2D Math tools.
