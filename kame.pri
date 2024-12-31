@@ -120,6 +120,8 @@ else {
             QMAKE_CXXFLAGS += -Wl,--stack,8388608
             #avoids "too many sections" with Eigen.
             QMAKE_CXXFLAGS += -Wa,-mbig-obj
+            #workaround for section shortage
+            QMAKE_CXXFLAGS_DEBUG += -Os
         }
     }
     else {
