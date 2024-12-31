@@ -1,3 +1,8 @@
+* Wed Jan 1 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.1.0-1)
+- Compiles with ruby 3.3. Works with 3.2 in Mac.
+- Python scripting for several drivers, 1D/2D Math tools.
+
 * Sat Nov 23 2024 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.0.2-1)
 - Fix for terrible bug.
