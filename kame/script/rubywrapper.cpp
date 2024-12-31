@@ -194,6 +194,7 @@ Ruby::Class<P,T>::rubyObject(const std::shared_ptr<T> &obj) const {
     return wrap_obj(m_rbObj, new Ptr(m_parent, obj));
 }
 
+#undef truncate
 #include "xrubysupport.h"
 
 template <class P, class T>

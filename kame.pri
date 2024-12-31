@@ -118,6 +118,8 @@ else {
             QMAKE_CXXFLAGS += -mstackrealign
             #increases stack size to 8MB, the same as Linux/OS X.
             QMAKE_CXXFLAGS += -Wl,--stack,8388608
+            #avoids "too many sections" with Eigen.
+            QMAKE_CXXFLAGS += -Wa,-mbig-obj
         }
     }
     else {
@@ -132,6 +134,8 @@ else {
                 QMAKE_CXXFLAGS += -mstackrealign
                 #increases stack size to 8MB, the same as Linux/OS X.
                 QMAKE_CXXFLAGS += -Wl,--stack,8388608
+                #avoids "too many sections" with Eigen.
+                QMAKE_CXXFLAGS += -Wa,-mbig-obj
             }
         }
     }
