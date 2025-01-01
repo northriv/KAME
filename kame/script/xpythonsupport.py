@@ -1,4 +1,5 @@
 #KAME xpyhonsuppport start-up code
+#fundamental imports
 import time
 import sys
 import threading
@@ -6,13 +7,16 @@ import traceback
 import inspect
 import datetime
 import os
-if os.name == 'posix':
+try:
+	#optional imports.
 	import ctypes
 	import numpy as np
 #	import matplotlib
 #	matplotlib.use('Agg')
 #	import matplotlib.pyplot as plt
-else:
+except ModuleNotFoundError:
+	pass
+if os.name == 'nt':
 	for p in os.environ['PATH'].split(os.pathsep):
 		if os.path.isdir(p):
 			os.add_dll_directory(p)	

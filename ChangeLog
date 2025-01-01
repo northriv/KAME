@@ -1,6 +1,7 @@
 * Wed Jan 1 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
-- (7.1.1-1)
+- (7.1.2-1)
 - Fix for init. issue in ruby >= 3., fine with 3.3 in Mac.
+- Ruby 3.1 works with mingw64 when launched from Qt creator.
 - Selectable scripting shell.
 
 * Wed Jan 1 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
