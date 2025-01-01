@@ -20,7 +20,7 @@ else {
 macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
-win32-g++ {
+win32-*g++ {
     QMAKE_LFLAGS += -Wl,--export-all-symbols
     LIBS += $${PRI_DIR}../kame/kame.a
 }
