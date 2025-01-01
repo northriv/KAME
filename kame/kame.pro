@@ -253,7 +253,7 @@ else:unix {
     INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
     LIBS += -lruby
 }
-win32-g++ {
+win32-*g++ {
     exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include/ruby.h) {
     #for user-build ruby
         INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
@@ -334,7 +334,7 @@ unix {
 macx {
   QMAKE_LFLAGS += -all_load -dynamic
 }
-win32-g++ {
+win32-*g++ {
   QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a
 }
 win32-msvc* {

@@ -77,7 +77,7 @@ win32 {
 #    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
     DEFINES += GSL_DLL
 }
-win32-g++ {
+win32-*g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/.libs
     LIBS += -lgsl #-lgslcblas
