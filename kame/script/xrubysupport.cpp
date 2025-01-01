@@ -324,25 +324,23 @@ XRuby::execute(const atomic<bool> &terminated) {
     m_rubyClassListNode->defineMethod<&XRuby::rlistnode_create_child>("internal_create");
     m_rubyClassListNode->defineMethod<&XRuby::rlistnode_release_child>("release");
 
-    {
-        shared_ptr<XMeasure> measure = m_measure.lock();
-        assert(measure);
-        XString name = measure->getName();
-        name[0] = toupper(name[0]);
-        Ruby::Value rbRootNode = rnode_create(measure);
-        m_ruby->defineGlobalConst(name.c_str(), rbRootNode);
-        m_ruby->defineGlobalConst("RootNode", rbRootNode);
-    }
-    {
-        Ruby::Value rbRubyThreads = rnode_create(shared_from_this());
-        m_ruby->defineGlobalConst("XScriptingThreads", rbRubyThreads);
-        m_rubyClassNode->defineSingletonMethod<&XRuby::my_rbdefout>(
-            rbRubyThreads, "my_rbdefout");
-        m_rubyClassNode->defineSingletonMethod<&XRuby::my_rbdefin>(
-            rbRubyThreads, "my_rbdefin");
-        m_rubyClassNode->defineSingletonMethod<&XRuby::is_main_terminated>(
-            rbRubyThreads, "is_main_terminated");
-    }
+    shared_ptr<XMeasure> measure = m_measure.lock();
+    assert(measure);
+    XString name = measure->getName();
+    name[0] = toupper(name[0]);
+    volatile Ruby::Value rbRootNode = rnode_create(measure); //volatile, not to be garbage collected.
+    m_ruby->defineGlobalConst(name.c_str(), rbRootNode);
+    m_ruby->defineGlobalConst("RootNode", rbRootNode);
+
+
+    volatile Ruby::Value rbRubyThreads = rnode_create(shared_from_this()); //volatile, not to be garbage collected.
+    m_ruby->defineGlobalConst("XScriptingThreads", rbRubyThreads);
+    m_rubyClassNode->defineSingletonMethod<&XRuby::my_rbdefout>(
+        rbRubyThreads, "my_rbdefout");
+    m_rubyClassNode->defineSingletonMethod<&XRuby::my_rbdefin>(
+        rbRubyThreads, "my_rbdefin");
+    m_rubyClassNode->defineSingletonMethod<&XRuby::is_main_terminated>(
+        rbRubyThreads, "is_main_terminated");
 
     {
         QFile scriptfile(XRUBYSUPPORT_RB);

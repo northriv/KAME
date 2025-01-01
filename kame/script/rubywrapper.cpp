@@ -15,7 +15,7 @@ const Ruby::Value Ruby::True = Qtrue;
 Ruby::Ruby(const char *scriptname) {
     int argc = 1;
     const char *options[] = {"-e 1", nullptr};
-    ruby_sysinit(&argc, (char***)(&options)); //needed for win32, but python freezes?
+    ruby_sysinit(&argc, (char***)(&options)); //needed for win32
     ruby_init_stack((VALUE*)&argc);
     ruby_init();
     ruby_script(scriptname);
