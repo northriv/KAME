@@ -14,7 +14,7 @@ try:
 #	import matplotlib
 #	matplotlib.use('Agg')
 #	import matplotlib.pyplot as plt
-except ModuleNotFoundError:
+except (ImportError, ModuleNotFoundError):
 	pass
 if os.name == 'nt':
 	for p in os.environ['PATH'].split(os.pathsep):
