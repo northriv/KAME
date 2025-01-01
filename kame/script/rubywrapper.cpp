@@ -19,8 +19,9 @@ Ruby::Ruby(const char *scriptname) {
     ruby_init_stack((VALUE*)&argc);
     ruby_init();
     ruby_script(scriptname);
-    ruby_init_loadpath();
-    ruby_options(argc, const_cast<char**>(options)); //needed for ruby >= 3.
+//    ruby_init_loadpath();
+    ruby_options(argc, const_cast<char**>(options)); //needed for ruby >= 3., but freezes with debug mode.
+    return;
 }
 Ruby::~Ruby() {
 //    ruby_finalize();
