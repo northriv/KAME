@@ -118,13 +118,14 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 			*this, &XMeasure::onReleaseDriver);
     });
 
-	m_ruby = createOrphan<XRuby>("RubySupport", true,
-		dynamic_pointer_cast<XMeasure>(shared_from_this()));
 #ifdef USE_PYBIND11
     m_python = createOrphan<XPython>("PythonSupport", true,
         dynamic_pointer_cast<XMeasure>(shared_from_this()));
 #endif
     m_pyInfoForNodeBrowser = XNode::createOrphan<XStringNode>("PyInfoForNodeBrowser", true);
+
+    m_ruby = createOrphan<XRuby>("RubySupport", true,
+        dynamic_pointer_cast<XMeasure>(shared_from_this()));
 
     initialize();
 }

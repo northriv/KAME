@@ -13,11 +13,16 @@ const Ruby::Value Ruby::False = Qfalse;
 const Ruby::Value Ruby::True = Qtrue;
 
 Ruby::Ruby(const char *scriptname) {
-	ruby_init();
-    ruby_script(scriptname);
-    ruby_init_loadpath();
-    const char *argv[] = {"ruby",};
-    ruby_options(1, const_cast<char**>(argv)); //needed for ruby >= 3.
+    int argc = 1;
+    const char *options[] = {"-e 1", nullptr};
+    ruby_sysinit(&argc, (char***)(&options)); //needed for win32, but python freezes?
+    {
+        RUBY_INIT_STACK
+        ruby_init();
+        ruby_script(scriptname);
+        ruby_init_loadpath();
+        ruby_options(argc, const_cast<char**>(options)); //needed for ruby >= 3.
+    }
 }
 Ruby::~Ruby() {
 //    ruby_finalize();
