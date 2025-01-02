@@ -17,8 +17,8 @@ Ruby::Ruby(const char *scriptname, void *stack) {
     static char *argv[] = {options_array[0], nullptr};
     int argc = sizeof(argv) / sizeof(char*) - 1;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-//    ruby_sysinit(&argc, (char***)(&argv)); //needed for win32
-    NtInitialize(&argc, (char***)(&argv)); //needed for win32
+    ruby_sysinit(&argc, (char***)(&argv));
+//    NtInitialize(&argc, (char***)(&argv));
 #endif
     ruby_init_stack((VALUE*)stack);
     ruby_init();
