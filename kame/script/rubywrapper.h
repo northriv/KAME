@@ -16,7 +16,7 @@ class Ruby {
 private:
     typedef std::pair<std::weak_ptr<void *>, std::weak_ptr<void *>> wrapped_t;
 public:
-    Ruby(const char *scriptname);
+    Ruby(const char *scriptname, void *stack);
     ~Ruby();
 
     //! \return state.
