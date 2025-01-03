@@ -8,6 +8,7 @@ import inspect
 import datetime
 import os
 if os.name == 'nt':
+	#needed to import system modules.
 	for p in os.environ['PATH'].split(os.pathsep):
 		if os.path.isdir(p):
 			os.add_dll_directory(p)	
@@ -15,6 +16,7 @@ try:
 	#optional imports.
 	import ctypes
 	import numpy as np
+	import pdb
 #	import matplotlib
 #	matplotlib.use('Agg')
 #	import matplotlib.pyplot as plt
@@ -34,6 +36,7 @@ TLS = threading.local()
 TLS.xscrthread = None# XScriptingThreads()[0]
 TLS.logfile = None
 class MyDefIO:
+	@staticmethod
 	def write(s):
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			if s[-1] == '\n':
@@ -50,13 +53,24 @@ class MyDefIO:
 		else:
 			STDERR.write(s)
 
+	@staticmethod
 	def readline():
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
-			return my_defin(TLS.xscrthread)
+			while not is_main_terminated():		
+				ret = my_defin(TLS.xscrthread)
+				if ret:
+					break
+				time.sleep(0.2)
+			return ret
 		else:
-			STDIN.readline()
+			return STDIN.readline()
+
+	@staticmethod
+	def read():
+		return MyDefIO.readline()
 		
 class MyDefOErr:
+	@staticmethod
 	def write(s):
 		STDERR.write(s)
 		if s[-1] == '\n':

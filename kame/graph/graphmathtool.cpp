@@ -342,13 +342,8 @@ XGraph1DMathToolList::onAxisSelectedByToolForCreate(const Snapshot &shot,
     }
 #ifdef USE_PYBIND11
     catch (pybind11::error_already_set& e) {
-        try {
-            pybind11::gil_scoped_acquire guard;
-            gErrPrint(i18n("Python error: ") + e.what());
-        }
-        catch (pybind11::error_already_set& e) {
-            gErrPrint(i18n("Python error: ") + e.what());
-        }
+        pybind11::gil_scoped_acquire guard;
+        gErrPrint(i18n("Python error: ") + e.what());
     }
 #endif
     catch (std::runtime_error &e) {
@@ -390,13 +385,8 @@ XGraph2DMathToolList::onPlaneSelectedByToolForCreate(const Snapshot &shot,
     }
 #ifdef USE_PYBIND11
     catch (pybind11::error_already_set& e) {
-        try {
-            pybind11::gil_scoped_acquire guard;
-            gErrPrint(i18n("Python error: ") + e.what());
-        }
-        catch (pybind11::error_already_set& e) {
-            gErrPrint(i18n("Python error: ") + e.what());
-        }
+        pybind11::gil_scoped_acquire guard;
+        gErrPrint(i18n("Python error: ") + e.what());
     }
 #endif
     catch (std::runtime_error &e) {

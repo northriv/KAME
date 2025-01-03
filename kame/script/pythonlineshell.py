@@ -32,7 +32,7 @@ while not is_main_terminated():
         print("{} >{}".format(lineno, line))
         print(repr(eval(line)))
     except EOFError:
-        time.sleep(0.2)
+        time.sleep(0.05)
         continue
     except SyntaxError:
         try:
