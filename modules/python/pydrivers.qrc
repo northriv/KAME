@@ -2,6 +2,6 @@
     <qresource prefix="/python">
         <file>pydrivers.py</file>
         <file>formpytestdriver.ui</file>
-        <file>fourresform.ui</file>
+        <file>formpyfourres.ui</file>
     </qresource>
 </RCC>

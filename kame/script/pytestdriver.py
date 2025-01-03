@@ -11,7 +11,7 @@ for i in range(50):
 #Once KAME modules have been successfully loaded, the above startup codes are not needed.
 from kame import *
 
-#sa pydrives.py
+#sa pydrivers.py
 
 #The first example:
 #Defines KAME driver class inside python.

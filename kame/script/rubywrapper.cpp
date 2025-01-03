@@ -14,15 +14,14 @@ const Ruby::Value Ruby::True = Qtrue;
 
 Ruby::Ruby(const char *scriptname, void *stack) {
     static char options_array[][16] = {"kame", "-e;"};
-    static char *argv[] = {options_array[0], nullptr};
+    static char *argv[] = {options_array[0], nullptr}; //only with program name.
     int argc = sizeof(argv) / sizeof(char*) - 1;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
     ruby_sysinit(&argc, (char***)(&argv));
-//    NtInitialize(&argc, (char***)(&argv));
 #endif
     ruby_init_stack((VALUE*)stack);
     ruby_init();
-    static char *options[] = {options_array[0], options_array[1], nullptr};
+    static char *options[] = {options_array[0], options_array[1], nullptr}; //with -e...
     argc = sizeof(options) / sizeof(char*) - 1;
     ruby_process_options(argc, options); //needed for ruby >= 3.
     ruby_script(scriptname);

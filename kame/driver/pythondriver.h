@@ -146,10 +146,22 @@ protected:
             executeInPython([&]()->bool{return terminated;});
         }
         catch (pybind11::error_already_set& e) {
-            gErrPrint(i18n("Python error: ") + e.what());
+            try {
+                pybind11::gil_scoped_acquire guard;
+                gErrPrint(i18n("Python error: ") + e.what());
+            }
+            catch (pybind11::error_already_set& e) {
+                gErrPrint(i18n("Python error: ") + e.what());
+            }
         }
         catch (std::runtime_error &e) {
-            gErrPrint(i18n("Python KAME binding error: ") + e.what());
+            try {
+                pybind11::gil_scoped_acquire guard;
+                gErrPrint(i18n("Python KAME binding error: ") + e.what());
+            }
+            catch (pybind11::error_already_set& e) {
+                gErrPrint(i18n("Python error: ") + e.what());
+            }
         }
         catch (...) {
             gErrPrint(i18n("Unknown python error."));

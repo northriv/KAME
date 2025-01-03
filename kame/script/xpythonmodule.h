@@ -18,8 +18,6 @@
 
 #ifdef USE_PYBIND11
 
-#define PYBIND11_NO_ASSERT_GIL_HELD_INCREF_DECREF //For mainthread call.
-
 #include <pybind11/embed.h> //include before kame headers
 #include <pybind11/functional.h> //needed to wrap std::function.
 #include <pybind11/stl.h>
