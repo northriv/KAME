@@ -95,61 +95,84 @@ private:
     shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2, m_osolbl;
 };
 
-template <class F>
-class XGraph1DMathToolX: public XGraph1DMathTool {
+template <class F, class Base, size_t NumEntries = 1u>
+class XGraphMathToolX: public Base {
 public:
-    XGraph1DMathToolX(const char *name, bool runtime, Transaction &tr_meas,
+    XGraphMathToolX(const char *name, bool runtime, Transaction &tr_meas,
                       const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
                       const shared_ptr<XPlot> &plot, const char *entryname) :
-        XGraph1DMathTool(name, runtime, ref(tr_meas), entries, driver, plot) {
-         m_entry = create<XScalarEntry>(
-            entryname, false, driver);
-         entries->insert(tr_meas, m_entry);
+        Base(name, runtime, ref(tr_meas), entries, driver, plot) {
+        for(size_t i = 0; i < NumEntries; ++i) {
+             this->m_entries.push_back(this->XNode::create<XScalarEntry>(
+                (NumEntries > 1) ? formatString("%s-%u", entryname, NumEntries).c_str() : entryname,
+                false, driver));
+             entries->insert(tr_meas, m_entries.back());
+        }
     }
-    virtual ~XGraph1DMathToolX() {}
+    virtual ~XGraphMathToolX() {}
+//    const shared_ptr<XScalarEntry> entry(unsigned int i = 0) const {return m_entries.at(i);}
+    virtual bool releaseEntries(Transaction &tr) override {
+        for(auto &x: m_entries) {
+            if( !this->entries()->release(tr, x))
+                return false;
+        }
+        return true;
+    }
+    const shared_ptr<XScalarEntry> entry(unsigned int i = 0) const {return m_entries.at(i);}
+private:
+    std::deque<shared_ptr<XScalarEntry>> m_entries;
+};
+
+template <class F, size_t NumEntries = 1u>
+class XGraph1DMathToolX: public XGraphMathToolX<F, XGraph1DMathTool, NumEntries> {
+public:
+    using XGraphMathToolX<F, XGraph1DMathTool, NumEntries>::XGraphMathToolX;
+    using cv_iterator = typename XGraphMathToolX<F, XGraph1DMathTool, NumEntries>::cv_iterator;
+    using ret_type = typename std::conditional<NumEntries == 1u, double, std::vector<double>>::type;
+
     virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
-        double v = tr[ *this].functor(xbegin, xend, ybegin, yend);
-        m_entry->value(tr, v);
+        if constexpr(NumEntries == 1) {
+            double v = tr[ *this].functor(xbegin, xend, ybegin, yend);
+            this->entry()->value(tr, v);
+        }
+        else {
+            std::vector<double> v = tr[ *this].functor(xbegin, xend, ybegin, yend);
+            for(unsigned int i = 0; i < NumEntries; ++i)
+                this->entry(i)->value(tr, v.at(i));
+        }
 //        updateOnScreenObjects(tr, graphwidget);
     }
-    const shared_ptr<XScalarEntry> entry() const {return m_entry;}
-    virtual bool releaseEntries(Transaction &tr) override {return entries()->release(tr, m_entry);}
     struct Payload : public XGraph1DMathTool::Payload {
         F functor;
     };
-private:
-    shared_ptr<XScalarEntry> m_entry;
 };
 
-template <class F>
-class XGraph2DMathToolX: public XGraph2DMathTool {
+template <class F, size_t NumEntries = 1u>
+class XGraph2DMathToolX: public XGraphMathToolX<F, XGraph2DMathTool, NumEntries> {
 public:
-    XGraph2DMathToolX(const char *name, bool runtime, Transaction &tr_meas,
-                      const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-                      const shared_ptr<XPlot> &plot, const char *entryname) :
-        XGraph2DMathTool(name, runtime, ref(tr_meas), entries, driver, plot) {
-        m_entry = create<XScalarEntry>(
-            entryname, false, driver);
-        entries->insert(tr_meas, m_entry);
-    }
-    virtual ~XGraph2DMathToolX() {}
+    using XGraphMathToolX<F, XGraph2DMathTool, NumEntries>::XGraphMathToolX;
+    using ret_type = typename std::conditional<NumEntries == 1u, double, std::vector<double>>::type;
+
     virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient) override {
 //        using namespace Eigen;
 //        using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
 //        auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
 //            leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
-        double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
-        m_entry->value(tr, v);
+        if constexpr(NumEntries == 1) {
+            double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
+            this->entry()->value(tr, v);
+        }
+        else {
+            std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
+            for(unsigned int i = 0; i < NumEntries; ++i)
+                this->entry(i)->value(tr, v.at(i));
+        }
 //        updateOnScreenObjects(tr, graphwidget);
     }
-    const shared_ptr<XScalarEntry> entry() const {return m_entry;}
-    virtual bool releaseEntries(Transaction &tr) override {return entries()->release(tr, m_entry);}
     struct Payload : public XGraph2DMathTool::Payload {
         F functor;
     };
-private:
-    shared_ptr<XScalarEntry> m_entry;
 };
 
 struct FuncGraph1DMathToolSum{

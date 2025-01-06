@@ -51,7 +51,7 @@ class MyDefIO:
 			if TLS.logfile:
 				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
 		else:
-			STDERR.write(s)
+			STDERR.write(s) #redirecting to terminal, for debug purpose.
 
 	@staticmethod
 	def readline():
@@ -59,11 +59,11 @@ class MyDefIO:
 			while not is_main_terminated():		
 				ret = my_defin(TLS.xscrthread)
 				if ret:
-					break
+					break #no input detected.
 				time.sleep(0.2)
 			return ret
 		else:
-			return STDIN.readline()
+			return STDIN.readline() #redirecting to terminal, for debug purpose.
 
 	@staticmethod
 	def read():
@@ -72,7 +72,7 @@ class MyDefIO:
 class MyDefOErr:
 	@staticmethod
 	def write(s):
-		STDERR.write(s)
+		STDERR.write(s) #redirecting to terminal, for debug purpose.
 		if s[-1] == '\n':
 			s = s[0:-1]
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
@@ -182,7 +182,6 @@ while not is_main_terminated():
 		pass
 	except Exception as inst:
 		sys.stderr.write(str(traceback.format_exc()))
-		pass
 
 
 sys.stderr.write("bye")
@@ -191,12 +190,11 @@ sys.stdout = STDOUT
 sys.stderr = STDERR
 sys.stdin = STDIN
 
-time.sleep(0.2) #for line interpreter
+time.sleep(0.2) #waiting for closing line interpreter
 for thread in threading.enumerate():
 	try:
 		thread.join()
 	except Exception as inst:
 		sys.stderr.write(str(traceback.format_exc()))
-		pass
 
 sys.stderr.write("bye!\n")

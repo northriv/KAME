@@ -31,19 +31,16 @@ while not is_main_terminated():
         line = input()
         print("{} >{}".format(lineno, line))
         print(repr(eval(line)))
-    except EOFError:
+    except EOFError: #emits when MyStdIO terminates.
         time.sleep(0.05)
         continue
     except SyntaxError:
         try:
-            exec(line)
+            exec(line) #line without return value.
         except Exception as inst:
             sys.stderr.write(str(type(inst)))
             sys.stderr.write(str(inst))
-            pass
-        pass
     except Exception as inst:
         sys.stderr.write(str(type(inst)))
         sys.stderr.write(str(inst))
-        pass
     lineno+=1

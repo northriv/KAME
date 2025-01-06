@@ -410,6 +410,163 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     py::register_exception<XNode::NodeNotFoundError>(m, "KAMENodeNotFoundError", PyExc_KeyError);
     py::register_exception<XKameError>(m, "KAMEError", PyExc_RuntimeError);
 }
+
+template <size_t NumEntries = 1u>
+struct PyFunc1DMathTool {
+    ~PyFunc1DMathTool() {
+        if( !pyfunc) return;
+        pybind11::gil_scoped_acquire guard;
+        pyfunc.reset();
+    }
+    using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
+    using ret_type = typename XGraph1DMathToolX<PyFunc1DMathTool, NumEntries>::ret_type;
+
+    ret_type
+    operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
+        pybind11::gil_scoped_acquire guard;
+        auto pf = pyfunc;
+        if( !pf)
+            return {};
+        try {
+            using namespace Eigen;
+            auto xvec = Map<const VectorXd, 0>( &*xbegin, xend - xbegin);
+            auto yvec = Map<const VectorXd, 0>( &*ybegin, yend - ybegin);
+            return py::cast<ret_type>((*pf)(Ref<const VectorXd>(xvec), Ref<const VectorXd>(yvec)));
+        }
+        catch (pybind11::error_already_set& e) {
+            gErrPrint(i18n("Python error: ") + e.what());
+        }
+        catch (std::runtime_error &e) {
+            gErrPrint(i18n("Python KAME binding error: ") + e.what());
+        }
+        catch (...) {
+            gErrPrint(i18n("Unknown python error."));
+        }
+        return {};
+    }
+    std::shared_ptr<py::object> pyfunc;
+};
+
+template <class PyFunc, class MathTool, class MathToolList, size_t NumEntries = 1u>
+class XPythonGraphMathTool : public MathTool {
+public:
+    using MathTool::MathTool;
+    virtual XString getTypename() const override { return m_creation_key;}
+
+    virtual bool releaseEntries(Transaction &tr) override {
+        bool ret = MathTool::releaseEntries(tr);
+        if( !ret) {
+            //clears an extra reference counting.
+            pybind11::gil_scoped_acquire guard;
+            m_self_creating = pybind11::none();
+            //now python will free this.
+        }
+        return ret;
+    }
+
+    //! registers run-time driver class defined in python, into XGraph1DMathToolList.
+    //! \sa XListNodeBase::createByTypename(), XNode::getTypename(), XTypeHolder<>.
+    static void exportClass(const std::string &key, pybind11::object cls, const std::string &label) {
+        MathToolList::s_types.eraseCreator(key); //erase previous info.
+        MathToolList::s_types.insertCreator(key, [key, cls](const char *name, bool runtime,
+            std::reference_wrapper<Transaction> tr,
+            const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+            const shared_ptr<XPlot> &plot, const char*entryname)->shared_ptr<XNode> {
+            pybind11::gil_scoped_acquire guard;
+            pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, entryname); //createOrphan in python side.
+            auto pytool = dynamic_pointer_cast<XPythonGraphMathTool>
+                (obj.cast<shared_ptr<XNode>>());
+            if( !driver)
+                throw std::runtime_error("Tool creation failed.");
+            pytool->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
+            pytool->m_creation_key = key;
+            return pytool;
+        }, label);
+    }
+private:
+    pybind11::object m_self_creating; //to increase reference counter.
+    XString m_creation_key;
+};
+
+template class XPythonGraphMathTool<PyFunc1DMathTool<>, XGraph1DMathToolX<PyFunc1DMathTool<>>, XGraph1DMathToolList>;
+template class XPythonGraphMathTool<PyFunc1DMathTool<2u>, XGraph1DMathToolX<PyFunc1DMathTool<2u>, 2u>, XGraph1DMathToolList>;
+template class XPythonGraphMathTool<PyFunc1DMathTool<3u>, XGraph1DMathToolX<PyFunc1DMathTool<3u>, 3u>, XGraph1DMathToolList>;
+template class XPythonGraphMathTool<PyFunc1DMathTool<4u>, XGraph1DMathToolX<PyFunc1DMathTool<4u>, 4u>, XGraph1DMathToolList>;
+template class XPythonGraphMathTool<PyFunc1DMathTool<5u>, XGraph1DMathToolX<PyFunc1DMathTool<5u>, 5u>, XGraph1DMathToolList>;
+template class XPythonGraphMathTool<PyFunc1DMathTool<6u>, XGraph1DMathToolX<PyFunc1DMathTool<6u>, 6u>, XGraph1DMathToolList>;
+
+using XPythonGraph1DMathTool = XPythonGraphMathTool<PyFunc1DMathTool<>, XGraph1DMathToolX<PyFunc1DMathTool<>>, XGraph1DMathToolList>;
+using XPythonGraph1DMathTool_2Entries = XPythonGraphMathTool<PyFunc1DMathTool<2u>, XGraph1DMathToolX<PyFunc1DMathTool<2u>, 2u>, XGraph1DMathToolList>;
+using XPythonGraph1DMathTool_3Entries = XPythonGraphMathTool<PyFunc1DMathTool<3u>, XGraph1DMathToolX<PyFunc1DMathTool<3u>, 3u>, XGraph1DMathToolList>;
+using XPythonGraph1DMathTool_4Entries = XPythonGraphMathTool<PyFunc1DMathTool<4u>, XGraph1DMathToolX<PyFunc1DMathTool<4u>, 4u>, XGraph1DMathToolList>;
+using XPythonGraph1DMathTool_5Entries = XPythonGraphMathTool<PyFunc1DMathTool<5u>, XGraph1DMathToolX<PyFunc1DMathTool<5u>, 5u>, XGraph1DMathToolList>;
+using XPythonGraph1DMathTool_6Entries = XPythonGraphMathTool<PyFunc1DMathTool<6u>, XGraph1DMathToolX<PyFunc1DMathTool<6u>, 6u>, XGraph1DMathToolList>;
+
+template <size_t NumEntries = 1u>
+struct PyFunc2DMathTool {
+    ~PyFunc2DMathTool() {
+        if( !pyfunc) return;
+        pybind11::gil_scoped_acquire guard;
+        pyfunc.reset();
+    }
+
+    using ret_type = typename XGraph2DMathToolX<PyFunc2DMathTool, NumEntries>::ret_type;
+
+    ret_type
+    operator()(const uint32_t *leftupper, unsigned int width,
+                      unsigned int stride, unsigned int numlines, double coefficient){
+        using namespace Eigen;
+        using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
+        auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
+            leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
+        pybind11::gil_scoped_acquire guard;
+        auto pf = pyfunc;
+        if( !pf)
+            return {};
+        try {
+            return py::cast<ret_type>((*pf)(Ref<const RMatrixXu32>(cmatrix),
+                width, stride, numlines, coefficient));
+        }
+        catch (pybind11::error_already_set& e) {
+            gErrPrint(i18n("Python error: ") + e.what());
+        }
+        catch (std::runtime_error &e) {
+            gErrPrint(i18n("Python KAME binding error: ") + e.what());
+        }
+        catch (...) {
+            gErrPrint(i18n("Unknown python error."));
+        }
+        return {};
+    }
+    std::shared_ptr<py::object> pyfunc;
+};
+
+template class XPythonGraphMathTool<PyFunc2DMathTool<>, XGraph2DMathToolX<PyFunc2DMathTool<>>, XGraph2DMathToolList>;
+template class XPythonGraphMathTool<PyFunc2DMathTool<2u>, XGraph2DMathToolX<PyFunc2DMathTool<2u>, 2u>, XGraph2DMathToolList>;
+template class XPythonGraphMathTool<PyFunc2DMathTool<3u>, XGraph2DMathToolX<PyFunc2DMathTool<3u>, 3u>, XGraph2DMathToolList>;
+template class XPythonGraphMathTool<PyFunc2DMathTool<4u>, XGraph2DMathToolX<PyFunc2DMathTool<4u>, 4u>, XGraph2DMathToolList>;
+
+using XPythonGraph2DMathTool = XPythonGraphMathTool<PyFunc2DMathTool<>, XGraph2DMathToolX<PyFunc2DMathTool<>>, XGraph2DMathToolList>;
+using XPythonGraph2DMathTool_2Entries = XPythonGraphMathTool<PyFunc2DMathTool<2u>, XGraph2DMathToolX<PyFunc2DMathTool<2u>, 2u>, XGraph2DMathToolList>;
+using XPythonGraph2DMathTool_3Entries = XPythonGraphMathTool<PyFunc2DMathTool<3u>, XGraph2DMathToolX<PyFunc2DMathTool<3u>, 3u>, XGraph2DMathToolList>;
+using XPythonGraph2DMathTool_4Entries = XPythonGraphMathTool<PyFunc2DMathTool<4u>, XGraph2DMathToolX<PyFunc2DMathTool<4u>, 4u>, XGraph2DMathToolList>;
+
+template <class PyMathTool, class MathTool>
+void export_mathtool(const char *name) {
+    auto [node, payload] = XPython::bind.export_xnode<PyMathTool, MathTool,
+            Transaction&, const shared_ptr<XScalarEntryList> &,
+            const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*>(name);
+    (*node)
+        .def_static("exportClass", &PyMathTool::exportClass)
+        .def("setFunctor", [](shared_ptr<PyMathTool> &self, py::object f){
+            trans( *self).functor.pyfunc = std::make_shared<py::object>(f);
+        });
+    (*payload)
+        .def("setFunctor", [](typename PyMathTool::Payload &self, py::object f){
+            self.functor.pyfunc = std::make_shared<py::object>(f);
+        });
+}
+
 void
 KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
     {   auto [node, payload] = XPython::bind.export_xnode<XGraph, XNode>();
@@ -453,155 +610,18 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
     XPython::bind.export_xnode<XGraphMathTool, XNode>();
     XPython::bind.export_xnode<XGraph1DMathTool, XGraphMathTool>();
     XPython::bind.export_xnode<XGraph2DMathTool, XGraphMathTool>();
-    struct PyFunc1DMathTool {
-        ~PyFunc1DMathTool() {
-            if( !pyfunc) return;
-            pybind11::gil_scoped_acquire guard;
-            pyfunc.reset();
-        }
-        using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
-        double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
-            pybind11::gil_scoped_acquire guard;
-            auto pf = pyfunc;
-            if( !pf)
-                return 0.0;
-            try {
-                using namespace Eigen;
-                auto xvec = Map<const VectorXd, 0>( &*xbegin, xend - xbegin);
-                auto yvec = Map<const VectorXd, 0>( &*ybegin, yend - ybegin);
-                return py::cast<double>((*pf)(Ref<const VectorXd>(xvec), Ref<const VectorXd>(yvec)));
-            }
-            catch (pybind11::error_already_set& e) {
-                gErrPrint(i18n("Python error: ") + e.what());
-            }
-            catch (std::runtime_error &e) {
-                gErrPrint(i18n("Python KAME binding error: ") + e.what());
-            }
-            catch (...) {
-                gErrPrint(i18n("Unknown python error."));
-            }
-            return 0.0;
-        }
-        std::shared_ptr<py::object> pyfunc;
-    };
-    class XPythonGraph1DMathTool : public XGraph1DMathToolX<PyFunc1DMathTool> {
-    public:
-        using XGraph1DMathToolX<PyFunc1DMathTool>::XGraph1DMathToolX;
-        virtual XString getTypename() const override { return m_creation_key;}
 
-        //! registers run-time driver class defined in python, into XGraph1DMathToolList.
-        //! \sa XListNodeBase::createByTypename(), XNode::getTypename(), XTypeHolder<>.
-        static void exportClass(const std::string &key, pybind11::object cls, const std::string &label) {
-            XGraph1DMathToolList::s_types.eraseCreator(key); //erase previous info.
-            XGraph1DMathToolList::s_types.insertCreator(key, [key, cls](const char *name, bool runtime,
-                std::reference_wrapper<Transaction> tr,
-                const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-                const shared_ptr<XPlot> &plot, const char*entryname)->shared_ptr<XNode> {
-                pybind11::gil_scoped_acquire guard;
-                pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, entryname); //createOrphan in python side.
-                auto pytool = dynamic_pointer_cast<XPythonGraph1DMathTool>
-                    (obj.cast<shared_ptr<XNode>>());
-                if( !driver)
-                    throw std::runtime_error("Tool creation failed.");
-                pytool->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
-                pytool->m_creation_key = key;
-                return pytool;
-            }, label);
-        }
-    private:
-        pybind11::object m_self_creating; //to increase reference counter.
-        XString m_creation_key;
-    };
-    {   auto [node, payload] = XPython::bind.export_xnode<XPythonGraph1DMathTool, XGraph1DMathTool,
-                Transaction&, const shared_ptr<XScalarEntryList> &,
-                const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*>();
-        (*node)
-            .def_static("exportClass", &XPythonGraph1DMathTool::exportClass)
-            .def("setFunctor", [](shared_ptr<XPythonGraph1DMathTool> &self, py::object f){
-                trans( *self).functor.pyfunc = std::make_shared<py::object>(f);
-            });
-        (*payload)
-            .def("setFunctor", [](XPythonGraph1DMathTool::Payload &self, py::object f){
-                self.functor.pyfunc = std::make_shared<py::object>(f);
-            });
-    }
+    export_mathtool<XPythonGraph1DMathTool, XGraph1DMathTool>("XPythonGraph1DMathTool");
+    export_mathtool<XPythonGraph1DMathTool_2Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_2Entries");
+    export_mathtool<XPythonGraph1DMathTool_3Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_3Entries");
+    export_mathtool<XPythonGraph1DMathTool_4Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_4Entries");
+    export_mathtool<XPythonGraph1DMathTool_5Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_5Entries");
+    export_mathtool<XPythonGraph1DMathTool_6Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_6Entries");
 
-
-    struct PyFunc2DMathTool {
-        ~PyFunc2DMathTool() {
-            if( !pyfunc) return;
-            pybind11::gil_scoped_acquire guard;
-            pyfunc.reset();
-        }
-        double operator()(const uint32_t *leftupper, unsigned int width,
-                          unsigned int stride, unsigned int numlines, double coefficient){
-            using namespace Eigen;
-            using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
-            auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
-                leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
-            pybind11::gil_scoped_acquire guard;
-            auto pf = pyfunc;
-            if( !pf)
-                return 0.0;
-            try {
-                return py::cast<double>((*pf)(Ref<const RMatrixXu32>(cmatrix),
-                    width, stride, numlines, coefficient));
-            }
-            catch (pybind11::error_already_set& e) {
-                gErrPrint(i18n("Python error: ") + e.what());
-            }
-            catch (std::runtime_error &e) {
-                gErrPrint(i18n("Python KAME binding error: ") + e.what());
-            }
-            catch (...) {
-                gErrPrint(i18n("Unknown python error."));
-            }
-            return 0.0;
-        }
-        std::shared_ptr<py::object> pyfunc;
-    };
-    class XPythonGraph2DMathTool : public XGraph2DMathToolX<PyFunc2DMathTool> {
-    public:
-        using XGraph2DMathToolX<PyFunc2DMathTool>::XGraph2DMathToolX;
-        virtual XString getTypename() const override { return m_creation_key;}
-
-        //! registers run-time driver class defined in python, into XGraph1DMathToolList.
-        //! \sa XListNodeBase::createByTypename(), XNode::getTypename(), XTypeHolder<>.
-        static void exportClass(const std::string &key, pybind11::object cls, const std::string &label) {
-            XGraph2DMathToolList::s_types.eraseCreator(key); //erase previous info.
-            XGraph2DMathToolList::s_types.insertCreator(key, [key, cls](const char *name, bool runtime,
-                std::reference_wrapper<Transaction> tr,
-                const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-                const shared_ptr<XPlot> &plot, const char*entryname)->shared_ptr<XNode> {
-                pybind11::gil_scoped_acquire guard;
-                pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, entryname); //createOrphan in python side.
-                auto pytool = dynamic_pointer_cast<XPythonGraph2DMathTool>
-                    (obj.cast<shared_ptr<XNode>>());
-                if( !driver)
-                    throw std::runtime_error("Tool creation failed.");
-                pytool->m_self_creating = obj; //pybind11::cast(driver); //for persistence of python-side class.
-                pytool->m_creation_key = key;
-                return pytool;
-            }, label);
-        }
-    private:
-        pybind11::object m_self_creating; //to increase reference counter.
-        XString m_creation_key;
-    };
-    {   auto [node, payload] = XPython::bind.export_xnode<XPythonGraph2DMathTool, XGraph2DMathTool,
-                Transaction&, const shared_ptr<XScalarEntryList> &,
-                const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*>();
-        (*node)
-            .def_static("exportClass", &XPythonGraph2DMathTool::exportClass)
-            .def("setFunctor", [](shared_ptr<XPythonGraph2DMathTool> &self, py::object f){
-                trans( *self).functor.pyfunc = std::make_shared<py::object>(f);
-            });
-        (*payload)
-            .def("setFunctor", [](XPythonGraph2DMathTool::Payload &self, py::object f){
-                self.functor.pyfunc = std::make_shared<py::object>(f);
-            });
-    }
-
+    export_mathtool<XPythonGraph2DMathTool, XGraph2DMathTool>("XPythonGraph2DMathTool");
+    export_mathtool<XPythonGraph2DMathTool_2Entries, XGraph2DMathTool>("XPythonGraph2DMathTool_2Entries");
+    export_mathtool<XPythonGraph2DMathTool_3Entries, XGraph2DMathTool>("XPythonGraph2DMathTool_3Entries");
+    export_mathtool<XPythonGraph2DMathTool_4Entries, XGraph2DMathTool>("XPythonGraph2DMathTool_4Entries");
 }
 
 void
