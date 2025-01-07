@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -26,12 +26,12 @@ class XGraph1DMathFitToolX: public XGraph1DMathTool {
 public:
     XGraph1DMathFitToolX(const char *name, bool runtime, Transaction &tr_meas,
                       const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-                      const shared_ptr<XPlot> &plot, const char *entryname) :
+                      const shared_ptr<XPlot> &plot, const std::vector<std::string> &entrynames) :
         XGraph1DMathTool(name, runtime, ref(tr_meas), entries, driver, plot) {
          m_entry = create<XScalarEntry>(
-            entryname, false, driver);
+            entrynames[0].c_str(), false, driver);
          m_entry_err = create<XScalarEntry>(
-            (XString(entryname) + "_err").c_str(), false, driver);
+            (XString(entrynames[0]) + "_err").c_str(), false, driver);
          entries->insert(tr_meas, m_entry);
          entries->insert(tr_meas, m_entry_err);
     }

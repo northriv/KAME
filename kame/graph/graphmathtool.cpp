@@ -230,10 +230,20 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
     shared_ptr<XMeasure> meas(m_measure.lock());
     shared_ptr<XNode> ptr;
     auto plot = m_plot.lock();
+
+    std::vector<std::string> name_split;
+    ssize_t pos = 0;
+    for(;;) {
+        auto npos = name.find_first_of(";", pos);
+        name_split.push_back(this->getName() + "-" + name.substr(pos, npos - pos));
+        if(npos == std::string::npos)
+            break;
+        pos = npos + 1;
+    }
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
             (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot,
-            (this->getName() + "-" + name).c_str());
+            name_split);
         if(ptr)
             if( !this->insert(tr, ptr))
                 return false;
@@ -247,10 +257,20 @@ XGraph2DMathToolList::createByTypename(const XString &type, const XString& name)
     shared_ptr<XMeasure> meas(m_measure.lock());
     shared_ptr<XNode> ptr;
     auto plot = m_plot.lock();
+
+    std::vector<std::string> name_split;
+    ssize_t pos = 0;
+    for(;;) {
+        auto npos = name.find_first_of(";", pos);
+        name_split.push_back(this->getName() + "-" + name.substr(pos, npos - pos));
+        if(npos == std::string::npos)
+            break;
+        pos = npos + 1;
+    }
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
             (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot,
-            (this->getName() + "-" + name).c_str());
+            name_split);
         if(ptr)
             if( !this->insert(tr, ptr))
                 return false;

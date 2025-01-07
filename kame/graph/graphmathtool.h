@@ -95,17 +95,17 @@ private:
     shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2, m_osolbl;
 };
 
-template <class F, class Base, size_t NumEntries = 1u>
+//! entrynames semi colon-sparated entry names.
+template <class F, class Base>
 class XGraphMathToolX: public Base {
 public:
     XGraphMathToolX(const char *name, bool runtime, Transaction &tr_meas,
                       const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-                      const shared_ptr<XPlot> &plot, const char *entryname) :
+                      const shared_ptr<XPlot> &plot, const std::vector<std::string> &entrynames) :
         Base(name, runtime, ref(tr_meas), entries, driver, plot) {
-        for(size_t i = 0; i < NumEntries; ++i) {
+        for(size_t i = 0; i < entrynames.size(); ++i) {
              this->m_entries.push_back(this->XNode::create<XScalarEntry>(
-                (NumEntries > 1) ? formatString("%s-%u", entryname, NumEntries).c_str() : entryname,
-                false, driver));
+                entrynames[i].c_str(), false, driver));
              entries->insert(tr_meas, m_entries.back());
         }
     }
@@ -118,26 +118,27 @@ public:
         }
         return true;
     }
+    unsigned int numEntries() const {return m_entries.size();}
     const shared_ptr<XScalarEntry> entry(unsigned int i = 0) const {return m_entries.at(i);}
 private:
     std::deque<shared_ptr<XScalarEntry>> m_entries;
 };
 
-template <class F, size_t NumEntries = 1u>
-class XGraph1DMathToolX: public XGraphMathToolX<F, XGraph1DMathTool, NumEntries> {
+template <class F, bool HasSingleEntry = true>
+class XGraph1DMathToolX: public XGraphMathToolX<F, XGraph1DMathTool> {
 public:
-    using XGraphMathToolX<F, XGraph1DMathTool, NumEntries>::XGraphMathToolX;
-    using cv_iterator = typename XGraphMathToolX<F, XGraph1DMathTool, NumEntries>::cv_iterator;
-    using ret_type = typename std::conditional<NumEntries == 1u, double, std::vector<double>>::type;
+    using XGraphMathToolX<F, XGraph1DMathTool>::XGraphMathToolX;
+    using cv_iterator = typename XGraphMathToolX<F, XGraph1DMathTool>::cv_iterator;
+    using ret_type = typename std::conditional<HasSingleEntry, double, std::vector<double>>::type;
 
     virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
-        if constexpr(NumEntries == 1) {
+        if constexpr(HasSingleEntry) {
             double v = tr[ *this].functor(xbegin, xend, ybegin, yend);
             this->entry()->value(tr, v);
         }
         else {
             std::vector<double> v = tr[ *this].functor(xbegin, xend, ybegin, yend);
-            for(unsigned int i = 0; i < NumEntries; ++i)
+            for(unsigned int i = 0; i < this->numEntries(); ++i)
                 this->entry(i)->value(tr, v.at(i));
         }
 //        updateOnScreenObjects(tr, graphwidget);
@@ -147,11 +148,11 @@ public:
     };
 };
 
-template <class F, size_t NumEntries = 1u>
-class XGraph2DMathToolX: public XGraphMathToolX<F, XGraph2DMathTool, NumEntries> {
+template <class F, bool HasSingleEntry = true>
+class XGraph2DMathToolX: public XGraphMathToolX<F, XGraph2DMathTool> {
 public:
-    using XGraphMathToolX<F, XGraph2DMathTool, NumEntries>::XGraphMathToolX;
-    using ret_type = typename std::conditional<NumEntries == 1u, double, std::vector<double>>::type;
+    using XGraphMathToolX<F, XGraph2DMathTool>::XGraphMathToolX;
+    using ret_type = typename std::conditional<HasSingleEntry, double, std::vector<double>>::type;
 
     virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient) override {
@@ -159,14 +160,18 @@ public:
 //        using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
 //        auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
 //            leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
-        if constexpr(NumEntries == 1) {
+        if constexpr(HasSingleEntry) {
             double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
             this->entry()->value(tr, v);
         }
         else {
             std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
-            for(unsigned int i = 0; i < NumEntries; ++i)
-                this->entry(i)->value(tr, v.at(i));
+            try {
+                for(unsigned int i = 0; i < this->numEntries(); ++i)
+                    this->entry(i)->value(tr, v.at(i));
+            }
+            catch(std::out_of_range&) {
+            }
         }
 //        updateOnScreenObjects(tr, graphwidget);
     }
@@ -332,7 +337,7 @@ public:
 
     DEFINE_TYPE_HOLDER(
         std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
-        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*
+        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const std::vector<std::string> &
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 
@@ -354,7 +359,7 @@ public:
 
     DEFINE_TYPE_HOLDER(
         std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
-        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*
+        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const std::vector<std::string> &
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 

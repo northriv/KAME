@@ -411,7 +411,6 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     py::register_exception<XKameError>(m, "KAMEError", PyExc_RuntimeError);
 }
 
-template <size_t NumEntries = 1u>
 struct PyFunc1DMathTool {
     ~PyFunc1DMathTool() {
         if( !pyfunc) return;
@@ -419,7 +418,7 @@ struct PyFunc1DMathTool {
         pyfunc.reset();
     }
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
-    using ret_type = typename XGraph1DMathToolX<PyFunc1DMathTool, NumEntries>::ret_type;
+    using ret_type = typename XGraph1DMathToolX<PyFunc1DMathTool, false>::ret_type;
 
     ret_type
     operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
@@ -447,7 +446,7 @@ struct PyFunc1DMathTool {
     std::shared_ptr<py::object> pyfunc;
 };
 
-template <class PyFunc, class MathTool, class MathToolList, size_t NumEntries = 1u>
+template <class PyFunc, class MathTool, class MathToolList>
 class XPythonGraphMathTool : public MathTool {
 public:
     using MathTool::MathTool;
@@ -455,7 +454,7 @@ public:
 
     virtual bool releaseEntries(Transaction &tr) override {
         bool ret = MathTool::releaseEntries(tr);
-        if( !ret) {
+        if(ret) {
             //clears an extra reference counting.
             pybind11::gil_scoped_acquire guard;
             m_self_creating = pybind11::none();
@@ -471,9 +470,9 @@ public:
         MathToolList::s_types.insertCreator(key, [key, cls](const char *name, bool runtime,
             std::reference_wrapper<Transaction> tr,
             const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-            const shared_ptr<XPlot> &plot, const char*entryname)->shared_ptr<XNode> {
+            const shared_ptr<XPlot> &plot, const std::vector<std::string> &entrynames)->shared_ptr<XNode> {
             pybind11::gil_scoped_acquire guard;
-            pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, entryname); //createOrphan in python side.
+            pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, entrynames); //createOrphan in python side.
             auto pytool = dynamic_pointer_cast<XPythonGraphMathTool>
                 (obj.cast<shared_ptr<XNode>>());
             if( !driver)
@@ -488,21 +487,10 @@ private:
     XString m_creation_key;
 };
 
-template class XPythonGraphMathTool<PyFunc1DMathTool<>, XGraph1DMathToolX<PyFunc1DMathTool<>>, XGraph1DMathToolList>;
-template class XPythonGraphMathTool<PyFunc1DMathTool<2u>, XGraph1DMathToolX<PyFunc1DMathTool<2u>, 2u>, XGraph1DMathToolList>;
-template class XPythonGraphMathTool<PyFunc1DMathTool<3u>, XGraph1DMathToolX<PyFunc1DMathTool<3u>, 3u>, XGraph1DMathToolList>;
-template class XPythonGraphMathTool<PyFunc1DMathTool<4u>, XGraph1DMathToolX<PyFunc1DMathTool<4u>, 4u>, XGraph1DMathToolList>;
-template class XPythonGraphMathTool<PyFunc1DMathTool<5u>, XGraph1DMathToolX<PyFunc1DMathTool<5u>, 5u>, XGraph1DMathToolList>;
-template class XPythonGraphMathTool<PyFunc1DMathTool<6u>, XGraph1DMathToolX<PyFunc1DMathTool<6u>, 6u>, XGraph1DMathToolList>;
+template class XPythonGraphMathTool<PyFunc1DMathTool, XGraph1DMathToolX<PyFunc1DMathTool, false>, XGraph1DMathToolList>;
 
-using XPythonGraph1DMathTool = XPythonGraphMathTool<PyFunc1DMathTool<>, XGraph1DMathToolX<PyFunc1DMathTool<>>, XGraph1DMathToolList>;
-using XPythonGraph1DMathTool_2Entries = XPythonGraphMathTool<PyFunc1DMathTool<2u>, XGraph1DMathToolX<PyFunc1DMathTool<2u>, 2u>, XGraph1DMathToolList>;
-using XPythonGraph1DMathTool_3Entries = XPythonGraphMathTool<PyFunc1DMathTool<3u>, XGraph1DMathToolX<PyFunc1DMathTool<3u>, 3u>, XGraph1DMathToolList>;
-using XPythonGraph1DMathTool_4Entries = XPythonGraphMathTool<PyFunc1DMathTool<4u>, XGraph1DMathToolX<PyFunc1DMathTool<4u>, 4u>, XGraph1DMathToolList>;
-using XPythonGraph1DMathTool_5Entries = XPythonGraphMathTool<PyFunc1DMathTool<5u>, XGraph1DMathToolX<PyFunc1DMathTool<5u>, 5u>, XGraph1DMathToolList>;
-using XPythonGraph1DMathTool_6Entries = XPythonGraphMathTool<PyFunc1DMathTool<6u>, XGraph1DMathToolX<PyFunc1DMathTool<6u>, 6u>, XGraph1DMathToolList>;
+using XPythonGraph1DMathTool = XPythonGraphMathTool<PyFunc1DMathTool, XGraph1DMathToolX<PyFunc1DMathTool, false>, XGraph1DMathToolList>;
 
-template <size_t NumEntries = 1u>
 struct PyFunc2DMathTool {
     ~PyFunc2DMathTool() {
         if( !pyfunc) return;
@@ -510,7 +498,7 @@ struct PyFunc2DMathTool {
         pyfunc.reset();
     }
 
-    using ret_type = typename XGraph2DMathToolX<PyFunc2DMathTool, NumEntries>::ret_type;
+    using ret_type = typename XGraph2DMathToolX<PyFunc2DMathTool, false>::ret_type;
 
     ret_type
     operator()(const uint32_t *leftupper, unsigned int width,
@@ -541,21 +529,15 @@ struct PyFunc2DMathTool {
     std::shared_ptr<py::object> pyfunc;
 };
 
-template class XPythonGraphMathTool<PyFunc2DMathTool<>, XGraph2DMathToolX<PyFunc2DMathTool<>>, XGraph2DMathToolList>;
-template class XPythonGraphMathTool<PyFunc2DMathTool<2u>, XGraph2DMathToolX<PyFunc2DMathTool<2u>, 2u>, XGraph2DMathToolList>;
-template class XPythonGraphMathTool<PyFunc2DMathTool<3u>, XGraph2DMathToolX<PyFunc2DMathTool<3u>, 3u>, XGraph2DMathToolList>;
-template class XPythonGraphMathTool<PyFunc2DMathTool<4u>, XGraph2DMathToolX<PyFunc2DMathTool<4u>, 4u>, XGraph2DMathToolList>;
+template class XPythonGraphMathTool<PyFunc2DMathTool, XGraph2DMathToolX<PyFunc2DMathTool, false>, XGraph2DMathToolList>;
 
-using XPythonGraph2DMathTool = XPythonGraphMathTool<PyFunc2DMathTool<>, XGraph2DMathToolX<PyFunc2DMathTool<>>, XGraph2DMathToolList>;
-using XPythonGraph2DMathTool_2Entries = XPythonGraphMathTool<PyFunc2DMathTool<2u>, XGraph2DMathToolX<PyFunc2DMathTool<2u>, 2u>, XGraph2DMathToolList>;
-using XPythonGraph2DMathTool_3Entries = XPythonGraphMathTool<PyFunc2DMathTool<3u>, XGraph2DMathToolX<PyFunc2DMathTool<3u>, 3u>, XGraph2DMathToolList>;
-using XPythonGraph2DMathTool_4Entries = XPythonGraphMathTool<PyFunc2DMathTool<4u>, XGraph2DMathToolX<PyFunc2DMathTool<4u>, 4u>, XGraph2DMathToolList>;
+using XPythonGraph2DMathTool = XPythonGraphMathTool<PyFunc2DMathTool, XGraph2DMathToolX<PyFunc2DMathTool, false>, XGraph2DMathToolList>;
 
 template <class PyMathTool, class MathTool>
 void export_mathtool(const char *name) {
     auto [node, payload] = XPython::bind.export_xnode<PyMathTool, MathTool,
             Transaction&, const shared_ptr<XScalarEntryList> &,
-            const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*>(name);
+            const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const std::vector<std::string> &>(name);
     (*node)
         .def_static("exportClass", &PyMathTool::exportClass)
         .def("setFunctor", [](shared_ptr<PyMathTool> &self, py::object f){
@@ -612,16 +594,8 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
     XPython::bind.export_xnode<XGraph2DMathTool, XGraphMathTool>();
 
     export_mathtool<XPythonGraph1DMathTool, XGraph1DMathTool>("XPythonGraph1DMathTool");
-    export_mathtool<XPythonGraph1DMathTool_2Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_2Entries");
-    export_mathtool<XPythonGraph1DMathTool_3Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_3Entries");
-    export_mathtool<XPythonGraph1DMathTool_4Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_4Entries");
-    export_mathtool<XPythonGraph1DMathTool_5Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_5Entries");
-    export_mathtool<XPythonGraph1DMathTool_6Entries, XGraph1DMathTool>("XPythonGraph1DMathTool_6Entries");
 
     export_mathtool<XPythonGraph2DMathTool, XGraph2DMathTool>("XPythonGraph2DMathTool");
-    export_mathtool<XPythonGraph2DMathTool_2Entries, XGraph2DMathTool>("XPythonGraph2DMathTool_2Entries");
-    export_mathtool<XPythonGraph2DMathTool_3Entries, XGraph2DMathTool>("XPythonGraph2DMathTool_3Entries");
-    export_mathtool<XPythonGraph2DMathTool_4Entries, XGraph2DMathTool>("XPythonGraph2DMathTool_4Entries");
 }
 
 void

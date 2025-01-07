@@ -56,7 +56,7 @@ XPythonCharDeviceDriverWithThread.exportClass("TestRandom", TestRandom, "Test py
 class Test1DMathTool(XPythonGraph1DMathTool):
     def __init__(self, name, runtime, tr, entries, driver, plot, entryname):
         XPythonGraph1DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, entryname)  #super().__init__ cannot be used.
-        self.setFunctor(lambda x, y: np.sum(np.array(y)))
+        self.setFunctor(lambda x, y: [np.sum(np.array(y)),])
 
 XPythonGraph1DMathTool.exportClass("NumPySum", Test1DMathTool, "NumPy Sum")
 
@@ -64,6 +64,6 @@ XPythonGraph1DMathTool.exportClass("NumPySum", Test1DMathTool, "NumPy Sum")
 class Test2DMathTool(XPythonGraph2DMathTool):
     def __init__(self, name, runtime, tr, entries, driver, plot, entryname):
         XPythonGraph2DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, entryname)  #super().__init__ cannot be used.
-        self.setFunctor(lambda matrix, width, stride, numlines, coefficient: coefficient * np.sum(matrix))
+        self.setFunctor(lambda matrix, width, stride, numlines, coefficient: coefficient * np.array([np.sum(matrix),np.average(matrix)]))
 
-XPythonGraph2DMathTool.exportClass("NumPySum", Test2DMathTool, "NumPy Sum")
+XPythonGraph2DMathTool.exportClass("NumPySum", Test2DMathTool, "NumPy Sum;Avg")
