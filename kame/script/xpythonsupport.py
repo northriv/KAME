@@ -190,10 +190,10 @@ sys.stdout = STDOUT
 sys.stderr = STDERR
 sys.stdin = STDIN
 
-time.sleep(0.2) #waiting for closing line interpreter
 for thread in threading.enumerate():
 	try:
-		thread.join()
+		if thread != threading.current_thread():
+			thread.join(timeout=0.5)
 	except Exception as inst:
 		sys.stderr.write(str(traceback.format_exc()))
 
