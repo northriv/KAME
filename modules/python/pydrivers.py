@@ -75,7 +75,7 @@ class Test4Res(XPythonSecondaryDriver):
         volt = shot_dmm[dmm].value(dmmch)
         curr = float(shot_dcsrc[dcsrc]["Value"])
  
-        storage = tr[self].local() #dict for tr[self]
+        storage = tr[self].local() #dict for tr[self], storage linked to the transaction/snapshot.
         try:
             recent = storage["Recent"]
         except KeyError:
@@ -148,11 +148,11 @@ class Py4Res(XPythonSecondaryDriver):
         self.insert(XBoolNode("Control", False))
         self.insert(XUIntNode("DMMChannel", False))
 
-        entries = []
+        self.entries = []
         for i in range(self.NumEntries):
-            entries.append(XScalarEntry("Resistance-{}".format(i+1), False, self, "%.7g"))
-            self.insert(entries[-1])   #self does NOT belong to tr yet inside the constructor. Never use insert(tr,...).
-            meas["ScalarEntries"].insert(tr, entries[-1]) #tr: transaction obj. during the creation.
+            self.entries.append(XScalarEntry("Resistance-{}".format(i+1), False, self, "%.7g"))
+            self.insert(self.entries[-1])   #self does NOT belong to tr yet inside the constructor. Never use insert(tr,...).
+            meas["ScalarEntries"].insert(tr, self.entries[-1]) #tr: transaction obj. during the creation.
             self.insert(XDoubleNode("Current-{}".format(i+1), False))
 
         #Driver selecters
@@ -173,7 +173,7 @@ class Py4Res(XPythonSecondaryDriver):
             ]
         for i in range(self.NumEntries):
             self.conns.append(XQLCDNumberConnector(self.entries[i]["Value"], form.findChildWidget("lcdResistance{}".format(i+1))))
-            self.conns.append(XQLineEditConnector(self["Current-{}".format(i+1)], form.findChildWidget("Curr{}".format(i+1))))
+            self.conns.append(XQLineEditConnector(self["Current-{}".format(i+1)], form.findChildWidget("edCurr{}".format(i+1))))
 
     #Pickups valid snapshots before going to analyze().
     # shot_self: Snapshot for self.
@@ -212,7 +212,7 @@ class Py4Res(XPythonSecondaryDriver):
         volt = shot_dmm[dmm].value(dmmch)
         curr = float(shot_dcsrc[dcsrc]["Value"])
  
-        storage = tr[self].local() #dict for tr[self]
+        storage = tr[self].local() #dict for tr[self], storage linked to the transaction/snapshot.
         try:
             recent = storage["Recent"]
         except KeyError:

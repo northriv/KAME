@@ -67,7 +67,7 @@ class MyDefIO:
 
 	@staticmethod
 	def read():
-		return MyDefIO.readline()
+		return stdio.readline()
 		
 class MyDefOErr:
 	@staticmethod

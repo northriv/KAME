@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>347</width>
-    <height>305</height>
+    <width>471</width>
+    <height>300</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -22,14 +22,14 @@
         <item>
          <widget class="QLabel" name="label">
           <property name="text">
-           <string>Resistance</string>
+           <string>R</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QLCDNumber" name="lcdResistance1">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+           <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -52,7 +52,14 @@
        </layout>
       </item>
       <item>
-       <widget class="QLineEdit" name="edCurr1"/>
+       <widget class="QLineEdit" name="edCurr1">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="QLabel" name="label_8">
@@ -70,14 +77,14 @@
         <item>
          <widget class="QLabel" name="label_9">
           <property name="text">
-           <string>Resistance</string>
+           <string>R</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QLCDNumber" name="lcdResistance2">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
+           <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -100,7 +107,14 @@
        </layout>
       </item>
       <item>
-       <widget class="QLineEdit" name="edCurr2"/>
+       <widget class="QLineEdit" name="edCurr2">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="QLabel" name="label_11">
@@ -118,14 +132,14 @@
         <item>
          <widget class="QLabel" name="label_12">
           <property name="text">
-           <string>Resistance</string>
+           <string>R</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QLCDNumber" name="lcdResistance3">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
+           <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -148,7 +162,14 @@
        </layout>
       </item>
       <item>
-       <widget class="QLineEdit" name="edCurr3"/>
+       <widget class="QLineEdit" name="edCurr3">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="QLabel" name="label_14">
