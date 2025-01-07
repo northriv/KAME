@@ -1,3 +1,9 @@
+* Fri Jan 7 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.1.4-1)
+- Fix for mathtool and multi-entry support
+- pdb can be used under the terminal
+- Python driver: 4-teminal method.
+
 * Thu Jan 2 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.1.3-1)
 - Ruby 3.1 works well with mac(in debug mode) and mingw64.
