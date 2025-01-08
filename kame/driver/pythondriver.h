@@ -259,18 +259,18 @@ struct XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
 template <class N>
 std::string
 KAMEPyBind::declare_xnode_downcasters() {
-    m_xnodeDownCasters.insert(std::make_pair(typeid(N).hash_code(),
+    m_xnodeDownCasters.emplace(typeid(N).hash_code(),
         std::make_pair(m_xnodeDownCasters.size(),
             [](const shared_ptr<XNode>&x)->pybind11::object{
                 return pybind11::cast(dynamic_pointer_cast<N>(x));
             })
-    ));
-    m_payloadDownCasters.insert(std::make_pair(typeid(typename N::Payload).hash_code(),
+    );
+    m_payloadDownCasters.emplace(typeid(typename N::Payload).hash_code(),
         std::make_pair(m_payloadDownCasters.size(),
             [](XNode::Payload *x)->pybind11::object{
                 return pybind11::cast(dynamic_cast<typename N::Payload*>(x));
             })
-    ));
+    );
     XString name = typeid(N).name();
     int i = name.find('X');
     name = name.substr(i); //squeezes C++ class name.
