@@ -84,9 +84,9 @@ struct KAMEPyBind {
     static void export_embedded_module_xqcon(pybind11::module_&);
 
 private:
-    //typeid(x).hash_code(), serialno, down_caster_func.
-    std::map<size_t, std::pair<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>>> m_xnodeDownCasters;
-    std::map<size_t, std::pair<size_t, std::function<pybind11::object(XNode::Payload *)>>> m_payloadDownCasters;
+    //std::type_index(typeid(x)), serialno, down_caster_func.
+    std::unordered_map<std::type_index, std::pair<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>>> m_xnodeDownCasters;
+    std::unordered_map<std::type_index, std::pair<size_t, std::function<pybind11::object(XNode::Payload *)>>> m_payloadDownCasters;
 
     template <class N>
     std::string declare_xnode_downcasters();
