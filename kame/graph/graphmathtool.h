@@ -104,7 +104,7 @@ public:
                       const shared_ptr<XPlot> &plot, const std::vector<std::string> &entrynames) :
         Base(name, runtime, ref(tr_meas), entries, driver, plot) {
         for(size_t i = 0; i < entrynames.size(); ++i) {
-             this->m_entries.push_back(this->XNode::create<XScalarEntry>(
+             this->m_entries.push_back(XNode::create<XScalarEntry>(
                 entrynames[i].c_str(), false, driver));
              entries->insert(tr_meas, m_entries.back());
         }
