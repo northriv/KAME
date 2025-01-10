@@ -126,7 +126,7 @@ struct XPythonDMMHelper : public XPythonDMM {
     struct Payload : public tBaseDriver::Payload {};
 };
 PyDriverExporter<XDMM, XPrimaryDriver> dmm("XDMM", [](auto node, auto payload){
-    payload.def("value", [](shared_ptr<XDMM::Payload> &self, unsigned int i){return self->value(i);});
+    payload.def("value", [](XDMM::Payload *self, unsigned int i){return self->value(i);});
 });
 PyDriverExporter<XCharDeviceDriver<XDMM>, XDMM> chardmm([](auto node, auto payload){
 });

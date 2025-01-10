@@ -94,7 +94,9 @@ XDCSource::stop() {
 
 void
 XDCSource::analyzeRaw(RawDataReader &reader, Transaction &tr) {
+//    double v = reader.pop<double>();
     m_entryValue->value(tr, tr[ *value()]);
+//    m_entryValue->value(tr, v);
 }
 void
 XDCSource::visualize(const Snapshot &shot) {
@@ -103,6 +105,7 @@ XDCSource::visualize(const Snapshot &shot) {
 void
 XDCSource::finish(const XTime &time_awared) {
 	auto writer = std::make_shared<RawData>();
+//    writer->push( (double)***value());
 	if( !Snapshot( *this)[ *output()])
 		finishWritingRaw(writer, XTime(), XTime());
 	else

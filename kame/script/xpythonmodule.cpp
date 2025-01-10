@@ -83,14 +83,15 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     std::map<size_t, decltype(m_payloadDownCasters.begin()->second.second)> cand;
     for(auto &c: m_payloadDownCasters) {
         auto x = (c.second.second)(y);
-        if(x.cast<XNode::Payload*>())
+        if(x.cast<XNode::Payload*>()) {
             cand.emplace(c.second.first, c.second.second);
+        }
     }
     if(cand.size()) {
 //        //caches the best result.
-//        m_payloadDownCasters.insert(std::make_pair(typeid(y).hash_code(),
-//            std::make_pair(m_payloadDownCasters.size(), cand.rbegin()->second)
-//        ));
+        m_payloadDownCasters.emplace(std::type_index(typeid(*y)),
+            std::make_pair(m_payloadDownCasters.size(), cand.rbegin()->second)
+        );
         return cand.rbegin()->second(y); //the oldest choice.
     }
     return py::cast(y); //end up with XNode::Payload*
@@ -193,6 +194,8 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("insert", [](shared_ptr<XNode> &self, Transaction &tr, shared_ptr<XNode> &child){self->insert(tr, child);})
         .def("release", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){self->release(child);})
         .def("__len__", [](shared_ptr<XNode> &self){return Snapshot( *self).size();})
+        .def("__eq__", [](shared_ptr<XNode> &self, shared_ptr<XNode> &other){return self == other;}) //for self == other
+        .def("__ne__", [](shared_ptr<XNode> &self, shared_ptr<XNode> &other){return self != other;}) //for self != other
         .def("getLabel", [](shared_ptr<XNode> &self)->std::string{return self->getLabel();})
         .def("getName", [](shared_ptr<XNode> &self)->std::string{return self->getName();})
         .def("getTypename", [](shared_ptr<XNode> &self)->std::string{return self->getTypename();})
@@ -306,13 +309,27 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         (*node)
         .def("__str__", [](shared_ptr<XValueNodeBase> &self)->std::string{return Snapshot( *self)[*self].to_str();})
         .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);});}
-    XPython::bind.export_xvaluenode<XIntNode, int, XValueNodeBase>("XIntNode");
-    XPython::bind.export_xvaluenode<XUIntNode, unsigned int, XValueNodeBase>("XUIntNode");
-    XPython::bind.export_xvaluenode<XLongNode, long, XValueNodeBase>("XLongNode");
-    XPython::bind.export_xvaluenode<XULongNode, unsigned long, XValueNodeBase>("XULongNode");
-    XPython::bind.export_xvaluenode<XHexNode, unsigned long, XValueNodeBase>("XHexNode");
-    XPython::bind.export_xvaluenode<XBoolNode, bool, XValueNodeBase>("XBoolNode");
-    XPython::bind.export_xvaluenode<XDoubleNode, double, XValueNodeBase>("XDoubleNode");
+    {   auto [node, payload] = XPython::bind.export_xvaluenode<XIntNode, int, XValueNodeBase>("XIntNode");
+        (*payload)
+        .def("__int__", [](XIntNode::Payload &self)->int{return self;});}
+    {   auto [node, payload] = XPython::bind.export_xvaluenode<XUIntNode, unsigned int, XValueNodeBase>("XUIntNode");
+        (*payload)
+        .def("__int__", [](XUIntNode::Payload &self)->unsigned int{return self;});}
+    {   auto [node, payload] = XPython::bind.export_xvaluenode<XLongNode, long, XValueNodeBase>("XLongNode");
+        (*payload)
+        .def("__int__", [](XLongNode::Payload &self)->long{return self;});}
+    {   auto [node, payload] = XPython::bind.export_xvaluenode<XULongNode, unsigned long, XValueNodeBase>("XULongNode");
+        (*payload)
+        .def("__int__", [](XULongNode::Payload &self)->unsigned long{return self;});}
+    {   auto [node, payload] = XPython::bind.export_xvaluenode<XHexNode, unsigned long, XValueNodeBase>("XHexNode");
+        (*payload)
+        .def("__int__", [](XHexNode::Payload &self)->unsigned int{return self;});}
+    {   auto [node, payload] = XPython::bind.export_xvaluenode<XBoolNode, bool, XValueNodeBase>("XBoolNode");
+        (*payload)
+        .def("__bool__", [](XBoolNode::Payload &self)->bool{return self;});}
+    {   auto [node, payload] = XPython::bind.export_xvaluenode<XDoubleNode, double, XValueNodeBase>("XDoubleNode");
+        (*payload)
+        .def("__float__", [](XDoubleNode::Payload &self)->double{return self;});}
     XPython::bind.export_xvaluenode<XStringNode, std::string, XValueNodeBase>("XStringNode");
     {   auto [node, payload] = XPython::bind.export_xnode<XItemNodeBase, XValueNodeBase>();
         (*node)
@@ -666,9 +683,9 @@ KAMEPyBind::export_embedded_module_basic_drivers(pybind11::module_& m) {
     }
 
     //Exceptions
-    py::register_exception<XDriver::XRecordError>(m, "KAMERecordError", PyExc_RuntimeError);
-    py::register_exception<XDriver::XSkippedRecordError>(m, "KAMESkippedRecordError", PyExc_RuntimeError);
-    py::register_exception<XDriver::XBufferUnderflowRecordError>(m, "KAMEBufferUnderflowRecordError", PyExc_RuntimeError);
+    py::register_exception<XDriver::XRecordError>(m, "KAMERecordError", PyExc_ValueError);
+    py::register_exception<XDriver::XSkippedRecordError>(m, "KAMESkippedRecordError", PyExc_InterruptedError);
+    py::register_exception<XDriver::XBufferUnderflowRecordError>(m, "KAMEBufferUnderflowRecordError", PyExc_ValueError);
 }
 void
 KAMEPyBind::export_embedded_module_interface(pybind11::module_& m) {
@@ -682,11 +699,11 @@ KAMEPyBind::export_embedded_module_interface(pybind11::module_& m) {
             .def("isOpened", &XInterface::isOpened);
     }
 
-    py::register_exception<XInterface::XInterfaceError>(m, "KAMEInterfaceError", PyExc_RuntimeError);
-    py::register_exception<XInterface::XConvError>(m, "KAMEInterfaceConvError", PyExc_RuntimeError);
-    py::register_exception<XInterface::XCommError>(m, "KAMEInterfaceCommError", PyExc_RuntimeError);
-    py::register_exception<XInterface::XOpenInterfaceError>(m, "KAMEInterfaceOpenError", PyExc_RuntimeError);
-    py::register_exception<XInterface::XUnsupportedFeatureError>(m, "KAMEInterfaceUnsupportedFeatureError", PyExc_RuntimeError);
+    py::register_exception<XInterface::XInterfaceError>(m, "KAMEInterfaceError", PyExc_IOError);
+    py::register_exception<XInterface::XConvError>(m, "KAMEInterfaceConvError", PyExc_IOError);
+    py::register_exception<XInterface::XCommError>(m, "KAMEInterfaceCommError", PyExc_IOError);
+    py::register_exception<XInterface::XOpenInterfaceError>(m, "KAMEInterfaceOpenError", PyExc_IOError);
+    py::register_exception<XInterface::XUnsupportedFeatureError>(m, "KAMEInterfaceUnsupportedFeatureError", PyExc_IOError);
 }
 void
 KAMEPyBind::export_embedded_module_xqcon(pybind11::module_& m) {

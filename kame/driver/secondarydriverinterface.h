@@ -108,8 +108,18 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 #ifdef USE_PYBIND11
         catch (pybind11::error_already_set& e) {
             pybind11::gil_scoped_acquire guard;
-            gErrPrint(i18n("Python error: ") + e.what());
-            return;
+            if(e.matches(PyExc_InterruptedError)) {
+                skipped = true;
+                err = typename T::XSkippedRecordError("", __FILE__, __LINE__);
+            }
+            else if(e.matches(PyExc_ValueError)) {
+                time_recorded = XTime(); //record is invalid
+                err = typename T::XRecordError(e.what(), __FILE__, __LINE__);
+            }
+            else {
+                gErrPrint(i18n("Python error: ") + e.what());
+                return;
+            }
         }
 #endif
 //        catch (std::runtime_error &e) {

@@ -88,7 +88,7 @@ private:
     std::unordered_map<std::type_index, std::pair<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>>> m_xnodeDownCasters;
     std::unordered_map<std::type_index, std::pair<size_t, std::function<pybind11::object(XNode::Payload *)>>> m_payloadDownCasters;
 
-    template <class N>
+    template <class N, bool IS_PAYLOAD_DEFINED = true>
     std::string declare_xnode_downcasters();
 };
 

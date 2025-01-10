@@ -43,13 +43,14 @@ class Test4Res(XPythonSecondaryDriver):
     # shot_emitter: Snapshot for the event emitting driver.
     # shot_others: Snapshot for the other connected dirvers.
     def checkDependency(self, shot_self, shot_emitter, shot_others, emitter):
+#        pdb.set_trace()
         dmm = shot_self[self["DMM"]].get() #selected driver.
         dcsrc = shot_self[self["DCSource"]].get() #selected driver.
         if emitter == dmm:
             shot_dcsrc = shot_others
             shot_dmm = shot_emitter
-            wait = float(tr[self["Wait"]]) * 1e-3 #[s]
-            if shot_dmm[dmm].timeAwared() < shot_dcsrc[dcsrc].time() + wait:
+            wait = float(shot_self[self["Wait"]]) * 1e-3 #[s]
+            if (shot_dmm[dmm].timeAwared() - shot_dcsrc[dcsrc].time()).seconds < wait:
                 return False
             return True #Good, approved
         if not bool(shot_self[self["Control"]]) and emitter == dcsrc:
@@ -60,6 +61,9 @@ class Test4Res(XPythonSecondaryDriver):
     #Analyzes data acquired by the connected drivers.
     #Never include I/O operations, because transaction might repreat many times.
     def analyze(self, tr, shot_emitter, shot_others, emitter):
+#        pdb.set_trace()
+        dmm = tr[self["DMM"]].get() #selected driver.
+        dcsrc = tr[self["DCSource"]].get() #selected driver.
         if emitter == dcsrc:
             shot_dmm = shot_others
             shot_dcsrc = shot_emitter
@@ -67,13 +71,9 @@ class Test4Res(XPythonSecondaryDriver):
             shot_dcsrc = shot_others
             shot_dmm = shot_emitter
         
-        shot_dmm = shot_others
-        shot_dcsrc = shot_emitter
-        dmm = tr[self["DMM"]].get() #selected driver.
-        dcsrc = tr[self["DCSource"]].get() #selected driver.
         dmmch = int(tr[self["DMMChannel"]])
         volt = shot_dmm[dmm].value(dmmch)
-        curr = float(shot_dcsrc[dcsrc]["Value"])
+        curr = float(shot_dcsrc[dcsrc["Value"]])
  
         storage = tr[self].local() #dict for tr[self], storage linked to the transaction/snapshot.
         try:
@@ -90,8 +90,8 @@ class Test4Res(XPythonSecondaryDriver):
         else:        
             recent.append({'dmm_start':shot_emitter[dmm].timeAwared(),
                 'dmm_fin':shot_emitter[dmm].time(),
-                'curr':curr, 'vold':volt})
-            if recent[-1]['start'] - recent[0]['start'] > 30:
+                'curr':curr, 'volt':volt})
+            if (recent[-1]['dmm_start'] - recent[0]['dmm_start']).seconds > 30:
                 del recent[0] #erase too old record.
 
             if not bool(tr[self["Control"]]):
@@ -120,6 +120,7 @@ class Test4Res(XPythonSecondaryDriver):
         if bool(shot[self["Control"]]):
             #this driver is in charge of switching dc source polarity.
             dcsrc = shot[self["DCSource"]].get() #selected driver.
+            storage = shot[self].local() #dict for shot[self], storage linked to the transaction/snapshot.
             try:
                 recent = storage["Recent"]
             except KeyError:
@@ -185,8 +186,8 @@ class Py4Res(XPythonSecondaryDriver):
         if emitter == dmm:
             shot_dcsrc = shot_others
             shot_dmm = shot_emitter
-            wait = float(tr[self["Wait"]]) * 1e-3 #[s]
-            if shot_dmm[dmm].timeAwared() < shot_dcsrc[dcsrc].time() + wait:
+            wait = float(shot_self[self["Wait"]]) * 1e-3 #[s]
+            if (shot_dmm[dmm].timeAwared() - shot_dcsrc[dcsrc].time()).seconds < wait:
                 return False
             return True #Good, approved
         if not bool(shot_self[self["Control"]]) and emitter == dcsrc:
@@ -197,6 +198,8 @@ class Py4Res(XPythonSecondaryDriver):
     #Analyzes data acquired by the connected drivers.
     #Never include I/O operations, because transaction might repreat many times.
     def analyze(self, tr, shot_emitter, shot_others, emitter):
+        dmm = tr[self["DMM"]].get() #selected driver.
+        dcsrc = tr[self["DCSource"]].get() #selected driver.
         if emitter == dcsrc:
             shot_dmm = shot_others
             shot_dcsrc = shot_emitter
@@ -204,13 +207,9 @@ class Py4Res(XPythonSecondaryDriver):
             shot_dcsrc = shot_others
             shot_dmm = shot_emitter
         
-        shot_dmm = shot_others
-        shot_dcsrc = shot_emitter
-        dmm = tr[self["DMM"]].get() #selected driver.
-        dcsrc = tr[self["DCSource"]].get() #selected driver.
         dmmch = int(tr[self["DMMChannel"]])
         volt = shot_dmm[dmm].value(dmmch)
-        curr = float(shot_dcsrc[dcsrc]["Value"])
+        curr = float(shot_dcsrc[dcsrc["Value"]])
  
         storage = tr[self].local() #dict for tr[self], storage linked to the transaction/snapshot.
         try:
@@ -227,8 +226,8 @@ class Py4Res(XPythonSecondaryDriver):
         else:        
             recent.append({'dmm_start':shot_emitter[dmm].timeAwared(),
                 'dmm_fin':shot_emitter[dmm].time(),
-                'curr':curr, 'vold':volt})
-            if recent[-1]['start'] - recent[0]['start'] > 30:
+                'curr':curr, 'volt':volt})
+            if (recent[-1]['dmm_start'] - recent[0]['dmm_start']).seconds > 30:
                 del recent[0] #erase too old record.
 
             if not bool(tr[self["Control"]]):
@@ -251,7 +250,7 @@ class Py4Res(XPythonSecondaryDriver):
                 res = (volt - recent[idx]['volt']) / curr / 2
 
                 for i in range(self.NumEntries):
-                    if shot[self["Current-{}".format(i+1)]] == curr:
+                    if tr[self["Current-{}".format(i+1)]] == curr:
                         break
                 if i == self.NumEntries:
                     raise KAMESkippedRecordError("Skip") #No valid setting.
@@ -264,6 +263,7 @@ class Py4Res(XPythonSecondaryDriver):
         if bool(shot[self["Control"]]):
             #this driver is in charge of switching dc source polarity.
             dcsrc = shot[self["DCSource"]].get() #selected driver.
+            storage = shot[self].local() #dict for shot[self], storage linked to the transaction/snapshot.
             try:
                 recent = storage["Recent"]
             except KeyError:

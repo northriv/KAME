@@ -256,7 +256,7 @@ struct XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
     struct Payload : public XPythonSecondaryDriver::Payload {};
 };
 
-template <class N>
+template <class N, bool IS_PAYLOAD_DEFINED>
 std::string
 KAMEPyBind::declare_xnode_downcasters() {
     m_xnodeDownCasters.emplace(std::type_index(typeid(N)),
@@ -265,12 +265,14 @@ KAMEPyBind::declare_xnode_downcasters() {
                 return pybind11::cast(dynamic_pointer_cast<N>(x));
             })
     );
-    m_payloadDownCasters.emplace(std::type_index(typeid(typename N::Payload)),
-        std::make_pair(m_payloadDownCasters.size(),
-            [](XNode::Payload *x)->pybind11::object{
-                return pybind11::cast(dynamic_cast<typename N::Payload*>(x));
-            })
-    );
+    if constexpr(IS_PAYLOAD_DEFINED) {
+        m_payloadDownCasters.emplace(std::type_index(typeid(typename N::Payload)),
+            std::make_pair(m_payloadDownCasters.size(),
+                [](XNode::Payload *x)->pybind11::object{
+                    return pybind11::cast(dynamic_cast<typename N::Payload*>(x));
+                })
+        );
+    }
     XString name = typeid(N).name();
     int i = name.find('X');
     name = name.substr(i); //squeezes C++ class name.
@@ -315,8 +317,9 @@ KAMEPyBind::export_xnode_with_trampoline(const char *name_) {
 template <class N, class Base, typename...Args>
 KAMEPyBind::classtype_xnode<N, Base>
 KAMEPyBind::export_xnode(const char *name_) {
+    bool constexpr IS_PAYLOAD_DEFINED = !std::is_base_of<typename N::Payload, typename Base::Payload>::value;
     auto &m = kame_module();
-    auto name = declare_xnode_downcasters<N>();
+    auto name = declare_xnode_downcasters<N, IS_PAYLOAD_DEFINED>();
     if(name_) name = name_; //overrides name given by typeid().name
     auto pynode = std::make_unique<pybind11::class_<N, Base, shared_ptr<N>>>(m, name.c_str());
     if constexpr(std::is_constructible<N, const char *, bool, Args&&...>::value
@@ -343,7 +346,7 @@ KAMEPyBind::export_xnode(const char *name_) {
             return parent->create<N>(tr, name, runtime, std::forward<Args>(args)...);}));
     }
     pynode->def(pybind11::init([](const shared_ptr<XNode> &x){return dynamic_pointer_cast<N>(x);}));
-    if constexpr( !std::is_base_of<typename N::Payload, typename Base::Payload>::value) {
+    if constexpr(IS_PAYLOAD_DEFINED) {
         //N::Payload is defined.
         auto pypayload = std::make_unique<pybind11::class_<typename N::Payload, typename Base::Payload>>(m, (name + "_Payload").c_str());
         return {std::move(pynode), std::move(pypayload)};
