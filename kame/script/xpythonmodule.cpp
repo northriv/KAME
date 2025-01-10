@@ -75,7 +75,7 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
 }
 
 py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
-    auto it = m_payloadDownCasters.find(typeid(y).hash_code());
+    auto it = m_payloadDownCasters.find(std::type_index(typeid(*y)));
     if(it != m_payloadDownCasters.end()) {
         return (it->second.second)(y);
     }
@@ -84,20 +84,20 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     for(auto &c: m_payloadDownCasters) {
         auto x = (c.second.second)(y);
         if(x.cast<XNode::Payload*>())
-            cand.insert(std::make_pair(c.second.first, c.second.second));
+            cand.emplace(c.second.first, c.second.second);
     }
     if(cand.size()) {
-        //caches the best result.
-        m_payloadDownCasters.insert(std::make_pair(typeid(y).hash_code(),
-            std::make_pair(m_payloadDownCasters.size(), cand.rbegin()->second)
-        ));
+//        //caches the best result.
+//        m_payloadDownCasters.insert(std::make_pair(typeid(y).hash_code(),
+//            std::make_pair(m_payloadDownCasters.size(), cand.rbegin()->second)
+//        ));
         return cand.rbegin()->second(y); //the oldest choice.
     }
     return py::cast(y); //end up with XNode::Payload*
 }
 py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
     if( !y) return py::none();
-    auto it = m_xnodeDownCasters.find(typeid(y).hash_code());
+    auto it = m_xnodeDownCasters.find(std::type_index(typeid(y)));
     if(it != m_xnodeDownCasters.end()) {
         return (it->second.second)(y);
     }
@@ -136,14 +136,14 @@ py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
     for(auto &c: m_xnodeDownCasters) {
         auto x = (c.second.second)(y);
         if(x.cast<shared_ptr<XNode>>())
-            cand.insert(std::make_pair(c.second.first, c.second.second));
+            cand.emplace(c.second.first, c.second.second);
     }
     if(cand.size()) {
-//TODO NoneType thrown in support code.
+//TODO ??? NoneType thrown in support code. not working even with function pointers.
 //        //caches the best result.
-//        m_xnodeDownCasters.insert(std::make_pair(typeid(y).hash_code(),
+//        m_xnodeDownCasters.emplace(std::type_index(typeid(y)),
 //            std::make_pair(m_xnodeDownCasters.size() + 10000u, cand.rbegin()->second)
-//        ));
+//        );
         return cand.rbegin()->second(y); //the oldest choice.
     }
 
