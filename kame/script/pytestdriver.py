@@ -53,12 +53,30 @@ class TestRandom(XPythonCharDeviceDriverWithThread):
 XPythonCharDeviceDriverWithThread.exportClass("TestRandom", TestRandom, "Test python-based driver: Random Number Generation")
 
 #Second example, 1DMathTool
-class Test1DMathTool(XPythonGraph1DMathTool):
-    def __init__(self, name, runtime, tr, entries, driver, plot, entryname):
-        XPythonGraph1DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, entryname)  #super().__init__ cannot be used.
-        self.setFunctor(lambda x, y: [np.sum(np.array(y)),])
+try:
+    from scipy.optimize import curve_fit
 
-XPythonGraph1DMathTool.exportClass("NumPySum", Test1DMathTool, "NumPy Sum")
+    class Test1DMathTool(XPythonGraph1DMathTool):
+        def __init__(self, name, runtime, tr, entries, driver, plot, entryname):
+            XPythonGraph1DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, entryname)  #super().__init__ cannot be used.
+
+            self.setFunctor(self.func)
+        @staticmethod
+        def func(x, y):
+            fn_opt = lambda x, a, b, c: a*np.exp(-b*(x - c)**2)
+            popt, pcov = curve_fit(fn_opt, x, y, [np.average(y), 1, np.average(x)])
+            perr = np.sqrt(np.diag(pcov))
+            coeff = popt[0] * np.sqrt(popt[1]/np.pi)
+            coeff_err = coeff * perr[0] / popt[0]
+            fwhm = np.sqrt(1/popt[1]/2)*2*np.sqrt(2*np.log(2))
+            fwhm_err = fwhm * perr[1] / popt[1]
+            x0 = popt[2]
+            x0_err = perr[2]
+            return np.array([coeff,coeff_err,fwhm,fwhm_err,x0,x0_err])
+
+    XPythonGraph1DMathTool.exportClass("SciPyGaussian", Test1DMathTool, "SciPy Gaussian coeff;coeff_err;FWHM;FWHM_err;x0;x0_err")
+except (ImportError, ModuleNotFoundError):
+    pass
 
 #Third example, 2DMathTool
 class Test2DMathTool(XPythonGraph2DMathTool):

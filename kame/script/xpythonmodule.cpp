@@ -626,9 +626,6 @@ KAMEPyBind::export_embedded_module_basic_drivers(pybind11::module_& m) {
     XPython::bind.export_xvaluenode<XItemNode<XDriverList, XDriver>,
             shared_ptr<XDriver>, XPointerItemNode<XDriverList>,
             Transaction &, shared_ptr<XDriverList> &, bool>("XDriverItemNode");
-//    XPython::bind.export_xvaluenode<XItemNode<XDriverList, XMagnetPS, XDMM, XQDPPMS>,
-//            shared_ptr<XDriver>, XPointerItemNode<XDriverList>,
-//            Transaction &, shared_ptr<XDriverList> &, bool>("MagnetPSLikeItemNode");
     XPython::bind.export_xnode<XMeasure, XNode>();
     XPython::bind.export_xnode<XPrimaryDriver, XDriver>();
     XPython::bind.export_xnode<XPrimaryDriverWithThread, XPrimaryDriver>();

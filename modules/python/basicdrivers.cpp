@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -213,5 +213,11 @@ PyDriverExporter<XDSO, XPrimaryDriver> dso([](auto node, auto payload){
     .def("shotDescription", &XDSO::Payload::shortDescription);
 });
 
+#include "magnetps.h"
+#include "qdppms.h"
+
+PyXNodeExporter<XItemNode<XDriverList, XMagnetPS, XDMM, XQDPPMS>,
+        XPointerItemNode<XDriverList>,
+        Transaction &, shared_ptr<XDriverList> &, bool> magnetpslike("MagnetPSLikeItemNode");
 
 #endif //USE_PYBIND11

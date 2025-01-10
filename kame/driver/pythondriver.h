@@ -420,11 +420,11 @@ KAMEPyBind::export_xdriver(const char *name_) {
 
 //! Helper struct to declare xnode-based classes to python side.
 //! Classes (NAME), (NAME)_Payload will be defined.
-template <class N, class Base>
+template <class N, class Base, typename...Args>
 struct PyXNodeExporter {
     PyXNodeExporter(const char *name = nullptr) {
         pybind11::gil_scoped_acquire guard;
-        pycls = XPython::bind.export_xnode<N, Base>(name);
+        pycls = XPython::bind.export_xnode<N, Base, Args...>(name);
     }
 
     //! to additionally define methods.

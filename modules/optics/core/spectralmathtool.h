@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -49,10 +49,7 @@ using XSpectral1DMathToolRubyScaleMaoHe77K = XGraph1DMathToolX<FuncSpectral1DMat
 
 class XSpectral1DMathToolList : public XGraph1DMathToolList {
 public:
-    XSpectral1DMathToolList(const char *name, bool runtime,
-        const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
-        const shared_ptr<XPlot> &plot);
-    virtual ~XSpectral1DMathToolList() {}
+    using XGraph1DMathToolList::XGraph1DMathToolList;
 
     DEFINE_TYPE_HOLDER(
         std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,

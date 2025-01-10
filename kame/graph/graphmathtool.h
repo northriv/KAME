@@ -137,9 +137,13 @@ public:
             this->entry()->value(tr, v);
         }
         else {
-            std::vector<double> v = tr[ *this].functor(xbegin, xend, ybegin, yend);
-            for(unsigned int i = 0; i < this->numEntries(); ++i)
-                this->entry(i)->value(tr, v.at(i));
+            try {
+                std::vector<double> v = tr[ *this].functor(xbegin, xend, ybegin, yend);
+                for(unsigned int i = 0; i < this->numEntries(); ++i)
+                    this->entry(i)->value(tr, v.at(i));
+            }
+            catch(std::out_of_range&) {
+            }
         }
 //        updateOnScreenObjects(tr, graphwidget);
     }
@@ -165,8 +169,8 @@ public:
             this->entry()->value(tr, v);
         }
         else {
-            std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
             try {
+                std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
                 for(unsigned int i = 0; i < this->numEntries(); ++i)
                     this->entry(i)->value(tr, v.at(i));
             }

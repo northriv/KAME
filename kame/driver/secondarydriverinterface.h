@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -13,6 +13,10 @@
 ***************************************************************************/
 #ifndef SECONDARYDRIVERINTERFACE_H_
 #define SECONDARYDRIVERINTERFACE_H_
+
+#ifdef USE_PYBIND11
+    #include <pybind11/pybind11.h>
+#endif
 
 #include "secondarydriver.h"
 
@@ -78,9 +82,22 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 			}
 		}
 
-		//driver-side dependency check
-		if( !checkDependency(tr, shot_emitter, shot_all_drivers, driver))
-			return;
+        try {
+            //driver-side dependency check
+            if( !checkDependency(tr, shot_emitter, shot_all_drivers, driver))
+                return;
+        }
+#ifdef USE_PYBIND11
+        catch (pybind11::error_already_set& e) {
+            pybind11::gil_scoped_acquire guard;
+            gErrPrint(i18n("Python error: ") + e.what());
+            return;
+        }
+#endif
+        catch (std::runtime_error &e) {
+            gErrPrint(std::string("Python KAME binding error: ") + e.what());
+            return;
+        }
 
 		bool skipped = false;
 		XKameError err;
@@ -88,7 +105,18 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 		try {
 			analyze(tr, shot_emitter, shot_all_drivers, driver);
 		}
-		catch (typename T::XSkippedRecordError& e) {
+#ifdef USE_PYBIND11
+        catch (pybind11::error_already_set& e) {
+            pybind11::gil_scoped_acquire guard;
+            gErrPrint(i18n("Python error: ") + e.what());
+            return;
+        }
+#endif
+//        catch (std::runtime_error &e) {
+//            gErrPrint(std::string("Python KAME binding error: ") + e.what());
+//            return;
+//        }
+        catch (typename T::XSkippedRecordError& e) {
 			skipped = true;
 			err = e;
 		}
@@ -101,8 +129,19 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 		if(tr.commit()) {
 			if(err.msg().length())
 				err.print(this->getLabel() + ": ");
-			this->visualize(tr);
-			break;
+            try {
+                this->visualize(tr);
+            }
+#ifdef USE_PYBIND11
+            catch (pybind11::error_already_set& e) {
+                pybind11::gil_scoped_acquire guard;
+                gErrPrint(i18n("Python error: ") + e.what());
+            }
+#endif
+            catch (std::runtime_error &e) {
+                gErrPrint(std::string("Python KAME binding error: ") + e.what());
+            }
+            break;
 		}
 	}
 }

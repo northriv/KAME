@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -24,21 +24,5 @@ REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermarini77K,
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMao77K, "RubyScaleMao77K");
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoAr77K, "RubyScaleMaoAr77K");
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoHe77K, "RubyScaleMaoHe77K");
-//REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolSum, "Sum");
-//REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolAverage, "Average");
-//REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolCoG, "CoG");
-//REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMaxValue, "MaxValue");
-//REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMinValue, "MinValue");
-//REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMaxPosition, "MaxPosition");
-//REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMinPosition, "MinPosition");
-
-//REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolSum, "Sum");
-//REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolAverage, "Average");
-
-
-XSpectral1DMathToolList::XSpectral1DMathToolList(const char *name, bool runtime,
-                         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver, const shared_ptr<XPlot> &plot) :
-    XGraph1DMathToolList(name, runtime, meas, driver, plot) {
-}
 
 
