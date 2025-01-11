@@ -14,6 +14,7 @@ class Test4Res(XPythonSecondaryDriver):
         form = self.loadUIFile(':/python/formpytestdriver.ui') #From Qt resource. see pydrivers.qrc
         #adds nodes, which can be later accessed. ex. self["name"].
         self.insert(XDoubleNode("Wait", False))
+        self["Wait"] = 400 #ms
         self.insert(XBoolNode("Control", False))
         self.insert(XUIntNode("DMMChannel", False))
 
@@ -97,8 +98,13 @@ class Test4Res(XPythonSecondaryDriver):
             if not bool(tr[self["Control"]]):
                 #this driver is NOT in charge of switching dc source polarity.
                 raise KAMESkippedRecordError("Skip")
-            
-        if curr < 0:
+
+        #setups the current for visualize().
+        #switching polarity.
+        nextcurr = -curr
+        storage["NextCurr"] = nextcurr
+
+        if curr <= 0:
             raise KAMESkippedRecordError("Skip") #waits for positive current.
 
         #searching for the newest record with +curr.
@@ -112,7 +118,8 @@ class Test4Res(XPythonSecondaryDriver):
             if recent[idx]['curr'] == -curr:
                 res = (volt - recent[idx]['volt']) / curr / 2
                 self["Resistance"].value(tr, res)
-                return
+                return #approved for recording.
+
         raise KAMESkippedRecordError("Skip") #no valid record.
 
     #may perform I/O ops or graph ops using the snapshot after analyze().
@@ -123,12 +130,13 @@ class Test4Res(XPythonSecondaryDriver):
             storage = shot[self].local() #dict for shot[self], storage linked to the transaction/snapshot.
             try:
                 recent = storage["Recent"]
+                nextcurr = storage["NextCurr"]
             except KeyError:
                 return
-            curr = recent["curr"]
-            #switching polarity.
-            dcsrc.changeValue(0, -curr)
-        return
+            shot_dcsrc = Snapshot(dcsrc)
+            curr = float(shot_dcsrc[dcsrc["Value"]])
+            if curr != nextcurr:
+                dcsrc["Value"] = nextcurr
 
 #Declares that python-side driver to C++ driver list.
 XPythonSecondaryDriver.exportClass("Test4Res", Test4Res, "Test python-based driver: 4-Terminal Resistance Measumrent")
@@ -146,6 +154,7 @@ class Py4Res(XPythonSecondaryDriver):
         form = self.loadUIFile(':/python/formpyfourres.ui') #From Qt resource. see pydrivers.qrc
         #adds nodes, which can be later accessed. ex. self["name"].
         self.insert(XDoubleNode("Wait", False))
+        self["Wait"] = 400 #ms
         self.insert(XBoolNode("Control", False))
         self.insert(XUIntNode("DMMChannel", False))
 
@@ -155,6 +164,7 @@ class Py4Res(XPythonSecondaryDriver):
             self.insert(self.entries[-1])   #self does NOT belong to tr yet inside the constructor. Never use insert(tr,...).
             meas["ScalarEntries"].insert(tr, self.entries[-1]) #tr: transaction obj. during the creation.
             self.insert(XDoubleNode("Current-{}".format(i+1), False))
+            self["Current-{}".format(i+1)] = 10.0**(-i)
 
         #Driver selecters
         self.insert(XDMMItemNode("DMM", False, tr, meas["Drivers"], True)) # choosing XDMM-based class from the driver list.
@@ -233,8 +243,29 @@ class Py4Res(XPythonSecondaryDriver):
             if not bool(tr[self["Control"]]):
                 #this driver is NOT in charge of switching dc source polarity.
                 raise KAMESkippedRecordError("Skip")
-            
+
+        for i in range(self.NumEntries):
+            if abs(float(tr[self["Current-{}".format(i+1)]]) * 1e-3 - abs(curr)) < 1e-8: #[A]
+                break
+        if i == self.NumEntries:
+            raise KAMERecordError("No valid current setting.")
+
+        #setups the current for visualize().
         if curr > 0:
+            #switching polarity.
+            nextcurr = -curr
+        else:
+            nextcurr = 0
+            #finds valid setting.
+            for j in range(self.NumEntries):
+                k = (i + j + 1) % self.NumEntries
+                nextcurr = float(tr[self["Current-{}".format(k + 1)]]) * 1e-3 #[A]
+                if nextcurr > 0:
+                    break
+            #goes a round to the next current.
+        storage["NextCurr"] = nextcurr
+
+        if curr >= 0:
             raise KAMESkippedRecordError("Skip") #waits for negative current.
 
         curr = -curr
@@ -249,46 +280,26 @@ class Py4Res(XPythonSecondaryDriver):
             if recent[idx]['curr'] == -curr:
                 res = (volt - recent[idx]['volt']) / curr / 2
 
-                for i in range(self.NumEntries):
-                    if tr[self["Current-{}".format(i+1)]] == curr:
-                        break
-                if i == self.NumEntries:
-                    raise KAMESkippedRecordError("Skip") #No valid setting.
                 self.entries[i].value(tr, res)
-                return
+                return #approved for recording.
+
         raise KAMESkippedRecordError("Skip") #no valid record.
 
     #may perform I/O ops or graph ops using the snapshot after analyze().
     def visualize(self, shot):
         if bool(shot[self["Control"]]):
-            #this driver is in charge of switching dc source polarity.
+            #this driver is in charge of changing dc source.
             dcsrc = shot[self["DCSource"]].get() #selected driver.
             storage = shot[self].local() #dict for shot[self], storage linked to the transaction/snapshot.
             try:
                 recent = storage["Recent"]
+                nextcurr = storage["NextCurr"]
             except KeyError:
                 return
-            curr = recent["curr"]
-            if curr > 0:
-                #switching polarity.
-                dcsrc.changeValue(0, -curr)
-            else:
-                curr = -curr
-                for i in range(self.NumEntries):
-                    if shot[self["Current-{}".format(i+1)]] == curr:
-                        break
-                if i == self.NumEntries:
-                    i = self.NumEntries - 1 #No valid setting.
-                nextcurr = 0
-                for j in range(self.NumEntries):
-                    k = (i + j + 1) % self.NumEntries
-                    nextcurr = shot[self["Current-{}".format(k +1)]]
-                    if nextcurr > 0:
-                        break
-                #goes a round to the next current.
-                dcsrc.changeValue(0, nextcurr)
-            
-        return
+            shot_dcsrc = Snapshot(dcsrc)
+            curr = float(shot_dcsrc[dcsrc["Value"]])
+            if curr != nextcurr:
+                dcsrc["Value"] = nextcurr
 
 #Declares that python-side driver to C++ driver list.
 XPythonSecondaryDriver.exportClass("Py4Res", Py4Res, "Python-based driver: 4-Terminal Resistance Measumrent")

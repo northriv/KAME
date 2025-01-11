@@ -53,7 +53,17 @@
        </widget>
       </item>
       <item>
-       <widget class="QDoubleSpinBox" name="Wait"/>
+       <widget class="QDoubleSpinBox" name="Wait">
+        <property name="decimals">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <double>4000.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>10.000000000000000</double>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="QLabel" name="label_4">
