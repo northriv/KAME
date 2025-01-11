@@ -98,40 +98,11 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
 }
 py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
     if( !y) return py::none();
-    auto it = m_xnodeDownCasters.find(std::type_index(typeid(y)));
+    auto &yref = *y.get(); //to suppress a warning for typeid( *y).
+    auto it = m_xnodeDownCasters.find(std::type_index(typeid(yref)));
     if(it != m_xnodeDownCasters.end()) {
         return (it->second.second)(y);
     }
-//    //manages to use its super class.
-//    if(auto x = dynamic_pointer_cast<XValueNodeBase>(y)) {
-//        if(auto x = dynamic_pointer_cast<XIntNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XUIntNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XLongNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XULongNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XHexNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XBoolNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XDoubleNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XStringNode>(y))
-//            return py::cast(x);
-//        if(auto x = dynamic_pointer_cast<XItemNodeBase>(y)) {
-//            if(auto z = dynamic_pointer_cast<XComboNode>(x))
-//                return py::cast(z);
-//            return py::cast(x);
-//        }
-//        return py::cast(x);
-//    }
-//    if(auto x = dynamic_pointer_cast<XListNodeBase>(y))
-//        return py::cast(x);
-//    if(auto x = dynamic_pointer_cast<XTouchableNode>(y))
-//        return py::cast(x);
-
     //manages to use its downmost base class.
     std::map<size_t, decltype(m_xnodeDownCasters.begin()->second.second)> cand;
     for(auto &c: m_xnodeDownCasters) {
@@ -140,14 +111,16 @@ py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
             cand.emplace(c.second.first, c.second.second);
     }
     if(cand.size()) {
-//TODO ??? NoneType thrown in support code. not working even with function pointers.
-//        //caches the best result.
-//        m_xnodeDownCasters.emplace(std::type_index(typeid(y)),
-//            std::make_pair(m_xnodeDownCasters.size() + 10000u, cand.rbegin()->second)
-//        );
+        //caches the best result.
+        m_xnodeDownCasters.emplace(std::type_index(typeid(yref)),
+            std::make_pair(m_xnodeDownCasters.size() + 10000u, cand.rbegin()->second)
+        );
         return cand.rbegin()->second(y); //the oldest choice.
     }
-
+    //caches trivial case.
+    m_xnodeDownCasters.emplace(std::type_index(typeid(yref)),
+        std::make_pair(m_xnodeDownCasters.size() + 10000u, [](shared_ptr<XNode> x){return py::cast(x);})
+    );
     //end up with XNode.
     return py::cast(y);
 };
