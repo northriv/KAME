@@ -166,6 +166,7 @@ class Py4Res(XPythonSecondaryDriver):
             self.insert(XDoubleNode("Current-{}".format(i+1), False))
             self["Current-{}".format(i+1)] = 10.0**(-i)
 
+#        pdb.set_trace()
         #Driver selecters
         self.insert(XDMMItemNode("DMM", False, tr, meas["Drivers"], True)) # choosing XDMM-based class from the driver list.
         self.insert(XDCSourceItemNode("DCSource", False, tr, meas["Drivers"], True)) # choosing XDCSource-based class from the driver list.

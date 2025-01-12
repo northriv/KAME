@@ -92,7 +92,7 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
         m_payloadDownCasters.emplace(std::type_index(typeid(*y)),
             std::make_pair(m_payloadDownCasters.size(), cand.rbegin()->second)
         );
-        return cand.rbegin()->second(y); //the oldest choice.
+        return cand.rbegin()->second(y); //the oldest choice, a declaration of the binding class must follow one for its base class.
     }
     return py::cast(y); //end up with XNode::Payload*
 }
@@ -115,7 +115,7 @@ py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
         m_xnodeDownCasters.emplace(std::type_index(typeid(yref)),
             std::make_pair(m_xnodeDownCasters.size() + 10000u, cand.rbegin()->second)
         );
-        return cand.rbegin()->second(y); //the oldest choice.
+        return cand.rbegin()->second(y); //the oldest choice, a declaration of the binding class must follow one for its base class.
     }
     //caches trivial case.
     m_xnodeDownCasters.emplace(std::type_index(typeid(yref)),

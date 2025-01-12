@@ -17,8 +17,9 @@ try:
 	import ctypes
 	import numpy as np
 	import pdb
+#	from IPython import embed #not working yet
 #	import matplotlib
-#	matplotlib.use('Agg')
+#	matplotlib.use('Agg') #GUI does not work yet
 #	import matplotlib.pyplot as plt
 except (ImportError, ModuleNotFoundError):
 	pass
@@ -68,8 +69,20 @@ class MyDefIO:
 	@staticmethod
 	def read():
 		return stdio.readline()
-		
-class MyDefOErr:
+	@staticmethod
+	def flush():
+		pass
+	@staticmethod
+	def fileno():
+		return STDOUT.fileno()
+	@staticmethod
+	def isatty():
+		return False
+	@property
+	def encoding():
+		return STDOUT.encoding
+
+class MyDefOErr(MyDefIO):
 	@staticmethod
 	def write(s):
 		STDERR.write(s) #redirecting to terminal, for debug purpose.

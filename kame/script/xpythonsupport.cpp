@@ -149,6 +149,17 @@ XPython::execute(const atomic<bool> &terminated) {
             for(;;) {
                 try {
                     py::object main_scope = py::module_::import("__main__").attr("__dict__");
+                    if(std::string(filename) != XPYTHONSUPPORT_PY) {
+                        //linecache.cache['<string'] = .... #for debug purpose. not effective when python runs over the different string.
+                        std::vector<std::string> lines = {"# -*- coding: utf-8 -*-"}; //pybind11::exec() adds 1 preceding line.
+                        std::stringstream ss(data);
+                        std::string s;
+                        while(getline(ss, s, '\n')) {
+                            lines.push_back(s);
+                        }
+                        py::module_::import("linecache").attr("cache").attr("__setitem__")("<string>",
+                            py::make_tuple(strlen(data), py::none(), lines, "<string>"));
+                    }
                     py::exec(data, main_scope);
                 }
                 catch (pybind11::error_already_set& e) {
