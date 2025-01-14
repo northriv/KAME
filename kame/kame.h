@@ -56,7 +56,9 @@ public:
 	QMenu *m_pFileMenu;
 	QMenu *m_pMeasureMenu;
 	QMenu *m_pScriptMenu;
-	QMenu *m_pViewMenu;
+    QMenu* m_pJupyterConsoleMenu;
+    QMenu* m_pJupyterQtConsoleMenu;
+    QMenu *m_pViewMenu;
     QMenu *m_pGraphThemeMenu;
 	QMenu *m_pHelpMenu;
 	QAction* m_pFileOpenAction;
@@ -71,7 +73,6 @@ public:
 	QAction* m_pScriptRunAction;
     QAction* m_pRubyLineShellAction;
     QAction* m_pPythonLineShellAction;
-    QAction* m_pScriptDotSaveAction;
 	QAction* m_pFileCloseAction;
     QAction* m_pGraphThemeNightAction;
     QAction* m_pGraphThemeDaylightAction;
@@ -98,10 +99,12 @@ public slots:
     virtual void helpIndexAction_activated();
     //    virtual void mesRunAction_activated();
     virtual void mesStopAction_activated();
+    virtual void scriptMenu_activated();
     virtual void scriptRunAction_activated();
     virtual void rubyLineShellAction_activated();
     virtual void pythonLineShellAction_activated();
-    virtual void scriptDotSaveAction_activated();
+    virtual void jupyterConsoleAction_activated( QAction *act );
+    virtual void jupyterQtConsoleAction_activated( QAction *act );
     virtual void fileLogAction_toggled( bool var );
     virtual void graphThemeNightAction_toggled( bool var );
 //    virtual void graphThemeDayightAction_toggled( bool var );

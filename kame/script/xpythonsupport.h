@@ -82,7 +82,6 @@ struct KAMEPyBind {
     static void export_embedded_module_basic_drivers(pybind11::module_&);
     static void export_embedded_module_interface(pybind11::module_&);
     static void export_embedded_module_xqcon(pybind11::module_&);
-
 private:
     //std::type_index(typeid(x)), serialno, down_caster_func.
     std::unordered_map<std::type_index, std::pair<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>>> m_xnodeDownCasters;
@@ -99,6 +98,9 @@ class XPython : public XScriptingThreadList {
 public:
     XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
     virtual ~XPython();
+
+    void launchJupyterConsole(const std::string &execpath, const std::string &console);
+    std::vector<std::string> listOfJupyterPrograms();
 
     static KAMEPyBind bind;
 protected:

@@ -7,11 +7,14 @@ import traceback
 import inspect
 import datetime
 import os
+import multiprocessing
 if os.name == 'nt':
 	#needed to import system modules.
 	for p in os.environ['PATH'].split(os.pathsep):
 		if os.path.isdir(p):
 			os.add_dll_directory(p)	
+else:
+	multiprocessing.set_start_method('fork') #needed for Apple silicon
 try:
 	#optional imports.
 	import ctypes
@@ -202,6 +205,38 @@ def kame_pybind_one_iteration():
 	except Exception:
 		sys.stderr.write(str(traceback.format_exc()))
 
+def findExecutables(prog):
+	import glob
+	paths = os.environ['PATH'].split(os.pathsep)
+	if os.name == 'posix':
+		paths.extend(['/opt/homebrew/bin', '/opt/local/bin'])
+	ret = []
+	for p in paths:
+		if os.path.isdir(p):
+			ret.extend(glob.glob(p + os.sep + prog))
+			ret.extend(glob.glob(p + os.sep + prog + os.extsep + "*"))
+			ret.extend(glob.glob(p + os.sep + prog + "-[3-9]*"))
+	return ret
+
+def listOfJupyterPrograms():
+	return findExecutables('jupyter')
+
+def launchJupyterConsole(prog, console):
+	import ipykernel
+	import re
+	json = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group()
+
+	print("Using existing kernel = " + json)
+	args = [prog, '--existing', json,]
+	#multiprocessing.Process is insane.
+	# p = multiprocessing.Process(target = mylauncher, args=(console, args,))
+	#p.start()
+	import subprocess
+	args.insert(1, console)
+	if console == 'console':
+		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN)
+	else:
+		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN)
 
 #import linecache
 #linecache.clearcache()

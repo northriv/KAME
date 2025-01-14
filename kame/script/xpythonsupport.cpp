@@ -41,6 +41,39 @@ XPython::XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &mea
 XPython::~XPython() {
 }
 
+std::vector<std::string>
+XPython::listOfJupyterPrograms() {
+    pybind11::gil_scoped_acquire guard;
+    try {
+        return py::cast<std::vector<std::string>>(py::eval("listOfJupyterPrograms()"));
+    }
+    catch (pybind11::error_already_set& e) {
+        gErrPrint(i18n("Python error: ") + e.what());
+    }
+    catch (std::runtime_error &e) {
+        gErrPrint(i18n("Python KAME binding error: ") + e.what());
+    }
+    catch (...) {
+        gErrPrint(i18n("Unknown python error."));
+    }
+    return {};
+}
+void XPython::launchJupyterConsole(const std::string &execpath, const std::string &console) {
+    pybind11::gil_scoped_acquire guard;
+    try {
+        py::eval("launchJupyterConsole(\'" + execpath + "\', \'" + console + "\')");
+    }
+    catch (pybind11::error_already_set& e) {
+        gErrPrint(i18n("Python error: ") + e.what());
+    }
+    catch (std::runtime_error &e) {
+        gErrPrint(i18n("Python KAME binding error: ") + e.what());
+    }
+    catch (...) {
+        gErrPrint(i18n("Unknown python error."));
+    }
+}
+
 void XPython::mainthread_callback(py::object *scrthread, py::object *func, py::object *ret, py::object *status) {
     pybind11::gil_scoped_acquire guard;
     try {

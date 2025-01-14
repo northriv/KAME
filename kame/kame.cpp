@@ -185,10 +185,12 @@ FrmKameMain::FrmKameMain()
     connect( m_pHelpIndexAction, SIGNAL( triggered() ), this, SLOT( helpIndexAction_activated() ) );
 //    connect( m_pMesRunAction, SIGNAL( triggered() ), this, SLOT( mesRunAction_activated() ) );
     connect( m_pMesStopAction, SIGNAL( triggered() ), this, SLOT( mesStopAction_activated() ) );
+    connect( m_pScriptMenu, SIGNAL( aboutToShow() ), this, SLOT( scriptMenu_activated() ) );
+    connect( m_pJupyterConsoleMenu, SIGNAL( triggered( QAction *) ), this, SLOT( jupyterConsoleAction_activated(QAction *) ) );
+    connect( m_pJupyterQtConsoleMenu, SIGNAL( triggered(QAction *) ), this, SLOT( jupyterQtConsoleAction_activated(QAction *) ) );
     connect( m_pScriptRunAction, SIGNAL( triggered() ), this, SLOT( scriptRunAction_activated() ) );
     connect( m_pRubyLineShellAction, SIGNAL( triggered() ), this, SLOT( rubyLineShellAction_activated() ) );
     connect( m_pPythonLineShellAction, SIGNAL( triggered() ), this, SLOT( pythonLineShellAction_activated() ) );
-    connect( m_pScriptDotSaveAction, SIGNAL( triggered() ), this, SLOT( scriptDotSaveAction_activated() ) );
     connect( m_pFileLogAction, SIGNAL( toggled(bool) ), this, SLOT( fileLogAction_toggled(bool) ) );
     connect( m_pGraphThemeNightAction, SIGNAL( toggled(bool) ), this, SLOT( graphThemeNightAction_toggled(bool) ) );
 //    connect( m_pGraphThemeDaylightAction, SIGNAL( toggled(bool) ), this, SLOT( graphThemeDaylightAction_toggled(bool) ) );
@@ -290,9 +292,15 @@ FrmKameMain::createActions() {
     m_pRubyLineShellAction = new QAction( this );
     m_pRubyLineShellAction->setEnabled( true );
     m_pRubyLineShellAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
-    m_pScriptDotSaveAction = new QAction( this );
-    m_pScriptDotSaveAction->setEnabled( true );
-    m_pScriptDotSaveAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogSaveButton));
+    m_pJupyterConsoleMenu = new QMenu( this );
+    m_pJupyterQtConsoleMenu = new QMenu( this );
+    for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu}) {
+        menu->setEnabled( true );
+    #ifndef USE_PYBIND11
+        menu->setEnabled( false );
+    #endif
+    }
+//    m_pJupyterQtConsoleAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_TitleBarMenuButton));
     m_pGraphThemeNightAction = new QAction( this);
     m_pGraphThemeNightAction->setEnabled( true );
     m_pGraphThemeNightAction->setCheckable( true );
@@ -317,8 +325,9 @@ FrmKameMain::createActions() {
     m_pMesStopAction->setText( i18n( "&Stop" ) );
     m_pScriptRunAction->setText( i18n( "&Run..." ) );
     m_pRubyLineShellAction->setText( i18n( "&New Ruby Line Shell" ) );
-    m_pPythonLineShellAction->setText( i18n( "&New Python Line Shell" ) );
-    m_pScriptDotSaveAction->setText( i18n( "&Graphviz Save .dot..." ) );
+    m_pPythonLineShellAction->setText( i18n( "New &Python Line Shell" ) );
+    m_pJupyterConsoleMenu->setTitle( i18n( "New Jupyter &Console" ) );
+    m_pJupyterQtConsoleMenu->setTitle( i18n( "New Jupyter &Qt Console" ) );
     m_pFileCloseAction->setText( i18n( "&Close" ) );    
     m_pGraphThemeNightAction->setText( i18n( "&Night") );
     m_pGraphThemeDaylightAction->setText( i18n( "&Daylight") );
@@ -344,7 +353,8 @@ FrmKameMain::createMenus() {
     m_pScriptMenu->addAction(m_pRubyLineShellAction);
     m_pScriptMenu->addAction(m_pPythonLineShellAction);
     m_pScriptMenu->addSeparator();
-    m_pScriptMenu->addAction(m_pScriptDotSaveAction);
+    m_pScriptMenu->addMenu(m_pJupyterConsoleMenu);
+    m_pScriptMenu->addMenu(m_pJupyterQtConsoleMenu);
 
     m_pViewMenu = menuBar()->addMenu(i18n( "&View" ) );
 
@@ -580,20 +590,27 @@ void FrmKameMain::scriptLineShellAction_activated(const char *name) {
     }
 }
 
-void FrmKameMain::scriptDotSaveAction_activated() {
-    QString filename = QFileDialog::getSaveFileName (
-        this,
-        i18n("Save Graphviz dot File"), "",
-        "Graphviz dot files (*.dot);;"
-        "All files (*.*)"
-         );
-	if( !filename.isEmpty()) {
-        std::ofstream ofs(filename.toLocal8Bit().data(), std::ios::out);
-		if(ofs.good()) {
-			XDotWriter writer(m_measure, ofs);
-			writer.write();
-		}
-	}
+void FrmKameMain::scriptMenu_activated() {
+#ifdef USE_PYBIND11
+    auto progs = m_measure->python()->listOfJupyterPrograms();
+    for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu}) {
+        menu->clear();
+        for(auto &s: progs) {
+            QAction *act = new QAction(s.c_str(), menu);
+            menu->addAction(act);
+        }
+    }
+#endif
+}
+void FrmKameMain::jupyterConsoleAction_activated( QAction *act ) {
+#ifdef USE_PYBIND11
+    m_measure->python()->launchJupyterConsole(act->text().toUtf8().data(), "console");
+#endif
+}
+void FrmKameMain::jupyterQtConsoleAction_activated( QAction *act ) {
+#ifdef USE_PYBIND11
+    m_measure->python()->launchJupyterConsole(act->text().toUtf8().data(), "qtconsole");
+#endif
 }
 
 void FrmKameMain::fileLogAction_toggled( bool var) {
