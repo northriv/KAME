@@ -17,7 +17,9 @@ try:
 	import ctypes
 	import numpy as np
 	import pdb
-#	from IPython import embed #not working yet
+
+	from ipykernel.eventloops import register_integration
+	import IPython
 #	import matplotlib
 #	matplotlib.use('Agg') #GUI does not work yet
 #	import matplotlib.pyplot as plt
@@ -36,6 +38,9 @@ MONITOR_PERIOD=0.2
 TLS = threading.local()
 TLS.xscrthread = None# XScriptingThreads()[0]
 TLS.logfile = None
+
+import io
+
 class MyDefIO:
 	@staticmethod
 	def write(s):
@@ -77,10 +82,13 @@ class MyDefIO:
 		return STDOUT.fileno()
 	@staticmethod
 	def isatty():
-		return False
+		return True
 	@property
 	def encoding():
 		return STDOUT.encoding
+	@property
+	def buffer():
+		return io.BytesIO()
 
 class MyDefOErr(MyDefIO):
 	@staticmethod
@@ -136,7 +144,7 @@ def sleep(sec):
 		xpythread = TLS.xscrthread
 		xpythread["Status"] = "run"
 
-def loadSequence():
+def loadSequence(xpythread, filename):
 	TLS.xscrthread = xpythread #thread-local-storage
 	TLS.logfile = None
 	try:
@@ -152,13 +160,11 @@ def loadSequence():
 				exec(open(filename).read())
 				print(str(threading.current_thread()) + " Finished.")
 				TLS.logfile = None
-	except Exception as inst:
+	except Exception:
 		sys.stderr.write(str(traceback.format_exc()))
 	TLS.xscrthread["Status"] = ""
 
-print("#testing python interpreter.")
-while not is_main_terminated():
-	time.sleep(MONITOR_PERIOD)
+def kame_pybind_one_iteration():
 	try:
 		#For node browser pane
 		PyInfoForNodeBrowser().set(str([y[0] for y in inspect.getmembers(LastPointedByNodeBrowser(), inspect.ismethod)]))
@@ -179,7 +185,7 @@ while not is_main_terminated():
 					print("Starting a new thread")
 					filename = str(xpythread_filename)
 					print("Loading "+ filename)
-					thread = threading.Thread(daemon=True, target=loadSequence)
+					thread = threading.Thread(daemon=True, target=loadSequence, args=(xpythread, filename))
 					thread.start()
 					time.sleep(0.3)
 				if action == "kill":
@@ -188,14 +194,89 @@ while not is_main_terminated():
 						if action == "kill":
 							#cannot be killed by timer.
 							ctypes.pythonapi.PyThreadState_SetAsyncExc(
-								ctypes.c_long(int(str(xpythread_threadid))), 
+							    ctypes.c_long(int(str(xpythread_threadid))),
 								ctypes.py_object(SystemExit)
 							)
 	except EOFError:
 		pass
-	except Exception as inst:
+	except Exception:
 		sys.stderr.write(str(traceback.format_exc()))
 
+
+#import linecache
+#linecache.clearcache()
+
+if not 'IPython' in globals():
+	print("#testing python interpreter.")
+	#kame_pybind_main_loop
+	while not is_main_terminated():
+		time.sleep(MONITOR_PERIOD)
+		kame_pybind_one_iteration()
+else:
+
+	@register_integration('kamepybind11')
+	def loop_test(kernel):
+		import asyncio
+		import nest_asyncio
+		nest_asyncio.apply()
+
+		poll_interval = kernel._poll_interval
+		class Timer:
+			def __init__(self, func):
+				self.stdout = sys.stdout
+				self.stderr = sys.stderr
+				self.stdin = sys.stdin
+
+				print(str(func))
+				self.func = func
+
+			def on_timer(self):
+				sys.stdout = self.stdout
+				sys.stderr = self.stderr
+				sys.stdin = self.stdin
+
+				loop = asyncio.get_event_loop()
+				try:
+					loop.run_until_complete(self.func())
+				except Exception:
+					kernel.log.exception("Error in message handler")
+
+				self.stdout = sys.stdout
+				self.stderr = sys.stderr
+				self.stdin = sys.stdin
+				sys.stdout = MyDefIO
+				sys.stderr = MyDefOErr
+				sys.stdin = MyDefIO
+
+				kame_pybind_one_iteration()
+				time.sleep(poll_interval)
+
+			def start(self):
+				self.on_timer()  # Call it once to get things going.
+				print("start\n")
+				while not is_main_terminated():
+					self.on_timer()
+
+		kernel.timer = Timer(kernel.do_one_iteration)
+		kernel.timer.start()
+
+	# First create a config object from the traitlets library
+	from traitlets.config import Config
+	c = Config()
+
+	c.InteractiveShellApp.exec_lines = [
+	    '%gui kamepybind11'
+	]
+#	c.InteractiveShell.colors = 'LightBG'
+#	c.TerminalIPythonApp.display_banner = False
+    #c.InteractiveShellApp.gui = 'kamepybind11' #does not work
+
+	sys.stdout = STDOUT
+	sys.stderr = STDERR
+	sys.stdin = STDIN
+
+	# Now starting ipython kernel.
+	IPython.embed_kernel(config=c)
 
 sys.stderr.write("bye")
 

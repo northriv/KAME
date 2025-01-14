@@ -24,7 +24,7 @@ Gnuc = [0.0,\
 0.0, -2.8149732, 0.0, 24.3209950, 0.0, 24.5596944, 0.0, 8.9072353, 0.0, 8.9072353
 ]
 
-xpythread_status.set("")
+#xpythread_status.set("")
 lineno = 1
 while not is_main_terminated():
     try:
