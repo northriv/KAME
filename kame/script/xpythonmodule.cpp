@@ -204,7 +204,7 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__len__", [](Snapshot &self){return self.size();})
         .def("__getitem__", [](Snapshot &self, unsigned int pos)->shared_ptr<XNode>{
             if(self.size()) return self.list()->at(pos);
-            throw XNode::NodeNotFoundError("out of range");}
+            throw pybind11::index_error("no child");            }
         )
         .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
             return XPython::bind.cast_to_pyobject( &self.at( *node));
@@ -330,7 +330,7 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     bound_xnode.def("__getitem__", [](shared_ptr<XNode> &self, unsigned int pos)->py::object {
             Snapshot shot( *self);
             if( !shot.size())
-                throw XNode::NodeNotFoundError("out of range");
+                throw pybind11::index_error("no child");
             return XPython::bind.cast_to_pyobject(shot.list()->at(pos));
         })
         .def("dynamic_cast", [](shared_ptr<XNode> &self)->py::object {return XPython::bind.cast_to_pyobject(self);})
