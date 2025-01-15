@@ -18,6 +18,8 @@ else:
 		multiprocessing.set_start_method('fork') #needed for Apple silicon
 	except Exception:
 		pass #allowed only once.
+
+HasIPython = False
 try:
 	#optional imports.
 	import ctypes
@@ -26,6 +28,7 @@ try:
 
 	from ipykernel.eventloops import register_integration
 	import IPython
+	HasIPython = True
 #	import matplotlib
 #	matplotlib.use('Agg') #GUI does not work yet
 #	import matplotlib.pyplot as plt
@@ -231,7 +234,8 @@ def launchJupyterConsole(prog, console):
 	from ipykernel.kernelapp import IPKernelApp
 	app = IPKernelApp.instance()
 	json = app.connection_file
-
+	if not len(json):
+		sys.stderr.write("IPython kernel could not be started.")
 	print("Using existing kernel = " + json)
 	args = [prog, '--existing', json,]
 	#multiprocessing.Process is insane.
@@ -247,7 +251,7 @@ def launchJupyterConsole(prog, console):
 #import linecache
 #linecache.clearcache()
 
-if not 'IPython' in globals():
+if not HasIPython:
 	print("#testing python interpreter.")
 	#kame_pybind_main_loop
 	while not is_main_terminated():
