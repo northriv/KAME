@@ -14,7 +14,10 @@ if os.name == 'nt':
 		if os.path.isdir(p):
 			os.add_dll_directory(p)	
 else:
-	multiprocessing.set_start_method('fork') #needed for Apple silicon
+	try:
+		multiprocessing.set_start_method('fork') #needed for Apple silicon
+	except Exception:
+		pass #allowed only once.
 try:
 	#optional imports.
 	import ctypes
@@ -222,9 +225,12 @@ def listOfJupyterPrograms():
 	return findExecutables('jupyter')
 
 def launchJupyterConsole(prog, console):
-	import ipykernel
-	import re
-	json = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group()
+#	import ipykernel
+#	import re
+#	json = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group()
+	from ipykernel.kernelapp import IPKernelApp
+	app = IPKernelApp.instance()
+	json = app.connection_file
 
 	print("Using existing kernel = " + json)
 	args = [prog, '--existing', json,]
@@ -250,7 +256,7 @@ if not 'IPython' in globals():
 else:
 
 	@register_integration('kamepybind11')
-	def loop_test(kernel):
+	def loop_kamepysupport(kernel):
 		import asyncio
 		import nest_asyncio
 		nest_asyncio.apply()
@@ -283,6 +289,7 @@ else:
 				sys.stderr = MyDefOErr
 				sys.stdin = MyDefIO
 
+				# if not is_main_terminated():
 				kame_pybind_one_iteration()
 				time.sleep(poll_interval)
 
@@ -291,9 +298,22 @@ else:
 				print("start\n")
 				while not is_main_terminated():
 					self.on_timer()
+				print(str([y[0] for y in inspect.getmembers(kernel, inspect.ismethod)]))
+				# from ipykernel.kernelapp import IPKernelApp
+				# app = IPKernelApp.instance()
+				# app.close()
+				print("finish\n")
 
 		kernel.timer = Timer(kernel.do_one_iteration)
 		kernel.timer.start()
+
+	# @loop_kamepysupport.exit
+	# def loop_kamepysupport_exit(kernel):
+	# 	try:
+	# 		print("exit\n")
+	# 		del kernel.timer
+	# 	except (RuntimeError, AttributeError):
+	# 		pass
 
 	# First create a config object from the traitlets library
 	from traitlets.config import Config
