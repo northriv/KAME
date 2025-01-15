@@ -1,3 +1,7 @@
+* Wed Jan 15 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.1.6-1)
+- Support for IPython kernel and popen for Jupyter console/qtconsole.
+
 * Sat Jan 11 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.1.5-1)
 - Fix for 4-terminal method.
