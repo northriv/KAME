@@ -237,7 +237,7 @@ def launchJupyterConsole(prog, console):
 	if not len(json):
 		sys.stderr.write("IPython kernel could not be started.")
 	print("Using existing kernel = " + json)
-	args = [prog, '--existing', json,]
+	args = [repr(prog), '--existing', json,] #repr is to disable escape sequence.
 	#multiprocessing.Process is insane.
 	# p = multiprocessing.Process(target = mylauncher, args=(console, args,))
 	#p.start()
