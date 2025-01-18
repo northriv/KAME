@@ -19,7 +19,8 @@ XScriptingThread::XScriptingThread(const char *name, bool runtime, const XString
 	  m_status(create<XStringNode>("Status", true)),
 	  m_action(create<XStringNode>("Action", true)),
 	  m_lineinput(create<XStringNode>("LineInput", true)),
-      m_threadID(create<XStringNode>("ThreadID", true)) {
+      m_threadID(create<XStringNode>("ThreadID", true)),
+      m_label(name) {
 
 	iterate_commit([=](Transaction &tr){
         tr[ *m_threadID] = "-1";

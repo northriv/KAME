@@ -392,6 +392,15 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             });
         });
 
+    {   auto [node, payload] = XPython::bind.export_xnode<XScriptingThread, XNode, const std::string &>();
+        (*node)
+            .def("setLabel", [](shared_ptr<XScriptingThread> &node, const std::string &l){node->setLabel(l);})
+            .def("isRunning", &XScriptingThread::isRunning)
+            .def("isAlive", &XScriptingThread::isAlive)
+            .def("kill", &XScriptingThread::kill)
+            .def("resume", &XScriptingThread::resume);
+    }
+
     py::class_<XTime>(m, "XTime")
         .def(py::init([](const system_clock::time_point &t)->XTime{return {t};}));
     py::implicitly_convertible<system_clock::time_point, XTime>();

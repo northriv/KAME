@@ -50,7 +50,13 @@ print("Hello! KAME Python support.")
 MONITOR_PERIOD=0.2
 
 TLS = threading.local()
-TLS.xscrthread = None# XScriptingThreads()[0]
+if HasIPython:
+	XScriptingThreads()[0].setLabel("IPython kernel")
+	XScriptingThreads()[0]["Action"] = ""
+	XScriptingThreads()[0]["Status"] = ""
+	TLS.xscrthread = XScriptingThreads()[0]
+else:
+	TLS.xscrthread = None
 TLS.logfile = None
 
 import io
@@ -150,7 +156,10 @@ def sleep(sec):
 			if remain > 1e9:
 				xpythread["Status"] = "sleep"
 			else:
-				xpythread["Status"] = "{}s @{}".format(int(remain), inspect.currentframe().f_back)
+				fback = inspect.currentframe().f_back
+				if HasIPython and 'ipykernel' in fback.f_code.co_filename: #sleep() in IPython kernel
+					fback = "In[{}]:line {} in {}".format(get_ipython().execution_count, fback.f_code.co_name, fback.f_lineno)
+				xpythread["Status"] = "{}s @{}".format(int(remain), str(fback))
 		if remain < 0:
 			break
 		event.wait(min([remain, 0.33]))
@@ -196,9 +205,9 @@ def kame_pybind_one_iteration():
 				if action == "starting":
 					time.sleep(0.5)
 					xpythread_action.set("")
-					print("Starting a new thread")
+					STDERR.write("Starting a new thread")
 					filename = str(xpythread_filename)
-					print("Loading "+ filename)
+					STDERR.write("Loading "+ filename)
 					thread = threading.Thread(daemon=True, target=loadSequence, args=(xpythread, filename))
 					thread.start()
 					time.sleep(0.3)
@@ -214,7 +223,7 @@ def kame_pybind_one_iteration():
 	except EOFError:
 		pass
 	except Exception:
-		sys.stderr.write(str(traceback.format_exc()))
+		STDERR.write(str(traceback.format_exc()))
 
 def findExecutables(prog):
 	import glob
@@ -232,7 +241,7 @@ def findExecutables(prog):
 def listOfJupyterPrograms():
 	return findExecutables('jupyter')
 
-def launchJupyterConsole(prog, console):
+def launchJupyterConsole(prog, argv):
 	from ipykernel.kernelapp import IPKernelApp
 	app = IPKernelApp.instance()
 	json = app.connection_file
@@ -242,12 +251,13 @@ def launchJupyterConsole(prog, console):
 	args = [prog, '--existing', json,]
 
 	import subprocess
-	args.insert(1, console)
-	if console == 'console':
+	console = argv.split()
+	args.insert(1, console[0])
+	if console[0] == 'console':
 		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN)
-	elif console == 'qtconsole':
+	elif console[0] == 'qtconsole':
 		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN)
-	elif console == 'notebook':
+	elif console[0] == 'notebook':
 		import ipykernel
 		connection_file = ipykernel.connect.get_connection_file()
 		import binascii
@@ -256,14 +266,14 @@ def launchJupyterConsole(prog, console):
 		env['PYTHONPATH'] = os.pathsep.join((KAME_ResourceDir, env.get('PYTHONPATH', '')))
 		env['KAME_NOTEBOOK_SERVER_TOKEN'] = token
 		env['KAME_IPYTHON_CONNECTION_FILE'] = connection_file
-		args = [prog, console, '--config=' + os.path.join(KAME_ResourceDir, 'jupyter_notebook_config.py')]
-		print("Launching jupyter notebook: ", *args, env)
-		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN, env=env)
+		args = [prog, console[0], '--config=' + os.path.join(KAME_ResourceDir, 'jupyter_notebook_config.py')]
+		print("Launching jupyter notebook: ", *args)
+		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN, env=env, cwd=console[1])
 	else:
 		raise RuntimeError('Unknown console.')
 
-#import linecache
-#linecache.clearcache()
+import linecache
+linecache.clearcache()
 
 if not HasIPython:
 	print("#testing python interpreter.")
@@ -302,7 +312,7 @@ else:
 
 			def start(self):
 				self.on_timer()  # Call it once to get things going.
-				print("start\n")
+				print("#KAME IPython binding")
 				while not is_main_terminated():
 					self.on_timer()
 				#print(str([y[0] for y in inspect.getmembers(kernel, inspect.ismethod)]))

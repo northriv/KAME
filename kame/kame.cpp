@@ -618,7 +618,11 @@ void FrmKameMain::jupyterQtConsoleAction_activated( QAction *act ) {
 }
 void FrmKameMain::jupyterNotebookAction_activated( QAction *act ) {
 #ifdef USE_PYBIND11
-    m_measure->python()->launchJupyterConsole(act->text().toUtf8().data(), "notebook");
+    QString dir = QFileDialog::getExistingDirectory (
+        this, i18n("Open Notebook Workspace"));
+    if(dir.length())
+        m_measure->python()->launchJupyterConsole(act->text().toUtf8().data(),
+            ("notebook " + dir).toUtf8().data());
 #endif
 }
 

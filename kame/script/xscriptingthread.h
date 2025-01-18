@@ -40,6 +40,9 @@ public:
 	void kill();
 	void resume();
   
+    void setLabel(const XString& str) {m_label = str;}
+    virtual XString getLabel() const override {return m_label;}
+
 	//! def. input gets(). Return "" if the buffer is empty.
 	XString gets();
 	const shared_ptr<XStringNode> &lineinput() const {return m_lineinput;}
@@ -66,6 +69,7 @@ private:
 	void onLineChanged(const Snapshot &shot, XValueNodeBase *);
 	std::deque<XString> m_lineBuffer;
 	XMutex m_lineBufferMutex;
+    XString m_label;
 };
 
 class XMeasure;

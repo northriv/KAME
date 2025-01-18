@@ -63,7 +63,7 @@ XPython::listOfJupyterPrograms() {
 void XPython::launchJupyterConsole(const std::string &execpath, const std::string &console) {
     pybind11::gil_scoped_acquire guard;
     try {
-        py::eval("launchJupyterConsole(r\'" + execpath + "\', \'" + console + "\')");
+        py::eval("launchJupyterConsole(r\'" + execpath + "\', r\'" + console + "\')");
     }
     catch (pybind11::error_already_set& e) {
         gErrPrint(i18n("Python error: ") + e.what());

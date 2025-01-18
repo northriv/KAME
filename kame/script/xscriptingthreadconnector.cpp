@@ -99,6 +99,8 @@ XScriptingThreadConnector::onStatusChanged(const Snapshot &shot, XValueNodeBase 
     m_kill->setUIEnabled(alive);
     bool running = m_scriptThread->isRunning();
     m_resume->setUIEnabled(alive && !running);
+    if(m_pForm->windowTitle() != QString(m_scriptThread->getLabel()))
+        m_pForm->setWindowTitle(m_scriptThread->getLabel());
 }
 void
 XScriptingThreadConnector::onResumeTouched(const Snapshot &shot, XTouchableNode *node) {
