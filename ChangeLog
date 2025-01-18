@@ -1,4 +1,8 @@
 * Sat Jan 18 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.1.8-1)
+- Binding for Jupyter notebook.
+
+* Sat Jan 18 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.1.7-1)
 - Fix for stdio behvior of python line interpreter.
 
