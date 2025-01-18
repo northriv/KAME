@@ -39,6 +39,8 @@ XPython::XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &mea
     : XScriptingThreadList(name, runtime, measure) {
 }
 XPython::~XPython() {
+//    pybind11::gil_scoped_acquire guard;
+//    bind.s_kame_module.release();
 }
 
 std::vector<std::string>
@@ -182,7 +184,7 @@ XPython::execute(const atomic<bool> &terminated) {
             for(;;) {
                 try {
                     py::object main_scope = py::module_::import("__main__").attr("__dict__");
-                    if(std::string(filename) != XPYTHONSUPPORT_PY) {
+                    { //if(std::string(filename) != XPYTHONSUPPORT_PY)
                         //linecache.cache['<string'] = .... #for debug purpose. not effective when python runs over the different string.
                         std::vector<std::string> lines = {"# -*- coding: utf-8 -*-"}; //pybind11::exec() adds 1 preceding line.
                         std::stringstream ss(data);

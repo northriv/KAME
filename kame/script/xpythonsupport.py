@@ -27,7 +27,7 @@ try:
 	import pdb
 
 	from ipykernel.eventloops import register_integration
-	import IPython
+	import IPython #this import hinders from freeing XPython/XMeasure normally.
 	HasIPython = True
 #	import matplotlib
 #	matplotlib.use('Agg') #GUI does not work yet
@@ -268,27 +268,16 @@ else:
 		poll_interval = kernel._poll_interval
 		class Timer:
 			def __init__(self, func):
-				self.stdout = sys.stdout
-				self.stderr = sys.stderr
-				self.stdin = sys.stdin
-
 				print(str(func))
 				self.func = func
 
 			def on_timer(self):
-				sys.stdout = self.stdout
-				sys.stderr = self.stderr
-				sys.stdin = self.stdin
-
 				loop = asyncio.get_event_loop()
 				try:
 					loop.run_until_complete(self.func())
 				except Exception:
 					kernel.log.exception("Error in message handler")
 
-				self.stdout = sys.stdout
-				self.stderr = sys.stderr
-				self.stdin = sys.stdin
 				sys.stdout = MyDefIO
 				sys.stderr = MyDefOErr
 				sys.stdin = MyDefIO
@@ -302,22 +291,27 @@ else:
 				print("start\n")
 				while not is_main_terminated():
 					self.on_timer()
-				print(str([y[0] for y in inspect.getmembers(kernel, inspect.ismethod)]))
+				#print(str([y[0] for y in inspect.getmembers(kernel, inspect.ismethod)]))
+
+				# sys.stderr.write("bye")
 				# from ipykernel.kernelapp import IPKernelApp
 				# app = IPKernelApp.instance()
 				# app.close()
-				print("finish\n")
+				#task = asyncio.create_task(self.func())
+				#task.cancel()
+
+				# raise IPython.terminal.embed.KillEmbedded('')
 
 		kernel.timer = Timer(kernel.do_one_iteration)
 		kernel.timer.start()
 
-	# @loop_kamepysupport.exit
-	# def loop_kamepysupport_exit(kernel):
-	# 	try:
-	# 		print("exit\n")
-	# 		del kernel.timer
-	# 	except (RuntimeError, AttributeError):
-	# 		pass
+	@loop_kamepysupport.exit
+	def loop_kamepysupport_exit(kernel):
+		try:
+			sys.stderr.write("exit\n")
+			del kernel.timer
+		except (RuntimeError, AttributeError):
+			pass
 
 	# First create a config object from the traitlets library
 	from traitlets.config import Config
@@ -334,15 +328,15 @@ else:
 	sys.stderr = STDERR
 	sys.stdin = STDIN
 
-	# Now starting ipython kernel.
-	IPython.embed_kernel(config=c)
-
-sys.stderr.write("bye")
+	try:
+		# Now starting ipython kernel.
+		IPython.embed_kernel(config=c)
+	except Exception:
+		sys.stderr.write(str(traceback.format_exc()))
 
 sys.stdout = STDOUT
 sys.stderr = STDERR
 sys.stdin = STDIN
-
 for thread in threading.enumerate():
 	try:
 		if thread != threading.current_thread():
