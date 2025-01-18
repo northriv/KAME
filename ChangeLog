@@ -1,3 +1,7 @@
+* Sun Jan 19 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.2.0-1)
+- The first MDI child window is now for IPython.
+
 * Sat Jan 18 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.1.8-1)
 - Binding for Jupyter notebook.
