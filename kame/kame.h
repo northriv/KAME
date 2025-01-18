@@ -58,6 +58,7 @@ public:
 	QMenu *m_pScriptMenu;
     QMenu* m_pJupyterConsoleMenu;
     QMenu* m_pJupyterQtConsoleMenu;
+    QMenu* m_pJupyterNotebookMenu;
     QMenu *m_pViewMenu;
     QMenu *m_pGraphThemeMenu;
 	QMenu *m_pHelpMenu;
@@ -105,6 +106,7 @@ public slots:
     virtual void pythonLineShellAction_activated();
     virtual void jupyterConsoleAction_activated( QAction *act );
     virtual void jupyterQtConsoleAction_activated( QAction *act );
+    virtual void jupyterNotebookAction_activated( QAction *act );
     virtual void fileLogAction_toggled( bool var );
     virtual void graphThemeNightAction_toggled( bool var );
 //    virtual void graphThemeDayightAction_toggled( bool var );

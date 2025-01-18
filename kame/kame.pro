@@ -180,7 +180,9 @@ RESOURCES += \
 DESTDIR=$$OUT_PWD/../
 
 scriptfile.files = script/rubylineshell.rb \
-    script/pythonlineshell.py
+    script/pythonlineshell.py \
+    script/notebook/jupyter_notebook_config.py \
+    script/notebook/notebook_kame_kernel_manager.py
 
 macx {
     scriptfile.path = Contents/Resources
@@ -192,7 +194,9 @@ else {
     }
     else {
         DISTFILES += script/rubylineshell.rb  \
-            script/pythonlineshell.py
+            script/pythonlineshell.py \
+            script/notebook/jupyter_notebook_config.py \
+            script/notebook/notebook_kame_kernel_manager.py
     }
 }
 
@@ -419,6 +423,5 @@ macx {
         QMAKE_BUNDLE_DATA += ezusbfiles
     }
 }
-
 
 

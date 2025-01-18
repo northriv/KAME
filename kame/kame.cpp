@@ -188,6 +188,7 @@ FrmKameMain::FrmKameMain()
     connect( m_pScriptMenu, SIGNAL( aboutToShow() ), this, SLOT( scriptMenu_activated() ) );
     connect( m_pJupyterConsoleMenu, SIGNAL( triggered( QAction *) ), this, SLOT( jupyterConsoleAction_activated(QAction *) ) );
     connect( m_pJupyterQtConsoleMenu, SIGNAL( triggered(QAction *) ), this, SLOT( jupyterQtConsoleAction_activated(QAction *) ) );
+    connect( m_pJupyterNotebookMenu, SIGNAL( triggered(QAction *) ), this, SLOT( jupyterNotebookAction_activated(QAction *) ) );
     connect( m_pScriptRunAction, SIGNAL( triggered() ), this, SLOT( scriptRunAction_activated() ) );
     connect( m_pRubyLineShellAction, SIGNAL( triggered() ), this, SLOT( rubyLineShellAction_activated() ) );
     connect( m_pPythonLineShellAction, SIGNAL( triggered() ), this, SLOT( pythonLineShellAction_activated() ) );
@@ -294,7 +295,8 @@ FrmKameMain::createActions() {
     m_pRubyLineShellAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
     m_pJupyterConsoleMenu = new QMenu( this );
     m_pJupyterQtConsoleMenu = new QMenu( this );
-    for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu}) {
+    m_pJupyterNotebookMenu = new QMenu( this );
+    for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu, m_pJupyterNotebookMenu}) {
         menu->setEnabled( true );
     #ifndef USE_PYBIND11
         menu->setEnabled( false );
@@ -326,6 +328,7 @@ FrmKameMain::createActions() {
     m_pScriptRunAction->setText( i18n( "&Run..." ) );
     m_pRubyLineShellAction->setText( i18n( "&New Ruby Line Shell" ) );
     m_pPythonLineShellAction->setText( i18n( "New &Python Line Shell" ) );
+    m_pJupyterNotebookMenu->setTitle( i18n( "New &Jupyter Notebook" ) );
     m_pJupyterConsoleMenu->setTitle( i18n( "New Jupyter &Console" ) );
     m_pJupyterQtConsoleMenu->setTitle( i18n( "New Jupyter &Qt Console" ) );
     m_pFileCloseAction->setText( i18n( "&Close" ) );    
@@ -353,6 +356,7 @@ FrmKameMain::createMenus() {
     m_pScriptMenu->addAction(m_pRubyLineShellAction);
     m_pScriptMenu->addAction(m_pPythonLineShellAction);
     m_pScriptMenu->addSeparator();
+    m_pScriptMenu->addMenu(m_pJupyterNotebookMenu);
     m_pScriptMenu->addMenu(m_pJupyterConsoleMenu);
     m_pScriptMenu->addMenu(m_pJupyterQtConsoleMenu);
 
@@ -593,7 +597,7 @@ void FrmKameMain::scriptLineShellAction_activated(const char *name) {
 void FrmKameMain::scriptMenu_activated() {
 #ifdef USE_PYBIND11
     auto progs = m_measure->python()->listOfJupyterPrograms();
-    for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu}) {
+    for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu, m_pJupyterNotebookMenu}) {
         menu->clear();
         for(auto &s: progs) {
             QAction *act = new QAction(s.c_str(), menu);
@@ -610,6 +614,11 @@ void FrmKameMain::jupyterConsoleAction_activated( QAction *act ) {
 void FrmKameMain::jupyterQtConsoleAction_activated( QAction *act ) {
 #ifdef USE_PYBIND11
     m_measure->python()->launchJupyterConsole(act->text().toUtf8().data(), "qtconsole");
+#endif
+}
+void FrmKameMain::jupyterNotebookAction_activated( QAction *act ) {
+#ifdef USE_PYBIND11
+    m_measure->python()->launchJupyterConsole(act->text().toUtf8().data(), "notebook");
 #endif
 }
 

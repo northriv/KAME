@@ -39,6 +39,11 @@ STDOUT = sys.stdout
 STDERR = sys.stderr
 STDIN = sys.stdin
 
+#For osx, module files are in kame.app/Contents/MacOSX/../Resources
+#For win, module files are in Resources
+KAME_ResourceDir = os.path.join(os.path.dirname(sys.executable), '../Resources' if sys.platform == 'darwin' else 'Resources')
+sys.path.insert(0, KAME_ResourceDir) #adds resource folder for importable modules.
+
 print("Hello! KAME Python support.")
 
 #Thread-monitor
@@ -219,18 +224,15 @@ def findExecutables(prog):
 	ret = []
 	for p in paths:
 		if os.path.isdir(p):
-			ret.extend(glob.glob(p + os.sep + prog))
-			ret.extend(glob.glob(p + os.sep + prog + os.extsep + "*"))
-			ret.extend(glob.glob(p + os.sep + prog + "-[3-9]*"))
+			ret.extend(glob.glob(os.path.join(p, prog)))
+			ret.extend(glob.glob(os.path.join(p, prog + os.extsep + "*")))
+			ret.extend(glob.glob(os.path.join(p, prog + "-[3-9]*")))
 	return ret
 
 def listOfJupyterPrograms():
 	return findExecutables('jupyter')
 
 def launchJupyterConsole(prog, console):
-#	import ipykernel
-#	import re
-#	json = re.search('kernel-(.*).json', ipykernel.connect.get_connection_file()).group()
 	from ipykernel.kernelapp import IPKernelApp
 	app = IPKernelApp.instance()
 	json = app.connection_file
@@ -238,15 +240,27 @@ def launchJupyterConsole(prog, console):
 		sys.stderr.write("IPython kernel could not be started.")
 	print("Using existing kernel = " + json)
 	args = [prog, '--existing', json,]
-	#multiprocessing.Process is insane.
-	# p = multiprocessing.Process(target = mylauncher, args=(console, args,))
-	#p.start()
+
 	import subprocess
 	args.insert(1, console)
 	if console == 'console':
 		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN)
-	else:
+	elif console == 'qtconsole':
 		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN)
+	elif console == 'notebook':
+		import ipykernel
+		connection_file = ipykernel.connect.get_connection_file()
+		import binascii
+		token = binascii.hexlify(os.urandom(24)).decode('ascii')
+		env = dict(os.environ)
+		env['PYTHONPATH'] = os.pathsep.join((KAME_ResourceDir, env.get('PYTHONPATH', '')))
+		env['KAME_NOTEBOOK_SERVER_TOKEN'] = token
+		env['KAME_IPYTHON_CONNECTION_FILE'] = connection_file
+		args = [prog, console, '--config=' + os.path.join(KAME_ResourceDir, 'jupyter_notebook_config.py')]
+		print("Launching jupyter notebook: ", *args, env)
+		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN, env=env)
+	else:
+		raise RuntimeError('Unknown console.')
 
 #import linecache
 #linecache.clearcache()
