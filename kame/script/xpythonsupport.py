@@ -166,8 +166,8 @@ def sleep(sec):
 			else:
 				fback = inspect.currentframe().f_back
 				if HasIPython and 'ipykernel' in fback.f_code.co_filename: #sleep() in IPython kernel
-					fback = "In[{}]:line {} in {}".format(get_ipython().execution_count, fback.f_lineno, fback.f_code.co_name)
-				xpythread["Status"] = "{}s @{}".format(int(remain), str(fback))
+					fback = "Cell In[{}]:line {} in {}".format(get_ipython().execution_count, fback.f_lineno, fback.f_code.co_name)
+				xpythread["Status"] = "{}s sleep @{}".format(int(remain), str(fback))
 		if remain < 0:
 			break
 		event.wait(min([remain, 0.33]))
@@ -249,7 +249,10 @@ def findExecutables(prog):
 def listOfJupyterPrograms():
 	return findExecutables('jupyter')
 
+NOTEBOOK_TOKEN = None
+
 def launchJupyterConsole(prog, argv):
+	global NOTEBOOK_TOKEN
 	from ipykernel.kernelapp import IPKernelApp
 	app = IPKernelApp.instance()
 	json = app.connection_file
@@ -271,6 +274,7 @@ def launchJupyterConsole(prog, argv):
 		connection_file = ipykernel.connect.get_connection_file()
 		import binascii
 		token = binascii.hexlify(os.urandom(24)).decode('ascii')
+		NOTEBOOK_TOKEN = token #for later identification in server list.
 		env = dict(os.environ)
 		env['PYTHONPATH'] = os.pathsep.join((KAME_ResourceDir, env.get('PYTHONPATH', '')))
 		env['KAME_NOTEBOOK_SERVER_TOKEN'] = token
@@ -280,6 +284,8 @@ def launchJupyterConsole(prog, argv):
 		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN, env=env, cwd=console[1])
 	else:
 		raise RuntimeError('Unknown console.')
+
+	XScriptingThreads()[0]["Filename"] = ' '.join(args)
 
 import linecache
 linecache.clearcache()
@@ -301,18 +307,43 @@ else:
 		poll_interval = kernel._poll_interval
 		class Timer:
 			def __init__(self, func):
+				try:
+					from jupyter_server import serverapp as app
+					self.serverapp = app
+				except ImportError:
+					self.serverapp = None
 				import ipykernel
 				connection_file = ipykernel.connect.get_connection_file()
 				MYDEFOUT.write("#KAME IPython binding")
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
-				MYDEFOUT.write("#Logging console output to " + connection_file + ".log")
-				TLS.logfile = open(connection_file + ".log", mode='a')
+				self.logfilename = connection_file + ".log"
+				MYDEFOUT.write("#Logging console output to " + self.logfilename)
+				TLS.logfile = open(self.logfilename, mode='a')
 				self.func = func
 
 			def on_timer(self):
 				loop = asyncio.get_event_loop()
 				try:
 					loop.run_until_complete(self.func())
+					if self.serverapp:
+						s = ''
+						for server in list(self.serverapp.list_running_servers()):
+							if server['token'] == NOTEBOOK_TOKEN:
+								s = '#notebook in {}: {}?token={}'.format(server['root_dir'], server['url'], server['token'])
+								break
+						if s:
+							if str(XScriptingThreads()[0]["Filename"]) != s:
+								#detected connection to notebook.
+								XScriptingThreads()[0]["Filename"] = s
+								XScriptingThreads()[0]["Status"] = ''
+								TLS.logfile.close()
+								from ipykernel.kernelapp import IPKernelApp
+								app = IPKernelApp.instance()
+								json = app.connection_file
+								self.logfilename = os.path.join(server['root_dir'], json) + '.log'
+								TLS.logfile = open(self.logfilename, mode='a')
+								MYDEFOUT.write(s)
+								MYDEFOUT.write("#Changing logfile to " + self.logfilename)
 				except Exception:
 					kernel.log.exception("Error in message handler")
 
@@ -329,9 +360,8 @@ else:
 				while not is_main_terminated():
 					self.on_timer()
 
-				if hasattr(TLS, 'logfile') and TLS.logfile:
-					TLS.logfile.close()
-					TLS.logfile = None
+				TLS.logfile.close()
+				TLS.logfile = None
 				#print(str([y[0] for y in inspect.getmembers(kernel, inspect.ismethod)]))
 
 				# sys.stderr.write("bye")
