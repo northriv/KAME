@@ -53,7 +53,8 @@ TLS = threading.local()
 if HasIPython:
 	XScriptingThreads()[0].setLabel("IPython kernel")
 	XScriptingThreads()[0]["Action"] = ""
-	XScriptingThreads()[0]["Status"] = ""
+	XScriptingThreads()[0]["Status"] = "No connection"
+	XScriptingThreads()[0]["Filename"] = "#Launch Jupyter client from \"Script\" menu."
 	TLS.xscrthread = XScriptingThreads()[0]
 else:
 	TLS.xscrthread = None
@@ -62,9 +63,12 @@ TLS.logfile = None
 import io
 
 class MyDefIO:
-	@staticmethod
-	def write(s):
+	def write_internal(self, s, flush = True):
+		if not s:
+			return 0
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
+			if flush:
+				self.flush()
 			if s[-1] == '\n':
 				s = s[0:-1]
 			for l in s.splitlines():
@@ -72,15 +76,17 @@ class MyDefIO:
 					l = l.replace("&", "&amp;")
 					l = l.replace("<", "&lt;")
 					l = l.replace(">", "&gt;")
-					l = "<font color=#008800>" + l + "</font" 
+					l = "<font color=#008800>" + l + "</font>" 
 				my_defout(TLS.xscrthread, l)
-			if TLS.logfile:
+			if s and TLS.logfile:
 				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
+			return len(s)
 		else:
-			STDERR.write(s) #redirecting to terminal, for debug purpose.
+			return STDERR.write(s) #redirecting to terminal, for debug purpose.
+	def write(self, s):
+		return self.write_internal(s)
 
-	@staticmethod
-	def readline():
+	def readline(self):
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			while not is_main_terminated():		
 				ret = my_defin(TLS.xscrthread)
@@ -91,28 +97,27 @@ class MyDefIO:
 		else:
 			return STDIN.readline() #redirecting to terminal, for debug purpose.
 
-	@staticmethod
-	def read():
-		return stdio.readline()
-	@staticmethod
-	def flush():
-		pass
-	@staticmethod
-	def fileno():
+	def read(self):
+		return STDIN.readline()
+	def flush(self):
+		self.write_internal(self.buffer.getvalue(), flush=False)
+		self.buffer.truncate(0)
+		self.buffer.seek(0)
+	def fileno(self):
 		return STDOUT.fileno()
-	@staticmethod
-	def isatty():
+	def isatty(self):
 		return True
 	@property
-	def encoding():
+	def encoding(self):
 		return STDOUT.encoding
 	@property
-	def buffer():
-		return io.BytesIO()
+	def buffer(self):
+		if not hasattr(TLS, 'buffer'):
+			TLS.buffer = io.StringIO()
+		return TLS.buffer
 
 class MyDefOErr(MyDefIO):
-	@staticmethod
-	def write(s):
+	def write(self, s):
 		STDERR.write(s) #redirecting to terminal, for debug purpose.
 		if s[-1] == '\n':
 			s = s[0:-1]
@@ -121,15 +126,18 @@ class MyDefOErr(MyDefIO):
 			s = s.replace("<", "&lt;")
 			s = s.replace(">", "&gt;")
 			for l in s.splitlines():
-				l = "<font color=#ff0000>" + l + "</font" 
+				l = "<font color=#ff0000>" + l + "</font>" 
 				my_defout(TLS.xscrthread, l)
-#this does not work why?
-#			if TLS.logfile:
-#				TLS.logfile.write("Err:" + str(datetime.datetime.now()) + ":" + s + '\n')
+			if s and TLS.logfile:
+				TLS.logfile.write("Err:" + str(datetime.datetime.now()) + ":" + s + '\n')
+		return len(s)
 
-sys.stdout = MyDefIO
-sys.stderr = MyDefOErr
-sys.stdin = MyDefIO
+MYDEFOUT = MyDefIO()
+MYDEFIN = MyDefIO()
+MYDEFERR = MyDefOErr()
+sys.stdout = MYDEFOUT
+sys.stderr = MYDEFERR
+sys.stdin = MYDEFIN
 
 event = threading.Event()
 
@@ -158,7 +166,7 @@ def sleep(sec):
 			else:
 				fback = inspect.currentframe().f_back
 				if HasIPython and 'ipykernel' in fback.f_code.co_filename: #sleep() in IPython kernel
-					fback = "In[{}]:line {} in {}".format(get_ipython().execution_count, fback.f_code.co_name, fback.f_lineno)
+					fback = "In[{}]:line {} in {}".format(get_ipython().execution_count, fback.f_lineno, fback.f_code.co_name)
 				xpythread["Status"] = "{}s @{}".format(int(remain), str(fback))
 		if remain < 0:
 			break
@@ -253,6 +261,7 @@ def launchJupyterConsole(prog, argv):
 	import subprocess
 	console = argv.split()
 	args.insert(1, console[0])
+
 	if console[0] == 'console':
 		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN)
 	elif console[0] == 'qtconsole':
@@ -292,7 +301,12 @@ else:
 		poll_interval = kernel._poll_interval
 		class Timer:
 			def __init__(self, func):
-				print(str(func))
+				import ipykernel
+				connection_file = ipykernel.connect.get_connection_file()
+				MYDEFOUT.write("#KAME IPython binding")
+				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
+				MYDEFOUT.write("#Logging console output to " + connection_file + ".log")
+				TLS.logfile = open(connection_file + ".log", mode='a')
 				self.func = func
 
 			def on_timer(self):
@@ -302,9 +316,9 @@ else:
 				except Exception:
 					kernel.log.exception("Error in message handler")
 
-				sys.stdout = MyDefIO
-				sys.stderr = MyDefOErr
-				sys.stdin = MyDefIO
+				sys.stdout = MYDEFOUT
+				sys.stderr = MYDEFERR
+				sys.stdin = MYDEFIN
 
 				# if not is_main_terminated():
 				kame_pybind_one_iteration()
@@ -312,9 +326,12 @@ else:
 
 			def start(self):
 				self.on_timer()  # Call it once to get things going.
-				print("#KAME IPython binding")
 				while not is_main_terminated():
 					self.on_timer()
+
+				if hasattr(TLS, 'logfile') and TLS.logfile:
+					TLS.logfile.close()
+					TLS.logfile = None
 				#print(str([y[0] for y in inspect.getmembers(kernel, inspect.ismethod)]))
 
 				# sys.stderr.write("bye")

@@ -184,7 +184,11 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("isDisabled", [](XNode::Payload &self)->bool{return self.isDisabled();})
         .def("isUIEnabled", [](XNode::Payload &self)->bool{return self.isUIEnabled();});
     py::class_<Snapshot>(m, "Snapshot")
-        .def(py::init([](const shared_ptr<XNode> &x){return Snapshot(*x);}), py::keep_alive<1, 2>())
+        .def(py::init([](const shared_ptr<XNode> &x){
+            if( !x)
+                throw std::runtime_error("Error: not a node.");
+            return Snapshot(*x);}
+        ), py::keep_alive<1, 2>())
         .def("__repr__", [](Snapshot &self)->std::string{
             return formatString("<Snapshot@%p>", &self);
         })
@@ -207,11 +211,17 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             throw pybind11::index_error("no child");            }
         )
         .def("__getitem__", [](Snapshot &self, shared_ptr<XNode> &node)->py::object{
+            if( !node)
+                throw std::runtime_error("Error: not a node.");
             return XPython::bind.cast_to_pyobject( &self.at( *node));
         }, py::return_value_policy::reference_internal)
         .def("isUpperOf", &Snapshot::isUpperOf);
     py::class_<Transaction, Snapshot>(m, "Transaction")
-        .def(py::init([](const shared_ptr<XNode> &x){return Transaction(*x);}), py::keep_alive<1, 2>())
+        .def(py::init([](const shared_ptr<XNode> &x){
+            if( !x)
+                throw std::runtime_error("Error: not a node.");
+            return Transaction(*x);
+        }), py::keep_alive<1, 2>())
         .def("__iter__", [](Transaction &self)->Transaction &{ return self; })
         .def("__next__", [](Transaction &self)->Transaction &{
             if(self.isModified() && self.commitOrNext())
@@ -229,6 +239,8 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             return self.commitOrNext();
         })
         .def("__getitem__", [](Transaction &self, shared_ptr<XNode> &node)->py::object{
+            if( !node)
+                throw std::runtime_error("Error: not a node.");
             return XPython::bind.cast_to_pyobject( &self[ *node]); //Transaction has no at().
         }, py::return_value_policy::reference_internal)
         .def("__setitem__", [](Transaction &self, const shared_ptr<XNode> &y, int v){
