@@ -72,14 +72,19 @@ class MyDefIO:
 			if flush:
 				self.flush()
 			if HasIPython and XScriptingThreads()[0] == TLS.xscrthread:
-				#STDOUT.write(s) 
-				#redirecting to area beneath the cell, for jupyter notebook.
-				output_area = ipywidgets.Output()
-				display(output_area)
-				if stderr:
-					output_area.append_stderr(s)
+				if not NOTEBOOK_TOKEN:
+					if stderr:
+						STDERR.write(s)  #for console/qtconsole
+					else:
+						STDOUT.write(s)  #for console/qtconsole
 				else:
-					output_area.append_stdout(s)
+					#redirecting to area beneath the cell, for jupyter notebook.
+					output_area = ipywidgets.Output()
+					display(output_area)
+					if stderr:
+						output_area.append_stderr(s)
+					else:
+						output_area.append_stdout(s)
 			if s[-1] == '\n':
 				s = s[0:-1]
 			for l in s.splitlines():
