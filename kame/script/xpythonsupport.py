@@ -28,6 +28,8 @@ try:
 
 	from ipykernel.eventloops import register_integration
 	import IPython #this import hinders from freeing XPython/XMeasure normally.
+	from IPython.display import display
+	import ipywidgets
 	HasIPython = True
 #	import matplotlib
 #	matplotlib.use('Agg') #GUI does not work yet
@@ -63,16 +65,30 @@ TLS.logfile = None
 import io
 
 class MyDefIO:
-	def write_internal(self, s, flush = True):
+	def write_internal(self, s, flush = True, color = None, stderr = False):
 		if not s:
 			return 0
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			if flush:
 				self.flush()
+			if HasIPython and XScriptingThreads()[0] == TLS.xscrthread:
+				#STDOUT.write(s) 
+				#redirecting to area beneath the cell, for jupyter notebook.
+				output_area = ipywidgets.Output()
+				display(output_area)
+				if stderr:
+					output_area.append_stderr(s)
+				else:
+					output_area.append_stdout(s)
 			if s[-1] == '\n':
 				s = s[0:-1]
 			for l in s.splitlines():
-				if len(l) and l[0] == "#":
+				color_l = color
+				if stderr:
+					color_l = '#ff0000'
+				elif len(l) and l[0] == "#":
+					color_l = '#008800'
+				if color_l:
 					l = l.replace("&", "&amp;")
 					l = l.replace("<", "&lt;")
 					l = l.replace(">", "&gt;")
@@ -106,7 +122,7 @@ class MyDefIO:
 	def fileno(self):
 		return STDOUT.fileno()
 	def isatty(self):
-		return True
+		return False
 	@property
 	def encoding(self):
 		return STDOUT.encoding
@@ -119,18 +135,7 @@ class MyDefIO:
 class MyDefOErr(MyDefIO):
 	def write(self, s):
 		STDERR.write(s) #redirecting to terminal, for debug purpose.
-		if s[-1] == '\n':
-			s = s[0:-1]
-		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
-			s = s.replace("&", "&amp;")
-			s = s.replace("<", "&lt;")
-			s = s.replace(">", "&gt;")
-			for l in s.splitlines():
-				l = "<font color=#ff0000>" + l + "</font>" 
-				my_defout(TLS.xscrthread, l)
-			if s and TLS.logfile:
-				TLS.logfile.write("Err:" + str(datetime.datetime.now()) + ":" + s + '\n')
-		return len(s)
+		return self.write_internal(s, stderr=True)
 
 MYDEFOUT = MyDefIO()
 MYDEFIN = MyDefIO()
@@ -266,9 +271,9 @@ def launchJupyterConsole(prog, argv):
 	args.insert(1, console[0])
 
 	if console[0] == 'console':
-		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN)
+		subprocess.Popen(args)
 	elif console[0] == 'qtconsole':
-		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN)
+		subprocess.Popen(args)
 	elif console[0] == 'notebook':
 		import ipykernel
 		connection_file = ipykernel.connect.get_connection_file()
@@ -281,7 +286,7 @@ def launchJupyterConsole(prog, argv):
 		env['KAME_IPYTHON_CONNECTION_FILE'] = connection_file
 		args = [prog, console[0], '--config=' + os.path.join(KAME_ResourceDir, 'jupyter_notebook_config.py')]
 		print("Launching jupyter notebook: ", *args)
-		subprocess.Popen(args, stdout=STDOUT, stderr=STDERR, stdin=STDIN, env=env, cwd=console[1])
+		subprocess.Popen(args, env=env, cwd=console[1])
 	else:
 		raise RuntimeError('Unknown console.')
 
