@@ -72,6 +72,15 @@ class MyDefIO:
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			if flush:
 				self.flush()
+
+			escaped_s = html.escape(s) #to HTML
+			escaped_s = escaped_s.replace('\r\n', '<br>').replace('\r', '<br>').replace('\n', '<br>') #linebreaks
+			color_l = color
+			if stderr:
+				color_l = '#ff0000'
+			elif len(s) and s[0] == "#":
+				color_l = '#008800'
+			escaped_s = "<font color={}>".format(color_l) + escaped_s + "</font>" 
 			if HasIPython and XScriptingThreads()[0] == TLS.xscrthread:
 				if not NOTEBOOK_TOKEN:
 					if stderr:
@@ -86,26 +95,8 @@ class MyDefIO:
 					# 	output_area.append_stderr(s)
 					# else:
 					# 	output_area.append_stdout(s)
-					escaped_s = html.escape(s)
-					color_l = color
-					if stderr:
-						color_l = '#ff0000'
-					if color_l:
-						escaped_s = "<font color={}>".format(color_l) + escaped_s + "</font>"
-					escaped_s = escaped_s.replace('\r\n', '<br>').replace('\r', '<br>').replace('\n', '<br>')
 					display(IPython.display.HTML(escaped_s))
-			if s[-1] == '\n':
-				s = s[0:-1]
-			for l in s.splitlines():
-				color_l = color
-				if stderr:
-					color_l = '#ff0000'
-				elif len(l) and l[0] == "#":
-					color_l = '#008800'
-				l = html.escape(l)
-				if color_l:
-					l = "<font color={}>".format(color_l) + l + "</font>" 
-				my_defout(TLS.xscrthread, l)
+			my_defout(TLS.xscrthread, escaped_s)
 			if s and TLS.logfile:
 				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
 			return len(s)
