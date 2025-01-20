@@ -1,3 +1,7 @@
+* Mon Jan 20 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.2.1-1)
+- Redirecting stdout/err to display area in notebook.
+
 * Sun Jan 19 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.2.0-1)
 - The first MDI child window is now for IPython.
