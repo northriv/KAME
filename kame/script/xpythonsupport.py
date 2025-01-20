@@ -262,6 +262,8 @@ def listOfJupyterPrograms():
 NOTEBOOK_TOKEN = None
 
 def launchJupyterConsole(prog, argv):
+	if not HasIPython:
+		raise RuntimeError('IPython, ipywidgets not properly installed.')
 	global NOTEBOOK_TOKEN
 	from ipykernel.kernelapp import IPKernelApp
 	app = IPKernelApp.instance()
