@@ -72,7 +72,8 @@ class MyDefIO:
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			if flush:
 				self.flush()
-
+			if s[-1] == '\n':
+				s = s[:-1] #both QTextBrowser and display(HTML) adds an extra linebreak at the end.
 			escaped_s = html.escape(s) #to HTML
 			escaped_s = escaped_s.replace('\r\n', '<br>').replace('\r', '<br>').replace('\n', '<br>') #linebreaks
 			color_l = color
@@ -80,7 +81,10 @@ class MyDefIO:
 				color_l = '#ff0000'
 			elif len(s) and s[0] == "#":
 				color_l = '#008800'
-			escaped_s = "<font color={}>".format(color_l) + escaped_s + "</font>" 
+			if color_l:
+				escaped_s = "<font color={}>".format(color_l) + escaped_s + "</font>" 
+			else:
+				escaped_s = "<font>".format(color_l) + escaped_s + "</font>" 
 			if HasIPython and XScriptingThreads()[0] == TLS.xscrthread:
 				if not NOTEBOOK_TOKEN:
 					if stderr:
