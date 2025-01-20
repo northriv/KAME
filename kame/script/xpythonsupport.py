@@ -25,11 +25,12 @@ try:
 	import ctypes
 	import numpy as np
 	import pdb
+	import html
 
 	from ipykernel.eventloops import register_integration
 	import IPython #this import hinders from freeing XPython/XMeasure normally.
 	from IPython.display import display
-	import ipywidgets
+	# import ipywidgets
 	HasIPython = True
 #	import matplotlib
 #	matplotlib.use('Agg') #GUI does not work yet
@@ -79,12 +80,24 @@ class MyDefIO:
 						STDOUT.write(s)  #for console/qtconsole
 				else:
 					#redirecting to area beneath the cell, for jupyter notebook.
-					output_area = ipywidgets.Output()
-					display(output_area)
-					if stderr:
-						output_area.append_stderr(s)
-					else:
-						output_area.append_stdout(s)
+					# output_area = ipywidgets.Output() #version/console dep. and cannot be saved.
+					# display(output_area)
+					# if stderr:
+					# 	output_area.append_stderr(s)
+					# else:
+					# 	output_area.append_stdout(s)
+					lines = ""
+					for l in s.splitlines(keepends=True):
+						color_l = color
+						if stderr:
+							color_l = '#ff0000'
+						elif len(l) and l[0] == "#":
+							color_l = '#008800'
+						l = html.escape(l)
+						if color_l:
+							l = "<font color={}>".format(color_l) + l + "</font><br>" 
+						lines += l
+					display(IPython.display.HTML(lines))
 			if s[-1] == '\n':
 				s = s[0:-1]
 			for l in s.splitlines():
@@ -93,11 +106,9 @@ class MyDefIO:
 					color_l = '#ff0000'
 				elif len(l) and l[0] == "#":
 					color_l = '#008800'
+				l = html.escape(l)
 				if color_l:
-					l = l.replace("&", "&amp;")
-					l = l.replace("<", "&lt;")
-					l = l.replace(">", "&gt;")
-					l = "<font color=#008800>" + l + "</font>" 
+					l = "<font color={}>".format(color_l) + l + "</font>" 
 				my_defout(TLS.xscrthread, l)
 			if s and TLS.logfile:
 				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
@@ -263,7 +274,7 @@ NOTEBOOK_TOKEN = None
 
 def launchJupyterConsole(prog, argv):
 	if not HasIPython:
-		raise RuntimeError('IPython, ipywidgets not properly installed.')
+		raise RuntimeError('IPython not properly installed.') #, ipywidgets?
 	global NOTEBOOK_TOKEN
 	from ipykernel.kernelapp import IPKernelApp
 	app = IPKernelApp.instance()
