@@ -86,18 +86,14 @@ class MyDefIO:
 					# 	output_area.append_stderr(s)
 					# else:
 					# 	output_area.append_stdout(s)
-					lines = ""
-					for l in s.splitlines(keepends=True):
-						color_l = color
-						if stderr:
-							color_l = '#ff0000'
-						elif len(l) and l[0] == "#":
-							color_l = '#008800'
-						l = html.escape(l)
-						if color_l:
-							l = "<font color={}>".format(color_l) + l + "</font><br>" 
-						lines += l
-					display(IPython.display.HTML(lines))
+					escaped_s = html.escape(s)
+					color_l = color
+					if stderr:
+						color_l = '#ff0000'
+					if color_l:
+						escaped_s = "<font color={}>".format(color_l) + escaped_s + "</font>"
+					escaped_s = escaped_s.replace('\r\n', '<br>').replace('\r', '<br>').replace('\n', '<br>')
+					display(IPython.display.HTML(escaped_s))
 			if s[-1] == '\n':
 				s = s[0:-1]
 			for l in s.splitlines():
