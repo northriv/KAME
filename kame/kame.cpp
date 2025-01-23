@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -156,6 +156,8 @@ FrmKameMain::FrmKameMain()
 //	resize(QSize(std::min(1280, width()), 560));
     //rearranges window positions, sizes.
     QRect rect = dockLeft->window()->windowHandle()->screen()->availableGeometry();
+    resize(QSize(std::max(rect.width() / 4, 500), minimumHeight() + 200));
+    move((rect.width() - frameSize().width()) / 2, rect.top());
     dockLeft->setFloating(true);
     dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
@@ -169,8 +171,6 @@ FrmKameMain::FrmKameMain()
     dockRight->setWindowOpacity(0.8);
     dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
     dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
-    resize(QSize(std::max(rect.width() / 5, 500), minimumHeight()));
-    move((rect.width() - frameSize().width()) / 2, rect.top());
 
     // The root for all nodes.
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
@@ -283,7 +283,7 @@ FrmKameMain::createActions() {
     m_pMesStopAction->setIcon( QIcon( *g_pIconStop) );
     m_pScriptRunAction = new QAction( this );
     m_pScriptRunAction->setEnabled( true );
-    m_pScriptRunAction->setIcon( QIcon( *g_pIconScript) );
+    m_pScriptRunAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
     m_pPythonLineShellAction = new QAction( this );
     m_pPythonLineShellAction->setEnabled( true );
 #ifndef USE_PYBIND11
@@ -292,10 +292,11 @@ FrmKameMain::createActions() {
     m_pPythonLineShellAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
     m_pRubyLineShellAction = new QAction( this );
     m_pRubyLineShellAction->setEnabled( true );
-    m_pRubyLineShellAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    m_pRubyLineShellAction->setIcon(QIcon( *g_pIconScript));
     m_pJupyterConsoleMenu = new QMenu( this );
     m_pJupyterQtConsoleMenu = new QMenu( this );
     m_pJupyterNotebookMenu = new QMenu( this );
+    m_pJupyterNotebookMenu->setIcon(QIcon( *g_pIconGraph));
     for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu, m_pJupyterNotebookMenu}) {
         menu->setEnabled( true );
     #ifndef USE_PYBIND11
@@ -326,11 +327,11 @@ FrmKameMain::createActions() {
     m_pFileLogAction->setText( i18n( "&Log Debugging Info" ) );
     m_pMesStopAction->setText( i18n( "&Stop" ) );
     m_pScriptRunAction->setText( i18n( "&Run..." ) );
-    m_pRubyLineShellAction->setText( i18n( "&New Ruby Line Shell" ) );
     m_pPythonLineShellAction->setText( i18n( "New &Python Line Shell" ) );
-    m_pJupyterNotebookMenu->setTitle( i18n( "New &Jupyter Notebook" ) );
-    m_pJupyterConsoleMenu->setTitle( i18n( "New Jupyter &Console" ) );
-    m_pJupyterQtConsoleMenu->setTitle( i18n( "New Jupyter &Qt Console" ) );
+    m_pRubyLineShellAction->setText( i18n( "&New Ruby Line Shell" ) );
+    m_pJupyterNotebookMenu->setTitle( i18n( "Launch &Jupyter Notebook" ) );
+    m_pJupyterConsoleMenu->setTitle( i18n( "Launch Jupyter &Console" ) );
+    m_pJupyterQtConsoleMenu->setTitle( i18n( "Launch Jupyter &Qt Console" ) );
     m_pFileCloseAction->setText( i18n( "&Close" ) );    
     m_pGraphThemeNightAction->setText( i18n( "&Night") );
     m_pGraphThemeDaylightAction->setText( i18n( "&Daylight") );
@@ -618,6 +619,7 @@ void FrmKameMain::jupyterQtConsoleAction_activated( QAction *act ) {
 }
 void FrmKameMain::jupyterNotebookAction_activated( QAction *act ) {
 #ifdef USE_PYBIND11
+    gMessagePrint(i18n("Choose root directory of notebook."));
     QString dir = QFileDialog::getExistingDirectory (
         this, i18n("Open Notebook Workspace"));
     if(dir.length())

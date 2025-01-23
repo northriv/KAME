@@ -93,16 +93,11 @@ class MyDefIO:
 						STDOUT.write(s)  #for console/qtconsole
 				else:
 					#redirecting to area beneath the cell, for jupyter notebook.
-					# output_area = ipywidgets.Output() #version/console dep. and cannot be saved.
-					# display(output_area)
-					# if stderr:
-					# 	output_area.append_stderr(s)
-					# else:
-					# 	output_area.append_stdout(s)
 					display(IPython.display.HTML(escaped_s))
 			my_defout(TLS.xscrthread, escaped_s)
 			if s and TLS.logfile:
 				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
+				TLS.logfile.flush()
 			return len(s)
 		else:
 			return STDERR.write(s) #redirecting to terminal, for debug purpose.
@@ -155,9 +150,6 @@ event = threading.Event()
 
 #do not use time.sleep() please.
 def sleep(sec):
-	if sec < 1.2:
-		time.sleep(sec)
-		return
 	start = time.time()
 	while True:
 		remain = sec - (time.time() - start)
@@ -165,6 +157,7 @@ def sleep(sec):
 			xpythread = TLS.xscrthread
 			if str(xpythread["Action"]) == "kill":
 				xpythread["Action"] = ""
+				xpythread["Status"] = "killed @{}s @{}".format(int(remain), str(fback))
 				raise RuntimeError("Kill")
 			if str(xpythread["Action"]) == "wakeup":
 				xpythread["Action"] = ""
@@ -280,9 +273,9 @@ def launchJupyterConsole(prog, argv):
 	args.insert(1, console[0])
 
 	if console[0] == 'console':
-		subprocess.Popen(args)
+		proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 	elif console[0] == 'qtconsole':
-		subprocess.Popen(args)
+		proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 	elif console[0] == 'notebook':
 		import ipykernel
 		connection_file = ipykernel.connect.get_connection_file()
@@ -295,14 +288,20 @@ def launchJupyterConsole(prog, argv):
 		env['KAME_IPYTHON_CONNECTION_FILE'] = connection_file
 		args = [prog, console[0], '--config=' + os.path.join(KAME_ResourceDir, 'jupyter_notebook_config.py')]
 		print("Launching jupyter notebook: ", *args)
-		subprocess.Popen(args, env=env, cwd=console[1])
+		proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, cwd=console[1])
 	else:
 		raise RuntimeError('Unknown console.')
+	
+	time.sleep(0.5)
+	ret = proc.poll()
+	if ret:
+		outs, errs = proc.communicate() #Lauching failed.
+		raise RuntimeError(outs)
 
 	XScriptingThreads()[0]["Filename"] = ' '.join(args)
 
 import linecache
-linecache.clearcache()
+linecache.clearcache() #suppress lengthy traceback inside REPL.
 
 if not HasIPython:
 	print("#testing python interpreter.")

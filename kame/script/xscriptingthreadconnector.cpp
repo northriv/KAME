@@ -80,7 +80,13 @@ XScriptingThreadConnector::XScriptingThreadConnector(
     });
     onStatusChanged(shot, scrthread->status().get());
 
-    form->setWindowIcon( *g_pIconScript);
+    XString filename = ***scrthread->filename();
+    if(filename.rfind(".rb") == filename.length() - 3)
+        form->setWindowIcon( *g_pIconScript);
+    else if(filename.rfind(".py") == filename.length() - 3)
+        form->setWindowIcon( *g_pIconGraph);
+    else
+        form->setWindowIcon(QApplication::style()->standardIcon(QStyle::SP_DirOpenIcon));
     form->setWindowTitle(scrthread->getLabel());
 }
 XScriptingThreadConnector::~XScriptingThreadConnector() {
