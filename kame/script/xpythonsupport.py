@@ -66,6 +66,15 @@ TLS.logfile = None
 import io
 
 class MyDefIO:
+	def write_html(self, s):
+		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
+			my_defout(TLS.xscrthread, s)
+			if s and TLS.logfile:
+				TLS.logfile.write(str(datetime.datetime.now()) + ":" + s + '\n')
+				TLS.logfile.flush()
+			return len(s)
+		else:
+			return STDERR.write(s) #redirecting to terminal, for debug purpose.
 	def write_internal(self, s, flush = True, color = None, stderr = False):
 		if not s:
 			return 0
@@ -82,9 +91,9 @@ class MyDefIO:
 			elif len(s) and s[0] == "#":
 				color_l = '#008800'
 			if color_l:
-				escaped_s = "<font color={}>".format(color_l) + escaped_s + "</font>" 
+				escaped_s = "<font color=\"{}\">".format(color_l) + escaped_s + "</font>" 
 			else:
-				escaped_s = "<font>".format(color_l) + escaped_s + "</font>" 
+				escaped_s = "<font>" + escaped_s + "</font>" 
 			if HasIPython and XScriptingThreads()[0] == TLS.xscrthread:
 				if not NOTEBOOK_TOKEN:
 					if stderr:
@@ -103,7 +112,6 @@ class MyDefIO:
 			return STDERR.write(s) #redirecting to terminal, for debug purpose.
 	def write(self, s):
 		return self.write_internal(s)
-
 	def readline(self):
 		if hasattr(TLS, 'xscrthread') and TLS.xscrthread:
 			while not is_main_terminated():		
@@ -330,7 +338,8 @@ else:
 				MYDEFOUT.write("#KAME IPython binding")
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
 				self.logfilename = connection_file + ".log"
-				MYDEFOUT.write("#Logging console output to " + self.logfilename)
+				MYDEFOUT.write_html(r'<font color="#008800">Logging console output to <a href="file:///'
+						+ self.logfilename + r'">' + html.escape(self.logfilename) + '</a></font>')
 				TLS.logfile = open(self.logfilename, mode='a')
 				self.func = func
 
@@ -342,7 +351,8 @@ else:
 						s = ''
 						for server in list(self.serverapp.list_running_servers()):
 							if server['token'] == NOTEBOOK_TOKEN:
-								s = '#notebook in {}: {}?token={}'.format(server['root_dir'], server['url'], server['token'])
+								url = r'{}?token={}'.format(server['url'], server['token'])
+								s = r'notebook in {}: <a href="{}">{}</a>'.format(server['root_dir'], url, html.escape(url))
 								break
 						if s:
 							if str(XScriptingThreads()[0]["Filename"]) != s:
@@ -355,8 +365,9 @@ else:
 								json = app.connection_file
 								self.logfilename = os.path.join(server['root_dir'], json) + '.log'
 								TLS.logfile = open(self.logfilename, mode='a')
-								MYDEFOUT.write(s)
-								MYDEFOUT.write("#Changing logfile to " + self.logfilename)
+								MYDEFOUT.write_html(r'<font color="#008800">' + s + '</font>')
+								MYDEFOUT.write_html(r'<font color="#008800">Changing logfile to <a href="file:///'
+									 + self.logfilename + r'">' + html.escape(self.logfilename) + '</a></font>')
 				except Exception:
 					kernel.log.exception("Error in message handler")
 
