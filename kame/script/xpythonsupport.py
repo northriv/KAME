@@ -2,6 +2,7 @@
 #fundamental imports
 import time
 import sys
+import html
 import threading
 import traceback
 import inspect
@@ -25,7 +26,6 @@ try:
 	import ctypes
 	import numpy as np
 	import pdb
-	import html
 
 	from ipykernel.eventloops import register_integration
 	import IPython #this import hinders from freeing XPython/XMeasure normally.
