@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,6 +27,7 @@ QPixmap *g_pIconWarn;
 QPixmap *g_pIconError;
 QPixmap *g_pIconInfo;
 QPixmap *g_pIconRotate;
+QPixmap *g_pIconPython;
 QPixmap *g_pIconStop;
 QPixmap *g_pIconClose;
 QPixmap *g_pIconInterface;
@@ -75,4 +76,6 @@ void makeIcons()
     g_pIconScript = new QPixmap(":/icons/ruby.png");
 
     g_pIconRotate = new QPixmap(":/icons/rotate.svg");
+
+    g_pIconPython = new QPixmap(":/icons/python-logo-only.svg");
 }

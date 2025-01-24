@@ -289,12 +289,14 @@ FrmKameMain::createActions() {
 #ifndef USE_PYBIND11
     m_pPythonLineShellAction->setEnabled( false );
 #endif
-    m_pPythonLineShellAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    m_pPythonLineShellAction->setIcon(QIcon( *g_pIconPython));
     m_pRubyLineShellAction = new QAction( this );
     m_pRubyLineShellAction->setEnabled( true );
     m_pRubyLineShellAction->setIcon(QIcon( *g_pIconScript));
     m_pJupyterConsoleMenu = new QMenu( this );
+    m_pJupyterConsoleMenu->setIcon(QIcon( *g_pIconPython));
     m_pJupyterQtConsoleMenu = new QMenu( this );
+    m_pJupyterQtConsoleMenu->setIcon(QApplication::style()->standardIcon(QStyle::SP_TitleBarMenuButton));
     m_pJupyterNotebookMenu = new QMenu( this );
     m_pJupyterNotebookMenu->setIcon(QIcon( *g_pIconGraph));
     for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu, m_pJupyterNotebookMenu}) {

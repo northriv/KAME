@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@ extern DECLSPEC_KAME QPixmap *g_pIconWarn;
 extern DECLSPEC_KAME QPixmap *g_pIconError;
 extern DECLSPEC_KAME QPixmap *g_pIconStop;
 extern DECLSPEC_KAME QPixmap *g_pIconRotate;
+extern DECLSPEC_KAME QPixmap *g_pIconPython;
 extern DECLSPEC_KAME QPixmap *g_pIconClose;
 extern DECLSPEC_KAME QPixmap *g_pIconInterface;
 extern DECLSPEC_KAME QPixmap *g_pIconDriver;
