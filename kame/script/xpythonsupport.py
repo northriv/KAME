@@ -237,10 +237,7 @@ def kame_pybind_one_iteration():
 						time.sleep(0.5)
 						if action == "kill":
 							#cannot be killed by timer.
-							ctypes.pythonapi.PyThreadState_SetAsyncExc(
-							    ctypes.c_long(int(str(xpythread_threadid))),
-								ctypes.py_object(SystemExit)
-							)
+							ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(int(str(xpythread_threadid))), ctypes.py_object(SystemExit))
 	except EOFError:
 		pass
 	except Exception:
