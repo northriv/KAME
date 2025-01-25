@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     QApplication::setApplicationName("kame");
     QApplication::setApplicationVersion(VERSION);
-    app.setAttribute(Qt::AA_DontShowIconsInMenus, false);
+    app.setAttribute(Qt::AA_DontShowIconsInMenus, false); //In recent Mac/Qt, icons hidden by default.
 
     QCommandLineParser parser;
     parser.setApplicationDescription("KAME");
@@ -302,7 +302,7 @@ int main(int argc, char *argv[]) {
 
 #if defined __MACOSX__ || defined __APPLE__
     while(form->running()) {
-        void *p = autoReleasePoolInit();
+        void *p = autoReleasePoolInit(); //may be needed to release OpenGL related objects.
         app.processEvents();
         autoReleasePoolRelease(p);
     }

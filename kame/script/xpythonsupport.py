@@ -260,11 +260,13 @@ def listOfJupyterPrograms():
 	return findExecutables('jupyter')
 
 NOTEBOOK_TOKEN = None
+NOTEBOOK_PROC = None
 
 def launchJupyterConsole(prog, argv):
 	if not HasIPython:
 		raise RuntimeError('IPython not properly installed.') #, ipywidgets?
 	global NOTEBOOK_TOKEN
+	global NOTEBOOK_PROC
 	from ipykernel.kernelapp import IPKernelApp
 	app = IPKernelApp.instance()
 	json = app.connection_file
@@ -302,6 +304,7 @@ def launchJupyterConsole(prog, argv):
 	if ret:
 		outs, errs = proc.communicate() #Lauching failed.
 		raise RuntimeError(outs)
+	NOTEBOOK_PROC = proc
 
 	XScriptingThreads()[0]["Filename"] = ' '.join(args)
 
@@ -334,7 +337,7 @@ else:
 				connection_file = ipykernel.connect.get_connection_file()
 				MYDEFOUT.write("#KAME IPython binding")
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
-				self.logfilename = connection_file + ".log"
+				self.logfilename = os.path.splitext(connection_file)[0] + "-log" + os.extsep + "txt"
 				MYDEFOUT.write_html(r'<font color="#008800">Logging console output to <a href="file:///'
 						+ self.logfilename + r'">' + html.escape(self.logfilename) + '</a></font>')
 				TLS.logfile = open(self.logfilename, mode='a')
@@ -360,7 +363,7 @@ else:
 								from ipykernel.kernelapp import IPKernelApp
 								app = IPKernelApp.instance()
 								json = app.connection_file
-								self.logfilename = os.path.join(server['root_dir'], json) + '.log'
+								self.logfilename = os.path.join(server['root_dir'], os.path.splitext(json)[0]) + '-log' + os.extsep + 'txt'
 								TLS.logfile = open(self.logfilename, mode='a')
 								MYDEFOUT.write_html(r'<font color="#008800">' + s + '</font>')
 								MYDEFOUT.write_html(r'<font color="#008800">Changing logfile to <a href="file:///'
@@ -383,6 +386,11 @@ else:
 
 				TLS.logfile.close()
 				TLS.logfile = None
+
+				if NOTEBOOK_PROC:
+					get_ipython().run_line_magic('save', '-a ' + os.path.splitext(self.logfilename)[0] + "-save")
+					NOTEBOOK_PROC.terminate() #stops Jupyter client
+					NOTEBOOK_PROC.terminate() #again
 				#print(str([y[0] for y in inspect.getmembers(kernel, inspect.ismethod)]))
 
 				# sys.stderr.write("bye")
