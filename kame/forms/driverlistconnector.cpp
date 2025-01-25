@@ -179,6 +179,8 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
             icon = iconMaker("DSO", 0xa0a000u);
         if(label.find("NMR") != std::string::npos || label.find("Thamway") != std::string::npos)
             icon = iconMaker("NMR", 0x000080u);
+        if(label.find("ODMR") != std::string::npos)
+            icon = iconMaker("ODMR", 0x000080u);
         if(icon.isNull())
             icon = iconMaker(label.substr(0, 1).c_str());
         new QListWidgetItem(icon, label.c_str(), dlg->m_lstType);

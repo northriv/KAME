@@ -146,12 +146,23 @@ FrmKameMain::FrmKameMain()
     m_pViewMenu->addSeparator();
     m_pGraphThemeMenu = m_pViewMenu->addMenu(i18n( "Theme Color of &Graph" ) );
     m_pGraphThemeMenu->setIcon( QIcon( *g_pIconGraph));
+    m_pGraphThemeMenu->menuAction()->setIconVisibleInMenu(true);
     m_pGraphThemeMenu->addAction(m_pGraphThemeNightAction);
     m_pGraphThemeMenu->addAction(m_pGraphThemeDaylightAction);
     m_pViewMenu->addSeparator();
     QAction *act = new QAction( *g_pIconInfo, XMessageBox::form()->windowTitle(), this);
+    act->setIconVisibleInMenu(true);
     connect(act, SIGNAL(triggered()), XMessageBox::form(), SLOT(showNormal()));
     m_pViewMenu->addAction(act);
+
+    //Needed to show icons in recent mac or qt.
+    for(auto menu: {m_pFileMenu, m_pMeasureMenu, m_pScriptMenu, m_pViewMenu, m_pHelpMenu}) {
+        menu->menuAction()->setIconVisibleInMenu(true);
+        for(auto act: menu->actions()) {
+            if( !act->icon().isNull())
+                act->setIconVisibleInMenu(true); //not effective?
+        }
+    }
 
 //	resize(QSize(std::min(1280, width()), 560));
     //rearranges window positions, sizes.
@@ -275,24 +286,29 @@ FrmKameMain::createActions() {
     m_pFileLogAction->setCheckable( true );
     m_pFileLogAction->setChecked( g_bLogDbgPrint );
     m_pFileLogAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_DriveCDIcon));
+    m_pFileLogAction->setIconVisibleInMenu(true);
 //    m_pMesRunAction = new QAction( this, "mesRunAction" );
 //    m_pMesRunAction->setEnabled( TRUE );
 	//   m_pMesRunAction->setIcon( QIconSet( *g_pIconDriver) );
     m_pMesStopAction = new QAction( this );
     m_pMesStopAction->setEnabled( true );
     m_pMesStopAction->setIcon( QIcon( *g_pIconStop) );
+    m_pMesStopAction->setIconVisibleInMenu(true);
     m_pScriptRunAction = new QAction( this );
     m_pScriptRunAction->setEnabled( true );
     m_pScriptRunAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    m_pScriptRunAction->setIconVisibleInMenu(true);
     m_pPythonLineShellAction = new QAction( this );
     m_pPythonLineShellAction->setEnabled( true );
 #ifndef USE_PYBIND11
     m_pPythonLineShellAction->setEnabled( false );
 #endif
     m_pPythonLineShellAction->setIcon(QIcon( *g_pIconPython));
+    m_pPythonLineShellAction->setIconVisibleInMenu(true);
     m_pRubyLineShellAction = new QAction( this );
     m_pRubyLineShellAction->setEnabled( true );
     m_pRubyLineShellAction->setIcon(QIcon( *g_pIconScript));
+    m_pRubyLineShellAction->setIconVisibleInMenu(true);
     m_pJupyterConsoleMenu = new QMenu( this );
     m_pJupyterConsoleMenu->setIcon(QIcon( *g_pIconPython));
     m_pJupyterQtConsoleMenu = new QMenu( this );
@@ -300,6 +316,7 @@ FrmKameMain::createActions() {
     m_pJupyterNotebookMenu = new QMenu( this );
     m_pJupyterNotebookMenu->setIcon(QIcon( *g_pIconGraph));
     for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu, m_pJupyterNotebookMenu}) {
+        menu->menuAction()->setIconVisibleInMenu(true);
         menu->setEnabled( true );
     #ifndef USE_PYBIND11
         menu->setEnabled( false );

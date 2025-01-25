@@ -85,6 +85,8 @@ XScriptingThreadConnector::XScriptingThreadConnector(
         form->setWindowIcon( *g_pIconScript);
     else if(filename.rfind(".py") == filename.length() - 3)
         form->setWindowIcon( *g_pIconPython);
+    else if(filename.rfind(".kam") == filename.length() - 4)
+        form->setWindowIcon( *g_pIconKame);
     else
         form->setWindowIcon(QApplication::style()->standardIcon(QStyle::SP_DirOpenIcon));
     form->setWindowTitle(scrthread->getLabel());
