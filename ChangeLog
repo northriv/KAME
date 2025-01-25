@@ -1,3 +1,8 @@
+* Sat Jan 25 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.2.2-1)
+- hyperlinks in IPython messages.
+- Better icons.
+
 * Mon Jan 20 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.2.1-1)
 - Redirecting stdout/err to display area in notebook.

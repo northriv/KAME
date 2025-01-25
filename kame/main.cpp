@@ -110,6 +110,7 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     QApplication::setApplicationName("kame");
     QApplication::setApplicationVersion(VERSION);
+    app.setAttribute(Qt::AA_DontShowIconsInMenus, false);
 
     QCommandLineParser parser;
     parser.setApplicationDescription("KAME");
