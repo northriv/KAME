@@ -105,7 +105,7 @@ public:
 	const shared_ptr<XDoubleListNode> &tempList() const {return m_tempList;}  
 private:
 	const shared_ptr<XDoubleListNode> m_resList, m_tempList;
-	mutable atomic_shared_ptr<CSplineApprox> m_approx, m_approx_inv;
+	mutable atomic_shared_ptr<CSplineInterp> m_approx, m_approx_inv;
 };
 
 //---------------------------------------------------------------------------

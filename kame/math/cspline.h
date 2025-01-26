@@ -21,10 +21,10 @@
 #include <gsl/gsl_spline.h>
 
 //! Wrapper class for cubic (natural) spline approximation.
-class DECLSPEC_KAME CSplineApprox {
+class DECLSPEC_KAME CSplineInterp {
 public:
-    CSplineApprox(const std::map<double, double> &pts);
-    ~CSplineApprox();
+    CSplineInterp(const std::map<double, double> &pts);
+    ~CSplineInterp();
     //! Do spline approx.
     double approx(double x) const;
 private:

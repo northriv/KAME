@@ -14,7 +14,7 @@
 #include "cspline.h"
 #include <vector>
 
-CSplineApprox::CSplineApprox(const std::map<double, double> &pts) {
+CSplineInterp::CSplineInterp(const std::map<double, double> &pts) {
     m_accel = gsl_interp_accel_alloc();
     m_spline = gsl_spline_alloc(gsl_interp_cspline, pts.size());
 
@@ -26,11 +26,11 @@ CSplineApprox::CSplineApprox(const std::map<double, double> &pts) {
     gsl_spline_init(m_spline, &x[0], &y[0], x.size());
 }
 
-CSplineApprox::~CSplineApprox() {
+CSplineInterp::~CSplineInterp() {
     gsl_spline_free(m_spline);
     gsl_interp_accel_free(m_accel);
 }
 double
-CSplineApprox::approx(double x) const {
+CSplineInterp::approx(double x) const {
     return gsl_spline_eval(m_spline, x, m_accel);
 }
