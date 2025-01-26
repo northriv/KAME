@@ -195,7 +195,7 @@ XApproxThermometer::XApproxThermometer(const char *name, bool runtime) :
 }
 
 double XApproxThermometer::getTemp(double res) const {
-	local_shared_ptr<CSplineApprox> approx(m_approx);
+	local_shared_ptr<CSplineInterp> approx(m_approx);
 	Snapshot shot( *this);
 	if( !approx) {
 		std::map<double, double> pts;
@@ -213,13 +213,13 @@ double XApproxThermometer::getTemp(double res) const {
 		if(pts.size() < 4)
 			throw XKameError(i18n(
 				"XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
-		approx.reset(new CSplineApprox(pts));
+		approx.reset(new CSplineInterp(pts));
 		m_approx = approx;
 	}
 	return exp(approx->approx(log(res)));
 }
 double XApproxThermometer::getRawValue(double temp) const {
-	local_shared_ptr<CSplineApprox> approx(m_approx_inv);
+	local_shared_ptr<CSplineInterp> approx(m_approx_inv);
 	Snapshot shot( *this);
 	if( !approx) {
 		std::map<double, double> pts;
@@ -237,7 +237,7 @@ double XApproxThermometer::getRawValue(double temp) const {
 		if(pts.size() < 4)
 			throw XKameError(i18n(
 				"XApproxThermometer, Too small number of points"), __FILE__, __LINE__);
-		approx.reset(new CSplineApprox(pts));
+		approx.reset(new CSplineInterp(pts));
 		m_approx_inv = approx;
 	}
 	return exp(approx->approx(log(temp)));
