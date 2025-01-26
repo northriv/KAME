@@ -131,17 +131,11 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 }
 
 XMeasure::~XMeasure() {
-    printf("terminate\n");
-#ifdef USE_PYBIND11
-    m_python->join();
-    m_python.reset();
-#endif
+    fprintf(stderr, "terminat");
     m_rawStreamRecordReader->terminate();
-    m_ruby->terminate();
     m_rawStreamRecordReader->join();
-    m_ruby->join();
-    m_ruby.reset();
     g_statusPrinter.reset();
+    fprintf(stderr, "ed.\n");
 }
 void XMeasure::initialize() {
 }
@@ -152,9 +146,14 @@ void XMeasure::terminate() {
 	thermometers()->releaseAll();
     Snapshot shot( *this);
 	initialize();
+    m_ruby->terminate();
+    m_ruby->join();
+    m_ruby.reset();
 #ifdef USE_PYBIND11
     m_python->terminate(); //pybind11 should free shared_ptr to XMeasure
-    //With IPython, currently no idea to quit normally.
+    //With IPython, sys.exit(0) is called, and stdout/err seem to be closed.
+    m_python->join();
+    m_python.reset();
 #endif
 }
 void XMeasure::stop() {

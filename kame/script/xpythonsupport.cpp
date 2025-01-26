@@ -39,8 +39,6 @@ XPython::XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &mea
     : XScriptingThreadList(name, runtime, measure) {
 }
 XPython::~XPython() {
-//    pybind11::gil_scoped_acquire guard;
-//    bind.s_kame_module.release();
 }
 
 std::vector<std::string>
@@ -181,7 +179,7 @@ XPython::execute(const atomic<bool> &terminated) {
             char data[65536] = {};
             QDataStream( &scriptfile).readRawData(data, sizeof(data));
 //            py::print("Hello, World!"); // use the Python API
-            for(;;) {
+            {
                 try {
                     py::object main_scope = py::module_::import("__main__").attr("__dict__");
                     { //if(std::string(filename) != XPYTHONSUPPORT_PY)
@@ -198,7 +196,8 @@ XPython::execute(const atomic<bool> &terminated) {
                     py::exec(data, main_scope);
                 }
                 catch (pybind11::error_already_set& e) {
-                    gErrPrint(i18n("Python error: ") + e.what());
+                    if(std::string(e.what()).find("SystemExit: 0") == std::string::npos) //ignore sys.exit(0).
+                        gErrPrint(i18n("Python error: ") + e.what());
                 }
                 catch (std::runtime_error &e) {
                     gErrPrint(i18n("Python KAME binding error: ") + e.what());
@@ -206,13 +205,14 @@ XPython::execute(const atomic<bool> &terminated) {
                 catch (...) {
                     gErrPrint(i18n("Unknown python error."));
                 }
-                if(terminated || (std::string(filename) != XPYTHONSUPPORT_PY))
-                    break;
-                //support routine may exit accidentally. Retries.
-                msecsleep(500);
+//                if(terminated || (std::string(filename) != XPYTHONSUPPORT_PY))
+//                    break;
+//                //support routine may exit accidentally. Retries.
+//                msecsleep(500);
             }
         }
         m_mainthread_cb_lsn.reset();
+        bind.s_kame_module.release(); //free module.
     }
 
     fprintf(stderr, "python fin");

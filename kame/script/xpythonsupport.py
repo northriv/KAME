@@ -369,7 +369,7 @@ else:
 								MYDEFOUT.write_html(r'<font color="#008800">Changing logfile to <a href="file:///'
 									 + self.logfilename + r'">' + html.escape(self.logfilename) + '</a></font>')
 				except Exception:
-					kernel.log.exception("Error in message handler")
+					sys.stderr.write(str(traceback.format_exc()))
 
 				sys.stdout = MYDEFOUT
 				sys.stderr = MYDEFERR
@@ -387,20 +387,24 @@ else:
 				TLS.logfile.close()
 				TLS.logfile = None
 
+				sys.stdout = STDOUT
+				sys.stderr = STDERR
+				sys.stdin = STDIN
+
 				if NOTEBOOK_PROC:
 					get_ipython().run_line_magic('save', '-a ' + os.path.splitext(self.logfilename)[0] + "-save")
 					NOTEBOOK_PROC.terminate() #stops Jupyter client
 					NOTEBOOK_PROC.terminate() #again
 				#print(str([y[0] for y in inspect.getmembers(kernel, inspect.ismethod)]))
 
-				# sys.stderr.write("bye")
 				# from ipykernel.kernelapp import IPKernelApp
 				# app = IPKernelApp.instance()
 				# app.close()
 				task = asyncio.create_task(self.func())
 				task.cancel()
-
-				# raise IPython.terminal.embed.KillEmbedded('')
+				sys.stderr.write("sys.exit(0) from python.\n")
+				sys.exit(0) #I could not find better way to exit normally.
+				# raise IPython.terminal.embed.KillEmbedded('') #exits loop, magic %exit_raise no more exists.
 
 		kernel.timer = Timer(kernel.do_one_iteration)
 		kernel.timer.start()
@@ -434,13 +438,14 @@ else:
 	except Exception:
 		sys.stderr.write(str(traceback.format_exc()))
 
+#With IPython, these lines cannot be reached.
 sys.stdout = STDOUT
 sys.stderr = STDERR
 sys.stdin = STDIN
 for thread in threading.enumerate():
 	try:
 		if thread != threading.current_thread():
-			thread.join(timeout=0.5)
+			thread.join(timeout=0.3)
 	except Exception as inst:
 		sys.stderr.write(str(traceback.format_exc()))
 
