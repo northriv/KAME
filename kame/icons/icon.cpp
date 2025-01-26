@@ -28,6 +28,7 @@ QPixmap *g_pIconError;
 QPixmap *g_pIconInfo;
 QPixmap *g_pIconRotate;
 QPixmap *g_pIconPython;
+QPixmap *g_pIconJupyter;
 QPixmap *g_pIconStop;
 QPixmap *g_pIconClose;
 QPixmap *g_pIconInterface;
@@ -78,4 +79,6 @@ void makeIcons()
     g_pIconRotate = new QPixmap(":/icons/rotate.svg");
 
     g_pIconPython = new QPixmap(":/icons/python-logo-only.svg");
+
+    g_pIconJupyter = new QPixmap(":/icons/Jupyter_logo.svg");
 }

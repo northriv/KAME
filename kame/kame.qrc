@@ -12,5 +12,6 @@
         <file>script/xpythonsupport.py</file>
         <file>script/pytestdriver.py</file>
         <file>icons/python-logo-only.svg</file>
+        <file>icons/Jupyter_logo.svg</file>
     </qresource>
 </RCC>

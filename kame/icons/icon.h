@@ -24,6 +24,7 @@ extern DECLSPEC_KAME QPixmap *g_pIconError;
 extern DECLSPEC_KAME QPixmap *g_pIconStop;
 extern DECLSPEC_KAME QPixmap *g_pIconRotate;
 extern DECLSPEC_KAME QPixmap *g_pIconPython;
+extern DECLSPEC_KAME QPixmap *g_pIconJupyter;
 extern DECLSPEC_KAME QPixmap *g_pIconClose;
 extern DECLSPEC_KAME QPixmap *g_pIconInterface;
 extern DECLSPEC_KAME QPixmap *g_pIconDriver;

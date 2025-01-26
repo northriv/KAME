@@ -397,8 +397,8 @@ else:
 				# from ipykernel.kernelapp import IPKernelApp
 				# app = IPKernelApp.instance()
 				# app.close()
-				#task = asyncio.create_task(self.func())
-				#task.cancel()
+				task = asyncio.create_task(self.func())
+				task.cancel()
 
 				# raise IPython.terminal.embed.KillEmbedded('')
 

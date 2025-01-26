@@ -298,7 +298,7 @@ FrmKameMain::createActions() {
     m_pJupyterQtConsoleMenu = new QMenu( this );
     m_pJupyterQtConsoleMenu->setIcon(QApplication::style()->standardIcon(QStyle::SP_TitleBarMenuButton));
     m_pJupyterNotebookMenu = new QMenu( this );
-    m_pJupyterNotebookMenu->setIcon(QIcon( *g_pIconGraph));
+    m_pJupyterNotebookMenu->setIcon(QIcon( *g_pIconJupyter));
     for(QMenu *menu: {m_pJupyterConsoleMenu, m_pJupyterQtConsoleMenu, m_pJupyterNotebookMenu}) {
         menu->setEnabled( true );
     #ifndef USE_PYBIND11
