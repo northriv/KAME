@@ -78,7 +78,7 @@ void makeIcons()
 
     g_pIconRotate = new QPixmap(":/icons/rotate.svg");
 
-    g_pIconPython = new QPixmap(":/icons/python-logo-only.svg");
+    g_pIconPython = new QPixmap(":/icons/python-logo-only.png");
 
-    g_pIconJupyter = new QPixmap(":/icons/Jupyter_logo.svg");
+    g_pIconJupyter = new QPixmap(":/icons/Jupyter_logo.png");
 }
