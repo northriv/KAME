@@ -13,7 +13,5 @@
         <file>script/pytestdriver.py</file>
         <file>icons/python-logo-only.svg</file>
         <file>icons/Jupyter_logo.svg</file>
-        <file>icons/python-logo-only.png</file>
-        <file>icons/Jupyter_logo.png</file>
     </qresource>
 </RCC>

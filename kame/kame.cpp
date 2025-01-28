@@ -169,7 +169,7 @@ FrmKameMain::FrmKameMain()
     dockRight->setWindowOpacity(0.8);
     dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
     dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
-    resize(QSize(std::max(rect.width() / 5, 500), minimumHeight()));
+    resize(QSize(std::max(rect.width() / 4, 500), minimumHeight()));
     move((rect.width() - frameSize().width()) / 2, rect.top());
 
     // The root for all nodes.
