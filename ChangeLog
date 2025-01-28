@@ -1,3 +1,7 @@
+* Tue Jan 28 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.2.3-1)
+- 7.2.2 crashes in win32.
+
 * Sat Jan 25 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.2.2-1)
 - hyperlinks in IPython messages.

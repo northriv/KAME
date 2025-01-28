@@ -153,7 +153,6 @@ FrmKameMain::FrmKameMain()
     connect(act, SIGNAL(triggered()), XMessageBox::form(), SLOT(showNormal()));
     m_pViewMenu->addAction(act);
 
-//	resize(QSize(std::min(1280, width()), 560));
     //rearranges window positions, sizes.
     QRect rect = dockLeft->window()->windowHandle()->screen()->availableGeometry();
     dockLeft->setFloating(true);
@@ -169,6 +168,7 @@ FrmKameMain::FrmKameMain()
     dockRight->setWindowOpacity(0.8);
     dockRight->resize(std::max(rect.width() / 5, 450), dockLeft->height());
     dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
+    //The following 2 lines should be after setting up docks. Otherwise, crashes in windows.
     resize(QSize(std::max(rect.width() / 4, 500), minimumHeight()));
     move((rect.width() - frameSize().width()) / 2, rect.top());
 
