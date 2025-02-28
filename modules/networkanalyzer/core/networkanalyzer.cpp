@@ -109,6 +109,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
         tr[ *tr[ *m_waveForm].plot(1)->intensity()] = 0.5;
 		shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
 			tr, "Markers", true, tr, m_graph);
+        if( !plot) return;
 		m_markerPlot = plot;
 		tr[ *plot->label()] = i18n("Markers");
 		tr[ *plot->axisX()] = axisx;

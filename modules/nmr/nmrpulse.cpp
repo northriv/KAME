@@ -183,6 +183,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
         {
             shared_ptr<XXYPlot> plot = ftWaveGraph()->graph()->plots()->create<XXYPlot>(
                 tr, "Peaks", true, tr, ftWaveGraph()->graph());
+            if( !plot) return;
             m_peakPlot = plot;
             tr[ *plot->label()] = i18n("Peaks");
             tr[ *plot->axisX()] = tr[ *ftWaveGraph()].axisx();
