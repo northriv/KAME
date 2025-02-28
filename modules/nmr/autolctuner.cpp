@@ -566,15 +566,18 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 
     shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
     if(na__)
-        na__->graph()->iterate_commit([=](Transaction &tr){
-        m_lcrPlot = na__->graph()->plots()->create<XLCRPlot>(
-            tr, "FittedCurve", true, tr, na__->graph());
-        tr[ *m_lcrPlot->label()] = i18n("Fitted Curve");
-        tr[ *m_lcrPlot->axisX()] = tr.list(na__->graph()->axes())->at(0);
-        tr[ *m_lcrPlot->axisY()] = tr.list(na__->graph()->axes())->at(1);
-        tr[ *m_lcrPlot->lineColor()] = (unsigned int)tr[ *na__->graph()->titleColor()];
-        tr[ *m_lcrPlot->intensity()] = 2.0;
-    });
+        na__->graph()->iterate_commit_if([=](Transaction &tr){
+            m_lcrPlot = na__->graph()->plots()->create<XLCRPlot>(
+                tr, "FittedCurve", true, tr, na__->graph());
+            if( !m_lcrPlot)
+                return false;
+            tr[ *m_lcrPlot->label()] = i18n("Fitted Curve");
+            tr[ *m_lcrPlot->axisX()] = tr.list(na__->graph()->axes())->at(0);
+            tr[ *m_lcrPlot->axisY()] = tr.list(na__->graph()->axes())->at(1);
+            tr[ *m_lcrPlot->lineColor()] = (unsigned int)tr[ *na__->graph()->titleColor()];
+            tr[ *m_lcrPlot->intensity()] = 2.0;
+            return true;
+        });
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
     iterate_commit_while([=](Transaction &tr)->bool{
