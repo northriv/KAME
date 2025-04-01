@@ -273,17 +273,17 @@ CyFXEzUSBDevice::getString(int descid) {
     int len = buf[0];
     {
         //Reads string descriptor.
-        char str[len / 2 + 1] = {};
+        std::vector<char> str(len/2 + 1, 0);
         uint8_t desc_type = buf[1];
         if(desc_type != USB_STRING_DESCRIPTOR_TYPE)
             throw XInterface::XInterfaceError(i18n("Size mismatch during control transfer."), __FILE__, __LINE__);
         if(len >= sizeof(buf))
             throw XInterface::XInterfaceError(i18n("Size mismatch during control transfer."), __FILE__, __LINE__);
-        char *s = str;
+        char *s = &str[0];
         for(int i = 0; i < buf[0]/2 - 1; i++){
             *(s++) = (char)buf[2 * i + 2];
         }
-        return {str};
+        return {&str[0]};
     }
 }
 
@@ -464,21 +464,21 @@ CyUSB3Device::getString(int descid) {
     int len = buf[0];
     if(len) {
         //Reads string descriptor.
-        uint8_t buf[len] = {};
-        char str[len / 2 + 1] = {};
+        std::vector<char> str(len/2 + 1, 0);
+        std::vector<uint8_t> buf(len, 0);
         int ret = controlRead(CtrlReq::GET_DESCRIPTOR,
             CtrlReqType::STANDARD, USB_STRING_DESCRIPTOR_TYPE * 0x100u + descid,
-            27, buf, len);
+            27, &buf[0], len);
         if(ret <= 2)
             throw XInterface::XInterfaceError(i18n("Size mismatch during control transfer."), __FILE__, __LINE__);
         uint8_t desc_type = buf[1];
         if(desc_type != USB_STRING_DESCRIPTOR_TYPE)
             throw XInterface::XInterfaceError(i18n("Size mismatch during control transfer."), __FILE__, __LINE__);
-        char *s = str;
+        char *s = &str[0];
         for(int i = 0; i < buf[0]/2 - 1; i++){
             *(s++) = (char)buf[2 * i + 2];
         }
-        return {str};
+        return {&str[0]};
     }
     throw XInterface::XInterfaceError(i18n("Could not obtain string desc.."), __FILE__, __LINE__);
 }
