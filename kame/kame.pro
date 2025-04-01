@@ -189,6 +189,14 @@ macx {
     QMAKE_BUNDLE_DATA += scriptfile
 }
 else {
+    #in macx, these are in libkame
+    FORMS += \
+        graph/graphdialog.ui \
+        graph/graphform.ui \
+        graph/graphnurlform.ui
+    SOURCES +=\
+        icons/kame-24x24-png.c
+
     unix {
         INSTALLS += scriptfile
     }
