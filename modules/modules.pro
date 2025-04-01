@@ -49,6 +49,7 @@ dcsourcecore.file = dcsource/core/dcsourcecore.pro
 dcsource.depends += dcsourcecore
 dmmcore.file = dmm/core/dmmcore.pro
 dmm.depends += dmmcore charinterface
+funcsynth.depends += charinterface
 flowcontrollercore.file = flowcontroller/core/flowcontrollercore.pro
 flowcontroller.depends += flowcontrollercore charinterface
 levelmetercore.file = levelmeter/core/levelmetercore.pro
