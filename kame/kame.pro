@@ -341,6 +341,7 @@ macx {
 }
 win32-*g++ {
   QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a
+  QMAKE_CXXFLAGS += -fvisibility=hidden
 }
 win32-msvc* {
     DEFINES += DECLSPEC_KAME=__declspec(dllexport)
