@@ -20,9 +20,9 @@
 
 #include "serial.h"
 //Prologix GPIB USB
-class XPrologixGPIBPort : public XAddressedPort<XSerialPort> {
+class XPrologixGPIBPort : public XAddressedPort<XSerialPortWithInitialSetting> {
 public:
-    XPrologixGPIBPort(XCharInterface *interface) : XAddressedPort<XSerialPort>(interface) {}
+    XPrologixGPIBPort(XCharInterface *interface) : XAddressedPort<XSerialPortWithInitialSetting>(interface) {}
     virtual ~XPrologixGPIBPort() {}
 
     virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override;

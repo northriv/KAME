@@ -21,7 +21,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
- 
+
 XSerialPort::XSerialPort(XCharInterface *interface)
 	: XPort(interface), m_scifd(-1) {
 
@@ -54,7 +54,7 @@ XSerialPort::open(const XCharInterface *pInterface) {
 
 #ifdef SERIAL_POSIX
 	struct termios ttyios;
-	speed_t baudrate;
+    speed_t baudrate  = B9600;
     if((m_scifd = ::open(QString(shot[ *pInterface->port()].to_str()).toLocal8Bit().data(),
 						 O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) == -1) {
 		throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
@@ -65,38 +65,46 @@ XSerialPort::open(const XCharInterface *pInterface) {
 	bzero( &ttyios, sizeof(ttyios));
 //      tcgetattr(m_scifd, &ttyios);
 
-    switch(static_cast<int>(pInterface->serialBaudRate())) {
-	case 2400: baudrate = B2400; break;
-	case 4800: baudrate = B4800; break;
-	case 9600: baudrate = B9600; break;
-	case 19200: baudrate = B19200; break;
-	case 38400: baudrate = B38400; break;
-	case 57600: baudrate = B57600; break;
-	case 115200: baudrate = B115200; break;
-	case 230400: baudrate = B230400; break;
-	default:
-		throw XInterface::XCommError(i18n("Invalid Baudrate"), __FILE__, __LINE__);
-	}
+    if( !m_forceInitialSetting) {
+        switch(static_cast<int>(pInterface->serialBaudRate())) {
+        case 2400: baudrate = B2400; break;
+        case 4800: baudrate = B4800; break;
+        case 9600: baudrate = B9600; break;
+        case 19200: baudrate = B19200; break;
+        case 38400: baudrate = B38400; break;
+        case 57600: baudrate = B57600; break;
+        case 115200: baudrate = B115200; break;
+        case 230400: baudrate = B230400; break;
+        default:
+            throw XInterface::XCommError(i18n("Invalid Baudrate"), __FILE__, __LINE__);
+        }
+    }
 
 	cfsetispeed( &ttyios, baudrate);
 	cfsetospeed( &ttyios, baudrate);
 	cfmakeraw( &ttyios);
 	ttyios.c_cflag &= ~(PARENB | CSIZE);
-    if(pInterface->serialParity() == XCharInterface::PARITY_EVEN)
-		ttyios.c_cflag |= PARENB;
-    if(pInterface->serialParity() == XCharInterface::PARITY_ODD)
-		ttyios.c_cflag |= PARENB | PARODD;
-    if(pInterface->serial7Bits())
-		ttyios.c_cflag |= CS7;
-	else
-		ttyios.c_cflag |= CS8;
-	ttyios.c_cflag |= HUPCL | CLOCAL | CREAD;
-    if(pInterface->serialStopBits() == 2)
-		ttyios.c_cflag |= CSTOPB;
+    ttyios.c_cflag |= HUPCL | CLOCAL | CREAD;
+    if( !m_forceInitialSetting) {
+        if(pInterface->serialParity() == XCharInterface::PARITY_EVEN)
+            ttyios.c_cflag |= PARENB;
+        if(pInterface->serialParity() == XCharInterface::PARITY_ODD)
+            ttyios.c_cflag |= PARENB | PARODD;
+        if(pInterface->serial7Bits())
+            ttyios.c_cflag |= CS7;
+        else
+            ttyios.c_cflag |= CS8;
+        if(pInterface->serialStopBits() == 2)
+            ttyios.c_cflag |= CSTOPB;
+        if(pInterface->serialParity() == XCharInterface::PARITY_NONE)
+            ttyios.c_iflag |= IGNPAR;
+    }
+    else {
+        ttyios.c_cflag |= CS8;
+        ttyios.c_iflag |= IGNPAR;
+    }
 	ttyios.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); //non-canonical mode
 	ttyios.c_iflag |= IGNBRK;
-    if(pInterface->serialParity() == XCharInterface::PARITY_NONE)
-		ttyios.c_iflag |= IGNPAR;
 	ttyios.c_cc[VMIN] = 0; //no min. size
 	ttyios.c_cc[VTIME] = 30; //3sec time-out
 	if(tcsetattr(m_scifd, TCSAFLUSH, &ttyios ) < 0)
@@ -115,24 +123,33 @@ XSerialPort::open(const XCharInterface *pInterface) {
 
     DCB dcb;
     GetCommState(m_handle, &dcb); //loading the original state
-    dcb.BaudRate = static_cast<int>(pInterface->serialBaudRate());
-    dcb.ByteSize = pInterface->serial7Bits() ? 7 : 8;
-    switch((int)pInterface->serialParity()) {
-    case XCharInterface::PARITY_EVEN:
-        dcb.fParity = TRUE;
-        dcb.Parity = EVENPARITY;
-        break;
-    case XCharInterface::PARITY_ODD:
-        dcb.fParity = TRUE;
-        dcb.Parity = ODDPARITY;
-        break;
-    default:
-    case XCharInterface::PARITY_NONE:
+    if(m_forceInitialSetting) {
+        dcb.BaudRate = 9600;
+        dcb.ByteSize = 8;
         dcb.fParity = FALSE;
         dcb.Parity = NOPARITY;
-        break;
+        dcb.StopBits = ONESTOPBIT;
     }
-    dcb.StopBits = (pInterface->serialStopBits() == 2) ? TWOSTOPBITS : ONESTOPBIT;
+    else {
+        dcb.BaudRate = static_cast<int>(pInterface->serialBaudRate());
+        dcb.ByteSize = pInterface->serial7Bits() ? 7 : 8;
+        switch((int)pInterface->serialParity()) {
+        case XCharInterface::PARITY_EVEN:
+            dcb.fParity = TRUE;
+            dcb.Parity = EVENPARITY;
+            break;
+        case XCharInterface::PARITY_ODD:
+            dcb.fParity = TRUE;
+            dcb.Parity = ODDPARITY;
+            break;
+        default:
+        case XCharInterface::PARITY_NONE:
+            dcb.fParity = FALSE;
+            dcb.Parity = NOPARITY;
+            break;
+        }
+        dcb.StopBits = (pInterface->serialStopBits() == 2) ? TWOSTOPBITS : ONESTOPBIT;
+    }
     if( !SetCommState(m_handle, &dcb))
         throw XInterface::XCommError(i18n("tty SetCommState failed"), __FILE__, __LINE__);
 

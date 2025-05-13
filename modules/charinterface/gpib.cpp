@@ -16,7 +16,7 @@
 
 shared_ptr<XPort>
 XPrologixGPIBPort::open(const XCharInterface *pInterface) {
-    auto p = static_pointer_cast<XAddressedPort<XSerialPort>>(XAddressedPort<XSerialPort>::open(pInterface));
+    auto p = static_pointer_cast<XAddressedPort<XSerialPortWithInitialSetting>>(XAddressedPort<XSerialPortWithInitialSetting>::open(pInterface));
     p->setEOS("\r");//CR
     p->send("++mode 1\r");
     msecsleep(1);

@@ -48,6 +48,15 @@ private:
 #endif /*SERIAL_WIN32*/
     bool m_serialFlushBeforeWrite;
     bool m_serialHasEchoBack;
+protected:
+    bool m_forceInitialSetting = false;
+};
+
+class XSerialPortWithInitialSetting : public XSerialPort {
+public:
+    XSerialPortWithInitialSetting(XCharInterface *interface) : XSerialPort(interface) {
+        m_forceInitialSetting = true;
+    }
 };
 
 #endif /*SERIAL_H_*/
