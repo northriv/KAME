@@ -659,7 +659,7 @@ XLakeShoreBridge::XLakeShoreBridge(const char *name, bool runtime,
     interface()->setSerialStopBits(1);
     interface()->setSerialBaudRate(9600);
     interface()->setSerialParity(XCharInterface::PARITY_ODD);
-//    interface()->setSerial7Bits(true);
+    interface()->setSerial7Bits(true);
     interface()->setSerialEOS("\r\n");
 }
 
