@@ -20,12 +20,15 @@
 
 #include "serial.h"
 //Prologix GPIB USB
-class XPrologixGPIBPort : public XAddressedPort<XSerialPortWithInitialSetting> {
+class XPrologixInternalSerialPort : public XSerialPortWithInitialSetting {
 public:
-    XPrologixGPIBPort(XCharInterface *interface) : XAddressedPort<XSerialPortWithInitialSetting>(interface) {}
-    virtual ~XPrologixGPIBPort() {}
-
+    using XSerialPortWithInitialSetting::XSerialPortWithInitialSetting;
     virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override;
+};
+class XPrologixGPIBPort : public XAddressedPort<XPrologixInternalSerialPort> {
+public:
+    XPrologixGPIBPort(XCharInterface *interface) : XAddressedPort<XPrologixInternalSerialPort>(interface) {}
+    virtual ~XPrologixGPIBPort() {}
 
     virtual void sendTo(XCharInterface *intf, const char *str) override;
     virtual void writeTo(XCharInterface *intf, const char *sendbuf, int size) override;

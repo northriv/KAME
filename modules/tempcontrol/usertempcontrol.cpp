@@ -1043,7 +1043,8 @@ void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 		return;
 }
 void XLakeShore370::open() {
-	Snapshot shot( *this);;
+    Snapshot shot( *this);
+    interface()->send("*CLS");
 	interface()->query("CSET?");
 	int ctrl_ch, units, htr_limit;
 	double htr_res;

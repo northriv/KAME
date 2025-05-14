@@ -180,8 +180,8 @@ XSerialPort::send(const char *str) {
 		this->write(buf.c_str() + strlen(str), buf.length() - strlen(str)); //EOS
 		this->receive(); //wait for EOS.
 	}
-	else {
-		this->write(buf.c_str(), buf.length());
+    else {
+        this->write(buf.c_str(), buf.length());
 	}
 }
 void
@@ -233,7 +233,7 @@ XSerialPort::write(const char *sendbuf, int size) {
 	}
       
 	msecsleep(TTY_WAIT);
-   
+
 	int wlen = 0;
 	do {
 #ifdef SERIAL_POSIX

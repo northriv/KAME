@@ -15,10 +15,12 @@
 #include "support.h"
 
 shared_ptr<XPort>
-XPrologixGPIBPort::open(const XCharInterface *pInterface) {
-    auto p = static_pointer_cast<XAddressedPort<XSerialPortWithInitialSetting>>(XAddressedPort<XSerialPortWithInitialSetting>::open(pInterface));
+XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
+    auto p = static_pointer_cast<XSerialPortWithInitialSetting>(XSerialPortWithInitialSetting::open(pInterface));
     p->setEOS("\r");//CR
     p->send("++mode 1\r");
+    msecsleep(1);
+    p->send("++eoi 1\r");
     msecsleep(1);
     p->send("++auto 0\r");
     msecsleep(1);
@@ -45,6 +47,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
         switch( *p) {
         case '\r':
         case '\n':
+        case '\033': //ESC
         case '+':
             buf += 0x1b; //ESC
             break;
@@ -80,9 +83,10 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
             break;
         }
     }
+    setupAddrEOSAndSend(intf, "");
     if(intf->gpibWaitBeforeWrite())
         msecsleep(intf->gpibWaitBeforeWrite());
-    setupAddrEOSAndSend(intf, buf);
+    XSerialPort::send(buf.c_str());
 }
 void
 XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
@@ -124,22 +128,51 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
 void
 XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd) {
     Snapshot shot( *intf);
+
     if(shot[ *intf->address()] != m_lastAddr) {
         m_lastAddr = shot[ *intf->address()];
         std::string cmd = formatString("++addr %u\r", m_lastAddr);
-        if(intf->eos() == "\r")
-            cmd += "++eos 1\r";
-        else if(intf->eos() == "\n")
-            cmd += "++eos 2\r";
-        else if(intf->eos() == "\r\n")
-            cmd += "++eos 0\r";
-        else
+        // if(intf->eos() == "\r")
+        //     cmd += "++eos 1\r";
+        // else if(intf->eos() == "\n")
+        //     cmd += "++eos 2\r";
+        // else if(intf->eos() == "\r\n")
+        //     cmd += "++eos 0\r";
+        // else
             cmd += "++eos 3\r"; //none
+        // std::string buf = cmd;
+        // std::string::size_type pos(buf.find("\r"));
+        // while(pos != std::string::npos) {
+        //     buf.replace(pos, 1, "[CR]");
+        //     pos = buf.find("\r", pos);
+        // }
+        // pos = buf.find("\033");
+        // while(pos != std::string::npos) {
+        //     buf.replace(pos, 1, "[ESC]");
+        //     pos = buf.find("\033", pos);
+        // }
+        // fprintf(stderr,"CMD:%s:%d\n", buf.c_str(), buf.length());
+
         cmd += extcmd;
+
         XSerialPort::send(cmd.c_str());
     }
     else
         XSerialPort::send(extcmd.c_str());
+
+    // std::string buf = extcmd;
+    // std::string::size_type pos(buf.find("\r"));
+    // while(pos != std::string::npos) {
+    //     buf.replace(pos, 1, "[CR]");
+    //     pos = buf.find("\r", pos);
+    // }
+    // pos = buf.find("\033");
+    // while(pos != std::string::npos) {
+    //     buf.replace(pos, 1, "[ESC]");
+    //     pos = buf.find("\033", pos);
+    // }
+    // fprintf(stderr,"EXTCMD:%s:%d\n", buf.c_str(), buf.length());
+
 }
 
 #ifdef HAVE_LINUX_GPIB
