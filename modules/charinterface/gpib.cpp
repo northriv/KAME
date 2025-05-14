@@ -33,10 +33,10 @@ XPrologixGPIBPort::open(const XCharInterface *pInterface) {
 
 void
 XPrologixGPIBPort::sendTo(XCharInterface *intf, const char *str) {
-    if(eos().empty())
+    if(intf->eos().empty())
         writeTo(intf, str, strlen(str));
     else
-        writeTo(intf, (str + eos()).c_str(), strlen(str) + eos().length());
+        writeTo(intf, (str + intf->eos()).c_str(), strlen(str) + intf->eos().length());
 }
 void
 XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) {
