@@ -71,7 +71,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
             if((spr & intf->gpibMAVbit())) {
                 //MAV detected
                 if(i < 2) {
-                    msecsleep(5*i + 5);
+                    msecsleep(5*i + 5); //todo unlock port.
                     continue;
                 }
                 gErrPrint(i18n("ibrd before ibwrt asserted"));
@@ -85,7 +85,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
     }
     setupAddrEOSAndSend(intf, "");
     if(intf->gpibWaitBeforeWrite())
-        msecsleep(intf->gpibWaitBeforeWrite());
+        msecsleep(intf->gpibWaitBeforeWrite()); //Lakeshore needs wait after addressing.
     XSerialPort::send(buf.c_str());
 }
 void
@@ -118,7 +118,7 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
             unsigned char spr = intf->toUInt();
             if(((spr & intf->gpibMAVbit()) == 0)) {
                 //MAV isn't detected
-                msecsleep(10 * i + 10);
+                msecsleep(10 * i + 10); //todo unlock port.
                 continue;
             }
             break;
@@ -157,7 +157,7 @@ XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd)
 
         XSerialPort::send(cmd.c_str());
     }
-    else
+    else if(extcmd.length())
         XSerialPort::send(extcmd.c_str());
 
     // std::string buf = extcmd;
