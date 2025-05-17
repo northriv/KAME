@@ -1078,10 +1078,7 @@ void XLakeShore370::open() {
     Snapshot shot( *this);
     interface()->send("*CLS");
     interface()->query("*IDN?");
-    char model[256];
-    if(interface()->scanf("%*s,%20s", model) != 1)
-        throw XInterface::XConvError(__FILE__, __LINE__);
-    m_is372 = (std::string(model).find("372") != std::string::npos);
+    m_is372 = (interface()->toStrSimplified().find("MODEL372") != std::string::npos);
     interface()->query("CSET?");
 	int ctrl_ch, units, htr_limit;
 	double htr_res;
