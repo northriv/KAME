@@ -1077,7 +1077,12 @@ void XLakeShore370::onCurrentChannelChanged(unsigned int /*loop*/, const shared_
 void XLakeShore370::open() {
     Snapshot shot( *this);
     interface()->send("*CLS");
-	interface()->query("CSET?");
+    interface()->query("*IDN?");
+    char model[256];
+    if(interface()->scanf("%*s,%20s", model) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    m_is372 = (std::string(model).find("372") != std::string::npos);
+    interface()->query("CSET?");
 	int ctrl_ch, units, htr_limit;
 	double htr_res;
 	if(interface()->scanf("%d,%*d,%d,%*d,%*d,%d,%lf", &ctrl_ch, &units, &htr_limit, &htr_res) != 4)
@@ -1146,8 +1151,11 @@ XLakeShore370::onSetupChannelChanged(const shared_ptr<XChannel> &channel) {
         interface()->queryf("CRVHDR? %d",crvno);
         crvinfo = interface()->toStrSimplified();
     }
-    interface()->query("RDGRNG? " + channel->getName());
     unsigned int curr_mode = 0, excitation = 0, range = 0, autorange = 0, cs_off = 0;
+    if(is372())
+        interface()->query("INTYPE? " + channel->getName());
+    else
+        interface()->query("RDGRNG? " + channel->getName());
     interface()->scanf("%u,%u,%u,%u,%u", &curr_mode, &excitation, &range, &autorange, &cs_off);
     XString exc_unit = "V";
     double exc_begin = 2.0e-6;
@@ -1202,7 +1210,10 @@ void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &channel, int
     XScopedLock<XInterface> lock( *interface());
     if( !interface()->isOpened())
         return;
-    interface()->sendf("RDGRNG %s,,%d", channel->getName().c_str(), exc + 1);
+    if(is372())
+        interface()->sendf("INTYPE %s,,%d,1", channel->getName().c_str(), exc + 1);
+    else
+        interface()->sendf("RDGRNG %s,,%d,1", channel->getName().c_str(), exc + 1);
 }
 void XLakeShore370::onChannelEnableChanged(const shared_ptr<XChannel> &channel, bool enable) {
     XScopedLock<XInterface> lock( *interface());

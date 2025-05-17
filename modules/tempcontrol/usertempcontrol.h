@@ -418,7 +418,9 @@ protected:
     virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) override;
     virtual void onChannelEnableChanged(const shared_ptr<XChannel> &ch, bool enable) override;
     virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &ch, double sec) override;
-private:
-};
 
+    virtual bool is372() const {return m_is372;}
+private:
+    bool m_is372 = false;
+};
 #endif
