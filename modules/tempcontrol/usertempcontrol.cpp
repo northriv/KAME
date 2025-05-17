@@ -1170,7 +1170,7 @@ XLakeShore370::onSetupChannelChanged(const shared_ptr<XChannel> &channel) {
     r /= pow(10.0, 3 * k);
     XString rangestr = formatString("%.3g ", r) + si.at(k) + "Ohm";
 
-    interface()->query("SCAN? " + channel->getName());
+    interface()->query("SCAN?");
     unsigned int autoscan;
     interface()->scanf("%*u,%u", &autoscan);
     try {
@@ -1208,9 +1208,9 @@ void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &channel, int
     if( !interface()->isOpened())
         return;
     if(is372())
-        interface()->sendf("INTYPE %s,,%d,1", channel->getName().c_str(), exc + 1);
+        interface()->sendf("INTYPE %s,,%d,,1", channel->getName().c_str(), exc + 1); //autorange on
     else
-        interface()->sendf("RDGRNG %s,,%d,1", channel->getName().c_str(), exc + 1);
+        interface()->sendf("RDGRNG %s,,%d,,1", channel->getName().c_str(), exc + 1); //autorange on
 }
 void XLakeShore370::onChannelEnableChanged(const shared_ptr<XChannel> &channel, bool enable) {
     XScopedLock<XInterface> lock( *interface());
@@ -1218,7 +1218,7 @@ void XLakeShore370::onChannelEnableChanged(const shared_ptr<XChannel> &channel, 
         return;
     interface()->sendf("INSET %s,%d", channel->getName().c_str(), enable ? 1 : 0);
     if(enable)
-        interface()->sendf("SCAN %s,%d", channel->getName().c_str(), enable ? 1 : 0);
+        interface()->sendf("SCAN %s,%d", channel->getName().c_str(), 1);
 }
 void XLakeShore370::onScanDwellSecChanged(const shared_ptr<XChannel> &channel, double sec) {
     XScopedLock<XInterface> lock( *interface());
