@@ -865,8 +865,11 @@ void XLakeShore350::onTargetTempChanged(unsigned int loop, double temp) {
     }
 }
 void XLakeShore350::onPowerMaxChanged(unsigned int loop, double pow) {
+    interface()->queryf("HTRSET %d", loop + 1);
+    int res,maxc,maxuc,currorpw;
+    interface()->scanf("%d,%d,%d,%d", &res, &maxc, &maxuc, &currorpw);
     if(loop == 0)
-        interface()->sendf("HTRSET %d,,%f", loop + 1, pow);
+        interface()->sendf("HTRSET %d,%d,0,%.1f,%d", loop + 1, res, pow, currorpw);
 }
 void XLakeShore350::onHeaterModeChanged(unsigned int loop, int) {
     Snapshot shot( *this);
@@ -1003,7 +1006,12 @@ void XLakeShore350::onExcitationChanged(const shared_ptr<XChannel> &channel, int
     XScopedLock<XInterface> lock( *interface());
     if( !interface()->isOpened())
         return;
-    interface()->sendf("INTYPE %s,,,,,,%d", channel->getName().c_str(), exc);
+    interface()->query("INTYPE? " + channel->getName());
+    unsigned int sen_type = 0, autorange = 0, range = 0,
+        compensation = 0, units = 0, sen_exc = 0;
+    interface()->scanf("%u,%u,%u,%u,%u,%u", &sen_type, &autorange, &range, &compensation, &units, &sen_exc);
+    interface()->sendf("INTYPE %s,%d,%d,%d,%d,%d,%d", channel->getName().c_str(),
+        sen_type, autorange, range, compensation, units, exc);
 }
 
 XLakeShore370::XLakeShore370(const char *name, bool runtime,
@@ -1029,28 +1037,40 @@ double XLakeShore370::getHeater(unsigned int /*loop*/) {
 	return interface()->toDouble();
 }
 void XLakeShore370::onPChanged(unsigned int /*loop*/, double p) {
-	interface()->sendf("PID %f", p);
+    double i, d;
+    if(interface()->scanf("%*lf,%lf,%lf", &i, &d) != 2)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+
+    interface()->sendf("PID %6f,%6f,%6f", p, i, d);
 }
 void XLakeShore370::onIChanged(unsigned int /*loop*/, double i) {
-    interface()->sendf("PID ,%f", i);
+    double p, d;
+    if(interface()->scanf("%lf,%*lf,%lf", &p, &d) != 2)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+
+    interface()->sendf("PID %6f,%6f,%6f", p, i, d);
 }
 void XLakeShore370::onDChanged(unsigned int /*loop*/, double d) {
-    interface()->sendf("PID ,,%f", d);
+    double p, i;
+    if(interface()->scanf("%lf,%lf,%*lf", &p, &i) != 2)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+
+    interface()->sendf("PID %6f,%6f,%6f", p, i, d);
 }
 void XLakeShore370::onTargetTempChanged(unsigned int /*loop*/, double temp) {
 	Snapshot shot( *this);
     if(shared_ptr<XChannel> ch = shot[ *currentChannel(0)]) {
         shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
         if(thermo) {
-            interface()->sendf("CSET %s,,2",
-                (const char*)shot[ *currentChannel(0)].to_str().c_str());
+        //     interface()->sendf("CSET %s,,2",
+        //         (const char*)shot[ *currentChannel(0)].to_str().c_str());
             temp = thermo->getRawValue(temp);
         }
         else {
-            interface()->sendf("CSET %s,,1",
-                (const char*)shot[ *currentChannel(0)].to_str().c_str());
+            // interface()->sendf("CSET %s,,1",
+            //     (const char*)shot[ *currentChannel(0)].to_str().c_str());
         }
-        interface()->sendf("SETP %f", temp);
+        interface()->sendf("SETP %g", temp);
     }
 }
 void XLakeShore370::onManualPowerChanged(unsigned int /*loop*/, double pow) {
@@ -1207,26 +1227,48 @@ void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &channel, int
     XScopedLock<XInterface> lock( *interface());
     if( !interface()->isOpened())
         return;
-    if(is372())
-        interface()->sendf("INTYPE %s,,%d,,1", channel->getName().c_str(), exc + 1); //autorange on
-    else
-        interface()->sendf("RDGRNG %s,,%d,,1", channel->getName().c_str(), exc + 1); //autorange on
+    unsigned int curr_mode = 0, range = 0, autorange = 0, cs_off = 0,units=0;
+    if(is372()) {
+        interface()->query("INTYPE? " + channel->getName());
+        interface()->scanf("%u,%*u,%u,%u,%u,%u", &curr_mode, &range, &autorange, &cs_off,&units);
+        interface()->sendf("INTYPE %s,%u,%d,%u,%u,%u,%u", channel->getName().c_str(), curr_mode,
+                           exc + 1, range, autorange, cs_off,units);
+    }
+    else {
+        interface()->query("RDGRNG? " + channel->getName());
+        interface()->scanf("%u,%*u,%u,%u,%u", &curr_mode, &range, &autorange, &cs_off);
+        interface()->sendf("RDGRNG %s,%u,%d,%u,%u,%u", channel->getName().c_str(), curr_mode,
+                           exc + 1, range, autorange, cs_off);
+    }
+    onSetupChannelChanged(channel);
 }
 void XLakeShore370::onChannelEnableChanged(const shared_ptr<XChannel> &channel, bool enable) {
     XScopedLock<XInterface> lock( *interface());
     if( !interface()->isOpened())
         return;
-    interface()->sendf("INSET %s,%d", channel->getName().c_str(), enable ? 1 : 0);
+    interface()->query("INSET? " + channel->getName());
+    unsigned int offon = 0, dwell = 0, pause = 0,
+        crvno = 0, tempco = 0;
+    interface()->scanf("%u,%u,%u,%u,%u", &offon, &dwell, &pause, &crvno, &tempco);
+    interface()->sendf("INSET %s,%d,%u,%u,%u,%u", channel->getName().c_str(), enable ? 1 : 0,
+        dwell, pause, crvno, tempco);
     if(enable)
         interface()->sendf("SCAN %s,%d", channel->getName().c_str(), 1);
+    onSetupChannelChanged(channel);
 }
 void XLakeShore370::onScanDwellSecChanged(const shared_ptr<XChannel> &channel, double sec) {
     XScopedLock<XInterface> lock( *interface());
     if( !interface()->isOpened())
         return;
-    unsigned int dwell = std::max(1L, lrint(sec));
-    unsigned int pause = std::max(3L, lrint(sec));
-    interface()->sendf("INSET %s,,%d,%d", channel->getName().c_str(), dwell, pause);
+    interface()->query("INSET? " + channel->getName());
+    unsigned int offon = 0, dwell = 0, pause = 0,
+        crvno = 0, tempco = 0;
+    interface()->scanf("%u,%u,%u,%u,%u", &offon, &dwell, &pause, &crvno, &tempco);
+    dwell = std::max(1L, lrint(sec));
+    pause = std::max(3L, lrint(sec));
+    interface()->sendf("INSET %s,%u,%u,%u,%u,%u", channel->getName().c_str(), offon,
+        dwell, pause, crvno, tempco);
+    onSetupChannelChanged(channel);
 }
 
 XLinearResearch700::XLinearResearch700(const char *name, bool runtime,
