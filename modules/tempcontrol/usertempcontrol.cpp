@@ -1178,12 +1178,16 @@ XLakeShore370::onSetupChannelChanged(const shared_ptr<XChannel> &channel) {
                 tr[ *channel->excitation()].add(formatString("%.3g ", e) + si.at(k) + exc_unit);
             }
             XString curr_exc = tr[ *channel->excitation()].itemStrings().at(excitation - 1).label;
+            tr[ *channel->excitation()] = excitation - 1;
+            tr[ *channel->scanDwellSeconds()] = (double)dwell;
 
             tr[ *channel->info()] =
+                std::string(offon ? "On" : "Off") +
+                ", \n" +
                 "Autorange: " + std::string(autorange ? "On" : "Off") +
                 ", " + rangestr + ", \n" +
-                "Excitation: " + curr_exc +
-                std::string(cs_off ? "Off" : "On") +
+                "Excitation: " + curr_exc + ", " +
+                std::string(cs_off ? "Off" : "On") + ", \n" +
                 formatString("Dwell: %u sec., Pause: %u sec.,\n", dwell, pause) +
                "Autoscan: " + std::string(autoscan ? "On" : "Off") +
                ", \n" +
@@ -1205,7 +1209,8 @@ void XLakeShore370::onChannelEnableChanged(const shared_ptr<XChannel> &channel, 
     if( !interface()->isOpened())
         return;
     interface()->sendf("INSET %s,%d", channel->getName().c_str(), enable ? 1 : 0);
-    // interface()->sendf("SCAN %s,%d", channel->getName().c_str(), enable ? 1 : 0);
+    if(enable)
+        interface()->sendf("SCAN %s,%d", channel->getName().c_str(), enable ? 1 : 0);
 }
 void XLakeShore370::onScanDwellSecChanged(const shared_ptr<XChannel> &channel, double sec) {
     XScopedLock<XInterface> lock( *interface());

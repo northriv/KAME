@@ -25,10 +25,11 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
 	m_thermometer(create<XItemNode<XThermometerList,
 		XThermometer> > ("Thermometer", false, ref(tr_list), list)),
     m_excitation(create<XComboNode> ("Excitation", true)),
-    m_enabled(create<XBoolNode> ("Enabled", false)),
+    m_enabled(create<XBoolNode> ("Enabled", true)),
     m_scanDwellSeconds(create<XDoubleNode> ("ScanDwellSeconds", true)),
     // m_instrumentThermoeterTable(create<XComboNode> ("InstrumentThermometerTable", true)),
-    m_thermometers(list) {
+    m_thermometers(list),
+    m_info(create<XStringNode> ("Info", true)) {
     iterate_commit([=](Transaction &tr){
         tr[ enabled()] = true;
     });
