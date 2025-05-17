@@ -1240,7 +1240,6 @@ void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &channel, int
         interface()->sendf("RDGRNG %s,%u,%d,%u,%u,%u", channel->getName().c_str(), curr_mode,
                            exc + 1, range, autorange, cs_off);
     }
-    onSetupChannelChanged(channel);
 }
 void XLakeShore370::onChannelEnableChanged(const shared_ptr<XChannel> &channel, bool enable) {
     XScopedLock<XInterface> lock( *interface());
@@ -1254,7 +1253,6 @@ void XLakeShore370::onChannelEnableChanged(const shared_ptr<XChannel> &channel, 
         dwell, pause, crvno, tempco);
     if(enable)
         interface()->sendf("SCAN %s,%d", channel->getName().c_str(), 1);
-    onSetupChannelChanged(channel);
 }
 void XLakeShore370::onScanDwellSecChanged(const shared_ptr<XChannel> &channel, double sec) {
     XScopedLock<XInterface> lock( *interface());
@@ -1268,7 +1266,6 @@ void XLakeShore370::onScanDwellSecChanged(const shared_ptr<XChannel> &channel, d
     pause = std::max(3L, lrint(sec));
     interface()->sendf("INSET %s,%u,%u,%u,%u,%u", channel->getName().c_str(), offon,
         dwell, pause, crvno, tempco);
-    onSetupChannelChanged(channel);
 }
 
 XLinearResearch700::XLinearResearch700(const char *name, bool runtime,
