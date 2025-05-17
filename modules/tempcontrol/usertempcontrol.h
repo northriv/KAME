@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@ protected:
     //! \sa m_heaterPowerUnit()
     virtual double getHeater(unsigned int loop);
     //! ex. "W", "dB", or so
-    virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
+    virtual const char *m_heaterPowerUnit(unsigned int) {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open();
@@ -52,7 +52,10 @@ protected:
     virtual void onPowerMinChanged(unsigned int, double v) {}
     virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
 
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &) {} //for updating UIs.
     virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &, bool) {}
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) {}
 private:
 };
 
@@ -91,8 +94,14 @@ protected:
     virtual void onPowerMinChanged(unsigned int, double v) {}
     virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
 
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &ch) {
+        trans( *ch->excitation()).clear();
+        trans( *ch->excitation()).add(
+            {"0", "3uV", "10uV", "30uV", "100uV", "300uV", "1mV", "3mV"});
+    }
     virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
-
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &, bool) {}
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) {}
 private:
     double read(const char *str);
 
@@ -149,10 +158,12 @@ protected:
     virtual void onManualPowerChanged(unsigned int loop, double pow);
     virtual void onHeaterModeChanged(unsigned int loop, int mode);
     virtual void onPowerRangeChanged(unsigned int loop, int range);
-    virtual void onPowerMinChanged(unsigned int loop, double v) {}
+    virtual void onPowerMinChanged(unsigned int, double) {}
     virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
 
     virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &, bool) {}
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) {}
 private:
     void setTemp(unsigned int loop, double temp);
     //        void SetChannel(XChannel *channel);
@@ -177,6 +188,10 @@ protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open();
 
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &ch) {
+        trans( *ch->excitation()).clear();
+        trans( *ch->excitation()).add({"CI", "10MV", "3MV", "1MV"});
+    }
     virtual void onPowerMaxChanged(unsigned int loop, double v);
     virtual const char *loopString(unsigned int loop) {
         return (loop == 0) ? "LOOP 1" : "LOOP 2";
@@ -194,7 +209,11 @@ protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open();
 
-    virtual void onPowerMaxChanged(unsigned int loop, double v) {}
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &ch) {
+        trans( *ch->excitation()).clear();
+        trans( *ch->excitation()).add({"10UV", "30UV", "100UV", "333UV", "1.0MV", "3.3MV"});
+    }
+    virtual void onPowerMaxChanged(unsigned int, double v) {}
     virtual const char *loopString(unsigned int loop) {
         return (loop == 0) ? "HEATER" : "AOUT";
     }
@@ -228,11 +247,18 @@ protected:
     virtual void onManualPowerChanged(unsigned int loop, double pow);
     virtual void onHeaterModeChanged(unsigned int loop, int mode);
     virtual void onPowerRangeChanged(unsigned int loop, int range);
-    virtual void onPowerMaxChanged(unsigned int loop, double v) {}
-    virtual void onPowerMinChanged(unsigned int loop, double v) {}
+    virtual void onPowerMaxChanged(unsigned int, double) {}
+    virtual void onPowerMinChanged(unsigned int, double) {}
     virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
 
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &ch) {
+        trans( *ch->excitation()).clear();
+        trans( *ch->excitation()).add(
+            {"20uV", "60uV", "200uV", "600uV", "2mV", "6mV", "20mV"});
+    }
     virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &, bool) {}
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) {}
 private:
     double parseResponseMessage();
 };
@@ -266,10 +292,17 @@ protected:
     virtual void onHeaterModeChanged(unsigned int loop, int mode);
     virtual void onPowerRangeChanged(unsigned int loop, int range);
     virtual void onPowerMaxChanged(unsigned int loop, double v);
-    virtual void onPowerMinChanged(unsigned int loop, double v) {}
+    virtual void onPowerMinChanged(unsigned int, double) {}
     virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
 
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &ch) {
+        trans( *ch->excitation()).clear();
+        trans( *ch->excitation()).add(
+        {});//"1mV", "320uV", "100uV", "32uV", "10uV"
+    }
     virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &, bool) {}
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) {}
 private:
     //! set the system into the control mode.
     void control();
@@ -292,14 +325,13 @@ protected:
     //! reads a value in Kelvin from the instrument
     virtual double getTemp(shared_ptr<XChannel> &channel) override;
     //! ex. "W", "dB", or so
-    virtual const char *m_heaterPowerUnit(unsigned int loop) override {return "%";}
+    virtual const char *m_heaterPowerUnit(unsigned int) override {return "%";}
     virtual double currentIntervalSettingInSec(const Snapshot &shot, unsigned int lp) override {return 1000.0 / shot[ *interval(lp)];}
     virtual void onPChanged(unsigned int loop, double p) override;
     virtual void onIChanged(unsigned int loop, double i) override;
     virtual void onDChanged(unsigned int loop, double d) override;
     virtual void onManualPowerChanged(unsigned int loop, double pow) override;
-    virtual void onPowerMinChanged(unsigned int loop, double v) override {}
-    virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) override;
+    virtual void onPowerMinChanged(unsigned int , double ) override {}
 };
 
 //! LakeShore 340
@@ -321,6 +353,10 @@ protected:
     virtual void onPowerRangeChanged(unsigned int loop, int range) override;
     virtual void onPowerMaxChanged(unsigned int loop, double v) override;
     virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) override;
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &) override {}
+    virtual void onExcitationChanged(const shared_ptr<XChannel> &, int) override {}
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &, bool) override {}
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) override {}
 private:
 };
 //! LakeShore 350
@@ -342,6 +378,10 @@ protected:
     virtual void onPowerRangeChanged(unsigned int loop, int range) override;
     virtual void onPowerMaxChanged(unsigned int loop, double v) override;
     virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) override;
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &ch) override;
+    virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) override;
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &, bool) override {}
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) override {}
 private:
 };
 //! LakeShore 370
@@ -374,8 +414,10 @@ protected:
     virtual void onPowerRangeChanged(unsigned int loop, int range) override;
     virtual void onPowerMaxChanged(unsigned int loop, double v) override {}
     virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) override;
-
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &ch) override;
     virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) override;
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &ch, bool enable) override;
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &ch, double sec) override;
 private:
 };
 

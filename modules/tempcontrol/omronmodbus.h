@@ -52,7 +52,10 @@ protected:
     virtual void onPowerMinChanged(unsigned int, double v) {}
     virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
 
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &) {}; //for updating UIs.
     virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &, bool) {}
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) {}
 private:
 };
 

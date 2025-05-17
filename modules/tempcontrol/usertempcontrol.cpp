@@ -30,7 +30,7 @@ XITC503::XITC503(const char *name, bool runtime,
 	XOxfordDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
     createChannels(ref(tr_meas), meas, true,
         {"1", "2", "3"},
-        {}, {"HEATER", "GASFLOW"});
+        {"HEATER", "GASFLOW"});
 }
 void XITC503::open() {
 	start();
@@ -124,7 +124,6 @@ XAVS47IB::XAVS47IB(const char *name, bool runtime,
 	XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
     createChannels(ref(tr_meas), meas, false,
         {"0", "1", "2", "3", "4", "5", "6", "7"},
-        {"0", "3uV", "10uV", "30uV", "100uV", "300uV", "1mV", "3mV"},
         {"Loop"});
 
 	//    UseSerialPollOnWrite = false;
@@ -324,7 +323,6 @@ XCryoconM62::XCryoconM62(const char *name, bool runtime,
     XCryocon(name, runtime, ref(tr_meas), meas) {
     createChannels(ref(tr_meas), meas, true,
         {"A", "B"},
-        {"10UV", "30UV", "100UV", "333UV", "1.0MV", "3.3MV"},
         {"HEATER", "AOUT"});
 }
 XCryoconM32::XCryoconM32(const char *name, bool runtime,
@@ -332,7 +330,6 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
     XCryocon(name, runtime, ref(tr_meas), meas) {
     createChannels(ref(tr_meas), meas, true,
         {"A", "B"},
-        {"CI", "10MV", "3MV", "1MV"},
         {"Loop#1", "Loop#2"});
 }
 void XCryocon::open() {
@@ -514,7 +511,6 @@ XNeoceraLTC21::XNeoceraLTC21(const char *name, bool runtime,
 	XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
     createChannels(ref(tr_meas), meas, true,
         {"1", "2"},
-        {},//"1mV", "320uV", "100uV", "32uV", "10uV"
         {"Loop1", "Loop2"});
     interface()->setEOS("");
 	interface()->setSerialEOS("\n");
@@ -650,7 +646,7 @@ XLakeShoreBridge::XLakeShoreBridge(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
 	interface()->setEOS("\r\n");
-    interface()->setGPIBMAVbit(4); //valid read
+    interface()->setGPIBMAVbit(4); //valid read??? but serial poll does not respond.
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBUseSerialPollOnRead(false);
     interface()->setGPIBWaitBeforeWrite(40);
@@ -669,8 +665,8 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
 
     createChannels(ref(tr_meas), meas, true,
         {"A", "B"},
-        {},
-        {"Loop1", "Loop2"});
+        {"Loop1", "Loop2"},
+        false, false); //Assuming scanner is not installed.
 }
 
 double XLakeShoreBridge::getRaw(shared_ptr<XChannel> &channel) {
@@ -757,11 +753,6 @@ void XLakeShore340::onPowerRangeChanged(unsigned int loop, int ran) {
 void XLakeShore340::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
     if( !ch) return;
 	interface()->sendf("CSET %u,%s", loop + 1, (const char *) ch->getName().c_str());
-}
-void XLakeShoreBridge::onExcitationChanged(const shared_ptr<XChannel> &, int) {
-	XScopedLock<XInterface> lock( *interface());
-	if( !interface()->isOpened())
-		return;
 }
 void XLakeShore340::open() {
 	Snapshot shot( *this);
@@ -852,8 +843,8 @@ XLakeShore350::XLakeShore350(const char *name, bool runtime,
 
     createChannels(ref(tr_meas), meas, true,
         {"A", "B", "C", "D"},
-        {},
-        {"OUTPUT1", "OUTPUT2", "AOUT1", "AOUT2"});
+        {"OUTPUT1", "OUTPUT2", "AOUT1", "AOUT2"},
+        false, false); //Assuming scanner is not installed.
 }
 
 double XLakeShore350::getHeater(unsigned int loop) {
@@ -968,6 +959,52 @@ void XLakeShore350::open() {
     }
     start();
 }
+void
+XLakeShore350::onSetupChannelChanged(const shared_ptr<XChannel> &channel) {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened() || !channel)
+        return;
+    interface()->query("INNAME? " + channel->getName());
+    auto inname = interface()->toStrSimplified();
+    interface()->query("INCRV? " + channel->getName());
+    int incrv = interface()->toUInt();
+    XString crvinfo;
+    if(incrv) {
+        interface()->queryf("CRVHDR? %d",incrv);
+        crvinfo = interface()->toStrSimplified();
+    }
+    interface()->query("INTYPE? " + channel->getName());
+    unsigned int sen_type = 0, autorange = 0, range = 0,
+        compensation = 0, units = 0, sen_exc = 0;
+    interface()->scanf("%u,%u,%u,%u,%u,%u", &sen_type, &autorange, &range, &compensation, &units, &sen_exc);
+    try {
+        channel->iterate_commit([=](Transaction &tr){
+            tr[ *channel->excitation()].clear();
+            XString curr_exc;
+            if(sen_type == 3) {
+                tr[ *channel->excitation()].add({"1 mV", "10 mV"});
+                curr_exc = tr[ *channel->excitation()].itemStrings().at(sen_exc).label;
+            }
+            tr[ *channel->info()] =
+                inname + ":" +
+                std::map<int,std::string>{{0, "Disabled"},{1, "Diode"},{2, "Platinum RTD"},{3, "NTC RTD"},
+                                           {4, "Thermocouple"},{5, "Capacitance"}}.at(sen_type) +
+                ", \n" + "Autorange: " + std::string(autorange ? "On" : "Off") + ", \n" +
+                curr_exc + ", \n" +
+                "Units:" +
+                std::map<int,std::string>{{1, "Kelvin"},{2, "Celsius"},{3, "Sensor"}}.at(units) +
+                ", \n" + crvinfo;
+        });
+    }
+    catch(std::out_of_range &e) {
+    }
+}
+void XLakeShore350::onExcitationChanged(const shared_ptr<XChannel> &channel, int exc) {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened())
+        return;
+    interface()->sendf("INTYPE %s,,,,,,%d", channel->getName().c_str(), exc);
+}
 
 XLakeShore370::XLakeShore370(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -975,8 +1012,8 @@ XLakeShore370::XLakeShore370(const char *name, bool runtime,
 
     createChannels(ref(tr_meas), meas, true,
         {"1", "2", "3", "4", "5", "6", "7", "8"},
-        {},
-        {"Loop"});
+        {"Loop"},
+        true, true); //Assuming scanner is used.
 }
 
 double XLakeShore370::getRaw(shared_ptr<XChannel> &channel) {
@@ -1037,11 +1074,6 @@ void XLakeShore370::onPowerRangeChanged(unsigned int /*loop*/, int ran) {
 void XLakeShore370::onCurrentChannelChanged(unsigned int /*loop*/, const shared_ptr<XChannel> &ch) {
 	interface()->sendf("CSET %s", (const char *) ch->getName().c_str());
 }
-void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &, int) {
-	XScopedLock<XInterface> lock( *interface());
-	if( !interface()->isOpened())
-		return;
-}
 void XLakeShore370::open() {
     Snapshot shot( *this);
     interface()->send("*CLS");
@@ -1100,7 +1132,89 @@ void XLakeShore370::open() {
 	}
 	start();
 }
+void
+XLakeShore370::onSetupChannelChanged(const shared_ptr<XChannel> &channel) {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened() || !channel)
+        return;
+    interface()->query("INSET? " + channel->getName());
+    unsigned int offon = 0, dwell = 0, pause = 0,
+        crvno = 0, tempco = 0;
+    interface()->scanf("%u,%u,%u,%u,%u", &offon, &dwell, &pause, &crvno, &tempco);
+    XString crvinfo;
+    if(crvno) {
+        interface()->queryf("CRVHDR? %d",crvno);
+        crvinfo = interface()->toStrSimplified();
+    }
+    interface()->query("RDGRNG? " + channel->getName());
+    unsigned int curr_mode = 0, excitation = 0, range = 0, autorange = 0, cs_off = 0;
+    interface()->scanf("%u,%u,%u,%u,%u", &curr_mode, &excitation, &range, &autorange, &cs_off);
+    XString exc_unit = "V";
+    double exc_begin = 2.0e-6;
+    unsigned int exc_end = 12;
+    if(curr_mode) {
+        exc_unit = "A";
+        exc_begin = 1.0e-12;
+        exc_end = 22;
+    }
+    const auto si = std::map<int,std::string>{{-4,"p"},{-3,"n"},{-2,"u"},{-1,"m"},{0,""},
+                                               {1,"k"},{2,"M"}};
 
+    double r = 2.0e-3 * pow(10.0, 0.5 * (range - 1));
+    int k = (int)floor(log10(r)/3.0);
+    r /= pow(10.0, 3 * k);
+    XString rangestr = formatString("%.3g ", r) + si.at(k) + "Ohm";
+
+    interface()->query("SCAN? " + channel->getName());
+    unsigned int autoscan;
+    interface()->scanf("%*u,%u", &autoscan);
+    try {
+        channel->iterate_commit([=](Transaction &tr){
+            tr[ *channel->excitation()].clear();
+            for(unsigned int i = 0; i < exc_end; ++i) {
+                double e = exc_begin * pow(10.0, 0.5 * i);
+                int k = (int)floor(log10(e)/3.0);
+                e /= pow(10.0, 3 * k);
+                tr[ *channel->excitation()].add(formatString("%.3g ", e) + si.at(k) + exc_unit);
+            }
+            XString curr_exc = tr[ *channel->excitation()].itemStrings().at(excitation - 1).label;
+
+            tr[ *channel->info()] =
+                "Autorange: " + std::string(autorange ? "On" : "Off") +
+                ", " + rangestr + ", \n" +
+                "Excitation: " + curr_exc +
+                std::string(cs_off ? "Off" : "On") +
+                formatString("Dwell: %u sec., Pause: %u sec.,\n", dwell, pause) +
+               "Autoscan: " + std::string(autoscan ? "On" : "Off") +
+               ", \n" +
+                crvinfo;
+        });
+    }
+    catch(std::out_of_range &e) {
+    }
+}
+
+void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &channel, int exc) {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened())
+        return;
+    interface()->sendf("RDGRNG %s,,%d", channel->getName().c_str(), exc + 1);
+}
+void XLakeShore370::onChannelEnableChanged(const shared_ptr<XChannel> &channel, bool enable) {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened())
+        return;
+    interface()->sendf("INSET %s,%d", channel->getName().c_str(), enable ? 1 : 0);
+    // interface()->sendf("SCAN %s,%d", channel->getName().c_str(), enable ? 1 : 0);
+}
+void XLakeShore370::onScanDwellSecChanged(const shared_ptr<XChannel> &channel, double sec) {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened())
+        return;
+    unsigned int dwell = std::max(1L, lrint(sec));
+    unsigned int pause = std::max(3L, lrint(sec));
+    interface()->sendf("INSET %s,,%d,%d", channel->getName().c_str(), dwell, pause);
+}
 
 XLinearResearch700::XLinearResearch700(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -1113,7 +1227,6 @@ XLinearResearch700::XLinearResearch700(const char *name, bool runtime,
 
     createChannels(ref(tr_meas), meas, true,
         {"0"},
-        {"20uV", "60uV", "200uV", "600uV", "2mV", "6mV", "20mV"},
         {"Loop"});
     iterate_commit([=](Transaction &tr){
         tr[ *powerRange(0)].add({"30uA", "100uA", "300uA", "1mA", "3mA", "10mA", "30mA", "100mA", "300mA", "1A", "3A"});

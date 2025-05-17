@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -38,11 +38,19 @@ public:
 			Transaction &tr_list, const shared_ptr<XThermometerList> &list);
 		const shared_ptr<XItemNode<XThermometerList, XThermometer> > &thermometer() const {return m_thermometer;}
 		const shared_ptr<XThermometerList> &thermometers() const {return m_thermometers;}
-		const   shared_ptr<XComboNode> &excitation() const {return m_excitation;}
-	private:
-		const shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer;
+        const shared_ptr<XComboNode> &excitation() const {return m_excitation;}
+        const shared_ptr<XBoolNode> &enabled() const {return m_enabled;}
+        const shared_ptr<XDoubleNode> &scanDwellSeconds() const {return m_scanDwellSeconds;}
+        const shared_ptr<XStringNode> &info() const {return m_info;}
+        // const shared_ptr<XComboNode> &insstrumentThermometerTable() const {return m_instrumentThermoeterTable;}
+    private:
+        const shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer; //Conversion table inside KAME.
 		const shared_ptr<XComboNode> m_excitation;
-		const shared_ptr<XThermometerList> m_thermometers;
+        const shared_ptr<XBoolNode> m_enabled;
+        const shared_ptr<XDoubleNode> m_scanDwellSeconds;
+        // const shared_ptr<XComboNode> m_instrumentThermoeterTable; //Conversion table inside the instrument.
+        const shared_ptr<XThermometerList> m_thermometers;
+        const shared_ptr<XStringNode> m_info;
 	};
   
 	typedef  XAliasListNode<XChannel> XChannelList;
@@ -88,8 +96,8 @@ protected:
 	//! \param channel_names array of pointers to channel name. ends with null pointer.
 	void createChannels(Transaction &tr, const shared_ptr<XMeasure> &meas,
                         bool multiread, std::initializer_list<XString> channel_names,
-                        std::initializer_list<XString> excitations,
-                        std::initializer_list<XString> loop_names);
+                        std::initializer_list<XString> loop_names,
+                        bool autoscanning = false, bool disabling = false);
   
 	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel) = 0;
@@ -116,7 +124,10 @@ protected:
 	virtual void onPowerMinChanged(unsigned int loop, double v) = 0;
 	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) = 0;
 
-	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) = 0;
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &ch) = 0; //for updating UIs.
+    virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) = 0;
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &ch, bool enable) = 0;
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &ch, double sec) = 0;
 private:
 	shared_ptr<XChannelList> m_channels;
 	//! LOOPs
@@ -186,12 +197,14 @@ private:
 
 	shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
 
-    shared_ptr<Listener> m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged,
+    shared_ptr<Listener> m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged, m_lsnOnScanDwellSecChanged, m_lsnOnChannelEnableChanged,
         m_lsnOnLoopUpdated;
     Transactional::Talker<int, XString> m_tlkOnLoopUpdated;
 
-	void onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *);
+    void onSetupChannelChangedInternal(const Snapshot &shot, XValueNodeBase *);
     void onExcitationChangedInternal(const Snapshot &shot, XValueNodeBase *);
+    void onScanDwellSecondChangedInternal(const Snapshot &shot, XValueNodeBase *);
+    void onChannelEnableChangedInternal(const Snapshot &shot, XValueNodeBase *);
     void onLoopUpdated(int index, const XString &);
 
     std::deque<shared_ptr<XScalarEntry> > m_entry_temps, m_entry_raws;
@@ -199,9 +212,9 @@ private:
 	const qshared_ptr<FrmTempControl> m_form;
 	bool m_multiread;
 
-	xqcon_ptr m_conSetupChannel,
-		m_conExcitation, m_conThermometer;
-	
+    xqcon_ptr m_conSetupChannel;
+    std::deque<xqcon_ptr> m_conChannelUIs;
+
     virtual void *execute(const atomic<bool> &) override;
   
 };

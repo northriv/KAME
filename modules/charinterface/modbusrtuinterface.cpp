@@ -32,7 +32,8 @@ void
 XModbusRTUInterface::open() {
     close();
     shared_ptr<XPort> port = std::make_shared<XModbusRTUPort>(this);
-    port->setEOS(eos().c_str());
+    const char *seos = eos().length() ? eos().c_str() : serialEOS().c_str();
+    port->setEOS(seos);
     openPort(port);
 }
 

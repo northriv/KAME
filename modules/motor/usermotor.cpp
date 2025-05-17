@@ -875,7 +875,8 @@ XSigmaPAMC104::XSigmaPAMC104(const char *name, bool runtime,
     interface()->setSerialBaudRate(115200);
     interface()->setSerialStopBits(1);
     interface()->setSerialParity(XCharInterface::PARITY_NONE);
-    interface()->setSerialEOS("\r\n");
+    interface()->setEOS("\r\n");
+    // interface()->setSerialEOS("\r\n");
 
     trans( *speed()) = 1000; //Hz
 

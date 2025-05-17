@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -24,8 +24,15 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
 	XNode(name, runtime),
 	m_thermometer(create<XItemNode<XThermometerList,
 		XThermometer> > ("Thermometer", false, ref(tr_list), list)),
-	m_excitation(create<XComboNode> ("Excitation", false)),
-	m_thermometers(list) {}
+    m_excitation(create<XComboNode> ("Excitation", true)),
+    m_enabled(create<XBoolNode> ("Enabled", false)),
+    m_scanDwellSeconds(create<XDoubleNode> ("ScanDwellSeconds", true)),
+    // m_instrumentThermoeterTable(create<XComboNode> ("InstrumentThermometerTable", true)),
+    m_thermometers(list) {
+    iterate_commit([=](Transaction &tr){
+        tr[ enabled()] = true;
+    });
+}
 
 XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl> tempctrl, Transaction &tr,
 		unsigned int idx, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -380,7 +387,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
 
     iterate_commit([=](Transaction &tr){
 		m_lsnOnSetupChannelChanged = tr[ *m_setupChannel].onValueChanged().connectWeakly(
-			shared_from_this(), &XTempControl::onSetupChannelChanged);
+            shared_from_this(), &XTempControl::onSetupChannelChangedInternal);
         m_lsnOnLoopUpdated = m_tlkOnLoopUpdated.connectWeakly(shared_from_this(), &XTempControl::onLoopUpdated,
             Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
     });
@@ -417,30 +424,54 @@ void XTempControl::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 void XTempControl::visualize(const Snapshot &shot) {
 }
 
-void XTempControl::onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *) {
-	m_conThermometer.reset();
-	m_conExcitation.reset();
-	m_lsnOnExcitationChanged.reset();
+void XTempControl::onSetupChannelChangedInternal(const Snapshot &shot, XValueNodeBase *) {
+    m_conChannelUIs.clear();
+    m_lsnOnExcitationChanged.reset();
+    m_lsnOnScanDwellSecChanged.reset();
+    m_lsnOnChannelEnableChanged.reset();
 	shared_ptr<XChannel> channel = shot[ *m_setupChannel];
 	if( !channel)
 		return;
-	m_conThermometer = xqcon_create<XQComboBoxConnector> (
-		channel->thermometer(), m_form->m_cmbThermometer, Snapshot( *channel->thermometers()));
-	m_conExcitation = xqcon_create<XQComboBoxConnector> (channel->excitation(),
-		m_form->m_cmbExcitation, Snapshot( *channel->excitation()));
+    try {
+        onSetupChannelChanged(channel);
+    }
+    catch(XInterface::XInterfaceError& e) {
+        e.print();
+        return;
+    }
+    m_conChannelUIs = {
+        xqcon_create<XQComboBoxConnector> (
+            channel->thermometer(), m_form->m_cmbThermometerSoft, Snapshot( *channel->thermometers())),
+        xqcon_create<XQComboBoxConnector> (channel->excitation(),
+                                          m_form->m_cmbExcitation, Snapshot( *channel->excitation())),
+        xqcon_create<XQToggleButtonConnector> (channel->enabled(),
+                                              m_form->m_ckbChannelEnabled),
+        xqcon_create<XQDoubleSpinBoxConnector> (channel->scanDwellSeconds(),
+                                               m_form->m_dsbChannelDwellSec),
+        xqcon_create<XQTextBrowserConnector> (channel->info(),
+                                             m_form->m_txtChannelInfo),
+    };
     iterate_commit([=](Transaction &tr){
 		m_lsnOnExcitationChanged
             = tr[ *channel->excitation()].onValueChanged().connectWeakly(
                 shared_from_this(),
                 &XTempControl::onExcitationChangedInternal);
+        m_lsnOnScanDwellSecChanged
+            = tr[ *channel->scanDwellSeconds()].onValueChanged().connectWeakly(
+                shared_from_this(),
+                &XTempControl::onScanDwellSecondChangedInternal);
+        m_lsnOnChannelEnableChanged
+            = tr[ *channel->enabled()].onValueChanged().connectWeakly(
+                shared_from_this(),
+                &XTempControl::onChannelEnableChangedInternal);
     });
 }
 
 void XTempControl::createChannels(
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
     bool multiread, std::initializer_list<XString> channel_names,
-    std::initializer_list<XString> excitations,
-    std::initializer_list<XString> loop_names) {
+    std::initializer_list<XString> loop_names,
+    bool autoscanning, bool disabling) {
 	shared_ptr<XScalarEntryList> entries(meas->scalarEntries());
 	m_multiread = multiread;
 
@@ -448,8 +479,11 @@ void XTempControl::createChannels(
         for(auto &&ch: channel_names) {
 			shared_ptr<XChannel> channel = m_channels->create<XChannel> (
                 tr, ch.c_str(), false, ref(tr_meas), meas->thermometers());
-            tr[ *channel->excitation()].add(excitations);
-		}
+            if( !autoscanning)
+                tr[ *channel->scanDwellSeconds()].disable();
+            if( !disabling)
+                tr[ *channel->enabled()].disable();
+        }
     });
 	if(multiread) {
 		Snapshot shot( *m_channels);
@@ -641,7 +675,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 					for(auto lit = m_loops.begin(); lit != m_loops.end(); ++lit) {
 						shared_ptr<XChannel> curch = shot[ ( *lit)->m_currentChannel];
 						if(curch == ch)
-							src_found = true;;
+                            src_found = true;
 					}
 					if(m_multiread || src_found) {
 						shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
@@ -679,6 +713,52 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	return NULL;
 }
 
+void XTempControl::onScanDwellSecondChangedInternal(const Snapshot &, XValueNodeBase *node) {
+    try {
+        shared_ptr<XChannel> ch;
+        Snapshot shot( *channels());
+        if(shot.size()) {
+            const XNode::NodeList &list( *shot.list());
+            for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
+                shared_ptr<XChannel> ch__ =
+                    dynamic_pointer_cast<XChannel> ( *it);
+                if(ch__->scanDwellSeconds().get() == node)
+                    ch = ch__;
+            }
+        }
+        if( !ch)
+            return;
+        double sec = shot[ *ch->scanDwellSeconds()];
+        if(sec <= 0)
+            return;
+        onScanDwellSecChanged(ch, sec);
+    }
+    catch(XInterface::XInterfaceError& e) {
+        e.print();
+    }
+}
+void XTempControl::onChannelEnableChangedInternal(const Snapshot &, XValueNodeBase *node) {
+    try {
+        shared_ptr<XChannel> ch;
+        Snapshot shot( *channels());
+        if(shot.size()) {
+            const XNode::NodeList &list( *shot.list());
+            for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
+                shared_ptr<XChannel> ch__ =
+                    dynamic_pointer_cast<XChannel> ( *it);
+                if(ch__->enabled().get() == node)
+                    ch = ch__;
+            }
+        }
+        if( !ch)
+            return;
+        bool enabled = shot[ *ch->enabled()];
+        onChannelEnableChanged(ch, enabled);
+    }
+    catch(XInterface::XInterfaceError& e) {
+        e.print();
+    }
+}
 void XTempControl::onExcitationChangedInternal(const Snapshot &, XValueNodeBase *node) {
     try {
         shared_ptr<XChannel> ch;
