@@ -19,7 +19,9 @@ REGISTER_TYPE(XDriverList, CryoconM32, "Cryocon M32 temp. controller");
 REGISTER_TYPE(XDriverList, CryoconM62, "Cryocon M62 temp. controller");
 REGISTER_TYPE(XDriverList, LakeShore340, "LakeShore 340 temp. controller");
 REGISTER_TYPE(XDriverList, LakeShore350, "LakeShore 350 temp. controller");
-REGISTER_TYPE(XDriverList, LakeShore370, "LakeShore 370/372 AC res. bridge");
+REGISTER_TYPE(XDriverList, LakeShore370_1CH, "LakeShore 370/372 AC res. bridge");
+REGISTER_TYPE(XDriverList, LakeShore370, "LakeShore 370/372 AC res. bridge w/ 8Ch scanner");
+REGISTER_TYPE(XDriverList, LakeShore370_16CH, "LakeShore 370/372 AC res. bridge w/ 16Ch scanner");
 REGISTER_TYPE(XDriverList, AVS47IB, "Picowatt AVS-47 AC res. bridge");
 REGISTER_TYPE(XDriverList, ITC503, "Oxford ITC-503 temp. controller");
 REGISTER_TYPE(XDriverList, NeoceraLTC21, "Neocera LTC-21 temp. controller");
@@ -1015,13 +1017,13 @@ void XLakeShore350::onExcitationChanged(const shared_ptr<XChannel> &channel, int
 }
 
 XLakeShore370::XLakeShore370(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XLakeShoreBridge(name, runtime, ref(tr_meas), meas) {
-
-    createChannels(ref(tr_meas), meas, true,
-        {"1", "2", "3", "4", "5", "6", "7", "8"},
-        {"Loop"},
-        true, true); //Assuming scanner is used.
+                             Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool create_8ch) :
+	XLakeShoreBridge(name, runtime, ref(tr_meas), meas) {    
+    if(create_8ch)
+        createChannels(ref(tr_meas), meas, true,
+            {"1", "2", "3", "4", "5", "6", "7", "8"},
+            {"Loop"},
+            true, true); //scanner is used.
 }
 
 double XLakeShore370::getRaw(shared_ptr<XChannel> &channel) {

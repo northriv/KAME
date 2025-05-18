@@ -384,11 +384,11 @@ protected:
     virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) override {}
 private:
 };
-//! LakeShore 370
+//! Base class for LakeShore 370
 class XLakeShore370 : public XLakeShoreBridge {
 public:
     XLakeShore370(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool create_8ch = false);
     virtual ~XLakeShore370() = default;
 
 protected:
@@ -422,5 +422,30 @@ protected:
     virtual bool is372() const {return m_is372;}
 private:
     bool m_is372 = false;
+};
+
+class XLakeShore370_1CH : public XLakeShore370 {
+public:
+    XLakeShore370_1CH(const char *name, bool runtime,
+                                 Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+        XLakeShore370(name, runtime, ref(tr_meas), meas, false) {
+        createChannels(ref(tr_meas), meas, true,
+                       {"1"},
+                       {"Loop"},
+                       false, false);
+    }
+};
+using XLakeShore370_8CH = XLakeShore370;
+class XLakeShore370_16CH : public XLakeShore370 {
+public:
+    XLakeShore370_16CH(const char *name, bool runtime,
+                                         Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+        XLakeShore370(name, runtime, ref(tr_meas), meas, false) {
+        createChannels(ref(tr_meas), meas, true,
+                       {"1", "2", "3", "4", "5", "6", "7", "8",
+                        "9", "10", "11", "12", "13", "14", "15", "16"},
+                       {"Loop"},
+                       true, true); //scanner is used.
+    }
 };
 #endif
