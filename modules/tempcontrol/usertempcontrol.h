@@ -388,7 +388,7 @@ private:
 class XLakeShore370 : public XLakeShoreBridge {
 public:
     XLakeShore370(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool create_8ch = false);
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool create_8ch = true);
     virtual ~XLakeShore370() = default;
 
 protected:
