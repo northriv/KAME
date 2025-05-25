@@ -757,10 +757,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 std::sort(presetAngles.begin(), presetAngles.end());
                 double stms[2];
                 message += "Using preset angles.\n";
-                for(unsigned int i = 1; i <= presetAngles.size(); ++i) {
-                    if((presetAngles[i].targetFreq < f0) || (f0 >= presetAngles.back().targetFreq)) {
+                for(unsigned int i = 1; i < presetAngles.size(); ++i) {
+                    double a = (f0 - presetAngles[i - 1].targetFreq) / (presetAngles[i].targetFreq - presetAngles[i - 1].targetFreq);
+                    if(((0 <= a) && (a <= 1)) ||
+                            ((i == 1) && (a < 0) && (a > -0.5)) ||
+                            ((i == presetAngles.size() - 1) && (a > 1) && (a < 1.5))) {
                         //bilinear interpolation/extrapolation
-                        double a = (f0 - presetAngles[i - 1].targetFreq) / (presetAngles[i].targetFreq - presetAngles[i - 1].targetFreq);
                         for(int j: {0,1})
                             stms[j] = presetAngles[i - 1].stms[j] * (1 - a) + presetAngles[i].stms[j] * a;
                     }
