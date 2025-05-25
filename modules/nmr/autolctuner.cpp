@@ -755,7 +755,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             }
             if(presetAngles.size()) {
                 std::sort(presetAngles.begin(), presetAngles.end());
-                double stms[1];
+                double stms[2];
                 message += "Using preset angles.\n";
                 for(unsigned int i = 1; i <= presetAngles.size(); ++i) {
                     if((presetAngles[i].targetFreq < f0) || (f0 >= presetAngles.back().targetFreq)) {
