@@ -46,7 +46,9 @@ public:
 	void initialize();
 	//! clean all drivers, thermometers.
 	void terminate();
-	//! stop all drivers.
+    //! terminate() and clean up script supports.
+    void terminate_all();
+    //! stop all drivers.
 	void stop();
 
 	const shared_ptr<XThermometerList> &thermometers() const {return m_thermometers;}

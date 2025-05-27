@@ -131,11 +131,7 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 }
 
 XMeasure::~XMeasure() {
-    fprintf(stderr, "terminat");
-    m_rawStreamRecordReader->terminate();
-    m_rawStreamRecordReader->join();
-    g_statusPrinter.reset();
-    fprintf(stderr, "ed.\n");
+
 }
 void XMeasure::initialize() {
 }
@@ -146,6 +142,10 @@ void XMeasure::terminate() {
 	thermometers()->releaseAll();
     Snapshot shot( *this);
 	initialize();
+}
+void XMeasure::terminate_all() {
+    terminate();
+    fprintf(stderr, "terminat");
     m_ruby->terminate();
     m_ruby->join();
     m_ruby.reset();
@@ -155,7 +155,12 @@ void XMeasure::terminate() {
     m_python->join();
     m_python.reset();
 #endif
+    m_rawStreamRecordReader->terminate();
+    m_rawStreamRecordReader->join();
+    g_statusPrinter.reset();
+    fprintf(stderr, "ed.\n");
 }
+
 void XMeasure::stop() {
 	Snapshot shot( *drivers());
 	if(shot.size()) {

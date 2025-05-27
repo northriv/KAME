@@ -240,7 +240,7 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 }
 
 FrmKameMain::~FrmKameMain() {
-	m_pTimer->stop();
+    m_pTimer->stop();
 //	while( !g_signalBuffer->synchronize()) {}
     Transactional::SignalBuffer::cleanup();
     s_pMessageBox.reset();
@@ -401,7 +401,7 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
     else {
 		ce->accept();
 		printf("quit\n");
-		m_measure->terminate();
+        m_measure->terminate_all();
 
 		m_measure.reset();
 	}
