@@ -184,8 +184,8 @@ void
 XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool single) {
     for(;;) {
         try {
-            Transaction tr( *this);
-            msecsleep(50); //waits for possible collision.
+            msecsleep(200); //waits for possible collision.
+            XScopedLock<XInterface> lock( *this->interface());
 
             double olevel = query("ATT1R");
         //    olevel = log10(olevel / 1023.0) * 20.0;
@@ -199,6 +199,7 @@ XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool singl
             int warn = (int)lrint(query("STTSR"));
             double f = getFreq();
 
+            Transaction tr( *this);
             for(;;){
                 if(fabs(tr[ *this->freq()] - f) > 1e-6) {
                     tr[ *this->freq()] = f;
