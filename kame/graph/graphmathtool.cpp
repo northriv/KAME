@@ -329,11 +329,12 @@ XGraph2DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
             double ymin = tr[ *tool->beginY()];
             double ymax = tr[ *tool->endY()];
             ssize_t x0 = lrint(xmin);
-//            ssize_t y0 = lrint(ymin);
-            ssize_t y0 = lrint(numlines - 1 - ymax); //mirror y
+            ssize_t y0 = lrint(ymin); //do not mirror y
+//            ssize_t y0 = lrint(numlines - 1 - ymax); //mirror y
             ssize_t x1 = std::min((long)width - 1, lrint(xmax));
-//            ssize_t y1 = std::min((long)stride - 1, lrint(ymax));
-            ssize_t y1 = lrint(numlines - 1 - ymin); //mirror y
+            ssize_t y1 = lrint(ymax); //do not mirror y
+//            ssize_t y1 = lrint(numlines - 1 - ymin); //mirror y
+            y1 = std::min(y1, (ssize_t)numlines - 1); //limits y
             if((x0 >= 0) && (y0 >= 0) && (x0 < stride) && (y0 < numlines) && (x1 >= x0)) {
                 tool->update(tr, graphwidget, leftupper + x0 + y0 * stride, x1 - x0 + 1,
                     stride, y1 - y0 + 1, coefficient);
