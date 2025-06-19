@@ -90,6 +90,7 @@ public:
         };
         std::deque<Edge> m_edgesOrig;
         unsigned int m_antishake_pixels = {};
+        bool m_storeDarkInvoked = false, m_storeAntiShakeInvoked = false;
     };
 protected:
 
@@ -157,7 +158,6 @@ private:
     void onROISelectionToolFinished(const Snapshot &shot,
         const std::tuple<XString, Vector4<double>, Vector4<double>, XQGraph*>&);
 
-    atomic<bool> m_storeDarkInvoked, m_storeAntiShakeInvoked;
     constexpr static unsigned int NumSummedCountsPool = 2;
     atomic_shared_ptr<std::vector<uint32_t>> m_rawCountsPool[NumSummedCountsPool];
     local_shared_ptr<std::vector<uint32_t>> rawCountsFromPool(int imagebytes);

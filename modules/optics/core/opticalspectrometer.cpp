@@ -132,7 +132,7 @@ XOpticalSpectrometer::showForms() {
 
 void
 XOpticalSpectrometer::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *) {
-    m_storeDarkInvoked = true;
+    trans( *this).m_storeDarkInvoked = true;
 }
 
 void
@@ -166,8 +166,8 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
             y -= *vd++;
         *v++ = y;
     }
-    if(m_storeDarkInvoked) {
-        m_storeDarkInvoked = false;
+    if(tr[ *this].m_storeDarkInvoked) {
+        tr[ *this].m_storeDarkInvoked = false;
         tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
         for(auto& x: tr[ *this].darkCounts_())
             x /= accumulated;
@@ -243,7 +243,7 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
         integrationTime()
         };
 
-    m_storeDarkInvoked = false;
+    trans( *this).m_storeDarkInvoked = false;
 
 	iterate_commit([=](Transaction &tr){
         m_lsnOnStartWavelenChanged = tr[ *startWavelen()].onValueChanged().connectWeakly(

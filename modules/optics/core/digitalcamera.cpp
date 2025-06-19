@@ -92,11 +92,11 @@ XDigitalCamera::showForms() {
 
 void
 XDigitalCamera::onAntiShakeChanged(const Snapshot &shot, XValueNodeBase *) {
-    m_storeAntiShakeInvoked = true;
+    trans( *this).m_storeAntiShakeInvoked = true;
 }
 void
 XDigitalCamera::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *) {
-    m_storeDarkInvoked = true;
+    trans( *this).m_storeDarkInvoked = true;
 }
 void
 XDigitalCamera::onVideoModeChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -361,45 +361,77 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     assert(rawNext == &rawCountsNext->at(0) + width * height);
 //    fprintf(stderr, "gain %u vmin:vmax %u %u\n", gain_disp, vmin, vmax);
     tr[ *this].m_rawCounts = rawCountsNext;
-    if(m_storeDarkInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
+    if(tr[ *this].m_storeDarkInvoked) { // && (cidx == 0)
+        tr[ *this].m_storeDarkInvoked = false;
         tr[ *this].m_darkCounts = make_local_shared<std::vector<uint32_t>>( *rawCountsNext);
     }
     if( !tr[ *subtractDark()] || !tr[ *this].m_darkCounts || (tr[ *this].m_darkCounts->size() != width * height)) {
         tr[ *this].m_darkCounts.reset();
     }
-    if(m_storeAntiShakeInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
+    if(tr[ *this].m_storeAntiShakeInvoked) { // && (cidx == 0)
         //Setting has been changed by user.
         int32_t antishake_pixels = tr[ *m_antiShakePixels];
         tr[ *this].m_antishake_pixels = antishake_pixels;
         if(antishake_pixels > 0) {
             if(std::min(width, height) < tr[ *m_antiShakePixels] * 16)
                 throw XSkippedRecordError(i18n("Too many pixels for antishaking."), __FILE__, __LINE__);
-
+        }
+    }
+    tr[ *this].m_stride = width;
+    tr[ *this].m_width = width;
+    tr[ *this].m_height = height;
+    int32_t antishake_pixels = tr[ *this].m_antishake_pixels;
+    if(antishake_pixels) {
+        uint64_t cogx = 0u, cogy = 0u, toti = 0u;
+        {
+            //finds the mode value (background)
+            std::vector<size_t> counts(vmax + 1, 0);
+            uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
+            for(unsigned int y = 0; y < height; ++y) {
+                for(unsigned int x  = 0; x < width; ++x) {
+                   ++counts[ *raw++];
+                }
+            }
+            uint32_t vmode = std::distance(counts.begin(), std::max_element(counts.begin(), counts.end()));
+            uint32_t vignore = vmode + (vmax - vmode) / 10;
+            //ignores pixels darker than vignore value.
+            raw = &tr[ *this].m_rawCounts->at(0);
+            for(unsigned int y = 0; y < height; ++y) {
+                for(unsigned int x  = 0; x < width; ++x) {
+                   uint32_t v = *raw++;
+                   v = std::max(v, vignore);
+                   cogx += v * x;
+                   cogy += v * y;
+                   toti += v;
+                }
+            }
+        }
+        if(tr[ *this].m_storeAntiShakeInvoked) {
             //stores original image info. before shake.
             tr[ *this].m_cogXOrig = (double)cogx / toti;
             tr[ *this].m_cogYOrig = (double)cogy / toti;
             tr[ *this].m_edgesOrig = edges;
+            tr[ *this].m_storeAntiShakeInvoked = false;
         }
-    }
-    int32_t antishake_pixels = tr[ *this].m_antishake_pixels;
-    const int max_pixelshift_bycog = antishake_pixels;
-    tr[ *this].m_stride = width;
-    const int pixels_skip = max_pixelshift_bycog + (kernel_len - 1) / 2;
-    tr[ *this].m_width = width - 2 * pixels_skip;
-    tr[ *this].m_height = height - 2 * pixels_skip;
-    if(antishake_pixels) {
+
+        const int max_pixelshift_bycog = antishake_pixels;
+        tr[ *this].m_stride = width;
+        const int pixels_skip = max_pixelshift_bycog + (kernel_len - 1) / 2;
+        tr[ *this].m_width = width - 2 * pixels_skip;
+        tr[ *this].m_height = height - 2 * pixels_skip;
+
         //finds the pixels shifts
         double shift_dx = (double)cogx / toti - tr[ *this].m_cogXOrig;
         int shift_x = floor(shift_dx);
-        shift_dx -= shift_x;
         double shift_dy = (double)cogy / toti - tr[ *this].m_cogYOrig;
         int shift_y = floor(shift_dy);
+        shift_dx -= shift_x;
         shift_dy -= shift_y;
         shift_x = std::min(shift_x, max_pixelshift_bycog);
         shift_x = std::max(shift_x, -max_pixelshift_bycog);
         shift_y = std::min(shift_y, max_pixelshift_bycog);
         shift_y = std::max(shift_y, -max_pixelshift_bycog);
-        fprintf(stderr, "shift: (%d, %d)\n", shift_x, shift_y);
+        fprintf(stderr, "shift: (%.2f, %.2f)\n", shift_x + shift_dx, shift_y + shift_dy);
         tr[ *this].m_firstPixel = (shift_y + pixels_skip) * width + shift_x + pixels_skip; //(0,0) origin for the secondary drivers.
         const auto &edge_orig = tr[ *this].m_edgesOrig;
         {
@@ -434,6 +466,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                     cache_orig_lines[k].resize(width + kernel_len);
                     const uint32_t *bg = raw - (kernel_len - 1)/2 + (k - (int)(kernel_len - 1)/2) * (int)stride;
                     assert(bg >= &tr[ *this].m_rawCounts->at(0));
+                    assert(bg + width + kernel_len <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
                     std::copy(bg, bg + width + kernel_len, &cache_orig_lines[k][0]);
                 }
                 int64_t sum = 0;
@@ -465,6 +498,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     }
     else {
          tr[ *this].m_firstPixel = 0;
+         tr[ *this].m_storeAntiShakeInvoked = false;
     }
 //    case (unsigned int)ColoringMethod::RGBWHEEL: {
 //        uint8_t *processed = reinterpret_cast<uint8_t*>(processedimage->bits());
@@ -521,7 +555,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
         m_roiSelectionTool,
     };
 
-    m_storeDarkInvoked = false;
+    trans( *this).m_storeDarkInvoked = false;
+    trans( *this).m_storeAntiShakeInvoked = false;
 
     afterOpen();
 
