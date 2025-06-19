@@ -422,9 +422,9 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
 
         //finds the pixels shifts
         double shift_dx = (double)cogx / toti - tr[ *this].m_cogXOrig;
-        int shift_x = floor(shift_dx);
+        int shift_x = lrint(shift_dx);
         double shift_dy = (double)cogy / toti - tr[ *this].m_cogYOrig;
-        int shift_y = floor(shift_dy);
+        int shift_y = lrint(shift_dy);
         shift_dx -= shift_x;
         shift_dy -= shift_y;
         shift_x = std::min(shift_x, max_pixelshift_bycog);
