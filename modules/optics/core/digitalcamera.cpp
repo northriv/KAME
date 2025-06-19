@@ -263,7 +263,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     std::deque<Payload::Edge> edges = {{0,0,0,0,0}};
     const Payload::Edge *edge_min = &edges.front();
     constexpr unsigned int num_edges = 10;
-    constexpr unsigned int kernel_len = 4; //cubic
+    constexpr unsigned int kernel_len = 3; //cubic
     //stores prominent edge, which does not overwraps each other.
     auto fn_detect_edge = [&edges, &edge_min, &raw_lines](unsigned int x, unsigned int y) {
 // kernel
@@ -452,7 +452,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 }
             }
             double frac = (double)0x100000000LL / std::accumulate(kernel.begin(), kernel.end(), 0LL);
-            for(auto &&x: kernel)
+            for(auto &x: kernel)
                 x = llrint(x * frac);
             {
                 //convolution.
@@ -466,7 +466,6 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                     cache_orig_lines[k].resize(width + kernel_len);
                     const uint32_t *bg = raw - (kernel_len - 1)/2 + (k - (int)(kernel_len - 1)/2) * (int)stride;
                     assert(bg >= &tr[ *this].m_rawCounts->at(0));
-                    assert(bg + width + kernel_len <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
                     std::copy(bg, bg + width + kernel_len, &cache_orig_lines[k][0]);
                 }
                 int64_t sum = 0;
@@ -490,7 +489,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                     for(unsigned int k = 0; k < kernel_len - 1; ++k) {
                         std::copy(cache_orig_lines[k + 1].begin(), cache_orig_lines[k + 1].end(), &cache_orig_lines[k][0]);
                     }
-                    const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * stride;
+                    const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * (int)stride;
+                    assert(bg + width + kernel_len <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
                     std::copy(bg, bg + width + kernel_len, &cache_orig_lines[kernel_len - 1][0]);
                 }
             }
