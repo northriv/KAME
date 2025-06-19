@@ -262,10 +262,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     uint32_t *raw_lines[num_conv];
     std::deque<Payload::Edge> edges = {{0,0,0,0,0}};
     const Payload::Edge *edge_min = &edges.front();
-    int32_t antishake_pixels = tr[ *m_antiShakePixels];
     constexpr unsigned int num_edges = 10;
     constexpr unsigned int kernel_len = 4; //cubic
-    const int max_pixelshift_bycog = antishake_pixels;
     //stores prominent edge, which does not overwraps each other.
     auto fn_detect_edge = [&edges, &edge_min, &raw_lines](unsigned int x, unsigned int y) {
 // kernel
@@ -370,6 +368,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         tr[ *this].m_darkCounts.reset();
     }
     if(m_storeAntiShakeInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
+        //Setting has been changed by user.
+        int32_t antishake_pixels = tr[ *m_antiShakePixels];
         tr[ *this].m_antishake_pixels = antishake_pixels;
         if(antishake_pixels > 0) {
             if(std::min(width, height) < tr[ *m_antiShakePixels] * 16)
@@ -381,7 +381,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             tr[ *this].m_edgesOrig = edges;
         }
     }
-    antishake_pixels = tr[ *this].m_antishake_pixels;
+    int32_t antishake_pixels = tr[ *this].m_antishake_pixels;
+    const int max_pixelshift_bycog = antishake_pixels;
     tr[ *this].m_stride = width;
     const int pixels_skip = max_pixelshift_bycog + (kernel_len - 1) / 2;
     tr[ *this].m_width = width - 2 * pixels_skip;

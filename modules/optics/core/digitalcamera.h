@@ -89,7 +89,7 @@ public:
             int64_t sobel_x, sobel_y;
         };
         std::deque<Edge> m_edgesOrig;
-        unsigned int m_antishake_pixels;
+        unsigned int m_antishake_pixels = {};
     };
 protected:
 
