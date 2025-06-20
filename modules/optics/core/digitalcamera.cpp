@@ -482,10 +482,10 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 //copies (-N/2, -N/2) to (width + N/2, N/2) pixels for convolution, not to be overwritten by new values.
                 std::vector<uint32_t> cache_orig_lines[kernel_len];
                 for(int k = 0; k < kernel_len; ++k) {
-                    cache_orig_lines[k].resize(width + kernel_len);
+                    cache_orig_lines[k].resize(width + (kernel_len - 1) * 2);
                     const uint32_t *bg = raw - (kernel_len - 1)/2 + (k - (int)(kernel_len - 1)/2) * (int)stride;
                     assert(bg >= &tr[ *this].m_rawCounts->at(0));
-                    std::copy(bg, bg + width + kernel_len, &cache_orig_lines[k][0]);
+                    std::copy(bg, bg + cache_orig_lines[k].size(), &cache_orig_lines[k][0]);
                 }
                 int64_t sum = 0;
                 uint32_t *raw_x0 = raw;
@@ -509,8 +509,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                         std::copy(cache_orig_lines[k + 1].begin(), cache_orig_lines[k + 1].end(), &cache_orig_lines[k][0]);
                     }
                     const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * (int)stride;
-                    assert(bg + width + kernel_len <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
-                    std::copy(bg, bg + width + kernel_len, &cache_orig_lines[kernel_len - 1][0]);
+                    assert(bg + cache_orig_lines[0].size() <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
+                    std::copy(bg, bg + cache_orig_lines[0].size(), &cache_orig_lines[kernel_len - 1][0]);
                 }
             }
         }
