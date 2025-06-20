@@ -384,6 +384,25 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     if(antishake_pixels) {
         uint64_t cogx = 0u, cogy = 0u, toti = 0u;
         {
+            // //finds the mode value (background)
+            // constexpr uint64_t gdiv = 256;
+            // std::vector<size_t> counts(gdiv, 0); //counting histogram with resolution of gdiv.
+            // uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
+            // for(unsigned int y = 0; y < height; ++y) {
+            //     for(unsigned int x  = 0; x < width; ++x) {
+            //         ++counts[ (*raw++) * gdiv / (vmax + 1)];
+            //     }
+            // }
+            // std::sort(counts.begin(), counts.end()); //ascenting order.
+            // uint64_t vignore = 0;
+            // uint64_t majorv = 0;
+            // for(int i = gdiv - 1; i >= 0; i--) {
+            //     majorv += counts[i];
+            //     if(majorv > width * height / 10) {
+            //         vignore = i * vmax / gdiv; //intensity at top 10%.
+            //         break;
+            //     }
+            // }
             //finds the mode value (background)
             std::vector<size_t> counts(vmax + 1, 0);
             uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
@@ -392,14 +411,14 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                    ++counts[ *raw++];
                 }
             }
-            uint32_t vmode = std::distance(counts.begin(), std::max_element(counts.begin(), counts.end()));
-            uint32_t vignore = vmode + (vmax - vmode) / 10;
+            uint64_t vmode = std::distance(counts.begin(), std::max_element(counts.begin(), counts.end()));
+            uint64_t vignore = vmode + (vmax - vmode) / 10;
             //ignores pixels darker than vignore value.
             raw = &tr[ *this].m_rawCounts->at(0);
             for(unsigned int y = 0; y < height; ++y) {
                 for(unsigned int x  = 0; x < width; ++x) {
-                   uint32_t v = *raw++;
-                   v = std::max(v, vignore);
+                   uint64_t v = *raw++;
+                   v = std::max((int64_t)0, (int64_t)v - (int64_t)vignore);
                    cogx += v * x;
                    cogy += v * y;
                    toti += v;
