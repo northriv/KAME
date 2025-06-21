@@ -291,6 +291,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     uint32_t *rawNext = &rawCountsNext->at(0);
     uint16_t vmin = 0xffffu;
     uint16_t vmax = 0u;
+    uint16_t vignore;
     constexpr unsigned int num_hist = 32;
     std::vector<uint32_t> hist_fullrange;
     constexpr unsigned int num_conv = 3;
@@ -298,27 +299,6 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     uint32_t *raw_lines[num_conv];
     constexpr unsigned int kernel_len = 3; //cubic
 
-//    {
-//         //finds the mode value (background)
-//         constexpr uint64_t gdiv = 256;
-//         std::vector<size_t> counts(gdiv, 0); //counting histogram with resolution of gdiv.
-//         uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
-//         for(unsigned int y = 0; y < height; ++y) {
-//             for(unsigned int x  = 0; x < width; ++x) {
-//                 ++counts[ (*raw++) * gdiv / (vmax + 1)];
-//             }
-//         }
-//         std::sort(counts.begin(), counts.end()); //ascenting order.
-//         uint64_t vignore = 0;
-//         uint64_t majorv = 0;
-//         for(int i = gdiv - 1; i >= 0; i--) {
-//             majorv += counts[i];
-//             if(majorv > width * height / 10) {
-//                 vignore = i * vmax / gdiv; //intensity at top 10%.
-//                 break;
-//             }
-//         }
-//    }
     auto fn_prepare_prevlines = [&raw_lines, &dummy_lines, &rawCountsNext, width](unsigned int y) {
         if(y >= num_conv + 1) {
             for(unsigned int i = 0; i < num_conv; ++i)
@@ -345,11 +325,19 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             size_t j = lrint(((double)i * vsat / hist_fullrange.size() - vmin) / (vmax - vmin) * hist.size());
             hist[std::min(hist.size() - 1, j)] += hist_fullrange[i];
         }
+        uint32_t tot = 0;
+        for(int i = hist_fullrange.size() - 1; i >= 0; i--) {
+            tot += hist_fullrange[i];
+            if(tot > width * height / 10) {
+                vignore = (uint64_t)i * vsat / hist_fullrange.size(); //intensity at top 10%.
+                break;
+            }
+        }
         tr[ *this].m_maxIntensity = vmax;
         tr[ *this].m_minIntensity = vmin;
     };
     if(mono16) {
-        hist_fullrange.resize(256*num_hist, 0);
+        hist_fullrange.resize(0x10000u, 0);
         for(unsigned int y  = 0; y < height; ++y) {
             fn_prepare_prevlines(y);
             for(unsigned int x  = 0; x < width; ++x) {
@@ -371,7 +359,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         fn_finalize_histogram(0x10000u);
     }
     else {
-        hist_fullrange.resize(256, 0);
+        hist_fullrange.resize(0x100u, 0);
         for(unsigned int y  = 0; y < height; ++y) {
             fn_prepare_prevlines(y);
             for(unsigned int x  = 0; x < width; ++x) {
@@ -410,18 +398,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     tr[ *this].m_height = height;
     if(antishake_pixels) {
         uint64_t cogx = 0u, cogy = 0u, toti = 0u;
-        double thres;
         {
-            if(tr[ *this].m_storeAntiShakeInvoked) {
-                //finds the mode value (background)
-                uint64_t vmode = std::distance(tr[ *this].m_histogram.begin(), std::max_element(tr[ *this].m_histogram.begin(), tr[ *this].m_histogram.end()));
-                vmode = lrint((double)vmode / tr[ *this].m_histogram.size() * (vmax - vmin) + vmin);
-                thres = (vmode * 0.9 + vmax * 0.1 - vmin) / (vmax - vmin);
-                tr[ *this].m_thresOrig = thres;
-            }
-            else
-                thres = tr[ *this].m_thresOrig;
-            uint32_t vignore = thres * (vmax - vmin) + vmin;
             //ignores pixels darker than vignore value.
             uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
             raw = &tr[ *this].m_rawCounts->at(0);
