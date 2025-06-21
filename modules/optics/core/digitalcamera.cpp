@@ -410,11 +410,17 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     tr[ *this].m_height = height;
     if(antishake_pixels) {
         uint64_t cogx = 0u, cogy = 0u, toti = 0u;
+        double thres;
         {
-            //finds the mode value (background)
-            uint64_t vmode = std::distance(tr[ *this].m_histogram.begin(), std::max_element(tr[ *this].m_histogram.begin(), tr[ *this].m_histogram.end()));
-            vmode = lrint((double)vmode / tr[ *this].m_histogram.size() * (vmax - vmin) + vmin);
-            uint64_t vignore = vmode + (vmax - vmode) / 10;
+            if(tr[ *this].m_storeAntiShakeInvoked) {
+                //finds the mode value (background)
+                uint64_t vmode = std::distance(tr[ *this].m_histogram.begin(), std::max_element(tr[ *this].m_histogram.begin(), tr[ *this].m_histogram.end()));
+                vmode = lrint((double)vmode / tr[ *this].m_histogram.size() * (vmax - vmin) + vmin);
+                thres = (vmode * 0.9 + vmax * 0.1 - vmin) / (vmax - vmin);
+            }
+            else
+                thres = tr[ *this].m_thresOrig;
+            uint32_t vignore = thres * (vmax - vmin) + vmin;
             //ignores pixels darker than vignore value.
             uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
             raw = &tr[ *this].m_rawCounts->at(0);
@@ -432,7 +438,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             //stores original image info. before shake.
             tr[ *this].m_cogXOrig = (double)cogx / toti;
             tr[ *this].m_cogYOrig = (double)cogy / toti;
-//            tr[ *this].m_edgesOrig = edges;
+            tr[ *this].m_thresOrig = thres;
             tr[ *this].m_storeAntiShakeInvoked = false;
         }
 
@@ -507,13 +513,15 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                     }
                     raw_x0 += stride;
                     raw = raw_x0;
-                    //slides cached values and retrieves original values.
-                    for(unsigned int k = 0; k < kernel_len - 1; ++k) {
-                        std::copy(cache_orig_lines[k + 1].begin(), cache_orig_lines[k + 1].end(), &cache_orig_lines[k][0]);
+                    if(y < height - 1) { //no thank you at the last line.
+                        //slides cached values and retrieves original values.
+                        for(unsigned int k = 0; k < kernel_len - 1; ++k) {
+                            std::copy(cache_orig_lines[k + 1].begin(), cache_orig_lines[k + 1].end(), &cache_orig_lines[k][0]);
+                        }
+                        const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * (int)stride;
+                        assert(bg + cache_orig_lines[0].size() <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
+                        std::copy(bg, bg + cache_orig_lines[0].size(), &cache_orig_lines[kernel_len - 1][0]);
                     }
-                    const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * (int)stride;
-                    assert(bg + cache_orig_lines[0].size() <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
-                    std::copy(bg, bg + cache_orig_lines[0].size(), &cache_orig_lines[kernel_len - 1][0]);
                 }
             }
         }
