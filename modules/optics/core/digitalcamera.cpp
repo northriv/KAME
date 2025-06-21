@@ -417,6 +417,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 uint64_t vmode = std::distance(tr[ *this].m_histogram.begin(), std::max_element(tr[ *this].m_histogram.begin(), tr[ *this].m_histogram.end()));
                 vmode = lrint((double)vmode / tr[ *this].m_histogram.size() * (vmax - vmin) + vmin);
                 thres = (vmode * 0.9 + vmax * 0.1 - vmin) / (vmax - vmin);
+                tr[ *this].m_thresOrig = thres;
             }
             else
                 thres = tr[ *this].m_thresOrig;
@@ -438,7 +439,6 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             //stores original image info. before shake.
             tr[ *this].m_cogXOrig = (double)cogx / toti;
             tr[ *this].m_cogYOrig = (double)cogy / toti;
-            tr[ *this].m_thresOrig = thres;
             tr[ *this].m_storeAntiShakeInvoked = false;
         }
 
