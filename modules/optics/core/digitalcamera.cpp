@@ -491,7 +491,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 //copies (-N/2, -N/2) to (width + N/2, N/2) pixels for convolution, not to be overwritten by new values.
                 std::vector<uint32_t> cache_orig_lines[kernel_len];
                 for(int k = 0; k < kernel_len; ++k) {
-                    cache_orig_lines[k].resize(width + kernel_len);
+                    cache_orig_lines[k].resize(width + kernel_len - 1);
                     const uint32_t *bg = raw - (kernel_len - 1)/2 + (k - (int)(kernel_len - 1)/2) * (int)stride;
                     assert(bg >= &tr[ *this].m_rawCounts->at(0));
                     std::copy(bg, bg + cache_orig_lines[k].size(), &cache_orig_lines[k][0]);
