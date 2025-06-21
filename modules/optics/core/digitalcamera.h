@@ -18,6 +18,7 @@
 //---------------------------------------------------------------------------
 #include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
+#include "xwavengraph.h"
 
 class XScalarEntry;
 class XGraph;
@@ -83,12 +84,8 @@ public:
         local_shared_ptr<std::vector<uint32_t>> m_rawCounts;
         shared_ptr<QImage> m_qimage;
         double m_cogXOrig, m_cogYOrig; //for antishake.
-        struct Edge {
-            unsigned int x, y; //center position.
-            uint64_t sobel_norm; //norm2 of sobel filter.
-            int64_t sobel_x, sobel_y;
-        };
-        std::deque<Edge> m_edgesOrig;
+        std::vector<uint32_t> m_histogram;
+        double m_maxIntensity, m_minIntensity;
         unsigned int m_antishake_pixels = {};
         bool m_storeDarkInvoked = false, m_storeAntiShakeInvoked = false;
     };
@@ -147,9 +144,11 @@ private:
 
     std::deque<xqcon_ptr> m_conUIs;
 
-	shared_ptr<XGraph> m_graph;
+    shared_ptr<XGraph> m_graph;
 
     shared_ptr<XGraph2DMathToolList> m_graphToolList;
+
+    const shared_ptr<XWaveNGraph> m_waveHist;
 
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
     void onAntiShakeChanged(const Snapshot &shot, XValueNodeBase *);
