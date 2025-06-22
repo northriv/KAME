@@ -85,7 +85,7 @@ public:
         shared_ptr<QImage> m_qimage;
         double m_cogXOrig, m_cogYOrig; //for antishake.
         std::vector<uint32_t> m_histogram;
-        double m_maxIntensity, m_minIntensity;
+        double m_maxIntensity, m_minIntensity, m_modeIntensity;
         unsigned int m_antishake_pixels = {};
         bool m_storeDarkInvoked = false, m_storeAntiShakeInvoked = false;
     };

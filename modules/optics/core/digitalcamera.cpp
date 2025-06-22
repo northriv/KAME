@@ -247,7 +247,9 @@ XDigitalCamera::visualize(const Snapshot &shot) {
       tr[ *m_waveHist].setLabel(0, "Histogram");
       double vmax = shot[ *this].m_maxIntensity;
       double vmin = shot[ *this].m_minIntensity;
-      tr[ *m_waveHist->graph()->onScreenStrings()] = formatString("Min=%u, Max=%u", (unsigned int)vmin, (unsigned int)vmax);
+      double vmode = shot[ *this].m_modeIntensity;
+      tr[ *m_waveHist->graph()->onScreenStrings()] = formatString("Mode=%u, Min=%u, Max=%u",
+        (unsigned int)vmode, (unsigned int)vmin, (unsigned int)vmax);
       size_t hist_length = shot[ *this].m_histogram.size();
       tr[ *m_waveHist].setRowCount(hist_length);
       std::vector<float> hist_x(hist_length), hist_y(hist_length);
@@ -291,7 +293,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     uint32_t *rawNext = &rawCountsNext->at(0);
     uint16_t vmin = 0xffffu;
     uint16_t vmax = 0u;
-    uint16_t vignore;
+    uint16_t vmode, vignore;
     constexpr unsigned int num_hist = 32;
     std::vector<uint32_t> hist_fullrange;
     constexpr unsigned int num_conv = 3;
@@ -325,14 +327,21 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             size_t j = lrint(((double)i * vsat / hist_fullrange.size() - vmin) / (vmax - vmin) * hist.size());
             hist[std::min(hist.size() - 1, j)] += hist_fullrange[i];
         }
-        uint32_t tot = 0;
-        for(int i = hist_fullrange.size() - 1; i >= 0; i--) {
-            tot += hist_fullrange[i];
-            if(tot > width * height / 10) {
-                vignore = (uint64_t)i * vsat / hist_fullrange.size(); //intensity at top 10%.
-                break;
-            }
-        }
+        uint64_t vmode = std::distance(hist_fullrange.begin(), std::max_element(hist_fullrange.begin(), hist_fullrange.end()));
+        vmode = vmode * vsat / hist_fullrange.size();
+
+        //Determines the threshold for anti-shake CoG.
+        vignore = vmode + (vmax - vmode) / 10;
+//        uint32_t tot = 0;
+//        for(int i = hist_fullrange.size() - 1; i >= 0; i--) {
+//            tot += hist_fullrange[i];
+//            if(tot > width * height / 10) {
+//                vignore = (uint64_t)i * vsat / hist_fullrange.size(); //intensity at top 10%.
+//                break;
+//            }
+//        }
+
+        tr[ *this].m_modeIntensity = vmode;
         tr[ *this].m_maxIntensity = vmax;
         tr[ *this].m_minIntensity = vmin;
     };
@@ -436,7 +445,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         shift_x = std::max(shift_x, -max_pixelshift_bycog);
         shift_y = std::min(shift_y, max_pixelshift_bycog);
         shift_y = std::max(shift_y, -max_pixelshift_bycog);
-        fprintf(stderr, "shift: (%.2f, %.2f)\n", shift_x + shift_dx, shift_y + shift_dy);
+        tr[ *this].m_status += formatString(" anti-shake (%+5.1f, %+5.1f)", shift_x + shift_dx, shift_y + shift_dy);
         tr[ *this].m_firstPixel = (shift_y + pixels_skip) * width + shift_x + pixels_skip; //(0,0) origin for the secondary drivers.
 //        const auto &edge_orig = tr[ *this].m_edgesOrig;
         {
