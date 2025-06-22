@@ -331,7 +331,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         vmode = vmode * vsat / hist_fullrange.size();
 
         //Determines the threshold for anti-shake CoG.
-        vignore = vmode + (vmax - vmode) / 10;
+        vignore = std::min(vmode + (vmax - vmode) / 3u, vmode * 3u);
 //        uint32_t tot = 0;
 //        for(int i = hist_fullrange.size() - 1; i >= 0; i--) {
 //            tot += hist_fullrange[i];
