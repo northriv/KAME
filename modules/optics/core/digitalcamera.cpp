@@ -26,7 +26,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_cameraGain(create<XDoubleNode>("CameraGain", true)),
     m_emGain(create<XDoubleNode>("CameraGain", true)),
-    m_blackLvlOffset(create<XUIntNode>("BlaclLevelOffset", true)),
+    m_blackLvlOffset(create<XUIntNode>("BlackLevelOffset", true)),
     m_exposureTime(create<XDoubleNode>("ExposureTime", true)),
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
     m_roiSelectionTool(create<XTouchableNode>("ROISelectionTool", true)),
@@ -203,13 +203,14 @@ XDigitalCamera::visualize(const Snapshot &shot) {
     unsigned int stride = shot[ *this].stride();
     unsigned int width = shot[ *this].width();
     unsigned int height = shot[ *this].height();
+    unsigned int edark = floor(shot[ *this].m_electric_dark);
     auto liveimage = std::make_shared<QImage>(width, height, QImage::Format_Grayscale16);
     liveimage->setColorSpace(QColorSpace::SRgbLinear);
     uint16_t *words = reinterpret_cast<uint16_t*>(liveimage->bits());
     if( !shot[ *this].m_darkCounts) {
         for(unsigned int y  = 0; y < height; ++y) {
             for(unsigned int x  = 0; x < width; ++x) {
-                 uint32_t w = *raw++ * gain_disp / 0x100u; //16bitFS if G=1
+                 uint32_t w = (*raw++ - edark) * gain_disp / 0x100u; //16bitFS if G=1
                  if(w >= 0x10000u)
                      w = 0xffffu;
                  *words++ = w;
@@ -289,11 +290,10 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     }
 //    std::fill(tr[ *this].m_rawCounts->begin(), tr[ *this].m_rawCounts->end(), 0);
 
-    tr[ *this].m_electric_dark = 0.0; //unsupported
     uint32_t *rawNext = &rawCountsNext->at(0);
     uint16_t vmin = 0xffffu;
     uint16_t vmax = 0u;
-    uint16_t vmode, vignore;
+    uint16_t vignore;
     constexpr unsigned int num_hist = 32;
     std::vector<uint32_t> hist_fullrange;
     constexpr unsigned int num_conv = 3;
@@ -380,18 +380,23 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         fn_finalize_histogram(0x100u);
     }
 
-    if(tr[ *m_autoGainForDisp]) {
-        tr[ *gainForDisp()]  = lrint((double)0xffffu / vmax);
-    }
     assert(rawNext == &rawCountsNext->at(0) + width * height);
 //    fprintf(stderr, "gain %u vmin:vmax %u %u\n", gain_disp, vmin, vmax);
     tr[ *this].m_rawCounts = rawCountsNext;
+    tr[ *this].m_electric_dark = 0;
     if(tr[ *this].m_storeDarkInvoked) { // && (cidx == 0)
         tr[ *this].m_storeDarkInvoked = false;
         tr[ *this].m_darkCounts = make_local_shared<std::vector<uint32_t>>( *rawCountsNext);
     }
+    else if(tr[ *subtractDark()]) {
+        tr[ *this].m_electric_dark = vmin;
+    }
     if( !tr[ *subtractDark()] || !tr[ *this].m_darkCounts || (tr[ *this].m_darkCounts->size() != width * height)) {
         tr[ *this].m_darkCounts.reset();
+    }
+    if(tr[ *m_autoGainForDisp]) {
+        //todo auto gain using stored dark
+        tr[ *gainForDisp()]  = lrint((double)0xffffu / (vmax - floor(tr[ *this].m_electric_dark)));
     }
     int32_t antishake_pixels = tr[ *m_antiShakePixels];
     if(tr[ *this].m_storeAntiShakeInvoked) { // && (cidx == 0)

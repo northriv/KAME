@@ -511,7 +511,7 @@
              <item>
               <widget class="QPushButton" name="m_btnStoreDark">
                <property name="text">
-                <string>Store Dark Spectrum</string>
+                <string>Store Dark Image</string>
                </property>
               </widget>
              </item>
