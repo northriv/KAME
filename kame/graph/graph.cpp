@@ -97,10 +97,15 @@ XGraph::applyTheme(Transaction &tr, bool reset_to_default, Theme theme) {
     auto textcolor = (theme == Theme::Night) ? clWhite : clBlack;
     tr[ *titleColor()] = textcolor;
 
-    unsigned int night_colors[] = {QColor(0xff, 0xff, 0x12).rgb(), clAqua, clRed, clGreen};
-    unsigned int night_point_colors[] = {QColor(0xff, 0xf1, 0x2c).rgb(), clAqua, clRed, clGreen};
-    unsigned int daylight_colors[] = {clRed, clGreen, clLime, clAqua};
-    unsigned int daylight_pointcolors[] = {clRed, clGreen, clLime, clAqua};
+    constexpr unsigned int num_default_colors = 6;
+    unsigned int night_colors[] = {QColor(0xff, 0xff, 0x12).rgb(), clAqua, clRed, clGreen,
+        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xe3, 0x2d, 0x18).rgb()};
+    unsigned int night_point_colors[] = {QColor(0xff, 0xf1, 0x2c).rgb(), clAqua, clRed, clGreen,
+        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xe3, 0x2d, 0x18).rgb()};
+    unsigned int daylight_colors[] = {clRed, clGreen, clLime, clAqua,
+        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xe3, 0x2d, 0x18).rgb()};
+    unsigned int daylight_pointcolors[] = {clRed, clGreen, clLime, clAqua,
+        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xe3, 0x2d, 0x18).rgb()};
     auto barline_colors = (theme == Theme::Night) ? night_colors : daylight_colors;
     auto point_colors = (theme == Theme::Night) ? night_point_colors : daylight_pointcolors;
     unsigned int major_grid_color = (theme == Theme::Night) ?
@@ -121,7 +126,7 @@ XGraph::applyTheme(Transaction &tr, bool reset_to_default, Theme theme) {
         const XNode::NodeList &plots_list( *shot.list(plots()));
         for(unsigned int i = 0; i < plots_list.size(); ++i) {
             auto plot = static_pointer_cast<XPlot>(plots_list[i]);
-            auto k = i % 4;
+            auto k = i % num_default_colors;
             tr[ *plot->majorGridColor()] = major_grid_color;
             tr[ *plot->minorGridColor()] = minor_grid_color;
             reset_or_complement(plot->lineColor(), barline_colors[k]);
