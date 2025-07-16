@@ -1,3 +1,11 @@
+* Tue May 27 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.2.5-1)
+- Improved terminating procedure/close menu behavior.
+- Fix for Prologix GPIB for drivers without serial poll.
+- Scanner variants for Lakeshore 370/372
+- better channel configs in Lakeshore 350/370/372
+- Fix for status update in PROT.
+
 * Wed Apr 2 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.2.4-1)
 - 7.2.3 may crashe in race condition.

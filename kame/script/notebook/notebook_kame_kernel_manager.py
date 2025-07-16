@@ -31,7 +31,22 @@ class KAMENotebookKernelManager(MappingKernelManager):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
+        # def kame_echoback():
+        #     import time
+        #     import sys
+        #     time.sleep(10)
+        #     while True:
+        #         print('ping....')
+        #         sys.stderr.write('pong...\n')
+        #         sys.stderr.flush()
+        #         sys.stdout.flush()
+        #         time.sleep(2)
+        #         for line in sys.stdin:
+        #             print(line, end="")
+        #             sys.stdout.flush()
+        # import threading
+        # self.thread = threading.Thread(daemon=True, target=kame_echoback)
+        # self.thread.start()
 
     def __patch_connection(self, kernel):
         """Connects the given kernel to the IPython kernel specified by

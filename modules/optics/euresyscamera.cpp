@@ -983,19 +983,20 @@ XJAICameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int ro
 void
 XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    unsigned int em = 1, act = 0, asc = 0;
+    unsigned int em = 1/*TIMED*/, act = 0, tm = 1 /*ON*/, ts = 12;
     switch(mode) {
     case TriggerMode::SINGLE:
+        ts = 2; //software
         break;
     case TriggerMode::CONTINUEOUS:
-        asc = 1;
+        tm = 0;
         break;
     case TriggerMode::EXT_POS_EDGE:
         act = 0;
         break;
     case TriggerMode::EXT_POS_EXPOSURE:
         act = 2;
-        em = 2;
+        em = 2; //TRIGGER WIDTH
         break;
     case TriggerMode::EXT_NEG_EDGE:
         act = 1;
@@ -1015,6 +1016,10 @@ XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
     checkSerialError(__FILE__, __LINE__);
 //    interface()->queryf("ASC=%u", asc); //ExposureAuto
 //    checkSerialError(__FILE__, __LINE__);
+    interface()->queryf("TM=%u", tm); //TriggerMode
+    checkSerialError(__FILE__, __LINE__);
+    interface()->queryf("TI=%u", ts); //TriggerSource
+    checkSerialError(__FILE__, __LINE__);
     interface()->queryf("TA=%u", act); //FrameStartTrigActivation
     checkSerialError(__FILE__, __LINE__);
     if(mode == TriggerMode::SINGLE) {

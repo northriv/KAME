@@ -47,6 +47,7 @@ public:
 	//! clean all drivers, thermometers.
 	void terminate();
     //! terminate() and clean up script supports.
+    //! call this before quiting, since script supports hold shared_ptr<XMeasure>.
     void terminate_all();
     //! stop all drivers.
 	void stop();
