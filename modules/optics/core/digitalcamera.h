@@ -53,6 +53,7 @@ public:
     const shared_ptr<XComboNode> &videoMode() const {return m_videoMode;}
     enum class TriggerMode {CONTINUEOUS = 0, SINGLE = 1, EXT_POS_EDGE = 2, EXT_NEG_EDGE = 3, EXT_POS_EXPOSURE = 4, EXT_NEG_EXPOSURE = 5};
     const shared_ptr<XComboNode> &triggerMode() const {return m_triggerMode;}
+    const shared_ptr<XComboNode> &triggerSrc() const {return m_triggerSrc;}
     const shared_ptr<XComboNode> &frameRate() const {return m_frameRate;}
     const shared_ptr<XUIntNode> &antiShakePixels() const {return m_antiShakePixels;}
     const shared_ptr<XBoolNode> &autoGainForDisp() const {return m_autoGainForDisp;}
@@ -101,6 +102,7 @@ protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0,
         unsigned int roiw = 0, unsigned int roih = 0) = 0;
     virtual void setTriggerMode(TriggerMode mode) = 0;
+    virtual void setTriggerSrc(const Snapshot &) {}
     virtual void setBlackLevelOffset(unsigned int lv) = 0;
     virtual void setGain(unsigned int g, unsigned int emgain) = 0;
     virtual void setExposureTime(double time) = 0;
@@ -119,6 +121,7 @@ private:
     const shared_ptr<XBoolNode> m_subtractDark;
     const shared_ptr<XComboNode> m_videoMode;
     const shared_ptr<XComboNode> m_triggerMode;
+    const shared_ptr<XComboNode> m_triggerSrc;
     const shared_ptr<XComboNode> m_frameRate;
     const shared_ptr<XBoolNode> m_autoGainForDisp;
     const shared_ptr<XDoubleNode> m_gainForDisp;
@@ -128,6 +131,7 @@ private:
 
     shared_ptr<Listener> m_lsnOnVideoModeChanged;
     shared_ptr<Listener> m_lsnOnTriggerModeChanged;
+    shared_ptr<Listener> m_lsnOnTriggerSrcChanged;
     shared_ptr<Listener> m_lsnOnGainChanged;
     shared_ptr<Listener> m_lsnOnBlackLevelOffsetChanged;
     shared_ptr<Listener> m_lsnOnExposureTimeChanged;
@@ -138,6 +142,7 @@ private:
 
     void onVideoModeChanged(const Snapshot &shot, XValueNodeBase *);
     void onTriggerModeChanged(const Snapshot &shot, XValueNodeBase *);
+    void onTriggerSrcChanged(const Snapshot &shot, XValueNodeBase *);
     void onGainChanged(const Snapshot &shot, XValueNodeBase *);
     void onBlackLevelOffsetChanged(const Snapshot &shot, XValueNodeBase *);
     void onExposureTimeChanged(const Snapshot &shot, XValueNodeBase *);

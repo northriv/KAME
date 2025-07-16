@@ -34,6 +34,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_subtractDark(create<XBoolNode>("SubtractDark", false)),
     m_videoMode(create<XComboNode>("VideoMode", true)),
     m_triggerMode(create<XComboNode>("TriggerMode", true)),
+    m_triggerSrc(create<XComboNode>("TriggerSrc", true)),
     m_frameRate(create<XComboNode>("FrameRate", true)),
     m_autoGainForDisp(create<XBoolNode>("AutoGainForDisp", false)),
     m_gainForDisp(create<XDoubleNode>("GainForDisp", false)),
@@ -50,6 +51,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(videoMode(), m_form->m_cmbVideomode, Snapshot( *videoMode())),
         xqcon_create<XQComboBoxConnector>(frameRate(), m_form->m_cmbFrameRate, Snapshot( *frameRate())),
         xqcon_create<XQComboBoxConnector>(triggerMode(), m_form->m_cmbTrigger, Snapshot( *triggerMode())),
+        xqcon_create<XQComboBoxConnector>(triggerSrc(), m_form->m_cmbTriggerSrc, Snapshot( *triggerSrc())),
         xqcon_create<XQLineEditConnector>(exposureTime(), m_form->m_edExposure),
         xqcon_create<XQDoubleSpinBoxConnector>(cameraGain(), m_form->m_dblCameraGain),
         xqcon_create<XQDoubleSpinBoxConnector>(emGain(), m_form->m_dblEMGain),
@@ -69,6 +71,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         exposureTime(),
         videoMode(),
         triggerMode(),
+        triggerSrc(),
         frameRate(),
         m_roiSelectionTool,
     };
@@ -130,6 +133,15 @@ void
 XDigitalCamera::onTriggerModeChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         setTriggerMode(static_cast<TriggerMode>((unsigned int)shot[ *triggerMode()]));
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + " " + i18n(" Error"));
+    }
+}
+void
+XDigitalCamera::onTriggerSrcChanged(const Snapshot &shot, XValueNodeBase *) {
+    try {
+        setTriggerSrc(Snapshot( *this));
     }
     catch (XKameError &e) {
         e.print(getLabel() + " " + i18n(" Error"));
@@ -572,6 +584,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
         exposureTime(),
         videoMode(),
         triggerMode(),
+        triggerSrc(),
         frameRate(),
         m_roiSelectionTool,
     };
@@ -586,6 +599,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XDigitalCamera::onVideoModeChanged);
         m_lsnOnTriggerModeChanged = tr[ *triggerMode()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onTriggerModeChanged);
+        m_lsnOnTriggerSrcChanged = tr[ *triggerSrc()].onValueChanged().connectWeakly(
+            shared_from_this(), &XDigitalCamera::onTriggerSrcChanged);
         m_lsnOnGainChanged = tr[ *cameraGain()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onGainChanged);
         tr[ *emGain()].onValueChanged().connect(m_lsnOnGainChanged);
@@ -633,6 +648,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
     m_lsnOnBlackLevelOffsetChanged.reset();
     m_lsnOnExposureTimeChanged.reset();
     m_lsnOnTriggerModeChanged.reset();
+    m_lsnOnTriggerSrcChanged.reset();
     m_lsnOnVideoModeChanged.reset();
     m_lsnOnROISelectionToolTouched.reset();
     return NULL;
