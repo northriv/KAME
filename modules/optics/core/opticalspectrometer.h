@@ -66,6 +66,8 @@ public:
         friend class XOpticalSpectrometer;
         std::vector<double> m_counts, m_accumCounts, m_darkCounts, m_waveLengths;
         std::deque<std::pair<double, double>> m_markers;
+
+        bool m_storeDarkInvoked = false;
     };
 protected:
 
@@ -124,8 +126,6 @@ private:
 
 	shared_ptr<XGraph> m_graph;
 	shared_ptr<XXYPlot> m_markerPlot;
-	
-    bool m_storeDarkInvoked;
 
     void *execute(const atomic<bool> &) override;
 };

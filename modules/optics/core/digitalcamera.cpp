@@ -26,7 +26,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_cameraGain(create<XDoubleNode>("CameraGain", true)),
     m_emGain(create<XDoubleNode>("CameraGain", true)),
-    m_blackLvlOffset(create<XUIntNode>("BlaclLevelOffset", true)),
+    m_blackLvlOffset(create<XUIntNode>("BlackLevelOffset", true)),
     m_exposureTime(create<XDoubleNode>("ExposureTime", true)),
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
     m_roiSelectionTool(create<XTouchableNode>("ROISelectionTool", true)),
@@ -42,8 +42,8 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
                                    m_form->m_graphwidgetLive,
                                    m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
                                    2, m_form->m_dblGamma,//w/dark
-                                   m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
-
+                                   m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))),
+    m_waveHist(create<XWaveNGraph>("WaveHistogram", true, m_form->m_graphwidgetHist, m_form->m_edHistDump, m_form->m_tbHistDump, m_form->m_btnHistDump)) {
 
     m_form->setWindowTitle(i18n("Digital Camera - ") + getLabel() );
     m_conUIs = {
@@ -81,6 +81,25 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
             shared_from_this(), &XDigitalCamera::onStoreDarkTouched);
         m_lsnOnAntiShakeChanged = tr[ *antiShakePixels()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onAntiShakeChanged);
+
+        const char *labels[] = {"Intens.", "Counts"};
+        tr[ *m_waveHist].setColCount(2, labels);
+        if( !tr[ *m_waveHist].insertPlot(tr, i18n("Histogram"), 0, 1, -1)) return;
+        shared_ptr<XAxis> axisx = tr[ *m_waveHist].axisx();
+        shared_ptr<XAxis> axisy = tr[ *m_waveHist].axisy();
+        tr[ *m_waveHist->graph()->drawLegends()] = false;
+        tr[ *axisx->label()] = i18n("Intens.");
+        tr[ *axisy->label()] = i18n("Counts");
+        tr[ *axisy->displayTicLabels()] = false;
+        tr[ *axisy->displayLabel()] = false;
+        tr[ *axisx->displayLabel()] = false;
+        tr[ *axisx->displayMinorTics()] = false;
+        tr[ *axisy->displayMinorTics()] = false;
+        tr[ *axisx->displayMajorTics()] = false;
+        tr[ *axisy->displayMajorTics()] = false;
+        tr[ *tr[ *m_waveHist].plot(0)->drawBars()] = true;
+        tr[ *tr[ *m_waveHist].plot(0)->drawPoints()] = false;
+        tr[ *tr[ *m_waveHist].plot(0)->drawLines()] = false;
     });
 }
 void
@@ -92,11 +111,11 @@ XDigitalCamera::showForms() {
 
 void
 XDigitalCamera::onAntiShakeChanged(const Snapshot &shot, XValueNodeBase *) {
-    m_storeAntiShakeInvoked = true;
+    trans( *this).m_storeAntiShakeInvoked = true;
 }
 void
 XDigitalCamera::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *) {
-    m_storeDarkInvoked = true;
+    trans( *this).m_storeDarkInvoked = true;
 }
 void
 XDigitalCamera::onVideoModeChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -184,13 +203,14 @@ XDigitalCamera::visualize(const Snapshot &shot) {
     unsigned int stride = shot[ *this].stride();
     unsigned int width = shot[ *this].width();
     unsigned int height = shot[ *this].height();
+    unsigned int edark = floor(shot[ *this].m_electric_dark);
     auto liveimage = std::make_shared<QImage>(width, height, QImage::Format_Grayscale16);
     liveimage->setColorSpace(QColorSpace::SRgbLinear);
     uint16_t *words = reinterpret_cast<uint16_t*>(liveimage->bits());
     if( !shot[ *this].m_darkCounts) {
         for(unsigned int y  = 0; y < height; ++y) {
             for(unsigned int x  = 0; x < width; ++x) {
-                 uint32_t w = *raw++ * gain_disp / 0x100u; //16bitFS if G=1
+                 uint32_t w = (*raw++ - edark) * gain_disp / 0x100u; //16bitFS if G=1
                  if(w >= 0x10000u)
                      w = 0xffffu;
                  *words++ = w;
@@ -224,6 +244,24 @@ XDigitalCamera::visualize(const Snapshot &shot) {
       tr[ *m_liveImage->graph()->onScreenStrings()] = shot[ *this].m_status;
       tr[ *this].m_qimage = liveimage;
       m_liveImage->updateImage(tr, liveimage, rawimages, stride, coeffs);
+
+      tr[ *m_waveHist].setLabel(0, "Histogram");
+      double vmax = shot[ *this].m_maxIntensity;
+      double vmin = shot[ *this].m_minIntensity;
+      double vmode = shot[ *this].m_modeIntensity;
+      tr[ *m_waveHist->graph()->onScreenStrings()] = formatString("Mode=%u, Min=%u, Max=%u",
+        (unsigned int)vmode, (unsigned int)vmin, (unsigned int)vmax);
+      size_t hist_length = shot[ *this].m_histogram.size();
+      tr[ *m_waveHist].setRowCount(hist_length);
+      std::vector<float> hist_x(hist_length), hist_y(hist_length);
+      const auto &hist = shot[ *this].m_histogram;
+      for(unsigned int i = 0; i < hist_length; ++i) {
+          hist_x[i] = i * (vmax - vmin) / (hist_length - 1) + vmin;
+          hist_y[i] = hist[i];
+      }
+      tr[ *m_waveHist].setColumn(0, std::move(hist_x));
+      tr[ *m_waveHist].setColumn(1, std::move(hist_y));
+      m_waveHist->drawGraph(tr);
     });
 }
 
@@ -252,60 +290,17 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     }
 //    std::fill(tr[ *this].m_rawCounts->begin(), tr[ *this].m_rawCounts->end(), 0);
 
-    tr[ *this].m_electric_dark = 0.0; //unsupported
     uint32_t *rawNext = &rawCountsNext->at(0);
     uint16_t vmin = 0xffffu;
     uint16_t vmax = 0u;
-    uint64_t cogx = 0u, cogy = 0u, toti = 0u;
+    uint16_t vignore;
+    constexpr unsigned int num_hist = 32;
+    std::vector<uint32_t> hist_fullrange;
     constexpr unsigned int num_conv = 3;
     std::vector<uint32_t> dummy_lines(width + num_conv, 0); //for y < num_comv. results will not be used.
     uint32_t *raw_lines[num_conv];
-    std::deque<Payload::Edge> edges = {{0,0,0,0,0}};
-    const Payload::Edge *edge_min = &edges.front();
-    int32_t antishake_pixels = tr[ *m_antiShakePixels];
-    constexpr unsigned int num_edges = 10;
-    constexpr unsigned int kernel_len = 4; //cubic
-    const int max_pixelshift_bycog = antishake_pixels;
-    //stores prominent edge, which does not overwraps each other.
-    auto fn_detect_edge = [&edges, &edge_min, &raw_lines](unsigned int x, unsigned int y) {
-// kernel
-//        sobel_x = [-1 0 1; -2 0 2; -1 0 1];
-//        sobel_y = [-1 -2 -1; 0 0 0; 1 2 1];
-        int64_t sobel_x = -(int64_t)*(raw_lines[0] - 2) + (int64_t)*raw_lines[0];
-        sobel_x += 2 * (-(int64_t)*(raw_lines[1] - 2) + (int64_t)*raw_lines[1]);
-        sobel_x += -(int64_t)*(raw_lines[2] - 2) + (int64_t)*raw_lines[2];
-        int64_t sobel_y = -(int64_t)*(raw_lines[0] - 2) - 2 * (int64_t)*(raw_lines[0] - 1) - (int64_t)*(raw_lines[0]);
-        sobel_y += (int64_t)*(raw_lines[2] - 2) + 2 * (int64_t)*(raw_lines[2] - 1) + (int64_t)*raw_lines[2];
-//        //For kernel calc., caches x - 2 values into previous lines.
-//        *(raw_prevlines[0] - 2) = *(raw_prevlines[1] - 2);
-//        *(raw_prevlines[1] - 2) = *(rawNext - 2);
-        uint64_t sobel_norm = sobel_x * sobel_x + sobel_y * sobel_y;
-        if((edge_min->sobel_norm < sobel_norm) &&
-            (x >= num_conv - 1 + kernel_len) && (y >= num_conv + 1 + kernel_len)) {
-            if(edge_min->sobel_norm == 0)
-                edges.clear(); //erases dummy edge.
-            //abandon overwrapping edges.
-            auto it = std::find_if(edges.begin(), edges.end(), [x, y](const auto &v){
-                return ((v.x - (x - 1)) <= kernel_len) && ((v.y - (y - 1)) <= kernel_len);});
-            bool isvalid = true;
-            if(it != edges.end()) {
-                if(it->sobel_norm < sobel_norm)
-                    edges.erase(it);
-                else
-                    isvalid = false; //new edge is overwrapped and useless.
-            }
-            if(isvalid) {
-                //edges be ascending in terms of sobel_norm.
-                auto it = std::find_if(edges.begin(), edges.end(), [sobel_norm](const auto &x){return x.sobel_norm > sobel_norm;});
-                edges.insert(it, {x - 1, y - 1, sobel_norm, sobel_x, sobel_y});
-            }
-            if(edges.size() > num_edges)
-                edges.pop_front();
-            edge_min = &edges.front();
-        }
-        for(auto &&x : raw_lines)
-            x++;
-    };
+    constexpr unsigned int kernel_len = 3; //cubic
+
     auto fn_prepare_prevlines = [&raw_lines, &dummy_lines, &rawCountsNext, width](unsigned int y) {
         if(y >= num_conv + 1) {
             for(unsigned int i = 0; i < num_conv; ++i)
@@ -316,16 +311,42 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 x = &dummy_lines[num_conv]; //for useless calc. and to avoid violation.
         }
     };
-    auto fn_detect_min_max_cog = [&cogx, &cogy, &vmin, &vmax, &toti](uint16_t v, unsigned int x, unsigned int y) {
+    auto fn_take_histogram = [&hist_fullrange, &vmin, &vmax](uint16_t v, uint64_t vsat) {
         if(v > vmax)
             vmax = v;
         if(v < vmin)
             vmin = v;
-        toti += v;
-        cogx += v * x;
-        cogy += v * y;
+        ++hist_fullrange[(uint64_t)v * hist_fullrange.size() / vsat];
+    };
+    //rearrange histogram in range of [vmin, vmax].
+    auto fn_finalize_histogram = [&](uint64_t vsat) {
+        auto &hist = tr[ *this].m_histogram;
+        hist.resize(num_hist);
+        std::fill(hist.begin(), hist.end(), 0);
+        for(unsigned int i = 0; i < hist_fullrange.size(); ++i) {
+            size_t j = lrint(((double)i * vsat / hist_fullrange.size() - vmin) / (vmax - vmin) * hist.size());
+            hist[std::min(hist.size() - 1, j)] += hist_fullrange[i];
+        }
+        uint64_t vmode = std::distance(hist_fullrange.begin(), std::max_element(hist_fullrange.begin(), hist_fullrange.end()));
+        vmode = vmode * vsat / hist_fullrange.size();
+
+        //Determines the threshold for anti-shake CoG.
+        vignore = std::min(vmode + (vmax - vmode) / 3u, vmode * 3u);
+//        uint32_t tot = 0;
+//        for(int i = hist_fullrange.size() - 1; i >= 0; i--) {
+//            tot += hist_fullrange[i];
+//            if(tot > width * height / 10) {
+//                vignore = (uint64_t)i * vsat / hist_fullrange.size(); //intensity at top 10%.
+//                break;
+//            }
+//        }
+
+        tr[ *this].m_modeIntensity = vmode;
+        tr[ *this].m_maxIntensity = vmax;
+        tr[ *this].m_minIntensity = vmin;
     };
     if(mono16) {
+        hist_fullrange.resize(0x10000u, 0);
         for(unsigned int y  = 0; y < height; ++y) {
             fn_prepare_prevlines(y);
             for(unsigned int x  = 0; x < width; ++x) {
@@ -341,66 +362,97 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                      b[1] = b0;
                  }
                  *rawNext++ = gray;
-                 fn_detect_min_max_cog(gray, x, y);
-                 fn_detect_edge(x, y);
+                 fn_take_histogram(gray, 0x10000u);
             }
         }
+        fn_finalize_histogram(0x10000u);
     }
     else {
+        hist_fullrange.resize(0x100u, 0);
         for(unsigned int y  = 0; y < height; ++y) {
             fn_prepare_prevlines(y);
             for(unsigned int x  = 0; x < width; ++x) {
                  auto gray = reader.pop<uint8_t>();
                  *rawNext++ = gray;
-                 fn_detect_min_max_cog(gray, x, y);
-                 fn_detect_edge(x, y);
+                 fn_take_histogram(gray, 0x100u);
             }
         }
+        fn_finalize_histogram(0x100u);
     }
-    if(tr[ *m_autoGainForDisp]) {
-        tr[ *gainForDisp()]  = lrint((double)0xffffu / vmax);
-    }
+
     assert(rawNext == &rawCountsNext->at(0) + width * height);
 //    fprintf(stderr, "gain %u vmin:vmax %u %u\n", gain_disp, vmin, vmax);
     tr[ *this].m_rawCounts = rawCountsNext;
-    if(m_storeDarkInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
+    tr[ *this].m_electric_dark = 0;
+    if(tr[ *this].m_storeDarkInvoked) { // && (cidx == 0)
+        tr[ *this].m_storeDarkInvoked = false;
         tr[ *this].m_darkCounts = make_local_shared<std::vector<uint32_t>>( *rawCountsNext);
+    }
+    else if(tr[ *subtractDark()]) {
+        tr[ *this].m_electric_dark = vmin;
     }
     if( !tr[ *subtractDark()] || !tr[ *this].m_darkCounts || (tr[ *this].m_darkCounts->size() != width * height)) {
         tr[ *this].m_darkCounts.reset();
     }
-    if(m_storeAntiShakeInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
+    if(tr[ *m_autoGainForDisp]) {
+        //todo auto gain using stored dark
+        tr[ *gainForDisp()]  = lrint((double)0xffffu / (vmax - floor(tr[ *this].m_electric_dark)));
+    }
+    int32_t antishake_pixels = tr[ *m_antiShakePixels];
+    if(tr[ *this].m_storeAntiShakeInvoked) { // && (cidx == 0)
+        //Setting has been changed by user.
         tr[ *this].m_antishake_pixels = antishake_pixels;
         if(antishake_pixels > 0) {
             if(std::min(width, height) < tr[ *m_antiShakePixels] * 16)
                 throw XSkippedRecordError(i18n("Too many pixels for antishaking."), __FILE__, __LINE__);
-
+        }
+    }
+    tr[ *this].m_stride = width;
+    tr[ *this].m_width = width;
+    tr[ *this].m_height = height;
+    if(antishake_pixels) {
+        uint64_t cogx = 0u, cogy = 0u, toti = 0u;
+        {
+            //ignores pixels darker than vignore value.
+            uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
+            raw = &tr[ *this].m_rawCounts->at(0);
+            for(unsigned int y = 0; y < height; ++y) {
+                for(unsigned int x  = 0; x < width; ++x) {
+                   uint64_t v = *raw++;
+                   v = std::max((int64_t)0, (int64_t)v - (int64_t)vignore);
+                   cogx += v * x;
+                   cogy += v * y;
+                   toti += v;
+                }
+            }
+        }
+        if(tr[ *this].m_storeAntiShakeInvoked) {
             //stores original image info. before shake.
             tr[ *this].m_cogXOrig = (double)cogx / toti;
             tr[ *this].m_cogYOrig = (double)cogy / toti;
-            tr[ *this].m_edgesOrig = edges;
+            tr[ *this].m_storeAntiShakeInvoked = false;
         }
-    }
-    antishake_pixels = tr[ *this].m_antishake_pixels;
-    tr[ *this].m_stride = width;
-    const int pixels_skip = max_pixelshift_bycog + (kernel_len - 1) / 2;
-    tr[ *this].m_width = width - 2 * pixels_skip;
-    tr[ *this].m_height = height - 2 * pixels_skip;
-    if(antishake_pixels) {
+
+        const int max_pixelshift_bycog = antishake_pixels;
+        tr[ *this].m_stride = width;
+        const int pixels_skip = max_pixelshift_bycog + (kernel_len - 1) / 2;
+        tr[ *this].m_width = width - 2 * pixels_skip;
+        tr[ *this].m_height = height - 2 * pixels_skip;
+
         //finds the pixels shifts
         double shift_dx = (double)cogx / toti - tr[ *this].m_cogXOrig;
-        int shift_x = floor(shift_dx);
-        shift_dx -= shift_x;
+        int shift_x = lrint(shift_dx);
         double shift_dy = (double)cogy / toti - tr[ *this].m_cogYOrig;
-        int shift_y = floor(shift_dy);
+        int shift_y = lrint(shift_dy);
+        shift_dx -= shift_x;
         shift_dy -= shift_y;
         shift_x = std::min(shift_x, max_pixelshift_bycog);
         shift_x = std::max(shift_x, -max_pixelshift_bycog);
         shift_y = std::min(shift_y, max_pixelshift_bycog);
         shift_y = std::max(shift_y, -max_pixelshift_bycog);
-        fprintf(stderr, "shift: (%d, %d)\n", shift_x, shift_y);
+        tr[ *this].m_status += formatString(" anti-shake (%+5.1f, %+5.1f)", shift_x + shift_dx, shift_y + shift_dy);
         tr[ *this].m_firstPixel = (shift_y + pixels_skip) * width + shift_x + pixels_skip; //(0,0) origin for the secondary drivers.
-        const auto &edge_orig = tr[ *this].m_edgesOrig;
+//        const auto &edge_orig = tr[ *this].m_edgesOrig;
         {
             //bi-cubic interpolation
             std::vector<int64_t> kernel(kernel_len * kernel_len);
@@ -419,7 +471,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 }
             }
             double frac = (double)0x100000000LL / std::accumulate(kernel.begin(), kernel.end(), 0LL);
-            for(auto &&x: kernel)
+            for(auto &x: kernel)
                 x = llrint(x * frac);
             {
                 //convolution.
@@ -430,10 +482,10 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 //copies (-N/2, -N/2) to (width + N/2, N/2) pixels for convolution, not to be overwritten by new values.
                 std::vector<uint32_t> cache_orig_lines[kernel_len];
                 for(int k = 0; k < kernel_len; ++k) {
-                    cache_orig_lines[k].resize(width + kernel_len);
+                    cache_orig_lines[k].resize(width + kernel_len - 1);
                     const uint32_t *bg = raw - (kernel_len - 1)/2 + (k - (int)(kernel_len - 1)/2) * (int)stride;
                     assert(bg >= &tr[ *this].m_rawCounts->at(0));
-                    std::copy(bg, bg + width + kernel_len, &cache_orig_lines[k][0]);
+                    std::copy(bg, bg + cache_orig_lines[k].size(), &cache_orig_lines[k][0]);
                 }
                 int64_t sum = 0;
                 uint32_t *raw_x0 = raw;
@@ -452,18 +504,22 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                     }
                     raw_x0 += stride;
                     raw = raw_x0;
-                    //slides cached values and retrieves original values.
-                    for(unsigned int k = 0; k < kernel_len - 1; ++k) {
-                        std::copy(cache_orig_lines[k + 1].begin(), cache_orig_lines[k + 1].end(), &cache_orig_lines[k][0]);
+                    if(y < height - 1) { //no thank you at the last line.
+                        //slides cached values and retrieves original values.
+                        for(unsigned int k = 0; k < kernel_len - 1; ++k) {
+                            std::copy(cache_orig_lines[k + 1].begin(), cache_orig_lines[k + 1].end(), &cache_orig_lines[k][0]);
+                        }
+                        const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * (int)stride;
+                        assert(bg + cache_orig_lines[0].size() <= &tr[ *this].m_rawCounts->at(0) + (height + 2*pixels_skip) * stride);
+                        std::copy(bg, bg + cache_orig_lines[0].size(), &cache_orig_lines[kernel_len - 1][0]);
                     }
-                    const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * stride;
-                    std::copy(bg, bg + width + kernel_len, &cache_orig_lines[kernel_len - 1][0]);
                 }
             }
         }
     }
     else {
          tr[ *this].m_firstPixel = 0;
+         tr[ *this].m_storeAntiShakeInvoked = false;
     }
 //    case (unsigned int)ColoringMethod::RGBWHEEL: {
 //        uint8_t *processed = reinterpret_cast<uint8_t*>(processedimage->bits());
@@ -520,7 +576,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
         m_roiSelectionTool,
     };
 
-    m_storeDarkInvoked = false;
+    trans( *this).m_storeDarkInvoked = false;
+    trans( *this).m_storeAntiShakeInvoked = false;
 
     afterOpen();
 

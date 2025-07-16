@@ -537,12 +537,13 @@ XEGrabberCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 
     unsigned int bpp = image_bytes / (width * height);
     unsigned int padding_bytes = image_bytes - bpp * (width * height);
-    setGrayImage(reader, tr, width, height, false, bpp == 2);
-    reader.popIterator() += padding_bytes;
 
     tr[ *this].m_status = formatString("%ux%u @(%u,%u), %u MB/s, %u fps",
         (unsigned int)width, (unsigned int)height, (unsigned int)xpos, (unsigned int)ypos,
         (unsigned int)dr, (unsigned int)fr);
+
+    setGrayImage(reader, tr, width, height, false, bpp == 2);
+    reader.popIterator() += padding_bytes;
 }
 
 XTime
