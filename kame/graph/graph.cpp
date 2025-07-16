@@ -99,13 +99,13 @@ XGraph::applyTheme(Transaction &tr, bool reset_to_default, Theme theme) {
 
     constexpr unsigned int num_default_colors = 6;
     unsigned int night_colors[] = {QColor(0xff, 0xff, 0x12).rgb(), clAqua, clRed, clGreen,
-        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xe3, 0x2d, 0x18).rgb()};
+        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xb0, 0x50, 0x18).rgb()};
     unsigned int night_point_colors[] = {QColor(0xff, 0xf1, 0x2c).rgb(), clAqua, clRed, clGreen,
-        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xe3, 0x2d, 0x18).rgb()};
+        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xb0, 0x50, 0x18).rgb()};
     unsigned int daylight_colors[] = {clRed, clGreen, clLime, clAqua,
-        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xe3, 0x2d, 0x18).rgb()};
+        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xb0, 0x50, 0x18).rgb()};
     unsigned int daylight_pointcolors[] = {clRed, clGreen, clLime, clAqua,
-        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xe3, 0x2d, 0x18).rgb()};
+        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xb0, 0x50, 0x18).rgb()};
     auto barline_colors = (theme == Theme::Night) ? night_colors : daylight_colors;
     auto point_colors = (theme == Theme::Night) ? night_point_colors : daylight_pointcolors;
     unsigned int major_grid_color = (theme == Theme::Night) ?
