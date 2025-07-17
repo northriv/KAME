@@ -141,6 +141,7 @@ public:
 protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
     virtual void setTriggerMode(TriggerMode mode) override;
+    virtual void setTriggerSrc(const Snapshot &) override {}
     virtual void setBlackLevelOffset(unsigned int v) override;
     virtual void setGain(unsigned int g, unsigned int emgain) override;
     virtual void setExposureTime(double time) override;
@@ -186,7 +187,7 @@ protected:
 
     virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const std::string &featname) override;
     virtual std::pair<unsigned int, unsigned int> setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) override;
-    virtual void setTriggerModeViaSerial(TriggerMode mode);
+    virtual void setTriggerModeViaSerial(TriggerMode mode) override;
 
     void checkSerialError(const char *file, unsigned int line);
 
@@ -209,12 +210,13 @@ protected:
     virtual void setBlackLevelOffset(unsigned int offset) override;
     virtual void setGain(unsigned int g, unsigned int emgain) override;
     virtual void setExposureTime(double time) override;
+    virtual void setTriggerSrc(const Snapshot &) override;
 
     virtual void afterOpen() override;
 
-    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const char shortname[8]) {return false;}
+    virtual bool pushFeatureSerialCommand(shared_ptr<RawData> &, const std::string &) override {return false;}
     virtual std::pair<unsigned int, unsigned int> setVideoModeViaSerial(unsigned int roix, unsigned int roiw, unsigned int roiy, unsigned int roih) override;
-    virtual void setTriggerModeViaSerial(TriggerMode mode);
+    virtual void setTriggerModeViaSerial(TriggerMode mode) override;
 
     void checkSerialError(const char *file, unsigned int line);
 

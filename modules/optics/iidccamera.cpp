@@ -92,6 +92,7 @@ XIIDCCamera::XIIDCCamera(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XDC1394Driver<XDigitalCamera>(name, runtime, ref(tr_meas), meas) {
     emGain()->disable();
+    triggerSrc()->disable();
 }
 
 void

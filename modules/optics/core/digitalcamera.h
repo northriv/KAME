@@ -102,7 +102,7 @@ protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0,
         unsigned int roiw = 0, unsigned int roih = 0) = 0;
     virtual void setTriggerMode(TriggerMode mode) = 0;
-    virtual void setTriggerSrc(const Snapshot &) {}
+    virtual void setTriggerSrc(const Snapshot &) = 0;
     virtual void setBlackLevelOffset(unsigned int lv) = 0;
     virtual void setGain(unsigned int g, unsigned int emgain) = 0;
     virtual void setExposureTime(double time) = 0;

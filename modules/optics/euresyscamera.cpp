@@ -672,6 +672,7 @@ XHamamatsuCameraOverGrablink::XHamamatsuCameraOverGrablink(const char *name, boo
     XEGrabberCamera(name, runtime, ref(tr_meas), meas, true) {
     interface()->setSerialBaudRate(9600);
     interface()->setSerialEOS("\r");
+    triggerSrc()->disable();
 }
 bool
 XHamamatsuCameraOverGrablink::pushFeatureSerialCommand(shared_ptr<RawData> &writer, const std::string &featname) {
@@ -948,6 +949,7 @@ XJAICameraOverGrablink::XJAICameraOverGrablink(const char *name, bool runtime,
     interface()->setSerialBaudRate(9600);
     interface()->setSerialEOS("\r\n");
     emGain()->disable();
+    trans( *triggerSrc()).add({"Low", "High", "SoftTrigger", "PulseGenerator0", "UserOutput0", "UserOutput1", "TTL_In1", "CL_CC1_In", "Nand0", "Nand1"});
 }
 
 std::pair<unsigned int, unsigned int>
@@ -984,7 +986,7 @@ XJAICameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int ro
 void
 XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    unsigned int em = 1/*TIMED*/, act = 0, tm = 1 /*ON*/, ts = 12;
+    unsigned int em = 1/*TIMED*/, act = 0, tm = 1 /*ON*/, ts = ***triggerSrc();
     switch(mode) {
     case TriggerMode::SINGLE:
         ts = 2; //software
@@ -1029,6 +1031,11 @@ XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
         checkSerialError(__FILE__, __LINE__);
     }
 }
+void
+XJAICameraOverGrablink::setTriggerSrc(const Snapshot &shot) {
+    setTriggerModeViaSerial(static_cast<TriggerMode>((unsigned int)shot[ *triggerMode()]));
+}
+
 void
 XJAICameraOverGrablink::setBlackLevelOffset(unsigned int v) {
     XScopedLock<XEGrabberInterface> lock( *interface());
