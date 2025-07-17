@@ -651,10 +651,15 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
         writer->push<int64_t>(0); //for future use.
 
         writer->insert(writer->end(), (char*)ptr, (char*)ptr + size);
-    #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-        return XTime::now(); //time stamp is invalid for win
+    #if defined __MACOSX__ || defined __APPLE__
+//        uint64_t uptime = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        struct timespec tp;
+        clock_gettime(CLOCK_UPTIME_RAW, &tp);
+        XTime time{tp.tv_sec, tp.tv_nsec / 1000LL};
+        time += ts * 1e-6;
+        return time;
     #else
-        return XTime(ts / 1000000uLL, ts % 1000000uLL);
+        return XTime::now(); //time stamp is invalid for win
     #endif
     }
     catch(const Euresys::gentl_error &e) {
