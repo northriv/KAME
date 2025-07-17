@@ -989,6 +989,7 @@ XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
     case TriggerMode::SINGLE:
         ts = 2; //software
         break;
+    default:
     case TriggerMode::CONTINUEOUS:
         tm = 0;
         break;
@@ -1039,7 +1040,13 @@ XJAICameraOverGrablink::setExposureTime(double shutter) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     interface()->queryf("ASC=%u", 0); //ExposureAuto off
     checkSerialError(__FILE__, __LINE__);
-    interface()->queryf("AR=%lu", lrint(shutter * 1e6)); //Acq. Frame Period
+    interface()->query("TM?"); //TriggerMode
+    checkSerialError(__FILE__, __LINE__);
+    unsigned int tm;
+    if(interface()->scanf("%2u", &tm) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    if(tm == 0) //trigger off.
+        interface()->queryf("AR=%lu", lrint(shutter * 1e6)); //Acq. Frame Period
     checkSerialError(__FILE__, __LINE__);
     interface()->queryf("PE=%lu", lrint(shutter * 1e6)); //ExposureTimeRaw
     checkSerialError(__FILE__, __LINE__);
