@@ -26,6 +26,11 @@ REGISTER_TYPE(XDriverList, GrablinkCamera, "Cameralink Camera via Euresys eGrabb
 REGISTER_TYPE(XDriverList, HamamatsuCameraOverGrablink, "Hamamatsu Camera via Euresys grablink");
 REGISTER_TYPE(XDriverList, JAICameraOverGrablink, "JAI Camera via Euresys grablink");
 
+// #if defined __MACOSX__ || defined __APPLE__
+// #include <stdlib.h> //for popen
+// XTime KernelBootTime; //epoch for uptime
+// #endif
+
 //---------------------------------------------------------------------------
 XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink) :
     XCustomCharInterface(name, runtime, driver) {
@@ -72,6 +77,18 @@ XEGrabberInterface::~XEGrabberInterface() {
 
 void
 XEGrabberInterface::open() {
+// #if defined __MACOSX__ || defined __APPLE__
+//     {
+//         if(FILE *fp = popen("sysctl -n kern.boottime", "r")) {
+//             long sec, usec;
+//             if(fscanf(fp, "{ sec =%ld, usec =%ld", &sec, &usec) == 2) {
+//                 KernelBootTime = XTime{sec, usec};
+//             }
+//             pclose(fp);
+//         }
+//     }
+// #endif
+
     XScopedLock<XEGrabberInterface> lock( *this);
     Snapshot shot( *this);
     try {
@@ -626,7 +643,7 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
         ScopedBuffer buf( *camera, 10); //10 ms timeout
 
         void *ptr = buf.getInfo<void *>(GenTL::BUFFER_INFO_BASE);
-        uint64_t ts = buf.getInfo<uint64_t>(GenTL::BUFFER_INFO_TIMESTAMP);
+        uint64_t ts_ns = buf.getInfo<uint64_t>(GenTL::BUFFER_INFO_TIMESTAMP_NS);
         size_t size = buf.getInfo<size_t>(GenTL::BUFFER_INFO_SIZE);
         uint64_t pixelFormat = buf.getInfo<uint64_t>(gc::BUFFER_INFO_PIXELFORMAT);
         size_t width = buf.getInfo<size_t>(gc::BUFFER_INFO_WIDTH);
@@ -637,7 +654,7 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
         uint64_t fr = camera->getInteger<StreamModule>("StatisticsFrameRate");
         uint64_t dr = camera->getInteger<StreamModule>("StatisticsDataRate");
 
-        writer->push<uint64_t>(ts);
+        writer->push<uint64_t>(ts_ns);
         writer->push<uint64_t>(size);
         writer->push<uint64_t>(pixelFormat);
         writer->push<uint64_t>(width);
@@ -651,16 +668,15 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
         writer->push<int64_t>(0); //for future use.
 
         writer->insert(writer->end(), (char*)ptr, (char*)ptr + size);
-    #if defined __MACOSX__ || defined __APPLE__
-//        uint64_t uptime = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-        struct timespec tp;
-        clock_gettime(CLOCK_UPTIME_RAW, &tp);
-        XTime time{tp.tv_sec, tp.tv_nsec / 1000LL};
-        time += ts * 1e-6;
-        return time;
-    #else
+    // #if defined __MACOSX__ || defined __APPLE__
+    //     XTime time = KernelBootTime;
+    //     if(!time.isSet())
+    //         return XTime::now();
+    //     time += ts_ns * 1e-9;
+    //     return time; //BUFFER_INFO_TIMESTAMP_NS may return future time.
+    // #else
         return XTime::now(); //time stamp is invalid for win
-    #endif
+    // #endif
     }
     catch(const Euresys::gentl_error &e) {
         if(e.gc_err == GenTL::GC_ERR_TIMEOUT)
@@ -991,9 +1007,19 @@ XJAICameraOverGrablink::setVideoModeViaSerial(unsigned int roix, unsigned int ro
 void
 XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    unsigned int em = 1/*TIMED*/, act = 0, tm = 1 /*ON*/, ts = ***triggerSrc();
+    unsigned int em = 1/*TIMED*/, act = 0, tm = 1 /*ON*/;
+    int ts;
+    constexpr std::array<unsigned int, 10> ts_map{0,1,2,8,10,11,12,13,14,15};
+    try {
+        ts = ts_map.at(***triggerSrc());
+    }
+    catch(std::out_of_range &) {
+        ts = -1;
+    }
+
     switch(mode) {
     case TriggerMode::SINGLE:
+        tm = 0;
         ts = 2; //software
         break;
     default:
@@ -1015,6 +1041,7 @@ XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
         em = 2;
         break;
     }
+
     //For Base configuration, 1CL
     interface()->queryf("TAGM=%u", 1u); //DeviceTapGeometry, Geometry_1X2_1Y
     checkSerialError(__FILE__, __LINE__);
@@ -1027,8 +1054,10 @@ XJAICameraOverGrablink::setTriggerModeViaSerial(TriggerMode mode) {
 //    checkSerialError(__FILE__, __LINE__);
     interface()->queryf("TM=%u", tm); //TriggerMode
     checkSerialError(__FILE__, __LINE__);
-    interface()->queryf("TI=%u", ts); //TriggerSource
-    checkSerialError(__FILE__, __LINE__);
+    if(ts > 0) {
+        interface()->queryf("TI=%u", ts); //TriggerSource
+        checkSerialError(__FILE__, __LINE__);
+    }
     interface()->queryf("TA=%u", act); //FrameStartTrigActivation
     checkSerialError(__FILE__, __LINE__);
     if(mode == TriggerMode::SINGLE) {
