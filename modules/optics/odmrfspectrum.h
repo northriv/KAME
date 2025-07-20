@@ -116,6 +116,10 @@ protected:
     const shared_ptr<XDoubleNode> &freqStep() const {return m_freqStep;}
     const shared_ptr<XBoolNode> &active() const {return m_active;}
     const shared_ptr<XBoolNode> &repeatedly() const {return m_repeatedly;}
+    const shared_ptr<XBoolNode> &altUpdateSubRegion() const {return m_altUpdateSubRegion;}
+    //! [MHz]
+    const shared_ptr<XDoubleNode> &subRegionMinFreq() const {return m_subRegionMinFreq;}
+    const shared_ptr<XDoubleNode> &subRegionMaxFreq() const {return m_subRegionMaxFreq;}
 private:
     const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
     const shared_ptr<XItemNode<XDriverList, XODMRImaging> > m_odmr;
@@ -125,6 +129,8 @@ private:
     const shared_ptr<XDoubleNode> m_freqStep;
     const shared_ptr<XBoolNode> m_active;
     const shared_ptr<XBoolNode> m_repeatedly;
+    const shared_ptr<XBoolNode> m_altUpdateSubRegion;
+    const shared_ptr<XDoubleNode> m_subRegionMinFreq, m_subRegionMaxFreq;
 
     shared_ptr<Listener> m_lsnOnActiveChanged;
 
@@ -138,6 +144,7 @@ private:
     void onTuningChanged(const Snapshot &shot, XValueNodeBase *); //!< receives signals from AutoLCTuner.
 
     double m_lastFreqAcquired; //!< to avoid inifite averaging after a sweep.
+    double m_lastFreqOutsideSubRegion;
 };
 
 #endif

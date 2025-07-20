@@ -33,11 +33,14 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
           "SG1", false, ref(tr_meas), meas->drivers(), true)),
     m_odmr(create<XItemNode<XDriverList, XODMRImaging> >(
           "DigitalCamera", false, ref(tr_meas), meas->drivers(), true)),
-      m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
-      m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
-      m_freqStep(create<XDoubleNode>("FreqStep", false)),
-      m_active(create<XBoolNode>("Active", true)),
-      m_repeatedly(create<XBoolNode>("Repeatedly", false)) {
+    m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
+    m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
+    m_freqStep(create<XDoubleNode>("FreqStep", false)),
+    m_active(create<XBoolNode>("Active", true)),
+    m_repeatedly(create<XBoolNode>("Repeatedly", false)),
+    m_altUpdateSubRegion(create<XBoolNode>("AltUpdateSubRegion", false)),
+    m_subRegionMinFreq(create<XDoubleNode>("SubRegionMinFreq", false)),
+    m_subRegionMaxFreq(create<XDoubleNode>("SubRegionMaxFreq", false)) {
 
     connect(sg1());
     connect(odmr());
@@ -62,6 +65,9 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_odmr, m_form->m_cmbCamera, ref(tr_meas)),
         xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive),
         xqcon_create<XQToggleButtonConnector>(m_repeatedly, m_form->m_ckbRepeatedly),
+        xqcon_create<XQToggleButtonConnector>(m_altUpdateSubRegion, m_form->m_ckbAltUpdateSubRegion),
+        xqcon_create<XQLineEditConnector>(m_subRegionMinFreq, m_form->m_edSubRegionMinFreq),
+        xqcon_create<XQLineEditConnector>(m_subRegionMaxFreq, m_form->m_edSubRegionMaxFreq),
     };
 
     iterate_commit([=](Transaction &tr){
@@ -349,7 +355,19 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 		}
 	  
 		double newf = freq; //MHz
-		newf += freq_step;
+        if(shot_this[ *altUpdateSubRegion()]) {
+            bool was_inside_subregion = (freq >= shot_this[ *subRegionMinFreq()] - 1e-9) && (freq <= shot_this[ *subRegionMaxFreq()] + 1e-9);
+            if( !was_inside_subregion) {
+                m_lastFreqOutsideSubRegion = freq;
+                newf = shot_this[ *subRegionMinFreq()];
+                double df = newf - (cfreq - freq_span / 2) + 1e-9;
+                newf = floor(df / freq_step) * freq_step + (cfreq - freq_span / 2); //floors by the freq step, will be += freq_step.
+            }
+            if(was_inside_subregion && (newf > shot_this[ *subRegionMaxFreq()]))
+                //coming back to main region.
+                newf = m_lastFreqOutsideSubRegion;
+        }
+        newf += freq_step;
         newf = round(newf * 1e8) / 1e8; //rounds
         if(newf >= cfreq + freq_span / 2) {
             if(shot_this[ *repeatedly()]) {
