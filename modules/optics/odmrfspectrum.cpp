@@ -354,21 +354,20 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 			throw XRecordError(i18n("Too large freq. step."), __FILE__, __LINE__);
 		}
 	  
-		double newf = freq; //MHz
+        double newf = freq + freq_step; //MHz
         if(shot_this[ *altUpdateSubRegion()]) {
             bool was_inside_subregion = (freq >= shot_this[ *subRegionMinFreq()] - 1e-9) && (freq <= shot_this[ *subRegionMaxFreq()] + 1e-9);
             if( !was_inside_subregion) {
                 m_lastFreqOutsideSubRegion = freq;
                 newf = shot_this[ *subRegionMinFreq()];
-                double df = newf - (cfreq - freq_span / 2) + 1e-9;
-                newf = floor(df / freq_step) * freq_step + (cfreq - freq_span / 2); //floors by the freq step, will be += freq_step.
+                double df = newf - (cfreq - freq_span / 2) - 1e-9;
+                newf = ceil(df / freq_step) * freq_step + (cfreq - freq_span / 2);
             }
-            if(was_inside_subregion && (newf > shot_this[ *subRegionMaxFreq()]))
+            if(was_inside_subregion && (newf - 1e-9 > shot_this[ *subRegionMaxFreq()]))
                 //coming back to main region.
                 if((m_lastFreqOutsideSubRegion > shot_this[ *subRegionMaxFreq()]) || (m_lastFreqOutsideSubRegion + freq_step - 1e-9 < shot_this[ *subRegionMinFreq()]))
-                    newf = m_lastFreqOutsideSubRegion;
+                    newf = m_lastFreqOutsideSubRegion + freq_step;
         }
-        newf += freq_step;
         newf = round(newf * 1e8) / 1e8; //rounds
         if(newf >= cfreq + freq_span / 2) {
             if(shot_this[ *repeatedly()]) {
