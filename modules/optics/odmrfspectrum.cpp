@@ -365,7 +365,8 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
             }
             if(was_inside_subregion && (newf > shot_this[ *subRegionMaxFreq()]))
                 //coming back to main region.
-                newf = m_lastFreqOutsideSubRegion;
+                if((m_lastFreqOutsideSubRegion > shot_this[ *subRegionMaxFreq()]) || (m_lastFreqOutsideSubRegion + freq_step - 1e-9 < shot_this[ *subRegionMinFreq()]))
+                    newf = m_lastFreqOutsideSubRegion;
         }
         newf += freq_step;
         newf = round(newf * 1e8) / 1e8; //rounds
