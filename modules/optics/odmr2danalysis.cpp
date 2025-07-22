@@ -30,6 +30,8 @@ XODMR2DAnalysis::XODMR2DAnalysis(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XSecondaryDriver(name, runtime, ref(tr_meas), meas),
     m_form(new FrmODMR2DAnalysis),
+    m_odmrFSpectrum(create<XItemNode<XDriverList, XODMRFSpectrum> >(
+        "ODMRFSpectrum", false, ref(tr_meas), meas->drivers(), true)),
     m_regionSelection(create<XComboNode>("RegionSelection", false, true)),
     m_analysisMethod(create<XComboNode>("AnalysisMethod", false, true)),
     m_average(create<XUIntNode>("Average", false)),
