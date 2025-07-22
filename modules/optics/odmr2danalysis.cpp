@@ -219,6 +219,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
             }
         }
         // CoG = <f dPL/PL> / <dPL/PL> = <f (on/off - 1)> / <on/off - 1> = (<f on/off> - <f>) / (<on/off> -  1)
+        // = (sum (f on/off C) - sum f C) / (sum on/off C -  N C)
         tr[ *this].m_accumulated[0]++;
         tr[ *this].m_accumulated[1] += freqidx;
         tr[ *this].m_summedCounts[0] = summedCountsNext_on_o_off;
@@ -232,13 +233,13 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     if( !shot_this[ *this].m_accumulated[0])
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 
-    tr[ *this].m_coefficients[0] = 1.0 / coeff_PLOn_o_Off / tr[ *this].m_accumulated[0]; //for math tools
-    tr[ *this].m_coefficients[1] = tr[ *this].m_coefficients[0] / coeff_freqidx; //for math tools
+    tr[ *this].m_coefficients[0] = 1.0 / coeff_PLOn_o_Off / tr[ *this].m_accumulated[0]; // 1/C/N
+    tr[ *this].m_coefficients[1] = tr[ *this].m_coefficients[0] / coeff_freqidx; // 1/C/N
     // tr[ *this].m_coefficients[2] = tr[ *this].m_coefficients[0] / coeff_freqsq_u16; //for math tools
 
     int64_t offsets[3];
-    offsets[0] = -1.0 / tr[ *this].m_coefficients[0]; //for dPL/PL.
-    offsets[1] = tr[ *this].m_accumulated[1] * offsets[0];
+    offsets[0] = llrint(-1.0 / tr[ *this].m_coefficients[0]); //-N C
+    offsets[1] = llrint(-(double)tr[ *this].m_accumulated[1] / (tr[ *this].m_coefficients[0] * tr[ *this].m_accumulated[0])); //- sum f C
 
     if(tr[ *m_autoMinMaxForColorMap]) {
         const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
@@ -288,8 +289,8 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         *summed_f_on_o_off = &shot[ *this].m_summedCounts[1]->at(0);
 
     int64_t offsets[3];
-    offsets[0] = -1.0 / shot[ *this].m_coefficients[0]; //for dPL/PL.
-    offsets[1] = shot[ *this].m_accumulated[1] * offsets[0];
+    offsets[0] = llrint(-1.0 / shot[ *this].m_coefficients[0]); //-N C
+    offsets[1] = llrint(-(double)shot[ *this].m_accumulated[1] / (shot[ *this].m_coefficients[0] * shot[ *this].m_accumulated[0])); //- sum f C
 
     double cogmin = shot[ *minForColorMap()];
     double cogmax = shot[ *maxForColorMap()];
