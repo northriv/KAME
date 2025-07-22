@@ -475,7 +475,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
     unsigned int seq_len = shot[ *this].sequenceLength();
 
     {
-        uint64_t gain_av = lrint(0x100000000uLL * shot[ *gainForDisp()] * shot[ *this].m_coefficients[0]); // /256 is needed for RGBA8888 format
+        uint64_t gain_av = llrint(0x100000000uLL * shot[ *gainForDisp()] * shot[ *this].m_coefficients[0]); // /256 is needed for RGBA8888 format
         std::array<uint64_t, 3> gains = {};
         std::array<int64_t, 3> offsets = {};
         double dpl_min = shot[ *minDPLoPLForDisp()] / 100.0;
@@ -488,10 +488,10 @@ XODMRImaging::visualize(const Snapshot &shot) {
             //"PL&dPL/PL(RedWhiteBlue)"
             //Colored by DPL/PL
             gains = {gain_av / 2, gain_av / 2, gain_av / 2}; //max. 0x7fffuL( or 0x7fu) * 0x100000000uLL for autogain.
-            dpl_gain_pos[0] = lrint(gain_av / 2 / dpl_max);
+            dpl_gain_pos[0] = llrint(gain_av / 2 / dpl_max);
             dpl_gain_pos[1] = -dpl_gain_pos[0];
             dpl_gain_pos[2] = -dpl_gain_pos[0];
-            dpl_gain_neg[2] = lrint(gain_av / 2 / dpl_min); //negative
+            dpl_gain_neg[2] = llrint(gain_av / 2 / dpl_min); //negative
             dpl_gain_neg[0] = -dpl_gain_neg[2];
             dpl_gain_neg[1] = -dpl_gain_neg[2];
             break;
@@ -499,17 +499,17 @@ XODMRImaging::visualize(const Snapshot &shot) {
             //"PL&dPL/PL(YellowGreenBlue)"
             //Colored by DPL/PL
             gains = {0, gain_av, 0}; //max. 0xffffuL( or 0xffu) * 0x100000000uLL for autogain.
-            dpl_gain_pos[0] = lrint(gain_av / dpl_max);
+            dpl_gain_pos[0] = llrint(gain_av / dpl_max);
             dpl_gain_pos[1] = -dpl_gain_pos[0];
-            dpl_gain_neg[2] = lrint(gain_av / dpl_min); //negative
+            dpl_gain_neg[2] = llrint(gain_av / dpl_min); //negative
             dpl_gain_neg[1] = -dpl_gain_neg[2];
             break;
         case 2:
             //"dPL(YellowGreenBlue)"
             //DPL yellow for positive, blue for negative
-            dpl_gain_pos[0] = lrint(gain_av / dpl_max);
+            dpl_gain_pos[0] = llrint(gain_av / dpl_max);
             dpl_gain_pos[1] = -dpl_gain_pos[0];
-            dpl_gain_neg[2] = lrint(gain_av / dpl_min); //negative
+            dpl_gain_neg[2] = llrint(gain_av / dpl_min); //negative
             dpl_gain_neg[1] = -dpl_gain_neg[2];
             offsets[1] = 0x100000000LL * 0x7fffLL; // or 0x7f
             break;

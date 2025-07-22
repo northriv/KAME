@@ -163,8 +163,8 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     if((freq < min__) || (freq > max__))
         throw XSkippedRecordError(__FILE__, __LINE__);
 
-    constexpr int64_t coeff_freq_u16 = 0x10000LL;
-    uint16_t freq_u16 = lrint(coeff_freq_u16 * (freq - min__) / (max__ - min__));
+    double coeff_freqidx = 1.0 / (shot_fspectrum[ *fspectrum__->freqStep()] * 1e-3); //1/MHz
+    uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
     tr[ *this].m_minValue = min__;
 
     unsigned int width = shot_odmr[ *odmr__].width();
@@ -215,12 +215,12 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
                 uint32_t plon = *pplon++;
                 int32_t plon_o_off_s32 = plon * coeff_PLOn_o_Off / (int64_t)ploff;
                 *summedNext_on_o_off++ = *summed_on_o_off++ + (uint32_t)plon_o_off_s32;
-                *summedNext_f_on_o_off++ = *summed_f_on_o_off++ + (uint32_t)(freq_u16 * plon_o_off_s32);
+                *summedNext_f_on_o_off++ = *summed_f_on_o_off++ + (uint32_t)(freqidx * plon_o_off_s32);
             }
         }
         // CoG = <f dPL/PL> / <dPL/PL> = <f (on/off - 1)> / <on/off - 1> = (<f on/off> - <f>) / (<on/off> -  1)
         tr[ *this].m_accumulated[0]++;
-        tr[ *this].m_accumulated[1] += freq_u16;
+        tr[ *this].m_accumulated[1] += freqidx;
         tr[ *this].m_summedCounts[0] = summedCountsNext_on_o_off;
         tr[ *this].m_summedCounts[1] = summedCountsNext_f_on_o_off;
         // tr[ *this].m_accumulated[2] += freqsq_u16;
@@ -233,37 +233,38 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 
     tr[ *this].m_coefficients[0] = 1.0 / coeff_PLOn_o_Off / tr[ *this].m_accumulated[0]; //for math tools
-    tr[ *this].m_coefficients[1] = tr[ *this].m_coefficients[0] / coeff_freq_u16 * (max__ - min__); //for math tools
+    tr[ *this].m_coefficients[1] = tr[ *this].m_coefficients[0] / coeff_freqidx; //for math tools
     // tr[ *this].m_coefficients[2] = tr[ *this].m_coefficients[0] / coeff_freqsq_u16; //for math tools
 
     int64_t offsets[3];
     offsets[0] = -1.0 / tr[ *this].m_coefficients[0]; //for dPL/PL.
-    offsets[1] = -tr[ *this].m_accumulated[1] * offsets[0];
+    offsets[1] = tr[ *this].m_accumulated[1] * offsets[0];
 
     if(tr[ *m_autoMinMaxForColorMap]) {
         const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
             *summed_f_on_o_off = &tr[ *this].m_summedCounts[1]->at(0);
 
         constexpr int64_t coeff_dCoG = 0x10000LL;
-        uint64_t dcogmin = 0xffffffffffffffffu;
-        uint64_t dcogmax = 0u;
+        int64_t dcogmin = 0x7fffffffffffffffLL;
+        int64_t dcogmax = -0x7fffffffffffffffLL;
         for(unsigned int i  = 0; i < width * height; ++i) {
-            uint32_t on_o_off = *summed_on_o_off++;
-            uint32_t f_on_o_off = *summed_f_on_o_off++;
-            uint64_t dcog = ((int64_t)f_on_o_off - offsets[1]) * coeff_dCoG / ((int32_t)on_o_off - offsets[0]);
+            int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0];
+            if( !dplopl) continue;
+            int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
+            int64_t dcog = f_dplopl * coeff_dCoG / dplopl;
             if(dcog > dcogmax)
                 dcogmax = dcog;
             if(dcog < dcogmin)
                 dcogmin = dcog;
         }
-        tr[ *minForColorMap()]  = (double)dcogmin / coeff_dCoG / coeff_freq_u16 * (max__ - min__) + min__;
-        tr[ *maxForColorMap()]  = (double)dcogmax / coeff_dCoG / coeff_freq_u16 * (max__ - min__) + min__;
+        tr[ *minForColorMap()]  = std::max(min__, (double)dcogmin / coeff_dCoG / coeff_freqidx + min__);
+        tr[ *maxForColorMap()]  = std::min(max__, (double)dcogmax / coeff_dCoG / coeff_freqidx + min__);
         tr.unmark(m_lsnOnCondChanged);
     }
     if(tr[ *incrementalAverage()]) {
         tr[ *average()] = tr[ *this].m_accumulated[0];
         tr.unmark(m_lsnOnCondChanged);
-        throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+//        throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
     else {
         if(tr[ *average()] > tr[ *this].m_accumulated[0])
@@ -288,45 +289,62 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
 
     int64_t offsets[3];
     offsets[0] = -1.0 / shot[ *this].m_coefficients[0]; //for dPL/PL.
-    offsets[1] = -shot[ *this].m_accumulated[1] * offsets[0];
+    offsets[1] = shot[ *this].m_accumulated[1] * offsets[0];
 
-    uint64_t cogmin = shot[ *minForColorMap()];
-    uint64_t cogmax = shot[ *maxForColorMap()];
+    double cogmin = shot[ *minForColorMap()];
+    double cogmax = shot[ *maxForColorMap()];
 
     constexpr int64_t coeff_dCoG = 0x10000LL;
-    double df = shot[ *this].m_coefficients[1] / shot[ *this].m_coefficients[0];
+    double dfreq = shot[ *this].m_coefficients[1] / shot[ *this].m_coefficients[0];
     double fmin = shot[ *this].minValue();
+    offsets[1] += llrint((fmin - cogmin) / shot[ *this].m_coefficients[1]);
 
-    double c = 0x100000000LL * 0xffffLL * df / (cogmin - fmin) / coeff_dCoG ;
-    std::array<uint64_t, 3> coloroffsets = {};
-    uint64_t colorgain = lrint(0x100000000uLL * 0xffffuLL * df / (cogmax - cogmin) / coeff_dCoG); // /256 is needed for RGBA8888 format
-    std::array<int64_t, 3> dcog_gain = {};
+    std::array<int64_t, 3> coloroffsets_low = {};
+    std::array<int64_t, 3> coloroffsets_high = {};
+    int64_t colorgain = llrint(0x100000000uLL * 0xffffuLL * dfreq / (cogmax - cogmin) / coeff_dCoG); // /256 is needed for RGBA8888 format
+    std::array<int64_t, 3> dcog_gain_low = {};
+    std::array<int64_t, 3> dcog_gain_high = {};
     switch((unsigned int)shot[ *m_colorMapMethod]) {
     case 0:
     default:
         //RedWhiteBlue
-        dcog_gain[0] = lrint(colorgain / 2);
-        dcog_gain[1] = -dcog_gain[0];
-        dcog_gain[2] = -dcog_gain[0];
-        coloroffsets[0] = -0x100000000LL * 0xffffLL; // or 0xff
-        coloroffsets[1] = -coloroffsets[0];
-        coloroffsets[2] = -coloroffsets[0];
+        dcog_gain_low[0] = 2 * colorgain;
+        dcog_gain_low[1] = 2 * colorgain;
+        dcog_gain_low[2] = 0;
+        coloroffsets_low[0] = 0;
+        coloroffsets_low[1] = 0;
+        coloroffsets_low[2] = 0x100000000LL * 0xffffLL; // or 0xff
+        dcog_gain_high[0] = 0;
+        dcog_gain_high[1] = -2 * colorgain;
+        dcog_gain_high[2] = -2 * colorgain;
         break;
     case 1:
         //YellowGreenBlue
-        dcog_gain[0] = lrint(colorgain);
-        dcog_gain[1] = -dcog_gain[0];
-        coloroffsets[0] = -0x100000000LL * 0xffffLL; // or 0xff
-        coloroffsets[1] = 0x100000000LL * 0x7fffLL; // or 0x7f
-        coloroffsets[2] = -coloroffsets[0];
+        dcog_gain_low[0] = 0;
+        dcog_gain_low[1] = 2 * colorgain;
+        dcog_gain_low[2] = -2 * colorgain;
+        coloroffsets_low[0] = 0;
+        coloroffsets_low[1] = 0;
+        coloroffsets_low[2] = 0x100000000LL * 0xffffLL;// or 0xff
+        dcog_gain_high[0] = 2 * colorgain;
+        dcog_gain_high[1] = 0;
+        dcog_gain_high[2] = 0;
         break;
     }
+    int64_t thres = 0x7fff * 0x100000000LL / colorgain;
+    for(unsigned int cidx: {0,1,2})
+        coloroffsets_high[cidx] = coloroffsets_low[cidx] + thres * (dcog_gain_low[cidx] - dcog_gain_high[cidx]);
 
     for(unsigned int i  = 0; i < width * height; ++i) {
-        uint32_t on_o_off = *summed_on_o_off++;
-        uint32_t f_on_o_off = *summed_f_on_o_off++;
-        uint64_t dcog = ((int64_t)f_on_o_off - offsets[1]) * coeff_dCoG / ((int32_t)on_o_off - offsets[0]);
-
+        int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0];
+        if( !dplopl) {
+            *processed++ = 0; *processed++ = 0; *processed++ = 0; *processed++ = 0xffffu;
+            continue;
+        }
+        int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
+        int64_t dcog = f_dplopl * coeff_dCoG / dplopl;
+        const auto &dcog_gain = (dcog > thres) ? dcog_gain_high : dcog_gain_low;
+        const auto &coloroffsets = (dcog > thres) ? coloroffsets_high : coloroffsets_low;
         for(unsigned int cidx: {0,1,2}) {
             int64_t v = (dcog * dcog_gain[cidx] + coloroffsets[cidx]) / 0x100000000LL;
             *processed++ = std::max(0LL, std::min(v, 0xffffLL));
