@@ -9,6 +9,7 @@ INCLUDEPATH += \
 
 HEADERS += \
     filterwheelstmdriven.h \
+    odmr2danalysis.h \
     odmrfm.h \
     odmrimaging.h \
     userlasermodule.h \
@@ -17,6 +18,7 @@ HEADERS += \
 
 SOURCES += \
     filterwheelstmdriven.cpp \
+    odmr2danalysis.cpp \
     odmrfm.cpp \
     odmrimaging.cpp \
     userlasermodule.cpp \
@@ -34,6 +36,7 @@ SOURCES += \
 FORMS += \
     odmrimagingform.ui \
     odmrfspectrumform.ui \
+    odmr2danalysisform.ui \
     odmrfmform.ui
 
 unix {

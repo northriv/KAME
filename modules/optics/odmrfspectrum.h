@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -69,6 +69,8 @@ public:
         double res() const {return m_res;}
         //! Value of the first point [Hz].
         double min() const {return m_min;}
+
+        double lastFreqAcquired() const {return m_lastFreqAcquired;}
     private:
         friend class XODMRFSpectrum;
 
@@ -82,27 +84,13 @@ public:
         };
         std::vector<ChData> data;
 
+        double m_lastFreqAcquired; //!< to avoid inifite averaging after a sweep.
         XTime m_timeClearRequested;
     };
 
 
     //! Clears stored points.
     const shared_ptr<XTouchableNode> &clear() const {return m_clear;}
-protected:
-    shared_ptr<Listener> m_lsnOnClear, m_lsnOnCondChanged;
-
-    const shared_ptr<XTouchableNode> m_clear;
-
-    std::deque<xqcon_ptr> m_conBaseUIs;
-
-    void onCondChanged(const Snapshot &shot, XValueNodeBase *);
-
-    atomic<int> m_isInstrumControlRequested;
-protected:
-    const qshared_ptr<FrmODMRFSpectrum> m_form;
-
-    const shared_ptr<XWaveNGraph> m_spectrum;
-    void onClear(const Snapshot &shot, XTouchableNode *);
 
     //! driver specific part below
     const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}
@@ -120,6 +108,22 @@ protected:
     //! [MHz]
     const shared_ptr<XDoubleNode> &subRegionMinFreq() const {return m_subRegionMinFreq;}
     const shared_ptr<XDoubleNode> &subRegionMaxFreq() const {return m_subRegionMaxFreq;}
+protected:
+    shared_ptr<Listener> m_lsnOnClear, m_lsnOnCondChanged;
+
+    const shared_ptr<XTouchableNode> m_clear;
+
+    std::deque<xqcon_ptr> m_conBaseUIs;
+
+    void onCondChanged(const Snapshot &shot, XValueNodeBase *);
+
+    atomic<int> m_isInstrumControlRequested;
+protected:
+    const qshared_ptr<FrmODMRFSpectrum> m_form;
+
+    const shared_ptr<XWaveNGraph> m_spectrum;
+    void onClear(const Snapshot &shot, XTouchableNode *);
+
 private:
     const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
     const shared_ptr<XItemNode<XDriverList, XODMRImaging> > m_odmr;
@@ -143,7 +147,6 @@ private:
     void onActiveChanged(const Snapshot &shot, XValueNodeBase *);
     void onTuningChanged(const Snapshot &shot, XValueNodeBase *); //!< receives signals from AutoLCTuner.
 
-    double m_lastFreqAcquired; //!< to avoid inifite averaging after a sweep.
     double m_lastFreqOutsideSubRegion;
 };
 

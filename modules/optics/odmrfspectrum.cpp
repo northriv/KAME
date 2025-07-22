@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -97,7 +97,7 @@ XODMRFSpectrum::showForms() {
 
 void
 XODMRFSpectrum::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
-    m_lastFreqAcquired = -1000.0;
+    trans( *this).m_lastFreqAcquired = -1000.0;
     requestAnalysis();
 }
 void
@@ -117,7 +117,7 @@ XODMRFSpectrum::checkDependency(const Snapshot &shot_this,
     shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
     if( !sg1__) return false;
     double freq = shot_others[ *sg1__].freq() * 1e6;
-    if(m_lastFreqAcquired == freq) {
+    if(shot_this[ *this].m_lastFreqAcquired == freq) {
         return false; //skips for the same freq.
     }
     return true;
@@ -194,6 +194,7 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
     if(emitter == odmr__.get()) {
         shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
         double freq = shot_others[ *sg1__].freq() * 1e6;
+        tr[ *this].m_lastFreqAcquired = freq; //suppresses double accumulation.
         unsigned int idx = lrint((freq - min__) / res);
         if(idx < length) {
             for(unsigned int ch = 0; ch < shot_this[ *this].numChannels(); ch++) {
@@ -276,7 +277,7 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
         onClear(shot_this, clear().get());
-        m_lastFreqAcquired = -1000.0;
+        trans( *this).m_lastFreqAcquired = -1000.0;
         double cfreq = shot_this[ *centerFreq()]; //MHz
         double freq_span = shot_this[ *freqSpan()] * 1e-3; //MHz
         double newf = cfreq - freq_span / 2;
@@ -338,9 +339,7 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
     Snapshot shot_sg( *sg1__);
     if( !shot_sg[ *sg1__].time())
         return;
-    double freq = shot_sg[ *sg1__].freq() * 1e6;
-    m_lastFreqAcquired = freq; //suppresses double accumulation.
-    freq *= 1e-6; //MHz
+    double freq = shot_this[ *this].lastFreqAcquired(); //MHz
     //sets new freq
 	if(shot_this[ *active()]) {
 	    double cfreq = shot_this[ *centerFreq()]; //MHz
@@ -363,10 +362,12 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
                 double df = newf - (cfreq - freq_span / 2) - 1e-9;
                 newf = ceil(df / freq_step) * freq_step + (cfreq - freq_span / 2);
             }
-            if(was_inside_subregion && (newf - 1e-9 > shot_this[ *subRegionMaxFreq()]))
+            if(was_inside_subregion && (newf - 1e-9 > shot_this[ *subRegionMaxFreq()])) {
                 //coming back to main region.
-                if((m_lastFreqOutsideSubRegion > shot_this[ *subRegionMaxFreq()]) || (m_lastFreqOutsideSubRegion + freq_step - 1e-9 < shot_this[ *subRegionMinFreq()]))
+                if((m_lastFreqOutsideSubRegion > shot_this[ *subRegionMaxFreq()]) || (m_lastFreqOutsideSubRegion + freq_step + 1e-9 < shot_this[ *subRegionMinFreq()]))
                     newf = m_lastFreqOutsideSubRegion + freq_step;
+            }
+
         }
         newf = round(newf * 1e8) / 1e8; //rounds
         if(newf >= cfreq + freq_span / 2) {

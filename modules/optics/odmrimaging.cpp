@@ -511,7 +511,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
             dpl_gain_pos[1] = -dpl_gain_pos[0];
             dpl_gain_neg[2] = lrint(gain_av / dpl_min); //negative
             dpl_gain_neg[1] = -dpl_gain_neg[2];
-            offsets[1] = 0x100000000LL * 0x7ffffLL; // or 0x7f
+            offsets[1] = 0x100000000LL * 0x7fffLL; // or 0x7f
             break;
         }
         uint16_t *processed = reinterpret_cast<uint16_t*>(qimage->bits());

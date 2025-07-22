@@ -74,7 +74,7 @@ public:
         double m_gainForDisp;
         unsigned int m_accumulated[3];
         double m_colorGains[3];
-        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
+        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
         double m_coefficients[3];
         std::vector<double> m_intensities[3];
         XTime m_timeClearRequested = {};

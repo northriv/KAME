@@ -105,6 +105,10 @@ public:
         unsigned int height() const {return m_height;}
         unsigned int sequenceLength() const {return (unsigned int)m_sequence;}
         Sequence sequence() const {return m_sequence;}
+        local_shared_ptr<std::vector<uint32_t>> rawCountsPLOff() const {return m_summedCounts[sequenceLength() - 2];}
+        local_shared_ptr<std::vector<uint32_t>> rawCountsPLOn() const {return m_summedCounts[sequenceLength() - 1];}
+        unsigned int accumulated() const {return std::min(
+            m_accumulated[sequenceLength() - 1], m_accumulated[sequenceLength() - 2]);}
     protected:
         friend class XODMRImaging;
         Sequence m_sequence;
