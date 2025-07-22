@@ -116,7 +116,7 @@ XODMRFSpectrum::checkDependency(const Snapshot &shot_this,
         return false;
     shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
     if( !sg1__) return false;
-    double freq = shot_others[ *sg1__].freq() * 1e6;
+    double freq = shot_others[ *sg1__].freq();
     if(shot_this[ *this].m_lastFreqAcquired == freq) {
         return false; //skips for the same freq.
     }
@@ -193,8 +193,9 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
 
     if(emitter == odmr__.get()) {
         shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
-        double freq = shot_others[ *sg1__].freq() * 1e6;
+        double freq = shot_others[ *sg1__].freq(); //MHz
         tr[ *this].m_lastFreqAcquired = freq; //suppresses double accumulation.
+        freq *= 1e6; //Hz
         unsigned int idx = lrint((freq - min__) / res);
         if(idx < length) {
             for(unsigned int ch = 0; ch < shot_this[ *this].numChannels(); ch++) {
@@ -339,7 +340,7 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
     Snapshot shot_sg( *sg1__);
     if( !shot_sg[ *sg1__].time())
         return;
-    double freq = shot_this[ *this].lastFreqAcquired(); //MHz
+    double freq = shot_this[ *this].m_lastFreqAcquired; //MHz
     //sets new freq
 	if(shot_this[ *active()]) {
 	    double cfreq = shot_this[ *centerFreq()]; //MHz

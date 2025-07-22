@@ -128,7 +128,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
     shared_ptr<XODMRFSpectrum> fspectrum__ = shot_this[ *odmrFSpectrum()];
     const Snapshot &shot_fspectrum((emitter == fspectrum__.get()) ? shot_emitter : shot_others);
-    const Snapshot &shot_odmr = shot_fspectrum;
+    const Snapshot &shot_odmr = shot_others;
     shared_ptr<XODMRImaging> odmr__ = shot_fspectrum[ *fspectrum__->odmr()];
 
     if(shot_odmr[ *odmr__->incrementalAverage()]) {
@@ -139,7 +139,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     bool clear = (shot_this[ *this].m_timeClearRequested.isSet());
     tr[ *this].m_timeClearRequested = {};
 
-    double freq = shot_fspectrum[ *fspectrum__].lastFreqAcquired() * 1e6; //MHz
+    double freq = shot_fspectrum[ *fspectrum__].lastFreqAcquiredInHz() * 1e-6; //M/Hz
 
     double max__; //MHz
     double min__; //MHz
@@ -185,7 +185,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     tr[ *this].m_width = width;
     tr[ *this].m_height = height;
     if(clear) {
-        tr[ *this].m_summedCounts[2]->clear();
+        tr[ *this].m_summedCounts[2].reset();
         for(unsigned int i = 0; i < num_summed_frames; ++i) {
             tr[ *this].m_summedCounts[i] = summedCountsFromPool(width * height);
             std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);

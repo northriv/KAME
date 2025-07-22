@@ -70,7 +70,7 @@ public:
         //! Value of the first point [Hz].
         double min() const {return m_min;}
 
-        double lastFreqAcquired() const {return m_lastFreqAcquired;}
+        double lastFreqAcquiredInHz() const {return m_lastFreqAcquired * 1e6;} //Hz
     private:
         friend class XODMRFSpectrum;
 
