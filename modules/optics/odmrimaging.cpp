@@ -48,7 +48,8 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_processedImage(create<X2DImage>("ProcessedImage", false,
                                    m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
                                    2, m_form->m_dblGamma,
-                                   m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
+                                   m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()),
+                                   true)) {
 
     auto plot = m_processedImage->plot();
     m_sampleToolLists = {
@@ -471,17 +472,20 @@ XODMRImaging::visualize(const Snapshot &shot) {
     unsigned int height = shot[ *this].height();
     auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA64);
     qimage->setColorSpace(QColorSpace::SRgbLinear);
+    auto cbimage = std::make_shared<QImage>(width, 1, QImage::Format_RGBA64);
+    cbimage->setColorSpace(QColorSpace::SRgbLinear);
 
     unsigned int seq_len = shot[ *this].sequenceLength();
 
+    double dpl_min = shot[ *minDPLoPLForDisp()] / 100.0;
+    double dpl_max = shot[ *maxDPLoPLForDisp()] / 100.0;
     {
-        uint64_t gain_av = llrint(0x100000000uLL * shot[ *gainForDisp()] * shot[ *this].m_coefficients[0]); // /256 is needed for RGBA8888 format
-        std::array<uint64_t, 3> gains = {};
-        std::array<int64_t, 3> offsets = {};
-        double dpl_min = shot[ *minDPLoPLForDisp()] / 100.0;
-        double dpl_max = shot[ *maxDPLoPLForDisp()] / 100.0;
+        uint64_t coeff_dpl = 0x100000000uLL * 0xffffuLL; // /256 is needed for RGBA8888 format
+        uint64_t gain_av = llrint(coeff_dpl * shot[ *gainForDisp()] / 0xffffuLL * shot[ *this].m_coefficients[0]);
+        std::array<uint64_t, 3> gains = {}; //offsets for dPL/PL
         std::array<int64_t, 3> dpl_gain_pos = {};
         std::array<int64_t, 3> dpl_gain_neg = {};
+        int64_t denom_coeff_PL = 0;
         switch((unsigned int)shot[ *m_dispMethod]) {
         case 0:
         default:
@@ -495,24 +499,25 @@ XODMRImaging::visualize(const Snapshot &shot) {
             dpl_gain_neg[0] = -dpl_gain_neg[2];
             dpl_gain_neg[1] = -dpl_gain_neg[2];
             break;
+        case 2:
+            //"dPL(YellowGreenBlue)"
+            //DPL yellow for positive, blue for negative
+            denom_coeff_PL = coeff_dpl / gain_av;
         case 1:
             //"PL&dPL/PL(YellowGreenBlue)"
             //Colored by DPL/PL
             gains = {0, gain_av, 0}; //max. 0xffffuL( or 0xffu) * 0x100000000uLL for autogain.
             dpl_gain_pos[0] = llrint(gain_av / dpl_max);
-            dpl_gain_pos[1] = -dpl_gain_pos[0];
+            dpl_gain_pos[1] = 0;
             dpl_gain_neg[2] = llrint(gain_av / dpl_min); //negative
             dpl_gain_neg[1] = -dpl_gain_neg[2];
             break;
-        case 2:
-            //"dPL(YellowGreenBlue)"
-            //DPL yellow for positive, blue for negative
-            dpl_gain_pos[0] = llrint(gain_av / dpl_max);
-            dpl_gain_pos[1] = -dpl_gain_pos[0];
-            dpl_gain_neg[2] = llrint(gain_av / dpl_min); //negative
-            dpl_gain_neg[1] = -dpl_gain_neg[2];
-            offsets[1] = 0x100000000LL * 0x7fffLL; // or 0x7f
-            break;
+            //RYGB
+//            gains = {0, gain_av, 0}; //max. 0xffffuL( or 0xffu) * 0x100000000uLL for autogain.
+//            dpl_gain_pos[0] = llrint(gain_av / dpl_max);
+//            dpl_gain_pos[1] = -dpl_gain_pos[0];
+//            dpl_gain_neg[2] = llrint(gain_av / dpl_min); //negative
+//            dpl_gain_neg[1] = -dpl_gain_neg[2];
         }
         uint16_t *processed = reinterpret_cast<uint16_t*>(qimage->bits());
         const uint32_t *summed[2];
@@ -520,22 +525,41 @@ XODMRImaging::visualize(const Snapshot &shot) {
             summed[cidx] = &shot[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0);
 
         for(unsigned int i  = 0; i < width * height; ++i) {
-            int32_t dpl = *summed[1] - *summed[0];
+            int64_t pl0 = *summed[0]++;
+            int64_t dpl = (int64_t)*summed[1]++ - pl0;
+            if( !pl0) {
+                *processed++ = 0; *processed++ = 0; *processed++ = 0; *processed++ = 0xffffu;
+                continue;
+            }
+            int64_t denom = denom_coeff_PL / pl0;
+            dpl *= denom;
+            pl0 *= denom; //PL0
             const auto &dpl_gain = (dpl > 0) ? dpl_gain_pos : dpl_gain_neg;
             for(unsigned int cidx: {0,1,2}) {
-                int64_t v = ((int64_t)(*summed[0] * gains[cidx]) + dpl * dpl_gain[cidx] + offsets[cidx])  / 0x100000000LL;
+                int64_t v = ((int64_t)(pl0 * gains[cidx]) + dpl * dpl_gain[cidx])  / 0x100000000LL;
 //                *processed++ = std::max(0LL, std::min(v, 0xffLL));
                 *processed++ = std::max(0LL, std::min(v, 0xffffLL));
             }
             *processed++ = 0xffffu;
-            for(unsigned int cidx: {0,1})
-                (summed[cidx])++;
         }
         assert(processed == (uint16_t *)qimage->constBits() + width * height * 4);
         assert(summed[0] == &shot[ *this].m_summedCounts[seq_len - 2]->at(0) + width * height);
         assert(summed[1] == &shot[ *this].m_summedCounts[seq_len - 1]->at(0) + width * height);
-    }
 
+        //colorbar
+        processed = reinterpret_cast<uint16_t*>(cbimage->bits());
+        for(unsigned int i  = 0; i < cbimage->width(); ++i) {
+            int64_t pl0 = coeff_dpl / gain_av;
+            int64_t dpl = ((double)i / (cbimage->width() - 1) * (dpl_max - dpl_min) + dpl_min) * pl0;
+            const auto &dpl_gain = (dpl > 0) ? dpl_gain_pos : dpl_gain_neg;
+            for(unsigned int cidx: {0,1,2}) {
+                int64_t v = ((int64_t)(pl0 * gains[cidx]) + dpl * dpl_gain[cidx])  / 0x100000000LL;
+//                *processed++ = std::max(0LL, std::min(v, 0xffLL));
+                *processed++ = std::max(0LL, std::min(v, 0xffffLL));
+            }
+            *processed++ = 0xffffu;
+        }
+    }
 
     std::vector<double> coeffs;
     std::vector<const uint32_t *> rawimages;
@@ -547,6 +571,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
         tr[ *this].m_qimage = qimage;
         tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
         m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs);
+        m_processedImage->updateColorBarImage(tr, dpl_min * 100.0, dpl_max * 100.0, cbimage);
     });
 }
 
