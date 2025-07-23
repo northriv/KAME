@@ -63,6 +63,7 @@ public:
     struct Payload : public XSecondaryDriver::Payload {
         // unsigned int numSamples() const {return m_summedCounts.size();}
         double minValue() const {return m_minValue;}
+        double dfreq() const {return m_dfreq;}
         unsigned int width() const {return m_width;}
         unsigned int height() const {return m_height;}
         bool secondMoment() const {return m_secondMoment;}
@@ -79,6 +80,7 @@ public:
         XTime m_timeClearRequested = {};
         unsigned int m_width, m_height;
         shared_ptr<QImage> m_qimage;
+        double m_dfreq;
     };
 
 
