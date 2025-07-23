@@ -164,6 +164,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         throw XSkippedRecordError(__FILE__, __LINE__);
 
     double coeff_freqidx = 1.0 / (shot_fspectrum[ *fspectrum__->freqStep()] * 1e-3); //1/MHz
+    tr[ *this].m_dfreq = 1.0 / coeff_freqidx;
     uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
     tr[ *this].m_minValue = min__;
 
@@ -296,7 +297,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     double cogmax = shot[ *maxForColorMap()];
 
     constexpr int64_t coeff_dCoG = 0x10000LL;
-    double dfreq = shot[ *this].m_coefficients[1] / shot[ *this].m_coefficients[0];
+    double dfreq = shot[ *this].dfreq(); //MHz
     double fmin = shot[ *this].minValue();
     offsets[1] += llrint((fmin - cogmin) / shot[ *this].m_coefficients[1]);
 
