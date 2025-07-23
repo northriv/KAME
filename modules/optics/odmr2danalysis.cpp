@@ -44,7 +44,8 @@ XODMR2DAnalysis::XODMR2DAnalysis(const char *name, bool runtime,
     m_processedImage(create<X2DImage>("ProcessedImage", false,
                                       m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
                                       2, m_form->m_dblGamma,
-                                      m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
+                                      m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()),
+                                      true)) {
 
     connect(odmrFSpectrum());
 
@@ -164,6 +165,8 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         throw XSkippedRecordError(__FILE__, __LINE__);
 
     double coeff_freqidx = 1.0 / (shot_fspectrum[ *fspectrum__->freqStep()] * 1e-3); //1/MHz
+    if(tr[ *this].m_dfreq != 1.0 / coeff_freqidx)
+        clear = true;
     tr[ *this].m_dfreq = 1.0 / coeff_freqidx;
     uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
 
@@ -291,6 +294,8 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     unsigned int height = shot[ *this].height();
     auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA64);
     qimage->setColorSpace(QColorSpace::SRgbLinear);
+    auto cbimage = std::make_shared<QImage>(width, 1, QImage::Format_RGBA64);
+    qimage->setColorSpace(QColorSpace::SRgbLinear);
 
     uint16_t *processed = reinterpret_cast<uint16_t*>(qimage->bits());
     const uint32_t *summed_on_o_off = &shot[ *this].m_summedCounts[0]->at(0),
@@ -360,6 +365,18 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         }
         *processed++ = 0xffffu;
     }
+    //colorbar
+    processed = reinterpret_cast<uint16_t*>(cbimage->bits());
+    for(unsigned int i  = 0; i < cbimage->width(); ++i) {
+        int64_t dcog = (double)i / (cbimage->width() - 1) * (cogmax - cogmin) / dfreq * coeff_dCoG;
+        const auto &dcog_gain = (dcog > thres) ? dcog_gain_high : dcog_gain_low;
+        const auto &coloroffsets = (dcog > thres) ? coloroffsets_high : coloroffsets_low;
+        for(unsigned int cidx: {0,1,2}) {
+            int64_t v = (dcog * dcog_gain[cidx] + coloroffsets[cidx]) / 0x100000000LL;
+            *processed++ = std::max(0LL, std::min(v, 0xffffLL));
+        }
+        *processed++ = 0xffffu;
+    }
 
     std::vector<double> coeffs, offsets_image;
     std::vector<const uint32_t *> rawimages;
@@ -372,6 +389,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         tr[ *this].m_qimage = qimage;
         tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
         m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs, offsets_image);
+        m_processedImage->updateColorBarImage(tr, cogmin, cogmax, cbimage);
     });
 }
 

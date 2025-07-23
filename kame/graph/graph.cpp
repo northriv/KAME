@@ -169,7 +169,7 @@ XGraph::setupRedraw(Transaction &tr, float resolution, float screenaspectratio) 
 		for(auto it = axes_list.begin(); it != axes_list.end(); ++it) {
 			auto axis = static_pointer_cast<XAxis>( *it);
 			if(shot[ *axis->autoScale()])
-                axis->zoom(true, true, 1 - shot[ *axis->marginDuringAutoScale()]);
+                axis->zoom(shot, true, true, 1 - shot[ *axis->marginDuringAutoScale()]);
 			axis->fixScale(tr, resolution, true);
 		}
 	}
@@ -185,11 +185,11 @@ XGraph::setupRedraw(Transaction &tr, float resolution, float screenaspectratio) 
                 pxaspectratio_org *= axisy->fixedMax() - axisy->fixedMin();
                 pxaspectratio_org *= screenaspectratio;
                 if(pxaspectratio_org > 1.0) {
-                    axisx->zoom(true, true, 1 / pxaspectratio_org);
+                    axisx->zoom(shot, true, true, 1 / pxaspectratio_org);
                     axisx->fixScale(tr, resolution, true);
                 }
                 else {
-                    axisy->zoom(true, true, pxaspectratio_org);
+                    axisy->zoom(shot, true, true, pxaspectratio_org);
                     axisy->fixScale(tr, resolution, true);
                 }
             }
@@ -213,7 +213,7 @@ XGraph::zoomAxes(Transaction &tr, float resolution,
 		const XNode::NodeList &axes_list( *shot.list(axes()));
 		for(auto it = axes_list.begin(); it != axes_list.end(); ++it) {
 			auto axis = static_pointer_cast<XAxis>( *it);
-			axis->zoom(true, true, scale, axis->screenToAxis(shot, center));
+            axis->zoom(shot, true, true, scale, axis->screenToAxis(shot, center));
 			axis->fixScale(tr, resolution);
 		}
 	}
@@ -998,13 +998,13 @@ XAxis::tryInclude(XGraph::VFloat x) {
 }
 
 void
-XAxis::zoom(bool minchange, bool maxchange, XGraph::GFloat prop, XGraph::GFloat center) {
+XAxis::zoom(const Snapshot &shot, bool minchange, bool maxchange, XGraph::GFloat prop, XGraph::GFloat center) {
     if(direction() == AxisDirection::Weight) return;
 	
-	if(maxchange) {
+    if(maxchange && shot[ *maxValue()].isUIEnabled()) {
         m_maxFixed = axisToVal(center + (XGraph::GFloat)0.5 / prop * (m_bInverted ? -1 : 1));
 	}
-	if(minchange) {
+    if(minchange && shot[ *minValue()].isUIEnabled()) {
         m_minFixed = axisToVal(center - (XGraph::GFloat)0.5 / prop * (m_bInverted ? -1 : 1));
 	}
 	m_invMaxMinusMinFixed = -1; //undef
@@ -1335,19 +1335,21 @@ X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
         auto texture = painter->createTextureDuringListing(m_image).lock();
         if(texture && fixScales(shot)) {
             XGraph::ScrPoint spt[4];
-            XGraph::ValPoint v1(0, 0);
-            XGraph::GPoint g;
-            valToGraphFast(v1, &g);
-            graphToScreenFast(g, &spt[0]);
-            XGraph::ValPoint v2(m_image->width(), 0);
-            valToGraphFast(v2, &g);
-            graphToScreenFast(g, &spt[1]);
-            XGraph::ValPoint v3(m_image->width(), m_image->height());
-            valToGraphFast(v3, &g);
-            graphToScreenFast(g, &spt[2]);
-            XGraph::ValPoint v4(0, m_image->height());
-            valToGraphFast(v4, &g);
-            graphToScreenFast(g, &spt[3]);
+            std::vector<XGraph::GPoint> gpt(4);
+            if(isColorBarPlot()) {
+                gpt = {{0,0}, {1, 0}, {1, 1}, {0, 1}};
+            }
+            else {
+                valToGraphFast({0, 0}, &gpt[0]);
+                XGraph::ValPoint v2(m_image->width(), 0);
+                XGraph::ValPoint v3(m_image->width(), m_image->height());
+                XGraph::ValPoint v4(0, m_image->height());
+                valToGraphFast(v2, &gpt[1]);
+                valToGraphFast(v3, &gpt[2]);
+                valToGraphFast(v4, &gpt[3]);
+            }
+            for(auto i: {0,1,2,3})
+                graphToScreenFast(gpt[i], &spt[i]);
             texture->placeObject(spt[0], spt[1], spt[2], spt[3], OnScreenTexture::HowToEvade::Never, {});
         }
     }

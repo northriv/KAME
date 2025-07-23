@@ -30,14 +30,14 @@ class QDoubleSpinBox;
 //! \sa XQGraph, XGraph
 class DECLSPEC_KAME X2DImage: public XGraphNToolBox {
 public:
-    X2DImage(const char *name, bool runtime, FrmGraphNURL *item);
+    X2DImage(const char *name, bool runtime, FrmGraphNURL *item, bool hascolorbar = false);
     X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
         unsigned int max_color_index, QDoubleSpinBox *dblgamma,
-        QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
+        QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver, bool hascolorbar = false);
     X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed = nullptr, QAbstractButton *btn = nullptr, QPushButton *btndump = nullptr,
-        QDoubleSpinBox *dblgamma = nullptr);
+        QDoubleSpinBox *dblgamma = nullptr, bool hascolorbar = false);
 
     virtual ~X2DImage();
 
@@ -45,12 +45,14 @@ public:
 
     void updateImage(Transaction &tr, const shared_ptr<QImage> &image,
                      const std::vector<const uint32_t *> &rawimages = {}, unsigned int raw_stride = 0, const std::vector<double> coefficients = {}, const std::vector<double> offsets = {});
+    void updateColorBarImage(Transaction &tr, double cmin, double cmax, const shared_ptr<QImage> &image);
 
     const shared_ptr<X2DImagePlot> &plot() const {return m_plot;}
+    const shared_ptr<X2DImagePlot> &colorBarPlot() const {return m_colorbarplot;}
 protected:
     virtual void dumpToFileThreaded(std::fstream &, const Snapshot &, const std::string &ext) override;
 private:
-    shared_ptr<X2DImagePlot> m_plot;
+    shared_ptr<X2DImagePlot> m_plot, m_colorbarplot;
     const shared_ptr<XDoubleNode> m_gamma;
 
     XQGraph *m_graphwidget;

@@ -342,7 +342,7 @@ public:
 	const shared_ptr<XBoolNode> &logScale() const {return m_logScale;}
     const shared_ptr<XDoubleNode> &marginDuringAutoScale() const {return m_marginDuringAutoScale;}
 
-	void zoom(bool minchange, bool maxchange, XGraph::GFloat zoomscale,
+    void zoom(const Snapshot &shot, bool minchange, bool maxchange, XGraph::GFloat zoomscale,
 			  XGraph::GFloat center = 0.5);
 
 	//! Obtains the type of tic and rounded value from position on axis
@@ -467,10 +467,17 @@ protected:
     virtual int drawLegend(const Snapshot &, XQGraphPainter *, const XGraph::ScrPoint &, float, float) override {return 0;};
     //! Takes a snap-shot all points for rendering
     virtual void snapshot(const Snapshot &shot) override;
+    virtual bool isColorBarPlot() const {return false;}
 private:
     friend class XGraph;
     shared_ptr<QImage> m_image; //, m_image_textured;
 //    shared_ptr<OnScreenTexture> m_texture;
+};
+class DECLSPEC_KAME XColorBarImagePlot : public X2DImagePlot {
+public:
+    using X2DImagePlot::X2DImagePlot;
+protected:
+    virtual bool isColorBarPlot() const override {return true;}
 };
 //---------------------------------------------------------------------------
 #endif

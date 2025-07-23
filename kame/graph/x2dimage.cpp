@@ -23,9 +23,9 @@
 #include <QBuffer>
 #include <QColorSpace>
 
-X2DImage::X2DImage(const char *name, bool runtime, FrmGraphNURL *item) :
+X2DImage::X2DImage(const char *name, bool runtime, FrmGraphNURL *item, bool hascolorbar) :
     X2DImage(name, runtime, item->m_graphwidget, item->m_edUrl,
-        item->m_btnUrl, item->m_btnDump) {
+        item->m_btnUrl, item->m_btnDump, nullptr, hascolorbar) {
 
 }
 X2DImage::~X2DImage() {}
@@ -33,8 +33,8 @@ X2DImage::~X2DImage() {}
 X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
     unsigned int max_color_index, QDoubleSpinBox *dblgamma, QToolButton *btnmath,
-    const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver) :
-    X2DImage(name, runtime, graphwidget, ed, btn, btndump, dblgamma) {
+    const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver, bool hascolorbar) :
+    X2DImage(name, runtime, graphwidget, ed, btn, btndump, dblgamma, hascolorbar) {
     m_btnMathTool = btnmath;
     for(unsigned int i = 0; i < max_color_index; ++i)
         m_toolLists.push_back(create<XGraph2DMathToolList>(formatString("CH%u", i).c_str(), false, meas, driver, plot()));
@@ -43,7 +43,7 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
 }
 
 X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
-    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump, QDoubleSpinBox *dblgamma) :
+    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump, QDoubleSpinBox *dblgamma, bool hascolorbar) :
     XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump,
         "Images (*.png *.jpg *.jpeg);;Data files (*.dat);;All files (*.*)"),
     m_gamma(create<XDoubleNode>("Gamma", false)),
@@ -79,6 +79,38 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
 
         tr[ *gamma()] = 2.2;
         graph()->applyTheme(tr, true);
+
+        if(hascolorbar) {
+        //Colorbar
+            auto cplot = graph()->plots()->create<XColorBarImagePlot>(tr, "ColorBar", true, ref(tr), graph());
+            if( !cplot) return; //transaction has failed.
+            tr[ *cplot->label()] = getLabel();
+            m_colorbarplot = cplot;
+            auto axisc = graph()->axes()->create<XAxis>(tr, "ColorAxis", true, XAxis::AxisDirection::X, false, ref(tr), graph());
+            auto axisc2 = graph()->axes()->create<XAxis>(tr, "ColorBarAxis", true, XAxis::AxisDirection::Y, false, ref(tr), graph());
+            tr[ *cplot->axisX()] = axisc;
+            tr[ *axisc->label()] = "Color";
+            tr[ *cplot->axisY()] = axisc2;
+            tr[ *axisc2->label()] = "CY";
+            tr[ *axisc->autoScale()] = false;
+            tr[ *axisc->autoScale()].setUIEnabled(false);
+            tr[ *axisc->maxValue()].setUIEnabled(false);
+            tr[ *axisc->minValue()].setUIEnabled(false);
+            tr[ *axisc2->autoScale()].setUIEnabled(false);
+            tr[ *axisc2->maxValue()].setUIEnabled(false);
+            tr[ *axisc2->minValue()].setUIEnabled(false);
+            tr[ *axisc->invisible()] = false;
+            tr[ *axisc->displayLabel()] = false;
+            tr[ *axisc->rightOrTopSided()] = true;
+            tr[ *axisc2->invisible()] = true;
+            tr[ *axisc2->length()] = 0.03;
+            tr[ *axisy->length()] = (double)tr[ *axisy->length()] - tr[ *axisc2->length()] - 0.05;
+            tr[ *axisc2->x()] = (double)tr[ *axisx->x()];
+            tr[ *axisc2->y()] = (double)tr[ *axisy->y()] + tr[ *axisy->length()] + 0.01;
+            tr[ *axisc->length()] = (double)tr[ *axisx->length()];
+            tr[ *axisc->x()] = (double)tr[ *axisc2->x()];
+            tr[ *axisc->y()] = (double)tr[ *axisc2->y()] + tr[ *axisc2->length()];
+        }
     });
     m_conUIs = {
         xqcon_create<XQDoubleSpinBoxConnector>(gamma(), m_dblGamma),
@@ -150,4 +182,12 @@ X2DImage::updateImage(Transaction &tr, const shared_ptr<QImage> &image,
         m_toolLists[cidx]->update(tr, m_graphwidget,
             rawimages[cidx], image->width(), raw_stride, image->height(), coeffs[cidx], offsets[cidx]);
     }
+}
+void
+X2DImage::updateColorBarImage(Transaction &tr, double cmin, double cmax, const shared_ptr<QImage> &image) {
+    m_colorbarplot->setImage(tr, image);
+    shared_ptr<XAxis> axis = tr[ *m_colorbarplot->axisX()];
+    auto axisc = static_pointer_cast<XAxis>(axis);
+    tr[ *axisc->maxValue()] = cmax;
+    tr[ *axisc->minValue()] = cmin;
 }
