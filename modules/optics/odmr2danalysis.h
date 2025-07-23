@@ -73,7 +73,7 @@ public:
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
         //! avg counts, sum freq_u16, sum f^2_u16.
         unsigned int m_accumulated[3];
-        double m_coefficients[3];
+        double m_coefficients[3], m_offsets[3];
         double m_minValue;
         bool m_secondMoment;
         XTime m_timeClearRequested = {};

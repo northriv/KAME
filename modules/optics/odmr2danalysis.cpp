@@ -112,7 +112,7 @@ XODMR2DAnalysis::checkDependency(const Snapshot &shot_this,
     XDriver *emitter) const {
     shared_ptr<XODMRFSpectrum> fspectrum__ = shot_this[ *odmrFSpectrum()];
     if( !fspectrum__) return false;
-    if((emitter != fspectrum__.get()) || (emitter == this))
+    if((emitter != fspectrum__.get()) && (emitter != this))
         return false;
     const Snapshot &shot_fspectrum((emitter == fspectrum__.get()) ? shot_emitter : shot_others);
     shared_ptr<XODMRImaging> odmr__ = shot_fspectrum[ *fspectrum__->odmr()];
@@ -165,10 +165,13 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
     double coeff_freqidx = 1.0 / (shot_fspectrum[ *fspectrum__->freqStep()] * 1e-3); //1/MHz
     uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
-    tr[ *this].m_minValue = min__;
 
     unsigned int width = shot_odmr[ *odmr__].width();
     unsigned int height = shot_odmr[ *odmr__].height();
+
+    if(tr[ *this].m_minValue != min__)
+        clear = true;
+    tr[ *this].m_minValue = min__;
 
     if( !tr[ *incrementalAverage()] && !clear && (emitter == fspectrum__.get())) {
         clear = true;
@@ -184,6 +187,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
     tr[ *this].m_width = width;
     tr[ *this].m_height = height;
+
     if(clear) {
         tr[ *this].m_summedCounts[2].reset();
         for(unsigned int i = 0; i < num_summed_frames; ++i) {
@@ -234,12 +238,15 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 
     tr[ *this].m_coefficients[0] = 1.0 / coeff_PLOn_o_Off / tr[ *this].m_accumulated[0]; // 1/C/N
-    tr[ *this].m_coefficients[1] = tr[ *this].m_coefficients[0] / coeff_freqidx; // 1/C/N
+    tr[ *this].m_coefficients[1] = tr[ *this].m_coefficients[0] / coeff_freqidx; // 1/C/N [MHz]
     // tr[ *this].m_coefficients[2] = tr[ *this].m_coefficients[0] / coeff_freqsq_u16; //for math tools
 
     int64_t offsets[3];
     offsets[0] = llrint(-1.0 / tr[ *this].m_coefficients[0]); //-N C
     offsets[1] = llrint(-(double)tr[ *this].m_accumulated[1] / (tr[ *this].m_coefficients[0] * tr[ *this].m_accumulated[0])); //- sum f C
+
+    tr[ *this].m_offsets[0] = offsets[0] * tr[ *this].m_coefficients[0]; // = -1
+    tr[ *this].m_offsets[1] = offsets[1] * tr[ *this].m_coefficients[1]; // = -sum f/N = -<f> [MHz]
 
     if(tr[ *m_autoMinMaxForColorMap]) {
         const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
@@ -250,8 +257,8 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         int64_t dcogmax = -0x7fffffffffffffffLL;
         for(unsigned int i  = 0; i < width * height; ++i) {
             int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0];
-            if( !dplopl) continue;
             int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
+            if(abs(dplopl) < coeff_PLOn_o_Off / 5000) continue; //ignore |dPL/PL| < 0.02%
             int64_t dcog = f_dplopl * coeff_dCoG / dplopl;
             if(dcog > dcogmax)
                 dcogmax = dcog;
@@ -296,9 +303,9 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     double cogmax = shot[ *maxForColorMap()];
 
     constexpr int64_t coeff_dCoG = 0x10000LL;
-    double dfreq = shot[ *this].m_coefficients[1] / shot[ *this].m_coefficients[0];
+    double dfreq = shot[ *this].m_coefficients[1] / shot[ *this].m_coefficients[0]; //[MHz]
     double fmin = shot[ *this].minValue();
-    offsets[1] += llrint((fmin - cogmin) / shot[ *this].m_coefficients[1]);
+    int64_t dcog_offset = coeff_dCoG * llrint((fmin - cogmin) / dfreq);
 
     std::array<int64_t, 3> coloroffsets_low = {};
     std::array<int64_t, 3> coloroffsets_high = {};
@@ -338,12 +345,12 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
 
     for(unsigned int i  = 0; i < width * height; ++i) {
         int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0];
+        int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
         if( !dplopl) {
             *processed++ = 0; *processed++ = 0; *processed++ = 0; *processed++ = 0xffffu;
             continue;
         }
-        int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
-        int64_t dcog = f_dplopl * coeff_dCoG / dplopl;
+        int64_t dcog = f_dplopl * coeff_dCoG / dplopl + dcog_offset;
         const auto &dcog_gain = (dcog > thres) ? dcog_gain_high : dcog_gain_low;
         const auto &coloroffsets = (dcog > thres) ? coloroffsets_high : coloroffsets_low;
         for(unsigned int cidx: {0,1,2}) {
@@ -353,16 +360,17 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         *processed++ = 0xffffu;
     }
 
-    std::vector<double> coeffs;
+    std::vector<double> coeffs, offsets_image;
     std::vector<const uint32_t *> rawimages;
     for(unsigned int cidx: {0,1}) {
         coeffs.push_back(shot[ *this].m_coefficients[cidx]);
+        offsets_image.push_back(shot[ *this].m_offsets[cidx]);
         rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
     }
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
         tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
-        m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs);
+        m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs, offsets_image);
     });
 }
 

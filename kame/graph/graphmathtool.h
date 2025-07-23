@@ -77,7 +77,7 @@ public:
     virtual ~XGraph2DMathTool() {}
 
     virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
-        unsigned int stride, unsigned int numlines, double coefficient) = 0;
+        unsigned int stride, unsigned int numlines, double coefficient, double offset) = 0;
 
     const shared_ptr<XDoubleNode> &beginX() const {return m_beginX;}
     const shared_ptr<XDoubleNode> &beginY() const {return m_beginY;}
@@ -159,18 +159,18 @@ public:
     using ret_type = typename std::conditional<HasSingleEntry, double, std::vector<double>>::type;
 
     virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
-        unsigned int stride, unsigned int numlines, double coefficient) override {
+        unsigned int stride, unsigned int numlines, double coefficient, double offset) override {
 //        using namespace Eigen;
 //        using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
 //        auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
 //            leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
         if constexpr(HasSingleEntry) {
-            double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
+            double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset);
             this->entry()->value(tr, v);
         }
         else {
             try {
-                std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient);
+                std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset);
                 for(unsigned int i = 0; i < this->numEntries(); ++i)
                     this->entry(i)->value(tr, v.at(i));
             }
@@ -279,27 +279,27 @@ using XGraph1DMathToolCoG = XGraph1DMathToolX<FuncGraph1DMathToolCoG>;
 
 struct FuncGraph2DMathToolSum{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
-    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient){
+    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset){
         double v = 0.0;
         for(unsigned int y = 0; y < numlines; ++y) {
             for(const uint32_t *p = leftupper; p < leftupper + width; ++p)
                 v += *p;
             leftupper += stride;
         }
-        return v * coefficient;
+        return v * coefficient + offset * numlines * width;
     }
 };
 using XGraph2DMathToolSum = XGraph2DMathToolX<FuncGraph2DMathToolSum>;
 struct FuncGraph2DMathToolAverage{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
-    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient){
+    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset){
         double v = 0.0;
         for(unsigned int y = 0; y < numlines; ++y) {
             for(const uint32_t *p = leftupper; p < leftupper + width; ++p)
                 v += *p;
             leftupper += stride;
         }
-        return v * coefficient / (width * numlines);
+        return v * coefficient / (width * numlines) + offset;
     }
 };
 using XGraph2DMathToolAverage = XGraph2DMathToolX<FuncGraph2DMathToolAverage>;
@@ -369,7 +369,7 @@ public:
 
     virtual void update(Transaction &tr, XQGraph *graphwidget,
         const uint32_t *leftupper,
-        unsigned int width, unsigned int stride, unsigned int numlines, double coefficient);
+        unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset = 0.0);
 
     void onPlaneSelectedByToolForCreate(const Snapshot &shot,
         const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph*>&);

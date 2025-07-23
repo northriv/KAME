@@ -513,7 +513,7 @@ struct PyFunc2DMathTool {
 
     ret_type
     operator()(const uint32_t *leftupper, unsigned int width,
-                      unsigned int stride, unsigned int numlines, double coefficient){
+                      unsigned int stride, unsigned int numlines, double coefficient, double offset){
         using namespace Eigen;
         using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
         auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
@@ -524,7 +524,7 @@ struct PyFunc2DMathTool {
             return {};
         try {
             return py::cast<ret_type>((*pf)(Ref<const RMatrixXu32>(cmatrix),
-                width, stride, numlines, coefficient));
+                width, stride, numlines, coefficient, offset));
         }
         catch (pybind11::error_already_set& e) {
             gErrPrint(i18n("Python error: ") + e.what());

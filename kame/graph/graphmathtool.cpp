@@ -319,7 +319,7 @@ XGraph2DMathToolList::XGraph2DMathToolList(const char *name, bool runtime,
 void
 XGraph2DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
     const uint32_t *leftupper, unsigned int width,
-    unsigned int stride, unsigned int numlines, double coefficient) {
+    unsigned int stride, unsigned int numlines, double coefficient, double offset) {
     if(tr.size(shared_from_this())) {
         for(auto &x: *tr.list(shared_from_this())) {
             auto tool = static_pointer_cast<XGraph2DMathTool>(x);
@@ -337,7 +337,7 @@ XGraph2DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
             y1 = std::min(y1, (ssize_t)numlines - 1); //limits y
             if((x0 >= 0) && (y0 >= 0) && (x0 < stride) && (y0 < numlines) && (x1 >= x0)) {
                 tool->update(tr, graphwidget, leftupper + x0 + y0 * stride, x1 - x0 + 1,
-                    stride, y1 - y0 + 1, coefficient);
+                    stride, y1 - y0 + 1, coefficient, offset);
             }
         }
     }

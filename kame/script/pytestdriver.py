@@ -82,6 +82,7 @@ except (ImportError, ModuleNotFoundError):
 class Test2DMathTool(XPythonGraph2DMathTool):
     def __init__(self, name, runtime, tr, entries, driver, plot, entryname):
         XPythonGraph2DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, entryname)  #super().__init__ cannot be used.
-        self.setFunctor(lambda matrix, width, stride, numlines, coefficient: coefficient * np.array([np.sum(matrix),np.average(matrix)]))
+        self.setFunctor(lambda matrix, width, stride, numlines, coefficient, offset: \
+            np.array([coefficient * np.sum(matrix) + np.size(matrix) * offset, coefficient * np.average(matrix) + offset]))
 
 XPythonGraph2DMathTool.exportClass("NumPySum", Test2DMathTool, "NumPy Sum;Avg")
