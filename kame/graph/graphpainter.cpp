@@ -342,8 +342,12 @@ XQGraphPainter::wheel(int x, int y, double deg)
 }
 void
 XQGraphPainter::zoom(double zoomscale, int , int ) {
-	XGraph::ScrPoint s1(0.5, 0.5, 0.5);
-  
+    XGraph::ScrPoint s1(0.5, 0.5, 0.5);
+    if( m_selectionModeNow == SelectionMode::SelNone) {
+        if(m_foundPlane) {
+            s1 = m_finishScrPos;
+        }
+    }
 	m_graph->iterate_commit([=](Transaction &tr){
 		if(tr.size(m_graph->axes())) {
 			const auto &axes_list( *tr.list(m_graph->axes()));
