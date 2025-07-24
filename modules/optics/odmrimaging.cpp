@@ -109,7 +109,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         tr[ *average()] = 1;
         tr[ *precedingSkips()] = 0;
         tr[ *autoGainForDisp()] = true;
-        tr[ *dispMethod()].add({"PL&dPL/PL(RedWhiteBlue)", "PL&dPL/PL(YellowGreenBlue)", "dPL(YellowGreenBlue)"});
+        tr[ *dispMethod()].add({"dPL(RedWhiteBlue)", "dPL(YellowGreenBlue)", "dPL/PL(RedWhiteBlue)", "dPL/PL(YellowGreenBlue)"});
         tr[ *sequence()].add({"OFF,ON", "OFF,OFF,ON", "OFF,OFF,OFF,ON"});
     });
 
@@ -481,15 +481,17 @@ XODMRImaging::visualize(const Snapshot &shot) {
     double dpl_max = shot[ *maxDPLoPLForDisp()] / 100.0;
     {
         uint64_t coeff_dpl = 0x100000000uLL * 0xffffuLL; // /256 is needed for RGBA8888 format
-        uint64_t gain_av = llrint(coeff_dpl * shot[ *gainForDisp()] / 0xffffuLL * shot[ *this].m_coefficients[0]);
+        uint64_t gain_av = llrint(coeff_dpl / 0xffffuLL * shot[ *gainForDisp()] * shot[ *this].m_coefficients[0]);
         std::array<uint64_t, 3> gains = {}; //offsets for dPL/PL
         std::array<int64_t, 3> dpl_gain_pos = {};
         std::array<int64_t, 3> dpl_gain_neg = {};
         int64_t denom_coeff_PL = 0;
         switch((unsigned int)shot[ *m_dispMethod]) {
+        case 2:
+            //"dPL/PL(RedWhiteBlue)"
+            denom_coeff_PL = coeff_dpl / gain_av;
         case 0:
-        default:
-            //"PL&dPL/PL(RedWhiteBlue)"
+            //"dPL/(RedWhiteBlue)"
             //Colored by DPL/PL
             gains = {gain_av / 2, gain_av / 2, gain_av / 2}; //max. 0x7fffuL( or 0x7fu) * 0x100000000uLL for autogain.
             dpl_gain_pos[0] = llrint(gain_av / 2 / dpl_max);
@@ -499,13 +501,14 @@ XODMRImaging::visualize(const Snapshot &shot) {
             dpl_gain_neg[0] = -dpl_gain_neg[2];
             dpl_gain_neg[1] = -dpl_gain_neg[2];
             break;
-        case 2:
-            //"dPL(YellowGreenBlue)"
-            //DPL yellow for positive, blue for negative
+        default:
+        case 3:
+            //"dPL/PL(YellowGreenBlue)"
+            //Colored by DPL/PL
             denom_coeff_PL = coeff_dpl / gain_av;
         case 1:
-            //"PL&dPL/PL(YellowGreenBlue)"
-            //Colored by DPL/PL
+            //"dPL(YellowGreenBlue)"
+            //DPL yellow for positive, blue for negative
             gains = {0, gain_av, 0}; //max. 0xffffuL( or 0xffu) * 0x100000000uLL for autogain.
             dpl_gain_pos[0] = llrint(gain_av / dpl_max);
             dpl_gain_pos[1] = 0;
@@ -527,13 +530,14 @@ XODMRImaging::visualize(const Snapshot &shot) {
         for(unsigned int i  = 0; i < width * height; ++i) {
             int64_t pl0 = *summed[0]++;
             int64_t dpl = (int64_t)*summed[1]++ - pl0;
-            if( !pl0) {
-                *processed++ = 0; *processed++ = 0; *processed++ = 0; *processed++ = 0xffffu;
-                continue;
+            if(denom_coeff_PL) {
+                if( !pl0) {
+                    *processed++ = 0; *processed++ = 0; *processed++ = 0; *processed++ = 0xffffu;
+                    continue;
+                }
+                dpl = dpl * denom_coeff_PL / pl0;
+                pl0 = coeff_dpl / gain_av;
             }
-            int64_t denom = denom_coeff_PL / pl0;
-            dpl *= denom;
-            pl0 *= denom; //PL0
             const auto &dpl_gain = (dpl > 0) ? dpl_gain_pos : dpl_gain_neg;
             for(unsigned int cidx: {0,1,2}) {
                 int64_t v = ((int64_t)(pl0 * gains[cidx]) + dpl * dpl_gain[cidx])  / 0x100000000LL;
