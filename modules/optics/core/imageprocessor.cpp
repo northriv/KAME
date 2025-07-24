@@ -328,6 +328,7 @@ XImageProcessor::summedCountsFromPool(int imagesize) {
             p->resize(imagesize);
             break;
         }
+        m_summedCountsPool[i].compareAndSet({}, p); //restoring busy one for later use.
     }
     if( !summedCountsNext)
         summedCountsNext = make_local_shared<std::vector<uint32_t>>(imagesize);
