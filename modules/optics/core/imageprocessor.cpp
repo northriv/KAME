@@ -321,10 +321,12 @@ XImageProcessor::summedCountsFromPool(int imagesize) {
     for(int i = 0; i < NumSummedCountsPool; ++i) {
         if( !m_summedCountsPool[i])
             m_summedCountsPool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
-        p = m_summedCountsPool[i];
-        if(p.use_count() == 2) { //not owned by other threads.
+        p.swap(m_summedCountsPool[i]); //atomic swap
+        if(p.unique()) { //confirmed uniquness.
+            m_summedCountsPool[i].compareAndSet({}, p); //sharing me for later use.
             summedCountsNext = p;
             p->resize(imagesize);
+            break;
         }
     }
     if( !summedCountsNext)
