@@ -396,15 +396,15 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
 local_shared_ptr<std::vector<uint32_t>>
 XODMR2DAnalysis::summedCountsFromPool(int imagesize) {
     local_shared_ptr<std::vector<uint32_t>> summedCountsNext, p;
-    //    for(int i = 0; i < NumSummedCountsPool; ++i) {
-    //        if( !m_summedCountsPool[i])
-    //            m_summedCountsPool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
-    //        p = m_summedCountsPool[i];
-    //        if(p.use_count() == 2) { //not owned by other threads.
-    //            summedCountsNext = p;
-    //            p->resize(imagesize);
-    //        }
-    //    }
+    for(int i = 0; i < NumSummedCountsPool; ++i) {
+        if( !m_summedCountsPool[i])
+            m_summedCountsPool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
+        p = m_summedCountsPool[i];
+        if(p.use_count() == 2) { //not owned by other threads.
+            summedCountsNext = p;
+            p->resize(imagesize);
+        }
+    }
     if( !summedCountsNext)
         summedCountsNext = make_local_shared<std::vector<uint32_t>>(imagesize);
     return summedCountsNext;
