@@ -30,11 +30,11 @@ XSG::XSG(const char *name, bool runtime,
       m_fmDev(create<XDoubleNode>("FMDev", true)),
       m_amIntSrcFreq(create<XDoubleNode>("AMIntSrcFreq", true)),
       m_fmIntSrcFreq(create<XDoubleNode>("FMIntSrcFreq", true)),
-      m_sweepMode(create<XComboNode>("SweepMode", true, true)),
-      m_sweepFreqStart(create<XDoubleNode>("SweepFreqStart", true)),
-      m_sweepFreqStop(create<XDoubleNode>("SweepFreqStop", true)),
-      m_sweepAmplStart(create<XDoubleNode>("SweepAmplStart", true)),
-      m_sweepAmplStop(create<XDoubleNode>("SweepAmplStop", true)),
+      m_sweepMode(create<XComboNode>("SweepMode", true, false)), //todo must be runtime
+      m_sweepFreqStart(create<XDoubleNode>("SweepFreqStart", false)), //todo must be runtime
+      m_sweepFreqStop(create<XDoubleNode>("SweepFreqStop", false)), //todo must be runtime
+      m_sweepAmplStart(create<XDoubleNode>("SweepAmplStart", false)), //todo must be runtime
+      m_sweepAmplStop(create<XDoubleNode>("SweepAmplStop", false)), //todo must be runtime
       m_sweepDwellTime(create<XDoubleNode>("SweepDwellTime", true)),
       m_sweepPoints(create<XUIntNode>("SweepPoints", true)),
       m_form(new FrmSG) {

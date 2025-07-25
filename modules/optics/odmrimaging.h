@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -43,6 +43,9 @@ public:
     virtual void showForms() override;
 
     //! driver specific part below
+    const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > &camera() const {return m_camera;}
+    const shared_ptr<XItemNode<XDriverList, XFilterWheel> > &filterWheel() const {return m_filterWheel;}
+
     const shared_ptr<XUIntNode> &average() const {return m_average;} //
     const shared_ptr<XUIntNode> &precedingSkips() const {return m_precedingSkips;} //skips some OFF/ON sequences before averaging
     const shared_ptr<XTouchableNode> &clearAverage() const {return m_clearAverage;}
@@ -148,9 +151,6 @@ protected:
     virtual bool checkDependency(const Snapshot &shot_this,
         const Snapshot &shot_emitter, const Snapshot &shot_others,
         XDriver *emitter) const override;
-
-    const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > &camera() const {return m_camera;}
-    const shared_ptr<XItemNode<XDriverList, XFilterWheel> > &filterWheel() const {return m_filterWheel;}
 
     virtual void analyzeIntensities(Transaction &tr) {};
 private:
