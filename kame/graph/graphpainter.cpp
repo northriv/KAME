@@ -347,6 +347,7 @@ XQGraphPainter::zoom(double zoomscale, int , int ) {
         if(m_foundPlane) {
             s1 = m_finishScrPos;
         }
+        m_foundPlane.reset();
     }
 	m_graph->iterate_commit([=](Transaction &tr){
 		if(tr.size(m_graph->axes())) {

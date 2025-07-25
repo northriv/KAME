@@ -162,8 +162,8 @@ private:
     void onROISelectionToolFinished(const Snapshot &shot,
         const std::tuple<XString, Vector4<double>, Vector4<double>, XQGraph*>&);
 
-    constexpr static unsigned int NumSummedCountsPool = 2;
-    atomic_shared_ptr<std::vector<uint32_t>> m_rawCountsPool[NumSummedCountsPool];
+    constexpr static unsigned int NumRawCountsPool = 3;
+    atomic_shared_ptr<std::vector<uint32_t>> m_rawCountsPool[NumRawCountsPool];
     local_shared_ptr<std::vector<uint32_t>> rawCountsFromPool(int imagebytes);
 
     void *execute(const atomic<bool> &) override;
