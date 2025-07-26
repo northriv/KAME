@@ -234,8 +234,9 @@ XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, i
         if(auto driver = wave.m_driver.lock()) {
             m_toolLists.push_back(wave.create<XGraph1DMathToolList>(tr,
                 formatString("%s-Math", label.c_str()).c_str(), false, meas, driver, plot));
-            if( !m_toolLists.back()) return false; //transaction has failed.
-            wave.m_tlkOnPlotInsertion.talk(tr, &wave);
+            if( !m_toolLists.back())
+                return false; //transaction has failed.
+            tr.mark(wave.m_tlkOnPlotInsertion, &wave);
         }
     return true;
 }

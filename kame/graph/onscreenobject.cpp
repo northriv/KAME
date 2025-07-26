@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -70,11 +70,11 @@ OnScreenObjectWithMarker::drawOffScreenMarker() {
 
 void
 OnScreenRectObject::drawNative() {
-    Snapshot shot_graph( *painter()->m_graph);
+    Snapshot shot_graph( *painter()->graph());
     switch(m_type) {
     case Type::Selection: {
         double w = 0.1;
-        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], baseColor()}) {
+        for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
             painter()->beginQuad(true);
             painter()->setColor(c, w);
             painter()->setVertex(leftTop());
@@ -88,7 +88,7 @@ OnScreenRectObject::drawNative() {
         break;
     case Type::Legends: {
         double w = 0.85;
-        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], baseColor()}) {
+        for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
             painter()->beginQuad(true);
             painter()->setColor(c, w);
             painter()->setVertex(leftTop());
@@ -103,7 +103,7 @@ OnScreenRectObject::drawNative() {
     case Type::AreaTool:
 //        glEnable(GL_LINE_STIPPLE);
 //        unsigned short pat = 0x0f0fu;
-        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], baseColor()}) {
+        for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
 //            painter()->beginLine(1.0, pat);
             painter()->beginLine(1.0);
             painter()->setColor(c, 0.3);
@@ -123,7 +123,7 @@ OnScreenRectObject::drawNative() {
     case Type::BorderLines:
 //        glEnable(GL_LINE_STIPPLE);
 //        unsigned short pat = 0x0f0fu;
-        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], baseColor()}) {
+        for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
 //            painter()->beginLine(1.0, pat);
             painter()->beginLine(1.0);
             painter()->setColor(c, 0.3);
@@ -417,6 +417,57 @@ template class OnAxisObject<OnScreenRectObject, false>;
 template class OnAxisObject<OnScreenTextObject, true>;
 template class OnAxisObject<OnScreenTextObject, false>;
 
+template <bool IsXAxis>
+void OnAxisFuncObject<IsXAxis>::drawNative() {
+    this->toScreen();
+    Snapshot shot_graph( *this->painter()->graph());
+    double x1,y1,z1,x2,y2,z2;
+    this->painter()->screenToWindow(this->leftBottom(), &x1, &y1, &z1);
+    this->painter()->screenToWindow(this->rightBottom(), &x2, &y2, &z2);
+    double window_len = std::max(x1, x2) - std::min(x1, x2);
+    unsigned int len = std::max(50u, (unsigned int)window_len * 2);
+    m_xvec.resize(len);
+    m_yvec.resize(len);
+    XGraph::VFloat xfront, xback;
+    std::tie(xfront, xback) = this->axis1ValueRange();
+    XGraph::VFloat dx = (xback - xfront) / (len - 1);
+    XGraph::VFloat x = xfront;
+    for(auto &&v: m_xvec) {
+        v = x;
+        x += dx;
+    }
+    m_yvec = this->func(m_xvec, std::move(m_yvec));
+    if(m_yvec.size() != m_xvec.size())
+        return;
+    XScopedLock<XMutex> lock( this->m_mutex);
+    if(auto plot = this->m_plot.lock()) {
+        Snapshot shot( *plot);
+        XGraph::ScrPoint s;
+        double w = 0.7;
+        for(auto c: {this->baseColor()}) {
+            this->painter()->beginLine(1.0);
+            this->painter()->setColor(c, w);
+
+            for(unsigned int i = 0; i < len; ++i) {
+                if(i != 0)
+                    this->painter()->setVertex(s);
+                XGraph::ValPoint v(m_xvec[i], m_yvec[i]);
+                if( !IsXAxis)
+                    v = {m_yvec[i], m_xvec[i]};
+                XGraph::GPoint g;
+                plot->valToGraphFast(v, &g);
+                plot->graphToScreenFast(g, &s);
+                this->painter()->setVertex(s);
+            }
+            this->painter()->endLine();
+            w = 0.9;
+        }
+    }
+}
+template class OnAxisFuncObject<true>;
+template class OnAxisFuncObject<false>;
+
+
 OnScreenTextObject::OnScreenTextObject(XQGraphPainter* p) : OnScreenObjectWithMarker(p),
     m_minX(0xffff), m_minY(0xffff), m_maxX(-0xffff), m_maxY(-0xffff) {
     defaultFont();
@@ -471,7 +522,7 @@ OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
     txt.pos = p;
     txt.rgba = baseColor();
 
-    QFont font(painter()->m_pItem->font());
+    QFont font(painter()->widget()->font());
     font.setPointSize(m_curFontSize);
     QFontMetrics fm(font);
     QRect bb = fm.boundingRect(str);
@@ -502,9 +553,9 @@ OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
 void
 OnScreenTextObject::defaultFont() {
     m_curAlign = 0;
-    QFont font(painter()->m_pItem->font());
+    QFont font(painter()->widget()->font());
     m_curFontSize = std::min(14L, std::max(9L,
-        lrint(font.pointSize() * painter()->m_pItem->height() / painter()->m_pItem->logicalDpiY() / 3.5)));
+        lrint(font.pointSize() * painter()->widget()->height() / painter()->widget()->logicalDpiY() / 3.5)));
 }
 
 int
@@ -536,23 +587,23 @@ OnScreenTextObject::selectFont(const XString &str, const XGraph::ScrPoint &start
     if( fabs(x - x1) > fabs( y - y1) ) {
         //dir is horizontal
         align |= Qt::AlignVCenter;
-        h = min(h, 2 * min(y, painter()->m_pItem->height() - y));
+        h = min(h, 2 * min(y, painter()->widget()->height() - y));
         if( x > x1 ) {
             align |= Qt::AlignRight;
             w = x;
         }
         else {
             align |= Qt::AlignLeft;
-            w = painter()->m_pItem->width() - x;
+            w = painter()->widget()->width() - x;
         }
     }
     else {
         //dir is vertical
         align |= Qt::AlignHCenter;
-        w = min(w, 2 * min(x, painter()->m_pItem->width() - x));
+        w = min(w, 2 * min(x, painter()->widget()->width() - x));
         if( y < y1 ) {
             align |= Qt::AlignTop;
-            h = painter()->m_pItem->height() - y;
+            h = painter()->widget()->height() - y;
         }
         else {
             align |= Qt::AlignBottom;
@@ -566,7 +617,7 @@ OnScreenTextObject::selectFont(const XString &str, const XGraph::ScrPoint &start
     m_curAlign = align;
 
     {
-        QFont font(painter()->m_pItem->font());
+        QFont font(painter()->widget()->font());
         for(;;) {
             font.setPointSize(m_curFontSize);
             QFontMetrics fm(font);

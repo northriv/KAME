@@ -50,6 +50,7 @@ XGraphMathTool::XGraphMathTool(const char *name, bool runtime, Transaction &tr_m
     m_plot(plot),
     m_entries(entries),
     m_baseColor(create<XHexNode>("BaseColor", false)) {
+    trans( *baseColor()) = 0x4080ffu;
 }
 void
 XGraphMathTool::highlight(bool state, XQGraph *graphwidget) {
@@ -80,56 +81,70 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
 }
 
 void
-XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
+XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
     if( !shot[ *this].isUIEnabled())
         return;
     auto painter = graphwidget->painter().lock();
     if( !painter) {
-        m_oso.reset();
-        m_oso2.reset();
-        m_osolbl.reset();
+        m_osos.clear();
         return;
     }
-     //painter unchanged unless the same address is recycled.
-    if( !m_oso || !m_oso->isValid(painter.get())) {
-        m_oso = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
-    }
-    if(isHighLighted()) {
-        if( !m_oso2 || !m_oso2->isValid(painter.get())) {
-            m_oso2 = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::Selection);
+    for(auto &&oso: m_osos) {
+        if(!oso->isValid(painter.get())) {
+            m_osos.clear();
+            break;
         }
+        //painter unchanged unless the same address is recycled.
     }
-    else
-        m_oso2.reset();
-    if( !m_osolbl || !m_osolbl->isValid(painter.get())) {
-        m_osolbl = painter->createOnScreenObjectWeakly<OnXAxisTextObject>();
+    if(isHighLighted() != (bool)m_osoHighlight.lock()) {
+        m_osos.clear();
     }
-
+    if(m_osos.empty()) {
+        m_osos = createAdditionalOnScreenObjects(painter);
+    }
+    updateAdditionalOnScreenObjects(shot, graphwidget);
+    graphwidget->update();
+}
+std::deque<shared_ptr<OnScreenObject>>
+XGraph1DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) {
+    auto oso_rect = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
+    m_osoRect = oso_rect;
+    auto oso_lbl = painter->createOnScreenObjectWeakly<OnXAxisTextObject>();
+    m_osoLabel = oso_lbl;
+    if(isHighLighted()) {
+        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::Selection);
+        m_osoHighlight = oso_rect2;
+        return {oso_rect, oso_rect2, oso_lbl};
+    }
+    return {oso_rect, oso_lbl};
+}
+void
+XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *begin()];
         double edx = shot[ *end()];
         double bgy = 0.0;
         double edy = 1.0;
-        auto oso = static_pointer_cast<OnXAxisRectObject>(m_oso);
-        oso->setBaseColor(shot[ *baseColor()]);
-        oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
-        if(m_oso2) {
-            auto oso = static_pointer_cast<OnXAxisRectObject>(m_oso2);
+        if(auto oso = static_pointer_cast<OnXAxisRectObject>(m_osoRect.lock())) {
+            oso->setBaseColor(shot[ *baseColor()]);
+            oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
+        }
+        if(auto oso_rect = m_osoHighlight.lock()) {
+            auto oso = static_pointer_cast<OnXAxisRectObject>(oso_rect);
             QColor c = (unsigned long)***graphwidget->graph()->titleColor();
             c.setAlphaF(0.25);
             oso->setBaseColor(c.rgba());
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.02});
         }
-        {
-            auto oso = static_pointer_cast<OnXAxisTextObject>(m_osolbl);
+        if(auto oso = static_pointer_cast<OnXAxisTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.01, 0.01, 0.01});
             oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
             oso->drawTextAtPlacedPosition(getLabel());
         }
     }
-    graphwidget->update();
 }
+
 XString
 XGraph1DMathTool::getMenuLabel() const {
     Snapshot shot( *this);
@@ -146,59 +161,46 @@ XGraph2DMathTool::getMenuLabel() const {
     double edy = shot[ *endY()];
     return getLabel() + formatString(" (%.0f,%.0f)-(%.0f,%.0f)",bgx, bgy, edx, edy);
 }
-void
-XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
-    if( !shot[ *this].isUIEnabled())
-        return;
-    auto painter = graphwidget->painter().lock();
-    if( !painter) {
-        m_oso.reset();
-        m_oso2.reset();
-        m_osolbl.reset();
-        return;
-    }
-    //painter unchanged unless the same address is recycled.
-    if( !m_oso || !m_oso->isValid(painter.get())) {
-        m_oso = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
-    }
+std::deque<shared_ptr<OnScreenObject>>
+XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) {
+    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
+    m_osoRect = oso_rect;
+    auto oso_lbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>();
+    m_osoLabel = oso_lbl;
     if(isHighLighted()) {
-        if( !m_oso2 || !m_oso2->isValid(painter.get())) {
-            m_oso2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::Selection);
-        }
+        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::Selection);
+        m_osoHighlight = oso_rect2;
+        return {oso_rect, oso_rect2, oso_lbl};
     }
-    else
-        m_oso2.reset();
-    if( !m_osolbl || !m_osolbl->isValid(painter.get())) {
-        m_osolbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>();
-    }
-
+    return {oso_rect, oso_lbl};
+}
+void
+XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *beginX()];
         double bgy = shot[ *beginY()];
         double edx = shot[ *endX()];
         double edy = shot[ *endY()];
         XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
-        auto oso = static_pointer_cast<OnPlotRectObject>(m_oso);
-        oso->setBaseColor(shot[ *baseColor()]);
-        oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
-        if(m_oso2) {
-            auto oso = static_pointer_cast<OnPlotRectObject>(m_oso2);
+        if(auto oso = static_pointer_cast<OnPlotRectObject>(m_osoRect.lock())) {
+            oso->setBaseColor(shot[ *baseColor()]);
+            oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
+        }
+        if(auto oso_rect = m_osoHighlight.lock()) {
+            auto oso = static_pointer_cast<OnPlotRectObject>(oso_rect);
             QColor c = (unsigned long)***graphwidget->graph()->titleColor();
             c.setAlphaF(0.25);
             oso->setBaseColor(c.rgba());
             oso->placeObject(plot, corners, {0.0, 0.0, 0.02});
         }
-        {
-            auto oso = static_pointer_cast<OnPlotTextObject>(m_osolbl);
+        if(auto oso = static_pointer_cast<OnPlotTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
             oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
             oso->drawTextAtPlacedPosition(getLabel());
         }
     }
-    graphwidget->update();
 }
-
 
 template <class X, class XQC>
 XGraphMathToolList<X, XQC>::XGraphMathToolList(const char *name, bool runtime,

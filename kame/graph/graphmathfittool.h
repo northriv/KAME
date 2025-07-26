@@ -18,8 +18,25 @@
 //---------------------------------------------------------------------------
 
 #include "graphmathtool.h"
+#include "graphpainter.h"
 #include "nllsfit.h"
 #include "rand.h"
+
+
+template <class F>
+struct OnXAxisMathFitToolObject : public OnAxisFuncObject<true> {
+    OnXAxisMathFitToolObject(XQGraphPainter* p) : OnAxisFuncObject<true>(p) {}
+
+    NonLinearLeastSquare nlls_result;
+protected:
+    virtual std::vector<XGraph::VFloat> func(const std::vector<XGraph::VFloat> &x,
+                                             std::vector<XGraph::VFloat>&& y) {
+        if( !nlls_result.isSuccessful())
+            return {};
+        F::func( &nlls_result.params()[0], x.begin(), x.end(), y.begin(), y.end());
+        return std::move(y);
+    }
+};
 
 template <class F, unsigned int P>
 class XGraph1DMathFitToolX: public XGraph1DMathTool {
@@ -68,11 +85,25 @@ public:
             if(XTime::now() - firsttime < 0.01) continue;
             if(XTime::now() - firsttime > 0.07) break;
         }
-        if( !nlls.isSuccessful())
-            return;
+
         std::tie(v, v_err) = F::result(P, &nlls.params()[0], &nlls.errors()[0]);
         m_entry->value(tr, v);
         m_entry_err->value(tr, v_err);
+
+        // if( !nlls.isSuccessful())
+        //     return;
+
+        if(auto plot = m_plot.lock()) {
+            double bgx = tr[ *begin()];
+            double edx = tr[ *end()];
+            double bgy = 0.0;
+            double edy = 1.0;
+            if(auto oso = m_osoFitCurve.lock()) {
+                oso->nlls_result = std::move(nlls);
+                oso->setBaseColor(tr[ *baseColor()]);
+                oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, -0.001});
+            }
+        }
         updateOnScreenObjects(tr, graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
@@ -81,11 +112,24 @@ public:
             return false;//transaction has failed.
         return entries()->release(tr, m_entry);
     }
+protected:
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override {
+        XGraph1DMathTool::updateAdditionalOnScreenObjects(shot, graphwidget);
+    }
+    virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override {
+        auto osos = XGraph1DMathTool::createAdditionalOnScreenObjects(painter);
+        auto oso = painter->createOnScreenObjectWeakly<OnXAxisMathFitToolObject<F>>();
+        m_osoFitCurve = oso;
+        osos.push_back(oso);
+        return osos;
+    }
 private:
     shared_ptr<XScalarEntry> m_entry, m_entry_err;
+    weak_ptr<OnXAxisMathFitToolObject<F>> m_osoFitCurve;
 };
 
 struct FuncGraph1DMathGaussianFitTool{
+    using v_iterator = std::vector<XGraph::VFloat>::iterator;
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     static bool fitFunc(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend,
         const double*params, double *f, std::vector<double *> &df){
@@ -108,6 +152,19 @@ struct FuncGraph1DMathGaussianFitTool{
             j++;
         }
         return true;
+    }
+    static void func(const double*params, cv_iterator xbegin, cv_iterator xend, v_iterator ybegin, v_iterator yend) {
+        double x0 = params[0];
+        double isigma = params[1]; //1/sigma
+        double isigma_sq = isigma * isigma;
+        double height = params[2];
+        double y0 = params[3];
+        auto yit = ybegin;
+        for(auto xit = xbegin; xit != xend; ++xit) {
+            double dx = *xit - x0;
+            double dy = height * exp( - dx * dx * isigma_sq / 2);
+            *yit++ = dy + y0;
+        }
     }
     static std::tuple<double, double> result(unsigned int p, const double*params, const double*errors) {
         switch(p) {
@@ -142,6 +199,7 @@ using XGraph1DMathGaussianHeightTool = XGraph1DMathFitToolX<FuncGraph1DMathGauss
 using XGraph1DMathGaussianBaselineTool = XGraph1DMathFitToolX<FuncGraph1DMathGaussianFitTool, 3>;
 
 struct FuncGraph1DMathLorenzianFitTool{
+    using v_iterator = std::vector<XGraph::VFloat>::iterator;
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     static bool fitFunc(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend,
         const double*params, double *f, std::vector<double *> &df){
@@ -163,6 +221,19 @@ struct FuncGraph1DMathLorenzianFitTool{
             j++;
         }
         return true;
+    }
+    static void func(const double*params, cv_iterator xbegin, cv_iterator xend, v_iterator ybegin, v_iterator yend) {
+        double x0 = params[0];
+        double igamma = params[1]; //1/gamma
+        double height = params[2];
+        double y0 = params[3];
+        unsigned int j = 0;
+        auto yit = ybegin;
+        for(auto xit = xbegin; xit != xend; ++xit) {
+            double dx = (*xit - x0) * igamma;
+            double dy = height / (dx * dx + 1);
+            *yit++ = dy + y0;
+        }
     }
     static std::tuple<double, double> result(unsigned int p, const double*params, const double*errors) {
         switch(p) {

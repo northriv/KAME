@@ -43,7 +43,7 @@ protected:
     XQGraphPainter *painter() const {return m_painter;}//valid if painter is alive (visible)
 private:
     XQGraphPainter *const m_painter;
-    atomic<unsigned int> m_baseColor = 0x0000ffu;
+    atomic<unsigned int> m_baseColor = 0x4080ffu;
 };
 
 template <class OSO>
@@ -91,10 +91,15 @@ public:
     virtual void drawNative() override;
     virtual void drawByPainter(QPainter *) override;
     virtual void drawOffScreenMarker() override;
-private:
+
+    std::pair<XGraph::VFloat, XGraph::VFloat> axis1ValueRange() const {return {m_bg1, m_ed1};}
+    std::pair<XGraph::GFloat, XGraph::GFloat> axis2GraphRange() const {return {m_bg2, m_ed2};}
+    XGraph::ScrPoint offsetInScreen() const {return m_offset;}
+protected:
     void toScreen();
     XMutex m_mutex;
     weak_ptr<XPlot> m_plot;
+private:
     XGraph::VFloat m_bg1, m_ed1;
     XGraph::GFloat m_bg2, m_ed2;
     XGraph::ScrPoint m_offset;
@@ -134,6 +139,23 @@ public:
 private:
     Type m_type;
 };
+
+template <bool IsXAxis>
+class OnAxisFuncObject : public OnAxisObject<OnScreenRectObject, IsXAxis> {
+public:
+    OnAxisFuncObject(XQGraphPainter* p) :
+        OnAxisObject<OnScreenRectObject, IsXAxis>(p, OnScreenRectObject::Type::AreaTool) {}
+    //! draws in OpenGL.
+    virtual void drawNative() override;
+    //! draws by QPainter.
+    virtual void drawByPainter(QPainter *) override {}
+protected:
+    virtual std::vector<XGraph::VFloat> func(const std::vector<XGraph::VFloat> &x,
+                                             std::vector<XGraph::VFloat>&& prev_y) = 0;
+private:
+    std::vector<XGraph::VFloat> m_xvec, m_yvec;
+};
+
 
 using OnXAxisRectObject = OnAxisObject<OnScreenRectObject, true>;
 using OnYAxisRectObject = OnAxisObject<OnScreenRectObject, false>;

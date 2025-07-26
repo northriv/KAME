@@ -20,6 +20,7 @@
 #include "graph.h"
 #include "analyzer.h"
 
+class QPainter;
 class XQGraph;
 class OnScreenObjectWithMarker;
 
@@ -38,16 +39,22 @@ public:
     virtual bool releaseEntries(Transaction &tr) {return true;}
 
     void highlight(bool state, XQGraph *graphwidget);
-    virtual void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) = 0;
+
+    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
     const weak_ptr<XPlot> m_plot;
     bool isHighLighted() const {return m_highlight;}
+
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) = 0;
+    virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) = 0;
+    weak_ptr<OnScreenObjectWithMarker> m_osoHighlight;
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
     const weak_ptr<XScalarEntryList> m_entries;
     const shared_ptr<XHexNode> m_baseColor;
     bool m_highlight = false;
+    std::deque<shared_ptr<OnScreenObject>> m_osos;
 };
 
 class DECLSPEC_KAME XGraph1DMathTool: public XGraphMathTool {
@@ -63,10 +70,12 @@ public:
     const shared_ptr<XDoubleNode> &end() const {return m_end;}
 
     virtual XString getMenuLabel() const override;
-    virtual void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
+protected:
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
+    virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
-    shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2, m_osolbl;
+    weak_ptr<OnScreenObjectWithMarker> m_osoRect, m_osoLabel;
 };
 
 class DECLSPEC_KAME XGraph2DMathTool: public XGraphMathTool {
@@ -88,11 +97,12 @@ public:
     }
 
     virtual XString getMenuLabel() const override;
-    virtual void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
 protected:
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
+    virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
-    shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2, m_osolbl;
+    weak_ptr<OnScreenObjectWithMarker> m_osoRect, m_osoLabel;
 };
 
 //! entrynames semi colon-sparated entry names.
@@ -322,7 +332,7 @@ protected:
     const weak_ptr<XScalarEntryList> m_entries;
     const weak_ptr<XDriver> m_driver;
     const weak_ptr<XPlot> m_plot;
-    unsigned int m_basecolor = 0x0000ffu;
+    unsigned int m_basecolor = 0xffa080u;
 
     friend XQC;
 

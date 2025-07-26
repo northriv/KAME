@@ -47,13 +47,14 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
 
     m_form->setWindowTitle(i18n("ODMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
-    iterate_commit([=](Transaction &tr){
-        setupGraph(tr);
+    iterate_commit_if([=](Transaction &tr){
+        if( !setupGraph(tr))
+            return false;
 
         tr[ *centerFreq()] = 20;
         tr[ *freqSpan()] = 200;
         tr[ *freqStep()] = 1;
-
+        return true;
     });
 //    m_form->m_btnClear->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogResetButton));
 
