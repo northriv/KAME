@@ -449,7 +449,7 @@ void OnAxisFuncObject<IsXAxis>::drawNative() {
             this->painter()->setColor(c, w);
 
             for(unsigned int i = 0; i < len; ++i) {
-                if(i != 0)
+                if(i >= 2)
                     this->painter()->setVertex(s);
                 XGraph::ValPoint v(m_xvec[i], m_yvec[i]);
                 if( !IsXAxis)
