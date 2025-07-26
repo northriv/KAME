@@ -40,13 +40,13 @@ public:
 
     void highlight(bool state, XQGraph *graphwidget);
 
-    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget);
+    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
     const weak_ptr<XPlot> m_plot;
     bool isHighLighted() const {return m_highlight;}
 
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) = 0;
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) = 0;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) = 0;
     weak_ptr<OnScreenObjectWithMarker> m_osoHighlight;
 private:
@@ -71,7 +71,7 @@ public:
 
     virtual XString getMenuLabel() const override;
 protected:
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) override;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
@@ -98,7 +98,7 @@ public:
 
     virtual XString getMenuLabel() const override;
 protected:
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) override;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
@@ -142,20 +142,24 @@ public:
     using ret_type = typename std::conditional<HasSingleEntry, double, std::vector<double>>::type;
 
     virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
+        XString msg;
         if constexpr(HasSingleEntry) {
             double v = tr[ *this].functor(xbegin, xend, ybegin, yend);
             this->entry()->value(tr, v);
+            msg += tr[ *this->entry()->value()].to_str();
         }
         else {
             try {
                 std::vector<double> v = tr[ *this].functor(xbegin, xend, ybegin, yend);
-                for(unsigned int i = 0; i < this->numEntries(); ++i)
+                for(unsigned int i = 0; i < this->numEntries(); ++i) {
                     this->entry(i)->value(tr, v.at(i));
+                    msg += tr[ *this->entry(i)->value()].to_str() + " ";
+                }
             }
             catch(std::out_of_range&) {
             }
         }
-//        updateOnScreenObjects(tr, graphwidget);
+        this->updateOnScreenObjects(tr, graphwidget, std::move(msg));
     }
     struct Payload : public XGraph1DMathTool::Payload {
         F functor;
@@ -174,20 +178,24 @@ public:
 //        using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
 //        auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
 //            leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
+        XString msg;
         if constexpr(HasSingleEntry) {
             double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset);
             this->entry()->value(tr, v);
+            msg += tr[ *this->entry()->value()].to_str();
         }
         else {
             try {
                 std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset);
-                for(unsigned int i = 0; i < this->numEntries(); ++i)
+                for(unsigned int i = 0; i < this->numEntries(); ++i) {
                     this->entry(i)->value(tr, v.at(i));
+                    msg += tr[ *this->entry(i)->value()].to_str() + " ";
+                }
             }
             catch(std::out_of_range&) {
             }
         }
-//        updateOnScreenObjects(tr, graphwidget);
+        this->updateOnScreenObjects(tr, graphwidget, std::move(msg));
     }
     struct Payload : public XGraph2DMathTool::Payload {
         F functor;
@@ -332,7 +340,7 @@ protected:
     const weak_ptr<XScalarEntryList> m_entries;
     const weak_ptr<XDriver> m_driver;
     const weak_ptr<XPlot> m_plot;
-    unsigned int m_basecolor = 0xffa080u;
+    unsigned int m_basecolor = 0xffa070u;
 
     friend XQC;
 

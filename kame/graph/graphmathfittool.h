@@ -89,6 +89,7 @@ public:
         std::tie(v, v_err) = F::result(P, &nlls.params()[0], &nlls.errors()[0]);
         m_entry->value(tr, v);
         m_entry_err->value(tr, v_err);
+        XString msg = tr[ *m_entry->value()].to_str() + " +- " + tr[ *m_entry_err->value()].to_str();
 
         // if( !nlls.isSuccessful())
         //     return;
@@ -104,7 +105,7 @@ public:
                 oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, -0.001});
             }
         }
-        updateOnScreenObjects(tr, graphwidget);
+        updateOnScreenObjects(tr, graphwidget, std::move(msg));
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual bool releaseEntries(Transaction &tr) override {
@@ -113,8 +114,8 @@ public:
         return entries()->release(tr, m_entry);
     }
 protected:
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override {
-        XGraph1DMathTool::updateAdditionalOnScreenObjects(shot, graphwidget);
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) override {
+        XGraph1DMathTool::updateAdditionalOnScreenObjects(shot, graphwidget, std::move(msg));
     }
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override {
         auto osos = XGraph1DMathTool::createAdditionalOnScreenObjects(painter);

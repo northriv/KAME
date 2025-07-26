@@ -443,7 +443,7 @@ void OnAxisFuncObject<IsXAxis>::drawNative() {
     if(auto plot = this->m_plot.lock()) {
         Snapshot shot( *plot);
         XGraph::ScrPoint s;
-        double w = 0.7;
+        double w = 0.85;
         for(auto c: {this->baseColor()}) {
             this->painter()->beginLine(1.0);
             this->painter()->setColor(c, w);

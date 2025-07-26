@@ -56,7 +56,7 @@ void
 XGraphMathTool::highlight(bool state, XQGraph *graphwidget) {
     m_highlight = state;
     Snapshot shot( *this);
-    updateOnScreenObjects(shot, graphwidget);
+    updateOnScreenObjects(shot, graphwidget, {});
 }
 
 XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, Transaction &tr_meas,
@@ -81,7 +81,7 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
 }
 
 void
-XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
+XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) {
     if( !shot[ *this].isUIEnabled())
         return;
     auto painter = graphwidget->painter().lock();
@@ -102,7 +102,7 @@ XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget
     if(m_osos.empty()) {
         m_osos = createAdditionalOnScreenObjects(painter);
     }
-    updateAdditionalOnScreenObjects(shot, graphwidget);
+    updateAdditionalOnScreenObjects(shot, graphwidget, std::move(msg));
     graphwidget->update();
 }
 std::deque<shared_ptr<OnScreenObject>>
@@ -119,7 +119,7 @@ XGraph1DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainte
     return {oso_rect, oso_lbl};
 }
 void
-XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
+XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) {
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *begin()];
         double edx = shot[ *end()];
@@ -140,7 +140,7 @@ XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.01, 0.01, 0.01});
             oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-            oso->drawTextAtPlacedPosition(getLabel());
+            oso->drawTextAtPlacedPosition(getLabel() + " " + msg);
         }
     }
 }
@@ -175,7 +175,7 @@ XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainte
     return {oso_rect, oso_lbl};
 }
 void
-XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
+XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) {
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *beginX()];
         double bgy = shot[ *beginY()];
@@ -197,7 +197,7 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
             oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-            oso->drawTextAtPlacedPosition(getLabel());
+            oso->drawTextAtPlacedPosition(getLabel() + " " + msg);
         }
     }
 }
