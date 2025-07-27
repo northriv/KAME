@@ -24,5 +24,13 @@ REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermarini77K,
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMao77K, "RubyScaleMao77K");
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoAr77K, "RubyScaleMaoAr77K");
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoHe77K, "RubyScaleMaoHe77K");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermariniGaussianRT, "RubyScalePiermariniRT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoGaussianRT, "RubyScaleMaoGaussianRT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoArGaussianRT, "RubyScaleMaoArGaussianRT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoHeGaussianRT, "RubyScaleMaoHeGaussianRT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermariniGaussian77K, "RubyScalePiermarinGaussian77K");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoGaussian77K, "RubyScaleMaoGaussian77K");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoArGaussian77K, "RubyScaleMaoArGaussian77K");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoHeGaussian77K, "RubyScaleMaoHeGaussian77K");
 
 

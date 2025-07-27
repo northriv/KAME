@@ -140,7 +140,9 @@ XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.01, 0.01, 0.01});
             oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-            oso->drawTextAtPlacedPosition(getLabel() + " " + msg);
+            oso->defaultFont();
+            oso->drawTextAtPlacedPosition(getLabel()
+                + (isHighLighted() ? "" : " " + msg), isHighLighted() ? +2 : -4);
         }
     }
 }
@@ -197,7 +199,9 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
             oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-            oso->drawTextAtPlacedPosition(getLabel() + " " + msg);
+            oso->defaultFont();
+            oso->drawTextAtPlacedPosition(getLabel()
+                + (isHighLighted() ? "" : " " + msg), isHighLighted() ? +5 : +1);
         }
     }
 }
