@@ -1,10 +1,11 @@
-#if !defined _MSC_VER && !defined __MINGW64__
-    #include <ruby.h>
-#endif
+// #if !defined _MSC_VER && !defined __MINGW64__
+//     #include <ruby.h>
+// #endif
 #include "rubywrapper.h"
-#if defined _MSC_VER || defined __MINGW64__
+// #if defined _MSC_VER || defined __MINGW64__
+//At least in OSX 15.5, this sequence is better.
     #include <ruby.h>
-#endif
+// #endif
 
 static_assert(sizeof(VALUE) == sizeof(Ruby::Value), "Size mismatch for VALUE.");
 
