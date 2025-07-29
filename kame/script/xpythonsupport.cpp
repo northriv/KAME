@@ -158,7 +158,8 @@ XPython::execute(const atomic<bool> &terminated) {
                 m_mainthread_cb_cond.wait();
             if( !status.is(py::cast(false))) {
                 pybind11::gil_scoped_acquire guard;
-                py::set_error(PyExc_RuntimeError, py::cast<std::string>(status).c_str());
+//                py::set_error(PyExc_RuntimeError, py::cast<std::string>(status).c_str());
+                PyErr_SetString(PyExc_RuntimeError, py::cast<std::string>(status).c_str());
                 throw py::error_already_set();
             }
             return ret;
