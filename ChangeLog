@@ -1,3 +1,9 @@
+* Tue Jul 29 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.3.0-1)
+- Displays fitted curves for math tools.
+- Fix for compilation issues with some versions of pybind11 and ruby.
+- Many improvements on digital camera and ODMR
+
 * Tue May 27 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.2.5-1)
 - Improved terminating procedure/close menu behavior.
