@@ -221,6 +221,8 @@ macx {
         RUBYH = $$files("/opt/local/include/ruby-*")
         INCLUDEPATH += $${RUBYH}
         INCLUDEPATH += $${RUBYH}/arm64-darwin23
+        INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
+        INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
         LIBS += $$files(/opt/local/lib/libruby.*.dylib)
         message("using ruby from macports.")
     }

@@ -3,7 +3,7 @@
 // #endif
 #include "rubywrapper.h"
 // #if defined _MSC_VER || defined __MINGW64__
-//At least in OSX 15.5, this sequence is better.
+//At least in OSX 15.5, system ruby or macports ruby33, this sequence is better.
     #include <ruby.h>
 // #endif
 
