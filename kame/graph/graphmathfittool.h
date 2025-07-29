@@ -86,13 +86,13 @@ public:
             if(XTime::now() - firsttime > 0.07) break;
         }
 
+        if( !nlls.isSuccessful())
+            return;
+
         std::tie(v, v_err) = F::result(P, &nlls.params()[0], &nlls.errors()[0]);
         m_entry->value(tr, v);
         m_entry_err->value(tr, v_err);
         XString msg = tr[ *m_entry->value()].to_str() + " +- " + tr[ *m_entry_err->value()].to_str();
-
-        // if( !nlls.isSuccessful())
-        //     return;
 
         if(auto plot = m_plot.lock()) {
             double bgx = tr[ *begin()];
