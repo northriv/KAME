@@ -211,7 +211,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     tr[ *this].m_height = height;
     if(clear) {
         for(unsigned int i = 0; i < seq_len; ++i) {
-            tr[ *this].m_summedCounts[i] = summedCountsFromPool(width * height);
+            tr[ *this].m_summedCounts[i] = m_pool.allocate(width * height);
             std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);
             tr[ *this].m_accumulated[i] = 0;
         }
@@ -231,7 +231,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
         }
         unsigned int cidx = shot_this[ *this].currentIndex();
-        auto summedCountsNext = summedCountsFromPool(width * height);
+        auto summedCountsNext = m_pool.allocate(width * height);
         uint32_t *summedNext = &summedCountsNext->at(0);
         const uint32_t *summed = &tr[ *this].m_summedCounts[cidx]->at(0);
 
@@ -577,26 +577,6 @@ XODMRImaging::visualize(const Snapshot &shot) {
         m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs);
         m_processedImage->updateColorBarImage(tr, dpl_min * 100.0, dpl_max * 100.0, cbimage);
     });
-}
-
-local_shared_ptr<std::vector<uint32_t>>
-XODMRImaging::summedCountsFromPool(int imagesize) {
-    local_shared_ptr<std::vector<uint32_t>> summedCountsNext, p;
-    for(int i = 0; i < NumSummedCountsPool; ++i) {
-        if( !m_summedCountsPool[i])
-            m_summedCountsPool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
-        p.swap(m_summedCountsPool[i]); //atomic swap
-        if(p && p.unique()) { //confirmed uniquness.
-            m_summedCountsPool[i].compareAndSet({}, p); //sharing me for later use.
-            summedCountsNext = p;
-            p->resize(imagesize);
-            break;
-        }
-        m_summedCountsPool[i].compareAndSet({}, p); //restoring busy one for later use.
-    }
-    if( !summedCountsNext)
-        summedCountsNext = make_local_shared<std::vector<uint32_t>>(imagesize);
-    return summedCountsNext;
 }
 
 

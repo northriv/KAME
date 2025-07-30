@@ -31,6 +31,34 @@ class XQGraph;
 class X2DImage;
 class OnScreenObjectWithMarker;
 
+template <unsigned int NumPool = 5>
+struct ImageSpacePoolAllocator {
+    local_shared_ptr<std::vector<uint32_t>> allocate(int imagebytes);
+private:
+    atomic_shared_ptr<std::vector<uint32_t>> m_pool[NumPool];
+};
+
+template <unsigned int NumPool>
+local_shared_ptr<std::vector<uint32_t>>
+ImageSpacePoolAllocator<NumPool>::allocate(int imagesize) {
+    local_shared_ptr<std::vector<uint32_t>> pNext, p;
+    for(int i = 0; i < NumPool; ++i) {
+        if( !m_pool[i])
+            m_pool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
+        p.swap(m_pool[i]); //atomic swap
+        if(p && p.unique()) { //confirmed uniquness.
+            m_pool[i].compareAndSet({}, p); //sharing me for later use.
+            pNext = p;
+            p->resize(imagesize);
+            break;
+        }
+        m_pool[i].compareAndSet({}, p); //restoring busy one for later use.
+    }
+    if( !pNext)
+        pNext = make_local_shared<std::vector<uint32_t>>(imagesize);
+    return pNext;
+}
+
 //! Base class for scientific/machine vision digital camera.
 class DECLSPEC_SHARED XDigitalCamera : public XPrimaryDriverWithThread {
 public:
@@ -162,9 +190,7 @@ private:
     void onROISelectionToolFinished(const Snapshot &shot,
         const std::tuple<XString, Vector4<double>, Vector4<double>, XQGraph*>&);
 
-    constexpr static unsigned int NumRawCountsPool = 3;
-    atomic_shared_ptr<std::vector<uint32_t>> m_rawCountsPool[NumRawCountsPool];
-    local_shared_ptr<std::vector<uint32_t>> rawCountsFromPool(int imagebytes);
+    ImageSpacePoolAllocator<3> m_pool;
 
     void *execute(const atomic<bool> &) override;
 };

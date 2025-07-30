@@ -21,6 +21,7 @@
 #include "xwavengraph.h"
 #include "secondarydriver.h"
 #include "xnodeconnector.h"
+#include "digitalcamera.h"
 
 #include <QPushButton>
 #include <QComboBox>
@@ -124,10 +125,7 @@ private:
 
     std::deque<xqcon_ptr> m_conUIs;
 
-    constexpr static unsigned int NumSummedCountsPool = 5;
-    atomic_shared_ptr<std::vector<uint32_t>> m_summedCountsPool[NumSummedCountsPool];
-    local_shared_ptr<std::vector<uint32_t>> summedCountsFromPool(int imagebytes);
-
+    ImageSpacePoolAllocator<5> m_pool;
 };
 
 #endif

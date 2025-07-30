@@ -195,7 +195,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     if(clear) {
         tr[ *this].m_summedCounts[2].reset();
         for(unsigned int i = 0; i < num_summed_frames; ++i) {
-            tr[ *this].m_summedCounts[i] = summedCountsFromPool(width * height);
+            tr[ *this].m_summedCounts[i] = m_pool.allocate(width * height);
             std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);
             tr[ *this].m_accumulated[i] = 0;
         }
@@ -209,8 +209,8 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
         const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
             *summed_f_on_o_off = &tr[ *this].m_summedCounts[1]->at(0);
-        auto summedCountsNext_on_o_off = summedCountsFromPool(width * height);
-        auto summedCountsNext_f_on_o_off = summedCountsFromPool(width * height);
+        auto summedCountsNext_on_o_off = m_pool.allocate(width * height);
+        auto summedCountsNext_f_on_o_off = m_pool.allocate(width * height);
         uint32_t *summedNext_on_o_off = &summedCountsNext_on_o_off->at(0);
         uint32_t *summedNext_f_on_o_off = &summedCountsNext_f_on_o_off->at(0);
 
@@ -391,26 +391,6 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs, offsets_image);
         m_processedImage->updateColorBarImage(tr, cogmin, cogmax, cbimage);
     });
-}
-
-local_shared_ptr<std::vector<uint32_t>>
-XODMR2DAnalysis::summedCountsFromPool(int imagesize) {
-    local_shared_ptr<std::vector<uint32_t>> summedCountsNext, p;
-    for(int i = 0; i < NumSummedCountsPool; ++i) {
-        if( !m_summedCountsPool[i])
-            m_summedCountsPool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
-        p.swap(m_summedCountsPool[i]); //atomic swap
-        if(p && p.unique()) { //confirmed uniquness.
-            m_summedCountsPool[i].compareAndSet({}, p); //sharing me for later use.
-            summedCountsNext = p;
-            p->resize(imagesize);
-            break;
-        }
-        m_summedCountsPool[i].compareAndSet({}, p); //restoring busy one for later use.
-    }
-    if( !summedCountsNext)
-        summedCountsNext = make_local_shared<std::vector<uint32_t>>(imagesize);
-    return summedCountsNext;
 }
 
 

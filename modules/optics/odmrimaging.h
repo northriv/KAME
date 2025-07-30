@@ -18,8 +18,8 @@
 //---------------------------------------------------------------------------
 #include "secondarydriver.h"
 #include "xnodeconnector.h"
+#include "digitalcamera.h"
 
-class XDigitalCamera;
 class XFilterWheel;
 class QMainWindow;
 class Ui_FrmODMRImaging;
@@ -184,9 +184,7 @@ private:
     void onClearAverageTouched(const Snapshot &shot, XTouchableNode *);
     void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 
-    constexpr static unsigned int NumSummedCountsPool = 5;
-    atomic_shared_ptr<std::vector<uint32_t>> m_summedCountsPool[NumSummedCountsPool];
-    local_shared_ptr<std::vector<uint32_t>> summedCountsFromPool(int imagebytes);
+    ImageSpacePoolAllocator<5> m_pool;
 };
 
 //---------------------------------------------------------------------------
