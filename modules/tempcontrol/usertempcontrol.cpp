@@ -17,6 +17,7 @@
 
 REGISTER_TYPE(XDriverList, CryoconM32, "Cryocon M32 temp. controller");
 REGISTER_TYPE(XDriverList, CryoconM62, "Cryocon M62 temp. controller");
+REGISTER_TYPE(XDriverList, LakeShore218, "LakeShore 218 temp. monitor");
 REGISTER_TYPE(XDriverList, LakeShore340, "LakeShore 340 temp. controller");
 REGISTER_TYPE(XDriverList, LakeShore350, "LakeShore 350 temp. controller");
 REGISTER_TYPE(XDriverList, LakeShore370_1CH, "LakeShore 370/372 AC res. bridge");
@@ -660,6 +661,17 @@ XLakeShoreBridge::XLakeShoreBridge(const char *name, bool runtime,
     interface()->setSerial7Bits(true);
     interface()->setSerialEOS("\r\n");
 }
+
+XLakeShore218::XLakeShore218(const char *name, bool runtime,
+                             Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XLakeShoreBridge (name, runtime, ref(tr_meas), meas) {
+
+    createChannels(ref(tr_meas), meas, true,
+        {"1", "2", "3", "4", "5", "6", "7", "8"},
+        {},
+        false, false); //Assuming scanner is not installed.
+}
+
 
 XLakeShore340::XLakeShore340(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :

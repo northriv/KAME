@@ -334,6 +334,30 @@ protected:
     virtual void onPowerMinChanged(unsigned int , double ) override {}
 };
 
+
+//! LakeShore 218
+class XLakeShore218 : public XLakeShoreBridge {
+public:
+    XLakeShore218(const char *name, bool runtime,
+                  Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XLakeShore218() = default;
+protected:
+    //! obtains current heater power
+    //! \sa m_heaterPowerUnit()
+    virtual double getHeater(unsigned int loop) override {}
+
+    virtual void onTargetTempChanged(unsigned int, double) override {}
+    virtual void onHeaterModeChanged(unsigned int, int) override {}
+    virtual void onPowerRangeChanged(unsigned int, int) override {}
+    virtual void onPowerMaxChanged(unsigned int, double) override {}
+    virtual void onCurrentChannelChanged(unsigned int, const shared_ptr<XChannel> &) override {}
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &) override {}
+    virtual void onExcitationChanged(const shared_ptr<XChannel> &, int) override {}
+    virtual void onChannelEnableChanged(const shared_ptr<XChannel> &, bool) override {}
+    virtual void onScanDwellSecChanged(const shared_ptr<XChannel> &, double) override {}
+private:
+};
+
 //! LakeShore 340
 class XLakeShore340 : public XLakeShoreBridge {
 public:
