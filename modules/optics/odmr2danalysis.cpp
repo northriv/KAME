@@ -67,7 +67,7 @@ XODMR2DAnalysis::XODMR2DAnalysis(const char *name, bool runtime,
     iterate_commit([=](Transaction &tr){
         tr[ *average()] = 1;
         tr[ *m_autoMinMaxForColorMap] = true;
-        tr[ *m_colorMapMethod].add({"RedWhiteBlue", "YellowGreenBlue"});
+        tr[ *m_colorMapMethod].add({"RedWhiteBlue", "YellowGreenBlue", "ByDialog"});
         tr[ *m_analysisMethod].add({"CoG", "2nd Moment"});
         tr[ *m_regionSelection].add({"All", "Sub Region"});
     });
@@ -318,33 +318,37 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     int64_t colorgain = llrint(0x100000000uLL * 0xffffuLL * dfreq / (cogmax - cogmin) / coeff_dCoG); // /256 is needed for RGBA8888 format
     std::array<int64_t, 3> dcog_gain_low = {};
     std::array<int64_t, 3> dcog_gain_high = {};
+
+    uint32_t color_low, color_high, color_middle;
+
     switch((unsigned int)shot[ *m_colorMapMethod]) {
     case 0:
     default:
         //RedWhiteBlue
-        dcog_gain_low[0] = 2 * colorgain;
-        dcog_gain_low[1] = 2 * colorgain;
-        dcog_gain_low[2] = 0;
-        coloroffsets_low[0] = 0;
-        coloroffsets_low[1] = 0;
-        coloroffsets_low[2] = 0x100000000LL * 0xffffLL; // or 0xff
-        dcog_gain_high[0] = 0;
-        dcog_gain_high[1] = -2 * colorgain;
-        dcog_gain_high[2] = -2 * colorgain;
+        color_low = 0x000070u; color_high = 0x700000u; color_middle = 0xffffffu;
         break;
     case 1:
         //YellowGreenBlue
-        dcog_gain_low[0] = 0;
-        dcog_gain_low[1] = 2 * colorgain;
-        dcog_gain_low[2] = -2 * colorgain;
-        coloroffsets_low[0] = 0;
-        coloroffsets_low[1] = 0;
-        coloroffsets_low[2] = 0x100000000LL * 0xffffLL;// or 0xff
-        dcog_gain_high[0] = 2 * colorgain;
-        dcog_gain_high[1] = 0;
-        dcog_gain_high[2] = 0;
+        color_low = 0x0000ffu; color_high = 0xffff00u; color_middle = 0x00ff00u;
+        break;
+    case 2:
+        //By colorbar/point settings
+        color_low = shot[ *m_processedImage->plot()->colorPlotColorLow()];
+        color_high = shot[ *m_processedImage->plot()->colorPlotColorHigh()];
+        color_middle = shot[ *m_processedImage->plot()->pointColor()];
         break;
     }
+    for(auto cidx: {0,1,2}) {
+        int64_t intens_low = ((color_low >> ((2 - cidx) * 8)) & 0xffu);
+        int64_t intens_high = ((color_high >> ((2 - cidx) * 8)) & 0xffu);
+        int64_t intens_middle = ((color_middle >> ((2 - cidx) * 8)) & 0xffu);
+
+        coloroffsets_low[cidx] = 0x100000000LL * 0xffffLL / 0xffLL * intens_low;
+        dcog_gain_low[cidx] = 2 * colorgain / 0xff * (intens_middle - intens_low);
+        dcog_gain_high[cidx] = 2 * colorgain / 0xff * (intens_high - intens_middle);
+    }
+
+
     int64_t thres = 0x7fff * 0x100000000LL / colorgain;
     for(unsigned int cidx: {0,1,2})
         coloroffsets_high[cidx] = coloroffsets_low[cidx] + thres * (dcog_gain_low[cidx] - dcog_gain_high[cidx]);
