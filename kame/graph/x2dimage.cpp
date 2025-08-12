@@ -84,7 +84,7 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         //Colorbar
             auto cplot = graph()->plots()->create<XColorBarImagePlot>(tr, "ColorBar", true, ref(tr), graph());
             if( !cplot) return; //transaction has failed.
-            tr[ *cplot->label()] = getLabel();
+            tr[ *cplot->label()] = getLabel() + "-ColorBar";
             m_colorbarplot = cplot;
             auto axisc = graph()->axes()->create<XAxis>(tr, "ColorAxis", true, XAxis::AxisDirection::X, false, ref(tr), graph());
             auto axisc2 = graph()->axes()->create<XAxis>(tr, "ColorBarAxis", true, XAxis::AxisDirection::Y, false, ref(tr), graph());
@@ -148,7 +148,23 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
         QBuffer buffer(&ba);
         buffer.open(QIODevice::WriteOnly);
         {
-            QImage image = shot[ *plot()].image()->copy();
+            const auto &image_org = shot[ *plot()].image();
+            const auto &barimage_org = shot[ *m_colorbarplot].image();
+            QImage image;
+            if(m_colorbarplot && (image_org->bytesPerLine() == barimage_org->bytesPerLine())) {
+                int blanks = 6, barwidth = 32;
+                QImage barimage = barimage_org->scaled(image_org->width(), barwidth);
+                image = QImage(image_org->width(),
+                    image_org->height() + blanks + barimage.height(), image_org->format()); //scaled copy to add a colorbar.
+                //writes original image.
+                std::copy(image_org->bits(), image_org->bits() + image_org->bytesPerLine() * image_org->height(), image.bits());
+                //writes colorbar pixels.
+                uchar *bits = image.bits() + image.bytesPerLine() * (image_org->height() + blanks);
+                std::copy(barimage.bits(), barimage.bits() + barimage.bytesPerLine() * barimage.height(), bits);
+            }
+            else
+                image = image_org->copy();
+
         //    image.setColorSpace(QColorSpace::SRgbLinear);
             if(shot[ *m_gamma] == 2.2)
                 image.convertToColorSpace(QColorSpace::SRgb);
