@@ -319,32 +319,31 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     std::array<int64_t, 3> dcog_gain_low = {};
     std::array<int64_t, 3> dcog_gain_high = {};
 
-    std::array<int64_t, 3> colors; //low, middle, high
+    std::array<uint32_t, 3> colors; //low, middle, high; x - (1 - x) * (1 - alpha)
 
     switch((unsigned int)shot[ *m_colorMapMethod]) {
     case 0:
     default:
         //RedWhiteBlue
         // colors = {0x000080u, 0xffffffu, 0x800000u};
-        colors = {-0xa0a000, 0xffffffu, -0x00a0a0};
+        colors = {0x000000bfu, 0xffffffffu, 0x00bf0000u};
         break;
     case 1:
         //YellowGreenBlue
-        colors = {0x0000ffu, 0x00ff00u, 0xffff00u};
+        colors = {0xff0000ffu, 0xff00ff00u, 0xffffff00u};
         break;
     case 2:
         //By colorbar/line settings
-        colors[0] = shot[ *m_processedImage->colorBarPlot()->colorPlotColorLow()] % 0x1000000u;
-        colors[1] = shot[ *m_processedImage->graph()->titleColor()] % 0x1000000u;
-        colors[2] = shot[ *m_processedImage->colorBarPlot()->colorPlotColorHigh()] % 0x1000000u;
+        colors[0] = shot[ *m_processedImage->colorBarPlot()->colorPlotColorLow()];
+        colors[1] = shot[ *m_processedImage->graph()->titleColor()];
+        colors[2] = shot[ *m_processedImage->colorBarPlot()->colorPlotColorHigh()];
         break;
     }
     for(auto cidx: {0,1,2}) {
         std::array<int64_t, 3> intens;
         for(auto cbidx: {0,1,2}) {
-            intens[cbidx] = colors[cbidx] / 0x10000; //MSW
-            colors[cbidx] -= 0x10000 * intens[cbidx];
-            colors[cbidx] *= 0x100;
+            intens[cbidx] = (colors[cbidx] >> ((2 - cidx) * 8)) % 0x100u;
+            intens[cbidx] -= lrint((0xff - intens[cbidx]) * (1.0 - colors[cbidx] / 0x1000000u / 255.0));
         }
         coloroffsets_low[cidx] = 0x100000000LL * 0xffffLL / 0xffLL * intens[0];
         dcog_gain_low[cidx] = 2 * colorgain / 0xff * (intens[1] - intens[0]);

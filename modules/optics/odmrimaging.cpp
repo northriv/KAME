@@ -109,7 +109,9 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         tr[ *average()] = 1;
         tr[ *precedingSkips()] = 0;
         tr[ *autoGainForDisp()] = true;
-        tr[ *dispMethod()].add({"dPL(RedWhiteBlue)", "dPL(YellowGreenBlue)", "dPL/PL(RedWhiteBlue)", "dPL/PL(YellowGreenBlue)"});
+        tr[ *dispMethod()].add({"dPL(RedWhiteBlue)", "dPL(YellowGreenBlue)",
+            "dPL/PL(RedWhiteBlue)", "dPL/PL(YellowGreenBlue)",
+            "dPL(By Dialog)", "dPL/PL(By Dialog)"});
         tr[ *sequence()].add({"OFF,ON", "OFF,OFF,ON", "OFF,OFF,OFF,ON"});
     });
 
@@ -486,20 +488,20 @@ XODMRImaging::visualize(const Snapshot &shot) {
         std::array<int64_t, 3> dpl_gain_pos = {};
         std::array<int64_t, 3> dpl_gain_neg = {};
         int64_t denom_coeff_PL = 0;
+
+        std::array<uint32_t, 3> colors; //neg, zero, pos; x - (1 - x) * (1 - alpha)
+
         switch((unsigned int)shot[ *m_dispMethod]) {
         case 2:
             //"dPL/PL(RedWhiteBlue)"
             denom_coeff_PL = coeff_dpl / gain_av;
+            // colors = {0x0000ffu, 0xffffffu, 0xff0000u};
+            colors = {0x000000bfu, 0xffffffffu, 0x00bf0000u};
+            break;
         case 0:
             //"dPL/(RedWhiteBlue)"
             //Colored by DPL/PL
-            gains = {gain_av / 2, gain_av / 2, gain_av / 2}; //max. 0x7fffuL( or 0x7fu) * 0x100000000uLL for autogain.
-            dpl_gain_pos[0] = llrint(gain_av / 2 / dpl_max);
-            dpl_gain_pos[1] = -dpl_gain_pos[0];
-            dpl_gain_pos[2] = -dpl_gain_pos[0];
-            dpl_gain_neg[2] = llrint(gain_av / 2 / dpl_min); //negative
-            dpl_gain_neg[0] = -dpl_gain_neg[2];
-            dpl_gain_neg[1] = -dpl_gain_neg[2];
+            colors = {0xff0000ffu, 0xffffffffu, 0xffff0000u};
             break;
         default:
         case 3:
@@ -509,19 +511,31 @@ XODMRImaging::visualize(const Snapshot &shot) {
         case 1:
             //"dPL(YellowGreenBlue)"
             //DPL yellow for positive, blue for negative
-            gains = {0, gain_av, 0}; //max. 0xffffuL( or 0xffu) * 0x100000000uLL for autogain.
-            dpl_gain_pos[0] = llrint(gain_av / dpl_max);
-            dpl_gain_pos[1] = 0;
-            dpl_gain_neg[2] = llrint(gain_av / dpl_min); //negative
-            dpl_gain_neg[1] = -dpl_gain_neg[2];
+            colors = {0xff0000ffu, 0xff00ff00u, 0xffffff00u};
             break;
-            //RYGB
-//            gains = {0, gain_av, 0}; //max. 0xffffuL( or 0xffu) * 0x100000000uLL for autogain.
-//            dpl_gain_pos[0] = llrint(gain_av / dpl_max);
-//            dpl_gain_pos[1] = -dpl_gain_pos[0];
-//            dpl_gain_neg[2] = llrint(gain_av / dpl_min); //negative
-//            dpl_gain_neg[1] = -dpl_gain_neg[2];
+        case 5:
+            //"dPL/PL(By Dialog)"
+            //Colored by DPL/PL
+            denom_coeff_PL = coeff_dpl / gain_av;
+        case 4:
+            //"dPL(By Dialog)"
+            //By colorbar/line settings
+            colors[0] = shot[ *m_processedImage->colorBarPlot()->colorPlotColorLow()];
+            colors[1] = shot[ *m_processedImage->graph()->titleColor()];
+            colors[2] = shot[ *m_processedImage->colorBarPlot()->colorPlotColorHigh()];
+            break;
         }
+        for(auto cidx: {0,1,2}) {
+            std::array<int64_t, 3> intens;
+            for(auto cbidx: {0,1,2}) {
+                intens[cbidx] = (colors[cbidx] >> ((2 - cidx) * 8)) % 0x100u;
+                intens[cbidx] -= lrint((0xff - intens[cbidx]) * (1.0 - colors[cbidx] / 0x1000000u / 255.0));
+            }
+            gains[cidx] = gain_av / 0xffLL * intens[1];//max. 0x7fffuL( or 0x7fu) * 0x100000000uLL for autogain.
+            dpl_gain_pos[cidx] = llrint(gain_av / dpl_max / 0xffLL * (intens[2] - intens[1]));
+            dpl_gain_neg[cidx] = llrint(gain_av / dpl_min / 0xffLL * (intens[0] - intens[1]));
+        }
+
         uint16_t *processed = reinterpret_cast<uint16_t*>(qimage->bits());
         const uint32_t *summed[2];
         for(unsigned int cidx: {0,1})
