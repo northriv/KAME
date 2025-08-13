@@ -319,35 +319,37 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     std::array<int64_t, 3> dcog_gain_low = {};
     std::array<int64_t, 3> dcog_gain_high = {};
 
-    uint32_t color_low, color_high, color_middle;
+    std::array<int64_t, 3> colors; //low, middle, high
 
     switch((unsigned int)shot[ *m_colorMapMethod]) {
     case 0:
     default:
         //RedWhiteBlue
-        color_low = 0x000070u; color_high = 0x700000u; color_middle = 0xffffffu;
+        // colors = {0x000080u, 0xffffffu, 0x800000u};
+        colors = {-0xa0a000, 0xffffffu, -0x00a0a0};
         break;
     case 1:
         //YellowGreenBlue
-        color_low = 0x0000ffu; color_high = 0xffff00u; color_middle = 0x00ff00u;
+        colors = {0x0000ffu, 0x00ff00u, 0xffff00u};
         break;
     case 2:
-        //By colorbar/point settings
-        color_low = shot[ *m_processedImage->plot()->colorPlotColorLow()];
-        color_high = shot[ *m_processedImage->plot()->colorPlotColorHigh()];
-        color_middle = shot[ *m_processedImage->plot()->pointColor()];
+        //By colorbar/line settings
+        colors[0] = shot[ *m_processedImage->colorBarPlot()->colorPlotColorLow()] % 0x1000000u;
+        colors[1] = shot[ *m_processedImage->graph()->titleColor()] % 0x1000000u;
+        colors[2] = shot[ *m_processedImage->colorBarPlot()->colorPlotColorHigh()] % 0x1000000u;
         break;
     }
     for(auto cidx: {0,1,2}) {
-        int64_t intens_low = ((color_low >> ((2 - cidx) * 8)) & 0xffu);
-        int64_t intens_high = ((color_high >> ((2 - cidx) * 8)) & 0xffu);
-        int64_t intens_middle = ((color_middle >> ((2 - cidx) * 8)) & 0xffu);
-
-        coloroffsets_low[cidx] = 0x100000000LL * 0xffffLL / 0xffLL * intens_low;
-        dcog_gain_low[cidx] = 2 * colorgain / 0xff * (intens_middle - intens_low);
-        dcog_gain_high[cidx] = 2 * colorgain / 0xff * (intens_high - intens_middle);
+        std::array<int64_t, 3> intens;
+        for(auto cbidx: {0,1,2}) {
+            intens[cbidx] = colors[cbidx] / 0x10000; //MSW
+            colors[cbidx] -= 0x10000 * intens[cbidx];
+            colors[cbidx] *= 0x100;
+        }
+        coloroffsets_low[cidx] = 0x100000000LL * 0xffffLL / 0xffLL * intens[0];
+        dcog_gain_low[cidx] = 2 * colorgain / 0xff * (intens[1] - intens[0]);
+        dcog_gain_high[cidx] = 2 * colorgain / 0xff * (intens[2] - intens[1]);
     }
-
 
     int64_t thres = 0x7fff * 0x100000000LL / colorgain;
     for(unsigned int cidx: {0,1,2})

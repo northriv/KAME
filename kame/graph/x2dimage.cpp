@@ -78,7 +78,6 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         tr[ *axisy->marginDuringAutoScale()] = 0.0;
 
         tr[ *gamma()] = 2.2;
-        graph()->applyTheme(tr, true);
 
         if(hascolorbar) {
         //Colorbar
@@ -111,6 +110,7 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
             tr[ *axisc->x()] = (double)tr[ *axisc2->x()];
             tr[ *axisc->y()] = (double)tr[ *axisc2->y()] + tr[ *axisc2->length()];
         }
+        graph()->applyTheme(tr, true);
     });
     m_conUIs = {
         xqcon_create<XQDoubleSpinBoxConnector>(gamma(), m_dblGamma),
