@@ -74,7 +74,7 @@ public:
         //! 0x8000*PLon/PLoff, freq(unit of df)*0x8000*on/off, (freq(unit of df) - fmid)^2*0x8000*on/off
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
         //! avg counts, sum freq(unit of df), sum (freq(unit of df) - fmid)^2.
-        unsigned int m_accumulated[3];
+        uint64_t m_accumulated[3];
         double m_coefficients[3], m_offsets[3];
         double m_freq_min; //fmin [MHz]
         bool m_secondMoment; //false during CoG analysis.

@@ -242,10 +242,12 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
                 uint32_t plon = *pplon++;
                 //PLon/PLoff mult. by "C", integer calc. expecting nearly 16bit resolution for PL contrast.
                 //avoiding slow floating point calc.
-                uint32_t plon_o_off_us32 = plon * coeff_PLOn_o_Off / ploff;
+                uint32_t plon_o_off_us32 = ploff ? (plon * coeff_PLOn_o_Off / ploff) : coeff_PLOn_o_Off * 2;
                 *summedNext_on_o_off++ = *summed_on_o_off++ + plon_o_off_us32;
+                //if freqidx < 16, allowing accumulation > 8000 times
                 *summedNext_f_on_o_off++ = *summed_f_on_o_off++ + freqidx * plon_o_off_us32;
                 if(secondmom)
+                    //if freqidx < 16, allowing accumulation > 2000 times
                     *summedNext_fsq_on_o_off++ = *summed_fsq_on_o_off++ + freqminusmid_sq_idx * plon_o_off_us32;
             }
         }
@@ -292,7 +294,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     if(tr[ *m_autoMinMaxForColorMap]) {
         if(tr[ *this].secondMoment()) {
             tr[ *minForColorMap()] = 0;
-            tr[ *maxForColorMap()] = (max__ - min__) * (max__ - min__);
+            tr[ *maxForColorMap()] = (max__ - min__) * (max__ - min__) / 8;
         }
         else {
             // const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
