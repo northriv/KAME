@@ -63,7 +63,7 @@ public:
     //! driver specific part below
     struct Payload : public XSecondaryDriver::Payload {
         // unsigned int numSamples() const {return m_summedCounts.size();}
-        double minValue() const {return m_minValue;}
+        // double minValue() const {return m_minValue;}
         double dfreq() const {return m_dfreq;}
         unsigned int width() const {return m_width;}
         unsigned int height() const {return m_height;}
@@ -71,17 +71,18 @@ public:
     private:
         friend class XODMR2DAnalysis;
 
-        //! 0x8000*PLon/PLoff, freq(0:fmin, 0xffff:fmax)*0x8000*on/off, (df^2 dPL/PL)
+        //! 0x8000*PLon/PLoff, freq(unit of df)*0x8000*on/off, (freq(unit of df) - fmid)^2*0x8000*on/off
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
-        //! avg counts, sum freq_u16, sum f^2_u16.
+        //! avg counts, sum freq(unit of df), sum (freq(unit of df) - fmid)^2.
         unsigned int m_accumulated[3];
         double m_coefficients[3], m_offsets[3];
-        double m_minValue;
-        bool m_secondMoment;
+        double m_freq_min; //fmin [MHz]
+        bool m_secondMoment; //false during CoG analysis.
         XTime m_timeClearRequested = {};
         unsigned int m_width, m_height;
         shared_ptr<QImage> m_qimage;
-        double m_dfreq;
+        double m_dfreq; //fmin [MHz]
+        double m_freq_mid; //for second moment calc. [MHz]
     };
 
 

@@ -169,13 +169,19 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         clear = true;
     tr[ *this].m_dfreq = 1.0 / coeff_freqidx;
     uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
+    uint32_t freqidx_mid = lrint((max__ - min__) / coeff_freqidx / 2);
+    tr[ *this].m_freq_mid = freqidx_mid / coeff_freqidx + min__;
+    uint32_t freqminusmid_sq_idx = ((int32_t)freqidx - (int32_t)freqidx_mid) * ((int32_t)freqidx - (int32_t)freqidx_mid);
 
     unsigned int width = shot_odmr[ *odmr__].width();
     unsigned int height = shot_odmr[ *odmr__].height();
 
-    if(tr[ *this].m_minValue != min__)
+    if(tr[ *this].m_freq_min != min__)
         clear = true;
-    tr[ *this].m_minValue = min__;
+    tr[ *this].m_freq_min = min__;
+    if(tr[ *this].m_secondMoment != (tr[ *m_analysisMethod] == 1))
+        clear = true;
+    tr[ *this].m_secondMoment = (tr[ *m_analysisMethod] == 1);
 
     if( !tr[ *incrementalAverage()] && !clear && (emitter == fspectrum__.get())) {
         clear = true;
@@ -201,7 +207,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         }
     }
 
-    constexpr int64_t coeff_PLOn_o_Off = 0x8000LL;
+    constexpr uint64_t coeff_PLOn_o_Off = 0x8000uLL; // = "C" in the following formula.
 
     if(emitter == fspectrum__.get()) {
         auto rawCountsPLOff = shot_odmr[ *odmr__].rawCountsPLOff();
@@ -217,25 +223,50 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         const uint32_t *pploff = &rawCountsPLOff->at(0);
         const uint32_t *pplon = &rawCountsPLOn->at(0);
 
+        bool secondmom = tr[ *this].secondMoment();
+        const uint32_t *summed_fsq_on_o_off = nullptr;
+        decltype(summedCountsNext_on_o_off) summedCountsNext_fsq_on_o_off;
+        uint32_t *summedNext_fsq_on_o_off = nullptr;
+        if(secondmom) {
+            summed_fsq_on_o_off = &tr[ *this].m_summedCounts[1]->at(0);
+            summedCountsNext_fsq_on_o_off = m_pool.allocate(width * height);
+            summedNext_fsq_on_o_off = &summedCountsNext_fsq_on_o_off->at(0);
+        }
+
+        //Accumulation of results into m_suumedCounts[2 or 3], for CoG/second moment calc.
+        //0x8000*PLon/PLoff, freq(unit of df)*0x8000*on/off, (freq(unit of df) - fmid)^2*0x8000*on/off
+        // local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
         for(unsigned int y  = 0; y < height; ++y) {
             for(unsigned int x  = 0; x < width; ++x) {
                 uint32_t ploff = *pploff++;
                 uint32_t plon = *pplon++;
-                int32_t plon_o_off_s32 = plon * coeff_PLOn_o_Off / (int64_t)ploff;
-                *summedNext_on_o_off++ = *summed_on_o_off++ + (uint32_t)plon_o_off_s32;
-                *summedNext_f_on_o_off++ = *summed_f_on_o_off++ + (uint32_t)(freqidx * plon_o_off_s32);
+                //PLon/PLoff mult. by "C", integer calc. expecting nearly 16bit resolution for PL contrast.
+                //avoiding slow floating point calc.
+                uint32_t plon_o_off_us32 = plon * coeff_PLOn_o_Off / ploff;
+                *summedNext_on_o_off++ = *summed_on_o_off++ + plon_o_off_us32;
+                *summedNext_f_on_o_off++ = *summed_f_on_o_off++ + freqidx * plon_o_off_us32;
+                if(secondmom)
+                    *summedNext_fsq_on_o_off++ = *summed_fsq_on_o_off++ + freqminusmid_sq_idx * plon_o_off_us32;
             }
         }
-        // CoG = <f dPL/PL> / <dPL/PL> = <f (on/off - 1)> / <on/off - 1> = (<f on/off> - <f>) / (<on/off> -  1)
-        // = (sum (f on/off C) - sum f C) / (sum on/off C -  N C)
-        tr[ *this].m_accumulated[0]++;
-        tr[ *this].m_accumulated[1] += freqidx;
-        tr[ *this].m_summedCounts[0] = summedCountsNext_on_o_off;
+        // CoG = <f dPL/PL> / <dPL/PL>
+        //   = <f (on/off - 1)> / <on/off - 1>
+        //   = (<f on/off> - <f>) / (<on/off> -  1)
+        //   = (sum (f on/off C) - sum f C) / (sum on/off C -  N C)
+        tr[ *this].m_accumulated[0]++;  //N
+        tr[ *this].m_accumulated[1] += freqidx; //sum f (unit of df)
+        tr[ *this].m_summedCounts[0] = summedCountsNext_on_o_off; //updating
         tr[ *this].m_summedCounts[1] = summedCountsNext_f_on_o_off;
-        // tr[ *this].m_accumulated[2] += freqsq_u16;
-
-        // const uint32_t *summed_fsq_on_o_off = &tr[ *this].m_summedCounts[2]->at(0);
-        // auto summedCountsNext_fsq_on_o_off = summedCountsFromPool(width * height);
+        // 2ndMoment = <(f - CoG)^2 dPL/PL> / <dPL/PL>
+        //  = <f^2 dPL/PL> / <dPL/PL> - CoG^2=
+        //  = <f^2 (on/off - 1)> / <on/off - 1> - CoG^2
+        //  = (<f^2 on/off> - <f^2>) / (<on/off> -  1) - CoG^2
+        //  = (sum (f^2 on/off C) - sum f^2 C) / (sum on/off C -  N C) - CoG^2
+        //  (here CoG's origin is fmid).
+        if(secondmom) {
+            tr[ *this].m_accumulated[2] += freqminusmid_sq_idx; //sum (f - fmid)^2 (unit of df)
+            tr[ *this].m_summedCounts[2] = summedCountsNext_fsq_on_o_off;
+        }
     }
 
     if( !shot_this[ *this].m_accumulated[0])
@@ -243,7 +274,8 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
     tr[ *this].m_coefficients[0] = 1.0 / coeff_PLOn_o_Off / tr[ *this].m_accumulated[0]; // 1/C/N
     tr[ *this].m_coefficients[1] = tr[ *this].m_coefficients[0] / coeff_freqidx; // 1/C/N [MHz]
-    // tr[ *this].m_coefficients[2] = tr[ *this].m_coefficients[0] / coeff_freqsq_u16; //for math tools
+    if(tr[ *this].secondMoment())
+        tr[ *this].m_coefficients[2] = tr[ *this].m_coefficients[0] / coeff_freqidx / coeff_freqidx; // 1/C/N [MHz^2]
 
     int64_t offsets[3];
     offsets[0] = llrint(-1.0 / tr[ *this].m_coefficients[0]); //-N C
@@ -251,26 +283,39 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
     tr[ *this].m_offsets[0] = offsets[0] * tr[ *this].m_coefficients[0]; // = -1
     tr[ *this].m_offsets[1] = offsets[1] * tr[ *this].m_coefficients[1]; // = -sum f/N = -<f> [MHz]
+    if(tr[ *this].secondMoment()) {
+        offsets[2] = llrint(-(double)tr[ *this].m_accumulated[2]
+              / (tr[ *this].m_coefficients[0] * tr[ *this].m_accumulated[0])); //- sum (f - fmid)^2 C
+        tr[ *this].m_offsets[2] = offsets[2] * tr[ *this].m_coefficients[2]; // = -sum (f - fmid)^2/N = -<(f - fmid)^2> [MHz^2]
+    }
 
     if(tr[ *m_autoMinMaxForColorMap]) {
-        const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
-            *summed_f_on_o_off = &tr[ *this].m_summedCounts[1]->at(0);
-
-        constexpr int64_t coeff_dCoG = 0x10000LL;
-        int64_t dcogmin = 0x7fffffffffffffffLL;
-        int64_t dcogmax = -0x7fffffffffffffffLL;
-        for(unsigned int i  = 0; i < width * height; ++i) {
-            int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0];
-            int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
-            if(abs(dplopl) < coeff_PLOn_o_Off / 5000) continue; //ignore |dPL/PL| < 0.02%
-            int64_t dcog = f_dplopl * coeff_dCoG / dplopl;
-            if(dcog > dcogmax)
-                dcogmax = dcog;
-            if(dcog < dcogmin)
-                dcogmin = dcog;
+        if(tr[ *this].secondMoment()) {
+            tr[ *minForColorMap()] = 0;
+            tr[ *maxForColorMap()] = (max__ - min__) * (max__ - min__);
         }
-        tr[ *minForColorMap()]  = std::max(min__, (double)dcogmin / coeff_dCoG / coeff_freqidx + min__);
-        tr[ *maxForColorMap()]  = std::min(max__, (double)dcogmax / coeff_dCoG / coeff_freqidx + min__);
+        else {
+            // const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
+            //     *summed_f_on_o_off = &tr[ *this].m_summedCounts[1]->at(0);
+
+            // constexpr int64_t coeff_dCoG = 0x10000LL;
+            // int64_t dcogmin = 0x7fffffffffffffffLL;
+            // int64_t dcogmax = -0x7fffffffffffffffLL;
+            // for(unsigned int i  = 0; i < width * height; ++i) {
+            //     int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0];
+            //     int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
+            //     if(abs(dplopl) < coeff_PLOn_o_Off / 5000) continue; //ignore |dPL/PL| < 0.02%
+            //     int64_t dcog = f_dplopl * coeff_dCoG / dplopl;
+            //     if(dcog > dcogmax)
+            //         dcogmax = dcog;
+            //     if(dcog < dcogmin)
+            //         dcogmin = dcog;
+            // }
+            // tr[ *minForColorMap()] = std::max(min__, (double)dcogmin / coeff_dCoG / coeff_freqidx + min__);
+            // tr[ *maxForColorMap()] = std::min(max__, (double)dcogmax / coeff_dCoG / coeff_freqidx + min__);
+            tr[ *minForColorMap()] = min__;
+            tr[ *maxForColorMap()] = max__;
+        }
         tr.unmark(m_lsnOnCondChanged);
     }
     if(tr[ *incrementalAverage()]) {
@@ -293,31 +338,48 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     unsigned int width = shot[ *this].width();
     unsigned int height = shot[ *this].height();
     auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA64);
-    qimage->setColorSpace(QColorSpace::SRgbLinear);
+    qimage->setColorSpace(QColorSpace::SRgbLinear); //for colormap plot.
     auto cbimage = std::make_shared<QImage>(width, 1, QImage::Format_RGBA64);
-    qimage->setColorSpace(QColorSpace::SRgbLinear);
+    qimage->setColorSpace(QColorSpace::SRgbLinear); //for colorbar.
 
     uint16_t *processed = reinterpret_cast<uint16_t*>(qimage->bits());
     const uint32_t *summed_on_o_off = &shot[ *this].m_summedCounts[0]->at(0),
         *summed_f_on_o_off = &shot[ *this].m_summedCounts[1]->at(0);
+    const uint32_t *summed_fsq_on_o_off = nullptr;
+
+    bool secondmoment = shot[ *this].secondMoment();
+
+    if(secondmoment)
+        summed_fsq_on_o_off = &shot[ *this].m_summedCounts[2]->at(0);
 
     int64_t offsets[3];
     offsets[0] = llrint(-1.0 / shot[ *this].m_coefficients[0]); //-N C
     offsets[1] = llrint(-(double)shot[ *this].m_accumulated[1] / (shot[ *this].m_coefficients[0] * shot[ *this].m_accumulated[0])); //- sum f C
+    if(secondmoment)
+        offsets[2] = llrint(-(double)shot[ *this].m_accumulated[2]
+                            / (shot[ *this].m_coefficients[0] * shot[ *this].m_accumulated[0])); //- sum (f - fmid)^2 C
 
-    double cogmin = shot[ *minForColorMap()];
-    double cogmax = shot[ *maxForColorMap()];
+    double cmap_min = shot[ *minForColorMap()];
+    double cmap_max = shot[ *maxForColorMap()];
 
-    constexpr int64_t coeff_dCoG = 0x10000LL;
-    double dfreq = shot[ *this].dfreq(); //MHz
-    double fmin = shot[ *this].minValue();
-    int64_t dcog_offset = coeff_dCoG * llrint((fmin - cogmin) / dfreq);
+    //64bit integer calc. for CoG freq. or 2nd moment, with fullscale = 0x10000.
+    constexpr int64_t coeff_vstep = 0x10000LL;
+    double vstep = shot[ *this].dfreq(); //MHz
+    double fmin = shot[ *this].m_freq_min; //MHz
+    int64_t fmid_idx = llrint((shot[ *this].m_freq_mid - fmin) / shot[ *this].dfreq());
+    int64_t value_offset = coeff_vstep * llrint((fmin - cmap_min) / vstep);
+    if(secondmoment) {
+        vstep = vstep * vstep; //MHz^2
+        value_offset = coeff_vstep * llrint(( - cmap_min) / vstep);
+    }
 
     std::array<int64_t, 3> coloroffsets_low = {};
     std::array<int64_t, 3> coloroffsets_high = {};
-    int64_t colorgain = llrint(0x100000000uLL * 0xffffuLL * dfreq / (cogmax - cogmin) / coeff_dCoG); // /256 is needed for RGBA8888 format
-    std::array<int64_t, 3> dcog_gain_low = {};
-    std::array<int64_t, 3> dcog_gain_high = {};
+    //64bit integer calc. for color map intensities, with fullscale = 0x100000000uLL * 0xffffuLL.
+    int64_t colorgain = llrint(0x100000000uLL * 0xffffuLL * vstep / (cmap_max - cmap_min) / coeff_vstep); // /256 is needed for RGBA8888 format
+
+    std::array<int64_t, 3> colorgain_low = {};
+    std::array<int64_t, 3> colorgain_high = {};
 
     std::array<uint32_t, 3> colors; //low, middle, high; x - (1 - x) * (1 - alpha)
 
@@ -346,26 +408,40 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
             intens[cbidx] -= lrint((0xff - intens[cbidx]) * (1.0 - colors[cbidx] / 0x1000000u / 255.0));
         }
         coloroffsets_low[cidx] = 0x100000000LL * 0xffffLL / 0xffLL * intens[0];
-        dcog_gain_low[cidx] = 2 * colorgain / 0xff * (intens[1] - intens[0]);
-        dcog_gain_high[cidx] = 2 * colorgain / 0xff * (intens[2] - intens[1]);
+        colorgain_low[cidx] = 2 * colorgain / 0xff * (intens[1] - intens[0]);
+        colorgain_high[cidx] = 2 * colorgain / 0xff * (intens[2] - intens[1]);
     }
 
     int64_t thres = 0x7fff * 0x100000000LL / colorgain;
     for(unsigned int cidx: {0,1,2})
-        coloroffsets_high[cidx] = coloroffsets_low[cidx] + thres * (dcog_gain_low[cidx] - dcog_gain_high[cidx]);
+        coloroffsets_high[cidx] = coloroffsets_low[cidx] + thres * (colorgain_low[cidx] - colorgain_high[cidx]);
 
+    //constructing colormap plot.
     for(unsigned int i  = 0; i < width * height; ++i) {
         int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0];
         int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
         if( !dplopl) {
+            //avoiding division by zero. Maybe black or saturated pixel.
             *processed++ = 0; *processed++ = 0; *processed++ = 0; *processed++ = 0xffffu;
             continue;
         }
-        int64_t dcog = f_dplopl * coeff_dCoG / dplopl + dcog_offset;
-        const auto &dcog_gain = (dcog > thres) ? dcog_gain_high : dcog_gain_low;
-        const auto &coloroffsets = (dcog > thres) ? coloroffsets_high : coloroffsets_low;
+        int64_t cmvalue;
+        if(secondmoment) {
+            //  2nd mom = (sum (f^2 on/off C) - sum f^2 C) / (sum on/off C -  N C) - CoG^2
+            //  (here CoG's origin is fmid).
+            // = ((sum (f^2 on/off C) - sum f^2 C)*(sum on/off C -  N C) - (sum (f on/off C) - sum f C)^2) / (sum on/off C -  N C)^2
+            int64_t fsq_dplopl = (int64_t)*summed_fsq_on_o_off++ + offsets[2];
+            f_dplopl -= dplopl * fmid_idx;
+            cmvalue = (fsq_dplopl * dplopl - f_dplopl * f_dplopl) * coeff_vstep / (dplopl * dplopl) + value_offset;
+        }
+        else {
+            //CoG = (sum (f on/off C) - sum f C) / (sum on/off C -  N C)
+            cmvalue = f_dplopl * coeff_vstep / dplopl + value_offset;
+        }
+        const auto &color_gain = (cmvalue > thres) ? colorgain_high : colorgain_low;
+        const auto &coloroffsets = (cmvalue > thres) ? coloroffsets_high : coloroffsets_low;
         for(unsigned int cidx: {0,1,2}) {
-            int64_t v = (dcog * dcog_gain[cidx] + coloroffsets[cidx]) / 0x100000000LL;
+            int64_t v = (cmvalue * color_gain[cidx] + coloroffsets[cidx]) / 0x100000000LL;
             *processed++ = std::max(0LL, std::min(v, 0xffffLL));
         }
         *processed++ = 0xffffu;
@@ -373,11 +449,11 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     //colorbar
     processed = reinterpret_cast<uint16_t*>(cbimage->bits());
     for(unsigned int i  = 0; i < cbimage->width(); ++i) {
-        int64_t dcog = (double)i / (cbimage->width() - 1) * (cogmax - cogmin) / dfreq * coeff_dCoG;
-        const auto &dcog_gain = (dcog > thres) ? dcog_gain_high : dcog_gain_low;
+        int64_t dcog = (double)i / (cbimage->width() - 1) * (cmap_max - cmap_min) / vstep * coeff_vstep;
+        const auto &color_gain = (dcog > thres) ? colorgain_high : colorgain_low;
         const auto &coloroffsets = (dcog > thres) ? coloroffsets_high : coloroffsets_low;
         for(unsigned int cidx: {0,1,2}) {
-            int64_t v = (dcog * dcog_gain[cidx] + coloroffsets[cidx]) / 0x100000000LL;
+            int64_t v = (dcog * color_gain[cidx] + coloroffsets[cidx]) / 0x100000000LL;
             *processed++ = std::max(0LL, std::min(v, 0xffffLL));
         }
         *processed++ = 0xffffu;
@@ -394,7 +470,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         tr[ *this].m_qimage = qimage;
         tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
         m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs, offsets_image);
-        m_processedImage->updateColorBarImage(tr, cogmin, cogmax, cbimage);
+        m_processedImage->updateColorBarImage(tr, cmap_min, cmap_max, cbimage);
     });
 }
 
