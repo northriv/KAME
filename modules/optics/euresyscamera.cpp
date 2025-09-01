@@ -1084,7 +1084,7 @@ XJAICameraOverGrablink::setExposureTime(double shutter) {
     interface()->query("TM?"); //TriggerMode
     checkSerialError(__FILE__, __LINE__);
     unsigned int tm;
-    if(interface()->scanf("%2u", &tm) != 1)
+    if(interface()->scanf("TM=%2u", &tm) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     if(tm == 0) //trigger off.
         interface()->queryf("AR=%lu", lrint(shutter * 1e6)); //Acq. Frame Period
