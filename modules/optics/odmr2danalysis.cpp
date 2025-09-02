@@ -169,7 +169,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         clear = true;
     tr[ *this].m_dfreq = 1.0 / coeff_freqidx;
     uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
-    uint32_t freqidx_mid = lrint((max__ - min__) / coeff_freqidx / 2);
+    uint32_t freqidx_mid = lrint(coeff_freqidx * (max__ - min__) / 2);
     tr[ *this].m_freq_mid = freqidx_mid / coeff_freqidx + min__;
     uint32_t freqminusmid_sq_idx = ((int32_t)freqidx - (int32_t)freqidx_mid) * ((int32_t)freqidx - (int32_t)freqidx_mid);
 
