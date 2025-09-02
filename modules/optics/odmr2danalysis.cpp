@@ -294,7 +294,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     if(tr[ *m_autoMinMaxForColorMap]) {
         if(tr[ *this].secondMoment()) {
             tr[ *minForColorMap()] = 0;
-            tr[ *maxForColorMap()] = (max__ - min__) * (max__ - min__) / 8;
+            tr[ *maxForColorMap()] = (max__ - min__) * (max__ - min__) / 1;
         }
         else {
             // const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
