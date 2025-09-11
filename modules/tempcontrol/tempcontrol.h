@@ -95,8 +95,8 @@ protected:
 	//! \param multiread if true, simultaneous reading of multi channels.
 	//! \param channel_names array of pointers to channel name. ends with null pointer.
 	void createChannels(Transaction &tr, const shared_ptr<XMeasure> &meas,
-                        bool multiread, std::initializer_list<XString> channel_names,
-                        std::initializer_list<XString> loop_names,
+                        bool multiread, const std::vector<XString> &channel_names,
+                        const std::vector<XString> &loop_names,
                         bool autoscanning = false, bool disabling = false);
   
 	//! reads sensor value from the instrument

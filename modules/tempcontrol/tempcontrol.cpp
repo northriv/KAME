@@ -468,10 +468,9 @@ void XTempControl::onSetupChannelChangedInternal(const Snapshot &shot, XValueNod
     });
 }
 
-void XTempControl::createChannels(
-    Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
-    bool multiread, std::initializer_list<XString> channel_names,
-    std::initializer_list<XString> loop_names,
+void XTempControl::createChannels(Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
+    bool multiread, const std::vector<XString> &channel_names,
+    const std::vector<XString> &loop_names,
     bool autoscanning, bool disabling) {
 	shared_ptr<XScalarEntryList> entries(meas->scalarEntries());
 	m_multiread = multiread;

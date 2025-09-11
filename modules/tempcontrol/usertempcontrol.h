@@ -146,7 +146,7 @@ protected:
     //! \sa m_heaterPowerUnit()
     virtual double getHeater(unsigned int loop);
     //! ex. "W", "dB", or so
-    virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
+    virtual const char *m_heaterPowerUnit(unsigned int) {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open();
@@ -218,6 +218,26 @@ protected:
         return (loop == 0) ? "HEATER" : "AOUT";
     }
 };
+
+//! Sientific Instrument 9308/9304/9302 temperature monitor
+template <unsigned int NumChannels = 8>
+class XScientificInstruments930X : public XCryocon {
+public:
+    XScientificInstruments930X(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XScientificInstruments930X() {}
+
+protected:
+    virtual void onSetupChannelChanged(const shared_ptr<XChannel> &ch) {
+        trans( *ch->excitation()).clear();
+        trans( *ch->excitation()).add({"10MV", "100MV"});
+    }
+    virtual void onPowerMaxChanged(unsigned int, double ) {}
+    virtual const char *loopString(unsigned int) {return "";}
+};
+using XSI9302 = XScientificInstruments930X<2>;
+using XSI9304 = XScientificInstruments930X<4>;
+using XSI9308 = XScientificInstruments930X<8>;
 
 //! Linear-Research 700 AC resistance bridge
 class XLinearResearch700 : public XCharDeviceDriver<XTempControl> {
@@ -344,7 +364,7 @@ public:
 protected:
     //! obtains current heater power
     //! \sa m_heaterPowerUnit()
-    virtual double getHeater(unsigned int loop) override {}
+    virtual double getHeater(unsigned int) override {return {};}
 
     virtual void onTargetTempChanged(unsigned int, double) override {}
     virtual void onHeaterModeChanged(unsigned int, int) override {}

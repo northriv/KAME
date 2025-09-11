@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,6 +17,9 @@
 
 REGISTER_TYPE(XDriverList, CryoconM32, "Cryocon M32 temp. controller");
 REGISTER_TYPE(XDriverList, CryoconM62, "Cryocon M62 temp. controller");
+REGISTER_TYPE(XDriverList, SI9302, "Scientific Instruments 9302 cryogenic temp. monitor");
+REGISTER_TYPE(XDriverList, SI9304, "Scientific Instruments 9304 cryogenic temp. monitor");
+REGISTER_TYPE(XDriverList, SI9308, "Scientific Instruments 9308 cryogenic temp. monitor");
 REGISTER_TYPE(XDriverList, LakeShore218, "LakeShore 218 temp. monitor");
 REGISTER_TYPE(XDriverList, LakeShore340, "LakeShore 340 temp. controller");
 REGISTER_TYPE(XDriverList, LakeShore350, "LakeShore 350 temp. controller");
@@ -335,17 +338,28 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
         {"A", "B"},
         {"Loop#1", "Loop#2"});
 }
+template <unsigned int NumChannels>
+XScientificInstruments930X<NumChannels>::XScientificInstruments930X(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCryocon(name, runtime, ref(tr_meas), meas) {
+    std::vector<XString> ch_names = {"A", "B", "C", "D", "E", "F", "G", "H"};
+    ch_names.resize(NumChannels);
+    createChannels(ref(tr_meas), meas, true,
+        ch_names,
+        {});
+}
+template class XScientificInstruments930X<2>;
+template class XScientificInstruments930X<4>;
+template class XScientificInstruments930X<8>;
+
 void XCryocon::open() {
     Snapshot shot_ch( *channels());
     const XNode::NodeList &list( *shot_ch.list());
-    assert(list.size() == 2);
-    shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
-    shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
-    interface()->query("INPUT A:VBIAS?");
-    trans( *ch0->excitation()).str(interface()->toStrSimplified());
-    interface()->query("INPUT B:VBIAS?");
-    trans( *ch1->excitation()).str(interface()->toStrSimplified());
-
+    for(auto &&x: list) {
+        shared_ptr<XChannel> ch = static_pointer_cast<XChannel>(x);
+        interface()->queryf("INPUT %s:VBIAS?", ch->getName().c_str());
+        trans( *ch->excitation()).str(interface()->toStrSimplified());
+    }
     Snapshot shot( *this);
     for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
         trans( *powerRange(idx)).clear();
@@ -369,9 +383,10 @@ void XCryocon::open() {
             trans( *heaterMode(idx)).str(interface()->toStrSimplified());
         }
     }
-
-    interface()->queryf("%s:RANGE?", loopString(0));
-    trans( *powerRange(0)).str(interface()->toStrSimplified());
+    if(numOfLoops()) {
+        interface()->queryf("%s:RANGE?", loopString(0));
+        trans( *powerRange(0)).str(interface()->toStrSimplified());
+    }
 
     start();
 }
