@@ -139,7 +139,7 @@ XRuby::rnode_count(const shared_ptr<XNode> &node) {
 Ruby::Value
 XRuby::rnode_touch(const shared_ptr<XNode> &node) {
     auto tnode = dynamic_pointer_cast<XTouchableNode>(node);
-    if( !node)
+    if( !tnode)
         throw (std::string)formatString("Type mismatch on node %s\n", node->getName().c_str());
     dbgPrint(QString("Ruby, Node %1, touching."));
     tnode->iterate_commit([=](Transaction &tr){
