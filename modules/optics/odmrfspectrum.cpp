@@ -294,7 +294,8 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
             });
             trans( *odmr__->clearAverage()).touch();
             msecsleep(200);
-            double exposure = Snapshot( *camera__)[ *camera__].exposureTime();
+            // double exposure = Snapshot( *camera__)[ *camera__].exposureTime();
+            double exposure = Snapshot( *camera__)[ *camera__->exposureTime()];
             sg1__->iterate_commit([=](Transaction &tr){
                 unsigned int avg = shot_odmr[ *odmr__->average()];
                 avg = std::max(1u, avg);

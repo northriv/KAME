@@ -149,18 +149,22 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
         buffer.open(QIODevice::WriteOnly);
         {
             const auto &image_org = shot[ *plot()].image();
-            const auto &barimage_org = shot[ *m_colorbarplot].image();
             QImage image;
-            if(m_colorbarplot && (image_org->bytesPerLine() == barimage_org->bytesPerLine())) {
-                int blanks = 6, barwidth = 32;
-                QImage barimage = barimage_org->scaled(image_org->width(), barwidth);
-                image = QImage(image_org->width(),
-                    image_org->height() + blanks + barimage.height(), image_org->format()); //scaled copy to add a colorbar.
-                //writes original image.
-                std::copy(image_org->bits(), image_org->bits() + image_org->bytesPerLine() * image_org->height(), image.bits());
-                //writes colorbar pixels.
-                uchar *bits = image.bits() + image.bytesPerLine() * (image_org->height() + blanks);
-                std::copy(barimage.bits(), barimage.bits() + barimage.bytesPerLine() * barimage.height(), bits);
+            if(m_colorbarplot) {
+                const auto &barimage_org = shot[ *m_colorbarplot].image();
+                if(image_org->bytesPerLine() == barimage_org->bytesPerLine()) {
+                    int blanks = 6, barwidth = 32;
+                    QImage barimage = barimage_org->scaled(image_org->width(), barwidth);
+                    image = QImage(image_org->width(),
+                        image_org->height() + blanks + barimage.height(), image_org->format()); //scaled copy to add a colorbar.
+                    //writes original image.
+                    std::copy(image_org->bits(), image_org->bits() + image_org->bytesPerLine() * image_org->height(), image.bits());
+                    //writes colorbar pixels.
+                    uchar *bits = image.bits() + image.bytesPerLine() * (image_org->height() + blanks);
+                    std::copy(barimage.bits(), barimage.bits() + barimage.bytesPerLine() * barimage.height(), bits);
+                }
+                else
+                    image = image_org->copy();
             }
             else
                 image = image_org->copy();
