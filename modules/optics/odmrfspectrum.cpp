@@ -289,11 +289,6 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
         unsigned int seq_len = shot_odmr[ *odmr__].sequenceLength();
         shared_ptr<XDigitalCamera> camera__ = shot_odmr[ *odmr__->camera()];
         if(sg1__ && odmr__ && camera__) {
-            sg1__->iterate_commit([=](Transaction &tr){
-                tr[ *sg1__->freq()] = newf;
-            });
-            trans( *odmr__->clearAverage()).touch();
-            msecsleep(200);
             // double exposure = Snapshot( *camera__)[ *camera__].exposureTime();
             double exposure = Snapshot( *camera__)[ *camera__->exposureTime()];
             sg1__->iterate_commit([=](Transaction &tr){
@@ -302,6 +297,11 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
                 tr[ *sg1__->sweepPoints()] = seq_len * (avg + shot_odmr[ *odmr__->precedingSkips()]);
                 tr[ *sg1__->sweepDwellTime()] = exposure + 0.05; //+50ms
             });
+            sg1__->iterate_commit([=](Transaction &tr){
+                tr[ *sg1__->freq()] = newf;
+            });
+            msecsleep(200);
+            trans( *odmr__->clearAverage()).touch();
         }
     }
 }
