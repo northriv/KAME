@@ -278,31 +278,34 @@ void
 XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
-        onClear(shot_this, clear().get());
-        trans( *this).m_lastFreqAcquired = -1000.0;
-        double cfreq = shot_this[ *centerFreq()]; //MHz
-        double freq_span = shot_this[ *freqSpan()] * 1e-3; //MHz
-        double newf = cfreq - freq_span / 2;
-		shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
-        shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
-        Snapshot shot_odmr( *odmr__);
-        unsigned int seq_len = shot_odmr[ *odmr__].sequenceLength();
-        shared_ptr<XDigitalCamera> camera__ = shot_odmr[ *odmr__->camera()];
-        if(sg1__ && odmr__ && camera__) {
-            // double exposure = Snapshot( *camera__)[ *camera__].exposureTime();
-            double exposure = Snapshot( *camera__)[ *camera__->exposureTime()];
-            sg1__->iterate_commit([=](Transaction &tr){
-                unsigned int avg = shot_odmr[ *odmr__->average()];
-                avg = std::max(1u, avg);
-                tr[ *sg1__->sweepPoints()] = seq_len * (avg + shot_odmr[ *odmr__->precedingSkips()]);
-                tr[ *sg1__->sweepDwellTime()] = exposure + 0.05; //+50ms
-            });
-            sg1__->iterate_commit([=](Transaction &tr){
-                tr[ *sg1__->freq()] = newf;
-            });
-            msecsleep(200);
-            trans( *odmr__->clearAverage()).touch();
-        }
+        static shared_ptr<XThread> thread_activate{new XThread{shared_from_this(),
+            [this](const atomic<bool>&, Snapshot &&shot_this){
+            onClear(shot_this, clear().get());
+            trans( *this).m_lastFreqAcquired = -1000.0;
+            double cfreq = shot_this[ *centerFreq()]; //MHz
+            double freq_span = shot_this[ *freqSpan()] * 1e-3; //MHz
+            double newf = cfreq - freq_span / 2;
+            shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
+            shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
+            Snapshot shot_odmr( *odmr__);
+            unsigned int seq_len = shot_odmr[ *odmr__].sequenceLength();
+            shared_ptr<XDigitalCamera> camera__ = shot_odmr[ *odmr__->camera()];
+            if(sg1__ && odmr__ && camera__) {
+                // double exposure = Snapshot( *camera__)[ *camera__].exposureTime();
+                double exposure = Snapshot( *camera__)[ *camera__->exposureTime()];
+                sg1__->iterate_commit([=](Transaction &tr){
+                    unsigned int avg = shot_odmr[ *odmr__->average()];
+                    avg = std::max(1u, avg);
+                    tr[ *sg1__->sweepPoints()] = seq_len * (avg + shot_odmr[ *odmr__->precedingSkips()]);
+                    tr[ *sg1__->sweepDwellTime()] = exposure + 0.05; //+50ms
+                });
+                sg1__->iterate_commit([=](Transaction &tr){
+                    tr[ *sg1__->freq()] = newf;
+                });
+                msecsleep(200);
+                trans( *odmr__->clearAverage()).touch();
+            }
+        }, Snapshot( *this)}};
     }
 }
 
