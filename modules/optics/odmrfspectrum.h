@@ -138,6 +138,8 @@ private:
 
     shared_ptr<Listener> m_lsnOnActiveChanged;
 
+    shared_ptr<XThread> m_thread_activate;
+
     bool setupGraph(Transaction &tr);
 
     void rearrangeInstrum(const Snapshot &shot_this);
