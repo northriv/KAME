@@ -278,7 +278,7 @@ void
 XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
-        static shared_ptr<XThread> thread_activate{new XThread{shared_from_this(),
+        m_thread_activate.reset(new XThread{shared_from_this(),
             [this](const atomic<bool>&, Snapshot &&shot_this){
             onClear(shot_this, clear().get());
             trans( *this).m_lastFreqAcquired = -1000.0;
@@ -305,7 +305,7 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
                 msecsleep(200);
                 trans( *odmr__->clearAverage()).touch();
             }
-        }, Snapshot( *this)}};
+        }, Snapshot( *this)});
     }
 }
 
