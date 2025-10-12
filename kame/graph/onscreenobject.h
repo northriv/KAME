@@ -212,6 +212,7 @@ public:
     double maxXOfBB() const {return m_maxX;}
     double maxYOfBB() const {return m_maxY;}
 private:
+    atomic_shared_ptr<XString> m_textThreadSafe;
     QString m_text;
     int m_curFontSize;
     int m_curAlign;

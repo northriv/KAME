@@ -483,14 +483,14 @@ OnScreenTextObject::drawByPainter(QPainter *qpainter) {
     font.setPointSize(m_curFontSize);
     qpainter->setFont(font);
     QFontMetrics fm(font);
-    if(m_text.length() && m_textOverpaint.empty()) {
+    if(local_shared_ptr<XString> txt = m_textThreadSafe) {
         //OSO treated as marker, text stored by drawTextAtPlacedPosition().
         qpainter->setPen(QColor(baseColor()));
         double x,y,z;
         painter()->screenToWindow(leftTop(), &x, &y, &z);
-        qpainter->drawText(x, y, m_text);
+        qpainter->drawText(x, y, *txt);
     }
-    else {
+    if(m_textOverpaint.size()) {
         //text stored by drawText().
         for(auto &&text: m_textOverpaint) {
             auto str = m_text.mid(text.strpos, text.length);
@@ -510,7 +510,7 @@ OnScreenTextObject::clear() {
 }
 void
 OnScreenTextObject::drawTextAtPlacedPosition(const XString &str, int sizehint) {
-    m_text = str;
+    m_textThreadSafe = make_local_shared<XString>(str);
     m_curFontSize += sizehint;
 }
 void
