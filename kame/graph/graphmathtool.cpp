@@ -139,10 +139,8 @@ XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
         if(auto oso = static_pointer_cast<OnXAxisTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.01, 0.01, 0.01});
-            oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-            oso->defaultFont();
             oso->drawTextAtPlacedPosition(getLabel()
-                + (isHighLighted() ? "" : " " + msg), isHighLighted() ? +2 : -4);
+                + (isHighLighted() ? "" : " " + msg), Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +2 : -4);
         }
     }
 }
@@ -198,10 +196,8 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
         if(auto oso = static_pointer_cast<OnPlotTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
-            oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-            oso->defaultFont();
             oso->drawTextAtPlacedPosition(getLabel()
-                + (isHighLighted() ? "" : " " + msg), isHighLighted() ? +5 : +1);
+                + (isHighLighted() ? "" : " " + msg), Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +5 : +1);
         }
     }
 }

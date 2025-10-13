@@ -191,7 +191,7 @@ public:
 
     void clear();
     //! using OnScreenObjectWithMarker::placeObject().
-    void drawTextAtPlacedPosition(const XString &str, int sizehint = 0);
+    void drawTextAtPlacedPosition(const XString &str, int alignment, int sizehint = 0);
     //! not thread safe, be called within paintGL().
     void drawText(const XGraph::ScrPoint &p, const XString &str);
     void defaultFont();
@@ -203,7 +203,8 @@ public:
     //! \param width perp. to \a dir, restricting font size
     //! \return return 0 if succeeded
     int selectFont(const XString &str, const XGraph::ScrPoint &start,
-                   const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
+                   const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width,
+                   int sizehint = 0);
     virtual bool hasTexture() const override {return true;}
 
     //! in window coordinate, effective after drawText().
@@ -212,7 +213,7 @@ public:
     double maxXOfBB() const {return m_maxX;}
     double maxYOfBB() const {return m_maxY;}
 private:
-    atomic_shared_ptr<XString> m_textThreadSafe;
+    atomic_shared_ptr<std::tuple<int, int, XString>> m_textThreadSafe;
     QString m_text;
     int m_curFontSize;
     int m_curAlign;
