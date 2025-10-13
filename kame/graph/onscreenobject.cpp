@@ -486,8 +486,8 @@ OnScreenTextObject::drawByPainter(QPainter *qpainter) {
     if(local_shared_ptr<XString> txt = m_textThreadSafe) {
         //OSO treated as marker, text stored by drawTextAtPlacedPosition().
         qpainter->setPen(QColor(baseColor()));
-        double x =  qpainter->window().width() * leftTop().x;
-        double y =  qpainter->window().height() * (1 - leftTop().y);
+        double x =  qpainter->viewport().width() * leftTop().x; //conversion w/o gluProject
+        double y =  qpainter->viewport().height() * (1 - leftTop().y);
         qpainter->drawText(x, y, *txt);
     }
     if(m_textOverpaint.size()) {
