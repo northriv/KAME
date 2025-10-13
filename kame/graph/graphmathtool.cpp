@@ -102,7 +102,7 @@ XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget
     if(m_osos.empty()) {
         m_osos = createAdditionalOnScreenObjects(painter);
     }
-    updateAdditionalOnScreenObjects(shot, graphwidget, std::move(msg));
+    updateAdditionalOnScreenObjects(shot, graphwidget, msg);
     graphwidget->update();
 }
 std::deque<shared_ptr<OnScreenObject>>
@@ -119,7 +119,7 @@ XGraph1DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainte
     return {oso_rect, oso_lbl};
 }
 void
-XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) {
+XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) {
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *begin()];
         double edx = shot[ *end()];
@@ -175,7 +175,7 @@ XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainte
     return {oso_rect, oso_lbl};
 }
 void
-XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) {
+XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) {
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *beginX()];
         double bgy = shot[ *beginY()];

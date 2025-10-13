@@ -114,8 +114,8 @@ public:
         return entries()->release(tr, m_entry);
     }
 protected:
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) override {
-        XGraph1DMathTool::updateAdditionalOnScreenObjects(shot, graphwidget, std::move(msg));
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) override {
+        XGraph1DMathTool::updateAdditionalOnScreenObjects(shot, graphwidget, msg);
     }
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override {
         auto osos = XGraph1DMathTool::createAdditionalOnScreenObjects(painter);

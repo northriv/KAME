@@ -46,7 +46,7 @@ protected:
     const weak_ptr<XPlot> m_plot;
     bool isHighLighted() const {return m_highlight;}
 
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) = 0;
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) = 0;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) = 0;
     weak_ptr<OnScreenObjectWithMarker> m_osoHighlight;
 private:
@@ -71,7 +71,7 @@ public:
 
     virtual XString getMenuLabel() const override;
 protected:
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) override;
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) override;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
@@ -98,7 +98,7 @@ public:
 
     virtual XString getMenuLabel() const override;
 protected:
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) override;
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) override;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
