@@ -487,8 +487,8 @@ OnScreenTextObject::drawByPainter(QPainter *qpainter) {
         //OSO treated as marker, text stored by drawTextAtPlacedPosition().
         qpainter->setPen(QColor(baseColor()));
         double x,y,z;
-        painter()->screenToWindow(leftTop(), &x, &y, &z);
-        qpainter->drawText(x, y, *txt);
+        if( !painter()->screenToWindow(leftTop(), &x, &y, &z))
+            qpainter->drawText(x, y, *txt);
     }
     if(m_textOverpaint.size()) {
         //text stored by drawText().
@@ -528,7 +528,8 @@ OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
     QRect bb = fm.boundingRect(str);
     //draws texts later.
     double x,y,z;
-    painter()->screenToWindow(p, &x, &y, &z);
+    if(painter()->screenToWindow(p, &x, &y, &z))
+        return;
     if( (m_curAlign & Qt::AlignBottom) ) y -= bb.bottom();
     if( (m_curAlign & Qt::AlignVCenter) ) y += -bb.bottom() + bb.height() / 2;
     if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();

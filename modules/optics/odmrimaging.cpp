@@ -305,7 +305,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     }
 
     {
-        const uint32_t *summed[seq_len];
+        const uint32_t *summed[4];
         for(unsigned int i = 0; i < seq_len; ++i) {
             summed[i] = &tr[ *this].m_summedCounts[i]->at(0);
         }
