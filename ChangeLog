@@ -1,3 +1,9 @@
+* Wed Oct 15 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.3.1-1)
+- Fix for thread safety regarding math tools.
+- Lakeshore 218 temp monitor
+- Many improvements on ODMR
+
 * Tue Jul 29 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.3.0-1)
 - Displays fitted curves for math tools.
