@@ -81,7 +81,7 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
 }
 
 void
-XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg) {
+XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) {
     if( !shot[ *this].isUIEnabled())
         return;
     auto painter = graphwidget->painter().lock();
@@ -103,7 +103,7 @@ XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget
         m_osos = createAdditionalOnScreenObjects(painter);
     }
     updateAdditionalOnScreenObjects(shot, graphwidget, msg);
-    graphwidget->update();
+    painter->requestRepaint();
 }
 std::deque<shared_ptr<OnScreenObject>>
 XGraph1DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) {

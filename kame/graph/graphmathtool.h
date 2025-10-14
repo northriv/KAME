@@ -40,7 +40,7 @@ public:
 
     void highlight(bool state, XQGraph *graphwidget);
 
-    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, XString msg);
+    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
     const weak_ptr<XPlot> m_plot;

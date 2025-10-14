@@ -128,6 +128,7 @@ public:
      int windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr);
      int screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y, double *z);
 
+     void requestRepaint();
  private:
      //! Selections
      //! \param x,y center of clipping area
@@ -148,7 +149,6 @@ public:
 
      shared_ptr<Listener> m_lsnRepaint;
      Transactional::TalkerOnce<Snapshot> m_tlkRepaint;
-     void requestRepaint();
      void onRepaint(const Snapshot &shot);
 
      //! Draws plots, axes.
