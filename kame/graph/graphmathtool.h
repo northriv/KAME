@@ -159,7 +159,7 @@ public:
             catch(std::out_of_range&) {
             }
         }
-        this->updateOnScreenObjects(tr, graphwidget, std::move(msg));
+        this->updateOnScreenObjects(tr, graphwidget, msg);
     }
     struct Payload : public XGraph1DMathTool::Payload {
         F functor;
@@ -195,7 +195,7 @@ public:
             catch(std::out_of_range&) {
             }
         }
-        this->updateOnScreenObjects(tr, graphwidget, std::move(msg));
+        this->updateOnScreenObjects(tr, graphwidget, msg);
     }
     struct Payload : public XGraph2DMathTool::Payload {
         F functor;
