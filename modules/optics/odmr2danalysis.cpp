@@ -167,10 +167,10 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     double coeff_freqidx = 1.0 / (shot_fspectrum[ *fspectrum__->freqStep()] * 1e-3); //1/MHz
     if(tr[ *this].m_dfreq != 1.0 / coeff_freqidx)
         clear = true;
-    tr[ *this].m_dfreq = 1.0 / coeff_freqidx;
+    tr[ *this].m_dfreq = 1.0 / coeff_freqidx; //MHz
     uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
     uint32_t freqidx_mid = lrint(coeff_freqidx * (max__ - min__) / 2);
-    tr[ *this].m_freq_mid = freqidx_mid / coeff_freqidx + min__;
+    tr[ *this].m_freq_mid = freqidx_mid / coeff_freqidx + min__; //MHz
     uint32_t freqminusmid_sq_idx = ((int32_t)freqidx - (int32_t)freqidx_mid) * ((int32_t)freqidx - (int32_t)freqidx_mid);
 
     unsigned int width = shot_odmr[ *odmr__].width();
@@ -361,7 +361,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         offsets[2] = llrint(-(double)shot[ *this].m_accumulated[2]
                             / (shot[ *this].m_coefficients[0] * shot[ *this].m_accumulated[0])); //- sum (f - fmid)^2 C
 
-    double cmap_min = shot[ *minForColorMap()];
+    double cmap_min = shot[ *minForColorMap()]; //MHz or MHz^2
     double cmap_max = shot[ *maxForColorMap()];
 
     //64bit integer calc. for CoG freq. or 2nd moment, with fullscale = 0x10000.

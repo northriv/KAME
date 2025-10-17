@@ -58,6 +58,7 @@ public:
     const shared_ptr<XComboNode> &dispMethod() const {return m_dispMethod;}
     const shared_ptr<XUIntNode> &refIntensFrames() const {return m_refIntensFrames;}
     const shared_ptr<XComboNode> &sequence() const {return m_sequence;}
+    const shared_ptr<XUIntNode> &binning() const {return m_binning;}
 
     const shared_ptr<X2DImage> &processedImage() const {return m_processedImage;}
 
@@ -168,6 +169,7 @@ private:
     const shared_ptr<XComboNode> m_dispMethod;
     const shared_ptr<XUIntNode> m_refIntensFrames;
     const shared_ptr<XComboNode> m_sequence;
+    const shared_ptr<XUIntNode> m_binning;
 
     const qshared_ptr<FrmODMRImaging> m_form;
     const shared_ptr<X2DImage> m_processedImage;

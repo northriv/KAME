@@ -44,6 +44,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_dispMethod(create<XComboNode>("DispMethod", false, true)),
     m_refIntensFrames(create<XUIntNode>("RefIntensFrames", false)),
     m_sequence(create<XComboNode>("Sequence", false, true)),
+    m_binning(create<XUIntNode>("Binning", false)),
     m_form(new FrmODMRImaging),
     m_processedImage(create<X2DImage>("ProcessedImage", false,
                                    m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
@@ -93,6 +94,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         xqcon_create<XQToggleButtonConnector>(m_autoGainForDisp, m_form->m_ckbAutoGainForDisp),
         xqcon_create<XQComboBoxConnector>(m_dispMethod, m_form->m_cmbDispMethod, Snapshot( *m_dispMethod)),
         xqcon_create<XQComboBoxConnector>(m_sequence, m_form->m_cmbSequence, Snapshot( *m_sequence)),
+        xqcon_create<XQSpinBoxUnsignedConnector>(binning(), m_form->m_spbBinning),
     };
 
     m_conTools = {
@@ -108,6 +110,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
             x->setBaseColor(0x00ffffu);
         tr[ *average()] = 1;
         tr[ *precedingSkips()] = 0;
+        tr[ *binning()] = 1;
         tr[ *autoGainForDisp()] = true;
         tr[ *dispMethod()].add({"dPL(RedWhiteBlue)", "dPL(YellowGreenBlue)",
             "dPL/PL(RedWhiteBlue)", "dPL/PL(YellowGreenBlue)",
@@ -127,6 +130,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         tr[ *autoGainForDisp()].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *dispMethod()].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *sequence()].onValueChanged().connect(m_lsnOnCondChanged);
+        tr[ *binning()].onValueChanged().connect(m_lsnOnCondChanged);
     });
 }
 XODMRImaging::~XODMRImaging() {
@@ -141,7 +145,7 @@ void
 XODMRImaging::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
     if(node == incrementalAverage().get())
         trans( *average()) = 0;
-    if(node == incrementalAverage().get())
+    if((node == incrementalAverage().get()) || (node == binning().get()))
         onClearAverageTouched(shot, clearAverage().get());
     else
         requestAnalysis();
@@ -186,8 +190,11 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     tr[ *this].m_timeClearRequested = {};
 
     const auto rawimage = shot_camera[ *camera__].rawCounts();
-    unsigned int width = shot_camera[ *camera__].width();
-    unsigned int height = shot_camera[ *camera__].height();
+    unsigned int binning__ = std::max((unsigned int)shot_this[ *binning()], 1u);
+    unsigned int width_camera = shot_camera[ *camera__].width();
+    unsigned int width = width_camera / binning__;
+    unsigned int height_camera = shot_camera[ *camera__].height();
+    unsigned int height = height_camera / binning__;
     unsigned int raw_stride = shot_camera[ *camera__].stride();
     auto seq = std::map<unsigned int, Sequence>
         {{0, Sequence::OFF_ON},{1, Sequence::OFF_OFF_ON},{2, Sequence::OFF_OFF_OFF_ON}
@@ -240,10 +247,14 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         const uint32_t *raw = &rawimage->at(shot_camera[ *camera__].firstPixel());
         for(unsigned int y  = 0; y < height; ++y) {
             for(unsigned int x  = 0; x < width; ++x) {
-                uint64_t v = *summed++ + *raw++;
+                uint64_t v = *summed++;
+                for(unsigned int bin_dy = 0; bin_dy < binning__; ++bin_dy) {
+                    v += raw[bin_dy * raw_stride];
+                }
                 if(v > 0x100000000uLL)
                     v = 0xffffffffuL;
                 *summedNext++ = v;
+                raw++;
             }
             raw += raw_stride - width;
         }
