@@ -299,7 +299,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         assert(summed[1] == &tr[ *this].m_summedCounts[seq_len - 2 + 1]->at(0) + width * height);
 
         if(vmax > 0) {
-            tr[ *gainForDisp()]  = lrint((double)0xffffu / (vmax / tr[ *this].m_accumulated[0]));
+            tr[ *gainForDisp()]  = (double)0xffffu / (vmax / tr[ *this].m_accumulated[0]);
             tr[ *minDPLoPLForDisp()]  = 100.0 * dplopl_min;
             tr[ *maxDPLoPLForDisp()]  = 100.0 * dplopl_max;
             tr.unmark(m_lsnOnCondChanged);
