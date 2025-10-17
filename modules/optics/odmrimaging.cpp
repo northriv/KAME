@@ -494,7 +494,8 @@ XODMRImaging::visualize(const Snapshot &shot) {
     double dpl_max = shot[ *maxDPLoPLForDisp()] / 100.0;
     {
         uint64_t coeff_dpl = 0x100000000uLL * 0xffffuLL; // /256 is needed for RGBA8888 format
-        uint64_t gain_av = llrint(coeff_dpl / 0xffffuLL * shot[ *gainForDisp()] * shot[ *this].m_coefficients[0]);
+        uint64_t gain_av = llrint(coeff_dpl / 0xffffuLL
+            * std::max((double)shot[ *gainForDisp()], 0.1) * shot[ *this].m_coefficients[0]);
         std::array<uint64_t, 3> gains = {}; //offsets for dPL/PL
         std::array<int64_t, 3> dpl_gain_pos = {};
         std::array<int64_t, 3> dpl_gain_neg = {};
