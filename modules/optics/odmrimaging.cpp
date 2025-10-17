@@ -248,15 +248,15 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         for(unsigned int y  = 0; y < height; ++y) {
             for(unsigned int x  = 0; x < width; ++x) {
                 uint64_t v = *summed++;
-                for(unsigned int bin_dy = 0; bin_dy < binning__; ++bin_dy) {
-                    v += raw[bin_dy * raw_stride];
-                }
+                for(unsigned int bin_dy = 0; bin_dy < binning__; ++bin_dy)
+                    for(unsigned int bin_dx = 0; bin_dx < binning__; ++bin_dx)
+                        v += raw[bin_dy * raw_stride + bin_dx];
                 if(v > 0x100000000uLL)
                     v = 0xffffffffuL;
                 *summedNext++ = v;
-                raw++;
+                raw += binning__;
             }
-            raw += raw_stride - width;
+            raw += raw_stride * binning__ - width * binning__;
         }
         assert(summedNext == &summedCountsNext->at(0) + width * height);
         assert(summed == &tr[ *this].m_summedCounts[cidx]->at(0) + width * height);
