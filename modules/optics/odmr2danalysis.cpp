@@ -248,12 +248,12 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
                 *summedNext_on_o_off++ = *summed_on_o_off++ + plon_o_off_us32;
                 //if freqidx < 16, allowing accumulation > 4000 times, even without rounding
                 uint32_t v = *summed_f_on_o_off++ + freqidx * plon_o_off_us32;
-                if(max_v > v) max_v = v;
+                if(max_v < v) max_v = v;
                 *summedNext_f_on_o_off++ = v;
                 if(secondmom) {
                     //if freqidx < 16, allowing accumulation > 1000 times, even without rounding
                     v = *summed_fsq_on_o_off++ + freqminusmid_sq_idx * plon_o_off_us32;
-                    if(max_v > v) max_v = v;
+                    if(max_v < v) max_v = v;
                     *summedNext_fsq_on_o_off++ = v;
                 }
             }
