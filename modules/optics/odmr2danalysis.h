@@ -71,7 +71,8 @@ public:
     private:
         friend class XODMR2DAnalysis;
 
-        //! 0x8000*PLon/PLoff, freq(unit of df)*0x8000*on/off, (freq(unit of df) - fmid)^2*0x8000*on/off
+        uint64_t m_coeff_PLOn_o_Off; // = "C" in the following formula.
+        //! C*PLon/PLoff, freq(unit of df)*C*on/off, (freq(unit of df) - fmid)^2*C*on/off
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
         //! avg counts, sum freq(unit of df), sum (freq(unit of df) - fmid)^2.
         uint64_t m_accumulated[3];

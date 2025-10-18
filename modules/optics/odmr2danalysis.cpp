@@ -199,6 +199,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     tr[ *this].m_height = height;
 
     if(clear) {
+        tr[ *this].m_coeff_PLOn_o_Off = 0x10000uLL;
         tr[ *this].m_summedCounts[2].reset();
         for(unsigned int i = 0; i < num_summed_frames; ++i) {
             tr[ *this].m_summedCounts[i] = m_pool.allocate(width * height);
@@ -207,7 +208,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         }
     }
 
-    constexpr uint64_t coeff_PLOn_o_Off = 0x8000uLL; // = "C" in the following formula.
+    uint64_t coeff_PLOn_o_Off = tr[ *this].m_coeff_PLOn_o_Off; // = "C" in the following formula.
 
     if(emitter == fspectrum__.get()) {
         auto rawCountsPLOff = shot_odmr[ *odmr__].rawCountsPLOff();
@@ -234,8 +235,9 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         }
 
         //Accumulation of results into m_suumedCounts[2 or 3], for CoG/second moment calc.
-        //0x8000*PLon/PLoff, freq(unit of df)*0x8000*on/off, (freq(unit of df) - fmid)^2*0x8000*on/off
+        //C*PLon/PLoff, freq(unit of df)*C*on/off, (freq(unit of df) - fmid)^2*C*on/off
         // local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
+        uint32_t max_v = 0;
         for(unsigned int y  = 0; y < height; ++y) {
             for(unsigned int x  = 0; x < width; ++x) {
                 uint32_t ploff = *pploff++;
@@ -244,11 +246,16 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
                 //avoiding slow floating point calc.
                 uint32_t plon_o_off_us32 = ploff ? (plon * coeff_PLOn_o_Off / ploff) : coeff_PLOn_o_Off * 2;
                 *summedNext_on_o_off++ = *summed_on_o_off++ + plon_o_off_us32;
-                //if freqidx < 16, allowing accumulation > 8000 times
-                *summedNext_f_on_o_off++ = *summed_f_on_o_off++ + freqidx * plon_o_off_us32;
-                if(secondmom)
-                    //if freqidx < 16, allowing accumulation > 2000 times
-                    *summedNext_fsq_on_o_off++ = *summed_fsq_on_o_off++ + freqminusmid_sq_idx * plon_o_off_us32;
+                //if freqidx < 16, allowing accumulation > 4000 times, even without rounding
+                uint32_t v = *summed_f_on_o_off++ + freqidx * plon_o_off_us32;
+                if(max_v > v) max_v = v;
+                *summedNext_f_on_o_off++ = v;
+                if(secondmom) {
+                    //if freqidx < 16, allowing accumulation > 1000 times, even without rounding
+                    v = *summed_fsq_on_o_off++ + freqminusmid_sq_idx * plon_o_off_us32;
+                    if(max_v > v) max_v = v;
+                    *summedNext_fsq_on_o_off++ = v;
+                }
             }
         }
         // CoG = <f dPL/PL> / <dPL/PL>
@@ -268,6 +275,16 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         if(secondmom) {
             tr[ *this].m_accumulated[2] += freqminusmid_sq_idx; //sum (f - fmid)^2 (unit of df)
             tr[ *this].m_summedCounts[2] = summedCountsNext_fsq_on_o_off;
+        }
+        if(max_v > 0xa0000000uLL) {
+            //rounding by 2 to avoid overflow.
+            coeff_PLOn_o_Off /= 2;
+            tr[ *this].m_coeff_PLOn_o_Off = coeff_PLOn_o_Off; //for later accumulation.
+            for(auto &&summed: tr[ *this].m_summedCounts) {
+                if(auto v = summed)
+                    for(auto &x: *v)
+                        x /= 2;
+            }
         }
     }
 
