@@ -1,15 +1,15 @@
 /***************************************************************************
         Copyright (C) 2002-2025 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
-		
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU Library General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
-		see the files COPYING and AUTHORS.
+                           kitag@issp.u-tokyo.ac.jp
+
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU Library General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
+
+        You should have received a copy of the GNU Library General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
 #include "ui_odmr2danalysisform.h"
@@ -95,8 +95,8 @@ XODMR2DAnalysis::showForms() {
 
 void
 XODMR2DAnalysis::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
-    if(node == incrementalAverage().get())
-        trans( *average()) = 0;
+    // if(node == incrementalAverage().get())
+    //     trans( *average()) = 0;
     if(node == incrementalAverage().get())
         onClearAverageTouched(shot, clearAverage().get());
     else
@@ -236,7 +236,6 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
         //Accumulation of results into m_suumedCounts[2 or 3], for CoG/second moment calc.
         //C*PLon/PLoff, freq(unit of df)*C*on/off, (freq(unit of df) - fmid)^2*C*on/off
-        // local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
         uint32_t max_v = 0;
         for(unsigned int y  = 0; y < height; ++y) {
             for(unsigned int x  = 0; x < width; ++x) {

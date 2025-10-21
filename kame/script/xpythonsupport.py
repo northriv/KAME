@@ -196,7 +196,7 @@ def loadSequence(xpythread, filename):
 		xpythread["Status"] = "run"
 		if "lineshell" in filename:
 			print("#KAME Python interpreter>")
-			exec(open(filename).read())
+			exec(open(filename, 'r', encoding="utf-8").read())
 		else:
 			with open(filename + ".log", mode='a') as logfile:
 				TLS.logfile = logfile

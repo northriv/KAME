@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -108,4 +108,41 @@ PyDriverExporter<XImageProcessor, XSecondaryDriver> imageprocessor([](auto node,
         .def("width", &XImageProcessor::Payload::width)
         .def("height", &XImageProcessor::Payload::height);
 });
+
+#include "opticalspectrometer.h"
+PyDriverExporter<XOpticalSpectrometer, XPrimaryDriver> opticalspectrometer([](auto node, auto payload){
+    payload.def("integrationTime", &XOpticalSpectrometer::Payload::integrationTime)
+        .def("counts", [](XOpticalSpectrometer::Payload &self){
+            if( !self.isCountsValid())
+                throw std::length_error("No valid counts");
+            using namespace Eigen;
+            auto cvector = Map<const VectorXd, 0>(
+                &self.counts()[0], self.accumLength());
+            return Ref<const VectorXd>(cvector);
+        })
+        .def("isCountsValid", &XOpticalSpectrometer::Payload::isCountsValid)
+        .def("darkCounts", [](XOpticalSpectrometer::Payload &self){
+            if( !self.isDarkValid())
+                throw std::length_error("No valid counts");
+            using namespace Eigen;
+            auto cvector = Map<const VectorXd, 0>(
+                &self.darkCounts()[0], self.accumLength());
+            return Ref<const VectorXd>(cvector);
+        })
+        .def("isDarkValid", &XOpticalSpectrometer::Payload::isDarkValid)
+        .def("accumCounts", [](XOpticalSpectrometer::Payload &self){
+            using namespace Eigen;
+            auto cvector = Map<const VectorXd, 0>(
+                &self.accumCounts()[0], self.accumLength());
+            return Ref<const VectorXd>(cvector);
+        })
+        .def("accumLength", &XOpticalSpectrometer::Payload::accumLength)
+        .def("waveLengths", [](XOpticalSpectrometer::Payload &self){
+            using namespace Eigen;
+            auto cvector = Map<const VectorXd, 0>(
+                &self.waveLengths()[0], self.accumLength());
+            return Ref<const VectorXd>(cvector);
+        });
+});
+
 #endif //USE_PYBIND11
