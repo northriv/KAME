@@ -29,8 +29,12 @@ c.NotebookApp.answer_yes                = True
 #c.NotebookApp.extra_nbextensions_path   = ['{{ kame_nbextension_dir }}']
 c.NotebookApp.kernel_manager_class      = 'notebook_kame_kernel_manager.KAMENotebookKernelManager'
 #c.NotebookApp.kernel_spec_manager_class = 'kame_kernelspecmanager.kameKernelSpecManager'
+# c.InteractiveShellApp.exec_lines = [
+#     'print("\\nUse \'KILL\' button in KAME instead of \'interrupt kernel\'\\n")'
+# ]
 
 # inject our kernel connection
 # file into the kernel manager
 from notebook_kame_kernel_manager import KAMENotebookKernelManager
 KAMENotebookKernelManager.connfile = os.environ.get('KAME_IPYTHON_CONNECTION_FILE')
+KAMENotebookKernelManager.kame_pid = int(os.environ.get('KAME_PID'))

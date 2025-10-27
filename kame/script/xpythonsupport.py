@@ -8,6 +8,7 @@ import traceback
 import inspect
 import datetime
 import os
+import signal
 import multiprocessing
 if os.name == 'nt':
 	#needed to import system modules.
@@ -166,7 +167,11 @@ def sleep(sec):
 			if str(xpythread["Action"]) == "kill":
 				xpythread["Action"] = ""
 				xpythread["Status"] = "killed @{}s @{}".format(int(remain), str(fback))
-				raise RuntimeError("Kill")
+				if str(xpythread["ThreadID"]) == "-1":
+					#probably sleep() in IPython kernel
+					os.kill(os.getpid(), signal.SIGINT) #ctrl-c
+				else:
+					raise RuntimeError("Kill")
 			if str(xpythread["Action"]) == "wakeup":
 				xpythread["Action"] = ""
 				xpythread["Status"] = "run"
@@ -233,11 +238,14 @@ def kame_pybind_one_iteration():
 					thread.start()
 					time.sleep(0.3)
 				if action == "kill":
-					if os.name == 'posix':
-						time.sleep(0.5)
-						if action == "kill":
-							#cannot be killed by timer.
-							ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(int(str(xpythread_threadid))), ctypes.py_object(SystemExit))
+					if str(xpythread_threadid) == "-1":
+						pass
+					else:
+						if os.name == 'posix':
+							time.sleep(0.5)
+							if action == "kill":
+								STDERR.write("Could not kill by timer.")
+								ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(int(str(xpythread_threadid))), ctypes.py_object(SystemExit))
 	except EOFError:
 		pass
 	except Exception:
@@ -291,6 +299,7 @@ def launchJupyterConsole(prog, argv):
 		NOTEBOOK_TOKEN = token #for later identification in server list.
 		env = dict(os.environ)
 		env['PYTHONPATH'] = os.pathsep.join((KAME_ResourceDir, env.get('PYTHONPATH', '')))
+		env['KAME_PID'] = str(os.getpid())
 		env['KAME_NOTEBOOK_SERVER_TOKEN'] = token
 		env['KAME_IPYTHON_CONNECTION_FILE'] = connection_file
 		args = [prog, console[0], '--config=' + os.path.join(KAME_ResourceDir, 'jupyter_notebook_config.py')]
@@ -434,7 +443,7 @@ else:
 
 	try:
 		# Now starting ipython kernel.
-		IPython.embed_kernel(config=c)
+		IPython.embed_kernel(config=c) #, interrupt_mode='signal'
 	except Exception:
 		sys.stderr.write(str(traceback.format_exc()))
 
