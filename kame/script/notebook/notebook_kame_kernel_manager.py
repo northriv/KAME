@@ -18,7 +18,7 @@ limitations under the License.
 from jupyter_server.services.kernels.kernelmanager import MappingKernelManager
 class KAMENotebookKernelManager(MappingKernelManager):
     """Custom jupter ``MappingKernelManager`` which forces every notebook
-    to connect to the embedded FSLeyes IPython kernel.
+    to connect to the embedded KAME IPython kernel.
 
     See https://github.com/ebanner/extipy
     """
