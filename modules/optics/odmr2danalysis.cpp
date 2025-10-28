@@ -169,7 +169,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         clear = true;
     tr[ *this].m_dfreq = 1.0 / coeff_freqidx; //MHz
     uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
-    uint32_t freqidx_mid = lrint(coeff_freqidx * (max__ - min__) / 2);
+    uint32_t freqidx_mid = lrint(coeff_freqidx * (max__ + min__) / 2);
     tr[ *this].m_freq_mid = freqidx_mid / coeff_freqidx + min__; //MHz
     uint32_t freqminusmid_sq_idx = ((int32_t)freqidx - (int32_t)freqidx_mid) * ((int32_t)freqidx - (int32_t)freqidx_mid);
 
@@ -243,7 +243,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
                 uint32_t plon = *pplon++;
                 //PLon/PLoff mult. by "C", integer calc. expecting nearly 16bit resolution for PL contrast.
                 //avoiding slow floating point calc.
-                uint32_t plon_o_off_us32 = ploff ? (plon * coeff_PLOn_o_Off / ploff) : coeff_PLOn_o_Off * 2;
+                uint32_t plon_o_off_us32 = ploff ? (plon * coeff_PLOn_o_Off / ploff) : (coeff_PLOn_o_Off * 2);
                 *summedNext_on_o_off++ = *summed_on_o_off++ + plon_o_off_us32;
                 //if freqidx < 16, allowing accumulation > 4000 times, even without rounding
                 uint32_t v = *summed_f_on_o_off++ + freqidx * plon_o_off_us32;
