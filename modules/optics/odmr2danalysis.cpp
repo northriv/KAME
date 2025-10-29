@@ -169,7 +169,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         clear = true;
     tr[ *this].m_dfreq = 1.0 / coeff_freqidx; //MHz
     uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
-    uint32_t freqidx_mid = lrint(coeff_freqidx * (max__ + min__) / 2);
+    uint32_t freqidx_mid = lrint(coeff_freqidx * ((max__ + min__) / 2 - min__));
     tr[ *this].m_freq_mid = freqidx_mid / coeff_freqidx + min__; //MHz
     uint32_t freqminusmid_sq_idx = ((int32_t)freqidx - (int32_t)freqidx_mid) * ((int32_t)freqidx - (int32_t)freqidx_mid);
 
@@ -243,7 +243,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
                 uint32_t plon = *pplon++;
                 //PLon/PLoff mult. by "C", integer calc. expecting nearly 16bit resolution for PL contrast.
                 //avoiding slow floating point calc.
-                uint32_t plon_o_off_us32 = ploff ? (plon * coeff_PLOn_o_Off / ploff) : (coeff_PLOn_o_Off * 2);
+                uint32_t plon_o_off_us32 = ploff ? (plon * coeff_PLOn_o_Off / ploff) : coeff_PLOn_o_Off * 2;
                 *summedNext_on_o_off++ = *summed_on_o_off++ + plon_o_off_us32;
                 //if freqidx < 16, allowing accumulation > 4000 times, even without rounding
                 uint32_t v = *summed_f_on_o_off++ + freqidx * plon_o_off_us32;
@@ -436,8 +436,8 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
 
     //constructing colormap plot.
     for(unsigned int i  = 0; i < width * height; ++i) {
-        int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0];
-        int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
+        int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0]; //sum (on/off C) - N C
+        int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1]; // sum (f on/off C) - sum f C
         if( !dplopl) {
             //avoiding division by zero. Maybe black or saturated pixel.
             *processed++ = 0; *processed++ = 0; *processed++ = 0; *processed++ = 0xffffu;
@@ -448,8 +448,8 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
             //  2nd mom = (sum (f^2 on/off C) - sum f^2 C) / (sum on/off C -  N C) - CoG^2
             //  (here CoG's origin is fmid).
             // = ((sum (f^2 on/off C) - sum f^2 C)*(sum on/off C -  N C) - (sum (f on/off C) - sum f C)^2) / (sum on/off C -  N C)^2
-            int64_t fsq_dplopl = (int64_t)*summed_fsq_on_o_off++ + offsets[2];
-            f_dplopl -= dplopl * fmid_idx;
+            int64_t fsq_dplopl = (int64_t)*summed_fsq_on_o_off++ + offsets[2]; //sum (f^2 on/off C) - sum f^2 C
+            f_dplopl -= dplopl * fmid_idx; //shifting origin to fmid.
             cmvalue = (fsq_dplopl * dplopl - f_dplopl * f_dplopl) * coeff_vstep / (dplopl * dplopl) + value_offset;
         }
         else {
