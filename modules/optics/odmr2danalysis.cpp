@@ -229,7 +229,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         decltype(summedCountsNext_on_o_off) summedCountsNext_fsq_on_o_off;
         uint32_t *summedNext_fsq_on_o_off = nullptr;
         if(secondmom) {
-            summed_fsq_on_o_off = &tr[ *this].m_summedCounts[1]->at(0);
+            summed_fsq_on_o_off = &tr[ *this].m_summedCounts[2]->at(0);
             summedCountsNext_fsq_on_o_off = m_pool.allocate(width * height);
             summedNext_fsq_on_o_off = &summedCountsNext_fsq_on_o_off->at(0);
         }
