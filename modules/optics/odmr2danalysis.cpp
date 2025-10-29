@@ -365,6 +365,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         *summed_f_on_o_off = &shot[ *this].m_summedCounts[1]->at(0);
     const uint32_t *summed_fsq_on_o_off = nullptr;
 
+    unsigned int num_summed_frames = shot[ *this].secondMoment() ? 3 : 2;
     bool secondmoment = shot[ *this].secondMoment();
 
     if(secondmoment)
@@ -441,6 +442,8 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         if( !dplopl) {
             //avoiding division by zero. Maybe black or saturated pixel.
             *processed++ = 0; *processed++ = 0; *processed++ = 0; *processed++ = 0xffffu;
+            if(secondmoment)
+                summed_fsq_on_o_off++;
             continue;
         }
         int64_t cmvalue;
@@ -479,7 +482,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
 
     std::vector<double> coeffs, offsets_image;
     std::vector<const uint32_t *> rawimages;
-    for(unsigned int cidx: {0,1}) {
+    for(unsigned int cidx = 0; cidx < num_summed_frames; ++cidx) {
         coeffs.push_back(shot[ *this].m_coefficients[cidx]);
         offsets_image.push_back(shot[ *this].m_offsets[cidx]);
         rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
