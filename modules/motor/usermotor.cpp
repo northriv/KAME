@@ -184,15 +184,18 @@ XOrientalMotorCVD2B::stopRotation() {
 void
 XOrientalMotorCVD2B::sendStopSignal(bool wait) {
     for(int i = 0;; ++i) {
-        uint32_t output = interface()->readHoldingTwoResistors(0x178);
-        bool isready = (output & 0x10u);
-        if(isready) break;
-        if(i == 0) {
-            uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-            interface()->presetTwoResistors(0x7c, (netin & ~0xc020u) | 0x20u); //STOP
-            interface()->presetTwoResistors(0x7c, netin & ~0xc020u);
-            if( !wait)
-                break;
+        {
+            XScopedLock<XInterface> lock( *interface());
+            uint32_t output = interface()->readHoldingTwoResistors(0x178);
+            bool isready = (output & 0x10u);
+            if(isready) break;
+            if(i == 0) {
+                uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+                interface()->presetTwoResistors(0x7c, (netin & ~0xc020u) | 0x20u); //STOP
+                interface()->presetTwoResistors(0x7c, netin & ~0xc020u);
+                if( !wait)
+                    break;
+            }
         }
         msecsleep(100);
         if(i > 10) {
@@ -364,14 +367,17 @@ XFlexCRK::stopRotation() {
 void
 XFlexCRK::sendStopSignal(bool wait) {
     for(int i = 0;; ++i) {
-        uint32_t output = interface()->readHoldingTwoResistors(0x20); //reading status1:status2
-        bool isready = (output & 0x20000000u);
-        if(isready) break;
-        if(i ==0) {
-            interface()->presetSingleResistor(0x1e, 0x3001u); //C-ON, STOP, M0
-            interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M0
-            if( !wait)
-                break;
+        {
+            XScopedLock<XInterface> lock( *interface());
+            uint32_t output = interface()->readHoldingTwoResistors(0x20); //reading status1:status2
+            bool isready = (output & 0x20000000u);
+            if(isready) break;
+            if(i ==0) {
+                interface()->presetSingleResistor(0x1e, 0x3001u); //C-ON, STOP, M0
+                interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M0
+                if( !wait)
+                    break;
+            }
         }
         msecsleep(100);
         if(i > 10) {
@@ -645,18 +651,21 @@ XFlexAR::stopRotation() {
 void
 XFlexAR::sendStopSignal(bool wait) {
     for(int i = 0;; ++i) {
-        uint32_t output = interface()->readHoldingTwoResistors(0x7e);
-        bool isready = output & 0x20;
-        if(isready) break;
-        if(i ==0) {
-            uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-            netin &= ~(0x4000uL | 0x8000u); //FWD | RVS
-            interface()->presetTwoResistors(0x7c, netin | 0x20uL); //STOP
-//            fprintf(stderr, "STOP%u\n", netin);
-            msecsleep(4);
-            interface()->presetTwoResistors(0x7c, netin & ~0x20uL);
-            if( !wait)
-                break;
+        {
+            XScopedLock<XInterface> lock( *interface());
+            uint32_t output = interface()->readHoldingTwoResistors(0x7e);
+            bool isready = output & 0x20;
+            if(isready) break;
+            if(i ==0) {
+                uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+                netin &= ~(0x4000uL | 0x8000u); //FWD | RVS
+                interface()->presetTwoResistors(0x7c, netin | 0x20uL); //STOP
+    //            fprintf(stderr, "STOP%u\n", netin);
+                msecsleep(4);
+                interface()->presetTwoResistors(0x7c, netin & ~0x20uL);
+                if( !wait)
+                    break;
+            }
         }
         msecsleep(150);
         if(i > 10) {
