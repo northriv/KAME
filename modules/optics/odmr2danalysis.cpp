@@ -205,6 +205,10 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     }
     if(tr[ *incrementalAverage()] && (tr[ *this].m_accumulatedCount > 20))
         copy_prev = true; //assuming accuracy of CoG/MeanDev is enough good.
+    for(unsigned int i = num_summed_frames; i < num_total_frames; ++i) {
+        if( !tr[ *this].m_summedCounts[i])
+            copy_prev = true; //copy please anyway.
+    }
     if(copy_prev) {
         //copies previous results for MeanDev and MeanFreqSplit.
         for(unsigned int i = 0; i < num_total_frames - num_summed_frames; ++i)
@@ -302,8 +306,9 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
                 else if(meandev) {
                     //MeanDev = <|f - fcog| dPL/PL>/<dPL/PL> = (sum |f - fcog| on/off C - sum |f - fcog| C) / (sum on/off C -  N C)
                     // =  (sum |f C - fcog C| on/off C / C - sum |f C - fcog C|) / (sum on/off C -  N C)
-                    int64_t fcogC_prev = (*pSummed[num_summed_frames + 1]++ - (int64_t)BaseOffset)
-                                        * coeff_PLOn_o_Off / (*pSummed[num_summed_frames]++ - (int64_t)BaseOffset);
+                    int64_t dplopl_prev = *pSummed[num_summed_frames]++ - (int64_t)BaseOffset; //sum (on/off C) - N C
+                    int64_t f_dplopl_prev = *pSummed[num_summed_frames + 1]++ - (int64_t)BaseOffset; // sum (f on/off C) - sum f C
+                    int64_t fcogC_prev = dplopl_prev ? (f_dplopl_prev * coeff_PLOn_o_Off / dplopl_prev) : 0;
                     int64_t fdevC = std::abs((int64_t)freqidx * coeff_PLOn_o_Off - fcogC_prev);
                     v = *pSummed[2]++ + (int32_t)(fdevC * dpl_o_off_s32 / coeff_PLOn_o_Off);
                     max_v = std::max(max_v, std::abs((int32_t)(v - BaseOffset)));;
