@@ -346,6 +346,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
     if(tr[ *m_autoMinMaxForColorMap]) {
         switch(tr[ *this].method()) {
+        default:
         case Method::CoG:
             tr[ *minForColorMap()] = min__;
             tr[ *maxForColorMap()] = max__;
@@ -408,6 +409,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     int64_t fmid_idx = llrint((shot[ *this].m_freq_mid - fmin) / shot[ *this].dfreq());
     int64_t value_offset;
     switch(method) {
+    default:
     case Method::CoG:
         value_offset = coeff_vstep * llrint((fmin - cmap_min) / vstep);
         break;
@@ -475,6 +477,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         }
         int64_t cmvalue;
         switch(method) {
+        default:
         case Method::CoG:
             //CoG = (sum (f on/off C) - sum f C) / (sum on/off C -  N C)
             cmvalue = f_dplopl * coeff_vstep / dplopl + value_offset;

@@ -73,13 +73,25 @@ public:
         unsigned int height() const {return m_height;}
         Method method() const {return m_method;}
 
-        unsigned int numSummedFrames() const {return
-            std::map<Method, unsigned int>{{Method::CoG, 2}, {Method::SecondMom, 3},
-                                           {Method::MeanDev, 3}, {Method::MeanFreqSplit, 4}}.at(method()); //<= MaxNumFrames.
+        unsigned int numSummedFrames() const {
+            try {
+                return
+                    std::map<Method, unsigned int>{{Method::CoG, 2}, {Method::SecondMom, 3},
+                        {Method::MeanDev, 3}, {Method::MeanFreqSplit, 4}}.at(method()); //<= MaxNumFrames.
+            }
+            catch (std::out_of_range&) {
+                return 2; //assuming CoG
+            }
         }
-        unsigned int numTotalFrames() const {return
-            std::map<Method, unsigned int>{{Method::CoG, 2}, {Method::SecondMom, 3},
-                                           {Method::MeanDev, 6}, {Method::MeanFreqSplit, 7}}.at(method()); //incl. past results of CoG and MeanDev.
+        unsigned int numTotalFrames() const {
+            try {
+                return
+                    std::map<Method, unsigned int>{{Method::CoG, 2}, {Method::SecondMom, 3},
+                       {Method::MeanDev, 6}, {Method::MeanFreqSplit, 7}}.at(method()); //incl. past results of CoG and MeanDev.
+            }
+            catch (std::out_of_range&) {
+                return 2; //assuming CoG
+            }
         }
     private:
         friend class XODMR2DAnalysis;
