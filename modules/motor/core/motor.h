@@ -67,6 +67,7 @@ public:
 	const shared_ptr<XTouchableNode> &forwardMotor() const {return m_forwardMotor;}
 	const shared_ptr<XTouchableNode> &reverseMotor() const {return m_reverseMotor;}
 	const shared_ptr<XTouchableNode> &stopMotor() const {return m_stopMotor;}
+    const shared_ptr<XTouchableNode> &goHomeMotor() const {return m_goHomeMotor;}
 
     //! \arg points, speeds: [# of devices][# of points].
     //! \arg slaves: if any, devices to be started simultatneously.
@@ -82,7 +83,8 @@ protected:
 	virtual void setForward() = 0;
 	virtual void setReverse() = 0;
 	virtual void stopRotation() = 0;
-	virtual void setActive(bool active) = 0;
+    virtual void toHomePosition() = 0;
+    virtual void setActive(bool active) = 0;
 	virtual void setAUXBits(unsigned int bits) = 0;
 	//! stores current settings to the NV memory of the instrument.
 	virtual void storeToROM() = 0;
@@ -112,9 +114,11 @@ private:
 	const shared_ptr<XTouchableNode> m_forwardMotor;
 	const shared_ptr<XTouchableNode>  m_reverseMotor;
 	const shared_ptr<XTouchableNode> m_stopMotor;
+    const shared_ptr<XTouchableNode> m_goHomeMotor;
 
 	shared_ptr<Listener> m_lsnTarget, m_lsnConditions,
-		m_lsnClear, m_lsnStore, m_lsnForwardMotor, m_lsnReverseMotor, m_lsnStopMotor, m_lsnAUX;
+        m_lsnClear, m_lsnStore,
+        m_lsnForwardMotor, m_lsnReverseMotor, m_lsnStopMotor, m_lsnGoHomeMotor, m_lsnAUX;
 
     std::deque<xqcon_ptr> m_conUIs;
 
@@ -128,6 +132,7 @@ private:
 	void onForwardMotorTouched(const Snapshot &shot, XTouchableNode *);
 	void onReverseMotorTouched(const Snapshot &shot, XTouchableNode *);
 	void onStopMotorTouched(const Snapshot &shot, XTouchableNode *);
+    void onGoHomeMotorTouched(const Snapshot &shot, XTouchableNode *);
 
 	void *execute(const atomic<bool> &);
 

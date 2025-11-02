@@ -37,7 +37,8 @@ protected:
     virtual void setForward() override; //!< continuous rotation.
     virtual void setReverse() override;//!< continuous rotation.
     virtual void stopRotation() override; //!< stops motor and waits for deceleration.
-	//! stores current settings to the NV memory of the instrumeMotornt.
+    virtual void toHomePosition() override; //!< goes to the origin by sensor(s).
+    //! stores current settings to the NV memory of the instrumeMotornt.
     virtual void storeToROM() override;
     virtual void clearPosition() override;
 private:
@@ -63,6 +64,7 @@ protected:
     virtual void setForward() override; //!< continuous rotation.
     virtual void setReverse() override;//!< continuous rotation.
     virtual void stopRotation() override; //!< stops motor and waits for deceleration.
+    virtual void toHomePosition() override; //!< goes to the origin by sensor(s).
     //! stores current settings to the NV memory of the instrumeMotornt.
     virtual void storeToROM() override;
     virtual void clearPosition() override;
@@ -103,7 +105,8 @@ protected:
     virtual void setForward() override; //!< continuous rotation.
     virtual void setReverse() override;//!< continuous rotation.
     virtual void stopRotation() override;//!< stops motor and waits for deceleration.
-	//! stores current settings to the NV memory of the instrument.
+    virtual void toHomePosition() override; //!< goes to the origin by sensor(s).
+    //! stores current settings to the NV memory of the instrument.
     virtual void storeToROM() override;
     virtual void clearPosition() override;
 private:
@@ -128,7 +131,8 @@ protected:
     virtual void setForward() override; //!< continuous rotation.
     virtual void setReverse() override;//!< continuous rotation.
     virtual void stopRotation() override; //!< stops motor and waits for deceleration.
-	//! stores current settings to the NV memory of the instrumeMotornt.
+    virtual void toHomePosition() override {}
+    //! stores current settings to the NV memory of the instrumeMotornt.
     virtual void storeToROM() override;
     virtual void clearPosition() override;
 private:
@@ -154,6 +158,7 @@ protected:
     virtual void setForward() override; //!< continuous rotation.
     virtual void setReverse() override;//!< continuous rotation.
     virtual void stopRotation() override; //!< stops motor and waits for deceleration.
+    virtual void toHomePosition() override {}
     //! stores current settings to the NV memory of the instrumeMotornt.
     virtual void storeToROM() override {}
     virtual void clearPosition() override;

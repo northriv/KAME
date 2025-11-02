@@ -204,6 +204,13 @@ XOrientalMotorCVD2B::sendStopSignal(bool wait) {
     }
 }
 void
+XOrientalMotorCVD2B::toHomePosition() {
+    XScopedLock<XInterface> lock( *interface());
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    interface()->presetTwoResistors(0x7c, (netin & ~0xc000u) | 0x0010u); //HOME
+    interface()->presetTwoResistors(0x7c, netin & ~0xc0010u);
+}
+void
 XOrientalMotorCVD2B::setForward() {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
@@ -384,6 +391,12 @@ XFlexCRK::sendStopSignal(bool wait) {
             throw XInterface::XInterfaceError(i18n("Motor is still not ready"), __FILE__, __LINE__);
         }
     }
+}
+void
+XFlexCRK::toHomePosition() {
+    XScopedLock<XInterface> lock( *interface());
+    interface()->presetSingleResistor(0x1e, 0x2800u); //C-ON, HOME
+    interface()->presetSingleResistor(0x1e, 0x2000u); //C-ON
 }
 void
 XFlexCRK::setForward() {
@@ -674,6 +687,14 @@ XFlexAR::sendStopSignal(bool wait) {
     }
 }
 void
+XFlexAR::toHomePosition() {
+    XScopedLock<XInterface> lock( *interface());
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
+    interface()->presetTwoResistors(0x7c, netin | 0x0010uL); //HOME
+    interface()->presetTwoResistors(0x7c, netin);
+}
+void
 XFlexAR::setForward() {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
@@ -737,6 +758,7 @@ XEMP401::XEMP401(const char *name, bool runtime,
     currentStopping()->disable();
     store()->disable();
     pushing()->disable();
+    goHomeMotor()->disable();
 }
 void
 XEMP401::storeToROM() {
@@ -903,6 +925,7 @@ XSigmaPAMC104::XSigmaPAMC104(const char *name, bool runtime,
     store()->disable();
     roundBy()->disable();
     round()->disable();
+    goHomeMotor()->disable();
     auxBits()->disable();
     m_pulsesTotal = 0;
 }
