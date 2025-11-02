@@ -31,20 +31,20 @@ class XQGraph;
 class X2DImage;
 class OnScreenObjectWithMarker;
 
-template <unsigned int NumPool = 5>
+template <unsigned int NumPool = 5, typename tWord = uint32_t>
 struct ImageSpacePoolAllocator {
-    local_shared_ptr<std::vector<uint32_t>> allocate(int imagebytes);
+    local_shared_ptr<std::vector<tWord>> allocate(int imagebytes);
 private:
-    atomic_shared_ptr<std::vector<uint32_t>> m_pool[NumPool];
+    atomic_shared_ptr<std::vector<tWord>> m_pool[NumPool];
 };
 
-template <unsigned int NumPool>
-local_shared_ptr<std::vector<uint32_t>>
-ImageSpacePoolAllocator<NumPool>::allocate(int imagesize) {
-    local_shared_ptr<std::vector<uint32_t>> pNext, p;
+template <unsigned int NumPool, typename tWord>
+local_shared_ptr<std::vector<tWord>>
+ImageSpacePoolAllocator<NumPool, tWord>::allocate(int imagesize) {
+    local_shared_ptr<std::vector<tWord>> pNext, p;
     for(int i = 0; i < NumPool; ++i) {
         if( !m_pool[i])
-            m_pool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
+            m_pool[i] = make_local_shared<std::vector<tWord>>(imagesize);
         p.swap(m_pool[i]); //atomic swap
         if(p && p.unique()) { //confirmed uniquness.
             m_pool[i].compareAndSet({}, p); //sharing me for later use.
@@ -55,7 +55,7 @@ ImageSpacePoolAllocator<NumPool>::allocate(int imagesize) {
         m_pool[i].compareAndSet({}, p); //restoring busy one for later use.
     }
     if( !pNext)
-        pNext = make_local_shared<std::vector<uint32_t>>(imagesize);
+        pNext = make_local_shared<std::vector<tWord>>(imagesize);
     return pNext;
 }
 

@@ -43,7 +43,7 @@ XODMR2DAnalysis::XODMR2DAnalysis(const char *name, bool runtime,
     m_colorMapMethod(create<XComboNode>("AnalysisMethod", false, true)),
     m_processedImage(create<X2DImage>("ProcessedImage", false,
                                       m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
-                                      2, m_form->m_dblGamma,
+                                      4, m_form->m_dblGamma,
                                       m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()),
                                       true)) {
 
@@ -68,7 +68,7 @@ XODMR2DAnalysis::XODMR2DAnalysis(const char *name, bool runtime,
         tr[ *average()] = 1;
         tr[ *m_autoMinMaxForColorMap] = true;
         tr[ *m_colorMapMethod].add({"RedWhiteBlue", "YellowGreenBlue", "ByDialog"});
-        tr[ *m_analysisMethod].add({"CoG", "2nd Moment"});
+        tr[ *m_analysisMethod].add({"CoG", "2nd Moment", "MeanDev", "MeanFreqSplit"});
         tr[ *m_regionSelection].add({"All", "Sub Region"});
     });
 
@@ -168,10 +168,11 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     if(tr[ *this].m_dfreq != 1.0 / coeff_freqidx)
         clear = true;
     tr[ *this].m_dfreq = 1.0 / coeff_freqidx; //MHz
-    uint32_t freqidx = lrint(coeff_freqidx * (freq - min__));
-    uint32_t freqidx_mid = lrint(coeff_freqidx * ((max__ + min__) / 2 - min__));
+    int32_t freqidx = lrint(coeff_freqidx * (freq - min__));
+    int32_t freqidx_mid = lrint(coeff_freqidx * ((max__ + min__) / 2 - min__));
+    int32_t freqidx_max = lrint(coeff_freqidx * (max__ - min__));
     tr[ *this].m_freq_mid = freqidx_mid / coeff_freqidx + min__; //MHz
-    uint32_t freqminusmid_sq_idx = ((int32_t)freqidx - (int32_t)freqidx_mid) * ((int32_t)freqidx - (int32_t)freqidx_mid);
+    int32_t freqminusmid_sq_idx = (freqidx - freqidx_mid) * (freqidx - freqidx_mid);
 
     unsigned int width = shot_odmr[ *odmr__].width();
     unsigned int height = shot_odmr[ *odmr__].height();
@@ -179,170 +180,195 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
     if(tr[ *this].m_freq_min != min__)
         clear = true;
     tr[ *this].m_freq_min = min__;
-    if(tr[ *this].m_secondMoment != (tr[ *m_analysisMethod] == 1))
+    if((int)tr[ *this].method() != tr[ *m_analysisMethod])
         clear = true;
-    tr[ *this].m_secondMoment = (tr[ *m_analysisMethod] == 1);
+    tr[ *this].m_method = (Method)(int)tr[ *m_analysisMethod];
+    bool secondmom = tr[ *this].method() == Method::SecondMom;
+    bool meansplit = tr[ *this].method() == Method::MeanFreqSplit;
+    bool meandev = (tr[ *this].method() == Method::MeanDev) || meansplit;
 
+    unsigned int num_summed_frames = tr[ *this].numSummedFrames();
+    unsigned int num_total_frames = tr[ *this].numTotalFrames();
+
+    if(clear) {
+        for(unsigned int i = 0; i < MaxNumFrames; ++i)
+            tr[ *this].m_summedCounts[i].reset(); //all clear incl. past frames
+    }
+
+    bool copy_prev = false;
     if( !tr[ *incrementalAverage()] && !clear && (emitter == fspectrum__.get())) {
         clear = true;
-        if(std::max(1u, (unsigned int)tr[ *average()]) > tr[ *this].m_accumulated[0])
+        if(std::max(1u, (unsigned int)tr[ *average()]) > tr[ *this].m_accumulatedCount)
             clear = false;
+        if(clear)
+            copy_prev = true;
     }
-    unsigned int num_summed_frames = tr[ *this].secondMoment() ? 3 : 2;
+    if(tr[ *incrementalAverage()] && (tr[ *this].m_accumulatedCount > 20))
+        copy_prev = true; //assuming accuracy of CoG/MeanDev is enough good.
+    if(copy_prev) {
+        //copies previous results for MeanDev and MeanFreqSplit.
+        for(unsigned int i = 0; i < num_total_frames - num_summed_frames; ++i)
+            tr[ *this].m_summedCounts[num_summed_frames + i] = tr[ *this].m_summedCounts[i];
+    }
+
     for(unsigned int i = 0; i < num_summed_frames; ++i) {
-        if( !tr[ *this].m_summedCounts[i] || (tr[ *this].m_summedCounts[i]->size() != width * height)) {
-            clear = true;
-        }
+        if( !tr[ *this].m_summedCounts[i])
+            clear = true; //not yet allocated properly.
+    }
+    for(unsigned int i = 0; i < num_total_frames; ++i) {
+        if(tr[ *this].m_summedCounts[i] && (tr[ *this].m_summedCounts[i]->size() != width * height))
+            clear = true; //image size has been changed.
     }
 
     tr[ *this].m_width = width;
     tr[ *this].m_height = height;
 
     if(clear) {
-        tr[ *this].m_coeff_PLOn_o_Off = 0x10000uLL;
-        tr[ *this].m_summedCounts[2].reset();
         for(unsigned int i = 0; i < num_summed_frames; ++i) {
             tr[ *this].m_summedCounts[i] = m_pool.allocate(width * height);
-            std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);
-            tr[ *this].m_accumulated[i] = 0;
+            std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), BaseOffset);
+            tr[ *this].m_accumulatedCount = 0;
+        }
+        bool has_prev_frame = false;
+        for(unsigned int i = num_summed_frames; i < num_total_frames; ++i) {
+            if(tr[ *this].m_summedCounts[i])
+                has_prev_frame = true; //C should NOT be changed.
+        }
+        if( !has_prev_frame) {
+            //preset value for C, accepting at least 10 avg counts w/o rounding.
+            tr[ *this].m_coeff_PLOn_o_Off = BaseOffset / 2 / 10;
+            if(secondmom)
+                tr[ *this].m_coeff_PLOn_o_Off /= freqidx_max * freqidx_max / 4;
+            else
+                tr[ *this].m_coeff_PLOn_o_Off /= freqidx_max / 2;
         }
     }
 
-    uint64_t coeff_PLOn_o_Off = tr[ *this].m_coeff_PLOn_o_Off; // = "C" in the following formula.
+    int64_t coeff_PLOn_o_Off = tr[ *this].m_coeff_PLOn_o_Off; // = "C" in the following formula.
 
     if(emitter == fspectrum__.get()) {
         auto rawCountsPLOff = shot_odmr[ *odmr__].rawCountsPLOff();
         auto rawCountsPLOn = shot_odmr[ *odmr__].rawCountsPLOn();
 
-        const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
-            *summed_f_on_o_off = &tr[ *this].m_summedCounts[1]->at(0);
-        auto summedCountsNext_on_o_off = m_pool.allocate(width * height);
-        auto summedCountsNext_f_on_o_off = m_pool.allocate(width * height);
-        uint32_t *summedNext_on_o_off = &summedCountsNext_on_o_off->at(0);
-        uint32_t *summedNext_f_on_o_off = &summedCountsNext_f_on_o_off->at(0);
+        const uint32_t *pSummed[MaxNumFrames];
+        decltype(m_pool.allocate(width * height)) summedCountsNext[4];
+        uint32_t *pSummedNext[4];
+        for(unsigned int i = 0; i < num_summed_frames; ++i) {
+            pSummed[i] = &tr[ *this].m_summedCounts[i]->at(0);
+            summedCountsNext[i] = m_pool.allocate(width * height);
+            pSummedNext[i] = &summedCountsNext[i]->at(0);
+        }
+        for(unsigned int i = num_summed_frames; i < num_total_frames; ++i) {
+            if( !tr[ *this].m_summedCounts[i])
+                meandev = false; //no prev CoG results.
+            else
+                pSummed[i] = &tr[ *this].m_summedCounts[i]->at(0);
+        }
 
         const uint32_t *pploff = &rawCountsPLOff->at(0);
         const uint32_t *pplon = &rawCountsPLOn->at(0);
 
-        bool secondmom = tr[ *this].secondMoment();
-        const uint32_t *summed_fsq_on_o_off = nullptr;
-        decltype(summedCountsNext_on_o_off) summedCountsNext_fsq_on_o_off;
-        uint32_t *summedNext_fsq_on_o_off = nullptr;
-        if(secondmom) {
-            summed_fsq_on_o_off = &tr[ *this].m_summedCounts[2]->at(0);
-            summedCountsNext_fsq_on_o_off = m_pool.allocate(width * height);
-            summedNext_fsq_on_o_off = &summedCountsNext_fsq_on_o_off->at(0);
-        }
-
-        //Accumulation of results into m_suumedCounts[2 or 3], for CoG/second moment calc.
-        //C*PLon/PLoff, freq(unit of df)*C*on/off, (freq(unit of df) - fmid)^2*C*on/off
-        uint32_t max_v = 0;
+        //Accumulation of results into m_suumedCounts[num_summed_frames], for CoG/second moment calc/meandev/meanfreqsplit.
+        //! C*PLon/PLoff-C, freq(unit of df)*C*on/off-fC, (freq(unit of df) - fmid)^2*C*on/off-f^2 C
+        //!     or |f-fcog|*C*on/off-|f-fcog|*C, ||f-fcog|-fmd|*C*on/off-||f-fcog|-fmd|*C,
+        //! (prev)C*PLon/PLoff-C, (prev)fcog C, (prev)fmd C
+        int32_t max_v = 0;
         for(unsigned int y  = 0; y < height; ++y) {
             for(unsigned int x  = 0; x < width; ++x) {
                 uint32_t ploff = *pploff++;
                 uint32_t plon = *pplon++;
                 //PLon/PLoff mult. by "C", integer calc. expecting nearly 16bit resolution for PL contrast.
                 //avoiding slow floating point calc.
-                uint32_t plon_o_off_us32 = ploff ? (plon * coeff_PLOn_o_Off / ploff) : coeff_PLOn_o_Off * 2;
-                *summedNext_on_o_off++ = *summed_on_o_off++ + plon_o_off_us32;
-                //if freqidx < 16, allowing accumulation > 4000 times, even without rounding
-                uint32_t v = *summed_f_on_o_off++ + freqidx * plon_o_off_us32;
-                if(max_v < v) max_v = v;
-                *summedNext_f_on_o_off++ = v;
+                // CoG = <f dPL/PL> / <dPL/PL>
+                //   = <f (on/off - 1)> / <on/off - 1>
+                //   = (<f on/off> - <f>) / (<on/off> -  1)
+                //   = (sum (f on/off C) - sum f C) / (sum on/off C -  N C)
+                int32_t dpl_o_off_s32 = ploff ? (plon * coeff_PLOn_o_Off / ploff - coeff_PLOn_o_Off) : coeff_PLOn_o_Off;
+                *pSummedNext[0]++ = *pSummed[0]++ + (uint32_t)dpl_o_off_s32;
+                uint32_t v = *pSummed[1]++ + (uint32_t)(freqidx * dpl_o_off_s32);
+                max_v = std::max(max_v, std::abs((int32_t)(v - BaseOffset)));;
+                *pSummedNext[1]++ = v;
                 if(secondmom) {
-                    //if freqidx < 16, allowing accumulation > 1000 times, even without rounding
-                    v = *summed_fsq_on_o_off++ + freqminusmid_sq_idx * plon_o_off_us32;
-                    if(max_v < v) max_v = v;
-                    *summedNext_fsq_on_o_off++ = v;
+                    // 2ndMoment = <(f - CoG)^2 dPL/PL> / <dPL/PL>
+                    //  = <f^2 dPL/PL> / <dPL/PL> - CoG^2=
+                    //  = <f^2 (on/off - 1)> / <on/off - 1> - CoG^2
+                    //  = (<f^2 on/off> - <f^2>) / (<on/off> -  1) - CoG^2
+                    //  = (sum (f^2 on/off C) - sum f^2 C) / (sum on/off C -  N C) - CoG^2
+                    //  (here CoG's origin is fmid).
+                    v = *pSummed[2]++ + (uint32_t)(freqminusmid_sq_idx * dpl_o_off_s32);
+                    max_v = std::max(max_v, std::abs((int32_t)(v - BaseOffset)));;
+                    *pSummedNext[2]++ = v;
+                }
+                else if(meandev) {
+                    //MeanDev = <|f - fcog| dPL/PL>/<dPL/PL> = (sum |f - fcog| on/off C - sum |f - fcog| C) / (sum on/off C -  N C)
+                    // =  (sum |f C - fcog C| on/off C / C - sum |f C - fcog C|) / (sum on/off C -  N C)
+                    int64_t fcogC_prev = (*pSummed[num_summed_frames + 1]++ - (int64_t)BaseOffset)
+                                        * coeff_PLOn_o_Off / (*pSummed[num_summed_frames]++ - (int64_t)BaseOffset);
+                    int64_t fdevC = std::abs((int64_t)freqidx * coeff_PLOn_o_Off - fcogC_prev);
+                    v = *pSummed[2]++ + (int32_t)(fdevC * dpl_o_off_s32 / coeff_PLOn_o_Off);
+                    max_v = std::max(max_v, std::abs((int32_t)(v - BaseOffset)));;
+                    *pSummedNext[2]++ = v;
+                    if(meansplit) {
+                        //MeanFreqSplit = <||f - fcog| - fmd| dPL/PL>/<dPL/PL> = (sum ||f - fcog| - fmd| on/off C - sum ||f - fcog| - fmd| C) / (sum on/off C -  N C)
+                        // =  (sum ||f C - fcog C| - fmd C| on/off C / C - sum ||f C - fcog C| - fmd C|) / (sum on/off C -  N C)
+                        v = *pSummed[3]++ + (int32_t)(std::abs(fdevC - (*pSummed[num_summed_frames + 2]++ - (int64_t)BaseOffset)) * dpl_o_off_s32 / coeff_PLOn_o_Off);
+                        max_v = std::max(max_v, std::abs((int32_t)(v - BaseOffset)));;
+                        *pSummedNext[3]++ = v;
+                    }
                 }
             }
         }
-        // CoG = <f dPL/PL> / <dPL/PL>
-        //   = <f (on/off - 1)> / <on/off - 1>
-        //   = (<f on/off> - <f>) / (<on/off> -  1)
-        //   = (sum (f on/off C) - sum f C) / (sum on/off C -  N C)
-        tr[ *this].m_accumulated[0]++;  //N
-        tr[ *this].m_accumulated[1] += freqidx; //sum f (unit of df)
-        tr[ *this].m_summedCounts[0] = summedCountsNext_on_o_off; //updating
-        tr[ *this].m_summedCounts[1] = summedCountsNext_f_on_o_off;
-        // 2ndMoment = <(f - CoG)^2 dPL/PL> / <dPL/PL>
-        //  = <f^2 dPL/PL> / <dPL/PL> - CoG^2=
-        //  = <f^2 (on/off - 1)> / <on/off - 1> - CoG^2
-        //  = (<f^2 on/off> - <f^2>) / (<on/off> -  1) - CoG^2
-        //  = (sum (f^2 on/off C) - sum f^2 C) / (sum on/off C -  N C) - CoG^2
-        //  (here CoG's origin is fmid).
-        if(secondmom) {
-            tr[ *this].m_accumulated[2] += freqminusmid_sq_idx; //sum (f - fmid)^2 (unit of df)
-            tr[ *this].m_summedCounts[2] = summedCountsNext_fsq_on_o_off;
+        tr[ *this].m_accumulatedCount++;  //N
+        for(unsigned int i = 0; i < num_summed_frames; ++i) {
+            tr[ *this].m_summedCounts[i] = summedCountsNext[i]; //updating.
         }
-        if(max_v > 0xa0000000uLL) {
+        if(max_v > BaseOffset / 2) {
             //rounding by 2 to avoid overflow.
             coeff_PLOn_o_Off /= 2;
             tr[ *this].m_coeff_PLOn_o_Off = coeff_PLOn_o_Off; //for later accumulation.
             for(auto &&summed: tr[ *this].m_summedCounts) {
                 if(auto v = summed)
                     for(auto &x: *v)
-                        x /= 2;
+                        x = (uint32_t)((int32_t)(x - BaseOffset) / 2) + BaseOffset;
             }
         }
     }
 
-    if( !shot_this[ *this].m_accumulated[0])
+    if( !shot_this[ *this].m_accumulatedCount)
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 
-    tr[ *this].m_coefficients[0] = 1.0 / coeff_PLOn_o_Off / tr[ *this].m_accumulated[0]; // 1/C/N
-    tr[ *this].m_coefficients[1] = tr[ *this].m_coefficients[0] / coeff_freqidx; // 1/C/N [MHz]
-    if(tr[ *this].secondMoment())
+    tr[ *this].m_coefficients[0] = 1.0 / coeff_PLOn_o_Off / tr[ *this].m_accumulatedCount; // 1/C/N
+    for(unsigned int i = 1; i < num_summed_frames; ++i) {
+        tr[ *this].m_coefficients[i] = tr[ *this].m_coefficients[0] / coeff_freqidx; // 1/C/N [MHz]
+    }
+    if(secondmom)
         tr[ *this].m_coefficients[2] = tr[ *this].m_coefficients[0] / coeff_freqidx / coeff_freqidx; // 1/C/N [MHz^2]
 
-    int64_t offsets[3];
-    offsets[0] = llrint(-1.0 / tr[ *this].m_coefficients[0]); //-N C
-    offsets[1] = llrint(-(double)tr[ *this].m_accumulated[1] / (tr[ *this].m_coefficients[0] * tr[ *this].m_accumulated[0])); //- sum f C
-
-    tr[ *this].m_offsets[0] = offsets[0] * tr[ *this].m_coefficients[0]; // = -1
-    tr[ *this].m_offsets[1] = offsets[1] * tr[ *this].m_coefficients[1]; // = -sum f/N = -<f> [MHz]
-    if(tr[ *this].secondMoment()) {
-        offsets[2] = llrint(-(double)tr[ *this].m_accumulated[2]
-              / (tr[ *this].m_coefficients[0] * tr[ *this].m_accumulated[0])); //- sum (f - fmid)^2 C
-        tr[ *this].m_offsets[2] = offsets[2] * tr[ *this].m_coefficients[2]; // = -sum (f - fmid)^2/N = -<(f - fmid)^2> [MHz^2]
-    }
-
     if(tr[ *m_autoMinMaxForColorMap]) {
-        if(tr[ *this].secondMoment()) {
-            tr[ *minForColorMap()] = 0;
-            tr[ *maxForColorMap()] = (max__ - min__) * (max__ - min__) / 1;
-        }
-        else {
-            // const uint32_t *summed_on_o_off = &tr[ *this].m_summedCounts[0]->at(0),
-            //     *summed_f_on_o_off = &tr[ *this].m_summedCounts[1]->at(0);
-
-            // constexpr int64_t coeff_dCoG = 0x10000LL;
-            // int64_t dcogmin = 0x7fffffffffffffffLL;
-            // int64_t dcogmax = -0x7fffffffffffffffLL;
-            // for(unsigned int i  = 0; i < width * height; ++i) {
-            //     int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0];
-            //     int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1];
-            //     if(abs(dplopl) < coeff_PLOn_o_Off / 5000) continue; //ignore |dPL/PL| < 0.02%
-            //     int64_t dcog = f_dplopl * coeff_dCoG / dplopl;
-            //     if(dcog > dcogmax)
-            //         dcogmax = dcog;
-            //     if(dcog < dcogmin)
-            //         dcogmin = dcog;
-            // }
-            // tr[ *minForColorMap()] = std::max(min__, (double)dcogmin / coeff_dCoG / coeff_freqidx + min__);
-            // tr[ *maxForColorMap()] = std::min(max__, (double)dcogmax / coeff_dCoG / coeff_freqidx + min__);
+        switch(tr[ *this].method()) {
+        case Method::CoG:
             tr[ *minForColorMap()] = min__;
             tr[ *maxForColorMap()] = max__;
+            break;
+        case Method::SecondMom:
+            tr[ *minForColorMap()] = 0;
+            tr[ *maxForColorMap()] = (max__ - min__) * (max__ - min__) / 2;
+        break;
+        case Method::MeanDev:
+        case Method::MeanFreqSplit:
+            tr[ *minForColorMap()] = 0;
+            tr[ *maxForColorMap()] = (max__ - min__) / 2;
+            break;
         }
         tr.unmark(m_lsnOnCondChanged);
     }
     if(tr[ *incrementalAverage()]) {
-        tr[ *average()] = tr[ *this].m_accumulated[0];
+        tr[ *average()] = tr[ *this].m_accumulatedCount;
         tr.unmark(m_lsnOnCondChanged);
 //        throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
     else {
-        if(tr[ *average()] > tr[ *this].m_accumulated[0])
+        if(tr[ *average()] > tr[ *this].m_accumulatedCount)
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
 
@@ -350,7 +376,7 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
 void
 XODMR2DAnalysis::visualize(const Snapshot &shot) {
-    if( !shot[ *this].m_accumulated[0])
+    if( !shot[ *this].m_accumulatedCount)
         return;
 
     unsigned int width = shot[ *this].width();
@@ -361,22 +387,16 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     qimage->setColorSpace(QColorSpace::SRgbLinear); //for colorbar.
 
     uint16_t *processed = reinterpret_cast<uint16_t*>(qimage->bits());
-    const uint32_t *summed_on_o_off = &shot[ *this].m_summedCounts[0]->at(0),
-        *summed_f_on_o_off = &shot[ *this].m_summedCounts[1]->at(0);
-    const uint32_t *summed_fsq_on_o_off = nullptr;
 
-    unsigned int num_summed_frames = shot[ *this].secondMoment() ? 3 : 2;
-    bool secondmoment = shot[ *this].secondMoment();
+    unsigned int num_summed_frames = shot[ *this].numSummedFrames();
 
-    if(secondmoment)
-        summed_fsq_on_o_off = &shot[ *this].m_summedCounts[2]->at(0);
+    const uint32_t *pSummed[MaxNumFrames];
+    for(unsigned int i = 0; i < num_summed_frames; ++i) {
+        pSummed[i] = &shot[ *this].m_summedCounts[i]->at(0);
+    }
 
-    int64_t offsets[3];
-    offsets[0] = llrint(-1.0 / shot[ *this].m_coefficients[0]); //-N C
-    offsets[1] = llrint(-(double)shot[ *this].m_accumulated[1] / (shot[ *this].m_coefficients[0] * shot[ *this].m_accumulated[0])); //- sum f C
-    if(secondmoment)
-        offsets[2] = llrint(-(double)shot[ *this].m_accumulated[2]
-                            / (shot[ *this].m_coefficients[0] * shot[ *this].m_accumulated[0])); //- sum (f - fmid)^2 C
+    Method method = shot[ *this].method();
+    bool secondmoment = method == Method::SecondMom;
 
     double cmap_min = shot[ *minForColorMap()]; //MHz or MHz^2
     double cmap_max = shot[ *maxForColorMap()];
@@ -386,10 +406,17 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     double vstep = shot[ *this].dfreq(); //MHz
     double fmin = shot[ *this].m_freq_min; //MHz
     int64_t fmid_idx = llrint((shot[ *this].m_freq_mid - fmin) / shot[ *this].dfreq());
-    int64_t value_offset = coeff_vstep * llrint((fmin - cmap_min) / vstep);
-    if(secondmoment) {
+    int64_t value_offset;
+    switch(method) {
+    case Method::CoG:
+        value_offset = coeff_vstep * llrint((fmin - cmap_min) / vstep);
+        break;
+    case Method::SecondMom:
         vstep = vstep * vstep; //MHz^2
-        value_offset = coeff_vstep * llrint(( - cmap_min) / vstep);
+    case Method::MeanDev:
+    case Method::MeanFreqSplit:
+        value_offset = coeff_vstep * llrint((-cmap_min) / vstep);
+        break;
     }
 
     std::array<int64_t, 3> coloroffsets_low = {};
@@ -437,27 +464,36 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
 
     //constructing colormap plot.
     for(unsigned int i  = 0; i < width * height; ++i) {
-        int64_t dplopl = (int64_t)*summed_on_o_off++ + offsets[0]; //sum (on/off C) - N C
-        int64_t f_dplopl = (int64_t)*summed_f_on_o_off++ + offsets[1]; // sum (f on/off C) - sum f C
+        int64_t dplopl = *pSummed[0]++ - (int64_t)BaseOffset; //sum (on/off C) - N C
+        int64_t f_dplopl = *pSummed[1]++ - (int64_t)BaseOffset; // sum (f on/off C) - sum f C
         if( !dplopl) {
             //avoiding division by zero. Maybe black or saturated pixel.
             *processed++ = 0; *processed++ = 0; *processed++ = 0; *processed++ = 0xffffu;
-            if(secondmoment)
-                summed_fsq_on_o_off++;
+            for(unsigned int i = 2; i < num_summed_frames; ++i)
+                pSummed[i]++; //for next loop.
             continue;
         }
         int64_t cmvalue;
-        if(secondmoment) {
+        switch(method) {
+        case Method::CoG:
+            //CoG = (sum (f on/off C) - sum f C) / (sum on/off C -  N C)
+            cmvalue = f_dplopl * coeff_vstep / dplopl + value_offset;
+            break;
+        case Method::SecondMom: {
             //  2nd mom = (sum (f^2 on/off C) - sum f^2 C) / (sum on/off C -  N C) - CoG^2
             //  (here CoG's origin is fmid).
             // = ((sum (f^2 on/off C) - sum f^2 C)*(sum on/off C -  N C) - (sum (f on/off C) - sum f C)^2) / (sum on/off C -  N C)^2
-            int64_t fsq_dplopl = (int64_t)*summed_fsq_on_o_off++ + offsets[2]; //sum (f^2 on/off C) - sum f^2 C
+            int64_t fsq_dplopl = *pSummed[2]++ - (int64_t)BaseOffset; //sum (f^2 on/off C) - sum f^2 C
             f_dplopl -= dplopl * fmid_idx; //shifting origin to fmid.
             cmvalue = (fsq_dplopl * dplopl - f_dplopl * f_dplopl) * coeff_vstep / (dplopl * dplopl) + value_offset;
-        }
-        else {
-            //CoG = (sum (f on/off C) - sum f C) / (sum on/off C -  N C)
-            cmvalue = f_dplopl * coeff_vstep / dplopl + value_offset;
+            }
+            break;
+        case Method::MeanDev:
+            cmvalue = (*pSummed[2]++ - (int64_t)BaseOffset) * coeff_vstep / dplopl + value_offset;
+            break;
+        case Method::MeanFreqSplit:
+            cmvalue = (*pSummed[3]++ - (int64_t)BaseOffset) * coeff_vstep / dplopl + value_offset;
+            break;
         }
         const auto &color_gain = (cmvalue > thres) ? colorgain_high : colorgain_low;
         const auto &coloroffsets = (cmvalue > thres) ? coloroffsets_high : coloroffsets_low;
@@ -484,12 +520,12 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     std::vector<const uint32_t *> rawimages;
     for(unsigned int cidx = 0; cidx < num_summed_frames; ++cidx) {
         coeffs.push_back(shot[ *this].m_coefficients[cidx]);
-        offsets_image.push_back(shot[ *this].m_offsets[cidx]);
         rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
+        offsets_image.push_back(-(double)BaseOffset * shot[ *this].m_coefficients[cidx]);
     }
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
-        tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
+        tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulatedCount);
         m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs, offsets_image);
         m_processedImage->updateColorBarImage(tr, cmap_min, cmap_max, cbimage);
     });

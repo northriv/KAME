@@ -60,6 +60,10 @@ protected:
         const Snapshot &shot_emitter, const Snapshot &shot_others,
         XDriver *emitter) const override;
 public:
+    //CenterOfGravity, 2ndMoment, MeanDeviation <|f - fcog|>, MeanFrequencySplit <||f - fcog| - fmd|>
+    enum class Method {CoG = 0, SecondMom = 1, MeanDev = 2, MeanFreqSplit = 3};
+    constexpr static size_t MaxNumFrames = 7;
+    constexpr static uint32_t BaseOffset = 0x80000000uLL;
     //! driver specific part below
     struct Payload : public XSecondaryDriver::Payload {
         // unsigned int numSamples() const {return m_summedCounts.size();}
@@ -67,18 +71,29 @@ public:
         double dfreq() const {return m_dfreq;}
         unsigned int width() const {return m_width;}
         unsigned int height() const {return m_height;}
-        bool secondMoment() const {return m_secondMoment;}
+        Method method() const {return m_method;}
+
+        unsigned int numSummedFrames() const {return
+            std::map<Method, unsigned int>{{Method::CoG, 2}, {Method::SecondMom, 3},
+                                           {Method::MeanDev, 3}, {Method::MeanFreqSplit, 4}}.at(method()); //<= MaxNumFrames.
+        }
+        unsigned int numTotalFrames() const {return
+            std::map<Method, unsigned int>{{Method::CoG, 2}, {Method::SecondMom, 3},
+                                           {Method::MeanDev, 6}, {Method::MeanFreqSplit, 7}}.at(method()); //incl. past results of CoG and MeanDev.
+        }
     private:
         friend class XODMR2DAnalysis;
 
-        uint64_t m_coeff_PLOn_o_Off; // = "C" in the following formula.
-        //! C*PLon/PLoff, freq(unit of df)*C*on/off, (freq(unit of df) - fmid)^2*C*on/off
-        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[3];
+        int64_t m_coeff_PLOn_o_Off; // = "C" in the following formula.
+        //! C*PLon/PLoff-C, freq(unit of df)*C*on/off-fC, (freq(unit of df) - fmid)^2*C*on/off-f^2 C
+        //!     or |f-fcog|*C*on/off-|f-fcog|*C, ||f-fcog|-fmd|*C*on/off-||f-fcog|-fmd|*C,
+        //! (prev)C*PLon/PLoff-C, (prev)fcog C, (prev)fmd C
+        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[MaxNumFrames];
         //! avg counts, sum freq(unit of df), sum (freq(unit of df) - fmid)^2.
-        uint64_t m_accumulated[3];
-        double m_coefficients[3], m_offsets[3];
+        uint64_t m_accumulatedCount;
+        double m_coefficients[MaxNumFrames];
         double m_freq_min; //fmin [MHz]
-        bool m_secondMoment; //false during CoG analysis.
+        Method m_method;
         XTime m_timeClearRequested = {};
         unsigned int m_width, m_height;
         shared_ptr<QImage> m_qimage;
