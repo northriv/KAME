@@ -248,6 +248,16 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
             tr.unmark(m_lsnOnCondChanged);
         }
     }
+
+    //for math tools
+    std::vector<double> coeffs;
+    std::vector<const uint32_t *> rawimages;
+    for(unsigned int cidx = 0; cidx < seq_len; ++cidx) {
+        coeffs.push_back(tr[ *this].m_coefficients[cidx]);
+        rawimages.push_back( &tr[ *this].m_summedCounts[cidx]->at(0));
+    }
+    m_rgbImage->updateRawImages(tr, width, height, rawimages, width, coeffs);
+
     if(tr[ *incrementalAverage()]) {
         tr[ *average()] = shot_this[ *this].accumulatedCountRGB();
         tr.unmark(m_lsnOnCondChanged);
@@ -289,14 +299,10 @@ XImageProcessor::visualize(const Snapshot &shot) {
         }
     }
 
-    std::vector<double> coeffs;
-    std::vector<const uint32_t *> rawimages;
     XString msg;
     shared_ptr<XFilterWheel> wheel__ = shot[ *filterWheel()];
     std::array<unsigned int, 3> rgb_filterIndices = {shot[ *filterIndexR()], shot[ *filterIndexG()], shot[ *filterIndexB()]};
     for(unsigned int cidx = 0; cidx < seq_len; ++cidx) {
-        coeffs.push_back(shot[ *this].m_coefficients[cidx]);
-        rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
         if(wheel__ && (rgb_filterIndices[cidx] < wheel__->filterCount()))
             msg +=
                 (XString)Snapshot( *wheel__)[ *wheel__->filterLabel(rgb_filterIndices[cidx])] +
@@ -306,7 +312,7 @@ XImageProcessor::visualize(const Snapshot &shot) {
         tr[ *this].m_qimage = qimage;
 //        tr[ *m_rgbImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
         tr[ *m_rgbImage->graph()->onScreenStrings()] = msg;
-        m_rgbImage->updateImage(tr, qimage, rawimages, width, coeffs);
+        m_rgbImage->updateQImage(tr, qimage);
     });
 
 //    shared_ptr<XFilterWheel> wheel__ = shot[ *filterWheel()];

@@ -43,8 +43,10 @@ public:
 
     const shared_ptr<XDoubleNode> &gamma() const {return m_gamma;}
 
-    void updateImage(Transaction &tr, const shared_ptr<QImage> &image,
-                     const std::vector<const uint32_t *> &rawimages = {}, unsigned int raw_stride = 0, const std::vector<double> coefficients = {}, const std::vector<double> offsets = {});
+    //! update internal high-colordepth images for math tools. updateQImage (and updateColorBarImage) should be performed asap.
+    void updateRawImages(Transaction &tr, unsigned int width, unsigned int height,
+                     const std::vector<const uint32_t *> &rawimages, unsigned int raw_stride = 0, const std::vector<double> coefficients = {}, const std::vector<double> offsets = {});
+    void updateQImage(Transaction &tr, const shared_ptr<QImage> &image);
     void updateColorBarImage(Transaction &tr, double cmin, double cmax, const shared_ptr<QImage> &image);
 
     const shared_ptr<X2DImagePlot> &plot() const {return m_plot;}

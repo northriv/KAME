@@ -189,19 +189,22 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
 }
 
 void
-X2DImage::updateImage(Transaction &tr, const shared_ptr<QImage> &image,
-    const std::vector<const uint32_t *> &rawimages, unsigned int raw_stride, const std::vector<double> coefficients_given, const std::vector<double> offsets_given) {
+X2DImage::updateRawImages(Transaction &tr,unsigned int width, unsigned int height,
+                      const std::vector<const uint32_t *> &rawimages, unsigned int raw_stride, const std::vector<double> coefficients_given, const std::vector<double> offsets_given) {
     auto coeffs = coefficients_given;
     auto offsets = offsets_given;
     if(coeffs.empty())
         coeffs.resize(rawimages.size(), 1.0);
     if(offsets.empty())
         offsets.resize(rawimages.size(), 0.0);
-    m_plot->setImage(tr, image);
     for(unsigned int cidx = 0; cidx < std::min(m_toolLists.size(), rawimages.size()); ++cidx) {
         m_toolLists[cidx]->update(tr, m_graphwidget,
-            rawimages[cidx], image->width(), raw_stride, image->height(), coeffs[cidx], offsets[cidx]);
+                                  rawimages[cidx], width, raw_stride, height, coeffs[cidx], offsets[cidx]);
     }
+}
+void
+X2DImage::updateQImage(Transaction &tr, const shared_ptr<QImage> &image) {
+    m_plot->setImage(tr, image);
 }
 void
 X2DImage::updateColorBarImage(Transaction &tr, double cmin, double cmax, const shared_ptr<QImage> &image) {

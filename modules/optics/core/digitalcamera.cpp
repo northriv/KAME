@@ -255,7 +255,8 @@ XDigitalCamera::visualize(const Snapshot &shot) {
     iterate_commit([&](Transaction &tr){
       tr[ *m_liveImage->graph()->onScreenStrings()] = shot[ *this].m_status;
       tr[ *this].m_qimage = liveimage;
-      m_liveImage->updateImage(tr, liveimage, rawimages, stride, coeffs);
+      m_liveImage->updateRawImages(tr, width, height, rawimages, stride, coeffs);
+      m_liveImage->updateQImage(tr, liveimage);
 
       tr[ *m_waveHist].setLabel(0, "Histogram");
       double vmax = shot[ *this].m_maxIntensity;

@@ -305,6 +305,16 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             tr.unmark(m_lsnOnCondChanged);
         }
     }
+
+    //for mathtools
+    std::vector<double> coeffs;
+    std::vector<const uint32_t *> rawimages;
+    for(unsigned int cidx: {0,1}) {
+        coeffs.push_back(tr[ *this].m_coefficients[seq_len - 2 + cidx]);
+        rawimages.push_back( &tr[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0));
+    }
+    m_processedImage->updateRawImages(tr, width, height, rawimages, width, coeffs);
+
     if(tr[ *incrementalAverage()]) {
         tr[ *average()] = tr[ *this].m_accumulated[seq_len - 1];
         tr.unmark(m_lsnOnCondChanged);
@@ -591,16 +601,10 @@ XODMRImaging::visualize(const Snapshot &shot) {
         }
     }
 
-    std::vector<double> coeffs;
-    std::vector<const uint32_t *> rawimages;
-    for(unsigned int cidx: {0,1}) {
-        coeffs.push_back(shot[ *this].m_coefficients[seq_len - 2 + cidx]);
-        rawimages.push_back( &shot[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0));
-    }
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
         tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
-        m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs);
+        m_processedImage->updateQImage(tr, qimage);
         m_processedImage->updateColorBarImage(tr, dpl_min * 100.0, dpl_max * 100.0, cbimage);
     });
 }

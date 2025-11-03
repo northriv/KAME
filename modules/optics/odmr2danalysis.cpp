@@ -368,6 +368,17 @@ XODMR2DAnalysis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         }
         tr.unmark(m_lsnOnCondChanged);
     }
+
+    //For math tools.
+    std::vector<double> coeffs, offsets_image;
+    std::vector<const uint32_t *> rawimages;
+    for(unsigned int cidx = 0; cidx < num_summed_frames; ++cidx) {
+        coeffs.push_back(tr[ *this].m_coefficients[cidx]);
+        rawimages.push_back( &tr[ *this].m_summedCounts[cidx]->at(0));
+        offsets_image.push_back(-(double)BaseOffset * tr[ *this].m_coefficients[cidx]);
+    }
+    m_processedImage->updateRawImages(tr, width, height, rawimages, width, coeffs, offsets_image);
+
     if(tr[ *incrementalAverage()]) {
         tr[ *average()] = tr[ *this].m_accumulatedCount;
         tr.unmark(m_lsnOnCondChanged);
@@ -402,7 +413,6 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     }
 
     Method method = shot[ *this].method();
-    bool secondmoment = method == Method::SecondMom;
 
     double cmap_min = shot[ *minForColorMap()]; //MHz or MHz^2
     double cmap_max = shot[ *maxForColorMap()];
@@ -524,17 +534,10 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         *processed++ = 0xffffu;
     }
 
-    std::vector<double> coeffs, offsets_image;
-    std::vector<const uint32_t *> rawimages;
-    for(unsigned int cidx = 0; cidx < num_summed_frames; ++cidx) {
-        coeffs.push_back(shot[ *this].m_coefficients[cidx]);
-        rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
-        offsets_image.push_back(-(double)BaseOffset * shot[ *this].m_coefficients[cidx]);
-    }
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
         tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulatedCount);
-        m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs, offsets_image);
+        m_processedImage->updateQImage(tr, qimage);
         m_processedImage->updateColorBarImage(tr, cmap_min, cmap_max, cbimage);
     });
 }
