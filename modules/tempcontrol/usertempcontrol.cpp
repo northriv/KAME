@@ -681,6 +681,9 @@ XLakeShore218::XLakeShore218(const char *name, bool runtime,
                              Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XLakeShoreBridge (name, runtime, ref(tr_meas), meas) {
 
+    interface()->setGPIBWaitBeforeWrite(80);
+    interface()->setGPIBWaitBeforeRead(80);
+
     createChannels(ref(tr_meas), meas, true,
         {"1", "2", "3", "4", "5", "6", "7", "8"},
         {},
