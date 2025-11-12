@@ -109,6 +109,24 @@ PyDriverExporter<XImageProcessor, XSecondaryDriver> imageprocessor([](auto node,
         .def("height", &XImageProcessor::Payload::height);
 });
 
+#include "odmr2danalysis.h"
+PyDriverExporter<XODMR2DAnalysis, XSecondaryDriver> odmr2danalysis([](auto node, auto payload){
+    payload.def("rawImage", [](XODMR2DAnalysis::Payload &self, unsigned int ch){
+               using namespace Eigen;
+               using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
+               auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
+                   &self.rawImage(ch).at(0),
+                   self.height(), self.width(),
+                   Stride<Dynamic, 1>(self.width(), 1));
+               return Ref<const RMatrixXu32>(cmatrix);
+           })
+        .def("numSummedFrames", &XODMR2DAnalysis::Payload::numSummedFrames)
+        .def("accumulated", &XODMR2DAnalysis::Payload::accumulated)
+        .def("dfreq", &XODMR2DAnalysis::Payload::dfreq)
+        .def("width", &XODMR2DAnalysis::Payload::width)
+        .def("height", &XODMR2DAnalysis::Payload::height);
+});
+
 #include "opticalspectrometer.h"
 PyDriverExporter<XOpticalSpectrometer, XPrimaryDriver> opticalspectrometer([](auto node, auto payload){
     payload.def("integrationTime", &XOpticalSpectrometer::Payload::integrationTime)

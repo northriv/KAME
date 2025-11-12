@@ -93,6 +93,14 @@ public:
                 return 2; //assuming CoG
             }
         }
+
+        unsigned int accumulated() const {return m_accumulatedCount;}
+        const std::vector<uint32_t> &rawImage(unsigned int i) const {
+            if(i >= numSummedFrames())
+                throw std::out_of_range("index >= # of images!");
+            auto p = m_summedCounts[i];
+            return *p; //alive as lnong as valid snapshot is held.
+        }
     private:
         friend class XODMR2DAnalysis;
 
