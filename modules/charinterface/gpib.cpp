@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,7 +27,9 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
     p->send("++ifc\r");
     msecsleep(1); //wait is needed after IFC.
     p->send("++read_tmo_ms 2000\r");
+    msecsleep(100); //necessary, otherwise CR cannot be recognized.
     p->send("++eot_enable 1\r");
+    msecsleep(100); //necessary, otherwise CR cannot be recognized.
     p->send("++eot_char 13\r"); //CR
     msecsleep(1);
     return p;
