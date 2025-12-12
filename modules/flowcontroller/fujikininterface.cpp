@@ -133,14 +133,16 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
     buf.push_back(checksum);
 
     XScopedLock<XInterface> lock( *this);
-    msecsleep(1);
+    msecsleep(5);
     this->write(reinterpret_cast<char*>( &buf[0]), buf.size());
-    receive(1);
+    for(int retry = 0; retry < 50; ++retry) {
+        receive(1);
+        if(buffer()[0] != 0)
+            break;
+        //ignores mysterious zero pad.
+    }
     switch(buffer()[0]) {
     case ACK:
-        break;
-    case 0:
-        //recent fujikin skips this ACK.
         break;
     case NAK:
     default:
