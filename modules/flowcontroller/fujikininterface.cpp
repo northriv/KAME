@@ -139,6 +139,9 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
     switch(buffer()[0]) {
     case ACK:
         break;
+    case 0:
+        //recent fujikin skips this ACK.
+        break;
     case NAK:
     default:
         throw XInterfaceError(

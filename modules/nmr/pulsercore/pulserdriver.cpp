@@ -730,6 +730,8 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 		num_phase_cycle__ = std::min(num_phase_cycle__, 4);
   
 	bool conserve_ste_phase__ = shot[ *this].conserveStEPhase();
+    if(conserve_ste_phase__ && (comb_mode__ == N_COMB_MODE_OFF))
+        gWarnPrint(i18n("Strange St.E. settings."));
 
     uint64_t odmr_read_setup__ = rintSampsMicroSec(shot[ *this].odmrReadPulseSetupTime());
     uint64_t odmr_read_hold__ = rintSampsMicroSec(shot[ *this].odmrReadPulseHoldTime());
