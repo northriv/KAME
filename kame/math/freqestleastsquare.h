@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -34,7 +34,7 @@ private:
 #include <Eigen/Core>
 
 //! Fourier-series expansion solved by truncated SVD.
-class TSVDFourierSeries : public SpectrumSolver {
+class DECLSPEC_KAME TSVDFourierSeries : public SpectrumSolver {
 public:
 protected:
     virtual void genSpectrum(const std::vector<std::complex<double> >& memin,

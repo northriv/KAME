@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,6 +16,7 @@
 
 #include "xnode.h"
 #include <functional>
+#include "xthread.h"
 
 class DECLSPEC_KAME XListNodeBase : public XNode {
 public:

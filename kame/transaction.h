@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -74,7 +74,7 @@ template <class XN>
 class Transaction;
 
 enum class Priority {HIGHEST, NORMAL, UI_DEFERRABLE, LOWEST};
-void setCurrentPriorityMode(Priority pr);
+DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 
 //! \brief This is a base class of nodes which carries data sets for itself (Payload) and for subnodes.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.
@@ -177,8 +177,7 @@ public:
 private:
     struct Packet;
 
-    struct PacketList;
-    struct PacketList : public fast_vector<local_shared_ptr<Packet> > {
+    struct DECLSPEC_KAME PacketList : public fast_vector<local_shared_ptr<Packet> > {
         shared_ptr<NodeList> m_subnodes;
         PacketList() : fast_vector<local_shared_ptr<Packet>>(), m_serial(SerialGenerator::gen()) {}
         ~PacketList() {this->clear();} //destroys payloads prior to nodes.
@@ -187,7 +186,7 @@ private:
     };
 
     template <class P>
-    struct PayloadWrapper : public P::Payload {
+    struct DECLSPEC_KAME PayloadWrapper : public P::Payload {
         virtual typename PayloadWrapper::rettype_clone clone(Transaction<XN> &tr, int64_t serial) {
 //            auto p = allocate_local_shared<PayloadWrapper>(this->m_node->m_allocatorPayload, *this);
             auto p = make_local_shared<PayloadWrapper>( *this);
@@ -208,7 +207,7 @@ private:
     //! and packets possessed by the sub-instances may be out-of-date.\n
     //! "missing" indicates that the package lacks any Packet for subnodes, or
     //! any content may be out-of-date.\n
-    struct Packet : public atomic_countable {
+    struct DECLSPEC_KAME Packet : public atomic_countable {
         Packet() noexcept : m_missing(false) {}
         int size() const noexcept {return subpackets() ? subpackets()->size() : 0;}
         local_shared_ptr<Payload> &payload() noexcept { return m_payload;}
@@ -418,7 +417,7 @@ T *Node<XN>::create(Args&&... args) {
 //! See \ref stmintro for basic ideas of this STM and code examples.
 //! \sa Node, Transaction, SingleSnapshot, SingleTransaction.
 template <class XN>
-class Snapshot {
+class DECLSPEC_KAME Snapshot {
 public:
     Snapshot(const Snapshot&x) noexcept = default;
     Snapshot(Snapshot&&x) noexcept = default;
@@ -496,7 +495,7 @@ protected:
 //! See \ref stmintro for basic ideas of this STM and code examples.
 //! \sa Node, Snapshot, Transaction, SingleTransaction.
 template <class XN, typename T>
-class SingleSnapshot : protected Snapshot<XN> {
+class DECLSPEC_KAME SingleSnapshot : protected Snapshot<XN> {
 public:
     explicit SingleSnapshot(const T &node) : Snapshot<XN>(node, false) {}
     SingleSnapshot(SingleSnapshot&&x) noexcept = default;
@@ -523,7 +522,7 @@ protected:
 //! \endcode
 //! \sa Node, Snapshot, SingleSnapshot, SingleTransaction.
 template <class XN>
-class Transaction : public Snapshot<XN> {
+class DECLSPEC_KAME Transaction : public Snapshot<XN> {
 public:
     //! Be sure for the persistence of the \a node.
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
@@ -657,7 +656,7 @@ private:
 //! See \ref stmintro for basic ideas of this STM and code examples.
 //! \sa Node, Transaction, Snapshot, SingleSnapshot.
 template <class XN, typename T>
-class SingleTransaction : public Transaction<XN> {
+class DECLSPEC_KAME SingleTransaction : public Transaction<XN> {
 public:
     explicit SingleTransaction(T &node) : Transaction<XN>(node, false) {}
 

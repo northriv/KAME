@@ -16,7 +16,6 @@
 
 #include "transaction.h"
 #include "threadlocal.h"
-#include "xthread.h"
 #include <deque>
 
 class XNode;
@@ -228,6 +227,84 @@ using XLongNode = XIntNodeBase<long>;
 using XULongNode = XIntNodeBase<unsigned long>;
 using XBoolNode = XIntNodeBase<bool>;
 using XHexNode = XIntNodeBase<unsigned long, 16>;
+
+template <typename T, int base>
+inline void
+XIntNodeBase<T, base>::Payload::str_(const XString &) {
+}
+template <>
+inline void
+XIntNodeBase<int, 10>::Payload::str_(const XString &str) {
+    bool ok;
+    int var = QString(str).toInt(&ok, 10);
+    if( !ok)
+        throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
+    *this = var;
+}
+template <>
+inline void
+XIntNodeBase<unsigned int, 10>::Payload::str_(const XString &str) {
+    bool ok;
+    unsigned int var = QString(str).toUInt(&ok);
+    if( !ok)
+        throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
+    *this = var;
+}
+template <>
+inline void
+XIntNodeBase<long, 10>::Payload::str_(const XString &str) {
+    bool ok;
+    long var = QString(str).toLong(&ok, 10);
+    if( !ok)
+        throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
+    *this = var;
+}
+template <>
+inline void
+XIntNodeBase<unsigned long, 10>::Payload::str_(const XString &str) {
+    bool ok;
+    unsigned long var = QString(str).toULong(&ok);
+    if( !ok)
+        throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
+    *this = var;
+}
+template <>
+inline void
+XIntNodeBase<unsigned long, 16>::Payload::str_(const XString &str) {
+    bool ok;
+    unsigned int var = QString(str).toULong(&ok, 16);
+    if( !ok)
+        throw XKameError(i18n("Ill string conversion to hex."), __FILE__, __LINE__);
+    *this = var;
+}
+template <>
+inline void
+XIntNodeBase<bool, 10>::Payload::str_(const XString &str) {
+    bool ok;
+    bool x = QString(str).toInt(&ok);
+    if(ok) {
+        *this =  x ? true : false ;
+        return;
+    }
+    if(QString(str).trimmed().toLower() == "true") {
+        *this = true; return;
+    }
+    if(QString(str).trimmed().toLower() == "false") {
+        *this = false; return;
+    }
+    throw XKameError(i18n("Ill string conversion to boolean."), __FILE__, __LINE__);
+}
+
+template <typename T, int base>
+inline XString
+XIntNodeBase<T, base>::Payload::to_str() const {
+    return QString::number(m_var, base);
+}
+template <>
+inline XString
+XIntNodeBase<bool, 10>::Payload::to_str() const {
+    return m_var ? "true" : "false";
+}
 
 template <class T, typename... Args>
 shared_ptr<T>

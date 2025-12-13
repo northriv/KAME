@@ -19,6 +19,7 @@
 class DECLSPEC_KAME XPrimaryDriverWithThread : public XPrimaryDriver {
 public:
     using XPrimaryDriver::XPrimaryDriver; //inherits constructors.
+    virtual ~XPrimaryDriverWithThread() = default;
   
 	//! Shuts down your threads, unconnects GUI, and deactivates signals.\n
 	//! This function may be called even if driver has already stopped.

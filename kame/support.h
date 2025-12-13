@@ -169,7 +169,7 @@ DECLSPEC_KAME XString formatString(const char *format, ...)
     __attribute__ ((format(printf,1,2)));
 #endif
 ;
-XString formatString_tr(const char *format_i18n_noop, ...)
+DECLSPEC_KAME XString formatString_tr(const char *format_i18n_noop, ...)
 #if defined __GNUC__ || defined __clang__
     __attribute__ ((format(printf,1,2)));
 #endif

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -173,7 +173,7 @@ private:
 
 
 //! Guard pattern for a thread object.
-class XThread {
+class DECLSPEC_KAME XThread {
 public:
     //! Starts up a new thread.
     //! \param f a member function of an object \p r, r->f(const atomic<bool>& terminated, args...)

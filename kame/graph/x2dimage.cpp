@@ -141,7 +141,7 @@ X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const s
             }
             stream << std::endl;
         }
-        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully %ld words written into %s."), p - p_start, shot[ *filename()].to_str().c_str()));
+        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully %ld words written into %s."), (long)(p - p_start), shot[ *filename()].to_str().c_str()));
     }
     else {
         QByteArray ba;
