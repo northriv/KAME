@@ -122,4 +122,4 @@ XDoubleNode::setFormat(const char* format) {
     }
 }
 
-template DECLSPEC_KAME class Transactional::Node<class XNode>;
+template class DECLSPEC_KAME Transactional::Node<XNode>;

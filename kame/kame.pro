@@ -341,8 +341,10 @@ unix {
 macx {
   QMAKE_LFLAGS += -all_load -dynamic
 }
-win32-*g++ {
-#  QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a #failed in debug config. cannot hold all of debug symbols.
+win32-g++ {
+  QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a #failed in debug config. cannot hold all of debug symbols.
+}
+win32-clang-g++ {
   QMAKE_LFLAGS += -Wl,--out-implib,$${TARGET}.a
   DEFINES += DECLSPEC_KAME=__declspec(dllexport)
   DEFINES += DECLSPEC_MODULE=__declspec(dllexport)

@@ -22,9 +22,11 @@ macx {
 }
 win32-*g++ {
     QMAKE_LFLAGS += -Wl,--export-all-symbols
-    DEFINES += DECLSPEC_KAME=__declspec(dllexport)
-    DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
-    DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
+    win32-clang-g++ {
+        DEFINES += DECLSPEC_KAME=__declspec(dllexport)
+        DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
+        DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
+    }
     LIBS += $${PRI_DIR}../kame/kame.a
 }
 win32-msvc* {
