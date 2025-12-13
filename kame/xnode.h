@@ -46,7 +46,7 @@ using Listener = Transactional::Listener;
 
 using Transactional::Priority;
 
-DECLSPEC_KAME extern template class Transactional::Node<class XNode>;
+extern template class DECLSPEC_KAME Transactional::Node<class XNode>;
 //! XNode supports accesses from scripts/GUI and shared_from_this(),
 //! in addition to the features of Transactional::Node.
 //! \sa Transactional::Node, create(), createOrphan().
