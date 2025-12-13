@@ -29,7 +29,7 @@
 //! A painter which holds off-screen pixmap
 //! and provides a way to draw
 //! not thread-safe
-class XQGraphPainter : public enable_shared_from_this<XQGraphPainter>
+class DECLSPEC_KAME XQGraphPainter : public enable_shared_from_this<XQGraphPainter>
 #ifndef USE_QGLWIDGET
         , protected QOpenGLFunctions
 #endif

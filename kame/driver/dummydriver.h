@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,7 +17,7 @@
 #include "driver.h"
 #include "interface.h"
 
-class XDummyInterface : public XInterface {
+class DECLSPEC_KAME XDummyInterface : public XInterface {
 public:
 	XDummyInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
 		: XInterface(name, runtime, driver), m_bOpened(false)
@@ -37,7 +37,7 @@ private:
 	bool m_bOpened;
 };
 template<class tDriver>
-class XDummyDriver : public tDriver {
+class DECLSPEC_KAME XDummyDriver : public tDriver {
 public:
 	XDummyDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XDummyDriver() {}

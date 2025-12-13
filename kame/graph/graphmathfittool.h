@@ -24,7 +24,7 @@
 
 
 template <class F>
-struct OnXAxisMathFitToolObject : public OnAxisFuncObject<true> {
+struct DECLSPEC_KAME OnXAxisMathFitToolObject : public OnAxisFuncObject<true> {
     OnXAxisMathFitToolObject(XQGraphPainter* p) : OnAxisFuncObject<true>(p) {}
 
     NonLinearLeastSquare nlls_result;
@@ -39,7 +39,7 @@ protected:
 };
 
 template <class F, unsigned int P>
-class XGraph1DMathFitToolX: public XGraph1DMathTool {
+class DECLSPEC_KAME XGraph1DMathFitToolX: public XGraph1DMathTool {
 public:
     XGraph1DMathFitToolX(const char *name, bool runtime, Transaction &tr_meas,
                       const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
@@ -129,7 +129,7 @@ private:
     weak_ptr<OnXAxisMathFitToolObject<F>> m_osoFitCurve;
 };
 
-struct FuncGraph1DMathGaussianFitTool{
+struct DECLSPEC_KAME FuncGraph1DMathGaussianFitTool{
     using v_iterator = std::vector<XGraph::VFloat>::iterator;
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     static bool fitFunc(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend,
@@ -199,7 +199,7 @@ using XGraph1DMathGaussianFWHMTool = XGraph1DMathFitToolX<FuncGraph1DMathGaussia
 using XGraph1DMathGaussianHeightTool = XGraph1DMathFitToolX<FuncGraph1DMathGaussianFitTool, 2>;
 using XGraph1DMathGaussianBaselineTool = XGraph1DMathFitToolX<FuncGraph1DMathGaussianFitTool, 3>;
 
-struct FuncGraph1DMathLorenzianFitTool{
+struct DECLSPEC_KAME FuncGraph1DMathLorenzianFitTool{
     using v_iterator = std::vector<XGraph::VFloat>::iterator;
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     static bool fitFunc(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend,

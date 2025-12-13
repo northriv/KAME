@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2017 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@
 #include <gsl/gsl_ieee_utils.h>
 #include <gsl/gsl_version.h>
 
-class NonLinearLeastSquare {
+class DECLSPEC_KAME NonLinearLeastSquare {
 public:
     template <class Func>
     NonLinearLeastSquare(Func f,

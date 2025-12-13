@@ -107,7 +107,7 @@ private:
 
 //! entrynames semi colon-sparated entry names.
 template <class F, class Base>
-class XGraphMathToolX: public Base {
+class DECLSPEC_KAME XGraphMathToolX: public Base {
 public:
     XGraphMathToolX(const char *name, bool runtime, Transaction &tr_meas,
                       const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
@@ -135,7 +135,7 @@ private:
 };
 
 template <class F, bool HasSingleEntry = true>
-class XGraph1DMathToolX: public XGraphMathToolX<F, XGraph1DMathTool> {
+class DECLSPEC_KAME XGraph1DMathToolX: public XGraphMathToolX<F, XGraph1DMathTool> {
 public:
     using XGraphMathToolX<F, XGraph1DMathTool>::XGraphMathToolX;
     using cv_iterator = typename XGraphMathToolX<F, XGraph1DMathTool>::cv_iterator;
@@ -167,7 +167,7 @@ public:
 };
 
 template <class F, bool HasSingleEntry = true>
-class XGraph2DMathToolX: public XGraphMathToolX<F, XGraph2DMathTool> {
+class DECLSPEC_KAME XGraph2DMathToolX: public XGraphMathToolX<F, XGraph2DMathTool> {
 public:
     using XGraphMathToolX<F, XGraph2DMathTool>::XGraphMathToolX;
     using ret_type = typename std::conditional<HasSingleEntry, double, std::vector<double>>::type;
@@ -202,7 +202,7 @@ public:
     };
 };
 
-struct FuncGraph1DMathToolSum{
+struct DECLSPEC_KAME FuncGraph1DMathToolSum{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
         double v = 0.0;
@@ -213,7 +213,7 @@ struct FuncGraph1DMathToolSum{
 };
 using XGraph1DMathToolSum = XGraph1DMathToolX<FuncGraph1DMathToolSum>;
 
-struct FuncGraph1DMathToolAverage{
+struct DECLSPEC_KAME FuncGraph1DMathToolAverage{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
         double v = 0.0;
@@ -223,7 +223,7 @@ struct FuncGraph1DMathToolAverage{
     }
 };
 using XGraph1DMathToolAverage = XGraph1DMathToolX<FuncGraph1DMathToolAverage>;
-struct FuncGraph1DMathToolMaxValue{
+struct DECLSPEC_KAME FuncGraph1DMathToolMaxValue{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
         double vmax = -1e10;
@@ -235,7 +235,7 @@ struct FuncGraph1DMathToolMaxValue{
     }
 };
 using XGraph1DMathToolMaxValue = XGraph1DMathToolX<FuncGraph1DMathToolMaxValue>;
-struct FuncGraph1DMathToolMinValue{
+struct DECLSPEC_KAME FuncGraph1DMathToolMinValue{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
         double vmin = 1e10;
@@ -247,7 +247,7 @@ struct FuncGraph1DMathToolMinValue{
     }
 };
 using XGraph1DMathToolMinValue = XGraph1DMathToolX<FuncGraph1DMathToolMinValue>;
-struct FuncGraph1DMathToolMaxPosition{
+struct DECLSPEC_KAME FuncGraph1DMathToolMaxPosition{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
         double vmax = -1e10;
@@ -262,7 +262,7 @@ struct FuncGraph1DMathToolMaxPosition{
     }
 };
 using XGraph1DMathToolMaxPosition = XGraph1DMathToolX<FuncGraph1DMathToolMaxPosition>;
-struct FuncGraph1DMathToolMinPosition{
+struct DECLSPEC_KAME FuncGraph1DMathToolMinPosition{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
         double vmin = 1e10;
@@ -277,7 +277,7 @@ struct FuncGraph1DMathToolMinPosition{
     }
 };
 using XGraph1DMathToolMinPosition = XGraph1DMathToolX<FuncGraph1DMathToolMinPosition>;
-struct FuncGraph1DMathToolCoG{
+struct DECLSPEC_KAME FuncGraph1DMathToolCoG{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xit, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
         double v = 0;
@@ -295,7 +295,7 @@ using XGraph1DMathToolCoG = XGraph1DMathToolX<FuncGraph1DMathToolCoG>;
 
 
 
-struct FuncGraph2DMathToolSum{
+struct DECLSPEC_KAME FuncGraph2DMathToolSum{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset){
         double v = 0.0;
@@ -308,7 +308,7 @@ struct FuncGraph2DMathToolSum{
     }
 };
 using XGraph2DMathToolSum = XGraph2DMathToolX<FuncGraph2DMathToolSum>;
-struct FuncGraph2DMathToolAverage{
+struct DECLSPEC_KAME FuncGraph2DMathToolAverage{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset){
         double v = 0.0;
@@ -325,7 +325,7 @@ using XGraph2DMathToolAverage = XGraph2DMathToolX<FuncGraph2DMathToolAverage>;
 class XMeasure;
 
 template <class X, class XQC>
-class XGraphMathToolList : public XCustomTypeListNode<X> {
+class DECLSPEC_KAME XGraphMathToolList : public XCustomTypeListNode<X> {
 public:
     XGraphMathToolList(const char *name, bool runtime,
         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
@@ -350,7 +350,7 @@ protected:
 };
 
 class XQGraph1DMathToolConnector;
-class XGraph1DMathToolList : public XGraphMathToolList<XGraph1DMathTool, XQGraph1DMathToolConnector> {
+class DECLSPEC_KAME XGraph1DMathToolList : public XGraphMathToolList<XGraph1DMathTool, XQGraph1DMathToolConnector> {
 public:
     XGraph1DMathToolList(const char *name, bool runtime,
         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
@@ -372,7 +372,7 @@ protected:
 };
 
 class XQGraph2DMathToolConnector;
-class XGraph2DMathToolList : public XGraphMathToolList<XGraph2DMathTool, XQGraph2DMathToolConnector> {
+class DECLSPEC_KAME XGraph2DMathToolList : public XGraphMathToolList<XGraph2DMathTool, XQGraph2DMathToolConnector> {
 public:
     XGraph2DMathToolList(const char *name, bool runtime,
         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,

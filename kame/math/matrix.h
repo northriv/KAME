@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@
 using namespace boost::numeric;
 
 //! RRR (Relative Robast Representation) eigenvalue driver for Hermite matrix.
-void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a,
+DECLSPEC_KAME void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a,
 	ublas::vector<double> &lambda, ublas::matrix<std::complex<double> > &v,
 	double tol);
 

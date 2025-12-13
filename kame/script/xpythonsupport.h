@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@
 
 class XMeasure;
 
-struct KAMEPyBind {
+struct DECLSPEC_KAME KAMEPyBind {
     template <class N, class Base, class Trampoline>
 //    using classtype_xnode_with_trampoline = typename std::conditional<
 //        !std::is_base_of<typename N::Payload, typename Base::Payload>::value,

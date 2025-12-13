@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@
 
 namespace Transactional {
 
-struct ProcessCounter {
+struct DECLSPEC_KAME ProcessCounter {
     using cnt_t = uint16_t;
     ProcessCounter();
     operator cnt_t() const noexcept {return m_var;}
@@ -133,7 +133,7 @@ struct Message_ {
     virtual int unmark(const shared_ptr<Listener> &x) = 0;
 };
 
-struct BufferedEvent {
+struct DECLSPEC_KAME BufferedEvent {
     BufferedEvent() : registered_time(XTime::now()) {}
     virtual ~BufferedEvent() = default;
     const XTime registered_time;

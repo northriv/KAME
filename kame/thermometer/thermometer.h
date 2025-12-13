@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
 #include "xlistnode.h"
 #include "cspline.h"
 
-class XThermometer : public XNode {
+class DECLSPEC_KAME XThermometer : public XNode {
 public:
 	XThermometer(const char *name, bool runtime);
 	virtual ~XThermometer() {}
@@ -34,7 +34,7 @@ private:
 	const shared_ptr<XDoubleNode> m_tempMin, m_tempMax;
 };
 
-class XThermometerList : public XCustomTypeListNode<XThermometer> {
+class DECLSPEC_KAME XThermometerList : public XCustomTypeListNode<XThermometer> {
 public:
 	XThermometerList(const char *name, bool runtime);
 	virtual ~XThermometerList() {}
@@ -72,7 +72,7 @@ private:
 
 };
 
-class XScientificInstruments : public XThermometer {
+class DECLSPEC_KAME XScientificInstruments : public XThermometer {
 public:
 	XScientificInstruments(const char *name, bool runtime);
 	virtual ~XScientificInstruments() {}
@@ -93,7 +93,7 @@ private:
 };
 
 //! Cubic (natural) spline approximation.
-class XApproxThermometer : public XThermometer {
+class DECLSPEC_KAME XApproxThermometer : public XThermometer {
 public:
 	XApproxThermometer(const char *name, bool runtime);
 

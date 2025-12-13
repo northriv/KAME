@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
 
 //! Frequency estimation. Base class for MUSIC and EIG.
 //! \sa MUSIC, EigenVectorMethod
-class FreqEstimation : public SpectrumSolver {
+class DECLSPEC_KAME FreqEstimation : public SpectrumSolver {
 public:
 	FreqEstimation(tfuncIC ic, bool eigenvalue_method, bool mvdl) : 
 		SpectrumSolver(), m_eigenvalue_method(eigenvalue_method), m_mvdl_method(mvdl), m_funcIC(ic) {}
@@ -34,7 +34,7 @@ protected:
 };
 
 //! MUltiple SIgnal Classification.
-class MUSIC : public FreqEstimation {
+class DECLSPEC_KAME MUSIC : public FreqEstimation {
 public:
 	MUSIC(tfuncIC ic = &icMDL) : FreqEstimation(ic, false, false) {}
 protected:
@@ -42,14 +42,14 @@ protected:
 
 //! Eigen vector method.
 //! \sa MUSIC, MVDL
-class EigenVectorMethod : public FreqEstimation {
+class DECLSPEC_KAME EigenVectorMethod : public FreqEstimation {
 public:
 	EigenVectorMethod(tfuncIC ic = &icMDL) : FreqEstimation(ic, true, false) {}
 protected:
 };
 
 //! Capon MLM / MVDL.
-class MVDL : public FreqEstimation {
+class DECLSPEC_KAME MVDL : public FreqEstimation {
 public:
 	MVDL() : FreqEstimation(&SpectrumSolver::icAIC, true, true) {}
 protected:

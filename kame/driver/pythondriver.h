@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -116,7 +116,7 @@ class XCharDeviceDriver;
 class XPrimaryDriverWithThread;
 
 template<class tInterface = XCharInterface>
-struct XPythonCharDeviceDriverWithThread : public XPythonDriver<XCharDeviceDriver<XPrimaryDriverWithThread, tInterface>> {
+struct DECLSPEC_MODULE XPythonCharDeviceDriverWithThread : public XPythonDriver<XCharDeviceDriver<XPrimaryDriverWithThread, tInterface>> {
     using tBaseDriver = XPythonDriver<XCharDeviceDriver<XPrimaryDriverWithThread, tInterface>>;
     using tBaseDriver::tBaseDriver; //inherits constructors.
 
@@ -193,7 +193,7 @@ struct XPythonCharDeviceDriverWithThreadHelper : public XPythonCharDeviceDriverW
     struct Payload : public tBaseDriver::Payload {};
 };
 
-struct DECLSPEC_KAME XPythonSecondaryDriver : public XPythonDriver<XSecondaryDriver> {
+struct DECLSPEC_MODULE XPythonSecondaryDriver : public XPythonDriver<XSecondaryDriver> {
     using XPythonDriver<XSecondaryDriver>::XPythonDriver; //inherits constructors.
 
     ////originally protected, opened for public.
@@ -424,7 +424,7 @@ KAMEPyBind::export_xdriver(const char *name_) {
 //! Helper struct to declare xnode-based classes to python side.
 //! Classes (NAME), (NAME)_Payload will be defined.
 template <class N, class Base, typename...Args>
-struct PyXNodeExporter {
+struct DECLSPEC_KAME PyXNodeExporter {
     PyXNodeExporter(const char *name = nullptr) {
         pybind11::gil_scoped_acquire guard;
         pycls = XPython::bind.export_xnode<N, Base, Args...>(name);
@@ -456,7 +456,7 @@ struct PyXNodeExporter {
 //! Helper struct to declare abstract driver classes to python side.
 //! Classes (NAME), (NAME)_Payload, (NAME)ItemNode will be defined.
 template <class D, class Base>
-struct PyDriverExporter {
+struct DECLSPEC_KAME PyDriverExporter {
     PyDriverExporter(const char *name = nullptr) {
         pybind11::gil_scoped_acquire guard;
         pycls = XPython::bind.export_xdriver<D, Base>(name);
@@ -479,7 +479,7 @@ struct PyDriverExporter {
     KAMEPyBind::classtype_xnode<D, Base> pycls;
 };
 template <class D, class Base, class Trampoline>
-struct PyDriverExporterWithTrampoline {
+struct DECLSPEC_KAME PyDriverExporterWithTrampoline {
     PyDriverExporterWithTrampoline(const char *name = nullptr) {
         pybind11::gil_scoped_acquire guard;
         pycls = XPython::bind.export_xpythondriver<D, Base, Trampoline>(name);

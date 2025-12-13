@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -89,7 +89,7 @@ using std::dynamic_pointer_cast;
     #define I18N_NOOP(txt) QT_TR_NOOP(txt)
 #endif
 
-class XString : public std::string {
+class DECLSPEC_KAME XString : public std::string {
 using base_type = std::string;
 public:
     XString() = default;
@@ -142,11 +142,11 @@ private:
 };
 
 //! If true, Log all dbgPrint().
-extern bool g_bLogDbgPrint;
+DECLSPEC_KAME extern bool g_bLogDbgPrint;
 //! If true, use mlockall MCL_FUTURE.
-extern bool g_bMLockAlways;
+DECLSPEC_KAME extern bool g_bMLockAlways;
 //! If true, use mlock.
-extern bool g_bUseMLock;
+DECLSPEC_KAME extern bool g_bUseMLock;
 
 DECLSPEC_KAME bool isMemLockAvailable() noexcept;
 
@@ -181,14 +181,14 @@ DECLSPEC_KAME XString formatDouble(const char *fmt, double val);
 DECLSPEC_KAME void formatDoubleValidator(XString &fmt);
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
-struct X86CPUSpec {
+struct DECLSPEC_KAME X86CPUSpec {
 	X86CPUSpec();
 	unsigned int verSSE;
 	bool hasMonitor;
 	unsigned int monitorSizeSmallest;
 	unsigned int monitorSizeLargest;
 };
-extern const X86CPUSpec cg_cpuSpec;
+DECLSPEC_KAME extern const X86CPUSpec cg_cpuSpec;
 #endif
 
 //---------------------------------------------------------------------------

@@ -9,10 +9,14 @@
 #ifndef RUBYWRAPPER_H
 #define RUBYWRAPPER_H
 
+#ifndef DECLSPEC_KAME
+    #define DECLSPEC_KAME
+#endif
+
 struct rb_data_type_struct;
 
 //! Wraps Ruby C interface and hides mysterious ruby.h from C++ libraries.
-class Ruby {
+class DECLSPEC_KAME Ruby {
 private:
     typedef std::pair<std::weak_ptr<void *>, std::weak_ptr<void *>> wrapped_t;
 public:
@@ -43,7 +47,7 @@ public:
     static bool isConvertible(Value var);
 
     template <class P, class T>
-    struct Class {
+    struct DECLSPEC_KAME Class {
         Class(std::shared_ptr<P> parent, const char *rbname, Value super = Nil);
         ~Class();
         template<typename R = void>

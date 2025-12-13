@@ -139,7 +139,7 @@ public:
     //! Data holder and accessor for the node.
     //! Derive Node<XN>::Payload as (\a subclass)::Payload.
     //! The instances have to be capable of copy-construction and be safe to be shared reading.
-    struct Payload : public atomic_countable {
+    struct DECLSPEC_KAME Payload : public atomic_countable {
         Payload() noexcept : m_node(nullptr), m_serial(-1), m_tr(nullptr) {}
         virtual ~Payload() = default;
 
@@ -236,7 +236,7 @@ private:
         bool m_missing;
     };
 
-    struct NegotiationCounter {
+    struct DECLSPEC_KAME NegotiationCounter {
         using cnt_t = int64_t;
         static cnt_t now() noexcept {
             auto tm = XTime::now();
@@ -248,7 +248,7 @@ private:
     //! Generates a serial number assigned to bundling and transaction.\n
     //! During a transaction, a serial is used for determining whether Payload or PacketList should be cloned.\n
     //! During bundle(), it is used to prevent infinite loops due to unbundle()-ing itself.
-    struct SerialGenerator {
+    struct DECLSPEC_KAME SerialGenerator {
         enum : int64_t {SERIAL_NULL = 0};
         struct cnt_t {
             cnt_t() {
@@ -276,7 +276,7 @@ private:
     //! A class wrapping Packet and providing indice and links for lookup.\n
     //! If packet() is absent, a super node should have the up-to-date Packet.\n
     //! If hasPriority() is not set, Packet in a super node may be latest.
-    struct PacketWrapper : public atomic_countable {
+    struct DECLSPEC_KAME PacketWrapper : public atomic_countable {
         PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept;
         //! creates a wrapper not containing a packet but pointing to the upper node.
         //! \param[in] bp \a m_link of the upper node.
@@ -302,7 +302,7 @@ private:
 
         PacketWrapper(const PacketWrapper &) = delete;
     };
-    struct Linkage : public atomic_shared_ptr<PacketWrapper> {
+    struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;

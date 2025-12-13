@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -81,7 +81,7 @@ typedef QForm<QWidget, Ui_FrmGraph> FrmGraph;
 class XGraph;
 class XXYPlot;
 
-class XValChart : public XNode {
+class DECLSPEC_KAME XValChart : public XNode {
 public:
 	XValChart(const char *name, bool runtime, const shared_ptr<XScalarEntry> &entry);
 	void showChart();
@@ -97,7 +97,7 @@ private:
 	shared_ptr<XXYPlot> m_chart;
 };
 
-class XChartList : public XAliasListNode<XValChart> {
+class DECLSPEC_KAME XChartList : public XAliasListNode<XValChart> {
 public:
 	XChartList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
 private:
@@ -109,7 +109,7 @@ private:
 	const shared_ptr<XScalarEntryList> m_entries;
 };
 
-class XValGraph : public XNode {
+class DECLSPEC_KAME XValGraph : public XNode {
 public:
 	XValGraph(const char *name, bool runtime,
 		Transaction &tr_entries, const shared_ptr<XScalarEntryList> &entries);
@@ -145,7 +145,7 @@ private:
 	weak_ptr<XScalarEntryList> m_entries;
 };
 
-class XGraphList : public XCustomTypeListNode<XValGraph> {
+class DECLSPEC_KAME XGraphList : public XCustomTypeListNode<XValGraph> {
 public:
 	XGraphList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
 

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2017 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@
 
 class SoftwareTriggerManager;
 //! Stores and reads time stamps between synchronized devices.
-class SoftwareTrigger : public enable_shared_from_this<SoftwareTrigger> {
+class DECLSPEC_KAME SoftwareTrigger : public enable_shared_from_this<SoftwareTrigger> {
 protected:
     friend class SoftwareTriggerManager;
     SoftwareTrigger(const char *label, unsigned int bits);
@@ -99,7 +99,7 @@ private:
     bool m_isPersistentCoherent;
 };
 
-class SoftwareTriggerManager {
+class DECLSPEC_KAME SoftwareTriggerManager {
 public:
     SoftwareTriggerManager();
 

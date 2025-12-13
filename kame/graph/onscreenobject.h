@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@
 class XGraph1DMathTool;
 class XGraph2DMathTool;
 class X2DImagePlot;
-class OnScreenObject {
+class DECLSPEC_KAME OnScreenObject {
 public:
     OnScreenObject(XQGraphPainter* p) : m_painter(p) {}
     virtual ~OnScreenObject() {}
@@ -47,7 +47,7 @@ private:
 };
 
 template <class OSO>
-class OnPlotObject : public OSO {
+class DECLSPEC_KAME OnPlotObject : public OSO {
 public:
     template <typename... Args>
     OnPlotObject(XQGraphPainter* p, Args&&... args) : OSO(p, std::forward<Args>(args)...) {}
@@ -73,7 +73,7 @@ private:
     XGraph::ScrPoint m_offset;
 };
 template <class OSO, bool IsXAxis>
-class OnAxisObject : public OSO {
+class DECLSPEC_KAME OnAxisObject : public OSO {
 public:
     template <typename... Args>
     OnAxisObject(XQGraphPainter* p, Args&&... args) : OSO(p, std::forward<Args>(args)...) {}
@@ -106,7 +106,7 @@ private:
 };
 
 
-class OnScreenObjectWithMarker : public OnScreenObject {
+class DECLSPEC_KAME OnScreenObjectWithMarker : public OnScreenObject {
 public:
     OnScreenObjectWithMarker(XQGraphPainter* p) : OnScreenObject(p) {}
     //draws objects/bounding box for GL_SELECT
@@ -127,7 +127,7 @@ protected:
     HowToEvade m_direction;
 };
 
-class OnScreenRectObject : public OnScreenObjectWithMarker {
+class DECLSPEC_KAME OnScreenRectObject : public OnScreenObjectWithMarker {
 public:
     enum class Type {Selection, AreaTool, BorderLines, Legends};
     OnScreenRectObject(XQGraphPainter* p, Type type) :
@@ -141,7 +141,7 @@ private:
 };
 
 template <bool IsXAxis>
-class OnAxisFuncObject : public OnAxisObject<OnScreenRectObject, IsXAxis> {
+class DECLSPEC_KAME OnAxisFuncObject : public OnAxisObject<OnScreenRectObject, IsXAxis> {
 public:
     OnAxisFuncObject(XQGraphPainter* p) :
         OnAxisObject<OnScreenRectObject, IsXAxis>(p, OnScreenRectObject::Type::AreaTool) {}
@@ -162,7 +162,7 @@ using OnYAxisRectObject = OnAxisObject<OnScreenRectObject, false>;
 using OnPlotRectObject = OnPlotObject<OnScreenRectObject>;
 
 #include <QImage>
-class OnScreenTexture : public OnScreenObjectWithMarker {
+class DECLSPEC_KAME OnScreenTexture : public OnScreenObjectWithMarker {
 public:
    OnScreenTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<QImage> &image)
        : OnScreenObjectWithMarker(item), id(tid), qimage(image) {}
@@ -181,7 +181,7 @@ private:
    static std::deque<GLuint> unusedIDs;
 };
 
-class OnScreenTextObject : public OnScreenObjectWithMarker {
+class DECLSPEC_KAME OnScreenTextObject : public OnScreenObjectWithMarker {
 public:
     OnScreenTextObject(XQGraphPainter* p);
 

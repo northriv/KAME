@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -47,7 +47,7 @@ using Listener = Transactional::Listener;
 
 using Transactional::Priority;
 
-extern template class Transactional::Node<class XNode>;
+DECLSPEC_KAME extern template class Transactional::Node<class XNode>;
 //! XNode supports accesses from scripts/GUI and shared_from_this(),
 //! in addition to the features of Transactional::Node.
 //! \sa Transactional::Node, create(), createOrphan().

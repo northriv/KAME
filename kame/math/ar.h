@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,7 +20,7 @@
 //! The object holds a list of \a Context in order to search for the minimum of the information criteria.
 //! \sa YuleWalkerAR, BurgMEM
 template <class Context>
-class YuleWalkerCousin : public SpectrumSolver {
+class DECLSPEC_KAME YuleWalkerCousin : public SpectrumSolver {
 public:
 	YuleWalkerCousin(tfuncIC ic);
 	virtual ~YuleWalkerCousin() {}

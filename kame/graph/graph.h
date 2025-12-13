@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -31,7 +31,7 @@
 #define clBlue (unsigned int)QColor(Qt::blue).rgb()
 
 template <typename T>
-struct Vector4 {
+struct DECLSPEC_KAME Vector4 {
     Vector4() noexcept : x(0), y(0), z(0), w(1) {}
     Vector4(const Vector4 &) noexcept = default;
     Vector4(T nx, T ny, T nz = 0, T nw = 1) noexcept : x(nx), y(ny), z(nz), w(nw) {}
@@ -142,7 +142,7 @@ public:
 
     const shared_ptr<Listener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
 
-    struct Payload : public XNode::Payload {
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
         Talker<XGraph*> &onUpdate() {return m_tlkOnUpdate;}
         const Talker<XGraph*> &onUpdate() const {return m_tlkOnUpdate;}
     private:
@@ -417,7 +417,7 @@ public:
 	void addPoint(Transaction &tr,
 		XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z = 0.0, XGraph::VFloat weight = 1.0);
 
-    struct Payload : public XNode::Payload {
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
         Payload() : XNode::Payload(), m_startPos(0) {}
         std::vector<XGraph::ValPoint> &points() {return m_points;}
         const std::vector<XGraph::ValPoint> &points() const {return m_points;}
@@ -454,7 +454,7 @@ public:
 
     void setImage(Transaction &tr, const shared_ptr<QImage> &image);
 
-    struct Payload : public XNode::Payload {
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
         Payload() : XNode::Payload() {}
         //! image dimensions in screen coordinate.
         shared_ptr<QImage> image() const {return m_image;}
