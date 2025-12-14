@@ -10,7 +10,7 @@ if not exist qtdir.txt (
 
  echo Searching for QT 6.5 or later DLLs in %QTROOT%....
 
- dir /S/B %QTROOT% | findstr /r "6.[5-9].*\\mingw.*64\\bin\\Qt6Core.dll" >qtdir.txt
+ dir /S/B %QTROOT% | findstr /r "6.[5-9].*\\llvm.*64\\bin\\Qt6Core.dll" >qtdir.txt
 
 )
 
@@ -36,9 +36,13 @@ if not exist %QTDIR% (
 
 )
 
-set QTDIR=%QTDIR:\bin\Qt6Core.dll=%
 
-set PATH=%QTDIR%\bin;%PATH%
+
+set QTDIR=%QTDIR:\bin\Qt6Core.dll=%
+for /d %%d in (%QTDIR%\..\..\Tools\llvm-mingw*) do @set QTTOOLDIR=%%d
+echo %QTTOOLDIR%
+
+set PATH=%QTDIR%\bin;%QTTOOLDIR%\bin;%PATH%
 set PATH=C:\msys64\usr\bin;C:\msys64\mingw64\bin;C:\msys64\mingw64\lib;%PATH%
 set PYTHONHOME=C:\msys64\mingw64
 

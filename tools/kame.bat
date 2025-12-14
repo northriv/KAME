@@ -10,7 +10,7 @@ if not exist qtdir.txt (
 
  echo Searching for QT 6.5 or later DLLs in %QTROOT%....
 
- dir /S/B %QTROOT% | findstr /r "6.[5-9].*\\mingw.*64\\bin\\Qt6Core.dll" >qtdir.txt
+ dir /S/B %QTROOT% | findstr /r "6.*\\llvm.*64\\bin\\Qt6Core.dll" >qtdir.txt
 
 )
 
@@ -36,17 +36,20 @@ if not exist %QTDIR% (
 
 )
 
+
 set QTDIR=%QTDIR:\bin\Qt6Core.dll=%
+for /d %%d in (%QTDIR%\..\..\Tools\llvm-mingw*) do @set QTTOOLDIR=%%d
+echo %QTTOOLDIR%
+for /d %%d in (%QTDIR%\..\mingw_64) do @set QTMINGW64DIR=%%d
+echo %QTMINGW64DIR% #for libgcc_s_seh and api-ms-win-core-path
 
-set PATH=%QTDIR%\bin;%PATH%
-#set PATH=C:\msys64\usr\bin;C:\msys64\mingw64\bin;C:\msys64\mingw64\lib;%PATH%
-#set PYTHONHOME=C:\msys64\mingw64
-
-#set PYTHONPATH=C:\msys64\mingw64\lib\python3.12;C:\msys64\mingw64\lib\python3.12\site-packages;C:\msys64\mingw64\lib\python3.12\lib-dynload
+set PATH=%QTDIR%\bin;%QTTOOLDIR%\bin;%QTMINGW64DIR%\bin;%PATH%
 
 unset PYTHONHOME
 
 set PYTHONPATH=.\resources\python3.12;.\resources\python3.12\site-packages;.\resources\python3.12\lib-dynload
+
+#C:\msys64\usr\bin\ldd.exe kame.exe
 
 kame.exe
 
