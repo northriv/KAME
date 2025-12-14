@@ -94,7 +94,7 @@ private:
 //! Python scripting support, containing a thread running python monitor program.
 //! The monitor program synchronize Ruby threads and XScriptingThread objects.
 //! \sa XScriptingThread
-class XPython : public XScriptingThreadList {
+class DECLSPEC_KAME XPython : public XScriptingThreadList {
 public:
     XPython(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
     virtual ~XPython();
