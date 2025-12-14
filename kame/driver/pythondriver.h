@@ -160,7 +160,7 @@ protected:
     }
 };
 template<class tInterface = XCharInterface>
-struct XPythonCharDeviceDriverWithThreadHelper : public XPythonCharDeviceDriverWithThread<tInterface> {
+struct DECLSPEC_MODULE XPythonCharDeviceDriverWithThreadHelper : public XPythonCharDeviceDriverWithThread<tInterface> {
     using tBaseDriver = XPythonCharDeviceDriverWithThread<tInterface>;
     using tBaseDriver::tBaseDriver; //inherits constructors.
 
@@ -190,7 +190,7 @@ struct XPythonCharDeviceDriverWithThreadHelper : public XPythonCharDeviceDriverW
             void, tBaseDriver, "execute", executeInPython, is_terminated);
     }
 
-    struct Payload : public tBaseDriver::Payload {};
+    struct DECLSPEC_MODULE Payload : public tBaseDriver::Payload {};
 };
 
 struct DECLSPEC_MODULE XPythonSecondaryDriver : public XPythonDriver<XSecondaryDriver> {
@@ -222,7 +222,7 @@ protected:
 
 };
 
-struct XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
+struct DECLSPEC_MODULE XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
     using XPythonSecondaryDriver::XPythonSecondaryDriver; //inherits constructors.
 
     //! Checks if the connected drivers have valid time stamps.
@@ -253,7 +253,7 @@ struct XPythonSecondaryDriverHelper : public XPythonSecondaryDriver {
     }
 
 
-    struct Payload : public XPythonSecondaryDriver::Payload {};
+    struct DECLSPEC_MODULE Payload : public XPythonSecondaryDriver::Payload {};
 };
 
 template <class N, bool IS_PAYLOAD_DEFINED>
@@ -424,7 +424,7 @@ KAMEPyBind::export_xdriver(const char *name_) {
 //! Helper struct to declare xnode-based classes to python side.
 //! Classes (NAME), (NAME)_Payload will be defined.
 template <class N, class Base, typename...Args>
-struct DECLSPEC_KAME PyXNodeExporter {
+struct DECLSPEC_MODULE PyXNodeExporter {
     PyXNodeExporter(const char *name = nullptr) {
         pybind11::gil_scoped_acquire guard;
         pycls = XPython::bind.export_xnode<N, Base, Args...>(name);
@@ -456,7 +456,7 @@ struct DECLSPEC_KAME PyXNodeExporter {
 //! Helper struct to declare abstract driver classes to python side.
 //! Classes (NAME), (NAME)_Payload, (NAME)ItemNode will be defined.
 template <class D, class Base>
-struct DECLSPEC_KAME PyDriverExporter {
+struct DECLSPEC_MODULE PyDriverExporter {
     PyDriverExporter(const char *name = nullptr) {
         pybind11::gil_scoped_acquire guard;
         pycls = XPython::bind.export_xdriver<D, Base>(name);
@@ -479,7 +479,7 @@ struct DECLSPEC_KAME PyDriverExporter {
     KAMEPyBind::classtype_xnode<D, Base> pycls;
 };
 template <class D, class Base, class Trampoline>
-struct DECLSPEC_KAME PyDriverExporterWithTrampoline {
+struct DECLSPEC_MODULE PyDriverExporterWithTrampoline {
     PyDriverExporterWithTrampoline(const char *name = nullptr) {
         pybind11::gil_scoped_acquire guard;
         pycls = XPython::bind.export_xpythondriver<D, Base, Trampoline>(name);
