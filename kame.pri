@@ -123,6 +123,12 @@ else {
             #workaround for section shortage
             QMAKE_CXXFLAGS_DEBUG += -Os
         }
+        win32-clang-g++ {
+            #workaround for movaps alignment problem
+            QMAKE_CXXFLAGS += -mstackrealign
+            #increases stack size to 8MB, the same as Linux/OS X.
+            QMAKE_CXXFLAGS += -Wl,--stack,8388608
+        }
     }
     else {
         contains(QMAKE_HOST.arch, x86) {

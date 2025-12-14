@@ -109,7 +109,7 @@ macx {
         }
     }
 }
-win32-g++ {
+win32-*g++ {
     greaterThan(QT_MAJOR_VERSION, 5) {
         pythons="c:/msys64/mingw64/bin/python.exe"
         for(PYTHON, pythons) {
