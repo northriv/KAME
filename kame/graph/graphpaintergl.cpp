@@ -75,11 +75,6 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	m_pItem(item),
     m_selectionStateNow(SelectionState::Selecting),
     m_selectionModeNow(SelectionMode::SelNone),
-	m_listpoints(0),
-	m_listaxes(0),
-	m_listgrids(0),
-	m_listplanemarkers(0),
-	m_listaxismarkers(0),
 	m_bIsRedrawNeeded(true),
 	m_bIsAxisRedrawNeeded(false),
 	m_bTilted(false),
@@ -97,8 +92,9 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 XQGraphPainter::~XQGraphPainter() {
     m_pItem->makeCurrent();
 
-    if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
-    if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
+    if(m_listplane_picker) glDeleteLists(m_listplane_picker, 1);
+    if(m_listaxes_picker) glDeleteLists(m_listaxes_picker, 1);
+    if(m_listpoints_picker) glDeleteLists(m_listpoints_picker, 1);
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
@@ -278,17 +274,17 @@ XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
 double
 XQGraphPainter::selectPlane(int x, int y, int dx, int dy,
 							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-    return selectGL(x, y, dx, dy, m_listplanemarkers, scr, dsdx, dsdy);
+    return selectGL(x, y, dx, dy, m_listplane_picker, scr, dsdx, dsdy);
 }
 double
 XQGraphPainter::selectAxis(int x, int y, int dx, int dy,
                            XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-    return selectGL(x, y, dx, dy, m_listaxismarkers, scr, dsdx, dsdy);
+    return selectGL(x, y, dx, dy, m_listaxes_picker, scr, dsdx, dsdy);
 }
 double
 XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
 							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-	return selectGL(x, y, dx, dy, m_listpoints, scr, dsdx, dsdy);
+    return selectGL(x, y, dx, dy, m_listpoints_picker, scr, dsdx, dsdy);
 }
 void
 XQGraphPainter::initializeGL () {
@@ -301,13 +297,15 @@ XQGraphPainter::initializeGL () {
 //        glDisable(GL_MULTISAMPLE);
 
     //define display lists etc.:
-    if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
-    if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
+    if(m_listplane_picker) glDeleteLists(m_listplane_picker, 1);
+    if(m_listaxes_picker) glDeleteLists(m_listaxes_picker, 1);
+    if(m_listpoints_picker) glDeleteLists(m_listpoints_picker, 1);
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
-    m_listplanemarkers = glGenLists(1);
-    m_listaxismarkers = glGenLists(1);
+    m_listplane_picker = glGenLists(1);
+    m_listaxes_picker = glGenLists(1);
+    m_listpoints_picker = glGenLists(1);
     m_listgrids = glGenLists(1);
     m_listaxes = glGenLists(1);
     m_listpoints = glGenLists(1);
@@ -510,7 +508,13 @@ XQGraphPainter::paintGL () {
         glNewList(m_listpoints, GL_COMPILE_AND_EXECUTE);
         drawOffScreenPoints(shot);
         glEndList();
-        
+
+        checkGLError();
+
+        glNewList(m_listpoints_picker, GL_COMPILE);
+        drawOffScreenPoints(shot, ObjClassColorR::Point);
+        glEndList();
+
         checkGLError(); 
 
         if(persist > 0.0)
@@ -523,14 +527,14 @@ XQGraphPainter::paintGL () {
 
         checkGLError();
 
-        glNewList(m_listaxismarkers, GL_COMPILE);
-        drawOffScreenAxisMarkers(shot);
+        glNewList(m_listaxes_picker, GL_COMPILE);
+        drawOffScreenAxes(shot, ObjClassColorR::Axis);
         glEndList();
 
         checkGLError();
 
-        glNewList(m_listplanemarkers, GL_COMPILE);
-        drawOffScreenPlaneMarkers(shot);
+        glNewList(m_listplane_picker, GL_COMPILE);
+        drawOffScreenPlanes(shot, ObjClassColorR::Plane);
         glEndList();
 
         checkGLError();

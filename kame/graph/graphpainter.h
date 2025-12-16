@@ -153,11 +153,12 @@ public:
 
      //! Draws plots, axes.
     Snapshot startDrawing();
+    //For color picking. Red is given by ObjClassColorR, Green is by ID (# in axes, for examplee).
+    enum class ObjClassColorR {None, Point, Axis, Plane, Grid, OSO};
      void drawOffScreenGrids(const Snapshot &shot);
-     void drawOffScreenPlaneMarkers(const Snapshot &shot); //!< for \a selectGL()
-     void drawOffScreenPoints(const Snapshot &shot);
-     void drawOffScreenAxes(const Snapshot &shot);
-     void drawOffScreenAxisMarkers(const Snapshot &shot); //!< for \a selectGL()
+     void drawOffScreenPlanes(const Snapshot &shot, ObjClassColorR red_color_picking); //Color picking only.
+     void drawOffScreenPoints(const Snapshot &shot, ObjClassColorR red_color_picking = ObjClassColorR::None); //ObjClassColorR::None if not color picking.
+     void drawOffScreenAxes(const Snapshot &shot, ObjClassColorR red_color_picking = ObjClassColorR::None); //ObjClassColorR::None if not color picking.
      //! depends on viewpoint
      void drawOnScreenObj(const Snapshot &shot);
      //! independent of viewpoint. For coordinate, legend, hints. title,...
@@ -188,8 +189,10 @@ public:
                      XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy );
      void setInitView();
 
-     GLint m_listpoints, m_listaxes,
-        m_listaxismarkers, m_listgrids, m_listplanemarkers;
+     GLint m_listpoints = 0, m_listaxes = 0, m_listgrids = 0;
+
+     GLint m_listpoints_picker = 0,
+        m_listaxes_picker = 0, m_listplane_picker = 0;
 
      atomic<bool> m_bIsRedrawNeeded;
     // bool m_bAvoidCallingLists = false;

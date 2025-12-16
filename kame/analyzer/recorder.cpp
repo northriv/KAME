@@ -279,7 +279,7 @@ XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 	else {
 		m_lsnOnFlush.reset();
 		m_lsnOnLastLineChanged.reset();
-		lastLine()->setUIEnabled(false);
+        lastLine()->setUIEnabled(false);
 		gErrPrint(i18n("Failed to open file."));
 	}
 }
@@ -318,5 +318,7 @@ XTextWriter::onLogFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 	}
 	else {
         gWarnPrint(i18n("All-entry logger: Failed to open file."));
-	}
+        if(***logRecording())
+            trans( *logRecording()) = false;
+    }
 }

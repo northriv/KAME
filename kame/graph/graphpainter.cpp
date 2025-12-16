@@ -611,12 +611,14 @@ XQGraphPainter::startDrawing() {
     });
 }
 void
-XQGraphPainter::drawOffScreenPlaneMarkers(const Snapshot &shot) {
-	setColor((QRgb)shot[ *m_graph->backGround()], 0.3);
-	if(shot.size(m_graph->plots())) {
+XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot, ObjClassColorR red_color_picking) {
+    if(shot.size(m_graph->plots())) {
 		const auto &plots_list( *shot.list(m_graph->plots()));
-		for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
-			auto plot = static_pointer_cast<XPlot>( *it);
+        unsigned int plot_num = 0;
+        for(auto &&x: plots_list) {
+            glColor4f((int)red_color_picking/256.0f, (plot_num++)/256.0f, 0.0, 1.0f);
+
+            auto plot = static_pointer_cast<XPlot>(x);
 			XGraph::GPoint g1(0.0, 0.0, 0.0),
 				g2(1.0, 0.0, 0.0),
 				g3(0.0, 1.0, 0.0),
@@ -655,31 +657,36 @@ XQGraphPainter::drawOffScreenPlaneMarkers(const Snapshot &shot) {
 	}
 }
 void
-XQGraphPainter::drawOffScreenAxisMarkers(const Snapshot &shot) {
-    const double axistomarker = 0.05;
+XQGraphPainter::drawOffScreenAxes(const Snapshot &shot, ObjClassColorR red_color_picking) {
     if(shot.size(m_graph->axes())) {
         const auto &axes_list( *shot.list(m_graph->axes()));
-        for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
-            auto axis = static_pointer_cast<XAxis>( *it);
-            setColor(shot[ *axis->ticColor()]);
+        unsigned int axis_num = 0;
+        for(auto &&x: axes_list) {
+            auto axis = static_pointer_cast<XAxis>(x);
             if((axis->direction() != XAxis::AxisDirection::Z) || m_bTilted) {
-                XGraph::ScrPoint s10,s11,s20,s21,vdir;
-                axis->axisToScreen(shot, 0.0, &s10);
-                axis->axisToScreen(shot, 1.0, &s20);
-                s11 = s10;
-                s21 = s20;
-                vdir = s20;
-                vdir -= s10;
-                posOffAxis(vdir, &s10, axistomarker);
-                posOffAxis(vdir, &s11, -axistomarker);
-                posOffAxis(vdir, &s20, axistomarker);
-                posOffAxis(vdir, &s21, -axistomarker);
-                beginQuad(true);
-                setVertex(s10);
-                setVertex(s11);
-                setVertex(s21);
-                setVertex(s20);
-                endQuad();
+                if(red_color_picking == ObjClassColorR::None)
+                    axis->drawAxis(shot, this);
+                else {
+                    glColor4f((int)red_color_picking/256.0f, (axis_num++)/256.0f, 0.0, 1.0f);
+                    constexpr double axistomarker = 0.05;
+                    XGraph::ScrPoint s10,s11,s20,s21,vdir;
+                    axis->axisToScreen(shot, 0.0, &s10);
+                    axis->axisToScreen(shot, 1.0, &s20);
+                    s11 = s10;
+                    s21 = s20;
+                    vdir = s20;
+                    vdir -= s10;
+                    posOffAxis(vdir, &s10, axistomarker);
+                    posOffAxis(vdir, &s11, -axistomarker);
+                    posOffAxis(vdir, &s20, axistomarker);
+                    posOffAxis(vdir, &s21, -axistomarker);
+                    beginQuad(true);
+                    setVertex(s10);
+                    setVertex(s11);
+                    setVertex(s21);
+                    setVertex(s20);
+                    endQuad();
+                }
             }
         }
     }
@@ -695,7 +702,7 @@ XQGraphPainter::drawOffScreenGrids(const Snapshot &shot) {
 	}
 }
 void
-XQGraphPainter::drawOffScreenPoints(const Snapshot &shot) {
+XQGraphPainter::drawOffScreenPoints(const Snapshot &shot, ObjClassColorR red_color_picking) {
 	if(shot.size(m_graph->plots())) {
 		const auto &plots_list( *shot.list(m_graph->plots()));
 		for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
@@ -704,14 +711,4 @@ XQGraphPainter::drawOffScreenPoints(const Snapshot &shot) {
 		}
 	}
 }
-void
-XQGraphPainter::drawOffScreenAxes(const Snapshot &shot) {
-	if(shot.size(m_graph->axes())) {
-		const auto &axes_list( *shot.list(m_graph->axes()));
-		for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
-			auto axis = static_pointer_cast<XAxis>( *it);
-            if((axis->direction() != XAxis::AxisDirection::Z) || m_bTilted)
-                axis->drawAxis(shot, this);
-		}
-	}
-}
+
