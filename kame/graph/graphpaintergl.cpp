@@ -266,6 +266,13 @@ XQGraphPainter::pickObjectGL(int x, int y, int dx, int dy, GLint list) {
         windowToScreen(x, y, zmax, &scr);
         windowToScreen(x + 1, y, zmax, &dsdx);
         windowToScreen(x, y + 1, zmax, &dsdy);
+
+//        GLfloat zbuf[4];
+//        glReadPixels(x, m_pItem->height() * m_pixel_ratio - y, 2, 2, GL_DEPTH_COMPONENT, GL_FLOAT, zbuf);
+//        GLubyte pixels[4*4];
+//        glReadPixels(x, m_pItem->height() * m_pixel_ratio - y, 2, 2, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+//        return {zmin, (ObjClassColorR)pixels[0], pixels[1], scr, dsdx, dsdy};
+
     }
     checkGLError();
 
