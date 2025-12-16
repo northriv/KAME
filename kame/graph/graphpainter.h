@@ -134,15 +134,10 @@ public:
      //! \param x,y center of clipping area
      //! \param dx,dy clipping width,height
      //! \param dz window of depth
-     //! \param scr hits
-     //! \param dsdx,dsdy diff. of 1 pixel
-     //! \return found depth
-     double selectPlane(int x, int y, int dx, int dy,
-                        XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy );
-     double selectAxis(int x, int y, int dx, int dy,
-                       XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy );
-     double selectPoint(int x, int y, int dx, int dy,
-                        XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy );
+     //! \return found depth., object id, screen coord., dsdx,dsdy diff. by 1 pixel
+    std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectPlane(int x, int y, int dx, int dy);
+    std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectAxis(int x, int y, int dx, int dy);
+    std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectPoint(int x, int y, int dx, int dy);
 
      shared_ptr<Listener> m_lsnRedraw;
      void onRedraw(const Snapshot &shot, XGraph *graph);
@@ -185,8 +180,10 @@ public:
      int m_tiltLastPos[2];
      int m_pointerLastPos[2];
 
-     double selectGL(int x, int y, int dx, int dy, GLint list,
-                     XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy );
+     //\return depth, class, object id, screen coord., dsdx,dsdy diff. by 1 pixe
+     //If select buffer is used, object class and id are zero.
+     std::tuple<double, ObjClassColorR, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
+        pickObjectGL(int x, int y, int dx, int dy, GLint list);
      void setInitView();
 
      GLint m_listpoints = 0, m_listaxes = 0, m_listgrids = 0;

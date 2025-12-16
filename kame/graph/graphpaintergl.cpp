@@ -220,9 +220,8 @@ XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init
 
 #define MAX_SELECTION 100
 
-double
-XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
-						 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
+std::tuple<double, XQGraphPainter::ObjClassColorR, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
+XQGraphPainter::pickObjectGL(int x, int y, int dx, int dy, GLint list) {
     glGetError(); //reset error
 
     GLuint selections[MAX_SELECTION];
@@ -261,30 +260,38 @@ XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
     		}
     	}
 	}
-	if((zmin < 1.0) && (zmax > 0.0) ) {
-        windowToScreen(x, y, zmax, scr);
-        windowToScreen(x + 1, y, zmax, dsdx);
-        windowToScreen(x, y + 1, zmax, dsdy);
+    XGraph::ScrPoint scr = {};
+    XGraph::ScrPoint dsdx = {}, dsdy = {};
+    if((zmin < 1.0) && (zmax > 0.0) ) {
+        windowToScreen(x, y, zmax, &scr);
+        windowToScreen(x + 1, y, zmax, &dsdx);
+        windowToScreen(x, y + 1, zmax, &dsdy);
     }
     checkGLError();
 
-    return zmin;
+    return {zmin, ObjClassColorR::None, 0, scr, dsdx, dsdy};
 }
 
-double
-XQGraphPainter::selectPlane(int x, int y, int dx, int dy,
-							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-    return selectGL(x, y, dx, dy, m_listplane_picker, scr, dsdx, dsdy);
+std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
+XQGraphPainter::selectPlane(int x, int y, int dx, int dy) {
+    auto [zmin, cls, id, scr, dsdx, dsdy] = pickObjectGL(x, y, dx, dy, m_listplane_picker);
+    if(cls != ObjClassColorR::Plane)
+        id = 0;
+    return {zmin, id, scr, dsdx, dsdy};
 }
-double
-XQGraphPainter::selectAxis(int x, int y, int dx, int dy,
-                           XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-    return selectGL(x, y, dx, dy, m_listaxes_picker, scr, dsdx, dsdy);
+std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
+XQGraphPainter::selectAxis(int x, int y, int dx, int dy) {
+    auto [zmin, cls, id, scr, dsdx, dsdy] = pickObjectGL(x, y, dx, dy, m_listaxes_picker);
+    if(cls != ObjClassColorR::Axis)
+        id = 0;
+    return {zmin, id, scr, dsdx, dsdy};
 }
-double
-XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
-							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-    return selectGL(x, y, dx, dy, m_listpoints_picker, scr, dsdx, dsdy);
+std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
+XQGraphPainter::selectPoint(int x, int y, int dx, int dy) {
+    auto [zmin, cls, id, scr, dsdx, dsdy] = pickObjectGL(x, y, dx, dy, m_listpoints_picker);
+    if(cls != ObjClassColorR::Point)
+        id = 0;
+    return {zmin, id, scr, dsdx, dsdy};
 }
 void
 XQGraphPainter::initializeGL () {

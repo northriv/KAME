@@ -129,8 +129,7 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 		m_bReqHelp = false;
         return ret;
 	}
-	double z;
-    
+
 	m_selectionStateNow = state;
 	switch(state) {
     case SelectionState::SelStart:
@@ -140,24 +139,26 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 		m_tiltLastPos[0] = x;
 		m_tiltLastPos[1] = y;
 		switch(mode) {
-        case SelectionMode::SelPlane:
-			m_foundPlane.reset();
-            z = selectPlane(x, y,
-                            (int)(SELECT_WIDTH * m_pItem->width()),
-                            (int)(SELECT_WIDTH * m_pItem->height()),
-							&m_startScrPos, &m_startScrDX, &m_startScrDY);
-			if(z < 1.0)
-				m_foundPlane = findPlane(Snapshot( *m_graph), m_startScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
-			m_finishScrPos = m_startScrPos;
+        case SelectionMode::SelPlane: {
+                m_foundPlane.reset();
+                auto [zmin, objid, scr, dsdx, dsdy] = selectPlane(x, y,
+                                (int)(SELECT_WIDTH * m_pItem->width()),
+                                (int)(SELECT_WIDTH * m_pItem->height()));
+                if(zmin < 1.0)
+                    m_foundPlane = findPlane(Snapshot( *m_graph), scr, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
+                m_finishScrPos = m_startScrPos = scr;
+                m_startScrDX = dsdx; m_startScrDY = dsdy;
+            }
 			break;
-        case SelectionMode::SelAxis:
-			m_foundAxis.reset();
-            z = selectAxis(x, y,
-                           (int)(SELECT_WIDTH * m_pItem->width()),
-                           (int)(SELECT_WIDTH * m_pItem->height()),
-						   &m_startScrPos, &m_startScrDX, &m_startScrDY);
-			if(z < 1.0) m_foundAxis = findAxis(Snapshot( *m_graph), m_startScrPos);
-			m_finishScrPos = m_startScrPos;
+        case SelectionMode::SelAxis: {
+                m_foundAxis.reset();
+                auto [zmin, objid, scr, dsdx, dsdy] = selectAxis(x, y,
+                               (int)(SELECT_WIDTH * m_pItem->width()),
+                               (int)(SELECT_WIDTH * m_pItem->height()));
+                if(zmin < 1.0) m_foundAxis = findAxis(Snapshot( *m_graph), scr);
+                m_finishScrPos = m_startScrPos = scr;
+                m_startScrDX = dsdx; m_startScrDY = dsdy;
+            }
 			break;
 		default:
 			break;
@@ -174,26 +175,32 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 		break;
     }
 	switch(mode) {
-    case SelectionMode::SelNone:
-		m_foundPlane.reset();
-        z = selectPlane(x, y,
+    case SelectionMode::SelNone: {
+            m_foundPlane.reset();
+            auto [zmin, objid, scr, dsdx, dsdy] = selectPlane(x, y,
+                            (int)(SELECT_WIDTH * m_pItem->width()),
+                            (int)(SELECT_WIDTH * m_pItem->height()));
+            if(zmin < 1.0)
+                m_foundPlane = findPlane(Snapshot( *m_graph), scr, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
+            m_finishScrPos = scr;
+            m_finishScrDX = dsdx; m_finishScrDY = dsdy;
+        }
+		break;
+    case SelectionMode::SelPlane: {
+            auto [zmin, objid, scr, dsdx, dsdy] = selectPlane(x, y,
                         (int)(SELECT_WIDTH * m_pItem->width()),
-                        (int)(SELECT_WIDTH * m_pItem->height()),
-                        &m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
-		if(z < 1.0)
-            m_foundPlane = findPlane(Snapshot( *m_graph), m_finishScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
+                        (int)(SELECT_WIDTH * m_pItem->height()));
+            m_finishScrPos = scr;
+            m_finishScrDX = dsdx; m_finishScrDY = dsdy;
+        }
 		break;
-    case SelectionMode::SelPlane:
-        selectPlane(x, y,
-                    (int)(SELECT_WIDTH * m_pItem->width()),
-                    (int)(SELECT_WIDTH * m_pItem->height()),
-                    &m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
-		break;
-    case SelectionMode::SelAxis:
-        selectAxis(x, y,
-                   (int)(SELECT_WIDTH * m_pItem->width()),
-                   (int)(SELECT_WIDTH * m_pItem->height()),
-                   &m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
+    case SelectionMode::SelAxis: {
+            auto [zmin, objid, scr, dsdx, dsdy] = selectAxis(x, y,
+                       (int)(SELECT_WIDTH * m_pItem->width()),
+                       (int)(SELECT_WIDTH * m_pItem->height()));
+            m_finishScrPos = scr;
+            m_finishScrDX = dsdx; m_finishScrDY = dsdy;
+        }
 		break;
     case SelectionMode::TiltTracking:
 	{
