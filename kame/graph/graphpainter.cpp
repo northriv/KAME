@@ -141,23 +141,23 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 		switch(mode) {
         case SelectionMode::SelPlane: {
                 m_foundPlane.reset();
-                auto [zmin, objid, scr, dsdx, dsdy] = selectPlane(x, y,
+                auto [zmin, objid, scr, sdx, sdy] = selectPlane(x, y,
                                 (int)(SELECT_WIDTH * m_pItem->width()),
                                 (int)(SELECT_WIDTH * m_pItem->height()));
                 if(zmin < 1.0)
                     m_foundPlane = findPlane(Snapshot( *m_graph), scr, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
                 m_finishScrPos = m_startScrPos = scr;
-                m_startScrDX = dsdx; m_startScrDY = dsdy;
+                m_startScrDX = sdx; m_startScrDY = sdy;
             }
 			break;
         case SelectionMode::SelAxis: {
                 m_foundAxis.reset();
-                auto [zmin, objid, scr, dsdx, dsdy] = selectAxis(x, y,
+                auto [zmin, objid, scr, sdx, sdy] = selectAxis(x, y,
                                (int)(SELECT_WIDTH * m_pItem->width()),
                                (int)(SELECT_WIDTH * m_pItem->height()));
                 if(zmin < 1.0) m_foundAxis = findAxis(Snapshot( *m_graph), scr);
                 m_finishScrPos = m_startScrPos = scr;
-                m_startScrDX = dsdx; m_startScrDY = dsdy;
+                m_startScrDX = sdx; m_startScrDY = sdy;
             }
 			break;
 		default:
@@ -177,29 +177,29 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 	switch(mode) {
     case SelectionMode::SelNone: {
             m_foundPlane.reset();
-            auto [zmin, objid, scr, dsdx, dsdy] = selectPlane(x, y,
+            auto [zmin, objid, scr, sdx, sdy] = selectPlane(x, y,
                             (int)(SELECT_WIDTH * m_pItem->width()),
                             (int)(SELECT_WIDTH * m_pItem->height()));
             if(zmin < 1.0)
                 m_foundPlane = findPlane(Snapshot( *m_graph), scr, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
             m_finishScrPos = scr;
-            m_finishScrDX = dsdx; m_finishScrDY = dsdy;
+            m_finishScrDX = sdx; m_finishScrDY = sdy;
         }
 		break;
     case SelectionMode::SelPlane: {
-            auto [zmin, objid, scr, dsdx, dsdy] = selectPlane(x, y,
+            auto [zmin, objid, scr, sdx, sdy] = selectPlane(x, y,
                         (int)(SELECT_WIDTH * m_pItem->width()),
                         (int)(SELECT_WIDTH * m_pItem->height()));
             m_finishScrPos = scr;
-            m_finishScrDX = dsdx; m_finishScrDY = dsdy;
+            m_finishScrDX = sdx; m_finishScrDY = sdy;
         }
 		break;
     case SelectionMode::SelAxis: {
-            auto [zmin, objid, scr, dsdx, dsdy] = selectAxis(x, y,
+            auto [zmin, objid, scr, sdx, sdy] = selectAxis(x, y,
                        (int)(SELECT_WIDTH * m_pItem->width()),
                        (int)(SELECT_WIDTH * m_pItem->height()));
             m_finishScrPos = scr;
-            m_finishScrDX = dsdx; m_finishScrDY = dsdy;
+            m_finishScrDX = sdx; m_finishScrDY = sdy;
         }
 		break;
     case SelectionMode::TiltTracking:
@@ -623,7 +623,8 @@ XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot, ObjClassColorR red_col
 		const auto &plots_list( *shot.list(m_graph->plots()));
         unsigned int plot_num = 0;
         for(auto &&x: plots_list) {
-            glColor4f((int)red_color_picking/256.0f, (plot_num++)/256.0f, 0.0, 1.0f);
+            glColor4f((int)red_color_picking/256.0f, (plot_num/256u)/256.0f, (plot_num % 256u)/256.0f, 1.0f);
+            plot_num++;
 
             auto plot = static_pointer_cast<XPlot>(x);
 			XGraph::GPoint g1(0.0, 0.0, 0.0),
@@ -674,7 +675,8 @@ XQGraphPainter::drawOffScreenAxes(const Snapshot &shot, ObjClassColorR red_color
                 if(red_color_picking == ObjClassColorR::None)
                     axis->drawAxis(shot, this);
                 else {
-                    glColor4f((int)red_color_picking/256.0f, (axis_num++)/256.0f, 0.0, 1.0f);
+                    glColor4f((int)red_color_picking/256.0f, (axis_num/256u)/256.0f, (axis_num%256u)/256.0f, 1.0f);
+                    axis_num++;
                     constexpr double axistomarker = 0.05;
                     XGraph::ScrPoint s10,s11,s20,s21,vdir;
                     axis->axisToScreen(shot, 0.0, &s10);

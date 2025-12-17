@@ -502,7 +502,7 @@ XPlot::drawLegend(const Snapshot &shot, XQGraphPainter *painter, const XGraph::S
 		}
 		if(shot[ *drawPoints()]) {
 			float alpha = max(0.0f, min((float)(shot[ *intensity()] * PLOT_POINT_INTENS), 1.0f));
-			painter->setColor(shot[ *pointColor()], alpha );
+            painter->setColor(shot[ *pointColor()], alpha );
 			painter->beginPoint(PLOT_POINT_SIZE);
 			if(colorplot)
 				painter->setColor(colorhigh);
@@ -526,7 +526,7 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 		int cnt = m_ptsSnapped.size();
 		m_canvasPtsSnapped.resize(cnt);
 		tCanvasPoint *cpt;
-		{
+        if(cnt) {
 			XGraph::ScrPoint s1;
 			XGraph::GPoint g1;
 			unsigned int colorhigh = shot[ *colorPlotColorHigh()];
@@ -550,7 +550,7 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 				cpt++;
 			}
 		}
-		if(shot[ *drawBars()]) {
+        if(shot[ *drawBars()] && cnt) {
 			XGraph::ScrPoint s1, s2;
 			tCanvasPoint pt2;
 			double g0y = m_curAxisY->valToAxis(0.0);
@@ -574,7 +574,7 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 			}
 			painter->endLine();
 		}
-		if(shot[ *drawLines()]) {
+        if(shot[ *drawLines()] && (cnt > 1)) {
 			float alpha = max(0.0f, min((float)(shot[ *intensity()] * PLOT_LINE_INTENS), 1.0f));
 			painter->setColor(shot[ *lineColor()], alpha );
 			painter->beginLine(1.0);
@@ -594,7 +594,7 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 			}
 			painter->endLine();
 		}
-		if(shot[ *drawPoints()]) {
+        if(shot[ *drawPoints()] && cnt) {
 			float alpha = max(0.0f, min((float)(shot[ *intensity()] * PLOT_POINT_INTENS), 1.0f));
 			painter->setColor(shot[ *pointColor()], alpha );
 			painter->beginPoint(PLOT_POINT_SIZE);

@@ -39,7 +39,8 @@ public:
         XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item);
      virtual ~XQGraphPainter();
 
-     //! Selections
+    //! Selections (mouse picking)
+    //! Be sure to make the GL context current before calling these.
      enum class SelectionMode {SelNone, SelPoint, SelAxis, SelPlane, TiltTracking};
      enum class SelectionState {SelStart, SelFinish, SelFinishByTool, Selecting};
      using SelectedResult = std::tuple<shared_ptr<XAxis>, XGraph::VFloat, XGraph::VFloat>;
@@ -130,11 +131,12 @@ public:
 
      void requestRepaint();
  private:
-     //! Selections
+     //! Selections (mouse picking)
+     //! Be sure to make the GL context current before calling these.
      //! \param x,y center of clipping area
      //! \param dx,dy clipping width,height
      //! \param dz window of depth
-     //! \return found depth., object id, screen coord., dsdx,dsdy diff. by 1 pixel
+     //! \return found depth., object id, screen coord., sdx,sdy diff. by 1 pixel
     std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectPlane(int x, int y, int dx, int dy);
     std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectAxis(int x, int y, int dx, int dy);
     std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectPoint(int x, int y, int dx, int dy);
@@ -149,7 +151,7 @@ public:
      //! Draws plots, axes.
     Snapshot startDrawing();
     //For color picking. Red is given by ObjClassColorR, Green is by ID (# in axes, for examplee).
-    enum class ObjClassColorR {None, Point, Axis, Plane, Grid, OSO};
+    enum class ObjClassColorR {None, Axis, Plane, Grid, OSO, Point = 128};
      void drawOffScreenGrids(const Snapshot &shot);
      void drawOffScreenPlanes(const Snapshot &shot, ObjClassColorR red_color_picking); //Color picking only.
      void drawOffScreenPoints(const Snapshot &shot, ObjClassColorR red_color_picking = ObjClassColorR::None); //ObjClassColorR::None if not color picking.
@@ -180,7 +182,7 @@ public:
      int m_tiltLastPos[2];
      int m_pointerLastPos[2];
 
-     //\return depth, class, object id, screen coord., dsdx,dsdy diff. by 1 pixe
+     //\return depth, class, object id, screen coord., sdx,sdy diff. by 1 pixe
      //If select buffer is used, object class and id are zero.
      std::tuple<double, ObjClassColorR, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
         pickObjectGL(int x, int y, int dx, int dy, GLint list);

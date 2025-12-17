@@ -140,14 +140,14 @@ XQGraph::mouseMoveEvent ( QMouseEvent* e) {
     static XTime lasttime = XTime::now();
 	if(XTime::now() - lasttime < 0.033) return;
 	if( !m_painter ) return;
-//    makeCurrent(); //this makes collapse of texture during mouse over.
+    makeCurrent(); //When using GLselect, this makes collapse of texture during mouse over.
     m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::Selecting, XQGraphPainter::SelectionMode::SelNone, m_toolDesc);
-//    doneCurrent();
+    doneCurrent();
 }
 void
 XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
 	if( !m_painter ) return;
-//    makeCurrent();
+    makeCurrent();
     auto [r1, r2] = m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelFinish, XQGraphPainter::SelectionMode::SelNone, m_toolDesc);
     auto [axis1, vsrc1, vdst1] = r1;
     auto [axis2, vsrc2, vdst2] = r2;
@@ -172,7 +172,7 @@ XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
     m_isPlaneSelectionByTool = false;
     m_isAxisSelectionByTool = false;
     m_toolDesc = {};
-//    doneCurrent();
+    doneCurrent();
 }
 void
 XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {

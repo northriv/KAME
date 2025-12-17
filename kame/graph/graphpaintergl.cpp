@@ -222,61 +222,150 @@ XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init
 
 std::tuple<double, XQGraphPainter::ObjClassColorR, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
 XQGraphPainter::pickObjectGL(int x, int y, int dx, int dy, GLint list) {
-    glGetError(); //reset error
+//    glGetError(); //reset error
 
-    GLuint selections[MAX_SELECTION];
-    glSelectBuffer(MAX_SELECTION, selections);
-	glRenderMode(GL_SELECT);
-	glInitNames();
-	glPushName((unsigned int)-1);
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
-    //pick up small region
-	glLoadIdentity();
-    gluPickMatrix((double)(x - dx) * m_pixel_ratio, (double)m_viewport[3] - (y + dy) * m_pixel_ratio,
-            2 * dx * m_pixel_ratio, 2 * dy * m_pixel_ratio, m_viewport);
-	glMultMatrixd(m_proj);
+//    GLuint selections[MAX_SELECTION];
+//    glSelectBuffer(MAX_SELECTION, selections);
+//	glRenderMode(GL_SELECT);
+//	glInitNames();
+//	glPushName((unsigned int)-1);
+//	glMatrixMode(GL_PROJECTION);
+//	glPushMatrix();
+//    //pick up small region
+//	glLoadIdentity();
+//    gluPickMatrix((double)(x - dx) * m_pixel_ratio, (double)m_viewport[3] - (y + dy) * m_pixel_ratio,
+//            2 * dx * m_pixel_ratio, 2 * dy * m_pixel_ratio, m_viewport);
+//	glMultMatrixd(m_proj);
       
-	glEnable(GL_DEPTH_TEST);
-	glLoadName(1);
-	glCallList(list);
+//	glEnable(GL_DEPTH_TEST);
+//	glLoadName(1);
+//	glCallList(list);
       
-	glMatrixMode(GL_PROJECTION);
-	glPopMatrix();
-	int hits = glRenderMode(GL_RENDER);
-	double zmin = 1.1;
-	double zmax = -0.1;
-	GLuint *ptr = selections;
-	for (int i = 0; i < hits; i++) {
-    	double zmin1 = (double)ptr[1] / (double)0xffffffffu;
-    	double zmax1  = (double)ptr[2] / (double)0xffffffffu;
-    	int n = ptr[0];
-    	ptr += 3;
-    	for (int j = 0; j < n; j++) {
-			int k = *(ptr++);
-    	  	if(k != -1) {
-    			zmin = min(zmin1, zmin);
-    			zmax = max(zmax1, zmax);
-    		}
-    	}
-	}
-    XGraph::ScrPoint scr = {};
-    XGraph::ScrPoint dsdx = {}, dsdy = {};
-    if((zmin < 1.0) && (zmax > 0.0) ) {
-        windowToScreen(x, y, zmax, &scr);
-        windowToScreen(x + 1, y, zmax, &dsdx);
-        windowToScreen(x, y + 1, zmax, &dsdy);
+//	glMatrixMode(GL_PROJECTION);
+//	glPopMatrix();
+//	int hits = glRenderMode(GL_RENDER);
+//	double zmin = 1.1;
+//	double zmax = -0.1;
+//	GLuint *ptr = selections;
+//	for (int i = 0; i < hits; i++) {
+//    	double zmin1 = (double)ptr[1] / (double)0xffffffffu;
+//    	double zmax1  = (double)ptr[2] / (double)0xffffffffu;
+//    	int n = ptr[0];
+//    	ptr += 3;
+//    	for (int j = 0; j < n; j++) {
+//			int k = *(ptr++);
+//    	  	if(k != -1) {
+//    			zmin = min(zmin1, zmin);
+//    			zmax = max(zmax1, zmax);
+//    		}
+//    	}
+//	}
+//    XGraph::ScrPoint scr = {};
+//    XGraph::ScrPoint dsdx = {}, dsdy = {};
+//    if((zmin < 1.0) && (zmax > 0.0) ) {
+//        windowToScreen(x, y, zmax, &scr);
+//        windowToScreen(x + 1, y, zmax, &dsdx);
+//        windowToScreen(x, y + 1, zmax, &dsdy);
 
-//        GLfloat zbuf[4];
-//        glReadPixels(x, m_pItem->height() * m_pixel_ratio - y, 2, 2, GL_DEPTH_COMPONENT, GL_FLOAT, zbuf);
-//        GLubyte pixels[4*4];
-//        glReadPixels(x, m_pItem->height() * m_pixel_ratio - y, 2, 2, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-//        return {zmin, (ObjClassColorR)pixels[0], pixels[1], scr, dsdx, dsdy};
 
-    }
+//    }
+//    checkGLError();
+
+//    return {zmin, ObjClassColorR::None, 0, scr, dsdx, dsdy};
+
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f); //No object
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    //stores states
+    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glMatrixMode(GL_TEXTURE);
+    glPushMatrix();
+    glLoadIdentity();
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glMatrixMode(GL_MODELVIEW);
+//    glPushMatrix(); //cannot push for future selectGL.
+    glLoadIdentity();
+    glGetDoublev(GL_MODELVIEW_MATRIX, m_model); //stores model-view matrix for gluUnproject().
+    glMatrixMode(GL_PROJECTION);
+
+    glGetError(); // flush error
+
+    GLint depth_func_org, blend_func_org;
+    glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &blend_func_org);
+
+    glDepthFunc(GL_LEQUAL);
+
+    // be aware of retina display.
+    glViewport( 0, 0, (GLint)(m_pItem->width() * m_pixel_ratio),
+                (GLint)(m_pItem->height() * m_pixel_ratio));
+    glLoadMatrixd(m_proj); //restores our projection matrix.
+    glGetIntegerv(GL_VIEWPORT, m_viewport);
+
+    // Set up the rendering context,
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+
     checkGLError();
 
-    return {zmin, ObjClassColorR::None, 0, scr, dsdx, dsdy};
+    glMatrixMode(GL_MODELVIEW);
+
+    glCallList(list);
+
+    glDisable(GL_DEPTH_TEST);
+
+    //restores states
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glShadeModel(GL_FLAT);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+    glDepthFunc(depth_func_org);
+    glDepthMask(false);//might be important
+    glBlendFunc(GL_SRC_ALPHA,blend_func_org);
+    glMatrixMode(GL_TEXTURE);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopAttrib();
+    glPopClientAttrib();
+
+    glFlush(); //probably not needed.
+    std::vector<GLfloat> zbuf(2 * dx * m_pixel_ratio * 2 * dy * m_pixel_ratio);
+    glReadPixels((double)(x - dx) * m_pixel_ratio, (double)m_viewport[3] - (y + dy) * m_pixel_ratio,
+        2 * dx * m_pixel_ratio, 2 * dy * m_pixel_ratio, GL_DEPTH_COMPONENT, GL_FLOAT, &zbuf[0]);
+    std::vector<GLuint> pixels(2 * dx * m_pixel_ratio * 2 * dy * m_pixel_ratio);
+    glReadPixels(x * m_pixel_ratio, (double)m_viewport[3] - y * m_pixel_ratio, 1, 1, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, &pixels[0]);
+
+    double zmin = 1.1;
+    auto objcls = ObjClassColorR::None;
+    int objidx = 0;
+    for(int x1 = 0; x1 < 2 * dx * m_pixel_ratio; ++x1)
+        for(int y1 = 0; y1 < 2 * dy * m_pixel_ratio; ++y1) {
+            unsigned int idx = 2 * dy * m_pixel_ratio * y1 + x1;
+            if(pixels[idx] && (zbuf[idx] < zmin)) {
+                zmin = zbuf[idx];
+                if(pixels[idx] / 0x1000000u < (unsigned int)ObjClassColorR::Point) {
+                    objcls = (ObjClassColorR)(pixels[idx] / 0x1000000u);
+                    objidx = (pixels[idx] % 0x1000000u) / 0x100u; //No alpha
+                }
+                else {
+                    objcls = ObjClassColorR::Point;
+                    objidx = (pixels[idx] % 0x80000000u) / 0x100u; //No alpha
+                }
+            }
+        }
+    XGraph::ScrPoint scr, sdx, sdy;
+    if(objcls == ObjClassColorR::None) {
+        zmin = 0.5; //tentative z for rescaling beyond object region.
+    }
+    windowToScreen(x, y, zmin, &scr);
+    windowToScreen(x + 1, y, zmin, &sdx);
+    windowToScreen(x, y + 1, zmin, &sdy);
+    return {zmin, objcls, objidx, scr, sdx, sdy};
 }
 
 std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
@@ -525,11 +614,12 @@ XQGraphPainter::paintGL () {
 
         checkGLError();
 
-        glNewList(m_listpoints_picker, GL_COMPILE);
-        drawOffScreenPoints(shot, ObjClassColorR::Point);
-        glEndList();
+        //this cause whiteout for texture obj.
+//        glNewList(m_listpoints_picker, GL_COMPILE);
+//        drawOffScreenPoints(shot, ObjClassColorR::Point);
+//        glEndList();
 
-        checkGLError(); 
+//        checkGLError();
 
         if(persist > 0.0)
             storePersistentFrame();
