@@ -331,8 +331,8 @@ XQGraphPainter::wheel(int x, int y, double deg)
     if(fabs(deg) < 1.0) return;
 	double a = ((double)x / m_pItem->width() - 0.5);
 	double b = ((double)y / m_pItem->height() - 0.5);
-	if( max(fabs(a), fabs(b)) < 0.35) {
-		zoom(min(1.15, max(0.85, exp(deg * 0.04))), x, y);
+    if( max(fabs(a), fabs(b)) < 0.45) { //not near the edges.
+        zoom(min(1.15, max(0.85, exp(deg * 0.04))), x, y);
 	}
 	else {
         glGetError(); //reset error
@@ -352,7 +352,7 @@ XQGraphPainter::zoom(double zoomscale, int , int ) {
     XGraph::ScrPoint s1(0.5, 0.5, 0.5);
     if( m_selectionModeNow == SelectionMode::SelNone) {
         if(m_foundPlane) {
-            s1 = m_finishScrPos;
+            s1 = m_finishScrPos; //zoom center.
         }
         m_foundPlane.reset();
     }
