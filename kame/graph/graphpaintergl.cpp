@@ -359,9 +359,9 @@ XQGraphPainter::pickObjectGL(int x, int y, int dx, int dy, GLint list) {
             }
         }
     XGraph::ScrPoint scr, sdx, sdy;
-    if(objcls == ObjClassColorR::None) {
-        zmin = 0.5; //tentative z for rescaling beyond object region.
-    }
+//    if(objcls == ObjClassColorR::None) {
+//        zmin = 0.5; //tentative z for rescaling beyond object region.
+//    }
     windowToScreen(x, y, zmin, &scr);
     windowToScreen(x + 1, y, zmin, &sdx);
     windowToScreen(x, y + 1, zmin, &sdy);
