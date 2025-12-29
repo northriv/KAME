@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,6 +22,8 @@
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
+#include "lasermodule.h"
+#include "dcsource.h"
 
 XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -36,10 +38,18 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     m_average(create<XUIntNode>("Average", false)),
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
     m_subtractDark(create<XBoolNode>("SubtractDark", false)),
+    m_driverAltOnOff(create<XItemNode<XDriverList, XDCSource, XLaserModule>>("DriverAltOnOff", false, ref(tr_meas), meas->drivers(), false)),
+    m_trigMode(create<XComboNode>("TrigMode", true, false)),
+    m_delayFromExtTrig(create<XDoubleNode>("DelayFromExtTrig", true)),
+    m_enableStrobe(create<XBoolNode>("EnableStrobe", true)),
+    m_timeToStrobeSignal(create<XDoubleNode>("TimeTorStrobeSignal", true)),
+    m_strobeSignalDuration(create<XDoubleNode>("StrobeSignalDuration", true)),
     m_form(new FrmOpticalSpectrometer),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
                                    m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
                                    m_form->m_tbMath, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
+
+    m_form->setWindowTitle(i18n("Optical Spectrometer - ") + getLabel() );
 
 	meas->scalarEntries()->insert(tr_meas, m_marker1X);
 	meas->scalarEntries()->insert(tr_meas, m_marker1Y);
@@ -50,7 +60,13 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
         xqcon_create<XQSpinBoxUnsignedConnector>(average(), m_form->m_spbAverage),
         xqcon_create<XQLineEditConnector>(integrationTime(), m_form->m_edIntegrationTime),
         xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
-        xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark)
+        xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark),
+        xqcon_create<XQComboBoxConnector>(driverAltOnOff(), m_form->m_cmbAltOnOffSrc, tr_meas),
+        xqcon_create<XQComboBoxConnector>(trigMode(), m_form->m_cmbTriggerMode, Snapshot( *this)),
+        xqcon_create<XQLineEditConnector>(delayFromExtTrig(), m_form->m_edDelayFromExtTrig),
+        xqcon_create<XQToggleButtonConnector>(enableStrobe(), m_form->m_ckbEnableStrobe),
+        xqcon_create<XQLineEditConnector>(timeToStrobeSignal(), m_form->m_edTimeToStrobeSignal),
+        xqcon_create<XQLineEditConnector>(strobeSignalDuration(), m_form->m_edStrobeSignalDuration),
     };
 
     m_waveForm->iterate_commit([=](Transaction &tr){
@@ -115,12 +131,23 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
 //        average(),
 //        storeDark(),
 //        subtractDark(),
-        integrationTime()
+        integrationTime(),
+        trigMode(),
+        delayFromExtTrig(),
+        enableStrobe(),
+        timeToStrobeSignal(),
+        strobeSignalDuration(),
     };
     iterate_commit([=](Transaction &tr){
         tr[ *average()] = 1;
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(false);
+
+        m_lsnOnStrobeChangedInternal = tr[ *enableStrobe()].onValueChanged().connectWeakly(
+            shared_from_this(), &XOpticalSpectrometer::onStrobeChnagedInternal);
+        tr[ *timeToStrobeSignal()].onValueChanged().connect(m_lsnOnStrobeChangedInternal);
+        tr[ *strobeSignalDuration()].onValueChanged().connect(m_lsnOnStrobeChangedInternal);
+
     });
 }
 void
@@ -128,6 +155,11 @@ XOpticalSpectrometer::showForms() {
 // impliment form->show() here
     m_form->showNormal();
     m_form->raise();
+}
+
+void
+XOpticalSpectrometer::onStrobeChnagedInternal(const Snapshot &shot, XValueNodeBase *) {
+    trans( *this).m_timeStrobeChanged = XTime::now();
 }
 
 void
@@ -173,6 +205,17 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
             x /= accumulated;
         gMessagePrint(i18n("Dark spectrum has been stored."));
     }
+    shared_ptr<XNode> driver = tr[ *driverAltOnOff()];
+    if(driver) {
+        if(tr[ *this].timeAwared() < tr[ *this].m_timeStrobeChanged)
+            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+        if( !tr[ *enableStrobe()]) {
+            tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
+            for(auto& x: tr[ *this].darkCounts_())
+                x /= accumulated;
+            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+        }
+    }
 
     //markers
     auto it = std::max_element(tr[ *this].counts_().begin(), tr[ *this].counts_().end());
@@ -188,9 +231,22 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
 }
 void
 XOpticalSpectrometer::visualize(const Snapshot &shot) {
-	  if( !shot[ *this].time()) {
-		return;
-	  }
+    if( !shot[ *this].time()) {
+        return;
+    }
+
+    shared_ptr<XNode> driver = shot[ *driverAltOnOff()];
+    if(driver) {
+        bool strobe = shot[ *enableStrobe()];
+        trans( *enableStrobe()) = !strobe;
+        if(auto d = dynamic_pointer_cast<XLaserModule>(driver)) {
+            trans( *d->enabled()) = !strobe;
+        }
+        if(auto d = dynamic_pointer_cast<XDCSource>(driver)) {
+            trans( *d->output()) = !strobe;
+        }
+    }
+
     const unsigned int accum_length = shot[ *this].accumLength();
     m_waveForm->iterate_commit([=](Transaction &tr){
 		tr[ *m_markerPlot->maxCount()] = shot[ *this].m_markers.size();
@@ -240,10 +296,16 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
 //        average(),
 //        storeDark(),
 //        subtractDark()
-        integrationTime()
+        integrationTime(),
+        trigMode(),
+        delayFromExtTrig(),
+        enableStrobe(),
+        timeToStrobeSignal(),
+        strobeSignalDuration(),
         };
 
     trans( *this).m_storeDarkInvoked = false;
+    trans( *this).m_timeStrobeChanged = XTime::now();
 
 	iterate_commit([=](Transaction &tr){
         m_lsnOnStartWavelenChanged = tr[ *startWavelen()].onValueChanged().connectWeakly(
@@ -256,6 +318,14 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
                     shared_from_this(), &XOpticalSpectrometer::onIntegrationTimeChanged);
         m_lsnOnStoreDarkTouched = tr[ *storeDark()].onTouch().connectWeakly(
             shared_from_this(), &XOpticalSpectrometer::onStoreDarkTouched, Listener::FLAG_MAIN_THREAD_CALL);
+        m_lsnOnTrigCondChanged = tr[ *trigMode()].onValueChanged().connectWeakly(
+            shared_from_this(), &XOpticalSpectrometer::onTrigCondChnaged);
+        tr[ *delayFromExtTrig()].onValueChanged().connect(m_lsnOnTrigCondChanged);
+        m_lsnOnEnableStrobeChanged = tr[ *enableStrobe()].onValueChanged().connectWeakly(
+            shared_from_this(), &XOpticalSpectrometer::onEnableStrobeChnaged);
+        m_lsnOnStrobeCondChanged = tr[ *timeToStrobeSignal()].onValueChanged().connectWeakly(
+            shared_from_this(), &XOpticalSpectrometer::onStrobeCondChnaged);
+        tr[ *strobeSignalDuration()].onValueChanged().connect(m_lsnOnStrobeCondChanged);
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(true);
     });
@@ -286,6 +356,10 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
     m_lsnOnStartWavelenChanged.reset();
     m_lsnOnStopWavelenChanged.reset();
 	m_lsnOnAverageChanged.reset();
+    m_lsnOnIntegrationTimeChanged.reset();
     m_lsnOnStoreDarkTouched.reset();
+    m_lsnOnEnableStrobeChanged.reset();
+    m_lsnOnTrigCondChanged.reset();
+    m_lsnOnStrobeCondChanged.reset();
 	return NULL;
 }

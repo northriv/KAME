@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2022 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -62,6 +62,51 @@ XOceanOpticsUSBInterface::setIntegrationTime(unsigned int us) {
     uint8_t lh = (us / 0x100uL) % 0x100uL;
     uint8_t ll = us % 0x100uL;
     uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, ll, lh, hl, hh}; //littleendian
+    usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
+}
+
+void
+XOceanOpticsUSBInterface::writeRegInfo(Register reg, uint16_t word) {
+    uint8_t cmds[] = {(uint8_t)CMD::WRITE_REG, (uint8_t)reg, (uint8_t)(word % 0x100u), (uint8_t)(word / 0x100u)}; //littleendian
+    usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
+    msecsleep(1); //100us to completion.
+}
+uint16_t
+XOceanOpticsUSBInterface::readRegInfo(Register reg) {
+    uint8_t cmds[] = {(uint8_t)CMD::READ_REG, (uint8_t)reg}; //littleendian
+    XScopedLock<XOceanOpticsUSBInterface> lock( *this);
+    usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
+    uint8_t buf[3];
+    int size = usb()->bulkRead(m_ep_in_others, buf, 3);
+    if((buf[0] != cmds[1]) || (size != 3))
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    return buf[1] + buf[2] * 0x100u;
+}
+
+void
+XOceanOpticsUSBInterface::enableStrobe(bool enable) {
+    uint8_t cmds[] = {(uint8_t)CMD::SET_STROBE_ENABLE_STAT, enable ? (uint8_t)1 : (uint8_t)0, 0}; //littleendian
+    usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
+}
+void
+XOceanOpticsUSBInterface::setupStrobeCond(double singlestrobe_to_high_sec, double singlestrobe_to_low_sec) {
+    writeRegInfo(Register::SingleStrobeHighClockTransition, lrint(singlestrobe_to_high_sec * 1e3));
+    writeRegInfo(Register::SingleStrobeLowClockTransition, lrint(singlestrobe_to_low_sec * 1e3));
+}
+void
+XOceanOpticsUSBInterface::setupTrigCond(TrigMode mode, double delay_sec){
+    XScopedLock<XOceanOpticsUSBInterface> lock( *this);
+    uint16_t ver = readRegInfo(Register::FPGAFirmwareVersion);
+    uint16_t delay;
+    if(ver < 3) {
+        uint16_t div = readRegInfo(Register::MasterClockCounterDivisor);
+        delay = lrint(delay_sec * (48e6 / div));
+    }
+    else {
+        delay = lrint(delay_sec / 500e-9);
+    }
+    writeRegInfo(Register::HardwareTriggerDelay, delay);
+    uint8_t cmds[] = {(uint8_t)CMD::SET_TRIG_MODE, (uint8_t)mode, 0}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
 }
 

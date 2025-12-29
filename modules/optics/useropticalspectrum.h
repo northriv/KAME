@@ -32,6 +32,9 @@ protected:
     virtual void onStopWavelenChanged(const Snapshot &shot, XValueNodeBase *) override {}
     virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) override;
     virtual void onIntegrationTimeChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onEnableStrobeChnaged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onStrobeCondChnaged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTrigCondChnaged(const Snapshot &shot, XValueNodeBase *) override;
 
     virtual void convertRawAndAccum(RawDataReader &reader, Transaction &tr) override;
 

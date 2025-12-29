@@ -1,3 +1,17 @@
+* Mon Dec 22 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.5.0-1)
+- Graph: fix for cheap intel integrated graphics. GLselect no longer used. Changing to color picking technique.
+
+* Sun Dec 14 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.4.0-1)
+- Win32: default compiler is now changed to clang++, with llvm-mingw64 build of Qt.
+- win32-clang-g++: use dllexport instead of export-all-symbols.
+- Fujikin MFC: suppressing communication errors for recent MFC.
+- SI930* temp. monitor.: experimental yet.
+- Ruby: fix for possible crash after touch().
+- ODMR: many improvements and 2D imaging.
+- Prologix: putting waits for better stability.
+
 * Wed Oct 15 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.3.1-1)
 - Fix for thread safety regarding math tools.

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2018 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -26,6 +26,8 @@ XOceanOpticsSpectrometer::XOceanOpticsSpectrometer(const char *name, bool runtim
     XCharDeviceDriver<XOpticalSpectrometer, XOceanOpticsUSBInterface>(name, runtime, ref(tr_meas), meas) {
 //    startWavelen()->disable();
 //    stopWavelen()->disable();
+    trans( *trigMode()).add({"Free Run", "Software Trig.", "Ext. Hardware Trig."
+        , "Ext. Sync. Trig.", "Ext. Hardware Edge Trig."});
 }
 
 void
@@ -52,6 +54,23 @@ XOceanOpticsSpectrometer::open() {
             throw XInterface::XConvError(__FILE__, __LINE__);
     }
 
+    auto status = interface()->readInstrumStatus();
+    uint16_t ver = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::FPGAFirmwareVersion);
+    uint16_t div = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::MasterClockCounterDivisor);
+    uint16_t delay = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::HardwareTriggerDelay);
+    uint16_t time_to_strobe = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeHighClockTransition);
+    uint16_t strobe_duration = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeLowClockTransition);
+    iterate_commit([=](Transaction &tr){
+        uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+        tr[ *integrationTime()] = integration_time_us * 1e-6;
+        tr[ *enableStrobe()] = status[6];
+        tr[ *trigMode()] = status[7];
+        tr[ *timeToStrobeSignal()] = time_to_strobe * 1e-3;
+        tr[ *strobeSignalDuration()] = strobe_duration * 1e-3;
+        double delay_sec = (ver < 3) ? delay / (48e6 / div) : delay * 500e-9;
+        tr[ *delayFromExtTrig()] = delay_sec;
+    });
+
     start();
 }
 void
@@ -67,26 +86,55 @@ XOceanOpticsSpectrometer::onIntegrationTimeChanged(const Snapshot &shot, XValueN
         e.print(getLabel() + " " + i18n(" Error"));
     }
 }
+void
+XOceanOpticsSpectrometer::onEnableStrobeChnaged(const Snapshot &shot, XValueNodeBase *) {
+    try {
+        interface()->enableStrobe(shot[ *enableStrobe()]);
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + " " + i18n(" Error"));
+    }
+}
+void
+XOceanOpticsSpectrometer::onStrobeCondChnaged(const Snapshot &, XValueNodeBase *) {
+    try {
+        Snapshot shot( *this);
+        interface()->setupStrobeCond(shot[ *timeToStrobeSignal()], shot[ *strobeSignalDuration()]);
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + " " + i18n(" Error"));
+    }
+}
+void
+XOceanOpticsSpectrometer::onTrigCondChnaged(const Snapshot &shot, XValueNodeBase *) {
+    try {
+        Snapshot shot( *this);
+        interface()->setupTrigCond((XOceanOpticsUSBInterface::TrigMode)(unsigned int)shot[ *trigMode()],
+            shot[ *delayFromExtTrig()]);
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + " " + i18n(" Error"));
+    }
+}
+
 
 void
 XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
 
-    XTime start = XTime::now();
     for(;;) {
         auto status = interface()->readInstrumStatus();
         uint16_t pixels = status[0] + status[1] * 0x100u;
         uint8_t packets_in_spectrum = status[9];
         uint8_t packets_in_ep = status[11]; //always 0?
         uint8_t usb_speed = status[14]; //0x80 if highspeed
+        uint8_t acq_stat = status[8]; //0: OK, 3: awaiting?
 
         uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
-        if(packets_in_ep < packets_in_spectrum) {
+        if(acq_stat != 0) {
 //            //waits for completion
-//            if(XTime::now() - start > integration_time_us * 1e-6)
-//                throw XSkippedRecordError(__FILE__, __LINE__);
-            double wait = integration_time_us / packets_in_spectrum * (packets_in_spectrum - packets_in_ep) * 1e-6;
-            msecsleep(std::max(10.0, wait * 1e3 - 100.0));
+            msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
+            throw XSkippedRecordError(__FILE__, __LINE__);
         }
 
         writer->push((uint8_t)status.size());

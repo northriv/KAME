@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2022 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -30,6 +30,9 @@ class XXYPlot;
 
 class XQGraph1DMathToolConnector;
 class XGraph1DMathToolList;
+
+class XDCSource;
+class XLaserModule;
 
 //! Base class for optical/multi-channel spectrometer.
 class DECLSPEC_SHARED XOpticalSpectrometer : public XPrimaryDriverWithThread {
@@ -67,6 +70,7 @@ public:
         std::vector<double> m_counts, m_accumCounts, m_darkCounts, m_waveLengths;
         std::deque<std::pair<double, double>> m_markers;
 
+        XTime m_timeStrobeChanged;
         bool m_storeDarkInvoked = false;
     };
 protected:
@@ -82,13 +86,24 @@ protected:
     const shared_ptr<XDoubleNode> &stopWavelen() const {return m_stopWavelen;}
     const shared_ptr<XDoubleNode> &integrationTime() const {return m_integrationTime;}
 	const shared_ptr<XUIntNode> &average() const {return m_average;}
+
     const shared_ptr<XTouchableNode> &storeDark() const {return m_storeDark;}
     const shared_ptr<XBoolNode> &subtractDark() const {return m_subtractDark;}
+    const shared_ptr<XComboNode> &trigMode() const {return m_trigMode;}
+    const shared_ptr<XItemNode<XDriverList, XDCSource, XLaserModule>> &driverAltOnOff() const {return m_driverAltOnOff;}
+    const shared_ptr<XDoubleNode> &delayFromExtTrig() const {return m_delayFromExtTrig;}
+
+    const shared_ptr<XBoolNode> &enableStrobe() const {return m_enableStrobe;}
+    const shared_ptr<XDoubleNode> &timeToStrobeSignal() const {return m_timeToStrobeSignal;}
+    const shared_ptr<XDoubleNode> &strobeSignalDuration() const {return m_strobeSignalDuration;}
 protected:
     virtual void onStartWavelenChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onStopWavelenChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onIntegrationTimeChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onEnableStrobeChnaged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onStrobeCondChnaged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onTrigCondChnaged(const Snapshot &shot, XValueNodeBase *) = 0;
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
 
     //! This function will be called when raw data are written.
@@ -109,6 +124,15 @@ private:
 	const shared_ptr<XUIntNode> m_average;
     const shared_ptr<XTouchableNode> m_storeDark;
     const shared_ptr<XBoolNode> m_subtractDark;
+    const shared_ptr<XItemNode<XDriverList, XDCSource, XLaserModule>> m_driverAltOnOff;
+
+    const shared_ptr<XComboNode> m_trigMode;
+    const shared_ptr<XDoubleNode> m_delayFromExtTrig;
+
+    const shared_ptr<XBoolNode> m_enableStrobe;
+    const shared_ptr<XDoubleNode> m_timeToStrobeSignal;
+    const shared_ptr<XDoubleNode> m_strobeSignalDuration;
+
 
     const qshared_ptr<FrmOpticalSpectrometer> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
@@ -120,6 +144,12 @@ private:
 	shared_ptr<Listener> m_lsnOnAverageChanged;
     shared_ptr<Listener> m_lsnOnIntegrationTimeChanged;
     shared_ptr<Listener> m_lsnOnStoreDarkTouched;
+    shared_ptr<Listener> m_lsnOnTrigCondChanged;
+    shared_ptr<Listener> m_lsnOnEnableStrobeChanged;
+    shared_ptr<Listener> m_lsnOnStrobeCondChanged;
+    shared_ptr<Listener> m_lsnOnStrobeChangedInternal;
+
+    virtual void onStrobeChnagedInternal(const Snapshot &shot, XValueNodeBase *);
 
     std::deque<xqcon_ptr> m_conUIs;
     shared_ptr<XQGraph1DMathToolConnector> m_conTools;

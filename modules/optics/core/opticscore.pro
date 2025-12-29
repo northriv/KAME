@@ -1,6 +1,11 @@
 PRI_DIR = ../../
 include($${PRI_DIR}/modules-shared.pri)
 
+win32:LIBS += -ldcsourcecore
+
+INCLUDEPATH += $$PWD/../../dcsource/core
+DEPENDPATH += $$PWD/../../dcsource/core
+
 QT += widgets
 
 INCLUDEPATH += \

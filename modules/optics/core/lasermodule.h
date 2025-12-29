@@ -43,13 +43,7 @@ public:
         friend class XLaserModule;
         double m_temperature, m_current, m_power, m_voltage;
     };
-protected:
 
-    //! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
-    //! This might be called even if the record is invalid (time() == false).
-    virtual void visualize(const Snapshot &shot) override;
-
-    //! driver specific part below
     const shared_ptr<XScalarEntry> &temperature() const {return m_temperature;}
     const shared_ptr<XScalarEntry> &current() const {return m_current;}
     const shared_ptr<XScalarEntry> &power() const {return m_power;}
@@ -59,6 +53,12 @@ protected:
     const shared_ptr<XDoubleNode> &setCurrent() const {return m_setCurrent;}
     const shared_ptr<XDoubleNode> &setPower() const {return m_setPower;}
     const shared_ptr<XDoubleNode> &setTemp() const {return m_setTemp;}
+protected:
+
+    //! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+    //! This might be called even if the record is invalid (time() == false).
+    virtual void visualize(const Snapshot &shot) override;
+
 protected:
     struct ModuleStatus {XString status; double temperature = 0, current = 0, power = 0, voltage = 0;};
     virtual ModuleStatus readStatus() = 0;

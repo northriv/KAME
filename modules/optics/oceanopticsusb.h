@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2022 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -37,6 +37,10 @@ public:
 
     void initDevice();
     void setIntegrationTime(unsigned int us);
+    void enableStrobe(bool);
+    void setupStrobeCond(double singlestrobe_to_high_sec, double singlestrobe_to_low_sec);
+    enum class TrigMode {NORMAL=0,SOFTWARE=1,EXT_HARDWARE=2, EXT_SYNC=3, EXT_HARDWARE_EDGE=4};
+    void setupTrigCond(TrigMode mode, double delay_sec);
 
     int readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed);
 
@@ -45,6 +49,20 @@ public:
         std::string serialNo, wavelenCalib[4], strayLightConst, nonlinCorr[8], nlpoly, opticalBenchConfig, spectrometerConfig;
     };
     InstrumConfig readConfigurations();
+
+
+    enum class Register {
+        MasterClockCounterDivisor = 0x00, FPGAFirmwareVersion = 0x04,
+        ContinuousStrobeTimerIntervalDivisor = 0x08, ContinuousStrobeBaseClock = 0x0c,
+        IntegrationPeriodBaseClock = 0x10, BaseClock = 0x14, IntegrationClockTimeDivisor = 0x18,
+        HardwareTriggerDelay = 0x28, TriggerMode = 0x2c,
+        SingleStrobeHighClockTransition = 0x38, SingleStrobeLowClockTransition = 0x3c,
+        LampEnable = 0x40, GPIOMuxRegister = 0x48, GPIOOutputEnable = 0x50, GPIODataRegister = 0x54,
+        EnableExternalMasterClock = 0x5c,
+    };
+
+    void writeRegInfo(Register reg, uint16_t word);
+    uint16_t readRegInfo(Register reg);
 protected:
     virtual DEVICE_STATUS examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevice> &dev) override;
     virtual std::string examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) override;
@@ -61,7 +79,6 @@ private:
         PSOC_READ=0x68, PSOC_WRITE=0x69,
         WRITE_REG=0x6a, READ_REG=0x6b, READ_PCB_TEMP=0x6c, READ_IRRAD_CALIB=0x6d, WRITE_IRRAD_CALIB=0x6e,
         QUERY_OP_INFO=0xfe};
-    enum class TRIG_MODE {NORMAL=0,SOFTWARE=1,EXT_HARDWARE=2, EXT_SYNC=3, EXT_HARDWARE_EDGE=4};
     constexpr static unsigned int CMD_READ_SIZE = 18;
     unsigned int m_bytesInSpec = 4097 * 2;
 };
