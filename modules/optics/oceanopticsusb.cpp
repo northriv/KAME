@@ -57,12 +57,14 @@ XOceanOpticsUSBInterface::initDevice() {
 
 void
 XOceanOpticsUSBInterface::setIntegrationTime(unsigned int us) {
+    XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     uint8_t hh = us / 0x1000000uL;
     uint8_t hl = (us / 0x10000uL) % 0x100uL;
     uint8_t lh = (us / 0x100uL) % 0x100uL;
     uint8_t ll = us % 0x100uL;
     uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, ll, lh, hl, hh}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
+    msecsleep(100); //may need some time for reconfiguration inside a spectrometer.
 }
 
 void
@@ -117,7 +119,9 @@ XOceanOpticsUSBInterface::readInstrumStatus() {
     uint8_t cmds[] = {(uint8_t)CMD::QUERY_OP_INFO};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
     std::vector<uint8_t> stat(16);
-    usb()->bulkRead(m_ep_in_others, (uint8_t*)&stat[0], stat.size());
+    int size = usb()->bulkRead(m_ep_in_others, (uint8_t*)&stat[0], stat.size());
+    if(size != sizeof(stat))
+        throw XInterface::XConvError(__FILE__, __LINE__);
     return stat;
 }
 
@@ -131,7 +135,7 @@ XOceanOpticsUSBInterface::readConfigurations() {
         uint8_t buf[CMD_READ_SIZE + 1];
         buf[CMD_READ_SIZE] = '\0';
         int size = usb()->bulkRead(m_ep_in_others, buf, CMD_READ_SIZE);
-        if((buf[0] != cmds[0]) || (buf[1] != cmds[1]))
+        if((buf[0] != cmds[0]) || (buf[1] != cmds[1]) || (size != CMD_READ_SIZE))
             throw XInterface::XConvError(__FILE__, __LINE__);
         return std::string((char*)&buf[2]);
     };
