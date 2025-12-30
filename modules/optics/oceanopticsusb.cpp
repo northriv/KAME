@@ -97,6 +97,7 @@ void
 XOceanOpticsUSBInterface::setupTrigCond(TrigMode mode, double delay_sec){
     XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     uint16_t ver = readRegInfo(Register::FPGAFirmwareVersion);
+    ver /= 0x1000; //major version.
     uint16_t delay;
     if(ver < 3) {
         uint16_t div = readRegInfo(Register::MasterClockCounterDivisor);
