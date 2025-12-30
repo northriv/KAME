@@ -202,8 +202,11 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
     if(completed && (transfer->status != LIBUSB_TRANSFER_COMPLETED)) {
         if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
             return 0;
-        if(transfer->status != LIBUSB_TRANSFER_TIMED_OUT)
+        if(transfer->status != LIBUSB_TRANSFER_TIMED_OUT) {
+            //added because HR4000 never recovers after LIBUSB_TRANSFER_OVERFLOW is osx.
+            libusb_clear_halt(transfer->dev_handle, transfer->endpoint);
             throw XInterface::XInterfaceError(formatString("Error, unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
+        }
     }
     if(rdbuf) {
         readBarrier();
@@ -215,6 +218,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
 
 bool
 CyFXLibUSBDevice::AsyncIO::abort() noexcept {
+    //According to man of libusb, in osx, all the transfer for the same ep will be cancelled.
     int ret = libusb_cancel_transfer(transfer);
     if(ret) {
         readBarrier();
@@ -223,7 +227,7 @@ CyFXLibUSBDevice::AsyncIO::abort() noexcept {
         gErrPrint(formatString("Error during cancelling transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
         return false;
     }
-    fprintf(stderr, "Libusb async transfer aborted.\n");
+    fprintf(stderr, "Libusb async transfer is going to be aborted.\n");
     return true;
 }
 

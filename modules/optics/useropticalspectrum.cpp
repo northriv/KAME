@@ -56,6 +56,8 @@ XOceanOpticsSpectrometer::open() {
 
     auto status = interface()->readInstrumStatus();
     uint16_t ver = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::FPGAFirmwareVersion);
+//HR4000 returned 48('0')*0x100.
+    uint16_t ver_1 = interface()->readRegInfo((XOceanOpticsUSBInterface::Register)6);
     uint16_t div = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::MasterClockCounterDivisor);
     uint16_t delay = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::HardwareTriggerDelay);
     uint16_t time_to_strobe = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeHighClockTransition);
