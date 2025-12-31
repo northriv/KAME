@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2025 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -58,7 +58,11 @@ namespace py = pybind11;
 
 KAMEPyBind XPython::bind; //should be here before PYBIND11_EMBEDDED_MODULE.
 
-PYBIND11_EMBEDDED_MODULE(kame, m) {
+PYBIND11_EMBEDDED_MODULE(kame, m
+#ifdef PYBIND11_HAS_SUBINTERPRETER_SUPPORT //for free-threading python.
+        , py::mod_gil_not_used()
+#endif
+        ) {
     XPython::bind.s_kame_module = m;
 
     //Binding XNode, Snapshot, Transaction, X***ValueNode, XTime, ...
@@ -75,13 +79,14 @@ PYBIND11_EMBEDDED_MODULE(kame, m) {
 }
 
 py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
-    auto it = m_payloadDownCasters.find(std::type_index(typeid(*y)));
-    if(it != m_payloadDownCasters.end()) {
+    local_shared_ptr<MapPayloadDownCasters> casters = m_payloadDownCasters;
+    auto it = casters->find(std::type_index(typeid(*y)));
+    if(it != casters->end()) {
         return (it->second.second)(y);
     }
     //manages to use its downmost base class.
-    std::map<size_t, decltype(m_payloadDownCasters.begin()->second.second)> cand;
-    for(auto &c: m_payloadDownCasters) {
+    std::map<size_t, decltype(casters->begin()->second.second)> cand;
+    for(auto &c: *casters) {
         auto x = (c.second.second)(y);
         if(x.cast<XNode::Payload*>()) {
             cand.emplace(c.second.first, c.second.second);
@@ -89,9 +94,12 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     }
     if(cand.size()) {
 //        //caches the best result.
-        m_payloadDownCasters.emplace(std::type_index(typeid(*y)),
-            std::make_pair(m_payloadDownCasters.size(), cand.rbegin()->second)
-        );
+        //for free-threading python, this is attempted only once by CAS.
+        auto newv = make_local_shared<MapPayloadDownCasters>( *casters);
+        newv->emplace(std::type_index(typeid(*y)),
+            std::make_pair(SerialBaseForCache + newv->size(), cand.rbegin()->second));
+        m_payloadDownCasters.compareAndSwap(casters, newv);
+
         return cand.rbegin()->second(y); //the oldest choice, a declaration of the binding class must follow one for its base class.
     }
     return py::cast(y); //end up with XNode::Payload*
@@ -99,28 +107,35 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
 py::object KAMEPyBind::cast_to_pyobject(shared_ptr<XNode> y) {
     if( !y) return py::none();
     auto &yref = *y.get(); //to suppress a warning for typeid( *y).
-    auto it = m_xnodeDownCasters.find(std::type_index(typeid(yref)));
-    if(it != m_xnodeDownCasters.end()) {
+
+    local_shared_ptr<MapNodeDownCasters> casters = m_xnodeDownCasters;
+
+    auto it = casters->find(std::type_index(typeid(yref)));
+    if(it != casters->end()) {
         return (it->second.second)(y);
     }
     //manages to use its downmost base class.
-    std::map<size_t, decltype(m_xnodeDownCasters.begin()->second.second)> cand;
-    for(auto &c: m_xnodeDownCasters) {
+    std::map<size_t, decltype(casters->begin()->second.second)> cand;
+    for(auto &c: *casters) {
         auto x = (c.second.second)(y);
         if(x.cast<shared_ptr<XNode>>())
             cand.emplace(c.second.first, c.second.second);
     }
+
+    auto newv = make_local_shared<MapNodeDownCasters>( *casters);
     if(cand.size()) {
         //caches the best result.
-        m_xnodeDownCasters.emplace(std::type_index(typeid(yref)),
-            std::make_pair(m_xnodeDownCasters.size() + 10000u, cand.rbegin()->second)
-        );
+        //for free-threading python, this is attempted only once by CAS.
+        newv->emplace(std::type_index(typeid(yref)),
+            std::make_pair(SerialBaseForCache + newv->size(), cand.rbegin()->second));
+        m_xnodeDownCasters.compareAndSwap(casters, newv);
+
         return cand.rbegin()->second(y); //the oldest choice, a declaration of the binding class must follow one for its base class.
     }
     //caches trivial case.
-    m_xnodeDownCasters.emplace(std::type_index(typeid(yref)),
-        std::make_pair(m_xnodeDownCasters.size() + 10000u, [](shared_ptr<XNode> x){return py::cast(x);})
-    );
+    newv->emplace(std::type_index(typeid(yref)),
+        std::make_pair(SerialBaseForCache + newv->size(), [](shared_ptr<XNode> x){return py::cast(x);}));
+    m_xnodeDownCasters.compareAndSwap(casters, newv);
     //end up with XNode.
     return py::cast(y);
 };

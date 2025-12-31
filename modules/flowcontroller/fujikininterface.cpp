@@ -133,7 +133,7 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
     buf.push_back(checksum);
 
     XScopedLock<XInterface> lock( *this);
-    msecsleep(5);
+    msecsleep(10);
     this->write(reinterpret_cast<char*>( &buf[0]), buf.size());
     for(int retry = 0; retry < 50; ++retry) {
         receive(1);

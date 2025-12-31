@@ -259,19 +259,44 @@ struct DECLSPEC_MODULE XPythonSecondaryDriverHelper : public XPythonSecondaryDri
 template <class N, bool IS_PAYLOAD_DEFINED>
 std::string
 KAMEPyBind::declare_xnode_downcasters() {
-    m_xnodeDownCasters.emplace(std::type_index(typeid(N)),
-        std::make_pair(m_xnodeDownCasters.size(),
-            [](const shared_ptr<XNode>&x)->pybind11::object{
-                return pybind11::cast(dynamic_pointer_cast<N>(x));
-            })
-    );
-    if constexpr(IS_PAYLOAD_DEFINED) {
-        m_payloadDownCasters.emplace(std::type_index(typeid(typename N::Payload)),
-            std::make_pair(m_payloadDownCasters.size(),
-                [](XNode::Payload *x)->pybind11::object{
-                    return pybind11::cast(dynamic_cast<typename N::Payload*>(x));
+    //for free-threding python, CAS is used to add a new downcaster.
+    for(local_shared_ptr<MapNodeDownCasters> oldv = m_xnodeDownCasters;;) {
+        auto newv = make_local_shared<MapNodeDownCasters>( *oldv);
+        //destroy cached results
+        for(auto it = newv->begin(); it != newv->end();) {
+            if(it->second.first >= SerialBaseForCache)
+                it = newv->erase(it);
+            else
+                ++it;
+        }
+        newv->emplace(std::type_index(typeid(N)),
+            std::make_pair(newv->size(),
+                [](const shared_ptr<XNode>&x)->pybind11::object{
+                    return pybind11::cast(dynamic_pointer_cast<N>(x));
                 })
-        );
+            );
+        if(m_xnodeDownCasters.compareAndSwap(oldv, newv))
+            break;
+    }
+    if constexpr(IS_PAYLOAD_DEFINED) {
+        for(local_shared_ptr<MapPayloadDownCasters> oldv = m_payloadDownCasters;;) {
+            auto newv = make_local_shared<MapPayloadDownCasters>( *oldv);
+            //destroy cached results
+            for(auto it = newv->begin(); it != newv->end();) {
+                if(it->second.first >= SerialBaseForCache)
+                    it = newv->erase(it);
+                else
+                    ++it;
+            }
+            newv->emplace(std::type_index(typeid(typename N::Payload)),
+                std::make_pair(newv->size(),
+                    [](XNode::Payload *x)->pybind11::object{
+                        return pybind11::cast(dynamic_cast<typename N::Payload*>(x));
+                    })
+                );
+            if(m_payloadDownCasters.compareAndSwap(oldv, newv))
+                break;
+        }
     }
     XString name = typeid(N).name();
     int i = name.find('X');

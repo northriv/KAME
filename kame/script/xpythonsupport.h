@@ -84,8 +84,13 @@ struct DECLSPEC_KAME KAMEPyBind {
     static void export_embedded_module_xqcon(pybind11::module_&);
 private:
     //std::type_index(typeid(x)), serialno, down_caster_func.
-    std::unordered_map<std::type_index, std::pair<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>>> m_xnodeDownCasters;
-    std::unordered_map<std::type_index, std::pair<size_t, std::function<pybind11::object(XNode::Payload *)>>> m_payloadDownCasters;
+    static constexpr size_t SerialBaseForCache = 0x1000000u;
+    using MapNodeDownCasters = std::unordered_map<std::type_index,
+        std::pair<size_t, std::function<pybind11::object(const shared_ptr<XNode>&)>>>;
+    atomic_shared_ptr<MapNodeDownCasters> m_xnodeDownCasters = make_local_shared<MapNodeDownCasters>(); //atomically shared for free-threading python.
+    using MapPayloadDownCasters = std::unordered_map<std::type_index,
+        std::pair<size_t, std::function<pybind11::object(XNode::Payload *)>>>;
+    atomic_shared_ptr<MapPayloadDownCasters> m_payloadDownCasters = make_local_shared<MapPayloadDownCasters>(); //atomically shared for free-threading python.
 
     template <class N, bool IS_PAYLOAD_DEFINED = true>
     std::string declare_xnode_downcasters();
