@@ -203,7 +203,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
         if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
             return 0;
         if(transfer->status != LIBUSB_TRANSFER_TIMED_OUT) {
-            //added because HR4000 never recovers after LIBUSB_TRANSFER_OVERFLOW is osx.
+            //added because HR4000 never recovers after LIBUSB_TRANSFER_OVERFLOW in osx.
             libusb_clear_halt(transfer->dev_handle, transfer->endpoint);
             throw XInterface::XInterfaceError(formatString("Error, unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
         }
@@ -211,7 +211,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
     if(rdbuf) {
         readBarrier();
         if(transfer->actual_length == 0) {
-            //added because HR4000 never recovers after LIBUSB_TRANSFER_OVERFLOW is osx.
+            //added because HR4000 never recovers after LIBUSB_TRANSFER_OVERFLOW in osx.
             libusb_clear_halt(transfer->dev_handle, transfer->endpoint);
             throw XInterface::XInterfaceError(formatString("Error, zero-length return with complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
         }
@@ -307,9 +307,10 @@ CyFXLibUSBDevice::open() {
 void
 CyFXLibUSBDevice::close() {
     if(handle) {
-//        libusb_clear_halt(handle, 0x2);
-//        libusb_clear_halt(handle, 0x6);
-//        libusb_clear_halt(handle, 0x8);
+        libusb_clear_halt(handle, 0x2);
+        libusb_clear_halt(handle, 0x6);
+        libusb_clear_halt(handle, 0x8);
+
         libusb_reset_device(handle);
         libusb_release_interface(handle,0);
         libusb_close(handle);
