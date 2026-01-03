@@ -140,6 +140,7 @@ public:
     std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectPlane(int x, int y, int dx, int dy);
     std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectAxis(int x, int y, int dx, int dy);
     std::tuple<double, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectPoint(int x, int y, int dx, int dy);
+    std::tuple<double, weak_ptr<OnScreenObject>, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint> selectOSO(int x, int y, int dx, int dy);
 
      shared_ptr<Listener> m_lsnRedraw;
      void onRedraw(const Snapshot &shot, XGraph *graph);
@@ -151,7 +152,7 @@ public:
      //! Draws plots, axes.
     Snapshot startDrawing();
     //For color picking. Red is given by ObjClassColorR, Green is by ID (# in axes, for examplee).
-    enum class ObjClassColorR {None, Axis, Plane, Grid, OSO, Point = 128};
+    enum class ObjClassColorR {None, Axis, Plane, Grid, OSO_weakptr, OSO_painted, OSO_listed, Point = 128};
      void drawOffScreenGrids(const Snapshot &shot);
      void drawOffScreenPlanes(const Snapshot &shot, ObjClassColorR red_color_picking); //Color picking only.
      void drawOffScreenPoints(const Snapshot &shot, ObjClassColorR red_color_picking = ObjClassColorR::None); //ObjClassColorR::None if not color picking.
@@ -161,6 +162,7 @@ public:
      //! independent of viewpoint. For coordinate, legend, hints. title,...
      void drawOnScreenViewObj(const Snapshot &shot);
      void drawOnScreenHelp(const Snapshot &shot, QPainter *qpainter);
+     void drawAdditionalOnScreenObjNative(bool colorpicking = false);
 
      const shared_ptr<XGraph> m_graph;
      XQGraph *const m_pItem;
@@ -191,7 +193,8 @@ public:
      GLint m_listpoints = 0, m_listaxes = 0, m_listgrids = 0;
 
      GLint m_listpoints_picker = 0,
-        m_listaxes_picker = 0, m_listplane_picker = 0;
+        m_listaxes_picker = 0, m_listplane_picker = 0,
+        m_listosos_picker = 0;
 
      atomic<bool> m_bIsRedrawNeeded;
     // bool m_bAvoidCallingLists = false;

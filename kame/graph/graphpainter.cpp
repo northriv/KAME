@@ -176,6 +176,12 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
     }
 	switch(mode) {
     case SelectionMode::SelNone: {
+            auto [zmin0, oso, scr0, sdx0, sdy0] = selectOSO(x, y,
+                            (int)(SELECT_WIDTH * m_pItem->width()),
+                            (int)(SELECT_WIDTH * m_pItem->height()));
+            if(auto o = oso.lock()) {
+                fprintf(stderr, "OSO:%p\n", o.get());
+            }
             m_foundPlane.reset();
             auto [zmin, objid, scr, sdx, sdy] = selectPlane(x, y,
                             (int)(SELECT_WIDTH * m_pItem->width()),

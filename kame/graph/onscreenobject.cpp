@@ -59,24 +59,15 @@ using std::max;
 }
 
 void
-OnScreenObjectWithMarker::drawOffScreenMarker() {
-    painter()->beginQuad(true);
-    painter()->setVertex(leftTop());
-    painter()->setVertex(rightTop());
-    painter()->setVertex(rightBottom());
-    painter()->setVertex(leftBottom());
-    painter()->endQuad();
-}
-
-void
-OnScreenRectObject::drawNative() {
+OnScreenRectObject::drawNative(bool colorpicking) {
     Snapshot shot_graph( *painter()->graph());
     switch(m_type) {
     case Type::Selection: {
         double w = 0.1;
         for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
             painter()->beginQuad(true);
-            painter()->setColor(c, w);
+            if(!colorpicking)
+                painter()->setColor(c, w);
             painter()->setVertex(leftTop());
             painter()->setVertex(rightTop());
             painter()->setVertex(rightBottom());
@@ -90,7 +81,8 @@ OnScreenRectObject::drawNative() {
         double w = 0.85;
         for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
             painter()->beginQuad(true);
-            painter()->setColor(c, w);
+            if(!colorpicking)
+                painter()->setColor(c, w);
             painter()->setVertex(leftTop());
             painter()->setVertex(rightTop());
             painter()->setVertex(rightBottom());
@@ -106,7 +98,8 @@ OnScreenRectObject::drawNative() {
         for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
 //            painter()->beginLine(1.0, pat);
             painter()->beginLine(1.0);
-            painter()->setColor(c, 0.3);
+            if(!colorpicking)
+                painter()->setColor(c, 0.3);
             painter()->setVertex(leftTop());
             painter()->setVertex(rightTop());
             painter()->setVertex(rightTop());
@@ -126,7 +119,8 @@ OnScreenRectObject::drawNative() {
         for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
 //            painter()->beginLine(1.0, pat);
             painter()->beginLine(1.0);
-            painter()->setColor(c, 0.3);
+            if(!colorpicking)
+                painter()->setColor(c, 0.3);
             painter()->setVertex(leftTop());
             painter()->setVertex(leftBottom());
             painter()->setVertex(rightTop());
@@ -138,19 +132,6 @@ OnScreenRectObject::drawNative() {
         break;
     }
 }
-
-void
-OnScreenTextObject::drawOffScreenMarker() {
-    for(auto &&txt: m_textOverpaint) {
-        painter()->beginQuad(true);
-        painter()->setVertex(txt.corners[0]);
-        painter()->setVertex(txt.corners[1]);
-        painter()->setVertex(txt.corners[2]);
-        painter()->setVertex(txt.corners[3]);
-        painter()->endQuad();
-    }
-}
-
 
 void
 OnScreenObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
@@ -268,7 +249,7 @@ OnScreenTexture::~OnScreenTexture() {
 }
 
 void
-OnScreenTexture::drawNative() {
+OnScreenTexture::drawNative(bool colorpicking) {
     {
         XScopedLock<XMutex> lock(garbagemutex);
         while(unusedIDs.size()) {
@@ -276,6 +257,17 @@ OnScreenTexture::drawNative() {
             unusedIDs.pop_front();
         }
     }
+    if(colorpicking) {
+        //just a rectangular.
+        painter()->beginQuad(true);
+        painter()->setVertex(leftTop());
+        painter()->setVertex(rightTop());
+        painter()->setVertex(rightBottom());
+        painter()->setVertex(leftBottom());
+        painter()->endQuad();
+        return;
+    }
+
 //    static const GLfloat color[] = {1.0, 1.0, 1.0, 1.0};
 //    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color);
     glActiveTexture(GL_TEXTURE1);
@@ -337,21 +329,15 @@ OnPlotObject<OSO>::valToScreen() {
 
 template <class OSO>
 void
-OnPlotObject<OSO>::drawNative() {
+OnPlotObject<OSO>::drawNative(bool colorpicking) {
     valToScreen();
-    this->OSO::drawNative();
+    this->OSO::drawNative(colorpicking);
 }
 template <class OSO>
 void
 OnPlotObject<OSO>::drawByPainter(QPainter *p) {
     valToScreen();
     this->OSO::drawByPainter(p);
-}
-template <class OSO>
-void
-OnPlotObject<OSO>::drawOffScreenMarker() {
-    valToScreen();
-    this->OSO::drawOffScreenMarker();
 }
 
 template class OnPlotObject<OnScreenRectObject>;
@@ -395,21 +381,15 @@ OnAxisObject<OSO, IsXAxis>::toScreen() {
 
 template <class OSO, bool IsXAxis>
 void
-OnAxisObject<OSO, IsXAxis>::drawNative() {
+OnAxisObject<OSO, IsXAxis>::drawNative(bool colorpicking) {
     toScreen();
-    this->OSO::drawNative();
+    this->OSO::drawNative(colorpicking);
 }
 template <class OSO, bool IsXAxis>
 void
 OnAxisObject<OSO, IsXAxis>::drawByPainter(QPainter *p) {
     toScreen();
     this->OSO::drawByPainter(p);
-}
-template <class OSO, bool IsXAxis>
-void
-OnAxisObject<OSO, IsXAxis>::drawOffScreenMarker() {
-    toScreen();
-    this->OSO::drawOffScreenMarker();
 }
 
 template class OnAxisObject<OnScreenRectObject, true>;
@@ -418,7 +398,7 @@ template class OnAxisObject<OnScreenTextObject, true>;
 template class OnAxisObject<OnScreenTextObject, false>;
 
 template <bool IsXAxis>
-void OnAxisFuncObject<IsXAxis>::drawNative() {
+void OnAxisFuncObject<IsXAxis>::drawNative(bool colorpicking) {
     this->toScreen();
     Snapshot shot_graph( *this->painter()->graph());
     double x1,y1,z1,x2,y2,z2;
@@ -446,7 +426,8 @@ void OnAxisFuncObject<IsXAxis>::drawNative() {
         double w = 0.85;
         for(auto c: {this->baseColor()}) {
             this->painter()->beginLine(1.0);
-            this->painter()->setColor(c, w);
+            if( !colorpicking)
+                this->painter()->setColor(c, w);
 
             for(unsigned int i = 0; i < len; ++i) {
                 if(i >= 2)
@@ -474,7 +455,19 @@ OnScreenTextObject::OnScreenTextObject(XQGraphPainter* p) : OnScreenObjectWithMa
 }
 
 void
-OnScreenTextObject::drawNative() {
+OnScreenTextObject::drawNative(bool colorpicking) {
+    if(colorpicking) {
+        for(auto &&txt: m_textOverpaint) {
+            //just a rectangular.
+            painter()->beginQuad(true);
+            painter()->setVertex(txt.corners[0]);
+            painter()->setVertex(txt.corners[1]);
+            painter()->setVertex(txt.corners[2]);
+            painter()->setVertex(txt.corners[3]);
+            painter()->endQuad();
+        }
+        return;
+    }
 }
 void
 OnScreenTextObject::drawByPainter(QPainter *qpainter) {

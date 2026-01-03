@@ -95,6 +95,7 @@ XQGraphPainter::~XQGraphPainter() {
     if(m_listplane_picker) glDeleteLists(m_listplane_picker, 1);
     if(m_listaxes_picker) glDeleteLists(m_listaxes_picker, 1);
     if(m_listpoints_picker) glDeleteLists(m_listpoints_picker, 1);
+    if(m_listosos_picker) glDeleteLists(m_listosos_picker, 1);
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
@@ -389,6 +390,30 @@ XQGraphPainter::selectPoint(int x, int y, int dx, int dy) {
         id = 0;
     return {zmin, id, scr, dsdx, dsdy};
 }
+std::tuple<double, weak_ptr<OnScreenObject>, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
+XQGraphPainter::selectOSO(int x, int y, int dx, int dy) {
+    auto [zmin, cls, id, scr, dsdx, dsdy] = pickObjectGL(x, y, dx, dy, m_listosos_picker);
+    weak_ptr<OnScreenObject> oso;
+    try {
+        switch(cls) {
+        case ObjClassColorR::OSO_listed:
+            oso = m_listedOSOs.at(id);
+            break;
+        case ObjClassColorR::OSO_weakptr:
+            oso = m_weakptrOSOs.at(id);
+            break;
+        case ObjClassColorR::OSO_painted:
+            oso = m_paintedOSOs.at(id);
+            break;
+        default:
+            break;
+        }
+    }
+    catch (std::out_of_range &) {
+    }
+    return {zmin, oso, scr, dsdx, dsdy};
+}
+
 void
 XQGraphPainter::initializeGL () {
 #ifndef USE_QGLWIDGET
@@ -500,6 +525,82 @@ XQGraphPainter::storePersistentFrame() {
     }
     checkGLError();
 }
+
+void
+XQGraphPainter::drawAdditionalOnScreenObjNative(bool colorpicking) {
+    XScopedLock<XMutex> lock(m_mutexOSO);
+    //texture objects
+    uint16_t objid = 0;
+    for(auto &&oso: m_weakptrOSOs) {
+        if(auto o = oso.lock()) {
+            objid++;
+            if(o->hasTexture()) {
+                if(colorpicking)
+                    glColor4f((int)ObjClassColorR::OSO_weakptr/256.0f,
+                        (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
+                o->drawNative(colorpicking);
+            }
+        }
+    }
+    objid = 0;
+    for(auto &&osobj: m_paintedOSOs) {
+        objid++;
+        if(osobj->hasTexture()) {
+            if(colorpicking)
+                glColor4f((int)ObjClassColorR::OSO_painted/256.0f,
+                      (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
+            osobj->drawNative(colorpicking);
+        }
+    }
+    objid = 0;
+    for(auto &&osobj: m_listedOSOs) {
+        objid++;
+        if(osobj->hasTexture()) {
+            if(colorpicking)
+                glColor4f((int)ObjClassColorR::OSO_listed/256.0f,
+                      (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
+            osobj->drawNative(colorpicking);
+        }
+    }
+
+    //better to be drawn after textures
+    objid = 0;
+    for(auto it = m_weakptrOSOs.begin(); it != m_weakptrOSOs.end();) {
+        if(auto o = it->lock()) {
+            objid++;
+            if( !o->hasTexture()) {
+                if(colorpicking)
+                    glColor4f((int)ObjClassColorR::OSO_weakptr/256.0f,
+                              (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
+                o->drawNative(colorpicking);
+            }
+            it++;
+        }
+        else
+            it = m_weakptrOSOs.erase(it);
+    }
+    objid = 0;
+    for(auto &&osobj: m_paintedOSOs) {
+        objid++;
+        if( !osobj->hasTexture()) {
+            if(colorpicking)
+                glColor4f((int)ObjClassColorR::OSO_painted/256.0f,
+                          (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
+            osobj->drawNative(colorpicking);
+        }
+    }
+    objid = 0;
+    for(auto &&osobj: m_listedOSOs) {
+        objid++;
+        if( !osobj->hasTexture()) {
+            if(colorpicking)
+                glColor4f((int)ObjClassColorR::OSO_listed/256.0f,
+                          (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
+            osobj->drawNative(colorpicking);
+        }
+    }
+}
+
 
 void
 XQGraphPainter::paintGL () {
@@ -643,12 +744,11 @@ XQGraphPainter::paintGL () {
 
         checkGLError();
 
-//        for(auto &&osobj_w: m_persistentOSOs) {
-//            if(auto osobj = osobj_w.lock()) {
-//                osobj->drawOffScreenMarker();
-//            }
-//        }
-//        checkGLError();
+        glNewList(m_listosos_picker, GL_COMPILE);
+        drawAdditionalOnScreenObjNative(true);
+        glEndList();
+
+        checkGLError();
 
         m_bIsAxisRedrawNeeded = false;
     }
@@ -694,42 +794,7 @@ XQGraphPainter::paintGL () {
 
     drawOnScreenViewObj(shot);
 
-    {
-        XScopedLock<XMutex> lock(m_mutexOSO);
-        //texture objects
-        for(auto &&oso: m_weakptrOSOs) {
-            if(auto o = oso.lock()) {
-                if(o->hasTexture())
-                    o->drawNative();
-            }
-        }
-        for(auto &&osobj: m_paintedOSOs) {
-            if(osobj->hasTexture())
-                osobj->drawNative();
-        }
-        for(auto &&osobj: m_listedOSOs) {
-            if(osobj->hasTexture())
-                osobj->drawNative();
-        }
-        //better to be drawn after textures
-        for(auto it = m_weakptrOSOs.begin(); it != m_weakptrOSOs.end();) {
-            if(auto o = it->lock()) {
-                if( !o->hasTexture())
-                    o->drawNative();
-                it++;
-            }
-            else
-                it = m_weakptrOSOs.erase(it);
-        }
-        for(auto &&osobj: m_paintedOSOs) {
-            if( !osobj->hasTexture())
-                osobj->drawNative();
-        }
-        for(auto &&osobj: m_listedOSOs) {
-            if( !osobj->hasTexture())
-                osobj->drawNative();
-        }
-    }
+    drawAdditionalOnScreenObjNative();
     checkGLError();
 
     glDisable(GL_DEPTH_TEST);

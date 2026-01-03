@@ -27,10 +27,9 @@ public:
     OnScreenObject(XQGraphPainter* p) : m_painter(p) {}
     virtual ~OnScreenObject() {}
     //! draws in OpenGL.
-    virtual void drawNative() = 0;
+    virtual void drawNative(bool colorpicking) = 0;
     //! draws by QPainter.
     virtual void drawByPainter(QPainter *) = 0;
-    virtual void drawOffScreenMarker() {}
 
     unsigned int baseColor() const { return m_baseColor;}
     void setBaseColor(unsigned int basecolor) {m_baseColor = basecolor;}
@@ -62,9 +61,8 @@ public:
         m_offset = offset;
     }
 
-    virtual void drawNative() override;
+    virtual void drawNative(bool colorpicking) override;
     virtual void drawByPainter(QPainter *) override;
-    virtual void drawOffScreenMarker() override;
 private:
     void valToScreen();
     XMutex m_mutex;
@@ -88,9 +86,8 @@ public:
         m_offset = offset;
     }
 
-    virtual void drawNative() override;
+    virtual void drawNative(bool colorpicking) override;
     virtual void drawByPainter(QPainter *) override;
-    virtual void drawOffScreenMarker() override;
 
     std::pair<XGraph::VFloat, XGraph::VFloat> axis1ValueRange() const {return {m_bg1, m_ed1};}
     std::pair<XGraph::GFloat, XGraph::GFloat> axis2GraphRange() const {return {m_bg2, m_ed2};}
@@ -109,8 +106,6 @@ private:
 class DECLSPEC_KAME OnScreenObjectWithMarker : public OnScreenObject {
 public:
     OnScreenObjectWithMarker(XQGraphPainter* p) : OnScreenObject(p) {}
-    //draws objects/bounding box for GL_SELECT
-    virtual void drawOffScreenMarker() override;
     enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, Hide};
     void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
         const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,
@@ -133,7 +128,7 @@ public:
     OnScreenRectObject(XQGraphPainter* p, Type type) :
         OnScreenObjectWithMarker(p), m_type(type) {}
     //! draws in OpenGL.
-    virtual void drawNative() override;
+    virtual void drawNative(bool colorpicking) override;
     //! draws by QPainter.
     virtual void drawByPainter(QPainter *) override {}
 private:
@@ -146,7 +141,7 @@ public:
     OnAxisFuncObject(XQGraphPainter* p) :
         OnAxisObject<OnScreenRectObject, IsXAxis>(p, OnScreenRectObject::Type::AreaTool) {}
     //! draws in OpenGL.
-    virtual void drawNative() override;
+    virtual void drawNative(bool colorpicking) override;
     //! draws by QPainter.
     virtual void drawByPainter(QPainter *) override {}
 protected:
@@ -170,7 +165,7 @@ public:
    //! update texture by new image.
    void repaint(const shared_ptr<QImage> &image);
    //! draws in OpenGL.
-   virtual void drawNative() override;
+   virtual void drawNative(bool colorpicking) override;
    //! draws by QPainter.
    virtual void drawByPainter(QPainter *) override {}
    virtual bool hasTexture() const override {return true;}
@@ -185,9 +180,8 @@ class DECLSPEC_KAME OnScreenTextObject : public OnScreenObjectWithMarker {
 public:
     OnScreenTextObject(XQGraphPainter* p);
 
-    virtual void drawNative() override;
+    virtual void drawNative(bool colorpicking) override;
     virtual void drawByPainter(QPainter *) override;
-    virtual void drawOffScreenMarker() override;
 
     void clear();
     //! using OnScreenObjectWithMarker::placeObject().
