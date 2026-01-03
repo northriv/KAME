@@ -64,8 +64,9 @@ XOceanOpticsUSBInterface::setIntegrationTime(unsigned int us) {
     uint8_t ll = us % 0x100uL;
     uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, ll, lh, hl, hh}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
-    uint16_t clk = readRegInfo(Register::IntegrationPeriodBaseClock);
-    uint16_t div = readRegInfo(Register::IntegrationClockTimeDivisor);
+    unsigned int clk = readRegInfo(Register::IntegrationPeriodBaseClock);
+    unsigned int div = readRegInfo(Register::IntegrationClockTimeDivisor);
+    fprintf(stderr, "CLK=%u, DIV=%u\n", clk, div);
 }
 
 void
