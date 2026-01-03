@@ -120,7 +120,7 @@ XOceanOpticsUSBInterface::readInstrumStatus() {
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
     std::vector<uint8_t> stat(16);
     int size = usb()->bulkRead(m_ep_in_others, (uint8_t*)&stat[0], stat.size());
-    if(size != sizeof(stat))
+    if(size != stat.size())
         throw XInterface::XConvError(__FILE__, __LINE__);
     return stat;
 }
@@ -135,7 +135,7 @@ XOceanOpticsUSBInterface::readConfigurations() {
         uint8_t buf[CMD_READ_SIZE + 1];
         buf[CMD_READ_SIZE] = '\0';
         int size = usb()->bulkRead(m_ep_in_others, buf, CMD_READ_SIZE);
-        if((buf[0] != cmds[0]) || (buf[1] != cmds[1]) || (size != CMD_READ_SIZE))
+        if((buf[0] != cmds[0]) || (buf[1] != cmds[1]) || (size > CMD_READ_SIZE))
             throw XInterface::XConvError(__FILE__, __LINE__);
         return std::string((char*)&buf[2]);
     };
