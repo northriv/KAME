@@ -13,7 +13,7 @@
 ***************************************************************************/
 #include "cyfxusb.h"
 
-constexpr unsigned int TIMEOUT_MS = 500;
+constexpr unsigned int TIMEOUT_MS = 10000;
 
 XThreadLocal<std::vector<uint8_t>>
 CyFXUSBDevice::AsyncIO::stl_bufferGarbage;
