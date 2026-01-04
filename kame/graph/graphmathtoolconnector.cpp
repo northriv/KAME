@@ -25,7 +25,7 @@ std::deque<shared_ptr<Listener>> XQGraph2DMathToolConnector::s_activeListeners;
 XQGraph1DMathToolConnector::XQGraph1DMathToolConnector
 (const shared_ptr<XGraph1DMathToolList> &list0, QToolButton* item, const std::deque<shared_ptr<XGraph1DMathToolList>> &lists, XQGraph *graphwidget) :
     XQConnector(list0, item), m_pItem(item), m_graphwidget(graphwidget), m_lists(lists) {
-    m_menu = new QMenu(graphwidget);
+    m_menu = new QMenu();
     item->setMenu(m_menu);
     item->setPopupMode(QToolButton::InstantPopup);
     connect( m_menu, SIGNAL( aboutToShow() ), this, SLOT( menuOpenActionActivated() ) );
@@ -46,7 +46,7 @@ XQGraph1DMathToolConnector::XQGraph1DMathToolConnector
 XQGraph2DMathToolConnector::XQGraph2DMathToolConnector
 (const shared_ptr<XGraph2DMathToolList> &list0, QToolButton* item, const std::deque<shared_ptr<XGraph2DMathToolList>> &lists, XQGraph *graphwidget) :
     XQConnector(list0, item), m_pItem(item), m_graphwidget(graphwidget), m_lists(lists) {
-    m_menu = new QMenu(graphwidget);
+    m_menu = new QMenu();
     item->setMenu(m_menu);
     item->setPopupMode(QToolButton::InstantPopup);
     connect( m_menu, SIGNAL( aboutToShow() ), this, SLOT( menuOpenActionActivated() ) );

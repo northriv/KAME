@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2017 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -16,7 +16,7 @@
 #include <libusb-1.0/libusb.h>
 #include <cstring>
 
-static constexpr int USB_TIMEOUT = 4000; //ms
+static constexpr int USB_TIMEOUT = 6000; //ms
 
 struct CyFXLibUSBDevice : public CyFXUSBDevice {
     CyFXLibUSBDevice(libusb_device *d) : handle(nullptr), dev(d) {

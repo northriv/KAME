@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -13,21 +13,23 @@
 ***************************************************************************/
 #include "cyfxusb.h"
 
-constexpr unsigned int TIMEOUT_MS = 10000;
+//Timeout in libusb_fill_control_transfer() causes device freeze!
+//This value should be longer than timeout in waitFor().
+static constexpr unsigned int TIMEOUT_MS_LONG_ENOUGH = 10000;
 
 XThreadLocal<std::vector<uint8_t>>
 CyFXUSBDevice::AsyncIO::stl_bufferGarbage;
 
 int64_t
 CyFXUSBDevice::bulkWrite(uint8_t ep, const uint8_t *buf, int len) {
-    auto async = asyncBulkWrite(ep, buf, len, TIMEOUT_MS);
+    auto async = asyncBulkWrite(ep, buf, len, TIMEOUT_MS_LONG_ENOUGH);
     auto ret = async->waitFor();
     return ret;
 }
 
 int64_t
 CyFXUSBDevice::bulkRead(uint8_t ep, uint8_t* buf, int len) {
-    auto async = asyncBulkRead(ep, buf, len, TIMEOUT_MS);
+    auto async = asyncBulkRead(ep, buf, len, TIMEOUT_MS_LONG_ENOUGH);
     return async->waitFor();
 }
 
