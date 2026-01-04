@@ -1132,7 +1132,7 @@ XAxis::queryTic(int len, int pos, XGraph::VFloat *ticnum) {
 void
 XAxis::drawLabel(const Snapshot &shot, XQGraphPainter *painter) {
     if(m_direction == AxisDirection::Weight) return;
-    auto oso = painter->createOneTimeOnScreenObject<OnScreenTextObject>();
+    auto oso = painter->createOneTimeOnScreenObject<OnScreenTextObject>(shared_from_this());
     oso->setBaseColor(shot[ *labelColor()]);
 
 	const int sizehint = 2;
@@ -1199,7 +1199,7 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 	if(m_bLogscaleFixed && (m_minFixed < 0)) return -1;
 	if(m_maxFixed <= m_minFixed) return -1;
 
-    auto oso = painter->createOneTimeOnScreenObject<OnScreenTextObject>();
+    auto oso = painter->createOneTimeOnScreenObject<OnScreenTextObject>(shared_from_this());
     oso->setBaseColor(shot[ *ticColor()]);
 
     int len = std::lrint(shot[ *length()] / painter->resScreen());

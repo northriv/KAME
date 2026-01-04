@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -53,10 +53,10 @@ XGraphMathTool::XGraphMathTool(const char *name, bool runtime, Transaction &tr_m
     trans( *baseColor()) = 0x4080ffu;
 }
 void
-XGraphMathTool::highlight(bool state, XQGraph *graphwidget) {
+XGraphMathTool::highlight(bool state, const shared_ptr<XQGraphPainter> &painter) {
     m_highlight = state;
     Snapshot shot( *this);
-    updateOnScreenObjects(shot, graphwidget, {});
+    updateOnScreenObjects(shot, painter, {});
 }
 
 XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, Transaction &tr_meas,
@@ -81,10 +81,10 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
 }
 
 void
-XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) {
+XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) {
     if( !shot[ *this].isUIEnabled())
         return;
-    auto painter = graphwidget->painter().lock();
+
     if( !painter) {
         m_osos.clear();
         return;
@@ -102,24 +102,24 @@ XGraphMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget
     if(m_osos.empty()) {
         m_osos = createAdditionalOnScreenObjects(painter);
     }
-    updateAdditionalOnScreenObjects(shot, graphwidget, msg);
+    updateAdditionalOnScreenObjects(shot, painter, msg);
     painter->requestRepaint();
 }
 std::deque<shared_ptr<OnScreenObject>>
 XGraph1DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) {
-    auto oso_rect = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
+    auto oso_rect = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines, shared_from_this());
     m_osoRect = oso_rect;
-    auto oso_lbl = painter->createOnScreenObjectWeakly<OnXAxisTextObject>();
+    auto oso_lbl = painter->createOnScreenObjectWeakly<OnXAxisTextObject>(shared_from_this());
     m_osoLabel = oso_lbl;
     if(isHighLighted()) {
-        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::Selection);
+        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::Selection, shared_from_this());
         m_osoHighlight = oso_rect2;
         return {oso_rect, oso_rect2, oso_lbl};
     }
     return {oso_rect, oso_lbl};
 }
 void
-XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) {
+XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) {
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *begin()];
         double edx = shot[ *end()];
@@ -131,7 +131,7 @@ XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
         }
         if(auto oso_rect = m_osoHighlight.lock()) {
             auto oso = static_pointer_cast<OnXAxisRectObject>(oso_rect);
-            QColor c = (unsigned long)***graphwidget->graph()->titleColor();
+            QColor c = (unsigned long)***painter->graph()->titleColor();
             c.setAlphaF(0.25);
             oso->setBaseColor(c.rgba());
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.02});
@@ -140,7 +140,7 @@ XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.01, 0.01, 0.01});
             oso->drawTextAtPlacedPosition(getLabel()
-                + (isHighLighted() ? "" : " " + msg), Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +2 : -4);
+                + " " + msg, Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +2 : -4);
         }
     }
 }
@@ -163,19 +163,19 @@ XGraph2DMathTool::getMenuLabel() const {
 }
 std::deque<shared_ptr<OnScreenObject>>
 XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) {
-    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
+    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool, shared_from_this());
     m_osoRect = oso_rect;
-    auto oso_lbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>();
+    auto oso_lbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>(shared_from_this());
     m_osoLabel = oso_lbl;
     if(isHighLighted()) {
-        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::Selection);
+        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::Selection, shared_from_this());
         m_osoHighlight = oso_rect2;
         return {oso_rect, oso_rect2, oso_lbl};
     }
     return {oso_rect, oso_lbl};
 }
 void
-XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) {
+XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) {
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *beginX()];
         double bgy = shot[ *beginY()];
@@ -188,7 +188,7 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
         }
         if(auto oso_rect = m_osoHighlight.lock()) {
             auto oso = static_pointer_cast<OnPlotRectObject>(oso_rect);
-            QColor c = (unsigned long)***graphwidget->graph()->titleColor();
+            QColor c = (unsigned long)***painter->graph()->titleColor();
             c.setAlphaF(0.25);
             oso->setBaseColor(c.rgba());
             oso->placeObject(plot, corners, {0.0, 0.0, 0.02});
@@ -197,7 +197,7 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph 
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
             oso->drawTextAtPlacedPosition(getLabel()
-                + (isHighLighted() ? "" : " " + msg), Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +5 : +1);
+                + " " + msg, Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +5 : +1);
         }
     }
 }
@@ -287,7 +287,7 @@ XGraph1DMathToolList::XGraph1DMathToolList(const char *name, bool runtime,
 }
 
 void
-XGraph1DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
+XGraph1DMathToolList::update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter,
     cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) {
     if(tr.size(shared_from_this()) &&
             (std::distance(xbegin, xend) > 0) &&
@@ -309,7 +309,7 @@ XGraph1DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
             }
             cv_iterator ybegin_lim = ybegin + (xbegin_lim - xbegin);
             cv_iterator yend_lim = ybegin + (xend_lim - xbegin);
-            tool->update(tr, graphwidget, xbegin_lim, xend_lim, ybegin_lim, yend_lim);
+            tool->update(tr, painter, xbegin_lim, xend_lim, ybegin_lim, yend_lim);
         }
     }
 }
@@ -319,7 +319,7 @@ XGraph2DMathToolList::XGraph2DMathToolList(const char *name, bool runtime,
     XGraphMathToolList<XGraph2DMathTool, XQGraph2DMathToolConnector>(name, runtime, meas, driver, plot) {
 }
 void
-XGraph2DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
+XGraph2DMathToolList::update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter,
     const uint32_t *leftupper, unsigned int width,
     unsigned int stride, unsigned int numlines, double coefficient, double offset) {
     if(tr.size(shared_from_this())) {
@@ -338,7 +338,7 @@ XGraph2DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
 //            ssize_t y1 = lrint(numlines - 1 - ymin); //mirror y
             y1 = std::min(y1, (ssize_t)numlines - 1); //limits y
             if((x0 >= 0) && (y0 >= 0) && (x0 < stride) && (y0 < numlines) && (x1 >= x0)) {
-                tool->update(tr, graphwidget, leftupper + x0 + y0 * stride, x1 - x0 + 1,
+                tool->update(tr, painter, leftupper + x0 + y0 * stride, x1 - x0 + 1,
                     stride, y1 - y0 + 1, coefficient, offset);
             }
         }
@@ -385,7 +385,7 @@ XGraph1DMathToolList::onAxisSelectedByToolForCreate(const Snapshot &shot,
         tr[ *tool->baseColor()] = m_basecolor;
         tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
     });
-    tool->highlight(false, widget);
+    tool->highlight(false, widget->painter().lock());
 }
 
 void
@@ -432,7 +432,7 @@ XGraph2DMathToolList::onPlaneSelectedByToolForCreate(const Snapshot &shot,
         tr[ *tool->baseColor()] = m_basecolor;
         tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
     });
-    tool->highlight(false, widget);
+    tool->highlight(false, widget->painter().lock());
 }
 
 void
@@ -445,6 +445,7 @@ XGraph1DMathToolList::onAxisSelectedByToolForReselect(const Snapshot &shot,
     unsigned int idx = 0;
     Snapshot shot_this( *this);
     auto list = shot_this.list();
+    if( !list) return;
     if(list->size())
         for(auto x: *list) {
             if(x->getLabel() == label)
@@ -458,7 +459,7 @@ XGraph1DMathToolList::onAxisSelectedByToolForReselect(const Snapshot &shot,
         tr[ *tool->begin()] = src;
         tr[ *tool->end()] = dst;
     });
-    tool->highlight(false, widget);
+    tool->highlight(false, widget->painter().lock());
 }
 
 void
@@ -471,6 +472,7 @@ XGraph2DMathToolList::onPlaneSelectedByToolForReselect(const Snapshot &shot,
     unsigned int idx = 0;
     Snapshot shot_this( *this);
     auto list = shot_this.list();
+    if( !list) return;
     if(list->size())
         for(auto x: *list) {
             if(x->getLabel() == label)
@@ -488,6 +490,6 @@ XGraph2DMathToolList::onPlaneSelectedByToolForReselect(const Snapshot &shot,
         tr[ *tool->beginY()] = src.y;
         tr[ *tool->endY()] = dst.y;
     });
-    tool->highlight(false, widget);
+    tool->highlight(false, widget->painter().lock());
 }
 

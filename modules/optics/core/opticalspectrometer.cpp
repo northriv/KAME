@@ -225,7 +225,7 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
     m_marker1X->value(tr, tr[ *this].waveLengths()[idx]);
     m_marker1Y->value(tr, *it);
     //for pressure scales
-    m_spectralToolLists[0]->update(ref(tr), m_form->m_graphwidget,
+    m_spectralToolLists[0]->update(ref(tr), m_form->m_graphwidget->painter().lock(),
         tr[ *this].waveLengths_().begin(), tr[ *this].waveLengths_().end(),
         tr[ *this].counts_().begin(), tr[ *this].counts_().end());
 }

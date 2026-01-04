@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -60,8 +60,11 @@ using std::max;
 
 void
 OnScreenRectObject::drawNative(bool colorpicking) {
+    auto type = m_type;
+    if(colorpicking)
+        type = Type::Selection;
     Snapshot shot_graph( *painter()->graph());
-    switch(m_type) {
+    switch(type) {
     case Type::Selection: {
         double w = 0.1;
         for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
@@ -134,7 +137,7 @@ OnScreenRectObject::drawNative(bool colorpicking) {
 }
 
 void
-OnScreenObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
+OnScreenPickableObject::placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
                                  const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,
                                  HowToEvade direction, XGraph::SFloat space) {
     m_leftTop = init_lefttop;
@@ -238,7 +241,7 @@ XQGraphPainter::createTextureDuringListing(const shared_ptr<QImage> &image) {
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
-    return createListedOnScreenObject<OnScreenTexture>(id, image);
+    return createListedOnScreenObject<OnScreenTexture>(id, image, graph());
 }
 
 OnScreenTexture::~OnScreenTexture() {
@@ -449,7 +452,8 @@ template class OnAxisFuncObject<true>;
 template class OnAxisFuncObject<false>;
 
 
-OnScreenTextObject::OnScreenTextObject(XQGraphPainter* p) : OnScreenObjectWithMarker(p),
+OnScreenTextObject::OnScreenTextObject(XQGraphPainter* p, const std::__1::shared_ptr<XNode> &pickable_node) :
+    OnScreenPickableObject(p, pickable_node),
     m_minX(0xffff), m_minY(0xffff), m_maxX(-0xffff), m_maxY(-0xffff) {
     defaultFont();
 }

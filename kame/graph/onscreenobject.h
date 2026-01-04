@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@ class XGraph2DMathTool;
 class X2DImagePlot;
 class DECLSPEC_KAME OnScreenObject {
 public:
-    OnScreenObject(XQGraphPainter* p) : m_painter(p) {}
+    explicit OnScreenObject(XQGraphPainter* p) : m_painter(p) {}
     virtual ~OnScreenObject() {}
     //! draws in OpenGL.
     virtual void drawNative(bool colorpicking) = 0;
@@ -49,7 +49,7 @@ template <class OSO>
 class DECLSPEC_KAME OnPlotObject : public OSO {
 public:
     template <typename... Args>
-    OnPlotObject(XQGraphPainter* p, Args&&... args) : OSO(p, std::forward<Args>(args)...) {}
+    explicit OnPlotObject(XQGraphPainter* p, Args&&... args) : OSO(p, std::forward<Args>(args)...) {}
 
     void placeObject(const shared_ptr<XPlot> &plot,
                      const XGraph::ValPoint corners[4],
@@ -74,7 +74,7 @@ template <class OSO, bool IsXAxis>
 class DECLSPEC_KAME OnAxisObject : public OSO {
 public:
     template <typename... Args>
-    OnAxisObject(XQGraphPainter* p, Args&&... args) : OSO(p, std::forward<Args>(args)...) {}
+    explicit OnAxisObject(XQGraphPainter* p, Args&&... args) : OSO(p, std::forward<Args>(args)...) {}
 
     void placeObject(const shared_ptr<XPlot> &plot,
                      const XGraph::VFloat &bg1, const XGraph::VFloat &ed1,
@@ -103,9 +103,11 @@ private:
 };
 
 
-class DECLSPEC_KAME OnScreenObjectWithMarker : public OnScreenObject {
+class DECLSPEC_KAME OnScreenPickableObject : public OnScreenObject {
 public:
-    OnScreenObjectWithMarker(XQGraphPainter* p) : OnScreenObject(p) {}
+    //! param pickable_node XNode object responsible for OSO, eg. XGraph1DMathTool.
+    OnScreenPickableObject(XQGraphPainter* p, const shared_ptr<XNode> &pickable_node) :
+        OnScreenObject(p), m_pickableNode(pickable_node) {}
     enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, Hide};
     void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
         const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,
@@ -116,17 +118,21 @@ public:
     XGraph::ScrPoint &rightTop() {return m_rightTop;}
     XGraph::ScrPoint &rightBottom() {return m_rightBottom;}
     XGraph::ScrPoint &leftBottom() {return m_leftBottom;}
+
+    shared_ptr<XNode> pickableNode() const {return m_pickableNode.lock();}
 protected:
     XGraph::ScrPoint m_leftTop, m_rightBottom, m_leftBottom, m_rightTop;
     XGraph::SFloat m_space;
     HowToEvade m_direction;
+private:
+    weak_ptr<XNode> m_pickableNode;
 };
 
-class DECLSPEC_KAME OnScreenRectObject : public OnScreenObjectWithMarker {
+class DECLSPEC_KAME OnScreenRectObject : public OnScreenPickableObject {
 public:
     enum class Type {Selection, AreaTool, BorderLines, Legends};
-    OnScreenRectObject(XQGraphPainter* p, Type type) :
-        OnScreenObjectWithMarker(p), m_type(type) {}
+    OnScreenRectObject(XQGraphPainter* p, Type type, const shared_ptr<XNode> &pickable_node) :
+        OnScreenPickableObject(p, pickable_node), m_type(type) {}
     //! draws in OpenGL.
     virtual void drawNative(bool colorpicking) override;
     //! draws by QPainter.
@@ -138,8 +144,8 @@ private:
 template <bool IsXAxis>
 class DECLSPEC_KAME OnAxisFuncObject : public OnAxisObject<OnScreenRectObject, IsXAxis> {
 public:
-    OnAxisFuncObject(XQGraphPainter* p) :
-        OnAxisObject<OnScreenRectObject, IsXAxis>(p, OnScreenRectObject::Type::AreaTool) {}
+    OnAxisFuncObject(XQGraphPainter* p, const shared_ptr<XNode> &pickable_node) :
+        OnAxisObject<OnScreenRectObject, IsXAxis>(p, OnScreenRectObject::Type::AreaTool, pickable_node) {}
     //! draws in OpenGL.
     virtual void drawNative(bool colorpicking) override;
     //! draws by QPainter.
@@ -157,10 +163,10 @@ using OnYAxisRectObject = OnAxisObject<OnScreenRectObject, false>;
 using OnPlotRectObject = OnPlotObject<OnScreenRectObject>;
 
 #include <QImage>
-class DECLSPEC_KAME OnScreenTexture : public OnScreenObjectWithMarker {
+class DECLSPEC_KAME OnScreenTexture : public OnScreenPickableObject {
 public:
-   OnScreenTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<QImage> &image)
-       : OnScreenObjectWithMarker(item), id(tid), qimage(image) {}
+   OnScreenTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<QImage> &image, const shared_ptr<XNode> &pickable_node)
+       : OnScreenPickableObject(item, pickable_node), id(tid), qimage(image) {}
    virtual ~OnScreenTexture();
    //! update texture by new image.
    void repaint(const shared_ptr<QImage> &image);
@@ -176,15 +182,15 @@ private:
    static std::deque<GLuint> unusedIDs;
 };
 
-class DECLSPEC_KAME OnScreenTextObject : public OnScreenObjectWithMarker {
+class DECLSPEC_KAME OnScreenTextObject : public OnScreenPickableObject {
 public:
-    OnScreenTextObject(XQGraphPainter* p);
+    OnScreenTextObject(XQGraphPainter* p, const shared_ptr<XNode> &pickable_node);
 
     virtual void drawNative(bool colorpicking) override;
     virtual void drawByPainter(QPainter *) override;
 
     void clear();
-    //! using OnScreenObjectWithMarker::placeObject().
+    //! using OnScreenPickableObject::placeObject().
     void drawTextAtPlacedPosition(const XString &str, int alignment, int sizehint = 0);
     //! not thread safe, be called within paintGL().
     void drawText(const XGraph::ScrPoint &p, const XString &str);

@@ -333,9 +333,12 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         unsigned int stride = width;
         for(unsigned int i = 0; i < seq_len; ++i) {
             unsigned int tidx = 4 - seq_len + i;
-            m_sampleToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
-            m_referenceToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
-            m_darkToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
+            m_sampleToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed->painter().lock(),
+                summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
+            m_referenceToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed->painter().lock(),
+                summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
+            m_darkToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed->painter().lock(),
+                summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
         }
         auto fn_tool_to_vector = [&](std::vector<double>&vec, const shared_ptr<XGraph2DMathToolList> &toollist, double dark = 0) {
             vec.clear();

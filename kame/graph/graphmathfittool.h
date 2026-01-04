@@ -25,7 +25,7 @@
 
 template <class F>
 struct DECLSPEC_KAME OnXAxisMathFitToolObject : public OnAxisFuncObject<true> {
-    OnXAxisMathFitToolObject(XQGraphPainter* p) : OnAxisFuncObject<true>(p) {}
+    OnXAxisMathFitToolObject(XQGraphPainter* p, const shared_ptr<XNode> &pickable_node) : OnAxisFuncObject<true>(p, pickable_node) {}
 
     NonLinearLeastSquare nlls_result;
 protected:
@@ -53,7 +53,7 @@ public:
          entries->insert(tr_meas, m_entry_err);
     }
     virtual ~XGraph1DMathFitToolX() {}
-    virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
+    virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
         using namespace std::placeholders;
         auto func = std::bind(&F::fitFunc, xbegin, xend, ybegin, yend, _1, _4, _5);
 
@@ -105,7 +105,7 @@ public:
                 oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, -0.001});
             }
         }
-        updateOnScreenObjects(tr, graphwidget, std::move(msg));
+        updateOnScreenObjects(tr, painter, std::move(msg));
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual bool releaseEntries(Transaction &tr) override {
@@ -114,12 +114,12 @@ public:
         return entries()->release(tr, m_entry);
     }
 protected:
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) override {
-        XGraph1DMathTool::updateAdditionalOnScreenObjects(shot, graphwidget, msg);
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) override {
+        XGraph1DMathTool::updateAdditionalOnScreenObjects(shot, painter, msg);
     }
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override {
         auto osos = XGraph1DMathTool::createAdditionalOnScreenObjects(painter);
-        auto oso = painter->createOnScreenObjectWeakly<OnXAxisMathFitToolObject<F>>();
+        auto oso = painter->createOnScreenObjectWeakly<OnXAxisMathFitToolObject<F>>(shared_from_this());
         m_osoFitCurve = oso;
         osos.push_back(oso);
         return osos;

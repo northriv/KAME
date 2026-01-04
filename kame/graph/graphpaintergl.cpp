@@ -313,7 +313,10 @@ XQGraphPainter::pickObjectGL(int x, int y, int dx, int dy, GLint list) {
 
     glMatrixMode(GL_MODELVIEW);
 
-    glCallList(list);
+    if(list == m_listosos_picker)
+        drawAdditionalOnScreenObjNative(true); //list didn't work with texture.
+    else
+        glCallList(list);
 
     glDisable(GL_DEPTH_TEST);
 
@@ -533,41 +536,40 @@ XQGraphPainter::drawAdditionalOnScreenObjNative(bool colorpicking) {
     uint16_t objid = 0;
     for(auto &&oso: m_weakptrOSOs) {
         if(auto o = oso.lock()) {
-            objid++;
             if(o->hasTexture()) {
                 if(colorpicking)
                     glColor4f((int)ObjClassColorR::OSO_weakptr/256.0f,
                         (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
                 o->drawNative(colorpicking);
             }
+            objid++;
         }
     }
     objid = 0;
     for(auto &&osobj: m_paintedOSOs) {
-        objid++;
         if(osobj->hasTexture()) {
             if(colorpicking)
                 glColor4f((int)ObjClassColorR::OSO_painted/256.0f,
                       (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
             osobj->drawNative(colorpicking);
         }
+        objid++;
     }
     objid = 0;
     for(auto &&osobj: m_listedOSOs) {
-        objid++;
         if(osobj->hasTexture()) {
             if(colorpicking)
                 glColor4f((int)ObjClassColorR::OSO_listed/256.0f,
                       (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
             osobj->drawNative(colorpicking);
         }
+        objid++;
     }
 
     //better to be drawn after textures
     objid = 0;
     for(auto it = m_weakptrOSOs.begin(); it != m_weakptrOSOs.end();) {
         if(auto o = it->lock()) {
-            objid++;
             if( !o->hasTexture()) {
                 if(colorpicking)
                     glColor4f((int)ObjClassColorR::OSO_weakptr/256.0f,
@@ -575,29 +577,30 @@ XQGraphPainter::drawAdditionalOnScreenObjNative(bool colorpicking) {
                 o->drawNative(colorpicking);
             }
             it++;
+            objid++;
         }
         else
             it = m_weakptrOSOs.erase(it);
     }
     objid = 0;
     for(auto &&osobj: m_paintedOSOs) {
-        objid++;
         if( !osobj->hasTexture()) {
             if(colorpicking)
                 glColor4f((int)ObjClassColorR::OSO_painted/256.0f,
                           (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
             osobj->drawNative(colorpicking);
         }
+        objid++;
     }
     objid = 0;
     for(auto &&osobj: m_listedOSOs) {
-        objid++;
         if( !osobj->hasTexture()) {
             if(colorpicking)
                 glColor4f((int)ObjClassColorR::OSO_listed/256.0f,
                           (objid/256u)/256.0f, (objid % 256u)/256.0f, 1.0f);
             osobj->drawNative(colorpicking);
         }
+        objid++;
     }
 }
 
@@ -744,12 +747,6 @@ XQGraphPainter::paintGL () {
 
         checkGLError();
 
-        glNewList(m_listosos_picker, GL_COMPILE);
-        drawAdditionalOnScreenObjNative(true);
-        glEndList();
-
-        checkGLError();
-
         m_bIsAxisRedrawNeeded = false;
     }
     else {        
@@ -796,6 +793,12 @@ XQGraphPainter::paintGL () {
 
     drawAdditionalOnScreenObjNative();
     checkGLError();
+//    //better to be drawn after textures
+//    glNewList(m_listosos_picker, GL_COMPILE);
+//    drawAdditionalOnScreenObjNative(true);
+//    glEndList();
+
+//    checkGLError();
 
     glDisable(GL_DEPTH_TEST);
 

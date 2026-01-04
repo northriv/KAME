@@ -138,13 +138,13 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
 void XQGraph1DMathToolConnector::toolHovered(QAction *act) {
     for(auto it = m_actionToExisitingToolMap.begin(); it != m_actionToExisitingToolMap.end(); it++) {
         auto tool = it->second.second;
-        static_pointer_cast<XGraph1DMathTool>(tool)->highlight(false, m_graphwidget);
+        static_pointer_cast<XGraph1DMathTool>(tool)->highlight(false, m_graphwidget->painter().lock());
     }
     {
         auto [begin, end] = m_actionToExisitingToolMap.equal_range(act);
         for(auto it = begin; it != end; it++) {
             auto tool = it->second.second;
-            static_pointer_cast<XGraph1DMathTool>(tool)->highlight(true, m_graphwidget);
+            static_pointer_cast<XGraph1DMathTool>(tool)->highlight(true, m_graphwidget->painter().lock());
         }
     }
 }
@@ -152,13 +152,13 @@ void XQGraph1DMathToolConnector::toolHovered(QAction *act) {
 void XQGraph2DMathToolConnector::toolHovered(QAction *act) {
     for(auto it = m_actionToExisitingToolMap.begin(); it != m_actionToExisitingToolMap.end(); it++) {
         auto tool = it->second.second;
-        static_pointer_cast<XGraph2DMathTool>(tool)->highlight(false, m_graphwidget);
+        static_pointer_cast<XGraph2DMathTool>(tool)->highlight(false, m_graphwidget->painter().lock());
     }
     {
         auto [begin, end] = m_actionToExisitingToolMap.equal_range(act);
         for(auto it = begin; it != end; it++) {
             auto tool = it->second.second;
-            static_pointer_cast<XGraph2DMathTool>(tool)->highlight(true, m_graphwidget);
+            static_pointer_cast<XGraph2DMathTool>(tool)->highlight(true, m_graphwidget->painter().lock());
         }
     }
 }

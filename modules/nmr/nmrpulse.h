@@ -26,7 +26,7 @@
 class Ui_FrmNMRPulse;
 typedef QForm<QMainWindow, Ui_FrmNMRPulse> FrmNMRPulse;
 
-class OnScreenObjectWithMarker;
+class OnScreenPickableObject;
 
 class XNMRPulseAnalyzer : public XSecondaryDriver {
 public:
@@ -215,7 +215,7 @@ private:
 	shared_ptr<SpectrumSolverWrapper> m_solverPNR;
 	shared_ptr<XXYPlot> m_peakPlot;
 
-    std::deque<shared_ptr<OnScreenObjectWithMarker>> m_osos;
+    std::deque<shared_ptr<OnScreenPickableObject>> m_osos;
 
 	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onSpectrumShow(const Snapshot &shot, XTouchableNode *);

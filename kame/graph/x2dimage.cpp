@@ -198,7 +198,7 @@ X2DImage::updateRawImages(Transaction &tr,unsigned int width, unsigned int heigh
     if(offsets.empty())
         offsets.resize(rawimages.size(), 0.0);
     for(unsigned int cidx = 0; cidx < std::min(m_toolLists.size(), rawimages.size()); ++cidx) {
-        m_toolLists[cidx]->update(tr, m_graphwidget,
+        m_toolLists[cidx]->update(tr, m_graphwidget->painter().lock(),
                                   rawimages[cidx], width, raw_stride, height, coeffs[cidx], offsets[cidx]);
     }
 }

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -170,6 +170,7 @@ public:
      shared_ptr<XPlot> m_foundPlane;
      shared_ptr<XAxis> m_foundPlaneAxis1, m_foundPlaneAxis2;
      shared_ptr<XAxis> m_foundAxis;
+     weak_ptr<XNode> m_foundPickableNode, m_nodeHighlighten;
 
      shared_ptr<XAxis> findAxis(const Snapshot &shot, const XGraph::ScrPoint &s1);
      shared_ptr<XPlot> findPlane(const Snapshot &shot, const XGraph::ScrPoint &s1,

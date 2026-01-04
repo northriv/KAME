@@ -26,7 +26,7 @@ class Ui_FrmODMRImaging;
 typedef QForm<QMainWindow, Ui_FrmODMRImaging> FrmODMRImaging;
 
 class X2DImage;
-class OnScreenObjectWithMarker;
+class OnScreenPickableObject;
 class XGraph2DMathTool;
 class XGraph2DMathToolList;
 class XQGraph2DMathToolConnector;

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,11 +12,11 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "graphpainter.h"
-#include "measure.h"
 #include "graphwidget.h"
 #include <QFont>
 #include <QFontMetrics>
 #include <QPainter>
+#include "graphmathtool.h"
 
 #define SELECT_WIDTH 0.02
 #define SELECT_DEPTH 0.1
@@ -118,6 +118,8 @@ XQGraphPainter::findPlane(const Snapshot &shot, const XGraph::ScrPoint &s1,
 
 std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mode,
     const XString& tool_desc) {
+    m_foundPickableNode.reset();
+
     m_toolDescForSelection = tool_desc;
     std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> ret{};
 
@@ -179,8 +181,9 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
             auto [zmin0, oso, scr0, sdx0, sdy0] = selectOSO(x, y,
                             (int)(SELECT_WIDTH * m_pItem->width()),
                             (int)(SELECT_WIDTH * m_pItem->height()));
-            if(auto o = oso.lock()) {
-                fprintf(stderr, "OSO:%p\n", o.get());
+            if(auto o = dynamic_pointer_cast<OnScreenPickableObject>(oso.lock())) {
+                m_foundPickableNode = o->pickableNode();
+//                fprintf(stderr, "OSO:%p from node:%p\n", o.get(), o->pickableNode().get());
             }
             m_foundPlane.reset();
             auto [zmin, objid, scr, sdx, sdy] = selectPlane(x, y,
@@ -444,7 +447,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 			ss1 -= ss2;
 			ss1 += m_startScrPos;
 
-            auto oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Selection);
+            auto oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Selection, graph());
             oso->setBaseColor(clBlue);
             oso->placeObject(m_startScrPos, sd1, m_finishScrPos, ss1);
         }
@@ -476,7 +479,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 			posOffAxis(m_foundAxis->dirVector(), &s3, +0.02);
 			m_foundAxis->axisToScreen(shot, dst1, &s4);
 			posOffAxis(m_foundAxis->dirVector(), &s4, -0.02);
-            auto oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Selection);
+            auto oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Selection, graph());
             oso->setBaseColor(clRed);
             oso->placeObject(s1, s2, s3, s4);
             m_foundAxis->axisToScreen(shot, src1, &s1);
@@ -487,7 +490,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
             posOffAxis(m_foundAxis->dirVector(), &s2, -0.1);
             m_foundAxis->axisToScreen(shot, dst1, &s3);
             posOffAxis(m_foundAxis->dirVector(), &s3, 0.05);
-            oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::BorderLines);
+            oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::BorderLines, graph());
             oso->setBaseColor(clBlue);
             oso->placeObject(s1, s2, s3, s4);
         }
@@ -507,7 +510,7 @@ XQGraphPainter::showHelp() {
 void
 XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
     //Draws Title
-    auto oso = createOneTimeOnScreenObject<OnScreenTextObject>();
+    auto oso = createOneTimeOnScreenObject<OnScreenTextObject>(graph());
     oso->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
     oso->setBaseColor(shot[ *m_graph->titleColor()]);
     if(shot[ *m_graph->onScreenStrings()].to_str().length()) {
@@ -516,15 +519,35 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
     else {
         oso->drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()]);
     }
-	if(m_onScreenMsg.length() ) {
+
+    if(auto node = m_nodeHighlighten.lock()) {
+        if(m_foundPickableNode.lock() != node) {
+        //Undo highlighting the OSO object.
+            m_nodeHighlighten.reset();
+            if(auto o = dynamic_pointer_cast<XGraphMathTool>(node)) {
+                o->highlight(false, shared_from_this());
+            }
+        }
+    }
+    if(auto node = m_foundPickableNode.lock()) {
+        //highlighting the OSO object.
+        if(auto o = dynamic_pointer_cast<XGraphMathTool>(node)) {
+            if(node != m_nodeHighlighten.lock()) {
+                o->highlight(true, shared_from_this());
+            }
+            m_onScreenMsg += " " + o->getMenuLabel();
+        }
+        m_nodeHighlighten = node; //avoids highlighting again, and to recover the state when unhovered.
+    }
+    if(m_onScreenMsg.length() ) {
         //Draws message at the bottom left corner
-        auto oso = createOneTimeOnScreenObject<OnScreenTextObject>();
+        auto oso = createOneTimeOnScreenObject<OnScreenTextObject>(graph());
         oso->selectFont(m_onScreenMsg, XGraph::ScrPoint(0.6, 0.05, 0.01), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, 0.05, 0), 0);
         oso->setAlignment(Qt::AlignBottom | Qt::AlignLeft);
         oso->setBaseColor(shot[ *m_graph->titleColor()]);
         oso->drawText(XGraph::ScrPoint(0.01, 0.01, 0.01), m_onScreenMsg);
     }
-	//Legends
+    //Legends
 	if(shot[ *m_graph->drawLegends()] &&
             (m_selectionModeNow == SelectionMode::SelNone)) {
 		if(shot.size(m_graph->plots())) {
@@ -546,7 +569,7 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 				y1 = 1.0f - y1 + plots_list.size() * dy;
             float x2 = x1 - 0.01; //right edge of text field.
 
-            auto oso = createOneTimeOnScreenObject<OnScreenTextObject>();
+            auto oso = createOneTimeOnScreenObject<OnScreenTextObject>(graph());
             oso->setBaseColor(shot[ *m_graph->titleColor()]);
             oso->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
             float z = 0.97;
@@ -565,7 +588,7 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			}
             z = 0.97;
             float minx = x1 - text_width;
-            auto oso_rect = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Legends);
+            auto oso_rect = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Legends, graph());
             oso_rect->setBaseColor(shot[ *m_graph->titleColor()]);
             oso_rect->placeObject(
                 {minx, y1 + dy/2, z}, {minx, y2 + dy/2, z},
@@ -585,7 +608,7 @@ XQGraphPainter::drawOnScreenHelp(const Snapshot &shot, QPainter *qpainter) {
     cl.setAlpha(lrint(0.55 * 255));
     qpainter->fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
 
-    auto oso = createOneTimeOnScreenObject<OnScreenTextObject>();
+    auto oso = createOneTimeOnScreenObject<OnScreenTextObject>(graph());
     oso->setBaseColor(shot[ *m_graph->backGround()]);
     oso->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     y -= 0.1;

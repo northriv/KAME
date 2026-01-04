@@ -769,7 +769,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
                 m_osos.clear();
                 for(unsigned int i = 0; i < n; ++i)
                     m_osos.push_back(
-                        painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines));
+                        painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines, shared_from_this()));
             }
             auto plot = shot[ *waveGraph()].plot(0);
             for(unsigned int i = 0; i < n; ++i) {

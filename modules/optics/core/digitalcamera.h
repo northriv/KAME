@@ -29,7 +29,7 @@ class Ui_FrmDigitalCamera;
 typedef QForm<QMainWindow, Ui_FrmDigitalCamera> FrmDigitalCamera;
 class XQGraph;
 class X2DImage;
-class OnScreenObjectWithMarker;
+class OnScreenPickableObject;
 
 template <unsigned int NumPool = 5, typename tWord = uint32_t>
 struct ImageSpacePoolAllocator {

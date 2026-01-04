@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,7 +22,7 @@
 
 class QPainter;
 class XQGraph;
-class OnScreenObjectWithMarker;
+class OnScreenPickableObject;
 
 class DECLSPEC_KAME XGraphMathTool: public XNode {
 public:
@@ -38,17 +38,17 @@ public:
 
     virtual bool releaseEntries(Transaction &tr) {return true;}
 
-    void highlight(bool state, XQGraph *graphwidget);
+    void highlight(bool state, const shared_ptr<XQGraphPainter> &painter);
 
-    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg);
+    void updateOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
     const weak_ptr<XPlot> m_plot;
     bool isHighLighted() const {return m_highlight;}
 
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) = 0;
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) = 0;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) = 0;
-    weak_ptr<OnScreenObjectWithMarker> m_osoHighlight;
+    weak_ptr<OnScreenPickableObject> m_osoHighlight;
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
     const weak_ptr<XScalarEntryList> m_entries;
@@ -64,18 +64,18 @@ public:
         const shared_ptr<XPlot> &plot);
     virtual ~XGraph1DMathTool();
 
-    virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) = 0;
+    virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) = 0;
 
     const shared_ptr<XDoubleNode> &begin() const {return m_begin;}
     const shared_ptr<XDoubleNode> &end() const {return m_end;}
 
     virtual XString getMenuLabel() const override;
 protected:
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) override;
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) override;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
-    weak_ptr<OnScreenObjectWithMarker> m_osoRect, m_osoLabel;
+    weak_ptr<OnScreenPickableObject> m_osoRect, m_osoLabel;
 };
 
 class DECLSPEC_KAME XGraph2DMathTool: public XGraphMathTool {
@@ -85,7 +85,7 @@ public:
                      const shared_ptr<XPlot> &plot);
     virtual ~XGraph2DMathTool() {}
 
-    virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
+    virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient, double offset) = 0;
 
     const shared_ptr<XDoubleNode> &beginX() const {return m_beginX;}
@@ -98,11 +98,11 @@ public:
 
     virtual XString getMenuLabel() const override;
 protected:
-    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget, const XString &msg) override;
+    virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) override;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
-    weak_ptr<OnScreenObjectWithMarker> m_osoRect, m_osoLabel;
+    weak_ptr<OnScreenPickableObject> m_osoRect, m_osoLabel;
 };
 
 //! entrynames semi colon-sparated entry names.
@@ -141,7 +141,7 @@ public:
     using cv_iterator = typename XGraphMathToolX<F, XGraph1DMathTool>::cv_iterator;
     using ret_type = typename std::conditional<HasSingleEntry, double, std::vector<double>>::type;
 
-    virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
+    virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
         XString msg;
         if constexpr(HasSingleEntry) {
             double v = tr[ *this].functor(xbegin, xend, ybegin, yend);
@@ -159,7 +159,7 @@ public:
             catch(std::out_of_range&) {
             }
         }
-        this->updateOnScreenObjects(tr, graphwidget, msg);
+        this->updateOnScreenObjects(tr, painter, msg);
     }
     struct Payload : public XGraph1DMathTool::Payload {
         F functor;
@@ -172,7 +172,7 @@ public:
     using XGraphMathToolX<F, XGraph2DMathTool>::XGraphMathToolX;
     using ret_type = typename std::conditional<HasSingleEntry, double, std::vector<double>>::type;
 
-    virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
+    virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient, double offset) override {
 //        using namespace Eigen;
 //        using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
@@ -195,7 +195,7 @@ public:
             catch(std::out_of_range&) {
             }
         }
-        this->updateOnScreenObjects(tr, graphwidget, msg);
+        this->updateOnScreenObjects(tr, painter, msg);
     }
     struct Payload : public XGraph2DMathTool::Payload {
         F functor;
@@ -363,7 +363,7 @@ public:
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 
-    virtual void update(Transaction &tr, XQGraph *graphwidget,
+    virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter,
         cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend);
 
     void onAxisSelectedByToolForCreate(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>&);
@@ -385,7 +385,7 @@ public:
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 
-    virtual void update(Transaction &tr, XQGraph *graphwidget,
+    virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter,
         const uint32_t *leftupper,
         unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset = 0.0);
 

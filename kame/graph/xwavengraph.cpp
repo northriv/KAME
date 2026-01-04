@@ -340,7 +340,7 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
                 colxcref.resize(idx);
                 colycref.resize(idx);
             }
-            shot[ *this].m_toolLists[j]->update(tr, m_graphwidget, colxcref.begin(), colxcref.end(), colycref.begin(), colycref.end());
+            shot[ *this].m_toolLists[j]->update(tr, m_graphwidget->painter().lock(), colxcref.begin(), colxcref.end(), colycref.begin(), colycref.end());
         }
     }
 }

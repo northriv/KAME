@@ -27,7 +27,7 @@ class OnScreenObject;
     #include <QOpenGLWidget>
 #endif
 
-class OnScreenObjectWithMarker;
+class OnScreenPickableObject;
 
 //! Graph widget with a dialog which is initially hidden.
 //! \sa XGraph, XQGraphPainter
