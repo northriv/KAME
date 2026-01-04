@@ -139,7 +139,7 @@ private:
     TalkerOnce<XWaveNGraph*> m_tlkOnPlotInsertion;
     shared_ptr<Listener> m_lsnOnPlotInsertion;
     void OnPlotInsertion(const Snapshot &shot, XWaveNGraph *wave);
-    shared_ptr<XQGraph1DMathToolConnector> m_conTools;
+    xqcon_ptr m_conTools;
 };
 
 template <typename VALUE>

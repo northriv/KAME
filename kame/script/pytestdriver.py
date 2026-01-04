@@ -57,8 +57,8 @@ try:
     from scipy.optimize import curve_fit
 
     class Test1DMathTool(XPythonGraph1DMathTool):
-        def __init__(self, name, runtime, tr, entries, driver, plot, entryname):
-            XPythonGraph1DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, entryname)  #super().__init__ cannot be used.
+        def __init__(self, name, runtime, tr, entries, driver, plot, parent, entryname):
+            XPythonGraph1DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, parent, entryname)  #super().__init__ cannot be used.
 
             self.setFunctor(self.func)
         @staticmethod
@@ -80,8 +80,8 @@ except (ImportError, ModuleNotFoundError):
 
 #Third example, 2DMathTool
 class Test2DMathTool(XPythonGraph2DMathTool):
-    def __init__(self, name, runtime, tr, entries, driver, plot, entryname):
-        XPythonGraph2DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, entryname)  #super().__init__ cannot be used.
+    def __init__(self, name, runtime, tr, entries, driver, plot, parent, entryname):
+        XPythonGraph2DMathTool.__init__(self, name, runtime, tr, entries, driver, plot, parent, entryname)  #super().__init__ cannot be used.
         self.setFunctor(lambda matrix, width, stride, numlines, coefficient, offset: \
             np.array([coefficient * np.sum(matrix) + np.size(matrix) * offset, coefficient * np.average(matrix) + offset]))
 

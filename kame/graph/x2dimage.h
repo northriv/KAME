@@ -62,7 +62,7 @@ private:
     QDoubleSpinBox *m_dblGamma = nullptr;
     std::deque<xqcon_ptr> m_conUIs;
     std::deque<shared_ptr<XGraph2DMathToolList>> m_toolLists;
-    unique_ptr<XQGraph2DMathToolConnector> m_conTools;
+    xqcon_ptr m_conTools;
 };
 
 #endif

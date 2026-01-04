@@ -122,8 +122,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
         static_pointer_cast<XXYPlot>(plot))
     };
 
-    m_conTools =
-        std::make_shared<XQGraph1DMathToolConnector>(m_spectralToolLists, m_form->m_tbSpectralTool, m_form->m_graphwidget);
+    m_conUIs.push_back(xqcon_create<XQGraph1DMathToolConnector>(m_spectralToolLists[0], m_form->m_tbSpectralTool, m_spectralToolLists, m_form->m_graphwidget));
 
     std::vector<shared_ptr<XNode>> runtime_ui{
 //        startWavelen(),

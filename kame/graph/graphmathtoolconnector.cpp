@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -23,27 +23,49 @@ std::deque<shared_ptr<Listener>> XQGraph1DMathToolConnector::s_activeListeners;
 std::deque<shared_ptr<Listener>> XQGraph2DMathToolConnector::s_activeListeners;
 
 XQGraph1DMathToolConnector::XQGraph1DMathToolConnector
-(const std::deque<shared_ptr<XGraph1DMathToolList>> &lists, QToolButton* item, XQGraph *graphwidget) :
-    m_pItem(item), m_graphwidget(graphwidget), m_lists(lists) {
-    m_menu = new QMenu();
+(const shared_ptr<XGraph1DMathToolList> &list0, QToolButton* item, const std::deque<shared_ptr<XGraph1DMathToolList>> &lists, XQGraph *graphwidget) :
+    XQConnector(list0, item), m_pItem(item), m_graphwidget(graphwidget), m_lists(lists) {
+    m_menu = new QMenu(graphwidget);
     item->setMenu(m_menu);
     item->setPopupMode(QToolButton::InstantPopup);
     connect( m_menu, SIGNAL( aboutToShow() ), this, SLOT( menuOpenActionActivated() ) );
+
+    for(auto &&list: lists) {
+        list->iterate_commit([=](Transaction &tr){
+            if(list == lists.at(0))
+                m_lsnOnPopupMenu = tr[ *list].popupMenu().connectWeakly(
+                    shared_from_this(), &XQGraph1DMathToolConnector::onPopupMenu,
+                    Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
+            else
+                tr[ *list].popupMenu().connect(m_lsnOnPopupMenu);
+        });
+    }
 }
 
 
 XQGraph2DMathToolConnector::XQGraph2DMathToolConnector
-(const std::deque<shared_ptr<XGraph2DMathToolList>> &lists, QToolButton* item, XQGraph *graphwidget) :
-    m_pItem(item), m_graphwidget(graphwidget), m_lists(lists) {
-    m_menu = new QMenu();
+(const shared_ptr<XGraph2DMathToolList> &list0, QToolButton* item, const std::deque<shared_ptr<XGraph2DMathToolList>> &lists, XQGraph *graphwidget) :
+    XQConnector(list0, item), m_pItem(item), m_graphwidget(graphwidget), m_lists(lists) {
+    m_menu = new QMenu(graphwidget);
     item->setMenu(m_menu);
     item->setPopupMode(QToolButton::InstantPopup);
     connect( m_menu, SIGNAL( aboutToShow() ), this, SLOT( menuOpenActionActivated() ) );
+
+    for(auto &&list: lists) {
+        list->iterate_commit([=](Transaction &tr){
+            if(list == lists.at(0))
+                m_lsnOnPopupMenu = tr[ *list].popupMenu().connectWeakly(
+                    shared_from_this(), &XQGraph2DMathToolConnector::onPopupMenu,
+                    Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
+            else
+                tr[ *list].popupMenu().connect(m_lsnOnPopupMenu);
+        });
+    }
 }
 
 XQGraph2DMathToolConnector::XQGraph2DMathToolConnector
 (const shared_ptr<XGraph2DMathToolList> &list, QToolButton* item, XQGraph *graphwidget) :
-    XQGraph2DMathToolConnector(std::deque<shared_ptr<XGraph2DMathToolList>>{list}, item, graphwidget) {}
+    XQGraph2DMathToolConnector(list, item, std::deque<shared_ptr<XGraph2DMathToolList>>{list}, graphwidget) {}
 
 XQGraph1DMathToolConnector::~XQGraph1DMathToolConnector() {
     m_menu->clear();
@@ -159,6 +181,32 @@ void XQGraph2DMathToolConnector::toolHovered(QAction *act) {
         for(auto it = begin; it != end; it++) {
             auto tool = it->second.second;
             static_pointer_cast<XGraph2DMathTool>(tool)->highlight(true, m_graphwidget->painter().lock());
+        }
+    }
+}
+
+void XQGraph1DMathToolConnector::onPopupMenu(const Snapshot &shot, int ptx, int pty, XGraphMathTool *ptr) {
+    menuOpenActionActivated();
+    for(auto &&x: m_actionToExisitingToolMap) {
+        if(x.second.second.get() == ptr) {
+            QMenu *menu = m_menu->menuInAction(x.first);
+            if(menu) {
+                menu->popup(m_graphwidget->mapToGlobal(QPoint(ptx, pty)));
+                connect( menu, SIGNAL( triggered(QAction*) ), this, SLOT( toolActivated(QAction*) ) );
+            }
+        }
+    }
+}
+
+void XQGraph2DMathToolConnector::onPopupMenu(const Snapshot &shot, int ptx, int pty, XGraphMathTool *ptr) {
+    menuOpenActionActivated();
+    for(auto &&x: m_actionToExisitingToolMap) {
+        if(x.second.second.get() == ptr) {
+            QMenu *menu = m_menu->menuInAction(x.first);
+            if(menu) {
+                menu->popup(m_graphwidget->mapToGlobal(QPoint(ptx, pty)));
+                connect( menu, SIGNAL( triggered(QAction*) ), this, SLOT( toolActivated(QAction*) ) );
+            }
         }
     }
 }

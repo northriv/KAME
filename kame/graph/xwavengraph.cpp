@@ -242,7 +242,7 @@ XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, i
 }
 void
 XWaveNGraph::OnPlotInsertion(const Snapshot &shot, XWaveNGraph *wave) {
-    m_conTools = std::make_shared<XQGraph1DMathToolConnector>(shot[ *this].m_toolLists, m_btnMathTool, m_graphwidget);
+    m_conTools = xqcon_create<XQGraph1DMathToolConnector>(shot[ *this].m_toolLists[0], m_btnMathTool, shot[ *this].m_toolLists, m_graphwidget);
 }
 void
 XWaveNGraph::Payload::setCols(const std::initializer_list<std::string> &labels) {

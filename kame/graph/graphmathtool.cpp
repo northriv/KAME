@@ -45,11 +45,12 @@ REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolAverage, "Average");
 
 XGraphMathTool::XGraphMathTool(const char *name, bool runtime, Transaction &tr_meas,
     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-    const shared_ptr<XPlot> &plot) :
+    const shared_ptr<XPlot> &plot, const shared_ptr<XNode> &parentList) :
     XNode(name, runtime),
     m_plot(plot),
     m_entries(entries),
-    m_baseColor(create<XHexNode>("BaseColor", false)) {
+    m_baseColor(create<XHexNode>("BaseColor", false)),
+    m_parentList(parentList) {
     trans( *baseColor()) = 0x4080ffu;
 }
 void
@@ -61,8 +62,8 @@ XGraphMathTool::highlight(bool state, const shared_ptr<XQGraphPainter> &painter)
 
 XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, Transaction &tr_meas,
     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-    const shared_ptr<XPlot> &plot) :
-    XGraphMathTool(name, runtime, ref(tr_meas), entries, driver, plot),
+    const shared_ptr<XPlot> &plot, const shared_ptr<XNode> &parentList) :
+    XGraphMathTool(name, runtime, ref(tr_meas), entries, driver, plot, parentList),
     m_begin(create<XDoubleNode>("Begin", false)),
     m_end(create<XDoubleNode>("End", false)) {
 
@@ -71,8 +72,8 @@ XGraph1DMathTool::~XGraph1DMathTool() {
 }
 XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &tr_meas,
     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-    const shared_ptr<XPlot> &plot) :
-    XGraphMathTool(name, runtime, ref(tr_meas), entries, driver, plot),
+    const shared_ptr<XPlot> &plot, const shared_ptr<XNode> &parentList) :
+    XGraphMathTool(name, runtime, ref(tr_meas), entries, driver, plot, parentList),
     m_beginX(create<XDoubleNode>("BeginX", false)),
     m_beginY(create<XDoubleNode>("BeginY", false)),
     m_endX(create<XDoubleNode>("EndX", false)),
@@ -244,7 +245,7 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
     }
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot,
+            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot, shared_from_this(),
             name_split);
         if(ptr)
             if( !this->insert(tr, ptr))
@@ -271,7 +272,7 @@ XGraph2DMathToolList::createByTypename(const XString &type, const XString& name)
     }
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot,
+            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot, shared_from_this(),
             name_split);
         if(ptr)
             if( !this->insert(tr, ptr))

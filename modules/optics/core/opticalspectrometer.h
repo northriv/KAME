@@ -152,7 +152,6 @@ private:
     virtual void onStrobeChnagedInternal(const Snapshot &shot, XValueNodeBase *);
 
     std::deque<xqcon_ptr> m_conUIs;
-    shared_ptr<XQGraph1DMathToolConnector> m_conTools;
 
 	shared_ptr<XGraph> m_graph;
 	shared_ptr<XXYPlot> m_markerPlot;

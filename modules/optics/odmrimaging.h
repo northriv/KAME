@@ -181,8 +181,6 @@ private:
 
     std::deque<xqcon_ptr> m_conUIs;
 
-    std::deque<shared_ptr<XQGraph2DMathToolConnector>> m_conTools;
-
     void onClearAverageTouched(const Snapshot &shot, XTouchableNode *);
     void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 

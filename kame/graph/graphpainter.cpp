@@ -178,13 +178,6 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
     }
 	switch(mode) {
     case SelectionMode::SelNone: {
-            auto [zmin0, oso, scr0, sdx0, sdy0] = selectOSO(x, y,
-                            (int)(SELECT_WIDTH * m_pItem->width()),
-                            (int)(SELECT_WIDTH * m_pItem->height()));
-            if(auto o = dynamic_pointer_cast<OnScreenPickableObject>(oso.lock())) {
-                m_foundPickableNode = o->pickableNode();
-//                fprintf(stderr, "OSO:%p from node:%p\n", o.get(), o->pickableNode().get());
-            }
             m_foundPlane.reset();
             auto [zmin, objid, scr, sdx, sdy] = selectPlane(x, y,
                             (int)(SELECT_WIDTH * m_pItem->width()),
@@ -233,6 +226,15 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 	default:
 		break;
 	}
+
+    auto [zmin0, oso, scr0, sdx0, sdy0] = selectOSO(x, y,
+                    (int)(SELECT_WIDTH * m_pItem->width()),
+                    (int)(SELECT_WIDTH * m_pItem->height()));
+    if(auto o = dynamic_pointer_cast<OnScreenPickableObject>(oso.lock())) {
+        m_foundPickableNode = o->pickableNode();
+//                fprintf(stderr, "OSO:%p from node:%p\n", o.get(), o->pickableNode().get());
+    }
+
     if(state == SelectionState::SelFinish) {
         if(tool_desc.empty() && (abs(x - m_selStartPos[0]) < 3) && (abs(y - m_selStartPos[1]) < 3)) {
             //mouse movement was nearly zero.
@@ -242,22 +244,34 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
             case SelectionMode::SelAxis:
 				m_graph->iterate_commit([=](Transaction &tr){
 					if( !m_foundAxis) {
-                        bool all_autoscaled = true;
-                        //Autoscales all axes
-                        if(tr.size(m_graph->axes())) {
-                            const auto &axes_list( *tr.list(m_graph->axes()));
-                            for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
-                                shared_ptr<XAxis> axis = static_pointer_cast<XAxis>(*it);
-                                if(tr[ *axis->autoScale()].isUIEnabled())
-                                    if( !tr[ *axis->autoScale()]) {
-                                        all_autoscaled = false; //at least 1 axis is manually scaled.
-                                        tr[ *axis->autoScale()] = true;
-                                    }
+                        if(auto node = dynamic_pointer_cast<XGraphMathTool>(m_nodeHighlighten.lock())) {
+                            auto p = node->parentList();
+                            Snapshot shot_list( *p);
+                            if(auto list = dynamic_pointer_cast<XGraph1DMathToolList>(p)) {
+                                trans( *list).popupMenu().talk(shot_list, x, y, node.get());
+                            }
+                            if(auto list = dynamic_pointer_cast<XGraph2DMathToolList>(p)) {
+                                trans( *list).popupMenu().talk(shot_list, x, y, node.get());
                             }
                         }
-                        if(all_autoscaled) {
-                            //alt way for middle click.
-                            viewRotate(0.0, 0.0, 0.0, 0.0, true);
+                        else {
+                            bool all_autoscaled = true;
+                            //Autoscales all axes
+                            if(tr.size(m_graph->axes())) {
+                                const auto &axes_list( *tr.list(m_graph->axes()));
+                                for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
+                                    shared_ptr<XAxis> axis = static_pointer_cast<XAxis>(*it);
+                                    if(tr[ *axis->autoScale()].isUIEnabled())
+                                        if( !tr[ *axis->autoScale()]) {
+                                            all_autoscaled = false; //at least 1 axis is manually scaled.
+                                            tr[ *axis->autoScale()] = true;
+                                        }
+                                }
+                            }
+                            if(all_autoscaled) {
+                                //alt way for middle click.
+                                viewRotate(0.0, 0.0, 0.0, 0.0, true);
+                            }
                         }
 					}
 					else {

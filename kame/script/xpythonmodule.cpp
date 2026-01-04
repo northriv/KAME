@@ -496,9 +496,9 @@ public:
         MathToolList::s_types.insertCreator(key, [key, cls](const char *name, bool runtime,
             std::reference_wrapper<Transaction> tr,
             const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-            const shared_ptr<XPlot> &plot, const std::vector<std::string> &entrynames)->shared_ptr<XNode> {
+            const shared_ptr<XPlot> &plot, const shared_ptr<XNode> &parentList, const std::vector<std::string> &entrynames)->shared_ptr<XNode> {
             pybind11::gil_scoped_acquire guard;
-            pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, entrynames); //createOrphan in python side.
+            pybind11::object obj = cls(name, runtime, ref(tr), entries, driver, plot, parentList, entrynames); //createOrphan in python side.
             auto pytool = dynamic_pointer_cast<XPythonGraphMathTool>
                 (obj.cast<shared_ptr<XNode>>());
             if( !driver)
@@ -563,7 +563,7 @@ template <class PyMathTool, class MathTool>
 void export_mathtool(const char *name) {
     auto [node, payload] = XPython::bind.export_xnode<PyMathTool, MathTool,
             Transaction&, const shared_ptr<XScalarEntryList> &,
-            const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const std::vector<std::string> &>(name);
+            const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const shared_ptr<XNode> &, const std::vector<std::string> &>(name);
     (*node)
         .def_static("exportClass", &PyMathTool::exportClass)
         .def("setFunctor", [](shared_ptr<PyMathTool> &self, py::object f){

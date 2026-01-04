@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -30,10 +30,10 @@ class XQGraph;
 
 //Q_OBJECT cannot be used in template class!!!!
 //todo XQConnector
-class DECLSPEC_KAME XQGraph1DMathToolConnector : public QObject {
+class DECLSPEC_KAME XQGraph1DMathToolConnector : public XQConnector {
     Q_OBJECT
 public:
-    XQGraph1DMathToolConnector(const std::deque<shared_ptr<XGraph1DMathToolList>> &lists, QToolButton* item, XQGraph *graphwidget);
+    XQGraph1DMathToolConnector(const shared_ptr<XGraph1DMathToolList> &list0, QToolButton* item, const std::deque<shared_ptr<XGraph1DMathToolList>> &lists, XQGraph *graphwidget);
     virtual ~XQGraph1DMathToolConnector();
 private:
     QToolButton *const m_pItem;
@@ -48,16 +48,19 @@ public:
 private:
     std::deque<shared_ptr<XGraph1DMathToolList>> m_lists;
     static std::deque<shared_ptr<Listener>> s_activeListeners;
+    shared_ptr<Listener> m_lsnOnPopupMenu;
+    void onPopupMenu(const Snapshot &shot, int, int, XGraphMathTool *ptr);
 public slots:
     virtual void menuOpenActionActivated();
     virtual void toolActivated(QAction *);
     virtual void toolHovered(QAction *);
 };
 
-class DECLSPEC_KAME XQGraph2DMathToolConnector : public QObject {
+class DECLSPEC_KAME XQGraph2DMathToolConnector : public XQConnector {
     Q_OBJECT
 public:
-    XQGraph2DMathToolConnector(const std::deque<shared_ptr<XGraph2DMathToolList>> &lists, QToolButton* item, XQGraph *graphwidget);
+    XQGraph2DMathToolConnector(const shared_ptr<XGraph2DMathToolList> &list0, QToolButton* item,
+                               const std::deque<shared_ptr<XGraph2DMathToolList>> &lists, XQGraph *graphwidget);
     XQGraph2DMathToolConnector(const shared_ptr<XGraph2DMathToolList> &lists, QToolButton* item, XQGraph *graphwidget);
     virtual ~XQGraph2DMathToolConnector();
 private:
@@ -72,6 +75,8 @@ public:
 private:
     std::deque<shared_ptr<XGraph2DMathToolList>> m_lists;
     static std::deque<shared_ptr<Listener>> s_activeListeners;
+    shared_ptr<Listener> m_lsnOnPopupMenu;
+    void onPopupMenu(const Snapshot &shot, int, int, XGraphMathTool *ptr);
 public slots:
     virtual void menuOpenActionActivated();
     virtual void toolActivated(QAction *);

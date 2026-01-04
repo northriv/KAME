@@ -95,12 +95,10 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_dispMethod, m_form->m_cmbDispMethod, Snapshot( *m_dispMethod)),
         xqcon_create<XQComboBoxConnector>(m_sequence, m_form->m_cmbSequence, Snapshot( *m_sequence)),
         xqcon_create<XQSpinBoxUnsignedConnector>(binning(), m_form->m_spbBinning),
-    };
 
-    m_conTools = {
-        std::make_shared<XQGraph2DMathToolConnector>(m_sampleToolLists, m_form->m_tbSmplObjMenu, m_form->m_graphwidgetProcessed),
-        std::make_shared<XQGraph2DMathToolConnector>(m_referenceToolLists, m_form->m_tbRefObjMenu, m_form->m_graphwidgetProcessed),
-        std::make_shared<XQGraph2DMathToolConnector>(m_darkToolLists, m_form->m_tbDarkObjMenu, m_form->m_graphwidgetProcessed),
+        xqcon_create<XQGraph2DMathToolConnector>(m_sampleToolLists[0], m_form->m_tbSmplObjMenu, m_sampleToolLists, m_form->m_graphwidgetProcessed),
+        xqcon_create<XQGraph2DMathToolConnector>(m_referenceToolLists[0], m_form->m_tbRefObjMenu, m_referenceToolLists, m_form->m_graphwidgetProcessed),
+        xqcon_create<XQGraph2DMathToolConnector>(m_darkToolLists[0], m_form->m_tbDarkObjMenu, m_darkToolLists, m_form->m_graphwidgetProcessed),
     };
 
     iterate_commit([=](Transaction &tr){

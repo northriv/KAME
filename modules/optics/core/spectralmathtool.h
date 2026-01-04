@@ -76,7 +76,7 @@ public:
 
     DEFINE_TYPE_HOLDER(
         std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
-        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const std::vector<std::string> &
+        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const shared_ptr<XNode> &, const std::vector<std::string> &
         )
 private:
 };
