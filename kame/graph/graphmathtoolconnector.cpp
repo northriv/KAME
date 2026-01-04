@@ -19,6 +19,9 @@
 #include "measure.h"
 //---------------------------------------------------------------------------
 
+//QObject is unhappy, incompatible with template!!!!
+//Code is doubled.
+
 std::deque<shared_ptr<Listener>> XQGraph1DMathToolConnector::s_activeListeners;
 std::deque<shared_ptr<Listener>> XQGraph2DMathToolConnector::s_activeListeners;
 

@@ -313,9 +313,9 @@ XQGraphPainter::pickObjectGL(int x, int y, int dx, int dy, GLint list) {
 
     glMatrixMode(GL_MODELVIEW);
 
-    if(list == m_listosos_picker)
-        drawAdditionalOnScreenObjNative(true); //list didn't work with texture.
-    else
+    // if(list == m_listosos_picker)
+    //     drawAdditionalOnScreenObjNative(true); //list didn't work with texture.
+    // else
         glCallList(list);
 
     glDisable(GL_DEPTH_TEST);
@@ -431,12 +431,14 @@ XQGraphPainter::initializeGL () {
     if(m_listplane_picker) glDeleteLists(m_listplane_picker, 1);
     if(m_listaxes_picker) glDeleteLists(m_listaxes_picker, 1);
     if(m_listpoints_picker) glDeleteLists(m_listpoints_picker, 1);
+    if(m_listosos_picker) glDeleteLists(m_listosos_picker, 1);
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
     m_listplane_picker = glGenLists(1);
     m_listaxes_picker = glGenLists(1);
     m_listpoints_picker = glGenLists(1);
+    m_listosos_picker = glGenLists(1);
     m_listgrids = glGenLists(1);
     m_listaxes = glGenLists(1);
     m_listpoints = glGenLists(1);
@@ -794,9 +796,9 @@ XQGraphPainter::paintGL () {
     drawAdditionalOnScreenObjNative();
     checkGLError();
 //    //better to be drawn after textures
-//    glNewList(m_listosos_picker, GL_COMPILE);
-//    drawAdditionalOnScreenObjNative(true);
-//    glEndList();
+    glNewList(m_listosos_picker, GL_COMPILE);
+    drawAdditionalOnScreenObjNative(true);
+    glEndList();
 
 //    checkGLError();
 
