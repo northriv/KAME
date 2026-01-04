@@ -400,7 +400,7 @@ void
 XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
     QString msg = "";
     if(m_toolDescForSelection.length())
-        msg = m_toolDescForSelection + ": ";
+        msg = m_toolDescForSelection + i18n(" (Selecting) ");
 //   if(SelectionStateNow != Selecting) return;
 	switch ( m_selectionModeNow ) {
     case SelectionMode::SelNone:

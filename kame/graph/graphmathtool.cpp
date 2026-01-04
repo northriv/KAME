@@ -453,14 +453,18 @@ XGraph1DMathToolList::onAxisSelectedByToolForReselect(const Snapshot &shot,
                 break;
             idx++;
         }
-    auto tool = static_pointer_cast<XGraph1DMathTool>(list->at(idx));
-    Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
-        if(src > dst)
-            std::swap(src, dst);
-        tr[ *tool->begin()] = src;
-        tr[ *tool->end()] = dst;
-    });
-    tool->highlight(false, widget->painter().lock());
+    try {
+        auto tool = static_pointer_cast<XGraph1DMathTool>(list->at(idx));
+        Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
+            if(src > dst)
+                std::swap(src, dst);
+            tr[ *tool->begin()] = src;
+            tr[ *tool->end()] = dst;
+        });
+        tool->highlight(false, widget->painter().lock());
+    }
+    catch(std::out_of_range &) {
+    }
 }
 
 void
@@ -480,17 +484,21 @@ XGraph2DMathToolList::onPlaneSelectedByToolForReselect(const Snapshot &shot,
                 break;
             idx++;
         }
-    auto tool = static_pointer_cast<XGraph2DMathTool>(list->at(idx));
-    Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
-        if(src.x > dst.x)
-            std::swap(src.x, dst.x);
-        if(src.y > dst.y)
-            std::swap(src.y, dst.y);
-        tr[ *tool->beginX()] = src.x;
-        tr[ *tool->endX()] = dst.x;
-        tr[ *tool->beginY()] = src.y;
-        tr[ *tool->endY()] = dst.y;
-    });
-    tool->highlight(false, widget->painter().lock());
+    try {
+        auto tool = static_pointer_cast<XGraph2DMathTool>(list->at(idx));
+        Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
+            if(src.x > dst.x)
+                std::swap(src.x, dst.x);
+            if(src.y > dst.y)
+                std::swap(src.y, dst.y);
+            tr[ *tool->beginX()] = src.x;
+            tr[ *tool->endX()] = dst.x;
+            tr[ *tool->beginY()] = src.y;
+            tr[ *tool->endY()] = dst.y;
+        });
+        tool->highlight(false, widget->painter().lock());
+    }
+    catch(std::out_of_range &) {
+    }
 }
 
