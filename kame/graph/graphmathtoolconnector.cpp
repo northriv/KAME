@@ -78,7 +78,8 @@ XQGraph1DMathToolConnector::~XQGraph1DMathToolConnector() {
 void XQGraph1DMathToolConnector::toolActivated(QAction *act) {
     if(m_actionToToolMap.count(act)) {
         auto label = m_actionToToolMap.at(act);
-        m_graphwidget->activateAxisSelectionTool(XAxis::AxisDirection::X, label);
+        m_graphwidget->activateAxisSelectionTool(XAxis::AxisDirection::X,
+            label + " " + i18n("(Selecting)"));
         s_activeListeners.clear(); //cancels all the remaining selections.
         for(auto &toollist: m_lists) {
             toollist->setUIEnabled(toollist == m_lists.front()); //The front tools can have OSOs.
@@ -92,7 +93,8 @@ void XQGraph1DMathToolConnector::toolActivated(QAction *act) {
             auto toollist = it->second.first;
             auto tool = it->second.second;
             if(Snapshot( *toollist)[ *toollist].isUIEnabled()) {
-                m_graphwidget->activateAxisSelectionTool(XAxis::AxisDirection::X, tool->getLabel());
+                m_graphwidget->activateAxisSelectionTool(XAxis::AxisDirection::X,
+                    tool->getLabel() + " " + i18n("(Reselecting)"));
                 s_activeListeners.clear(); //cancels all the remaining selections.
                 for(auto &toollist: m_lists) {
                     s_activeListeners.push_back( m_graphwidget->onAxisSelectedByTool().connectWeakly(
@@ -120,7 +122,8 @@ void XQGraph1DMathToolConnector::toolActivated(QAction *act) {
 void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
     if(m_actionToToolMap.count(act)) {
         auto label = m_actionToToolMap.at(act);
-        m_graphwidget->activatePlaneSelectionTool(XAxis::AxisDirection::X, XAxis::AxisDirection::Y, label);
+        m_graphwidget->activatePlaneSelectionTool(XAxis::AxisDirection::X, XAxis::AxisDirection::Y,
+            label + " " + i18n("(Selecting)"));
         s_activeListeners.clear(); //cancels all the remaining selections.
         for(auto &toollist: m_lists) {
             toollist->setUIEnabled(toollist == m_lists.front()); //The front tools can have OSOs.
@@ -134,7 +137,8 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
             auto toollist = it->second.first;
             auto tool = it->second.second;
             if(Snapshot( *toollist)[ *toollist].isUIEnabled()) {
-                m_graphwidget->activatePlaneSelectionTool(XAxis::AxisDirection::X, XAxis::AxisDirection::Y, tool->getLabel());
+                m_graphwidget->activatePlaneSelectionTool(XAxis::AxisDirection::X, XAxis::AxisDirection::Y,
+                    tool->getLabel() + " " + i18n("(Reselecting)"));
                 s_activeListeners.clear(); //cancels all the remaining selections.
                 for(auto &toollist: m_lists) {
                     s_activeListeners.push_back( m_graphwidget->onPlaneSelectedByTool().connectWeakly(

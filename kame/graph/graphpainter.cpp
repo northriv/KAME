@@ -420,7 +420,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 		}
 		else {
             if(m_toolDescForSelection.length())
-                msg = i18n("Select!");
+                msg = m_toolDescForSelection;
             else
                 msg = i18n("R-DBL-CLICK TO SHOW HELP");
 		}
