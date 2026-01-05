@@ -171,7 +171,7 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
     shared_ptr<XNode> driver = tr[ *driverAltOnOff()];
     if(driver) {
         //skips if strobe is unstable.
-        if(tr[ *this].timeAwared() < tr[ *this].m_timeStrobeChanged)
+        if(tr[ *this].time().diff_sec(tr[ *this].m_timeStrobeChanged) < (double)tr[ *this].integrationTime())
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
 
@@ -209,6 +209,7 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
                 x /= accumulated;
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
         }
+        tr[ *this].m_timeStrobeChanged = {}; //requesting strobe change.
     }
 
     double *v = &tr[ *this].counts_()[0];
@@ -241,7 +242,7 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
     }
 
     shared_ptr<XNode> driver = shot[ *driverAltOnOff()];
-    if(driver) {
+    if( !shot[ *this].m_timeStrobeChanged.isSet() && driver) {
         bool strobe = shot[ *enableStrobe()];
         trans( *enableStrobe()) = !strobe;
         if(auto d = dynamic_pointer_cast<XLaserModule>(driver)) {
