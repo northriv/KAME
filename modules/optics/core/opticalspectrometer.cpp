@@ -168,6 +168,13 @@ XOpticalSpectrometer::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *)
 
 void
 XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
+    shared_ptr<XNode> driver = tr[ *driverAltOnOff()];
+    if(driver) {
+        //skips if strobe is unstable.
+        if(tr[ *this].timeAwared() < tr[ *this].m_timeStrobeChanged)
+            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+    }
+
     if(tr[ *this].m_accumulated >= tr[ *average()]) {
         tr[ *this].m_accumulated = 0;
         std::fill(tr[ *this].accumCounts_().begin(), tr[ *this].accumCounts_().end(), 0.0);
@@ -195,10 +202,7 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
             x /= accumulated;
         gMessagePrint(i18n("Dark spectrum has been stored."));
     }
-    shared_ptr<XNode> driver = tr[ *driverAltOnOff()];
     if(driver) {
-        if(tr[ *this].timeAwared() < tr[ *this].m_timeStrobeChanged)
-            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
         if( !tr[ *enableStrobe()]) {
             tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
             for(auto& x: tr[ *this].darkCounts_())
