@@ -44,6 +44,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     m_enableStrobe(create<XBoolNode>("EnableStrobe", true)),
     m_timeToStrobeSignal(create<XDoubleNode>("TimeTorStrobeSignal", true)),
     m_strobeSignalDuration(create<XDoubleNode>("StrobeSignalDuration", true)),
+    m_analogOutput(create<XDoubleNode>("AnalogOutput", true)),
     m_form(new FrmOpticalSpectrometer),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
                                    m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
@@ -67,6 +68,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
         xqcon_create<XQToggleButtonConnector>(enableStrobe(), m_form->m_ckbEnableStrobe),
         xqcon_create<XQLineEditConnector>(timeToStrobeSignal(), m_form->m_edTimeToStrobeSignal),
         xqcon_create<XQLineEditConnector>(strobeSignalDuration(), m_form->m_edStrobeSignalDuration),
+        xqcon_create<XQLineEditConnector>(analogOutput(), m_form->m_edAnalogOutput),
     };
 
     m_waveForm->iterate_commit([=](Transaction &tr){
@@ -136,6 +138,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
         enableStrobe(),
         timeToStrobeSignal(),
         strobeSignalDuration(),
+        analogOutput(),
     };
     iterate_commit([=](Transaction &tr){
         tr[ *average()] = 1;
@@ -308,6 +311,7 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
         enableStrobe(),
         timeToStrobeSignal(),
         strobeSignalDuration(),
+        analogOutput(),
         };
 
     trans( *this).m_storeDarkInvoked = false;
@@ -332,6 +336,8 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
         m_lsnOnStrobeCondChanged = tr[ *timeToStrobeSignal()].onValueChanged().connectWeakly(
             shared_from_this(), &XOpticalSpectrometer::onStrobeCondChnaged);
         tr[ *strobeSignalDuration()].onValueChanged().connect(m_lsnOnStrobeCondChanged);
+        m_lsnOnAnalogOutChanged = tr[ *analogOutput()].onValueChanged().connectWeakly(
+            shared_from_this(), &XOpticalSpectrometer::onAnalogOutputChnaged);
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(true);
     });
@@ -367,5 +373,6 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
     m_lsnOnEnableStrobeChanged.reset();
     m_lsnOnTrigCondChanged.reset();
     m_lsnOnStrobeCondChanged.reset();
+    m_lsnOnAnalogOutChanged.reset();
 	return NULL;
 }

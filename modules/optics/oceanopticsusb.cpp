@@ -24,6 +24,7 @@ template class XCyFXUSBInterface<OceanOpticsUSBDevice>;
 
 static constexpr unsigned int OCEANOPTICS_VENDOR_ID = 0x2457;
 static const std::map<unsigned int, std::string> cs_oceanOpticsModels = {
+    {0x100a, "USB2000/HR2000"},
     {0x1011, "HR4000"},
     {0x1012, "HR2000+/4000"}, //tested
     {0x1016, "HR2000+"}, //tested.
@@ -51,6 +52,10 @@ XOceanOpticsUSBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevic
 
 void
 XOceanOpticsUSBInterface::initDevice() {
+    if(usb()->productID() <= 0x1010) {
+    //USB2000
+        m_ep_cmd = 0x2; m_ep_in_others = 0x2; m_ep_in_spec = 0x2; m_ep_in_config = 0x7;
+    }
     uint8_t cmds[] = {(uint8_t)CMD::INIT};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
 }
@@ -114,6 +119,19 @@ XOceanOpticsUSBInterface::setupTrigCond(TrigMode mode, double delay_sec){
     uint8_t cmds[] = {(uint8_t)CMD::SET_TRIG_MODE, (uint8_t)mode, 0}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
 }
+void
+XOceanOpticsUSBInterface::setAnalogOutput(double value) {
+    double max_v = 5.0, min_v = 0.0; //V
+    uint32_t dac = 0x200;
+    if(usb()->productID() <= 0x1010) {
+    //USB2000
+        max_v = 20.0; min_v = 4.0; //mA
+        dac = 0x10000u;
+    }
+    uint16_t dig = lrint((value - min_v) / (max_v - min_v) * dac);
+    uint8_t cmds[] = {(uint8_t)CMD::LS450_SET_ANALOG_OUT, (uint8_t)(dig % 0x100u), (uint8_t)(dig / 0x100u)}; //littleendian
+    usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
+}
 
 std::vector<uint8_t>
 XOceanOpticsUSBInterface::readInstrumStatus() {
@@ -136,7 +154,7 @@ XOceanOpticsUSBInterface::readConfigurations() {
         usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
         uint8_t buf[CMD_READ_SIZE + 1];
         buf[CMD_READ_SIZE] = '\0';
-        int size = usb()->bulkRead(m_ep_in_others, buf, CMD_READ_SIZE);
+        int size = usb()->bulkRead(m_ep_in_config, buf, CMD_READ_SIZE);
         if((buf[0] != cmds[0]) || (buf[1] != cmds[1]) || (size > CMD_READ_SIZE))
             throw XInterface::XConvError(__FILE__, __LINE__);
         return std::string((char*)&buf[2]);

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -112,6 +112,16 @@ XOceanOpticsSpectrometer::onTrigCondChnaged(const Snapshot &shot, XValueNodeBase
         Snapshot shot( *this);
         interface()->setupTrigCond((XOceanOpticsUSBInterface::TrigMode)(unsigned int)shot[ *trigMode()],
             shot[ *delayFromExtTrig()]);
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + " " + i18n(" Error"));
+    }
+}
+void
+XOceanOpticsSpectrometer::onAnalogOutputChnaged(const Snapshot &shot, XValueNodeBase *) {
+    try {
+        Snapshot shot( *this);
+        interface()->setAnalogOutput(shot[ *analogOutput()]);
     }
     catch (XKameError &e) {
         e.print(getLabel() + " " + i18n(" Error"));

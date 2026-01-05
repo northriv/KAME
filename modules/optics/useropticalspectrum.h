@@ -35,6 +35,7 @@ protected:
     virtual void onEnableStrobeChnaged(const Snapshot &shot, XValueNodeBase *) override;
     virtual void onStrobeCondChnaged(const Snapshot &shot, XValueNodeBase *) override;
     virtual void onTrigCondChnaged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAnalogOutputChnaged(const Snapshot &shot, XValueNodeBase *) override;
 
     virtual void convertRawAndAccum(RawDataReader &reader, Transaction &tr) override;
 

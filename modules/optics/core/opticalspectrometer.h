@@ -96,6 +96,8 @@ protected:
     const shared_ptr<XBoolNode> &enableStrobe() const {return m_enableStrobe;}
     const shared_ptr<XDoubleNode> &timeToStrobeSignal() const {return m_timeToStrobeSignal;}
     const shared_ptr<XDoubleNode> &strobeSignalDuration() const {return m_strobeSignalDuration;}
+
+    const shared_ptr<XDoubleNode> &analogOutput() const {return m_analogOutput;}
 protected:
     virtual void onStartWavelenChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onStopWavelenChanged(const Snapshot &shot, XValueNodeBase *) = 0;
@@ -104,6 +106,7 @@ protected:
     virtual void onEnableStrobeChnaged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onStrobeCondChnaged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onTrigCondChnaged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onAnalogOutputChnaged(const Snapshot &shot, XValueNodeBase *) = 0;
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
 
     //! This function will be called when raw data are written.
@@ -133,6 +136,7 @@ private:
     const shared_ptr<XDoubleNode> m_timeToStrobeSignal;
     const shared_ptr<XDoubleNode> m_strobeSignalDuration;
 
+    const shared_ptr<XDoubleNode> m_analogOutput;
 
     const qshared_ptr<FrmOpticalSpectrometer> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
@@ -148,6 +152,7 @@ private:
     shared_ptr<Listener> m_lsnOnEnableStrobeChanged;
     shared_ptr<Listener> m_lsnOnStrobeCondChanged;
     shared_ptr<Listener> m_lsnOnStrobeChangedInternal;
+    shared_ptr<Listener> m_lsnOnAnalogOutChanged;
 
     virtual void onStrobeChnagedInternal(const Snapshot &shot, XValueNodeBase *);
 
