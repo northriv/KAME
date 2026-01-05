@@ -187,16 +187,7 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
     tr[ *this].counts_().resize(length, 0.0);
-    double *v = &tr[ *this].counts_()[0];
-    const double *vd = nullptr;
-    if(tr[ *subtractDark()] && (tr[ *this].isDarkValid()))
-        vd = tr[ *this].darkCounts();
-    for(unsigned int i = 0; i < length; i++) {
-        double y = *av++ / accumulated;
-        if(vd)
-            y -= *vd++;
-        *v++ = y;
-    }
+
     if(tr[ *this].m_storeDarkInvoked) {
         tr[ *this].m_storeDarkInvoked = false;
         tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
@@ -214,6 +205,17 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
                 x /= accumulated;
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
         }
+    }
+
+    double *v = &tr[ *this].counts_()[0];
+    const double *vd = nullptr;
+    if(tr[ *subtractDark()] && (tr[ *this].isDarkValid()))
+        vd = tr[ *this].darkCounts();
+    for(unsigned int i = 0; i < length; i++) {
+        double y = *av++ / accumulated;
+        if(vd)
+            y -= *vd++;
+        *v++ = y;
     }
 
     //markers
