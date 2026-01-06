@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2014 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -78,7 +78,7 @@ XMessageBox::post(XString msg, const QIcon &icon, bool popup, int duration_ms, X
             static XTime last_raise = {};
             s_pFrmMessage->m_widget->show();
             s_pFrmMessage->showNormal();
-            if(XTime::now().diff_msec(last_raise) > std::min(20000, duration_ms)) {
+            if(XTime::now().diff_msec(last_raise) > 10000) {
                 last_raise = XTime::now(); //surpress frequent raise.
                 s_pFrmMessage->raise();
             }

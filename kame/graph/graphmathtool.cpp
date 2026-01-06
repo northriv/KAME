@@ -133,7 +133,7 @@ XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const sh
         if(auto oso_rect = m_osoHighlight.lock()) {
             auto oso = static_pointer_cast<OnXAxisRectObject>(oso_rect);
             QColor c = (unsigned long)***painter->graph()->titleColor();
-            c.setAlphaF(0.25);
+            c.setAlphaF(0.15);
             oso->setBaseColor(c.rgba());
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.02});
         }

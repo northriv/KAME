@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -56,18 +56,17 @@ XInterface::getLabel() const {
 void
 XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
     control()->setUIEnabled(false);
-    if(shot[ *control()]) {
-        g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
-        m_threadStart.reset(new XThread{shared_from_this(), [this](const atomic<bool>&) {
+    m_threadStart.reset(new XThread{shared_from_this(), [=](const atomic<bool>&) {
+        if(shot[ *control()]) {
+            g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
             start();
-            control()->setUIEnabled(true);
-            }});
-	}
-	else {
-        Snapshot shot( *this);
-        shot.talk(shot[ *this].onClose(), this); //stop() will be called here.
+        }
+        else {
+            Snapshot shot( *this);
+            shot.talk(shot[ *this].onClose(), this); //stop() will be called here.
+        }
         control()->setUIEnabled(true);
-    }
+    }});
 }
 
 void
@@ -105,8 +104,7 @@ XInterface::start() {
 }
 void
 XInterface::stop() {
-    m_threadStart.reset();
-    m_mutex.lock(); //do not use scoped lock, to avoid additional mutex lock before close.
+    m_mutex.lock();
     {
         Transactional::setCurrentPriorityMode(Priority::NORMAL);
         try {
@@ -120,6 +118,7 @@ XInterface::stop() {
             tr[ *device()].setUIEnabled(true);
             tr[ *port()].setUIEnabled(true);
             tr[ *address()].setUIEnabled(true);
+            tr[ *control()].setUIEnabled(true); //maybe not needed.
             tr[ *control()] = false;
             tr.unmark(lsnOnControlChanged);
         });
