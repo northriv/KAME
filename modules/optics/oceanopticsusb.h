@@ -45,6 +45,7 @@ public:
     void setupTrigCond(TrigMode mode, double delay_sec);
     void setAnalogOutput(double);
 
+    void requestSpectrum();
     int readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed);
 
     std::vector<uint8_t> readInstrumStatus();

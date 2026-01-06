@@ -307,9 +307,9 @@ CyFXLibUSBDevice::open() {
 void
 CyFXLibUSBDevice::close() {
     if(handle) {
-        libusb_clear_halt(handle, 0x2);
-        libusb_clear_halt(handle, 0x6);
-        libusb_clear_halt(handle, 0x8);
+//        libusb_clear_halt(handle, 0x2);
+//        libusb_clear_halt(handle, 0x6);
+//        libusb_clear_halt(handle, 0x8);
 
         libusb_reset_device(handle);
         libusb_release_interface(handle,0);

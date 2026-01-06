@@ -24,7 +24,7 @@ template class XCyFXUSBInterface<OceanOpticsUSBDevice>;
 
 static constexpr unsigned int OCEANOPTICS_VENDOR_ID = 0x2457;
 static const std::map<unsigned int, std::string> cs_oceanOpticsModels = {
-    {0x100a, "USB2000/HR2000"},
+    {0x1002, "USB2000/HR2000"},
     {0x1011, "HR4000"},
     {0x1012, "HR2000+/4000"}, //tested
     {0x1016, "HR2000+"}, //tested.
@@ -147,7 +147,7 @@ XOceanOpticsUSBInterface::readInstrumStatus() {
     uint8_t cmds[] = {(uint8_t)CMD::QUERY_OP_INFO};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
     std::vector<uint8_t> stat(16);
-    int size = usb()->bulkRead(m_ep_in_others, (uint8_t*)&stat[0], stat.size());
+    int size = usb()->bulkRead(m_ep_in_config, (uint8_t*)&stat[0], stat.size());
     if(size != stat.size())
         throw XInterface::XConvError(__FILE__, __LINE__);
     return stat;
@@ -180,12 +180,16 @@ XOceanOpticsUSBInterface::readConfigurations() {
     return config;
 }
 
-int
-XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed) {
+void
+XOceanOpticsUSBInterface::requestSpectrum() {
     XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     uint8_t cmds[] = {(uint8_t)CMD::REQUEST_SPECTRA};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
+}
 
+int
+XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed) {
+    XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     buf.resize(2 * pixels + 1);
     int len = 0;
     if(usb_highspeed && (pixels > 2048)) {

@@ -55,22 +55,22 @@ XOceanOpticsSpectrometer::open() {
     }
 
     auto status = interface()->readInstrumStatus();
-    uint16_t ver = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::FPGAFirmwareVersion);
-    ver /= 0x1000; //major version.
-    uint16_t div = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::MasterClockCounterDivisor);
-    uint16_t delay = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::HardwareTriggerDelay);
-    uint16_t time_to_strobe = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeHighClockTransition);
-    uint16_t strobe_duration = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeLowClockTransition);
-    iterate_commit([=](Transaction &tr){
-        uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
-        tr[ *integrationTime()] = integration_time_us * 1e-6;
-        tr[ *enableStrobe()] = status[6];
-        tr[ *trigMode()] = status[7];
-        tr[ *timeToStrobeSignal()] = time_to_strobe * 1e-3;
-        tr[ *strobeSignalDuration()] = strobe_duration * 1e-3;
-        double delay_sec = (ver < 3) ? delay / (48e6 / div) : delay * 500e-9;
-        tr[ *delayFromExtTrig()] = delay_sec;
-    });
+//    uint16_t ver = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::FPGAFirmwareVersion);
+//    ver /= 0x1000; //major version.
+//    uint16_t div = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::MasterClockCounterDivisor);
+//    uint16_t delay = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::HardwareTriggerDelay);
+//    uint16_t time_to_strobe = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeHighClockTransition);
+//    uint16_t strobe_duration = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeLowClockTransition);
+//    iterate_commit([=](Transaction &tr){
+//        uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+//        tr[ *integrationTime()] = integration_time_us * 1e-6;
+//        tr[ *enableStrobe()] = status[6];
+//        tr[ *trigMode()] = status[7];
+//        tr[ *timeToStrobeSignal()] = time_to_strobe * 1e-3;
+//        tr[ *strobeSignalDuration()] = strobe_duration * 1e-3;
+//        double delay_sec = (ver < 3) ? delay / (48e6 / div) : delay * 500e-9;
+//        tr[ *delayFromExtTrig()] = delay_sec;
+//    });
 
     start();
 }
@@ -132,55 +132,57 @@ XOceanOpticsSpectrometer::onAnalogOutputChnaged(const Snapshot &shot, XValueNode
 void
 XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
+    interface()->requestSpectrum();
 
-    for(;;) {
-        auto status = interface()->readInstrumStatus();
-        bool isusb2000 = interface()->isUSB2000();
-        uint16_t pixels = status[0] + status[1] * 0x100u;
+    auto status = interface()->readInstrumStatus();
+    bool isusb2000 = interface()->isUSB2000();
+    uint16_t pixels = isusb2000 ? status[0] * 0x100u + status[1] : status[0] + status[1] * 0x100u;
 //        uint8_t packets_in_spectrum = status[9];
-//        uint8_t packets_in_ep = status[11]; //always 0?
-        uint8_t usb_speed = status[14]; //0x80 if highspeed
-        bool acq_ready = status[8] == 0;
-        if(isusb2000)
-            acq_ready = !acq_ready;
+//        uint8_t packets_in_ep = status[11];
+    uint8_t usb_speed = status[14]; //0x80 if highspeed
+    bool acq_ready = isusb2000 ? (status[8] != 0) : (status[11] > 0);
 
-        uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
-        if( !acq_ready) {
+    uint32_t integration_time_us = isusb2000 ? (status[2] * 0x100u + status[3]) * 1000u:
+                status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+    if( !acq_ready) {
 //            //waits for completion
-            msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
-            throw XSkippedRecordError(__FILE__, __LINE__);
-        }
-
-        if(isusb2000)
-            status.resize(12); //to distinguish USB2000.
-        writer->push((uint8_t)status.size());
-        writer->insert(writer->end(), status.begin(), status.end());
-        writer->push((uint8_t)m_wavelenCalibCoeffs.size());
-        for(double x:  m_wavelenCalibCoeffs)
-            writer->push(x);
-        writer->push((uint8_t)m_strayLightCoeffs.size());
-        for(double x:  m_strayLightCoeffs)
-            writer->push(x);
-        writer->push((uint8_t)m_nonlinCorrCoeffs.size());
-        for(double x:  m_nonlinCorrCoeffs)
-            writer->push(x);
-
-        int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
-        if( !len)
-            throw XSkippedRecordError(__FILE__, __LINE__);
-        writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).
-        writer->insert(writer->end(),
-                         m_spectrumBuffer.begin(), m_spectrumBuffer.begin() + len);
-        break;
+        msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
+        throw XSkippedRecordError(__FILE__, __LINE__);
     }
+
+    if(isusb2000)
+        status.resize(14); //to distinguish USB2000.
+    writer->push((uint8_t)status.size());
+    writer->insert(writer->end(), status.begin(), status.end());
+    writer->push((uint8_t)m_wavelenCalibCoeffs.size());
+    for(double x:  m_wavelenCalibCoeffs)
+        writer->push(x);
+    writer->push((uint8_t)m_strayLightCoeffs.size());
+    for(double x:  m_strayLightCoeffs)
+        writer->push(x);
+    writer->push((uint8_t)m_nonlinCorrCoeffs.size());
+    for(double x:  m_nonlinCorrCoeffs)
+        writer->push(x);
+
+    int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
+    if( !len)
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).
+    writer->insert(writer->end(),
+                     m_spectrumBuffer.begin(), m_spectrumBuffer.begin() + len);
+
 }
 void
 XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction &tr) {
     uint8_t statussize = reader.pop<uint8_t>();
     bool isusb2000 = statussize < 16;
-    uint16_t pixels = reader.pop<uint16_t>();
+    uint16_t pixels;
+    if(isusb2000)
+        pixels = reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>(); //MSB,LSB
+    else
+        pixels = reader.pop<uint16_t>();
     tr[ *this].m_integrationTime = isusb2000 ?
-        reader.pop<uint16_t>() * 1e-3 : reader.pop<uint32_t>() * 1e-6; //sec
+        (reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>()) * 1e-3 : reader.pop<uint32_t>() * 1e-6; //sec
     uint8_t lamp_enabled = reader.pop<uint8_t>();
     uint8_t trigger_mode = reader.pop<uint8_t>();
     uint8_t acq_status = reader.pop<uint8_t>(); //in USB2000, is request spectra.
@@ -190,8 +192,9 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     reader.pop<uint8_t>();
     reader.pop<uint8_t>();
     uint8_t usb_speed = reader.pop<uint8_t>(); //0x80 if highspeed,  //in USB2000, is researve = 0.
-    for(unsigned int i = 15; i < statussize; ++i)
-        reader.pop<uint8_t>();
+    reader.pop<uint8_t>();
+    for(unsigned int i = 16; i < statussize; ++i)
+        reader.pop<uint8_t>(); //for future?
 
     std::vector<double> wavelenCalibCoeffs(4); //polynominal func. coeff.
     wavelenCalibCoeffs.resize(reader.pop<uint8_t>());
@@ -204,6 +207,9 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     tr[ *this].m_nonLinCorrCoeffs.resize(reader.pop<uint8_t>());
     for(unsigned int i = 0; i < tr[ *this].m_nonLinCorrCoeffs.size(); ++i)
         tr[ *this].m_nonLinCorrCoeffs[i] = reader.pop<double>();
+    if(tr[ *this].m_nonLinCorrCoeffs.size() <= 1) {
+        tr[ *this].m_nonLinCorrCoeffs = {1.0};
+    }
 
     auto fn_poly = [](const std::vector<double> &coeffs, double v) {
         double y = 0.0, x = 1.0;
