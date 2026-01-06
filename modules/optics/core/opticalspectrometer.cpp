@@ -44,6 +44,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     m_enableStrobe(create<XBoolNode>("EnableStrobe", true)),
     m_timeToStrobeSignal(create<XDoubleNode>("TimeTorStrobeSignal", true)),
     m_strobeSignalDuration(create<XDoubleNode>("StrobeSignalDuration", true)),
+    m_analogOutput(create<XDoubleNode>("AnalogOutput", true)),
     m_form(new FrmOpticalSpectrometer),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
                                    m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
@@ -67,6 +68,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
         xqcon_create<XQToggleButtonConnector>(enableStrobe(), m_form->m_ckbEnableStrobe),
         xqcon_create<XQLineEditConnector>(timeToStrobeSignal(), m_form->m_edTimeToStrobeSignal),
         xqcon_create<XQLineEditConnector>(strobeSignalDuration(), m_form->m_edStrobeSignalDuration),
+        xqcon_create<XQLineEditConnector>(analogOutput(), m_form->m_edAnalogOutput),
     };
 
     m_waveForm->iterate_commit([=](Transaction &tr){
@@ -136,6 +138,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
         enableStrobe(),
         timeToStrobeSignal(),
         strobeSignalDuration(),
+        analogOutput(),
     };
     iterate_commit([=](Transaction &tr){
         tr[ *average()] = 1;
@@ -168,6 +171,13 @@ XOpticalSpectrometer::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *)
 
 void
 XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
+    shared_ptr<XNode> driver = tr[ *driverAltOnOff()];
+    if(driver) {
+        //skips if strobe is unstable.
+        if(tr[ *this].time().diff_sec(tr[ *this].m_timeStrobeChanged) < (double)tr[ *this].integrationTime())
+            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+    }
+
     if(tr[ *this].m_accumulated >= tr[ *average()]) {
         tr[ *this].m_accumulated = 0;
         std::fill(tr[ *this].accumCounts_().begin(), tr[ *this].accumCounts_().end(), 0.0);
@@ -187,6 +197,24 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
     tr[ *this].counts_().resize(length, 0.0);
+
+    if(tr[ *this].m_storeDarkInvoked) {
+        tr[ *this].m_storeDarkInvoked = false;
+        tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
+        for(auto& x: tr[ *this].darkCounts_())
+            x /= accumulated;
+        gMessagePrint(i18n("Dark spectrum has been stored."));
+    }
+    if(driver) {
+        if( !tr[ *enableStrobe()]) {
+            tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
+            for(auto& x: tr[ *this].darkCounts_())
+                x /= accumulated;
+            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+        }
+        tr[ *this].m_timeStrobeChanged = {}; //requesting strobe change.
+    }
+
     double *v = &tr[ *this].counts_()[0];
     const double *vd = nullptr;
     if(tr[ *subtractDark()] && (tr[ *this].isDarkValid()))
@@ -196,24 +224,6 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
         if(vd)
             y -= *vd++;
         *v++ = y;
-    }
-    if(tr[ *this].m_storeDarkInvoked) {
-        tr[ *this].m_storeDarkInvoked = false;
-        tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
-        for(auto& x: tr[ *this].darkCounts_())
-            x /= accumulated;
-        gMessagePrint(i18n("Dark spectrum has been stored."));
-    }
-    shared_ptr<XNode> driver = tr[ *driverAltOnOff()];
-    if(driver) {
-        if(tr[ *this].timeAwared() < tr[ *this].m_timeStrobeChanged)
-            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
-        if( !tr[ *enableStrobe()]) {
-            tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
-            for(auto& x: tr[ *this].darkCounts_())
-                x /= accumulated;
-            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
-        }
     }
 
     //markers
@@ -235,7 +245,7 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
     }
 
     shared_ptr<XNode> driver = shot[ *driverAltOnOff()];
-    if(driver) {
+    if( !shot[ *this].m_timeStrobeChanged.isSet() && driver) {
         bool strobe = shot[ *enableStrobe()];
         trans( *enableStrobe()) = !strobe;
         if(auto d = dynamic_pointer_cast<XLaserModule>(driver)) {
@@ -301,6 +311,7 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
         enableStrobe(),
         timeToStrobeSignal(),
         strobeSignalDuration(),
+        analogOutput(),
         };
 
     trans( *this).m_storeDarkInvoked = false;
@@ -325,6 +336,8 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
         m_lsnOnStrobeCondChanged = tr[ *timeToStrobeSignal()].onValueChanged().connectWeakly(
             shared_from_this(), &XOpticalSpectrometer::onStrobeCondChnaged);
         tr[ *strobeSignalDuration()].onValueChanged().connect(m_lsnOnStrobeCondChanged);
+        m_lsnOnAnalogOutChanged = tr[ *analogOutput()].onValueChanged().connectWeakly(
+            shared_from_this(), &XOpticalSpectrometer::onAnalogOutputChnaged);
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(true);
     });
@@ -360,5 +373,6 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
     m_lsnOnEnableStrobeChanged.reset();
     m_lsnOnTrigCondChanged.reset();
     m_lsnOnStrobeCondChanged.reset();
+    m_lsnOnAnalogOutChanged.reset();
 	return NULL;
 }

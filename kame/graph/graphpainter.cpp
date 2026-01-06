@@ -400,7 +400,7 @@ void
 XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
     QString msg = "";
     if(m_toolDescForSelection.length())
-        msg = m_toolDescForSelection + ": ";
+        msg = m_toolDescForSelection + i18n(" (Selecting) ");
 //   if(SelectionStateNow != Selecting) return;
 	switch ( m_selectionModeNow ) {
     case SelectionMode::SelNone:
@@ -420,7 +420,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 		}
 		else {
             if(m_toolDescForSelection.length())
-                msg = i18n("Select!");
+                msg = m_toolDescForSelection;
             else
                 msg = i18n("R-DBL-CLICK TO SHOW HELP");
 		}
