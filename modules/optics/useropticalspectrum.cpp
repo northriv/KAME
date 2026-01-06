@@ -135,19 +135,24 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
 
     for(;;) {
         auto status = interface()->readInstrumStatus();
+        bool isusb2000 = interface()->isUSB2000();
         uint16_t pixels = status[0] + status[1] * 0x100u;
-        uint8_t packets_in_spectrum = status[9];
-        uint8_t packets_in_ep = status[11]; //always 0?
+//        uint8_t packets_in_spectrum = status[9];
+//        uint8_t packets_in_ep = status[11]; //always 0?
         uint8_t usb_speed = status[14]; //0x80 if highspeed
-        uint8_t acq_stat = status[8]; //0: OK, 3: awaiting?
+        bool acq_ready = status[8] == 0;
+        if(isusb2000)
+            acq_ready = !acq_ready;
 
         uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
-        if(acq_stat != 0) {
+        if( !acq_ready) {
 //            //waits for completion
             msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
             throw XSkippedRecordError(__FILE__, __LINE__);
         }
 
+        if(isusb2000)
+            status.resize(12); //to distinguish USB2000.
         writer->push((uint8_t)status.size());
         writer->insert(writer->end(), status.begin(), status.end());
         writer->push((uint8_t)m_wavelenCalibCoeffs.size());
@@ -172,17 +177,19 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
 void
 XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction &tr) {
     uint8_t statussize = reader.pop<uint8_t>();
+    bool isusb2000 = statussize < 16;
     uint16_t pixels = reader.pop<uint16_t>();
-    tr[ *this].m_integrationTime = reader.pop<uint32_t>() * 1e-6; //sec
+    tr[ *this].m_integrationTime = isusb2000 ?
+        reader.pop<uint16_t>() * 1e-3 : reader.pop<uint32_t>() * 1e-6; //sec
     uint8_t lamp_enabled = reader.pop<uint8_t>();
     uint8_t trigger_mode = reader.pop<uint8_t>();
-    uint8_t acq_status = reader.pop<uint8_t>();
-    uint8_t packets_in_spectrum = reader.pop<uint8_t>();
-    uint8_t power_down = reader.pop<uint8_t>();
-    uint8_t packets_in_ep = reader.pop<uint8_t>();
+    uint8_t acq_status = reader.pop<uint8_t>(); //in USB2000, is request spectra.
+    uint8_t packets_in_spectrum = reader.pop<uint8_t>(); //in USB2000, is timer swap.
+    uint8_t power_down = reader.pop<uint8_t>(); //in USB2000, is spectra data ready.
+    uint8_t packets_in_ep = reader.pop<uint8_t>(); //in USB2000, reserve = 0.
     reader.pop<uint8_t>();
     reader.pop<uint8_t>();
-    uint8_t usb_speed = reader.pop<uint8_t>(); //0x80 if highspeed
+    uint8_t usb_speed = reader.pop<uint8_t>(); //0x80 if highspeed,  //in USB2000, is researve = 0.
     for(unsigned int i = 15; i < statussize; ++i)
         reader.pop<uint8_t>();
 
@@ -214,6 +221,12 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     unsigned int dark_pixel_end = 18;
     unsigned int active_pixel_begin = 20;
     unsigned int active_pixel_end = 2048;
+    if(isusb2000) {
+        dark_pixel_begin = 2;
+        dark_pixel_end = 25;
+        active_pixel_begin = 26;
+        active_pixel_end = 2048;
+    }
     if(samples > 2048) {
         //Toshiba TCD1304AP CCD
         dark_pixel_begin = 5;
@@ -223,7 +236,7 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     }
     tr[ *this].waveLengths_().resize(active_pixel_end - active_pixel_begin);
     tr[ *this].accumCounts_().resize(active_pixel_end - active_pixel_begin, 0.0);
-    //todo HR2000 bundles LSB/MSB every one USB packet.
+
     double dark = 0.0;
     int dark_cnt = 0;
     uint32_t xor_bit = 0;

@@ -35,6 +35,8 @@ public:
     virtual void send(const char *str) override {}
     virtual void receive() override {}
 
+    bool isUSB2000() const {return usb()->productID() <= 0x1010;}
+
     void initDevice();
     void setIntegrationTime(unsigned int us);
     void enableStrobe(bool);
