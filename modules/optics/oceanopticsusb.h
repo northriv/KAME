@@ -35,6 +35,8 @@ public:
     virtual void send(const char *str) override {}
     virtual void receive() override {}
 
+    bool isUSB2000() const {return usb()->productID() <= 0x1010;}
+
     void initDevice();
     void setIntegrationTime(unsigned int us);
     void enableStrobe(bool);
@@ -43,6 +45,7 @@ public:
     void setupTrigCond(TrigMode mode, double delay_sec);
     void setAnalogOutput(double);
 
+    void requestSpectrum();
     int readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed);
 
     std::vector<uint8_t> readInstrumStatus();
