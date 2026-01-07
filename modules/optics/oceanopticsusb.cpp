@@ -53,8 +53,7 @@ XOceanOpticsUSBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevic
 
 void
 XOceanOpticsUSBInterface::initDevice() {
-    if(usb()->productID() <= 0x1010) {
-    //USB2000
+    if(isUSB2000()) {
         m_ep_cmd = 0x2; m_ep_in_others = 0x2; m_ep_in_spec = 0x2; m_ep_in_config = 0x7;
     }
     uint8_t cmds[] = {(uint8_t)CMD::INIT};
@@ -63,6 +62,14 @@ XOceanOpticsUSBInterface::initDevice() {
 
 void
 XOceanOpticsUSBInterface::setIntegrationTime(unsigned int us) {
+    if(isUSB2000()) {
+        uint16_t ms = us / 1000u;
+        uint8_t lh = ms / 0x100uL;
+        uint8_t ll = ms % 0x100uL;
+        uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, ll, lh}; //littleendian
+        usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
+        return;
+    }
     XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     uint8_t hh = us / 0x1000000uL;
     uint8_t hl = (us / 0x10000uL) % 0x100uL;
@@ -70,35 +77,30 @@ XOceanOpticsUSBInterface::setIntegrationTime(unsigned int us) {
     uint8_t ll = us % 0x100uL;
     uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, ll, lh, hl, hh}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
-    if(usb()->productID() > 0x1010) {
-        unsigned int clk = readRegInfo(Register::IntegrationPeriodBaseClock);
-        unsigned int div = readRegInfo(Register::IntegrationClockTimeDivisor);
-        fprintf(stderr, "CLK=%u, DIV=%u\n", clk, div);
-    }
+
+    unsigned int clk = readRegInfo(Register::IntegrationPeriodBaseClock);
+    unsigned int div = readRegInfo(Register::IntegrationClockTimeDivisor);
+    fprintf(stderr, "CLK=%u, DIV=%u\n", clk, div);
 }
 
 void
 XOceanOpticsUSBInterface::writeRegInfo(Register reg, uint16_t word) {
-    if(usb()->productID() <= 0x1010) {
-        //USB2000
-        throw XInterfaceError("Unsupported feature.", __FILE__, __LINE__);
-    }
+    if(isUSB2000())
+        throw XUnsupportedFeatureError(__FILE__, __LINE__);
     uint8_t cmds[] = {(uint8_t)CMD::WRITE_REG, (uint8_t)reg, (uint8_t)(word % 0x100u), (uint8_t)(word / 0x100u)}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
     msecsleep(1); //100us to completion.
 }
 uint16_t
 XOceanOpticsUSBInterface::readRegInfo(Register reg) {
-    if(usb()->productID() <= 0x1010) {
-        //USB2000
-        throw XInterfaceError("Unsupported feature.", __FILE__, __LINE__);
-    }
+    if(isUSB2000())
+        throw XUnsupportedFeatureError(__FILE__, __LINE__);
     uint8_t cmds[] = {(uint8_t)CMD::READ_REG, (uint8_t)reg}; //littleendian
     XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
     uint8_t buf[3];
     int size = usb()->bulkRead(m_ep_in_config, buf, 3);
-    if((buf[0] != cmds[1]) || (size != 3))
+    if((size != 3)) //(buf[0] != cmds[1]) ||  //USB4000 may return wrong buf[0].
         throw XInterface::XConvError(__FILE__, __LINE__);
     return buf[1] + buf[2] * 0x100u;
 }
@@ -183,12 +185,16 @@ XOceanOpticsUSBInterface::readConfigurations() {
     return config;
 }
 
-int
-XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed) {
+void
+XOceanOpticsUSBInterface::requestSpectrum() {
     XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     uint8_t cmds[] = {(uint8_t)CMD::REQUEST_SPECTRA};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
+}
 
+int
+XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed) {
+    XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     buf.resize(2 * pixels + 1);
     int len = 0;
     if(usb_highspeed && (pixels > 2048)) {
@@ -196,6 +202,21 @@ XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixel
         len += usb()->bulkRead(m_ep_in_spec_first1Kpixels, &buf[0], 1024 * 2);
     }
     len += usb()->bulkRead(m_ep_in_spec, &buf[len], buf.size() - len);
+    if(isUSB2000()) {
+        if(pixels < 2048)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        //rearrange return format to LSB0, MSB0, LSB1, MSB1, ....
+        uint8_t *dest = &buf[0], *msbpacket = &buf[64];
+        std::vector<uint8_t> lsbpacket(64);
+        for(unsigned int pack = 0; pack < 32; pack++) {
+            std::copy(msbpacket - 64, msbpacket, lsbpacket.begin());
+            for(unsigned int word = 0; word < 64; word++) {
+                *dest++ = lsbpacket[word];
+                *dest++ = *msbpacket++;
+            }
+            msbpacket += 64;
+        }
+    }
 
     return len;
 }

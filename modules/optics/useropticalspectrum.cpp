@@ -73,7 +73,7 @@ XOceanOpticsSpectrometer::open() {
             tr[ *delayFromExtTrig()] = delay_sec;
         });
     }
-    catch (XInterface::XInterfaceError &e) {
+    catch (XInterface::XUnsupportedFeatureError &e) {
     }
 
     start();
@@ -136,59 +136,69 @@ XOceanOpticsSpectrometer::onAnalogOutputChnaged(const Snapshot &shot, XValueNode
 void
 XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
+    interface()->requestSpectrum();
 
-    for(;;) {
-        auto status = interface()->readInstrumStatus();
-        uint16_t pixels = status[0] + status[1] * 0x100u;
-        uint8_t packets_in_spectrum = status[9];
-        uint8_t packets_in_ep = status[11]; //always 0?
-        uint8_t usb_speed = status[14]; //0x80 if highspeed
-        uint8_t acq_stat = status[8]; //0: OK, 3: awaiting?
+    auto status = interface()->readInstrumStatus();
+    bool isusb2000 = interface()->isUSB2000();
+    uint16_t pixels = isusb2000 ? status[0] * 0x100u + status[1] : status[0] + status[1] * 0x100u;
+//        uint8_t packets_in_spectrum = status[9];
+//        uint8_t packets_in_ep = status[11];
+    uint8_t usb_speed = status[14]; //0x80 if highspeed
+    bool acq_ready = isusb2000 ? (status[8] != 0) : (status[11] > 0);
 
-        uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
-        if(acq_stat != 0) {
+    uint32_t integration_time_us = isusb2000 ? (status[2] * 0x100u + status[3]) * 1000u:
+                status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+    if( !acq_ready) {
 //            //waits for completion
-            msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
-            throw XSkippedRecordError(__FILE__, __LINE__);
-        }
-
-        writer->push((uint8_t)status.size());
-        writer->insert(writer->end(), status.begin(), status.end());
-        writer->push((uint8_t)m_wavelenCalibCoeffs.size());
-        for(double x:  m_wavelenCalibCoeffs)
-            writer->push(x);
-        writer->push((uint8_t)m_strayLightCoeffs.size());
-        for(double x:  m_strayLightCoeffs)
-            writer->push(x);
-        writer->push((uint8_t)m_nonlinCorrCoeffs.size());
-        for(double x:  m_nonlinCorrCoeffs)
-            writer->push(x);
-
-        int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
-        if( !len)
-            throw XSkippedRecordError(__FILE__, __LINE__);
-        writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).
-        writer->insert(writer->end(),
-                         m_spectrumBuffer.begin(), m_spectrumBuffer.begin() + len);
-        break;
+        msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
+        throw XSkippedRecordError(__FILE__, __LINE__);
     }
+
+    if(isusb2000)
+        status.resize(14); //to distinguish USB2000.
+    writer->push((uint8_t)status.size());
+    writer->insert(writer->end(), status.begin(), status.end());
+    writer->push((uint8_t)m_wavelenCalibCoeffs.size());
+    for(double x:  m_wavelenCalibCoeffs)
+        writer->push(x);
+    writer->push((uint8_t)m_strayLightCoeffs.size());
+    for(double x:  m_strayLightCoeffs)
+        writer->push(x);
+    writer->push((uint8_t)m_nonlinCorrCoeffs.size());
+    for(double x:  m_nonlinCorrCoeffs)
+        writer->push(x);
+
+    int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
+    if( !len)
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).
+    writer->insert(writer->end(),
+                     m_spectrumBuffer.begin(), m_spectrumBuffer.begin() + len);
+
 }
 void
 XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction &tr) {
     uint8_t statussize = reader.pop<uint8_t>();
-    uint16_t pixels = reader.pop<uint16_t>();
-    tr[ *this].m_integrationTime = reader.pop<uint32_t>() * 1e-6; //sec
+    bool isusb2000 = statussize < 16;
+    uint16_t pixels;
+    if(isusb2000)
+        pixels = reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>(); //MSB,LSB
+    else
+        pixels = reader.pop<uint16_t>();
+    tr[ *this].m_integrationTime = isusb2000 ?
+        (reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>()) * 1e-3 : reader.pop<uint32_t>() * 1e-6; //sec
     uint8_t lamp_enabled = reader.pop<uint8_t>();
     uint8_t trigger_mode = reader.pop<uint8_t>();
-    uint8_t acq_status = reader.pop<uint8_t>();
-    uint8_t packets_in_spectrum = reader.pop<uint8_t>();
-    uint8_t power_down = reader.pop<uint8_t>();
-    uint8_t packets_in_ep = reader.pop<uint8_t>();
+    uint8_t acq_status = reader.pop<uint8_t>(); //in USB2000, is request spectra.
+    uint8_t packets_in_spectrum = reader.pop<uint8_t>(); //in USB2000, is timer swap.
+    uint8_t power_down = reader.pop<uint8_t>(); //in USB2000, is spectra data ready.
+    uint8_t packets_in_ep = reader.pop<uint8_t>(); //in USB2000, reserve = 0.
     reader.pop<uint8_t>();
     reader.pop<uint8_t>();
-    uint8_t usb_speed = reader.pop<uint8_t>(); //0x80 if highspeed
-    for(unsigned int i = 15; i < statussize; ++i)
-        reader.pop<uint8_t>();
+    uint8_t usb_speed = reader.pop<uint8_t>(); //0x80 if highspeed,  //in USB2000, is researve = 0.
+    reader.pop<uint8_t>();
+    for(unsigned int i = 16; i < statussize; ++i)
+        reader.pop<uint8_t>(); //for future?
 
     std::vector<double> wavelenCalibCoeffs(4); //polynominal func. coeff.
     wavelenCalibCoeffs.resize(reader.pop<uint8_t>());
@@ -201,6 +211,9 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     tr[ *this].m_nonLinCorrCoeffs.resize(reader.pop<uint8_t>());
     for(unsigned int i = 0; i < tr[ *this].m_nonLinCorrCoeffs.size(); ++i)
         tr[ *this].m_nonLinCorrCoeffs[i] = reader.pop<double>();
+    if(tr[ *this].m_nonLinCorrCoeffs.size() <= 1) {
+        tr[ *this].m_nonLinCorrCoeffs = {1.0};
+    }
 
     auto fn_poly = [](const std::vector<double> &coeffs, double v) {
         double y = 0.0, x = 1.0;
@@ -218,6 +231,12 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     unsigned int dark_pixel_end = 18;
     unsigned int active_pixel_begin = 20;
     unsigned int active_pixel_end = 2048;
+    if(isusb2000) {
+        dark_pixel_begin = 2;
+        dark_pixel_end = 25;
+        active_pixel_begin = 26;
+        active_pixel_end = 2048;
+    }
     if(samples > 2048) {
         //Toshiba TCD1304AP CCD
         dark_pixel_begin = 5;
@@ -227,7 +246,7 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     }
     tr[ *this].waveLengths_().resize(active_pixel_end - active_pixel_begin);
     tr[ *this].accumCounts_().resize(active_pixel_end - active_pixel_begin, 0.0);
-    //todo HR2000 bundles LSB/MSB every one USB packet.
+
     double dark = 0.0;
     int dark_cnt = 0;
     uint32_t xor_bit = 0;
