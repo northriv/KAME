@@ -136,15 +136,18 @@ XOceanOpticsSpectrometer::onAnalogOutputChnaged(const Snapshot &shot, XValueNode
 void
 XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
-    interface()->requestSpectrum();
+    bool isusb2000 = interface()->isUSB2000();
+
+    if(isusb2000)
+        interface()->requestSpectrum();
 
     auto status = interface()->readInstrumStatus();
-    bool isusb2000 = interface()->isUSB2000();
+
     uint16_t pixels = isusb2000 ? status[0] * 0x100u + status[1] : status[0] + status[1] * 0x100u;
 //        uint8_t packets_in_spectrum = status[9];
 //        uint8_t packets_in_ep = status[11];
     uint8_t usb_speed = status[14]; //0x80 if highspeed
-    bool acq_ready = isusb2000 ? (status[8] != 0) : (status[11] > 0);
+    bool acq_ready = isusb2000 ? (status[8] != 0) : (status[8] == 0);
 
     uint32_t integration_time_us = isusb2000 ? (status[2] * 0x100u + status[3]) * 1000u:
                 status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
@@ -153,6 +156,9 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
         msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
+
+    if( !isusb2000)
+        interface()->requestSpectrum();
 
     if(isusb2000)
         status.resize(14); //to distinguish USB2000.
