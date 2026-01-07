@@ -138,7 +138,7 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
     bool isusb2000 = interface()->isUSB2000();
 
-    if(isusb2000)
+    if(isusb2000) //USB2000 can respond control commands even after requestSpectrum().
         interface()->requestSpectrum();
 
     auto status = interface()->readInstrumStatus();

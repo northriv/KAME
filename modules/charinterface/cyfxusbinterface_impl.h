@@ -175,8 +175,6 @@ XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::initialize() {
-    control()->setUIEnabled(false);
-    device()->setUIEnabled(false);
     m_threadInit.reset(new XThread{shared_from_this(), [this](const atomic<bool>&) {
         XScopedLock<XMutex> slock(s_mutex);
         try {
@@ -198,8 +196,6 @@ XCyFXUSBInterface<USBDevice>::initialize() {
         catch (XInterface::XInterfaceError &e) {
             e.print();
         }
-        control()->setUIEnabled(true);
-        device()->setUIEnabled(true);
     }});
 }
 
