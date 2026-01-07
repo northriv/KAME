@@ -55,22 +55,26 @@ XOceanOpticsSpectrometer::open() {
     }
 
     auto status = interface()->readInstrumStatus();
-    uint16_t ver = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::FPGAFirmwareVersion);
-    ver /= 0x1000; //major version.
-    uint16_t div = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::MasterClockCounterDivisor);
-    uint16_t delay = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::HardwareTriggerDelay);
-    uint16_t time_to_strobe = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeHighClockTransition);
-    uint16_t strobe_duration = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeLowClockTransition);
-    iterate_commit([=](Transaction &tr){
-        uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
-        tr[ *integrationTime()] = integration_time_us * 1e-6;
-        tr[ *enableStrobe()] = status[6];
-        tr[ *trigMode()] = status[7];
-        tr[ *timeToStrobeSignal()] = time_to_strobe * 1e-3;
-        tr[ *strobeSignalDuration()] = strobe_duration * 1e-3;
-        double delay_sec = (ver < 3) ? delay / (48e6 / div) : delay * 500e-9;
-        tr[ *delayFromExtTrig()] = delay_sec;
-    });
+    try {
+        uint16_t ver = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::FPGAFirmwareVersion);
+        ver /= 0x1000; //major version.
+        uint16_t div = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::MasterClockCounterDivisor);
+        uint16_t delay = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::HardwareTriggerDelay);
+        uint16_t time_to_strobe = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeHighClockTransition);
+        uint16_t strobe_duration = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::SingleStrobeLowClockTransition);
+        iterate_commit([=](Transaction &tr){
+            uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+            tr[ *integrationTime()] = integration_time_us * 1e-6;
+            tr[ *enableStrobe()] = status[6];
+            tr[ *trigMode()] = status[7];
+            tr[ *timeToStrobeSignal()] = time_to_strobe * 1e-3;
+            tr[ *strobeSignalDuration()] = strobe_duration * 1e-3;
+            double delay_sec = (ver < 3) ? delay / (48e6 / div) : delay * 500e-9;
+            tr[ *delayFromExtTrig()] = delay_sec;
+        });
+    }
+    catch (XInterface::XInterfaceError &e) {
+    }
 
     start();
 }

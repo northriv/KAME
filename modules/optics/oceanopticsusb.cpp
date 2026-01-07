@@ -24,6 +24,7 @@ template class XCyFXUSBInterface<OceanOpticsUSBDevice>;
 
 static constexpr unsigned int OCEANOPTICS_VENDOR_ID = 0x2457;
 static const std::map<unsigned int, std::string> cs_oceanOpticsModels = {
+    {0x1002, "USB2000"},
     {0x100a, "USB2000/HR2000"},
     {0x1011, "HR4000"},
     {0x1012, "HR2000+/4000"}, //tested
@@ -69,24 +70,34 @@ XOceanOpticsUSBInterface::setIntegrationTime(unsigned int us) {
     uint8_t ll = us % 0x100uL;
     uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, ll, lh, hl, hh}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
-    unsigned int clk = readRegInfo(Register::IntegrationPeriodBaseClock);
-    unsigned int div = readRegInfo(Register::IntegrationClockTimeDivisor);
-    fprintf(stderr, "CLK=%u, DIV=%u\n", clk, div);
+    if(usb()->productID() > 0x1010) {
+        unsigned int clk = readRegInfo(Register::IntegrationPeriodBaseClock);
+        unsigned int div = readRegInfo(Register::IntegrationClockTimeDivisor);
+        fprintf(stderr, "CLK=%u, DIV=%u\n", clk, div);
+    }
 }
 
 void
 XOceanOpticsUSBInterface::writeRegInfo(Register reg, uint16_t word) {
+    if(usb()->productID() <= 0x1010) {
+        //USB2000
+        throw XInterfaceError("Unsupported feature.", __FILE__, __LINE__);
+    }
     uint8_t cmds[] = {(uint8_t)CMD::WRITE_REG, (uint8_t)reg, (uint8_t)(word % 0x100u), (uint8_t)(word / 0x100u)}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
     msecsleep(1); //100us to completion.
 }
 uint16_t
 XOceanOpticsUSBInterface::readRegInfo(Register reg) {
+    if(usb()->productID() <= 0x1010) {
+        //USB2000
+        throw XInterfaceError("Unsupported feature.", __FILE__, __LINE__);
+    }
     uint8_t cmds[] = {(uint8_t)CMD::READ_REG, (uint8_t)reg}; //littleendian
     XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
     uint8_t buf[3];
-    int size = usb()->bulkRead(m_ep_in_others, buf, 3);
+    int size = usb()->bulkRead(m_ep_in_config, buf, 3);
     if((buf[0] != cmds[1]) || (size != 3))
         throw XInterface::XConvError(__FILE__, __LINE__);
     return buf[1] + buf[2] * 0x100u;
@@ -139,7 +150,7 @@ XOceanOpticsUSBInterface::readInstrumStatus() {
     uint8_t cmds[] = {(uint8_t)CMD::QUERY_OP_INFO};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
     std::vector<uint8_t> stat(16);
-    int size = usb()->bulkRead(m_ep_in_others, (uint8_t*)&stat[0], stat.size());
+    int size = usb()->bulkRead(m_ep_in_config, (uint8_t*)&stat[0], stat.size());
     if(size != stat.size())
         throw XInterface::XConvError(__FILE__, __LINE__);
     return stat;
