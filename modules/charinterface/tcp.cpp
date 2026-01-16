@@ -45,6 +45,7 @@
     #include <netdb.h>
     #include <errno.h>
     #include <unistd.h>
+    #include <fcntl.h>
 #endif
  
 #define MIN_BUFFER_SIZE 256
@@ -111,13 +112,57 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
 	dstaddr.sin_family = AF_INET;
 	dstaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
 
-    //\todo non-blocking connect.
-	if(connect(m_socket, (struct sockaddr *) &dstaddr, sizeof(dstaddr)) == -1) {
+    //setting up non-blocking connect for shorter timeout.
+//to non-blocking
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
-            errno = WSAGetLastError();
+    u_long iomode = 1;
+    if(ioctlsocket(sock, FIONBIO, &iomode) != 0)
+        throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
+#else
+    int flags = fcntl(m_socket, F_GETFL, 0);
+    if(flags == -1) {
+        throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
+    }
+    if(fcntl(m_socket, F_SETFL, flags | O_NONBLOCK) == -1) {
+        throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
+    }
 #endif
+
+    while(connect(m_socket, (struct sockaddr *) &dstaddr, sizeof(dstaddr)) != 0) {
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
+        errno = WSAGetLastError();
+        if(errno == WSAEWOULDBLOCK) {
+#else
+        if((errno == EINTR) || (errno == EAGAIN)) {
+            dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
+            continue;
+        }
+        if(errno == EINPROGRESS) {
+#endif
+            errno = 0;
+            fd_set fs;
+            FD_ZERO(&fs);
+            FD_SET(m_socket, &fs);
+            int ret = ::select(m_socket + 1, NULL, &fs, NULL, &timeout); //awaiting.
+            if(ret < 0)
+                throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
+            if(ret == 0)
+                throw XInterface::XCommError(i18n("tcp time-out during connection."), __FILE__, __LINE__);
+            break;
+        }
         throw XInterface::XCommError(formatString_tr(I18N_NOOP("tcp open failed %u"), errno).c_str(), __FILE__, __LINE__);
-	}
+    }
+
+ //back to blocking I/O.
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
+    iomode = 0;
+    if(ioctlsocket(sock, FIONBIO, &iomode) != 0)
+        throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
+#else
+    if(fcntl(m_socket, F_SETFL, flags) == -1) {
+        throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
+    }
+#endif
 
     return shared_from_this();
 }

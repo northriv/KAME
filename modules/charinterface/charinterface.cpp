@@ -187,7 +187,8 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
     #ifdef USE_TCP
         tr[ *device()].add("TCP/IP");
     #endif
-        tr[ *device()].add("DUMMY");
+        if(g_bLogDbgPrint)
+            tr[ *device()].add("DUMMY"); //for debug purpose.
   
         m_lsnOnSendRequested = tr[ *m_script_send].onValueChanged().connectWeakly(
 			shared_from_this(), &XCharInterface::onSendRequested);
