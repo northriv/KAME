@@ -1,3 +1,8 @@
+* Fri Jan 16 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.6.0-1)
+- Graph: popup and highlighting on math tools.
+- Ocean Optics/Insight spectrometers: works with >0.5s exposure. USB2000 works.
+
 * Mon Dec 22 2025 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.5.0-1)
 - Graph: fix for cheap intel integrated graphics. GLselect no longer used. Changing to color picking technique.
