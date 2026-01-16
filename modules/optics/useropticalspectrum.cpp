@@ -18,7 +18,7 @@
 #if defined USE_OCEANOPTICS_USB
 
 
-REGISTER_TYPE(XDriverList, OceanOpticsSpectrometer, "OceanOptics/Seabreeze HR2000+/4000/USB4000 spectrometer");
+REGISTER_TYPE(XDriverList, OceanOpticsSpectrometer, "OceanOptics/Insight USB/HR2000(+)/4000 spectrometer");
 
 //---------------------------------------------------------------------------
 XOceanOpticsSpectrometer::XOceanOpticsSpectrometer(const char *name, bool runtime,
@@ -232,6 +232,7 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     unsigned int active_pixel_begin = 20;
     unsigned int active_pixel_end = 2048;
     if(isusb2000) {
+        //Sony ILX511 CCD
         dark_pixel_begin = 2;
         dark_pixel_end = 25;
         active_pixel_begin = 26;
