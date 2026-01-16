@@ -116,7 +116,7 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
 //to non-blocking
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
     u_long iomode = 1;
-    if(ioctlsocket(sock, FIONBIO, &iomode) != 0)
+    if(ioctlsocket(m_socket, FIONBIO, &iomode) != 0)
         throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
 #else
     int flags = fcntl(m_socket, F_GETFL, 0);
@@ -156,7 +156,7 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
  //back to blocking I/O.
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
     iomode = 0;
-    if(ioctlsocket(sock, FIONBIO, &iomode) != 0)
+    if(ioctlsocket(m_socket, FIONBIO, &iomode) != 0)
         throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
 #else
     if(fcntl(m_socket, F_SETFL, flags) == -1) {
