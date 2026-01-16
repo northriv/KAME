@@ -129,21 +129,20 @@ XTCPSocketPort::send(const char *str) {
 }
 void
 XTCPSocketPort::write(const char *sendbuf, int size) {
-#if defined WINDOWS || defined __WIN32__ || defined _WIN32
-    fd_set fs;
-    FD_ZERO(&fs);
-    FD_SET(m_socket , &fs);
+    fd_set fs_org;
+    FD_ZERO(&fs_org);
+    FD_SET(m_socket , &fs_org);
     timeval timeout = {};
     timeout.tv_sec  = m_timeout_sec;
-    int ret = ::select(0, NULL, &fs, NULL, &timeout);
-    if(ret < 0)
-        throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
-    if(ret == 0)
-        msecsleep(10);
-#endif
-	int wlen = 0;
+
+    int wlen = 0;
 	do {
-        int ret = ::send(m_socket, sendbuf, size - wlen, 0);
+        fd_set fs;
+        memcpy( &fs, &fs_org, sizeof(fd_set));
+        int ret = ::select(m_socket + 1, NULL, &fs, NULL, &timeout); //awaiting.
+        if(ret <= 0)
+            throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
+        ret = ::send(m_socket, sendbuf, size - wlen, 0);
         if(ret <= 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
@@ -179,7 +178,8 @@ XTCPSocketPort::receive() {
 			buffer().resize(len + MIN_BUFFER_SIZE);
         char *bpos = &buffer().at(len);
 
-        fd_set fs = fs_org;
+        fd_set fs;
+        memcpy( &fs, &fs_org, sizeof(fd_set));
         int ret = ::select(m_socket + 1, &fs, NULL, NULL, &timeout); //awaiting for data.
         if(ret < 0)
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
@@ -230,7 +230,8 @@ XTCPSocketPort::receive(unsigned int length) {
 	unsigned int len = 0;
    
 	while(len < length) {
-        fd_set fs = fs_org;
+        fd_set fs;
+        memcpy( &fs, &fs_org, sizeof(fd_set));
         int ret = ::select(m_socket + 1, &fs, NULL, NULL, &timeout); //awaiting for data.
         if(ret < 0)
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
