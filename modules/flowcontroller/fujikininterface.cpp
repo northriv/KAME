@@ -16,7 +16,7 @@ public:
 XFujikinInterface::XFujikinInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
  XCharInterface(name, runtime, driver) {
     setEOS("");
-    setSerialEOS("");
+    setSerialTCPIPEOS("");
 	setSerialBaudRate(38400);
 	setSerialStopBits(1);
     trans( *device()) = "SERIAL";

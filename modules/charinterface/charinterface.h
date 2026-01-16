@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -109,7 +109,7 @@ public:
 	void setSerialParity(unsigned int parity) {m_serialParity = parity;}
 	void setSerial7Bits(bool enable) {m_serial7Bits = enable;}
 	void setSerialFlushBeforeWrite(bool x) {m_serialFlushBeforeWrite = x;}
-	void setSerialEOS(const char *str) {m_serialEOS = str;} //!< be overridden by \a setEOS().
+    void setSerialTCPIPEOS(const char *str) {m_serialTCPIPEOS = str;}
 	void setSerialHasEchoBack(bool x) {m_serialHasEchoBack = x;}
   
 	unsigned int serialBaudRate() const {return m_serialBaudRate;}
@@ -117,7 +117,7 @@ public:
 	unsigned int serialParity() const {return m_serialParity;}
 	bool serial7Bits() const {return m_serial7Bits;}
 	bool serialFlushBeforeWrite() const {return m_serialFlushBeforeWrite;}
-	const XString &serialEOS() const {return m_serialEOS;}
+    const XString &serialTCPIPEOS() const {return m_serialTCPIPEOS;} //!< will be override by setEOS() if any string is set.
 	bool serialHasEchoBack() const {return m_serialHasEchoBack;}
 
     virtual void send(const XString &str);
@@ -139,7 +139,7 @@ protected:
     shared_ptr<XPort> openedPort() const {return m_xport;}
     void openPort(shared_ptr<XPort> p);
 private:
-    XString m_serialEOS;
+    XString m_serialTCPIPEOS;
 	bool m_bGPIBUseSerialPollOnWrite;
 	bool m_bGPIBUseSerialPollOnRead;
 	int m_gpibWaitBeforeWrite;

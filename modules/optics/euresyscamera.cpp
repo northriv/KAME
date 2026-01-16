@@ -160,7 +160,7 @@ XEGrabberInterface::checkAndOpenSerialPort() {
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
     m_camera->setString<DeviceModule>("SerialBaudRate", *baudit);
 
-    m_serialEOS = "\r";
+    m_serialTCPIPEOS = "\r";
     m_camera->setInteger<DeviceModule>("SerialTimeout", 500);
     m_camera->setInteger<DeviceModule>("SerialAccessBufferLength", 4096);
 
@@ -193,7 +193,7 @@ XEGrabberInterface::flush() {
 void
 XEGrabberInterface::send(const char *buf) {
     checkAndOpenSerialPort(); //eGrabber does not allow sharing serialoperations by threads.
-    XString str = buf + m_serialEOS;
+    XString str = buf + m_serialTCPIPEOS;
     try {
         using namespace Euresys;
         m_camera->setString<DeviceModule>("SerialOperationSelector", "Write");
@@ -237,9 +237,9 @@ XEGrabberInterface::receive() {
             m_camera->getRegister<DeviceModule>("SerialAccessBuffer", buf, rsize);
             buffer_receive().insert(buffer_receive().end(), buf, buf + rsize);
             buf[rsize] = '\0';
-            auto pos = std::string(buf).find(m_serialEOS);
+            auto pos = std::string(buf).find(m_serialTCPIPEOS);
             if(pos != std::string::npos) {
-                buffer_receive().resize(buffer_receive().size() - rsize + pos + m_serialEOS.size());
+                buffer_receive().resize(buffer_receive().size() - rsize + pos + m_serialTCPIPEOS.size());
                 buffer_receive().push_back('\0');
                 return;
             }
@@ -692,7 +692,7 @@ XHamamatsuCameraOverGrablink::XHamamatsuCameraOverGrablink(const char *name, boo
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XEGrabberCamera(name, runtime, ref(tr_meas), meas, true) {
     interface()->setSerialBaudRate(9600);
-    interface()->setSerialEOS("\r");
+    interface()->setSerialTCPIPEOS("\r");
     triggerSrc()->disable();
 }
 bool
@@ -968,7 +968,7 @@ XJAICameraOverGrablink::XJAICameraOverGrablink(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XEGrabberCamera(name, runtime, ref(tr_meas), meas, true) {
     interface()->setSerialBaudRate(9600);
-    interface()->setSerialEOS("\r\n");
+    interface()->setSerialTCPIPEOS("\r\n");
     emGain()->disable();
     trans( *triggerSrc()).add({"Low", "High", "SoftTrigger", "PulseGenerator0", "UserOutput0", "UserOutput1", "TTL_In1", "CL_CC1_In", "Nand0", "Nand1"});
 }

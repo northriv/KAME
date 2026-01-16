@@ -21,7 +21,7 @@ XQDPPMS6000::XQDPPMS6000(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XQDPPMS>(name, runtime, ref(tr_meas), meas) {
     interface()->setEOS("");
-    interface()->setSerialEOS("\r\n");
+    interface()->setSerialTCPIPEOS("\r\n");
 }
 
 void

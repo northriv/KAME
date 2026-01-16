@@ -41,8 +41,8 @@ XLM500::XLM500(const char *name, bool runtime,
 	interface()->setGPIBUseSerialPollOnRead (false);
 	interface()->setGPIBWaitBeforeWrite(40);
 	//    ExclusiveWaitAfterWrite = 10;
-	interface()->setGPIBWaitBeforeRead(40);		
-	interface()->setSerialEOS("\r\n");
+	interface()->setGPIBWaitBeforeRead(40);
+    interface()->setSerialTCPIPEOS("\r\n");
 	interface()->setSerialBaudRate(9600);
 	interface()->setSerialHasEchoBack(true);
 }

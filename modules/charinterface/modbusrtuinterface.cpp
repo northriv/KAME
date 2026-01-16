@@ -20,7 +20,7 @@ public:
 XModbusRTUInterface::XModbusRTUInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
  XCharInterface(name, runtime, driver) {
     setEOS("");
-    setSerialEOS("");
+    setSerialTCPIPEOS("");
 	setSerialBaudRate(9600);
     setSerialStopBits(1);
     trans( *device()) = "SERIAL";
@@ -32,7 +32,7 @@ void
 XModbusRTUInterface::open() {
     close();
     shared_ptr<XPort> port = std::make_shared<XModbusRTUPort>(this);
-    const char *seos = eos().length() ? eos().c_str() : serialEOS().c_str();
+    const char *seos = (eos().length()) ? eos().c_str() : serialTCPIPEOS().c_str();
     port->setEOS(seos);
     openPort(port);
 }

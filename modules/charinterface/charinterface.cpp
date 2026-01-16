@@ -158,7 +158,7 @@ XCustomCharInterface::queryf(const char *fmt, ...) {
 
 XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
     XCustomCharInterface(name, runtime, driver),
-    m_serialEOS("\n"),
+    m_serialTCPIPEOS("\n"),
     m_bGPIBUseSerialPollOnWrite(true),
     m_bGPIBUseSerialPollOnRead(true),
     m_gpibWaitBeforeWrite(1),
@@ -215,22 +215,22 @@ XCharInterface::open() {
             port->setEOS(eos().c_str());
         }
     #endif
+        const char *seos = (eos().length()) ? eos().c_str() : serialTCPIPEOS().c_str();
     #ifdef USE_SERIAL
         if(shot[ *device()].to_str() == "SERIAL") {
             port.reset(new XSerialPort(this));
-            const char *seos = eos().length() ? eos().c_str() : serialEOS().c_str();
             port->setEOS(seos);
         }
     #endif
     #ifdef USE_TCP
         if(shot[ *device()].to_str() == "TCP/IP") {
 			port.reset(new XTCPPort(this));
-            port->setEOS(eos().c_str());
+            port->setEOS(seos);
         }
     #endif
         if(shot[ *device()].to_str() == "DUMMY") {
 			port.reset(new XDummyPort(this));
-            port->setEOS(eos().c_str());
+            port->setEOS(seos);
         }
           
 		if( !port) {

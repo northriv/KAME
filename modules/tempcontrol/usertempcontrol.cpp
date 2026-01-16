@@ -313,13 +313,12 @@ double XAVS47IB::getHeater(unsigned int /*loop*/) {
 XCryocon::XCryocon(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XTempControl, XCryoconCharInterface> (name, runtime, ref(tr_meas), meas) {
-    interface()->setEOS("");
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBUseSerialPollOnRead(false);
     interface()->setGPIBWaitBeforeWrite(20);
     //    ExclusiveWaitAfterWrite = 10;
     interface()->setGPIBWaitBeforeRead(20);
-    interface()->setSerialEOS("\n");
+    interface()->setSerialTCPIPEOS("\n");
     interface()->setSerialBaudRate(9600);
     interface()->setSerialStopBits(1);
     interface()->setSerialFlushBeforeWrite(true);
@@ -531,7 +530,7 @@ XNeoceraLTC21::XNeoceraLTC21(const char *name, bool runtime,
         {"1", "2"},
         {"Loop1", "Loop2"});
     interface()->setEOS("");
-	interface()->setSerialEOS("\n");
+    interface()->setSerialTCPIPEOS("\n");
 	iterate_commit([=](Transaction &tr){
     tr[ *powerRange(0)].add({"0", "0.05W", "0.5W", "5W", "50W"});
     });
@@ -674,7 +673,6 @@ XLakeShoreBridge::XLakeShoreBridge(const char *name, bool runtime,
     interface()->setSerialBaudRate(9600);
     interface()->setSerialParity(XCharInterface::PARITY_ODD);
     interface()->setSerial7Bits(true);
-    interface()->setSerialEOS("\r\n");
 }
 
 XLakeShore218::XLakeShore218(const char *name, bool runtime,

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -38,6 +38,7 @@
 #else
     #include <sys/types.h>
     #include <sys/socket.h>
+    #include <sys/select.h>
     #include <netinet/in.h>
     #include <netinet/tcp.h>
     #include <arpa/inet.h>
@@ -89,27 +90,23 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
         throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
 	}
 
-	struct timeval timeout;
-    timeout.tv_sec  = 3; //3sec. timeout.
-	timeout.tv_usec = 0;
-	if(setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO,  (char*)&timeout, sizeof(timeout)) ||
-		setsockopt(m_socket, SOL_SOCKET, SO_SNDTIMEO,  (char*)&timeout, sizeof(timeout))){
+    timeval timeout = {};
+    timeout.tv_sec  = m_timeout_sec;
+    if(setsockopt(m_socket, SOL_SOCKET, SO_SNDTIMEO,  (char*)&timeout, sizeof(timeout)) ||
+        setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO,  (char*)&timeout, sizeof(timeout))
+        ){
         throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
-	}
+    }
 
     int opt = 1;
-    if(setsockopt(m_socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&opt, sizeof(opt)))
-        throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
-
     //disables NAGLE protocol
-    opt = 1;
     if(setsockopt(m_socket, IPPROTO_TCP, TCP_NODELAY, (char*)&opt, sizeof(opt)))
         throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
 //    opt = 0;
 //    if(setsockopt(m_socket, SOL_SOCKET, SO_SNDBUF, (char*)&opt, sizeof(opt)))
 //        throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
 
-    struct sockaddr_in dstaddr = {}; //zero clear.
+    sockaddr_in dstaddr = {}; //zero clear.
 	dstaddr.sin_port = htons(port);
 	dstaddr.sin_family = AF_INET;
 	dstaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
@@ -136,9 +133,8 @@ XTCPSocketPort::write(const char *sendbuf, int size) {
     fd_set fs;
     FD_ZERO(&fs);
     FD_SET(m_socket , &fs);
-    struct timeval timeout;
-    timeout.tv_sec  = 3; //3sec. timeout.
-    timeout.tv_usec = 0;
+    timeval timeout = {};
+    timeout.tv_sec  = m_timeout_sec;
     int ret = ::select(0, NULL, &fs, NULL, &timeout);
     if(ret < 0)
         throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
@@ -167,19 +163,12 @@ XTCPSocketPort::write(const char *sendbuf, int size) {
 }
 void
 XTCPSocketPort::receive() {
-#if defined WINDOWS || defined __WIN32__ || defined _WIN32
-    fd_set fs;
-    FD_ZERO(&fs);
-    FD_SET(m_socket , &fs);
-    struct timeval timeout;
-    timeout.tv_sec  = 3; //3sec. timeout.
-    timeout.tv_usec = 0;
-    int ret = ::select(0, &fs, NULL, NULL, &timeout);
-    if(ret < 0)
-        throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
-    if(ret == 0)
-        msecsleep(10);
-#endif
+    fd_set fs_org;
+    FD_ZERO(&fs_org);
+    FD_SET(m_socket , &fs_org);
+    timeval timeout = {};
+    timeout.tv_sec  = m_timeout_sec;
+
 	buffer().resize(MIN_BUFFER_SIZE);
    
     const char *ceos = eos().c_str();
@@ -189,12 +178,18 @@ XTCPSocketPort::receive() {
 		if(buffer().size() <= len + 1) 
 			buffer().resize(len + MIN_BUFFER_SIZE);
         char *bpos = &buffer().at(len);
-        int rlen = ::recv(m_socket, bpos , 1, 0);
-		if(rlen == 0) {
-			buffer().at(len) = '\0';
+
+        fd_set fs = fs_org;
+        int ret = ::select(m_socket + 1, &fs, NULL, NULL, &timeout); //awaiting for data.
+        if(ret < 0)
+            throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
+        if((ret == 0) || //timeout during select().
+            !(ret = ::recv(m_socket, bpos , 1, 0))) { //Or, 1 byte reading.
+            buffer().at(len) = '\0';
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
-		}
-		if(rlen < 0) {
+        }
+
+        if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
 //            if((errno == WSAEINTR)) {
@@ -207,7 +202,7 @@ XTCPSocketPort::receive() {
             reopen_socket();
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
         }
-		len += rlen;
+        len += ret;
 		if(len >= eos_len) {
             if(eos_len == 0) {
                 if(buffer().at(len - 1) == '\0')
@@ -225,14 +220,26 @@ XTCPSocketPort::receive() {
 }
 void
 XTCPSocketPort::receive(unsigned int length) {
-	buffer().resize(length);
+    fd_set fs_org;
+    FD_ZERO(&fs_org);
+    FD_SET(m_socket , &fs_org);
+    timeval timeout = {};
+    timeout.tv_sec  = m_timeout_sec;
+
+    buffer().resize(length);
 	unsigned int len = 0;
    
 	while(len < length) {
-        int rlen = ::recv(m_socket, &buffer().at(len), 1, 0);
-		if(rlen == 0)
-            throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);
-		if(rlen < 0) {
+        fd_set fs = fs_org;
+        int ret = ::select(m_socket + 1, &fs, NULL, NULL, &timeout); //awaiting for data.
+        if(ret < 0)
+            throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
+        if((ret == 0) || //timeout during select().
+            !(ret = ::recv(m_socket, &buffer().at(len) , length - len, 0))) { //Or, reads remaining bytes.
+            throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
+        }
+
+        if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
             if((errno == WSAEINTR)) {
@@ -246,7 +253,7 @@ XTCPSocketPort::receive(unsigned int length) {
             reopen_socket();
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
         }
-		len += rlen;
+        len += ret;
 	}
 }    
 

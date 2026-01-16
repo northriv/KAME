@@ -156,7 +156,7 @@ XLakeshoreM81LIA::XLakeshoreM81LIA(const char *name, bool runtime,
     interface()->setGPIBUseSerialPollOnRead(false);
     interface()->setGPIBWaitBeforeWrite(40);
     //    ExclusiveWaitAfterWrite = 10;
-    interface()->setSerialEOS("\r\n");
+    interface()->setSerialTCPIPEOS("\r\n");
     interface()->setGPIBWaitBeforeRead(40);
     interface()->setSerialBaudRate(921600);
     interface()->setSerial7Bits(false);

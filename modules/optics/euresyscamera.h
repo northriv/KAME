@@ -43,7 +43,7 @@ public:
 
     //For cameralink cameras.
     void setSerialBaudRate(unsigned int rate) {m_serialBaudRate = rate;}
-    void setSerialEOS(const char *str) {m_serialEOS = str;} //!< be overridden by \a setEOS().
+    void setSerialTCPIPEOS(const char *str) {m_serialTCPIPEOS = str;}
 protected:
     virtual void open() override;
     //! This can be called even if has already closed.
@@ -60,7 +60,7 @@ private:
     static unique_ptr<Euresys::EGrabberDiscovery> s_discovery;
     static int s_refcnt;
 
-    XString m_serialEOS;
+    XString m_serialTCPIPEOS;
     unsigned int m_serialBaudRate;
 };
 

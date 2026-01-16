@@ -66,7 +66,7 @@ PyXNodeExporter<XCharInterface, XCustomCharInterface>
     .def("setSerialParity", &XCharInterface::setSerialParity)
     .def("setSerial7Bits", &XCharInterface::setSerial7Bits)
     .def("setSerialFlushBeforeWrite", &XCharInterface::setSerialFlushBeforeWrite)
-    .def("setSerialEOS", &XCharInterface::setSerialEOS)
+    .def("setSerialTCPIPEOS", &XCharInterface::setSerialTCPIPEOS)
     .def("setSerialHasEchoBack", &XCharInterface::setSerialHasEchoBack);
 });
 
