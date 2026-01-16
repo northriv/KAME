@@ -235,9 +235,15 @@ protected:
     virtual void onPowerMaxChanged(unsigned int, double ) {}
     virtual const char *loopString(unsigned int) {return "";}
 };
-using XSI9302 = XScientificInstruments930X<2>;
-using XSI9304 = XScientificInstruments930X<4>;
-using XSI9308 = XScientificInstruments930X<8>;
+class XSI9302 : public XScientificInstruments930X<2> {
+    using XScientificInstruments930X<2>::XScientificInstruments930X;
+};
+class XSI9304 : public XScientificInstruments930X<4> {
+    using XScientificInstruments930X<4>::XScientificInstruments930X;
+};
+class XSI9308 : public XScientificInstruments930X<8> {
+    using XScientificInstruments930X<8>::XScientificInstruments930X;
+};
 
 //! Linear-Research 700 AC resistance bridge
 class XLinearResearch700 : public XCharDeviceDriver<XTempControl> {
