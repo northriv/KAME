@@ -158,7 +158,7 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                         QStringList ttys = QDir("/dev").entryList(filters,
                             QDir::Files | QDir::System | QDir::NoDotAndDotDot, QDir::Time); //QDir::Name
                         foreach(QString tty, ttys) {
-                            menu->addAction(tty);
+                            menu->addAction("/dev/" + tty);
                         }
 #endif
                         if( !menu->isEmpty()) {
