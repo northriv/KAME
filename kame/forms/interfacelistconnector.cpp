@@ -180,7 +180,7 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                                 if(res == ERROR_NO_MORE_ITEMS)
                                     break;
                                 if(res == ERROR_SUCCESS) {
-                                    std::string str(static_cast<char*>(data));
+                                    XString str(reinterpret_cast<char*>(data));
                                     map_ui_dev.insert({str, str});
                                     menu->addAction(str);
                                 }
