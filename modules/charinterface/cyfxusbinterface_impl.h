@@ -49,7 +49,7 @@ XCyFXUSBInterface<USBDevice>::pickupNewDev(const typename USBDevice::List &enume
     auto found = enumerated;
     for(auto it = found.begin(); it != found.end();) {
         for(auto &&y: s_devices) {
-            if( *it && ( **it == *y)) {//the same device in the static list.
+            if( *it && y && ( **it == *y)) {//the same device in the static list.
                 it->reset();
                 break;
             }
@@ -153,17 +153,15 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
         for(int retry: {0,1}) {
             msecsleep(2000); //waits for enumeration of reboot devices.
             enumerated_devices = USBDevice::enumerateDevices(); //enumerates devices again.
+            //New USB devices after possible firmware loading.
+            found_devices = pickupNewDev(enumerated_devices);
             if(enumerated_devices.size() >= org_count)
                 break;
         }
-    }
-    //New USB devices after possible firmware loading.
-    found_devices = pickupNewDev(enumerated_devices);
 
-    for(auto &&x : found_devices) {
-        if( !x) continue;
-        try {
-            if(is_written) {
+        for(auto &&x : found_devices) {
+            if( !x) continue;
+            try {
                 switch(examineDeviceBeforeFWLoad(x)) {
                 case DEVICE_STATUS::UNSUPPORTED:
                     x.reset();
@@ -183,19 +181,19 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                     continue;
                 }
             }
-        }
-        catch (XInterface::XInterfaceError &e) {
-            x->close();
-            e.print();
-            x.reset();
-            continue;
+            catch (XInterface::XInterfaceError &e) {
+                x->close();
+                e.print();
+                x.reset();
+                continue;
+            }
         }
     }
     //Adds found devices to the static list.
     s_devices.insert(s_devices.end(), found_devices.begin(), found_devices.end());
 
     if(is_written)
-        gMessagePrint("USB FX: initialization done.");
+        gMessagePrint("USB FX: FW initialization done.");
 }
 
 template <class USBDevice>
