@@ -180,9 +180,10 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                                 if(res == ERROR_NO_MORE_ITEMS)
                                     break;
                                 if(res == ERROR_SUCCESS) {
-                                    XString str(reinterpret_cast<char*>(data));
-                                    map_ui_dev.insert({str, str});
-                                    menu->addAction(str);
+                                    XString name(reinterpret_cast<char*>(valueName));
+                                    XString comstr(reinterpret_cast<char*>(data));
+                                    map_ui_dev.insert({name, comstr});
+                                    menu->addAction(comstr);
                                 }
                             }
                             RegCloseKey(hKey);
