@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2017 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -164,6 +164,7 @@ CyFXWin32USBDevice::setIDs() {
 
     m_productID = dev_desc.idProduct;
     m_vendorID = dev_desc.idVendor;
+    m_serialNo = dev_desc.iSerialNumber;
 }
 
 CyFXUSBDevice::List

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2017 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,8 +20,11 @@
 
 
 struct CyFXUSBDevice {
-    CyFXUSBDevice(const CyFXUSBDevice&) = default;
+    CyFXUSBDevice(const CyFXUSBDevice&) = delete;
     virtual ~CyFXUSBDevice() = default;
+
+    bool operator==(const CyFXUSBDevice &d) const {
+        return (productID() == d.productID()) && (vendorID() == d.vendorID()) && (serialNo() == d.serialNo());}
 
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
     //! \return a list of connected USB devices, perhaps including non-cypress devices.
@@ -73,6 +76,7 @@ struct CyFXUSBDevice {
 
     unsigned int vendorID() const {return m_vendorID;}
     unsigned int productID() const {return m_productID;}
+    unsigned int serialNo() const {return m_serialNo;}
 
     class AsyncIO {
     public:
@@ -102,7 +106,7 @@ struct CyFXUSBDevice {
         USB_ENDPOINT_DESCRIPTOR_TYPE = 5};
 protected:
     CyFXUSBDevice() = default;
-    uint16_t m_vendorID, m_productID;
+    uint16_t m_vendorID, m_productID, m_serialNo;
     atomic<int> m_refcnt = 0;
 };
 
@@ -118,7 +122,8 @@ public:
     virtual void close() override;
 
     //! must be called during the constructor of the inherited class.
-    void initialize();
+    //! If instatiation == false, setups newly discovered devices only.
+    void initialize(bool instatiation = true);
     void finalize();
 
     virtual void lock() override {if(m_usbDevice) m_usbDevice->mutex.lock();} //!<overrides XInterface::lock().
@@ -142,6 +147,8 @@ protected:
 
     const shared_ptr<CyFXUSBDevice> &usb() const {return m_usbDevice;}
 private:
+    typename USBDevice::List pickupNewDev(const typename USBDevice::List &enumerated);
+
     shared_ptr<CyFXUSBDevice> m_usbDevice;
     static XMutex s_mutex;
     static typename USBDevice::List s_devices;
@@ -150,6 +157,11 @@ private:
     std::map<XString, shared_ptr<CyFXUSBDevice>> m_candidates;
     void openAllEZUSBdevices();
     void closeAllEZUSBdevices();
+
+    void onItemRefreshRequested(const Snapshot &shot, XItemNodeBase *node) {
+        initialize(false);
+    }
+    shared_ptr<Listener> m_lsnOnItemRefreshRequested;
 };
 
 #endif

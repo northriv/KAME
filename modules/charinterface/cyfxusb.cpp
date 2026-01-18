@@ -54,5 +54,3 @@ CyFXUSBDevice::downloadFX2(const uint8_t* image, int len) {
     //A0 anchor download.
     controlWrite((CtrlReq)0xA0, CtrlReqType::VENDOR, addr, 0x00, image, len);
 }
-
-

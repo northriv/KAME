@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2017 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -31,11 +31,33 @@ template <class USBDevice>
 XCyFXUSBInterface<USBDevice>::XCyFXUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
     : XCustomCharInterface(name, runtime, driver) {
 
+    iterate_commit([=](Transaction &tr){
+        m_lsnOnItemRefreshRequested = tr[ *device()].onItemRefreshRequested().connectWeakly(
+            shared_from_this(), &XCyFXUSBInterface<USBDevice>::onItemRefreshRequested);
+    });
 }
 
 template <class USBDevice>
 XCyFXUSBInterface<USBDevice>::~XCyFXUSBInterface() {
 
+}
+
+
+template <class USBDevice>
+typename USBDevice::List
+XCyFXUSBInterface<USBDevice>::pickupNewDev(const typename USBDevice::List &enumerated) {
+    auto found = enumerated;
+    for(auto it = found.begin(); it != found.end();) {
+        for(auto &&y: s_devices) {
+            if( **it == *y) //the same device in the static list.
+                it->reset();
+        }
+        if( !*it)
+            it = found.erase(it);
+        else
+            it++;
+    }
+    return found;
 }
 
 template <class USBDevice>
@@ -84,13 +106,15 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                 filename + i18n_noncontext(" is not proper."), __FILE__, __LINE__);
     };
 
-    gMessagePrint("USB FX: Initializing/opening all the devices");
-    s_devices = USBDevice::enumerateDevices();
+    if( !s_devices.size())
+        gMessagePrint("USB FX: Initializing/opening all the devices");
+    auto enumerated_devices = USBDevice::enumerateDevices();
+    auto found_devices = pickupNewDev(enumerated_devices);
 
     bool is_written = false;
     {
         //loads firmware onto RAM, if needed.
-        for(auto &&x : s_devices) {
+        for(auto &&x : found_devices) {
             if( !x) continue;
             try {
                 switch(examineDeviceBeforeFWLoad(x)) {
@@ -123,16 +147,18 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
         }
     }
     if(is_written) {
-        int org_count = s_devices.size();
+        int org_count = enumerated_devices.size();
         for(int retry: {0,1}) {
             msecsleep(2000); //waits for enumeration of reboot devices.
-            s_devices = USBDevice::enumerateDevices(); //enumerates devices again.
-            if(s_devices.size() >= org_count)
+            enumerated_devices = USBDevice::enumerateDevices(); //enumerates devices again.
+            if(enumerated_devices.size() >= org_count)
                 break;
         }
     }
+    //New USB devices after possible firmware loading.
+    found_devices = pickupNewDev(enumerated_devices);
 
-    for(auto &&x : s_devices) {
+    for(auto &&x : found_devices) {
         if( !x) continue;
         try {
             if(is_written) {
@@ -163,7 +189,11 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
             continue;
         }
     }
-    gMessagePrint("USB FX: initialization done.");
+    //Adds found devices to the static list.
+    s_devices.insert(s_devices.end(), found_devices.begin(), found_devices.end());
+
+    if(is_written)
+        gMessagePrint("USB FX: initialization done.");
 }
 
 template <class USBDevice>
@@ -172,24 +202,33 @@ XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
     s_devices.clear();
 }
 
+//todo XComboBox::onAboutToOpen.
 template <class USBDevice>
 void
-XCyFXUSBInterface<USBDevice>::initialize() {
-    m_threadInit.reset(new XThread{shared_from_this(), [this](const atomic<bool>&) {
+XCyFXUSBInterface<USBDevice>::initialize(bool instatiation) {
+    m_threadInit.reset(new XThread{shared_from_this(), [this, instatiation](const atomic<bool>&) {
         XScopedLock<XMutex> slock(s_mutex);
         try {
-            if( !(s_refcnt++)) {
-                openAllEZUSBdevices();
-            }
+            if(instatiation)
+                s_refcnt++;
+            openAllEZUSBdevices(); //finds new devices.
 
             for(auto &&x : s_devices) {
                 if( !x) continue;
-                XString name = examineDeviceAfterFWLoad(x);
-                if(name.length()) {
-                    auto shot = iterate_commit([=](Transaction &tr){
-                        tr[ *device()].add(name);
-                    });
-                    m_candidates.emplace(name, x);
+                //this if statement is always true when instatiation == true.
+                if(std::find_if(m_candidates.begin(), m_candidates.end(), [&x](auto &y){return y.second == x;} )
+                    == m_candidates.end()) {
+                    //yet to be added in the combo box.
+                    XString name = examineDeviceAfterFWLoad(x);
+                    if(name.length()) {
+                        auto shot = iterate_commit([=](Transaction &tr){
+                            XString name__ = name;
+                            if(m_candidates.find(tr[ *device()].to_str()) != m_candidates.end())
+                                name__ += formatString(":%u", x->serialNo()); //duplicated name
+                            tr[ *device()].add(name__);
+                        });
+                        m_candidates.emplace(name, x);
+                    }
                 }
             }
         }

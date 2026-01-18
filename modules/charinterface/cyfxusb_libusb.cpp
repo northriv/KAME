@@ -27,6 +27,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         }
         m_productID = desc.idProduct;
         m_vendorID = desc.idVendor;
+        m_serialNo = desc.iSerialNumber;
         fprintf(stderr, "USB dev, %x:%x\n", m_vendorID, m_productID);
         libusb_ref_device(dev);
     }

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -34,6 +34,7 @@
 #include <QPainter>
 #include <QMainWindow>
 #include <QApplication>
+#include <QKeyEvent>
 
 #include <map>
 #include "measure.h"
@@ -575,6 +576,34 @@ XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
     connect(item, SIGNAL( activated(int) ), this, SLOT( onSelect(int) ) );
     onListChanged(Snapshot( *node),
         XItemNodeBase::Payload::ListChangeEvent({shot_of_list, node.get()}));
+    item->installEventFilter(this);
+}
+bool
+XQComboBoxConnector::eventFilter(QObject *obj, QEvent *event) {
+    //QComboBox does not feature aboutToShow(), instead, filtering events.
+    if(obj == m_pItem) {
+        bool popup = false;
+        switch (event->type()) {
+        case QEvent::KeyPress: {
+            QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+            if(keyEvent->key() == Qt::Key_Space ||
+                (keyEvent->key() == Qt::Key_Down && keyEvent->modifiers() & Qt::AltModifier))
+                popup = true;
+            }
+            break;
+        case QEvent::MouseButtonPress:
+            popup = true;
+            break;
+        default:
+            break;
+        }
+        if(popup) {
+            Snapshot shot( *m_node);
+            shot.talk(shot[ *m_node].onItemRefreshRequested(), m_node.get());
+            return false;
+        }
+    }
+    return QObject::eventFilter(obj, event);
 }
 void
 XQComboBoxConnector::onSelect(int idx) {

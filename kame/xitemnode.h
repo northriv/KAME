@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -35,8 +35,13 @@ public:
         };
         Talker<ListChangeEvent> &onListChanged() {return m_tlkOnListChanged;}
         const Talker<ListChangeEvent> &onListChanged() const {return m_tlkOnListChanged;}
+        //! Useful to rearrange item strings when items are about to be shown by UI (QComboBox).
+        //! Does nothing unless the talker is listened.
+        Talker<XItemNodeBase *> &onItemRefreshRequested() {return m_tlkOnRefreshRequested;}
+        const Talker<XItemNodeBase *> &onItemRefreshRequested() const {return m_tlkOnRefreshRequested;}
     private:
         TalkerOnce<ListChangeEvent> m_tlkOnListChanged;
+        TalkerOnce<XItemNodeBase *> m_tlkOnRefreshRequested;
     };
 private:
     shared_ptr<Listener> m_lsnTryAutoSet;
@@ -191,6 +196,7 @@ public:
         Payload &operator=(int t);
         Payload &operator=(const XString &);
         virtual std::vector<XItemNodeBase::Item> itemStrings() const;
+
     protected:
         virtual void str_(const XString &) override;
     private:

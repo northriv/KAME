@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -348,8 +348,9 @@ public:
 	XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
 		QComboBox *item, const Snapshot &shot_of_list);
 protected slots:
-virtual void onSelect(int index);
+    virtual void onSelect(int index);
 protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
     virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) override;
 	const shared_ptr<XItemNodeBase> m_node;
