@@ -1,3 +1,10 @@
+* Sun Jan 18 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.7.0-1)
+- tcp: Proper timeout on connection, reading, writing., sharing the same EOS setting with serialport.
+- cyfxusb: Discovers newly connected USB devices when "Device" combobox is clicked.
+- xitemnodebase, xqcomboxconnector: onItemRefreshRequested().
+- usertempcontrol: SI930X, worked with TCP/IP.
+
 * Fri Jan 16 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.6.0-1)
 - Graph: popup and highlighting on math tools.
