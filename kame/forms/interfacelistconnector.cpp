@@ -28,8 +28,6 @@
 
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
     #include <windows.h>
-    #include <setupapi.h>
-    #include <devguid.h>
 #endif
 
 XInterfaceListConnector::XInterfaceListConnector(
@@ -170,26 +168,45 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                         }
 #endif
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
-                        HDEVINFO hDevInfo = SetupDiGetClassDevs( &GUID_DEVINTERFACE_COMPORT, NULL, NULL,
-                            DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
-                        if(hDevInfo == INVALID_HANDLE_VALUE)
-                            break;
-
-                        SP_DEVINFO_DATA devInfoData;
-                        devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
-
-                        for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
-                            char friendlyName[256];
-                            if(SetupDiGetDeviceRegistryPropertyA(hDevInfo, &devInfoData, SPDRP_FRIENDLYNAME, NULL,
-                                (PBYTE)friendlyName, sizeof(friendlyName), NULL)) {
-                                std::string str(friendlyName);
-                                auto leftpos = str.rfind("(") + 1;
-                                auto simple = str.substr(leftpos, str.find(")", leftpos));
-                                map_ui_dev.insert(friendlyName, simple);
-                                menu->addAction(friendlyName);
+                        HKEY hKey;
+                        if(RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+                            char valueName[256];
+                            BYTE data[256];
+                            DWORD valLen, dataLen, type;
+                            for(DWORD i = 0; ; i++) {
+                                valLen = sizeof(valueName);
+                                dataLen = sizeof(data);
+                                LONG res = RegEnumValueA(hKey, i, valueName, &valLen, NULL, &type, data, &dataLen);
+                                if (res == ERROR_NO_MORE_ITEMS)
+                                    break;
+                                if (res == ERROR_SUCCESS) {
+                                    map_ui_dev.insert({data, data});
+                                    menu->addAction(data);
+                                }
                             }
+                            RegCloseKey(hKey);
                         }
-                        SetupDiDestroyDeviceInfoList(hDevInfo);
+
+//                        HDEVINFO hDevInfo = SetupDiGetClassDevs( &GUID_DEVINTERFACE_COMPORT, NULL, NULL,
+//                            DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+//                        if(hDevInfo == INVALID_HANDLE_VALUE)
+//                            break;
+
+//                        SP_DEVINFO_DATA devInfoData;
+//                        devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+
+//                        for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
+//                            char friendlyName[256];
+//                            if(SetupDiGetDeviceRegistryPropertyA(hDevInfo, &devInfoData, SPDRP_FRIENDLYNAME, NULL,
+//                                (PBYTE)friendlyName, sizeof(friendlyName), NULL)) {
+//                                std::string str(friendlyName);
+//                                auto leftpos = str.rfind("(") + 1;
+//                                auto simple = str.substr(leftpos, str.find(")", leftpos));
+//                                map_ui_dev.insert({friendlyName, simple});
+//                                menu->addAction(friendlyName);
+//                            }
+//                        }
+//                        SetupDiDestroyDeviceInfoList(hDevInfo);
 #endif
 
                         if( !menu->isEmpty()) {
