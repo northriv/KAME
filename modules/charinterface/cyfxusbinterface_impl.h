@@ -49,8 +49,10 @@ XCyFXUSBInterface<USBDevice>::pickupNewDev(const typename USBDevice::List &enume
     auto found = enumerated;
     for(auto it = found.begin(); it != found.end();) {
         for(auto &&y: s_devices) {
-            if( **it == *y) //the same device in the static list.
+            if( *it && ( **it == *y)) {//the same device in the static list.
                 it->reset();
+                break;
+            }
         }
         if( !*it)
             it = found.erase(it);
