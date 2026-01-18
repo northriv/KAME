@@ -1,6 +1,7 @@
 * Sun Jan 18 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.7.0-1)
 - tcp: Proper timeout on connection, reading, writing., sharing the same EOS setting with serialport.
+- interfacelistconnector: suggests serial ports in popup menu.
 - cyfxusb: Discovers newly connected USB devices when "Device" combobox is clicked.
 - xitemnodebase, xqcomboxconnector: onItemRefreshRequested().
 - usertempcontrol: SI930X, worked with TCP/IP.
