@@ -221,11 +221,10 @@ XCyFXUSBInterface<USBDevice>::initialize(bool instatiation) {
                     //yet to be added in the combo box.
                     XString name = examineDeviceAfterFWLoad(x);
                     if(name.length()) {
+                        if(m_candidates.find(name) != m_candidates.end())
+                            name += formatString(":%u", x->serialNo()); //duplicated name
                         auto shot = iterate_commit([=](Transaction &tr){
-                            XString name__ = name;
-                            if(m_candidates.find(tr[ *device()].to_str()) != m_candidates.end())
-                                name__ += formatString(":%u", x->serialNo()); //duplicated name
-                            tr[ *device()].add(name__);
+                            tr[ *device()].add(name);
                         });
                         m_candidates.emplace(name, x);
                     }
