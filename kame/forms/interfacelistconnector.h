@@ -34,7 +34,7 @@ protected slots:
 private:
 	struct tcons {
 		xqcon_ptr condev, concontrol, conport, conaddr;
-		shared_ptr<XInterface> interface;
+        shared_ptr<XInterface> xinterface;
         QPushButton *btn;
         QLineEdit *edport;
         shared_ptr<Listener> lsnOnControlChanged;

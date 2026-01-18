@@ -67,8 +67,8 @@ XInterfaceListConnector::XInterfaceListConnector(
 void
 XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *node) {
 	for(auto it = m_cons.begin(); it != m_cons.end(); it++) {
-		if(it->interface->control().get() == node) {
-            if(shot[ *it->interface->control()]) {
+        if(it->xinterface->control().get() == node) {
+            if(shot[ *it->xinterface->control()]) {
                 if(shot[ *node].isUIEnabled()) {
                     it->btn->setIcon( QIcon( *g_pIconRotate) );
                     it->btn->setText(i18n("&STOP"));
@@ -94,7 +94,7 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
     m_pItem->setItem(i, 0, new QTableWidgetItem(interface->getLabel().c_str()));
 	m_cons.push_back(tcons());
 	tcons &con(m_cons.back());
-	con.interface = interface;
+    con.xinterface = interface;
 	con.btn = new QPushButton(m_pItem);
 	con.btn->setCheckable(true);
 	con.btn->setAutoDefault(false);
@@ -126,7 +126,7 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 void
 XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	for(auto it = m_cons.begin(); it != m_cons.end();) {
-		if(it->interface == e.released) {
+        if(it->xinterface == e.released) {
 			for(int i = 0; i < m_pItem->rowCount(); i++) {
 				if(m_pItem->cellWidget(i, 1) == it->btn) m_pItem->removeRow(i);
 			}
@@ -141,15 +141,15 @@ void
 XInterfaceListConnector::cellClicked ( int row, int ) {
     for(auto &&con: m_cons) {
         if(m_pItem->cellWidget(row, 1) == con.btn)
-            con.interface->driver()->showForms();
+            con.xinterface->driver()->showForms();
 	}
 }
 bool
 XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
     for(auto &&con: m_cons) {
         if(obj == con.edport) {
-            Snapshot shot( *con.interface->device());
-            XString dev = shot[ *con.interface->device()].to_str();
+            Snapshot shot( *con.xinterface->device());
+            XString dev = shot[ *con.xinterface->device()].to_str();
             switch (event->type()) {
             case QEvent::MouseButtonPress:
                 if((dev == "SERIAL") || (dev == "GPIB") || (dev == "PrologixGPIB")) {
