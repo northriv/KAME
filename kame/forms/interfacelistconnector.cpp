@@ -179,9 +179,9 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                                     break;
                                 if(res == ERROR_SUCCESS) {
                                     XString name(reinterpret_cast<char*>(valueName));
-//                                    XString comstr(reinterpret_cast<char*>(data));
-                                    map_ui_dev.insert({name, name});
-                                    menu->addAction(name);
+                                    XString comstr(reinterpret_cast<char*>(data));
+                                    map_ui_dev.insert({comstr, comstr});
+                                    menu->addAction(comstr);
                                 }
                             }
                             RegCloseKey(hKey);
