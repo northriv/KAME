@@ -26,6 +26,12 @@
 #include <QMenu>
 #include <QDir>
 
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
+    #include <windows.h>
+    #include <setupapi.h>
+    #include <devguid.h>
+#endif
+
 XInterfaceListConnector::XInterfaceListConnector(
     const shared_ptr<XInterfaceList> &node, QTableWidget *item)
 	: XListQConnector(node, item), m_interfaceList(node) {
@@ -151,23 +157,52 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                     if(((mouseevent->button() == Qt::LeftButton) && (con.edport->text().isEmpty())) ||
                             (mouseevent->button() == Qt::RightButton)) {
                         auto menu = std::make_unique<QMenu>(con.edport);
-
+                        std::map<XString, XString> map_ui_dev;
+                        //listing serial port devices.
 #if defined __MACOSX__ || defined __APPLE__
                         QStringList filters;
                         filters << "ttyUSB*" << "ttyACM*" << "tty.usbserial-*";
                         QStringList ttys = QDir("/dev").entryList(filters,
                             QDir::Files | QDir::System | QDir::NoDotAndDotDot, QDir::Time); //QDir::Name
                         foreach(QString tty, ttys) {
-                            menu->addAction("/dev/" + tty);
+                            map_ui_dev.insert({tty, "/dev/" + tty});
+                            menu->addAction(tty);
                         }
 #endif
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
+                        HDEVINFO hDevInfo = SetupDiGetClassDevs( &GUID_DEVINTERFACE_COMPORT, NULL, NULL,
+                            DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+                        if(hDevInfo == INVALID_HANDLE_VALUE)
+                            break;
+
+                        SP_DEVINFO_DATA devInfoData;
+                        devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+
+                        for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
+                            char friendlyName[256];
+                            if(SetupDiGetDeviceRegistryPropertyA(hDevInfo, &devInfoData, SPDRP_FRIENDLYNAME, NULL,
+                                (PBYTE)friendlyName, sizeof(friendlyName), NULL)) {
+                                std::string str(friendlyName);
+                                auto leftpos = str.rfind("(") + 1;
+                                auto simple = str.substr(leftpos, str.find(")", leftpos));
+                                map_ui_dev.insert(friendlyName, simple);
+                                menu->addAction(friendlyName);
+                            }
+                        }
+                        SetupDiDestroyDeviceInfoList(hDevInfo);
+#endif
+
                         if( !menu->isEmpty()) {
                             auto *action = menu->exec(con.edport->mapToGlobal(mouseevent->pos()));
-                            if(action)
-                                con.edport->setText(action->text());
+                            try {
+                                if(action)
+                                    con.edport->setText(map_ui_dev.at(action->text()));
 
-                            con.edport->setContextMenuPolicy(Qt::NoContextMenu);
-                            return true;
+                                con.edport->setContextMenuPolicy(Qt::NoContextMenu);
+                                return true;
+                            }
+                            catch (std::out_of_range &) {
+                            }
                         }
                     }
                 }
