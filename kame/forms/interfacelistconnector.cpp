@@ -172,18 +172,16 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                         if(RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
                             char valueName[256];
                             BYTE data[256];
-                            DWORD valLen, dataLen, type;
                             for(DWORD i = 0; ; i++) {
-                                valLen = sizeof(valueName);
-                                dataLen = sizeof(data);
+                                DWORD valLen = sizeof(valueName), dataLen = sizeof(data), type;
                                 LONG res = RegEnumValueA(hKey, i, valueName, &valLen, NULL, &type, data, &dataLen);
                                 if(res == ERROR_NO_MORE_ITEMS)
                                     break;
                                 if(res == ERROR_SUCCESS) {
                                     XString name(reinterpret_cast<char*>(valueName));
-                                    XString comstr(reinterpret_cast<char*>(data));
-                                    map_ui_dev.insert({name, comstr});
-                                    menu->addAction(comstr);
+//                                    XString comstr(reinterpret_cast<char*>(data));
+                                    map_ui_dev.insert({name, name});
+                                    menu->addAction(name);
                                 }
                             }
                             RegCloseKey(hKey);
