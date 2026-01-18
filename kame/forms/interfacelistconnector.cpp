@@ -177,11 +177,12 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                                 valLen = sizeof(valueName);
                                 dataLen = sizeof(data);
                                 LONG res = RegEnumValueA(hKey, i, valueName, &valLen, NULL, &type, data, &dataLen);
-                                if (res == ERROR_NO_MORE_ITEMS)
+                                if(res == ERROR_NO_MORE_ITEMS)
                                     break;
-                                if (res == ERROR_SUCCESS) {
-                                    map_ui_dev.insert({data, data});
-                                    menu->addAction(data);
+                                if(res == ERROR_SUCCESS) {
+                                    std::string str(static_cast<char*>(data));
+                                    map_ui_dev.insert({str, str});
+                                    menu->addAction(str);
                                 }
                             }
                             RegCloseKey(hKey);
