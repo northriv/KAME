@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,6 +19,7 @@
 
 class QTableWidget;
 class QPushButton;
+class QLineEdit;
 
 class XInterfaceListConnector : public XListQConnector {
 	Q_OBJECT
@@ -29,19 +30,21 @@ protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 protected slots:
-void cellClicked ( int row, int col);
+    void cellClicked ( int row, int col);
 private:
 	struct tcons {
 		xqcon_ptr condev, concontrol, conport, conaddr;
 		shared_ptr<XInterface> interface;
-		QPushButton *btn;
-		shared_ptr<Listener> lsnOnControlChanged;
+        QPushButton *btn;
+        QLineEdit *edport;
+        shared_ptr<Listener> lsnOnControlChanged;
 	};
 	typedef std::deque<tcons> tconslist;
-	tconslist m_cons;
+    tconslist m_cons;
 
-	const shared_ptr<XInterfaceList> m_interfaceList;
+    const shared_ptr<XInterfaceList> m_interfaceList;
 	void onControlChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual bool eventFilter(QObject *obj, QEvent *event) override;
 };
 
 #endif /*INTERFACELISTCONNECTOR_H_*/

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,6 +22,9 @@
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QApplication>
+#include <QMouseEvent>
+#include <QMenu>
+#include <QDir>
 
 XInterfaceListConnector::XInterfaceListConnector(
     const shared_ptr<XInterfaceList> &node, QTableWidget *item)
@@ -92,13 +95,14 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 	con.btn->setFlat(true);
 	con.concontrol = xqcon_create<XQToggleButtonConnector>(interface->control(), con.btn);    
 	m_pItem->setCellWidget(i, 1, con.btn);
-	QComboBox *cmbdev(new QComboBox(m_pItem) );
+    QComboBox *cmbdev(new QComboBox(m_pItem) );
 	con.condev = xqcon_create<XQComboBoxConnector>(interface->device(), cmbdev, Snapshot( *interface->device()));
-	m_pItem->setCellWidget(i, 2, cmbdev);
-	QLineEdit *edPort(new QLineEdit(m_pItem) );
-	con.conport = xqcon_create<XQLineEditConnector>(interface->port(), edPort, false);
-    m_pItem->setCellWidget(i, 3, edPort);
-	QSpinBox *numAddr(new QSpinBox(m_pItem) );
+    m_pItem->setCellWidget(i, 2, cmbdev);
+    con.edport = new QLineEdit(m_pItem);
+    con.edport->installEventFilter(this); //for popup.
+    con.conport = xqcon_create<XQLineEditConnector>(interface->port(), con.edport, false);
+    m_pItem->setCellWidget(i, 3, con.edport);
+    QSpinBox *numAddr(new QSpinBox(m_pItem) );
     //Ranges should be preset in prior to connectors.
     numAddr->setRange(0, 255);
 	numAddr->setSingleStep(1);
@@ -129,9 +133,49 @@ XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Pa
 }
 void
 XInterfaceListConnector::cellClicked ( int row, int ) {
-	for(auto it = m_cons.begin(); it != m_cons.end(); it++)
-	{
-		if(m_pItem->cellWidget(row, 1) == it->btn)
-			it->interface->driver()->showForms();
+    for(auto &&con: m_cons) {
+        if(m_pItem->cellWidget(row, 1) == con.btn)
+            con.interface->driver()->showForms();
 	}
+}
+bool
+XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
+    for(auto &&con: m_cons) {
+        if(obj == con.edport) {
+            Snapshot shot( *con.interface->device());
+            XString dev = shot[ *con.interface->device()].to_str();
+            switch (event->type()) {
+            case QEvent::MouseButtonPress:
+                if((dev == "SERIAL") || (dev == "GPIB") || (dev == "PrologixGPIB")) {
+                    auto *mouseevent = static_cast<QMouseEvent *>(event);
+                    if(((mouseevent->button() == Qt::LeftButton) && (con.edport->text().isEmpty())) ||
+                            (mouseevent->button() == Qt::RightButton)) {
+                        auto menu = std::make_unique<QMenu>(con.edport);
+
+#if defined __MACOSX__ || defined __APPLE__
+                        QStringList filters;
+                        filters << "ttyUSB*" << "ttyACM*" << "tty.usbserial-*";
+                        QStringList ttys = QDir("/dev").entryList(filters,
+                            QDir::Files | QDir::System | QDir::NoDotAndDotDot, QDir::Time); //QDir::Name
+                        foreach(QString tty, ttys) {
+                            menu->addAction(tty);
+                        }
+#endif
+                        if( !menu->isEmpty()) {
+                            auto *action = menu->exec(con.edport->mapToGlobal(mouseevent->pos()));
+                            if(action)
+                                con.edport->setText(action->text());
+
+                            con.edport->setContextMenuPolicy(Qt::NoContextMenu);
+                            return true;
+                        }
+                    }
+                }
+                con.edport->setContextMenuPolicy(Qt::DefaultContextMenu);
+            default:
+                break;
+            }
+        }
+    }
+    return QObject::eventFilter(obj, event);
 }

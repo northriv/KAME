@@ -585,7 +585,7 @@ XQComboBoxConnector::eventFilter(QObject *obj, QEvent *event) {
         bool popup = false;
         switch (event->type()) {
         case QEvent::KeyPress: {
-            QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+            auto *keyEvent = static_cast<QKeyEvent *>(event);
             if(keyEvent->key() == Qt::Key_Space ||
                 (keyEvent->key() == Qt::Key_Down && keyEvent->modifiers() & Qt::AltModifier))
                 popup = true;
@@ -600,7 +600,6 @@ XQComboBoxConnector::eventFilter(QObject *obj, QEvent *event) {
         if(popup) {
             Snapshot shot( *m_node);
             shot.talk(shot[ *m_node].onItemRefreshRequested(), m_node.get());
-            return false;
         }
     }
     return QObject::eventFilter(obj, event);
