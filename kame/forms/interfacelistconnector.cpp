@@ -88,39 +88,39 @@ XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *
 }
 void
 XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
-	auto interface = static_pointer_cast<XInterface>(e.caught);
+    auto xinterface = static_pointer_cast<XInterface>(e.caught);
 	int i = m_pItem->rowCount();
 	m_pItem->insertRow(i);
-    m_pItem->setItem(i, 0, new QTableWidgetItem(interface->getLabel().c_str()));
+    m_pItem->setItem(i, 0, new QTableWidgetItem(xinterface->getLabel().c_str()));
 	m_cons.push_back(tcons());
 	tcons &con(m_cons.back());
-    con.xinterface = interface;
+    con.xinterface = xinterface;
 	con.btn = new QPushButton(m_pItem);
 	con.btn->setCheckable(true);
 	con.btn->setAutoDefault(false);
 	con.btn->setFlat(true);
-	con.concontrol = xqcon_create<XQToggleButtonConnector>(interface->control(), con.btn);    
+    con.concontrol = xqcon_create<XQToggleButtonConnector>(xinterface->control(), con.btn);
 	m_pItem->setCellWidget(i, 1, con.btn);
     QComboBox *cmbdev(new QComboBox(m_pItem) );
-	con.condev = xqcon_create<XQComboBoxConnector>(interface->device(), cmbdev, Snapshot( *interface->device()));
+    con.condev = xqcon_create<XQComboBoxConnector>(xinterface->device(), cmbdev, Snapshot( *xinterface->device()));
     m_pItem->setCellWidget(i, 2, cmbdev);
     con.edport = new QLineEdit(m_pItem);
     con.edport->installEventFilter(this); //for popup.
-    con.conport = xqcon_create<XQLineEditConnector>(interface->port(), con.edport, false);
+    con.conport = xqcon_create<XQLineEditConnector>(xinterface->port(), con.edport, false);
     m_pItem->setCellWidget(i, 3, con.edport);
     QSpinBox *numAddr(new QSpinBox(m_pItem) );
     //Ranges should be preset in prior to connectors.
     numAddr->setRange(0, 255);
 	numAddr->setSingleStep(1);
-    con.conaddr = xqcon_create<XQSpinBoxUnsignedConnector>(interface->address(), numAddr);
+    con.conaddr = xqcon_create<XQSpinBoxUnsignedConnector>(xinterface->address(), numAddr);
 	m_pItem->setCellWidget(i, 4, numAddr);
     {
-        Snapshot shot = interface->iterate_commit([=, &con](Transaction &tr){
-            con.lsnOnControlChanged = tr[ *interface->control()].onValueChanged().connectWeakly(
+        Snapshot shot = xinterface->iterate_commit([=, &con](Transaction &tr){
+            con.lsnOnControlChanged = tr[ *xinterface->control()].onValueChanged().connectWeakly(
                 shared_from_this(), &XInterfaceListConnector::onControlChanged,
                 Listener::FLAG_MAIN_THREAD_CALL);
         });
-        onControlChanged(shot, interface->control().get());
+        onControlChanged(shot, xinterface->control().get());
     }
 }
 void
