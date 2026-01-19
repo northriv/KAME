@@ -283,7 +283,8 @@ XCyFXUSBInterface<USBDevice>::close() {
     auto usb__ = usb();
     if(usb__) {
         XScopedLock<XRecursiveMutex> lock(usb__->mutex);
-        usb__->unref();
+        if(usb()) //checks again after acquirring lock.
+            usb()->unref();
         m_usbDevice.reset();
     }
 }
