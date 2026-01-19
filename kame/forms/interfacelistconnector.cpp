@@ -163,9 +163,9 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                         auto menu = std::make_unique<QMenu>(con.edport);
                         std::map<XString, XString> map_ui_dev;
                         //listing serial port devices.
-#if defined __MACOSX__ || defined __APPLE__
+#if defined __MACOSX__ || defined __APPLE__ || defined __linux__
                         QStringList filters;
-                        filters << "ttyUSB*" << "ttyACM*" << "tty.usbserial-*";
+                        filters << "ttyUSB*" << "ttyACM*" << "tty.usbserial-*"; //<< "ttyS*"
                         QStringList ttys = QDir("/dev").entryList(filters,
                             QDir::Files | QDir::System | QDir::NoDotAndDotDot, QDir::Time); //QDir::Name
                         foreach(QString tty, ttys) {
@@ -192,7 +192,7 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                             }
                             RegCloseKey(hKey);
                         }
-
+//The following can obtain friendly name but, may require some DLL.
 //                        HDEVINFO hDevInfo = SetupDiGetClassDevs( &GUID_DEVINTERFACE_COMPORT, NULL, NULL,
 //                            DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
 //                        if(hDevInfo == INVALID_HANDLE_VALUE)
@@ -221,7 +221,7 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                                 if(action)
                                     con.edport->setText(map_ui_dev.at(action->text()));
 
-                                con.edport->setContextMenuPolicy(Qt::NoContextMenu);
+                                con.edport->setContextMenuPolicy(Qt::NoContextMenu); //No standard context menu pls.
                                 return true;
                             }
                             catch (std::out_of_range &) {
@@ -229,7 +229,7 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                         }
                     }
                 }
-                con.edport->setContextMenuPolicy(Qt::DefaultContextMenu);
+                con.edport->setContextMenuPolicy(Qt::DefaultContextMenu); //for copy-n-paste etc.
             default:
                 break;
             }

@@ -108,10 +108,10 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                 filename + i18n_noncontext(" is not proper."), __FILE__, __LINE__);
     };
 
-    if( !s_devices.size())
-        gMessagePrint("USB FX: Initializing/opening all the devices");
     auto enumerated_devices = USBDevice::enumerateDevices();
     auto found_devices = pickupNewDev(enumerated_devices);
+    if(found_devices.size())
+        gMessagePrint("USB FX: Initializing/opening all the devices");
 
     bool is_written = false;
     {
