@@ -136,8 +136,6 @@ public:
     virtual void unlock() override {
         if(usb()) usb()->mutex.unlock();
     }
-    virtual bool isLocked() const override {return usb() && usb()->mutex.isLockedByCurrentThread();}
-
     virtual void send(const char *) override {}
     virtual void receive() override {}
 

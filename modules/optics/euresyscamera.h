@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -30,7 +30,6 @@ public:
 
     virtual void lock() override; //!<overrides XInterface::lock().
     virtual void unlock() override;
-    virtual bool isLocked() const override {return s_mutex.isLockedByCurrentThread();}
 
     //For cameralink cameras.
     virtual void send(const char *) override;

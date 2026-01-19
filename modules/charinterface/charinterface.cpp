@@ -349,7 +349,3 @@ XCharInterface::unlock() {
         openedPort()->unlock();
     XInterface::unlock();
 }
-bool
-XCharInterface::isLocked() const {
-    return XInterface::isLocked();
-}

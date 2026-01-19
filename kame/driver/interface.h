@@ -57,7 +57,6 @@ public:
 
     virtual void lock() {m_mutex.lock();}
     virtual void unlock() {m_mutex.unlock();}
-    virtual bool isLocked() const {return m_mutex.isLockedByCurrentThread();}
 
 	XRecursiveMutex &mutex() {return m_mutex;}
     

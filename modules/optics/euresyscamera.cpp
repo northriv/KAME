@@ -141,7 +141,6 @@ XEGrabberInterface::unlock() {
 }
 void
 XEGrabberInterface::checkAndOpenSerialPort() {
-    assert(isLocked());
     if(m_bIsSerialPortOpened)
         return;
     using namespace Euresys;

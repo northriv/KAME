@@ -282,9 +282,12 @@ void
 XCyFXUSBInterface<USBDevice>::close() {
     auto usb__ = usb();
     if(usb__) {
+        bool already_locked = usb__->mutex.isLockedByCurrentThread();
         XScopedLock<XRecursiveMutex> lock(usb__->mutex);
         if(usb()) //checks again after acquirring lock.
             usb()->unref();
         m_usbDevice.reset();
+        if(already_locked)
+            usb__->mutex.unlock(); //the caller cannot unlock because usb() was lost.
     }
 }

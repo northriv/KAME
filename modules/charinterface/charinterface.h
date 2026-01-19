@@ -129,8 +129,6 @@ public:
 
     virtual void lock() override; //locks XIterface::m_mutex and port's mutex if needed.
     virtual void unlock() override;
-    virtual bool isLocked() const override;
-
 protected:
     virtual void open() override;
 	//! This can be called even if has already closed.
