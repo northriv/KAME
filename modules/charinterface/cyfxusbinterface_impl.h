@@ -241,8 +241,8 @@ template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::finalize() {    
     this->m_threadInit.reset();
+    close();
     XScopedLock<XMutex> slock(s_mutex);
-    m_usbDevice.reset();
     m_candidates.clear();
     s_refcnt--;
     if( !s_refcnt)

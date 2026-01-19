@@ -39,7 +39,7 @@ struct CyFXUSBDevice {
         open();
     }
     void unref() {
-        if(--m_refcnt)
+        if(--m_refcnt == 0)
             close();
     }
     void halt();
