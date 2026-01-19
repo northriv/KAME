@@ -39,7 +39,7 @@ struct CyFXUSBDevice {
         open();
     }
     void unref() {
-        if(m_refcnt.decAndTest())
+        if(--m_refcnt)
             close();
     }
     void halt();
@@ -107,7 +107,7 @@ struct CyFXUSBDevice {
 protected:
     CyFXUSBDevice() = default;
     uint16_t m_vendorID, m_productID, m_serialNo;
-    atomic<int> m_refcnt = 0;
+    int m_refcnt = 0;
 };
 
 //! interfaces Cypress FX2LP/FX3 devices
@@ -126,9 +126,9 @@ public:
     void initialize(bool instatiation = true);
     void finalize();
 
-    virtual void lock() override {if(m_usbDevice) m_usbDevice->mutex.lock();} //!<overrides XInterface::lock().
-    virtual void unlock() override {if(m_usbDevice) m_usbDevice->mutex.unlock();}
-    virtual bool isLocked() const override {return m_usbDevice && m_usbDevice->mutex.isLockedByCurrentThread();}
+    virtual void lock() override { m_usbDevice->mutex.lock();} //!<overrides XInterface::lock().
+    virtual void unlock() override { m_usbDevice->mutex.unlock();}
+    virtual bool isLocked() const override {return m_usbDevice->mutex.isLockedByCurrentThread();}
 
     virtual void send(const char *) override {}
     virtual void receive() override {}

@@ -239,7 +239,7 @@ XCyFXUSBInterface<USBDevice>::initialize(bool instatiation) {
 
 template <class USBDevice>
 void
-XCyFXUSBInterface<USBDevice>::finalize() {
+XCyFXUSBInterface<USBDevice>::finalize() {    
     this->m_threadInit.reset();
     XScopedLock<XMutex> slock(s_mutex);
     m_usbDevice.reset();
@@ -255,6 +255,7 @@ XCyFXUSBInterface<USBDevice>::open() {
     Snapshot shot( *this);
     auto it = m_candidates.find(shot[ *device()].to_str());
     if(it != m_candidates.end()) {
+        XScopedLock<XRecursiveMutex> lock(it->second->mutex);
         try {
             it->second->openForSharing();
         }
@@ -279,7 +280,10 @@ XCyFXUSBInterface<USBDevice>::open() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::close() {
-    if(usb())
-        usb()->unref();
-    m_usbDevice.reset();
+    auto usb__ = usb();
+    if(usb__) {
+        XScopedLock<XRecursiveMutex> lock(usb__->mutex);
+        usb__->unref();
+        m_usbDevice.reset();
+    }
 }

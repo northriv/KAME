@@ -71,7 +71,7 @@ XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
 
 void
 XInterface::start() {
-    m_mutex.lock(); //do not use scoped lock, to avoid additional mutex unlock after open.
+    XScopedLock<XRecursiveMutex> lock(m_mutex); //no lock(*this)
     {
         Transactional::setCurrentPriorityMode(Priority::NORMAL);
         try {
@@ -87,7 +87,6 @@ XInterface::start() {
                 tr[ *control()] = false;
                 tr.unmark(lsnOnControlChanged);
             });
-            m_mutex.unlock();
             return;
         }
 
@@ -100,11 +99,10 @@ XInterface::start() {
         });
         shot.talk(shot[ *this].onOpen(), this);
     }
-    m_mutex.unlock();
 }
 void
 XInterface::stop() {
-    m_mutex.lock();
+    XScopedLock<XRecursiveMutex> lock(m_mutex); //no lock(*this)
     {
         Transactional::setCurrentPriorityMode(Priority::NORMAL);
         try {
@@ -123,6 +121,5 @@ XInterface::stop() {
             tr.unmark(lsnOnControlChanged);
         });
     }
-    m_mutex.unlock();
     //g_statusPrinter->clear();
 }
