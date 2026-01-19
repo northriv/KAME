@@ -255,8 +255,20 @@ XCyFXUSBInterface<USBDevice>::open() {
     Snapshot shot( *this);
     auto it = m_candidates.find(shot[ *device()].to_str());
     if(it != m_candidates.end()) {
+        try {
+            usb()->openForSharing();
+        }
+        catch (XInterface::XInterfaceError &e) {
+        //assuming the device is disconnected.
+            XScopedLock<XMutex> slock(s_mutex);
+            for(auto &&x : s_devices) {
+                if(x == it->second)
+                    x.reset();
+            }
+            m_candidates.erase(it);
+            throw e;
+        }
         m_usbDevice = it->second;
-        usb()->openForSharing();
     }
     else {
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
