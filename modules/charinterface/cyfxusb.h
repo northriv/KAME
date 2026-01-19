@@ -128,8 +128,10 @@ public:
 
     virtual void lock() override {  //!<overrides XInterface::lock().
         auto usb__ = usb();
-        if(usb__) usb__->mutex.lock();
-        if( !usb()) usb__->mutex.unlock(); //already closed before acquirring lock.
+        if(usb__) {
+            usb__->mutex.lock();
+            if( !usb()) usb__->mutex.unlock(); //already closed before acquirring lock.
+        }
     }
     virtual void unlock() override {
         if(usb()) usb()->mutex.unlock();
