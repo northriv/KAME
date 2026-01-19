@@ -287,6 +287,7 @@ XCyFXUSBInterface<USBDevice>::close() {
         if(usb()) //checks again after acquirring lock.
             usb()->unref();
         m_usbDevice.reset();
+        //Usually caller for close() does not need scoped lock, but....
         if(already_locked)
             usb__->mutex.unlock(); //the caller cannot unlock because usb() was lost.
     }
