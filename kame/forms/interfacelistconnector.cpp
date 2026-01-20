@@ -219,7 +219,7 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
                             auto *action = menu->exec(con.edport->mapToGlobal(mouseevent->pos()));
                             try {
                                 if(action)
-                                    con.edport->setText(map_ui_dev.at(action->text()));
+                                    trans( *con.xinterface->port()).str(map_ui_dev.at(action->text()));
 
                                 con.edport->setContextMenuPolicy(Qt::NoContextMenu); //No standard context menu pls.
                                 return true;
