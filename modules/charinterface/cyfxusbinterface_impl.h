@@ -240,7 +240,7 @@ XCyFXUSBInterface<USBDevice>::initialize(bool instatiation) {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::finalize() {    
-    this->m_threadInit.reset();
+    this->m_threadInit.reset(); //waiting for thread termination.
     close();
     XScopedLock<XMutex> slock(s_mutex);
     m_candidates.clear();
@@ -253,34 +253,41 @@ template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::open() {
     Snapshot shot( *this);
-    auto it = m_candidates.find(shot[ *device()].to_str());
-    if(it != m_candidates.end()) {
-        XScopedLock<XRecursiveMutex> lock(it->second->mutex);
-        try {
-            it->second->openForSharing();
-        }
-        catch (XInterface::XInterfaceError &e) {
-            it->second->unref();
-        //assuming the device is disconnected.
-            XScopedLock<XMutex> slock(s_mutex);
-            for(auto &&x : s_devices) {
-                if(x == it->second)
-                    x.reset();
+    for(int retry: {0, 1}) {
+        auto it = m_candidates.find(shot[ *device()].to_str());
+        if(it != m_candidates.end()) {
+            auto dev = it->second; //must hold shared_ptr for mutex.
+            XScopedLock<XRecursiveMutex> lock(dev->mutex);
+            try {
+                dev->openForSharing();
             }
-            m_candidates.erase(it);
-            //refreshes the combobox.
-            iterate_commit([=](Transaction &tr){
-                tr[ *device()].clear();
-                for(auto &&x: m_candidates)
-                    tr[ *device()].add(x.first);
-            });
-            throw e;
+            catch (XInterface::XInterfaceError &e) {
+                dev->unref();
+            //assuming the device has been disconnected.
+                XScopedLock<XMutex> slock(s_mutex);
+                for(auto &&x : s_devices) {
+                    if(x == it->second)
+                        x.reset();
+                }
+                m_candidates.erase(it);
+                //refreshes the combobox.
+                iterate_commit([=](Transaction &tr){
+                    tr[ *device()].clear();
+                    for(auto &&x: m_candidates)
+                        tr[ *device()].add(x.first);
+                });
+                if(retry == 0) {
+                    initialize(false); //enumerate devices and retries with the same device name for reconnection.
+                    m_threadInit.reset(); //waiting for thread termination.
+                    continue;
+                }
+                throw e;
+            }
+            m_usbDevice = dev;
+            return; //succeeded.
         }
-        m_usbDevice = it->second;
     }
-    else {
-        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__); //never happens.
-    }
+    throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
 }
 
 template <class USBDevice>

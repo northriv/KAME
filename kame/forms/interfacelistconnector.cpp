@@ -150,13 +150,13 @@ XInterfaceListConnector::eventFilter(QObject *obj, QEvent *event) {
             bool has_ni4882 = false;
             auto items = shot[ *con.xinterface->device()].itemStrings();
             for(auto &&item: items) {
-                if(item.label == "PrologixGPIB")
+                if(item.label == "PrologixGPIBUSB")
                     has_ni4882= true; //Both NI488.2 and PrologixGPIB exists.
             }
             XString dev = shot[ *con.xinterface->device()].to_str();
             switch (event->type()) {
             case QEvent::MouseButtonPress:
-                if((dev == "SERIAL") || ( !has_ni4882 && (dev == "GPIB")) || (dev == "PrologixGPIB")) {
+                if((dev == "SERIAL") || ( !has_ni4882 && (dev == "GPIB")) || (dev == "PrologixGPIBUSB")) {
                     auto *mouseevent = static_cast<QMouseEvent *>(event);
                     if(((mouseevent->button() == Qt::LeftButton) && (con.edport->text().isEmpty())) ||
                             (mouseevent->button() == Qt::RightButton)) {
