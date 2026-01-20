@@ -268,12 +268,18 @@ XCyFXUSBInterface<USBDevice>::open() {
                     x.reset();
             }
             m_candidates.erase(it);
+            //refreshes the combobox.
+            iterate_commit([=](Transaction &tr){
+                tr[ *device()].clear();
+                for(auto &&x: m_candidates)
+                    tr[ *device()].add(x.first);
+            });
             throw e;
         }
         m_usbDevice = it->second;
     }
     else {
-        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__); //never happens.
     }
 }
 
