@@ -211,11 +211,11 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
     }
     if(rdbuf) {
         readBarrier();
-        if(transfer->actual_length == 0) {
-            // //added because HR4000 never recovers after LIBUSB_TRANSFER_OVERFLOW in osx.
-            // libusb_clear_halt(transfer->dev_handle, transfer->endpoint);
-            throw XInterface::XInterfaceError(formatString("Error, zero-length return with complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
-        }
+//        if(transfer->actual_length == 0) {
+//            // //added because HR4000 never recovers after LIBUSB_TRANSFER_OVERFLOW in osx.
+//            // libusb_clear_halt(transfer->dev_handle, transfer->endpoint);
+//            throw XInterface::XInterfaceError(formatString("Error, zero-length return with complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
+//        }
         assert(buf.size() >= transfer->actual_length);
         std::memcpy(rdbuf, &buf[0], transfer->actual_length);
     }
