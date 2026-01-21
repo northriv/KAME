@@ -42,7 +42,7 @@ public:
 private:
     void reopen_socket();
 	int m_socket;
-    int m_timeout_sec = 3;
+    int m_timeout_sec = 5;
 };
 
 typedef XTCPSocketPort XTCPPort;
