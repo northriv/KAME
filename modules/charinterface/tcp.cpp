@@ -49,6 +49,7 @@
 #endif
  
 #define MIN_BUFFER_SIZE 256
+#define MIN_RECV_SIZE 64
 
 XTCPSocketPort::XTCPSocketPort(XCharInterface *intf)
     : XPort(intf), m_socket(-1) {
@@ -164,6 +165,8 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
     }
 #endif
 
+    m_eosPosInBuffer = -1;
+
     return shared_from_this();
 }
 void
@@ -205,21 +208,50 @@ XTCPSocketPort::write(const char *sendbuf, int size) {
         sendbuf += ret;
 	} while (wlen < size);
 }
+unsigned int
+XTCPSocketPort::rearrangeBufferForNextReceive() {
+    if(m_eosPosInBuffer < 0)
+        return 0;
+    unsigned int eos_len = eos().length();
+    int len = (int)buffer().size() - (int)(m_eosPosInBuffer + eos_len);
+    if(len > 0) {
+        //last reading exceeded linetext + EOS + null char.
+        buffer().at(m_eosPosInBuffer + eos_len) = m_byteAfterEOS; //replacing null char to the real byte data.
+        std::copy(buffer().begin() + m_eosPosInBuffer + eos_len, buffer().end(), &buffer().at(0));
+        m_eosPosInBuffer = -1; //no remaining data.
+    }
+    return len;
+}
+
 void
 XTCPSocketPort::receive() {
     fd_set fs_org;
     FD_ZERO(&fs_org);
     FD_SET(m_socket , &fs_org);
 
-	buffer().resize(MIN_BUFFER_SIZE);
-   
     const char *ceos = eos().c_str();
     unsigned int eos_len = eos().length();
-	unsigned int len = 0;
-	for(;;) {
-		if(buffer().size() <= len + 1) 
-			buffer().resize(len + MIN_BUFFER_SIZE);
+    unsigned int len = rearrangeBufferForNextReceive();
+
+    for(;;) {
+        if(len >= eos_len) {
+            //finds EOS or (if EOS is not set) null char.
+            auto it = std::search( &buffer().at(0), &buffer().at(len), ceos, ceos + std::max(eos_len, 1u));
+            if(it != &buffer().at(len)) {
+                m_eosPosInBuffer = it - &buffer().at(0);
+                buffer().resize(std::max(m_eosPosInBuffer + eos_len + 1, len));
+                m_byteAfterEOS = *(it + eos_len); //escapes the byte data at null char.
+                *(it + eos_len) = '\0'; //termination for C-based func.
+                if(len < m_eosPosInBuffer + eos_len + 1) {
+                    m_eosPosInBuffer = -1; //no remaining data.
+                }
+                break;
+            }
+        }
+
         char *bpos = &buffer().at(len);
+        if(buffer().size() <= len + MIN_RECV_SIZE)
+			buffer().resize(len + MIN_BUFFER_SIZE);
 
         fd_set fs;
         memcpy( &fs, &fs_org, sizeof(fd_set));
@@ -228,17 +260,18 @@ XTCPSocketPort::receive() {
         int ret = ::select(m_socket + 1, &fs, NULL, NULL, &timeout); //awaiting for data.
         if(ret < 0)
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
-        if((ret == 0) || //timeout during select().
-            !(ret = ::recv(m_socket, bpos , 1, 0))) { //Or, 1 byte reading.
+        if(ret == 0) {
+            //timeout during select().
             buffer().at(len) = '\0';
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
-
+        ret = ::recv(m_socket, bpos , MIN_RECV_SIZE, 0);//MIN_RECV_SIZE bytes reading.
+        //allows the case ret == 0.
         if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
             if(errno == WSAEMSGSIZE) {
-                len += MIN_BUFFER_SIZE;
+                len += MIN_RECV_SIZE;
                 continue;
             }
             //            if((errno == WSAEINTR)) {
@@ -252,20 +285,7 @@ XTCPSocketPort::receive() {
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
         }
         len += ret;
-		if(len >= eos_len) {
-            if(eos_len == 0) {
-                if(buffer().at(len - 1) == '\0')
-                    break;
-            }
-            else {
-                if( !strncmp(&buffer().at(len - eos_len), ceos, eos_len))
-                    break;
-			}
-        }
 	}
-    
-	buffer().resize(len + 1);
-	buffer().at(len) = '\0';
 }
 void
 XTCPSocketPort::receive(unsigned int length) {
@@ -273,9 +293,8 @@ XTCPSocketPort::receive(unsigned int length) {
     FD_ZERO(&fs_org);
     FD_SET(m_socket , &fs_org);
 
-    buffer().resize(length);
-	unsigned int len = 0;
-   
+    unsigned int len = rearrangeBufferForNextReceive();
+
 	while(len < length) {
         fd_set fs;
         memcpy( &fs, &fs_org, sizeof(fd_set));
@@ -284,11 +303,12 @@ XTCPSocketPort::receive(unsigned int length) {
         int ret = ::select(m_socket + 1, &fs, NULL, NULL, &timeout); //awaiting for data.
         if(ret < 0)
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
-        if((ret == 0) || //timeout during select().
-            !(ret = ::recv(m_socket, &buffer().at(len) , length - len, 0))) { //Or, reads remaining bytes.
+        if(ret == 0) {
+            //timeout during select().
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
-
+        ret = ::recv(m_socket, &buffer().at(len) , length - len, 0); //reads remaining bytes.
+        //allows the case ret == 0.
         if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();

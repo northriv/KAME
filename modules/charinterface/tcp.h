@@ -43,6 +43,9 @@ private:
     void reopen_socket();
 	int m_socket;
     int m_timeout_sec = 5;
+    int m_eosPosInBuffer = -1;
+    char m_byteAfterEOS;
+    unsigned int rearrangeBufferForNextReceive();
 };
 
 typedef XTCPSocketPort XTCPPort;
