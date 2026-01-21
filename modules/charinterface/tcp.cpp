@@ -296,6 +296,8 @@ XTCPSocketPort::receive(unsigned int length) {
     unsigned int len = rearrangeBufferForNextReceive();
 
 	while(len < length) {
+        buffer().resize(length);
+
         fd_set fs;
         memcpy( &fs, &fs_org, sizeof(fd_set));
         timeval timeout = {};
@@ -325,6 +327,11 @@ XTCPSocketPort::receive(unsigned int length) {
         }
         len += ret;
 	}
+    if(buffer().size() > length) {
+        unsigned int eos_len = eos().length();
+        m_eosPosInBuffer = length - eos_len;
+        m_byteAfterEOS = buffer().at(length);
+    }
 }    
 
 #endif //TCP_POSIX
