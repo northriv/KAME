@@ -249,9 +249,9 @@ XTCPSocketPort::receive() {
             }
         }
 
-        char *bpos = &buffer().at(len);
         if(buffer().size() <= len + MIN_RECV_SIZE)
 			buffer().resize(len + MIN_BUFFER_SIZE);
+        char *bpos = &buffer().at(len);
 
         fd_set fs;
         memcpy( &fs, &fs_org, sizeof(fd_set));
