@@ -229,7 +229,7 @@ XTCPSocketPort::receive() {
         if(ret < 0)
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
         if((ret == 0) || //timeout during select().
-            !(ret = ::recv(m_socket, bpos , 1, 0))) { //Or, 1 byte reading.
+            !(ret = ::recv(m_socket, bpos , MIN_BUFFER_SIZE, 0))) { //Or, up to MIN_BUFFER_SIZE byte reading.
             buffer().at(len) = '\0';
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
@@ -237,6 +237,10 @@ XTCPSocketPort::receive() {
         if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
+            if(errno == WSAEMSGSIZE) {
+                len += MIN_BUFFER_SIZE;
+                continue;
+            }
 //            if((errno == WSAEINTR)) {
 #endif
             if((errno == EINTR) || (errno == EAGAIN)) {
@@ -284,7 +288,6 @@ XTCPSocketPort::receive(unsigned int length) {
             !(ret = ::recv(m_socket, &buffer().at(len) , length - len, 0))) { //Or, reads remaining bytes.
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
-
         if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
