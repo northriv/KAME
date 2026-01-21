@@ -177,13 +177,13 @@ XTCPSocketPort::write(const char *sendbuf, int size) {
     fd_set fs_org;
     FD_ZERO(&fs_org);
     FD_SET(m_socket , &fs_org);
-    timeval timeout = {};
-    timeout.tv_sec  = m_timeout_sec;
 
     int wlen = 0;
 	do {
         fd_set fs;
         memcpy( &fs, &fs_org, sizeof(fd_set));
+        timeval timeout = {};
+        timeout.tv_sec  = m_timeout_sec;
         int ret = ::select(m_socket + 1, NULL, &fs, NULL, &timeout); //awaiting.
         if(ret <= 0)
             throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
@@ -210,8 +210,6 @@ XTCPSocketPort::receive() {
     fd_set fs_org;
     FD_ZERO(&fs_org);
     FD_SET(m_socket , &fs_org);
-    timeval timeout = {};
-    timeout.tv_sec  = m_timeout_sec;
 
 	buffer().resize(MIN_BUFFER_SIZE);
    
@@ -225,6 +223,8 @@ XTCPSocketPort::receive() {
 
         fd_set fs;
         memcpy( &fs, &fs_org, sizeof(fd_set));
+        timeval timeout = {};
+        timeout.tv_sec  = m_timeout_sec;
         int ret = ::select(m_socket + 1, &fs, NULL, NULL, &timeout); //awaiting for data.
         if(ret < 0)
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
@@ -268,8 +268,6 @@ XTCPSocketPort::receive(unsigned int length) {
     fd_set fs_org;
     FD_ZERO(&fs_org);
     FD_SET(m_socket , &fs_org);
-    timeval timeout = {};
-    timeout.tv_sec  = m_timeout_sec;
 
     buffer().resize(length);
 	unsigned int len = 0;
@@ -277,6 +275,8 @@ XTCPSocketPort::receive(unsigned int length) {
 	while(len < length) {
         fd_set fs;
         memcpy( &fs, &fs_org, sizeof(fd_set));
+        timeval timeout = {};
+        timeout.tv_sec  = m_timeout_sec;
         int ret = ::select(m_socket + 1, &fs, NULL, NULL, &timeout); //awaiting for data.
         if(ret < 0)
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
