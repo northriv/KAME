@@ -264,18 +264,19 @@ XCyFXUSBInterface<USBDevice>::open() {
             catch (XInterface::XInterfaceError &e) {
                 dev->unref();
             //assuming the device has been disconnected.
-                XScopedLock<XMutex> slock(s_mutex);
-                for(auto &&x : s_devices) {
-                    if(x == it->second)
-                        x.reset();
-                }
-                m_candidates.erase(it);
-                //refreshes the combobox.
-                iterate_commit([=](Transaction &tr){
-                    tr[ *device()].clear();
-                    for(auto &&x: m_candidates)
-                        tr[ *device()].add(x.first);
-                });
+                { XScopedLock<XMutex> slock(s_mutex);
+                    for(auto &&x : s_devices) {
+                        if(x == it->second)
+                            x.reset();
+                    }
+                    m_candidates.erase(it);
+                    //refreshes the combobox.
+                    iterate_commit([=](Transaction &tr){
+                        tr[ *device()].clear();
+                        for(auto &&x: m_candidates)
+                            tr[ *device()].add(x.first);
+                    });
+                } //unlocks before launching initialization thread.
                 if(retry == 0) {
                     initialize(false); //enumerate devices and retries with the same device name for reconnection.
                     m_threadInit.reset(); //waiting for thread termination.
