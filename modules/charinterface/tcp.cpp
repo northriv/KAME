@@ -165,7 +165,7 @@ XTCPSocketPort::open(const XCharInterface *pInterface) {
     }
 #endif
 
-    m_eosPosInBuffer = -1;
+    m_remainingBytes.clear();
 
     return shared_from_this();
 }
@@ -210,17 +210,10 @@ XTCPSocketPort::write(const char *sendbuf, int size) {
 }
 unsigned int
 XTCPSocketPort::rearrangeBufferForNextReceive() {
-    if(m_eosPosInBuffer < 0)
-        return 0;
-    unsigned int eos_len = eos().length();
-    int len = (int)buffer().size() - (int)(m_eosPosInBuffer + eos_len);
-    if(len > 0) {
-        //last reading exceeded linetext + EOS + null char.
-        buffer().at(m_eosPosInBuffer + eos_len) = m_byteAfterEOS; //replacing null char to the real byte data.
-        std::copy(buffer().begin() + m_eosPosInBuffer + eos_len, buffer().end(), &buffer().at(0));
-        m_eosPosInBuffer = -1; //no remaining data.
-    }
-    return len;
+    buffer().resize(m_remainingBytes.size());
+    std::copy( m_remainingBytes.begin(),  m_remainingBytes.end(), &buffer().at(0));
+    m_remainingBytes.clear();
+    return buffer().size();
 }
 
 void
@@ -231,20 +224,19 @@ XTCPSocketPort::receive() {
 
     const char *ceos = eos().c_str();
     unsigned int eos_len = eos().length();
+    eos_len = std::max(eos_len, 1u); //(if EOS is not set) null char.
     unsigned int len = rearrangeBufferForNextReceive();
 
     for(;;) {
         if(len >= eos_len) {
             //finds EOS or (if EOS is not set) null char.
-            auto it = std::search( &buffer().at(0), &buffer().at(len), ceos, ceos + std::max(eos_len, 1u));
+            auto it = std::search( &buffer().at(0), &buffer().at(len), ceos, ceos + eos_len);
             if(it != &buffer().at(len)) {
-                m_eosPosInBuffer = it - &buffer().at(0);
-                buffer().resize(std::max(m_eosPosInBuffer + eos_len + 1, len));
-                m_byteAfterEOS = *(it + eos_len); //escapes the byte data at null char.
-                *(it + eos_len) = '\0'; //termination for C-based func.
-                if(len < m_eosPosInBuffer + eos_len + 1) {
-                    m_eosPosInBuffer = -1; //no remaining data.
-                }
+                auto itend = it + eos_len;
+                m_remainingBytes.resize( &buffer().at(len) - itend);
+                std::copy(itend, &buffer().at(len), m_remainingBytes.begin());
+                buffer().resize(itend - &buffer().at(0) + 1);
+                buffer().back() = '\0'; //termination for C-based func.
                 break;
             }
         }
@@ -294,8 +286,12 @@ XTCPSocketPort::receive(unsigned int length) {
     FD_SET(m_socket , &fs_org);
 
     unsigned int len = rearrangeBufferForNextReceive();
+    if(buffer().size() > length) {
+        m_remainingBytes.resize(buffer().size() - length);
+        std::copy( &buffer().at(length), &buffer().at(buffer().size()), m_remainingBytes.begin());
+    }
 
-	while(len < length) {
+    while(len < length) {
         buffer().resize(length);
 
         fd_set fs;
@@ -327,12 +323,7 @@ XTCPSocketPort::receive(unsigned int length) {
         }
         len += ret;
 	}
-    if(buffer().size() > length) {
-        unsigned int eos_len = eos().length();
-        m_eosPosInBuffer = length - eos_len;
-        m_byteAfterEOS = buffer().at(length);
-    }
-}    
+}
 
 #endif //TCP_POSIX
 
