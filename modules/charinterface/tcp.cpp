@@ -13,7 +13,6 @@
 ***************************************************************************/
 #include "tcp.h"
 
-#ifdef TCP_SOCKET
 
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
     #include <winsock2.h>
@@ -327,6 +326,4 @@ XTCPSocketPort::receive(unsigned int length) {
         len += ret;
 	}
 }
-
-#endif //TCP_POSIX
 

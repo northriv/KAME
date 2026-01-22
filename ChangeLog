@@ -1,10 +1,13 @@
-* Sun Jan 18 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+* Fri Jan 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.7.0-1)
 - tcp: Proper timeout on connection, reading, writing., sharing the same EOS setting with serialport.
+- tcp: Faster reading.
 - interfacelistconnector: suggests serial ports in popup menu.
 - cyfxusb: Discovers newly connected USB devices when "Device" combobox is clicked.
+- cyfxusb: Detects disconnection and reconnection.
 - xitemnodebase, xqcomboxconnector: onItemRefreshRequested().
 - usertempcontrol: SI930X, worked with TCP/IP.
+- opengl: GL_TRIANGLE_FAN instead of GL_QUADS
 
 * Fri Jan 16 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.6.0-1)

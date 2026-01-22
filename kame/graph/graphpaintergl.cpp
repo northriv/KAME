@@ -168,7 +168,7 @@ XQGraphPainter::endPoint() {
 }
 void
 XQGraphPainter::beginQuad(bool ) {
-	glBegin(GL_QUADS);
+    glBegin(GL_TRIANGLE_FAN);
 }
 void
 XQGraphPainter::endQuad() {

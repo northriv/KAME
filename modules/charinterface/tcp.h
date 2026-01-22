@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,19 +16,6 @@
 
 #include "charinterface.h"
 
-#if  defined __linux__ || defined __APPLE__
-    #define TCP_SOCKET
-#endif //__linux__ || LINUX
-
-#if defined WINDOWS || defined __WIN32__ || defined _WIN32
-    #define TCP_SOCKET
-#endif // WINDOWS || __WIN32__ || defined _WIN32
-
-#if defined TCP_SOCKET
-    #define USE_TCP
-#endif
-
-#ifdef TCP_SOCKET
 class XTCPSocketPort : public XPort {
 public:
     XTCPSocketPort(XCharInterface *interface);
@@ -49,6 +36,5 @@ private:
 
 typedef XTCPSocketPort XTCPPort;
 
-#endif // TCP_SOCKET
 
 #endif /*TCP_H_*/
