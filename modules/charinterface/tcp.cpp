@@ -211,7 +211,7 @@ XTCPSocketPort::write(const char *sendbuf, int size) {
 unsigned int
 XTCPSocketPort::rearrangeBufferForNextReceive() {
     buffer().resize(m_remainingBytes.size());
-    std::copy( m_remainingBytes.begin(),  m_remainingBytes.end(), &buffer().at(0));
+    std::copy( m_remainingBytes.begin(),  m_remainingBytes.end(), &buffer()[0]);
     m_remainingBytes.clear();
     return buffer().size();
 }
@@ -230,13 +230,13 @@ XTCPSocketPort::receive() {
     for(;;) {
         if(len >= eos_len) {
             //finds EOS or (if EOS is not set) null char.
-            auto it = std::search( &buffer().at(0), &buffer().at(len), ceos, ceos + eos_len);
-            if(it != &buffer().at(len)) {
+            auto it = std::search( &buffer()[0], &buffer()[len], ceos, ceos + eos_len);
+            if(it != &buffer()[len]) {
                 auto itend = it + eos_len;
-                assert(&buffer().at(len) - itend >= 0);
-                m_remainingBytes.resize( &buffer().at(len) - itend);
-                std::copy(itend, &buffer().at(len), m_remainingBytes.begin());
-                buffer().resize(itend - &buffer().at(0) + 1);
+                assert(&buffer()[len] - itend >= 0);
+                m_remainingBytes.resize( &buffer()[len] - itend);
+                std::copy(itend, &buffer()[len], m_remainingBytes.begin());
+                buffer().resize(itend - &buffer()[0] + 1);
                 buffer().back() = '\0'; //termination for C-based func.
                 break;
             }
@@ -289,7 +289,7 @@ XTCPSocketPort::receive(unsigned int length) {
     unsigned int len = rearrangeBufferForNextReceive();
     if(len > length) {
         m_remainingBytes.resize(len - length);
-        std::copy( &buffer().at(length), &buffer().at(len), m_remainingBytes.begin());
+        std::copy( &buffer().at(length), &buffer()[len], m_remainingBytes.begin());
         buffer().resize(length);
         return;
     }
