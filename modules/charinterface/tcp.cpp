@@ -286,9 +286,11 @@ XTCPSocketPort::receive(unsigned int length) {
     FD_SET(m_socket , &fs_org);
 
     unsigned int len = rearrangeBufferForNextReceive();
-    if(buffer().size() > length) {
+    if(len > length) {
         m_remainingBytes.resize(buffer().size() - length);
         std::copy( &buffer().at(length), &buffer().at(buffer().size()), m_remainingBytes.begin());
+        buffer().resize(length);
+        return;
     }
 
     while(len < length) {
