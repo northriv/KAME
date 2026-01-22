@@ -221,12 +221,10 @@ XCharInterface::open() {
             port->setEOS(seos);
         }
     #endif
-    #ifdef USE_TCP
         if(shot[ *device()].to_str() == "TCP/IP") {
 			port.reset(new XTCPPort(this));
             port->setEOS(seos);
         }
-    #endif
         if(shot[ *device()].to_str() == "DUMMY") {
 			port.reset(new XDummyPort(this));
             port->setEOS(seos);
