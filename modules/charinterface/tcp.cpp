@@ -48,8 +48,8 @@
     #include <fcntl.h>
 #endif
  
-#define MIN_BUFFER_SIZE 256
-#define MIN_RECV_SIZE 64
+#define MIN_BUFFER_SIZE 386
+#define MIN_RECV_SIZE 256
 
 XTCPSocketPort::XTCPSocketPort(XCharInterface *intf)
     : XPort(intf), m_socket(-1) {
@@ -263,10 +263,10 @@ XTCPSocketPort::receive() {
         if(ret < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
-            if(errno == WSAEMSGSIZE) {
-                len += MIN_RECV_SIZE;
-                continue;
-            }
+            // if(errno == WSAEMSGSIZE) { //never happens in TCP.
+            //     len += MIN_RECV_SIZE;
+            //     continue;
+            // }
             //            if((errno == WSAEINTR)) {
 #endif
             if((errno == EINTR) || (errno == EAGAIN)) {
