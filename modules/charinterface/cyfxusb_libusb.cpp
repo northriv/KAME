@@ -230,7 +230,7 @@ CyFXLibUSBDevice::AsyncIO::abort() noexcept {
         readBarrier();
         if(completed && (ret == LIBUSB_ERROR_NOT_FOUND))
             return false; //already completed.
-        gErrPrint(formatString("Error during cancelling transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
+        dbgPrint(formatString("Error during cancelling transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
         return false;
     }
     fprintf(stderr, "Libusb async transfer is going to be aborted.\n");
