@@ -224,7 +224,7 @@ XTCPSocketPort::receive() {
 
     const char *ceos = eos().c_str();
     unsigned int eos_len = eos().length();
-    eos_len = std::max(eos_len, 1u); //(if EOS is not set) null char.
+    eos_len = std::max(eos_len, 1u); //(if EOS is not set) null char, in eos().
     unsigned int len = rearrangeBufferForNextReceive();
 
     for(;;) {
@@ -233,6 +233,7 @@ XTCPSocketPort::receive() {
             auto it = std::search( &buffer().at(0), &buffer().at(len), ceos, ceos + eos_len);
             if(it != &buffer().at(len)) {
                 auto itend = it + eos_len;
+                assert(&buffer().at(len) - itend >= 0);
                 m_remainingBytes.resize( &buffer().at(len) - itend);
                 std::copy(itend, &buffer().at(len), m_remainingBytes.begin());
                 buffer().resize(itend - &buffer().at(0) + 1);
@@ -287,8 +288,8 @@ XTCPSocketPort::receive(unsigned int length) {
 
     unsigned int len = rearrangeBufferForNextReceive();
     if(len > length) {
-        m_remainingBytes.resize(buffer().size() - length);
-        std::copy( &buffer().at(length), &buffer().at(buffer().size()), m_remainingBytes.begin());
+        m_remainingBytes.resize(len - length);
+        std::copy( &buffer().at(length), &buffer().at(len), m_remainingBytes.begin());
         buffer().resize(length);
         return;
     }
