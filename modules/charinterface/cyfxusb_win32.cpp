@@ -241,7 +241,7 @@ CyFXUSBDevice::enumerateDevices() {
 void
 CyFXWin32USBDevice::open() {
     if( !handle) {
-        handle = CreateFileA(name.c_str(),
+        handle = CreateFileA(name().c_str(),
             GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             0,
@@ -251,7 +251,7 @@ CyFXWin32USBDevice::open() {
         if(handle == INVALID_HANDLE_VALUE) {
             handle = nullptr;
             int e = (int)GetLastError();
-            throw XInterface::XInterfaceError(formatString("INVALID HANDLE %d for %s\n", e, name.c_str()), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(formatString("INVALID HANDLE %d for %s\n", e, name().c_str()), __FILE__, __LINE__);
         }
     }
 }
