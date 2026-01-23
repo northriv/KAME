@@ -110,7 +110,7 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
 
     auto enumerated_devices = USBDevice::enumerateDevices();
     auto found_devices = pickupNewDev(enumerated_devices);
-    if(found_devices.size())
+    if( !s_devices.size() && found_devices.size())
         gMessagePrint("USB FX: Initializing/opening all the devices");
 
     bool is_written = false;
@@ -252,9 +252,9 @@ XCyFXUSBInterface<USBDevice>::finalize() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::open() {
-    Snapshot shot( *this);
+    std::string dev_name = Snapshot( *device())[ *device()].to_str();
     for(int retry: {0, 1}) {
-        auto it = m_candidates.find(shot[ *device()].to_str());
+        auto it = m_candidates.find(dev_name);
         if(it != m_candidates.end()) {
             auto dev = it->second; //must hold shared_ptr for mutex.
             XScopedLock<XRecursiveMutex> lock(dev->mutex);
@@ -271,7 +271,7 @@ XCyFXUSBInterface<USBDevice>::open() {
                     }
                     m_candidates.erase(it);
                     //refreshes the combobox.
-                    iterate_commit([=](Transaction &tr){
+                    device()->iterate_commit([=](Transaction &tr){
                         tr[ *device()].clear();
                         for(auto &&x: m_candidates)
                             tr[ *device()].add(x.first);
@@ -280,6 +280,7 @@ XCyFXUSBInterface<USBDevice>::open() {
                 if(retry == 0) {
                     initialize(false); //enumerate devices and retries with the same device name for reconnection.
                     m_threadInit.reset(); //waiting for thread termination.
+                    trans( *device()).str(dev_name);
                     continue;
                 }
                 throw e;
