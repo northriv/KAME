@@ -944,6 +944,7 @@ void
 XSigmaPAMC104::stopRotation() {
     XScopedLock<XInterface> lock( *interface());
     interface()->send("S");
+    msecsleep(30);
     interface()->receive(); //expecting "FIN"
 //    if(interface()->toStrSimplified() != "FIN")
 //        throw XInterface::XConvError(__FILE__, __LINE__);
@@ -954,6 +955,7 @@ XSigmaPAMC104::setForward() {
 //    stopRotation();
     Snapshot shot( *this);
     interface()->sendf("NR%4u%4u%c", (unsigned int)shot[ *speed()], 0, channelChar(shot));
+    msecsleep(30);
     interface()->receive(); //expecting "OK"
     if(interface()->toStrSimplified() != "OK")
         throw XInterface::XConvError(__FILE__, __LINE__);
@@ -964,6 +966,7 @@ XSigmaPAMC104::setReverse() {
 //    stopRotation();
     Snapshot shot( *this);
     interface()->sendf("RR%4u%4u%c", (unsigned int)shot[ *speed()], 0, channelChar(shot));
+    msecsleep(30);
     interface()->receive(); //expecting "OK"
     if(interface()->toStrSimplified() != "OK")
         throw XInterface::XConvError(__FILE__, __LINE__);
@@ -979,6 +982,7 @@ XSigmaPAMC104::setTarget(const Snapshot &, double target) {
     else
         interface()->sendf("RR%4u%4u%c", (unsigned int)shot[ *speed()], (unsigned int)(-dx), channelChar(shot));
     m_pulsesTotal = target; //ugly hack.
+    msecsleep(30);
     interface()->receive(); //expecting "OK"
     if(interface()->toStrSimplified() != "OK")
         throw XInterface::XConvError(__FILE__, __LINE__);

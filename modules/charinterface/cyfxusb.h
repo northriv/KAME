@@ -24,7 +24,7 @@ struct CyFXUSBDevice {
     virtual ~CyFXUSBDevice() = default;
 
     bool operator==(const CyFXUSBDevice &d) const {
-        return (productID() == d.productID()) && (vendorID() == d.vendorID()) && (serialNo() == d.serialNo());}
+        return (productID() == d.productID()) && (vendorID() == d.vendorID()) && (name() == d.name());}
 
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
     //! \return a list of connected USB devices, perhaps including non-cypress devices.
@@ -76,7 +76,7 @@ struct CyFXUSBDevice {
 
     unsigned int vendorID() const {return m_vendorID;}
     unsigned int productID() const {return m_productID;}
-    unsigned int serialNo() const {return m_serialNo;}
+    virtual XString name() const = 0;
 
     class AsyncIO {
     public:
@@ -106,7 +106,7 @@ struct CyFXUSBDevice {
         USB_ENDPOINT_DESCRIPTOR_TYPE = 5};
 protected:
     CyFXUSBDevice() = default;
-    uint16_t m_vendorID, m_productID, m_serialNo;
+    uint16_t m_vendorID, m_productID;
     int m_refcnt = 0;
 };
 

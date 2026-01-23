@@ -125,7 +125,7 @@ CyFXWin32USBDevice::asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, 
 }
 
 CyFXWin32USBDevice::CyFXWin32USBDevice(HANDLE h, const XString &n) : CyFXUSBDevice(),
-    handle(h), name(n) {
+    handle(h), m_name(n) {
 }
 
 int64_t
@@ -164,7 +164,7 @@ CyFXWin32USBDevice::setIDs() {
 
     m_productID = dev_desc.idProduct;
     m_vendorID = dev_desc.idVendor;
-    m_serialNo = dev_desc.iSerialNumber;
+    // m_serialNo = dev_desc.iSerialNumber;
 }
 
 CyFXUSBDevice::List

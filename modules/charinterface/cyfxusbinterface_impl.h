@@ -191,6 +191,12 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
     }
     //Adds found devices to the static list.
     s_devices.insert(s_devices.end(), found_devices.begin(), found_devices.end());
+    for(auto it = s_devices.begin(); it !=s_devices.end();) {
+        if( !*it)
+            it = s_devices.erase(it);
+        else
+            it++;
+    }
 
     if(is_written)
         gMessagePrint("USB FX: FW initialization done.");
@@ -202,7 +208,6 @@ XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
     s_devices.clear();
 }
 
-//todo XComboBox::onAboutToOpen.
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::initialize(bool instatiation) {
@@ -221,8 +226,9 @@ XCyFXUSBInterface<USBDevice>::initialize(bool instatiation) {
                     //yet to be added in the combo box.
                     XString name = examineDeviceAfterFWLoad(x);
                     if(name.length()) {
-                        if(m_candidates.find(name) != m_candidates.end())
-                            name += formatString(":%u", x->serialNo()); //duplicated name
+                        if(m_candidates.find(name) != m_candidates.end()) {
+                            name += ":" + x->name(); //to avoid duplication.
+                        }
                         auto shot = iterate_commit([=](Transaction &tr){
                             tr[ *device()].add(name);
                         });

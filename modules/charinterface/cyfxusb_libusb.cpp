@@ -27,8 +27,13 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         }
         m_productID = desc.idProduct;
         m_vendorID = desc.idVendor;
-        m_serialNo = desc.iSerialNumber;
+        // m_serialNo = desc.iSerialNumber;
         fprintf(stderr, "USB dev, %x:%x\n", m_vendorID, m_productID);
+        m_bus = libusb_get_bus_number(dev);
+        uint8_t port_num[7] = {};
+        int len = libusb_get_port_numbers(dev, port_num, sizeof(port_num));
+        for(int i = 0; i < len; ++i)
+            m_portPath.push_back(port_num[i]);
         libusb_ref_device(dev);
     }
     ~CyFXLibUSBDevice() {
@@ -136,6 +141,16 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         libusb_device **list;
         int size;
     };
+
+    unsigned int busNo() const {return m_bus;}
+    const std::vector<uint8_t> &portPath() const {return m_portPath;}
+
+    virtual XString name() const override {
+        XString n = formatString(":%u", busNo());
+        for(auto &&port: portPath())
+            n += formatString(":%u", port);
+        return n;
+    }
 private:
     static struct Context {
         Context() {
@@ -152,6 +167,9 @@ private:
     friend struct AsyncIO;
     libusb_device_handle *handle;
     libusb_device *dev;
+
+    uint8_t m_bus;
+    std::vector<uint8_t> m_portPath;
 };
 
 CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2017 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -55,10 +55,11 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
         uint8_t *rdbuf = nullptr; //user buffer, already passed by read function.
     };
 
+    virtual XString name() const override {return m_name;}
 protected:
     unique_ptr<AsyncIO> asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
     int64_t ioCtrl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
-    XString name;
+    XString m_name;
 private:
     HANDLE handle;
 };
