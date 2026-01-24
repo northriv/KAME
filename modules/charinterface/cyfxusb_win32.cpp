@@ -167,6 +167,10 @@ CyFXWin32USBDevice::setIDs() {
     // m_serialNo = dev_desc.iSerialNumber;
 }
 
+#ifdef USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
+extern CyFXUSBDevice::List enumerateDevicesByLibUSB(); //in cyfxusb_libusb.cpp
+#endif
+
 CyFXUSBDevice::List
 CyFXUSBDevice::enumerateDevices() {
     CyFXUSBDevice::List list;
