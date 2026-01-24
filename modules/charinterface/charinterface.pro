@@ -48,12 +48,22 @@ win32 {
 
     HEADERS += \
         cyfxusb.h \
-        cyfxusb_win32.h \
         cyfxusbinterface_impl.h \
 
     SOURCES += \
-        cyfxusb.cpp \
-        cyfxusb_win32.cpp \
+        cyfxusb.cpp
+
+    exists("c:/msys64/mingw64/include/libusb-1.0/libusb.h") {
+        SOURCES += \
+            cyfxusb_libusb.cpp
+        LIBS += -lusb-1.0
+        DEFINS += USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
+        message("Using libusb-1.0")
+    }
+    HEADERS += \
+        cyfxusb_win32.h
+    SOURCES += \
+        cyfxusb_win32.cpp
 
     DEFINES += USE_FX_USB
 
@@ -67,9 +77,7 @@ macx{
             INCLUDEPATH += /Library/Frameworks/NI4882.framework/Headers
             LIBS += -F/Library/Frameworks -framework NI4882
             DEFINES += HAVE_NI4882
-        }
-        else {
-            message("Missing library for NI488.2")
+            message("Using NI488.2 for GPIB")
         }
     }
 }

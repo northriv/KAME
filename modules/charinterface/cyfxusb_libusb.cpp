@@ -174,6 +174,20 @@ private:
 
 CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 
+CyFXUSBDevice::List
+#ifdef USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
+enumerateDevicesByLibUSB() {
+#else
+CyFXUSBDevice::enumerateDevices() {
+    CyFXUSBDevice::List list;
+    CyFXLibUSBDevice::USBList devlist;
+    for(int n = 0; n < devlist.size; ++n) {
+        list.push_back(std::make_shared<CyFXLibUSBDevice>(devlist[n]));
+    }
+    return list;
+}
+#endif
+
 CyFXLibUSBDevice::USBList::USBList() noexcept {
     size = libusb_get_device_list(s_context.context, &list);
     if(size < 0 ) {
@@ -255,15 +269,6 @@ CyFXLibUSBDevice::AsyncIO::abort() noexcept {
     return true;
 }
 
-CyFXUSBDevice::List
-CyFXUSBDevice::enumerateDevices() {
-    CyFXUSBDevice::List list;
-    CyFXLibUSBDevice::USBList devlist;
-    for(int n = 0; n < devlist.size; ++n) {
-        list.push_back(std::make_shared<CyFXLibUSBDevice>(devlist[n]));
-    }
-    return list;
-}
 void
 CyFXLibUSBDevice::open() {
     if( !handle) {

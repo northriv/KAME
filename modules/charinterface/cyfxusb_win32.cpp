@@ -236,6 +236,13 @@ CyFXUSBDevice::enumerateDevices() {
         }
     }
     SetupDiDestroyDeviceInfoList(hdev);
+
+#ifdef USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
+    if(list.empty()) {
+        return enumerateDevicesByLibUSB();
+    }
+#endif
+
     return std::move(list);
 }
 void
