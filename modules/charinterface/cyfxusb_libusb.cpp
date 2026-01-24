@@ -179,6 +179,7 @@ CyFXUSBDevice::List
 enumerateDevicesByLibUSB() {
 #else
 CyFXUSBDevice::enumerateDevices() {
+#endif
     CyFXUSBDevice::List list;
     CyFXLibUSBDevice::USBList devlist;
     for(int n = 0; n < devlist.size; ++n) {
@@ -186,7 +187,6 @@ CyFXUSBDevice::enumerateDevices() {
     }
     return list;
 }
-#endif
 
 CyFXLibUSBDevice::USBList::USBList() noexcept {
     size = libusb_get_device_list(s_context.context, &list);
