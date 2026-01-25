@@ -28,6 +28,7 @@ struct CyFXUSBDevice {
 
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
     //! \return a list of connected USB devices, perhaps including non-cypress devices.
+    //! definitions in cyfxusb_win32.cpp or in cyfxusb_libusb.cpp.
     static List enumerateDevices();
 
     virtual void open() = 0;
@@ -76,7 +77,7 @@ struct CyFXUSBDevice {
 
     unsigned int vendorID() const {return m_vendorID;}
     unsigned int productID() const {return m_productID;}
-    virtual XString name() const = 0;
+    virtual XString name() const = 0; //!< to distinguish multiple devices having the same vendor/product IDs.
 
     class AsyncIO {
     public:
