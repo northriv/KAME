@@ -91,8 +91,12 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
                 }
                 else {
                     readBarrier();
-                    if( !completed)
+                    if( !completed) {
+                        //Comes here after one of threads cancels the transfer and "Libusb async transfer is going to be aborted." is shown.
+                        //, when multiple async reads are waiting at the same endpoint, in OSX.
                         fprintf(stderr, "Error during aborting USB asyncIO, aborted twice!\n");
+                        msecsleep(100); //expecting cb_fn() might be called.
+                    }
                 }
             }
             libusb_free_transfer(transfer);
@@ -260,8 +264,13 @@ CyFXLibUSBDevice::AsyncIO::abort() noexcept {
     int ret = libusb_cancel_transfer(transfer);
     if(ret) {
         readBarrier();
-        if(completed && (ret == LIBUSB_ERROR_NOT_FOUND))
-            return false; //already completed.
+        if(ret == LIBUSB_ERROR_NOT_FOUND) {
+            if(completed)
+                return false; //already completed.
+            //already canceled.
+            fprintf(stderr, "Libusb async transfer is already canceled.\n");
+            return true;
+        }
         dbgPrint(formatString("Error during cancelling transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
         return false;
     }
