@@ -334,16 +334,17 @@ CyFXLibUSBDevice::open() {
             libusb_close(handle); handle = nullptr;
             throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         }
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        libusb_clear_halt(handle, 0x2);
+        libusb_clear_halt(handle, 0x6);
+        libusb_clear_halt(handle, 0x8);
+#endif
     }
 }
 
 void
 CyFXLibUSBDevice::close() {
     if(handle) {
-//        libusb_clear_halt(handle, 0x2);
-//        libusb_clear_halt(handle, 0x6);
-//        libusb_clear_halt(handle, 0x8);
-
         libusb_reset_device(handle);
         libusb_release_interface(handle,0);
         libusb_close(handle);
