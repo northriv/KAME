@@ -52,5 +52,16 @@ void
 CyFXUSBDevice::downloadFX2(const uint8_t* image, int len) {
     int addr = 0;
     //A0 anchor download.
+#if defined __MACOSX__ || defined __APPLE__
     controlWrite((CtrlReq)0xA0, CtrlReqType::VENDOR, addr, 0x00, image, len);
+#else
+    //winUSB cannot send data > 4kB at once.
+    constexpr int chunk = 4096;
+    while(len) {
+        int size = std::min(chunk, len);
+        controlWrite((CtrlReq)0xA0, CtrlReqType::VENDOR, addr, 0x00, image + addr, size);
+        addr += size;
+        len -= size;
+    }
+#endif
 }
