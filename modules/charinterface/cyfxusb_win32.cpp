@@ -301,7 +301,7 @@ CyFXEzUSBDevice::getString(int descid) {
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyFXEzUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms) {
-    std::vector<uint8_t> ioctlbuf(sizeof(BulkTransferCtrl));
+    AsyncIO::vector_u8 ioctlbuf(sizeof(BulkTransferCtrl));
     auto tr = reinterpret_cast<BulkTransferCtrl *>(&ioctlbuf[0]);
     //FX2FW specific
     switch(ep) {
@@ -323,7 +323,7 @@ CyFXEzUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigne
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyFXEzUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int timeout_ms) {
-    std::vector<uint8_t> ioctlbuf(sizeof(BulkTransferCtrl));
+    AsyncIO::vector_u8 ioctlbuf(sizeof(BulkTransferCtrl));
     auto tr = reinterpret_cast<BulkTransferCtrl *>(&ioctlbuf[0]);
     //FX2FW specific
     switch(ep) {
@@ -406,7 +406,7 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 std::vector<uint8_t>
 CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     CtrlReqType type, uint16_t value, uint16_t index, int len, uint32_t timeout_ms) {
-    std::vector<uint8_t> buf;
+    AsyncIO::vector_u8 buf;
     AsyncIO::stl_bufferGarbage->swap(buf); //recycles large vector from TLS.
     buf.reserve(SIZEOF_SINGLE_TRANSFER + len + PAD_BEFORE); //for async. transfer to prevent size doubling.
     buf.resize(SIZEOF_SINGLE_TRANSFER + len);
