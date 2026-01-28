@@ -17,7 +17,7 @@
 //This value should be longer than timeout in waitFor().
 static constexpr unsigned int TIMEOUT_MS_LONG_ENOUGH = 10000;
 
-XThreadLocal<std::vector<uint8_t>>
+XThreadLocal<CyFXUSBDevice::AsyncIO::vector_u8>
 CyFXUSBDevice::AsyncIO::stl_bufferGarbage;
 
 int64_t

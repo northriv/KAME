@@ -93,7 +93,25 @@ struct CyFXUSBDevice {
         //! \return true if a cancelation is successfully requested.
         virtual bool abort() noexcept {return false;} //gcc doesn't accept pure virtual.
 
-        static XThreadLocal<std::vector<uint8_t>> stl_bufferGarbage;
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        template <typename T>
+        struct AlignedAllocator4K {
+            using value_type = T;
+            T* allocate(std::size_t n) {
+                void* ptr = _aligned_malloc(n * sizeof(T), 4096);
+                if (!ptr)
+                    throw std::bad_alloc();
+                return static_cast<T*>(ptr);
+            }
+            void deallocate(T* p, std::size_t) {
+                _aligned_free(p);
+            }
+        };
+        using vector_u8 = std::vector<uint8_t, AlignedAllocator4K<uint8_t>>; //may need alignment by 4KB for winUSB.
+#else
+        using vector_u8 = std::vector<uint8_t>;
+#endif
+        static XThreadLocal<vector_u8> stl_bufferGarbage;
     protected:
         int64_t m_count_imm = -1; //byte count of received user data, not incl. header.
     };
