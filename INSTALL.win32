@@ -16,7 +16,6 @@ pacman -S mingw-w64-x86_64-fftw
 pacman -S mingw-w64-x86_64-gsl
 pacman -S mingw-w64-x86_64-eigen3
 pacman -S mingw-w64-x86_64-pybind11
-pacman -S mingw-w64-x86_64-libusb
 pacman -S mingw-w64-x86_64-python-numpy
 pacman -S mingw-w64-x86_64-ruby
 
@@ -24,7 +23,7 @@ National Instruments 488.2 or DAQmx drivers are optionally required.
 
 Before executing kame,
 
-To launch using kame.bat, copy libfttw3-3.dll, libgsl.dll, libgslcblas-0.dll, zlib1.dll, libgmp-10.dll, libusb-1.0.dll, x64-msvcrt-ruby3**.dll (would be found in C:\msys64\mingw64\bin), beside the kame executable.
+To launch using kame.bat, copy libfttw3-3.dll, libgsl.dll, libgslcblas-0.dll, zlib1.dll, libgmp-10.dll, x64-msvcrt-ruby3**.dll (would be found in C:\msys64\mingw64\bin), beside the kame executable.
 
 Copy kame/script/rubylineshell.rb and kame/script/pythonlineshell.py to ./Resources
 
