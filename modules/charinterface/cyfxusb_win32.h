@@ -49,7 +49,7 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
         bool getResult(bool immediate);
         OVERLAPPED overlap = {}; //zero clear
         HANDLE handle = nullptr;
-        std::vector<uint8_t> ioctlbuf; //buffer during the transfer.
+        vector_u8 ioctlbuf; //buffer during the transfer.
         ssize_t prepadding = 0;
         uint8_t *ioctlbuf_rdpos = nullptr; //location of the incoming data of concern, part of \a ioctrlbuf.
         uint8_t *rdbuf = nullptr; //user buffer, already passed by read function.
