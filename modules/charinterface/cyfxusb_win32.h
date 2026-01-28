@@ -108,7 +108,7 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
 
     XString friendlyName();
 private:
-    std::vector<uint8_t> setupSingleTransfer(uint8_t ep, CtrlReq request,
+    AsyncIO::vector_u8 setupSingleTransfer(uint8_t ep, CtrlReq request,
         CtrlReqType type, uint16_t value,
         uint16_t index, int len, uint32_t timeout_ms = 0);
     enum {SIZEOF_SINGLE_TRANSFER = 38, PAD_BEFORE = 2};

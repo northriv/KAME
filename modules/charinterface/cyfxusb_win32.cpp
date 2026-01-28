@@ -403,7 +403,7 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 //    m_productID = pid;
 //}
 
-std::vector<uint8_t>
+CyUSB3Device::AsyncIO::vector_u8
 CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     CtrlReqType type, uint16_t value, uint16_t index, int len, uint32_t timeout_ms) {
     AsyncIO::vector_u8 buf;
