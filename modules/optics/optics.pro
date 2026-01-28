@@ -31,16 +31,6 @@ HEADERS += \
 
 SOURCES += \
     odmrimagingng.cpp \
-
-    win32 {
-        HEADERS += \
-            oceanopticsusb.h \
-
-        SOURCES += \
-            oceanopticsusb.cpp \
-
-        DEFINES += USE_OCEANOPTICS_USB
-    }
 }
 
 FORMS += \
