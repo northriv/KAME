@@ -232,7 +232,7 @@ XThamwayFX2USBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
         uint8_t cmds[] = {CMD_BWRITE, 2, 0}; //2bytes to be written.
         usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
         uint8_t cmds2[] = {(uint8_t)(addr), data};
-        usb()->bulkWrite(EPOUT2, cmds2, sizeof(cmds2));
+        usb()->bulkWrite(EPOUT2, cmds2, sizeof(cmds2)); //libusb+WinUSB v10 didn't work, ends up with timeout.
     }
 }
 void
