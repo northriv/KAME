@@ -125,7 +125,24 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
             *reinterpret_cast<int*>(transfer->user_data) = 1; //completed = 1
             writeBarrier();
         }
+
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        template <typename T>
+        struct AlignedAllocator4K {
+            T* allocate(std::size_t n) {
+                void* ptr = _aligned_malloc(n * sizeof(T), 4096);
+                if (!ptr)
+                    throw std::bad_alloc();
+                return static_cast<T*>(ptr);
+            }
+            void deallocate(T* p, std::size_t) {
+                _aligned_free(p);
+            }
+        };
+        std::vector<uint8_t, AlignedAllocator4K<uint8_t>> buf;
+#else
         std::vector<uint8_t> buf;
+#endif
         libusb_transfer *transfer;
         uint8_t *rdbuf = nullptr;
         int completed = 0;
