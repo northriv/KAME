@@ -194,14 +194,6 @@ CyFXUSBDevice::enumerateDevices() {
         list.push_back(dev);
     }
 
-
-
-#ifdef USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
-    if(list.empty()) {
-        return enumerateDevicesByLibUSB();
-    }
-#endif
-
     //Standard scheme with CyUSB3.sys devices.
     //GUID: AE18AA60-7F6A-11d4-97DD-00010229B959
     constexpr GUID guid = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
@@ -248,6 +240,12 @@ CyFXUSBDevice::enumerateDevices() {
         }
     }
     SetupDiDestroyDeviceInfoList(hdev);
+
+#ifdef USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
+    if(list.empty()) {
+        return enumerateDevicesByLibUSB();
+    }
+#endif
 
     return std::move(list);
 }
