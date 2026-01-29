@@ -53,13 +53,13 @@ win32 {
     SOURCES += \
         cyfxusb.cpp
 
-#    exists("c:/msys64/mingw64/include/libusb-1.0/libusb.h") {
-#        SOURCES += \
-#            cyfxusb_libusb.cpp
-#        LIBS += -lusb-1.0
-#        DEFINES += USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
-#        message("Using libusb-1.0")
-#    }
+    exists("c:/msys64/mingw64/include/libusb-1.0/libusb.h") {
+        SOURCES += \
+            cyfxusb_libusb.cpp
+        LIBS += -lusb-1.0
+        DEFINES += USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
+        message("Using libusb-1.0")
+    }
     HEADERS += \
         cyfxusb_win32.h
     SOURCES += \
