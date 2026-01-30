@@ -245,8 +245,8 @@ CyFXUSBDevice::enumerateDevices() {
     // if(list.empty()) {
         // return enumerateDevicesByLibUSB();
     // }
-    auto list2 = enumerateDevicesByLibUSB());
-    list.insert(list.end(), list2.begin(), list2.end();
+    auto list2 = enumerateDevicesByLibUSB();
+    list.insert(list.end(), list2.begin(), list2.end());
 #endif
 
     return list;
