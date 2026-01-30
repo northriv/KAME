@@ -167,7 +167,7 @@ CyFXWin32USBDevice::setIDs() {
     // m_serialNo = dev_desc.iSerialNumber;
 }
 
-#ifdef USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
+#ifdef USE_LIBUSB_WITH_WINCYFX
 extern CyFXUSBDevice::List enumerateDevicesByLibUSB(); //in cyfxusb_libusb.cpp
 #endif
 
@@ -241,13 +241,15 @@ CyFXUSBDevice::enumerateDevices() {
     }
     SetupDiDestroyDeviceInfoList(hdev);
 
-#ifdef USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
-    if(list.empty()) {
-        return enumerateDevicesByLibUSB();
-    }
+#ifdef USE_LIBUSB_WITH_WINCYFX
+    // if(list.empty()) {
+        // return enumerateDevicesByLibUSB();
+    // }
+    auto list2 = enumerateDevicesByLibUSB());
+    list.insert(list.end(), list2.begin(), list2.end());
 #endif
 
-    return std::move(list);
+    return list;
 }
 void
 CyFXWin32USBDevice::open() {

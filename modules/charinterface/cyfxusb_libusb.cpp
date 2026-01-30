@@ -180,7 +180,7 @@ private:
 CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 
 CyFXUSBDevice::List
-#ifdef USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
+#ifdef USE_LIBUSB_WITH_WINCYFX
 enumerateDevicesByLibUSB() {
 #else
 CyFXUSBDevice::enumerateDevices() {

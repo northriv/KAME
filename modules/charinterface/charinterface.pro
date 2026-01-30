@@ -57,7 +57,7 @@ win32 {
         SOURCES += \
             cyfxusb_libusb.cpp
         LIBS += -lusb-1.0
-        DEFINES += USE_LIBUSB_WHEN_WINCYFX_UNDETECTED
+        DEFINES += USE_LIBUSB_WITH_WINCYFX
         message("Using libusb-1.0")
     }
     HEADERS += \
