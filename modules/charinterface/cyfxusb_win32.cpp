@@ -242,11 +242,11 @@ CyFXUSBDevice::enumerateDevices() {
     SetupDiDestroyDeviceInfoList(hdev);
 
 #ifdef USE_LIBUSB_WITH_WINCYFX
-    // if(list.empty()) {
-        // return enumerateDevicesByLibUSB();
-    // }
-    auto list2 = enumerateDevicesByLibUSB();
-    list.insert(list.end(), list2.begin(), list2.end());
+    if(list.empty()) {
+        return enumerateDevicesByLibUSB();
+    }
+    // auto list2 = enumerateDevicesByLibUSB();
+    // list.insert(list.end(), list2.begin(), list2.end());
 #endif
 
     return list;
