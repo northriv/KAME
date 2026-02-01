@@ -50,10 +50,10 @@ struct CyFXUSBDevice {
     void downloadFX2(const uint8_t* image, int len);
 
     //! \arg buf be sure that the user buffer stays alive during an asynchronous IO.
-    int64_t bulkWrite(uint8_t ep, const uint8_t *buf, int len);
+    virtual int64_t bulkWrite(uint8_t ep, const uint8_t *buf, int len);
     //! \arg ep 0x80 will be or-operated
     //! \arg buf be sure that the user buffer stays alive during an asynchronous IO.
-    int64_t bulkRead(uint8_t ep, uint8_t* buf, int len);
+    virtual int64_t bulkRead(uint8_t ep, uint8_t* buf, int len);
 
     enum class CtrlReq : uint8_t  {
         GET_STATUS = 0x00, CLEAR_FEATURE = 0x01, SET_FEATURE = 0x03, SET_ADDRESS = 0x05,
