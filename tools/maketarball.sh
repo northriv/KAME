@@ -24,6 +24,7 @@ rsync --exclude "linux686" \
 	 --exclude "*.cache" --exclude ".*" --exclude "*.log"\
 	 --exclude ".libs" \
 	 --exclude "/html" \
+	 --exclude "/build" \
 	 --exclude "CVS" \
 	 --exclude "odmrimagingng.*" \
 	 . $dir/$file -av --delete
