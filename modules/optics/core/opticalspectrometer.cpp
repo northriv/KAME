@@ -206,7 +206,8 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
         gMessagePrint(i18n("Dark spectrum has been stored."));
     }
     if(driver) {
-        if( !tr[ *enableStrobe()]) {
+        tr[ *enableStrobe()] = !tr[ *enableStrobe()];
+        if(tr[ *enableStrobe()]) {
             tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
             for(auto& x: tr[ *this].darkCounts_())
                 x /= accumulated;
@@ -240,20 +241,18 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
 }
 void
 XOpticalSpectrometer::visualize(const Snapshot &shot) {
-    if( !shot[ *this].time()) {
-        return;
-    }
-
     shared_ptr<XNode> driver = shot[ *driverAltOnOff()];
     if((shot[ *this].m_timeStrobeChanged == shot[ *this].time()) && driver) {
-        bool strobe = shot[ *enableStrobe()];
-        trans( *enableStrobe()) = !strobe;
+        bool strobe = shot[ *enableStrobe()]; //alredy inverted in analyze().
         if(auto d = dynamic_pointer_cast<XLaserModule>(driver)) {
-            trans( *d->enabled()) = !strobe;
+            trans( *d->enabled()) = strobe;
         }
         if(auto d = dynamic_pointer_cast<XDCSource>(driver)) {
-            trans( *d->output()) = !strobe;
+            trans( *d->output()) = strobe;
         }
+    }
+    if( !shot[ *this].time()) {
+        return;
     }
 
     const unsigned int accum_length = shot[ *this].accumLength();
