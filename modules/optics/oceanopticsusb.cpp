@@ -149,6 +149,8 @@ XOceanOpticsUSBInterface::setAnalogOutput(double value) {
 
 std::vector<uint8_t>
 XOceanOpticsUSBInterface::readInstrumStatus() {
+    if( !hasStatusQuery())
+        throw XUnsupportedFeatureError(__FILE__, __LINE__);
     XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     uint8_t cmds[] = {(uint8_t)CMD::QUERY_OP_INFO};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));

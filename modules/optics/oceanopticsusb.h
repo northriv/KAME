@@ -35,7 +35,8 @@ public:
     virtual void send(const char *str) override {}
     virtual void receive() override {}
 
-    bool isUSB2000() const {return usb()->productID() <= 0x1010;} //Or HR2000
+    bool isUSB2000() const {return usb()->productID() <= 0x1010;} //Or HR2000.
+    bool hasStatusQuery() const {return usb()->productID() != 0x100a;} //HR2000 cannot.
 
     void initDevice();
     void setIntegrationTime(unsigned int us);

@@ -54,8 +54,8 @@ XOceanOpticsSpectrometer::open() {
             throw XInterface::XConvError(__FILE__, __LINE__);
     }
 
-    auto status = interface()->readInstrumStatus();
     try {
+        auto status = interface()->readInstrumStatus();
         uint16_t ver = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::FPGAFirmwareVersion);
         ver /= 0x1000; //major version.
         uint16_t div = interface()->readRegInfo(XOceanOpticsUSBInterface::Register::MasterClockCounterDivisor);
@@ -141,16 +141,23 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     if(isusb2000) //USB2000 can respond control commands even after requestSpectrum().
         interface()->requestSpectrum();
 
-    auto status = interface()->readInstrumStatus();
+    uint16_t pixels = 2048u;
+    uint8_t usb_speed = 0u;
+    bool acq_ready = true;
+    uint32_t integration_time_us = 0;
+    std::vector<uint8_t> status;
+    if(interface()->hasStatusQuery()) {
+        status = interface()->readInstrumStatus();
 
-    uint16_t pixels = isusb2000 ? status[0] * 0x100u + status[1] : status[0] + status[1] * 0x100u;
-//        uint8_t packets_in_spectrum = status[9];
-//        uint8_t packets_in_ep = status[11];
-    uint8_t usb_speed = status[14]; //0x80 if highspeed
-    bool acq_ready = isusb2000 ? (status[8] != 0) : (status[8] == 0);
+        pixels = isusb2000 ? status[0] * 0x100u + status[1] : status[0] + status[1] * 0x100u;
+    //        uint8_t packets_in_spectrum = status[9];
+    //        uint8_t packets_in_ep = status[11];
+        usb_speed = status[14]; //0x80 if highspeed
+        acq_ready = isusb2000 ? (status[8] != 0) : (status[8] == 0);
 
-    uint32_t integration_time_us = isusb2000 ? (status[2] * 0x100u + status[3]) * 1000u:
-                status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+        integration_time_us = isusb2000 ? (status[2] * 0x100u + status[3]) * 1000u:
+                    status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+    }
     if( !acq_ready) {
 //            //waits for completion
         msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
@@ -160,7 +167,7 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     if( !isusb2000)
         interface()->requestSpectrum();
 
-    if(isusb2000)
+    if(isusb2000 && interface()->hasStatusQuery())
         status.resize(14); //to distinguish USB2000.
     writer->push((uint8_t)status.size());
     writer->insert(writer->end(), status.begin(), status.end());
@@ -186,26 +193,27 @@ void
 XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction &tr) {
     uint8_t statussize = reader.pop<uint8_t>();
     bool isusb2000 = statussize < 16;
-    uint16_t pixels;
-    if(isusb2000)
-        pixels = reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>(); //MSB,LSB
-    else
-        pixels = reader.pop<uint16_t>();
-    tr[ *this].m_integrationTime = isusb2000 ?
-        (reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>()) * 1e-3 : reader.pop<uint32_t>() * 1e-6; //sec
-    uint8_t lamp_enabled = reader.pop<uint8_t>();
-    uint8_t trigger_mode = reader.pop<uint8_t>();
-    uint8_t acq_status = reader.pop<uint8_t>(); //in USB2000, is request spectra.
-    uint8_t packets_in_spectrum = reader.pop<uint8_t>(); //in USB2000, is timer swap.
-    uint8_t power_down = reader.pop<uint8_t>(); //in USB2000, is spectra data ready.
-    uint8_t packets_in_ep = reader.pop<uint8_t>(); //in USB2000, reserve = 0.
-    reader.pop<uint8_t>();
-    reader.pop<uint8_t>();
-    uint8_t usb_speed = reader.pop<uint8_t>(); //0x80 if highspeed,  //in USB2000, is researve = 0.
-    reader.pop<uint8_t>();
-    for(unsigned int i = 16; i < statussize; ++i)
-        reader.pop<uint8_t>(); //for future?
-
+    uint16_t pixels = 2048u;
+    if(statussize) {
+        if(isusb2000)
+            pixels = reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>(); //MSB,LSB
+        else
+            pixels = reader.pop<uint16_t>();
+        tr[ *this].m_integrationTime = isusb2000 ?
+            (reader.pop<uint8_t>() * 0x100u + reader.pop<uint8_t>()) * 1e-3 : reader.pop<uint32_t>() * 1e-6; //sec
+        uint8_t lamp_enabled = reader.pop<uint8_t>();
+        uint8_t trigger_mode = reader.pop<uint8_t>();
+        uint8_t acq_status = reader.pop<uint8_t>(); //in USB2000, is request spectra.
+        uint8_t packets_in_spectrum = reader.pop<uint8_t>(); //in USB2000, is timer swap.
+        uint8_t power_down = reader.pop<uint8_t>(); //in USB2000, is spectra data ready.
+        uint8_t packets_in_ep = reader.pop<uint8_t>(); //in USB2000, reserve = 0.
+        reader.pop<uint8_t>();
+        reader.pop<uint8_t>();
+        uint8_t usb_speed = reader.pop<uint8_t>(); //0x80 if highspeed,  //in USB2000, is researve = 0.
+        reader.pop<uint8_t>();
+        for(unsigned int i = 16; i < statussize; ++i)
+            reader.pop<uint8_t>(); //for future?
+    }
     std::vector<double> wavelenCalibCoeffs(4); //polynominal func. coeff.
     wavelenCalibCoeffs.resize(reader.pop<uint8_t>());
     for(unsigned int i = 0; i < wavelenCalibCoeffs.size(); ++i)
