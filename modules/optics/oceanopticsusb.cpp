@@ -136,7 +136,9 @@ XOceanOpticsUSBInterface::setupTrigCond(TrigMode mode, double delay_sec){
 void
 XOceanOpticsUSBInterface::setAnalogOutput(double value) {
     double max_v = 5.0, min_v = 0.0; //V
-    uint32_t dac = 0x200;
+    uint32_t dac = 0x1ff;
+    if(usb()->productID() == 0x1022) //USB4000
+        dac = 0xfff;
     if(usb()->productID() <= 0x1010) {
     //USB2000
         max_v = 20.0; min_v = 4.0; //mA
