@@ -25,8 +25,8 @@ template class XCyFXUSBInterface<OceanOpticsUSBDevice>;
 static constexpr unsigned int OCEANOPTICS_VENDOR_ID = 0x2457;
 static const std::map<unsigned int, std::string> cs_oceanOpticsModels = {
     {0x1002, "USB2000"},
-    {0x1009, "HR2000"},
-    {0x100a, "USB2000/HR2000"},
+    {0x1009, "HR2000"}, //tested
+    {0x100a, "USB2000/HR2000"}, //tested
     {0x1011, "HR4000"},
     {0x1012, "HR2000+/4000"}, //tested
     {0x1016, "HR2000+"}, //tested.
