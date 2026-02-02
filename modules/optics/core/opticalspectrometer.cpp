@@ -208,13 +208,13 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
     }
     if(driver) {
         tr[ *enableStrobe()] = !tr[ *enableStrobe()];
+        tr[ *this].m_timeStrobeChanged = XTime::now(); //requesting strobe change.
         if(tr[ *enableStrobe()]) {
             tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
             for(auto& x: tr[ *this].darkCounts_())
                 x /= accumulated;
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
         }
-        tr[ *this].m_timeStrobeChanged = XTime::now(); //requesting strobe change.
     }
 
     double *v = &tr[ *this].counts_()[0];
