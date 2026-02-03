@@ -666,7 +666,7 @@ XLakeShoreBridge::XLakeShoreBridge(const char *name, bool runtime,
 //    interface()->setGPIBMAVbit(4); //valid read??? but serial poll does not respond.
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBUseSerialPollOnRead(false);
-    interface()->setGPIBWaitBeforeWrite(60);
+    interface()->setGPIBWaitBeforeWrite(20);
     //    ExclusiveWaitAfterWrite = 10;
     interface()->setGPIBWaitBeforeRead(20);
     interface()->setSerialStopBits(1);
