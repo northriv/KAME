@@ -157,9 +157,7 @@ XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd)
 
         cmd += extcmd;
 
-        msecsleep(1);
         XSerialPort::send(cmd.c_str());
-        msecsleep(1);
     }
     else if(extcmd.length())
         XSerialPort::send(extcmd.c_str());
