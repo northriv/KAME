@@ -135,7 +135,7 @@ XAgilentSGSCPI::XAgilentSGSCPI(const char *name, bool runtime,
     : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
 //	interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBWaitBeforeWrite(10);
-    interface()->setGPIBWaitBeforeRead(10);
+    interface()->setGPIBWaitBeforeRead(30);
     trans( *sweepMode()).add({"Off", "Freq.", "Ampl.", "Ampl Alt.", "Ampl 112 Alt.", "Ampl 1112 Alt."});
 }
 XHP8664::XHP8664(const char *name, bool runtime,
