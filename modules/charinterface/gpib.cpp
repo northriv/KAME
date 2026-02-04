@@ -114,7 +114,7 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
                 throw XInterface::XCommError(
                     i18n("too many spoll timeouts"), __FILE__, __LINE__);
             }
-            msecsleep(intf->gpibWaitBeforeSPoll());
+            msecsleep(std::max(1, intf->gpibWaitBeforeSPoll()));
             setupAddrEOSAndSend(intf, "++spoll\r");
             XSerialPort::receive();
             unsigned char spr = intf->toUInt();
