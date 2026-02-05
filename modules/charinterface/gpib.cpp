@@ -66,7 +66,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                 throw XInterface::XCommError(
                     i18n("too many spoll timeouts"), __FILE__, __LINE__);
             }
-            msecsleep(std::max(1, intf->gpibWaitBeforeSPoll()));
+            msecsleep(intf->gpibWaitBeforeSPoll());
             setupAddrEOSAndSend(intf, "++spoll\r");
             XSerialPort::receive();
             unsigned char spr = intf->toUInt();
@@ -114,7 +114,7 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
                 throw XInterface::XCommError(
                     i18n("too many spoll timeouts"), __FILE__, __LINE__);
             }
-            msecsleep(std::max(1, intf->gpibWaitBeforeSPoll()));
+            msecsleep(intf->gpibWaitBeforeSPoll());
             setupAddrEOSAndSend(intf, "++spoll\r");
             XSerialPort::receive();
             unsigned char spr = intf->toUInt();
@@ -155,9 +155,13 @@ XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd)
         // }
         // fprintf(stderr,"CMD:%s:%d\n", buf.c_str(), buf.length());
 
-        cmd += extcmd;
+//        cmd += extcmd;
+
+//        XSerialPort::send(cmd.c_str());
 
         XSerialPort::send(cmd.c_str());
+        msecsleep(1);
+        XSerialPort::send(extcmd.c_str());
     }
     else if(extcmd.length())
         XSerialPort::send(extcmd.c_str());
