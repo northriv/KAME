@@ -284,8 +284,9 @@ public:
 	XQToggleButtonConnector(const shared_ptr<XBoolNode> &node,
 		QAbstractButton *item);
 protected slots:
-void onClick();
+    void onClick();
 protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
 	const shared_ptr<XBoolNode> m_node;
 	QAbstractButton *const m_pItem;
@@ -298,7 +299,7 @@ public:
     XFilePathConnector(const shared_ptr<XStringNode> &node,
         QLineEdit *edit, QAbstractButton *btn, const char *filter, bool saving);
 protected slots:
-void onClick();
+    void onClick();
 protected:
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
     QAbstractButton *const m_pBtn;
@@ -314,7 +315,7 @@ public:
 	virtual ~XListQConnector();
 private slots:
 protected slots:
-void OnSectionMoved(int logicalIndex, int oldVisualIndex, int newVisualIndex);
+    void OnSectionMoved(int logicalIndex, int oldVisualIndex, int newVisualIndex);
 protected:
     shared_ptr<Listener> m_lsnMove;
 	virtual void onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e);

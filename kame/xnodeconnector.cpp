@@ -35,6 +35,8 @@
 #include <QMainWindow>
 #include <QApplication>
 #include <QKeyEvent>
+#include <QMouseEvent>
+#include <QCheckBox>
 
 #include <map>
 #include "measure.h"
@@ -481,6 +483,34 @@ XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &no
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
     onValueChanged(Snapshot( *node), node.get());
+    item->installEventFilter(this);
+}
+
+bool
+XQToggleButtonConnector::eventFilter(QObject *obj, QEvent *event) {
+    QCheckBox *cb = qobject_cast<QCheckBox *>(obj);
+    if(cb) {
+        //filtering event in inactive window.
+        static QPoint s_pressPos;
+        static XTime s_pressTime;
+        if(event->type() == QEvent::WindowActivate) {
+            s_pressPos = QCursor::pos();
+            s_pressTime = XTime::now();
+        }
+        if(event->type() == QEvent::MouseButtonRelease) {
+            if(XTime::now().diff_sec(s_pressTime) < 0.3) {
+                QPoint releasePos = QCursor::pos();
+                int distance = (releasePos - s_pressPos).manhattanLength();
+                if(distance > QApplication::startDragDistance()) {
+                    cb->window()->activateWindow();
+                    cb->window()->raise();
+                    gWarnPrint(i18n("Ignoring careless touch in a checkbox."));
+                    return true; //blocks.
+                }
+            }
+        }
+    }
+    return QObject::eventFilter(obj, event);
 }
 
 void
