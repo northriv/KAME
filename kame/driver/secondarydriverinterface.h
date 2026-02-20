@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -43,7 +43,7 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 	Transaction tr(shot_this);
 	bool firsttime = true;
 	for(;;) {
-		if( !firsttime) {
+        if( !firsttime) {
 			try {
 				shot_all_drivers = tr.newTransactionUsingSnapshotFor( *m_drivers.lock());
 				shot_this = tr;
@@ -137,10 +137,12 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 		if( !skipped)
 			this->record(tr, shot_emitter[ *driver].timeAwared(), time_recorded);
 		if(tr.commit()) {
+            Snapshot &shot(tr);
 			if(err.msg().length())
 				err.print(this->getLabel() + ": ");
             try {
-                this->visualize(tr);
+                this->visualize(shot);
+                trans( *this).onVisualization().talk(shot, this);
             }
 #ifdef USE_PYBIND11
             catch (pybind11::error_already_set& e) {
@@ -182,7 +184,7 @@ XSecondaryDriverInterface<T>::onItemChanged(const Snapshot &shot, XValueNodeBase
     shared_ptr<Listener> lsnonrecord;
 	if(driver) {
         driver->iterate_commit([=, &lsnonrecord](Transaction &tr){
-			lsnonrecord = tr[ *driver].onRecord().connectWeakly(
+            lsnonrecord = tr[ *driver].onRecord().connectWeakly(
 				this->shared_from_this(), &XSecondaryDriverInterface<T>::onConnectedRecorded);
         });
 	}

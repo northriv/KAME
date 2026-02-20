@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -53,7 +53,7 @@ XEntryListConnector::XEntryListConnector
 	}
 }
 void
-XEntryListConnector::onRecord(const Snapshot &shot, XDriver *driver) {
+XEntryListConnector::onVisualization(const Snapshot &shot, XDriver *driver) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(( *it)->entry->driver().get() == driver) {
             try {
@@ -123,8 +123,8 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 	m_pItem->setCellWidget(i, 3, numDelta);
 	m_cons.back()->driver = driver;
     driver->iterate_commit([=](Transaction &tr){
-		m_cons.back()->lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
-				shared_from_this(), &XEntryListConnector::onRecord,
+        m_cons.back()->lsnOnRecord = tr[ *driver].onVisualization().connectWeakly(
+                shared_from_this(), &XEntryListConnector::onVisualization,
 				Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
     });
 

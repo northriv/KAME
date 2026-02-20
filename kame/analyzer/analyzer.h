@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -89,7 +89,7 @@ public:
 private:
     shared_ptr<Listener> m_lsnOnRecord;
 	//callback from Driver
-	void onRecord(const Snapshot &shot, XDriver *driver);
+    void onVisualization(const Snapshot &shot, XDriver *driver);
 
 	const shared_ptr<XScalarEntry> m_entry;
 	shared_ptr<XGraph> m_graph;

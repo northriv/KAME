@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -92,12 +92,12 @@ XValChart::XValChart(const char *name, bool runtime,
     });
 
     entry->driver()->iterate_commit([=](Transaction &tr){
-		m_lsnOnRecord = tr[ *entry->driver()].onRecord().connectWeakly(
-			shared_from_this(), &XValChart::onRecord);
+        m_lsnOnRecord = tr[ *entry->driver()].onVisualization().connectWeakly(
+            shared_from_this(), &XValChart::onVisualization);
     });
 }
 void
-XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
+XValChart::onVisualization(const Snapshot &shot, XDriver *driver) {
     XTime time = shot[ *driver].time();
     if(time.isSet()) {
         try {

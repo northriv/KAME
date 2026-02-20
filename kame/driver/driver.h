@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -50,7 +50,9 @@ public:
 
         Talker<XDriver*> &onRecord() {return m_tlkOnRecord;}
         const Talker<XDriver*> &onRecord() const {return m_tlkOnRecord;}
-	private:
+        Talker<XDriver*> &onVisualization() {return m_tlkOnVisualization;}
+        const Talker<XDriver*> &onVisualization() const {return m_tlkOnVisualization;}
+    private:
 		friend class XDriver;
 
 		//! \sa time()
@@ -58,7 +60,7 @@ public:
 		//! \sa timeAwared()
 		XTime m_awaredTime;
 
-        Talker<XDriver*> m_tlkOnRecord;
+        Talker<XDriver*> m_tlkOnRecord, m_tlkOnVisualization;
 	};
     //! Throwing this exception will cause a reset of record time.
     //! And, prints error message.

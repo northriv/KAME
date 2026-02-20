@@ -73,6 +73,7 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
         err.print(getLabel() + ": ");
     try {
         visualize(shot);
+        trans( *this).onVisualization().talk(shot, this);
     }
 #ifdef USE_PYBIND11
     catch (pybind11::error_already_set& e) {

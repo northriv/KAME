@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -47,7 +47,7 @@ private:
 	};
 	typedef std::deque<shared_ptr<tcons> > tconslist;
 	tconslist m_cons;
-	void onRecord(const Snapshot &shot, XDriver*);
+    void onVisualization(const Snapshot &shot, XDriver*);
 };
 
 #endif
