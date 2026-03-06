@@ -386,7 +386,7 @@ KAMEPyBind::classtype_xnode<N, Base>
 KAMEPyBind::export_xvaluenode(const char *name) {
     constexpr const char *pyv = (std::is_integral<V>::value ? "__int__" :
         (std::is_same<V, bool>::value ? "__bool__" :
-        (std::is_floating_point<V>::value ? "__double__" :
+        (std::is_floating_point<V>::value ? "__float__" :
         (std::is_convertible<V, std::string>::value ? "__str__" : "get"))));
     if constexpr( !std::is_base_of<typename N::Payload, typename Base::Payload>::value) {
         //N::Payload is defined.
