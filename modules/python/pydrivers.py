@@ -51,11 +51,8 @@ class Test4Res(XPythonSecondaryDriver):
             shot_dcsrc = shot_others
             shot_dmm = shot_emitter
             wait = float(shot_self[self["Wait"]]) * 1e-3 #[s]
-            if (shot_dmm[dmm].timeAwared() - shot_dcsrc[dcsrc].time()).seconds < wait:
+            if (shot_dmm[dmm].timeAwared() - shot_dcsrc[dcsrc].time()).total_seconds() < wait:
                 return False
-            return True #Good, approved
-        if not bool(shot_self[self["Control"]]) and emitter == dcsrc:
-            #dc source is controled by others.
             return True #Good, approved
         return False #skipping this record.
 
@@ -65,12 +62,8 @@ class Test4Res(XPythonSecondaryDriver):
 #        pdb.set_trace()
         dmm = tr[self["DMM"]].get() #selected driver.
         dcsrc = tr[self["DCSource"]].get() #selected driver.
-        if emitter == dcsrc:
-            shot_dmm = shot_others
-            shot_dcsrc = shot_emitter
-        else:
-            shot_dcsrc = shot_others
-            shot_dmm = shot_emitter
+        shot_dcsrc = shot_others
+        shot_dmm = shot_emitter
         
         dmmch = int(tr[self["DMMChannel"]])
         volt = shot_dmm[dmm].value(dmmch)
@@ -83,21 +76,15 @@ class Test4Res(XPythonSecondaryDriver):
             storage[ "Recent"] = [] #for the first time
             recent = storage["Recent"]
 
-        if emitter == dcsrc:
-            #this driver is NOT in charge of switching dc source polarity.
-            #eliminating bad events (dc source changed during the measurement).
-            recent = [x for x in recent if x['dmm_start'] < shot_dcsrc[dcsrc].timeAwared()]
-            storage["Recent"] = recent
-        else:        
-            recent.append({'dmm_start':shot_emitter[dmm].timeAwared(),
-                'dmm_fin':shot_emitter[dmm].time(),
-                'curr':curr, 'volt':volt})
-            if (recent[-1]['dmm_start'] - recent[0]['dmm_start']).seconds > 30:
-                del recent[0] #erase too old record.
+        recent.append({'dmm_start':shot_emitter[dmm].timeAwared(),
+            'dmm_fin':shot_emitter[dmm].time(),
+            'curr':curr, 'volt':volt})
+        if (recent[-1]['dmm_start'] - recent[0]['dmm_start']).total_seconds() > 30:
+            del recent[0] #erase too old record.
 
-            if not bool(tr[self["Control"]]):
-                #this driver is NOT in charge of switching dc source polarity.
-                raise KAMESkippedRecordError("Skip")
+        if not bool(tr[self["Control"]]):
+            #this driver is NOT in charge of switching dc source polarity.
+            raise KAMESkippedRecordError("Skip")
 
         #setups the current for visualize().
         #switching polarity.
@@ -198,7 +185,7 @@ class Py4Res(XPythonSecondaryDriver):
             shot_dcsrc = shot_others
             shot_dmm = shot_emitter
             wait = float(shot_self[self["Wait"]]) * 1e-3 #[s]
-            if (shot_dmm[dmm].timeAwared() - shot_dcsrc[dcsrc].time()).seconds < wait:
+            if (shot_dmm[dmm].timeAwared() - shot_dcsrc[dcsrc].time()).total_seconds() < wait:
                 return False
             return True #Good, approved
         return False #skipping this record.
@@ -208,12 +195,8 @@ class Py4Res(XPythonSecondaryDriver):
     def analyze(self, tr, shot_emitter, shot_others, emitter):
         dmm = tr[self["DMM"]].get() #selected driver.
         dcsrc = tr[self["DCSource"]].get() #selected driver.
-        if emitter == dcsrc:
-            shot_dmm = shot_others
-            shot_dcsrc = shot_emitter
-        else:
-            shot_dcsrc = shot_others
-            shot_dmm = shot_emitter
+        shot_dcsrc = shot_others
+        shot_dmm = shot_emitter
         
         dmmch = int(tr[self["DMMChannel"]])
         volt = shot_dmm[dmm].value(dmmch)
@@ -230,7 +213,7 @@ class Py4Res(XPythonSecondaryDriver):
         recent.append({'dmm_start':shot_emitter[dmm].timeAwared(),
             'dmm_fin':shot_emitter[dmm].time(),
             'curr':curr, 'volt':volt})
-        if (recent[-1]['dmm_start'] - recent[0]['dmm_start']).seconds > 30:
+        if (recent[-1]['dmm_start'] - recent[0]['dmm_start']).total_seconds() > 30:
             del recent[0] #erase too old record.
 
         for i in range(self.NumEntries):
