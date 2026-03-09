@@ -201,9 +201,6 @@ class Py4Res(XPythonSecondaryDriver):
             if (shot_dmm[dmm].timeAwared() - shot_dcsrc[dcsrc].time()).seconds < wait:
                 return False
             return True #Good, approved
-        if not bool(shot_self[self["Control"]]) and emitter == dcsrc:
-            #dc source is controled by others.
-            return True #Good, approved
         return False #skipping this record.
 
     #Analyzes data acquired by the connected drivers.
@@ -229,21 +226,12 @@ class Py4Res(XPythonSecondaryDriver):
             storage[ "Recent"] = [] #for the first time
             recent = storage["Recent"]
 
-        if emitter == dcsrc:
-            #this driver is NOT in charge of switching dc source polarity.
-            #eliminating bad events (dc source changed during the measurement).
-            recent = [x for x in recent if x['dmm_start'] < shot_dcsrc[dcsrc].timeAwared()]
-            storage["Recent"] = recent
-        else:        
-            recent.append({'dmm_start':shot_emitter[dmm].timeAwared(),
-                'dmm_fin':shot_emitter[dmm].time(),
-                'curr':curr, 'volt':volt})
-            if (recent[-1]['dmm_start'] - recent[0]['dmm_start']).seconds > 30:
-                del recent[0] #erase too old record.
 
-            if not bool(tr[self["Control"]]):
-                #this driver is NOT in charge of switching dc source polarity.
-                raise KAMESkippedRecordError("Skip")
+        recent.append({'dmm_start':shot_emitter[dmm].timeAwared(),
+            'dmm_fin':shot_emitter[dmm].time(),
+            'curr':curr, 'volt':volt})
+        if (recent[-1]['dmm_start'] - recent[0]['dmm_start']).seconds > 30:
+            del recent[0] #erase too old record.
 
         for i in range(self.NumEntries):
             if abs(float(tr[self["Current-{}".format(i+1)]]) * 1e-3 - abs(curr)) < 1e-8: #[A]
