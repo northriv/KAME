@@ -237,10 +237,6 @@ class Py4Res(XPythonSecondaryDriver):
             #goes a round to the next current.
         storage["NextCurr"] = nextcurr
 
-        #checks if the last member can take control ownership for the shared dc source.
-        cousins = [d for d in Root()["Drivers"] if type(d) == type(self) and d != self and shot_others[d["DCSource"]] == tr[self["DCSource"]]]
-        tr[self["Control"]].setUIEnabled(self == cousins[-1])
-
         if curr >= 0:
             raise KAMESkippedRecordError("Skip") #waits for negative current.
 
@@ -262,20 +258,30 @@ class Py4Res(XPythonSecondaryDriver):
         raise KAMESkippedRecordError("Skip") #no valid record.
 
     #may perform I/O ops or graph ops using the snapshot after analyze().
-    def visualize(self, shot):
-        if bool(shot[self["Control"]]):
-            #this driver is in charge of changing dc source.
-            dcsrc = shot[self["DCSource"]].get() #selected driver.
-            storage = shot[self].local() #dict for shot[self], storage linked to the transaction/snapshot.
-            try:
-                recent = storage["Recent"]
-                nextcurr = storage["NextCurr"]
-            except KeyError:
-                return
-            shot_dcsrc = Snapshot(dcsrc)
-            curr = float(shot_dcsrc[dcsrc["Value"]])
-            if curr != nextcurr:
-                dcsrc["Value"] = nextcurr
+    def visualize(self, shot):        
+        #checks if the last member can take control ownership for the shared dc source.
+        #this cannot be done in analyze(), because taking snapshot will conflict with the transaction.
+        cousins = [d for d in Root()["Drivers"] if type(d) == type(self) and d["DCSource"].get() == self["DCSource"].get()]
+        if self != cousins[-1]:
+            self["Control"].setUIEnabled(False)
+            self["Control"] = False
+        else:
+            if not self["Control"].isUIEnabled():
+                self["Control"].setUIEnabled(True)
+
+            if bool(shot[self["Control"]]):
+                #this driver is in charge of changing dc source.
+                dcsrc = shot[self["DCSource"]].get() #selected driver.
+                storage = shot[self].local() #dict for shot[self], storage linked to the transaction/snapshot.
+                try:
+                    recent = storage["Recent"]
+                    nextcurr = storage["NextCurr"]
+                except KeyError:
+                    return
+                shot_dcsrc = Snapshot(dcsrc)
+                curr = float(shot_dcsrc[dcsrc["Value"]])
+                if curr != nextcurr:
+                    dcsrc["Value"] = nextcurr
 
 #Declares that python-side driver to C++ driver list.
 XPythonSecondaryDriver.exportClass("Py4Res", Py4Res, "Python-based driver: 4-Terminal Resistance Measumrent")
