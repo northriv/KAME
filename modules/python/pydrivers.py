@@ -237,6 +237,10 @@ class Py4Res(XPythonSecondaryDriver):
             #goes a round to the next current.
         storage["NextCurr"] = nextcurr
 
+        #checks if the last member can take control ownership for the shared dc source.
+        cousins = [d for d in Root()["Drivers"] if type(d) == type(self) and d != self and shot_others[d["DCSource"]] == tr[self["DCSource"]]]
+        tr[self["Control"]].setUIEnabled(self == cousins[-1])
+
         if curr >= 0:
             raise KAMESkippedRecordError("Skip") #waits for negative current.
 
