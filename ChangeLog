@@ -1,3 +1,10 @@
+* Thu Mar 12 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.7.1-1)
+- python: fix bool() and float() conversions from XBoolNode, XDoubleNode.
+- QCheckBox: suppress foolish click at inactive window.
+- Ocean Optics/Insight spectrometers: HR2000 works.
+- Scalar entries from MathTools: the same timestamp as those from driver's entries.
+
 * Fri Jan 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.7.0-1)
 - tcp: Proper timeout on connection, reading, writing., sharing the same EOS setting with serialport.
