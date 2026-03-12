@@ -384,17 +384,21 @@ KAMEPyBind::export_xnode(const char *name_) {
 template <class N, class V, class Base, typename...Args>
 KAMEPyBind::classtype_xnode<N, Base>
 KAMEPyBind::export_xvaluenode(const char *name) {
-    constexpr const char *pyv = (std::is_integral<V>::value ? "__int__" :
-        (std::is_same<V, bool>::value ? "__bool__" :
+    constexpr const char *pyv = (std::is_same<V, bool>::value ? "__bool__" :
+        (std::is_integral<V>::value ? "__int__" :
         (std::is_floating_point<V>::value ? "__float__" :
         (std::is_convertible<V, std::string>::value ? "__str__" : "get"))));
     if constexpr( !std::is_base_of<typename N::Payload, typename Base::Payload>::value) {
         //N::Payload is defined.
         auto [pynode, pypayload] = export_xnode<N, Base, Args...>(name);
         (*pynode)
+            //immediate conversion without explicit use of Snapshot,
+            //from XValueNode to bool, int, float, str, depending of the type of V.
             .def(pyv, [](shared_ptr<N> &self)->V{return ***self;})
+            //immediate substitution without explicit use of Transaction.
             .def("set", [](shared_ptr<N> &self, V x){trans(*self) = x;});
         (*pypayload)
+            //from XValueNode to bool, int, float, str, depending of the type of V.
             .def(pyv, [](typename N::Payload &self)->V{ return self;})
             .def("set", [](typename N::Payload &self, V x){self.operator=(x);});
         return {std::move(pynode), std::move(pypayload)};
