@@ -78,20 +78,27 @@ public:
 
     struct DECLSPEC_KAME Payload : public T::Payload {
         virtual ~Payload() {
-            if( !dict) return;
+            if( !m_dict && !m_module_copy) return;
             pybind11::gil_scoped_acquire guard;
-            dict.reset();
+            m_dict.reset();
+            m_module_copy.reset();
         }
         pybind11::dict local() { //GIL is mandatory.
             // pybind11::gil_scoped_acquire guard;
-            if( !dict)
-                dict = std::make_shared<pybind11::dict>();
-            // else
+            if( !m_module_copy) {
+                m_module_copy = std::make_shared<pybind11::object>(pybind11::module_::import("copy"));
+            }
+            if( !m_dict)
+                m_dict = std::make_shared<pybind11::dict>();
+            else
+                //deepcopy
+                m_dict = std::make_shared<pybind11::dict>(m_module_copy->attr("deepcopy")( *m_dict));
             //     // dict = std::make_shared<pybind11::dict>(dict->attr("copy")());
             //     dict = std::make_shared<pybind11::dict>(dict); //shallow copy
-            return *dict; //shallow copy
+            return *m_dict; //shallow copy
         }
-        std::shared_ptr<pybind11::dict> dict;
+        std::shared_ptr<pybind11::dict> m_dict;
+        std::shared_ptr<pybind11::object> m_module_copy;
     };
 
 protected:

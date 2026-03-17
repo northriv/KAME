@@ -69,7 +69,7 @@ class Test4Res(XPythonSecondaryDriver):
         volt = shot_dmm[dmm].value(dmmch)
         curr = float(shot_dcsrc[dcsrc["Value"]])
  
-        storage = copy.deepcopy(tr[self].local()) #dict for tr[self], storage linked to the transaction/snapshot. deep copy is needed in transaction.
+        storage = tr[self].local() #dict for tr[self], storage linked to the transaction/snapshot.
         try:
             recent = storage["Recent"]
         except KeyError:
@@ -200,7 +200,7 @@ class Py4Res(XPythonSecondaryDriver):
         volt = shot_dmm[dmm].value(dmmch)
         curr = float(shot_dcsrc[dcsrc["Value"]])
  
-        storage = copy.deepcopy(tr[self].local()) #dict for tr[self], storage linked to the transaction/snapshot. deep copy is needed in transaction.
+        storage = tr[self].local() #dict for tr[self], storage linked to the transaction/snapshot.
         try:
             recent = storage["Recent"]
         except KeyError:
