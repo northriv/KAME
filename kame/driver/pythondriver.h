@@ -79,7 +79,13 @@ public:
     struct DECLSPEC_KAME Payload : public T::Payload {
         virtual ~Payload() {
             if( !m_dict && !m_module_copy) return;
-            pybind11::gil_scoped_acquire guard;
+            //GIL here is buggy. Snapshot inside some mutex may cause deadlock.
+            //Instead, put them into garbage box.
+//            pybind11::gil_scoped_acquire guard;
+            auto node = static_cast<XPythonDriver *>( &T::Payload::node());
+            XScopedLock<XMutex> lock(node->m_garbagemutex);
+            node->m_garbage.push_back(m_dict);
+            node->m_garbage.push_back(m_module_copy);
             m_dict.reset();
             m_module_copy.reset();
         }
@@ -96,6 +102,14 @@ public:
                 m_dict = std::make_shared<pybind11::dict>(m_module_copy->attr("deepcopy")( *m_dict));
             //     // dict = std::make_shared<pybind11::dict>(dict->attr("copy")());
             //     dict = std::make_shared<pybind11::dict>(dict); //shallow copy
+            auto node = static_cast<XPythonDriver *>( &T::Payload::node());
+            if(node->m_garbage.size()) { //clears garbage box for dict.
+                XScopedLock<XMutex> lock(node->m_garbagemutex);
+                while(node->m_garbage.size()) {
+                    node->m_garbage.front().reset();
+                    node->m_garbage.pop_front();
+                }
+            }
             return *m_dict; //shallow copy
         }
         // //For snapshot.
@@ -109,10 +123,15 @@ public:
     };
 
 protected:
+    friend struct XPythonDriver::Payload;
+
     pybind11::object m_self_creating; //to increase reference counter.
 
     qshared_ptr<QWidget> m_form;
     XString m_creation_key;
+
+    std::deque<std::shared_ptr<pybind11::object>> m_garbage;
+    XMutex m_garbagemutex;
 private:
     void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
         if(e.released != this->shared_from_this())
@@ -120,6 +139,14 @@ private:
         //clears an extra reference counting.
         pybind11::gil_scoped_acquire guard;
         m_self_creating = pybind11::none();
+
+        if(m_garbage.size()) {//clears garbage box for dict.
+            XScopedLock<XMutex> lock(m_garbagemutex);
+            while(m_garbage.size()) {
+                m_garbage.front().reset();
+                m_garbage.pop_front();
+            }
+        }
         //now python will free this.
     }
     shared_ptr<Listener> m_lsnOnRelease;
