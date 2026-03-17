@@ -238,7 +238,7 @@ public:
 
     virtual void lock() override {m_mutex.lock();}
     virtual void unlock() override {m_mutex.unlock();}
-private:
+protected:
     XRecursiveMutex m_mutex;
 };
 
