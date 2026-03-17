@@ -82,15 +82,16 @@ public:
             pybind11::gil_scoped_acquire guard;
             dict.reset();
         }
-        pybind11::object local() {
-            pybind11::gil_scoped_acquire guard;
+        pybind11::dict local() { //GIL is mandatory.
+            // pybind11::gil_scoped_acquire guard;
             if( !dict)
-                dict = std::make_shared<pybind11::object>(pybind11::dict());
-            else
-                dict = std::make_shared<pybind11::object>(dict->attr("copy")());
-            return *dict;
+                dict = std::make_shared<pybind11::dict>();
+            // else
+            //     // dict = std::make_shared<pybind11::dict>(dict->attr("copy")());
+            //     dict = std::make_shared<pybind11::dict>(dict); //shallow copy
+            return *dict; //shallow copy
         }
-        shared_ptr<pybind11::object> dict; //GIL is mandatory.
+        std::shared_ptr<pybind11::dict> dict;
     };
 
 protected:
