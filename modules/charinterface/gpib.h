@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2024 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -29,6 +29,8 @@ class XPrologixGPIBPort : public XAddressedPort<XPrologixInternalSerialPort> {
 public:
     XPrologixGPIBPort(XCharInterface *interface) : XAddressedPort<XPrologixInternalSerialPort>(interface) {}
     virtual ~XPrologixGPIBPort() {}
+
+    virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override;
 
     virtual void sendTo(XCharInterface *intf, const char *str) override;
     virtual void writeTo(XCharInterface *intf, const char *sendbuf, int size) override;

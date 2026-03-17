@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2025 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -32,6 +32,23 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
     msecsleep(100); //necessary, otherwise CR cannot be recognized.
     p->send("++eot_char 13\r"); //CR
     msecsleep(1);
+    return p;
+}
+
+shared_ptr<XPort>
+XPrologixGPIBPort::open(const XCharInterface *pInterface) {
+    auto p = static_pointer_cast<XPrologixGPIBPort>(XAddressedPort<XPrologixInternalSerialPort>::open(pInterface));
+    p->send("++eoi 1\r");
+    msecsleep(1);
+    p->send("++clr\r");
+    msecsleep(1);
+    p->send("++llo\r");
+    msecsleep(1);
+    p->send("++read_tmo_ms 2000\r");
+    msecsleep(100); //necessary, otherwise CR cannot be recognized.
+    p->send("++eot_enable 1\r");
+    msecsleep(100); //necessary, otherwise CR cannot be recognized.
+    p->send("++eot_char 13\r"); //CR
     return p;
 }
 
@@ -75,9 +92,8 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
             if((spr & intf->gpibMAVbit())) {
                 //MAV detected
                 if(i < 2) {
-                    m_mutex.unlock();
+                    ScopedUnlock unlock( *this);
                     msecsleep(5*i + 5);
-                    m_mutex.lock();
                     continue;
                 }
                 gErrPrint(i18n("ibrd before ibwrt asserted"));
@@ -99,16 +115,20 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
 void
 XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
     gpib_spoll_before_read(intf);
-    if(intf->gpibWaitBeforeRead())
+    if(intf->gpibWaitBeforeRead()) {
+        ScopedUnlock unlock( *this);
         msecsleep(intf->gpibWaitBeforeRead());
+    }
     setupAddrEOSAndSend(intf, "++read eoi\r");
     XSerialPort::receive();
 }
 void
 XPrologixGPIBPort::receiveFrom(XCharInterface *intf, unsigned int length) {
     gpib_spoll_before_read(intf);
-    if(intf->gpibWaitBeforeRead())
+    if(intf->gpibWaitBeforeRead()) {
+        ScopedUnlock unlock( *this);
         msecsleep(intf->gpibWaitBeforeRead());
+    }
     setupAddrEOSAndSend(intf, formatString("++read %u\r", length));
     XSerialPort::receive(length);
 }
@@ -130,9 +150,8 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
             unsigned char spr = intf->toUInt();
             if(((spr & intf->gpibMAVbit()) == 0)) {
                 //MAV isn't detected
-                m_mutex.unlock();
+                ScopedUnlock unlock( *this);
                 msecsleep(10 * i + 10);
-                m_mutex.lock();
                 continue;
             }
             break;
@@ -141,7 +160,7 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
 }
 void
 XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd) {
-    assert(m_mutex.isLockedByCurrentThread());
+    // assert(m_mutex.isLockedByCurrentThread());
     Snapshot shot( *intf);
 
     if(shot[ *intf->address()] != m_lastAddr) {

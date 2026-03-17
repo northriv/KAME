@@ -161,7 +161,6 @@ private:
     shared_ptr<Listener> m_lsnOnQueryRequested;
 	void onSendRequested(const Snapshot &shot, XValueNodeBase *);
 	void onQueryRequested(const Snapshot &shot, XValueNodeBase *);
-    unsigned int m_portLockCnt = 0;
 };
 
 //! Low-level I/O for XCharInterface
@@ -239,6 +238,22 @@ public:
     virtual void lock() override {m_mutex.lock();}
     virtual void unlock() override {m_mutex.unlock();}
 protected:
+    //! Unlock mutex during its life time.
+    struct ScopedUnlock {
+        explicit ScopedUnlock(XAddressedPort &p) : m_port(p) {
+            assert(m_port.m_mutex.isLockedByCurrentThread());
+            m_port.unlock();
+        }
+        ~ScopedUnlock() {
+            m_port.lock();
+        }
+        ScopedUnlock(const ScopedUnlock &) = delete;
+        ScopedUnlock& operator=(const ScopedUnlock &) = delete;
+    private:
+        XAddressedPort &m_port;
+    };
+private:
+    friend struct ScopedUnlock;
     XRecursiveMutex m_mutex;
 };
 
