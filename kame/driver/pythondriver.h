@@ -98,11 +98,11 @@ public:
             //     dict = std::make_shared<pybind11::dict>(dict); //shallow copy
             return *m_dict; //shallow copy
         }
-        //For snapshot.
-        const pybind11::dict local() const { //GIL is mandatory.
-            // pybind11::gil_scoped_acquire guard;
-            return m_dict ? *m_dict : pybind11::dict(); //shallow copy
-        }
+        // //For snapshot.
+        // const pybind11::dict local() const { //GIL is mandatory.
+        //     // pybind11::gil_scoped_acquire guard;
+        //     return m_dict ? *m_dict : pybind11::dict(); //shallow copy
+        // }
     private:
         std::shared_ptr<pybind11::dict> m_dict;
         std::shared_ptr<pybind11::object> m_module_copy;
