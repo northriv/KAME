@@ -82,6 +82,12 @@ struct DECLSPEC_KAME KAMEPyBind {
     static void export_embedded_module_basic_drivers(pybind11::module_&);
     static void export_embedded_module_interface(pybind11::module_&);
     static void export_embedded_module_xqcon(pybind11::module_&);
+
+#ifndef Py_GIL_DISABLED
+    //For XPythonDriver<T>::Payload::local()
+    std::deque<std::shared_ptr<pybind11::object>> s_pyobj_garbage;
+    XMutex s_pyobj_garbagemutex;
+#endif
 private:
     //std::type_index(typeid(x)), serialno, down_caster_func.
     static constexpr size_t SerialBaseForCache = 0x1000000u;

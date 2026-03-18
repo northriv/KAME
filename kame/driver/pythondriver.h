@@ -83,10 +83,9 @@ public:
             //GIL here is buggy. Snapshot inside some mutex may cause deadlock.
             //Instead, put them into garbage box.
 //            pybind11::gil_scoped_acquire guard;
-            auto node = static_cast<XPythonDriver *>( &T::Payload::node());
-            XScopedLock<XMutex> lock(node->m_garbagemutex);
-            node->m_garbage.push_back(m_dict);
-            node->m_garbage.push_back(m_module_copy);
+            XScopedLock<XMutex> lock(XPython::bind.s_pyobj_garbagemutex);
+            XPython::bind.s_pyobj_garbage.push_back(m_dict);
+            XPython::bind.s_pyobj_garbage.push_back(m_module_copy);
         }
 #endif
         //For transaction.
@@ -102,14 +101,10 @@ public:
                 m_dict = std::make_shared<pybind11::dict>(m_module_copy->attr("deepcopy")( *m_dict));
             //     // dict = std::make_shared<pybind11::dict>(dict->attr("copy")());
             //     dict = std::make_shared<pybind11::dict>(dict); //shallow copy
-            auto node = static_cast<XPythonDriver *>( &T::Payload::node());
 #ifndef Py_GIL_DISABLED
-            if(node->m_garbage.size()) { //clears garbage box for dict.
-                XScopedLock<XMutex> lock(node->m_garbagemutex);
-                while(node->m_garbage.size()) {
-                    node->m_garbage.front().reset();
-                    node->m_garbage.pop_front();
-                }
+            if(XPython::bind.s_pyobj_garbage.size()) { //clears garbage box for dict.
+                XScopedLock<XMutex> lock(XPython::bind.s_pyobj_garbagemutex);
+                XPython::bind.s_pyobj_garbage.clear();
             }
 #endif
             return *m_dict; //shallow copy
@@ -130,12 +125,6 @@ protected:
     qshared_ptr<QWidget> m_form;
     XString m_creation_key;
 
-#ifndef Py_GIL_DISABLED
-    friend struct XPythonDriver::Payload;
-
-    std::deque<std::shared_ptr<pybind11::object>> m_garbage;
-    XMutex m_garbagemutex;
-#endif
 private:
     void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
         if(e.released != this->shared_from_this())
@@ -145,13 +134,8 @@ private:
         m_self_creating = pybind11::none();
 
 #ifndef Py_GIL_DISABLED
-        if(m_garbage.size()) {//clears garbage box for dict.
-            XScopedLock<XMutex> lock(m_garbagemutex);
-            while(m_garbage.size()) {
-                m_garbage.front().reset();
-                m_garbage.pop_front();
-            }
-        }
+        XScopedLock<XMutex> lock(XPython::bind.s_pyobj_garbagemutex);
+        XPython::bind.s_pyobj_garbage.clear();
 #endif
     //now python will free this.
     }
