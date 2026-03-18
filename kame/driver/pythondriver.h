@@ -86,6 +86,8 @@ public:
             XScopedLock<XMutex> lock(XPython::bind.s_pyobj_garbagemutex);
             XPython::bind.s_pyobj_garbage.push_back(m_dict);
             XPython::bind.s_pyobj_garbage.push_back(m_module_copy);
+            m_dict.reset(); //should not hold after unlock.
+            m_module_copy.reset();
         }
 #endif
         //For transaction.
