@@ -1,15 +1,15 @@
 /***************************************************************************
         Copyright (C) 2002-2025 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
-		
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU Library General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
-		see the files COPYING and AUTHORS.
+                           kitag@issp.u-tokyo.ac.jp
+
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU Library General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
+
+        You should have received a copy of the GNU Library General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
 ***************************************************************************/
 #ifndef pythondriverH
 #define pythondriverH
@@ -39,14 +39,14 @@ public:
 
     virtual XString getTypename() const override { return m_creation_key;}
 
-	//! Shows all forms belonging to the driver.
+    //! Shows all forms belonging to the driver.
     virtual void showForms() override {
         if(m_form) {
             m_form->show();
             m_form->raise();
         }
     }
- 
+
     //! setups a form window using Qt designer .ui file.
     //! \sa showForms(), form().
     void loadUIFile(const std::string &loc) {
@@ -77,6 +77,7 @@ public:
     }
 
     struct DECLSPEC_KAME Payload : public T::Payload {
+#ifndef Py_GIL_DISABLED
         virtual ~Payload() {
             if( !m_dict && !m_module_copy) return;
             //GIL here is buggy. Snapshot inside some mutex may cause deadlock.
@@ -86,9 +87,8 @@ public:
             XScopedLock<XMutex> lock(node->m_garbagemutex);
             node->m_garbage.push_back(m_dict);
             node->m_garbage.push_back(m_module_copy);
-            m_dict.reset();
-            m_module_copy.reset();
         }
+#endif
         //For transaction.
         pybind11::dict local() { //GIL is mandatory.
             // pybind11::gil_scoped_acquire guard;
@@ -103,6 +103,7 @@ public:
             //     // dict = std::make_shared<pybind11::dict>(dict->attr("copy")());
             //     dict = std::make_shared<pybind11::dict>(dict); //shallow copy
             auto node = static_cast<XPythonDriver *>( &T::Payload::node());
+#ifndef Py_GIL_DISABLED
             if(node->m_garbage.size()) { //clears garbage box for dict.
                 XScopedLock<XMutex> lock(node->m_garbagemutex);
                 while(node->m_garbage.size()) {
@@ -110,6 +111,7 @@ public:
                     node->m_garbage.pop_front();
                 }
             }
+#endif
             return *m_dict; //shallow copy
         }
         // //For snapshot.
@@ -123,15 +125,17 @@ public:
     };
 
 protected:
-    friend struct XPythonDriver::Payload;
-
     pybind11::object m_self_creating; //to increase reference counter.
 
     qshared_ptr<QWidget> m_form;
     XString m_creation_key;
 
+#ifndef Py_GIL_DISABLED
+    friend struct XPythonDriver::Payload;
+
     std::deque<std::shared_ptr<pybind11::object>> m_garbage;
     XMutex m_garbagemutex;
+#endif
 private:
     void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
         if(e.released != this->shared_from_this())
@@ -140,6 +144,7 @@ private:
         pybind11::gil_scoped_acquire guard;
         m_self_creating = pybind11::none();
 
+#ifndef Py_GIL_DISABLED
         if(m_garbage.size()) {//clears garbage box for dict.
             XScopedLock<XMutex> lock(m_garbagemutex);
             while(m_garbage.size()) {
@@ -147,7 +152,8 @@ private:
                 m_garbage.pop_front();
             }
         }
-        //now python will free this.
+#endif
+    //now python will free this.
     }
     shared_ptr<Listener> m_lsnOnRelease;
 };
