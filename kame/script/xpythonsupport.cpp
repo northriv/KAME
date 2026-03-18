@@ -213,6 +213,9 @@ XPython::execute(const atomic<bool> &terminated) {
             }
         }
         m_mainthread_cb_lsn.reset();
+#ifndef Py_GIL_DISABLED
+        bind.s_pyobj_garbage.clear();
+#endif
         bind.s_kame_module.release(); //free module.
     }
 
