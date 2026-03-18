@@ -1,3 +1,8 @@
+* Wed Mar 18 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.7.2-1)
+- python: fix deadlock using local() in Payload.
+- Lakeshore 340: fix for a power range combbox.
+
 * Thu Mar 12 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.7.1-1)
 - python: fix bool() and float() conversions from XBoolNode, XDoubleNode.
