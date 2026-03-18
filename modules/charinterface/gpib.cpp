@@ -38,17 +38,10 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
 shared_ptr<XPort>
 XPrologixGPIBPort::open(const XCharInterface *pInterface) {
     auto p = static_pointer_cast<XPrologixGPIBPort>(XAddressedPort<XPrologixInternalSerialPort>::open(pInterface));
-    p->send("++eoi 1\r");
-    msecsleep(1);
     p->send("++clr\r");
     msecsleep(1);
     p->send("++llo\r");
     msecsleep(1);
-    p->send("++read_tmo_ms 2000\r");
-    msecsleep(100); //necessary, otherwise CR cannot be recognized.
-    p->send("++eot_enable 1\r");
-    msecsleep(100); //necessary, otherwise CR cannot be recognized.
-    p->send("++eot_char 13\r"); //CR
     return p;
 }
 
