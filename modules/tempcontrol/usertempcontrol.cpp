@@ -788,11 +788,13 @@ void XLakeShore340::open() {
 	Snapshot shot( *this);
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		interface()->queryf("CDISP? %u", idx + 1);
-		int res, maxcurr_idx;
+        int res, maxcurr_idx, max_range_idx;
 		if(interface()->scanf("%*d,%d", &res) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
+        if(res == 0) //no loop to display
+            res = 50; //tentative
 		interface()->queryf("CLIMIT? %u", idx + 1);
-		if(interface()->scanf("%*f,%*f,%*f,%d", &maxcurr_idx) != 1)
+        if(interface()->scanf("%*f,%*f,%*f,%d, %d", &maxcurr_idx, &max_range_idx) != 2)
 			throw XInterface::XConvError(__FILE__, __LINE__);
 
 		interface()->query("CLIMI?");
@@ -811,7 +813,7 @@ void XLakeShore340::open() {
 			tr[ *powerRange(idx)].clear();
 			if(idx == 0) {
 				tr[ *powerRange(idx)].add("0");
-				for(int i = 1; i < 6; i++) {
+                for(int i = 1; i < max_range_idx; i++) {
 					tr[ *powerRange(idx)].add(formatString("%.2g W", (double) pow(10.0, i - 5.0)
 						* pow(maxcurr, 2.0) * res));
 				}
