@@ -40,8 +40,8 @@ XPrologixGPIBPort::open(const XCharInterface *pInterface) {
     auto p = static_pointer_cast<XPrologixGPIBPort>(XAddressedPort<XPrologixInternalSerialPort>::open(pInterface));
     p->send("++clr\r");
     msecsleep(1);
-    p->send("++llo\r");
-    msecsleep(1);
+    // p->send("++llo\r");
+    // msecsleep(1);
     return p;
 }
 
