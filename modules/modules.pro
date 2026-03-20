@@ -11,7 +11,7 @@ SUBDIRS += testdriver\
     dso\
     flowcontrollercore\
     flowcontroller\
-    fourres\
+#    fourres\ #obsolete, use py4res
     funcsynth\
     levelmetercore\
     levelmeter\
@@ -71,7 +71,7 @@ nmrpulsercore.file = nmr/pulsercore/nmrpulsercore.pro
 nmrpulser.file = nmr/nmrpulser.pro
 nmrpulser.depends += nmrpulsercore charinterface
 nmr.depends += nmrpulsercore dmmcore dsocore sgcore magnetpscore motorcore networkanalyzercore qdcore
-fourres.depends += dmmcore dcsourcecore
+#fourres.depends += dmmcore dcsourcecore
 nidaq.depends += nmrpulsercore dsocore
 digilentwf.depends += dsocore
 tempcontrol.depends += dcsourcecore flowcontrollercore

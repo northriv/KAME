@@ -38,7 +38,8 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
 shared_ptr<XPort>
 XPrologixGPIBPort::open(const XCharInterface *pInterface) {
     auto p = static_pointer_cast<XPrologixGPIBPort>(XAddressedPort<XPrologixInternalSerialPort>::open(pInterface));
-    p->send("++clr\r");
+    p->unsetAddr();
+    p->setupAddrEOSAndSend(pInterface, "++clr\r");
     msecsleep(1);
     // p->send("++llo\r");
     // msecsleep(1);
@@ -70,95 +71,118 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
     }
     buf += '\r';
 
-    if(intf->gpibUseSerialPollOnWrite()) {
-        for(int i = 0; ; i++) {
-            if(i > 10) {
-                throw XInterface::XCommError(
-                    i18n("too many spoll timeouts"), __FILE__, __LINE__);
-            }
-            setupAddrEOSAndSend(intf, "");
-            msecsleep(1 + intf->gpibWaitBeforeSPoll());
-            setupAddrEOSAndSend(intf, "++spoll\r");
-            msecsleep(1);
-            XSerialPort::receive();
-            unsigned char spr = intf->toUInt();
-            if((spr & intf->gpibMAVbit())) {
-                //MAV detected
-                if(i < 2) {
-                    ScopedUnlock unlock( *this);
-                    msecsleep(5*i + 5);
-                    continue;
+    try {
+        if(intf->gpibUseSerialPollOnWrite()) {
+            for(int i = 0; ; i++) {
+                if(i > 10) {
+                    throw XInterface::XCommError(
+                        i18n("too many spoll timeouts"), __FILE__, __LINE__);
                 }
-                gErrPrint(i18n("ibrd before ibwrt asserted"));
-                // clear device's buffer
-                msecsleep(40);
-                setupAddrEOSAndSend(intf, "++read eoi\r");
-                msecsleep(40);
+                setupAddrEOSAndSend(intf, "");
+                msecsleep(1 + intf->gpibWaitBeforeSPoll());
+                setupAddrEOSAndSend(intf, "++spoll\r");
+                msecsleep(1);
                 XSerialPort::receive();
+                unsigned char spr = intf->toUInt();
+                if((spr & intf->gpibMAVbit())) {
+                    //MAV detected
+                    if(i < 2) {
+                        ScopedUnlock unlock( *this);
+                        msecsleep(5*i + 5);
+                        continue;
+                    }
+                    gErrPrint(i18n("ibrd before ibwrt asserted"));
+                    // clear device's buffer
+                    msecsleep(40);
+                    setupAddrEOSAndSend(intf, "++read eoi\r");
+                    msecsleep(40);
+                    XSerialPort::receive();
+                    break;
+                }
                 break;
             }
-            break;
         }
+        setupAddrEOSAndSend(intf, "");
+        if(intf->gpibWaitBeforeWrite())
+            msecsleep(intf->gpibWaitBeforeWrite()); //Lakeshore needs wait after addressing.
+        XSerialPort::send(buf.c_str());
     }
-    setupAddrEOSAndSend(intf, "");
-    if(intf->gpibWaitBeforeWrite())
-        msecsleep(intf->gpibWaitBeforeWrite()); //Lakeshore needs wait after addressing.
-    XSerialPort::send(buf.c_str());
+    catch (XInterface::XInterfaceError &e) {
+        unsetAddr();
+        throw e;
+    }
 }
 void
 XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
     gpib_spoll_before_read(intf);
-    if(intf->gpibWaitBeforeRead()) {
-        ScopedUnlock unlock( *this);
-        msecsleep(intf->gpibWaitBeforeRead());
+    try {
+        if(intf->gpibWaitBeforeRead()) {
+            ScopedUnlock unlock( *this);
+            msecsleep(intf->gpibWaitBeforeRead());
+        }
+        setupAddrEOSAndSend(intf, "++read eoi\r");
+        XSerialPort::receive();
     }
-    setupAddrEOSAndSend(intf, "++read eoi\r");
-    XSerialPort::receive();
+    catch (XInterface::XInterfaceError &e) {
+        unsetAddr();
+        throw e;
+    }
 }
 void
 XPrologixGPIBPort::receiveFrom(XCharInterface *intf, unsigned int length) {
     gpib_spoll_before_read(intf);
-    if(intf->gpibWaitBeforeRead()) {
-        ScopedUnlock unlock( *this);
-        msecsleep(intf->gpibWaitBeforeRead());
+    try {
+        if(intf->gpibWaitBeforeRead()) {
+            ScopedUnlock unlock( *this);
+            msecsleep(intf->gpibWaitBeforeRead());
+        }
+        setupAddrEOSAndSend(intf, formatString("++read %u\r", length));
+        XSerialPort::receive(length);
     }
-    setupAddrEOSAndSend(intf, formatString("++read %u\r", length));
-    XSerialPort::receive(length);
+    catch (XInterface::XInterfaceError &e) {
+        unsetAddr();
+        throw e;
+    }
 }
 void
 XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
     if(intf->gpibUseSerialPollOnRead()) {
-        // Snapshot shot( *intf);
-        for(int i = 0; ; i++) {
-            if(i > 30) {
-                throw XInterface::XCommError(
-                    i18n("too many spoll timeouts"), __FILE__, __LINE__);
+        try {
+            for(int i = 0; ; i++) {
+                if(i > 30) {
+                    throw XInterface::XCommError(
+                        i18n("too many spoll timeouts"), __FILE__, __LINE__);
+                }
+                setupAddrEOSAndSend(intf, "");
+                msecsleep(1 + intf->gpibWaitBeforeSPoll());
+                setupAddrEOSAndSend(intf, "++spoll\r");
+                // XSerialPort::send(formatString("++spoll %u\r", (unsigned int)shot[ *intf->address()]).c_str());
+                msecsleep(1);
+                XSerialPort::receive();
+                unsigned char spr = intf->toUInt();
+                if(((spr & intf->gpibMAVbit()) == 0)) {
+                    //MAV isn't detected
+                    ScopedUnlock unlock( *this);
+                    msecsleep(10 * i + 10);
+                    continue;
+                }
+                break;
             }
-            setupAddrEOSAndSend(intf, "");
-            msecsleep(1 + intf->gpibWaitBeforeSPoll());
-            setupAddrEOSAndSend(intf, "++spoll\r");
-            // XSerialPort::send(formatString("++spoll %u\r", (unsigned int)shot[ *intf->address()]).c_str());
-            msecsleep(1);
-            XSerialPort::receive();
-            unsigned char spr = intf->toUInt();
-            if(((spr & intf->gpibMAVbit()) == 0)) {
-                //MAV isn't detected
-                ScopedUnlock unlock( *this);
-                msecsleep(10 * i + 10);
-                continue;
-            }
-            break;
+        }
+        catch (XInterface::XInterfaceError &e) {
+            unsetAddr();
+            throw e;
         }
     }
 }
 void
-XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd) {
+XPrologixGPIBPort::setupAddrEOSAndSend(const XCharInterface *intf, std::string extcmd) {
     // assert(m_mutex.isLockedByCurrentThread());
     Snapshot shot( *intf);
-
-    if(shot[ *intf->address()] != m_lastAddr) {
-        m_lastAddr = shot[ *intf->address()];
-        std::string cmd = formatString("++addr %u\r", m_lastAddr);
+    unsigned int addr = shot[ *intf->address()];
+    if(addr != m_lastAddr) {
+        m_lastAddr = addr;
+        std::string cmd = formatString("++addr %u\r", addr);
         // if(intf->eos() == "\r")
         //     cmd += "++eos 1\r";
         // else if(intf->eos() == "\n")
@@ -209,6 +233,10 @@ XPrologixGPIBPort::setupAddrEOSAndSend(XCharInterface *intf, std::string extcmd)
 
 }
 
+void
+XPrologixGPIBPort::unsetAddr() {
+    m_lastAddr = 256u;
+}
 #ifdef HAVE_LINUX_GPIB
 
 #include <errno.h>
