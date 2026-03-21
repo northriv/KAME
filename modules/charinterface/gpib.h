@@ -38,7 +38,7 @@ public:
     virtual void receiveFrom(XCharInterface *intf, unsigned int length) override;
 private:
     //! prepares for slave address and EOS, if needed.
-    void setupAddrEOSAndSend(const XCharInterface *intf, std::string cmd);
+    void setupAddrAndSend(const XCharInterface *intf, std::string cmd);
     void unsetAddr();
     unsigned int m_lastAddr;
     void gpib_spoll_before_read(XCharInterface *intf);

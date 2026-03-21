@@ -1145,7 +1145,6 @@ XNMRT1::visualize(const Snapshot &shot) {
                     colt[k] = mapT(shot, i);
                     colf[k] = f * 1e-3;
                     colval[k] = densities[i];
-                    i++;
                     k++;
                 }
             }

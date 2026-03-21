@@ -178,7 +178,7 @@ XPython::execute(const atomic<bool> &terminated) {
             }
             fprintf(stderr, "Loading python scripting support from %s.\n", filename);
             char data[65536] = {};
-            QDataStream( &scriptfile).readRawData(data, sizeof(data));
+            QDataStream( &scriptfile).readRawData(data, sizeof(data) - 1);
 //            py::print("Hello, World!"); // use the Python API
             {
                 try {

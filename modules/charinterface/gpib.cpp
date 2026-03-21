@@ -32,6 +32,8 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
     msecsleep(100); //necessary, otherwise CR cannot be recognized.
     p->send("++eot_char 13\r"); //CR
     msecsleep(1);
+    p->send("++eos 3\r"); //disables EOS handling to send.
+    msecsleep(1);
     return p;
 }
 
@@ -39,7 +41,7 @@ shared_ptr<XPort>
 XPrologixGPIBPort::open(const XCharInterface *pInterface) {
     auto p = static_pointer_cast<XPrologixGPIBPort>(XAddressedPort<XPrologixInternalSerialPort>::open(pInterface));
     p->unsetAddr();
-    p->setupAddrEOSAndSend(pInterface, "++clr\r");
+    p->setupAddrAndSend(pInterface, "++clr\r");
     msecsleep(1);
     // p->send("++llo\r");
     // msecsleep(1);
@@ -78,9 +80,9 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     throw XInterface::XCommError(
                         i18n("too many spoll timeouts"), __FILE__, __LINE__);
                 }
-                setupAddrEOSAndSend(intf, "");
+                setupAddrAndSend(intf, "");
                 msecsleep(1 + intf->gpibWaitBeforeSPoll());
-                setupAddrEOSAndSend(intf, "++spoll\r");
+                setupAddrAndSend(intf, "++spoll\r");
                 msecsleep(1);
                 XSerialPort::receive();
                 unsigned char spr = intf->toUInt();
@@ -94,7 +96,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     gErrPrint(i18n("ibrd before ibwrt asserted"));
                     // clear device's buffer
                     msecsleep(40);
-                    setupAddrEOSAndSend(intf, "++read eoi\r");
+                    setupAddrAndSend(intf, "++read eoi\r");
                     msecsleep(40);
                     XSerialPort::receive();
                     break;
@@ -102,7 +104,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                 break;
             }
         }
-        setupAddrEOSAndSend(intf, "");
+        setupAddrAndSend(intf, "");
         if(intf->gpibWaitBeforeWrite())
             msecsleep(intf->gpibWaitBeforeWrite()); //Lakeshore needs wait after addressing.
         XSerialPort::send(buf.c_str());
@@ -120,7 +122,7 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
             ScopedUnlock unlock( *this);
             msecsleep(intf->gpibWaitBeforeRead());
         }
-        setupAddrEOSAndSend(intf, "++read eoi\r");
+        setupAddrAndSend(intf, "++read eoi\r");
         XSerialPort::receive();
     }
     catch (XInterface::XInterfaceError &e) {
@@ -136,7 +138,7 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf, unsigned int length) {
             ScopedUnlock unlock( *this);
             msecsleep(intf->gpibWaitBeforeRead());
         }
-        setupAddrEOSAndSend(intf, formatString("++read %u\r", length));
+        setupAddrAndSend(intf, formatString("++read %u\r", length));
         XSerialPort::receive(length);
     }
     catch (XInterface::XInterfaceError &e) {
@@ -153,9 +155,9 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
                     throw XInterface::XCommError(
                         i18n("too many spoll timeouts"), __FILE__, __LINE__);
                 }
-                setupAddrEOSAndSend(intf, "");
+                setupAddrAndSend(intf, "");
                 msecsleep(1 + intf->gpibWaitBeforeSPoll());
-                setupAddrEOSAndSend(intf, "++spoll\r");
+                setupAddrAndSend(intf, "++spoll\r");
                 // XSerialPort::send(formatString("++spoll %u\r", (unsigned int)shot[ *intf->address()]).c_str());
                 msecsleep(1);
                 XSerialPort::receive();
@@ -176,32 +178,13 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
     }
 }
 void
-XPrologixGPIBPort::setupAddrEOSAndSend(const XCharInterface *intf, std::string extcmd) {
+XPrologixGPIBPort::setupAddrAndSend(const XCharInterface *intf, std::string extcmd) {
     // assert(m_mutex.isLockedByCurrentThread());
     Snapshot shot( *intf);
     unsigned int addr = shot[ *intf->address()];
     if(addr != m_lastAddr) {
         m_lastAddr = addr;
         std::string cmd = formatString("++addr %u\r", addr);
-        // if(intf->eos() == "\r")
-        //     cmd += "++eos 1\r";
-        // else if(intf->eos() == "\n")
-        //     cmd += "++eos 2\r";
-        // else if(intf->eos() == "\r\n")
-        //     cmd += "++eos 0\r";
-        // else
-            cmd += "++eos 3\r"; //none
-        // std::string buf = cmd;
-        // std::string::size_type pos(buf.find("\r"));
-        // while(pos != std::string::npos) {
-        //     buf.replace(pos, 1, "[CR]");
-        //     pos = buf.find("\r", pos);
-        // }
-        // pos = buf.find("\033");
-        // while(pos != std::string::npos) {
-        //     buf.replace(pos, 1, "[ESC]");
-        //     pos = buf.find("\033", pos);
-        // }
         // fprintf(stderr,"CMD:%s:%d\n", buf.c_str(), buf.length());
 
 //        cmd += extcmd;

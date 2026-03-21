@@ -350,8 +350,8 @@ XRuby::execute(const atomic<bool> &terminated) {
             return NULL;
         }
         fprintf(stderr, "Loading ruby scripting monitor.\n");
-        char data[65536];
-        QDataStream( &scriptfile).readRawData(data, sizeof(data));
+        char data[65536] = {};
+        QDataStream( &scriptfile).readRawData(data, sizeof(data) - 1);
 
         while( !terminated) {
             int state = m_ruby->evalProtect(data);

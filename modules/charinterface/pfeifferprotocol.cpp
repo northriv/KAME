@@ -106,7 +106,7 @@ XPfeifferProtocolInterface::requestBool(unsigned int address, DATATYPE data_type
         throw XInterface::XConvError(__FILE__, __LINE__);
     if(buf[0] == '0')
         return false;
-    if(buf[1] == '1')
+    if(buf[0] == '1')
         return true;
     throw XInterface::XConvError(__FILE__, __LINE__);
 }
