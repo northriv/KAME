@@ -27,7 +27,7 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
     : XSecondaryDriver(name, runtime, ref(tr_meas), meas),
     m_clear(create<XTouchableNode>("Clear", true)),
     m_form(new FrmODMRFSpectrum),
-    m_spectrum(create<XWaveNGraph>("Spectrum", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
+    m_spectrum(create<XWaveNGraph>("Spectrum", false, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
             m_form->m_tlbMath, meas, static_pointer_cast<XDriver>(shared_from_this()))),
     m_sg1(create<XItemNode<XDriverList, XSG> >(
           "SG1", false, ref(tr_meas), meas->drivers(), true)),

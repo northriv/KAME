@@ -249,9 +249,12 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
         ptr = creator(type)
             (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot, shared_from_this(),
             name_split);
-        if(ptr)
-            if( !this->insert(tr, ptr))
+        if(ptr) {
+            static_pointer_cast<XGraphMathTool>(ptr)->setStoredTypename(type);
+            if( !this->insert(tr, ptr, true))
                 return false;
+            tr[ *ptr].setUIEnabled(tr[ *this].isUIEnabled());
+        }
         return true;
     });
     return ptr;
@@ -276,9 +279,12 @@ XGraph2DMathToolList::createByTypename(const XString &type, const XString& name)
         ptr = creator(type)
             (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot, shared_from_this(),
             name_split);
-        if(ptr)
-            if( !this->insert(tr, ptr))
+        if(ptr) {
+            static_pointer_cast<XGraphMathTool>(ptr)->setStoredTypename(type);
+            if( !this->insert(tr, ptr, true))
                 return false;
+            tr[ *ptr].setUIEnabled(tr[ *this].isUIEnabled());
+        }
         return true;
     });
     return ptr;

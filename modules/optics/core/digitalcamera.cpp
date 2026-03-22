@@ -44,7 +44,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
                                    m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
                                    2, m_form->m_dblGamma,//w/dark
                                    m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))),
-    m_waveHist(create<XWaveNGraph>("WaveHistogram", true, m_form->m_graphwidgetHist, m_form->m_edHistDump, m_form->m_tbHistDump, m_form->m_btnHistDump)) {
+    m_waveHist(create<XWaveNGraph>("WaveHistogram", false, m_form->m_graphwidgetHist, m_form->m_edHistDump, m_form->m_tbHistDump, m_form->m_btnHistDump)) {
 
     m_form->setWindowTitle(i18n("Digital Camera - ") + getLabel() );
     m_conUIs = {

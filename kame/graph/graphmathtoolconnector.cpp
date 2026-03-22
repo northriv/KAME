@@ -270,6 +270,7 @@ void XQGraph1DMathToolConnector::menuOpenActionActivated() {
         }
         for(auto &toollist: m_lists) {
             Snapshot shot( *toollist);
+            if((unsigned int)shot.size() <= i) continue;
             auto pair = std::pair<shared_ptr<XGraph1DMathToolList>, shared_ptr<XNode>>(toollist, shot.list()->at(i));
             m_actionToExisitingToolMap.emplace(menuoftool->menuAction(), pair);
             auto it = m_actionToExisitingToolMap.emplace(actdel, pair);
@@ -315,6 +316,7 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
         }
         for(auto &toollist: m_lists) {
             Snapshot shot( *toollist);
+            if((unsigned int)shot.size() <= i) continue;
             auto pair = std::pair<shared_ptr<XGraph2DMathToolList>, shared_ptr<XNode>>(toollist, shot.list()->at(i));
             m_actionToExisitingToolMap.emplace(menuoftool->menuAction(), pair);
             auto it = m_actionToExisitingToolMap.emplace(actdel, pair);

@@ -236,6 +236,8 @@ XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, i
                 formatString("%s-Math", label.c_str()).c_str(), false, meas, driver, plot));
             if( !m_toolLists.back())
                 return false; //transaction has failed.
+            if(m_toolLists.size() > 1)
+                tr[ *m_toolLists.back()].setUIEnabled(false); //secondary lists must not show OSOs.
             tr.mark(wave.m_tlkOnPlotInsertion, &wave);
         }
     return true;

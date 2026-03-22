@@ -107,9 +107,9 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
       m_mapWindowWidth(create<XDoubleNode>("MapWindowWidth", false, "%.1f")),
       m_form(new FrmNMRT1),
       m_statusPrinter(XStatusPrinter::create(m_form.get())),
-      m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)),
-      m_waveMap(create<XWaveNGraph>("WaveMap", true, m_form->m_graphRelaxMap, m_form->m_edRelaxMapDump, m_form->m_tbRelaxMapDump, m_form->m_btnRelaxMapDump)),
-      m_waveAllRelaxCurves(create<XWaveNGraph>("WaveAllRelaxCurves", true, m_form->m_graphAllRelaxCurves, m_form->m_edAllRelaxCurvesDump, m_form->m_tbAllRelaxCurvesDump, m_form->m_btnAllRelaxCurvesDump))
+      m_wave(create<XWaveNGraph>("Wave", false, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)),
+      m_waveMap(create<XWaveNGraph>("WaveMap", false, m_form->m_graphRelaxMap, m_form->m_edRelaxMapDump, m_form->m_tbRelaxMapDump, m_form->m_btnRelaxMapDump)),
+      m_waveAllRelaxCurves(create<XWaveNGraph>("WaveAllRelaxCurves", false, m_form->m_graphAllRelaxCurves, m_form->m_edAllRelaxCurvesDump, m_form->m_tbAllRelaxCurvesDump, m_form->m_btnAllRelaxCurvesDump))
       {
 
     iterate_commit([=](Transaction &tr){

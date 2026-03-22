@@ -40,6 +40,11 @@ public:
 
     void highlight(bool state, const shared_ptr<XQGraphPainter> &painter);
 
+    virtual XString getTypename() const override {
+        return m_storedTypename.empty() ? XNode::getTypename() : m_storedTypename;
+    }
+    void setStoredTypename(const XString &t) { m_storedTypename = t; }
+
     void updateOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg);
 
     shared_ptr<XNode> parentList() {return m_parentList.lock();}
@@ -57,6 +62,7 @@ private:
     const shared_ptr<XHexNode> m_baseColor;
     const weak_ptr<XNode> m_parentList;
     bool m_highlight = false;
+    XString m_storedTypename;
     std::deque<shared_ptr<OnScreenObject>> m_osos;
 };
 
@@ -118,7 +124,7 @@ public:
         Base(name, runtime, ref(tr_meas), entries, driver, plot, parentList) {
         for(size_t i = 0; i < entrynames.size(); ++i) {
              this->m_entries.push_back(XNode::create<XScalarEntry>(
-                entrynames[i].c_str(), false, driver));
+                entrynames[i].c_str(), true, driver));
              entries->insert(tr_meas, m_entries.back());
         }
     }
