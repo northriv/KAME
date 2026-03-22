@@ -586,6 +586,8 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
             auto oso = createOneTimeOnScreenObject<OnScreenTextObject>(graph());
             oso->setBaseColor(shot[ *m_graph->titleColor()]);
             oso->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+            // Legend block shifts downward to avoid overlapping fixed elements (e.g. title).
+            oso->setEvadeDirection(OnScreenPickableObject::HowToEvade::ByDescent, 0.01f);
             float z = 0.97;
             oso->selectFont(longest_label, XGraph::ScrPoint(text_width * 0.9, y1, z), XGraph::ScrPoint(-1, 0, 0), XGraph::ScrPoint(0, dy * 0.85, 0), 0);
 			float x3 = x1 + 0.08;
@@ -762,5 +764,104 @@ XQGraphPainter::drawOffScreenPoints(const Snapshot &shot, ObjClassColorR red_col
 			plot->drawPlot(shot, this);
 		}
 	}
+}
+
+void
+XQGraphPainter::resolveOverlaps() {
+    // Collect all OnScreenTextObjects with valid AABBs.
+    // Listed OSOs are treated as higher-priority (more permanent) than painted ones.
+    struct Entry {
+        OnScreenTextObject *text;
+        double x1, y1, x2, y2; // effective AABB in window coords, kept in sync with shift
+        bool evadable;          // shifts to avoid obstacles
+        bool hide_if_overlapping; // stays put; hidden if any overlap remains after main pass
+    };
+    std::vector<Entry> entries;
+
+    auto tryAdd = [&](OnScreenObject *oso) {
+        auto *txt = dynamic_cast<OnScreenTextObject *>(oso);
+        if( !txt) return;
+        if(txt->maxXOfBB() < txt->minXOfBB()) return; // no text drawn yet
+        const bool is_hide = (txt->evadeDirection() == OnScreenPickableObject::HowToEvade::Hide);
+        entries.push_back({txt,
+            txt->minXOfBB() + txt->shiftX(),
+            txt->minYOfBB() + txt->shiftY(),
+            txt->maxXOfBB() + txt->shiftX(),
+            txt->maxYOfBB() + txt->shiftY(),
+            !is_hide && (txt->evadeDirection() != OnScreenPickableObject::HowToEvade::Never),
+            is_hide});
+    };
+
+    XScopedLock<XMutex> lock(m_mutexOSO);
+    for(auto &&oso: m_listedOSOs)  tryAdd(oso.get());
+    for(auto &&w:   m_weakptrOSOs) if(auto o = w.lock()) tryAdd(o.get());
+    for(auto &&oso: m_paintedOSOs) tryAdd(oso.get());
+
+    // Each evadable object shifts to avoid all preceding objects — both fixed ones
+    // and evadable ones that have already been settled (greedy, first-settled wins).
+    // hide_if_overlapping entries are skipped here; they are handled in the final pass.
+    for(size_t i = 0; i < entries.size(); ++i) {
+        auto &e = entries[i];
+        if( !e.evadable || e.hide_if_overlapping) continue;
+
+        const int space_px = lrint(e.text->evadeSpace() * m_pItem->height());
+        bool moved;
+        int guard = 20; // prevent infinite loop in degenerate cases
+        do {
+            moved = false;
+            for(size_t j = 0; j < i; ++j) { // all preceding objects, fixed or already settled
+                const auto &o = entries[j];
+                if(e.x2 <= o.x1 || e.x1 >= o.x2 || e.y2 <= o.y1 || e.y1 >= o.y2) continue;
+                // Overlap: compute shift to clear it in the specified direction.
+                int dx = 0, dy = 0;
+                switch(e.text->evadeDirection()) {
+                case OnScreenPickableObject::HowToEvade::ByAscent:
+                    // Move up (smaller window y).
+                    dy = -lrint(e.y2 - o.y1) - space_px; break;
+                case OnScreenPickableObject::HowToEvade::ByDescent:
+                    // Move down (larger window y).
+                    dy = lrint(o.y2 - e.y1) + space_px; break;
+                case OnScreenPickableObject::HowToEvade::ToLeft:
+                    dx = -lrint(e.x2 - o.x1) - space_px; break;
+                case OnScreenPickableObject::HowToEvade::ToRight:
+                    dx = lrint(o.x2 - e.x1) + space_px; break;
+                default: break;
+                }
+                if(dx || dy) {
+                    e.text->setShift(e.text->shiftX() + dx, e.text->shiftY() + dy);
+                    e.x1 += dx; e.x2 += dx; e.y1 += dy; e.y2 += dy;
+                    moved = true;
+                }
+            }
+        } while(moved && --guard > 0);
+
+        // Clamp shift so the label stays within the window.
+        // If the window is too small to avoid both the obstacle and the edge,
+        // we accept the overlap rather than pushing the label out of view.
+        const double W = m_pItem->width(), H = m_pItem->height();
+        int sx = e.text->shiftX(), sy = e.text->shiftY();
+        if(e.x1 < 0)  { const int a = lrint(-e.x1);    sx += a; e.x1 += a; e.x2 += a; }
+        if(e.x2 > W)  { const int a = lrint(W - e.x2); sx += a; e.x1 += a; e.x2 += a; }
+        if(e.y1 < 0)  { const int a = lrint(-e.y1);    sy += a; e.y1 += a; e.y2 += a; }
+        if(e.y2 > H)  { const int a = lrint(H - e.y2); sy += a; e.y1 += a; e.y2 += a; }
+        e.text->setShift(sx, sy);
+    }
+
+    // Final pass: for HowToEvade::Hide entries, hide individual text items that
+    // overlap any settled (non-Hide) object.  Items that don't overlap are kept.
+    for(auto &e: entries) {
+        if( !e.hide_if_overlapping) continue;
+        for(size_t k = 0; k < e.text->itemCount(); ++k) {
+            double ix1, iy1, ix2, iy2;
+            e.text->itemBB(k, ix1, iy1, ix2, iy2);
+            for(const auto &o: entries) {
+                if(&e == &o || o.hide_if_overlapping) continue;
+                if(ix2 > o.x1 && ix1 < o.x2 && iy2 > o.y1 && iy1 < o.y2) {
+                    e.text->hideItem(k);
+                    break;
+                }
+            }
+        }
+    }
 }
 

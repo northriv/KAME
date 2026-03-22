@@ -151,6 +151,8 @@ public:
 
      //! Draws plots, axes.
     Snapshot startDrawing();
+     //! Resolves overlapping text objects by shifting evadable ones away from fixed ones.
+     void resolveOverlaps();
     //For color picking. Red is given by ObjClassColorR, Green is by ID (# in axes, for examplee).
     enum class ObjClassColorR {None, Axis, Plane, Grid, OSO_weakptr, OSO_painted, OSO_listed, Point = 128};
      void drawOffScreenGrids(const Snapshot &shot);

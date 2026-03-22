@@ -112,8 +112,11 @@ public:
     void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
         const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,
         HowToEvade direction = HowToEvade::Never, XGraph::SFloat space = 0.0);
-//    void evadeOnScreenObjects(const std::deque<std::weak_ptr<OnScreenObject>> &list, XGraph::SFloat space);
-//    static bool evadeMousePointer(const std::deque<std::weak_ptr<OnScreenObject>> &list);
+    //! Set evade direction for objects placed via drawText() rather than placeObject().
+    void setEvadeDirection(HowToEvade dir, XGraph::SFloat space = 0.0) {
+        m_direction = dir; m_space = space; }
+    HowToEvade evadeDirection() const {return m_direction;}
+    XGraph::SFloat evadeSpace() const {return m_space;}
     XGraph::ScrPoint &leftTop() {return m_leftTop;}
     XGraph::ScrPoint &rightTop() {return m_rightTop;}
     XGraph::ScrPoint &rightBottom() {return m_rightBottom;}
@@ -122,8 +125,8 @@ public:
     shared_ptr<XNode> pickableNode() const {return m_pickableNode.lock();}
 protected:
     XGraph::ScrPoint m_leftTop, m_rightBottom, m_leftBottom, m_rightTop;
-    XGraph::SFloat m_space;
-    HowToEvade m_direction;
+    XGraph::SFloat m_space = 0.0;
+    HowToEvade m_direction = HowToEvade::Never;
 private:
     weak_ptr<XNode> m_pickableNode;
 };
@@ -207,22 +210,42 @@ public:
                    int sizehint = 0);
     virtual bool hasTexture() const override {return true;}
 
-    //! in window coordinate, effective after drawText().
+    //! Full axis-aligned bounding box in window coordinates, valid after drawText().
     double minXOfBB() const {return m_minX;}
     double minYOfBB() const {return m_minY;}
     double maxXOfBB() const {return m_maxX;}
     double maxYOfBB() const {return m_maxY;}
+    //! Pixel shift applied by resolveOverlaps() and rendered in drawByPainter().
+    void setShift(int dx, int dy) {m_shiftX = dx; m_shiftY = dy;}
+    int shiftX() const {return m_shiftX;}
+    int shiftY() const {return m_shiftY;}
+    //! Hidden flag: set by resolveOverlaps() for HowToEvade::Hide objects that overlap.
+    void setHidden(bool h) {m_hidden = h;}
+    bool isHidden() const {return m_hidden;}
+    //! Per-item access for resolveOverlaps() fine-grained hide (HowToEvade::Hide).
+    size_t itemCount() const {return m_textOverpaint.size();}
+    //! AABB of item \a idx in window coords (shift already included).
+    void itemBB(size_t idx, double &x1, double &y1, double &x2, double &y2) const {
+        const auto &t = m_textOverpaint[idx];
+        x1 = t.bbx1 + m_shiftX; y1 = t.bby1 + m_shiftY;
+        x2 = t.bbx2 + m_shiftX; y2 = t.bby2 + m_shiftY;
+    }
+    void hideItem(size_t idx) {m_textOverpaint[idx].item_hidden = true;}
 private:
     atomic_shared_ptr<std::tuple<int, int, XString>> m_textThreadSafe;
     QString m_text;
     int m_curFontSize;
     int m_curAlign;
     double m_minX, m_minY, m_maxX, m_maxY;
+    int m_shiftX = 0, m_shiftY = 0;
+    bool m_hidden = false;
     struct Text {
         XGraph::ScrPoint pos, corners[4];
         QRgb rgba;
         ssize_t strpos, length;
         int x, y;
+        int bbx1 = 0, bby1 = 0, bbx2 = 0, bby2 = 0; //!< window-coord AABB of this item
+        bool item_hidden = false;
     };
     std::vector<Text> m_textOverpaint; //stores text to be overpainted.
 };

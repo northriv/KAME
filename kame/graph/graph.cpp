@@ -1144,6 +1144,29 @@ XAxis::drawLabel(const Snapshot &shot, XQGraphPainter *painter) {
     painter->posOffAxis(m_dirVector, &s1, AxisToLabel);
     s2 -= s1;
     s2 *= -1;
+    // Determine evade direction from the label's screen position relative to the viewport centre.
+    // The label is always placed outward from the viewport centre by posOffAxis,
+    // so we can deduce the outward window direction from its coordinates.
+    {
+        double lx, ly, lz;
+        if( !painter->screenToWindow(s1, &lx, &ly, &lz)) {
+            OnScreenPickableObject::HowToEvade evdir;
+            if(m_direction == AxisDirection::X) {
+                // X-axis label is above or below the axis in the window.
+                evdir = (ly > painter->widget()->height() * 0.5)
+                    ? OnScreenPickableObject::HowToEvade::ByDescent
+                    : OnScreenPickableObject::HowToEvade::ByAscent;
+            } else if(m_direction == AxisDirection::Y) {
+                // Y-axis label is left or right of the axis in the window.
+                evdir = (lx < painter->widget()->width() * 0.5)
+                    ? OnScreenPickableObject::HowToEvade::ToLeft
+                    : OnScreenPickableObject::HowToEvade::ToRight;
+            } else {
+                evdir = OnScreenPickableObject::HowToEvade::Never;
+            }
+            oso->setEvadeDirection(evdir, 0.01f);
+        }
+    }
     if( !oso->selectFont(shot[ *label()], s1, s2, s3, sizehint)) {
         oso->drawText(s1, shot[ *label()]);
         return;
@@ -1201,6 +1224,8 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 
     auto oso = painter->createOneTimeOnScreenObject<OnScreenTextObject>(shared_from_this());
     oso->setBaseColor(shot[ *ticColor()]);
+    // Individual tic labels that overlap the axis label (settled first) are hidden.
+    oso->setEvadeDirection(OnScreenPickableObject::HowToEvade::Hide);
 
     int len = std::lrint(shot[ *length()] / painter->resScreen());
 	XGraph::GFloat mindx = 2, lastg = -1;

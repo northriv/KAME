@@ -326,7 +326,7 @@ OnPlotObject<OSO>::valToScreen() {
           });
         for(auto p: s)
             p += m_offset;
-        OSO::placeObject(s[1], s[3], s[2], s[0], OSO::HowToEvade::Never, 0);
+        OSO::placeObject(s[1], s[3], s[2], s[0], this->m_direction, this->m_space);
     }
 }
 
@@ -378,7 +378,7 @@ OnAxisObject<OSO, IsXAxis>::toScreen() {
         for(auto p: s)
             p += m_offset;
 //        OSO::placeObject(s[1], s[3], s[2], s[0], OSO::HowToEvade::Never, 0);
-        OSO::placeObject(s[0], s[1], s[2], s[3], OSO::HowToEvade::Never, 0);
+        OSO::placeObject(s[0], s[1], s[2], s[3], this->m_direction, this->m_space);
     }
 }
 
@@ -460,8 +460,33 @@ OnScreenTextObject::OnScreenTextObject(XQGraphPainter* p, const std::__1::shared
 
 void
 OnScreenTextObject::drawNative(bool colorpicking) {
+    if(m_hidden) return;
+    // For the drawTextAtPlacedPosition path, drawText() is never called, so
+    // m_minX/Y/m_maxX/Y are never set.  Compute AABB here from the placed
+    // position and font metrics so that resolveOverlaps() can move this OSO.
+    if( !colorpicking) {
+        if(local_shared_ptr<std::tuple<int, int, XString>> txt_ptr = m_textThreadSafe) {
+            // Reset shift from previous frame so resolveOverlaps() starts fresh.
+            m_shiftX = m_shiftY = 0;
+            auto &[alignment_unused, sizehint, str] = *txt_ptr;
+            QFont font(painter()->widget()->font());
+            int fsz = std::min(14L, std::max(9L,
+                lrint(font.pointSize() * painter()->widget()->height() / painter()->widget()->logicalDpiY() / 3.5)));
+            font.setPointSize(fsz + sizehint);
+            QFontMetrics fm(font);
+            QRect bb = fm.boundingRect(str);
+            double x, y, z;
+            if( !painter()->screenToWindow(leftTop(), &x, &y, &z)) {
+                m_minX = x + bb.left();
+                m_minY = y + bb.top();
+                m_maxX = x + bb.right();
+                m_maxY = y + bb.bottom();
+            }
+        }
+    }
     if(colorpicking) {
         for(auto &&txt: m_textOverpaint) {
+            if(txt.item_hidden) continue;
             //just a rectangular.
             painter()->beginQuad(true);
             painter()->setVertex(txt.corners[0]);
@@ -475,6 +500,7 @@ OnScreenTextObject::drawNative(bool colorpicking) {
 }
 void
 OnScreenTextObject::drawByPainter(QPainter *qpainter) {
+    if(m_hidden) return;
     QFont font(qpainter->font());
     if(local_shared_ptr<std::tuple<int, int, XString>> txt = m_textThreadSafe) {
         //OSO treated as marker, text stored by drawTextAtPlacedPosition().
@@ -486,7 +512,7 @@ OnScreenTextObject::drawByPainter(QPainter *qpainter) {
         qpainter->setPen(QColor(baseColor()));
         double x,y,z;
         if( !painter()->screenToWindow(leftTop(), &x, &y, &z))
-            qpainter->drawText(x, y, str);
+            qpainter->drawText(x + m_shiftX, y + m_shiftY, str);
     }
     if(m_textOverpaint.size()) {
         //text stored by drawText().
@@ -494,12 +520,13 @@ OnScreenTextObject::drawByPainter(QPainter *qpainter) {
         qpainter->setFont(font);
         bool firsttime = true;
         for(auto &&text: m_textOverpaint) {
+            if(text.item_hidden) continue;
             auto str = m_text.mid(text.strpos, text.length);
 
             if((QColor(text.rgba) != qpainter->pen().color()) || firsttime)
                 qpainter->setPen(QColor(text.rgba));
             firsttime = false;
-            qpainter->drawText(text.x, text.y, str);
+            qpainter->drawText(text.x + m_shiftX, text.y + m_shiftY, str);
         }
     }
 }
@@ -508,6 +535,9 @@ void
 OnScreenTextObject::clear() {
     m_text.clear();
     m_textOverpaint.clear();
+    m_shiftX = m_shiftY = 0;
+    m_hidden = false;
+    m_minX = 0xffff; m_minY = 0xffff; m_maxX = -0xffff; m_maxY = -0xffff;
 }
 void
 OnScreenTextObject::drawTextAtPlacedPosition(const XString &str, int alignment, int sizehint) {
@@ -538,15 +568,22 @@ OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
 
     txt.x = lrint(x);
     txt.y = lrint(y);
-    m_minX = std::min(m_minX, x);
-    m_maxX = std::max(m_maxX, x);
-    m_minY = std::min(m_minY, y);
-    m_maxY = std::max(m_maxY, y);
-    //todo min/max xy -> placeobj
-    painter()->windowToScreen(x, y, z, &txt.corners[0]);
-    painter()->windowToScreen(x + bb.width(), y, z, &txt.corners[1]);
-    painter()->windowToScreen(x + bb.width(), y + bb.height(), z, &txt.corners[2]);
-    painter()->windowToScreen(x, y + bb.height(), z, &txt.corners[3]);
+    // Track AABB using actual glyph bounds relative to the baseline (bb.top() is
+    // negative = above baseline, bb.bottom() is positive = below baseline).
+    // Using plain y / y+bb.height() would be wrong because y is the baseline
+    // position after alignment, not the visual top edge.
+    txt.bbx1 = lrint(x + bb.left());
+    txt.bby1 = lrint(y + bb.top());
+    txt.bbx2 = lrint(x + bb.right());
+    txt.bby2 = lrint(y + bb.bottom());
+    m_minX = std::min(m_minX, (double)txt.bbx1);
+    m_maxX = std::max(m_maxX, (double)txt.bbx2);
+    m_minY = std::min(m_minY, (double)txt.bby1);
+    m_maxY = std::max(m_maxY, (double)txt.bby2);
+    painter()->windowToScreen(x + bb.left(),  y + bb.top(),    z, &txt.corners[0]);
+    painter()->windowToScreen(x + bb.right(), y + bb.top(),    z, &txt.corners[1]);
+    painter()->windowToScreen(x + bb.right(), y + bb.bottom(), z, &txt.corners[2]);
+    painter()->windowToScreen(x + bb.left(),  y + bb.bottom(), z, &txt.corners[3]);
 
     m_textOverpaint.push_back(std::move(txt));
 }

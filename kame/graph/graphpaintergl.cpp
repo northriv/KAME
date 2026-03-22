@@ -802,6 +802,9 @@ XQGraphPainter::paintGL () {
 
 //    checkGLError();
 
+    // All OSOs have been placed; resolve overlaps before QPainter rendering.
+    resolveOverlaps();
+
     glDisable(GL_DEPTH_TEST);
 
     //restores states

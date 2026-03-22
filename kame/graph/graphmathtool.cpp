@@ -139,6 +139,7 @@ XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const sh
         }
         if(auto oso = static_pointer_cast<OnXAxisTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
+            oso->setEvadeDirection(OnScreenPickableObject::HowToEvade::ByDescent, 0.005f);
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.01, 0.01, 0.01});
             oso->drawTextAtPlacedPosition(getLabel()
                 + " " + msg, Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +2 : -4);
@@ -196,6 +197,7 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const sh
         }
         if(auto oso = static_pointer_cast<OnPlotTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
+            oso->setEvadeDirection(OnScreenPickableObject::HowToEvade::ByDescent, 0.005f);
             oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
             oso->drawTextAtPlacedPosition(getLabel()
                 + " " + msg, Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +5 : +1);
