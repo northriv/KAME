@@ -20,9 +20,9 @@
 
 #include "serial.h"
 //Prologix GPIB USB
-class XPrologixInternalSerialPort : public XSerialPortWithInitialSetting {
+class XPrologixInternalSerialPort : public XSerialPortWithDefaultSetting {
 public:
-    using XSerialPortWithInitialSetting::XSerialPortWithInitialSetting;
+    using XSerialPortWithDefaultSetting::XSerialPortWithDefaultSetting;
     virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override;
 };
 class XPrologixGPIBPort : public XAddressedPort<XPrologixInternalSerialPort> {

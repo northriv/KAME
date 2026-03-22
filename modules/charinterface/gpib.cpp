@@ -16,7 +16,10 @@
 
 shared_ptr<XPort>
 XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
-    auto p = static_pointer_cast<XSerialPortWithInitialSetting>(XSerialPortWithInitialSetting::open(pInterface));
+    auto p = static_pointer_cast<XPrologixInternalSerialPort>(XSerialPortWithDefaultSetting::open(pInterface));
+
+    p->m_serialFlushBeforeWrite = false; //needed, if prologix is buffering.
+
     p->setEOS("\r");//CR
     p->send("++mode 1\r");
     msecsleep(1);
@@ -40,6 +43,7 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
 shared_ptr<XPort>
 XPrologixGPIBPort::open(const XCharInterface *pInterface) {
     auto p = static_pointer_cast<XPrologixGPIBPort>(XAddressedPort<XPrologixInternalSerialPort>::open(pInterface));
+    XScopedLock<XPrologixGPIBPort> lock( *p);
     p->unsetAddr();
     p->setupAddrAndSend(pInterface, "++clr\r");
     msecsleep(1);

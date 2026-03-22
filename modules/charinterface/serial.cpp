@@ -65,7 +65,7 @@ XSerialPort::open(const XCharInterface *pInterface) {
 	bzero( &ttyios, sizeof(ttyios));
 //      tcgetattr(m_scifd, &ttyios);
 
-    if( !m_forceInitialSetting) {
+    if( !m_forceDefaultSetting) {
         switch(static_cast<int>(pInterface->serialBaudRate())) {
         case 2400: baudrate = B2400; break;
         case 4800: baudrate = B4800; break;
@@ -85,7 +85,7 @@ XSerialPort::open(const XCharInterface *pInterface) {
 	cfmakeraw( &ttyios);
 	ttyios.c_cflag &= ~(PARENB | CSIZE);
     ttyios.c_cflag |= HUPCL | CLOCAL | CREAD;
-    if( !m_forceInitialSetting) {
+    if( !m_forceDefaultSetting) {
         if(pInterface->serialParity() == XCharInterface::PARITY_EVEN)
             ttyios.c_cflag |= PARENB;
         if(pInterface->serialParity() == XCharInterface::PARITY_ODD)
@@ -123,7 +123,7 @@ XSerialPort::open(const XCharInterface *pInterface) {
 
     DCB dcb;
     GetCommState(m_handle, &dcb); //loading the original state
-    if(m_forceInitialSetting) {
+    if(m_forceDefaultSetting) {
         dcb.BaudRate = 9600;
         dcb.ByteSize = 8;
         dcb.fParity = FALSE;
@@ -164,8 +164,10 @@ XSerialPort::open(const XCharInterface *pInterface) {
         throw XInterface::XCommError(i18n("tty SetCommTimeouts failed"), __FILE__, __LINE__);
 #endif /*SERIAL_WIN32*/
 
-    m_serialFlushBeforeWrite = pInterface->serialFlushBeforeWrite();
-    m_serialHasEchoBack = pInterface->serialHasEchoBack();
+    if( !m_forceDefaultSetting) {
+        m_serialFlushBeforeWrite = pInterface->serialFlushBeforeWrite();
+        m_serialHasEchoBack = pInterface->serialHasEchoBack();
+    }
 
     fprintf(stderr, "Serial port opened w/ baudrate=%d\n", (int)pInterface->serialBaudRate());
 

@@ -38,7 +38,7 @@ public:
     virtual void write(const char *sendbuf, int size) override;
     virtual void receive() override;
     virtual void receive(unsigned int length) override;
-private:
+protected:
 #ifdef SERIAL_POSIX
     void flush();
     int m_scifd;
@@ -48,14 +48,16 @@ private:
 #endif /*SERIAL_WIN32*/
     bool m_serialFlushBeforeWrite;
     bool m_serialHasEchoBack;
-protected:
-    bool m_forceInitialSetting = false;
+
+    bool m_forceDefaultSetting = false;
 };
 
-class XSerialPortWithInitialSetting : public XSerialPort {
+//! For non-serialport devices based on internal USB serial converter. e.g. Prologix USB-GPIB.
+//! Not to be affected by serialport setting of XInterface.
+class XSerialPortWithDefaultSetting : public XSerialPort {
 public:
-    XSerialPortWithInitialSetting(XCharInterface *interface) : XSerialPort(interface) {
-        m_forceInitialSetting = true;
+    XSerialPortWithDefaultSetting(XCharInterface *interface) : XSerialPort(interface) {
+        m_forceDefaultSetting = true;
     }
 };
 
