@@ -76,6 +76,18 @@ XQGraph1DMathToolConnector::~XQGraph1DMathToolConnector() {
 }
 
 void XQGraph1DMathToolConnector::toolActivated(QAction *act) {
+    if(m_autoRescaleActions.count(act)) {
+        auto graph = m_graphwidget->graph();
+        graph->iterate_commit([&](Transaction &tr){
+            if(tr.size(graph->axes()))
+                for(auto &n: *tr.list(graph->axes())) {
+                    auto axis = static_pointer_cast<XAxis>(n);
+                    if(tr[ *axis->autoScale()].isUIEnabled())
+                        tr[ *axis->autoScale()] = true;
+                }
+        });
+        return;
+    }
     if(m_actionToToolMap.count(act)) {
         auto label = m_actionToToolMap.at(act);
         m_graphwidget->activateAxisSelectionTool(XAxis::AxisDirection::X, label); //label will be used for createByTypename().
@@ -118,6 +130,18 @@ void XQGraph1DMathToolConnector::toolActivated(QAction *act) {
 }
 
 void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
+    if(m_autoRescaleActions.count(act)) {
+        auto graph = m_graphwidget->graph();
+        graph->iterate_commit([&](Transaction &tr){
+            if(tr.size(graph->axes()))
+                for(auto &n: *tr.list(graph->axes())) {
+                    auto axis = static_pointer_cast<XAxis>(n);
+                    if(tr[ *axis->autoScale()].isUIEnabled())
+                        tr[ *axis->autoScale()] = true;
+                }
+        });
+        return;
+    }
     if(m_actionToToolMap.count(act)) {
         auto label = m_actionToToolMap.at(act);
         m_graphwidget->activatePlaneSelectionTool(XAxis::AxisDirection::X, XAxis::AxisDirection::Y, label); //label will be used for createByTypename().
@@ -189,7 +213,9 @@ void XQGraph2DMathToolConnector::toolHovered(QAction *act) {
 }
 
 void XQGraph1DMathToolConnector::onPopupMenu(const Snapshot &shot, int ptx, int pty, XGraphMathTool *ptr) {
+    m_isFromPopup = true;
     menuOpenActionActivated();
+    m_isFromPopup = false;
     for(auto &&x: m_actionToExisitingToolMap) {
         if(x.second.second.get() == ptr) {
             QMenu *menu = m_menu->menuInAction(x.first);
@@ -202,7 +228,9 @@ void XQGraph1DMathToolConnector::onPopupMenu(const Snapshot &shot, int ptx, int 
 }
 
 void XQGraph2DMathToolConnector::onPopupMenu(const Snapshot &shot, int ptx, int pty, XGraphMathTool *ptr) {
+    m_isFromPopup = true;
     menuOpenActionActivated();
+    m_isFromPopup = false;
     for(auto &&x: m_actionToExisitingToolMap) {
         if(x.second.second.get() == ptr) {
             QMenu *menu = m_menu->menuInAction(x.first);
@@ -222,6 +250,7 @@ void XQGraph1DMathToolConnector::menuOpenActionActivated() {
     m_actionToToolMap.clear();
     m_deleteActions.clear();
     m_reselectActions.clear();
+    m_autoRescaleActions.clear();
     if(m_lists.empty())
         return;
     auto &list = m_lists[0];
@@ -233,6 +262,12 @@ void XQGraph1DMathToolConnector::menuOpenActionActivated() {
         menuoftool->addAction(actdel);
         QAction *actre = new QAction(i18n("Reselect Tool"), menuoftool);
         menuoftool->addAction(actre);
+        if(m_isFromPopup) {
+            menuoftool->addSeparator();
+            QAction *actar = new QAction(i18n("Auto Rescale"), menuoftool);
+            menuoftool->addAction(actar);
+            m_autoRescaleActions.insert(actar);
+        }
         for(auto &toollist: m_lists) {
             Snapshot shot( *toollist);
             auto pair = std::pair<shared_ptr<XGraph1DMathToolList>, shared_ptr<XNode>>(toollist, shot.list()->at(i));
@@ -260,6 +295,7 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
     m_deleteActions.clear();
     m_reselectActions.clear();
     m_actionToExisitingToolMap.clear();
+    m_autoRescaleActions.clear();
     if(m_lists.empty())
         return;
     auto &list = m_lists[0];
@@ -271,6 +307,12 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
         menuoftool->addAction(actdel);
         QAction *actre = new QAction(i18n("Reselect Tool"), menuoftool);
         menuoftool->addAction(actre);
+        if(m_isFromPopup) {
+            menuoftool->addSeparator();
+            QAction *actar = new QAction(i18n("Auto Rescale"), menuoftool);
+            menuoftool->addAction(actar);
+            m_autoRescaleActions.insert(actar);
+        }
         for(auto &toollist: m_lists) {
             Snapshot shot( *toollist);
             auto pair = std::pair<shared_ptr<XGraph2DMathToolList>, shared_ptr<XNode>>(toollist, shot.list()->at(i));

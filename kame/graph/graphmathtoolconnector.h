@@ -19,6 +19,7 @@
 
 #include "xnodeconnector.h"
 #include "graphmathtool.h"
+#include <set>
 
 class QPushButton;
 class QAction;
@@ -43,6 +44,8 @@ private:
     std::map<QAction *, XString> m_actionToToolMap;
     std::multimap<QAction *, std::pair<shared_ptr<XGraph1DMathToolList>, shared_ptr<XNode>>>
         m_actionToExisitingToolMap, m_deleteActions, m_reselectActions;
+    std::set<QAction *> m_autoRescaleActions;
+    bool m_isFromPopup = false;
 public:
 
 private:
@@ -71,6 +74,8 @@ private:
     std::map<QAction *, XString> m_actionToToolMap;
     std::multimap<QAction *, std::pair<shared_ptr<XGraph2DMathToolList>, shared_ptr<XNode>>>
         m_actionToExisitingToolMap, m_deleteActions, m_reselectActions;
+    std::set<QAction *> m_autoRescaleActions;
+    bool m_isFromPopup = false;
 public:
 private:
     std::deque<shared_ptr<XGraph2DMathToolList>> m_lists;
