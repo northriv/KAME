@@ -21,7 +21,6 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
     p->m_serialFlushBeforeWrite = false; //needed, if prologix is buffering.
 
     p->setEOS("\r"); //CR appended by send() — harmless extra CR on Prologix commands
-    p->m_receiveTerminator = "\x03"; //ETX — receive() stops here; matches Prologix EOT below
     p->send("++mode 1\r");
     msecsleep(1);
     p->send("++eoi 1\r");
@@ -89,7 +88,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                 msecsleep(1 + intf->gpibWaitBeforeSPoll());
                 setupAddrAndSend(intf, "++spoll\r");
                 msecsleep(1);
-                { XString t; std::swap(t, m_receiveTerminator); XSerialPort::receive(); std::swap(t, m_receiveTerminator); } //spoll reply uses \r not ETX
+                XSerialPort::receive(); //spoll reply from Prologix, terminated by \r (eos)
                 unsigned char spr = intf->toUInt();
                 if((spr & intf->gpibMAVbit())) {
                     //MAV detected
@@ -103,7 +102,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     msecsleep(40);
                     setupAddrAndSend(intf, "++read eoi\r");
                     msecsleep(40);
-                    XSerialPort::receive(); //instrument data — uses m_receiveTerminator (ETX)
+                    XSerialPort::receive("\x03"); //instrument data terminated by Prologix ETX EOT
                     break;
                 }
                 break;
@@ -128,7 +127,7 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
             msecsleep(intf->gpibWaitBeforeRead());
         }
         setupAddrAndSend(intf, "++read eoi\r");
-        XSerialPort::receive();
+        XSerialPort::receive("\x03"); //instrument data terminated by Prologix ETX EOT
     }
     catch (XInterface::XInterfaceError &e) {
         unsetAddr();
@@ -165,7 +164,7 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
                 setupAddrAndSend(intf, "++spoll\r");
                 // XSerialPort::send(formatString("++spoll %u\r", (unsigned int)shot[ *intf->address()]).c_str());
                 msecsleep(1);
-                { XString t; std::swap(t, m_receiveTerminator); XSerialPort::receive(); std::swap(t, m_receiveTerminator); } //spoll reply uses \r not ETX
+                XSerialPort::receive(); //spoll reply from Prologix, terminated by \r (eos)
                 unsigned char spr = intf->toUInt();
                 if(((spr & intf->gpibMAVbit()) == 0)) {
                     //MAV isn't detected

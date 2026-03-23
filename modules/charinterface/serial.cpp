@@ -262,35 +262,24 @@ XSerialPort::write(const char *sendbuf, int size) {
 }
 void
 XSerialPort::receive() {
-//   for(;;) {
-//        if(tcdrain(m_scifd) < 0) {
-//            dbgPrint("tcdrain failed, continue.");
-//            continue;
-//        }
-//        break;
-//   }
-
-	msecsleep(TTY_WAIT);
-   
-	buffer().resize(MIN_BUFFER_SIZE);
-   
-    const XString &termstr = m_receiveTerminator.empty() ? eos() : m_receiveTerminator;
-    const char *ceos = termstr.c_str();
+    receive(eos());
+}
+void
+XSerialPort::receive(const XString &terminator) {
+    msecsleep(TTY_WAIT);
+    buffer().resize(MIN_BUFFER_SIZE);
+    const char *ceos = terminator.c_str();
     unsigned int eos_len = strlen(ceos);
-	unsigned int len = 0;
-	for(;;) {
-		if(buffer().size() <= len + 1) 
-			buffer().resize(len + MIN_BUFFER_SIZE);
+    unsigned int len = 0;
+    for(;;) {
+        if(buffer().size() <= len + 1)
+            buffer().resize(len + MIN_BUFFER_SIZE);
 #ifdef SERIAL_POSIX
         int rlen = ::read(m_scifd, &buffer().at(len), 1);
-		if(rlen < 0) {
-			if(errno == EINTR) {
-				dbgPrint("Serial, EINTR, try to continue.");
-				continue;
-			}
-			else
-				throw XInterface::XCommError(i18n("read error"), __FILE__, __LINE__);
-		}
+        if(rlen < 0) {
+            if(errno == EINTR) { dbgPrint("Serial, EINTR, try to continue."); continue; }
+            else throw XInterface::XCommError(i18n("read error"), __FILE__, __LINE__);
+        }
 #endif
 #ifdef SERIAL_WIN32
         DWORD rlen;
@@ -300,16 +289,13 @@ XSerialPort::receive() {
             buffer().at(len) = '\0';
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
-		len += rlen;
-		if(len >= eos_len) {
-            if( !strncmp(&buffer().at(len - eos_len), ceos, eos_len)) {
-				break;
-			}
-		}
-	}
-    
-	buffer().resize(len + 1);
-	buffer().at(len) = '\0';
+        len += rlen;
+        if(len >= eos_len) {
+            if(!strncmp(&buffer().at(len - eos_len), ceos, eos_len)) break;
+        }
+    }
+    buffer().resize(len + 1);
+    buffer().at(len) = '\0';
 }
 void
 XSerialPort::receive(unsigned int length) {
