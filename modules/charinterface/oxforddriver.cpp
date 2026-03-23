@@ -79,6 +79,11 @@ XOxfordInterface::close() {
 void
 XOxfordInterface::receive() {
     XCharInterface::receive();
+    //Oxford prepends \n to each response; strip it so scanf sees the actual content.
+    auto &buf = buffer();
+    size_t start = 0;
+    while(start < buf.size() && buf[start] == '\n') start++;
+    if(start) buf.erase(buf.begin(), buf.begin() + start);
 }
 void
 XOxfordInterface::receive(unsigned int length) {
