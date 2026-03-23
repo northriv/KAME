@@ -45,9 +45,10 @@ XOxfordInterface::query(const char *str) {
 	for(int i = 0; i < 30; i++) {
 		XCharInterface::send(str);
 		XCharInterface::receive();
-		if(buffer().size() >= 1)
-			if(buffer()[0] == str[0])
-				return;
+		size_t k = 0;
+		while(k < buffer().size() && (buffer()[k] == '\n' || buffer()[k] == '\r')) k++;
+		if(k < buffer().size() && buffer()[k] == str[0])
+			return;
 		msecsleep(100);
 	}
 	throw XCommError(i18n("Oxford Query Error, Initial doesn't match"), __FILE__, __LINE__);
