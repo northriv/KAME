@@ -100,9 +100,16 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     gErrPrint(i18n("ibrd before ibwrt asserted"));
                     // clear device's buffer
                     msecsleep(40);
-                    setupAddrAndSend(intf, "++read eoi\r");
-                    msecsleep(40);
-                    XSerialPort::receive("\x03"); //instrument data terminated by Prologix ETX EOT
+                    if(!intf->eos().empty()) {
+                        setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
+                        msecsleep(40);
+                        XSerialPort::receive(intf->eos());
+                    }
+                    else {
+                        setupAddrAndSend(intf, "++read eoi\r");
+                        msecsleep(40);
+                        XSerialPort::receive("\x03");
+                    }
                     break;
                 }
                 break;
@@ -126,14 +133,15 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
             ScopedUnlock unlock( *this);
             msecsleep(intf->gpibWaitBeforeRead());
         }
-        if(intf->gpibNoEOI()) {
-            //Device doesn't assert EOI (e.g. Oxford instruments); read until last char of EOS.
+        if(!intf->eos().empty()) {
+            //Use EOS char as read terminator — works for both EOI and non-EOI devices.
             setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
             XSerialPort::receive(intf->eos());
         }
         else {
+            //No EOS set: rely on EOI + Prologix ETX EOT.
             setupAddrAndSend(intf, "++read eoi\r");
-            XSerialPort::receive("\x03"); //Prologix appends ETX after EOI
+            XSerialPort::receive("\x03");
         }
     }
     catch (XInterface::XInterfaceError &e) {
