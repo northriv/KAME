@@ -44,6 +44,7 @@ protected:
     int m_scifd;
 #endif /*SERIAL_POSIX*/
 #ifdef SERIAL_WIN32
+    void flush();
     void *m_handle;
 #endif /*SERIAL_WIN32*/
     bool m_serialFlushBeforeWrite;
