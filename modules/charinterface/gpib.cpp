@@ -101,18 +101,13 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     // clear device's buffer
                     msecsleep(40);
                     if(intf->gpibNoEOI() && !intf->eos().empty()) {
-                        const auto &eos = intf->eos();
-                        char term = (eos.size() >= 2) ? eos[eos.size() - 2] : eos.back();
-                        XString recvEos = (eos.size() >= 2) ? XString(eos.substr(0, eos.size() - 1)) : eos;
-                        setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)term));
-                        msecsleep(40);
-                        XSerialPort::receive(recvEos);
+                        setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
                     }
                     else {
                         setupAddrAndSend(intf, "++read eoi\r");
-                        msecsleep(40);
-                        XSerialPort::receive("\x03");
                     }
+                    msecsleep(40);
+                    XSerialPort::receive("\x03");
                     break;
                 }
                 break;
@@ -144,13 +139,12 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
             char term = (eos.size() >= 2) ? eos[eos.size() - 2] : eos.back();
             XString recvEos = (eos.size() >= 2) ? XString(eos.substr(0, eos.size() - 1)) : eos;
             setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)term));
-            XSerialPort::receive(recvEos);
         }
         else {
             //Use EOI + Prologix ETX EOT.
             setupAddrAndSend(intf, "++read eoi\r");
-            XSerialPort::receive("\x03");
         }
+        XSerialPort::receive("\x03");
     }
     catch (XInterface::XInterfaceError &e) {
         unsetAddr();

@@ -77,16 +77,6 @@ XOxfordInterface::close() {
 void
 XOxfordInterface::receive() {
     XCharInterface::receive();
-    //Oxford prepends whitespace to each response; strip it so scanf sees the actual content.
-    //Also strip trailing whitespace (e.g. CR left when using CR as Prologix read terminator).
-    auto &buf = XCharInterface::buffer_receive();
-    int start = 0;
-    while(start < (int)buf.size() && isspace((unsigned char)buf[start])) start++;
-    if(start) buf.erase(buf.begin(), buf.begin() + start);
-    int end = (int)buf.size() - 1; //index of '\0'
-    while(end > 0 && isspace((unsigned char)buf[end - 1])) end--;
-    buf.resize(end + 1);
-    buf[end] = '\0';
 }
 void
 XOxfordInterface::receive(unsigned int length) {
