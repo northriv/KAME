@@ -44,10 +44,8 @@ XOxfordInterface::query(const char *str) {
 	XScopedLock<XOxfordInterface> lock(*this);
 	for(int i = 0; i < 30; i++) {
 		XCharInterface::send(str);
-		XCharInterface::receive();
-		size_t k = 0;
-		while(k < buffer().size() && (buffer()[k] == '\n' || buffer()[k] == '\r')) k++;
-		if(k < buffer().size() && buffer()[k] == str[0])
+		XOxfordInterface::receive();
+		if(buffer().size() >= 1 && buffer()[0] == str[0])
 			return;
 		msecsleep(100);
 	}
@@ -79,10 +77,10 @@ XOxfordInterface::close() {
 void
 XOxfordInterface::receive() {
     XCharInterface::receive();
-    //Oxford prepends \n to each response; strip it so scanf sees the actual content.
-    auto &buf = buffer();
-    size_t start = 0;
-    while(start < buf.size() && buf[start] == '\n') start++;
+    //Oxford prepends whitespace to each response; strip it so scanf sees the actual content.
+    auto &buf = XCharInterface::buffer_receive();
+    int start = 0;
+    while(start < (int)buf.size() && isspace((unsigned char)buf[start])) start++;
     if(start) buf.erase(buf.begin(), buf.begin() + start);
 }
 void
