@@ -9,7 +9,8 @@ SUBDIRS += \
     mutex_test\
     transaction_test\
     transaction_dynamic_node_test\
-    transaction_negotiation_test
+    transaction_negotiation_test\
+    xnode_typename_test
 
 atomic_shared_ptr_test.file = atomic_shared_ptr_test.pro
 atomic_scoped_ptr_test.file = atomic_scoped_ptr_test.pro
@@ -18,3 +19,4 @@ mutex_test.file = mutex_test.pro
 transaction_test.file = transaction_test.pro
 transaction_dynamic_node_test.file = transaction_dynamic_node_test.pro
 transaction_negotiation_test.file = transaction_negotiation_test.pro
+xnode_typename_test.file = xnode_typename_test.pro

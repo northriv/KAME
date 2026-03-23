@@ -128,6 +128,7 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
         }
         setupAddrAndSend(intf, "++read eoi\r");
         XSerialPort::receive();
+        flush(); //discard any trailing LF left when instrument EOS is CRLF
     }
     catch (XInterface::XInterfaceError &e) {
         unsetAddr();
@@ -144,6 +145,7 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf, unsigned int length) {
         }
         setupAddrAndSend(intf, formatString("++read %u\r", length));
         XSerialPort::receive(length);
+        flush(); //discard any trailing LF left when instrument EOS is CRLF
     }
     catch (XInterface::XInterfaceError &e) {
         unsetAddr();
