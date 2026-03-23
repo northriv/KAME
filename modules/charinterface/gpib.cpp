@@ -89,7 +89,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                 msecsleep(1 + intf->gpibWaitBeforeSPoll());
                 setupAddrAndSend(intf, "++spoll\r");
                 msecsleep(1);
-                XSerialPort::receive();
+                { XString t; std::swap(t, m_receiveTerminator); XSerialPort::receive(); std::swap(t, m_receiveTerminator); } //spoll reply uses \r not ETX
                 unsigned char spr = intf->toUInt();
                 if((spr & intf->gpibMAVbit())) {
                     //MAV detected
@@ -103,7 +103,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     msecsleep(40);
                     setupAddrAndSend(intf, "++read eoi\r");
                     msecsleep(40);
-                    XSerialPort::receive();
+                    XSerialPort::receive(); //instrument data — uses m_receiveTerminator (ETX)
                     break;
                 }
                 break;
@@ -165,7 +165,7 @@ XPrologixGPIBPort::gpib_spoll_before_read(XCharInterface *intf) {
                 setupAddrAndSend(intf, "++spoll\r");
                 // XSerialPort::send(formatString("++spoll %u\r", (unsigned int)shot[ *intf->address()]).c_str());
                 msecsleep(1);
-                XSerialPort::receive();
+                { XString t; std::swap(t, m_receiveTerminator); XSerialPort::receive(); std::swap(t, m_receiveTerminator); } //spoll reply uses \r not ETX
                 unsigned char spr = intf->toUInt();
                 if(((spr & intf->gpibMAVbit()) == 0)) {
                     //MAV isn't detected
