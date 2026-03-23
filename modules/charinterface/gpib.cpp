@@ -103,7 +103,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     if(intf->gpibNoEOI() && !intf->eos().empty()) {
                         const auto &eos = intf->eos();
                         char term = (eos.size() >= 2) ? eos[eos.size() - 2] : eos.back();
-                        XString recvEos = (eos.size() >= 2) ? eos.substr(0, eos.size() - 1) : eos;
+                        XString recvEos = (eos.size() >= 2) ? XString(eos.substr(0, eos.size() - 1)) : eos;
                         setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)term));
                         msecsleep(40);
                         XSerialPort::receive(recvEos);
@@ -142,7 +142,7 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
             //if the device prepends the final EOS char (e.g. Oxford prepends LF).
             const auto &eos = intf->eos();
             char term = (eos.size() >= 2) ? eos[eos.size() - 2] : eos.back();
-            XString recvEos = (eos.size() >= 2) ? eos.substr(0, eos.size() - 1) : eos;
+            XString recvEos = (eos.size() >= 2) ? XString(eos.substr(0, eos.size() - 1)) : eos;
             setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)term));
             XSerialPort::receive(recvEos);
         }
