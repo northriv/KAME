@@ -101,13 +101,16 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     // clear device's buffer
                     msecsleep(40);
                     if(intf->gpibNoEOI() && !intf->eos().empty()) {
+                        //Device doesn't assert EOI; use EOS as read terminator. (e.g. Oxford).
                         setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
+                        msecsleep(40);
+                        XSerialPort::receive(intf->eos());
                     }
                     else {
                         setupAddrAndSend(intf, "++read eoi\r");
+                        msecsleep(40);
+                        XSerialPort::receive("\x03");
                     }
-                    msecsleep(40);
-                    XSerialPort::receive("\x03");
                     break;
                 }
                 break;
@@ -132,19 +135,15 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
             msecsleep(intf->gpibWaitBeforeRead());
         }
         if(intf->gpibNoEOI() && !intf->eos().empty()) {
-            //Device doesn't assert EOI; use EOS as read terminator.
-            //Use penultimate char (e.g. CR of "\r\n") to avoid premature termination
-            //if the device prepends the final EOS char (e.g. Oxford prepends LF).
-            const auto &eos = intf->eos();
-            char term = (eos.size() >= 2) ? eos[eos.size() - 2] : eos.back();
-            XString recvEos = (eos.size() >= 2) ? XString(eos.substr(0, eos.size() - 1)) : eos;
-            setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)term));
+            //Device doesn't assert EOI; use EOS as read terminator. (e.g. Oxford).
+            setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
+            XSerialPort::receive(intf->eos());
         }
         else {
             //Use EOI + Prologix ETX EOT.
             setupAddrAndSend(intf, "++read eoi\r");
+            XSerialPort::receive("\x03");
         }
-        XSerialPort::receive("\x03");
     }
     catch (XInterface::XInterfaceError &e) {
         unsetAddr();
@@ -159,7 +158,7 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf, unsigned int length) {
             ScopedUnlock unlock( *this);
             msecsleep(intf->gpibWaitBeforeRead());
         }
-        setupAddrAndSend(intf, formatString("++read %u\r", length));
+        setupAddrAndSend(intf, "++read eoi\r");
         XSerialPort::receive(length);
     }
     catch (XInterface::XInterfaceError &e) {
