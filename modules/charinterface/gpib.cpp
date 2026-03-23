@@ -101,9 +101,12 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     // clear device's buffer
                     msecsleep(40);
                     if(intf->gpibNoEOI() && !intf->eos().empty()) {
-                        setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
+                        const auto &eos = intf->eos();
+                        char term = (eos.size() >= 2) ? eos[eos.size() - 2] : eos.back();
+                        XString recvEos = (eos.size() >= 2) ? eos.substr(0, eos.size() - 1) : eos;
+                        setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)term));
                         msecsleep(40);
-                        XSerialPort::receive(intf->eos());
+                        XSerialPort::receive(recvEos);
                     }
                     else {
                         setupAddrAndSend(intf, "++read eoi\r");
@@ -134,9 +137,14 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
             msecsleep(intf->gpibWaitBeforeRead());
         }
         if(intf->gpibNoEOI() && !intf->eos().empty()) {
-            //Device doesn't assert EOI; use EOS char as read terminator.
-            setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
-            XSerialPort::receive(intf->eos());
+            //Device doesn't assert EOI; use EOS as read terminator.
+            //Use penultimate char (e.g. CR of "\r\n") to avoid premature termination
+            //if the device prepends the final EOS char (e.g. Oxford prepends LF).
+            const auto &eos = intf->eos();
+            char term = (eos.size() >= 2) ? eos[eos.size() - 2] : eos.back();
+            XString recvEos = (eos.size() >= 2) ? eos.substr(0, eos.size() - 1) : eos;
+            setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)term));
+            XSerialPort::receive(recvEos);
         }
         else {
             //Use EOI + Prologix ETX EOT.
