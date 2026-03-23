@@ -100,7 +100,7 @@ XPrologixGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) 
                     gErrPrint(i18n("ibrd before ibwrt asserted"));
                     // clear device's buffer
                     msecsleep(40);
-                    if(!intf->eos().empty()) {
+                    if(intf->gpibNoEOI() && !intf->eos().empty()) {
                         setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
                         msecsleep(40);
                         XSerialPort::receive(intf->eos());
@@ -133,13 +133,13 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
             ScopedUnlock unlock( *this);
             msecsleep(intf->gpibWaitBeforeRead());
         }
-        if(!intf->eos().empty()) {
-            //Use EOS char as read terminator — works for both EOI and non-EOI devices.
+        if(intf->gpibNoEOI() && !intf->eos().empty()) {
+            //Device doesn't assert EOI; use EOS char as read terminator.
             setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
             XSerialPort::receive(intf->eos());
         }
         else {
-            //No EOS set: rely on EOI + Prologix ETX EOT.
+            //Use EOI + Prologix ETX EOT.
             setupAddrAndSend(intf, "++read eoi\r");
             XSerialPort::receive("\x03");
         }
