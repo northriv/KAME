@@ -39,6 +39,9 @@ public:
     virtual void receive() override;
     virtual void receive(unsigned int length) override;
 protected:
+    //! When non-empty, receive() stops on this instead of eos(). Allows a
+    //! different terminator for incoming vs the EOS appended by send().
+    XString m_receiveTerminator;
 #ifdef SERIAL_POSIX
     int m_scifd;
 #endif /*SERIAL_POSIX*/

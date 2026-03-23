@@ -20,7 +20,8 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
 
     p->m_serialFlushBeforeWrite = false; //needed, if prologix is buffering.
 
-    p->setEOS("\x03"); //ETX — matches Prologix EOT char below; never appears in instrument data
+    p->setEOS("\r"); //CR appended by send() — harmless extra CR on Prologix commands
+    p->m_receiveTerminator = "\x03"; //ETX — receive() stops here; matches Prologix EOT below
     p->send("++mode 1\r");
     msecsleep(1);
     p->send("++eoi 1\r");

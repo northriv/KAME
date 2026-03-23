@@ -274,7 +274,8 @@ XSerialPort::receive() {
    
 	buffer().resize(MIN_BUFFER_SIZE);
    
-    const char *ceos = eos().c_str();
+    const XString &termstr = m_receiveTerminator.empty() ? eos() : m_receiveTerminator;
+    const char *ceos = termstr.c_str();
     unsigned int eos_len = strlen(ceos);
 	unsigned int len = 0;
 	for(;;) {

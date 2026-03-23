@@ -24,8 +24,6 @@ class XPrologixInternalSerialPort : public XSerialPortWithDefaultSetting {
 public:
     using XSerialPortWithDefaultSetting::XSerialPortWithDefaultSetting;
     virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override;
-    //! Bypasses EOS append — Prologix commands already carry their own \r terminator.
-    virtual void send(const char *str) override { write(str, strlen(str)); }
 };
 class XPrologixGPIBPort : public XAddressedPort<XPrologixInternalSerialPort> {
 public:
