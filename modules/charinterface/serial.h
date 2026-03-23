@@ -40,11 +40,9 @@ public:
     virtual void receive(unsigned int length) override;
 protected:
 #ifdef SERIAL_POSIX
-    void flush();
     int m_scifd;
 #endif /*SERIAL_POSIX*/
 #ifdef SERIAL_WIN32
-    void flush();
     void *m_handle;
 #endif /*SERIAL_WIN32*/
     bool m_serialFlushBeforeWrite;

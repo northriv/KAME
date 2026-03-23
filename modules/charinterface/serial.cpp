@@ -261,22 +261,6 @@ XSerialPort::write(const char *sendbuf, int size) {
 	} while (wlen < size);
 }
 void
-XSerialPort::flush() {
-#ifdef SERIAL_POSIX
-    for(;;) {
-        int ret = tcflush(m_scifd, TCIFLUSH);
-        if(ret < 0) {
-            if(errno == EINTR) continue;
-            throw XInterface::XCommError(i18n("tciflush error."), __FILE__, __LINE__);
-        }
-        break;
-    }
-#endif
-#ifdef SERIAL_WIN32
-    PurgeComm(m_handle, PURGE_RXCLEAR);
-#endif
-}
-void
 XSerialPort::receive() {
 //   for(;;) {
 //        if(tcdrain(m_scifd) < 0) {

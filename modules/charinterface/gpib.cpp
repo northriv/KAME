@@ -20,7 +20,7 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
 
     p->m_serialFlushBeforeWrite = false; //needed, if prologix is buffering.
 
-    p->setEOS("\r");//CR
+    p->setEOS("\x03"); //ETX — matches Prologix EOT char below; never appears in instrument data
     p->send("++mode 1\r");
     msecsleep(1);
     p->send("++eoi 1\r");
@@ -30,10 +30,10 @@ XPrologixInternalSerialPort::open(const XCharInterface *pInterface) {
     p->send("++ifc\r");
     msecsleep(1); //wait is needed after IFC.
     p->send("++read_tmo_ms 2000\r");
-    msecsleep(100); //necessary, otherwise CR cannot be recognized.
+    msecsleep(100);
     p->send("++eot_enable 1\r");
-    msecsleep(100); //necessary, otherwise CR cannot be recognized.
-    p->send("++eot_char 13\r"); //CR
+    msecsleep(100);
+    p->send("++eot_char 3\r"); //ETX — appended after instrument response; used as EOS above
     msecsleep(1);
     p->send("++eos 3\r"); //disables EOS handling to send.
     msecsleep(1);
@@ -47,7 +47,6 @@ XPrologixGPIBPort::open(const XCharInterface *pInterface) {
     p->unsetAddr();
     p->setupAddrAndSend(pInterface, "++clr\r");
     msecsleep(1);
-    p->flush();
     // p->send("++llo\r");
     // msecsleep(1);
     return p;
@@ -129,7 +128,6 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
         }
         setupAddrAndSend(intf, "++read eoi\r");
         XSerialPort::receive();
-        flush(); //purge LF left in USB buf when instrument EOS is CRLF
     }
     catch (XInterface::XInterfaceError &e) {
         unsetAddr();
@@ -146,7 +144,6 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf, unsigned int length) {
         }
         setupAddrAndSend(intf, formatString("++read %u\r", length));
         XSerialPort::receive(length);
-        flush(); //purge LF left in USB buf when instrument EOS is CRLF
     }
     catch (XInterface::XInterfaceError &e) {
         unsetAddr();
