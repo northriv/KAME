@@ -18,6 +18,7 @@ XOxfordInterface::XOxfordInterface
 	: XCharInterface(name, runtime, driver) {
     setEOS("\r\n");
     setGPIBWaitBeforeSPoll(10);
+    setGPIBNoEOI(true); //Oxford instruments don't assert EOI
 }
 void
 XOxfordInterface::send(const XString &str) {
@@ -40,24 +41,15 @@ XOxfordInterface::query(const XString &str) {
 }
 void
 XOxfordInterface::query(const char *str) {
-	lock();
-	try {
-		for(int i = 0; i < 30; i++) {
-			XCharInterface::send(str);
-			XCharInterface::receive();
-			if(buffer().size() >= 1)
-				if(buffer()[0] == str[0]) {
-					unlock();
-					return;
-				}
-			msecsleep(100);
-		}
+	XScopedLock<XOxfordInterface> lock(*this);
+	for(int i = 0; i < 30; i++) {
+		XCharInterface::send(str);
+		XCharInterface::receive();
+		if(buffer().size() >= 1)
+			if(buffer()[0] == str[0])
+				return;
+		msecsleep(100);
 	}
-	catch (XCommError &e) {
-		unlock();
-		throw e;
-	}
-	unlock();
 	throw XCommError(i18n("Oxford Query Error, Initial doesn't match"), __FILE__, __LINE__);
 }
 

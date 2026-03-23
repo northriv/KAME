@@ -94,13 +94,15 @@ public:
 	void setGPIBWaitBeforeRead(int msec) {m_gpibWaitBeforeRead = msec;}
 	void setGPIBWaitBeforeSPoll(int msec) {m_gpibWaitBeforeSPoll = msec;}
 	void setGPIBMAVbit(unsigned char x) {m_gpibMAVbit = x;}
-  
+	void setGPIBNoEOI(bool x) {m_gpibNoEOI = x;} //!< for devices that don't assert EOI (e.g. Oxford instruments)
+
 	bool gpibUseSerialPollOnWrite() const {return m_bGPIBUseSerialPollOnWrite;}
 	bool gpibUseSerialPollOnRead() const {return m_bGPIBUseSerialPollOnRead;}
 	int gpibWaitBeforeWrite() const {return m_gpibWaitBeforeWrite;}
 	int gpibWaitBeforeRead() const {return m_gpibWaitBeforeRead;}
 	int gpibWaitBeforeSPoll() const {return m_gpibWaitBeforeSPoll;}
 	unsigned char gpibMAVbit() const {return m_gpibMAVbit;}
+	bool gpibNoEOI() const {return m_gpibNoEOI;}
 	
 	//! These properties should be set before open().
 	void setSerialBaudRate(unsigned int rate) {m_serialBaudRate = rate;}
@@ -144,6 +146,7 @@ private:
 	int m_gpibWaitBeforeRead;
 	int m_gpibWaitBeforeSPoll;
 	unsigned char m_gpibMAVbit; //! don't check if zero
+	bool m_gpibNoEOI = false;
   
 	unsigned int m_serialBaudRate;
 	unsigned int m_serialStopBits;

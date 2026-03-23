@@ -82,6 +82,9 @@ XInterface::start() {
             open();
         }
         catch (XInterfaceError &e) {
+            if(isOpened()) {
+                try { close(); } catch (...) {} //clean up partial open (e.g. m_xport left set)
+            }
             e.print(getLabel() + i18n(": Opening interface failed, because "));
             iterate_commit([=](Transaction &tr){
                 tr[ *control()] = false;

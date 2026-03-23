@@ -126,8 +126,15 @@ XPrologixGPIBPort::receiveFrom(XCharInterface *intf) {
             ScopedUnlock unlock( *this);
             msecsleep(intf->gpibWaitBeforeRead());
         }
-        setupAddrAndSend(intf, "++read eoi\r");
-        XSerialPort::receive("\x03"); //instrument data terminated by Prologix ETX EOT
+        if(intf->gpibNoEOI()) {
+            //Device doesn't assert EOI (e.g. Oxford instruments); read until last char of EOS.
+            setupAddrAndSend(intf, formatString("++read %u\r", (unsigned char)intf->eos().back()));
+            XSerialPort::receive(intf->eos());
+        }
+        else {
+            setupAddrAndSend(intf, "++read eoi\r");
+            XSerialPort::receive("\x03"); //Prologix appends ETX after EOI
+        }
     }
     catch (XInterface::XInterfaceError &e) {
         unsetAddr();
