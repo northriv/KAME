@@ -662,7 +662,7 @@ void XNeoceraLTC21::open() {
 XLakeShoreBridge::XLakeShoreBridge(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
-	interface()->setEOS("\r\n");
+    interface()->setEOS("\r\n");
 //    interface()->setGPIBMAVbit(4); //valid read??? but serial poll does not respond.
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBUseSerialPollOnRead(false);
@@ -788,14 +788,15 @@ void XLakeShore340::open() {
 	Snapshot shot( *this);
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		interface()->queryf("CDISP? %u", idx + 1);
-        int res, maxcurr_idx, max_range_idx;
+        int res, maxcurr_idx = 4, max_range_idx = 5;
 		if(interface()->scanf("%*d,%d", &res) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
         if(res == 0) //no loop to display
             res = 50; //tentative
 		interface()->queryf("CLIMIT? %u", idx + 1);
-        if(interface()->scanf("%*f,%*f,%*f,%d, %d", &maxcurr_idx, &max_range_idx) != 2)
-			throw XInterface::XConvError(__FILE__, __LINE__);
+        if(interface()->scanf("%*f,%*f,%*f,%d, %d", &maxcurr_idx, &max_range_idx) != 2) {
+            // throw XInterface::XConvError(__FILE__, __LINE__);
+        }
 
 		interface()->query("CLIMI?");
         double max_curr_loop1 = 0.0;

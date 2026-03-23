@@ -195,15 +195,15 @@ XPrologixGPIBPort::setupAddrAndSend(const XCharInterface *intf, std::string extc
 
 //        XSerialPort::send(cmd.c_str());
 
-        msecsleep(3);
+        // msecsleep(1);
         XSerialPort::send(cmd.c_str());
-        msecsleep(30);
+        // msecsleep(1);
         if(extcmd.length())
             XSerialPort::send(extcmd.c_str());
     }
     else if(extcmd.length())
         XSerialPort::send(extcmd.c_str());
-    msecsleep(1);
+    // msecsleep(1);
 
     // std::string buf = extcmd;
     // std::string::size_type pos(buf.find("\r"));
