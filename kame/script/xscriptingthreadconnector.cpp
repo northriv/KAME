@@ -76,7 +76,7 @@ XScriptingThreadConnector::XScriptingThreadConnector(
         m_lsnOnDefout = tr[ *scrthread].onMessageOut().connectWeakly(
             shared_from_this(), &XScriptingThreadConnector::onDefout, Listener::FLAG_MAIN_THREAD_CALL);
         m_lsnOnStatusChanged = tr[ *scrthread->status()].onValueChanged().connectWeakly(
-	        shared_from_this(), &XScriptingThreadConnector::onStatusChanged);
+	        shared_from_this(), &XScriptingThreadConnector::onStatusChanged, Listener::FLAG_MAIN_THREAD_CALL);
     });
     onStatusChanged(shot, scrthread->status().get());
 
