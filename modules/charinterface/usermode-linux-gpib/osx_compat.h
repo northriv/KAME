@@ -9,7 +9,6 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <libusb-1.0/libusb.h>
 
@@ -114,16 +113,51 @@ struct device { char name[64]; void *driver_data; };
 #define module_exit(fn) void ni_module_exit(void)  { (fn)(); }
 
 /* =========================================================
- * 5. Atomics (C11 _Atomic)
- * ========================================================= */
+ * 5. Atomics
+ * =========================================================
+ * Clang's <stdatomic.h> defines atomic_load/store/exchange/… as macros.
+ * GCC 13 libstdc++ <atomic> declares free functions with the same names.
+ * When both are visible in a C++ TU the names clash (clang + libstdc++ mix).
+ *
+ * In C mode we use <stdatomic.h> as before.  In C++ mode we avoid including
+ * any atomic header here (osx_compat.h is often pulled in via an extern "C"
+ * block, which would prohibit C++ templates) and instead rely on the
+ * compiler-builtin __atomic_* intrinsics, which need no header.  The
+ * _Atomic qualifier on the typedef is a Clang/GCC C++ extension. */
+#ifdef __cplusplus
+/* Use plain int as storage; atomicity is provided by the __atomic_* builtins.
+ * _Atomic int is rejected as argument to __atomic_* in C++ mode by clang. */
+typedef int atomic_t;
+#  define ATOMIC_INIT(i) (i)
+static inline int  atomic_read(const atomic_t *v)
+    { return __atomic_load_n(v, __ATOMIC_SEQ_CST); }
+static inline void atomic_set(atomic_t *v, int i)
+    { __atomic_store_n(v, i, __ATOMIC_SEQ_CST); }
+static inline void atomic_inc(atomic_t *v)
+    { __atomic_fetch_add(v, 1, __ATOMIC_SEQ_CST); }
+static inline void atomic_dec(atomic_t *v)
+    { __atomic_fetch_sub(v, 1, __ATOMIC_SEQ_CST); }
+static inline int  atomic_inc_and_test(atomic_t *v)
+    { return __atomic_fetch_add(v, 1, __ATOMIC_SEQ_CST) == -1; }
+static inline int  atomic_dec_and_test(atomic_t *v)
+    { return __atomic_fetch_sub(v, 1, __ATOMIC_SEQ_CST) == 1; }
+#else
+#  include <stdatomic.h>
 typedef atomic_int atomic_t;
-#define ATOMIC_INIT(i) (i)
-static inline int  atomic_read(const atomic_t *v) { return atomic_load((atomic_t *)v); }
-static inline void atomic_set(atomic_t *v, int i)  { atomic_store(v, i); }
-static inline void atomic_inc(atomic_t *v)          { atomic_fetch_add(v, 1); }
-static inline void atomic_dec(atomic_t *v)          { atomic_fetch_sub(v, 1); }
-static inline int  atomic_inc_and_test(atomic_t *v) { return atomic_fetch_add(v, 1) == -1; }
-static inline int  atomic_dec_and_test(atomic_t *v) { return atomic_fetch_sub(v, 1) == 1; }
+#  define ATOMIC_INIT(i) (i)
+static inline int  atomic_read(const atomic_t *v)
+    { return atomic_load((atomic_t *)v); }
+static inline void atomic_set(atomic_t *v, int i)
+    { atomic_store(v, i); }
+static inline void atomic_inc(atomic_t *v)
+    { atomic_fetch_add(v, 1); }
+static inline void atomic_dec(atomic_t *v)
+    { atomic_fetch_sub(v, 1); }
+static inline int  atomic_inc_and_test(atomic_t *v)
+    { return atomic_fetch_add(v, 1) == -1; }
+static inline int  atomic_dec_and_test(atomic_t *v)
+    { return atomic_fetch_sub(v, 1) == 1; }
+#endif
 
 /* =========================================================
  * 6. Spinlock (mapped to pthread mutex)
@@ -500,7 +534,11 @@ static inline int usb_submit_urb(struct urb *urb, int flags) {
 
     unsigned int pipe_type = urb->pipe & 0xff00u;
     if (pipe_type == _USB_PIPE_INT_IN) {
-        /* Interrupt endpoint: needs a persistent background polling thread */
+        /* Interrupt endpoint: needs a persistent background polling thread.
+         * The driver calls usb_submit_urb() again from within the completion
+         * callback to "resubmit", but our thread already loops — ignore
+         * those resubmit calls to prevent spawning duplicate threads. */
+        if (urb->thread_started) return 0;
         int r = pthread_create(&urb->thread, NULL, _urb_thread_func, urb);
         if (r != 0) return -ENOMEM;
         urb->thread_started = 1;
