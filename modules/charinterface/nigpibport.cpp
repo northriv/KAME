@@ -125,10 +125,12 @@ void XNIUsermodeGPIBPort::spollBeforeRead(XCharInterface *intf) {
     if(!intf->gpibUseSerialPollOnRead() || !intf->gpibMAVbit()) return;
     int addr = gpibAddr(intf);
     try {
-        // Wait up to the board timeout for SRQ, then confirm MAV via serial poll.
-        // checkSRQ() costs one USB round-trip; full serialPoll() only fires once SRQ is seen.
-        const unsigned int timeout_ms = 3000; // match board timeout
-        uint8_t stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), timeout_ms);
+        // Single non-blocking SRQ check. If SRQ is already asserted, confirm MAV
+        // via serial poll; if not, fall straight through to read() (which blocks
+        // until the device drives EOI or the board timeout fires).
+        // A 3-second SRQ wait loop would cause ~3 s overhead for instruments that
+        // respond via EOI rather than SRQ, which is unacceptable on a shared bus.
+        uint8_t stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
         if(stb && !(stb & intf->gpibMAVbit()))
             gWarnPrint(i18n("SRQ asserted but MAV not set"));
     }
