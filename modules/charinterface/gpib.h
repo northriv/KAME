@@ -59,7 +59,7 @@ class XNIGPIBPort : public XPort
 public:
 	XNIGPIBPort(XCharInterface *interface);
 	virtual ~XNIGPIBPort();
- 
+
     virtual shared_ptr<XPort> open(const XCharInterface *pInterface) override;
     virtual void send(const char *str) override;
     virtual void write(const char *sendbuf, int size) override;
@@ -90,8 +90,12 @@ private:
 
 typedef XNIGPIBPort XGPIBPort;
 
+#elif defined HAVE_USERMODE_NI_GPIB
+#include "nigpibport.h"
+using XGPIBPort = XNIUsermodeGPIBPort;
+
 #else
     using XGPIBPort = XPrologixGPIBPort;
-#endif /*GPIB_NI*/
+#endif /*GPIB_NI / HAVE_USERMODE_NI_GPIB*/
 
 #endif /*GPIB_H_*/

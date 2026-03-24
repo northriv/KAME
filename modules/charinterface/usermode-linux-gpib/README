@@ -1,0 +1,136 @@
+usermode-linux-gpib — macOS userspace port of the NI USB-GPIB driver
+====================================================================
+
+This project compiles the Linux NI USB-GPIB kernel driver (ni_usb_gpib.c
+from linux-gpib 4.3.7) as a native macOS userspace executable.  All Linux
+kernel APIs are replaced by POSIX/libusb-1.0 equivalents provided by
+osx_compat.h; the driver source itself is unmodified.
+
+
+Supported hardware
+------------------
+  NI USB-B       (VID 0x3923 PID 0x702a)
+  NI USB-HS      (VID 0x3923 PID 0x709b)
+  NI USB-HS+     (VID 0x3923 PID 0x7618)
+  KUSB-488A      (VID 0x3923 PID 0x725c)
+  MC USB-488     (VID 0x3923 PID 0x725d)
+
+
+Prerequisites
+-------------
+  macOS (Apple Silicon or Intel), Xcode Command Line Tools or clang
+  libusb-1.0 via MacPorts:
+
+      sudo port install libusb
+
+  Headers:  /opt/local/include/libusb-1.0/libusb.h
+  Library:  /opt/local/lib/libusb-1.0.dylib
+
+
+Build
+-----
+  C++ entry point (main.cpp) — command line:
+
+      clang  -I. -Ilinux-gpib -I/opt/local/include -Wno-unused-function -Wno-visibility \
+             -std=gnu11 -c linux-gpib/ni_usb_gpib.c gpib_stubs.c
+      clang++ -I. -Ilinux-gpib -I/opt/local/include -Wno-unused-function -Wno-visibility \
+              -std=gnu++17 -c main.cpp NiGpibDriver.cpp
+      clang++ ni_usb_gpib.o gpib_stubs.o main.o NiGpibDriver.o \
+              -L/opt/local/lib -lusb-1.0 -lpthread -o ni_usb_gpib
+
+  linux-gpib/ni_usb_gpib.c and gpib_stubs.c must be compiled as C (not C++)
+  because nec7210.h uses 'private' as a struct field name.
+
+  C entry point (main.c) — command line:
+
+      clang -I. -Ilinux-gpib -I/opt/local/include -Wno-unused-function -Wno-visibility \
+            -std=gnu11 \
+            main.c linux-gpib/ni_usb_gpib.c gpib_stubs.c \
+            -L/opt/local/lib -lusb-1.0 -lpthread \
+            -o ni_usb_gpib
+
+  Qt Creator:  open usermode-linux-gpib.pro and build normally.
+               The .pro uses main.cpp by default.
+
+
+Usage
+-----
+  ./ni_usb_gpib                        detect adapter, print ready message
+  ./ni_usb_gpib <addr>                 send *IDN? to <addr>, EOI terminator
+  ./ni_usb_gpib <addr> <command>       send command, EOI terminator
+  ./ni_usb_gpib <addr> <command> cr    send command with CR terminator (no EOI)
+  ./ni_usb_gpib <addr> <command> lf    send command with LF terminator (no EOI)
+  ./ni_usb_gpib <addr> <command> crlf  send command with CR+LF terminator
+  ./ni_usb_gpib <addr> spoll           serial poll <addr>, print status byte
+  ./ni_usb_gpib <addr> ifc             assert Interface Clear (resets the bus)
+
+  <command> defaults to *IDN? when omitted.  The terminator keyword may also
+  be given without a command (e.g. ./ni_usb_gpib <addr> cr sends *IDN? with CR).
+
+  Trailing CR/LF are stripped from responses before display.
+
+  Without hardware connected the program exits with:
+      No supported NI USB-GPIB adapter found.
+
+
+macOS permissions
+-----------------
+  libusb requires exclusive access to the USB interface.  If NI-488.2 (or any
+  other IOKit driver) is installed and has claimed the interface, libusb will
+  print:
+
+      libusb_claim_interface(0) failed: LIBUSB_ERROR_ACCESS
+        Hint: another driver (e.g. NI-488.2) owns the interface.
+        Try running with sudo, or unload the NI kernel extension first.
+
+  Option A — run as root (simplest, works immediately):
+
+      sudo ./ni_usb_gpib [addr]
+
+  Option B — unload the NI kernel extension for the session:
+
+      sudo kextunload -b com.ni.ni488   # bundle ID may vary; check with:
+      kextstat | grep -i ni             # … then rerun without sudo
+
+  Option C — on a Mac without NI-488.2 installed (e.g. Apple Silicon running
+  only this port), no special privileges are needed.
+
+
+Architecture
+------------
+  osx_compat.h   Core shim.  Replaces all Linux kernel APIs used by
+                 ni_usb_gpib.c: basic types, kmalloc/kfree, list_head,
+                 spinlock/mutex/wait_queue/completion (pthreads), timer_list
+                 (pthread that sleeps then fires callback), and the full USB
+                 layer (struct urb, usb_submit_urb spawns a pthread).
+
+  linux-gpib/ni_usb_gpib.c
+                 Upstream kernel driver source, compiled as-is with
+                 osx_compat.h as the first include.
+
+  gpib_stubs.c   Userspace replacements for gpib_common.ko symbols
+                 (gpib_register_driver, push_gpib_event, …) plus the
+                 g_ni_usb_driver / g_ni_gpib_interface globals that capture
+                 the driver's registered pointers during module init.
+
+  NiGpibDriver.h/cpp
+                 C++ RAII wrapper around the driver lifecycle.  Exposes
+                 send(), read(), query(), and serialPoll() for use in
+                 client code (e.g. KAME).  open() performs the full
+                 initialisation sequence: attach, REN, IFC — matching
+                 what gpib_config does by default.
+
+  main.cpp       C++ command-line entry point, uses NiGpibDriver.
+  main.c         Plain-C equivalent entry point.
+
+
+Upstream source
+---------------
+  linux-gpib/  — driver source and headers extracted from linux-gpib-kernel-4.3.7
+                 (unchanged except for minor guards; see linux-gpib/README)
+
+License
+-------
+  GPL-2.0-or-later.  See COPYING.
+  Upstream linux-gpib files retain their original copyright and license
+  (see linux-gpib/README and linux-gpib/COPYING).
