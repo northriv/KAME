@@ -277,8 +277,9 @@ XGraph2DMathToolList::createByTypename(const XString &type, const XString& name)
     }
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot, shared_from_this(),
-            name_split);
+            (name.c_str(), false, ref(tr),
+            tr[ *this].isUIEnabled() ? meas->scalarEntries() : nullptr,
+            m_driver.lock(), plot, shared_from_this(), name_split);
         if(ptr) {
             static_pointer_cast<XGraphMathTool>(ptr)->setStoredTypename(type);
             if( !this->insert(tr, ptr, true))
