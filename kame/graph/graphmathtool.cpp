@@ -54,7 +54,7 @@ XGraphMathTool::XGraphMathTool(const char *name, bool runtime, Transaction &tr_m
     trans( *baseColor()) = 0x4080ffu;
 }
 bool
-XGraphMathTool::hasValidOSOs(const XQGraphPainter *painter) const {
+XGraphMathTool::hasValidOSOs(XQGraphPainter *painter) const {
     if(m_osos.empty()) return false;
     for(auto &&oso: m_osos) {
         if( !oso->isValid(painter)) return false;
