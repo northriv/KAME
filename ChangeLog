@@ -1,3 +1,10 @@
+* Wed Mar 25 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.8.0-1)
+- gpib: In OSX, NI USB-GPIB-HS(+) can work without kernel driver. usermode linux-gpib was embedded.
+- gpib: many improvements in Prologix USB-GPIB.
+- MathTools: storing/loading in .kam is possible.
+- small bug fixes by claude code.
+
 * Wed Mar 18 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.7.2-1)
 - python: fix deadlock using local() in Payload.
