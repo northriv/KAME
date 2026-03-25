@@ -93,7 +93,7 @@ macx{
                     usermode-linux-gpib/NiGpibDriver.h      \
                     usermode-linux-gpib/linux-gpib/ni_usb_gpib.h       \
                     usermode-linux-gpib/linux-gpib/gpib.h              \
-                    usermode-linux-gpib/linux-gpib/gpib_cmd.h          \
+                    usermode-linux-gpib/linux-gpib/gpib_user.h          \
                     usermode-linux-gpib/linux-gpib/gpib_proto.h        \
                     usermode-linux-gpib/linux-gpib/gpib_ioctl.h        \
                     usermode-linux-gpib/linux-gpib/gpib_types.h        \
