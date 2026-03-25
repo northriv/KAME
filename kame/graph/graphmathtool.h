@@ -125,14 +125,16 @@ public:
         for(size_t i = 0; i < entrynames.size(); ++i) {
              this->m_entries.push_back(XNode::create<XScalarEntry>(
                 entrynames[i].c_str(), true, driver));
-             entries->insert(tr_meas, m_entries.back());
+             if(entries) entries->insert(tr_meas, m_entries.back());
         }
     }
     virtual ~XGraphMathToolX() {}
 //    const shared_ptr<XScalarEntry> entry(unsigned int i = 0) const {return m_entries.at(i);}
     virtual bool releaseEntries(Transaction &tr) override {
+        auto elist = this->entries();
+        if( !elist) return true;
         for(auto &x: m_entries) {
-            if( !this->entries()->release(tr, x))
+            if( !elist->release(tr, x))
                 return false;
         }
         return true;

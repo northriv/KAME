@@ -55,6 +55,8 @@ XQGraph2DMathToolConnector::XQGraph2DMathToolConnector
     connect( m_menu, SIGNAL( aboutToShow() ), this, SLOT( menuOpenActionActivated() ) );
 
     for(auto &&list: lists) {
+        if(list != lists.front())
+            list->setUIEnabled(false); //back lists don't create OSOs or entries.
         list->iterate_commit([=](Transaction &tr){
             if(list == lists.at(0))
                 m_lsnOnPopupMenu = tr[ *list].popupMenu().connectWeakly(
