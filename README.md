@@ -49,7 +49,7 @@ It provides a transactional node tree, a scriptable UI, and a rich set of hardwa
 | **GSL** | |
 | **FFTW 3** | |
 | **Eigen 3** | |
-| **LAPACK / ATLAS / BLAS** | |
+| LAPACK / ATLAS / BLAS *(optional)* | |
 | **libusb** | USB instrument interfaces |
 | linux-gpib or NI 488.2 *(optional)* | GPIB interfaces |
 | NI DAQmx *(optional)* | NI data-acquisition hardware |
