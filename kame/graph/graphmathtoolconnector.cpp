@@ -289,6 +289,7 @@ void XQGraph1DMathToolConnector::menuOpenActionActivated() {
     }
     connect( m_menu, SIGNAL( triggered(QAction*) ), this, SLOT( toolActivated(QAction*) ) );
     connect( m_menu, SIGNAL( hovered(QAction*) ), this, SLOT( toolHovered(QAction*) ) );
+    toolHovered(nullptr); //ensure front-list OSOs are visible whenever the menu opens
 }
 
 
@@ -335,6 +336,7 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
     }
     connect( m_menu, SIGNAL( triggered(QAction*) ), this, SLOT( toolActivated(QAction*) ) );
     connect( m_menu, SIGNAL( hovered(QAction*) ), this, SLOT( toolHovered(QAction*) ) );
+    toolHovered(nullptr); //ensure front-list OSOs are visible whenever the menu opens
 }
 XQGraph2DMathToolConnector::~XQGraph2DMathToolConnector() {
     m_menu->clear();
