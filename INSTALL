@@ -1,20 +1,23 @@
 KAME instllation notes
 
 KAME needs following libraries:
-Qt >= 5.7 or Qt 6 with Qt5 compatibility module
-boost
+Qt >= 6.8 with Qt5 compatibility module
 ruby
+(optional) python3, pybind11, jupyter.
 gsl
 fftw (ver.3)
 ftgl
 eigen3
-lapack/atlas/blas
+libusb
+(optional) lapack/atlas/blas
+(optional) libdc1394
+(optional) euresys egrabber
 (optional) linux-gpib or National Instruments 488.2 library
 (optional) National Instruments DAQmx library 
 
 KAME now uses some of C++11 functionalities, so the C++ compiler has to be eighther of:
 clang++ >= 2.1.
-g++ >= 4.5. 
+g++ >= 4.8. 
 
 To build KAME, simply do:
 qmake (options) (path_to_source_dir)

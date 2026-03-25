@@ -41,10 +41,13 @@ unix {
 }
 
 win32 {
-    INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C"
-    INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include"
-    INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
-    DEFINES += HAVE_NI4882
+    exists("C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include") {
+        INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C"
+        INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include"
+        INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
+        DEFINES += HAVE_NI4882
+        message("Using NI488.2 for GPIB")
+    }
 
     HEADERS += \
         cyfxusb.h \
@@ -80,34 +83,31 @@ macx{
             message("Using NI488.2 for GPIB")
         }
     }
-    # Usermode NI USB-GPIB driver (macOS, used when NI4882 framework is unavailable)
-    !contains(DEFINES, HAVE_NI4882) {
-        exists("/opt/local/include/libusb-1.0/libusb.h"):
-            exists("usermode-linux-gpib/NiGpibDriver.cpp") {
-                DEFINES += HAVE_USERMODE_NI_GPIB
-                INCLUDEPATH += usermode-linux-gpib usermode-linux-gpib/linux-gpib /opt/local/include
-                QMAKE_CFLAGS += -Wno-unused-function -Wno-visibility
-                HEADERS += nigpibport.h  \
-                    nigpibport.h \
-                    usermode-linux-gpib/osx_compat.h        \
-                    usermode-linux-gpib/NiGpibDriver.h      \
-                    usermode-linux-gpib/linux-gpib/ni_usb_gpib.h       \
-                    usermode-linux-gpib/linux-gpib/gpib.h              \
-                    usermode-linux-gpib/linux-gpib/gpib_user.h          \
-                    usermode-linux-gpib/linux-gpib/gpib_proto.h        \
-                    usermode-linux-gpib/linux-gpib/gpib_ioctl.h        \
-                    usermode-linux-gpib/linux-gpib/gpib_types.h        \
-                    usermode-linux-gpib/linux-gpib/gpibP.h             \
-                    usermode-linux-gpib/linux-gpib/nec7210.h           \
-                    usermode-linux-gpib/linux-gpib/tnt4882_registers.h \
-                    usermode-linux-gpib/linux-gpib/gpib_state_machines.h \
+}
+# Usermode NI USB-GPIB driver (macOS, used when NI4882 framework is unavailable)
+!contains(DEFINES, HAVE_NI4882) {
+    DEFINES += HAVE_USERMODE_NI_GPIB
+    INCLUDEPATH += usermode-linux-gpib usermode-linux-gpib/linux-gpib
+    QMAKE_CFLAGS += -Wno-unused-function -Wno-visibility
+    HEADERS += nigpibport.h  \
+        nigpibport.h \
+        usermode-linux-gpib/osx_compat.h        \
+        usermode-linux-gpib/NiGpibDriver.h      \
+        usermode-linux-gpib/linux-gpib/ni_usb_gpib.h       \
+        usermode-linux-gpib/linux-gpib/gpib.h              \
+        usermode-linux-gpib/linux-gpib/gpib_user.h          \
+        usermode-linux-gpib/linux-gpib/gpib_proto.h        \
+        usermode-linux-gpib/linux-gpib/gpib_ioctl.h        \
+        usermode-linux-gpib/linux-gpib/gpib_types.h        \
+        usermode-linux-gpib/linux-gpib/gpibP.h             \
+        usermode-linux-gpib/linux-gpib/nec7210.h           \
+        usermode-linux-gpib/linux-gpib/tnt4882_registers.h \
+        usermode-linux-gpib/linux-gpib/gpib_state_machines.h \
 
-                SOURCES += \
-                    usermode-linux-gpib/NiGpibDriver.cpp \
-                    nigpibport.cpp \
-                    usermode-linux-gpib/linux-gpib/ni_usb_gpib.c \
-                    usermode-linux-gpib/gpib_stubs.c
-                message("Using usermode NI USB-GPIB driver")
-            }
-    }
+    SOURCES += \
+        usermode-linux-gpib/NiGpibDriver.cpp \
+        nigpibport.cpp \
+        usermode-linux-gpib/linux-gpib/ni_usb_gpib.c \
+        usermode-linux-gpib/gpib_stubs.c
+    message("Using usermode NI USB-GPIB driver")
 }

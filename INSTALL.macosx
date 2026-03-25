@@ -15,6 +15,6 @@ Deactivate "Add build library search path..." in the executable environment pane
 	Qt creator: project->build step->Additional Arguments->ABIs: check both the ABIs.
 
 (Note for NI 488.2)
-Not working with apple silicon.
-On x86-64, see
+Not needed anymore as of kame 7.8, because now kame utilizes embedded linux-gpib usermode driver.
+If one still uses NI 488.2 on x86-64, see
 https://www.ni.com/ja-jp/support/documentation/bugs/22/ni-488-2-21-5-known-issues.html#
