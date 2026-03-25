@@ -38,7 +38,12 @@ XNIUsermodeGPIBBoardPort::open(const XCharInterface *intf) {
     if(!m_drv->open())
         throw XInterface::XCommError(
             i18n("NI USB-GPIB: no supported adapter found or open failed"), __FILE__, __LINE__);
-    m_drv->interfaceClear();
+    try {
+        m_drv->interfaceClear();
+    }
+    catch(const std::exception &e) {
+        throw XInterface::XCommError(e.what(), __FILE__, __LINE__);
+    }
     return shared_from_this();
 }
 
@@ -67,7 +72,12 @@ XNIUsermodeGPIBPort::open(const XCharInterface *pInterface) {
     auto p = static_pointer_cast<XNIUsermodeGPIBPort>(
         XAddressedPort<XNIUsermodeGPIBBoardPort>::open(pInterface));
     XScopedLock<XNIUsermodeGPIBPort> lock(*p);
-    p->driver().deviceClear(gpibAddr(const_cast<XCharInterface *>(pInterface)));
+    try {
+        p->driver().deviceClear(gpibAddr(const_cast<XCharInterface *>(pInterface)));
+    }
+    catch(const std::exception &e) {
+        throw XInterface::XCommError(e.what(), __FILE__, __LINE__);
+    }
     return p;
 }
 
@@ -99,9 +109,13 @@ void XNIUsermodeGPIBPort::spollBeforeWrite(XCharInterface *intf) {
                 throw XInterface::XCommError(
                     i18n("too many spoll timeouts"), __FILE__, __LINE__);
             }
-            // Single non-blocking SRQ check (timeout=0) — don't wait for the device.
-            uint8_t stb;
-            stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
+            // // Single non-blocking SRQ check (timeout=0) — don't wait for the device.
+            // uint8_t stb;
+            // stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
+
+            if(intf->gpibWaitBeforeSPoll())
+                msecsleep(intf->gpibWaitBeforeSPoll());
+            uint8_t stb = driver().serialPoll(addr);
             if(stb & intf->gpibMAVbit()) {
                 //MAV detected
                 if(i < 2) {
@@ -131,19 +145,23 @@ void XNIUsermodeGPIBPort::spollBeforeRead(XCharInterface *intf) {
     int addr = gpibAddr(intf);
     try {
         for(int i = 0; ; i++) {
-            if(i > 30) {
+            if(i > 50) {
                 throw XInterface::XCommError(
                     i18n("too many spoll timeouts"), __FILE__, __LINE__);
             }
             // Single non-blocking SRQ check. If SRQ is already asserted, confirm MAV
             // via serial poll; if not, fall straight through to read() (which blocks
             // until the device drives EOI or the board timeout fires).
-            uint8_t stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
+            // uint8_t stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
+
+            if(intf->gpibWaitBeforeSPoll())
+                msecsleep(intf->gpibWaitBeforeSPoll());
+            uint8_t stb = driver().serialPoll(addr);
             if((stb & intf->gpibMAVbit()) == 0) {
 //                gWarnPrint(i18n("SRQ asserted but MAV not set"));
                 //MAV isn't detected
                 ScopedUnlock unlock( *this);
-                msecsleep(10 * i + 10);
+                msecsleep(i + 10);
                 continue;
             }
             break;
@@ -161,7 +179,12 @@ void XNIUsermodeGPIBPort::sendTo(XCharInterface *intf, const char *str) {
     int addr = gpibAddr(intf);
     const char *term = (intf->gpibNoEOI() && !intf->eos().empty())
                        ? intf->eos().c_str() : ""; //empty term → assert EOI
-    driver().send(addr, std::string(str), term);
+    try {
+        driver().send(addr, std::string(str), term);
+    }
+    catch(const std::exception &e) {
+        throw XInterface::XCommError(e.what(), __FILE__, __LINE__);
+    }
 }
 
 void XNIUsermodeGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) {
@@ -169,35 +192,50 @@ void XNIUsermodeGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int
     if(intf->gpibWaitBeforeWrite())
         msecsleep(intf->gpibWaitBeforeWrite());
     int addr = gpibAddr(intf);
-    driver().send(addr, std::string(sendbuf, size), ""); //assert EOI for raw writes
+    try {
+        driver().send(addr, std::string(sendbuf, size), ""); //assert EOI for raw writes
+    }
+    catch(const std::exception &e) {
+        throw XInterface::XCommError(e.what(), __FILE__, __LINE__);
+    }
 }
 
 void XNIUsermodeGPIBPort::receiveFrom(XCharInterface *intf) {
     spollBeforeRead(intf);
-    if(intf->gpibWaitBeforeRead()) {
-        ScopedUnlock unlock( *this);
-        msecsleep(intf->gpibWaitBeforeRead());
+    try {
+        if(intf->gpibWaitBeforeRead()) {
+            ScopedUnlock unlock( *this);
+            msecsleep(intf->gpibWaitBeforeRead());
+        }
+        int addr = gpibAddr(intf);
+        std::string response;
+        if(intf->gpibNoEOI() && !intf->eos().empty())
+            response = driver().readEOS(addr, noEoiReadTerm(intf));
+        else
+            response = driver().read(addr); //EOI termination
+        auto &buf = buffer();
+        buf.assign(response.begin(), response.end());
+        buf.push_back('\0');
     }
-    int addr = gpibAddr(intf);
-    std::string response;
-    if(intf->gpibNoEOI() && !intf->eos().empty())
-        response = driver().readEOS(addr, noEoiReadTerm(intf));
-    else
-        response = driver().read(addr); //EOI termination
-    auto &buf = buffer();
-    buf.assign(response.begin(), response.end());
-    buf.push_back('\0');
+    catch(const std::exception &e) {
+        throw XInterface::XCommError(e.what(), __FILE__, __LINE__);
+    }
 }
 
 void XNIUsermodeGPIBPort::receiveFrom(XCharInterface *intf, unsigned int length) {
     spollBeforeRead(intf);
-    if(intf->gpibWaitBeforeRead()) {
-        ScopedUnlock unlock( *this);
-        msecsleep(intf->gpibWaitBeforeRead());
+    try {
+        if(intf->gpibWaitBeforeRead()) {
+            ScopedUnlock unlock( *this);
+            msecsleep(intf->gpibWaitBeforeRead());
+        }
+        int addr = gpibAddr(intf);
+        std::string response;
+        response = driver().read(addr, length);
+        auto &buf = buffer();
+        buf.assign(response.begin(), response.end());
     }
-    int addr = gpibAddr(intf);
-    std::string response;
-    response = driver().read(addr, length);
-    auto &buf = buffer();
-    buf.assign(response.begin(), response.end());
+    catch(const std::exception &e) {
+        throw XInterface::XCommError(e.what(), __FILE__, __LINE__);
+    }
 }

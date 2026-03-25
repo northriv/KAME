@@ -333,15 +333,3 @@ XCharInterface::onQueryRequested(const Snapshot &shot, XValueNodeBase *) {
 		tr.unmark(m_lsnOnQueryRequested);
     });
 }
-void
-XCharInterface::lock() {
-    XInterface::lock();
-    if(isOpened())
-        openedPort()->lock();
-}
-void
-XCharInterface::unlock() {
-    if(isOpened())
-        openedPort()->unlock();
-    XInterface::unlock();
-}

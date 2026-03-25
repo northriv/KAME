@@ -128,9 +128,6 @@ public:
     virtual void receive() override;
     virtual void receive(unsigned int length);
     virtual bool isOpened() const override {return !!m_xport;}
-
-    virtual void lock() override; //locks XIterface::m_mutex and port's mutex if needed.
-    virtual void unlock() override;
 protected:
     virtual void open() override;
 	//! This can be called even if has already closed.
@@ -244,7 +241,6 @@ protected:
     //! Unlock mutex during its life time.
     struct ScopedUnlock {
         explicit ScopedUnlock(XAddressedPort &p) : m_port(p) {
-            assert(m_port.m_mutex.isLockedByCurrentThread());
             m_port.unlock();
         }
         ~ScopedUnlock() {
@@ -257,7 +253,7 @@ protected:
     };
 private:
     friend struct ScopedUnlock;
-    XRecursiveMutex m_mutex;
+    XMutex m_mutex; //To unlock effectively, never use it recursively.
 };
 
 #endif /*CHARINTERFACE_H_*/
