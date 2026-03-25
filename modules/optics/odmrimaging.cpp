@@ -489,6 +489,15 @@ XODMRImaging::visualize(const Snapshot &shot) {
         }
     }
 
+    {
+        //Ensure front-list (lists[0]) OSOs are visible. The update loop in analyze() is skipped in
+        //incremental-averaging mode (always throws XSkippedRecordError), and lists[0] is not in the
+        //active update range for seq_len < 4 sequences, so initialize OSOs here if not yet done.
+        auto painter = m_form->m_graphwidgetProcessed->painter().lock();
+        m_sampleToolLists[0]->refreshOSOs(painter);
+        m_referenceToolLists[0]->refreshOSOs(painter);
+        m_darkToolLists[0]->refreshOSOs(painter);
+    }
     if( !shot[ *this].m_accumulated[0] || (shot[ *this].currentIndex() > 0))
         return;
 

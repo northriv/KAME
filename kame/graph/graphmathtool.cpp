@@ -53,6 +53,15 @@ XGraphMathTool::XGraphMathTool(const char *name, bool runtime, Transaction &tr_m
     m_parentList(parentList) {
     trans( *baseColor()) = 0x4080ffu;
 }
+bool
+XGraphMathTool::hasValidOSOs(const XQGraphPainter *painter) const {
+    if(m_osos.empty()) return false;
+    for(auto &&oso: m_osos) {
+        if( !oso->isValid(painter)) return false;
+    }
+    return true;
+}
+
 void
 XGraphMathTool::highlight(bool state, const shared_ptr<XQGraphPainter> &painter) {
     m_highlight = state;
@@ -225,6 +234,21 @@ XGraphMathToolList<X, XQC>::onRelease(const Snapshot &, const XListNodeBase::Pay
         if( !static_pointer_cast<X>(e.released)->releaseEntries(tr))
             return;
     });
+}
+
+template <class X, class XQC>
+void
+XGraphMathToolList<X, XQC>::refreshOSOs(const shared_ptr<XQGraphPainter> &painter) {
+    if( !painter) return;
+    Snapshot shot( *this);
+    if( !shot.size()) return;
+    for(auto &x: *shot.list()) {
+        auto tool = static_pointer_cast<XGraphMathTool>(x);
+        if( !tool->hasValidOSOs(painter.get())) {
+            Snapshot tool_shot( *x);
+            tool->updateOnScreenObjects(tool_shot, painter, "");
+        }
+    }
 }
 
 template class XGraphMathToolList<XGraph1DMathTool, XQGraph1DMathToolConnector>;

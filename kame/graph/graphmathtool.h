@@ -40,6 +40,9 @@ public:
 
     void highlight(bool state, const shared_ptr<XQGraphPainter> &painter);
 
+    //! True if OSOs exist and are all valid for the given painter.
+    bool hasValidOSOs(const XQGraphPainter *painter) const;
+
     virtual XString getTypename() const override {
         return m_storedTypename.empty() ? XNode::getTypename() : m_storedTypename;
     }
@@ -346,6 +349,9 @@ public:
     using cv_iterator = typename X::cv_iterator;
 
     void setBaseColor(unsigned int color) {m_basecolor = color;}
+
+    //! Refresh OSOs for all tools without recomputing values (e.g. for lists not in the active sequence).
+    void refreshOSOs(const shared_ptr<XQGraphPainter> &painter);
 
     struct DECLSPEC_KAME Payload : public XCustomTypeListNode<X>::Payload {
         //requests popup Menu if XQGraph1/2DMathToolConnector is connected.
