@@ -2,9 +2,9 @@ usermode-linux-gpib — macOS userspace port of the NI USB-GPIB driver
 ====================================================================
 
 This project compiles the Linux NI USB-GPIB kernel driver (ni_usb_gpib.c
-from linux-gpib 4.3.7) as a native macOS userspace executable.  All Linux
-kernel APIs are replaced by POSIX/libusb-1.0 equivalents provided by
-osx_compat.h; the driver source itself is unmodified.
+from linux-gpib 4.3.6 / git 9813ff8f) as a native macOS userspace executable.
+All Linux kernel APIs are replaced by POSIX/libusb-1.0 equivalents provided
+by osx_compat.h; the driver source itself is unmodified.
 
 
 Supported hardware
@@ -52,6 +52,20 @@ Build
   Qt Creator:  open usermode-linux-gpib.pro and build normally.
                The .pro uses main.cpp by default.
 
+  Tests — mock mode (no hardware required):
+
+      make test_concurrent   # build only
+      make test              # build and run
+
+  Tests — real hardware mode:
+
+      make test_hw           # builds test_concurrent_hw and runs against addr 12
+      HW_ADDR=5 make test_hw # override instrument address
+
+  The hardware binary (test_concurrent_hw) links the real driver and runs
+  timed *IDN? and serialPoll sequences against the connected instrument,
+  printing min/avg/max per-call latency.
+
 
 Usage
 -----
@@ -71,6 +85,32 @@ Usage
 
   Without hardware connected the program exits with:
       No supported NI USB-GPIB adapter found.
+
+
+Linux userspace permissions
+---------------------------
+  libusb requires either root or a udev rule granting access to the device.
+  Without this, libusb_claim_interface() fails with LIBUSB_ERROR_ACCESS.
+
+  Option A — run as root (simplest):
+
+      sudo ./ni_usb_gpib [addr]
+
+  Option B — add a udev rule (recommended, persistent):
+
+      echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="3923", MODE="0666"' | \
+          sudo tee /etc/udev/rules.d/99-ni-usb-gpib.rules
+      sudo udevadm control --reload-rules && sudo udevadm trigger
+
+  Option C — if the ni_usb_gpib kernel module is already loaded it will have
+  claimed the interface.  Unload it first:
+
+      sudo modprobe -r ni_usb_gpib
+      sudo modprobe -r gpib_common      # if needed
+
+  The code calls libusb_set_auto_detach_kernel_driver() which will attempt the
+  detach automatically, but this still requires elevated permissions unless the
+  udev rule above is in place.
 
 
 macOS permissions
@@ -123,10 +163,18 @@ Architecture
   main.cpp       C++ command-line entry point, uses NiGpibDriver.
   main.c         Plain-C equivalent entry point.
 
+  test_concurrent.cpp
+                 Test suite.  Mock mode (default): injects a fake
+                 gpib_interface to test send/read/query/serialPoll without
+                 hardware.  Real hardware mode (-DREAL_HARDWARE): links the
+                 actual driver and measures per-call latency against the
+                 connected instrument.  Build with Makefile targets
+                 test_concurrent (mock) and test_concurrent_hw (hardware).
+
 
 Upstream source
 ---------------
-  linux-gpib/  — driver source and headers extracted from linux-gpib-kernel-4.3.7
+  linux-gpib/  — driver source and headers from linux-gpib 4.3.6 (git 9813ff8f)
                  (unchanged except for minor guards; see linux-gpib/README)
 
 License

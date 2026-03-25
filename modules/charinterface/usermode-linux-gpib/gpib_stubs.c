@@ -19,12 +19,11 @@ struct gpib_board board_array[GPIB_MAX_NUM_BOARDS];
 struct usb_driver     *g_ni_usb_driver    = NULL;
 struct gpib_interface *g_ni_gpib_interface = NULL;
 
-int gpib_register_driver(struct gpib_interface *interface, struct module *mod)
+void gpib_register_driver(struct gpib_interface *interface, struct module *mod)
 {
     (void)mod;
     g_ni_gpib_interface = interface;
     printf("gpib: registering driver '%s'\n", interface ? interface->name : "(null)");
-    return 0;
 }
 
 void gpib_unregister_driver(struct gpib_interface *interface)
@@ -39,10 +38,9 @@ int push_gpib_event(struct gpib_board *board, short event_type)
     return 0;
 }
 
-int pop_gpib_event(struct gpib_board *board, struct gpib_event_queue *queue,
-                   short *event_type)
+int pop_gpib_event(struct gpib_event_queue *queue, short *event_type)
 {
-    (void)board; (void)queue; (void)event_type;
+    (void)queue; (void)event_type;
     return -1;
 }
 
