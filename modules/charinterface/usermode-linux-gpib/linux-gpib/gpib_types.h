@@ -15,6 +15,18 @@
  *                                                                         *
  ***************************************************************************/
 
+/***************************************************************************
+    modifications for userspace port
+    modified by  : Kentaro Kitagawa
+    date         : 2026-03-25
+    description  : Guarded Linux kernel includes (linux/atomic.h, device.h,
+                   mutex.h, wait.h, sched.h, timer.h, interrupt.h) with
+                   #ifdef __KERNEL__; added explicit struct tags to the
+                   gpib_board_config, gpib_event_queue, and gpib_status_queue
+                   typedefs for C++ forward-declaration compatibility;
+                   removed mismatched #endif comment.
+ ***************************************************************************/
+
 #ifndef _GPIB_TYPES_H
 #define _GPIB_TYPES_H
 

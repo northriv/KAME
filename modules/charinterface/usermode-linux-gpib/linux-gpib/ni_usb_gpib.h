@@ -16,6 +16,15 @@
  *                                                                         *
  ***************************************************************************/
 
+/***************************************************************************
+    modifications for userspace port
+    modified by  : Kentaro Kitagawa
+    date         : 2026-03-25
+    description  : Guarded Linux-specific includes (linux/mutex.h,
+                   linux/semaphore.h, linux/usb.h, linux/timer.h) with
+                   #ifdef __KERNEL__ to allow userspace compilation.
+ ***************************************************************************/
+
 #ifndef _NI_USB_GPIB_H
 #define _NI_USB_GPIB_H
 

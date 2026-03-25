@@ -17,9 +17,18 @@
  *                                                                         *
  ***************************************************************************/
 
+/***************************************************************************
+    modifications for userspace port
+    modified by  : Kentaro Kitagawa
+    date         : 2026-03-25
+    description  : Include compat.h instead of Linux kernel headers when
+                   building outside the kernel (ifndef __KERNEL__), allowing
+                   compilation as a POSIX/Windows userspace application.
+ ***************************************************************************/
+
 #ifndef __KERNEL__
-/* macOS / POSIX userspace port — replace Linux kernel headers with shim */
-#include "osx_compat.h"
+/* userspace port — replace Linux kernel headers with platform shim */
+#include "compat.h"
 #else
 #include <linux/kernel.h>
 #include <linux/module.h>

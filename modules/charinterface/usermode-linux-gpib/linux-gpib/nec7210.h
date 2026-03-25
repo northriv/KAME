@@ -15,6 +15,15 @@
  *                                                                         *
  ***************************************************************************/
 
+/***************************************************************************
+    modifications for userspace port
+    modified by  : Kentaro Kitagawa
+    date         : 2026-03-25
+    description  : Guarded linux/types.h, linux/spinlock.h, linux/string.h,
+                   and linux/interrupt.h with #ifdef __KERNEL__ to allow
+                   userspace compilation.
+ ***************************************************************************/
+
 #ifndef _NEC7210_H
 #define _NEC7210_H
 

@@ -15,6 +15,15 @@
  *                                                                         *
  ***************************************************************************/
 
+/***************************************************************************
+    modifications for userspace port
+    modified by  : Kentaro Kitagawa
+    date         : 2026-03-25
+    description  : Guarded linux/types.h, version.h, linux/fs.h, and
+                   linux/interrupt.h with #ifdef __KERNEL__ to allow
+                   userspace compilation.
+ ***************************************************************************/
+
 #ifndef _GPIB_P_H
 #define _GPIB_P_H
 

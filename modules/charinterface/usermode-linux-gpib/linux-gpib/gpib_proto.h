@@ -1,3 +1,11 @@
+/***************************************************************************
+    modifications for userspace port
+    modified by  : Kentaro Kitagawa
+    date         : 2026-03-25
+    description  : Guarded linux/fs.h and kernel-only function declarations
+                   (ibopen, ibclose, ibioctl) with #ifdef __KERNEL__ to
+                   allow userspace compilation.
+ ***************************************************************************/
 
 #ifndef GPIB_PROTO_INCLUDED
 #define GPIB_PROTO_INCLUDED

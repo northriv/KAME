@@ -15,6 +15,15 @@
  *                                                                         *
  ***************************************************************************/
 
+/***************************************************************************
+    modifications for userspace port
+    modified by  : Kentaro Kitagawa
+    date         : 2026-03-25
+    description  : Replaced #include <asm/ioctl.h> (kernel-only) with
+                   inline _IOC/_IO/_IOR/_IOW/_IOWR macro definitions for
+                   non-Linux platforms; guarded original include with
+                   #ifdef __linux__.
+ ***************************************************************************/
 
 #ifndef _GPIB_IOCTL_H
 #define _GPIB_IOCTL_H

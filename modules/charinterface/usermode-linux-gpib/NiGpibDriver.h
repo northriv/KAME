@@ -25,7 +25,7 @@
 #include <vector>
 
 extern "C" {
-#include "osx_compat.h"
+#include "compat.h"
 #include "gpibP.h"
 }
 
@@ -87,12 +87,6 @@ public:
      * Returns however many bytes the driver actually delivered. */
     std::string read(int addr, size_t length);
 
-    /* Read using an explicit EOS character for hardware termination.
-     * EOI is not required.  Trailing CR/LF are stripped from the result.
-     * Use the penultimate byte of a 2-char EOS (e.g. CR of "\r\n") for
-     * devices that prepend the final EOS byte to their responses (Oxford). */
-    std::string readEOS(int addr, uint8_t eosChar, size_t max_len = 512);
-
     /* Convenience: send(addr, command, term) followed by read(addr).
      * If term is non-empty, hardware EOS detection is used for the read. */
     std::string query(int addr, const std::string &command,
@@ -101,12 +95,6 @@ public:
     /* Perform a serial poll of addr; returns the status byte (STB).
      * Bit 6 (0x40) is RQS — set when the device is requesting service. */
     uint8_t serialPoll(int addr);
-
-    /* Check whether the SRQ bus line is currently asserted.
-     * Returns true if SRQ is asserted, false if not or on -EBUSY (retry).
-     * This reads the BSR register in a single USB round-trip — much cheaper
-     * than a full serial poll (which requires 3 GPIB command operations). */
-    bool checkSRQ();
 
 private:
     int          board_pad_;
