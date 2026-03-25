@@ -338,14 +338,6 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             m_darkToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed->painter().lock(),
                 summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
         }
-        if(seq_len < 4) {
-            //lists[0] is the front (UI-enabled) list for the tool connectors but is not in the active
-            //update loop for seq_len < 4 sequences, so refresh its OSOs separately.
-            auto painter = m_form->m_graphwidgetProcessed->painter().lock();
-            m_sampleToolLists[0]->refreshOSOs(painter);
-            m_referenceToolLists[0]->refreshOSOs(painter);
-            m_darkToolLists[0]->refreshOSOs(painter);
-        }
         auto fn_tool_to_vector = [&](std::vector<double>&vec, const shared_ptr<XGraph2DMathToolList> &toollist, double dark = 0) {
             vec.clear();
             auto &list = *shot_this.list(toollist);
@@ -497,6 +489,15 @@ XODMRImaging::visualize(const Snapshot &shot) {
         }
     }
 
+    {
+        //Ensure front-list (lists[0]) OSOs are visible. The update loop in analyze() is skipped in
+        //incremental-averaging mode (always throws XSkippedRecordError), and lists[0] is not in the
+        //active update range for seq_len < 4 sequences, so initialize OSOs here if not yet done.
+        auto painter = m_form->m_graphwidgetProcessed->painter().lock();
+        m_sampleToolLists[0]->refreshOSOs(painter);
+        m_referenceToolLists[0]->refreshOSOs(painter);
+        m_darkToolLists[0]->refreshOSOs(painter);
+    }
     if( !shot[ *this].m_accumulated[0] || (shot[ *this].currentIndex() > 0))
         return;
 

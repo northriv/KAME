@@ -40,6 +40,9 @@ public:
 
     void highlight(bool state, const shared_ptr<XQGraphPainter> &painter);
 
+    //! True if OSOs exist and are all valid for the given painter.
+    bool hasValidOSOs(const XQGraphPainter *painter) const;
+
     virtual XString getTypename() const override {
         return m_storedTypename.empty() ? XNode::getTypename() : m_storedTypename;
     }
