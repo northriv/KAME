@@ -1,3 +1,16 @@
+/*
+ * osx_compat.h — Linux kernel API shim for the macOS userspace GPIB port.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
 #ifndef _MACOS_COMPAT_H_
 #define _MACOS_COMPAT_H_
 
@@ -11,6 +24,7 @@
 #include <sys/time.h>
 #include <stdbool.h>
 #include <libusb-1.0/libusb.h>
+/* semaphore.h / sem_init is deprecated on macOS; use pthread condvar instead */
 
 /* =========================================================
  * 1. Basic Types and Annotation Tags
@@ -97,6 +111,17 @@ struct device { char name[64]; void *driver_data; };
 #define dev_info(dev, fmt, ...)  printf("gpib: " fmt,          ##__VA_ARGS__)
 #define dev_warn(dev, fmt, ...)  printf("gpib: warn: " fmt,    ##__VA_ARGS__)
 #define dev_dbg(dev, fmt, ...)   do {} while (0)
+#define pr_info(fmt, ...)        printf("gpib: " fmt,          ##__VA_ARGS__)
+#define pr_err(fmt, ...)         fprintf(stderr, "gpib: " fmt, ##__VA_ARGS__)
+#define pr_warn(fmt, ...)        printf("gpib: warn: " fmt,    ##__VA_ARGS__)
+#define pr_debug(fmt, ...)       do {} while (0)
+
+#define BUG() do { \
+    fprintf(stderr, "BUG: %s:%d\n", __FILE__, __LINE__); \
+    abort(); \
+} while (0)
+#define BUG_ON(cond) do { if (cond) BUG(); } while (0)
+#define WARN_ON(cond) ((void)(cond))
 
 #define MODULE_AUTHOR(s)
 #define MODULE_DESCRIPTION(s)
@@ -158,6 +183,16 @@ static inline int  atomic_inc_and_test(atomic_t *v)
 static inline int  atomic_dec_and_test(atomic_t *v)
     { return atomic_fetch_sub(v, 1) == 1; }
 #endif
+
+/* smp_mb__before/after_atomic: memory barriers around atomic ops.
+ * In userspace on x86/x86-64 these are no-ops. */
+#define smp_mb__before_atomic() __asm__ __volatile__("" ::: "memory")
+#define smp_mb__after_atomic()  __asm__ __volatile__("" ::: "memory")
+
+/* Upstream linux-gpib renamed struct tags in gpib_types.h; bridge to the
+ * old names used by this userspace port. */
+#define gpib_interface_struct gpib_interface
+#define gpib_board_struct     gpib_board
 
 /* =========================================================
  * 6. Spinlock (mapped to pthread mutex)
@@ -260,6 +295,36 @@ static inline unsigned long wait_for_completion_timeout(struct completion *c, un
     if (ret) c->done--;
     pthread_mutex_unlock(&c->lock);
     return (unsigned long)ret;
+}
+
+/* =========================================================
+ * 9b. Semaphore (pthread condvar — avoids deprecated sem_init on macOS)
+ * ========================================================= */
+struct semaphore {
+    pthread_mutex_t lock;
+    pthread_cond_t  cond;
+    int             count;
+};
+static inline void sema_init(struct semaphore *sem, int count) {
+    pthread_mutex_init(&sem->lock, NULL);
+    pthread_cond_init(&sem->cond, NULL);
+    sem->count = count;
+}
+static inline void up(struct semaphore *sem) {
+    pthread_mutex_lock(&sem->lock);
+    sem->count++;
+    pthread_cond_signal(&sem->cond);
+    pthread_mutex_unlock(&sem->lock);
+}
+static inline void down(struct semaphore *sem) {
+    pthread_mutex_lock(&sem->lock);
+    while (sem->count <= 0)
+        pthread_cond_wait(&sem->cond, &sem->lock);
+    sem->count--;
+    pthread_mutex_unlock(&sem->lock);
+}
+static inline int down_interruptible(struct semaphore *sem) {
+    down(sem); return 0;
 }
 
 /* =========================================================

@@ -1,5 +1,15 @@
 /*
  * NiGpibDriver.cpp — implementation of NiGpibDriver.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include "NiGpibDriver.h"
@@ -42,7 +52,7 @@ bool NiGpibDriver::open()
         fprintf(stderr, "libusb_init failed\n");
         return false;
     }
-    libusb_set_option(ctx_, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_NONE);
+    libusb_set_option(ctx_, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_WARNING);
 
     if (!findAndOpenDevice()) {
         fprintf(stderr, "No supported NI USB-GPIB adapter found.\n");
@@ -270,6 +280,7 @@ void NiGpibDriver::send(int addr, const std::string &command, const char *term)
                 payload.size(), use_eoi ? 1 : 0, &bw);
     if (r != 0)
         throw std::runtime_error("GPIB write error: " + std::string(strerror(-r)));
+    printf("Sent %s (%zu bytes written)\n", command.c_str(), bw);
 }
 
 std::vector<uint8_t> NiGpibDriver::readRaw(int addr, size_t max_len)
@@ -322,15 +333,6 @@ std::string NiGpibDriver::read(int addr, size_t length)
     return std::string(reinterpret_cast<char *>(buf.data()), buf.size());
 }
 
-std::string NiGpibDriver::readEOS(int addr, uint8_t eosChar, size_t max_len)
-{
-    g_ni_gpib_interface->enable_eos(&board_, eosChar, 0);
-    auto buf = readRaw(addr, max_len);
-    g_ni_gpib_interface->disable_eos(&board_);
-    stripCrLf(buf);
-    return std::string(reinterpret_cast<char *>(buf.data()), buf.size());
-}
-
 std::string NiGpibDriver::query(int addr, const std::string &command,
                                  const char *term)
 {
@@ -338,17 +340,6 @@ std::string NiGpibDriver::query(int addr, const std::string &command,
     if (term && term[0])
         return read(addr, term);
     return read(addr);
-}
-
-bool NiGpibDriver::checkSRQ()
-{
-    if (!g_ni_gpib_interface || !g_ni_gpib_interface->line_status)
-        return false;
-    int status = g_ni_gpib_interface->line_status(&board_);
-    /* -EBUSY means another USB transfer is in progress — treat as no SRQ */
-    if (status < 0)
-        return false;
-    return (status & BUS_SRQ) != 0;
 }
 
 uint8_t NiGpibDriver::serialPoll(int addr)
