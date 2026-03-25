@@ -227,6 +227,17 @@ XGraphMathToolList<X, XQC>::onRelease(const Snapshot &, const XListNodeBase::Pay
     });
 }
 
+template <class X, class XQC>
+void
+XGraphMathToolList<X, XQC>::refreshOSOs(const shared_ptr<XQGraphPainter> &painter) {
+    Snapshot shot( *this);
+    if( !shot.size()) return;
+    for(auto &x: *shot.list()) {
+        Snapshot tool_shot( *x);
+        static_pointer_cast<XGraphMathTool>(x)->updateOnScreenObjects(tool_shot, painter, "");
+    }
+}
+
 template class XGraphMathToolList<XGraph1DMathTool, XQGraph1DMathToolConnector>;
 template class XGraphMathToolList<XGraph2DMathTool, XQGraph2DMathToolConnector>;
 
