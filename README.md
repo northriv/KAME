@@ -3,7 +3,7 @@
 KAME is an open-source scientific instrument control and data-acquisition framework built on Qt.
 It provides a transactional node tree, a scriptable UI, and a rich set of hardware drivers for laboratory equipment.
 
-**License:** GPL v2
+**License:** GPL v2 or later
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
 
 ---
@@ -76,30 +76,6 @@ cmake /path/to/kame/source
 make
 make install DESTDIR=/path/to/install
 ```
-
----
-
-### Linux (Fedora / RPM-based)
-
-Install build dependencies:
-
-```sh
-sudo yum install gsl-devel fftw-devel atlas-sse2-devel libgfortran \
-    ruby ruby-devel kdelibs-devel kernel-devel \
-    libtool-ltdl-devel ftgl-devel rpmdevtools
-```
-
-Build an RPM:
-
-```sh
-rpmbuild -ba kame-*.spec
-# or, without NI DAQmx:
-rpmbuild -ba --define="build_nidaqmx 0" kame-*.spec
-```
-
-For **linux-gpib** (PCI/PCIe boards), rebuild the kernel module RPMs first and configure `/etc/modprobe.d/` — see `INSTALL.fedora14` for details.
-
-For **NI DAQmx** setup, see `INSTALL.nidaqmx.fedora15`.
 
 ---
 
