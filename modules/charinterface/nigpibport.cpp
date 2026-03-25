@@ -113,10 +113,8 @@ void XNIUsermodeGPIBPort::spollBeforeWrite(XCharInterface *intf) {
             // uint8_t stb;
             // stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
 
-            if(intf->gpibWaitBeforeSPoll()) {
-                ScopedUnlock unlock( *this);
+            if(intf->gpibWaitBeforeSPoll())
                 msecsleep(intf->gpibWaitBeforeSPoll());
-            }
             uint8_t stb = driver().serialPoll(addr);
             if(stb & intf->gpibMAVbit()) {
                 //MAV detected
@@ -156,13 +154,8 @@ void XNIUsermodeGPIBPort::spollBeforeRead(XCharInterface *intf) {
             // until the device drives EOI or the board timeout fires).
             // uint8_t stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
 
-            if(i == 0)
-                waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
-
-            if(intf->gpibWaitBeforeSPoll()) {
-                ScopedUnlock unlock( *this);
+            if(intf->gpibWaitBeforeSPoll())
                 msecsleep(intf->gpibWaitBeforeSPoll());
-            }
             uint8_t stb = driver().serialPoll(addr);
             if((stb & intf->gpibMAVbit()) == 0) {
 //                gWarnPrint(i18n("SRQ asserted but MAV not set"));
@@ -181,10 +174,8 @@ void XNIUsermodeGPIBPort::spollBeforeRead(XCharInterface *intf) {
 
 void XNIUsermodeGPIBPort::sendTo(XCharInterface *intf, const char *str) {
     spollBeforeWrite(intf);
-    if(intf->gpibWaitBeforeWrite()) {
-        ScopedUnlock unlock( *this);
+    if(intf->gpibWaitBeforeWrite())
         msecsleep(intf->gpibWaitBeforeWrite());
-    }
     int addr = gpibAddr(intf);
     const char *term = (intf->gpibNoEOI() && !intf->eos().empty())
                        ? intf->eos().c_str() : ""; //empty term → assert EOI
@@ -198,10 +189,8 @@ void XNIUsermodeGPIBPort::sendTo(XCharInterface *intf, const char *str) {
 
 void XNIUsermodeGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) {
     spollBeforeWrite(intf);
-    if(intf->gpibWaitBeforeWrite()) {
-        ScopedUnlock unlock( *this);
+    if(intf->gpibWaitBeforeWrite())
         msecsleep(intf->gpibWaitBeforeWrite());
-    }
     int addr = gpibAddr(intf);
     try {
         driver().send(addr, std::string(sendbuf, size), ""); //assert EOI for raw writes
