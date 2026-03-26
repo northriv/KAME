@@ -599,16 +599,14 @@ static inline int usb_submit_urb(struct urb *urb, int flags) {
 
     unsigned int pipe_type = urb->pipe & 0xff00u;
     if (pipe_type == _USB_PIPE_INT_IN) {
-        /* Skip interrupt endpoint polling.  In the kernel driver this endpoint
-         * delivers async status notifications that wake threads waiting on
-         * board->wait via wake_up_interruptible().  In this userspace port
-         * nothing calls wait_event_interruptible_timeout(board->wait, ...), so
-         * those wakeups are no-ops.  Running a background thread that hammers
-         * libusb_interrupt_transfer() every 10 ms on the same device handle as
-         * the bulk transfer threads causes USB-level serialisation on macOS/IOKit,
-         * producing multi-second stalls.  Omitting the thread is safe and matches
-         * the effective behaviour of NI488.2 / kernel nigpib. */
-        return 0;
+        /* Interrupt endpoint: needs a persistent background polling thread.
+         * The driver calls usb_submit_urb() again from within the completion
+         * callback to "resubmit", but our thread already loops — ignore
+         * those resubmit calls to prevent spawning duplicate threads. */
+        if (urb->thread_started) return 0;
+        int r = pthread_create(&urb->thread, NULL, _urb_thread_func, urb);
+        if (r != 0) return -ENOMEM;
+        urb->thread_started = 1;
     } else {
         /* Bulk IN/OUT: run synchronously to avoid pthread_create overhead.
          * The driver always calls wait_for_completion() immediately after
