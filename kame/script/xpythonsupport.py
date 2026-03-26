@@ -160,6 +160,7 @@ event = threading.Event()
 #do not use time.sleep() please.
 def sleep(sec):
 	start = time.time()
+	fback = ""
 	while True:
 		remain = sec - (time.time() - start)
 		if TLS.xscrthread:
@@ -168,8 +169,9 @@ def sleep(sec):
 				xpythread["Action"] = ""
 				xpythread["Status"] = "killed @{}s @{}".format(int(remain), str(fback))
 				if str(xpythread["ThreadID"]) == "-1":
-					#probably sleep() in IPython kernel
-					os.kill(os.getpid(), signal.SIGINT) #ctrl-c
+					#probably sleep() in IPython kernel; raise KeyboardInterrupt
+					#so it behaves the same as Jupyter's built-in stop button
+					raise KeyboardInterrupt
 				else:
 					raise RuntimeError("Kill")
 			if str(xpythread["Action"]) == "wakeup":
@@ -188,7 +190,16 @@ def sleep(sec):
 				xpythread["Status"] = "{}s sleep @{}".format(int(remain), str(fback))
 		if remain < 0:
 			break
-		event.wait(min([remain, 0.33]))
+		try:
+			event.wait(min([remain, 0.33]))
+		except KeyboardInterrupt:
+			#Jupyter stop button (or any SIGINT) interrupted the wait;
+			#update KAME status and re-raise so the cell stops normally
+			if TLS.xscrthread:
+				xpythread = TLS.xscrthread
+				remain = sec - (time.time() - start)
+				xpythread["Status"] = "killed @{}s @{}".format(int(remain), str(fback))
+			raise
 	if TLS.xscrthread:
 		xpythread = TLS.xscrthread
 		xpythread["Status"] = "run"
