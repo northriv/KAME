@@ -77,7 +77,13 @@ class KAMENotebookKernelManager(MappingKernelManager):
         import os, signal
         os.kill(self.kame_pid, signal.SIGINT)
 
-    def restart_kernel(self, *args, **kwargs):
-        """Overrides ``MappingKernelManager.restart_kernel``. Does nothing. """
-        pass
+    async def restart_kernel(self, kernel_id, **kwargs):
+        """Overrides ``MappingKernelManager.restart_kernel``.
+        Skips the actual restart (which would reset ports and break the
+        connection to the embedded KAME kernel) and re-patches the connection
+        to keep pointing at the KAME kernel.
+        """
+        kernel = self._kernels.get(kernel_id)
+        if kernel:
+            self.__patch_connection(kernel)
 
