@@ -564,7 +564,14 @@ static void *_urb_thread_func(void *arg) {
                 urb->transfer_buffer_length, &actual,
                 (unsigned int)(urb->interval > 0 ? urb->interval * 10 : 1000));
             if (urb->cancelled) break;
-            if (r == LIBUSB_ERROR_TIMEOUT) continue;
+            if (r == LIBUSB_ERROR_TIMEOUT) {
+                /* Sleep between polls so bulk transfers can acquire the libusb
+                 * event lock without competing at 100 Hz.  Without this sleep,
+                 * the interrupt thread holds the event lock almost continuously
+                 * on macOS/IOKit, causing bulk transfers to stall. */
+                usleep(40000); /* 40 ms idle → ~20 Hz poll rate */
+                continue;
+            }
             urb->actual_length = actual;
             urb->status = (r == 0) ? 0 : -EIO;
             if (urb->complete) urb->complete(urb);
