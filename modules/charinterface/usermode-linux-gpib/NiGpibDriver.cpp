@@ -282,7 +282,7 @@ void NiGpibDriver::send(int addr, const std::string &command, const char *term)
     if (r != 0)
         throw std::runtime_error("GPIB write error: " + std::string(strerror(-r)));
     cmd({ UNL, UNT });
-    printf("Sent %s (%zu bytes written)\n", command.c_str(), bw);
+    // printf("Sent %s (%zu bytes written)\n", command.c_str(), bw);
 }
 
 std::vector<uint8_t> NiGpibDriver::readRaw(int addr, size_t max_len)
