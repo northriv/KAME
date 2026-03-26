@@ -92,6 +92,7 @@ macx{
     HEADERS += nigpibport.h  \
         nigpibport.h \
         usermode-linux-gpib/osx_compat.h        \
+        usermode-linux-gpib/win_compat.h        \
         usermode-linux-gpib/NiGpibDriver.h      \
         usermode-linux-gpib/linux-gpib/ni_usb_gpib.h       \
         usermode-linux-gpib/linux-gpib/gpib.h              \
