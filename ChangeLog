@@ -1,6 +1,8 @@
 * Thu Mar 26 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.8.1-1)
 - usermode-linux-gpib: Fix for read with eos and serial poll. Now working well.
+- jupyter: Stop button now works; routes SIGINT to the KAME process instead of the dummy subprocess.
+- jupyter: Restart button no longer breaks the connection to the embedded kernel (async override + re-patch).
 
 * Wed Mar 25 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.8.0-1)
