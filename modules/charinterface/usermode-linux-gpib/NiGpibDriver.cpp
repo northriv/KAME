@@ -239,7 +239,9 @@ void NiGpibDriver::cmd(std::initializer_list<int> bytes)
     size_t  len = 0;
     for (int b : bytes) buf[len++] = static_cast<uint8_t>(b);
     size_t bw = 0;
-    g_ni_gpib_interface->command(&board_, buf, len, &bw);
+    int r = g_ni_gpib_interface->command(&board_, buf, len, &bw);
+    if (r != 0)
+        throw std::runtime_error("GPIB command error: " + std::string(strerror(-r)));
 }
 
 void NiGpibDriver::interfaceClear()
@@ -279,7 +281,7 @@ void NiGpibDriver::send(int addr, const std::string &command, const char *term)
                 &board_,
                 reinterpret_cast<uint8_t *>(payload.data()),
                 payload.size(), use_eoi ? 1 : 0, &bw);
-    cmd({ UNL, UNT });
+    try { cmd({ UNL, UNT }); } catch (const std::exception &e) { fprintf(stderr, "GPIB write cleanup error: %s\n", e.what()); }
     if (r != 0)
         throw std::runtime_error("GPIB write error: " + std::string(strerror(-r)));
     // printf("Sent %s (%zu bytes written)\n", command.c_str(), bw);
@@ -295,7 +297,7 @@ std::vector<uint8_t> NiGpibDriver::readRaw(int addr, size_t max_len)
     int    end = 0;
     int r = g_ni_gpib_interface->read(&board_, buf.data(), max_len,
                                        &end, &bytes_read);
-    cmd({ UNL, UNT });
+    try { cmd({ UNL, UNT }); } catch (const std::exception &e) { fprintf(stderr, "GPIB read cleanup error: %s\n", e.what()); }
     if (r != 0)
         throw std::runtime_error("GPIB read error: " + std::string(strerror(-r)));
     buf.resize(bytes_read);
@@ -377,7 +379,7 @@ uint8_t NiGpibDriver::serialPoll(int addr)
     int     end = 0;
     int r = g_ni_gpib_interface->read(&board_, &stb, 1, &end, &br);
 
-    cmd({ SPD, UNL, UNT });
+    try { cmd({ SPD, UNL, UNT }); } catch (const std::exception &e) { fprintf(stderr, "GPIB serial poll cleanup error: %s\n", e.what()); }
 
     if (r != 0)
         throw std::runtime_error("Serial poll error: " + std::string(strerror(-r)));
