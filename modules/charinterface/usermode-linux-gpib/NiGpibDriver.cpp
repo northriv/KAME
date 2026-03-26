@@ -266,7 +266,8 @@ void NiGpibDriver::enableRemote(bool enable)
 
 void NiGpibDriver::send(int addr, const std::string &command, const char *term)
 {
-    cmd({ UNL, MLA((uint32_t)addr), MTA((uint32_t)board_pad_) });
+    /* Real linux-gpib create_send_setup(): MTA(board) → UNL → MLA(device) */
+    cmd({ MTA((uint32_t)board_pad_), UNL, MLA((uint32_t)addr) });
 
     std::string payload = command;
     bool use_eoi = (term == nullptr || term[0] == '\0');
@@ -280,12 +281,14 @@ void NiGpibDriver::send(int addr, const std::string &command, const char *term)
                 payload.size(), use_eoi ? 1 : 0, &bw);
     if (r != 0)
         throw std::runtime_error("GPIB write error: " + std::string(strerror(-r)));
+    cmd({ UNL, UNT });
     printf("Sent %s (%zu bytes written)\n", command.c_str(), bw);
 }
 
 std::vector<uint8_t> NiGpibDriver::readRaw(int addr, size_t max_len)
 {
-    cmd({ UNL, MTA((uint32_t)addr), MLA((uint32_t)board_pad_) });
+    /* Real linux-gpib InternalReceiveSetup(): UNL → MLA(board) → MTA(device) */
+    cmd({ UNL, MLA((uint32_t)board_pad_), MTA((uint32_t)addr) });
 
     std::vector<uint8_t> buf(max_len);
     size_t bytes_read = 0;
@@ -294,7 +297,7 @@ std::vector<uint8_t> NiGpibDriver::readRaw(int addr, size_t max_len)
                                        &end, &bytes_read);
     if (r != 0)
         throw std::runtime_error("GPIB read error: " + std::string(strerror(-r)));
-
+    cmd({ UNL, UNT });
     buf.resize(bytes_read);
     return buf;
 }
@@ -364,14 +367,17 @@ bool NiGpibDriver::checkSRQ()
 
 uint8_t NiGpibDriver::serialPoll(int addr)
 {
-    cmd({ SPE, MTA((uint32_t)addr), MLA((uint32_t)board_pad_) });
+    /* Real linux-gpib sequence (gpib_os.c: setup/read/cleanup_serial_poll):
+     *   UNL + MLA(board) + SPE  →  MTA(device) → read STB  →  SPD + UNT */
+    cmd({ UNL, MLA((uint32_t)board_pad_), SPE });
+    cmd({ MTA((uint32_t)addr) });
 
     uint8_t stb = 0;
     size_t  br  = 0;
     int     end = 0;
     int r = g_ni_gpib_interface->read(&board_, &stb, 1, &end, &br);
 
-    cmd({ SPD, UNL, UNT });
+    cmd({ SPD, UNT });
 
     if (r != 0)
         throw std::runtime_error("Serial poll error: " + std::string(strerror(-r)));
