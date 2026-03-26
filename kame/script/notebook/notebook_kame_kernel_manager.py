@@ -69,6 +69,14 @@ class KAMENotebookKernelManager(MappingKernelManager):
         return kid
 
 
+    async def interrupt_kernel(self, kernel_id, **kwargs):
+        """Overrides ``MappingKernelManager.interrupt_kernel``.
+        Sends SIGINT to the KAME process (not the dummy subprocess) so that
+        Jupyter's stop button actually interrupts the embedded IPython kernel.
+        """
+        import os, signal
+        os.kill(self.kame_pid, signal.SIGINT)
+
     def restart_kernel(self, *args, **kwargs):
         """Overrides ``MappingKernelManager.restart_kernel``. Does nothing. """
         pass
