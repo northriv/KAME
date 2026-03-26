@@ -91,6 +91,7 @@ macx{
     QMAKE_CFLAGS += -Wno-unused-function -Wno-visibility
     HEADERS += nigpibport.h  \
         nigpibport.h \
+        usermode-linux-gpib/compat.h            \
         usermode-linux-gpib/osx_compat.h        \
         usermode-linux-gpib/win_compat.h        \
         usermode-linux-gpib/NiGpibDriver.h      \
