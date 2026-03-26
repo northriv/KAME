@@ -214,12 +214,12 @@ applyDisplayGamma(const shared_ptr<QImage> &image, double g) {
 }
 void
 X2DImage::updateQImage(Transaction &tr, const shared_ptr<QImage> &image) {
-    Snapshot<XDoubleNode> shot( *m_gamma);
+    Snapshot shot( *m_gamma);
     m_plot->setImage(tr, applyDisplayGamma(image, (double)shot[ *m_gamma]));
 }
 void
 X2DImage::updateColorBarImage(Transaction &tr, double cmin, double cmax, const shared_ptr<QImage> &image) {
-    Snapshot<XDoubleNode> shot( *m_gamma);
+    Snapshot shot( *m_gamma);
     m_colorbarplot->setImage(tr, applyDisplayGamma(image, (double)shot[ *m_gamma]));
     shared_ptr<XAxis> axis = tr[ *m_colorbarplot->axisX()];
     auto axisc = static_pointer_cast<XAxis>(axis);
