@@ -1589,6 +1589,10 @@
   </customwidget>
  </customwidgets>
  <tabstops>
+  <tabstop>m_edDump</tabstop>
+  <tabstop>m_tlDump</tabstop>
+  <tabstop>m_btnDump</tabstop>
+  <tabstop>m_tbMath</tabstop>
   <tabstop>m_slTrigPos</tabstop>
   <tabstop>m_dblTrigPos</tabstop>
   <tabstop>m_ckbTrigFalling</tabstop>
@@ -1619,10 +1623,6 @@
   <tabstop>m_cmbTrace4</tabstop>
   <tabstop>m_cmbVFS4</tabstop>
   <tabstop>m_edVOffset4</tabstop>
-  <tabstop>m_edDump</tabstop>
-  <tabstop>m_tlDump</tabstop>
-  <tabstop>m_btnDump</tabstop>
-  <tabstop>m_tbMath</tabstop>
  </tabstops>
  <includes>
   <include location="local">graphwidget.h</include>

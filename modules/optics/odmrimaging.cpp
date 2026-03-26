@@ -610,6 +610,8 @@ XODMRImaging::visualize(const Snapshot &shot) {
             *processed++ = 0xffffu;
         }
     }
+    qimage->convertToColorSpace(QColorSpace::SRgb);
+    cbimage->convertToColorSpace(QColorSpace::SRgb);
 
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;

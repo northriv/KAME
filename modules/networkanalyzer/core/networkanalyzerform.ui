@@ -422,6 +422,7 @@
   <tabstop>m_edDump</tabstop>
   <tabstop>m_tbDump</tabstop>
   <tabstop>m_btnDump</tabstop>
+  <tabstop>m_tbMath</tabstop>
   <tabstop>m_edStart</tabstop>
   <tabstop>m_edStop</tabstop>
   <tabstop>m_cmbPoints</tabstop>

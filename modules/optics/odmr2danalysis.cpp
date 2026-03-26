@@ -401,7 +401,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA64);
     qimage->setColorSpace(QColorSpace::SRgbLinear); //for colormap plot.
     auto cbimage = std::make_shared<QImage>(width, 1, QImage::Format_RGBA64);
-    qimage->setColorSpace(QColorSpace::SRgbLinear); //for colorbar.
+    cbimage->setColorSpace(QColorSpace::SRgbLinear); //for colorbar.
 
     uint16_t *processed = reinterpret_cast<uint16_t*>(qimage->bits());
 
@@ -533,6 +533,8 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
         }
         *processed++ = 0xffffu;
     }
+    qimage->convertToColorSpace(QColorSpace::SRgb);
+    cbimage->convertToColorSpace(QColorSpace::SRgb);
 
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;

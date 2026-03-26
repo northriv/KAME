@@ -1192,6 +1192,7 @@
   <tabstop>m_edDump</tabstop>
   <tabstop>m_tbDump</tabstop>
   <tabstop>m_btnDump</tabstop>
+  <tabstop>m_tlbMath</tabstop>
   <tabstop>m_btnSpectrum</tabstop>
   <tabstop>m_cmbSolver</tabstop>
   <tabstop>m_cmbWindowFunc</tabstop>

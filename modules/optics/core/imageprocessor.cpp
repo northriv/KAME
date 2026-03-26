@@ -298,6 +298,7 @@ XImageProcessor::visualize(const Snapshot &shot) {
             *processed++ = 0xffffu;
         }
     }
+    qimage->convertToColorSpace(QColorSpace::SRgb); //gamma-encode for display; dump path re-encodes from SRgb as needed
 
     XString msg;
     shared_ptr<XFilterWheel> wheel__ = shot[ *filterWheel()];

@@ -246,6 +246,7 @@ XDigitalCamera::visualize(const Snapshot &shot) {
         }
     }
     assert(words == reinterpret_cast<uint16_t*>(liveimage->bits()) + width * height);
+    liveimage->convertToColorSpace(QColorSpace::SRgb);
     std::vector<double> coeffs = {1.0};
     std::vector<const uint32_t *> rawimages = { &shot[ *this].m_rawCounts->at(shot[ *this].firstPixel())};
     if(shot[ *this].m_darkCounts) {
