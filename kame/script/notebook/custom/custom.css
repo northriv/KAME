@@ -1,0 +1,22 @@
+/* KAME: hide kernel restart controls (restart is a no-op in KAME) */
+
+/* Jupyter Notebook 6 classic -- Kernel menu items */
+#restart_kernel,
+#restart_clear_output,
+#restart_run_all,
+#restart_separator {
+    display: none !important;
+}
+
+/* Jupyter Notebook 6 classic -- toolbar button */
+button[data-jupyter-action*="restart"] {
+    display: none !important;
+}
+
+/* Jupyter Notebook 7 / JupyterLab -- menu and toolbar */
+[data-command="kernelmenu:restart"],
+[data-command="kernelmenu:restart-and-clear"],
+[data-command="kernelmenu:restart-and-run-all"],
+[data-command="kernelmenu:restart-all"] {
+    display: none !important;
+}

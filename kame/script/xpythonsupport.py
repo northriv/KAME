@@ -310,6 +310,7 @@ def launchJupyterConsole(prog, argv):
 		NOTEBOOK_TOKEN = token #for later identification in server list.
 		env = dict(os.environ)
 		env['PYTHONPATH'] = os.pathsep.join((KAME_ResourceDir, env.get('PYTHONPATH', '')))
+		env['JUPYTER_CONFIG_DIR'] = KAME_ResourceDir
 		env['KAME_PID'] = str(os.getpid())
 		env['KAME_NOTEBOOK_SERVER_TOKEN'] = token
 		env['KAME_IPYTHON_CONNECTION_FILE'] = connection_file
