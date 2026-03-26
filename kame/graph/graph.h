@@ -22,9 +22,10 @@
 #include <deque>
 
 #include <qcolor.h>
+#define clNightBG (unsigned int)QColor(0x0D, 0x0B, 0x2D).rgb() //night graph background: mix of deep blue and neutral dark
 #define clWhite (unsigned int)QColor(Qt::white).rgb()
 #define clRed (unsigned int)QColor(Qt::red).rgb()
-#define clLime (unsigned int)QColor(Qt::darkYellow).rgb()
+#define clLime (unsigned int)QColor(0x00, 0x90, 0x90).rgb() //teal; Qt::darkYellow was olive and too close to clAqua
 #define clAqua (unsigned int)QColor(Qt::cyan).rgb()
 #define clBlack (unsigned int)QColor(Qt::black).rgb()
 #define clGreen (unsigned int)QColor(Qt::green).rgb()

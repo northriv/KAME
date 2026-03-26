@@ -194,6 +194,19 @@ int main(int argc, char *argv[]) {
             Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 //            Transactional::setCurrentPriorityMode(Priority::NORMAL);
 
+            app.setStyleSheet(
+                "QGroupBox {"
+                "  border: 1px solid palette(mid);"
+                "  border-radius: 4px;"
+                "  margin-top: 8px;"
+                "  padding-top: 4px;"
+                "}"
+                "QGroupBox::title {"
+                "  subcontrol-origin: margin;"
+                "  left: 6px;"
+                "  padding: 0 2px;"
+                "}");
+
 			form = new FrmKameMain();
 
             if(mesfile.length()) {

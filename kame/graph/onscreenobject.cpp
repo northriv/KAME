@@ -470,7 +470,7 @@ OnScreenTextObject::drawNative(bool colorpicking) {
             m_shiftX = m_shiftY = 0;
             auto &[alignment_unused, sizehint, str] = *txt_ptr;
             QFont font(painter()->widget()->font());
-            int fsz = std::min(14L, std::max(9L,
+            int fsz = std::min(16L, std::max(8L,
                 lrint(font.pointSize() * painter()->widget()->height() / painter()->widget()->logicalDpiY() / 3.5)));
             font.setPointSize(fsz + sizehint);
             QFontMetrics fm(font);

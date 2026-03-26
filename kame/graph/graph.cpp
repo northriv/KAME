@@ -30,6 +30,7 @@ using std::max;
 #define AxisToLabel 0.09
 #define AxisToTicLabel 0.015
 #define PLOT_POINT_SIZE 5.0
+#define PLOT_LINE_WIDTH 1.5
 
 #ifdef USE_QGLWIDGET
     #define PLOT_POINT_INTENS 0.5
@@ -93,15 +94,17 @@ XGraph::applyTheme(Transaction &tr, bool reset_to_default, Theme theme) {
     };
 
     tr[ *backGround()] = (theme == Theme::Night) ?
-        QColor(0x0A, 0x05, 0x45).rgb() : clWhite;
+        clNightBG : clWhite;
     auto textcolor = (theme == Theme::Night) ? clWhite : clBlack;
     tr[ *titleColor()] = textcolor;
 
     constexpr unsigned int num_default_colors = 6;
-    unsigned int night_colors[] = {QColor(0xff, 0xff, 0x12).rgb(), clAqua, clRed, clGreen,
-        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xb0, 0x50, 0x18).rgb()};
-    unsigned int night_point_colors[] = {QColor(0xff, 0xf1, 0x2c).rgb(), clAqua, clRed, clGreen,
-        QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xb0, 0x50, 0x18).rgb()};
+    unsigned int night_colors[] = {QColor(0xFF, 0xE0, 0x40).rgb(), QColor(0x40, 0xD0, 0xFF).rgb(),
+        QColor(0xFF, 0x55, 0x55).rgb(), QColor(0x55, 0xFF, 0x88).rgb(),
+        QColor(0xBB, 0x88, 0xFF).rgb(), QColor(0xFF, 0x88, 0x30).rgb()};
+    unsigned int night_point_colors[] = {QColor(0xFF, 0xE0, 0x40).rgb(), QColor(0x40, 0xD0, 0xFF).rgb(),
+        QColor(0xFF, 0x55, 0x55).rgb(), QColor(0x55, 0xFF, 0x88).rgb(),
+        QColor(0xBB, 0x88, 0xFF).rgb(), QColor(0xFF, 0x88, 0x30).rgb()};
     unsigned int daylight_colors[] = {clRed, clGreen, clLime, clAqua,
         QColor(0x6d, 0x5d, 0xca).rgb(), QColor(0xb0, 0x50, 0x18).rgb()};
     unsigned int daylight_pointcolors[] = {clRed, clGreen, clLime, clAqua,
@@ -426,7 +429,7 @@ XPlot::drawGrid(const Snapshot &shot, XQGraphPainter *painter, shared_ptr<XAxis>
             case XAxis::Tic::Major:
 				if(disp_major) {
 					painter->setColor(major_color,
-									  max(0.0, min(intens * 0.7, 0.5)) );
+									  max(0.0, min(intens * 0.8, 0.6)) );
 					painter->setVertex(s1);
 					painter->setVertex(s2);
 				}
@@ -434,7 +437,7 @@ XPlot::drawGrid(const Snapshot &shot, XQGraphPainter *painter, shared_ptr<XAxis>
             case XAxis::Tic::Minor:
 				if(disp_minor) {
 					painter->setColor(minor_color,
-									  max(0.0, min(intens * 0.5, 0.5)) );
+									  max(0.0, min(intens * 0.3, 0.3)) );
 					painter->setVertex(s1);
 					painter->setVertex(s2);
 				}
@@ -470,7 +473,7 @@ XPlot::drawLegend(const Snapshot &shot, XQGraphPainter *painter, const XGraph::S
 		float alpha2 = 1.0;
 		if(shot[ *drawBars()]) {
 			float alpha = max(0.0f, min((float)(shot[ *intensity()] * PLOT_BAR_INTENS), 1.0f));
-			painter->beginLine(1.0);
+			painter->beginLine(PLOT_LINE_WIDTH);
 			XGraph::ScrPoint s1, s2;
 			s1 = spt;
             s1 += XGraph::ScrPoint(0, dy/2, 0);
@@ -486,7 +489,7 @@ XPlot::drawLegend(const Snapshot &shot, XQGraphPainter *painter, const XGraph::S
 		}
 		if(shot[ *drawLines()]) {
 			float alpha = max(0.0f, min((float)(shot[ *intensity()] * PLOT_LINE_INTENS), 1.0f));
-			painter->beginLine(1.0);
+			painter->beginLine(PLOT_LINE_WIDTH);
 			XGraph::ScrPoint s1, s2;
 			s1 = spt;
             s1 += XGraph::ScrPoint(dx/2, 0, 0);
@@ -558,7 +561,7 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 			double s0y = s2.y;
 			float alpha = max(0.0f, min((float)(shot[ *intensity()] * PLOT_BAR_INTENS), 1.0f));
 			painter->setColor(shot[ *barColor()], alpha );
-			painter->beginLine(1.0);
+			painter->beginLine(PLOT_LINE_WIDTH);
 			cpt = &m_canvasPtsSnapped[0];
 			for(int i = 0; i < cnt; ++i) {
 				pt2 = *cpt;
@@ -577,7 +580,7 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
         if(shot[ *drawLines()] && (cnt > 1)) {
 			float alpha = max(0.0f, min((float)(shot[ *intensity()] * PLOT_LINE_INTENS), 1.0f));
 			painter->setColor(shot[ *lineColor()], alpha );
-			painter->beginLine(1.0);
+			painter->beginLine(PLOT_LINE_WIDTH);
 			XGraph::ScrPoint s1, s2;
 			cpt = &m_canvasPtsSnapped[0];
 			unsigned int color1, color2;

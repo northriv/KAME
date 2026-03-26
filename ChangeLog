@@ -3,6 +3,11 @@
 - usermode-linux-gpib: Fix for read with eos and serial poll. Now working well.
 - jupyter: Stop button now works; routes SIGINT to the KAME process instead of the dummy subprocess.
 - jupyter: Restart button no longer breaks the connection to the embedded kernel (async override + re-patch).
+- usermode-linux-gpib: Fix for USB bulk transfer stalls on macOS; 40ms sleep after interrupt poll timeout reduces event-lock contention.
+- DSO: MathTool support added.
+- Graph: thicker data trace lines, neutral night-mode background, improved colour palette, grid alpha hierarchy (major/minor), wider font size range.
+- 2D image display: gamma correction now applied on screen matching dump output; gamma slider works via Metal/sRGB-aware pre-encoding.
+- UI: tab order corrected in dsoform, networkanalyzerform, nmrpulseform; QGroupBox stylesheet; English grammar fixes in several UI strings.
 
 * Wed Mar 25 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.8.0-1)

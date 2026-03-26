@@ -153,6 +153,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
         tr[ *tr[ *waveGraph()].plot(3)->lineColor()] = QColor(0x9a, 0x68, 0xff).rgb();
         tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.4;
         tr[ *waveGraph()->graph()->persistence()] = 0.0;
+        tr[ *waveGraph()->graph()->backGround()] = clNightBG;
         tr[ *waveGraph()].clearPoints();
     });
     ftWaveGraph()->iterate_commit([=](Transaction &tr){
@@ -198,6 +199,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
             tr[ *plot->clearPoints()].setUIEnabled(false);
             tr[ *plot->maxCount()].setUIEnabled(false);
         }
+        tr[ *ftWaveGraph()->graph()->backGround()] = clNightBG;
         tr[ *ftWaveGraph()].clearPoints();
     });
 
