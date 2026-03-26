@@ -202,13 +202,25 @@ X2DImage::updateRawImages(Transaction &tr,unsigned int width, unsigned int heigh
                                   rawimages[cidx], width, raw_stride, height, coeffs[cidx], offsets[cidx]);
     }
 }
+static shared_ptr<QImage>
+applyDisplayGamma(const shared_ptr<QImage> &image, double g) {
+    // Metal/sRGB framebuffer applies gamma 2.2 automatically to linear texture values.
+    // To display with effective gamma G, pre-encode as linear^(2.2/G), i.e. use
+    // a transfer function with exponent G/2.2 so Metal's 1/2.2 yields the desired 1/G.
+    if(image->colorSpace() != QColorSpace::SRgbLinear || g == 2.2)
+        return image;
+    return std::make_shared<QImage>(image->convertedToColorSpace(
+        QColorSpace(QColorSpace::Primaries::SRgb, float(g / 2.2))));
+}
 void
 X2DImage::updateQImage(Transaction &tr, const shared_ptr<QImage> &image) {
-    m_plot->setImage(tr, image);
+    Snapshot<XDoubleNode> shot( *m_gamma);
+    m_plot->setImage(tr, applyDisplayGamma(image, (double)shot[ *m_gamma]));
 }
 void
 X2DImage::updateColorBarImage(Transaction &tr, double cmin, double cmax, const shared_ptr<QImage> &image) {
-    m_colorbarplot->setImage(tr, image);
+    Snapshot<XDoubleNode> shot( *m_gamma);
+    m_colorbarplot->setImage(tr, applyDisplayGamma(image, (double)shot[ *m_gamma]));
     shared_ptr<XAxis> axis = tr[ *m_colorbarplot->axisX()];
     auto axisc = static_pointer_cast<XAxis>(axis);
     tr[ *axisc->maxValue()] = cmax;
