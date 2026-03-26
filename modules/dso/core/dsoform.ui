@@ -58,6 +58,13 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QToolButton" name="m_tbMath">
+        <property name="text">
+         <string>MATH</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
     <item row="1" column="0">
@@ -1615,6 +1622,7 @@
   <tabstop>m_edDump</tabstop>
   <tabstop>m_tlDump</tabstop>
   <tabstop>m_btnDump</tabstop>
+  <tabstop>m_tbMath</tabstop>
  </tabstops>
  <includes>
   <include location="local">graphwidget.h</include>

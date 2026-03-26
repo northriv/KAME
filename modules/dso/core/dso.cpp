@@ -65,8 +65,9 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_dRFSG(create<XItemNode<XDriverList, XSG> >("RFSG", false, ref(tr_meas), meas->drivers(), true)),
 	m_dRFFreq(create<XDoubleNode>("RFFreq", false)),
     m_form(new FrmDSO),
-	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
-	   m_form->m_graphwidget, m_form->m_edDump, m_form->m_tlDump, m_form->m_btnDump)),
+	m_waveForm(create<XWaveNGraph>("WaveForm", false,
+	   m_form->m_graphwidget, m_form->m_edDump, m_form->m_tlDump, m_form->m_btnDump,
+	   m_form->m_tbMath, meas, static_pointer_cast<XDriver>(shared_from_this()))),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())) {
     m_form->m_btnForceTrigger->setIcon(QApplication::style()->standardIcon(QStyle::SP_BrowserReload));
     //Ranges should be preset in prior to connectors.
