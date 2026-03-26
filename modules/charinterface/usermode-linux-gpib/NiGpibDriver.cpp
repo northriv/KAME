@@ -279,9 +279,9 @@ void NiGpibDriver::send(int addr, const std::string &command, const char *term)
                 &board_,
                 reinterpret_cast<uint8_t *>(payload.data()),
                 payload.size(), use_eoi ? 1 : 0, &bw);
+    cmd({ UNL, UNT });
     if (r != 0)
         throw std::runtime_error("GPIB write error: " + std::string(strerror(-r)));
-    cmd({ UNL, UNT });
     // printf("Sent %s (%zu bytes written)\n", command.c_str(), bw);
 }
 
@@ -295,9 +295,9 @@ std::vector<uint8_t> NiGpibDriver::readRaw(int addr, size_t max_len)
     int    end = 0;
     int r = g_ni_gpib_interface->read(&board_, buf.data(), max_len,
                                        &end, &bytes_read);
+    cmd({ UNL, UNT });
     if (r != 0)
         throw std::runtime_error("GPIB read error: " + std::string(strerror(-r)));
-    cmd({ UNL, UNT });
     buf.resize(bytes_read);
     return buf;
 }

@@ -1,3 +1,7 @@
+* Thu Mar 26 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.8.1-1)
+- usermode-linux-gpib: Fix for read with eos and serial poll. Now working well.
+
 * Wed Mar 25 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.8.0-1)
 - gpib: In OSX, NI USB-GPIB-HS(+) can work without kernel driver. usermode linux-gpib was embedded.
