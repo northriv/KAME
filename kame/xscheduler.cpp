@@ -151,10 +151,10 @@ SignalBuffer::synchronize__() {
 			e.print();
 		}
         catch (std::domain_error &) {
-            gErrPrint(i18n("Unhandeled exception!"));
+            gErrPrint(i18n("Unhandled exception!"));
         }
         catch (std::out_of_range &) {
-            gErrPrint(i18n("Unhandeled exception!"));
+            gErrPrint(i18n("Unhandled exception!"));
         }
         if(skip) {
             m_skippedQueue.emplace(std::move(event), XTime::now());

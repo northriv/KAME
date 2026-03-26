@@ -508,7 +508,7 @@ XTempManager::onActivateChanged(const Snapshot &shot, XValueNodeBase *) {
     m_lsnOnTargetChanged.reset();
     if(actv && !maindev) {
         trans( *isActivated()) = false;
-        gErrPrint(i18n("None of device is under control."));
+        gErrPrint(i18n("No devices are under control."));
         return;
     }
     if(actv) {
@@ -804,13 +804,13 @@ XTempManager::sanityCheckOfZones(const Snapshot &shot) {
             else {
                 m_form->m_tblZone->cellWidget(i, 0)->setPalette(palette);
                 if(uppertemp < shot[ *zone->upperTemp()]) {
-                    gWarnPrint(i18n("Upper temp. field should be descending order. Check zone ") + zonestr);
+                    gWarnPrint(i18n("Upper temp. field should be in descending order. Check zone ") + zonestr);
                     m_form->m_tblZone->cellWidget(i, 0)->setPalette(palette_err);
                 }
                 m_form->m_tblZone->cellWidget(i, 1)->setPalette(palette);
                 if(uppertemp == shot[ *zone->upperTemp()])
                     if(maxramprate < shot[ *zone->maxRampRate()]) {
-                        gWarnPrint(i18n("Max. ramp rate field should be descending order in a group of the same upper temp.. Check zone ") + zonestr);
+                        gWarnPrint(i18n("Max. ramp rate field should be in descending order within groups of the same upper temp. Check zone ") + zonestr);
                         m_form->m_tblZone->cellWidget(i, 1)->setPalette(palette_err);
                     }
             }

@@ -164,7 +164,7 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
     uint64_t thres_em = (threshold * (freq_em / gcd__)) / (freq_rc / gcd__);
     if(m_lastThresholdRequested < thres_em + lrint(timeForBufferredTriggersRequired() * freq())) {
         if(m_lastThresholdRequested && (m_lastThresholdRequested < thres_em))
-            gErrPrint(formatString_tr(I18N_NOOP("Software trigger: yet uncalculated trigger is requested, %.2f sec. behind.\n"),
+            gErrPrint(formatString_tr(I18N_NOOP("Software trigger: an uncalculated trigger was requested, %.2f sec. behind.\n"),
                 (thres_em - m_lastThresholdRequested) / freq()));
         //Caches trigger positions for future use within 1.2 sec.
         m_lastThresholdRequested = thres_em + lrint(2.0 * timeForBufferredTriggersRequired() * freq());

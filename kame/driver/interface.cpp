@@ -76,7 +76,7 @@ XInterface::start() {
         Transactional::setCurrentPriorityMode(Priority::NORMAL);
         try {
             if(isOpened()) {
-                gErrPrint(getLabel() + i18n("Port has already opened"));
+                gErrPrint(getLabel() + i18n("Port is already open."));
                 return;
             }
             open();

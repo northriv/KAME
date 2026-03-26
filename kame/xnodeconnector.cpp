@@ -504,7 +504,7 @@ XQToggleButtonConnector::eventFilter(QObject *obj, QEvent *event) {
                 if(distance > QApplication::startDragDistance()) {
                     cb->window()->activateWindow();
                     cb->window()->raise();
-                    gWarnPrint(i18n("Ignoring careless touch in a checkbox."));
+                    gWarnPrint(i18n("Ignoring accidental touch on a checkbox."));
                     return true; //blocks.
                 }
             }

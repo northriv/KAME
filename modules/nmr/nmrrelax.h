@@ -130,7 +130,7 @@ public:
 	const shared_ptr<XBoolNode> &mInftyFit() const {return m_mInftyFit;}
 	//! Use absolute value, ignoring phase
 	const shared_ptr<XBoolNode> &absFit() const {return m_absFit;}
-    //! Tracks peak freq. to accomodate a field decay.
+    //! Tracks peak freq. to accommodate a field decay.
     const shared_ptr<XBoolNode> &trackPeak() const {return m_trackPeak;}
     //! Region of P1 or 2tau for fitting, display, control of pulser [ms]
 	const shared_ptr<XDoubleNode> &p1Min() const {return m_p1Min;}

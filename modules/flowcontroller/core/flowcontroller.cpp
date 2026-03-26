@@ -126,7 +126,7 @@ XFlowControllerDriver::onCloseValveTouched(const Snapshot &shot, XTouchableNode 
         setValveState(false);
     }
     catch (XKameError& e) {
-        e.print(getLabel() + " " + i18n("Error while closeing valve, "));
+        e.print(getLabel() + " " + i18n("Error while closing valve, "));
         return;
     }
 }
