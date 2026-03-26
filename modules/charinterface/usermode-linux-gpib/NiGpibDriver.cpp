@@ -368,7 +368,7 @@ bool NiGpibDriver::checkSRQ()
 uint8_t NiGpibDriver::serialPoll(int addr)
 {
     /* Real linux-gpib sequence (gpib_os.c: setup/read/cleanup_serial_poll):
-     *   UNL + MLA(board) + SPE  →  MTA(device) → read STB  →  SPD + UNT */
+     *   UNL + MLA(board) + SPE  →  MTA(device) → read STB  →  SPD + UNL + UNT */
     cmd({ UNL, MLA((uint32_t)board_pad_), SPE });
     cmd({ MTA((uint32_t)addr) });
 
@@ -377,7 +377,7 @@ uint8_t NiGpibDriver::serialPoll(int addr)
     int     end = 0;
     int r = g_ni_gpib_interface->read(&board_, &stb, 1, &end, &br);
 
-    cmd({ SPD, UNT });
+    cmd({ SPD, UNL, UNT });
 
     if (r != 0)
         throw std::runtime_error("Serial poll error: " + std::string(strerror(-r)));

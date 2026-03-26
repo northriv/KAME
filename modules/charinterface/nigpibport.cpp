@@ -1,15 +1,15 @@
 /***************************************************************************
         Copyright (C) 2002-2026 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
+                           kitag@issp.u-tokyo.ac.jp
 
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU Library General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU Library General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
 
-		You should have received a copy of the GNU Library General
-		Public License and a list of authors along with this program;
-		see the files COPYING and AUTHORS.
+        You should have received a copy of the GNU Library General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
 ***************************************************************************/
 // Include NiGpibDriver first — osx_compat.h must not see C++ keywords.
 #include "nigpibport.h"
@@ -53,14 +53,6 @@ XNIUsermodeGPIBBoardPort::open(const XCharInterface *intf) {
 
 static int gpibAddr(XCharInterface *intf) {
     return (int)(int)Snapshot(*intf)[ *intf->address()];
-}
-
-// Read terminator character for gpibNoEOI devices.
-// Uses the penultimate EOS byte (e.g. CR of "\r\n") to avoid premature
-// termination if the device prepends the final EOS char (Oxford prepends LF).
-static uint8_t noEoiReadTerm(XCharInterface *intf) {
-    const auto &eos = intf->eos();
-    return (eos.size() >= 2) ? (uint8_t)eos[eos.size() - 2] : (uint8_t)eos.back();
 }
 
 /* -----------------------------------------------------------------------
@@ -113,8 +105,10 @@ void XNIUsermodeGPIBPort::spollBeforeWrite(XCharInterface *intf) {
             // uint8_t stb;
             // stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
 
-            if(intf->gpibWaitBeforeSPoll())
+            if(intf->gpibWaitBeforeSPoll()) {
+                ScopedUnlock unlock( *this);
                 msecsleep(intf->gpibWaitBeforeSPoll());
+            }
             uint8_t stb = driver().serialPoll(addr);
             if(stb & intf->gpibMAVbit()) {
                 //MAV detected
@@ -127,7 +121,8 @@ void XNIUsermodeGPIBPort::spollBeforeWrite(XCharInterface *intf) {
                 // clear device's buffer
                 msecsleep(40);
                 if(intf->gpibNoEOI() && !intf->eos().empty())
-                    driver().readEOS(addr, noEoiReadTerm(intf));
+                    //Device doesn't assert EOI; use EOS as read terminator. (e.g. Oxford).
+                    driver().readEOS(addr, intf->eos().back());
                 else
                     driver().read(addr);
                 break;
@@ -154,14 +149,16 @@ void XNIUsermodeGPIBPort::spollBeforeRead(XCharInterface *intf) {
             // until the device drives EOI or the board timeout fires).
             // uint8_t stb = waitSRQThenSPoll(driver(), addr, intf->gpibWaitBeforeSPoll(), 0);
 
-            if(intf->gpibWaitBeforeSPoll())
+            if(intf->gpibWaitBeforeSPoll()) {
+                ScopedUnlock unlock( *this);
                 msecsleep(intf->gpibWaitBeforeSPoll());
+            }
             uint8_t stb = driver().serialPoll(addr);
             if((stb & intf->gpibMAVbit()) == 0) {
 //                gWarnPrint(i18n("SRQ asserted but MAV not set"));
                 //MAV isn't detected
                 ScopedUnlock unlock( *this);
-                msecsleep(i + 10);
+                msecsleep(10 * i + 10);
                 continue;
             }
             break;
@@ -174,8 +171,10 @@ void XNIUsermodeGPIBPort::spollBeforeRead(XCharInterface *intf) {
 
 void XNIUsermodeGPIBPort::sendTo(XCharInterface *intf, const char *str) {
     spollBeforeWrite(intf);
-    if(intf->gpibWaitBeforeWrite())
+    if(intf->gpibWaitBeforeWrite()) {
+        ScopedUnlock unlock( *this);
         msecsleep(intf->gpibWaitBeforeWrite());
+    }
     int addr = gpibAddr(intf);
     const char *term = (intf->gpibNoEOI() && !intf->eos().empty())
                        ? intf->eos().c_str() : ""; //empty term → assert EOI
@@ -189,8 +188,10 @@ void XNIUsermodeGPIBPort::sendTo(XCharInterface *intf, const char *str) {
 
 void XNIUsermodeGPIBPort::writeTo(XCharInterface *intf, const char *sendbuf, int size) {
     spollBeforeWrite(intf);
-    if(intf->gpibWaitBeforeWrite())
+    if(intf->gpibWaitBeforeWrite()) {
+        ScopedUnlock unlock( *this);
         msecsleep(intf->gpibWaitBeforeWrite());
+    }
     int addr = gpibAddr(intf);
     try {
         driver().send(addr, std::string(sendbuf, size), ""); //assert EOI for raw writes
@@ -210,7 +211,8 @@ void XNIUsermodeGPIBPort::receiveFrom(XCharInterface *intf) {
         int addr = gpibAddr(intf);
         std::string response;
         if(intf->gpibNoEOI() && !intf->eos().empty())
-            response = driver().readEOS(addr, noEoiReadTerm(intf));
+            //Device doesn't assert EOI; use EOS as read terminator. (e.g. Oxford).
+            response = driver().readEOS(addr, intf->eos().back());
         else
             response = driver().read(addr); //EOI termination
         auto &buf = buffer();
