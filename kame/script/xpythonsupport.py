@@ -39,7 +39,6 @@ try:
 except (ImportError, ModuleNotFoundError):
 	pass
 from kame import *
-_deferred_done = False
 STDOUT = sys.stdout
 STDERR = sys.stderr
 STDIN = sys.stdin
@@ -226,11 +225,6 @@ def loadSequence(xpythread, filename):
 	TLS.xscrthread["Status"] = ""
 
 def kame_pybind_one_iteration():
-	global _deferred_done
-	if not _deferred_done:
-		_deferred_done = True
-		for script in kame_deferred_scripts():
-			exec(script, globals())
 	try:
 		#For node browser pane
 		PyInfoForNodeBrowser().set(str([y[0] for y in inspect.getmembers(LastPointedByNodeBrowser(), inspect.ismethod)]))
@@ -334,6 +328,21 @@ def launchJupyterConsole(prog, argv):
 
 import linecache
 linecache.clearcache() #suppress lengthy traceback inside REPL.
+
+def _run_deferred_scripts():
+	"""Run C++-deferred scripts (pydrivers.py, pytestdriver.py, etc.) in a
+	background daemon thread.  Running them here rather than inside
+	kame_pybind_one_iteration() prevents blocking the IPython event loop:
+	time.sleep() in those scripts releases the GIL so the kernel stays
+	responsive while the scripts initialise."""
+	g = globals()
+	for script in kame_deferred_scripts():
+		try:
+			exec(script, g)
+		except Exception:
+			STDERR.write(str(traceback.format_exc()))
+threading.Thread(daemon=True, target=_run_deferred_scripts,
+	name='KAMEDeferredScripts').start()
 
 if not HasIPython:
 	print("#testing python interpreter.")
