@@ -32,7 +32,13 @@
 #include <asm/ioctl.h>
 #include <linux/types.h>
 #else
-/* Inline ioctl number macros for non-Linux platforms */
+/* Inline ioctl number macros for non-Linux platforms.
+ * winsock.h defines _IO/_IOR/_IOW with socket-ioctl semantics; override them. */
+#undef _IOC
+#undef _IO
+#undef _IOR
+#undef _IOW
+#undef _IOWR
 #define _IOC(dir,type,nr,size) (((dir)<<30)|((type)<<8)|(nr)|((size)<<16))
 #define _IO(type,nr)           _IOC(0,   (type),(nr),0)
 #define _IOR(type,nr,size)     _IOC(2,   (type),(nr),sizeof(size))
