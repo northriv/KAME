@@ -307,7 +307,8 @@ private:
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
         void negotiate(typename NegotiationCounter::cnt_t &started_time, float mult_wait = 6.0f) noexcept {
-            typename NegotiationCounter::cnt_t transaction_started_time = m_transaction_started_time;
+            typename NegotiationCounter::cnt_t transaction_started_time =
+                m_transaction_started_time.load(std::memory_order_relaxed);
             if( !transaction_started_time)
                 return; //collision has not been detected.
             negotiate_internal(started_time, mult_wait);
