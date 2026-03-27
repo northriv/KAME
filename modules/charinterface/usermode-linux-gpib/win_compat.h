@@ -15,6 +15,9 @@
 #ifndef _WIN_COMPAT_H_
 #define _WIN_COMPAT_H_
 
+#ifndef _WIN32_WINNT
+#  define _WIN32_WINNT 0x0601   /* Windows 7 — required for SRWLOCK, CONDITION_VARIABLE */
+#endif
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -406,7 +409,13 @@ static inline unsigned long msecs_to_jiffies(unsigned int ms) { return (unsigned
 static inline unsigned int  jiffies_to_msecs(unsigned long j)  { return (unsigned int)j; }
 #define time_after(a, b) ((long)(b) - (long)(a) < 0)
 
-/* usleep: Windows Sleep() takes ms; round microseconds up */
+/* usleep/msleep: Windows Sleep() takes ms; round microseconds up.
+ * #undef first in case a MinGW compat header (e.g. pthreads-win32 or
+ * an old <unistd.h> shim) already defined these as macros calling Sleep. */
+#undef usleep
+#undef usleep_range
+#undef msleep
+#undef mdelay
 #define usleep(us)             Sleep((DWORD)(((ULONGLONG)(us) + 999ULL) / 1000ULL))
 #define usleep_range(min, max) usleep(min)
 #define msleep(ms)             Sleep((DWORD)(ms))
