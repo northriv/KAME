@@ -20,6 +20,11 @@
 #endif
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+/* MinGW's <unistd.h> (pulled in by libusb or Qt before this header) may define
+ * Sleep as a compat macro.  Undefine it so <windows.h> wins with the real decl. */
+#ifdef Sleep
+#  undef Sleep
+#endif
 #include <windows.h>
 
 #include <stdint.h>
