@@ -450,7 +450,7 @@ struct timer_list {
     pthread_cond_t  cond;
 };
 
-static void *_timer_thread_func(void *arg) {
+static void * __attribute__((unused)) _timer_thread_func(void *arg) {
     struct timer_list *t = (struct timer_list *)arg;
     AcquireSRWLockExclusive(&t->lock);
     while (t->active && !t->cancelled) {
