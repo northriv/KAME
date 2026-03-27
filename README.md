@@ -13,6 +13,8 @@ orchestration across compatible instruments without custom programming.
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
 **Platforms:** macOS, Windows (64-bit); Linux support discontinued
 
+![KAME screenshot](https://kitag.issp.u-tokyo.ac.jp/wordpress/wp-content/uploads/2025/01/dd21dff192ba7bde3beb0830a80d886c-930x620.png)
+
 ---
 
 ## Features
