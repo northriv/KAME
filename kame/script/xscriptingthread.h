@@ -84,6 +84,17 @@ public:
     void terminate() {m_thread->terminate();}
     void join() {m_thread->join();}
 
+    //! Signal that a scripting thread action has changed (e.g. new thread created).
+    void signalAction() {
+        XScopedLock<XCondition> lock(m_actionCond);
+        m_actionCond.signal();
+    }
+    //! Wait up to \a usec microseconds for a scripting thread action event.
+    void waitForAction(int usec) {
+        XScopedLock<XCondition> lock(m_actionCond);
+        m_actionCond.wait(usec);
+    }
+
     struct Payload : public XAliasListNode<XScriptingThread>::Payload {
         struct tCreateChild {
             XString type;
@@ -106,6 +117,7 @@ protected:
 
     const weak_ptr<XMeasure> m_measure;
     unique_ptr<XThread> m_thread;
+    XCondition m_actionCond;
 };
 //---------------------------------------------------------------------------
 #endif //scriptingthreadH

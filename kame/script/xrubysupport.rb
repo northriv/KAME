@@ -246,8 +246,6 @@ print "Hello! KAME Ruby support.\n"
 print "Ruby " + RUBY_VERSION + " " + RUBY_PLATFORM + " " + RUBY_RELEASE_DATE + "\n"
 
 #Thread-monitor
-MONITOR_PERIOD=0.2
-
 begin
 	while ( !XScriptingThreads.is_main_terminated() )
 	 XScriptingThreads.each {|xrbthread|
@@ -285,7 +283,6 @@ begin
 	     end
 	   else
 	      if action == "starting" then
-       	  sleep(0.5)
 		      xrbthread_action.value = ""
 				  print "Starting a new thread\n"
 			  	filename = xrbthread_filename.value()
@@ -329,7 +326,7 @@ begin
 	   end
 	 }
 	
-	 sleep(MONITOR_PERIOD)
+	 XScriptingThreads.wait_for_action
 	end
 rescue ScriptError, StandardError, SystemExit
 	$! = RuntimeError.new("unknown exception raised") unless $!

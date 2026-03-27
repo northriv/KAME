@@ -110,6 +110,7 @@ XRuby::rlistnode_create_child(const shared_ptr<XNode> &node, Ruby::Value rbtype,
             "Error on %s : Could not make child"
             " name = %s, type = %s\n", node->getName().c_str(), name, type);
     }
+    signalAction(); // wake monitor loop immediately (avoids MONITOR_PERIOD delay)
     return rnode_create(child);
 }
 Ruby::Value
@@ -301,6 +302,11 @@ Ruby::Value
 XRuby::is_main_terminated(const shared_ptr<XNode> &) {
     return Ruby::convertToRuby(m_thread->isTerminated());
 }
+Ruby::Value
+XRuby::rb_wait_for_action(const shared_ptr<XNode> &) {
+    waitForAction(200000); // 200 ms in microseconds
+    return Ruby::Nil;
+}
 
 void *
 XRuby::execute(const atomic<bool> &terminated) {
@@ -342,6 +348,8 @@ XRuby::execute(const atomic<bool> &terminated) {
         rbRubyThreads, "my_rbdefin");
     m_rubyClassNode->defineSingletonMethod<&XRuby::is_main_terminated>(
         rbRubyThreads, "is_main_terminated");
+    m_rubyClassNode->defineSingletonMethod<&XRuby::rb_wait_for_action>(
+        rbRubyThreads, "wait_for_action");
 
     {
         QFile scriptfile(XRUBYSUPPORT_RB);
@@ -350,11 +358,11 @@ XRuby::execute(const atomic<bool> &terminated) {
             return NULL;
         }
         fprintf(stderr, "Loading ruby scripting monitor.\n");
-        char data[65536] = {};
-        QDataStream( &scriptfile).readRawData(data, sizeof(data) - 1);
+        QByteArray rawdata = scriptfile.readAll();
+        std::string data(rawdata.constData(), rawdata.size());
 
         while( !terminated) {
-            int state = m_ruby->evalProtect(data);
+            int state = m_ruby->evalProtect(data.c_str());
             if(state) {
                 fprintf(stderr, "Ruby, exception(s) occurred.\n");
                 m_ruby->printErrorInfo();

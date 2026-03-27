@@ -97,6 +97,8 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - `modules/python/pydrivers.py` — built-in Python driver examples: `Test4Res` (simple 4-terminal resistance with polarity switching) and `Py4Res` (multi-current variant); good reference for writing new Python drivers
 - Python interpreter runs in its own OS thread; Qt UI operations must be dispatched via `kame_mainthread(closure)`
 - Jupyter/IPython kernel embedding is supported when `ipykernel` is available
+- **Startup sequence:** only `xpythonsupport.py` is exec'd immediately; `pytestdriver.py` and `pydrivers.py` are collected as deferred scripts via `kame_deferred_scripts()` and executed on the first `kame_pybind_one_iteration()` tick (after the IPython kernel is up). Optional extension files that are absent produce a stderr warning, not a UI error.
+- Script thread launch no longer has fixed `sleep()` delays; deferred scripts execute in the global namespace via `exec(script, globals())`
 
 ### Serialization (.kam files)
 

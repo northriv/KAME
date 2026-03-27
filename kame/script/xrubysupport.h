@@ -40,6 +40,8 @@ private:
     Ruby::Value my_rbdefin(const shared_ptr<XNode> &, Ruby::Value threadid);
 	//! 
     Ruby::Value is_main_terminated(const shared_ptr<XNode> &node);
+    //! Wait up to 200 ms for a scripting thread action event (new thread, kill, wakeup).
+    Ruby::Value rb_wait_for_action(const shared_ptr<XNode> &);
 	//! XNode wrappers
     static void strOnNode(const shared_ptr<XValueNodeBase> &node, Ruby::Value value);
     static Ruby::Value getValueOfNode(const shared_ptr<XValueNodeBase> &node);
