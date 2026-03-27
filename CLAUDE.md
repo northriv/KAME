@@ -4,14 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-KAME is a scientific instrument control and measurement software framework written in C++11/Qt. It provides a plugin-based architecture for controlling laboratory instruments (oscilloscopes, lock-in amplifiers, temperature controllers, magnet power supplies, etc.) with Python and Ruby scripting support. Version 7.7.2.
+KAME is a scientific instrument control and measurement software framework written in C++17/Qt. It provides a plugin-based architecture for controlling laboratory instruments (oscilloscopes, lock-in amplifiers, temperature controllers, magnet power supplies, etc.) with Python and Ruby scripting support. Version 7.8.1.
+
+**Platforms:** macOS, Windows (64-bit). Linux support is discontinued; the `CMakeLists.txt` / KDE4 build is legacy and not maintained.
 
 ## Build System
 
-The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake). The `CMakeLists.txt` targets KDE4 and is for Linux.
+The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake). The `CMakeLists.txt` targets KDE4 (Linux, legacy/discontinued).
 
 **macOS dependencies** (via MacPorts under `/opt/local`):
-- `gsl`, `fftw3`, `libtool-ltdl`, `libusb`, `eigen3`, `pybind11`
+- `gsl`, `fftw3`, `libtool-ltdl`, `zlib`, `libusb`, `eigen3`, `pybind11` (no boost)
 - Use genuine Qt (not from MacPorts); Qt5 compatibility module required for Qt 6
 - Do NOT enable "Add build library search path..." in Qt Creator's executable environment pane — this causes crashes
 
@@ -60,7 +62,9 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 - **`XDriver`** (`kame/driver/driver.h`) — base for all instrument drivers; holds a timestamped `Payload` with `time()` (when the phenomenon occurred) and `timeAwared()` (when visible to the operator); emits `onRecord` and `onVisualization` signals
 - Instrument drivers are built as **shared libraries** under `modules/` and loaded at runtime (via ltdl)
 - Each module subdirectory contains one or more drivers and registers them with the framework
-- Communication with hardware is abstracted in `modules/charinterface/` (serial, TCP, GPIB)
+- Communication with hardware is abstracted in `modules/charinterface/` (serial, TCP, GPIB, USB)
+- Drivers are registered with `REGISTER_TYPE(XDriverList, ClassName, "Human-readable label")` — this is what populates the driver selection UI
+- `modules/charinterface/usermode-linux-gpib/` — userspace port of the NI USB-GPIB kernel driver (linux-gpib 4.3.6); compiles `ni_usb_gpib.c` unchanged, replacing all kernel APIs via `osx_compat.h` / `win_compat.h` shims (libusb + pthreads / Win32). Supports NI USB-B, USB-HS, USB-HS+, KUSB-488A, MC USB-488 without a kernel module. On macOS this is the only USB-GPIB path on Apple Silicon.
 
 ### Key Subsystems
 
@@ -82,9 +86,16 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 
 ### Scripting
 
-- Python scripting uses pybind11; entry point in `kame/script/xpythonsupport.cpp`
+- Python scripting uses pybind11; entry point in `kame/script/xpythonsupport.cpp`; runtime support in `kame/script/xpythonsupport.py`
 - Ruby scripting entry point in `kame/script/xrubysupport.cpp`
-- Drivers can be subclassed in Python via `XPythonDriver` (`kame/driver/pythondriver.h`)
+- The `kame` module is **pre-imported** in all script contexts — use `Root()`, `Snapshot()`, `Transaction()` directly (not `kame.Root()`)
+- `Root()` returns the measurement root node
+- Primary drivers subclass `XPythonDriver<T>` (`kame/driver/pythondriver.h`); secondary drivers subclass `XPythonSecondaryDriver`
+- Register Python driver classes with `MyClass.exportClass("TypeName", MyClass, "Label")` — makes them appear in the driver list exactly like compiled drivers
+- `Payload.local()` returns a transaction-isolated `dict` deep-copied per snapshot; use it to store Python-side state with the same consistency guarantees as C++ Payload fields
+- `modules/python/pydrivers.py` — built-in Python driver examples: `Test4Res` (simple 4-terminal resistance with polarity switching) and `Py4Res` (multi-current variant); good reference for writing new Python drivers
+- Python interpreter runs in its own OS thread; Qt UI operations must be dispatched via `kame_mainthread(closure)`
+- Jupyter/IPython kernel embedding is supported when `ipykernel` is available
 
 ### Serialization (.kam files)
 
