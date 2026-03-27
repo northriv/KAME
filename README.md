@@ -58,6 +58,18 @@ Each driver subclasses `XDriver` (`kame/driver/driver.h`), which carries a times
 Hardware communication is abstracted in `modules/charinterface/` (serial, TCP, GPIB, USB).
 Drivers can also be subclassed in Python via `XPythonDriver` (`kame/driver/pythondriver.h`).
 
+#### Usermode NI USB-GPIB
+
+`modules/charinterface/usermode-linux-gpib/` contains a userspace port of the NI USB-GPIB
+kernel driver from linux-gpib 4.3.6. The upstream `ni_usb_gpib.c` is compiled **unchanged**;
+a compatibility header (`osx_compat.h` / `win_compat.h`) replaces every Linux kernel API —
+`kmalloc`, spinlocks, wait queues, USB URBs — with POSIX/libusb or Win32 equivalents.
+
+The result is a standalone executable that speaks to NI USB-B, USB-HS, USB-HS+, KUSB-488A,
+and MC USB-488 adapters on macOS, Linux, and Windows without installing a kernel module or
+any proprietary driver. On macOS this is the only viable path for USB-GPIB, since NI no longer
+supports their 488.2 kernel extension on Apple Silicon.
+
 ### Python Integration
 
 *This section was written by Claude (Anthropic) based on analysis of the source code.*
@@ -216,7 +228,6 @@ offers three concrete benefits for this domain:
 | Library | Notes |
 |---|---|
 | **Qt** ≥ 5.7 or Qt 6 | Qt 5 compatibility module required for Qt 6 |
-| **boost** | |
 | **Ruby** | scripting |
 | **pybind11** | Python scripting |
 | **GSL** | |
@@ -234,25 +245,6 @@ Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx, libdc139
 ---
 
 ## Building
-
-### Generic (Linux / Unix)
-
-```sh
-qmake [options] /path/to/kame/source
-make
-sudo make install
-```
-
-Or with CMake (KDE4 build):
-
-```sh
-mkdir build && cd build
-cmake /path/to/kame/source
-make
-make install DESTDIR=/path/to/install
-```
-
----
 
 ### macOS
 
