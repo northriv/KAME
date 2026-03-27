@@ -72,14 +72,14 @@ Drivers can also be subclassed in Python via `XPythonDriver` (`kame/driver/pytho
 #### Usermode NI USB-GPIB
 
 `modules/charinterface/usermode-linux-gpib/` contains a userspace port of the NI USB-GPIB
-kernel driver from linux-gpib 4.3.6. The upstream `ni_usb_gpib.c` is compiled **unchanged**;
-a compatibility header (`osx_compat.h` / `win_compat.h`) replaces every Linux kernel API —
-`kmalloc`, spinlocks, wait queues, USB URBs — with POSIX/libusb or Win32 equivalents.
+kernel driver from linux-gpib 4.3.6. The upstream `ni_usb_gpib.c` is minimally patched
+(Linux-only headers guarded with `#ifdef __KERNEL__`); a compatibility header
+(`osx_compat.h` / `win_compat.h`) replaces every Linux kernel API — `kmalloc`, spinlocks,
+wait queues, USB URBs — with POSIX/libusb or Win32 equivalents.
 
 The result is a standalone executable that speaks to NI USB-B, USB-HS, USB-HS+, KUSB-488A,
 and MC USB-488 adapters on macOS, Linux, and Windows without installing a kernel module or
-any proprietary driver. On macOS this is the only viable path for USB-GPIB, since NI no longer
-supports their 488.2 kernel extension on Apple Silicon.
+any proprietary driver. On macOS this is the only viable path for USB-GPIB on Apple Silicon.
 
 ### Python Integration
 
@@ -139,9 +139,9 @@ a custom ipykernel integration (`loop_kamepysupport`).
   does not block Qt.
 - Any Qt UI operation (loading `.ui` files, showing forms) must be dispatched to the
   main thread via `kame.kame_mainthread(closure)`.
-- Python 3.13 free-threading (`Py_GIL_DISABLED`) is supported: Payload garbage
-  collection uses a deferred deque + mutex rather than holding the GIL during
-  snapshot cleanup.
+- Payload garbage collection uses a deferred deque + mutex to avoid holding the
+  GIL during snapshot cleanup (GIL-enabled builds only); Python 3.13 free-threading
+  (`Py_GIL_DISABLED`) is also supported.
 
 ### Serialization (`.kam` files)
 
@@ -251,7 +251,7 @@ offers three concrete benefits for this domain:
 | linux-gpib or NI 488.2 *(optional)* | GPIB interfaces |
 | NI DAQmx *(optional)* | NI data-acquisition hardware |
 
-A C++ compiler supporting C++17 or later is required (GCC ≥ 10, Clang ≥ 2.1 with appropriate dialect flags).
+A C++11-capable compiler is required (the build uses `CONFIG += c++11` via qmake).
 
 Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx, libdc1394 (macOS cameras).
 
