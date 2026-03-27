@@ -1,10 +1,16 @@
-usermode-linux-gpib — macOS userspace port of the NI USB-GPIB driver
-====================================================================
+usermode-linux-gpib — macOS / Linux / Windows userspace port of the NI USB-GPIB driver
+=======================================================================================
 
 This project compiles the Linux NI USB-GPIB kernel driver (ni_usb_gpib.c
-from linux-gpib 4.3.6 / git 9813ff8f) as a native macOS userspace executable.
-All Linux kernel APIs are replaced by POSIX/libusb-1.0 equivalents provided
-by osx_compat.h; the driver source itself is unmodified.
+from linux-gpib 4.3.6 / git 9813ff8f) as a native userspace executable on
+macOS, Linux, and Windows.  All Linux kernel APIs are replaced by platform
+shims selected at compile time via compat.h:
+
+  osx_compat.h  — macOS and Linux (pthreads + POSIX + libusb-1.0)
+  win_compat.h  — Windows (Win32 SRWLOCK + CONDITION_VARIABLE + CreateThread + libusb-1.0)
+
+Upstream driver files are minimally patched (Linux-only headers guarded with
+#ifdef __KERNEL__ / #ifdef __linux__; see "Upstream source" below).
 
 
 Supported hardware
@@ -18,7 +24,8 @@ Supported hardware
 
 Prerequisites
 -------------
-  macOS (Apple Silicon or Intel), Xcode Command Line Tools or clang
+macOS (Apple Silicon or Intel):
+  Xcode Command Line Tools or clang
   libusb-1.0 via MacPorts:
 
       sudo port install libusb
@@ -26,10 +33,17 @@ Prerequisites
   Headers:  /opt/local/include/libusb-1.0/libusb.h
   Library:  /opt/local/lib/libusb-1.0.dylib
 
+Linux:
+  clang or gcc, libusb-1.0-dev (e.g. sudo apt install libusb-1.0-0-dev)
+
+Windows (MinGW-w64 or Clang):
+  MinGW-w64 toolchain or LLVM/Clang for Windows
+  libusb-1.0 Windows binaries from libusb.info
+
 
 Build
 -----
-  C++ entry point (main.cpp) — command line:
+  C++ entry point (main.cpp) — macOS / Linux command line:
 
       clang  -I. -Ilinux-gpib -I/opt/local/include -Wno-unused-function -Wno-visibility \
              -std=gnu11 -c linux-gpib/ni_usb_gpib.c gpib_stubs.c
@@ -41,13 +55,20 @@ Build
   linux-gpib/ni_usb_gpib.c and gpib_stubs.c must be compiled as C (not C++)
   because nec7210.h uses 'private' as a struct field name.
 
-  C entry point (main.c) — command line:
+  C entry point (main.c) — macOS / Linux command line:
 
       clang -I. -Ilinux-gpib -I/opt/local/include -Wno-unused-function -Wno-visibility \
             -std=gnu11 \
             main.c linux-gpib/ni_usb_gpib.c gpib_stubs.c \
             -L/opt/local/lib -lusb-1.0 -lpthread \
             -o ni_usb_gpib
+
+  Windows (MinGW-w64 / Clang) — C entry point:
+
+      clang -I. -Ilinux-gpib -I<libusb-include> -Wno-unused-function -Wno-visibility \
+            -std=gnu11 \
+            main.c linux-gpib/ni_usb_gpib.c gpib_stubs.c \
+            -L<libusb-lib> -lusb-1.0 -o ni_usb_gpib.exe
 
   Qt Creator:  open usermode-linux-gpib.pro and build normally.
                The .pro uses main.cpp by default.
@@ -138,15 +159,25 @@ macOS permissions
 
 Architecture
 ------------
-  osx_compat.h   Core shim.  Replaces all Linux kernel APIs used by
+  compat.h       Platform dispatcher.  Includes win_compat.h on _WIN32,
+                 osx_compat.h otherwise.
+
+  osx_compat.h   macOS / Linux shim.  Replaces all Linux kernel APIs used by
                  ni_usb_gpib.c: basic types, kmalloc/kfree, list_head,
                  spinlock/mutex/wait_queue/completion (pthreads), timer_list
-                 (pthread that sleeps then fires callback), and the full USB
-                 layer (struct urb, usb_submit_urb spawns a pthread).
+                 (passive: records expiry but does not spawn a thread — the
+                 libusb bulk-transfer timeout makes the timer unnecessary in
+                 practice), and the full USB layer (struct urb; bulk URBs run
+                 synchronously via libusb_bulk_transfer; interrupt URBs get one
+                 persistent background pthread).
+
+  win_compat.h   Windows shim.  Same API surface as osx_compat.h using Win32
+                 SRWLOCK + CONDITION_VARIABLE + CreateThread instead of
+                 pthreads.  Targets Windows 7+ via MinGW-w64 or Clang.
 
   linux-gpib/ni_usb_gpib.c
                  Upstream kernel driver source, compiled as-is with
-                 osx_compat.h as the first include.
+                 compat.h as the first include.
 
   gpib_stubs.c   Userspace replacements for gpib_common.ko symbols
                  (gpib_register_driver, push_gpib_event, …) plus the
@@ -154,14 +185,27 @@ Architecture
                  the driver's registered pointers during module init.
 
   NiGpibDriver.h/cpp
-                 C++ RAII wrapper around the driver lifecycle.  Exposes
-                 send(), read(), query(), and serialPoll() for use in
-                 client code (e.g. KAME).  open() performs the full
-                 initialisation sequence: attach, REN, IFC — matching
-                 what gpib_config does by default.
+                 C++ RAII wrapper around the driver lifecycle.  Public API:
+                   open()           — find USB adapter, init, probe, attach
+                   openForTest()    — inject mock interface (unit testing)
+                   close()          — detach and release all resources
+                   interfaceClear() — assert IFC for ≥100 µs (bus reset)
+                   deviceClear()    — DCL (all devices) or SDC (one device)
+                   enableRemote()   — assert / de-assert REN
+                   send()           — addressed write with configurable terminator
+                   read()           — read until EOI, EOS byte, or fixed length
+                   readEOS()        — read with explicit EOS character
+                   query()          — send() followed by read()
+                   serialPoll()     — read status byte (STB) from a device
+                   checkSRQ()       — read BSR register to check SRQ line
+                 open() performs the full init sequence: attach → REN → IFC,
+                 matching what gpib_config does by default.
 
   main.cpp       C++ command-line entry point, uses NiGpibDriver.
   main.c         Plain-C equivalent entry point.
+
+  interrupt.h    Root-level compat shim; #include_next guarded with
+                 #ifdef __linux__ so it is a no-op on macOS/Windows.
 
   test_concurrent.cpp
                  Test suite.  Mock mode (default): injects a fake
@@ -175,7 +219,10 @@ Architecture
 Upstream source
 ---------------
   linux-gpib/  — driver source and headers from linux-gpib 4.3.6 (git 9813ff8f)
-                 (unchanged except for minor guards; see linux-gpib/README)
+                 Minimally patched to compile outside the kernel (Linux-only
+                 headers wrapped with #ifdef __KERNEL__ or #ifdef __linux__;
+                 struct tags added to anonymous typedefs needed for forward
+                 declarations; see CLAUDE.md for the full patch list).
 
 License
 -------
