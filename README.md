@@ -30,19 +30,30 @@ orchestration across compatible instruments without custom programming.
 
 | Category | Models |
 |---|---|
-| DC sources | Yokogawa 7651, Advantest models, Optotune ICC4C2000 |
-| Multimeters / picoammeters | Keithley 2000/2001/6482, HP/Agilent 34420A/3458A/3478A |
-| Signal generators | NF WAVE-FACTORY, Rohde & Schwarz, HP/Agilent, DSTech, Thamway NMR PROT |
-| Temperature controllers | Cryocon M32/M62, LakeShore 340/350/370, Oxford ITC-503, Picowatt AVS-47 |
-| Network analysers | Agilent E5061/E5062, Copper Mountain TR1300/1504/4530, LibreVNA, Thamway T300-1049A |
-| Lock-in amplifiers | Stanford SR830, NF LI5640, Signal Recovery 7265, Andeen-Hagerling 2500A |
-| Magnet power supplies | (various) |
-| Oscilloscopes | (various) |
-| Cameras | IEEE 1394, eGrabber (ODMR imaging) |
-| Flow controllers / motors | (various) |
-| Quantum Design PPMS | `qd` |
-| NI DAQmx / counter / GPIB | `nidaq`, `counter`, `charinterface` |
-| Monte Carlo simulation | `montecarlo` |
+| **Oscilloscopes (DSO)** | Tektronix TDS, Lecroy/Teledyne/Iwatsu, Thamway PROT3 streaming DSO, Thamway DV14U25 A/D board, NI-DAQmx as DSO, Digilent WaveForms AIN |
+| **Signal generators** | Kenwood SG7130/7200, HP/Agilent 8643/8644/8648/8664/8665, Keysight/Agilent E44xB SCPI, Rohde-Schwarz SML01/02/03/SMV03, DSTech DPL-3.2XGF, LibreVNA SG SCPI |
+| **Function / pulse generators** | NF WAVE-FACTORY, LXI 3390 arbitrary function generator |
+| **Network analysers** | HP/Agilent 8711/8712/8713/8714, Agilent E5061/E5062, Copper Mountain TR1300/1504/4530, DG8SAQ VNWA3E, LibreVNA SCPI, Thamway T300-1049A impedance analyser |
+| **Lock-in amplifiers / bridges** | Stanford SR830, NF LI5640, Signal Recovery 7265, LakeShore M81-SSM, Agilent/HP 4284A LCR meter, Andeen-Hagerling 2500A capacitance bridge |
+| **DC sources** | Yokogawa 7651, Advantest TR6142/R6142/R6144, MICROTASK/Leiden triple current source, Optotune ICC4C-2000 |
+| **Multimeters / picoammeters** | Keithley 2000/2001, 2182 nanovolt meter, 2700+7700, 6482 picoammeter; Agilent 34420A, 3458A, 3478A; Sanwa PC500/5000 |
+| **Temperature controllers** | Cryocon M32/M62, LakeShore 218/340/350/370/372 (1ch, 8ch, 16ch scanner), Picowatt AVS-47, Oxford ITC-503, Neocera LTC-21, Scientific Instruments 9302/9304/9308, LinearResearch LR-700, OMRON E5\*C Modbus |
+| **Magnet power supplies** | Oxford PS-120, Oxford IPS-120, Cryogenic SMS10/30/120C |
+| **NMR pulsers** | Thamway N210-1026 PG32U40 (USB), PG027QAM (USB), N210-1026S/T (GPIB/TCP); NI-DAQ analog+digital output, digital output only, M+S Series; handmade H8, handmade SH2 |
+| **NMR / RF measurement** | Thamway PROT NMR (USB/TCP), NMR FID/echo analyser, T1/T2 relaxation, field-swept spectrum, frequency-swept spectrum, NMR built-in network analyser, NMR LC autotuner |
+| **Cameras / imaging** | IEEE 1394 IIDC, Euresys eGrabber (CoaXPress), Euresys Grablink (CameraLink), Hamamatsu via Grablink, JAI via Grablink, OceanOptics/Insight USB/HR2000+/4000 spectrometer |
+| **Laser modules** | Coherent Stingray, Newport/ILX LDX-3200, Newport/ILX LDC-3700(C) |
+| **ODMR** | Frequency-swept spectrum, FM peak tracker, 2-D image analysis, filter wheel (STM-driven) |
+| **Motors / positioners** | OrientalMotor FLEX CRK, CVD2B, CVD5B, FLEX AR/DG2, EMP401; SigmaOptics PAMC-104 piezo-assisted; Micro CAM z/x/φ; Two-axis rotator |
+| **Flow controllers** | Fujikin FCST1000 series |
+| **Level meters** | Oxford ILM helium level meter, Cryomagnetics LM-500 |
+| **Vacuum gauges** | Pfeiffer TPG361/362 |
+| **Pump controllers** | Pfeiffer TC110 turbopump controller |
+| **Counters** | Mutoh Digital Counter NPS |
+| **Quantum Design PPMS** | PPMS low-level interface |
+| **NI DAQmx** | Pulser (AO+DO, DO-only, M+S Series), DSO |
+| **Resistance measurement** | Four-terminal with polarity switching; Python-based 4-terminal (simple and multi-current variants) |
+| **Monte Carlo simulation** | Monte Carlo driver |
 
 ---
 
@@ -234,6 +245,8 @@ offers three concrete benefits for this domain:
 | **FFTW 3** | |
 | **Eigen 3** | |
 | LAPACK / ATLAS / BLAS *(optional)* | |
+| **libtool-ltdl** | runtime plug-in loading |
+| **zlib** | |
 | **libusb** | USB instrument interfaces |
 | linux-gpib or NI 488.2 *(optional)* | GPIB interfaces |
 | NI DAQmx *(optional)* | NI data-acquisition hardware |
