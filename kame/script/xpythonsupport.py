@@ -39,6 +39,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 	pass
 from kame import *
+_deferred_done = False
 STDOUT = sys.stdout
 STDERR = sys.stderr
 STDIN = sys.stdin
@@ -225,6 +226,11 @@ def loadSequence(xpythread, filename):
 	TLS.xscrthread["Status"] = ""
 
 def kame_pybind_one_iteration():
+	global _deferred_done
+	if not _deferred_done:
+		_deferred_done = True
+		for script in kame_deferred_scripts():
+			exec(script, globals())
 	try:
 		#For node browser pane
 		PyInfoForNodeBrowser().set(str([y[0] for y in inspect.getmembers(LastPointedByNodeBrowser(), inspect.ismethod)]))
@@ -240,14 +246,12 @@ def kame_pybind_one_iteration():
 				pass
 			else:
 				if action == "starting":
-					time.sleep(0.5)
 					xpythread_action.set("")
 					STDERR.write("Starting a new thread")
 					filename = str(xpythread_filename)
 					STDERR.write("Loading "+ filename)
 					thread = threading.Thread(daemon=True, target=loadSequence, args=(xpythread, filename))
 					thread.start()
-					time.sleep(0.3)
 				if action == "kill":
 					if str(xpythread_threadid) == "-1":
 						pass

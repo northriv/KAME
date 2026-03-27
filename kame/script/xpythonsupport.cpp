@@ -168,23 +168,31 @@ XPython::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XPython::mainthread_callback, Listener::FLAG_MAIN_THREAD_CALL);
 #endif
 
+        // Scripts other than xpythonsupport.py are deferred: executed by Python on
+        // the first kame_pybind_one_iteration() tick, after the IPython kernel is up.
+        auto deferred_scripts = std::make_shared<std::vector<std::string>>();
+        kame_module.def("kame_deferred_scripts", [=]()->std::vector<std::string>{return *deferred_scripts;});
+
         for(auto &filename: {XPYTHONEXT_TEST_PY, XPYTHONEXT_PY, XPYTHONSUPPORT_PY}) {
-//            QStringList fileList = QDir(":").entryList(QStringList() << path, QDir::Files);
-//            foreach(QString qfilename, fileList) {
             QFile scriptfile(filename);
             if( !scriptfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                gErrPrint("No KAME python support file installed.");
+                if(std::string(filename) == XPYTHONSUPPORT_PY)
+                    gErrPrint("No KAME python support file installed.");
+                else
+                    fprintf(stderr, "Optional python extension %s not found, skipping.\n", filename);
                 continue;
             }
             fprintf(stderr, "Loading python scripting support from %s.\n", filename);
-            char data[65536] = {};
-            QDataStream( &scriptfile).readRawData(data, sizeof(data) - 1);
-//            py::print("Hello, World!"); // use the Python API
+            QByteArray rawdata = scriptfile.readAll(); // no size cap
+            std::string data(rawdata.constData(), rawdata.size());
+            if(std::string(filename) != XPYTHONSUPPORT_PY) {
+                deferred_scripts->push_back(data); // execute later
+                continue;
+            }
             {
                 try {
                     py::object main_scope = py::module_::import("__main__").attr("__dict__");
-                    { //if(std::string(filename) != XPYTHONSUPPORT_PY)
-                        //linecache.cache['<string'] = .... #for debug purpose. not effective when python runs over the different string.
+                    { //linecache entry for readable tracebacks
                         std::vector<std::string> lines = {"# -*- coding: utf-8 -*-"}; //pybind11::exec() adds 1 preceding line.
                         std::stringstream ss(data);
                         std::string s;
@@ -192,9 +200,9 @@ XPython::execute(const atomic<bool> &terminated) {
                             lines.push_back(s);
                         }
                         py::module_::import("linecache").attr("cache").attr("__setitem__")("<string>",
-                            py::make_tuple(strlen(data), py::none(), lines, "<string>"));
+                            py::make_tuple(data.size(), py::none(), lines, "<string>"));
                     }
-                    py::exec(data, main_scope);
+                    py::exec(data.c_str(), main_scope);
                 }
                 catch (pybind11::error_already_set& e) {
                     if(std::string(e.what()).find("SystemExit: 0") == std::string::npos) //ignore sys.exit(0).
@@ -206,10 +214,6 @@ XPython::execute(const atomic<bool> &terminated) {
                 catch (...) {
                     gErrPrint(i18n("Unknown python error."));
                 }
-//                if(terminated || (std::string(filename) != XPYTHONSUPPORT_PY))
-//                    break;
-//                //support routine may exit accidentally. Retries.
-//                msecsleep(500);
             }
         }
         m_mainthread_cb_lsn.reset();
