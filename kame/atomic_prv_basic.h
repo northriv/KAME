@@ -70,8 +70,11 @@ public:
         return old;
     }
     bool compare_set_strong(T oldv, T newv) noexcept {
-        bool ret = atomicCompareAndSet(oldv, newv, &m_var);
-        return ret;
+        return atomicCompareAndSet(oldv, newv, &m_var);
+    }
+    // On x86, CAS is always strong (LOCK CMPXCHG); weak == strong.
+    bool compare_set_weak(T oldv, T newv) noexcept {
+        return atomicCompareAndSet(oldv, newv, &m_var);
     }
 protected:
     T m_var;
@@ -114,8 +117,10 @@ public:
         }
     }
     bool compare_set_strong(T oldv, T newv) noexcept {
-        bool ret = atomicCompareAndSet(oldv, newv, &m_var);
-        return ret;
+        return atomicCompareAndSet(oldv, newv, &m_var);
+    }
+    bool compare_set_weak(T oldv, T newv) noexcept {
+        return atomicCompareAndSet(oldv, newv, &m_var);
     }
 protected:
     T m_var

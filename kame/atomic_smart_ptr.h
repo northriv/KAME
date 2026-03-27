@@ -67,7 +67,7 @@ private:
 //! This is an internal class holding a global reference counter and a pointer to the object.
 //! \sa atomic_shared_ptr
 template <typename T>
-struct atomic_shared_ptr_gref_ {
+struct alignas(16) atomic_shared_ptr_gref_ {
     template <typename D>
     atomic_shared_ptr_gref_(T *p, D d) noexcept : ptr(p), refcnt(1), deleter(d) {}
     ~atomic_shared_ptr_gref_() noexcept { assert(refcnt == 0); deleter(); }
@@ -87,7 +87,7 @@ template <typename X, typename Y> class local_shared_ptr;
 
 //! Use subclass of this to be storaged in atomic_shared_ptr with
 //! intrusive counting to obtain better performance.
-struct atomic_countable {
+struct alignas(16) atomic_countable {
     atomic_countable() noexcept : refcnt(1) {}
     atomic_countable(const atomic_countable &) noexcept : refcnt(1) {}
     ~atomic_countable() { assert(refcnt == 0); }
@@ -127,7 +127,7 @@ protected:
     int _use_count_() const noexcept {return ((const Ref*)(reflocal_t)this->m_ref)->refcnt;}
 
     reflocal_var_t m_ref;
-    enum {ATOMIC_SHARED_REF_ALIGNMENT = (sizeof(intptr_t))};
+    enum {ATOMIC_SHARED_REF_ALIGNMENT = alignof(Ref)};
 };
 //! \brief Base class for atomic_shared_ptr with intrusive counting.
 template <typename T, typename reflocal_t, typename reflocal_var_t>
@@ -149,7 +149,7 @@ protected:
     int _use_count_() const noexcept {return ((const T*)(reflocal_t)this->m_ref)->refcnt;}
 
     reflocal_var_t m_ref;
-    enum {ATOMIC_SHARED_REF_ALIGNMENT = (sizeof(double))};
+    enum {ATOMIC_SHARED_REF_ALIGNMENT = alignof(Ref)};
 };
 
 //! \brief This class provides non-reentrant interfaces for atomic_shared_ptr: operator->(), operator*() and so on.\n
@@ -351,10 +351,16 @@ protected:
     typedef typename atomic_shared_ptr_base<T, uintptr_t, atomic<uintptr_t>>::Refcnt Refcnt;
     typedef atomic<uintptr_t> RefLocal_;
     //! A pointer to global reference struct.
-    Ref* pref_() const noexcept {return (Ref*)(this->m_ref & (~(uintptr_t)(this->ATOMIC_SHARED_REF_ALIGNMENT - 1)));}
+    Ref* pref_() const noexcept {
+        auto ref = this->m_ref.load(std::memory_order_relaxed);
+        return (Ref*)(ref & (~(uintptr_t)(this->ATOMIC_SHARED_REF_ALIGNMENT - 1)));
+    }
     //! Local (temporary) reference counter.
     //! Local reference counter is a trick to tell the observation to other threads.
-    Refcnt refcnt_() const noexcept {return (Refcnt)(this->m_ref & (uintptr_t)(this->ATOMIC_SHARED_REF_ALIGNMENT - 1));}
+    Refcnt refcnt_() const noexcept {
+        auto ref = this->m_ref.load(std::memory_order_relaxed);
+        return (Refcnt)(ref & (uintptr_t)(this->ATOMIC_SHARED_REF_ALIGNMENT - 1));
+    }
 
     //internal functions below.
     //! Atomically scans \a m_ref and increases the global reference counter.
@@ -394,7 +400,7 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
     static_assert(sizeof(static_cast<const T*>(y.get())), "");
     this->m_ref = (RefLocal_)y.m_ref;
     if(pref_())
-        ++(pref_()->refcnt); //atomic
+        pref_()->refcnt.fetch_add(1, std::memory_order_relaxed);
 }
 
 template <typename T, typename reflocal_var_t>
@@ -403,7 +409,7 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
     static_assert(sizeof(static_cast<const T*>(y.get())), "");
     this->m_ref = (RefLocal_)y.m_ref;
     if(pref_())
-        ++(pref_()->refcnt); //atomic
+        pref_()->refcnt.fetch_add(1, std::memory_order_relaxed);
 }
 
 template <typename T, typename reflocal_var_t>
@@ -418,7 +424,7 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
     if( !pref) return;
     // decreases global reference counter.
     if(unique()) {
-        pref->refcnt = 0;
+        pref->refcnt.store(0, std::memory_order_relaxed);
         this->deleter(pref);
     }
     else if(pref->refcnt.decAndTest()) {
@@ -454,7 +460,7 @@ atomic_shared_ptr<T>::reserve_scan_(Refcnt *rcnt) const noexcept {
             continue;
         }
         // trying to increase local reference counter w/ same serial.
-        if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_strong(
+        if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
             RefLocal_((uintptr_t)pref + rcnt_old),
             RefLocal_((uintptr_t)pref + rcnt_new)))
             break;
@@ -469,7 +475,7 @@ atomic_shared_ptr<T>::scan_() const noexcept {
     Refcnt rcnt;
     Ref *pref = reserve_scan_( &rcnt);
     if( !pref) return (Ref*)nullptr;
-    ++(pref->refcnt); //atomic
+    pref->refcnt.fetch_add(1, std::memory_order_relaxed);
     leave_scan_(pref);
     return pref;
 }
@@ -483,7 +489,7 @@ atomic_shared_ptr<T>::leave_scan_(Ref *pref) const noexcept {
         if(rcnt_old) {
             Refcnt rcnt_new = rcnt_old - 1;
             // trying to dec. reference counter if stored pointer is unchanged.
-            if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_strong(
+            if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
                 RefLocal_((uintptr_t)pref + rcnt_old),
                 RefLocal_((uintptr_t)pref + rcnt_new)))
                 break;
@@ -504,7 +510,7 @@ inline bool
 atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_shared_ptr<T> &newr) noexcept {
     Ref *pref;
     if(newr.pref_()) {
-        ++(newr.pref_()->refcnt); //atomic
+        newr.pref_()->refcnt.fetch_add(1, std::memory_order_relaxed);
     }
     for(;;) {
         Refcnt rcnt_old, rcnt_new;
@@ -512,12 +518,12 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
         if(pref != oldr.pref_()) {
             if(pref) {
                 if( !NOSWAP) {
-                    ++(pref->refcnt);//atomic
+                    pref->refcnt.fetch_add(1, std::memory_order_relaxed);
                 }
                 leave_scan_(pref);
             }
             if(newr.pref_())
-                --(newr.pref_()->refcnt); //atomic
+                newr.pref_()->refcnt.fetch_sub(1, std::memory_order_relaxed);
             if( !NOSWAP) {
                 if(oldr.pref_()) {
                     // decreasing global reference counter.
@@ -530,22 +536,22 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
             return false;
         }
         if(pref && (rcnt_old != 1u)) {
-            pref->refcnt += rcnt_old - 1u; //atomic
+            pref->refcnt.fetch_add(rcnt_old - 1u, std::memory_order_relaxed);
         }
         rcnt_new = 0;
-        if(this->m_ref.compare_set_strong(
+        if(this->m_ref.compare_set_weak(
             RefLocal_((uintptr_t)pref + rcnt_old),
             RefLocal_((uintptr_t)newr.pref_() + rcnt_new)))
             break;
         if(pref) {
             assert(rcnt_old);
             if(rcnt_old != 1u)
-                pref->refcnt += (Refcnt)( -(int)(rcnt_old - 1u)); //atomic
+                pref->refcnt.fetch_add(-(Refcnt)(rcnt_old - 1u), std::memory_order_relaxed);
             leave_scan_(pref);
         }
     }
     if(pref) {
-        --(pref->refcnt); //atomic
+        pref->refcnt.fetch_sub(1, std::memory_order_acq_rel); //atomic: release m_ref's ownership
     }
     return true;
 }
@@ -575,17 +581,17 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
         Refcnt rcnt_old, rcnt_new;
         pref = r.reserve_scan_( &rcnt_old);
         if(pref && (rcnt_old != 1u)) {
-            pref->refcnt += rcnt_old - 1u; //atomic
+            pref->refcnt.fetch_add(rcnt_old - 1u, std::memory_order_relaxed);
         }
         rcnt_new = 0;
-        if(r.m_ref.compare_set_strong(
+        if(r.m_ref.compare_set_weak(
             RefLocal_((uintptr_t)pref + rcnt_old),
             RefLocal_((uintptr_t)this->m_ref + rcnt_new)))
             break;
         if(pref) {
             assert(rcnt_old);
             if(rcnt_old != 1u)
-                pref->refcnt += (Refcnt)( -(int)(rcnt_old - 1u)); //atomic
+                pref->refcnt.fetch_add(-(Refcnt)(rcnt_old - 1u), std::memory_order_relaxed);
             r.leave_scan_(pref);
         }
     }

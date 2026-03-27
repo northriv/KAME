@@ -46,13 +46,19 @@ public:
     atomic& operator=(const T &t) noexcept{this->store(t); return *this; }
     bool compare_set_strong(const T &oldv, const T &newv) noexcept {
         T expected = oldv;
-        return std::atomic<T>::compare_exchange_strong(expected, newv);
+        return std::atomic<T>::compare_exchange_strong(expected, newv,
+            std::memory_order_acq_rel, std::memory_order_acquire);
+    }
+    bool compare_set_weak(const T &oldv, const T &newv) noexcept {
+        T expected = oldv;
+        return std::atomic<T>::compare_exchange_weak(expected, newv,
+            std::memory_order_acq_rel, std::memory_order_relaxed);
     }
     bool decAndTest() noexcept {
-        return (--( *this) == 0);
+        return this->fetch_sub(1, std::memory_order_acq_rel) == 1;
     }
     bool addAndTest(T t) noexcept {
-        return ((( *this) += t) == 0);
+        return (this->fetch_add(t, std::memory_order_acq_rel) + t) == T(0);
     }
 };
 

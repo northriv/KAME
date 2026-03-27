@@ -35,8 +35,7 @@ inline void memoryBarrier() noexcept {
 }
 
 inline void pause4spin() noexcept {
-    __asm__ __volatile__("isb 0xf" ::: "memory");
-//    ___isb(0xf);
+    __asm__ __volatile__("yield" ::: "memory");
 }
 
 #endif /*ATOMIC_PRV_MFENCE_ARM8_H_*/
