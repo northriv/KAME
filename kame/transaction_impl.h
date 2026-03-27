@@ -13,6 +13,7 @@
 ***************************************************************************/
 #include "transaction.h"
 #include <vector>
+#include <thread>
 
 #ifdef TRANSACTIONAL_STRICT_assert
     #undef STRICT_assert
@@ -174,8 +175,10 @@ Node<XN>::print_recoverable_error(const char* reason) {
 template <class XN>
 void
 Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept {
+    std::this_thread::yield(); // one cheap check: catches µs-level conflicts before any sleep
     for(int ms = 0;;) {
-        auto transaction_started_time = m_transaction_started_time;
+        auto transaction_started_time =
+            m_transaction_started_time.load(std::memory_order_acquire);
         if( !transaction_started_time)
             break; //collision has not been detected.
         auto dt = started_time - transaction_started_time;
