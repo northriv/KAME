@@ -118,6 +118,12 @@ struct device { char name[64]; void *driver_data; };
 #define pr_warn(fmt, ...)        printf("gpib: warn: " fmt,    ##__VA_ARGS__)
 #define pr_debug(fmt, ...)       do {} while (0)
 
+#define BUG() do { \
+    fprintf(stderr, "BUG: %s:%d\n", __FILE__, __LINE__); \
+    abort(); \
+} while (0)
+#define BUG_ON(cond) do { if (cond) BUG(); } while (0)
+
 #define MODULE_AUTHOR(s)
 #define MODULE_DESCRIPTION(s)
 #define MODULE_LICENSE(s)
@@ -409,19 +415,6 @@ static inline unsigned long msleep_interruptible(unsigned int ms) {
     Sleep((DWORD)ms); return 0;
 }
 
-/* gettimeofday shim backed by GetTickCount64 (relative time only).
- * Guard against winsock2.h already defining struct timeval. */
-#ifndef _TIMEVAL_DEFINED
-#define _TIMEVAL_DEFINED
-struct timeval { long tv_sec; long tv_usec; };
-#endif
-
-static inline int gettimeofday(struct timeval *tv, void *tz) {
-    ULONGLONG ms = GetTickCount64();
-    tv->tv_sec  = (long)(ms / 1000ULL);
-    tv->tv_usec = (long)((ms % 1000ULL) * 1000UL);
-    (void)tz; return 0;
-}
 
 /* =========================================================
  * 12. Timer (same logic as osx_compat.h, Win32 threading)
@@ -528,6 +521,7 @@ struct usb_interface {
     struct usb_device *udev;
 };
 
+static inline uint16_t USBID_TO_CPU(uint16_t id) { return id; }
 static inline struct usb_device *interface_to_usbdev(struct usb_interface *i) { return i->udev; }
 static inline void  usb_set_intfdata(struct usb_interface *i, void *d) { i->dev.driver_data = d; }
 static inline void *usb_get_intfdata(struct usb_interface *i)           { return i->dev.driver_data; }
@@ -714,6 +708,9 @@ struct pci_dev { int unused; };
 #endif
 #ifndef ECOMM
 #define ECOMM        70
+#endif
+#ifndef ESHUTDOWN
+#define ESHUTDOWN   108
 #endif
 
 #endif /* _WIN_COMPAT_H_ */
