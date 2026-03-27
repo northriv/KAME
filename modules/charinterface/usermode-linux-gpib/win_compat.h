@@ -728,7 +728,7 @@ struct pci_dev { int unused; };
 #define ECOMM        70
 #endif
 #ifndef ESHUTDOWN
-#define ESHUTDOWN   108
+#define ESHUTDOWN   160  /* 108 is ECONNRESET on MinGW; use a free value */
 #endif
 
 #endif /* _WIN_COMPAT_H_ */
