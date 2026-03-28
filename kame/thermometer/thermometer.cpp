@@ -41,6 +41,8 @@ XGenericCalibration::XGenericCalibration(const char *name, bool runtime) :
     trans( *m_outputUnit)  = "";
     trans( *m_rawLabel)    = "Raw";
     trans( *m_rawUnit)     = "";
+    trans( *outMin()) = -1e3;
+    trans( *outMax()) =  1e3;
 }
 
 XCalibrationCurve::XCalibrationCurve(const char *name, bool runtime) :

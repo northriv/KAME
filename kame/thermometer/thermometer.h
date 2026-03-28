@@ -145,9 +145,17 @@ double XCSplineCalibrationX<Base>::getOutput(double raw) const {
             double o = shot[ *static_pointer_cast<XDoubleNode>(out_list.at(i))];
             pts.insert({lsx ? log(r) : r, lsy ? log(o) : o});
         }
-        if(pts.size() < 4)
+        if(pts.size() < 2)
             throw XKameError(i18n("XCSplineCalibration, Too small number of points"),
                 __FILE__, __LINE__);
+        if(pts.size() == 2) {
+            auto it = pts.begin();
+            double x0 = it->first, y0 = it->second; ++it;
+            double x1 = it->first, y1 = it->second;
+            double key = this->useLogScaleRaw() ? log(raw) : raw;
+            double val = y0 + (y1 - y0) * (key - x0) / (x1 - x0);
+            return this->useLogScaleOutput() ? exp(val) : val;
+        }
         approx.reset(new CSplineInterp(pts));
         m_approx = approx;
     }
@@ -171,9 +179,17 @@ double XCSplineCalibrationX<Base>::getRaw(double output) const {
             double o = shot[ *static_pointer_cast<XDoubleNode>(out_list.at(i))];
             pts.insert({lsy ? log(o) : o, lsx ? log(r) : r});
         }
-        if(pts.size() < 4)
+        if(pts.size() < 2)
             throw XKameError(i18n("XCSplineCalibration, Too small number of points"),
                 __FILE__, __LINE__);
+        if(pts.size() == 2) {
+            auto it = pts.begin();
+            double x0 = it->first, y0 = it->second; ++it;
+            double x1 = it->first, y1 = it->second;
+            double key = this->useLogScaleOutput() ? log(output) : output;
+            double val = y0 + (y1 - y0) * (key - x0) / (x1 - x0);
+            return this->useLogScaleRaw() ? exp(val) : val;
+        }
         approx.reset(new CSplineInterp(pts));
         m_approx_inv = approx;
     }
