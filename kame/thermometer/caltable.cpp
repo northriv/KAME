@@ -40,11 +40,11 @@ XConCalTable::XConCalTable
 	   m_wave(XNode::createOrphan<XWaveNGraph>("Waveform", true, m_waveform.get())) {
 
     list->iterate_commit([=](Transaction &tr){
-		m_thermometer = XNode::createOrphan<XItemNode<XCalibrationCurveList, XCalibrationCurve> >(
-						 "thermometer", false, tr, list, true);
+        m_caltable = XNode::createOrphan<XItemNode<XCalibrationCurveList, XCalibrationCurve> >(
+                         "CalTable", false, tr, list, true);
     });
 
-    m_conThermo = xqcon_create<XQComboBoxConnector> (m_thermometer,
+    m_conCalTable = xqcon_create<XQComboBoxConnector> (m_caltable,
 		(QComboBox *) form->cmbThermometer, Snapshot( *list));
 	m_conTemp = xqcon_create<XQLineEditConnector> (m_temp, form->edTemp, false);
 	m_conValue = xqcon_create<XQLineEditConnector> (m_value, form->edValue, false);
@@ -65,8 +65,8 @@ XConCalTable::XConCalTable
 			shared_from_this(),
 			&XConCalTable::onDisplayTouched, Listener::FLAG_MAIN_THREAD_CALL);
     });
-    m_thermometer->iterate_commit([=](Transaction &tr){
-        m_lsnThermometerChanged = tr[ *m_thermometer].onValueChanged().connectWeakly(
+    m_caltable->iterate_commit([=](Transaction &tr){
+        m_lsnThermometerChanged = tr[ *m_caltable].onValueChanged().connectWeakly(
             shared_from_this(),
             &XConCalTable::onThermometerChanged, Listener::FLAG_MAIN_THREAD_CALL);
     });
@@ -108,7 +108,7 @@ XConCalTable::XConCalTable
 
 void
 XConCalTable::onTempChanged(const Snapshot &shot, XValueNodeBase *) {
-	shared_ptr<XCalibrationCurve> curve = ***thermometer();
+    shared_ptr<XCalibrationCurve> curve = ***calibrationTable();
 	if( !curve) return;
 	double ret = curve->getRaw(shot[ *temp()]);
     value()->iterate_commit([=](Transaction &tr){
@@ -118,7 +118,7 @@ XConCalTable::onTempChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XConCalTable::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
-	shared_ptr<XCalibrationCurve> curve = ***thermometer();
+    shared_ptr<XCalibrationCurve> curve = ***calibrationTable();
 	if( !curve) return;
 	double ret = curve->getOutput(shot[ *value()]);
     temp()->iterate_commit([=](Transaction &tr){
@@ -133,7 +133,7 @@ XConCalTable::onThermometerChanged(const Snapshot &, XValueNodeBase *) {
 }
 void
 XConCalTable::populateTable() {
-    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    shared_ptr<XCalibrationCurve> curve = ***m_caltable;
     // Update window title and internal graph title.
     XString graphtitle = curve ? curve->getLabel() : XString(i18n("Calibration Table"));
     m_waveform->setWindowTitle(curve ?
@@ -142,18 +142,34 @@ XConCalTable::populateTable() {
     trans( *m_wave->graph()->label()) = graphtitle;
 
     // Update UI labels from virtual label functions.
-    m_pForm->lblOutputName->setText(curve ? curve->outputLabel().c_str() : "Output");
-    m_pForm->lblOutputUnit->setText(curve ? curve->outputUnit().c_str() : "");
-    m_pForm->lblRawName->setText(curve ? curve->rawLabel().c_str() : "Raw");
-    m_pForm->lblRawUnit->setText(curve ? curve->rawUnit().c_str() : "");
+    XString outlabel = curve ? curve->outputLabel() : "Output";
+    XString outunit  = curve ? curve->outputUnit()  : "";
+    XString rawlabel = curve ? curve->rawLabel()    : "Raw";
+    XString rawunit  = curve ? curve->rawUnit()     : "";
+    m_pForm->lblOutputName->setText(outlabel.c_str());
+    m_pForm->lblOutputUnit->setText(outunit.c_str());
+    m_pForm->lblRawName->setText(rawlabel.c_str());
+    m_pForm->lblRawUnit->setText(rawunit.c_str());
+    QString outFull = outunit.empty() ? outlabel.c_str()
+        : QString("%1 [%2]").arg(outlabel.c_str(), outunit.c_str());
+    QString rawFull = rawunit.empty() ? rawlabel.c_str()
+        : QString("%1 [%2]").arg(rawlabel.c_str(), rawunit.c_str());
+    m_pForm->lblOutMin->setText(outFull + " Min");
+    m_pForm->lblOutMax->setText(outFull + " Max");
+    // Update graph axis labels (with units).
+    m_wave->iterate_commit([=](Transaction &tr){
+        auto fmtLabel = [](const XString &lbl, const XString &unit) -> XString {
+            return unit.empty() ? lbl : XString(lbl + " [" + unit + "]");
+        };
+        tr[ *tr[ *m_wave].axisx()->label()]  = fmtLabel(outlabel, outunit);
+        tr[ *tr[ *m_wave].axisy()->label()]  = fmtLabel(rawlabel, rawunit);
+        tr[ *tr[ *m_wave].axisy2()->label()] = outunit.empty() ? XString("Error")
+            : XString("Error [") + outunit + "]";
+    });
 
     // Update table column headers.
-    QString rawColLabel = curve ?
-        QString("%1 [%2]").arg(curve->rawLabel().c_str(), curve->rawUnit().c_str()) : "Raw";
-    QString outColLabel = curve ?
-        QString("%1 [%2]").arg(curve->outputLabel().c_str(), curve->outputUnit().c_str()) : "Output";
-    m_pForm->tblPoints->setHorizontalHeaderItem(0, new QTableWidgetItem(rawColLabel));
-    m_pForm->tblPoints->setHorizontalHeaderItem(1, new QTableWidgetItem(outColLabel));
+    m_pForm->tblPoints->setHorizontalHeaderItem(0, new QTableWidgetItem(rawFull));
+    m_pForm->tblPoints->setHorizontalHeaderItem(1, new QTableWidgetItem(outFull));
 
     auto spline = dynamic_pointer_cast<XCSplineCalibrationIF>(curve);
     m_pForm->tblPoints->setEnabled(spline != nullptr);
@@ -222,7 +238,7 @@ XConCalTable::populateTable() {
 void
 XConCalTable::onTableCellChanged(int row, int col) {
     if(m_updatingTable) return;
-    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    shared_ptr<XCalibrationCurve> curve = ***m_caltable;
     auto spline = dynamic_pointer_cast<XCSplineCalibrationIF>(curve);
     if( !spline) return;
     QTableWidgetItem *item = m_pForm->tblPoints->item(row, col);
@@ -245,7 +261,7 @@ XConCalTable::onTableCellChanged(int row, int col) {
 }
 void
 XConCalTable::onAddRowClicked() {
-    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    shared_ptr<XCalibrationCurve> curve = ***m_caltable;
     auto spline = dynamic_pointer_cast<XCSplineCalibrationIF>(curve);
     if( !spline) return;
     spline->rawList()->createByTypename("", "");
@@ -256,7 +272,7 @@ XConCalTable::onAddRowClicked() {
 }
 void
 XConCalTable::onRemoveRowClicked() {
-    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    shared_ptr<XCalibrationCurve> curve = ***m_caltable;
     auto spline = dynamic_pointer_cast<XCSplineCalibrationIF>(curve);
     if( !spline) return;
     int row = m_pForm->tblPoints->currentRow();
@@ -317,7 +333,7 @@ XConCalTable::drawGraph(const shared_ptr<XCalibrationCurve> &curve) {
 void
 XConCalTable::refreshGraph() {
     if( !m_waveform->isVisible()) return;
-    drawGraph( ***thermometer());
+    drawGraph( ***calibrationTable());
 }
 void
 XConCalTable::sortByRaw(const shared_ptr<XCSplineCalibrationIF> &spline) {
@@ -352,13 +368,13 @@ XConCalTable::onNewClicked() {
 }
 void
 XConCalTable::onDeleteClicked() {
-    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    shared_ptr<XCalibrationCurve> curve = ***m_caltable;
     if( !curve) return;
     m_list->release(curve);
 }
 void
 XConCalTable::onDisplayTouched(const Snapshot &, XTouchableNode *) {
-    drawGraph( ***thermometer());
+    drawGraph( ***calibrationTable());
     m_waveform->showNormal();
     m_waveform->raise();
 }

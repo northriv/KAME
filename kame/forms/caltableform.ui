@@ -179,7 +179,7 @@
       <item>
        <layout class="QHBoxLayout">
         <item>
-         <widget class="QLabel">
+         <widget class="QLabel" name="lblOutMin">
           <property name="text">
            <string>OutMin</string>
           </property>
@@ -189,7 +189,7 @@
          <widget class="QLineEdit" name="edTMin"/>
         </item>
         <item>
-         <widget class="QLabel">
+         <widget class="QLabel" name="lblOutMax">
           <property name="text">
            <string>OutMax</string>
           </property>

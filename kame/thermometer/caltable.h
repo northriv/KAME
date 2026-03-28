@@ -35,8 +35,8 @@ public:
 	const shared_ptr<XTouchableNode> &display() const {return m_display;}
 	const shared_ptr<XDoubleNode> &temp() const {return m_temp;}
 	const shared_ptr<XDoubleNode> &value() const {return m_value;}
-	const shared_ptr<XItemNode<XCalibrationCurveList, XCalibrationCurve> > &thermometer() const {
-		return m_thermometer;
+    const shared_ptr<XItemNode<XCalibrationCurveList, XCalibrationCurve> > &calibrationTable() const {
+        return m_caltable;
 	}
 
 private slots:
@@ -51,8 +51,8 @@ private:
 
 	const shared_ptr<XTouchableNode> m_display;
 	const shared_ptr<XDoubleNode> m_temp, m_value;
-	shared_ptr<XItemNode<XCalibrationCurveList, XCalibrationCurve> > m_thermometer;
-	xqcon_ptr m_conThermo, m_conTemp, m_conValue, m_conDisplay;
+    shared_ptr<XItemNode<XCalibrationCurveList, XCalibrationCurve> > m_caltable;
+    xqcon_ptr m_conCalTable, m_conTemp, m_conValue, m_conDisplay;
 	xqcon_ptr m_conTMin, m_conTMax;
 
 	shared_ptr<Listener> m_lsnTemp, m_lsnValue;
