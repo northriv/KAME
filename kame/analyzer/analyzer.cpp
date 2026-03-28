@@ -103,9 +103,9 @@ XValChart::XValChart(const char *name, bool runtime,
     }
 }
 void
-XValChart::onVisualization(const Snapshot &shot, XDriver *driver) {
+XValChart::onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *driver) {
     XTime time = shot[ *driver].time();
-    if(time.isSet()) {
+    if(afterRecorded && time.isSet()) {
         try {
             double val;
             try {
@@ -211,7 +211,11 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
         if( !tr[ *this].m_graph) return; //transaction has failed.
         graph = tr[ *this].m_graph;
 
-		if( !entryx || !entryy1) return;
+		if( !entryx || !entryy1) {
+			tr[ *this].m_livePlot.reset();
+			tr[ *this].m_storePlot.reset();
+			return;
+		}
 
 		tr[ *this].m_livePlot =
 			graph->plots()->create<XXYPlot>(tr,
@@ -257,15 +261,17 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
         graph->applyTheme(tr, true);
     });
     graphForm()->m_graphwidget->setGraph(graph);
+    m_lsnOnVisualization.reset();
+    if(auto drv = entryx ? entryx->driver() : shared_ptr<XDriver>()) {
+        drv->iterate_commit([=](Transaction &tr){
+            m_lsnOnVisualization = tr[ *drv].onVisualization().connectWeakly(
+                shared_from_this(), &XValGraph::onVisualization);
+        });
+    }
     m_entries.lock()->iterate_commit([=](Transaction &tr){
 		if( !tr.isUpperOf( *entryx)) return;
 		if( !tr.isUpperOf( *entryy1)) return;
 		if(entryz && !tr.isUpperOf( *entryz)) return;
-		m_lsnLiveChanged = tr[ *entryx->value()].onValueChanged().connectWeakly(
-			shared_from_this(), &XValGraph::onLiveChanged);
-		tr[ *entryy1->value()].onValueChanged().connect(m_lsnLiveChanged);
-		if(entryz) tr[ *entryz->value()].onValueChanged().connect(m_lsnLiveChanged);
-
 		m_lsnStoreChanged = tr[ *entryx->storedValue()].onValueChanged().connectWeakly(
 			shared_from_this(), &XValGraph::onStoreChanged);
 		tr[ *entryy1->storedValue()].onValueChanged().connect(m_lsnStoreChanged);
@@ -284,7 +290,8 @@ XValGraph::clearAllPoints() {
     });
 }
 void
-XValGraph::onLiveChanged(const Snapshot &shot, XValueNodeBase *) {
+XValGraph::onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *driver) {
+    if( !afterRecorded || !shot[ *driver].time().isSet()) return;
 	Snapshot shot_this( *this);
 	shared_ptr<XScalarEntry> entryx = shot_this[ *axisX()];
 	shared_ptr<XScalarEntry> entryy1 = shot_this[ *axisY1()];
@@ -301,6 +308,7 @@ XValGraph::onLiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	if(entryz) z = shot_entries[ *entryz->value()];
 
 	iterate_commit([=](Transaction &tr){
+		if( !tr[ *this].m_livePlot) return;
 		tr[ *this].m_livePlot->addPoint(tr, x, y, z);
     });
 }
@@ -322,6 +330,7 @@ XValGraph::onStoreChanged(const Snapshot &shot, XValueNodeBase *) {
 	if(entryz) z = shot_entries[ *entryz->storedValue()];
 
 	iterate_commit([=](Transaction &tr){
+		if( !tr[ *this].m_storePlot) return;
 		tr[ *this].m_storePlot->addPoint(tr, x, y, z);
     });
 }
@@ -381,7 +390,9 @@ XCalibratedEntry::onSelectionChanged(const Snapshot &, XValueNodeBase *) {
         // participates in driver-based recording (textwriter, entrylistconnector).
         auto entries = m_entries.lock();
         if(m_proxyInserted && entries) {
-            entries->release(m_proxy);
+            Snapshot shot(*entries);
+            if(shot.isUpperOf(*m_proxy))
+                entries->release(m_proxy);
             m_proxyInserted = false;
         }
         m_proxy = XNode::createOrphan<XScalarEntry>(
@@ -409,7 +420,9 @@ XCalibratedEntry::onSelectionChanged(const Snapshot &, XValueNodeBase *) {
             } catch(...) {}
         } else {
             if(m_proxyInserted) {
-                entries->release(m_proxy);
+                Snapshot shot(*entries);
+                if(shot.isUpperOf(*m_proxy))
+                    entries->release(m_proxy);
                 m_proxyInserted = false;
             }
         }
@@ -456,6 +469,9 @@ XCalibratedEntryList::onCatch(const Snapshot &, const XListNodeBase::Payload::Ca
 void
 XCalibratedEntryList::onRelease(const Snapshot &, const XListNodeBase::Payload::ReleaseEvent &e) {
     auto entry = static_pointer_cast<XCalibratedEntry>(e.released);
-    if(entry->proxyInserted())
-        m_entries->release(entry->proxy());
+    if(!entry->proxyInserted()) return;
+    auto proxy = entry->proxy();
+    Snapshot shot(*m_entries);
+    if(shot.isUpperOf(*proxy))
+        m_entries->release(proxy);
 }

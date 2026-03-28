@@ -142,7 +142,7 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 				err.print(this->getLabel() + ": ");
             try {
                 this->visualize(shot);
-                trans( *this).onVisualization().talk(shot, this);
+                trans( *this).onVisualization().talk(shot, !skipped, this);
             }
 #ifdef USE_PYBIND11
             catch (pybind11::error_already_set& e) {

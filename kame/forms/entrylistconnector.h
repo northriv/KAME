@@ -47,7 +47,7 @@ private:
 	};
 	typedef std::deque<shared_ptr<tcons> > tconslist;
 	tconslist m_cons;
-    void onVisualization(const Snapshot &shot, XDriver*);
+    void onVisualization(const Snapshot &shot, bool afterRecorded, XDriver*);
 };
 
 #endif

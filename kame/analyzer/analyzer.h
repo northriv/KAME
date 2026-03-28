@@ -89,7 +89,7 @@ public:
 private:
     shared_ptr<Listener> m_lsnOnRecord;
 	//callback from Driver
-    void onVisualization(const Snapshot &shot, XDriver *driver);
+    void onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *driver);
 
 	const shared_ptr<XScalarEntry> m_entry;
 	shared_ptr<XGraph> m_graph;
@@ -138,9 +138,9 @@ private:
     shared_ptr<Listener> m_lsnAxisChanged;
 	void onAxisChanged(const Snapshot &shot, XValueNodeBase *node);
 
-    shared_ptr<Listener> m_lsnLiveChanged;
+    shared_ptr<Listener> m_lsnOnVisualization;
     shared_ptr<Listener> m_lsnStoreChanged;
-	void onLiveChanged(const Snapshot &shot, XValueNodeBase *node);
+	void onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *driver);
 	void onStoreChanged(const Snapshot &shot, XValueNodeBase *node);
 
 	weak_ptr<XScalarEntryList> m_entries;

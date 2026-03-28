@@ -50,8 +50,10 @@ public:
 
         Talker<XDriver*> &onRecord() {return m_tlkOnRecord;}
         const Talker<XDriver*> &onRecord() const {return m_tlkOnRecord;}
-        Talker<XDriver*> &onVisualization() {return m_tlkOnVisualization;}
-        const Talker<XDriver*> &onVisualization() const {return m_tlkOnVisualization;}
+        //! Fired after visualize(). The bool arg is true only when a valid
+        //! (non-skipped, non-error) record was committed this cycle.
+        Talker<bool, XDriver*> &onVisualization() {return m_tlkOnVisualization;}
+        const Talker<bool, XDriver*> &onVisualization() const {return m_tlkOnVisualization;}
     private:
 		friend class XDriver;
 
@@ -60,7 +62,8 @@ public:
 		//! \sa timeAwared()
 		XTime m_awaredTime;
 
-        Talker<XDriver*> m_tlkOnRecord, m_tlkOnVisualization;
+        Talker<XDriver*> m_tlkOnRecord;
+        Talker<bool, XDriver*> m_tlkOnVisualization;
 	};
     //! Throwing this exception will cause a reset of record time.
     //! And, prints error message.

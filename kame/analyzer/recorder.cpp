@@ -177,8 +177,8 @@ XTextWriter::onLastLineChanged(const Snapshot &shot, XValueNodeBase *) {
 	}
 }
 void
-XTextWriter::onVisualization(const Snapshot &shot, XDriver *driver) {
-    if( !shot[ *driver].time().isSet()) return; // skip invalid/refresh-only visualizations
+XTextWriter::onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *driver) {
+    if( !afterRecorded) return;
 	Snapshot shot_this( *this);
     XString logline;
     bool record_log = shot_this[ *logRecording()];

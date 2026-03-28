@@ -53,7 +53,7 @@ XEntryListConnector::XEntryListConnector
 	}
 }
 void
-XEntryListConnector::onVisualization(const Snapshot &shot, XDriver *driver) {
+XEntryListConnector::onVisualization(const Snapshot &shot, bool /*afterRecorded*/, XDriver *driver) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(( *it)->entry->driver().get() == driver) {
             try {

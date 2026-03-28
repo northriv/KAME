@@ -28,8 +28,8 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 
     XTime time_recorded = time_recorded_org;
     XKameError err;
-    Snapshot shot = iterate_commit([=, &time_recorded, &err](Transaction &tr){
-		bool skipped = false;
+    bool skipped = false;
+    Snapshot shot = iterate_commit([=, &time_recorded, &err, &skipped](Transaction &tr){
         if(time_recorded.isSet()) {
 			try {
 				RawDataReader reader( *rawdata);
@@ -73,7 +73,7 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
         err.print(getLabel() + ": ");
     try {
         visualize(shot);
-        trans( *this).onVisualization().talk(shot, this);
+        trans( *this).onVisualization().talk(shot, !skipped, this);
     }
 #ifdef USE_PYBIND11
     catch (pybind11::error_already_set& e) {

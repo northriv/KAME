@@ -93,7 +93,7 @@ private:
 	shared_ptr<Listener> m_lsnOnFilenameChanged;
 	shared_ptr<Listener> m_lsnOnLogFilenameChanged;
 	shared_ptr<Listener> m_lsnOnLogRecord;
-	void onVisualization(const Snapshot &shot, XDriver *);
+	void onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *);
 	void onFlush(const Snapshot &shot, XValueNodeBase *);
 	void onLastLineChanged(const Snapshot &shot, XValueNodeBase *);
 	void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
