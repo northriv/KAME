@@ -156,15 +156,15 @@ XConCalTable::populateTable() {
         : QString("%1 [%2]").arg(rawlabel.c_str(), rawunit.c_str());
     m_pForm->lblOutMin->setText(outFull + " Min");
     m_pForm->lblOutMax->setText(outFull + " Max");
-    // Update graph axis labels (with units).
+    // Update graph axis labels (with units). Axes may not exist yet on first call.
     m_wave->iterate_commit([=](Transaction &tr){
         auto fmtLabel = [](const XString &lbl, const XString &unit) -> XString {
             return unit.empty() ? lbl : XString(lbl + " [" + unit + "]");
         };
-        tr[ *tr[ *m_wave].axisx()->label()]  = fmtLabel(outlabel, outunit);
-        tr[ *tr[ *m_wave].axisy()->label()]  = fmtLabel(rawlabel, rawunit);
-        tr[ *tr[ *m_wave].axisy2()->label()] = outunit.empty() ? XString("Error")
-            : XString("Error [") + outunit + "]";
+        if(auto ax = tr[ *m_wave].axisx())  tr[ *ax->label()] = fmtLabel(outlabel, outunit);
+        if(auto ax = tr[ *m_wave].axisy())  tr[ *ax->label()] = fmtLabel(rawlabel, rawunit);
+        if(auto ax = tr[ *m_wave].axisy2()) tr[ *ax->label()] = outunit.empty()
+            ? XString("Error") : XString("Error [") + outunit + "]";
     });
 
     // Update table column headers.
