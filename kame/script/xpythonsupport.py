@@ -39,6 +39,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 	pass
 from kame import *
+_deferred_done = False
 STDOUT = sys.stdout
 STDERR = sys.stderr
 STDIN = sys.stdin
@@ -225,6 +226,14 @@ def loadSequence(xpythread, filename):
 	TLS.xscrthread["Status"] = ""
 
 def kame_pybind_one_iteration():
+	global _deferred_done
+	if not _deferred_done:
+		_deferred_done = True
+		for script in kame_deferred_scripts():
+			try:
+				exec(script, globals())
+			except Exception:
+				STDERR.write(str(traceback.format_exc()))
 	try:
 		#For node browser pane
 		PyInfoForNodeBrowser().set(str([y[0] for y in inspect.getmembers(LastPointedByNodeBrowser(), inspect.ismethod)]))
@@ -328,12 +337,6 @@ def launchJupyterConsole(prog, argv):
 
 import linecache
 linecache.clearcache() #suppress lengthy traceback inside REPL.
-
-for _script in kame_deferred_scripts():
-	try:
-		exec(_script, globals())
-	except Exception:
-		STDERR.write(str(traceback.format_exc()))
 
 if not HasIPython:
 	print("#testing python interpreter.")
