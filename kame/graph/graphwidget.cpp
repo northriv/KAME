@@ -69,20 +69,15 @@ XQGraph::setGraph(const shared_ptr<XGraph> &graph) {
     m_conDialog.reset();
     m_painter.reset();
     m_graph = graph;
-//    if(graph && !isHidden()) {
-//		showEvent(NULL);
-//    }
-
-//    graph->iterate_commit([=](Transaction &tr){
-//        m_planeSelectionTool = XNode::createOrphan<XBoolNode>("", true, tr);
-//        m_axisSelectionTool = XNode::createOrphan<XBoolNode>("", true, tr);
-//    });
-
-//    m_activate1DAreaTool->iterate_commit([=](Transaction &tr){
-//        m_lsn1DAreaTouched = tr[ *m_activate2DAreaTool].onValueChanged().connectWeakly
-//            (shared_from_this(), &XQGraph::onSelAxisChanged, Listener::FLAG_MAIN_THREAD_CALL);
-//    });
-
+    if(graph && isVisible()) {
+        // initializeGL()/resizeGL() are only called once by Qt; if already visible, recreate painter now.
+        makeCurrent();
+        new XQGraphPainter(graph, this);
+        m_painter->initializeGL();
+        resizeGL(width(), height()); // sizes m_persistentFrame; must follow initializeGL
+        doneCurrent();
+        update();
+    }
 }
 void
 XQGraph::activateAxisSelectionTool(XAxis::AxisDirection dir, const XString &tool_desc) {

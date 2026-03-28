@@ -30,6 +30,7 @@
 #include "interfacelistconnector.h"
 #include "entrylistconnector.h"
 #include "graphlistconnector.h"
+#include "calibentryconnector.h"
 #include "recordreaderconnector.h"
 #include "nodebrowser.h"
 
@@ -53,6 +54,7 @@ m_thermometers(create<XThermometerList>("Thermometers", false)),
 m_scalarEntries(create<XScalarEntryList>("ScalarEntries", true)),
 m_graphList(create<XGraphList>("GraphList", true, scalarEntries())),
 m_chartList(create<XChartList>("ChartList", true, scalarEntries())),
+m_calibratedEntryList(create<XCalibratedEntryList>("CalibratedEntries", true, scalarEntries(), thermometers())),
 m_interfaces(create<XInterfaceList>("Interfaces", true)),
 m_drivers(create<XDriverList>("Drivers", false, static_pointer_cast<XMeasure>(shared_from_this()))),
 m_textWriter(create<XTextWriter>("TextWriter", false, drivers(), scalarEntries())),
@@ -75,6 +77,10 @@ m_conGraphs(xqcon_create<XGraphListConnector>(graphs(),
         dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->m_tblGraphs,
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->btnNewGraph,
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->btnDeleteGraph)),
+m_conCalibEntries(xqcon_create<XCalibratedEntryListConnector>(calibratedEntries(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->m_tblCalibEntries,
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->btnNewCalibEntry,
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->btnDeleteCalibEntry)),
 m_conTextWrite(xqcon_create<XQToggleButtonConnector>(
 		textWriter()->recording(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_ckbTextWrite)),

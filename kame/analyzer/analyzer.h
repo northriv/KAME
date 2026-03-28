@@ -116,6 +116,7 @@ public:
 
 	void showGraph();
 	void clearAllPoints();
+    FrmGraph *graphForm();
 
 	typedef XItemNode<XScalarEntryList, XScalarEntry> tAxis;
   
@@ -153,6 +154,55 @@ public:
 	const shared_ptr<XScalarEntryList> &entries() const {return m_entries;}
 private:
 	const shared_ptr<XScalarEntryList> m_entries;
+};
+
+class XCalibrationCurveList;
+class XCalibrationCurve;
+
+//! A scalar entry derived from another entry via a calibration curve.
+//! Exposes a proxy XScalarEntry (single-parent, in XScalarEntryList) to avoid hard links.
+class DECLSPEC_KAME XCalibratedEntry : public XNode {
+public:
+    XCalibratedEntry(const char *name, bool runtime,
+        const shared_ptr<XScalarEntryList> &entries,
+        const shared_ptr<XCalibrationCurveList> &curves);
+
+    typedef XItemNode<XScalarEntryList, XScalarEntry> tSource;
+    typedef XItemNode<XCalibrationCurveList, XCalibrationCurve> tCurve;
+    const shared_ptr<tSource>     &source() const { return m_source; }
+    const shared_ptr<tCurve>      &curve()  const { return m_curve; }
+    const shared_ptr<XScalarEntry> &proxy() const { return m_proxy; }
+private:
+    shared_ptr<tSource> m_source;
+    shared_ptr<tCurve>  m_curve;
+    shared_ptr<XScalarEntry> m_proxy; // lives only in XScalarEntryList — no hard link
+    weak_ptr<XScalarEntry> m_currentSource;
+    weak_ptr<XScalarEntryList> m_entries;
+    bool m_proxyInserted = false;
+    shared_ptr<Listener> m_lsnSelectionChanged;
+    shared_ptr<Listener> m_lsnSourceValueChanged;
+    void onSelectionChanged(const Snapshot &, XValueNodeBase *);
+    void onSourceValueChanged(const Snapshot &, XValueNodeBase *);
+public:
+    bool proxyInserted() const { return m_proxyInserted; }
+private:
+};
+
+//! List of calibrated entries; also registers each in the global XScalarEntryList.
+class DECLSPEC_KAME XCalibratedEntryList : public XCustomTypeListNode<XCalibratedEntry> {
+public:
+    XCalibratedEntryList(const char *name, bool runtime,
+        const shared_ptr<XScalarEntryList> &entries,
+        const shared_ptr<XCalibrationCurveList> &curves);
+    shared_ptr<XNode> createByTypename(const XString &, const XString &name) override;
+    const shared_ptr<XScalarEntryList>      &entries() const { return m_entries; }
+    const shared_ptr<XCalibrationCurveList> &curves()  const { return m_curves; }
+private:
+    shared_ptr<Listener> m_lsnOnCatch, m_lsnOnRelease;
+    void onCatch(const Snapshot &, const XListNodeBase::Payload::CatchEvent &);
+    void onRelease(const Snapshot &, const XListNodeBase::Payload::ReleaseEvent &);
+    const shared_ptr<XScalarEntryList>      m_entries;
+    const shared_ptr<XCalibrationCurveList> m_curves;
 };
 //---------------------------------------------------------------------------
 #endif

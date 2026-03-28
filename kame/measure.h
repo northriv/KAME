@@ -28,6 +28,7 @@ class XDriverList;
 class XScalarEntryList;
 class XGraphList;
 class XChartList;
+class XCalibratedEntryList;
 class XTextWriter;
 class XRawStreamRecorder;
 class XRawStreamRecordReader;
@@ -58,6 +59,7 @@ public:
 	const shared_ptr<XScalarEntryList> &scalarEntries() const {return m_scalarEntries;}
 	const shared_ptr<XGraphList> &graphs() const {return m_graphList;}
 	const shared_ptr<XChartList> &charts() const {return m_chartList;}
+    const shared_ptr<XCalibratedEntryList> &calibratedEntries() const {return m_calibratedEntryList;}
 	const shared_ptr<XTextWriter> &textWriter() const {return m_textWriter;}
 	const shared_ptr<XRawStreamRecorder> &rawStreamRecorder() const {return m_rawStreamRecorder;}
 	const shared_ptr<XRawStreamRecordReader> &rawStreamRecordReader() const {return m_rawStreamRecordReader;}
@@ -77,6 +79,7 @@ private:
 	const shared_ptr<XScalarEntryList> m_scalarEntries;
 	const shared_ptr<XGraphList> m_graphList;
 	const shared_ptr<XChartList> m_chartList;
+    const shared_ptr<XCalibratedEntryList> m_calibratedEntryList;
 	const shared_ptr<XInterfaceList> m_interfaces;
 	const shared_ptr<XDriverList> m_drivers;
 	const shared_ptr<XTextWriter> m_textWriter;
@@ -87,7 +90,7 @@ private:
     shared_ptr<XStringNode> m_pyInfoForNodeBrowser;
 
     const xqcon_ptr m_conRecordReader,
-        m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs,
+        m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs, m_conCalibEntries,
         m_conTextWrite, m_conTextURL, m_conTextLastLine,
         m_conLogURL, m_conLogWrite, m_conLogEvery,
         m_conBinURL, m_conBinWrite, m_conUrlRubyThread,

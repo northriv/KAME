@@ -18,6 +18,7 @@
 #include "graph.h"
 #include "driver.h"
 #include "measure.h"
+#include "thermometer.h"
 
 #include <QStatusBar>
 
@@ -44,7 +45,9 @@ XScalarEntry::storeValue(Transaction &tr) {
 
 XString
 XScalarEntry::getLabel() const {
-	return driver()->getLabel() + "-" + XNode::getLabel();
+    auto drv = driver();
+    if( !drv) return XNode::getLabel();
+	return drv->getLabel() + "-" + XNode::getLabel();
 }
 
 void
@@ -64,7 +67,8 @@ XValChart::XValChart(const char *name, bool runtime,
       m_graphForm(new FrmGraph(g_pFrmMain, Qt::Window)) {
 
     m_graphForm->m_graphwidget->setGraph(m_graph);
-    
+    m_graphForm->m_axisSelector->hide();
+
     m_graph->iterate_commit([=](Transaction &tr){
         m_chart = m_graph->plots()->create<XXYPlot>(tr, entry->getLabel().c_str(), true, tr, m_graph);
         if( !m_chart) return; //transaction has failed.
@@ -91,17 +95,28 @@ XValChart::XValChart(const char *name, bool runtime,
         m_graph->applyTheme(tr, true);
     });
 
-    entry->driver()->iterate_commit([=](Transaction &tr){
-        m_lsnOnRecord = tr[ *entry->driver()].onVisualization().connectWeakly(
-            shared_from_this(), &XValChart::onVisualization);
-    });
+    if(auto drv = entry->driver()) {
+        drv->iterate_commit([=](Transaction &tr){
+            m_lsnOnRecord = tr[ *drv].onVisualization().connectWeakly(
+                shared_from_this(), &XValChart::onVisualization);
+        });
+    }
 }
 void
 XValChart::onVisualization(const Snapshot &shot, XDriver *driver) {
     XTime time = shot[ *driver].time();
     if(time.isSet()) {
         try {
-            double val = shot.at( *m_entry->value());
+            double val;
+            try {
+                val = shot.at( *m_entry->value());
+            }
+            catch (XNode::NodeNotFoundError &) {
+                // Entry (e.g. calibrated proxy) not in driver's snapshot;
+                // use a fresh snapshot of the entry's own subtree instead.
+                Snapshot shot_entry( *m_entry);
+                val = shot_entry[ *m_entry->value()];
+            }
             iterate_commit([=](Transaction &tr){
                 m_chart->addPoint(tr, time.sec() + time.usec() * 1e-6, val);
     //            tr[ *m_graph->onScreenStrings()] = time.getTimeStr();
@@ -134,6 +149,7 @@ XChartList::XChartList(const char *name, bool runtime, const shared_ptr<XScalarE
 void
 XChartList::onCatchEntry(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
     shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>(e.caught);
+    if( !entry->driver()) return; // skip driver-less entries (e.g. XCalibratedEntry)
     create<XValChart>(entry->getLabel().c_str(), true, entry);
 }
 void
@@ -156,6 +172,12 @@ XChartList::onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::R
     });
 }
 
+FrmGraph *
+XValGraph::graphForm() {
+    if( !m_graphForm)
+        m_graphForm.reset(new FrmGraph(g_pFrmMain, Qt::Window));
+    return m_graphForm.get();
+}
 XValGraph::XValGraph(const char *name, bool runtime,
 					 Transaction &tr_entries, const shared_ptr<XScalarEntryList> &entries)
 	: XNode(name, runtime),
@@ -234,8 +256,7 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 
         graph->applyTheme(tr, true);
     });
-    m_graphForm.reset(new FrmGraph(g_pFrmMain, Qt::Window));
-    m_graphForm->m_graphwidget->setGraph(graph);
+    graphForm()->m_graphwidget->setGraph(graph);
     m_entries.lock()->iterate_commit([=](Transaction &tr){
 		if( !tr.isUpperOf( *entryx)) return;
 		if( !tr.isUpperOf( *entryy1)) return;
@@ -306,7 +327,7 @@ XValGraph::onStoreChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XValGraph::showGraph() {
-	if(m_graphForm) {
+    if(m_graphForm && Snapshot( *this)[ *this].m_graph) {
 		m_graphForm->setWindowTitle(i18n("Graph - ") + getLabel() );
         m_graphForm->showNormal();
         m_graphForm->raise();
@@ -326,4 +347,115 @@ XGraphList::createByTypename(const XString &, const XString& name)  {
         x = create<XValGraph>(name.c_str(), false, tr, m_entries);
     });
     return x;
+}
+
+XCalibratedEntry::XCalibratedEntry(const char *name, bool runtime,
+    const shared_ptr<XScalarEntryList> &entries,
+    const shared_ptr<XCalibrationCurveList> &curves)
+    : XNode(name, runtime),
+      m_proxy(XNode::createOrphan<XScalarEntry>(name, false, shared_ptr<XDriver>())),
+      m_entries(entries) {
+    entries->iterate_commit([=](Transaction &tr){
+        m_source = create<tSource>("Source", false, tr, entries);
+    });
+    curves->iterate_commit([=](Transaction &tr){
+        m_curve = create<tCurve>("Curve", false, tr, curves);
+    });
+    iterate_commit([=](Transaction &tr){
+        m_lsnSelectionChanged = tr[ *m_source].onValueChanged().connectWeakly(
+            shared_from_this(), &XCalibratedEntry::onSelectionChanged,
+            Listener::FLAG_MAIN_THREAD_CALL);
+        tr[ *m_curve].onValueChanged().connect(m_lsnSelectionChanged);
+    });
+}
+void
+XCalibratedEntry::onSelectionChanged(const Snapshot &, XValueNodeBase *) {
+    Snapshot shot( *this);
+    shared_ptr<XScalarEntry> src = shot[ *m_source];
+    shared_ptr<XCalibrationCurve> curve = shot[ *m_curve];
+    auto curSrc = m_currentSource.lock();
+    if(src != curSrc) {
+        m_lsnSourceValueChanged.reset();
+        m_currentSource = src;
+        // Release old proxy and recreate with source's driver so the proxy
+        // participates in driver-based recording (textwriter, entrylistconnector).
+        auto entries = m_entries.lock();
+        if(m_proxyInserted && entries) {
+            entries->release(m_proxy);
+            m_proxyInserted = false;
+        }
+        m_proxy = XNode::createOrphan<XScalarEntry>(
+            getName().c_str(), false, src ? src->driver() : shared_ptr<XDriver>());
+        if(src) {
+            src->value()->iterate_commit([=](Transaction &tr){
+                m_lsnSourceValueChanged = tr[ *src->value()].onValueChanged().connectWeakly(
+                    shared_from_this(), &XCalibratedEntry::onSourceValueChanged);
+            });
+        }
+    }
+    auto entries = m_entries.lock();
+    if(entries) {
+        if(src && curve && src->driver()) {
+            if( !m_proxyInserted) {
+                entries->iterate_commit([=](Transaction &tr){
+                    entries->insert(tr, m_proxy);
+                });
+                m_proxyInserted = true;
+            }
+            double raw = ***src->value();
+            try {
+                double out = curve->getOutput(raw);
+                m_proxy->iterate_commit([=](Transaction &tr){ m_proxy->value(tr, out); });
+            } catch(...) {}
+        } else {
+            if(m_proxyInserted) {
+                entries->release(m_proxy);
+                m_proxyInserted = false;
+            }
+        }
+    }
+}
+void
+XCalibratedEntry::onSourceValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+    auto src = m_currentSource.lock();
+    auto proxy = m_proxy; // capture in case proxy is recreated concurrently
+    if( !src || !proxy) return;
+    Snapshot shot_this( *this);
+    shared_ptr<XCalibrationCurve> curve = shot_this[ *m_curve];
+    if( !curve) return;
+    double raw = shot[ *static_cast<XDoubleNode*>(node)];
+    try {
+        double out = curve->getOutput(raw);
+        proxy->iterate_commit([=](Transaction &tr){ proxy->value(tr, out); });
+    } catch(...) {}
+}
+
+XCalibratedEntryList::XCalibratedEntryList(const char *name, bool runtime,
+    const shared_ptr<XScalarEntryList> &entries,
+    const shared_ptr<XCalibrationCurveList> &curves)
+    : XCustomTypeListNode<XCalibratedEntry>(name, runtime),
+      m_entries(entries), m_curves(curves) {
+    iterate_commit([=](Transaction &tr){
+        m_lsnOnCatch = tr[ *this].onCatch().connectWeakly(
+            shared_from_this(), &XCalibratedEntryList::onCatch);
+        m_lsnOnRelease = tr[ *this].onRelease().connectWeakly(
+            shared_from_this(), &XCalibratedEntryList::onRelease);
+    });
+}
+shared_ptr<XNode>
+XCalibratedEntryList::createByTypename(const XString &, const XString &name) {
+    auto entry = XNode::createOrphan<XCalibratedEntry>(
+        name.c_str(), false, m_entries, m_curves);
+    insert(entry);
+    return entry;
+}
+void
+XCalibratedEntryList::onCatch(const Snapshot &, const XListNodeBase::Payload::CatchEvent &) {
+    // proxy insertion deferred to XCalibratedEntry::onSelectionChanged when both source and curve are set
+}
+void
+XCalibratedEntryList::onRelease(const Snapshot &, const XListNodeBase::Payload::ReleaseEvent &e) {
+    auto entry = static_pointer_cast<XCalibratedEntry>(e.released);
+    if(entry->proxyInserted())
+        m_entries->release(entry->proxy());
 }

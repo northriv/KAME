@@ -89,6 +89,7 @@ HEADERS += \
     forms/driverlistconnector.h \
     forms/entrylistconnector.h \
     forms/graphlistconnector.h \
+    forms/calibentryconnector.h \
     forms/interfacelistconnector.h \
     forms/nodebrowser.h \
     forms/recordreaderconnector.h \
@@ -140,6 +141,7 @@ SOURCES += icons/icon.cpp \
     forms/driverlistconnector.cpp \
     forms/entrylistconnector.cpp \
     forms/graphlistconnector.cpp \
+    forms/calibentryconnector.cpp \
     forms/interfacelistconnector.cpp \
     forms/nodebrowser.cpp \
     forms/recordreaderconnector.cpp \

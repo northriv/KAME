@@ -154,18 +154,18 @@ void
 XTextWriter::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
     auto driver = static_pointer_cast<XDriver>(e.caught);
     driver->iterate_commit([=](Transaction &tr){
-        if(m_lsnOnRecord)
-			tr[ *driver].onRecord().connect(m_lsnOnRecord);
-		else
-			m_lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
-				shared_from_this(), &XTextWriter::onRecord);
+        if(m_lsnOnVisualization)
+            tr[ *driver].onVisualization().connect(m_lsnOnVisualization);
+        else
+            m_lsnOnVisualization = tr[ *driver].onVisualization().connectWeakly(
+                shared_from_this(), &XTextWriter::onVisualization);
     });
 }
 void
 XTextWriter::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
     auto driver = static_pointer_cast<XDriver>(e.released);
     driver->iterate_commit([=](Transaction &tr){
-        tr[ *driver].onRecord().disconnect(m_lsnOnRecord);
+        tr[ *driver].onVisualization().disconnect(m_lsnOnVisualization);
     });
 }
 void
@@ -177,13 +177,13 @@ XTextWriter::onLastLineChanged(const Snapshot &shot, XValueNodeBase *) {
 	}
 }
 void
-XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
+XTextWriter::onVisualization(const Snapshot &shot, XDriver *driver) {
+    if( !shot[ *driver].time().isSet()) return; // skip invalid/refresh-only visualizations
 	Snapshot shot_this( *this);
     XString logline;
     bool record_log = shot_this[ *logRecording()];
     if(shot_this[ *recording()] || record_log) {
-        if(shot[ *driver].time().isSet()) {
-			for(;;) {
+		for(;;) {
 				Snapshot shot_entries( *m_entries);
 				if( !shot_entries.size())
 					break;
@@ -210,8 +210,18 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
                     if( !shot_entries[ *entry->store()]) continue;
                     shared_ptr<XDriver> d(entry->driver());
                     if( !d) continue;
+                    if(d.get() != driver) continue;
                     try {
-                        if((d.get() == driver) && shot.at( *entry).isTriggered()) {
+                        bool isTrig = false;
+                        try {
+                            isTrig = shot.at( *entry).isTriggered();
+                        }
+                        catch (NodeNotFoundError &) {
+                            // Entry not in driver's snapshot (e.g. calibrated proxy);
+                            // fall back to entries snapshot updated by onValueChanged.
+                            isTrig = shot_entries.at( *entry).isTriggered();
+                        }
+                        if(isTrig) {
                             triggered = true;
                             break;
                         }
@@ -235,7 +245,6 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 					trans( *lastLine()) = buf;
 					break;
 				}
-			}
 		}
 	}
     if(logline.length()) {

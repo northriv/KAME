@@ -41,6 +41,7 @@ private:
 	const shared_ptr<XTouchableNode> m_deleteGraph;
 	struct tcons {
 		xqcon_ptr conx, cony1, conz;
+		xqcon_ptr conx_form, cony1_form, conz_form;
 		shared_ptr<XNode> node;
 		QWidget *widget;
 	};

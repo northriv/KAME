@@ -60,6 +60,10 @@ XEntryListConnector::onVisualization(const Snapshot &shot, XDriver *driver) {
                 ( *it)->label->setText(shot.at( *( *it)->entry->value()).to_str());
             }
             catch (XNode::NodeNotFoundError &e) {
+                // Entry value not in driver's snapshot (e.g. calibrated proxy);
+                // take a fresh snapshot of the entry's own subtree.
+                Snapshot shot_entry( *( *it)->entry);
+                ( *it)->label->setText(shot_entry[ *( *it)->entry->value()].to_str());
             }
 		}
 	}
@@ -100,11 +104,12 @@ XEntryListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payloa
 void
 XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
 	shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>(e.caught);
+	shared_ptr<XDriver> driver = entry->driver();
+	if( !driver) return; // skip driver-less entries (e.g. calibrated entry proxy)
+
 	int i = m_pItem->rowCount();
 	m_pItem->insertRow(i);
     m_pItem->setItem(i, 0, new QTableWidgetItem(entry->getLabel().c_str()));
-
-	shared_ptr<XDriver> driver = entry->driver();
 
     m_cons.push_back(std::make_shared<tcons>());
 	m_cons.back()->entry = entry;

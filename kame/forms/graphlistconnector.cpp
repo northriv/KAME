@@ -25,6 +25,7 @@
 
 #include "recorder.h"
 #include "analyzer.h"
+#include "ui_graphform.h"
 
 //---------------------------------------------------------------------------
 
@@ -159,5 +160,10 @@ XGraphListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 	m_pItem->setCellWidget(i, 3, cmbZ);
 
 	con.widget = m_pItem->cellWidget(i, 1);
+    if(FrmGraph *form = graph->graphForm()) {
+        con.conx_form  = xqcon_create<XQComboBoxConnector>(graph->axisX(),  form->cmbAxisX,  shot_entries);
+        con.cony1_form = xqcon_create<XQComboBoxConnector>(graph->axisY1(), form->cmbAxisY1, shot_entries);
+        con.conz_form  = xqcon_create<XQComboBoxConnector>(graph->axisZ(),  form->cmbAxisZ,  shot_entries);
+    }
 	m_cons.push_back(con);
 }
