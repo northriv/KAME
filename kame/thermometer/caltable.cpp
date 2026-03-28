@@ -25,6 +25,8 @@
 #include "xwavengraph.h"
 #include "ui_caltableform.h"
 #include "ui_graphnurlform.h"
+#include "ui_drivercreate.h"
+typedef QForm<QDialog, Ui_DlgCreateDriver> DlgCreateCalibration;
 
 //---------------------------------------------------------------------
 
@@ -172,18 +174,22 @@ XConCalTable::populateTable() {
     m_pForm->tblPoints->setHorizontalHeaderItem(1, new QTableWidgetItem(outFull));
 
     auto spline = dynamic_pointer_cast<XCSplineCalibrationIF>(curve);
-    m_pForm->tblPoints->setEnabled(spline != nullptr);
-    m_pForm->btnAddRow->setEnabled(spline != nullptr);
-    m_pForm->btnRemoveRow->setEnabled(spline != nullptr);
+    m_pForm->grpPoints->setEnabled(spline != nullptr);
     m_pForm->edTMin->setEnabled(curve != nullptr);
     m_pForm->edTMax->setEnabled(curve != nullptr);
 
+    m_pForm->edOutputLabel->setEnabled(false);
+    m_pForm->edOutputUnit->setEnabled(false);
+    m_pForm->edRawLabel->setEnabled(false);
+    m_pForm->edRawUnit->setEnabled(false);
     if( !curve) {
         if( !m_connectedCurve.expired()) {
-            m_lsnTMin.reset();
-            m_lsnTMax.reset();
-            m_conTMin.reset();
-            m_conTMax.reset();
+            m_lsnTMin.reset(); m_lsnTMax.reset();
+            m_conTMin.reset(); m_conTMax.reset();
+            m_lsnOutputLabel.reset(); m_lsnOutputUnit.reset();
+            m_lsnRawLabel.reset();   m_lsnRawUnit.reset();
+            m_conOutputLabel.reset(); m_conOutputUnit.reset();
+            m_conRawLabel.reset();    m_conRawUnit.reset();
             m_connectedCurve.reset();
         }
         m_updatingTable = true;
@@ -192,10 +198,12 @@ XConCalTable::populateTable() {
         return;
     }
     if(m_connectedCurve.lock() != curve) {
-        m_lsnTMin.reset();
-        m_lsnTMax.reset();
-        m_conTMin.reset();
-        m_conTMax.reset();
+        m_lsnTMin.reset(); m_lsnTMax.reset();
+        m_conTMin.reset(); m_conTMax.reset();
+        m_lsnOutputLabel.reset(); m_lsnOutputUnit.reset();
+        m_lsnRawLabel.reset();   m_lsnRawUnit.reset();
+        m_conOutputLabel.reset(); m_conOutputUnit.reset();
+        m_conRawLabel.reset();    m_conRawUnit.reset();
         m_conTMin = xqcon_create<XQLineEditConnector>(curve->outMin(), m_pForm->edTMin, false);
         m_conTMax = xqcon_create<XQLineEditConnector>(curve->outMax(), m_pForm->edTMax, false);
         curve->outMin()->iterate_commit([=](Transaction &tr){
@@ -206,8 +214,30 @@ XConCalTable::populateTable() {
             m_lsnTMax = tr[ *curve->outMax()].onValueChanged().connectWeakly(
                 shared_from_this(), &XConCalTable::onTMinMaxChanged);
         });
+        if(auto generic = dynamic_pointer_cast<XGenericCalibration>(curve)) {
+            m_conOutputLabel = xqcon_create<XQLineEditConnector>(generic->outputLabelNode(), m_pForm->edOutputLabel, false);
+            m_conOutputUnit  = xqcon_create<XQLineEditConnector>(generic->outputUnitNode(),  m_pForm->edOutputUnit,  false);
+            m_conRawLabel    = xqcon_create<XQLineEditConnector>(generic->rawLabelNode(),    m_pForm->edRawLabel,    false);
+            m_conRawUnit     = xqcon_create<XQLineEditConnector>(generic->rawUnitNode(),     m_pForm->edRawUnit,     false);
+            auto connectLabel = [=](const shared_ptr<XStringNode> &node, shared_ptr<Listener> &lsn) {
+                node->iterate_commit([&](Transaction &tr){
+                    lsn = tr[ *node].onValueChanged().connectWeakly(
+                        shared_from_this(), &XConCalTable::onLabelUnitChanged,
+                        Listener::FLAG_MAIN_THREAD_CALL);
+                });
+            };
+            connectLabel(generic->outputLabelNode(), m_lsnOutputLabel);
+            connectLabel(generic->outputUnitNode(),  m_lsnOutputUnit);
+            connectLabel(generic->rawLabelNode(),    m_lsnRawLabel);
+            connectLabel(generic->rawUnitNode(),     m_lsnRawUnit);
+        }
         m_connectedCurve = curve;
     }
+    auto generic = dynamic_pointer_cast<XGenericCalibration>(curve);
+    m_pForm->edOutputLabel->setEnabled(generic != nullptr);
+    m_pForm->edOutputUnit->setEnabled(generic != nullptr);
+    m_pForm->edRawLabel->setEnabled(generic != nullptr);
+    m_pForm->edRawUnit->setEnabled(generic != nullptr);
 
     if( !spline) {
         m_updatingTable = true;
@@ -291,6 +321,10 @@ XConCalTable::onRemoveRowClicked() {
     refreshGraph();
 }
 void
+XConCalTable::onLabelUnitChanged(const Snapshot &, XValueNodeBase *) {
+    populateTable();  // refreshes all UI labels, axis labels, column headers
+}
+void
 XConCalTable::onTMinMaxChanged(const Snapshot &, XValueNodeBase *) {
     refreshGraph();
 }
@@ -360,11 +394,30 @@ XConCalTable::sortByRaw(const shared_ptr<XCSplineCalibrationIF> &spline) {
 }
 void
 XConCalTable::onNewClicked() {
-    bool ok;
-    QString name = QInputDialog::getText(m_pForm, i18n("New Calibration"),
-        i18n("Name:"), QLineEdit::Normal, QString(), &ok);
-    if( !ok || name.isEmpty()) return;
-    m_list->createCalibration("ApproxThermometer", name.toUtf8().data());
+    qshared_ptr<DlgCreateCalibration> dlg(new DlgCreateCalibration(m_pForm));
+    dlg->setWindowTitle(i18n("New Calibration"));
+    dlg->setModal(true);
+    static int num = 0;
+    dlg->m_edName->setText(QString("NewCalibration%1").arg(++num));
+    dlg->m_lstType->clear();
+    auto labels = m_list->typelabels();
+    auto typenames = m_list->typenames();
+    std::map<std::string, std::string> map; // sorts by label
+    for(unsigned int i = 0; i < std::min(typenames.size(), labels.size()); ++i)
+        map.insert({labels[i], typenames[i]});
+    for(auto &&x: map)
+        new QListWidgetItem(x.first.c_str(), dlg->m_lstType);
+    dlg->m_lstType->setCurrentRow(0);
+    if(dlg->exec() == QDialog::Rejected) return;
+    int idx = dlg->m_lstType->currentRow();
+    if(idx < 0 || idx >= (int)map.size()) return;
+    if(m_list->getChild(dlg->m_edName->text().toUtf8().data())) {
+        gErrPrint(i18n("Duplicated name."));
+        return;
+    }
+    auto it = map.begin();
+    std::advance(it, idx);
+    m_list->createCalibration(it->second, dlg->m_edName->text().toUtf8().data());
 }
 void
 XConCalTable::onDeleteClicked() {

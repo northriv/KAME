@@ -222,12 +222,22 @@ public:
     const shared_ptr<XDoubleListNode> &tempList() const { return outputList(); }
 };
 
-//! Generic cubic spline calibration curve.
-class DECLSPEC_KAME XApproxCalibration : public XCSplineCalibrationX<XCalibrationCurve> {
+//! Generic cubic spline calibration curve with user-configurable labels.
+class DECLSPEC_KAME XGenericCalibration : public XCSplineCalibrationX<XCalibrationCurve> {
 public:
-    XApproxCalibration(const char *name, bool runtime)
-        : XCSplineCalibrationX<XCalibrationCurve>(name, runtime) {}
-    XString getTypename() const override { return "ApproxCalibration"; }
+    XGenericCalibration(const char *name, bool runtime);
+    XString getTypename() const override { return "GenericCalibration"; }
+    XString outputLabel() const override { return ***m_outputLabel; }
+    XString outputUnit()  const override { return ***m_outputUnit; }
+    XString rawLabel()    const override { return ***m_rawLabel; }
+    XString rawUnit()     const override { return ***m_rawUnit; }
+    const shared_ptr<XStringNode> &outputLabelNode() const { return m_outputLabel; }
+    const shared_ptr<XStringNode> &outputUnitNode()  const { return m_outputUnit; }
+    const shared_ptr<XStringNode> &rawLabelNode()    const { return m_rawLabel; }
+    const shared_ptr<XStringNode> &rawUnitNode()     const { return m_rawUnit; }
+private:
+    const shared_ptr<XStringNode> m_outputLabel, m_outputUnit;
+    const shared_ptr<XStringNode> m_rawLabel, m_rawUnit;
 };
 
 //---------------------------------------------------------------------------

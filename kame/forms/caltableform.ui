@@ -165,6 +165,66 @@
     </layout>
    </item>
    <item>
+    <layout class="QHBoxLayout">
+     <item>
+      <widget class="QLabel">
+       <property name="text"><string>Output</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="edOutputLabel"/>
+     </item>
+     <item>
+      <widget class="QLabel">
+       <property name="text"><string>Unit</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="edOutputUnit"/>
+     </item>
+     <item>
+      <widget class="QLabel">
+       <property name="text"><string>Raw</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="edRawLabel"/>
+     </item>
+     <item>
+      <widget class="QLabel">
+       <property name="text"><string>Unit</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="edRawUnit"/>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout">
+     <item>
+      <widget class="QLabel" name="lblOutMin">
+       <property name="text">
+        <string>OutMin</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="edTMin"/>
+     </item>
+     <item>
+      <widget class="QLabel" name="lblOutMax">
+       <property name="text">
+        <string>OutMax</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="edTMax"/>
+     </item>
+    </layout>
+   </item>
+   <item>
     <widget class="QGroupBox" name="grpPoints">
      <property name="title">
       <string>Data Points (Cubic-Spline)</string>
@@ -176,30 +236,6 @@
       </sizepolicy>
      </property>
      <layout class="QVBoxLayout">
-      <item>
-       <layout class="QHBoxLayout">
-        <item>
-         <widget class="QLabel" name="lblOutMin">
-          <property name="text">
-           <string>OutMin</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="edTMin"/>
-        </item>
-        <item>
-         <widget class="QLabel" name="lblOutMax">
-          <property name="text">
-           <string>OutMax</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="edTMax"/>
-        </item>
-       </layout>
-      </item>
       <item>
        <widget class="QTableWidget" name="tblPoints">
         <property name="selectionBehavior">
@@ -264,6 +300,10 @@
   <tabstop>edTemp</tabstop>
   <tabstop>edValue</tabstop>
   <tabstop>btnDisplay</tabstop>
+  <tabstop>edOutputLabel</tabstop>
+  <tabstop>edOutputUnit</tabstop>
+  <tabstop>edRawLabel</tabstop>
+  <tabstop>edRawUnit</tabstop>
   <tabstop>edTMin</tabstop>
   <tabstop>edTMax</tabstop>
   <tabstop>tblPoints</tabstop>

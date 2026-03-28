@@ -54,11 +54,13 @@ private:
     shared_ptr<XItemNode<XCalibrationCurveList, XCalibrationCurve> > m_caltable;
     xqcon_ptr m_conCalTable, m_conTemp, m_conValue, m_conDisplay;
 	xqcon_ptr m_conTMin, m_conTMax;
+	xqcon_ptr m_conOutputLabel, m_conOutputUnit, m_conRawLabel, m_conRawUnit;
 
 	shared_ptr<Listener> m_lsnTemp, m_lsnValue;
 	shared_ptr<Listener> m_lsnDisplay;
 	shared_ptr<Listener> m_lsnThermometerChanged;
 	shared_ptr<Listener> m_lsnTMin, m_lsnTMax;
+	shared_ptr<Listener> m_lsnOutputLabel, m_lsnOutputUnit, m_lsnRawLabel, m_lsnRawUnit;
 	weak_ptr<XCalibrationCurve> m_connectedCurve;
 
 	void onTempChanged(const Snapshot &shot, XValueNodeBase *);
@@ -66,6 +68,7 @@ private:
 	void onDisplayTouched(const Snapshot &shot, XTouchableNode *);
 	void onThermometerChanged(const Snapshot &shot, XValueNodeBase *);
 	void onTMinMaxChanged(const Snapshot &shot, XValueNodeBase *);
+	void onLabelUnitChanged(const Snapshot &shot, XValueNodeBase *);
 	void populateTable();
 	void drawGraph(const shared_ptr<XCalibrationCurve> &curve);
 	void refreshGraph();

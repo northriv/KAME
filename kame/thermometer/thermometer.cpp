@@ -28,8 +28,20 @@ REGISTER_TYPE(XCalibrationCurveList, ScientificInstruments, "Scientific Instrume
 ;
 REGISTER_TYPE(XCalibrationCurveList, ApproxThermometer, "Cubic-spline (Thermometer)")
 ;
-REGISTER_TYPE(XCalibrationCurveList, ApproxCalibration, "Cubic-spline (Generic)")
+REGISTER_TYPE(XCalibrationCurveList, GenericCalibration, "Cubic-spline (Generic)")
 ;
+
+XGenericCalibration::XGenericCalibration(const char *name, bool runtime) :
+    XCSplineCalibrationX<XCalibrationCurve>(name, runtime),
+    m_outputLabel(create<XStringNode>("OutputLabel", false)),
+    m_outputUnit(create<XStringNode>("OutputUnit", false)),
+    m_rawLabel(create<XStringNode>("RawLabel", false)),
+    m_rawUnit(create<XStringNode>("RawUnit", false)) {
+    trans( *m_outputLabel) = "Output";
+    trans( *m_outputUnit)  = "";
+    trans( *m_rawLabel)    = "Raw";
+    trans( *m_rawUnit)     = "";
+}
 
 XCalibrationCurve::XCalibrationCurve(const char *name, bool runtime) :
     XNode(name, runtime),
