@@ -60,6 +60,7 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 ### Driver / Module Architecture
 
 - **`XDriver`** (`kame/driver/driver.h`) — base for all instrument drivers; holds a timestamped `Payload` with `time()` (when the phenomenon occurred) and `timeAwared()` (when visible to the operator); emits `onRecord` and `onVisualization` signals
+- **`onVisualization` signal** — `Talker<bool, XDriver*>`; callbacks receive `(const Snapshot&, bool afterRecorded, XDriver*)`. `afterRecorded = !skipped` (i.e. `record()` was called). Do NOT use `time().isSet()` as a proxy — it stays `true` from the previous record across `XSkippedRecordError` cycles. `XRecordError` resets time to zero but still sets `afterRecorded = true`. Connect without `FLAG_AVOID_DUP` or `FLAG_MAIN_THREAD_CALL` unless the callback does Qt UI work.
 - Instrument drivers are built as **shared libraries** under `modules/` and loaded at runtime (via ltdl)
 - Each module subdirectory contains one or more drivers and registers them with the framework
 - Communication with hardware is abstracted in `modules/charinterface/` (serial, TCP, GPIB, USB)
@@ -72,13 +73,19 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 |---|---|
 | `kame/` | Core framework: XNode, STM, thread/scheduler, scripting glue |
 | `kame/driver/` | `XDriver` base, `XPrimaryDriver`, `XSecondaryDriver`, Python driver bridge |
-| `kame/analyzer/` | `XAnalyzer`, `XScalarEntry` — extract scalar values from driver records |
+| `kame/analyzer/` | `XAnalyzer`, `XScalarEntry`, `XCalibratedEntry` — extract and calibrate scalar values from driver records |
 | `kame/math/` | FFT, AR, spectral analysis helpers |
 | `kame/script/` | Python (pybind11) and Ruby scripting integration |
 | `kame/graph/` | Plotting/graphing framework |
 | `modules/charinterface/` | Hardware communication (serial/TCP/GPIB) |
 | `modules/<instrument>/` | Per-instrument driver plugins |
 | `tests/` | STM/concurrency unit tests |
+
+### Scalar Entry and Calibration
+
+- **`XScalarEntry`** — scalar value extracted from a driver record; holds `value()`, `storedValue()`, `delta()`, `store()`. `driver()` identifies which driver owns it. `isTriggered()` in `Payload` is set when `|value − storedValue| > delta`.
+- **`XCalibratedEntry`** (`kame/analyzer/analyzer.h`) — derives a new scalar from an existing `XScalarEntry` via an `XCalibrationCurve`. Exposes a proxy `XScalarEntry` inserted into `XScalarEntryList` only when both source and curve are valid. The proxy uses the **source's driver** so `XTextWriter` and `XEntryListConnector` handle it like any other entry. Proxy is recreated whenever source changes to carry the correct driver reference.
+- **`XCalibrationCurve`** (`kame/thermometer/thermometer.h`) — base for all calibration curves. Virtuals `useLogScaleRaw()` / `useLogScaleOutput()` control whether the raw/output axes use log-space for cspline interpolation and the calibration table graph. `XResistanceThermometer` returns `true` for both; `XGenericCalibration` returns `false` for both. `XCSplineCalibrationX<Base>` respects these virtuals.
 
 ### Signal/Listener Pattern
 
@@ -129,3 +136,4 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - Node payload fields are public members of the nested `Payload` struct inside each node class
 - Prefer `iterate_commit` / `iterate_commit_if` over manual retry loops for transactions
 - Time-stamping: use `XTime` from `kame/xtime.h`; `m_recordTime` is set by the driver when data is captured
+- **Safe list release** — before calling `list->release(node)`, guard with `Snapshot shot(*list); if(shot.isUpperOf(*node))` to prevent double-release crashes at shutdown (the list may have already cleared the node before the owning object's destructor runs).

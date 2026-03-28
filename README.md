@@ -27,6 +27,7 @@ orchestration across compatible instruments without custom programming.
 - Complete data logging with post-measurement re-analysis
 - Save / restore full measurement state to `.kam` files
 - Modular driver plug-in architecture; Python drivers redefinable at runtime
+- Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Supported instruments
 
@@ -70,6 +71,14 @@ Each driver subclasses `XDriver` (`kame/driver/driver.h`), which carries a times
 
 Hardware communication is abstracted in `modules/charinterface/` (serial, TCP, GPIB, USB).
 Drivers can also be subclassed in Python via `XPythonDriver` (`kame/driver/pythondriver.h`).
+
+Scalar values extracted from driver records are represented as `XScalarEntry` objects
+(`kame/analyzer/`). A derived `XCalibratedEntry` applies any registered calibration curve
+to an existing entry, and the result appears in graphs, charts, and data recording
+exactly like a native scalar. Calibration curves (`kame/thermometer/`) include cubic
+spline (`XApproxThermometer`, `XGenericCalibration`), Chebyshev polynomial (`XLakeShore`),
+and polynomial (`XScientificInstruments`) types. `XGenericCalibration` supports
+user-configured labels and units, making it applicable to any sensor, not just thermometers.
 
 #### Usermode NI USB-GPIB
 
