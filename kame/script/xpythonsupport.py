@@ -329,20 +329,11 @@ def launchJupyterConsole(prog, argv):
 import linecache
 linecache.clearcache() #suppress lengthy traceback inside REPL.
 
-def _run_deferred_scripts():
-	"""Run C++-deferred scripts (pydrivers.py, pytestdriver.py, etc.) in a
-	background daemon thread.  Running them here rather than inside
-	kame_pybind_one_iteration() prevents blocking the IPython event loop:
-	time.sleep() in those scripts releases the GIL so the kernel stays
-	responsive while the scripts initialise."""
-	g = globals()
-	for script in kame_deferred_scripts():
-		try:
-			exec(script, g)
-		except Exception:
-			STDERR.write(str(traceback.format_exc()))
-threading.Thread(daemon=True, target=_run_deferred_scripts,
-	name='KAMEDeferredScripts').start()
+for _script in kame_deferred_scripts():
+	try:
+		exec(_script, globals())
+	except Exception:
+		STDERR.write(str(traceback.format_exc()))
 
 if not HasIPython:
 	print("#testing python interpreter.")
