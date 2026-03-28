@@ -109,6 +109,20 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - `XAliasListNode` children are navigated by name (`x.last["name"]` → `getChild(name)`), not re-created.
 - **`getTypename()` pitfall for template aliases**: the default `getTypename()` uses `typeid(*this).name()`. For template instantiation aliases (e.g. `using XFoo = XFooX<Functor>`), this returns a mangled name that won't match the registered `XTypeHolder` key. Override `getTypename()` or call `setStoredTypename(type)` inside `createByTypename()` and return it from the override.
 
+## Qt UI (.ui files)
+
+- **No `stretch` property on layouts** — `<property name="stretch">` on a `QBoxLayout` is not valid in Qt's UI parser and silently breaks layout. Control stretch per-widget via `sizePolicy`:
+  ```xml
+  <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+      <horstretch>0</horstretch>
+      <verstretch>1</verstretch>
+    </sizepolicy>
+  </property>
+  ```
+- **Bare layout in QVBoxLayout** — a bare `QLayout` (no wrapping widget) cannot have a size policy set on it; if placed alongside a `QWidget` in a `QVBoxLayout` it will consume all vertical space. Wrap in a `QWidget` if size policy control is needed.
+- **Prefer `setEnabled` over `setVisible`** for optional form sections — hiding a widget collapses the layout and makes the form look broken; disabling keeps layout stable and signals inactivity.
+
 ## Code Conventions
 
 - All exported symbols use `DECLSPEC_KAME` macro

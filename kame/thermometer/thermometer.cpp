@@ -189,6 +189,11 @@ double XScientificInstruments::getTemp(double res) const {
 	}
 }
 
+void XApproxThermometer::invalidateCache() {
+    m_approx = local_shared_ptr<CSplineInterp>();
+    m_approx_inv = local_shared_ptr<CSplineInterp>();
+}
+
 XApproxThermometer::XApproxThermometer(const char *name, bool runtime) :
 	XThermometer(name, runtime), m_resList(create<XDoubleListNode> ("ResList",
 		false)), m_tempList(create<XDoubleListNode> ("TempList", false)) {

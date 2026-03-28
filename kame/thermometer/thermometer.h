@@ -40,6 +40,10 @@ public:
 	virtual ~XThermometerList() {}
 
     DEFINE_TYPE_HOLDER()
+
+    shared_ptr<XThermometer> createThermometer(const XString &type, const XString &name) {
+        return static_pointer_cast<XThermometer>(createByTypename(type, name));
+    }
 protected:
 	virtual shared_ptr<XNode> createByTypename(
         const XString &type, const XString &name) {
@@ -102,7 +106,8 @@ public:
 
 	typedef XListNode<XDoubleNode> XDoubleListNode;
 	const shared_ptr<XDoubleListNode> &resList() const {return m_resList;}
-	const shared_ptr<XDoubleListNode> &tempList() const {return m_tempList;}  
+	const shared_ptr<XDoubleListNode> &tempList() const {return m_tempList;}
+	void invalidateCache();
 private:
 	const shared_ptr<XDoubleListNode> m_resList, m_tempList;
 	mutable atomic_shared_ptr<CSplineInterp> m_approx, m_approx_inv;
