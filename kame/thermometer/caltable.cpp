@@ -263,11 +263,17 @@ XConCalTable::drawGraph(const shared_ptr<XThermometer> &thermo) {
     const int length = 1000;
     Snapshot shot_th( *thermo);
     try {
-        double step = (log(shot_th[ *thermo->tempMax()]) - log(shot_th[ *thermo->tempMin()])) / length;
+        double tmin = shot_th[ *thermo->tempMin()];
+        double tmax = shot_th[ *thermo->tempMax()];
+        if(tmin <= 0 || tmax <= tmin) {
+            m_wave->iterate_commit([=](Transaction &tr){ tr[ *m_wave].clearPoints(); });
+            return;
+        }
+        double step = (log(tmax) - log(tmin)) / length;
         m_wave->iterate_commit([=](Transaction &tr){
             tr[ *m_wave].setRowCount(length);
             std::vector<double> colt(length), colr(length), coldt(length);
-            double lt = log(shot_th[ *thermo->tempMin()]);
+            double lt = log(tmin);
             for(int i = 0; i < length; ++i) {
                 double t = exp(lt);
                 double r = thermo->getRawValue(t);
