@@ -404,6 +404,14 @@ XCalibratedEntry::onSelectionChanged(const Snapshot &, XValueNodeBase *) {
             });
         }
     }
+    // Update proxy format to reflect the curve's output unit (e.g. "%.5g K").
+    {
+        XString unit = curve ? curve->outputUnit() : XString();
+        XString fmt = unit.empty() ? "%.5g" : ("%.5g " + unit);
+        m_proxy->value()->setFormat(fmt.c_str());
+        m_proxy->storedValue()->setFormat(fmt.c_str());
+        m_proxy->delta()->setFormat(fmt.c_str());
+    }
     auto entries = m_entries.lock();
     if(entries) {
         if(src && curve && src->driver()) {

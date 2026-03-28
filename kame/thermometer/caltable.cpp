@@ -100,10 +100,6 @@ XConCalTable::XConCalTable
 		tr[ *tr[ *m_wave].plot(0)->drawPoints()] = false;
 		tr[ *tr[ *m_wave].plot(1)->label()] = i18n("Error");
 		tr[ *tr[ *m_wave].plot(1)->drawPoints()] = false;
-		shared_ptr<XAxis> axisx = tr[ *m_wave].axisx();
-		tr[ *axisx->logScale()] = true;
-		shared_ptr<XAxis> axisy = tr[ *m_wave].axisy();
-		tr[ *axisy->logScale()] = true;
 		m_wave->drawGraph(tr);
 		tr[ *m_wave].clearPoints();
     });
@@ -159,13 +155,22 @@ XConCalTable::populateTable() {
         : QString("%1 [%2]").arg(rawlabel.c_str(), rawunit.c_str());
     m_pForm->lblOutMin->setText(outFull + " Min");
     m_pForm->lblOutMax->setText(outFull + " Max");
-    // Update graph axis labels (with units). Axes may not exist yet on first call.
+    // Update graph axis labels (with units) and log scale. Axes may not exist yet on first call.
+    // Graph X axis = output, graph Y axis = raw.
+    bool log_x = curve && curve->useLogScaleOutput();
+    bool log_y = curve && curve->useLogScaleRaw();
     m_wave->iterate_commit([=](Transaction &tr){
         auto fmtLabel = [](const XString &lbl, const XString &unit) -> XString {
             return unit.empty() ? lbl : XString(lbl + " [" + unit + "]");
         };
-        if(auto ax = tr[ *m_wave].axisx())  tr[ *ax->label()] = fmtLabel(outlabel, outunit);
-        if(auto ax = tr[ *m_wave].axisy())  tr[ *ax->label()] = fmtLabel(rawlabel, rawunit);
+        if(auto ax = tr[ *m_wave].axisx()) {
+            tr[ *ax->label()] = fmtLabel(outlabel, outunit);
+            tr[ *ax->logScale()] = log_x;
+        }
+        if(auto ax = tr[ *m_wave].axisy()) {
+            tr[ *ax->label()] = fmtLabel(rawlabel, rawunit);
+            tr[ *ax->logScale()] = log_y;
+        }
         if(auto ax = tr[ *m_wave].axisy2()) tr[ *ax->label()] = outunit.empty()
             ? XString("Error") : XString("Error [") + outunit + "]";
     });
@@ -340,22 +345,22 @@ XConCalTable::drawGraph(const shared_ptr<XCalibrationCurve> &curve) {
     try {
         double outmin = shot_th[ *curve->outMin()];
         double outmax = shot_th[ *curve->outMax()];
-        if(outmin <= 0 || outmax <= outmin) {
+        bool lsy = curve->useLogScaleOutput(); // output axis
+        if(outmax <= outmin || (lsy && outmin <= 0)) {
             m_wave->iterate_commit([=](Transaction &tr){ tr[ *m_wave].clearPoints(); });
             return;
         }
-        double step = (log(outmax) - log(outmin)) / length;
         m_wave->iterate_commit([=](Transaction &tr){
             tr[ *m_wave].setRowCount(length);
             std::vector<double> colout(length), colraw(length), colerr(length);
-            double lo = log(outmin);
             for(int i = 0; i < length; ++i) {
-                double o = exp(lo);
+                double t = (double)i / (length - 1);
+                double o = lsy ? exp(log(outmin) + t * (log(outmax) - log(outmin)))
+                               : outmin + t * (outmax - outmin);
                 double r = curve->getRaw(o);
                 colout[i] = o;
                 colraw[i] = r;
                 colerr[i] = curve->getOutput(r) - o;
-                lo += step;
             }
             tr[ *m_wave].setColumn(0, std::move(colout), 5);
             tr[ *m_wave].setColumn(1, std::move(colraw), 5);

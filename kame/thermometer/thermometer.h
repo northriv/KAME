@@ -28,6 +28,9 @@ public:
     virtual ~XCalibrationCurve() {}
     virtual double getOutput(double raw) const = 0;
     virtual double getRaw(double output) const = 0;
+    //! Whether the raw / output values use log scale for interpolation and plotting.
+    virtual bool useLogScaleRaw() const { return false; }
+    virtual bool useLogScaleOutput() const { return false; }
     const shared_ptr<XDoubleNode> &outMin() const { return m_outMin; }
     const shared_ptr<XDoubleNode> &outMax() const { return m_outMax; }
     //! UI label helpers — override in subclasses for context-specific strings.
@@ -58,6 +61,8 @@ class DECLSPEC_KAME XResistanceThermometer : public XThermometer {
 public:
     XResistanceThermometer(const char *name, bool runtime) : XThermometer(name, runtime) {}
     virtual ~XResistanceThermometer() {}
+    bool useLogScaleRaw() const override { return true; }
+    bool useLogScaleOutput() const override { return true; }
     XString rawLabel() const override { return "Resistance"; }
     XString rawUnit()  const override { return "\xce\xa9"; } // Ω (U+03A9)
 };
@@ -134,10 +139,11 @@ double XCSplineCalibrationX<Base>::getOutput(double raw) const {
         const auto &raw_list( *shot.list(m_rawList));
         if( !shot.size(m_outputList)) return 0;
         const auto &out_list( *shot.list(m_outputList));
+        bool lsx = this->useLogScaleRaw(), lsy = this->useLogScaleOutput();
         for(unsigned int i = 0; i < std::min(raw_list.size(), out_list.size()); i++) {
             double r = shot[ *static_pointer_cast<XDoubleNode>(raw_list.at(i))];
             double o = shot[ *static_pointer_cast<XDoubleNode>(out_list.at(i))];
-            pts.insert({log(r), log(o)});
+            pts.insert({lsx ? log(r) : r, lsy ? log(o) : o});
         }
         if(pts.size() < 4)
             throw XKameError(i18n("XCSplineCalibration, Too small number of points"),
@@ -145,7 +151,8 @@ double XCSplineCalibrationX<Base>::getOutput(double raw) const {
         approx.reset(new CSplineInterp(pts));
         m_approx = approx;
     }
-    return exp(approx->approx(log(raw)));
+    double v = approx->approx(this->useLogScaleRaw() ? log(raw) : raw);
+    return this->useLogScaleOutput() ? exp(v) : v;
 }
 
 template<class Base>
@@ -158,10 +165,11 @@ double XCSplineCalibrationX<Base>::getRaw(double output) const {
         const auto &raw_list( *shot.list(m_rawList));
         if( !shot.size(m_outputList)) return 0;
         const auto &out_list( *shot.list(m_outputList));
+        bool lsx = this->useLogScaleRaw(), lsy = this->useLogScaleOutput();
         for(unsigned int i = 0; i < std::min(raw_list.size(), out_list.size()); i++) {
             double r = shot[ *static_pointer_cast<XDoubleNode>(raw_list.at(i))];
             double o = shot[ *static_pointer_cast<XDoubleNode>(out_list.at(i))];
-            pts.insert({log(o), log(r)});
+            pts.insert({lsy ? log(o) : o, lsx ? log(r) : r});
         }
         if(pts.size() < 4)
             throw XKameError(i18n("XCSplineCalibration, Too small number of points"),
@@ -169,7 +177,8 @@ double XCSplineCalibrationX<Base>::getRaw(double output) const {
         approx.reset(new CSplineInterp(pts));
         m_approx_inv = approx;
     }
-    return exp(approx->approx(log(output)));
+    double v = approx->approx(this->useLogScaleOutput() ? log(output) : output);
+    return this->useLogScaleRaw() ? exp(v) : v;
 }
 
 //! LakeShore Chebyshev polynomial thermometer.
