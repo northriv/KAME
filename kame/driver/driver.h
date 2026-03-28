@@ -23,7 +23,7 @@
 class XRecordDependency;
 class XScalarEntryList;
 class XInterfaceList;
-class XThermometerList;
+class XCalibrationCurveList;
 class XDriverList;
 
 //! Base class for all instrument drivers

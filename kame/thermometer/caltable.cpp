@@ -1,14 +1,14 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+		Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------
@@ -29,8 +29,8 @@
 //---------------------------------------------------------------------
 
 XConCalTable::XConCalTable
-(const shared_ptr<XThermometerList> &list, FrmCalTable *form)
-	:  XQConnector(list, form), 
+(const shared_ptr<XCalibrationCurveList> &list, FrmCalTable *form)
+	:  XQConnector(list, form),
 	   m_list(list),
 	   m_display(XNode::createOrphan<XTouchableNode>("display") ),
 	   m_temp(XNode::createOrphan<XDoubleNode>("temp") ),
@@ -40,7 +40,7 @@ XConCalTable::XConCalTable
 	   m_wave(XNode::createOrphan<XWaveNGraph>("Waveform", true, m_waveform.get())) {
 
     list->iterate_commit([=](Transaction &tr){
-		m_thermometer = XNode::createOrphan<XItemNode<XThermometerList, XThermometer> >(
+		m_thermometer = XNode::createOrphan<XItemNode<XCalibrationCurveList, XCalibrationCurve> >(
 						 "thermometer", false, tr, list, true);
     });
 
@@ -87,9 +87,9 @@ XConCalTable::XConCalTable
     populateTable();
 
 	m_waveform->m_btnMathTool->hide();
-	m_waveform->setWindowTitle(i18n("Thermometer Calibration"));
+	m_waveform->setWindowTitle(i18n("Calibration Table"));
     m_wave->iterate_commit([=](Transaction &tr){
-		const char *labels[] = {"Temp. [K]", "Value", "T(v(T))-T [K]"};
+		const char *labels[] = {"Output", "Raw", "Error"};
 		tr[ *m_wave].setColCount(3, labels);
         if( !tr[ *m_wave].insertPlot(tr, labels[1], 0, 1)) return;
         if( !tr[ *m_wave].insertPlot(tr, labels[2], 0, -1, 2)) return;
@@ -108,9 +108,9 @@ XConCalTable::XConCalTable
 
 void
 XConCalTable::onTempChanged(const Snapshot &shot, XValueNodeBase *) {
-	shared_ptr<XThermometer> thermo = ***thermometer();
-	if( !thermo) return;
-	double ret = thermo->getRawValue(shot[ *temp()]);
+	shared_ptr<XCalibrationCurve> curve = ***thermometer();
+	if( !curve) return;
+	double ret = curve->getRaw(shot[ *temp()]);
     value()->iterate_commit([=](Transaction &tr){
 		tr[ *value()] = ret;
 		tr.unmark(m_lsnValue);
@@ -118,9 +118,9 @@ XConCalTable::onTempChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XConCalTable::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
-	shared_ptr<XThermometer> thermo = ***thermometer();
-	if( !thermo) return;
-	double ret = thermo->getTemp(shot[ *value()]);
+	shared_ptr<XCalibrationCurve> curve = ***thermometer();
+	if( !curve) return;
+	double ret = curve->getOutput(shot[ *value()]);
     temp()->iterate_commit([=](Transaction &tr){
 		tr[ *temp()] = ret;
 		tr.unmark(m_lsnTemp);
@@ -133,62 +133,86 @@ XConCalTable::onThermometerChanged(const Snapshot &, XValueNodeBase *) {
 }
 void
 XConCalTable::populateTable() {
-    shared_ptr<XThermometer> thermo = ***m_thermometer;
-    XString graphtitle = thermo ? thermo->getLabel() : XString(i18n("Thermometer Calibration"));
-    m_waveform->setWindowTitle(thermo ?
-        QString("%1 - %2").arg(i18n("Thermometer Calibration"), thermo->getLabel().c_str()) :
-        i18n("Thermometer Calibration"));
+    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    // Update window title and internal graph title.
+    XString graphtitle = curve ? curve->getLabel() : XString(i18n("Calibration Table"));
+    m_waveform->setWindowTitle(curve ?
+        QString("%1 - %2").arg(i18n("Calibration Table"), curve->getLabel().c_str()) :
+        i18n("Calibration Table"));
     trans( *m_wave->graph()->label()) = graphtitle;
-    auto approx = dynamic_pointer_cast<XApproxThermometer>(thermo);
-    m_pForm->tblPoints->setEnabled(approx != nullptr);
-    m_pForm->btnAddRow->setEnabled(approx != nullptr);
-    m_pForm->btnRemoveRow->setEnabled(approx != nullptr);
-    m_pForm->edTMin->setEnabled(approx != nullptr);
-    m_pForm->edTMax->setEnabled(approx != nullptr);
-    if( !approx) {
-        if( !m_connectedApprox.expired()) {
+
+    // Update UI labels from virtual label functions.
+    m_pForm->lblOutputName->setText(curve ? curve->outputLabel().c_str() : "Output");
+    m_pForm->lblOutputUnit->setText(curve ? curve->outputUnit().c_str() : "");
+    m_pForm->lblRawName->setText(curve ? curve->rawLabel().c_str() : "Raw");
+    m_pForm->lblRawUnit->setText(curve ? curve->rawUnit().c_str() : "");
+
+    // Update table column headers.
+    QString rawColLabel = curve ?
+        QString("%1 [%2]").arg(curve->rawLabel().c_str(), curve->rawUnit().c_str()) : "Raw";
+    QString outColLabel = curve ?
+        QString("%1 [%2]").arg(curve->outputLabel().c_str(), curve->outputUnit().c_str()) : "Output";
+    m_pForm->tblPoints->setHorizontalHeaderItem(0, new QTableWidgetItem(rawColLabel));
+    m_pForm->tblPoints->setHorizontalHeaderItem(1, new QTableWidgetItem(outColLabel));
+
+    auto spline = dynamic_pointer_cast<XCSplineCalibrationIF>(curve);
+    m_pForm->tblPoints->setEnabled(spline != nullptr);
+    m_pForm->btnAddRow->setEnabled(spline != nullptr);
+    m_pForm->btnRemoveRow->setEnabled(spline != nullptr);
+    m_pForm->edTMin->setEnabled(curve != nullptr);
+    m_pForm->edTMax->setEnabled(curve != nullptr);
+
+    if( !curve) {
+        if( !m_connectedCurve.expired()) {
             m_lsnTMin.reset();
             m_lsnTMax.reset();
             m_conTMin.reset();
             m_conTMax.reset();
-            m_connectedApprox.reset();
+            m_connectedCurve.reset();
         }
         m_updatingTable = true;
         m_pForm->tblPoints->setRowCount(0);
         m_updatingTable = false;
         return;
     }
-    if(m_connectedApprox.lock() != approx) {
+    if(m_connectedCurve.lock() != curve) {
         m_lsnTMin.reset();
         m_lsnTMax.reset();
         m_conTMin.reset();
         m_conTMax.reset();
-        m_conTMin = xqcon_create<XQLineEditConnector>(approx->tempMin(), m_pForm->edTMin, false);
-        m_conTMax = xqcon_create<XQLineEditConnector>(approx->tempMax(), m_pForm->edTMax, false);
-        approx->tempMin()->iterate_commit([=](Transaction &tr){
-            m_lsnTMin = tr[ *approx->tempMin()].onValueChanged().connectWeakly(
+        m_conTMin = xqcon_create<XQLineEditConnector>(curve->outMin(), m_pForm->edTMin, false);
+        m_conTMax = xqcon_create<XQLineEditConnector>(curve->outMax(), m_pForm->edTMax, false);
+        curve->outMin()->iterate_commit([=](Transaction &tr){
+            m_lsnTMin = tr[ *curve->outMin()].onValueChanged().connectWeakly(
                 shared_from_this(), &XConCalTable::onTMinMaxChanged);
         });
-        approx->tempMax()->iterate_commit([=](Transaction &tr){
-            m_lsnTMax = tr[ *approx->tempMax()].onValueChanged().connectWeakly(
+        curve->outMax()->iterate_commit([=](Transaction &tr){
+            m_lsnTMax = tr[ *curve->outMax()].onValueChanged().connectWeakly(
                 shared_from_this(), &XConCalTable::onTMinMaxChanged);
         });
-        m_connectedApprox = approx;
+        m_connectedCurve = curve;
+    }
+
+    if( !spline) {
+        m_updatingTable = true;
+        m_pForm->tblPoints->setRowCount(0);
+        m_updatingTable = false;
+        return;
     }
 
     m_updatingTable = true;
-    Snapshot shot( *approx);
+    Snapshot shot( *curve);
     int n = 0;
-    if(shot.size(approx->resList()) && shot.size(approx->tempList())) {
-        const auto &res_list( *shot.list(approx->resList()));
-        const auto &tmp_list( *shot.list(approx->tempList()));
-        n = (int)std::min(res_list.size(), tmp_list.size());
+    if(shot.size(spline->rawList()) && shot.size(spline->outputList())) {
+        const auto &raw_list( *shot.list(spline->rawList()));
+        const auto &out_list( *shot.list(spline->outputList()));
+        n = (int)std::min(raw_list.size(), out_list.size());
         m_pForm->tblPoints->setRowCount(n);
         for(int i = 0; i < n; ++i) {
-            double r = shot[ *static_pointer_cast<XDoubleNode>(res_list.at(i))];
-            double t = shot[ *static_pointer_cast<XDoubleNode>(tmp_list.at(i))];
+            double r = shot[ *static_pointer_cast<XDoubleNode>(raw_list.at(i))];
+            double o = shot[ *static_pointer_cast<XDoubleNode>(out_list.at(i))];
             m_pForm->tblPoints->setItem(i, 0, new QTableWidgetItem(QString::number(r, 'g', 10)));
-            m_pForm->tblPoints->setItem(i, 1, new QTableWidgetItem(QString::number(t, 'g', 10)));
+            m_pForm->tblPoints->setItem(i, 1, new QTableWidgetItem(QString::number(o, 'g', 10)));
         }
     } else {
         m_pForm->tblPoints->setRowCount(0);
@@ -198,55 +222,55 @@ XConCalTable::populateTable() {
 void
 XConCalTable::onTableCellChanged(int row, int col) {
     if(m_updatingTable) return;
-    shared_ptr<XThermometer> thermo = ***m_thermometer;
-    auto approx = dynamic_pointer_cast<XApproxThermometer>(thermo);
-    if( !approx) return;
+    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    auto spline = dynamic_pointer_cast<XCSplineCalibrationIF>(curve);
+    if( !spline) return;
     QTableWidgetItem *item = m_pForm->tblPoints->item(row, col);
     if( !item) return;
     bool ok;
     double val = item->text().toDouble(&ok);
     if( !ok) return;
-    Snapshot shot( *approx);
-    const shared_ptr<XApproxThermometer::XDoubleListNode> &list =
-        (col == 0) ? approx->resList() : approx->tempList();
+    const shared_ptr<XCSplineCalibrationIF::XDoubleListNode> &list =
+        (col == 0) ? spline->rawList() : spline->outputList();
+    Snapshot shot( *curve);
     if( !shot.size(list)) return;
     const auto &node_list( *shot.list(list));
     if(row >= (int)node_list.size()) return;
     trans( *static_pointer_cast<XDoubleNode>(node_list.at(row))) = val;
-    approx->invalidateCache();
+    spline->invalidateCache();
     if(col == 0)
-        sortByResistance(approx); // reorders rows by resistance, calls populateTable
+        sortByRaw(spline);
     else
         refreshGraph();
 }
 void
 XConCalTable::onAddRowClicked() {
-    shared_ptr<XThermometer> thermo = ***m_thermometer;
-    auto approx = dynamic_pointer_cast<XApproxThermometer>(thermo);
-    if( !approx) return;
-    approx->resList()->createByTypename("", "");
-    approx->tempList()->createByTypename("", "");
-    approx->invalidateCache();
+    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    auto spline = dynamic_pointer_cast<XCSplineCalibrationIF>(curve);
+    if( !spline) return;
+    spline->rawList()->createByTypename("", "");
+    spline->outputList()->createByTypename("", "");
+    spline->invalidateCache();
     populateTable();
     refreshGraph();
 }
 void
 XConCalTable::onRemoveRowClicked() {
-    shared_ptr<XThermometer> thermo = ***m_thermometer;
-    auto approx = dynamic_pointer_cast<XApproxThermometer>(thermo);
-    if( !approx) return;
+    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    auto spline = dynamic_pointer_cast<XCSplineCalibrationIF>(curve);
+    if( !spline) return;
     int row = m_pForm->tblPoints->currentRow();
     if(row < 0) return;
-    Snapshot shot( *approx);
-    if( !shot.size(approx->resList()) || !shot.size(approx->tempList())) return;
-    const auto &res_list( *shot.list(approx->resList()));
-    const auto &tmp_list( *shot.list(approx->tempList()));
-    if(row >= (int)res_list.size() || row >= (int)tmp_list.size()) return;
-    auto rnode = static_pointer_cast<XDoubleNode>(res_list.at(row));
-    auto tnode = static_pointer_cast<XDoubleNode>(tmp_list.at(row));
-    approx->resList()->release(rnode);
-    approx->tempList()->release(tnode);
-    approx->invalidateCache();
+    Snapshot shot( *curve);
+    if( !shot.size(spline->rawList()) || !shot.size(spline->outputList())) return;
+    const auto &raw_list( *shot.list(spline->rawList()));
+    const auto &out_list( *shot.list(spline->outputList()));
+    if(row >= (int)raw_list.size() || row >= (int)out_list.size()) return;
+    auto rnode = static_pointer_cast<XDoubleNode>(raw_list.at(row));
+    auto onode = static_pointer_cast<XDoubleNode>(out_list.at(row));
+    spline->rawList()->release(rnode);
+    spline->outputList()->release(onode);
+    spline->invalidateCache();
     populateTable();
     refreshGraph();
 }
@@ -255,36 +279,36 @@ XConCalTable::onTMinMaxChanged(const Snapshot &, XValueNodeBase *) {
     refreshGraph();
 }
 void
-XConCalTable::drawGraph(const shared_ptr<XThermometer> &thermo) {
-    if( !thermo) {
+XConCalTable::drawGraph(const shared_ptr<XCalibrationCurve> &curve) {
+    if( !curve) {
         m_wave->iterate_commit([=](Transaction &tr){ tr[ *m_wave].clearPoints(); });
         return;
     }
     const int length = 1000;
-    Snapshot shot_th( *thermo);
+    Snapshot shot_th( *curve);
     try {
-        double tmin = shot_th[ *thermo->tempMin()];
-        double tmax = shot_th[ *thermo->tempMax()];
-        if(tmin <= 0 || tmax <= tmin) {
+        double outmin = shot_th[ *curve->outMin()];
+        double outmax = shot_th[ *curve->outMax()];
+        if(outmin <= 0 || outmax <= outmin) {
             m_wave->iterate_commit([=](Transaction &tr){ tr[ *m_wave].clearPoints(); });
             return;
         }
-        double step = (log(tmax) - log(tmin)) / length;
+        double step = (log(outmax) - log(outmin)) / length;
         m_wave->iterate_commit([=](Transaction &tr){
             tr[ *m_wave].setRowCount(length);
-            std::vector<double> colt(length), colr(length), coldt(length);
-            double lt = log(tmin);
+            std::vector<double> colout(length), colraw(length), colerr(length);
+            double lo = log(outmin);
             for(int i = 0; i < length; ++i) {
-                double t = exp(lt);
-                double r = thermo->getRawValue(t);
-                colt[i] = t;
-                colr[i] = r;
-                coldt[i] = thermo->getTemp(r) - t;
-                lt += step;
+                double o = exp(lo);
+                double r = curve->getRaw(o);
+                colout[i] = o;
+                colraw[i] = r;
+                colerr[i] = curve->getOutput(r) - o;
+                lo += step;
             }
-            tr[ *m_wave].setColumn(0, std::move(colt), 5);
-            tr[ *m_wave].setColumn(1, std::move(colr), 5);
-            tr[ *m_wave].setColumn(2, std::move(coldt), 5);
+            tr[ *m_wave].setColumn(0, std::move(colout), 5);
+            tr[ *m_wave].setColumn(1, std::move(colraw), 5);
+            tr[ *m_wave].setColumn(2, std::move(colerr), 5);
             m_wave->drawGraph(tr);
         });
     }
@@ -296,39 +320,41 @@ XConCalTable::refreshGraph() {
     drawGraph( ***thermometer());
 }
 void
-XConCalTable::sortByResistance(const shared_ptr<XApproxThermometer> &approx) {
-    Snapshot shot( *approx);
-    if( !shot.size(approx->resList()) || !shot.size(approx->tempList())) return;
-    const auto &res_list( *shot.list(approx->resList()));
-    const auto &tmp_list( *shot.list(approx->tempList()));
-    int n = (int)std::min(res_list.size(), tmp_list.size());
+XConCalTable::sortByRaw(const shared_ptr<XCSplineCalibrationIF> &spline) {
+    auto node = dynamic_pointer_cast<XNode>(spline);
+    if( !node) return;
+    Snapshot shot( *node);
+    if( !shot.size(spline->rawList()) || !shot.size(spline->outputList())) return;
+    const auto &raw_list( *shot.list(spline->rawList()));
+    const auto &out_list( *shot.list(spline->outputList()));
+    int n = (int)std::min(raw_list.size(), out_list.size());
     std::vector<std::pair<double,double>> pts(n);
     for(int i = 0; i < n; ++i) {
-        pts[i].first  = shot[ *static_pointer_cast<XDoubleNode>(res_list.at(i))];
-        pts[i].second = shot[ *static_pointer_cast<XDoubleNode>(tmp_list.at(i))];
+        pts[i].first  = shot[ *static_pointer_cast<XDoubleNode>(raw_list.at(i))];
+        pts[i].second = shot[ *static_pointer_cast<XDoubleNode>(out_list.at(i))];
     }
     std::sort(pts.begin(), pts.end());
     for(int i = 0; i < n; ++i) {
-        trans( *static_pointer_cast<XDoubleNode>(res_list.at(i))) = pts[i].first;
-        trans( *static_pointer_cast<XDoubleNode>(tmp_list.at(i))) = pts[i].second;
+        trans( *static_pointer_cast<XDoubleNode>(raw_list.at(i))) = pts[i].first;
+        trans( *static_pointer_cast<XDoubleNode>(out_list.at(i))) = pts[i].second;
     }
-    approx->invalidateCache();
+    spline->invalidateCache();
     populateTable();
     refreshGraph();
 }
 void
 XConCalTable::onNewClicked() {
     bool ok;
-    QString name = QInputDialog::getText(m_pForm, i18n("New Thermometer"),
+    QString name = QInputDialog::getText(m_pForm, i18n("New Calibration"),
         i18n("Name:"), QLineEdit::Normal, QString(), &ok);
     if( !ok || name.isEmpty()) return;
-    m_list->createThermometer("ApproxThermometer", name.toUtf8().data());
+    m_list->createCalibration("ApproxThermometer", name.toUtf8().data());
 }
 void
 XConCalTable::onDeleteClicked() {
-    shared_ptr<XThermometer> thermo = ***m_thermometer;
-    if( !thermo) return;
-    m_list->release(thermo);
+    shared_ptr<XCalibrationCurve> curve = ***m_thermometer;
+    if( !curve) return;
+    m_list->release(curve);
 }
 void
 XConCalTable::onDisplayTouched(const Snapshot &, XTouchableNode *) {

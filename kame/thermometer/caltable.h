@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+		Copyright (C) 2002-2025 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -29,13 +29,13 @@ class XWaveNGraph;
 class XConCalTable : public XQConnector {
 	Q_OBJECT
 public:
-	XConCalTable(const shared_ptr<XThermometerList> &list, FrmCalTable *form);
+	XConCalTable(const shared_ptr<XCalibrationCurveList> &list, FrmCalTable *form);
 	virtual ~XConCalTable() {}
 
 	const shared_ptr<XTouchableNode> &display() const {return m_display;}
 	const shared_ptr<XDoubleNode> &temp() const {return m_temp;}
 	const shared_ptr<XDoubleNode> &value() const {return m_value;}
-	const shared_ptr<XItemNode<XThermometerList, XThermometer> >&thermometer() const {
+	const shared_ptr<XItemNode<XCalibrationCurveList, XCalibrationCurve> > &thermometer() const {
 		return m_thermometer;
 	}
 
@@ -47,11 +47,11 @@ private slots:
 	void onDeleteClicked();
 
 private:
-	shared_ptr<XThermometerList> m_list;
+	shared_ptr<XCalibrationCurveList> m_list;
 
 	const shared_ptr<XTouchableNode> m_display;
 	const shared_ptr<XDoubleNode> m_temp, m_value;
-	shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer;
+	shared_ptr<XItemNode<XCalibrationCurveList, XCalibrationCurve> > m_thermometer;
 	xqcon_ptr m_conThermo, m_conTemp, m_conValue, m_conDisplay;
 	xqcon_ptr m_conTMin, m_conTMax;
 
@@ -59,7 +59,7 @@ private:
 	shared_ptr<Listener> m_lsnDisplay;
 	shared_ptr<Listener> m_lsnThermometerChanged;
 	shared_ptr<Listener> m_lsnTMin, m_lsnTMax;
-	weak_ptr<XApproxThermometer> m_connectedApprox;
+	weak_ptr<XCalibrationCurve> m_connectedCurve;
 
 	void onTempChanged(const Snapshot &shot, XValueNodeBase *);
 	void onValueChanged(const Snapshot &shot, XValueNodeBase *);
@@ -67,9 +67,9 @@ private:
 	void onThermometerChanged(const Snapshot &shot, XValueNodeBase *);
 	void onTMinMaxChanged(const Snapshot &shot, XValueNodeBase *);
 	void populateTable();
-	void drawGraph(const shared_ptr<XThermometer> &thermo);
+	void drawGraph(const shared_ptr<XCalibrationCurve> &curve);
 	void refreshGraph();
-	void sortByResistance(const shared_ptr<XApproxThermometer> &approx);
+	void sortByRaw(const shared_ptr<XCSplineCalibrationIF> &spline);
 
 	FrmCalTable *const m_pForm;
 	qshared_ptr<FrmGraphNURL> m_waveform;

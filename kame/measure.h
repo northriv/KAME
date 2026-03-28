@@ -20,7 +20,7 @@
 #include "xnode.h"
 #include "xnodeconnector.h"
 
-class XThermometerList;
+class XCalibrationCurveList;
 class XDriverList;
 class XInterfaceList;
 class XStatusPrinter;
@@ -52,7 +52,7 @@ public:
     //! stop all drivers.
 	void stop();
 
-	const shared_ptr<XThermometerList> &thermometers() const {return m_thermometers;}
+	const shared_ptr<XCalibrationCurveList> &thermometers() const {return m_thermometers;}
 	const shared_ptr<XDriverList> &drivers() const {return m_drivers;}
 	const shared_ptr<XInterfaceList> &interfaces() const {return m_interfaces;}
 	const shared_ptr<XScalarEntryList> &scalarEntries() const {return m_scalarEntries;}
@@ -73,7 +73,7 @@ private:
 	shared_ptr<XRuby> m_ruby;
     shared_ptr<XPython> m_python;
 
-	const shared_ptr<XThermometerList> m_thermometers;
+	const shared_ptr<XCalibrationCurveList> m_thermometers;
 	const shared_ptr<XScalarEntryList> m_scalarEntries;
 	const shared_ptr<XGraphList> m_graphList;
 	const shared_ptr<XChartList> m_chartList;
