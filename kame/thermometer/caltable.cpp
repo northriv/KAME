@@ -95,6 +95,7 @@ XConCalTable::XConCalTable
 		tr[ *m_wave].setColCount(3, labels);
         if( !tr[ *m_wave].insertPlot(tr, labels[1], 0, 1)) return;
         if( !tr[ *m_wave].insertPlot(tr, labels[2], 0, -1, 2)) return;
+        tr[ *m_wave->graph()->label()] = i18n("Calibration Table");
 		tr[ *tr[ *m_wave].plot(0)->label()] = i18n("Curve");
 		tr[ *tr[ *m_wave].plot(0)->drawPoints()] = false;
 		tr[ *tr[ *m_wave].plot(1)->label()] = i18n("Error");
