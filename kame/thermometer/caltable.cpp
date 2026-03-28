@@ -129,6 +129,7 @@ XConCalTable::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 void
 XConCalTable::onThermometerChanged(const Snapshot &, XValueNodeBase *) {
     populateTable();
+    refreshGraph();
 }
 void
 XConCalTable::populateTable() {
