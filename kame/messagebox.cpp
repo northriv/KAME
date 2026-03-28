@@ -37,7 +37,7 @@ XMessageBox::XMessageBox(QWidget *parent) {
 
     QRect rect = s_pFrmMessage->window()->windowHandle()->screen()->availableGeometry();
     int y = rect.bottom() - s_pFrmMessage->frameSize().height();
-    s_pFrmMessage->move(0, y);
+    s_pFrmMessage->move(rect.left(), y);
 //    s_pFrmMessage->m_list->setMouseTracking(true); //for statusTip.
 
     {

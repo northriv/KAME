@@ -21,6 +21,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTableWidget>
+#include <QHeaderView>
 #include <QLabel>
 #include "ui_drivertool.h"
 #include "ui_drivercreate.h"
@@ -57,6 +58,9 @@ XDriverListConnector::XDriverListConnector
 	labels += i18n("Type");
 	labels += i18n("Recorded Time");
     m_pItem->setHorizontalHeaderLabels(labels);
+    m_pItem->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_pItem->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
+    m_pItem->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
 
 	Snapshot shot( *node);
 	if(shot.size()) {

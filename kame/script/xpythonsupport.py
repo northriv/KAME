@@ -365,6 +365,7 @@ else:
 				MYDEFOUT.write("#KAME IPython binding")
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
 				self.logfilename = os.path.splitext(connection_file)[0] + "-log" + os.extsep + "txt"
+				self._initial_logfilename = self.logfilename
 				MYDEFOUT.write_html(r'<font color="#008800">Logging console output to <a href="file:///'
 						+ self.logfilename + r'">' + html.escape(self.logfilename) + '</a></font>')
 				TLS.logfile = open(self.logfilename, mode='a')
@@ -413,6 +414,14 @@ else:
 
 				TLS.logfile.close()
 				TLS.logfile = None
+
+				# Delete the log file if Jupyter was never launched and no
+				# server/notebook was ever connected (logfilename unchanged).
+				if not NOTEBOOK_PROC and self.logfilename == self._initial_logfilename:
+					try:
+						os.remove(self.logfilename)
+					except OSError:
+						pass
 
 				sys.stdout = STDOUT
 				sys.stderr = STDERR

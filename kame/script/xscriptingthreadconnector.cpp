@@ -16,6 +16,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QTextBrowser>
+#include <QFontDatabase>
 #include <QLineEdit>
 #include "ui_scriptingthreadtool.h"
 #include "icons/icon.h"
@@ -63,6 +64,7 @@ XScriptingThreadConnector::XScriptingThreadConnector(
     m_pForm->m_ptxtDefout->setReadOnly(true);
     m_pForm->m_ptxtDefout->setOpenLinks(false);
     m_pForm->m_ptxtDefout->setOpenExternalLinks(true);
+    m_pForm->m_ptxtDefout->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
 
     m_resume->iterate_commit([=](Transaction &tr){
 		m_lsnOnResumeTouched = tr[ *m_resume].onTouch().connectWeakly(
