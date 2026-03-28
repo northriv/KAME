@@ -21,7 +21,7 @@
        <item>
         <widget class="QLabel" name="textLabel1">
          <property name="text">
-          <string>Thermometer</string>
+          <string>Calibration Table</string>
          </property>
          <property name="wordWrap">
           <bool>false</bool>
@@ -29,14 +29,14 @@
         </widget>
        </item>
        <item>
+        <widget class="QComboBox" name="cmbThermometer">
+         <property name="acceptDrops">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
         <layout class="QHBoxLayout">
-         <item>
-          <widget class="QComboBox" name="cmbThermometer">
-           <property name="acceptDrops">
-            <bool>false</bool>
-           </property>
-          </widget>
-         </item>
          <item>
           <widget class="QPushButton" name="btnNew">
            <property name="text">
@@ -50,6 +50,22 @@
             <string>Delete</string>
            </property>
           </widget>
+         </item>
+         <item>
+          <spacer>
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeType">
+            <enum>QSizePolicy::Policy::Expanding</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
          </item>
         </layout>
        </item>
