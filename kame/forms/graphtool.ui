@@ -16,16 +16,28 @@
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QGroupBox" name="grpGraphs">
-     <property name="title">
-      <string>Graphs</string>
-     </property>
      <property name="sizePolicy">
       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
        <horstretch>0</horstretch>
        <verstretch>1</verstretch>
       </sizepolicy>
      </property>
+     <property name="title">
+      <string>Graphs</string>
+     </property>
      <layout class="QVBoxLayout">
+      <property name="leftMargin">
+       <number>5</number>
+      </property>
+      <property name="topMargin">
+       <number>5</number>
+      </property>
+      <property name="rightMargin">
+       <number>5</number>
+      </property>
+      <property name="bottomMargin">
+       <number>5</number>
+      </property>
       <item>
        <widget class="QTableWidget" name="m_tblGraphs"/>
       </item>
@@ -33,11 +45,8 @@
        <layout class="QHBoxLayout">
         <item>
          <spacer>
-          <property name="orientation">
-           <enum>Qt::Orientation::Horizontal</enum>
-          </property>
           <property name="sizeType">
-           <enum>QSizePolicy::Policy::Expanding</enum>
+           <enum>QSizePolicy::Fixed</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
@@ -74,16 +83,28 @@
    </item>
    <item>
     <widget class="QGroupBox" name="grpCalibEntries">
-     <property name="title">
-      <string>Calibrated Entries</string>
-     </property>
      <property name="sizePolicy">
       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
        <horstretch>0</horstretch>
        <verstretch>1</verstretch>
       </sizepolicy>
      </property>
+     <property name="title">
+      <string>Calibrated Entries</string>
+     </property>
      <layout class="QVBoxLayout">
+      <property name="leftMargin">
+       <number>5</number>
+      </property>
+      <property name="topMargin">
+       <number>5</number>
+      </property>
+      <property name="rightMargin">
+       <number>5</number>
+      </property>
+      <property name="bottomMargin">
+       <number>5</number>
+      </property>
       <item>
        <widget class="QTableWidget" name="m_tblCalibEntries"/>
       </item>
@@ -91,11 +112,8 @@
        <layout class="QHBoxLayout">
         <item>
          <spacer>
-          <property name="orientation">
-           <enum>Qt::Orientation::Horizontal</enum>
-          </property>
           <property name="sizeType">
-           <enum>QSizePolicy::Policy::Expanding</enum>
+           <enum>QSizePolicy::Fixed</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
