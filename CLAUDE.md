@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-KAME is a scientific instrument control and measurement software framework written in C++11/Qt. It provides a plugin-based architecture for controlling laboratory instruments (oscilloscopes, lock-in amplifiers, temperature controllers, magnet power supplies, etc.) with Python and Ruby scripting support. Version 7.8.1.
+KAME is a scientific instrument control and measurement software framework written in C++11/Qt. It provides a plugin-based architecture for controlling laboratory instruments (oscilloscopes, lock-in amplifiers, temperature controllers, magnet power supplies, etc.) with Python and Ruby scripting support. Version 8.0.
 
 **Platforms:** macOS, Windows (64-bit). Linux support is discontinued; the `CMakeLists.txt` / KDE4 build is legacy and not maintained.
 
@@ -37,7 +37,7 @@ The core abstraction is a lock-free, snapshot-based STM in `kame/transaction.h`.
   - `iterate_commit_if(lambda)` — retries on conflict **only if** the lambda returns `false`; returning `true` means "give up"
 - **Online insertion** — `insert(tr, child, true)` commits the child to the live tree immediately and makes it accessible via `tr[*child]` within the same transaction. Without the `true` flag, the child is only visible after the transaction commits.
 - **`XNode::Payload`** — the data a node holds; subclass this in each driver/node to add fields
-- `atomic_shared_ptr` (in `kame/atomic_smart_ptr.h`) is the lock-free primitive underpinning snapshots and commits
+- `atomic_shared_ptr` (in `kame/atomic_smart_ptr.h`) is the lock-free primitive underpinning snapshots and commits. It uses a **tagged-pointer** scheme: the lower bits of the heap pointer (guaranteed zero by allocator alignment) store a small local reference counter. `ATOMIC_SHARED_REF_ALIGNMENT` is the alignment value — it defines the pointer mask, the refcnt mask, and the max refcnt. **Do not use `alignas(N)` or `alignof(Ref)` for this constant.** Use `sizeof(intptr_t)` (non-intrusive) or `sizeof(double)` (intrusive) instead: both equal 8 on 64-bit and reflect the minimum alignment any conforming allocator guarantees. `alignas(N > max_align_t)` on the struct does *not* force `operator new` to honour that alignment pre-C++17, so the lower bits may not be zero — causing silent pointer corruption and rare crashes.
 
 ```cpp
 // Read snapshot
@@ -139,4 +139,5 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - Time-stamping: use `XTime` from `kame/xtime.h`; `m_recordTime` is set by the driver when data is captured
 - **Safe list release** — before calling `list->release(node)`, guard with `Snapshot shot(*list); if(shot.isUpperOf(*node))` to prevent double-release crashes at shutdown (the list may have already cleared the node before the owning object's destructor runs).
 - **Snapshot containment check** — use `shot.isUpperOf(*node)` to test whether a node is in a snapshot, **not** `try { shot.at(*node) } catch (NodeNotFoundError &)`. An inner catch masks any `NodeNotFoundError` that an outer catch block was meant to handle. `isUpperOf` is also the correct semantic: it is a direct O(1) containment predicate, not an exception-driven fallback.
+- **`QPointer` for widget references in async callbacks** — store `QPointer<QWidget>` (not a raw pointer) when a widget reference is held across asynchronous callbacks (e.g. `Talker`/`Listener` or `TalkerOnce` signals). `QPointer` auto-nullifies when Qt destroys the widget; a raw pointer becomes dangling. Check `if(!m_widget)` before use. Example: `XWaveNGraph::m_btnMathTool` was changed from `QToolButton *` to `QPointer<QToolButton>` to fix a crash during `.kam` loading under concurrent driver creation.
 - **Calibrated proxy in `onVisualization`** — `XCalibratedEntry`'s proxy `XScalarEntry` uses the source driver but is not in the driver's node tree. In `onVisualization` callbacks, check `shot.isUpperOf(*entry)` first; if false, fall back to a fresh `Snapshot(*entry)`. This correctly handles the proxy case. An entry that was released from the driver but not yet from `XScalarEntryList` also returns false from `isUpperOf` and is indistinguishable from a proxy at this level; treat it the same (use fallback) unless explicit tracking is added.
