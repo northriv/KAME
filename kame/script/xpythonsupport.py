@@ -248,6 +248,8 @@ def loadKam(xpythread, filename):
 		with open(filename, 'r', encoding='utf-8') as f:
 			src = f.read()
 		# Minimal Ruby→Python translation: x.last→x[-1], x.pop→x.pop()
+		# Strip leading whitespace — .kam indentation is cosmetic; Python exec rejects it.
+		src = '\n'.join(line.lstrip() for line in src.splitlines())
 		src = src.replace('x.last', 'x[-1]')
 		src = re.sub(r'\bx\.pop\b(?!\s*\()', 'x.pop()', src)
 		root = Root()
