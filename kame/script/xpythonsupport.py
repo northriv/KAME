@@ -222,7 +222,11 @@ class _KamNode:
 			return _KamFakeNode(key)
 		return _KamNode(child)
 	def create(self, type_name, name=''):
-		if self._node.isThreadSafeDuringCreationByTypename():
+		try:
+			thread_safe = self._node.isThreadSafeDuringCreationByTypename()
+		except AttributeError:
+			thread_safe = False  # node not downcast to XListNodeBase; assume non-thread-safe
+		if thread_safe:
 			child = self._node.createByTypename(type_name, name)
 		else:
 			child = kame_mainthread(lambda: self._node.createByTypename(type_name, name))
