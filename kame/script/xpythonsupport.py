@@ -246,6 +246,7 @@ def loadKam(xpythread, filename):
 	"""Execute a .kam measurement configuration file using Python."""
 	import re
 	TLS.xscrthread = xpythread
+	TLS.logfile = None
 	try:
 		xpythread["ThreadID"] = str(threading.current_thread().native_id)
 		xpythread["Status"] = "run"
