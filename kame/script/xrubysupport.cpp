@@ -98,8 +98,8 @@ XRuby::rlistnode_create_child(const shared_ptr<XNode> &node, Ruby::Value rbtype,
             Snapshot shot( *this);
             shot.talk(shot[ *this].onChildCreated(), x);
             XScopedLock<XCondition> lock(x->cond);
-            while(x->lnode) {
-                x->cond.wait();
+            while(x->lnode) { //will be reset after creation.
+                x->cond.wait(10000); // 10ms safety timeout; signal guaranteed but guard against exception path
             }
             child = x->child;
             x->child.reset();
@@ -173,7 +173,10 @@ XRuby::rvaluenode_load(const shared_ptr<XNode> &node, Ruby::Value var) {
     if( shot[ *node].isRuntime()) {
         throw (std::string)formatString("Node %s is run-time node!\n", node->getName().c_str());
     }
+    // Boost priority so trans() calls in strOnNode are not starved by driver transactions.
+    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
     XRuby::strOnNode(vnode, var);
+    Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
     dbgPrint(QString("Ruby, Node %1, new value: %2.").arg(node->getName()).arg(shot[ *vnode].to_str()) );
     return XRuby::getValueOfNode(vnode);
 }

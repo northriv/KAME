@@ -86,7 +86,12 @@ m_measure(measure) {
 }
 void
 XScriptingThreadList::onChildCreated(const Snapshot &, const shared_ptr<Payload::tCreateChild> &x)  {
-    x->child = x->lnode->createByTypename(x->type, x->name);
+    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
+    try {
+        x->child = x->lnode->createByTypename(x->type, x->name);
+    }
+    catch (...) {}
+    Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
     x->lnode.reset();
     XScopedLock<XCondition> lock(x->cond);
     x->cond.signal();
