@@ -205,6 +205,62 @@ def sleep(sec):
 		xpythread = TLS.xscrthread
 		xpythread["Status"] = "run"
 
+class _KamFakeNode:
+	"""Silent placeholder for nodes missing due to version skew."""
+	def __init__(self, key=''): self._key = key
+	def __getitem__(self, key): return _KamFakeNode(key)
+	def create(self, *a): return _KamFakeNode(a)
+	def load(self, v): STDERR.write("KamFakeNode[{}].load({}) ignored\n".format(self._key, v))
+
+class _KamNode:
+	"""Wraps XNode for .kam loading: chained [] access, .load(), and .create() with
+	main-thread dispatch for non-thread-safe lists (e.g. XDriverList)."""
+	def __init__(self, node): self._node = node
+	def __getitem__(self, key):
+		child = self._node[key]
+		if child is None:
+			return _KamFakeNode(key)
+		return _KamNode(child)
+	def create(self, type_name, name=''):
+		if self._node.isThreadSafeDuringCreationByTypename():
+			child = self._node.createByTypename(type_name, name)
+		else:
+			child = kame_mainthread(lambda: self._node.createByTypename(type_name, name))
+		return _KamNode(child)
+	def load(self, value):
+		try: self._node.load(str(value))
+		except Exception as e: STDERR.write(str(e) + '\n')
+	def getName(self): return self._node.getName()
+
+class _KamStack(list):
+	def __lshift__(self, val):
+		if val is not None:
+			self.append(val)
+		return self
+
+def loadKam(xpythread, filename):
+	"""Execute a .kam measurement configuration file using Python."""
+	import re
+	TLS.xscrthread = xpythread
+	try:
+		xpythread["ThreadID"] = str(threading.current_thread().native_id)
+		xpythread["Status"] = "run"
+		with open(filename, 'r', encoding='utf-8') as f:
+			src = f.read()
+		# Minimal Ruby→Python translation: x.last→x[-1], x.pop→x.pop()
+		src = src.replace('x.last', 'x[-1]')
+		src = re.sub(r'\bx\.pop\b(?!\s*\()', 'x.pop()', src)
+		root = Root()
+		rname = root.getName()
+		rname = rname[0].upper() + rname[1:]
+		globs = {'x': _KamStack(), rname: _KamNode(root)}
+		exec(compile(src, filename, 'exec'), globs)
+		print(filename + " loaded.")
+	except Exception:
+		sys.stderr.write(str(traceback.format_exc()))
+	finally:
+		TLS.xscrthread["Status"] = ""
+
 def loadSequence(xpythread, filename):
 	TLS.xscrthread = xpythread #thread-local-storage
 	TLS.logfile = None
@@ -253,7 +309,8 @@ def kame_pybind_one_iteration():
 					STDERR.write("Starting a new thread")
 					filename = str(xpythread_filename)
 					STDERR.write("Loading "+ filename)
-					thread = threading.Thread(daemon=True, target=loadSequence, args=(xpythread, filename))
+					target = loadKam if filename.endswith('.kam') else loadSequence
+					thread = threading.Thread(daemon=True, target=target, args=(xpythread, filename))
 					thread.start()
 				if action == "kill":
 					if str(xpythread_threadid) == "-1":

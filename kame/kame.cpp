@@ -517,7 +517,8 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
     raise();
     shared_ptr<XScriptingThreadList> threadlist;
 #ifdef USE_PYBIND11
-    if(filename.rfind(".py") == filename.length() - 3) {
+    if(filename.rfind(".py") == filename.length() - 3 ||
+       filename.rfind(".kam") == filename.length() - 4) {
         threadlist = m_measure->python();
     } else
 #endif

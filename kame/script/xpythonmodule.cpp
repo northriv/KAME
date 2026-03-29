@@ -308,7 +308,13 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
     {   auto [node, payload] = XPython::bind.export_xnode<XValueNodeBase, XNode>();
         (*node)
         .def("__str__", [](shared_ptr<XValueNodeBase> &self)->std::string{return Snapshot( *self)[*self].to_str();})
-        .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);});}
+        .def("set", [](shared_ptr<XValueNodeBase> &self, const std::string &s){trans(*self).str(s);})
+        .def("load", [](shared_ptr<XValueNodeBase> &self, const std::string &s){
+            // Priority-boosted set for .kam loading — same as XRuby::rvaluenode_load.
+            Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
+            try { trans(*self).str(s); } catch(...) {}
+            Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
+        });}
     {   auto [node, payload] = XPython::bind.export_xvaluenode<XIntNode, int, XValueNodeBase>("XIntNode");
         (*payload)
         .def("__int__", [](XIntNode::Payload &self)->int{return self;});}
@@ -349,7 +355,9 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
 
     {   auto [node, payload] = XPython::bind.export_xnode<XListNodeBase, XNode>();
         (*node)
-        .def("createByTypename", &XListNodeBase::createByTypename);}
+        .def("createByTypename", &XListNodeBase::createByTypename)
+        .def("isThreadSafeDuringCreationByTypename",
+             [](shared_ptr<XListNodeBase> &self){ return self->isThreadSafeDuringCreationByTypename(); });}
     {   auto [node, payload] = XPython::bind.export_xnode<XTouchableNode, XNode>();
         (*node)
         .def("touch", [](shared_ptr<XTouchableNode> &self){trans(*self).touch();});}
