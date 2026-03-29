@@ -222,10 +222,10 @@ class _KamNode:
 			return _KamFakeNode(key)
 		return _KamNode(child)
 	def create(self, type_name, name=''):
-		try:
-			thread_safe = self._node.isThreadSafeDuringCreationByTypename()
-		except AttributeError:
-			thread_safe = False  # node not downcast to XListNodeBase; assume non-thread-safe
+		if not hasattr(self._node, 'createByTypename'):
+			STDERR.write("_KamNode.create({!r},{!r}): node not downcast to XListNodeBase, skipped\n".format(type_name, name))
+			return _KamFakeNode(type_name)
+		thread_safe = getattr(self._node, 'isThreadSafeDuringCreationByTypename', lambda: False)()
 		if thread_safe:
 			child = self._node.createByTypename(type_name, name)
 		else:
