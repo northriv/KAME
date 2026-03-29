@@ -299,6 +299,10 @@ int main(int argc, char *argv[]) {
 
     }
 
+    // All modules including Python modules are now loaded.
+    // Signal the Python thread so it can proceed with xpythonsupport.py imports.
+    form->signalAllModulesLoaded();
+
 #if defined __MACOSX__ || defined __APPLE__
     //Disables App Nap
     suspendLazySleeps();

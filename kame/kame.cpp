@@ -480,6 +480,13 @@ void FrmKameMain::helpIndexAction_activated() {
   }
 */
 
+void FrmKameMain::signalAllModulesLoaded() {
+#ifdef USE_PYBIND11
+    if(m_measure && m_measure->python())
+        m_measure->python()->signalModulesLoaded();
+#endif
+}
+
 void FrmKameMain::mesStopAction_activated() {
 	m_measure->stop();
 /*

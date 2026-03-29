@@ -113,6 +113,10 @@ public:
     void launchJupyterConsole(const std::string &execpath, const std::string &console);
     std::vector<std::string> listOfJupyterPrograms();
 
+    //! Called by the main thread after all driver modules (incl. Python modules) are loaded.
+    //! Signals execute() to proceed with importing xpythonsupport.py.
+    void signalModulesLoaded() { m_modules_loaded.store(true, std::memory_order_release); }
+
     static KAMEPyBind bind;
 protected:
     virtual void *execute(const atomic<bool> &) override;
@@ -120,6 +124,7 @@ protected:
     std::string my_defin(shared_ptr<XNode> node);
 
 private:
+    std::atomic<bool> m_modules_loaded{false};
     XCondition m_mainthread_cb_cond;
     Transactional::Talker<pybind11::object*, pybind11::object*, pybind11::object*, pybind11::object*> m_mainthread_cb_tlk;
     shared_ptr<Listener> m_mainthread_cb_lsn;

@@ -14,6 +14,8 @@
 //---------------------------------------------------------------------------
 #include "xpythonmodule.h"
 #include <pybind11/iostream.h>
+#include <thread>
+#include <chrono>
 #include <pybind11/stl.h>
 #include <pybind11/complex.h>
 #include <pybind11/functional.h>
@@ -174,6 +176,16 @@ XPython::execute(const atomic<bool> &terminated) {
         // the first kame_pybind_one_iteration() tick, after the IPython kernel is up.
         auto deferred_scripts = std::make_shared<std::vector<std::string>>();
         kame_module.def("kame_deferred_scripts", [=]()->std::vector<std::string>{return *deferred_scripts;});
+
+        // Wait (GIL released) for main thread to finish loading all driver modules.
+        // PyDriverExporter/PyXNodeExporter constructors in Python modules need the GIL to
+        // register pybind11 types; holding the GIL here while importing numpy/IPython
+        // would starve them. Main thread calls signalModulesLoaded() after the load loop.
+        {
+            pybind11::gil_scoped_release wait_for_modules;
+            while(!m_modules_loaded.load(std::memory_order_acquire))
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
 
         for(auto &filename: {XPYTHONEXT_TEST_PY, XPYTHONEXT_PY, XPYTHONSUPPORT_PY}) {
             QFile scriptfile(filename);

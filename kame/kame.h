@@ -88,6 +88,7 @@ public:
 	FrmNodeBrowser *m_pFrmNodeBrowser;
 
 	int openMes(const XString &filename);
+    void signalAllModulesLoaded(); //!< Call after all driver modules are loaded.
 
     bool running() const {return !!m_measure;}
 public slots:
