@@ -147,6 +147,7 @@ void XMeasure::initialize() {
 void XMeasure::terminate() {
 	interfaces()->releaseAll();
     stop(); //notifies running threads of termination.
+    graphs()->releaseAll();
     drivers()->releaseAll(); //still threads may hold their shared pointers.
     calibratedEntries()->releaseAll(); //releases m_entry from XScalarEntryList.
 	thermometers()->releaseAll();
