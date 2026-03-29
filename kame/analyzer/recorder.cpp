@@ -213,10 +213,10 @@ XTextWriter::onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *
                     if(d.get() != driver) continue;
                     try {
                         bool isTrig = false;
-                        try {
+                        if(shot.isUpperOf( *entry)) {
                             isTrig = shot.at( *entry).isTriggered();
                         }
-                        catch (NodeNotFoundError &) {
+                        else {
                             // Entry not in driver's snapshot (e.g. calibrated proxy);
                             // fall back to entries snapshot updated by onValueChanged.
                             isTrig = shot_entries.at( *entry).isTriggered();
