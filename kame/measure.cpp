@@ -54,9 +54,10 @@ m_thermometers(create<XThermometerList>("Thermometers", false)),
 m_scalarEntries(create<XScalarEntryList>("ScalarEntries", true)),
 m_graphList(create<XGraphList>("GraphList", false, scalarEntries())),
 m_chartList(create<XChartList>("ChartList", true, scalarEntries())),
-m_calibratedEntryList(create<XCalibratedEntryList>("CalibratedEntries", false, scalarEntries(), thermometers())),
 m_interfaces(create<XInterfaceList>("Interfaces", true)),
 m_drivers(create<XDriverList>("Drivers", false, static_pointer_cast<XMeasure>(shared_from_this()))),
+m_calibratedEntryList(create<XCalibratedEntryList>("CalibratedEntries", false, scalarEntries(), thermometers(),
+                                                       static_pointer_cast<XMeasure>(shared_from_this()))),
 m_textWriter(create<XTextWriter>("TextWriter", false, drivers(), scalarEntries())),
 m_rawStreamRecorder(create<XRawStreamRecorder>("RawStreamRecorder", false, drivers())),
 m_rawStreamRecordReader(create<XRawStreamRecordReader>("RawStreamRecordReader", false,
@@ -119,6 +120,8 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 
 	g_statusPrinter = XStatusPrinter::create();
 
+    m_textWriter->addCalibratedEntrySource(m_calibratedEntryList);
+
 	iterate_commit([=](Transaction &tr){
 		m_lsnOnReleaseDriver = tr[ *drivers()].onRelease().connect(
 			*this, &XMeasure::onReleaseDriver);
@@ -145,6 +148,7 @@ void XMeasure::terminate() {
 	interfaces()->releaseAll();
     stop(); //notifies running threads of termination.
     drivers()->releaseAll(); //still threads may hold their shared pointers.
+    calibratedEntries()->releaseAll(); //releases m_entry from XScalarEntryList.
 	thermometers()->releaseAll();
     Snapshot shot( *this);
 	initialize();

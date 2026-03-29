@@ -61,11 +61,14 @@ private:
 
 
 class XScalarEntryList;
+class XCalibratedEntryList;
 
 class XTextWriter : public XNode {
 public:
 	XTextWriter(const char *name, bool runtime,
 				const shared_ptr<XDriverList> &driverlist, const shared_ptr<XScalarEntryList> &entrylist);
+    //! Also monitor calibrated entries as driver sources for onVisualization.
+    void addCalibratedEntrySource(const shared_ptr<XCalibratedEntryList> &calibEntries);
 
 	const shared_ptr<XStringNode> &filename() const {return m_filename;}
 	const shared_ptr<XBoolNode> &recording() const {return m_recording;}
@@ -89,6 +92,8 @@ private:
 	shared_ptr<Listener> m_lsnOnFlush;
 	shared_ptr<Listener> m_lsnOnCatch;
 	shared_ptr<Listener> m_lsnOnRelease;
+	shared_ptr<Listener> m_lsnOnCatchCalib;
+	shared_ptr<Listener> m_lsnOnReleaseCalib;
 	shared_ptr<Listener> m_lsnOnLastLineChanged;
 	shared_ptr<Listener> m_lsnOnFilenameChanged;
 	shared_ptr<Listener> m_lsnOnLogFilenameChanged;
