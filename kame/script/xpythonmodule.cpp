@@ -355,7 +355,9 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
 
     {   auto [node, payload] = XPython::bind.export_xnode<XListNodeBase, XNode>();
         (*node)
-        .def("createByTypename", &XListNodeBase::createByTypename)
+        .def("createByTypename", [](shared_ptr<XListNodeBase> &self, const std::string &type, const std::string &name){
+            return self->createByTypename(type, name);
+        })
         .def("isThreadSafeDuringCreationByTypename",
              [](shared_ptr<XListNodeBase> &self){ return self->isThreadSafeDuringCreationByTypename(); });}
     {   auto [node, payload] = XPython::bind.export_xnode<XTouchableNode, XNode>();
