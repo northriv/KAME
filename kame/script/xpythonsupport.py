@@ -250,6 +250,7 @@ def loadKam(xpythread, filename):
 		# Minimal Ruby→Python translation: x.last→x[-1], x.pop→x.pop()
 		# Strip leading whitespace — .kam indentation is cosmetic; Python exec rejects it.
 		src = '\n'.join(line.lstrip() for line in src.splitlines())
+		src = src.replace('x = Array.new', 'x = _KamStack()')
 		src = src.replace('x.last', 'x[-1]')
 		src = re.sub(r'\bx\.pop\b(?!\s*\()', 'x.pop()', src)
 		root = Root()
