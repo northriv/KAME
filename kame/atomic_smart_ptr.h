@@ -67,7 +67,7 @@ private:
 //! This is an internal class holding a global reference counter and a pointer to the object.
 //! \sa atomic_shared_ptr
 template <typename T>
-struct alignas(16) atomic_shared_ptr_gref_ {
+struct atomic_shared_ptr_gref_ {
     template <typename D>
     atomic_shared_ptr_gref_(T *p, D d) noexcept : ptr(p), refcnt(1), deleter(d) {}
     ~atomic_shared_ptr_gref_() noexcept { assert(refcnt == 0); deleter(); }
@@ -87,7 +87,7 @@ template <typename X, typename Y> class local_shared_ptr;
 
 //! Use subclass of this to be storaged in atomic_shared_ptr with
 //! intrusive counting to obtain better performance.
-struct alignas(16) atomic_countable {
+struct atomic_countable {
     atomic_countable() noexcept : refcnt(1) {}
     atomic_countable(const atomic_countable &) noexcept : refcnt(1) {}
     ~atomic_countable() { assert(refcnt == 0); }
@@ -127,7 +127,7 @@ protected:
     int _use_count_() const noexcept {return ((const Ref*)(reflocal_t)this->m_ref)->refcnt;}
 
     reflocal_var_t m_ref;
-    enum {ATOMIC_SHARED_REF_ALIGNMENT = alignof(Ref)};
+    enum {ATOMIC_SHARED_REF_ALIGNMENT = (sizeof(intptr_t))};
 };
 //! \brief Base class for atomic_shared_ptr with intrusive counting.
 template <typename T, typename reflocal_t, typename reflocal_var_t>
@@ -149,7 +149,7 @@ protected:
     int _use_count_() const noexcept {return ((const T*)(reflocal_t)this->m_ref)->refcnt;}
 
     reflocal_var_t m_ref;
-    enum {ATOMIC_SHARED_REF_ALIGNMENT = alignof(Ref)};
+    enum {ATOMIC_SHARED_REF_ALIGNMENT = (sizeof(double))};
 };
 
 //! \brief This class provides non-reentrant interfaces for atomic_shared_ptr: operator->(), operator*() and so on.\n
