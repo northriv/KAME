@@ -1,4 +1,5 @@
 * Sun Mar 29 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (7.9)
 - (8.0-beta1)
 - CalibratedEntry: new XCalibratedEntry node derives a scalar entry from another entry via a calibration curve; proxy entry is inserted into XScalarEntryList and works with TextWriter and graph XYZ selectors.
 - CalibrationTable: cspline calibration table is now fully editable in the UI; log-scale axes for XResistanceThermometer; XGenericCalibration added.
