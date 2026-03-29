@@ -125,6 +125,7 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 	iterate_commit([=](Transaction &tr){
 		m_lsnOnReleaseDriver = tr[ *drivers()].onRelease().connect(
 			*this, &XMeasure::onReleaseDriver);
+        tr[ *calibratedEntries()].onRelease().connect(m_lsnOnReleaseDriver);
     });
 
 #ifdef USE_PYBIND11
@@ -183,7 +184,7 @@ void XMeasure::stop() {
 		}
 	}
 }
-void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+void XMeasure::onReleaseDriver(const Snapshot &, const XListNodeBase::Payload::ReleaseEvent &e) {
 	auto driver = static_pointer_cast<XDriver>(e.released);
 	auto pridriver = dynamic_pointer_cast<XPrimaryDriver>(driver);
 	if(pridriver)

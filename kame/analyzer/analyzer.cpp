@@ -354,14 +354,9 @@ XCalibratedEntry::XCalibratedEntry(const char *name, bool runtime,
     const shared_ptr<XScalarEntryList> &entries,
     const shared_ptr<XCalibrationCurveList> &curves)
     : XDriver(name, runtime, tr_meas, meas),
-      m_entry(create<XScalarEntry>("Value", true,
-          static_pointer_cast<XDriver>(shared_from_this()))) {
-    entries->iterate_commit([=](Transaction &tr){
-        m_source = create<tSource>("Source", false, tr, entries);
-    });
-    curves->iterate_commit([=](Transaction &tr){
-        m_curve = create<tCurve>("Curve", false, tr, curves);
-    });
+      m_source(create<tSource>("Source", false, tr_meas, entries)),
+      m_curve(create<tCurve>("Curve", false, tr_meas, curves)),
+      m_entries(entries) {
     iterate_commit([=](Transaction &tr){
         m_lsnSelectionChanged = tr[ *m_source].onValueChanged().connectWeakly(
             shared_from_this(), &XCalibratedEntry::onSelectionChanged,
@@ -369,14 +364,27 @@ XCalibratedEntry::XCalibratedEntry(const char *name, bool runtime,
         tr[ *m_curve].onValueChanged().connect(m_lsnSelectionChanged);
     });
 }
+XCalibratedEntry::~XCalibratedEntry() {
+    if(auto entry = m_entry)
+        if(auto entries = m_entries.lock()) {
+            entries->iterate_commit([=](Transaction &tr){
+                if(tr.isUpperOf( *entry))
+                    entries->release(tr, entry);
+            });
+        }
+}
 void
 XCalibratedEntry::onSelectionChanged(const Snapshot &, XValueNodeBase *) {
     Snapshot shot( *this);
     shared_ptr<XScalarEntry> src = shot[ *m_source];
     shared_ptr<XCalibrationCurve> curve = shot[ *m_curve];
-
     // Reconnect onRecord listener to the new source driver.
     m_lsnOnRecord.reset();
+    auto entry = m_entry;
+    if(entry) {
+        m_entries.lock()->release(entry);
+        m_entry.reset();
+    }
     if(src && curve) {
         if(auto drv = src->driver()) {
             drv->iterate_commit([=](Transaction &tr){
@@ -387,9 +395,13 @@ XCalibratedEntry::onSelectionChanged(const Snapshot &, XValueNodeBase *) {
         // Update output unit format on the entry nodes.
         XString unit = curve->outputUnit();
         XString fmt = unit.empty() ? "%.5g" : ("%.5g " + unit);
-        m_entry->value()->setFormat(fmt.c_str());
-        m_entry->storedValue()->setFormat(fmt.c_str());
-        m_entry->delta()->setFormat(fmt.c_str());
+        entry = create<XScalarEntry>(src->getLabel().c_str(), true,
+            static_pointer_cast<XDriver>(shared_from_this()));
+        entry->value()->setFormat(fmt.c_str());
+        entry->storedValue()->setFormat(fmt.c_str());
+        entry->delta()->setFormat(fmt.c_str());
+        m_entries.lock()->insert(entry);
+        m_entry = entry;
     }
 }
 void
@@ -418,8 +430,10 @@ XCalibratedEntry::onSourceDriverRecord(const Snapshot &shot_driver, XDriver *dri
     XTime time_awared = shot_driver[ *driver].timeAwared();
     for(;;) {
         Transaction tr( *this);
-        m_entry->value(tr, out);
-        record(tr, time_awared, time_recorded);
+        if(auto entry = m_entry) {
+            entry->value(tr, out);
+            record(tr, time_awared, time_recorded);
+        }
         if(tr.commit()) {
             Snapshot &shot(tr);
             visualize(shot);
@@ -435,10 +449,6 @@ XCalibratedEntryList::XCalibratedEntryList(const char *name, bool runtime,
     const shared_ptr<XMeasure> &meas)
     : XCustomTypeListNode<XCalibratedEntry>(name, runtime),
       m_entries(entries), m_curves(curves), m_measure(meas) {
-    iterate_commit([=](Transaction &tr){
-        m_lsnOnRelease = tr[ *this].onRelease().connectWeakly(
-            shared_from_this(), &XCalibratedEntryList::onRelease);
-    });
 }
 shared_ptr<XNode>
 XCalibratedEntryList::createByTypename(const XString &, const XString &name) {
@@ -448,18 +458,9 @@ XCalibratedEntryList::createByTypename(const XString &, const XString &name) {
     meas->iterate_commit_if([=, &calibEntry](Transaction &tr) -> bool {
         if( !calibEntry)
             calibEntry = XNode::createOrphan<XCalibratedEntry>(
-                name.c_str(), false, tr, meas, m_entries, m_curves);
+                name.c_str(), false, tr, meas, entries(), curves());
         if( !insert(tr, calibEntry)) return false;
-        if( !m_entries->insert(tr, calibEntry->entry())) return false;
         return true;
     });
     return calibEntry;
-}
-void
-XCalibratedEntryList::onRelease(const Snapshot &, const XListNodeBase::Payload::ReleaseEvent &e) {
-    auto calibEntry = static_pointer_cast<XCalibratedEntry>(e.released);
-    auto scalarEntry = calibEntry->entry();
-    Snapshot shot( *m_entries);
-    if(shot.isUpperOf( *scalarEntry))
-        m_entries->release(scalarEntry);
 }
