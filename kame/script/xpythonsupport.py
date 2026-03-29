@@ -256,7 +256,7 @@ def loadKam(xpythread, filename):
 		root = Root()
 		rname = root.getName()
 		rname = rname[0].upper() + rname[1:]
-		globs = {'x': _KamStack(), rname: _KamNode(root)}
+		globs = {'x': _KamStack(), '_KamStack': _KamStack, rname: _KamNode(root)}
 		exec(compile(src, filename, 'exec'), globs)
 		print(filename + " loaded.")
 	except Exception:
