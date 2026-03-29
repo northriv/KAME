@@ -69,15 +69,19 @@ public:
             if(node)
                 return node->getLabel();
             else
-                return {};
+                return m_pendingLabel;
         }
         Payload &operator=(const shared_ptr<XNode> &t) {
             m_var = t;
+            m_pendingLabel = {};
             tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
             return *this;
         }
+        XString pendingLabel() const { return m_pendingLabel; }
     protected:
+        friend class XPointerItemNode;
         virtual void str_(const XString &var) override {
+            m_pendingLabel = {};
             if(var.empty()) {
                 *this = shared_ptr<XNode>();
                 return;
@@ -93,9 +97,11 @@ public:
                     }
                 }
             }
-            xpointeritemnode_throwConversionError_();
+            // Item not found yet — store label and defer resolution to lsnOnListChanged
+            m_pendingLabel = var;
         }
         weak_ptr<XNode> m_var;
+        XString m_pendingLabel;
     };
 private:
     void onItemReleased(const Snapshot& /*shot*/, const XListNodeBase::Payload::ReleaseEvent &e) {
@@ -110,6 +116,23 @@ private:
     void lsnOnListChanged(const Snapshot& shot, XListNodeBase* node) {
         if(auto list = m_list.lock()) {
             assert(node == list.get());
+            // Retry deferred label resolution if pending
+            for(bool committed = true;;) {
+                Snapshot shot_self( *this);
+                XString pending = shot_self[ *this].pendingLabel();
+                if(pending.empty() || !shot.size(list))
+                    break;
+                for(auto it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
+                    if(( *it)->getLabel() == pending) {
+                        Transaction tr(shot_self);
+                        tr[ *this] = *it;
+                        committed = tr.commit();
+                        break;
+                    }
+                }
+                if(committed)
+                    break;
+            }
             Snapshot( *this).talk(( **this)->onListChanged(),
                 XItemNodeBase::Payload::ListChangeEvent({shot, this}));
         }
@@ -133,7 +156,11 @@ protected:
     }
     virtual ~XItemNode() = default;
     virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &) const override {
-        return std::vector<XItemNodeBase::Item>();
+        Snapshot shot_self( *this);
+        XString pending = shot_self[ *this].pendingLabel();
+        if(pending.length() && !(shared_ptr<XNode>)shot_self[ *this])
+            return {{pending, "(" + pending + ")"}};
+        return {};
     }
 };
 
@@ -160,7 +187,7 @@ public:
     };
 
     virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &shot) const override {
-        auto items = this->XItemNode<TL, VT...>::itemStrings(shot);
+        std::vector<XItemNodeBase::Item> items;
         if(auto list = this->m_list.lock()) {
             if(shot.size(list)) {
                 for(auto it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
@@ -170,7 +197,9 @@ public:
                 }
             }
         }
-        return std::move(items);
+        auto tail = this->XItemNode<TL, VT...>::itemStrings(shot);
+        items.insert(items.end(), tail.begin(), tail.end());
+        return items;
     }
 };
 
