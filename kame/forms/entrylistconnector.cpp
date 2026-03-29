@@ -56,10 +56,10 @@ void
 XEntryListConnector::onVisualization(const Snapshot &shot, bool /*afterRecorded*/, XDriver *driver) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(( *it)->entry->driver().get() == driver) {
-            try {
+            if(shot.isUpperOf( *( *it)->entry->value())) {
                 ( *it)->label->setText(shot.at( *( *it)->entry->value()).to_str());
             }
-            catch (XNode::NodeNotFoundError &e) {
+            else {
                 // Entry value not in driver's snapshot (e.g. calibrated proxy);
                 // take a fresh snapshot of the entry's own subtree.
                 Snapshot shot_entry( *( *it)->entry);

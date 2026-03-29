@@ -108,10 +108,10 @@ XValChart::onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *dr
     if(afterRecorded && time.isSet()) {
         try {
             double val;
-            try {
+            if(shot.isUpperOf(*m_entry)) {
                 val = shot.at( *m_entry->value());
             }
-            catch (XNode::NodeNotFoundError &) {
+            else {
                 // Entry (e.g. calibrated proxy) not in driver's snapshot;
                 // use a fresh snapshot of the entry's own subtree instead.
                 Snapshot shot_entry( *m_entry);
