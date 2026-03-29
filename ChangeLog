@@ -1,3 +1,17 @@
+* Sun Mar 29 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (8.0-beta1)
+- CalibratedEntry: new XCalibratedEntry node derives a scalar entry from another entry via a calibration curve; proxy entry is inserted into XScalarEntryList and works with TextWriter and graph XYZ selectors.
+- CalibrationTable: cspline calibration table is now fully editable in the UI; log-scale axes for XResistanceThermometer; XGenericCalibration added.
+- XPointerItemNode: deferred label resolution — autoselects item after list is populated (e.g. after .kam loading).
+- Python: fixed GIL freeze on startup (M4 / fast machines); Python thread releases GIL while waiting for driver modules to load before running xpythonsupport.py.
+- Python: IPython kernel initialisation is faster again; deferred scripts (pydrivers.py etc.) run on first kame_pybind_one_iteration() tick after the kernel is up.
+- Scripting: fixed potential infinite lock in Ruby/Python scripting threads under heavy STM collision.
+- Stability: fixed crash during .kam loading under heavy STM collision — stale QToolButton pointer in XWaveNGraph now guarded with QPointer.
+- Stability: replaced try/catch(NodeNotFoundError) containment checks with shot.isUpperOf() to avoid masking outer exception handlers.
+- Graph: X/Y/Z axis selectors (combo boxes showing scalar entries) are now embedded directly in each graph window.
+- CalibratedEntry: new UI panel to manage source/curve selection for calibrated entries.
+- UI: driver list column widths resize to contents.
+
 * Thu Mar 26 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.8.1-1)
 - usermode-linux-gpib: Fix for read with eos and serial poll. Now working well.

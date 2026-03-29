@@ -19,6 +19,7 @@
 
 #include "xnodeconnector.h"
 #include <vector>
+#include <QPointer>
 #include "graphntoolbox.h"
 
 class XAxis;
@@ -133,7 +134,7 @@ protected:
 private:
     weak_ptr<XMeasure> m_meas;
     weak_ptr<XDriver> m_driver;
-    QToolButton *m_btnMathTool = nullptr;    
+    QPointer<QToolButton> m_btnMathTool;
     XQGraph *m_graphwidget;
 
     TalkerOnce<XWaveNGraph*> m_tlkOnPlotInsertion;
