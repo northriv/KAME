@@ -12,6 +12,7 @@
 - Graph: X/Y/Z axis selectors (combo boxes showing scalar entries) are now embedded directly in each graph window.
 - CalibratedEntry: new UI panel to manage source/curve selection for calibrated entries.
 - UI: driver list column widths resize to contents.
+- .kam loading: Python-based loader replaces Ruby when Python is available; significantly faster due to lower-latency main-thread dispatch via kame_mainthread() vs. Qt event queue.
 
 * Thu Mar 26 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.8.1-1)
