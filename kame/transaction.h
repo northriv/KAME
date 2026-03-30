@@ -264,14 +264,9 @@ private:
         static int64_t current() noexcept {
             return *stl_serial;
         }
-        static int64_t gen() noexcept {
-            auto &v = *stl_serial;
-            v++;
-            return v;
-        }
-        //! Like gen(), but advances the counter to at least last_serial's counter + 1.
-        //! Ensures the returned serial is temporally after \a last_serial.
-        static int64_t gen(int64_t last_serial) noexcept {
+        //! Advances the counter to at least \a last_serial's counter + 1 and returns the new serial.
+        //! Pass SERIAL_NULL (default) when there is no prior committed serial to reflect.
+        static int64_t gen(int64_t last_serial = SERIAL_NULL) noexcept {
             auto &v = *stl_serial;
             int64_t last_counter = last_serial & ~int64_t(0xFFFF);
             if(last_counter > (v.m_var & ~int64_t(0xFFFF)))
@@ -495,6 +490,11 @@ public:
     //! Stores an event immediately from \a talker with \a arg.
     template <typename T, typename...Args>
     void talk(T &talker, Args&&...arg) const { talker.talk( *this, std::forward<Args>(arg)...); }
+    //! Serial reflecting the committed-state generation when this snapshot was taken.
+    int64_t serial() const noexcept { return m_serial; }
+    //! Compares snapshot age. Counter portion (upper 48 bits) reflects committed-state
+    //! generation; lower 16 bits hold thread ID and break ties deterministically.
+    bool operator<(const Snapshot &other) const noexcept { return m_serial < other.m_serial; }
 protected:
     friend class Node<XN>;
     //! The snapshot.
