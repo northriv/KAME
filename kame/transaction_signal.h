@@ -58,6 +58,8 @@ struct Event {
     Event(const Event&) = default;
     Event(Event&&) = default;
     Event &operator=(const Event&) = delete;
+    //! Serial of the first argument (Snapshot), used for temporal ordering in AVOID_DUP.
+    auto serial() const { return std::get<0>(tuple).serial(); }
 private:
     std::tuple<Args...> tuple;
 public:
@@ -350,9 +352,19 @@ Talker<SS, Args...>::Message::talk(const SS &shot) {
                 if(listener->flags() & Listener::FLAG_AVOID_DUP) {
                     atomic_unique_ptr<Event_> newevent(new Event_(event) );
                     newevent.swap(listener->event);
-                    if( !newevent.get())
+                    if( !newevent.get()) {
+                        // Slot was empty: new event pending, register callback.
                         BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
                                         new EventWrapperAvoidDup(listener)));
+                    } else if(newevent->serial() > event.serial()) {
+                        // Pending event is newer: restore it.
+                        newevent.swap(listener->event);
+                        if( !newevent.get()) {
+                            // Slot was consumed between swaps: re-register for restored event.
+                            BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
+                                            new EventWrapperAvoidDup(listener)));
+                        }
+                    }
                 }
                 else {
                     if(isMainThread()) {
