@@ -765,8 +765,8 @@ void
 Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const {
     local_shared_ptr<PacketWrapper> target;
     for(;;) {
-        snapshot.m_serial = SerialGenerator::gen();
         target = *m_link;
+        snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
         if(target->hasPriority()) {
             if( !multi_nodal)
                 break;
