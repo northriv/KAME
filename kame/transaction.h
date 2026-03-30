@@ -492,7 +492,7 @@ public:
     void talk(T &talker, Args&&...arg) const { talker.talk( *this, std::forward<Args>(arg)...); }
     //! Returns true if this snapshot is older than \a other.
     //! The counter occupies the upper 48 bits; plain integer comparison gives temporal order.
-    bool operator<(const Snapshot &other) const noexcept { return m_serial < other.m_serial; }
+    bool isOlderThan(const Snapshot &other) const noexcept { return m_serial < other.m_serial; }
 protected:
     friend class Node<XN>;
     //! The snapshot.

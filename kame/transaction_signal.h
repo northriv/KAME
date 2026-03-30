@@ -58,8 +58,18 @@ struct Event {
     Event(const Event&) = default;
     Event(Event&&) = default;
     Event &operator=(const Event&) = delete;
+
+    //! Returns true if this snapshot is older than \a other.
+    //! if it is not a Snapshot; true.
+    template <class SS>
+    bool isOlderThan(const SS &other) const noexcept { return _is_older(std::get<0>(tuple), other, true); }
 private:
     std::tuple<Args...> tuple;
+private:
+    template <class T, class SS>
+    static auto _is_older(const T &t, const SS &other, bool) -> decltype(t.isOlderThan(other)) { return t.isOlderThan(other); }
+    template <class T, class SS>
+    static bool _is_older(const T &, const SS &, ...) { return true; }
 public:
     template <class Func, class T>
     void operator()(Func f, T &t) const {
@@ -350,7 +360,15 @@ Talker<SS, Args...>::Message::talk(const SS &shot) {
                 if(listener->flags() & Listener::FLAG_AVOID_DUP) {
                     atomic_unique_ptr<Event_> newevent(new Event_(event) );
                     newevent.swap(listener->event);
-                    if( !newevent.get())
+                    if(newevent.get()) {
+                        if( !newevent->isOlderThan(shot)) {
+                            newevent.swap(listener->event);
+                            if( !newevent.get()) //in case older event has been already issued.
+                                BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
+                                            new EventWrapperAvoidDup(listener)));
+                        }
+                    }
+                    else
                         BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
                                         new EventWrapperAvoidDup(listener)));
                 }
