@@ -243,20 +243,24 @@ public:
 template <class SS, typename...Args>
 class TalkerOnce : public Talker<SS, Args...> {
 public:
-    TalkerOnce() : Talker<SS, Args...>() {}
-    TalkerOnce(const TalkerOnce &x) : Talker<SS, Args...>(x) {}
+    TalkerOnce() : Talker<SS, Args...>(), m_transaction_serial(0) {}
+    TalkerOnce(const TalkerOnce &x) : Talker<SS, Args...>(x), m_transaction_serial(0) {}
     template <typename...ArgRefs>
     shared_ptr<typename TalkerOnce::Message> createMessage(int64_t tr_serial, ArgRefs&&...args) const {
-        if(auto m = m_marked.lock()) {
-            m->args = std::tuple<Args...>(std::forward<ArgRefs>(args)...);
-            return nullptr;
+        if(m_transaction_serial == tr_serial) {
+            if(auto m = m_marked.lock()) {
+                m->args = std::tuple<Args...>(std::forward<ArgRefs>(args)...);
+                return nullptr;
+            }
         }
         auto m = Talker<SS, Args...>::createMessage(tr_serial, std::forward<ArgRefs>(args)...);
+        m_transaction_serial = tr_serial;
         m_marked = m;
         return m;
     }
 private:
     mutable weak_ptr<typename Talker<SS, Args...>::Message> m_marked;
+    mutable int64_t m_transaction_serial;
 };
 
 template <class SS, typename...Args>
