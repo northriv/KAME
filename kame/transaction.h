@@ -490,6 +490,9 @@ public:
     //! Stores an event immediately from \a talker with \a arg.
     template <typename T, typename...Args>
     void talk(T &talker, Args&&...arg) const { talker.talk( *this, std::forward<Args>(arg)...); }
+    //! Compares snapshot age. Counter portion (upper 48 bits) reflects committed-state
+    //! generation; lower 16 bits hold thread ID and break ties deterministically.
+    bool operator<(const Snapshot &other) const noexcept { return m_serial < other.m_serial; }
 protected:
     friend class Node<XN>;
     //! The snapshot.
