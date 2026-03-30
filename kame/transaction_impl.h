@@ -818,6 +818,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
         case BundledStatus::SUCCESS:
             assert( !target->packet()->missing());
             STRICT_assert(target->packet()->checkConsistensy(target->packet()));
+            snapshot.m_serial = SerialGenerator::gen(); //Capture Lamport advances from bundle().
             break;
         default:
             continue;
@@ -939,6 +940,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i])
                     break;
+                SerialGenerator::gen(subwrapper->m_bundle_serial); //Lamport: advance past sub-node serial.
                 BundledStatus status = bundle_subpacket( &oldsuperwrapper,
                     child, subwrapper, subpacket_new, started_time, bundle_serial);
                 switch(status) {
@@ -1176,7 +1178,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
     if(oldsubpacket)
         newsubwrapper = *newsubwrapper_returned;
     else
-        newsubwrapper.reset(new PacketWrapper( *newsubpacket, SerialGenerator::gen()));
+        newsubwrapper.reset(new PacketWrapper( *newsubpacket, SerialGenerator::gen(superwrapper->m_bundle_serial)));
 
     if( !sublinkage->compareAndSet(null_linkage, newsubwrapper))
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
