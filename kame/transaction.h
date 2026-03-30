@@ -269,6 +269,17 @@ private:
             v++;
             return v;
         }
+        //! Like gen(), but advances the counter to at least last_serial's counter + 1.
+        //! Ensures the returned serial is temporally after \a last_serial.
+        static int64_t gen(int64_t last_serial) noexcept {
+            auto &v = *stl_serial;
+            int64_t last_counter = last_serial & ~int64_t(0xFFFF);
+            if(last_counter > (v.m_var & ~int64_t(0xFFFF)))
+                v.m_var = (last_counter + (int64_t(1) << 16)) | (v.m_var & int64_t(0xFFFF));
+            else
+                v++;
+            return v;
+        }
         static XThreadLocal<cnt_t> stl_serial;
     };
     //! A class wrapping Packet and providing indice and links for lookup.\n
