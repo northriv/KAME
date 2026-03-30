@@ -58,9 +58,13 @@ struct Event {
     Event(const Event&) = default;
     Event(Event&&) = default;
     Event &operator=(const Event&) = delete;
-    //! Serial of the first argument (Snapshot), used for temporal ordering in AVOID_DUP.
-    auto serial() const { return std::get<0>(tuple).serial(); }
+    //! Serial of the first argument if it is a Snapshot; 0 otherwise.
+    int64_t serial() const { return get_serial_(std::get<0>(tuple), 0); }
 private:
+    template <class T>
+    static auto get_serial_(const T &t, int) -> decltype(t.serial()) { return t.serial(); }
+    template <class T>
+    static int64_t get_serial_(const T &, ...) { return 0; }
     std::tuple<Args...> tuple;
 public:
     template <class Func, class T>
