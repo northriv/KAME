@@ -250,13 +250,14 @@ private:
     struct DECLSPEC_KAME SerialGenerator {
         enum : int64_t {SERIAL_NULL = 0};
         struct cnt_t {
-            cnt_t() noexcept {
-                m_var = (int64_t)ProcessCounter::id(); // thread ID in lower 16 bits
+            cnt_t() {
+                m_var = (int64_t)ProcessCounter::id() * 1000000000000uLL;
             }
             operator int64_t() const noexcept {return m_var;}
-            //48bit counter in upper bits + 16bit thread ID in lower 16 bits.
+            //16bit process ID + 48bit counter.
             cnt_t &operator++(int) noexcept {
-                m_var += (int64_t(1) << 16);
+                m_var = ((m_var + 1) & 0xffffffffffffuLL)
+                | ((m_var) & 0xffff000000000000uLL);
                 return *this;
             }
             int64_t m_var;
@@ -264,15 +265,9 @@ private:
         static int64_t current() noexcept {
             return *stl_serial;
         }
-        //! Advances the counter to at least \a last_serial's counter + 1 and returns the new serial.
-        //! Pass SERIAL_NULL (default) when there is no prior committed serial to reflect.
-        static int64_t gen(int64_t last_serial = SERIAL_NULL) noexcept {
+        static int64_t gen() noexcept {
             auto &v = *stl_serial;
-            int64_t last_counter = last_serial & ~int64_t(0xFFFF);
-            if(last_counter > (v.m_var & ~int64_t(0xFFFF)))
-                v.m_var = (last_counter + (int64_t(1) << 16)) | (v.m_var & int64_t(0xFFFF));
-            else
-                v++;
+            v++;
             return v;
         }
         static XThreadLocal<cnt_t> stl_serial;
@@ -490,11 +485,6 @@ public:
     //! Stores an event immediately from \a talker with \a arg.
     template <typename T, typename...Args>
     void talk(T &talker, Args&&...arg) const { talker.talk( *this, std::forward<Args>(arg)...); }
-    //! Serial reflecting the committed-state generation when this snapshot was taken.
-    int64_t serial() const noexcept { return m_serial; }
-    //! Compares snapshot age. Counter portion (upper 48 bits) reflects committed-state
-    //! generation; lower 16 bits hold thread ID and break ties deterministically.
-    bool operator<(const Snapshot &other) const noexcept { return m_serial < other.m_serial; }
 protected:
     friend class Node<XN>;
     //! The snapshot.
