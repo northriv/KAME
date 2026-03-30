@@ -264,14 +264,9 @@ private:
         static int64_t current() noexcept {
             return *stl_serial;
         }
-        static int64_t gen() noexcept {
-            auto &v = *stl_serial;
-            v++;
-            return v;
-        }
-        //! Like gen(), but advances the counter to at least last_serial's counter + 1.
-        //! Ensures the returned serial is temporally after \a last_serial.
-        static int64_t gen(int64_t last_serial) noexcept {
+        //! Advances the counter to at least \a last_serial's counter + 1 and returns the new serial.
+        //! Pass SERIAL_NULL (default) when there is no prior committed serial to reflect.
+        static int64_t gen(int64_t last_serial = SERIAL_NULL) noexcept {
             auto &v = *stl_serial;
             int64_t last_counter = last_serial & ~int64_t(0xFFFF);
             if(last_counter > (v.m_var & ~int64_t(0xFFFF)))
