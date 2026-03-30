@@ -250,14 +250,13 @@ private:
     struct DECLSPEC_KAME SerialGenerator {
         enum : int64_t {SERIAL_NULL = 0};
         struct cnt_t {
-            cnt_t() {
-                m_var = (int64_t)ProcessCounter::id() * 1000000000000uLL;
+            cnt_t() noexcept {
+                m_var = (int64_t)ProcessCounter::id(); // thread ID in lower 16 bits
             }
             operator int64_t() const noexcept {return m_var;}
-            //16bit process ID + 48bit counter.
+            //48bit counter in upper bits + 16bit thread ID in lower 16 bits.
             cnt_t &operator++(int) noexcept {
-                m_var = ((m_var + 1) & 0xffffffffffffuLL)
-                | ((m_var) & 0xffff000000000000uLL);
+                m_var += (int64_t(1) << 16);
                 return *this;
             }
             int64_t m_var;
