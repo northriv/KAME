@@ -79,10 +79,10 @@ private:
 	const shared_ptr<XScalarEntryList> m_scalarEntries;
 	const shared_ptr<XGraphList> m_graphList;
 	const shared_ptr<XChartList> m_chartList;
-    const shared_ptr<XCalibratedEntryList> m_calibratedEntryList;
 	const shared_ptr<XInterfaceList> m_interfaces;
 	const shared_ptr<XDriverList> m_drivers;
-	const shared_ptr<XTextWriter> m_textWriter;
+    const shared_ptr<XCalibratedEntryList> m_calibratedEntryList;
+    const shared_ptr<XTextWriter> m_textWriter;
 	const shared_ptr<XRawStreamRecorder> m_rawStreamRecorder;
 	const shared_ptr<XRawStreamRecordReader> m_rawStreamRecordReader;
 

@@ -212,15 +212,7 @@ XTextWriter::onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *
                     if( !d) continue;
                     if(d.get() != driver) continue;
                     try {
-                        bool isTrig = false;
-                        if(shot.isUpperOf( *entry)) {
-                            isTrig = shot.at( *entry).isTriggered();
-                        }
-                        else {
-                            // Entry not in driver's snapshot (e.g. calibrated proxy);
-                            // fall back to entries snapshot updated by onValueChanged.
-                            isTrig = shot_entries.at( *entry).isTriggered();
-                        }
+                        bool isTrig = shot.at( *entry).isTriggered();
                         if(isTrig) {
                             triggered = true;
                             break;
@@ -304,6 +296,21 @@ XTextWriter::onFlush(const Snapshot &shot, XValueNodeBase *) {
 	}
 }
 
+void
+XTextWriter::addCalibratedEntrySource(const shared_ptr<XCalibratedEntryList> &calibEntries) {
+    calibEntries->iterate_commit([=](Transaction &tr){
+        if(m_lsnOnCatchCalib)
+            tr[ *calibEntries].onCatch().connect(m_lsnOnCatchCalib);
+        else
+            m_lsnOnCatchCalib = tr[ *calibEntries].onCatch().connectWeakly(
+                shared_from_this(), &XTextWriter::onCatch);
+        if(m_lsnOnReleaseCalib)
+            tr[ *calibEntries].onRelease().connect(m_lsnOnReleaseCalib);
+        else
+            m_lsnOnReleaseCalib = tr[ *calibEntries].onRelease().connectWeakly(
+                shared_from_this(), &XTextWriter::onRelease);
+    });
+}
 void
 XTextWriter::onLogFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
     Snapshot shot_entries( *m_entries);

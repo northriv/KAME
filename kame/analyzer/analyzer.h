@@ -21,10 +21,7 @@
 #include "xlistnode.h"
 #include "support.h"
 #include "xnodeconnector.h"
-
-//Retain 'small' analyzed data capable to be handled by graphs, charts,...
-class XJournal;
-class XDriver;
+#include "driver.h"
 
 class DECLSPEC_KAME XScalarEntry : public XNode {
 public:
@@ -158,51 +155,52 @@ private:
 
 class XCalibrationCurveList;
 class XCalibrationCurve;
+class XMeasure;
 
-//! A scalar entry derived from another entry via a calibration curve.
-//! Exposes a proxy XScalarEntry (single-parent, in XScalarEntryList) to avoid hard links.
-class DECLSPEC_KAME XCalibratedEntry : public XNode {
+//! A calibrated scalar value derived from another entry via a calibration curve.
+//! Acts as a proper XDriver: records on each source driver record, fires onVisualization.
+class DECLSPEC_KAME XCalibratedEntry : public XDriver {
 public:
     XCalibratedEntry(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
         const shared_ptr<XScalarEntryList> &entries,
         const shared_ptr<XCalibrationCurveList> &curves);
+    virtual ~XCalibratedEntry();
 
     typedef XItemNode<XScalarEntryList, XScalarEntry> tSource;
     typedef XItemNode<XCalibrationCurveList, XCalibrationCurve> tCurve;
-    const shared_ptr<tSource>     &source() const { return m_source; }
-    const shared_ptr<tCurve>      &curve()  const { return m_curve; }
-    const shared_ptr<XScalarEntry> &proxy() const { return m_proxy; }
+    const shared_ptr<tSource>      &source() const { return m_source; }
+    const shared_ptr<tCurve>       &curve()  const { return m_curve; }
+    const shared_ptr<XScalarEntry> &entry()  const { return m_entry; }
+
+    virtual void showForms() override {}
+protected:
+    virtual void visualize(const Snapshot &) override {}
 private:
-    shared_ptr<tSource> m_source;
-    shared_ptr<tCurve>  m_curve;
-    shared_ptr<XScalarEntry> m_proxy; // lives only in XScalarEntryList — no hard link
-    weak_ptr<XScalarEntry> m_currentSource;
-    weak_ptr<XScalarEntryList> m_entries;
-    bool m_proxyInserted = false;
+    shared_ptr<tSource>      m_source;
+    shared_ptr<tCurve>       m_curve;
+    shared_ptr<XScalarEntry> m_entry;  // own scalar entry, always in XScalarEntryList
+    const weak_ptr<XScalarEntryList>      m_entries;
     shared_ptr<Listener> m_lsnSelectionChanged;
-    shared_ptr<Listener> m_lsnSourceValueChanged;
+    shared_ptr<Listener> m_lsnOnRecord;  // connects to current source driver's onRecord
     void onSelectionChanged(const Snapshot &, XValueNodeBase *);
-    void onSourceValueChanged(const Snapshot &, XValueNodeBase *);
-public:
-    bool proxyInserted() const { return m_proxyInserted; }
-private:
+    void onSourceDriverRecord(const Snapshot &shot, XDriver *driver);
 };
 
-//! List of calibrated entries; also registers each in the global XScalarEntryList.
+//! List of calibrated entries
 class DECLSPEC_KAME XCalibratedEntryList : public XCustomTypeListNode<XCalibratedEntry> {
 public:
     XCalibratedEntryList(const char *name, bool runtime,
         const shared_ptr<XScalarEntryList> &entries,
-        const shared_ptr<XCalibrationCurveList> &curves);
+        const shared_ptr<XCalibrationCurveList> &curves,
+        const shared_ptr<XMeasure> &meas);
     shared_ptr<XNode> createByTypename(const XString &, const XString &name) override;
-    const shared_ptr<XScalarEntryList>      &entries() const { return m_entries; }
-    const shared_ptr<XCalibrationCurveList> &curves()  const { return m_curves; }
+    shared_ptr<XCalibrationCurveList> curves()  const { return m_curves.lock(); }
+    shared_ptr<XScalarEntryList> entries()  const { return m_entries.lock(); }
 private:
-    shared_ptr<Listener> m_lsnOnCatch, m_lsnOnRelease;
-    void onCatch(const Snapshot &, const XListNodeBase::Payload::CatchEvent &);
-    void onRelease(const Snapshot &, const XListNodeBase::Payload::ReleaseEvent &);
-    const shared_ptr<XScalarEntryList>      m_entries;
-    const shared_ptr<XCalibrationCurveList> m_curves;
+    const weak_ptr<XScalarEntryList>      m_entries;
+    const weak_ptr<XCalibrationCurveList> m_curves;
+    const weak_ptr<XMeasure>               m_measure;
 };
 //---------------------------------------------------------------------------
 #endif
