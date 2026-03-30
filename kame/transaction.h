@@ -250,14 +250,13 @@ private:
     struct DECLSPEC_KAME SerialGenerator {
         enum : int64_t {SERIAL_NULL = 0};
         struct cnt_t {
-            cnt_t() {
-                m_var = (int64_t)ProcessCounter::id() * 1000000000000uLL;
+            cnt_t() noexcept {
+                m_var = (int64_t)ProcessCounter::id(); // thread ID in lower 16 bits
             }
             operator int64_t() const noexcept {return m_var;}
-            //16bit process ID + 48bit counter.
+            //48bit counter in upper bits + 16bit thread ID in lower 16 bits.
             cnt_t &operator++(int) noexcept {
-                m_var = ((m_var + 1) & 0xffffffffffffuLL)
-                | ((m_var) & 0xffff000000000000uLL);
+                m_var += (int64_t(1) << 16);
                 return *this;
             }
             int64_t m_var;
@@ -265,8 +264,14 @@ private:
         static int64_t current() noexcept {
             return *stl_serial;
         }
-        static int64_t gen() noexcept {
+        //! Generates a new serial, optionally advancing the counter past \a last_serial.
+        //! When \a last_serial is provided, the counter is advanced to at least
+        //! last_serial's counter + 1 (Lamport clock), ensuring temporal ordering.
+        static int64_t gen(int64_t last_serial = SERIAL_NULL) noexcept {
             auto &v = *stl_serial;
+            int64_t last_counter = last_serial & ~int64_t(0xFFFF);
+            if(last_counter > (v.m_var & ~int64_t(0xFFFF)))
+                v.m_var = last_counter | (v.m_var & int64_t(0xFFFF));
             v++;
             return v;
         }
@@ -485,6 +490,9 @@ public:
     //! Stores an event immediately from \a talker with \a arg.
     template <typename T, typename...Args>
     void talk(T &talker, Args&&...arg) const { talker.talk( *this, std::forward<Args>(arg)...); }
+    //! Returns true if this snapshot is older than \a other.
+    //! The counter occupies the upper 48 bits; plain integer comparison gives temporal order.
+    bool operator<(const Snapshot &other) const noexcept { return m_serial < other.m_serial; }
 protected:
     friend class Node<XN>;
     //! The snapshot.
