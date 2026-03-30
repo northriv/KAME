@@ -249,7 +249,7 @@ public:
     shared_ptr<typename TalkerOnce::Message> createMessage(int64_t tr_serial, ArgRefs&&...args) const {
         if(m_transaction_serial == tr_serial) {
             if(auto m = m_marked.lock()) {
-                m->args = std::tuple<Args...>(std::forward<ArgRefs>(args)...);
+                m->args = std::forward_as_tuple(args...);
                 return nullptr;
             }
         }
