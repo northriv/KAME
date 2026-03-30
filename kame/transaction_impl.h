@@ -763,14 +763,20 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
 template <class XN>
 void
 Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const {
+    // Hoist thread-ID lookup outside the retry loop.
+    const auto tid = int64_t(ProcessCounter::id());
     local_shared_ptr<PacketWrapper> target;
     for(;;) {
-        snapshot.m_serial = SerialGenerator::gen();
         target = *m_link;
         if(target->hasPriority()) {
-            if( !multi_nodal)
+            if( !multi_nodal) {
+                // Fast path: derive serial from last-committed packet serial.
+                snapshot.m_serial = (target->m_bundle_serial & ~int64_t(0xFFFF)) + (int64_t(1) << 16) | tid;
                 break;
+            }
             if( !target->packet()->missing()) {
+                // Fast path: derive serial from last-committed packet serial.
+                snapshot.m_serial = (target->m_bundle_serial & ~int64_t(0xFFFF)) + (int64_t(1) << 16) | tid;
                 STRICT_assert(target->packet()->checkConsistensy(target->packet()));
                 break;
             }
@@ -784,6 +790,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
             switch(status) {
             case SnapshotStatus::SUCCESS: {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
+                        snapshot.m_serial = SerialGenerator::gen();
                         snapshot.m_packet = *foundpacket;
                         STRICT_assert(snapshot.m_packet->checkConsistensy(snapshot.m_packet));
                         return;
@@ -806,12 +813,14 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
             case SnapshotStatus::VOID_PACKET:
                 //The packet has been released.
                 if( !target->packet()->missing() || !multi_nodal) {
+                    snapshot.m_serial = SerialGenerator::gen();
                     snapshot.m_packet = target->packet();
                     return;
                 }
                 break;
             }
         }
+        snapshot.m_serial = SerialGenerator::gen();
         BundledStatus status = const_cast<Node *>(this)->bundle(
             target, started_time, snapshot.m_serial, true);
         switch (status) {
