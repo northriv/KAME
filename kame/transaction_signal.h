@@ -356,19 +356,9 @@ Talker<SS, Args...>::Message::talk(const SS &shot) {
                 if(listener->flags() & Listener::FLAG_AVOID_DUP) {
                     atomic_unique_ptr<Event_> newevent(new Event_(event) );
                     newevent.swap(listener->event);
-                    if( !newevent.get()) {
-                        // Slot was empty: new event pending, register callback.
+                    if( !newevent.get())
                         BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
                                         new EventWrapperAvoidDup(listener)));
-                    } else if(newevent->serial() > event.serial()) {
-                        // Pending event is newer: restore it.
-                        newevent.swap(listener->event);
-                        if( !newevent.get()) {
-                            // Slot was consumed between swaps: re-register for restored event.
-                            BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
-                                            new EventWrapperAvoidDup(listener)));
-                        }
-                    }
                 }
                 else {
                     if(isMainThread()) {
