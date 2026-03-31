@@ -230,6 +230,9 @@ class _KamNode:
 			child = self._node.createByTypename(type_name, name)
 		else:
 			child = kame_mainthread(lambda: self._node.createByTypename(type_name, name))
+		if child is None:
+			STDERR.write("_KamNode.create({!r},{!r}): createByTypename returned None\n".format(type_name, name))
+			return _KamFakeNode(type_name)
 		return _KamNode(child)
 	def load(self, value):
 		try: self._node.load(str(value))
