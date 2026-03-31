@@ -387,7 +387,7 @@ macx {
     modulefiles.files += ../modules/dmm/libdmm.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/dso/libdso.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/flowcontroller/libflowcontroller.$${QMAKE_EXTENSION_SHLIB}
-    modulefiles.files += ../modules/fourres/libfourres.$${QMAKE_EXTENSION_SHLIB}
+#    modulefiles.files += ../modules/fourres/libfourres.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/funcsynth/libfuncsynth.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/levelmeter/liblevelmeter.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/lia/liblia.$${QMAKE_EXTENSION_SHLIB}
