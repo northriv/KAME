@@ -1,3 +1,11 @@
+* Tue Mar 31 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- STM: Snapshot::isOlderThan() — Lamport-clock temporal ordering for snapshots.
+  SerialGenerator serial layout changed to 48-bit counter (upper) + 16-bit thread ID (lower);
+  gen(last_serial) advances the thread-local counter past any observed serial from another thread.
+  snapshot() and bundle()/unbundle() propagate the Lamport advancement through the node hierarchy
+  so that a super-node snapshot always compares as newer than the sub-node snapshots it includes.
+  All arithmetic is wrap-around-safe (unsigned subtraction reinterpreted as signed).
+
 * Sun Mar 29 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.9)
 - (8.0-beta1)
