@@ -493,7 +493,7 @@ public:
     //! Returns true if this snapshot is older than \a other.
     //! Uses unsigned subtraction reinterpreted as signed to handle counter wrap-around,
     //! correct as long as the true counter difference is much less than 2^47.
-    bool operator<(const Snapshot &other) const noexcept {
+    bool isOlderThan(const Snapshot &other) const noexcept {
         return int64_t(uint64_t(m_serial) - uint64_t(other.m_serial)) < 0;
     }
 protected:
