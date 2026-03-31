@@ -256,7 +256,7 @@ private:
             operator int64_t() const noexcept {return m_var;}
             //48bit counter in upper bits + 16bit thread ID in lower 16 bits.
             cnt_t &operator++(int) noexcept {
-                m_var += (int64_t(1) << 16);
+                m_var = int64_t(uint64_t(m_var) + uint64_t(int64_t(1) << 16));
                 return *this;
             }
             int64_t m_var;
@@ -270,7 +270,7 @@ private:
         static int64_t gen(int64_t last_serial = SERIAL_NULL) noexcept {
             auto &v = *stl_serial;
             int64_t last_counter = last_serial & ~int64_t(0xFFFF);
-            if(last_counter > (v.m_var & ~int64_t(0xFFFF)))
+            if(int64_t(uint64_t(last_counter) - uint64_t(v.m_var & ~int64_t(0xFFFF))) > 0)
                 v.m_var = last_counter | (v.m_var & int64_t(0xFFFF));
             v++;
             return v;
@@ -491,8 +491,11 @@ public:
     template <typename T, typename...Args>
     void talk(T &talker, Args&&...arg) const { talker.talk( *this, std::forward<Args>(arg)...); }
     //! Returns true if this snapshot is older than \a other.
-    //! The counter occupies the upper 48 bits; plain integer comparison gives temporal order.
-    bool isOlderThan(const Snapshot &other) const noexcept { return m_serial < other.m_serial; }
+    //! Uses unsigned subtraction reinterpreted as signed to handle counter wrap-around,
+    //! correct as long as the true counter difference is much less than 2^47.
+    bool isOlderThan(const Snapshot &other) const noexcept {
+        return int64_t(uint64_t(m_serial) - uint64_t(other.m_serial)) < 0;
+    }
 protected:
     friend class Node<XN>;
     //! The snapshot.
