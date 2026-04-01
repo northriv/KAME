@@ -496,6 +496,7 @@ public:
     bool isOlderThan(const Snapshot &other) const noexcept {
         return int64_t(uint64_t(m_serial) - uint64_t(other.m_serial)) < 0;
     }
+    bool operator==(const Snapshot &other) const noexcept { return m_serial == other.m_serial; }
 protected:
     friend class Node<XN>;
     //! The snapshot.

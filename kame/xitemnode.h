@@ -133,8 +133,12 @@ private:
                 if(committed)
                     break;
             }
+            // Use a fresh list snapshot so that nested insertions
+            // (e.g. proxy entries created during pending-label resolution)
+            // are visible to FLAG_AVOID_DUP listeners.
+            Snapshot fresh_shot( *list);
             Snapshot( *this).talk(( **this)->onListChanged(),
-                XItemNodeBase::Payload::ListChangeEvent({shot, this}));
+                XItemNodeBase::Payload::ListChangeEvent({fresh_shot, this}));
         }
     }
     shared_ptr<Listener> m_lsnOnItemReleased, m_lsnOnListChanged;

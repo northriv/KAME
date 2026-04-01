@@ -63,6 +63,12 @@ struct Event {
     //! if it is not a Snapshot; true.
     template <class SS>
     bool isOlderThan(const SS &other) const noexcept { return _is_older(std::get<0>(tuple), other, true); }
+    //! Returns true if this event's snapshot is strictly newer than \a other (other < event_shot).
+    //! Falls back to false for non-Snapshot first args (non-Snapshot events are never "strictly newer").
+    template <class SS>
+    bool isStrictlyNewerThan(const SS &other) const noexcept {
+        return !isOlderThan(other) && !_is_same(std::get<0>(tuple), other, 0);
+    }
 private:
     std::tuple<Args...> tuple;
 private:
@@ -70,6 +76,10 @@ private:
     static auto _is_older(const T &t, const SS &other, bool) -> decltype(t.isOlderThan(other)) { return t.isOlderThan(other); }
     template <class T, class SS>
     static bool _is_older(const T &, const SS &, ...) { return true; }
+    template <class T, class SS>
+    static auto _is_same(const T &t, const SS &other, int) -> decltype(t == other) { return t == other; }
+    template <class T, class SS>
+    static bool _is_same(const T &, const SS &, ...) { return false; }
 public:
     template <class Func, class T>
     void operator()(Func f, T &t) const {
@@ -361,7 +371,10 @@ Talker<SS, Args...>::Message::talk(const SS &shot) {
                     atomic_unique_ptr<Event_> newevent(new Event_(event) );
                     newevent.swap(listener->event);
                     if(newevent.get()) {
-                        if( !newevent->isOlderThan(shot)) {
+                        // Keep old only if it is strictly newer than the new shot.
+                        // When serials are equal, prefer the new event (last-wins) to ensure
+                        // fresh event args (e.g. shot_of_list in ListChangeEvent) are delivered.
+                        if(newevent->isStrictlyNewerThan(shot)) {
                             newevent.swap(listener->event);
                             if( !newevent.get()) //in case older event has been already issued.
                                 BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(

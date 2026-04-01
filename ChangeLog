@@ -1,3 +1,11 @@
+* Tue Apr 01 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- XPointerItemNode: lsnOnListChanged now takes a fresh list snapshot before forwarding the
+  onListChanged event, so that entries created by nested signal handlers (e.g. CalibratedEntry
+  proxy inserted during pending-label resolution) are visible to FLAG_AVOID_DUP listeners
+  such as axis combo boxes.
+- Event: added isStrictlyNewerThan() and operator== on Snapshot for more precise FLAG_AVOID_DUP
+  deduplication (prefer new event when serials are equal).
+
 * Tue Mar 31 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (7.9.1)
 - (8.0-beta2)
