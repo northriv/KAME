@@ -197,11 +197,11 @@ node.iterate_commit([](Transaction<NodeA> &tr) {
 3. `commit()` does a single CAS on `Linkage`; if `packet != m_oldpacket` a conflict is detected and the transaction retries.
 4. Listeners receive deferred events only after a successful commit — no intermediate states are visible.
 
-**Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via two sequential CAS operations, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
+**Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
 **Collision backoff:** `Linkage::negotiate()` uses a `m_transaction_started_time` timestamp to impose a proportional wait on detected collisions, preventing live-lock under high write contention.
 
-`iterate_commit_while(lambda)` lets the caller abort the retry loop (return `true` from the lambda to stop), enabling conditional transactions.
+`iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
 
 > **Caution:** Taking a nested `Snapshot` inside a transaction on a tree that contains a hard link (a child with two parents) can break consistency. Use `tr[*node]` instead of a nested `Snapshot` in that situation.
 

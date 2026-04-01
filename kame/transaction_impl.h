@@ -15,6 +15,12 @@
 #include <vector>
 #include <thread>
 
+// STRICT_assert / STRICT_TEST — debug-build-only macros.
+// STRICT_assert(expr): behaves like assert(expr) when TRANSACTIONAL_STRICT_assert is defined;
+//   compiles to nothing otherwise. Used to verify STM invariants (e.g. packet consistency)
+//   that are too expensive for release builds.
+// STRICT_TEST(expr): evaluates expr only in strict-assert builds. Typically used to maintain
+//   auxiliary state (e.g. s_serial_abandoned) consumed by STRICT_assert checks.
 #ifdef TRANSACTIONAL_STRICT_assert
     #undef STRICT_assert
     #define STRICT_assert(expr) assert(expr)
@@ -172,6 +178,28 @@ Node<XN>::print_recoverable_error(const char* reason) {
     msecsleep(1000);
 }
 
+//=============================================================================
+// negotiate_internal() — priority-based backoff for collision avoidance
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// Purpose: when two transactions contend on the same Linkage, impose a
+//   proportional wait on the lower-priority (or younger) transaction so
+//   that the older/higher-priority one can finish first, preventing live-lock.
+//
+// How it works:
+//   - dt  = (this thread's start time) − (contending thread's start time)
+//     Positive dt means this thread started later (younger).
+//   - dt2 = (wall-clock now) − (contending thread's start time)
+//     Measures how long the contender has been running.
+//   - The condition `mult_wait * 2 * dt < dt2` is a proportional test:
+//     "has the contender been running long enough relative to our age gap?"
+//     When true, waiting further is unlikely to help — proceed anyway.
+//   - HIGHEST priority bypasses all backoff (real-time / time-critical path).
+//   - LOWEST priority never escapes via the proportional test (always defers).
+//   - Sleep duration ramps up: ms = max(dt2/10000, ms+1), capped at 5 seconds.
+//     The 5-second cap guards against infinite waits from nested transactions
+//     or deadlock-like scenarios.
+//=============================================================================
 template <class XN>
 void
 Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept {
@@ -242,6 +270,17 @@ Node<XN>::insert(const shared_ptr<XN> &var) {
         return insert(tr, var);
     });
 }
+//=============================================================================
+// insert() — add a child node to the tree within a transaction
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// When online_after_insertion is true, the child is committed to the live tree
+// immediately so that tr[*child] is accessible within the same transaction.
+// This requires an intermediate commit of the parent, followed by a CAS on
+// the child's Linkage to point it into the parent's packet.
+// Without online_after_insertion, the child becomes visible only after the
+// enclosing transaction commits.
+//=============================================================================
 template <class XN>
 bool
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion) {
@@ -319,6 +358,10 @@ Node<XN>::release(const shared_ptr<XN> &var) {
     });
 }
 
+// eraseSerials() — recursively reset all serial markers matching the given
+// serial back to SERIAL_NULL. Called during release() to prevent a released
+// sub-tree's stale serial from causing false collision detection in future
+// transactions.
 template <class XN>
 void
 Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial) {
@@ -490,6 +533,11 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
     return true;
 }
 
+// reverseLookupWithHint() — fast path for finding a node's packet within a
+// transaction's packet tree. Uses the bundledBy back-reference chain stored
+// in the node's PacketWrapper to walk directly to the containing slot,
+// avoiding a full tree scan. Falls back to nullptr if the hint is stale.
+// When copy_branch is true, applies copy-on-write along the path.
 template <class XN>
 local_shared_ptr<typename Node<XN>::Packet>*
 Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
@@ -534,6 +582,9 @@ Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
     return &p;
 }
 
+// forwardLookup() — fallback tree scan when reverseLookupWithHint() fails.
+// Searches the packet tree top-down by matching subnodes[i]->m_link == this.
+// More expensive (O(N) in tree size) but always correct.
 template <class XN>
 inline local_shared_ptr<typename Node<XN>::Packet>*
 Node<XN>::forwardLookup(local_shared_ptr<Packet> &superpacket,
@@ -572,6 +623,9 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &superpacket,
     return nullptr;
 }
 
+// reverseLookup() — find this node's packet within a transaction packet tree.
+// Tries the fast hint-based path first; falls back to forward scan.
+// When copy_branch is true, copy-on-write is applied along the found path.
 template <class XN>
 inline local_shared_ptr<typename Node<XN>::Packet>*
 Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
@@ -638,6 +692,23 @@ Node<XN>::upperNode(Snapshot<XN> &shot) {
     return uppernode;
 }
 
+//=============================================================================
+// snapshotSupernode() — walk up the bundle chain to locate a sub-packet
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// Recursively follows bundledBy pointers upward until reaching the root
+// (a node with hasPriority). At each level, verifies the back-reference
+// is still valid (CAS-check on linkage). Returns a pointer to the sub-packet
+// slot inside the ancestor's packet.
+//
+// In FOR_UNBUNDLE mode, builds a cas_infos list: at each ancestor level,
+// prepares a new PacketWrapper with a copied packet (marking the child's
+// slot as missing) and records the (linkage, old, new) triple for later CAS.
+// Also detects serial collisions (same bundle_serial already present).
+//
+// The reverse_index stored in PacketWrapper may be stale if swap() reordered
+// children, so the search scans all child slots starting from the hint index.
+//=============================================================================
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
 Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
@@ -760,6 +831,24 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
     return status;
 }
 
+//=============================================================================
+// snapshot() — obtain an immutable, consistent view of a subtree
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// Three cases depending on the node's current state:
+//   1. hasPriority() and not missing: the node owns its packet directly —
+//      just return the packet (fast path for leaf or already-bundled nodes).
+//   2. !hasPriority(): the node is bundled into a super-node — walk up via
+//      snapshotSupernode() to find the sub-packet, possibly triggering
+//      unbundle() if the packet is incomplete (missing sub-packets).
+//   3. hasPriority() but missing: sub-packets are stale — call bundle() to
+//      absorb all child packets into a consistent parent packet.
+//
+// The Lamport serial (snapshot.m_serial) is generated from the node's
+// m_bundle_serial so that the snapshot serial is always greater than the
+// committed state it observes. After bundle(), gen() is called again to
+// capture any Lamport advances that occurred during the recursive bundling.
+//=============================================================================
 template <class XN>
 void
 Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const {
@@ -827,6 +916,21 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
     snapshot.m_packet = target->packet();
 }
 
+//=============================================================================
+// bundle_subpacket() — prepare one child's packet for inclusion in a bundle
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// Handles the various states a child node can be in:
+//   - Already bundled into this parent (linkage == m_link): if the sub-packet
+//     is complete, nothing to do (SUCCESS). If missing, recursively bundle.
+//   - Bundled into a *different* parent: unbundle it first (with collision
+//     detection via bundle_serial), then recursively bundle if still missing.
+//   - Has priority (owns its own packet): recursively bundle if missing.
+//
+// On success, subpacket_new is set to the child's complete packet.
+// A null subpacket_new after SUCCESS means the child was already included
+// in the current bundle (collision detected, deduplicated).
+//=============================================================================
 template <class XN>
 typename Node<XN>::BundledStatus
 Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
@@ -892,6 +996,51 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
     return BundledStatus::SUCCESS;
 }
 
+//=============================================================================
+// bundle() — multi-phase CAS protocol to absorb child packets into a parent
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// Purpose: make a subtree atomically snapshotable by collecting all child
+//   node packets into the parent's packet. After bundling, a single
+//   atomic_shared_ptr read on the parent's Linkage yields the entire
+//   consistent subtree.
+//
+// Preconditions:
+//   - oldsuperwrapper points to a valid PacketWrapper with a non-null,
+//     missing packet (i.e. the packet knows it has stale child slots).
+//   - bundle_serial is the Lamport serial for this bundling operation.
+//
+// Protocol phases (inside the retry loop):
+//
+//   Phase 1 — Collect sub-packets:
+//     Create a copy of the parent packet. For each child node, read its
+//     current PacketWrapper and call bundle_subpacket() to obtain the
+//     child's packet (recursively bundling if the child itself is missing).
+//     If a child is bundled into a *different* super-node, unbundle() it
+//     first. Advances the Lamport clock past each child's serial.
+//
+//   Phase 2 — First checkpoint (CAS on parent Linkage):
+//     Atomically replace the parent's PacketWrapper with the new one that
+//     contains the collected sub-packets (still marked missing). If another
+//     thread modified the parent, return DISTURBED and let the caller retry.
+//
+//   Phase 3 — Second checkpoint (CAS on each child Linkage):
+//     Replace each child's PacketWrapper with a "null_linkage" — a wrapper
+//     that points back to the parent (bundledBy = m_link) and stores the
+//     child's reverse index. Despite the variable name "null_linkage", these
+//     wrappers are NOT null; they are back-references that allow the child
+//     to find its packet inside the parent's bundled packet.
+//     If any child was modified between phases 2 and 3, restart from phase 1.
+//
+//   Phase 4 — Finalize:
+//     Create a final PacketWrapper. If no sub-packets are still missing,
+//     clear the missing flag (the subtree is now fully consistent).
+//     CAS the parent's Linkage one last time.
+//
+// The is_bundle_root flag (true only for the outermost bundle() call from
+// snapshot()) forces missing=false at phase 4, because the root bundler
+// will not be bundled further and needs a complete packet.
+//=============================================================================
 template <class XN>
 typename Node<XN>::BundledStatus
 Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
@@ -926,7 +1075,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
         STRICT_assert(s_serial_abandoned != newpacket->subpackets()->m_serial);
 
-        //copying all sub-packets from nodes to the new packet.
+        //--- Phase 1: collect sub-packets from child nodes ---
         newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));
         shared_ptr<PacketList> &subpackets(newpacket->subpackets());
         shared_ptr<NodeList> &subnodes(newpacket->subnodes());
@@ -970,8 +1119,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         }
         newpacket->m_missing = true;
 
+        //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
         supernode.m_link->negotiate(started_time, 2.0f);
-        //First checkpoint.
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_link;
 //			if(superwrapper->m_bundle_serial != bundle_serial)
@@ -981,7 +1130,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         }
         oldsuperwrapper = superwrapper;
 
-        //clearing all packets on sub-nodes if not modified.
+        //--- Phase 3: second checkpoint — CAS each child's Linkage to point back to parent ---
+        //  "null_linkage" is a misnomer: it is a PacketWrapper that holds a back-reference
+        //  (bundledBy → parent's m_link) and the child's reverse index, NOT a null pointer.
         bool changed_during_bundling = false;
         for(unsigned int i = 0; i < subnodes->size(); i++) {
             shared_ptr<Node> child(( *subnodes)[i]);
@@ -1005,6 +1156,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         if(changed_during_bundling)
             continue;
 
+        //--- Phase 4: finalize — clear missing flag if all sub-packets are present ---
         superwrapper.reset(new PacketWrapper( *superwrapper, bundle_serial));
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
@@ -1060,6 +1212,26 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 //		}
 //	}
 //}
+//=============================================================================
+// commit() — atomically publish a transaction's modified packet
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// Two paths depending on the node's current state:
+//
+//   hasPriority() = true (the node owns its Linkage directly):
+//     Fast path — single CAS on m_link to replace the old PacketWrapper
+//     with one containing the transaction's new packet.
+//     Single-node optimization: if only the payload changed (not children),
+//     and another transaction changed the children since our snapshot,
+//     we can adopt the new children and still commit — avoiding a spurious
+//     conflict when two transactions touch disjoint parts of the same node.
+//
+//   hasPriority() = false (the node is bundled into a super-node):
+//     Must unbundle first to reclaim the Linkage, then CAS the new packet.
+//     For multi-nodal transactions, the new packet is passed into unbundle
+//     so it can be installed in a single step. For single-node transactions,
+//     unbundle restores priority and commit retries via the fast path.
+//=============================================================================
 template <class XN>
 bool
 Node<XN>::commit(Transaction<XN> &tr) {
@@ -1120,6 +1292,42 @@ Node<XN>::commit(Transaction<XN> &tr) {
     }
 }
 
+//=============================================================================
+// unbundle() — extract a sub-node's packet from its super-node's bundle
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// Purpose: the reverse of bundle(). Restores a child node's Linkage to
+//   point directly to its own PacketWrapper (hasPriority = true) so that
+//   the child can be committed independently.
+//
+// Parameters:
+//   - bundle_serial: if non-null, check for collisions (the sub-packet
+//     may already be included in an ongoing snapshot with this serial).
+//   - sublinkage: the child's Linkage (currently a back-reference).
+//   - null_linkage: current value of sublinkage (the back-reference wrapper).
+//     Despite the name, it is NOT null — it holds bundledBy and reverse index.
+//   - oldsubpacket: if provided, verify the sub-packet hasn't changed
+//     (conflict detection for commit).
+//   - newsubwrapper_returned: if provided, the new PacketWrapper for the
+//     child is stored here (used by commit to install in one step).
+//   - oldsuperwrapper: if provided, track super-node wrapper updates
+//     (needed when commit must know the super-node's current state).
+//
+// Steps:
+//   1. Walk up via snapshotSupernode() to locate the sub-packet inside
+//      the super-node's bundled packet. snapshotSupernode() builds a
+//      cas_infos list of (linkage, old_wrapper, new_wrapper) for each
+//      ancestor that needs its PacketWrapper updated.
+//   2. If oldsubpacket was given and doesn't match, return
+//      SUBVALUE_HAS_CHANGED (the transaction must fail).
+//   3. Execute the CAS list from cas_infos bottom-up: each ancestor's
+//      Linkage gets a new PacketWrapper with a copied packet that marks
+//      the child's slot as missing (the child is leaving the bundle).
+//   4. CAS the child's Linkage: replace the back-reference (null_linkage)
+//      with a new PacketWrapper that holds the extracted sub-packet
+//      directly (hasPriority = true). The serial is advanced past the
+//      super-node's bundle serial via gen().
+//=============================================================================
 template <class XN>
 typename Node<XN>::UnbundledStatus
 Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,

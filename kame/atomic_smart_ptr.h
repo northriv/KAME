@@ -127,6 +127,13 @@ protected:
     int _use_count_() const noexcept {return ((const Ref*)(reflocal_t)this->m_ref)->refcnt;}
 
     reflocal_var_t m_ref;
+    // ATOMIC_SHARED_REF_ALIGNMENT defines how many low pointer bits are
+    // available for the local refcount. Equal to the minimum alignment
+    // guaranteed by the allocator. For non-intrusive mode: sizeof(intptr_t)
+    // (Ref is heap-allocated via new). For intrusive mode: sizeof(double)
+    // (Ref IS the object, whose alignment may differ). Both are 8 on 64-bit,
+    // giving 3 usable bits (max local refcount = 7).
+    // Do NOT use alignas/alignof — see CLAUDE.md for details.
     enum {ATOMIC_SHARED_REF_ALIGNMENT = (sizeof(intptr_t))};
 };
 //! \brief Base class for atomic_shared_ptr with intrusive counting.
@@ -432,6 +439,21 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
     }
     this->m_ref = (RefLocal_)nullptr;
 }
+//=============================================================================
+// reserve_scan_() — atomically read m_ref and increment the local refcount
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// The local refcount is embedded in the lower bits of the pointer (the bits
+// guaranteed zero by allocator alignment). Incrementing it via CAS tells
+// other threads "someone is observing this pointer — don't free the Ref yet"
+// without touching the global (heap-allocated) reference counter.
+//
+// Invariant: local refcount < ATOMIC_SHARED_REF_ALIGNMENT. If the counter
+// would overflow (extremely unlikely — requires that many concurrent readers),
+// spin-wait until a slot opens.
+//
+// The caller MUST call leave_scan_() after it is done with the pointer.
+//=============================================================================
 template <typename T>
 inline typename atomic_shared_ptr<T>::Ref *
 atomic_shared_ptr<T>::reserve_scan_(Refcnt *rcnt) const noexcept {
@@ -480,6 +502,11 @@ atomic_shared_ptr<T>::scan_() const noexcept {
     return pref;
 }
 
+// leave_scan_() — release the local reference acquired by reserve_scan_().
+// Tries to decrement the local refcount via CAS. If the pointer has been
+// swapped out by another thread since reserve_scan_(), the local counter
+// is gone — fall back to decrementing the global refcount instead (the
+// swapper transferred local counts to global before swapping).
 template <typename T>
 inline void
 atomic_shared_ptr<T>::leave_scan_(Ref *pref) const noexcept {
@@ -504,6 +531,25 @@ atomic_shared_ptr<T>::leave_scan_(Ref *pref) const noexcept {
     }
 }
 
+//=============================================================================
+// compareAndSwap_() — atomic CAS on the shared pointer
+//   (Comments by Claude Opus — based on source code analysis)
+//
+// Steps:
+//   1. Pre-increment newr's global refcount (optimistic: will be "consumed"
+//      by m_ref if CAS succeeds; rolled back on failure).
+//   2. reserve_scan_() to read the current pointer and pin it locally.
+//   3. If current != oldr: CAS fails.
+//      - NOSWAP=true (compareAndSet): just leave_scan and return false.
+//      - NOSWAP=false (compareAndSwap): update oldr to the current value
+//        (transfer one global ref to oldr, release oldr's old ref).
+//   4. Transfer local refcount to global: add (rcnt_old - 1) to the global
+//      counter (the -1 accounts for the reserve_scan_ increment that will
+//      be "consumed" by the swap rather than leave_scan'd).
+//   5. CAS m_ref: replace (pref + rcnt_old) with (newr + 0).
+//      On failure, undo the global refcount transfer and leave_scan; retry.
+//   6. On success, decrement pref's global refcount (m_ref no longer owns it).
+//=============================================================================
 template <typename T>
 template <bool NOSWAP>
 inline bool
