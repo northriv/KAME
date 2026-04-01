@@ -79,6 +79,7 @@ void XPython::launchJupyterConsole(const std::string &execpath, const std::strin
 void XPython::mainthread_callback(py::object *scrthread, py::object *func, py::object *ret, py::object *status) {
     {
         pybind11::gil_scoped_acquire guard;
+        *ret = py::none(); // Initialize before any code that might throw.
         try {
             py::object tls = py::eval("TLS");
             auto setattr = tls.attr("__setattr__");
@@ -153,15 +154,17 @@ XPython::execute(const atomic<bool> &terminated) {
 #ifdef PYBIND11_NO_ASSERT_GIL_HELD_INCREF_DECREF
         kame_module.def("kame_mainthread", [=](py::object closure)->py::object{
             py::object ret, status;
+            ret = py::none();
             status = py::cast(true);
             py::object scrthread = py::eval("TLS.xscrthread");
-            pybind11::gil_scoped_release guard;
-            m_mainthread_cb_tlk.talk( &scrthread, &closure, &ret, &status);
-            XScopedLock<XCondition> lock(m_mainthread_cb_cond);
-            while(status.is(py::cast(true)))
-                m_mainthread_cb_cond.wait(10000); //10 ms timeout
+            {
+                pybind11::gil_scoped_release guard;
+                m_mainthread_cb_tlk.talk( &scrthread, &closure, &ret, &status);
+                XScopedLock<XCondition> lock(m_mainthread_cb_cond);
+                while(status.is(py::cast(true)))
+                    m_mainthread_cb_cond.wait(10000); //10 ms timeout
+            }
             if( !status.is(py::cast(false))) {
-                pybind11::gil_scoped_acquire guard;
 //                py::set_error(PyExc_RuntimeError, py::cast<std::string>(status).c_str());
                 PyErr_SetString(PyExc_RuntimeError, py::cast<std::string>(status).c_str());
                 throw py::error_already_set();

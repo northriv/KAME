@@ -190,7 +190,8 @@ XSecondaryDriverInterface<T>::onItemChanged(const Snapshot &shot, XValueNodeBase
 	}
     this->iterate_commit([=](Transaction &tr){
 		auto it = std::find(tr[ *this].m_connections.begin(), tr[ *this].m_connections.end(), item);
-		it->m_lsnOnRecord = lsnonrecord;
+		if(it != tr[ *this].m_connections.end())
+			it->m_lsnOnRecord = lsnonrecord;
     });
 }
 

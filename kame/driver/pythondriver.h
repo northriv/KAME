@@ -84,15 +84,15 @@ public:
             //Instead, put them into garbage box.
 //            pybind11::gil_scoped_acquire guard;
             XScopedLock<XMutex> lock(XPython::bind.s_pyobj_garbagemutex);
-            XPython::bind.s_pyobj_garbage.push_back(m_dict);
-            XPython::bind.s_pyobj_garbage.push_back(m_module_copy);
-            m_dict.reset(); //should not hold after unlock.
+            if(m_dict) XPython::bind.s_pyobj_garbage.push_back(m_dict);
+            if(m_module_copy) XPython::bind.s_pyobj_garbage.push_back(m_module_copy);
+            m_dict.reset();
             m_module_copy.reset();
         }
 #endif
         //For transaction.
         pybind11::dict local() { //GIL is mandatory.
-            // pybind11::gil_scoped_acquire guard;
+            pybind11::gil_scoped_acquire guard;
             if( !m_module_copy) {
                 m_module_copy = std::make_shared<pybind11::object>(pybind11::module_::import("copy"));
             }

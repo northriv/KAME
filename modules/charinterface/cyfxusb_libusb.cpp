@@ -395,11 +395,11 @@ CyFXLibUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 XString
 CyFXLibUSBDevice::getString(int descid) {
     char s[128];
-    int ret = libusb_get_string_descriptor_ascii(handle, descid, (uint8_t*)s, 127);
+    int ret = libusb_get_string_descriptor_ascii(handle, descid, (uint8_t*)s, sizeof(s) - 1);
     if(ret < 0) {
          throw XInterface::XInterfaceError(formatString("Error during USB get string desc.: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
     }
-    s[ret] = '\0';
+    s[std::min(ret, (int)(sizeof(s) - 1))] = '\0';
     return s;
 }
 

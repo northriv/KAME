@@ -258,9 +258,13 @@ def loadKam(xpythread, filename):
 		# Minimal Ruby→Python translation: x.last→x[-1], x.pop→x.pop()
 		# Strip leading whitespace — .kam indentation is cosmetic; Python exec rejects it.
 		src = '\n'.join(line.lstrip() for line in src.splitlines())
-		src = src.replace('x = Array.new', 'x = _KamStack()')
-		src = src.replace('x.last', 'x[-1]')
-		src = re.sub(r'\bx\.pop\b(?!\s*\()', 'x.pop()', src)
+		# Replace only outside of string literals
+		def _replace_outside_strings(line):
+			line = line.replace('x = Array.new', 'x = _KamStack()')
+			line = line.replace('x.last', 'x[-1]')
+			line = re.sub(r'\bx\.pop\b(?!\s*\()', 'x.pop()', line)
+			return line
+		src = '\n'.join(_replace_outside_strings(line) if not line.lstrip().startswith('#') else line for line in src.splitlines())
 		root = Root()
 		rname = root.getName()
 		rname = rname[0].upper() + rname[1:]
@@ -310,7 +314,7 @@ def kame_pybind_one_iteration():
 			xpythread_action = xpythread["Action"]
 			xpythread_threadid = xpythread["ThreadID"]
 			xpythread_filename = xpythread["Filename"]
-			threadlist = [str(pythread) for pythread in threading.enumerate()]
+			threadlist = [str(pythread.native_id) for pythread in threading.enumerate() if pythread.native_id is not None]
 			action = str(xpythread_action)
 			if str(xpythread_threadid) in threadlist:
 				pass

@@ -54,6 +54,7 @@
 
 class PoolAllocatorBase {
 public:
+	virtual ~PoolAllocatorBase() = default;
 	template <int CCNT, size_t CHUNK_SIZE>
 	static inline bool deallocate_(void *p);
 	static inline bool deallocate(void *p);

@@ -87,9 +87,13 @@ py::object KAMEPyBind::cast_to_pyobject(XNode::Payload *y) {
     //manages to use its downmost base class.
     std::map<size_t, decltype(casters->begin()->second.second)> cand;
     for(auto &c: *casters) {
-        auto x = (c.second.second)(y);
-        if(x.cast<XNode::Payload*>()) {
-            cand.emplace(c.second.first, c.second.second);
+        try {
+            auto x = (c.second.second)(y);
+            if(x.cast<XNode::Payload*>()) {
+                cand.emplace(c.second.first, c.second.second);
+            }
+        } catch (py::cast_error&) {
+            continue;
         }
     }
     if(cand.size()) {

@@ -259,7 +259,9 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
                 shared_from_this(), &XValGraph::onVisualization);
         });
     }
-    m_entries.lock()->iterate_commit([=](Transaction &tr){
+    auto entries = m_entries.lock();
+    if( !entries) return;
+    entries->iterate_commit([=](Transaction &tr){
 		if( !tr.isUpperOf( *entryx)) return;
 		if( !tr.isUpperOf( *entryy1)) return;
 		if(entryz && !tr.isUpperOf( *entryz)) return;
@@ -288,7 +290,9 @@ XValGraph::onVisualization(const Snapshot &shot, bool afterRecorded, XDriver *dr
 	shared_ptr<XScalarEntry> entryy1 = shot_this[ *axisY1()];
 	shared_ptr<XScalarEntry> entryz = shot_this[ *axisZ()];
 	if( !entryx || !entryy1) return;
-	Snapshot shot_entries( *m_entries.lock());
+	auto entries_locked = m_entries.lock();
+	if( !entries_locked) return;
+	Snapshot shot_entries( *entries_locked);
 	if( !shot_entries.isUpperOf( *entryx)) return;
 	if( !shot_entries.isUpperOf( *entryy1)) return;
 	if(entryz && !shot_entries.isUpperOf( *entryz)) return;
@@ -310,7 +314,9 @@ XValGraph::onStoreChanged(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XScalarEntry> entryy1 = shot_this[ *axisY1()];
 	shared_ptr<XScalarEntry> entryz = shot_this[ *axisZ()];
 	if( !entryx || !entryy1) return;
-	Snapshot shot_entries( *m_entries.lock());
+	auto entries_locked2 = m_entries.lock();
+	if( !entries_locked2) return;
+	Snapshot shot_entries( *entries_locked2);
 	if( !shot_entries.isUpperOf( *entryx)) return;
 	if( !shot_entries.isUpperOf( *entryy1)) return;
 	if(entryz && !shot_entries.isUpperOf( *entryz)) return;
@@ -381,8 +387,9 @@ XCalibratedEntry::onSelectionChanged(const Snapshot &, XValueNodeBase *) {
     // Reconnect onRecord listener to the new source driver.
     m_lsnOnRecord.reset();
     auto entry = m_entry;
+    auto entries_list = m_entries.lock();
     if(entry) {
-        m_entries.lock()->release(entry);
+        if(entries_list) entries_list->release(entry);
         m_entry.reset();
     }
     if(src && curve) {
@@ -400,7 +407,7 @@ XCalibratedEntry::onSelectionChanged(const Snapshot &, XValueNodeBase *) {
         entry->value()->setFormat(fmt.c_str());
         entry->storedValue()->setFormat(fmt.c_str());
         entry->delta()->setFormat(fmt.c_str());
-        m_entries.lock()->insert(entry);
+        if(entries_list) entries_list->insert(entry);
         m_entry = entry;
     }
 }
@@ -428,12 +435,12 @@ XCalibratedEntry::onSourceDriverRecord(const Snapshot &shot_driver, XDriver *dri
 
     XTime time_recorded = shot_driver[ *driver].time();
     XTime time_awared = shot_driver[ *driver].timeAwared();
+    auto entry = m_entry;
+    if( !entry) return;
     for(;;) {
         Transaction tr( *this);
-        if(auto entry = m_entry) {
-            entry->value(tr, out);
-            record(tr, time_awared, time_recorded);
-        }
+        entry->value(tr, out);
+        record(tr, time_awared, time_recorded);
         if(tr.commit()) {
             Snapshot &shot(tr);
             visualize(shot);

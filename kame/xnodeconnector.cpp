@@ -554,7 +554,7 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTableWi
 XListQConnector::~XListQConnector() {
     if(isItemAlive()) {
         QHeaderView *header = m_pItem->verticalHeader();
-        disconnect(header, NULL, this, NULL );
+        disconnect(header, nullptr, this, nullptr);
         m_pItem->clearSpans();
     }
 }
@@ -783,6 +783,7 @@ XColorConnector::onClick() {
         dialog.reset(new QColorDialog(m_pItem));
         m_dialog = dialog;
     }
+    disconnect( &*dialog, SIGNAL( colorSelected(const QColor &) ), this, SLOT( OnColorSelected(const QColor &) ) );
     connect( &*dialog, SIGNAL( colorSelected(const QColor &) ), this, SLOT( OnColorSelected(const QColor &) ) );
     Snapshot shot( *m_node);
     dialog->setCurrentColor(QColor((QRgb)(unsigned int)shot[ *m_node]));
@@ -807,7 +808,8 @@ XColorConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 
 XStatusPrinter::XStatusPrinter(QMainWindow *window) {
     if( !window)
-        m_pWindow = dynamic_cast<QMainWindow*>(g_pFrmMain);
+        window = dynamic_cast<QMainWindow*>(g_pFrmMain);
+    m_pWindow = window;
     m_pBar = window ? (window->statusBar()) : nullptr;
     s_statusPrinterCreating.push_back(shared_ptr<XStatusPrinter>(this));
     if(m_pBar) m_pBar->hide();
@@ -890,7 +892,7 @@ XStatusPrinter::print(const tstatus &status) {
             icon = g_pIconError;
             break;
         }
-        if(popup | !m_pBar)
+        if(popup || !m_pBar)
             XMessageBox::post(str, QIcon( *icon), popup, status.ms, status.tooltip);
     }
     else if(m_pBar) {

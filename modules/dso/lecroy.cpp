@@ -420,8 +420,8 @@ XLecroyDSO::convertRaw(RawDataReader &reader, Transaction &tr) {
 		fprintf(stderr, "first_valid=%d,last_valid=%d,first=%d,acqcount=%d,count=%d\n",
 			(int)first_valid, (int)last_valid, (int)first, (int)acqcount, (int)count);
 		if(ch == 0) {
-			if((count < 0) || 
-				(reader.size() < (count * 2 + DATA_BLOCK + n + 2) * ch_cnt))
+			if((count < 0) ||
+				(reader.size() < ((size_t)count * 2 + DATA_BLOCK + n + 2) * ch_cnt))
 				throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 			tr[ *this].setParameters(ch_cnt, hoffset, interval, count);
 		}

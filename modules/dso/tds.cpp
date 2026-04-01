@@ -231,21 +231,21 @@ XTDS::convertRaw(RawDataReader &reader, Transaction &tr) {
 			sscanf(cp, "%*s %d", &triggerpos);
 		if( !strncasecmp(cp, "XZE", 3))
 			sscanf(cp, "%*s %lf", &xoff);
-		if( !strncasecmp(cp, "YMU", 3))
-			sscanf(cp, "%*s %lf", &yin[ch_cnt - 1]);
-		if( !strncasecmp(cp, "YOF", 3))
-			sscanf(cp, "%*s %lf", &yoff[ch_cnt - 1]);
 		if( !strncasecmp(cp, "NR_P", 4)) {
 			ch_cnt++;
 			sscanf(cp, "%*s %d", &width);
 		}
+		if( !strncasecmp(cp, "YMU", 3) && (ch_cnt > 0))
+			sscanf(cp, "%*s %lf", &yin[ch_cnt - 1]);
+		if( !strncasecmp(cp, "YOF", 3) && (ch_cnt > 0))
+			sscanf(cp, "%*s %lf", &yoff[ch_cnt - 1]);
 		if( !strncasecmp(cp, "CURV", 4)) {
 			for(;;) {
                 cp = strchr(cp, '#');
 				if( !cp) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 				int x;
 				if(sscanf(cp, "#%1d", &x) != 1) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-				char fmt[9];
+				char fmt[16];
 				if(snprintf(fmt, sizeof(fmt), "#%%*1d%%%ud", x) < 0)
 					throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 				int yyy;
