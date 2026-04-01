@@ -30,7 +30,9 @@ public:
 
     struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
         struct ListChangeEvent {
-            Snapshot shot_of_list;
+            Snapshot shot_of_list; //!< Re-broadcasters must fill this with a fresh snapshot,
+                //!< not forward a stale one. Immediate listeners may mutate the list
+                //!< between re-broadcasts, and FLAG_AVOID_DUP keeps only the last event.
             XItemNodeBase *emitter;
         };
         Talker<ListChangeEvent> &onListChanged() {return m_tlkOnListChanged;}
