@@ -197,6 +197,25 @@ node.iterate_commit([](Transaction<NodeA> &tr) {
 3. `commit()` does a single CAS on `Linkage`; if `packet != m_oldpacket` a conflict is detected and the transaction retries.
 4. Listeners receive deferred events only after a successful commit — no intermediate states are visible.
 
+#### Lock-free atomic shared pointer
+
+The O(1) snapshot reads and CAS-based commits above require a shared pointer that is itself lock-free. `atomic_shared_ptr` (in `kame/atomic_smart_ptr.h`, introduced in January 2006 as part of the 2.0-beta3 rewrite) provides this. It is a custom implementation of what C++20 calls `std::atomic<shared_ptr>`.
+
+The core technique embeds a small **local reference counter** in the low bits of the pointer to the reference-control block — bits guaranteed zero by allocator alignment. `reserve_scan_()` atomically increments this local counter via CAS to "pin" the pointer for reading; `leave_scan_()` decrements it. Between these two calls, even if another thread swaps the pointer, the object cannot be freed because the local count is non-zero. A separate **global reference counter** in the control block tracks long-lived ownership (copies held across scopes). Setters transfer any outstanding local count to the global counter before swapping, so `leave_scan_()` can fall back to decrementing the global counter if the pointer changed.
+
+For types that inherit `atomic_countable` (notably `Payload`), the global reference counter is stored inside the object itself (**intrusive counting**), eliminating a separate heap allocation per shared-pointer instance. Non-intrusive types get an external control block (`atomic_shared_ptr_gref_`).
+
+**Comparison with standard-library implementations (as of late 2024):**
+
+| Implementation | Technique | Lock-free? |
+|---|---|---|
+| libstdc++ (GCC) | Spinlock on internal table | No — vulnerable to priority inversion |
+| MSVC | Lock bit + `WaitOnAddress` | No — blocking under contention |
+| libc++ (Clang) | Not yet implemented | N/A |
+| KAME (2006–) | Tagged-pointer CAS | Yes — lock-free reads and writes |
+
+On modern compilers (GCC 5.1+, Clang, MSVC), the CAS primitives delegate to `std::atomic` (`atomic_prv_std.h`). Hand-written assembly fallbacks for x86, PowerPC, and ARM remain in the tree for older toolchains.
+
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
 **Collision backoff:** `Linkage::negotiate()` uses a `m_transaction_started_time` timestamp to impose a proportional wait on detected collisions, preventing live-lock under high write contention.
