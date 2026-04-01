@@ -201,7 +201,7 @@ node.iterate_commit([](Transaction<NodeA> &tr) {
 
 **Collision backoff:** `Linkage::negotiate()` uses a `m_transaction_started_time` timestamp to impose a proportional wait on detected collisions, preventing live-lock under high write contention.
 
-`iterate_commit_if(lambda)` lets the caller abort the retry loop (return `true` from the lambda to stop), enabling conditional transactions.
+`iterate_commit_while(lambda)` lets the caller abort the retry loop (return `true` from the lambda to stop), enabling conditional transactions.
 
 > **Caution:** Taking a nested `Snapshot` inside a transaction on a tree that contains a hard link (a child with two parents) can break consistency. Use `tr[*node]` instead of a nested `Snapshot` in that situation.
 
@@ -217,7 +217,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Read model | `readTVar` / `deref` inside transaction | `Snapshot` (outside) or `tr[*node]` (inside) |
 | Consistency scope | Variables listed explicitly | Entire subtree, guaranteed by bundling |
 | Commit log | Redo log or write set | Copy-on-write + CAS on single `Linkage` |
-| Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_if` |
+| Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
 | Blocking | `retry` suspends on read-set change | No blocking; backoff via timestamp |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
 | Hard real-time suitability | Limited (GC pauses) | Good (no GC, bounded CAS retries) |
