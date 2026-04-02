@@ -29,7 +29,7 @@ else {
 #	 -stdlib=libc++
 }
 
-VERSTR = 7.1
+VERSTR = 8
 DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules

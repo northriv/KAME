@@ -634,6 +634,7 @@ static inline int usb_submit_urb(struct urb *urb, int flags) {
     urb->cancelled = 0; urb->status = 0; urb->actual_length = 0;
     unsigned int pipe_type = urb->pipe & 0xff00u;
     if (pipe_type == _USB_PIPE_INT_IN) {
+        if (urb->thread_started) return 0;
         int r = pthread_create(&urb->thread, NULL, _urb_thread_func, urb);
         if (r) return -ENOMEM;
         urb->thread_started = 1;
