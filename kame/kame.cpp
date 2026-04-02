@@ -25,6 +25,7 @@
 #include <QMdiSubWindow>
 #include <QMainWindow>
 #include <QWindow>
+#include <QEvent>
 #include <QMessageBox>
 #include <QFileDialog>
 #ifdef WITH_KDE
@@ -237,6 +238,37 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 //    auto sub = area->addSubWindow(wnd,Qt::Window);
 //    area->setActiveSubWindow(sub);
     return wnd;
+}
+
+bool
+FrmKameMain::eventFilter(QObject *obj, QEvent *event) {
+    if(event->type() == QEvent::Show) {
+        auto w = qobject_cast<QWidget*>(obj);
+        if(w && !w->property("kame_placed").toBool()) {
+            placeNewWindow(w);
+            w->setProperty("kame_placed", true);
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
+}
+
+void
+FrmKameMain::placeNewWindow(QWidget *w) {
+    auto *screen = this->screen();
+    if( !screen) return;
+    QRect rect = screen->availableGeometry();
+    // Place new windows between left dock and right dock, cascading.
+    int x0 = rect.left() + rect.width() / 5;
+    int y0 = rect.top();
+    int cascadeStep = 30;
+    QPoint pos(x0 + m_cascadeIndex * cascadeStep, y0 + m_cascadeIndex * cascadeStep);
+    // Wrap if window would go off-screen.
+    if(pos.x() + w->width() > rect.right() || pos.y() + w->height() > rect.bottom()) {
+        m_cascadeIndex = 0;
+        pos = QPoint(x0, y0);
+    }
+    w->move(pos);
+    m_cascadeIndex++;
 }
 
 FrmKameMain::~FrmKameMain() {

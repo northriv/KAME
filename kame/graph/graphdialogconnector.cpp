@@ -55,7 +55,7 @@ XQGraphDialogConnector::XQGraphDialogConnector
 	        (shared_from_this(), &XQGraphDialogConnector::onSelPlotChanged, Listener::FLAG_MAIN_THREAD_CALL);
     });
 
-    m_pItem->showNormal();
+    m_pItem->show();
 }   
 XQGraphDialogConnector::~XQGraphDialogConnector() {
     if(isItemAlive()) m_pItem->close();

@@ -56,7 +56,7 @@ XFourRes::~XFourRes () {
 void
 XFourRes::showForms() {
     m_form->showNormal();
-	m_form->raise();
+    m_form->raise();
 }
 bool
 XFourRes::checkDependency(const Snapshot &shot_this,

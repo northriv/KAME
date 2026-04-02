@@ -118,8 +118,11 @@ private:
     void scriptLineShellAction_activated(const char *filename);
     void createActions();
 	void createMenus();
+	bool eventFilter(QObject *obj, QEvent *event) override;
+	void placeNewWindow(QWidget *w);
 	QMdiSubWindow* addDockableWindow(QMdiArea *area, QWidget *widget, bool closable);
 	QMdiArea *m_pMdiCentral, *m_pMdiLeft, *m_pMdiRight;
+	int m_cascadeIndex = 0;
 	void closeEvent( QCloseEvent* ce );
 	shared_ptr<XScriptingThread> runNewScript(const XString &label, const XString &filename);
 	QTimer *m_pTimer;

@@ -296,7 +296,7 @@ XPulser::showForms() {
 void
 XPulser::onMoreConfigShow(const Snapshot &shot, XTouchableNode *)  {
     m_formMore->showNormal();
-	m_formMore->raise();
+    m_formMore->raise();
 }
 
 void

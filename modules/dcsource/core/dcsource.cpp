@@ -50,7 +50,7 @@ XDCSource::XDCSource(const char *name, bool runtime,
 void
 XDCSource::showForms() {
 //! impliment form->show() here
-    m_form->show();
+    m_form->showNormal();
     m_form->raise();
 }
 

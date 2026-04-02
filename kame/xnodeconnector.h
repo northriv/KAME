@@ -82,10 +82,15 @@ xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, Args&&...args) {
 extern DECLSPEC_KAME QWidget *g_pFrmMain;
 
 //! Providing an easy access to make a new form with UIs designed by Qt designer.
+//! Top-level windows automatically get smart placement and raise via FrmKameMain's eventFilter.
 template <class FRM, class UI>
 struct QForm : public FRM, public UI {
     template <typename...Args>
-    QForm(Args&&...args) : FRM(std::forward<Args>(args)...), UI() {this->setupUi(this);}
+    QForm(Args&&...args) : FRM(std::forward<Args>(args)...), UI() {
+        this->setupUi(this);
+        if(g_pFrmMain && this->isWindow())
+            this->installEventFilter(g_pFrmMain);
+    }
 };
 
 //! Associate QWidget to XNode.

@@ -42,7 +42,7 @@ public:
     //! Shows all forms belonging to the driver.
     virtual void showForms() override {
         if(m_form) {
-            m_form->show();
+            m_form->showNormal();
             m_form->raise();
         }
     }
@@ -55,6 +55,8 @@ public:
 
         QUiLoader loader;
         m_form.reset(loader.load(&file));//, g_pFrmMain
+        if(g_pFrmMain && m_form && m_form->isWindow())
+            m_form->installEventFilter(g_pFrmMain);
     }
     QWidget *form() const {return m_form.get();}
 
