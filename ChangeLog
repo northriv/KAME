@@ -1,3 +1,30 @@
+* Wed Apr 02 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (8.0-beta3)
+- Comprehensive bug audit: 20 fixes across 12 files.
+- xnodeconnector: fix bitwise OR (|) that should be logical OR (||) in popup status check.
+- xnodeconnector: fix uninitialized m_pWindow when constructor receives nullptr.
+- xnodeconnector: prevent QColorDialog signal from being connected multiple times.
+- xnodeconnector: NULL -> nullptr in disconnect() call.
+- tds: fix array underflow yin[ch_cnt-1] when ch_cnt==0; reorder NR_P parsing before YMU/YOF.
+- tds: increase snprintf format buffer from 9 to 16 bytes.
+- xpythonsupport: scope GIL release to blocking wait only in kame_mainthread, fixing Python
+  object operations (status.is(), PyErr_SetString) performed without GIL.
+- xpythonsupport: initialize *ret = py::none() before try block in mainthread_callback to
+  prevent returning uninitialized py::object on exception.
+- xpythonsupport.py: fix thread ID comparison — use native_id instead of str(Thread).
+- xpythonsupport.py: skip comment lines during .kam Ruby-to-Python translation.
+- pythondriver: re-enable GIL acquire in Payload::local() (was commented out).
+- pythondriver: null-check shared_ptrs before pushing to garbage queue in Payload destructor.
+- secondarydriverinterface: bounds-check std::find() result before dereference in onItemChanged.
+- allocator_prv: add virtual destructor to PoolAllocatorBase.
+- analyzer: null-check m_entries.lock() in XValGraph (onAxisChanged, onVisualization, onStoreChanged)
+  and XCalibratedEntry (onSelectionChanged).
+- analyzer: capture m_entry before retry loop in onSourceDriverRecord to avoid race condition.
+- cyfxusb_libusb: safe bounds check for USB string descriptor buffer.
+- lecroy: cast count to size_t in buffer size calculation to prevent integer overflow.
+- xpythonmodule: catch pybind11::cast_error in payload down-caster loop.
+- tests/CMakeLists: fix test name typo (negotioation -> negotiation).
+
 * Tue Apr 01 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - XPointerItemNode: lsnOnListChanged now takes a fresh list snapshot before forwarding the
   onListChanged event, so that entries created by nested signal handlers (e.g. CalibratedEntry
