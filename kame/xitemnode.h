@@ -115,16 +115,21 @@ private:
             if(tr.commit()) break;
         }
     }
-    void lsnOnListChanged(const Snapshot& shot, XListNodeBase* node) {
+    void lsnOnListChanged(const Snapshot& /*shot*/, XListNodeBase* node) {
         if(auto list = m_list.lock()) {
             assert(node == list.get());
+            // Use a fresh list snapshot for both pending-label resolution and
+            // re-broadcast: the triggering shot may not contain entries created
+            // by nested immediate listeners (e.g. proxy XScalarEntry from
+            // XCalibratedEntry::onSelectionChanged).
+            Snapshot fresh_shot( *list);
             // Retry deferred label resolution if pending
             for(bool committed = true;;) {
                 Snapshot shot_self( *this);
                 XString pending = shot_self[ *this].pendingLabel();
-                if(pending.empty() || !shot.size(list))
+                if(pending.empty() || !fresh_shot.size(list))
                     break;
-                for(auto it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
+                for(auto it = fresh_shot.list(list)->begin(); it != fresh_shot.list(list)->end(); ++it) {
                     if(( *it)->getLabel() == pending) {
                         Transaction tr(shot_self);
                         tr[ *this] = *it;
@@ -135,10 +140,6 @@ private:
                 if(committed)
                     break;
             }
-            // Use a fresh list snapshot so that nested insertions
-            // (e.g. proxy entries created during pending-label resolution)
-            // are visible to FLAG_AVOID_DUP listeners.
-            Snapshot fresh_shot( *list);
             Snapshot( *this).talk(( **this)->onListChanged(),
                 XItemNodeBase::Payload::ListChangeEvent({fresh_shot, this}));
         }

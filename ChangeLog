@@ -1,5 +1,11 @@
 * Wed Apr 02 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.0-beta3)
+- XCalibratedEntry: add FLAG_AVOID_DUP to onSelectionChanged listener so that
+  duplicate deferred events from Source and Curve onValueChanged are coalesced.
+  Fixes proxy being released and recreated when both fire in quick succession
+  (e.g. during .kam loading), which cleared the axis selector's resolved value.
+- XPointerItemNode: use fresh list snapshot for pending-label resolution too
+  (not just re-broadcast), so entries from nested insertions are visible.
 - Comprehensive bug audit: 20 fixes across 12 files.
 - xnodeconnector: fix bitwise OR (|) that should be logical OR (||) in popup status check.
 - xnodeconnector: fix uninitialized m_pWindow when constructor receives nullptr.

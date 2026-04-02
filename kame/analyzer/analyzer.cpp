@@ -366,7 +366,7 @@ XCalibratedEntry::XCalibratedEntry(const char *name, bool runtime,
     iterate_commit([=](Transaction &tr){
         m_lsnSelectionChanged = tr[ *m_source].onValueChanged().connectWeakly(
             shared_from_this(), &XCalibratedEntry::onSelectionChanged,
-            Listener::FLAG_MAIN_THREAD_CALL);
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
         tr[ *m_curve].onValueChanged().connect(m_lsnSelectionChanged);
     });
 }
