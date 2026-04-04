@@ -3,7 +3,7 @@
 ## Globals (pre-imported from `kame`)
 
 ```python
-Root()                    # Root measurement node
+Root()                    # Root measurement node (XMeasure)
 Snapshot(node)            # Immutable read view of a subtree
 Transaction(node)         # Write context (optimistic, auto-retry)
 sleep(sec)                # KAME-aware sleep (use instead of time.sleep)
@@ -13,42 +13,51 @@ sleep(sec)                # KAME-aware sleep (use instead of time.sleep)
 
 ```python
 root = Root()
-drivers = root["Drivers"]        # Child by name (returns XNode)
+drivers = root["Drivers"]        # Child by name (returns XNode or None)
 driver = drivers["DMM1"]         # Nested access
-child = node[0]                  # Child by index
+child = node[0]                  # Child by index (takes fresh Snapshot)
 node.getName()                   # Internal name (str)
 node.getLabel()                  # UI label (str)
 node.getTypename()               # Type name without 'X' prefix
+node.dynamic_cast()              # Downcast to most specific Python type
 ```
+
+**Important:** `node["name"]` returns `None` if the child doesn't exist.
+Always check for `None` before using the result.
 
 ## Reading Values (Snapshot)
 
-```python
-shot = Snapshot(node)             # Take snapshot of subtree
+A Snapshot must be taken from the node or an ancestor that contains it.
 
-# Access payload
+```python
+shot = Snapshot(node)             # Snapshot of node's subtree
+
+# Access payload — shot[x] only works if x is within shot's subtree
 payload = shot[node]              # Node's payload object
 
-# Convert payload to Python types
+# Convert payload to Python types (depends on node type)
 float(shot[double_node])          # XDoubleNode -> float
 int(shot[int_node])               # XIntNode/XUIntNode -> int
 bool(shot[bool_node])             # XBoolNode -> bool
-str(shot[value_node])             # Any XValueNodeBase -> str
+str(node)                         # Any XValueNodeBase -> str (takes own snapshot)
 
-# List children
+# List children — node must be in the snapshot's subtree
 children = shot.list(node)        # list[XNode]
 for child in shot.list(node):
     print(child.getName())
 
 shot.size(node)                   # Number of children
-len(shot)                         # Same as shot.size()
+len(shot)                         # Children of snapshot root
 ```
 
 ## Writing Values
 
 ```python
-# Simple assignment (auto-transactional)
+# Simple assignment (auto-transactional, by child name)
 node["ChildName"] = 3.14         # float, int, bool, or str
+
+# Set a value node directly
+value_node.set("300.0")           # XValueNodeBase.set(str)
 
 # Explicit transaction
 for tr in Transaction(node):
@@ -60,12 +69,8 @@ tr = Transaction(node)
 tr[node["SetPoint"]] = 300.0
 tr.commit()                       # Returns final Snapshot
 
-# Combo node
-tr[combo_node].add("item")       # Add item to combo
-tr[combo_node].str("value")      # Set by string
-
 # Touchable node (trigger action)
-tr[touchable_node].touch()
+touchable_node.touch()
 ```
 
 ## Driver Patterns
@@ -83,62 +88,85 @@ payload = shot[driver]
 payload.time()                    # When phenomenon occurred
 payload.timeAwared()              # When visible to operator
 
-# Read driver channel values
+# Read driver channel values (if driver has value() method)
 voltage = shot[driver].value(0)   # Channel 0
 
 # Access driver child nodes (settings, readings)
 shot = Snapshot(driver)
 for child in shot.list(driver):
-    print(child.getName(), "=", str(shot[child]))
+    name = child.getName()
+    try:
+        val = str(child)          # Works for XValueNodeBase children
+        print(f"{name} = {val}")
+    except Exception:
+        print(name)
 ```
 
 ## Scalar Entries
+
+Each `XScalarEntry` has child nodes: `Value` (XDoubleNode), `StoredValue`,
+`Delta`, `Store`. Read the numeric value via `entry["Value"]`.
 
 ```python
 entries = Root()["ScalarEntries"]
 shot = Snapshot(entries)
 for e in shot.list(entries):
-    print(e.getName(), "=", str(shot[e]))
+    val_node = e["Value"]
+    print(e.getName(), "=", float(shot[val_node]))
+    # e.driver() returns the owning XDriver
 ```
+
+## Root Children
+
+The root node (`Root()`) has these children:
+
+| Name | Type | Runtime |
+|---|---|---|
+| `Drivers` | XDriverList | no |
+| `Interfaces` | XInterfaceList | yes |
+| `ScalarEntries` | XScalarEntryList | yes |
+| `Thermometers` | XThermometerList | no |
+| `GraphList` | XGraphList | no |
+| `ChartList` | XChartList | yes |
+| `CalibratedEntries` | XCalibratedEntryList | no |
 
 ## Common Recipes
 
-### Read temperature from LakeShore
+### List all drivers and their types
 ```python
-tc = Root()["Drivers"]["TempControl"]
-shot = Snapshot(tc)
-for ch in shot.list(tc):
-    if "Ch." in ch.getName():
-        print(ch.getName(), float(shot[ch]))
+drivers = Root()["Drivers"]
+shot = Snapshot(drivers)
+for d in shot.list(drivers):
+    print(d.getName(), d.getTypename())
+```
+
+### Read a value node by path
+```python
+node = Root()["Drivers"]["TempControl"]["Ch.B"]
+shot = Snapshot(node)
+print(float(shot[node]))
+```
+
+### Dump all children of a driver
+```python
+driver = Root()["Drivers"]["DMM1"]
+shot = Snapshot(driver)
+for child in shot.list(driver):
+    try:
+        print(child.getName(), "=", str(child))
+    except Exception:
+        print(child.getName())
 ```
 
 ### Set a parameter and wait
 ```python
-node = Root()["Drivers"]["DCSource"]["Value"]
-node["Value"] = "1.0"
+source = Root()["Drivers"]["DCSource"]
+source["Value"] = "1.0"
 sleep(2)
-```
-
-### Dump entire driver tree
-```python
-def dump(node, shot, indent=0):
-    name = node.getName()
-    try:
-        val = str(shot[node])
-        print("  " * indent + f"{name} = {val}")
-    except Exception:
-        print("  " * indent + f"{name}")
-    for child in shot.list(node):
-        dump(child, shot, indent + 1)
-
-driver = Root()["Drivers"]["DMM1"]
-shot = Snapshot(driver)
-dump(driver, shot)
 ```
 
 ### Sweep and measure
 ```python
-import time
 results = []
 source = Root()["Drivers"]["DCSource"]
 dmm = Root()["Drivers"]["DMM1"]
@@ -149,4 +177,13 @@ for v in [0.1, 0.2, 0.5, 1.0]:
     reading = float(shot[dmm].value(0))
     results.append((v, reading))
     print(f"V={v}, Reading={reading}")
+```
+
+### Read all scalar entry values
+```python
+entries = Root()["ScalarEntries"]
+shot = Snapshot(entries)
+for e in shot.list(entries):
+    val = float(shot[e["Value"]])
+    print(f"{e.getName()} ({e.driver().getName()}): {val}")
 ```

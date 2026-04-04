@@ -36,7 +36,7 @@ API_DOC_PATH = Path(__file__).parent / "kame_python_api.md"
 
 # Preamble injected before tool-generated code to bypass KAME's HTML stdout
 # redirect. Uses STDOUT (the original sys.stdout saved by xpythonsupport.py).
-_PRINT_PREAMBLE = "import sys as _sys; _print = lambda *a, **kw: __builtins__['print'](*a, **kw, file=_sys.__stdout__)\n"
+_PRINT_PREAMBLE = "import sys as _sys, builtins as _builtins; _print = lambda *a, **kw: _builtins.print(*a, **kw, file=_sys.__stdout__)\n"
 
 server = FastMCP("kame", instructions="""You are connected to a running KAME measurement application
 via its embedded IPython kernel. The `kame` module is pre-imported:
@@ -238,12 +238,14 @@ _result = []
 for _e in _shot.list(_entries):
     _entry = {"name": _e.getName(), "label": _e.getLabel() or _e.getName()}
     try:
-        _entry["value"] = float(_shot[_e])
-    except (TypeError, ValueError):
-        try:
-            _entry["value"] = str(_shot[_e])
-        except Exception:
-            _entry["value"] = None
+        _val_node = _e["Value"]
+        _entry["value"] = float(_shot[_val_node])
+    except Exception:
+        _entry["value"] = None
+    try:
+        _entry["driver"] = _e.driver().getName()
+    except Exception:
+        pass
     _result.append(_entry)
 _print(_json.dumps(_result, indent=2, ensure_ascii=False))
 """
