@@ -307,9 +307,17 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated) {
 		}
     
 		if(terminated) break;
-      
+
+		if( !m_pGFD) {
+			msecsleep(100);
+			continue;
+		}
+
 		try {
-			m_filemutex.lock(); 
+			m_filemutex.lock();
+			if(ms > 0.0 && gzeof(static_cast<gzFile>(m_pGFD))) {
+				first_(m_pGFD);
+			}
 			if(ms < 0.0) {
 				previous_(m_pGFD);
 				previous_(m_pGFD);

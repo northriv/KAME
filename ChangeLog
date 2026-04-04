@@ -1,4 +1,5 @@
 * Fri Apr 04 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (8.0-beta4)
 - Smart window placement: new driver/graph windows cascade automatically on
   first show via FrmKameMain::eventFilter. QForm template auto-installs the
   filter for all top-level windows. showNormal()+raise() still used for
@@ -7,6 +8,14 @@
   return -EIO instead of 0 on short bulk write.
 - NI USB-GPIB: prevent duplicate interrupt URB polling thread in win_compat.h.
 - Version bump to 8.0.
+- RawStreamRecordReader: auto-rewind at EOF on forward playback so FastForward
+  works without pressing First; add NULL check for m_pGFD in execute thread.
+- MCP server for AI-assisted experiment automation (kame_mcp_server.py).
+  Connects to the embedded IPython kernel via jupyter_client, exposing
+  execute_code, read_node, list_children, and kame_status tools.
+  When launching a Jupyter notebook, KAME auto-generates .mcp.json in the
+  notebook workspace for zero-configuration Claude Code integration.
+  No side effects when MCP is not used.
 
 * Wed Apr 02 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.0-beta3)

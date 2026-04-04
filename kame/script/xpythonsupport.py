@@ -359,6 +359,7 @@ def listOfJupyterPrograms():
 
 NOTEBOOK_TOKEN = None
 NOTEBOOK_PROC = None
+NOTEBOOK_MCP_JSON = None
 
 def launchJupyterConsole(prog, argv):
 	if not HasIPython:
@@ -404,6 +405,43 @@ def launchJupyterConsole(prog, argv):
 		outs, errs = proc.communicate() #Lauching failed.
 		raise RuntimeError(outs)
 	NOTEBOOK_PROC = proc
+
+	# Write MCP config for Claude Code in the notebook workspace.
+	if console[0] == 'notebook':
+		global NOTEBOOK_MCP_JSON
+		import json as _json
+		# Write kernel connection info for the MCP server.
+		import ipykernel
+		_conn_file = ipykernel.connect.get_connection_file()
+		_kame_conn_info = os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')
+		try:
+			with open(_kame_conn_info, 'w') as _f:
+				_json.dump({'connection_file': _conn_file, 'pid': os.getpid()}, _f)
+		except OSError:
+			pass
+		# Write .mcp.json pointing to the MCP server script.
+		mcp_server_script = os.path.join(KAME_ResourceDir, 'kame_mcp_server.py')
+		# Find the Python interpreter next to the jupyter executable.
+		_bin_dir = os.path.dirname(prog)
+		python_cmd = None
+		for _name in ('python3', 'python'):
+			_candidate = os.path.join(_bin_dir, _name)
+			if os.path.isfile(_candidate):
+				python_cmd = _candidate
+				break
+		if not python_cmd:
+			python_cmd = 'python3'
+		mcp_json_path = os.path.join(console[1], '.mcp.json')
+		try:
+			with open(mcp_json_path, 'w') as _f:
+				_json.dump({'mcpServers': {'kame': {
+					'command': python_cmd,
+					'args': [mcp_server_script]
+				}}}, _f, indent=2)
+			NOTEBOOK_MCP_JSON = mcp_json_path
+			print("MCP config written to " + mcp_json_path)
+		except OSError:
+			pass
 
 	XScriptingThreads()[0]["Filename"] = ' '.join(args)
 
@@ -487,6 +525,16 @@ else:
 				TLS.logfile.close()
 				TLS.logfile = None
 
+				# Remove MCP files created for Claude Code.
+				if NOTEBOOK_MCP_JSON:
+					try:
+						os.remove(NOTEBOOK_MCP_JSON)
+					except OSError:
+						pass
+					try:
+						os.remove(os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json'))
+					except OSError:
+						pass
 				# Delete the log file if Jupyter was never launched and no
 				# server/notebook was ever connected (logfilename unchanged).
 				if not NOTEBOOK_PROC and self.logfilename == self._initial_logfilename:
