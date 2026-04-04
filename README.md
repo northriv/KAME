@@ -21,6 +21,7 @@ orchestration across compatible instruments without custom programming.
 
 - Transactional, lock-free node/data model (Software Transactional Memory)
 - Python (+Jupyter notebook) and Ruby scripting — nearly full control from scripts
+- **AI-assisted experiment automation via [MCP](https://modelcontextprotocol.io/)** — Claude and other AI assistants can read instruments, control parameters, and run measurement sequences through natural language
 - OpenGL-based 2-D / 1-D graph display; arbitrary scalar combinations (T, V, …)
 - Real-time NMR relaxation fitting (T1, T2, Tst.e.), Inverse Laplace Transform
 - Fourier step-sum spectrum measurement with field / frequency sweeping
@@ -57,6 +58,16 @@ orchestration across compatible instruments without custom programming.
 | **NI DAQmx** | Pulser (AO+DO, DO-only, M+S Series), DSO |
 | **Resistance measurement** | Four-terminal with polarity switching; Python-based 4-terminal (simple and multi-current variants) |
 | **Monte Carlo simulation** | Monte Carlo driver |
+
+---
+
+## What's New in 8.0
+
+- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. To our knowledge, this is the first measurement software to integrate an MCP server.
+- **Calibrated scalar entries** — `XCalibratedEntry` applies a calibration curve to any scalar entry; the result appears in graphs, charts, and data recording like a native scalar.
+- **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
+- **Window cascade placement** — instrument windows are automatically arranged on show.
+- **Comprehensive bug audit** — 20 bug fixes across 12 source files (GIL safety, buffer bounds, null-pointer guards, logic errors).
 
 ---
 
@@ -379,43 +390,31 @@ PYTHONHOME=C:\msys64\mingw64
 
 ## Scripting
 
-KAME exposes its node tree to Ruby and Python. Scripts can be run from the **Script** tab in the UI or loaded from `.kam` files. A `.kam` file is a Ruby script that recreates the full measurement state when executed.
+KAME exposes its entire node tree to **Ruby** and **Python**. Scripts can be run
+from the **Script** tab in the UI, loaded from `.kam` files, or executed
+interactively in a Jupyter notebook connected to KAME's embedded IPython kernel.
+
+A `.kam` file is a Ruby script that recreates the full measurement state when
+executed. When Python is available, `.kam` files are loaded via a fast Python-based
+translator instead of the Ruby interpreter.
 
 ---
 
-## MCP Setup (AI-assisted experiment automation)
+## AI-Assisted Experiment Automation (MCP)
 
-KAME ships an MCP server (`kame/script/kame_mcp_server.py`) that connects to the
-embedded IPython kernel. Any MCP-compatible AI client (Claude Code, Claude Desktop,
-etc.) can use it to run Python code inside the live KAME process.
+KAME 8.0 ships a built-in [MCP](https://modelcontextprotocol.io/) (Model Context
+Protocol) server that lets AI assistants execute Python code directly in the running
+KAME interpreter. The MCP server connects to the embedded IPython kernel via
+`jupyter_client`, giving the AI full access to `Root()`, `Snapshot()`,
+`Transaction()`, and all loaded drivers — the same environment available in Jupyter
+notebooks.
 
-### Prerequisites
+This enables conversational experiment control:
 
-```sh
-pip install mcp jupyter_client
 ```
-
-### How it works
-
-1. When KAME launches a Jupyter notebook, it writes the kernel connection path to
-   `~/.kame_kernel_connection.json`.
-2. The MCP server reads that file and connects to the kernel via ZMQ (`jupyter_client`).
-3. The AI client launches the MCP server as a subprocess (stdio transport).
-4. The server includes `kame_python_api.md` — an API reference that Claude reads
-   automatically before writing code, reducing trial-and-error.
-
-### Configuration
-
-**Automatic (recommended):** When KAME launches a Jupyter notebook
-(Script → Launch Jupyter Notebook), it writes `.mcp.json` into the chosen
-notebook workspace directory. The Python interpreter is auto-detected from the
-selected `jupyter` executable. Claude Code picks up the configuration when opened
-in the same directory. The file is removed when KAME exits.
-
-**Manual:** Register the server once via the Claude Code CLI:
-
-```sh
-claude mcp add kame /path/to/python /path/to/KAME/Resources/kame_mcp_server.py
+"Read the current temperature from LakeShore1"
+"Sweep the magnetic field from 0 to 5 T in 0.1 T steps, recording NMR signal at each point"
+"Plot the last 100 DMM readings"
 ```
 
 ### Available MCP tools
@@ -430,21 +429,33 @@ claude mcp add kame /path/to/python /path/to/KAME/Resources/kame_mcp_server.py
 | `list_scalars` | List all scalar entries with current values (JSON) |
 | `kame_status` | Check if KAME is running and list active drivers (JSON) |
 
-### Usage
+### Quick start
 
-1. Start KAME and launch a Jupyter notebook (Script → Launch Jupyter Notebook).
-2. Open Claude Code in the notebook workspace directory.
-3. Ask Claude to interact with your instruments:
+1. Install prerequisites:
+   ```sh
+   pip install mcp jupyter_client
+   ```
+2. Start KAME and launch a Jupyter notebook (Script → Launch Jupyter Notebook).
+   KAME writes `.mcp.json` to the notebook workspace directory automatically.
+3. Open Claude Code in the same directory — the MCP server is discovered and
+   connected automatically.
+4. Ask Claude to interact with your instruments. The `.mcp.json` file is removed
+   when KAME exits.
 
+**Manual setup** (without Jupyter):
+
+```sh
+claude mcp add kame /path/to/python /path/to/KAME/Resources/kame_mcp_server.py
 ```
-"Read the current temperature from LakeShore1"
-"Sweep the magnetic field from 0 to 5 T in 0.1 T steps, recording NMR signal at each point"
-"Plot the last 100 DMM readings"
-```
 
-Claude executes Python in KAME's kernel and returns results. The `kame` module is
-pre-imported — `Root()`, `Snapshot()`, `Transaction()`, and all driver classes are
-available immediately.
+### How it works
+
+1. When KAME launches a Jupyter notebook, it writes the kernel connection path to
+   `~/.kame_kernel_connection.json`.
+2. The MCP server reads that file and connects to the kernel via ZMQ (`jupyter_client`).
+3. The AI client launches the MCP server as a subprocess (stdio transport).
+4. The server ships `kame_python_api.md` — an API reference that Claude reads
+   automatically before writing code, reducing trial-and-error.
 
 ---
 
