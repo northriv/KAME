@@ -13,9 +13,11 @@
 - MCP server for AI-assisted experiment automation (kame_mcp_server.py).
   Connects to the embedded IPython kernel via jupyter_client, exposing
   7 tools: kame_api, execute_code, read_node, read_scalar, list_children,
-  list_scalars, kame_status. All tool output bypasses KAME's HTML stdout
-  redirect (MYDEFOUT) via sys.__stdout__ to return clean text/JSON.
-  Includes kame_python_api.md reference deployed alongside the server.
+  list_scalars, kame_status. Tool-generated code uses IPython expression
+  results (not print) to avoid KAME's HTML stdout redirect; HTML object
+  reprs are filtered out in the message handler.
+  Includes kame_python_api.md reference with correct Snapshot/node patterns,
+  Root children table, and XScalarEntry["Value"] access.
   When launching a Jupyter notebook, KAME auto-generates .mcp.json in the
   notebook workspace with auto-detected Python path for zero-configuration
   Claude Code integration. No side effects when MCP is not used.
