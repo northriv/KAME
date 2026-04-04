@@ -184,6 +184,7 @@ DESTDIR=$$OUT_PWD/../
 scriptfile.files = script/rubylineshell.rb \
     script/pythonlineshell.py \
     script/kame_mcp_server.py \
+    script/kame_python_api.md \
     script/notebook/jupyter_notebook_config.py \
     script/notebook/notebook_kame_kernel_manager.py
 
@@ -209,6 +210,7 @@ else {
         DISTFILES += script/rubylineshell.rb  \
             script/pythonlineshell.py \
             script/kame_mcp_server.py \
+            script/kame_python_api.md \
             script/notebook/jupyter_notebook_config.py \
             script/notebook/notebook_kame_kernel_manager.py
     }

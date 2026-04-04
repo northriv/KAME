@@ -397,10 +397,12 @@ pip install mcp jupyter_client
 
 ### How it works
 
-1. When KAME starts with IPython available, it writes the kernel connection path to
+1. When KAME launches a Jupyter notebook, it writes the kernel connection path to
    `~/.kame_kernel_connection.json`.
 2. The MCP server reads that file and connects to the kernel via ZMQ (`jupyter_client`).
 3. The AI client launches the MCP server as a subprocess (stdio transport).
+4. The server includes `kame_python_api.md` — an API reference that Claude reads
+   automatically before writing code, reducing trial-and-error.
 
 ### Configuration
 
@@ -420,10 +422,13 @@ claude mcp add kame /path/to/python /path/to/KAME/Resources/kame_mcp_server.py
 
 | Tool | Description |
 |---|---|
+| `kame_api` | Return the Python API quick reference (call first) |
 | `execute_code` | Run arbitrary Python in KAME's interpreter |
 | `read_node` | Read a node value by path (e.g. `Drivers/DMM1/Value`) |
-| `list_children` | List child nodes at a path |
-| `kame_status` | Check if KAME is running and list active drivers |
+| `read_scalar` | Read a numeric value by path — single call, returns JSON |
+| `list_children` | List child nodes at a path with types and values (JSON) |
+| `list_scalars` | List all scalar entries with current values (JSON) |
+| `kame_status` | Check if KAME is running and list active drivers (JSON) |
 
 ### Usage
 

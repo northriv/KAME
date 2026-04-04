@@ -12,6 +12,11 @@ KAME is a scientific instrument control and measurement software framework writt
 
 The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake). The `CMakeLists.txt` targets KDE4 (Linux, legacy/discontinued).
 
+**Adding new files to the build:**
+- Core framework / scripts: edit `kame/kame.pro`
+- Driver modules: edit `modules/<name>/<name>.pro`
+- In `kame/kame.pro`: `SOURCES`/`HEADERS` for C++; `scriptfile.files` for files deployed to `Contents/Resources` (macOS); `DISTFILES` in `else { }` block for Windows
+
 **macOS dependencies** (via MacPorts under `/opt/local`):
 - `gsl`, `fftw3`, `libtool-ltdl`, `zlib`, `libusb`, `eigen3`, `pybind11` (no boost)
 - Use genuine Qt (not from MacPorts); Qt5 compatibility module required for Qt 6
@@ -109,6 +114,7 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - **Startup sequence:** only `xpythonsupport.py` is exec'd immediately; `pytestdriver.py` and `pydrivers.py` are collected as deferred scripts via `kame_deferred_scripts()` and executed on the first `kame_pybind_one_iteration()` tick (after the IPython kernel is up). Optional extension files that are absent produce a stderr warning, not a UI error.
 - Script thread launch no longer has fixed `sleep()` delays; deferred scripts execute in the global namespace via `exec(script, globals())`
 - **GIL startup synchronization** — `FrmKameMain` constructor creates `XMeasure` immediately, which starts the Python thread. Driver modules (including Python modules whose `PyDriverExporter`/`PyXNodeExporter` global constructors need the GIL) are loaded afterward in `main.cpp`. To prevent the main thread from blocking on `gil_scoped_acquire` while the Python thread holds the GIL during heavy imports, `XPython::execute()` releases the GIL and waits on `m_modules_loaded` before running `xpythonsupport.py`. `main.cpp` calls `form->signalAllModulesLoaded()` after the `lt_dlopenext` loop to unblock it.
+- **MCP server** (`kame/script/kame_mcp_server.py`) — connects to the embedded IPython kernel via `jupyter_client`, providing AI assistants (Claude Code, etc.) with tools to execute Python, read values, and list nodes. Auto-configured when launching a Jupyter notebook: `xpythonsupport.py` writes `.mcp.json` and `~/.kame_kernel_connection.json` in `launchJupyterConsole()` (notebook path only); both files are cleaned up on exit. `MYDEFOUT` HTML redirect is bypassed in tool-generated code via `print(..., file=sys.__stdout__)`. API reference in `kame/script/kame_python_api.md` is served by the `kame_api` tool.
 
 ### Serialization (.kam files)
 

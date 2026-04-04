@@ -12,10 +12,14 @@
   works without pressing First; add NULL check for m_pGFD in execute thread.
 - MCP server for AI-assisted experiment automation (kame_mcp_server.py).
   Connects to the embedded IPython kernel via jupyter_client, exposing
-  execute_code, read_node, list_children, and kame_status tools.
+  7 tools: kame_api, execute_code, read_node, read_scalar, list_children,
+  list_scalars, kame_status. All tool output bypasses KAME's HTML stdout
+  redirect (MYDEFOUT) via sys.__stdout__ to return clean text/JSON.
+  Includes kame_python_api.md reference deployed alongside the server.
   When launching a Jupyter notebook, KAME auto-generates .mcp.json in the
-  notebook workspace for zero-configuration Claude Code integration.
-  No side effects when MCP is not used.
+  notebook workspace with auto-detected Python path for zero-configuration
+  Claude Code integration. No side effects when MCP is not used.
+  Graceful error message when mcp/jupyter_client packages are missing.
 
 * Wed Apr 02 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.0-beta3)

@@ -18,17 +18,39 @@ import sys
 import queue
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
-import jupyter_client
+try:
+    from mcp.server.fastmcp import FastMCP
+except ImportError:
+    print("Error: 'mcp' package not installed. Run:", file=sys.stderr)
+    print(f"  {sys.executable} -m pip install mcp jupyter_client", file=sys.stderr)
+    sys.exit(1)
+try:
+    import jupyter_client
+except ImportError:
+    print("Error: 'jupyter_client' package not installed. Run:", file=sys.stderr)
+    print(f"  {sys.executable} -m pip install jupyter_client", file=sys.stderr)
+    sys.exit(1)
 
 CONN_INFO_PATH = Path.home() / ".kame_kernel_connection.json"
+API_DOC_PATH = Path(__file__).parent / "kame_python_api.md"
+
+# Preamble injected before tool-generated code to bypass KAME's HTML stdout
+# redirect. Uses STDOUT (the original sys.stdout saved by xpythonsupport.py).
+_PRINT_PREAMBLE = "import sys as _sys; _print = lambda *a, **kw: __builtins__['print'](*a, **kw, file=_sys.__stdout__)\n"
 
 server = FastMCP("kame", instructions="""You are connected to a running KAME measurement application
 via its embedded IPython kernel. The `kame` module is pre-imported:
 Root(), Snapshot(), Transaction() are available directly.
 
-Use execute_code to interact with instruments, read data, and control experiments.
-Use read_node to quickly inspect node values without writing full Python.""")
+IMPORTANT: Call kame_api first to learn the Python API before writing code.
+
+Key patterns:
+- Read: shot = Snapshot(node); float(shot[node]) or str(shot[node])
+- List children: shot.list(node) returns list[XNode], use child.getName()
+- Write: node["Child"] = value (auto-transactional)
+- Drivers: Root()["Drivers"]["DriverName"]
+- Dump children: for c in shot.list(node): print(c.getName(), str(shot[c]))
+""")
 
 def _get_client() -> jupyter_client.BlockingKernelClient:
     """Connect to KAME's embedded IPython kernel."""
@@ -45,7 +67,6 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
     client = jupyter_client.BlockingKernelClient()
     client.load_connection_file(cf)
     client.start_channels()
-    # Verify kernel is alive
     try:
         client.wait_for_ready(timeout=5)
     except RuntimeError:
@@ -85,6 +106,27 @@ def _execute(code: str, timeout: float = 30.0) -> str:
         client.stop_channels()
 
 
+def _nav_code(path: str) -> str:
+    """Build Python navigation expression from a slash-separated path."""
+    parts = path.strip("/").split("/")
+    nav = 'Root()'
+    for p in parts:
+        nav += f'["{p}"]'
+    return nav
+
+
+@server.tool()
+def kame_api() -> str:
+    """Return the KAME Python API quick reference.
+
+    Call this FIRST before writing any code to learn the correct patterns
+    for reading values, navigating nodes, and controlling instruments.
+    """
+    if API_DOC_PATH.exists():
+        return API_DOC_PATH.read_text()
+    return "API documentation not found at " + str(API_DOC_PATH)
+
+
 @server.tool()
 def execute_code(code: str) -> str:
     """Execute Python code in KAME's interpreter.
@@ -95,12 +137,8 @@ def execute_code(code: str) -> str:
     - Transaction(node) — optimistic write access
     - sleep(sec) — KAME-aware sleep (use instead of time.sleep)
 
-    Example: Read a DMM value
-        shot = Snapshot(Root()["Drivers"]["DMM1"])
-        print(shot[Root()["Drivers"]["DMM1"]]["Value"].to_str())
-
-    Example: Set a parameter
-        Root()["Drivers"]["TempCtrl"]["TargetTemp"].set("300")
+    NOTE: print() in KAME's kernel may produce HTML. For clean text output,
+    use: print(..., file=sys.__stdout__)
 
     Returns the stdout/stderr output and execution results.
     """
@@ -114,42 +152,100 @@ def read_node(path: str) -> str:
     Args:
         path: Slash-separated node path from Root, e.g. "Drivers/DMM1/Value"
 
-    Returns the node's string value.
+    Returns the node's string value and numeric value if applicable.
     """
-    parts = path.strip("/").split("/")
-    nav = 'Root()'
-    for p in parts:
-        nav += f'["{p}"]'
-    code = f"""
+    nav = _nav_code(path)
+    code = _PRINT_PREAMBLE + f"""
 _node = {nav}
 _shot = Snapshot(_node)
-print(str(_shot[_node]))
+_val = str(_shot[_node])
+_print(_val)
+try:
+    _print("(numeric:", float(_shot[_node]), ")")
+except (TypeError, ValueError):
+    pass
 """
     return _execute(code)
 
 
 @server.tool()
 def list_children(path: str = "") -> str:
-    """List child nodes at a given path.
+    """List child nodes at a given path with their types and values.
 
     Args:
         path: Slash-separated path from Root (empty string for root children).
               e.g. "Drivers" or "Drivers/DMM1"
 
-    Returns names of all child nodes.
+    Returns structured list: name, typename, and value for each child.
     """
-    if path.strip("/"):
-        parts = path.strip("/").split("/")
-        nav = 'Root()'
-        for p in parts:
-            nav += f'["{p}"]'
-    else:
-        nav = 'Root()'
-    code = f"""
+    nav = _nav_code(path) if path.strip("/") else 'Root()'
+    code = _PRINT_PREAMBLE + f"""
+import json as _json
 _node = {nav}
 _shot = Snapshot(_node)
+_result = []
 for _child in _shot.list(_node):
-    print(_child.getName())
+    _entry = {{"name": _child.getName(), "type": _child.getTypename()}}
+    try:
+        _entry["value"] = str(_shot[_child])
+    except Exception:
+        pass
+    _result.append(_entry)
+_print(_json.dumps(_result, indent=2, ensure_ascii=False))
+"""
+    return _execute(code)
+
+
+@server.tool()
+def read_scalar(path: str) -> str:
+    """Read a scalar value from a KAME node by path.
+
+    Traverses the path, reads a Snapshot, and returns the numeric value.
+
+    Args:
+        path: Slash-separated path, e.g. "Drivers/TempControl/Ch.B"
+
+    Returns the numeric value as a string, or the raw string value.
+    """
+    nav = _nav_code(path)
+    code = _PRINT_PREAMBLE + f"""
+import json as _json
+_node = {nav}
+_shot = Snapshot(_node)
+_result = {{"path": {repr(path)}}}
+try:
+    _result["value"] = float(_shot[_node])
+except (TypeError, ValueError):
+    _result["value"] = str(_shot[_node])
+_result["label"] = _node.getLabel() or _node.getName()
+_print(_json.dumps(_result, ensure_ascii=False))
+"""
+    return _execute(code)
+
+
+@server.tool()
+def list_scalars() -> str:
+    """List all scalar entries with their current values.
+
+    Returns every XScalarEntry registered in the measurement,
+    with name, driver, and current value. Useful for orientation.
+    """
+    code = _PRINT_PREAMBLE + """
+import json as _json
+_entries = Root()["ScalarEntries"]
+_shot = Snapshot(_entries)
+_result = []
+for _e in _shot.list(_entries):
+    _entry = {"name": _e.getName(), "label": _e.getLabel() or _e.getName()}
+    try:
+        _entry["value"] = float(_shot[_e])
+    except (TypeError, ValueError):
+        try:
+            _entry["value"] = str(_shot[_e])
+        except Exception:
+            _entry["value"] = None
+    _result.append(_entry)
+_print(_json.dumps(_result, indent=2, ensure_ascii=False))
 """
     return _execute(code)
 
@@ -160,16 +256,17 @@ def kame_status() -> str:
     if not CONN_INFO_PATH.exists():
         return "KAME is not running."
     try:
-        result = _execute("""
-import os
-print(f"KAME PID: {os.getpid()}")
-_shot = Snapshot(Root())
+        code = _PRINT_PREAMBLE + """
+import os as _os
+import json as _json
 _drivers = Root()["Drivers"]
 _dshot = Snapshot(_drivers)
-_names = [str(_c.getName()) for _c in _dshot.list(_drivers)]
-print(f"Drivers ({len(_names)}): {', '.join(_names) if _names else '(none)'}")
-""", timeout=10)
-        return result
+_dlist = []
+for _d in _dshot.list(_drivers):
+    _dlist.append({"name": _d.getName(), "type": _d.getTypename()})
+_print(_json.dumps({"pid": _os.getpid(), "drivers": _dlist}, indent=2, ensure_ascii=False))
+"""
+        return _execute(code, timeout=10)
     except Exception as e:
         return f"KAME kernel error: {e}"
 
