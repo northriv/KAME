@@ -34,10 +34,6 @@ except ImportError:
 CONN_INFO_PATH = Path.home() / ".kame_kernel_connection.json"
 API_DOC_PATH = Path(__file__).parent / "kame_python_api.md"
 
-# Preamble injected before tool-generated code to bypass KAME's HTML stdout
-# redirect. Uses STDOUT (the original sys.stdout saved by xpythonsupport.py).
-_PRINT_PREAMBLE = "import sys as _sys, builtins as _builtins; _print = lambda *a, **kw: _builtins.print(*a, **kw, file=_sys.__stdout__)\n"
-
 server = FastMCP("kame", instructions="""You are connected to a running KAME measurement application
 via its embedded IPython kernel. The `kame` module is pre-imported:
 Root(), Snapshot(), Transaction() are available directly.
@@ -49,7 +45,11 @@ Key patterns:
 - List children: shot.list(node) returns list[XNode], use child.getName()
 - Write: node["Child"] = value (auto-transactional)
 - Drivers: Root()["Drivers"]["DriverName"]
-- Dump children: for c in shot.list(node): print(c.getName(), str(shot[c]))
+- Scalar entry value: entry["Value"] is XDoubleNode, float(shot[entry["Value"]])
+
+NOTE: print() in KAME's kernel produces HTML, not plain text.
+In execute_code, use expression results (last line as bare expression)
+instead of print(). Example: use `result` not `print(result)`.
 """)
 
 def _get_client() -> jupyter_client.BlockingKernelClient:
@@ -95,7 +95,10 @@ def _execute(code: str, timeout: float = 30.0) -> str:
                 outputs.append(content["text"])
             elif msg_type in ("execute_result", "display_data"):
                 data = content.get("data", {})
-                outputs.append(data.get("text/plain", ""))
+                # Prefer text/plain; skip HTML object reprs
+                text = data.get("text/plain", "")
+                if "HTML object" not in text:
+                    outputs.append(text)
             elif msg_type == "error":
                 tb = "\n".join(content.get("traceback", []))
                 outputs.append(f"ERROR: {content.get('ename')}: {content.get('evalue')}\n{tb}")
@@ -137,8 +140,12 @@ def execute_code(code: str) -> str:
     - Transaction(node) — optimistic write access
     - sleep(sec) — KAME-aware sleep (use instead of time.sleep)
 
-    NOTE: print() in KAME's kernel may produce HTML. For clean text output,
-    use: print(..., file=sys.__stdout__)
+    IMPORTANT: print() produces HTML in KAME's kernel. Use a bare expression
+    as the last line to return results. Example:
+        snap = Snapshot(Root()["Drivers"]["DMM1"])
+        float(snap[Root()["Drivers"]["DMM1"]["Value"]])
+    NOT:
+        print(float(...))
 
     Returns the stdout/stderr output and execution results.
     """
@@ -152,18 +159,12 @@ def read_node(path: str) -> str:
     Args:
         path: Slash-separated node path from Root, e.g. "Drivers/DMM1/Value"
 
-    Returns the node's string value and numeric value if applicable.
+    Returns the node's string value.
     """
     nav = _nav_code(path)
-    code = _PRINT_PREAMBLE + f"""
+    code = f"""
 _node = {nav}
-_shot = Snapshot(_node)
-_val = str(_shot[_node])
-_print(_val)
-try:
-    _print("(numeric:", float(_shot[_node]), ")")
-except (TypeError, ValueError):
-    pass
+str(_node)
 """
     return _execute(code)
 
@@ -179,7 +180,7 @@ def list_children(path: str = "") -> str:
     Returns structured list: name, typename, and value for each child.
     """
     nav = _nav_code(path) if path.strip("/") else 'Root()'
-    code = _PRINT_PREAMBLE + f"""
+    code = f"""
 import json as _json
 _node = {nav}
 _shot = Snapshot(_node)
@@ -187,11 +188,11 @@ _result = []
 for _child in _shot.list(_node):
     _entry = {{"name": _child.getName(), "type": _child.getTypename()}}
     try:
-        _entry["value"] = str(_shot[_child])
+        _entry["value"] = str(_child)
     except Exception:
         pass
     _result.append(_entry)
-_print(_json.dumps(_result, indent=2, ensure_ascii=False))
+_json.dumps(_result, indent=2, ensure_ascii=False)
 """
     return _execute(code)
 
@@ -200,25 +201,30 @@ _print(_json.dumps(_result, indent=2, ensure_ascii=False))
 def read_scalar(path: str) -> str:
     """Read a scalar value from a KAME node by path.
 
-    Traverses the path, reads a Snapshot, and returns the numeric value.
+    For value nodes (XDoubleNode etc.), returns the numeric value directly.
+    For XScalarEntry nodes, reads the "Value" child node.
 
     Args:
         path: Slash-separated path, e.g. "Drivers/TempControl/Ch.B"
 
-    Returns the numeric value as a string, or the raw string value.
+    Returns JSON with path, label, and value.
     """
     nav = _nav_code(path)
-    code = _PRINT_PREAMBLE + f"""
+    code = f"""
 import json as _json
 _node = {nav}
 _shot = Snapshot(_node)
-_result = {{"path": {repr(path)}}}
+_result = {{"path": {repr(path)}, "label": _node.getLabel() or _node.getName()}}
 try:
     _result["value"] = float(_shot[_node])
 except (TypeError, ValueError):
-    _result["value"] = str(_shot[_node])
-_result["label"] = _node.getLabel() or _node.getName()
-_print(_json.dumps(_result, ensure_ascii=False))
+    # Might be XScalarEntry — try Value child
+    _val = _node["Value"]
+    if _val is not None:
+        _result["value"] = float(_shot[_val])
+    else:
+        _result["value"] = str(_node)
+_json.dumps(_result, ensure_ascii=False)
 """
     return _execute(code)
 
@@ -230,7 +236,7 @@ def list_scalars() -> str:
     Returns every XScalarEntry registered in the measurement,
     with name, driver, and current value. Useful for orientation.
     """
-    code = _PRINT_PREAMBLE + """
+    code = """
 import json as _json
 _entries = Root()["ScalarEntries"]
 _shot = Snapshot(_entries)
@@ -247,7 +253,7 @@ for _e in _shot.list(_entries):
     except Exception:
         pass
     _result.append(_entry)
-_print(_json.dumps(_result, indent=2, ensure_ascii=False))
+_json.dumps(_result, indent=2, ensure_ascii=False)
 """
     return _execute(code)
 
@@ -258,15 +264,14 @@ def kame_status() -> str:
     if not CONN_INFO_PATH.exists():
         return "KAME is not running."
     try:
-        code = _PRINT_PREAMBLE + """
-import os as _os
-import json as _json
+        code = """
+import os as _os, json as _json
 _drivers = Root()["Drivers"]
 _dshot = Snapshot(_drivers)
 _dlist = []
 for _d in _dshot.list(_drivers):
     _dlist.append({"name": _d.getName(), "type": _d.getTypename()})
-_print(_json.dumps({"pid": _os.getpid(), "drivers": _dlist}, indent=2, ensure_ascii=False))
+_json.dumps({"pid": _os.getpid(), "drivers": _dlist}, indent=2, ensure_ascii=False)
 """
         return _execute(code, timeout=10)
     except Exception as e:
