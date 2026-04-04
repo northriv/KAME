@@ -1,3 +1,13 @@
+* Fri Apr 04 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- Smart window placement: new driver/graph windows cascade automatically on
+  first show via FrmKameMain::eventFilter. QForm template auto-installs the
+  filter for all top-level windows. showNormal()+raise() still used for
+  restoring minimized windows on driver list click.
+- NI USB-GPIB: fix missing mutex_unlock on early ENOMEM return in ni_usb_write;
+  return -EIO instead of 0 on short bulk write.
+- NI USB-GPIB: prevent duplicate interrupt URB polling thread in win_compat.h.
+- Version bump to 8.0.
+
 * Wed Apr 02 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.0-beta3)
 - XCalibratedEntry: add FLAG_AVOID_DUP to onSelectionChanged listener so that
