@@ -53,8 +53,13 @@ In execute_code, use expression results (last line as bare expression)
 instead of print(). Example: use `result` not `print(result)`.
 """)
 
+_client = None
+
 def _get_client() -> jupyter_client.BlockingKernelClient:
-    """Connect to KAME's embedded IPython kernel."""
+    """Connect to KAME's embedded IPython kernel (reuses connection)."""
+    global _client
+    if _client is not None and _client.is_alive():
+        return _client
     if not CONN_INFO_PATH.exists():
         raise RuntimeError(
             "KAME is not running (no ~/.kame_kernel_connection.json). "
@@ -73,6 +78,9 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
     except RuntimeError:
         client.stop_channels()
         raise RuntimeError("KAME kernel is not responding.")
+    # Enable inline matplotlib so plots produce image/png
+    client.execute("%matplotlib inline")
+    _client = client
     return client
 
 
@@ -115,8 +123,11 @@ def _execute(code: str, timeout: float = 30.0) -> list:
         if not outputs:
             return ["(no output)"]
         return outputs
-    finally:
-        client.stop_channels()
+    except Exception:
+        # Reset client on error so next call reconnects
+        global _client
+        _client = None
+        raise
 
 
 def _execute_text(code: str, timeout: float = 30.0) -> str:
