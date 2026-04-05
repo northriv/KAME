@@ -17,6 +17,7 @@ import json
 import os
 import sys
 import queue
+import time
 from pathlib import Path
 
 try:
@@ -177,6 +178,66 @@ def execute_code(code: str) -> list:
     Returns the stdout/stderr output, execution results, and matplotlib plots.
     """
     return _execute(code)
+
+
+@server.tool()
+def execute_code_async(code: str) -> str:
+    """Execute long-running Python code asynchronously.
+
+    Use this for experiments that take minutes or hours (sweeps, scans,
+    relaxation measurements). The code runs in a background thread on the
+    kernel while the kernel remains responsive for other tool calls.
+
+    Store results in global variables so you can read them afterward
+    with execute_code. Example:
+
+        execute_code_async('''
+        results = []
+        for field in [0, 1, 2, 3, 4, 5]:
+            dc_source["Value"] = field
+            sleep(1.0)
+            snap = Snapshot(root)
+            results.append({"field": field, "signal": float(snap[nmr_val])})
+        ''')
+
+    Then check status with get_result(job_id), and when done, use
+    execute_code to read and plot the results variable.
+
+    Returns a job_id string for use with get_result().
+    """
+    job_id = f"_mcp_{int(time.time() * 1000)}"
+    wrapper = f"""
+import threading as _th, traceback as _tb
+_mcp_jobs = globals().setdefault("_mcp_jobs", {{}})
+_mcp_jobs[{repr(job_id)}] = {{"status": "running"}}
+def _mcp_run():
+    try:
+        exec({repr(code)}, globals())
+        _mcp_jobs[{repr(job_id)}]["status"] = "done"
+    except Exception:
+        _mcp_jobs[{repr(job_id)}]["status"] = "error"
+        _mcp_jobs[{repr(job_id)}]["error"] = _tb.format_exc()
+_th.Thread(target=_mcp_run, daemon=True).start()
+{repr(job_id)}
+"""
+    return _execute_text(wrapper)
+
+
+@server.tool()
+def get_result(job_id: str) -> str:
+    """Check the status of an async job started with execute_code_async.
+
+    Args:
+        job_id: The job ID returned by execute_code_async.
+
+    Returns JSON with "status" ("running", "done", or "error").
+    If error, includes "error" with the traceback.
+    """
+    code = f"""
+import json as _json
+_json.dumps(_mcp_jobs.get({repr(job_id)}, {{"status": "unknown"}}))
+"""
+    return _execute_text(code)
 
 
 @server.tool()

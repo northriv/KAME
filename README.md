@@ -423,7 +423,9 @@ This enables conversational experiment control:
 | Tool | Description |
 |---|---|
 | `kame_api` | Return the Python API quick reference (call first) |
-| `execute_code` | Run arbitrary Python in KAME's interpreter |
+| `execute_code` | Run Python in KAME's interpreter (returns text + matplotlib plots) |
+| `execute_code_async` | Run long experiments asynchronously (sweeps, scans) |
+| `get_result` | Check status of an async job |
 | `read_node` | Read a node value by path (e.g. `Drivers/DMM1/Value`) |
 | `read_scalar` | Read a numeric value by path — single call, returns JSON |
 | `list_children` | List child nodes at a path with types and values (JSON) |
