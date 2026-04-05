@@ -258,6 +258,21 @@ str(_node)
 
 
 @server.tool()
+def set_node(path: str, value: str) -> str:
+    """Set a KAME node value by path.
+
+    Args:
+        path: Slash-separated node path from Root, e.g. "Drivers/DMM1/Average"
+        value: The value to set (string, number, or boolean as string).
+
+    Returns confirmation or error message.
+    """
+    nav = _nav_code(path)
+    code = f"{nav}.set({repr(value)})"
+    return _execute_text(code)
+
+
+@server.tool()
 def list_children(path: str = "") -> str:
     """List child nodes at a given path with their types and values.
 
