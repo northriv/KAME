@@ -203,6 +203,12 @@ def execute_code_async(code: str) -> str:
     Then check status with get_result(job_id), and when done, use
     execute_code to read and plot the results variable.
 
+    CAUTION: The background thread shares globals() with the kernel.
+    KAME node operations (Snapshot, Transaction, node[]=) are thread-safe,
+    but avoid reading Python variables from other tools while the async
+    job is still writing to them. Wait for "done" status before reading
+    result variables.
+
     Returns a job_id string for use with get_result().
     """
     job_id = f"_mcp_{int(time.time() * 1000)}"
@@ -241,20 +247,27 @@ _json.dumps(_mcp_jobs.get({repr(job_id)}, {{"status": "unknown"}}))
 
 
 @server.tool()
-def read_node(path: str) -> str:
-    """Read the current value of a KAME node by path.
+def read_node(paths: str) -> str:
+    """Read node values by path. Accepts one or multiple comma-separated paths.
 
     Args:
-        path: Slash-separated node path from Root, e.g. "Drivers/DMM1/Value"
+        paths: One or more slash-separated paths, comma-separated.
+               e.g. "Drivers/DMM1/Value" or
+               "Drivers/TempControl/Ch.B/Value, Drivers/MagnetPS/Field"
 
-    Returns the node's string value.
+    Returns the value string for one path, or JSON {path: value} for multiple.
     """
-    nav = _nav_code(path)
-    code = f"""
-_node = {nav}
-str(_node)
-"""
-    return _execute_text(code)
+    path_list = [p.strip() for p in paths.split(",")]
+    if len(path_list) == 1:
+        nav = _nav_code(path_list[0])
+        return _execute_text(f"str({nav})")
+    lines = ["import json as _json", "_result = {}"]
+    for p in path_list:
+        nav = _nav_code(p)
+        lines.append(f"try:\n _result[{repr(p)}] = str({nav})")
+        lines.append(f"except Exception as _e:\n _result[{repr(p)}] = f'ERROR: {{_e}}'")
+    lines.append("_json.dumps(_result, ensure_ascii=False)")
+    return _execute_text("\n".join(lines))
 
 
 @server.tool()
