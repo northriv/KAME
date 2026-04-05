@@ -12,6 +12,7 @@ Requirements:
 Usage (stdio transport, launched by Claude Code):
     python kame_mcp_server.py
 """
+import base64
 import json
 import os
 import sys
@@ -19,7 +20,7 @@ import queue
 from pathlib import Path
 
 try:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.fastmcp import FastMCP, Image
 except ImportError:
     print("Error: 'mcp' package not installed. Run:", file=sys.stderr)
     print(f"  {sys.executable} -m pip install mcp jupyter_client", file=sys.stderr)
@@ -75,12 +76,12 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
     return client
 
 
-def _execute(code: str, timeout: float = 30.0) -> str:
-    """Execute code on the kernel and collect output."""
+def _execute(code: str, timeout: float = 30.0) -> list:
+    """Execute code on the kernel and collect output (text and images)."""
     client = _get_client()
     try:
         msg_id = client.execute(code)
-        outputs = []
+        outputs = []  # str for text, Image for images
         while True:
             try:
                 msg = client.get_iopub_msg(timeout=timeout)
@@ -95,18 +96,33 @@ def _execute(code: str, timeout: float = 30.0) -> str:
                 outputs.append(content["text"])
             elif msg_type in ("execute_result", "display_data"):
                 data = content.get("data", {})
-                # Prefer text/plain; skip HTML object reprs
-                text = data.get("text/plain", "")
-                if "HTML object" not in text:
-                    outputs.append(text)
+                # Return images via MCP Image content
+                if "image/png" in data:
+                    outputs.append(Image(
+                        data=base64.b64decode(data["image/png"]),
+                        format="png",
+                    ))
+                else:
+                    # Prefer text/plain; skip HTML object reprs
+                    text = data.get("text/plain", "")
+                    if "HTML object" not in text:
+                        outputs.append(text)
             elif msg_type == "error":
                 tb = "\n".join(content.get("traceback", []))
                 outputs.append(f"ERROR: {content.get('ename')}: {content.get('evalue')}\n{tb}")
             elif msg_type == "status" and content.get("execution_state") == "idle":
                 break
-        return "\n".join(outputs).strip() or "(no output)"
+        if not outputs:
+            return ["(no output)"]
+        return outputs
     finally:
         client.stop_channels()
+
+
+def _execute_text(code: str, timeout: float = 30.0) -> str:
+    """Execute code and return only text output (no images)."""
+    results = _execute(code, timeout)
+    return "\n".join(r for r in results if isinstance(r, str)).strip() or "(no output)"
 
 
 def _nav_code(path: str) -> str:
@@ -131,7 +147,7 @@ def kame_api() -> str:
 
 
 @server.tool()
-def execute_code(code: str) -> str:
+def execute_code(code: str) -> list:
     """Execute Python code in KAME's interpreter.
 
     The kame module is pre-imported. Available globals include:
@@ -147,7 +163,7 @@ def execute_code(code: str) -> str:
     NOT:
         print(float(...))
 
-    Returns the stdout/stderr output and execution results.
+    Returns the stdout/stderr output, execution results, and matplotlib plots.
     """
     return _execute(code)
 
@@ -166,7 +182,7 @@ def read_node(path: str) -> str:
 _node = {nav}
 str(_node)
 """
-    return _execute(code)
+    return _execute_text(code)
 
 
 @server.tool()
@@ -194,7 +210,7 @@ for _child in _shot.list(_node):
     _result.append(_entry)
 _json.dumps(_result, indent=2, ensure_ascii=False)
 """
-    return _execute(code)
+    return _execute_text(code)
 
 
 @server.tool()
@@ -226,7 +242,7 @@ except (TypeError, ValueError):
         _result["value"] = str(_node)
 _json.dumps(_result, ensure_ascii=False)
 """
-    return _execute(code)
+    return _execute_text(code)
 
 
 @server.tool()
@@ -255,7 +271,7 @@ for _e in _shot.list(_entries):
     _result.append(_entry)
 _json.dumps(_result, indent=2, ensure_ascii=False)
 """
-    return _execute(code)
+    return _execute_text(code)
 
 
 @server.tool()
@@ -273,7 +289,7 @@ for _d in _dshot.list(_drivers):
     _dlist.append({"name": _d.getName(), "type": _d.getTypename()})
 _json.dumps({"pid": _os.getpid(), "drivers": _dlist}, indent=2, ensure_ascii=False)
 """
-        return _execute(code, timeout=10)
+        return _execute_text(code, timeout=10)
     except Exception as e:
         return f"KAME kernel error: {e}"
 
