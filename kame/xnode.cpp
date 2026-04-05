@@ -50,10 +50,14 @@ XNode::~XNode() {
 XString
 XNode::getTypename() const {
     XString name = typeid( *this).name();
-    int i = name.find('X');
-    assert(i != std::string::npos);
-    assert(i + 1 < name.length());
-    return name.substr(i + 1);
+    size_t i = name.find('X');
+    if(i != std::string::npos && i + 1 < name.length())
+        return name.substr(i + 1);
+    // Fallback for non-X-prefixed classes: strip Itanium ABI length digits.
+    size_t j = name.find_first_not_of("0123456789");
+    if(j != std::string::npos)
+        return name.substr(j);
+    return name;
 }
 
 void

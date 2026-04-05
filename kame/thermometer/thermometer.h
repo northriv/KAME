@@ -241,7 +241,6 @@ class DECLSPEC_KAME XApproxThermometer : public XCSplineCalibrationX<XResistance
 public:
     XApproxThermometer(const char *name, bool runtime)
         : XCSplineCalibrationX<XResistanceThermometer>(name, runtime, "ResList", "TempList") {}
-    XString getTypename() const override { return "ApproxThermometer"; }
     //! Backward-compat aliases.
     const shared_ptr<XDoubleListNode> &resList() const { return rawList(); }
     const shared_ptr<XDoubleListNode> &tempList() const { return outputList(); }
@@ -251,7 +250,6 @@ public:
 class DECLSPEC_KAME XGenericCalibration : public XCSplineCalibrationX<XCalibrationCurve> {
 public:
     XGenericCalibration(const char *name, bool runtime);
-    XString getTypename() const override { return "GenericCalibration"; }
     XString outputLabel() const override { return ***m_outputLabel; }
     XString outputUnit()  const override { return ***m_outputUnit; }
     XString rawLabel()    const override { return ***m_rawLabel; }
