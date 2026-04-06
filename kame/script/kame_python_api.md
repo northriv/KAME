@@ -187,3 +187,43 @@ for e in shot.list(entries):
     val = float(shot[e["Value"]])
     print(f"{e.getName()} ({e.driver().getName()}): {val}")
 ```
+
+## Graph Data Access
+
+### XWaveNGraph (1D plots)
+
+```python
+shot = Snapshot(wave_graph)
+p = shot[wave_graph]
+p.colCount()                      # Number of columns
+p.rowCount()                      # Number of rows
+p.labels()                        # Column labels (list[str])
+p.getColumn(0)                    # Column data (list[float])
+
+# Plot with matplotlib
+import matplotlib.pyplot as plt
+x = p.getColumn(0)
+y = p.getColumn(1)
+labels = p.labels()
+plt.plot(x, y)
+plt.xlabel(labels[0])
+plt.ylabel(labels[1])
+plt.gcf()
+```
+
+### X2DImagePlot (2D images)
+
+```python
+shot = Snapshot(image_plot)
+png_bytes = shot[image_plot].to_png()  # QImage as PNG bytes (or None)
+
+# Display via IPython (returned as image through MCP)
+from IPython.display import display, Image
+display(Image(data=png_bytes, format='png'))
+
+# Or load into matplotlib for further analysis
+import matplotlib.pyplot as plt, io
+img = plt.imread(io.BytesIO(png_bytes))
+plt.imshow(img)
+plt.gcf()
+```
