@@ -21,7 +21,6 @@
 #ifndef USE_STD_ALLOCATOR
 
 #include "atomic.h"
-#include "atomic_prv_x86.h"
 
 #include <assert.h>
 #include <string.h>
