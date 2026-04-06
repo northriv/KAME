@@ -213,9 +213,17 @@ plt.gcf()
 
 ### X2DImagePlot (2D images)
 
+To reach `to_png()`, navigate: X2DImage → Graph child → Plots → ImagePlot.
+
 ```python
-shot = Snapshot(image_plot)
-png_bytes = shot[image_plot].to_png()  # QImage as PNG bytes (or None)
+# Full path example for a camera LiveImage:
+# Root()["Drivers"]["JAI"]["LiveImage"]        → X2DImage (XGraphNToolBox)
+#   ["LiveImage"]                               → XGraph
+#     ["Plots"]["ImagePlot"]                    → X2DImagePlot (has to_png())
+
+imgplot = Root()["Drivers"]["JAI"]["LiveImage"]["LiveImage"]["Plots"]["ImagePlot"]
+shot = Snapshot(imgplot)
+png_bytes = shot[imgplot].to_png()  # QImage as PNG bytes (or None)
 
 # Display via IPython (returned as image through MCP)
 from IPython.display import display, Image
@@ -226,4 +234,47 @@ import matplotlib.pyplot as plt, io
 img = plt.imread(io.BytesIO(png_bytes))
 plt.imshow(img)
 plt.gcf()
+```
+
+## 2D Math Tools
+
+X2DImage nodes have `Graph2DMathToolList` children (one per channel, e.g. `CH0`, `CH1`).
+Use `createByTypename()` to add math tools; `release()` to remove them.
+
+### Available types
+
+| Type name | Description |
+|---|---|
+| `Graph2DMathToolAverage` | Average pixel value in ROI |
+| `Graph2DMathToolSum` | Sum of pixel values in ROI |
+
+### Creating and configuring
+
+```python
+ch0 = Root()["Drivers"]["JAI"]["LiveImage"]["CH0"]
+dc = ch0.dynamic_cast()  # needed for createByTypename
+
+# Create — returns the new tool node
+tool = dc.createByTypename("Graph2DMathToolAverage", "MyAvg")
+
+# Set ROI in pixel coordinates (image pixels, not screen pixels)
+tool["BeginX"] = "100"
+tool["BeginY"] = "100"
+tool["EndX"] = "500"
+tool["EndY"] = "500"
+
+# Read the scalar entry value
+val_node = tool["CH0-MyAvg"]["Value"]  # name = "{channel}-{toolname}"
+shot = Snapshot(val_node)
+float(shot[val_node])
+```
+
+### Removing a tool
+
+```python
+ch0 = Root()["Drivers"]["JAI"]["LiveImage"]["CH0"]
+dc = ch0.dynamic_cast()
+shot = Snapshot(ch0)
+children = shot.list(ch0)
+dc.release(children[0])  # release by reference from list
 ```

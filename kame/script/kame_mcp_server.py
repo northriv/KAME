@@ -296,13 +296,13 @@ def kame_status() -> str:
         return "KAME is not running."
     try:
         code = """
-import os as _os, json as _json
+import os as _os
 _drivers = Root()["Drivers"]
 _dshot = Snapshot(_drivers)
-_dlist = []
+_lines = [f"PID: {_os.getpid()}", f"Drivers ({_dshot.size(_drivers)}):"]
 for _d in _dshot.list(_drivers):
-    _dlist.append({"name": _d.getName(), "type": _d.getTypename()})
-_json.dumps({"pid": _os.getpid(), "drivers": _dlist}, indent=2, ensure_ascii=False)
+    _lines.append(f"  {_d.getName()} ({_d.getTypename()})")
+"\\n".join(_lines)
 """
         return _execute_text(code, timeout=10)
     except Exception as e:
