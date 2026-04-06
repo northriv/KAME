@@ -1,5 +1,5 @@
-* Fri Apr 04 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
-- (8.0-beta4)
+* Mon Apr 06 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (8.0)
 - Smart window placement: new driver/graph windows cascade automatically on
   first show via FrmKameMain::eventFilter. QForm template auto-installs the
   filter for all top-level windows. showNormal()+raise() still used for
