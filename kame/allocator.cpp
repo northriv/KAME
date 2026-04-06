@@ -25,6 +25,27 @@
 #include <assert.h>
 #include <string.h>
 #include <type_traits>
+
+// Portable atomic primitives for the custom pool allocator.
+// These replace the former x86-only inline assembly (atomic_prv_x86.h)
+// with GCC/Clang __sync builtins that work on all architectures.
+template <typename T>
+inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
+atomicCompareAndSet(T oldv, T newv, T *target) noexcept {
+    return __sync_bool_compare_and_swap(target, oldv, newv);
+}
+template <typename T>
+inline void atomicInc(T *target) noexcept {
+    __sync_fetch_and_add(target, 1);
+}
+template <typename T>
+inline void atomicDec(T *target) noexcept {
+    __sync_fetch_and_sub(target, 1);
+}
+template <typename T>
+inline bool atomicDecAndTest(T *target) noexcept {
+    return __sync_sub_and_fetch(target, 1) == 0;
+}
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 #else
     #include <sys/mman.h>
