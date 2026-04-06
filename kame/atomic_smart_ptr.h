@@ -106,6 +106,10 @@ private:
     std::function<void()> m_deleter;
 };
 
+//! Type trait: true when T uses intrusive reference counting.
+template <typename T>
+using is_intrusive = std::is_base_of<atomic_countable, T>;
+
 //! \brief Base class for atomic_shared_ptr without intrusive counting, so-called "simple counted".\n
 //! A global referece counter (an instance of atomic_shared_ptr_gref_) will be created.
 template <typename T, typename reflocal_t, typename reflocal_var_t, typename Enable = void>
@@ -138,7 +142,7 @@ protected:
 };
 //! \brief Base class for atomic_shared_ptr with intrusive counting.
 template <typename T, typename reflocal_t, typename reflocal_var_t>
-struct atomic_shared_ptr_base<T, reflocal_t, reflocal_var_t, typename std::enable_if<std::is_base_of<atomic_countable, T>::value>::type > {
+struct atomic_shared_ptr_base<T, reflocal_t, reflocal_var_t, typename std::enable_if<is_intrusive<T>::value>::type > {
 protected:
     typedef T Ref;
     typedef typename atomic_countable::Refcnt Refcnt;

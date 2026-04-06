@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 KAME is a scientific instrument control and measurement software framework written in C++11/Qt. It provides a plugin-based architecture for controlling laboratory instruments (oscilloscopes, lock-in amplifiers, temperature controllers, magnet power supplies, etc.) with Python and Ruby scripting support. Version 8.0.
 
-**Platforms:** macOS, Windows (64-bit). Linux support is discontinued; the `CMakeLists.txt` / KDE4 build is legacy and not maintained.
+**Platforms:** macOS, Windows (64-bit). Linux support is discontinued.
 
 ## Build System
 
-The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake). The `CMakeLists.txt` targets KDE4 (Linux, legacy/discontinued).
+The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake).
 
 **Adding new files to the build:**
 - Core framework / scripts: edit `kame/kame.pro`
@@ -21,12 +21,6 @@ The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake)
 - `gsl`, `fftw3`, `libtool-ltdl`, `zlib`, `libusb`, `eigen3`, `pybind11` (no boost)
 - Use genuine Qt (not from MacPorts); Qt5 compatibility module required for Qt 6
 - Do NOT enable "Add build library search path..." in Qt Creator's executable environment pane — this causes crashes
-
-**Running tests** (CMake build only):
-```sh
-cd build && ctest                    # run all tests
-cd build && ./tests/transaction_test # run a specific test
-```
 
 Tests live in `tests/` and cover the core STM framework: `allocator_test`, `atomic_shared_ptr_test`, `atomic_queue_test`, `mutex_test`, `transaction_test`, `transaction_negotiation_test`, `transaction_dynamic_node_test`.
 
