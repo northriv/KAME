@@ -1025,11 +1025,10 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
 //     thread modified the parent, return DISTURBED and let the caller retry.
 //
 //   Phase 3 — Second checkpoint (CAS on each child Linkage):
-//     Replace each child's PacketWrapper with a "bundled_ref" — a wrapper
+//     Replace each child's PacketWrapper with a bundled_ref — a wrapper
 //     that points back to the parent (bundledBy = m_link) and stores the
-//     child's reverse index. Despite the variable name "bundled_ref", these
-//     wrappers are NOT null; they are back-references that allow the child
-//     to find its packet inside the parent's bundled packet.
+//     child's reverse index. These back-references allow the child to find
+//     its packet inside the parent's bundled packet.
 //     If any child was modified between phases 2 and 3, restart from phase 1.
 //
 //   Phase 4 — Finalize:
@@ -1131,8 +1130,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         oldsuperwrapper = superwrapper;
 
         //--- Phase 3: second checkpoint — CAS each child's Linkage to point back to parent ---
-        //  "bundled_ref" is a misnomer: it is a PacketWrapper that holds a back-reference
-        //  (bundledBy → parent's m_link) and the child's reverse index, NOT a null pointer.
+        //  Each bundled_ref is a PacketWrapper holding a back-reference
+        //  (bundledBy → parent's m_link) and the child's reverse index.
         bool changed_during_bundling = false;
         for(unsigned int i = 0; i < subnodes->size(); i++) {
             shared_ptr<Node> child(( *subnodes)[i]);
@@ -1305,7 +1304,6 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //     may already be included in an ongoing snapshot with this serial).
 //   - sublinkage: the child's Linkage (currently a back-reference).
 //   - bundled_ref: current value of sublinkage (the back-reference wrapper).
-//     Despite the name, it is NOT null — it holds bundledBy and reverse index.
 //   - oldsubpacket: if provided, verify the sub-packet hasn't changed
 //     (conflict detection for commit).
 //   - newsubwrapper_returned: if provided, the new PacketWrapper for the
