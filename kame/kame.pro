@@ -45,7 +45,6 @@ HEADERS += \
     atomic_prv_std.h \
     atomic_prv_basic.h \
     atomic_prv_mfence_x86.h \
-    atomic_prv_x86.h \
     atomic_queue.h \
     atomic_smart_ptr.h \
     atomic.h \
