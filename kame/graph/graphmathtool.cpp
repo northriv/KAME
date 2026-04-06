@@ -230,6 +230,7 @@ XGraphMathToolList<X, XQC>::~XGraphMathToolList() {
 template <class X, class XQC>
 void
 XGraphMathToolList<X, XQC>::onRelease(const Snapshot &, const XListNodeBase::Payload::ReleaseEvent &e) {
+    static_pointer_cast<XGraphMathTool>(e.released)->clearOnScreenObjects();
     m_measure.lock()->iterate_commit([&](Transaction &tr){
         if( !static_pointer_cast<X>(e.released)->releaseEntries(tr))
             return;

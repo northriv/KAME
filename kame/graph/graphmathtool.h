@@ -43,6 +43,9 @@ public:
     //! True if OSOs exist and are all valid for the given painter.
     bool hasValidOSOs(XQGraphPainter *painter) const;
 
+    //! Clears all on-screen objects, e.g. when the tool is released.
+    void clearOnScreenObjects() { m_osos.clear(); }
+
     virtual XString getTypename() const override {
         return m_storedTypename.empty() ? XNode::getTypename() : m_storedTypename;
     }
