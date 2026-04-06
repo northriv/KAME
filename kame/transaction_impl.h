@@ -130,18 +130,18 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept :
-    m_bundledBy(), m_packet(x), m_ridx((int)PACKET_STATE::PACKET_HAS_PRIORITY), m_bundle_serial(bundle_serial) {
+    m_bundledBy(), m_packet(x), m_reverse_index((int)PACKET_STATE::PACKET_HAS_PRIORITY), m_bundle_serial(bundle_serial) {
 }
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const shared_ptr<Linkage > &bp, int reverse_index,
     int64_t bundle_serial) noexcept :
-    m_bundledBy(bp), m_packet(), m_ridx(), m_bundle_serial(bundle_serial) {
+    m_bundledBy(bp), m_packet(), m_reverse_index(), m_bundle_serial(bundle_serial) {
     setReverseIndex(reverse_index);
 }
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) noexcept :
     m_bundledBy(x.m_bundledBy), m_packet(x.m_packet),
-    m_ridx(x.m_ridx), m_bundle_serial(bundle_serial) {}
+    m_reverse_index(x.m_reverse_index), m_bundle_serial(bundle_serial) {}
 
 template <class XN>
 void
@@ -1025,9 +1025,9 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
 //     thread modified the parent, return DISTURBED and let the caller retry.
 //
 //   Phase 3 — Second checkpoint (CAS on each child Linkage):
-//     Replace each child's PacketWrapper with a "null_linkage" — a wrapper
+//     Replace each child's PacketWrapper with a "bundled_ref" — a wrapper
 //     that points back to the parent (bundledBy = m_link) and stores the
-//     child's reverse index. Despite the variable name "null_linkage", these
+//     child's reverse index. Despite the variable name "bundled_ref", these
 //     wrappers are NOT null; they are back-references that allow the child
 //     to find its packet inside the parent's bundled packet.
 //     If any child was modified between phases 2 and 3, restart from phase 1.
@@ -1131,20 +1131,20 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         oldsuperwrapper = superwrapper;
 
         //--- Phase 3: second checkpoint — CAS each child's Linkage to point back to parent ---
-        //  "null_linkage" is a misnomer: it is a PacketWrapper that holds a back-reference
+        //  "bundled_ref" is a misnomer: it is a PacketWrapper that holds a back-reference
         //  (bundledBy → parent's m_link) and the child's reverse index, NOT a null pointer.
         bool changed_during_bundling = false;
         for(unsigned int i = 0; i < subnodes->size(); i++) {
             shared_ptr<Node> child(( *subnodes)[i]);
-            local_shared_ptr<PacketWrapper> null_linkage;
+            local_shared_ptr<PacketWrapper> bundled_ref;
             if(( *subpackets)[i])
-                null_linkage.reset(new PacketWrapper(m_link, i, bundle_serial));
+                bundled_ref.reset(new PacketWrapper(m_link, i, bundle_serial));
             else
-                null_linkage.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
+                bundled_ref.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
 
-            assert( !null_linkage->hasPriority());
+            assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
-            if( !child->m_link->compareAndSet(subwrappers_org[i], null_linkage)) {
+            if( !child->m_link->compareAndSet(subwrappers_org[i], bundled_ref)) {
                 if(local_shared_ptr<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
                     return BundledStatus::DISTURBED;
                 if(oldsuperwrapper != *supernode.m_link)
@@ -1304,7 +1304,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //   - bundle_serial: if non-null, check for collisions (the sub-packet
 //     may already be included in an ongoing snapshot with this serial).
 //   - sublinkage: the child's Linkage (currently a back-reference).
-//   - null_linkage: current value of sublinkage (the back-reference wrapper).
+//   - bundled_ref: current value of sublinkage (the back-reference wrapper).
 //     Despite the name, it is NOT null — it holds bundledBy and reverse index.
 //   - oldsubpacket: if provided, verify the sub-packet hasn't changed
 //     (conflict detection for commit).
@@ -1323,7 +1323,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //   3. Execute the CAS list from cas_infos bottom-up: each ancestor's
 //      Linkage gets a new PacketWrapper with a copied packet that marks
 //      the child's slot as missing (the child is leaving the bundle).
-//   4. CAS the child's Linkage: replace the back-reference (null_linkage)
+//   4. CAS the child's Linkage: replace the back-reference (bundled_ref)
 //      with a new PacketWrapper that holds the extracted sub-packet
 //      directly (hasPriority = true). The serial is advanced past the
 //      super-node's bundle serial via gen().
@@ -1331,14 +1331,14 @@ Node<XN>::commit(Transaction<XN> &tr) {
 template <class XN>
 typename Node<XN>::UnbundledStatus
 Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
-    const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &null_linkage,
+    const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
     const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned,
     local_shared_ptr<PacketWrapper> *oldsuperwrapper) {
 
-    assert( !null_linkage->hasPriority());
+    assert( !bundled_ref->hasPriority());
 
 // Taking a snapshot inside the super packet.
-    local_shared_ptr<PacketWrapper> superwrapper(null_linkage);
+    local_shared_ptr<PacketWrapper> superwrapper(bundled_ref);
     local_shared_ptr<Packet> *newsubpacket;
     CASInfoList cas_infos;
     SnapshotStatus status = snapshotSupernode(sublinkage, superwrapper, &newsubpacket,
@@ -1351,11 +1351,11 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
         return UnbundledStatus::DISTURBED;
     case SnapshotStatus::VOID_PACKET:
     case SnapshotStatus::NODE_MISSING:
-        newsubpacket = const_cast<local_shared_ptr<Packet> *>( &null_linkage->packet());
+        newsubpacket = const_cast<local_shared_ptr<Packet> *>( &bundled_ref->packet());
         assert(newsubpacket);
         break;
     case SnapshotStatus::NODE_MISSING_AND_COLLIDED:
-        newsubpacket = const_cast<local_shared_ptr<Packet> *>( &null_linkage->packet());
+        newsubpacket = const_cast<local_shared_ptr<Packet> *>( &bundled_ref->packet());
         assert(newsubpacket);
         status = SnapshotStatus::COLLIDED;
         break;
@@ -1388,7 +1388,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
     else
         newsubwrapper.reset(new PacketWrapper( *newsubpacket, SerialGenerator::gen(superwrapper->m_bundle_serial)));
 
-    if( !sublinkage->compareAndSet(null_linkage, newsubwrapper))
+    if( !sublinkage->compareAndSet(bundled_ref, newsubwrapper))
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
 
     if(newsubwrapper_returned)
