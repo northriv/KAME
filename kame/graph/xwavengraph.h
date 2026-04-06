@@ -59,6 +59,9 @@ public:
         void setColCount(unsigned int colcnt, const char** labels);
         unsigned int rowCount() const {return m_rowCount; }
         unsigned int colCount() const {return m_cols.size();}
+        const std::vector<XGraph::VFloat> &getColumn(unsigned int n, std::vector<XGraph::VFloat> &buf) const {
+            return m_cols.at(n)->fillOrPointToGraphPoints(buf);
+        }
         unsigned int numPlots() const { return m_plots.size();}
 
         template <typename VALUE>

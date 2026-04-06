@@ -64,7 +64,7 @@ orchestration across compatible instruments without custom programming.
 
 ## What's New in 8.0
 
-- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. To our knowledge, this is the first measurement software to integrate an MCP server.
+- **MCP server for AI-assisted experiment automation** — built-in [Model Context Protocol](https://modelcontextprotocol.io/) server lets AI assistants (Claude Code, Claude Desktop, etc.) execute Python code in the running KAME process, read instrument values, and control measurements through natural language. Matplotlib plots are returned inline. Long-running experiments (sweeps, scans) run asynchronously. To our knowledge, this is the first measurement software to integrate an MCP server.
 - **Calibrated scalar entries** — `XCalibratedEntry` applies a calibration curve to any scalar entry; the result appears in graphs, charts, and data recording like a native scalar.
 - **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
 - **Window cascade placement** — instrument windows are automatically arranged on show.
@@ -426,7 +426,7 @@ This enables conversational experiment control:
 | `execute_code` | Run Python in KAME's interpreter (returns text + matplotlib plots) |
 | `execute_code_async` | Run long experiments asynchronously (sweeps, scans) |
 | `get_result` | Check status of an async job |
-| `read_node` | Read a node value by path (e.g. `Drivers/DMM1/Value`) |
+| `read_node` | Read node values by path (comma-separated for bulk reads) |
 | `set_node` | Set a node value by path |
 | `read_scalar` | Read a numeric value by path — single call, returns JSON |
 | `list_children` | List child nodes at a path with types and values (JSON) |

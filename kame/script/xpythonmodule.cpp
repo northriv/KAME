@@ -37,6 +37,7 @@
 #include "xwavengraph.h"
 #include "ui_graphnurlform.h"
 #include "graphmathtool.h"
+#include <QBuffer>
 #include <QWidget>
 #include <QAbstractButton>
 #include <QLineEdit>
@@ -598,7 +599,18 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
     XPython::bind.export_xnode<XAxis, XNode>();
     XPython::bind.export_xnode<XPlot, XNode>();
     XPython::bind.export_xnode<XXYPlot, XPlot>();
-    XPython::bind.export_xnode<X2DImagePlot, XPlot>();
+    {   auto [node, payload] = XPython::bind.export_xnode<X2DImagePlot, XPlot>();
+    (*payload)
+        .def("to_png", [](X2DImagePlot::Payload &self) -> py::bytes {
+            auto img = self.image();
+            if( !img) return py::bytes();
+            QByteArray ba;
+            QBuffer buf(&ba);
+            buf.open(QIODevice::WriteOnly);
+            img->save(&buf, "PNG");
+            return py::bytes(ba.constData(), ba.size());
+        });
+    }
     XPython::bind.export_xnode<XGraphNToolBox, XNode>();
     {   auto [node, payload] = XPython::bind.export_xnode<XWaveNGraph, XGraphNToolBox,
                 XQGraph *, QLineEdit *, QAbstractButton *, QPushButton *>();
@@ -626,6 +638,11 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         })
         .def("setColumn", [](XWaveNGraph::Payload &self, unsigned int n, std::vector<double> &&data, unsigned int prec){
             self.setColumn(n, std::move(data), prec);
+        })
+        .def("getColumn", [](XWaveNGraph::Payload &self, unsigned int n){
+            std::vector<XGraph::VFloat> buf;
+            auto &col = self.getColumn(n, buf);
+            return std::vector<double>(col.begin(), col.end());
         });
     }
 

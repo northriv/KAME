@@ -12,10 +12,17 @@
   works without pressing First; add NULL check for m_pGFD in execute thread.
 - MCP server for AI-assisted experiment automation (kame_mcp_server.py).
   Connects to the embedded IPython kernel via jupyter_client, exposing
-  7 tools: kame_api, execute_code, read_node, read_scalar, list_children,
-  list_scalars, kame_status. Tool-generated code uses IPython expression
-  results (not print) to avoid KAME's HTML stdout redirect; HTML object
-  reprs are filtered out in the message handler.
+  10 tools: kame_api, execute_code, execute_code_async, get_result,
+  read_node (bulk comma-separated paths), set_node, read_scalar,
+  list_children, list_scalars, kame_status.
+  execute_code returns matplotlib plots as MCP ImageContent (displayed
+  inline in Claude Code CLI/desktop/web); %matplotlib inline is set
+  automatically on first kernel connection.
+  execute_code_async runs long experiments (sweeps, scans) in a background
+  thread; results stored in kernel globals, polled via get_result.
+  Kernel connection is reused across tool calls (was reconnecting each time).
+  Tool-generated code uses IPython expression results (not print) to avoid
+  KAME's HTML stdout redirect; HTML object reprs are filtered out.
   Includes kame_python_api.md reference with correct Snapshot/node patterns,
   Root children table, and XScalarEntry["Value"] access.
   When launching a Jupyter notebook, KAME auto-generates .mcp.json in the
