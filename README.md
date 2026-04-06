@@ -426,11 +426,7 @@ This enables conversational experiment control:
 | `execute_code` | Run Python in KAME's interpreter (returns text + matplotlib plots) |
 | `execute_code_async` | Run long experiments asynchronously (sweeps, scans) |
 | `get_result` | Check status of an async job |
-| `read_node` | Read node values by path (comma-separated for bulk reads) |
-| `set_node` | Set a node value by path |
-| `read_scalar` | Read a numeric value by path — single call, returns JSON |
-| `list_children` | List child nodes at a path with types and values (JSON) |
-| `list_scalars` | List all scalar entries with current values (JSON) |
+| `tree` | Browse the node tree with configurable depth (compact indented output) |
 | `kame_status` | Check if KAME is running and list active drivers (JSON) |
 
 ### Quick start

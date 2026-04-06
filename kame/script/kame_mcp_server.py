@@ -247,129 +247,44 @@ _json.dumps(_mcp_jobs.get({repr(job_id)}, {{"status": "unknown"}}))
 
 
 @server.tool()
-def read_node(paths: str) -> str:
-    """Read node values by path. Accepts one or multiple comma-separated paths.
-
-    Args:
-        paths: One or more slash-separated paths, comma-separated.
-               e.g. "Drivers/DMM1/Value" or
-               "Drivers/TempControl/Ch.B/Value, Drivers/MagnetPS/Field"
-
-    Returns the value string for one path, or JSON {path: value} for multiple.
-    """
-    path_list = [p.strip() for p in paths.split(",")]
-    if len(path_list) == 1:
-        nav = _nav_code(path_list[0])
-        return _execute_text(f"str({nav})")
-    lines = ["import json as _json", "_result = {}"]
-    for p in path_list:
-        nav = _nav_code(p)
-        lines.append(f"try:\n _result[{repr(p)}] = str({nav})")
-        lines.append(f"except Exception as _e:\n _result[{repr(p)}] = f'ERROR: {{_e}}'")
-    lines.append("_json.dumps(_result, ensure_ascii=False)")
-    return _execute_text("\n".join(lines))
-
-
-@server.tool()
-def set_node(path: str, value: str) -> str:
-    """Set a KAME node value by path.
-
-    Args:
-        path: Slash-separated node path from Root, e.g. "Drivers/DMM1/Average"
-        value: The value to set (string, number, or boolean as string).
-
-    Returns confirmation or error message.
-    """
-    nav = _nav_code(path)
-    code = f"{nav}.set({repr(value)})"
-    return _execute_text(code)
-
-
-@server.tool()
-def list_children(path: str = "") -> str:
-    """List child nodes at a given path with their types and values.
+def tree(path: str = "", depth: int = 2) -> str:
+    """List child nodes at a given path as an indented tree.
 
     Args:
         path: Slash-separated path from Root (empty string for root children).
               e.g. "Drivers" or "Drivers/DMM1"
+        depth: Max depth to traverse (default 2, max 5). 1 = immediate children only.
 
-    Returns structured list: name, typename, and value for each child.
+    Returns compact indented tree: name (type) = value
     """
+    depth = max(1, min(depth, 5))
     nav = _nav_code(path) if path.strip("/") else 'Root()'
     code = f"""
-import json as _json
-_node = {nav}
-_shot = Snapshot(_node)
-_result = []
-for _child in _shot.list(_node):
-    _entry = {{"name": _child.getName(), "type": _child.getTypename()}}
-    try:
-        _entry["value"] = str(_child)
-    except Exception:
-        pass
-    _result.append(_entry)
-_json.dumps(_result, indent=2, ensure_ascii=False)
-"""
-    return _execute_text(code)
-
-
-@server.tool()
-def read_scalar(path: str) -> str:
-    """Read a scalar value from a KAME node by path.
-
-    For value nodes (XDoubleNode etc.), returns the numeric value directly.
-    For XScalarEntry nodes, reads the "Value" child node.
-
-    Args:
-        path: Slash-separated path, e.g. "Drivers/TempControl/Ch.B"
-
-    Returns JSON with path, label, and value.
-    """
-    nav = _nav_code(path)
-    code = f"""
-import json as _json
-_node = {nav}
-_shot = Snapshot(_node)
-_result = {{"path": {repr(path)}, "label": _node.getLabel() or _node.getName()}}
-try:
-    _result["value"] = float(_shot[_node])
-except (TypeError, ValueError):
-    # Might be XScalarEntry — try Value child
-    _val = _node["Value"]
-    if _val is not None:
-        _result["value"] = float(_shot[_val])
-    else:
-        _result["value"] = str(_node)
-_json.dumps(_result, ensure_ascii=False)
-"""
-    return _execute_text(code)
-
-
-@server.tool()
-def list_scalars() -> str:
-    """List all scalar entries with their current values.
-
-    Returns every XScalarEntry registered in the measurement,
-    with name, driver, and current value. Useful for orientation.
-    """
-    code = """
-import json as _json
-_entries = Root()["ScalarEntries"]
-_shot = Snapshot(_entries)
-_result = []
-for _e in _shot.list(_entries):
-    _entry = {"name": _e.getName(), "label": _e.getLabel() or _e.getName()}
-    try:
-        _val_node = _e["Value"]
-        _entry["value"] = float(_shot[_val_node])
-    except Exception:
-        _entry["value"] = None
-    try:
-        _entry["driver"] = _e.driver().getName()
-    except Exception:
-        pass
-    _result.append(_entry)
-_json.dumps(_result, indent=2, ensure_ascii=False)
+def _mcp_tree(_node, _depth, _max_depth, _indent=0):
+    _shot = Snapshot(_node)
+    _lines = []
+    for _child in _shot.list(_node):
+        _name = _child.getName()
+        _typ = _child.getTypename()
+        try:
+            _val = str(_child)
+            # Skip verbose object reprs
+            if _val.startswith("<node["):
+                _val = None
+        except Exception:
+            _val = None
+        _prefix = "  " * _indent
+        if _val is not None:
+            _lines.append(f"{{_prefix}}{{_name}} ({{_typ}}) = {{_val}}")
+        else:
+            _lines.append(f"{{_prefix}}{{_name}} ({{_typ}})")
+        if _depth < _max_depth:
+            try:
+                _lines.extend(_mcp_tree(_child, _depth + 1, _max_depth, _indent + 1))
+            except Exception:
+                pass
+    return _lines
+"\\n".join(_mcp_tree({nav}, 1, {depth}))
 """
     return _execute_text(code)
 
