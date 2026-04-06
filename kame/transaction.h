@@ -287,20 +287,20 @@ private:
         //! \param[in] reverse_index The index for this node in the list of the upper node.
         PacketWrapper(const shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial) noexcept;
         PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) noexcept;
-        bool hasPriority() const noexcept { return m_ridx == (int)PACKET_STATE::PACKET_HAS_PRIORITY; }
+        bool hasPriority() const noexcept { return m_reverse_index == (int)PACKET_STATE::PACKET_HAS_PRIORITY; }
         const local_shared_ptr<Packet> &packet() const noexcept {return m_packet;}
         local_shared_ptr<Packet> &packet() noexcept {return m_packet;}
 
         //! Points to the upper node that should have the up-to-date Packet when this lacks priority.
         shared_ptr<Linkage> bundledBy() const noexcept {return m_bundledBy.lock();}
         //! The index for this node in the list of the upper node.
-        int reverseIndex() const noexcept {return m_ridx;}
-        void setReverseIndex(int i) noexcept {m_ridx = i;}
+        int reverseIndex() const noexcept {return m_reverse_index;}
+        void setReverseIndex(int i) noexcept {m_reverse_index = i;}
 
         void print_() const;
         weak_ptr<Linkage> const m_bundledBy;
         local_shared_ptr<Packet> m_packet;
-        int m_ridx;
+        int m_reverse_index;
         int64_t m_bundle_serial;
         enum class PACKET_STATE : int { PACKET_HAS_PRIORITY = -1};
 
@@ -369,12 +369,12 @@ private:
     //! it performs unbundling for all the super nodes.
     //! The super nodes will lose priorities against their lower nodes.
     //! \param[in] bundle_serial If not zero, consistency/collision wil be checked.
-    //! \param[in] null_linkage The current value of \a sublinkage and should not contain \a packet().
+    //! \param[in] bundled_ref The current value of \a sublinkage and should not contain \a packet().
     //! \param[in] oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.
     //! \param[in,out] newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
     //! If \a oldsubpacket is zero, unloaded value  of \a sublinkage will be substituted to \a newsubwrapper.
     static UnbundledStatus unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
-        const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &null_linkage,
+        const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
         local_shared_ptr<PacketWrapper> *superwrapper = NULL);
