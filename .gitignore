@@ -16,3 +16,6 @@
 *.tcl.*
 odmrimagingng.*
 build
+tests/cds_atomic_shared_ptr/genmc/
+tests/tla_bundle/tla2tools.jar
+tests/tla_bundle/states/

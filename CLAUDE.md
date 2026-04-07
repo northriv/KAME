@@ -24,6 +24,8 @@ The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake)
 
 Tests live in `tests/` and cover the core STM framework: `allocator_test`, `atomic_shared_ptr_test`, `atomic_queue_test`, `mutex_test`, `transaction_test`, `transaction_negotiation_test`, `transaction_dynamic_node_test`.
 
+**Memory-model verification** (`tests/cds_atomic_shared_ptr/`): GenMC model-checker tests that exhaustively verify `atomic_shared_ptr`'s lock-free protocol under the C11/RC11 memory model. Three tests cover `load_shared_`/`release_tag_ref_` concurrency, `load_shared_` vs `compareAndSwap_` races, and multi-thread `compareAndSet` contention. Requires GenMC v0.16+ built against LLVM 20; see `Makefile` for build instructions. Run with `make run` from the test directory.
+
 ## Architecture
 
 ### Software Transactional Memory (STM) Framework
