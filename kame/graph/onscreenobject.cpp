@@ -738,7 +738,7 @@ OnPlotMaskObject::drawNative(bool colorpicking) {
 
     bool hasMask = m_mask && (m_mask->size() == (size_t)m_width * m_height);
 
-    auto lerp = [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b, double t) -> XGraph::ScrPoint {
+    auto lerp = [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b, float t) -> XGraph::ScrPoint {
         return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
     };
 
