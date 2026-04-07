@@ -2,12 +2,14 @@
 
 ## Overview
 
-Two complementary verification approaches:
+Three complementary verification approaches covering the full stack:
 
 | Layer | Tool | Target | What it verifies |
 |---|---|---|---|
 | Memory model | GenMC v0.16.1 (RC11) | `atomic_shared_ptr` | `memory_order_relaxed` / `acq_rel` safety under weak memory |
-| Protocol logic | TLA+ (TLC) | bundle/unbundle | Multi-phase CAS protocol correctness under sequential consistency |
+| Layer 0 (TLA+) | TLC | `atomic_shared_ptr` | Tagged-pointer refcounting protocol (scan/CAS/reset) with ABA + non-atomic reads |
+| Layer 1 (TLA+) | TLC | STM commit | Single-node optimistic Snapshot + Write + Commit cycle |
+| Layer 2 (TLA+) | TLC | bundle/unbundle | Multi-phase CAS protocol for subtree atomic snapshots |
 
 ---
 
@@ -104,9 +106,101 @@ The `--unroll=5` flag bounds CAS retry loops. Increase if GenMC warns about insu
 
 ---
 
-## 2. TLA+: bundle/unbundle Protocol Verification
+## 2. TLA+ Layer 0: `atomic_shared_ptr` Protocol Verification
 
-**Directory:** `tests/tla_bundle/`
+**Directory:** `tests/tlaplus/`  
+**Spec:** `atomic_shared_ptr.tla`
+
+### What it tests
+
+The tagged-pointer reference counting protocol from `kame/atomic_smart_ptr.h` under sequential
+consistency. Complements GenMC (which checks memory ordering) by exhaustively exploring all
+thread interleavings of the higher-level CAS protocol.
+
+### Modeled operations
+
+| Operation | C++ source | Key detail |
+|---|---|---|
+| `reserve_scan_()` | Lines 462-488 | CAS on full word (ptr + local_rc); **non-atomic read modeled as 2 steps** |
+| `scan_()` | Lines 494-503 | reserve_scan_ + global_rc++ + leave_scan_ |
+| `leave_scan_()` | Lines 512-531 | CAS to dec local_rc; **fallback to global_rc-- if ptr changed** |
+| `compareAndSwap_()` | Lines 556-603 | 6 phases: pre-inc, reserve, check/mismatch, transfer, CAS, cleanup |
+| `local_shared_ptr::reset()` | | global_rc-- with free on zero |
+| ABA Recycle | (synthetic) | Freed objects reallocated at same address to test ABA |
+
+### Key modeling decisions
+
+1. **Non-atomic read splitting**: `pref_()` and `refcnt_()` are two separate `m_ref.load()` calls in C++. Modeled as `rs_read_ptr` → `rs_read_rc` (two interleaving steps). Another thread can change `m_ref` between them; the subsequent CAS catches the inconsistency.
+2. **ABA recycling**: Freed objects can be "recycled" (same pointer value reappears). Verifies that the tagged-pointer local_rc prevents ABA — the CAS compares the full word including the refcount bits, not just the pointer.
+3. **CAS mismatch = return false**: `compareAndSwap_` with `pref != oldr` returns false immediately (no retry). Only the *inner* CAS (on `m_ref`) retries on failure.
+
+### Verified invariants (6)
+
+| Invariant | Description |
+|---|---|
+| `MemorySafety` | After reserve_scan_ succeeds, object is not freed until leave_scan_ completes |
+| `NoUseAfterFree` | Objects held by local_shared_ptrs are not freed |
+| `GlobalRCNonNeg` | Global refcount >= 0 for live objects |
+| `FreedImpliesZeroRC` | Freed objects have global_rc = 0 |
+| `InstalledNotFreed` | Object currently in atomic_shared_ptr is not freed |
+| `TypeOK` | Type invariant |
+
+### Results
+
+| Config | Threads | Objects | Features | Distinct states | Depth | Time | Result |
+|---|---|---|---|---|---|---|---|
+| step1_scan_only | 2 | 2 | non-atomic read | 14,280 | - | 2s | **Pass** |
+| step2_scan_plus_cas | 2 | 2 | CAS + ABA + non-atomic read | 115,714,315 | 167 | 9min | **Pass (complete)** |
+| step3_concurrent_cas | 3 | 2 | CAS + ABA + non-atomic read + symmetry | 71,335,517+ | - | 10min | **Pass (partial, no violations)** |
+
+### Key findings
+
+- **ABA problem does not occur**: Even with object recycling at the same pointer value, the tagged-pointer's local_rc makes CAS distinguish recycled objects from originals. 115.7M states verified with no ABA violation.
+- **Non-atomic read is safe**: Inconsistency between the two loads is always caught by the subsequent CAS (which compares the full atomic word).
+- **`leave_scan_` fallback branch is essential**: When the pointer is swapped between reserve and leave, the `global_rc--` fallback (lines 526-529) correctly maintains refcount invariants. Without it, refcount leaks or use-after-free would occur.
+
+---
+
+## 3. TLA+ Layer 1: STM Commit Protocol Verification
+
+**Directory:** `tests/tlaplus/`  
+**Spec:** `stm_commit.tla`
+
+### What it tests
+
+The optimistic concurrency control cycle for single-node transactions from `kame/transaction.h`
+and `kame/transaction_impl.h`. Abstracts `atomic_shared_ptr` (verified in Layer 0) as a
+correct atomic register.
+
+### Modeled cycle
+
+1. **Snapshot**: Read current `PacketWrapper` via atomic scan (captures `node_val` + `node_serial`)
+2. **Write**: Copy-on-write modification of payload (both nondeterministic and deterministic increment)
+3. **Commit**: CAS on `m_link` — succeeds only if `(node_val, node_serial)` unchanged since snapshot
+4. **Retry**: On CAS failure, take new snapshot and repeat (`iterate_commit` pattern)
+
+### Verified invariants (6)
+
+| Invariant | Description |
+|---|---|
+| `NoLostUpdate` | If two threads both committed, at least 2 serial increments occurred |
+| `CommitSerializes` | Total commits across all threads <= node_serial |
+| `SnapshotBeforeCommit` | Each committer's snapshot serial < current serial |
+| `WriteReadConsistency` | Last committer's write value is reflected in node_val |
+| `ValueBounded` | node_val <= MaxVal |
+| `TypeOK` | Type invariant |
+
+### Results
+
+| Threads | MaxVal | MaxSerial | Distinct states | Depth | Time | Result |
+|---|---|---|---|---|---|---|
+| 3 | 3 | 6 | 109,901,200 | 27 | 10min | **Pass (complete)** |
+
+---
+
+## 4. TLA+ Layer 2: bundle/unbundle Protocol Verification
+
+**Directory:** `tests/tlaplus/` (also `tests/tla_bundle/`)
 
 ### What it tests
 
@@ -171,78 +265,39 @@ the state space naturally finite without artificial CONSTRAINT cutoffs.
 
 | Model | Threads | MaxSerial | MaxPayload | Distinct states | Depth | Time | Result |
 |---|---|---|---|---|---|---|---|
-| A: 2-level | 2 | N/A* | N/A* | 1,248,580 | 60 | 3s | **Pass (complete)** |
-| B: 3-level | 1 | 3 | 2 | 597,168 | 84 | 1s | **Pass (complete)** |
-| B: 3-level | 2 | 3 | 1 | 413,760,959+ | 75+ | ~60min | **Pass (disk full, no violations)** |
+| A: 2-level | 2 | N/A* | 2 | 3,967,507 | 62 | 11s | **Pass (complete)** |
+| B: 3-level | 2 | 3 | 1 | 622,118,022 | 167 | 4h 20min | **Pass (complete)** |
 
-*Model A used CONSTRAINT StateConstraint with MaxPayload=2 instead of modular arithmetic.
+*Model A uses CONSTRAINT StateConstraint with MaxPayload=2 instead of modular arithmetic.
 
 ### Build & run
 
 ```bash
-cd tests/tla_bundle
-
-# One-time: download TLA+ tools
-curl -sL -o tla2tools.jar \
-  https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
+cd tests/tlaplus
 
 # Java required
-brew install java
+brew install openjdk
 export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
 
-# Run Model A (2-level, fast):
-# Edit MC.cfg to select model, then:
-java -XX:+UseParallelGC -jar tla2tools.jar -config MC.cfg MC.tla -workers auto
+# All TLA+ specs (Layer 0, 1, 2) and tla2tools.jar are in this directory.
 
-# For Model B with large state space, increase heap:
-java -XX:+UseParallelGC -Xmx32g -jar tla2tools.jar -config MC.cfg MC.tla -workers auto
+# Layer 0: atomic_shared_ptr (fast — 9 min)
+java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
+  atomic_shared_ptr -config atomic_shared_ptr_mc.cfg -workers auto
+
+# Layer 1: STM commit (fast — 10 min)
+java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
+  stm_commit -config stm_commit_mc.cfg -workers auto
+
+# Layer 2, Model A: 2-level bundle/unbundle (fast — 11s)
+java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
+  MC_2level -config MC_2level.cfg -workers auto
+
+# Layer 2, Model B: 3-level bundle/unbundle (heavy — ~4.5 hours, 622M states)
+# Use -metadir on a disk with >50GB free space for state files.
+java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
+  MC -config MC.cfg -metadir /path/to/large/disk/states -workers auto
 ```
-
-### MC.cfg for Model A (2-level tree)
-
-Use the `BundleUnbundle_2level.tla` spec with:
-
-```
-SPECIFICATION Spec
-
-CONSTANTS
-    Threads = {t1, t2}
-    Parent  = P
-    Child1  = C1
-    Child2  = C2
-    Null    = NULL
-    MaxPayload = 2
-
-CONSTRAINT
-    StateConstraint
-
-INVARIANTS
-    Safety
-```
-
-### MC.cfg for Model B (3-level tree)
-
-Use the `BundleUnbundle.tla` spec with:
-
-```
-SPECIFICATION Spec
-
-CONSTANTS
-    Threads = {t1, t2}
-    Grand   = G
-    Parent  = P
-    Child1  = C1
-    Child2  = C2
-    Null    = NULL
-    MaxSerial  = 3
-    MaxPayload = 1
-
-INVARIANTS
-    Safety
-```
-
-For machines with large disk/RAM, increase `MaxPayload` to 2 or `MaxSerial` to 4 for
-deeper exploration. Estimated state space: ~1B states for MaxPayload=2, MaxSerial=3.
 
 ### Liveness
 
