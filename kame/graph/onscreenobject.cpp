@@ -163,6 +163,44 @@ OnScreenRectObject::drawNative(bool colorpicking) {
         }
         break;
     }
+    case Type::EllipseSelection: {
+        //draws a filled ellipse inscribed within the bounding rectangle.
+        constexpr unsigned int N = 48;
+        XGraph::ScrPoint center;
+        center.x = (leftTop().x + rightBottom().x) / 2;
+        center.y = (leftTop().y + rightBottom().y) / 2;
+        center.z = (leftTop().z + rightBottom().z) / 2;
+        XGraph::ScrPoint rx, ry;
+        rx.x = (rightTop().x - leftTop().x) / 2;
+        rx.y = (rightTop().y - leftTop().y) / 2;
+        rx.z = (rightTop().z - leftTop().z) / 2;
+        ry.x = (leftBottom().x - leftTop().x) / 2;
+        ry.y = (leftBottom().y - leftTop().y) / 2;
+        ry.z = (leftBottom().z - leftTop().z) / 2;
+        for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
+            painter()->beginQuad(true);
+            if(!colorpicking)
+                painter()->setColor(c, 0.3);
+            //draw as triangle fan from center using quad pairs.
+            for(unsigned int i = 0; i < N; ++i) {
+                double theta0 = 2.0 * M_PI * i / N;
+                double theta1 = 2.0 * M_PI * (i + 1) / N;
+                XGraph::ScrPoint p0, p1;
+                p0.x = center.x + rx.x * cos(theta0) + ry.x * sin(theta0);
+                p0.y = center.y + rx.y * cos(theta0) + ry.y * sin(theta0);
+                p0.z = center.z + rx.z * cos(theta0) + ry.z * sin(theta0);
+                p1.x = center.x + rx.x * cos(theta1) + ry.x * sin(theta1);
+                p1.y = center.y + rx.y * cos(theta1) + ry.y * sin(theta1);
+                p1.z = center.z + rx.z * cos(theta1) + ry.z * sin(theta1);
+                painter()->setVertex(center);
+                painter()->setVertex(p0);
+                painter()->setVertex(p1);
+                painter()->setVertex(center);
+            }
+            painter()->endQuad();
+        }
+        break;
+    }
     }
 }
 

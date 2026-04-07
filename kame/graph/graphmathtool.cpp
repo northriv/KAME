@@ -223,7 +223,9 @@ XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainte
     auto oso_lbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>(shared_from_this());
     m_osoLabel = oso_lbl;
     if(isHighLighted()) {
-        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::Selection, shared_from_this());
+        auto hlType = ((int)shot[ *maskType()] == (int)MaskShape::Ellipse)
+            ? OnScreenRectObject::Type::EllipseSelection : OnScreenRectObject::Type::Selection;
+        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(hlType, shared_from_this());
         m_osoHighlight = oso_rect2;
         return {oso_rect, oso_rect2, oso_lbl};
     }
