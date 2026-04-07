@@ -155,7 +155,7 @@ thread interleavings of the higher-level CAS protocol.
 
 ### Key findings
 
-- **ABA problem does not occur**: Even with object recycling at the same pointer value, the tagged-pointer's local_rc makes CAS distinguish recycled objects from originals. 115.7M states verified with no ABA violation.
+- **ABA does not cause memory safety violations**: The TLA+ model permits object recycling at the same pointer value (sound over-approximation). For `scan_()`/`load_shared_()`, where the thread holds no reference during `acquire_tag_ref`, ABA recycling can in principle occur; the model verifies that reference counting invariants are preserved even in this case. For `compareAndSwap_()`, the caller holds a `local_shared_ptr` to the old value, so ABA cannot occur in practice (the old object is never freed). 115.7M states verified with no memory safety violations.
 - **Non-atomic read is safe**: Inconsistency between the two loads is always caught by the subsequent CAS (which compares the full atomic word).
 - **`leave_scan_` fallback branch is essential**: When the pointer is swapped between reserve and leave, the `global_rc--` fallback (lines 526-529) correctly maintains refcount invariants. Without it, refcount leaks or use-after-free would occur.
 
