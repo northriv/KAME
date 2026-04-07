@@ -1,10 +1,12 @@
 * Mon Apr 07 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
-- 2D math tools: add configurable mask shape (Rectangle / Ellipse).
+- 2D math tools: add configurable mask shape (Rectangle / Ellipse / Arbitrary).
   Each XGraph2DMathTool now has an XComboNode maskType() selecting the
   mask applied within the rectangular selection. Ellipse inscribes an
   ellipse; only pixels inside it contribute to Sum/Average/etc.
-  pixels() returns the masked count. generateMask() produces the mask
-  bitmap. Connector popup adds a "Mask Shape" submenu per tool.
+  Arbitrary lets Python set the mask via Payload.setMask()/mask().
+  Mask is stored in Payload::m_mask; pixels() counts from the stored mask
+  for all shapes. regenerateMask(tr) called on coord/type changes.
+  Connector popup adds a "Mask Shape" submenu per tool.
   OnScreenRectObject::EllipseTool draws the inscribed ellipse (48 segs).
   Python 2D functors now receive a 7th arg (mask: uint8 numpy array).
 

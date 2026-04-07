@@ -149,6 +149,7 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
         auto tool = static_pointer_cast<XGraph2DMathTool>(tool_node);
         tool->iterate_commit([&](Transaction &tr){
             tr[ *tool->maskType()] = mask_idx;
+            tool->regenerateMask(tr);
         });
         tool->clearOnScreenObjects(); //recreate OSOs for the new mask shape.
         Snapshot shot_tool( *tool);
@@ -331,8 +332,8 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
             Snapshot shot_tool( *tool);
             int curMask = (int)shot_tool[ *tool->maskType()];
             QMenu *maskMenu = menuoftool->addMenu(i18n("Mask Shape"));
-            static const char *maskLabels[] = {"Rectangle", "Ellipse"};
-            for(int m = 0; m < 2; ++m) {
+            static const char *maskLabels[] = {"Rectangle", "Ellipse", "Arbitrary"};
+            for(int m = 0; m < 3; ++m) {
                 QAction *actmask = new QAction(
                     QString(maskLabels[m]) + (m == curMask ? " *" : ""), maskMenu);
                 maskMenu->addAction(actmask);
