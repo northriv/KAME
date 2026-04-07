@@ -1,0 +1,6 @@
+tla2tools.jar is from the TLA+ project (https://github.com/tlaplus/tlaplus).
+
+Primary license: MIT (Copyright 2019 Microsoft Research)
+Also includes: Eclipse Public License 2.0, Apache License 2.0, BSD 3-Clause
+
+See License.txt and META-INF/LICENSE.txt inside the jar for full text.
