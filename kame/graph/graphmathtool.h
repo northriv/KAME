@@ -24,6 +24,7 @@
 class QPainter;
 class XQGraph;
 class OnScreenPickableObject;
+class OnPlotMaskObject;
 
 enum class MaskShape : int {
     Rectangle = 0,
@@ -149,6 +150,7 @@ private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
     const shared_ptr<XComboNode> m_maskType;
     weak_ptr<OnScreenPickableObject> m_osoRect, m_osoLabel;
+    weak_ptr<OnPlotMaskObject> m_osoMaskHighlight;
 };
 
 //! entrynames semi colon-sparated entry names.

@@ -163,44 +163,6 @@ OnScreenRectObject::drawNative(bool colorpicking) {
         }
         break;
     }
-    case Type::EllipseSelection: {
-        //draws a filled ellipse inscribed within the bounding rectangle.
-        constexpr unsigned int N = 48;
-        XGraph::ScrPoint center;
-        center.x = (leftTop().x + rightBottom().x) / 2;
-        center.y = (leftTop().y + rightBottom().y) / 2;
-        center.z = (leftTop().z + rightBottom().z) / 2;
-        XGraph::ScrPoint rx, ry;
-        rx.x = (rightTop().x - leftTop().x) / 2;
-        rx.y = (rightTop().y - leftTop().y) / 2;
-        rx.z = (rightTop().z - leftTop().z) / 2;
-        ry.x = (leftBottom().x - leftTop().x) / 2;
-        ry.y = (leftBottom().y - leftTop().y) / 2;
-        ry.z = (leftBottom().z - leftTop().z) / 2;
-        for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
-            painter()->beginQuad(true);
-            if(!colorpicking)
-                painter()->setColor(c, 0.3);
-            //draw as triangle fan from center using quad pairs.
-            for(unsigned int i = 0; i < N; ++i) {
-                double theta0 = 2.0 * M_PI * i / N;
-                double theta1 = 2.0 * M_PI * (i + 1) / N;
-                XGraph::ScrPoint p0, p1;
-                p0.x = center.x + rx.x * cos(theta0) + ry.x * sin(theta0);
-                p0.y = center.y + rx.y * cos(theta0) + ry.y * sin(theta0);
-                p0.z = center.z + rx.z * cos(theta0) + ry.z * sin(theta0);
-                p1.x = center.x + rx.x * cos(theta1) + ry.x * sin(theta1);
-                p1.y = center.y + rx.y * cos(theta1) + ry.y * sin(theta1);
-                p1.z = center.z + rx.z * cos(theta1) + ry.z * sin(theta1);
-                painter()->setVertex(center);
-                painter()->setVertex(p0);
-                painter()->setVertex(p1);
-                painter()->setVertex(center);
-            }
-            painter()->endQuad();
-        }
-        break;
-    }
     }
 }
 
@@ -737,5 +699,86 @@ OnScreenTextObject::selectFont(const XString &str, const XGraph::ScrPoint &start
     }
 
     return 0;
+}
+
+void
+OnPlotMaskObject::setMask(const shared_ptr<XPlot> &plot,
+                           const XGraph::ValPoint corners[4],
+                           const shared_ptr<std::vector<uint8_t>> &mask,
+                           unsigned int width, unsigned int height,
+                           XGraph::ScrPoint offset) {
+    XScopedLock<XMutex> lock(m_mutex);
+    m_plot = plot;
+    for(unsigned int i = 0; i < 4; ++i)
+        m_corners[i] = corners[i];
+    m_mask = mask;
+    m_width = width;
+    m_height = height;
+    m_offset = offset;
+}
+void
+OnPlotMaskObject::drawNative(bool colorpicking) {
+    XScopedLock<XMutex> lock(m_mutex);
+    auto plot = m_plot.lock();
+    if( !plot) return;
+    if( !m_width || !m_height) return;
+    //convert 4 bounding corners to screen space.
+    // corners: {(bgx,bgy),(edx,bgy),(edx,edy),(bgx,edy)}
+    XGraph::ScrPoint s[4];
+    for(unsigned int i = 0; i < 4; ++i) {
+        XGraph::GPoint g;
+        plot->valToGraphFast(m_corners[i], &g);
+        plot->graphToScreenFast(g, &s[i]);
+        s[i] += m_offset;
+    }
+    // s[0]=bottom-left(bgx,bgy), s[1]=bottom-right(edx,bgy), s[2]=top-right(edx,edy), s[3]=top-left(bgx,edy)
+    Snapshot shot_graph( *painter()->graph());
+    unsigned int bgc = shot_graph[ *painter()->graph()->backGround()];
+    unsigned int fgc = baseColor();
+
+    bool hasMask = m_mask && (m_mask->size() == (size_t)m_width * m_height);
+
+    auto lerp = [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b, double t) -> XGraph::ScrPoint {
+        return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
+    };
+
+    for(auto c: {bgc, fgc}) {
+        painter()->beginQuad(true);
+        if( !colorpicking)
+            painter()->setColor(c, (c == bgc) ? 0.1 : 0.3);
+        for(unsigned int y = 0; y < m_height; ++y) {
+            double yt = (double)y / m_height;
+            double yb = (double)(y + 1) / m_height;
+            //interpolate left/right edges at row top and bottom.
+            auto lt = lerp(s[0], s[3], yb); //left at pixel top (higher y = top in val-space)
+            auto rt = lerp(s[1], s[2], yb);
+            auto lb = lerp(s[0], s[3], yt); //left at pixel bottom
+            auto rb = lerp(s[1], s[2], yt);
+            if( !hasMask) {
+                //full row
+                painter()->setVertex(lb);
+                painter()->setVertex(rb);
+                painter()->setVertex(rt);
+                painter()->setVertex(lt);
+                continue;
+            }
+            const uint8_t *row = m_mask->data() + y * m_width;
+            unsigned int x = 0;
+            while(x < m_width) {
+                if( !row[x]) { ++x; continue; }
+                //find end of span
+                unsigned int x0 = x;
+                while(x < m_width && row[x]) ++x;
+                //draw span [x0, x) as a quad
+                double xl = (double)x0 / m_width;
+                double xr = (double)x / m_width;
+                painter()->setVertex(lerp(lb, rb, xl));
+                painter()->setVertex(lerp(lb, rb, xr));
+                painter()->setVertex(lerp(lt, rt, xr));
+                painter()->setVertex(lerp(lt, rt, xl));
+            }
+        }
+        painter()->endQuad();
+    }
 }
 
