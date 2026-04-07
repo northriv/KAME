@@ -32,9 +32,9 @@ orchestration across compatible instruments without custom programming.
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source here: kame-8.0.zip (https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.0.zip) (2MB, Apr. 6, 2026).
-All other source zips here (https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64bit binaries: 8.0 (https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.0.zip). At least Qt is needed, follow instructions below to install.
+Source here: kame-8.0.zip(https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.0.zip) (2MB, Apr. 6, 2026).
+All other source zips here(https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
+Windows 64bit binaries: 8.0(https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.0.zip). At least Qt is additionally needed, follow instructions below to install.
 
 ### Supported instruments
 
