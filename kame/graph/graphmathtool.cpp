@@ -88,8 +88,10 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
     m_endX(create<XDoubleNode>("EndX", false)),
     m_endY(create<XDoubleNode>("EndY", false)),
     m_maskType(create<XComboNode>("MaskType", false)) {
-    tr_meas[ *m_maskType].add({"Rectangle", "Ellipse", "Arbitrary"});
-    tr_meas[ *m_maskType] = (int)MaskShape::Rectangle;
+    iterate_commit([=](Transaction &tr){
+        tr[ *m_maskType].add({"Rectangle", "Ellipse", "Arbitrary"});
+        tr[ *m_maskType] = (int)MaskShape::Rectangle;
+    });
 }
 
 std::vector<uint8_t>
