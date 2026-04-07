@@ -117,10 +117,7 @@ OnScreenRectObject::drawNative(bool colorpicking) {
 //        glDisable(GL_LINE_STIPPLE);
         break;
     case Type::BorderLines:
-//        glEnable(GL_LINE_STIPPLE);
-//        unsigned short pat = 0x0f0fu;
         for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
-//            painter()->beginLine(1.0, pat);
             painter()->beginLine(1.0);
             if(!colorpicking)
                 painter()->setColor(c, 0.3);
@@ -129,10 +126,43 @@ OnScreenRectObject::drawNative(bool colorpicking) {
             painter()->setVertex(rightTop());
             painter()->setVertex(rightBottom());
             painter()->endLine();
-//            pat = ~pat;
         }
-//        glDisable(GL_LINE_STIPPLE);
         break;
+    case Type::EllipseTool: {
+        //draws an ellipse inscribed within the bounding rectangle.
+        constexpr unsigned int N = 48;
+        XGraph::ScrPoint center;
+        center.x = (leftTop().x + rightBottom().x) / 2;
+        center.y = (leftTop().y + rightBottom().y) / 2;
+        center.z = (leftTop().z + rightBottom().z) / 2;
+        XGraph::ScrPoint rx, ry;
+        rx.x = (rightTop().x - leftTop().x) / 2;
+        rx.y = (rightTop().y - leftTop().y) / 2;
+        rx.z = (rightTop().z - leftTop().z) / 2;
+        ry.x = (leftBottom().x - leftTop().x) / 2;
+        ry.y = (leftBottom().y - leftTop().y) / 2;
+        ry.z = (leftBottom().z - leftTop().z) / 2;
+        for(auto c: {(unsigned int)shot_graph[ *painter()->graph()->backGround()], baseColor()}) {
+            painter()->beginLine(1.0);
+            if(!colorpicking)
+                painter()->setColor(c, 0.3);
+            for(unsigned int i = 0; i <= N; ++i) {
+                double theta = 2.0 * M_PI * i / N;
+                double ct = cos(theta), st = sin(theta);
+                XGraph::ScrPoint p;
+                p.x = center.x + rx.x * ct + ry.x * st;
+                p.y = center.y + rx.y * ct + ry.y * st;
+                p.z = center.z + rx.z * ct + ry.z * st;
+                painter()->setVertex(p);
+                if(i > 0 && i < N) {
+                    //duplicate interior vertices for line segments
+                    painter()->setVertex(p);
+                }
+            }
+            painter()->endLine();
+        }
+        break;
+    }
     }
 }
 

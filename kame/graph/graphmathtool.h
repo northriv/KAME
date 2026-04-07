@@ -19,10 +19,16 @@
 
 #include "graph.h"
 #include "analyzer.h"
+#include <cmath>
 
 class QPainter;
 class XQGraph;
 class OnScreenPickableObject;
+
+enum class MaskShape : int {
+    Rectangle = 0,
+    Ellipse = 1,
+};
 
 class DECLSPEC_KAME XGraphMathTool: public XNode {
 public:
@@ -107,9 +113,31 @@ public:
     const shared_ptr<XDoubleNode> &beginY() const {return m_beginY;}
     const shared_ptr<XDoubleNode> &endX() const {return m_endX;}
     const shared_ptr<XDoubleNode> &endY() const {return m_endY;}
+    const shared_ptr<XComboNode> &maskType() const {return m_maskType;}
+
+    //! Returns the number of pixels in the selected region, accounting for the mask shape.
     unsigned int pixels(const Snapshot &shot) const {
-        return std::abs((shot[ *endX()] - shot[ *beginX()]) * (shot[ *endY()] - shot[ *beginY()]));
+        ssize_t w = lrint(std::abs(shot[ *endX()] - shot[ *beginX()]));
+        ssize_t h = lrint(std::abs(shot[ *endY()] - shot[ *beginY()]));
+        if(w <= 0 || h <= 0) return 0;
+        if((int)shot[ *maskType()] == (int)MaskShape::Ellipse) {
+            double cx = w / 2.0, cy = h / 2.0;
+            unsigned int count = 0;
+            for(ssize_t iy = 0; iy < h; ++iy) {
+                for(ssize_t ix = 0; ix < w; ++ix) {
+                    double dx = (ix + 0.5 - cx) / cx;
+                    double dy = (iy + 0.5 - cy) / cy;
+                    if(dx*dx + dy*dy <= 1.0) ++count;
+                }
+            }
+            return count ? count : 1;
+        }
+        return w * h;
     }
+
+    //! Generates a mask for the given shape and dimensions.
+    //! Returns empty vector for Rectangle (no mask needed), otherwise width*numlines elements (1=included, 0=excluded).
+    static std::vector<uint8_t> generateMask(MaskShape shape, unsigned int width, unsigned int numlines);
 
     virtual XString getMenuLabel() const override;
 protected:
@@ -117,6 +145,7 @@ protected:
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
+    const shared_ptr<XComboNode> m_maskType;
     weak_ptr<OnScreenPickableObject> m_osoRect, m_osoLabel;
 };
 
@@ -191,19 +220,17 @@ public:
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient, double offset) override {
-//        using namespace Eigen;
-//        using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
-//        auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
-//            leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
+        auto mask = XGraph2DMathTool::generateMask(
+            (MaskShape)(int)tr[ *this->maskType()], width, numlines);
         XString msg;
         if constexpr(HasSingleEntry) {
-            double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset);
+            double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset, mask);
             this->entry()->value(tr, v);
             msg += tr[ *this->entry()->value()].to_str();
         }
         else {
             try {
-                std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset);
+                std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset, mask);
                 for(unsigned int i = 0; i < this->numEntries(); ++i) {
                     this->entry(i)->value(tr, v.at(i));
                     msg += tr[ *this->entry(i)->value()].to_str() + " ";
@@ -314,27 +341,40 @@ using XGraph1DMathToolCoG = XGraph1DMathToolX<FuncGraph1DMathToolCoG>;
 
 struct DECLSPEC_KAME FuncGraph2DMathToolSum{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
-    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset){
+    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines,
+        double coefficient, double offset, const std::vector<uint8_t> &mask){
         double v = 0.0;
+        unsigned int count = 0;
         for(unsigned int y = 0; y < numlines; ++y) {
-            for(const uint32_t *p = leftupper; p < leftupper + width; ++p)
-                v += *p;
+            for(unsigned int x = 0; x < width; ++x) {
+                if(mask.empty() || mask[y * width + x]) {
+                    v += leftupper[x];
+                    ++count;
+                }
+            }
             leftupper += stride;
         }
-        return v * coefficient + offset * numlines * width;
+        return v * coefficient + offset * count;
     }
 };
 using XGraph2DMathToolSum = XGraph2DMathToolX<FuncGraph2DMathToolSum>;
 struct DECLSPEC_KAME FuncGraph2DMathToolAverage{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
-    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset){
+    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines,
+        double coefficient, double offset, const std::vector<uint8_t> &mask){
         double v = 0.0;
+        unsigned int count = 0;
         for(unsigned int y = 0; y < numlines; ++y) {
-            for(const uint32_t *p = leftupper; p < leftupper + width; ++p)
-                v += *p;
+            for(unsigned int x = 0; x < width; ++x) {
+                if(mask.empty() || mask[y * width + x]) {
+                    v += leftupper[x];
+                    ++count;
+                }
+            }
             leftupper += stride;
         }
-        return v * coefficient / (width * numlines) + offset;
+        if( !count) return offset;
+        return v * coefficient / count + offset;
     }
 };
 using XGraph2DMathToolAverage = XGraph2DMathToolX<FuncGraph2DMathToolAverage>;

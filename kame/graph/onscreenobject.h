@@ -133,7 +133,7 @@ private:
 
 class DECLSPEC_KAME OnScreenRectObject : public OnScreenPickableObject {
 public:
-    enum class Type {Selection, AreaTool, BorderLines, Legends};
+    enum class Type {Selection, AreaTool, BorderLines, Legends, EllipseTool};
     OnScreenRectObject(XQGraphPainter* p, Type type, const shared_ptr<XNode> &pickable_node) :
         OnScreenPickableObject(p, pickable_node), m_type(type) {}
     //! draws in OpenGL.
