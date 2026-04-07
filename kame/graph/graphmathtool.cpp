@@ -223,11 +223,10 @@ XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainte
     auto oso_lbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>(shared_from_this());
     m_osoLabel = oso_lbl;
     if(isHighLighted()) {
-        auto hlType = ((int)shot[ *maskType()] == (int)MaskShape::Ellipse)
-            ? OnScreenRectObject::Type::EllipseSelection : OnScreenRectObject::Type::Selection;
-        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(hlType, shared_from_this());
-        m_osoHighlight = oso_rect2;
-        return {oso_rect, oso_rect2, oso_lbl};
+        auto oso_mask = painter->createOnScreenObjectWeakly<OnPlotMaskObject>(shared_from_this());
+        m_osoHighlight = oso_mask;
+        m_osoMaskHighlight = oso_mask;
+        return {oso_rect, oso_mask, oso_lbl};
     }
     return {oso_rect, oso_lbl};
 }
@@ -243,12 +242,14 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const sh
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
         }
-        if(auto oso_rect = m_osoHighlight.lock()) {
-            auto oso = static_pointer_cast<OnPlotRectObject>(oso_rect);
+        if(auto oso = m_osoMaskHighlight.lock()) {
             QColor c = (unsigned long)***painter->graph()->titleColor();
             c.setAlphaF(0.25);
             oso->setBaseColor(c.rgba());
-            oso->placeObject(plot, corners, {0.0, 0.0, 0.02});
+            ssize_t w = lrint(std::abs(edx - bgx));
+            ssize_t h = lrint(std::abs(edy - bgy));
+            oso->setMask(plot, corners, shot[ *this].m_mask,
+                (w > 0) ? w : 0, (h > 0) ? h : 0, {0.0, 0.0, 0.02});
         }
         if(auto oso = static_pointer_cast<OnPlotTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);

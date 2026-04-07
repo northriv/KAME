@@ -133,7 +133,7 @@ private:
 
 class DECLSPEC_KAME OnScreenRectObject : public OnScreenPickableObject {
 public:
-    enum class Type {Selection, AreaTool, BorderLines, Legends, EllipseTool, EllipseSelection};
+    enum class Type {Selection, AreaTool, BorderLines, Legends, EllipseTool};
     OnScreenRectObject(XQGraphPainter* p, Type type, const shared_ptr<XNode> &pickable_node) :
         OnScreenPickableObject(p, pickable_node), m_type(type) {}
     //! draws in OpenGL.
@@ -253,4 +253,32 @@ private:
 using OnXAxisTextObject = OnAxisObject<OnScreenTextObject, true>;
 using OnYAxisTextObject = OnAxisObject<OnScreenTextObject, false>;
 using OnPlotTextObject = OnPlotObject<OnScreenTextObject>;
+
+//! Draws a filled highlight for masked pixels within a bounding rectangle in val-space.
+//! Renders horizontal spans from the mask as quads, interpolating screen positions.
+class DECLSPEC_KAME OnPlotMaskObject : public OnScreenPickableObject {
+public:
+    OnPlotMaskObject(XQGraphPainter* p, const shared_ptr<XNode> &pickable_node)
+        : OnScreenPickableObject(p, pickable_node) {}
+
+    //! Set the mask and bounding rectangle.
+    //! \a corners: 4 val-space corners {(bgx,bgy),(edx,bgy),(edx,edy),(bgx,edy)}.
+    //! \a mask: width*height uint8 bitmap (row-major, 1=included). Empty = full rect.
+    //! \a width, \a height: mask dimensions.
+    void setMask(const shared_ptr<XPlot> &plot,
+                 const XGraph::ValPoint corners[4],
+                 const shared_ptr<std::vector<uint8_t>> &mask,
+                 unsigned int width, unsigned int height,
+                 XGraph::ScrPoint offset = {});
+
+    virtual void drawNative(bool colorpicking) override;
+    virtual void drawByPainter(QPainter *) override {}
+private:
+    XMutex m_mutex;
+    weak_ptr<XPlot> m_plot;
+    XGraph::ValPoint m_corners[4];
+    XGraph::ScrPoint m_offset;
+    shared_ptr<std::vector<uint8_t>> m_mask;
+    unsigned int m_width = 0, m_height = 0;
+};
 #endif
