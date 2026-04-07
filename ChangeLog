@@ -1,3 +1,13 @@
+* Mon Apr 07 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- 2D math tools: add configurable mask shape (Rectangle / Ellipse).
+  Each XGraph2DMathTool now has an XComboNode maskType() selecting the
+  mask applied within the rectangular selection. Ellipse inscribes an
+  ellipse; only pixels inside it contribute to Sum/Average/etc.
+  pixels() returns the masked count. generateMask() produces the mask
+  bitmap. Connector popup adds a "Mask Shape" submenu per tool.
+  OnScreenRectObject::EllipseTool draws the inscribed ellipse (48 segs).
+  Python 2D functors now receive a 7th arg (mask: uint8 numpy array).
+
 * Mon Apr 06 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.0)
 - Smart window placement: new driver/graph windows cascade automatically on
