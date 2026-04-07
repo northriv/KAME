@@ -97,7 +97,7 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 - **`MaskShape::Arbitrary`** — the mask is stored in `XGraph2DMathTool::Payload::m_mask` and set externally (e.g. by Python via `payload.setMask(list)` / `payload.mask()`). `regenerateMask(tr)` is called automatically when selection coordinates or mask type change; for `Arbitrary`, it is a no-op (preserves the externally-set mask). `pixels()` counts from the stored mask for all shapes (including Ellipse).
 - **Adding new mask shapes**: add a value to the `MaskShape` enum, extend `generateMask()`, add the label string in the `XGraph2DMathTool` constructor's `add()` call and in `XQGraph2DMathToolConnector::menuOpenActionActivated()`'s `maskLabels` array, and add an OSO drawing case to `OnScreenRectObject::drawNative()` (see `EllipseTool` for reference).
 - **Python 2D math tool functors** receive 7 arguments: `(matrix, width, stride, numlines, coefficient, offset, mask)` where `mask` is a `(numlines, width)` uint8 numpy array. For `Rectangle` mask, an all-ones matrix is passed.
-- **On-screen objects** — `OnScreenRectObject::Type::EllipseTool` draws an inscribed ellipse (48 line segments). The OSO type is chosen at creation time in `XGraph2DMathTool::createAdditionalOnScreenObjects()` based on the current mask type; changing the mask clears and recreates OSOs.
+- **On-screen objects** — `OnScreenRectObject::Type::EllipseTool` draws an inscribed ellipse (48 line segments). The OSO type is chosen at creation time in `XGraph2DMathTool::createAdditionalOnScreenObjects()` based on the current mask type; changing the mask clears and recreates OSOs. The highlight overlay uses `OnPlotMaskObject`, which renders the actual mask bitmap as horizontal row-spans (quads), correctly visualising Rectangle, Ellipse, and Arbitrary masks.
 - **Connector UI** — `XQGraph2DMathToolConnector` shows a "Mask Shape" submenu for each existing 2D tool with the current selection marked `*`. Mask actions are stored in `m_maskActions` and handled in `toolActivated()`.
 
 ### Signal/Listener Pattern
@@ -160,3 +160,18 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 - **`XPointerItemNode::lsnOnListChanged` uses a fresh list snapshot** — when forwarding `onListChanged` to item-level listeners (e.g. combo box connectors with `FLAG_AVOID_DUP`), the method takes a fresh `Snapshot(*list)` instead of reusing the `shot` parameter from the triggering transaction. This is necessary because immediate listeners earlier in the same `onListChanged` dispatch loop may insert new entries (e.g. `XCalibratedEntry` proxy creation during pending-label resolution); the original `shot` would not contain those entries, and `FLAG_AVOID_DUP` deduplication would discard the newer event that does.
 - **`weak_ptr::lock()` null check** — always check the return value of `weak_ptr::lock()` before dereferencing. In particular, `m_entries.lock()` in `XValGraph` and `XCalibratedEntry` can return `nullptr` during shutdown; dereference without a guard crashes.
 - **`kame_mainthread` GIL scope** — the GIL release in `kame_mainthread` must be scoped to only the blocking wait (`talk` + condition wait). Python object operations (`status.is()`, `PyErr_SetString`) before and after the wait require the GIL.
+- **Nested transaction for child-node init in constructors** — when a node constructor creates child nodes with non-transactional `create<T>(name, runtime)` and needs to initialize them (e.g. populating `XComboNode` items), do **not** use the outer `tr_meas` transaction passed from `createByTypename()`. The child is inserted outside that transaction's scope and `tr_meas` cannot see it, causing the transaction to stall (especially during `.kam` loading). Instead, use a nested `iterate_commit` on the node's own subtree:
+  ```cpp
+  // WRONG — stalls during .kam loading:
+  MyNode::MyNode(..., Transaction &tr_meas, ...) :
+      m_combo(create<XComboNode>("Combo", false)) {
+      tr_meas[ *m_combo].add({"A", "B"});  // tr_meas can't see m_combo
+  }
+  // CORRECT — use own transaction:
+  MyNode::MyNode(..., Transaction &tr_meas, ...) :
+      m_combo(create<XComboNode>("Combo", false)) {
+      iterate_commit([=](Transaction &tr){
+          tr[ *m_combo].add({"A", "B"});
+      });
+  }
+  ```

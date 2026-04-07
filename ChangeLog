@@ -9,6 +9,13 @@
   Connector popup adds a "Mask Shape" submenu per tool.
   OnScreenRectObject::EllipseTool draws the inscribed ellipse (48 segs).
   Python 2D functors now receive a 7th arg (mask: uint8 numpy array).
+- 2D math tool highlight: OnPlotMaskObject renders mask-based highlight
+  overlay using horizontal row-spans, correctly visualising all shapes.
+- Fix: OnPlotObject/OnAxisObject z-offset was never applied (for-loop
+  iterated by value instead of reference).
+- Fix: .kam loading hang when creating Graph2DMathTool — MaskType combo
+  items were populated via the outer measurement transaction, which could
+  not see the non-transactionally created child node.
 
 * Mon Apr 06 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.0)
