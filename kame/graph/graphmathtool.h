@@ -224,7 +224,9 @@ public:
         unsigned int stride, unsigned int numlines, double coefficient, double offset) override {
         auto maskptr = tr[ *this].m_mask;
         static const std::vector<uint8_t> s_empty;
-        const auto &mask = maskptr ? *maskptr : s_empty;
+        //discard mask if dimensions mismatch (e.g. selection clipped by image boundary).
+        const auto &mask = (maskptr && (maskptr->size() == (size_t)width * numlines))
+            ? *maskptr : s_empty;
         XString msg;
         if constexpr(HasSingleEntry) {
             double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset, mask);
