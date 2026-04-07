@@ -547,6 +547,7 @@ struct PyFunc2DMathTool {
                       const std::vector<uint8_t> &mask){
         using namespace Eigen;
         using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
+        using RMatrixXu8 = Matrix<uint8_t, Dynamic, Dynamic, RowMajor>;
         auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
             leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
         pybind11::gil_scoped_acquire guard;
@@ -554,8 +555,15 @@ struct PyFunc2DMathTool {
         if( !pf)
             return {};
         try {
+            if(mask.empty()) {
+                //no mask — pass ones matrix.
+                RMatrixXu8 ones = RMatrixXu8::Ones(numlines, width);
+                return py::cast<ret_type>((*pf)(Ref<const RMatrixXu32>(cmatrix),
+                    width, stride, numlines, coefficient, offset, Ref<const RMatrixXu8>(ones)));
+            }
+            auto cmask = Map<const RMatrixXu8>(mask.data(), numlines, width);
             return py::cast<ret_type>((*pf)(Ref<const RMatrixXu32>(cmatrix),
-                width, stride, numlines, coefficient, offset));
+                width, stride, numlines, coefficient, offset, Ref<const RMatrixXu8>(cmask)));
         }
         catch (pybind11::error_already_set& e) {
             gErrPrint(i18n("Python error: ") + e.what());
