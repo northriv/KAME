@@ -307,6 +307,55 @@ mechanism, which provides fairness in the real implementation, is not modeled.
 
 ---
 
+## 5. Runtime Stress Tests (C++)
+
+**Directory:** `tests/`
+
+Complementing the exhaustive model checking above, the C++ stress tests exercise the real
+implementation under high contention with many iterations, catching bugs that depend on
+timing, memory layout, or compiler-specific behavior.
+
+### Test suite
+
+| Test | Threads | Iterations | What it tests |
+|---|---|---|---|
+| `atomic_shared_ptr_test` | 4 | 400K/thread | `atomic_shared_ptr` scan/CAS/swap/reset under concurrent access; verifies object lifecycle balance (construction = destruction), use_count correctness |
+| `atomic_queue_test` | 4 | 100K pushes/thread | Lock-free queues (`atomic_queue`, `atomic_pointer_queue`, `atomic_queue_reserved`); verifies no lost/phantom elements, totals match |
+| `atomic_scoped_ptr_test` | 4 | 1M/thread | Atomic unique-pointer swaps and resets; verifies no leaks (destructor/constructor count balance) |
+| `mutex_test` | 8 | 100K lock/unlock/thread | Mutual exclusion correctness; verifies critical section invariant (`g_cnt1` stays balanced) |
+| `transaction_test` | 4 | 2,500/thread | STM with tree node operations; verifies **snapshot consistency** (`gn2 <= gn3` invariant across concurrent commits), insert/release under transactions, final sums |
+| `transaction_negotiation_test` | 6 (2 slow + 4 fast) | 10 slow, 5M fast | STM fairness under asymmetric contention; verifies slow threads complete despite fast threads (no starvation) |
+| `transaction_dynamic_node_test` | 4 | 2,500/thread | STM with dynamic node creation/deletion (ComplexNode subtrees); verifies tree consistency during concurrent restructuring |
+
+### Build & run
+
+```bash
+cd tests
+# Via qmake (Qt Creator)
+qmake tests.pro && make
+
+# Via GNU Make
+make -f Makefile.tests check   # builds and runs all tests
+```
+
+### Relationship to formal verification
+
+| Property | Stress tests | GenMC | TLA+ |
+|---|---|---|---|
+| Memory ordering correctness | Probabilistic (timing-dependent) | **Exhaustive** (RC11 model) | N/A (seq. consistency) |
+| Protocol logic (refcount) | Probabilistic | Assertion-based | **Exhaustive** (115.7M states) |
+| STM commit correctness | `gn2 <= gn3` invariant | N/A | **Exhaustive** (109.9M states) |
+| Bundle/unbundle protocol | Implicit (via STM tests) | N/A | **Exhaustive** (622M states) |
+| Fairness / starvation | `transaction_negotiation_test` | N/A | Not modeled |
+| Real compiler/hardware bugs | **Yes** (actual binary) | No (abstract model) | No (abstract model) |
+
+The stress tests and formal methods are complementary: stress tests catch implementation-level
+bugs (compiler optimizations, platform-specific alignment, actual memory ordering on hardware)
+while model checking guarantees protocol correctness across **all** possible interleavings
+within the modeled abstraction.
+
+---
+
 ## Paper-ready citations
 
 - **GenMC:** Kokologiannakis, M., Raad, A., & Vafeiadis, V. "Model Checking for Weakly Consistent Libraries." PLDI 2019.
