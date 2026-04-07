@@ -657,7 +657,15 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
 
     XPython::bind.export_xnode<XGraphMathTool, XNode>();
     XPython::bind.export_xnode<XGraph1DMathTool, XGraphMathTool>();
-    XPython::bind.export_xnode<XGraph2DMathTool, XGraphMathTool>();
+    {   auto [node, payload] = XPython::bind.export_xnode<XGraph2DMathTool, XGraphMathTool>();
+        (*payload)
+            .def("setMask", [](XGraph2DMathTool::Payload &self, const std::vector<uint8_t> &mask) {
+                self.m_mask = mask;
+            })
+            .def("mask", [](const XGraph2DMathTool::Payload &self) -> const std::vector<uint8_t> & {
+                return self.m_mask;
+            });
+    }
 
     export_mathtool<XPythonGraph1DMathTool, XGraph1DMathTool>("XPythonGraph1DMathTool");
 

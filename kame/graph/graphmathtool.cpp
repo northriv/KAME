@@ -88,7 +88,7 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
     m_endX(create<XDoubleNode>("EndX", false)),
     m_endY(create<XDoubleNode>("EndY", false)),
     m_maskType(create<XComboNode>("MaskType", false)) {
-    tr_meas[ *m_maskType].add({"Rectangle", "Ellipse"});
+    tr_meas[ *m_maskType].add({"Rectangle", "Ellipse", "Arbitrary"});
     tr_meas[ *m_maskType] = (int)MaskShape::Rectangle;
 }
 
@@ -109,6 +109,16 @@ XGraph2DMathTool::generateMask(MaskShape shape, unsigned int width, unsigned int
         }
     }
     return mask;
+}
+
+void
+XGraph2DMathTool::regenerateMask(Transaction &tr) {
+    auto shape = (MaskShape)(int)tr[ *maskType()];
+    if(shape == MaskShape::Arbitrary)
+        return; //mask is set externally.
+    ssize_t w = lrint(std::abs(tr[ *endX()] - tr[ *beginX()]));
+    ssize_t h = lrint(std::abs(tr[ *endY()] - tr[ *beginY()]));
+    tr[ *this].m_mask = generateMask(shape, std::max((ssize_t)0, w), std::max((ssize_t)0, h));
 }
 
 void
@@ -192,8 +202,11 @@ XGraph2DMathTool::getMenuLabel() const {
     double edx = shot[ *endX()];
     double edy = shot[ *endY()];
     XString maskStr;
-    if((int)shot[ *maskType()] == (int)MaskShape::Ellipse)
+    auto shape = (MaskShape)(int)shot[ *maskType()];
+    if(shape == MaskShape::Ellipse)
         maskStr = " [Ellipse]";
+    else if(shape == MaskShape::Arbitrary)
+        maskStr = " [Arbitrary]";
     return getLabel() + formatString(" (%.0f,%.0f)-(%.0f,%.0f)",bgx, bgy, edx, edy) + maskStr;
 }
 std::deque<shared_ptr<OnScreenObject>>
@@ -493,6 +506,7 @@ XGraph2DMathToolList::onPlaneSelectedByToolForCreate(const Snapshot &shot,
         tr[ *tool->endY()] = dst.y;
         tr[ *tool->baseColor()] = m_basecolor;
         tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
+        tool->regenerateMask(tr);
     });
     tool->highlight(false, widget->painter().lock());
 }
@@ -556,7 +570,9 @@ XGraph2DMathToolList::onPlaneSelectedByToolForReselect(const Snapshot &shot,
             tr[ *tool->endX()] = dst.x;
             tr[ *tool->beginY()] = src.y;
             tr[ *tool->endY()] = dst.y;
+            tool->regenerateMask(tr);
         });
+        tool->clearOnScreenObjects(); //recreate OSOs after region change.
         tool->highlight(false, widget->painter().lock());
     }
     catch(std::out_of_range &) {

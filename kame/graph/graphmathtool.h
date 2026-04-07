@@ -28,6 +28,7 @@ class OnScreenPickableObject;
 enum class MaskShape : int {
     Rectangle = 0,
     Ellipse = 1,
+    Arbitrary = 2,
 };
 
 class DECLSPEC_KAME XGraphMathTool: public XNode {
@@ -115,29 +116,30 @@ public:
     const shared_ptr<XDoubleNode> &endY() const {return m_endY;}
     const shared_ptr<XComboNode> &maskType() const {return m_maskType;}
 
-    //! Returns the number of pixels in the selected region, accounting for the mask shape.
+    //! Returns the number of unmasked pixels, counting from the stored mask.
     unsigned int pixels(const Snapshot &shot) const {
-        ssize_t w = lrint(std::abs(shot[ *endX()] - shot[ *beginX()]));
-        ssize_t h = lrint(std::abs(shot[ *endY()] - shot[ *beginY()]));
-        if(w <= 0 || h <= 0) return 0;
-        if((int)shot[ *maskType()] == (int)MaskShape::Ellipse) {
-            double cx = w / 2.0, cy = h / 2.0;
-            unsigned int count = 0;
-            for(ssize_t iy = 0; iy < h; ++iy) {
-                for(ssize_t ix = 0; ix < w; ++ix) {
-                    double dx = (ix + 0.5 - cx) / cx;
-                    double dy = (iy + 0.5 - cy) / cy;
-                    if(dx*dx + dy*dy <= 1.0) ++count;
-                }
-            }
-            return count ? count : 1;
+        const auto &m = shot[ *this].m_mask;
+        if(m.empty()) {
+            ssize_t w = lrint(std::abs(shot[ *endX()] - shot[ *beginX()]));
+            ssize_t h = lrint(std::abs(shot[ *endY()] - shot[ *beginY()]));
+            return (w > 0 && h > 0) ? w * h : 0;
         }
-        return w * h;
+        unsigned int count = 0;
+        for(auto v: m) count += v;
+        return count ? count : 1;
     }
 
     //! Generates a mask for the given shape and dimensions.
     //! Returns empty vector for Rectangle (no mask needed), otherwise width*numlines elements (1=included, 0=excluded).
     static std::vector<uint8_t> generateMask(MaskShape shape, unsigned int width, unsigned int numlines);
+
+    //! (Re)generates the mask from the current selection coordinates and mask type, storing it in \a tr.
+    //! For Arbitrary, does nothing (mask is set externally).
+    void regenerateMask(Transaction &tr);
+
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
+        std::vector<uint8_t> m_mask; //!< stored mask bitmap; empty = all included (Rectangle).
+    };
 
     virtual XString getMenuLabel() const override;
 protected:
@@ -220,8 +222,7 @@ public:
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient, double offset) override {
-        auto mask = XGraph2DMathTool::generateMask(
-            (MaskShape)(int)tr[ *this->maskType()], width, numlines);
+        const auto &mask = tr[ *this].m_mask;
         XString msg;
         if constexpr(HasSingleEntry) {
             double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset, mask);
@@ -345,14 +346,24 @@ struct DECLSPEC_KAME FuncGraph2DMathToolSum{
         double coefficient, double offset, const std::vector<uint8_t> &mask){
         double v = 0.0;
         unsigned int count = 0;
-        for(unsigned int y = 0; y < numlines; ++y) {
-            for(unsigned int x = 0; x < width; ++x) {
-                if(mask.empty() || mask[y * width + x]) {
+        if(mask.empty()) {
+            count = width * numlines;
+            for(unsigned int y = 0; y < numlines; ++y) {
+                for(unsigned int x = 0; x < width; ++x)
                     v += leftupper[x];
-                    ++count;
-                }
+                leftupper += stride;
             }
-            leftupper += stride;
+        }
+        else {
+            for(unsigned int y = 0; y < numlines; ++y) {
+                for(unsigned int x = 0; x < width; ++x) {
+                    if(mask[y * width + x]) {
+                        v += leftupper[x];
+                        ++count;
+                    }
+                }
+                leftupper += stride;
+            }
         }
         return v * coefficient + offset * count;
     }
@@ -364,14 +375,24 @@ struct DECLSPEC_KAME FuncGraph2DMathToolAverage{
         double coefficient, double offset, const std::vector<uint8_t> &mask){
         double v = 0.0;
         unsigned int count = 0;
-        for(unsigned int y = 0; y < numlines; ++y) {
-            for(unsigned int x = 0; x < width; ++x) {
-                if(mask.empty() || mask[y * width + x]) {
+        if(mask.empty()) {
+            count = width * numlines;
+            for(unsigned int y = 0; y < numlines; ++y) {
+                for(unsigned int x = 0; x < width; ++x)
                     v += leftupper[x];
-                    ++count;
-                }
+                leftupper += stride;
             }
-            leftupper += stride;
+        }
+        else {
+            for(unsigned int y = 0; y < numlines; ++y) {
+                for(unsigned int x = 0; x < width; ++x) {
+                    if(mask[y * width + x]) {
+                        v += leftupper[x];
+                        ++count;
+                    }
+                }
+                leftupper += stride;
+            }
         }
         if( !count) return offset;
         return v * coefficient / count + offset;
