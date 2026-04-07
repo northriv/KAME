@@ -354,7 +354,7 @@ OnPlotObject<OSO>::valToScreen() {
         std::sort(s.begin(), s.end(), [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b) {
             return std::tie(a.x, a.y) < std::tie(b.x, b.y);
           });
-        for(auto p: s)
+        for(auto &p: s)
             p += m_offset;
         OSO::placeObject(s[1], s[3], s[2], s[0], this->m_direction, this->m_space);
     }
@@ -405,7 +405,7 @@ OnAxisObject<OSO, IsXAxis>::toScreen() {
 //        std::sort(s.begin(), s.end(), [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b) {
 //            return std::tie(a.x, a.y) < std::tie(b.x, b.y);
 //          });
-        for(auto p: s)
+        for(auto &p: s)
             p += m_offset;
 //        OSO::placeObject(s[1], s[3], s[2], s[0], OSO::HowToEvade::Never, 0);
         OSO::placeObject(s[0], s[1], s[2], s[3], this->m_direction, this->m_space);
