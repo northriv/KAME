@@ -118,14 +118,14 @@ public:
 
     //! Returns the number of unmasked pixels, counting from the stored mask.
     unsigned int pixels(const Snapshot &shot) const {
-        const auto &m = shot[ *this].m_mask;
-        if(m.empty()) {
+        auto m = shot[ *this].m_mask;
+        if( !m || m->empty()) {
             ssize_t w = lrint(std::abs(shot[ *endX()] - shot[ *beginX()]));
             ssize_t h = lrint(std::abs(shot[ *endY()] - shot[ *beginY()]));
             return (w > 0 && h > 0) ? w * h : 0;
         }
         unsigned int count = 0;
-        for(auto v: m) count += v;
+        for(auto v: *m) count += v;
         return count ? count : 1;
     }
 
@@ -138,7 +138,7 @@ public:
     void regenerateMask(Transaction &tr);
 
     struct DECLSPEC_KAME Payload : public XNode::Payload {
-        std::vector<uint8_t> m_mask; //!< stored mask bitmap; empty = all included (Rectangle).
+        shared_ptr<std::vector<uint8_t>> m_mask; //!< stored mask bitmap; null or empty = all included (Rectangle).
     };
 
     virtual XString getMenuLabel() const override;
@@ -222,7 +222,9 @@ public:
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient, double offset) override {
-        const auto &mask = tr[ *this].m_mask;
+        auto maskptr = tr[ *this].m_mask;
+        static const std::vector<uint8_t> s_empty;
+        const auto &mask = maskptr ? *maskptr : s_empty;
         XString msg;
         if constexpr(HasSingleEntry) {
             double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset, mask);
