@@ -144,6 +144,18 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
         });
         return;
     }
+    if(m_maskActions.count(act)) {
+        auto &[tool_node, mask_idx] = m_maskActions.at(act);
+        auto tool = static_pointer_cast<XGraph2DMathTool>(tool_node);
+        tool->iterate_commit([&](Transaction &tr){
+            tr[ *tool->maskType()] = mask_idx;
+        });
+        tool->clearOnScreenObjects(); //recreate OSOs for the new mask shape.
+        Snapshot shot_tool( *tool);
+        tool->updateOnScreenObjects(shot_tool, m_graphwidget->painter().lock(), {});
+        m_maskActions.clear();
+        return;
+    }
     if(m_actionToToolMap.count(act)) {
         auto label = m_actionToToolMap.at(act);
         m_graphwidget->activatePlaneSelectionTool(XAxis::AxisDirection::X, XAxis::AxisDirection::Y, label); //label will be used for createByTypename().
@@ -183,6 +195,7 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
     m_actionToExisitingToolMap.clear();
     m_deleteActions.clear(); //not to be called twice.
     m_reselectActions.clear(); //not to be called twice.
+    m_maskActions.clear();
 }
 
 
@@ -300,6 +313,7 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
     m_reselectActions.clear();
     m_actionToExisitingToolMap.clear();
     m_autoRescaleActions.clear();
+    m_maskActions.clear();
     if(m_lists.empty())
         return;
     auto &list = m_lists[0];
@@ -311,6 +325,20 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
         menuoftool->addAction(actdel);
         QAction *actre = new QAction(i18n("Reselect Tool"), menuoftool);
         menuoftool->addAction(actre);
+        //mask type submenu
+        {
+            auto tool = static_pointer_cast<XGraph2DMathTool>(shot.list()->at(i));
+            Snapshot shot_tool( *tool);
+            int curMask = (int)shot_tool[ *tool->maskType()];
+            QMenu *maskMenu = menuoftool->addMenu(i18n("Mask Shape"));
+            static const char *maskLabels[] = {"Rectangle", "Ellipse"};
+            for(int m = 0; m < 2; ++m) {
+                QAction *actmask = new QAction(
+                    QString(maskLabels[m]) + (m == curMask ? " *" : ""), maskMenu);
+                maskMenu->addAction(actmask);
+                m_maskActions[actmask] = {tool, m};
+            }
+        }
         if(m_isFromPopup) {
             menuoftool->addSeparator();
             QAction *actar = new QAction(i18n("Auto Rescale"), menuoftool);

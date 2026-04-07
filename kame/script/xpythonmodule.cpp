@@ -543,7 +543,8 @@ struct PyFunc2DMathTool {
 
     ret_type
     operator()(const uint32_t *leftupper, unsigned int width,
-                      unsigned int stride, unsigned int numlines, double coefficient, double offset){
+                      unsigned int stride, unsigned int numlines, double coefficient, double offset,
+                      const std::vector<uint8_t> &mask){
         using namespace Eigen;
         using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
         auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(

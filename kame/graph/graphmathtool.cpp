@@ -86,8 +86,29 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
     m_beginX(create<XDoubleNode>("BeginX", false)),
     m_beginY(create<XDoubleNode>("BeginY", false)),
     m_endX(create<XDoubleNode>("EndX", false)),
-    m_endY(create<XDoubleNode>("EndY", false)) {
+    m_endY(create<XDoubleNode>("EndY", false)),
+    m_maskType(create<XComboNode>("MaskType", false)) {
+    tr_meas[ *m_maskType].add({"Rectangle", "Ellipse"});
+    tr_meas[ *m_maskType] = (int)MaskShape::Rectangle;
+}
 
+std::vector<uint8_t>
+XGraph2DMathTool::generateMask(MaskShape shape, unsigned int width, unsigned int numlines) {
+    if(shape == MaskShape::Rectangle || width == 0 || numlines == 0)
+        return {};
+    std::vector<uint8_t> mask(width * numlines, 0);
+    if(shape == MaskShape::Ellipse) {
+        double cx = width / 2.0, cy = numlines / 2.0;
+        for(unsigned int y = 0; y < numlines; ++y) {
+            for(unsigned int x = 0; x < width; ++x) {
+                double dx = (x + 0.5 - cx) / cx;
+                double dy = (y + 0.5 - cy) / cy;
+                if(dx * dx + dy * dy <= 1.0)
+                    mask[y * width + x] = 1;
+            }
+        }
+    }
+    return mask;
 }
 
 void
@@ -170,11 +191,17 @@ XGraph2DMathTool::getMenuLabel() const {
     double bgy = shot[ *beginY()];
     double edx = shot[ *endX()];
     double edy = shot[ *endY()];
-    return getLabel() + formatString(" (%.0f,%.0f)-(%.0f,%.0f)",bgx, bgy, edx, edy);
+    XString maskStr;
+    if((int)shot[ *maskType()] == (int)MaskShape::Ellipse)
+        maskStr = " [Ellipse]";
+    return getLabel() + formatString(" (%.0f,%.0f)-(%.0f,%.0f)",bgx, bgy, edx, edy) + maskStr;
 }
 std::deque<shared_ptr<OnScreenObject>>
 XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) {
-    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool, shared_from_this());
+    Snapshot shot( *this);
+    auto osoType = ((int)shot[ *maskType()] == (int)MaskShape::Ellipse)
+        ? OnScreenRectObject::Type::EllipseTool : OnScreenRectObject::Type::AreaTool;
+    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(osoType, shared_from_this());
     m_osoRect = oso_rect;
     auto oso_lbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>(shared_from_this());
     m_osoLabel = oso_lbl;
