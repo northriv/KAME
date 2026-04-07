@@ -731,54 +731,54 @@ OnPlotMaskObject::drawNative(bool colorpicking) {
         plot->graphToScreenFast(g, &s[i]);
         s[i] += m_offset;
     }
-    // s[0]=bottom-left(bgx,bgy), s[1]=bottom-right(edx,bgy), s[2]=top-right(edx,edy), s[3]=top-left(bgx,edy)
+    // s[0]=(bgx,bgy), s[1]=(edx,bgy), s[2]=(edx,edy), s[3]=(bgx,edy)
     Snapshot shot_graph( *painter()->graph());
     unsigned int bgc = shot_graph[ *painter()->graph()->backGround()];
     unsigned int fgc = baseColor();
 
     bool hasMask = m_mask && (m_mask->size() == (size_t)m_width * m_height);
 
-    auto lerp = [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b, float t) -> XGraph::ScrPoint {
-        return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
-    };
-
+    double w = 0.1;
     for(auto c: {bgc, fgc}) {
         painter()->beginQuad(true);
         if( !colorpicking)
-            painter()->setColor(c, (c == bgc) ? 0.1 : 0.3);
-        for(unsigned int y = 0; y < m_height; ++y) {
-            double yt = (double)y / m_height;
-            double yb = (double)(y + 1) / m_height;
-            //interpolate left/right edges at row top and bottom.
-            auto lt = lerp(s[0], s[3], yb); //left at pixel top (higher y = top in val-space)
-            auto rt = lerp(s[1], s[2], yb);
-            auto lb = lerp(s[0], s[3], yt); //left at pixel bottom
-            auto rb = lerp(s[1], s[2], yt);
-            if( !hasMask) {
-                //full row
-                painter()->setVertex(lb);
-                painter()->setVertex(rb);
-                painter()->setVertex(rt);
-                painter()->setVertex(lt);
-                continue;
-            }
-            const uint8_t *row = m_mask->data() + y * m_width;
-            unsigned int x = 0;
-            while(x < m_width) {
-                if( !row[x]) { ++x; continue; }
-                //find end of span
-                unsigned int x0 = x;
-                while(x < m_width && row[x]) ++x;
-                //draw span [x0, x) as a quad
-                double xl = (double)x0 / m_width;
-                double xr = (double)x / m_width;
-                painter()->setVertex(lerp(lb, rb, xl));
-                painter()->setVertex(lerp(lb, rb, xr));
-                painter()->setVertex(lerp(lt, rt, xr));
-                painter()->setVertex(lerp(lt, rt, xl));
+            painter()->setColor(c, w);
+        if( !hasMask) {
+            //no mask — single quad for entire rectangle.
+            painter()->setVertex(s[0]);
+            painter()->setVertex(s[1]);
+            painter()->setVertex(s[2]);
+            painter()->setVertex(s[3]);
+        }
+        else {
+            auto lerp = [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b, float t) -> XGraph::ScrPoint {
+                return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
+            };
+            for(unsigned int y = 0; y < m_height; ++y) {
+                float yt = (float)y / m_height;
+                float yb = (float)(y + 1) / m_height;
+                //interpolate left/right edges at row top and bottom.
+                auto lt = lerp(s[0], s[3], yb); //left at higher y in val-space
+                auto rt = lerp(s[1], s[2], yb);
+                auto lb = lerp(s[0], s[3], yt); //left at lower y
+                auto rb = lerp(s[1], s[2], yt);
+                const uint8_t *row = m_mask->data() + y * m_width;
+                unsigned int x = 0;
+                while(x < m_width) {
+                    if( !row[x]) { ++x; continue; }
+                    unsigned int x0 = x;
+                    while(x < m_width && row[x]) ++x;
+                    float xl = (float)x0 / m_width;
+                    float xr = (float)x / m_width;
+                    painter()->setVertex(lerp(lb, rb, xl));
+                    painter()->setVertex(lerp(lb, rb, xr));
+                    painter()->setVertex(lerp(lt, rt, xr));
+                    painter()->setVertex(lerp(lt, rt, xl));
+                }
             }
         }
         painter()->endQuad();
+        w = 0.3;
     }
 }
 
