@@ -721,7 +721,6 @@ OnPlotMaskObject::drawNative(bool colorpicking) {
     XScopedLock<XMutex> lock(m_mutex);
     auto plot = m_plot.lock();
     if( !plot) return;
-    if( !m_width || !m_height) return;
     //convert 4 bounding corners to screen space.
     // corners: {(bgx,bgy),(edx,bgy),(edx,edy),(bgx,edy)}
     XGraph::ScrPoint s[4];
@@ -732,53 +731,74 @@ OnPlotMaskObject::drawNative(bool colorpicking) {
         s[i] += m_offset;
     }
     // s[0]=(bgx,bgy), s[1]=(edx,bgy), s[2]=(edx,edy), s[3]=(bgx,edy)
-    Snapshot shot_graph( *painter()->graph());
-    unsigned int bgc = shot_graph[ *painter()->graph()->backGround()];
     unsigned int fgc = baseColor();
+    bool hasMask = m_mask && m_width && m_height && (m_mask->size() == (size_t)m_width * m_height);
 
-    bool hasMask = m_mask && (m_mask->size() == (size_t)m_width * m_height);
+    glDisable(GL_DEPTH_TEST);
 
-    double w = 0.1;
-    for(auto c: {bgc, fgc}) {
-        painter()->beginQuad(true);
-        if( !colorpicking)
-            painter()->setColor(c, w);
-        if( !hasMask) {
-            //no mask — single quad for entire rectangle.
+    if( !hasMask) {
+        //no mask — two-pass (background + foreground) selection highlight.
+        Snapshot shot_graph( *painter()->graph());
+        unsigned int bgc = shot_graph[ *painter()->graph()->backGround()];
+        double w = 0.1;
+        for(auto c: {bgc, fgc}) {
+            painter()->beginQuad(true);
+            if( !colorpicking)
+                painter()->setColor(c, w);
             painter()->setVertex(s[0]);
             painter()->setVertex(s[1]);
             painter()->setVertex(s[2]);
             painter()->setVertex(s[3]);
+            painter()->endQuad();
+            w = 0.3;
         }
-        else {
-            auto lerp = [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b, float t) -> XGraph::ScrPoint {
-                return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
-            };
-            for(unsigned int y = 0; y < m_height; ++y) {
-                float yt = (float)y / m_height;
-                float yb = (float)(y + 1) / m_height;
-                //interpolate left/right edges at row top and bottom.
-                auto lt = lerp(s[0], s[3], yb); //left at higher y in val-space
-                auto rt = lerp(s[1], s[2], yb);
-                auto lb = lerp(s[0], s[3], yt); //left at lower y
-                auto rb = lerp(s[1], s[2], yt);
-                const uint8_t *row = m_mask->data() + y * m_width;
-                unsigned int x = 0;
-                while(x < m_width) {
-                    if( !row[x]) { ++x; continue; }
-                    unsigned int x0 = x;
-                    while(x < m_width && row[x]) ++x;
-                    float xl = (float)x0 / m_width;
-                    float xr = (float)x / m_width;
-                    painter()->setVertex(lerp(lb, rb, xl));
-                    painter()->setVertex(lerp(lb, rb, xr));
-                    painter()->setVertex(lerp(lt, rt, xr));
-                    painter()->setVertex(lerp(lt, rt, xl));
-                }
-            }
-        }
-        painter()->endQuad();
-        w = 0.3;
     }
+    else {
+        // Render mask as an alpha texture on a single quad — no overlapping geometry.
+        // Build RGBA texture: foreground color with alpha from mask.
+        unsigned int r = (fgc >> 16) & 0xff, g = (fgc >> 8) & 0xff, b = fgc & 0xff;
+        unsigned int alpha = std::min(255u, (unsigned int)(0.4 * 255));
+        std::vector<uint8_t> texdata(m_width * m_height * 4);
+        for(unsigned int i = 0; i < m_width * m_height; ++i) {
+            texdata[i * 4 + 0] = r;
+            texdata[i * 4 + 1] = g;
+            texdata[i * 4 + 2] = b;
+            texdata[i * 4 + 3] = (*m_mask)[i] ? alpha : 0;
+        }
+        GLuint tex;
+        glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0,
+            GL_RGBA, GL_UNSIGNED_BYTE, texdata.data());
+
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        if( !colorpicking)
+            glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // texture provides color+alpha
+        // Mask data is row-major: row 0 = beginY (smaller Y value).
+        // GL texture v=0 is at the bottom. Map mask row 0 to the screen
+        // position of beginY (s[0]/s[1] side).
+        // If Y axis is inverted (smaller val-Y → larger screen-Y → bottom),
+        // then s[0] is at the bottom → v=0 maps to s[0] naturally.
+        // If Y axis is not inverted, s[0] is at the top → need v=1 at s[0].
+        bool yNormal = (s[0].y < s[2].y); // s[0] (bgy) is above s[2] (edy) on screen
+        float v0 = yNormal ? 1.0f : 0.0f;  // texcoord for bgy side
+        float v1 = yNormal ? 0.0f : 1.0f;  // texcoord for edy side
+        glBegin(GL_QUADS);
+        glTexCoord2f(0.0f, v0); glVertex3f(s[0].x, s[0].y, s[0].z);
+        glTexCoord2f(1.0f, v0); glVertex3f(s[1].x, s[1].y, s[1].z);
+        glTexCoord2f(1.0f, v1); glVertex3f(s[2].x, s[2].y, s[2].z);
+        glTexCoord2f(0.0f, v1); glVertex3f(s[3].x, s[3].y, s[3].z);
+        glEnd();
+        glDisable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDeleteTextures(1, &tex);
+    }
+    glEnable(GL_DEPTH_TEST);
 }
 

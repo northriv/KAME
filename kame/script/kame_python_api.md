@@ -225,6 +225,10 @@ imgplot = Root()["Drivers"]["JAI"]["LiveImage"]["LiveImage"]["Plots"]["ImagePlot
 shot = Snapshot(imgplot)
 png_bytes = shot[imgplot].to_png()  # QImage as PNG bytes (or None)
 
+# Image dimensions (pixels)
+w = shot[imgplot].imageWidth()
+h = shot[imgplot].imageHeight()
+
 # Display via IPython (returned as image through MCP)
 from IPython.display import display, Image
 display(Image(data=png_bytes, format='png'))
@@ -250,6 +254,9 @@ Use `createByTypename()` to add math tools; `release()` to remove them.
 
 ### Creating and configuring
 
+ROI coordinates use inclusive pixel endpoints: `FirstX/FirstY` (top-left) and
+`LastX/LastY` (bottom-right, inclusive). The ROI width in pixels is `LastX - FirstX + 1`.
+
 ```python
 ch0 = Root()["Drivers"]["JAI"]["LiveImage"]["CH0"]
 dc = ch0.dynamic_cast()  # needed for createByTypename
@@ -257,17 +264,37 @@ dc = ch0.dynamic_cast()  # needed for createByTypename
 # Create — returns the new tool node
 tool = dc.createByTypename("Graph2DMathToolAverage", "MyAvg")
 
-# Set ROI in pixel coordinates (image pixels, not screen pixels)
-tool["BeginX"] = "100"
-tool["BeginY"] = "100"
-tool["EndX"] = "500"
-tool["EndY"] = "500"
+# Set ROI in pixel coordinates (inclusive endpoints)
+tool["FirstX"] = "100"
+tool["FirstY"] = "100"
+tool["LastX"] = "500"
+tool["LastY"] = "500"
 
 # Read the scalar entry value
 val_node = tool["CH0-MyAvg"]["Value"]  # name = "{channel}-{toolname}"
 shot = Snapshot(val_node)
 float(shot[val_node])
 ```
+
+### Mask types
+
+Each tool has a `MaskType` node: Rectangle (default), Ellipse, Arbitrary.
+
+For Arbitrary masks, use `setArbitraryMask()` which atomically sets MaskType
+and the mask bitmap in one transaction:
+
+```python
+# Mask: uint8 list, 1=included, 0=excluded.
+# Dimensions must be (LastX - FirstX + 1) * (LastY - FirstY + 1).
+tool.dynamic_cast().setArbitraryMask(mask_bytes)
+
+# Read back mask
+shot = Snapshot(tool)
+mask = shot[tool].mask()  # list[uint8]
+```
+
+**Important:** Clamp ROI to actual image dimensions to avoid display offset.
+Use `shot[imgplot].imageWidth()` and `shot[imgplot].imageHeight()` to get bounds.
 
 ### Removing a tool
 

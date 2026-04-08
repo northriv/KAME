@@ -74,6 +74,8 @@ Windows 64bit binaries: 8.0(https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-w
 - **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
 - **Window cascade placement** — instrument windows are automatically arranged on show.
 - **Comprehensive bug audit** — 20 bug fixes across 12 source files (GIL safety, buffer bounds, null-pointer guards, logic errors).
+- **Arbitrary mask support for 2D math tools** — ROI math tools (Average, Sum) now support arbitrary binary masks in addition to Rectangle and Ellipse shapes. Masks can be set programmatically from Python via `setArbitraryMask()`. Highlighted masks are rendered as GPU textures.
+- **Math tool API cleanup** — ROI endpoint naming changed from `Begin/End` to `First/Last` (inclusive endpoints, avoids STL naming confusion). Added `imageWidth()`/`imageHeight()` to `X2DImagePlot` for Python access. Old `.kam` files with `Begin/End` names load transparently via compatibility aliases.
 
 ---
 

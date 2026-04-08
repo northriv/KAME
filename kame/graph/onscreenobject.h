@@ -33,7 +33,8 @@ public:
 
     unsigned int baseColor() const { return m_baseColor;}
     void setBaseColor(unsigned int basecolor) {m_baseColor = basecolor;}
-    bool isValid(XQGraphPainter *currentPainter) const {return painter() == currentPainter;}
+    bool isValid(XQGraphPainter *currentPainter) const {return !m_invalidated && (painter() == currentPainter);}
+    void invalidate() {m_invalidated = true;}
     virtual bool hasTexture() const {return false;}
 protected:
     friend class XGraph1DMathTool;
@@ -43,6 +44,7 @@ protected:
 private:
     XQGraphPainter *const m_painter;
     atomic<unsigned int> m_baseColor = 0x4080ffu;
+    atomic<bool> m_invalidated = false;
 };
 
 template <class OSO>

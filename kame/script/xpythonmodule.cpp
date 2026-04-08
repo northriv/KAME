@@ -613,11 +613,24 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         .def("to_png", [](X2DImagePlot::Payload &self) -> py::bytes {
             auto img = self.image();
             if( !img) return py::bytes();
+            // Strip color space from grayscale images to avoid libpng warning
+            // ("RGB color space not permitted on grayscale PNG").
+            QImage out = *img;
+            if(out.isGrayscale() && out.colorSpace().isValid())
+                out.setColorSpace(QColorSpace());
             QByteArray ba;
             QBuffer buf(&ba);
             buf.open(QIODevice::WriteOnly);
-            img->save(&buf, "PNG");
+            out.save(&buf, "PNG");
             return py::bytes(ba.constData(), ba.size());
+        })
+        .def("imageWidth", [](X2DImagePlot::Payload &self) -> int {
+            auto img = self.image();
+            return img ? img->width() : 0;
+        })
+        .def("imageHeight", [](X2DImagePlot::Payload &self) -> int {
+            auto img = self.image();
+            return img ? img->height() : 0;
         });
     }
     XPython::bind.export_xnode<XGraphNToolBox, XNode>();
@@ -658,6 +671,8 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
     XPython::bind.export_xnode<XGraphMathTool, XNode>();
     XPython::bind.export_xnode<XGraph1DMathTool, XGraphMathTool>();
     {   auto [node, payload] = XPython::bind.export_xnode<XGraph2DMathTool, XGraphMathTool>();
+        (*node)
+            .def("setArbitraryMask", &XGraph2DMathTool::setArbitraryMask);
         (*payload)
             .def("setMask", [](XGraph2DMathTool::Payload &self, const std::vector<uint8_t> &mask) {
                 self.m_mask = std::make_shared<std::vector<uint8_t>>(mask); //deep copy.
@@ -667,9 +682,14 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
             });
     }
 
+    // Register C++ concrete 2D math tool types so dynamic_cast() resolves to XGraph2DMathTool.
+    XPython::bind.export_xnode<XGraph2DMathToolSum, XGraph2DMathTool>();
+    XPython::bind.export_xnode<XGraph2DMathToolAverage, XGraph2DMathTool>();
+
     export_mathtool<XPythonGraph1DMathTool, XGraph1DMathTool>("XPythonGraph1DMathTool");
 
     export_mathtool<XPythonGraph2DMathTool, XGraph2DMathTool>("XPythonGraph2DMathTool");
+
 }
 
 void

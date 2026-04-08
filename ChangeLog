@@ -1,3 +1,30 @@
+* Tue Apr 08 2026 Shota Suetsugu
+- Math tool API: rename Begin/End to First/Last (inclusive endpoint naming).
+  1D tools: first()/last(), 2D tools: firstX()/firstY()/lastX()/lastY().
+  .kam backward compatibility via _KamNode aliases in xpythonsupport.py.
+- Add XGraph2DMathTool::setArbitraryMask() — atomically sets MaskType to
+  Arbitrary and writes the mask bitmap in one iterate_commit.
+  Exposed to Python via pybind11 on the registered concrete types.
+- Register C++ concrete 2D math tool types (XGraph2DMathToolSum,
+  XGraph2DMathToolAverage) so Python dynamic_cast() resolves properly.
+- Add imageWidth()/imageHeight() to X2DImagePlot Python bindings.
+- Fix OSO ghost artifacts on tool release: OnScreenObject::invalidate()
+  flag checked by isValid(); clearOnScreenObjects() invalidates before clear.
+- Fix Snapshot-based update() in XGraph1DMathToolX/XGraph2DMathToolX:
+  read functor and mask from Snapshot(*this) instead of tr[*this] to
+  prevent driver transaction CoW from overwriting user-set mask/MaskType.
+- Arbitrary mask highlight: render as GL alpha texture on single quad
+  (eliminates overlapping-quad butterfly artifacts). Y-axis inversion
+  handled via screen-space comparison. Depth test disabled during draw.
+- Fix +1 dimension mismatch between OSO display and computation ROI
+  in updateAdditionalOnScreenObjects.
+- Fix libpng sRGB warning: strip color space from grayscale QImage in to_png().
+- MCP server: streamline to 6 tools (remove read_node, set_node, read_scalar,
+  list_children, list_scalars); replace list_children with recursive tree tool;
+  compact kame_status output.
+- Fix xpythonsupport.py: MCP venv path detection (cross-platform, search up
+  from KAME_ResourceDir); fix _sys -> sys typo.
+
 * Mon Apr 07 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - 2D math tools: add configurable mask shape (Rectangle / Ellipse / Arbitrary).
   Each XGraph2DMathTool now has an XComboNode maskType() selecting the
