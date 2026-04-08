@@ -123,8 +123,8 @@ XGraph2DMathTool::regenerateMask(Transaction &tr) {
     auto shape = (MaskShape)(int)tr[ *maskType()];
     if(shape == MaskShape::Arbitrary)
         return; //mask is set externally.
-    ssize_t w = lrint(std::abs(tr[ *lastX()] - tr[ *firstX()]));
-    ssize_t h = lrint(std::abs(tr[ *lastY()] - tr[ *firstY()]));
+    ssize_t w = lrint(std::abs(tr[ *lastX()] - tr[ *firstX()])) + 1;
+    ssize_t h = lrint(std::abs(tr[ *lastY()] - tr[ *firstY()])) + 1;
     auto v = generateMask(shape, std::max((ssize_t)0, w), std::max((ssize_t)0, h));
     tr[ *this].m_mask = v.empty() ? shared_ptr<std::vector<uint8_t>>()
         : std::make_shared<std::vector<uint8_t>>(std::move(v));

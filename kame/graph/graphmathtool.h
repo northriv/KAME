@@ -231,6 +231,16 @@ public:
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient, double offset) override {
+        // Ensure mask is generated if MaskType requires one but m_mask is empty.
+        {
+            Snapshot pre( *this);
+            auto shape = (MaskShape)(int)pre[ *this->maskType()];
+            if(shape != MaskShape::Rectangle && shape != MaskShape::Arbitrary && !pre[ *this].m_mask) {
+                this->iterate_commit([&](Transaction &mtr){
+                    this->regenerateMask(mtr);
+                });
+            }
+        }
         Snapshot shot( *this); //read-only access to the tool's payload; avoids CoW on the tool node.
         auto maskptr = shot[ *this].m_mask;
         auto func = shot[ *this].functor; //copy functor locally so non-const operator() can be called.
