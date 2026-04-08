@@ -296,6 +296,108 @@ mask = shot[tool].mask()  # list[uint8]
 **Important:** Clamp ROI to actual image dimensions to avoid display offset.
 Use `shot[imgplot].imageWidth()` and `shot[imgplot].imageHeight()` to get bounds.
 
+### Creating a mask from image analysis
+
+Helper function to create a clean bright-area mask with morphological cleanup
+and connected component filtering. Requires `scipy` and `PIL`.
+
+```python
+import numpy as np
+from scipy import ndimage
+from PIL import Image as PILImage
+
+def make_bright_mask(imgplot_path="Drivers/JAI/LiveImage",
+                     method="median",    # "median", "otsu", or "percentile"
+                     threshold_frac=0.5, # for median: fraction between median and p99
+                     percentile=90,      # for percentile method
+                     min_area=500,       # discard components smaller than this
+                     morph_close=5,      # morphological closing kernel size (0=skip)
+                     morph_open=3):      # morphological opening kernel size (0=skip)
+    """Analyze image and return (mask_bytes, fx, fy, lx, ly, img_w, img_h).
+    mask_bytes is a flat list of uint8 with dimensions (lx-fx+1) * (ly-fy+1)."""
+    import io, matplotlib.pyplot as plt
+
+    # Get image
+    parts = imgplot_path.strip("/").split("/")
+    node = Root()
+    for p in parts:
+        node = node[p]
+    plot = node["LiveImage"]["Plots"]["ImagePlot"]  # X2DImagePlot
+    shot = Snapshot(plot)
+    img_w, img_h = shot[plot].imageWidth(), shot[plot].imageHeight()
+    png = shot[plot].to_png()
+    img = plt.imread(io.BytesIO(png))
+    gray = np.mean(img[:,:,:3], axis=2) if img.ndim == 3 else img
+
+    # Extract plot area (skip axes margins in rendered image)
+    h, w = gray.shape
+    px_x0, px_x1 = int(0.02 * w), int(0.98 * w)
+    px_y0, px_y1 = int(0.055 * h), int(0.945 * h)
+    plot_area = gray[px_y0:px_y1, px_x0:px_x1]
+    ph, pw = plot_area.shape
+
+    # Threshold
+    if method == "otsu":
+        from skimage.filters import threshold_otsu
+        thresh = threshold_otsu(plot_area)
+    elif method == "percentile":
+        thresh = np.percentile(plot_area, percentile)
+    else:  # median
+        med = np.median(plot_area)
+        p99 = np.percentile(plot_area, 99)
+        thresh = med + threshold_frac * (p99 - med)
+
+    binary = (plot_area > thresh).astype(np.uint8)
+
+    # Morphological cleanup
+    if morph_close > 0:
+        binary = ndimage.binary_closing(binary, structure=np.ones((morph_close, morph_close))).astype(np.uint8)
+    if morph_open > 0:
+        binary = ndimage.binary_opening(binary, structure=np.ones((morph_open, morph_open))).astype(np.uint8)
+
+    # Keep only the largest connected component
+    labeled, n = ndimage.label(binary)
+    if n > 1:
+        sizes = ndimage.sum(binary, labeled, range(1, n + 1))
+        largest = np.argmax(sizes) + 1
+        binary = (labeled == largest).astype(np.uint8)
+    # Remove small components
+    if min_area > 0:
+        labeled, n = ndimage.label(binary)
+        for i in range(1, n + 1):
+            if ndimage.sum(binary, labeled, i) < min_area:
+                binary[labeled == i] = 0
+
+    # Map to image pixel coordinates and clamp
+    rows, cols = np.where(binary)
+    if len(rows) == 0:
+        return [], 0, 0, 0, 0, img_w, img_h
+    fx = max(0, int((cols.min() / pw) * img_w))
+    lx = min(img_w - 1, int((cols.max() / pw) * img_w))
+    fy = max(0, int((rows.min() / ph) * img_h))
+    ly = min(img_h - 1, int((rows.max() / ph) * img_h))
+    roi_w, roi_h = lx - fx + 1, ly - fy + 1
+
+    # Resize mask to ROI dimensions
+    mask_resized = np.array(PILImage.fromarray(binary * 255).resize(
+        (roi_w, roi_h), PILImage.NEAREST)) > 127
+    return mask_resized.astype(np.uint8).flatten().tolist(), fx, fy, lx, ly, img_w, img_h
+```
+
+Usage:
+```python
+mask_bytes, fx, fy, lx, ly, img_w, img_h = make_bright_mask()
+
+ch0 = Root()["Drivers"]["JAI"]["LiveImage"]["CH0"]
+dc = ch0.dynamic_cast()
+tool = dc.createByTypename("Graph2DMathToolAverage", "BrightAvg")
+tool["FirstX"] = str(fx)
+tool["FirstY"] = str(fy)
+tool["LastX"] = str(lx)
+tool["LastY"] = str(ly)
+tool.dynamic_cast().setArbitraryMask(mask_bytes)
+```
+
 ### Removing a tool
 
 ```python
