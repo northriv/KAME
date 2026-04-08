@@ -229,14 +229,26 @@ XGraph2DMathTool::getMenuLabel() const {
 std::deque<shared_ptr<OnScreenObject>>
 XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) {
     Snapshot shot( *this);
-    auto osoType = ((int)shot[ *maskType()] == (int)MaskShape::Ellipse)
+    auto shape = (MaskShape)(int)shot[ *maskType()];
+    auto osoType = (shape == MaskShape::Ellipse)
         ? OnScreenRectObject::Type::EllipseTool : OnScreenRectObject::Type::AreaTool;
-    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(osoType, shared_from_this());
-    m_osoRect = oso_rect;
+    bool isArbitrary = (shape == MaskShape::Arbitrary);
     auto oso_lbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>(shared_from_this());
     m_osoLabel = oso_lbl;
+    if(isArbitrary) {
+        // Arbitrary: contour lines (normal) or filled texture (highlighted). No rect BB.
+        auto oso_mask = painter->createOnScreenObjectWeakly<OnPlotMaskObject>(shared_from_this());
+        oso_mask->setHighlighted(isHighLighted());
+        if(isHighLighted())
+            m_osoHighlight = oso_mask;
+        m_osoMaskHighlight = oso_mask;
+        return {oso_mask, oso_lbl};
+    }
+    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(osoType, shared_from_this());
+    m_osoRect = oso_rect;
     if(isHighLighted()) {
         auto oso_mask = painter->createOnScreenObjectWeakly<OnPlotMaskObject>(shared_from_this());
+        oso_mask->setHighlighted(true);
         m_osoHighlight = oso_mask;
         m_osoMaskHighlight = oso_mask;
         return {oso_rect, oso_mask, oso_lbl};
@@ -258,7 +270,8 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const sh
         if(auto oso = m_osoMaskHighlight.lock()) {
             QColor c = (unsigned long)***painter->graph()->titleColor();
             c.setAlphaF(0.25);
-            oso->setBaseColor(c.rgba());
+            oso->setBaseColor(isHighLighted() ? c.rgba() : shot[ *baseColor()]);
+            oso->setHighlighted(isHighLighted());
             // Use +1 dimensions to match the clipped ROI computation (x1 - x0 + 1).
             ssize_t w = lrint(std::abs(edx - bgx)) + 1;
             ssize_t h = lrint(std::abs(edy - bgy)) + 1;
@@ -268,7 +281,32 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const sh
         if(auto oso = static_pointer_cast<OnPlotTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
             oso->setEvadeDirection(OnScreenPickableObject::HowToEvade::ByDescent, 0.005f);
-            oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
+            // For Arbitrary mask, place label at the mask's top-center.
+            auto m = shot[ *this].m_mask;
+            ssize_t mw = lrint(std::abs(edx - bgx)) + 1;
+            ssize_t mh = lrint(std::abs(edy - bgy)) + 1;
+            if(m && (m->size() == (size_t)mw * mh)) {
+                // Find first row with mask pixels and its center x.
+                for(ssize_t y = 0; y < mh; ++y) {
+                    int xmin = -1, xmax = -1;
+                    for(ssize_t x = 0; x < mw; ++x) {
+                        if((*m)[y * mw + x]) {
+                            if(xmin < 0) xmin = x;
+                            xmax = x;
+                        }
+                    }
+                    if(xmin >= 0) {
+                        double cx = bgx + (xmin + xmax) * 0.5;
+                        double cy = bgy + y;
+                        XGraph::ValPoint lbl_corners[4] = {{cx, cy}, {cx, cy}, {cx, cy}, {cx, cy}};
+                        oso->placeObject(plot, lbl_corners, {0.01, 0.01, 0.01});
+                        break;
+                    }
+                }
+            }
+            else {
+                oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
+            }
             oso->drawTextAtPlacedPosition(getLabel()
                 + " " + msg, Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +5 : +1);
         }

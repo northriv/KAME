@@ -721,7 +721,6 @@ OnPlotMaskObject::drawNative(bool colorpicking) {
     XScopedLock<XMutex> lock(m_mutex);
     auto plot = m_plot.lock();
     if( !plot) return;
-    //convert 4 bounding corners to screen space.
     // corners: {(bgx,bgy),(edx,bgy),(edx,edy),(bgx,edy)}
     XGraph::ScrPoint s[4];
     for(unsigned int i = 0; i < 4; ++i) {
@@ -730,21 +729,69 @@ OnPlotMaskObject::drawNative(bool colorpicking) {
         plot->graphToScreenFast(g, &s[i]);
         s[i] += m_offset;
     }
-    // s[0]=(bgx,bgy), s[1]=(edx,bgy), s[2]=(edx,edy), s[3]=(bgx,edy)
-    unsigned int fgc = baseColor();
     bool hasMask = m_mask && m_width && m_height && (m_mask->size() == (size_t)m_width * m_height);
 
     glDisable(GL_DEPTH_TEST);
-
-    if( !hasMask) {
-        //no mask — two-pass (background + foreground) selection highlight.
+    if(colorpicking) {
+        // For picking: draw the mask contour area as quads (no texture).
+        if(hasMask) {
+            auto lerp = [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b, float t) -> XGraph::ScrPoint {
+                return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
+            };
+            unsigned int pick_step = std::max(1u, m_height / 64);
+            painter()->beginQuad(true);
+            for(unsigned int y = 0; y < m_height; y += pick_step) {
+                unsigned int y1 = std::min(y + pick_step, m_height);
+                // Find xmin/xmax for this band (median of per-row values).
+                std::vector<int> rmins, rmaxs;
+                for(unsigned int yy = y; yy < y1; ++yy) {
+                    int rmin = -1, rmax = -1;
+                    for(unsigned int x = 0; x < m_width; ++x) {
+                        if((*m_mask)[yy * m_width + x]) {
+                            if(rmin < 0) rmin = x;
+                            rmax = x;
+                        }
+                    }
+                    if(rmin >= 0) { rmins.push_back(rmin); rmaxs.push_back(rmax); }
+                }
+                if(rmins.empty()) continue;
+                std::sort(rmins.begin(), rmins.end());
+                std::sort(rmaxs.begin(), rmaxs.end());
+                int xmin = rmins[rmins.size() / 2];
+                int xmax = rmaxs[rmaxs.size() / 2];
+                float yt = (float)y / m_height;
+                float yb = (float)y1 / m_height;
+                float xl = (float)xmin / m_width;
+                float xr = (float)(xmax + 1) / m_width;
+                auto lt = lerp(s[0], s[3], yb);
+                auto rt = lerp(s[1], s[2], yb);
+                auto lb = lerp(s[0], s[3], yt);
+                auto rb = lerp(s[1], s[2], yt);
+                painter()->setVertex(lerp(lb, rb, xl));
+                painter()->setVertex(lerp(lb, rb, xr));
+                painter()->setVertex(lerp(lt, rt, xr));
+                painter()->setVertex(lerp(lt, rt, xl));
+            }
+            painter()->endQuad();
+        }
+        else {
+            painter()->beginQuad(true);
+            painter()->setVertex(s[0]);
+            painter()->setVertex(s[1]);
+            painter()->setVertex(s[2]);
+            painter()->setVertex(s[3]);
+            painter()->endQuad();
+        }
+    }
+    else if( !hasMask) {
+        // No mask — filled rectangle highlight (two-pass bg+fg).
+        unsigned int fgc = baseColor();
         Snapshot shot_graph( *painter()->graph());
         unsigned int bgc = shot_graph[ *painter()->graph()->backGround()];
         double w = 0.1;
         for(auto c: {bgc, fgc}) {
             painter()->beginQuad(true);
-            if( !colorpicking)
-                painter()->setColor(c, w);
+            painter()->setColor(c, w);
             painter()->setVertex(s[0]);
             painter()->setVertex(s[1]);
             painter()->setVertex(s[2]);
@@ -753,52 +800,170 @@ OnPlotMaskObject::drawNative(bool colorpicking) {
             w = 0.3;
         }
     }
+    else if(m_highlighted) {
+        drawFilledTexture(s, colorpicking);
+    }
     else {
-        // Render mask as an alpha texture on a single quad — no overlapping geometry.
-        // Build RGBA texture: foreground color with alpha from mask.
-        unsigned int r = (fgc >> 16) & 0xff, g = (fgc >> 8) & 0xff, b = fgc & 0xff;
-        unsigned int alpha = std::min(255u, (unsigned int)(0.4 * 255));
-        std::vector<uint8_t> texdata(m_width * m_height * 4);
-        for(unsigned int i = 0; i < m_width * m_height; ++i) {
-            texdata[i * 4 + 0] = r;
-            texdata[i * 4 + 1] = g;
-            texdata[i * 4 + 2] = b;
-            texdata[i * 4 + 3] = (*m_mask)[i] ? alpha : 0;
-        }
-        GLuint tex;
-        glGenTextures(1, &tex);
-        glBindTexture(GL_TEXTURE_2D, tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0,
-            GL_RGBA, GL_UNSIGNED_BYTE, texdata.data());
-
-        glEnable(GL_TEXTURE_2D);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        if( !colorpicking)
-            glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // texture provides color+alpha
-        // Mask data is row-major: row 0 = beginY (smaller Y value).
-        // GL texture v=0 is at the bottom. Map mask row 0 to the screen
-        // position of beginY (s[0]/s[1] side).
-        // If Y axis is inverted (smaller val-Y → larger screen-Y → bottom),
-        // then s[0] is at the bottom → v=0 maps to s[0] naturally.
-        // If Y axis is not inverted, s[0] is at the top → need v=1 at s[0].
-        bool yNormal = (s[0].y < s[2].y); // s[0] (bgy) is above s[2] (edy) on screen
-        float v0 = yNormal ? 1.0f : 0.0f;  // texcoord for bgy side
-        float v1 = yNormal ? 0.0f : 1.0f;  // texcoord for edy side
-        glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, v0); glVertex3f(s[0].x, s[0].y, s[0].z);
-        glTexCoord2f(1.0f, v0); glVertex3f(s[1].x, s[1].y, s[1].z);
-        glTexCoord2f(1.0f, v1); glVertex3f(s[2].x, s[2].y, s[2].z);
-        glTexCoord2f(0.0f, v1); glVertex3f(s[3].x, s[3].y, s[3].z);
-        glEnd();
-        glDisable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glDeleteTextures(1, &tex);
+        drawContourLines(s, colorpicking);
     }
     glEnable(GL_DEPTH_TEST);
+}
+
+void
+OnPlotMaskObject::drawContourLines(const XGraph::ScrPoint s[4], bool colorpicking) {
+    // Scan each row for [xmin, xmax] of mask, draw left and right contour lines.
+    auto lerp = [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b, float t) -> XGraph::ScrPoint {
+        return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
+    };
+    Snapshot shot_graph( *painter()->graph());
+    unsigned int bgc = shot_graph[ *painter()->graph()->backGround()];
+    unsigned int fgc = baseColor();
+
+    // Build left and right contour points from per-row-band boundaries.
+    // Downsample to ~128 bands. Use median of per-row xmin/xmax within each
+    // band to reject sparse outlier pixels.
+    unsigned int step = std::max(1u, m_height / 128);
+    struct BandPt {
+        XGraph::ScrPoint left, right;
+    };
+    // Use negative index to mark empty bands (no mask pixels).
+    std::vector<int> band_valid; // 1 = has points, 0 = empty
+    std::vector<BandPt> band_pts;
+    for(unsigned int y = 0; y < m_height; y += step) {
+        unsigned int y1 = std::min(y + step, m_height);
+        std::vector<int> row_xmins, row_xmaxs;
+        for(unsigned int yy = y; yy < y1; ++yy) {
+            const uint8_t *row = m_mask->data() + yy * m_width;
+            int rmin = -1, rmax = -1;
+            for(unsigned int x = 0; x < m_width; ++x) {
+                if(row[x]) {
+                    if(rmin < 0) rmin = x;
+                    rmax = x;
+                }
+            }
+            if(rmin >= 0) {
+                row_xmins.push_back(rmin);
+                row_xmaxs.push_back(rmax);
+            }
+        }
+        if(row_xmins.empty()) {
+            band_valid.push_back(0);
+            band_pts.push_back({});
+            continue;
+        }
+        // Use median to reject outliers.
+        std::sort(row_xmins.begin(), row_xmins.end());
+        std::sort(row_xmaxs.begin(), row_xmaxs.end());
+        int xmin = row_xmins[row_xmins.size() / 2];
+        int xmax = row_xmaxs[row_xmaxs.size() / 2];
+        float yt = ((float)(y + y1) * 0.5f) / m_height;
+        auto left_edge = lerp(s[0], s[3], yt);
+        auto right_edge = lerp(s[1], s[2], yt);
+        band_valid.push_back(1);
+        band_pts.push_back({
+            lerp(left_edge, right_edge, (float)xmin / m_width),
+            lerp(left_edge, right_edge, (float)(xmax + 1) / m_width)
+        });
+    }
+
+    // Draw two-pass (bg + fg) contour lines. Break lines at empty bands.
+    auto drawContour = [&](auto getPt) {
+        for(auto c: {bgc, fgc}) {
+            bool in_segment = false;
+            for(unsigned int i = 0; i < band_pts.size(); ++i) {
+                if( !band_valid[i]) {
+                    if(in_segment) {
+                        painter()->endLine();
+                        in_segment = false;
+                    }
+                    continue;
+                }
+                if( !in_segment) {
+                    painter()->beginLine(1.0);
+                    if( !colorpicking)
+                        painter()->setColor(c, 0.3);
+                    in_segment = true;
+                }
+                else {
+                    // Duplicate vertex for line segment pair.
+                    painter()->setVertex(getPt(band_pts[i]));
+                }
+                painter()->setVertex(getPt(band_pts[i]));
+            }
+            if(in_segment)
+                painter()->endLine();
+        }
+    };
+    // Left contour
+    drawContour([](const BandPt &bp) -> const XGraph::ScrPoint& { return bp.left; });
+    // Right contour
+    drawContour([](const BandPt &bp) -> const XGraph::ScrPoint& { return bp.right; });
+    // Connect top and bottom — close the contour where left and right meet.
+    int first = -1, last = -1;
+    for(unsigned int i = 0; i < band_pts.size(); ++i) {
+        if(band_valid[i]) {
+            if(first < 0) first = i;
+            last = i;
+        }
+    }
+    if(first >= 0) {
+        for(auto c: {bgc, fgc}) {
+            painter()->beginLine(1.0);
+            if( !colorpicking)
+                painter()->setColor(c, 0.3);
+            painter()->setVertex(band_pts[first].left);
+            painter()->setVertex(band_pts[first].right);
+            painter()->endLine();
+            if(last != first) {
+                painter()->beginLine(1.0);
+                if( !colorpicking)
+                    painter()->setColor(c, 0.3);
+                painter()->setVertex(band_pts[last].left);
+                painter()->setVertex(band_pts[last].right);
+                painter()->endLine();
+            }
+        }
+    }
+}
+
+void
+OnPlotMaskObject::drawFilledTexture(const XGraph::ScrPoint s[4], bool colorpicking) {
+    unsigned int fgc = baseColor();
+    unsigned int r = (fgc >> 16) & 0xff, g = (fgc >> 8) & 0xff, b = fgc & 0xff;
+    unsigned int alpha_val = colorpicking ? 255 : std::min(255u, (unsigned int)(0.4 * 255));
+    std::vector<uint8_t> texdata(m_width * m_height * 4);
+    for(unsigned int i = 0; i < m_width * m_height; ++i) {
+        texdata[i * 4 + 0] = colorpicking ? 255 : r;
+        texdata[i * 4 + 1] = colorpicking ? 255 : g;
+        texdata[i * 4 + 2] = colorpicking ? 255 : b;
+        texdata[i * 4 + 3] = (*m_mask)[i] ? alpha_val : 0;
+    }
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_width, m_height, 0,
+        GL_RGBA, GL_UNSIGNED_BYTE, texdata.data());
+
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    if( !colorpicking)
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    bool yNormal = (s[0].y < s[2].y);
+    float v0 = yNormal ? 1.0f : 0.0f;
+    float v1 = yNormal ? 0.0f : 1.0f;
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, v0); glVertex3f(s[0].x, s[0].y, s[0].z);
+    glTexCoord2f(1.0f, v0); glVertex3f(s[1].x, s[1].y, s[1].z);
+    glTexCoord2f(1.0f, v1); glVertex3f(s[2].x, s[2].y, s[2].z);
+    glTexCoord2f(0.0f, v1); glVertex3f(s[3].x, s[3].y, s[3].z);
+    glEnd();
+    glDisable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDeleteTextures(1, &tex);
 }
 

@@ -1,4 +1,12 @@
 * Tue Apr 08 2026 Shota Suetsugu
+- Arbitrary mask contour lines: non-highlighted state draws left/right
+  boundary lines with median-based xmin/xmax per band (~128 bands),
+  closed at top/bottom. Lines break at empty bands.
+  Highlighted state: filled texture overlay (unchanged).
+- Picking for arbitrary mask uses quad approximation (no texture),
+  fixing broken text textures caused by GL texture misuse in pick pass.
+- Label placed at mask top-center for arbitrary masks.
+- Rect BB suppressed for arbitrary mask (contour replaces it).
 - Math tool API: rename Begin/End to First/Last (inclusive endpoint naming).
   1D tools: first()/last(), 2D tools: firstX()/firstY()/lastX()/lastY().
   .kam backward compatibility via _KamNode aliases in xpythonsupport.py.

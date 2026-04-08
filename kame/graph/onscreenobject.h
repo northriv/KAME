@@ -273,14 +273,20 @@ public:
                  unsigned int width, unsigned int height,
                  XGraph::ScrPoint offset = {});
 
+    void setHighlighted(bool h) { m_highlighted = h; }
+
     virtual void drawNative(bool colorpicking) override;
     virtual void drawByPainter(QPainter *) override {}
 private:
+    void drawContourLines(const XGraph::ScrPoint s[4], bool colorpicking);
+    void drawFilledTexture(const XGraph::ScrPoint s[4], bool colorpicking);
+
     XMutex m_mutex;
     weak_ptr<XPlot> m_plot;
     XGraph::ValPoint m_corners[4];
     XGraph::ScrPoint m_offset;
     shared_ptr<std::vector<uint8_t>> m_mask;
     unsigned int m_width = 0, m_height = 0;
+    bool m_highlighted = false;
 };
 #endif
