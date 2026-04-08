@@ -1,4 +1,5 @@
-* Tue Apr 08 2026 Shota Suetsugu
+* Tue Apr 08 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (8.1)
 - Arbitrary mask contour lines: non-highlighted state draws left/right
   boundary lines with median-based xmin/xmax per band (~128 bands),
   closed at top/bottom. Lines break at empty bands.
