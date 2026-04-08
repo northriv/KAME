@@ -230,13 +230,11 @@ std::deque<shared_ptr<OnScreenObject>>
 XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) {
     Snapshot shot( *this);
     auto shape = (MaskShape)(int)shot[ *maskType()];
-    auto osoType = (shape == MaskShape::Ellipse)
-        ? OnScreenRectObject::Type::EllipseTool : OnScreenRectObject::Type::AreaTool;
-    bool isArbitrary = (shape == MaskShape::Arbitrary);
+    bool hasMaskShape = (shape == MaskShape::Ellipse || shape == MaskShape::Arbitrary);
     auto oso_lbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>(shared_from_this());
     m_osoLabel = oso_lbl;
-    if(isArbitrary) {
-        // Arbitrary: contour lines (normal) or filled texture (highlighted). No rect BB.
+    if(hasMaskShape) {
+        // Ellipse/Arbitrary: contour lines (normal) or filled texture (highlighted).
         auto oso_mask = painter->createOnScreenObjectWeakly<OnPlotMaskObject>(shared_from_this());
         oso_mask->setHighlighted(isHighLighted());
         if(isHighLighted())
@@ -244,7 +242,8 @@ XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainte
         m_osoMaskHighlight = oso_mask;
         return {oso_mask, oso_lbl};
     }
-    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(osoType, shared_from_this());
+    // Rectangle: plain rect BB + optional highlight.
+    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool, shared_from_this());
     m_osoRect = oso_rect;
     if(isHighLighted()) {
         auto oso_mask = painter->createOnScreenObjectWeakly<OnPlotMaskObject>(shared_from_this());
@@ -281,7 +280,7 @@ XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const sh
         if(auto oso = static_pointer_cast<OnPlotTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
             oso->setEvadeDirection(OnScreenPickableObject::HowToEvade::ByDescent, 0.005f);
-            // For Arbitrary mask, place label at the mask's top-center.
+            // For masked tools (Ellipse/Arbitrary), place label at the mask's top-center.
             auto m = shot[ *this].m_mask;
             ssize_t mw = lrint(std::abs(edx - bgx)) + 1;
             ssize_t mh = lrint(std::abs(edy - bgy)) + 1;
