@@ -70,7 +70,7 @@ Init ==
 
 \* Step 1: Start transaction / take snapshot
 \* Models: Transaction constructor calls snapshot()
-\* snapshot() calls scan_() on m_link to atomically read current state
+\* snapshot() calls load_shared_() on m_link to atomically read current state
 TakeSnapshot(t) ==
     /\ pc[t] \in {"idle", "done"}
     /\ pc' = [pc EXCEPT ![t] = "snapshot"]

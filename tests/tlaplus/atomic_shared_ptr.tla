@@ -1,7 +1,7 @@
 --------------------------- MODULE atomic_shared_ptr ---------------------------
 (*
  * TLA+ model of kame/atomic_smart_ptr.h core protocol:
- *   reserve_scan_(), scan_(), leave_scan_(), compareAndSwap_(), local_shared_ptr::reset()
+ *   acquire_tag_ref_(), load_shared_(), release_tag_ref_(), compareAndSwap_(), local_shared_ptr::reset()
  *
  * Models the tagged-pointer scheme where the lower bits of an atomic word
  * store a local reference counter, while the upper bits store the pointer
@@ -13,7 +13,7 @@
  * Improvements over v1:
  *   - ABA problem modeling: freed objects can be recycled (same pointer value
  *     reappears), testing whether the tagged-pointer CAS prevents ABA.
- *   - reserve_scan_ read modeled as single atomic load of m_ref (ptr + local_rc
+ *   - acquire_tag_ref_ read modeled as single atomic load of m_ref (ptr + local_rc
  *     are extracted from the same load in C++); CAS catches stale values.
  *   - Symmetry support for state space reduction.
  *
@@ -25,7 +25,7 @@ EXTENDS Integers, Sequences, FiniteSets, TLC
 CONSTANTS
     Threads,          \* set of thread IDs
     Objects,          \* set of possible object IDs (Ref objects)
-    MaxLocalRC,       \* max local refcount (= ATOMIC_SHARED_REF_ALIGNMENT - 1)
+    MaxLocalRC,       \* max local refcount (= LOCAL_REF_CAPACITY - 1)
     MaxGlobalRC,      \* bound on global_rc for state space control
     EnableCAS,        \* TRUE to enable compareAndSwap_ operations
     EnableRecycle     \* TRUE to enable ABA recycling of freed objects
@@ -52,16 +52,16 @@ VARIABLES
 
     (* Per-thread state *)
     pc,             \* program counter for each thread
-    thr_op,         \* what operation thread is performing: "scan", "cas", "idle"
-    thr_pref,       \* pointer read by reserve_scan_ (thread-local)
-    thr_rcnt,       \* local refcount value returned by reserve_scan_
+    thr_op,         \* what operation thread is performing: "load", "cas", "idle"
+    thr_pref,       \* pointer read by acquire_tag_ref_ (thread-local)
+    thr_rcnt,       \* local refcount value returned by acquire_tag_ref_
     thr_old,        \* for CAS: the expected old object
     thr_new,        \* for CAS: the new object to install
     thr_holds,      \* set of objects "held" by each thread (via local_shared_ptr)
-    thr_ls_ctx      \* leave_scan_ return target: "scan_done", "cas_retry", "cas_fail"
+    thr_rtr_ctx      \* release_tag_ref_ return target: "load_done", "cas_retry", "cas_fail"
 
 vars == <<ptr, local_rc, global_rc, freed, pc, thr_op, thr_pref, thr_rcnt,
-          thr_old, thr_new, thr_holds, thr_ls_ctx>>
+          thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
 (* -------------------------------------------------------------------------- *)
 (* Type invariant                                                             *)
@@ -72,16 +72,16 @@ TypeOK ==
     /\ global_rc \in [Objects -> Nat]
     /\ freed \in [Objects -> BOOLEAN]
     /\ pc \in [Threads -> {"idle",
-                           "rs_read",     \* reserve_scan_: atomic read of ptr + local_rc
-                           "rs_cas",      \* reserve_scan_: CAS to increment local_rc
-                           "scan_inc",    \* scan_: increment global_rc
-                           "scan_leave",  \* scan_: call leave_scan_
-                           "ls_read",     \* leave_scan_: read refcount
-                           "ls_cas",      \* leave_scan_: CAS to decrement local_rc
-                           "ls_global",   \* leave_scan_: fallback - dec global_rc
+                           "atr_read",     \* acquire_tag_ref_: atomic read of ptr + local_rc
+                           "atr_cas",      \* acquire_tag_ref_: CAS to increment local_rc
+                           "ls_inc",    \* load_shared_: increment global_rc
+                           "ls_release",  \* load_shared_: call release_tag_ref_
+                           "rtr_read",     \* release_tag_ref_: read refcount
+                           "rtr_cas",      \* release_tag_ref_: CAS to decrement local_rc
+                           "rtr_global",   \* release_tag_ref_: fallback - dec global_rc
                            "done",        \* operation completed
                            "cas_pre_inc",   \* CAS: pre-increment newr's global_rc
-                           "cas_reserve",   \* CAS: call reserve_scan_
+                           "cas_acquire",   \* CAS: call acquire_tag_ref_
                            "cas_check",     \* CAS: check if pref == oldr
                            "cas_fail_done", \* CAS mismatch: rollback newr, return false
                            "cas_transfer",  \* CAS: transfer local_rc to global_rc
@@ -89,13 +89,13 @@ TypeOK ==
                            "cas_undo",      \* CAS: undo transfer on CAS failure
                            "cas_cleanup"    \* CAS: decrement pref's global_rc on success
                           }]
-    /\ thr_op \in [Threads -> {"scan", "cas", "idle"}]
+    /\ thr_op \in [Threads -> {"load", "cas", "idle"}]
     /\ thr_pref \in [Threads -> Objects \cup {NULL}]
     /\ thr_rcnt \in [Threads -> 0..MaxLocalRC]
     /\ thr_old \in [Threads -> Objects \cup {NULL}]
     /\ thr_new \in [Threads -> Objects \cup {NULL}]
     /\ \A t \in Threads : thr_holds[t] \subseteq Objects
-    /\ thr_ls_ctx \in [Threads -> {"scan_done", "cas_retry", "cas_fail", "none"}]
+    /\ thr_rtr_ctx \in [Threads -> {"load_done", "cas_retry", "cas_fail", "none"}]
 
 (* -------------------------------------------------------------------------- *)
 (* Initial state                                                              *)
@@ -122,7 +122,7 @@ Init ==
                       IF t = firstThread /\ otherObj /= NULL
                       THEN {otherObj}
                       ELSE {}]
-    /\ thr_ls_ctx = [t \in Threads |-> "none"]
+    /\ thr_rtr_ctx = [t \in Threads |-> "none"]
 
 (* ========================================================================== *)
 (* ABA Recycling: a freed object can be "reallocated" at the same address     *)
@@ -140,22 +140,22 @@ Recycle(t) ==
        /\ global_rc' = [global_rc EXCEPT ![o] = 1]
        /\ thr_holds' = [thr_holds EXCEPT ![t] = @ \cup {o}]
     /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_ls_ctx>>
+                   thr_old, thr_new, thr_rtr_ctx>>
 
 (* ========================================================================== *)
-(* scan_() operation: reserve_scan_ + increment global_rc + leave_scan_       *)
+(* load_shared_() operation: acquire_tag_ref_ + increment global_rc + release_tag_ref_       *)
 (* Models lines 494-503                                                       *)
 (* ========================================================================== *)
 
-StartScan(t) ==
+StartLoadShared(t) ==
     /\ pc[t] = "idle"
-    /\ pc' = [pc EXCEPT ![t] = "rs_read"]
-    /\ thr_op' = [thr_op EXCEPT ![t] = "scan"]
+    /\ pc' = [pc EXCEPT ![t] = "atr_read"]
+    /\ thr_op' = [thr_op EXCEPT ![t] = "load"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
 (* ========================================================================== *)
-(* reserve_scan_(): atomic read of m_ref                                      *)
+(* acquire_tag_ref_(): atomic read of m_ref                                      *)
 (* C++ m_ref.load() is a single atomic operation; ptr and local_rc are        *)
 (* extracted from the same loaded value. The subsequent CAS catches any        *)
 (* change that occurred after this read.                                       *)
@@ -163,20 +163,20 @@ StartScan(t) ==
 (* ========================================================================== *)
 
 (* Atomic read of m_ref: extract both pointer and local_rc in one step *)
-ReserveScanRead(t) ==
-    /\ pc[t] = "rs_read"
+AcquireTagRefRead(t) ==
+    /\ pc[t] = "atr_read"
     /\ thr_pref' = [thr_pref EXCEPT ![t] = ptr]
     /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = local_rc]
-    /\ pc' = [pc EXCEPT ![t] = "rs_cas"]
+    /\ pc' = [pc EXCEPT ![t] = "atr_cas"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_old,
-                   thr_new, thr_holds, thr_ls_ctx>>
+                   thr_new, thr_holds, thr_rtr_ctx>>
 
-(* --- reserve_scan_: CAS to increment local_rc --- *)
+(* --- acquire_tag_ref_: CAS to increment local_rc --- *)
 (* Lines 485-488: CAS(pref + rcnt_old, pref + rcnt_new) *)
 (* This CAS compares the FULL word (ptr + local_rc together), so if either   *)
 (* changed since the reads, it fails — even if the reads were inconsistent.   *)
-ReserveScanCAS(t) ==
-    /\ pc[t] = "rs_cas"
+AcquireTagRefCAS(t) ==
+    /\ pc[t] = "atr_cas"
     /\ thr_pref[t] /= NULL
     /\ thr_rcnt[t] + 1 < MaxLocalRC + 1
     /\ \/ (* CAS succeeds: both ptr AND local_rc match *)
@@ -184,108 +184,108 @@ ReserveScanCAS(t) ==
           /\ local_rc = thr_rcnt[t]
           /\ local_rc' = thr_rcnt[t] + 1
           /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = thr_rcnt[t] + 1]
-          /\ pc' = [pc EXCEPT ![t] = IF thr_op[t] = "scan" THEN "scan_inc"
+          /\ pc' = [pc EXCEPT ![t] = IF thr_op[t] = "load" THEN "ls_inc"
                                       ELSE "cas_check"]
           /\ UNCHANGED <<ptr, global_rc, freed, thr_op, thr_pref, thr_old,
-                         thr_new, thr_holds, thr_ls_ctx>>
+                         thr_new, thr_holds, thr_rtr_ctx>>
        \/ (* CAS fails: retry from read *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
-          /\ pc' = [pc EXCEPT ![t] = "rs_read"]
+          /\ pc' = [pc EXCEPT ![t] = "atr_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
-ReserveScanNull(t) ==
-    /\ pc[t] = "rs_cas"
+AcquireTagRefNull(t) ==
+    /\ pc[t] = "atr_cas"
     /\ thr_pref[t] = NULL
-    /\ pc' = [pc EXCEPT ![t] = IF thr_op[t] = "scan" THEN "done"
+    /\ pc' = [pc EXCEPT ![t] = IF thr_op[t] = "load" THEN "done"
                                 ELSE "cas_check"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
-(* --- scan_: increment global reference counter --- *)
+(* --- load_shared_: increment global reference counter --- *)
 (* Line 500: pref->refcnt.fetch_add(1) *)
-ScanIncGlobal(t) ==
-    /\ pc[t] = "scan_inc"
-    /\ thr_op[t] = "scan"
+LoadSharedIncGlobal(t) ==
+    /\ pc[t] = "ls_inc"
+    /\ thr_op[t] = "load"
     /\ global_rc' = [global_rc EXCEPT ![thr_pref[t]] = @ + 1]
-    /\ pc' = [pc EXCEPT ![t] = "scan_leave"]
+    /\ pc' = [pc EXCEPT ![t] = "ls_release"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
-ScanStartLeave(t) ==
-    /\ pc[t] = "scan_leave"
-    /\ thr_op[t] = "scan"
-    /\ pc' = [pc EXCEPT ![t] = "ls_read"]
-    /\ thr_ls_ctx' = [thr_ls_ctx EXCEPT ![t] = "scan_done"]
+LoadSharedStartRelease(t) ==
+    /\ pc[t] = "ls_release"
+    /\ thr_op[t] = "load"
+    /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
+    /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "load_done"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
                    thr_old, thr_new, thr_holds>>
 
 (* ========================================================================== *)
-(* leave_scan_() operation (shared by scan_ and compareAndSwap_)              *)
+(* release_tag_ref_() operation (shared by load_shared_ and compareAndSwap_)              *)
 (* Lines 512-531                                                              *)
-(* After completion, control returns based on thr_ls_ctx:                     *)
-(*   "scan_done" -> done (scan completed)                                     *)
+(* After completion, control returns based on thr_rtr_ctx:                     *)
+(*   "load_done" -> done (load_shared completed)                                     *)
 (*   "cas_retry" -> cas_reserve (inner CAS failed, retry)                     *)
 (*   "cas_fail"  -> cas_fail_done (mismatch, return false)                    *)
 (* ========================================================================== *)
 
-LeaveScanRead(t) ==
-    /\ pc[t] = "ls_read"
+ReleaseTagRefRead(t) ==
+    /\ pc[t] = "rtr_read"
     /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = local_rc]
-    /\ pc' = [pc EXCEPT ![t] = IF local_rc > 0 THEN "ls_cas" ELSE "ls_global"]
+    /\ pc' = [pc EXCEPT ![t] = IF local_rc > 0 THEN "rtr_cas" ELSE "rtr_global"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
-                   thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
-LeaveScanCAS(t) ==
-    /\ pc[t] = "ls_cas"
-    /\ LET returnPC == CASE thr_ls_ctx[t] = "scan_done" -> "done"
-                          [] thr_ls_ctx[t] = "cas_retry" -> "cas_reserve"
-                          [] thr_ls_ctx[t] = "cas_fail"  -> "cas_fail_done"
+ReleaseTagRefCAS(t) ==
+    /\ pc[t] = "rtr_cas"
+    /\ LET returnPC == CASE thr_rtr_ctx[t] = "load_done" -> "done"
+                          [] thr_rtr_ctx[t] = "cas_retry" -> "cas_acquire"
+                          [] thr_rtr_ctx[t] = "cas_fail"  -> "cas_fail_done"
                           [] OTHER -> "done"
        IN
        \/ (* CAS succeeds: ptr unchanged and local_rc matches *)
           /\ ptr = thr_pref[t]
           /\ local_rc = thr_rcnt[t]
           /\ local_rc' = thr_rcnt[t] - 1
-          /\ IF thr_ls_ctx[t] = "scan_done"
+          /\ IF thr_rtr_ctx[t] = "load_done"
              THEN thr_holds' = [thr_holds EXCEPT ![t] = @ \cup {thr_pref[t]}]
              ELSE UNCHANGED thr_holds
           /\ pc' = [pc EXCEPT ![t] = returnPC]
           /\ UNCHANGED <<ptr, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_ls_ctx>>
-       \/ (* CAS fails, ptr still matches -> retry leave_scan_ *)
+                         thr_old, thr_new, thr_rtr_ctx>>
+       \/ (* CAS fails, ptr still matches -> retry release_tag_ref_ *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ ptr = thr_pref[t]
-          /\ pc' = [pc EXCEPT ![t] = "ls_read"]
+          /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx>>
        \/ (* CAS fails, ptr changed -> fallback to global dec *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ ptr /= thr_pref[t]
-          /\ pc' = [pc EXCEPT ![t] = "ls_global"]
+          /\ pc' = [pc EXCEPT ![t] = "rtr_global"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
-(* --- leave_scan_: fallback - decrement global_rc --- *)
-LeaveScanGlobal(t) ==
-    /\ pc[t] = "ls_global"
+(* --- release_tag_ref_: fallback - decrement global_rc --- *)
+ReleaseTagRefGlobal(t) ==
+    /\ pc[t] = "rtr_global"
     /\ thr_pref[t] /= NULL
     /\ LET o == thr_pref[t]
-           returnPC == CASE thr_ls_ctx[t] = "scan_done" -> "done"
-                         [] thr_ls_ctx[t] = "cas_retry" -> "cas_reserve"
-                         [] thr_ls_ctx[t] = "cas_fail"  -> "cas_fail_done"
+           returnPC == CASE thr_rtr_ctx[t] = "load_done" -> "done"
+                         [] thr_rtr_ctx[t] = "cas_retry" -> "cas_acquire"
+                         [] thr_rtr_ctx[t] = "cas_fail"  -> "cas_fail_done"
                          [] OTHER -> "done"
        IN
        /\ global_rc' = [global_rc EXCEPT ![o] = @ - 1]
        /\ IF global_rc[o] = 1
           THEN freed' = [freed EXCEPT ![o] = TRUE]
           ELSE freed' = freed
-       /\ IF thr_ls_ctx[t] = "scan_done"
+       /\ IF thr_rtr_ctx[t] = "load_done"
           THEN thr_holds' = [thr_holds EXCEPT ![t] = @ \cup {thr_pref[t]}]
           ELSE UNCHANGED thr_holds
        /\ pc' = [pc EXCEPT ![t] = returnPC]
        /\ UNCHANGED <<ptr, local_rc, thr_op, thr_pref, thr_rcnt, thr_old,
-                      thr_new, thr_ls_ctx>>
+                      thr_new, thr_rtr_ctx>>
 
 (* ========================================================================== *)
 (* local_shared_ptr::reset()                                                  *)
@@ -299,7 +299,7 @@ Reset(t) ==
           THEN freed' = [freed EXCEPT ![o] = TRUE]
           ELSE freed' = freed
     /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt, thr_old,
-                   thr_new, thr_ls_ctx>>
+                   thr_new, thr_rtr_ctx>>
 
 (* ========================================================================== *)
 (* compareAndSwap_() operation                                                *)
@@ -308,11 +308,11 @@ Reset(t) ==
 (* Control flow:                                                              *)
 (*   1. Pre-increment newr's global_rc (once, not on retry)                   *)
 (*   2. for(;;) {                                                             *)
-(*        reserve_scan_()                                                     *)
-(*        if (pref != oldr) { leave_scan; rollback; return false }            *)
+(*        acquire_tag_ref_()                                                     *)
+(*        if (pref != oldr) { release_tag_ref; rollback; return false }            *)
 (*        transfer local_rc to global_rc                                      *)
 (*        CAS m_ref                                                           *)
-(*        if CAS fails { undo transfer; leave_scan; continue }               *)
+(*        if CAS fails { undo transfer; release_tag_ref; continue }               *)
 (*        break                                                               *)
 (*      }                                                                     *)
 (*   3. Cleanup: dec pref's global_rc; return true                            *)
@@ -329,22 +329,22 @@ StartCAS(t) ==
     /\ pc' = [pc EXCEPT ![t] = "cas_pre_inc"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "cas"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_holds, thr_ls_ctx>>
+                   thr_holds, thr_rtr_ctx>>
 
 CASPreInc(t) ==
     /\ pc[t] = "cas_pre_inc"
     /\ IF thr_new[t] /= NULL
        THEN global_rc' = [global_rc EXCEPT ![thr_new[t]] = @ + 1]
        ELSE UNCHANGED global_rc
-    /\ pc' = [pc EXCEPT ![t] = "cas_reserve"]
+    /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
 CASReserve(t) ==
-    /\ pc[t] = "cas_reserve"
-    /\ pc' = [pc EXCEPT ![t] = "rs_read"]
+    /\ pc[t] = "cas_acquire"
+    /\ pc' = [pc EXCEPT ![t] = "atr_read"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
 CASCheck(t) ==
     /\ pc[t] = "cas_check"
@@ -352,17 +352,17 @@ CASCheck(t) ==
     /\ IF thr_pref[t] /= thr_old[t]
        THEN
             IF thr_pref[t] /= NULL
-            THEN /\ pc' = [pc EXCEPT ![t] = "ls_read"]
-                 /\ thr_ls_ctx' = [thr_ls_ctx EXCEPT ![t] = "cas_fail"]
+            THEN /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
+                 /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "cas_fail"]
                  /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
                                 thr_rcnt, thr_old, thr_new, thr_holds>>
             ELSE /\ pc' = [pc EXCEPT ![t] = "cas_fail_done"]
                  /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
-                                thr_rcnt, thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                                thr_rcnt, thr_old, thr_new, thr_holds, thr_rtr_ctx>>
        ELSE
             /\ pc' = [pc EXCEPT ![t] = "cas_transfer"]
             /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                           thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                           thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
 CASFailDone(t) ==
     /\ pc[t] = "cas_fail_done"
@@ -376,7 +376,7 @@ CASFailDone(t) ==
     /\ pc' = [pc EXCEPT ![t] = "done"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new,
-                   thr_holds, thr_ls_ctx>>
+                   thr_holds, thr_rtr_ctx>>
 
 CASTransfer(t) ==
     /\ pc[t] = "cas_transfer"
@@ -386,7 +386,7 @@ CASTransfer(t) ==
        ELSE UNCHANGED global_rc
     /\ pc' = [pc EXCEPT ![t] = "cas_swap"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
 CASSwap(t) ==
     /\ pc[t] = "cas_swap"
@@ -398,12 +398,12 @@ CASSwap(t) ==
           /\ local_rc' = 0
           /\ pc' = [pc EXCEPT ![t] = "cas_cleanup"]
           /\ UNCHANGED <<global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx>>
        \/ (* CAS fails *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ pc' = [pc EXCEPT ![t] = "cas_undo"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
 CASUndo(t) ==
     /\ pc[t] = "cas_undo"
@@ -412,10 +412,10 @@ CASUndo(t) ==
        THEN /\ IF thr_rcnt[t] /= 1
                THEN global_rc' = [global_rc EXCEPT ![thr_pref[t]] = @ - (thr_rcnt[t] - 1)]
                ELSE UNCHANGED global_rc
-            /\ pc' = [pc EXCEPT ![t] = "ls_read"]
-            /\ thr_ls_ctx' = [thr_ls_ctx EXCEPT ![t] = "cas_retry"]
-       ELSE /\ pc' = [pc EXCEPT ![t] = "cas_reserve"]
-            /\ UNCHANGED <<global_rc, thr_ls_ctx>>
+            /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
+            /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "cas_retry"]
+       ELSE /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]
+            /\ UNCHANGED <<global_rc, thr_rtr_ctx>>
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
                    thr_old, thr_new, thr_holds>>
 
@@ -433,7 +433,7 @@ CASCleanup(t) ==
        ELSE UNCHANGED thr_holds
     /\ pc' = [pc EXCEPT ![t] = "done"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
-    /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new, thr_ls_ctx>>
+    /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new, thr_rtr_ctx>>
 
 ReturnToIdle(t) ==
     /\ pc[t] = "done"
@@ -441,22 +441,22 @@ ReturnToIdle(t) ==
     /\ pc' = [pc EXCEPT ![t] = "idle"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_ls_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
 (* ========================================================================== *)
 (* Next-state relation                                                        *)
 (* ========================================================================== *)
 Next ==
     \E t \in Threads :
-        \/ StartScan(t)
-        \/ ReserveScanRead(t)
-        \/ ReserveScanCAS(t)
-        \/ ReserveScanNull(t)
-        \/ ScanIncGlobal(t)
-        \/ ScanStartLeave(t)
-        \/ LeaveScanRead(t)
-        \/ LeaveScanCAS(t)
-        \/ LeaveScanGlobal(t)
+        \/ StartLoadShared(t)
+        \/ AcquireTagRefRead(t)
+        \/ AcquireTagRefCAS(t)
+        \/ AcquireTagRefNull(t)
+        \/ LoadSharedIncGlobal(t)
+        \/ LoadSharedStartRelease(t)
+        \/ ReleaseTagRefRead(t)
+        \/ ReleaseTagRefCAS(t)
+        \/ ReleaseTagRefGlobal(t)
         \/ Reset(t)
         \/ Recycle(t)
         \/ StartCAS(t)
@@ -479,14 +479,14 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 (* Safety Properties                                                          *)
 (* ========================================================================== *)
 
-(* 1. Memory Safety: after reserve_scan_ succeeds (local_rc incremented),     *)
-(*    the object is not freed until leave_scan_ completes.                    *)
+(* 1. Memory Safety: after acquire_tag_ref_ succeeds (local_rc incremented),     *)
+(*    the object is not freed until release_tag_ref_ completes.                    *)
 (*    rs_read/rs_cas are BEFORE reservation — only a stale pointer, never    *)
 (*    dereferenced; the CAS operates on the atomic word.                      *)
 MemorySafety ==
     \A t \in Threads :
-        (pc[t] \in {"scan_inc", "scan_leave",
-                     "ls_read", "ls_cas", "ls_global",
+        (pc[t] \in {"ls_inc", "ls_release",
+                     "rtr_read", "rtr_cas", "rtr_global",
                      "cas_check", "cas_transfer", "cas_swap",
                      "cas_undo", "cas_cleanup"} /\ thr_pref[t] /= NULL)
         => freed[thr_pref[t]] = FALSE
