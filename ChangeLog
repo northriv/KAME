@@ -1,3 +1,14 @@
+* Wed Apr 09 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (8.1)
+- TLA+ formal verification: apply Gemini-identified model fixes.
+  atomic_shared_ptr: fix overflow guard deadlock, multiset thr_holds for
+  correct repeated-scan refcounting, raise MaxGlobalRC in step3 cfg.
+  stm_commit: fix CommitSerializes invariant (MAX→SUM).
+  BundleUnbundle: drop modular serial arithmetic, use monotonic increment
+  with StateConstraint (consistent with 2-level model).
+- TLA+ atomic_shared_ptr: simplify reserve_scan_ two-step read into
+  single atomic step (matches C++ and GenMC models).
+
 * Tue Apr 08 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.1)
 - Arbitrary mask contour lines: non-highlighted state draws left/right
