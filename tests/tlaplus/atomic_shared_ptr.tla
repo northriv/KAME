@@ -13,8 +13,8 @@
  * Improvements over v1:
  *   - ABA problem modeling: freed objects can be recycled (same pointer value
  *     reappears), testing whether the tagged-pointer CAS prevents ABA.
- *   - Non-atomic reserve_scan_ read: pref_() and refcnt_() are two separate
- *     loads of m_ref in the C++ code; modeled as two interleaving steps.
+ *   - reserve_scan_ read modeled as single atomic load of m_ref (ptr + local_rc
+ *     are extracted from the same load in C++); CAS catches stale values.
  *   - Symmetry support for state space reduction.
  *
  * Source: kame/atomic_smart_ptr.h lines 420-613
@@ -72,8 +72,7 @@ TypeOK ==
     /\ global_rc \in [Objects -> Nat]
     /\ freed \in [Objects -> BOOLEAN]
     /\ pc \in [Threads -> {"idle",
-                           "rs_read_ptr", \* reserve_scan_: 1st load — read ptr
-                           "rs_read_rc",  \* reserve_scan_: 2nd load — read local_rc
+                           "rs_read",     \* reserve_scan_: atomic read of ptr + local_rc
                            "rs_cas",      \* reserve_scan_: CAS to increment local_rc
                            "scan_inc",    \* scan_: increment global_rc
                            "scan_leave",  \* scan_: call leave_scan_
@@ -150,36 +149,26 @@ Recycle(t) ==
 
 StartScan(t) ==
     /\ pc[t] = "idle"
-    /\ pc' = [pc EXCEPT ![t] = "rs_read_ptr"]
+    /\ pc' = [pc EXCEPT ![t] = "rs_read"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "scan"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
                    thr_old, thr_new, thr_holds, thr_ls_ctx>>
 
 (* ========================================================================== *)
-(* reserve_scan_(): non-atomic two-step read of m_ref                         *)
-(* In C++, pref_() and refcnt_() are two separate atomic loads of m_ref.     *)
-(* Between the two loads, another thread can change m_ref. The subsequent     *)
-(* CAS catches any inconsistency (it compares the full word).                 *)
+(* reserve_scan_(): atomic read of m_ref                                      *)
+(* C++ m_ref.load() is a single atomic operation; ptr and local_rc are        *)
+(* extracted from the same loaded value. The subsequent CAS catches any        *)
+(* change that occurred after this read.                                       *)
 (* Lines 462-466: pref = pref_(); rcnt_old = refcnt_();                       *)
 (* ========================================================================== *)
 
-(* Step 1: first atomic load — extract pointer part *)
-ReserveScanReadPtr(t) ==
-    /\ pc[t] = "rs_read_ptr"
+(* Atomic read of m_ref: extract both pointer and local_rc in one step *)
+ReserveScanRead(t) ==
+    /\ pc[t] = "rs_read"
     /\ thr_pref' = [thr_pref EXCEPT ![t] = ptr]
-    /\ pc' = [pc EXCEPT ![t] = "rs_read_rc"]
-    /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_rcnt, thr_old,
-                   thr_new, thr_holds, thr_ls_ctx>>
-
-(* Step 2: second atomic load — extract local refcount *)
-(* NOTE: between step 1 and step 2, ptr and/or local_rc may have changed.    *)
-(* thr_rcnt may come from a different m_ref value than thr_pref.              *)
-(* The CAS at rs_cas will detect and reject this inconsistency.               *)
-ReserveScanReadRC(t) ==
-    /\ pc[t] = "rs_read_rc"
     /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = local_rc]
     /\ pc' = [pc EXCEPT ![t] = "rs_cas"]
-    /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_old,
+    /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_old,
                    thr_new, thr_holds, thr_ls_ctx>>
 
 (* --- reserve_scan_: CAS to increment local_rc --- *)
@@ -199,9 +188,9 @@ ReserveScanCAS(t) ==
                                       ELSE "cas_check"]
           /\ UNCHANGED <<ptr, global_rc, freed, thr_op, thr_pref, thr_old,
                          thr_new, thr_holds, thr_ls_ctx>>
-       \/ (* CAS fails: retry from first read *)
+       \/ (* CAS fails: retry from read *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
-          /\ pc' = [pc EXCEPT ![t] = "rs_read_ptr"]
+          /\ pc' = [pc EXCEPT ![t] = "rs_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
                          thr_old, thr_new, thr_holds, thr_ls_ctx>>
 
@@ -353,7 +342,7 @@ CASPreInc(t) ==
 
 CASReserve(t) ==
     /\ pc[t] = "cas_reserve"
-    /\ pc' = [pc EXCEPT ![t] = "rs_read_ptr"]
+    /\ pc' = [pc EXCEPT ![t] = "rs_read"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
                    thr_old, thr_new, thr_holds, thr_ls_ctx>>
 
@@ -460,8 +449,7 @@ ReturnToIdle(t) ==
 Next ==
     \E t \in Threads :
         \/ StartScan(t)
-        \/ ReserveScanReadPtr(t)
-        \/ ReserveScanReadRC(t)
+        \/ ReserveScanRead(t)
         \/ ReserveScanCAS(t)
         \/ ReserveScanNull(t)
         \/ ScanIncGlobal(t)
@@ -493,8 +481,8 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
 (* 1. Memory Safety: after reserve_scan_ succeeds (local_rc incremented),     *)
 (*    the object is not freed until leave_scan_ completes.                    *)
-(*    rs_read_ptr/rs_read_rc/rs_cas are BEFORE reservation — only a stale    *)
-(*    pointer, never dereferenced; the CAS operates on the atomic word.       *)
+(*    rs_read/rs_cas are BEFORE reservation — only a stale pointer, never    *)
+(*    dereferenced; the CAS operates on the atomic word.                      *)
 MemorySafety ==
     \A t \in Threads :
         (pc[t] \in {"scan_inc", "scan_leave",
