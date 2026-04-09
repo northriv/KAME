@@ -57,7 +57,7 @@ VARIABLES
     thr_rcnt,       \* local refcount value returned by reserve_scan_
     thr_old,        \* for CAS: the expected old object
     thr_new,        \* for CAS: the new object to install
-    thr_holds,      \* set of objects "held" by each thread (via local_shared_ptr)
+    thr_holds,      \* thr_holds[t][o]: number of references thread t holds to object o
     thr_ls_ctx      \* leave_scan_ return target: "scan_done", "cas_retry", "cas_fail"
 
 vars == <<ptr, local_rc, global_rc, freed, pc, thr_op, thr_pref, thr_rcnt,
@@ -94,7 +94,7 @@ TypeOK ==
     /\ thr_rcnt \in [Threads -> 0..MaxLocalRC]
     /\ thr_old \in [Threads -> Objects \cup {NULL}]
     /\ thr_new \in [Threads -> Objects \cup {NULL}]
-    /\ \A t \in Threads : thr_holds[t] \subseteq Objects
+    /\ thr_holds \in [Threads -> [Objects -> Nat]]
     /\ thr_ls_ctx \in [Threads -> {"scan_done", "cas_retry", "cas_fail", "none"}]
 
 (* -------------------------------------------------------------------------- *)
@@ -119,9 +119,10 @@ Init ==
     /\ thr_old = [t \in Threads |-> NULL]
     /\ thr_new = [t \in Threads |-> NULL]
     /\ thr_holds = [t \in Threads |->
-                      IF t = firstThread /\ otherObj /= NULL
-                      THEN {otherObj}
-                      ELSE {}]
+                      [o \in Objects |->
+                        IF t = firstThread /\ o = otherObj /\ otherObj /= NULL
+                        THEN 1
+                        ELSE 0]]
     /\ thr_ls_ctx = [t \in Threads |-> "none"]
 
 (* ========================================================================== *)
@@ -138,7 +139,7 @@ Recycle(t) ==
        /\ global_rc[o] = 0
        /\ freed' = [freed EXCEPT ![o] = FALSE]
        /\ global_rc' = [global_rc EXCEPT ![o] = 1]
-       /\ thr_holds' = [thr_holds EXCEPT ![t] = @ \cup {o}]
+       /\ thr_holds' = [thr_holds EXCEPT ![t][o] = @ + 1]
     /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt,
                    thr_old, thr_new, thr_ls_ctx>>
 
@@ -178,8 +179,8 @@ ReserveScanRead(t) ==
 ReserveScanCAS(t) ==
     /\ pc[t] = "rs_cas"
     /\ thr_pref[t] /= NULL
-    /\ thr_rcnt[t] + 1 < MaxLocalRC + 1
-    /\ \/ (* CAS succeeds: both ptr AND local_rc match *)
+    /\ \/ (* CAS succeeds: both ptr AND local_rc match, overflow guard here *)
+          /\ thr_rcnt[t] < MaxLocalRC
           /\ ptr = thr_pref[t]
           /\ local_rc = thr_rcnt[t]
           /\ local_rc' = thr_rcnt[t] + 1
@@ -193,6 +194,11 @@ ReserveScanCAS(t) ==
           /\ pc' = [pc EXCEPT ![t] = "rs_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
                          thr_old, thr_new, thr_holds, thr_ls_ctx>>
+       \/ (* Overflow: local_rc at capacity, retry (C++: continue) *)
+          /\ thr_rcnt[t] >= MaxLocalRC
+          /\ pc' = [pc EXCEPT ![t] = "rs_read"]
+          /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
+                         thr_rcnt, thr_old, thr_new, thr_holds, thr_ls_ctx>>
 
 ReserveScanNull(t) ==
     /\ pc[t] = "rs_cas"
@@ -248,7 +254,7 @@ LeaveScanCAS(t) ==
           /\ local_rc = thr_rcnt[t]
           /\ local_rc' = thr_rcnt[t] - 1
           /\ IF thr_ls_ctx[t] = "scan_done"
-             THEN thr_holds' = [thr_holds EXCEPT ![t] = @ \cup {thr_pref[t]}]
+             THEN thr_holds' = [thr_holds EXCEPT ![t][thr_pref[t]] = @ + 1]
              ELSE UNCHANGED thr_holds
           /\ pc' = [pc EXCEPT ![t] = returnPC]
           /\ UNCHANGED <<ptr, global_rc, freed, thr_op, thr_pref, thr_rcnt,
@@ -281,7 +287,7 @@ LeaveScanGlobal(t) ==
           THEN freed' = [freed EXCEPT ![o] = TRUE]
           ELSE freed' = freed
        /\ IF thr_ls_ctx[t] = "scan_done"
-          THEN thr_holds' = [thr_holds EXCEPT ![t] = @ \cup {thr_pref[t]}]
+          THEN thr_holds' = [thr_holds EXCEPT ![t][thr_pref[t]] = @ + 1]
           ELSE UNCHANGED thr_holds
        /\ pc' = [pc EXCEPT ![t] = returnPC]
        /\ UNCHANGED <<ptr, local_rc, thr_op, thr_pref, thr_rcnt, thr_old,
@@ -292,8 +298,9 @@ LeaveScanGlobal(t) ==
 (* ========================================================================== *)
 Reset(t) ==
     /\ pc[t] \in {"done", "idle"}
-    /\ \E o \in thr_holds[t] :
-       /\ thr_holds' = [thr_holds EXCEPT ![t] = @ \ {o}]
+    /\ \E o \in Objects :
+       /\ thr_holds[t][o] > 0
+       /\ thr_holds' = [thr_holds EXCEPT ![t][o] = @ - 1]
        /\ global_rc' = [global_rc EXCEPT ![o] = @ - 1]
        /\ IF global_rc[o] = 1
           THEN freed' = [freed EXCEPT ![o] = TRUE]
@@ -323,7 +330,7 @@ StartCAS(t) ==
     /\ pc[t] = "idle"
     /\ \E oldObj \in Objects \cup {NULL}, newObj \in Objects \cup {NULL} :
        /\ oldObj /= newObj
-       /\ (newObj /= NULL => (freed[newObj] = FALSE /\ newObj \in thr_holds[t]))
+       /\ (newObj /= NULL => (freed[newObj] = FALSE /\ thr_holds[t][newObj] > 0))
        /\ thr_old' = [thr_old EXCEPT ![t] = oldObj]
        /\ thr_new' = [thr_new EXCEPT ![t] = newObj]
     /\ pc' = [pc EXCEPT ![t] = "cas_pre_inc"]
@@ -429,7 +436,7 @@ CASCleanup(t) ==
                ELSE freed' = freed
        ELSE UNCHANGED <<global_rc, freed>>
     /\ IF thr_new[t] /= NULL
-       THEN thr_holds' = [thr_holds EXCEPT ![t] = @ \ {thr_new[t]}]
+       THEN thr_holds' = [thr_holds EXCEPT ![t][thr_new[t]] = @ - 1]
        ELSE UNCHANGED thr_holds
     /\ pc' = [pc EXCEPT ![t] = "done"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
@@ -493,7 +500,8 @@ MemorySafety ==
 
 (* 2. No use-after-free: objects held by local_shared_ptrs are not freed *)
 NoUseAfterFree ==
-    \A t \in Threads : \A o \in thr_holds[t] : freed[o] = FALSE
+    \A t \in Threads : \A o \in Objects :
+        thr_holds[t][o] > 0 => freed[o] = FALSE
 
 (* 3. Global refcount non-negative when not freed *)
 GlobalRCNonNeg ==
