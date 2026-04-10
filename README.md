@@ -345,7 +345,7 @@ Additional notes:
 - In Qt Creator's **executable environment** pane, **deactivate** "Add build library search path to DYLD_LIBRARY_PATH …", otherwise KAME crashes on launch.
 - If `ruby.h` is not found, reinstall Xcode command-line tools: `xcode-select --install`.
 - Qt 6: the **Qt5 compatibility module** must be selected during Qt installation.
-- NI 488.2 is not supported on Apple Silicon.
+- NI 488.2 is not supported on Apple Silicon; use the built-in usermode NI USB-GPIB driver instead (no kernel module required).
 
 ---
 
