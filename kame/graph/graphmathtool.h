@@ -19,10 +19,18 @@
 
 #include "graph.h"
 #include "analyzer.h"
+#include <cmath>
 
 class QPainter;
 class XQGraph;
 class OnScreenPickableObject;
+class OnPlotMaskObject;
+
+enum class MaskShape : int {
+    Rectangle = 0,
+    Ellipse = 1,
+    Arbitrary = 2,
+};
 
 class DECLSPEC_KAME XGraphMathTool: public XNode {
 public:
@@ -44,7 +52,9 @@ public:
     bool hasValidOSOs(XQGraphPainter *painter) const;
 
     //! Clears all on-screen objects, e.g. when the tool is released.
-    void clearOnScreenObjects() { m_osos.clear(); }
+    //! Invalidates each OSO first so the painter skips them even if
+    //! a temporary shared_ptr from weak_ptr::lock() extends their lifetime.
+    void clearOnScreenObjects();
 
     virtual XString getTypename() const override {
         return m_storedTypename.empty() ? XNode::getTypename() : m_storedTypename;
@@ -81,15 +91,15 @@ public:
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) = 0;
 
-    const shared_ptr<XDoubleNode> &begin() const {return m_begin;}
-    const shared_ptr<XDoubleNode> &end() const {return m_end;}
+    const shared_ptr<XDoubleNode> &first() const {return m_first;}
+    const shared_ptr<XDoubleNode> &last() const {return m_last;}
 
     virtual XString getMenuLabel() const override;
 protected:
     virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) override;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
-    const shared_ptr<XDoubleNode> m_begin, m_end;
+    const shared_ptr<XDoubleNode> m_first, m_last;
     weak_ptr<OnScreenPickableObject> m_osoRect, m_osoLabel;
 };
 
@@ -103,21 +113,49 @@ public:
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient, double offset) = 0;
 
-    const shared_ptr<XDoubleNode> &beginX() const {return m_beginX;}
-    const shared_ptr<XDoubleNode> &beginY() const {return m_beginY;}
-    const shared_ptr<XDoubleNode> &endX() const {return m_endX;}
-    const shared_ptr<XDoubleNode> &endY() const {return m_endY;}
+    const shared_ptr<XDoubleNode> &firstX() const {return m_firstX;}
+    const shared_ptr<XDoubleNode> &firstY() const {return m_firstY;}
+    const shared_ptr<XDoubleNode> &lastX() const {return m_lastX;}
+    const shared_ptr<XDoubleNode> &lastY() const {return m_lastY;}
+    const shared_ptr<XComboNode> &maskType() const {return m_maskType;}
+
+    //! Returns the number of unmasked pixels, counting from the stored mask.
     unsigned int pixels(const Snapshot &shot) const {
-        return std::abs((shot[ *endX()] - shot[ *beginX()]) * (shot[ *endY()] - shot[ *beginY()]));
+        auto m = shot[ *this].m_mask;
+        if( !m || m->empty()) {
+            ssize_t w = lrint(std::abs(shot[ *lastX()] - shot[ *firstX()]));
+            ssize_t h = lrint(std::abs(shot[ *lastY()] - shot[ *firstY()]));
+            return (w > 0 && h > 0) ? w * h : 0;
+        }
+        unsigned int count = 0;
+        for(auto v: *m) count += v;
+        return count ? count : 1;
     }
+
+    //! Generates a mask for the given shape and dimensions.
+    //! Returns empty vector for Rectangle (no mask needed), otherwise width*numlines elements (1=included, 0=excluded).
+    static std::vector<uint8_t> generateMask(MaskShape shape, unsigned int width, unsigned int numlines);
+
+    //! (Re)generates the mask from the current selection coordinates and mask type, storing it in \a tr.
+    //! For Arbitrary, does nothing (mask is set externally).
+    void regenerateMask(Transaction &tr);
+
+    //! Atomically sets MaskType to Arbitrary and writes the mask bitmap.
+    void setArbitraryMask(const std::vector<uint8_t> &mask);
+
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
+        shared_ptr<std::vector<uint8_t>> m_mask; //!< stored mask bitmap; null or empty = all included (Rectangle).
+    };
 
     virtual XString getMenuLabel() const override;
 protected:
     virtual void updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) override;
     virtual std::deque<shared_ptr<OnScreenObject>> createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) override;
 private:
-    const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
+    const shared_ptr<XDoubleNode> m_firstX, m_firstY, m_lastX, m_lastY;
+    const shared_ptr<XComboNode> m_maskType;
     weak_ptr<OnScreenPickableObject> m_osoRect, m_osoLabel;
+    weak_ptr<OnPlotMaskObject> m_osoMaskHighlight;
 };
 
 //! entrynames semi colon-sparated entry names.
@@ -159,15 +197,17 @@ public:
     using ret_type = typename std::conditional<HasSingleEntry, double, std::vector<double>>::type;
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
+        Snapshot shot( *this); //read-only access to the tool's payload; avoids CoW on the tool node.
+        auto func = shot[ *this].functor; //copy functor locally so non-const operator() can be called.
         XString msg;
         if constexpr(HasSingleEntry) {
-            double v = tr[ *this].functor(xbegin, xend, ybegin, yend);
+            double v = func(xbegin, xend, ybegin, yend);
             this->entry()->value(tr, v);
             msg += tr[ *this->entry()->value()].to_str();
         }
         else {
             try {
-                std::vector<double> v = tr[ *this].functor(xbegin, xend, ybegin, yend);
+                std::vector<double> v = func(xbegin, xend, ybegin, yend);
                 for(unsigned int i = 0; i < this->numEntries(); ++i) {
                     this->entry(i)->value(tr, v.at(i));
                     msg += tr[ *this->entry(i)->value()].to_str() + " ";
@@ -176,7 +216,7 @@ public:
             catch(std::out_of_range&) {
             }
         }
-        this->updateOnScreenObjects(tr, painter, msg);
+        this->updateOnScreenObjects(shot, painter, msg);
     }
     struct Payload : public XGraph1DMathTool::Payload {
         F functor;
@@ -191,19 +231,32 @@ public:
 
     virtual void update(Transaction &tr, const shared_ptr<XQGraphPainter> &painter, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient, double offset) override {
-//        using namespace Eigen;
-//        using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
-//        auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
-//            leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
+        // Ensure mask is generated if MaskType requires one but m_mask is empty.
+        {
+            Snapshot pre( *this);
+            auto shape = (MaskShape)(int)pre[ *this->maskType()];
+            if(shape != MaskShape::Rectangle && shape != MaskShape::Arbitrary && !pre[ *this].m_mask) {
+                this->iterate_commit([&](Transaction &mtr){
+                    this->regenerateMask(mtr);
+                });
+            }
+        }
+        Snapshot shot( *this); //read-only access to the tool's payload; avoids CoW on the tool node.
+        auto maskptr = shot[ *this].m_mask;
+        auto func = shot[ *this].functor; //copy functor locally so non-const operator() can be called.
+        static const std::vector<uint8_t> s_empty;
+        //discard mask if dimensions mismatch (e.g. selection clipped by image boundary).
+        const auto &mask = (maskptr && (maskptr->size() == (size_t)width * numlines))
+            ? *maskptr : s_empty;
         XString msg;
         if constexpr(HasSingleEntry) {
-            double v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset);
+            double v = func(leftupper, width, stride, numlines, coefficient, offset, mask);
             this->entry()->value(tr, v);
             msg += tr[ *this->entry()->value()].to_str();
         }
         else {
             try {
-                std::vector<double> v = tr[ *this].functor(leftupper, width, stride, numlines, coefficient, offset);
+                std::vector<double> v = func(leftupper, width, stride, numlines, coefficient, offset, mask);
                 for(unsigned int i = 0; i < this->numEntries(); ++i) {
                     this->entry(i)->value(tr, v.at(i));
                     msg += tr[ *this->entry(i)->value()].to_str() + " ";
@@ -212,7 +265,7 @@ public:
             catch(std::out_of_range&) {
             }
         }
-        this->updateOnScreenObjects(tr, painter, msg);
+        this->updateOnScreenObjects(shot, painter, msg);
     }
     struct Payload : public XGraph2DMathTool::Payload {
         F functor;
@@ -314,27 +367,60 @@ using XGraph1DMathToolCoG = XGraph1DMathToolX<FuncGraph1DMathToolCoG>;
 
 struct DECLSPEC_KAME FuncGraph2DMathToolSum{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
-    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset){
+    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines,
+        double coefficient, double offset, const std::vector<uint8_t> &mask){
         double v = 0.0;
-        for(unsigned int y = 0; y < numlines; ++y) {
-            for(const uint32_t *p = leftupper; p < leftupper + width; ++p)
-                v += *p;
-            leftupper += stride;
+        unsigned int count = 0;
+        if(mask.empty()) {
+            count = width * numlines;
+            for(unsigned int y = 0; y < numlines; ++y) {
+                for(unsigned int x = 0; x < width; ++x)
+                    v += leftupper[x];
+                leftupper += stride;
+            }
         }
-        return v * coefficient + offset * numlines * width;
+        else {
+            for(unsigned int y = 0; y < numlines; ++y) {
+                for(unsigned int x = 0; x < width; ++x) {
+                    if(mask[y * width + x]) {
+                        v += leftupper[x];
+                        ++count;
+                    }
+                }
+                leftupper += stride;
+            }
+        }
+        return v * coefficient + offset * count;
     }
 };
 using XGraph2DMathToolSum = XGraph2DMathToolX<FuncGraph2DMathToolSum>;
 struct DECLSPEC_KAME FuncGraph2DMathToolAverage{
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
-    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines, double coefficient, double offset){
+    double operator()(const uint32_t *leftupper, unsigned int width, unsigned int stride, unsigned int numlines,
+        double coefficient, double offset, const std::vector<uint8_t> &mask){
         double v = 0.0;
-        for(unsigned int y = 0; y < numlines; ++y) {
-            for(const uint32_t *p = leftupper; p < leftupper + width; ++p)
-                v += *p;
-            leftupper += stride;
+        unsigned int count = 0;
+        if(mask.empty()) {
+            count = width * numlines;
+            for(unsigned int y = 0; y < numlines; ++y) {
+                for(unsigned int x = 0; x < width; ++x)
+                    v += leftupper[x];
+                leftupper += stride;
+            }
         }
-        return v * coefficient / (width * numlines) + offset;
+        else {
+            for(unsigned int y = 0; y < numlines; ++y) {
+                for(unsigned int x = 0; x < width; ++x) {
+                    if(mask[y * width + x]) {
+                        v += leftupper[x];
+                        ++count;
+                    }
+                }
+                leftupper += stride;
+            }
+        }
+        if( !count) return offset;
+        return v * coefficient / count + offset;
     }
 };
 using XGraph2DMathToolAverage = XGraph2DMathToolX<FuncGraph2DMathToolAverage>;

@@ -95,8 +95,8 @@ public:
         XString msg = tr[ *m_entry->value()].to_str() + " +- " + tr[ *m_entry_err->value()].to_str();
 
         if(auto plot = m_plot.lock()) {
-            double bgx = tr[ *begin()];
-            double edx = tr[ *end()];
+            double bgx = tr[ *first()];
+            double edx = tr[ *last()];
             double bgy = 0.0;
             double edy = 1.0;
             if(auto oso = m_osoFitCurve.lock()) {

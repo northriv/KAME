@@ -74,6 +74,8 @@ Windows 64bit binaries: 8.0(https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-w
 - **Usermode NI USB-GPIB on Apple Silicon** — the embedded userspace linux-gpib port now works reliably on macOS ARM64 without any kernel module.
 - **Window cascade placement** — instrument windows are automatically arranged on show.
 - **Comprehensive bug audit** — 20 bug fixes across 12 source files (GIL safety, buffer bounds, null-pointer guards, logic errors).
+- **Arbitrary mask support for 2D math tools** — ROI math tools (Average, Sum) now support arbitrary binary masks in addition to Rectangle and Ellipse shapes. Masks can be set programmatically from Python via `setArbitraryMask()`. Highlighted masks are rendered as GPU textures.
+- **Math tool API cleanup** — ROI endpoint naming changed from `Begin/End` to `First/Last` (inclusive endpoints, avoids STL naming confusion). Added `imageWidth()`/`imageHeight()` to `X2DImagePlot` for Python access. Old `.kam` files with `Begin/End` names load transparently via compatibility aliases.
 
 ---
 
@@ -254,7 +256,7 @@ On modern compilers (GCC 5.1+, Clang, MSVC), the CAS primitives delegate to `std
 
 `iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
 
-> **Caution:** Taking a nested `Snapshot` inside a transaction on a tree that contains a hard link (a child with two parents) can break consistency. Use `tr[*node]` instead of a nested `Snapshot` in that situation.
+> **Caution:** Taking a nested `Snapshot` inside a transaction can trigger bundling, which may cause the transaction's CAS to always fail. This is not a data corruption issue but a liveness issue — the transaction retries indefinitely. This occurs when the `Snapshot` target is an ancestor of the transaction target, or when hard links exist (a child with two parents) and a `Snapshot` on one parent's tree interferes with the other. Use `tr[*node]` instead of a nested `Snapshot` in these situations.
 
 #### Comparison with other STM designs
 
@@ -343,7 +345,7 @@ Additional notes:
 - In Qt Creator's **executable environment** pane, **deactivate** "Add build library search path to DYLD_LIBRARY_PATH …", otherwise KAME crashes on launch.
 - If `ruby.h` is not found, reinstall Xcode command-line tools: `xcode-select --install`.
 - Qt 6: the **Qt5 compatibility module** must be selected during Qt installation.
-- NI 488.2 is not supported on Apple Silicon.
+- NI 488.2 is not supported on Apple Silicon; use the built-in usermode NI USB-GPIB driver instead (no kernel module required).
 
 ---
 

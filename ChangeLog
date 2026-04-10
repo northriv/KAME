@@ -1,3 +1,69 @@
+* Wed Apr 09 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (8.1)
+- TLA+ formal verification: apply Gemini-identified model fixes.
+  atomic_shared_ptr: fix overflow guard deadlock, multiset thr_holds for
+  correct repeated-scan refcounting, raise MaxGlobalRC in step3 cfg.
+  stm_commit: fix CommitSerializes invariant (MAX→SUM).
+  BundleUnbundle: drop modular serial arithmetic, use monotonic increment
+  with StateConstraint (consistent with 2-level model).
+- TLA+ atomic_shared_ptr: simplify reserve_scan_ two-step read into
+  single atomic step (matches C++ and GenMC models).
+
+* Tue Apr 08 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (8.1)
+- Arbitrary mask contour lines: non-highlighted state draws left/right
+  boundary lines with median-based xmin/xmax per band (~128 bands),
+  closed at top/bottom. Lines break at empty bands.
+  Highlighted state: filled texture overlay (unchanged).
+- Picking for arbitrary mask uses quad approximation (no texture),
+  fixing broken text textures caused by GL texture misuse in pick pass.
+- Label placed at mask top-center for arbitrary masks.
+- Rect BB suppressed for arbitrary mask (contour replaces it).
+- Math tool API: rename Begin/End to First/Last (inclusive endpoint naming).
+  1D tools: first()/last(), 2D tools: firstX()/firstY()/lastX()/lastY().
+  .kam backward compatibility via _KamNode aliases in xpythonsupport.py.
+- Add XGraph2DMathTool::setArbitraryMask() — atomically sets MaskType to
+  Arbitrary and writes the mask bitmap in one iterate_commit.
+  Exposed to Python via pybind11 on the registered concrete types.
+- Register C++ concrete 2D math tool types (XGraph2DMathToolSum,
+  XGraph2DMathToolAverage) so Python dynamic_cast() resolves properly.
+- Add imageWidth()/imageHeight() to X2DImagePlot Python bindings.
+- Fix OSO ghost artifacts on tool release: OnScreenObject::invalidate()
+  flag checked by isValid(); clearOnScreenObjects() invalidates before clear.
+- Fix Snapshot-based update() in XGraph1DMathToolX/XGraph2DMathToolX:
+  read functor and mask from Snapshot(*this) instead of tr[*this] to
+  prevent driver transaction CoW from overwriting user-set mask/MaskType.
+- Arbitrary mask highlight: render as GL alpha texture on single quad
+  (eliminates overlapping-quad butterfly artifacts). Y-axis inversion
+  handled via screen-space comparison. Depth test disabled during draw.
+- Fix +1 dimension mismatch between OSO display and computation ROI
+  in updateAdditionalOnScreenObjects.
+- Fix libpng sRGB warning: strip color space from grayscale QImage in to_png().
+- MCP server: streamline to 6 tools (remove read_node, set_node, read_scalar,
+  list_children, list_scalars); replace list_children with recursive tree tool;
+  compact kame_status output.
+- Fix xpythonsupport.py: MCP venv path detection (cross-platform, search up
+  from KAME_ResourceDir); fix _sys -> sys typo.
+
+* Mon Apr 07 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- 2D math tools: add configurable mask shape (Rectangle / Ellipse / Arbitrary).
+  Each XGraph2DMathTool now has an XComboNode maskType() selecting the
+  mask applied within the rectangular selection. Ellipse inscribes an
+  ellipse; only pixels inside it contribute to Sum/Average/etc.
+  Arbitrary lets Python set the mask via Payload.setMask()/mask().
+  Mask is stored in Payload::m_mask; pixels() counts from the stored mask
+  for all shapes. regenerateMask(tr) called on coord/type changes.
+  Connector popup adds a "Mask Shape" submenu per tool.
+  OnScreenRectObject::EllipseTool draws the inscribed ellipse (48 segs).
+  Python 2D functors now receive a 7th arg (mask: uint8 numpy array).
+- 2D math tool highlight: OnPlotMaskObject renders mask-based highlight
+  overlay using horizontal row-spans, correctly visualising all shapes.
+- Fix: OnPlotObject/OnAxisObject z-offset was never applied (for-loop
+  iterated by value instead of reference).
+- Fix: .kam loading hang when creating Graph2DMathTool — MaskType combo
+  items were populated via the outer measurement transaction, which could
+  not see the non-transactionally created child node.
+
 * Mon Apr 06 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.0)
 - Smart window placement: new driver/graph windows cascade automatically on

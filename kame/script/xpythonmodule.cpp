@@ -543,9 +543,11 @@ struct PyFunc2DMathTool {
 
     ret_type
     operator()(const uint32_t *leftupper, unsigned int width,
-                      unsigned int stride, unsigned int numlines, double coefficient, double offset){
+                      unsigned int stride, unsigned int numlines, double coefficient, double offset,
+                      const std::vector<uint8_t> &mask){
         using namespace Eigen;
         using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
+        using RMatrixXu8 = Matrix<uint8_t, Dynamic, Dynamic, RowMajor>;
         auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
             leftupper, numlines, width, Stride<Dynamic, 1>(stride, 1));
         pybind11::gil_scoped_acquire guard;
@@ -553,8 +555,15 @@ struct PyFunc2DMathTool {
         if( !pf)
             return {};
         try {
+            if(mask.empty()) {
+                //no mask — pass ones matrix.
+                RMatrixXu8 ones = RMatrixXu8::Ones(numlines, width);
+                return py::cast<ret_type>((*pf)(Ref<const RMatrixXu32>(cmatrix),
+                    width, stride, numlines, coefficient, offset, Ref<const RMatrixXu8>(ones)));
+            }
+            auto cmask = Map<const RMatrixXu8>(mask.data(), numlines, width);
             return py::cast<ret_type>((*pf)(Ref<const RMatrixXu32>(cmatrix),
-                width, stride, numlines, coefficient, offset));
+                width, stride, numlines, coefficient, offset, Ref<const RMatrixXu8>(cmask)));
         }
         catch (pybind11::error_already_set& e) {
             gErrPrint(i18n("Python error: ") + e.what());
@@ -604,11 +613,24 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
         .def("to_png", [](X2DImagePlot::Payload &self) -> py::bytes {
             auto img = self.image();
             if( !img) return py::bytes();
+            // Strip color space from grayscale images to avoid libpng warning
+            // ("RGB color space not permitted on grayscale PNG").
+            QImage out = *img;
+            if(out.isGrayscale() && out.colorSpace().isValid())
+                out.setColorSpace(QColorSpace());
             QByteArray ba;
             QBuffer buf(&ba);
             buf.open(QIODevice::WriteOnly);
-            img->save(&buf, "PNG");
+            out.save(&buf, "PNG");
             return py::bytes(ba.constData(), ba.size());
+        })
+        .def("imageWidth", [](X2DImagePlot::Payload &self) -> int {
+            auto img = self.image();
+            return img ? img->width() : 0;
+        })
+        .def("imageHeight", [](X2DImagePlot::Payload &self) -> int {
+            auto img = self.image();
+            return img ? img->height() : 0;
         });
     }
     XPython::bind.export_xnode<XGraphNToolBox, XNode>();
@@ -648,11 +670,26 @@ KAMEPyBind::export_embedded_module_graph(pybind11::module_& m) {
 
     XPython::bind.export_xnode<XGraphMathTool, XNode>();
     XPython::bind.export_xnode<XGraph1DMathTool, XGraphMathTool>();
-    XPython::bind.export_xnode<XGraph2DMathTool, XGraphMathTool>();
+    {   auto [node, payload] = XPython::bind.export_xnode<XGraph2DMathTool, XGraphMathTool>();
+        (*node)
+            .def("setArbitraryMask", &XGraph2DMathTool::setArbitraryMask);
+        (*payload)
+            .def("setMask", [](XGraph2DMathTool::Payload &self, const std::vector<uint8_t> &mask) {
+                self.m_mask = std::make_shared<std::vector<uint8_t>>(mask); //deep copy.
+            })
+            .def("mask", [](const XGraph2DMathTool::Payload &self) -> std::vector<uint8_t> {
+                return self.m_mask ? *self.m_mask : std::vector<uint8_t>();
+            });
+    }
+
+    // Register C++ concrete 2D math tool types so dynamic_cast() resolves to XGraph2DMathTool.
+    XPython::bind.export_xnode<XGraph2DMathToolSum, XGraph2DMathTool>();
+    XPython::bind.export_xnode<XGraph2DMathToolAverage, XGraph2DMathTool>();
 
     export_mathtool<XPythonGraph1DMathTool, XGraph1DMathTool>("XPythonGraph1DMathTool");
 
     export_mathtool<XPythonGraph2DMathTool, XGraph2DMathTool>("XPythonGraph2DMathTool");
+
 }
 
 void

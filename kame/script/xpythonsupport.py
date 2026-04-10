@@ -215,9 +215,20 @@ class _KamFakeNode:
 class _KamNode:
 	"""Wraps XNode for .kam loading: chained [] access, .load(), and .create() with
 	main-thread dispatch for non-thread-safe lists (e.g. XDriverList)."""
+	# Aliases for backward-compatible .kam loading (old name → new name).
+	_aliases = {
+		"Begin": "First", "End": "Last",
+		"BeginX": "FirstX", "BeginY": "FirstY",
+		"EndX": "LastX", "EndY": "LastY",
+	}
 	def __init__(self, node): self._node = node
 	def __getitem__(self, key):
 		child = self._node[key]
+		if child is None:
+			# Try alias for backward compatibility with old .kam files.
+			alias = self._aliases.get(key)
+			if alias:
+				child = self._node[alias]
 		if child is None:
 			return _KamFakeNode(key)
 		return _KamNode(child)
@@ -421,16 +432,42 @@ def launchJupyterConsole(prog, argv):
 			pass
 		# Write .mcp.json pointing to the MCP server script.
 		mcp_server_script = os.path.join(KAME_ResourceDir, 'kame_mcp_server.py')
-		# Find the Python interpreter next to the jupyter executable.
-		_bin_dir = os.path.dirname(prog)
+		# Find a Python that can run the MCP server (needs mcp & jupyter_client).
+		# sys.executable is the KAME binary when Python is embedded, so search for
+		# a Python interpreter that has the required packages.
+		import subprocess as _sp, shutil as _sh
 		python_cmd = None
+		_candidates = []
+		# 1. Python next to the jupyter executable
+		_bin_dir = os.path.dirname(prog)
 		for _name in ('python3', 'python'):
-			_candidate = os.path.join(_bin_dir, _name)
-			if os.path.isfile(_candidate):
-				python_cmd = _candidate
+			_c = os.path.join(_bin_dir, _name)
+			if os.path.isfile(_c):
+				_candidates.append(_c)
+		# 2. Common venv location for KAME MCP (sibling of the build directory)
+		import platform as _pf
+		_venv_subdir = ('Scripts', 'python.exe') if _pf.system() == 'Windows' else ('bin', 'python3')
+		for _depth in range(3, 7):  # search up from Resources to find kame-mcp-venv
+			_venv_base = os.path.join(KAME_ResourceDir, *(['..'] * _depth), 'kame-mcp-venv', *_venv_subdir)
+			_venv_py = os.path.normpath(_venv_base)
+			if os.path.isfile(_venv_py):
+				_candidates.insert(0, _venv_py)  # prefer venv
 				break
+		# 3. System python3
+		_sys_py = _sh.which('python3')
+		if _sys_py:
+			_candidates.append(_sys_py)
+		for _c in _candidates:
+			try:
+				_sp.check_call([_c, '-c', 'import mcp, jupyter_client'],
+					stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=5)
+				python_cmd = _c
+				break
+			except Exception:
+				continue
 		if not python_cmd:
-			python_cmd = 'python3'
+			print("Warning: No Python with 'mcp' and 'jupyter_client' found for MCP server.", file=sys.stderr)
+			python_cmd = _candidates[0] if _candidates else 'python3'
 		mcp_json_path = os.path.join(console[1], '.mcp.json')
 		try:
 			with open(mcp_json_path, 'w') as _f:

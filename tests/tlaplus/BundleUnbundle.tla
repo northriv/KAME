@@ -22,7 +22,6 @@ CONSTANTS
     Parent,         \* Parent node (child of Grand)
     Child1, Child2, \* Leaf nodes (children of Parent)
     Null,
-    MaxSerial,      \* Serials wrap at this value (e.g. 3)
     MaxPayload      \* Payloads wrap at this value (e.g. 2)
 
 GrandChildren == {Parent}         \* Grand's children
@@ -51,12 +50,12 @@ vars == <<serial, globalSerial, linkage, pc, op, target, local>>
 -----------------------------------------------------------------------------
 (* Modular serial arithmetic *)
 
-SerialSucc(s) == (s + 1) % MaxSerial
+SerialSucc(s) == s + 1
 
-\* Advance past lastSer then increment (Lamport step), mod MaxSerial
+\* Advance past lastSer then increment (Lamport step)
 GenSerial(t, lastSer) ==
     LET base == IF lastSer > serial[t] THEN lastSer ELSE serial[t]
-    IN  (base + 1) % MaxSerial
+    IN  base + 1
 
 UpdateSerial(t, ser) ==
     /\ serial' = [serial EXCEPT ![t] = ser]
@@ -503,6 +502,10 @@ Next ==
         \/ CommitDone(t)
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
+
+\* State constraint: bound serials for finite state space (replaces modular arithmetic)
+StateConstraint ==
+    /\ globalSerial <= 3 * MaxPayload
 
 -----------------------------------------------------------------------------
 (* Safety invariants *)

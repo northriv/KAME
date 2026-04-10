@@ -70,7 +70,7 @@ Init ==
 
 \* Step 1: Start transaction / take snapshot
 \* Models: Transaction constructor calls snapshot()
-\* snapshot() calls scan_() on m_link to atomically read current state
+\* snapshot() calls load_shared_() on m_link to atomically read current state
 TakeSnapshot(t) ==
     /\ pc[t] \in {"idle", "done"}
     /\ pc' = [pc EXCEPT ![t] = "snapshot"]
@@ -156,11 +156,14 @@ NoLostUpdate ==
 
 \* 2. Commit Serializes: at most one thread can commit per serial number.
 \*    Total commits across all threads cannot exceed the serial count.
+RECURSIVE SumSet(_)
+SumSet(S) ==
+    IF S = {} THEN 0
+    ELSE LET t == CHOOSE t \in S : TRUE
+         IN thr_committed[t] + SumSet(S \ {t})
+
 CommitSerializes ==
-    LET totalCommits == LET S == {thr_committed[t] : t \in Threads}
-                        IN IF S = {} THEN 0
-                           ELSE CHOOSE s \in S : \A s2 \in S : s >= s2
-    IN totalCommits <= node_serial
+    SumSet(Threads) <= node_serial
 
 \* 3. Snapshot Freshness: each committed thread's snapshot serial is
 \*    strictly less than the current node_serial (the commit incremented it).

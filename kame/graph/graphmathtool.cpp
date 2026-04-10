@@ -53,6 +53,11 @@ XGraphMathTool::XGraphMathTool(const char *name, bool runtime, Transaction &tr_m
     m_parentList(parentList) {
     trans( *baseColor()) = 0x4080ffu;
 }
+void
+XGraphMathTool::clearOnScreenObjects() {
+    for(auto &oso: m_osos) oso->invalidate();
+    m_osos.clear();
+}
 bool
 XGraphMathTool::hasValidOSOs(XQGraphPainter *painter) const {
     if(m_osos.empty()) return false;
@@ -73,8 +78,8 @@ XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, Transaction &
     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
     const shared_ptr<XPlot> &plot, const shared_ptr<XNode> &parentList) :
     XGraphMathTool(name, runtime, ref(tr_meas), entries, driver, plot, parentList),
-    m_begin(create<XDoubleNode>("Begin", false)),
-    m_end(create<XDoubleNode>("End", false)) {
+    m_first(create<XDoubleNode>("First", false)),
+    m_last(create<XDoubleNode>("Last", false)) {
 
 }
 XGraph1DMathTool::~XGraph1DMathTool() {
@@ -83,11 +88,54 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
     const shared_ptr<XPlot> &plot, const shared_ptr<XNode> &parentList) :
     XGraphMathTool(name, runtime, ref(tr_meas), entries, driver, plot, parentList),
-    m_beginX(create<XDoubleNode>("BeginX", false)),
-    m_beginY(create<XDoubleNode>("BeginY", false)),
-    m_endX(create<XDoubleNode>("EndX", false)),
-    m_endY(create<XDoubleNode>("EndY", false)) {
+    m_firstX(create<XDoubleNode>("FirstX", false)),
+    m_firstY(create<XDoubleNode>("FirstY", false)),
+    m_lastX(create<XDoubleNode>("LastX", false)),
+    m_lastY(create<XDoubleNode>("LastY", false)),
+    m_maskType(create<XComboNode>("MaskType", false)) {
+    iterate_commit([=](Transaction &tr){
+        tr[ *m_maskType].add({"Rectangle", "Ellipse", "Arbitrary"});
+        tr[ *m_maskType] = (int)MaskShape::Rectangle;
+    });
+}
 
+std::vector<uint8_t>
+XGraph2DMathTool::generateMask(MaskShape shape, unsigned int width, unsigned int numlines) {
+    if(shape == MaskShape::Rectangle || width == 0 || numlines == 0)
+        return {};
+    std::vector<uint8_t> mask(width * numlines, 0);
+    if(shape == MaskShape::Ellipse) {
+        double cx = width / 2.0, cy = numlines / 2.0;
+        for(unsigned int y = 0; y < numlines; ++y) {
+            for(unsigned int x = 0; x < width; ++x) {
+                double dx = (x + 0.5 - cx) / cx;
+                double dy = (y + 0.5 - cy) / cy;
+                if(dx * dx + dy * dy <= 1.0)
+                    mask[y * width + x] = 1;
+            }
+        }
+    }
+    return mask;
+}
+
+void
+XGraph2DMathTool::regenerateMask(Transaction &tr) {
+    auto shape = (MaskShape)(int)tr[ *maskType()];
+    if(shape == MaskShape::Arbitrary)
+        return; //mask is set externally.
+    ssize_t w = lrint(std::abs(tr[ *lastX()] - tr[ *firstX()])) + 1;
+    ssize_t h = lrint(std::abs(tr[ *lastY()] - tr[ *firstY()])) + 1;
+    auto v = generateMask(shape, std::max((ssize_t)0, w), std::max((ssize_t)0, h));
+    tr[ *this].m_mask = v.empty() ? shared_ptr<std::vector<uint8_t>>()
+        : std::make_shared<std::vector<uint8_t>>(std::move(v));
+}
+
+void
+XGraph2DMathTool::setArbitraryMask(const std::vector<uint8_t> &mask) {
+    iterate_commit([&](Transaction &tr){
+        tr[ *maskType()] = (int)MaskShape::Arbitrary;
+        tr[ *this].m_mask = std::make_shared<std::vector<uint8_t>>(mask);
+    });
 }
 
 void
@@ -131,8 +179,8 @@ XGraph1DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainte
 void
 XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) {
     if(auto plot = m_plot.lock()) {
-        double bgx = shot[ *begin()];
-        double edx = shot[ *end()];
+        double bgx = shot[ *first()];
+        double edx = shot[ *last()];
         double bgy = 0.0;
         double edy = 1.0;
         if(auto oso = static_pointer_cast<OnXAxisRectObject>(m_osoRect.lock())) {
@@ -159,55 +207,105 @@ XGraph1DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const sh
 XString
 XGraph1DMathTool::getMenuLabel() const {
     Snapshot shot( *this);
-    double bgx = shot[ *begin()];
-    double edx = shot[ *end()];
+    double bgx = shot[ *first()];
+    double edx = shot[ *last()];
     return getLabel() + formatString(" (%.4g)-(%.4g)", bgx, edx);
 }
 XString
 XGraph2DMathTool::getMenuLabel() const {
     Snapshot shot( *this);
-    double bgx = shot[ *beginX()];
-    double bgy = shot[ *beginY()];
-    double edx = shot[ *endX()];
-    double edy = shot[ *endY()];
-    return getLabel() + formatString(" (%.0f,%.0f)-(%.0f,%.0f)",bgx, bgy, edx, edy);
+    double bgx = shot[ *firstX()];
+    double bgy = shot[ *firstY()];
+    double edx = shot[ *lastX()];
+    double edy = shot[ *lastY()];
+    XString maskStr;
+    auto shape = (MaskShape)(int)shot[ *maskType()];
+    if(shape == MaskShape::Ellipse)
+        maskStr = " [Ellipse]";
+    else if(shape == MaskShape::Arbitrary)
+        maskStr = " [Arbitrary]";
+    return getLabel() + formatString(" (%.0f,%.0f)-(%.0f,%.0f)",bgx, bgy, edx, edy) + maskStr;
 }
 std::deque<shared_ptr<OnScreenObject>>
 XGraph2DMathTool::createAdditionalOnScreenObjects(const shared_ptr<XQGraphPainter> &painter) {
-    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool, shared_from_this());
-    m_osoRect = oso_rect;
+    Snapshot shot( *this);
+    auto shape = (MaskShape)(int)shot[ *maskType()];
+    bool hasMaskShape = (shape == MaskShape::Ellipse || shape == MaskShape::Arbitrary);
     auto oso_lbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>(shared_from_this());
     m_osoLabel = oso_lbl;
+    if(hasMaskShape) {
+        // Ellipse/Arbitrary: contour lines (normal) or filled texture (highlighted).
+        auto oso_mask = painter->createOnScreenObjectWeakly<OnPlotMaskObject>(shared_from_this());
+        oso_mask->setHighlighted(isHighLighted());
+        if(isHighLighted())
+            m_osoHighlight = oso_mask;
+        m_osoMaskHighlight = oso_mask;
+        return {oso_mask, oso_lbl};
+    }
+    // Rectangle: plain rect BB + optional highlight.
+    auto oso_rect = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool, shared_from_this());
+    m_osoRect = oso_rect;
     if(isHighLighted()) {
-        auto oso_rect2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::Selection, shared_from_this());
-        m_osoHighlight = oso_rect2;
-        return {oso_rect, oso_rect2, oso_lbl};
+        auto oso_mask = painter->createOnScreenObjectWeakly<OnPlotMaskObject>(shared_from_this());
+        oso_mask->setHighlighted(true);
+        m_osoHighlight = oso_mask;
+        m_osoMaskHighlight = oso_mask;
+        return {oso_rect, oso_mask, oso_lbl};
     }
     return {oso_rect, oso_lbl};
 }
 void
 XGraph2DMathTool::updateAdditionalOnScreenObjects(const Snapshot &shot, const shared_ptr<XQGraphPainter> &painter, const XString &msg) {
     if(auto plot = m_plot.lock()) {
-        double bgx = shot[ *beginX()];
-        double bgy = shot[ *beginY()];
-        double edx = shot[ *endX()];
-        double edy = shot[ *endY()];
+        double bgx = shot[ *firstX()];
+        double bgy = shot[ *firstY()];
+        double edx = shot[ *lastX()];
+        double edy = shot[ *lastY()];
         XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
         if(auto oso = static_pointer_cast<OnPlotRectObject>(m_osoRect.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
             oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
         }
-        if(auto oso_rect = m_osoHighlight.lock()) {
-            auto oso = static_pointer_cast<OnPlotRectObject>(oso_rect);
+        if(auto oso = m_osoMaskHighlight.lock()) {
             QColor c = (unsigned long)***painter->graph()->titleColor();
             c.setAlphaF(0.25);
-            oso->setBaseColor(c.rgba());
-            oso->placeObject(plot, corners, {0.0, 0.0, 0.02});
+            oso->setBaseColor(isHighLighted() ? c.rgba() : shot[ *baseColor()]);
+            oso->setHighlighted(isHighLighted());
+            // Use +1 dimensions to match the clipped ROI computation (x1 - x0 + 1).
+            ssize_t w = lrint(std::abs(edx - bgx)) + 1;
+            ssize_t h = lrint(std::abs(edy - bgy)) + 1;
+            oso->setMask(plot, corners, shot[ *this].m_mask,
+                (w > 0) ? w : 0, (h > 0) ? h : 0, {0.0, 0.0, 0.02});
         }
         if(auto oso = static_pointer_cast<OnPlotTextObject>(m_osoLabel.lock())) {
             oso->setBaseColor(shot[ *baseColor()]);
             oso->setEvadeDirection(OnScreenPickableObject::HowToEvade::ByDescent, 0.005f);
-            oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
+            // For masked tools (Ellipse/Arbitrary), place label at the mask's top-center.
+            auto m = shot[ *this].m_mask;
+            ssize_t mw = lrint(std::abs(edx - bgx)) + 1;
+            ssize_t mh = lrint(std::abs(edy - bgy)) + 1;
+            if(m && (m->size() == (size_t)mw * mh)) {
+                // Find first row with mask pixels and its center x.
+                for(ssize_t y = 0; y < mh; ++y) {
+                    int xmin = -1, xmax = -1;
+                    for(ssize_t x = 0; x < mw; ++x) {
+                        if((*m)[y * mw + x]) {
+                            if(xmin < 0) xmin = x;
+                            xmax = x;
+                        }
+                    }
+                    if(xmin >= 0) {
+                        double cx = bgx + (xmin + xmax) * 0.5;
+                        double cy = bgy + y;
+                        XGraph::ValPoint lbl_corners[4] = {{cx, cy}, {cx, cy}, {cx, cy}, {cx, cy}};
+                        oso->placeObject(plot, lbl_corners, {0.01, 0.01, 0.01});
+                        break;
+                    }
+                }
+            }
+            else {
+                oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
+            }
             oso->drawTextAtPlacedPosition(getLabel()
                 + " " + msg, Qt::AlignTop | Qt::AlignLeft, isHighLighted() ? +5 : +1);
         }
@@ -330,8 +428,8 @@ XGraph1DMathToolList::update(Transaction &tr, const shared_ptr<XQGraphPainter> &
         for(auto &x: *tr.list(shared_from_this())) {
             auto tool = static_pointer_cast<XGraph1DMathTool>(x);
             //limits to selected region. xmin <= x <= xmax.
-            double xmin = tr[ *tool->begin()];
-            double xmax = tr[ *tool->end()];
+            double xmin = tr[ *tool->first()];
+            double xmax = tr[ *tool->last()];
             cv_iterator xbegin_lim = xbegin;
             for(; xbegin_lim != xend; ++xbegin_lim) {
                 if( *xbegin_lim >= xmin)
@@ -361,10 +459,10 @@ XGraph2DMathToolList::update(Transaction &tr, const shared_ptr<XQGraphPainter> &
         for(auto &x: *tr.list(shared_from_this())) {
             auto tool = static_pointer_cast<XGraph2DMathTool>(x);
             //limits to selected region.
-            double xmin = tr[ *tool->beginX()];
-            double xmax = tr[ *tool->endX()];
-            double ymin = tr[ *tool->beginY()];
-            double ymax = tr[ *tool->endY()];
+            double xmin = tr[ *tool->firstX()];
+            double xmax = tr[ *tool->lastX()];
+            double ymin = tr[ *tool->firstY()];
+            double ymax = tr[ *tool->lastY()];
             ssize_t x0 = lrint(xmin);
             ssize_t y0 = lrint(ymin); //do not mirror y
 //            ssize_t y0 = lrint(numlines - 1 - ymax); //mirror y
@@ -415,8 +513,8 @@ XGraph1DMathToolList::onAxisSelectedByToolForCreate(const Snapshot &shot,
     Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
         if(src > dst)
             std::swap(src, dst);
-        tr[ *tool->begin()] = src;
-        tr[ *tool->end()] = dst;
+        tr[ *tool->first()] = src;
+        tr[ *tool->last()] = dst;
         tr[ *tool->baseColor()] = m_basecolor;
         tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
     });
@@ -460,12 +558,13 @@ XGraph2DMathToolList::onPlaneSelectedByToolForCreate(const Snapshot &shot,
             std::swap(src.x, dst.x);
         if(src.y > dst.y)
             std::swap(src.y, dst.y);
-        tr[ *tool->beginX()] = src.x;
-        tr[ *tool->endX()] = dst.x;
-        tr[ *tool->beginY()] = src.y;
-        tr[ *tool->endY()] = dst.y;
+        tr[ *tool->firstX()] = src.x;
+        tr[ *tool->lastX()] = dst.x;
+        tr[ *tool->firstY()] = src.y;
+        tr[ *tool->lastY()] = dst.y;
         tr[ *tool->baseColor()] = m_basecolor;
         tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
+        tool->regenerateMask(tr);
     });
     tool->highlight(false, widget->painter().lock());
 }
@@ -492,8 +591,8 @@ XGraph1DMathToolList::onAxisSelectedByToolForReselect(const Snapshot &shot,
         Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
             if(src > dst)
                 std::swap(src, dst);
-            tr[ *tool->begin()] = src;
-            tr[ *tool->end()] = dst;
+            tr[ *tool->first()] = src;
+            tr[ *tool->last()] = dst;
         });
         tool->highlight(false, widget->painter().lock());
     }
@@ -525,11 +624,13 @@ XGraph2DMathToolList::onPlaneSelectedByToolForReselect(const Snapshot &shot,
                 std::swap(src.x, dst.x);
             if(src.y > dst.y)
                 std::swap(src.y, dst.y);
-            tr[ *tool->beginX()] = src.x;
-            tr[ *tool->endX()] = dst.x;
-            tr[ *tool->beginY()] = src.y;
-            tr[ *tool->endY()] = dst.y;
+            tr[ *tool->firstX()] = src.x;
+            tr[ *tool->lastX()] = dst.x;
+            tr[ *tool->firstY()] = src.y;
+            tr[ *tool->lastY()] = dst.y;
+            tool->regenerateMask(tr);
         });
+        tool->clearOnScreenObjects(); //recreate OSOs after region change.
         tool->highlight(false, widget->painter().lock());
     }
     catch(std::out_of_range &) {
