@@ -27,7 +27,7 @@ orchestration across compatible instruments without custom programming.
 - Real-time NMR relaxation fitting (T1, T2, Tst.e.), Inverse Laplace Transform
 - Fourier step-sum spectrum measurement with field / frequency sweeping
 - Complete data logging with post-measurement re-analysis
-- Save / restore full measurement state to `.kam` files
+- Save / restore full measurement config to `.kam` files
 - Modular driver plug-in architecture; Python drivers redefinable at runtime
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
