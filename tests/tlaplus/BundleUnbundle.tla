@@ -22,7 +22,8 @@ CONSTANTS
     Parent,         \* Parent node (child of Grand)
     Child1, Child2, \* Leaf nodes (children of Parent)
     Null,
-    MaxPayload      \* Payloads wrap at this value (e.g. 2)
+    MaxPayload,     \* Payloads wrap at this value (e.g. 2)
+    MaxSerial       \* Serial wrap-around (must be even)
 
 GrandChildren == {Parent}         \* Grand's children
 ParentChildren == {Child1, Child2} \* Parent's children
@@ -42,6 +43,29 @@ ChildrenOf(n) ==
     ELSE IF n = Parent THEN ParentChildren
     ELSE {}
 
+\* ==========================================================================
+\* @c11_mapping -- Variable-to-C++ correspondence (Layer 2, 3-level tree)
+\*
+\* Same mapping as BundleUnbundle_2level.tla but with 3-level hierarchy:
+\*   Grand -> Parent -> {Child1, Child2}
+\*
+\* @c11_var linkage[n]:       atomic_shared_ptr<PacketWrapper> n->m_link
+\*   Read: load_shared_(), Write: compareAndSet() -- both Layer 0 ops
+\* @c11_var linkage[n].packet.sub[c]:  Packet::subpackets()[i]
+\* @c11_var linkage[n].bundledBy:      PacketWrapper::bundledBy()
+\* @c11_var serial[t]:        thread-local Lamport clock (SerialGenerator)
+\*   Modular arithmetic: (base + 1) % MaxSerial. Comparisons via ModGT
+\*   (signed-difference mod MaxSerial), matching C++ unsigned subtraction
+\*   reinterpreted as signed. MaxSerial must be even.
+\*
+\* 3-level adds: recursive bundle (Grand bundles Parent which bundles Children),
+\* 2-level unbundle walk (Child->Parent->Grand via snapshotSupernode recursion),
+\* and UnbundleCASGP / UnbundleRestoreParent for the grandparent path.
+\* Serial arithmetic is modular (no StateConstraint needed for finiteness).
+\*
+\* Source: kame/transaction.h, kame/transaction_impl.h
+\* ==========================================================================
+
 VARIABLES
     serial, globalSerial, linkage, pc, op, target, local
 
@@ -50,16 +74,18 @@ vars == <<serial, globalSerial, linkage, pc, op, target, local>>
 -----------------------------------------------------------------------------
 (* Modular serial arithmetic *)
 
-SerialSucc(s) == s + 1
+\* Modular serial comparison (same as C++ signed-difference comparison)
+ModGT(a, b) == LET diff == (a - b + MaxSerial) % MaxSerial
+               IN  diff > 0 /\ diff < MaxSerial \div 2
 
 \* Advance past lastSer then increment (Lamport step)
 GenSerial(t, lastSer) ==
-    LET base == IF lastSer > serial[t] THEN lastSer ELSE serial[t]
-    IN  base + 1
+    LET base == IF ModGT(lastSer, serial[t]) THEN lastSer ELSE serial[t]
+    IN  (base + 1) % MaxSerial
 
 UpdateSerial(t, ser) ==
     /\ serial' = [serial EXCEPT ![t] = ser]
-    /\ globalSerial' = ser  \* simplified: just track latest
+    /\ globalSerial' = IF ModGT(ser, globalSerial) THEN ser ELSE globalSerial
 
 -----------------------------------------------------------------------------
 (* Data structures *)
@@ -115,6 +141,9 @@ Init ==
 -----------------------------------------------------------------------------
 (* Snapshot: read node, bundle if missing *)
 
+\* @c11_action SnapRead(t, node):
+\*   Entry for snapshot(node) on any inner node (Grand or Parent).
+\*   Source: transaction_impl.h:842-870
 SnapRead(t, node) ==
     /\ pc[t] = "idle"
     /\ node \in InnerNodes
@@ -123,6 +152,12 @@ SnapRead(t, node) ==
     /\ pc' = [pc EXCEPT ![t] = "snap_check"]
     /\ UNCHANGED <<serial, globalSerial, linkage, local>>
 
+\* @c11_action SnapCheck(t):
+\*   local_shared_ptr<PacketWrapper> w(*node->m_link);
+\*   if (hasPriority && !missing) -> snap_done   // fast path
+\*   if (hasPriority && missing)  -> bundle_phase1  // need bundle
+\*   else                         -> retry       // bundled elsewhere
+\*   Source: transaction_impl.h:842-870
 SnapCheck(t) ==
     /\ pc[t] = "snap_check"
     /\ LET node == target[t]
@@ -159,6 +194,11 @@ SnapCheck(t) ==
 \* If a child is bundled elsewhere, we can't collect — restart.
 \* If a child is bundled HERE (same node), use the existing sub-packet.
 \* If a child has priority but is missing, we need to recursively bundle it first.
+\* @c11_action BundlePhase1(t):
+\*   Phase 1: collect sub-packets. For each child of bundleNode:
+\*     subw = *child->m_link;  bundle_subpacket(...);
+\*   Recursively bundles children that are themselves missing.
+\*   Source: transaction_impl.h:1077-1114
 BundlePhase1(t) ==
     /\ pc[t] = "bundle_phase1"
     /\ LET node     == local[t].bundleNode
@@ -185,6 +225,10 @@ BundlePhase1(t) ==
             /\ pc' = [pc EXCEPT ![t] = "snap_check"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action BundlePhase2(t):
+\*   // Phase 2: CAS bundleNode's linkage with new packet (still missing=TRUE)
+\*   bundleNode->m_link->compareAndSet(oldsuperwrapper, superwrapper);
+\*   Source: transaction_impl.h:1121-1130
 \* Phase 2: CAS node's linkage with new packet (still missing=TRUE)
 BundlePhase2(t) ==
     /\ pc[t] = "bundle_phase2"
@@ -204,6 +248,12 @@ BundlePhase2(t) ==
             /\ pc' = [pc EXCEPT ![t] = "snap_check"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action BundlePhase3(t):
+\*   // Phase 3: CAS each child to bundled-ref pointing to bundleNode
+\*   for each child:
+\*     bundled_ref = new PacketWrapper(m_link, i, bundle_serial);
+\*     child->m_link->compareAndSet(subwrappers_org[i], bundled_ref);
+\*   Source: transaction_impl.h:1132-1154
 \* Phase 3: CAS each child to bundled-ref pointing to this node
 BundlePhase3(t) ==
     /\ pc[t] = "bundle_phase3"
@@ -224,6 +274,12 @@ BundlePhase3(t) ==
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action BundlePhase4(t):
+\*   // Phase 4: finalize -- clear missing flag, CAS bundleNode
+\*   superwrapper = new PacketWrapper(*superwrapper, bundle_serial);
+\*   newpacket->m_missing = false;  // all sub-packets present
+\*   bundleNode->m_link->compareAndSet(oldsuperwrapper, superwrapper);
+\*   Source: transaction_impl.h:1158-1171
 \* Phase 4: Finalize — set missing=FALSE, CAS
 BundlePhase4(t) ==
     /\ pc[t] = "bundle_phase4"
@@ -243,6 +299,8 @@ BundlePhase4(t) ==
             /\ pc' = [pc EXCEPT ![t] = "snap_check"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action SnapDone(t):
+\*   Return snapshot result to caller. Thread-local only.
 SnapDone(t) ==
     /\ pc[t] = "snap_done"
     /\ pc' = [pc EXCEPT ![t] = "idle"]
@@ -254,6 +312,9 @@ SnapDone(t) ==
 -----------------------------------------------------------------------------
 (* Commit on a leaf or inner node *)
 
+\* @c11_action CommitStart(t, node):
+\*   Entry: Transaction<XN> tr(node);
+\*   Source: transaction.h:607-613
 CommitStart(t, node) ==
     /\ pc[t] = "idle"
     /\ node \in AllNodes \ {Grand}  \* Can commit to Parent or Children
@@ -262,6 +323,13 @@ CommitStart(t, node) ==
     /\ pc' = [pc EXCEPT ![t] = "commit_read"]
     /\ UNCHANGED <<serial, globalSerial, linkage, local>>
 
+\* @c11_action CommitRead(t):
+\*   local_shared_ptr<PacketWrapper> wrapper(*node->m_link);  -- load_shared_
+\*   if (wrapper->hasPriority())
+\*       -> commit_try_cas       // direct commit path
+\*   else
+\*       -> unbundle_walk        // bundled, need unbundle first
+\*   Source: transaction_impl.h:1241-1276
 CommitRead(t) ==
     /\ pc[t] = "commit_read"
     /\ LET node == target[t]
@@ -282,6 +350,15 @@ CommitRead(t) ==
             /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
             /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
 
+\* @c11_action CommitTryCAS(t):
+\*   // Direct commit (hasPriority path)
+\*   local_shared_ptr<PacketWrapper> newwrapper(
+\*       new PacketWrapper(tr.m_packet, tr.m_serial));
+\*   if (m_link->compareAndSet(wrapper, newwrapper))
+\*       return true;           // success
+\*   // payload unchanged -> single-node optimization: adopt new children
+\*   // payload changed   -> true conflict, fail
+\*   Source: transaction_impl.h:1245-1270
 CommitTryCAS(t) ==
     /\ pc[t] = "commit_try_cas"
     /\ LET node == target[t]
@@ -318,6 +395,13 @@ CommitTryCAS(t) ==
 -----------------------------------------------------------------------------
 (* Unbundle — recursive walk up the bundledBy chain *)
 
+\* @c11_action UnbundleWalk(t):
+\*   // Walk up bundledBy chain (1 or 2 levels) to find sub-packet
+\*   snapshotSupernode(sublinkage, superwrapper, &subpacket,
+\*       FOR_UNBUNDLE, serial, &cas_infos);
+\*   1-level: extract from parent->packet.sub[node]
+\*   2-level: extract from grandparent->packet.sub[parent].sub[node]
+\*   Source: transaction_impl.h:1314-1344, 696-755
 \* Walk up: find the top-level ancestor that has priority,
 \* then extract our node's packet from the bundle.
 \* This models snapshotSupernode() walking up 1 or 2 levels.
@@ -374,6 +458,11 @@ UnbundleWalk(t) ==
             /\ pc' = [pc EXCEPT ![t] = "commit_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action UnbundleCASAncestor(t):
+\*   // CAS parent: mark child's slot as Null (missing=TRUE)
+\*   for each cas_info in cas_infos:
+\*     it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper);
+\*   Source: transaction_impl.h:1367-1379
 \* CAS ancestor (1 level up): mark child's slot as Null in parent, restore child
 UnbundleCASAncestor(t) ==
     /\ pc[t] = "unbundle_cas_ancestor"
@@ -394,6 +483,12 @@ UnbundleCASAncestor(t) ==
             /\ pc' = [pc EXCEPT ![t] = "commit_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action UnbundleCASGP(t):
+\*   // CAS grandparent (2 levels up): clear child's slot in the parent sub-packet
+\*   // within the grandparent's bundle. CAS list is processed bottom-up in C++.
+\*   for each cas_info in cas_infos:
+\*     it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper);
+\*   Source: transaction_impl.h:1367-1379, 696-755
 \* CAS grandparent (2 levels up): mark parent's child slot as Null in grandparent,
 \* then mark child's slot as Null in parent, restore both.
 \* This is a simplified model — the real code does CAS list bottom-up.
@@ -425,6 +520,12 @@ UnbundleCASGP(t) ==
             /\ pc' = [pc EXCEPT ![t] = "commit_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action UnbundleRestoreParent(t):
+\*   // After GP unbundle CAS: restore parent to priority with its sub-packet
+\*   // extracted from grandparent's bundle.
+\*   newsubwrapper = new PacketWrapper(*parentsubpacket, gen(serial));
+\*   parent->m_link->compareAndSet(bundled_ref, newsubwrapper);
+\*   Source: transaction_impl.h:1383-1389
 \* After GP CAS: restore parent node to priority
 UnbundleRestoreParent(t) ==
     /\ pc[t] = "unbundle_restore_parent"
@@ -453,6 +554,11 @@ UnbundleRestoreParent(t) ==
             /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_child"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action UnbundleCASChild(t):
+\*   // Restore child to priority with extracted sub-packet
+\*   newsubwrapper = new PacketWrapper(*subpacket, gen(superwrapper->m_bundle_serial));
+\*   sublinkage->compareAndSet(bundled_ref, newsubwrapper);
+\*   Source: transaction_impl.h:1383-1389
 \* Final: CAS child's linkage to restore priority with new (committed) packet
 UnbundleCASChild(t) ==
     /\ pc[t] = "unbundle_cas_child"
@@ -471,6 +577,8 @@ UnbundleCASChild(t) ==
             /\ pc' = [pc EXCEPT ![t] = "commit_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action CommitDone(t):
+\*   Return commit result to caller. Thread-local only.
 CommitDone(t) ==
     /\ pc[t] = "commit_done"
     /\ pc' = [pc EXCEPT ![t] = "idle"]
@@ -502,10 +610,6 @@ Next ==
         \/ CommitDone(t)
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
-
-\* State constraint: bound serials for finite state space (replaces modular arithmetic)
-StateConstraint ==
-    /\ globalSerial <= 3 * MaxPayload
 
 -----------------------------------------------------------------------------
 (* Safety invariants *)

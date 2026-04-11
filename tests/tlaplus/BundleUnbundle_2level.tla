@@ -20,10 +20,56 @@ CONSTANTS
     Parent,
     Child1, Child2,
     Null,
-    MaxPayload      \* Payloads wrap at this value
+    MaxPayload,     \* Payloads wrap at this value
+    MaxSerial       \* Serial wrap-around (must be even)
 
 Children == {Child1, Child2}
 Nodes == {Parent} \cup Children
+
+\* ==========================================================================
+\* @c11_mapping -- Variable-to-C++ correspondence (Layer 2, 2-level tree)
+\*
+\* This layer models the bundle/unbundle protocol that manages hierarchical
+\* snapshots in KAME's STM. Each node has an atomic_shared_ptr<PacketWrapper>
+\* called m_link (Linkage). Layer 1 (stm_commit) is the single-node commit;
+\* this layer adds tree structure with bundle/unbundle on top.
+\*
+\* TLA+ variable              C++ type & expression
+\* --------------------------------------------------------------------------
+\* @c11_var linkage[n]:       atomic_shared_ptr<PacketWrapper> n->m_link
+\*   -- each node's current PacketWrapper, read/written via Layer 0 ops
+\*   Read:  local_shared_ptr<PacketWrapper> w(*n->m_link)  -- load_shared_
+\*   Write: n->m_link->compareAndSet(old, new)             -- Layer 0 CAS
+\*
+\*   PacketWrapper states:
+\*     hasPriority=TRUE:  wrapper owns its Packet directly (priority wrapper)
+\*       -- PriorityWrapper(packet, serial)
+\*     hasPriority=FALSE: wrapper is a back-reference to parent (bundled ref)
+\*       -- BundledRefWrapper(parentNode, serial)
+\*       -- C++: PacketWrapper(m_link_of_parent, reverse_index, bundle_serial)
+\*
+\* @c11_var linkage[n].packet.payload:  Packet::payload()->m_x
+\* @c11_var linkage[n].packet.sub[c]:   Packet::subpackets()[i]
+\* @c11_var linkage[n].packet.missing:  Packet::m_missing
+\* @c11_var linkage[n].serial:          PacketWrapper::m_bundle_serial
+\* @c11_var linkage[n].bundledBy:       PacketWrapper::bundledBy() -- shared_ptr<Linkage>
+\*
+\* @c11_var serial[t]:        thread-local Lamport clock (SerialGenerator per thread)
+\*   Modular arithmetic: (base + 1) % MaxSerial. Comparisons via ModGT
+\*   (signed-difference mod MaxSerial), matching C++ unsigned subtraction
+\*   reinterpreted as signed. MaxSerial must be even.
+\* @c11_var globalSerial:     max serial seen (simplified; C++ uses per-thread gen)
+\*
+\* @c11_var local[t].wrapper:     thread-local snapshot of linkage[target]
+\* @c11_var local[t].subwrappers: thread-local snapshots of child linkages
+\* @c11_var local[t].subpackets:  thread-local collected child packets
+\*
+\* All reads/writes to linkage go through atomic_shared_ptr:
+\*   load_shared_() for reads, compareAndSet() for CAS updates.
+\* Serial arithmetic is modular (no StateConstraint needed for finiteness).
+\*
+\* Source: kame/transaction.h, kame/transaction_impl.h
+\* ==========================================================================
 
 VARIABLES
     serial, globalSerial, linkage, pc, op, target, local
@@ -44,13 +90,17 @@ MakePacket(node, payload, sub, miss) ==
 
 EmptySub == [c \in Children |-> Null]
 
+\* Modular serial comparison (same as C++ signed-difference comparison)
+ModGT(a, b) == LET diff == (a - b + MaxSerial) % MaxSerial
+               IN  diff > 0 /\ diff < MaxSerial \div 2
+
 GenSerial(t, lastSer) ==
-    LET base == IF lastSer > serial[t] THEN lastSer ELSE serial[t]
-    IN  base + 1
+    LET base == IF ModGT(lastSer, serial[t]) THEN lastSer ELSE serial[t]
+    IN  (base + 1) % MaxSerial
 
 UpdateSerial(t, ser) ==
     /\ serial' = [serial EXCEPT ![t] = ser]
-    /\ globalSerial' = IF ser > globalSerial THEN ser ELSE globalSerial
+    /\ globalSerial' = IF ModGT(ser, globalSerial) THEN ser ELSE globalSerial
 
 InitLocal == [
     wrapper     |-> Null,
@@ -78,6 +128,9 @@ Init ==
 -----------------------------------------------------------------------------
 (* Snapshot *)
 
+\* @c11_action SnapRead(t):
+\*   Entry point for snapshot(node). Initiates a read of node's m_link.
+\*   Source: transaction_impl.h:842-870, transaction.h:328
 SnapRead(t) ==
     /\ pc[t] = "idle"
     /\ op' = [op EXCEPT ![t] = "snapshot"]
@@ -85,6 +138,15 @@ SnapRead(t) ==
     /\ pc' = [pc EXCEPT ![t] = "snap_read"]
     /\ UNCHANGED <<serial, globalSerial, linkage, local>>
 
+\* @c11_action SnapCheck(t):
+\*   local_shared_ptr<PacketWrapper> w(*parent->m_link);  -- load_shared_
+\*   if (w->hasPriority() && !w->packet()->missing())
+\*       return w->packet();           -- fast path, no bundle needed
+\*   else if (w->hasPriority() && w->packet()->missing())
+\*       -> bundle_phase1              -- need to bundle children
+\*   else
+\*       -> retry                      -- node is bundled, need unbundle
+\*   Source: transaction_impl.h:842-870
 SnapCheck(t) ==
     /\ pc[t] = "snap_read"
     /\ LET w == linkage[Parent]
@@ -107,6 +169,15 @@ SnapCheck(t) ==
        ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action BundlePhase1(t):
+\*   // Phase 1: collect sub-packets from children
+\*   for each child:
+\*     local_shared_ptr<PacketWrapper> subw(*child->m_link);  -- load_shared_
+\*     bundle_subpacket(&superwrapper, child, subw, subpacket, ...);
+\*   If child hasPriority: use its packet directly.
+\*   If child bundledBy==Parent: use parent's existing sub-packet for it.
+\*   If child bundledBy==other: unbundle first (-> retry).
+\*   Source: transaction_impl.h:1077-1114
 BundlePhase1(t) ==
     /\ pc[t] = "bundle_phase1"
     /\ LET childWrappers == [c \in Children |-> linkage[c]]
@@ -130,6 +201,10 @@ BundlePhase1(t) ==
        ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action BundlePhase2(t):
+\*   // Phase 2: CAS parent's linkage with new packet (still missing=TRUE)
+\*   parent->m_link->compareAndSet(oldsuperwrapper, superwrapper);
+\*   Source: transaction_impl.h:1121-1130
 BundlePhase2(t) ==
     /\ pc[t] = "bundle_phase2"
     /\ LET oldW   == local[t].wrapper
@@ -146,6 +221,12 @@ BundlePhase2(t) ==
        ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action BundlePhase3(t):
+\*   // Phase 3: CAS each child to bundled-ref pointing to parent
+\*   for each child:
+\*     bundled_ref = new PacketWrapper(m_link, i, bundle_serial);
+\*     child->m_link->compareAndSet(subwrappers_org[i], bundled_ref);
+\*   Source: transaction_impl.h:1132-1154
 BundlePhase3(t) ==
     /\ pc[t] = "bundle_phase3"
     /\ LET ser     == local[t].bundleSer
@@ -162,6 +243,12 @@ BundlePhase3(t) ==
        ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action BundlePhase4(t):
+\*   // Phase 4: finalize -- clear missing flag, CAS parent
+\*   superwrapper = new PacketWrapper(*superwrapper, bundle_serial);
+\*   newpacket->m_missing = false;  // all sub-packets present
+\*   parent->m_link->compareAndSet(oldsuperwrapper, superwrapper);
+\*   Source: transaction_impl.h:1158-1171
 BundlePhase4(t) ==
     /\ pc[t] = "bundle_phase4"
     /\ LET oldW     == local[t].wrapper
@@ -189,6 +276,9 @@ SnapDone(t) ==
 -----------------------------------------------------------------------------
 (* Commit *)
 
+\* @c11_action CommitStart(t, childNode):
+\*   Entry: Transaction<XN> tr(childNode);
+\*   Source: transaction.h:607-613
 CommitStart(t, childNode) ==
     /\ pc[t] = "idle"
     /\ childNode \in Children
@@ -197,6 +287,13 @@ CommitStart(t, childNode) ==
     /\ pc' = [pc EXCEPT ![t] = "commit_read"]
     /\ UNCHANGED <<serial, globalSerial, linkage, local>>
 
+\* @c11_action CommitRead(t):
+\*   local_shared_ptr<PacketWrapper> wrapper(*child->m_link);  -- load_shared_
+\*   if (wrapper->hasPriority())
+\*       -> commit_try_cas       // direct commit path
+\*   else
+\*       -> unbundle_walk        // bundled, need unbundle first
+\*   Source: transaction_impl.h:1241-1276
 CommitRead(t) ==
     /\ pc[t] = "commit_read"
     /\ LET childNode == target[t]
@@ -216,6 +313,15 @@ CommitRead(t) ==
             /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
             /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
 
+\* @c11_action CommitTryCAS(t):
+\*   // Direct commit (hasPriority path)
+\*   local_shared_ptr<PacketWrapper> newwrapper(
+\*       new PacketWrapper(tr.m_packet, tr.m_serial));
+\*   if (m_link->compareAndSet(wrapper, newwrapper))
+\*       return true;           // success
+\*   // payload unchanged -> single-node optimization: adopt new children
+\*   // payload changed   -> true conflict, fail
+\*   Source: transaction_impl.h:1245-1270
 CommitTryCAS(t) ==
     /\ pc[t] = "commit_try_cas"
     /\ LET childNode == target[t]
@@ -246,6 +352,12 @@ CommitTryCAS(t) ==
             /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
             /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
 
+\* @c11_action UnbundleWalk(t):
+\*   // Walk up bundledBy chain to find sub-packet in parent's bundle
+\*   snapshotSupernode(sublinkage, superwrapper, &subpacket,
+\*       FOR_UNBUNDLE, serial, &cas_infos);
+\*   Extract child's packet from parent's packet.sub[child].
+\*   Source: transaction_impl.h:1314-1344, 696-755
 UnbundleWalk(t) ==
     /\ pc[t] = "unbundle_walk"
     /\ LET childNode == target[t]
@@ -265,6 +377,11 @@ UnbundleWalk(t) ==
        ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action UnbundleCASAncestors(t):
+\*   // CAS parent: mark child's slot as Null (missing=TRUE)
+\*   for each cas_info in cas_infos:
+\*     it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper);
+\*   Source: transaction_impl.h:1367-1379
 UnbundleCASAncestors(t) ==
     /\ pc[t] = "unbundle_cas_ancestors"
     /\ LET childNode  == target[t]
@@ -282,6 +399,11 @@ UnbundleCASAncestors(t) ==
        ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
 
+\* @c11_action UnbundleCASChild(t):
+\*   // Restore child to priority with extracted sub-packet
+\*   newsubwrapper = new PacketWrapper(*subpacket, gen(superwrapper->m_bundle_serial));
+\*   sublinkage->compareAndSet(bundled_ref, newsubwrapper);
+\*   Source: transaction_impl.h:1383-1389
 UnbundleCASChild(t) ==
     /\ pc[t] = "unbundle_cas_child"
     /\ LET childNode  == target[t]
@@ -348,15 +470,8 @@ BundleRefConsistency ==
             linkage[Parent].hasPriority
 
 SerialMonotonicity ==
-    \A t \in Threads : serial[t] >= 0
+    \A t \in Threads : serial[t] \in 0..(MaxSerial - 1)
 
 Safety == SnapshotConsistency /\ NoPriorityLoss /\ BundleRefConsistency /\ SerialMonotonicity
-
-\* State constraint for bounded model checking
-StateConstraint ==
-    /\ globalSerial <= 3 * MaxPayload
-    /\ \A c \in Children :
-        linkage[c].hasPriority =>
-            linkage[c].packet.payload <= MaxPayload
 
 =============================================================================
