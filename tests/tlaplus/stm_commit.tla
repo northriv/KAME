@@ -22,6 +22,39 @@ CONSTANTS
     MaxVal,         \* max payload value (for bounded state space)
     MaxSerial       \* max serial number (for bounded state space)
 
+\* ==========================================================================
+\* @c11_mapping -- Variable-to-C++ correspondence (Layer 1)
+\*
+\* This layer abstracts atomic_shared_ptr as a correct linearizable register.
+\* The detailed tagged-pointer protocol (Layer 0) is verified separately.
+\*
+\* TLA+ variable              C++ type & expression
+\* --------------------------------------------------------------------------
+\* @c11_var node_val:         m_link->packet()->payload()->m_x
+\*   -- the committed payload value, accessed via Snapshot or Transaction.
+\*   Reads:  local_shared_ptr<PacketWrapper> w(*m_link);  -- load_shared_
+\*   Writes: m_link->compareAndSet(old_wrapper, new_wrapper);
+\*
+\* @c11_var node_serial:      m_link->m_bundle_serial
+\*   -- Lamport serial in PacketWrapper; monotonically increases on commit.
+\*   Used as CAS identity: if serial changed, another commit intervened.
+\*
+\* @c11_var thr_snap_val[t]:  thread-local Transaction::m_oldpacket->payload()
+\* @c11_var thr_snap_ser[t]:  thread-local Transaction::m_serial (snapshot)
+\* @c11_var thr_write_val[t]: thread-local Transaction::m_packet->payload()
+\*   -- copy-on-write payload modified by the closure in iterate_commit.
+\* @c11_var thr_committed[t]: thread-local commit success counter
+\*   -- not present in C++; model-only for progress properties.
+\*
+\* Layer boundary:
+\*   All reads/writes to m_link go through atomic_shared_ptr operations:
+\*     Snapshot -> load_shared_()   (Layer 0: AcquireTagRef + IncGlobal + Rel)
+\*     Commit   -> compareAndSet()  (Layer 0: PreInc + AcquireTagRef + CAS)
+\*   This layer treats those as atomic register ops (linearized).
+\*
+\* Source: kame/transaction.h, kame/transaction_impl.h
+\* ==========================================================================
+
 (* -------------------------------------------------------------------------- *)
 (* State variables                                                            *)
 (* -------------------------------------------------------------------------- *)
@@ -68,9 +101,13 @@ Init ==
 (* iterate_commit cycle                                                       *)
 (* ========================================================================== *)
 
-\* Step 1: Start transaction / take snapshot
-\* Models: Transaction constructor calls snapshot()
-\* snapshot() calls load_shared_() on m_link to atomically read current state
+\* @c11_action TakeSnapshot(t):
+\*   Transaction<XN> tr(node);  -- constructor calls snapshot()
+\*   local_shared_ptr<PacketWrapper> wrapper(*m_link);  -- load_shared_()
+\*   m_oldpacket = wrapper->packet();
+\*   m_serial    = wrapper->m_bundle_serial;
+\*   Linearization: the load_shared_() in Layer 0 is the linearization point.
+\*   Source: transaction.h:540-545, transaction_impl.h:1243
 TakeSnapshot(t) ==
     /\ pc[t] \in {"idle", "done"}
     /\ pc' = [pc EXCEPT ![t] = "snapshot"]
@@ -78,7 +115,11 @@ TakeSnapshot(t) ==
     /\ thr_snap_ser' = [thr_snap_ser EXCEPT ![t] = node_serial]
     /\ UNCHANGED <<node_val, node_serial, thr_write_val, thr_committed>>
 
-\* Step 2a: Execute closure -- nondeterministic write (arbitrary closure)
+\* @c11_action Write(t):
+\*   tr[node].m_x = v;  -- copy-on-write via Transaction::operator[]
+\*   The closure body is arbitrary; modeled as nondeterministic value.
+\*   All writes are thread-local (COW payload) -- no atomic ops.
+\*   Source: transaction.h:564-566
 Write(t) ==
     /\ pc[t] = "snapshot"
     /\ \E v \in 0..MaxVal :
@@ -86,7 +127,11 @@ Write(t) ==
     /\ pc' = [pc EXCEPT ![t] = "write"]
     /\ UNCHANGED <<node_val, node_serial, thr_snap_val, thr_snap_ser, thr_committed>>
 
-\* Step 2b: Deterministic increment -- models tr[node].x += 1
+\* @c11_action WriteIncrement(t):
+\*   tr[node].m_x = shot[node].m_x + 1;
+\*   Deterministic variant: read-modify-write on the snapshot value.
+\*   Still thread-local (COW); no atomic ops until commit.
+\*   Source: transaction.h:564-566
 WriteIncrement(t) ==
     /\ pc[t] = "snapshot"
     /\ thr_snap_val[t] + 1 <= MaxVal
@@ -94,9 +139,18 @@ WriteIncrement(t) ==
     /\ pc' = [pc EXCEPT ![t] = "write"]
     /\ UNCHANGED <<node_val, node_serial, thr_snap_val, thr_snap_ser, thr_committed>>
 
-\* Step 3: Commit -- CAS on m_link
-\* Models: tr.commit() calls m_link->compareAndSet(wrapper, newwrapper)
-\* transaction_impl.h lines 1245-1269
+\* @c11_action Commit(t):
+\*   // success path:
+\*   local_shared_ptr<PacketWrapper> newwrapper(
+\*       new PacketWrapper(tr.m_packet, tr.m_serial));
+\*   if (m_link->compareAndSet(wrapper, newwrapper))  // Layer 0 CAS
+\*       return true;
+\*   // fail path (another thread committed since our snapshot):
+\*   //   wrapper = *m_link;  // re-snapshot (load_shared_)
+\*   //   -> retry from "snapshot"
+\*   Linearization: the compareAndSet's inner CAS on g_ref (Layer 0: CASSwap)
+\*   is the linearization point for the commit.
+\*   Source: transaction_impl.h:1241-1270
 Commit(t) ==
     /\ pc[t] = "write"
     /\ \/ \* CAS succeeds: node state matches our snapshot
