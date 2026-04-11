@@ -6,7 +6,6 @@
  * - destroyed made _Atomic
  */
 
-#include <stdio.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <assert.h>
@@ -112,7 +111,5 @@ int main(void) {
     /* @invariant NoLostUpdate */
     assert(final_state.serial == (NUM_THREADS * ITERATIONS) % MAX_SERIAL);
 
-    printf("OK: %d commits, final val=%u serial=%u\n",
-           commits, final_state.val, final_state.serial);
     return 0;
 }

@@ -7,7 +7,6 @@
  * - destroyed is _Atomic for safe assertion reads
  */
 
-#include <stdio.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdlib.h>
