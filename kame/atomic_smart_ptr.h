@@ -16,6 +16,7 @@
 
 #include "atomic_prv_basic.h"
 #include <functional>
+#include <utility>
 #include <assert.h>
 
 //! \brief This is an atomic variant of \a std::unique_ptr.
@@ -366,11 +367,11 @@ protected:
         auto ref = this->m_ref.load(std::memory_order_relaxed);
         return (Ref*)(ref & (~(uintptr_t)(this->LOCAL_REF_CAPACITY - 1)));
     }
-    //! Local (temporary) reference counter.
-    //! Local reference counter is a trick to tell the observation to other threads.
-    Refcnt tag_refcnt_() const noexcept {
+    //! Single atomic load returning both the pointer and the local refcount.
+    std::pair<Ref*, Refcnt> load_tagged_() const noexcept {
         auto ref = this->m_ref.load(std::memory_order_relaxed);
-        return (Refcnt)(ref & (uintptr_t)(this->LOCAL_REF_CAPACITY - 1));
+        return {(Ref*)(ref & (~(uintptr_t)(this->LOCAL_REF_CAPACITY - 1))),
+                (Refcnt)(ref & (uintptr_t)(this->LOCAL_REF_CAPACITY - 1))};
     }
 
     //internal functions below.
@@ -464,9 +465,8 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt) const noexcept {
     Ref *pref;
     Refcnt rcnt_new;
     for(;;) {
-        pref = ref_ptr_();
-        Refcnt rcnt_old;
-        rcnt_old = tag_refcnt_();
+        auto [p, rcnt_old] = load_tagged_();
+        pref = p;
         if( !pref) {
             // target is null.
             *rcnt = rcnt_old;
@@ -515,17 +515,16 @@ template <typename T>
 inline void
 atomic_shared_ptr<T>::release_tag_ref_(Ref *pref) const noexcept {
     for(;;) {
-        Refcnt rcnt_old;
-        rcnt_old = tag_refcnt_();
-        if(rcnt_old) {
+        auto [cur_ptr, rcnt_old] = load_tagged_();
+        if(rcnt_old && (cur_ptr == pref)) {
             Refcnt rcnt_new = rcnt_old - 1;
             // trying to dec. reference counter if stored pointer is unchanged.
             if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
                 TaggedPtr((uintptr_t)pref + rcnt_old),
                 TaggedPtr((uintptr_t)pref + rcnt_new)))
                 break;
-            if(pref == ref_ptr_())
-                continue; // try again.
+            if(load_tagged_().first == pref)
+                continue; // pointer unchanged, retry.
         }
         // local reference has released by other processes.
         if(pref->refcnt.decAndTest()) {
