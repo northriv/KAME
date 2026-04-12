@@ -91,7 +91,7 @@ static void release_tag_ref(Obj *pref) {
     for (;;) {
         uintptr_t cur = atomic_load_explicit(&g_ref, memory_order_relaxed);
         uintptr_t rcnt_old = get_tag(cur);
-        if (rcnt_old) {
+        if (rcnt_old && get_ptr(cur) == pref) {
             uintptr_t rcnt_new = rcnt_old - 1u;
             uintptr_t expected = (uintptr_t)pref + rcnt_old;
             uintptr_t desired  = (uintptr_t)pref + rcnt_new;
@@ -99,9 +99,8 @@ static void release_tag_ref(Obj *pref) {
                     memory_order_acq_rel, memory_order_relaxed))
                 break;
             /* Re-check if pointer is still the same */
-            cur = atomic_load_explicit(&g_ref, memory_order_relaxed);
-            if (get_ptr(cur) == pref)
-                continue;  /* retry */
+            if (get_ptr(atomic_load_explicit(&g_ref, memory_order_relaxed)) == pref)
+                continue;  /* pointer unchanged, retry */
         }
         /* Local reference was transferred to global by a swapper.
          * Decrement global refcount (decAndTest semantics). */
