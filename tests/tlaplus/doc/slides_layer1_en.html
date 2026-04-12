@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 1: STM Commit Explained</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.9em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left}
+th{background:#334155}
+p{line-height:1.8}
+</style>
+</head>
+<body>
+
+<!-- ===== Slide 1: Overview ===== -->
+<div class="slide">
+<h1>TLA+ Notation (see Layer 0)</h1>
+<div class="box">
+<p>For TLA+ notation, refer to <strong>the beginning of the Layer 0 slides</strong> (slides_layer0.html).<br>
+New notation introduced in these slides:</p>
+</div>
+<table>
+<tr><th>Notation</th><th>Meaning</th></tr>
+<tr><td><code>StateConstraint</code></td><td>A constraint to set an upper bound on the state space. A condition for TLC to prune its exploration.</td></tr>
+<tr><td><code>LET S == {f(t) : t \in T} IN ...</code></td><td>Set comprehension. Defines a set S by applying f to each element of T.</td></tr>
+</table>
+</div>
+
+<div class="slide">
+<h1>Layer 1: STM Commit</h1>
+<h3>TLA+ Model Explained — stm_commit.tla (156 lines)</h3>
+
+<div class="box">
+<p><strong>Premise:</strong> The <code>atomic_shared_ptr</code> verified in Layer 0 is abstracted as a correct atomic register.
+Details of reference counting are not modeled.</p>
+</div>
+
+<h2>Modeled Cycle</h2>
+<div class="arrow">Snapshot → Write → Commit(CAS) → Success or Retry</div>
+
+<h2>Variables (7) — Very Simple</h2>
+<pre><code><span class="keyword">VARIABLES</span>
+    node_val,       <span class="comment">\* Payload value of the shared node</span>
+    node_serial,    <span class="comment">\* Serial number (incremented by 1 per commit)</span>
+    pc,             <span class="comment">\* "idle", "snapshot", "write", "commit", "done"</span>
+    thr_snap_val,   <span class="comment">\* Value at snapshot time</span>
+    thr_snap_ser,   <span class="comment">\* Serial at snapshot time</span>
+    thr_write_val,  <span class="comment">\* Value to be written</span>
+    thr_committed   <span class="comment">\* Number of successful commits</span></code></pre>
+
+<p>Significantly simpler than the 12 variables in Layer 0. This is the <strong>power of abstraction</strong>.</p>
+</div>
+
+<!-- ===== Slide 2: The Cycle ===== -->
+<div class="slide">
+<h1>iterate_commit Cycle</h1>
+
+<h2>Step 1: Snapshot</h2>
+<pre><code><span class="op">TakeSnapshot</span>(t) ==
+    /\ pc[t] \in {<span class="type">"idle"</span>, <span class="type">"done"</span>}
+    /\ thr_snap_val' = [thr_snap_val <span class="keyword">EXCEPT</span> ![t] = node_val]
+    /\ thr_snap_ser' = [thr_snap_ser <span class="keyword">EXCEPT</span> ![t] = node_serial]
+    <span class="comment">\* → 1 atomic load (verified in Layer 0)</span></code></pre>
+
+<h2>Step 2: Write (2 variants modeled)</h2>
+<pre><code><span class="comment">(* 2a: Non-deterministic write — arbitrary closure *)</span>
+<span class="op">Write</span>(t) ==
+    /\ \E v \in <span class="num">0</span>..MaxVal :
+       thr_write_val' = [thr_write_val <span class="keyword">EXCEPT</span> ![t] = v]
+
+<span class="comment">(* 2b: Deterministic increment — tr[node].x += 1 *)</span>
+<span class="op">WriteIncrement</span>(t) ==
+    /\ thr_write_val' = [thr_write_val <span class="keyword">EXCEPT</span>
+         ![t] = thr_snap_val[t] + <span class="num">1</span>]</code></pre>
+
+<h2>Step 3: Commit (CAS)</h2>
+<pre><code><span class="op">Commit</span>(t) ==
+    \/ <span class="comment">(* CAS success: both value and serial match the snapshot *)</span>
+       /\ node_val = thr_snap_val[t]
+       /\ node_serial = thr_snap_ser[t]
+       /\ node_val' = thr_write_val[t]       <span class="comment">\* Install new value</span>
+       /\ node_serial' = node_serial + <span class="num">1</span>     <span class="comment">\* Serial +1</span>
+       /\ thr_committed' = [thr_committed <span class="keyword">EXCEPT</span> ![t] = @ + <span class="num">1</span>]
+
+    \/ <span class="comment">(* CAS failure: another thread already committed → retry *)</span>
+       /\ ~(node_val = thr_snap_val[t] /\ node_serial = thr_snap_ser[t])
+       /\ thr_snap_val' = [thr_snap_val <span class="keyword">EXCEPT</span> ![t] = node_val]
+       /\ thr_snap_ser' = [thr_snap_ser <span class="keyword">EXCEPT</span> ![t] = node_serial]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"snapshot"</span>]</code></pre>
+
+<div class="box-green">
+<p><strong>Key point:</strong> On CAS failure, a new snapshot is taken immediately and the operation is retried. This is the behavior of <code>iterate_commit</code>.</p>
+</div>
+</div>
+
+<!-- ===== Slide 3: Invariants ===== -->
+<div class="slide">
+<h1>Verified Invariants (5 + TypeOK)</h1>
+
+<pre><code><span class="comment">\* 1. No Lost Update: if 2 threads both commit successfully → serial increases by at least 2</span>
+<span class="op">NoLostUpdate</span> ==
+    \A t1, t2 \in Threads :
+        (t1 /= t2 /\ thr_committed[t1] > <span class="num">0</span> /\ thr_committed[t2] > <span class="num">0</span>)
+        => node_serial >= <span class="num">2</span>
+
+<span class="comment">\* 2. Commits are serialized: total commit count across all threads ≤ serial</span>
+<span class="op">CommitSerializes</span> ==
+    totalCommits &lt;= node_serial
+
+<span class="comment">\* 3. Snapshot precedes commit: committer's snap_ser &lt; current serial</span>
+<span class="op">SnapshotBeforeCommit</span> ==
+    \A t \in Threads :
+        (pc[t] = <span class="type">"done"</span> /\ thr_committed[t] > <span class="num">0</span>)
+        => thr_snap_ser[t] &lt; node_serial
+
+<span class="comment">\* 4. Value is within range</span>
+<span class="op">ValueBounded</span> == node_val &lt;= MaxVal
+
+<span class="comment">\* 5. The last committer's written value is visible</span>
+<span class="op">WriteReadConsistency</span> ==
+    \A t \in Threads :
+        (pc[t] = <span class="type">"done"</span> /\ thr_snap_ser[t] = node_serial - <span class="num">1</span>)
+        => node_val = thr_write_val[t]</code></pre>
+
+<h2>Verification Results</h2>
+<table>
+<tr><th>Threads</th><th>MaxVal</th><th>MaxSerial</th><th>States</th><th>Time</th><th>Result</th></tr>
+<tr><td>3</td><td>3</td><td>6</td><td>109,901,200</td><td>4 min</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+</table>
+
+<div class="box">
+<p><strong>Implication:</strong> Even with 3 threads executing transactions concurrently, no Lost Updates, non-serialization,
+or inconsistent Snapshots occur <strong>across all 110 million states</strong>.</p>
+</div>
+</div>
+
+<!-- ===== Slide 4: TLA+ ↔ C11 Correspondence Table ===== -->
+<div class="slide">
+<h1>C++ ↔ TLA+ ↔ Generated C11 Correspondence Table</h1>
+
+<h2>Variable Mapping</h2>
+<table>
+<tr><th>TLA+ Variable</th><th>C++ (transaction.h / transaction_impl.h)</th><th>Generated C11 (test_stm_commit.c)</th></tr>
+<tr><td><code>node_val</code>, <code>node_serial</code></td><td><code>m_link->packet()->payload()</code><br><code>m_link->m_bundle_serial</code></td><td><code>_Atomic(uint64_t) node</code><br>upper 32 bits = serial, lower 32 bits = val</td></tr>
+<tr><td><code>thr_snap_val[t]</code>, <code>thr_snap_ser[t]</code></td><td><code>Transaction::m_oldpacket</code><br><code>Transaction::m_serial</code></td><td>thread-local <code>snap_val</code>, <code>snap_ser</code></td></tr>
+<tr><td><code>thr_write_val[t]</code></td><td><code>Transaction::m_packet->payload()</code></td><td>thread-local <code>write_val</code></td></tr>
+<tr><td><code>thr_committed[t]</code></td><td>— (implicit)</td><td><code>_Atomic(uint32_t) committed[2]</code></td></tr>
+</table>
+
+<h2>Action Mapping</h2>
+<table>
+<tr><th>TLA+ Action</th><th>C++ Code</th><th>Generated C11</th><th>memory_order</th></tr>
+<tr><td><code>TakeSnapshot(t)</code></td><td><code>Transaction<XN> tr(node)</code><br>→ <code>load_shared_()</code></td><td><code>atomic_load(&node)</code> → unpack</td><td>acquire</td></tr>
+<tr><td><code>WriteIncrement(t)</code></td><td><code>tr[node].m_x += 1</code></td><td><code>write_val = snap_val + 1</code></td><td>—</td></tr>
+<tr><td><code>Commit(t)</code></td><td><code>m_link->compareAndSet()</code><br>→ Layer 0 CAS</td><td><code>atomic_compare_exchange_strong()</code></td><td>acq_rel</td></tr>
+</table>
+
+<h2>Abstraction Boundary</h2>
+<div class="box">
+<p><strong>Layer 0 → Layer 1:</strong> The atomic_shared_ptr verified in Layer 0 is abstracted
+as a correct atomic register.<br>
+C++: <code>m_link->compareAndSet()</code> → Layer 0's 6-phase CAS<br>
+Generated C11: <code>atomic_compare_exchange_strong()</code> → 1 instruction<br>
+TLA+: <code>node_val = thr_snap_val[t] → CAS success</code> → 1 step</p>
+</div>
+</div>
+
+</body>
+</html>

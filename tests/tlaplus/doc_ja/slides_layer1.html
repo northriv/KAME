@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 1: STM Commit 解説</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.9em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left}
+th{background:#334155}
+p{line-height:1.8}
+</style>
+</head>
+<body>
+
+<!-- ===== Slide 1: Overview ===== -->
+<div class="slide">
+<h1>TLA+ 記法（Layer 0参照）</h1>
+<div class="box">
+<p>TLA+の記法については <strong>Layer 0スライドの冒頭</strong> (slides_layer0.html) を参照。<br>
+本スライドで新たに登場する記法:</p>
+</div>
+<table>
+<tr><th>記法</th><th>意味</th></tr>
+<tr><td><code>StateConstraint</code></td><td>状態空間の上限を設定するための制約。TLCが探索を打ち切るための条件。</td></tr>
+<tr><td><code>LET S == {f(t) : t \in T} IN ...</code></td><td>集合内包表記。Tの各要素にfを適用した集合Sを定義。</td></tr>
+</table>
+</div>
+
+<div class="slide">
+<h1>Layer 1: STM Commit</h1>
+<h3>TLA+モデル解説 — stm_commit.tla (156行)</h3>
+
+<div class="box">
+<p><strong>前提:</strong> Layer 0で検証済みの<code>atomic_shared_ptr</code>を正しいアトミックレジスタとして抽象化。
+参照カウントの詳細はモデル化しない。</p>
+</div>
+
+<h2>モデル化されるサイクル</h2>
+<div class="arrow">Snapshot → Write → Commit(CAS) → 成功 or リトライ</div>
+
+<h2>変数 (7個) — 非常にシンプル</h2>
+<pre><code><span class="keyword">VARIABLES</span>
+    node_val,       <span class="comment">\* 共有ノードのペイロード値</span>
+    node_serial,    <span class="comment">\* シリアル番号（コミットごとに+1）</span>
+    pc,             <span class="comment">\* "idle", "snapshot", "write", "commit", "done"</span>
+    thr_snap_val,   <span class="comment">\* スナップショット時の値</span>
+    thr_snap_ser,   <span class="comment">\* スナップショット時のシリアル</span>
+    thr_write_val,  <span class="comment">\* 書き込む値</span>
+    thr_committed   <span class="comment">\* 成功コミット回数</span></code></pre>
+
+<p>Layer 0の12変数に比べて大幅にシンプル。これが<strong>抽象化の威力</strong>。</p>
+</div>
+
+<!-- ===== Slide 2: The Cycle ===== -->
+<div class="slide">
+<h1>iterate_commit サイクル</h1>
+
+<h2>Step 1: Snapshot</h2>
+<pre><code><span class="op">TakeSnapshot</span>(t) ==
+    /\ pc[t] \in {<span class="type">"idle"</span>, <span class="type">"done"</span>}
+    /\ thr_snap_val' = [thr_snap_val <span class="keyword">EXCEPT</span> ![t] = node_val]
+    /\ thr_snap_ser' = [thr_snap_ser <span class="keyword">EXCEPT</span> ![t] = node_serial]
+    <span class="comment">\* → atomic load 1回（Layer 0で検証済み）</span></code></pre>
+
+<h2>Step 2: Write（2種類をモデル化）</h2>
+<pre><code><span class="comment">(* 2a: 非決定的書き込み — 任意のクロージャ *)</span>
+<span class="op">Write</span>(t) ==
+    /\ \E v \in <span class="num">0</span>..MaxVal :
+       thr_write_val' = [thr_write_val <span class="keyword">EXCEPT</span> ![t] = v]
+
+<span class="comment">(* 2b: 決定的インクリメント — tr[node].x += 1 *)</span>
+<span class="op">WriteIncrement</span>(t) ==
+    /\ thr_write_val' = [thr_write_val <span class="keyword">EXCEPT</span>
+         ![t] = thr_snap_val[t] + <span class="num">1</span>]</code></pre>
+
+<h2>Step 3: Commit (CAS)</h2>
+<pre><code><span class="op">Commit</span>(t) ==
+    \/ <span class="comment">(* CAS成功: 値とシリアルの両方がスナップショットと一致 *)</span>
+       /\ node_val = thr_snap_val[t]
+       /\ node_serial = thr_snap_ser[t]
+       /\ node_val' = thr_write_val[t]       <span class="comment">\* 新値をインストール</span>
+       /\ node_serial' = node_serial + <span class="num">1</span>     <span class="comment">\* シリアル+1</span>
+       /\ thr_committed' = [thr_committed <span class="keyword">EXCEPT</span> ![t] = @ + <span class="num">1</span>]
+
+    \/ <span class="comment">(* CAS失敗: 他スレッドがコミット済み → リトライ *)</span>
+       /\ ~(node_val = thr_snap_val[t] /\ node_serial = thr_snap_ser[t])
+       /\ thr_snap_val' = [thr_snap_val <span class="keyword">EXCEPT</span> ![t] = node_val]
+       /\ thr_snap_ser' = [thr_snap_ser <span class="keyword">EXCEPT</span> ![t] = node_serial]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"snapshot"</span>]</code></pre>
+
+<div class="box-green">
+<p><strong>ポイント:</strong> CAS失敗時、即座に新しいSnapshotを取ってリトライ。これが<code>iterate_commit</code>の動作。</p>
+</div>
+</div>
+
+<!-- ===== Slide 3: Invariants ===== -->
+<div class="slide">
+<h1>検証された不変条件 (5件 + TypeOK)</h1>
+
+<pre><code><span class="comment">\* 1. Lost Update なし: 2スレッドが両方コミット成功→シリアルは2以上増加</span>
+<span class="op">NoLostUpdate</span> ==
+    \A t1, t2 \in Threads :
+        (t1 /= t2 /\ thr_committed[t1] > <span class="num">0</span> /\ thr_committed[t2] > <span class="num">0</span>)
+        => node_serial >= <span class="num">2</span>
+
+<span class="comment">\* 2. コミットは直列化: 全スレッドのコミット回数合計 ≤ シリアル</span>
+<span class="op">CommitSerializes</span> ==
+    totalCommits &lt;= node_serial
+
+<span class="comment">\* 3. スナップショットはコミット前: コミッタのsnap_ser &lt; 現在のserial</span>
+<span class="op">SnapshotBeforeCommit</span> ==
+    \A t \in Threads :
+        (pc[t] = <span class="type">"done"</span> /\ thr_committed[t] > <span class="num">0</span>)
+        => thr_snap_ser[t] &lt; node_serial
+
+<span class="comment">\* 4. 値は範囲内</span>
+<span class="op">ValueBounded</span> == node_val &lt;= MaxVal
+
+<span class="comment">\* 5. 最後のコミッタの書き込み値が見える</span>
+<span class="op">WriteReadConsistency</span> ==
+    \A t \in Threads :
+        (pc[t] = <span class="type">"done"</span> /\ thr_snap_ser[t] = node_serial - <span class="num">1</span>)
+        => node_val = thr_write_val[t]</code></pre>
+
+<h2>検証結果</h2>
+<table>
+<tr><th>スレッド数</th><th>MaxVal</th><th>MaxSerial</th><th>状態数</th><th>時間</th><th>結果</th></tr>
+<tr><td>3</td><td>3</td><td>6</td><td>109,901,200</td><td>4分</td><td style="color:#4ade80">✅ Pass (完全)</td></tr>
+</table>
+
+<div class="box">
+<p><strong>意味:</strong> 3スレッドが同時にトランザクションを実行しても、Lost Update, 非直列化,
+不整合なSnapshotは<strong>1.1億状態のすべてで</strong>発生しない。</p>
+</div>
+</div>
+
+<!-- ===== Slide 4: TLA+ ↔ C11 対応表 ===== -->
+<div class="slide">
+<h1>C++ ↔ TLA+ ↔ 生成C11 対応表</h1>
+
+<h2>変数の対応</h2>
+<table>
+<tr><th>TLA+ 変数</th><th>C++ (transaction.h / transaction_impl.h)</th><th>生成C11 (test_stm_commit.c)</th></tr>
+<tr><td><code>node_val</code>, <code>node_serial</code></td><td><code>m_link->packet()->payload()</code><br><code>m_link->m_bundle_serial</code></td><td><code>_Atomic(uint64_t) node</code><br>上位32bit=serial, 下位32bit=val</td></tr>
+<tr><td><code>thr_snap_val[t]</code>, <code>thr_snap_ser[t]</code></td><td><code>Transaction::m_oldpacket</code><br><code>Transaction::m_serial</code></td><td>thread-local <code>snap_val</code>, <code>snap_ser</code></td></tr>
+<tr><td><code>thr_write_val[t]</code></td><td><code>Transaction::m_packet->payload()</code></td><td>thread-local <code>write_val</code></td></tr>
+<tr><td><code>thr_committed[t]</code></td><td>—（暗黙）</td><td><code>_Atomic(uint32_t) committed[2]</code></td></tr>
+</table>
+
+<h2>アクションの対応</h2>
+<table>
+<tr><th>TLA+ アクション</th><th>C++ コード</th><th>生成C11</th><th>memory_order</th></tr>
+<tr><td><code>TakeSnapshot(t)</code></td><td><code>Transaction<XN> tr(node)</code><br>→ <code>load_shared_()</code></td><td><code>atomic_load(&node)</code> → unpack</td><td>acquire</td></tr>
+<tr><td><code>WriteIncrement(t)</code></td><td><code>tr[node].m_x += 1</code></td><td><code>write_val = snap_val + 1</code></td><td>—</td></tr>
+<tr><td><code>Commit(t)</code></td><td><code>m_link->compareAndSet()</code><br>→ Layer 0 CAS</td><td><code>atomic_compare_exchange_strong()</code></td><td>acq_rel</td></tr>
+</table>
+
+<h2>抽象化の境界</h2>
+<div class="box">
+<p><strong>Layer 0 → Layer 1:</strong> Layer 0で検証済みのatomic_shared_ptrを、
+正しいアトミックレジスタとして抽象化。<br>
+C++: <code>m_link->compareAndSet()</code> → Layer 0の6フェーズCAS<br>
+生成C11: <code>atomic_compare_exchange_strong()</code> → 1命令<br>
+TLA+: <code>node_val = thr_snap_val[t] → CAS成功</code> → 1ステップ</p>
+</div>
+</div>
+
+</body>
+</html>

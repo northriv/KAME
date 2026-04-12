@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 2: Bundle/Unbundle Explanation</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+.arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.3em;color:#fbbf24;margin:1em 0}
+p{line-height:1.8}
+</style>
+</head>
+<body>
+
+<!-- ===== Slide 0: Notation ===== -->
+<div class="slide">
+<h1>TLA+ Notation (See Layer 0)</h1>
+<div class="box">
+<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 0 slides</strong> (slides_layer0.html).<br>
+New notation introduced in these slides:</p>
+</div>
+<table>
+<tr><th>Notation</th><th>Meaning</th></tr>
+<tr><td><code>MakePacket(node, payload, sub, miss)</code></td><td>Record construction function. Returns <code>[payload |-> ..., sub |-> ..., missing |-> ..., node |-> ...]</code>.</td></tr>
+<tr><td><code>PriorityWrapper(packet, ser)</code></td><td>PacketWrapper record. <code>hasPriority=TRUE</code>.</td></tr>
+<tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>Wrapper in bundled state. <code>hasPriority=FALSE, bundledBy=parentNode</code>.</td></tr>
+<tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>Conditional function definition. Sets different initial values per node.</td></tr>
+<tr><td><code>r.field</code></td><td>Record field access. Examples: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
+<tr><td><code>% MaxSerial</code></td><td>Modular arithmetic. The serial wraps around at <code>MaxSerial</code>, making the state space structurally finite. This model does not use StateConstraint.</td></tr>
+<tr><td><code>ModGT(a, b)</code></td><td>Modular comparison. <code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>. Corresponds to signed difference comparison in C++.</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Characteristics of this model:</strong> The variable <code>local</code> has a nested record structure (<code>local[t].wrapper.packet.sub[c]</code>, etc.).
+This corresponds to nested structs in C++. In TLA+, nested fields are updated with <code>[local EXCEPT ![t].wrapper = w]</code>.</p>
+</div>
+</div>
+
+<!-- ===== Slide 1: Overview ===== -->
+<div class="slide">
+<h1>Layer 2: Bundle/Unbundle</h1>
+<h3>TLA+ Model Explanation — BundleUnbundle.tla (396 lines)</h3>
+
+<div class="box-purple">
+<p><strong>The most complex model.</strong> Verifies 4-phase bundle and multi-level unbundle on a 3-level tree.<br>
+Complete exploration of 622 million states in 4 hours 20 minutes.</p>
+</div>
+
+<h2>Tree Structure (Fixed)</h2>
+<div class="tree">
+Grand ── Parent ──┬── Child1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
+</div>
+
+<h2>Data Structures</h2>
+<pre><code><span class="comment">(* Packet: payload + child packets + missing flag *)</span>
+<span class="op">MakePacket</span>(node, payload, sub, miss) ==
+    [payload |-> payload, sub |-> sub, missing |-> miss, node |-> node]
+
+<span class="comment">(* PacketWrapper: priority (independent) or bundled (absorbed by parent) *)</span>
+<span class="op">PriorityWrapper</span>(packet, ser) ==
+    [packet |-> packet, hasPriority |-> TRUE, bundledBy |-> Null, serial |-> ser]
+
+<span class="op">BundledRefWrapper</span>(parentNode, ser) ==
+    [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> parentNode, serial |-> ser]</code></pre>
+
+<h2>Variables (7)</h2>
+<pre><code><span class="keyword">VARIABLES</span>
+    serial,        <span class="comment">\* per-thread serial counter</span>
+    globalSerial,  <span class="comment">\* latest global serial</span>
+    linkage,       <span class="comment">\* linkage[n]: PacketWrapper for each node</span>
+    pc, op, target, local  <span class="comment">\* per-thread state</span></code></pre>
+</div>
+
+<!-- ===== Slide 2: Bundle 4-phase ===== -->
+<div class="slide">
+<h1>Bundle: 4-Phase CAS Protocol</h1>
+
+<h2>Phase 1: Collect — Gather child packets</h2>
+<pre><code><span class="op">BundlePhase1</span>(t) ==
+    /\ LET childPkts == [c \in children |->
+           <span class="keyword">IF</span> childWs[c].hasPriority /\ ~childWs[c].packet.missing
+           <span class="keyword">THEN</span> childWs[c].packet     <span class="comment">\* child is complete → acquire</span>
+           <span class="keyword">ELSE IF</span> childWs[c].bundledBy = node
+           <span class="keyword">THEN</span> parentW.packet.sub[c]  <span class="comment">\* already bundled → use existing</span>
+           <span class="keyword">ELSE</span> Null]                  <span class="comment">\* cannot acquire → restart</span>
+       IN
+       <span class="keyword">IF</span> allCollected
+       <span class="keyword">THEN</span> pc' → <span class="type">"bundle_phase2"</span>
+       <span class="keyword">ELSE</span> pc' → <span class="type">"snap_check"</span>  <span class="comment">\* restart</span></code></pre>
+
+<h2>Phase 2: CAS Parent — New PacketWrapper (missing=TRUE)</h2>
+<pre><code><span class="op">BundlePhase2</span>(t) ==
+    /\ LET newPkt == <span class="op">MakePacket</span>(node, payload, subs, <span class="type">TRUE</span>)
+           newW   == <span class="op">PriorityWrapper</span>(newPkt, ser)
+       IN
+       <span class="keyword">IF</span> linkage[node] = oldW    <span class="comment">\* CAS: if unchanged</span>
+       <span class="keyword">THEN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newW]</code></pre>
+
+<h2>Phase 3: CAS Children — Replace with BundledRefWrapper</h2>
+<pre><code><span class="op">BundlePhase3</span>(t) ==
+    /\ <span class="keyword">IF</span> allMatch   <span class="comment">\* all children match expected values</span>
+       <span class="keyword">THEN</span> linkage' = [n \in AllNodes |->
+           <span class="keyword">IF</span> n \in children
+           <span class="keyword">THEN</span> <span class="op">BundledRefWrapper</span>(node, ser)  <span class="comment">\* child → back-reference to parent</span>
+           <span class="keyword">ELSE</span> linkage[n]]</code></pre>
+
+<h2>Phase 4: Finalize — missing=FALSE</h2>
+<pre><code><span class="op">BundlePhase4</span>(t) ==
+    /\ LET finalPkt == <span class="op">MakePacket</span>(node, payload, sub, <span class="type">FALSE</span>)  <span class="comment">\* ← FALSE!</span>
+       IN
+       <span class="keyword">IF</span> linkage[node] = oldW
+       <span class="keyword">THEN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = finalW]
+            <span class="comment">\* → consistent snapshot is now possible</span></code></pre>
+</div>
+
+<!-- ===== Slide 3: Unbundle ===== -->
+<div class="slide">
+<h1>Unbundle: Disassembly at Commit Time</h1>
+
+<h2>Why Is It Needed?</h2>
+<p>To commit to a bundled child node, the parent's bundle must first be disassembled.</p>
+
+<h2>Single-level unbundle (Child → Parent)</h2>
+<pre><code><span class="op">UnbundleCASAncestor</span>(t) ==
+    <span class="comment">\* Null out child slot from parent's Packet, set missing=TRUE</span>
+    /\ LET newSub == [parentW.packet.sub <span class="keyword">EXCEPT</span> ![node] = Null]
+           newPkt == <span class="op">MakePacket</span>(parent, payload, newSub, <span class="type">TRUE</span>)
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![parent] = newPW]
+
+<span class="op">UnbundleCASChild</span>(t) ==
+    <span class="comment">\* Restore child's linkage from BundledRef to Priority</span>
+    /\ LET newChildW == <span class="op">PriorityWrapper</span>(newpacket, ser)
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newChildW]</code></pre>
+
+<h2>Two-level unbundle (Child → Parent → Grand)</h2>
+<pre><code><span class="op">UnbundleCASGP</span>(t) ==
+    <span class="comment">\* Null out Child slot in Parent packet within Grand</span>
+    /\ LET parentPkt   == gpW.packet.sub[parentNode]
+           newParentSub == [parentPkt.sub <span class="keyword">EXCEPT</span> ![node] = Null]
+           newGPSub     == [gpW.packet.sub <span class="keyword">EXCEPT</span> ![parentNode] = newParentPkt]
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![gpNode] = newGPW]
+
+<span class="op">UnbundleRestoreParent</span>(t) ==
+    <span class="comment">\* Restore Parent from BundledRef → Priority</span>
+    /\ LET parentPkt == gpW.packet.sub[parentNode]
+           newPW == <span class="op">PriorityWrapper</span>(parentPkt, ser)
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![parentNode] = newPW]</code></pre>
+
+<div class="box-orange">
+<p><strong>Two-level unbundle flow:</strong><br>
+① Null out Child reference within Grand → ② Restore Parent to Priority → ③ Restore Child to Priority (with commit value)</p>
+</div>
+</div>
+
+<!-- ===== Slide 4: Commit ===== -->
+<div class="slide">
+<h1>Commit: Normal Path and Optimization</h1>
+
+<pre><code><span class="op">CommitTryCAS</span>(t) ==
+    <span class="keyword">IF</span> linkage[node] = oldW
+    <span class="keyword">THEN</span>
+        <span class="comment">\* CAS success: install new PacketWrapper(payload+1)</span>
+        linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newW]
+
+    <span class="keyword">ELSE IF</span> linkage[node].hasPriority
+    <span class="keyword">THEN</span>
+        <span class="keyword">IF</span> linkage[node].packet.payload = oldW.packet.payload
+        <span class="keyword">THEN</span>
+            <span class="comment">\* ★ Single-node optimization: if payload is the same, adopt new children ★</span>
+            <span class="comment">\* Another thread changed children but payload is the same</span>
+            <span class="comment">\* → Retry CAS (with new child packets)</span>
+            local' = [local <span class="keyword">EXCEPT</span>
+                ![t].wrapper = linkage[node],
+                ![t].newpacket = <span class="op">MakePacket</span>(target[t],
+                    newpayload, linkage[node].packet.sub, ...)]
+
+        <span class="keyword">ELSE</span>
+            <span class="comment">\* True conflict → fail</span>
+            local' = [local <span class="keyword">EXCEPT</span> ![t].commitOk = <span class="type">"fail"</span>]
+
+    <span class="keyword">ELSE</span>
+        <span class="comment">\* Bundled → unbundle required</span>
+        pc' → <span class="type">"unbundle_walk"</span></code></pre>
+
+<div class="box-green">
+<p><strong>Single-node optimization:</strong> If the payload has not changed (only children were modified),
+adopt the new child packets and retry the CAS. This reduces unnecessary conflict failures.</p>
+</div>
+</div>
+
+<!-- ===== Slide 5: Invariants ===== -->
+<div class="slide">
+<h1>Verified Invariants (5 items)</h1>
+
+<pre><code><span class="comment">\* 1. If missing=FALSE then all child packets exist</span>
+<span class="op">SnapshotConsistency</span> ==
+    \A n \in InnerNodes :
+        (w.hasPriority /\ ~w.packet.missing) =>
+            (\A c \in ChildrenOf(n) : w.packet.sub[c] /= Null)
+
+<span class="comment">\* 2. Non-root nodes have priority OR bundledBy≠Null</span>
+<span class="op">NoPriorityLoss</span> ==
+    \A n \in AllNodes \ {Grand} :
+        w.hasPriority \/ w.bundledBy /= Null
+
+<span class="comment">\* 3. bundledBy chains are valid (reach priority within 2 hops)</span>
+<span class="op">BundleChainValid</span> ==
+    \A n \in AllNodes \ {Grand} :
+        (~w.hasPriority /\ w.bundledBy /= Null) =>
+            pw.hasPriority \/ pw.bundledBy /= Null
+
+<span class="comment">\* 4. bundledBy always points to the structural parent</span>
+<span class="op">BundledByCorrect</span> ==
+    \A n \in AllNodes \ {Grand} :
+        ~w.hasPriority => w.bundledBy = ParentOf(n)
+
+<span class="comment">\* 5. Root always has priority</span>
+<span class="op">GrandAlwaysPriority</span> ==
+    linkage[Grand].hasPriority</code></pre>
+
+<h2>Verification Results (No StateConstraint, Modular Arithmetic)</h2>
+<table>
+<tr><th>Model</th><th>Threads</th><th>MaxSerial</th><th>States</th><th>Time</th><th>Result</th></tr>
+<tr><td>2-level</td><td>2</td><td>6</td><td>~3,970,000</td><td>17 sec</td><td style="color:#4ade80">✅ Pass</td></tr>
+<tr><td>3-level</td><td>1</td><td>6</td><td>24,002,256</td><td>7 min</td><td style="color:#4ade80">✅ Pass</td></tr>
+<tr><td>3-level</td><td>2</td><td>6</td><td>~76,000,000</td><td>25 min</td><td style="color:#4ade80">✅ Pass</td></tr>
+<tr><td>3-level 3thr</td><td>3</td><td>—</td><td>—</td><td>—</td><td>pending ohtaka</td></tr>
+</table>
+
+<div class="box-purple">
+<p><strong>Significance of 622 million states:</strong> Across all interleavings where 2 threads concurrently execute
+snapshot/commit/bundle/unbundle in any combination, all 5 invariants are preserved.</p>
+</div>
+</div>
+
+<!-- ===== Slide 6: Summary ===== -->
+<div class="slide">
+<h1>Three-Layer Overview</h1>
+
+<table>
+<tr><th>Layer</th><th>What It Abstracts</th><th>What It Verifies</th><th>States</th></tr>
+<tr><td style="color:#0891b2"><strong>Layer 0</strong></td><td>—</td><td>Reference counting, ABA, memory safety</td><td>8.7M</td></tr>
+<tr><td style="color:#3b82f6"><strong>Layer 1</strong></td><td>atomic_shared_ptr as correct register</td><td>Snapshot→Commit, lost update prevention</td><td>110M</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td>Commit as correct CAS</td><td>Bundle/Unbundle, subtree consistency</td><td>~80M</td></tr>
+</table>
+
+<div class="box">
+<p><strong>Total ~200 million states</strong> — All reachable states explored without StateConstraint, all passed.<br>
+Each layer abstracts assuming correctness of the layer below. GenMC (Layer 0) complements memory model correctness.</p>
+</div>
+</div>
+
+<!-- ===== Slide 7: C++ ↔ TLA+ ↔ Generated C11 Correspondence Table ===== -->
+<div class="slide">
+<h1>C++ ↔ TLA+ ↔ Generated C11 Correspondence Table</h1>
+
+<h2>Variable Mapping</h2>
+<table>
+<tr><th>TLA+ Variable</th><th>C++ (transaction_impl.h)</th><th>Generated C11 (test_bundle_3level.c)</th></tr>
+<tr><td><code>linkage[n]</code></td><td><code>atomic_shared_ptr&lt;PacketWrapper&gt; n->m_link</code></td><td><code>_Atomic(uint64_t) linkage[4]</code><br>64-bit packed (Wrapper struct)</td></tr>
+<tr><td><code>linkage[n].hasPriority</code></td><td><code>PacketWrapper::hasPriority()</code></td><td><code>Wrapper.has_priority</code> (bit field)</td></tr>
+<tr><td><code>linkage[n].bundledBy</code></td><td><code>PacketWrapper::bundledBy()</code></td><td><code>Wrapper.bundled_by</code></td></tr>
+<tr><td><code>linkage[n].packet.payload</code></td><td><code>Packet::payload()</code></td><td><code>Wrapper.payload</code></td></tr>
+<tr><td><code>linkage[n].packet.sub[c]</code></td><td><code>Packet::subpackets()[i]</code></td><td><code>Wrapper.sub_child1/2</code></td></tr>
+<tr><td><code>serial[t]</code></td><td><code>SerialGenerator</code> (Lamport clock)</td><td><code>uint8_t thread_ser</code> (local)</td></tr>
+<tr><td><code>ModGT(a,b)</code></td><td>Unsigned subtraction → signed reinterpretation</td><td><code>mod_gt(a,b)</code>: <code>(a-b+MAX)%MAX &lt; MAX/2</code></td></tr>
+</table>
+
+<h2>Action Mapping</h2>
+<table>
+<tr><th>TLA+ Action</th><th>C++ Code</th><th>Generated C11 Function</th></tr>
+<tr><td><code>SnapRead</code> + <code>SnapCheck</code></td><td><code>snapshot()</code><br>transaction_impl.h:842-870</td><td><code>snapshot_grand()</code><br><code>load_wrapper()</code> → priority/missing decision</td></tr>
+<tr><td><code>BundlePhase1</code>〜<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:1077-1171</td><td>Within <code>snapshot_grand()</code><br>collect → CAS parent → CAS children → finalize</td></tr>
+<tr><td><code>CommitTryCAS</code></td><td><code>commit()</code><br>transaction_impl.h:1245-1270</td><td><code>commit_child()</code><br>Direct CAS + single-node optimization</td></tr>
+<tr><td><code>UnbundleWalk</code></td><td><code>snapshotSupernode()</code><br>transaction_impl.h:696-755</td><td>Within <code>commit_child()</code><br>Read parent wrapper → sub-packet extraction</td></tr>
+<tr><td><code>UnbundleCASAncestor</code></td><td>transaction_impl.h:1367-1379</td><td>Within <code>commit_child()</code><br><code>cas_wrapper(parent, ...)</code></td></tr>
+<tr><td><code>UnbundleCASGP</code><br>+ <code>RestoreParent</code></td><td>transaction_impl.h:1367-1389</td><td>Within <code>commit_child()</code><br>GP CAS → parent restoration</td></tr>
+<tr><td><code>UnbundleCASChild</code></td><td>transaction_impl.h:1383-1389</td><td>Within <code>commit_child()</code><br>child → priority restoration</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Layer 2 characteristics:</strong> In the generated C11, all node linkage is packed into 64 bits,
+and all fields are atomically updated with a single <code>atomic_compare_exchange</code>.
+This is faithful to the "1 action = 1 step" principle of TLA+.</p>
+</div>
+</div>
+
+</body>
+</html>

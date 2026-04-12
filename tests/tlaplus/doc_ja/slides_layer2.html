@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 2: Bundle/Unbundle 解説</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+.arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.3em;color:#fbbf24;margin:1em 0}
+p{line-height:1.8}
+</style>
+</head>
+<body>
+
+<!-- ===== Slide 0: 記法 ===== -->
+<div class="slide">
+<h1>TLA+ 記法（Layer 0参照）</h1>
+<div class="box">
+<p>TLA+の基本記法は <strong>Layer 0スライドの冒頭</strong> (slides_layer0.html) を参照。<br>
+本スライドで新たに登場する記法:</p>
+</div>
+<table>
+<tr><th>記法</th><th>意味</th></tr>
+<tr><td><code>MakePacket(node, payload, sub, miss)</code></td><td>レコード構築関数。<code>[payload |-> ..., sub |-> ..., missing |-> ..., node |-> ...]</code> を返す。</td></tr>
+<tr><td><code>PriorityWrapper(packet, ser)</code></td><td>PacketWrapperレコード。<code>hasPriority=TRUE</code>。</td></tr>
+<tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>bundleされた状態のwrapper。<code>hasPriority=FALSE, bundledBy=parentNode</code>。</td></tr>
+<tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>条件付き関数定義。ノードごとに異なる初期値を設定。</td></tr>
+<tr><td><code>r.field</code></td><td>レコードのフィールドアクセス。例: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
+<tr><td><code>% MaxSerial</code></td><td>モジュラー算術。シリアルが<code>MaxSerial</code>で周回し、状態空間を構造的に有限にする。StateConstraintは使用しない。</td></tr>
+<tr><td><code>ModGT(a, b)</code></td><td>モジュラー大小比較。<code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>。C++の符号付き差分比較に対応。</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>このモデルの特徴:</strong> 変数<code>local</code>はレコードの入れ子構造（<code>local[t].wrapper.packet.sub[c]</code>等）。
+C++の構造体のネストに対応する。TLA+では<code>[local EXCEPT ![t].wrapper = w]</code>でネストしたフィールドを更新。</p>
+</div>
+</div>
+
+<!-- ===== Slide 1: Overview ===== -->
+<div class="slide">
+<h1>Layer 2: Bundle/Unbundle</h1>
+<h3>TLA+モデル解説 — BundleUnbundle.tla (396行)</h3>
+
+<div class="box-purple">
+<p><strong>最も複雑なモデル。</strong> 3レベル木での4フェーズbundleと多段unbundleを検証。<br>
+6.22億状態の完全探索に4時間20分。</p>
+</div>
+
+<h2>木構造（固定）</h2>
+<div class="tree">
+Grand ── Parent ──┬── Child1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
+</div>
+
+<h2>データ構造</h2>
+<pre><code><span class="comment">(* Packet: ペイロード + 子パケット + missingフラグ *)</span>
+<span class="op">MakePacket</span>(node, payload, sub, miss) ==
+    [payload |-> payload, sub |-> sub, missing |-> miss, node |-> node]
+
+<span class="comment">(* PacketWrapper: priority（独立）or bundled（親に吸収） *)</span>
+<span class="op">PriorityWrapper</span>(packet, ser) ==
+    [packet |-> packet, hasPriority |-> TRUE, bundledBy |-> Null, serial |-> ser]
+
+<span class="op">BundledRefWrapper</span>(parentNode, ser) ==
+    [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> parentNode, serial |-> ser]</code></pre>
+
+<h2>変数 (7個)</h2>
+<pre><code><span class="keyword">VARIABLES</span>
+    serial,        <span class="comment">\* per-thread シリアルカウンタ</span>
+    globalSerial,  <span class="comment">\* 最新グローバルシリアル</span>
+    linkage,       <span class="comment">\* linkage[n]: 各ノードのPacketWrapper</span>
+    pc, op, target, local  <span class="comment">\* per-thread 状態</span></code></pre>
+</div>
+
+<!-- ===== Slide 2: Bundle 4-phase ===== -->
+<div class="slide">
+<h1>Bundle: 4フェーズCASプロトコル</h1>
+
+<h2>Phase 1: Collect — 子パケットを収集</h2>
+<pre><code><span class="op">BundlePhase1</span>(t) ==
+    /\ LET childPkts == [c \in children |->
+           <span class="keyword">IF</span> childWs[c].hasPriority /\ ~childWs[c].packet.missing
+           <span class="keyword">THEN</span> childWs[c].packet     <span class="comment">\* 子が完全 → 取得</span>
+           <span class="keyword">ELSE IF</span> childWs[c].bundledBy = node
+           <span class="keyword">THEN</span> parentW.packet.sub[c]  <span class="comment">\* 既にbundled → 既存を使用</span>
+           <span class="keyword">ELSE</span> Null]                  <span class="comment">\* 取得不可 → リスタート</span>
+       IN
+       <span class="keyword">IF</span> allCollected
+       <span class="keyword">THEN</span> pc' → <span class="type">"bundle_phase2"</span>
+       <span class="keyword">ELSE</span> pc' → <span class="type">"snap_check"</span>  <span class="comment">\* リスタート</span></code></pre>
+
+<h2>Phase 2: CAS親 — 新PacketWrapper (missing=TRUE)</h2>
+<pre><code><span class="op">BundlePhase2</span>(t) ==
+    /\ LET newPkt == <span class="op">MakePacket</span>(node, payload, subs, <span class="type">TRUE</span>)
+           newW   == <span class="op">PriorityWrapper</span>(newPkt, ser)
+       IN
+       <span class="keyword">IF</span> linkage[node] = oldW    <span class="comment">\* CAS: 変わっていなければ</span>
+       <span class="keyword">THEN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newW]</code></pre>
+
+<h2>Phase 3: CAS子 — BundledRefWrapperに置換</h2>
+<pre><code><span class="op">BundlePhase3</span>(t) ==
+    /\ <span class="keyword">IF</span> allMatch   <span class="comment">\* 全子が期待値と一致</span>
+       <span class="keyword">THEN</span> linkage' = [n \in AllNodes |->
+           <span class="keyword">IF</span> n \in children
+           <span class="keyword">THEN</span> <span class="op">BundledRefWrapper</span>(node, ser)  <span class="comment">\* 子 → 親への逆参照</span>
+           <span class="keyword">ELSE</span> linkage[n]]</code></pre>
+
+<h2>Phase 4: Finalize — missing=FALSE</h2>
+<pre><code><span class="op">BundlePhase4</span>(t) ==
+    /\ LET finalPkt == <span class="op">MakePacket</span>(node, payload, sub, <span class="type">FALSE</span>)  <span class="comment">\* ← FALSE!</span>
+       IN
+       <span class="keyword">IF</span> linkage[node] = oldW
+       <span class="keyword">THEN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = finalW]
+            <span class="comment">\* → 整合的スナップショットが可能に</span></code></pre>
+</div>
+
+<!-- ===== Slide 3: Unbundle ===== -->
+<div class="slide">
+<h1>Unbundle: コミット時の解体</h1>
+
+<h2>なぜ必要か</h2>
+<p>bundleされた子ノードにコミットするには、まず親のbundleを解体する必要がある。</p>
+
+<h2>1段unbundle（Child → Parent）</h2>
+<pre><code><span class="op">UnbundleCASAncestor</span>(t) ==
+    <span class="comment">\* 親のPacketから子スロットをNull化、missing=TRUE</span>
+    /\ LET newSub == [parentW.packet.sub <span class="keyword">EXCEPT</span> ![node] = Null]
+           newPkt == <span class="op">MakePacket</span>(parent, payload, newSub, <span class="type">TRUE</span>)
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![parent] = newPW]
+
+<span class="op">UnbundleCASChild</span>(t) ==
+    <span class="comment">\* 子のLinkageをBundledRefからPriorityに復元</span>
+    /\ LET newChildW == <span class="op">PriorityWrapper</span>(newpacket, ser)
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newChildW]</code></pre>
+
+<h2>2段unbundle（Child → Parent → Grand）</h2>
+<pre><code><span class="op">UnbundleCASGP</span>(t) ==
+    <span class="comment">\* Grand内のParentパケットのChildスロットをNull化</span>
+    /\ LET parentPkt   == gpW.packet.sub[parentNode]
+           newParentSub == [parentPkt.sub <span class="keyword">EXCEPT</span> ![node] = Null]
+           newGPSub     == [gpW.packet.sub <span class="keyword">EXCEPT</span> ![parentNode] = newParentPkt]
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![gpNode] = newGPW]
+
+<span class="op">UnbundleRestoreParent</span>(t) ==
+    <span class="comment">\* ParentをBundledRef→Priorityに復元</span>
+    /\ LET parentPkt == gpW.packet.sub[parentNode]
+           newPW == <span class="op">PriorityWrapper</span>(parentPkt, ser)
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![parentNode] = newPW]</code></pre>
+
+<div class="box-orange">
+<p><strong>2段unbundleの流れ:</strong><br>
+① Grand内のChild参照をNull化 → ② ParentをPriorityに復元 → ③ ChildをPriorityに復元（コミット値で）</p>
+</div>
+</div>
+
+<!-- ===== Slide 4: Commit ===== -->
+<div class="slide">
+<h1>Commit: 通常パスと最適化</h1>
+
+<pre><code><span class="op">CommitTryCAS</span>(t) ==
+    <span class="keyword">IF</span> linkage[node] = oldW
+    <span class="keyword">THEN</span>
+        <span class="comment">\* CAS成功: 新PacketWrapper(payload+1)をインストール</span>
+        linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newW]
+
+    <span class="keyword">ELSE IF</span> linkage[node].hasPriority
+    <span class="keyword">THEN</span>
+        <span class="keyword">IF</span> linkage[node].packet.payload = oldW.packet.payload
+        <span class="keyword">THEN</span>
+            <span class="comment">\* ★ 単一ノード最適化: payloadが同じなら新しい子を採用 ★</span>
+            <span class="comment">\* 他スレッドが子を変更したがpayloadは同じ</span>
+            <span class="comment">\* → CASを再試行（新しい子パケットで）</span>
+            local' = [local <span class="keyword">EXCEPT</span>
+                ![t].wrapper = linkage[node],
+                ![t].newpacket = <span class="op">MakePacket</span>(target[t],
+                    newpayload, linkage[node].packet.sub, ...)]
+
+        <span class="keyword">ELSE</span>
+            <span class="comment">\* 真の競合 → 失敗</span>
+            local' = [local <span class="keyword">EXCEPT</span> ![t].commitOk = <span class="type">"fail"</span>]
+
+    <span class="keyword">ELSE</span>
+        <span class="comment">\* bundleされた → unbundleが必要</span>
+        pc' → <span class="type">"unbundle_walk"</span></code></pre>
+
+<div class="box-green">
+<p><strong>単一ノード最適化:</strong> payloadが変わっていなければ（子だけ変更された場合）、
+新しい子パケットを採用してCASリトライ。無駄な競合失敗を減らす。</p>
+</div>
+</div>
+
+<!-- ===== Slide 5: Invariants ===== -->
+<div class="slide">
+<h1>検証された不変条件 (5件)</h1>
+
+<pre><code><span class="comment">\* 1. missing=FALSEなら全子パケットが存在</span>
+<span class="op">SnapshotConsistency</span> ==
+    \A n \in InnerNodes :
+        (w.hasPriority /\ ~w.packet.missing) =>
+            (\A c \in ChildrenOf(n) : w.packet.sub[c] /= Null)
+
+<span class="comment">\* 2. 非ルートノードはpriority OR bundledBy≠Null</span>
+<span class="op">NoPriorityLoss</span> ==
+    \A n \in AllNodes \ {Grand} :
+        w.hasPriority \/ w.bundledBy /= Null
+
+<span class="comment">\* 3. bundledByチェーンが有効（2ホップ以内にpriorityに到達）</span>
+<span class="op">BundleChainValid</span> ==
+    \A n \in AllNodes \ {Grand} :
+        (~w.hasPriority /\ w.bundledBy /= Null) =>
+            pw.hasPriority \/ pw.bundledBy /= Null
+
+<span class="comment">\* 4. bundledByは常に構造上の親を指す</span>
+<span class="op">BundledByCorrect</span> ==
+    \A n \in AllNodes \ {Grand} :
+        ~w.hasPriority => w.bundledBy = ParentOf(n)
+
+<span class="comment">\* 5. ルートは常にpriority</span>
+<span class="op">GrandAlwaysPriority</span> ==
+    linkage[Grand].hasPriority</code></pre>
+
+<h2>検証結果（StateConstraintなし、モジュラー算術）</h2>
+<table>
+<tr><th>モデル</th><th>スレッド</th><th>MaxSerial</th><th>状態数</th><th>時間</th><th>結果</th></tr>
+<tr><td>2レベル</td><td>2</td><td>6</td><td>~3,970,000</td><td>17秒</td><td style="color:#4ade80">✅ Pass</td></tr>
+<tr><td>3レベル</td><td>1</td><td>6</td><td>24,002,256</td><td>7分</td><td style="color:#4ade80">✅ Pass</td></tr>
+<tr><td>3レベル</td><td>2</td><td>6</td><td>~76,000,000</td><td>25分</td><td style="color:#4ade80">✅ Pass</td></tr>
+<tr><td>3レベル 3thr</td><td>3</td><td>—</td><td>—</td><td>—</td><td>ohtaka待ち</td></tr>
+</table>
+
+<div class="box-purple">
+<p><strong>6.22億状態の意味:</strong> 2スレッドが同時にsnapshot/commit/bundle/unbundleを
+任意の組み合わせで実行するすべてのインターリーブで、5つの不変条件が保持される。</p>
+</div>
+</div>
+
+<!-- ===== Slide 6: Summary ===== -->
+<div class="slide">
+<h1>3層の全体像</h1>
+
+<table>
+<tr><th>層</th><th>何を抽象化</th><th>何を検証</th><th>状態数</th></tr>
+<tr><td style="color:#0891b2"><strong>Layer 0</strong></td><td>—</td><td>参照カウント、ABA、メモリ安全性</td><td>8.7M</td></tr>
+<tr><td style="color:#3b82f6"><strong>Layer 1</strong></td><td>atomic_shared_ptrを正しいレジスタに</td><td>Snapshot→Commit、Lost Update防止</td><td>110M</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td>Commitを正しいCASに</td><td>Bundle/Unbundle、サブツリー整合性</td><td>~80M</td></tr>
+</table>
+
+<div class="box">
+<p><strong>合計 ~2億 状態</strong> — StateConstraintなしで全到達可能状態を探索、すべてパス。<br>
+各層は下の層の正しさを前提に抽象化。GenMC (Layer 0) がメモリモデルの正しさを補完。</p>
+</div>
+</div>
+
+<!-- ===== Slide 7: C++ ↔ TLA+ ↔ 生成C11 対応表 ===== -->
+<div class="slide">
+<h1>C++ ↔ TLA+ ↔ 生成C11 対応表</h1>
+
+<h2>変数の対応</h2>
+<table>
+<tr><th>TLA+ 変数</th><th>C++ (transaction_impl.h)</th><th>生成C11 (test_bundle_3level.c)</th></tr>
+<tr><td><code>linkage[n]</code></td><td><code>atomic_shared_ptr&lt;PacketWrapper&gt; n->m_link</code></td><td><code>_Atomic(uint64_t) linkage[4]</code><br>64bitパック（Wrapper構造体）</td></tr>
+<tr><td><code>linkage[n].hasPriority</code></td><td><code>PacketWrapper::hasPriority()</code></td><td><code>Wrapper.has_priority</code> (bit field)</td></tr>
+<tr><td><code>linkage[n].bundledBy</code></td><td><code>PacketWrapper::bundledBy()</code></td><td><code>Wrapper.bundled_by</code></td></tr>
+<tr><td><code>linkage[n].packet.payload</code></td><td><code>Packet::payload()</code></td><td><code>Wrapper.payload</code></td></tr>
+<tr><td><code>linkage[n].packet.sub[c]</code></td><td><code>Packet::subpackets()[i]</code></td><td><code>Wrapper.sub_child1/2</code></td></tr>
+<tr><td><code>serial[t]</code></td><td><code>SerialGenerator</code> (Lamport clock)</td><td><code>uint8_t thread_ser</code> (local)</td></tr>
+<tr><td><code>ModGT(a,b)</code></td><td>符号なし減算→符号付き再解釈</td><td><code>mod_gt(a,b)</code>: <code>(a-b+MAX)%MAX &lt; MAX/2</code></td></tr>
+</table>
+
+<h2>アクションの対応</h2>
+<table>
+<tr><th>TLA+ アクション</th><th>C++ コード</th><th>生成C11 関数</th></tr>
+<tr><td><code>SnapRead</code> + <code>SnapCheck</code></td><td><code>snapshot()</code><br>transaction_impl.h:842-870</td><td><code>snapshot_grand()</code><br><code>load_wrapper()</code> → priority/missing判定</td></tr>
+<tr><td><code>BundlePhase1</code>〜<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:1077-1171</td><td><code>snapshot_grand()</code>内<br>collect → CAS親 → CAS子 → finalize</td></tr>
+<tr><td><code>CommitTryCAS</code></td><td><code>commit()</code><br>transaction_impl.h:1245-1270</td><td><code>commit_child()</code><br>直接CAS + single-node optimization</td></tr>
+<tr><td><code>UnbundleWalk</code></td><td><code>snapshotSupernode()</code><br>transaction_impl.h:696-755</td><td><code>commit_child()</code>内<br>親wrapper読み取り → sub-packet抽出</td></tr>
+<tr><td><code>UnbundleCASAncestor</code></td><td>transaction_impl.h:1367-1379</td><td><code>commit_child()</code>内<br><code>cas_wrapper(parent, ...)</code></td></tr>
+<tr><td><code>UnbundleCASGP</code><br>+ <code>RestoreParent</code></td><td>transaction_impl.h:1367-1389</td><td><code>commit_child()</code>内<br>GP CAS → parent復元</td></tr>
+<tr><td><code>UnbundleCASChild</code></td><td>transaction_impl.h:1383-1389</td><td><code>commit_child()</code>内<br>child → priority復元</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Layer 2の特徴:</strong> 生成C11では全ノードのlinkageを64bitにパックし、
+1回の<code>atomic_compare_exchange</code>で全フィールドをアトミックに更新。
+TLA+の「1アクション = 1ステップ」に忠実。</p>
+</div>
+</div>
+
+</body>
+</html>
