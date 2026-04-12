@@ -32,9 +32,9 @@ orchestration across compatible instruments without custom programming.
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source here: kame-8.0.zip(https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.0.zip) (2MB, Apr. 6, 2026).
-All other source zips here(https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64bit binaries: 8.0(https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.0.zip). At least Qt is additionally needed, follow instructions below to install.
+Source: [kame-8.0.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.0.zip) (2MB, Apr. 6, 2026).
+[All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
+Windows 64-bit binaries: [8.0](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.0.zip). At least Qt is additionally needed, follow instructions below to install.
 
 ### Supported instruments
 
@@ -295,6 +295,16 @@ offers three concrete benefits for this domain:
 - **Safe scripting from Python/Ruby.** Scripts read and write the node tree through
   the same transaction API as C++ code, so user scripts cannot corrupt instrument
   state regardless of when they run.
+
+#### Formal verification (TLA+)
+
+The STM protocol is formally specified and model-checked with TLA+ / TLC across three layers:
+
+- **Layer 0 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla), [slides EN](tests/tlaplus/doc/slides_layer0_en.html), [slides JA](tests/tlaplus/doc_ja/slides_layer0.html))
+- **Layer 1 — `stm_commit`:** snapshot + optimistic commit with serial validation ([spec](tests/tlaplus/stm_commit.tla), [slides EN](tests/tlaplus/doc/slides_layer1_en.html), [slides JA](tests/tlaplus/doc_ja/slides_layer1.html))
+- **Layer 2 — `BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla), [slides EN](tests/tlaplus/doc/slides_layer2_en.html), [slides JA](tests/tlaplus/doc_ja/slides_layer2.html))
+
+C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model (`tests/tlaplus/genmc_layer*_from_tla.c`).
 
 ---
 
