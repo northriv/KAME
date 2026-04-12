@@ -300,9 +300,9 @@ offers three concrete benefits for this domain:
 
 The STM protocol is formally specified and model-checked with TLA+ / TLC across three layers:
 
-- **Layer 0 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla), [slides EN](tests/tlaplus/doc/slides_layer0_en.html), [slides JA](tests/tlaplus/doc_ja/slides_layer0.html))
-- **Layer 1 — `stm_commit`:** snapshot + optimistic commit with serial validation ([spec](tests/tlaplus/stm_commit.tla), [slides EN](tests/tlaplus/doc/slides_layer1_en.html), [slides JA](tests/tlaplus/doc_ja/slides_layer1.html))
-- **Layer 2 — `BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla), [slides EN](tests/tlaplus/doc/slides_layer2_en.html), [slides JA](tests/tlaplus/doc_ja/slides_layer2.html))
+- **Layer 0 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla), [slides EN](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer0_en.html), [slides JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer0.html))
+- **Layer 1 — `stm_commit`:** snapshot + optimistic commit with serial validation ([spec](tests/tlaplus/stm_commit.tla), [slides EN](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html), [slides JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html))
+- **Layer 2 — `BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla), [slides EN](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html), [slides JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
 
 C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model (`tests/tlaplus/genmc_layer*_from_tla.c`).
 
