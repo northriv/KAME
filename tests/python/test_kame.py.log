@@ -1,0 +1,339 @@
+2026-03-23 10:43:32.623172:#<Thread(Thread-2 (loadSequence), started daemon 6217592832)> started.
+2026-03-23 10:43:32.626984:Waiting for kame module...
+2026-03-23 11:59:38.026279:#<Thread(Thread-3 (loadSequence), started daemon 6217592832)> started.
+2026-03-23 11:59:38.033791:── KAME Python Tests ─────────────────────────────
+2026-03-23 11:59:38.033856:  1. XNode.getTypename()
+2026-03-23 11:59:38.033883:  2. XNode.getLabel()
+2026-03-23 11:59:38.033906:  3. Snapshot read
+2026-03-23 11:59:38.033927:  4. iterate_commit
+2026-03-23 11:59:38.033947:  5. XStringList.createByTypename
+2026-03-23 11:59:38.033969:  6. [Integration] Math tool stored typename
+2026-03-23 11:59:38.033988:  a. Run all unit tests
+2026-03-23 11:59:38.034006:  A. Run all (unit + integration)
+2026-03-23 11:59:38.034025:  q. Quit
+2026-03-23 11:59:38.034044:──────────────────────────────────────────────────
+2026-03-23 11:59:38.034074:Choice: 
+2026-03-23 12:01:35.143758:#<Thread(Thread-4 (loadSequence), started daemon 6217592832)> started.
+2026-03-23 12:01:35.149607:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:01:35.149673:  1. XNode.getTypename()
+2026-03-23 12:01:35.149697:  2. XNode.getLabel()
+2026-03-23 12:01:35.149717:  3. Snapshot read
+2026-03-23 12:01:35.149735:  4. iterate_commit
+2026-03-23 12:01:35.149753:  5. XStringList.createByTypename
+2026-03-23 12:01:35.149773:  6. [Integration] Math tool stored typename
+2026-03-23 12:01:35.149791:  a. Run all unit tests
+2026-03-23 12:01:35.149808:  A. Run all (unit + integration)
+2026-03-23 12:01:35.149828:  q. Quit
+2026-03-23 12:01:35.149846:──────────────────────────────────────────────────
+2026-03-23 12:01:35.149867:Choice: 
+2026-03-23 12:01:37.803553:  PASS: XNode.getTypename()
+2026-03-23 12:01:37.803764:  PASS: XNode.getLabel()
+2026-03-23 12:01:37.806761:  FAIL: Snapshot read — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:01:37.807260:  FAIL: iterate_commit — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:01:37.807310:  FAIL: XStringList.createByTypename — name 'XStringList' is not defined
+2026-03-23 12:01:37.807343:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:01:37.807366:  1. XNode.getTypename()
+2026-03-23 12:01:37.807387:  2. XNode.getLabel()
+2026-03-23 12:01:37.807406:  3. Snapshot read
+2026-03-23 12:01:37.807425:  4. iterate_commit
+2026-03-23 12:01:37.807443:  5. XStringList.createByTypename
+2026-03-23 12:01:37.807464:  6. [Integration] Math tool stored typename
+2026-03-23 12:01:37.807482:  a. Run all unit tests
+2026-03-23 12:01:37.807500:  A. Run all (unit + integration)
+2026-03-23 12:01:37.807517:  q. Quit
+2026-03-23 12:01:37.807536:──────────────────────────────────────────────────
+2026-03-23 12:01:37.807559:Choice: 
+2026-03-23 12:01:47.185765:  PASS: XNode.getTypename()
+2026-03-23 12:01:47.186426:  PASS: XNode.getLabel()
+2026-03-23 12:01:47.186930:  FAIL: Snapshot read — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:01:47.187353:  FAIL: iterate_commit — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:01:47.187521:  FAIL: XStringList.createByTypename — name 'XStringList' is not defined
+2026-03-23 12:01:47.187689:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:01:47.187814:  1. XNode.getTypename()
+2026-03-23 12:01:47.187935:  2. XNode.getLabel()
+2026-03-23 12:01:47.188055:  3. Snapshot read
+2026-03-23 12:01:47.188197:  4. iterate_commit
+2026-03-23 12:01:47.188308:  5. XStringList.createByTypename
+2026-03-23 12:01:47.188419:  6. [Integration] Math tool stored typename
+2026-03-23 12:01:47.188527:  a. Run all unit tests
+2026-03-23 12:01:47.188635:  A. Run all (unit + integration)
+2026-03-23 12:01:47.188742:  q. Quit
+2026-03-23 12:01:47.188851:──────────────────────────────────────────────────
+2026-03-23 12:01:47.188952:Choice: 
+2026-03-23 12:01:49.633625:  PASS: XNode.getTypename()
+2026-03-23 12:01:49.633789:  PASS: XNode.getLabel()
+2026-03-23 12:01:49.633995:  FAIL: Snapshot read — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:01:49.634146:  FAIL: iterate_commit — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:01:49.634206:  FAIL: XStringList.createByTypename — name 'XStringList' is not defined
+2026-03-23 12:01:49.634256:  Driver name for integration tests: 
+2026-03-23 12:02:01.033626:  FAIL: math tool stored typename — name 'Measure' is not defined
+2026-03-23 12:02:01.034701:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:02:01.034895:  1. XNode.getTypename()
+2026-03-23 12:02:01.035047:  2. XNode.getLabel()
+2026-03-23 12:02:01.035199:  3. Snapshot read
+2026-03-23 12:02:01.035399:  4. iterate_commit
+2026-03-23 12:02:01.035527:  5. XStringList.createByTypename
+2026-03-23 12:02:01.035636:  6. [Integration] Math tool stored typename
+2026-03-23 12:02:01.035751:  a. Run all unit tests
+2026-03-23 12:02:01.035847:  A. Run all (unit + integration)
+2026-03-23 12:02:01.035954:  q. Quit
+2026-03-23 12:02:01.036053:──────────────────────────────────────────────────
+2026-03-23 12:02:01.036186:Choice: 
+2026-03-23 12:02:02.860108:  Unknown choice.
+2026-03-23 12:02:02.860388:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:02:02.860489:  1. XNode.getTypename()
+2026-03-23 12:02:02.860556:  2. XNode.getLabel()
+2026-03-23 12:02:02.860625:  3. Snapshot read
+2026-03-23 12:02:02.860692:  4. iterate_commit
+2026-03-23 12:02:02.860758:  5. XStringList.createByTypename
+2026-03-23 12:02:02.860829:  6. [Integration] Math tool stored typename
+2026-03-23 12:02:02.860895:  a. Run all unit tests
+2026-03-23 12:02:02.860958:  A. Run all (unit + integration)
+2026-03-23 12:02:02.861027:  q. Quit
+2026-03-23 12:02:02.861094:──────────────────────────────────────────────────
+2026-03-23 12:02:02.861171:Choice: 
+2026-03-23 12:02:11.836259:  PASS: XNode.getTypename()
+2026-03-23 12:02:11.837019:  PASS: XNode.getLabel()
+2026-03-23 12:02:11.837589:  FAIL: Snapshot read — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:02:11.838043:  FAIL: iterate_commit — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:02:11.838164:  FAIL: XStringList.createByTypename — name 'XStringList' is not defined
+2026-03-23 12:02:11.838277:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:02:11.838360:  1. XNode.getTypename()
+2026-03-23 12:02:11.838438:  2. XNode.getLabel()
+2026-03-23 12:02:11.838513:  3. Snapshot read
+2026-03-23 12:02:11.838586:  4. iterate_commit
+2026-03-23 12:02:11.838659:  5. XStringList.createByTypename
+2026-03-23 12:02:11.838732:  6. [Integration] Math tool stored typename
+2026-03-23 12:02:11.838802:  a. Run all unit tests
+2026-03-23 12:02:11.838872:  A. Run all (unit + integration)
+2026-03-23 12:02:11.838941:  q. Quit
+2026-03-23 12:02:11.839013:──────────────────────────────────────────────────
+2026-03-23 12:02:11.839113:Choice: 
+2026-03-23 12:02:21.408990:  PASS: XNode.getTypename()
+2026-03-23 12:02:21.409824:  PASS: XNode.getLabel()
+2026-03-23 12:02:21.409956:  FAIL: Snapshot read — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:02:21.410040:  FAIL: iterate_commit — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:02:21.410073:  FAIL: XStringList.createByTypename — name 'XStringList' is not defined
+2026-03-23 12:02:21.410099:  Driver name for integration tests: 
+2026-03-23 12:02:27.517959:  FAIL: math tool stored typename — name 'Measure' is not defined
+2026-03-23 12:02:27.518162:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:02:27.518260:  1. XNode.getTypename()
+2026-03-23 12:02:27.518338:  2. XNode.getLabel()
+2026-03-23 12:02:27.518411:  3. Snapshot read
+2026-03-23 12:02:27.518483:  4. iterate_commit
+2026-03-23 12:02:27.518556:  5. XStringList.createByTypename
+2026-03-23 12:02:27.518625:  6. [Integration] Math tool stored typename
+2026-03-23 12:02:27.518689:  a. Run all unit tests
+2026-03-23 12:02:27.518751:  A. Run all (unit + integration)
+2026-03-23 12:02:27.518813:  q. Quit
+2026-03-23 12:02:27.518877:──────────────────────────────────────────────────
+2026-03-23 12:02:27.518947:Choice: 
+2026-03-23 12:02:29.145205:  PASS: XNode.getTypename()
+2026-03-23 12:02:29.145834:  PASS: XNode.getLabel()
+2026-03-23 12:02:29.146342:  FAIL: Snapshot read — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:02:29.146850:  FAIL: iterate_commit — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:02:29.147078:  FAIL: XStringList.createByTypename — name 'XStringList' is not defined
+2026-03-23 12:02:29.147260:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:02:29.147386:  1. XNode.getTypename()
+2026-03-23 12:02:29.147504:  2. XNode.getLabel()
+2026-03-23 12:02:29.147623:  3. Snapshot read
+2026-03-23 12:02:29.147735:  4. iterate_commit
+2026-03-23 12:02:29.147848:  5. XStringList.createByTypename
+2026-03-23 12:02:29.147962:  6. [Integration] Math tool stored typename
+2026-03-23 12:02:29.148072:  a. Run all unit tests
+2026-03-23 12:02:29.148188:  A. Run all (unit + integration)
+2026-03-23 12:02:29.148300:  q. Quit
+2026-03-23 12:02:29.148382:──────────────────────────────────────────────────
+2026-03-23 12:02:29.148470:Choice: 
+2026-03-23 12:04:15.519972:#<Thread(Thread-5 (loadSequence), started daemon 6234419200)> started.
+2026-03-23 12:04:15.524513:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:04:15.524626:  1. XNode.getTypename()
+2026-03-23 12:04:15.524708:  2. XNode.getLabel()
+2026-03-23 12:04:15.524779:  3. Snapshot read
+2026-03-23 12:04:15.524847:  4. iterate_commit
+2026-03-23 12:04:15.524912:  5. XStringList.createByTypename
+2026-03-23 12:04:15.524979:  6. [Integration] Math tool stored typename
+2026-03-23 12:04:15.525042:  a. Run all unit tests
+2026-03-23 12:04:15.525103:  A. Run all (unit + integration)
+2026-03-23 12:04:15.525165:  q. Quit
+2026-03-23 12:04:15.525228:──────────────────────────────────────────────────
+2026-03-23 12:04:15.525307:Choice: 
+2026-03-23 12:04:18.579153:  PASS: XNode.getTypename()
+2026-03-23 12:04:18.579278:  PASS: XNode.getLabel()
+2026-03-23 12:04:18.579472:  FAIL: Snapshot read — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:04:18.579618:  FAIL: iterate_commit — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:04:18.579682:  SKIP: XStringList.createByTypename — XStringList not bound in this build
+2026-03-23 12:04:18.579729:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:04:18.579764:  1. XNode.getTypename()
+2026-03-23 12:04:18.579794:  2. XNode.getLabel()
+2026-03-23 12:04:18.579823:  3. Snapshot read
+2026-03-23 12:04:18.579852:  4. iterate_commit
+2026-03-23 12:04:18.579881:  5. XStringList.createByTypename
+2026-03-23 12:04:18.579912:  6. [Integration] Math tool stored typename
+2026-03-23 12:04:18.579940:  a. Run all unit tests
+2026-03-23 12:04:18.579967:  A. Run all (unit + integration)
+2026-03-23 12:04:18.579995:  q. Quit
+2026-03-23 12:04:18.580024:──────────────────────────────────────────────────
+2026-03-23 12:04:18.580056:Choice: 
+2026-03-23 12:07:39.211293:#<Thread(Thread-6 (loadSequence), started daemon 6251245568)> started.
+2026-03-23 12:07:39.213596:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:07:39.213634:  1. XNode.getTypename()
+2026-03-23 12:07:39.213657:  2. XNode.getLabel()
+2026-03-23 12:07:39.213678:  3. Snapshot read
+2026-03-23 12:07:39.213698:  4. iterate_commit
+2026-03-23 12:07:39.213717:  5. XStringList.createByTypename
+2026-03-23 12:07:39.213737:  6. [Integration] Math tool stored typename
+2026-03-23 12:07:39.213755:  a. Run all unit tests
+2026-03-23 12:07:39.213776:  A. Run all (unit + integration)
+2026-03-23 12:07:39.213793:  q. Quit
+2026-03-23 12:07:39.213812:──────────────────────────────────────────────────
+2026-03-23 12:07:39.213839:Choice: 
+2026-03-23 12:07:41.055643:  PASS: XNode.getTypename()
+2026-03-23 12:07:41.055997:  PASS: XNode.getLabel()
+2026-03-23 12:07:41.072263:  FAIL: Snapshot read — expected numeric, got <class 'kame.XDoubleNode_Payload'>
+2026-03-23 12:07:41.072571:  FAIL: iterate_commit — return_value_policy = copy, but type Transactional::Transaction<XNode> is non-copyable!
+2026-03-23 12:07:41.072671:  SKIP: XStringList.createByTypename — XStringList not bound in this build
+2026-03-23 12:07:41.072742:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:07:41.072794:  1. XNode.getTypename()
+2026-03-23 12:07:41.072869:  2. XNode.getLabel()
+2026-03-23 12:07:41.072929:  3. Snapshot read
+2026-03-23 12:07:41.072954:  4. iterate_commit
+2026-03-23 12:07:41.072975:  5. XStringList.createByTypename
+2026-03-23 12:07:41.072996:  6. [Integration] Math tool stored typename
+2026-03-23 12:07:41.073013:  a. Run all unit tests
+2026-03-23 12:07:41.073030:  A. Run all (unit + integration)
+2026-03-23 12:07:41.073047:  q. Quit
+2026-03-23 12:07:41.073065:──────────────────────────────────────────────────
+2026-03-23 12:07:41.073086:Choice: 
+2026-03-23 12:36:13.599445:#<Thread(Thread-7 (loadSequence), started daemon 6268071936)> started.
+2026-03-23 12:36:13.605448:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:36:13.605511:  1. XNode.getTypename()
+2026-03-23 12:36:13.605536:  2. XNode.getLabel()
+2026-03-23 12:36:13.605558:  3. node.set + float/int/bool
+2026-03-23 12:36:13.605579:  4. node['child'] = val
+2026-03-23 12:36:13.605598:  5. XStringList.createByTypename
+2026-03-23 12:36:13.605620:  6. [Integration] Math tool stored typename
+2026-03-23 12:36:13.605638:  a. Run all unit tests
+2026-03-23 12:36:13.605655:  A. Run all (unit + integration)
+2026-03-23 12:36:13.605671:  q. Quit
+2026-03-23 12:36:13.605689:──────────────────────────────────────────────────
+2026-03-23 12:36:13.605727:Choice: 
+2026-03-23 12:36:16.249602:  PASS: XNode.getTypename()
+2026-03-23 12:36:16.249816:  PASS: XNode.getLabel()
+2026-03-23 12:36:16.254016:  PASS: node.set + float/int/bool read
+2026-03-23 12:36:16.254347:  PASS: node['child'] = val
+2026-03-23 12:36:16.254511:  SKIP: XStringList.createByTypename — XStringList not bound in this build
+2026-03-23 12:36:16.254609:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:36:16.254681:  1. XNode.getTypename()
+2026-03-23 12:36:16.254746:  2. XNode.getLabel()
+2026-03-23 12:36:16.254810:  3. node.set + float/int/bool
+2026-03-23 12:36:16.254873:  4. node['child'] = val
+2026-03-23 12:36:16.254936:  5. XStringList.createByTypename
+2026-03-23 12:36:16.255001:  6. [Integration] Math tool stored typename
+2026-03-23 12:36:16.255062:  a. Run all unit tests
+2026-03-23 12:36:16.255124:  A. Run all (unit + integration)
+2026-03-23 12:36:16.255185:  q. Quit
+2026-03-23 12:36:16.255248:──────────────────────────────────────────────────
+2026-03-23 12:36:16.255318:Choice: 
+2026-03-23 12:36:46.562500:  PASS: XNode.getTypename()
+2026-03-23 12:36:46.562829:  PASS: XNode.getLabel()
+2026-03-23 12:36:46.562943:  PASS: node.set + float/int/bool read
+2026-03-23 12:36:46.563041:  PASS: node['child'] = val
+2026-03-23 12:36:46.563111:  SKIP: XStringList.createByTypename — XStringList not bound in this build
+2026-03-23 12:36:46.563144:  Driver name for integration tests: 
+2026-03-23 12:36:52.468124:  FAIL: math tool stored typename — name 'Measure' is not defined
+2026-03-23 12:36:52.468441:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:36:52.468485:  1. XNode.getTypename()
+2026-03-23 12:36:52.468520:  2. XNode.getLabel()
+2026-03-23 12:36:52.468552:  3. node.set + float/int/bool
+2026-03-23 12:36:52.468584:  4. node['child'] = val
+2026-03-23 12:36:52.468614:  5. XStringList.createByTypename
+2026-03-23 12:36:52.468648:  6. [Integration] Math tool stored typename
+2026-03-23 12:36:52.468677:  a. Run all unit tests
+2026-03-23 12:36:52.468706:  A. Run all (unit + integration)
+2026-03-23 12:36:52.468735:  q. Quit
+2026-03-23 12:36:52.468765:──────────────────────────────────────────────────
+2026-03-23 12:36:52.468799:Choice: 
+2026-03-23 12:37:51.665653:#<Thread(Thread-8 (loadSequence), started daemon 6284898304)> started.
+2026-03-23 12:37:51.669596:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:37:51.669716:  1. XNode.getTypename()
+2026-03-23 12:37:51.669785:  2. XNode.getLabel()
+2026-03-23 12:37:51.669848:  3. node.set + float/int/bool
+2026-03-23 12:37:51.669914:  4. node['child'] = val
+2026-03-23 12:37:51.669976:  5. XStringList.createByTypename
+2026-03-23 12:37:51.670038:  6. [Integration] Math tool stored typename
+2026-03-23 12:37:51.670097:  a. Run all unit tests
+2026-03-23 12:37:51.670157:  A. Run all (unit + integration)
+2026-03-23 12:37:51.670215:  q. Quit
+2026-03-23 12:37:51.670276:──────────────────────────────────────────────────
+2026-03-23 12:37:51.670357:Choice: 
+2026-03-23 12:37:53.706220:  PASS: XNode.getTypename()
+2026-03-23 12:37:53.706319:  PASS: XNode.getLabel()
+2026-03-23 12:37:53.706447:  PASS: node.set + float/int/bool read
+2026-03-23 12:37:53.706549:  PASS: node['child'] = val
+2026-03-23 12:37:53.706615:  SKIP: XStringList.createByTypename — XStringList not bound in this build
+2026-03-23 12:37:53.706641:  Driver name for integration tests: 
+2026-03-23 12:37:57.776208:  FAIL: math tool stored typename — 'kame.XMeasure' object has no attribute 'getChild'
+2026-03-23 12:37:57.776411:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:37:57.776499:  1. XNode.getTypename()
+2026-03-23 12:37:57.776573:  2. XNode.getLabel()
+2026-03-23 12:37:57.776639:  3. node.set + float/int/bool
+2026-03-23 12:37:57.776701:  4. node['child'] = val
+2026-03-23 12:37:57.776763:  5. XStringList.createByTypename
+2026-03-23 12:37:57.776831:  6. [Integration] Math tool stored typename
+2026-03-23 12:37:57.776892:  a. Run all unit tests
+2026-03-23 12:37:57.776974:  A. Run all (unit + integration)
+2026-03-23 12:37:57.777038:  q. Quit
+2026-03-23 12:37:57.777098:──────────────────────────────────────────────────
+2026-03-23 12:37:57.777168:Choice: 
+2026-03-23 12:38:43.651132:#<Thread(Thread-9 (loadSequence), started daemon 6301724672)> started.
+2026-03-23 12:38:43.656780:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:38:43.656957:  1. XNode.getTypename()
+2026-03-23 12:38:43.657074:  2. XNode.getLabel()
+2026-03-23 12:38:43.657152:  3. node.set + float/int/bool
+2026-03-23 12:38:43.657224:  4. node['child'] = val
+2026-03-23 12:38:43.657286:  5. XStringList.createByTypename
+2026-03-23 12:38:43.657363:  6. [Integration] Math tool stored typename
+2026-03-23 12:38:43.657424:  a. Run all unit tests
+2026-03-23 12:38:43.657552:  A. Run all (unit + integration)
+2026-03-23 12:38:43.657626:  q. Quit
+2026-03-23 12:38:43.657690:──────────────────────────────────────────────────
+2026-03-23 12:38:43.657803:Choice: 
+2026-03-23 12:38:46.100960:  PASS: XNode.getTypename()
+2026-03-23 12:38:46.101156:  PASS: XNode.getLabel()
+2026-03-23 12:38:46.101392:  PASS: node.set + float/int/bool read
+2026-03-23 12:38:46.101629:  PASS: node['child'] = val
+2026-03-23 12:38:46.101786:  SKIP: XStringList.createByTypename — XStringList not bound in this build
+2026-03-23 12:38:46.101863:  Driver name for integration tests: 
+2026-03-23 12:38:47.526512:  SKIP: math tool stored typename — driver 'NMRT1' not found
+2026-03-23 12:38:47.526701:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:38:47.526818:  1. XNode.getTypename()
+2026-03-23 12:38:47.526907:  2. XNode.getLabel()
+2026-03-23 12:38:47.526986:  3. node.set + float/int/bool
+2026-03-23 12:38:47.527059:  4. node['child'] = val
+2026-03-23 12:38:47.527127:  5. XStringList.createByTypename
+2026-03-23 12:38:47.527198:  6. [Integration] Math tool stored typename
+2026-03-23 12:38:47.527264:  a. Run all unit tests
+2026-03-23 12:38:47.527327:  A. Run all (unit + integration)
+2026-03-23 12:38:47.527391:  q. Quit
+2026-03-23 12:38:47.527455:──────────────────────────────────────────────────
+2026-03-23 12:38:47.527526:Choice: 
+2026-03-23 12:38:53.216275:  PASS: XNode.getTypename()
+2026-03-23 12:38:53.216378:  PASS: XNode.getLabel()
+2026-03-23 12:38:53.216473:  PASS: node.set + float/int/bool read
+2026-03-23 12:38:53.216556:  PASS: node['child'] = val
+2026-03-23 12:38:53.216606:  SKIP: XStringList.createByTypename — XStringList not bound in this build
+2026-03-23 12:38:53.216631:  Driver name for integration tests: 
+2026-03-23 12:38:55.659680:  SKIP: math tool stored typename — driver 'XNMRT1' not found
+2026-03-23 12:38:55.659750:── KAME Python Tests ─────────────────────────────
+2026-03-23 12:38:55.659775:  1. XNode.getTypename()
+2026-03-23 12:38:55.659794:  2. XNode.getLabel()
+2026-03-23 12:38:55.659812:  3. node.set + float/int/bool
+2026-03-23 12:38:55.659830:  4. node['child'] = val
+2026-03-23 12:38:55.659847:  5. XStringList.createByTypename
+2026-03-23 12:38:55.659864:  6. [Integration] Math tool stored typename
+2026-03-23 12:38:55.659887:  a. Run all unit tests
+2026-03-23 12:38:55.659902:  A. Run all (unit + integration)
+2026-03-23 12:38:55.659917:  q. Quit
+2026-03-23 12:38:55.659933:──────────────────────────────────────────────────
+2026-03-23 12:38:55.659951:Choice: 
