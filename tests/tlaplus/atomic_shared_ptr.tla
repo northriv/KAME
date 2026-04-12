@@ -748,4 +748,11 @@ InstalledNotFreed ==
 (*    The invariants above capture this: if any invariant is violated when    *)
 (*    EnableRecycle=TRUE, it demonstrates an ABA vulnerability.               *)
 
+(* 7. Quiescent consistency: when all threads are idle, the reference     *)
+(*    counting state is fully consistent.                                 *)
+QuiescentCheck ==
+    (\A t \in Threads : pc[t] = "idle") =>
+        /\ \A o \in Objects : freed[o] = (global_rc[o] = 0)
+        /\ ptr /= NULL => global_rc[ptr] >= 1
+
 =============================================================================

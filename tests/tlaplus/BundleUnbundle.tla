@@ -80,9 +80,10 @@ ChildrenOf(n) ==
 \* ==========================================================================
 
 VARIABLES
-    serial, globalSerial, linkage, pc, op, target, local
+    serial, globalSerial, linkage, pc, op, target, local,
+    commit_count    \* per-node commit counter (model-only, for QuiescentCheck)
 
-vars == <<serial, globalSerial, linkage, pc, op, target, local>>
+vars == <<serial, globalSerial, linkage, pc, op, target, local, commit_count>>
 
 -----------------------------------------------------------------------------
 (* Modular serial arithmetic *)
@@ -124,6 +125,8 @@ EmptySubFor(n) ==
 \* Initial local state
 InitLocal == [
     wrapper     |-> Null,
+    parentWrapper |-> Null,    \* saved parent wrapper for unbundle CAS
+    gpWrapper   |-> Null,      \* saved grandparent wrapper for 2-level unbundle CAS
     subwrappers |-> Null,      \* function: children -> wrapper
     subpackets  |-> Null,      \* function: children -> packet
     bundleSer   |-> 0,
@@ -150,6 +153,7 @@ Init ==
     /\ op = [t \in Threads |-> "idle"]
     /\ target = [t \in Threads |-> Null]
     /\ local = [t \in Threads |-> InitLocal]
+    /\ commit_count = [n \in AllNodes |-> 0]
 
 -----------------------------------------------------------------------------
 (* Snapshot: read node, bundle if missing *)
@@ -163,7 +167,7 @@ SnapRead(t, node) ==
     /\ op' = [op EXCEPT ![t] = "snapshot"]
     /\ target' = [target EXCEPT ![t] = node]
     /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-    /\ UNCHANGED <<serial, globalSerial, linkage, local>>
+    /\ UNCHANGED <<serial, globalSerial, linkage, local, commit_count>>
 
 \* @c11_action SnapCheck(t):
 \*   local_shared_ptr<PacketWrapper> w(*node->m_link);
@@ -180,7 +184,7 @@ SnapCheck(t) ==
        THEN \* Fast path: complete
             /\ local' = [local EXCEPT ![t].snapResult = w.packet]
             /\ pc' = [pc EXCEPT ![t] = "snap_done"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
        ELSE IF w.hasPriority /\ w.packet.missing
        THEN \* Need to bundle this node
             LET ser == GenSerial(t, w.serial)
@@ -194,11 +198,11 @@ SnapCheck(t) ==
                    ![t].subpackets  = [c \in children |-> Null]]
             /\ UpdateSerial(t, ser)
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-            /\ UNCHANGED <<linkage, op, target>>
+            /\ UNCHANGED <<linkage, op, target, commit_count>>
        ELSE \* Node is bundled — need to unbundle first (snapshot from bundled state)
             \* For simplicity, just retry (the real code calls snapshotSupernode)
             /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 -----------------------------------------------------------------------------
 (* Bundle: 4-phase protocol *)
@@ -233,10 +237,10 @@ BundlePhase1(t) ==
                     ![t].subwrappers = childWs,
                     ![t].subpackets  = childPkts]
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase2"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
        ELSE \* Can't collect all — restart
             /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action BundlePhase2(t):
 \*   // Phase 2: CAS bundleNode's linkage with new packet (still missing=TRUE)
@@ -256,10 +260,10 @@ BundlePhase2(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![node] = newW]
             /\ local' = [local EXCEPT ![t].wrapper = newW]
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase3"]
-            /\ UNCHANGED <<serial, globalSerial, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, op, target, commit_count>>
        ELSE \* Disturbed
             /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action BundlePhase3(t):
 \*   // Phase 3: CAS each child to bundled-ref pointing to bundleNode
@@ -282,10 +286,10 @@ BundlePhase3(t) ==
                 THEN BundledRefWrapper(node, ser)
                 ELSE linkage[n]]
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-            /\ UNCHANGED <<serial, globalSerial, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
        ELSE \* Child modified — restart from phase 1
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action BundlePhase4(t):
 \*   // Phase 4: finalize -- clear missing flag, CAS bundleNode
@@ -307,10 +311,10 @@ BundlePhase4(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![node] = finalW]
             /\ local' = [local EXCEPT ![t].snapResult = finalPkt]
             /\ pc' = [pc EXCEPT ![t] = "snap_done"]
-            /\ UNCHANGED <<serial, globalSerial, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, op, target, commit_count>>
        ELSE \* Disturbed
             /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action SnapDone(t):
 \*   Return snapshot result to caller. Thread-local only.
@@ -320,7 +324,7 @@ SnapDone(t) ==
     /\ op' = [op EXCEPT ![t] = "idle"]
     /\ target' = [target EXCEPT ![t] = Null]
     /\ local' = [local EXCEPT ![t] = InitLocal]
-    /\ UNCHANGED <<serial, globalSerial, linkage>>
+    /\ UNCHANGED <<serial, globalSerial, linkage, commit_count>>
 
 -----------------------------------------------------------------------------
 (* Commit on a leaf or inner node *)
@@ -334,7 +338,7 @@ CommitStart(t, node) ==
     /\ op' = [op EXCEPT ![t] = "commit"]
     /\ target' = [target EXCEPT ![t] = node]
     /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-    /\ UNCHANGED <<serial, globalSerial, linkage, local>>
+    /\ UNCHANGED <<serial, globalSerial, linkage, local, commit_count>>
 
 \* @c11_action CommitRead(t):
 \*   local_shared_ptr<PacketWrapper> wrapper(*node->m_link);  -- load_shared_
@@ -357,11 +361,11 @@ CommitRead(t) ==
                                      w.packet.sub,
                                      w.packet.missing)]
             /\ pc' = [pc EXCEPT ![t] = "commit_try_cas"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
        ELSE \* Bundled — need unbundle
             /\ local' = [local EXCEPT ![t].wrapper = w]
             /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
 
 \* @c11_action CommitTryCAS(t):
 \*   // Direct commit (hasPriority path)
@@ -383,6 +387,7 @@ CommitTryCAS(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![node] = newW]
             /\ UpdateSerial(t, ser)
             /\ local' = [local EXCEPT ![t].commitOk = "ok"]
+            /\ commit_count' = [commit_count EXCEPT ![node] = @ + 1]
             /\ pc' = [pc EXCEPT ![t] = "commit_done"]
             /\ UNCHANGED <<op, target>>
        ELSE IF linkage[node].hasPriority
@@ -395,15 +400,15 @@ CommitTryCAS(t) ==
                            linkage[node].packet.sub,
                            linkage[node].packet.missing)]
                  /\ pc' = [pc EXCEPT ![t] = "commit_try_cas"]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
+                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
             ELSE \* True conflict
                  /\ local' = [local EXCEPT ![t].commitOk = "fail"]
                  /\ pc' = [pc EXCEPT ![t] = "commit_done"]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
+                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
        ELSE \* Got bundled — unbundle
             /\ local' = [local EXCEPT ![t].wrapper = linkage[node]]
             /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
 
 -----------------------------------------------------------------------------
 (* Unbundle — recursive walk up the bundledBy chain *)
@@ -431,16 +436,17 @@ UnbundleWalk(t) ==
             THEN \* Parent has priority — extract sub-packet
                  IF parentW.packet.sub[node] /= Null
                  THEN /\ local' = [local EXCEPT
+                           ![t].parentWrapper = parentW,
                            ![t].oldpacket = parentW.packet.sub[node],
                            ![t].newpacket = MakePacket(node,
                                (parentW.packet.sub[node].payload + 1) % MaxPayload,
                                parentW.packet.sub[node].sub,
                                parentW.packet.sub[node].missing)]
                       /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_ancestor"]
-                      /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
+                      /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
                  ELSE \* Sub-packet is Null (not yet bundled) — retry
                       /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                      /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+                      /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
             ELSE \* Parent itself is bundled — need to walk up further
                  \* The grandparent must hold the full bundle
                  LET grandparent == parentW.bundledBy
@@ -454,22 +460,23 @@ UnbundleWalk(t) ==
                            LET subPkt == gpW.packet.sub[parent].sub[node]
                            IN
                            /\ local' = [local EXCEPT
+                                 ![t].gpWrapper = gpW,
                                  ![t].oldpacket = subPkt,
                                  ![t].newpacket = MakePacket(node,
                                      (subPkt.payload + 1) % MaxPayload,
                                      subPkt.sub,
                                      subPkt.missing)]
                            /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_gp"]
-                           /\ UNCHANGED <<serial, globalSerial, linkage, op, target>>
+                           /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
                       ELSE \* Can't find — retry
                            /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                           /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+                           /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
                  ELSE \* No grandparent — retry
                       /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                      /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+                      /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
        ELSE \* bundledBy is Null — retry
             /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action UnbundleCASAncestor(t):
 \*   // CAS parent: mark child's slot as Null (missing=TRUE)
@@ -481,20 +488,20 @@ UnbundleCASAncestor(t) ==
     /\ pc[t] = "unbundle_cas_ancestor"
     /\ LET node     == target[t]
            parent   == local[t].wrapper.bundledBy
-           parentW  == linkage[parent]
-           ser      == GenSerial(t, parentW.serial)
-           newSub   == [parentW.packet.sub EXCEPT ![node] = Null]
-           newPkt   == MakePacket(parent, parentW.packet.payload, newSub, TRUE)
+           oldParentW == local[t].parentWrapper
+           ser      == GenSerial(t, oldParentW.serial)
+           newSub   == [oldParentW.packet.sub EXCEPT ![node] = Null]
+           newPkt   == MakePacket(parent, oldParentW.packet.payload, newSub, TRUE)
            newPW    == PriorityWrapper(newPkt, ser)
        IN
-       IF parentW.hasPriority /\ linkage[parent] = parentW
+       IF oldParentW.hasPriority /\ linkage[parent] = oldParentW
        THEN /\ linkage' = [linkage EXCEPT ![parent] = newPW]
             /\ UpdateSerial(t, ser)
             /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_child"]
-            /\ UNCHANGED <<local, op, target>>
+            /\ UNCHANGED <<local, op, target, commit_count>>
        ELSE \* Disturbed
             /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action UnbundleCASGP(t):
 \*   // CAS grandparent (2 levels up): clear child's slot in the parent sub-packet
@@ -510,28 +517,28 @@ UnbundleCASGP(t) ==
     /\ LET node       == target[t]
            parentNode == ParentOf(node)
            gpNode     == ParentOf(parentNode)
-           gpW        == linkage[gpNode]
-           ser        == GenSerial(t, gpW.serial)
+           oldGPW     == local[t].gpWrapper
+           ser        == GenSerial(t, oldGPW.serial)
        IN
-       IF gpW.hasPriority /\ linkage[gpNode] = gpW
-          /\ gpW.packet.sub[parentNode] /= Null
+       IF oldGPW.hasPriority /\ linkage[gpNode] = oldGPW
+          /\ oldGPW.packet.sub[parentNode] /= Null
        THEN \* CAS grandparent: clear parent's slot
-            LET parentPkt   == gpW.packet.sub[parentNode]
+            LET parentPkt   == oldGPW.packet.sub[parentNode]
                 newParentSub == [parentPkt.sub EXCEPT ![node] = Null]
                 newParentPkt == MakePacket(parentNode, parentPkt.payload,
                                            newParentSub, TRUE)
-                newGPSub     == [gpW.packet.sub EXCEPT ![parentNode] = newParentPkt]
-                newGPPkt     == MakePacket(gpNode, gpW.packet.payload,
+                newGPSub     == [oldGPW.packet.sub EXCEPT ![parentNode] = newParentPkt]
+                newGPPkt     == MakePacket(gpNode, oldGPW.packet.payload,
                                            newGPSub, TRUE)
                 newGPW       == PriorityWrapper(newGPPkt, ser)
             IN
             /\ linkage' = [linkage EXCEPT ![gpNode] = newGPW]
             /\ UpdateSerial(t, ser)
             /\ pc' = [pc EXCEPT ![t] = "unbundle_restore_parent"]
-            /\ UNCHANGED <<local, op, target>>
+            /\ UNCHANGED <<local, op, target, commit_count>>
        ELSE \* Disturbed
             /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action UnbundleRestoreParent(t):
 \*   // After GP unbundle CAS: restore parent to priority with its sub-packet
@@ -559,13 +566,13 @@ UnbundleRestoreParent(t) ==
                  /\ linkage' = [linkage EXCEPT ![parentNode] = newPW]
                  /\ UpdateSerial(t, ser)
                  /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_child"]
-                 /\ UNCHANGED <<local, op, target>>
+                 /\ UNCHANGED <<local, op, target, commit_count>>
             ELSE \* Disturbed
                  /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
        ELSE \* Parent already has priority (maybe another thread restored it)
             /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_child"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action UnbundleCASChild(t):
 \*   // Restore child to priority with extracted sub-packet
@@ -584,11 +591,12 @@ UnbundleCASChild(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![node] = newChildW]
             /\ UpdateSerial(t, ser)
             /\ local' = [local EXCEPT ![t].commitOk = "ok"]
+            /\ commit_count' = [commit_count EXCEPT ![node] = @ + 1]
             /\ pc' = [pc EXCEPT ![t] = "commit_done"]
             /\ UNCHANGED <<op, target>>
        ELSE \* Child changed — retry
             /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action CommitDone(t):
 \*   Return commit result to caller. Thread-local only.
@@ -598,7 +606,7 @@ CommitDone(t) ==
     /\ op' = [op EXCEPT ![t] = "idle"]
     /\ target' = [target EXCEPT ![t] = Null]
     /\ local' = [local EXCEPT ![t] = InitLocal]
-    /\ UNCHANGED <<serial, globalSerial, linkage>>
+    /\ UNCHANGED <<serial, globalSerial, linkage, commit_count>>
 
 -----------------------------------------------------------------------------
 (* Next-state relation *)
@@ -665,5 +673,14 @@ Safety ==
     /\ BundleChainValid
     /\ BundledByCorrect
     /\ GrandAlwaysPriority
+
+\* INV6: Quiescent consistency — when all threads are idle:
+\*   Any non-Grand node that has priority has payload = commit_count mod MaxPayload.
+\*   Nodes may remain bundled after snapshot, so hasPriority is not required.
+QuiescentCheck ==
+    (\A t \in Threads : pc[t] = "idle") =>
+        \A n \in AllNodes \ {Grand} :
+            linkage[n].hasPriority =>
+                linkage[n].packet.payload = commit_count[n] % MaxPayload
 
 =============================================================================

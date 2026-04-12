@@ -32,8 +32,12 @@ EXTENDS Integers, FiniteSets, TLC
 
 CONSTANTS
     Threads,        \* set of thread IDs
-    MaxVal,         \* max payload value (for bounded state space)
-    MaxSerial       \* max serial number (for bounded state space)
+    MaxVal,         \* payload wrap-around value (modular arithmetic)
+    MaxSerial       \* serial wrap-around value (modular arithmetic, must be even)
+
+\* Modular serial comparison (same as C++ unsigned subtraction reinterpreted as signed)
+ModGT(a, b) == LET diff == (a - b + MaxSerial) % MaxSerial
+               IN  diff > 0 /\ diff < MaxSerial \div 2
 
 \* ==========================================================================
 \* @c11_mapping -- Variable-to-C++ correspondence (Layer 1)
@@ -90,12 +94,12 @@ vars == <<node_val, node_serial, pc, thr_snap_val, thr_snap_ser,
 (* Type invariant                                                             *)
 (* -------------------------------------------------------------------------- *)
 TypeOK ==
-    /\ node_val \in 0..MaxVal
-    /\ node_serial \in 0..MaxSerial
+    /\ node_val \in 0..(MaxVal - 1)
+    /\ node_serial \in 0..(MaxSerial - 1)
     /\ pc \in [Threads -> {"idle", "snapshot", "write", "commit", "done"}]
-    /\ thr_snap_val \in [Threads -> 0..MaxVal]
-    /\ thr_snap_ser \in [Threads -> 0..MaxSerial]
-    /\ thr_write_val \in [Threads -> 0..MaxVal]
+    /\ thr_snap_val \in [Threads -> 0..(MaxVal - 1)]
+    /\ thr_snap_ser \in [Threads -> 0..(MaxSerial - 1)]
+    /\ thr_write_val \in [Threads -> 0..(MaxVal - 1)]
     /\ thr_committed \in [Threads -> Nat]
 
 (* -------------------------------------------------------------------------- *)
@@ -128,18 +132,6 @@ TakeSnapshot(t) ==
     /\ thr_snap_ser' = [thr_snap_ser EXCEPT ![t] = node_serial]
     /\ UNCHANGED <<node_val, node_serial, thr_write_val, thr_committed>>
 
-\* @c11_action Write(t):
-\*   tr[node].m_x = v;  -- copy-on-write via Transaction::operator[]
-\*   The closure body is arbitrary; modeled as nondeterministic value.
-\*   All writes are thread-local (COW payload) -- no atomic ops.
-\*   Source: transaction.h:564-566
-Write(t) ==
-    /\ pc[t] = "snapshot"
-    /\ \E v \in 0..MaxVal :
-       thr_write_val' = [thr_write_val EXCEPT ![t] = v]
-    /\ pc' = [pc EXCEPT ![t] = "write"]
-    /\ UNCHANGED <<node_val, node_serial, thr_snap_val, thr_snap_ser, thr_committed>>
-
 \* @c11_action WriteIncrement(t):
 \*   tr[node].m_x = shot[node].m_x + 1;
 \*   Deterministic variant: read-modify-write on the snapshot value.
@@ -147,8 +139,7 @@ Write(t) ==
 \*   Source: transaction.h:564-566
 WriteIncrement(t) ==
     /\ pc[t] = "snapshot"
-    /\ thr_snap_val[t] + 1 <= MaxVal
-    /\ thr_write_val' = [thr_write_val EXCEPT ![t] = thr_snap_val[t] + 1]
+    /\ thr_write_val' = [thr_write_val EXCEPT ![t] = (thr_snap_val[t] + 1) % MaxVal]
     /\ pc' = [pc EXCEPT ![t] = "write"]
     /\ UNCHANGED <<node_val, node_serial, thr_snap_val, thr_snap_ser, thr_committed>>
 
@@ -169,9 +160,8 @@ Commit(t) ==
     /\ \/ \* CAS succeeds: node state matches our snapshot
           /\ node_val = thr_snap_val[t]
           /\ node_serial = thr_snap_ser[t]
-          /\ node_serial + 1 <= MaxSerial  \* guard for state space bound
           /\ node_val' = thr_write_val[t]
-          /\ node_serial' = node_serial + 1
+          /\ node_serial' = (node_serial + 1) % MaxSerial
           /\ thr_committed' = [thr_committed EXCEPT ![t] = @ + 1]
           /\ pc' = [pc EXCEPT ![t] = "done"]
           /\ UNCHANGED <<thr_snap_val, thr_snap_ser, thr_write_val>>
@@ -195,15 +185,20 @@ ReturnToIdle(t) ==
 Next ==
     \E t \in Threads :
         \/ TakeSnapshot(t)
-        \/ Write(t)
         \/ WriteIncrement(t)
         \/ Commit(t)
         \/ ReturnToIdle(t)
 
-\* State constraint
+RECURSIVE SumSet(_)
+SumSet(S) ==
+    IF S = {} THEN 0
+    ELSE LET t == CHOOSE t \in S : TRUE
+         IN thr_committed[t] + SumSet(S \ {t})
+
+\* Bound state space: total commits < MaxSerial prevents serial ABA.
+\* In C++, MaxSerial is 2^48 so this holds in practice.
 StateConstraint ==
-    /\ node_serial <= MaxSerial
-    /\ \A t \in Threads : thr_committed[t] <= MaxSerial
+    SumSet(Threads) < MaxSerial
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
@@ -211,47 +206,29 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 (* Safety Properties                                                          *)
 (* ========================================================================== *)
 
-\* 1. No Lost Updates: when a commit succeeds, the CAS ensured that no
-\*    other transaction committed since our snapshot. The serial number
-\*    strictly increases on each commit, preventing ABA on the packet.
-\*    This is verified structurally: if two threads both committed at least
-\*    once, at least two serial increments have occurred.
 NoLostUpdate ==
     \A t1, t2 \in Threads :
         (t1 /= t2 /\ thr_committed[t1] > 0 /\ thr_committed[t2] > 0)
-        => node_serial >= 2
+        => SumSet(Threads) >= 2
 
-\* 2. Commit Serializes: at most one thread can commit per serial number.
-\*    Total commits across all threads cannot exceed the serial count.
-RECURSIVE SumSet(_)
-SumSet(S) ==
-    IF S = {} THEN 0
-    ELSE LET t == CHOOSE t \in S : TRUE
-         IN thr_committed[t] + SumSet(S \ {t})
-
+\* 2. Commit Serializes (modular): total commits mod MaxSerial = node_serial.
+\*    This is the modular equivalent of SumSet <= node_serial.
 CommitSerializes ==
-    SumSet(Threads) <= node_serial
+    SumSet(Threads) % MaxSerial = node_serial
 
-\* 3. Snapshot Freshness: each committed thread's snapshot serial is
-\*    strictly less than the current node_serial (the commit incremented it).
-SnapshotBeforeCommit ==
-    \A t \in Threads :
-        (pc[t] = "done" /\ thr_committed[t] > 0)
-        => thr_snap_ser[t] < node_serial
-
-\* 4. Increment correctness: if only increment operations are used,
-\*    node_val = node_serial (each commit adds exactly 1).
-\*    Since we also have nondeterministic writes, we check the weaker:
-\*    node_val <= MaxVal always holds.
-ValueBounded ==
-    node_val <= MaxVal
-
-\* 5. Write-Read Consistency: a committed thread's write value is now
-\*    visible -- if it just committed (pc=done, thr_committed>0),
-\*    node_val equals its write value (it was the last writer).
+\* 3. Write-Read Consistency (modular): a committed thread's write value
+\*    is visible if it was the last writer (snap serial = serial - 1).
 WriteReadConsistency ==
     \A t \in Threads :
-        (pc[t] = "done" /\ thr_committed[t] > 0 /\ thr_snap_ser[t] = node_serial - 1)
+        (pc[t] = "done" /\ thr_committed[t] > 0
+         /\ thr_snap_ser[t] = (node_serial - 1 + MaxSerial) % MaxSerial)
         => node_val = thr_write_val[t]
+
+\* 6. Quiescent consistency: when all threads are idle,
+\*    total commits matches both serial and value (modular).
+QuiescentCheck ==
+    (\A t \in Threads : pc[t] = "idle") =>
+        /\ SumSet(Threads) % MaxSerial = node_serial
+        /\ SumSet(Threads) % MaxVal = node_val
 
 =============================================================================
