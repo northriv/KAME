@@ -1,16 +1,3 @@
-/***************************************************************************
-        Copyright (C) 2002-2026 Kentaro Kitagawa
-                           kitag@issp.u-tokyo.ac.jp
-
-        This program is free software; you can redistribute it and/or
-        modify it under the terms of the GNU General Public
-        License as published by the Free Software Foundation; either
-        version 2 of the License, or (at your option) any later version.
-
-        You should have received a copy of the GNU General
-        Public License and a list of authors along with this program;
-        see the files COPYING and AUTHORS.
- ***************************************************************************/
 /*
  * C11 test generated mechanically from BundleUnbundle.tla (Layer 2, 3-level)
  *
@@ -150,6 +137,9 @@ static Wrapper wrapper_unpack(uint64_t v) {
 
 /* --- Shared state --- */
 _Atomic(uint64_t) linkage[NUM_NODES];
+
+/* Per-node commit counter (model-only, for QuiescentCheck) */
+_Atomic(uint32_t) commit_count[NUM_NODES];
 
 static Wrapper load_wrapper(int node) {
     return wrapper_unpack(atomic_load_explicit(&linkage[node], memory_order_acquire));
@@ -318,6 +308,7 @@ static bool commit_child(int child_node, uint8_t *thread_ser) {
             Wrapper expected = cw;
             if (cas_wrapper(child_node, &expected, new_cw)) {
                 *thread_ser = ser;
+                atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
                 return true;
             }
             if (expected.has_priority && expected.payload == cw.payload) {
@@ -337,28 +328,31 @@ static bool commit_child(int child_node, uint8_t *thread_ser) {
 
         if (parent_w.has_priority) {
             /* 1-level unbundle: UnbundleCASAncestor → UnbundleCASChild */
+            /* Save parentWrapper (local[t].parentWrapper = parentW) */
+            Wrapper saved_parent_w = parent_w;
             int sub_idx = (child_node == NODE_CHILD1) ? 0 : 1;
-            if (parent_w.sub[sub_idx] == W_NULL_SUB) { continue; }
-            uint8_t old_payload = parent_w.sub[sub_idx];
+            if (saved_parent_w.sub[sub_idx] == W_NULL_SUB) { continue; }
+            uint8_t old_payload = saved_parent_w.sub[sub_idx];
             uint8_t new_payload = (old_payload + 1) % MAX_PAYLOAD;
 
-            /* CAS parent: clear child's slot */
-            uint8_t ser = gen_serial(*thread_ser, parent_w.serial);
-            Wrapper new_pw = parent_w;
+            /* UnbundleCASAncestor: CAS parent using saved parentWrapper */
+            uint8_t ser = gen_serial(*thread_ser, saved_parent_w.serial);
+            Wrapper new_pw = saved_parent_w;
             new_pw.serial = ser;
             new_pw.sub[sub_idx] = W_NULL_SUB;
             new_pw.missing = true;
-            Wrapper exp_pw = parent_w;
+            Wrapper exp_pw = saved_parent_w;
             if (!cas_wrapper(parent, &exp_pw, new_pw)) continue;
             *thread_ser = ser;
 
-            /* CAS child: restore to priority */
+            /* UnbundleCASChild: restore to priority */
             uint8_t child_ser = gen_serial(*thread_ser, cw.serial);
             Wrapper new_child = make_priority(new_payload, child_ser,
                                                W_NULL_SUB, W_NULL_SUB, false);
             Wrapper exp_child = cw;
             if (cas_wrapper(child_node, &exp_child, new_child)) {
                 *thread_ser = child_ser;
+                atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
                 return true;
             }
             continue;  /* retry */
@@ -371,12 +365,15 @@ static bool commit_child(int child_node, uint8_t *thread_ser) {
         Wrapper gp_w = load_wrapper(gp);
         if (!gp_w.has_priority) continue;
 
+        /* Save gpWrapper (local[t].gpWrapper = gpW) */
+        Wrapper saved_gp_w = gp_w;
+
         /* Extract child's payload from GP's nested sub-packets */
         int sub_idx = (child_node == NODE_CHILD1) ? 0 : 1;
         uint8_t old_payload;
         if (gp == NODE_GRAND && parent == NODE_PARENT) {
-            if (gp_w.sub[0] == W_NULL_SUB) continue;  /* Parent not in GP's bundle */
-            old_payload = gp_w.sub_nested[sub_idx];
+            if (saved_gp_w.sub[0] == W_NULL_SUB) continue;
+            old_payload = saved_gp_w.sub_nested[sub_idx];
             if (old_payload == W_NULL_SUB) continue;
         } else {
             continue;
@@ -384,13 +381,13 @@ static bool commit_child(int child_node, uint8_t *thread_ser) {
 
         uint8_t new_payload = (old_payload + 1) % MAX_PAYLOAD;
 
-        /* UnbundleCASGP: CAS GP to clear child's slot in parent's sub-packet */
-        uint8_t ser = gen_serial(*thread_ser, gp_w.serial);
-        Wrapper new_gp = gp_w;
+        /* UnbundleCASGP: CAS GP using saved gpWrapper */
+        uint8_t ser = gen_serial(*thread_ser, saved_gp_w.serial);
+        Wrapper new_gp = saved_gp_w;
         new_gp.serial = ser;
         new_gp.sub_nested[sub_idx] = W_NULL_SUB;
         new_gp.missing = true;
-        Wrapper exp_gp = gp_w;
+        Wrapper exp_gp = saved_gp_w;
         if (!cas_wrapper(gp, &exp_gp, new_gp)) continue;
         *thread_ser = ser;
 
@@ -420,6 +417,7 @@ static bool commit_child(int child_node, uint8_t *thread_ser) {
         Wrapper exp_child = cw;
         if (cas_wrapper(child_node, &exp_child, new_child)) {
             *thread_ser = child_ser;
+            atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
             return true;
         }
         /* retry */
@@ -466,6 +464,8 @@ int main(void) {
     atomic_store(&linkage[NODE_PARENT], wrapper_pack(init_parent));
     atomic_store(&linkage[NODE_CHILD1], wrapper_pack(init_child1));
     atomic_store(&linkage[NODE_CHILD2], wrapper_pack(init_child2));
+    for (int i = 0; i < NUM_NODES; i++)
+        atomic_store(&commit_count[i], 0);
 
     pthread_t t0, t1;
     pthread_create(&t0, NULL, thread_snapshot, NULL);
@@ -510,6 +510,16 @@ int main(void) {
         if (!w.has_priority && w.bundled_by != NULL_NODE) {
             Wrapper p = load_wrapper(w.bundled_by);
             assert(p.has_priority || p.bundled_by != NULL_NODE);
+        }
+    }
+
+    /* QuiescentCheck: all threads idle → non-Grand hasPriority nodes have
+     * payload == commit_count[node] % MAX_PAYLOAD */
+    for (int n = NODE_PARENT; n <= NODE_CHILD2; n++) {
+        Wrapper w = load_wrapper(n);
+        if (w.has_priority) {
+            uint32_t cc = atomic_load(&commit_count[n]);
+            assert(w.payload == cc % MAX_PAYLOAD);
         }
     }
 

@@ -49,6 +49,7 @@ NULL == CHOOSE x : x \notin Objects
 (* Symmetry sets — declared here, used in .cfg via SYMMETRY *)
 ThreadSymmetry == Permutations(Threads)
 ObjectSymmetry == Permutations(Objects)
+AllSymmetry == ThreadSymmetry \union ObjectSymmetry
 
 \* ==========================================================================
 \* @c11_mapping — Variable-to-C11 correspondence

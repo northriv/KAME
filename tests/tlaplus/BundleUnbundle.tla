@@ -44,6 +44,9 @@ AllNodes == {Grand, Parent, Child1, Child2}
 LeafNodes == {Child1, Child2}
 InnerNodes == {Grand, Parent}
 
+(* Symmetry sets for state space reduction *)
+ThreadSymmetry == Permutations(Threads)
+
 \* Which node is the parent of which
 ParentOf(n) ==
     IF n \in ParentChildren THEN Parent

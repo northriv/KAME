@@ -1,16 +1,3 @@
-/***************************************************************************
-        Copyright (C) 2002-2026 Kentaro Kitagawa
-                           kitag@issp.u-tokyo.ac.jp
-
-        This program is free software; you can redistribute it and/or
-        modify it under the terms of the GNU General Public
-        License as published by the Free Software Foundation; either
-        version 2 of the License, or (at your option) any later version.
-
-        You should have received a copy of the GNU General
-        Public License and a list of authors along with this program;
-        see the files COPYING and AUTHORS.
- ***************************************************************************/
 /*
  * C11 test generated mechanically from BundleUnbundle_2level.tla (Layer 2, 2-level)
  *
@@ -118,6 +105,9 @@ static inline Wrapper wrapper_unpack(uint64_t v) {
 
 /* --- Shared state: one atomic word per node --- */
 _Atomic(uint64_t) linkage[NUM_NODES];
+
+/* Per-node commit counter (model-only, for QuiescentCheck) */
+_Atomic(uint32_t) commit_count[NUM_NODES];
 
 /* --- Helpers to read/CAS a node's wrapper --- */
 static Wrapper load_wrapper(int node) {
@@ -262,6 +252,7 @@ static bool commit_child(int child_node, uint8_t *thread_ser) {
             Wrapper expected = cw;
             if (cas_wrapper(child_node, &expected, new_cw)) {
                 *thread_ser = ser;
+                atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
                 return true;
             }
             /* CAS failed: check if payload unchanged (single-node optimization) */
@@ -283,6 +274,7 @@ static bool commit_child(int child_node, uint8_t *thread_ser) {
             continue;  /* unexpected → retry */
         }
 
+        /* UnbundleWalk: save parentWrapper (local[t].parentWrapper = parentW) */
         Wrapper parent_w = load_wrapper(NODE_PARENT);
         if (!parent_w.has_priority) {
             continue;  /* parent also bundled → retry */
@@ -299,17 +291,18 @@ static bool commit_child(int child_node, uint8_t *thread_ser) {
 
         uint8_t new_child_payload = (old_child_payload + 1) % MAX_PAYLOAD;
 
-        /* UnbundleCASAncestors: CAS parent to mark child's slot as Null */
-        uint8_t ser = gen_serial(*thread_ser, parent_w.serial);
+        /* UnbundleCASAncestors: CAS parent using saved parentWrapper */
+        Wrapper saved_parent_w = parent_w;  /* local[t].parentWrapper */
+        uint8_t ser = gen_serial(*thread_ser, saved_parent_w.serial);
         Wrapper new_parent;
         if (child_node == NODE_CHILD1) {
-            new_parent = priority_wrapper(parent_w.payload, ser,
-                                           W_NULL_SUB, parent_w.sub_child2, true);
+            new_parent = priority_wrapper(saved_parent_w.payload, ser,
+                                           W_NULL_SUB, saved_parent_w.sub_child2, true);
         } else {
-            new_parent = priority_wrapper(parent_w.payload, ser,
-                                           parent_w.sub_child1, W_NULL_SUB, true);
+            new_parent = priority_wrapper(saved_parent_w.payload, ser,
+                                           saved_parent_w.sub_child1, W_NULL_SUB, true);
         }
-        Wrapper exp_parent = parent_w;
+        Wrapper exp_parent = saved_parent_w;
         if (!cas_wrapper(NODE_PARENT, &exp_parent, new_parent)) {
             continue;  /* disturbed → retry */
         }
@@ -322,6 +315,7 @@ static bool commit_child(int child_node, uint8_t *thread_ser) {
         Wrapper exp_child = cw;
         if (cas_wrapper(child_node, &exp_child, new_child)) {
             *thread_ser = child_ser;
+            atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
             return true;
         }
         /* Child changed → retry from CommitRead */
@@ -364,6 +358,8 @@ int main(void) {
     atomic_store(&linkage[NODE_PARENT], wrapper_pack(init_parent));
     atomic_store(&linkage[NODE_CHILD1], wrapper_pack(init_child1));
     atomic_store(&linkage[NODE_CHILD2], wrapper_pack(init_child2));
+    for (int i = 0; i < NUM_NODES; i++)
+        atomic_store(&commit_count[i], 0);
 
     pthread_t t0, t1;
     pthread_create(&t0, NULL, thread_snapshot, NULL);
@@ -392,6 +388,16 @@ int main(void) {
         Wrapper w = load_wrapper(c);
         if (!w.has_priority && w.bundled_by == NODE_PARENT) {
             assert(pw.has_priority);
+        }
+    }
+
+    /* QuiescentCheck: all threads idle → hasPriority child has
+     * payload == commit_count[child] % MAX_PAYLOAD */
+    for (int c = NODE_CHILD1; c <= NODE_CHILD2; c++) {
+        Wrapper w = load_wrapper(c);
+        if (w.has_priority) {
+            uint32_t cc = atomic_load(&commit_count[c]);
+            assert(w.payload == cc % MAX_PAYLOAD);
         }
     }
 

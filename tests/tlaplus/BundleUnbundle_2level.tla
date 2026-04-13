@@ -39,6 +39,9 @@ CONSTANTS
 Children == {Child1, Child2}
 Nodes == {Parent} \cup Children
 
+(* Symmetry sets for state space reduction *)
+ThreadSymmetry == Permutations(Threads)
+
 \* ==========================================================================
 \* @c11_mapping -- Variable-to-C++ correspondence (Layer 2, 2-level tree)
 \*
