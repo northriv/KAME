@@ -236,10 +236,9 @@ Grand ── Parent ──┬── Child1<br>
 <h2>検証結果（StateConstraintなし、モジュラー算術）</h2>
 <table>
 <tr><th>モデル</th><th>スレッド</th><th>MaxSerial</th><th>状態数</th><th>時間</th><th>結果</th></tr>
-<tr><td>2レベル</td><td>2</td><td>6</td><td>~3,970,000</td><td>17秒</td><td style="color:#4ade80">✅ Pass</td></tr>
-<tr><td>3レベル</td><td>1</td><td>6</td><td>24,002,256</td><td>7分</td><td style="color:#4ade80">✅ Pass</td></tr>
-<tr><td>3レベル</td><td>2</td><td>6</td><td>~76,000,000</td><td>25分</td><td style="color:#4ade80">✅ Pass</td></tr>
-<tr><td>3レベル 3thr</td><td>3</td><td>—</td><td>—</td><td>—</td><td>ohtaka待ち</td></tr>
+<tr><td>2レベル</td><td>2</td><td>8</td><td>150M+</td><td>—</td><td style="color:#fbbf24">進行中（違反なし）</td></tr>
+<tr><td>3レベル</td><td>2</td><td>8</td><td>145M+</td><td>—</td><td style="color:#fbbf24">進行中（違反なし）</td></tr>
+<tr><td colspan="6" style="font-size:0.85em; color:#94a3b8;">MaxSerial=8（モジュラー算術）。2スレッド完全探索はohtaka待ち。QuiescentCheck追加済み。</td></tr>
 </table>
 
 <div class="box-purple">
@@ -255,12 +254,12 @@ Grand ── Parent ──┬── Child1<br>
 <table>
 <tr><th>層</th><th>何を抽象化</th><th>何を検証</th><th>状態数</th></tr>
 <tr><td style="color:#0891b2"><strong>Layer 0</strong></td><td>—</td><td>参照カウント、ABA、メモリ安全性</td><td>8.7M</td></tr>
-<tr><td style="color:#3b82f6"><strong>Layer 1</strong></td><td>atomic_shared_ptrを正しいレジスタに</td><td>Snapshot→Commit、Lost Update防止</td><td>110M</td></tr>
-<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td>Commitを正しいCASに</td><td>Bundle/Unbundle、サブツリー整合性</td><td>~80M</td></tr>
+<tr><td style="color:#3b82f6"><strong>Layer 1</strong></td><td>atomic_shared_ptrを正しいレジスタに</td><td>Snapshot→Commit、Lost Update防止</td><td>78K</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td>Commitを正しいCASに</td><td>Bundle/Unbundle、サブツリー整合性</td><td>150M+ (進行中)</td></tr>
 </table>
 
 <div class="box">
-<p><strong>合計 ~2億 状態</strong> — StateConstraintなしで全到達可能状態を探索、すべてパス。<br>
+<p><strong>Layer 0/1完全探索済み、Layer 2はohtaka待ち。</strong><br>
 各層は下の層の正しさを前提に抽象化。GenMC (Layer 0) がメモリモデルの正しさを補完。</p>
 </div>
 </div>

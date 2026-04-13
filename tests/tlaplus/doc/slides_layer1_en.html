@@ -106,7 +106,7 @@ Details of reference counting are not modeled.</p>
 
 <!-- ===== Slide 3: Invariants ===== -->
 <div class="slide">
-<h1>Verified Invariants (5 + TypeOK)</h1>
+<h1>Verified Invariants (5)</h1>
 
 <pre><code><span class="comment">\* 1. No Lost Update: if 2 threads both commit successfully → serial increases by at least 2</span>
 <span class="op">NoLostUpdate</span> ==
@@ -114,29 +114,26 @@ Details of reference counting are not modeled.</p>
         (t1 /= t2 /\ thr_committed[t1] > <span class="num">0</span> /\ thr_committed[t2] > <span class="num">0</span>)
         => node_serial >= <span class="num">2</span>
 
-<span class="comment">\* 2. Commits are serialized: total commit count across all threads ≤ serial</span>
+<span class="comment">\* 2. Commits are serialized: total commits % MaxSerial = serial</span>
 <span class="op">CommitSerializes</span> ==
-    totalCommits &lt;= node_serial
+    SumSet(Threads) % MaxSerial = node_serial
 
-<span class="comment">\* 3. Snapshot precedes commit: committer's snap_ser &lt; current serial</span>
-<span class="op">SnapshotBeforeCommit</span> ==
-    \A t \in Threads :
-        (pc[t] = <span class="type">"done"</span> /\ thr_committed[t] > <span class="num">0</span>)
-        => thr_snap_ser[t] &lt; node_serial
-
-<span class="comment">\* 4. Value is within range</span>
-<span class="op">ValueBounded</span> == node_val &lt;= MaxVal
-
-<span class="comment">\* 5. The last committer's written value is visible</span>
+<span class="comment">\* 3. The last committer's written value is visible</span>
 <span class="op">WriteReadConsistency</span> ==
     \A t \in Threads :
         (pc[t] = <span class="type">"done"</span> /\ thr_snap_ser[t] = node_serial - <span class="num">1</span>)
-        => node_val = thr_write_val[t]</code></pre>
+        => node_val = thr_write_val[t]
+
+<span class="comment">\* 4. Quiescent state: serial and value match total commit count</span>
+<span class="op">QuiescentCheck</span> ==
+    (\A t \in Threads : pc[t] = <span class="type">"idle"</span>)
+    => /\ SumSet(Threads) % MaxSerial = node_serial
+       /\ SumSet(Threads) % MaxVal = node_val</code></pre>
 
 <h2>Verification Results</h2>
 <table>
 <tr><th>Threads</th><th>MaxVal</th><th>MaxSerial</th><th>States</th><th>Time</th><th>Result</th></tr>
-<tr><td>3</td><td>3</td><td>6</td><td>109,901,200</td><td>4 min</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>3</td><td>2</td><td>6</td><td>78,000</td><td>&lt;1s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
 </table>
 
 <div class="box">

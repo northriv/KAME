@@ -142,5 +142,11 @@ int main(void) {
     /* With pure increment operations: node_val == node_serial */
     assert(final_val == final_ser);
 
+    /* QuiescentCheck: all threads idle →
+     *   SumSet(Threads) % MaxSerial == node_serial
+     *   SumSet(Threads) % MaxVal == node_val */
+    assert((c0 + c1) % MAX_SERIAL == final_ser);
+    assert((c0 + c1) % MAX_VAL == final_val);
+
     return 0;
 }

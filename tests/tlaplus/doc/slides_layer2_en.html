@@ -236,9 +236,9 @@ adopt the new child packets and retry the CAS. This reduces unnecessary conflict
 <h2>Verification Results (No StateConstraint, Modular Arithmetic)</h2>
 <table>
 <tr><th>Model</th><th>Threads</th><th>MaxSerial</th><th>States</th><th>Time</th><th>Result</th></tr>
-<tr><td>2-level</td><td>2</td><td>6</td><td>~3,970,000</td><td>17 sec</td><td style="color:#4ade80">✅ Pass</td></tr>
-<tr><td>3-level</td><td>1</td><td>6</td><td>24,002,256</td><td>7 min</td><td style="color:#4ade80">✅ Pass</td></tr>
-<tr><td>3-level</td><td>2</td><td>6</td><td>~76,000,000</td><td>25 min</td><td style="color:#4ade80">✅ Pass</td></tr>
+<tr><td>2-level</td><td>2</td><td>8</td><td>150M+</td><td>—</td><td style="color:#fbbf24">In progress (no violations)</td></tr>
+<tr><td>3-level</td><td>2</td><td>8</td><td>145M+</td><td>—</td><td style="color:#fbbf24">In progress (no violations)</td></tr>
+<tr><td colspan="6" style="font-size:0.85em; color:#94a3b8;">MaxSerial=8 (modular arithmetic). Full 2-thread exploration pending ohtaka. QuiescentCheck added.</td></tr>
 <tr><td>3-level 3thr</td><td>3</td><td>—</td><td>—</td><td>—</td><td>pending ohtaka</td></tr>
 </table>
 
@@ -255,12 +255,12 @@ snapshot/commit/bundle/unbundle in any combination, all 5 invariants are preserv
 <table>
 <tr><th>Layer</th><th>What It Abstracts</th><th>What It Verifies</th><th>States</th></tr>
 <tr><td style="color:#0891b2"><strong>Layer 0</strong></td><td>—</td><td>Reference counting, ABA, memory safety</td><td>8.7M</td></tr>
-<tr><td style="color:#3b82f6"><strong>Layer 1</strong></td><td>atomic_shared_ptr as correct register</td><td>Snapshot→Commit, lost update prevention</td><td>110M</td></tr>
-<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td>Commit as correct CAS</td><td>Bundle/Unbundle, subtree consistency</td><td>~80M</td></tr>
+<tr><td style="color:#3b82f6"><strong>Layer 1</strong></td><td>atomic_shared_ptr as correct register</td><td>Snapshot→Commit, lost update prevention</td><td>78K</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td>Commit as correct CAS</td><td>Bundle/Unbundle, subtree consistency</td><td>150M+ (in progress)</td></tr>
 </table>
 
 <div class="box">
-<p><strong>Total ~200 million states</strong> — All reachable states explored without StateConstraint, all passed.<br>
+<p><strong>Layer 0/1 fully explored; Layer 2 pending ohtaka.</strong><br>
 Each layer abstracts assuming correctness of the layer below. GenMC (Layer 0) complements memory model correctness.</p>
 </div>
 </div>

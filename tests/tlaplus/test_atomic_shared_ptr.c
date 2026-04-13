@@ -387,5 +387,18 @@ int main(void) {
         }
     }
 
+    /* QuiescentCheck: when all threads idle:
+     *   freed[o] == (global_rc[o] == 0) for all objects
+     *   ptr != NULL => global_rc[ptr] >= 1 */
+    for (int i = 0; i < NUM_OBJECTS; i++) {
+        uintptr_t rc = atomic_load(&obj_refcnt[i]);
+        assert(obj_freed[i] == (rc == 0));
+    }
+    if (final_ptr != 0) {
+        int idx = obj_index(final_ptr);
+        assert(idx >= 0);
+        assert(atomic_load(&obj_refcnt[idx]) >= 1);
+    }
+
     return 0;
 }
