@@ -284,10 +284,12 @@ BundlePhase3(t) ==
            children == ChildrenOf(node)
            childWs  == local[t].subwrappers
        IN
-       \* Success path: pick one un-bundled child, CAS it
+       \* Success path: pick one matching child, CAS it to bundled-ref.
+       \* No hasPriority guard: Phase1 may have found the child already bundled (BundledRef),
+       \* in which case the CAS refreshes its serial. This also handles the case where
+       \* two threads race through Phase2 and one finds children already bundled.
        \/ /\ \E c \in children :
              /\ linkage[c] = childWs[c]       \* CAS precondition: matches saved value
-             /\ linkage[c].hasPriority         \* still independent (not yet bundled)
              /\ linkage' = [linkage EXCEPT ![c] = BundledRefWrapper(node, ser)]
              \* Check if all children are now bundled
              /\ LET allDone == \A c2 \in children \ {c} :
@@ -297,11 +299,13 @@ BundlePhase3(t) ==
                 THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
                 ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]
              /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
-       \* Failure path: some child changed, rollback all bundled children, restart
+       \* Failure path: some child changed (linkage no longer matches saved value).
+       \* No hasPriority guard: the CAS fails whenever linkage[c] /= childWs[c],
+       \* regardless of whether the new value has priority (covers the case where
+       \* another thread bundled the child, leaving it as BundledRef with hasPriority=FALSE).
        \/ /\ \E c \in children :
                 /\ childWs[c] /= Null
                 /\ linkage[c] /= childWs[c]
-                /\ linkage[c].hasPriority
           /\ linkage' = [n \in AllNodes |->
                 IF n \in children
                    /\ ~linkage[n].hasPriority

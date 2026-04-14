@@ -251,32 +251,34 @@ BundlePhase3(t) ==
     /\ LET ser     == local[t].bundleSer
            childWs == local[t].subwrappers
        IN
-       \* Pick a child that hasn't been bundled yet
-       \E c \in Children :
-          /\ linkage[c] = childWs[c]           \* CAS precondition: matches saved value
-          /\ linkage[c].hasPriority             \* still has priority (not yet bundled)
-          /\ linkage' = [linkage EXCEPT ![c] = BundledRefWrapper(Parent, ser)]
-          \* Check if all children are now bundled
-          /\ LET allDone == \A c2 \in Children \ {c} :
-                               ~linkage[c2].hasPriority
-             IN
-             IF allDone
-             THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-             ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]  \* continue with next child
+       \* Pick a matching child, CAS it to bundled-ref.
+       \* No hasPriority guard: Phase1 may have found the child already bundled,
+       \* in which case the CAS refreshes its serial.
+       \/ \E c \in Children :
+             /\ linkage[c] = childWs[c]           \* CAS precondition: matches saved value
+             /\ linkage' = [linkage EXCEPT ![c] = BundledRefWrapper(Parent, ser)]
+             \* Check if all children are now bundled
+             /\ LET allDone == \A c2 \in Children \ {c} :
+                                   ~linkage[c2].hasPriority
+                IN
+                IF allDone
+                THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
+                ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]  \* continue with next child
+             /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
+       \/ \* Any child's CAS fails → rollback all bundled children, restart.
+          \* No hasPriority guard: CAS fails whenever linkage[c] /= childWs[c],
+          \* regardless of whether the new value has priority.
+          /\ \E c \in Children :
+                /\ childWs[c] /= Null
+                /\ linkage[c] /= childWs[c]
+          /\ \* Rollback: restore any already-bundled children to their saved wrappers
+             linkage' = [n \in Nodes |->
+                 IF n \in Children /\ ~linkage[n].hasPriority
+                    /\ linkage[n].bundledBy = Parent
+                 THEN childWs[n]  \* rollback
+                 ELSE linkage[n]]
+          /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
           /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
-    \/  \* Any child's CAS fails → rollback all bundled children, restart
-       /\ \E c \in Children :
-             /\ childWs[c] /= Null
-             /\ linkage[c] /= childWs[c]
-             /\ linkage[c].hasPriority          \* changed by another thread
-       /\ \* Rollback: restore any already-bundled children to their saved wrappers
-          linkage' = [n \in Nodes |->
-              IF n \in Children /\ ~linkage[n].hasPriority
-                 /\ linkage[n].bundledBy = Parent
-              THEN childWs[n]  \* rollback
-              ELSE linkage[n]]
-       /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-       /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
 
 \* @c11_action BundlePhase4(t):
 \*   // Phase 4: finalize -- clear missing flag, CAS parent
