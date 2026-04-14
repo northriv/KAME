@@ -1,5 +1,10 @@
-* Wed Apr 09 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+* Mon Apr 14 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.1)
+- Fix XDriver documentation: timeAwared() is acquisition start time, not
+  operator-visible time. Corrected in README.md, CLAUDE.md, kame_python_api.md.
+- License changed to GPL2+ from LGPL2+, in most of codes.
+
+* Wed Apr 09 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - TLA+ formal verification: apply Gemini-identified model fixes.
   atomic_shared_ptr: fix overflow guard deadlock, multiset thr_holds for
   correct repeated-scan refcounting, raise MaxGlobalRC in step3 cfg.

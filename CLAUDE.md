@@ -64,7 +64,7 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 
 ### Driver / Module Architecture
 
-- **`XDriver`** (`kame/driver/driver.h`) — base for all instrument drivers; holds a timestamped `Payload` with `time()` (when the phenomenon occurred) and `timeAwared()` (when visible to the operator); emits `onRecord` and `onVisualization` signals
+- **`XDriver`** (`kame/driver/driver.h`) — base for all instrument drivers; holds a timestamped `Payload` with `time()` (when the phenomenon occurred) and `timeAwared()` (acquisition start time — when the phenomenon started being measured; for non-real-time analysis, when the record was read); emits `onRecord` and `onVisualization` signals
 - **`onVisualization` signal** — `Talker<bool, XDriver*>`; callbacks receive `(const Snapshot&, bool afterRecorded, XDriver*)`. `afterRecorded = !skipped` (i.e. `record()` was called). Do NOT use `time().isSet()` as a proxy — it stays `true` from the previous record across `XSkippedRecordError` cycles. `XRecordError` resets time to zero but still sets `afterRecorded = true`. Connect without `FLAG_AVOID_DUP` or `FLAG_MAIN_THREAD_CALL` unless the callback does Qt UI work.
 - Instrument drivers are built as **shared libraries** under `modules/` and loaded at runtime (via ltdl)
 - Each module subdirectory contains one or more drivers and registers them with the framework

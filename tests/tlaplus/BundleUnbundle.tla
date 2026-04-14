@@ -670,12 +670,22 @@ BundledByCorrect ==
 GrandAlwaysPriority ==
     linkage[Grand].hasPriority
 
+\* INV6: MissingPropagation — mirrors Node<XN>::Packet::checkConsistensy.
+\* If a node's packet is NOT missing, all its sub-packets must also be NOT missing.
+MissingPropagation ==
+    \A n \in InnerNodes :
+        LET w == linkage[n]
+        IN  (w.hasPriority /\ ~w.packet.missing) =>
+            (\A c \in ChildrenOf(n) :
+                w.packet.sub[c] /= Null => ~w.packet.sub[c].missing)
+
 Safety ==
     /\ SnapshotConsistency
     /\ NoPriorityLoss
     /\ BundleChainValid
     /\ BundledByCorrect
     /\ GrandAlwaysPriority
+    /\ MissingPropagation
 
 \* INV6: Quiescent consistency — when all threads are idle:
 \*   Any non-Grand node that has priority has payload = commit_count mod MaxPayload.

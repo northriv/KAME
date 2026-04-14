@@ -494,7 +494,17 @@ BundleRefConsistency ==
 SerialMonotonicity ==
     \A t \in Threads : serial[t] \in 0..(MaxSerial - 1)
 
-Safety == SnapshotConsistency /\ NoPriorityLoss /\ BundleRefConsistency /\ SerialMonotonicity
+\* MissingPropagation: mirrors Node<XN>::Packet::checkConsistensy check #4.
+\* If parent packet is NOT missing, all its sub-packets must also be NOT missing.
+\* (Contrapositive: child.missing => parent.missing)
+MissingPropagation ==
+    LET pw == linkage[Parent]
+    IN  (pw.hasPriority /\ ~pw.packet.missing) =>
+        (\A c \in Children :
+            pw.packet.sub[c] /= Null => ~pw.packet.sub[c].missing)
+
+Safety == SnapshotConsistency /\ NoPriorityLoss /\ BundleRefConsistency
+          /\ SerialMonotonicity /\ MissingPropagation
 
 \* Quiescent consistency — when all threads are idle:
 \*   Any child that has priority has payload = commit_count mod MaxPayload.

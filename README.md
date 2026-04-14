@@ -85,7 +85,7 @@ Windows 64-bit binaries: [8.0](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 
 Instrument drivers are **shared libraries** under `modules/` loaded at runtime via `ltdl`.
 Each driver subclasses `XDriver` (`kame/driver/driver.h`), which carries a timestamped
-`Payload` (`time()` = phenomenon time, `timeAwared()` = operator-visible time) and emits
+`Payload` (`time()` = phenomenon time, `timeAwared()` = acquisition start time) and emits
 `onRecord` / `onVisualization` signals.
 
 Hardware communication is abstracted in `modules/charinterface/` (serial, TCP, GPIB, USB).

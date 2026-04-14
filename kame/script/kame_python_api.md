@@ -86,7 +86,7 @@ for d in shot.list(drivers):
 shot = Snapshot(driver)
 payload = shot[driver]
 payload.time()                    # When phenomenon occurred
-payload.timeAwared()              # When visible to operator
+payload.timeAwared()              # Acquisition start time (when measurement began)
 
 # Read driver channel values (if driver has value() method)
 voltage = shot[driver].value(0)   # Channel 0
