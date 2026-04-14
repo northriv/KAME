@@ -24,6 +24,9 @@ rsync --exclude "linux686" \
 	 --exclude "*.cache" --exclude ".*" --exclude "*.log"\
 	 --exclude ".libs" \
 	 --exclude "/html" \
+	 --exclude "memory" \
+	 --exclude "tla2tools.jar" \
+	 --exclude "cds_*/genmc" \
 	 --exclude "/build" \
 	 --exclude "CVS" \
 	 --exclude "odmrimagingng.*" \

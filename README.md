@@ -2,7 +2,7 @@
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
-[![Version](https://img.shields.io/badge/version-8.0-green)]()
+[![Version](https://img.shields.io/badge/version-8.1-green)]()
 
 KAME is an open-source, multi-threaded framework for automated physical property measurements,
 developed at [Kitagawa Laboratory, ISSP, University of Tokyo](https://kitag.issp.u-tokyo.ac.jp/).
@@ -32,9 +32,9 @@ orchestration across compatible instruments without custom programming.
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source: [kame-8.0.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.0.zip) (2MB, Apr. 6, 2026).
+Source: [kame-8.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.1.zip) (2MB, Apr. 14, 2026).
 [All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64-bit binaries: [8.0](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.0.zip). At least Qt is additionally needed, follow instructions below to install.
+Windows 64-bit binaries: [8.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.1.zip). At least Qt is additionally needed, follow instructions below to install.
 
 ### Supported instruments
 
