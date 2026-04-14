@@ -41,7 +41,8 @@ unix {
 }
 
 win32 {
-    exists("C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include") {
+    exists("C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include") |
+    exists("C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include") {
         INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C"
         INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include"
         INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
