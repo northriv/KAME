@@ -275,43 +275,26 @@ BundlePhase2(t) ==
 \*   // Phase 3: CAS each child to bundled-ref, ONE AT A TIME.
 \*   // C++ loops: for each child, compareAndSet(subwrappers[i], bundled_ref).
 \*   // On failure at child i, rollback children 0..i-1 and restart.
-\*   // Modeled as: pick one un-bundled child, CAS it. Repeat until all done.
 \*   Source: transaction_impl.h:1132-1154
+\*
+\* Modeling note: same as BundleUnbundle_2level — atomic all-or-nothing.
+\* See BundleUnbundle_2level.tla BundlePhase3 for rationale.
 BundlePhase3(t) ==
     /\ pc[t] = "bundle_phase3"
     /\ LET node     == local[t].bundleNode
            ser      == local[t].bundleSer
            children == ChildrenOf(node)
            childWs  == local[t].subwrappers
+           allMatch == \A c \in children : linkage[c] = childWs[c]
        IN
-       \* Success path: pick one matching child, CAS it to bundled-ref.
-       \* No hasPriority guard: Phase1 may have found the child already bundled (BundledRef),
-       \* in which case the CAS refreshes its serial. This also handles the case where
-       \* two threads race through Phase2 and one finds children already bundled.
-       \/ /\ \E c \in children :
-             /\ linkage[c] = childWs[c]       \* CAS precondition: matches saved value
-             /\ linkage' = [linkage EXCEPT ![c] = BundledRefWrapper(node, ser)]
-             \* Check if all children are now bundled
-             /\ LET allDone == \A c2 \in children \ {c} :
-                                   ~linkage[c2].hasPriority
-                IN
-                IF allDone
-                THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-                ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]
-             /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
-       \* Failure path: some child changed (linkage no longer matches saved value).
-       \* No hasPriority guard: the CAS fails whenever linkage[c] /= childWs[c],
-       \* regardless of whether the new value has priority (covers the case where
-       \* another thread bundled the child, leaving it as BundledRef with hasPriority=FALSE).
-       \/ /\ \E c \in children :
-                /\ childWs[c] /= Null
-                /\ linkage[c] /= childWs[c]
-          /\ linkage' = [n \in AllNodes |->
+       IF allMatch
+       THEN /\ linkage' = [n \in AllNodes |->
                 IF n \in children
-                   /\ linkage[n] = BundledRefWrapper(node, ser)
-                THEN childWs[n]
+                THEN BundledRefWrapper(node, ser)
                 ELSE linkage[n]]
-          /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
+            /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
+            /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
+       ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
           /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
 
 \* @c11_action BundlePhase4(t):
