@@ -693,141 +693,269 @@ Node<XN>::upperNode(Snapshot<XN> &shot) {
 }
 
 //=============================================================================
-// snapshotSupernode() — walk up the bundle chain to locate a sub-packet
-//   (Comments by Claude Opus — based on source code analysis)
+//=============================================================================
+// ascendOneLevel() — read bundledBy and prepare to go one level up
 //
-// Recursively follows bundledBy pointers upward until reaching the root
-// (a node with hasPriority). At each level, verifies the back-reference
-// is still valid (CAS-check on linkage). Returns a pointer to the sub-packet
-// slot inside the ancestor's packet.
-//
-// In FOR_UNBUNDLE mode, builds a cas_infos list: at each ancestor level,
-// prepares a new PacketWrapper with a copied packet (marking the child's
-// slot as missing) and records the (linkage, old, new) triple for later CAS.
-// Also detects serial collisions (same bundle_serial already present).
-//
-// The reverse_index stored in PacketWrapper may be stale if swap() reordered
-// children, so the search scans all child slots starting from the hint index.
+// Reads the bundledBy pointer from root_wrapper. On success:
+//   - Saves child_wrapper for staleness check.
+//   - Updates root_wrapper in-place to the parent's wrapper (= *bundledBy).
+//   - Copies root_wrapper to parent_wrapper as a snapshot for this level.
+// Returns a WalkUpResult with find_status indicating success/failure.
+// Other fields (status, is_root_level, parent_packet) are set later by
+// walkUpChainImpl.
+//=============================================================================
+template <class XN>
+inline typename Node<XN>::WalkUpResult
+Node<XN>::ascendOneLevel(
+    const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<PacketWrapper> &root_wrapper) {
+
+    WalkUpResult r;
+    r.parent_packet = nullptr;
+    assert( !root_wrapper->hasPriority());
+    r.parent_linkage = root_wrapper->bundledBy();
+    if( !r.parent_linkage) {
+        r.find_status = ( *child_linkage == root_wrapper)
+            ? SnapshotStatus::NODE_MISSING : SnapshotStatus::DISTURBED;
+        return r;
+    }
+    r.child_wrapper = root_wrapper;
+    r.reverse_index = root_wrapper->reverseIndex();
+    root_wrapper = *r.parent_linkage;
+    r.parent_wrapper = root_wrapper;
+    r.find_status = SnapshotStatus::SUCCESS;
+    return r;
+}
+
+//=============================================================================
+// convertRecursiveStatus() — translate recursive call's status for this level
 //=============================================================================
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
-Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
-    local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-    SnapshotMode mode, int64_t serial, CASInfoList *cas_infos) {
-    local_shared_ptr<PacketWrapper> oldwrapper(shot);
-    assert( !shot->hasPriority());
-    shared_ptr<Linkage > linkage_upper(shot->bundledBy());
-    if( !linkage_upper) {
-        if( *linkage == oldwrapper)
-            //Supernode has been destroyed.
-            return SnapshotStatus::NODE_MISSING;
-        return SnapshotStatus::DISTURBED;
-    }
-    int reverse_index = shot->reverseIndex();
+Node<XN>::convertRecursiveStatus(
+    SnapshotStatus recursive_status,
+    WalkUpResult &r,
+    local_shared_ptr<PacketWrapper> &root_wrapper,
+    local_shared_ptr<Packet> *&parent_packet) {
 
-    shot = *linkage_upper;
-    local_shared_ptr<PacketWrapper> shot_upper(shot);
-    SnapshotStatus status = SnapshotStatus::NODE_MISSING;
-    local_shared_ptr<Packet> *upperpacket;
-    if( !shot_upper->hasPriority()) {
-        status = snapshotSupernode(linkage_upper, shot, &upperpacket,
-            mode, serial, cas_infos);
-    }
-    switch(status) {
+    switch(recursive_status) {
     case SnapshotStatus::DISTURBED:
     default:
-        return status;
+        return recursive_status;
     case SnapshotStatus::VOID_PACKET:
     case SnapshotStatus::NODE_MISSING:
-        shot = shot_upper;
-        upperpacket = &shot->packet();
-        status = SnapshotStatus::SUCCESS;
-        break;
+        root_wrapper = r.parent_wrapper;
+        parent_packet = &root_wrapper->packet();
+        r.is_root_level = true;
+        return SnapshotStatus::SUCCESS;
     case SnapshotStatus::NODE_MISSING_AND_COLLIDED:
-        shot = shot_upper;
-        upperpacket = &shot->packet();
-        status = SnapshotStatus::COLLIDED;
-        break;
+        root_wrapper = r.parent_wrapper;
+        parent_packet = &root_wrapper->packet();
+        r.is_root_level = true;
+        return SnapshotStatus::COLLIDED;
     case SnapshotStatus::COLLIDED:
     case SnapshotStatus::SUCCESS:
-        break;
+        r.is_root_level = false;
+        return recursive_status;
     }
-    //Checking if it is up-to-date.
-    if( *linkage != oldwrapper)
-            return SnapshotStatus::DISTURBED;
+}
 
-    assert( *upperpacket);
-    int size = ( *upperpacket)->size();
+//=============================================================================
+// findChildSlot() — scan parent's subnodes to find child's sub-packet slot
+//
+// Starting from reverse_index hint, wraps around to find the child whose
+// m_link matches child_linkage. The hint may be stale if swap() reordered
+// children.
+//
+// Returns:
+//   current_status  if found (child_subpacket_out is set)
+//   VOID_PACKET     if slot exists but sub-packet is null (missing child)
+//   NODE_MISSING    if child not found in parent's subnodes
+//=============================================================================
+template <class XN>
+inline typename Node<XN>::SnapshotStatus
+Node<XN>::findChildSlot(
+    const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<Packet> *parent_packet,
+    local_shared_ptr<Packet> **child_subpacket_out,
+    int &reverse_index,
+    SnapshotStatus current_status) {
+
+    assert( *parent_packet);
+    int size = ( *parent_packet)->size();
     int i = reverse_index;
     for(int cnt = 0;; ++cnt) {
         if(cnt >= size) {
-            if(status == SnapshotStatus::COLLIDED)
+            if(current_status == SnapshotStatus::COLLIDED)
                 return SnapshotStatus::NODE_MISSING;
-            status = SnapshotStatus::NODE_MISSING;
-            break;
+            return SnapshotStatus::NODE_MISSING;
         }
         if(i >= size)
             i = 0;
-        if(( *( *upperpacket)->subnodes())[i]->m_link == linkage) {
-            //Requested node is found.
-            *subpacket = &( *( *upperpacket)->subpackets())[i];
+        if(( *( *parent_packet)->subnodes())[i]->m_link == child_linkage) {
+            // Child node found at index i.
+            *child_subpacket_out = &( *( *parent_packet)->subpackets())[i];
             reverse_index = i;
-            if( !**subpacket) {
-                if(mode == SnapshotMode::FOR_UNBUNDLE) {
-                    cas_infos->clear();
-                }
-//				printf("V\n");
-                assert(( *upperpacket)->missing());
+            if( !**child_subpacket_out) {
+                assert(( *parent_packet)->missing());
                 return SnapshotStatus::VOID_PACKET;
             }
-            break;
+            return current_status;  // SUCCESS or COLLIDED — child has a sub-packet.
         }
-        //The index might be modified by swap().
         ++i;
     }
+}
 
-    assert( !shot_upper->packet() || (shot_upper->packet()->node().m_link == linkage_upper));
-    assert(( *upperpacket)->node().m_link == linkage_upper);
-    if(mode == SnapshotMode::FOR_UNBUNDLE) {
-        if(status == SnapshotStatus::COLLIDED) {
-            return SnapshotStatus::COLLIDED;
-        }
-        if((serial != SerialGenerator::SERIAL_NULL) && (shot_upper->m_bundle_serial == serial)) {
-            //The node has been already bundled in the same snapshot.
-            if(status == SnapshotStatus::NODE_MISSING)
-                return SnapshotStatus::NODE_MISSING;
-            return SnapshotStatus::COLLIDED;
-        }
-        local_shared_ptr<Packet> *p(upperpacket);
-        local_shared_ptr<PacketWrapper> newwrapper;
-        if(shot == shot_upper) {
-            newwrapper.reset(
-                new PacketWrapper( *shot_upper, shot_upper->m_bundle_serial));
-        }
-        else {
-            assert(cas_infos->size());
-//			if(shot->packet()->missing()) {
-                newwrapper.reset(
-                    new PacketWrapper( *p, shot->m_bundle_serial));
-//			}
-        }
-        if(newwrapper) {
-            cas_infos->emplace_back(linkage_upper, shot_upper, newwrapper);
-            p = &newwrapper->packet();
-        }
-        if(size) {
-            p->reset(new Packet( **p));
-//			( *p)->subpackets().reset(new PacketList( *( *p)->subpackets()));
-            ( *p)->m_missing = true;
-//			if(status == SNAPSHOT_SUCCESS)
-//				*subpacket = &( *p)->subpackets()->at(reverse_index);
-        }
-        if((status == SnapshotStatus::NODE_MISSING) && (serial != SerialGenerator::SERIAL_NULL) &&
-            (( !oldwrapper->hasPriority()) && (oldwrapper->m_bundle_serial == serial))) {
-            printf("!");
-            return SnapshotStatus::NODE_MISSING_AND_COLLIDED;
-        }
+//=============================================================================
+// walkUpChainImpl() — common chain-walk: Steps A → B → C → D → E
+//
+// Shared by walkUpChain() and snapshotForUnbundle().
+// Only the recursive call (Step B) differs between callers — passed as Recurser.
+// Steps A–E are executed here; the result (with context) is returned via
+// Steps:
+//   A. ascendOneLevel: read bundledBy, save child_wrapper, return WalkUpResult
+//   B. recurse via Recurser if parent is bundled
+//   C. convertRecursiveStatus: map recursive result to this-level status
+//   D. staleness check: verify child's linkage hasn't changed
+//   E. findChildSlot: locate child's sub-packet in parent's packet
+//=============================================================================
+template <class XN>
+template <class Recurser>
+inline typename Node<XN>::WalkUpResult
+Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<PacketWrapper> &root_wrapper,
+    local_shared_ptr<Packet> **child_subpacket_out,
+    Recurser &&recurse) {
+
+    // Step A: ascend one level — fills parent_linkage, parent_wrapper, child_wrapper, reverse_index.
+    WalkUpResult r = ascendOneLevel(child_linkage, root_wrapper);
+    if(r.find_status != SnapshotStatus::SUCCESS)
+        return r;
+
+    // Step B: recurse if parent is also bundled.
+    SnapshotStatus recursive_status = SnapshotStatus::NODE_MISSING;
+    local_shared_ptr<Packet> *parent_packet;
+    if( !r.parent_wrapper->hasPriority()) {
+        recursive_status = recurse(r.parent_linkage, root_wrapper, &parent_packet);
     }
+
+    // Step C: convert recursive result — sets is_root_level, may update root_wrapper.
+    SnapshotStatus status = convertRecursiveStatus(
+        recursive_status, r, root_wrapper, parent_packet);
+    if(status == SnapshotStatus::DISTURBED) {
+        r.find_status = SnapshotStatus::DISTURBED;
+        return r;
+    }
+
+    // Step D: staleness check.
+    if( *child_linkage != r.child_wrapper) {
+        r.find_status = SnapshotStatus::DISTURBED;
+        return r;
+    }
+
+    // Step E: find child's sub-packet slot in parent's packet.
+    r.find_status = findChildSlot(child_linkage, parent_packet,
+        child_subpacket_out, r.reverse_index, status);
+    r.status = status;
+    r.parent_packet = parent_packet;
+    return r;
+}
+
+//=============================================================================
+// walkUpChain() — walk up the chain for snapshot/bundle (no CAS construction)
+//=============================================================================
+template <class XN>
+inline typename Node<XN>::SnapshotStatus
+Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<PacketWrapper> &root_wrapper,
+    local_shared_ptr<Packet> **child_subpacket_out) {
+
+    return walkUpChainImpl(child_linkage, root_wrapper, child_subpacket_out,
+        [](const shared_ptr<Linkage> &pl, local_shared_ptr<PacketWrapper> &rw,
+           local_shared_ptr<Packet> **pp) {
+            return walkUpChain(pl, rw, pp);
+        }).find_status;
+}
+
+//=============================================================================
+// snapshotForUnbundle() — walk up the chain with CAS info construction
+//
+// Calls walkUpChainImpl for Steps A–E, then performs Step F (CAS preparation)
+// using the WalkUpResult context.
+//=============================================================================
+template <class XN>
+inline typename Node<XN>::SnapshotStatus
+Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<PacketWrapper> &root_wrapper,
+    local_shared_ptr<Packet> **child_subpacket_out,
+    int64_t serial, CASInfoList *cas_infos) {
+
+    auto r = walkUpChainImpl(child_linkage, root_wrapper, child_subpacket_out,
+        [serial, cas_infos](const shared_ptr<Linkage> &pl, local_shared_ptr<PacketWrapper> &rw,
+           local_shared_ptr<Packet> **pp) {
+            return snapshotForUnbundle(pl, rw, pp, serial, cas_infos);
+        });
+
+    // --- Post-processing for unbundle (Step F) ---
+    if(r.find_status == SnapshotStatus::DISTURBED)
+        return SnapshotStatus::DISTURBED;
+    if(r.find_status == SnapshotStatus::VOID_PACKET) {
+        cas_infos->clear();
+        return SnapshotStatus::VOID_PACKET;
+    }
+    if(r.find_status == SnapshotStatus::NODE_MISSING && !r.parent_packet) {
+        return SnapshotStatus::NODE_MISSING;
+    }
+    SnapshotStatus status = r.status;
+    if(r.find_status == SnapshotStatus::NODE_MISSING) {
+        if(status == SnapshotStatus::COLLIDED)
+            return SnapshotStatus::NODE_MISSING;
+        status = SnapshotStatus::NODE_MISSING;
+    }
+
+    assert( !r.parent_wrapper->packet() ||
+        (r.parent_wrapper->packet()->node().m_link == r.parent_linkage));
+    assert(( *r.parent_packet)->node().m_link == r.parent_linkage);
+
+    // CAS preparation
+    if(status == SnapshotStatus::COLLIDED)
+        return SnapshotStatus::COLLIDED;
+
+    if((serial != SerialGenerator::SERIAL_NULL) &&
+        (r.parent_wrapper->m_bundle_serial == serial)) {
+        if(status == SnapshotStatus::NODE_MISSING)
+            return SnapshotStatus::NODE_MISSING;
+        return SnapshotStatus::COLLIDED;
+    }
+
+    // Build new wrapper for this ancestor level.
+    local_shared_ptr<Packet> *p(r.parent_packet);
+    local_shared_ptr<PacketWrapper> newwrapper;
+    if(r.is_root_level) {
+        newwrapper.reset(
+            new PacketWrapper( *r.parent_wrapper, r.parent_wrapper->m_bundle_serial));
+    }
+    else {
+        assert(cas_infos->size());
+        newwrapper.reset(
+            new PacketWrapper( *p, root_wrapper->m_bundle_serial));
+    }
+    if(newwrapper) {
+        cas_infos->emplace_back(r.parent_linkage, r.parent_wrapper, newwrapper);
+        p = &newwrapper->packet();
+    }
+    int size = ( *r.parent_packet)->size();
+    if(size) {
+        p->reset(new Packet( **p));
+        ( *p)->m_missing = true;
+    }
+
+    if((status == SnapshotStatus::NODE_MISSING) && (serial != SerialGenerator::SERIAL_NULL) &&
+        (( !r.child_wrapper->hasPriority()) && (r.child_wrapper->m_bundle_serial == serial))) {
+        printf("!");
+        return SnapshotStatus::NODE_MISSING_AND_COLLIDED;
+    }
+
     return status;
 }
 
@@ -839,7 +967,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
 //   1. hasPriority() and not missing: the node owns its packet directly —
 //      just return the packet (fast path for leaf or already-bundled nodes).
 //   2. !hasPriority(): the node is bundled into a super-node — walk up via
-//      snapshotSupernode() to find the sub-packet, possibly triggering
+//      walkUpChain() to find the sub-packet, possibly triggering
 //      unbundle() if the packet is incomplete (missing sub-packets).
 //   3. hasPriority() but missing: sub-packets are stale — call bundle() to
 //      absorb all child packets into a consistent parent packet.
@@ -869,7 +997,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
             shared_ptr<Linkage > linkage(m_link);
             local_shared_ptr<PacketWrapper> superwrapper(target);
             local_shared_ptr<Packet> *foundpacket;
-            auto status = snapshotSupernode(linkage, superwrapper, &foundpacket, SnapshotMode::FOR_BUNDLE);
+            auto status = walkUpChain(linkage, superwrapper, &foundpacket);
             switch(status) {
             case SnapshotStatus::SUCCESS: {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
@@ -1312,8 +1440,8 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //     (needed when commit must know the super-node's current state).
 //
 // Steps:
-//   1. Walk up via snapshotSupernode() to locate the sub-packet inside
-//      the super-node's bundled packet. snapshotSupernode() builds a
+//   1. Walk up via snapshotForUnbundle() to locate the sub-packet inside
+//      the super-node's bundled packet. snapshotForUnbundle() builds a
 //      cas_infos list of (linkage, old_wrapper, new_wrapper) for each
 //      ancestor that needs its PacketWrapper updated.
 //   2. If oldsubpacket was given and doesn't match, return
@@ -1339,27 +1467,20 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
     local_shared_ptr<PacketWrapper> superwrapper(bundled_ref);
     local_shared_ptr<Packet> *newsubpacket;
     CASInfoList cas_infos;
-    SnapshotStatus status = snapshotSupernode(sublinkage, superwrapper, &newsubpacket,
-        SnapshotMode::FOR_UNBUNDLE,
+    SnapshotStatus status = snapshotForUnbundle(sublinkage, superwrapper, &newsubpacket,
         bundle_serial ? *bundle_serial : SerialGenerator::SERIAL_NULL, &cas_infos);
-    switch(status) {
-    case SnapshotStatus::SUCCESS:
-        break;
-    case SnapshotStatus::DISTURBED:
+    if(status == SnapshotStatus::DISTURBED)
         return UnbundledStatus::DISTURBED;
-    case SnapshotStatus::VOID_PACKET:
-    case SnapshotStatus::NODE_MISSING:
+    if(status == SnapshotStatus::VOID_PACKET || status == SnapshotStatus::NODE_MISSING) {
         newsubpacket = const_cast<local_shared_ptr<Packet> *>( &bundled_ref->packet());
         assert(newsubpacket);
-        break;
-    case SnapshotStatus::NODE_MISSING_AND_COLLIDED:
+    }
+    if(status == SnapshotStatus::NODE_MISSING_AND_COLLIDED) {
         newsubpacket = const_cast<local_shared_ptr<Packet> *>( &bundled_ref->packet());
         assert(newsubpacket);
         status = SnapshotStatus::COLLIDED;
-        break;
-    case SnapshotStatus::COLLIDED:
-        break;
     }
+    // SUCCESS, COLLIDED → fall through
 
     if(oldsubpacket && ( *newsubpacket != *oldsubpacket))
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;

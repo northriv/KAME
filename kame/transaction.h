@@ -341,11 +341,67 @@ private:
         local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
     };
     using CASInfoList = fast_vector<CASInfo, 32>;
-    enum class SnapshotMode {FOR_UNBUNDLE, FOR_BUNDLE};
-    static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage,
-        local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-        SnapshotMode mode,
-        int64_t serial = SerialGenerator::SERIAL_NULL, CASInfoList *cas_infos = nullptr);
+
+    //! Result of walkUpChainImpl() / ascendOneLevel().
+    //! ascendOneLevel fills parent_linkage, parent_wrapper, child_wrapper, reverse_index.
+    //! walkUpChainImpl adds find_status, status, is_root_level, parent_packet.
+    struct WalkUpResult {
+        SnapshotStatus find_status;  //!< result of findChildSlot (or early-return status)
+        SnapshotStatus status;       //!< status after convertRecursiveStatus (before find)
+        bool is_root_level;          //!< true if this parent is the chain root
+        shared_ptr<Linkage> parent_linkage;    //!< m_link of the parent node (= bundledBy)
+        local_shared_ptr<PacketWrapper> parent_wrapper;  //!< snapshot of parent's wrapper (= original shot_upper)
+        local_shared_ptr<PacketWrapper> child_wrapper;   //!< wrapper saved before ascending (for staleness check)
+        int reverse_index;
+        local_shared_ptr<Packet> *parent_packet;  //!< parent's packet containing child slot
+    };
+
+    //! Ascend one level: read bundledBy, update root_wrapper to parent, save snapshot.
+    //! On success, find_status == SUCCESS and parent/child fields are filled.
+    //! On failure, find_status == DISTURBED or NODE_MISSING.
+    static inline WalkUpResult ascendOneLevel(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<PacketWrapper> &root_wrapper);
+
+    //! Convert recursive status and determine the upper packet.
+    //! Sets is_root_level = true if this parent level is the root.
+    static inline SnapshotStatus convertRecursiveStatus(
+        SnapshotStatus recursive_status,
+        WalkUpResult &r,
+        local_shared_ptr<PacketWrapper> &root_wrapper,
+        local_shared_ptr<Packet> *&parent_packet);
+
+    //! Find child's sub-packet slot in parent's packet by scanning from reverse_index hint.
+    static inline SnapshotStatus findChildSlot(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<Packet> *parent_packet,
+        local_shared_ptr<Packet> **child_subpacket_out,
+        int &reverse_index,
+        SnapshotStatus current_status);
+
+    //! Common chain-walk: Steps A→B→C→D→E (ascend, recurse, convert, staleness, findChildSlot).
+    //! Recurser performs the recursive call at Step B.
+    template <class Recurser>
+    static inline WalkUpResult walkUpChainImpl(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<PacketWrapper> &root_wrapper,
+        local_shared_ptr<Packet> **child_subpacket_out,
+        Recurser &&recurse);
+
+    //! Recursively walks up the bundledBy chain to locate a child's sub-packet.
+    //! Used by snapshot() (FOR_BUNDLE path).
+    static inline SnapshotStatus walkUpChain(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<PacketWrapper> &root_wrapper,
+        local_shared_ptr<Packet> **child_subpacket_out);
+
+    //! Walk up the chain and build CAS info list for unbundling.
+    //! Used only by unbundle().
+    static inline SnapshotStatus snapshotForUnbundle(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<PacketWrapper> &root_wrapper,
+        local_shared_ptr<Packet> **child_subpacket_out,
+        int64_t serial, CASInfoList *cas_infos);
 
     //! Updates a packet to \a tr.m_packet if the current packet is unchanged (== \a tr.m_oldpacket).
     //! If this node has been bundled at the super node, unbundle() will be called.
