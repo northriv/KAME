@@ -271,11 +271,11 @@ BundlePhase3(t) ==
           /\ \E c \in Children :
                 /\ childWs[c] /= Null
                 /\ linkage[c] /= childWs[c]
-          /\ \* Rollback: restore any already-bundled children to their saved wrappers
+          /\ \* Rollback: only OUR bundled children (CAS compares our serial)
              linkage' = [n \in Nodes |->
-                 IF n \in Children /\ ~linkage[n].hasPriority
-                    /\ linkage[n].bundledBy = Parent
-                 THEN childWs[n]  \* rollback
+                 IF n \in Children
+                    /\ linkage[n] = BundledRefWrapper(Parent, ser)
+                 THEN childWs[n]
                  ELSE linkage[n]]
           /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
           /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>

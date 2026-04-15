@@ -308,8 +308,7 @@ BundlePhase3(t) ==
                 /\ linkage[c] /= childWs[c]
           /\ linkage' = [n \in AllNodes |->
                 IF n \in children
-                   /\ ~linkage[n].hasPriority
-                   /\ linkage[n].bundledBy = node
+                   /\ linkage[n] = BundledRefWrapper(node, ser)
                 THEN childWs[n]
                 ELSE linkage[n]]
           /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
