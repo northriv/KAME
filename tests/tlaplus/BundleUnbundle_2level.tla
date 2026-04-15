@@ -241,26 +241,44 @@ BundlePhase2(t) ==
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action BundlePhase3(t):
-\*   // Phase 3: CAS each child to bundled-ref pointing to parent
-\*   for each child:
-\*     bundled_ref = new PacketWrapper(m_link, i, bundle_serial);
-\*     child->m_link->compareAndSet(subwrappers_org[i], bundled_ref);
+\*   // Phase 3: CAS each child to bundled-ref, ONE AT A TIME.
+\*   // C++ loops: for each child, compareAndSet(subwrappers[i], bundled_ref).
+\*   // On failure at child i, rollback children 0..i-1 and restart.
+\*   // Modeled as: pick one un-bundled child, CAS it. Repeat until all done.
 \*   Source: transaction_impl.h:1132-1154
 BundlePhase3(t) ==
     /\ pc[t] = "bundle_phase3"
     /\ LET ser     == local[t].bundleSer
            childWs == local[t].subwrappers
-           allMatch == \A c \in Children : linkage[c] = childWs[c]
        IN
-       IF allMatch
-       THEN /\ linkage' = [n \in Nodes |->
-                IF n \in Children
-                THEN BundledRefWrapper(Parent, ser)
-                ELSE linkage[n]]
-            /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-            /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
-       ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
+       \* Pick a matching child, CAS it to bundled-ref.
+       \* No hasPriority guard: Phase1 may have found the child already bundled,
+       \* in which case the CAS refreshes its serial.
+       \/ \E c \in Children :
+             /\ linkage[c] = childWs[c]           \* CAS precondition: matches saved value
+             /\ linkage' = [linkage EXCEPT ![c] = BundledRefWrapper(Parent, ser)]
+             \* Check if all children are now bundled
+             /\ LET allDone == \A c2 \in Children \ {c} :
+                                   ~linkage[c2].hasPriority
+                IN
+                IF allDone
+                THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
+                ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]  \* continue with next child
+             /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
+       \/ \* Any child's CAS fails → rollback all bundled children, restart.
+          \* No hasPriority guard: CAS fails whenever linkage[c] /= childWs[c],
+          \* regardless of whether the new value has priority.
+          /\ \E c \in Children :
+                /\ childWs[c] /= Null
+                /\ linkage[c] /= childWs[c]
+          /\ \* Rollback: only OUR bundled children (CAS compares our serial)
+             linkage' = [n \in Nodes |->
+                 IF n \in Children
+                    /\ linkage[n] = BundledRefWrapper(Parent, ser)
+                 THEN childWs[n]
+                 ELSE linkage[n]]
+          /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
+          /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
 
 \* @c11_action BundlePhase4(t):
 \*   // Phase 4: finalize -- clear missing flag, CAS parent
@@ -368,9 +386,8 @@ CommitTryCAS(t) ==
             ELSE /\ local' = [local EXCEPT ![t].commitOk = "fail"]
                  /\ pc' = [pc EXCEPT ![t] = "commit_done"]
                  /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
-       ELSE /\ local' = [local EXCEPT ![t].wrapper = linkage[childNode]]
-            /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
+       ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action UnbundleWalk(t):
 \*   // Walk up bundledBy chain to find sub-packet in parent's bundle
@@ -399,24 +416,27 @@ UnbundleWalk(t) ==
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
 \* @c11_action UnbundleCASAncestors(t):
-\*   // CAS parent: mark child's slot as Null (missing=TRUE)
+\*   // CAS parent: set missing=TRUE (sub-packets are preserved, NOT nulled)
+\*   // C++: new PacketWrapper(*shot_upper, shot_upper->m_bundle_serial)
+\*   //   -- copy with the SAME serial; no gen() call here.
+\*   //   -- p->reset(new Packet(**p)); (*p)->m_missing = true;
 \*   for each cas_info in cas_infos:
 \*     it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper);
-\*   Source: transaction_impl.h:1367-1379
+\*   Source: transaction_impl.h:1367-1379, snapshotSupernode FOR_UNBUNDLE
 UnbundleCASAncestors(t) ==
     /\ pc[t] = "unbundle_cas_ancestors"
     /\ LET childNode  == target[t]
            oldParentW == local[t].parentWrapper
-           ser        == GenSerial(t, oldParentW.serial)
-           newSub     == [oldParentW.packet.sub EXCEPT ![childNode] = Null]
-           newPkt     == MakePacket(Parent, oldParentW.packet.payload, newSub, TRUE)
-           newParentW == PriorityWrapper(newPkt, ser)
+           \* C++: same serial as old wrapper (no gen() for ancestor CAS)
+           \* C++ keeps sub-packets intact; only sets missing=TRUE
+           newPkt     == MakePacket(Parent, oldParentW.packet.payload,
+                                   oldParentW.packet.sub, TRUE)
+           newParentW == PriorityWrapper(newPkt, oldParentW.serial)
        IN
        IF oldParentW.hasPriority /\ linkage[Parent] = oldParentW
        THEN /\ linkage' = [linkage EXCEPT ![Parent] = newParentW]
-            /\ UpdateSerial(t, ser)
             /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_child"]
-            /\ UNCHANGED <<local, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
             /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
 
@@ -506,9 +526,8 @@ MissingPropagation ==
 Safety == SnapshotConsistency /\ NoPriorityLoss /\ BundleRefConsistency
           /\ SerialMonotonicity /\ MissingPropagation
 
-\* Quiescent consistency — when all threads are idle:
-\*   Any child that has priority has payload = commit_count mod MaxPayload.
-\*   Children may remain bundled after snapshot, so hasPriority is not required.
+\* QuiescentCheck: when all threads are idle, each child with priority
+\* has payload = commit_count mod MaxPayload.
 QuiescentCheck ==
     (\A t \in Threads : pc[t] = "idle") =>
         \A n \in Children :
