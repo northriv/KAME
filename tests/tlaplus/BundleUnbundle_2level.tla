@@ -24,6 +24,13 @@
  *   - Unbundle for commit (1-level walk)
  *   - Concurrent snapshot + commit interference
  *   - Single-node commit optimization
+ *
+ * Thread lifecycle (MaxCommits iterations per thread):
+ *   Each iteration:
+ *     1. CommitParent: snapshot Parent, increment ALL children, CAS (retry until success).
+ *     2. CommitChild for EACH child: direct commit (retry until success).
+ * Terminal state: all iterBudget=0, all pc=idle. Run TLC with -deadlock.
+ * Each child receives exactly 2 * MaxCommits * |Threads| increments total.
  *)
 
 EXTENDS Integers, FiniteSets, TLC
@@ -33,8 +40,13 @@ CONSTANTS
     Parent,
     Child1, Child2,
     Null,
-    MaxPayload,     \* Payloads wrap at this value
-    MaxSerial       \* Serial wrap-around (must be even)
+    MaxPayload,          \* Payloads wrap at this value
+    MaxSerial,           \* Serial wrap-around (must be even)
+    MaxCommits,          \* Per-child direct commit budget per thread
+    BundleCollectAtomic, \* "coarse": collect all children atomically
+                         \* "fine": one child per step
+    BundlePhase3Atomic   \* "coarse": CAS all children atomically
+                         \* "fine": one child per step (structural equality caveat)
 
 Children == {Child1, Child2}
 Nodes == {Parent} \cup Children
@@ -89,9 +101,10 @@ ThreadSymmetry == Permutations(Threads)
 
 VARIABLES
     serial, globalSerial, linkage, pc, op, target, local,
-    commit_count    \* per-node commit counter (model-only, for QuiescentCheck)
+    iterBudget,  \* [Threads -> 0..MaxCommits]: remaining full iterations per thread
+    childQueue   \* [Threads -> SUBSET Children]: children pending CommitChild in current iteration
 
-vars == <<serial, globalSerial, linkage, pc, op, target, local, commit_count>>
+vars == <<serial, globalSerial, linkage, pc, op, target, local, iterBudget, childQueue>>
 
 -----------------------------------------------------------------------------
 (* Data structures *)
@@ -142,20 +155,24 @@ Init ==
     /\ op = [t \in Threads |-> "idle"]
     /\ target = [t \in Threads |-> Null]
     /\ local = [t \in Threads |-> InitLocal]
-    /\ commit_count = [n \in Nodes |-> 0]
+    /\ iterBudget = [t \in Threads |-> MaxCommits]
+    /\ childQueue = [t \in Threads |-> {}]
 
 -----------------------------------------------------------------------------
 (* Snapshot *)
 
 \* @c11_action SnapRead(t):
 \*   Entry point for snapshot(node). Initiates a read of node's m_link.
-\*   Source: transaction_impl.h:842-870, transaction.h:328
+\*   Guard: iterBudget[t] > 0 /\ childQueue[t] = {} -- start of each iteration.
+\*   Source: transaction_impl.h:982-1000, transaction.h:328
 SnapRead(t) ==
     /\ pc[t] = "idle"
+    /\ iterBudget[t] > 0
+    /\ childQueue[t] = {}
     /\ op' = [op EXCEPT ![t] = "snapshot"]
     /\ target' = [target EXCEPT ![t] = Parent]
     /\ pc' = [pc EXCEPT ![t] = "snap_read"]
-    /\ UNCHANGED <<serial, globalSerial, linkage, local, commit_count>>
+    /\ UNCHANGED <<serial, globalSerial, linkage, local, iterBudget, childQueue>>
 
 \* @c11_action SnapCheck(t):
 \*   local_shared_ptr<PacketWrapper> w(*parent->m_link);  -- load_shared_
@@ -165,15 +182,15 @@ SnapRead(t) ==
 \*       -> bundle_phase1              -- need to bundle children
 \*   else
 \*       -> retry                      -- node is bundled, need unbundle
-\*   Source: transaction_impl.h:842-870
+\*   Source: transaction_impl.h:982-1000
 SnapCheck(t) ==
     /\ pc[t] = "snap_read"
     /\ LET w == linkage[Parent]
        IN
        IF w.hasPriority /\ ~w.packet.missing
        THEN /\ local' = [local EXCEPT ![t].snapResult = w.packet]
-            /\ pc' = [pc EXCEPT ![t] = "snap_done"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
+            /\ pc' = [pc EXCEPT ![t] = "commit_parent"]
+            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
        ELSE IF w.hasPriority /\ w.packet.missing
        THEN LET ser == GenSerial(t, w.serial)
             IN
@@ -184,9 +201,9 @@ SnapCheck(t) ==
                    ![t].subpackets = EmptySub]
             /\ UpdateSerial(t, ser)
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-            /\ UNCHANGED <<linkage, op, target, commit_count>>
+            /\ UNCHANGED <<linkage, op, target, iterBudget, childQueue>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase1(t):
 \*   // Phase 1: collect sub-packets from children
@@ -196,34 +213,66 @@ SnapCheck(t) ==
 \*   If child hasPriority: use its packet directly.
 \*   If child bundledBy==Parent: use parent's existing sub-packet for it.
 \*   If child bundledBy==other: unbundle first (-> retry).
-\*   Source: transaction_impl.h:1077-1114
+\*   Source: transaction_impl.h:1200-1240
 BundlePhase1(t) ==
     /\ pc[t] = "bundle_phase1"
-    /\ LET childWrappers == [c \in Children |-> linkage[c]]
-           parentW == local[t].wrapper
-           childPackets == [c \in Children |->
-               IF childWrappers[c].hasPriority
-               THEN childWrappers[c].packet
-               ELSE IF childWrappers[c].bundledBy = Parent
-                    THEN IF parentW.packet.sub[c] /= Null
-                         THEN parentW.packet.sub[c]
-                         ELSE Null
-                    ELSE Null]
-           allCollected == \A c \in Children : childPackets[c] /= Null
-       IN
-       IF allCollected
-       THEN /\ local' = [local EXCEPT
-                    ![t].subwrappers = childWrappers,
-                    ![t].subpackets  = childPackets]
-            /\ pc' = [pc EXCEPT ![t] = "bundle_phase2"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
-       ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
+    /\ IF BundleCollectAtomic = "coarse"
+       THEN \* Coarse: read all children atomically
+            LET childWrappers == [c \in Children |-> linkage[c]]
+                parentW == local[t].wrapper
+                childPackets == [c \in Children |->
+                    IF childWrappers[c].hasPriority
+                    THEN childWrappers[c].packet
+                    ELSE IF childWrappers[c].bundledBy = Parent
+                         THEN IF parentW.packet.sub[c] /= Null
+                              THEN parentW.packet.sub[c]
+                              ELSE Null
+                         ELSE Null]
+                allCollected == \A c \in Children : childPackets[c] /= Null
+            IN
+            IF allCollected
+            THEN /\ local' = [local EXCEPT
+                         ![t].subwrappers = childWrappers,
+                         ![t].subpackets  = childPackets]
+                 /\ pc' = [pc EXCEPT ![t] = "bundle_phase2"]
+                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
+            ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
+                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+       ELSE \* Fine: collect one unprocessed child per step
+            LET parentW == local[t].wrapper
+            IN
+            \/ \* Pick one unprocessed child (subwrappers[c] = Null)
+               \E c \in Children :
+                  /\ local[t].subwrappers[c] = Null
+                  /\ LET cw == linkage[c]
+                         cpkt == IF cw.hasPriority THEN cw.packet
+                                 ELSE IF cw.bundledBy = Parent
+                                      THEN IF parentW.packet.sub[c] /= Null
+                                           THEN parentW.packet.sub[c]
+                                           ELSE Null
+                                      ELSE Null
+                     IN
+                     IF cpkt /= Null
+                     THEN /\ local' = [local EXCEPT
+                                  ![t].subwrappers[c] = cw,
+                                  ![t].subpackets[c]  = cpkt]
+                          /\ LET allDone == \A c2 \in Children \ {c} :
+                                                local[t].subwrappers[c2] /= Null
+                             IN
+                             IF allDone
+                             THEN pc' = [pc EXCEPT ![t] = "bundle_phase2"]
+                             ELSE pc' = [pc EXCEPT ![t] = "bundle_phase1"]
+                          /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
+                     ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
+                          /\ local' = [local EXCEPT
+                                  ![t].subwrappers = [c2 \in Children |-> Null],
+                                  ![t].subpackets  = EmptySub]
+                          /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase2(t):
 \*   // Phase 2: CAS parent's linkage with new packet (still missing=TRUE)
 \*   parent->m_link->compareAndSet(oldsuperwrapper, superwrapper);
-\*   Source: transaction_impl.h:1121-1130
+\*   Source: transaction_impl.h:1249-1258
 BundlePhase2(t) ==
     /\ pc[t] = "bundle_phase2"
     /\ LET oldW   == local[t].wrapper
@@ -236,49 +285,64 @@ BundlePhase2(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![Parent] = newW]
             /\ local' = [local EXCEPT ![t].wrapper = newW]
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase3"]
-            /\ UNCHANGED <<serial, globalSerial, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase3(t):
 \*   // Phase 3: CAS each child to bundled-ref, ONE AT A TIME.
 \*   // C++ loops: for each child, compareAndSet(subwrappers[i], bundled_ref).
 \*   // On failure at child i, rollback children 0..i-1 and restart.
 \*   // Modeled as: pick one un-bundled child, CAS it. Repeat until all done.
-\*   Source: transaction_impl.h:1132-1154
-\*
-\* Modeling note: C++ CAS-es children one at a time with rollback on failure.
-\* TLA+ models this as a single atomic step (all-or-nothing) because:
-\*   (1) The C++ loop is extremely short (2 CAS operations, microseconds).
-\*   (2) TLA+ uses structural equality, not pointer identity, so per-child
-\*       rollback CAS cannot correctly distinguish "our" BundledRefWrapper
-\*       from another thread's with the same serial (modular wrap-around).
-\*   (3) The intermediate state (Child1 bundled, Child2 not) is covered by
-\*       C++ stress tests (transaction_test, 4 threads × 2500 iterations).
-\* This is an over-approximation of atomicity: fewer interleavings are
-\* explored, but all explored states are reachable in the real program.
+\*   Source: transaction_impl.h:1260-1282
 BundlePhase3(t) ==
     /\ pc[t] = "bundle_phase3"
     /\ LET ser     == local[t].bundleSer
            childWs == local[t].subwrappers
            allMatch == \A c \in Children : linkage[c] = childWs[c]
        IN
-       IF allMatch
-       THEN /\ linkage' = [n \in Nodes |->
-                IF n \in Children
-                THEN BundledRefWrapper(Parent, ser)
-                ELSE linkage[n]]
-            /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-            /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
-       ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
+       IF BundlePhase3Atomic = "coarse"
+       THEN \* Coarse: all children CAS'd atomically (all-or-nothing)
+            IF allMatch
+            THEN /\ linkage' = [n \in Nodes |->
+                     IF n \in Children
+                     THEN BundledRefWrapper(Parent, ser)
+                     ELSE linkage[n]]
+                 /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
+                 /\ UNCHANGED <<serial, globalSerial, local, op, target, iterBudget, childQueue>>
+            ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
+                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+       ELSE \* Fine: one child per step
+            \/ \E c \in Children :
+                  /\ linkage[c] = childWs[c]
+                  /\ linkage' = [linkage EXCEPT ![c] = BundledRefWrapper(Parent, ser)]
+                  /\ LET allDone == \A c2 \in Children \ {c} :
+                                        ~linkage[c2].hasPriority
+                     IN
+                     IF allDone
+                     THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
+                     ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]
+                  /\ UNCHANGED <<serial, globalSerial, local, op, target, iterBudget, childQueue>>
+            \/ /\ \E c \in Children :
+                      /\ childWs[c] /= Null
+                      /\ linkage[c] /= childWs[c]
+               /\ linkage' = [n \in Nodes |->
+                      IF n \in Children
+                         /\ linkage[n] = BundledRefWrapper(Parent, ser)
+                      THEN childWs[n]
+                      ELSE linkage[n]]
+               /\ local' = [local EXCEPT
+                      ![t].subwrappers = [c \in Children |-> Null],
+                      ![t].subpackets  = EmptySub]
+               /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
+               /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase4(t):
 \*   // Phase 4: finalize -- clear missing flag, CAS parent
 \*   superwrapper = new PacketWrapper(*superwrapper, bundle_serial);
 \*   newpacket->m_missing = false;  // all sub-packets present
 \*   parent->m_link->compareAndSet(oldsuperwrapper, superwrapper);
-\*   Source: transaction_impl.h:1158-1171
+\*   Source: transaction_impl.h:1286-1299
 BundlePhase4(t) ==
     /\ pc[t] = "bundle_phase4"
     /\ LET oldW     == local[t].wrapper
@@ -290,32 +354,65 @@ BundlePhase4(t) ==
        IF linkage[Parent] = oldW
        THEN /\ linkage' = [linkage EXCEPT ![Parent] = finalW]
             /\ local' = [local EXCEPT ![t].snapResult = finalPkt]
-            /\ pc' = [pc EXCEPT ![t] = "snap_done"]
-            /\ UNCHANGED <<serial, globalSerial, op, target, commit_count>>
+            /\ pc' = [pc EXCEPT ![t] = "commit_parent"]
+            /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
-
-SnapDone(t) ==
-    /\ pc[t] = "snap_done"
-    /\ pc' = [pc EXCEPT ![t] = "idle"]
-    /\ op' = [op EXCEPT ![t] = "idle"]
-    /\ target' = [target EXCEPT ![t] = Null]
-    /\ local' = [local EXCEPT ![t] = InitLocal]
-    /\ UNCHANGED <<serial, globalSerial, linkage, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
 
 -----------------------------------------------------------------------------
 (* Commit *)
 
+\* @c11_action CommitParent(t):
+\*   Commit ALL children's payload changes under Parent's scope (one transaction).
+\*   C++: Transaction<XN> tr(Parent); for each c: tr[c].m_x += 1; tr.commit();
+\*   Uses snapResult (from completed snapshot) to build new packet with ALL children
+\*   incremented, then CAS. Sets childQueue to Children for subsequent per-child commits.
+CommitParent(t) ==
+    /\ pc[t] = "commit_parent"
+    /\ childQueue[t] = {}
+    /\ local[t].snapResult /= Null
+    /\ \A c \in Children : local[t].snapResult.sub[c] /= Null
+    /\ LET pw      == linkage[Parent]
+           snapPkt == local[t].snapResult
+           newSub  == [c \in Children |->
+               MakePacket(c,
+                   (snapPkt.sub[c].payload + 1) % MaxPayload,
+                   snapPkt.sub[c].sub,
+                   snapPkt.sub[c].missing)]
+           newPkt  == MakePacket(Parent, snapPkt.payload, newSub, snapPkt.missing)
+           ser     == GenSerial(t, pw.serial)
+           newPW   == PriorityWrapper(newPkt, ser)
+       IN
+       \/ \* CAS success: commit and move to per-child phase
+          /\ pw.hasPriority
+          /\ pw.packet = snapPkt
+          /\ linkage' = [linkage EXCEPT ![Parent] = newPW]
+          /\ UpdateSerial(t, ser)
+          /\ childQueue' = [childQueue EXCEPT ![t] = Children]
+          /\ pc' = [pc EXCEPT ![t] = "idle"]
+          /\ op' = [op EXCEPT ![t] = "idle"]
+          /\ target' = [target EXCEPT ![t] = Null]
+          /\ local' = [local EXCEPT ![t] = InitLocal]
+          /\ UNCHANGED iterBudget
+       \/ \* CAS failure: retry from snapshot (iterate_commit semantics)
+          /\ ~(pw.hasPriority /\ pw.packet = snapPkt)
+          /\ pc' = [pc EXCEPT ![t] = "idle"]
+          /\ op' = [op EXCEPT ![t] = "idle"]
+          /\ target' = [target EXCEPT ![t] = Null]
+          /\ local' = [local EXCEPT ![t] = InitLocal]
+          /\ UNCHANGED <<serial, globalSerial, linkage, iterBudget, childQueue>>
+
 \* @c11_action CommitStart(t, childNode):
 \*   Entry: Transaction<XN> tr(childNode);
+\*   Guard: childNode \in childQueue[t] -- only targets remaining in current iteration.
 \*   Source: transaction.h:607-613
 CommitStart(t, childNode) ==
     /\ pc[t] = "idle"
-    /\ childNode \in Children
+    /\ childNode \in childQueue[t]
     /\ op' = [op EXCEPT ![t] = "commit"]
     /\ target' = [target EXCEPT ![t] = childNode]
     /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-    /\ UNCHANGED <<serial, globalSerial, linkage, local, commit_count>>
+    /\ UNCHANGED <<serial, globalSerial, linkage, local, iterBudget, childQueue>>
 
 \* @c11_action CommitRead(t):
 \*   local_shared_ptr<PacketWrapper> wrapper(*child->m_link);  -- load_shared_
@@ -323,7 +420,7 @@ CommitStart(t, childNode) ==
 \*       -> commit_try_cas       // direct commit path
 \*   else
 \*       -> unbundle_walk        // bundled, need unbundle first
-\*   Source: transaction_impl.h:1241-1276
+\*   Source: transaction_impl.h:1364-1420
 CommitRead(t) ==
     /\ pc[t] = "commit_read"
     /\ LET childNode == target[t]
@@ -338,10 +435,10 @@ CommitRead(t) ==
                                      w.packet.sub,
                                      w.packet.missing)]
             /\ pc' = [pc EXCEPT ![t] = "commit_try_cas"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
        ELSE /\ local' = [local EXCEPT ![t].wrapper = w]
             /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
 
 \* @c11_action CommitTryCAS(t):
 \*   // Direct commit (hasPriority path)
@@ -351,7 +448,7 @@ CommitRead(t) ==
 \*       return true;           // success
 \*   // payload unchanged -> single-node optimization: adopt new children
 \*   // payload changed   -> true conflict, fail
-\*   Source: transaction_impl.h:1245-1270
+\*   Source: transaction_impl.h:1368-1400
 CommitTryCAS(t) ==
     /\ pc[t] = "commit_try_cas"
     /\ LET childNode == target[t]
@@ -363,9 +460,8 @@ CommitTryCAS(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![childNode] = newW]
             /\ UpdateSerial(t, ser)
             /\ local' = [local EXCEPT ![t].commitOk = "ok"]
-            /\ commit_count' = [commit_count EXCEPT ![childNode] = @ + 1]
             /\ pc' = [pc EXCEPT ![t] = "commit_done"]
-            /\ UNCHANGED <<op, target>>
+            /\ UNCHANGED <<op, target, iterBudget, childQueue>>
        ELSE IF linkage[childNode].hasPriority
        THEN IF linkage[childNode].packet.payload = oldW.packet.payload
             THEN /\ local' = [local EXCEPT
@@ -375,19 +471,19 @@ CommitTryCAS(t) ==
                            linkage[childNode].packet.sub,
                            linkage[childNode].packet.missing)]
                  /\ pc' = [pc EXCEPT ![t] = "commit_try_cas"]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
+                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
             ELSE /\ local' = [local EXCEPT ![t].commitOk = "fail"]
                  /\ pc' = [pc EXCEPT ![t] = "commit_done"]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
+                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action UnbundleWalk(t):
 \*   // Walk up bundledBy chain to find sub-packet in parent's bundle
-\*   snapshotSupernode(sublinkage, superwrapper, &subpacket,
-\*       FOR_UNBUNDLE, serial, &cas_infos);
+\*   snapshotForUnbundle(sublinkage, superwrapper, &subpacket,
+\*       serial, &cas_infos);
 \*   Extract child's packet from parent's packet.sub[child].
-\*   Source: transaction_impl.h:1314-1344, 696-755
+\*   Source: transaction_impl.h:1459-1490 (unbundle), 825-960 (walkUpChainImpl/snapshotForUnbundle)
 UnbundleWalk(t) ==
     /\ pc[t] = "unbundle_walk"
     /\ LET childNode == target[t]
@@ -404,40 +500,49 @@ UnbundleWalk(t) ==
                        parentW.packet.sub[childNode].sub,
                        parentW.packet.sub[childNode].missing)]
             /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_ancestors"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action UnbundleCASAncestors(t):
 \*   // CAS parent: set missing=TRUE (sub-packets are preserved, NOT nulled)
 \*   // C++: new PacketWrapper(*shot_upper, shot_upper->m_bundle_serial)
-\*   //   -- copy with the SAME serial; no gen() call here.
+\*   //   -- copy with the SAME bundle serial value; no gen() call here.
 \*   //   -- p->reset(new Packet(**p)); (*p)->m_missing = true;
 \*   for each cas_info in cas_infos:
 \*     it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper);
-\*   Source: transaction_impl.h:1367-1379, snapshotSupernode FOR_UNBUNDLE
+\*   Source: transaction_impl.h:1494-1506, snapshotForUnbundle CAS preparation
+\*
+\*   TLA+ modeling note: C++ compareAndSet uses POINTER equality (local_shared_ptr identity).
+\*   A new PacketWrapper allocation is always distinguishable from the old pointer, even if
+\*   the semantic content is identical (e.g., missing was already TRUE). In TLA+, records
+\*   compare by value, so we use GenSerial to obtain a fresh serial, making the new wrapper
+\*   value-distinct. This correctly prevents BundlePhase4 from CAS-ing over an ancestor-CAS'd
+\*   parent wrapper when missing was already TRUE.
 UnbundleCASAncestors(t) ==
     /\ pc[t] = "unbundle_cas_ancestors"
     /\ LET childNode  == target[t]
            oldParentW == local[t].parentWrapper
-           \* C++: same serial as old wrapper (no gen() for ancestor CAS)
-           \* C++ keeps sub-packets intact; only sets missing=TRUE
+           \* Use fresh serial to ensure new wrapper is value-distinct from old wrapper.
+           \* C++ achieves the same via new allocation (pointer identity); TLA+ uses serial.
+           ser        == GenSerial(t, oldParentW.serial)
            newPkt     == MakePacket(Parent, oldParentW.packet.payload,
                                    oldParentW.packet.sub, TRUE)
-           newParentW == PriorityWrapper(newPkt, oldParentW.serial)
+           newParentW == PriorityWrapper(newPkt, ser)
        IN
        IF oldParentW.hasPriority /\ linkage[Parent] = oldParentW
        THEN /\ linkage' = [linkage EXCEPT ![Parent] = newParentW]
+            /\ UpdateSerial(t, ser)
             /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_child"]
-            /\ UNCHANGED <<serial, globalSerial, local, op, target, commit_count>>
+            /\ UNCHANGED <<local, op, target, iterBudget, childQueue>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action UnbundleCASChild(t):
 \*   // Restore child to priority with extracted sub-packet
 \*   newsubwrapper = new PacketWrapper(*subpacket, gen(superwrapper->m_bundle_serial));
 \*   sublinkage->compareAndSet(bundled_ref, newsubwrapper);
-\*   Source: transaction_impl.h:1383-1389
+\*   Source: transaction_impl.h:1510-1520
 UnbundleCASChild(t) ==
     /\ pc[t] = "unbundle_cas_child"
     /\ LET childNode  == target[t]
@@ -449,19 +554,31 @@ UnbundleCASChild(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![childNode] = newChildW]
             /\ UpdateSerial(t, ser)
             /\ local' = [local EXCEPT ![t].commitOk = "ok"]
-            /\ commit_count' = [commit_count EXCEPT ![childNode] = @ + 1]
             /\ pc' = [pc EXCEPT ![t] = "commit_done"]
-            /\ UNCHANGED <<op, target>>
+            /\ UNCHANGED <<op, target, iterBudget, childQueue>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, commit_count>>
+            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
 
+\* @c11_action CommitDone(t):
+\*   Return commit result to caller. Thread-local only.
+\*   On success: remove target from childQueue. When childQueue empties, the iteration
+\*   is complete: decrement iterBudget. Thread restarts (SnapRead) when iterBudget > 0;
+\*   terminates (stays idle) when iterBudget = 0.
 CommitDone(t) ==
     /\ pc[t] = "commit_done"
     /\ pc' = [pc EXCEPT ![t] = "idle"]
     /\ op' = [op EXCEPT ![t] = "idle"]
-    /\ target' = [target EXCEPT ![t] = Null]
-    /\ local' = [local EXCEPT ![t] = InitLocal]
-    /\ UNCHANGED <<serial, globalSerial, linkage, commit_count>>
+    /\ LET node     == target[t]
+           success  == local[t].commitOk = "ok"
+           newQueue == IF success THEN childQueue[t] \ {node} ELSE childQueue[t]
+       IN
+       /\ target' = [target EXCEPT ![t] = Null]
+       /\ local' = [local EXCEPT ![t] = InitLocal]
+       /\ childQueue' = [childQueue EXCEPT ![t] = newQueue]
+       /\ IF success /\ newQueue = {}
+          THEN iterBudget' = [iterBudget EXCEPT ![t] = iterBudget[t] - 1]
+          ELSE UNCHANGED iterBudget
+    /\ UNCHANGED <<serial, globalSerial, linkage>>
 
 -----------------------------------------------------------------------------
 (* Next-state relation *)
@@ -474,7 +591,7 @@ Next ==
         \/ BundlePhase2(t)
         \/ BundlePhase3(t)
         \/ BundlePhase4(t)
-        \/ SnapDone(t)
+        \/ CommitParent(t)
         \/ \E c \in Children : CommitStart(t, c)
         \/ CommitRead(t)
         \/ CommitTryCAS(t)
@@ -504,8 +621,20 @@ BundleRefConsistency ==
         IN  (~cw.hasPriority /\ cw.bundledBy = Parent) =>
             linkage[Parent].hasPriority
 
-SerialMonotonicity ==
-    \A t \in Threads : serial[t] \in 0..(MaxSerial - 1)
+\* NoSerialWrapAround: all "active" serials must be totally ordered by ModGT.
+\* Active serials = thread-local serials + hasPriority node serials.
+\* Bundled (hasPriority=FALSE) nodes' serials are excluded: they can go stale
+\* without affecting correctness, because their wrappers are compared by full
+\* structural equality, not ModGT.
+\* When wrap-around makes |a - b| = MaxSerial/2, ModGT(a,b) and ModGT(b,a) are
+\* both FALSE — the serial space is exhausted. Increase MaxSerial.
+\* Replaces the former SerialMonotonicity (which only checked range).
+NoSerialWrapAround ==
+    LET activeSerials == {serial[t] : t \in Threads}
+                         \cup {linkage[n].serial :
+                               n \in {m \in Nodes : linkage[m].hasPriority}}
+    IN \A a \in activeSerials : \A b \in activeSerials :
+        a = b \/ ModGT(a, b) \/ ModGT(b, a)
 
 \* MissingPropagation: mirrors Node<XN>::Packet::checkConsistensy check #4.
 \* If parent packet is NOT missing, all its sub-packets must also be NOT missing.
@@ -517,14 +646,18 @@ MissingPropagation ==
             pw.packet.sub[c] /= Null => ~pw.packet.sub[c].missing)
 
 Safety == SnapshotConsistency /\ NoPriorityLoss /\ BundleRefConsistency
-          /\ SerialMonotonicity /\ MissingPropagation
+          /\ NoSerialWrapAround /\ MissingPropagation
 
-\* QuiescentCheck: when all threads are idle, each child with priority
-\* has payload = commit_count mod MaxPayload.
-QuiescentCheck ==
-    (\A t \in Threads : pc[t] = "idle") =>
-        \A n \in Children :
-            linkage[n].hasPriority =>
-                linkage[n].packet.payload = commit_count[n] % MaxPayload
+\* TerminalPayloadCheck: at termination (all threads: iterBudget=0 and idle),
+\* each child received exactly 2 * MaxCommits * |Threads| payload increments:
+\*   - MaxCommits * |Threads| from CommitParent (ALL children incremented per iteration)
+\*   - MaxCommits * |Threads| from CommitChild (one direct commit per child per iteration)
+\* The expected final payload is deterministic, so no tracking variable is needed.
+TerminalPayloadCheck ==
+    (\A t \in Threads : iterBudget[t] = 0 /\ pc[t] = "idle") =>
+        \A c \in Children :
+            /\ linkage[c].hasPriority
+            /\ linkage[c].packet.payload =
+                   (2 * MaxCommits * Cardinality(Threads)) % MaxPayload
 
 =============================================================================
