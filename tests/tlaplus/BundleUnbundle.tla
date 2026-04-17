@@ -437,7 +437,7 @@ BundlePhase3(t) ==
                      /\ linkage[c] = childWs[c]
                      /\ linkage' = [linkage EXCEPT ![c] = BundledRefWrapper(node, ser)]
                      /\ LET allDone == \A c2 \in children \ {c} :
-                                           ~linkage[c2].hasPriority
+                                           linkage[c2] = BundledRefWrapper(node, ser)
                         IN
                         IF allDone
                         THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]

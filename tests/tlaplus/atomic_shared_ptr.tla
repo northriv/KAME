@@ -38,6 +38,7 @@ EXTENDS Integers, Sequences, FiniteSets, TLC
 CONSTANTS
     Threads,          \* set of thread IDs
     Objects,          \* set of possible object IDs (Ref objects)
+    MaxOps,           \* per-thread operation budget (0 = unlimited for backward compat)
     EnableCAS,        \* TRUE to enable compareAndSwap_ operations
     EnableSwap,       \* TRUE to enable local_shared_ptr::swap(atomic_shared_ptr&)
     EnableRecycle     \* TRUE to enable ABA recycling of freed objects
@@ -108,10 +109,11 @@ VARIABLES
     thr_old,        \* for CAS: the expected old object
     thr_new,        \* for CAS: the new object to install
     thr_holds,      \* thr_holds[t][o]: number of references thread t holds to object o
-    thr_rtr_ctx      \* release_tag_ref_ return target: "load_done", "cas_retry", "cas_fail"
+    thr_rtr_ctx,      \* release_tag_ref_ return target: "load_done", "cas_retry", "cas_fail"
+    iterBudget        \* per-thread remaining operation count
 
 vars == <<ptr, local_rc, global_rc, freed, pc, thr_op, thr_pref, thr_rcnt,
-          thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+          thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 (* -------------------------------------------------------------------------- *)
 (* Type invariant                                                             *)
@@ -146,6 +148,7 @@ TypeOK ==
     /\ thr_new \in [Threads -> Objects \cup {NULL}]
     /\ thr_holds \in [Threads -> [Objects -> Nat]]
     /\ thr_rtr_ctx \in [Threads -> {"load_done", "cas_retry", "cas_fail", "none"}]
+    /\ iterBudget \in [Threads -> Nat]
 
 (* -------------------------------------------------------------------------- *)
 (* Initial state                                                              *)
@@ -174,6 +177,7 @@ Init ==
                         THEN 1
                         ELSE 0]]
     /\ thr_rtr_ctx = [t \in Threads |-> "none"]
+    /\ iterBudget = [t \in Threads |-> MaxOps]
 
 (* ========================================================================== *)
 (* ABA Recycling: a freed object can be "reallocated" at the same address     *)
@@ -189,6 +193,7 @@ Init ==
 Recycle(t) ==
     /\ EnableRecycle
     /\ pc[t] \in {"idle", "done"}
+    /\ iterBudget[t] > 0  \* only recycle if future ops remain
     /\ \A o2 \in Objects : thr_holds[t][o2] = 0  \* C++: old local_shared_ptr destroyed before new allocation
     /\ \E o \in Objects :
        /\ freed[o] = TRUE
@@ -197,7 +202,7 @@ Recycle(t) ==
        /\ global_rc' = [global_rc EXCEPT ![o] = 1]
        /\ thr_holds' = [thr_holds EXCEPT ![t][o] = @ + 1]
     /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_rtr_ctx>>
+                   thr_old, thr_new, thr_rtr_ctx, iterBudget>>
 
 (* ========================================================================== *)
 (* load_shared_() operation: acquire_tag_ref_ + increment global_rc + release_tag_ref_       *)
@@ -210,11 +215,12 @@ Recycle(t) ==
 \*   Source: atomic_smart_ptr.h:500 -> cds_test_load.c:122
 StartLoadShared(t) ==
     /\ pc[t] = "idle"
+    /\ iterBudget[t] > 0
     /\ \A o \in Objects : thr_holds[t][o] = 0  \* C++: local_shared_ptr destroyed before next load
     /\ pc' = [pc EXCEPT ![t] = "atr_read"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "load"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 (* ========================================================================== *)
 (* acquire_tag_ref_(): atomic read of m_ref                                      *)
@@ -235,7 +241,7 @@ AcquireTagRefRead(t) ==
     /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = local_rc]
     /\ pc' = [pc EXCEPT ![t] = "atr_cas"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_old,
-                   thr_new, thr_holds, thr_rtr_ctx>>
+                   thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action AcquireTagRefCAS(t):
 \* uintptr_t expected = (uintptr_t)pref + rcnt_old;
@@ -259,12 +265,12 @@ AcquireTagRefCAS(t) ==
                                        [] thr_op[t] = "swap" -> "cas_transfer"
                                        [] OTHER -> "cas_check"]
           /\ UNCHANGED <<ptr, global_rc, freed, thr_op, thr_pref, thr_old,
-                         thr_new, thr_holds, thr_rtr_ctx>>
+                         thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
        \/ (* CAS fails: retry from read *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ pc' = [pc EXCEPT ![t] = "atr_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action AcquireTagRefNull(t):
 \* if (!pref) { *rcnt = rcnt_old; return NULL; }
@@ -276,7 +282,7 @@ AcquireTagRefNull(t) ==
                                   [] thr_op[t] = "swap" -> "cas_transfer"
                                   [] OTHER -> "cas_check"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action LoadSharedIncGlobal(t):
 \* atomic_fetch_add_explicit(&pref->refcnt, 1, memory_order_relaxed);
@@ -287,7 +293,7 @@ LoadSharedIncGlobal(t) ==
     /\ global_rc' = [global_rc EXCEPT ![thr_pref[t]] = @ + 1]
     /\ pc' = [pc EXCEPT ![t] = "ls_release"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action LoadSharedStartRelease(t):
 \* // fall-through to release_tag_ref_(pref)
@@ -298,7 +304,7 @@ LoadSharedStartRelease(t) ==
     /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
     /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "load_done"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds>>
+                   thr_old, thr_new, thr_holds, iterBudget>>
 
 (* ========================================================================== *)
 (* release_tag_ref_() operation (shared by load_shared_ and compareAndSwap_)              *)
@@ -319,7 +325,7 @@ ReleaseTagRefRead(t) ==
     /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = local_rc]
     /\ pc' = [pc EXCEPT ![t] = IF local_rc > 0 THEN "rtr_cas" ELSE "rtr_global"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action ReleaseTagRefCAS(t):
 \* uintptr_t expected = (uintptr_t)pref + rcnt_old;
@@ -348,19 +354,19 @@ ReleaseTagRefCAS(t) ==
              ELSE UNCHANGED thr_holds
           /\ pc' = [pc EXCEPT ![t] = returnPC]
           /\ UNCHANGED <<ptr, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_rtr_ctx>>
+                         thr_old, thr_new, thr_rtr_ctx, iterBudget>>
        \/ (* CAS fails, ptr still matches -> retry release_tag_ref_ *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ ptr = thr_pref[t]
           /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
        \/ (* CAS fails, ptr changed -> fallback to global dec *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ ptr /= thr_pref[t]
           /\ pc' = [pc EXCEPT ![t] = "rtr_global"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action ReleaseTagRefGlobal(t):
 \* uintptr_t old_rc = atomic_fetch_sub_explicit(&pref->refcnt, 1,
@@ -385,7 +391,7 @@ ReleaseTagRefGlobal(t) ==
           ELSE UNCHANGED thr_holds
        /\ pc' = [pc EXCEPT ![t] = returnPC]
        /\ UNCHANGED <<ptr, local_rc, thr_op, thr_pref, thr_rcnt, thr_old,
-                      thr_new, thr_rtr_ctx>>
+                      thr_new, thr_rtr_ctx, iterBudget>>
 
 (* ========================================================================== *)
 (* local_shared_ptr::reset()                                                  *)
@@ -410,7 +416,7 @@ Reset(t) ==
           THEN freed' = [freed EXCEPT ![o] = TRUE]
           ELSE freed' = freed
     /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt, thr_old,
-                   thr_new, thr_rtr_ctx>>
+                   thr_new, thr_rtr_ctx, iterBudget>>
 
 (* ========================================================================== *)
 (* compareAndSwap_() operation                                                *)
@@ -437,6 +443,7 @@ Reset(t) ==
 StartCAS(t) ==
     /\ EnableCAS
     /\ pc[t] = "idle"
+    /\ iterBudget[t] > 0
     /\ \E oldObj \in Objects \cup {NULL}, newObj \in Objects \cup {NULL} :
        /\ oldObj /= newObj
        /\ (newObj /= NULL => (freed[newObj] = FALSE /\ thr_holds[t][newObj] > 0))
@@ -445,7 +452,7 @@ StartCAS(t) ==
     /\ pc' = [pc EXCEPT ![t] = "cas_pre_inc"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "cas"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_holds, thr_rtr_ctx>>
+                   thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action CASPreInc(t):
 \* if (newr)
@@ -458,7 +465,7 @@ CASPreInc(t) ==
        ELSE UNCHANGED global_rc
     /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action CASReserve(t):
 \* // Enter acquire_tag_ref_ loop for CAS/swap
@@ -468,7 +475,7 @@ CASReserve(t) ==
     /\ pc[t] = "cas_acquire"
     /\ pc' = [pc EXCEPT ![t] = "atr_read"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action CASCheck(t):
 \* if (pref != oldr) {
@@ -492,14 +499,15 @@ CASCheck(t) ==
             THEN /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
                  /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "cas_fail"]
                  /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
-                                thr_rcnt, thr_old, thr_new, thr_holds>>
+                                thr_rcnt, thr_old, thr_new, thr_holds, iterBudget>>
             ELSE /\ pc' = [pc EXCEPT ![t] = "cas_fail_done"]
                  /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
-                                thr_rcnt, thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                                thr_rcnt, thr_old, thr_new, thr_holds, thr_rtr_ctx,
+                                iterBudget>>
        ELSE
             /\ pc' = [pc EXCEPT ![t] = "cas_transfer"]
             /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                           thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                           thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action CASFailDone(t):
 \* // Rollback newr's pre-incremented refcount
@@ -520,7 +528,7 @@ CASFailDone(t) ==
     /\ pc' = [pc EXCEPT ![t] = "done"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new,
-                   thr_holds, thr_rtr_ctx>>
+                   thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action CASTransfer(t):
 \* // Transfer local refcount to global before the pointer CAS
@@ -537,7 +545,7 @@ CASTransfer(t) ==
        ELSE UNCHANGED global_rc
     /\ pc' = [pc EXCEPT ![t] = "cas_swap"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action CASSwap(t):
 \* uintptr_t expected = (uintptr_t)pref + rcnt_old;
@@ -575,12 +583,12 @@ CASSwap(t) ==
                   /\ pc' = [pc EXCEPT ![t] = "cas_cleanup"]
                   /\ UNCHANGED <<thr_holds, thr_op>>
           /\ UNCHANGED <<global_rc, freed, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_rtr_ctx>>
+                         thr_old, thr_new, thr_rtr_ctx, iterBudget>>
        \/ (* CAS fails *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ pc' = [pc EXCEPT ![t] = "cas_undo"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
 
 \* @c11_action CASUndo(t):
 \* // Undo the transfer and release local ref
@@ -606,7 +614,7 @@ CASUndo(t) ==
        ELSE /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]
             /\ UNCHANGED <<global_rc, thr_rtr_ctx>>
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds>>
+                   thr_old, thr_new, thr_holds, iterBudget>>
 
 \* @c11_action CASCleanup(t):
 \* // Release m_ref's old ownership after successful CAS
@@ -629,7 +637,7 @@ CASCleanup(t) ==
     /\ pc' = [pc EXCEPT ![t] = "done"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new,
-                   thr_holds, thr_rtr_ctx>>
+                   thr_holds, thr_rtr_ctx, iterBudget>>
 
 (* ========================================================================== *)
 (* local_shared_ptr::swap(atomic_shared_ptr&)                                 *)
@@ -655,19 +663,21 @@ CASCleanup(t) ==
 StartSwap(t) ==
     /\ EnableSwap
     /\ pc[t] = "idle"
+    /\ iterBudget[t] > 0
     /\ \E newObj \in Objects \cup {NULL} :
        /\ (newObj /= NULL => (freed[newObj] = FALSE /\ thr_holds[t][newObj] > 0))
        /\ thr_new' = [thr_new EXCEPT ![t] = newObj]
     /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]  \* skip PreInc
     /\ thr_op' = [thr_op EXCEPT ![t] = "swap"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_old, thr_holds, thr_rtr_ctx>>
+                   thr_old, thr_holds, thr_rtr_ctx, iterBudget>>
 
 ReturnToIdle(t) ==
     /\ pc[t] = "done"
     /\ thr_op[t] /= "cas"
     /\ pc' = [pc EXCEPT ![t] = "idle"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
+    /\ iterBudget' = [iterBudget EXCEPT ![t] = @ - 1]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
                    thr_old, thr_new, thr_holds, thr_rtr_ctx>>
 
@@ -755,5 +765,20 @@ QuiescentCheck ==
     (\A t \in Threads : pc[t] = "idle") =>
         /\ \A o \in Objects : freed[o] = (global_rc[o] = 0)
         /\ ptr /= NULL => global_rc[ptr] >= 1
+
+(* 8. Terminal consistency: when all budgets are exhausted and all         *)
+(*    references released, the global state is fully determined.          *)
+(*    - The installed object has exactly 1 reference (from ptr)           *)
+(*    - All other objects are freed with rc=0                             *)
+(*    - No thread holds any references                                    *)
+TerminalCheck ==
+    LET allDone == \A t \in Threads :
+                       pc[t] = "idle" /\ iterBudget[t] = 0
+                       /\ \A o \in Objects : thr_holds[t][o] = 0
+    IN allDone =>
+        /\ \A o \in Objects :
+            IF o = ptr
+            THEN global_rc[o] = 1 /\ freed[o] = FALSE
+            ELSE global_rc[o] = 0 /\ freed[o] = TRUE
 
 =============================================================================
