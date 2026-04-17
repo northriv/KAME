@@ -28,9 +28,9 @@ p{line-height:1.8}
 
 <!-- ===== Slide 0: 記法 ===== -->
 <div class="slide">
-<h1>TLA+ 記法（Layer 0参照）</h1>
+<h1>TLA+ 記法（Layer 1参照）</h1>
 <div class="box">
-<p>TLA+の基本記法は <strong>Layer 0スライドの冒頭</strong> (slides_layer0.html) を参照。<br>
+<p>TLA+の基本記法は <strong>Layer 1スライドの冒頭</strong> (slides_layer0.html — 旧「Layer 0」から改称) を参照。<br>
 本スライドで新たに登場する記法:</p>
 </div>
 <table>
@@ -52,12 +52,14 @@ C++の構造体のネストに対応する。TLA+では<code>[local EXCEPT ![t].
 
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
-<h1>Layer 2: Bundle/Unbundle</h1>
-<h3>TLA+モデル解説 — BundleUnbundle.tla (396行)</h3>
+<h1>Layer 2: Bundle/Unbundle + Commit</h1>
+<h3>TLA+モデル解説 — BundleUnbundle_2level.tla / BundleUnbundle_3level.tla</h3>
 
 <div class="box-purple">
-<p><strong>最も複雑なモデル。</strong> 3レベル木での4フェーズbundleと多段unbundleを検証。<br>
-6.22億状態の完全探索に4時間20分。</p>
+<p><strong>最も複雑なモデル。</strong> 2レベル・3レベル木での4フェーズbundle、多段unbundle、
+および楽観的commitを統合検証する。旧「Layer 1 (stm_commit)」の単一ノードCASコミットは、
+本層の <code>CommitChild</code> パスに<strong>統合</strong>された（2層アーキテクチャ化）。</p>
+<p>モデルは<strong>3段階の忠実度</strong>で切替可能（coarse / fine / superfine — 次スライド参照）。</p>
 </div>
 
 <h2>木構造（固定）</h2>
@@ -84,6 +86,34 @@ Grand ── Parent ──┬── Child1<br>
     globalSerial,  <span class="comment">\* 最新グローバルシリアル</span>
     linkage,       <span class="comment">\* linkage[n]: 各ノードのPacketWrapper</span>
     pc, op, target, local  <span class="comment">\* per-thread 状態</span></code></pre>
+</div>
+
+<!-- ===== Slide 1b: 3-tier fidelity ===== -->
+<div class="slide">
+<h1>3段階の忠実度モデル (coarse / fine / superfine)</h1>
+
+<div class="box">
+<p>本層のTLA+仕様は<strong>同じ不変条件</strong>を異なる粒度で検証できる。
+粒度の選択は <code>.cfg</code> ファイルの定数フラグで切替。
+細かいほど状態数が増えるが、C++実装への忠実度が上がる。</p>
+</div>
+
+<table>
+<tr><th>モード</th><th>特徴</th><th>用途</th></tr>
+<tr><td style="color:#4ade80"><strong>coarse</strong></td><td>単一アトミックステップでフェーズをまとめる（最速）。<br>一部のインターリーブを見逃す可能性はあるが、高水準な不変条件は検証可能。</td><td>大規模モデル（3レベル、3スレッド等）のスモークテスト</td></tr>
+<tr><td style="color:#60a5fa"><strong>fine</strong></td><td>子ノードごとに個別のCASと失敗パスを分離。<br>Phase3のロールバックは省略（C++実装が行わないため）。</td><td>標準的な網羅検証</td></tr>
+<tr><td style="color:#c084fc"><strong>superfine</strong></td><td>C++に忠実な5つの最適化パスを有効化:<br>
+  #1 pre-bundle シリアルCAS、#2 inner bundle のフェーズ分割、<br>
+  #4 Phase3 の DISTURBED チェック、#5 root-first unbundle 順序、<br>
+  #6 同一子リトライ（same-child retry）</td><td>C++実装との厳密な突き合わせ</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>発見されたバグ:</strong> TLA+検証の過程で <code>BundlePhase3</code> の <code>allDone</code> 判定が
+<code>~hasPriority</code> のみをチェックしており、本来は
+<code>BundledRefWrapper(node, ser)</code> と一致するかを確認すべきだった。
+モデル上で修正済み（C++実装も対応）。</p>
+</div>
 </div>
 
 <!-- ===== Slide 2: Bundle 4-phase ===== -->
@@ -235,32 +265,47 @@ Grand ── Parent ──┬── Child1<br>
 
 <h2>検証結果（StateConstraintなし、モジュラー算術）</h2>
 <table>
-<tr><th>モデル</th><th>スレッド</th><th>MaxSerial</th><th>状態数</th><th>時間</th><th>結果</th></tr>
-<tr><td>2レベル</td><td>2</td><td>8</td><td>150M+</td><td>—</td><td style="color:#fbbf24">進行中（違反なし）</td></tr>
-<tr><td>3レベル</td><td>2</td><td>8</td><td>145M+</td><td>—</td><td style="color:#fbbf24">進行中（違反なし）</td></tr>
-<tr><td colspan="6" style="font-size:0.85em; color:#94a3b8;">MaxSerial=8（モジュラー算術）。2スレッド完全探索はohtaka待ち。QuiescentCheck追加済み。</td></tr>
+<tr><th>モデル</th><th>粒度</th><th>スレッド</th><th>MaxCommits</th><th>状態数</th><th>時間</th><th>結果</th></tr>
+<tr><td>2レベル</td><td>coarse</td><td>2</td><td>1</td><td>906K</td><td>12秒</td><td style="color:#4ade80">✅ Pass（完全）</td></tr>
+<tr><td>2レベル</td><td>coarse</td><td>2</td><td>5</td><td>~3.2M</td><td>—</td><td style="color:#4ade80">✅ Pass（完全）</td></tr>
+<tr><td>3レベル</td><td>coarse</td><td>2</td><td>1</td><td>110K</td><td>3秒</td><td style="color:#4ade80">✅ Pass（完全）</td></tr>
+<tr><td>3レベル</td><td>coarse</td><td>2</td><td>5</td><td>~8.5M</td><td>—</td><td style="color:#4ade80">✅ Pass（完全）</td></tr>
+<tr><td>3レベル</td><td>all-fine</td><td>2</td><td>1</td><td>1.2M</td><td>22秒</td><td style="color:#4ade80">✅ Pass（完全）</td></tr>
+<tr><td>2/3レベル</td><td>fine/superfine (deep)</td><td>2〜3</td><td>5</td><td>—</td><td>—</td><td style="color:#fbbf24">ohtaka待ち</td></tr>
+<tr><td colspan="7" style="font-size:0.85em; color:#94a3b8;">モジュラー算術でシリアルを有限化。StateConstraintは使用しない。production構成は MaxSerial=512（2レベル）/ 1024（3レベル）。</td></tr>
 </table>
 
 <div class="box-purple">
-<p><strong>6.22億状態の意味:</strong> 2スレッドが同時にsnapshot/commit/bundle/unbundleを
-任意の組み合わせで実行するすべてのインターリーブで、5つの不変条件が保持される。</p>
+<p><strong>検証の意味:</strong> 2スレッドが同時にsnapshot/commit/bundle/unbundleを任意の組み合わせで
+実行するすべてのインターリーブで、5つの不変条件が保持される。coarseは単一ステップで最速、
+fineは子ごとにCAS分離、superfineはC++最適化パスを忠実に再現する。</p>
+</div>
+
+<div class="box-green">
+<p><strong>TLA+で発見したバグ:</strong> BundlePhase3のfine粒度において、<code>allDone</code>判定が
+<code>~hasPriority</code>のみをチェックしており、別スレッドがbundleした子も「完了」と
+誤判定していた。修正後は自スレッドの <code>BundledRefWrapper(node, ser)</code> と
+一致するかで判定する（C++実装は「既にbundled済みならスキップ」という最適化を持たず、
+全子にCASするため元々この問題は発生しない）。</p>
 </div>
 </div>
 
 <!-- ===== Slide 6: Summary ===== -->
 <div class="slide">
-<h1>3層の全体像</h1>
+<h1>2層アーキテクチャの全体像</h1>
 
 <table>
 <tr><th>層</th><th>何を抽象化</th><th>何を検証</th><th>状態数</th></tr>
-<tr><td style="color:#0891b2"><strong>Layer 0</strong></td><td>—</td><td>参照カウント、ABA、メモリ安全性</td><td>8.7M</td></tr>
-<tr><td style="color:#3b82f6"><strong>Layer 1</strong></td><td>atomic_shared_ptrを正しいレジスタに</td><td>Snapshot→Commit、Lost Update防止</td><td>78K</td></tr>
-<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td>Commitを正しいCASに</td><td>Bundle/Unbundle、サブツリー整合性</td><td>150M+ (進行中)</td></tr>
+<tr><td style="color:#0891b2"><strong>Layer 1</strong></td><td>—（ハードウェア直接）</td><td>参照カウント、ABA、メモリ安全性</td><td>8.7M（2スレッド完全）</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td>atomic_shared_ptrを正しいCASレジスタに</td><td>Bundle/Unbundle + 楽観的commit、サブツリー整合性</td><td>906K〜8.5M（coarse/fine完全、superfine待ち）</td></tr>
 </table>
 
 <div class="box">
-<p><strong>Layer 0/1完全探索済み、Layer 2はohtaka待ち。</strong><br>
-各層は下の層の正しさを前提に抽象化。GenMC (Layer 0) がメモリモデルの正しさを補完。</p>
+<p><strong>2層に整理した経緯:</strong> 旧「Layer 1 (stm_commit)」の単一ノードCASコミットは、
+Layer 2 の <code>CommitChild</code> パスに自然に統合できるため、独立層としては不要と判断。
+bundle/unbundleと楽観的commitを同じ仕様内で検証することで、
+干渉パターンの網羅性が向上した。<br>
+Layer 1は完全探索済み、Layer 2はcoarse/fine完全探索済み、superfine/深いfineはohtaka実行待ち。</p>
 </div>
 </div>
 

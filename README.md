@@ -298,11 +298,13 @@ offers three concrete benefits for this domain:
 
 #### Formal verification (TLA+)
 
-The STM protocol is formally specified and model-checked with TLA+ / TLC across three layers:
+The STM protocol is formally specified and model-checked with TLA+ / TLC across three specs:
 
-- **Layer 0 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla), [slides EN](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer0_en.html), [slides JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer0.html))
-- **Layer 1 — `stm_commit`:** snapshot + optimistic commit with serial validation ([spec](tests/tlaplus/stm_commit.tla), [slides EN](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html), [slides JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html))
-- **Layer 2 — `BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla), [slides EN](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html), [slides JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
+- **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla))
+- **`stm_commit`:** snapshot + optimistic commit with serial validation ([spec](tests/tlaplus/stm_commit.tla))
+- **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla))
+
+Slide decks: [Layer 1 — atomic_shared_ptr](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html)), [Layer 2 — Bundle/Unbundle + Commit](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
 
 C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`tests/tlaplus/test_*.c`) and C++-derived protocol tests (`tests/cds_atomic_shared_ptr/`).
 

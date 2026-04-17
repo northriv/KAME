@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TLA+ Layer 2: Bundle/Unbundle Explanation</title>
+<title>TLA+ Layer 2: Bundle/Unbundle + Commit Explanation</title>
 <style>
 body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
 .slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
@@ -28,9 +28,9 @@ p{line-height:1.8}
 
 <!-- ===== Slide 0: Notation ===== -->
 <div class="slide">
-<h1>TLA+ Notation (See Layer 0)</h1>
+<h1>TLA+ Notation (See Layer 1)</h1>
 <div class="box">
-<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 0 slides</strong> (slides_layer0.html).<br>
+<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 1 slides</strong> (slides_layer0_en.html — renamed from old "Layer 0").<br>
 New notation introduced in these slides:</p>
 </div>
 <table>
@@ -52,12 +52,15 @@ This corresponds to nested structs in C++. In TLA+, nested fields are updated wi
 
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
-<h1>Layer 2: Bundle/Unbundle</h1>
-<h3>TLA+ Model Explanation — BundleUnbundle.tla (396 lines)</h3>
+<h1>Layer 2: Bundle/Unbundle + Commit</h1>
+<h3>TLA+ Model — BundleUnbundle_2level.tla / BundleUnbundle.tla (3-level)</h3>
 
 <div class="box-purple">
-<p><strong>The most complex model.</strong> Verifies 4-phase bundle and multi-level unbundle on a 3-level tree.<br>
-Complete exploration of 622 million states in 4 hours 20 minutes.</p>
+<p><strong>The most complex model.</strong> Integrated verification of 4-phase bundle, multi-level unbundle,
+and optimistic commit on 2-level and 3-level trees. The single-node CAS commit from the old "Layer 1
+(stm_commit)" is now <strong>subsumed</strong> into this layer's <code>CommitChild</code> path
+(2-layer architecture).</p>
+<p>Model supports <strong>3 fidelity tiers</strong> (coarse / fine / superfine — see next slide).</p>
 </div>
 
 <h2>Tree Structure (Fixed)</h2>
@@ -84,6 +87,34 @@ Grand ── Parent ──┬── Child1<br>
     globalSerial,  <span class="comment">\* latest global serial</span>
     linkage,       <span class="comment">\* linkage[n]: PacketWrapper for each node</span>
     pc, op, target, local  <span class="comment">\* per-thread state</span></code></pre>
+</div>
+
+<!-- ===== Slide 1b: 3-tier fidelity ===== -->
+<div class="slide">
+<h1>3-Tier Fidelity Model (coarse / fine / superfine)</h1>
+
+<div class="box">
+<p>This layer's TLA+ spec can verify the <strong>same invariants</strong> at different granularities.
+Granularity is selected via constant flags in the <code>.cfg</code> file. Finer modes increase state
+count but also raise fidelity to the C++ implementation.</p>
+</div>
+
+<table>
+<tr><th>Mode</th><th>Characteristics</th><th>Use case</th></tr>
+<tr><td style="color:#4ade80"><strong>coarse</strong></td><td>Phases collapsed into single atomic steps (fastest).<br>May miss some interleavings, but high-level invariants are still verifiable.</td><td>Smoke tests on large models (3-level, 3-thread, etc.)</td></tr>
+<tr><td style="color:#60a5fa"><strong>fine</strong></td><td>Per-child CAS with separate failure paths.<br>Phase3 rollback is omitted (matching C++).</td><td>Standard exhaustive verification</td></tr>
+<tr><td style="color:#c084fc"><strong>superfine</strong></td><td>Five C++-faithful optimization paths enabled:<br>
+  #1 pre-bundle serial CAS, #2 inner-bundle phase split,<br>
+  #4 Phase3 DISTURBED check, #5 root-first unbundle ordering,<br>
+  #6 same-child retry</td><td>Strict correspondence with C++</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Bug found:</strong> During TLA+ verification, <code>BundlePhase3</code>'s
+<code>allDone</code> check was only testing <code>~hasPriority</code>, but should have
+been verifying a match with <code>BundledRefWrapper(node, ser)</code>. Fixed in the model
+(C++ implementation also updated).</p>
+</div>
 </div>
 
 <!-- ===== Slide 2: Bundle 4-phase ===== -->
@@ -235,33 +266,50 @@ adopt the new child packets and retry the CAS. This reduces unnecessary conflict
 
 <h2>Verification Results (No StateConstraint, Modular Arithmetic)</h2>
 <table>
-<tr><th>Model</th><th>Threads</th><th>MaxSerial</th><th>States</th><th>Time</th><th>Result</th></tr>
-<tr><td>2-level</td><td>2</td><td>8</td><td>150M+</td><td>—</td><td style="color:#fbbf24">In progress (no violations)</td></tr>
-<tr><td>3-level</td><td>2</td><td>8</td><td>145M+</td><td>—</td><td style="color:#fbbf24">In progress (no violations)</td></tr>
-<tr><td colspan="6" style="font-size:0.85em; color:#94a3b8;">MaxSerial=8 (modular arithmetic). Full 2-thread exploration pending ohtaka. QuiescentCheck added.</td></tr>
-<tr><td>3-level 3thr</td><td>3</td><td>—</td><td>—</td><td>—</td><td>pending ohtaka</td></tr>
+<tr><th>Model</th><th>Fidelity</th><th>Threads</th><th>MaxCommits</th><th>States</th><th>Time</th><th>Result</th></tr>
+<tr><td>2-level</td><td>coarse</td><td>2</td><td>1</td><td>906K</td><td>12s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>2-level</td><td>coarse</td><td>2</td><td>5</td><td>~3.2M</td><td>—</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>3-level</td><td>coarse</td><td>2</td><td>1</td><td>110K</td><td>3s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>3-level</td><td>coarse</td><td>2</td><td>5</td><td>~8.5M</td><td>—</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>3-level</td><td>all-fine</td><td>2</td><td>1</td><td>1.2M</td><td>22s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>2/3-level</td><td>fine/superfine (deep)</td><td>2–3</td><td>5</td><td>—</td><td>—</td><td style="color:#fbbf24">pending ohtaka</td></tr>
+<tr><td colspan="7" style="font-size:0.85em; color:#94a3b8;">Serial finitized via modular arithmetic; no StateConstraint used. Production configs: MaxSerial=512 (2-level) / 1024 (3-level).</td></tr>
 </table>
 
 <div class="box-purple">
-<p><strong>Significance of 622 million states:</strong> Across all interleavings where 2 threads concurrently execute
-snapshot/commit/bundle/unbundle in any combination, all 5 invariants are preserved.</p>
+<p><strong>What is covered:</strong> Across all 2-thread interleavings of
+snapshot/commit/bundle/unbundle, all 5 invariants are preserved. Coarse collapses phases
+into single steps (fastest); fine separates per-child CAS; superfine models the 5
+C++ optimization paths faithfully.</p>
+</div>
+
+<div class="box-green">
+<p><strong>Bug found in TLA+:</strong> In the fine granularity, <code>BundlePhase3</code>'s
+<code>allDone</code> test was only checking <code>~hasPriority</code>, so it incorrectly
+counted children already bundled by another thread as "done." Fixed by matching against
+<code>BundledRefWrapper(node, ser)</code> for the current thread. (The C++ implementation
+runs CAS on every child without a "skip if already bundled" optimization, so it never
+exhibited the bug.)</p>
 </div>
 </div>
 
 <!-- ===== Slide 6: Summary ===== -->
 <div class="slide">
-<h1>Three-Layer Overview</h1>
+<h1>Two-Layer Overview</h1>
 
 <table>
 <tr><th>Layer</th><th>What It Abstracts</th><th>What It Verifies</th><th>States</th></tr>
-<tr><td style="color:#0891b2"><strong>Layer 0</strong></td><td>—</td><td>Reference counting, ABA, memory safety</td><td>8.7M</td></tr>
-<tr><td style="color:#3b82f6"><strong>Layer 1</strong></td><td>atomic_shared_ptr as correct register</td><td>Snapshot→Commit, lost update prevention</td><td>78K</td></tr>
-<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td>Commit as correct CAS</td><td>Bundle/Unbundle, subtree consistency</td><td>150M+ (in progress)</td></tr>
+<tr><td style="color:#0891b2"><strong>Layer 1</strong><br><small>(atomic_shared_ptr)</small></td><td>— (hardware directly)</td><td>Reference counting, ABA, memory safety</td><td>8.7M (2thr complete)</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong><br><small>(Bundle/Unbundle + Commit)</small></td><td>atomic_shared_ptr as correct CAS register</td><td>Bundle/Unbundle + optimistic commit, subtree consistency</td><td>906K–8.5M (coarse/fine complete; superfine pending)</td></tr>
 </table>
 
 <div class="box">
-<p><strong>Layer 0/1 fully explored; Layer 2 pending ohtaka.</strong><br>
-Each layer abstracts assuming correctness of the layer below. GenMC (Layer 0) complements memory model correctness.</p>
+<p><strong>Why only 2 layers:</strong> The former "Layer 1 (stm_commit)" single-node CAS commit
+integrates naturally into Layer 2's <code>CommitChild</code> path, so a separate layer was
+redundant. Verifying bundle/unbundle together with optimistic commit in the same spec
+improves coverage of interference patterns.<br>
+Layer 1 is fully explored; Layer 2 coarse/all-fine are complete; superfine and deep fine
+runs are pending on ohtaka.</p>
 </div>
 </div>
 

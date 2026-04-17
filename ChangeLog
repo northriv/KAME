@@ -1,3 +1,19 @@
+* Thu Apr 17 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- TLA+ BundleUnbundle (Layer 2): systematic comparison of fine-grained model
+  against C++ transaction_impl.h. Identified 9 differences; 6 implemented as
+  "superfine" mode (C++-faithful failure handling), 1 in fine (#3 no-rollback),
+  2 documented as fidelity notes (#7 serial reuse, #8 serial source).
+  superfine covers: pre-bundle serial CAS (#1), inner bundle phases (#2),
+  Phase3 serial/parent DISTURBED check (#4), casTargets root-first order (#5),
+  Phase1 retry-same-child (#6). These are C++ performance optimizations that
+  don't affect protocol correctness (verified by fine-mode model checking).
+- TLA+ BundleUnbundle: Phase3 fine failure no longer rolls back children (#3).
+  Matches C++ behavior: re-collection re-adopts bundled children via
+  CollectSubpacket's bundledBy==node path. State space unchanged (1.2M).
+- TLA+ BundleUnbundle: MaxSerial cannot be replaced by natural-number serials.
+  Commit retry loops (iterBudget not consumed) create unbounded serial growth
+  without modular wrap-around; state space becomes an infinite DAG.
+
 * Wed Apr 16 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - TLA+ BundleUnbundle (Layer 2): fix BundlePhase3 fine-grained allDone check.
   Previous check (~hasPriority) incorrectly counted children bundled by OTHER

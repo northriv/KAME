@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TLA+ Layer 1: STM Commit Explained</title>
+<title>TLA+ Layer 1: atomic_shared_ptr Explained</title>
 <style>
 body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
 .slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
@@ -11,165 +11,411 @@ h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
 h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
 h3{font-size:1.2em;color:#fbbf24}
 pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.9em;line-height:1.5}
-.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+code{font-family:'Consolas','Monaco',monospace}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}
 .box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-orange{background:#3d2800;border:1px solid #d97706}
 .box-green{background:#052e16;border:1px solid #16a34a}
+.box-red{background:#3b0000;border:1px solid #dc2626}
 .arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
 table{border-collapse:collapse;width:100%;margin:1em 0}
 th,td{border:1px solid #475569;padding:8px 12px;text-align:left}
 th{background:#334155}
+.highlight{background:#fbbf2420;padding:2px 4px;border-radius:3px}
+.num{color:#f472b6}
 p{line-height:1.8}
 </style>
 </head>
 <body>
 
-<!-- ===== Slide 1: Overview ===== -->
+<!-- ===== Slide 0: TLA+ Notation Guide ===== -->
 <div class="slide">
-<h1>TLA+ Notation (see Layer 0)</h1>
-<div class="box">
-<p>For TLA+ notation, refer to <strong>the beginning of the Layer 0 slides</strong> (slides_layer0.html).<br>
-New notation introduced in these slides:</p>
-</div>
+<h1>TLA+ Notation Guide</h1>
+<h3>TLA+ operators and syntax used in these slides</h3>
+
+<h2>Basic Operators</h2>
 <table>
-<tr><th>Notation</th><th>Meaning</th></tr>
-<tr><td><code>StateConstraint</code></td><td>A constraint to set an upper bound on the state space. A condition for TLC to prune its exploration.</td></tr>
-<tr><td><code>LET S == {f(t) : t \in T} IN ...</code></td><td>Set comprehension. Defines a set S by applying f to each element of T.</td></tr>
+<tr><th>Notation</th><th>Meaning</th><th>Example</th></tr>
+<tr><td><code>==</code></td><td>Definition ("means")</td><td><code>Init == ...</code> means "Init is defined as..."</td></tr>
+<tr><td><code>/\</code></td><td>AND (logical conjunction)</td><td><code>A /\ B</code> means "A and B"</td></tr>
+<tr><td><code>\/</code></td><td>OR (logical disjunction)</td><td><code>A \/ B</code> means "A or B"</td></tr>
+<tr><td><code>=></code></td><td>Implication ("if...then")</td><td><code>A => B</code> means "if A then B"</td></tr>
+<tr><td><code>~</code></td><td>NOT (negation)</td><td><code>~A</code> means "not A"</td></tr>
+<tr><td><code>\in</code></td><td>Element of set</td><td><code>x \in S</code> means "x is in S"</td></tr>
+<tr><td><code>\notin</code></td><td>Not element of set</td><td><code>x \notin S</code></td></tr>
+<tr><td><code>\cup</code></td><td>Union</td><td><code>S \cup T</code></td></tr>
+<tr><td><code>\subseteq</code></td><td>Subset</td><td><code>S \subseteq T</code></td></tr>
+<tr><td><code>\A</code></td><td>Universal quantifier (∀, for all)</td><td><code>\A t \in Threads : P(t)</code></td></tr>
+<tr><td><code>\E</code></td><td>Existential quantifier (∃, exists)</td><td><code>\E o \in Objects : ...</code></td></tr>
 </table>
+
+<h2>Variables and State Transitions</h2>
+<table>
+<tr><th>Notation</th><th>Meaning</th><th>Example</th></tr>
+<tr><td><code>VARIABLES x, y</code></td><td>State variable declaration</td><td>Constitute the model state</td></tr>
+<tr><td><code>x'</code></td><td>Value of <code>x</code> in the next state</td><td><code>x' = x + 1</code> means "increment x by 1"</td></tr>
+<tr><td><code>UNCHANGED &lt;&lt;x, y&gt;&gt;</code></td><td>x, y remain unchanged</td><td>No change in this action</td></tr>
+<tr><td><code>Init</code></td><td>Initial state definition</td><td>Specifies initial values for all variables</td></tr>
+<tr><td><code>Next</code></td><td>Next-state relation (transition)</td><td>Disjunction of possible actions</td></tr>
+<tr><td><code>[][Next]_vars</code></td><td>Always Next or stuttering</td><td>Temporal formula of the specification</td></tr>
+<tr><td><code>WF_vars(Next)</code></td><td>Weak fairness (enabled actions eventually execute)</td><td>Required for liveness</td></tr>
+</table>
+
+<h2>Functions and Records</h2>
+<table>
+<tr><th>Notation</th><th>Meaning</th><th>Example</th></tr>
+<tr><td><code>[x \in S |-> e]</code></td><td>Function definition (returns e for each x in S)</td><td><code>[t \in Threads |-> 0]</code> initializes all threads to 0</td></tr>
+<tr><td><code>f[x]</code></td><td>Value of f at x</td><td><code>global_rc[o]</code> is the RC of object o</td></tr>
+<tr><td><code>[f EXCEPT ![x] = e]</code></td><td>New function with only f[x] changed to e</td><td><code>[pc EXCEPT ![t] = "done"]</code></td></tr>
+<tr><td><code>@</code></td><td>Current value inside EXCEPT</td><td><code>[f EXCEPT ![x] = @ + 1]</code> means +1</td></tr>
+<tr><td><code>[a |-> 1, b |-> 2]</code></td><td>Record (struct)</td><td><code>r.a</code> for field access</td></tr>
+</table>
+
+<h2>Conditionals and Choice</h2>
+<table>
+<tr><th>Notation</th><th>Meaning</th><th>Example</th></tr>
+<tr><td><code>IF P THEN A ELSE B</code></td><td>Conditional expression</td><td>Standard if-then-else</td></tr>
+<tr><td><code>CASE p1 -> e1 [] p2 -> e2</code></td><td>Pattern match</td><td>p1: if p1 is true then e1, if p2 then e2</td></tr>
+<tr><td><code>LET x == e IN ...</code></td><td>Local definition</td><td><code>auto x = e;</code> in C++equivalent</td></tr>
+<tr><td><code>CHOOSE x \in S : P(x)</code></td><td>Pick one element of S satisfying P</td><td>Nondeterministic choice</td></tr>
+</table>
+
+<h2>Constants and Types</h2>
+<table>
+<tr><th>Notation</th><th>Meaning</th><th>Example</th></tr>
+<tr><td><code>CONSTANTS</code></td><td>Model parameters</td><td><code>Threads, Objects, MaxLocalRC</code></td></tr>
+<tr><td><code>0..N</code></td><td>0to N integer set</td><td><code>0..MaxVal</code></td></tr>
+<tr><td><code>Nat</code></td><td>Natural numbers</td><td>For type checking</td></tr>
+<tr><td><code>BOOLEAN</code></td><td>{TRUE, FALSE}</td><td>For type checking</td></tr>
+</table>
+
+<h2>CONSTANTS and .cfg Files</h2>
+<p>The <code>CONSTANTS</code> in a TLA+ spec define model parameters. Concrete values are specified in
+<strong>.cfg files</strong> (TLC configuration files).</p>
+<table>
+<tr><th>Spec (.tla)</th><th>Config (.cfg)</th><th>Meaning</th></tr>
+<tr><td><code>CONSTANTS Threads, Objects</code></td><td><code>Threads = {t1, t2}<br>Objects = {o1, o2}</code></td><td>Set concrete values for model checking</td></tr>
+<tr><td><code>CONSTANTS EnableCAS, EnableRecycle</code></td><td><code>EnableCAS = TRUE<br>EnableRecycle = TRUE</code></td><td>Feature enable/disable flags</td></tr>
+</table>
+<p>Increasing thread/object count causes exponential state space growth.
+Typically verified with 2-3 threads and 2 objects, with symmetry reduction.</p>
+
+<h2>StateConstraint vs INVARIANT</h2>
+<table>
+<tr><th>Notation</th><th>Location</th><th>Meaning</th></tr>
+<tr><td><code>CONSTRAINT<br>StateConstraint</code></td><td>.cfg file</td><td>When a state violating this condition is reached, <strong>exploration beyond it is pruned</strong>. Used to make the state space finite. Not a safety check.</td></tr>
+<tr><td><code>INVARIANT<br>MemorySafety</code></td><td>.cfg file</td><td>Checks that this condition holds in <strong>every reachable state</strong>. Violations are reported as bugs.</td></tr>
+</table>
+<div class="box-orange">
+<p><strong>Important distinction:</strong>
+<code>CONSTRAINT</code> means "only explore within this range" (search restriction).
+<code>INVARIANT</code> means "does this always hold?" (safety verification).<br>
+e.g., <code>global_rc[o] &lt;= 5</code> in <code>CONSTRAINT</code>: states where global_rc exceeds 5 are not explored (potential misses).
+Same expression in <code>INVARIANT</code>: reported as an error if global_rc exceeds 5.<br><br>
+<strong>This model does not use StateConstraint.</strong>
+State space is made structurally finite via C++ scope destruction and modular arithmetic,
+exploring all reachable states without artificial pruning.</p>
 </div>
-
-<div class="slide">
-<h1>Layer 1: STM Commit</h1>
-<h3>TLA+ Model Explained — stm_commit.tla (156 lines)</h3>
-
-<div class="box">
-<p><strong>Premise:</strong> The <code>atomic_shared_ptr</code> verified in Layer 0 is abstracted as a correct atomic register.
-Details of reference counting are not modeled.</p>
-</div>
-
-<h2>Modeled Cycle</h2>
-<div class="arrow">Snapshot → Write → Commit(CAS) → Success or Retry</div>
-
-<h2>Variables (7) — Very Simple</h2>
-<pre><code><span class="keyword">VARIABLES</span>
-    node_val,       <span class="comment">\* Payload value of the shared node</span>
-    node_serial,    <span class="comment">\* Serial number (incremented by 1 per commit)</span>
-    pc,             <span class="comment">\* "idle", "snapshot", "write", "commit", "done"</span>
-    thr_snap_val,   <span class="comment">\* Value at snapshot time</span>
-    thr_snap_ser,   <span class="comment">\* Serial at snapshot time</span>
-    thr_write_val,  <span class="comment">\* Value to be written</span>
-    thr_committed   <span class="comment">\* Number of successful commits</span></code></pre>
-
-<p>Significantly simpler than the 12 variables in Layer 0. This is the <strong>power of abstraction</strong>.</p>
-</div>
-
-<!-- ===== Slide 2: The Cycle ===== -->
-<div class="slide">
-<h1>iterate_commit Cycle</h1>
-
-<h2>Step 1: Snapshot</h2>
-<pre><code><span class="op">TakeSnapshot</span>(t) ==
-    /\ pc[t] \in {<span class="type">"idle"</span>, <span class="type">"done"</span>}
-    /\ thr_snap_val' = [thr_snap_val <span class="keyword">EXCEPT</span> ![t] = node_val]
-    /\ thr_snap_ser' = [thr_snap_ser <span class="keyword">EXCEPT</span> ![t] = node_serial]
-    <span class="comment">\* → 1 atomic load (verified in Layer 0)</span></code></pre>
-
-<h2>Step 2: Write (2 variants modeled)</h2>
-<pre><code><span class="comment">(* 2a: Non-deterministic write — arbitrary closure *)</span>
-<span class="op">Write</span>(t) ==
-    /\ \E v \in <span class="num">0</span>..MaxVal :
-       thr_write_val' = [thr_write_val <span class="keyword">EXCEPT</span> ![t] = v]
-
-<span class="comment">(* 2b: Deterministic increment — tr[node].x += 1 *)</span>
-<span class="op">WriteIncrement</span>(t) ==
-    /\ thr_write_val' = [thr_write_val <span class="keyword">EXCEPT</span>
-         ![t] = thr_snap_val[t] + <span class="num">1</span>]</code></pre>
-
-<h2>Step 3: Commit (CAS)</h2>
-<pre><code><span class="op">Commit</span>(t) ==
-    \/ <span class="comment">(* CAS success: both value and serial match the snapshot *)</span>
-       /\ node_val = thr_snap_val[t]
-       /\ node_serial = thr_snap_ser[t]
-       /\ node_val' = thr_write_val[t]       <span class="comment">\* Install new value</span>
-       /\ node_serial' = node_serial + <span class="num">1</span>     <span class="comment">\* Serial +1</span>
-       /\ thr_committed' = [thr_committed <span class="keyword">EXCEPT</span> ![t] = @ + <span class="num">1</span>]
-
-    \/ <span class="comment">(* CAS failure: another thread already committed → retry *)</span>
-       /\ ~(node_val = thr_snap_val[t] /\ node_serial = thr_snap_ser[t])
-       /\ thr_snap_val' = [thr_snap_val <span class="keyword">EXCEPT</span> ![t] = node_val]
-       /\ thr_snap_ser' = [thr_snap_ser <span class="keyword">EXCEPT</span> ![t] = node_serial]
-       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"snapshot"</span>]</code></pre>
+<tr><td><code>{a, b, c}</code></td><td>Finite set</td><td><code>{"scan", "cas", "idle"}</code></td></tr>
+</table>
 
 <div class="box-green">
-<p><strong>Key point:</strong> On CAS failure, a new snapshot is taken immediately and the operation is retried. This is the behavior of <code>iterate_commit</code>.</p>
+<p><strong>Reading tips:</strong> A TLA+ action (e.g., <code>ReserveScanCAS(t)</code>):
+is a declaration: "when these conditions hold, change variables as follows."
+<code>/\</code>: all conjuncts must be true for the action to be enabled.
+<code>x'</code>is the next state; <code>UNCHANGED</code> means no change.</p>
 </div>
 </div>
 
-<!-- ===== Slide 3: Invariants ===== -->
+<!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
-<h1>Verified Invariants (5)</h1>
+<h1>Layer 1: atomic_shared_ptr</h1>
+<h3>TLA+ Model Walkthrough — atomic_shared_ptr.tla (340 lines)</h3>
 
-<pre><code><span class="comment">\* 1. No Lost Update: if 2 threads both commit successfully → serial increases by at least 2</span>
-<span class="op">NoLostUpdate</span> ==
-    \A t1, t2 \in Threads :
-        (t1 /= t2 /\ thr_committed[t1] > <span class="num">0</span> /\ thr_committed[t2] > <span class="num">0</span>)
-        => node_serial >= <span class="num">2</span>
-
-<span class="comment">\* 2. Commits are serialized: total commits % MaxSerial = serial</span>
-<span class="op">CommitSerializes</span> ==
-    SumSet(Threads) % MaxSerial = node_serial
-
-<span class="comment">\* 3. The last committer's written value is visible</span>
-<span class="op">WriteReadConsistency</span> ==
-    \A t \in Threads :
-        (pc[t] = <span class="type">"done"</span> /\ thr_snap_ser[t] = node_serial - <span class="num">1</span>)
-        => node_val = thr_write_val[t]
-
-<span class="comment">\* 4. Quiescent state: serial and value match total commit count</span>
-<span class="op">QuiescentCheck</span> ==
-    (\A t \in Threads : pc[t] = <span class="type">"idle"</span>)
-    => /\ SumSet(Threads) % MaxSerial = node_serial
-       /\ SumSet(Threads) % MaxVal = node_val</code></pre>
-
-<h2>Verification Results</h2>
-<table>
-<tr><th>Threads</th><th>MaxVal</th><th>MaxSerial</th><th>States</th><th>Time</th><th>Result</th></tr>
-<tr><td>3</td><td>2</td><td>6</td><td>78,000</td><td>&lt;1s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
-</table>
+<div class="box-orange">
+<p><strong>Role in the 2-layer architecture:</strong> This deck was previously titled "Layer 0" (now renamed to slides_layer1.html).
+It has been renamed to <strong>Layer 1</strong> to match the paper's 2-layer model
+(Layer 1: atomic_shared_ptr / Layer 2: bundle/unbundle + commit). Content unchanged.</p>
+</div>
 
 <div class="box">
-<p><strong>Implication:</strong> Even with 3 threads executing transactions concurrently, no Lost Updates, non-serialization,
-or inconsistent Snapshots occur <strong>across all 110 million states</strong>.</p>
+<h2>What is modeled</h2>
+<p><code>kame/atomic_smart_ptr.h</code> : the entire reference counting protocol.<br>
+Exhaustive TLA+ verification of the lock-free C++ atomic_shared_ptr.</p>
+</div>
+
+<h2>Model Components</h2>
+<table>
+<tr><th>Element</th><th>TLA+ Representation</th><th>C++ Counterpart</th></tr>
+<tr><td>Shared pointer</td><td><code>ptr</code> + <code>local_rc</code></td><td><code>m_ref</code> (uintptr_t)</td></tr>
+<tr><td>Objects</td><td><code>Objects</code> (Finite set)</td><td>Ref struct</td></tr>
+<tr><td>Reference count</td><td><code>global_rc[o]</code></td><td>Inside Ref:<code>atomic&lt;int&gt;</code></td></tr>
+<tr><td>Freed state</td><td><code>freed[o]</code></td><td>delete call</td></tr>
+<tr><td>Thread state</td><td><code>pc[t]</code>, <code>thr_*</code></td><td>Local variables in functions</td></tr>
+</table>
+
+<h2>Variables (12 total)</h2>
+<pre><code><span class="keyword">VARIABLES</span>
+    ptr,            <span class="comment">\* Pointer (Object or NULL)</span>
+    local_rc,       <span class="comment">\* Local reference counter (lower 3 bits)</span>
+    global_rc,      <span class="comment">\* global_rc[o]: Global RC for each object</span>
+    freed,          <span class="comment">\* freed[o]: Freed flag</span>
+    pc,             <span class="comment">\* Per-thread program counter (22 states)</span>
+    thr_op,         <span class="comment">\* "scan", "cas", "idle"</span>
+    thr_pref,       <span class="comment">\* Pointer read by acquire_tag_ref_</span>
+    thr_rcnt,       <span class="comment">\* Local RC read by acquire_tag_ref_</span>
+    thr_old,        <span class="comment">\* CAS: Expected old object</span>
+    thr_new,        <span class="comment">\* CAS: New object</span>
+    thr_holds,      <span class="comment">\* Objects held via local_shared_ptr</span>
+    thr_ls_ctx      <span class="comment">\* Return target for release_tag_ref_</span></code></pre>
+</div>
+
+<!-- ===== Slide 2: acquire_tag_ref_ ===== -->
+<div class="slide">
+<h1>acquire_tag_ref_: Atomic Read + CAS</h1>
+<h3>C++ source: atomic_smart_ptr.h lines 462-488</h3>
+
+<div class="box">
+<p><code>m_ref.load()</code> in C++is a single atomic operation; pointer and local RC are
+always derived from the same loaded value. TLA+ models this as a <strong>single step</strong>.</p>
+</div>
+
+<pre><code><span class="comment">(* Atomic read: read ptr and local_rc simultaneously *)</span>
+<span class="op">ReserveScanRead</span>(t) ==
+    /\ pc[t] = <span class="type">"rs_read"</span>
+    /\ thr_pref' = [thr_pref <span class="keyword">EXCEPT</span> ![t] = ptr]       <span class="comment">\* ← read ptr</span>
+    /\ thr_rcnt' = [thr_rcnt <span class="keyword">EXCEPT</span> ![t] = local_rc]  <span class="comment">\* ← read local_rc (simultaneously)</span>
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rs_cas"</span>]
+
+<span class="comment">(* CAS — succeeds only if both ptr and RC match *)</span>
+<span class="op">ReserveScanCAS</span>(t) ==
+    /\ pc[t] = <span class="type">"rs_cas"</span>
+    /\ thr_pref[t] /= NULL
+    /\ \/ <span class="comment">(* CAS succeeds: both ptr AND local_rc match *)</span>
+          /\ ptr = thr_pref[t]
+          /\ local_rc = thr_rcnt[t]
+          /\ local_rc' = thr_rcnt[t] + <span class="num">1</span>  <span class="comment">\* Pinned!</span>
+       \/ <span class="comment">(* CAS fails: retry from read *)</span>
+          /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
+          /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rs_read"</span>]</code></pre>
+
+<div class="box-green">
+<p><strong>Key point:</strong> Even if another thread changes ptr/local_rc between read and CAS,
+the CAS performs <strong>full-word comparison</strong> (both ptr + local_rc), so inconsistencies are always caught.</p>
 </div>
 </div>
 
-<!-- ===== Slide 4: TLA+ ↔ C11 Correspondence Table ===== -->
+<!-- ===== Slide 3: scan_ (load_shared_) ===== -->
 <div class="slide">
-<h1>C++ ↔ TLA+ ↔ Generated C11 Correspondence Table</h1>
+<h1>scan_: load_shared_(): 3 Steps</h1>
+<h3>C++ source: lines 494-503</h3>
+
+<pre><code><span class="comment">(* Step 1: acquire_tag_ref_ → Atomic Read + CAS to increment local RC [see previous slide] *)</span>
+
+<span class="comment">(* Step 2: Increment global RC — safe with relaxed *)</span>
+<span class="op">ScanIncGlobal</span>(t) ==
+    /\ pc[t] = <span class="type">"scan_inc"</span>
+    /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![thr_pref[t]] = @ + <span class="num">1</span>]
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"scan_leave"</span>]
+
+<span class="comment">(* Step 3: release_tag_ref_ → decrement local RC *)</span></code></pre>
+
+<div class="arrow">acquire_tag_ref_ → global_rc++ → release_tag_ref_</div>
+
+<h2>release_tag_ref_: Fallback Branch</h2>
+<pre><code><span class="op">LeaveScanCAS</span>(t) ==
+    \/ <span class="comment">(* CAS succeeds: ptr unchanged → decrement local RC *)</span>
+       /\ ptr = thr_pref[t] /\ local_rc = thr_rcnt[t]
+       /\ local_rc' = thr_rcnt[t] - <span class="num">1</span>
+
+    \/ <span class="comment">(* CAS fails, ptr same → retry *)</span>
+       /\ ptr = thr_pref[t]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_read"</span>]
+
+    \/ <span class="comment">(* CAS fails, ptr changed → fallback: global_rc-- *)</span>
+       /\ ptr /= thr_pref[t]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_global"</span>]
+
+<span class="comment">(* Fallback: the swapping thread already transferred the local RC *)</span>
+<span class="op">LeaveScanGlobal</span>(t) ==
+    /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![o] = @ - <span class="num">1</span>]
+    /\ <span class="keyword">IF</span> global_rc[o] = <span class="num">1</span>
+       <span class="keyword">THEN</span> freed' = [freed <span class="keyword">EXCEPT</span> ![o] = TRUE]  <span class="comment">\* → freed!</span></code></pre>
+
+<div class="box-red">
+<p><strong>This fallback is essential:</strong> without it, refcount leak or use-after-free. Confirmed by TLA+ verification.</p>
+</div>
+</div>
+
+<!-- ===== Slide 4: compareAndSwap_ ===== -->
+<div class="slide">
+<h1>compareAndSwap_: 6 Phases</h1>
+<h3>C++ source: lines 556-603</h3>
+
+<table>
+<tr><th>Phase</th><th>TLA+ Action</th><th>Operation</th></tr>
+<tr><td>1</td><td><code>CASPreInc</code></td><td>Increment new object's <code>global_rc++</code></td></tr>
+<tr><td>2</td><td><code>CASReserve</code>→<code>rs_*</code></td><td>Pin via <code>acquire_tag_ref_</code></td></tr>
+<tr><td>3</td><td><code>CASCheck</code></td><td><code>pref != oldr</code>then return failure</td></tr>
+<tr><td>4</td><td><code>CASTransfer</code></td><td>Transfer local RC to <code>global_rc</code></td></tr>
+<tr><td>5</td><td><code>CASSwap</code></td><td>CAS (<code>acq_rel</code>): Swap pointer</td></tr>
+<tr><td>6</td><td><code>CASCleanup</code></td><td>Decrement old object's <code>global_rc</code></td></tr>
+</table>
+
+<pre><code><span class="comment">(* Phase 4: Transfer local RC to global *)</span>
+<span class="op">CASTransfer</span>(t) ==
+    /\ <span class="keyword">IF</span> thr_pref[t] /= NULL /\ thr_rcnt[t] /= <span class="num">1</span>
+       <span class="keyword">THEN</span> global_rc' = [global_rc <span class="keyword">EXCEPT</span>
+                ![thr_pref[t]] = @ + thr_rcnt[t] - <span class="num">1</span>]
+
+<span class="comment">(* Phase 5: CAS — Full-word comparison *)</span>
+<span class="op">CASSwap</span>(t) ==
+    \/ /\ ptr = thr_pref[t] /\ local_rc = thr_rcnt[t]  <span class="comment">\* match</span>
+       /\ ptr' = thr_new[t]
+       /\ local_rc' = <span class="num">0</span>
+    \/ /\ ~(...)  <span class="comment">\* CAS fails → Undo → release_tag_ref_ → retry</span></code></pre>
+
+<div class="box">
+<p><strong>Relation to ABA:</strong> Caller holds <code>oldr</code> via <code>local_shared_ptr</code>
+→ <code>global_rc > 0</code> → never freed → ABA is structurally impossible.<br>
+However, in <code>load_shared_()</code> the thread holds no reference, so TLA+ models ABA recycling as
+a sound over-approximation.</p>
+</div>
+</div>
+
+<!-- ===== Slide 4b: swap + Reset ===== -->
+<div class="slide">
+<h1>swap: Unconditional Exchange</h1>
+
+<div class="box">
+<p><strong>Key difference from CAS:</strong> <code>swap</code> does not check the old pointer — it unconditionally
+replaces it. No <code>PreInc</code> phase needed (ownership is exchanged, not added).</p>
+</div>
+
+<h2>Protocol</h2>
+<pre><code><span class="op">StartSwap</span>(t) ==
+    /\ EnableSwap
+    /\ pc[t] = <span class="type">"idle"</span>
+    /\ \E newObj \in Objects \cup {NULL} :
+       /\ (newObj /= NULL => thr_holds[t][newObj] > <span class="num">0</span>)
+       /\ thr_new' = [thr_new <span class="keyword">EXCEPT</span> ![t] = newObj]
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"cas_acquire"</span>]  <span class="comment">\* skip PreInc</span>
+    /\ thr_op' = [thr_op <span class="keyword">EXCEPT</span> ![t] = <span class="type">"swap"</span>]
+
+<span class="comment">\* After acquire_tag_ref_ succeeds:</span>
+<span class="comment">\*   CASTransfer: global_rc[pref] += local_rc  (tag→global transfer)</span>
+<span class="comment">\*   CASSwap: CAS ptr from pref to newObj, local_rc → 0</span>
+<span class="comment">\*   No CASCleanup needed (no PreInc to undo)</span></code></pre>
+
+<h2>Reset: local_shared_ptr::reset()</h2>
+<pre><code><span class="op">Reset</span>(t) ==
+    /\ pc[t] \in {<span class="type">"idle"</span>, <span class="type">"done"</span>}
+    /\ \E o \in Objects :
+       /\ thr_holds[t][o] > <span class="num">0</span>
+       /\ thr_holds' = [thr_holds <span class="keyword">EXCEPT</span> ![t][o] = @ - <span class="num">1</span>]
+       /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![o] = @ - <span class="num">1</span>]
+       <span class="comment">\* decAndTest: if global_rc reaches 0, mark as freed</span>
+       /\ freed' = [freed <span class="keyword">EXCEPT</span> ![o] =
+            IF global_rc[o] = <span class="num">1</span> THEN TRUE ELSE @]</code></pre>
+
+<h2>Why swap vs load is critical</h2>
+<div class="box-green">
+<p>When a <strong>swapper</strong> replaces the pointer while a <strong>loader</strong> has an in-flight
+<code>acquire_tag_ref_</code>, the loader's <code>release_tag_ref_</code> detects the pointer change
+and falls back to <strong>global_rc decrement</strong>. The swapper's <code>CASTransfer</code> compensates
+by folding the outstanding <code>local_rc</code> into <code>global_rc</code>. This tag-to-global
+transfer path is the core of <code>atomic_shared_ptr</code>'s correctness and is only
+exercised when swap and load run concurrently.</p>
+</div>
+</div>
+
+<!-- ===== Slide 5: ABA Recycling ===== -->
+<div class="slide">
+<h1>ABA Recycling</h1>
+
+<pre><code><span class="op">Recycle</span>(t) ==
+    /\ EnableRecycle             <span class="comment">\* Controlled by enable/disable flag</span>
+    /\ pc[t] \in {<span class="type">"idle"</span>, <span class="type">"done"</span>}
+    /\ \E o \in Objects :
+       /\ freed[o] = TRUE       <span class="comment">\* freed object</span>
+       /\ global_rc[o] = <span class="num">0</span>
+       /\ freed' = [freed <span class="keyword">EXCEPT</span> ![o] = FALSE]   <span class="comment">\* recycled!</span>
+       /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![o] = <span class="num">1</span>]
+       /\ thr_holds' = [thr_holds <span class="keyword">EXCEPT</span> ![t] = @ \cup {o}]</code></pre>
+
+<div class="box-orange">
+<p><strong>Sound over-approximation:</strong> Recycling allowed for all operations (in practice impossible for <code>compareAndSwap_</code>).
+If safety is proven under over-approximation, it also holds for the actual program.</p>
+<p><strong>Background:</strong> Author judged safety as obvious. AI proposed over-approximation modeling; author agreed.</p>
+</div>
+</div>
+
+<!-- ===== Slide 6: Invariants ===== -->
+<div class="slide">
+<h1>Verified Invariants (7)</h1>
+
+<table>
+<tr><th>#</th><th>Invariant</th><th>Meaning</th></tr>
+<tr><td>1</td><td><code>MemorySafety</code></td><td>Pinned object is not freed</td></tr>
+<tr><td>2</td><td><code>NoUseAfterFree</code></td><td>Objects in <code>thr_holds</code> are not freed</td></tr>
+<tr><td>3</td><td><code>GlobalRCNonNeg</code></td><td>For live objects: <code>global_rc ≥ 0</code></td></tr>
+<tr><td>4</td><td><code>FreedImpliesZeroRC</code></td><td>If freed then <code>global_rc = 0</code></td></tr>
+<tr><td>5</td><td><code>InstalledNotFreed</code></td><td>Object pointed by <code>ptr</code> is not freed</td></tr>
+<tr><td>6</td><td><code>LocalRCBounded</code></td><td><code>local_rc ≤ number of threads</code></td></tr>
+<tr><td>7</td><td><code>TypeOK</code></td><td>Type invariant</td></tr>
+</table>
+
+<pre><code><span class="op">MemorySafety</span> ==
+    \A t \in Threads :
+        (pc[t] \in {<span class="type">"scan_inc"</span>, <span class="type">"scan_leave"</span>,
+                     <span class="type">"ls_read"</span>, <span class="type">"ls_cas"</span>, <span class="type">"ls_global"</span>,
+                     <span class="type">"cas_check"</span>, ..., <span class="type">"cas_cleanup"</span>}
+         /\ thr_pref[t] /= NULL)
+        => freed[thr_pref[t]] = FALSE</code></pre>
+
+<h2>Verification Results (no StateConstraint)</h2>
+<table>
+<tr><th>Config</th><th>Threads</th><th>States</th><th>Time</th><th>Result</th></tr>
+<tr><td>scan only</td><td>3</td><td>40,934</td><td>1s</td><td style="color:#4ade80">✅ Pass</td></tr>
+<tr><td>scan+CAS (no ABA)</td><td>2</td><td>3,549,304</td><td>12s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>full (CAS+ABA)</td><td>2</td><td>8,719,367</td><td>28s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>swap+load (no ABA)</td><td>2</td><td>—</td><td>—</td><td style="color:#93c5fd">ohtaka running</td></tr>
+<tr><td>swap+CAS+ABA</td><td>2</td><td>6.6×10⁹+</td><td>18h+</td><td style="color:#93c5fd">partial, no violation (I/O limited)</td></tr>
+</table>
+</div>
+
+<!-- ===== Slide 7: TLA+ ↔ C11 Correspondence ===== -->
+<div class="slide">
+<h1>C++ ↔ TLA+ ↔ Generated C11 Correspondence</h1>
+<h3>For author's C++ ↔ TLA+ cross-reference and C11 translation review (continues in <strong>Layer 2 slides</strong> / slides_layer2_en.html)</h3>
 
 <h2>Variable Mapping</h2>
 <table>
-<tr><th>TLA+ Variable</th><th>C++ (transaction.h / transaction_impl.h)</th><th>Generated C11 (test_stm_commit.c)</th></tr>
-<tr><td><code>node_val</code>, <code>node_serial</code></td><td><code>m_link->packet()->payload()</code><br><code>m_link->m_bundle_serial</code></td><td><code>_Atomic(uint64_t) node</code><br>upper 32 bits = serial, lower 32 bits = val</td></tr>
-<tr><td><code>thr_snap_val[t]</code>, <code>thr_snap_ser[t]</code></td><td><code>Transaction::m_oldpacket</code><br><code>Transaction::m_serial</code></td><td>thread-local <code>snap_val</code>, <code>snap_ser</code></td></tr>
-<tr><td><code>thr_write_val[t]</code></td><td><code>Transaction::m_packet->payload()</code></td><td>thread-local <code>write_val</code></td></tr>
-<tr><td><code>thr_committed[t]</code></td><td>— (implicit)</td><td><code>_Atomic(uint32_t) committed[2]</code></td></tr>
+<tr><th>TLA+ Variable</th><th>C++ (atomic_smart_ptr.h)</th><th>Generated C11 (test_atomic_shared_ptr.c)</th></tr>
+<tr><td><code>ptr</code> + <code>local_rc</code></td><td><code>m_ref</code> (uintptr_t)<br>upper=ptr, lower=tag</td><td><code>_Atomic(uintptr_t) g_ref</code><br><code>get_ptr()</code> / <code>get_tag()</code></td></tr>
+<tr><td><code>global_rc[o]</code></td><td><code>o->refcnt</code> (intrusive atomic)</td><td><code>_Atomic(uintptr_t) obj_refcnt[NUM_OBJECTS]</code></td></tr>
+<tr><td><code>freed[o]</code></td><td>delete call</td><td><code>int obj_freed[NUM_OBJECTS]</code></td></tr>
+<tr><td><code>thr_pref[t]</code></td><td><code>Ref* pref</code> (local)</td><td><code>uintptr_t pref</code> (local)</td></tr>
+<tr><td><code>thr_rcnt[t]</code></td><td><code>Refcnt rcnt</code> (local)</td><td><code>unsigned rcnt</code> (local)</td></tr>
+<tr><td><code>thr_holds[t][o]</code></td><td><code>local_shared_ptr</code>reference count</td><td>thread-local <code>hold</code> index</td></tr>
 </table>
 
 <h2>Action Mapping</h2>
 <table>
-<tr><th>TLA+ Action</th><th>C++ Code</th><th>Generated C11</th><th>memory_order</th></tr>
-<tr><td><code>TakeSnapshot(t)</code></td><td><code>Transaction<XN> tr(node)</code><br>→ <code>load_shared_()</code></td><td><code>atomic_load(&node)</code> → unpack</td><td>acquire</td></tr>
-<tr><td><code>WriteIncrement(t)</code></td><td><code>tr[node].m_x += 1</code></td><td><code>write_val = snap_val + 1</code></td><td>—</td></tr>
-<tr><td><code>Commit(t)</code></td><td><code>m_link->compareAndSet()</code><br>→ Layer 0 CAS</td><td><code>atomic_compare_exchange_strong()</code></td><td>acq_rel</td></tr>
+<tr><th>TLA+ Action</th><th>C++ Function</th><th>Generated C11</th><th>memory_order</th></tr>
+<tr><td><code>AcquireTagRefRead</code><br>+ <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code></td><td><code>acquire_tag_ref()</code></td><td>relaxed → acq_rel</td></tr>
+<tr><td><code>LoadSharedIncGlobal</code></td><td><code>load_shared_()</code> (inside)</td><td><code>load_shared()</code> (inside)<br><code>fetch_add(refcnt, 1)</code></td><td>relaxed</td></tr>
+<tr><td><code>ReleaseTagRefCAS</code><br>/ <code>ReleaseTagRefGlobal</code></td><td><code>release_tag_ref_()</code></td><td><code>release_tag_ref()</code></td><td>acq_rel / acq_rel</td></tr>
+<tr><td><code>CASPreInc</code> → <code>CASSwap</code><br>→ <code>CASCleanup</code></td><td><code>compareAndSwap_()</code></td><td><code>compare_and_swap()</code></td><td>relaxed / acq_rel</td></tr>
+<tr><td><code>StartSwap</code> → <code>CASTransfer</code><br>→ <code>CASSwap</code></td><td><code>swap()</code></td><td><code>swap_exchange()</code></td><td>acq_rel</td></tr>
+<tr><td><code>Reset</code></td><td><code>local_shared_ptr::reset()</code></td><td><code>local_reset()</code></td><td>acq_rel (decAndTest)</td></tr>
 </table>
 
-<h2>Abstraction Boundary</h2>
-<div class="box">
-<p><strong>Layer 0 → Layer 1:</strong> The atomic_shared_ptr verified in Layer 0 is abstracted
-as a correct atomic register.<br>
-C++: <code>m_link->compareAndSet()</code> → Layer 0's 6-phase CAS<br>
-Generated C11: <code>atomic_compare_exchange_strong()</code> → 1 instruction<br>
-TLA+: <code>node_val = thr_snap_val[t] → CAS success</code> → 1 step</p>
+<div class="box-green">
+<p><strong>Verification Triangle:</strong><br>
+C++ implementation (written by author) ← author cross-references independently → TLA+ spec<br>
+TLA+ → generated C11 (produced in independent session without C++ access) → GenMC verification (RC11)<br>
+Closing this triangle confirms TLA+ model fidelity.</p>
 </div>
 </div>
 

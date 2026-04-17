@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TLA+ Layer 1: STM Commit 解説</title>
+<title>TLA+ Layer 1: atomic_shared_ptr 解説</title>
 <style>
 body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
 .slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
@@ -11,165 +11,412 @@ h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
 h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
 h3{font-size:1.2em;color:#fbbf24}
 pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.9em;line-height:1.5}
-.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+code{font-family:'Consolas','Monaco',monospace}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}
 .box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-orange{background:#3d2800;border:1px solid #d97706}
 .box-green{background:#052e16;border:1px solid #16a34a}
+.box-red{background:#3b0000;border:1px solid #dc2626}
 .arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
 table{border-collapse:collapse;width:100%;margin:1em 0}
 th,td{border:1px solid #475569;padding:8px 12px;text-align:left}
 th{background:#334155}
+.highlight{background:#fbbf2420;padding:2px 4px;border-radius:3px}
+.num{color:#f472b6}
 p{line-height:1.8}
 </style>
 </head>
 <body>
 
-<!-- ===== Slide 1: Overview ===== -->
+<!-- ===== Slide 0: TLA+ 記法ガイド ===== -->
 <div class="slide">
-<h1>TLA+ 記法（Layer 0参照）</h1>
-<div class="box">
-<p>TLA+の記法については <strong>Layer 0スライドの冒頭</strong> (slides_layer0.html) を参照。<br>
-本スライドで新たに登場する記法:</p>
-</div>
+<h1>TLA+ 記法ガイド</h1>
+<h3>本スライドで使用するTLA+の演算子・構文</h3>
+
+<h2>基本演算子</h2>
 <table>
-<tr><th>記法</th><th>意味</th></tr>
-<tr><td><code>StateConstraint</code></td><td>状態空間の上限を設定するための制約。TLCが探索を打ち切るための条件。</td></tr>
-<tr><td><code>LET S == {f(t) : t \in T} IN ...</code></td><td>集合内包表記。Tの各要素にfを適用した集合Sを定義。</td></tr>
+<tr><th>記法</th><th>意味</th><th>例</th></tr>
+<tr><td><code>==</code></td><td>定義（「〜とは」）</td><td><code>Init == ...</code> は「Initとは...のこと」</td></tr>
+<tr><td><code>/\</code></td><td>AND（論理積）</td><td><code>A /\ B</code> は「AかつB」</td></tr>
+<tr><td><code>\/</code></td><td>OR（論理和）</td><td><code>A \/ B</code> は「AまたはB」</td></tr>
+<tr><td><code>=></code></td><td>含意（「ならば」）</td><td><code>A => B</code> は「AならばB」</td></tr>
+<tr><td><code>~</code></td><td>NOT（否定）</td><td><code>~A</code> は「Aでない」</td></tr>
+<tr><td><code>\in</code></td><td>集合の要素</td><td><code>x \in S</code> は「xはSの要素」</td></tr>
+<tr><td><code>\notin</code></td><td>集合の非要素</td><td><code>x \notin S</code></td></tr>
+<tr><td><code>\cup</code></td><td>和集合</td><td><code>S \cup T</code></td></tr>
+<tr><td><code>\subseteq</code></td><td>部分集合</td><td><code>S \subseteq T</code></td></tr>
+<tr><td><code>\A</code></td><td>全称量化子（∀, for all）</td><td><code>\A t \in Threads : P(t)</code></td></tr>
+<tr><td><code>\E</code></td><td>存在量化子（∃, exists）</td><td><code>\E o \in Objects : ...</code></td></tr>
 </table>
+
+<h2>変数と状態遷移</h2>
+<table>
+<tr><th>記法</th><th>意味</th><th>例</th></tr>
+<tr><td><code>VARIABLES x, y</code></td><td>状態変数の宣言</td><td>モデルの状態を構成する</td></tr>
+<tr><td><code>x'</code></td><td>次の状態での<code>x</code>の値</td><td><code>x' = x + 1</code> は「xを1増やす」</td></tr>
+<tr><td><code>UNCHANGED &lt;&lt;x, y&gt;&gt;</code></td><td>x, yは変化しない</td><td>このアクションでは変更なし</td></tr>
+<tr><td><code>Init</code></td><td>初期状態の定義</td><td>全変数の初期値を指定</td></tr>
+<tr><td><code>Next</code></td><td>次状態関係（遷移）</td><td>取りうるアクションの論理和</td></tr>
+<tr><td><code>[][Next]_vars</code></td><td>常にNextかstuttering</td><td>仕様の時相論理式</td></tr>
+<tr><td><code>WF_vars(Next)</code></td><td>弱公平性（いつか実行される）</td><td>活性のために必要</td></tr>
+</table>
+
+<h2>関数・レコード</h2>
+<table>
+<tr><th>記法</th><th>意味</th><th>例</th></tr>
+<tr><td><code>[x \in S |-> e]</code></td><td>関数の定義（S上でeを返す）</td><td><code>[t \in Threads |-> 0]</code> は全スレッド0で初期化</td></tr>
+<tr><td><code>f[x]</code></td><td>関数fのxでの値</td><td><code>global_rc[o]</code> はオブジェクトoのRC</td></tr>
+<tr><td><code>[f EXCEPT ![x] = e]</code></td><td>fのx番目だけeに変えた新関数</td><td><code>[pc EXCEPT ![t] = "done"]</code></td></tr>
+<tr><td><code>@</code></td><td>EXCEPT内で「現在の値」</td><td><code>[f EXCEPT ![x] = @ + 1]</code> は+1</td></tr>
+<tr><td><code>[a |-> 1, b |-> 2]</code></td><td>レコード（構造体）</td><td><code>r.a</code> でフィールドアクセス</td></tr>
+</table>
+
+<h2>条件分岐・選択</h2>
+<table>
+<tr><th>記法</th><th>意味</th><th>例</th></tr>
+<tr><td><code>IF P THEN A ELSE B</code></td><td>条件式</td><td>通常のif-then-else</td></tr>
+<tr><td><code>CASE p1 -> e1 [] p2 -> e2</code></td><td>パターンマッチ</td><td>p1が真ならe1、p2が真ならe2</td></tr>
+<tr><td><code>LET x == e IN ...</code></td><td>局所定義</td><td>C++の<code>auto x = e;</code>に相当</td></tr>
+<tr><td><code>CHOOSE x \in S : P(x)</code></td><td>Pを満たすSの要素を1つ選ぶ</td><td>非決定的選択</td></tr>
+</table>
+
+<h2>定数・型</h2>
+<table>
+<tr><th>記法</th><th>意味</th><th>例</th></tr>
+<tr><td><code>CONSTANTS</code></td><td>モデルパラメータ</td><td><code>Threads, Objects, MaxLocalRC</code></td></tr>
+<tr><td><code>0..N</code></td><td>0からNまでの整数集合</td><td><code>0..MaxVal</code></td></tr>
+<tr><td><code>Nat</code></td><td>自然数集合</td><td>型チェック用</td></tr>
+<tr><td><code>BOOLEAN</code></td><td>{TRUE, FALSE}</td><td>型チェック用</td></tr>
+</table>
+
+<h2>CONSTANTS と .cfg ファイル</h2>
+<p>TLA+仕様の<code>CONSTANTS</code>は、モデルのパラメータを定義する。具体的な値は
+<strong>.cfgファイル</strong>（TLCの設定ファイル）で指定する。</p>
+<table>
+<tr><th>仕様 (.tla)</th><th>設定 (.cfg)</th><th>意味</th></tr>
+<tr><td><code>CONSTANTS Threads, Objects</code></td><td><code>Threads = {t1, t2}<br>Objects = {o1, o2}</code></td><td>モデルチェック時の具体的な値を設定</td></tr>
+<tr><td><code>CONSTANTS EnableCAS, EnableRecycle</code></td><td><code>EnableCAS = TRUE<br>EnableRecycle = TRUE</code></td><td>機能のON/OFFフラグ</td></tr>
+</table>
+<p>スレッド数・オブジェクト数を増やすと状態空間が指数的に増大する。
+通常は2〜3スレッド、2オブジェクトで検証し、対称性（<code>SYMMETRY</code>）で縮約する。</p>
+
+<h2>StateConstraint と INVARIANT</h2>
+<table>
+<tr><th>記法</th><th>場所</th><th>意味</th></tr>
+<tr><td><code>CONSTRAINT<br>StateConstraint</code></td><td>.cfgファイル</td><td>この条件を満たさない状態に到達したら、<strong>その先の探索を打ち切る</strong>（枝刈り）。状態空間を有限にするために使う。安全性の検証ではない。</td></tr>
+<tr><td><code>INVARIANT<br>MemorySafety</code></td><td>.cfgファイル</td><td>到達したすべての状態でこの条件が成り立つことを<strong>検証する</strong>。違反があればバグとして報告。</td></tr>
+</table>
+<div class="box-orange">
+<p><strong>重要な違い:</strong>
+<code>CONSTRAINT</code>は「この範囲だけ調べる」（探索の制限）。
+<code>INVARIANT</code>は「これが常に成り立つか？」（安全性の検証）。<br>
+例: <code>global_rc[o] &lt;= 5</code> を<code>CONSTRAINT</code>に書くと、global_rcが5を超える状態は探索されない（見逃す可能性）。
+同じ式を<code>INVARIANT</code>に書くと、global_rcが5を超えたらエラーとして報告される。<br><br>
+<strong>本モデルではStateConstraintを使用しない。</strong>
+C++のスコープ破棄やモジュラー算術により状態空間を構造的に有限にし、
+人為的な枝刈りなしで全到達可能状態を探索する。</p>
 </div>
-
-<div class="slide">
-<h1>Layer 1: STM Commit</h1>
-<h3>TLA+モデル解説 — stm_commit.tla (156行)</h3>
-
-<div class="box">
-<p><strong>前提:</strong> Layer 0で検証済みの<code>atomic_shared_ptr</code>を正しいアトミックレジスタとして抽象化。
-参照カウントの詳細はモデル化しない。</p>
-</div>
-
-<h2>モデル化されるサイクル</h2>
-<div class="arrow">Snapshot → Write → Commit(CAS) → 成功 or リトライ</div>
-
-<h2>変数 (7個) — 非常にシンプル</h2>
-<pre><code><span class="keyword">VARIABLES</span>
-    node_val,       <span class="comment">\* 共有ノードのペイロード値</span>
-    node_serial,    <span class="comment">\* シリアル番号（コミットごとに+1）</span>
-    pc,             <span class="comment">\* "idle", "snapshot", "write", "commit", "done"</span>
-    thr_snap_val,   <span class="comment">\* スナップショット時の値</span>
-    thr_snap_ser,   <span class="comment">\* スナップショット時のシリアル</span>
-    thr_write_val,  <span class="comment">\* 書き込む値</span>
-    thr_committed   <span class="comment">\* 成功コミット回数</span></code></pre>
-
-<p>Layer 0の12変数に比べて大幅にシンプル。これが<strong>抽象化の威力</strong>。</p>
-</div>
-
-<!-- ===== Slide 2: The Cycle ===== -->
-<div class="slide">
-<h1>iterate_commit サイクル</h1>
-
-<h2>Step 1: Snapshot</h2>
-<pre><code><span class="op">TakeSnapshot</span>(t) ==
-    /\ pc[t] \in {<span class="type">"idle"</span>, <span class="type">"done"</span>}
-    /\ thr_snap_val' = [thr_snap_val <span class="keyword">EXCEPT</span> ![t] = node_val]
-    /\ thr_snap_ser' = [thr_snap_ser <span class="keyword">EXCEPT</span> ![t] = node_serial]
-    <span class="comment">\* → atomic load 1回（Layer 0で検証済み）</span></code></pre>
-
-<h2>Step 2: Write（2種類をモデル化）</h2>
-<pre><code><span class="comment">(* 2a: 非決定的書き込み — 任意のクロージャ *)</span>
-<span class="op">Write</span>(t) ==
-    /\ \E v \in <span class="num">0</span>..MaxVal :
-       thr_write_val' = [thr_write_val <span class="keyword">EXCEPT</span> ![t] = v]
-
-<span class="comment">(* 2b: 決定的インクリメント — tr[node].x += 1 *)</span>
-<span class="op">WriteIncrement</span>(t) ==
-    /\ thr_write_val' = [thr_write_val <span class="keyword">EXCEPT</span>
-         ![t] = thr_snap_val[t] + <span class="num">1</span>]</code></pre>
-
-<h2>Step 3: Commit (CAS)</h2>
-<pre><code><span class="op">Commit</span>(t) ==
-    \/ <span class="comment">(* CAS成功: 値とシリアルの両方がスナップショットと一致 *)</span>
-       /\ node_val = thr_snap_val[t]
-       /\ node_serial = thr_snap_ser[t]
-       /\ node_val' = thr_write_val[t]       <span class="comment">\* 新値をインストール</span>
-       /\ node_serial' = node_serial + <span class="num">1</span>     <span class="comment">\* シリアル+1</span>
-       /\ thr_committed' = [thr_committed <span class="keyword">EXCEPT</span> ![t] = @ + <span class="num">1</span>]
-
-    \/ <span class="comment">(* CAS失敗: 他スレッドがコミット済み → リトライ *)</span>
-       /\ ~(node_val = thr_snap_val[t] /\ node_serial = thr_snap_ser[t])
-       /\ thr_snap_val' = [thr_snap_val <span class="keyword">EXCEPT</span> ![t] = node_val]
-       /\ thr_snap_ser' = [thr_snap_ser <span class="keyword">EXCEPT</span> ![t] = node_serial]
-       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"snapshot"</span>]</code></pre>
+<tr><td><code>{a, b, c}</code></td><td>有限集合</td><td><code>{"scan", "cas", "idle"}</code></td></tr>
+</table>
 
 <div class="box-green">
-<p><strong>ポイント:</strong> CAS失敗時、即座に新しいSnapshotを取ってリトライ。これが<code>iterate_commit</code>の動作。</p>
+<p><strong>読み方のコツ:</strong> TLA+のアクション（例: <code>ReserveScanCAS(t)</code>）は
+「この条件が成り立つとき、変数をこう変える」という宣言。
+<code>/\</code>で並んだ条件がすべて真のときに実行可能。
+<code>x'</code>が次の状態、<code>UNCHANGED</code>は変えないもの。</p>
 </div>
 </div>
 
-<!-- ===== Slide 3: Invariants ===== -->
+<!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
-<h1>検証された不変条件 (5件)</h1>
+<h1>Layer 1: atomic_shared_ptr</h1>
+<h3>TLA+モデル解説 — atomic_shared_ptr.tla (340行)</h3>
 
-<pre><code><span class="comment">\* 1. Lost Update なし: 2スレッドが両方コミット成功→シリアルは2以上増加</span>
-<span class="op">NoLostUpdate</span> ==
-    \A t1, t2 \in Threads :
-        (t1 /= t2 /\ thr_committed[t1] > <span class="num">0</span> /\ thr_committed[t2] > <span class="num">0</span>)
-        => node_serial >= <span class="num">2</span>
-
-<span class="comment">\* 2. コミットは直列化: 全コミット回数 % MaxSerial = シリアル</span>
-<span class="op">CommitSerializes</span> ==
-    SumSet(Threads) % MaxSerial = node_serial
-
-<span class="comment">\* 3. 最後のコミッタの書き込み値が見える</span>
-<span class="op">WriteReadConsistency</span> ==
-    \A t \in Threads :
-        (pc[t] = <span class="type">"done"</span> /\ thr_snap_ser[t] = node_serial - <span class="num">1</span>)
-        => node_val = thr_write_val[t]
-
-<span class="comment">\* 4. 全スレッドidle時: シリアルと値がコミット回数と一致</span>
-<span class="op">QuiescentCheck</span> ==
-    (\A t \in Threads : pc[t] = <span class="type">"idle"</span>)
-    => /\ SumSet(Threads) % MaxSerial = node_serial
-       /\ SumSet(Threads) % MaxVal = node_val</code></pre>
-
-<h2>検証結果</h2>
-<table>
-<tr><th>スレッド数</th><th>MaxVal</th><th>MaxSerial</th><th>状態数</th><th>時間</th><th>結果</th></tr>
-<tr><td>3</td><td>2</td><td>6</td><td>78,000</td><td>&lt;1秒</td><td style="color:#4ade80">✅ Pass (完全)</td></tr>
-</table>
+<div class="box-orange">
+<p><strong>2層アーキテクチャにおける本層の位置づけ:</strong> 本スライドはかつて「Layer 0」と呼ばれていたが（ファイル名は slides_layer1.html に移動済み）、
+論文の2層モデル（Layer 1: atomic_shared_ptr / Layer 2: bundle/unbundle + commit）に合わせて<strong>Layer 1</strong>に改称。
+内容は変更なし。</p>
+</div>
 
 <div class="box">
-<p><strong>意味:</strong> 3スレッドが同時にトランザクションを実行しても、Lost Update, 非直列化,
-不整合なSnapshotは<strong>1.1億状態のすべてで</strong>発生しない。</p>
+<h2>何をモデル化しているか</h2>
+<p><code>kame/atomic_smart_ptr.h</code> の参照カウントプロトコル全体。<br>
+C++のロックフリー atomic_shared_ptr を TLA+ で網羅的に検証する。</p>
+</div>
+
+<h2>モデルの構成要素</h2>
+<table>
+<tr><th>要素</th><th>TLA+での表現</th><th>C++での対応</th></tr>
+<tr><td>共有ポインタ</td><td><code>ptr</code> + <code>local_rc</code></td><td><code>m_ref</code> (uintptr_t)</td></tr>
+<tr><td>オブジェクト</td><td><code>Objects</code> (有限集合)</td><td>Ref構造体</td></tr>
+<tr><td>参照カウント</td><td><code>global_rc[o]</code></td><td>Ref内の<code>atomic&lt;int&gt;</code></td></tr>
+<tr><td>解放状態</td><td><code>freed[o]</code></td><td>delete呼び出し</td></tr>
+<tr><td>スレッド状態</td><td><code>pc[t]</code>, <code>thr_*</code></td><td>関数内のローカル変数</td></tr>
+</table>
+
+<h2>変数一覧 (12個)</h2>
+<pre><code><span class="keyword">VARIABLES</span>
+    ptr,            <span class="comment">\* ポインタ（Object or NULL）</span>
+    local_rc,       <span class="comment">\* ローカル参照カウンタ（下位3ビット相当）</span>
+    global_rc,      <span class="comment">\* global_rc[o]: 各オブジェクトのグローバルRC</span>
+    freed,          <span class="comment">\* freed[o]: 解放済みフラグ</span>
+    pc,             <span class="comment">\* 各スレッドのプログラムカウンタ（22状態）</span>
+    thr_op,         <span class="comment">\* "scan", "cas", "idle"</span>
+    thr_pref,       <span class="comment">\* acquire_tag_ref_で読んだポインタ</span>
+    thr_rcnt,       <span class="comment">\* acquire_tag_ref_で読んだローカルRC</span>
+    thr_old,        <span class="comment">\* CAS: 期待する旧オブジェクト</span>
+    thr_new,        <span class="comment">\* CAS: 新オブジェクト</span>
+    thr_holds,      <span class="comment">\* local_shared_ptrで保持中のオブジェクト集合</span>
+    thr_ls_ctx      <span class="comment">\* release_tag_ref_の戻り先</span></code></pre>
+</div>
+
+<!-- ===== Slide 2: acquire_tag_ref_ ===== -->
+<div class="slide">
+<h1>acquire_tag_ref_: アトミック読み取り + CAS</h1>
+<h3>C++ソース: atomic_smart_ptr.h 行462-488</h3>
+
+<div class="box">
+<p>C++の<code>m_ref.load()</code>は単一アトミック操作であり、ポインタとローカルRCは
+常に同じload値から導出される。TLA+でもこれを<strong>単一ステップ</strong>でモデル化する。</p>
+</div>
+
+<pre><code><span class="comment">(* アトミック読み取り: ptrとlocal_rcを同時に読む *)</span>
+<span class="op">ReserveScanRead</span>(t) ==
+    /\ pc[t] = <span class="type">"rs_read"</span>
+    /\ thr_pref' = [thr_pref <span class="keyword">EXCEPT</span> ![t] = ptr]       <span class="comment">\* ← ptrを読む</span>
+    /\ thr_rcnt' = [thr_rcnt <span class="keyword">EXCEPT</span> ![t] = local_rc]  <span class="comment">\* ← local_rcを読む（同時）</span>
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rs_cas"</span>]
+
+<span class="comment">(* CAS — ポインタとRCの両方が一致する場合のみ成功 *)</span>
+<span class="op">ReserveScanCAS</span>(t) ==
+    /\ pc[t] = <span class="type">"rs_cas"</span>
+    /\ thr_pref[t] /= NULL
+    /\ \/ <span class="comment">(* CAS成功: ptr AND local_rc の両方が一致 *)</span>
+          /\ ptr = thr_pref[t]
+          /\ local_rc = thr_rcnt[t]
+          /\ local_rc' = thr_rcnt[t] + <span class="num">1</span>  <span class="comment">\* ピン留め！</span>
+       \/ <span class="comment">(* CAS失敗: 読み取りに戻ってリトライ *)</span>
+          /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
+          /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rs_read"</span>]</code></pre>
+
+<div class="box-green">
+<p><strong>ポイント:</strong> 読み取りからCASまでの間に他スレッドがptr/local_rcを変更しても、
+CASが<strong>フルワード比較</strong>（ptr + local_rc の両方）するため、不整合は必ず検出される。</p>
 </div>
 </div>
 
-<!-- ===== Slide 4: TLA+ ↔ C11 対応表 ===== -->
+<!-- ===== Slide 3: scan_ (load_shared_) ===== -->
+<div class="slide">
+<h1>scan_: load_shared_() の3ステップ</h1>
+<h3>C++ソース: 行494-503</h3>
+
+<pre><code><span class="comment">(* Step 1: acquire_tag_ref_ → アトミック読み取り + CASでローカルRCを+1 [上のスライド参照] *)</span>
+
+<span class="comment">(* Step 2: グローバルRCを+1 — relaxedで安全 *)</span>
+<span class="op">ScanIncGlobal</span>(t) ==
+    /\ pc[t] = <span class="type">"scan_inc"</span>
+    /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![thr_pref[t]] = @ + <span class="num">1</span>]
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"scan_leave"</span>]
+
+<span class="comment">(* Step 3: release_tag_ref_ → ローカルRCを-1 *)</span></code></pre>
+
+<div class="arrow">acquire_tag_ref_ → global_rc++ → release_tag_ref_</div>
+
+<h2>release_tag_ref_: フォールバック分岐</h2>
+<pre><code><span class="op">LeaveScanCAS</span>(t) ==
+    \/ <span class="comment">(* CAS成功: ptrが変わっていない → ローカルRCを-1 *)</span>
+       /\ ptr = thr_pref[t] /\ local_rc = thr_rcnt[t]
+       /\ local_rc' = thr_rcnt[t] - <span class="num">1</span>
+
+    \/ <span class="comment">(* CAS失敗, ptrが同じ → リトライ *)</span>
+       /\ ptr = thr_pref[t]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_read"</span>]
+
+    \/ <span class="comment">(* CAS失敗, ptrが変わった → フォールバック: global_rc-- *)</span>
+       /\ ptr /= thr_pref[t]
+       /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"ls_global"</span>]
+
+<span class="comment">(* フォールバック: 入れ替えたスレッドがローカルRC分を転送済み *)</span>
+<span class="op">LeaveScanGlobal</span>(t) ==
+    /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![o] = @ - <span class="num">1</span>]
+    /\ <span class="keyword">IF</span> global_rc[o] = <span class="num">1</span>
+       <span class="keyword">THEN</span> freed' = [freed <span class="keyword">EXCEPT</span> ![o] = TRUE]  <span class="comment">\* → 解放！</span></code></pre>
+
+<div class="box-red">
+<p><strong>このフォールバックが不可欠:</strong> なしでは参照カウンタリーク or use-after-free。TLA+検証で確認。</p>
+</div>
+</div>
+
+<!-- ===== Slide 4: compareAndSwap_ ===== -->
+<div class="slide">
+<h1>compareAndSwap_: 6フェーズ</h1>
+<h3>C++ソース: 行556-603</h3>
+
+<table>
+<tr><th>Phase</th><th>TLA+ Action</th><th>動作</th></tr>
+<tr><td>1</td><td><code>CASPreInc</code></td><td>新オブジェクトの<code>global_rc++</code></td></tr>
+<tr><td>2</td><td><code>CASReserve</code>→<code>rs_*</code></td><td><code>acquire_tag_ref_</code>でピン留め</td></tr>
+<tr><td>3</td><td><code>CASCheck</code></td><td><code>pref != oldr</code>なら失敗を返す</td></tr>
+<tr><td>4</td><td><code>CASTransfer</code></td><td>ローカルRC分を<code>global_rc</code>に転送</td></tr>
+<tr><td>5</td><td><code>CASSwap</code></td><td>CAS (<code>acq_rel</code>): ポインタ入れ替え</td></tr>
+<tr><td>6</td><td><code>CASCleanup</code></td><td>旧オブジェクトの<code>global_rc--</code></td></tr>
+</table>
+
+<pre><code><span class="comment">(* Phase 4: ローカルRC分をグローバルに転送 *)</span>
+<span class="op">CASTransfer</span>(t) ==
+    /\ <span class="keyword">IF</span> thr_pref[t] /= NULL /\ thr_rcnt[t] /= <span class="num">1</span>
+       <span class="keyword">THEN</span> global_rc' = [global_rc <span class="keyword">EXCEPT</span>
+                ![thr_pref[t]] = @ + thr_rcnt[t] - <span class="num">1</span>]
+
+<span class="comment">(* Phase 5: CAS — フルワード比較 *)</span>
+<span class="op">CASSwap</span>(t) ==
+    \/ /\ ptr = thr_pref[t] /\ local_rc = thr_rcnt[t]  <span class="comment">\* 一致</span>
+       /\ ptr' = thr_new[t]
+       /\ local_rc' = <span class="num">0</span>
+    \/ /\ ~(...)  <span class="comment">\* CAS失敗 → Undo → release_tag_ref_ → リトライ</span></code></pre>
+
+<div class="box">
+<p><strong>ABAとの関係:</strong> 呼び出し元は<code>local_shared_ptr</code>で<code>oldr</code>を保持
+→ <code>global_rc &gt; 0</code> → 解放されない → ABAは構造的に不可能。<br>
+ただし<code>load_shared_()</code>ではスレッドが参照を持たないため、TLA+ではABAリサイクルを
+sound over-approximationとしてモデル化。</p>
+</div>
+</div>
+
+<!-- ===== Slide 4b: swap + Reset ===== -->
+<div class="slide">
+<h1>swap: 無条件交換</h1>
+
+<div class="box">
+<p><strong>CASとの違い:</strong> <code>swap</code>は旧ポインタを確認せず無条件に入れ替える。
+<code>PreInc</code>フェーズ不要（所有権の交換であり追加ではない）。</p>
+</div>
+
+<h2>プロトコル</h2>
+<pre><code><span class="op">StartSwap</span>(t) ==
+    /\ EnableSwap
+    /\ pc[t] = <span class="type">"idle"</span>
+    /\ \E newObj \in Objects \cup {NULL} :
+       /\ (newObj /= NULL => thr_holds[t][newObj] > <span class="num">0</span>)
+       /\ thr_new' = [thr_new <span class="keyword">EXCEPT</span> ![t] = newObj]
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"cas_acquire"</span>]  <span class="comment">\* PreIncをスキップ</span>
+    /\ thr_op' = [thr_op <span class="keyword">EXCEPT</span> ![t] = <span class="type">"swap"</span>]
+
+<span class="comment">\* acquire_tag_ref_ 成功後:</span>
+<span class="comment">\*   CASTransfer: global_rc[pref] += local_rc（タグ→グローバル転送）</span>
+<span class="comment">\*   CASSwap: CAS ptr from pref to newObj, local_rc → 0</span>
+<span class="comment">\*   CASCleanup不要（PreIncしていない）</span></code></pre>
+
+<h2>Reset: local_shared_ptr::reset()</h2>
+<pre><code><span class="op">Reset</span>(t) ==
+    /\ pc[t] \in {<span class="type">"idle"</span>, <span class="type">"done"</span>}
+    /\ \E o \in Objects :
+       /\ thr_holds[t][o] > <span class="num">0</span>
+       /\ thr_holds' = [thr_holds <span class="keyword">EXCEPT</span> ![t][o] = @ - <span class="num">1</span>]
+       /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![o] = @ - <span class="num">1</span>]
+       <span class="comment">\* decAndTest: global_rcが0に達したら解放</span>
+       /\ freed' = [freed <span class="keyword">EXCEPT</span> ![o] =
+            IF global_rc[o] = <span class="num">1</span> THEN TRUE ELSE @]</code></pre>
+
+<h2>swap vs load が重要な理由</h2>
+<div class="box-green">
+<p><strong>swapper</strong>がポインタを入れ替えている最中に<strong>loader</strong>が
+<code>acquire_tag_ref_</code>を実行中の場合、loaderの<code>release_tag_ref_</code>は
+ポインタ変更を検知し<strong>global_rcデクリメントにフォールバック</strong>する。
+swapperの<code>CASTransfer</code>が残存<code>local_rc</code>を<code>global_rc</code>に
+転送することでバランスが取れる。このタグ→グローバル転送パスは
+<code>atomic_shared_ptr</code>の正しさの核心であり、
+<strong>swap と load が並行実行されて初めて行使される</strong>。</p>
+</div>
+</div>
+
+<!-- ===== Slide 5: ABA Recycling ===== -->
+<div class="slide">
+<h1>ABAリサイクル</h1>
+
+<pre><code><span class="op">Recycle</span>(t) ==
+    /\ EnableRecycle             <span class="comment">\* フラグで有効/無効を制御</span>
+    /\ pc[t] \in {<span class="type">"idle"</span>, <span class="type">"done"</span>}
+    /\ \E o \in Objects :
+       /\ freed[o] = TRUE       <span class="comment">\* 解放済みオブジェクトを</span>
+       /\ global_rc[o] = <span class="num">0</span>
+       /\ freed' = [freed <span class="keyword">EXCEPT</span> ![o] = FALSE]   <span class="comment">\* 再生!</span>
+       /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![o] = <span class="num">1</span>]
+       /\ thr_holds' = [thr_holds <span class="keyword">EXCEPT</span> ![t] = @ \cup {o}]</code></pre>
+
+<div class="box-orange">
+<p><strong>Sound over-approximation:</strong> 全操作でリサイクルを許可（実際は<code>compareAndSwap_</code>では不可能）。
+過剰近似の下で安全性が証明されれば、実際のプログラムでも安全。</p>
+<p><strong>経緯:</strong> 著者は安全性を自明と判断。AIが過剰近似としてモデル化を提案、著者が同意。</p>
+</div>
+</div>
+
+<!-- ===== Slide 6: Invariants ===== -->
+<div class="slide">
+<h1>検証された不変条件 (7件)</h1>
+
+<table>
+<tr><th>#</th><th>不変条件</th><th>意味</th></tr>
+<tr><td>1</td><td><code>MemorySafety</code></td><td>ピン留め中のオブジェクトは解放されない</td></tr>
+<tr><td>2</td><td><code>NoUseAfterFree</code></td><td><code>thr_holds</code>に含まれるオブジェクトは解放されない</td></tr>
+<tr><td>3</td><td><code>GlobalRCNonNeg</code></td><td>生存オブジェクトの<code>global_rc ≥ 0</code></td></tr>
+<tr><td>4</td><td><code>FreedImpliesZeroRC</code></td><td>解放済みなら<code>global_rc = 0</code></td></tr>
+<tr><td>5</td><td><code>InstalledNotFreed</code></td><td><code>ptr</code>が指すオブジェクトは解放されない</td></tr>
+<tr><td>6</td><td><code>LocalRCBounded</code></td><td><code>local_rc ≤ スレッド数</code></td></tr>
+<tr><td>7</td><td><code>TypeOK</code></td><td>型不変条件</td></tr>
+</table>
+
+<pre><code><span class="op">MemorySafety</span> ==
+    \A t \in Threads :
+        (pc[t] \in {<span class="type">"scan_inc"</span>, <span class="type">"scan_leave"</span>,
+                     <span class="type">"ls_read"</span>, <span class="type">"ls_cas"</span>, <span class="type">"ls_global"</span>,
+                     <span class="type">"cas_check"</span>, ..., <span class="type">"cas_cleanup"</span>}
+         /\ thr_pref[t] /= NULL)
+        => freed[thr_pref[t]] = FALSE</code></pre>
+
+<h2>検証結果（StateConstraintなし）</h2>
+<table>
+<tr><th>構成</th><th>スレッド</th><th>状態数</th><th>時間</th><th>結果</th></tr>
+<tr><td>scan only</td><td>3</td><td>40,934</td><td>1秒</td><td style="color:#4ade80">✅ Pass</td></tr>
+<tr><td>scan+CAS (ABAなし)</td><td>2</td><td>3,549,304</td><td>12秒</td><td style="color:#4ade80">✅ Pass (完全)</td></tr>
+<tr><td>full (CAS+ABA)</td><td>2</td><td>8,719,367</td><td>28秒</td><td style="color:#4ade80">✅ Pass (完全)</td></tr>
+<tr><td>swap+load (ABAなし)</td><td>2</td><td>—</td><td>—</td><td style="color:#93c5fd">ohtaka実行中</td></tr>
+<tr><td>swap+CAS+ABA</td><td>2</td><td>6.6×10⁹+</td><td>18h+</td><td style="color:#93c5fd">部分探索、違反なし (I/O律速)</td></tr>
+</table>
+</div>
+
+<!-- ===== Slide 7: TLA+ ↔ C11 対応表 ===== -->
 <div class="slide">
 <h1>C++ ↔ TLA+ ↔ 生成C11 対応表</h1>
+<h3>著者によるC++ ↔ TLA+照合、およびTLA+ → C11変換の確認用（続編は <strong>Layer 2スライド</strong> / slides_layer2.html）</h3>
 
 <h2>変数の対応</h2>
 <table>
-<tr><th>TLA+ 変数</th><th>C++ (transaction.h / transaction_impl.h)</th><th>生成C11 (test_stm_commit.c)</th></tr>
-<tr><td><code>node_val</code>, <code>node_serial</code></td><td><code>m_link->packet()->payload()</code><br><code>m_link->m_bundle_serial</code></td><td><code>_Atomic(uint64_t) node</code><br>上位32bit=serial, 下位32bit=val</td></tr>
-<tr><td><code>thr_snap_val[t]</code>, <code>thr_snap_ser[t]</code></td><td><code>Transaction::m_oldpacket</code><br><code>Transaction::m_serial</code></td><td>thread-local <code>snap_val</code>, <code>snap_ser</code></td></tr>
-<tr><td><code>thr_write_val[t]</code></td><td><code>Transaction::m_packet->payload()</code></td><td>thread-local <code>write_val</code></td></tr>
-<tr><td><code>thr_committed[t]</code></td><td>—（暗黙）</td><td><code>_Atomic(uint32_t) committed[2]</code></td></tr>
+<tr><th>TLA+ 変数</th><th>C++ (atomic_smart_ptr.h)</th><th>生成C11 (test_atomic_shared_ptr.c)</th></tr>
+<tr><td><code>ptr</code> + <code>local_rc</code></td><td><code>m_ref</code> (uintptr_t)<br>上位=ptr, 下位=tag</td><td><code>_Atomic(uintptr_t) g_ref</code><br><code>get_ptr()</code> / <code>get_tag()</code></td></tr>
+<tr><td><code>global_rc[o]</code></td><td><code>o->refcnt</code> (intrusive atomic)</td><td><code>_Atomic(uintptr_t) obj_refcnt[NUM_OBJECTS]</code></td></tr>
+<tr><td><code>freed[o]</code></td><td>delete呼び出し</td><td><code>int obj_freed[NUM_OBJECTS]</code></td></tr>
+<tr><td><code>thr_pref[t]</code></td><td><code>Ref* pref</code> (local)</td><td><code>uintptr_t pref</code> (local)</td></tr>
+<tr><td><code>thr_rcnt[t]</code></td><td><code>Refcnt rcnt</code> (local)</td><td><code>unsigned rcnt</code> (local)</td></tr>
+<tr><td><code>thr_holds[t][o]</code></td><td><code>local_shared_ptr</code>の生存数</td><td>thread-local <code>hold</code> index</td></tr>
 </table>
 
 <h2>アクションの対応</h2>
 <table>
-<tr><th>TLA+ アクション</th><th>C++ コード</th><th>生成C11</th><th>memory_order</th></tr>
-<tr><td><code>TakeSnapshot(t)</code></td><td><code>Transaction<XN> tr(node)</code><br>→ <code>load_shared_()</code></td><td><code>atomic_load(&node)</code> → unpack</td><td>acquire</td></tr>
-<tr><td><code>WriteIncrement(t)</code></td><td><code>tr[node].m_x += 1</code></td><td><code>write_val = snap_val + 1</code></td><td>—</td></tr>
-<tr><td><code>Commit(t)</code></td><td><code>m_link->compareAndSet()</code><br>→ Layer 0 CAS</td><td><code>atomic_compare_exchange_strong()</code></td><td>acq_rel</td></tr>
+<tr><th>TLA+ アクション</th><th>C++ 関数</th><th>生成C11 関数</th><th>memory_order</th></tr>
+<tr><td><code>AcquireTagRefRead</code><br>+ <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code></td><td><code>acquire_tag_ref()</code></td><td>relaxed → acq_rel</td></tr>
+<tr><td><code>LoadSharedIncGlobal</code></td><td><code>load_shared_()</code>内</td><td><code>load_shared()</code>内<br><code>fetch_add(refcnt, 1)</code></td><td>relaxed</td></tr>
+<tr><td><code>ReleaseTagRefCAS</code><br>/ <code>ReleaseTagRefGlobal</code></td><td><code>release_tag_ref_()</code></td><td><code>release_tag_ref()</code></td><td>acq_rel / acq_rel</td></tr>
+<tr><td><code>CASPreInc</code> → <code>CASSwap</code><br>→ <code>CASCleanup</code></td><td><code>compareAndSwap_()</code></td><td><code>compare_and_swap()</code></td><td>relaxed / acq_rel</td></tr>
+<tr><td><code>StartSwap</code> → <code>CASTransfer</code><br>→ <code>CASSwap</code></td><td><code>swap()</code></td><td><code>swap_exchange()</code></td><td>acq_rel</td></tr>
+<tr><td><code>Reset</code></td><td><code>local_shared_ptr::reset()</code></td><td><code>local_reset()</code></td><td>acq_rel (decAndTest)</td></tr>
 </table>
 
-<h2>抽象化の境界</h2>
-<div class="box">
-<p><strong>Layer 0 → Layer 1:</strong> Layer 0で検証済みのatomic_shared_ptrを、
-正しいアトミックレジスタとして抽象化。<br>
-C++: <code>m_link->compareAndSet()</code> → Layer 0の6フェーズCAS<br>
-生成C11: <code>atomic_compare_exchange_strong()</code> → 1命令<br>
-TLA+: <code>node_val = thr_snap_val[t] → CAS成功</code> → 1ステップ</p>
+<div class="box-green">
+<p><strong>検証の三角形:</strong><br>
+C++実装（著者が書いた）← 著者が独立に照合 → TLA+仕様<br>
+TLA+ → 生成C11（C++を参照せず、独立セッションで生成）→ GenMC検証（RC11）<br>
+この三角形が閉じることで、TLA+モデルの忠実性が確認可能。</p>
 </div>
 </div>
 
