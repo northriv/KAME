@@ -14,6 +14,11 @@ add_compile_options(-include ${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h)
 
 set(support_SRCS support_standalone.cpp)
 
+# Disable custom pool allocator — it requires thread-local initialization
+# that may fail on older GCC (e.g. 8.5). Standard new/delete is sufficient
+# for correctness testing.
+add_compile_definitions(DISABLE_POOL_ALLOCATOR)
+
 find_package(Threads REQUIRED)
 
 # --- Test targets ---
