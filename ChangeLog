@@ -1,3 +1,16 @@
+* Wed Apr 16 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- TLA+ BundleUnbundle (Layer 2): fix BundlePhase3 fine-grained allDone check.
+  Previous check (~hasPriority) incorrectly counted children bundled by OTHER
+  threads as done. Now verifies children match BundledRefWrapper(node, ser)
+  for THIS bundle's serial. Found via 2-level fine model checking.
+- TLA+ BundleUnbundle: increase MaxSerial from 128 to 1024 (3-level) and
+  512 (2-level). Fine-grained mode generates ~64 serials per commit cycle
+  due to CAS retries; MaxSerial/2 must exceed worst-case consumption.
+- TLA+ atomic_shared_ptr (Layer 0): add iterBudget for deterministic
+  termination. Per-thread operation counter guards new operations but not
+  Reset (must release references). TerminalCheck invariant verifies final
+  state: installed object has refcount=1, all others freed.
+
 * Mon Apr 14 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.1)
 - Fix XDriver documentation: timeAwared() is acquisition start time, not

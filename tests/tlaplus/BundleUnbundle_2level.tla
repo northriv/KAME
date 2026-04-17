@@ -41,12 +41,16 @@ CONSTANTS
     Child1, Child2,
     Null,
     MaxPayload,          \* Payloads wrap at this value
-    MaxSerial,           \* Serial wrap-around (must be even)
+    MaxSerial,           \* Serial modulus. Must exceed 2x the max serial consumed per run.
+                         \* Fine-mode uses ~64 serials/commit; set >= 64*MaxCommits*|Threads|.
+                         \* Modular wrap-around is required for TLC termination: commit retry
+                         \* loops increment serial without consuming iterBudget.
     MaxCommits,          \* Per-child direct commit budget per thread
-    BundleCollectAtomic, \* "coarse": collect all children atomically
-                         \* "fine": one child per step
-    BundlePhase3Atomic   \* "coarse": CAS all children atomically
-                         \* "fine": one child per step (structural equality caveat)
+    BundleCollectAtomic, \* "coarse" / "fine" / "superfine"
+    BundlePhase3Atomic   \* "coarse" / "fine" / "superfine"
+                         \* superfine: fine + C++-faithful failure handling
+                         \*   Phase1: retry same child if parent unchanged
+                         \*   Phase3: check bundle_serial/parent → DISTURBED
 
 Children == {Child1, Child2}
 Nodes == {Parent} \cup Children
@@ -94,7 +98,7 @@ ThreadSymmetry == Permutations(Threads)
 \*
 \* All reads/writes to linkage go through atomic_shared_ptr:
 \*   load_shared_() for reads, compareAndSet() for CAS updates.
-\* Serial arithmetic is modular (no StateConstraint needed for finiteness).
+\* Serial arithmetic is modular (required for finite state space; see MaxSerial comment).
 \*
 \* Source: kame/transaction.h, kame/transaction_impl.h
 \* ==========================================================================
@@ -240,7 +244,20 @@ BundlePhase1(t) ==
                  /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
        ELSE \* Fine: collect one unprocessed child per step
             LET parentW == local[t].wrapper
+                ser     == local[t].bundleSer
             IN
+            \* --- #1 superfine: Pre-bundle serial CAS (C++ bundle() entry, line 1182-1191) ---
+            IF BundleCollectAtomic = "superfine" /\ parentW.serial /= ser
+            THEN LET newW == PriorityWrapper(parentW.packet, ser)
+                 IN
+                 IF linkage[Parent] = parentW
+                 THEN /\ linkage' = [linkage EXCEPT ![Parent] = newW]
+                      /\ local' = [local EXCEPT ![t].wrapper = newW]
+                      /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
+                      /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue>>
+                 ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
+                      /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+            ELSE
             \/ \* Pick one unprocessed child (subwrappers[c] = Null)
                \E c \in Children :
                   /\ local[t].subwrappers[c] = Null
@@ -263,11 +280,18 @@ BundlePhase1(t) ==
                              THEN pc' = [pc EXCEPT ![t] = "bundle_phase2"]
                              ELSE pc' = [pc EXCEPT ![t] = "bundle_phase1"]
                           /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
-                     ELSE /\ pc' = [pc EXCEPT ![t] = "snap_read"]
-                          /\ local' = [local EXCEPT
-                                  ![t].subwrappers = [c2 \in Children |-> Null],
-                                  ![t].subpackets  = EmptySub]
-                          /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
+                     ELSE \* Collection failed.
+                          IF BundleCollectAtomic = "superfine"
+                             /\ linkage[Parent] = parentW
+                          THEN \* superfine + parent unchanged — retry same child.
+                               /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
+                               /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+                          ELSE \* fine: always restart; superfine: parent changed.
+                               /\ pc' = [pc EXCEPT ![t] = "snap_read"]
+                               /\ local' = [local EXCEPT
+                                       ![t].subwrappers = [c2 \in Children |-> Null],
+                                       ![t].subpackets  = EmptySub]
+                               /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase2(t):
 \*   // Phase 2: CAS parent's linkage with new packet (still missing=TRUE)
@@ -323,19 +347,28 @@ BundlePhase3(t) ==
                      THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
                      ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]
                   /\ UNCHANGED <<serial, globalSerial, local, op, target, iterBudget, childQueue>>
+            \* Failure path: some child changed — rollback and restart.
+            \* superfine: check bundle_serial/parent first (C++ transaction_impl.h:1274-1280).
             \/ /\ \E c \in Children :
                       /\ childWs[c] /= Null
                       /\ linkage[c] /= childWs[c]
-               /\ linkage' = [n \in Nodes |->
-                      IF n \in Children
-                         /\ linkage[n] = BundledRefWrapper(Parent, ser)
-                      THEN childWs[n]
-                      ELSE linkage[n]]
-               /\ local' = [local EXCEPT
-                      ![t].subwrappers = [c \in Children |-> Null],
-                      ![t].subpackets  = EmptySub]
-               /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-               /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue>>
+               /\ LET disturbed ==
+                       BundlePhase3Atomic = "superfine"
+                       /\ (\/ \E c \in Children :
+                                  /\ linkage[c] /= childWs[c]
+                                  /\ linkage[c].serial /= ser
+                            \/ linkage[Parent] /= local[t].wrapper)
+                  IN
+                  IF disturbed
+                  THEN \* superfine DISTURBED — restart from snapshot
+                       /\ pc' = [pc EXCEPT ![t] = "snap_read"]
+                       /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+                  ELSE \* #3: No rollback — restart Phase1 (re-collect re-adopts bundled children)
+                       /\ local' = [local EXCEPT
+                              ![t].subwrappers = [c \in Children |-> Null],
+                              ![t].subpackets  = EmptySub]
+                       /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
+                       /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase4(t):
 \*   // Phase 4: finalize -- clear missing flag, CAS parent
@@ -442,13 +475,11 @@ CommitRead(t) ==
 
 \* @c11_action CommitTryCAS(t):
 \*   // Direct commit (hasPriority path)
-\*   local_shared_ptr<PacketWrapper> newwrapper(
-\*       new PacketWrapper(tr.m_packet, tr.m_serial));
-\*   if (m_link->compareAndSet(wrapper, newwrapper))
-\*       return true;           // success
-\*   // payload unchanged -> single-node optimization: adopt new children
-\*   // payload changed   -> true conflict, fail
 \*   Source: transaction_impl.h:1368-1400
+\*
+\*   Fidelity note (#7): C++ creates newwrapper once with tr.m_serial and reuses it
+\*   across inner retries. TLA+ calls GenSerial each time, which may produce a higher
+\*   serial after adopting a wrapper with a newer serial. No correctness impact.
 CommitTryCAS(t) ==
     /\ pc[t] = "commit_try_cas"
     /\ LET childNode == target[t]
@@ -543,6 +574,11 @@ UnbundleCASAncestors(t) ==
 \*   newsubwrapper = new PacketWrapper(*subpacket, gen(superwrapper->m_bundle_serial));
 \*   sublinkage->compareAndSet(bundled_ref, newsubwrapper);
 \*   Source: transaction_impl.h:1510-1520
+\*
+\*   Fidelity note (#8): C++ uses gen(superwrapper->m_bundle_serial) where superwrapper
+\*   is the root wrapper after walk (may have higher serial). TLA+ uses oldChildW.serial
+\*   (child's bundled_ref serial). Both equal at bundle time; diverge if root was
+\*   re-committed. C++ produces higher serial. No correctness impact.
 UnbundleCASChild(t) ==
     /\ pc[t] = "unbundle_cas_child"
     /\ LET childNode  == target[t]
@@ -628,7 +664,6 @@ BundleRefConsistency ==
 \* structural equality, not ModGT.
 \* When wrap-around makes |a - b| = MaxSerial/2, ModGT(a,b) and ModGT(b,a) are
 \* both FALSE — the serial space is exhausted. Increase MaxSerial.
-\* Replaces the former SerialMonotonicity (which only checked range).
 NoSerialWrapAround ==
     LET activeSerials == {serial[t] : t \in Threads}
                          \cup {linkage[n].serial :
