@@ -39,6 +39,12 @@ target_link_libraries(transaction_dynamic_node_test Threads::Threads)
 add_executable(transaction_negotiation_test transaction_negotiation_test.cpp ${support_SRCS})
 target_link_libraries(transaction_negotiation_test Threads::Threads)
 
+add_executable(transaction_payload_integrity_test transaction_payload_integrity_test.cpp ${support_SRCS})
+target_link_libraries(transaction_payload_integrity_test Threads::Threads)
+
+add_executable(transaction_payload_integrity_3level_test transaction_payload_integrity_3level_test.cpp ${support_SRCS})
+target_link_libraries(transaction_payload_integrity_3level_test Threads::Threads)
+
 # --- CTest registration ---
 
 enable_testing()
@@ -50,10 +56,14 @@ add_test(NAME mutex_test COMMAND mutex_test)
 add_test(NAME transaction_test COMMAND transaction_test)
 add_test(NAME transaction_dynamic_node_test COMMAND transaction_dynamic_node_test)
 add_test(NAME transaction_negotiation_test COMMAND transaction_negotiation_test)
+add_test(NAME transaction_payload_integrity_test COMMAND transaction_payload_integrity_test)
+add_test(NAME transaction_payload_integrity_3level_test COMMAND transaction_payload_integrity_3level_test)
 
 # Long-running tests
 set_tests_properties(
     transaction_test
     transaction_dynamic_node_test
     transaction_negotiation_test
+    transaction_payload_integrity_test
+    transaction_payload_integrity_3level_test
     PROPERTIES TIMEOUT 300)
