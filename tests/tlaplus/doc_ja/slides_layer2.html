@@ -30,7 +30,7 @@ p{line-height:1.8}
 <div class="slide">
 <h1>TLA+ 記法（Layer 1参照）</h1>
 <div class="box">
-<p>TLA+の基本記法は <strong>Layer 1スライドの冒頭</strong> (slides_layer0.html — 旧「Layer 0」から改称) を参照。<br>
+<p>TLA+の基本記法は <strong>Layer 1スライドの冒頭</strong> (slides_layer1.html) を参照。<br>
 本スライドで新たに登場する記法:</p>
 </div>
 <table>
@@ -109,10 +109,11 @@ Grand ── Parent ──┬── Child1<br>
 </table>
 
 <div class="box-green">
-<p><strong>発見されたバグ:</strong> TLA+検証の過程で <code>BundlePhase3</code> の <code>allDone</code> 判定が
-<code>~hasPriority</code> のみをチェックしており、本来は
-<code>BundledRefWrapper(node, ser)</code> と一致するかを確認すべきだった。
-モデル上で修正済み（C++実装も対応）。</p>
+<p><strong>TLA+モデル化の際に生じたバグの発見例:</strong> <code>BundlePhase3</code> の <code>allDone</code> 判定が
+<code>~hasPriority</code> のみをチェックしており、別スレッドがbundleした子も「完了」と誤判定していた。
+<code>BundledRefWrapper(node, ser)</code> との一致で判定するようモデルを修正。
+C++実装では全子に対してCASを実行し「既にbundled済みならスキップ」という最適化がないため、
+この問題は発生しない。TLA+モデル固有のバグであった。</p>
 </div>
 </div>
 

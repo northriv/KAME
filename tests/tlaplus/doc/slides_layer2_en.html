@@ -30,7 +30,7 @@ p{line-height:1.8}
 <div class="slide">
 <h1>TLA+ Notation (See Layer 1)</h1>
 <div class="box">
-<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 1 slides</strong> (slides_layer0_en.html — renamed from old "Layer 0").<br>
+<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 1 slides</strong> (slides_layer1_en.html).<br>
 New notation introduced in these slides:</p>
 </div>
 <table>
@@ -110,10 +110,12 @@ count but also raise fidelity to the C++ implementation.</p>
 </table>
 
 <div class="box-green">
-<p><strong>Bug found:</strong> During TLA+ verification, <code>BundlePhase3</code>'s
-<code>allDone</code> check was only testing <code>~hasPriority</code>, but should have
-been verifying a match with <code>BundledRefWrapper(node, ser)</code>. Fixed in the model
-(C++ implementation also updated).</p>
+<p><strong>An example of a bug introduced during TLA+ modeling:</strong> <code>BundlePhase3</code>'s
+<code>allDone</code> check was only testing <code>~hasPriority</code>, so it incorrectly
+counted children already bundled by another thread as "done." Fixed by matching against
+<code>BundledRefWrapper(node, ser)</code> for the current thread. The C++ implementation
+runs CAS on every child without a "skip if already bundled" optimization, so it never
+exhibited this bug — it was a TLA+ model-only issue.</p>
 </div>
 </div>
 
