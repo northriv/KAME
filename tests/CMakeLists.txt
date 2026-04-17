@@ -10,7 +10,9 @@ include_directories(
 
 # Standalone support: replaces support.h + xtime.h with std::chrono.
 # -include preinclude so include guards block the Qt-dependent originals.
-# AOCC 4.0 crashes on -include; fall back to -D guard macros + explicit #include.
+# AOCC 4.0 crashes on -include; fall back to requiring each .cpp to
+# #include "support_standalone.h" as its first include (its guards block
+# the real support.h/xtime.h).
 include(CheckCXXSourceCompiles)
 set(CMAKE_REQUIRED_FLAGS "-include ${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h")
 check_cxx_source_compiles("int main(){return 0;}" HAVE_FORCE_INCLUDE)
@@ -18,10 +20,7 @@ unset(CMAKE_REQUIRED_FLAGS)
 if(HAVE_FORCE_INCLUDE)
     add_compile_options(-include ${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h)
 else()
-    # Define the include guards so the real support.h/xtime.h become no-ops,
-    # then each .cpp must #include "support_standalone.h" itself.
-    add_compile_definitions(supportH XTIME_H_)
-    message(STATUS "Compiler does not support -include; using -D guard macros")
+    message(STATUS "Compiler does not support -include; each .cpp must #include support_standalone.h first")
 endif()
 
 set(support_SRCS support_standalone.cpp)

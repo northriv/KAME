@@ -2,7 +2,7 @@
 
 //#include "xtime.h"
 
-#include "support.h"
+#include "support_standalone.h"
 
 #include <stdint.h>
 #include <thread>

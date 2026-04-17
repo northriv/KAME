@@ -5,7 +5,7 @@
  * The slower transaction would never succeed unless a proper wait is put on the faster loop.
  */
 
-#include "support.h"
+#include "support_standalone.h"
 
 
 //For inline expansion of lock-free custom new()/delete() operators.
