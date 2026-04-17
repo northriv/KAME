@@ -1,13 +1,13 @@
-# KAME
+# KAME: AI-Assisted Automation Program for Physical Property Measurements
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
 [![Version](https://img.shields.io/badge/version-8.1-green)]()
 
-KAME is an open-source, multi-threaded framework for automated physical property measurements,
+KAME is an open-source, multi-threaded program for automated physical property measurements,
 developed at [Kitagawa Laboratory, ISSP, University of Tokyo](https://kitag.issp.u-tokyo.ac.jp/).
-It is particularly suited to NMR and ODMR experiments, and supports flexible measurement
-orchestration across compatible instruments without custom programming.
+It is particularly suited to NMR and ODMR experiments, and supports AI-assisted measurement
+orchestration across compatible instruments.
 
 **License:** GPL v2 or later (prior to 8.0: LGPL v2 or later)
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
