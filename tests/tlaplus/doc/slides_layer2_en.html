@@ -58,7 +58,7 @@ This corresponds to nested structs in C++. In TLA+, nested fields are updated wi
 <div class="box-purple">
 <p><strong>The most complex model.</strong> Integrated verification of 4-phase bundle, multi-level unbundle,
 and optimistic commit on 2-level and 3-level trees. The single-node CAS commit from the old "Layer 1
-(stm_commit)" is now <strong>subsumed</strong> into this layer's <code>CommitChild</code> path
+(stm_commit)" is now <strong>subsumed</strong> into this layer's <code>CommitTryCAS</code> direct path
 (2-layer architecture).</p>
 <p>Model supports <strong>3 fidelity tiers</strong> (coarse / fine / superfine — see next slide).</p>
 </div>
@@ -166,73 +166,115 @@ exhibited this bug — it was a TLA+ model-only issue.</p>
 <h1>Unbundle: Disassembly at Commit Time</h1>
 
 <h2>Why Is It Needed?</h2>
-<p>To commit to a bundled child node, the parent's bundle must first be disassembled.</p>
+<p>To commit to a bundled child node, the ancestor bundle chain must first be disassembled.
+Starting from the target child, we follow <code>bundledBy</code> upward to identify the
+ancestors, set each ancestor's <code>missing</code> to TRUE, and then restore the child
+to a priority wrapper.</p>
 
-<h2>Single-level unbundle (Child → Parent)</h2>
-<pre><code><span class="op">UnbundleCASAncestor</span>(t) ==
-    <span class="comment">\* Null out child slot from parent's Packet, set missing=TRUE</span>
-    /\ LET newSub == [parentW.packet.sub <span class="keyword">EXCEPT</span> ![node] = Null]
-           newPkt == <span class="op">MakePacket</span>(parent, payload, newSub, <span class="type">TRUE</span>)
-       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![parent] = newPW]
+<h2>Step 1: UnbundleWalk — Build ancestor list</h2>
+<pre><code><span class="op">UnbundleWalk</span>(t) ==
+    <span class="comment">\* Starting from the target child, walk the bundledBy chain upward</span>
+    <span class="comment">\* and build the list casTargets of ancestor nodes to CAS</span>
+    <span class="comment">\* (child → parent → (at 3-level) grand)</span>
+    /\ local' = [local <span class="keyword">EXCEPT</span> ![t].casTargets = chain]
+    <span class="comment">\* superfine #5: at 3-level, build the list root-first</span>
+    <span class="comment">\* (matching the C++ traversal order: CAS from root → leaf)</span></code></pre>
 
-<span class="op">UnbundleCASChild</span>(t) ==
-    <span class="comment">\* Restore child's linkage from BundledRef to Priority</span>
+<h2>Step 2: UnbundleCASAncestors / UnbundleCASLoop — Set missing=TRUE on ancestors</h2>
+<pre><code><span class="op">UnbundleCASAncestors</span>(t)   <span class="comment">\* 2-level (BundleUnbundle_2level.tla)</span>
+<span class="op">UnbundleCASLoop</span>(t)         <span class="comment">\* 3-level (BundleUnbundle.tla)</span>
+    <span class="comment">\* For each ancestor in casTargets, CAS its wrapper to a new wrapper</span>
+    <span class="comment">\* with missing=TRUE. The child sub-slots sub[c] are KEPT (not nulled),</span>
+    <span class="comment">\* so Phase3 rollback / recovery paths still have the references available.</span>
+    /\ LET newPkt == <span class="op">MakePacket</span>(anc, anc.payload, anc.sub, <span class="type">TRUE</span>)
+           newW   == <span class="op">PriorityWrapper</span>(newPkt, ser)
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![anc] = newW]
+    <span class="comment">\* coarse: all ancestors in one step; fine: one ancestor per step</span></code></pre>
+
+<h2>Step 3: UnbundleCASChild — Restore target child to priority</h2>
+<pre><code><span class="op">UnbundleCASChild</span>(t) ==
+    <span class="comment">\* Restore the target child from BundledRefWrapper to PriorityWrapper,</span>
+    <span class="comment">\* carrying the new (committed) payload.</span>
     /\ LET newChildW == <span class="op">PriorityWrapper</span>(newpacket, ser)
        IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newChildW]</code></pre>
 
-<h2>Two-level unbundle (Child → Parent → Grand)</h2>
-<pre><code><span class="op">UnbundleCASGP</span>(t) ==
-    <span class="comment">\* Null out Child slot in Parent packet within Grand</span>
-    /\ LET parentPkt   == gpW.packet.sub[parentNode]
-           newParentSub == [parentPkt.sub <span class="keyword">EXCEPT</span> ![node] = Null]
-           newGPSub     == [gpW.packet.sub <span class="keyword">EXCEPT</span> ![parentNode] = newParentPkt]
-       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![gpNode] = newGPW]
-
-<span class="op">UnbundleRestoreParent</span>(t) ==
-    <span class="comment">\* Restore Parent from BundledRef → Priority</span>
-    /\ LET parentPkt == gpW.packet.sub[parentNode]
-           newPW == <span class="op">PriorityWrapper</span>(parentPkt, ser)
-       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![parentNode] = newPW]</code></pre>
-
 <div class="box-orange">
-<p><strong>Two-level unbundle flow:</strong><br>
-① Null out Child reference within Grand → ② Restore Parent to Priority → ③ Restore Child to Priority (with commit value)</p>
+<p><strong>Unbundle flow (shared across depths):</strong><br>
+(1) <code>UnbundleWalk</code> builds the ancestor list <code>casTargets</code> → (2) CAS each ancestor to missing=TRUE (child slots preserved) → (3) CAS the target child back to Priority with the new payload.<br>
+<strong>Important:</strong> ancestor <code>sub[c]</code> slots are <em>not</em> nulled out. The missing=TRUE flag alone signals "this subtree is temporarily not snapshottable," and keeping <code>sub</code> intact allows Phase3 rollback or later recovery to find the references it needs.</p>
+</div>
+
+<div class="box-green">
+<p><strong>superfine #5 (3-level only):</strong> <code>casTargets</code> is built in root-first order
+(grand → parent → child direction) and ancestor CAS also runs root-first, matching the C++
+traversal. This faithfully reproduces the race cases against concurrent bundle/unbundle.</p>
 </div>
 </div>
 
 <!-- ===== Slide 4: Commit ===== -->
 <div class="slide">
-<h1>Commit: Normal Path and Optimization</h1>
+<h1>Commit: Direct Path and Parent/Grand-Scope Commit</h1>
 
-<pre><code><span class="op">CommitTryCAS</span>(t) ==
+<h2>Two Kinds of Commit</h2>
+<div class="box">
+<p>The model has <strong>two commit families</strong>:</p>
+<ul>
+<li><strong>Direct commit (child scope):</strong> the 3-step pipeline <code>CommitRead</code> → <code>CommitTryCAS</code> → <code>CommitDone</code>.
+Performs the ordinary +1 to a child payload, inserting an unbundle when the target is bundled.</li>
+<li><strong>Deep commit (parent / grand scope):</strong> <code>CommitParent</code> (2-level) / <code>CommitGrand</code> (3-level).
+Takes a snapshot at parent / grand scope and applies +1 to every child payload inside that scope.
+This stresses whether payload integrity is preserved through bundle/unbundle chains.</li>
+</ul>
+</div>
+
+<h2>CommitParent (2-level) / CommitGrand (3-level)</h2>
+<pre><code><span class="op">CommitParent</span>(t)   <span class="comment">\* 2-level: parent-scope +1 propagated to every Child payload</span>
+<span class="op">CommitGrand</span>(t)    <span class="comment">\* 3-level: grand-scope +1 propagated to every Grandchild payload</span>
+    <span class="comment">\* Single CAS against the parent / grand wrapper. Updates every payload inside</span>
+    <span class="comment">\* sub[c] to (p + 1) % MaxPayload and commits the whole scope in one action.</span>
+    <span class="comment">\* Even bundled subtrees must see their internal payloads advance by +1.</span></code></pre>
+
+<h2>Direct-commit pipeline (CommitRead → CommitTryCAS → CommitDone)</h2>
+<pre><code><span class="op">CommitRead</span>(t) ==
+    <span class="comment">\* Reload linkage[node] immediately before attempting the CAS</span>
+    /\ local' = [local <span class="keyword">EXCEPT</span> ![t].wrapper = linkage[target[t]]]
+
+<span class="op">CommitTryCAS</span>(t) ==
     <span class="keyword">IF</span> linkage[node] = oldW
-    <span class="keyword">THEN</span>
-        <span class="comment">\* CAS success: install new PacketWrapper(payload+1)</span>
-        linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newW]
-
+    <span class="keyword">THEN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newW]   <span class="comment">\* CAS success → commit_done</span>
     <span class="keyword">ELSE IF</span> linkage[node].hasPriority
     <span class="keyword">THEN</span>
         <span class="keyword">IF</span> linkage[node].packet.payload = oldW.packet.payload
-        <span class="keyword">THEN</span>
-            <span class="comment">\* ★ Single-node optimization: if payload is the same, adopt new children ★</span>
-            <span class="comment">\* Another thread changed children but payload is the same</span>
-            <span class="comment">\* → Retry CAS (with new child packets)</span>
-            local' = [local <span class="keyword">EXCEPT</span>
-                ![t].wrapper = linkage[node],
-                ![t].newpacket = <span class="op">MakePacket</span>(target[t],
-                    newpayload, linkage[node].packet.sub, ...)]
-
-        <span class="keyword">ELSE</span>
-            <span class="comment">\* True conflict → fail</span>
-            local' = [local <span class="keyword">EXCEPT</span> ![t].commitOk = <span class="type">"fail"</span>]
-
+        <span class="keyword">THEN</span> <span class="comment">\* ★ Single-node optimization: same payload → re-adopt new child and retry ★</span>
+             local' = [local <span class="keyword">EXCEPT</span> ![t].wrapper = linkage[node], ...]
+        <span class="keyword">ELSE</span> <span class="comment">\* True conflict → fail</span>
     <span class="keyword">ELSE</span>
-        <span class="comment">\* Bundled → unbundle required</span>
-        pc' → <span class="type">"unbundle_walk"</span></code></pre>
+        <span class="comment">\* Bundled → transition to unbundle_walk</span>
+        pc' → <span class="type">"unbundle_walk"</span>
+
+<span class="op">CommitDone</span>(t) ==
+    <span class="comment">\* Commit finalization: decrement iterBudget, pop next child from childQueue</span>
+    <span class="comment">\* If the queue is empty, return to idle; if iterBudget=0 as well, move to terminal</span>
+    /\ iterBudget' = [iterBudget <span class="keyword">EXCEPT</span> ![t] = @ - 1]</code></pre>
+
+<h2>Lifecycle variables and terminal condition</h2>
+<div class="box-green">
+<p><strong>iterBudget / childQueue / MaxCommits:</strong>
+each thread runs <code>MaxCommits</code> iterations. Each iteration consists of
+"one parent / grand-scope commit (<code>CommitParent</code> / <code>CommitGrand</code>) plus
+one direct commit per child (<code>CommitRead</code> / <code>TryCAS</code> / <code>Done</code>)."
+<code>childQueue[t]</code> holds the children still pending in the current iteration and
+<code>iterBudget[t]</code> the remaining iterations.</p>
+<p><strong>TerminalPayloadCheck:</strong> in the terminal state where all threads have
+<code>iterBudget=0</code> and are idle, each direct child's payload must equal
+<code>(2 × MaxCommits × |Threads|) % MaxPayload</code>.
+This guarantees that both the deep (+1) and direct (+1) commit streams were applied correctly.</p>
+</div>
 
 <div class="box-green">
-<p><strong>Single-node optimization:</strong> If the payload has not changed (only children were modified),
-adopt the new child packets and retry the CAS. This reduces unnecessary conflict failures.</p>
+<p><strong>Single-node optimization:</strong> On CAS failure, if <code>linkage[node].hasPriority</code> is still
+true and the payload matches our expected value, treat it as "only the child slot was swapped by
+another thread," adopt the new child packet, and retry the CAS. This reduces wasted aborts.</p>
 </div>
 </div>
 
@@ -307,9 +349,9 @@ exhibited the bug.)</p>
 
 <div class="box">
 <p><strong>Why only 2 layers:</strong> The former "Layer 1 (stm_commit)" single-node CAS commit
-integrates naturally into Layer 2's <code>CommitChild</code> path, so a separate layer was
-redundant. Verifying bundle/unbundle together with optimistic commit in the same spec
-improves coverage of interference patterns.<br>
+integrates naturally into Layer 2's <code>CommitTryCAS</code> direct path (single-node CAS commit),
+so a separate layer was redundant. Verifying bundle/unbundle together with optimistic commit
+in the same spec improves coverage of interference patterns.<br>
 Layer 1 is fully explored; Layer 2 coarse/all-fine are complete; superfine and deep fine
 runs are pending on ohtaka.</p>
 </div>
@@ -334,13 +376,16 @@ runs are pending on ohtaka.</p>
 <h2>Action Mapping</h2>
 <table>
 <tr><th>TLA+ Action</th><th>C++ Code</th><th>Generated C11 Function</th></tr>
-<tr><td><code>SnapRead</code> + <code>SnapCheck</code></td><td><code>snapshot()</code><br>transaction_impl.h:842-870</td><td><code>snapshot_grand()</code><br><code>load_wrapper()</code> → priority/missing decision</td></tr>
-<tr><td><code>BundlePhase1</code>〜<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:1077-1171</td><td>Within <code>snapshot_grand()</code><br>collect → CAS parent → CAS children → finalize</td></tr>
+<tr><td><code>SnapRead</code> + <code>SnapCheck</code><br>(3-level uses only <code>SnapCheck</code>)</td><td><code>snapshot()</code><br>transaction_impl.h:842-870</td><td><code>snapshot_grand()</code><br><code>load_wrapper()</code> → priority/missing decision</td></tr>
+<tr><td><code>BundlePhase1</code>–<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:1077-1171</td><td>Within <code>snapshot_grand()</code><br>collect → CAS parent → CAS children → finalize</td></tr>
+<tr><td><code>InnerPhase2</code>/<code>3</code>/<code>4</code><br>(3-level only)</td><td>Inner-bundle portion of <code>bundle()</code><br>transaction_impl.h:1100-1171</td><td>Within <code>snapshot_grand()</code><br>Inner bundle on Parent when Grand bundles (explicit in superfine; collapsed into <code>BundlePhase1</code> in fine)</td></tr>
+<tr><td><code>CommitParent</code> (2-level)<br><code>CommitGrand</code> (3-level)</td><td>Parent / grand-scope <code>commit()</code><br>transaction_impl.h:1245-1270</td><td><code>commit_parent()</code> / <code>commit_grand()</code><br>Deep commit: +1 to every child payload in the scope</td></tr>
+<tr><td><code>CommitRead</code></td><td>Reload just before CAS in <code>commit()</code><br>transaction_impl.h:1245-1260</td><td>Within <code>commit_child()</code><br><code>load_wrapper</code> immediately before the CAS attempt</td></tr>
 <tr><td><code>CommitTryCAS</code></td><td><code>commit()</code><br>transaction_impl.h:1245-1270</td><td><code>commit_child()</code><br>Direct CAS + single-node optimization</td></tr>
-<tr><td><code>UnbundleWalk</code></td><td><code>snapshotSupernode()</code><br>transaction_impl.h:696-755</td><td>Within <code>commit_child()</code><br>Read parent wrapper → sub-packet extraction</td></tr>
-<tr><td><code>UnbundleCASAncestor</code></td><td>transaction_impl.h:1367-1379</td><td>Within <code>commit_child()</code><br><code>cas_wrapper(parent, ...)</code></td></tr>
-<tr><td><code>UnbundleCASGP</code><br>+ <code>RestoreParent</code></td><td>transaction_impl.h:1367-1389</td><td>Within <code>commit_child()</code><br>GP CAS → parent restoration</td></tr>
-<tr><td><code>UnbundleCASChild</code></td><td>transaction_impl.h:1383-1389</td><td>Within <code>commit_child()</code><br>child → priority restoration</td></tr>
+<tr><td><code>CommitDone</code></td><td>Finalization tail of <code>commit()</code><br>transaction_impl.h:1265-1275</td><td>Tail of <code>commit_child()</code><br>Decrement <code>iterBudget</code>, advance to next child or idle</td></tr>
+<tr><td><code>UnbundleWalk</code></td><td><code>snapshotSupernode()</code><br>transaction_impl.h:696-755</td><td>Within <code>commit_child()</code><br>Walk <code>bundledBy</code> chain to build casTargets (superfine #5 is root-first)</td></tr>
+<tr><td><code>UnbundleCASAncestors</code> (2-level)<br><code>UnbundleCASLoop</code> (3-level)</td><td>transaction_impl.h:1367-1379</td><td>Within <code>commit_child()</code><br><code>cas_wrapper(anc, ... missing=TRUE)</code> per ancestor. Child sub-slots kept (not nulled)</td></tr>
+<tr><td><code>UnbundleCASChild</code></td><td>transaction_impl.h:1383-1389</td><td>Within <code>commit_child()</code><br>child → priority restoration with new payload</td></tr>
 </table>
 
 <div class="box-green">
