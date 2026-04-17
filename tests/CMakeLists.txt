@@ -14,10 +14,21 @@ add_compile_options(-include ${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h)
 
 set(support_SRCS support_standalone.cpp)
 
-# Disable custom pool allocator — it requires thread-local initialization
-# that may fail on older GCC (e.g. 8.5). Standard new/delete is sufficient
-# for correctness testing.
-add_compile_definitions(DISABLE_POOL_ALLOCATOR)
+# KAME pool allocator: OFF by default on macOS/Windows (Qt build provides it),
+# ON on Linux unless compiler is too old (GCC < 10).
+# Override with: cmake .. -DUSE_KAME_ALLOCATOR=ON (or OFF)
+if(NOT DEFINED USE_KAME_ALLOCATOR)
+    if(APPLE OR WIN32)
+        set(USE_KAME_ALLOCATOR OFF)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+        set(USE_KAME_ALLOCATOR OFF)
+    else()
+        set(USE_KAME_ALLOCATOR ON)
+    endif()
+endif()
+if(NOT USE_KAME_ALLOCATOR)
+    add_compile_definitions(DISABLE_POOL_ALLOCATOR)
+endif()
 
 find_package(Threads REQUIRED)
 
