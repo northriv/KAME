@@ -298,10 +298,9 @@ offers three concrete benefits for this domain:
 
 #### Formal verification (TLA+)
 
-The STM protocol is formally specified and model-checked with TLA+ / TLC across three specs:
+The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
 - **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla))
-- **`stm_commit`:** snapshot + optimistic commit with serial validation ([spec](tests/tlaplus/stm_commit.tla))
 - **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla))
 
 Slide decks: [Layer 1 — atomic_shared_ptr](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html)), [Layer 2 — Bundle/Unbundle + Commit](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
