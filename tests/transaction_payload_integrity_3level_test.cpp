@@ -22,6 +22,7 @@
  * Copyright (C) KAME project. GPL v2+.
  ***************************************************************************/
 
+#include "support_standalone.h"
 #include "transaction.h"
 #include "transaction_impl.h"
 #include <atomic>
