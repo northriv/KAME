@@ -18,6 +18,7 @@
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 #include <vector>
+#include <cstring>
 #include "atomic.h"
 #include "xtime.h"
 #include "transaction_signal.h"
@@ -306,29 +307,54 @@ private:
 
         PacketWrapper(const PacketWrapper &) = delete;
     };
+    //! Contention-observation bitset size (512 TIDs = 8 * uint64_t).
+    //! Used by negotiate() to accumulate distinct ProcessCounter::id values
+    //! extracted from PacketWrapper::m_bundle_serial (low 16 bits) during a
+    //! transaction's lifetime. Lives inside Transaction; Snapshot-only paths
+    //! use a stack-local array.
+    static constexpr int TID_BITSET_WORDS = 8;
+    using TidBitset = uint64_t[TID_BITSET_WORDS];
+
     struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
-        void negotiate(typename NegotiationCounter::cnt_t &started_time, float mult_wait = 6.0f) noexcept {
+        //! \a tid_bitset accumulates observed committer TIDs (via \a observed->m_bundle_serial lower 16 bits).
+        //! It is used by negotiate_internal() to scale the backoff jitter range as √C,
+        //! where C is the popcount of observed distinct TIDs.
+        void negotiate(typename NegotiationCounter::cnt_t &started_time,
+                       TidBitset &tid_bitset,
+                       float mult_wait = 6.0f,
+                       const PacketWrapper *observed = nullptr) noexcept {
+            if(observed) {
+                unsigned tid = (unsigned)(observed->m_bundle_serial & 0xFFFFu);
+                if(tid) {
+                    tid &= (unsigned)(TID_BITSET_WORDS * 64 - 1);
+                    tid_bitset[tid >> 6] |= 1ULL << (tid & 63);
+                }
+            }
             typename NegotiationCounter::cnt_t transaction_started_time =
                 m_transaction_started_time.load(std::memory_order_relaxed);
             if( !transaction_started_time)
                 return; //collision has not been detected.
-            negotiate_internal(started_time, mult_wait);
+            negotiate_internal(started_time, tid_bitset, mult_wait);
         }
-        void negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept;
+        void negotiate_internal(typename NegotiationCounter::cnt_t &started_time,
+                                TidBitset &tid_bitset,
+                                float mult_wait) noexcept;
 
     };
 
     friend class Snapshot<XN>;
     friend class Transaction<XN>;
 
-    void snapshot(Snapshot<XN> &target, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const;
+    void snapshot(Snapshot<XN> &target, bool multi_nodal, typename NegotiationCounter::cnt_t started_time,
+                  TidBitset &tid_bitset) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-        m_link->negotiate(target.m_started_time, 4.0f);
-        snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
+        m_link->negotiate(target.m_started_time, target.m_tid_bitset, 4.0f);
+        snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time,
+                 target.m_tid_bitset);
         target.m_oldpacket = target.m_packet;
     }
     enum class SnapshotStatus {SUCCESS = 0, DISTURBED = 1,
@@ -416,10 +442,14 @@ private:
     //! cleared and each PacketWrapper::bundledBy() will point to its upper node.
     //! \sa snapshot().
     BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
-        typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial, bool is_bundle_root);
+        typename NegotiationCounter::cnt_t &started_time,
+        TidBitset &tid_bitset,
+        int64_t bundle_serial, bool is_bundle_root);
     BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
         local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
-        typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial);
+        typename NegotiationCounter::cnt_t &started_time,
+        TidBitset &tid_bitset,
+        int64_t bundle_serial);
     enum class UnbundledStatus {W_NEW_SUBVALUE, SUBVALUE_HAS_CHANGED, COLLIDED, DISTURBED};
     //! Unbundles a subpacket to \a sublinkage from a snapshot.
     //! it performs unbundling for all the super nodes.
@@ -430,6 +460,7 @@ private:
     //! \param[in,out] newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
     //! If \a oldsubpacket is zero, unloaded value  of \a sublinkage will be substituted to \a newsubwrapper.
     static UnbundledStatus unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
+        TidBitset &tid_bitset,
         const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
@@ -488,7 +519,11 @@ public:
     explicit Snapshot(Transaction<XN>&&x) noexcept : m_packet(std::move(x.m_packet)), m_serial(x.m_serial) {}
     Snapshot& operator=(const Snapshot&x) noexcept = default;
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-        node.snapshot( *this, multi_nodal, Node<XN>::NegotiationCounter::now());
+        // Snapshot-only path: no Transaction → use a stack-local bitset.
+        // Contention observation decays naturally to "nothing seen" per call.
+        typename Node<XN>::TidBitset local_tid_bitset = {};
+        node.snapshot( *this, multi_nodal, Node<XN>::NegotiationCounter::now(),
+                       local_tid_bitset);
     }
 
     //! \return Payload instance for \a node, which should be included in the snapshot.
@@ -707,6 +742,9 @@ private:
             if( !time || (time > m_started_time))
                 node.m_link->m_transaction_started_time = m_started_time;
         }
+        // Clear TID bitset for the fresh retry cycle; the outer Transaction
+        // scope stays the same, so this is a same-scope reset (not save/restore).
+        std::memset(m_tid_bitset, 0, sizeof(m_tid_bitset));
         m_messages.clear();
         this->m_packet->node().snapshot( *this, m_multi_nodal);
         return *this;
@@ -717,6 +755,10 @@ private:
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
+    //! Per-transaction contention observation bitset (populated by
+    //! Linkage::negotiate(... observed)). Sized by Node::TID_BITSET_WORDS.
+    //! Nesting works naturally: each Transaction has its own bitset.
+    typename Node<XN>::TidBitset m_tid_bitset = {};
     using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
 };

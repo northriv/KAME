@@ -16,6 +16,8 @@
 #include <thread>
 #include <chrono>
 #include <cstdint>
+#include <cmath>
+#include <cstring>
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
 // STRICT_assert(expr): behaves like assert(expr) when TRANSACTIONAL_STRICT_assert is defined;
@@ -182,41 +184,44 @@ Node<XN>::print_recoverable_error(const char* reason) {
 
 //=============================================================================
 // negotiate_internal() — priority-based backoff for collision avoidance
-//   (Comments by Claude Opus — based on source code analysis)
 //
 // Purpose: when two transactions contend on the same Linkage, impose a
 //   proportional wait on the lower-priority (or younger) transaction so
 //   that the older/higher-priority one can finish first, preventing live-lock.
 //
-// How it works:
+// Priority/proportional semantics (unchanged):
 //   - dt  = (this thread's start time) − (contending thread's start time)
-//     Positive dt means this thread started later (younger).
 //   - dt2 = (wall-clock now) − (contending thread's start time)
-//     Measures how long the contender has been running.
-//   - The condition `mult_wait * 2 * dt < dt2` is a proportional test:
-//     "has the contender been running long enough relative to our age gap?"
-//     When true, waiting further is unlikely to help — proceed anyway.
-//   - HIGHEST priority bypasses all backoff (real-time / time-critical path).
-//   - LOWEST priority never escapes via the proportional test (always defers).
-//   - Sleep duration ramps up: ms = max(dt2/10000, ms+1), capped at 5 seconds.
-//     The 5-second cap guards against infinite waits from nested transactions
-//     or deadlock-like scenarios.
+//   - mult_wait * 2 * dt < dt2 → contender has run long enough; proceed anyway
+//   - HIGHEST bypasses; LOWEST never escapes early
+//   - Nominal sleep = max(dt2/10000, prev_ms + 1) [ms], capped at 5 s
 //
-// Jitter (Anderson 1990; Herlihy & Shavit 2008 ch.7):
-//   The sleep duration `ms` is the *nominal* backoff. Actual sleep is
-//   multiplied by a thread-local random factor in [0.5, 1.5) to break
-//   lock-step retry cycles. Lock-step synchronization was the root cause
-//   of livelock on strong-memory x86 (Darwin x86_64, >=32 threads), where
-//   fast cache-coherence propagation made every thread observe the same
-//   collision timeline and retry in unison — starving CAS progress despite
-//   the proportional backoff. Jitter costs one LCG step per sleep.
+// Adaptive jitter (Anderson 1990; Herlihy & Shavit 2008 ch.7;
+//   Bianchi 2000 IEEE 802.11 √N damping; Brooker AWS 2015 decorrelated):
+//   The sleep is drawn uniformly from [ms/√C, ms*√C] (capped at 5 s), where
+//   C = popcount(tid_bitset) = number of distinct committer ProcessCounter::id
+//   values observed at all linkages touched by the current transaction so far.
+//   This scales the jitter spread to actual live contention:
+//     C=1  → √C=2 (minimum) → range [ms/2, 2*ms] (≈ plain jitter)
+//     C=16 → √C=4           → range [ms/4, 4*ms]
+//     C=128→ √C=11          → range [ms/11, 11*ms]
+//   Lock-step retry cycles, the root cause of livelock on strong-memory x86
+//   (Darwin x86_64, >=32 threads), are broken by the √C spread.
+//
+// Bitset ownership:
+//   The caller passes a reference to its per-transaction bitset
+//   (Transaction::m_tid_bitset; stack-local for Snapshot-only paths). This
+//   avoids TLS and makes nested transactions observe their own scope
+//   naturally. No CAS or peek of the linkage is performed inside the loop.
 //=============================================================================
 template <class XN>
 void
-Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept {
+Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time,
+                                      TidBitset &tid_bitset,
+                                      float mult_wait) noexcept {
     std::this_thread::yield(); // one cheap check: catches µs-level conflicts before any sleep
 
-    // Thread-local LCG for sleep-duration jitter (desynchronizes retry phases).
+    // Thread-local LCG for sleep-duration jitter randomization.
     static thread_local uint32_t s_backoff_seed = 0x9E3779B9u
         ^ (uint32_t)(uintptr_t)&started_time;
 
@@ -242,10 +247,6 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
                 break;
         }
 
-//        static XThreadLocal<unsigned int> stl_seed;
-//        if((double)rand_r( &*stl_seed) / RAND_MAX > 20 * dt / dt2) {
-//            break; //performs anyway.
-//        }
         ms = std::max((int)(dt2 / 10000),  ms + 1);
         if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
@@ -254,11 +255,25 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
             ms = 5000;
         }
 
-        // Apply jitter: ms_actual ∈ [ms/2, 3*ms/2). Breaks lock-step
-        // retry cycles without changing the nominal scaling.
+        // Live-contention estimate: distinct TIDs observed this transaction.
+        int C = 0;
+        for(int i = 0; i < TID_BITSET_WORDS; ++i)
+            C += __builtin_popcountll(tid_bitset[i]);
+        if(C < 1) C = 1;
+
+        // √C-damped range factor, minimum 2 so C=1 still jitters [ms/2, 2*ms].
+        int sqrtC = (C > 1) ? (int)std::sqrt((double)C) : 1;
+        if(sqrtC < 2) sqrtC = 2;
+
+        // Symmetric jitter range, capped at 5 s absolute.
+        int low = std::max(1, ms / sqrtC);
+        int high = std::min(5000, ms * sqrtC);
+        if(high < low + 1) high = low + 1;
+        uint32_t span = (uint32_t)(high - low);
+
         s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
         uint32_t rand16 = (s_backoff_seed >> 16) & 0xFFFFu;
-        int ms_actual = (ms >> 1) + (int)(((uint64_t)ms * rand16) >> 16);
+        int ms_actual = low + (int)(((uint64_t)span * rand16) >> 16);
         if(ms_actual < 1) ms_actual = 1;
         msecsleep(ms_actual);
     }
@@ -337,7 +352,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             local_shared_ptr<PacketWrapper> subwrapper;
             subwrapper = *var->m_link;
             BundledStatus status = bundle_subpacket(0, var, subwrapper, subpacket_new,
-                tr.m_started_time, tr.m_serial);
+                tr.m_started_time, tr.m_tid_bitset, tr.m_serial);
             if(status != BundledStatus::SUCCESS) {
                 continue;
             }
@@ -1002,7 +1017,9 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
 //=============================================================================
 template <class XN>
 void
-Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const {
+Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
+                   typename NegotiationCounter::cnt_t started_time,
+                   TidBitset &tid_bitset) const {
     local_shared_ptr<PacketWrapper> target;
     for(;;) {
         target = *m_link;
@@ -1029,7 +1046,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
                         return;
                     }
                     // The packet is imperfect, and then re-bundling the subpackets.
-                    UnbundledStatus status = unbundle(nullptr, started_time, m_link, target);
+                    UnbundledStatus status = unbundle(nullptr, started_time, tid_bitset, m_link, target);
                     switch(status) {
                     case UnbundledStatus::W_NEW_SUBVALUE:
                     case UnbundledStatus::COLLIDED:
@@ -1053,7 +1070,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
             }
         }
         BundledStatus status = const_cast<Node *>(this)->bundle(
-            target, started_time, snapshot.m_serial, true);
+            target, started_time, tid_bitset, snapshot.m_serial, true);
         switch (status) {
         case BundledStatus::SUCCESS:
             assert( !target->packet()->missing());
@@ -1087,7 +1104,9 @@ typename Node<XN>::BundledStatus
 Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
     const shared_ptr<Node> &subnode,
     local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
-    typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial) {
+    typename NegotiationCounter::cnt_t &started_time,
+    TidBitset &tid_bitset,
+    int64_t bundle_serial) {
 
     if( !subwrapper->hasPriority()) {
         shared_ptr<Linkage > linkage(subwrapper->bundledBy());
@@ -1116,7 +1135,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
         }
         if(need_for_unbundle) {
             local_shared_ptr<PacketWrapper> subwrapper_new;
-            UnbundledStatus status = unbundle(detect_collision ? &bundle_serial : nullptr, started_time,
+            UnbundledStatus status = unbundle(detect_collision ? &bundle_serial : nullptr, started_time, tid_bitset,
                 subnode->m_link, subwrapper, nullptr, &subwrapper_new, superwrapper);
             switch(status) {
             case UnbundledStatus::W_NEW_SUBVALUE:
@@ -1134,7 +1153,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
     }
     if(subwrapper->packet()->missing()) {
         assert(subwrapper->packet()->size());
-        BundledStatus status = subnode->bundle(subwrapper, started_time, bundle_serial, false);
+        BundledStatus status = subnode->bundle(subwrapper, started_time, tid_bitset, bundle_serial, false);
         switch(status) {
         case BundledStatus::SUCCESS:
             break;
@@ -1194,7 +1213,9 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
 template <class XN>
 typename Node<XN>::BundledStatus
 Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
-    typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial, bool is_bundle_root) {
+    typename NegotiationCounter::cnt_t &started_time,
+    TidBitset &tid_bitset,
+    int64_t bundle_serial, bool is_bundle_root) {
 
     assert(oldsuperwrapper->packet());
     assert(oldsuperwrapper->packet()->size());
@@ -1241,7 +1262,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                     break;
                 SerialGenerator::gen(subwrapper->m_bundle_serial); //Lamport: advance past sub-node serial.
                 BundledStatus status = bundle_subpacket( &oldsuperwrapper,
-                    child, subwrapper, subpacket_new, started_time, bundle_serial);
+                    child, subwrapper, subpacket_new, started_time, tid_bitset, bundle_serial);
                 switch(status) {
                 case BundledStatus::SUCCESS:
                     break;
@@ -1270,7 +1291,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         newpacket->m_missing = true;
 
         //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
-        supernode.m_link->negotiate(started_time, 2.0f);
+        supernode.m_link->negotiate(started_time, tid_bitset, 2.0f, oldsuperwrapper.get());
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_link;
 //			if(superwrapper->m_bundle_serial != bundle_serial)
@@ -1423,7 +1444,8 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //        if(retry == 0)
 //            m_link->negotiate(tr.m_started_time);
         //Unbundling this node from the super packet.
-        UnbundledStatus status = unbundle(nullptr, tr.m_started_time, m_link, wrapper,
+        UnbundledStatus status = unbundle(nullptr, tr.m_started_time, tr.m_tid_bitset,
+            m_link, wrapper,
             tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr);
         switch(status) {
         case UnbundledStatus::W_NEW_SUBVALUE:
@@ -1480,6 +1502,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 template <class XN>
 typename Node<XN>::UnbundledStatus
 Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
+    TidBitset &tid_bitset,
     const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
     const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned,
     local_shared_ptr<PacketWrapper> *oldsuperwrapper) {
@@ -1509,7 +1532,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-        it->linkage->negotiate(time_started, 2.0);
+        it->linkage->negotiate(time_started, tid_bitset, 2.0, it->old_wrapper.get());
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper))
             return UnbundledStatus::DISTURBED;
         if(oldsuperwrapper) {
