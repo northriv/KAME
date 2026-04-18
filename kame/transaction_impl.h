@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
+#include <algorithm>
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
 // STRICT_assert(expr): behaves like assert(expr) when TRANSACTIONAL_STRICT_assert is defined;
@@ -37,6 +38,33 @@
 namespace Transactional {
 
 STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
+
+// Retry-proportional randomized CPU relax for tight CAS-retry loops.
+// On retry N, issues `spins ∈ [1, min(N, 64)]` pause instructions before
+// the next CAS attempt. Randomized count desynchronizes threads that
+// reach the same retry depth simultaneously — a fixed pause count would
+// leave them re-synchronized, re-creating the lock-step that causes
+// CAS-retry livelock.
+//
+// Pseudo-random count is produced by bit-mixing `retry` with the
+// address of the local stack variable (per-thread entropy) via golden-
+// ratio hash, reduced to [1, max_spins] by Lemire-style multiply-shift.
+// No thread-local state, no RNG call, ~5 ALU ops total.
+//
+// Purpose: on strong-memory x86 (TSO), coherence ping-pong causes all
+// threads to observe each other's identity churn immediately; without
+// any relax, no thread gets an uncontested window to win its CAS.
+// `pause` (x86) / `yield`-inst (ARM) lowers coherence traffic and gives
+// other threads small winner windows. Zero cost on the fast path
+// (only invoked when retry > 0). Independent of the jitter-based
+// negotiate path (which only fires when a collision marker is set).
+static inline void retry_pause(int retry) noexcept {
+    int max_spins = retry < 64 ? retry : 64;
+    uint32_t h = (uint32_t)retry * 0x9E3779B1u;
+    h ^= (uint32_t)(uintptr_t)&retry;       // per-thread entropy from stack addr
+    int spins = 1 + (int)(((uint64_t)(h >> 16) * (uint32_t)max_spins) >> 16);
+    for(int k = 0; k < spins; ++k) pause4spin();
+}
 
 template <class XN>
 XThreadLocal<typename Node<XN>::FuncPayloadCreator> Node<XN>::stl_funcPayloadCreator;
@@ -201,12 +229,14 @@ Node<XN>::print_recoverable_error(const char* reason) {
 //   The sleep is drawn uniformly from [ms/√C, ms*√C] (capped at 5 s), where
 //   C = popcount(tid_bitset) = number of distinct committer ProcessCounter::id
 //   values observed at all linkages touched by the current transaction so far.
-//   This scales the jitter spread to actual live contention:
-//     C=1  → √C=2 (minimum) → range [ms/2, 2*ms] (≈ plain jitter)
-//     C=16 → √C=4           → range [ms/4, 4*ms]
-//     C=128→ √C=11          → range [ms/11, 11*ms]
-//   Lock-step retry cycles, the root cause of livelock on strong-memory x86
-//   (Darwin x86_64, >=32 threads), are broken by the √C spread.
+//     C=1  → √C=1  → no jitter  (sleep = ms)
+//     C=4  → √C=2  → range [ms/2, 2*ms]
+//     C=16 → √C=4  → range [ms/4, 4*ms]
+//     C=128→ √C=11 → range [ms/11, 11*ms]
+//   C=1 (no observed contention) stays deterministic to avoid range inflation
+//   in low-contention paths; C>1 fans out proportionally to live contenders
+//   to break lock-step retry cycles (the livelock root cause on strong-memory
+//   x86, Darwin x86_64, >=32 threads).
 //
 // Bitset ownership:
 //   The caller passes a reference to its per-transaction bitset
@@ -261,19 +291,23 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
             C += __builtin_popcountll(tid_bitset[i]);
         if(C < 1) C = 1;
 
-        // √C-damped range factor, minimum 2 so C=1 still jitters [ms/2, 2*ms].
-        int sqrtC = (C > 1) ? (int)std::sqrt((double)C) : 1;
-        if(sqrtC < 2) sqrtC = 2;
+        // √C-scaled range. C=1 (no observed contention) → sqrtC=1 →
+        // no jitter (sleep exactly `ms`); C>1 fans out proportionally.
+        int sqrtC = (int)std::sqrt((double)C);
+        if(sqrtC < 1) sqrtC = 1;
 
         // Symmetric jitter range, capped at 5 s absolute.
         int low = std::max(1, ms / sqrtC);
         int high = std::min(5000, ms * sqrtC);
-        if(high < low + 1) high = low + 1;
-        uint32_t span = (uint32_t)(high - low);
-
-        s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
-        uint32_t rand16 = (s_backoff_seed >> 16) & 0xFFFFu;
-        int ms_actual = low + (int)(((uint64_t)span * rand16) >> 16);
+        int ms_actual;
+        if(high <= low) {
+            ms_actual = low;   // degenerate: no jitter (sqrtC=1)
+        } else {
+            uint32_t span = (uint32_t)(high - low);
+            s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
+            uint32_t rand16 = (s_backoff_seed >> 16) & 0xFFFFu;
+            ms_actual = low + (int)(((uint64_t)span * rand16) >> 16);
+        }
         if(ms_actual < 1) ms_actual = 1;
         msecsleep(ms_actual);
     }
@@ -1021,7 +1055,8 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                    typename NegotiationCounter::cnt_t started_time,
                    TidBitset &tid_bitset) const {
     local_shared_ptr<PacketWrapper> target;
-    for(;;) {
+    for(int retry = 0;; ++retry) {
+        if(retry) retry_pause(retry);
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
         if(target->hasPriority()) {
@@ -1236,7 +1271,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
     fast_vector<local_shared_ptr<PacketWrapper>, 16> subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
 
-    for(;;) {
+    for(int retry = 0;; ++retry) {
+        if(retry) retry_pause(retry);
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *oldsuperwrapper, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
@@ -1255,7 +1291,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         for(unsigned int i = 0; i < subpackets->size(); ++i) {
             shared_ptr<Node> child(( *subnodes)[i]);
             local_shared_ptr<Packet> &subpacket_new(( *subpackets)[i]);
-            for(;;) {
+            for(int child_retry = 0;; ++child_retry) {
+                if(child_retry) retry_pause(child_retry);
                 local_shared_ptr<PacketWrapper> subwrapper;
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i])
@@ -1412,6 +1449,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
     for(int retry = 0;; ++retry) {
+        if(retry) retry_pause(retry);
         local_shared_ptr<PacketWrapper> wrapper( *m_link);
         if(wrapper->hasPriority()) {
             //Committing directly to the node.
