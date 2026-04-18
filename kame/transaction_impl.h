@@ -14,10 +14,8 @@
 #include "transaction.h"
 #include <vector>
 #include <thread>
-#include <chrono>
 #include <cstdint>
 #include <cmath>
-#include <cstring>
 #include <algorithm>
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
@@ -38,6 +36,18 @@
 namespace Transactional {
 
 STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
+
+// Portable 64-bit popcount used by negotiate_internal's TID bitset.
+// GCC/Clang: __builtin_popcountll is a single instruction on x86/ARM.
+// MSVC: __popcnt64 is the equivalent intrinsic (SSE4.2+; acceptable since
+// KAME's other MSVC paths already assume modern Windows x86_64).
+static inline int popcount_u64(uint64_t x) noexcept {
+#ifdef _MSC_VER
+    return (int)__popcnt64(x);
+#else
+    return __builtin_popcountll(x);
+#endif
+}
 
 // Retry-proportional randomized CPU relax for tight CAS-retry loops.
 // On retry N, issues `spins ∈ [1, min(N, 64)]` pause instructions before
@@ -313,7 +323,7 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
         // Live-contention estimate: distinct TIDs observed this transaction.
         int C = 0;
         for(int i = 0; i < TID_BITSET_WORDS; ++i)
-            C += __builtin_popcountll(tid_bitset[i]);
+            C += popcount_u64(tid_bitset[i]);
         if(C < 1) C = 1;
 
         // √C-scaled range. C=1 (no observed contention) → sqrtC=1 →

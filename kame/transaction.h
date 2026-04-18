@@ -18,7 +18,6 @@
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 #include <vector>
-#include <cstring>
 #include "atomic.h"
 #include "xtime.h"
 #include "transaction_signal.h"
