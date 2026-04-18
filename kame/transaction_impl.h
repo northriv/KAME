@@ -14,8 +14,6 @@
 #include "transaction.h"
 #include <vector>
 #include <thread>
-#include <chrono>
-#include <cstdint>
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
 // STRICT_assert(expr): behaves like assert(expr) when TRANSACTIONAL_STRICT_assert is defined;
@@ -188,46 +186,25 @@ Node<XN>::print_recoverable_error(const char* reason) {
 //   proportional wait on the lower-priority (or younger) transaction so
 //   that the older/higher-priority one can finish first, preventing live-lock.
 //
-// Backoff strategy (Anderson 1990; Herlihy & Shavit 2008 ch.7;
-//   Brooker "Exponential Backoff And Jitter" AWS 2015):
-//   1. Short spin with pause instruction — resolves µs-scale contention
-//      without entering the kernel scheduler.
-//   2. Exponential cap with full-jitter random sleep at µs granularity.
-//      Doubling cap starts at 4µs and saturates at 5s. Jitter breaks
-//      lock-step retry cycles that caused livelock on strong-memory x86
-//      (observed on Darwin x86_64, where fast cache-coherence propagation
-//      made identity churn maximally effective at starving CAS retries).
-//
-// Priority semantics (unchanged):
+// How it works:
+//   - dt  = (this thread's start time) − (contending thread's start time)
+//     Positive dt means this thread started later (younger).
+//   - dt2 = (wall-clock now) − (contending thread's start time)
+//     Measures how long the contender has been running.
+//   - The condition `mult_wait * 2 * dt < dt2` is a proportional test:
+//     "has the contender been running long enough relative to our age gap?"
+//     When true, waiting further is unlikely to help — proceed anyway.
 //   - HIGHEST priority bypasses all backoff (real-time / time-critical path).
 //   - LOWEST priority never escapes via the proportional test (always defers).
-//   - dt  = (this thread's start time) − (contending thread's start time)
-//   - dt2 = (wall-clock now) − (contending thread's start time)
-//   - mult_wait * 2 * dt < dt2  means the contender has run long enough
-//     relative to our age gap; proceed anyway.
+//   - Sleep duration ramps up: ms = max(dt2/10000, ms+1), capped at 5 seconds.
+//     The 5-second cap guards against infinite waits from nested transactions
+//     or deadlock-like scenarios.
 //=============================================================================
 template <class XN>
 void
 Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept {
-    // Phase 1: tight spin with pause — catches µs-level conflicts before any
-    // syscall. On x86 TSO the coherence round-trip is short enough that a
-    // brief pause loop often observes the collision marker cleared.
-    for(int spin = 0; spin < 64; ++spin) {
-        if( !m_transaction_started_time.load(std::memory_order_acquire))
-            return;
-        pause4spin();
-    }
-    std::this_thread::yield();
-
-    // Thread-local LCG for backoff jitter (desynchronizes retry phases).
-    static thread_local uint32_t s_backoff_seed = 0x9E3779B9u
-        ^ (uint32_t)(uintptr_t)&started_time;
-
-    // Phase 2: exponential backoff with full jitter at µs granularity.
-    int cap_us = 4;                 // doubles each iteration, saturates at 5s
-    int total_waited_us = 0;
-    const int CAP_MAX_US = 5000000; // 5 s
-    for(;;) {
+    std::this_thread::yield(); // one cheap check: catches µs-level conflicts before any sleep
+    for(int ms = 0;;) {
         auto transaction_started_time =
             m_transaction_started_time.load(std::memory_order_acquire);
         if( !transaction_started_time)
@@ -238,7 +215,7 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
         if(pr == Priority::HIGHEST)
             break;
         if(dt <= 0) {
-            if((pr == Priority::NORMAL) || (total_waited_us > 10000))
+            if((pr == Priority::NORMAL) || (ms > 10))
                 break; //This thread is the oldest.
         }
 
@@ -249,20 +226,18 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
                 break;
         }
 
-        // Full jitter: sleep_us ∈ [1, cap_us].
-        s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
-        int sleep_us = 1 + (int)((s_backoff_seed >> 16) % (uint32_t)cap_us);
-        if(cap_us >= CAP_MAX_US) {
+//        static XThreadLocal<unsigned int> stl_seed;
+//        if((double)rand_r( &*stl_seed) / RAND_MAX > 20 * dt / dt2) {
+//            break; //performs anyway.
+//        }
+        ms = std::max((int)(dt2 / 10000),  ms + 1);
+        if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
-            fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", sleep_us * 1e-6);
+            fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
             fprintf(stderr, "for BP@%p\n", this);
+            ms = 5000;
         }
-        std::this_thread::sleep_for(std::chrono::microseconds(sleep_us));
-        total_waited_us += sleep_us;
-
-        // Double the cap for next iteration (exponential backoff).
-        if(cap_us < CAP_MAX_US)
-            cap_us = std::min(CAP_MAX_US, cap_us * 2);
+        msecsleep(ms);
     }
 }
 
