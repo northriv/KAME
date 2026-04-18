@@ -14,6 +14,8 @@
 #include "transaction.h"
 #include <vector>
 #include <thread>
+#include <chrono>
+#include <cstdint>
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
 // STRICT_assert(expr): behaves like assert(expr) when TRANSACTIONAL_STRICT_assert is defined;
@@ -199,11 +201,25 @@ Node<XN>::print_recoverable_error(const char* reason) {
 //   - Sleep duration ramps up: ms = max(dt2/10000, ms+1), capped at 5 seconds.
 //     The 5-second cap guards against infinite waits from nested transactions
 //     or deadlock-like scenarios.
+//
+// Jitter (Anderson 1990; Herlihy & Shavit 2008 ch.7):
+//   The sleep duration `ms` is the *nominal* backoff. Actual sleep is
+//   multiplied by a thread-local random factor in [0.5, 1.5) to break
+//   lock-step retry cycles. Lock-step synchronization was the root cause
+//   of livelock on strong-memory x86 (Darwin x86_64, >=32 threads), where
+//   fast cache-coherence propagation made every thread observe the same
+//   collision timeline and retry in unison — starving CAS progress despite
+//   the proportional backoff. Jitter costs one LCG step per sleep.
 //=============================================================================
 template <class XN>
 void
 Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept {
     std::this_thread::yield(); // one cheap check: catches µs-level conflicts before any sleep
+
+    // Thread-local LCG for sleep-duration jitter (desynchronizes retry phases).
+    static thread_local uint32_t s_backoff_seed = 0x9E3779B9u
+        ^ (uint32_t)(uintptr_t)&started_time;
+
     for(int ms = 0;;) {
         auto transaction_started_time =
             m_transaction_started_time.load(std::memory_order_acquire);
@@ -237,7 +253,14 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
             fprintf(stderr, "for BP@%p\n", this);
             ms = 5000;
         }
-        msecsleep(ms);
+
+        // Apply jitter: ms_actual ∈ [ms/2, 3*ms/2). Breaks lock-step
+        // retry cycles without changing the nominal scaling.
+        s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
+        uint32_t rand16 = (s_backoff_seed >> 16) & 0xFFFFu;
+        int ms_actual = (ms >> 1) + (int)(((uint64_t)ms * rand16) >> 16);
+        if(ms_actual < 1) ms_actual = 1;
+        msecsleep(ms_actual);
     }
 }
 
