@@ -340,6 +340,19 @@ private:
                 return; //collision has not been detected.
             negotiate_internal(started_time, tid_bitset, mult_wait);
         }
+        //! Unified retry-loop backoff helper. Called once per retry (retry > 0)
+        //! at the top of each CAS-retry loop (commit/snapshot/bundle/bundle-child).
+        //! Always issues retry_pause (CPU-side pause spins, count ∝ retry);
+        //! at retry ≥ NEGOTIATE_THRESHOLD also engages sleep-based negotiate()
+        //! so the contender gets priority escalation that pure spin cannot give.
+        //! GDB-sampling on 32-thread 3level stress showed ~52% of time in
+        //! bundle()'s outer retry, which previously had only retry_pause and
+        //! no negotiate between Phase 3 failure and the next Phase 1 attempt.
+        void negotiate_after_retry_pause(int retry,
+                                         typename NegotiationCounter::cnt_t &started_time,
+                                         TidBitset &tid_bitset,
+                                         float mult_wait = 6.0f,
+                                         const PacketWrapper *observed = nullptr) noexcept;
         void negotiate_internal(typename NegotiationCounter::cnt_t &started_time,
                                 TidBitset &tid_bitset,
                                 float mult_wait) noexcept;

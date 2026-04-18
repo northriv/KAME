@@ -59,11 +59,34 @@ STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
 // (only invoked when retry > 0). Independent of the jitter-based
 // negotiate path (which only fires when a collision marker is set).
 static inline void retry_pause(int retry) noexcept {
-    int max_spins = retry < 64 ? retry : 64;
+    // No cap: spin count grows linearly with retry depth. Livelock-heavy
+    // paths need unbounded growth so at some retry depth the pause
+    // duration exceeds coherence ping-pong cycle time, opening a winner
+    // window. Empirically cap=1024 is insufficient on iMac Pro x86
+    // 32-thread 3level stress; uncapped resolves it.
     uint32_t h = (uint32_t)retry * 0x9E3779B1u;
     h ^= (uint32_t)(uintptr_t)&retry;       // per-thread entropy from stack addr
-    int spins = 1 + (int)(((uint64_t)(h >> 16) * (uint32_t)max_spins) >> 16);
+    int spins = 1 + (int)(((uint64_t)(h >> 16) * (uint32_t)retry) >> 16);
     for(int k = 0; k < spins; ++k) pause4spin();
+}
+
+// Retry depth at which a retrying CAS loop escalates from CPU-only pause
+// to the sleep-based negotiate() path. Empirical: first few retries are
+// usually transient micro-collisions resolved by pause alone; deeper retry
+// depth indicates a real contender that needs priority-scheduled sleep.
+static constexpr int NEGOTIATE_ESCALATION_THRESHOLD = 4;
+
+template <class XN>
+void
+Node<XN>::Linkage::negotiate_after_retry_pause(
+    int retry,
+    typename NegotiationCounter::cnt_t &started_time,
+    TidBitset &tid_bitset,
+    float mult_wait,
+    const PacketWrapper *observed) noexcept {
+    retry_pause(retry);
+    if(retry >= NEGOTIATE_ESCALATION_THRESHOLD)
+        negotiate(started_time, tid_bitset, mult_wait, observed);
 }
 
 template <class XN>
@@ -296,9 +319,14 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
         int sqrtC = (int)std::sqrt((double)C);
         if(sqrtC < 1) sqrtC = 1;
 
-        // Symmetric jitter range, capped at 5 s absolute.
+        // Asymmetric jitter range [ms/√C, ms]. Upper bound = nominal ms;
+        // spread only downward to keep mean sleep < ms (CPU stays busy)
+        // while still breaking lock-step (threads wake at distinct points).
+        // Proportional scaling (ms grows with dt2) already carries the
+        // "wait longer when contender is old" behavior, so no need to
+        // expand above ms.
         int low = std::max(1, ms / sqrtC);
-        int high = std::min(5000, ms * sqrtC);
+        int high = ms;
         int ms_actual;
         if(high <= low) {
             ms_actual = low;   // degenerate: no jitter (sqrtC=1)
@@ -1056,7 +1084,9 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                    TidBitset &tid_bitset) const {
     local_shared_ptr<PacketWrapper> target;
     for(int retry = 0;; ++retry) {
-        if(retry) retry_pause(retry);
+        if(retry)
+            m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
+                                                 4.0f, target.get());
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
         if(target->hasPriority()) {
@@ -1272,7 +1302,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
     fast_vector<local_shared_ptr<PacketWrapper>, 16> subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
 
     for(int retry = 0;; ++retry) {
-        if(retry) retry_pause(retry);
+        if(retry)
+            supernode.m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
+                                                          2.0f, oldsuperwrapper.get());
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *oldsuperwrapper, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
@@ -1291,9 +1323,11 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         for(unsigned int i = 0; i < subpackets->size(); ++i) {
             shared_ptr<Node> child(( *subnodes)[i]);
             local_shared_ptr<Packet> &subpacket_new(( *subpackets)[i]);
+            local_shared_ptr<PacketWrapper> subwrapper;
             for(int child_retry = 0;; ++child_retry) {
-                if(child_retry) retry_pause(child_retry);
-                local_shared_ptr<PacketWrapper> subwrapper;
+                if(child_retry)
+                    child->m_link->negotiate_after_retry_pause(child_retry, started_time, tid_bitset,
+                                                                2.0f, subwrapper.get());
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i])
                     break;
@@ -1448,9 +1482,12 @@ Node<XN>::commit(Transaction<XN> &tr) {
     assert(this == &tr.m_packet->node());
 
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
+    local_shared_ptr<PacketWrapper> wrapper;
     for(int retry = 0;; ++retry) {
-        if(retry) retry_pause(retry);
-        local_shared_ptr<PacketWrapper> wrapper( *m_link);
+        if(retry)
+            m_link->negotiate_after_retry_pause(retry, tr.m_started_time, tr.m_tid_bitset,
+                                                 2.0f, wrapper.get());
+        wrapper = *m_link;
         if(wrapper->hasPriority()) {
             //Committing directly to the node.
             if(wrapper->packet() != tr.m_oldpacket) {
