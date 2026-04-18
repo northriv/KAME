@@ -320,6 +320,15 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
             ms = 5000;
         }
 
+#ifndef KAME_STM_DISABLE_JITTER
+#define KAME_STM_DISABLE_JITTER 0  // 1 → sleep = nominal ms (no adaptive jitter), for paper comparison
+#endif
+#if KAME_STM_DISABLE_JITTER
+        // Paper ablation variant: nominal ms, no jitter randomization.
+        int ms_actual = (ms < 1) ? 1 : ms;
+        (void)tid_bitset;  // unused when jitter disabled
+        (void)s_backoff_seed;
+#else
         // Live-contention estimate: distinct TIDs observed this transaction.
         int C = 0;
         for(int i = 0; i < TID_BITSET_WORDS; ++i)
@@ -349,6 +358,7 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
             ms_actual = low + (int)(((uint64_t)span * rand16) >> 16);
         }
         if(ms_actual < 1) ms_actual = 1;
+#endif
         msecsleep(ms_actual);
     }
 }
