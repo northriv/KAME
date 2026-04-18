@@ -1,5 +1,39 @@
-* Wed Apr 09 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+* Thu Apr 17 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- TLA+ BundleUnbundle (Layer 2): systematic comparison of fine-grained model
+  against C++ transaction_impl.h. Identified 9 differences; 6 implemented as
+  "superfine" mode (C++-faithful failure handling), 1 in fine (#3 no-rollback),
+  2 documented as fidelity notes (#7 serial reuse, #8 serial source).
+  superfine covers: pre-bundle serial CAS (#1), inner bundle phases (#2),
+  Phase3 serial/parent DISTURBED check (#4), casTargets root-first order (#5),
+  Phase1 retry-same-child (#6). These are C++ performance optimizations that
+  don't affect protocol correctness (verified by fine-mode model checking).
+- TLA+ BundleUnbundle: Phase3 fine failure no longer rolls back children (#3).
+  Matches C++ behavior: re-collection re-adopts bundled children via
+  CollectSubpacket's bundledBy==node path. State space unchanged (1.2M).
+- TLA+ BundleUnbundle: MaxSerial cannot be replaced by natural-number serials.
+  Commit retry loops (iterBudget not consumed) create unbounded serial growth
+  without modular wrap-around; state space becomes an infinite DAG.
+
+* Wed Apr 16 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- TLA+ BundleUnbundle (Layer 2): fix BundlePhase3 fine-grained allDone check.
+  Previous check (~hasPriority) incorrectly counted children bundled by OTHER
+  threads as done. Now verifies children match BundledRefWrapper(node, ser)
+  for THIS bundle's serial. Found via 2-level fine model checking.
+- TLA+ BundleUnbundle: increase MaxSerial from 128 to 1024 (3-level) and
+  512 (2-level). Fine-grained mode generates ~64 serials per commit cycle
+  due to CAS retries; MaxSerial/2 must exceed worst-case consumption.
+- TLA+ atomic_shared_ptr (Layer 0): add iterBudget for deterministic
+  termination. Per-thread operation counter guards new operations but not
+  Reset (must release references). TerminalCheck invariant verifies final
+  state: installed object has refcount=1, all others freed.
+
+* Mon Apr 14 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (8.1)
+- Fix XDriver documentation: timeAwared() is acquisition start time, not
+  operator-visible time. Corrected in README.md, CLAUDE.md, kame_python_api.md.
+- License changed to GPL2+ from LGPL2+, in most of codes.
+
+* Wed Apr 09 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - TLA+ formal verification: apply Gemini-identified model fixes.
   atomic_shared_ptr: fix overflow guard deadlock, multiset thr_holds for
   correct repeated-scan refcounting, raise MaxGlobalRC in step3 cfg.

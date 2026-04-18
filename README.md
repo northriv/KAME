@@ -1,15 +1,15 @@
-# KAME — K's Adaptive Measurement Engine
+# KAME: AI-Assisted Automation Program for Physical Property Measurements
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![GitHub](https://img.shields.io/badge/GitHub-northriv%2FKAME-181717?logo=github)](https://github.com/northriv/KAME)
-[![Version](https://img.shields.io/badge/version-8.0-green)]()
+[![Version](https://img.shields.io/badge/version-8.1-green)]()
 
-KAME is an open-source, multi-threaded framework for automated physical property measurements,
+KAME is an open-source, multi-threaded program for automated physical property measurements,
 developed at [Kitagawa Laboratory, ISSP, University of Tokyo](https://kitag.issp.u-tokyo.ac.jp/).
-It is particularly suited to NMR and ODMR experiments, and supports flexible measurement
-orchestration across compatible instruments without custom programming.
+It is particularly suited to NMR and ODMR experiments, and supports AI-assisted measurement
+orchestration across compatible instruments.
 
-**License:** GPL v2 or later
+**License:** GPL v2 or later (prior to 8.0: LGPL v2 or later)
 **Authors:** Kentaro Kitagawa, Shota Suetsugu
 **Platforms:** macOS, Windows (64-bit); Linux support discontinued
 **Manual:** [日本語](https://kitag.issp.u-tokyo.ac.jp/%e8%87%aa%e5%8b%95%e5%8c%96%e5%af%be%e5%bf%9c%e6%b8%ac%e5%ae%9a%e3%83%97%e3%83%ad%e3%82%b0%e3%83%a9%e3%83%a0kame/) · [English](https://kitag.issp.u-tokyo.ac.jp/web/kame/kame-7-en.pdf)
@@ -27,14 +27,14 @@ orchestration across compatible instruments without custom programming.
 - Real-time NMR relaxation fitting (T1, T2, Tst.e.), Inverse Laplace Transform
 - Fourier step-sum spectrum measurement with field / frequency sweeping
 - Complete data logging with post-measurement re-analysis
-- Save / restore full measurement state to `.kam` files
+- Save / restore full measurement config to `.kam` files
 - Modular driver plug-in architecture; Python drivers redefinable at runtime
 - Calibration curves (cspline, Chebyshev, polynomial) for resistance thermometers and generic sensors; calibrated entries feed into graphs, charts, and data recording like any native scalar
 
 ### Released versions/Binaries
-Source here: kame-8.0.zip(https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.0.zip) (2MB, Apr. 6, 2026).
-All other source zips here(https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
-Windows 64bit binaries: 8.0(https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.0.zip). At least Qt is additionally needed, follow instructions below to install.
+Source: [kame-8.1.zip](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-8.1.zip) (2MB, Apr. 14, 2026).
+[All other source archives](https://kitag.issp.u-tokyo.ac.jp/web/kame/src).
+Windows 64-bit binaries: [8.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-win32-llvm64-8.1.zip). At least Qt is additionally needed, follow instructions below to install.
 
 ### Supported instruments
 
@@ -85,7 +85,7 @@ Windows 64bit binaries: 8.0(https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kame-w
 
 Instrument drivers are **shared libraries** under `modules/` loaded at runtime via `ltdl`.
 Each driver subclasses `XDriver` (`kame/driver/driver.h`), which carries a timestamped
-`Payload` (`time()` = phenomenon time, `timeAwared()` = operator-visible time) and emits
+`Payload` (`time()` = phenomenon time, `timeAwared()` = acquisition start time) and emits
 `onRecord` / `onVisualization` signals.
 
 Hardware communication is abstracted in `modules/charinterface/` (serial, TCP, GPIB, USB).
@@ -295,6 +295,17 @@ offers three concrete benefits for this domain:
 - **Safe scripting from Python/Ruby.** Scripts read and write the node tree through
   the same transaction API as C++ code, so user scripts cannot corrupt instrument
   state regardless of when they run.
+
+#### Formal verification (TLA+)
+
+The STM protocol is formally specified and model-checked with TLA+ / TLC:
+
+- **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla))
+- **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla))
+
+Slide decks: [Layer 1 — atomic_shared_ptr](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html)), [Layer 2 — Bundle/Unbundle + Commit](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
+
+C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`tests/tlaplus/test_*.c`) and C++-derived protocol tests (`tests/cds_atomic_shared_ptr/`).
 
 ---
 

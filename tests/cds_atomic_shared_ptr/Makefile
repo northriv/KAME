@@ -14,14 +14,14 @@
 #            -DCMAKE_BUILD_TYPE=Release
 #   make -j$(sysctl -n hw.ncpu)
 
-GENMC ?= genmc/build/genmc
+GENMC ?= genmc/build/bin/genmc
 
 # --unroll=5: bound for CAS retry loops (increase if GenMC warns)
 GMCFLAGS ?= --rc11 --unroll=5
 
 SRCDIR = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-run: run-test1 run-test2 run-test3
+run: run-test1 run-test2 run-test3 run-test4
 
 run-test1:
 	@echo "=== Test 1: load_shared_ / release_tag_ref_ safety ==="
@@ -38,8 +38,13 @@ run-test3:
 	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_multi_cas.c
 	@echo ""
 
+run-test4:
+	@echo "=== Test 4: swap + local_reset safety ==="
+	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_swap.c
+	@echo ""
+
 # Run with IMM memory model
 run-imm: GMCFLAGS = --imm --unroll=5
 run-imm: run
 
-.PHONY: run run-test1 run-test2 run-test3 run-imm
+.PHONY: run run-test1 run-test2 run-test3 run-test4 run-imm

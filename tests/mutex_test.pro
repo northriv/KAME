@@ -3,9 +3,9 @@ TARGET = mutex_test
 include(tests.pri)
 
 HEADERS += \
-    support.h \
+    support_standalone.h \
     ../kame/allocator.h
 
 SOURCES += \
     mutex_test.cpp \
-    support.cpp
+    support_standalone.cpp

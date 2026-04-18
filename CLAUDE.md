@@ -24,7 +24,9 @@ The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake)
 
 Tests live in `tests/` and cover the core STM framework: `allocator_test`, `atomic_shared_ptr_test`, `atomic_queue_test`, `mutex_test`, `transaction_test`, `transaction_negotiation_test`, `transaction_dynamic_node_test`.
 
-**Memory-model verification** (`tests/cds_atomic_shared_ptr/`): GenMC model-checker tests that exhaustively verify `atomic_shared_ptr`'s lock-free protocol under the C11/RC11 memory model. Three tests cover `load_shared_`/`release_tag_ref_` concurrency, `load_shared_` vs `compareAndSwap_` races, and multi-thread `compareAndSet` contention. Requires GenMC v0.16+ built against LLVM 20; see `Makefile` for build instructions. Run with `make run` from the test directory.
+**Memory-model verification (C++-derived)** (`tests/cds_atomic_shared_ptr/`): GenMC model-checker tests derived from the C++ implementation in `kame/atomic_smart_ptr.h`. Three tests cover `load_shared_`/`release_tag_ref_` concurrency, `load_shared_` vs `compareAndSwap_` races, and multi-thread `compareAndSet` contention. Verifies reference counting safety but not payload values. Requires GenMC v0.16+ built against LLVM 20; see `Makefile` for build instructions. Run with `make run` from the test directory.
+
+**Memory-model verification (TLA+-derived)** (`tests/tlaplus/test_*.c`): GenMC tests mechanically generated from the TLA+ specifications. `test_atomic_shared_ptr.c` (Layer 0), `test_stm_commit.c` (Layer 1), `test_bundle_2level.c` and `test_bundle_3level.c` (Layer 2). These verify that the formal specs are realizable under the RC11 memory model.
 
 ## Architecture
 
@@ -62,7 +64,7 @@ parent.iterate_commit_if([&](Transaction<NodeA> &tr) -> bool {
 
 ### Driver / Module Architecture
 
-- **`XDriver`** (`kame/driver/driver.h`) — base for all instrument drivers; holds a timestamped `Payload` with `time()` (when the phenomenon occurred) and `timeAwared()` (when visible to the operator); emits `onRecord` and `onVisualization` signals
+- **`XDriver`** (`kame/driver/driver.h`) — base for all instrument drivers; holds a timestamped `Payload` with `time()` (when the phenomenon occurred) and `timeAwared()` (acquisition start time — when the phenomenon started being measured; for non-real-time analysis, when the record was read); emits `onRecord` and `onVisualization` signals
 - **`onVisualization` signal** — `Talker<bool, XDriver*>`; callbacks receive `(const Snapshot&, bool afterRecorded, XDriver*)`. `afterRecorded = !skipped` (i.e. `record()` was called). Do NOT use `time().isSet()` as a proxy — it stays `true` from the previous record across `XSkippedRecordError` cycles. `XRecordError` resets time to zero but still sets `afterRecorded = true`. Connect without `FLAG_AVOID_DUP` or `FLAG_MAIN_THREAD_CALL` unless the callback does Qt UI work.
 - Instrument drivers are built as **shared libraries** under `modules/` and loaded at runtime (via ltdl)
 - Each module subdirectory contains one or more drivers and registers them with the framework

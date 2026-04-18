@@ -3,11 +3,11 @@
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
-        modify it under the terms of the GNU Library General Public
+        modify it under the terms of the GNU General Public
         License as published by the Free Software Foundation; either
         version 2 of the License, or (at your option) any later version.
 
-        You should have received a copy of the GNU Library General
+        You should have received a copy of the GNU General
         Public License and a list of authors along with this program;
         see the files COPYING and AUTHORS.
  ***************************************************************************/
@@ -306,29 +306,67 @@ private:
 
         PacketWrapper(const PacketWrapper &) = delete;
     };
+    //! Contention-observation bitset size (512 TIDs = 8 * uint64_t).
+    //! Used by negotiate() to accumulate distinct ProcessCounter::id values
+    //! extracted from PacketWrapper::m_bundle_serial (low 16 bits) during a
+    //! transaction's lifetime. Lives inside Transaction; Snapshot-only paths
+    //! use a stack-local array.
+    static constexpr int TID_BITSET_WORDS = 8;
+    using TidBitset = uint64_t[TID_BITSET_WORDS];
+
     struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
-        void negotiate(typename NegotiationCounter::cnt_t &started_time, float mult_wait = 6.0f) noexcept {
+        //! \a tid_bitset accumulates observed committer TIDs (via \a observed->m_bundle_serial lower 16 bits).
+        //! It is used by negotiate_internal() to scale the backoff jitter range as √C,
+        //! where C is the popcount of observed distinct TIDs.
+        void negotiate(typename NegotiationCounter::cnt_t &started_time,
+                       TidBitset &tid_bitset,
+                       float mult_wait = 6.0f,
+                       const PacketWrapper *observed = nullptr) noexcept {
+            if(observed) {
+                unsigned tid = (unsigned)(observed->m_bundle_serial & 0xFFFFu);
+                if(tid) {
+                    tid &= (unsigned)(TID_BITSET_WORDS * 64 - 1);
+                    tid_bitset[tid >> 6] |= 1ULL << (tid & 63);
+                }
+            }
             typename NegotiationCounter::cnt_t transaction_started_time =
                 m_transaction_started_time.load(std::memory_order_relaxed);
             if( !transaction_started_time)
                 return; //collision has not been detected.
-            negotiate_internal(started_time, mult_wait);
+            negotiate_internal(started_time, tid_bitset, mult_wait);
         }
-        void negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept;
+        //! Unified retry-loop backoff helper. Called once per retry (retry > 0)
+        //! at the top of each CAS-retry loop (commit/snapshot/bundle/bundle-child).
+        //! Always issues retry_pause (CPU-side pause spins, count ∝ retry);
+        //! at retry ≥ NEGOTIATE_THRESHOLD also engages sleep-based negotiate()
+        //! so the contender gets priority escalation that pure spin cannot give.
+        //! GDB-sampling on 32-thread 3level stress showed ~52% of time in
+        //! bundle()'s outer retry, which previously had only retry_pause and
+        //! no negotiate between Phase 3 failure and the next Phase 1 attempt.
+        void negotiate_after_retry_pause(int retry,
+                                         typename NegotiationCounter::cnt_t &started_time,
+                                         TidBitset &tid_bitset,
+                                         float mult_wait = 6.0f,
+                                         const PacketWrapper *observed = nullptr) noexcept;
+        void negotiate_internal(typename NegotiationCounter::cnt_t &started_time,
+                                TidBitset &tid_bitset,
+                                float mult_wait) noexcept;
 
     };
 
     friend class Snapshot<XN>;
     friend class Transaction<XN>;
 
-    void snapshot(Snapshot<XN> &target, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const;
+    void snapshot(Snapshot<XN> &target, bool multi_nodal, typename NegotiationCounter::cnt_t started_time,
+                  TidBitset &tid_bitset) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-        m_link->negotiate(target.m_started_time, 4.0f);
-        snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
+        m_link->negotiate(target.m_started_time, target.m_tid_bitset, 4.0f);
+        snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time,
+                 target.m_tid_bitset);
         target.m_oldpacket = target.m_packet;
     }
     enum class SnapshotStatus {SUCCESS = 0, DISTURBED = 1,
@@ -341,11 +379,67 @@ private:
         local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
     };
     using CASInfoList = fast_vector<CASInfo, 32>;
-    enum class SnapshotMode {FOR_UNBUNDLE, FOR_BUNDLE};
-    static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage,
-        local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-        SnapshotMode mode,
-        int64_t serial = SerialGenerator::SERIAL_NULL, CASInfoList *cas_infos = nullptr);
+
+    //! Result of walkUpChainImpl() / ascendOneLevel().
+    //! ascendOneLevel fills parent_linkage, parent_wrapper, child_wrapper, reverse_index.
+    //! walkUpChainImpl adds find_status, status, is_root_level, parent_packet.
+    struct WalkUpResult {
+        SnapshotStatus find_status;  //!< result of findChildSlot (or early-return status)
+        SnapshotStatus status;       //!< status after convertRecursiveStatus (before find)
+        bool is_root_level;          //!< true if this parent is the chain root
+        shared_ptr<Linkage> parent_linkage;    //!< m_link of the parent node (= bundledBy)
+        local_shared_ptr<PacketWrapper> parent_wrapper;  //!< snapshot of parent's wrapper (= original shot_upper)
+        local_shared_ptr<PacketWrapper> child_wrapper;   //!< wrapper saved before ascending (for staleness check)
+        int reverse_index;
+        local_shared_ptr<Packet> *parent_packet;  //!< parent's packet containing child slot
+    };
+
+    //! Ascend one level: read bundledBy, update root_wrapper to parent, save snapshot.
+    //! On success, find_status == SUCCESS and parent/child fields are filled.
+    //! On failure, find_status == DISTURBED or NODE_MISSING.
+    static inline WalkUpResult ascendOneLevel(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<PacketWrapper> &root_wrapper);
+
+    //! Convert recursive status and determine the upper packet.
+    //! Sets is_root_level = true if this parent level is the root.
+    static inline SnapshotStatus convertRecursiveStatus(
+        SnapshotStatus recursive_status,
+        WalkUpResult &r,
+        local_shared_ptr<PacketWrapper> &root_wrapper,
+        local_shared_ptr<Packet> *&parent_packet);
+
+    //! Find child's sub-packet slot in parent's packet by scanning from reverse_index hint.
+    static inline SnapshotStatus findChildSlot(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<Packet> *parent_packet,
+        local_shared_ptr<Packet> **child_subpacket_out,
+        int &reverse_index,
+        SnapshotStatus current_status);
+
+    //! Common chain-walk: Steps A→B→C→D→E (ascend, recurse, convert, staleness, findChildSlot).
+    //! Recurser performs the recursive call at Step B.
+    template <class Recurser>
+    static inline WalkUpResult walkUpChainImpl(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<PacketWrapper> &root_wrapper,
+        local_shared_ptr<Packet> **child_subpacket_out,
+        Recurser &&recurse);
+
+    //! Recursively walks up the bundledBy chain to locate a child's sub-packet.
+    //! Used by snapshot() (FOR_BUNDLE path).
+    static inline SnapshotStatus walkUpChain(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<PacketWrapper> &root_wrapper,
+        local_shared_ptr<Packet> **child_subpacket_out);
+
+    //! Walk up the chain and build CAS info list for unbundling.
+    //! Used only by unbundle().
+    static inline SnapshotStatus snapshotForUnbundle(
+        const shared_ptr<Linkage> &child_linkage,
+        local_shared_ptr<PacketWrapper> &root_wrapper,
+        local_shared_ptr<Packet> **child_subpacket_out,
+        int64_t serial, CASInfoList *cas_infos);
 
     //! Updates a packet to \a tr.m_packet if the current packet is unchanged (== \a tr.m_oldpacket).
     //! If this node has been bundled at the super node, unbundle() will be called.
@@ -360,10 +454,14 @@ private:
     //! cleared and each PacketWrapper::bundledBy() will point to its upper node.
     //! \sa snapshot().
     BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
-        typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial, bool is_bundle_root);
+        typename NegotiationCounter::cnt_t &started_time,
+        TidBitset &tid_bitset,
+        int64_t bundle_serial, bool is_bundle_root);
     BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
         local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
-        typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial);
+        typename NegotiationCounter::cnt_t &started_time,
+        TidBitset &tid_bitset,
+        int64_t bundle_serial);
     enum class UnbundledStatus {W_NEW_SUBVALUE, SUBVALUE_HAS_CHANGED, COLLIDED, DISTURBED};
     //! Unbundles a subpacket to \a sublinkage from a snapshot.
     //! it performs unbundling for all the super nodes.
@@ -374,6 +472,7 @@ private:
     //! \param[in,out] newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
     //! If \a oldsubpacket is zero, unloaded value  of \a sublinkage will be substituted to \a newsubwrapper.
     static UnbundledStatus unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
+        TidBitset &tid_bitset,
         const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
@@ -432,7 +531,11 @@ public:
     explicit Snapshot(Transaction<XN>&&x) noexcept : m_packet(std::move(x.m_packet)), m_serial(x.m_serial) {}
     Snapshot& operator=(const Snapshot&x) noexcept = default;
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-        node.snapshot( *this, multi_nodal, Node<XN>::NegotiationCounter::now());
+        // Snapshot-only path: no Transaction → use a stack-local bitset.
+        // Contention observation decays naturally to "nothing seen" per call.
+        typename Node<XN>::TidBitset local_tid_bitset = {};
+        node.snapshot( *this, multi_nodal, Node<XN>::NegotiationCounter::now(),
+                       local_tid_bitset);
     }
 
     //! \return Payload instance for \a node, which should be included in the snapshot.
@@ -651,6 +754,10 @@ private:
             if( !time || (time > m_started_time))
                 node.m_link->m_transaction_started_time = m_started_time;
         }
+        // Preserve m_tid_bitset across retry cycles: contention evidence
+        // from the previous attempt is directly relevant to the next one
+        // (same linkages, same contenders). Clearing would reset C=1 on
+        // every ++tr, losing adaptive jitter benefit in livelock paths.
         m_messages.clear();
         this->m_packet->node().snapshot( *this, m_multi_nodal);
         return *this;
@@ -661,6 +768,10 @@ private:
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
+    //! Per-transaction contention observation bitset (populated by
+    //! Linkage::negotiate(... observed)). Sized by Node::TID_BITSET_WORDS.
+    //! Nesting works naturally: each Transaction has its own bitset.
+    typename Node<XN>::TidBitset m_tid_bitset = {};
     using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
 };

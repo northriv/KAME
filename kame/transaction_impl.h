@@ -3,17 +3,20 @@
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
-        modify it under the terms of the GNU Library General Public
+        modify it under the terms of the GNU General Public
         License as published by the Free Software Foundation; either
         version 2 of the License, or (at your option) any later version.
 
-        You should have received a copy of the GNU Library General
+        You should have received a copy of the GNU General
         Public License and a list of authors along with this program;
         see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "transaction.h"
 #include <vector>
 #include <thread>
+#include <cstdint>
+#include <cmath>
+#include <algorithm>
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
 // STRICT_assert(expr): behaves like assert(expr) when TRANSACTIONAL_STRICT_assert is defined;
@@ -33,6 +36,64 @@
 namespace Transactional {
 
 STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
+
+// Portable 64-bit popcount used by negotiate_internal's TID bitset.
+// GCC/Clang: __builtin_popcountll is a single instruction on x86/ARM.
+// MSVC: __popcnt64 is the equivalent intrinsic (SSE4.2+; acceptable since
+// KAME's other MSVC paths already assume modern Windows x86_64).
+static inline int popcount_u64(uint64_t x) noexcept {
+#ifdef _MSC_VER
+    return (int)__popcnt64(x);
+#else
+    return __builtin_popcountll(x);
+#endif
+}
+
+// Retry-proportional randomized CPU relax for tight CAS-retry loops.
+// On retry N, issues `spins ∈ [1, min(N, 64)]` pause instructions before
+// the next CAS attempt. Randomized count desynchronizes threads that
+// reach the same retry depth simultaneously — a fixed pause count would
+// leave them re-synchronized, re-creating the lock-step that causes
+// CAS-retry livelock.
+//
+// Pseudo-random count is produced by bit-mixing `retry` with the
+// address of the local stack variable (per-thread entropy) via golden-
+// ratio hash, reduced to [1, max_spins] by Lemire-style multiply-shift.
+// No thread-local state, no RNG call, ~5 ALU ops total.
+//
+// Purpose: on strong-memory x86 (TSO), coherence ping-pong causes all
+// threads to observe each other's identity churn immediately; without
+// any relax, no thread gets an uncontested window to win its CAS.
+// `pause` (x86) / `yield`-inst (ARM) lowers coherence traffic and gives
+// other threads small winner windows. Zero cost on the fast path
+// (only invoked when retry > 0). Independent of the jitter-based
+// negotiate path (which only fires when a collision marker is set).
+static inline void retry_pause(int retry) noexcept {
+    // No cap: spin count grows linearly with retry depth. Livelock-heavy
+    // paths need unbounded growth so at some retry depth the pause
+    // duration exceeds coherence ping-pong cycle time, opening a winner
+    // window. Empirically cap=1024 is insufficient on iMac Pro x86
+    // 32-thread 3level stress; uncapped resolves it.
+    uint32_t h = (uint32_t)retry * 0x9E3779B1u;
+    h ^= (uint32_t)(uintptr_t)&retry;       // per-thread entropy from stack addr
+    int spins = 1 + (int)(((uint64_t)(h >> 16) * (uint32_t)retry) >> 16);
+    for(int k = 0; k < spins; ++k) pause4spin();
+}
+
+// Unified retry-loop backoff: always call retry_pause + negotiate.
+// retry=0 → retry_pause issues 1 pause (negligible), negotiate fast-returns
+// on the zero m_transaction_started_time marker. No threshold gate.
+template <class XN>
+void
+Node<XN>::Linkage::negotiate_after_retry_pause(
+    int retry,
+    typename NegotiationCounter::cnt_t &started_time,
+    TidBitset &tid_bitset,
+    float mult_wait,
+    const PacketWrapper *observed) noexcept {
+    retry_pause(retry);
+    negotiate(started_time, tid_bitset, mult_wait, observed);
+}
 
 template <class XN>
 XThreadLocal<typename Node<XN>::FuncPayloadCreator> Node<XN>::stl_funcPayloadCreator;
@@ -180,30 +241,55 @@ Node<XN>::print_recoverable_error(const char* reason) {
 
 //=============================================================================
 // negotiate_internal() — priority-based backoff for collision avoidance
-//   (Comments by Claude Opus — based on source code analysis)
 //
 // Purpose: when two transactions contend on the same Linkage, impose a
 //   proportional wait on the lower-priority (or younger) transaction so
 //   that the older/higher-priority one can finish first, preventing live-lock.
 //
-// How it works:
+// Priority/proportional semantics (unchanged):
 //   - dt  = (this thread's start time) − (contending thread's start time)
-//     Positive dt means this thread started later (younger).
 //   - dt2 = (wall-clock now) − (contending thread's start time)
-//     Measures how long the contender has been running.
-//   - The condition `mult_wait * 2 * dt < dt2` is a proportional test:
-//     "has the contender been running long enough relative to our age gap?"
-//     When true, waiting further is unlikely to help — proceed anyway.
-//   - HIGHEST priority bypasses all backoff (real-time / time-critical path).
-//   - LOWEST priority never escapes via the proportional test (always defers).
-//   - Sleep duration ramps up: ms = max(dt2/10000, ms+1), capped at 5 seconds.
-//     The 5-second cap guards against infinite waits from nested transactions
-//     or deadlock-like scenarios.
+//   - mult_wait * 2 * dt < dt2 → contender has run long enough; proceed anyway
+//   - HIGHEST bypasses; LOWEST never escapes early
+//   - Nominal sleep = max(dt2/10000, prev_ms + 1) [ms], capped at 5 s
+//
+// Adaptive jitter (Anderson 1990; Herlihy & Shavit 2008 ch.7;
+//   Bianchi 2000 IEEE 802.11 √N damping; Brooker AWS 2015 decorrelated):
+//   The sleep is drawn uniformly from [ms/√C, ms*√C] (capped at 5 s), where
+//   C = popcount(tid_bitset) = number of distinct committer ProcessCounter::id
+//   values observed at all linkages touched by the current transaction so far.
+//     C=1  → √C=1  → no jitter  (sleep = ms)
+//     C=4  → √C=2  → range [ms/2, 2*ms]
+//     C=16 → √C=4  → range [ms/4, 4*ms]
+//     C=128→ √C=11 → range [ms/11, 11*ms]
+//   C=1 (no observed contention) stays deterministic to avoid range inflation
+//   in low-contention paths; C>1 fans out proportionally to live contenders
+//   to break lock-step retry cycles (the livelock root cause on strong-memory
+//   x86, Darwin x86_64, >=32 threads).
+//
+// Bitset ownership:
+//   The caller passes a reference to its per-transaction bitset
+//   (Transaction::m_tid_bitset; stack-local for Snapshot-only paths). This
+//   avoids TLS and makes nested transactions observe their own scope
+//   naturally. No CAS or peek of the linkage is performed inside the loop.
 //=============================================================================
 template <class XN>
 void
-Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept {
-    std::this_thread::yield(); // one cheap check: catches µs-level conflicts before any sleep
+Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time,
+                                      TidBitset &tid_bitset,
+                                      float mult_wait) noexcept {
+    // (removed: std::this_thread::yield() at entry.
+    //  At high thread count (128+), it forms a yield-to-yielding-thread chain
+    //  — gdb sampling showed 15% of samples stuck in sched_yield with
+    //  negotiate_internal as immediate caller. The chain never terminates
+    //  because all runnable threads are also in negotiate_internal's yield.
+    //  Removed; the subsequent m_transaction_started_time load + priority/dt
+    //  checks serve as the cheap-collision-clear check anyway.)
+
+    // Thread-local LCG for sleep-duration jitter randomization.
+    static thread_local uint32_t s_backoff_seed = 0x9E3779B9u
+        ^ (uint32_t)(uintptr_t)&started_time;
+
     for(int ms = 0;;) {
         auto transaction_started_time =
             m_transaction_started_time.load(std::memory_order_acquire);
@@ -226,10 +312,6 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
                 break;
         }
 
-//        static XThreadLocal<unsigned int> stl_seed;
-//        if((double)rand_r( &*stl_seed) / RAND_MAX > 20 * dt / dt2) {
-//            break; //performs anyway.
-//        }
         ms = std::max((int)(dt2 / 10000),  ms + 1);
         if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
@@ -237,7 +319,47 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
             fprintf(stderr, "for BP@%p\n", this);
             ms = 5000;
         }
-        msecsleep(ms);
+
+#ifndef KAME_STM_DISABLE_JITTER
+#define KAME_STM_DISABLE_JITTER 0  // 1 → sleep = nominal ms (no adaptive jitter), for paper comparison
+#endif
+#if KAME_STM_DISABLE_JITTER
+        // Paper ablation variant: nominal ms, no jitter randomization.
+        int ms_actual = (ms < 1) ? 1 : ms;
+        (void)tid_bitset;  // unused when jitter disabled
+        (void)s_backoff_seed;
+#else
+        // Live-contention estimate: distinct TIDs observed this transaction.
+        int C = 0;
+        for(int i = 0; i < TID_BITSET_WORDS; ++i)
+            C += popcount_u64(tid_bitset[i]);
+        if(C < 1) C = 1;
+
+        // √C-scaled range. C=1 (no observed contention) → sqrtC=1 →
+        // no jitter (sleep exactly `ms`); C>1 fans out proportionally.
+        int sqrtC = (int)std::sqrt((double)C);
+        if(sqrtC < 1) sqrtC = 1;
+
+        // Asymmetric jitter range [ms/√C, ms]. Upper bound = nominal ms;
+        // spread only downward to keep mean sleep < ms (CPU stays busy)
+        // while still breaking lock-step (threads wake at distinct points).
+        // Proportional scaling (ms grows with dt2) already carries the
+        // "wait longer when contender is old" behavior, so no need to
+        // expand above ms.
+        int low = std::max(1, ms / sqrtC);
+        int high = ms;
+        int ms_actual;
+        if(high <= low) {
+            ms_actual = low;   // degenerate: no jitter (sqrtC=1)
+        } else {
+            uint32_t span = (uint32_t)(high - low);
+            s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
+            uint32_t rand16 = (s_backoff_seed >> 16) & 0xFFFFu;
+            ms_actual = low + (int)(((uint64_t)span * rand16) >> 16);
+        }
+        if(ms_actual < 1) ms_actual = 1;
+#endif
+        msecsleep(ms_actual);
     }
 }
 
@@ -314,7 +436,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             local_shared_ptr<PacketWrapper> subwrapper;
             subwrapper = *var->m_link;
             BundledStatus status = bundle_subpacket(0, var, subwrapper, subpacket_new,
-                tr.m_started_time, tr.m_serial);
+                tr.m_started_time, tr.m_tid_bitset, tr.m_serial);
             if(status != BundledStatus::SUCCESS) {
                 continue;
             }
@@ -693,141 +815,269 @@ Node<XN>::upperNode(Snapshot<XN> &shot) {
 }
 
 //=============================================================================
-// snapshotSupernode() — walk up the bundle chain to locate a sub-packet
-//   (Comments by Claude Opus — based on source code analysis)
+//=============================================================================
+// ascendOneLevel() — read bundledBy and prepare to go one level up
 //
-// Recursively follows bundledBy pointers upward until reaching the root
-// (a node with hasPriority). At each level, verifies the back-reference
-// is still valid (CAS-check on linkage). Returns a pointer to the sub-packet
-// slot inside the ancestor's packet.
-//
-// In FOR_UNBUNDLE mode, builds a cas_infos list: at each ancestor level,
-// prepares a new PacketWrapper with a copied packet (marking the child's
-// slot as missing) and records the (linkage, old, new) triple for later CAS.
-// Also detects serial collisions (same bundle_serial already present).
-//
-// The reverse_index stored in PacketWrapper may be stale if swap() reordered
-// children, so the search scans all child slots starting from the hint index.
+// Reads the bundledBy pointer from root_wrapper. On success:
+//   - Saves child_wrapper for staleness check.
+//   - Updates root_wrapper in-place to the parent's wrapper (= *bundledBy).
+//   - Copies root_wrapper to parent_wrapper as a snapshot for this level.
+// Returns a WalkUpResult with find_status indicating success/failure.
+// Other fields (status, is_root_level, parent_packet) are set later by
+// walkUpChainImpl.
+//=============================================================================
+template <class XN>
+inline typename Node<XN>::WalkUpResult
+Node<XN>::ascendOneLevel(
+    const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<PacketWrapper> &root_wrapper) {
+
+    WalkUpResult r;
+    r.parent_packet = nullptr;
+    assert( !root_wrapper->hasPriority());
+    r.parent_linkage = root_wrapper->bundledBy();
+    if( !r.parent_linkage) {
+        r.find_status = ( *child_linkage == root_wrapper)
+            ? SnapshotStatus::NODE_MISSING : SnapshotStatus::DISTURBED;
+        return r;
+    }
+    r.child_wrapper = root_wrapper;
+    r.reverse_index = root_wrapper->reverseIndex();
+    root_wrapper = *r.parent_linkage;
+    r.parent_wrapper = root_wrapper;
+    r.find_status = SnapshotStatus::SUCCESS;
+    return r;
+}
+
+//=============================================================================
+// convertRecursiveStatus() — translate recursive call's status for this level
 //=============================================================================
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
-Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
-    local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-    SnapshotMode mode, int64_t serial, CASInfoList *cas_infos) {
-    local_shared_ptr<PacketWrapper> oldwrapper(shot);
-    assert( !shot->hasPriority());
-    shared_ptr<Linkage > linkage_upper(shot->bundledBy());
-    if( !linkage_upper) {
-        if( *linkage == oldwrapper)
-            //Supernode has been destroyed.
-            return SnapshotStatus::NODE_MISSING;
-        return SnapshotStatus::DISTURBED;
-    }
-    int reverse_index = shot->reverseIndex();
+Node<XN>::convertRecursiveStatus(
+    SnapshotStatus recursive_status,
+    WalkUpResult &r,
+    local_shared_ptr<PacketWrapper> &root_wrapper,
+    local_shared_ptr<Packet> *&parent_packet) {
 
-    shot = *linkage_upper;
-    local_shared_ptr<PacketWrapper> shot_upper(shot);
-    SnapshotStatus status = SnapshotStatus::NODE_MISSING;
-    local_shared_ptr<Packet> *upperpacket;
-    if( !shot_upper->hasPriority()) {
-        status = snapshotSupernode(linkage_upper, shot, &upperpacket,
-            mode, serial, cas_infos);
-    }
-    switch(status) {
+    switch(recursive_status) {
     case SnapshotStatus::DISTURBED:
     default:
-        return status;
+        return recursive_status;
     case SnapshotStatus::VOID_PACKET:
     case SnapshotStatus::NODE_MISSING:
-        shot = shot_upper;
-        upperpacket = &shot->packet();
-        status = SnapshotStatus::SUCCESS;
-        break;
+        root_wrapper = r.parent_wrapper;
+        parent_packet = &root_wrapper->packet();
+        r.is_root_level = true;
+        return SnapshotStatus::SUCCESS;
     case SnapshotStatus::NODE_MISSING_AND_COLLIDED:
-        shot = shot_upper;
-        upperpacket = &shot->packet();
-        status = SnapshotStatus::COLLIDED;
-        break;
+        root_wrapper = r.parent_wrapper;
+        parent_packet = &root_wrapper->packet();
+        r.is_root_level = true;
+        return SnapshotStatus::COLLIDED;
     case SnapshotStatus::COLLIDED:
     case SnapshotStatus::SUCCESS:
-        break;
+        r.is_root_level = false;
+        return recursive_status;
     }
-    //Checking if it is up-to-date.
-    if( *linkage != oldwrapper)
-            return SnapshotStatus::DISTURBED;
+}
 
-    assert( *upperpacket);
-    int size = ( *upperpacket)->size();
+//=============================================================================
+// findChildSlot() — scan parent's subnodes to find child's sub-packet slot
+//
+// Starting from reverse_index hint, wraps around to find the child whose
+// m_link matches child_linkage. The hint may be stale if swap() reordered
+// children.
+//
+// Returns:
+//   current_status  if found (child_subpacket_out is set)
+//   VOID_PACKET     if slot exists but sub-packet is null (missing child)
+//   NODE_MISSING    if child not found in parent's subnodes
+//=============================================================================
+template <class XN>
+inline typename Node<XN>::SnapshotStatus
+Node<XN>::findChildSlot(
+    const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<Packet> *parent_packet,
+    local_shared_ptr<Packet> **child_subpacket_out,
+    int &reverse_index,
+    SnapshotStatus current_status) {
+
+    assert( *parent_packet);
+    int size = ( *parent_packet)->size();
     int i = reverse_index;
     for(int cnt = 0;; ++cnt) {
         if(cnt >= size) {
-            if(status == SnapshotStatus::COLLIDED)
+            if(current_status == SnapshotStatus::COLLIDED)
                 return SnapshotStatus::NODE_MISSING;
-            status = SnapshotStatus::NODE_MISSING;
-            break;
+            return SnapshotStatus::NODE_MISSING;
         }
         if(i >= size)
             i = 0;
-        if(( *( *upperpacket)->subnodes())[i]->m_link == linkage) {
-            //Requested node is found.
-            *subpacket = &( *( *upperpacket)->subpackets())[i];
+        if(( *( *parent_packet)->subnodes())[i]->m_link == child_linkage) {
+            // Child node found at index i.
+            *child_subpacket_out = &( *( *parent_packet)->subpackets())[i];
             reverse_index = i;
-            if( !**subpacket) {
-                if(mode == SnapshotMode::FOR_UNBUNDLE) {
-                    cas_infos->clear();
-                }
-//				printf("V\n");
-                assert(( *upperpacket)->missing());
+            if( !**child_subpacket_out) {
+                assert(( *parent_packet)->missing());
                 return SnapshotStatus::VOID_PACKET;
             }
-            break;
+            return current_status;  // SUCCESS or COLLIDED — child has a sub-packet.
         }
-        //The index might be modified by swap().
         ++i;
     }
+}
 
-    assert( !shot_upper->packet() || (shot_upper->packet()->node().m_link == linkage_upper));
-    assert(( *upperpacket)->node().m_link == linkage_upper);
-    if(mode == SnapshotMode::FOR_UNBUNDLE) {
-        if(status == SnapshotStatus::COLLIDED) {
-            return SnapshotStatus::COLLIDED;
-        }
-        if((serial != SerialGenerator::SERIAL_NULL) && (shot_upper->m_bundle_serial == serial)) {
-            //The node has been already bundled in the same snapshot.
-            if(status == SnapshotStatus::NODE_MISSING)
-                return SnapshotStatus::NODE_MISSING;
-            return SnapshotStatus::COLLIDED;
-        }
-        local_shared_ptr<Packet> *p(upperpacket);
-        local_shared_ptr<PacketWrapper> newwrapper;
-        if(shot == shot_upper) {
-            newwrapper.reset(
-                new PacketWrapper( *shot_upper, shot_upper->m_bundle_serial));
-        }
-        else {
-            assert(cas_infos->size());
-//			if(shot->packet()->missing()) {
-                newwrapper.reset(
-                    new PacketWrapper( *p, shot->m_bundle_serial));
-//			}
-        }
-        if(newwrapper) {
-            cas_infos->emplace_back(linkage_upper, shot_upper, newwrapper);
-            p = &newwrapper->packet();
-        }
-        if(size) {
-            p->reset(new Packet( **p));
-//			( *p)->subpackets().reset(new PacketList( *( *p)->subpackets()));
-            ( *p)->m_missing = true;
-//			if(status == SNAPSHOT_SUCCESS)
-//				*subpacket = &( *p)->subpackets()->at(reverse_index);
-        }
-        if((status == SnapshotStatus::NODE_MISSING) && (serial != SerialGenerator::SERIAL_NULL) &&
-            (( !oldwrapper->hasPriority()) && (oldwrapper->m_bundle_serial == serial))) {
-            printf("!");
-            return SnapshotStatus::NODE_MISSING_AND_COLLIDED;
-        }
+//=============================================================================
+// walkUpChainImpl() — common chain-walk: Steps A → B → C → D → E
+//
+// Shared by walkUpChain() and snapshotForUnbundle().
+// Only the recursive call (Step B) differs between callers — passed as Recurser.
+// Steps A–E are executed here; the result (with context) is returned via
+// Steps:
+//   A. ascendOneLevel: read bundledBy, save child_wrapper, return WalkUpResult
+//   B. recurse via Recurser if parent is bundled
+//   C. convertRecursiveStatus: map recursive result to this-level status
+//   D. staleness check: verify child's linkage hasn't changed
+//   E. findChildSlot: locate child's sub-packet in parent's packet
+//=============================================================================
+template <class XN>
+template <class Recurser>
+inline typename Node<XN>::WalkUpResult
+Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<PacketWrapper> &root_wrapper,
+    local_shared_ptr<Packet> **child_subpacket_out,
+    Recurser &&recurse) {
+
+    // Step A: ascend one level — fills parent_linkage, parent_wrapper, child_wrapper, reverse_index.
+    WalkUpResult r = ascendOneLevel(child_linkage, root_wrapper);
+    if(r.find_status != SnapshotStatus::SUCCESS)
+        return r;
+
+    // Step B: recurse if parent is also bundled.
+    SnapshotStatus recursive_status = SnapshotStatus::NODE_MISSING;
+    local_shared_ptr<Packet> *parent_packet;
+    if( !r.parent_wrapper->hasPriority()) {
+        recursive_status = recurse(r.parent_linkage, root_wrapper, &parent_packet);
     }
+
+    // Step C: convert recursive result — sets is_root_level, may update root_wrapper.
+    SnapshotStatus status = convertRecursiveStatus(
+        recursive_status, r, root_wrapper, parent_packet);
+    if(status == SnapshotStatus::DISTURBED) {
+        r.find_status = SnapshotStatus::DISTURBED;
+        return r;
+    }
+
+    // Step D: staleness check.
+    if( *child_linkage != r.child_wrapper) {
+        r.find_status = SnapshotStatus::DISTURBED;
+        return r;
+    }
+
+    // Step E: find child's sub-packet slot in parent's packet.
+    r.find_status = findChildSlot(child_linkage, parent_packet,
+        child_subpacket_out, r.reverse_index, status);
+    r.status = status;
+    r.parent_packet = parent_packet;
+    return r;
+}
+
+//=============================================================================
+// walkUpChain() — walk up the chain for snapshot/bundle (no CAS construction)
+//=============================================================================
+template <class XN>
+inline typename Node<XN>::SnapshotStatus
+Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<PacketWrapper> &root_wrapper,
+    local_shared_ptr<Packet> **child_subpacket_out) {
+
+    return walkUpChainImpl(child_linkage, root_wrapper, child_subpacket_out,
+        [](const shared_ptr<Linkage> &pl, local_shared_ptr<PacketWrapper> &rw,
+           local_shared_ptr<Packet> **pp) {
+            return walkUpChain(pl, rw, pp);
+        }).find_status;
+}
+
+//=============================================================================
+// snapshotForUnbundle() — walk up the chain with CAS info construction
+//
+// Calls walkUpChainImpl for Steps A–E, then performs Step F (CAS preparation)
+// using the WalkUpResult context.
+//=============================================================================
+template <class XN>
+inline typename Node<XN>::SnapshotStatus
+Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
+    local_shared_ptr<PacketWrapper> &root_wrapper,
+    local_shared_ptr<Packet> **child_subpacket_out,
+    int64_t serial, CASInfoList *cas_infos) {
+
+    auto r = walkUpChainImpl(child_linkage, root_wrapper, child_subpacket_out,
+        [serial, cas_infos](const shared_ptr<Linkage> &pl, local_shared_ptr<PacketWrapper> &rw,
+           local_shared_ptr<Packet> **pp) {
+            return snapshotForUnbundle(pl, rw, pp, serial, cas_infos);
+        });
+
+    // --- Post-processing for unbundle (Step F) ---
+    if(r.find_status == SnapshotStatus::DISTURBED)
+        return SnapshotStatus::DISTURBED;
+    if(r.find_status == SnapshotStatus::VOID_PACKET) {
+        cas_infos->clear();
+        return SnapshotStatus::VOID_PACKET;
+    }
+    if(r.find_status == SnapshotStatus::NODE_MISSING && !r.parent_packet) {
+        return SnapshotStatus::NODE_MISSING;
+    }
+    SnapshotStatus status = r.status;
+    if(r.find_status == SnapshotStatus::NODE_MISSING) {
+        if(status == SnapshotStatus::COLLIDED)
+            return SnapshotStatus::NODE_MISSING;
+        status = SnapshotStatus::NODE_MISSING;
+    }
+
+    assert( !r.parent_wrapper->packet() ||
+        (r.parent_wrapper->packet()->node().m_link == r.parent_linkage));
+    assert(( *r.parent_packet)->node().m_link == r.parent_linkage);
+
+    // CAS preparation
+    if(status == SnapshotStatus::COLLIDED)
+        return SnapshotStatus::COLLIDED;
+
+    if((serial != SerialGenerator::SERIAL_NULL) &&
+        (r.parent_wrapper->m_bundle_serial == serial)) {
+        if(status == SnapshotStatus::NODE_MISSING)
+            return SnapshotStatus::NODE_MISSING;
+        return SnapshotStatus::COLLIDED;
+    }
+
+    // Build new wrapper for this ancestor level.
+    local_shared_ptr<Packet> *p(r.parent_packet);
+    local_shared_ptr<PacketWrapper> newwrapper;
+    if(r.is_root_level) {
+        newwrapper.reset(
+            new PacketWrapper( *r.parent_wrapper, r.parent_wrapper->m_bundle_serial));
+    }
+    else {
+        assert(cas_infos->size());
+        newwrapper.reset(
+            new PacketWrapper( *p, root_wrapper->m_bundle_serial));
+    }
+    if(newwrapper) {
+        cas_infos->emplace_back(r.parent_linkage, r.parent_wrapper, newwrapper);
+        p = &newwrapper->packet();
+    }
+    int size = ( *r.parent_packet)->size();
+    if(size) {
+        p->reset(new Packet( **p));
+        ( *p)->m_missing = true;
+    }
+
+    if((status == SnapshotStatus::NODE_MISSING) && (serial != SerialGenerator::SERIAL_NULL) &&
+        (( !r.child_wrapper->hasPriority()) && (r.child_wrapper->m_bundle_serial == serial))) {
+        printf("!");
+        return SnapshotStatus::NODE_MISSING_AND_COLLIDED;
+    }
+
     return status;
 }
 
@@ -839,7 +1089,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
 //   1. hasPriority() and not missing: the node owns its packet directly —
 //      just return the packet (fast path for leaf or already-bundled nodes).
 //   2. !hasPriority(): the node is bundled into a super-node — walk up via
-//      snapshotSupernode() to find the sub-packet, possibly triggering
+//      walkUpChain() to find the sub-packet, possibly triggering
 //      unbundle() if the packet is incomplete (missing sub-packets).
 //   3. hasPriority() but missing: sub-packets are stale — call bundle() to
 //      absorb all child packets into a consistent parent packet.
@@ -851,9 +1101,14 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
 //=============================================================================
 template <class XN>
 void
-Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const {
+Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
+                   typename NegotiationCounter::cnt_t started_time,
+                   TidBitset &tid_bitset) const {
     local_shared_ptr<PacketWrapper> target;
-    for(;;) {
+    for(int retry = 0;; ++retry) {
+        if(retry)
+            m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
+                                                 4.0f, target.get());
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
         if(target->hasPriority()) {
@@ -869,7 +1124,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
             shared_ptr<Linkage > linkage(m_link);
             local_shared_ptr<PacketWrapper> superwrapper(target);
             local_shared_ptr<Packet> *foundpacket;
-            auto status = snapshotSupernode(linkage, superwrapper, &foundpacket, SnapshotMode::FOR_BUNDLE);
+            auto status = walkUpChain(linkage, superwrapper, &foundpacket);
             switch(status) {
             case SnapshotStatus::SUCCESS: {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
@@ -878,7 +1133,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
                         return;
                     }
                     // The packet is imperfect, and then re-bundling the subpackets.
-                    UnbundledStatus status = unbundle(nullptr, started_time, m_link, target);
+                    UnbundledStatus status = unbundle(nullptr, started_time, tid_bitset, m_link, target);
                     switch(status) {
                     case UnbundledStatus::W_NEW_SUBVALUE:
                     case UnbundledStatus::COLLIDED:
@@ -902,7 +1157,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename Negotiatio
             }
         }
         BundledStatus status = const_cast<Node *>(this)->bundle(
-            target, started_time, snapshot.m_serial, true);
+            target, started_time, tid_bitset, snapshot.m_serial, true);
         switch (status) {
         case BundledStatus::SUCCESS:
             assert( !target->packet()->missing());
@@ -936,7 +1191,9 @@ typename Node<XN>::BundledStatus
 Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
     const shared_ptr<Node> &subnode,
     local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
-    typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial) {
+    typename NegotiationCounter::cnt_t &started_time,
+    TidBitset &tid_bitset,
+    int64_t bundle_serial) {
 
     if( !subwrapper->hasPriority()) {
         shared_ptr<Linkage > linkage(subwrapper->bundledBy());
@@ -965,7 +1222,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
         }
         if(need_for_unbundle) {
             local_shared_ptr<PacketWrapper> subwrapper_new;
-            UnbundledStatus status = unbundle(detect_collision ? &bundle_serial : nullptr, started_time,
+            UnbundledStatus status = unbundle(detect_collision ? &bundle_serial : nullptr, started_time, tid_bitset,
                 subnode->m_link, subwrapper, nullptr, &subwrapper_new, superwrapper);
             switch(status) {
             case UnbundledStatus::W_NEW_SUBVALUE:
@@ -983,7 +1240,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
     }
     if(subwrapper->packet()->missing()) {
         assert(subwrapper->packet()->size());
-        BundledStatus status = subnode->bundle(subwrapper, started_time, bundle_serial, false);
+        BundledStatus status = subnode->bundle(subwrapper, started_time, tid_bitset, bundle_serial, false);
         switch(status) {
         case BundledStatus::SUCCESS:
             break;
@@ -1043,7 +1300,9 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
 template <class XN>
 typename Node<XN>::BundledStatus
 Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
-    typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial, bool is_bundle_root) {
+    typename NegotiationCounter::cnt_t &started_time,
+    TidBitset &tid_bitset,
+    int64_t bundle_serial, bool is_bundle_root) {
 
     assert(oldsuperwrapper->packet());
     assert(oldsuperwrapper->packet()->size());
@@ -1064,7 +1323,10 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
     fast_vector<local_shared_ptr<PacketWrapper>, 16> subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
 
-    for(;;) {
+    for(int retry = 0;; ++retry) {
+        if(retry)
+            supernode.m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
+                                                          2.0f, oldsuperwrapper.get());
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *oldsuperwrapper, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
@@ -1083,14 +1345,17 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         for(unsigned int i = 0; i < subpackets->size(); ++i) {
             shared_ptr<Node> child(( *subnodes)[i]);
             local_shared_ptr<Packet> &subpacket_new(( *subpackets)[i]);
-            for(;;) {
-                local_shared_ptr<PacketWrapper> subwrapper;
+            local_shared_ptr<PacketWrapper> subwrapper;
+            for(int child_retry = 0;; ++child_retry) {
+                if(child_retry)
+                    child->m_link->negotiate_after_retry_pause(child_retry, started_time, tid_bitset,
+                                                                2.0f, subwrapper.get());
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i])
                     break;
                 SerialGenerator::gen(subwrapper->m_bundle_serial); //Lamport: advance past sub-node serial.
                 BundledStatus status = bundle_subpacket( &oldsuperwrapper,
-                    child, subwrapper, subpacket_new, started_time, bundle_serial);
+                    child, subwrapper, subpacket_new, started_time, tid_bitset, bundle_serial);
                 switch(status) {
                 case BundledStatus::SUCCESS:
                     break;
@@ -1119,7 +1384,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         newpacket->m_missing = true;
 
         //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
-        supernode.m_link->negotiate(started_time, 2.0f);
+        supernode.m_link->negotiate(started_time, tid_bitset, 2.0f, oldsuperwrapper.get());
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_link;
 //			if(superwrapper->m_bundle_serial != bundle_serial)
@@ -1239,8 +1504,12 @@ Node<XN>::commit(Transaction<XN> &tr) {
     assert(this == &tr.m_packet->node());
 
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
+    local_shared_ptr<PacketWrapper> wrapper;
     for(int retry = 0;; ++retry) {
-        local_shared_ptr<PacketWrapper> wrapper( *m_link);
+        if(retry)
+            m_link->negotiate_after_retry_pause(retry, tr.m_started_time, tr.m_tid_bitset,
+                                                 2.0f, wrapper.get());
+        wrapper = *m_link;
         if(wrapper->hasPriority()) {
             //Committing directly to the node.
             if(wrapper->packet() != tr.m_oldpacket) {
@@ -1272,7 +1541,8 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //        if(retry == 0)
 //            m_link->negotiate(tr.m_started_time);
         //Unbundling this node from the super packet.
-        UnbundledStatus status = unbundle(nullptr, tr.m_started_time, m_link, wrapper,
+        UnbundledStatus status = unbundle(nullptr, tr.m_started_time, tr.m_tid_bitset,
+            m_link, wrapper,
             tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr);
         switch(status) {
         case UnbundledStatus::W_NEW_SUBVALUE:
@@ -1312,8 +1582,8 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //     (needed when commit must know the super-node's current state).
 //
 // Steps:
-//   1. Walk up via snapshotSupernode() to locate the sub-packet inside
-//      the super-node's bundled packet. snapshotSupernode() builds a
+//   1. Walk up via snapshotForUnbundle() to locate the sub-packet inside
+//      the super-node's bundled packet. snapshotForUnbundle() builds a
 //      cas_infos list of (linkage, old_wrapper, new_wrapper) for each
 //      ancestor that needs its PacketWrapper updated.
 //   2. If oldsubpacket was given and doesn't match, return
@@ -1329,6 +1599,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 template <class XN>
 typename Node<XN>::UnbundledStatus
 Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
+    TidBitset &tid_bitset,
     const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
     const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned,
     local_shared_ptr<PacketWrapper> *oldsuperwrapper) {
@@ -1339,33 +1610,26 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
     local_shared_ptr<PacketWrapper> superwrapper(bundled_ref);
     local_shared_ptr<Packet> *newsubpacket;
     CASInfoList cas_infos;
-    SnapshotStatus status = snapshotSupernode(sublinkage, superwrapper, &newsubpacket,
-        SnapshotMode::FOR_UNBUNDLE,
+    SnapshotStatus status = snapshotForUnbundle(sublinkage, superwrapper, &newsubpacket,
         bundle_serial ? *bundle_serial : SerialGenerator::SERIAL_NULL, &cas_infos);
-    switch(status) {
-    case SnapshotStatus::SUCCESS:
-        break;
-    case SnapshotStatus::DISTURBED:
+    if(status == SnapshotStatus::DISTURBED)
         return UnbundledStatus::DISTURBED;
-    case SnapshotStatus::VOID_PACKET:
-    case SnapshotStatus::NODE_MISSING:
+    if(status == SnapshotStatus::VOID_PACKET || status == SnapshotStatus::NODE_MISSING) {
         newsubpacket = const_cast<local_shared_ptr<Packet> *>( &bundled_ref->packet());
         assert(newsubpacket);
-        break;
-    case SnapshotStatus::NODE_MISSING_AND_COLLIDED:
+    }
+    if(status == SnapshotStatus::NODE_MISSING_AND_COLLIDED) {
         newsubpacket = const_cast<local_shared_ptr<Packet> *>( &bundled_ref->packet());
         assert(newsubpacket);
         status = SnapshotStatus::COLLIDED;
-        break;
-    case SnapshotStatus::COLLIDED:
-        break;
     }
+    // SUCCESS, COLLIDED → fall through
 
     if(oldsubpacket && ( *newsubpacket != *oldsubpacket))
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-        it->linkage->negotiate(time_started, 2.0);
+        it->linkage->negotiate(time_started, tid_bitset, 2.0, it->old_wrapper.get());
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper))
             return UnbundledStatus::DISTURBED;
         if(oldsuperwrapper) {

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 2: Bundle/Unbundle + Commit Explanation</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+.arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.3em;color:#fbbf24;margin:1em 0}
+p{line-height:1.8}
+</style>
+</head>
+<body>
+
+<!-- ===== Slide 0: Notation ===== -->
+<div class="slide">
+<h1>TLA+ Notation (See Layer 1)</h1>
+<div class="box">
+<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 1 slides</strong> (slides_layer1_en.html).<br>
+New notation introduced in these slides:</p>
+</div>
+<table>
+<tr><th>Notation</th><th>Meaning</th></tr>
+<tr><td><code>MakePacket(node, payload, sub, miss)</code></td><td>Record construction function. Returns <code>[payload |-> ..., sub |-> ..., missing |-> ..., node |-> ...]</code>.</td></tr>
+<tr><td><code>PriorityWrapper(packet, ser)</code></td><td>PacketWrapper record. <code>hasPriority=TRUE</code>.</td></tr>
+<tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>Wrapper in bundled state. <code>hasPriority=FALSE, bundledBy=parentNode</code>.</td></tr>
+<tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>Conditional function definition. Sets different initial values per node.</td></tr>
+<tr><td><code>r.field</code></td><td>Record field access. Examples: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
+<tr><td><code>% MaxSerial</code></td><td>Modular arithmetic. The serial wraps around at <code>MaxSerial</code>, making the state space structurally finite. This model does not use StateConstraint.</td></tr>
+<tr><td><code>ModGT(a, b)</code></td><td>Modular comparison. <code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>. Corresponds to signed difference comparison in C++.</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Characteristics of this model:</strong> The variable <code>local</code> has a nested record structure (<code>local[t].wrapper.packet.sub[c]</code>, etc.).
+This corresponds to nested structs in C++. In TLA+, nested fields are updated with <code>[local EXCEPT ![t].wrapper = w]</code>.</p>
+</div>
+</div>
+
+<!-- ===== Slide 1: Overview ===== -->
+<div class="slide">
+<h1>Layer 2: Bundle/Unbundle + Commit</h1>
+<h3>TLA+ Model — BundleUnbundle_2level.tla / BundleUnbundle.tla (3-level)</h3>
+
+<div class="box-purple">
+<p><strong>The most complex model.</strong> Integrated verification of 4-phase bundle, multi-level unbundle,
+and optimistic commit on 2-level and 3-level trees. The single-node CAS commit from the old "Layer 1
+(stm_commit)" is now <strong>subsumed</strong> into this layer's <code>CommitTryCAS</code> direct path
+(2-layer architecture).</p>
+<p>Model supports <strong>3 fidelity tiers</strong> (coarse / fine / superfine — see next slide).</p>
+</div>
+
+<h2>Tree Structure (Fixed)</h2>
+<div class="tree">
+Grand ── Parent ──┬── Child1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
+</div>
+
+<h2>Data Structures</h2>
+<pre><code><span class="comment">(* Packet: payload + child packets + missing flag *)</span>
+<span class="op">MakePacket</span>(node, payload, sub, miss) ==
+    [payload |-> payload, sub |-> sub, missing |-> miss, node |-> node]
+
+<span class="comment">(* PacketWrapper: priority (independent) or bundled (absorbed by parent) *)</span>
+<span class="op">PriorityWrapper</span>(packet, ser) ==
+    [packet |-> packet, hasPriority |-> TRUE, bundledBy |-> Null, serial |-> ser]
+
+<span class="op">BundledRefWrapper</span>(parentNode, ser) ==
+    [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> parentNode, serial |-> ser]</code></pre>
+
+<h2>Variables (7)</h2>
+<pre><code><span class="keyword">VARIABLES</span>
+    serial,        <span class="comment">\* per-thread serial counter</span>
+    globalSerial,  <span class="comment">\* latest global serial</span>
+    linkage,       <span class="comment">\* linkage[n]: PacketWrapper for each node</span>
+    pc, op, target, local  <span class="comment">\* per-thread state</span></code></pre>
+</div>
+
+<!-- ===== Slide 1b: 3-tier fidelity ===== -->
+<div class="slide">
+<h1>3-Tier Fidelity Model (coarse / fine / superfine)</h1>
+
+<div class="box">
+<p>This layer's TLA+ spec can verify the <strong>same invariants</strong> at different granularities.
+Granularity is selected via constant flags in the <code>.cfg</code> file. Finer modes increase state
+count but also raise fidelity to the C++ implementation.</p>
+</div>
+
+<table>
+<tr><th>Mode</th><th>Characteristics</th><th>Use case</th></tr>
+<tr><td style="color:#4ade80"><strong>coarse</strong></td><td>Phases collapsed into single atomic steps (fastest).<br>May miss some interleavings, but high-level invariants are still verifiable.</td><td>Smoke tests on large models (3-level, 3-thread, etc.)</td></tr>
+<tr><td style="color:#60a5fa"><strong>fine</strong></td><td>Per-child CAS with separate failure paths.<br>Phase3 rollback is omitted (matching C++).</td><td>Standard exhaustive verification</td></tr>
+<tr><td style="color:#c084fc"><strong>superfine</strong></td><td>Five C++-faithful optimization paths enabled:<br>
+  #1 pre-bundle serial CAS, #2 inner-bundle phase split,<br>
+  #4 Phase3 DISTURBED check, #5 root-first unbundle ordering,<br>
+  #6 same-child retry</td><td>Strict correspondence with C++</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>An example of a bug introduced during TLA+ modeling:</strong> <code>BundlePhase3</code>'s
+<code>allDone</code> check was only testing <code>~hasPriority</code>, so it incorrectly
+counted children already bundled by another thread as "done." Fixed by matching against
+<code>BundledRefWrapper(node, ser)</code> for the current thread. The C++ implementation
+runs CAS on every child without a "skip if already bundled" optimization, so it never
+exhibited this bug — it was a TLA+ model-only issue.</p>
+</div>
+</div>
+
+<!-- ===== Slide 2: Bundle 4-phase ===== -->
+<div class="slide">
+<h1>Bundle: 4-Phase CAS Protocol</h1>
+
+<h2>Phase 1: Collect — Gather child packets</h2>
+<pre><code><span class="op">BundlePhase1</span>(t) ==
+    /\ LET childPkts == [c \in children |->
+           <span class="keyword">IF</span> childWs[c].hasPriority /\ ~childWs[c].packet.missing
+           <span class="keyword">THEN</span> childWs[c].packet     <span class="comment">\* child is complete → acquire</span>
+           <span class="keyword">ELSE IF</span> childWs[c].bundledBy = node
+           <span class="keyword">THEN</span> parentW.packet.sub[c]  <span class="comment">\* already bundled → use existing</span>
+           <span class="keyword">ELSE</span> Null]                  <span class="comment">\* cannot acquire → restart</span>
+       IN
+       <span class="keyword">IF</span> allCollected
+       <span class="keyword">THEN</span> pc' → <span class="type">"bundle_phase2"</span>
+       <span class="keyword">ELSE</span> pc' → <span class="type">"snap_check"</span>  <span class="comment">\* restart</span></code></pre>
+
+<h2>Phase 2: CAS Parent — New PacketWrapper (missing=TRUE)</h2>
+<pre><code><span class="op">BundlePhase2</span>(t) ==
+    /\ LET newPkt == <span class="op">MakePacket</span>(node, payload, subs, <span class="type">TRUE</span>)
+           newW   == <span class="op">PriorityWrapper</span>(newPkt, ser)
+       IN
+       <span class="keyword">IF</span> linkage[node] = oldW    <span class="comment">\* CAS: if unchanged</span>
+       <span class="keyword">THEN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newW]</code></pre>
+
+<h2>Phase 3: CAS Children — Replace with BundledRefWrapper</h2>
+<pre><code><span class="op">BundlePhase3</span>(t) ==
+    /\ <span class="keyword">IF</span> allMatch   <span class="comment">\* all children match expected values</span>
+       <span class="keyword">THEN</span> linkage' = [n \in AllNodes |->
+           <span class="keyword">IF</span> n \in children
+           <span class="keyword">THEN</span> <span class="op">BundledRefWrapper</span>(node, ser)  <span class="comment">\* child → back-reference to parent</span>
+           <span class="keyword">ELSE</span> linkage[n]]</code></pre>
+
+<h2>Phase 4: Finalize — missing=FALSE</h2>
+<pre><code><span class="op">BundlePhase4</span>(t) ==
+    /\ LET finalPkt == <span class="op">MakePacket</span>(node, payload, sub, <span class="type">FALSE</span>)  <span class="comment">\* ← FALSE!</span>
+       IN
+       <span class="keyword">IF</span> linkage[node] = oldW
+       <span class="keyword">THEN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = finalW]
+            <span class="comment">\* → consistent snapshot is now possible</span></code></pre>
+</div>
+
+<!-- ===== Slide 3: Unbundle ===== -->
+<div class="slide">
+<h1>Unbundle: Disassembly at Commit Time</h1>
+
+<h2>Why Is It Needed?</h2>
+<p>To commit to a bundled child node, the ancestor bundle chain must first be disassembled.
+Starting from the target child, we follow <code>bundledBy</code> upward to identify the
+ancestors, set each ancestor's <code>missing</code> to TRUE, and then restore the child
+to a priority wrapper.</p>
+
+<h2>Step 1: UnbundleWalk — Build ancestor list</h2>
+<pre><code><span class="op">UnbundleWalk</span>(t) ==
+    <span class="comment">\* Starting from the target child, walk the bundledBy chain upward</span>
+    <span class="comment">\* and build the list casTargets of ancestor nodes to CAS</span>
+    <span class="comment">\* (child → parent → (at 3-level) grand)</span>
+    /\ local' = [local <span class="keyword">EXCEPT</span> ![t].casTargets = chain]
+    <span class="comment">\* superfine #5: at 3-level, build the list root-first</span>
+    <span class="comment">\* (matching the C++ traversal order: CAS from root → leaf)</span></code></pre>
+
+<h2>Step 2: UnbundleCASAncestors / UnbundleCASLoop — Set missing=TRUE on ancestors</h2>
+<pre><code><span class="op">UnbundleCASAncestors</span>(t)   <span class="comment">\* 2-level (BundleUnbundle_2level.tla)</span>
+<span class="op">UnbundleCASLoop</span>(t)         <span class="comment">\* 3-level (BundleUnbundle.tla)</span>
+    <span class="comment">\* For each ancestor in casTargets, CAS its wrapper to a new wrapper</span>
+    <span class="comment">\* with missing=TRUE. The child sub-slots sub[c] are KEPT (not nulled),</span>
+    <span class="comment">\* so Phase3 rollback / recovery paths still have the references available.</span>
+    /\ LET newPkt == <span class="op">MakePacket</span>(anc, anc.payload, anc.sub, <span class="type">TRUE</span>)
+           newW   == <span class="op">PriorityWrapper</span>(newPkt, ser)
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![anc] = newW]
+    <span class="comment">\* coarse: all ancestors in one step; fine: one ancestor per step</span></code></pre>
+
+<h2>Step 3: UnbundleCASChild — Restore target child to priority</h2>
+<pre><code><span class="op">UnbundleCASChild</span>(t) ==
+    <span class="comment">\* Restore the target child from BundledRefWrapper to PriorityWrapper,</span>
+    <span class="comment">\* carrying the new (committed) payload.</span>
+    /\ LET newChildW == <span class="op">PriorityWrapper</span>(newpacket, ser)
+       IN linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newChildW]</code></pre>
+
+<div class="box-orange">
+<p><strong>Unbundle flow (shared across depths):</strong><br>
+(1) <code>UnbundleWalk</code> builds the ancestor list <code>casTargets</code> → (2) CAS each ancestor to missing=TRUE (child slots preserved) → (3) CAS the target child back to Priority with the new payload.<br>
+<strong>Important:</strong> ancestor <code>sub[c]</code> slots are <em>not</em> nulled out. The missing=TRUE flag alone signals "this subtree is temporarily not snapshottable," and keeping <code>sub</code> intact allows Phase3 rollback or later recovery to find the references it needs.</p>
+</div>
+
+<div class="box-green">
+<p><strong>superfine #5 (3-level only):</strong> <code>casTargets</code> is built in root-first order
+(grand → parent → child direction) and ancestor CAS also runs root-first, matching the C++
+traversal. This faithfully reproduces the race cases against concurrent bundle/unbundle.</p>
+</div>
+</div>
+
+<!-- ===== Slide 4: Commit ===== -->
+<div class="slide">
+<h1>Commit: Direct Path and Parent/Grand-Scope Commit</h1>
+
+<h2>Two Kinds of Commit</h2>
+<div class="box">
+<p>The model has <strong>two commit families</strong>:</p>
+<ul>
+<li><strong>Direct commit (child scope):</strong> the 3-step pipeline <code>CommitRead</code> → <code>CommitTryCAS</code> → <code>CommitDone</code>.
+Performs the ordinary +1 to a child payload, inserting an unbundle when the target is bundled.</li>
+<li><strong>Deep commit (parent / grand scope):</strong> <code>CommitParent</code> (2-level) / <code>CommitGrand</code> (3-level).
+Takes a snapshot at parent / grand scope and applies +1 to every child payload inside that scope.
+This stresses whether payload integrity is preserved through bundle/unbundle chains.</li>
+</ul>
+</div>
+
+<h2>CommitParent (2-level) / CommitGrand (3-level)</h2>
+<pre><code><span class="op">CommitParent</span>(t)   <span class="comment">\* 2-level: parent-scope +1 propagated to every Child payload</span>
+<span class="op">CommitGrand</span>(t)    <span class="comment">\* 3-level: grand-scope +1 propagated to every Grandchild payload</span>
+    <span class="comment">\* Single CAS against the parent / grand wrapper. Updates every payload inside</span>
+    <span class="comment">\* sub[c] to (p + 1) % MaxPayload and commits the whole scope in one action.</span>
+    <span class="comment">\* Even bundled subtrees must see their internal payloads advance by +1.</span></code></pre>
+
+<h2>Direct-commit pipeline (CommitRead → CommitTryCAS → CommitDone)</h2>
+<pre><code><span class="op">CommitRead</span>(t) ==
+    <span class="comment">\* Reload linkage[node] immediately before attempting the CAS</span>
+    /\ local' = [local <span class="keyword">EXCEPT</span> ![t].wrapper = linkage[target[t]]]
+
+<span class="op">CommitTryCAS</span>(t) ==
+    <span class="keyword">IF</span> linkage[node] = oldW
+    <span class="keyword">THEN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newW]   <span class="comment">\* CAS success → commit_done</span>
+    <span class="keyword">ELSE IF</span> linkage[node].hasPriority
+    <span class="keyword">THEN</span>
+        <span class="keyword">IF</span> linkage[node].packet.payload = oldW.packet.payload
+        <span class="keyword">THEN</span> <span class="comment">\* ★ Single-node optimization: same payload → re-adopt new child and retry ★</span>
+             local' = [local <span class="keyword">EXCEPT</span> ![t].wrapper = linkage[node], ...]
+        <span class="keyword">ELSE</span> <span class="comment">\* True conflict → fail</span>
+    <span class="keyword">ELSE</span>
+        <span class="comment">\* Bundled → transition to unbundle_walk</span>
+        pc' → <span class="type">"unbundle_walk"</span>
+
+<span class="op">CommitDone</span>(t) ==
+    <span class="comment">\* Commit finalization: decrement iterBudget, pop next child from childQueue</span>
+    <span class="comment">\* If the queue is empty, return to idle; if iterBudget=0 as well, move to terminal</span>
+    /\ iterBudget' = [iterBudget <span class="keyword">EXCEPT</span> ![t] = @ - 1]</code></pre>
+
+<h2>Lifecycle variables and terminal condition</h2>
+<div class="box-green">
+<p><strong>iterBudget / childQueue / MaxCommits:</strong>
+each thread runs <code>MaxCommits</code> iterations. Each iteration consists of
+"one parent / grand-scope commit (<code>CommitParent</code> / <code>CommitGrand</code>) plus
+one direct commit per child (<code>CommitRead</code> / <code>TryCAS</code> / <code>Done</code>)."
+<code>childQueue[t]</code> holds the children still pending in the current iteration and
+<code>iterBudget[t]</code> the remaining iterations.</p>
+<p><strong>TerminalPayloadCheck:</strong> in the terminal state where all threads have
+<code>iterBudget=0</code> and are idle, each direct child's payload must equal
+<code>(2 × MaxCommits × |Threads|) % MaxPayload</code>.
+This guarantees that both the deep (+1) and direct (+1) commit streams were applied correctly.</p>
+</div>
+
+<div class="box-green">
+<p><strong>Single-node optimization:</strong> On CAS failure, if <code>linkage[node].hasPriority</code> is still
+true and the payload matches our expected value, treat it as "only the child slot was swapped by
+another thread," adopt the new child packet, and retry the CAS. This reduces wasted aborts.</p>
+</div>
+</div>
+
+<!-- ===== Slide 5: Invariants ===== -->
+<div class="slide">
+<h1>Verified Invariants (5 items)</h1>
+
+<pre><code><span class="comment">\* 1. If missing=FALSE then all child packets exist</span>
+<span class="op">SnapshotConsistency</span> ==
+    \A n \in InnerNodes :
+        (w.hasPriority /\ ~w.packet.missing) =>
+            (\A c \in ChildrenOf(n) : w.packet.sub[c] /= Null)
+
+<span class="comment">\* 2. Non-root nodes have priority OR bundledBy≠Null</span>
+<span class="op">NoPriorityLoss</span> ==
+    \A n \in AllNodes \ {Grand} :
+        w.hasPriority \/ w.bundledBy /= Null
+
+<span class="comment">\* 3. bundledBy chains are valid (reach priority within 2 hops)</span>
+<span class="op">BundleChainValid</span> ==
+    \A n \in AllNodes \ {Grand} :
+        (~w.hasPriority /\ w.bundledBy /= Null) =>
+            pw.hasPriority \/ pw.bundledBy /= Null
+
+<span class="comment">\* 4. bundledBy always points to the structural parent</span>
+<span class="op">BundledByCorrect</span> ==
+    \A n \in AllNodes \ {Grand} :
+        ~w.hasPriority => w.bundledBy = ParentOf(n)
+
+<span class="comment">\* 5. Root always has priority</span>
+<span class="op">GrandAlwaysPriority</span> ==
+    linkage[Grand].hasPriority</code></pre>
+
+<h2>Verification Results (No StateConstraint, Modular Arithmetic)</h2>
+<table>
+<tr><th>Model</th><th>Fidelity</th><th>Threads</th><th>MaxCommits</th><th>States</th><th>Time</th><th>Result</th></tr>
+<tr><td>2-level</td><td>coarse</td><td>2</td><td>1</td><td>906K</td><td>12s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>2-level</td><td>coarse</td><td>2</td><td>5</td><td>~3.2M</td><td>—</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>3-level</td><td>coarse</td><td>2</td><td>1</td><td>110K</td><td>3s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>3-level</td><td>coarse</td><td>2</td><td>5</td><td>~8.5M</td><td>—</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>3-level</td><td>all-fine</td><td>2</td><td>1</td><td>1.2M</td><td>22s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td>2/3-level</td><td>fine/superfine (deep)</td><td>2–3</td><td>5</td><td>—</td><td>—</td><td style="color:#fbbf24">pending ohtaka</td></tr>
+<tr><td colspan="7" style="font-size:0.85em; color:#94a3b8;">Serial finitized via modular arithmetic; no StateConstraint used. Production configs: MaxSerial=512 (2-level) / 1024 (3-level).</td></tr>
+</table>
+
+<div class="box-purple">
+<p><strong>What is covered:</strong> Across all 2-thread interleavings of
+snapshot/commit/bundle/unbundle, all 5 invariants are preserved. Coarse collapses phases
+into single steps (fastest); fine separates per-child CAS; superfine models the 5
+C++ optimization paths faithfully.</p>
+</div>
+
+<div class="box-green">
+<p><strong>Bug found in TLA+:</strong> In the fine granularity, <code>BundlePhase3</code>'s
+<code>allDone</code> test was only checking <code>~hasPriority</code>, so it incorrectly
+counted children already bundled by another thread as "done." Fixed by matching against
+<code>BundledRefWrapper(node, ser)</code> for the current thread. (The C++ implementation
+runs CAS on every child without a "skip if already bundled" optimization, so it never
+exhibited the bug.)</p>
+</div>
+</div>
+
+<!-- ===== Slide 6: Summary ===== -->
+<div class="slide">
+<h1>Two-Layer Overview</h1>
+
+<table>
+<tr><th>Layer</th><th>What It Abstracts</th><th>What It Verifies</th><th>States</th></tr>
+<tr><td style="color:#0891b2"><strong>Layer 1</strong><br><small>(atomic_shared_ptr)</small></td><td>— (hardware directly)</td><td>Reference counting, ABA, memory safety</td><td>8.7M (2thr complete)</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong><br><small>(Bundle/Unbundle + Commit)</small></td><td>atomic_shared_ptr as correct CAS register</td><td>Bundle/Unbundle + optimistic commit, subtree consistency</td><td>906K–8.5M (coarse/fine complete; superfine pending)</td></tr>
+</table>
+
+<div class="box">
+<p><strong>Why only 2 layers:</strong> The former "Layer 1 (stm_commit)" single-node CAS commit
+integrates naturally into Layer 2's <code>CommitTryCAS</code> direct path (single-node CAS commit),
+so a separate layer was redundant. Verifying bundle/unbundle together with optimistic commit
+in the same spec improves coverage of interference patterns.<br>
+Layer 1 is fully explored; Layer 2 coarse/all-fine are complete; superfine and deep fine
+runs are pending on ohtaka.</p>
+</div>
+</div>
+
+<!-- ===== Slide 7: C++ ↔ TLA+ ↔ Generated C11 Correspondence Table ===== -->
+<div class="slide">
+<h1>C++ ↔ TLA+ ↔ Generated C11 Correspondence Table</h1>
+
+<h2>Variable Mapping</h2>
+<table>
+<tr><th>TLA+ Variable</th><th>C++ (transaction_impl.h)</th><th>Generated C11 (test_bundle_3level.c)</th></tr>
+<tr><td><code>linkage[n]</code></td><td><code>atomic_shared_ptr&lt;PacketWrapper&gt; n->m_link</code></td><td><code>_Atomic(uint64_t) linkage[4]</code><br>64-bit packed (Wrapper struct)</td></tr>
+<tr><td><code>linkage[n].hasPriority</code></td><td><code>PacketWrapper::hasPriority()</code></td><td><code>Wrapper.has_priority</code> (bit field)</td></tr>
+<tr><td><code>linkage[n].bundledBy</code></td><td><code>PacketWrapper::bundledBy()</code></td><td><code>Wrapper.bundled_by</code></td></tr>
+<tr><td><code>linkage[n].packet.payload</code></td><td><code>Packet::payload()</code></td><td><code>Wrapper.payload</code></td></tr>
+<tr><td><code>linkage[n].packet.sub[c]</code></td><td><code>Packet::subpackets()[i]</code></td><td><code>Wrapper.sub_child1/2</code></td></tr>
+<tr><td><code>serial[t]</code></td><td><code>SerialGenerator</code> (Lamport clock)</td><td><code>uint8_t thread_ser</code> (local)</td></tr>
+<tr><td><code>ModGT(a,b)</code></td><td>Unsigned subtraction → signed reinterpretation</td><td><code>mod_gt(a,b)</code>: <code>(a-b+MAX)%MAX &lt; MAX/2</code></td></tr>
+</table>
+
+<h2>Action Mapping</h2>
+<table>
+<tr><th>TLA+ Action</th><th>C++ Code</th><th>Generated C11 Function</th></tr>
+<tr><td><code>SnapRead</code> + <code>SnapCheck</code><br>(3-level uses only <code>SnapCheck</code>)</td><td><code>snapshot()</code><br>transaction_impl.h:842-870</td><td><code>snapshot_grand()</code><br><code>load_wrapper()</code> → priority/missing decision</td></tr>
+<tr><td><code>BundlePhase1</code>–<code>4</code></td><td><code>bundle()</code><br>transaction_impl.h:1077-1171</td><td>Within <code>snapshot_grand()</code><br>collect → CAS parent → CAS children → finalize</td></tr>
+<tr><td><code>InnerPhase2</code>/<code>3</code>/<code>4</code><br>(3-level only)</td><td>Inner-bundle portion of <code>bundle()</code><br>transaction_impl.h:1100-1171</td><td>Within <code>snapshot_grand()</code><br>Inner bundle on Parent when Grand bundles (explicit in superfine; collapsed into <code>BundlePhase1</code> in fine)</td></tr>
+<tr><td><code>CommitParent</code> (2-level)<br><code>CommitGrand</code> (3-level)</td><td>Parent / grand-scope <code>commit()</code><br>transaction_impl.h:1245-1270</td><td><code>commit_parent()</code> / <code>commit_grand()</code><br>Deep commit: +1 to every child payload in the scope</td></tr>
+<tr><td><code>CommitRead</code></td><td>Reload just before CAS in <code>commit()</code><br>transaction_impl.h:1245-1260</td><td>Within <code>commit_child()</code><br><code>load_wrapper</code> immediately before the CAS attempt</td></tr>
+<tr><td><code>CommitTryCAS</code></td><td><code>commit()</code><br>transaction_impl.h:1245-1270</td><td><code>commit_child()</code><br>Direct CAS + single-node optimization</td></tr>
+<tr><td><code>CommitDone</code></td><td>Finalization tail of <code>commit()</code><br>transaction_impl.h:1265-1275</td><td>Tail of <code>commit_child()</code><br>Decrement <code>iterBudget</code>, advance to next child or idle</td></tr>
+<tr><td><code>UnbundleWalk</code></td><td><code>snapshotSupernode()</code><br>transaction_impl.h:696-755</td><td>Within <code>commit_child()</code><br>Walk <code>bundledBy</code> chain to build casTargets (superfine #5 is root-first)</td></tr>
+<tr><td><code>UnbundleCASAncestors</code> (2-level)<br><code>UnbundleCASLoop</code> (3-level)</td><td>transaction_impl.h:1367-1379</td><td>Within <code>commit_child()</code><br><code>cas_wrapper(anc, ... missing=TRUE)</code> per ancestor. Child sub-slots kept (not nulled)</td></tr>
+<tr><td><code>UnbundleCASChild</code></td><td>transaction_impl.h:1383-1389</td><td>Within <code>commit_child()</code><br>child → priority restoration with new payload</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Layer 2 characteristics:</strong> In the generated C11, all node linkage is packed into 64 bits,
+and all fields are atomically updated with a single <code>atomic_compare_exchange</code>.
+This is faithful to the "1 action = 1 step" principle of TLA+.</p>
+</div>
+</div>
+
+</body>
+</html>

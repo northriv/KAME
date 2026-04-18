@@ -5,7 +5,7 @@
  *  insertion/removal/swap of object links on tree-structure objects.
  */
 
-#include "support.h"
+#include "support_standalone.h"
 
 #include <stdint.h>
 #include <thread>

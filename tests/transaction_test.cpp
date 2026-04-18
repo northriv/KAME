@@ -4,7 +4,7 @@
  * Test code of software transactional memory, for simultaneous transaction on tree-structure objects.
  */
 
-#include "support.h"
+#include "support_standalone.h"
 
 #include <stdint.h>
 #include <thread>

@@ -1,3 +1,16 @@
+/***************************************************************************
+        Copyright (C) 2002-2026 Kentaro Kitagawa
+                           kitag@issp.u-tokyo.ac.jp
+
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
+
+        You should have received a copy of the GNU General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
+ ***************************************************************************/
 /*
  * GenMC test 2: load_shared_ + compareAndSwap_ race
  *
@@ -75,15 +88,14 @@ static void release_tag_ref(Obj *pref) {
     for (;;) {
         uintptr_t cur = atomic_load_explicit(&g_ref, memory_order_relaxed);
         uintptr_t rcnt_old = get_tag(cur);
-        if (rcnt_old) {
+        if (rcnt_old && get_ptr(cur) == pref) {
             uintptr_t rcnt_new = rcnt_old - 1u;
             uintptr_t expected = (uintptr_t)pref + rcnt_old;
             uintptr_t desired  = (uintptr_t)pref + rcnt_new;
             if (atomic_compare_exchange_weak_explicit(&g_ref, &expected, desired,
                     memory_order_acq_rel, memory_order_relaxed))
                 break;
-            cur = atomic_load_explicit(&g_ref, memory_order_relaxed);
-            if (get_ptr(cur) == pref)
+            if (get_ptr(atomic_load_explicit(&g_ref, memory_order_relaxed)) == pref)
                 continue;
         }
         uintptr_t old_rc = atomic_fetch_sub_explicit(&pref->refcnt, 1,
