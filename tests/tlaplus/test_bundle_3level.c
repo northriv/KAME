@@ -14,20 +14,27 @@
 /*
  * C11 test generated mechanically from BundleUnbundle.tla (Layer 2, 3-level)
  *
- * Tree structure:
- *   Grand --+-- Parent --+-- Child1
- *                         +-- Child2
+ * Tree: Grand --+-- Parent --+-- Child1
+ *                             +-- Child2
  *
- * Models:
- *   - Recursive bundling: snapshot(Grand) bundles Parent, which bundles Children
- *   - Multi-level unbundle: commit(Child) when bundled 2 levels deep
- *   - snapshotSupernode() walking up through bundledBy chain
+ * Thread lifecycle (MaxCommits iterations per thread):
+ *   Each iteration:
+ *     1. commit_grand() -- snapshot Grand (recursive bundle Parent, then Children),
+ *                          then atomic CAS on Grand bumping BOTH leaf sub-packets.
+ *     2. commit_child(Child1) -- direct commit or 1/2-level unbundle.
+ *     3. commit_child(Child2) -- ditto.
+ *   Each child ends with exactly 2 * MaxCommits * Threads increments (mod MaxPayload).
  *
- * TLA+ variable mapping:
- *   Same packing approach as 2-level test.
- *   Grand's sub-packets hold Parent's wrapper.
- *   Parent's sub-packets hold Child1/Child2's wrappers.
- *   We encode the nested structure with separate atomic words per node.
+ * Atomicity modes (compile-time -DMODE=MODE_{COARSE,FINE,SUPERFINE}):
+ *   COARSE    : every top-level op runs under a global mutex; matches TLA+
+ *               coarse (BundleCollectAtomic + BundlePhase3Atomic + Unbundle*
+ *               atomic).
+ *   FINE      : per-step CAS, restart outer loop on failure (default).
+ *   SUPERFINE : FINE + pre-bundle serial CAS on both inner and outer bundles.
+ *
+ * Build modes:
+ *   -DSTRESS_SECONDS=10 : 10-second stress loop, reports commit counts.
+ *   (default)           : GenMC/unit mode, MAX_COMMITS=1, asserts TerminalPayloadCheck.
  */
 
 #include <stdint.h>
@@ -35,6 +42,39 @@
 #include <pthread.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/* --- Compile-time mode selection --- */
+#define MODE_COARSE    1
+#define MODE_FINE      2
+#define MODE_SUPERFINE 3
+
+#ifndef MODE
+#define MODE MODE_FINE
+#endif
+
+#ifndef NUM_THREADS
+#define NUM_THREADS 2
+#endif
+
+#ifndef STRESS_SECONDS
+#define STRESS_SECONDS 0
+#endif
+
+#ifndef MAX_COMMITS
+#  if STRESS_SECONDS > 0
+#    define MAX_COMMITS 0x7fffffff
+#  else
+#    define MAX_COMMITS 1
+#  endif
+#endif
+
+#ifndef MAX_PAYLOAD
+#define MAX_PAYLOAD 3
+#endif
 
 /* --- Node IDs --- */
 #define NODE_GRAND   0
@@ -42,499 +82,577 @@
 #define NODE_CHILD1  2
 #define NODE_CHILD2  3
 #define NUM_NODES    4
-#define NULL_NODE    0xFF
 
-/* --- Modular serial arithmetic --- */
-#define MAX_SERIAL  16  /* must be even */
-#define MAX_PAYLOAD 4
+/* bundled_by is a 2-bit field: 0=GRAND, 1=PARENT, 3=NULL_NODE (priority).
+ * NODE_GRAND/NODE_PARENT happen to fit in those 2 bits already. */
+#define NULL_NODE   0x3
+#define W_NULL_SUB  0xF       /* 4-bit sentinel for sub / nested-sub fields */
 
-static inline bool mod_gt(uint8_t a, uint8_t b) {
-    uint8_t diff = (a - b + MAX_SERIAL) % MAX_SERIAL;
-    return diff > 0 && diff < MAX_SERIAL / 2;
+/* --- Serial arithmetic: plain uint32_t with natural overflow.
+ * Stress runs do < 2^31 ops, so simple `>` comparisons are safe. --- */
+static inline uint32_t gen_serial(uint32_t thread_ser, uint32_t last_ser) {
+    uint32_t base = (last_ser > thread_ser) ? last_ser : thread_ser;
+    return base + 1;
 }
 
-static inline uint8_t gen_serial(uint8_t thread_ser, uint8_t last_ser) {
-    uint8_t base = mod_gt(last_ser, thread_ser) ? last_ser : thread_ser;
-    return (base + 1) % MAX_SERIAL;
-}
-
-/* --- ParentOf / ChildrenOf --- */
-static int parent_of(int n) {
-    if (n == NODE_CHILD1 || n == NODE_CHILD2) return NODE_PARENT;
-    if (n == NODE_PARENT) return NODE_GRAND;
-    return NULL_NODE;
-}
-
-/* --- Wrapper per node --- */
-/*
- * Each node's linkage is an atomic 64-bit word packing:
- *   hasPriority, serial, bundledBy, missing, payload,
- *   sub-packet payloads for its children
- *
- * Grand's children: {Parent}
- * Parent's children: {Child1, Child2}
- * Children: no sub-packets (leaf)
- *
- * Encoding (same as 2-level but with different sub-packet layout per node):
- *   bits 63:    hasPriority
- *   bits 62-56: serial (7 bits)
- *   bits 55-48: bundledBy node id
- *   bits 47:    missing
- *   bits 46-40: payload (7 bits)
- *   For Grand:  bits 39-32: sub_parent_payload (W_NULL_SUB if absent)
- *               bits 31:    sub_parent_missing
- *               bits 30-24: sub_parent_sub_child1 (nested)
- *               bits 23-17: sub_parent_sub_child2 (nested)
- *   For Parent: bits 39-32: sub_child1_payload
- *               bits 31-24: sub_child2_payload
- *   For leaves: no sub-packets
- *
- * This nested encoding is complex. For clarity and to avoid errors,
- * we use a simpler representation: each node has its own atomic word
- * for its direct state, and we use a separate "sub-packet store" for
- * the bundle's nested sub-packet data.
+/* --- Wrapper: packed 64-bit linkage word ---
+ * Layout:
+ *   bits 0-31  : serial (uint32_t)
+ *   bit 32     : has_priority
+ *   bit 33     : missing
+ *   bits 34-35 : bundled_by (NULL_NODE=3 when has_priority)
+ *   bits 36-39 : payload (0..14)
+ *   bits 40-43 : sub[0]         (Parent: Child1 payload;  Grand: Parent payload)
+ *   bits 44-47 : sub[1]         (Parent: Child2 payload;  Grand: unused)
+ *   bits 48-51 : sub_nested[0]  (Grand only: Child1 payload under bundled Parent)
+ *   bits 52-55 : sub_nested[1]  (Grand only: Child2 payload under bundled Parent)
+ *   bits 56-63 : unused
  */
-
-/* Simplified approach: each node's wrapper is an atomic struct-like word
- * encoding just its own level's data. Bundle state is tracked by whether
- * nodes are priority or bundled-ref. The actual sub-packet data lives
- * in the parent's wrapper encoding. */
-
-#define W_NULL_SUB 0xFF
-
 typedef struct {
     bool     has_priority;
-    uint8_t  serial;
-    uint8_t  bundled_by;    /* NULL_NODE if priority */
+    uint32_t serial;
+    uint8_t  bundled_by;
     bool     missing;
     uint8_t  payload;
-    /* Sub-packet payloads (only meaningful if has_priority) */
-    /* For Grand: sub[0]=Parent's payload */
-    /* For Parent: sub[0]=Child1's payload, sub[1]=Child2's payload */
-    uint8_t  sub[2];
-    /* Nested: for Grand, we also need Parent's sub-packets */
-    uint8_t  sub_nested[2]; /* Grand only: Parent's child1/child2 payloads */
-    bool     sub_missing;   /* sub-packet's missing flag */
+    uint8_t  sub0;              /* Parent: Child1 payload;  Grand: Parent payload */
+    uint8_t  sub1;              /* Parent: Child2 payload;  Grand: unused */
+    uint8_t  nested0;           /* Grand only: Child1 payload under bundled Parent */
+    uint8_t  nested1;           /* Grand only: Child2 payload under bundled Parent */
 } Wrapper;
 
-/* Pack to 64 bits */
-static uint64_t wrapper_pack(Wrapper w) {
+static inline uint64_t wrapper_pack(Wrapper w) {
     uint64_t v = 0;
-    v |= ((uint64_t)w.has_priority) << 63;
-    v |= ((uint64_t)(w.serial & 0x7F)) << 56;
-    v |= ((uint64_t)w.bundled_by) << 48;
-    v |= ((uint64_t)w.missing) << 47;
-    v |= ((uint64_t)(w.payload & 0x7F)) << 40;
-    v |= ((uint64_t)w.sub[0]) << 32;
-    v |= ((uint64_t)w.sub[1]) << 24;
-    v |= ((uint64_t)w.sub_nested[0]) << 16;
-    v |= ((uint64_t)w.sub_nested[1]) << 8;
-    v |= ((uint64_t)w.sub_missing);
+    v |= (uint64_t)w.serial;
+    v |= ((uint64_t)(w.has_priority ? 1 : 0)) << 32;
+    v |= ((uint64_t)(w.missing ? 1 : 0)) << 33;
+    v |= ((uint64_t)(w.bundled_by & 0x3)) << 34;
+    v |= ((uint64_t)(w.payload & 0xF)) << 36;
+    v |= ((uint64_t)(w.sub0 & 0xF)) << 40;
+    v |= ((uint64_t)(w.sub1 & 0xF)) << 44;
+    v |= ((uint64_t)(w.nested0 & 0xF)) << 48;
+    v |= ((uint64_t)(w.nested1 & 0xF)) << 52;
     return v;
 }
 
-static Wrapper wrapper_unpack(uint64_t v) {
+static inline Wrapper wrapper_unpack(uint64_t v) {
     Wrapper w;
-    w.has_priority = (v >> 63) & 1;
-    w.serial       = (v >> 56) & 0x7F;
-    w.bundled_by   = (v >> 48) & 0xFF;
-    w.missing      = (v >> 47) & 1;
-    w.payload      = (v >> 40) & 0x7F;
-    w.sub[0]       = (v >> 32) & 0xFF;
-    w.sub[1]       = (v >> 24) & 0xFF;
-    w.sub_nested[0]= (v >> 16) & 0xFF;
-    w.sub_nested[1]= (v >> 8)  & 0xFF;
-    w.sub_missing  = v & 1;
+    w.serial             = (uint32_t)(v & 0xFFFFFFFFu);
+    w.has_priority       = (v >> 32) & 1;
+    w.missing            = (v >> 33) & 1;
+    w.bundled_by         = (v >> 34) & 0x3;
+    w.payload            = (v >> 36) & 0xF;
+    w.sub0               = (v >> 40) & 0xF;
+    w.sub1               = (v >> 44) & 0xF;
+    w.nested0            = (v >> 48) & 0xF;
+    w.nested1            = (v >> 52) & 0xF;
     return w;
 }
 
 /* --- Shared state --- */
-_Atomic(uint64_t) linkage[NUM_NODES];
+static _Atomic(uint64_t) linkage[NUM_NODES];
+static _Atomic(uint32_t) commit_count[NUM_NODES];
+static _Atomic(bool)     g_stop;
 
-/* Per-node commit counter (model-only, for QuiescentCheck) */
-_Atomic(uint32_t) commit_count[NUM_NODES];
+#if MODE == MODE_COARSE
+static pthread_mutex_t coarse_mtx = PTHREAD_MUTEX_INITIALIZER;
+#  define OP_LOCK()   pthread_mutex_lock(&coarse_mtx)
+#  define OP_UNLOCK() pthread_mutex_unlock(&coarse_mtx)
+#else
+#  define OP_LOCK()   ((void)0)
+#  define OP_UNLOCK() ((void)0)
+#endif
 
-static Wrapper load_wrapper(int node) {
-    return wrapper_unpack(atomic_load_explicit(&linkage[node], memory_order_acquire));
+static Wrapper load_w(int n) {
+    return wrapper_unpack(atomic_load_explicit(&linkage[n], memory_order_acquire));
 }
 
-static bool cas_wrapper(int node, Wrapper *expected, Wrapper desired) {
-    uint64_t exp_val = wrapper_pack(*expected);
-    uint64_t des_val = wrapper_pack(desired);
-    bool ok = atomic_compare_exchange_strong_explicit(&linkage[node],
-            &exp_val, des_val, memory_order_acq_rel, memory_order_relaxed);
-    if (!ok) *expected = wrapper_unpack(exp_val);
+static bool cas_w(int n, Wrapper *expected, Wrapper desired) {
+    uint64_t e = wrapper_pack(*expected);
+    uint64_t d = wrapper_pack(desired);
+    bool ok = atomic_compare_exchange_strong_explicit(
+        &linkage[n], &e, d, memory_order_acq_rel, memory_order_relaxed);
+    if (!ok) *expected = wrapper_unpack(e);
     return ok;
 }
 
-static Wrapper make_priority(uint8_t payload, uint8_t serial,
-                              uint8_t s0, uint8_t s1, bool missing) {
+/* Construct a priority wrapper for a LEAF child: no sub[] / sub_nested[]. */
+static Wrapper priority_leaf(uint8_t payload, uint32_t serial, bool missing) {
     return (Wrapper){
         .has_priority = true, .serial = serial, .bundled_by = NULL_NODE,
         .missing = missing, .payload = payload,
-        .sub = {s0, s1}, .sub_nested = {W_NULL_SUB, W_NULL_SUB},
-        .sub_missing = false
+        .sub0 = W_NULL_SUB, .sub1 = W_NULL_SUB,
+        .nested0 = W_NULL_SUB, .nested1 = W_NULL_SUB,
     };
 }
 
-static Wrapper make_bundled_ref(uint8_t parent_node, uint8_t serial) {
+/* Construct a priority Parent wrapper: sub[] = (Child1 payload, Child2 payload). */
+static Wrapper priority_parent(uint8_t payload, uint32_t serial,
+                               uint8_t s0, uint8_t s1, bool missing) {
+    return (Wrapper){
+        .has_priority = true, .serial = serial, .bundled_by = NULL_NODE,
+        .missing = missing, .payload = payload,
+        .sub0 = s0, .sub1 = s1,
+        .nested0 = W_NULL_SUB, .nested1 = W_NULL_SUB,
+    };
+}
+
+/* Construct a priority Grand wrapper: sub[0] = Parent payload;
+ * sub_nested = (Child1, Child2) payloads nested under the stored Parent packet. */
+static Wrapper priority_grand(uint8_t payload, uint32_t serial,
+                              uint8_t parent_sub,
+                              uint8_t n0, uint8_t n1,
+                              bool missing) {
+    return (Wrapper){
+        .has_priority = true, .serial = serial, .bundled_by = NULL_NODE,
+        .missing = missing, .payload = payload,
+        .sub0 = parent_sub, .sub1 = W_NULL_SUB,
+        .nested0 = n0, .nested1 = n1,
+    };
+}
+
+/* Construct a bundled-ref wrapper (has_priority=false). */
+static Wrapper bundled_w(uint8_t parent_node, uint32_t serial) {
     return (Wrapper){
         .has_priority = false, .serial = serial, .bundled_by = parent_node,
         .missing = false, .payload = 0,
-        .sub = {W_NULL_SUB, W_NULL_SUB}, .sub_nested = {W_NULL_SUB, W_NULL_SUB},
-        .sub_missing = false
+        .sub0 = W_NULL_SUB, .sub1 = W_NULL_SUB,
+        .nested0 = W_NULL_SUB, .nested1 = W_NULL_SUB,
     };
 }
 
-/* ========================================================================== */
-/* Snapshot Grand (with recursive bundle)                                     */
-/* ========================================================================== */
+static inline uint8_t get_child_sub(Wrapper w, int child_node) {
+    return (child_node == NODE_CHILD1) ? w.sub0 : w.sub1;
+}
+static inline uint8_t get_child_nested(Wrapper w, int child_node) {
+    return (child_node == NODE_CHILD1) ? w.nested0 : w.nested1;
+}
 
-/*
- * snapshot(Grand): SnapRead → SnapCheck → Bundle 4-phase → SnapDone
- * May recursively bundle Parent's children.
- */
-static uint8_t snapshot_grand(uint8_t *thread_ser) {
+/* =========================================================================
+ * Bundle: inner level (Parent missing -> bundle Child1, Child2 under Parent)
+ *
+ * Phase1 collect: read cw1, cw2; compute sp1, sp2 (child payload if priority,
+ *                 else fall back to pw.sub[i] if already bundled-by-Parent).
+ * Phase2 CAS   : Parent -> (missing=true, sub=(sp1,sp2), serial=bundle_ser).
+ * Phase3 CAS   : child -> bundled-by-Parent, ser=bundle_ser, one per child.
+ *                On failure, return (restart from snap_check).
+ * Phase4 CAS   : Parent missing=false.
+ * Returns true on success (pw_out = finalized Parent wrapper).
+ * ========================================================================= */
+static bool try_inner_bundle(uint32_t *thread_ser, Wrapper *pw_out) {
+    Wrapper pw = load_w(NODE_PARENT);
+    if (!pw.has_priority) return false;
+    if (!pw.missing) { *pw_out = pw; return true; }
+
+    uint32_t bundle_ser = gen_serial(*thread_ser, pw.serial);
+    *thread_ser = bundle_ser;
+
+#if MODE == MODE_SUPERFINE
+    if (pw.serial != bundle_ser) {
+        Wrapper prestamp = priority_parent(pw.payload, bundle_ser,
+                                           pw.sub0, pw.sub1, pw.missing);
+        Wrapper exp = pw;
+        if (!cas_w(NODE_PARENT, &exp, prestamp)) return false;
+        pw = prestamp;
+    }
+#endif
+
+    Wrapper cw1 = load_w(NODE_CHILD1);
+    Wrapper cw2 = load_w(NODE_CHILD2);
+    uint8_t sp1, sp2;
+    if (cw1.has_priority) sp1 = cw1.payload;
+    else if (cw1.bundled_by == NODE_PARENT && pw.sub0 != W_NULL_SUB) sp1 = pw.sub0;
+    else sp1 = W_NULL_SUB;
+    if (cw2.has_priority) sp2 = cw2.payload;
+    else if (cw2.bundled_by == NODE_PARENT && pw.sub1 != W_NULL_SUB) sp2 = pw.sub1;
+    else sp2 = W_NULL_SUB;
+    if (sp1 == W_NULL_SUB || sp2 == W_NULL_SUB) return false;
+
+    Wrapper p2 = priority_parent(pw.payload, bundle_ser, sp1, sp2, true);
+    Wrapper exp_p2 = pw;
+    if (!cas_w(NODE_PARENT, &exp_p2, p2)) return false;
+
+    Wrapper b = bundled_w(NODE_PARENT, bundle_ser);
+    Wrapper exp_c1 = cw1;
+    bool ok1 = cas_w(NODE_CHILD1, &exp_c1, b);
+    Wrapper exp_c2 = cw2;
+    bool ok2 = ok1 ? cas_w(NODE_CHILD2, &exp_c2, b) : false;
+    if (!ok1 || !ok2) return false;
+
+    Wrapper p4 = priority_parent(p2.payload, bundle_ser, sp1, sp2, false);
+    Wrapper exp_p4 = p2;
+    if (!cas_w(NODE_PARENT, &exp_p4, p4)) return false;
+
+    *pw_out = p4;
+    return true;
+}
+
+/* =========================================================================
+ * Bundle: outer level (Grand missing -> bundle Parent under Grand).
+ *
+ * Preconditions:
+ *   Grand is priority, missing=true.
+ *   Parent is either priority (possibly missing) OR bundled-by-Grand.
+ * If Parent is missing, we call try_inner_bundle first so that Parent's
+ * own sub-packets are present before we snapshot it into Grand.
+ *
+ * Phase2: CAS Grand -> (missing=true, sub[0]=parent.payload,
+ *                      sub_nested=[parent.sub0, parent.sub1],
+ *                      ser=bundle_ser).
+ * Phase3: CAS Parent -> bundled-by-Grand.
+ * Phase4: CAS Grand missing=false.
+ * ========================================================================= */
+static bool try_outer_bundle(uint32_t *thread_ser, Wrapper *gw_out) {
+    Wrapper gw = load_w(NODE_GRAND);
+    if (!gw.has_priority) return false;
+    if (!gw.missing) { *gw_out = gw; return true; }
+
+    Wrapper pw = load_w(NODE_PARENT);
+    uint8_t parent_payload, nested0, nested1;
+
+    if (pw.has_priority) {
+        if (pw.missing) {
+            Wrapper pw_fresh;
+            if (!try_inner_bundle(thread_ser, &pw_fresh)) return false;
+            pw = pw_fresh;
+        }
+        parent_payload = pw.payload;
+        nested0 = pw.sub0;
+        nested1 = pw.sub1;
+    } else if (pw.bundled_by == NODE_GRAND) {
+        if (gw.sub0 == W_NULL_SUB) return false;
+        if (gw.nested0 == W_NULL_SUB || gw.nested1 == W_NULL_SUB) return false;
+        parent_payload = gw.sub0;
+        nested0 = gw.nested0;
+        nested1 = gw.nested1;
+    } else {
+        return false;
+    }
+    if (parent_payload == W_NULL_SUB ||
+        nested0 == W_NULL_SUB || nested1 == W_NULL_SUB) return false;
+
+    uint32_t bundle_ser = gen_serial(*thread_ser, gw.serial);
+    *thread_ser = bundle_ser;
+
+#if MODE == MODE_SUPERFINE
+    if (gw.serial != bundle_ser) {
+        Wrapper prestamp = priority_grand(gw.payload, bundle_ser,
+                                          gw.sub0,
+                                          gw.nested0, gw.nested1,
+                                          gw.missing);
+        Wrapper exp = gw;
+        if (!cas_w(NODE_GRAND, &exp, prestamp)) return false;
+        gw = prestamp;
+    }
+#endif
+
+    /* Phase2: CAS Grand with Parent's snapshot, missing=true. */
+    Wrapper g2 = priority_grand(gw.payload, bundle_ser,
+                                parent_payload, nested0, nested1,
+                                true);
+    Wrapper exp_g2 = gw;
+    if (!cas_w(NODE_GRAND, &exp_g2, g2)) return false;
+
+    /* Phase3: CAS Parent to bundled-by-Grand (only if Parent still matches
+     * what we computed above — i.e. priority + same payload/subs). */
+    if (pw.has_priority) {
+        Wrapper bref = bundled_w(NODE_GRAND, bundle_ser);
+        Wrapper exp_pw = pw;
+        if (!cas_w(NODE_PARENT, &exp_pw, bref)) return false;
+    }
+    /* else: Parent already bundled-by-Grand; Phase3 is a no-op. */
+
+    /* Phase4: CAS Grand missing=false. */
+    Wrapper g4 = g2;
+    g4.missing = false;
+    Wrapper exp_g4 = g2;
+    if (!cas_w(NODE_GRAND, &exp_g4, g4)) return false;
+
+    *gw_out = g4;
+    return true;
+}
+
+/* snapshot_grand(): loop until Grand is priority && !missing, with all
+ * sub-packets (parent + nested) present. */
+static void snapshot_grand(uint32_t *thread_ser, Wrapper *gw_out) {
     for (;;) {
-        /* SnapCheck: read Grand */
-        Wrapper gw = load_wrapper(NODE_GRAND);
-
-        if (gw.has_priority && !gw.missing) {
-            /* Fast path: Grand has all sub-packets, complete */
-            assert(gw.sub[0] != W_NULL_SUB);  /* Parent sub present */
-            return gw.payload;
+        Wrapper gw = load_w(NODE_GRAND);
+        if (gw.has_priority && !gw.missing
+            && gw.sub0 != W_NULL_SUB
+            && gw.nested0 != W_NULL_SUB
+            && gw.nested1 != W_NULL_SUB) {
+            *gw_out = gw;
+            return;
         }
-
-        if (gw.has_priority && gw.missing) {
-            /* Bundle Grand's child (Parent) */
-            uint8_t bundle_ser = gen_serial(*thread_ser, gw.serial);
-            *thread_ser = bundle_ser;
-
-            /* BundlePhase1: collect Parent's state */
-            Wrapper pw = load_wrapper(NODE_PARENT);
-            uint8_t parent_payload = W_NULL_SUB;
-
-            if (pw.has_priority) {
-                if (!pw.missing) {
-                    parent_payload = pw.payload;
-                } else {
-                    /* Parent is missing → need to bundle Parent first.
-                     * For simplicity, we first bundle Parent's children,
-                     * then retry Grand's bundle. */
-
-                    /* Bundle Parent's children */
-                    uint8_t p_ser = gen_serial(*thread_ser, pw.serial);
-                    *thread_ser = p_ser;
-
-                    Wrapper c1w = load_wrapper(NODE_CHILD1);
-                    Wrapper c2w = load_wrapper(NODE_CHILD2);
-                    uint8_t sp1 = W_NULL_SUB, sp2 = W_NULL_SUB;
-
-                    if (c1w.has_priority) sp1 = c1w.payload;
-                    else if (c1w.bundled_by == NODE_PARENT) sp1 = pw.sub[0];
-
-                    if (c2w.has_priority) sp2 = c2w.payload;
-                    else if (c2w.bundled_by == NODE_PARENT) sp2 = pw.sub[1];
-
-                    if (sp1 == W_NULL_SUB || sp2 == W_NULL_SUB) continue;
-
-                    /* CAS Parent with subs (still missing=TRUE) */
-                    Wrapper new_pw = make_priority(pw.payload, p_ser, sp1, sp2, true);
-                    Wrapper exp_pw = pw;
-                    if (!cas_wrapper(NODE_PARENT, &exp_pw, new_pw)) continue;
-
-                    /* CAS children to bundled-ref */
-                    Wrapper exp_c1 = c1w, exp_c2 = c2w;
-                    if (!cas_wrapper(NODE_CHILD1, &exp_c1,
-                                     make_bundled_ref(NODE_PARENT, p_ser)) ||
-                        !cas_wrapper(NODE_CHILD2, &exp_c2,
-                                     make_bundled_ref(NODE_PARENT, p_ser))) {
-                        continue;
-                    }
-
-                    /* Finalize Parent: missing=FALSE */
-                    Wrapper final_pw = make_priority(pw.payload, p_ser, sp1, sp2, false);
-                    Wrapper exp_pw2 = new_pw;
-                    if (!cas_wrapper(NODE_PARENT, &exp_pw2, final_pw)) continue;
-
-                    /* Now retry Grand's bundle with bundled Parent */
-                    continue;
-                }
-            } else if (pw.bundled_by == NODE_GRAND) {
-                /* Parent already bundled by Grand, use existing sub */
-                parent_payload = gw.sub[0];
-            } else {
-                continue;  /* can't collect */
-            }
-
-            if (parent_payload == W_NULL_SUB) continue;
-
-            /* BundlePhase2: CAS Grand with Parent's packet (still missing=TRUE) */
-            Wrapper new_gw = make_priority(gw.payload, bundle_ser,
-                                            parent_payload, W_NULL_SUB, true);
-            /* Store Parent's sub-packets in Grand's nested slots */
-            Wrapper pw_now = load_wrapper(NODE_PARENT);
-            if (pw_now.has_priority && !pw_now.missing) {
-                new_gw.sub_nested[0] = pw_now.sub[0];
-                new_gw.sub_nested[1] = pw_now.sub[1];
-            }
-            Wrapper exp_gw = gw;
-            if (!cas_wrapper(NODE_GRAND, &exp_gw, new_gw)) continue;
-
-            /* BundlePhase3: CAS Parent to bundled-ref pointing to Grand */
-            Wrapper exp_pw3 = pw_now;
-            if (!cas_wrapper(NODE_PARENT, &exp_pw3,
-                             make_bundled_ref(NODE_GRAND, bundle_ser))) {
-                continue;
-            }
-
-            /* BundlePhase4: finalize Grand, missing=FALSE */
-            Wrapper final_gw = new_gw;
-            final_gw.missing = false;
-            Wrapper exp_gw2 = new_gw;
-            if (!cas_wrapper(NODE_GRAND, &exp_gw2, final_gw)) continue;
-
-            assert(final_gw.sub[0] != W_NULL_SUB);
-            return final_gw.payload;
+        if (gw.has_priority) {
+            /* Grand is missing or sub-packets incomplete → (re-)bundle. */
+            if (try_outer_bundle(thread_ser, gw_out)) return;
+            continue;
         }
-
-        /* Grand is bundled (shouldn't happen for root) → retry */
-        continue;
+        /* Grand is never bundled (root). */
     }
 }
 
-/* ========================================================================== */
-/* Commit on a child node (with 2-level unbundle)                             */
-/* ========================================================================== */
-
-static bool commit_child(int child_node, uint8_t *thread_ser) {
+/* =========================================================================
+ * CommitGrand: snapshot Grand (forcing the full recursive bundle) then do
+ * ONE CAS on Grand that simultaneously bumps BOTH leaf sub-packets
+ * (sub_nested[0] and sub_nested[1]).  This matches the TLA+ CommitGrand
+ * action which updates Grand.packet.sub[Parent].sub[c] for every c in
+ * ParentChildren atomically.
+ * ========================================================================= */
+static void commit_grand(uint32_t *thread_ser) {
+    OP_LOCK();
     for (;;) {
-        /* CommitRead */
-        Wrapper cw = load_wrapper(child_node);
+        Wrapper gw;
+        snapshot_grand(thread_ser, &gw);
+        assert(gw.has_priority && !gw.missing);
+        assert(gw.sub0 != W_NULL_SUB);
+        assert(gw.nested0 != W_NULL_SUB);
+        assert(gw.nested1 != W_NULL_SUB);
+
+        uint8_t n0 = (uint8_t)((gw.nested0 + 1) % MAX_PAYLOAD);
+        uint8_t n1 = (uint8_t)((gw.nested1 + 1) % MAX_PAYLOAD);
+        uint32_t ser = gen_serial(*thread_ser, gw.serial);
+        Wrapper new_gw = priority_grand(gw.payload, ser,
+                                        gw.sub0, n0, n1,
+                                        false);
+        Wrapper exp = gw;
+        if (cas_w(NODE_GRAND, &exp, new_gw)) {
+            *thread_ser = ser;
+            atomic_fetch_add_explicit(&commit_count[NODE_CHILD1], 1, memory_order_relaxed);
+            atomic_fetch_add_explicit(&commit_count[NODE_CHILD2], 1, memory_order_relaxed);
+            OP_UNLOCK();
+            return;
+        }
+        /* Grand changed — retry from snapshot */
+    }
+}
+
+/* =========================================================================
+ * CommitChild: direct commit on a leaf; unbundle walk 1 or 2 levels deep
+ * if the leaf is bundled.
+ *
+ * 1-level unbundle (Parent is priority, Child bundled-by-Parent):
+ *   UnbundleCASAncestor: Parent missing=true, preserve sub[].
+ *   UnbundleCASChild   : child -> priority, payload=(old_sub+1).
+ *
+ * 2-level unbundle (Parent bundled-by-Grand, Child bundled-by-Parent):
+ *   UnbundleCASGP      : Grand missing=true, preserve sub[] / sub_nested[].
+ *   UnbundleRestoreParent: Parent bundled-by-Grand -> priority, payload=
+ *                          Grand.sub0, sub=(Grand.sub_nested[]),
+ *                          missing=true.
+ *   UnbundleCASChild   : child -> priority, payload=(old_sub+1).
+ * ========================================================================= */
+static void commit_child(int child_node, uint32_t *thread_ser) {
+    OP_LOCK();
+    for (;;) {
+        Wrapper cw = load_w(child_node);
 
         if (cw.has_priority) {
-            /* CommitTryCAS: direct commit */
-            uint8_t new_payload = (cw.payload + 1) % MAX_PAYLOAD;
-            uint8_t ser = gen_serial(*thread_ser, cw.serial);
-            Wrapper new_cw = make_priority(new_payload, ser,
-                                            cw.sub[0], cw.sub[1], cw.missing);
-            Wrapper expected = cw;
-            if (cas_wrapper(child_node, &expected, new_cw)) {
+            uint8_t new_payload = (uint8_t)((cw.payload + 1) % MAX_PAYLOAD);
+            uint32_t ser = gen_serial(*thread_ser, cw.serial);
+            Wrapper new_cw = priority_leaf(new_payload, ser, cw.missing);
+            Wrapper exp = cw;
+            if (cas_w(child_node, &exp, new_cw)) {
                 *thread_ser = ser;
                 atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
-                return true;
+                OP_UNLOCK();
+                return;
             }
-            if (expected.has_priority && expected.payload == cw.payload) {
-                continue;  /* single-node optimization: retry with adopted children */
-            }
-            if (expected.has_priority) {
-                return false;  /* true conflict */
-            }
-            cw = expected;  /* got bundled → fall through */
-        }
-
-        /* UnbundleWalk: walk up bundledBy chain */
-        int parent = cw.bundled_by;
-        if (parent == NULL_NODE) continue;
-
-        Wrapper parent_w = load_wrapper(parent);
-
-        if (parent_w.has_priority) {
-            /* 1-level unbundle: UnbundleCASAncestor → UnbundleCASChild */
-            /* Save parentWrapper (local[t].parentWrapper = parentW) */
-            Wrapper saved_parent_w = parent_w;
-            int sub_idx = (child_node == NODE_CHILD1) ? 0 : 1;
-            if (saved_parent_w.sub[sub_idx] == W_NULL_SUB) { continue; }
-            uint8_t old_payload = saved_parent_w.sub[sub_idx];
-            uint8_t new_payload = (old_payload + 1) % MAX_PAYLOAD;
-
-            /* UnbundleCASAncestor: CAS parent using saved parentWrapper */
-            uint8_t ser = gen_serial(*thread_ser, saved_parent_w.serial);
-            Wrapper new_pw = saved_parent_w;
-            new_pw.serial = ser;
-            new_pw.sub[sub_idx] = W_NULL_SUB;
-            new_pw.missing = true;
-            Wrapper exp_pw = saved_parent_w;
-            if (!cas_wrapper(parent, &exp_pw, new_pw)) continue;
-            *thread_ser = ser;
-
-            /* UnbundleCASChild: restore to priority */
-            uint8_t child_ser = gen_serial(*thread_ser, cw.serial);
-            Wrapper new_child = make_priority(new_payload, child_ser,
-                                               W_NULL_SUB, W_NULL_SUB, false);
-            Wrapper exp_child = cw;
-            if (cas_wrapper(child_node, &exp_child, new_child)) {
-                *thread_ser = child_ser;
-                atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
-                return true;
-            }
-            continue;  /* retry */
-        }
-
-        /* Parent also bundled → 2-level unbundle (UnbundleCASGP) */
-        int gp = parent_w.bundled_by;
-        if (gp == NULL_NODE) { continue; }
-
-        Wrapper gp_w = load_wrapper(gp);
-        if (!gp_w.has_priority) continue;
-
-        /* Save gpWrapper (local[t].gpWrapper = gpW) */
-        Wrapper saved_gp_w = gp_w;
-
-        /* Extract child's payload from GP's nested sub-packets */
-        int sub_idx = (child_node == NODE_CHILD1) ? 0 : 1;
-        uint8_t old_payload;
-        if (gp == NODE_GRAND && parent == NODE_PARENT) {
-            if (saved_gp_w.sub[0] == W_NULL_SUB) continue;
-            old_payload = saved_gp_w.sub_nested[sub_idx];
-            if (old_payload == W_NULL_SUB) continue;
-        } else {
             continue;
         }
 
-        uint8_t new_payload = (old_payload + 1) % MAX_PAYLOAD;
+        if (cw.bundled_by != NODE_PARENT) continue;
 
-        /* UnbundleCASGP: CAS GP using saved gpWrapper */
-        uint8_t ser = gen_serial(*thread_ser, saved_gp_w.serial);
-        Wrapper new_gp = saved_gp_w;
-        new_gp.serial = ser;
-        new_gp.sub_nested[sub_idx] = W_NULL_SUB;
-        new_gp.missing = true;
-        Wrapper exp_gp = saved_gp_w;
-        if (!cas_wrapper(gp, &exp_gp, new_gp)) continue;
-        *thread_ser = ser;
+        Wrapper pw = load_w(NODE_PARENT);
 
-        /* UnbundleRestoreParent: restore Parent to priority */
-        Wrapper pw_now = load_wrapper(NODE_PARENT);
-        if (!pw_now.has_priority && pw_now.bundled_by == NODE_GRAND) {
-            /* Extract Parent's packet from GP and restore */
-            Wrapper gp_now = load_wrapper(NODE_GRAND);
-            if (gp_now.has_priority && gp_now.sub[0] != W_NULL_SUB) {
-                uint8_t p_ser = gen_serial(*thread_ser, pw_now.serial);
-                Wrapper restored_pw = make_priority(gp_now.sub[0], p_ser,
-                    gp_now.sub_nested[0], gp_now.sub_nested[1], true);
-                restored_pw.sub[sub_idx] = W_NULL_SUB;  /* child being unbundled */
-                Wrapper exp_pw = pw_now;
-                if (!cas_wrapper(NODE_PARENT, &exp_pw, restored_pw)) continue;
-                *thread_ser = p_ser;
-            } else {
-                continue;
+        if (pw.has_priority) {
+            /* 1-level unbundle */
+            uint8_t old_sub = get_child_sub(pw, child_node);
+            if (old_sub == W_NULL_SUB) continue;
+            uint8_t new_sub = (uint8_t)((old_sub + 1) % MAX_PAYLOAD);
+
+            uint32_t anc_ser = gen_serial(*thread_ser, pw.serial);
+            Wrapper new_pw = priority_parent(pw.payload, anc_ser,
+                                             pw.sub0, pw.sub1, true);
+            Wrapper exp_pw = pw;
+            if (!cas_w(NODE_PARENT, &exp_pw, new_pw)) continue;
+            *thread_ser = anc_ser;
+
+            uint32_t child_ser = gen_serial(*thread_ser, cw.serial);
+            Wrapper new_child = priority_leaf(new_sub, child_ser, false);
+            Wrapper exp_child = cw;
+            if (cas_w(child_node, &exp_child, new_child)) {
+                *thread_ser = child_ser;
+                atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
+                OP_UNLOCK();
+                return;
             }
+            continue;
         }
-        /* else: parent already has priority (another thread restored it) */
 
-        /* UnbundleCASChild: restore child to priority */
-        uint8_t child_ser = gen_serial(*thread_ser, cw.serial);
-        Wrapper new_child = make_priority(new_payload, child_ser,
-                                           W_NULL_SUB, W_NULL_SUB, false);
+        if (pw.bundled_by != NODE_GRAND) continue;
+
+        /* 2-level unbundle */
+        Wrapper gw = load_w(NODE_GRAND);
+        if (!gw.has_priority) continue;
+        if (gw.sub0 == W_NULL_SUB) continue;
+        uint8_t old_nested = get_child_nested(gw, child_node);
+        if (old_nested == W_NULL_SUB) continue;
+        uint8_t new_sub = (uint8_t)((old_nested + 1) % MAX_PAYLOAD);
+
+        /* UnbundleCASGP: Grand missing=true (TLA+ UnbundleCASLoop). */
+        uint32_t gp_ser = gen_serial(*thread_ser, gw.serial);
+        Wrapper new_gw = priority_grand(gw.payload, gp_ser,
+                                        gw.sub0,
+                                        gw.nested0, gw.nested1,
+                                        true);
+        Wrapper exp_gw = gw;
+        if (!cas_w(NODE_GRAND, &exp_gw, new_gw)) continue;
+        *thread_ser = gp_ser;
+
+        /* UnbundleRestoreParent: bundled Parent -> priority, missing=true. */
+        uint32_t p_ser = gen_serial(*thread_ser, pw.serial);
+        Wrapper restored_pw = priority_parent(gw.sub0, p_ser,
+                                              gw.nested0, gw.nested1,
+                                              true);
+        Wrapper exp_pw = pw;
+        if (!cas_w(NODE_PARENT, &exp_pw, restored_pw)) continue;
+        *thread_ser = p_ser;
+
+        /* UnbundleCASChild: child -> priority with new payload. */
+        uint32_t c_ser = gen_serial(*thread_ser, cw.serial);
+        Wrapper new_child = priority_leaf(new_sub, c_ser, false);
         Wrapper exp_child = cw;
-        if (cas_wrapper(child_node, &exp_child, new_child)) {
-            *thread_ser = child_ser;
+        if (cas_w(child_node, &exp_child, new_child)) {
+            *thread_ser = c_ser;
             atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
-            return true;
+            OP_UNLOCK();
+            return;
         }
-        /* retry */
+        /* child changed — retry */
     }
 }
 
-/* ========================================================================== */
-/* Test threads                                                               */
-/* ========================================================================== */
-
-/* Thread 0: snapshot Grand (exercises recursive bundle) */
-static void *thread_snapshot(void *arg) {
+/* =========================================================================
+ * Thread worker.
+ * Stop flag checked only at the top of each iteration; once an iteration
+ * is started, it runs to completion so that commit_count[] increments and
+ * wrapper payload updates stay in lock-step.
+ *
+ * Per iteration per thread: commit_grand (cc[C1]+=1, cc[C2]+=1) +
+ *   commit_child(C1) (cc[C1]+=1) + commit_child(C2) (cc[C2]+=1).
+ *   Total per iter: cc[Ci] += 2.
+ *
+ * GenMC total (MAX_COMMITS=1): cc[Ci] = 2 * NUM_THREADS.
+ * ========================================================================= */
+static void *worker(void *arg) {
     (void)arg;
-    uint8_t my_serial = 0;
-    uint8_t result = snapshot_grand(&my_serial);
-    (void)result;
+    uint32_t ser = 0;
+
+    for (uint32_t iter = 0; iter < (uint32_t)MAX_COMMITS; iter++) {
+        if (atomic_load_explicit(&g_stop, memory_order_relaxed)) break;
+        commit_grand(&ser);
+        commit_child(NODE_CHILD1, &ser);
+        commit_child(NODE_CHILD2, &ser);
+    }
     return NULL;
 }
 
-/* Thread 1: commit on Child1 (exercises unbundle including 2-level) */
-static void *thread_commit(void *arg) {
-    (void)arg;
-    uint8_t my_serial = 0;
-    bool ok = commit_child(NODE_CHILD1, &my_serial);
-    (void)ok;
-    return NULL;
+/* =========================================================================
+ * Post-join invariant checks
+ * ========================================================================= */
+static void check_invariants(void) {
+    Wrapper gw = load_w(NODE_GRAND);
+    assert(gw.has_priority);   /* GrandAlwaysPriority */
+
+    Wrapper pw = load_w(NODE_PARENT);
+    assert(pw.has_priority || pw.bundled_by == NODE_GRAND);
+
+    for (int c = NODE_CHILD1; c <= NODE_CHILD2; c++) {
+        Wrapper w = load_w(c);
+        assert(w.has_priority || w.bundled_by == NODE_PARENT);
+    }
+
+    /* SnapshotConsistency: if !missing at an inner node, its sub-packets exist. */
+    if (pw.has_priority && !pw.missing) {
+        assert(pw.sub0 != W_NULL_SUB);
+        assert(pw.sub1 != W_NULL_SUB);
+    }
+    if (gw.has_priority && !gw.missing) {
+        assert(gw.sub0 != W_NULL_SUB);
+    }
 }
 
 int main(void) {
-    /* Init:
-     *   Grand:  priority, missing=TRUE (no sub-packets)
-     *   Parent: priority, missing=TRUE (no sub-packets)
-     *   Child1, Child2: priority, missing=FALSE (leaf nodes)
-     */
-    Wrapper init_grand = make_priority(0, 0, W_NULL_SUB, W_NULL_SUB, true);
-    Wrapper init_parent = make_priority(0, 0, W_NULL_SUB, W_NULL_SUB, true);
-    Wrapper init_child1 = make_priority(0, 0, W_NULL_SUB, W_NULL_SUB, false);
-    Wrapper init_child2 = make_priority(0, 0, W_NULL_SUB, W_NULL_SUB, false);
-
-    /* Grand's sub[0] is for Parent, sub[1] unused */
-    /* Parent's sub[0] is for Child1, sub[1] for Child2 */
-
+    Wrapper init_grand  = priority_grand(0, 0, W_NULL_SUB, W_NULL_SUB, W_NULL_SUB, true);
+    Wrapper init_parent = priority_parent(0, 0, W_NULL_SUB, W_NULL_SUB, true);
+    Wrapper init_child  = priority_leaf(0, 0, false);
     atomic_store(&linkage[NODE_GRAND],  wrapper_pack(init_grand));
     atomic_store(&linkage[NODE_PARENT], wrapper_pack(init_parent));
-    atomic_store(&linkage[NODE_CHILD1], wrapper_pack(init_child1));
-    atomic_store(&linkage[NODE_CHILD2], wrapper_pack(init_child2));
-    for (int i = 0; i < NUM_NODES; i++)
-        atomic_store(&commit_count[i], 0);
+    atomic_store(&linkage[NODE_CHILD1], wrapper_pack(init_child));
+    atomic_store(&linkage[NODE_CHILD2], wrapper_pack(init_child));
+    for (int i = 0; i < NUM_NODES; i++) atomic_store(&commit_count[i], 0);
+    atomic_store(&g_stop, false);
 
-    pthread_t t0, t1;
-    pthread_create(&t0, NULL, thread_snapshot, NULL);
-    pthread_create(&t1, NULL, thread_commit, NULL);
-
-    pthread_join(t0, NULL);
-    pthread_join(t1, NULL);
-
-    /* --- Post-join safety invariants --- */
-
-    /* GrandAlwaysPriority */
-    Wrapper gw = load_wrapper(NODE_GRAND);
-    assert(gw.has_priority);
-
-    /* SnapshotConsistency for inner nodes */
-    if (gw.has_priority && !gw.missing) {
-        assert(gw.sub[0] != W_NULL_SUB);
-    }
-    Wrapper pw = load_wrapper(NODE_PARENT);
-    if (pw.has_priority && !pw.missing) {
-        assert(pw.sub[0] != W_NULL_SUB);
-        assert(pw.sub[1] != W_NULL_SUB);
+    pthread_t threads[NUM_THREADS];
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pthread_create(&threads[i], NULL, worker, NULL);
     }
 
-    /* NoPriorityLoss */
-    for (int n = NODE_PARENT; n <= NODE_CHILD2; n++) {
-        Wrapper w = load_wrapper(n);
-        assert(w.has_priority || w.bundled_by != NULL_NODE);
+#if STRESS_SECONDS > 0
+    struct timespec ts = { .tv_sec = STRESS_SECONDS, .tv_nsec = 0 };
+    nanosleep(&ts, NULL);
+    atomic_store_explicit(&g_stop, true, memory_order_release);
+#endif
+
+    for (int i = 0; i < NUM_THREADS; i++) pthread_join(threads[i], NULL);
+
+    check_invariants();
+
+    uint32_t cc1 = atomic_load(&commit_count[NODE_CHILD1]);
+    uint32_t cc2 = atomic_load(&commit_count[NODE_CHILD2]);
+
+    /* TerminalPayloadCheck: each leaf is priority, payload == cc[c] % MaxPayload.
+     * Stress mode: commit_count[] is ground truth (each started iter completes).
+     * GenMC  mode: commit_count[] == 2 * MaxCommits * Threads exactly. */
+    Wrapper c1 = load_w(NODE_CHILD1);
+    Wrapper c2 = load_w(NODE_CHILD2);
+    if (!(c1.has_priority && (uint32_t)c1.payload == cc1 % MAX_PAYLOAD) ||
+        !(c2.has_priority && (uint32_t)c2.payload == cc2 % MAX_PAYLOAD)) {
+        Wrapper gdbg = load_w(NODE_GRAND);
+        Wrapper pdbg = load_w(NODE_PARENT);
+        fprintf(stderr,
+            "FAIL: MaxPayload=%d\n"
+            "  Grand  : prio=%d missing=%d sub[0]=%u n0=%u n1=%u ser=%u\n"
+            "  Parent : prio=%d missing=%d bundled_by=%u sub0=%u sub1=%u ser=%u\n"
+            "  Child1 : prio=%d bundled_by=%u payload=%u ser=%u cc=%u (cc%%M=%u)\n"
+            "  Child2 : prio=%d bundled_by=%u payload=%u ser=%u cc=%u (cc%%M=%u)\n",
+            MAX_PAYLOAD,
+            gdbg.has_priority, gdbg.missing, gdbg.sub0,
+            gdbg.nested0, gdbg.nested1, gdbg.serial,
+            pdbg.has_priority, pdbg.missing, pdbg.bundled_by,
+            pdbg.sub0, pdbg.sub1, pdbg.serial,
+            c1.has_priority, c1.bundled_by, c1.payload, c1.serial, cc1, cc1 % MAX_PAYLOAD,
+            c2.has_priority, c2.bundled_by, c2.payload, c2.serial, cc2, cc2 % MAX_PAYLOAD);
+        abort();
     }
 
-    /* BundledByCorrect: bundledBy points to structural parent */
-    for (int n = NODE_PARENT; n <= NODE_CHILD2; n++) {
-        Wrapper w = load_wrapper(n);
-        if (!w.has_priority) {
-            assert(w.bundled_by == (uint8_t)parent_of(n));
-        }
-    }
-
-    /* BundleChainValid: if bundled, bundledBy target has priority or is itself bundled */
-    for (int n = NODE_PARENT; n <= NODE_CHILD2; n++) {
-        Wrapper w = load_wrapper(n);
-        if (!w.has_priority && w.bundled_by != NULL_NODE) {
-            Wrapper p = load_wrapper(w.bundled_by);
-            assert(p.has_priority || p.bundled_by != NULL_NODE);
-        }
-    }
-
-    /* QuiescentCheck: all threads idle → non-Grand hasPriority nodes have
-     * payload == commit_count[node] % MAX_PAYLOAD */
-    for (int n = NODE_PARENT; n <= NODE_CHILD2; n++) {
-        Wrapper w = load_wrapper(n);
-        if (w.has_priority) {
-            uint32_t cc = atomic_load(&commit_count[n]);
-            assert(w.payload == cc % MAX_PAYLOAD);
-        }
-    }
+#if STRESS_SECONDS > 0
+    const char *mode_str =
+#  if MODE == MODE_COARSE
+        "COARSE";
+#  elif MODE == MODE_SUPERFINE
+        "SUPERFINE";
+#  else
+        "FINE";
+#  endif
+    printf("[3level stress %s %ds] Child1=%u commits, Child2=%u commits (total=%u)\n",
+           mode_str, STRESS_SECONDS, cc1, cc2, cc1 + cc2);
+#else
+    uint32_t expected_total = 2u * (uint32_t)MAX_COMMITS * (uint32_t)NUM_THREADS;
+    assert(cc1 == expected_total);
+    assert(cc2 == expected_total);
+#endif
 
     return 0;
 }
