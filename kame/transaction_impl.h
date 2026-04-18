@@ -70,12 +70,9 @@ static inline void retry_pause(int retry) noexcept {
     for(int k = 0; k < spins; ++k) pause4spin();
 }
 
-// Retry depth at which a retrying CAS loop escalates from CPU-only pause
-// to the sleep-based negotiate() path. Empirical: first few retries are
-// usually transient micro-collisions resolved by pause alone; deeper retry
-// depth indicates a real contender that needs priority-scheduled sleep.
-static constexpr int NEGOTIATE_ESCALATION_THRESHOLD = 4;
-
+// Unified retry-loop backoff: always call retry_pause + negotiate.
+// retry=0 → retry_pause issues 1 pause (negligible), negotiate fast-returns
+// on the zero m_transaction_started_time marker. No threshold gate.
 template <class XN>
 void
 Node<XN>::Linkage::negotiate_after_retry_pause(
@@ -85,8 +82,7 @@ Node<XN>::Linkage::negotiate_after_retry_pause(
     float mult_wait,
     const PacketWrapper *observed) noexcept {
     retry_pause(retry);
-    if(retry >= NEGOTIATE_ESCALATION_THRESHOLD)
-        negotiate(started_time, tid_bitset, mult_wait, observed);
+    negotiate(started_time, tid_bitset, mult_wait, observed);
 }
 
 template <class XN>
@@ -272,7 +268,13 @@ void
 Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time,
                                       TidBitset &tid_bitset,
                                       float mult_wait) noexcept {
-    std::this_thread::yield(); // one cheap check: catches µs-level conflicts before any sleep
+    // (removed: std::this_thread::yield() at entry.
+    //  At high thread count (128+), it forms a yield-to-yielding-thread chain
+    //  — gdb sampling showed 15% of samples stuck in sched_yield with
+    //  negotiate_internal as immediate caller. The chain never terminates
+    //  because all runnable threads are also in negotiate_internal's yield.
+    //  Removed; the subsequent m_transaction_started_time load + priority/dt
+    //  checks serve as the cheap-collision-clear check anyway.)
 
     // Thread-local LCG for sleep-duration jitter randomization.
     static thread_local uint32_t s_backoff_seed = 0x9E3779B9u

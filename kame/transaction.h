@@ -755,9 +755,10 @@ private:
             if( !time || (time > m_started_time))
                 node.m_link->m_transaction_started_time = m_started_time;
         }
-        // Clear TID bitset for the fresh retry cycle; the outer Transaction
-        // scope stays the same, so this is a same-scope reset (not save/restore).
-        std::memset(m_tid_bitset, 0, sizeof(m_tid_bitset));
+        // Preserve m_tid_bitset across retry cycles: contention evidence
+        // from the previous attempt is directly relevant to the next one
+        // (same linkages, same contenders). Clearing would reset C=1 on
+        // every ++tr, losing adaptive jitter benefit in livelock paths.
         m_messages.clear();
         this->m_packet->node().snapshot( *this, m_multi_nodal);
         return *this;
