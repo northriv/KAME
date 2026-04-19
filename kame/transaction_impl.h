@@ -69,6 +69,13 @@ static inline int popcount_u64(uint64_t x) noexcept {
 // (only invoked when retry > 0). Independent of the jitter-based
 // negotiate path (which only fires when a collision marker is set).
 static inline void retry_pause(int retry) noexcept {
+#if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
+    // Paper ablation: entire backoff layer disabled; retry loops become pure
+    // CAS-retry spin with no CPU relaxation. Paired with negotiate() early
+    // return in transaction.h.
+    (void)retry;
+    return;
+#endif
     // No cap: spin count grows linearly with retry depth. Livelock-heavy
     // paths need unbounded growth so at some retry depth the pause
     // duration exceeds coherence ping-pong cycle time, opening a winner

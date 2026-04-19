@@ -326,6 +326,14 @@ private:
                        TidBitset &tid_bitset,
                        float mult_wait = 6.0f,
                        const PacketWrapper *observed = nullptr) noexcept {
+#if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
+            // Paper ablation variant: whole backoff layer (negotiate + retry_pause)
+            // disabled. No sleep-based priority coordination, no TID observation,
+            // no collision-marker inspection. Pure lock-free CAS retry behavior.
+            // See retry_pause() in transaction_impl.h for the matching early-return.
+            (void)started_time; (void)tid_bitset; (void)mult_wait; (void)observed;
+            return;
+#else
             if(observed) {
                 unsigned tid = (unsigned)(observed->m_bundle_serial & 0xFFFFu);
                 if(tid) {
@@ -338,6 +346,7 @@ private:
             if( !transaction_started_time)
                 return; //collision has not been detected.
             negotiate_internal(started_time, tid_bitset, mult_wait);
+#endif
         }
         //! Unified retry-loop backoff helper. Called once per retry (retry > 0)
         //! at the top of each CAS-retry loop (commit/snapshot/bundle/bundle-child).
