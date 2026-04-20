@@ -390,17 +390,18 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
         if(next < LEASE_US_MIN) next = LEASE_US_MIN;
         new_lease_us = (uint16_t)next;
     }
-    // Quantized write: skip the atomic store until the lease has
-    // moved by at least KAME_LEASE_QWRITE_US µs. Avoids ping-ponging
-    // the m_priority_state cache line across many cores for every
-    // ±10 % tick of a small lease — e.g. lease = 10 µs × 110 % → 11 µs
-    // is a 1 µs delta that's sub-scheduler-tick anyway.
+    // Quantized write: commit the atomic store only when the lease has
+    // actually moved by at least KAME_LEASE_QWRITE_US µs. Once the lease
+    // pins at a rail (MIN or MAX), the clamped computation produces
+    // new_lease_us == ps.lease_us — we must NOT still write, or every
+    // call pointlessly rewrites the rail value and ping-pongs the
+    // m_priority_state cache line across cores (observed as a heavy
+    // storePriority cost on M3).
 #ifndef KAME_LEASE_QWRITE_US
 #define KAME_LEASE_QWRITE_US 1
 #endif
     int delta = (int)new_lease_us - (int)ps.lease_us;
-    if(delta >= (int)KAME_LEASE_QWRITE_US || delta <= -(int)KAME_LEASE_QWRITE_US
-        || new_lease_us == LEASE_US_MIN || new_lease_us == LEASE_US_MAX) {
+    if(delta >= (int)KAME_LEASE_QWRITE_US || delta <= -(int)KAME_LEASE_QWRITE_US) {
         PriorityState drifted = ps;
         drifted.lease_us = new_lease_us;
         storePriority(drifted);

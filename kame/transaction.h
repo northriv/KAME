@@ -384,9 +384,15 @@ private:
                 (uint32_t)(raw >> 32)
             };
         }
-        //! Fast-path load of the packed priority/lease state (acquire order
-        //! so callers see up-to-date pairings between tid, lease, start_ts).
-        PriorityState loadPriority(std::memory_order mo = std::memory_order_acquire)
+        //! Fast-path load of the packed priority/lease state. Relaxed by
+        //! default: m_priority_state is self-contained (consumers use the
+        //! unpacked fields directly and don't infer order on any other
+        //! memory from this load), and on every caller's hot path a
+        //! wrapper-CAS (acq_rel) has already executed, so the thread
+        //! naturally observes post-CAS state without needing another
+        //! acquire fence. Callers that specifically need acquire can pass
+        //! std::memory_order_acquire.
+        PriorityState loadPriority(std::memory_order mo = std::memory_order_relaxed)
             const noexcept {
             return unpackPriority(m_priority_state.load(mo));
         }
@@ -426,6 +432,16 @@ private:
             (void)started_time; (void)tid_bitset; (void)mult_wait;
             return;
 #else
+            // Fast path for the common "no collision" case. Caller is on a hot
+            // retry loop in low-contention workloads (test_dynamic, single-
+            // writer measurement paths, ...); an extra atomic_shared_ptr load
+            // inside negotiate_internal plus an out-of-line call was measurable
+            // on M3 (~10 % test_dynamic regression). The m_transaction_started_time
+            // load here is the same relaxed atomic read that negotiate_internal
+            // would do first thing, so we pay no extra in the collision case —
+            // just skip the rest when clear.
+            if( !m_transaction_started_time.load(std::memory_order_relaxed))
+                return;
             negotiate_internal(started_time, tid_bitset, mult_wait);
 #endif
         }
@@ -435,18 +451,31 @@ private:
             return;
 #else
             auto ps = loadPriority();
+            // Build the desired tuple. Keep ps.start_us when the owner TID
+            // hasn't changed — a same-owner re-commit doesn't count as a
+            // fresh lease start, so we avoid differing start_us values
+            // making `desired != ps` spuriously true on every call. lease_us
+            // is always preserved (owner change doesn't reset the Linkage's
+            // contention profile).
             uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
-            if(my_tid != ps.tid) {
-                // TID change — refresh owner and start timestamp. lease_us
-                // is preserved; the contention profile of a Linkage doesn't
-                // reset just because the owner changes.
-                PriorityState desired{ my_tid, ps.lease_us,
-                    nsToUs(started_time ? started_time
-                                        : Node<XN>::NegotiationCounter::now()) };
-                // release so acquiring reads in other threads' negotiate()
-                // see the new (tid, start_us) pair consistently after the
-                // successful wrapper CAS that paired with this call.
-                storePriority(desired, std::memory_order_release);
+            PriorityState desired{ my_tid, ps.lease_us, ps.start_us };
+            if(my_tid != ps.tid)
+                desired.start_us = nsToUs(started_time ? started_time
+                                        : Node<XN>::NegotiationCounter::now());
+            // Only store when something actually changed. 64-bit packed
+            // compare is one instruction on M3 / x86-64; skipping the
+            // storePriority() on identical state avoids the cache-line
+            // ping-pong that showed up as heavy same-owner commits.
+            //
+            // Relaxed order suffices: m_priority_state is self-contained
+            // (consumers use ps.tid / ps.lease_us / ps.start_us on their
+            // own; they don't infer ordering on any other memory from this
+            // store). The companion wrapper CAS on m_link carries its own
+            // release semantics and the wrapper's TID lives in the serial
+            // low bits, so no cross-atomic happens-before is needed here.
+            if(packPriority(desired.tid, desired.lease_us, desired.start_us)
+               != packPriority(ps.tid, ps.lease_us, ps.start_us)) {
+                storePriority(desired, std::memory_order_relaxed);
             }
 #endif
         }
