@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -15,10 +15,7 @@
 #define THREADLOCAL_H_
 
 #include "support.h"
-
-#if defined __GNUC__ && __GNUC__ >= 4
-// #define USE_STD_TLS
-#endif
+#include <type_traits>
 
 #ifdef USE_QTHREAD
     #include <QThreadStorage>
@@ -27,71 +24,64 @@
 //! Thread Local Storage template.
 //! \p T must have constructor T()
 //! object \p T will be deleted only when the thread is finished.
-#ifdef USE_STD_TLS
+//!
+//! Two specializations picked via SFINAE on is_trivially_destructible<T>:
+//!   * trivially-destructible T  →  native C++ `thread_local` (fast). Safe on
+//!                                  libstdc++/libc++ because no per-thread
+//!                                  destructor is ever required to run — the
+//!                                  historical TLS-destructor portability
+//!                                  gaps do not apply to trivial T.
+//!   * non-trivially-destructible →  pthread_key_t / QThreadStorage path
+//!                                  (slower but runs the destructor at
+//!                                  thread exit). Preserved for types that
+//!                                  actually need cleanup.
+template <typename T, typename = void>
+class XThreadLocal;
+
+// Fast path: trivially-destructible T uses compiler-native thread_local.
+// Non-trivial constructors are fine — thread-local dynamic init is standard.
+// NOTE: the thread_local storage is per-T (class-static), so having two
+// XThreadLocal<T> instances of the *same* T would make them alias. KAME
+// uses distinct T per instance (ProcessCounter, SerialGenerator::cnt_t,
+// Priority__, FuncPayloadCreator, ...), so the aliasing is benign.
 template <typename T>
-class XThreadLocal {
+class XThreadLocal<T, typename std::enable_if<std::is_trivially_destructible<T>::value>::type> {
 public:
     template <typename ...Arg>
-    XThreadLocal(Arg&& ...arg) : m_var(std::forward<Arg>(arg)...) {}
-    //! \return return thread local object. Create an object if not allocated.
+    XThreadLocal(Arg&& ...) noexcept {}
     T &operator*() const {return m_var;}
-    //! \sa operator T&()
     T *operator->() const {return &m_var;}
 private:
-    static T thread_local m_var;
+    static thread_local T m_var;
 };
-#else
 template <typename T>
-class XThreadLocal {
-public:
-    XThreadLocal();
-    ~XThreadLocal();
-    //! \return return thread local object. Create an object if not allocated.
-    inline T &operator*() const;
-    //! \sa operator T&()
-    inline T *operator->() const;
-private:
-#ifdef USE_QTHREAD
-    mutable QThreadStorage<T*> m_tls;
-#endif
-#ifdef USE_PTHREAD
-    mutable pthread_key_t m_key;
-    static void delete_tls(void *var);
-#endif
-};
+thread_local T XThreadLocal<T, typename std::enable_if<std::is_trivially_destructible<T>::value>::type>::m_var{};
 
+// Slow path: non-trivially-destructible T keeps the pthread/QThread layout
+// so the destructor runs at thread exit. Impl defined inline to avoid the
+// verbose out-of-line syntax on a SFINAE specialization.
+template <typename T>
+class XThreadLocal<T, typename std::enable_if<!std::is_trivially_destructible<T>::value>::type> {
+public:
 #ifdef USE_QTHREAD
-    template <typename T>
-    XThreadLocal<T>::XThreadLocal() {}
-    template <typename T>
-    XThreadLocal<T>::~XThreadLocal() {}
-    template <typename T>
-    inline T &XThreadLocal<T>::operator*() const {
+    XThreadLocal() {}
+    ~XThreadLocal() {}
+    T &operator*() const {
         if( !m_tls.hasLocalData())
             m_tls.setLocalData(new T);
         return *m_tls.localData();
     }
-
-#else
-    #ifdef USE_PTHREAD
-    template <typename T>
-    XThreadLocal<T>::XThreadLocal() {
-        int ret = pthread_key_create( &m_key, &XThreadLocal<T>::delete_tls);
+#elif defined(USE_PTHREAD)
+    XThreadLocal() {
+        int ret = pthread_key_create( &m_key, &XThreadLocal::delete_tls);
         assert( !ret);
     }
-    template <typename T>
-    XThreadLocal<T>::~XThreadLocal() {
+    ~XThreadLocal() {
         delete static_cast<T *>(pthread_getspecific(m_key));
         int ret = pthread_key_delete(m_key);
         assert( !ret);
     }
-    template <typename T>
-    void
-    XThreadLocal<T>::delete_tls(void *var) {
-        delete static_cast<T *>(var);
-    }
-    template <typename T>
-    inline T &XThreadLocal<T>::operator*() const {
+    T &operator*() const {
         void *p = pthread_getspecific(m_key);
         if(p == NULL) {
             int ret = pthread_setspecific(m_key, p = new T);
@@ -99,15 +89,17 @@ private:
         }
         return *static_cast<T*>(p);
     }
-    #endif //USE_PTHREAD
-#endif //USE_QTHREAD
-
-    template <typename T>
-    inline T *XThreadLocal<T>::operator->() const {
-        return &( **this);
-    }
-
-#endif /*USE_STD_TLS*/
+#endif
+    T *operator->() const {return &( **this);}
+private:
+#ifdef USE_QTHREAD
+    mutable QThreadStorage<T*> m_tls;
+#endif
+#ifdef USE_PTHREAD
+    mutable pthread_key_t m_key;
+    static void delete_tls(void *var) { delete static_cast<T *>(var); }
+#endif
+};
 
 
 #endif /*THREADLOCAL_H_*/

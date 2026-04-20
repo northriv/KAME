@@ -37,17 +37,8 @@ namespace Transactional {
 
 STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
 
-// Portable 64-bit popcount used by negotiate_internal's TID bitset.
-// GCC/Clang: __builtin_popcountll is a single instruction on x86/ARM.
-// MSVC: __popcnt64 is the equivalent intrinsic (SSE4.2+; acceptable since
-// KAME's other MSVC paths already assume modern Windows x86_64).
-static inline int popcount_u64(uint64_t x) noexcept {
-#ifdef _MSC_VER
-    return (int)__popcnt64(x);
-#else
-    return __builtin_popcountll(x);
-#endif
-}
+// (popcount_u64 moved to transaction.h so inline member functions there
+//  — negotiate() — can call it too.)
 
 // Retry-proportional randomized CPU relax for tight CAS-retry loops.
 // On retry N, issues `spins ∈ [1, min(N, 64)]` pause instructions before
@@ -124,13 +115,10 @@ ProcessCounter::ProcessCounter() {
     }
 }
 
-struct Priority__ {
-    Priority priority = Priority::NORMAL;
-};
-XThreadLocal<Priority__> stl_currentPriority;
+XThreadLocal<Priority> stl_currentPriority;
 
 inline Priority getCurrentPriorityMode() {
-    return stl_currentPriority->priority;
+    return *stl_currentPriority;
 }
 
 template <class XN>
@@ -247,6 +235,38 @@ Node<XN>::print_recoverable_error(const char* reason) {
     msecsleep(1000);
 }
 
+
+// Adaptive-lease constants. The active lease window (ns) is stored per-Linkage
+// as Linkage::m_adapt_lease_ns, so contention sites converge independently
+// (hot Linkage → longer lease; cold Linkage → short).
+// Clamped to [KAME_LEASE_NS_MIN, KAME_LEASE_NS_MAX] = [1 µs, 500 µs].
+// Fixed-threshold drift beat proportional-rate variants (C-1, C-2) in
+// sandbox because the workload's C distribution is skewed: many calls with
+// C = 0..1 (early tx), fewer with high C. Keeping C = 1 neutral avoids
+// dragging the lease down during the early-tx phase that dominates call
+// count.
+#ifndef KAME_LEASE_NS_MIN
+#define KAME_LEASE_NS_MIN  1000     // 1 µs
+#endif
+#ifndef KAME_LEASE_NS_MAX
+#define KAME_LEASE_NS_MAX  500000   // 500 µs
+#endif
+
+
+// Optional diagnostic counters (opt-in via -DKAME_ADAPT_INSTRUMENT=1).
+// Inspect with gdb while a test runs: `thread apply all print <name>`.
+// Off by default to keep per-call overhead minimal in production builds.
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+// dt2 of the most recent negotiate() call — used by the adaptive fairness
+// gate (always-on, zero cost beyond one thread_local store).
+inline thread_local uint64_t s_adapt_dt2_last_ns       = 0;
+inline thread_local int      s_adapt_C_last            = 0;  // popcount(tid_bitset)
+inline thread_local uint32_t s_adapt_last_priority_tid = 0;  // last m_priority_tid seen
+inline thread_local uint32_t s_adapt_bounce_count      = 0;  // # times it changed
+inline thread_local uint64_t s_adapt_negotiate_calls   = 0;  // negotiate() entries
+inline thread_local uint64_t s_adapt_skip_hits         = 0;  // lease-skip fires
+inline thread_local uint32_t s_adapt_skip_per1k        = 0;  // skip_hits/calls × 1000
+#endif
 //=============================================================================
 // negotiate_internal() — priority-based backoff for collision avoidance
 //
@@ -293,6 +313,125 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
     //  because all runnable threads are also in negotiate_internal's yield.
     //  Removed; the subsequent m_transaction_started_time load + priority/dt
     //  checks serve as the cheap-collision-clear check anyway.)
+
+    // One atomic load of the packed (tid | lease_us | start_us) tuple.
+    auto ps = loadPriority();
+    if(ps.tid) {
+        unsigned tid = (unsigned)ps.tid & (unsigned)(TID_BITSET_WORDS * 64 - 1);
+        tid_bitset[tid >> 6] |= 1ULL << (tid & 63);
+    }
+    typename NegotiationCounter::cnt_t transaction_started_time =
+        m_transaction_started_time.load(std::memory_order_relaxed);
+    if( !transaction_started_time)
+        return; //collision has not been detected.
+#ifdef KAME_PRIORITY_LEASE
+    auto adapt_dt2_last_ns =
+        (typename NegotiationCounter::cnt_t)
+        (Node<XN>::NegotiationCounter::now() - transaction_started_time);
+    // Compute the observed co-committer count C = popcount(tid_bitset)
+    // and the competing tx's elapsed time dt2. C drives the adaptive
+    // lease length; dt2 drives the fairness gate that suppresses the
+    // owner-skip when another tx has been waiting too long.
+    // Additional thread_local signals (bounce, call count, skip rate)
+    // are exposed under KAME_ADAPT_INSTRUMENT for gdb tuning.
+    int sig_C = 0;
+    for(int i = 0; i < TID_BITSET_WORDS; ++i)
+        sig_C += popcount_u64(tid_bitset[i]);
+
+
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    s_adapt_dt2_last_ns = adapt_dt2_last_ns;
+    s_adapt_C_last = sig_C;
+    if(ps.tid && ps.tid != s_adapt_last_priority_tid) {
+        ++s_adapt_bounce_count;
+        s_adapt_last_priority_tid = ps.tid;
+    }
+    ++s_adapt_negotiate_calls;
+    s_adapt_skip_per1k = s_adapt_negotiate_calls > 0
+                             ? (uint32_t)((uint64_t)s_adapt_skip_hits * 1000
+                                           / s_adapt_negotiate_calls)
+                             : 0;
+#endif
+
+    // Adaptive lease tracking (per-Linkage). Drift the lease_us field
+    // and write back via storePriority; relaxed races benignly because
+    // any value in [MIN,MAX] is a valid lease. Only touch the atomic
+    // if the value actually changes.
+    static constexpr uint16_t LEASE_US_MIN =
+        (uint16_t)(KAME_LEASE_NS_MIN / 1000 ? KAME_LEASE_NS_MIN / 1000 : 1);
+    static constexpr uint16_t LEASE_US_MAX =
+        (uint16_t)(KAME_LEASE_NS_MAX / 1000);
+    // Asymmetric drift: growth scales with C (capped) so heavy
+    // contention climbs the lease quickly; shrink is a smaller fixed
+    // step so a single C=0 call doesn't undo many C>=2 adjustments —
+    // equilibrium biases toward higher lease where Linkages do
+    // see contention at all. Override the schedule via macros.
+#ifndef KAME_LEASE_GROW_PER_C_PERCENT
+#define KAME_LEASE_GROW_PER_C_PERCENT 10   // additive per unit of (C-1)
+#endif
+#ifndef KAME_LEASE_GROW_MAX_PERCENT
+#define KAME_LEASE_GROW_MAX_PERCENT   40   // cap on per-call growth
+#endif
+#ifndef KAME_LEASE_SHRINK_PERCENT
+#define KAME_LEASE_SHRINK_PERCENT    20   // shrink step when C == 0
+#endif
+    uint16_t new_lease_us = ps.lease_us;
+    if(sig_C >= 2) {
+        int grow = (sig_C - 1) * (int)KAME_LEASE_GROW_PER_C_PERCENT;
+        if(grow > (int)KAME_LEASE_GROW_MAX_PERCENT)
+            grow = (int)KAME_LEASE_GROW_MAX_PERCENT;
+        uint32_t next = (uint32_t)ps.lease_us
+                        * (uint32_t)(100 + grow) / 100;
+        if(next > LEASE_US_MAX) next = LEASE_US_MAX;
+        new_lease_us = (uint16_t)next;
+    } else if(sig_C == 0) {
+        uint32_t next = (uint32_t)ps.lease_us
+                        * (uint32_t)(100 - KAME_LEASE_SHRINK_PERCENT) / 100;
+        if(next < LEASE_US_MIN) next = LEASE_US_MIN;
+        new_lease_us = (uint16_t)next;
+    }
+    // Quantized write: skip the atomic store until the lease has
+    // moved by at least KAME_LEASE_QWRITE_US µs. Avoids ping-ponging
+    // the m_priority_state cache line across many cores for every
+    // ±10 % tick of a small lease — e.g. lease = 10 µs × 110 % → 11 µs
+    // is a 1 µs delta that's sub-scheduler-tick anyway.
+#ifndef KAME_LEASE_QWRITE_US
+#define KAME_LEASE_QWRITE_US 1
+#endif
+    int delta = (int)new_lease_us - (int)ps.lease_us;
+    if(delta >= (int)KAME_LEASE_QWRITE_US || delta <= -(int)KAME_LEASE_QWRITE_US
+        || new_lease_us == LEASE_US_MIN || new_lease_us == LEASE_US_MAX) {
+        PriorityState drifted = ps;
+        drifted.lease_us = new_lease_us;
+        storePriority(drifted);
+        ps.lease_us = new_lease_us;
+    }
+
+    // Adaptive gate: suppress owner-skip when dt2 (time the competing
+    // tx has been waiting) exceeds KAME_DT2_FAIRNESS_NS. dt2 > fairness
+    // threshold indicates long-held conflicting tx (e.g. test_negotiation
+    // with msecsleep inside iterate_commit, dt2 ≈ 60-150 µs). Chained
+    // owner-skip in that regime starves the waiter. For payload-style
+    // hot-loop commits (dt2 ≈ 2-8 µs) the gate stays open and the skip
+    // delivers its benefit.
+#ifndef KAME_DT2_FAIRNESS_NS
+#define KAME_DT2_FAIRNESS_NS 40000  // 40 µs; override via -D
+#endif
+    unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
+    if(my_tid == ps.tid
+        && adapt_dt2_last_ns < (uint64_t)KAME_DT2_FAIRNESS_NS) {
+        // Age in µs via modular 32-bit subtraction (wrap-safe up to ~35 min).
+        uint32_t age_us = nsToUs(Node<XN>::NegotiationCounter::now()) - ps.start_us;
+        if(age_us < (uint32_t)ps.lease_us) {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+            ++s_adapt_skip_hits;
+#endif
+            Priority pr = getCurrentPriorityMode();
+            if(pr == Priority::HIGHEST || pr == Priority::NORMAL)
+                return; //skips
+        }
+    }
+#endif
 
     // Thread-local LCG for sleep-duration jitter randomization.
     static thread_local uint32_t s_backoff_seed = 0x9E3779B9u
@@ -1546,7 +1685,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
             STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
 
-//            m_link->negotiate(tr.m_started_time, 4.0f);
+            // m_link->negotiate(tr.m_started_time, tr.m_tid_bitset, 4.0f);
             if(m_link->compareAndSet(wrapper, newwrapper)) {
 //				STRICT_TEST(if(wrapper->isBundled())
 //					for(typename std::deque<local_shared_ptr<PacketWrapper> >::const_iterator
@@ -1696,7 +1835,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
 #endif
 
 void setCurrentPriorityMode(Priority pr) {
-    stl_currentPriority->priority = pr;
+    *stl_currentPriority = pr;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
     SetThreadPriority(GetCurrentThread(),
         (pr == Priority::HIGHEST) ? THREAD_PRIORITY_TIME_CRITICAL : THREAD_PRIORITY_NORMAL);

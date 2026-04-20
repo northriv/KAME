@@ -24,6 +24,16 @@
 
 namespace Transactional {
 
+// Portable 64-bit popcount. Visible in transaction.h so inline member
+// functions (e.g. negotiate()) can use it. GCC/Clang/MSVC intrinsics.
+static inline int popcount_u64(uint64_t x) noexcept {
+#ifdef _MSC_VER
+    return (int)__popcnt64(x);
+#else
+    return __builtin_popcountll(x);
+#endif
+}
+
 //! \page stmintro Brief introduction of software transactional memory using the class Node
 //!  Tree-structure objects, consisting of Node and derived classes, work as
 //! software transactional memory (STM) by accessing through Transaction or Snapshot class.\n
@@ -73,7 +83,7 @@ class Snapshot;
 template <class XN>
 class Transaction;
 
-enum class Priority {HIGHEST, NORMAL, UI_DEFERRABLE, LOWEST};
+enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 
 //! \brief This is a base class of nodes which carries data sets for itself (Payload) and for subnodes.\n
@@ -314,35 +324,97 @@ private:
     static constexpr int TID_BITSET_WORDS = 8;
     using TidBitset = uint64_t[TID_BITSET_WORDS];
 
+#ifndef KAME_LEASE_NS_BASE
+#define KAME_LEASE_NS_BASE 10000    // initial 10 µs
+#endif
+
     struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
-        Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
+        Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
+            m_transaction_started_time(0),
+            m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
 
-        // Implicit-lease constants. KAME_LEASE_NS: within this window after the
+        // Implicit commit-lease. within a certain window after the
         // current wrapper was installed, the committing TID holds a soft lease —
-        // competing threads µs-spin instead of sleeping so the lease holder can
-        // chain several commits. Override via -DKAME_LEASE_NS=<ns>.
-        // KAME_LEASE_SPIN_PAUSES: pause4spin count per spin burst (~1–3 µs).
-        // KAME_LEASE_MAX_BURSTS: hard cap on spin bursts per negotiate call; caps
-        // CPU burn regardless of lease duration (prevents tight-spin regression
-        // when the lease holder keeps the window refreshed).
-#ifndef KAME_LEASE_NS
-#define KAME_LEASE_NS 10000   //
+        // a subsequent negotiate() call from the same TID skips the msec-sleep
+        // path so it can chain a follow-up commit attempt immediately. Lease
+        // auto-expires by wall-clock; no explicit release. Override via
+        // -DKAMEE_PRIORITY_LEASE_DISABLE
+#ifndef KAME_PRIORITY_LEASE_DISABLE
+#define KAME_PRIORITY_LEASE
 #endif
-        //! Timestamp (ns from NegotiationCounter epoch) at which this wrapper
-        //! was installed. Acts as an implicit 1 ms lease for the TID encoded
-        //! in the lower 16 bits of m_bundle_serial: other threads observing
-        //! this wrapper yield-spin during the lease window instead of falling
-        //! back to msec sleep. Zero overhead beyond an 8-byte add per wrapper
-        //! and a clock read per commit; lease auto-expires by wall-clock.
-        atomic<typename NegotiationCounter::cnt_t> m_priority_start_ts;
-        atomic<ProcessCounter::cnt_t> m_priority_tid;
+        //! Packed per-Linkage priority/lease state. One 64-bit atomic holds
+        //! three fields that are always read together on the fast path:
+        //!
+        //!   bits  0..15 :  tid       — last committer TID (lower 16 bits of
+        //!                              ProcessCounter::id()).
+        //!   bits 16..31 :  lease_us  — adaptive lease window in µs,
+        //!                              clamped to [KAME_LEASE_NS_MIN/1000,
+        //!                              KAME_LEASE_NS_MAX/1000] (default
+        //!                              1..500 µs, fits in 16 bits).
+        //!   bits 32..63 :  start_us  — install time (µs since counter
+        //!                              epoch). 32 bits wraps at ~71 min;
+        //!                              age diffs use unsigned modular
+        //!                              subtraction so wrap is transparent
+        //!                              for windows < 35 min (our lease is
+        //!                              ≤ 500 µs).
+        //!
+        //! Packing keeps the three fields on one cache line and makes the
+        //! negotiate() fast path a single atomic load + shifts instead of
+        //! three separate atomic loads (one per former field). Writes are
+        //! relaxed-store or CAS via the pack/unpack helpers below.
+        atomic<uint64_t> m_priority_state;
+
+        struct PriorityState {
+            uint16_t tid;
+            uint16_t lease_us;
+            uint32_t start_us;
+        };
+        static inline uint64_t packPriority(uint16_t tid, uint16_t lease_us,
+                                            uint32_t start_us) noexcept {
+            return ((uint64_t)start_us << 32)
+                 | ((uint64_t)lease_us << 16)
+                 | (uint64_t)tid;
+        }
+        static inline PriorityState unpackPriority(uint64_t raw) noexcept {
+            return PriorityState{
+                (uint16_t)(raw & 0xFFFFu),
+                (uint16_t)((raw >> 16) & 0xFFFFu),
+                (uint32_t)(raw >> 32)
+            };
+        }
+        //! Fast-path load of the packed priority/lease state (acquire order
+        //! so callers see up-to-date pairings between tid, lease, start_ts).
+        PriorityState loadPriority(std::memory_order mo = std::memory_order_acquire)
+            const noexcept {
+            return unpackPriority(m_priority_state.load(mo));
+        }
+        //! Store a new packed state (relaxed; lease adaptation is advisory).
+        void storePriority(PriorityState ps,
+                           std::memory_order mo = std::memory_order_relaxed) noexcept {
+            m_priority_state.store(packPriority(ps.tid, ps.lease_us, ps.start_us), mo);
+        }
+        //! CAS on the packed state. Succeeds only if the whole 64-bit word
+        //! hasn't changed since \p expected was read. On failure, refreshes
+        //! \p expected to the current observed value.
+        bool casPriority(PriorityState &expected, PriorityState desired) noexcept {
+            uint64_t e = packPriority(expected.tid, expected.lease_us, expected.start_us);
+            uint64_t d = packPriority(desired.tid,  desired.lease_us,  desired.start_us);
+            if(m_priority_state.compare_set_strong(e, d)) return true;
+            expected = unpackPriority(m_priority_state.load(std::memory_order_acquire));
+            return false;
+        }
+        //! Convert a NegotiationCounter ns timestamp to the 32-bit µs field.
+        static inline uint32_t nsToUs(typename NegotiationCounter::cnt_t ns) noexcept {
+            return (uint32_t)((uint64_t)ns / 1000u);
+        }
 
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
-        //! \a tid_bitset accumulates observed committer TIDs (via \a observed->m_bundle_serial lower 16 bits).
-        //! It is used by negotiate_internal() to scale the backoff jitter range as √C,
-        //! where C is the popcount of observed distinct TIDs.
+        //! \a tid_bitset accumulates observed committer TIDs (via the Linkage's
+        //! m_priority_tid atomic) over the lifetime of the calling transaction.
+        //! negotiate_internal() uses its popcount C to scale the backoff jitter
+        //! range as √C; negotiate() uses C to drive the adaptive-lease length.
         void negotiate(typename NegotiationCounter::cnt_t &started_time,
                        TidBitset &tid_bitset,
                        float mult_wait) noexcept {
@@ -351,41 +423,30 @@ private:
             // disabled. No sleep-based priority coordination, no TID observation,
             // no collision-marker inspection. Pure lock-free CAS retry behavior.
             // See retry_pause() in transaction_impl.h for the matching early-return.
-            (void)started_time; (void)tid_bitset; (void)mult_wait; (void)observed;
+            (void)started_time; (void)tid_bitset; (void)mult_wait;
             return;
 #else
-            auto old_tid = m_priority_tid.load(std::memory_order_acquire);;
-            if(auto tid = old_tid) {
-                tid &= (unsigned)(TID_BITSET_WORDS * 64 - 1);
-                tid_bitset[tid >> 6] |= 1ULL << (tid & 63);
-            }
-            typename NegotiationCounter::cnt_t transaction_started_time =
-                m_transaction_started_time.load(std::memory_order_relaxed);
-            if( !transaction_started_time)
-                return; //collision has not been detected.
-#if KAME_LEASE_NS > 0
-            auto new_tid = ProcessCounter::id();
-            if(new_tid == old_tid) {
-                auto age = Node<XN>::NegotiationCounter::now() - m_priority_start_ts.load(std::memory_order_acquire);
-                if(age < (typename NegotiationCounter::cnt_t)KAME_LEASE_NS) {
-                    return; //skips
-                }
-            }
-#endif
             negotiate_internal(started_time, tid_bitset, mult_wait);
 #endif
         }
         void tags_successful_cas(typename NegotiationCounter::cnt_t started_time = {}) noexcept {
 #if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
+            (void)started_time;
             return;
 #else
-            auto old_tid = m_priority_tid.load(std::memory_order_acquire);
-            unsigned new_tid = ProcessCounter::id();
-            if(new_tid != old_tid) {
-                m_priority_tid = new_tid;
-#if KAME_LEASE_NS > 0
-                m_priority_start_ts = started_time ? started_time : Node<XN>::NegotiationCounter::now();
-#endif
+            auto ps = loadPriority();
+            uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
+            if(my_tid != ps.tid) {
+                // TID change — refresh owner and start timestamp. lease_us
+                // is preserved; the contention profile of a Linkage doesn't
+                // reset just because the owner changes.
+                PriorityState desired{ my_tid, ps.lease_us,
+                    nsToUs(started_time ? started_time
+                                        : Node<XN>::NegotiationCounter::now()) };
+                // release so acquiring reads in other threads' negotiate()
+                // see the new (tid, start_us) pair consistently after the
+                // successful wrapper CAS that paired with this call.
+                storePriority(desired, std::memory_order_release);
             }
 #endif
         }
@@ -817,9 +878,11 @@ private:
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
-    //! Per-transaction contention observation bitset (populated by
-    //! Linkage::negotiate(... observed)). Sized by Node::TID_BITSET_WORDS.
-    //! Nesting works naturally: each Transaction has its own bitset.
+    //! Per-transaction contention-observation bitset. negotiate() reads each
+    //! Linkage's m_priority_tid and sets the corresponding bit; popcount
+    //! drives the adaptive-lease rule and the √C jitter in negotiate_internal.
+    //! Sized by Node::TID_BITSET_WORDS. Nesting works naturally: each
+    //! Transaction owns its own bitset.
     typename Node<XN>::TidBitset m_tid_bitset = {};
     using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
