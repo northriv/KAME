@@ -318,14 +318,34 @@ private:
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
+
+        // Implicit-lease constants. KAME_LEASE_NS: within this window after the
+        // current wrapper was installed, the committing TID holds a soft lease —
+        // competing threads µs-spin instead of sleeping so the lease holder can
+        // chain several commits. Override via -DKAME_LEASE_NS=<ns>.
+        // KAME_LEASE_SPIN_PAUSES: pause4spin count per spin burst (~1–3 µs).
+        // KAME_LEASE_MAX_BURSTS: hard cap on spin bursts per negotiate call; caps
+        // CPU burn regardless of lease duration (prevents tight-spin regression
+        // when the lease holder keeps the window refreshed).
+#ifndef KAME_LEASE_NS
+#define KAME_LEASE_NS 10000   //
+#endif
+        //! Timestamp (ns from NegotiationCounter epoch) at which this wrapper
+        //! was installed. Acts as an implicit 1 ms lease for the TID encoded
+        //! in the lower 16 bits of m_bundle_serial: other threads observing
+        //! this wrapper yield-spin during the lease window instead of falling
+        //! back to msec sleep. Zero overhead beyond an 8-byte add per wrapper
+        //! and a clock read per commit; lease auto-expires by wall-clock.
+        atomic<typename NegotiationCounter::cnt_t> m_priority_start_ts;
+        atomic<ProcessCounter::cnt_t> m_priority_tid;
+
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
         //! \a tid_bitset accumulates observed committer TIDs (via \a observed->m_bundle_serial lower 16 bits).
         //! It is used by negotiate_internal() to scale the backoff jitter range as √C,
         //! where C is the popcount of observed distinct TIDs.
         void negotiate(typename NegotiationCounter::cnt_t &started_time,
                        TidBitset &tid_bitset,
-                       float mult_wait = 6.0f,
-                       const PacketWrapper *observed = nullptr) noexcept {
+                       float mult_wait) noexcept {
 #if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
             // Paper ablation variant: whole backoff layer (negotiate + retry_pause)
             // disabled. No sleep-based priority coordination, no TID observation,
@@ -334,18 +354,39 @@ private:
             (void)started_time; (void)tid_bitset; (void)mult_wait; (void)observed;
             return;
 #else
-            if(observed) {
-                unsigned tid = (unsigned)(observed->m_bundle_serial & 0xFFFFu);
-                if(tid) {
-                    tid &= (unsigned)(TID_BITSET_WORDS * 64 - 1);
-                    tid_bitset[tid >> 6] |= 1ULL << (tid & 63);
-                }
+            auto old_tid = m_priority_tid.load(std::memory_order_acquire);;
+            if(auto tid = old_tid) {
+                tid &= (unsigned)(TID_BITSET_WORDS * 64 - 1);
+                tid_bitset[tid >> 6] |= 1ULL << (tid & 63);
             }
             typename NegotiationCounter::cnt_t transaction_started_time =
                 m_transaction_started_time.load(std::memory_order_relaxed);
             if( !transaction_started_time)
                 return; //collision has not been detected.
+#if KAME_LEASE_NS > 0
+            auto new_tid = ProcessCounter::id();
+            if(new_tid == old_tid) {
+                auto age = Node<XN>::NegotiationCounter::now() - m_priority_start_ts.load(std::memory_order_acquire);
+                if(age < (typename NegotiationCounter::cnt_t)KAME_LEASE_NS) {
+                    return; //skips
+                }
+            }
+#endif
             negotiate_internal(started_time, tid_bitset, mult_wait);
+#endif
+        }
+        void tags_successful_cas(typename NegotiationCounter::cnt_t started_time = {}) noexcept {
+#if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
+            return;
+#else
+            auto old_tid = m_priority_tid.load(std::memory_order_acquire);
+            unsigned new_tid = ProcessCounter::id();
+            if(new_tid != old_tid) {
+                m_priority_tid = new_tid;
+#if KAME_LEASE_NS > 0
+                m_priority_start_ts = started_time ? started_time : Node<XN>::NegotiationCounter::now();
+#endif
+            }
 #endif
         }
         //! Unified retry-loop backoff helper. Called once per retry (retry > 0)
@@ -359,8 +400,7 @@ private:
         void negotiate_after_retry_pause(int retry,
                                          typename NegotiationCounter::cnt_t &started_time,
                                          TidBitset &tid_bitset,
-                                         float mult_wait = 6.0f,
-                                         const PacketWrapper *observed = nullptr) noexcept;
+                                         float mult_wait) noexcept;
         void negotiate_internal(typename NegotiationCounter::cnt_t &started_time,
                                 TidBitset &tid_bitset,
                                 float mult_wait) noexcept;
