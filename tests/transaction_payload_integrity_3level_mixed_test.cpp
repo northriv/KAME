@@ -73,21 +73,40 @@ int main(int argc, char** argv) {
     }
 
     std::atomic<int> barrier{0};
+    std::atomic<bool> warming_up{true};
     std::atomic<bool> stop{false};
+    // Per-thread counts split into two: leaf_count / grand_count_total
+    // capture the full life-of-test increments (needed by the terminal
+    // payload-equivalence check), while leaf_count_timed /
+    // grand_count_timed are reset to zero when `warming_up` flips false
+    // — these feed the reported commits/s. The 1-second warmup lets
+    // whatever bundle/unbundle settlement the multi-threaded workload
+    // triggers finish before measurement, which matters for disjoint
+    // leaf commits in the 3-level tree (observed as flat N=2 scaling
+    // when no warmup is done).
     std::vector<long long> leaf_count(NumThreads, 0);
+    std::vector<long long> leaf_count_timed(NumThreads, 0);
     std::atomic<long long> grand_count_total{0};
+    std::atomic<long long> grand_count_timed{0};
 
     auto worker = [&](int tid) {
         barrier.fetch_add(1);
         while(barrier.load() < NumThreads) std::this_thread::yield();
 
-        long long my_leaf = 0;
-        long long my_grand = 0;
+        long long my_leaf = 0,  my_leaf_t = 0;
+        long long my_grand = 0, my_grand_t = 0;
+        bool was_warming = true;
         unsigned int mp = (unsigned)MaxPayload;
         shared_ptr<MyNode> &my_leaf_node = children[tid];
 
         for(int iter = 0; iter < MaxCommits; ++iter) {
             if(StressSeconds > 0 && stop.load(std::memory_order_relaxed)) break;
+            bool warming = warming_up.load(std::memory_order_relaxed);
+            if(was_warming && !warming) {
+                // Just flipped to timed phase — reset the timed counter
+                // baseline so the first timed iteration starts from 0.
+                was_warming = false;
+            }
 
             bool do_grand = (CrossRatio > 0) && ((iter % CrossRatio) == 0);
             if(do_grand) {
@@ -100,23 +119,36 @@ int main(int argc, char** argv) {
                     }
                 });
                 ++my_grand;
+                if(!warming) ++my_grand_t;
             } else {
                 my_leaf_node->iterate_commit([&](Tr& tr) {
                     tr[*my_leaf_node].m_x = (tr[*my_leaf_node].m_x + 1) % mp;
                 });
                 ++my_leaf;
+                if(!warming) ++my_leaf_t;
             }
         }
 
         leaf_count[tid] = my_leaf;
+        leaf_count_timed[tid] = my_leaf_t;
         grand_count_total.fetch_add(my_grand);
+        grand_count_timed.fetch_add(my_grand_t);
     };
-
-    auto t_start = std::chrono::steady_clock::now();
 
     std::vector<std::thread> threads;
     threads.reserve(NumThreads);
     for(int i = 0; i < NumThreads; ++i) threads.emplace_back(worker, i);
+
+    // Warmup (1s by default) — workers run the mixed workload with
+    // warming_up=true so their timed counters stay at zero; the real
+    // bundle/unbundle settlement happens during this phase.
+    const int WarmupSeconds = (StressSeconds > 0) ? 1 : 0;
+    auto t_start = std::chrono::steady_clock::now();
+    if(WarmupSeconds > 0) {
+        std::this_thread::sleep_for(std::chrono::seconds(WarmupSeconds));
+    }
+    warming_up.store(false, std::memory_order_release);
+    auto t_timed_start = std::chrono::steady_clock::now();
 
     if(StressSeconds > 0) {
         std::this_thread::sleep_for(std::chrono::seconds(StressSeconds));
@@ -126,45 +158,50 @@ int main(int argc, char** argv) {
     for(auto& t : threads) t.join();
 
     auto t_end = std::chrono::steady_clock::now();
-    double sec = std::chrono::duration<double>(t_end - t_start).count();
+    double sec = std::chrono::duration<double>(t_end - t_timed_start).count();
+    (void)t_start;
 
-    long long gcount = grand_count_total.load();
-    // Throughput convention matches transaction_payload_integrity_test:
-    // count child-touches, not tx invocations. Each Grand-scope tx touches
-    // N children inside the bundle, so it contributes N to total_commits.
-    // Makes rates directly comparable across K values per child update.
-    long long total_commits = gcount * (long long)NumThreads;
-    for(int i = 0; i < NumThreads; ++i) total_commits += leaf_count[i];
-
+    // Terminal payload-equivalence uses the LIFE-of-test counters
+    // (leaf_count + grand_count_total) because the warmup also
+    // incremented payloads; those warmup commits must be reflected in
+    // the expected value.
+    long long gcount_full = grand_count_total.load();
     bool ok = true;
     for(int i = 0; i < NumThreads; ++i) {
         Shot s(*children[i]);
         unsigned int got = s[*children[i]].m_x;
-        unsigned int expected = (unsigned)((leaf_count[i] + gcount) % MaxPayload);
+        unsigned int expected = (unsigned)((leaf_count[i] + gcount_full) % MaxPayload);
         if(got != expected) {
             fprintf(stderr, "FAIL: child[%d].m_x=%u expected=%u "
                            "(leaf=%lld grand_total=%lld)\n",
-                    i, got, expected, leaf_count[i], gcount);
+                    i, got, expected, leaf_count[i], gcount_full);
             ok = false;
         }
     }
 
-    long long leaf_total = 0;
-    for(int i = 0; i < NumThreads; ++i) leaf_total += leaf_count[i];
+    // Reported rates use the TIMED counters only — warmup contribution
+    // is excluded so the figure reflects steady-state throughput.
+    long long gcount_t = grand_count_timed.load();
+    long long leaf_total_t = 0;
+    for(int i = 0; i < NumThreads; ++i) leaf_total_t += leaf_count_timed[i];
+    long long total_commits = gcount_t * (long long)NumThreads + leaf_total_t;
     if(StressSeconds > 0) {
-        printf("[3level_mixed stress %ds] N=%d CrossRatio=%d "
+        printf("[3level_mixed stress %ds warmup %ds] N=%d CrossRatio=%d "
                "leaf_tx=%lld grand_tx=%lld "
                "child_updates=%lld (%.0f commits/s)\n",
-               StressSeconds, NumThreads, CrossRatio,
-               leaf_total, gcount, total_commits,
+               StressSeconds, WarmupSeconds, NumThreads, CrossRatio,
+               leaf_total_t, gcount_t, total_commits,
                total_commits / sec);
     } else {
+        long long leaf_total_full = 0;
+        for(int i = 0; i < NumThreads; ++i) leaf_total_full += leaf_count[i];
+        long long total_full = gcount_full * (long long)NumThreads + leaf_total_full;
         printf("[3level_mixed MaxCommits=%d N=%d CrossRatio=%d] "
                "leaf_tx=%lld grand_tx=%lld elapsed=%.2fs "
                "child_updates=%lld (%.0f commits/s)\n",
                MaxCommits, NumThreads, CrossRatio,
-               leaf_total, gcount, sec,
-               total_commits, total_commits / sec);
+               leaf_total_full, gcount_full, sec,
+               total_full, total_full / sec);
     }
 
     if(!ok) return 1;
