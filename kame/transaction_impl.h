@@ -249,7 +249,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_NS_MIN  1000     // 1 µs
 #endif
 #ifndef KAME_LEASE_NS_MAX
-#define KAME_LEASE_NS_MAX  200000   // 0.2 ms
+#define KAME_LEASE_NS_MAX  2000000   // 2 ms
 #endif
 
 
@@ -367,7 +367,7 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
     // equilibrium biases toward higher lease where Linkages do
     // see contention at all. Override the schedule via macros.
 #ifndef KAME_LEASE_GROW_PER_C_PERCENT
-#define KAME_LEASE_GROW_PER_C_PERCENT 10   // additive per unit of (C-1)
+#define KAME_LEASE_GROW_PER_C_PERCENT 30   // additive per unit of (C-1)
 #endif
 #ifndef KAME_LEASE_GROW_MAX_PERCENT
 #define KAME_LEASE_GROW_MAX_PERCENT   80   // cap on per-call growth
@@ -1556,8 +1556,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             else
                 bundled_ref.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
 
-            //this negotiation decreased a commiting rate.
-            // child->m_link->negotiate(started_time, tid_bitset, 1.0f);
+            //this negotiation may decrease a commiting rate.
+            child->m_link->negotiate(started_time, tid_bitset, 1.0f);
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
             if( !child->m_link->compareAndSet(subwrappers_org[i], bundled_ref)) {
