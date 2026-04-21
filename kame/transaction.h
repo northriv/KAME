@@ -17,6 +17,7 @@
 #include "support.h"
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
+#include <algorithm>
 #include <vector>
 #include "atomic.h"
 #include "xtime.h"
@@ -416,70 +417,12 @@ private:
             return (uint32_t)((uint64_t)ns / 1000u);
         }
 
-        struct Negotiator {
-            Negotiator() = delete;
-            Negotiator(Linkage &link, typename NegotiationCounter::cnt_t started_time) :
-                m_link(link), m_started_time(started_time) {}
-            ~Negotiator() {
-                if( !m_started_time) return;
-                if( !m_succeeded) {
-                //CAS has been disturbed, or some fault during transaction.
-                    // auto time = m_link.m_transaction_started_time.load(std::memory_order_relaxed);
-                    // if( !time || (time - m_started_time > 0))
-                    //     m_link.m_transaction_started_time.store(m_started_time, std::memory_order_relaxed);
-                }
-            }
-            void tags_successful_single_node() noexcept {
-                if( !m_started_time) return; //not yet negotiated.
-                m_succeeded = true;
-            }
-            void tags_successful_cas() noexcept {
-                if( !m_started_time) return; //not yet negotiated.
-                m_succeeded = true;
-#if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
-                (void)started_time;
-                return;
-#else
-                auto ps = m_link.loadPriority();
-                // Build the desired tuple. Keep ps.start_us when the owner TID
-                // hasn't changed — a same-owner re-commit doesn't count as a
-                // fresh lease start, so we avoid differing start_us values
-                // making `desired != ps` spuriously true on every call. lease_us
-                // is always preserved (owner change doesn't reset the Linkage's
-                // contention profile).
-                uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
-                PriorityState desired{ my_tid, ps.lease_us, ps.start_us };
-                if(my_tid != ps.tid)
-                    desired.start_us = nsToUs(m_started_time ? m_started_time
-                                                           : Node<XN>::NegotiationCounter::now());
-                // Only store when something actually changed. 64-bit packed
-                // compare is one instruction on M3 / x86-64; skipping the
-                // storePriority() on identical state avoids the cache-line
-                // ping-pong that showed up as heavy same-owner commits.
-                //
-                // Relaxed order suffices: m_priority_state is self-contained
-                // (consumers use ps.tid / ps.lease_us / ps.start_us on their
-                // own; they don't infer ordering on any other memory from this
-                // store). The companion wrapper CAS on m_link carries its own
-                // release semantics and the wrapper's TID lives in the serial
-                // low bits, so no cross-atomic happens-before is needed here.
-                if(packPriority(desired.tid, desired.lease_us, desired.start_us)
-                    != packPriority(ps.tid, ps.lease_us, ps.start_us)) {
-                    m_link.storePriority(desired, std::memory_order_relaxed);
-                }
-#endif
-            }
-            Linkage &m_link;
-            typename NegotiationCounter::cnt_t m_started_time;
-            bool m_succeeded = false;
-        };
-
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
         //! \a tid_bitset accumulates observed committer TIDs (via the Linkage's
         //! m_priority_tid atomic) over the lifetime of the calling transaction.
         //! negotiate_internal() uses its popcount C to scale the backoff jitter
         //! range as √C; negotiate() uses C to drive the adaptive-lease length.
-        Negotiator negotiate(typename NegotiationCounter::cnt_t &started_time,
+        void negotiate(typename NegotiationCounter::cnt_t &started_time,
                        TidBitset &tid_bitset,
                        float mult_wait) noexcept {
 #if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
@@ -488,7 +431,7 @@ private:
             // no collision-marker inspection. Pure lock-free CAS retry behavior.
             // See retry_pause() in transaction_impl.h for the matching early-return.
             (void)started_time; (void)tid_bitset; (void)mult_wait;
-            return { *this, started_time};
+            return;
 #else
             // Fast path for the common "no collision" case. Caller is on a hot
             // retry loop in low-contention workloads (test_dynamic, single-
@@ -499,13 +442,43 @@ private:
             // would do first thing, so we pay no extra in the collision case —
             // just skip the rest when clear.
             if( !m_transaction_started_time.load(std::memory_order_relaxed))
-                return { *this, {}};
+                return;
             negotiate_internal(started_time, tid_bitset, mult_wait);
 #endif
-            return { *this, started_time};
         }
-        Negotiator negotiate(Transaction<XN> &tr, float mult_wait = 1.0f) {
-            return negotiate(tr.m_started_time, tr.m_tid_bitset, mult_wait);
+        void tags_successful_cas(typename NegotiationCounter::cnt_t started_time = {}) noexcept {
+#if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
+            (void)started_time;
+            return;
+#else
+            auto ps = loadPriority();
+            // Build the desired tuple. Keep ps.start_us when the owner TID
+            // hasn't changed — a same-owner re-commit doesn't count as a
+            // fresh lease start, so we avoid differing start_us values
+            // making `desired != ps` spuriously true on every call. lease_us
+            // is always preserved (owner change doesn't reset the Linkage's
+            // contention profile).
+            uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
+            PriorityState desired{ my_tid, ps.lease_us, ps.start_us };
+            if(my_tid != ps.tid)
+                desired.start_us = nsToUs(started_time ? started_time
+                                        : Node<XN>::NegotiationCounter::now());
+            // Only store when something actually changed. 64-bit packed
+            // compare is one instruction on M3 / x86-64; skipping the
+            // storePriority() on identical state avoids the cache-line
+            // ping-pong that showed up as heavy same-owner commits.
+            //
+            // Relaxed order suffices: m_priority_state is self-contained
+            // (consumers use ps.tid / ps.lease_us / ps.start_us on their
+            // own; they don't infer ordering on any other memory from this
+            // store). The companion wrapper CAS on m_link carries its own
+            // release semantics and the wrapper's TID lives in the serial
+            // low bits, so no cross-atomic happens-before is needed here.
+            if(packPriority(desired.tid, desired.lease_us, desired.start_us)
+               != packPriority(ps.tid, ps.lease_us, ps.start_us)) {
+                storePriority(desired, std::memory_order_relaxed);
+            }
+#endif
         }
         //! Unified retry-loop backoff helper. Called once per retry (retry > 0)
         //! at the top of each CAS-retry loop (commit/snapshot/bundle/bundle-child).
@@ -515,7 +488,7 @@ private:
         //! GDB-sampling on 32-thread 3level stress showed ~52% of time in
         //! bundle()'s outer retry, which previously had only retry_pause and
         //! no negotiate between Phase 3 failure and the next Phase 1 attempt.
-        Negotiator negotiate_after_retry_pause(int retry,
+        void negotiate_after_retry_pause(int retry,
                                          typename NegotiationCounter::cnt_t &started_time,
                                          TidBitset &tid_bitset,
                                          float mult_wait) noexcept;
@@ -531,7 +504,7 @@ private:
     void snapshot(Snapshot<XN> &target, bool multi_nodal, typename NegotiationCounter::cnt_t started_time,
                   TidBitset &tid_bitset) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-        // m_link->negotiate(target.m_started_time, target.m_tid_bitset, 4.0f);
+        m_link->negotiate(target.m_started_time, target.m_tid_bitset, 4.0f);
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time,
                  target.m_tid_bitset);
         target.m_oldpacket = target.m_packet;
@@ -693,16 +666,30 @@ class DECLSPEC_KAME Snapshot {
 public:
     Snapshot(const Snapshot&x) noexcept = default;
     Snapshot(Snapshot&&x) noexcept = default;
-    Snapshot(Node<XN> &node, const Snapshot &x) noexcept : m_packet(node.reverseLookup(x.m_packet)), m_serial(x.m_serial) {}
-    explicit Snapshot(const Transaction<XN>&x) noexcept : m_packet(x.m_packet), m_serial(x.m_serial) {}
-    explicit Snapshot(Transaction<XN>&&x) noexcept : m_packet(std::move(x.m_packet)), m_serial(x.m_serial) {}
+    Snapshot(Node<XN> &node, const Snapshot &x) noexcept :
+        m_packet(node.reverseLookup(x.m_packet)), m_serial(x.m_serial),
+        m_started_time(x.m_started_time) {
+        // TidBitset is uint64_t[TID_BITSET_WORDS] — a C array, so it
+        // cannot appear as a copy target in the member-init list.
+        std::copy(std::begin(x.m_tid_bitset), std::end(x.m_tid_bitset),
+                  std::begin(m_tid_bitset));
+    }
+    explicit Snapshot(const Transaction<XN>&x) noexcept :
+        m_packet(x.m_packet), m_serial(x.m_serial),
+        m_started_time(x.m_started_time) {
+        std::copy(std::begin(x.m_tid_bitset), std::end(x.m_tid_bitset),
+                  std::begin(m_tid_bitset));
+    }
+    explicit Snapshot(Transaction<XN>&&x) noexcept :
+        m_packet(std::move(x.m_packet)), m_serial(x.m_serial),
+        m_started_time(x.m_started_time) {
+        std::copy(std::begin(x.m_tid_bitset), std::end(x.m_tid_bitset),
+                  std::begin(m_tid_bitset));
+    }
     Snapshot& operator=(const Snapshot&x) noexcept = default;
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-        // Snapshot-only path: no Transaction → use a stack-local bitset.
-        // Contention observation decays naturally to "nothing seen" per call.
-        typename Node<XN>::TidBitset local_tid_bitset = {};
-        node.snapshot( *this, multi_nodal, Node<XN>::NegotiationCounter::now(),
-                       local_tid_bitset);
+        m_started_time = Node<XN>::NegotiationCounter::now();
+        node.snapshot( *this, multi_nodal, m_started_time, m_tid_bitset);
     }
 
     //! \return Payload instance for \a node, which should be included in the snapshot.
@@ -772,6 +759,29 @@ protected:
     //! The snapshot.
     local_shared_ptr<typename Node<XN>::Packet> m_packet;
     int64_t m_serial;
+    //! When this snapshot attempt started. Negotiation / backoff uses this
+    //! (vs. the peer linkage's m_transaction_started_time) to decide who is
+    //! "older" and therefore earns priority to commit first.
+    //!
+    //! Promoted from Transaction<XN> so snapshot() tree-walk paths and
+    //! negotiate() helpers can be rewritten to take a single Snapshot&
+    //! parameter instead of threading a separate started_time argument.
+    typename Node<XN>::NegotiationCounter::cnt_t m_started_time = {};
+    //! Per-attempt TID observation bitset for the adaptive-lease path.
+    //! Also promoted from Transaction<XN>. The standalone-Snapshot ctor
+    //! fills this in tree-walk; Transaction<XN> inherits and reuses.
+    typename Node<XN>::TidBitset m_tid_bitset = {};
+    //! Linkages whose m_transaction_started_time this attempt has tagged
+    //! (or intends to tag). Held as shared_ptr to keep the Linkage alive
+    //! until clear_tags() runs; otherwise dynamic-node release could leave
+    //! a dangling reference in the cleanup loop.
+    //!
+    //! Unused in the first Snapshot-base refactor — the field only
+    //! provides the storage scaffold so a later pass can migrate
+    //! eager-tag / eager-clear logic out of tr++/Negotiator RAII without
+    //! further restructuring. Inline-first-16 (fast_vector) keeps
+    //! low-contention workloads zero-alloc.
+    fast_vector<std::shared_ptr<typename Node<XN>::Linkage>, 16> m_tagged_linkages;
     Snapshot() = default;
 };
 //! \brief Snapshot class which does not care of contents (Payload) for subnodes.\n
@@ -807,25 +817,34 @@ protected:
 template <class XN>
 class DECLSPEC_KAME Transaction : public Snapshot<XN> {
 public:
+    // Inherited bookkeeping now lives on Snapshot<XN> (base). Pull the
+    // names into scope so member-function bodies don't need this->
+    // qualification for every use.
+    using Snapshot<XN>::m_started_time;
+    using Snapshot<XN>::m_tid_bitset;
+    using Snapshot<XN>::m_packet;
+    using Snapshot<XN>::m_serial;
+    using Snapshot<XN>::m_tagged_linkages;
+
     //! Be sure for the persistence of the \a node.
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
         Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now();
         node.snapshot( *this, multi_nodal);
-        assert( &this->m_packet->node() == &node);
-        assert( &this->m_oldpacket->node() == &node);
+        assert( &m_packet->node() == &node);
+        assert( &m_oldpacket->node() == &node);
     }
     //! \param[in] x The snapshot containing the old value of \a node.
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
-        m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal) {
+        m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now();
     }
     ~Transaction() {
         //Do not leave the time stamp.
-        if(m_started_time && this->m_packet) { //not moved
-            Node<XN> &node(this->m_packet->node());
+        if(m_started_time && m_packet) { //not moved
+            Node<XN> &node(m_packet->node());
             if(node.m_link->m_transaction_started_time == m_started_time) {
                 node.m_link->m_transaction_started_time = 0;
             }
@@ -934,13 +953,9 @@ private:
 
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
-    typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
-    //! Per-transaction contention-observation bitset. negotiate() reads each
-    //! Linkage's m_priority_tid and sets the corresponding bit; popcount
-    //! drives the adaptive-lease rule and the √C jitter in negotiate_internal.
-    //! Sized by Node::TID_BITSET_WORDS. Nesting works naturally: each
-    //! Transaction owns its own bitset.
-    typename Node<XN>::TidBitset m_tid_bitset = {};
+    // m_started_time, m_tid_bitset (and m_tagged_linkages list scaffold)
+    // live on Snapshot<XN> (the base class). Transaction retains only its
+    // Transaction-specific members below.
     using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
 };
