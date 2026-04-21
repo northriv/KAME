@@ -6,9 +6,9 @@
 #include "atomic.h"
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
-#ifndef DISABLE_POOL_ALLOCATOR
-    #include "../kame/allocator.cpp"
-#endif
+// The KAME pool allocator lives in its own TU (tests/allocator.cpp) when
+// USE_KAME_ALLOCATOR=ON (CMake) or unconditionally in the qmake build.
+// Do not #include allocator.cpp here — that was a fragile ODR hack.
 
 X86CPUSpec::X86CPUSpec() {
     uint32_t stepinfo, features_ext, features;
