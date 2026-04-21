@@ -611,12 +611,18 @@ private:
     //! \param[in] oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.
     //! \param[in,out] newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
     //! If \a oldsubpacket is zero, unloaded value  of \a sublinkage will be substituted to \a newsubwrapper.
+    //! \param[in] snap Optional Snapshot<XN> to tag contender linkages on
+    //! CAS-disturbed. When non-null, \a snap->tag_as_contender(linkage)
+    //! is called for every cas_info entry that observed a disturbance,
+    //! so the next retry starts with wider tag coverage. Passing
+    //! nullptr disables this and matches the pre-scaffold behaviour.
     static UnbundledStatus unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
         TidBitset &tid_bitset,
         const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
-        local_shared_ptr<PacketWrapper> *superwrapper = NULL);
+        local_shared_ptr<PacketWrapper> *superwrapper = NULL,
+        Snapshot<XN> *snap = nullptr);
     //! The point where the packet is held.
     shared_ptr<Linkage> m_link;
 
@@ -664,29 +670,24 @@ T *Node<XN>::create(Args&&... args) {
 template <class XN>
 class DECLSPEC_KAME Snapshot {
 public:
+    // Defaulted copy/move handle all members including the C-array
+    // m_tid_bitset (implicit memcpy). Transaction<XN>-accepting ctors
+    // delegate to the base copy/move path via a static_cast to the
+    // Snapshot subobject so they pick up the same defaulted logic
+    // without hand-written std::copy boilerplate.
     Snapshot(const Snapshot&x) noexcept = default;
     Snapshot(Snapshot&&x) noexcept = default;
-    Snapshot(Node<XN> &node, const Snapshot &x) noexcept :
-        m_packet(node.reverseLookup(x.m_packet)), m_serial(x.m_serial),
-        m_started_time(x.m_started_time) {
-        // TidBitset is uint64_t[TID_BITSET_WORDS] — a C array, so it
-        // cannot appear as a copy target in the member-init list.
-        std::copy(std::begin(x.m_tid_bitset), std::end(x.m_tid_bitset),
-                  std::begin(m_tid_bitset));
-    }
-    explicit Snapshot(const Transaction<XN>&x) noexcept :
-        m_packet(x.m_packet), m_serial(x.m_serial),
-        m_started_time(x.m_started_time) {
-        std::copy(std::begin(x.m_tid_bitset), std::end(x.m_tid_bitset),
-                  std::begin(m_tid_bitset));
-    }
-    explicit Snapshot(Transaction<XN>&&x) noexcept :
-        m_packet(std::move(x.m_packet)), m_serial(x.m_serial),
-        m_started_time(x.m_started_time) {
-        std::copy(std::begin(x.m_tid_bitset), std::end(x.m_tid_bitset),
-                  std::begin(m_tid_bitset));
-    }
     Snapshot& operator=(const Snapshot&x) noexcept = default;
+    Snapshot(Node<XN> &node, const Snapshot &x) noexcept : Snapshot(x) {
+        // View the same snapshot through \a node: copy all base fields,
+        // then redirect m_packet to the node-local view. m_serial /
+        // m_started_time / m_tid_bitset stay identical to x.
+        m_packet = node.reverseLookup(x.m_packet);
+    }
+    explicit Snapshot(const Transaction<XN>&x) noexcept
+        : Snapshot(static_cast<const Snapshot&>(x)) {}
+    explicit Snapshot(Transaction<XN>&&x) noexcept
+        : Snapshot(static_cast<Snapshot&&>(x)) {}
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
         m_started_time = Node<XN>::NegotiationCounter::now();
         node.snapshot( *this, multi_nodal, m_started_time, m_tid_bitset);
@@ -754,6 +755,58 @@ public:
         return int64_t(uint64_t(m_serial) - uint64_t(other.m_serial)) < 0;
     }
     bool operator==(const Snapshot &other) const noexcept { return m_serial == other.m_serial; }
+
+    //! Register \a link as a contender for this snapshot's started_time.
+    //! Overwrites the linkage's m_transaction_started_time with ours iff
+    //! the linkage is currently untagged, or tagged by a younger thread
+    //! ("oldest-wins"). Also pushes the linkage onto m_tagged_linkages so
+    //! subsequent passes can walk a single list for cleanup.
+    //!
+    //! Semantics match the inline block that pre-RAII code had inside
+    //! Transaction::operator++; this is just the extraction into a
+    //! Snapshot-level helper so snapshot()/bundle() can adopt it too in
+    //! later refactor passes.
+    void tag_as_contender(const std::shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
+        // Use the implicit operator T() / operator=(T) on the atomic
+        // field, i.e. seq_cst load / store, exactly like the pre-RAII
+        // inline block in Transaction::operator++.
+        typename Node<XN>::NegotiationCounter::cnt_t current =
+            link->m_transaction_started_time;
+        if( !current || (current > m_started_time))
+            link->m_transaction_started_time = m_started_time;
+        m_tagged_linkages.push_back(link);
+    }
+
+    //! Tag \a link on the first CAS-disturbed event of this snapshot's
+    //! lifetime and no-op on every subsequent disturbance. Keeps total
+    //! disturbed-path tag coverage bounded at 1 extra linkage per
+    //! Transaction (on top of tr++'s primary-node tag), avoiding the
+    //! "mutex 渋滞 -> livelock" observed when every disturbed linkage
+    //! in cas_infos was tagged.
+    void tag_on_first_disturb(const std::shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
+        if(m_disturbed_tagged) return;
+        m_disturbed_tagged = true;
+        tag_as_contender(link);
+    }
+
+    //! Walks m_tagged_linkages and clears each linkage's tag only if it
+    //! still equals m_started_time ("mine-only" compare-and-clear). Idempotent
+    //! w.r.t. duplicate entries — repeated tags from the same snapshot across
+    //! retries land in the list multiple times; the second pass sees tag=0
+    //! and skips. Runs from ~Snapshot so every derived class (Transaction,
+    //! SingleTransaction, pure-read Snapshot-from-Node) gets cleanup for
+    //! free.
+    //!
+    //! A stale tag (value != m_started_time, e.g. somebody younger
+    //! overwrote ours) is left alone — the other thread will clear it
+    //! from its own destructor.
+    ~Snapshot() noexcept {
+        for(auto &sp : m_tagged_linkages) {
+            if(sp->m_transaction_started_time == m_started_time)
+                sp->m_transaction_started_time = 0;
+        }
+    }
+
 protected:
     friend class Node<XN>;
     //! The snapshot.
@@ -782,6 +835,13 @@ protected:
     //! further restructuring. Inline-first-16 (fast_vector) keeps
     //! low-contention workloads zero-alloc.
     fast_vector<std::shared_ptr<typename Node<XN>::Linkage>, 16> m_tagged_linkages;
+    //! Latch used by tag_on_first_disturb(). Setting from false → true
+    //! must happen at most once per Snapshot lifetime to keep disturbed-
+    //! path tag coverage bounded. Copy ctors propagate it — a snapshot
+    //! constructed from a still-running Transaction inherits whatever
+    //! flag state the source had, which matches "one disturb tag per
+    //! transaction attempt" semantics.
+    bool m_disturbed_tagged = false;
     Snapshot() = default;
 };
 //! \brief Snapshot class which does not care of contents (Payload) for subnodes.\n
@@ -841,15 +901,10 @@ public:
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now();
     }
-    ~Transaction() {
-        //Do not leave the time stamp.
-        if(m_started_time && m_packet) { //not moved
-            Node<XN> &node(m_packet->node());
-            if(node.m_link->m_transaction_started_time == m_started_time) {
-                node.m_link->m_transaction_started_time = 0;
-            }
-        }
-    }
+    // ~Transaction() is implicit. Tag cleanup lives on ~Snapshot, which
+    // walks m_tagged_linkages — a superset of what the old hand-rolled
+    // Transaction destructor cleared (just the primary node's linkage)
+    // once snapshot()/bundle()-level tagging lands in a later pass.
     Transaction(Transaction&&x) = default;
 
     //! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
@@ -935,11 +990,8 @@ private:
     //! Takes another snapshot and prepares for a next transaction.
     Transaction &operator++() {
         Node<XN> &node(this->m_packet->node());
-        if(isMultiNodal()) {
-            auto time(node.m_link->m_transaction_started_time);
-            if( !time || (time > m_started_time))
-                node.m_link->m_transaction_started_time = m_started_time;
-        }
+        if(isMultiNodal())
+            this->tag_as_contender(node.m_link);
         // Preserve m_tid_bitset across retry cycles: contention evidence
         // from the previous attempt is directly relevant to the next one
         // (same linkages, same contenders). Clearing would reset C=1 on
