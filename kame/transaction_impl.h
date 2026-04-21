@@ -439,19 +439,18 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
         ^ (uint32_t)(uintptr_t)&started_time;
 
     for(int ms = 0;;) {
-        auto transaction_started_time =
-            m_transaction_started_time.load(std::memory_order_acquire);
-        if( !transaction_started_time)
-            break; //collision has not been detected.
-        auto dt = started_time - transaction_started_time;
-
         Priority pr = getCurrentPriorityMode();
         if(pr == Priority::HIGHEST)
             break;
+        auto dt = started_time - transaction_started_time;
         if(dt <= 0) {
-            if((pr == Priority::NORMAL) || (ms > 10))
+            if((pr == Priority::NORMAL) || (ms > 0.5 * mult_wait))
                 break; //This thread is the oldest.
         }
+        auto transaction_started_time =
+            m_transaction_started_time.load(std::memory_order_acquire);
+        if( !transaction_started_time && ms)
+            break; //collision has not been detected.
 
         auto dt2 = Node<XN>::NegotiationCounter::now() - transaction_started_time;
 
@@ -460,7 +459,7 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
                 break;
         }
 
-        ms = std::max((int)(dt2 / 10000),  ms + 1);
+        ms = std::max((int)(dt2 * mult_wait / 10000),  ms + 1);
         if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
             fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
@@ -1258,7 +1257,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
     for(int retry = 0;; ++retry) {
         if(retry)
             m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
-                                                 4.0f);
+                                                 2.0f);
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
         if(target->hasPriority()) {
@@ -1499,7 +1498,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             for(int child_retry = 0;; ++child_retry) {
                 if(child_retry)
                     child->m_link->negotiate_after_retry_pause(child_retry, started_time, tid_bitset,
-                                                                2.0f);
+                        2.0f / subpackets->size());
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i])
                     break;
@@ -1557,7 +1556,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                 bundled_ref.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
 
             //this negotiation may decrease a commiting rate.
-            child->m_link->negotiate(started_time, tid_bitset, 1.0f);
+            child->m_link->negotiate(started_time, tid_bitset, 2.0f / subnodes->size());
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
             if( !child->m_link->compareAndSet(subwrappers_org[i], bundled_ref)) {
@@ -1787,7 +1786,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-        it->linkage->negotiate(time_started, tid_bitset, 2.0);
+        it->linkage->negotiate(time_started, tid_bitset, 2.0 / cas_infos.size());
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper))
             return UnbundledStatus::DISTURBED;
         if(oldsuperwrapper) {
