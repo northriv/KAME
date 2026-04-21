@@ -422,15 +422,10 @@ private:
         //! m_priority_tid atomic) over the lifetime of the calling transaction.
         //! negotiate_internal() uses its popcount C to scale the backoff jitter
         //! range as √C; negotiate() uses C to drive the adaptive-lease length.
-        void negotiate(typename NegotiationCounter::cnt_t &started_time,
-                       TidBitset &tid_bitset,
+        void negotiate(Snapshot<XN> &snap,
                        float mult_wait) noexcept {
 #if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
-            // Paper ablation variant: whole backoff layer (negotiate + retry_pause)
-            // disabled. No sleep-based priority coordination, no TID observation,
-            // no collision-marker inspection. Pure lock-free CAS retry behavior.
-            // See retry_pause() in transaction_impl.h for the matching early-return.
-            (void)started_time; (void)tid_bitset; (void)mult_wait;
+            (void)snap; (void)mult_wait;
             return;
 #else
             // Fast path for the common "no collision" case. Caller is on a hot
@@ -443,7 +438,7 @@ private:
             // just skip the rest when clear.
             if( !m_transaction_started_time.load(std::memory_order_relaxed))
                 return;
-            negotiate_internal(started_time, tid_bitset, mult_wait);
+            negotiate_internal(snap, mult_wait);
 #endif
         }
         void tags_successful_cas(typename NegotiationCounter::cnt_t started_time = {}) noexcept {
@@ -489,11 +484,9 @@ private:
         //! bundle()'s outer retry, which previously had only retry_pause and
         //! no negotiate between Phase 3 failure and the next Phase 1 attempt.
         void negotiate_after_retry_pause(int retry,
-                                         typename NegotiationCounter::cnt_t &started_time,
-                                         TidBitset &tid_bitset,
+                                         Snapshot<XN> &snap,
                                          float mult_wait) noexcept;
-        void negotiate_internal(typename NegotiationCounter::cnt_t &started_time,
-                                TidBitset &tid_bitset,
+        void negotiate_internal(Snapshot<XN> &snap,
                                 float mult_wait) noexcept;
 
     };
@@ -501,12 +494,10 @@ private:
     friend class Snapshot<XN>;
     friend class Transaction<XN>;
 
-    void snapshot(Snapshot<XN> &target, bool multi_nodal, typename NegotiationCounter::cnt_t started_time,
-                  TidBitset &tid_bitset) const;
+    void snapshot(Snapshot<XN> &target, bool multi_nodal) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-        m_link->negotiate(target.m_started_time, target.m_tid_bitset, 4.0f);
-        snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time,
-                 target.m_tid_bitset);
+        m_link->negotiate(target, 4.0f);
+        snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal);
         target.m_oldpacket = target.m_packet;
     }
     enum class SnapshotStatus {SUCCESS = 0, DISTURBED = 1,
@@ -594,13 +585,11 @@ private:
     //! cleared and each PacketWrapper::bundledBy() will point to its upper node.
     //! \sa snapshot().
     BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
-        typename NegotiationCounter::cnt_t &started_time,
-        TidBitset &tid_bitset,
+        Snapshot<XN> &snap,
         int64_t bundle_serial, bool is_bundle_root);
     BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
         local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
-        typename NegotiationCounter::cnt_t &started_time,
-        TidBitset &tid_bitset,
+        Snapshot<XN> &snap,
         int64_t bundle_serial);
     enum class UnbundledStatus {W_NEW_SUBVALUE, SUBVALUE_HAS_CHANGED, COLLIDED, DISTURBED};
     //! Unbundles a subpacket to \a sublinkage from a snapshot.
@@ -611,18 +600,13 @@ private:
     //! \param[in] oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.
     //! \param[in,out] newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
     //! If \a oldsubpacket is zero, unloaded value  of \a sublinkage will be substituted to \a newsubwrapper.
-    //! \param[in] snap Optional Snapshot<XN> to tag contender linkages on
-    //! CAS-disturbed. When non-null, \a snap->tag_as_contender(linkage)
-    //! is called for every cas_info entry that observed a disturbance,
-    //! so the next retry starts with wider tag coverage. Passing
-    //! nullptr disables this and matches the pre-scaffold behaviour.
-    static UnbundledStatus unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
-        TidBitset &tid_bitset,
+    //! \param[in] snap Snapshot that chains started_time, tid_bitset and
+    //! the tagged-linkage list through the commit/negotiate/bundle path.
+    static UnbundledStatus unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
-        local_shared_ptr<PacketWrapper> *superwrapper = NULL,
-        Snapshot<XN> *snap = nullptr);
+        local_shared_ptr<PacketWrapper> *superwrapper = NULL);
     //! The point where the packet is held.
     shared_ptr<Linkage> m_link;
 
@@ -690,7 +674,7 @@ public:
         : Snapshot(static_cast<Snapshot&&>(x)) {}
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
         m_started_time = Node<XN>::NegotiationCounter::now();
-        node.snapshot( *this, multi_nodal, m_started_time, m_tid_bitset);
+        node.snapshot( *this, multi_nodal);
         drop_tags();
     }
 
