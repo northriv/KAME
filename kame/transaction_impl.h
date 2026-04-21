@@ -444,12 +444,12 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
             break;
         auto dt = started_time - transaction_started_time;
         if(dt <= 0) {
-            if((pr == Priority::NORMAL) || (ms > 0.5 * mult_wait))
+            if((pr == Priority::NORMAL) || (ms > 5 * mult_wait))
                 break; //This thread is the oldest.
         }
         auto transaction_started_time =
             m_transaction_started_time.load(std::memory_order_acquire);
-        if( !transaction_started_time && ms)
+        if( !transaction_started_time)
             break; //collision has not been detected.
 
         auto dt2 = Node<XN>::NegotiationCounter::now() - transaction_started_time;
