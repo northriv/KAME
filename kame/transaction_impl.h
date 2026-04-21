@@ -249,7 +249,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_NS_MIN  1000     // 1 µs
 #endif
 #ifndef KAME_LEASE_NS_MAX
-#define KAME_LEASE_NS_MAX  500000   // 500 µs
+#define KAME_LEASE_NS_MAX  2000000   // 2 ms
 #endif
 
 
@@ -367,13 +367,13 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
     // equilibrium biases toward higher lease where Linkages do
     // see contention at all. Override the schedule via macros.
 #ifndef KAME_LEASE_GROW_PER_C_PERCENT
-#define KAME_LEASE_GROW_PER_C_PERCENT 10   // additive per unit of (C-1)
+#define KAME_LEASE_GROW_PER_C_PERCENT 5   // additive per unit of (C-1)
 #endif
 #ifndef KAME_LEASE_GROW_MAX_PERCENT
 #define KAME_LEASE_GROW_MAX_PERCENT   40   // cap on per-call growth
 #endif
 #ifndef KAME_LEASE_SHRINK_PERCENT
-#define KAME_LEASE_SHRINK_PERCENT    20   // shrink step when C == 0
+#define KAME_LEASE_SHRINK_PERCENT    10   // shrink step when C == 0
 #endif
     uint16_t new_lease_us = ps.lease_us;
     if(sig_C >= 2) {
