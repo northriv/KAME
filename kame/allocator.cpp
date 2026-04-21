@@ -106,11 +106,18 @@ inline T fold_bits(unsigned int X, unsigned int SHIFTS, T x) {
 };
 
 //! Bit scan forward, counting zeros in the LSBs.
-//! \param x should be 2^n.
+//! \param x should be 2^n (a single set bit).
 //! \sa find_zero_forward(), find_first_oen().
+//!
+//! Compiles to `bsf`/`tzcnt` on x86 and `rbit;clz` on ARM64 via
+//! __builtin_ctzll, so this single implementation covers every arch the
+//! pool allocator supports. The former x86 inline-asm form is preserved
+//! behind the same guard as a backstop for exotic toolchains.
 template <typename T>
 inline unsigned int count_zeros_forward(T x) {
-#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
+#if defined(__GNUC__) || defined(__clang__)
+    return __builtin_ctzll(static_cast<unsigned long long>(x));
+#elif defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
 	T ret;
 	asm ("bsf %1,%0": "=q" (ret) : "r" (x) :);
 	return ret;

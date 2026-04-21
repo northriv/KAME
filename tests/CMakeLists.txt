@@ -25,11 +25,13 @@ endif()
 
 set(support_SRCS support_standalone.cpp)
 
-# KAME pool allocator: OFF by default on macOS/Windows (Qt build provides it),
-# ON on Linux unless compiler is too old (GCC < 10).
+# KAME pool allocator: ON by default on Linux and macOS (incl. Apple
+# Silicon — the pool now uses __builtin_ctzll and the ARM8 dmb barriers
+# instead of the x86 bsf inline-asm). OFF on Windows (Qt build provides
+# it) and on GCC <10 where std feature support is patchy.
 # Override with: cmake .. -DUSE_KAME_ALLOCATOR=ON (or OFF)
 if(NOT DEFINED USE_KAME_ALLOCATOR)
-    if(APPLE OR WIN32)
+    if(WIN32)
         set(USE_KAME_ALLOCATOR OFF)
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
         set(USE_KAME_ALLOCATOR OFF)
@@ -37,7 +39,12 @@ if(NOT DEFINED USE_KAME_ALLOCATOR)
         set(USE_KAME_ALLOCATOR ON)
     endif()
 endif()
-if(NOT USE_KAME_ALLOCATOR)
+message(STATUS "USE_KAME_ALLOCATOR = ${USE_KAME_ALLOCATOR}")
+if(USE_KAME_ALLOCATOR)
+    # Compile tests/allocator.cpp as a dedicated TU that brings in the
+    # pool allocator from ../kame/allocator.cpp. Mirrors the .pro layout.
+    list(APPEND support_SRCS allocator.cpp)
+else()
     add_compile_definitions(DISABLE_POOL_ALLOCATOR)
 endif()
 
