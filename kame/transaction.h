@@ -422,12 +422,16 @@ private:
                 m_link(link), m_started_time(started_time) {}
             ~Negotiator() {
                 if( !m_started_time) return;
-                // if( !m_succeeded) {
-                // //CAS has been disturbed, or some fault during transaction.
-                //     auto time = m_link.m_transaction_started_time.load(std::memory_order_relaxed);
-                // if( !time || (time > m_started_time ))
-                //     m_link.m_transaction_started_time.store(m_started_time, std::memory_order_relaxed);
-                // }
+                if( !m_succeeded) {
+                //CAS has been disturbed, or some fault during transaction.
+                    // auto time = m_link.m_transaction_started_time.load(std::memory_order_relaxed);
+                    // if( !time || (time - m_started_time > 0))
+                    //     m_link.m_transaction_started_time.store(m_started_time, std::memory_order_relaxed);
+                }
+            }
+            void tags_successful_single_node() noexcept {
+                if( !m_started_time) return; //not yet negotiated.
+                m_succeeded = true;
             }
             void tags_successful_cas() noexcept {
                 if( !m_started_time) return; //not yet negotiated.
@@ -527,7 +531,7 @@ private:
     void snapshot(Snapshot<XN> &target, bool multi_nodal, typename NegotiationCounter::cnt_t started_time,
                   TidBitset &tid_bitset) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-        m_link->negotiate(target.m_started_time, target.m_tid_bitset, 4.0f);
+        // m_link->negotiate(target.m_started_time, target.m_tid_bitset, 4.0f);
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time,
                  target.m_tid_bitset);
         target.m_oldpacket = target.m_packet;

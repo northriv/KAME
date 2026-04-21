@@ -1264,10 +1264,13 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
         if(target->hasPriority()) {
-            if( !multi_nodal)
+            if( !multi_nodal) {
+                negotiator.tags_successful_single_node();
                 break;
+            }
             if( !target->packet()->missing()) {
                 STRICT_assert(target->packet()->checkConsistensy(target->packet()));
+                negotiator.tags_successful_cas();
                 break;
             }
         }
@@ -1503,9 +1506,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             local_shared_ptr<Packet> &subpacket_new(( *subpackets)[i]);
             local_shared_ptr<PacketWrapper> subwrapper;
             for(int child_retry = 0;; ++child_retry) {
-                if(child_retry)
-                    negotiators.push_back(child->m_link->negotiate_after_retry_pause(child_retry, started_time, tid_bitset,
-                        2.0f / subpackets->size()));
+                negotiators.push_back(child->m_link->negotiate_after_retry_pause(child_retry, started_time, tid_bitset,
+                    1.0f / subpackets->size()));
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i])
                     break;
@@ -1540,7 +1542,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         newpacket->m_missing = true;
 
         //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
-        negotiators.push_back(supernode.m_link->negotiate(started_time, tid_bitset, 2.0f));
+        negotiators.push_back(supernode.m_link->negotiate(started_time, tid_bitset, 1.0f));
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_link;
 //			if(superwrapper->m_bundle_serial != bundle_serial)
@@ -1563,7 +1565,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                 bundled_ref.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
 
             //this negotiation may decrease a commiting rate.
-            child->m_link->negotiate(started_time, tid_bitset, 2.0f / subnodes->size());
+            negotiators.push_back(child->m_link->negotiate(started_time, tid_bitset, 1.0f / subnodes->size()));
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
             if( !child->m_link->compareAndSet(subwrappers_org[i], bundled_ref)) {
@@ -1705,7 +1707,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
         switch(status) {
         case UnbundledStatus::W_NEW_SUBVALUE:
             if(tr.isMultiNodal()) {
-                negotiator.tags_successful_cas();
+                negotiator.tags_successful_single_node();
                 return true;
             }
             continue;
