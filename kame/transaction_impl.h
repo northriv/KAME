@@ -1282,7 +1282,8 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                         return;
                     }
                     // The packet is imperfect, and then re-bundling the subpackets.
-                    UnbundledStatus status = unbundle(nullptr, started_time, tid_bitset, m_link, target);
+                    UnbundledStatus status = unbundle(nullptr, started_time, tid_bitset, m_link, target,
+                        nullptr, nullptr, nullptr, &snapshot);
                     switch(status) {
                     case UnbundledStatus::W_NEW_SUBVALUE:
                     case UnbundledStatus::COLLIDED:
@@ -1700,7 +1701,8 @@ Node<XN>::commit(Transaction<XN> &tr) {
         //Unbundling this node from the super packet.
         UnbundledStatus status = unbundle(nullptr, tr.m_started_time, tr.m_tid_bitset,
             m_link, wrapper,
-            tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr);
+            tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr,
+            nullptr, &tr);
         switch(status) {
         case UnbundledStatus::W_NEW_SUBVALUE:
             if(tr.isMultiNodal())
@@ -1759,7 +1761,8 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
     TidBitset &tid_bitset,
     const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
     const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned,
-    local_shared_ptr<PacketWrapper> *oldsuperwrapper) {
+    local_shared_ptr<PacketWrapper> *oldsuperwrapper,
+    Snapshot<XN> *snap) {
 
     assert( !bundled_ref->hasPriority());
 
