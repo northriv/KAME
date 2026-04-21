@@ -82,14 +82,16 @@ static inline void retry_pause(int retry) noexcept {
 // retry=0 → retry_pause issues 1 pause (negligible), negotiate fast-returns
 // on the zero m_transaction_started_time marker. No threshold gate.
 template <class XN>
-void
+typename Node<XN>::Linkage::Negotiator
 Node<XN>::Linkage::negotiate_after_retry_pause(
     int retry,
     typename NegotiationCounter::cnt_t &started_time,
     TidBitset &tid_bitset,
     float mult_wait) noexcept {
+    if( !retry)
+        return { *this, {}};
     retry_pause(retry);
-    negotiate(started_time, tid_bitset, mult_wait);
+    return negotiate(started_time, tid_bitset, mult_wait);
 }
 
 template <class XN>
@@ -606,11 +608,12 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             packet->subpackets()->back() = subpacket_new;
             if(has_failed)
                 return false;
+            auto negotiator = var->m_link->negotiate(tr);
             if( !var->m_link->compareAndSet(subwrapper, newwrapper)) {
                 tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
                 return false;
             }
-            var->m_link->tags_successful_cas();
+            negotiator.tags_successful_cas();
             break;
         }
     }
@@ -744,12 +747,13 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     tr.m_oldpacket = tr.m_packet;
     tr.m_packet = newpacket;
 
+    auto negotiator = var->m_link->negotiate(tr);
     //Unload the packet of the released node.
     if( !var->m_link->compareAndSet(nullsubwrapper, newsubwrapper)) {
         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
         return false;
     }
-    var->m_link->tags_successful_cas();
+    negotiator.tags_successful_cas();
 //		printf("r");
     STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
     return true;
@@ -1255,9 +1259,8 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                    TidBitset &tid_bitset) const {
     local_shared_ptr<PacketWrapper> target;
     for(int retry = 0;; ++retry) {
-        if(retry)
-            m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
-                                                 2.0f);
+        auto negotiator = m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
+                                                              1.0f);
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
         if(target->hasPriority()) {
@@ -1279,6 +1282,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     if( !( *foundpacket)->missing() || !multi_nodal) {
                         snapshot.m_packet = *foundpacket;
                         STRICT_assert(snapshot.m_packet->checkConsistensy(snapshot.m_packet));
+                        negotiator.tags_successful_cas();
                         return;
                     }
                     // The packet is imperfect, and then re-bundling the subpackets.
@@ -1300,6 +1304,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                 //The packet has been released.
                 if( !target->packet()->missing() || !multi_nodal) {
                     snapshot.m_packet = target->packet();
+                    negotiator.tags_successful_cas();
                     return;
                 }
                 break;
@@ -1312,6 +1317,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             assert( !target->packet()->missing());
             STRICT_assert(target->packet()->checkConsistensy(target->packet()));
             snapshot.m_serial = SerialGenerator::gen(); //Capture Lamport advances from bundle().
+            negotiator.tags_successful_cas();
             break;
         default:
             continue;
@@ -1473,9 +1479,10 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
     fast_vector<local_shared_ptr<PacketWrapper>, 16> subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
 
     for(int retry = 0;; ++retry) {
-        if(retry)
-            supernode.m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
-                                                          2.0f);
+        std::vector<typename Linkage::Negotiator> negotiators;
+        // if(retry)
+        //     negotiators.push_back(supernode.m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
+        //                                                   2.0f));
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *oldsuperwrapper, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
@@ -1497,8 +1504,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             local_shared_ptr<PacketWrapper> subwrapper;
             for(int child_retry = 0;; ++child_retry) {
                 if(child_retry)
-                    child->m_link->negotiate_after_retry_pause(child_retry, started_time, tid_bitset,
-                        2.0f / subpackets->size());
+                    negotiators.push_back(child->m_link->negotiate_after_retry_pause(child_retry, started_time, tid_bitset,
+                        2.0f / subpackets->size()));
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i])
                     break;
@@ -1533,7 +1540,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         newpacket->m_missing = true;
 
         //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
-        supernode.m_link->negotiate(started_time, tid_bitset, 2.0f);
+        negotiators.push_back(supernode.m_link->negotiate(started_time, tid_bitset, 2.0f));
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_link;
 //			if(superwrapper->m_bundle_serial != bundle_serial)
@@ -1584,12 +1591,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             return BundledStatus::DISTURBED;
         oldsuperwrapper = std::move(superwrapper);
 
-        for(unsigned int i = 0; i < subnodes->size(); i++) {
-            shared_ptr<Node> child(( *subnodes)[i]);
-            //this tagging significantly icreased a commiting rate.
-            child->m_link->tags_successful_cas(started_time);
-        }
-        supernode.m_link->tags_successful_cas(started_time);
+        for(auto &&neg: negotiators)
+            neg.tags_successful_cas();
         break;
     }
     return BundledStatus::SUCCESS;
@@ -1663,9 +1666,8 @@ Node<XN>::commit(Transaction<XN> &tr) {
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
     local_shared_ptr<PacketWrapper> wrapper;
     for(int retry = 0;; ++retry) {
-        if(retry)
-            m_link->negotiate_after_retry_pause(retry, tr.m_started_time, tr.m_tid_bitset,
-                                                 2.0f);
+        auto negotiator = m_link->negotiate_after_retry_pause(retry, tr.m_started_time, tr.m_tid_bitset,
+                                                 1.0f);
         wrapper = *m_link;
         if(wrapper->hasPriority()) {
             //Committing directly to the node.
@@ -1691,8 +1693,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //					for(typename std::deque<local_shared_ptr<PacketWrapper> >::const_iterator
 //					it = subwrappers.begin(); it != subwrappers.end(); ++it)
 //					assert( !( *it)->hasPriority()));
-                //this decreases a commit rate.
-                // m_link->tags_successful_cas(tr.m_started_time);
+                negotiator.tags_successful_cas();
                 return true;
             }
             continue;
@@ -1703,8 +1704,10 @@ Node<XN>::commit(Transaction<XN> &tr) {
             tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr);
         switch(status) {
         case UnbundledStatus::W_NEW_SUBVALUE:
-            if(tr.isMultiNodal())
+            if(tr.isMultiNodal()) {
+                negotiator.tags_successful_cas();
                 return true;
+            }
             continue;
         case UnbundledStatus::SUBVALUE_HAS_CHANGED: {
                 STRICT_TEST(s_serial_abandoned = tr.m_serial);
@@ -1785,8 +1788,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
     if(oldsubpacket && ( *newsubpacket != *oldsubpacket))
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
 
+    std::vector<typename Linkage::Negotiator> negotiators;
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-        it->linkage->negotiate(time_started, tid_bitset, 2.0 / cas_infos.size());
+        negotiators.push_back(it->linkage->negotiate(time_started, tid_bitset, 1.0 / cas_infos.size()));
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper))
             return UnbundledStatus::DISTURBED;
         if(oldsuperwrapper) {
@@ -1807,13 +1811,12 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
     else
         newsubwrapper.reset(new PacketWrapper( *newsubpacket, SerialGenerator::gen(superwrapper->m_bundle_serial)));
 
+    // negotiators.push_back(sublinkage->negotiate(time_started, tid_bitset));
     if( !sublinkage->compareAndSet(bundled_ref, newsubwrapper))
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
 
-    sublinkage->tags_successful_cas(time_started);
-    for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-        it->linkage->tags_successful_cas(time_started);
-    }
+    for(auto &&neg: negotiators)
+        neg.tags_successful_cas();
 
     if(newsubwrapper_returned)
         *newsubwrapper_returned = newsubwrapper;

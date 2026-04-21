@@ -416,12 +416,66 @@ private:
             return (uint32_t)((uint64_t)ns / 1000u);
         }
 
+        struct Negotiator {
+            Negotiator() = delete;
+            Negotiator(Linkage &link, typename NegotiationCounter::cnt_t started_time) :
+                m_link(link), m_started_time(started_time) {}
+            ~Negotiator() {
+                if( !m_started_time) return;
+                // if( !m_succeeded) {
+                // //CAS has been disturbed, or some fault during transaction.
+                //     auto time = m_link.m_transaction_started_time.load(std::memory_order_relaxed);
+                // if( !time || (time > m_started_time ))
+                //     m_link.m_transaction_started_time.store(m_started_time, std::memory_order_relaxed);
+                // }
+            }
+            void tags_successful_cas() noexcept {
+                if( !m_started_time) return; //not yet negotiated.
+                m_succeeded = true;
+#if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
+                (void)started_time;
+                return;
+#else
+                auto ps = m_link.loadPriority();
+                // Build the desired tuple. Keep ps.start_us when the owner TID
+                // hasn't changed — a same-owner re-commit doesn't count as a
+                // fresh lease start, so we avoid differing start_us values
+                // making `desired != ps` spuriously true on every call. lease_us
+                // is always preserved (owner change doesn't reset the Linkage's
+                // contention profile).
+                uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
+                PriorityState desired{ my_tid, ps.lease_us, ps.start_us };
+                if(my_tid != ps.tid)
+                    desired.start_us = nsToUs(m_started_time ? m_started_time
+                                                           : Node<XN>::NegotiationCounter::now());
+                // Only store when something actually changed. 64-bit packed
+                // compare is one instruction on M3 / x86-64; skipping the
+                // storePriority() on identical state avoids the cache-line
+                // ping-pong that showed up as heavy same-owner commits.
+                //
+                // Relaxed order suffices: m_priority_state is self-contained
+                // (consumers use ps.tid / ps.lease_us / ps.start_us on their
+                // own; they don't infer ordering on any other memory from this
+                // store). The companion wrapper CAS on m_link carries its own
+                // release semantics and the wrapper's TID lives in the serial
+                // low bits, so no cross-atomic happens-before is needed here.
+                if(packPriority(desired.tid, desired.lease_us, desired.start_us)
+                    != packPriority(ps.tid, ps.lease_us, ps.start_us)) {
+                    m_link.storePriority(desired, std::memory_order_relaxed);
+                }
+#endif
+            }
+            Linkage &m_link;
+            typename NegotiationCounter::cnt_t m_started_time;
+            bool m_succeeded = false;
+        };
+
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
         //! \a tid_bitset accumulates observed committer TIDs (via the Linkage's
         //! m_priority_tid atomic) over the lifetime of the calling transaction.
         //! negotiate_internal() uses its popcount C to scale the backoff jitter
         //! range as √C; negotiate() uses C to drive the adaptive-lease length.
-        void negotiate(typename NegotiationCounter::cnt_t &started_time,
+        Negotiator negotiate(typename NegotiationCounter::cnt_t &started_time,
                        TidBitset &tid_bitset,
                        float mult_wait) noexcept {
 #if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
@@ -430,7 +484,7 @@ private:
             // no collision-marker inspection. Pure lock-free CAS retry behavior.
             // See retry_pause() in transaction_impl.h for the matching early-return.
             (void)started_time; (void)tid_bitset; (void)mult_wait;
-            return;
+            return { *this, started_time};
 #else
             // Fast path for the common "no collision" case. Caller is on a hot
             // retry loop in low-contention workloads (test_dynamic, single-
@@ -441,43 +495,13 @@ private:
             // would do first thing, so we pay no extra in the collision case —
             // just skip the rest when clear.
             if( !m_transaction_started_time.load(std::memory_order_relaxed))
-                return;
+                return { *this, {}};
             negotiate_internal(started_time, tid_bitset, mult_wait);
 #endif
+            return { *this, started_time};
         }
-        void tags_successful_cas(typename NegotiationCounter::cnt_t started_time = {}) noexcept {
-#if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
-            (void)started_time;
-            return;
-#else
-            auto ps = loadPriority();
-            // Build the desired tuple. Keep ps.start_us when the owner TID
-            // hasn't changed — a same-owner re-commit doesn't count as a
-            // fresh lease start, so we avoid differing start_us values
-            // making `desired != ps` spuriously true on every call. lease_us
-            // is always preserved (owner change doesn't reset the Linkage's
-            // contention profile).
-            uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
-            PriorityState desired{ my_tid, ps.lease_us, ps.start_us };
-            if(my_tid != ps.tid)
-                desired.start_us = nsToUs(started_time ? started_time
-                                        : Node<XN>::NegotiationCounter::now());
-            // Only store when something actually changed. 64-bit packed
-            // compare is one instruction on M3 / x86-64; skipping the
-            // storePriority() on identical state avoids the cache-line
-            // ping-pong that showed up as heavy same-owner commits.
-            //
-            // Relaxed order suffices: m_priority_state is self-contained
-            // (consumers use ps.tid / ps.lease_us / ps.start_us on their
-            // own; they don't infer ordering on any other memory from this
-            // store). The companion wrapper CAS on m_link carries its own
-            // release semantics and the wrapper's TID lives in the serial
-            // low bits, so no cross-atomic happens-before is needed here.
-            if(packPriority(desired.tid, desired.lease_us, desired.start_us)
-               != packPriority(ps.tid, ps.lease_us, ps.start_us)) {
-                storePriority(desired, std::memory_order_relaxed);
-            }
-#endif
+        Negotiator negotiate(Transaction<XN> &tr, float mult_wait = 1.0f) {
+            return negotiate(tr.m_started_time, tr.m_tid_bitset, mult_wait);
         }
         //! Unified retry-loop backoff helper. Called once per retry (retry > 0)
         //! at the top of each CAS-retry loop (commit/snapshot/bundle/bundle-child).
@@ -487,7 +511,7 @@ private:
         //! GDB-sampling on 32-thread 3level stress showed ~52% of time in
         //! bundle()'s outer retry, which previously had only retry_pause and
         //! no negotiate between Phase 3 failure and the next Phase 1 attempt.
-        void negotiate_after_retry_pause(int retry,
+        Negotiator negotiate_after_retry_pause(int retry,
                                          typename NegotiationCounter::cnt_t &started_time,
                                          TidBitset &tid_bitset,
                                          float mult_wait) noexcept;
