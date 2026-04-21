@@ -1255,9 +1255,11 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                    TidBitset &tid_bitset) const {
     local_shared_ptr<PacketWrapper> target;
     for(int retry = 0;; ++retry) {
-        if(retry)
+        if(retry) {
             m_link->negotiate_after_retry_pause(retry, started_time, tid_bitset,
                                                  2.0f);
+            snapshot.tag_as_contender(m_link);
+        }
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
         if(target->hasPriority()) {

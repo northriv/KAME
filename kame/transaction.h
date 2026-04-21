@@ -691,6 +691,7 @@ public:
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
         m_started_time = Node<XN>::NegotiationCounter::now();
         node.snapshot( *this, multi_nodal, m_started_time, m_tid_bitset);
+        drop_tags();
     }
 
     //! \return Payload instance for \a node, which should be included in the snapshot.
@@ -777,30 +778,18 @@ public:
         m_tagged_linkages.push_back(link);
     }
 
-    //! Tag \a link on the first CAS-disturbed event of this snapshot's
-    //! lifetime and no-op on every subsequent disturbance. Keeps total
-    //! disturbed-path tag coverage bounded at 1 extra linkage per
-    //! Transaction (on top of tr++'s primary-node tag), avoiding the
-    //! "mutex 渋滞 -> livelock" observed when every disturbed linkage
-    //! in cas_infos was tagged.
-    void tag_on_first_disturb(const std::shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
-        if(m_disturbed_tagged) return;
-        m_disturbed_tagged = true;
-        tag_as_contender(link);
-    }
-
     //! Walks m_tagged_linkages and clears each linkage's tag only if it
     //! still equals m_started_time ("mine-only" compare-and-clear). Idempotent
     //! w.r.t. duplicate entries — repeated tags from the same snapshot across
     //! retries land in the list multiple times; the second pass sees tag=0
-    //! and skips. Runs from ~Snapshot so every derived class (Transaction,
-    //! SingleTransaction, pure-read Snapshot-from-Node) gets cleanup for
+    //! and skips. Runs from ~Transaction(),
+    //! ~SingleTransaction() or else gets cleanup for
     //! free.
     //!
     //! A stale tag (value != m_started_time, e.g. somebody younger
     //! overwrote ours) is left alone — the other thread will clear it
-    //! from its own destructor.
-    ~Snapshot() noexcept {
+    //! from its own tranaction destructor.
+    void drop_tags() noexcept {
         for(auto &sp : m_tagged_linkages) {
             if(sp->m_transaction_started_time == m_started_time)
                 sp->m_transaction_started_time = 0;
@@ -835,13 +824,7 @@ protected:
     //! further restructuring. Inline-first-16 (fast_vector) keeps
     //! low-contention workloads zero-alloc.
     fast_vector<std::shared_ptr<typename Node<XN>::Linkage>, 16> m_tagged_linkages;
-    //! Latch used by tag_on_first_disturb(). Setting from false → true
-    //! must happen at most once per Snapshot lifetime to keep disturbed-
-    //! path tag coverage bounded. Copy ctors propagate it — a snapshot
-    //! constructed from a still-running Transaction inherits whatever
-    //! flag state the source had, which matches "one disturb tag per
-    //! transaction attempt" semantics.
-    bool m_disturbed_tagged = false;
+
     Snapshot() = default;
 };
 //! \brief Snapshot class which does not care of contents (Payload) for subnodes.\n
@@ -901,11 +884,13 @@ public:
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now();
     }
-    // ~Transaction() is implicit. Tag cleanup lives on ~Snapshot, which
+    Transaction(Transaction&&x) = default;
     // walks m_tagged_linkages — a superset of what the old hand-rolled
     // Transaction destructor cleared (just the primary node's linkage)
     // once snapshot()/bundle()-level tagging lands in a later pass.
-    Transaction(Transaction&&x) = default;
+    ~Transaction() {
+        Snapshot<XN>::drop_tags();
+    }
 
     //! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
     template <class T>
