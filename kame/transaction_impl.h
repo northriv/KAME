@@ -49,7 +49,7 @@
 //   simultaneous-CAS storm at high K / high N.  Values of 8–32 are typical.
 //   Note: gate winners (earned priority) are never capped.
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS 16
+#define KAME_STM_MAX_RUNNERS 0
 #endif
 
 // KAME_STM_MIN_RUNNERS: floor on concurrent runners.
@@ -58,7 +58,7 @@
 //   preventing the "all threads sleeping simultaneously" stall.  Value of 1
 //   is the minimal anti-stall guard; 4–8 gives more throughput headroom.
 #ifndef KAME_STM_MIN_RUNNERS
-#define KAME_STM_MIN_RUNNERS 0
+#define KAME_STM_MIN_RUNNERS 12
 #endif
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
@@ -554,6 +554,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)sqrtC;
                 uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
                 if(r < threshold) {
+                    typename NegotiationCounter::ReleaseOneCount onedown;
                     std::this_thread::yield(); // de-phase lottery winners before retry
                     break;
                 }
@@ -582,8 +583,16 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // Yield while ms ≤ √C: de-phases threads before the first sleep.
         // Prevents all threads sleeping exactly 1 ms simultaneously on the
         // first negotiate iteration (the original synchronized-wake livelock).
-        if(ms <= sqrtC) {
-            std::this_thread::yield();
+        if((ms <= sqrtC)
+#if KAME_STM_MAX_RUNNERS > 0
+           && (NegotiationCounter::numThreadsRunning() < KAME_STM_MAX_RUNNERS)
+#endif
+            ){
+            auto start = Node<XN>::NegotiationCounter::now();
+            do {
+                typename NegotiationCounter::ReleaseOneCount onedown;
+                std::this_thread::yield();
+            } while(Node<XN>::NegotiationCounter::now() - start < 1000);
         } else {
             // Asymmetric jitter [ms/√C, ms]: spread downward so mean < ms.
             int low = std::max(1, ms / sqrtC);
@@ -604,12 +613,18 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             // Too few runners: substitute a short 1 ms sleep so these threads
             // wake up quickly and keep the CAS pipeline fed.  Plain if-else —
             // no break or continue — so the loop proceeds normally afterward.
-            if(NegotiationCounter::numThreadsRunning() < KAME_STM_MIN_RUNNERS) {
-                std::this_thread::yield();
-                msecsleep(1);
-            } else
-#endif
+            {
+                auto start = Node<XN>::NegotiationCounter::now();
+                while(Node<XN>::NegotiationCounter::now() - start <
+                       1000 * ms_actual) {
+                    if(NegotiationCounter::numThreadsRunning() < KAME_STM_MIN_RUNNERS)
+                        std::this_thread::yield();
+                    msecsleep(1);
+                }
+            }
+#else
             msecsleep(ms_actual);
+#endif
         }
     }
 }
