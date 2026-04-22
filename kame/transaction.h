@@ -939,7 +939,6 @@ public:
         Node<XN> &node(this->m_packet->node());
         if( !isModified() || node.commit( *this)) {
             finalizeCommitment(node);
-            m_oneup.reset();
             return true;
         }
         return false;
@@ -1024,10 +1023,11 @@ protected:
 template <class XN>
 void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     //Clears the time stamp linked to this object.
-    if(node.m_link->m_transaction_started_time == m_started_time) {
-        node.m_link->m_transaction_started_time = 0;
-    }
+    // Drop all contender tags (including TAG_ON_DISTURB child tags) before
+    // zeroing m_started_time; drop_tags() matches on the current value.
+    this->drop_tags();
     m_started_time = 0;
+    m_oneup.reset();
 
     m_oldpacket.reset();
     //Messaging.
