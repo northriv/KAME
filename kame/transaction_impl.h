@@ -30,26 +30,28 @@
 #endif
 
 // KAME_STM_LOTTERY_MULT: multiplier on the √C lottery threshold.
-//   1 = ~√C bypass/iter (default).  2 = ~2√C.  4 = ~4√C.
+//   1 = ~√C bypass/iter.  4 = ~4√C.  6 = ~6√C (default, tuned for M4 N=128).
+//   Beyond 8 causes CAS storms at K≥10 3-level — regression.
 #ifndef KAME_STM_LOTTERY_MULT
-#define KAME_STM_LOTTERY_MULT 1
+#define KAME_STM_LOTTERY_MULT 6
 #endif
 
 // KAME_STM_TAG_ON_DISTURB: also tag the linkage on each CAS-disturbed
 //   event in unbundle's cas_infos loop.  Must pair with LOTTERY_MULT ≥ 2.
-//   0 = tr++-only (default).  1 = wider tag coverage.
+//   0 = tr++-only.  1 = wider tag coverage (default; requires drop_tags()
+//   fix in finalizeCommitment — always present since the accompanying patch).
 #ifndef KAME_STM_TAG_ON_DISTURB
-#define KAME_STM_TAG_ON_DISTURB 0
+#define KAME_STM_TAG_ON_DISTURB 1
 #endif
 
 // KAME_STM_MAX_RUNNERS: cap on threads simultaneously in the CAS-retry loop
 //   (i.e. those that just won the lottery and are about to retry CAS).
-//   0 = disabled (default).  Positive = excess lottery winners fall through
+//   0 = disabled.  Positive = excess lottery winners fall through
 //   to the sleep path instead of retrying immediately, limiting the
-//   simultaneous-CAS storm at high K / high N.  Values of 8–32 are typical.
+//   simultaneous-CAS storm at high K / high N.  16 = default (tuned M4 N=128).
 //   Note: gate winners (earned priority) are never capped.
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS 0
+#define KAME_STM_MAX_RUNNERS 16
 #endif
 
 // KAME_STM_MIN_RUNNERS: floor on concurrent runners.
