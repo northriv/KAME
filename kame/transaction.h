@@ -252,7 +252,22 @@ private:
             auto tm = XTime::now();
             return (cnt_t)tm.sec() * 1000000uL + tm.usec();
         }
+        static unsigned int numThreadsRunning() {return s_running.load(std::memory_order_relaxed);}
+
+        struct DECLSPEC_KAME AcquireOneCount {
+            AcquireOneCount() {
+                NegotiationCounter::s_running.fetch_add(1, std::memory_order_relaxed);}
+            ~AcquireOneCount() {
+                NegotiationCounter::s_running.fetch_sub(1, std::memory_order_relaxed);}
+        };
+        struct DECLSPEC_KAME ReleaseOneCount {
+            ReleaseOneCount() {
+                NegotiationCounter::s_running.fetch_sub(1, std::memory_order_relaxed);}
+            ~ReleaseOneCount() {
+                NegotiationCounter::s_running.fetch_add(1, std::memory_order_relaxed);}
+        };
     private:
+        static atomic<unsigned int> s_running;
     };
 
     //! Generates a serial number assigned to bundling and transaction.\n
@@ -674,6 +689,7 @@ public:
         : Snapshot(static_cast<Snapshot&&>(x)) {}
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
         m_started_time = Node<XN>::NegotiationCounter::now();
+        typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
         node.snapshot( *this, multi_nodal);
         drop_tags();
     }
@@ -858,6 +874,7 @@ public:
     explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
         Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now();
+        m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
         node.snapshot( *this, multi_nodal);
         assert( &m_packet->node() == &node);
         assert( &m_oldpacket->node() == &node);
@@ -867,6 +884,7 @@ public:
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now();
+        m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
     }
     Transaction(Transaction&&x) = default;
     // walks m_tagged_linkages — a superset of what the old hand-rolled
@@ -921,6 +939,7 @@ public:
         Node<XN> &node(this->m_packet->node());
         if( !isModified() || node.commit( *this)) {
             finalizeCommitment(node);
+            m_oneup.reset();
             return true;
         }
         return false;
@@ -966,6 +985,7 @@ private:
         // (same linkages, same contenders). Clearing would reset C=1 on
         // every ++tr, losing adaptive jitter benefit in livelock paths.
         m_messages.clear();
+        m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
         this->m_packet->node().snapshot( *this, m_multi_nodal);
         return *this;
     }
@@ -979,6 +999,7 @@ private:
     // Transaction-specific members below.
     using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
+    std::unique_ptr<typename Node<XN>::NegotiationCounter::AcquireOneCount> m_oneup;
 };
 
 //! \brief Transaction which does not care of contents (Payload) of subnodes.\n
