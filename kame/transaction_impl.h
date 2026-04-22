@@ -14,9 +14,52 @@
 #include "transaction.h"
 #include <vector>
 #include <thread>
+#include <atomic>
 #include <cstdint>
 #include <cmath>
 #include <algorithm>
+
+// --- Tuning macros for the adaptive-negotiate backoff (Appendix A) ---
+// All are -D overridable at cmake time; defaults match the shipping patch.
+
+// KAME_STM_JITTER_RANGE: half-range of the jittered gate in percent.
+//   25 = ±25 % (default, balanced).  50 = ±50 % (wider de-phasing).
+//   12 ≈ ±12.5 % (tighter, better for K=10 regression).
+#ifndef KAME_STM_JITTER_RANGE
+#define KAME_STM_JITTER_RANGE 25
+#endif
+
+// KAME_STM_LOTTERY_MULT: multiplier on the √C lottery threshold.
+//   1 = ~√C bypass/iter (default).  2 = ~2√C.  4 = ~4√C.
+#ifndef KAME_STM_LOTTERY_MULT
+#define KAME_STM_LOTTERY_MULT 1
+#endif
+
+// KAME_STM_TAG_ON_DISTURB: also tag the linkage on each CAS-disturbed
+//   event in unbundle's cas_infos loop.  Must pair with LOTTERY_MULT ≥ 2.
+//   0 = tr++-only (default).  1 = wider tag coverage.
+#ifndef KAME_STM_TAG_ON_DISTURB
+#define KAME_STM_TAG_ON_DISTURB 0
+#endif
+
+// KAME_STM_MAX_RUNNERS: cap on threads simultaneously in the CAS-retry loop
+//   (i.e. those that just won the lottery and are about to retry CAS).
+//   0 = disabled (default).  Positive = excess lottery winners fall through
+//   to the sleep path instead of retrying immediately, limiting the
+//   simultaneous-CAS storm at high K / high N.  Values of 8–32 are typical.
+//   Note: gate winners (earned priority) are never capped.
+#ifndef KAME_STM_MAX_RUNNERS
+#define KAME_STM_MAX_RUNNERS 16
+#endif
+
+// KAME_STM_MIN_RUNNERS: floor on concurrent runners.
+//   0 = disabled (default).  Positive = a thread that would sleep instead
+//   becomes a runner when the running count drops below this threshold,
+//   preventing the "all threads sleeping simultaneously" stall.  Value of 1
+//   is the minimal anti-stall guard; 4–8 gives more throughput headroom.
+#ifndef KAME_STM_MIN_RUNNERS
+#define KAME_STM_MIN_RUNNERS 0
+#endif
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
 // STRICT_assert(expr): behaves like assert(expr) when TRANSACTIONAL_STRICT_assert is defined;
@@ -34,6 +77,9 @@
 #endif
 
 namespace Transactional {
+
+template <class XN>
+atomic<unsigned int> Node<XN>::NegotiationCounter::s_running{0};
 
 STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
 
@@ -248,7 +294,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_NS_MIN  1000     // 1 µs
 #endif
 #ifndef KAME_LEASE_NS_MAX
-#define KAME_LEASE_NS_MAX  300000    // 300 µs
+#define KAME_LEASE_NS_MAX  500000    // 500 µs
 #endif
 
 
@@ -419,6 +465,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #define KAME_DT2_FAIRNESS_NS 40000  // 40 µs; override via -D
 #endif
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
+#if KAME_STM_MAX_RUNNERS > 0
+    if(NegotiationCounter::numThreadsRunning() < KAME_STM_MAX_RUNNERS)
+#endif
     if(my_tid == ps.tid
         && adapt_dt2_last_ns < (uint64_t)KAME_DT2_FAIRNESS_NS) {
         // Age in µs via modular 32-bit subtraction (wrap-safe up to ~35 min).
@@ -435,8 +484,17 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #endif
 
     // Thread-local LCG for sleep-duration jitter randomization.
-    static thread_local uint32_t s_backoff_seed = 0x9E3779B9u
-        ^ (uint32_t)(uintptr_t)&started_time;
+    // Seed mixes thread ID (unique per thread) with stack address; Murmur finalizer
+    // avalanches all bits so threads with adjacent stack addresses (8 MB spacing on
+    // macOS) get unrelated seeds — preventing correlated jitter and synchronized wakeups.
+    static thread_local uint32_t s_backoff_seed = [&]{
+        uint32_t h = (uint32_t)ProcessCounter::id() * 2654435761u
+                   ^ (uint32_t)(uintptr_t)&started_time;
+        h ^= h >> 16; h *= 0x85ebca6bu;
+        h ^= h >> 13; h *= 0xc2b2ae35u;
+        h ^= h >> 16;
+        return h ? h : 1u;
+    }();
 
     for(int ms = 0;;) {
         Priority pr = getCurrentPriorityMode();
@@ -466,32 +524,39 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         if(sqrtC < 1) sqrtC = 1;
 
         if(pr != Priority::LOWEST && dt > 0) {
-            // (a) Jittered gate ±50%: de-phases threads that crossed the yield phase
-            //     at slightly different times. Together with (b) lottery, eliminates
-            //     livelock at K=10-30 N=128. Neither alone is sufficient.
+            // (a) Jittered gate: break early when the waiting time justifies it.
+            //     LHS = mult_wait * 2 * dt * J, RHS = dt2.  J ∈ [1-R/100, 1+R/100]
+            //     with R = KAME_STM_JITTER_RANGE.  Fixed-point: multiply both sides
+            //     by 65536; J encoded as (LO + r_j / DIV) where LO = (100-R)*65536/100.
             s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
             uint32_t r_j = (s_backoff_seed >> 16) & 0xFFFFu;
-            uint64_t lhs_j = (uint64_t)((3.0 * mult_wait) * (double)dt)
-                           * (uint64_t)(32768u + r_j);  // ±50% jitter
-            uint64_t rhs_j = (uint64_t)(dt2 * 1.0 - dt) * 65536u;
+            enum {
+                JITTER_LO  = (100 - KAME_STM_JITTER_RANGE) * 65536 / 100,
+                JITTER_DIV = 100 / (2 * KAME_STM_JITTER_RANGE)
+            };
+            uint64_t lhs_j = (uint64_t)(mult_wait * 2.0 * (double)dt)
+                           * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
+            uint64_t rhs_j = (uint64_t)dt2 * 65536u;
             if(lhs_j < rhs_j)
-                break;
+                break; // gate: earned priority — always proceeds, never capped
 #ifndef KAME_STM_DISABLE_LOTTERY
 #define KAME_STM_DISABLE_LOTTERY 0
 #endif
 #if !KAME_STM_DISABLE_LOTTERY
-            // (b) √C fairness floor below the jittered threshold: let
-            //     ~√C newer threads bypass the wait per iteration.
-            //     Without this, high-C workloads degenerate to
-            //     one-at-a-time commit (M4 N=128 K=1 livelock regime).
-            //     -DKAME_STM_DISABLE_LOTTERY=1 leaves (a) only.
+            // (b) √C fairness lottery: LOTTERY_MULT*√C threads bypass per iteration.
+            //     Prevents all threads from being stuck in the gate simultaneously.
+#if KAME_STM_MAX_RUNNERS > 0
+            if(NegotiationCounter::numThreadsRunning() < KAME_STM_MAX_RUNNERS)
+#endif
             if(sqrtC > 1) {
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
                 uint32_t r = (s_backoff_seed >> 16) & 0xFFFFu;
-                uint32_t threshold = 0x20000u / (uint32_t)sqrtC;  // 2√C lottery
-                if(threshold > 0xFFFFu) threshold = 0xFFFFu;
-                if(r < threshold)
+                uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)sqrtC;
+                uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
+                if(r < threshold) {
+                    std::this_thread::yield(); // de-phase lottery winners before retry
                     break;
+                }
             }
 #endif
         }
@@ -508,25 +573,24 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #define KAME_STM_DISABLE_JITTER 0  // 1 → sleep = nominal ms (no adaptive jitter), for paper comparison
 #endif
 #if KAME_STM_DISABLE_JITTER
-        // Paper ablation variant: nominal ms, no jitter randomization.
+        // Paper ablation variant: nominal ms, no sleep jitter.
         int ms_actual = (ms < 1) ? 1 : ms;
-        (void)tid_bitset;  // unused when jitter disabled
+        (void)tid_bitset;
         (void)s_backoff_seed;
-        msecsleep(ms_actual);
+        {
 #else
         // Yield while ms ≤ √C: de-phases threads before the first sleep.
-        // sqrtC is the natural scale — it matches the lottery floor, so threads
-        // see ≥√C lottery checks before sleeping.  C_obs (≈128) over-spins.
+        // Prevents all threads sleeping exactly 1 ms simultaneously on the
+        // first negotiate iteration (the original synchronized-wake livelock).
         if(ms <= sqrtC) {
             std::this_thread::yield();
         } else {
-            // Asymmetric jitter range [ms/√C, ms]: spread only downward so mean
-            // sleep < ms (CPU stays busy) while de-phasing mass wake-ups.
+            // Asymmetric jitter [ms/√C, ms]: spread downward so mean < ms.
             int low = std::max(1, ms / sqrtC);
             int high = ms;
             int ms_actual;
             if(high <= low) {
-                ms_actual = low;   // degenerate: sqrtC=1, no spread
+                ms_actual = low;
             } else {
                 uint32_t span = (uint32_t)(high - low);
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
@@ -534,9 +598,19 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 ms_actual = low + (int)(((uint64_t)span * rand16) >> 16);
             }
             if(ms_actual < 1) ms_actual = 1;
+#endif
+            typename NegotiationCounter::ReleaseOneCount onedown;
+#if KAME_STM_MIN_RUNNERS > 0
+            // Too few runners: substitute a short 1 ms sleep so these threads
+            // wake up quickly and keep the CAS pipeline fed.  Plain if-else —
+            // no break or continue — so the loop proceeds normally afterward.
+            if(NegotiationCounter::numThreadsRunning() < KAME_STM_MIN_RUNNERS) {
+                std::this_thread::yield();
+                msecsleep(1);
+            } else
+#endif
             msecsleep(ms_actual);
         }
-#endif
     }
 }
 
@@ -1824,8 +1898,12 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
         it->linkage->negotiate(snap, 2.0 / cas_infos.size());
         // snap.tag_as_contender(it->linkage);
-        if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper))
+        if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper)) {
+#if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
+            snap.tag_as_contender(it->linkage);
+#endif
             return UnbundledStatus::DISTURBED;
+        }
         if(oldsuperwrapper) {
             if( ( *oldsuperwrapper)->packet()->node().m_link == it->linkage) {
                 if( *oldsuperwrapper != it->old_wrapper)
