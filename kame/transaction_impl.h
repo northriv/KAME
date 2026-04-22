@@ -128,9 +128,11 @@ static inline void retry_pause(int retry) noexcept {
 
 // --- CV-based negotiate sleep helpers ---
 // Each thread has a TLS NegotiateSleepState (mutex + cv + notified flag).
-// Sleeping threads register a pointer in s_negotiate_sleepers[]; lottery
-// winners call notify_one_sleeper() to wake one immediately rather than
-// waiting for their timer to fire.
+// Sleeping threads register their state in s_negotiate_sleepers[] at slot
+// ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS.
+//
+// notify_sleeping_contender() first scans the tid_bitset (known competitors)
+// to wake a directly relevant thread, then falls back to a random-start scan.
 namespace {
     struct NegotiateSleepState {
         std::mutex mtx;
@@ -138,8 +140,15 @@ namespace {
         bool notified = false;
     };
 
+    // NEGOTIATE_SLEEP_SLOTS == TID_BITSET_WORDS * 64 == 512 so slot = tid % 512
+    // gives a 1:1 map for IDs 0..511 (no collision for ≤ 512 threads).
     constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
     std::atomic<NegotiateSleepState*> s_negotiate_sleepers[NEGOTIATE_SLEEP_SLOTS];
+
+    inline void do_notify(NegotiateSleepState *st) noexcept {
+        { std::lock_guard<std::mutex> lk(st->mtx); st->notified = true; }
+        st->cv.notify_one();
+    }
 
     void negotiate_sleep(int ms_timeout) noexcept {
         static thread_local NegotiateSleepState tls;
@@ -154,17 +163,29 @@ namespace {
         s_negotiate_sleepers[slot].store(nullptr, std::memory_order_release);
     }
 
-    void notify_one_sleeper(uint32_t &seed) noexcept {
+    // Wake one sleeping thread: first try known contenders from tid_bitset
+    // (O(C) where C = competing threads), then random-scan fallback.
+    template<int WORDS>
+    void notify_sleeping_contender(const uint64_t (&tid_bitset)[WORDS],
+                                   uint32_t &seed) noexcept {
+        // Pass 1: iterate set bits in tid_bitset — each bit is a known contender TID.
+        for(int i = 0; i < WORDS; ++i) {
+            uint64_t word = tid_bitset[i];
+            while(word) {
+                int bit = __builtin_ctzll(word);
+                word &= word - 1;
+                int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
+                auto *st = s_negotiate_sleepers[slot].load(std::memory_order_acquire);
+                if(st) { do_notify(st); return; }
+            }
+        }
+        // Pass 2: random-start linear scan (catches threads not yet in bitset)
         seed = seed * 1103515245u + 12345u;
         int start = (int)((seed >> 16) % NEGOTIATE_SLEEP_SLOTS);
         for(int i = 0; i < NEGOTIATE_SLEEP_SLOTS; ++i) {
             auto *st = s_negotiate_sleepers[(start + i) % NEGOTIATE_SLEEP_SLOTS]
                            .load(std::memory_order_acquire);
-            if(st) {
-                { std::lock_guard<std::mutex> lk(st->mtx); st->notified = true; }
-                st->cv.notify_one();
-                return;
-            }
+            if(st) { do_notify(st); return; }
         }
         std::this_thread::yield(); // fallback: no sleepers registered yet
     }
@@ -600,7 +621,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)sqrtC;
                 uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
                 if(r < threshold) {
-                    notify_one_sleeper(s_backoff_seed); // wake a sleeper, then retry
+                    notify_sleeping_contender(tid_bitset, s_backoff_seed); // wake a sleeper, then retry
                     break;
                 }
             }
@@ -662,7 +683,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 while(Node<XN>::NegotiationCounter::now() - start <
                        1000 * ms_actual) {
                     if(NegotiationCounter::numThreadsRunning() < KAME_STM_MIN_RUNNERS)
-                        notify_one_sleeper(s_backoff_seed);
+                        notify_sleeping_contender(tid_bitset, s_backoff_seed);
                     negotiate_sleep(1);
                 }
             }
