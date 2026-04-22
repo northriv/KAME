@@ -131,8 +131,8 @@ static inline void retry_pause(int retry) noexcept {
 // Sleeping threads register their state in s_negotiate_sleepers[] at slot
 // ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS.
 //
-// notify_sleeping_contender() first scans the tid_bitset (known competitors)
-// to wake a directly relevant thread, then falls back to a random-start scan.
+// notify_all_contenders() broadcasts a wakeup to all sleeping threads in
+// tid_bitset so they re-enter the negotiate loop; MAX_RUNNERS then caps CAS.
 namespace {
     struct NegotiateSleepState {
         std::mutex mtx;
@@ -163,31 +163,21 @@ namespace {
         s_negotiate_sleepers[slot].store(nullptr, std::memory_order_release);
     }
 
-    // Wake one sleeping thread: first try known contenders from tid_bitset
-    // (O(C) where C = competing threads), then random-scan fallback.
+    // Wake up to `n` sleeping contenders from tid_bitset.
+    // Waking exactly n (≈ MAX_RUNNERS) keeps the CAS pipeline full without
+    // a thundering herd: all-wake at high K caused CAS storms.
     template<int WORDS>
-    void notify_sleeping_contender(const uint64_t (&tid_bitset)[WORDS],
-                                   uint32_t &seed) noexcept {
-        // Pass 1: iterate set bits in tid_bitset — each bit is a known contender TID.
-        for(int i = 0; i < WORDS; ++i) {
+    void notify_n_contenders(const uint64_t (&tid_bitset)[WORDS], int n) noexcept {
+        for(int i = 0; i < WORDS && n > 0; ++i) {
             uint64_t word = tid_bitset[i];
-            while(word) {
+            while(word && n > 0) {
                 int bit = __builtin_ctzll(word);
                 word &= word - 1;
                 int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
                 auto *st = s_negotiate_sleepers[slot].load(std::memory_order_acquire);
-                if(st) { do_notify(st); return; }
+                if(st) { do_notify(st); --n; }
             }
         }
-        // Pass 2: random-start linear scan (catches threads not yet in bitset)
-        seed = seed * 1103515245u + 12345u;
-        int start = (int)((seed >> 16) % NEGOTIATE_SLEEP_SLOTS);
-        for(int i = 0; i < NEGOTIATE_SLEEP_SLOTS; ++i) {
-            auto *st = s_negotiate_sleepers[(start + i) % NEGOTIATE_SLEEP_SLOTS]
-                           .load(std::memory_order_acquire);
-            if(st) { do_notify(st); return; }
-        }
-        std::this_thread::yield(); // fallback: no sleepers registered yet
     }
 } // anonymous namespace
 
@@ -621,7 +611,11 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)sqrtC;
                 uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
                 if(r < threshold) {
-                    notify_sleeping_contender(tid_bitset, s_backoff_seed); // wake a sleeper, then retry
+#if KAME_STM_MAX_RUNNERS > 0
+                    notify_n_contenders(tid_bitset, KAME_STM_MAX_RUNNERS);
+#else
+                    notify_n_contenders(tid_bitset, sqrtC);
+#endif
                     break;
                 }
             }
@@ -675,17 +669,21 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #endif
             typename NegotiationCounter::ReleaseOneCount onedown;
 #if KAME_STM_MIN_RUNNERS > 0
-            // Too few runners: substitute a short 1 ms sleep so these threads
-            // wake up quickly and keep the CAS pipeline fed.  Plain if-else —
-            // no break or continue — so the loop proceeds normally afterward.
+            // Sleep in 1 ms chunks so the MIN_RUNNERS check fires after this
+            // thread has registered in s_negotiate_sleepers (i.e. is visible
+            // as a sleeper) — preventing the "all threads sleep simultaneously
+            // and notify is a no-op" stall. Each chunk is interruptible by
+            // notify_n_contenders, so effective latency is well below 1 ms
+            // once a lottery winner fires.
             {
-                auto start = Node<XN>::NegotiationCounter::now();
-                while(Node<XN>::NegotiationCounter::now() - start <
-                       1000 * ms_actual) {
-                    if(NegotiationCounter::numThreadsRunning() < KAME_STM_MIN_RUNNERS)
-                        notify_sleeping_contender(tid_bitset, s_backoff_seed);
+                auto t_end = Node<XN>::NegotiationCounter::now()
+                             + (int64_t)ms_actual * 1000;
+                do {
                     negotiate_sleep(1);
-                }
+                    if(NegotiationCounter::numThreadsRunning() < KAME_STM_MIN_RUNNERS)
+                        notify_n_contenders(tid_bitset, KAME_STM_MAX_RUNNERS > 0
+                                            ? KAME_STM_MAX_RUNNERS : sqrtC);
+                } while(Node<XN>::NegotiationCounter::now() < t_end);
             }
 #else
             negotiate_sleep(ms_actual);
