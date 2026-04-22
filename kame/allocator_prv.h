@@ -23,11 +23,10 @@
 #include <stddef.h>
 #include <limits>
 
-#ifdef __linux__
-//	#define ALLOC_TLS __thread //TLS for allocations, could be better for NUMA.
-	#define ALLOC_TLS
+#if defined(__GNUC__) || defined(__clang__)
+	#define ALLOC_TLS __thread //TLS for allocations, could be better for NUMA.
 #else
-	#define ALLOC_TLS
+	#define ALLOC_TLS thread_local
 #endif
 
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
