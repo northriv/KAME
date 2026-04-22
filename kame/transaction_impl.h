@@ -454,9 +454,48 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 
         auto dt2 = Node<XN>::NegotiationCounter::now() - transaction_started_time;
 
-        if(pr != Priority::LOWEST) {
-            if(mult_wait * 2 * dt < dt2)
+        // Live-contention estimate (re-evaluated each iteration since
+        // tid_bitset accumulates across retries). Used for both the
+        // √C fairness floor below and the √C-scaled jitter range
+        // inside the sleep-duration block.
+        int C_obs = 0;
+        for(int i = 0; i < TID_BITSET_WORDS; ++i)
+            C_obs += popcount_u64(tid_bitset[i]);
+        if(C_obs < 1) C_obs = 1;
+        int sqrtC = (int)std::sqrt((double)C_obs);
+        if(sqrtC < 1) sqrtC = 1;
+
+        if(pr != Priority::LOWEST && dt > 0) {
+            // (a) Jittered deterministic gate. Threshold `mult_wait*2*dt`
+            //     multiplied by J ∈ [0.75, 1.25] (±25 % jitter). Narrow
+            //     enough to preserve transaction_negotiation_test
+            //     throughput, wide enough to de-phase mass wake-ups at
+            //     N=128 K=10 around the threshold crossing. Edit the
+            //     49152 / r_j>>1 constants to widen/narrow the range.
+            s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
+            uint32_t r_j = (s_backoff_seed >> 16) & 0xFFFFu;
+            uint64_t lhs_j = (uint64_t)(mult_wait * 2.0 * (double)dt)
+                           * (uint64_t)(49152u + r_j / 2u);
+            uint64_t rhs_j = (uint64_t)dt2 * 65536u;
+            if(lhs_j < rhs_j)
                 break;
+#ifndef KAME_STM_DISABLE_LOTTERY
+#define KAME_STM_DISABLE_LOTTERY 0
+#endif
+#if !KAME_STM_DISABLE_LOTTERY
+            // (b) √C fairness floor below the jittered threshold: let
+            //     ~√C newer threads bypass the wait per iteration.
+            //     Without this, high-C workloads degenerate to
+            //     one-at-a-time commit (M4 N=128 K=1 livelock regime).
+            //     -DKAME_STM_DISABLE_LOTTERY=1 leaves (a) only.
+            if(sqrtC > 1) {
+                s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
+                uint32_t r = (s_backoff_seed >> 16) & 0xFFFFu;
+                uint32_t threshold = 0x10000u / (uint32_t)sqrtC;
+                if(r < threshold)
+                    break;
+            }
+#endif
         }
 
         ms = std::max((int)(dt2 * mult_wait / 10000),  ms + 1);
@@ -476,23 +515,10 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         (void)tid_bitset;  // unused when jitter disabled
         (void)s_backoff_seed;
 #else
-        // Live-contention estimate: distinct TIDs observed this transaction.
-        int C = 0;
-        for(int i = 0; i < TID_BITSET_WORDS; ++i)
-            C += popcount_u64(tid_bitset[i]);
-        if(C < 1) C = 1;
-
-        // √C-scaled range. C=1 (no observed contention) → sqrtC=1 →
-        // no jitter (sleep exactly `ms`); C>1 fans out proportionally.
-        int sqrtC = (int)std::sqrt((double)C);
-        if(sqrtC < 1) sqrtC = 1;
-
-        // Asymmetric jitter range [ms/√C, ms]. Upper bound = nominal ms;
-        // spread only downward to keep mean sleep < ms (CPU stays busy)
-        // while still breaking lock-step (threads wake at distinct points).
-        // Proportional scaling (ms grows with dt2) already carries the
-        // "wait longer when contender is old" behavior, so no need to
-        // expand above ms.
+        // Asymmetric jitter range [ms/√C, ms] — sqrtC hoisted above
+        // (shared with the √C fairness lottery). Upper bound = nominal
+        // ms; spread only downward to keep mean sleep < ms (CPU stays
+        // busy) while still breaking lock-step.
         int low = std::max(1, ms / sqrtC);
         int high = ms;
         int ms_actual;
