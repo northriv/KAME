@@ -126,6 +126,50 @@ static inline void retry_pause(int retry) noexcept {
     for(int k = 0; k < spins; ++k) pause4spin();
 }
 
+// --- CV-based negotiate sleep helpers ---
+// Each thread has a TLS NegotiateSleepState (mutex + cv + notified flag).
+// Sleeping threads register a pointer in s_negotiate_sleepers[]; lottery
+// winners call notify_one_sleeper() to wake one immediately rather than
+// waiting for their timer to fire.
+namespace {
+    struct NegotiateSleepState {
+        std::mutex mtx;
+        std::condition_variable cv;
+        bool notified = false;
+    };
+
+    constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
+    std::atomic<NegotiateSleepState*> s_negotiate_sleepers[NEGOTIATE_SLEEP_SLOTS];
+
+    void negotiate_sleep(int ms_timeout) noexcept {
+        static thread_local NegotiateSleepState tls;
+        int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
+        tls.notified = false;
+        s_negotiate_sleepers[slot].store(&tls, std::memory_order_release);
+        {
+            std::unique_lock<std::mutex> lock(tls.mtx);
+            tls.cv.wait_for(lock, std::chrono::milliseconds(ms_timeout),
+                            [&]{ return tls.notified; });
+        }
+        s_negotiate_sleepers[slot].store(nullptr, std::memory_order_release);
+    }
+
+    void notify_one_sleeper(uint32_t &seed) noexcept {
+        seed = seed * 1103515245u + 12345u;
+        int start = (int)((seed >> 16) % NEGOTIATE_SLEEP_SLOTS);
+        for(int i = 0; i < NEGOTIATE_SLEEP_SLOTS; ++i) {
+            auto *st = s_negotiate_sleepers[(start + i) % NEGOTIATE_SLEEP_SLOTS]
+                           .load(std::memory_order_acquire);
+            if(st) {
+                { std::lock_guard<std::mutex> lk(st->mtx); st->notified = true; }
+                st->cv.notify_one();
+                return;
+            }
+        }
+        std::this_thread::yield(); // fallback: no sleepers registered yet
+    }
+} // anonymous namespace
+
 // Unified retry-loop backoff: always call retry_pause + negotiate.
 // retry=0 → retry_pause issues 1 pause (negligible), negotiate fast-returns
 // on the zero m_transaction_started_time marker. No threshold gate.
@@ -556,8 +600,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)sqrtC;
                 uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
                 if(r < threshold) {
-                    typename NegotiationCounter::ReleaseOneCount onedown;
-                    std::this_thread::yield(); // de-phase lottery winners before retry
+                    notify_one_sleeper(s_backoff_seed); // wake a sleeper, then retry
                     break;
                 }
             }
@@ -590,11 +633,10 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
            && (NegotiationCounter::numThreadsRunning() < KAME_STM_MAX_RUNNERS)
 #endif
             ){
-            auto start = Node<XN>::NegotiationCounter::now();
-            do {
+            {
                 typename NegotiationCounter::ReleaseOneCount onedown;
-                std::this_thread::yield();
-            } while(Node<XN>::NegotiationCounter::now() - start < 1000);
+                negotiate_sleep(1);
+            }
         } else {
             // Asymmetric jitter [ms/√C, ms]: spread downward so mean < ms.
             int low = std::max(1, ms / sqrtC);
@@ -620,12 +662,12 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 while(Node<XN>::NegotiationCounter::now() - start <
                        1000 * ms_actual) {
                     if(NegotiationCounter::numThreadsRunning() < KAME_STM_MIN_RUNNERS)
-                        std::this_thread::yield();
-                    msecsleep(1);
+                        notify_one_sleeper(s_backoff_seed);
+                    negotiate_sleep(1);
                 }
             }
 #else
-            msecsleep(ms_actual);
+            negotiate_sleep(ms_actual);
 #endif
         }
     }
