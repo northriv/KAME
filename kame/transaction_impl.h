@@ -248,7 +248,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_NS_MIN  1000     // 1 µs
 #endif
 #ifndef KAME_LEASE_NS_MAX
-#define KAME_LEASE_NS_MAX  2000000   // 2 ms
+#define KAME_LEASE_NS_MAX  300000    // 300 µs
 #endif
 
 
@@ -444,7 +444,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             break;
         auto dt = started_time - transaction_started_time;
         if(dt <= 0) {
-            if((pr == Priority::NORMAL) || (ms > 5 * mult_wait))
+            if((pr == Priority::NORMAL) || (ms > 50 * mult_wait))
                 break; //This thread is the oldest.
         }
         auto transaction_started_time =
@@ -466,17 +466,14 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         if(sqrtC < 1) sqrtC = 1;
 
         if(pr != Priority::LOWEST && dt > 0) {
-            // (a) Jittered deterministic gate. Threshold `mult_wait*2*dt`
-            //     multiplied by J ∈ [0.75, 1.25] (±25 % jitter). Narrow
-            //     enough to preserve transaction_negotiation_test
-            //     throughput, wide enough to de-phase mass wake-ups at
-            //     N=128 K=10 around the threshold crossing. Edit the
-            //     49152 / r_j>>1 constants to widen/narrow the range.
+            // (a) Jittered gate ±50%: de-phases threads that crossed the yield phase
+            //     at slightly different times. Together with (b) lottery, eliminates
+            //     livelock at K=10-30 N=128. Neither alone is sufficient.
             s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
             uint32_t r_j = (s_backoff_seed >> 16) & 0xFFFFu;
-            uint64_t lhs_j = (uint64_t)(mult_wait * 2.0 * (double)dt)
-                           * (uint64_t)(49152u + r_j / 2u);
-            uint64_t rhs_j = (uint64_t)dt2 * 65536u;
+            uint64_t lhs_j = (uint64_t)((3.0 * mult_wait) * (double)dt)
+                           * (uint64_t)(32768u + r_j);  // ±50% jitter
+            uint64_t rhs_j = (uint64_t)(dt2 * 1.0 - dt) * 65536u;
             if(lhs_j < rhs_j)
                 break;
 #ifndef KAME_STM_DISABLE_LOTTERY
@@ -491,7 +488,8 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             if(sqrtC > 1) {
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
                 uint32_t r = (s_backoff_seed >> 16) & 0xFFFFu;
-                uint32_t threshold = 0x10000u / (uint32_t)sqrtC;
+                uint32_t threshold = 0x20000u / (uint32_t)sqrtC;  // 2√C lottery
+                if(threshold > 0xFFFFu) threshold = 0xFFFFu;
                 if(r < threshold)
                     break;
             }
@@ -514,25 +512,31 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         int ms_actual = (ms < 1) ? 1 : ms;
         (void)tid_bitset;  // unused when jitter disabled
         (void)s_backoff_seed;
-#else
-        // Asymmetric jitter range [ms/√C, ms] — sqrtC hoisted above
-        // (shared with the √C fairness lottery). Upper bound = nominal
-        // ms; spread only downward to keep mean sleep < ms (CPU stays
-        // busy) while still breaking lock-step.
-        int low = std::max(1, ms / sqrtC);
-        int high = ms;
-        int ms_actual;
-        if(high <= low) {
-            ms_actual = low;   // degenerate: no jitter (sqrtC=1)
-        } else {
-            uint32_t span = (uint32_t)(high - low);
-            s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
-            uint32_t rand16 = (s_backoff_seed >> 16) & 0xFFFFu;
-            ms_actual = low + (int)(((uint64_t)span * rand16) >> 16);
-        }
-        if(ms_actual < 1) ms_actual = 1;
-#endif
         msecsleep(ms_actual);
+#else
+        // Yield while ms ≤ √C: de-phases threads before the first sleep.
+        // sqrtC is the natural scale — it matches the lottery floor, so threads
+        // see ≥√C lottery checks before sleeping.  C_obs (≈128) over-spins.
+        if(ms <= sqrtC) {
+            std::this_thread::yield();
+        } else {
+            // Asymmetric jitter range [ms/√C, ms]: spread only downward so mean
+            // sleep < ms (CPU stays busy) while de-phasing mass wake-ups.
+            int low = std::max(1, ms / sqrtC);
+            int high = ms;
+            int ms_actual;
+            if(high <= low) {
+                ms_actual = low;   // degenerate: sqrtC=1, no spread
+            } else {
+                uint32_t span = (uint32_t)(high - low);
+                s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
+                uint32_t rand16 = (s_backoff_seed >> 16) & 0xFFFFu;
+                ms_actual = low + (int)(((uint64_t)span * rand16) >> 16);
+            }
+            if(ms_actual < 1) ms_actual = 1;
+            msecsleep(ms_actual);
+        }
+#endif
     }
 }
 
@@ -1528,9 +1532,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             local_shared_ptr<PacketWrapper> subwrapper;
             for(int child_retry = 0;; ++child_retry) {
                 if(child_retry) {
-                    // child->m_link->negotiate_after_retry_pause(child_retry, snap,
-                    //     2.0f / subpackets->size());
-                    // snap.tag_as_contender(child->m_link);
+                    retry_pause(child_retry);
                 }
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i])
@@ -1566,7 +1568,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         newpacket->m_missing = true;
 
         //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
-        supernode.m_link->negotiate(snap, 2.0f);
+        // negotiate removed: outer retry loop handles backoff; pre-CAS sleep here
+        // causes synchronized wake-ups that worsen livelock at high K/N.
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_link;
 //			if(superwrapper->m_bundle_serial != bundle_serial)
