@@ -46,12 +46,15 @@
 #define KAME_STM_TAG_ON_DISTURB 1
 #endif
 
-// Cap on threads simultaneously in the CAS-retry loop. 0 = disabled.
+// Cap on threads simultaneously in the CAS-retry loop.
 // Positive = excess lottery winners fall through to the sleep path to
 // limit simultaneous-CAS bursts. Gate winners (earned priority) are
 // never capped.
+//  -1 = auto (hardware_concurrency(), fallback to max(C_obs))
+//   0 = disabled
+//   N > 0 = fixed threshold
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS 0
+#define KAME_STM_MAX_RUNNERS -1
 #endif
 
 // Floor on concurrent runners; lottery wins are denied while fewer
@@ -189,29 +192,37 @@ static inline void retry_pause(int retry) noexcept {
         }
     }
 
-#if KAME_STM_MIN_RUNNERS != 0
+#if (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
     // Running maximum of observed C (contender count), used as fallback when
     // hardware_concurrency() returns 0.
     std::atomic<int> s_max_c_obs{1};
 
-    // Effective MIN_RUNNERS threshold, computed once (hardware_concurrency is
-    // fixed at runtime; s_max_c_obs is updated each call as a side effect).
-    inline int effective_min_runners(int c_obs) noexcept {
-        // Update max C_obs (relaxed: approximate max is fine)
+    // Update max C_obs (relaxed: approximate max is fine)
+    inline int effective_runners(int c_obs) noexcept {
         int prev = s_max_c_obs.load(std::memory_order_relaxed);
         while(c_obs > prev &&
               !s_max_c_obs.compare_exchange_weak(prev, c_obs,
                   std::memory_order_relaxed, std::memory_order_relaxed))
             {}
-#if KAME_STM_MIN_RUNNERS > 0
-        return KAME_STM_MIN_RUNNERS;
-#else // auto (-1)
         static const int hw = (int)std::thread::hardware_concurrency();
         if(hw > 0) return std::max(1, hw);
         return std::max(1, s_max_c_obs.load(std::memory_order_relaxed));
-#endif
     }
-#endif // KAME_STM_MIN_RUNNERS != 0
+    // Effective MIN_RUNNERS threshold, computed once (hardware_concurrency is
+    // fixed at runtime; s_max_c_obs is updated each call as a side effect).
+    inline int effective_min_runners(int c_obs) noexcept {
+#if KAME_STM_MIN_RUNNERS > 0
+        return KAME_STM_MIN_RUNNERS;
+#endif // auto (-1)
+        return effective_runners(c_obs);
+    }
+    inline int effective_max_runners(int c_obs) noexcept {
+#if KAME_STM_MAX_RUNNERS > 0
+        return KAME_STM_MAX_RUNNERS;
+#endif // auto (-1)
+        return effective_runners(c_obs) / 3;
+    }
+#endif // KAME_STM_MIN_RUNNERS != 0 || KAME_STM_MAX_RUNNERS != 0
 
 // Unified retry-loop backoff: always call retry_pause + negotiate.
 // retry=0 → retry_pause issues 1 pause (negligible), negotiate fast-returns
@@ -502,7 +513,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #define KAME_LEASE_GROW_MAX_PERCENT   80   // cap on per-call growth
 #endif
 #ifndef KAME_LEASE_SHRINK_PERCENT
-#define KAME_LEASE_SHRINK_PERCENT    30   // shrink step when C == 0
+#define KAME_LEASE_SHRINK_PERCENT    20   // shrink step when C == 0
 #endif
     uint16_t new_lease_us = ps.lease_us;
     if(sig_C >= 2) {
@@ -543,11 +554,12 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // hot-loop commits (dt2 ≈ 2-8 µs) the gate stays open and the skip
     // delivers its benefit.
 #ifndef KAME_DT2_FAIRNESS_NS
-#define KAME_DT2_FAIRNESS_NS 20000  // 20 µs; override via -D
+#define KAME_DT2_FAIRNESS_NS 2000000  // 2000 µs; override via -D
 #endif
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
-#if KAME_STM_MAX_RUNNERS > 0
-    if(NegotiationCounter::numThreadsRunning() < KAME_STM_MAX_RUNNERS)
+#if KAME_STM_MAX_RUNNERS != 0
+    const int max_r = effective_max_runners(1);
+    if(NegotiationCounter::numThreadsRunning() < max_r)
 #endif
     if(my_tid == ps.tid
         && adapt_dt2_last_ns < (uint64_t)KAME_DT2_FAIRNESS_NS) {
@@ -619,9 +631,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                            * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
             if(lhs_j < rhs_j) {
-#if KAME_STM_MIN_RUNNERS != 0
-                const int min_r = effective_min_runners(C_obs);
-                if(NegotiationCounter::numThreadsRunning() < min_r)
+#if KAME_STM_MAX_RUNNERS != 0
+                const int max_r = effective_max_runners(C_obs);
+                if(NegotiationCounter::numThreadsRunning() < max_r)
 #endif
                     break; // gate: earned priority — always proceeds, never capped
             }
