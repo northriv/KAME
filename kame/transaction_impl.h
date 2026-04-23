@@ -30,9 +30,9 @@
 #endif
 
 // Gate coefficient: gate opens when mult_wait * GATE_MULT * dt * J < dt2.
-// Smaller = more permissive (threads break out sooner). Default 0.8.
+// Smaller = more permissive (threads break out sooner). Default 0 (closed).
 #ifndef KAME_STM_GATE_MULT
-#define KAME_STM_GATE_MULT 2.0
+#define KAME_STM_GATE_MULT 1.0f
 #endif
 
 // Multiplier on the √C lottery threshold. 1 = ~√C bypass per iteration.
@@ -220,7 +220,7 @@ static inline void retry_pause(int retry) noexcept {
 #if KAME_STM_MAX_RUNNERS > 0
         return KAME_STM_MAX_RUNNERS;
 #endif // auto (-1)
-        return effective_runners(c_obs) / 3;
+        return effective_runners(c_obs) / 1;
     }
 #endif // KAME_STM_MIN_RUNNERS != 0 || KAME_STM_MAX_RUNNERS != 0
 
@@ -393,7 +393,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_NS_MIN  1000     // 1 µs
 #endif
 #ifndef KAME_LEASE_NS_MAX
-#define KAME_LEASE_NS_MAX  500000    // 500 µs
+#define KAME_LEASE_NS_MAX  1000000    // 1000 µs
 #endif
 
 
@@ -513,7 +513,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #define KAME_LEASE_GROW_MAX_PERCENT   80   // cap on per-call growth
 #endif
 #ifndef KAME_LEASE_SHRINK_PERCENT
-#define KAME_LEASE_SHRINK_PERCENT    20   // shrink step when C == 0
+#define KAME_LEASE_SHRINK_PERCENT    10   // shrink step when C == 0
 #endif
     uint16_t new_lease_us = ps.lease_us;
     if(sig_C >= 2) {
@@ -630,7 +630,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             uint64_t lhs_j = (uint64_t)(mult_wait * KAME_STM_GATE_MULT * (double)dt)
                            * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
-            if(lhs_j < rhs_j) {
+            if((KAME_STM_GATE_MULT > 0.0f) && (lhs_j < rhs_j)) {
 #if KAME_STM_MAX_RUNNERS != 0
                 const int max_r = effective_max_runners(C_obs);
                 if(NegotiationCounter::numThreadsRunning() < max_r)
