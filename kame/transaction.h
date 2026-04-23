@@ -255,20 +255,42 @@ private:
         }
         static unsigned int numThreadsRunning() {return s_running.load(std::memory_order_relaxed);}
 
+        //! RAII acquire: bumps s_running iff this is the outermost
+        //! Transaction/Snapshot on the thread AND we are not inside a
+        //! ReleaseOneCount (sleeping) scope. Nested Transactions (inner
+        //! tx inside a closure running in an outer one) share the same
+        //! running-slot — the thread is one runner regardless of depth.
         struct DECLSPEC_KAME AcquireOneCount {
             AcquireOneCount() {
-                NegotiationCounter::s_running.fetch_add(1, std::memory_order_relaxed);}
+                if(++s_tx_nest == 1 && s_sleep_nest == 0)
+                    s_running.fetch_add(1, std::memory_order_relaxed);
+            }
             ~AcquireOneCount() {
-                NegotiationCounter::s_running.fetch_sub(1, std::memory_order_relaxed);}
+                if(--s_tx_nest == 0 && s_sleep_nest == 0)
+                    s_running.fetch_sub(1, std::memory_order_relaxed);
+            }
         };
+        //! RAII yield of the running slot for the duration of a sleep
+        //! inside negotiate_internal. Pairs with the TLS nest counters
+        //! above so nested sleep scopes don't double-decrement.
         struct DECLSPEC_KAME ReleaseOneCount {
             ReleaseOneCount() {
-                NegotiationCounter::s_running.fetch_sub(1, std::memory_order_relaxed);}
+                if(++s_sleep_nest == 1 && s_tx_nest > 0)
+                    s_running.fetch_sub(1, std::memory_order_relaxed);
+            }
             ~ReleaseOneCount() {
-                NegotiationCounter::s_running.fetch_add(1, std::memory_order_relaxed);}
+                if(--s_sleep_nest == 0 && s_tx_nest > 0)
+                    s_running.fetch_add(1, std::memory_order_relaxed);
+            }
         };
     private:
         static atomic<unsigned int> s_running;
+        //! Per-thread nesting depth of Transaction/Snapshot scopes. s_running
+        //! picks up +1 only on the 0→1 transition so nested transactions
+        //! don't inflate the runner count.
+        static thread_local int s_tx_nest;
+        //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
+        static thread_local int s_sleep_nest;
     };
 
     //! Generates a serial number assigned to bundling and transaction.\n
@@ -444,14 +466,12 @@ private:
             (void)snap; (void)mult_wait;
             return;
 #else
-            // Fast path for the common "no collision" case. Caller is on a hot
-            // retry loop in low-contention workloads (test_dynamic, single-
-            // writer measurement paths, ...); an extra atomic_shared_ptr load
-            // inside negotiate_internal plus an out-of-line call was measurable
-            // on M3 (~10 % test_dynamic regression). The m_transaction_started_time
-            // load here is the same relaxed atomic read that negotiate_internal
-            // would do first thing, so we pay no extra in the collision case —
-            // just skip the rest when clear.
+            // Fast path for the common "no collision" case. An extra
+            // atomic_shared_ptr load plus an out-of-line call inside
+            // negotiate_internal is measurable in low-contention workloads,
+            // so we short-circuit when the collision marker is clear. The
+            // relaxed load here is the same one negotiate_internal would
+            // do first, so we pay no extra in the collision case either.
             if( !m_transaction_started_time.load(std::memory_order_relaxed))
                 return;
             negotiate_internal(snap, mult_wait);
@@ -474,10 +494,10 @@ private:
             if(my_tid != ps.tid)
                 desired.start_us = nsToUs(started_time ? started_time
                                         : Node<XN>::NegotiationCounter::now());
-            // Only store when something actually changed. 64-bit packed
-            // compare is one instruction on M3 / x86-64; skipping the
-            // storePriority() on identical state avoids the cache-line
-            // ping-pong that showed up as heavy same-owner commits.
+            // Only store when something actually changed. The 64-bit
+            // packed compare is one instruction; skipping the store on
+            // identical state avoids cache-line ping-pong on same-owner
+            // recommits.
             //
             // Relaxed order suffices: m_priority_state is self-contained
             // (consumers use ps.tid / ps.lease_us / ps.start_us on their
@@ -769,13 +789,19 @@ public:
     //! Snapshot-level helper so snapshot()/bundle() can adopt it too in
     //! later refactor passes.
     void tag_as_contender(const std::shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
-        // Use the implicit operator T() / operator=(T) on the atomic
-        // field, i.e. seq_cst load / store, exactly like the pre-RAII
-        // inline block in Transaction::operator++.
+        // seq_cst load/store on the atomic m_transaction_started_time.
         typename Node<XN>::NegotiationCounter::cnt_t current =
             link->m_transaction_started_time;
         if( !current || (current > m_started_time))
             link->m_transaction_started_time = m_started_time;
+        // Dedup: ++tr re-tags the same primary-node linkage on every
+        // retry, which otherwise piles duplicate shared_ptr entries
+        // onto m_tagged_linkages. Comparing to the last entry is O(1)
+        // and catches that common case; snapshot/bundle tree walks
+        // push distinct linkages so they bypass this check naturally.
+        if( !m_tagged_linkages.empty() &&
+            m_tagged_linkages.back().get() == link.get())
+            return;
         m_tagged_linkages.push_back(link);
     }
 
@@ -888,9 +914,10 @@ public:
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
     }
     Transaction(Transaction&&x) = default;
-    // walks m_tagged_linkages — a superset of what the old hand-rolled
-    // Transaction destructor cleared (just the primary node's linkage)
-    // once snapshot()/bundle()-level tagging lands in a later pass.
+    //! Releases any tagged linkages (clearing m_transaction_started_time
+    //! when it still equals ours) so later contenders don't race against
+    //! a stale owner. Always drops tags; the primary-node tag is always
+    //! in the list on multi-nodal retries.
     ~Transaction() {
         Snapshot<XN>::drop_tags();
     }
@@ -983,9 +1010,10 @@ private:
         // Preserve m_tid_bitset across retry cycles: contention evidence
         // from the previous attempt is directly relevant to the next one
         // (same linkages, same contenders). Clearing would reset C=1 on
-        // every ++tr, losing adaptive jitter benefit in livelock paths.
+        // every ++tr, losing adaptive jitter benefit.
         m_messages.clear();
-        m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
+        // m_oneup is still held from ctor; nested-safe AcquireOneCount
+        // means we must not re-acquire on every retry.
         this->m_packet->node().snapshot( *this, m_multi_nodal);
         return *this;
     }

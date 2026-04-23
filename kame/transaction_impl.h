@@ -21,46 +21,38 @@
 #include <mutex>
 #include <condition_variable>
 
-// --- Tuning macros for the adaptive-negotiate backoff (Appendix A) ---
-// All are -D overridable at cmake time; defaults match the shipping patch.
+// --- Compile-time tuning knobs for the adaptive-negotiate backoff ---
+// All are -D overridable at cmake time.
 
-// KAME_STM_JITTER_RANGE: half-range of the jittered gate in percent.
-//   25 = ±25 % (default, balanced).  50 = ±50 % (wider de-phasing).
-//   12 ≈ ±12.5 % (tighter, better for K=10 regression).
+// Half-range of the jittered gate in percent; 25 = ±25 % default.
 #ifndef KAME_STM_JITTER_RANGE
 #define KAME_STM_JITTER_RANGE 25
 #endif
 
-// KAME_STM_LOTTERY_MULT: multiplier on the √C lottery threshold.
-//   1 = ~√C bypass/iter (default, balanced).  2+ causes CAS storms at K≥1
-//   high N — MULT=2 livelocks 3L K=1 N=128; MULT=6 degrades all K by ~3×.
+// Multiplier on the √C lottery threshold. 1 = ~√C bypass per iteration.
 #ifndef KAME_STM_LOTTERY_MULT
 #define KAME_STM_LOTTERY_MULT 1
 #endif
 
-// KAME_STM_TAG_ON_DISTURB: also tag the linkage on each CAS-disturbed
-//   event in unbundle's cas_infos loop.  Must pair with LOTTERY_MULT ≥ 2.
-//   0 = tr++-only.  1 = wider tag coverage (default; requires drop_tags()
-//   fix in finalizeCommitment — always present since the accompanying patch).
+// 0 = tag only on ++tr (matches pre-negotiate behaviour). 1 = also tag
+// each linkage that a CAS fails on in unbundle's cas_infos loop.
 #ifndef KAME_STM_TAG_ON_DISTURB
 #define KAME_STM_TAG_ON_DISTURB 1
 #endif
 
-// KAME_STM_MAX_RUNNERS: cap on threads simultaneously in the CAS-retry loop
-//   (i.e. those that just won the lottery and are about to retry CAS).
-//   0 = disabled.  Positive = excess lottery winners fall through
-//   to the sleep path instead of retrying immediately, limiting the
-//   simultaneous-CAS storm at high K / high N.  16 = default (tuned M4 N=128).
-//   Note: gate winners (earned priority) are never capped.
+// Cap on threads simultaneously in the CAS-retry loop. 0 = disabled.
+// Positive = excess lottery winners fall through to the sleep path to
+// limit simultaneous-CAS bursts. Gate winners (earned priority) are
+// never capped.
 #ifndef KAME_STM_MAX_RUNNERS
 #define KAME_STM_MAX_RUNNERS 0
 #endif
 
-// KAME_STM_MIN_RUNNERS: floor on concurrent runners.
-//  -1 = auto (default): hardware_concurrency()*3/4, fallback to max(C_obs)*3/4.
-//   0 = disabled.
-//   N > 0: fixed threshold.
-// Prevents the "all threads sleep simultaneously, notify is a no-op" stall.
+// Floor on concurrent runners; lottery wins are denied while fewer
+// than this many runners are active so the wake pipeline has room.
+//  -1 = auto (hardware_concurrency() * 3/4, fallback to max(C_obs) * 3/4)
+//   0 = disabled
+//   N > 0 = fixed threshold
 #ifndef KAME_STM_MIN_RUNNERS
 #define KAME_STM_MIN_RUNNERS -1
 #endif
@@ -85,6 +77,10 @@ namespace Transactional {
 
 template <class XN>
 atomic<unsigned int> Node<XN>::NegotiationCounter::s_running{0};
+template <class XN>
+thread_local int Node<XN>::NegotiationCounter::s_tx_nest = 0;
+template <class XN>
+thread_local int Node<XN>::NegotiationCounter::s_sleep_nest = 0;
 
 STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
 
@@ -112,17 +108,14 @@ STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
 // negotiate path (which only fires when a collision marker is set).
 static inline void retry_pause(int retry) noexcept {
 #if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
-    // Paper ablation: entire backoff layer disabled; retry loops become pure
-    // CAS-retry spin with no CPU relaxation. Paired with negotiate() early
-    // return in transaction.h.
+    // Ablation: disable the backoff layer; retry loops become pure
+    // CAS-retry spin. Paired with an early return in negotiate().
     (void)retry;
     return;
 #endif
-    // No cap: spin count grows linearly with retry depth. Livelock-heavy
-    // paths need unbounded growth so at some retry depth the pause
-    // duration exceeds coherence ping-pong cycle time, opening a winner
-    // window. Empirically cap=1024 is insufficient on iMac Pro x86
-    // 32-thread 3level stress; uncapped resolves it.
+    // Spin count grows linearly with retry depth (uncapped) so at large
+    // retry the pause exceeds the inter-core coherence window and some
+    // thread gets an uncontested CAS slot.
     uint32_t h = (uint32_t)retry * 0x9E3779B1u;
     h ^= (uint32_t)(uintptr_t)&retry;       // per-thread entropy from stack addr
     int spins = 1 + (int)(((uint64_t)(h >> 16) * (uint32_t)retry) >> 16);
@@ -136,15 +129,24 @@ static inline void retry_pause(int retry) noexcept {
 //
 // notify_all_contenders() broadcasts a wakeup to all sleeping threads in
 // tid_bitset so they re-enter the negotiate loop; MAX_RUNNERS then caps CAS.
-namespace {
+
     struct NegotiateSleepState {
         std::mutex mtx;
         std::condition_variable cv;
         bool notified = false;
     };
 
-    // NEGOTIATE_SLEEP_SLOTS == TID_BITSET_WORDS * 64 == 512 so slot = tid % 512
-    // gives a 1:1 map for IDs 0..511 (no collision for ≤ 512 threads).
+    // NEGOTIATE_SLEEP_SLOTS == TID_BITSET_WORDS * 64 == 512 so slot =
+    // ProcessCounter::id() % 512 gives a 1:1 map for IDs 0..511.
+    //
+    // Assumption: total distinct ProcessCounter ids over the lifetime of
+    // the process must be < NEGOTIATE_SLEEP_SLOTS or else two live threads
+    // will collide on the same slot, and the later-registered one
+    // overwrites the earlier's pointer. The earlier thread then cannot
+    // be notified directly; it falls back to the 1 ms cv timeout which
+    // preserves liveness at the cost of extra latency. Raise this value
+    // (and TID_BITSET_WORDS if you want to match the scan base) if long-
+    // running processes accumulate more than 512 worker ids.
     constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
     std::atomic<NegotiateSleepState*> s_negotiate_sleepers[NEGOTIATE_SLEEP_SLOTS];
 
@@ -206,7 +208,6 @@ namespace {
 #endif
     }
 #endif // KAME_STM_MIN_RUNNERS != 0
-} // anonymous namespace
 
 // Unified retry-loop backoff: always call retry_pause + negotiate.
 // retry=0 → retry_pause issues 1 pause (negligible), negotiate fast-returns
@@ -368,12 +369,11 @@ Node<XN>::print_recoverable_error(const char* reason) {
 // Adaptive-lease constants. The active lease window (ns) is stored per-Linkage
 // as Linkage::m_adapt_lease_ns, so contention sites converge independently
 // (hot Linkage → longer lease; cold Linkage → short).
-// Clamped to [KAME_LEASE_NS_MIN, KAME_LEASE_NS_MAX] = [1 µs, 500 µs].
-// Fixed-threshold drift beat proportional-rate variants (C-1, C-2) in
-// sandbox because the workload's C distribution is skewed: many calls with
-// C = 0..1 (early tx), fewer with high C. Keeping C = 1 neutral avoids
-// dragging the lease down during the early-tx phase that dominates call
-// count.
+// Clamped to [KAME_LEASE_NS_MIN, KAME_LEASE_NS_MAX] (default 1 µs..2 ms).
+// Fixed-threshold drift is used instead of proportional-rate variants
+// because the C distribution is heavily skewed toward low C; keeping
+// C == 1 neutral avoids dragging the lease down during the low-C phase
+// that dominates total call count.
 #ifndef KAME_LEASE_NS_MIN
 #define KAME_LEASE_NS_MIN  1000     // 1 µs
 #endif
@@ -436,13 +436,8 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                                       float mult_wait) noexcept {
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
-    // (removed: std::this_thread::yield() at entry.
-    //  At high thread count (128+), it forms a yield-to-yielding-thread chain
-    //  — gdb sampling showed 15% of samples stuck in sched_yield with
-    //  negotiate_internal as immediate caller. The chain never terminates
-    //  because all runnable threads are also in negotiate_internal's yield.
-    //  Removed; the subsequent m_transaction_started_time load + priority/dt
-    //  checks serve as the cheap-collision-clear check anyway.)
+    // No pre-loop yield: the m_transaction_started_time load below is
+    // the cheap collision-clear check.
 
     // One atomic load of the packed (tid | lease_us | start_us) tuple.
     auto ps = loadPriority();
@@ -522,11 +517,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     }
     // Quantized write: commit the atomic store only when the lease has
     // actually moved by at least KAME_LEASE_QWRITE_US µs. Once the lease
-    // pins at a rail (MIN or MAX), the clamped computation produces
-    // new_lease_us == ps.lease_us — we must NOT still write, or every
-    // call pointlessly rewrites the rail value and ping-pongs the
-    // m_priority_state cache line across cores (observed as a heavy
-    // storePriority cost on M3).
+    // pins at a rail (MIN or MAX) the clamped computation produces
+    // new_lease_us == ps.lease_us; skipping the store avoids needlessly
+    // ping-ponging the m_priority_state cache line.
 #ifndef KAME_LEASE_QWRITE_US
 #define KAME_LEASE_QWRITE_US 1
 #endif
@@ -1723,8 +1716,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         newpacket->m_missing = true;
 
         //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
-        // negotiate removed: outer retry loop handles backoff; pre-CAS sleep here
-        // causes synchronized wake-ups that worsen livelock at high K/N.
+        // No pre-CAS negotiate here: the outer retry loop handles
+        // backoff, and re-entering negotiate at this point produces
+        // synchronised wake-ups that hurt high-contention throughput.
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_link;
 //			if(superwrapper->m_bundle_serial != bundle_serial)
