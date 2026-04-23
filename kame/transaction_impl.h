@@ -675,10 +675,10 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 do {
                     // Advance seed for de-phasing; chunk = 1 or 2 ms.
                     s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
-                    negotiate_sleep(1 + (int)(s_backoff_seed >> 31));
                     if(NegotiationCounter::numThreadsRunning() < min_r)
                         notify_n_contenders(tid_bitset, KAME_STM_MAX_RUNNERS > 0
-                                            ? KAME_STM_MAX_RUNNERS : sqrtC);
+                                            ? KAME_STM_MAX_RUNNERS : C_obs);
+                    negotiate_sleep(1 + (int)(s_backoff_seed >> 31));
                 } while(Node<XN>::NegotiationCounter::now() < t_end);
             }
 #else
