@@ -89,10 +89,23 @@ DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
 
 // KAME_STM_STRICT_RETRY_THRESHOLD: after this many retries in iterate_commit*,
-//   temporarily promote to Priority::HIGHEST so livelock probability → 0.
+//   try to promote to Priority::HIGHEST via the global watermark arbiter
+//   (only the globally oldest retry-starved thread actually escalates;
+//   younger retriers stay NORMAL until the owner commits and releases
+//   the watermark). Guarantees at most one HIGHEST at a time, bounding
+//   livelock probability to zero rather than merely "small".
 //   0 = disabled.  64 = default.  INT_MAX = paper-ablation "no strict escape".
 #ifndef KAME_STM_STRICT_RETRY_THRESHOLD
 #define KAME_STM_STRICT_RETRY_THRESHOLD 64
+#endif
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+// Appendix B.2 — global oldest watermark. When multiple threads exceed
+// the retry threshold simultaneously they race on this atomic with
+// min-CAS; the one holding the minimum started_time is the unique owner
+// and is the only thread permitted to escalate to HIGHEST. On commit
+// success the owner clears the watermark so the next oldest retrier
+// can take over. Initial value INT64_MAX means "no owner".
+inline atomic<int64_t> g_strict_watermark{(int64_t)0x7fffffffffffffffLL};
 #endif
 
 //! \brief This is a base class of nodes which carries data sets for itself (Payload) and for subnodes.\n
@@ -1044,6 +1057,40 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     m_messages.clear();
 }
 
+// Helper: strict-retry escalation arbiter.
+//  at_threshold — is this iteration eligible for escalation?
+//  my_time      — the Transaction's m_started_time.
+//  escalated    — [in/out] true once this thread holds the watermark.
+//  saved_pr     — [out] previous priority to restore on success.
+// Returns true if this call flipped priority up (caller must restore
+// on commit). No-op when threshold == 0 (paper-ablation row).
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+inline void strict_escalate_if_oldest(bool at_threshold, int64_t my_time,
+                                      bool &escalated, Priority &saved_pr) {
+    if(!at_threshold || escalated) return;
+    // Min-CAS: update watermark if my_time is smaller.
+    int64_t prev = g_strict_watermark.load(std::memory_order_relaxed);
+    while(my_time < prev &&
+          !g_strict_watermark.compare_exchange_weak(prev, my_time,
+              std::memory_order_relaxed)) {}
+    // Escalate only if we actually own the watermark.
+    if(g_strict_watermark.load(std::memory_order_relaxed) == my_time) {
+        saved_pr = getCurrentPriorityMode();
+        setCurrentPriorityMode(Priority::HIGHEST);
+        escalated = true;
+    }
+}
+inline void strict_release(bool escalated, int64_t my_time, Priority saved_pr) {
+    if(!escalated) return;
+    setCurrentPriorityMode(saved_pr);
+    int64_t expected = my_time;
+    // CAS-release the watermark (strong so we don't leak it on spurious
+    // failure; no-op if some other thread already replaced our value).
+    g_strict_watermark.compare_exchange_strong(expected,
+        (int64_t)0x7fffffffffffffffLL, std::memory_order_relaxed);
+}
+#endif
+
 template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
@@ -1052,18 +1099,16 @@ Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
 #endif
     for(Transaction<XN> tr( *this);;++tr) {
 #if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-        if(++n == KAME_STM_STRICT_RETRY_THRESHOLD && !escalated) {
-            saved_pr = getCurrentPriorityMode();
-            setCurrentPriorityMode(Priority::HIGHEST);
-            escalated = true;
-        }
+        ++n;
+        strict_escalate_if_oldest(n >= KAME_STM_STRICT_RETRY_THRESHOLD,
+                                  tr.m_started_time, escalated, saved_pr);
 #endif
         try {
             if( !closure(tr))
                 continue; //skipping.
             if(tr.commit()) {
 #if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                if(escalated) setCurrentPriorityMode(saved_pr);
+                strict_release(escalated, tr.m_started_time, saved_pr);
 #endif
                 return std::move(tr);
             }
@@ -1081,17 +1126,15 @@ Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
 #endif
     for(Transaction<XN> tr( *this);;++tr) {
 #if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-        if(++n == KAME_STM_STRICT_RETRY_THRESHOLD && !escalated) {
-            saved_pr = getCurrentPriorityMode();
-            setCurrentPriorityMode(Priority::HIGHEST);
-            escalated = true;
-        }
+        ++n;
+        strict_escalate_if_oldest(n >= KAME_STM_STRICT_RETRY_THRESHOLD,
+                                  tr.m_started_time, escalated, saved_pr);
 #endif
           try {
               closure(tr);
               if(tr.commit()) {
 #if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                  if(escalated) setCurrentPriorityMode(saved_pr);
+                  strict_release(escalated, tr.m_started_time, saved_pr);
 #endif
                   return std::move(tr);
               }
@@ -1109,22 +1152,20 @@ void Node<XN>::iterate_commit_while(Closure &&closure) {
 #endif
     for(Transaction<XN> tr( *this);;++tr) {
 #if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-        if(++n == KAME_STM_STRICT_RETRY_THRESHOLD && !escalated) {
-            saved_pr = getCurrentPriorityMode();
-            setCurrentPriorityMode(Priority::HIGHEST);
-            escalated = true;
-        }
+        ++n;
+        strict_escalate_if_oldest(n >= KAME_STM_STRICT_RETRY_THRESHOLD,
+                                  tr.m_started_time, escalated, saved_pr);
 #endif
         try {
             if( !closure(tr)) {
 #if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                if(escalated) setCurrentPriorityMode(saved_pr);
+                strict_release(escalated, tr.m_started_time, saved_pr);
 #endif
                  return;
             }
             if(tr.commit()) {
 #if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-                if(escalated) setCurrentPriorityMode(saved_pr);
+                strict_release(escalated, tr.m_started_time, saved_pr);
 #endif
                 return;
             }
