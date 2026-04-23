@@ -654,43 +654,10 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             ms = 5000;
         }
 
-#ifndef KAME_STM_DISABLE_JITTER
-#define KAME_STM_DISABLE_JITTER 0  // 1 → sleep = nominal ms (no adaptive jitter), for paper comparison
-#endif
-#if KAME_STM_DISABLE_JITTER
-        // Paper ablation variant: nominal ms, no sleep jitter.
-        int ms_actual = (ms < 1) ? 1 : ms;
-        (void)tid_bitset;
-        (void)s_backoff_seed;
+        // Fixed sleep: ms ms in 1-ms CV chunks (no jitter, no de-phasing).
+        // MIN_RUNNERS guard + notify_n_contenders provides de-synchronization.
         {
-#else
-        // Yield while ms ≤ √C: de-phases threads before the first sleep.
-        // Prevents all threads sleeping exactly 1 ms simultaneously on the
-        // first negotiate iteration (the original synchronized-wake livelock).
-        if((ms <= sqrtC)
-#if KAME_STM_MAX_RUNNERS > 0
-           && (NegotiationCounter::numThreadsRunning() < KAME_STM_MAX_RUNNERS)
-#endif
-            ){
-            {
-                typename NegotiationCounter::ReleaseOneCount onedown;
-                negotiate_sleep(1);
-            }
-        } else {
-            // Asymmetric jitter [ms/√C, ms]: spread downward so mean < ms.
-            int low = std::max(1, ms / sqrtC);
-            int high = ms;
-            int ms_actual;
-            if(high <= low) {
-                ms_actual = low;
-            } else {
-                uint32_t span = (uint32_t)(high - low);
-                s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
-                uint32_t rand16 = (s_backoff_seed >> 16) & 0xFFFFu;
-                ms_actual = low + (int)(((uint64_t)span * rand16) >> 16);
-            }
-            if(ms_actual < 1) ms_actual = 1;
-#endif
+            int ms_actual = ms;
             typename NegotiationCounter::ReleaseOneCount onedown;
 #if KAME_STM_MIN_RUNNERS != 0
             // Sleep in 1 ms chunks so the MIN_RUNNERS check fires after this
