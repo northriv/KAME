@@ -32,7 +32,7 @@
 // Gate coefficient: gate opens when mult_wait * GATE_MULT * dt * J < dt2.
 // Smaller = more permissive (threads break out sooner). Default 0.8.
 #ifndef KAME_STM_GATE_MULT
-#define KAME_STM_GATE_MULT 1.0
+#define KAME_STM_GATE_MULT 2.0
 #endif
 
 // Multiplier on the √C lottery threshold. 1 = ~√C bypass per iteration.
@@ -1690,10 +1690,6 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         bool missing = false;
         for(unsigned int i = 0; i < subpackets->size(); ++i) {
             shared_ptr<Node> child(( *subnodes)[i]);
-#if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-            if(retry)
-                snap.tag_as_contender(child->m_link);
-#endif
             local_shared_ptr<Packet> &subpacket_new(( *subpackets)[i]);
             local_shared_ptr<PacketWrapper> subwrapper;
             for(int child_retry = 0;; ++child_retry) {
@@ -1713,6 +1709,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                 default:
                     if(oldsuperwrapper == *supernode.m_link)
                         continue;
+#if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
+                    snap.tag_as_contender(child->m_link);
+#endif
                     return status;
                 }
                 subwrappers_org[i] = subwrapper;
@@ -1763,10 +1762,10 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
             if( !child->m_link->compareAndSet(subwrappers_org[i], bundled_ref)) {
-                if(local_shared_ptr<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
+                if((local_shared_ptr<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
+                 || (oldsuperwrapper != *supernode.m_link)) {
                     return BundledStatus::DISTURBED;
-                if(oldsuperwrapper != *supernode.m_link)
-                    return BundledStatus::DISTURBED;
+                }
                 changed_during_bundling = true;
                 break;
             }
@@ -1783,8 +1782,12 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             STRICT_assert(newpacket->checkConsistensy(newpacket));
         }
 
-        if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper))
+        if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
+#if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
+            snap.tag_as_contender(supernode.m_link);
+#endif
             return BundledStatus::DISTURBED;
+        }
         oldsuperwrapper = std::move(superwrapper);
 
         for(unsigned int i = 0; i < subnodes->size(); i++) {
