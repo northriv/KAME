@@ -199,8 +199,8 @@ namespace {
         return KAME_STM_MIN_RUNNERS;
 #else // auto (-1)
         static const int hw = (int)std::thread::hardware_concurrency();
-        if(hw > 0) return std::max(1, hw * 3 / 4);
-        return std::max(1, s_max_c_obs.load(std::memory_order_relaxed) * 3 / 4);
+        if(hw > 0) return std::max(1, hw);
+        return std::max(1, s_max_c_obs.load(std::memory_order_relaxed));
 #endif
     }
 #endif // KAME_STM_MIN_RUNNERS != 0
@@ -655,8 +655,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             ms = 5000;
         }
 
-        // Fixed sleep: ms ms in 1-ms CV chunks (no jitter, no de-phasing).
-        // MIN_RUNNERS guard + notify_n_contenders provides de-synchronization.
+        // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.
+        // Jitter breaks the synchronized-wakeup oscillation that forms when
+        // all threads enter and exit negotiate_sleep at the same 1 ms tick.
         {
             int ms_actual = ms;
             typename NegotiationCounter::ReleaseOneCount onedown;
@@ -672,7 +673,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 auto t_end = Node<XN>::NegotiationCounter::now()
                              + (int64_t)ms_actual * 1000;
                 do {
-                    negotiate_sleep(1);
+                    // Advance seed for de-phasing; chunk = 1 or 2 ms.
+                    s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
+                    negotiate_sleep(1 + (int)(s_backoff_seed >> 31));
                     if(NegotiationCounter::numThreadsRunning() < min_r)
                         notify_n_contenders(tid_bitset, KAME_STM_MAX_RUNNERS > 0
                                             ? KAME_STM_MAX_RUNNERS : sqrtC);
