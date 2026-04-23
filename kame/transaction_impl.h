@@ -30,10 +30,10 @@
 #endif
 
 // KAME_STM_LOTTERY_MULT: multiplier on the √C lottery threshold.
-//   1 = ~√C bypass/iter.  4 = ~4√C.  6 = ~6√C (default, tuned for M4 N=128).
-//   Beyond 8 causes CAS storms at K≥10 3-level — regression.
+//   1 = ~√C bypass/iter (default, balanced).  2+ causes CAS storms at K≥1
+//   high N — MULT=2 livelocks 3L K=1 N=128; MULT=6 degrades all K by ~3×.
 #ifndef KAME_STM_LOTTERY_MULT
-#define KAME_STM_LOTTERY_MULT 6
+#define KAME_STM_LOTTERY_MULT 1
 #endif
 
 // KAME_STM_TAG_ON_DISTURB: also tag the linkage on each CAS-disturbed
