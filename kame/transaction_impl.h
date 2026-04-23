@@ -63,6 +63,7 @@
 #define KAME_STM_MIN_RUNNERS -1
 #endif
 
+
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
 // STRICT_assert(expr): behaves like assert(expr) when TRANSACTIONAL_STRICT_assert is defined;
 //   compiles to nothing otherwise. Used to verify STM invariants (e.g. packet consistency)
@@ -243,7 +244,7 @@ ProcessCounter::ProcessCounter() {
 
 XThreadLocal<Priority> stl_currentPriority;
 
-inline Priority getCurrentPriorityMode() {
+Priority getCurrentPriorityMode() {
     return *stl_currentPriority;
 }
 

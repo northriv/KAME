@@ -86,6 +86,14 @@ class Transaction;
 
 enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
+DECLSPEC_KAME Priority getCurrentPriorityMode();
+
+// KAME_STM_STRICT_RETRY_THRESHOLD: after this many retries in iterate_commit*,
+//   temporarily promote to Priority::HIGHEST so livelock probability → 0.
+//   0 = disabled.  64 = default.  INT_MAX = paper-ablation "no strict escape".
+#ifndef KAME_STM_STRICT_RETRY_THRESHOLD
+#define KAME_STM_STRICT_RETRY_THRESHOLD 64
+#endif
 
 //! \brief This is a base class of nodes which carries data sets for itself (Payload) and for subnodes.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.
@@ -1039,12 +1047,26 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+    int n = 0; Priority saved_pr = Priority::NORMAL; bool escalated = false;
+#endif
     for(Transaction<XN> tr( *this);;++tr) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+        if(++n == KAME_STM_STRICT_RETRY_THRESHOLD && !escalated) {
+            saved_pr = getCurrentPriorityMode();
+            setCurrentPriorityMode(Priority::HIGHEST);
+            escalated = true;
+        }
+#endif
         try {
             if( !closure(tr))
                 continue; //skipping.
-            if(tr.commit())
+            if(tr.commit()) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+                if(escalated) setCurrentPriorityMode(saved_pr);
+#endif
                 return std::move(tr);
+            }
         }
         catch (const std::bad_alloc &e) {
             Node<XN>::print_recoverable_error(e.what());
@@ -1054,11 +1076,25 @@ Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
 template <class XN>
 template <typename Closure>
 Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+    int n = 0; Priority saved_pr = Priority::NORMAL; bool escalated = false;
+#endif
     for(Transaction<XN> tr( *this);;++tr) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+        if(++n == KAME_STM_STRICT_RETRY_THRESHOLD && !escalated) {
+            saved_pr = getCurrentPriorityMode();
+            setCurrentPriorityMode(Priority::HIGHEST);
+            escalated = true;
+        }
+#endif
           try {
               closure(tr);
-              if(tr.commit())
+              if(tr.commit()) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+                  if(escalated) setCurrentPriorityMode(saved_pr);
+#endif
                   return std::move(tr);
+              }
           }
           catch (const std::bad_alloc &e) {
               Node<XN>::print_recoverable_error(e.what());
@@ -1068,12 +1104,30 @@ Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
 template <class XN>
 template <typename Closure>
 void Node<XN>::iterate_commit_while(Closure &&closure) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+    int n = 0; Priority saved_pr = Priority::NORMAL; bool escalated = false;
+#endif
     for(Transaction<XN> tr( *this);;++tr) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+        if(++n == KAME_STM_STRICT_RETRY_THRESHOLD && !escalated) {
+            saved_pr = getCurrentPriorityMode();
+            setCurrentPriorityMode(Priority::HIGHEST);
+            escalated = true;
+        }
+#endif
         try {
-            if( !closure(tr))
+            if( !closure(tr)) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+                if(escalated) setCurrentPriorityMode(saved_pr);
+#endif
                  return;
-            if(tr.commit())
+            }
+            if(tr.commit()) {
+#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
+                if(escalated) setCurrentPriorityMode(saved_pr);
+#endif
                 return;
+            }
         }
         catch (const std::bad_alloc &e) {
             Node<XN>::print_recoverable_error(e.what());
