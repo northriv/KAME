@@ -32,7 +32,7 @@
 // Gate coefficient: gate opens when mult_wait * GATE_MULT * dt * J < dt2.
 // Smaller = more permissive (threads break out sooner). Default 0.8.
 #ifndef KAME_STM_GATE_MULT
-#define KAME_STM_GATE_MULT 0.8
+#define KAME_STM_GATE_MULT 1.0
 #endif
 
 // Multiplier on the √C lottery threshold. 1 = ~√C bypass per iteration.
@@ -56,7 +56,7 @@
 
 // Floor on concurrent runners; lottery wins are denied while fewer
 // than this many runners are active so the wake pipeline has room.
-//  -1 = auto (hardware_concurrency() * 3/4, fallback to max(C_obs) * 3/4)
+//  -1 = auto (hardware_concurrency(), fallback to max(C_obs))
 //   0 = disabled
 //   N > 0 = fixed threshold
 #ifndef KAME_STM_MIN_RUNNERS
@@ -175,8 +175,6 @@ static inline void retry_pause(int retry) noexcept {
     }
 
     // Wake up to `n` sleeping contenders from tid_bitset.
-    // Waking exactly n (≈ MAX_RUNNERS) keeps the CAS pipeline full without
-    // a thundering herd: all-wake at high K caused CAS storms.
     template<int WORDS>
     void notify_n_contenders(const uint64_t (&tid_bitset)[WORDS], int n) noexcept {
         for(int i = 0; i < WORDS && n > 0; ++i) {
@@ -631,22 +629,20 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #define KAME_STM_DISABLE_LOTTERY 0
 #endif
 #if !KAME_STM_DISABLE_LOTTERY
-            // (b) √C fairness lottery: LOTTERY_MULT*√C threads bypass per iteration.
+            // (b) C fairness lottery: LOTTERY_MULT*C threads bypass per iteration.
             //     Prevents all threads from being stuck in the gate simultaneously.
-#if KAME_STM_MAX_RUNNERS > 0
-            if(NegotiationCounter::numThreadsRunning() < KAME_STM_MAX_RUNNERS)
+#if KAME_STM_MIN_RUNNERS != 0
+            const int min_r = effective_min_runners(C_obs);
+            if(NegotiationCounter::numThreadsRunning() < min_r) {
+#else
+            if(C_obs > 1) {
 #endif
-            if(sqrtC > 1) {
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
                 uint32_t r = (s_backoff_seed >> 16) & 0xFFFFu;
-                uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)sqrtC;
+                uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)C_obs;
                 uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
                 if(r < threshold) {
-#if KAME_STM_MAX_RUNNERS > 0
-                    notify_n_contenders(tid_bitset, KAME_STM_MAX_RUNNERS);
-#else
-                    notify_n_contenders(tid_bitset, sqrtC);
-#endif
+                    notify_n_contenders(tid_bitset, C_obs);
                     break;
                 }
             }
@@ -684,7 +680,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     if(NegotiationCounter::numThreadsRunning() < min_r)
                         notify_n_contenders(tid_bitset, KAME_STM_MAX_RUNNERS > 0
                                             ? KAME_STM_MAX_RUNNERS : C_obs);
-                    negotiate_sleep(1 + (int)(s_backoff_seed >> 31));
+                    negotiate_sleep(1 + (int)(s_backoff_seed >> 31) / 2);
                 } while(Node<XN>::NegotiationCounter::now() < t_end);
             }
 #else
@@ -1682,6 +1678,10 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         bool missing = false;
         for(unsigned int i = 0; i < subpackets->size(); ++i) {
             shared_ptr<Node> child(( *subnodes)[i]);
+#if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
+            if(retry)
+                snap.tag_as_contender(child->m_link);
+#endif
             local_shared_ptr<Packet> &subpacket_new(( *subpackets)[i]);
             local_shared_ptr<PacketWrapper> subwrapper;
             for(int child_retry = 0;; ++child_retry) {
@@ -1875,14 +1875,14 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
             STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
 
-            // m_link->negotiate(tr.m_started_time, tr.m_tid_bitset, 4.0f);
+//            m_link->negotiate(tr, 2.0f);
             if(m_link->compareAndSet(wrapper, newwrapper)) {
 //				STRICT_TEST(if(wrapper->isBundled())
 //					for(typename std::deque<local_shared_ptr<PacketWrapper> >::const_iterator
 //					it = subwrappers.begin(); it != subwrappers.end(); ++it)
 //					assert( !( *it)->hasPriority()));
-                //this decreases a commit rate.
-                // m_link->tags_successful_cas(tr.m_started_time);
+                //this decreases a commit rate?
+                m_link->tags_successful_cas(tr.m_started_time);
                 return true;
             }
             continue;

@@ -796,12 +796,10 @@ public:
             link->m_transaction_started_time = m_started_time;
         // Dedup: ++tr re-tags the same primary-node linkage on every
         // retry, which otherwise piles duplicate shared_ptr entries
-        // onto m_tagged_linkages. Comparing to the last entry is O(1)
-        // and catches that common case; snapshot/bundle tree walks
-        // push distinct linkages so they bypass this check naturally.
-        if( !m_tagged_linkages.empty() &&
-            m_tagged_linkages.back().get() == link.get())
-            return;
+        // onto m_tagged_linkages.
+        for(auto &&l: m_tagged_linkages)
+            if(l.get() == link.get())
+                return; //duplicated.
         m_tagged_linkages.push_back(link);
     }
 
