@@ -54,7 +54,7 @@
 //   0 = disabled
 //   N > 0 = fixed threshold
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS -1
+#define KAME_STM_MAX_RUNNERS 4
 #endif
 
 // Floor on concurrent runners; lottery wins are denied while fewer
@@ -631,9 +631,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                            * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
             if(lhs_j < rhs_j) {
-#if KAME_STM_MAX_RUNNERS != 0
-                const int max_r = effective_max_runners(C_obs);
-                if(NegotiationCounter::numThreadsRunning() < max_r)
+#if KAME_STM_MIN_RUNNERS != 0
+                const int min_r = effective_min_runners(C_obs);
+                if(NegotiationCounter::numThreadsRunning() < min_r)
 #endif
                     break; // gate: earned priority — always proceeds, never capped
             }
