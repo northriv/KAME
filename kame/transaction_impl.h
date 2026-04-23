@@ -53,7 +53,7 @@
 //   simultaneous-CAS storm at high K / high N.  16 = default (tuned M4 N=128).
 //   Note: gate winners (earned priority) are never capped.
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS 16
+#define KAME_STM_MAX_RUNNERS 0
 #endif
 
 // KAME_STM_MIN_RUNNERS: floor on concurrent runners.
@@ -618,11 +618,16 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 JITTER_LO  = (100 - KAME_STM_JITTER_RANGE) * 65536 / 100,
                 JITTER_DIV = 100 / (2 * KAME_STM_JITTER_RANGE)
             };
-            uint64_t lhs_j = (uint64_t)(mult_wait * 2.0 * (double)dt)
+            uint64_t lhs_j = (uint64_t)(mult_wait * 1.2 * (double)dt)
                            * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
-            if(lhs_j < rhs_j)
-                break; // gate: earned priority — always proceeds, never capped
+            if(lhs_j < rhs_j) {
+#if KAME_STM_MIN_RUNNERS != 0
+                const int min_r = effective_min_runners(C_obs);
+                if(NegotiationCounter::numThreadsRunning() < min_r)
+#endif
+                    break; // gate: earned priority — always proceeds, never capped
+            }
 #ifndef KAME_STM_DISABLE_LOTTERY
 #define KAME_STM_DISABLE_LOTTERY 0
 #endif
