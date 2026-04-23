@@ -14,7 +14,7 @@
 
 //#define GUARDIAN 0xaaaaaaaauLL
 //#define FILLING_AFTER_ALLOC 0x55555555uLL
-#define LEAVE_VACANT_CHUNKS 1 //keep at least this # of chunks.
+#define LEAVE_VACANT_CHUNKS 64 //keep at least this # of chunks.
 
 #include "allocator.h"
 
