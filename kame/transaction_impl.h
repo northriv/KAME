@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <cmath>
 #include <algorithm>
+#include <mutex>
+#include <condition_variable>
 
 // --- Tuning macros for the adaptive-negotiate backoff (Appendix A) ---
 // All are -D overridable at cmake time; defaults match the shipping patch.
