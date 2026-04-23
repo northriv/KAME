@@ -88,26 +88,6 @@ enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
 
-// KAME_STM_STRICT_RETRY_THRESHOLD: after this many retries in iterate_commit*,
-//   try to promote to Priority::HIGHEST via the global watermark arbiter
-//   (only the globally oldest retry-starved thread actually escalates;
-//   younger retriers stay NORMAL until the owner commits and releases
-//   the watermark). Guarantees at most one HIGHEST at a time, bounding
-//   livelock probability to zero rather than merely "small".
-//   0 = disabled.  64 = default.  INT_MAX = paper-ablation "no strict escape".
-#ifndef KAME_STM_STRICT_RETRY_THRESHOLD
-#define KAME_STM_STRICT_RETRY_THRESHOLD 64
-#endif
-#if KAME_STM_STRICT_RETRY_THRESHOLD > 0
-// Appendix B.2 — global oldest watermark. When multiple threads exceed
-// the retry threshold simultaneously they race on this atomic with
-// min-CAS; the one holding the minimum started_time is the unique owner
-// and is the only thread permitted to escalate to HIGHEST. On commit
-// success the owner clears the watermark so the next oldest retrier
-// can take over. Initial value INT64_MAX means "no owner".
-inline atomic<int64_t> g_strict_watermark{(int64_t)0x7fffffffffffffffLL};
-#endif
-
 //! \brief This is a base class of nodes which carries data sets for itself (Payload) and for subnodes.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.
 //!
