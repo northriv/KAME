@@ -89,17 +89,40 @@ public:
         }
         return *static_cast<T*>(p);
     }
+#else
+    // Portable fallback: native C++11 thread_local. The spec guarantees
+    // T's destructor runs at thread exit. MSVC before VS 2017 15.5 had
+    // issues with non-trivial thread_local across DLL boundaries — that
+    // matters only for old-MSVC + DLL builds, for which the Qt build
+    // should define USE_QTHREAD. Linux/macOS pthread is the primary
+    // platform; this branch exists so a bare `#include "threadlocal.h"`
+    // in a toolchain-minimal TU (e.g. a unit test with neither Qt nor
+    // explicit USE_PTHREAD) still links.
+    //
+    // NOTE: thread_local storage is class-static and keyed by T, same
+    // constraint as the trivial specialization — two XThreadLocal<same T>
+    // instances would alias. KAME's convention of unique T per instance
+    // makes this benign.
+    XThreadLocal() = default;
+    T &operator*() const {return m_var;}
 #endif
     T *operator->() const {return &( **this);}
 private:
 #ifdef USE_QTHREAD
     mutable QThreadStorage<T*> m_tls;
-#endif
-#ifdef USE_PTHREAD
+#elif defined(USE_PTHREAD)
     mutable pthread_key_t m_key;
     static void delete_tls(void *var) { delete static_cast<T *>(var); }
+#else
+    static thread_local T m_var;
 #endif
 };
+
+#if !defined(USE_QTHREAD) && !defined(USE_PTHREAD)
+template <typename T>
+thread_local T XThreadLocal<T,
+    typename std::enable_if<!std::is_trivially_destructible<T>::value>::type>::m_var{};
+#endif
 
 
 #endif /*THREADLOCAL_H_*/

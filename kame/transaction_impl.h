@@ -131,66 +131,88 @@ static inline void retry_pause(int retry) noexcept {
     for(int k = 0; k < spins; ++k) pause4spin();
 }
 
-// --- CV-based negotiate sleep helpers ---
-// Each thread has a TLS NegotiateSleepState (mutex + cv + notified flag).
-// Sleeping threads register their state in s_negotiate_sleepers[] at slot
-// ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS.
+// --- CV-based negotiate sleep helpers ---------------------------------
+// Fixed 512-entry array of (mutex, cv, notified) slots at namespace scope.
+// A sleeping thread picks slot = ProcessCounter::id() % 512 and cv.waits.
+// Notifiers walk tid_bitset and mark + notify_one on each indexed slot.
 //
-// notify_all_contenders() broadcasts a wakeup to all sleeping threads in
-// tid_bitset so they re-enter the negotiate loop; MAX_RUNNERS then caps CAS.
+// Why a fixed array rather than per-thread TLS + pointer slots:
+//  - No thread-exit race / UAF: slot objects live for process lifetime.
+//  - No MSVC + DLL non-trivial thread_local hazard.
+//  - No atomic_shared_ptr refcount cost on the notify hot path —
+//    mutex+cv is a plain global, notify_one is the only indirection.
+//
+// Kept under Transactional::detail with C++17 `inline` variables so every
+// TU that includes this header shares the SAME array; an anonymous
+// namespace would create one array per TU and inter-TU notify would not
+// cross over.
+//
+// Slot collision (id % 512 shared by two live threads): both use the same
+// cv, and a notify intended for one can wake the other. The woken thread
+// re-checks the `notified` predicate under the lock; a stray wake just
+// returns to wait. A genuine collision where the intended receiver
+// misses its wake falls back to the wait_for timeout (same fallback as
+// the previous pointer-slot design). 512 slots handles practical thread
+// pool sizes; raise NEGOTIATE_SLEEP_SLOTS if you regularly run > 512
+// workers with persistent ProcessCounter ids.
+}   // close Transactional so detail can open with clean scope
 
-    struct NegotiateSleepState {
+namespace Transactional {
+namespace detail {
+
+    // Cache-line aligned so adjacent slots don't false-share when two
+    // notifier threads on different cores touch neighbouring indices.
+    // 128-byte alignment leaves headroom for L1/L2 prefetch adjacency
+    // on x86 (Intel's adjacent-line prefetcher) and Apple Silicon.
+    struct alignas(128) NegotiateSleepSlot {
         std::mutex mtx;
         std::condition_variable cv;
         bool notified = false;
     };
 
-    // NEGOTIATE_SLEEP_SLOTS == TID_BITSET_WORDS * 64 == 512 so slot =
-    // ProcessCounter::id() % 512 gives a 1:1 map for IDs 0..511.
-    //
-    // Assumption: total distinct ProcessCounter ids over the lifetime of
-    // the process must be < NEGOTIATE_SLEEP_SLOTS or else two live threads
-    // will collide on the same slot, and the later-registered one
-    // overwrites the earlier's pointer. The earlier thread then cannot
-    // be notified directly; it falls back to the 1 ms cv timeout which
-    // preserves liveness at the cost of extra latency. Raise this value
-    // (and TID_BITSET_WORDS if you want to match the scan base) if long-
-    // running processes accumulate more than 512 worker ids.
     constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
-    std::atomic<NegotiateSleepState*> s_negotiate_sleepers[NEGOTIATE_SLEEP_SLOTS];
+    inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS];
 
-    inline void do_notify(NegotiateSleepState *st) noexcept {
-        { std::lock_guard<std::mutex> lk(st->mtx); st->notified = true; }
-        st->cv.notify_one();
-    }
-
-    void negotiate_sleep(int ms_timeout) noexcept {
-        static thread_local NegotiateSleepState tls;
+    inline void negotiate_sleep(int ms_timeout) noexcept {
         int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
-        tls.notified = false;
-        s_negotiate_sleepers[slot].store(&tls, std::memory_order_release);
-        {
-            std::unique_lock<std::mutex> lock(tls.mtx);
-            tls.cv.wait_for(lock, std::chrono::milliseconds(ms_timeout),
-                            [&]{ return tls.notified; });
-        }
-        s_negotiate_sleepers[slot].store(nullptr, std::memory_order_release);
+        auto &st = s_sleep_slots[slot];
+        std::unique_lock<std::mutex> lock(st.mtx);
+        // Reset under the lock so a notify delivered between the previous
+        // call's wake and this reset is not silently consumed.
+        st.notified = false;
+        st.cv.wait_for(lock, std::chrono::milliseconds(ms_timeout),
+                       [&]{ return st.notified; });
     }
 
-    // Wake up to `n` sleeping contenders from tid_bitset.
+    // Wake up to `n` sleeping contenders from tid_bitset. The mutex is
+    // held only for the `notified = true` store — cv.wait_for releases
+    // it while waiting, so even under heavy notifier concurrency the
+    // blocking window is nanoseconds and no caller spins meaningfully.
+    // A try_lock/skip variant was evaluated but hurt 2L K=10 N=128 by
+    // ~85% (missed wakes fell through to the wait_for timeout and
+    // dominated latency); the reliable-wake design is worth the tiny
+    // lock cost.
     template<int WORDS>
-    void notify_n_contenders(const uint64_t (&tid_bitset)[WORDS], int n) noexcept {
+    inline void notify_n_contenders(const uint64_t (&tid_bitset)[WORDS],
+                                    int n) noexcept {
         for(int i = 0; i < WORDS && n > 0; ++i) {
             uint64_t word = tid_bitset[i];
             while(word && n > 0) {
                 int bit = __builtin_ctzll(word);
                 word &= word - 1;
                 int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
-                auto *st = s_negotiate_sleepers[slot].load(std::memory_order_acquire);
-                if(st) { do_notify(st); --n; }
+                auto &st = s_sleep_slots[slot];
+                { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
+                st.cv.notify_one();
+                --n;
             }
         }
     }
+
+} // namespace detail
+} // namespace Transactional
+
+namespace Transactional {
 
 #if (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
     // Running maximum of observed C (contender count), used as fallback when
@@ -654,7 +676,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)C_obs;
                 uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
                 if(r < threshold) {
-                    notify_n_contenders(tid_bitset, C_obs);
+                    detail::notify_n_contenders(tid_bitset, C_obs);
                     break;
                 }
             }
@@ -690,13 +712,13 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     // Advance seed for de-phasing; chunk = 1 or 2 ms.
                     s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
                     if(NegotiationCounter::numThreadsRunning() < min_r)
-                        notify_n_contenders(tid_bitset,
+                        detail::notify_n_contenders(tid_bitset,
                             std::min(min_r - (int)NegotiationCounter::numThreadsRunning(), C_obs));
-                    negotiate_sleep(1 + (int)(s_backoff_seed >> 31) / 2);
+                    detail::negotiate_sleep(1 + (int)(s_backoff_seed >> 31) / 2);
                 } while(Node<XN>::NegotiationCounter::now() < t_end);
             }
 #else
-            negotiate_sleep(ms_actual);
+            detail::negotiate_sleep(ms_actual);
 #endif
         }
     }
