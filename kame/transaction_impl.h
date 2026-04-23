@@ -54,7 +54,7 @@
 //   0 = disabled
 //   N > 0 = fixed threshold
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS 4
+#define KAME_STM_MAX_RUNNERS -1
 #endif
 
 // Floor on concurrent runners; lottery wins are denied while fewer
@@ -220,7 +220,7 @@ static inline void retry_pause(int retry) noexcept {
 #if KAME_STM_MAX_RUNNERS > 0
         return KAME_STM_MAX_RUNNERS;
 #endif // auto (-1)
-        return effective_runners(c_obs) / 3;
+        return effective_runners(c_obs) * 2;
     }
 #endif // KAME_STM_MIN_RUNNERS != 0 || KAME_STM_MAX_RUNNERS != 0
 
@@ -690,8 +690,8 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     // Advance seed for de-phasing; chunk = 1 or 2 ms.
                     s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
                     if(NegotiationCounter::numThreadsRunning() < min_r)
-                        notify_n_contenders(tid_bitset, KAME_STM_MAX_RUNNERS > 0
-                                            ? KAME_STM_MAX_RUNNERS : C_obs);
+                        notify_n_contenders(tid_bitset,
+                            std::min(min_r - (int)NegotiationCounter::numThreadsRunning(), C_obs));
                     negotiate_sleep(1 + (int)(s_backoff_seed >> 31) / 2);
                 } while(Node<XN>::NegotiationCounter::now() < t_end);
             }
