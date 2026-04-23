@@ -214,13 +214,13 @@ static inline void retry_pause(int retry) noexcept {
 #if KAME_STM_MIN_RUNNERS > 0
         return KAME_STM_MIN_RUNNERS;
 #endif // auto (-1)
-        return effective_runners(c_obs);
+        return effective_runners(c_obs) / 1;
     }
     inline int effective_max_runners(int c_obs) noexcept {
 #if KAME_STM_MAX_RUNNERS > 0
         return KAME_STM_MAX_RUNNERS;
 #endif // auto (-1)
-        return effective_runners(c_obs) * 2;
+        return effective_runners(c_obs) / 3;
     }
 #endif // KAME_STM_MIN_RUNNERS != 0 || KAME_STM_MAX_RUNNERS != 0
 
@@ -557,9 +557,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #define KAME_DT2_FAIRNESS_NS 2000000  // 2000 µs; override via -D
 #endif
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
-#if KAME_STM_MAX_RUNNERS != 0
-    const int max_r = effective_max_runners(1);
-    if(NegotiationCounter::numThreadsRunning() < max_r)
+#if KAME_STM_MIN_RUNNERS != 0
+    const int min_r = effective_min_runners(1);
+    if(NegotiationCounter::numThreadsRunning() < min_r)
 #endif
     if(my_tid == ps.tid
         && adapt_dt2_last_ns < (uint64_t)KAME_DT2_FAIRNESS_NS) {
@@ -631,9 +631,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                            * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
             if(lhs_j < rhs_j) {
-#if KAME_STM_MIN_RUNNERS != 0
-                const int min_r = effective_min_runners(C_obs);
-                if(NegotiationCounter::numThreadsRunning() < min_r)
+#if KAME_STM_MAX_RUNNERS != 0
+                const int max_r = effective_max_runners(C_obs);
+                if(NegotiationCounter::numThreadsRunning() < max_r)
 #endif
                     break; // gate: earned priority — always proceeds, never capped
             }
