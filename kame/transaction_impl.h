@@ -29,6 +29,12 @@
 #define KAME_STM_JITTER_RANGE 25
 #endif
 
+// Gate coefficient: gate opens when mult_wait * GATE_MULT * dt * J < dt2.
+// Smaller = more permissive (threads break out sooner). Default 0.8.
+#ifndef KAME_STM_GATE_MULT
+#define KAME_STM_GATE_MULT 0.8
+#endif
+
 // Multiplier on the √C lottery threshold. 1 = ~√C bypass per iteration.
 #ifndef KAME_STM_LOTTERY_MULT
 #define KAME_STM_LOTTERY_MULT 1
@@ -539,7 +545,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // hot-loop commits (dt2 ≈ 2-8 µs) the gate stays open and the skip
     // delivers its benefit.
 #ifndef KAME_DT2_FAIRNESS_NS
-#define KAME_DT2_FAIRNESS_NS 40000  // 40 µs; override via -D
+#define KAME_DT2_FAIRNESS_NS 20000  // 20 µs; override via -D
 #endif
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
 #if KAME_STM_MAX_RUNNERS > 0
@@ -611,7 +617,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 JITTER_LO  = (100 - KAME_STM_JITTER_RANGE) * 65536 / 100,
                 JITTER_DIV = 100 / (2 * KAME_STM_JITTER_RANGE)
             };
-            uint64_t lhs_j = (uint64_t)(mult_wait * 1.2 * (double)dt)
+            uint64_t lhs_j = (uint64_t)(mult_wait * KAME_STM_GATE_MULT * (double)dt)
                            * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
             if(lhs_j < rhs_j) {
