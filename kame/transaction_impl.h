@@ -55,12 +55,12 @@
 #endif
 
 // KAME_STM_MIN_RUNNERS: floor on concurrent runners.
-//   0 = disabled (default).  Positive = a thread that would sleep instead
-//   becomes a runner when the running count drops below this threshold,
-//   preventing the "all threads sleeping simultaneously" stall.  Value of 1
-//   is the minimal anti-stall guard; 4–8 gives more throughput headroom.
+//  -1 = auto (default): hardware_concurrency()*3/4, fallback to max(C_obs)*3/4.
+//   0 = disabled.
+//   N > 0: fixed threshold.
+// Prevents the "all threads sleep simultaneously, notify is a no-op" stall.
 #ifndef KAME_STM_MIN_RUNNERS
-#define KAME_STM_MIN_RUNNERS 12
+#define KAME_STM_MIN_RUNNERS -1
 #endif
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
@@ -179,6 +179,30 @@ namespace {
             }
         }
     }
+
+#if KAME_STM_MIN_RUNNERS != 0
+    // Running maximum of observed C (contender count), used as fallback when
+    // hardware_concurrency() returns 0.
+    std::atomic<int> s_max_c_obs{1};
+
+    // Effective MIN_RUNNERS threshold, computed once (hardware_concurrency is
+    // fixed at runtime; s_max_c_obs is updated each call as a side effect).
+    inline int effective_min_runners(int c_obs) noexcept {
+        // Update max C_obs (relaxed: approximate max is fine)
+        int prev = s_max_c_obs.load(std::memory_order_relaxed);
+        while(c_obs > prev &&
+              !s_max_c_obs.compare_exchange_weak(prev, c_obs,
+                  std::memory_order_relaxed, std::memory_order_relaxed))
+            {}
+#if KAME_STM_MIN_RUNNERS > 0
+        return KAME_STM_MIN_RUNNERS;
+#else // auto (-1)
+        static const int hw = (int)std::thread::hardware_concurrency();
+        if(hw > 0) return std::max(1, hw * 3 / 4);
+        return std::max(1, s_max_c_obs.load(std::memory_order_relaxed) * 3 / 4);
+#endif
+    }
+#endif // KAME_STM_MIN_RUNNERS != 0
 } // anonymous namespace
 
 // Unified retry-loop backoff: always call retry_pause + negotiate.
@@ -668,7 +692,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             if(ms_actual < 1) ms_actual = 1;
 #endif
             typename NegotiationCounter::ReleaseOneCount onedown;
-#if KAME_STM_MIN_RUNNERS > 0
+#if KAME_STM_MIN_RUNNERS != 0
             // Sleep in 1 ms chunks so the MIN_RUNNERS check fires after this
             // thread has registered in s_negotiate_sleepers (i.e. is visible
             // as a sleeper) — preventing the "all threads sleep simultaneously
@@ -676,11 +700,12 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             // notify_n_contenders, so effective latency is well below 1 ms
             // once a lottery winner fires.
             {
+                const int min_r = effective_min_runners(C_obs);
                 auto t_end = Node<XN>::NegotiationCounter::now()
                              + (int64_t)ms_actual * 1000;
                 do {
                     negotiate_sleep(1);
-                    if(NegotiationCounter::numThreadsRunning() < KAME_STM_MIN_RUNNERS)
+                    if(NegotiationCounter::numThreadsRunning() < min_r)
                         notify_n_contenders(tid_bitset, KAME_STM_MAX_RUNNERS > 0
                                             ? KAME_STM_MAX_RUNNERS : sqrtC);
                 } while(Node<XN>::NegotiationCounter::now() < t_end);
