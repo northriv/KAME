@@ -651,8 +651,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 JITTER_DIV = 100 / (2 * KAME_STM_JITTER_RANGE)
             };
 //            uint64_t lhs_j = (uint64_t)(mult_wait * KAME_STM_GATE_MULT * (double)dt)
-//            uint64_t lhs_j = (uint64_t)(numthreads_running * KAME_STM_GATE_MULT * (double)dt)
-            uint64_t lhs_j = (uint64_t)(C_obs * KAME_STM_GATE_MULT * (double)dt)
+            uint64_t lhs_j = (uint64_t)(std::max(numthreads_running, C_obs) * KAME_STM_GATE_MULT * (double)dt)
                            * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
             if((KAME_STM_GATE_MULT > 0.0f) && (lhs_j < rhs_j)) {
