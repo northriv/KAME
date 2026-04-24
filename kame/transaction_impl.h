@@ -54,7 +54,7 @@
 //   0 = disabled
 //   N > 0 = fixed threshold
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS 6
+#define KAME_STM_MAX_RUNNERS -1
 #endif
 
 // Floor on concurrent runners; lottery wins are denied while fewer
@@ -677,7 +677,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 uint32_t r = (s_backoff_seed >> 16) & 0xFFFFu;
                 uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)C_obs;
                 uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
-                if(r < threshold) {
+                if(r * numthreads_running < threshold) {
                     detail::notify_n_contenders(tid_bitset, C_obs);
                     break;
                 }
