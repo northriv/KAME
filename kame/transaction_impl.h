@@ -20,6 +20,10 @@
 #include <algorithm>
 #include <mutex>
 #include <condition_variable>
+#if defined(KAME_STM_LIVELOCK_PROBE) && KAME_STM_LIVELOCK_PROBE
+#include <chrono>
+#include <cstdio>
+#endif
 
 // --- Compile-time tuning knobs for the adaptive-negotiate backoff ---
 // All are -D overridable at cmake time.
@@ -236,6 +240,120 @@ namespace detail {
             }
         }
     }
+
+#if defined(KAME_STM_LIVELOCK_PROBE) && KAME_STM_LIVELOCK_PROBE
+    // Livelock observation probe. Opt-in via -DKAME_STM_LIVELOCK_PROBE=1.
+    //
+    // Signal: MY Transaction-retry rate vs. the LINKAGE's
+    // Transaction-commit rate on a rolling ≥ 10 ms window. Emits one
+    // stderr line per window:
+    //   [ll-probe] tid=... linkage=... my_tx_retry_rate=N/s
+    //              tx_commit_rate=M/s ratio=X window_ms=T
+    //
+    // Transaction-level, NOT CAS-level: "CAS operations succeed but
+    // iterate_commit keeps invalidating the whole Transaction" is the
+    // pathology we care about. my_tx_retry comes from Snapshot's
+    // m_tx_retry_count (bumped by Transaction::operator++), tx_commit
+    // from Linkage::m_tx_commit_count (bumped in finalizeCommitment).
+    //
+    // Fires only at negotiate_internal entry (slow path); gate hits
+    // and lottery wins stay zero-cost. Shipping builds
+    // (-DKAME_STM_LIVELOCK_PROBE unset) are byte-identical apart from
+    // one uint32_t per Snapshot, one uint64_t per Linkage, and the
+    // two unconditional `++` statements.
+    struct LivelockProbe {
+        const void *linkage_id       = nullptr;
+        int64_t     t_window_ns      = 0;
+        uint32_t    tx_retry_window  = 0;
+        uint64_t    tx_commit_window = 0;
+    };
+    inline thread_local LivelockProbe tls_livelock_probe;
+
+    inline int64_t ll_now_ns() noexcept {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    // Fires the livelock probe. The caller (negotiate_internal, which
+    // has access to Snapshot's protected members via enclosing-class
+    // friendship) pre-computes the tag-ownership counts and passes
+    // plain values here. Primary livelock criterion per the refined
+    // definition (all tagged linkages carry my started_time AND
+    // Transaction retries are piling up):
+    //   tags_owned == tags_total && my_tx_retries > 0  →  livelock.
+    // Under the "fewer retries = better detection" principle, this
+    // condition fires at the smallest possible my_tx_retries.
+    inline void livelock_probe_tx_tick(const void *linkage,
+                                       uint32_t my_tx_retries,
+                                       uint64_t tx_commit_count,
+                                       int tags_owned,
+                                       int tags_total,
+                                       int64_t tx_age_ns) noexcept {
+        auto &p = tls_livelock_probe;
+        if (p.linkage_id != linkage) {
+            p.linkage_id       = linkage;
+            p.t_window_ns      = ll_now_ns();
+            p.tx_retry_window  = my_tx_retries;
+            p.tx_commit_window = tx_commit_count;
+            return;
+        }
+        int64_t now_ns    = ll_now_ns();
+        int64_t window_ns = now_ns - p.t_window_ns;
+        if (window_ns < 10'000'000) return;   // < 10 ms: window too short
+
+        // m_tx_retry_count restarts at 0 when a new Transaction ctor
+        // fires; handle wrap-to-smaller-value by treating delta as
+        // the current value itself.
+        uint32_t my_retry_delta = my_tx_retries >= p.tx_retry_window
+                                ? my_tx_retries - p.tx_retry_window
+                                : my_tx_retries;
+        uint64_t cmt_delta      = tx_commit_count - p.tx_commit_window;
+
+        double elapsed_sec     = window_ns * 1e-9;
+        double my_retry_rate   = my_retry_delta / elapsed_sec;
+        double tx_commit_rate  = cmt_delta       / elapsed_sec;
+        double ratio           = my_retry_rate /
+                                 std::max(1.0, tx_commit_rate);
+        // Primary verdict per the refined definition:
+        //   priority claimed on every tagged linkage
+        //   AND Transaction retries piling up
+        //   AND the tx has outlived the lease period (so the adaptive
+        //       gate/lease machinery has had its chance to arbitrate)
+        // The "piling up" threshold stays small (2) under the
+        // "fewer retries = better detection" principle. Both
+        // MIN_RETRY and the age floor are tunable at compile time.
+#ifndef KAME_STM_LIVELOCK_MIN_RETRY
+#define KAME_STM_LIVELOCK_MIN_RETRY 2
+#endif
+#ifndef KAME_STM_LIVELOCK_MIN_AGE_NS
+// 500 µs default (= adaptive-lease upper bound KAME_LEASE_NS_MAX;
+// duplicated here because that macro is defined inside
+// negotiate_internal and not visible in this helper's namespace).
+#define KAME_STM_LIVELOCK_MIN_AGE_NS 500000
+#endif
+        const char *verdict =
+            (tags_total > 0 && tags_owned == tags_total
+             && my_tx_retries >= KAME_STM_LIVELOCK_MIN_RETRY
+             && tx_age_ns > (int64_t)KAME_STM_LIVELOCK_MIN_AGE_NS)
+                ? "LIVELOCK" : "ok";
+
+        std::fprintf(stderr,
+            "[ll-probe] tid=%u linkage=%p "
+            "my_tx_retries=%u my_tx_retry_rate=%.0f/s "
+            "tx_commit_rate=%.0f/s ratio=%.1f "
+            "tags_owned=%d/%d tx_age_us=%lld "
+            "verdict=%s window_ms=%lld\n",
+            (unsigned)ProcessCounter::id(), linkage,
+            (unsigned)my_tx_retries, my_retry_rate, tx_commit_rate,
+            ratio, tags_owned, tags_total,
+            (long long)(tx_age_ns / 1000), verdict,
+            (long long)(window_ns / 1'000'000));
+
+        p.t_window_ns      = now_ns;
+        p.tx_retry_window  = my_tx_retries;
+        p.tx_commit_window = tx_commit_count;
+    }
+#endif // KAME_STM_LIVELOCK_PROBE
 
 } // namespace detail
 } // namespace Transactional
@@ -503,6 +621,27 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     auto &tid_bitset = snap.m_tid_bitset;
     // No pre-loop yield: the m_transaction_started_time load below is
     // the cheap collision-clear check.
+#if defined(KAME_STM_LIVELOCK_PROBE) && KAME_STM_LIVELOCK_PROBE
+    // Count tagged linkages whose m_transaction_started_time == ours
+    // (= "priority is already mine on every linkage" = primary
+    //   livelock precondition per the refined definition).
+    int _ll_total = (int)snap.m_tagged_linkages.size();
+    int _ll_owned = 0;
+    for (auto &_l : snap.m_tagged_linkages) {
+        if (_l && _l->m_transaction_started_time.load(
+                std::memory_order_relaxed) == snap.m_started_time)
+            ++_ll_owned;
+    }
+    // tx age = wall time since Transaction ctor started (m_started_time
+    // is set once in the ctor, not reset by operator++).
+    int64_t _ll_age_ns = (int64_t)(
+        Node<XN>::NegotiationCounter::now() - snap.m_started_time);
+    detail::livelock_probe_tx_tick(
+        static_cast<const void*>(this),
+        snap.m_tx_retry_count,
+        m_tx_commit_count,
+        _ll_owned, _ll_total, _ll_age_ns);
+#endif
 
     // One atomic load of the packed (tid | lease_us | start_us) tuple.
     auto ps = loadPriority();
@@ -645,8 +784,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             break;
         auto dt = started_time - transaction_started_time;
         if(dt <= 0) {
-            if((pr == Priority::NORMAL) || (ms > 50 * mult_wait))
-                break; //This thread is the oldest.
+            break; //This thread is the oldest.
         }
         auto transaction_started_time =
             m_transaction_started_time.load(std::memory_order_acquire);

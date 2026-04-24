@@ -386,6 +386,17 @@ private:
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
 
+        //! Non-atomic Transaction-commit counter — bumped in
+        //! `Transaction<XN>::finalizeCommitment()` (only the
+        //! iterate_commit winner executes that, one writer per tx, no
+        //! concurrent writes on a given Linkage, so the plain ++ is
+        //! race-free). Counts **successful Transactions** rooted at
+        //! this linkage (not individual CAS ops inside a single tx).
+        //! Readers — the optional livelock probe — load via the same
+        //! atomic_shared_ptr CAS acquire they already used to reach
+        //! this Linkage.
+        mutable uint64_t m_tx_commit_count = 0;
+
         // Implicit commit-lease. within a certain window after the
         // current wrapper was installed, the committing TID holds a soft lease —
         // a subsequent negotiate() call from the same TID skips the msec-sleep
@@ -850,6 +861,14 @@ protected:
     //! Also promoted from Transaction<XN>. The standalone-Snapshot ctor
     //! fills this in tree-walk; Transaction<XN> inherits and reuses.
     typename Node<XN>::TidBitset m_tid_bitset = {};
+    //! Transaction-level retry count. Bumped in `Transaction::operator++()`
+    //! on every outer iterate_commit retry; stays 0 for a pure Snapshot
+    //! (not wrapped by Transaction) and for a fresh Transaction
+    //! (default-initialized). Consumed by the optional livelock probe to
+    //! separate "CAS retries piling up (normal under contention)" from
+    //! "Transaction retries piling up while the linkage's CAS commits
+    //! continue" — livelock at the Transaction layer.
+    uint32_t m_tx_retry_count = 0;
     //! Linkages whose m_transaction_started_time this attempt has tagged
     //! (or intends to tag). Held as shared_ptr to keep the Linkage alive
     //! until clear_tags() runs; otherwise dynamic-node release could leave
@@ -1014,6 +1033,10 @@ private:
 //	}
     //! Takes another snapshot and prepares for a next transaction.
     Transaction &operator++() {
+        // Transaction-level retry counter for the livelock probe.
+        // Counts outer iterate_commit iterations. Lives on the Snapshot
+        // base (this->m_tx_retry_count, zero-initialised by default).
+        ++this->m_tx_retry_count;
         Node<XN> &node(this->m_packet->node());
         if(isMultiNodal())
             this->tag_as_contender(node.m_link);
@@ -1061,6 +1084,10 @@ protected:
 
 template <class XN>
 void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
+    // Bump the per-root-linkage Transaction-commit counter consumed by
+    // the optional livelock probe. Single writer (the iterate_commit
+    // winner) per tx, so the non-atomic ++ is race-free.
+    ++node.m_link->m_tx_commit_count;
     //Clears the time stamp linked to this object.
     // Drop all contender tags (including TAG_ON_DISTURB child tags) before
     // zeroing m_started_time; drop_tags() matches on the current value.
