@@ -25,6 +25,18 @@
 
 namespace Transactional {
 
+namespace detail {
+    //! Per-thread nesting depth of Transaction/Snapshot scopes. s_running
+    //! (in Node<XN>::NegotiationCounter) picks up +1 only on the 0 → 1
+    //! transition so nested transactions do not inflate the runner count.
+    //! Namespace-scope (not template static) because nesting is a
+    //! per-thread property and to work around an Apple clang / arm64
+    //! TLS-wrapper-emission bug for template static `thread_local`.
+    inline thread_local int s_tx_nest = 0;
+    //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
+    inline thread_local int s_sleep_nest = 0;
+} // namespace detail
+
 // Portable 64-bit popcount. Visible in transaction.h so inline member
 // functions (e.g. negotiate()) can use it. GCC/Clang/MSVC intrinsics.
 static inline int popcount_u64(uint64_t x) noexcept {
@@ -260,13 +272,19 @@ private:
         //! ReleaseOneCount (sleeping) scope. Nested Transactions (inner
         //! tx inside a closure running in an outer one) share the same
         //! running-slot — the thread is one runner regardless of depth.
+        //! The tx_nest / sleep_nest counters are namespace-scope
+        //! `inline thread_local` variables (see top of file) — keeping
+        //! them out of the class template works around an Apple clang
+        //! arm64 bug that fails to emit the TLS wrapper for a
+        //! `static thread_local` member of a class template in TUs
+        //! that only include transaction.h.
         struct DECLSPEC_KAME AcquireOneCount {
             AcquireOneCount() {
-                if(++s_tx_nest == 1 && s_sleep_nest == 0)
+                if(++detail::s_tx_nest == 1 && detail::s_sleep_nest == 0)
                     s_running.fetch_add(1, std::memory_order_relaxed);
             }
             ~AcquireOneCount() {
-                if(--s_tx_nest == 0 && s_sleep_nest == 0)
+                if(--detail::s_tx_nest == 0 && detail::s_sleep_nest == 0)
                     s_running.fetch_sub(1, std::memory_order_relaxed);
             }
         };
@@ -275,22 +293,16 @@ private:
         //! above so nested sleep scopes don't double-decrement.
         struct DECLSPEC_KAME ReleaseOneCount {
             ReleaseOneCount() {
-                if(++s_sleep_nest == 1 && s_tx_nest > 0)
+                if(++detail::s_sleep_nest == 1 && detail::s_tx_nest > 0)
                     s_running.fetch_sub(1, std::memory_order_relaxed);
             }
             ~ReleaseOneCount() {
-                if(--s_sleep_nest == 0 && s_tx_nest > 0)
+                if(--detail::s_sleep_nest == 0 && detail::s_tx_nest > 0)
                     s_running.fetch_add(1, std::memory_order_relaxed);
             }
         };
     private:
         static atomic<unsigned int> s_running;
-        //! Per-thread nesting depth of Transaction/Snapshot scopes. s_running
-        //! picks up +1 only on the 0→1 transition so nested transactions
-        //! don't inflate the runner count.
-        static thread_local int s_tx_nest;
-        //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
-        static thread_local int s_sleep_nest;
     };
 
     //! Generates a serial number assigned to bundling and transaction.\n

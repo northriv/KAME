@@ -86,10 +86,11 @@ namespace Transactional {
 
 template <class XN>
 atomic<unsigned int> Node<XN>::NegotiationCounter::s_running{0};
-template <class XN>
-thread_local int Node<XN>::NegotiationCounter::s_tx_nest = 0;
-template <class XN>
-thread_local int Node<XN>::NegotiationCounter::s_sleep_nest = 0;
+// tx_nest / sleep_nest are defined at namespace scope in transaction.h
+// (detail::s_tx_nest, detail::s_sleep_nest). Placing them outside the
+// class template avoids an Apple clang / arm64 bug where the TLS wrapper
+// for a template static `thread_local` member is not emitted in TUs
+// that only include transaction.h.
 
 STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
 
@@ -203,6 +204,33 @@ namespace detail {
                 int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
                 auto &st = s_sleep_slots[slot];
                 { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
+                st.cv.notify_one();
+                --n;
+            }
+        }
+    }
+
+    // Lock-free-ish variant kept for ablation / regression tests.
+    // try_lock and skip on contention; missed wakes fall through to the
+    // wait_for timeout in negotiate_sleep. Measured on a 16-core x86
+    // box to cost 24–85 % on 2L K=10 at N=32..128 vs the blocking
+    // variant above, so NOT the shipping default. Rebuild with
+    // -DKAME_STM_NOTIFY_TRY_LOCK=1 to select this path at the lottery
+    // call site.
+    template<int WORDS>
+    inline void try_notify_n_contenders(const uint64_t (&tid_bitset)[WORDS],
+                                        int n) noexcept {
+        for(int i = 0; i < WORDS && n > 0; ++i) {
+            uint64_t word = tid_bitset[i];
+            while(word && n > 0) {
+                int bit = __builtin_ctzll(word);
+                word &= word - 1;
+                int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
+                auto &st = s_sleep_slots[slot];
+                std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
+                if( !lk.owns_lock()) continue;
+                st.notified = true;
+                lk.unlock();
                 st.cv.notify_one();
                 --n;
             }
@@ -676,7 +704,15 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)C_obs;
                 uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
                 if(r < threshold) {
+                    // Lottery firing at the wake-broadcast point. Default:
+                    // blocking lock_guard for reliable wakes. Rebuild with
+                    // -DKAME_STM_NOTIFY_TRY_LOCK=1 to select the try_lock
+                    // skip variant for ablation / regression measurement.
+#if defined(KAME_STM_NOTIFY_TRY_LOCK) && KAME_STM_NOTIFY_TRY_LOCK
+                    detail::try_notify_n_contenders(tid_bitset, C_obs);
+#else
                     detail::notify_n_contenders(tid_bitset, C_obs);
+#endif
                     break;
                 }
             }
