@@ -54,7 +54,7 @@
 //   0 = disabled
 //   N > 0 = fixed threshold
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS 8
+#define KAME_STM_MAX_RUNNERS 6
 #endif
 
 // Floor on concurrent runners; lottery wins are denied while fewer
