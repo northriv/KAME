@@ -32,7 +32,7 @@
 // Gate coefficient: gate opens when mult_wait * GATE_MULT * dt * J < dt2.
 // Smaller = more permissive (threads break out sooner). Default 0 (closed).
 #ifndef KAME_STM_GATE_MULT
-#define KAME_STM_GATE_MULT 2.0f
+#define KAME_STM_GATE_MULT 1.0f
 #endif
 
 // Multiplier on the √C lottery threshold. 1 = ~√C bypass per iteration.
@@ -54,7 +54,7 @@
 //   0 = disabled
 //   N > 0 = fixed threshold
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS -1
+#define KAME_STM_MAX_RUNNERS 2
 #endif
 
 // Floor on concurrent runners; lottery wins are denied while fewer
@@ -568,7 +568,6 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         ps.lease_us = new_lease_us;
     }
 
-    int numthreads_running = NegotiationCounter::numThreadsRunning();
     // Adaptive gate: suppress owner-skip when dt2 (time the competing
     // tx has been waiting) exceeds KAME_DT2_FAIRNESS_NS. dt2 > fairness
     // threshold indicates long-held conflicting tx (e.g. test_negotiation
@@ -582,7 +581,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
 #if KAME_STM_MIN_RUNNERS != 0
     const int min_r = effective_min_runners(1);
-    if(numthreads_running < min_r)
+    if(NegotiationCounter::numThreadsRunning() < min_r)
 #endif
     if(my_tid == ps.tid
         && adapt_dt2_last_ns < (uint64_t)KAME_DT2_FAIRNESS_NS) {
@@ -650,14 +649,13 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 JITTER_LO  = (100 - KAME_STM_JITTER_RANGE) * 65536 / 100,
                 JITTER_DIV = 100 / (2 * KAME_STM_JITTER_RANGE)
             };
-//            uint64_t lhs_j = (uint64_t)(mult_wait * KAME_STM_GATE_MULT * (double)dt)
-            uint64_t lhs_j = (uint64_t)(std::max(numthreads_running, C_obs) * KAME_STM_GATE_MULT * (double)dt)
+            uint64_t lhs_j = (uint64_t)(mult_wait * KAME_STM_GATE_MULT * (double)dt)
                            * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
             if((KAME_STM_GATE_MULT > 0.0f) && (lhs_j < rhs_j)) {
 #if KAME_STM_MAX_RUNNERS != 0
                 const int max_r = effective_max_runners(C_obs);
-                if(numthreads_running < max_r)
+                if(NegotiationCounter::numThreadsRunning() < max_r)
 #endif
                     break; // gate: earned priority — always proceeds, never capped
             }
@@ -669,7 +667,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             //     Prevents all threads from being stuck in the gate simultaneously.
 #if KAME_STM_MIN_RUNNERS != 0
             const int min_r = effective_min_runners(C_obs);
-            if(numthreads_running < min_r) {
+            if(NegotiationCounter::numThreadsRunning() < min_r) {
 #else
             if(C_obs > 1) {
 #endif
@@ -713,9 +711,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 do {
                     // Advance seed for de-phasing; chunk = 1 or 2 ms.
                     s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
-                    if(numthreads_running < min_r)
+                    if(NegotiationCounter::numThreadsRunning() < min_r)
                         detail::notify_n_contenders(tid_bitset,
-                            std::min(min_r - numthreads_running, C_obs));
+                            std::min(min_r - (int)NegotiationCounter::numThreadsRunning(), C_obs));
                     detail::negotiate_sleep(1 + (int)(s_backoff_seed >> 31) / 2);
                 } while(Node<XN>::NegotiationCounter::now() < t_end);
             }
