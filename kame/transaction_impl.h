@@ -20,6 +20,10 @@
 #include <algorithm>
 #include <mutex>
 #include <condition_variable>
+
+#define  KAME_STM_LIVELOCK_PROBE 1
+#define KAME_STM_LIVELOCK_FALLBACK 1
+
 #if defined(KAME_STM_LIVELOCK_PROBE) && KAME_STM_LIVELOCK_PROBE
 #include <chrono>
 #include <cstdio>
@@ -263,43 +267,58 @@ namespace detail {
     // two unconditional `++` statements.
     struct LivelockProbe {
         const void *linkage_id       = nullptr;
-        int64_t     t_window_ns      = 0;
+        int64_t     t_window_us      = 0;
         uint32_t    tx_retry_window  = 0;
         uint64_t    tx_commit_window = 0;
     };
     inline thread_local LivelockProbe tls_livelock_probe;
 
-    inline int64_t ll_now_ns() noexcept {
-        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+    inline int64_t ll_now_us() noexcept {
+        return std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
+    // Forward declaration — full body below (either the real
+    // mode-switch implementation, or a no-op stub when the fallback
+    // macro is not defined).
+    inline void update_negotiate_mode(bool saw_livelock,
+                                      int64_t now_us) noexcept;
+
     // Fires the livelock probe. The caller (negotiate_internal, which
     // has access to Snapshot's protected members via enclosing-class
-    // friendship) pre-computes the tag-ownership counts and passes
-    // plain values here. Primary livelock criterion per the refined
-    // definition (all tagged linkages carry my started_time AND
-    // Transaction retries are piling up):
-    //   tags_owned == tags_total && my_tx_retries > 0  →  livelock.
-    // Under the "fewer retries = better detection" principle, this
-    // condition fires at the smallest possible my_tx_retries.
+    // friendship) pre-computes the tag-ownership counts, the
+    // retry-threshold (chosen from Priority), and the priority label,
+    // then passes plain values here.
+    //
+    // Verdict:
+    //   tags_owned == tags_total > 0                  AND
+    //   my_tx_retries >= retry_threshold              AND
+    //   tx_age_us > KAME_STM_LIVELOCK_MIN_AGE_US (20 ms default)
+    //
+    // retry_threshold is priority-dependent:
+    //   HIGHEST         → 2  (real-time, must not retry)
+    //   NORMAL          → 3
+    //   UI_DEFERRABLE   → 5  (deferred UI repaint — retries tolerated)
+    //   LOWEST          → 5  (background — tolerates yielding)
     inline void livelock_probe_tx_tick(const void *linkage,
                                        uint32_t my_tx_retries,
                                        uint64_t tx_commit_count,
                                        int tags_owned,
                                        int tags_total,
-                                       int64_t tx_age_ns) noexcept {
+                                       int64_t tx_age_us,
+                                       int retry_threshold,
+                                       const char *prio_name) noexcept {
         auto &p = tls_livelock_probe;
         if (p.linkage_id != linkage) {
             p.linkage_id       = linkage;
-            p.t_window_ns      = ll_now_ns();
+            p.t_window_us      = ll_now_us();
             p.tx_retry_window  = my_tx_retries;
             p.tx_commit_window = tx_commit_count;
             return;
         }
-        int64_t now_ns    = ll_now_ns();
-        int64_t window_ns = now_ns - p.t_window_ns;
-        if (window_ns < 10'000'000) return;   // < 10 ms: window too short
+        int64_t now_us    = ll_now_us();
+        int64_t window_us = now_us - p.t_window_us;
+        if (window_us < 10'000) return;   // < 10 ms: window too short
 
         // m_tx_retry_count restarts at 0 when a new Transaction ctor
         // fires; handle wrap-to-smaller-value by treating delta as
@@ -309,51 +328,139 @@ namespace detail {
                                 : my_tx_retries;
         uint64_t cmt_delta      = tx_commit_count - p.tx_commit_window;
 
-        double elapsed_sec     = window_ns * 1e-9;
+        double elapsed_sec     = window_us * 1e-6;
         double my_retry_rate   = my_retry_delta / elapsed_sec;
         double tx_commit_rate  = cmt_delta       / elapsed_sec;
         double ratio           = my_retry_rate /
                                  std::max(1.0, tx_commit_rate);
-        // Primary verdict per the refined definition:
+        // Verdict: all conditions must hold simultaneously
         //   priority claimed on every tagged linkage
-        //   AND Transaction retries piling up
-        //   AND the tx has outlived the lease period (so the adaptive
-        //       gate/lease machinery has had its chance to arbitrate)
-        // The "piling up" threshold stays small (2) under the
-        // "fewer retries = better detection" principle. Both
-        // MIN_RETRY and the age floor are tunable at compile time.
-#ifndef KAME_STM_LIVELOCK_MIN_RETRY
-#define KAME_STM_LIVELOCK_MIN_RETRY 2
-#endif
-#ifndef KAME_STM_LIVELOCK_MIN_AGE_NS
-// 500 µs default (= adaptive-lease upper bound KAME_LEASE_NS_MAX;
-// duplicated here because that macro is defined inside
-// negotiate_internal and not visible in this helper's namespace).
-#define KAME_STM_LIVELOCK_MIN_AGE_NS 500000
+        //   AND Transaction retries >= priority-dependent threshold
+        //   AND tx_age > KAME_STM_LIVELOCK_MIN_AGE_US (20 ms default,
+        //       portable across Windows (15.6 ms tick) / macOS Mach /
+        //       Linux CFS scheduler granularities)
+#ifndef KAME_STM_LIVELOCK_MIN_AGE_US
+// 20 ms default — well above any OS scheduler sleep granularity
+// and above the adaptive-lease upper bound, so below this floor
+// the tx hasn't had a real chance to resolve via backoff. Portable
+// across Windows (15.6 ms tick), macOS Mach timers, Linux CFS.
+#define KAME_STM_LIVELOCK_MIN_AGE_US 20000
 #endif
         const char *verdict =
             (tags_total > 0 && tags_owned == tags_total
-             && my_tx_retries >= KAME_STM_LIVELOCK_MIN_RETRY
-             && tx_age_ns > (int64_t)KAME_STM_LIVELOCK_MIN_AGE_NS)
+             && (int)my_tx_retries >= retry_threshold
+             && tx_age_us > (int64_t)KAME_STM_LIVELOCK_MIN_AGE_US)
                 ? "LIVELOCK" : "ok";
 
-        std::fprintf(stderr,
-            "[ll-probe] tid=%u linkage=%p "
-            "my_tx_retries=%u my_tx_retry_rate=%.0f/s "
-            "tx_commit_rate=%.0f/s ratio=%.1f "
-            "tags_owned=%d/%d tx_age_us=%lld "
-            "verdict=%s window_ms=%lld\n",
-            (unsigned)ProcessCounter::id(), linkage,
-            (unsigned)my_tx_retries, my_retry_rate, tx_commit_rate,
-            ratio, tags_owned, tags_total,
-            (long long)(tx_age_ns / 1000), verdict,
-            (long long)(window_ns / 1'000'000));
+        if(verdict[0] == 'L')
+            std::fprintf(stderr,
+                "[ll-probe] tid=%u linkage=%p prio=%s threshold=%d "
+                "my_tx_retries=%u my_tx_retry_rate=%.0f/s "
+                "tx_commit_rate=%.0f/s ratio=%.1f "
+                "tags_owned=%d/%d tx_age_us=%lld "
+                "verdict=%s window_ms=%lld\n",
+                (unsigned)ProcessCounter::id(), linkage,
+                prio_name, retry_threshold,
+                (unsigned)my_tx_retries, my_retry_rate, tx_commit_rate,
+                ratio, tags_owned, tags_total,
+                (long long)(tx_age_us), verdict,
+                (long long)(window_us / 1'000));
 
-        p.t_window_ns      = now_ns;
+        // Feed the verdict into the runtime mode-switch machinery.
+        // No-op when KAME_STM_LIVELOCK_FALLBACK is not defined.
+        update_negotiate_mode(verdict[0] == 'L' /* "LIVELOCK" */, now_us);
+
+        p.t_window_us      = now_us;
         p.tx_retry_window  = my_tx_retries;
         p.tx_commit_window = tx_commit_count;
     }
 #endif // KAME_STM_LIVELOCK_PROBE
+
+#if defined(KAME_STM_LIVELOCK_FALLBACK) && KAME_STM_LIVELOCK_FALLBACK
+    // Runtime mode switch between V0 (lightweight, v0-equivalent) and
+    // ADAPTIVE (full lease / bitset / CV-sleep machinery). Startup
+    // default is V0. The livelock probe shuttles between modes:
+    //
+    //   V0       → ADAPTIVE : burst of ≥ BURST_COUNT livelock events
+    //                         within BURST_MS
+    //   ADAPTIVE → V0       : same burst trigger (mode-shuffle jitter)
+    //                         OR CALM_MS elapsed with no livelock
+    //
+    // Mode check is a single relaxed atomic load at the top of
+    // negotiate_internal and in the few tag_as_contender call sites
+    // that did not exist in v0.
+    enum NegotiateMode : int { MODE_V0 = 0, MODE_ADAPTIVE = 1 };
+    inline std::atomic<int>      s_negotiate_mode{MODE_V0};
+    inline std::atomic<int64_t>  s_last_livelock_us{0};
+    inline std::atomic<uint32_t> s_livelock_burst_count{0};
+
+#ifndef KAME_STM_MODE_BURST_MS
+#define KAME_STM_MODE_BURST_MS 30
+#endif
+#ifndef KAME_STM_MODE_BURST_COUNT
+#define KAME_STM_MODE_BURST_COUNT 3
+#endif
+#ifndef KAME_STM_MODE_CALM_MS
+#define KAME_STM_MODE_CALM_MS 1000
+#endif
+
+    inline bool in_adaptive_mode() noexcept {
+        return s_negotiate_mode.load(std::memory_order_relaxed) == MODE_ADAPTIVE;
+    }
+
+    // Invoked by the livelock probe at every window close.
+    inline void update_negotiate_mode(bool saw_livelock,
+                                      int64_t now_us) noexcept {
+        if (saw_livelock) {
+            int64_t last = s_last_livelock_us.exchange(
+                now_us, std::memory_order_relaxed);
+            uint32_t burst;
+            if (now_us - last <
+                (int64_t)KAME_STM_MODE_BURST_MS * 1'000'000) {
+                burst = s_livelock_burst_count.fetch_add(
+                    1, std::memory_order_relaxed) + 1;
+            } else {
+                s_livelock_burst_count.store(1, std::memory_order_relaxed);
+                burst = 1;
+            }
+            if (burst >= KAME_STM_MODE_BURST_COUNT) {
+                int mode = s_negotiate_mode.load(std::memory_order_relaxed);
+                int new_mode = (mode == MODE_V0) ? MODE_ADAPTIVE : MODE_V0;
+                s_negotiate_mode.store(new_mode, std::memory_order_relaxed);
+                s_livelock_burst_count.store(0, std::memory_order_relaxed);
+                std::fprintf(stderr,
+                    "[ll-probe] mode: %s -> %s "
+                    "(burst: %u events within %d ms)\n",
+                    mode == MODE_V0 ? "V0" : "ADAPTIVE",
+                    new_mode == MODE_V0 ? "V0" : "ADAPTIVE",
+                    (unsigned)burst, (int)KAME_STM_MODE_BURST_MS);
+            }
+        } else {
+            // No livelock this window — de-escalate ADAPTIVE→V0 after calm.
+            int mode = s_negotiate_mode.load(std::memory_order_relaxed);
+            if (mode == MODE_ADAPTIVE) {
+                int64_t last = s_last_livelock_us.load(
+                    std::memory_order_relaxed);
+                if (last > 0 && now_us - last >
+                    (int64_t)KAME_STM_MODE_CALM_MS * 1'000) {
+                    if (s_negotiate_mode.compare_exchange_strong(
+                            mode, MODE_V0,
+                            std::memory_order_relaxed)) {
+                        s_livelock_burst_count.store(
+                            0, std::memory_order_relaxed);
+                        std::fprintf(stderr,
+                            "[ll-probe] mode: ADAPTIVE -> V0 "
+                            "(calm: %d ms no livelock)\n",
+                            (int)KAME_STM_MODE_CALM_MS);
+                    }
+                }
+            }
+        }
+    }
+#else // !KAME_STM_LIVELOCK_FALLBACK — pure V0, no runtime switch
+    inline bool in_adaptive_mode() noexcept { return false; }
+    inline void update_negotiate_mode(bool, int64_t) noexcept {}
+#endif
 
 } // namespace detail
 } // namespace Transactional
@@ -549,19 +656,19 @@ Node<XN>::print_recoverable_error(const char* reason) {
 }
 
 
-// Adaptive-lease constants. The active lease window (ns) is stored per-Linkage
-// as Linkage::m_adapt_lease_ns, so contention sites converge independently
+// Adaptive-lease constants. The active lease window (us) is stored per-Linkage
+// as Linkage::m_adapt_lease_us, so contention sites converge independently
 // (hot Linkage → longer lease; cold Linkage → short).
 // Clamped to [KAME_LEASE_NS_MIN, KAME_LEASE_NS_MAX] (default 1 µs..2 ms).
 // Fixed-threshold drift is used instead of proportional-rate variants
 // because the C distribution is heavily skewed toward low C; keeping
 // C == 1 neutral avoids dragging the lease down during the low-C phase
 // that dominates total call count.
-#ifndef KAME_LEASE_NS_MIN
-#define KAME_LEASE_NS_MIN  1000     // 1 µs
+#ifndef KAME_LEASE_US_MIN
+#define KAME_LEASE_US_MIN  1     // 1 µs
 #endif
-#ifndef KAME_LEASE_NS_MAX
-#define KAME_LEASE_NS_MAX  1000000    // 1000 µs
+#ifndef KAME_LEASE_US_MAX
+#define KAME_LEASE_US_MAX  1000    // 1000 µs
 #endif
 
 
@@ -571,7 +678,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
 // dt2 of the most recent negotiate() call — used by the adaptive fairness
 // gate (always-on, zero cost beyond one thread_local store).
-inline thread_local uint64_t s_adapt_dt2_last_ns       = 0;
+inline thread_local uint64_t s_adapt_dt2_last_us       = 0;
 inline thread_local int      s_adapt_C_last            = 0;  // popcount(tid_bitset)
 inline thread_local uint32_t s_adapt_last_priority_tid = 0;  // last m_priority_tid seen
 inline thread_local uint32_t s_adapt_bounce_count      = 0;  // # times it changed
@@ -634,15 +741,44 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     }
     // tx age = wall time since Transaction ctor started (m_started_time
     // is set once in the ctor, not reset by operator++).
-    int64_t _ll_age_ns = (int64_t)(
-        Node<XN>::NegotiationCounter::now() - snap.m_started_time);
+    int64_t _ll_age_us = (int64_t)(
+        Node<XN>::NegotiationCounter::now_us() - snap.m_started_time);
+    // Priority-dependent retry threshold for the livelock verdict.
+    // HIGHEST is real-time-like and must not retry; NORMAL is the
+    // common case; UI_DEFERRABLE and LOWEST tolerate retries as
+    // they are explicitly willing to yield.
+    Priority _ll_prio = getCurrentPriorityMode();
+    int _ll_retry_threshold;
+    const char *_ll_prio_name;
+    switch (_ll_prio) {
+        case Priority::HIGHEST:
+            _ll_retry_threshold = 2; _ll_prio_name = "HIGHEST"; break;
+        case Priority::NORMAL:
+            _ll_retry_threshold = 3; _ll_prio_name = "NORMAL"; break;
+        case Priority::UI_DEFERRABLE:
+            _ll_retry_threshold = 4; _ll_prio_name = "UI_DEFERRABLE"; break;
+        case Priority::LOWEST:
+            _ll_retry_threshold = 4; _ll_prio_name = "LOWEST"; break;
+        default:
+            _ll_retry_threshold = 3; _ll_prio_name = "?"; break;
+    }
     detail::livelock_probe_tx_tick(
         static_cast<const void*>(this),
         snap.m_tx_retry_count,
         m_tx_commit_count,
-        _ll_owned, _ll_total, _ll_age_ns);
+        _ll_owned, _ll_total, _ll_age_us,
+        _ll_retry_threshold, _ll_prio_name);
 #endif
 
+    // Runtime mode gate. Startup default and undefined-macro default
+    // is V0 (lightweight, v0-equivalent). The adaptive-lease path runs
+    // only when the probe has escalated the mode. The goto jumps past
+    // the adaptive-path block's locals — wrap them in a brace so the
+    // compiler doesn't flag the skipped initialisations.
+    if ( !detail::in_adaptive_mode())
+        goto v0_path;
+
+  { // adaptive-path scope
     // One atomic load of the packed (tid | lease_us | start_us) tuple.
     auto ps = loadPriority();
     if(ps.tid) {
@@ -653,10 +789,22 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         m_transaction_started_time.load(std::memory_order_relaxed);
     if( !transaction_started_time)
         return; //collision has not been detected.
+    // LOWEST and UI_DEFERRABLE explicitly tolerate yielding, so skip
+    // the adaptive-lease block entirely (priority-tag CAS, lease
+    // tracking, fairness gate, owner-skip). The main sleep loop
+    // below is plenty for these priorities.
+    {
+        Priority _entry_pr = getCurrentPriorityMode();
+        if (_entry_pr == Priority::LOWEST
+            || _entry_pr == Priority::UI_DEFERRABLE)
+            goto after_lease_block;
+    }
 #ifdef KAME_PRIORITY_LEASE
-    auto adapt_dt2_last_ns =
+  { // scope the lease-block locals so the `goto` above doesn't cross
+    // their initialisation.
+    auto adapt_dt2_last_us =
         (typename NegotiationCounter::cnt_t)
-        (Node<XN>::NegotiationCounter::now() - transaction_started_time);
+        (Node<XN>::NegotiationCounter::now_us() - transaction_started_time);
     // Compute the observed co-committer count C = popcount(tid_bitset)
     // and the competing tx's elapsed time dt2. C drives the adaptive
     // lease length; dt2 drives the fairness gate that suppresses the
@@ -669,7 +817,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 
 
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-    s_adapt_dt2_last_ns = adapt_dt2_last_ns;
+    s_adapt_dt2_last_us = adapt_dt2_last_us;
     s_adapt_C_last = sig_C;
     if(ps.tid && ps.tid != s_adapt_last_priority_tid) {
         ++s_adapt_bounce_count;
@@ -687,9 +835,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // any value in [MIN,MAX] is a valid lease. Only touch the atomic
     // if the value actually changes.
     static constexpr uint16_t LEASE_US_MIN =
-        (uint16_t)(KAME_LEASE_NS_MIN / 1000 ? KAME_LEASE_NS_MIN / 1000 : 1);
+        (uint16_t)(KAME_LEASE_US_MIN ? KAME_LEASE_US_MIN : 1);
     static constexpr uint16_t LEASE_US_MAX =
-        (uint16_t)(KAME_LEASE_NS_MAX / 1000);
+        (uint16_t)(KAME_LEASE_US_MAX);
     // Asymmetric drift: growth scales with C (capped) so heavy
     // contention climbs the lease quickly; shrink is a smaller fixed
     // step so a single C=0 call doesn't undo many C>=2 adjustments —
@@ -736,14 +884,14 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     }
 
     // Adaptive gate: suppress owner-skip when dt2 (time the competing
-    // tx has been waiting) exceeds KAME_DT2_FAIRNESS_NS. dt2 > fairness
+    // tx has been waiting) exceeds KAME_DT2_FAIRNESS_US. dt2 > fairness
     // threshold indicates long-held conflicting tx (e.g. test_negotiation
     // with msecsleep inside iterate_commit, dt2 ≈ 60-150 µs). Chained
     // owner-skip in that regime starves the waiter. For payload-style
     // hot-loop commits (dt2 ≈ 2-8 µs) the gate stays open and the skip
     // delivers its benefit.
-#ifndef KAME_DT2_FAIRNESS_NS
-#define KAME_DT2_FAIRNESS_NS 2000000  // 2000 µs; override via -D
+#ifndef KAME_DT2_FAIRNESS_US
+#define KAME_DT2_FAIRNESS_US 2000  // 2000 µs; override via -D
 #endif
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
 #if KAME_STM_MIN_RUNNERS != 0
@@ -751,9 +899,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     if(NegotiationCounter::numThreadsRunning() < min_r)
 #endif
     if(my_tid == ps.tid
-        && adapt_dt2_last_ns < (uint64_t)KAME_DT2_FAIRNESS_NS) {
+        && adapt_dt2_last_us < (uint64_t)KAME_DT2_FAIRNESS_US) {
         // Age in µs via modular 32-bit subtraction (wrap-safe up to ~35 min).
-        uint32_t age_us = nsToUs(Node<XN>::NegotiationCounter::now()) - ps.start_us;
+        uint32_t age_us = nsToUs(Node<XN>::NegotiationCounter::now_us()) - ps.start_us;
         if(age_us < (uint32_t)ps.lease_us) {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             ++s_adapt_skip_hits;
@@ -763,8 +911,10 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 return; //skips
         }
     }
+  } // end lease-block scope
 #endif
 
+after_lease_block: ;
     // Thread-local LCG for sleep-duration jitter randomization.
     // Seed mixes thread ID (unique per thread) with stack address; Murmur finalizer
     // avalanches all bits so threads with adjacent stack addresses (8 MB spacing on
@@ -783,15 +933,14 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         if(pr == Priority::HIGHEST)
             break;
         auto dt = started_time - transaction_started_time;
-        if(dt <= 0) {
+        if(dt <= 0)
             break; //This thread is the oldest.
-        }
         auto transaction_started_time =
             m_transaction_started_time.load(std::memory_order_acquire);
         if( !transaction_started_time)
             break; //collision has not been detected.
 
-        auto dt2 = Node<XN>::NegotiationCounter::now() - transaction_started_time;
+        auto dt2 = Node<XN>::NegotiationCounter::now_us() - transaction_started_time;
 
         // Live-contention estimate (re-evaluated each iteration since
         // tid_bitset accumulates across retries). Used for both the
@@ -880,7 +1029,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             // once a lottery winner fires.
             {
                 const int min_r = effective_min_runners(C_obs);
-                auto t_end = Node<XN>::NegotiationCounter::now()
+                auto t_end = Node<XN>::NegotiationCounter::now_us()
                              + (int64_t)ms_actual * 1000;
                 do {
                     // Advance seed for de-phasing; chunk = 1 or 2 ms.
@@ -889,11 +1038,44 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         detail::notify_n_contenders(tid_bitset,
                             std::min(min_r - (int)NegotiationCounter::numThreadsRunning(), C_obs));
                     detail::negotiate_sleep(1 + (int)(s_backoff_seed >> 31) / 2);
-                } while(Node<XN>::NegotiationCounter::now() < t_end);
+                } while(Node<XN>::NegotiationCounter::now_us() < t_end);
             }
 #else
             detail::negotiate_sleep(ms_actual);
 #endif
+        }
+    }
+  } // end adaptive-path scope
+    return;
+
+v0_path:
+    // v0 (6dedac1) negotiate_internal equivalent: one yield before any
+    // sleep to catch µs-level conflicts, then a plain msecsleep backoff
+    // loop driven by dt2. No priority-tag CAS, no lease drift, no
+    // bitset, no CV-sleep. Shares only `started_time` and the linkage's
+    // m_transaction_started_time atomic with the adaptive path.
+    {
+        std::this_thread::yield();
+        for (int ms = 0;;) {
+            auto t = m_transaction_started_time.load(std::memory_order_acquire);
+            if ( !t) break; //collision has not been detected.
+            auto dt = started_time - t;
+            Priority pr = getCurrentPriorityMode();
+            if (pr == Priority::HIGHEST) break;
+            if (dt <= 0) break; //This thread is the oldest.
+            auto dt2 = Node<XN>::NegotiationCounter::now_us() - t;
+            if (pr != Priority::LOWEST) {
+                if (mult_wait * 2 * dt < dt2) break;
+            }
+            ms = std::max((int)(dt2 / 10000), ms + 1);
+            if (ms > 5000) {
+                fprintf(stderr, "Nested transaction?, ");
+                fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.",
+                        ms * 1e-3);
+                fprintf(stderr, "for BP@%p\n", this);
+                ms = 5000;
+            }
+            msecsleep(ms);
         }
     }
 }
@@ -1645,7 +1827,10 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
     for(int retry = 0;; ++retry) {
         if(retry) {
             m_link->negotiate_after_retry_pause(retry, snapshot, 2.0f);
-            snapshot.tag_as_contender(m_link);
+            // Retry-path tag was not in v0. Skip in V0 mode; tag only
+            // when the probe has escalated to ADAPTIVE.
+            if (detail::in_adaptive_mode())
+                snapshot.tag_as_contender(m_link);
         }
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
@@ -1867,7 +2052,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         if(retry) {
             supernode.m_link->negotiate_after_retry_pause(retry, snap,
                                                           2.0f);
-            snap.tag_as_contender(supernode.m_link);
+            // Retry-path tag was not in v0. Skip in V0 mode.
+            if (detail::in_adaptive_mode())
+                snap.tag_as_contender(supernode.m_link);
         }
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *oldsuperwrapper, bundle_serial));
@@ -1906,7 +2093,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                     if(oldsuperwrapper == *supernode.m_link)
                         continue;
 #if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-                    snap.tag_as_contender(child->m_link);
+                    // DISTURBED tag was not in v0. Skip in V0 mode.
+                    if (detail::in_adaptive_mode())
+                        snap.tag_as_contender(child->m_link);
 #endif
                     return status;
                 }
@@ -1980,7 +2169,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 #if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-            snap.tag_as_contender(supernode.m_link);
+            // DISTURBED tag was not in v0. Skip in V0 mode.
+            if (detail::in_adaptive_mode())
+                snap.tag_as_contender(supernode.m_link);
 #endif
             return BundledStatus::DISTURBED;
         }
@@ -2192,7 +2383,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         // snap.tag_as_contender(it->linkage);
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper)) {
 #if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-            snap.tag_as_contender(it->linkage);
+            // DISTURBED cas_info tag was not in v0. Skip in V0 mode.
+            if (detail::in_adaptive_mode())
+                snap.tag_as_contender(it->linkage);
 #endif
             return UnbundledStatus::DISTURBED;
         }
