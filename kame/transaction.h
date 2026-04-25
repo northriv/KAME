@@ -36,12 +36,6 @@ namespace detail {
     inline thread_local int s_tx_nest = 0;
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
     inline thread_local int s_sleep_nest = 0;
-    //! Globally registered "privileged TID" for fair-mode escape.
-    //! Defined in transaction_impl.h (above notify_n_contenders);
-    //! forward-declared here so the inline `~Transaction()` and
-    //! `finalizeCommitment` bodies can compile without dragging the
-    //! impl header into transaction.h.
-    extern std::atomic<uint16_t> s_privileged_tid;
 } // namespace detail
 
 // Portable 64-bit popcount. Visible in transaction.h so inline member
@@ -917,15 +911,6 @@ protected:
     //! "Transaction retries piling up while the linkage's CAS commits
     //! continue" — livelock at the Transaction layer.
     uint32_t m_tx_retry_count = 0;
-    //! Per-Tx ownership flag for the global `s_privileged_tid` slot.
-    //! Set true in negotiate_internal's probe path when THIS Transaction
-    //! successfully CAS-claimed the slot (i.e. won the 0→my_tid race).
-    //! Cleared by the registering Tx itself in finalizeCommitment (success
-    //! path) and Transaction::~Transaction() (abort path). Required for
-    //! nesting safety: an inner Tx on the same thread sees s_privileged_tid
-    //! == my_tid and does not CAS again, so its m_registered_privileged
-    //! stays false and its dtor will not steal the outer's privilege.
-    bool m_registered_privileged = false;
     //! Linkages whose m_transaction_started_time this attempt has tagged
     //! (or intends to tag). Held as shared_ptr to keep the Linkage alive
     //! until clear_tags() runs; otherwise dynamic-node release could leave
@@ -1003,18 +988,8 @@ public:
     //! Releases any tagged linkages (clearing m_transaction_started_time
     //! when it still equals ours) so later contenders don't race against
     //! a stale owner. Always drops tags; the primary-node tag is always
-    //! in the list on multi-nodal retries. Also clears the global
-    //! `s_privileged_tid` if THIS Transaction was the one that registered
-    //! it (see m_registered_privileged) — covers the abort path so a
-    //! fair-mode escape doesn't outlive its issuing Tx.
+    //! in the list on multi-nodal retries.
     ~Transaction() {
-        if (this->m_registered_privileged) {
-            // Plain store: only this Tx (the registering thread's
-            // outermost Transaction) holds the flag, so no race with
-            // another writer is possible.
-            Transactional::detail::s_privileged_tid.store(
-                (uint16_t)0, std::memory_order_relaxed);
-        }
         Snapshot<XN>::drop_tags();
     }
 
@@ -1155,16 +1130,6 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // the optional livelock probe. Single writer (the iterate_commit
     // winner) per tx, so the non-atomic ++ is race-free.
     ++node.m_link->m_tx_commit_count;
-    // If we held the fair-mode privilege, release it on commit so the
-    // global slot is available for the next stuck Tx. Reset the local
-    // flag too, otherwise ~Transaction() would attempt a redundant
-    // (and now stale) clear.
-    if (this->m_registered_privileged) {
-        // Plain store: only this Tx holds the flag, no concurrent writer.
-        Transactional::detail::s_privileged_tid.store(
-            (uint16_t)0, std::memory_order_relaxed);
-        this->m_registered_privileged = false;
-    }
     //Clears the time stamp linked to this object.
     // Drop all contender tags (including TAG_ON_DISTURB child tags) before
     // zeroing m_started_time; drop_tags() matches on the current value.
