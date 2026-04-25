@@ -62,7 +62,7 @@
 //   0 = disabled
 //   N > 0 = fixed threshold
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS 2
+#define KAME_STM_MAX_RUNNERS 8
 #endif
 
 // Floor on concurrent runners; lottery wins are denied while fewer
@@ -72,6 +72,10 @@
 //   N > 0 = fixed threshold
 #ifndef KAME_STM_MIN_RUNNERS
 #define KAME_STM_MIN_RUNNERS -1
+#endif
+
+#ifndef KAME_STM_V0_MIN_RUNNERS
+#define KAME_STM_V0_MIN_RUNNERS -1
 #endif
 
 
@@ -1154,11 +1158,17 @@ v0_path:
                 auto t_end = Node<XN>::NegotiationCounter::now_us()
                            + (int64_t)ms * 1000;
                 bool to_break = false;
-                int chunk_i = 0;
+                typename NegotiationCounter::ReleaseOneCount onedown;
+#if KAME_STM_V0_MIN_RUNNERS > 0
+                const int min_r = KAME_STM_V0_MIN_RUNNERS;
+#else
+                const int min_r = effective_runners(0);
+#endif
                 do {
                     seed = seed * 1103515245u + 12345u;
-                    if (((chunk_i++) & 3) == 0)
-                        detail::notify_n_contenders(tid_bitset, 1);
+                    int running = (int)NegotiationCounter::numThreadsRunning();
+                    if (running < min_r)
+                        detail::notify_n_contenders(tid_bitset, min_r - running);
                     detail::negotiate_sleep(1 + (int)((seed >> 30) & 3));
                     if (detail::in_adaptive_mode()) { to_break = true; break; }
                 } while (Node<XN>::NegotiationCounter::now_us() < t_end);
