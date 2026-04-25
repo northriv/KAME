@@ -18,6 +18,7 @@
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 #include <algorithm>
+#include <chrono>
 #include <vector>
 #include "atomic.h"
 #include "xtime.h"
@@ -261,10 +262,48 @@ private:
 
     struct DECLSPEC_KAME NegotiationCounter {
         using cnt_t = int64_t;
+        //! Monotonic µs counter. Uses steady_clock (not wall-clock
+        //! gettimeofday) so the µs since program start fit comfortably
+        //! in 48 bits — the lower half of the tid-packed stamp type
+        //! defined below. Boot-to-now-in-µs is at most a few days on
+        //! any realistic machine, well under 2^48 µs (~9 years).
         static cnt_t now_us() noexcept {
-            auto tm = XTime::now();
-            return (cnt_t)tm.sec() * 1000000uL + tm.usec();
+            return std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
         }
+
+        //! Packed transaction stamp: [ tid : 16 bits | us : 48 bits ].
+        //! Raw µs timestamps collide at ~1 MHz (same CPU can issue two
+        //! Transactions in the same µs), which breaks the "older wins"
+        //! comparison in tag_as_contender() and makes tag-ownership
+        //! detection in the livelock probe ambiguous. Packing the
+        //! ProcessCounter::id (low 16 bits) into the upper 16 bits makes
+        //! every stamp unique per-thread.
+        //!
+        //! Accessors are in Node<XN>::Linkage (see stamp_us / stamp_tid
+        //! / pack_stamp / now_us_tagged below) so negotiate_internal
+        //! and the other hot paths go through the same helpers — at
+        //! -O2/-O3 the mask is folded into the surrounding instruction
+        //! stream at zero extra cost on top of the atomic load itself.
+        static inline cnt_t pack_stamp(cnt_t us, uint16_t tid) noexcept {
+            return (us & ((cnt_t{1} << 48) - 1)) | (cnt_t{tid} << 48);
+        }
+        static inline cnt_t stamp_us(cnt_t x) noexcept {
+            // Low 48 bits; steady-clock µs is always positive so a
+            // plain mask is correct (no sign-extension needed).
+            return x & ((cnt_t{1} << 48) - 1);
+        }
+        static inline uint16_t stamp_tid(cnt_t x) noexcept {
+            return (uint16_t)((uint64_t)x >> 48);
+        }
+        //! `now_us()` with the current thread's ProcessCounter::id
+        //! packed into the upper 16 bits. Used at Transaction /
+        //! Snapshot construction to stamp m_started_time.
+        static inline cnt_t now_us_tagged() noexcept {
+            return pack_stamp(now_us(),
+                (uint16_t)(ProcessCounter::id() & 0xFFFFu));
+        }
+
         static unsigned int numThreadsRunning() {return s_running.load(std::memory_order_relaxed);}
 
         //! RAII acquire: bumps s_running iff this is the outermost
@@ -514,9 +553,14 @@ private:
             // contention profile).
             uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
             PriorityState desired{ my_tid, ps.lease_us, ps.start_us };
-            if(my_tid != ps.tid)
-                desired.start_us = nsToUs(started_time ? started_time
-                                        : Node<XN>::NegotiationCounter::now_us());
+            if(my_tid != ps.tid) {
+                // started_time is a tid-packed stamp; unpack the µs
+                // component before feeding into the 32-bit µs field.
+                auto raw_us = started_time
+                    ? Node<XN>::NegotiationCounter::stamp_us(started_time)
+                    : Node<XN>::NegotiationCounter::now_us();
+                desired.start_us = nsToUs(raw_us);
+            }
             // Only store when something actually changed. The 64-bit
             // packed compare is one instruction; skipping the store on
             // identical state avoids cache-line ping-pong on same-owner
@@ -732,7 +776,7 @@ public:
     explicit Snapshot(Transaction<XN>&&x) noexcept
         : Snapshot(static_cast<Snapshot&&>(x)) {}
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-        m_started_time = Node<XN>::NegotiationCounter::now_us();
+        m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
         node.snapshot( *this, multi_nodal);
         drop_tags();
@@ -815,7 +859,10 @@ public:
         // seq_cst load/store on the atomic m_transaction_started_time.
         typename Node<XN>::NegotiationCounter::cnt_t current =
             link->m_transaction_started_time;
-        if( !current || (current > m_started_time))
+        // Compare on the µs component only — the tid packed in the
+        // upper 16 bits would otherwise dominate the comparison.
+        using NC = typename Node<XN>::NegotiationCounter;
+        if( !current || (NC::stamp_us(current) > NC::stamp_us(m_started_time)))
             link->m_transaction_started_time = m_started_time;
         // Dedup: ++tr re-tags the same primary-node linkage on every
         // retry, which otherwise piles duplicate shared_ptr entries
@@ -929,7 +976,7 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
         Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
-        m_started_time = Node<XN>::NegotiationCounter::now_us();
+        m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
         node.snapshot( *this, multi_nodal);
         assert( &m_packet->node() == &node);
@@ -939,7 +986,7 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
-        m_started_time = Node<XN>::NegotiationCounter::now_us();
+        m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
     }
     Transaction(Transaction&&x) = default;
