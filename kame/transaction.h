@@ -36,6 +36,12 @@ namespace detail {
     inline thread_local int s_tx_nest = 0;
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
     inline thread_local int s_sleep_nest = 0;
+    //! Globally registered "privileged TID" for the fair-mode escape.
+    //! Defined in transaction_impl.h (above notify_n_contenders);
+    //! forward-declared here so the inline `~Transaction()` and
+    //! `finalizeCommitment` bodies in this header can compile without
+    //! pulling the impl header in.
+    extern std::atomic<uint16_t> s_privileged_tid;
 } // namespace detail
 
 // Portable 64-bit popcount. Visible in transaction.h so inline member
@@ -302,6 +308,87 @@ private:
         static inline cnt_t now_us_tagged() noexcept {
             return pack_stamp(now_us(),
                 (uint16_t)(ProcessCounter::id() & 0xFFFFu));
+        }
+
+        //=====================================================================
+        // Fair-mode escape API (orthogonal to the negotiate-internal main
+        // path). The livelock probe drives `try_register_privileged_tid()`
+        // on verdict=LIVELOCK; while the global slot is non-zero, every
+        // thread except the registered one short-circuits the lottery /
+        // jittered gate via `fair_mode_blocks_me()`. The registering Tx
+        // itself calls `release_privileged_tid()` from finalizeCommitment
+        // (success) or ~Transaction (abort). The underlying atomic
+        // `Transactional::detail::s_privileged_tid` is forward-declared
+        // at the top of this file (see namespace detail).
+        //=====================================================================
+
+        //! Minimum tx-age (µs since the Transaction / Snapshot was
+        //! constructed) required before a thread of the given priority
+        //! is allowed to claim the privileged slot. Below this floor a
+        //! privilege claim is suppressed (other threads aren't yet
+        //! disadvantaged enough to justify cluster-wide gate/lottery
+        //! suppression). Higher priorities get the smallest floor —
+        //! UI / LOWEST tolerate longer waits before escalating.
+        //!
+        //!   HIGHEST / NORMAL :  1 ms   (real-time-ish work; escalate fast)
+        //!   LOWEST           : 20 ms   (background; tolerates yielding)
+        //!   UI_DEFERRABLE    : 50 ms   (deferred UI repaint; very tolerant)
+        static inline int64_t min_privilege_age_us(Priority pr) noexcept {
+            switch (pr) {
+            case Priority::LOWEST:        return 20'000;
+            case Priority::UI_DEFERRABLE: return 50'000;
+            default:                       return  1'000;
+            }
+        }
+
+        //! CAS-claim the global privileged slot. Returns true on success
+        //! (caller should set its m_registered_privileged flag); false
+        //! if another thread already holds it OR the caller has not been
+        //! waiting long enough.
+        //!
+        //! The helper computes tx_age internally: started_time_packed is
+        //! the Snapshot/Transaction's m_started_time (tid-packed); we
+        //! unpack the µs component and compare against min_privilege_age_us(pr).
+        //! Logs the claim to stderr so probe traces are cross-correlatable.
+        static inline bool try_register_privileged_tid(
+            Priority pr, cnt_t started_time_packed) noexcept
+        {
+            int64_t tx_age_us = now_us() - stamp_us(started_time_packed);
+            if (tx_age_us < min_privilege_age_us(pr))
+                return false;
+            uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
+            uint16_t expected = 0;
+            bool ok =
+                Transactional::detail::s_privileged_tid.compare_exchange_strong(
+                    expected, my_tid,
+                    std::memory_order_seq_cst,
+                    std::memory_order_relaxed);
+            if (ok) {
+                std::fprintf(stderr,
+                    "[ll-probe] privileged_tid=%u "
+                    "(claimed by stuck oldest Tx; age=%lld us, prio=%d)\n",
+                    (unsigned)my_tid, (long long)tx_age_us, (int)pr);
+            }
+            return ok;
+        }
+        //! Release the global privileged slot. Caller must hold it (i.e.
+        //! its m_registered_privileged was set by a prior successful
+        //! `try_register_privileged_tid`). Plain relaxed store is safe
+        //! because no concurrent writer can exist under that invariant.
+        static inline void release_privileged_tid() noexcept {
+            Transactional::detail::s_privileged_tid.store(
+                (uint16_t)0, std::memory_order_seq_cst);
+        }
+        //! Is fair-mode currently active for SOME other thread? Used at
+        //! the lottery / jittered-gate site of negotiate_internal to
+        //! suppress the stochastic shortcut and let strict Greedy CM
+        //! arbitrate priority while the privileged Tx tries to commit.
+        static inline bool fair_mode_blocks_me() noexcept {
+            uint16_t priv = Transactional::detail::s_privileged_tid.load(
+                std::memory_order_relaxed);
+            if(priv == 0) return false;
+            uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
+            return priv != my_tid;
         }
 
         static unsigned int numThreadsRunning() {return s_running.load(std::memory_order_relaxed);}
@@ -911,6 +998,16 @@ protected:
     //! "Transaction retries piling up while the linkage's CAS commits
     //! continue" — livelock at the Transaction layer.
     uint32_t m_tx_retry_count = 0;
+    //! Per-Tx ownership flag for the global `s_privileged_tid` slot.
+    //! Set true in negotiate_internal's probe path when THIS Transaction
+    //! successfully CAS-claimed the slot (i.e. won the 0→my_tid race).
+    //! Cleared by the registering Tx itself in finalizeCommitment
+    //! (success path) and Transaction::~Transaction() (abort path).
+    //! Required for nesting safety: an inner Tx on the same thread sees
+    //! s_privileged_tid == my_tid and does not CAS again, so its
+    //! m_registered_privileged stays false and its dtor will not steal
+    //! the outer's privilege.
+    bool m_registered_privileged = false;
     //! Linkages whose m_transaction_started_time this attempt has tagged
     //! (or intends to tag). Held as shared_ptr to keep the Linkage alive
     //! until clear_tags() runs; otherwise dynamic-node release could leave
@@ -988,8 +1085,13 @@ public:
     //! Releases any tagged linkages (clearing m_transaction_started_time
     //! when it still equals ours) so later contenders don't race against
     //! a stale owner. Always drops tags; the primary-node tag is always
-    //! in the list on multi-nodal retries.
+    //! in the list on multi-nodal retries. Also clears the global
+    //! `s_privileged_tid` if THIS Transaction registered it (covers the
+    //! abort path so a fair-mode escape doesn't outlive its issuing Tx).
     ~Transaction() {
+        if (this->m_registered_privileged) {
+            Node<XN>::NegotiationCounter::release_privileged_tid();
+        }
         Snapshot<XN>::drop_tags();
     }
 
@@ -1130,6 +1232,14 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // the optional livelock probe. Single writer (the iterate_commit
     // winner) per tx, so the non-atomic ++ is race-free.
     ++node.m_link->m_tx_commit_count;
+    // If we held the fair-mode privilege, release it on commit so the
+    // global slot is available for the next stuck Tx. Reset the local
+    // flag too, otherwise ~Transaction() would attempt a redundant
+    // (and now stale) clear.
+    if (this->m_registered_privileged) {
+        Node<XN>::NegotiationCounter::release_privileged_tid();
+        this->m_registered_privileged = false;
+    }
     //Clears the time stamp linked to this object.
     // Drop all contender tags (including TAG_ON_DISTURB child tags) before
     // zeroing m_started_time; drop_tags() matches on the current value.

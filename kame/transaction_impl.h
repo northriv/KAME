@@ -172,10 +172,12 @@ static inline void retry_pause(int retry) noexcept {
 
 namespace Transactional {
 
-// Forward declaration: detail::update_negotiate_mode uses
-// effective_runners() to size its mode-switch wake-broadcast.
-// The full definition is below the detail namespace, gated on the
-// MIN_RUNNERS / MAX_RUNNERS macros.
+// Forward declaration. effective_runners() is the hardware_concurrency-
+// aware contender-count helper used by negotiate_internal's MIN_RUNNERS
+// / MAX_RUNNERS gating; declared here so it is visible to all of the
+// detail:: machinery (notify_n_contenders, etc.). Full definition is
+// below the detail namespace, gated on the MIN_RUNNERS / MAX_RUNNERS
+// macros.
 #if (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
 inline int effective_runners(int c_obs) noexcept;
 #else
@@ -186,6 +188,17 @@ inline int effective_runners(int) noexcept {
 #endif
 
 namespace detail {
+
+    //! Globally registered "privileged TID" for the fair-mode escape:
+    //! when the livelock probe detects the Greedy CM winner (oldest Tx
+    //! with all linkage tags) stuck without commit progress, it CAS-
+    //! claims this slot. While the slot is non-zero, lottery/gate are
+    //! bypassed in negotiate_internal so strict Greedy alone allocates
+    //! priority, and notify_n_contenders wakes this TID's sleep slot
+    //! first. Cleared by the registering Tx in finalizeCommitment
+    //! (success) or its destructor (abort) — see Snapshot's
+    //! m_registered_privileged flag (transaction.h) for nesting safety.
+    inline std::atomic<uint16_t> s_privileged_tid{0};
 
     // Cache-line aligned so adjacent slots don't false-share when two
     // notifier threads on different cores touch neighbouring indices.
@@ -222,12 +235,25 @@ namespace detail {
     template<int WORDS>
     inline void notify_n_contenders(const uint64_t (&tid_bitset)[WORDS],
                                     int n) noexcept {
+        // Fair-mode escape: if a privileged TID is registered, wake
+        // its sleep slot first so the stuck oldest Tx gets a chance
+        // to retry ahead of the rest of the bitset.
+        uint16_t priv = s_privileged_tid.load(std::memory_order_relaxed);
+        int priv_slot = -1;
+        if (priv != 0 && n > 0) {
+            priv_slot = (int)(((unsigned)priv) % NEGOTIATE_SLEEP_SLOTS);
+            auto &st = s_sleep_slots[priv_slot];
+            { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
+            st.cv.notify_one();
+            --n;
+        }
         for(int i = 0; i < WORDS && n > 0; ++i) {
             uint64_t word = tid_bitset[i];
             while(word && n > 0) {
                 int bit = __builtin_ctzll(word);
                 word &= word - 1;
                 int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
+                if (slot == priv_slot) continue;   // already woken above
                 auto &st = s_sleep_slots[slot];
                 { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
                 st.cv.notify_one();
@@ -296,12 +322,6 @@ namespace detail {
             std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
-    // Forward declaration — full body below (either the real
-    // mode-switch implementation, or a no-op stub when the fallback
-    // macro is not defined).
-    inline void update_negotiate_mode(bool saw_livelock,
-                                      int64_t now_us) noexcept;
-
     // Fires the livelock probe. The caller (negotiate_internal, which
     // has access to Snapshot's protected members via enclosing-class
     // friendship) pre-computes the tag-ownership counts, the
@@ -318,7 +338,11 @@ namespace detail {
     //   NORMAL          → 3
     //   UI_DEFERRABLE   → 5  (deferred UI repaint — retries tolerated)
     //   LOWEST          → 5  (background — tolerates yielding)
-    inline void livelock_probe_tx_tick(const void *linkage,
+    //! Returns true iff this tick concluded `verdict=LIVELOCK`. Caller
+    //! (negotiate_internal) uses the return to drive the fair-mode
+    //! `s_privileged_tid` CAS — a per-Transaction concern that lives
+    //! outside this detail namespace.
+    inline bool livelock_probe_tx_tick(const void *linkage,
                                        uint32_t my_tx_retries,
                                        uint64_t tx_commit_count,
                                        int tags_owned,
@@ -332,11 +356,11 @@ namespace detail {
             p.t_window_us      = ll_now_us();
             p.tx_retry_window  = my_tx_retries;
             p.tx_commit_window = tx_commit_count;
-            return;
+            return false;
         }
         int64_t now_us    = ll_now_us();
         int64_t window_us = now_us - p.t_window_us;
-        if (window_us < 10'000) return;   // < 10 ms: window too short
+        if (window_us < 10'000) return false;   // < 10 ms: window too short
 
         // m_tx_retry_count restarts at 0 when a new Transaction ctor
         // fires; handle wrap-to-smaller-value by treating delta as
@@ -384,137 +408,48 @@ namespace detail {
                 (long long)(tx_age_us), verdict,
                 (long long)(window_us / 1'000));
 
-        // Feed the verdict into the runtime mode-switch machinery.
-        // No-op when KAME_STM_LIVELOCK_FALLBACK is not defined.
-        update_negotiate_mode(verdict[0] == 'L' /* "LIVELOCK" */, now_us);
+        bool saw_livelock = (verdict[0] == 'L' /* "LIVELOCK" */);
 
         p.t_window_us      = now_us;
         p.tx_retry_window  = my_tx_retries;
         p.tx_commit_window = tx_commit_count;
+        return saw_livelock;
     }
 #endif // KAME_STM_LIVELOCK_PROBE
 
-#if defined(KAME_STM_LIVELOCK_FALLBACK) && KAME_STM_LIVELOCK_FALLBACK
-    // Runtime mode switch between V0 (lightweight, v0-equivalent) and
-    // ADAPTIVE (full lease / bitset / CV-sleep machinery). Startup
-    // default is V0. The livelock probe shuttles between modes:
+//=============================================================================
+    // Fair-mode escape: globally registered "privileged TID" mechanism.
     //
-    //   V0       → ADAPTIVE : burst of ≥ BURST_COUNT livelock events
-    //                         within BURST_MS
-    //   ADAPTIVE → V0       : same burst trigger (mode-shuffle jitter)
-    //                         OR CALM_MS elapsed with no livelock
+    // When the livelock probe (above) returns verdict=LIVELOCK on a
+    // Transaction that is the Greedy CM winner (oldest started_time,
+    // all linkage tags claimed) yet making no commit progress, that Tx
+    // CAS-claims `s_privileged_tid`. While the slot is non-zero AND
+    // != my_tid:
     //
-    // Mode check is a single relaxed atomic load at the top of
-    // negotiate_internal and in the few tag_as_contender call sites
-    // that did not exist in v0.
-    enum NegotiateMode : int { MODE_V0 = 0, MODE_ADAPTIVE = 1 };
-    inline std::atomic<int>      s_negotiate_mode{MODE_V0};
-    inline std::atomic<int64_t>  s_last_livelock_us{0};
-    inline std::atomic<uint32_t> s_livelock_burst_count{0};
-    //! Time of the most recent mode transition. Used to debounce
-    //! the bidirectional burst-trigger so a single livelock storm
-    //! does not ping-pong V0 ↔ ADAPTIVE on every probe tick.
-    inline std::atomic<int64_t>  s_mode_switched_us{0};
-
-#ifndef KAME_STM_MODE_BURST_MS
-#define KAME_STM_MODE_BURST_MS 30
-#endif
-#ifndef KAME_STM_MODE_BURST_COUNT
-#define KAME_STM_MODE_BURST_COUNT 3
-#endif
-#ifndef KAME_STM_MODE_CALM_MS
-#define KAME_STM_MODE_CALM_MS 1000
-#endif
-//! Minimum dwell time in either mode before another burst-trigger
-//! can flip it. Suppresses V0↔ADAPTIVE oscillation during a single
-//! livelock storm while still allowing escape from a stuck mode.
-#ifndef KAME_STM_MODE_DWELL_MS
-#define KAME_STM_MODE_DWELL_MS 30
-#endif
-
-    inline bool in_adaptive_mode() noexcept {
-        return s_negotiate_mode.load(std::memory_order_relaxed) == MODE_ADAPTIVE;
-    }
-
-    // Invoked by the livelock probe at every window close.
-    inline void update_negotiate_mode(bool saw_livelock,
-                                      int64_t now_us) noexcept {
-        if (saw_livelock) {
-            int64_t last = s_last_livelock_us.exchange(
-                now_us, std::memory_order_relaxed);
-            uint32_t burst;
-            if (now_us - last <
-                (int64_t)KAME_STM_MODE_BURST_MS * 1'000) {
-                burst = s_livelock_burst_count.fetch_add(
-                    1, std::memory_order_relaxed) + 1;
-            } else {
-                s_livelock_burst_count.store(1, std::memory_order_relaxed);
-                burst = 1;
-            }
-            if (burst >= KAME_STM_MODE_BURST_COUNT) {
-                // Bidirectional burst trigger (per directive: "ライブロックが
-                // 再び検出されたら元のモードにもどるだけ"). Suppress
-                // ping-pong via a per-mode dwell window: refuse a flip
-                // unless the previous transition was at least
-                // KAME_STM_MODE_DWELL_MS ago.
-                int64_t since = now_us
-                    - s_mode_switched_us.load(std::memory_order_relaxed);
-                if (since >= (int64_t)KAME_STM_MODE_DWELL_MS * 1'000) {
-                    int mode = s_negotiate_mode.load(std::memory_order_relaxed);
-                    int new_mode = (mode == MODE_V0) ? MODE_ADAPTIVE : MODE_V0;
-                    s_negotiate_mode.store(new_mode, std::memory_order_relaxed);
-                    s_mode_switched_us.store(now_us, std::memory_order_relaxed);
-                    s_livelock_burst_count.store(0, std::memory_order_relaxed);
-                    std::fprintf(stderr,
-                        "[ll-probe] mode: %s -> %s "
-                        "(burst: %u events within %d ms)\n",
-                        mode == MODE_V0 ? "V0" : "ADAPTIVE",
-                        new_mode == MODE_V0 ? "V0" : "ADAPTIVE",
-                        (unsigned)burst, (int)KAME_STM_MODE_BURST_MS);
-                    // Wake sleeping threads currently in negotiate_sleep
-                    // so they re-evaluate the mode promptly. Cap the
-                    // notify count by effective_runners() — same fallback
-                    // logic that the rest of the file uses for handling
-                    // hardware_concurrency() == 0; declared in
-                    // Transactional:: above (see forward declaration
-                    // immediately preceding livelock_probe_tx_tick).
-                    int to_wake = effective_runners(1);
-                    for (int _i = 0;
-                         _i < NEGOTIATE_SLEEP_SLOTS && to_wake > 0; ++_i) {
-                        auto &_st = s_sleep_slots[_i];
-                        { std::lock_guard<std::mutex> _lk(_st.mtx);
-                          _st.notified = true; }
-                        _st.cv.notify_one();
-                        --to_wake;
-                    }
-                }
-            }
-        } else {
-            // No livelock this window — de-escalate ADAPTIVE→V0 after calm.
-            int mode = s_negotiate_mode.load(std::memory_order_relaxed);
-            if (mode == MODE_ADAPTIVE) {
-                int64_t last = s_last_livelock_us.load(
-                    std::memory_order_relaxed);
-                if (last > 0 && now_us - last >
-                    (int64_t)KAME_STM_MODE_CALM_MS * 1'000) {
-                    if (s_negotiate_mode.compare_exchange_strong(
-                            mode, MODE_V0,
-                            std::memory_order_relaxed)) {
-                        s_livelock_burst_count.store(
-                            0, std::memory_order_relaxed);
-                        std::fprintf(stderr,
-                            "[ll-probe] mode: ADAPTIVE -> V0 "
-                            "(calm: %d ms no livelock)\n",
-                            (int)KAME_STM_MODE_CALM_MS);
-                    }
-                }
-            }
-        }
-    }
-#else // !KAME_STM_LIVELOCK_FALLBACK — pure V0, no runtime switch
-    inline bool in_adaptive_mode() noexcept { return false; }
-    inline void update_negotiate_mode(bool, int64_t) noexcept {}
-#endif
+    //   * the jittered gate and √C lottery in negotiate_internal's
+    //     main sleep loop are bypassed — strict Greedy CM (older
+    //     started_time wins → others sleep) is the sole priority
+    //     mechanism, ensuring the privileged Tx makes progress
+    //     against deterministic backoff alone.
+    //   * notify_n_contenders wakes the privileged TID's sleep slot
+    //     first, before walking tid_bitset.
+    //
+    // Per-Transaction ownership lives on `Snapshot::m_registered_privileged`
+    // for nesting safety (see transaction.h). The slot is cleared by:
+    //   - finalizeCommitment (success): plain store(0, relaxed)
+    //   - ~Transaction (abort): same plain store
+    // — only the registering Tx holds the flag, no concurrent writer
+    // is possible, so a CAS would be overkill.
+    //
+    // V0 (legacy non-adaptive) and the V0↔ADAPTIVE mode switch were
+    // removed in this revision: empirical M4 / iMac Pro comparison
+    // (paper §3.6) showed V0 to be at best on par and sometimes 5×
+    // slower than the always-on adaptive-lease path. The fair-mode
+    // escape, in contrast, is orthogonal to mode and the retry-path
+    // tag_as_contender call sites are now unconditional (DISTURBED
+    // path tags remain gated by KAME_STM_TAG_ON_DISTURB, an
+    // independent experimental switch).
+    //=============================================================================
 
 } // namespace detail
 } // namespace Transactional
@@ -819,22 +754,28 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         default:
             _ll_retry_threshold = 3; _ll_prio_name = "?"; break;
     }
-    detail::livelock_probe_tx_tick(
+    bool _ll_saw = detail::livelock_probe_tx_tick(
         static_cast<const void*>(this),
         snap.m_tx_retry_count,
         m_tx_commit_count,
         _ll_owned, _ll_total, _ll_age_us,
         _ll_retry_threshold, _ll_prio_name);
+    // Fair-mode escape: when verdict=LIVELOCK fires for this Tx, the
+    // global slot is free, and the Tx has aged past the per-priority
+    // floor (see NegotiationCounter::min_privilege_age_us), claim it.
+    // Subsequent LIVELOCK ticks on the same Tx are no-ops because
+    // m_registered_privileged is already set. Cleared in
+    // finalizeCommitment / ~Transaction.
+    if (_ll_saw && !snap.m_registered_privileged
+        && NegotiationCounter::try_register_privileged_tid(
+               _ll_prio, snap.m_started_time)) {
+        snap.m_registered_privileged = true;
+    }
 #endif
 
-    // Runtime mode gate. Startup default and undefined-macro default
-    // is V0 (lightweight, v0-equivalent). The adaptive-lease path runs
-    // only when the probe has escalated the mode. The goto jumps past
-    // the adaptive-path block's locals — wrap them in a brace so the
-    // compiler doesn't flag the skipped initialisations.
-    if ( !detail::in_adaptive_mode())
-        goto v0_path;
-
+    // Always-on adaptive path: the V0 (legacy) path and the V0↔ADAPTIVE
+    // mode switch were removed in favour of the orthogonal fair-mode
+    // escape (s_privileged_tid). See top of detail:: in this file.
   { // adaptive-path scope
     // One atomic load of the packed (tid | lease_us | start_us) tuple.
     auto ps = loadPriority();
@@ -1016,7 +957,13 @@ after_lease_block: ;
         int sqrtC = (int)std::sqrt((double)C_obs);
         if(sqrtC < 1) sqrtC = 1;
 
-        if(pr != Priority::LOWEST && dt > 0) {
+        // Fair-mode escape: when some other thread holds the privileged-
+        // TID slot, suppress the jittered gate and the √C lottery so the
+        // privileged Tx alone gets to commit. Strict Greedy CM (older
+        // started_time wins → I sleep below) is the only mechanism left
+        // to allocate priority while fair-mode is active.
+        const bool _fair_blocks = NegotiationCounter::fair_mode_blocks_me();
+        if(pr != Priority::LOWEST && dt > 0 && !_fair_blocks) {
             // (a) Jittered gate: break early when the waiting time justifies it.
             //     LHS = mult_wait * 2 * dt * J, RHS = dt2.  J ∈ [1-R/100, 1+R/100]
             //     with R = KAME_STM_JITTER_RANGE.  Fixed-point: multiply both sides
@@ -1109,73 +1056,6 @@ after_lease_block: ;
         }
     }
   } // end adaptive-path scope
-    return;
-
-v0_path:
-    // v0 (6dedac1) negotiate_internal equivalent: one yield before any
-    // sleep to catch µs-level conflicts, then a plain msecsleep backoff
-    // loop driven by dt2. No priority-tag CAS, no lease drift, no
-    // bitset, no CV-sleep. Shares only `started_time` and the linkage's
-    // m_transaction_started_time atomic with the adaptive path.
-    {
-        std::this_thread::yield();
-        {
-            auto _v0_ps = loadPriority();
-            if(_v0_ps.tid) {
-                unsigned _tid = (unsigned)_v0_ps.tid & (unsigned)(TID_BITSET_WORDS * 64 - 1);
-                tid_bitset[_tid >> 6] |= 1ULL << (_tid & 63);
-            }
-        }
-        for (int ms = 0;;) {
-            auto t = m_transaction_started_time.load(std::memory_order_acquire);
-            if ( !t) break; //collision has not been detected.
-            // started_time and t are tid-packed; compare / diff via
-            // the µs component only.
-            auto dt = NegotiationCounter::stamp_us(started_time)
-                    - NegotiationCounter::stamp_us(t);
-            Priority pr = getCurrentPriorityMode();
-            if (pr == Priority::HIGHEST) break;
-            if (dt <= 0) break; //This thread is the oldest.
-            auto dt2 = Node<XN>::NegotiationCounter::now_us()
-                     - NegotiationCounter::stamp_us(t);
-            if (pr != Priority::LOWEST) {
-                if (mult_wait * 2 * dt < dt2) break;
-            }
-            ms = std::max((int)(dt2 / 10000), ms + 1);
-            if (ms > 5000) {
-                fprintf(stderr, "Nested transaction?, ");
-                fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.",
-                        ms * 1e-3);
-                fprintf(stderr, "for BP@%p\n", this);
-                ms = 5000;
-            }
-            {
-                uint32_t seed = (uint32_t)ProcessCounter::id() * 2654435761u
-                              ^ (uint32_t)(uintptr_t)&started_time;
-                seed ^= seed >> 16; seed *= 0x85ebca6bu;
-                seed ^= seed >> 13; seed *= 0xc2b2ae35u;
-                seed ^= seed >> 16; if(!seed) seed = 1u;
-                auto t_end = Node<XN>::NegotiationCounter::now_us()
-                           + (int64_t)ms * 1000;
-                bool to_break = false;
-                typename NegotiationCounter::ReleaseOneCount onedown;
-#if KAME_STM_V0_MIN_RUNNERS > 0
-                const int min_r = KAME_STM_V0_MIN_RUNNERS;
-#else
-                const int min_r = effective_runners(0);
-#endif
-                do {
-                    seed = seed * 1103515245u + 12345u;
-                    int running = (int)NegotiationCounter::numThreadsRunning();
-                    if (running < min_r)
-                        detail::notify_n_contenders(tid_bitset, min_r - running);
-                    detail::negotiate_sleep(1 + (int)((seed >> 30) & 3));
-                    if (detail::in_adaptive_mode()) { to_break = true; break; }
-                } while (Node<XN>::NegotiationCounter::now_us() < t_end);
-                if (to_break) break;
-            }
-        }
-    }
 }
 
 template <class XN>
@@ -1921,14 +1801,79 @@ void
 Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
     auto &started_time = snapshot.m_started_time;
     auto &tid_bitset = snapshot.m_tid_bitset;
+    // Snapshot-mode fair-mode escape: if no Transaction
+    // wrapping it, so the per-Tx m_registered_privileged flag is not in
+    // play. A function-local RAII guard handles register/release within
+    // the scope of THIS routine's retries, which is the only place the
+    // privilege is needed for snapshot-mode contention.
+    struct PrivGuard {
+        bool registered = false;
+        bool already_registered_by_tr;
+        ~PrivGuard() {
+            if (registered && !already_registered_by_tr)
+                Node<XN>::NegotiationCounter::release_privileged_tid();
+        }
+    } _priv_guard;
+    _priv_guard.already_registered_by_tr = snapshot.m_registered_privileged; //true if tr++ has registered.
     local_shared_ptr<PacketWrapper> target;
     for(int retry = 0;; ++retry) {
         if(retry) {
             m_link->negotiate_after_retry_pause(retry, snapshot, 2.0f);
-            // Retry-path tag was not in v0. Skip in V0 mode; tag only
-            // when the probe has escalated to ADAPTIVE.
-            if (detail::in_adaptive_mode())
-                snapshot.tag_as_contender(m_link);
+            snapshot.tag_as_contender(m_link);
+            // After this snapshot's m_started_time has aged past the
+            // per-priority floor (NegotiationCounter::min_privilege_age_us)
+            // and our retry count is past 0, claim the global fair-mode
+            // privilege so other threads short-circuit lottery / gate
+            // against us. CAS is idempotent: only the first successful
+            // call per scope wins; subsequent retries see registered==true
+            // and skip.
+            if (retry > 1 && !_priv_guard.registered) {
+                // Count tagged linkages whose m_transaction_started_time == ours
+                // (= "priority is already mine on every linkage" = primary
+                //   livelock precondition per the refined definition).
+                int _ll_total = (int)snapshot.m_tagged_linkages.size();
+                int _ll_owned = 0;
+                for (auto &_l : snapshot.m_tagged_linkages) {
+                    if (_l && _l->m_transaction_started_time.load(
+                            std::memory_order_relaxed) == snapshot.m_started_time)
+                        ++_ll_owned;
+                }
+                // tx age = wall time since Transaction ctor started (m_started_time
+                // is set once in the ctor, not reset by operator++).
+                // m_started_time is tid-packed; unpack the µs component before
+                // subtracting the raw-µs now_us() value.
+                int64_t _ll_age_us = (int64_t)(
+                    Node<XN>::NegotiationCounter::now_us()
+                    - Node<XN>::NegotiationCounter::stamp_us(snapshot.m_started_time));
+                // Priority-dependent retry threshold for the livelock verdict.
+                // HIGHEST is real-time-like and must not retry; NORMAL is the
+                // common case; UI_DEFERRABLE and LOWEST tolerate retries as
+                // they are explicitly willing to yield.
+                Priority _ll_prio = getCurrentPriorityMode();
+                int _ll_retry_threshold;
+                const char *_ll_prio_name;
+                switch (_ll_prio) {
+                    case Priority::HIGHEST:
+                        _ll_retry_threshold = 2; _ll_prio_name = "HIGHEST"; break;
+                    case Priority::NORMAL:
+                        _ll_retry_threshold = 3; _ll_prio_name = "NORMAL"; break;
+                    case Priority::UI_DEFERRABLE:
+                        _ll_retry_threshold = 4; _ll_prio_name = "UI_DEFERRABLE"; break;
+                    case Priority::LOWEST:
+                        _ll_retry_threshold = 4; _ll_prio_name = "LOWEST"; break;
+                    default:
+                        _ll_retry_threshold = 3; _ll_prio_name = "?"; break;
+                }
+                bool _ll_saw = detail::livelock_probe_tx_tick(
+                    static_cast<const void*>(this->m_link.get()),
+                    snapshot.m_tx_retry_count,
+                    this->m_link->m_tx_commit_count,
+                    _ll_owned, _ll_total, _ll_age_us,
+                    _ll_retry_threshold, _ll_prio_name);
+                _priv_guard.registered =
+                    NegotiationCounter::try_register_privileged_tid(
+                        getCurrentPriorityMode(), snapshot.m_started_time);
+            }
         }
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
@@ -2150,9 +2095,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         if(retry) {
             supernode.m_link->negotiate_after_retry_pause(retry, snap,
                                                           2.0f);
-            // Retry-path tag was not in v0. Skip in V0 mode.
-            if (detail::in_adaptive_mode())
-                snap.tag_as_contender(supernode.m_link);
+            // Retry-path tag: feeds tag-ownership signal used by the
+            // livelock probe in negotiate_internal.
+            snap.tag_as_contender(supernode.m_link);
         }
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *oldsuperwrapper, bundle_serial));
@@ -2191,9 +2136,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                     if(oldsuperwrapper == *supernode.m_link)
                         continue;
 #if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-                    // DISTURBED tag was not in v0. Skip in V0 mode.
-                    if (detail::in_adaptive_mode())
-                        snap.tag_as_contender(child->m_link);
+                    // DISTURBED tag (child CAS): optional contender mark
+                    // gated by KAME_STM_TAG_ON_DISTURB (default 1).
+                    snap.tag_as_contender(child->m_link);
 #endif
                     return status;
                 }
@@ -2267,9 +2212,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 #if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-            // DISTURBED tag was not in v0. Skip in V0 mode.
-            if (detail::in_adaptive_mode())
-                snap.tag_as_contender(supernode.m_link);
+            // DISTURBED tag (parent CAS): optional contender mark
+            // gated by KAME_STM_TAG_ON_DISTURB (default 1).
+            snap.tag_as_contender(supernode.m_link);
 #endif
             return BundledStatus::DISTURBED;
         }
@@ -2481,9 +2426,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         // snap.tag_as_contender(it->linkage);
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper)) {
 #if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-            // DISTURBED cas_info tag was not in v0. Skip in V0 mode.
-            if (detail::in_adaptive_mode())
-                snap.tag_as_contender(it->linkage);
+            // DISTURBED tag (cas_info): optional contender mark
+            // gated by KAME_STM_TAG_ON_DISTURB (default 1).
+            snap.tag_as_contender(it->linkage);
 #endif
             return UnbundledStatus::DISTURBED;
         }
