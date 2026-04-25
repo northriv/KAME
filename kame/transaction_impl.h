@@ -397,18 +397,22 @@ namespace detail {
 #if defined(KAME_STM_LIVELOCK_FALLBACK) && KAME_STM_LIVELOCK_FALLBACK
     // Runtime mode switch between V0 (lightweight, v0-equivalent) and
     // ADAPTIVE (full lease / bitset / CV-sleep machinery). Startup
-    // default is V0. The livelock probe shuttles between modes:
+    // default is ADAPTIVE — empirically faster than V0 on weak-memory
+    // architectures (Apple Silicon M4) and competitive on strong-memory
+    // x86. V0 is entered only as an escape from an ADAPTIVE-side
+    // livelock storm and drifts back to ADAPTIVE once the storm clears.
     //
-    //   V0       → ADAPTIVE : burst of ≥ BURST_COUNT livelock events
+    //   V0       → ADAPTIVE : (a) CALM_MS elapsed with no livelock
+    //                         (b) burst of ≥ BURST_COUNT livelock events
+    //                             within BURST_MS (= V0 itself livelocks)
+    //   ADAPTIVE → V0       : burst of ≥ BURST_COUNT livelock events
     //                         within BURST_MS
-    //   ADAPTIVE → V0       : same burst trigger (mode-shuffle jitter)
-    //                         OR CALM_MS elapsed with no livelock
     //
     // Mode check is a single relaxed atomic load at the top of
     // negotiate_internal and in the few tag_as_contender call sites
     // that did not exist in v0.
     enum NegotiateMode : int { MODE_V0 = 0, MODE_ADAPTIVE = 1 };
-    inline std::atomic<int>      s_negotiate_mode{MODE_V0};
+    inline std::atomic<int>      s_negotiate_mode{MODE_ADAPTIVE};
     inline std::atomic<int64_t>  s_last_livelock_us{0};
     inline std::atomic<uint32_t> s_livelock_burst_count{0};
     //! Time of the most recent mode transition. Used to debounce
@@ -417,19 +421,19 @@ namespace detail {
     inline std::atomic<int64_t>  s_mode_switched_us{0};
 
 #ifndef KAME_STM_MODE_BURST_MS
-#define KAME_STM_MODE_BURST_MS 30
+#define KAME_STM_MODE_BURST_MS 60
 #endif
 #ifndef KAME_STM_MODE_BURST_COUNT
-#define KAME_STM_MODE_BURST_COUNT 3
+#define KAME_STM_MODE_BURST_COUNT 5
 #endif
 #ifndef KAME_STM_MODE_CALM_MS
-#define KAME_STM_MODE_CALM_MS 1000
+#define KAME_STM_MODE_CALM_MS 300
 #endif
 //! Minimum dwell time in either mode before another burst-trigger
 //! can flip it. Suppresses V0↔ADAPTIVE oscillation during a single
 //! livelock storm while still allowing escape from a stuck mode.
 #ifndef KAME_STM_MODE_DWELL_MS
-#define KAME_STM_MODE_DWELL_MS 30
+#define KAME_STM_MODE_DWELL_MS 60
 #endif
 
     inline bool in_adaptive_mode() noexcept {
@@ -490,20 +494,27 @@ namespace detail {
                 }
             }
         } else {
-            // No livelock this window — de-escalate ADAPTIVE→V0 after calm.
+            // No livelock this window — drift V0 → ADAPTIVE after calm.
+            // ADAPTIVE is the preferred resting state because the
+            // adaptive-lease path is faster than V0 on weak-memory
+            // architectures (M4 ARM benchmarks); V0 is reached only
+            // as an escape from an ADAPTIVE-side livelock burst, and
+            // only stays as long as livelock keeps firing there.
             int mode = s_negotiate_mode.load(std::memory_order_relaxed);
-            if (mode == MODE_ADAPTIVE) {
+            if (mode == MODE_V0) {
                 int64_t last = s_last_livelock_us.load(
                     std::memory_order_relaxed);
                 if (last > 0 && now_us - last >
                     (int64_t)KAME_STM_MODE_CALM_MS * 1'000) {
                     if (s_negotiate_mode.compare_exchange_strong(
-                            mode, MODE_V0,
+                            mode, MODE_ADAPTIVE,
                             std::memory_order_relaxed)) {
                         s_livelock_burst_count.store(
                             0, std::memory_order_relaxed);
+                        s_mode_switched_us.store(
+                            now_us, std::memory_order_relaxed);
                         std::fprintf(stderr,
-                            "[ll-probe] mode: ADAPTIVE -> V0 "
+                            "[ll-probe] mode: V0 -> ADAPTIVE "
                             "(calm: %d ms no livelock)\n",
                             (int)KAME_STM_MODE_CALM_MS);
                     }
