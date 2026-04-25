@@ -32,9 +32,10 @@
 // --- Compile-time tuning knobs for the adaptive-negotiate backoff ---
 // All are -D overridable at cmake time.
 
-// Half-range of the jittered gate in percent; 25 = ±25 % default.
+// Half-range of the jittered gate in percent; must be ≥1 (0 causes div-by-zero
+// in JITTER_DIV). Sweep (N=128 median/3): JIT=10 avg4=4841k > JIT=25 avg4=4672k.
 #ifndef KAME_STM_JITTER_RANGE
-#define KAME_STM_JITTER_RANGE 25
+#define KAME_STM_JITTER_RANGE 10
 #endif
 
 // Gate coefficient: gate opens when mult_wait * GATE_MULT * dt * J < dt2.
@@ -657,7 +658,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_US_MIN  1     // 1 µs
 #endif
 #ifndef KAME_LEASE_US_MAX
-#define KAME_LEASE_US_MAX  10    // 10 µs — uint16_t field; keep ≤65535
+#define KAME_LEASE_US_MAX  5    // 5 µs — uint16_t field; keep ≤65535. Sweep winner.
 #endif
 
 
