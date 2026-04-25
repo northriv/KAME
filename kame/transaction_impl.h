@@ -425,15 +425,28 @@ namespace detail {
             }
             if (burst >= KAME_STM_MODE_BURST_COUNT) {
                 int mode = s_negotiate_mode.load(std::memory_order_relaxed);
-                int new_mode = (mode == MODE_V0) ? MODE_ADAPTIVE : MODE_V0;
-                s_negotiate_mode.store(new_mode, std::memory_order_relaxed);
-                s_livelock_burst_count.store(0, std::memory_order_relaxed);
-                std::fprintf(stderr,
-                    "[ll-probe] mode: %s -> %s "
-                    "(burst: %u events within %d ms)\n",
-                    mode == MODE_V0 ? "V0" : "ADAPTIVE",
-                    new_mode == MODE_V0 ? "V0" : "ADAPTIVE",
-                    (unsigned)burst, (int)KAME_STM_MODE_BURST_MS);
+                if (mode == MODE_V0) {
+                    // Burst of livelock in V0 — escalate to ADAPTIVE.
+                    // De-escalation (ADAPTIVE → V0) uses only the CALM_MS path
+                    // below; using burst for both directions causes rapid
+                    // V0↔ADAPTIVE oscillation under high thread counts.
+                    s_negotiate_mode.store(MODE_ADAPTIVE, std::memory_order_relaxed);
+                    s_livelock_burst_count.store(0, std::memory_order_relaxed);
+                    std::fprintf(stderr,
+                        "[ll-probe] mode: V0 -> ADAPTIVE "
+                        "(burst: %u events within %d ms)\n",
+                        (unsigned)burst, (int)KAME_STM_MODE_BURST_MS);
+                    // Wake at most hardware_concurrency() sleeping V0 threads
+                    // to bootstrap ADAPTIVE without a thundering herd.
+                    int to_wake = (int)std::thread::hardware_concurrency();
+                    if (to_wake <= 0) to_wake = 1;
+                    for (int _i = 0; _i < NEGOTIATE_SLEEP_SLOTS && to_wake > 0; ++_i) {
+                        auto &_st = s_sleep_slots[_i];
+                        { std::lock_guard<std::mutex> _lk(_st.mtx); _st.notified = true; }
+                        _st.cv.notify_one();
+                        --to_wake;
+                    }
+                }
             }
         } else {
             // No livelock this window — de-escalate ADAPTIVE→V0 after calm.
@@ -1046,7 +1059,7 @@ after_lease_block: ;
                     if(NegotiationCounter::numThreadsRunning() < min_r)
                         detail::notify_n_contenders(tid_bitset,
                             std::min(min_r - (int)NegotiationCounter::numThreadsRunning(), C_obs));
-                    detail::negotiate_sleep(1 + (int)(s_backoff_seed >> 31) / 2);
+                    detail::negotiate_sleep(1 + (int)(s_backoff_seed >> 31));
                 } while(Node<XN>::NegotiationCounter::now_us() < t_end);
             }
 #else
@@ -1088,7 +1101,10 @@ v0_path:
                 fprintf(stderr, "for BP@%p\n", this);
                 ms = 5000;
             }
-            msecsleep(ms);
+            // CV-based sleep so the V0→ADAPTIVE broadcast (in
+            // update_negotiate_mode) wakes this thread promptly.
+            detail::negotiate_sleep(ms);
+            if (detail::in_adaptive_mode()) break;
         }
     }
 }
