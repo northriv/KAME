@@ -416,7 +416,7 @@ namespace detail {
                 now_us, std::memory_order_relaxed);
             uint32_t burst;
             if (now_us - last <
-                (int64_t)KAME_STM_MODE_BURST_MS * 1'000'000) {
+                (int64_t)KAME_STM_MODE_BURST_MS * 1'000) {
                 burst = s_livelock_burst_count.fetch_add(
                     1, std::memory_order_relaxed) + 1;
             } else {
@@ -741,8 +741,11 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     }
     // tx age = wall time since Transaction ctor started (m_started_time
     // is set once in the ctor, not reset by operator++).
+    // m_started_time is tid-packed; unpack the µs component before
+    // subtracting the raw-µs now_us() value.
     int64_t _ll_age_us = (int64_t)(
-        Node<XN>::NegotiationCounter::now_us() - snap.m_started_time);
+        Node<XN>::NegotiationCounter::now_us()
+        - Node<XN>::NegotiationCounter::stamp_us(snap.m_started_time));
     // Priority-dependent retry threshold for the livelock verdict.
     // HIGHEST is real-time-like and must not retry; NORMAL is the
     // common case; UI_DEFERRABLE and LOWEST tolerate retries as
@@ -802,9 +805,12 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #ifdef KAME_PRIORITY_LEASE
   { // scope the lease-block locals so the `goto` above doesn't cross
     // their initialisation.
+    // transaction_started_time is tid-packed; unpack before diffing
+    // against the raw-µs now_us() clock.
     auto adapt_dt2_last_us =
         (typename NegotiationCounter::cnt_t)
-        (Node<XN>::NegotiationCounter::now_us() - transaction_started_time);
+        (Node<XN>::NegotiationCounter::now_us()
+         - Node<XN>::NegotiationCounter::stamp_us(transaction_started_time));
     // Compute the observed co-committer count C = popcount(tid_bitset)
     // and the competing tx's elapsed time dt2. C drives the adaptive
     // lease length; dt2 drives the fairness gate that suppresses the
@@ -932,7 +938,9 @@ after_lease_block: ;
         Priority pr = getCurrentPriorityMode();
         if(pr == Priority::HIGHEST)
             break;
-        auto dt = started_time - transaction_started_time;
+        // Both stamps are tid-packed; subtract their µs components.
+        auto dt = NegotiationCounter::stamp_us(started_time)
+                - NegotiationCounter::stamp_us(transaction_started_time);
         if(dt <= 0)
             break; //This thread is the oldest.
         auto transaction_started_time =
@@ -940,7 +948,8 @@ after_lease_block: ;
         if( !transaction_started_time)
             break; //collision has not been detected.
 
-        auto dt2 = Node<XN>::NegotiationCounter::now_us() - transaction_started_time;
+        auto dt2 = Node<XN>::NegotiationCounter::now_us()
+                 - NegotiationCounter::stamp_us(transaction_started_time);
 
         // Live-contention estimate (re-evaluated each iteration since
         // tid_bitset accumulates across retries). Used for both the
@@ -1059,11 +1068,15 @@ v0_path:
         for (int ms = 0;;) {
             auto t = m_transaction_started_time.load(std::memory_order_acquire);
             if ( !t) break; //collision has not been detected.
-            auto dt = started_time - t;
+            // started_time and t are tid-packed; compare / diff via
+            // the µs component only.
+            auto dt = NegotiationCounter::stamp_us(started_time)
+                    - NegotiationCounter::stamp_us(t);
             Priority pr = getCurrentPriorityMode();
             if (pr == Priority::HIGHEST) break;
             if (dt <= 0) break; //This thread is the oldest.
-            auto dt2 = Node<XN>::NegotiationCounter::now_us() - t;
+            auto dt2 = Node<XN>::NegotiationCounter::now_us()
+                     - NegotiationCounter::stamp_us(t);
             if (pr != Priority::LOWEST) {
                 if (mult_wait * 2 * dt < dt2) break;
             }
