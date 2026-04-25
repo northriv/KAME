@@ -718,7 +718,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_US_MIN  1     // 1 µs
 #endif
 #ifndef KAME_LEASE_US_MAX
-#define KAME_LEASE_US_MAX  1000'000    // 1000'000 µs
+#define KAME_LEASE_US_MAX  10    // 10 µs — uint16_t field; keep ≤65535
 #endif
 
 
