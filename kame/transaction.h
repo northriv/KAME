@@ -261,7 +261,7 @@ private:
 
     struct DECLSPEC_KAME NegotiationCounter {
         using cnt_t = int64_t;
-        static cnt_t now() noexcept {
+        static cnt_t now_us() noexcept {
             auto tm = XTime::now();
             return (cnt_t)tm.sec() * 1000000uL + tm.usec();
         }
@@ -516,7 +516,7 @@ private:
             PriorityState desired{ my_tid, ps.lease_us, ps.start_us };
             if(my_tid != ps.tid)
                 desired.start_us = nsToUs(started_time ? started_time
-                                        : Node<XN>::NegotiationCounter::now());
+                                        : Node<XN>::NegotiationCounter::now_us());
             // Only store when something actually changed. The 64-bit
             // packed compare is one instruction; skipping the store on
             // identical state avoids cache-line ping-pong on same-owner
@@ -732,7 +732,7 @@ public:
     explicit Snapshot(Transaction<XN>&&x) noexcept
         : Snapshot(static_cast<Snapshot&&>(x)) {}
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-        m_started_time = Node<XN>::NegotiationCounter::now();
+        m_started_time = Node<XN>::NegotiationCounter::now_us();
         typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
         node.snapshot( *this, multi_nodal);
         drop_tags();
@@ -929,7 +929,7 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
         Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
-        m_started_time = Node<XN>::NegotiationCounter::now();
+        m_started_time = Node<XN>::NegotiationCounter::now_us();
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
         node.snapshot( *this, multi_nodal);
         assert( &m_packet->node() == &node);
@@ -939,7 +939,7 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
-        m_started_time = Node<XN>::NegotiationCounter::now();
+        m_started_time = Node<XN>::NegotiationCounter::now_us();
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
     }
     Transaction(Transaction&&x) = default;
