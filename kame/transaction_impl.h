@@ -167,6 +167,20 @@ static inline void retry_pause(int retry) noexcept {
 }   // close Transactional so detail can open with clean scope
 
 namespace Transactional {
+
+// Forward declaration: detail::update_negotiate_mode uses
+// effective_runners() to size its mode-switch wake-broadcast.
+// The full definition is below the detail namespace, gated on the
+// MIN_RUNNERS / MAX_RUNNERS macros.
+#if (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
+inline int effective_runners(int c_obs) noexcept;
+#else
+inline int effective_runners(int) noexcept {
+    int hw = (int)std::thread::hardware_concurrency();
+    return hw > 0 ? hw : 1;
+}
+#endif
+
 namespace detail {
 
     // Cache-line aligned so adjacent slots don't false-share when two
@@ -393,6 +407,10 @@ namespace detail {
     inline std::atomic<int>      s_negotiate_mode{MODE_V0};
     inline std::atomic<int64_t>  s_last_livelock_us{0};
     inline std::atomic<uint32_t> s_livelock_burst_count{0};
+    //! Time of the most recent mode transition. Used to debounce
+    //! the bidirectional burst-trigger so a single livelock storm
+    //! does not ping-pong V0 ↔ ADAPTIVE on every probe tick.
+    inline std::atomic<int64_t>  s_mode_switched_us{0};
 
 #ifndef KAME_STM_MODE_BURST_MS
 #define KAME_STM_MODE_BURST_MS 30
@@ -402,6 +420,12 @@ namespace detail {
 #endif
 #ifndef KAME_STM_MODE_CALM_MS
 #define KAME_STM_MODE_CALM_MS 1000
+#endif
+//! Minimum dwell time in either mode before another burst-trigger
+//! can flip it. Suppresses V0↔ADAPTIVE oscillation during a single
+//! livelock storm while still allowing escape from a stuck mode.
+#ifndef KAME_STM_MODE_DWELL_MS
+#define KAME_STM_MODE_DWELL_MS 30
 #endif
 
     inline bool in_adaptive_mode() noexcept {
@@ -424,25 +448,38 @@ namespace detail {
                 burst = 1;
             }
             if (burst >= KAME_STM_MODE_BURST_COUNT) {
-                int mode = s_negotiate_mode.load(std::memory_order_relaxed);
-                if (mode == MODE_V0) {
-                    // Burst of livelock in V0 — escalate to ADAPTIVE.
-                    // De-escalation (ADAPTIVE → V0) uses only the CALM_MS path
-                    // below; using burst for both directions causes rapid
-                    // V0↔ADAPTIVE oscillation under high thread counts.
-                    s_negotiate_mode.store(MODE_ADAPTIVE, std::memory_order_relaxed);
+                // Bidirectional burst trigger (per directive: "ライブロックが
+                // 再び検出されたら元のモードにもどるだけ"). Suppress
+                // ping-pong via a per-mode dwell window: refuse a flip
+                // unless the previous transition was at least
+                // KAME_STM_MODE_DWELL_MS ago.
+                int64_t since = now_us
+                    - s_mode_switched_us.load(std::memory_order_relaxed);
+                if (since >= (int64_t)KAME_STM_MODE_DWELL_MS * 1'000) {
+                    int mode = s_negotiate_mode.load(std::memory_order_relaxed);
+                    int new_mode = (mode == MODE_V0) ? MODE_ADAPTIVE : MODE_V0;
+                    s_negotiate_mode.store(new_mode, std::memory_order_relaxed);
+                    s_mode_switched_us.store(now_us, std::memory_order_relaxed);
                     s_livelock_burst_count.store(0, std::memory_order_relaxed);
                     std::fprintf(stderr,
-                        "[ll-probe] mode: V0 -> ADAPTIVE "
+                        "[ll-probe] mode: %s -> %s "
                         "(burst: %u events within %d ms)\n",
+                        mode == MODE_V0 ? "V0" : "ADAPTIVE",
+                        new_mode == MODE_V0 ? "V0" : "ADAPTIVE",
                         (unsigned)burst, (int)KAME_STM_MODE_BURST_MS);
-                    // Wake at most hardware_concurrency() sleeping V0 threads
-                    // to bootstrap ADAPTIVE without a thundering herd.
-                    int to_wake = (int)std::thread::hardware_concurrency();
-                    if (to_wake <= 0) to_wake = 1;
-                    for (int _i = 0; _i < NEGOTIATE_SLEEP_SLOTS && to_wake > 0; ++_i) {
+                    // Wake sleeping threads currently in negotiate_sleep
+                    // so they re-evaluate the mode promptly. Cap the
+                    // notify count by effective_runners() — same fallback
+                    // logic that the rest of the file uses for handling
+                    // hardware_concurrency() == 0; declared in
+                    // Transactional:: above (see forward declaration
+                    // immediately preceding livelock_probe_tx_tick).
+                    int to_wake = effective_runners(1);
+                    for (int _i = 0;
+                         _i < NEGOTIATE_SLEEP_SLOTS && to_wake > 0; ++_i) {
                         auto &_st = s_sleep_slots[_i];
-                        { std::lock_guard<std::mutex> _lk(_st.mtx); _st.notified = true; }
+                        { std::lock_guard<std::mutex> _lk(_st.mtx);
+                          _st.notified = true; }
                         _st.cv.notify_one();
                         --to_wake;
                     }
@@ -681,7 +718,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_US_MIN  1     // 1 µs
 #endif
 #ifndef KAME_LEASE_US_MAX
-#define KAME_LEASE_US_MAX  1000    // 1000 µs
+#define KAME_LEASE_US_MAX  1000'000    // 1000'000 µs
 #endif
 
 
@@ -920,7 +957,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     if(my_tid == ps.tid
         && adapt_dt2_last_us < (uint64_t)KAME_DT2_FAIRNESS_US) {
         // Age in µs via modular 32-bit subtraction (wrap-safe up to ~35 min).
-        uint32_t age_us = nsToUs(Node<XN>::NegotiationCounter::now_us()) - ps.start_us;
+        uint32_t age_us = Node<XN>::NegotiationCounter::now_us() - ps.start_us;
         if(age_us < (uint32_t)ps.lease_us) {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             ++s_adapt_skip_hits;
@@ -1078,6 +1115,13 @@ v0_path:
     // m_transaction_started_time atomic with the adaptive path.
     {
         std::this_thread::yield();
+        {
+            auto _v0_ps = loadPriority();
+            if(_v0_ps.tid) {
+                unsigned _tid = (unsigned)_v0_ps.tid & (unsigned)(TID_BITSET_WORDS * 64 - 1);
+                tid_bitset[_tid >> 6] |= 1ULL << (_tid & 63);
+            }
+        }
         for (int ms = 0;;) {
             auto t = m_transaction_started_time.load(std::memory_order_acquire);
             if ( !t) break; //collision has not been detected.
@@ -1101,10 +1145,25 @@ v0_path:
                 fprintf(stderr, "for BP@%p\n", this);
                 ms = 5000;
             }
-            // CV-based sleep so the V0→ADAPTIVE broadcast (in
-            // update_negotiate_mode) wakes this thread promptly.
-            detail::negotiate_sleep(ms);
-            if (detail::in_adaptive_mode()) break;
+            {
+                uint32_t seed = (uint32_t)ProcessCounter::id() * 2654435761u
+                              ^ (uint32_t)(uintptr_t)&started_time;
+                seed ^= seed >> 16; seed *= 0x85ebca6bu;
+                seed ^= seed >> 13; seed *= 0xc2b2ae35u;
+                seed ^= seed >> 16; if(!seed) seed = 1u;
+                auto t_end = Node<XN>::NegotiationCounter::now_us()
+                           + (int64_t)ms * 1000;
+                bool to_break = false;
+                int chunk_i = 0;
+                do {
+                    seed = seed * 1103515245u + 12345u;
+                    if (((chunk_i++) & 3) == 0)
+                        detail::notify_n_contenders(tid_bitset, 1);
+                    detail::negotiate_sleep(1 + (int)((seed >> 30) & 3));
+                    if (detail::in_adaptive_mode()) { to_break = true; break; }
+                } while (Node<XN>::NegotiationCounter::now_us() < t_end);
+                if (to_break) break;
+            }
         }
     }
 }

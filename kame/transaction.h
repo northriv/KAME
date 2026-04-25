@@ -512,10 +512,6 @@ private:
             expected = unpackPriority(m_priority_state.load(std::memory_order_acquire));
             return false;
         }
-        //! Convert a NegotiationCounter ns timestamp to the 32-bit µs field.
-        static inline uint32_t nsToUs(typename NegotiationCounter::cnt_t ns) noexcept {
-            return (uint32_t)((uint64_t)ns / 1000u);
-        }
 
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
         //! \a tid_bitset accumulates observed committer TIDs (via the Linkage's
@@ -556,10 +552,9 @@ private:
             if(my_tid != ps.tid) {
                 // started_time is a tid-packed stamp; unpack the µs
                 // component before feeding into the 32-bit µs field.
-                auto raw_us = started_time
+                desired.start_us = started_time
                     ? Node<XN>::NegotiationCounter::stamp_us(started_time)
                     : Node<XN>::NegotiationCounter::now_us();
-                desired.start_us = nsToUs(raw_us);
             }
             // Only store when something actually changed. The 64-bit
             // packed compare is one instruction; skipping the store on
