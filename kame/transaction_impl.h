@@ -53,12 +53,6 @@
 #define KAME_STM_LOTTERY_MULT 1
 #endif
 
-// 0 = tag only on ++tr (matches pre-negotiate behaviour). 1 = also tag
-// each linkage that a CAS fails on in unbundle's cas_infos loop.
-#ifndef KAME_STM_TAG_ON_DISTURB
-#define KAME_STM_TAG_ON_DISTURB 1
-#endif
-
 // Cap on threads simultaneously in the CAS-retry loop.
 // Positive = excess lottery winners fall through to the sleep path to
 // limit simultaneous-CAS bursts. Gate winners (earned priority) are
@@ -126,7 +120,7 @@
 namespace Transactional {
 
 template <class XN>
-atomic<unsigned int> Node<XN>::NegotiationCounter::s_running{0};
+alignas(64) atomic<unsigned int> Node<XN>::NegotiationCounter::s_running{0};
 // tx_nest / sleep_nest are defined at namespace scope in transaction.h
 // (detail::s_tx_nest, detail::s_sleep_nest). Placing them outside the
 // class template avoids an Apple clang / arm64 bug where the TLS wrapper
@@ -316,15 +310,108 @@ namespace detail {
     // (paper §3.6) showed V0 to be at best on par and sometimes 5×
     // slower than the always-on adaptive-lease path. The fair-mode
     // escape, in contrast, is orthogonal to mode and the retry-path
-    // tag_as_contender call sites are now unconditional (DISTURBED
-    // path tags remain gated by KAME_STM_TAG_ON_DISTURB, an
-    // independent experimental switch).
+    // tag_as_contender call sites are now unconditional.
     //=============================================================================
 
 } // namespace detail
 } // namespace Transactional
 
 namespace Transactional {
+
+//! RAII helper for CAS-retry / spin loops that branch on Linkage state.
+//!
+//! Construct at the TOP of each loop iteration, passing the Linkage,
+//! the iteration counter, and the desired tagging mode.
+//!
+//! Ctor always calls
+//! `Linkage::negotiate_after_retry_pause(retry, snap, mult_wait)` so
+//! the iter starts with a livelock-free yield-to-privileged-Tx gate
+//! (self-gates at retry==0 unless fair-mode active).
+//!
+//! Tagging modes:
+//!   - **OnEntry** (default): tag_as_contender immediately at ctor.
+//!     Eager — other threads' negotiate sees our contender mark for
+//!     the duration of this iter's body. Matches the pre-RAII manual
+//!     pattern in commit / bundle / Node::snapshot retry loops.
+//!   - **OnExit**: tag_as_contender at dtor when `commit()` was not
+//!     called. Lazy — tags only on continue/return/exception paths,
+//!     leaving `commit()` paths untagged. Matches the pre-RAII
+//!     pattern at insert(online) / eraseSerials.
+//!
+//! Retry gating:
+//!   - `retry >  0`: tag (subject to TagMode).
+//!   - `retry == 0`: do NOT tag (first-attempt fast path).
+//!   - `retry == -1`: tag unconditionally (always-tag mode); the
+//!     value `0` is passed down to `negotiate_after_retry_pause`,
+//!     since the function self-gates on fair-mode anyway.
+//!
+//! Use everywhere a loop body's branch depends on `*linkage` state OR
+//! a CAS on the linkage; ensures negotiate-before-decision +
+//! tag-on-disturb at every site by construction.
+//!
+//! Definition lives here (transaction_impl.h) — only the retry-loop
+//! sites in this file use it. Forward-declared in transaction.h, with
+//! friend declarations in Node<XN> / Snapshot<XN> for the assert path.
+template <class XN>
+class ScopedNegotiateLinkage {
+    using LinkagePtr = std::shared_ptr<typename Node<XN>::Linkage>;
+    LinkagePtr      m_link;
+    Snapshot<XN>   &m_snap;
+    bool            m_eager;
+    bool            m_should_tag;   // false at retry==0; true at retry>0 or retry==-1
+    bool            m_committed = false;
+#if KAME_STM_ASSERT_PRIVILEGE
+    bool            m_priviledge_onentry;
+#endif
+public:
+    enum class TagMode { OnEntry, OnExit };
+    ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
+                           TagMode mode = TagMode::OnEntry,
+                           float mult_wait = 2.0f) noexcept
+        : m_link(std::move(link)), m_snap(snap),
+          m_eager(mode == TagMode::OnEntry),
+          m_should_tag(retry != 0) {
+#if KAME_STM_ASSERT_PRIVILEGE
+        // True iff THIS Tx currently owns the privileged slot.
+        m_priviledge_onentry =
+            (Node<XN>::NegotiationCounter::s_privileged_tidstamp.load(std::memory_order_relaxed)
+             == m_snap.m_started_time);
+#endif
+        const int negotiate_retry = (retry < 0) ? 0 : retry;
+        m_link->negotiate_after_retry_pause(negotiate_retry, snap, mult_wait);
+        if(m_eager && m_should_tag)
+            m_snap.tag_as_contender(m_link);
+    }
+    ScopedNegotiateLinkage(const ScopedNegotiateLinkage &) = delete;
+    ScopedNegotiateLinkage &operator=(const ScopedNegotiateLinkage &) = delete;
+    void commit() noexcept { m_committed = true; }
+    //! Convenience: when the scope's linkage IS the CAS target and
+    //! the CAS just succeeded, this calls
+    //! `m_link->tags_successful_cas(started_time)` (updates the
+    //! priority slot) and marks the scope committed in one step.
+    //! `started_time = 0` (default) tells `tags_successful_cas` to
+    //! use `now_us()` instead of unpacking a tid-stamped value.
+    void commit_after_cas(typename Node<XN>::NegotiationCounter::cnt_t
+                          started_time = 0) noexcept {
+        m_link->tags_successful_cas(started_time);
+        m_committed = true;
+    }
+    ~ScopedNegotiateLinkage() noexcept {
+        if(!m_committed) {
+       #if KAME_STM_ASSERT_PRIVILEGE
+            // Fires when we held the privilege at entry AND still hold
+            // it at exit without committing — the privileged Tx failed a
+            // CAS / loop iteration, violating the livelock-free invariant.
+            assert(!(m_priviledge_onentry &&
+                Node<XN>::NegotiationCounter::s_privileged_tidstamp.load(std::memory_order_relaxed)
+                    == m_snap.m_started_time)
+                && "privileged Tx CAS/loop failure: ScopedNegotiateLinkage dtor");
+       #endif
+            if(!m_eager && m_should_tag)
+                m_snap.tag_as_contender(m_link);
+        }
+    }
+};
 
 // =====================================================================
 // Out-of-class template member definitions for Node<XN>::NegotiationCounter.
@@ -334,12 +421,19 @@ namespace Transactional {
 // (defined in the class body in transaction.h).
 // =====================================================================
 
+// Floor used for both (a) the LIVELOCK verdict gate (probe fires only
+// when tx_age > floor) and (b) the age-preempt threshold in
+// try_register_privileged_tidstamp (preemptor must be older than holder
+// by floor µs). Values balance "fire quickly when stuck" vs "don't
+// thrash on normal contention". 100ms for HIGHEST/NORMAL was selected
+// to avoid the dynamic_node_test churn-deadlock seen at 1ms (short
+// Txs aged past 1ms trivially → constant preempt-cycle).
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
     switch (pr) {
     case Priority::LOWEST:        return 30'000;
     case Priority::UI_DEFERRABLE: return 50'000;
-    default:                       return  1'000;
+    default:                      return 100'000;  /* HIGHEST / NORMAL */
     }
 }
 
@@ -358,9 +452,7 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     while (true) {
         if (expected != (cnt_t)0) {
             // Slot held. Allow override only if we are older than the
-            // current holder by at least age_floor µs. stamp_us is the
-            // Tx start time (smaller = older), so positive diff ⇒ we
-            // are older.
+            // current holder by at least age_floor µs.
             int64_t age_diff =
                 (int64_t)detail::stamp_us(expected)
                 - (int64_t)detail::stamp_us(tidstamp);
@@ -384,8 +476,20 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
 }
 
 template <class XN>
-void Node<XN>::NegotiationCounter::release_privileged_tidstamp() noexcept {
-    s_privileged_tidstamp.store((cnt_t)0, std::memory_order_seq_cst);
+void Node<XN>::NegotiationCounter::release_privileged_tidstamp(cnt_t my_tidstamp) noexcept {
+    // CAS-based release: only clear the slot if it still holds OUR
+    // stamp. Required because age-preempt can cause an older Tx to
+    // overwrite our slot while we still hold m_registered_privileged.
+    // Plain store(0) would then erase the preemptor's claim, leading
+    // to slot/flag desynchronisation — observed as a hang in
+    // transaction_dynamic_node_test under heavy churn.
+    cnt_t expected = my_tidstamp;
+    s_privileged_tidstamp.compare_exchange_strong(
+        expected, (cnt_t)0,
+        std::memory_order_seq_cst,
+        std::memory_order_relaxed);
+    // CAS fail = preemptor took our slot; they will release on their
+    // own commit/abort.
 }
 
 template <class XN>
@@ -542,7 +646,7 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
 #if (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
     // Running maximum of observed C (contender count), used as fallback when
     // hardware_concurrency() returns 0.
-    std::atomic<int> s_max_c_obs{1};
+    alignas(64) std::atomic<int> s_max_c_obs{1};
 
     // Update max C_obs (relaxed: approximate max is fine)
     inline int effective_runners(int c_obs) noexcept {
@@ -573,12 +677,10 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
 
 // Unified retry-loop backoff: always call retry_pause + negotiate.
 // retry==0 → fast-path return UNLESS another Tx currently holds the
-// fair-mode privileged slot. Without this gate, retry==0 callers
-// hammer their CAS without yielding, which can starve the privileged
-// (oldest stuck) Tx — observed at N=128 K=10 as multi-Tx 0-commit
-// stalls. The check uses NegotiationCounter::fair_mode_blocks_me
-// (relaxed atomic load + 2 comparisons; folded inline by -O2).
-// retry>0 always runs retry_pause + negotiate as before.
+// fair-mode privileged slot. The yield is part of the livelock-free
+// guarantee: when a stuck Tx claims privilege, all other Txs must
+// release their CAS pressure so the privileged commit can succeed.
+// retry>0 always runs retry_pause + negotiate.
 template <class XN>
 void
 Node<XN>::Linkage::negotiate_after_retry_pause(
@@ -587,7 +689,7 @@ Node<XN>::Linkage::negotiate_after_retry_pause(
     float mult_wait) noexcept {
     if(retry == 0
         && !NegotiationCounter::fair_mode_blocks_me(snap.m_started_time))
-        return;  // fast path; zero-overhead steady state
+        [[likely]] return;  // fast path; zero-overhead steady state
     retry_pause(retry);
     negotiate(snap, mult_wait);
 }
@@ -832,7 +934,8 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // subtracting the raw-µs now_us() value.
     int64_t _ll_age_us = now_us_entry
                      - NegotiationCounter::stamp_us(started_time);
-    if (_ll_age_us >= NegotiationCounter::min_privilege_age_us(Priority::HIGHEST)) {  //skips if too short
+    if (_ll_age_us >= NegotiationCounter::min_privilege_age_us(Priority::HIGHEST)
+        && !snap.m_tagged_linkages.empty()) {  // skip when too young or untagged
         // Count tagged linkages whose m_transaction_started_time == ours
         // (= "priority is already mine on every linkage" = primary
         //   livelock precondition per the refined definition).
@@ -1175,18 +1278,26 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
         }
         tr.m_oldpacket = tr.m_packet;
         tr.m_packet = newpacket;
-        for(;;) {
+        for(int iter = 0;; ++iter) {
+            // RAII OnExit: tags only on scope exit (continue / return)
+            // unless commit() is called. iter==0 successful CAS stays
+            // untagged (cheap fast path).
+            ScopedNegotiateLinkage<XN> scope(var->m_link, tr, iter,
+                ScopedNegotiateLinkage<XN>::TagMode::OnExit);
+
             local_shared_ptr<Packet> subpacket_new;
             local_shared_ptr<PacketWrapper> subwrapper;
             subwrapper = *var->m_link;
             BundledStatus status = bundle_subpacket(0, var, subwrapper, subpacket_new,
                 tr, tr.m_serial);
             if(status != BundledStatus::SUCCESS) {
-                continue;
+                continue;  // RAII tags on scope exit (iter > 0)
             }
-            if( !subpacket_new)
+            if( !subpacket_new) {
                 //Inserted twice inside the package.
+                scope.commit();
                 break;
+            }
 
             //Marks for writing at subnode.
             tr.m_packet.reset(new Packet( *tr.m_oldpacket));
@@ -1205,9 +1316,9 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
                 return false;
             if( !var->m_link->compareAndSet(subwrapper, newwrapper)) {
                 tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
-                return false;
+                return false;  // RAII tags
             }
-            var->m_link->tags_successful_cas();
+            scope.commit_after_cas();
             break;
         }
     }
@@ -1231,24 +1342,33 @@ Node<XN>::release(const shared_ptr<XN> &var) {
 // transactions.
 template <class XN>
 void
-Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial) {
+Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
+                       Snapshot<XN> &snap) {
     if(packet->size() && packet->subpackets()->m_serial == serial)
         packet->subpackets()->m_serial = SerialGenerator::SERIAL_NULL;
     if(packet->payload()->m_serial == serial)
         packet->payload()->m_serial = SerialGenerator::SERIAL_NULL;
 
-    for(;;) {
+    for(int iter = 0;; ++iter) {
+        // RAII OnExit.
+        ScopedNegotiateLinkage<XN> scope(packet->node().m_link, snap, iter,
+            ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         local_shared_ptr<PacketWrapper> wrapper( *packet->node().m_link);
-        if(wrapper->m_bundle_serial != serial)
+        if(wrapper->m_bundle_serial != serial) {
+            scope.commit();
             break;
+        }
         local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper( *wrapper, SerialGenerator::SERIAL_NULL));
-        if(packet->node().m_link->compareAndSet(wrapper, newwrapper))
+        if(packet->node().m_link->compareAndSet(wrapper, newwrapper)) {
+            scope.commit();
             break;
+        }
+        // RAII tags on continue (iter > 0)
     }
     for(int i = 0; i < packet->size(); ++i) {
         local_shared_ptr<Packet> &subpacket(( *packet->subpackets())[i]);
         if(subpacket)
-            eraseSerials(subpacket, serial);
+            eraseSerials(subpacket, serial, snap);
     }
 }
 
@@ -1328,7 +1448,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         return true;
     }
 
-    eraseSerials(packet, tr.m_serial);
+    eraseSerials(packet, tr.m_serial, tr);
 
     local_shared_ptr<Packet> newpacket(tr.m_packet);
     tr.m_packet = tr.m_oldpacket;
@@ -1342,7 +1462,10 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     tr.m_packet = newpacket;
 
     //Unload the packet of the released node.
+    // Negotiate before CAS for livelock-free fair-mode yield.
+    var->m_link->negotiate(tr, 2.0f);
     if( !var->m_link->compareAndSet(nullsubwrapper, newsubwrapper)) {
+        tr.tag_as_contender(var->m_link);
         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
         return false;
     }
@@ -1863,24 +1986,20 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
 
     local_shared_ptr<PacketWrapper> target;
     for(int retry = 0;; ++retry) {
-        if(retry) {
-            // Second source feeding the livelock probe's `my_tx_retries`
-            // alongside Transaction::operator++ — bundle-side retry on a
-            // pure Snapshot path (no enclosing Transaction required).
-            ++snapshot.m_tx_retry_count;
-        }
-        // Always call: the function self-gates at retry==0 (fast-path
-        // returns unless fair-mode privilege is held by another Tx).
-        m_link->negotiate_after_retry_pause(retry, snapshot, 2.0f);
         if(retry)
-            snapshot.tag_as_contender(m_link);
+            ++snapshot.m_tx_retry_count;
+        // RAII OnEntry: negotiates + tags eagerly (retry > 0).
+        ScopedNegotiateLinkage<XN> scope(m_link, snapshot, retry);
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);
         if(target->hasPriority()) {
-            if( !multi_nodal)
+            if( !multi_nodal) {
+                scope.commit();
                 break;
+            }
             if( !target->packet()->missing()) {
                 STRICT_assert(target->packet()->checkConsistensy(target->packet()));
+                scope.commit();
                 break;
             }
         }
@@ -1895,6 +2014,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
                         snapshot.m_packet = *foundpacket;
                         STRICT_assert(snapshot.m_packet->checkConsistensy(snapshot.m_packet));
+                        scope.commit();
                         return;
                     }
                     // The packet is imperfect, and then re-bundling the subpackets.
@@ -1916,6 +2036,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
                 //The packet has been released.
                 if( !target->packet()->missing() || !multi_nodal) {
                     snapshot.m_packet = target->packet();
+                    scope.commit();
                     return;
                 }
                 break;
@@ -1928,6 +2049,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
             assert( !target->packet()->missing());
             STRICT_assert(target->packet()->checkConsistensy(target->packet()));
             snapshot.m_serial = SerialGenerator::gen(); //Capture Lamport advances from bundle().
+            scope.commit();
             break;
         default:
             continue;
@@ -2082,7 +2204,10 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         //Tags serial.
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper(oldsuperwrapper->packet(), bundle_serial));
+        // Negotiate before Phase 0 CAS for livelock-free fair-mode yield.
+        supernode.m_link->negotiate(snap, 2.0f);
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
+            snap.tag_as_contender(supernode.m_link);
             return BundledStatus::DISTURBED;
         }
         oldsuperwrapper = std::move(superwrapper);
@@ -2091,14 +2216,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
     fast_vector<local_shared_ptr<PacketWrapper>, 16> subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
 
     for(int retry = 0;; ++retry) {
-        // Always call: the function self-gates at retry==0 (fast-path
-        // returns unless fair-mode privilege is held by another Tx).
-        supernode.m_link->negotiate_after_retry_pause(retry, snap, 2.0f);
-        if(retry) {
-            // Retry-path tag: feeds tag-ownership signal used by the
-            // livelock probe in negotiate_internal.
-            snap.tag_as_contender(supernode.m_link);
-        }
+        // RAII OnEntry: negotiates supernode.m_link + tags eagerly.
+        ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, retry);
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *oldsuperwrapper, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
@@ -2119,12 +2238,16 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             local_shared_ptr<Packet> &subpacket_new(( *subpackets)[i]);
             local_shared_ptr<PacketWrapper> subwrapper;
             for(int child_retry = 0;; ++child_retry) {
-                if(child_retry) {
-                    retry_pause(child_retry);
-                }
+                // RAII OnEntry: negotiates child->m_link + tags eagerly
+                // on retry > 0. Covers the read at *child->m_link below
+                // and the CAS in bundle_subpacket → unbundle.
+                ScopedNegotiateLinkage<XN> child_scope(
+                    child->m_link, snap, child_retry);
                 subwrapper = *child->m_link;
-                if(subwrapper == subwrappers_org[i])
+                if(subwrapper == subwrappers_org[i]) {
+                    child_scope.commit();
                     break;
+                }
                 SerialGenerator::gen(subwrapper->m_bundle_serial); //Lamport: advance past sub-node serial.
                 BundledStatus status = bundle_subpacket( &oldsuperwrapper,
                     child, subwrapper, subpacket_new, snap, bundle_serial);
@@ -2135,11 +2258,6 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                 default:
                     if(oldsuperwrapper == *supernode.m_link)
                         continue;
-#if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-                    // DISTURBED tag (child CAS): optional contender mark
-                    // gated by KAME_STM_TAG_ON_DISTURB (default 1).
-                    snap.tag_as_contender(child->m_link);
-#endif
                     return status;
                 }
                 subwrappers_org[i] = subwrapper;
@@ -2151,6 +2269,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                 }
                 else
                     missing = true;
+                child_scope.commit();
                 break;
             }
         }
@@ -2161,15 +2280,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         newpacket->m_missing = true;
 
         //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
-        // No pre-CAS negotiate here: the outer retry loop handles
-        // backoff, and re-entering negotiate at this point produces
-        // synchronised wake-ups that hurt high-contention throughput.
+        // (negotiate + tag covered by RAII at retry-loop top)
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
-//			superwrapper = *supernode.m_link;
-//			if(superwrapper->m_bundle_serial != bundle_serial)
             return BundledStatus::DISTURBED;
-//			oldsuperwrapper = superwrapper;
-//			continue;
         }
         oldsuperwrapper = superwrapper;
 
@@ -2190,6 +2303,10 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
             if( !child->m_link->compareAndSet(subwrappers_org[i], bundled_ref)) {
+                // Phase 3 is on a CHILD linkage, not covered by the
+                // outer RAII (which scopes supernode.m_link). Tag the
+                // child explicitly on retry > 0 lose.
+                if(retry) snap.tag_as_contender(child->m_link);
                 if((local_shared_ptr<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
                  || (oldsuperwrapper != *supernode.m_link)) {
                     return BundledStatus::DISTURBED;
@@ -2210,12 +2327,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             STRICT_assert(newpacket->checkConsistensy(newpacket));
         }
 
+        // (negotiate + tag covered by RAII at retry-loop top)
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
-#if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-            // DISTURBED tag (parent CAS): optional contender mark
-            // gated by KAME_STM_TAG_ON_DISTURB (default 1).
-            snap.tag_as_contender(supernode.m_link);
-#endif
             return BundledStatus::DISTURBED;
         }
         oldsuperwrapper = std::move(superwrapper);
@@ -2225,7 +2338,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             //this tagging significantly icreased a commiting rate.
             child->m_link->tags_successful_cas(started_time);
         }
-        supernode.m_link->tags_successful_cas(started_time);
+        scope.commit_after_cas(started_time);  // supernode tags_successful_cas + commit
         break;
     }
     return BundledStatus::SUCCESS;
@@ -2299,9 +2412,8 @@ Node<XN>::commit(Transaction<XN> &tr) {
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
     local_shared_ptr<PacketWrapper> wrapper;
     for(int retry = 0;; ++retry) {
-        // Always call: the function self-gates at retry==0 (fast-path
-        // returns unless fair-mode privilege is held by another Tx).
-        m_link->negotiate_after_retry_pause(retry, tr, 2.0f);
+        // RAII OnEntry: negotiates m_link + tags eagerly.
+        ScopedNegotiateLinkage<XN> scope(m_link, tr, retry);
         wrapper = *m_link;
         if(wrapper->hasPriority()) {
             //Committing directly to the node.
@@ -2321,17 +2433,12 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
             STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
 
-//            m_link->negotiate(tr, 2.0f);
+            // (negotiate covered by retry-loop top on m_link)
             if(m_link->compareAndSet(wrapper, newwrapper)) {
-//				STRICT_TEST(if(wrapper->isBundled())
-//					for(typename std::deque<local_shared_ptr<PacketWrapper> >::const_iterator
-//					it = subwrappers.begin(); it != subwrappers.end(); ++it)
-//					assert( !( *it)->hasPriority()));
-                //this decreases a commit rate?
-                m_link->tags_successful_cas(tr.m_started_time);
+                scope.commit_after_cas(tr.m_started_time);
                 return true;
             }
-            continue;
+            continue;  // RAII tagged eagerly at iter top
         }
         //Unbundling this node from the super packet.
         UnbundledStatus status = unbundle(nullptr, tr,
@@ -2339,9 +2446,11 @@ Node<XN>::commit(Transaction<XN> &tr) {
             tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr);
         switch(status) {
         case UnbundledStatus::W_NEW_SUBVALUE:
-            if(tr.isMultiNodal())
+            if(tr.isMultiNodal()) {
+                scope.commit();
                 return true;
-            continue;
+            }
+            continue;  // RAII tagged eagerly at iter top
         case UnbundledStatus::SUBVALUE_HAS_CHANGED: {
                 STRICT_TEST(s_serial_abandoned = tr.m_serial);
 //				fprintf(stderr, "F");
@@ -2423,14 +2532,10 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-        it->linkage->negotiate(snap, 2.0 / cas_infos.size());
-        // snap.tag_as_contender(it->linkage);
+        // RAII OnEntry: negotiates it->linkage.
+        ScopedNegotiateLinkage<XN> scope(it->linkage, snap, -1,
+            ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 2.0f / cas_infos.size());
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper)) {
-#if defined(KAME_STM_TAG_ON_DISTURB) && KAME_STM_TAG_ON_DISTURB
-            // DISTURBED tag (cas_info): optional contender mark
-            // gated by KAME_STM_TAG_ON_DISTURB (default 1).
-            snap.tag_as_contender(it->linkage);
-#endif
             return UnbundledStatus::DISTURBED;
         }
         if(oldsuperwrapper) {
@@ -2441,6 +2546,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
                 *oldsuperwrapper = it->new_wrapper;
             }
         }
+        scope.commit();
     }
     if(status == SnapshotStatus::COLLIDED)
         return UnbundledStatus::COLLIDED;
@@ -2451,10 +2557,17 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     else
         newsubwrapper.reset(new PacketWrapper( *newsubpacket, SerialGenerator::gen(superwrapper->m_bundle_serial)));
 
-    if( !sublinkage->compareAndSet(bundled_ref, newsubwrapper))
-        return UnbundledStatus::SUBVALUE_HAS_CHANGED;
+    // Negotiate before final sublinkage CAS.
+    {
+        // RAII OnEntry: negotiates it->linkage.
+        ScopedNegotiateLinkage<XN> scope(sublinkage, snap, -1,
+            ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 2.0f);
+        if( !sublinkage->compareAndSet(bundled_ref, newsubwrapper)) {
+            return UnbundledStatus::SUBVALUE_HAS_CHANGED;
+        }
+        scope.commit_after_cas(time_started);
+    }
 
-    sublinkage->tags_successful_cas(time_started);
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
         it->linkage->tags_successful_cas(time_started);
     }
