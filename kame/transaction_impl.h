@@ -361,7 +361,7 @@ class ScopedNegotiateLinkage {
     bool            m_should_tag;   // false at retry==0; true at retry>0 or retry==-1
     bool            m_committed = false;
 #if KAME_STM_ASSERT_PRIVILEGE
-    bool            m_priviledge_onentry;
+    bool            m_privilege_onentry;
 #endif
 public:
     enum class TagMode { OnEntry, OnExit };
@@ -373,7 +373,7 @@ public:
           m_should_tag(retry != 0) {
 #if KAME_STM_ASSERT_PRIVILEGE
         // True iff THIS Tx currently owns the privileged slot.
-        m_priviledge_onentry =
+        m_privilege_onentry =
             (Node<XN>::NegotiationCounter::s_privileged_tidstamp.load(std::memory_order_relaxed)
              == m_snap.m_started_time);
 #endif
@@ -402,7 +402,7 @@ public:
             // Fires when we held the privilege at entry AND still hold
             // it at exit without committing — the privileged Tx failed a
             // CAS / loop iteration, violating the livelock-free invariant.
-            assert(!(m_priviledge_onentry &&
+            assert(!(m_privilege_onentry &&
                 Node<XN>::NegotiationCounter::s_privileged_tidstamp.load(std::memory_order_relaxed)
                     == m_snap.m_started_time)
                 && "privileged Tx CAS/loop failure: ScopedNegotiateLinkage dtor");
@@ -1470,7 +1470,6 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         return false;
     }
     var->m_link->tags_successful_cas();
-//		printf("r");
     STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
     return true;
 }
@@ -2335,7 +2334,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
         for(unsigned int i = 0; i < subnodes->size(); i++) {
             shared_ptr<Node> child(( *subnodes)[i]);
-            //this tagging significantly icreased a commiting rate.
+            //this tagging significantly increased a commiting rate.
             child->m_link->tags_successful_cas(started_time);
         }
         scope.commit_after_cas(started_time);  // supernode tags_successful_cas + commit
