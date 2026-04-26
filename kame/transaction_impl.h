@@ -61,7 +61,7 @@
 //   0 = disabled
 //   N > 0 = fixed threshold
 #ifndef KAME_STM_MAX_RUNNERS
-#define KAME_STM_MAX_RUNNERS 8
+#define KAME_STM_MAX_RUNNERS 2   // sweep winner: 2 > 10 > -1 > 6 > 8 > 4 > 16
 #endif
 
 // Floor on concurrent runners; lottery wins are denied while fewer
@@ -856,7 +856,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_US_MIN  1     // 1 µs
 #endif
 #ifndef KAME_LEASE_US_MAX
-#define KAME_LEASE_US_MAX  5    // 5 µs — uint16_t field; keep ≤65535. Sweep winner.
+#define KAME_LEASE_US_MAX  3    // 3 µs — uint16_t field; keep ≤65535. Sweep winner (MAX_R=2).
 #endif
 
 
