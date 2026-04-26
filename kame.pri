@@ -19,10 +19,16 @@ greaterThan(QT_MAJOR_VERSION, 5): QT += core5compat
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 greaterThan(QT_MAJOR_VERSION, 3) {
-	CONFIG += c++11
+	CONFIG += c++17
 	#For ruby.h
 	QMAKE_CXXFLAGS += -Wno-register
 }
+
+# Use std::allocator instead of the legacy lock-free pool allocator
+# (kame/allocator.h). The pool predates the current STM design; std
+# is preferred for portability and correctness. Comment out / pass
+# `DEFINES -= USE_STD_ALLOCATOR` to re-enable the pool path.
+DEFINES += USE_STD_ALLOCATOR
 else {
 # for g++ with C++0x spec.
 	QMAKE_CXXFLAGS += -std=c++0x -Wall

@@ -28,7 +28,9 @@ set(support_SRCS support_standalone.cpp)
 # KAME pool allocator: ON by default on Linux and macOS (incl. Apple
 # Silicon — the pool now uses __builtin_ctzll and the ARM8 dmb barriers
 # instead of the x86 bsf inline-asm). OFF on Windows (Qt build provides
-# it) and on GCC <10 where std feature support is patchy.
+# it) and on GCC <10 where std feature support is patchy. Tests
+# exercise the pool path; the kame app + modules use std::allocator
+# via DEFINES += USE_STD_ALLOCATOR in kame.pri.
 # Override with: cmake .. -DUSE_KAME_ALLOCATOR=ON (or OFF)
 if(NOT DEFINED USE_KAME_ALLOCATOR)
     if(WIN32)
@@ -45,7 +47,7 @@ if(USE_KAME_ALLOCATOR)
     # pool allocator from ../kame/allocator.cpp. Mirrors the .pro layout.
     list(APPEND support_SRCS allocator.cpp)
 else()
-    add_compile_definitions(DISABLE_POOL_ALLOCATOR)
+    add_compile_definitions(USE_STD_ALLOCATOR)
 endif()
 
 find_package(Threads REQUIRED)

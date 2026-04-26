@@ -1,3 +1,61 @@
+* Sun Apr 26 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- STM core: livelock-free fair-mode privilege escape. Globally
+  registered "privileged TID+stamp" (s_privileged_tidstamp): when the
+  livelock probe fires verdict=LIVELOCK on the Greedy CM winner (oldest
+  Tx, all linkage tags claimed) it CAS-claims the slot. Other threads
+  see fair_mode_blocks_me() and yield via negotiate(). Age-preempt: a
+  challenger Tx older than the holder by ≥ min_privilege_age_us(prio)
+  CAS-overrides the slot. release_privileged_tidstamp() is CAS-based
+  (only clears if our stamp still resides) so a preempted holder's
+  release does not erase the preemptor's claim.
+- STM core: ScopedNegotiateLinkage RAII helper centralises the
+  negotiate-before-CAS / tag-on-disturb / commit pattern. Applied at
+  every CAS-retry / spin loop site: Node::snapshot, Node::bundle outer
+  + Phase 1 child_retry, Node::commit, Node::insert(online_after_insertion),
+  Node::eraseSerials, Node::unbundle (cas_infos + final sublinkage).
+  TagMode::OnEntry (eager tag at iter top) / OnExit (lazy on dtor
+  unless commit() called); retry==-1 sentinel for unconditional tag
+  mode. commit_after_cas(started_time) shorthand combines
+  tags_successful_cas + commit at sites where the scope's linkage is
+  the CAS target.
+- STM core: retry==0 yield. negotiate_after_retry_pause self-gates at
+  retry==0 — fast-return unless fair_mode_blocks_me reports another
+  Tx holds the privileged slot, in which case we run retry_pause +
+  negotiate to yield. Required for the livelock-free guarantee
+  (otherwise retry==0 hammers race the privileged Tx's commit CAS).
+- STM core: tag_as_contender uses Option B (relaxed store + acquire
+  verify). Eliminates the younger-overrides-older race that produced
+  multi-Tx 0-commits stalls in the 3-level mixed test under heavy
+  contention; if our store is overwritten between the store and
+  verify, we skip the m_tagged_linkages push (the surviving stamp's
+  owner is responsible for its own drop).
+- STM core: KAME_STM_ASSERT_PRIVILEGE invariant check (default 0;
+  enable with -DKAME_STM_ASSERT_PRIVILEGE=1). The
+  ScopedNegotiateLinkage dtor asserts when the scope held privilege
+  on entry AND still holds it on exit without commit() — i.e. the
+  privileged Tx failed a CAS / loop iteration without making forward
+  progress, breaking the livelock-free guarantee. Catches any future
+  regression in the negotiate / tag_as_contender coverage.
+- STM core: cache-line align (alignas(64)) on the global atomics
+  s_privileged_tidstamp / s_running / s_max_c_obs to avoid
+  false-sharing under N=128 contention.
+- Removed KAME_STM_TAG_ON_DISTURB ablation knob: the disturb-path
+  tag_as_contender is now unconditional (required for the age-preempt
+  visibility invariant on every contended linkage).
+- kame.pri: bump CONFIG from c++11 → c++17. The STM core extensively
+  uses C++17 inline static class members and inline thread_local
+  variables (already accepted as extensions by clang under -std=c++11
+  but warning-free under c++17).
+- kame app + modules: use std::allocator instead of the legacy
+  lock-free pool. `DEFINES += USE_STD_ALLOCATOR` is added to
+  `kame.pri` (modules inherit via `include(../kame.pri)`). The pool
+  predates the current STM design; std is preferred for portability
+  and correctness with the new fair-mode / RAII-negotiate machinery.
+  Tests retain the pool allocator (via `tests/CMakeLists.txt`'s
+  `USE_KAME_ALLOCATOR=ON` default on macOS/Linux) so the pool path
+  stays exercised. Override per-build with
+  `cmake .. -DUSE_KAME_ALLOCATOR=OFF`.
+
 * Thu Apr 17 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - TLA+ BundleUnbundle (Layer 2): systematic comparison of fine-grained model
   against C++ transaction_impl.h. Identified 9 differences; 6 implemented as

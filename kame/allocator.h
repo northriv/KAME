@@ -15,11 +15,13 @@
 #ifndef ALLOCATOR_H_
 #define ALLOCATOR_H_
 
-// Arches for which the lock-free pool allocator is enabled.
-//   x86 / x86_64 — original target, inline-asm path.
-//   ARM64 (Apple Silicon, Linux aarch64) — uses __builtin_ctzll for
-//      bit-scan and the ARM8 dmb/yield barriers from atomic_prv_mfence_arm8.h.
-// Anything else falls back to std::allocator via USE_STD_ALLOCATOR.
+// USE_STD_ALLOCATOR is now defined by the build system (kame.pri /
+// tests/tests.pri / tests/CMakeLists.txt). std::allocator is the
+// default; the legacy lock-free pool allocator path below is kept
+// for ablation / experimentation (compile with the macro undefined).
+//
+// The per-arch detection below is retained as a fallback for
+// environments where the build system doesn't inject the macro.
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__\
     || defined __x86_64__ || defined _M_IX86 || defined _M_X64\
     || defined __arm64__ || defined __aarch64__ || defined _M_ARM64\

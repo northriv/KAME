@@ -252,7 +252,7 @@ On modern compilers (GCC 5.1+, Clang, MSVC), the CAS primitives delegate to `std
 
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
-**Collision backoff:** `Linkage::negotiate()` uses a `m_transaction_started_time` timestamp to impose a proportional wait on detected collisions, preventing live-lock under high write contention.
+**Collision backoff and livelock freedom:** `Linkage::negotiate()` uses a `m_transaction_started_time` timestamp to impose a proportional wait on detected collisions. Under heavy contention, an oldest-Tx **fair-mode privilege escape** (`s_privileged_tidstamp`) registers the stuck Greedy CM winner so other threads yield via `fair_mode_blocks_me()`; an age-preempt rule (older challenger wins after a per-priority floor) guarantees forward progress. The CAS-retry / spin-loop sites are uniformly wrapped by the `ScopedNegotiateLinkage` RAII helper which enforces the negotiate-before-CAS + tag-on-disturb invariant by construction.
 
 `iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
 
@@ -326,7 +326,7 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 | linux-gpib or NI 488.2 *(optional)* | GPIB interfaces |
 | NI DAQmx *(optional)* | NI data-acquisition hardware |
 
-A C++11-capable compiler is required (the build uses `CONFIG += c++11` via qmake).
+A C++17-capable compiler is required (the build uses `CONFIG += c++17` via qmake).
 
 Optional: IPython / Jupyter notebook, linux-gpib or NI 488.2, NI DAQmx, libdc1394 (macOS cameras).
 
