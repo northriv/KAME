@@ -19,6 +19,8 @@
 #include "atomic_smart_ptr.h"
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <vector>
 #include "atomic.h"
 #include "xtime.h"
@@ -89,13 +91,7 @@ namespace detail {
     inline thread_local int s_tx_nest = 0;
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
     inline thread_local int s_sleep_nest = 0;
-    //! Globally registered "privileged TID" and timestamp for the fair-mode escape.
-    //! Defined in transaction_impl.h (above notify_n_contenders);
-    //! forward-declared here so the inline `~Transaction()` and
-    //! `finalizeCommitment` bodies in this header can compile without
-    //! pulling the impl header in.
     using cnt_t = int64_t;
-    extern std::atomic<cnt_t> s_privileged_tidstamp;
     inline cnt_t pack_stamp(cnt_t us, uint16_t tid) noexcept {
         return (us & ((cnt_t{1} << 48) - 1)) | (cnt_t{tid} << 48);
     }
@@ -321,83 +317,66 @@ private:
         }
 
         //=====================================================================
-        // Fair-mode escape API (orthogonal to the negotiate-internal main
-        // path). The livelock probe drives `try_register_privileged_tid()`
-        // on verdict=LIVELOCK; while the global slot is non-zero, every
-        // thread except the registered one short-circuits the lottery /
-        // jittered gate via `fair_mode_blocks_me()`. The registering Tx
-        // itself calls `release_privileged_tid()` from finalizeCommitment
-        // (success) or ~Transaction (abort). The underlying atomic
-        // `Transactional::detail::s_privileged_tidstamp` is forward-declared
-        // at the top of this file (see namespace detail).
+        // Fair-mode escape API. State + accessors are owned by
+        // NegotiationCounter; bodies live out-of-class in transaction_impl.h
+        // (template member definitions). The thread_local LivelockProbe
+        // remains namespace-scope (Transactional::detail) due to an Apple
+        // clang / arm64 bug with template static `thread_local`.
         //=====================================================================
+        //! Globally registered "privileged TID+stamp" for the fair-mode
+        //! escape. Set by `try_register_privileged_tidstamp`, cleared by
+        //! `release_privileged_tidstamp`. C++17 inline static so it has
+        //! exactly one instance per `Node<XN>` instantiation (KAME only
+        //! instantiates `Node<XNode>`, so effectively one global).
+        static inline std::atomic<cnt_t> s_privileged_tidstamp{0};
 
-        //! Minimum tx-age (µs since the Transaction / Snapshot was
-        //! constructed) required before a thread of the given priority
-        //! is allowed to claim the privileged slot. Below this floor a
-        //! privilege claim is suppressed (other threads aren't yet
-        //! disadvantaged enough to justify cluster-wide gate/lottery
-        //! suppression). Higher priorities get the smallest floor —
-        //! UI / LOWEST tolerate longer waits before escalating.
-        //!
-        //!   HIGHEST / NORMAL :  1 ms   (real-time-ish work; escalate fast)
-        //!   LOWEST           : 20 ms   (background; tolerates yielding)
-        //!   UI_DEFERRABLE    : 50 ms   (deferred UI repaint; very tolerant)
-        static inline int64_t min_privilege_age_us(Priority pr) noexcept {
-            switch (pr) {
-            case Priority::LOWEST:        return 20'000;
-            case Priority::UI_DEFERRABLE: return 50'000;
-            default:                       return  1'000;
-            }
-        }
+        static int64_t min_privilege_age_us(Priority pr) noexcept;
+        static bool    try_register_privileged_tidstamp(Priority pr,
+                                                        cnt_t tidstamp) noexcept;
+        static void    release_privileged_tidstamp() noexcept;
+        static bool    fair_mode_blocks_me(cnt_t tidstamp) noexcept;
 
-        //! CAS-claim the global privileged slot. Returns true on success
-        //! (caller should set its m_registered_privileged flag); false
-        //! if another thread already holds it OR the caller has not been
-        //! waiting long enough.
-        //!
-        //! The helper computes tx_age internally: started_time_packed is
-        //! the Snapshot/Transaction's m_started_time (tid-packed); we
-        //! unpack the µs component and compare against min_privilege_age_us(pr).
-        //! Logs the claim to stderr so probe traces are cross-correlatable.
-        static inline bool try_register_privileged_tid(
-            Priority pr, cnt_t started_time_packed) noexcept
-        {
-            int64_t tx_age_us = now_us() - stamp_us(started_time_packed);
-            if (tx_age_us < min_privilege_age_us(pr))
-                return false;
-            cnt_t expected = 0;
-            bool ok =
-                Transactional::detail::s_privileged_tidstamp.compare_exchange_strong(
-                    expected, started_time_packed,
-                    std::memory_order_seq_cst,
-                    std::memory_order_relaxed);
-            if (ok) {
-                std::fprintf(stderr,
-                    "[ll-probe] privileged_tid=%u "
-                    "(claimed by stuck oldest Tx; age=%lld us, prio=%d)\n",
-                    (unsigned)stamp_tid(started_time_packed), (long long)tx_age_us, (int)pr);
-            }
-            return ok;
-        }
-        //! Release the global privileged slot. Caller must hold it (i.e.
-        //! its m_registered_privileged was set by a prior successful
-        //! `try_register_privileged_tid`). Plain relaxed store is safe
-        //! because no concurrent writer can exist under that invariant.
-        static inline void release_privileged_tid() noexcept {
-            Transactional::detail::s_privileged_tidstamp.store(
-                (cnt_t)0, std::memory_order_seq_cst);
-        }
-        //! Is fair-mode currently active for SOME other thread? Used at
-        //! the lottery / jittered-gate site of negotiate_internal to
-        //! suppress the stochastic shortcut and let strict Greedy CM
-        //! arbitrate priority while the privileged Tx tries to commit.
-        static inline bool fair_mode_blocks_me(cnt_t started_time_packed) noexcept {
-            cnt_t priv = Transactional::detail::s_privileged_tidstamp.load(
-                std::memory_order_relaxed);
-            if(priv == (cnt_t)0) return false;
-            return priv != started_time_packed;
-        }
+        //! Per-priority livelock-probe parameters (retry threshold + label).
+        struct PriorityProbeInfo {
+            int retry_threshold;
+            const char *name;
+        };
+        static PriorityProbeInfo priority_probe_info(Priority pr) noexcept;
+
+        //! Livelock probe tick. Body references `Transactional::detail::
+        //! tls_livelock_probe` (TLS, kept namespace-scope for portability).
+        //! Returns true iff this tick concluded `verdict=LIVELOCK`.
+        static bool livelock_probe_tx_tick(const void *linkage,
+                                           uint32_t my_tx_retries,
+                                           uint64_t tx_commit_count,
+                                           int tags_owned,
+                                           int tags_total,
+                                           int64_t tx_age_us,
+                                           Priority prio) noexcept;
+
+        //=====================================================================
+        // Sleep-slot infrastructure for negotiate_sleep / notify_n_contenders.
+        //=====================================================================
+        //! Cache-line aligned so adjacent slots don't false-share when
+        //! two notifier threads on different cores touch neighbouring
+        //! indices. 128-byte alignment leaves headroom for L1/L2 prefetch
+        //! adjacency on x86 and Apple Silicon.
+        struct alignas(128) NegotiateSleepSlot {
+            std::mutex mtx;
+            std::condition_variable cv;
+            bool notified = false;
+        };
+        static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
+        static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};
+
+        static void negotiate_sleep(int ms_timeout) noexcept;
+
+        template<int WORDS>
+        static void notify_n_contenders(const uint64_t (&tid_bitset)[WORDS],
+                                        int n) noexcept;
+        template<int WORDS>
+        static void try_notify_n_contenders(const uint64_t (&tid_bitset)[WORDS],
+                                            int n) noexcept;
 
         static unsigned int numThreadsRunning() {return s_running.load(std::memory_order_relaxed);}
 
@@ -946,14 +925,45 @@ public:
     //! Snapshot-level helper so snapshot()/bundle() can adopt it too in
     //! later refactor passes.
     void tag_as_contender(const std::shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
-        // seq_cst load/store on the atomic m_transaction_started_time.
-        typename Node<XN>::NegotiationCounter::cnt_t current =
-            link->m_transaction_started_time;
-        // Compare on the µs component only — the tid packed in the
-        // upper 16 bits would otherwise dominate the comparison.
+        // CAS-loop variant (Option A). Atomically claim the linkage's
+        // priority slot iff the slot is empty OR the current tagger is
+        // YOUNGER than us (compare on stamp_us only — the tid packed in
+        // the upper 16 bits would otherwise dominate). Without the CAS,
+        // a non-atomic load-compare-store can let a younger Tx overwrite
+        // an older Tx's stamp (last-writer-wins races), which then leads
+        // the younger Tx's livelock probe to incorrectly see
+        // tags_owned == tags_total and claim the privileged slot
+        // ("exception" case observed in N=128 0-commits stalls; see
+        // [ll-debug] dump in ChangeLog / paper §X.).
         using NC = typename Node<XN>::NegotiationCounter;
-        if( !current || (NC::stamp_us(current) > NC::stamp_us(m_started_time)))
-            link->m_transaction_started_time = m_started_time;
+        auto &slot = link->m_transaction_started_time;
+        // ----- Option B (relaxed store + acquire verify) -----
+        // Linkage stamp may transiently reflect a younger Tx (eventually
+        // corrected by other Txs' retries); the probe-side false-positive
+        // is still avoided because this Tx simply doesn't track the
+        // linkage in its list when its store didn't survive.
+        auto cur = slot.load(std::memory_order_relaxed);
+        if(!cur || NC::stamp_us(cur) > NC::stamp_us(m_started_time)) {
+            slot.store(m_started_time, std::memory_order_release);
+            if(slot.load(std::memory_order_acquire) != m_started_time)
+                return;  // overwritten — don't add to list
+        }
+
+        // ----- Option A (CAS-loop; kept for bench comparison) ---------------
+        // Stronger invariant: linkage stamp always reflects the OLDEST
+        // currently-attempting Tx (no transient younger-overrides-older
+        // window). Costlier on contention (CAS retries).
+        //
+        //     auto cur = slot.load(std::memory_order_relaxed);
+        //     while(!cur || NC::stamp_us(cur) > NC::stamp_us(m_started_time)) {
+        //         if(slot.compare_exchange_weak(cur, m_started_time,
+        //                 std::memory_order_release,
+        //                 std::memory_order_relaxed))
+        //             break;
+        //     }
+        //
+        // -------------------------------------------------------------------
+
         // Dedup: ++tr re-tags the same primary-node linkage on every
         // retry, which otherwise piles duplicate shared_ptr entries
         // onto m_tagged_linkages.
@@ -984,7 +994,7 @@ public:
         // flag too, otherwise ~Transaction() would attempt a redundant
         // (and now stale) clear.
         if (this->m_registered_privileged) {
-            Node<XN>::NegotiationCounter::release_privileged_tid();
+            Node<XN>::NegotiationCounter::release_privileged_tidstamp();
             this->m_registered_privileged = false;
         }
     }
@@ -1001,18 +1011,37 @@ protected:
     //! Promoted from Transaction<XN> so snapshot() tree-walk paths and
     //! negotiate() helpers can be rewritten to take a single Snapshot&
     //! parameter instead of threading a separate started_time argument.
+    //!
+    //! Set once per object by either the standalone-Snapshot ctor
+    //! (Snapshot(const Node&)) or the Transaction ctor — never reset by
+    //! retries. The µs component (via NegotiationCounter::stamp_us)
+    //! is what the livelock probe reports as `tx_age_us`; that label
+    //! covers both Snapshot age and Transaction age depending on which
+    //! ctor stamped this field.
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time = {};
     //! Per-attempt TID observation bitset for the adaptive-lease path.
     //! Also promoted from Transaction<XN>. The standalone-Snapshot ctor
     //! fills this in tree-walk; Transaction<XN> inherits and reuses.
     typename Node<XN>::TidBitset m_tid_bitset = {};
-    //! Transaction-level retry count. Bumped in `Transaction::operator++()`
-    //! on every outer iterate_commit retry; stays 0 for a pure Snapshot
-    //! (not wrapped by Transaction) and for a fresh Transaction
-    //! (default-initialized). Consumed by the optional livelock probe to
-    //! separate "CAS retries piling up (normal under contention)" from
-    //! "Transaction retries piling up while the linkage's CAS commits
-    //! continue" — livelock at the Transaction layer.
+    //! Retry count consumed by the livelock probe.
+    //!
+    //! Bumped from **two** distinct sites:
+    //!   1. `Transaction::operator++()` — once per outer iterate_commit retry
+    //!      (Tx-layer retry; covers Tx that never bundle).
+    //!   2. `Node::snapshot()` retry loop — once per pure-Snapshot bundle retry
+    //!      (Snapshot/bundle-layer retry; can fire without any Tx).
+    //!
+    //! The `m_tx_` prefix is therefore historical (predates the snapshot-side
+    //! increment): the field aggregates both Tx-retry and bundle-retry counts.
+    //! The name is retained for log-format / ABI continuity (the probe prints
+    //! it as `my_tx_retries=…`); no single short prefix captures both sources
+    //! without lying at one site or the other.
+    //!
+    //! Stays 0 for a pure Snapshot that needs no retry, and for a fresh
+    //! Transaction (default-initialized). Consumed by the optional livelock
+    //! probe to separate "CAS retries piling up (normal under contention)"
+    //! from "Tx/bundle retries piling up while the linkage's CAS commits
+    //! continue" — livelock at the Tx-or-bundle layer.
     uint32_t m_tx_retry_count = 0;
     //! Per-Tx ownership flag for the global `s_privileged_tidstamp` slot.
     //! Set true in negotiate_internal's probe path when THIS Transaction
@@ -1190,9 +1219,11 @@ private:
 //	}
     //! Takes another snapshot and prepares for a next transaction.
     Transaction &operator++() {
-        // Transaction-level retry counter for the livelock probe.
-        // Counts outer iterate_commit iterations. Lives on the Snapshot
-        // base (this->m_tx_retry_count, zero-initialised by default).
+        // Tx-layer retry counter feeding the livelock probe. Counts outer
+        // iterate_commit iterations. The same field (m_tx_retry_count on
+        // the Snapshot base, zero-initialised by default) is also bumped
+        // from Node::snapshot()'s retry loop — see the doc-block at the
+        // field declaration. The probe consumes the aggregated value.
         ++this->m_tx_retry_count;
         Node<XN> &node(this->m_packet->node());
         if(isMultiNodal())
