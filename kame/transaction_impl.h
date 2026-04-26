@@ -199,7 +199,7 @@ namespace detail {
     //! first. Cleared by the registering Tx in finalizeCommitment
     //! (success) or its destructor (abort) — see Snapshot's
     //! m_registered_privileged flag (transaction.h) for nesting safety.
-    inline std::atomic<uint16_t> s_privileged_tid{0};
+    inline std::atomic<int64_t> s_privileged_tidstamp{0};
 
     // Cache-line aligned so adjacent slots don't false-share when two
     // notifier threads on different cores touch neighbouring indices.
@@ -239,10 +239,11 @@ namespace detail {
         // Fair-mode escape: if a privileged TID is registered, wake
         // its sleep slot first so the stuck oldest Tx gets a chance
         // to retry ahead of the rest of the bitset.
-        uint16_t priv = s_privileged_tid.load(std::memory_order_relaxed);
+        uint16_t priv_tid = stamp_tid(
+            s_privileged_tidstamp.load(std::memory_order_relaxed));
         int priv_slot = -1;
-        if (priv != 0 && n > 0) {
-            priv_slot = (int)(((unsigned)priv) % NEGOTIATE_SLEEP_SLOTS);
+        if (priv_tid != 0 && n > 0) {
+            priv_slot = (int)(((unsigned)priv_tid) % NEGOTIATE_SLEEP_SLOTS);
             auto &st = s_sleep_slots[priv_slot];
             { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
             st.cv.notify_one();
@@ -341,7 +342,7 @@ namespace detail {
     //   LOWEST          → 5  (background — tolerates yielding)
     //! Returns true iff this tick concluded `verdict=LIVELOCK`. Caller
     //! (negotiate_internal) uses the return to drive the fair-mode
-    //! `s_privileged_tid` CAS — a per-Transaction concern that lives
+    //! `s_privileged_tidstamp` CAS — a per-Transaction concern that lives
     //! outside this detail namespace.
     inline bool livelock_probe_tx_tick(const void *linkage,
                                        uint32_t my_tx_retries,
@@ -361,7 +362,6 @@ namespace detail {
         }
         int64_t now_us    = ll_now_us();
         int64_t window_us = now_us - p.t_window_us;
-        if (window_us < 10'000) return false;   // < 10 ms: window too short
 
         // m_tx_retry_count restarts at 0 when a new Transaction ctor
         // fires; handle wrap-to-smaller-value by treating delta as
@@ -424,7 +424,7 @@ namespace detail {
     // When the livelock probe (above) returns verdict=LIVELOCK on a
     // Transaction that is the Greedy CM winner (oldest started_time,
     // all linkage tags claimed) yet making no commit progress, that Tx
-    // CAS-claims `s_privileged_tid`. While the slot is non-zero AND
+    // CAS-claims `s_privileged_tidstamp`. While the slot is non-zero AND
     // != my_tid:
     //
     //   * the jittered gate and √C lottery in negotiate_internal's
@@ -719,64 +719,68 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // No pre-loop yield: the m_transaction_started_time load below is
     // the cheap collision-clear check.
 #if defined(KAME_STM_LIVELOCK_PROBE) && KAME_STM_LIVELOCK_PROBE
-    // Count tagged linkages whose m_transaction_started_time == ours
-    // (= "priority is already mine on every linkage" = primary
-    //   livelock precondition per the refined definition).
-    int _ll_total = (int)snap.m_tagged_linkages.size();
-    int _ll_owned = 0;
-    for (auto &_l : snap.m_tagged_linkages) {
-        if (_l && _l->m_transaction_started_time.load(
-                std::memory_order_relaxed) == snap.m_started_time)
-            ++_ll_owned;
-    }
-    // tx age = wall time since Transaction ctor started (m_started_time
-    // is set once in the ctor, not reset by operator++).
-    // m_started_time is tid-packed; unpack the µs component before
-    // subtracting the raw-µs now_us() value.
-    int64_t _ll_age_us = (int64_t)(
-        Node<XN>::NegotiationCounter::now_us()
-        - Node<XN>::NegotiationCounter::stamp_us(snap.m_started_time));
-    // Priority-dependent retry threshold for the livelock verdict.
-    // HIGHEST is real-time-like and must not retry; NORMAL is the
-    // common case; UI_DEFERRABLE and LOWEST tolerate retries as
-    // they are explicitly willing to yield.
-    Priority _ll_prio = getCurrentPriorityMode();
-    int _ll_retry_threshold;
-    const char *_ll_prio_name;
-    switch (_ll_prio) {
-        case Priority::HIGHEST:
-            _ll_retry_threshold = 2; _ll_prio_name = "HIGHEST"; break;
-        case Priority::NORMAL:
-            _ll_retry_threshold = 3; _ll_prio_name = "NORMAL"; break;
-        case Priority::UI_DEFERRABLE:
-            _ll_retry_threshold = 4; _ll_prio_name = "UI_DEFERRABLE"; break;
-        case Priority::LOWEST:
-            _ll_retry_threshold = 4; _ll_prio_name = "LOWEST"; break;
-        default:
-            _ll_retry_threshold = 3; _ll_prio_name = "?"; break;
-    }
-    bool _ll_saw = detail::livelock_probe_tx_tick(
-        static_cast<const void*>(this),
-        snap.m_tx_retry_count,
-        m_tx_commit_count,
-        _ll_owned, _ll_total, _ll_age_us,
-        _ll_retry_threshold, _ll_prio_name);
-    // Fair-mode escape: when verdict=LIVELOCK fires for this Tx, the
-    // global slot is free, and the Tx has aged past the per-priority
-    // floor (see NegotiationCounter::min_privilege_age_us), claim it.
-    // Subsequent LIVELOCK ticks on the same Tx are no-ops because
-    // m_registered_privileged is already set. Cleared in
-    // finalizeCommitment / ~Transaction.
-    if (_ll_saw && !snap.m_registered_privileged
-        && NegotiationCounter::try_register_privileged_tid(
-               _ll_prio, snap.m_started_time)) {
-        snap.m_registered_privileged = true;
+    int64_t window_us = Node<XN>::NegotiationCounter::now_us()
+                     - NegotiationCounter::stamp_us(started_time);
+    if (window_us >= KAME_STM_LIVELOCK_MIN_AGE_US) {  //skips if window too short
+        // Count tagged linkages whose m_transaction_started_time == ours
+        // (= "priority is already mine on every linkage" = primary
+        //   livelock precondition per the refined definition).
+        int _ll_total = (int)snap.m_tagged_linkages.size();
+        int _ll_owned = 0;
+        for (auto &_l : snap.m_tagged_linkages) {
+            if (_l && _l->m_transaction_started_time.load(
+                    std::memory_order_relaxed) == snap.m_started_time)
+                ++_ll_owned;
+        }
+        // tx age = wall time since Transaction ctor started (m_started_time
+        // is set once in the ctor, not reset by operator++).
+        // m_started_time is tid-packed; unpack the µs component before
+        // subtracting the raw-µs now_us() value.
+        int64_t _ll_age_us = (int64_t)(
+            Node<XN>::NegotiationCounter::now_us()
+            - Node<XN>::NegotiationCounter::stamp_us(snap.m_started_time));
+        // Priority-dependent retry threshold for the livelock verdict.
+        // HIGHEST is real-time-like and must not retry; NORMAL is the
+        // common case; UI_DEFERRABLE and LOWEST tolerate retries as
+        // they are explicitly willing to yield.
+        Priority _ll_prio = getCurrentPriorityMode();
+        int _ll_retry_threshold;
+        const char *_ll_prio_name;
+        switch (_ll_prio) {
+            case Priority::HIGHEST:
+                _ll_retry_threshold = 2; _ll_prio_name = "HIGHEST"; break;
+            case Priority::NORMAL:
+                _ll_retry_threshold = 3; _ll_prio_name = "NORMAL"; break;
+            case Priority::UI_DEFERRABLE:
+                _ll_retry_threshold = 4; _ll_prio_name = "UI_DEFERRABLE"; break;
+            case Priority::LOWEST:
+                _ll_retry_threshold = 4; _ll_prio_name = "LOWEST"; break;
+            default:
+                _ll_retry_threshold = 3; _ll_prio_name = "?"; break;
+        }
+        bool _ll_saw = detail::livelock_probe_tx_tick(
+            static_cast<const void*>(this),
+            snap.m_tx_retry_count,
+            m_tx_commit_count,
+            _ll_owned, _ll_total, _ll_age_us,
+            _ll_retry_threshold, _ll_prio_name);
+        // Fair-mode escape: when verdict=LIVELOCK fires for this Tx, the
+        // global slot is free, and the Tx has aged past the per-priority
+        // floor (see NegotiationCounter::min_privilege_age_us), claim it.
+        // Subsequent LIVELOCK ticks on the same Tx are no-ops because
+        // m_registered_privileged is already set. Cleared in
+        // finalizeCommitment / ~Transaction.
+        if (_ll_saw && !snap.m_registered_privileged
+            && NegotiationCounter::try_register_privileged_tid(
+                   _ll_prio, snap.m_started_time)) {
+            snap.m_registered_privileged = true;
+        }
     }
 #endif
 
     // Always-on adaptive path: the V0 (legacy) path and the V0↔ADAPTIVE
     // mode switch were removed in favour of the orthogonal fair-mode
-    // escape (s_privileged_tid). See top of detail:: in this file.
+    // escape (s_privileged_tidstamp). See top of detail:: in this file.
   { // adaptive-path scope
     // One atomic load of the packed (tid | lease_us | start_us) tuple.
     auto ps = loadPriority();
@@ -963,7 +967,7 @@ after_lease_block: ;
         // privileged Tx alone gets to commit. Strict Greedy CM (older
         // started_time wins → I sleep below) is the only mechanism left
         // to allocate priority while fair-mode is active.
-        const bool _fair_blocks = NegotiationCounter::fair_mode_blocks_me();
+        const bool _fair_blocks = NegotiationCounter::fair_mode_blocks_me(started_time);
         if(pr != Priority::LOWEST && dt > 0 && !_fair_blocks) {
             // (a) Jittered gate: break early when the waiting time justifies it.
             //     LHS = mult_wait * 2 * dt * J, RHS = dt2.  J ∈ [1-R/100, 1+R/100]
@@ -1802,79 +1806,23 @@ void
 Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
     auto &started_time = snapshot.m_started_time;
     auto &tid_bitset = snapshot.m_tid_bitset;
-    // Snapshot-mode fair-mode escape: if no Transaction
-    // wrapping it, so the per-Tx m_registered_privileged flag is not in
-    // play. A function-local RAII guard handles register/release within
-    // the scope of THIS routine's retries, which is the only place the
-    // privilege is needed for snapshot-mode contention.
-    struct PrivGuard {
-        bool registered = false;
-        bool already_registered_by_tr;
-        ~PrivGuard() {
-            if (registered && !already_registered_by_tr)
-                Node<XN>::NegotiationCounter::release_privileged_tid();
+    struct GuardSnapshotRetryCount {
+        GuardSnapshotRetryCount(Snapshot<XN> &s) : snapshot(s) {
+            m_retry_count_started = snapshot.m_tx_retry_count;
         }
-    } _priv_guard;
-    _priv_guard.already_registered_by_tr = snapshot.m_registered_privileged; //true if tr++ has registered.
+        ~GuardSnapshotRetryCount() {
+            snapshot.m_tx_retry_count = m_retry_count_started;
+        }
+        Snapshot<XN> &snapshot;
+        uint32_t m_retry_count_started;
+    } guard(snapshot);
+
     local_shared_ptr<PacketWrapper> target;
     for(int retry = 0;; ++retry) {
         if(retry) {
+            ++snapshot.m_tx_retry_count;
             m_link->negotiate_after_retry_pause(retry, snapshot, 2.0f);
             snapshot.tag_as_contender(m_link);
-            // After this snapshot's m_started_time has aged past the
-            // per-priority floor (NegotiationCounter::min_privilege_age_us)
-            // and our retry count is past 0, claim the global fair-mode
-            // privilege so other threads short-circuit lottery / gate
-            // against us. CAS is idempotent: only the first successful
-            // call per scope wins; subsequent retries see registered==true
-            // and skip.
-            if (retry > 1 && !_priv_guard.registered) {
-                // Count tagged linkages whose m_transaction_started_time == ours
-                // (= "priority is already mine on every linkage" = primary
-                //   livelock precondition per the refined definition).
-                int _ll_total = (int)snapshot.m_tagged_linkages.size();
-                int _ll_owned = 0;
-                for (auto &_l : snapshot.m_tagged_linkages) {
-                    if (_l && _l->m_transaction_started_time.load(
-                            std::memory_order_relaxed) == snapshot.m_started_time)
-                        ++_ll_owned;
-                }
-                // tx age = wall time since Transaction ctor started (m_started_time
-                // is set once in the ctor, not reset by operator++).
-                // m_started_time is tid-packed; unpack the µs component before
-                // subtracting the raw-µs now_us() value.
-                int64_t _ll_age_us = (int64_t)(
-                    Node<XN>::NegotiationCounter::now_us()
-                    - Node<XN>::NegotiationCounter::stamp_us(snapshot.m_started_time));
-                // Priority-dependent retry threshold for the livelock verdict.
-                // HIGHEST is real-time-like and must not retry; NORMAL is the
-                // common case; UI_DEFERRABLE and LOWEST tolerate retries as
-                // they are explicitly willing to yield.
-                Priority _ll_prio = getCurrentPriorityMode();
-                int _ll_retry_threshold;
-                const char *_ll_prio_name;
-                switch (_ll_prio) {
-                    case Priority::HIGHEST:
-                        _ll_retry_threshold = 2; _ll_prio_name = "HIGHEST"; break;
-                    case Priority::NORMAL:
-                        _ll_retry_threshold = 3; _ll_prio_name = "NORMAL"; break;
-                    case Priority::UI_DEFERRABLE:
-                        _ll_retry_threshold = 4; _ll_prio_name = "UI_DEFERRABLE"; break;
-                    case Priority::LOWEST:
-                        _ll_retry_threshold = 4; _ll_prio_name = "LOWEST"; break;
-                    default:
-                        _ll_retry_threshold = 3; _ll_prio_name = "?"; break;
-                }
-                bool _ll_saw = detail::livelock_probe_tx_tick(
-                    static_cast<const void*>(this->m_link.get()),
-                    snapshot.m_tx_retry_count,
-                    this->m_link->m_tx_commit_count,
-                    _ll_owned, _ll_total, _ll_age_us,
-                    _ll_retry_threshold, _ll_prio_name);
-                _priv_guard.registered =
-                    NegotiationCounter::try_register_privileged_tid(
-                        getCurrentPriorityMode(), snapshot.m_started_time);
-            }
         }
         target = *m_link;
         snapshot.m_serial = SerialGenerator::gen(target->m_bundle_serial);

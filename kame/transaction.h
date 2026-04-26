@@ -26,34 +26,6 @@
 
 namespace Transactional {
 
-namespace detail {
-    //! Per-thread nesting depth of Transaction/Snapshot scopes. s_running
-    //! (in Node<XN>::NegotiationCounter) picks up +1 only on the 0 → 1
-    //! transition so nested transactions do not inflate the runner count.
-    //! Namespace-scope (not template static) because nesting is a
-    //! per-thread property and to work around an Apple clang / arm64
-    //! TLS-wrapper-emission bug for template static `thread_local`.
-    inline thread_local int s_tx_nest = 0;
-    //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
-    inline thread_local int s_sleep_nest = 0;
-    //! Globally registered "privileged TID" for the fair-mode escape.
-    //! Defined in transaction_impl.h (above notify_n_contenders);
-    //! forward-declared here so the inline `~Transaction()` and
-    //! `finalizeCommitment` bodies in this header can compile without
-    //! pulling the impl header in.
-    extern std::atomic<uint16_t> s_privileged_tid;
-} // namespace detail
-
-// Portable 64-bit popcount. Visible in transaction.h so inline member
-// functions (e.g. negotiate()) can use it. GCC/Clang/MSVC intrinsics.
-static inline int popcount_u64(uint64_t x) noexcept {
-#ifdef _MSC_VER
-    return (int)__popcnt64(x);
-#else
-    return __builtin_popcountll(x);
-#endif
-}
-
 //! \page stmintro Brief introduction of software transactional memory using the class Node
 //!  Tree-structure objects, consisting of Node and derived classes, work as
 //! software transactional memory (STM) by accessing through Transaction or Snapshot class.\n
@@ -106,6 +78,46 @@ class Transaction;
 enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
+
+namespace detail {
+    //! Per-thread nesting depth of Transaction/Snapshot scopes. s_running
+    //! (in Node<XN>::NegotiationCounter) picks up +1 only on the 0 → 1
+    //! transition so nested transactions do not inflate the runner count.
+    //! Namespace-scope (not template static) because nesting is a
+    //! per-thread property and to work around an Apple clang / arm64
+    //! TLS-wrapper-emission bug for template static `thread_local`.
+    inline thread_local int s_tx_nest = 0;
+    //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
+    inline thread_local int s_sleep_nest = 0;
+    //! Globally registered "privileged TID" and timestamp for the fair-mode escape.
+    //! Defined in transaction_impl.h (above notify_n_contenders);
+    //! forward-declared here so the inline `~Transaction()` and
+    //! `finalizeCommitment` bodies in this header can compile without
+    //! pulling the impl header in.
+    using cnt_t = int64_t;
+    extern std::atomic<cnt_t> s_privileged_tidstamp;
+    inline cnt_t pack_stamp(cnt_t us, uint16_t tid) noexcept {
+        return (us & ((cnt_t{1} << 48) - 1)) | (cnt_t{tid} << 48);
+    }
+    inline cnt_t stamp_us(cnt_t x) noexcept {
+        // Low 48 bits; steady-clock µs is always positive so a
+        // plain mask is correct (no sign-extension needed).
+        return x & ((cnt_t{1} << 48) - 1);
+    }
+    inline uint16_t stamp_tid(cnt_t x) noexcept {
+        return (uint16_t)((uint64_t)x >> 48);
+    }
+} // namespace detail
+
+// Portable 64-bit popcount. Visible in transaction.h so inline member
+// functions (e.g. negotiate()) can use it. GCC/Clang/MSVC intrinsics.
+static inline int popcount_u64(uint64_t x) noexcept {
+#ifdef _MSC_VER
+    return (int)__popcnt64(x);
+#else
+    return __builtin_popcountll(x);
+#endif
+}
 
 //! \brief This is a base class of nodes which carries data sets for itself (Payload) and for subnodes.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.
@@ -267,7 +279,7 @@ private:
     };
 
     struct DECLSPEC_KAME NegotiationCounter {
-        using cnt_t = int64_t;
+        using cnt_t = detail::cnt_t;
         //! Monotonic µs counter. Uses steady_clock (not wall-clock
         //! gettimeofday) so the µs since program start fit comfortably
         //! in 48 bits — the lower half of the tid-packed stamp type
@@ -292,15 +304,13 @@ private:
         //! -O2/-O3 the mask is folded into the surrounding instruction
         //! stream at zero extra cost on top of the atomic load itself.
         static inline cnt_t pack_stamp(cnt_t us, uint16_t tid) noexcept {
-            return (us & ((cnt_t{1} << 48) - 1)) | (cnt_t{tid} << 48);
+            return detail::pack_stamp(us, tid);
         }
         static inline cnt_t stamp_us(cnt_t x) noexcept {
-            // Low 48 bits; steady-clock µs is always positive so a
-            // plain mask is correct (no sign-extension needed).
-            return x & ((cnt_t{1} << 48) - 1);
+            return detail::stamp_us(x);
         }
         static inline uint16_t stamp_tid(cnt_t x) noexcept {
-            return (uint16_t)((uint64_t)x >> 48);
+            return detail::stamp_tid(x);
         }
         //! `now_us()` with the current thread's ProcessCounter::id
         //! packed into the upper 16 bits. Used at Transaction /
@@ -318,7 +328,7 @@ private:
         // jittered gate via `fair_mode_blocks_me()`. The registering Tx
         // itself calls `release_privileged_tid()` from finalizeCommitment
         // (success) or ~Transaction (abort). The underlying atomic
-        // `Transactional::detail::s_privileged_tid` is forward-declared
+        // `Transactional::detail::s_privileged_tidstamp` is forward-declared
         // at the top of this file (see namespace detail).
         //=====================================================================
 
@@ -356,18 +366,17 @@ private:
             int64_t tx_age_us = now_us() - stamp_us(started_time_packed);
             if (tx_age_us < min_privilege_age_us(pr))
                 return false;
-            uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
-            uint16_t expected = 0;
+            cnt_t expected = 0;
             bool ok =
-                Transactional::detail::s_privileged_tid.compare_exchange_strong(
-                    expected, my_tid,
+                Transactional::detail::s_privileged_tidstamp.compare_exchange_strong(
+                    expected, started_time_packed,
                     std::memory_order_seq_cst,
                     std::memory_order_relaxed);
             if (ok) {
                 std::fprintf(stderr,
                     "[ll-probe] privileged_tid=%u "
                     "(claimed by stuck oldest Tx; age=%lld us, prio=%d)\n",
-                    (unsigned)my_tid, (long long)tx_age_us, (int)pr);
+                    (unsigned)stamp_tid(started_time_packed), (long long)tx_age_us, (int)pr);
             }
             return ok;
         }
@@ -376,19 +385,18 @@ private:
         //! `try_register_privileged_tid`). Plain relaxed store is safe
         //! because no concurrent writer can exist under that invariant.
         static inline void release_privileged_tid() noexcept {
-            Transactional::detail::s_privileged_tid.store(
-                (uint16_t)0, std::memory_order_seq_cst);
+            Transactional::detail::s_privileged_tidstamp.store(
+                (cnt_t)0, std::memory_order_seq_cst);
         }
         //! Is fair-mode currently active for SOME other thread? Used at
         //! the lottery / jittered-gate site of negotiate_internal to
         //! suppress the stochastic shortcut and let strict Greedy CM
         //! arbitrate priority while the privileged Tx tries to commit.
-        static inline bool fair_mode_blocks_me() noexcept {
-            uint16_t priv = Transactional::detail::s_privileged_tid.load(
+        static inline bool fair_mode_blocks_me(cnt_t started_time_packed) noexcept {
+            cnt_t priv = Transactional::detail::s_privileged_tidstamp.load(
                 std::memory_order_relaxed);
-            if(priv == 0) return false;
-            uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
-            return priv != my_tid;
+            if(priv == (cnt_t)0) return false;
+            return priv != started_time_packed;
         }
 
         static unsigned int numThreadsRunning() {return s_running.load(std::memory_order_relaxed);}
@@ -861,7 +869,7 @@ public:
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
         node.snapshot( *this, multi_nodal);
-        drop_tags();
+        drop_tags_n_privilege();
     }
 
     //! \return Payload instance for \a node, which should be included in the snapshot.
@@ -966,10 +974,18 @@ public:
     //! A stale tag (value != m_started_time, e.g. somebody younger
     //! overwrote ours) is left alone — the other thread will clear it
     //! from its own tranaction destructor.
-    void drop_tags() noexcept {
+    void drop_tags_n_privilege() noexcept {
         for(auto &sp : m_tagged_linkages) {
             if(sp->m_transaction_started_time == m_started_time)
                 sp->m_transaction_started_time = 0;
+        }
+        // If we held the fair-mode privilege, release it on commit so the
+        // global slot is available for the next stuck Tx. Reset the local
+        // flag too, otherwise ~Transaction() would attempt a redundant
+        // (and now stale) clear.
+        if (this->m_registered_privileged) {
+            Node<XN>::NegotiationCounter::release_privileged_tid();
+            this->m_registered_privileged = false;
         }
     }
 
@@ -998,13 +1014,13 @@ protected:
     //! "Transaction retries piling up while the linkage's CAS commits
     //! continue" — livelock at the Transaction layer.
     uint32_t m_tx_retry_count = 0;
-    //! Per-Tx ownership flag for the global `s_privileged_tid` slot.
+    //! Per-Tx ownership flag for the global `s_privileged_tidstamp` slot.
     //! Set true in negotiate_internal's probe path when THIS Transaction
     //! successfully CAS-claimed the slot (i.e. won the 0→my_tid race).
     //! Cleared by the registering Tx itself in finalizeCommitment
     //! (success path) and Transaction::~Transaction() (abort path).
     //! Required for nesting safety: an inner Tx on the same thread sees
-    //! s_privileged_tid == my_tid and does not CAS again, so its
+    //! s_privileged_tidstamp == my_tid + stamp and does not CAS again, so its
     //! m_registered_privileged stays false and its dtor will not steal
     //! the outer's privilege.
     bool m_registered_privileged = false;
@@ -1086,13 +1102,10 @@ public:
     //! when it still equals ours) so later contenders don't race against
     //! a stale owner. Always drops tags; the primary-node tag is always
     //! in the list on multi-nodal retries. Also clears the global
-    //! `s_privileged_tid` if THIS Transaction registered it (covers the
+    //! `s_privileged_tidstamp` if THIS Transaction registered it (covers the
     //! abort path so a fair-mode escape doesn't outlive its issuing Tx).
     ~Transaction() {
-        if (this->m_registered_privileged) {
-            Node<XN>::NegotiationCounter::release_privileged_tid();
-        }
-        Snapshot<XN>::drop_tags();
+        Snapshot<XN>::drop_tags_n_privilege();
     }
 
     //! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
@@ -1232,18 +1245,10 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // the optional livelock probe. Single writer (the iterate_commit
     // winner) per tx, so the non-atomic ++ is race-free.
     ++node.m_link->m_tx_commit_count;
-    // If we held the fair-mode privilege, release it on commit so the
-    // global slot is available for the next stuck Tx. Reset the local
-    // flag too, otherwise ~Transaction() would attempt a redundant
-    // (and now stale) clear.
-    if (this->m_registered_privileged) {
-        Node<XN>::NegotiationCounter::release_privileged_tid();
-        this->m_registered_privileged = false;
-    }
-    //Clears the time stamp linked to this object.
+    //Clears the time stamp linked to this object and privilage.
     // Drop all contender tags (including TAG_ON_DISTURB child tags) before
-    // zeroing m_started_time; drop_tags() matches on the current value.
-    this->drop_tags();
+    // zeroing m_started_time; drop_tags_n_privilege() matches on the current value.
+    this->drop_tags_n_privilege();
     m_started_time = 0;
     m_oneup.reset();
 
