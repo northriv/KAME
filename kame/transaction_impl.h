@@ -428,12 +428,15 @@ public:
 // thrash on normal contention". 100ms for HIGHEST/NORMAL was selected
 // to avoid the dynamic_node_test churn-deadlock seen at 1ms (short
 // Txs aged past 1ms trivially → constant preempt-cycle).
+#ifndef KAME_STM_PRIV_AGE_NORMAL_US
+#define KAME_STM_PRIV_AGE_NORMAL_US 20'000   // 20 ms — sweep winner (≥20ms for RT safety)
+#endif
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
     switch (pr) {
     case Priority::LOWEST:        return 30'000;
     case Priority::UI_DEFERRABLE: return 50'000;
-    default:                      return 100'000;  /* HIGHEST / NORMAL */
+    default:                      return KAME_STM_PRIV_AGE_NORMAL_US;  /* HIGHEST / NORMAL */
     }
 }
 
@@ -503,8 +506,11 @@ template <class XN>
 typename Node<XN>::NegotiationCounter::PriorityProbeInfo
 Node<XN>::NegotiationCounter::priority_probe_info(Priority pr) noexcept {
     switch (pr) {
+#ifndef KAME_STM_RETRY_THRESH_NORMAL
+#define KAME_STM_RETRY_THRESH_NORMAL 4   // sweep winner: 4 > 3 > 5 at AGE=20ms
+#endif
         case Priority::HIGHEST:       return { 2, "HIGHEST" };
-        case Priority::NORMAL:        return { 3, "NORMAL" };
+        case Priority::NORMAL:        return { KAME_STM_RETRY_THRESH_NORMAL, "NORMAL" };
         case Priority::UI_DEFERRABLE: return { 4, "UI_DEFERRABLE" };
         case Priority::LOWEST:        return { 4, "LOWEST" };
         default:                      return { 3, "?" };
