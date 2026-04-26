@@ -18,6 +18,7 @@
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
@@ -76,6 +77,8 @@ template <class XN>
 class Snapshot;
 template <class XN>
 class Transaction;
+template <class XN>
+class ScopedNegotiateLinkage;
 
 enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
@@ -123,6 +126,7 @@ static inline int popcount_u64(uint64_t x) noexcept {
 //! \sa XNode.
 template <class XN>
 class DECLSPEC_KAME Node {
+    template <class> friend class ScopedNegotiateLinkage;
 public:
     template <class T, typename... Args>
     static T *create(Args&&... args);
@@ -328,12 +332,12 @@ private:
         //! `release_privileged_tidstamp`. C++17 inline static so it has
         //! exactly one instance per `Node<XN>` instantiation (KAME only
         //! instantiates `Node<XNode>`, so effectively one global).
-        static inline std::atomic<cnt_t> s_privileged_tidstamp{0};
+        alignas(64) static inline std::atomic<cnt_t> s_privileged_tidstamp{0};
 
         static int64_t min_privilege_age_us(Priority pr) noexcept;
         static bool    try_register_privileged_tidstamp(Priority pr,
                                                         cnt_t tidstamp) noexcept;
-        static void    release_privileged_tidstamp() noexcept;
+        static void    release_privileged_tidstamp(cnt_t my_tidstamp) noexcept;
         static bool    fair_mode_blocks_me(cnt_t tidstamp) noexcept;
 
         //! Per-priority livelock-probe parameters (retry threshold + label).
@@ -415,7 +419,7 @@ private:
             }
         };
     private:
-        static atomic<unsigned int> s_running;
+        alignas(64) static atomic<unsigned int> s_running;
     };
 
     //! Generates a serial number assigned to bundling and transaction.\n
@@ -604,7 +608,7 @@ private:
             // so we short-circuit when the collision marker is clear. The
             // relaxed load here is the same one negotiate_internal would
             // do first, so we pay no extra in the collision case either.
-            if( !m_transaction_started_time.load(std::memory_order_relaxed))
+            if( !m_transaction_started_time.load(std::memory_order_relaxed)) [[likely]]
                 return;
             negotiate_internal(snap, mult_wait);
 #endif
@@ -800,7 +804,8 @@ private:
         local_shared_ptr<Packet> *upperpacket, int *index) const;
 //	static void fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> >  &subwrappers,
 //		const local_shared_ptr<Packet> &packet);
-    static void eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial);
+    static void eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
+                             Snapshot<XN> &snap);
 protected:
     //! Use \a create().
     Node();
@@ -825,6 +830,7 @@ T *Node<XN>::create(Args&&... args) {
 //! \sa Node, Transaction, SingleSnapshot, SingleTransaction.
 template <class XN>
 class DECLSPEC_KAME Snapshot {
+    template <class> friend class ScopedNegotiateLinkage;
 public:
     // Defaulted copy/move handle all members including the C-array
     // m_tid_bitset (implicit memcpy). Transaction<XN>-accepting ctors
@@ -942,10 +948,11 @@ public:
         // corrected by other Txs' retries); the probe-side false-positive
         // is still avoided because this Tx simply doesn't track the
         // linkage in its list when its store didn't survive.
+        const auto my_us = NC::stamp_us(m_started_time);
         auto cur = slot.load(std::memory_order_relaxed);
-        if(!cur || NC::stamp_us(cur) > NC::stamp_us(m_started_time)) {
+        if(!cur || NC::stamp_us(cur) > my_us) {
             slot.store(m_started_time, std::memory_order_release);
-            if(slot.load(std::memory_order_acquire) != m_started_time)
+            if(slot.load(std::memory_order_acquire) != m_started_time) [[unlikely]]
                 return;  // overwritten — don't add to list
         }
 
@@ -994,7 +1001,7 @@ public:
         // flag too, otherwise ~Transaction() would attempt a redundant
         // (and now stale) clear.
         if (this->m_registered_privileged) {
-            Node<XN>::NegotiationCounter::release_privileged_tidstamp();
+            Node<XN>::NegotiationCounter::release_privileged_tidstamp(this->m_started_time);
             this->m_registered_privileged = false;
         }
     }
@@ -1086,6 +1093,21 @@ public:
     }
 protected:
 };
+
+//! Assert that the given Snapshot/Transaction is NOT currently the
+//! fair-mode privileged Tx. Use at any CAS-fail / loop-fail site to
+//! catch livelock-free invariant violations: a privileged Tx must
+//! make forward progress, so failing a CAS or re-iterating a spin
+//! loop while privileged means some other thread bypassed the
+//! fair-mode yield (= a bug in the negotiate / tag_as_contender
+//! coverage). Compiled out via `-DKAME_STM_ASSERT_PRIVILEGE=0`.
+#ifndef KAME_STM_ASSERT_PRIVILEGE
+#define KAME_STM_ASSERT_PRIVILEGE 1
+#endif
+
+// ScopedNegotiateLinkage<XN> definition lives in transaction_impl.h
+// (only used by impl-side retry loops). Forward-declared near the top
+// of this file; friend-declared in Node<XN> and Snapshot<XN>.
 
 //! \brief A class supporting transactional writing for a subtree.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.\n
