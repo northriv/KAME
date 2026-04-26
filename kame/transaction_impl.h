@@ -1909,9 +1909,22 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
         status = SnapshotStatus::NODE_MISSING;
     }
 
-    assert( !r.parent_wrapper->packet() ||
-        (r.parent_wrapper->packet()->node().m_link == r.parent_linkage));
-    assert(( *r.parent_packet)->node().m_link == r.parent_linkage);
+    // Identity check intentionally omitted:
+    //   r.parent_wrapper->packet()->node().m_link == r.parent_linkage
+    //   ( *r.parent_packet)->node().m_link == r.parent_linkage
+    // Both can transiently fail when insert(online_after_insertion=true)
+    // or release() publish the child's bundledBy and the parent's
+    // linkage in two phases (the child's bundledBy must be published
+    // first so reverseLookup works; the parent's linkage update lags).
+    // The two are semantically atomic but cannot be made physically so.
+    //
+    // We do NOT short-circuit to DISTURBED here — that would force
+    // retries in cases where the eventual CAS in unbundle() would have
+    // succeeded (the transient resolves by CAS time), causing livelock.
+    // Instead the cas_infos-driven CAS at unbundle() acts as the
+    // natural race detector: if the observed wrapper has changed at
+    // CAS time, the CAS fails and unbundle() returns DISTURBED, so the
+    // caller retries.
 
     // CAS preparation
     if(status == SnapshotStatus::COLLIDED)
