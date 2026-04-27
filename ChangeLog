@@ -1,3 +1,62 @@
+* Mon Apr 27 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- STM core: K=0 NUMA scaling (8.5 M → 314 M c/s on ohtaka 128c, ×37).
+  Two structural cacheline-contention bottlenecks removed:
+  (a) s_running global atomic counter — replaced with per-thread
+  PaddedCounter held in TLS shared_ptr; global registry is an
+  atomic_shared_ptr<vector<weak_ptr>> COW-published on first use,
+  pruning expired entries on each registration. numThreadsRunning()
+  sums across registered threads (called only from negotiate paths).
+  (b) KAME pool allocator — per-thread chunk pinning. Slow-path
+  compare_exchange-claims an unclaimed chunk via m_thread_pinned_count
+  (0→1) and caches it in TLS s_my_chunk; subsequent allocate() calls
+  bypass the bit0-lock CAS on s_chunks_of_type[]. Pin counters are
+  registered with a namespace-scope thread_local cleanup object
+  (tls_alloc_pin_cleanup) so chunks are returned to the global pool
+  on thread exit. allocate_pooled's non-atomic oldv==0 fast-write
+  removed (always-CAS) so the chunk bitmap stays thread-safe even
+  when multiple threads share a chunk transiently. release_allocator
+  gated on m_thread_pinned_count == 0.
+- STM core: KAME_CACHE_LINE macro (ABI-driven: x86_64/Cortex 64,
+  Apple Silicon/POWER 128, A64FX 256). Applied to RunnerCounterEntry,
+  s_privileged_tidstamp, NegotiateSleepSlot, s_max_c_obs — replacing
+  the previous fixed alignas(64) which under-padded on Apple Silicon
+  (128-byte cacheline) and POWER.
+- STM core: fair_mode_blocks_me() compares only the TID half of the
+  packed tid+stamp slot, not the full stamp. The previous full-stamp
+  inequality self-deadlocked when a nested Tx (e.g. an outer Tx's
+  retry path triggering ~Node()→releaseAll() with its own
+  iterate_commit_if) ran on the privilege-holding thread: the inner
+  Tx carried a different started_time and was wrongly fair-mode
+  blocked by its own slot. Confirmed via lldb backtrace of a
+  transaction_dynamic_node_test hang (frame #15-16: Snapshot ctor
+  → fast_vector destructor → ~Node → releaseAll → nested Tx waiting
+  in negotiate_sleep). Diagnosis was previously masked at PRIV_AGE
+  ≥20 ms because the race window was rarely entered; surfaced when
+  the threshold was lowered.
+- STM core: KAME_STM_PRIV_AGE_NORMAL_US single-knob configuration
+  (verdict gate and preempt floor unified). With the
+  fair_mode_blocks_me TID-fix in place the threshold can be set in
+  the sub-millisecond range without reintroducing the 1ms
+  test_dyn churn-deadlock. OS-aware default: 750 µs on POSIX
+  (Mac/Linux/ohtaka — sweep winner on Mac M3 Air for K=10 N=128:
+  1.25 M → 2.48 M c/s), 10 ms on Windows (default scheduler quantum
+  ≈15.6 ms forces a higher floor). Override at build time with
+  -DKAME_STM_PRIV_AGE_NORMAL_US=N. min_privilege_age_us(LOWEST) =
+  30 ms, (UI_DEFERRABLE) = 50 ms unchanged.
+- KAME allocator: ALLOC_PAGE_SIZE arch-aware default (Apple arm64
+  16 KiB, POWER 64 KiB, else 4 KiB). The previous fixed 4 KiB caused
+  silent mprotect() failure on macOS arm64 once chunk-size growth
+  produced a non-16 KiB-aligned size (500 KiB at the 4th GROW step),
+  manifesting as SIGBUS on the next placement-new write. mprotect
+  failures now abort with diagnostic (errno + page-alignment of addr
+  and size) instead of being lost to assert(no-op under NDEBUG).
+- tests/transaction_payload_integrity_3level_mixed_test: KAME_FIRSTTOUCH
+  env-var opt-in. With KAME_FIRSTTOUCH=1, leaf nodes are allocated
+  inside the worker thread (first-touch on its NUMA node) instead of
+  on the main thread; default 0 preserves the original main-thread
+  pattern used by paper figures. Allocator-pinning largely subsumes
+  this on ohtaka, but the knob is retained for ablation studies.
+
 * Sun Apr 26 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - STM core: livelock-free fair-mode privilege escape. Globally
   registered "privileged TID+stamp" (s_privileged_tidstamp): when the
