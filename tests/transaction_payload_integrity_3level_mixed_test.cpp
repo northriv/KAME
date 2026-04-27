@@ -58,19 +58,33 @@ int main(int argc, char** argv) {
     if(MaxPayload < 1) MaxPayload = 1;
     if(CrossRatio < 0) CrossRatio = 0;
 
+    // NUMA first-touch: when KAME_FIRSTTOUCH=1, leaves are allocated and
+    // inserted from the worker thread that owns them. On NUMA systems the
+    // OS scheduler typically runs each std::thread on a single socket, so
+    // first-touch policy places the leaf Node memory on that socket — the
+    // worker's subsequent CAS / payload-clone activity then stays
+    // socket-local. Default 0 preserves the original main-thread alloc
+    // pattern (used by paper figures).
+    const char *ft_env = std::getenv("KAME_FIRSTTOUCH");
+    const bool FirstTouch = ft_env && ft_env[0] == '1';
+
     fprintf(stderr, "[3level_mixed] StressSeconds=%d NumThreads=%d "
-                    "MaxPayload=%d CrossRatio=%d\n",
-            StressSeconds, NumThreads, MaxPayload, CrossRatio);
+                    "MaxPayload=%d CrossRatio=%d FirstTouch=%d\n",
+            StressSeconds, NumThreads, MaxPayload, CrossRatio,
+            FirstTouch ? 1 : 0);
 
     // Tree: Grand -> Parent -> N children.
     shared_ptr<MyNode> grand(MyNode::create<MyNode>());
     shared_ptr<MyNode> parent(MyNode::create<MyNode>());
     grand->insert(parent);
     std::vector<shared_ptr<MyNode>> children(NumThreads);
-    for(int i = 0; i < NumThreads; ++i) {
-        children[i].reset(MyNode::create<MyNode>());
-        parent->insert(children[i]);
+    if( !FirstTouch) {
+        for(int i = 0; i < NumThreads; ++i) {
+            children[i].reset(MyNode::create<MyNode>());
+            parent->insert(children[i]);
+        }
     }
+    // FirstTouch path: children are created inside the worker (below).
 
     std::atomic<int> barrier{0};
     std::atomic<bool> warming_up{true};
@@ -90,6 +104,14 @@ int main(int argc, char** argv) {
     std::atomic<long long> grand_count_timed{0};
 
     auto worker = [&](int tid) {
+        if(FirstTouch) {
+            // First-touch the leaf Node on this thread's NUMA node so all
+            // subsequent CAS / payload activity stays socket-local. The
+            // STM Tx wrapping `parent->insert` is lock-free and safe to
+            // call from concurrent workers.
+            children[tid].reset(MyNode::create<MyNode>());
+            parent->insert(children[tid]);
+        }
         barrier.fetch_add(1);
         while(barrier.load() < NumThreads) std::this_thread::yield();
 
