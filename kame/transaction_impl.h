@@ -119,8 +119,39 @@
 
 namespace Transactional {
 
-template <class XN>
-alignas(64) atomic<unsigned int> Node<XN>::NegotiationCounter::s_running{0};
+// Per-thread runner counter infrastructure. The vector and registration
+// helper live in Transactional::detail (see transaction.h for design).
+// Definitions are non-templated (only one Node<XN> instantiation in
+// practice) and live here as inline so a single header inclusion gives
+// one storage instance per program (C++17 inline variable / function).
+namespace detail {
+
+inline atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
+
+inline RunnerCounterEntry& runner_counter_register() {
+    auto sp = std::make_shared<RunnerCounterEntry>();
+    tls_runner_counter_holder = sp;
+    tls_runner_counter_ptr = sp.get();
+    // COW publish: append our weak_ptr to the global vector and prune
+    // expired entries (threads that have exited) in the same step so
+    // the vector self-trims without a separate maintenance path.
+    for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
+        local_shared_ptr<RunnerCounterVec> next;
+        next.reset(new RunnerCounterVec);
+        if(old) {
+            next->reserve(old->size() + 1);
+            for(auto &w : *old)
+                if( !w.expired())
+                    next->push_back(w);
+        }
+        next->push_back(std::weak_ptr<RunnerCounterEntry>(sp));
+        if(s_runner_counters.compareAndSwap(old, next)) break;
+    }
+    return *sp;
+}
+
+} // namespace detail
+
 // tx_nest / sleep_nest are defined at namespace scope in transaction.h
 // (detail::s_tx_nest, detail::s_sleep_nest). Placing them outside the
 // class template avoids an Apple clang / arm64 bug where the TLS wrapper
@@ -652,7 +683,7 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
 #if (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
     // Running maximum of observed C (contender count), used as fallback when
     // hardware_concurrency() returns 0.
-    alignas(64) std::atomic<int> s_max_c_obs{1};
+    alignas(KAME_CACHE_LINE) std::atomic<int> s_max_c_obs{1};
 
     // Update max C_obs (relaxed: approximate max is fine)
     inline int effective_runners(int c_obs) noexcept {
