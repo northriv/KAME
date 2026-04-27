@@ -466,7 +466,7 @@ public:
 // place the threshold can be set as low as a few ms without
 // triggering the test_dyn churn-deadlock.
 #ifndef KAME_STM_PRIV_AGE_NORMAL_US
-#define KAME_STM_PRIV_AGE_NORMAL_US 5'000    // 5 ms — fast claim, single knob
+#define KAME_STM_PRIV_AGE_NORMAL_US 750      // 750 us — fast claim, single knob
 #endif
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
