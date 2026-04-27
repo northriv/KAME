@@ -1147,7 +1147,18 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // entry; tid_bitset accumulates across retries within this Tx, but
     // not within a single negotiate_internal call — re-popcount inside
     // the loop would yield the same value, so we reuse sig_C.
-    int C_obs = sig_C < 1 ? 1 : sig_C;
+    //
+    // Floor at KAME_STM_C_OBS_MIN (default 2): with C_obs=1 the
+    // √C lottery threshold becomes ~1.0 (always-fire), causing
+    // unnecessary wake-broadcast overhead even when the workload is
+    // really just 2 threads alternating. Treating C=1 as C=2 for
+    // formula purposes lets the lottery fire at 50% per iteration
+    // (= the natural rate for the 2-thread case) without inflating
+    // contender count anywhere else.
+#ifndef KAME_STM_C_OBS_MIN
+#define KAME_STM_C_OBS_MIN 2
+#endif
+    int C_obs = sig_C < KAME_STM_C_OBS_MIN ? KAME_STM_C_OBS_MIN : sig_C;
 
     for(int ms = 0;;) {
         if(entry_pr == Priority::HIGHEST)
@@ -1245,17 +1256,17 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // Jitter breaks the synchronized-wakeup oscillation that forms when
         // all threads enter and exit negotiate_sleep at the same 1 ms tick.
         //
-        // Low-contention shortcut: when only ≤2 threads are running a
-        // Tx process-wide, the privileged-TID escape cannot help — its
-        // age-difference threshold needs ≥3 thread-spread to develop.
-        // The standard 1 ms CV sleep chunk then becomes the bottleneck
-        // (limits per-thread rate to ~1 kHz for sub-µs commits).
-        // Replace it with std::this_thread::yield() so Greedy CM (older
-        // Tx wins) drives a tight CAS-retry alternation. Gated on
-        // numThreadsRunning() (process-wide, matches the privilege
-        // slot's global scope) rather than per-Linkage C_obs to avoid
-        // mistakenly bypassing the sleep path when an isolated Linkage
-        // sees few contenders but the process has many threads in flight.
+        // Low-contention shortcut: at numThreadsRunning() ≤ 2 the
+        // privileged-TID escape cannot fire (age-spread between
+        // 2 contenders stays µs-scale, well below
+        // min_privilege_age_us), so the standard 1 ms CV sleep
+        // chunk becomes the throughput ceiling. Replace it with
+        // std::this_thread::yield() so Greedy CM (older Tx wins)
+        // drives a tight CAS-retry alternation. Yield (not bare
+        // break) is essential — bare break leaves the same thread
+        // hot-spinning the CAS, which loses the alternation; yield
+        // gives the OS scheduler the opportunity to swap to the
+        // other contender, allowing it to commit cleanly.
         if(NegotiationCounter::numThreadsRunning() <= 2 && ms <= 1) {
             typename NegotiationCounter::ReleaseOneCount onedown;
             std::this_thread::yield();
