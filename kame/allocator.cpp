@@ -781,6 +781,15 @@ PoolAllocatorBase::deallocate_(void *p) {
 	if((pdiff >= 0) && (pdiff < (ptrdiff_t)CHUNK_SIZE * NUM_ALLOCATORS_IN_SPACE)) {
 		int cidx = pdiff / CHUNK_SIZE + CCNT * NUM_ALLOCATORS_IN_SPACE;
 		PoolAllocatorBase *palloc = s_chunks[cidx];
+		// Defensive: cidx may map to a slot that is still in-creation
+		// (s_chunks[cidx] == (PoolAllocatorBase*)1u sentinel set by
+		// allocate_chunk's CAS) or freed (== nullptr) when a non-pool
+		// pointer (e.g. libsystem malloc on macOS Apple Silicon, used
+		// by ICU/Foundation during early process startup) happens to
+		// land within our mmap virtual address range. Treat both as
+		// "not our pointer" so the caller falls through to std::free.
+		if((uintptr_t)palloc <= (uintptr_t)1u)
+			return false;
 		if(palloc->deallocate_pooled(static_cast<char *>(p))) {
 			deallocate_chunk(cidx, CHUNK_SIZE);
 		}
@@ -843,6 +852,16 @@ void* allocate_large_size_or_malloc(size_t size) throw() {
 }
 
 inline void deallocate_pooled_or_free(void* p) throw() {
+	// Mirror new_redirected's gate: when the pool isn't activated yet
+	// (very early in process startup, before main() runs
+	// activateAllocator()), all allocations went through malloc. The
+	// pool's mmap'd regions don't even exist yet, so any pointer must
+	// be a malloc'd one — skip the pool deallocate to avoid touching
+	// uninitialized s_mmapped_spaces / s_chunks.
+	if( !g_sys_image_loaded) {
+		std::free(p);
+		return;
+	}
 	if(PoolAllocatorBase::deallocate(p))
 		return;
     std::free(p);
