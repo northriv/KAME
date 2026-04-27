@@ -453,14 +453,20 @@ public:
 // =====================================================================
 
 // Floor used for both (a) the LIVELOCK verdict gate (probe fires only
+// Floor used for both (a) the LIVELOCK verdict gate (probe fires only
 // when tx_age > floor) and (b) the age-preempt threshold in
 // try_register_privileged_tidstamp (preemptor must be older than holder
 // by floor µs). Values balance "fire quickly when stuck" vs "don't
-// thrash on normal contention". 100ms for HIGHEST/NORMAL was selected
-// to avoid the dynamic_node_test churn-deadlock seen at 1ms (short
-// Txs aged past 1ms trivially → constant preempt-cycle).
+// thrash on normal contention". The previous 100ms / 20ms / 1ms-broken
+// regimes were chasing a *different* bug: `fair_mode_blocks_me`
+// originally compared the full packed tid+stamp instead of just the
+// TID, so a nested Tx on the privilege-holding thread (e.g. an outer
+// iterate_commit's retry path triggering ~Node()->releaseAll()) was
+// blocked by its own privilege and self-deadlocked. With that fix in
+// place the threshold can be set as low as a few ms without
+// triggering the test_dyn churn-deadlock.
 #ifndef KAME_STM_PRIV_AGE_NORMAL_US
-#define KAME_STM_PRIV_AGE_NORMAL_US 20'000   // 20 ms — sweep winner (≥20ms for RT safety)
+#define KAME_STM_PRIV_AGE_NORMAL_US 5'000    // 5 ms — fast claim, single knob
 #endif
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
@@ -530,7 +536,18 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(cnt_t tidstamp) noexcept {
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
     if(priv == (cnt_t)0) return false;
-    return priv != tidstamp;
+    // Compare by TID only (upper 16 bits of the packed stamp), NOT by
+    // the full timestamp. The privileged Tx and a *nested* Tx on the
+    // same thread carry different started_time stamps (e.g., the
+    // outer Tx's retry path triggers ~Node()->releaseAll() which
+    // starts an inner iterate_commit_if), but the inner Tx is still
+    // owned by the privilege-holding thread and must not be blocked.
+    // A full-stamp inequality check (priv != tidstamp) self-deadlocks
+    // because the inner Tx waits in negotiate_sleep for a privilege
+    // it already holds via the outer Tx — see hang in
+    // transaction_dynamic_node_test backtrace (~Node->releaseAll on
+    // frame #15-16, negotiate_sleep on frame #9).
+    return detail::stamp_tid(priv) != detail::stamp_tid(tidstamp);
 }
 
 template <class XN>
