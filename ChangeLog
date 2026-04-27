@@ -57,14 +57,20 @@
   throughput ceiling, limiting per-thread rate to ~1 kHz for
   sub-µs commits. Replaced with std::this_thread::yield() when
   numThreadsRunning() ≤ 2 && ms ≤ 1 so Greedy CM (older Tx wins)
-  drives a tight CAS-retry alternation. K=1 N=2 on Mac M3 Air
-  recovers from 1.5 M → 5.5 M c/s (×3.7), past N=1's 3.5 M c/s
-  per-thread ceiling. Gated on the global runner count rather than
-  the per-Linkage C_obs to match the privilege slot's
-  process-wide scope and avoid mistakenly bypassing the sleep
-  path when an isolated Linkage sees few contenders but the
-  process has many threads in flight. K=10 / K=0 cells unaffected;
-  test_dyn × 20 hang-free.
+  drives a tight CAS-retry alternation. Gated on the global
+  runner count to match the privilege slot's process-wide scope.
+- STM core: C_obs lower bound (KAME_STM_C_OBS_MIN, default 2).
+  At C_obs=1 the √C lottery threshold collapses to 1.0
+  (always-fire), causing notify_n_contenders() to be called on
+  every iteration even though only one or two threads are
+  actually involved. The wake-broadcast overhead dominates K=1
+  N=2-style anti-symmetric workloads. Floor C_obs at 2 in the
+  lottery formula so the threshold becomes 0.5 (= the natural
+  rate for 2-thread alternation) without inflating contender
+  counts elsewhere. On Mac M3 Air, K=1 N=2 (3-level) jumps from
+  1.3 M → 5.7 M c/s (×4.5); on iMac Pro from 597 K → 1614 K
+  c/s (×2.7). K=1 N=8/32/128 also improve +17–50%; K=10 / K=0
+  cells unaffected; test_dyn × 20 hang-free.
 - KAME allocator: kame.app startup-crash fix on macOS Apple Silicon.
   ICU/Foundation allocate via libsystem malloc during early process
   startup (before main() reaches activateAllocator()), then free
