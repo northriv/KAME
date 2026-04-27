@@ -466,7 +466,20 @@ public:
 // place the threshold can be set as low as a few ms without
 // triggering the test_dyn churn-deadlock.
 #ifndef KAME_STM_PRIV_AGE_NORMAL_US
-#define KAME_STM_PRIV_AGE_NORMAL_US 750      // 750 us — fast claim, single knob
+  // OS-aware default. The lower bound is set by the OS scheduler
+  // quantum and condition-variable wait granularity, since the
+  // privileged Tx's commit critical path includes one or more
+  // OS-scheduled wake/sleep cycles.
+  //   Windows: timer tick ≈ 15.6 ms (default), wait_for(1 ms)
+  //            actually waits ~16 ms. PRIV_AGE under that round-up
+  //            risks preempt thrash in heavy-contention scenarios.
+  //   Linux/macOS: 1 ms or finer granularity. 750 µs gives the
+  //                K=10 N=128 sweet-spot found on Mac M3 Air.
+  #if defined(_WIN32) || defined(WINDOWS) || defined(__WIN32__)
+    #define KAME_STM_PRIV_AGE_NORMAL_US 10'000   // 10 ms — Windows scheduler quantum
+  #else
+    #define KAME_STM_PRIV_AGE_NORMAL_US 750      // 750 us — Linux/macOS
+  #endif
 #endif
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
