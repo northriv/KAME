@@ -1244,7 +1244,23 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.
         // Jitter breaks the synchronized-wakeup oscillation that forms when
         // all threads enter and exit negotiate_sleep at the same 1 ms tick.
-        {
+        //
+        // Low-contention shortcut: when only ≤2 threads are running a
+        // Tx process-wide, the privileged-TID escape cannot help — its
+        // age-difference threshold needs ≥3 thread-spread to develop.
+        // The standard 1 ms CV sleep chunk then becomes the bottleneck
+        // (limits per-thread rate to ~1 kHz for sub-µs commits).
+        // Replace it with std::this_thread::yield() so Greedy CM (older
+        // Tx wins) drives a tight CAS-retry alternation. Gated on
+        // numThreadsRunning() (process-wide, matches the privilege
+        // slot's global scope) rather than per-Linkage C_obs to avoid
+        // mistakenly bypassing the sleep path when an isolated Linkage
+        // sees few contenders but the process has many threads in flight.
+        if(NegotiationCounter::numThreadsRunning() <= 2 && ms <= 1) {
+            typename NegotiationCounter::ReleaseOneCount onedown;
+            std::this_thread::yield();
+        }
+        else {
             int ms_actual = ms;
             typename NegotiationCounter::ReleaseOneCount onedown;
 #if KAME_STM_MIN_RUNNERS != 0
