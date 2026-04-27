@@ -27,6 +27,27 @@
 #include "xtime.h"
 #include "transaction_signal.h"
 
+// L1 dcache line size by ABI. Used to prevent false sharing on hot
+// per-thread / per-shard counters. ABI-driven, not host-detected:
+//   x86_64, ARM Cortex-A: 64
+//   Apple Silicon (M1+):  128
+//   IBM POWER9/10:        128
+//   Fujitsu A64FX (SVE):  256 (sector cache)
+// std::hardware_destructive_interference_size is ABI-fragile across
+// libc++/libstdc++ versions and emits a warning under GCC, so a fixed
+// macro is preferred.
+#ifndef KAME_CACHE_LINE
+  #if defined(__APPLE__) && defined(__aarch64__)
+    #define KAME_CACHE_LINE 128
+  #elif defined(__powerpc64__) || defined(__POWERPC__)
+    #define KAME_CACHE_LINE 128
+  #elif defined(__aarch64__) && (defined(__FUJITSU) || defined(__CLANG_FUJITSU))
+    #define KAME_CACHE_LINE 256
+  #else
+    #define KAME_CACHE_LINE 64
+  #endif
+#endif
+
 namespace Transactional {
 
 //! \page stmintro Brief introduction of software transactional memory using the class Node
@@ -85,12 +106,13 @@ DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
 
 namespace detail {
-    //! Per-thread nesting depth of Transaction/Snapshot scopes. s_running
-    //! (in Node<XN>::NegotiationCounter) picks up +1 only on the 0 → 1
-    //! transition so nested transactions do not inflate the runner count.
-    //! Namespace-scope (not template static) because nesting is a
-    //! per-thread property and to work around an Apple clang / arm64
-    //! TLS-wrapper-emission bug for template static `thread_local`.
+    //! Per-thread nesting depth of Transaction/Snapshot scopes. The
+    //! per-thread runner counter (RunnerCounterEntry below) picks up +1
+    //! only on the 0 → 1 transition so nested transactions do not
+    //! inflate the runner count. Namespace-scope (not template static)
+    //! because nesting is a per-thread property and to work around an
+    //! Apple clang / arm64 TLS-wrapper-emission bug for template
+    //! static `thread_local`.
     inline thread_local int s_tx_nest = 0;
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
     inline thread_local int s_sleep_nest = 0;
@@ -105,6 +127,63 @@ namespace detail {
     }
     inline uint16_t stamp_tid(cnt_t x) noexcept {
         return (uint16_t)((uint64_t)x >> 48);
+    }
+
+    //! Cacheline-padded "I am currently running a Tx" counter, owned
+    //! by exactly one thread. Heap-allocated per thread so increments
+    //! are TLS-affine (no cacheline ping-pong even across NUMA nodes).
+    //! Replaces the previous single
+    //! `alignas(64) atomic<unsigned> s_running` whose ping-pong on
+    //! every Tx entry/exit was the K=0 disjoint NUMA-scaling ceiling
+    //! on 128c EPYC (≈8.3 M Tx/s × 2 atomic RMWs/Tx ≈ 16.6 M ops/s ≈
+    //! cross-socket cacheline bandwidth).
+    struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
+        std::atomic<uint64_t> v{0};
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)];
+    };
+    using RunnerCounterVec = std::vector<std::weak_ptr<RunnerCounterEntry>>;
+
+    //! TLS holder of this thread's RunnerCounterEntry. The shared_ptr
+    //! is the sole strong reference; the global s_runner_counters
+    //! vector only holds weak_ptrs that expire on thread exit. The raw
+    //! pointer cache below makes the hot path (`AcquireOneCount` ctor)
+    //! a single TLS load + relaxed fetch_add — no shared_ptr ref ops.
+    inline thread_local std::shared_ptr<RunnerCounterEntry>
+        tls_runner_counter_holder;
+    inline thread_local RunnerCounterEntry*
+        tls_runner_counter_ptr = nullptr;
+
+    //! Global "currently registered runner counters" vector. COW: any
+    //! thread's first registration publishes a new vector via
+    //! compareAndSwap, pruning expired entries (threads that have
+    //! exited) in the same step. Defined in transaction_impl.h.
+    DECLSPEC_KAME extern atomic_shared_ptr<RunnerCounterVec>
+        s_runner_counters;
+
+    //! Allocate + register this thread's counter on first call;
+    //! return the cached raw pointer thereafter. Defined in
+    //! transaction_impl.h.
+    DECLSPEC_KAME RunnerCounterEntry& runner_counter_register();
+
+    inline RunnerCounterEntry& my_runner_counter() {
+        auto *p = tls_runner_counter_ptr;
+        if(p) return *p;
+        return runner_counter_register();
+    }
+
+    //! Sum across all registered threads. Vector traversal is
+    //! contiguous-prefetch-friendly. Per entry one
+    //! `weak_ptr::lock()` + relaxed load. Called only from
+    //! `negotiate_internal` (gate / lottery / wake decisions) — never
+    //! on the K=0 disjoint hot path.
+    inline unsigned int num_threads_running() noexcept {
+        local_shared_ptr<RunnerCounterVec> snap(s_runner_counters);
+        if( !snap) return 0;
+        uint64_t s = 0;
+        for(auto &w : *snap)
+            if(auto sp = w.lock())
+                s += sp->v.load(std::memory_order_relaxed);
+        return (unsigned)s;
     }
 } // namespace detail
 
@@ -332,7 +411,8 @@ private:
         //! `release_privileged_tidstamp`. C++17 inline static so it has
         //! exactly one instance per `Node<XN>` instantiation (KAME only
         //! instantiates `Node<XNode>`, so effectively one global).
-        alignas(64) static inline std::atomic<cnt_t> s_privileged_tidstamp{0};
+        alignas(KAME_CACHE_LINE) static inline std::atomic<cnt_t>
+            s_privileged_tidstamp{0};
 
         static int64_t min_privilege_age_us(Priority pr) noexcept;
         static bool    try_register_privileged_tidstamp(Priority pr,
@@ -363,9 +443,11 @@ private:
         //=====================================================================
         //! Cache-line aligned so adjacent slots don't false-share when
         //! two notifier threads on different cores touch neighbouring
-        //! indices. 128-byte alignment leaves headroom for L1/L2 prefetch
-        //! adjacency on x86 and Apple Silicon.
-        struct alignas(128) NegotiateSleepSlot {
+        //! indices. KAME_CACHE_LINE matches the ABI L1d line size
+        //! (64/128/256 by arch); the previous fixed `alignas(128)` was
+        //! correct on x86 and Apple Silicon but oversized for x86 and
+        //! undersized for A64FX.
+        struct alignas(KAME_CACHE_LINE) NegotiateSleepSlot {
             std::mutex mtx;
             std::condition_variable cv;
             bool notified = false;
@@ -382,44 +464,46 @@ private:
         static void try_notify_n_contenders(const uint64_t (&tid_bitset)[WORDS],
                                             int n) noexcept;
 
-        static unsigned int numThreadsRunning() {return s_running.load(std::memory_order_relaxed);}
+        //! Sum of per-thread "in Tx" counters. See
+        //! detail::num_threads_running for the design rationale. Hot
+        //! path increments via AcquireOneCount; this read is only used
+        //! inside `negotiate_internal`.
+        static unsigned int numThreadsRunning() noexcept {
+            return detail::num_threads_running();
+        }
 
-        //! RAII acquire: bumps s_running iff this is the outermost
-        //! Transaction/Snapshot on the thread AND we are not inside a
-        //! ReleaseOneCount (sleeping) scope. Nested Transactions (inner
-        //! tx inside a closure running in an outer one) share the same
-        //! running-slot — the thread is one runner regardless of depth.
-        //! The tx_nest / sleep_nest counters are namespace-scope
-        //! `inline thread_local` variables (see top of file) — keeping
-        //! them out of the class template works around an Apple clang
-        //! arm64 bug that fails to emit the TLS wrapper for a
-        //! `static thread_local` member of a class template in TUs
-        //! that only include transaction.h.
+        //! RAII acquire: bumps this thread's per-thread counter iff
+        //! this is the outermost Transaction/Snapshot on the thread
+        //! AND we are not inside a ReleaseOneCount (sleeping) scope.
+        //! Nested Transactions share the same running-slot — the
+        //! thread is one runner regardless of depth.
         struct DECLSPEC_KAME AcquireOneCount {
             AcquireOneCount() {
                 if(++detail::s_tx_nest == 1 && detail::s_sleep_nest == 0)
-                    s_running.fetch_add(1, std::memory_order_relaxed);
+                    detail::my_runner_counter().v
+                        .fetch_add(1, std::memory_order_relaxed);
             }
             ~AcquireOneCount() {
                 if(--detail::s_tx_nest == 0 && detail::s_sleep_nest == 0)
-                    s_running.fetch_sub(1, std::memory_order_relaxed);
+                    detail::my_runner_counter().v
+                        .fetch_sub(1, std::memory_order_relaxed);
             }
         };
         //! RAII yield of the running slot for the duration of a sleep
         //! inside negotiate_internal. Pairs with the TLS nest counters
-        //! above so nested sleep scopes don't double-decrement.
+        //! so nested sleep scopes don't double-decrement.
         struct DECLSPEC_KAME ReleaseOneCount {
             ReleaseOneCount() {
                 if(++detail::s_sleep_nest == 1 && detail::s_tx_nest > 0)
-                    s_running.fetch_sub(1, std::memory_order_relaxed);
+                    detail::my_runner_counter().v
+                        .fetch_sub(1, std::memory_order_relaxed);
             }
             ~ReleaseOneCount() {
                 if(--detail::s_sleep_nest == 0 && detail::s_tx_nest > 0)
-                    s_running.fetch_add(1, std::memory_order_relaxed);
+                    detail::my_runner_counter().v
+                        .fetch_add(1, std::memory_order_relaxed);
             }
         };
-    private:
-        alignas(64) static atomic<unsigned int> s_running;
     };
 
     //! Generates a serial number assigned to bundling and transaction.\n
