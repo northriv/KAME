@@ -23,6 +23,8 @@
 #include "atomic.h"
 
 #include <assert.h>
+#include <cerrno>
+#include <cstdlib>
 #include <string.h>
 #include <type_traits>
 
@@ -562,8 +564,19 @@ PoolAllocatorBase::allocate_chunk() {
 		s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE] + chunk_size * (cidx % NUM_ALLOCATORS_IN_SPACE);
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 #else
+    // mprotect failure is silent under NDEBUG (assert no-op); the next
+    // write to addr would then SIGBUS. Treat it as fatal so the failure
+    // is visible.
     int ret = mprotect(addr, chunk_size, PROT_READ | PROT_WRITE);
-    assert( !ret);
+    if(ret != 0) {
+        fprintf(stderr,
+            "mprotect(%p, 0x%llx, RW) failed: errno=%d (chunk %d, "
+            "page-align: addr&%d=%lu size&%d=%lu)\n",
+            addr, (unsigned long long)chunk_size, errno, cidx,
+            ALLOC_PAGE_SIZE, (unsigned long)((uintptr_t)addr % ALLOC_PAGE_SIZE),
+            ALLOC_PAGE_SIZE, (unsigned long)(chunk_size % ALLOC_PAGE_SIZE));
+        std::abort();
+    }
 #endif
 
 	ALLOC *palloc = ALLOC::create(chunk_size, addr);
