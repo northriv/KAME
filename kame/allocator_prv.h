@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <atomic>
 #include <limits>
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -116,6 +117,27 @@ protected:
 
 	static int ALLOC_TLS s_curr_chunk_idx;
 	static int s_chunks_of_type_ubound;
+	//! Per-thread "currently owned" chunk for fast-path allocate(). When
+	//! non-null, allocate<SIZE>() goes directly through this pointer
+	//! instead of CAS-locking s_chunks_of_type[s_curr_chunk_idx]. The
+	//! chunk-internal allocate_pooled is already thread-safe (per-flag
+	//! atomic CAS on the bitmap), so multiple threads sharing the same
+	//! chunk via TLS is correct, but performance is best when each
+	//! thread has its own chunk (no inter-thread bitmap contention).
+	//! Lifetime: claimed via the slow path; held until process exit
+	//! (release_allocator is gated to skip thread-pinned chunks via
+	//! m_thread_pinned_count).
+	//! Type stored in s_chunks_of_type[]: chunks are of the inner-FS
+	//! variant (PoolAllocator<ALIGN, DUMMY, DUMMY>), not necessarily the
+	//! outer template (which may be FS=true while inner chunks are
+	//! FS=false). Casting to the wrong type would mis-dispatch
+	//! allocate_pooled().
+	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_my_chunk;
+	//! # of threads pinning this chunk via TLS s_my_chunk. Incremented
+	//! once per thread on first use; never decremented in steady state.
+	//! release_allocator() returns false when this is non-zero so the
+	//! chunk is not freed while any thread's TLS pointer references it.
+	std::atomic<int> m_thread_pinned_count{0};
 
 	void operator delete(void *) throw();
 private:

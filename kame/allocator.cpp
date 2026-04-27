@@ -26,6 +26,28 @@
 #include <string.h>
 #include <type_traits>
 
+// Per-thread cleanup of pinned chunks. On thread exit the destructor of
+// this TLS object walks the registered atomic pin counters and decrements
+// each, allowing release_allocator() to reclaim chunks the thread had
+// claimed. Fixed-size — no dynamic allocation in the destructor (which
+// would recurse into the allocator). Capacity covers the count of
+// distinct PoolAllocator template instantiations actually in use.
+namespace {
+struct AllocPinCleanup {
+    static constexpr int MAX = 32;
+    std::atomic<int> *pinned[MAX] = {};
+    int count = 0;
+    void add(std::atomic<int> *p) noexcept {
+        if(count < MAX) pinned[count++] = p;
+    }
+    ~AllocPinCleanup() noexcept {
+        for(int i = 0; i < count; ++i)
+            pinned[i]->fetch_sub(1, std::memory_order_release);
+    }
+};
+thread_local AllocPinCleanup tls_alloc_pin_cleanup;
+} // anon namespace
+
 // Portable atomic primitives for the custom pool allocator.
 // These replace the former x86-only inline assembly (atomic_prv_x86.h)
 // with GCC/Clang __sync builtins that work on all architectures.
@@ -295,21 +317,21 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			one = find_zero_forward(oldv);
 //			assert(count_bits(one) == SIZE / ALIGN);
 //			assert( !(one & oldv));
-			if(oldv == 0) {
-				*pflag = one;
-                atomicInc( &this->m_flags_nonzero_cnt);
-				writeBarrier(); //for the counter.
+			// Always-CAS path (formerly an oldv==0 non-atomic fast write
+			// existed here). Without an external lock around the chunk —
+			// which the TLS s_my_chunk fast path in allocate() removes —
+			// the non-atomic store would race with another thread doing
+			// the same on the same flag word, producing torn writes that
+			// hand the same bit to two threads. CAS even at oldv==0 is
+			// only marginally slower and keeps the chunk thread-safe.
+			FUINT newv = oldv | one; //set a flag.
+			if(atomicCompareAndSet(oldv, newv, pflag)) {
+				if(oldv == 0)
+					atomicInc( &this->m_flags_nonzero_cnt);
+				if(newv == ~(FUINT)0u)
+                    atomicInc( &this->m_flags_filled_cnt);
+				writeBarrier(); //for the counters.
 				break;
-			}
-			else {
-				FUINT newv = oldv | one; //set a flag.
-				if(atomicCompareAndSet(oldv, newv, pflag)) {
-					if(newv == ~(FUINT)0u) {
-                        atomicInc( &this->m_flags_filled_cnt);
-						writeBarrier(); //for the counter.
-					}
-					break;
-				}
 			}
 			continue;
 		}
@@ -345,15 +367,16 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 				(2u * (((FUINT)1u << (SIZE / ALIGN - 1u)) - 1u) + 1u); //N ones, not to overflow.
 //			assert(count_bits(ones) == SIZE / ALIGN);
 //			assert( !(ones & oldv));
-			if(oldv == 0) {
-				*pflag = ones;
-				atomicInc( &this->m_flags_nonzero_cnt);
+			// Always-CAS path (formerly an oldv==0 non-atomic fast write
+			// existed here). See sibling allocate_pooled(FS=true) for
+			// the rationale: TLS s_my_chunk fast path in allocate()
+			// removes the bit0-lock around chunk access, so the
+			// non-atomic store would torn-write under contention.
+			FUINT newv = oldv | ones; //filling with SIZE ones.
+			if(atomicCompareAndSet(oldv, newv, pflag)) {
+				if(oldv == 0)
+					atomicInc( &this->m_flags_nonzero_cnt);
 				break;
-			}
-			else {
-				FUINT newv = oldv | ones; //filling with SIZE ones.
-				if(atomicCompareAndSet(oldv, newv, pflag))
-					break;
 			}
 			continue;
 		}
@@ -588,30 +611,71 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
+	// Fast path: this thread already pinned a chunk on a previous call.
+	// allocate_pooled() does its own per-flag atomic CAS so concurrent
+	// allocations from the same chunk by other threads are safe; the
+	// expensive bit0-lock CAS on s_chunks_of_type[] is skipped entirely.
+	// release_allocator() is gated on m_thread_pinned_count == 0 so the
+	// chunk cannot be freed underneath us.
+	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *my = s_my_chunk) {
+		if(void *p = my->allocate_pooled(SIZE)) {
+#ifdef GUARDIAN
+			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
+				if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
+					fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
+				}
+			}
+#endif
+#ifdef FILLING_AFTER_ALLOC
+			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
+				static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
+#endif
+			return p;
+		}
+		// Pinned chunk full — fall through to slow path to find/create
+		// another. The pinned count on the old chunk is left bumped
+		// (one thread's worth of extra residency), preventing release
+		// while we still might dealloc objects originally allocated
+		// from it. New chunk's pin replaces it as the fast-path target.
+	}
+	// Slow path: claim an UNCLAIMED chunk exclusively (compare_exchange
+	// 0 → 1 on m_thread_pinned_count). This guarantees each thread has a
+	// dedicated chunk so the chunk's bitmap CAS in allocate_pooled is
+	// uncontended on the hot path. The pin is registered with
+	// tls_alloc_pin_cleanup so it is decremented on thread exit, freeing
+	// the chunk for reuse by future threads (otherwise long-running
+	// programs with thread churn would exhaust ALLOC_MAX_CHUNKS_OF_TYPE).
 	int aidx = s_curr_chunk_idx;
 	for(int cnt = 0;; ++cnt) {
 		uintptr_t *palloc = &s_chunks_of_type[aidx];
 		uintptr_t alloc = *palloc;
-		if(alloc && !(alloc & 1u) && (atomicCompareAndSet(alloc, alloc | 1u, palloc))) {
-			readBarrier();
-			if(void *p =
-				reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled(SIZE)) {
-	//			fprintf(stderr, "a: %p\n", p);
+		if(alloc && !(alloc & 1u)) {
+			PoolAllocator<ALIGN, DUMMY, DUMMY> *chunk =
+				reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc);
+			int expected = 0;
+			if(chunk->m_thread_pinned_count.compare_exchange_strong(
+					expected, 1, std::memory_order_acq_rel)) {
+				// Exclusive claim succeeded — register pin cleanup,
+				// cache as TLS fast-path target, and allocate.
+				tls_alloc_pin_cleanup.add(&chunk->m_thread_pinned_count);
+				s_my_chunk = chunk;
+				if(void *p = chunk->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
-				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
-					if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
-						fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
+					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
+						if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
+							fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
+						}
 					}
-				}
 #endif
 #ifdef FILLING_AFTER_ALLOC
-				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
-					static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC; //filling
+					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
+						static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
 #endif
-				*palloc = alloc;
-				return p;
+					return p;
+				}
+				// Claimed chunk is full — leave it pinned (we may still
+				// hold objects in it) and continue searching.
 			}
-			*palloc = alloc;
 		}
 		int acnt = s_chunks_of_type_ubound;
 		if(cnt >= acnt) {
@@ -640,6 +704,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_allocator(PoolAllocator *palloc) {
 	if(s_chunks_of_type_ubound <= LEAVE_VACANT_CHUNKS) {
 		return false;
 	}
+	// A chunk pinned by any thread's TLS s_my_chunk must not be released
+	// — that thread's next allocate() would dereference freed memory.
+	// The pin count is bumped (once per thread per chunk) on the
+	// fast-path-claim slow path and never decremented in steady state.
+	if(palloc->m_thread_pinned_count.load(std::memory_order_relaxed) > 0)
+		return false;
 
 	uintptr_t alloc = reinterpret_cast<uintptr_t>(palloc);
 	int aidx = palloc->m_idx_of_type;
@@ -834,6 +904,9 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 int ALLOC_TLS PoolAllocator<ALIGN, FS, DUMMY>::s_curr_chunk_idx;
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 int PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type_ubound;
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
+    PoolAllocator<ALIGN, FS, DUMMY>::s_my_chunk;
 
 template class PoolAllocator<ALLOC_ALIGN1>;
 template class PoolAllocator<ALLOC_ALIGN2>;
