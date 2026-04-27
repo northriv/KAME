@@ -31,7 +31,19 @@
 #endif
 
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
-#define ALLOC_PAGE_SIZE (1024 * 4) //4KiB
+// OS page size used to align growing chunk sizes for mprotect(). macOS
+// arm64 uses 16 KiB pages; passing a non-page-aligned size to mprotect()
+// fails silently (assert is no-op under NDEBUG) and the next access faults
+// with SIGBUS. Linux x86_64 uses 4 KiB and Linux arm64 typically 4 KiB,
+// occasionally 64 KiB. POWER usually 64 KiB. Use the largest plausible
+// value per arch so chunk sizes round to a multiple in all cases.
+#if defined(__APPLE__) && defined(__aarch64__)
+    #define ALLOC_PAGE_SIZE 16384  // 16 KiB
+#elif defined(__powerpc64__) || defined(__POWERPC__)
+    #define ALLOC_PAGE_SIZE 65536  // 64 KiB
+#else
+    #define ALLOC_PAGE_SIZE 4096   // 4 KiB
+#endif
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
     #define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
     #define ALLOC_MIN_MMAP_SIZE ALLOC_MIN_CHUNK_SIZE
