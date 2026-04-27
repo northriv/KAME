@@ -50,6 +50,38 @@
   manifesting as SIGBUS on the next placement-new write. mprotect
   failures now abort with diagnostic (errno + page-alignment of addr
   and size) instead of being lost to assert(no-op under NDEBUG).
+- STM core: low-contention sleep shortcut. When the process-wide
+  numThreadsRunning() ≤ 2 the privileged-TID escape cannot help —
+  its age-difference threshold needs ≥3-thread spread to develop —
+  and the standard 1 ms CV sleep chunk becomes the K=1 N=2
+  throughput ceiling, limiting per-thread rate to ~1 kHz for
+  sub-µs commits. Replaced with std::this_thread::yield() when
+  numThreadsRunning() ≤ 2 && ms ≤ 1 so Greedy CM (older Tx wins)
+  drives a tight CAS-retry alternation. K=1 N=2 on Mac M3 Air
+  recovers from 1.5 M → 5.5 M c/s (×3.7), past N=1's 3.5 M c/s
+  per-thread ceiling. Gated on the global runner count rather than
+  the per-Linkage C_obs to match the privilege slot's
+  process-wide scope and avoid mistakenly bypassing the sleep
+  path when an isolated Linkage sees few contenders but the
+  process has many threads in flight. K=10 / K=0 cells unaffected;
+  test_dyn × 20 hang-free.
+- KAME allocator: kame.app startup-crash fix on macOS Apple Silicon.
+  ICU/Foundation allocate via libsystem malloc during early process
+  startup (before main() reaches activateAllocator()), then free
+  those pointers after the pool has been activated. Two defensive
+  changes prevent the pool deallocate path from dereferencing
+  uninitialized state on those non-pool pointers:
+  (a) deallocate_pooled_or_free() now mirrors new_redirected()'s
+  g_sys_image_loaded gate — pre-activation deletes go straight to
+  std::free, since the pool's mmap'd regions don't exist yet.
+  (b) deallocate_<>() validates s_chunks[cidx] before the virtual
+  call: ((uintptr_t)palloc <= 1) returns false (== "not our pointer"),
+  catching both the nullptr (chunk released) and the (PoolAllocatorBase*)1u
+  in-creation sentinel that allocate_chunk's CAS sets between slot
+  claim and final pointer assignment. Crash trace was
+  icu::Locale::init → operator delete[] → deallocate_<0,262144>
+  bad-vtable-access, surfaced after per-thread chunk pinning made
+  chunk creation/release more frequent.
 - tests/transaction_payload_integrity_3level_mixed_test: KAME_FIRSTTOUCH
   env-var opt-in. With KAME_FIRSTTOUCH=1, leaf nodes are allocated
   inside the worker thread (first-touch on its NUMA node) instead of
