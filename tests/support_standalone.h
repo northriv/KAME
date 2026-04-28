@@ -18,8 +18,13 @@
     #define DECLSPEC_SHARED
 #endif
 
-#include <pthread.h>
-#define USE_PTHREAD
+// Platform threading: pthread on POSIX, fall back to C++11 thread_local
+// on Windows (no QThread dependency in the standalone tests).
+#if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
+    #include <pthread.h>
+    #include <sys/mman.h>
+    #define USE_PTHREAD
+#endif
 
 #include <cassert>
 #ifdef NDEBUG
