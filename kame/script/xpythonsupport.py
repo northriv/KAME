@@ -398,6 +398,7 @@ NOTEBOOK_PROC = None
 NOTEBOOK_MCP_JSON = None
 NOTEBOOK_MCP_HTTP_PROC = None
 NOTEBOOK_MCP_URL_FILE = None
+NOTEBOOK_MCP_HTTP_LOG = None
 
 def launchJupyterConsole(prog, argv):
 	if not HasIPython:
@@ -578,6 +579,7 @@ def launchJupyterConsole(prog, argv):
 			if _use_http:
 				import secrets as _secrets, socket as _socket
 				import subprocess as _sp
+				import tempfile as _tf
 				_token = _secrets.token_urlsafe(32)
 				# Pick a free port up-front so we can write the URL
 				# atomically before launching the server.
@@ -585,13 +587,75 @@ def launchJupyterConsole(prog, argv):
 				_sk.bind(('127.0.0.1', 0))
 				_port = _sk.getsockname()[1]
 				_sk.close()
+				# Capture server stderr/stdout to a tempfile so we can
+				# surface a real error message if Popen fails — DEVNULL
+				# would leave the user staring at "MCP didn't start"
+				# with no clue why.
+				global NOTEBOOK_MCP_HTTP_LOG
+				_logf = _tf.NamedTemporaryFile(
+					prefix='kame_mcp_http_', suffix='.log',
+					mode='w', delete=False)
+				NOTEBOOK_MCP_HTTP_LOG = _logf.name
 				NOTEBOOK_MCP_HTTP_PROC = _sp.Popen(
 					[python_cmd, mcp_server_script,
 					 '--transport=http',
 					 f'--port={_port}',
 					 f'--token={_token}'],
-					stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+					stdout=_logf, stderr=_sp.STDOUT,
 				)
+				_logf.close()  # child still holds the fd
+				time.sleep(0.5)
+				_ret = NOTEBOOK_MCP_HTTP_PROC.poll()
+				if _ret is not None:
+					# HTTP server died within 0.5 s → translate output
+					# into something actionable and fall back to stdio.
+					try:
+						with open(NOTEBOOK_MCP_HTTP_LOG, 'r',
+								  errors='replace') as _lf:
+							_raw = _lf.read().strip()
+					except OSError:
+						_raw = ''
+					_lower = _raw.lower()
+					_lines = [
+						f"MCP HTTP server failed to start "
+						f"(exit code {_ret}). Falling back to stdio."
+					]
+					if 'no module named' in _lower:
+						_lines += [
+							"",
+							"A required Python package is missing. Install with:",
+							f"  {python_cmd} -m pip install mcp jupyter_client uvicorn starlette",
+						]
+					elif ('address already in use' in _lower
+					      or 'errno 48' in _lower):
+						_lines += [
+							"",
+							"Port conflict — another KAME instance is "
+							"probably already running. Quit it, or set "
+							"KAME_MCP_TRANSPORT=stdio to disable HTTP MCP.",
+						]
+					elif 'permission' in _lower:
+						_lines += [
+							"",
+							f"Permission denied executing {python_cmd}. "
+							"Check file permissions or quarantine status.",
+						]
+					else:
+						_lines += [
+							"",
+							"Common causes:",
+							"  • mcp / uvicorn / starlette package missing in this Python",
+							"  • Python version mismatch with KAME's kernel",
+							"  • Firewall blocking 127.0.0.1 listen socket (Windows)",
+						]
+					if _raw:
+						_lines += ["", "Captured output:", _raw]
+					print("\n".join(_lines), file=sys.stderr)
+					NOTEBOOK_MCP_HTTP_PROC = None
+					# Fall through: write stdio config below.
+					_use_http = False
+
+		if _use_http:
 				_url = f'http://127.0.0.1:{_port}/mcp'
 				with open(mcp_json_path, 'w') as _f:
 					_json.dump({'mcpServers': {'kame': {
@@ -721,6 +785,11 @@ else:
 				if NOTEBOOK_MCP_URL_FILE:
 					try:
 						os.remove(NOTEBOOK_MCP_URL_FILE)
+					except OSError:
+						pass
+				if NOTEBOOK_MCP_HTTP_LOG:
+					try:
+						os.remove(NOTEBOOK_MCP_HTTP_LOG)
 					except OSError:
 						pass
 				# Delete the log file if Jupyter was never launched and no

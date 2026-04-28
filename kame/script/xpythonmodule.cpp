@@ -183,9 +183,23 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def("__repr__", [](shared_ptr<XNode> &self)->std::string{
             return formatString("<node[%s]\"%s\"@%p>", ("X" + self->getTypename()).c_str(), self->getName().c_str(), &*self);
         })
-        .def("insert", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){self->insert(child);})
-        .def("insert", [](shared_ptr<XNode> &self, Transaction &tr, shared_ptr<XNode> &child){self->insert(tr, child);})
-        .def("release", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){self->release(child);})
+        .def("insert", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){
+            if( !child)
+                throw py::type_error("XNode.insert(): child must not be None.");
+            self->insert(child);
+        })
+        .def("insert", [](shared_ptr<XNode> &self, Transaction &tr, shared_ptr<XNode> &child){
+            if( !child)
+                throw py::type_error("XNode.insert(): child must not be None.");
+            self->insert(tr, child);
+        })
+        .def("release", [](shared_ptr<XNode> &self, shared_ptr<XNode> &child){
+            if( !child)
+                throw py::type_error("XNode.release(): child must not be None. "
+                    "If you indexed a missing child (`node[\"Foo\"]` returned None), "
+                    "guard with `if child is not None` before release().");
+            self->release(child);
+        })
         .def("__len__", [](shared_ptr<XNode> &self){return Snapshot( *self).size();})
         .def("__eq__", [](shared_ptr<XNode> &self, shared_ptr<XNode> &other){return self == other;}) //for self == other
         .def("__ne__", [](shared_ptr<XNode> &self, shared_ptr<XNode> &other){return self != other;}) //for self != other
