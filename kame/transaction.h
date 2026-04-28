@@ -202,25 +202,23 @@ namespace detail {
     #define tls_runner_counter_ptr     tls_runner_counter_ptr_ref()
 #endif
 
+    //! libkame-side bodies — keep all module-visible code thin so
+    //! modules never instantiate their own copy of the runner-counter
+    //! state. (The Apple/Linux DSO-duplication failure mode and the
+    //! Windows MSVC dllexport caveats both push us toward routing
+    //! every access through libkame symbols.)
+    DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl();
+    DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept;
+
     inline RunnerCounterEntry& my_runner_counter() {
-        auto *p = tls_runner_counter_ptr;
-        if(p) return *p;
-        return runner_counter_register();
+        return my_runner_counter_impl();
     }
 
-    //! Sum across all registered threads. Vector traversal is
-    //! contiguous-prefetch-friendly. Per entry one
-    //! `weak_ptr::lock()` + relaxed load. Called only from
+    //! Sum across all registered threads. Called only from
     //! `negotiate_internal` (gate / lottery / wake decisions) — never
     //! on the K=0 disjoint hot path.
     inline unsigned int num_threads_running() noexcept {
-        local_shared_ptr<RunnerCounterVec> snap(s_runner_counters);
-        if( !snap) return 0;
-        uint64_t s = 0;
-        for(auto &w : *snap)
-            if(auto sp = w.lock())
-                s += sp->v.load(std::memory_order_relaxed);
-        return (unsigned)s;
+        return num_threads_running_impl();
     }
 } // namespace detail
 
