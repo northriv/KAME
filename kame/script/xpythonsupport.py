@@ -353,16 +353,41 @@ def kame_pybind_one_iteration():
 		STDERR.write(str(traceback.format_exc()))
 
 def findExecutables(prog):
+	"""Return paths to executables named `prog` reachable via PATH (+
+	well-known locations on POSIX). De-duplicated by canonical path so
+	the menu doesn't list the same binary multiple times when (a)
+	several glob patterns match (e.g. `jupyter`, `jupyter-3.13`), or
+	(b) PATH already contains the well-known dirs we extend, or (c) a
+	symlink points at a binary already discovered."""
 	import glob
-	paths = os.environ['PATH'].split(os.pathsep)
+	# Dedupe path entries first so each directory is scanned once.
+	paths = list(dict.fromkeys(os.environ['PATH'].split(os.pathsep)))
 	if os.name == 'posix':
-		paths.extend(['/opt/homebrew/bin', '/opt/local/bin'])
+		for extra in ('/opt/homebrew/bin', '/opt/local/bin'):
+			if extra not in paths:
+				paths.append(extra)
+	seen = set()
 	ret = []
 	for p in paths:
-		if os.path.isdir(p):
-			ret.extend(glob.glob(os.path.join(p, prog)))
-			ret.extend(glob.glob(os.path.join(p, prog + os.extsep + "*")))
-			ret.extend(glob.glob(os.path.join(p, prog + "-[3-9]*")))
+		if not os.path.isdir(p):
+			continue
+		for pattern in (prog,
+		                prog + os.extsep + "*",
+		                prog + "-[3-9]*"):
+			for c in glob.glob(os.path.join(p, pattern)):
+				try:
+					real = os.path.realpath(c)
+				except OSError:
+					continue
+				if real in seen:
+					continue
+				# Filter out matches that aren't actually executable
+				# (e.g. `jupyter-3.13.dist-info` entries on Windows
+				# venvs sometimes bleed into the wildcard).
+				if not os.access(c, os.X_OK):
+					continue
+				seen.add(real)
+				ret.append(c)
 	return ret
 
 def listOfJupyterPrograms():
@@ -371,17 +396,28 @@ def listOfJupyterPrograms():
 NOTEBOOK_TOKEN = None
 NOTEBOOK_PROC = None
 NOTEBOOK_MCP_JSON = None
+NOTEBOOK_MCP_HTTP_PROC = None
+NOTEBOOK_MCP_URL_FILE = None
 
 def launchJupyterConsole(prog, argv):
 	if not HasIPython:
-		raise RuntimeError('IPython not properly installed.') #, ipywidgets?
+		raise RuntimeError(
+			"IPython is not installed in KAME's embedded Python.\n"
+			"Install it with one of:\n"
+			f"  {sys.executable} -m pip install ipykernel ipython jupyter\n"
+			"  /opt/local/bin/pip install ipykernel ipython jupyter\n"
+			"Then restart KAME.")
 	global NOTEBOOK_TOKEN
 	global NOTEBOOK_PROC
 	from ipykernel.kernelapp import IPKernelApp
 	app = IPKernelApp.instance()
 	json = app.connection_file
 	if not len(json):
-		sys.stderr.write("IPython kernel could not be started.")
+		raise RuntimeError(
+			"KAME's embedded IPython kernel hasn't started yet "
+			"(no connection file registered). The kernel usually comes up "
+			"a few seconds after KAME launches; please retry shortly. "
+			"If this persists, check stderr for kernel startup errors.")
 	print("Using existing kernel = " + json)
 	args = [prog, '--existing', json,]
 
@@ -412,9 +448,63 @@ def launchJupyterConsole(prog, argv):
 	
 	time.sleep(0.5)
 	ret = proc.poll()
-	if ret:
-		outs, errs = proc.communicate() #Lauching failed.
-		raise RuntimeError(outs)
+	if ret is not None:
+		# Process already exited within 0.5 s → launch failed. Decode
+		# captured output (bytes from subprocess.PIPE) and translate
+		# common failure modes into actionable guidance.
+		outs, _ = proc.communicate()
+		raw = outs.decode('utf-8', errors='replace') if isinstance(outs, (bytes, bytearray)) else (outs or '')
+		raw = raw.strip()
+		sub = console[0]
+		lines = [f"Failed to launch `{prog} {sub}` (exit code {ret})."]
+		# Common pip packages required by each Jupyter subcommand —
+		# Jupyter's CLI distributes these as separate pip packages,
+		# so a minimal `jupyter` install may not have e.g. notebook.
+		pkg_map = {
+			'notebook': 'notebook',
+			'qtconsole': 'qtconsole',
+			'console': 'jupyter_console',
+		}
+		req = pkg_map.get(sub, sub)
+		lower = raw.lower()
+		if ('no module named' in lower
+		    or 'subcommand' in lower and 'not available' in lower
+		    or 'not a jupyter command' in lower):
+			lines += [
+				"",
+				f"The `{sub}` Jupyter subcommand isn't installed against this Python.",
+				f"Install it with one of:",
+				f"  {sys.executable} -m pip install {req} ipykernel",
+				f"  pip install {req} ipykernel",
+				f"  /opt/local/bin/pip install {req} ipykernel    # MacPorts",
+				f"  /opt/homebrew/bin/pip install {req} ipykernel  # Homebrew",
+			]
+		elif 'errno 2' in lower or 'no such file' in lower:
+			lines += [
+				"",
+				f"Jupyter executable not found at: {prog}",
+				"It may have been uninstalled or your PATH changed since",
+				"KAME populated the menu. Re-open the Script menu to",
+				"refresh the list.",
+			]
+		elif 'permission' in lower:
+			lines += [
+				"",
+				f"Permission denied executing {prog}.",
+				"Check file permissions or that the path isn't on a",
+				"quarantined volume.",
+			]
+		else:
+			lines += [
+				"",
+				"Common causes:",
+				f"  • `{req}` package not installed (try: pip install {req})",
+				"  • `ipykernel` missing in the same Python that runs jupyter",
+				"  • Python version mismatch between jupyter and KAME's kernel",
+			]
+		if raw:
+			lines += ["", "Captured output:", raw]
+		raise RuntimeError("\n".join(lines))
 	NOTEBOOK_PROC = proc
 
 	# Write MCP config for Claude Code in the notebook workspace.
@@ -468,15 +558,63 @@ def launchJupyterConsole(prog, argv):
 		if not python_cmd:
 			print("Warning: No Python with 'mcp' and 'jupyter_client' found for MCP server.", file=sys.stderr)
 			python_cmd = _candidates[0] if _candidates else 'python3'
+		# Transport selection:
+		#   Windows default → streamable-http with Bearer token (stdio
+		#   subprocess startup is slow on Windows; CreateProcess +
+		#   `import mcp` per Claude Code session adds ~1 s).
+		#   Other platforms default → stdio (fork is cheap).
+		#   Override via env var KAME_MCP_TRANSPORT=stdio|http.
+		import platform as _pf
+		global NOTEBOOK_MCP_HTTP_PROC
+		global NOTEBOOK_MCP_URL_FILE
+		_transport_env = os.environ.get('KAME_MCP_TRANSPORT', '').lower()
+		if _transport_env in ('stdio', 'http'):
+			_use_http = (_transport_env == 'http')
+		else:
+			_use_http = (_pf.system() == 'Windows')
+
 		mcp_json_path = os.path.join(console[1], '.mcp.json')
 		try:
-			with open(mcp_json_path, 'w') as _f:
-				_json.dump({'mcpServers': {'kame': {
-					'command': python_cmd,
-					'args': [mcp_server_script]
-				}}}, _f, indent=2)
+			if _use_http:
+				import secrets as _secrets, socket as _socket
+				import subprocess as _sp
+				_token = _secrets.token_urlsafe(32)
+				# Pick a free port up-front so we can write the URL
+				# atomically before launching the server.
+				_sk = _socket.socket()
+				_sk.bind(('127.0.0.1', 0))
+				_port = _sk.getsockname()[1]
+				_sk.close()
+				NOTEBOOK_MCP_HTTP_PROC = _sp.Popen(
+					[python_cmd, mcp_server_script,
+					 '--transport=http',
+					 f'--port={_port}',
+					 f'--token={_token}'],
+					stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+				)
+				_url = f'http://127.0.0.1:{_port}/mcp'
+				with open(mcp_json_path, 'w') as _f:
+					_json.dump({'mcpServers': {'kame': {
+						'type': 'http',
+						'url': _url,
+						'headers': {'Authorization': f'Bearer {_token}'}
+					}}}, _f, indent=2)
+				# Also publish to ~/.kame_mcp_url so external Claude
+				# Code sessions outside the notebook dir can find it.
+				NOTEBOOK_MCP_URL_FILE = os.path.join(
+					os.path.expanduser('~'), '.kame_mcp_url')
+				with open(NOTEBOOK_MCP_URL_FILE, 'w') as _f:
+					_json.dump({'url': _url, 'token': _token,
+								'pid': os.getpid()}, _f)
+				print(f"MCP HTTP server on {_url} (token in {mcp_json_path})")
+			else:
+				with open(mcp_json_path, 'w') as _f:
+					_json.dump({'mcpServers': {'kame': {
+						'command': python_cmd,
+						'args': [mcp_server_script]
+					}}}, _f, indent=2)
+				print("MCP stdio config written to " + mcp_json_path)
 			NOTEBOOK_MCP_JSON = mcp_json_path
-			print("MCP config written to " + mcp_json_path)
 		except OSError:
 			pass
 
@@ -570,6 +708,19 @@ else:
 						pass
 					try:
 						os.remove(os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json'))
+					except OSError:
+						pass
+				# Tear down background HTTP MCP server (Windows path).
+				if NOTEBOOK_MCP_HTTP_PROC is not None:
+					try:
+						NOTEBOOK_MCP_HTTP_PROC.terminate()
+						NOTEBOOK_MCP_HTTP_PROC.wait(timeout=5)
+					except Exception:
+						try: NOTEBOOK_MCP_HTTP_PROC.kill()
+						except Exception: pass
+				if NOTEBOOK_MCP_URL_FILE:
+					try:
+						os.remove(NOTEBOOK_MCP_URL_FILE)
 					except OSError:
 						pass
 				# Delete the log file if Jupyter was never launched and no
