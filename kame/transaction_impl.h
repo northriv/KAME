@@ -131,7 +131,9 @@ namespace Transactional {
 namespace detail {
 
 // Per-thread nesting / TLS storage. Declared `extern thread_local` in
-// transaction.h; defined here exactly once.
+// transaction.h (without DECLSPEC_KAME — MSVC forbids dllexport on
+// thread_local). Defined here exactly once per binary because
+// transaction_impl.h is included from a single TU per binary.
 thread_local int s_tx_nest = 0;
 thread_local int s_sleep_nest = 0;
 thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
