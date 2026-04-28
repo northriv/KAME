@@ -145,30 +145,33 @@ The root node (`Root()`) has these children:
 | Name | Type | Runtime |
 |---|---|---|
 | `Drivers` | XDriverList | no |
-
-### Discovering valid type names
-
-`XListNodeBase` exposes `typenames()` and `typelabels()` so you don't
-have to guess the right string for `createByTypename()`:
-
-```python
-drivers = Root()["Drivers"]
-dc = drivers.dynamic_cast()        # downcast to XDriverList
-print(dc.typenames())              # ['DMM', 'DCSource', ...]
-print(dc.typelabels())             # ['Multimeter', 'DC voltage source', ...]
-```
-
-`typenames()` returns the keys accepted by `createByTypename()` in the
-order they were registered; `typelabels()` returns the matching
-human-readable labels (the strings shown in KAME's "Add driver"
-dialog). Lists that don't accept arbitrary types (plain
-`XListNode<T>`) return an empty list.
 | `Interfaces` | XInterfaceList | yes |
 | `ScalarEntries` | XScalarEntryList | yes |
 | `Thermometers` | XThermometerList | no |
 | `GraphList` | XGraphList | no |
 | `ChartList` | XChartList | yes |
 | `CalibratedEntries` | XCalibratedEntryList | no |
+
+## Creating and releasing drivers
+
+```python
+drivers = Root()["Drivers"]
+dc = drivers.dynamic_cast()         # downcast to XDriverList
+
+# Discover registered driver types — don't guess
+dc.typenames()                      # ['TestDriver', 'DMM', ...]
+dc.typelabels()                     # human-readable labels (Add-driver dialog)
+
+# Create
+driver = dc.createByTypename("TestDriver", "Test1")
+# NOTE: returns None for unregistered typenames — verify against typenames() first.
+
+# Start acquisition (TestDriver uses DummyInterface, no hardware)
+driver["Interface"]["Control"] = True
+
+# Release: also removes the driver's ChartList / ScalarEntries
+dc.release(driver)
+```
 
 ## Common Recipes
 
