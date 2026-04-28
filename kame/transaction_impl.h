@@ -137,20 +137,20 @@ namespace detail {
 // so libkame instead exports `*_ref()` accessor functions; the storage
 // lives as a function-local `thread_local` inside each accessor (one
 // instance per thread, per program — same DLL hosts the storage).
-#if defined(_MSC_VER)
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 // transaction.h aliases bare names to the accessor calls. Undef here
 // so we can write the accessor bodies without recursive expansion.
 #  undef s_tx_nest
 #  undef s_sleep_nest
 #  undef tls_runner_counter_holder
 #  undef tls_runner_counter_ptr
-int& s_tx_nest_ref() noexcept { thread_local int v = 0; return v; }
-int& s_sleep_nest_ref() noexcept { thread_local int v = 0; return v; }
-std::shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
+DECLSPEC_KAME int& s_tx_nest_ref() noexcept { thread_local int v = 0; return v; }
+DECLSPEC_KAME int& s_sleep_nest_ref() noexcept { thread_local int v = 0; return v; }
+DECLSPEC_KAME std::shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
     thread_local std::shared_ptr<RunnerCounterEntry> v;
     return v;
 }
-RunnerCounterEntry*& tls_runner_counter_ptr_ref() noexcept {
+DECLSPEC_KAME RunnerCounterEntry*& tls_runner_counter_ptr_ref() noexcept {
     thread_local RunnerCounterEntry* v = nullptr;
     return v;
 }
