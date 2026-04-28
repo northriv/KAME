@@ -559,20 +559,38 @@ def launchJupyterConsole(prog, argv):
 		if not python_cmd:
 			print("Warning: No Python with 'mcp' and 'jupyter_client' found for MCP server.", file=sys.stderr)
 			python_cmd = _candidates[0] if _candidates else 'python3'
+		# launchJupyterConsole runs on the main thread via py::eval, so
+		# TLS.xscrthread is not set → MYDEFOUT.write would fall back to
+		# the OS terminal. Write progress messages directly to KAME's
+		# Python script-thread log so they are visible in the GUI's
+		# message area (and the Python pane).
+		_pyscrthread = XScriptingThreads()[0]
+		def _gui_log(msg, color='#008800'):
+			"""Mirror text to KAME's GUI message area + STDERR fallback."""
+			try:
+				escaped = html.escape(msg)
+				my_defout(_pyscrthread,
+					f'<font color="{color}">{escaped}</font>')
+			except Exception:
+				pass
+			# Always also write to terminal so headless launches log too.
+			STDERR.write(msg + '\n')
+
 		# Transport selection:
-		#   Windows default → streamable-http with Bearer token (stdio
-		#   subprocess startup is slow on Windows; CreateProcess +
-		#   `import mcp` per Claude Code session adds ~1 s).
-		#   Other platforms default → stdio (fork is cheap).
+		#   Default → streamable-http with Bearer token. The HTTP server
+		#   stays resident across Claude Code sessions, eliminating the
+		#   per-session subprocess startup cost (~1 s on Windows,
+		#   ~0.5 s on macOS for `import mcp`). Also lets external
+		#   Claude Code sessions connect from any cwd by reading
+		#   `~/.kame_mcp_url`.
 		#   Override via env var KAME_MCP_TRANSPORT=stdio|http.
-		import platform as _pf
 		global NOTEBOOK_MCP_HTTP_PROC
 		global NOTEBOOK_MCP_URL_FILE
 		_transport_env = os.environ.get('KAME_MCP_TRANSPORT', '').lower()
 		if _transport_env in ('stdio', 'http'):
 			_use_http = (_transport_env == 'http')
 		else:
-			_use_http = (_pf.system() == 'Windows')
+			_use_http = True  # default everywhere
 
 		mcp_json_path = os.path.join(console[1], '.mcp.json')
 		try:
@@ -650,7 +668,7 @@ def launchJupyterConsole(prog, argv):
 						]
 					if _raw:
 						_lines += ["", "Captured output:", _raw]
-					print("\n".join(_lines), file=sys.stderr)
+					_gui_log("\n".join(_lines), color='#cc0000')
 					NOTEBOOK_MCP_HTTP_PROC = None
 					# Fall through: write stdio config below.
 					_use_http = False
@@ -670,14 +688,25 @@ def launchJupyterConsole(prog, argv):
 				with open(NOTEBOOK_MCP_URL_FILE, 'w') as _f:
 					_json.dump({'url': _url, 'token': _token,
 								'pid': os.getpid()}, _f)
-				print(f"MCP HTTP server on {_url} (token in {mcp_json_path})")
+				_gui_log(
+					f"#MCP HTTP server started.\n"
+					f"#  URL  : {_url}\n"
+					f"#  Port : {_port}\n"
+					f"#  PID  : {NOTEBOOK_MCP_HTTP_PROC.pid}\n"
+					f"#  Token: {_token[:8]}\u2026 (full token in {mcp_json_path})\n"
+					f"#  URL file: {NOTEBOOK_MCP_URL_FILE}\n"
+					f"#  Notebook .mcp.json: {mcp_json_path}")
 			else:
 				with open(mcp_json_path, 'w') as _f:
 					_json.dump({'mcpServers': {'kame': {
 						'command': python_cmd,
 						'args': [mcp_server_script]
 					}}}, _f, indent=2)
-				print("MCP stdio config written to " + mcp_json_path)
+				_gui_log(
+					f"#MCP stdio config written.\n"
+					f"#  Server script: {mcp_server_script}\n"
+					f"#  Python      : {python_cmd}\n"
+					f"#  .mcp.json   : {mcp_json_path}")
 			NOTEBOOK_MCP_JSON = mcp_json_path
 		except OSError:
 			pass
