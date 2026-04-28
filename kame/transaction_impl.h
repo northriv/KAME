@@ -142,15 +142,7 @@ thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
 
 RunnerCounterEntry& runner_counter_register() {
-    // Explicit `new` form (not std::make_shared) so the over-aligned
-    // (KAME_CACHE_LINE = 128 on Apple Silicon) RunnerCounterEntry uses
-    // operator new(size, std::align_val_t). make_shared on libc++
-    // pre-macOS-13 can silently under-align the embedded object,
-    // producing a control-block / object pair where the atomic<uint64_t>
-    // payload lives at a non-128B-aligned address — adjacent heap
-    // objects then false-share or worse, vtable-like indirect calls
-    // through the misaligned region read garbage.
-    std::shared_ptr<RunnerCounterEntry> sp(new RunnerCounterEntry());
+    auto sp = std::make_shared<RunnerCounterEntry>();
     tls_runner_counter_holder = sp;
     tls_runner_counter_ptr = sp.get();
     // COW publish: append our weak_ptr to the global vector and prune
