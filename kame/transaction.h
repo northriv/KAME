@@ -125,7 +125,7 @@ namespace detail {
     //! across DLL boundaries. We instead export accessor functions
     //! returning `int&` to libkame's TLS, and a macro aliases the
     //! variable name so call sites stay uniform.
-#if defined(_MSC_VER)
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     DECLSPEC_KAME int& s_tx_nest_ref() noexcept;
     DECLSPEC_KAME int& s_sleep_nest_ref() noexcept;
 #else
@@ -166,7 +166,7 @@ namespace detail {
     //! pointer cache below makes the hot path (`AcquireOneCount` ctor)
     //! a single TLS load + relaxed fetch_add — no shared_ptr ref ops.
     //! Defined in transaction_impl.h (see s_tx_nest comment).
-#if defined(_MSC_VER)
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     DECLSPEC_KAME std::shared_ptr<RunnerCounterEntry>&
         tls_runner_counter_holder_ref() noexcept;
     DECLSPEC_KAME RunnerCounterEntry*&
@@ -190,7 +190,7 @@ namespace detail {
     //! transaction_impl.h.
     DECLSPEC_KAME RunnerCounterEntry& runner_counter_register();
 
-#if defined(_MSC_VER)
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     // Windows token-level aliases: every `s_tx_nest`, `s_sleep_nest`,
     // `tls_runner_counter_holder`, `tls_runner_counter_ptr` reference
     // (qualified or not) becomes a call to the libkame-exported
