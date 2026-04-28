@@ -309,5 +309,63 @@ for _d in _dshot.list(_drivers):
         return f"KAME kernel error: {e}"
 
 
+def _run_http_with_token(server, host, port, token):
+    """Run streamable-http server with Bearer-token middleware.
+
+    Used when the launching process supplies --token; clients must send
+    `Authorization: Bearer <token>` on every request. Mitigates the
+    "any local user can hit 127.0.0.1 and execute Python in KAME"
+    failure mode.
+
+    Falls back to plain server.run() if the underlying Starlette app
+    isn't exposed (older mcp versions): the warning is loud so the
+    deployer knows to upgrade.
+    """
+    try:
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.responses import Response
+        import uvicorn
+        app = server.streamable_http_app()
+        expected = f"Bearer {token}"
+
+        class _AuthMW(BaseHTTPMiddleware):
+            async def dispatch(self, request, call_next):
+                if request.headers.get("authorization", "") != expected:
+                    return Response("Unauthorized", status_code=401)
+                return await call_next(request)
+
+        app.add_middleware(_AuthMW)
+        uvicorn.run(app, host=host, port=port, log_level="warning")
+    except (AttributeError, ImportError) as e:
+        print(
+            f"Warning: token auth unavailable ({e}); falling back to "
+            f"unauthenticated streamable-http on {host}:{port}.",
+            file=sys.stderr)
+        server.run(transport="streamable-http", host=host, port=port)
+
+
 if __name__ == "__main__":
-    server.run(transport="stdio")
+    import argparse
+    p = argparse.ArgumentParser(description="KAME MCP server")
+    p.add_argument("--transport", choices=["stdio", "sse", "http"],
+                   default="stdio",
+                   help="MCP transport (default: stdio)")
+    p.add_argument("--host", default="127.0.0.1",
+                   help="bind address for sse/http (default: 127.0.0.1)")
+    p.add_argument("--port", type=int, default=0,
+                   help="port for sse/http (0 = OS-assigned)")
+    p.add_argument("--token", default="",
+                   help="bearer token for http transport (optional)")
+    args = p.parse_args()
+
+    if args.transport == "stdio":
+        server.run(transport="stdio")
+    elif args.transport == "sse":
+        server.run(transport="sse", host=args.host, port=args.port)
+    else:
+        # streamable-http is the MCP 1.0+ recommended transport.
+        if args.token:
+            _run_http_with_token(server, args.host, args.port, args.token)
+        else:
+            server.run(transport="streamable-http",
+                       host=args.host, port=args.port)
