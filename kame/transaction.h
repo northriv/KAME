@@ -116,13 +116,23 @@ namespace detail {
     //! Definition lives in transaction_impl.h (single TU per binary)
     //! to avoid macOS two-level-namespace duplication of `inline
     //! thread_local` storage across DSOs (libkame vs. module dylibs).
-    //! No DECLSPEC_KAME on the extern: MSVC forbids
-    //! `__declspec(dllexport) thread_local`, and on Apple/Linux the
-    //! default-visibility extern is enough for modules to bind to the
-    //! single libkame copy.
+    //!
+    //! Apple/Linux: default-visibility `extern thread_local`, modules
+    //! bind to libkame's copy directly.
+    //!
+    //! Windows: `__declspec(dllexport) thread_local` is forbidden by
+    //! MSVC, and an unannotated `extern thread_local` is not exported
+    //! across DLL boundaries. We instead export accessor functions
+    //! returning `int&` to libkame's TLS, and a macro aliases the
+    //! variable name so call sites stay uniform.
+#if defined(_MSC_VER)
+    DECLSPEC_KAME int& s_tx_nest_ref() noexcept;
+    DECLSPEC_KAME int& s_sleep_nest_ref() noexcept;
+#else
     extern thread_local int s_tx_nest;
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
     extern thread_local int s_sleep_nest;
+#endif
     using cnt_t = int64_t;
     inline cnt_t pack_stamp(cnt_t us, uint16_t tid) noexcept {
         return (us & ((cnt_t{1} << 48) - 1)) | (cnt_t{tid} << 48);
@@ -156,10 +166,17 @@ namespace detail {
     //! pointer cache below makes the hot path (`AcquireOneCount` ctor)
     //! a single TLS load + relaxed fetch_add — no shared_ptr ref ops.
     //! Defined in transaction_impl.h (see s_tx_nest comment).
+#if defined(_MSC_VER)
+    DECLSPEC_KAME std::shared_ptr<RunnerCounterEntry>&
+        tls_runner_counter_holder_ref() noexcept;
+    DECLSPEC_KAME RunnerCounterEntry*&
+        tls_runner_counter_ptr_ref() noexcept;
+#else
     extern thread_local std::shared_ptr<RunnerCounterEntry>
         tls_runner_counter_holder;
     extern thread_local RunnerCounterEntry*
         tls_runner_counter_ptr;
+#endif
 
     //! Global "currently registered runner counters" vector. COW: any
     //! thread's first registration publishes a new vector via
@@ -172,6 +189,18 @@ namespace detail {
     //! return the cached raw pointer thereafter. Defined in
     //! transaction_impl.h.
     DECLSPEC_KAME RunnerCounterEntry& runner_counter_register();
+
+#if defined(_MSC_VER)
+    // Windows token-level aliases: every `s_tx_nest`, `s_sleep_nest`,
+    // `tls_runner_counter_holder`, `tls_runner_counter_ptr` reference
+    // (qualified or not) becomes a call to the libkame-exported
+    // accessor returning `T&` to the libkame-side thread_local.
+    // Apple/Linux skip these; the bare extern thread_local is enough.
+    #define s_tx_nest                  s_tx_nest_ref()
+    #define s_sleep_nest               s_sleep_nest_ref()
+    #define tls_runner_counter_holder  tls_runner_counter_holder_ref()
+    #define tls_runner_counter_ptr     tls_runner_counter_ptr_ref()
+#endif
 
     inline RunnerCounterEntry& my_runner_counter() {
         auto *p = tls_runner_counter_ptr;
