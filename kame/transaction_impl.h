@@ -122,14 +122,33 @@ namespace Transactional {
 // Per-thread runner counter infrastructure. The vector and registration
 // helper live in Transactional::detail (see transaction.h for design).
 // Definitions are non-templated (only one Node<XN> instantiation in
-// practice) and live here as inline so a single header inclusion gives
-// one storage instance per program (C++17 inline variable / function).
+// practice). transaction_impl.h is included from exactly one TU per
+// binary (libkame's xnode.cpp; each tests/transaction_*_test.cpp), so
+// these can be plain (non-inline) definitions. macOS two-level
+// namespace would otherwise duplicate `inline` storage across
+// libkame.dylib and module dylibs (libthamway, libnmr, ...) and
+// break the runner-counter / nest-depth singleton invariants.
 namespace detail {
 
-inline atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
+// Per-thread nesting / TLS storage. Declared `extern thread_local` in
+// transaction.h; defined here exactly once.
+thread_local int s_tx_nest = 0;
+thread_local int s_sleep_nest = 0;
+thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
+thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 
-inline RunnerCounterEntry& runner_counter_register() {
-    auto sp = std::make_shared<RunnerCounterEntry>();
+atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
+
+RunnerCounterEntry& runner_counter_register() {
+    // Explicit `new` form (not std::make_shared) so the over-aligned
+    // (KAME_CACHE_LINE = 128 on Apple Silicon) RunnerCounterEntry uses
+    // operator new(size, std::align_val_t). make_shared on libc++
+    // pre-macOS-13 can silently under-align the embedded object,
+    // producing a control-block / object pair where the atomic<uint64_t>
+    // payload lives at a non-128B-aligned address — adjacent heap
+    // objects then false-share or worse, vtable-like indirect calls
+    // through the misaligned region read garbage.
+    std::shared_ptr<RunnerCounterEntry> sp(new RunnerCounterEntry());
     tls_runner_counter_holder = sp;
     tls_runner_counter_ptr = sp.get();
     // COW publish: append our weak_ptr to the global vector and prune
@@ -275,7 +294,10 @@ namespace detail {
         uint32_t    tx_retry_window  = 0;
         uint64_t    tx_commit_window = 0;
     };
-    inline thread_local LivelockProbe tls_livelock_probe;
+    // Non-inline: transaction_impl.h is materialised in exactly one
+    // TU per binary (see header-block comment above), so a plain
+    // `thread_local` definition gives one slot per program.
+    thread_local LivelockProbe tls_livelock_probe;
 
     inline int64_t ll_now_us() noexcept {
         return std::chrono::duration_cast<std::chrono::microseconds>(
@@ -927,13 +949,15 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
 // dt2 of the most recent negotiate() call — used by the adaptive fairness
 // gate (always-on, zero cost beyond one thread_local store).
-inline thread_local uint64_t s_adapt_dt2_last_us       = 0;
-inline thread_local int      s_adapt_C_last            = 0;  // popcount(tid_bitset)
-inline thread_local uint32_t s_adapt_last_priority_tid = 0;  // last m_priority_tid seen
-inline thread_local uint32_t s_adapt_bounce_count      = 0;  // # times it changed
-inline thread_local uint64_t s_adapt_negotiate_calls   = 0;  // negotiate() entries
-inline thread_local uint64_t s_adapt_skip_hits         = 0;  // lease-skip fires
-inline thread_local uint32_t s_adapt_skip_per1k        = 0;  // skip_hits/calls × 1000
+// Non-inline: see runner-counter detail block above for why
+// transaction_impl.h drops `inline` on namespace-scope thread_local.
+thread_local uint64_t s_adapt_dt2_last_us       = 0;
+thread_local int      s_adapt_C_last            = 0;  // popcount(tid_bitset)
+thread_local uint32_t s_adapt_last_priority_tid = 0;  // last m_priority_tid seen
+thread_local uint32_t s_adapt_bounce_count      = 0;  // # times it changed
+thread_local uint64_t s_adapt_negotiate_calls   = 0;  // negotiate() entries
+thread_local uint64_t s_adapt_skip_hits         = 0;  // lease-skip fires
+thread_local uint32_t s_adapt_skip_per1k        = 0;  // skip_hits/calls × 1000
 #endif
 //=============================================================================
 // negotiate_internal() — priority-based backoff for collision avoidance
