@@ -32,7 +32,7 @@
 // Half-range of the jittered gate in percent; must be ≥1 (0 causes div-by-zero
 // in JITTER_DIV). Sweep (N=128 median/3): JIT=10 avg4=4841k > JIT=25 avg4=4672k.
 #ifndef KAME_STM_JITTER_RANGE
-#define KAME_STM_JITTER_RANGE 10
+#define KAME_STM_JITTER_RANGE 25   // sweep winner (N=128 median/3)
 #endif
 
 // Ablation knob: 1 → disable both the jittered gate (gate factor pinned to
@@ -86,7 +86,7 @@
 #define KAME_LEASE_GROW_MAX_PERCENT   80   // cap on per-call growth
 #endif
 #ifndef KAME_LEASE_SHRINK_PERCENT
-#define KAME_LEASE_SHRINK_PERCENT     10   // shrink step when C == 0
+#define KAME_LEASE_SHRINK_PERCENT     5    // shrink step when C == 0; sweep winner
 #endif
 // Quantized lease write: skip the atomic store unless |delta| ≥ this
 // (in µs). Once the lease pins at MIN/MAX rail, clamping yields delta=0
@@ -917,7 +917,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_US_MIN  1     // 1 µs
 #endif
 #ifndef KAME_LEASE_US_MAX
-#define KAME_LEASE_US_MAX  3    // 3 µs — uint16_t field; keep ≤65535. Sweep winner (MAX_R=2).
+#define KAME_LEASE_US_MAX  20   // 20 µs — uint16_t field; keep ≤65535. Sweep winner.
 #endif
 
 
