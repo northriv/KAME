@@ -47,6 +47,11 @@ XString
 XPfeifferProtocolInterface::action(unsigned int addr, bool iscontrol,
     unsigned int param_no, const XString &str) {
     XScopedLock<XInterface> lock( *this);
+    // Multidrop arbitration: hold the shared port mutex across the
+    // whole send + receive transaction (recursive — inner per-I/O
+    // XScopedLock<XPort> nests harmlessly).
+    auto port = openedPort();
+    XScopedLock<XPort> portlock( *port);
     XString buf;
     buf = formatString("%03u%02u%03u%02u", addr,
         iscontrol ? 10u : 0u, param_no, (unsigned int)str.length());
