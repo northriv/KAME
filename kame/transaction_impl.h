@@ -130,14 +130,42 @@ namespace Transactional {
 // break the runner-counter / nest-depth singleton invariants.
 namespace detail {
 
-// Per-thread nesting / TLS storage. Declared `extern thread_local` in
-// transaction.h (without DECLSPEC_KAME — MSVC forbids dllexport on
-// thread_local). Defined here exactly once per binary because
-// transaction_impl.h is included from a single TU per binary.
+// Per-thread nesting / TLS storage. Apple/Linux: declared `extern
+// thread_local` in transaction.h, defined here as plain thread_local
+// (transaction_impl.h is included from exactly one TU per binary).
+// Windows: `__declspec(dllexport) thread_local` is forbidden by MSVC,
+// so libkame instead exports `*_ref()` accessor functions; the storage
+// lives as a function-local `thread_local` inside each accessor (one
+// instance per thread, per program — same DLL hosts the storage).
+#if defined(_MSC_VER)
+// transaction.h aliases bare names to the accessor calls. Undef here
+// so we can write the accessor bodies without recursive expansion.
+#  undef s_tx_nest
+#  undef s_sleep_nest
+#  undef tls_runner_counter_holder
+#  undef tls_runner_counter_ptr
+int& s_tx_nest_ref() noexcept { thread_local int v = 0; return v; }
+int& s_sleep_nest_ref() noexcept { thread_local int v = 0; return v; }
+std::shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
+    thread_local std::shared_ptr<RunnerCounterEntry> v;
+    return v;
+}
+RunnerCounterEntry*& tls_runner_counter_ptr_ref() noexcept {
+    thread_local RunnerCounterEntry* v = nullptr;
+    return v;
+}
+// Re-instate the aliases so the rest of transaction_impl.h refers to
+// the variables uniformly.
+#  define s_tx_nest                  s_tx_nest_ref()
+#  define s_sleep_nest               s_sleep_nest_ref()
+#  define tls_runner_counter_holder  tls_runner_counter_holder_ref()
+#  define tls_runner_counter_ptr     tls_runner_counter_ptr_ref()
+#else
 thread_local int s_tx_nest = 0;
 thread_local int s_sleep_nest = 0;
 thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
+#endif
 
 atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
 
