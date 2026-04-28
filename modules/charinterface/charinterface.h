@@ -253,7 +253,16 @@ protected:
     };
 private:
     friend struct ScopedUnlock;
-    XMutex m_mutex; //To unlock effectively, never use it recursively.
+    //! Recursive: a transaction-scope `XScopedLock<XPort>(*port)` taken
+    //! by the protocol-level driver (ModbusRTU / Pfeiffer / Fujikin
+    //! query routines) outside the per-I/O `XScopedLock<XPort>` taken
+    //! by XCharInterface::write/receive must not self-deadlock. The
+    //! port mutex is shared by every interface that resolves to the
+    //! same physical port (s_openedPorts), giving multidrop arbitration
+    //! across drivers. ScopedUnlock here only releases ONE depth — do
+    //! not nest beyond a single transaction-scope lock when sleeping,
+    //! or the OS mutex stays held during the sleep.
+    XRecursiveMutex m_mutex;
 };
 
 #endif /*CHARINTERFACE_H_*/

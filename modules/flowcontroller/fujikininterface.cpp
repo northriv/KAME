@@ -133,6 +133,11 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
     buf.push_back(checksum);
 
     XScopedLock<XInterface> lock( *this);
+    // Multidrop arbitration: hold the shared port mutex across the
+    // whole transaction (recursive — inner per-I/O XScopedLock<XPort>
+    // nests harmlessly).
+    auto port = openedPort();
+    XScopedLock<XPort> portlock( *port);
     msecsleep(10);
     this->write(reinterpret_cast<char*>( &buf[0]), buf.size());
     for(int retry = 0; retry < 50; ++retry) {
