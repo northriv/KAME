@@ -194,7 +194,14 @@ XPython::execute(const atomic<bool> &terminated) {
             QFile scriptfile(filename);
             if( !scriptfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
                 if(std::string(filename) == XPYTHONSUPPORT_PY)
-                    gErrPrint("No KAME python support file installed.");
+                    gErrPrint(i18n(
+                        "Required Python support file not found: ")
+                        + filename + i18n(
+                        "\nKAME's Python features (Jupyter / MCP / Python "
+                        "drivers) will be disabled. Reinstall KAME or "
+                        "verify Contents/Resources/xpythonsupport.py "
+                        "(macOS) / Resources\\xpythonsupport.py (Windows) "
+                        "exists in your install."));
                 else
                     fprintf(stderr, "Optional python extension %s not found, skipping.\n", filename);
                 continue;
@@ -222,14 +229,70 @@ XPython::execute(const atomic<bool> &terminated) {
                     py::exec(data.c_str(), main_scope);
                 }
                 catch (pybind11::error_already_set& e) {
-                    if(std::string(e.what()).find("SystemExit: 0") == std::string::npos) //ignore sys.exit(0).
-                        gErrPrint(i18n("Python error: ") + e.what());
+                    std::string msg = e.what();
+                    if(msg.find("SystemExit: 0") != std::string::npos)
+                        ; //ignore sys.exit(0).
+                    else {
+                        // Translate a few high-frequency startup
+                        // failures into actionable hints. The raw
+                        // traceback is still appended so power users
+                        // can read the real error.
+                        QString hint;
+                        auto contains = [&](const char *s) {
+                            return msg.find(s) != std::string::npos; };
+                        if(contains("ModuleNotFoundError")
+                           || contains("No module named")
+                           || contains("ImportError")) {
+                            // Try to extract the missing module name.
+                            std::string mod;
+                            auto pos = msg.find("No module named '");
+                            if(pos != std::string::npos) {
+                                pos += sizeof("No module named '") - 1;
+                                auto end = msg.find('\'', pos);
+                                if(end != std::string::npos)
+                                    mod = msg.substr(pos, end - pos);
+                            }
+                            QString pkg = mod.empty()
+                                ? QStringLiteral("ipykernel ipython jupyter pybind11")
+                                : QString::fromStdString(mod);
+                            hint = i18n("\n\nA Python package is missing");
+                            if( !mod.empty())
+                                hint += QStringLiteral(": '")
+                                      + QString::fromStdString(mod) + "'";
+                            hint += i18n(".\nInstall it into the Python that runs KAME, e.g.:\n");
+                            hint += "  pip install " + pkg + "\n";
+                            hint += "  /opt/local/bin/pip install " + pkg + "    # MacPorts\n";
+                            hint += "  /opt/homebrew/bin/pip install " + pkg + "  # Homebrew\n";
+                            hint += i18n("Then restart KAME.");
+                        }
+                        else if(contains("SyntaxError")
+                                || contains("IndentationError")) {
+                            hint = i18n("\n\nSyntax error in xpythonsupport.py.\n"
+                                        "The Python support file in this KAME install is corrupt.\n"
+                                        "Reinstall KAME or restore the file from the source tree.");
+                        }
+                        else if(contains("FileNotFoundError")
+                                || contains("No such file")) {
+                            hint = i18n("\n\nA file referenced by xpythonsupport.py is missing.\n"
+                                        "Verify your KAME installation is complete.");
+                        }
+                        gErrPrint(i18n("Python startup error: ")
+                                  + QString::fromStdString(msg) + hint);
+                    }
                 }
                 catch (std::runtime_error &e) {
-                    gErrPrint(i18n("Python KAME binding error: ") + e.what());
+                    gErrPrint(
+                        i18n("Python KAME binding error: ") + e.what()
+                        + i18n("\n\nThis usually means the C++ pybind11 module "
+                               "registration is broken (mismatched build, ABI skew "
+                               "between modules, or a Python version change). "
+                               "Rebuild KAME from a clean tree."));
                 }
                 catch (...) {
-                    gErrPrint(i18n("Unknown python error."));
+                    gErrPrint(
+                        i18n("Unknown error during Python startup. "
+                             "Check stderr (Console.app on macOS, Event Viewer on "
+                             "Windows) for low-level diagnostics."));
                 }
             }
         }
