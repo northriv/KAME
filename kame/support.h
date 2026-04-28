@@ -58,10 +58,15 @@
     #define USE_QTHREAD
     #include <QThread>
     #include <thread>
+    // Windows custom mlock (defined in support.cpp via VirtualLock).
     DECLSPEC_KAME int mlock(const void *addr, size_t len);
 #else
     #include <pthread.h>
     #define USE_PTHREAD
+    // POSIX mlock — declared by <sys/mman.h>. Pulled in here so any
+    // translation unit that includes "support.h" sees it (formerly
+    // came in transitively via xthread.h).
+    #include <sys/mman.h>
 #endif
 
 #include <memory>

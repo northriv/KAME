@@ -30,7 +30,6 @@
     using threadid_t = std::thread::id;
     inline threadid_t threadID() noexcept {return std::this_thread::get_id();}
     inline bool is_thread_equal(threadid_t x, threadid_t y) noexcept {return x == y;}
-    #include <sys/mman.h>
 #endif
 
 #include "threadlocal.h"
