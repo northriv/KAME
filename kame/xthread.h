@@ -27,6 +27,8 @@
     #include <QThread>
 #else
     #include <thread>
+    #include <mutex>
+    #include <condition_variable>
     using threadid_t = std::thread::id;
     inline threadid_t threadID() noexcept {return std::this_thread::get_id();}
     inline bool is_thread_equal(threadid_t x, threadid_t y) noexcept {return x == y;}
@@ -91,6 +93,10 @@ protected:
     QMutex m_mutex;
 #elif defined USE_PTHREAD
     pthread_mutex_t m_mutex;
+#else
+    // Portable C++11 fallback (e.g. tests/support_standalone.h on
+    // Windows, where neither QThread nor pthread is available).
+    std::mutex m_mutex;
 #endif
 };
 
@@ -118,6 +124,8 @@ private:
     QWaitCondition m_cond;
 #elif defined USE_PTHREAD
     pthread_cond_t m_cond;
+#else
+    std::condition_variable m_cond;
 #endif
 };
 

@@ -132,6 +132,34 @@ void XCondition::broadcast() {
         int ret = pthread_cond_broadcast( &m_cond);
         if(DEBUG_XTHREAD) assert( !ret);
     }
+    #else // !USE_PTHREAD — portable C++11 fallback (Windows tests etc.)
+
+    #include <chrono>
+
+    XMutex::XMutex() = default;
+    XMutex::~XMutex() = default;
+    void XMutex::lock()    { m_mutex.lock();    }
+    void XMutex::unlock()  { m_mutex.unlock();  }
+    bool XMutex::trylock() { return m_mutex.try_lock(); }
+
+    XCondition::XCondition() : XMutex() {}
+    XCondition::~XCondition() {}
+    int XCondition::wait(int usec) {
+        // The mutex is already locked by the caller (per the
+        // pthread/Qt contract). std::condition_variable::wait_for
+        // requires a unique_lock, so adopt the held lock without
+        // re-locking, wait, then release ownership so the caller's
+        // unlock path is unchanged.
+        std::unique_lock<std::mutex> lk(m_mutex, std::adopt_lock);
+        std::cv_status st = (usec > 0)
+            ? m_cond.wait_for(lk, std::chrono::microseconds(usec))
+            : (m_cond.wait(lk), std::cv_status::no_timeout);
+        lk.release();
+        return (st == std::cv_status::timeout) ? 1 : 0;
+    }
+    void XCondition::signal()    { m_cond.notify_one(); }
+    void XCondition::broadcast() { m_cond.notify_all(); }
+
     #endif // USE_PTHREAD
 #endif // USE_QTHREAD
 
