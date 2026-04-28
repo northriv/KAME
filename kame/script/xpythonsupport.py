@@ -655,7 +655,7 @@ def launchJupyterConsole(prog, argv):
 					# Fall through: write stdio config below.
 					_use_http = False
 
-		if _use_http:
+			if _use_http:
 				_url = f'http://127.0.0.1:{_port}/mcp'
 				with open(mcp_json_path, 'w') as _f:
 					_json.dump({'mcpServers': {'kame': {
