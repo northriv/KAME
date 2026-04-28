@@ -167,9 +167,14 @@ thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 #endif
 
-atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
+// `DECLSPEC_KAME` on the definitions too — MSVC is more lenient when
+// dllexport appears on both declaration and definition. Without it,
+// each module DLL can end up with its own private copy of these
+// symbols, defeating the libkame singleton invariant (the macOS DSO
+// duplication failure mode that motivated this whole reorg).
+DECLSPEC_KAME atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
 
-RunnerCounterEntry& runner_counter_register() {
+DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
     auto sp = std::make_shared<RunnerCounterEntry>();
     tls_runner_counter_holder = sp;
     tls_runner_counter_ptr = sp.get();
@@ -189,6 +194,22 @@ RunnerCounterEntry& runner_counter_register() {
         if(s_runner_counters.compareAndSwap(old, next)) break;
     }
     return *sp;
+}
+
+DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
+    auto *p = tls_runner_counter_ptr;
+    if(p) return *p;
+    return runner_counter_register();
+}
+
+DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept {
+    local_shared_ptr<RunnerCounterVec> snap(s_runner_counters);
+    if( !snap) return 0;
+    uint64_t s = 0;
+    for(auto &w : *snap)
+        if(auto sp = w.lock())
+            s += sp->v.load(std::memory_order_relaxed);
+    return (unsigned)s;
 }
 
 } // namespace detail
