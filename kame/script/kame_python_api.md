@@ -1,5 +1,27 @@
 # KAME Python API Quick Reference
 
+## MCP tool selection (read first)
+
+If you reach this doc through MCP, the relevant tools are:
+
+- **`execute_code`** — synchronous; the kernel blocks the MCP response
+  until the code returns. **Hard timeout ≈ 30 s.** Use only for *quick*
+  reads, single transactions, plotting a snapshot.
+- **`execute_code_async` + `get_result`** — runs the code in a daemon
+  thread on the kernel; returns a job id immediately. **Use this for
+  anything that loops, sleeps, samples over time, or polls hardware.**
+  KAME STM is thread-safe; just don't share Python-level state with
+  other code until the job completes.
+
+Anti-pattern (will MCP-timeout):
+```python
+# Running this with execute_code blocks until 30 s and dies.
+for _ in range(60):
+    sleep(1.0)
+    print(float(Snapshot(node)[node]))
+```
+Switch to `execute_code_async` + `get_result(job_id)` for the same code.
+
 ## Globals (pre-imported from `kame`)
 
 ```python
@@ -123,6 +145,24 @@ The root node (`Root()`) has these children:
 | Name | Type | Runtime |
 |---|---|---|
 | `Drivers` | XDriverList | no |
+
+### Discovering valid type names
+
+`XListNodeBase` exposes `typenames()` and `typelabels()` so you don't
+have to guess the right string for `createByTypename()`:
+
+```python
+drivers = Root()["Drivers"]
+dc = drivers.dynamic_cast()        # downcast to XDriverList
+print(dc.typenames())              # ['DMM', 'DCSource', ...]
+print(dc.typelabels())             # ['Multimeter', 'DC voltage source', ...]
+```
+
+`typenames()` returns the keys accepted by `createByTypename()` in the
+order they were registered; `typelabels()` returns the matching
+human-readable labels (the strings shown in KAME's "Add driver"
+dialog). Lists that don't accept arbitrary types (plain
+`XListNode<T>`) return an empty list.
 | `Interfaces` | XInterfaceList | yes |
 | `ScalarEntries` | XScalarEntryList | yes |
 | `Thermometers` | XThermometerList | no |
