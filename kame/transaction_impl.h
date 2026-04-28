@@ -1163,6 +1163,20 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     for(int ms = 0;;) {
         if(entry_pr == Priority::HIGHEST)
             break;
+        // Single-contender fast path: only this thread is visible in
+        // tid_bitset (sig_C=1). The probabilistic √C lottery is
+        // meaningless when there is no peer to share the slot with —
+        // every iteration would just roll a coin and (eventually)
+        // wake/break. Skip the gate and lottery entirely, send one
+        // notify (in case any sleeper was waiting on this linkage),
+        // and break out so the caller can retry CAS. Greedy CM
+        // resolves any concurrent commit by the older Tx; if a real
+        // contender appears later, tid_bitset accumulates and the
+        // next negotiate call sees sig_C ≥ 2.
+        if(sig_C == 1) {
+            NegotiationCounter::notify_n_contenders(tid_bitset, 1);
+            break;
+        }
         // Both stamps are tid-packed; subtract their µs components.
         auto dt = NegotiationCounter::stamp_us(started_time)
                 - NegotiationCounter::stamp_us(transaction_started_time);
