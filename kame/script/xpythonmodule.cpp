@@ -374,6 +374,18 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
 
     {   auto [node, payload] = XPython::bind.export_xnode<XListNodeBase, XNode>();
         (*node)
+        .def("typenames", [](shared_ptr<XListNodeBase> &self) -> std::vector<std::string> {
+            // Registered type keys for createByTypename(). Empty list
+            // for plain XListNode<T> (those accept only the fixed T).
+            std::vector<std::string> ret;
+            for(auto &n: self->typenames()) ret.push_back(n);
+            return ret;
+        })
+        .def("typelabels", [](shared_ptr<XListNodeBase> &self) -> std::vector<std::string> {
+            std::vector<std::string> ret;
+            for(auto &n: self->typelabels()) ret.push_back(n);
+            return ret;
+        })
         .def("createByTypename", [](shared_ptr<XListNodeBase> &self, const std::string &type, const std::string &name){
             return self->createByTypename(type, name);
         })

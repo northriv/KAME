@@ -30,6 +30,13 @@ public:
 
 	virtual bool isThreadSafeDuringCreationByTypename() const = 0;
 
+    //! Registered typenames for createByTypename(), in registration
+    //! order. Default returns empty (lists without DEFINE_TYPE_HOLDER
+    //! don't accept arbitrary types). Overridden by DEFINE_TYPE_HOLDER.
+    virtual std::deque<XString> typenames() {return {};}
+    //! Human-readable labels parallel to typenames(). Default empty.
+    virtual std::deque<XString> typelabels() {return {};}
+
     struct DECLSPEC_KAME Payload : public XNode::Payload {
         Talker<XListNodeBase*> &onListChanged() {return m_tlkOnListChanged;}
 		struct MoveEvent {
