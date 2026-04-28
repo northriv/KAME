@@ -116,9 +116,13 @@ namespace detail {
     //! Definition lives in transaction_impl.h (single TU per binary)
     //! to avoid macOS two-level-namespace duplication of `inline
     //! thread_local` storage across DSOs (libkame vs. module dylibs).
-    DECLSPEC_KAME extern thread_local int s_tx_nest;
+    //! No DECLSPEC_KAME on the extern: MSVC forbids
+    //! `__declspec(dllexport) thread_local`, and on Apple/Linux the
+    //! default-visibility extern is enough for modules to bind to the
+    //! single libkame copy.
+    extern thread_local int s_tx_nest;
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
-    DECLSPEC_KAME extern thread_local int s_sleep_nest;
+    extern thread_local int s_sleep_nest;
     using cnt_t = int64_t;
     inline cnt_t pack_stamp(cnt_t us, uint16_t tid) noexcept {
         return (us & ((cnt_t{1} << 48) - 1)) | (cnt_t{tid} << 48);
@@ -151,11 +155,10 @@ namespace detail {
     //! vector only holds weak_ptrs that expire on thread exit. The raw
     //! pointer cache below makes the hot path (`AcquireOneCount` ctor)
     //! a single TLS load + relaxed fetch_add — no shared_ptr ref ops.
-    //! Defined in transaction_impl.h (see s_tx_nest comment for why
-    //! these cannot be inline thread_local on macOS).
-    DECLSPEC_KAME extern thread_local std::shared_ptr<RunnerCounterEntry>
+    //! Defined in transaction_impl.h (see s_tx_nest comment).
+    extern thread_local std::shared_ptr<RunnerCounterEntry>
         tls_runner_counter_holder;
-    DECLSPEC_KAME extern thread_local RunnerCounterEntry*
+    extern thread_local RunnerCounterEntry*
         tls_runner_counter_ptr;
 
     //! Global "currently registered runner counters" vector. COW: any
