@@ -273,11 +273,36 @@ int main(int argc, char *argv[]) {
             it++;
     }
 
+    // Known-deprecated module substrings — installs sometimes leave
+    // stale dylibs from removed/renamed modules in the modules
+    // directory; loading them against a fresh kame binary causes
+    // misleading crashes (mismatched ABI for STM internals etc.).
+    // List entries are case-insensitive sub-strings of the file name.
+    static const char *const deprecated_modules[] = {
+        "fourres",
+    };
+
     int num_loaded_modules = 0;
     //loads modules.
     for(auto it = modules.begin(); it != modules.end(); it++) {
         app.processEvents(); //displays message.
         std::cerr <<  "Loading module \"" + *it + "\" " << std::endl;
+
+        bool deprecated = false;
+        XString lower_name = QString::fromStdString( *it).toLower().toStdString();
+        for(const char *dep : deprecated_modules) {
+            if(lower_name.find(dep) != std::string::npos) {
+                deprecated = true;
+                XMessageBox::post(
+                    "Skipping deprecated module \"" + *it +
+                    "\" — please remove the file from the modules directory.",
+                    *g_pIconWarn);
+                break;
+            }
+        }
+        if(deprecated)
+            continue;
+
 #ifdef USE_LIBTOOL
         lt_dlhandle handle = lt_dlopenext(QString( *it).toLocal8Bit().data());
 #endif
