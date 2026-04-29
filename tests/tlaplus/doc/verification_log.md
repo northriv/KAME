@@ -190,3 +190,50 @@ TLA+ `ClearMyTags` correctly maps to `drop_tags_n_privilege` at these three poin
 - `BundleUnbundle_2level_LLfree.tla` — Gen 3 spec, 700+ lines
 - `BundleUnbundle_2level_LLfree_micro_mc.cfg` — micro config (Threads={1,2}, MaxPayload=3, MaxCommits=1)
 - C++ counterpart (verified separately): commit `2d141d5` — full FINE/SUPERFINE multi-thread stress PASS
+
+---
+
+## 2026-04-29 (later): superfine + scaling sweeps
+
+### Superfine fix — eager Parent tag on retry
+
+Initial superfine run blew up state space (>30M states at depth 868 still growing). Diagnosis via two diagnostic cfgs (`_phase0only_mc.cfg`, `_phase3only_mc.cfg`) localised the culprit: **Phase 3 DISTURBED restart from `snap_read`**.
+
+The fix combined two changes in `BundlePhase3` superfine DISTURBED branch and `BundlePhase1` fine collection-failure branch:
+
+1. **Clear local bundle state** on `snap_read` restart (`local.wrapper`, `subwrappers`, `subpackets`). C++ `bundle()` returning DISTURBED tears down its stack frame; without this the TLA+ accumulates stale partial-collection state, multiplying TLC's distinct-state count.
+2. **Eager Parent tag** on the same restart paths via `TagAfterFail(t, Parent)`. Mirrors C++ outer-scope `ScopedNegotiateLinkage` at `transaction_impl.h:2407` (eager tag on retry > 0 of bundle's retry-loop) and `transaction_impl.h:2179` (eager tag on retry > 0 of `snapshot()` retry-loop). Without this, peer threads CAS Parent during the holding thread's restart cycle, leading to indefinite re-bundling.
+
+### Sweeps (laptop, 2 threads, no CONSTRAINT, all PASS)
+
+| Mode | MaxCommits | MaxPayload | Distinct states | Depth | Time | Notes |
+|---|---|---|---|---|---|---|
+| fine | 1 | 3 | 665,218 | 89 | 28s | baseline; first formal LL-free proof (commit `a35c4310`) |
+| Phase 0 prestamp only (superfine collect) | 1 | 3 | 1,095,188 | 93 | 48s | adds Phase 0 prestamp CAS |
+| Phase 3 DISTURBED only (with fix) | 1 | 3 | 1,446,125 | 114 | 71s | adds DISTURBED restart |
+| **superfine (full, with fix)** | **1** | **3** | **1,407,147** | **119** | **64s** | full Phase 0 + Phase 3 DISTURBED |
+| MaxPayload=4 fine | 1 | **4** | 665,216 | 89 | 37s | structural state space identical to MaxPayload=3 |
+| MaxCommits=2 fine | **2** | 3 | >27M @ depth 77 (killed) | n/a | n/a | queue ~1.2M not shrinking; needs ohtaka |
+
+### Terminal serial diagnostic (`PrintTerminalSerial` invariant)
+
+A new debug invariant `PrintTerminalSerial == ~AllDone \/ PrintT(...)` emits per-thread `serial` and `globalSerial` to stdout at every AllDone state. Used to gauge Lamport-clock growth.
+
+For MaxPayload=4 fine micro: max `globalSerial = 18`, 71 unique terminal-serial combinations across reachable AllDone states. Well under `DebugSerialBound = 200` (raised from 60 because superfine's Phase 0 + DISTURBED restart cycles bump serials by ~50% more than fine).
+
+### C++ counterpart cleanup matching TLA+
+
+After the LL-free pass, the user simplified C++ `transaction_impl.h:2425-2440` to move the fast-path retry check **before** `ScopedNegotiateLinkage` construction in Phase 1 child collection. This skips negotiate / eager-tag on the read-only fast path (when `subwrapper == subwrappers_org[i]`), matching TLA+'s "no gate on Phase 1 child read" semantics. Drops `tags_successful_cas` C_obs counter increments on no-op fast-path retries (correct because no CAS attempted).
+
+### Open: ohtaka scaling targets
+
+Laptop budget exhausted at MaxCommits=2 / MaxPayload=3 / 2 threads (queue 1.2M not shrinking, RSS 5.4GB / 12GB after 25 min). Next-tier configs to run on ohtaka:
+
+- **MaxCommits=2, MaxPayload=3, 2 threads, fine** — direct continuation; estimated 80-150M states.
+- **MaxCommits=2, MaxPayload=3, 2 threads, superfine** — same with C++'s atomic mode for both Collect/Phase3.
+- **MaxCommits=1, MaxPayload=3, 3 threads, fine** — N=3 priority tag space; estimated 50-200M.
+- **MaxCommits=3, MaxPayload=3, 2 threads, fine** — to confirm liveness convergence at higher iteration counts.
+
+Cfg files already committed: `_commits2_mc.cfg`, `_superfine_mc.cfg`, `_payload4_mc.cfg`, `_superfine_phase0only_mc.cfg`, `_superfine_phase3only_mc.cfg`. To add 3-thread cfg, copy `_micro_mc.cfg` and change `Threads = {1, 2, 3}` (keep `SYMMETRY` removed for liveness).
+
+Optional simplification: `MaxPayload = Nat` (no MOD). State space grows roughly `((1 + 2*MaxCommits*|Threads|) / MaxPayload)^5`; doable on ohtaka, gives a stricter `TerminalPayloadCheck` (true cumulative count without wrap-disambiguation hazard).
