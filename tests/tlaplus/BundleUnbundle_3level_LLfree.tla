@@ -1079,7 +1079,10 @@ UnbundleWalk(t) ==
                                     subPkt.payload + 1,
                                     subPkt.sub, subPkt.missing),
                                 ![t].casTargets = casTargets,
-                                ![t].casIdx = 1]
+                                ![t].casIdx = 1,
+                                \* SAVE the super-wrapper so UnbundleCASLoop
+                                \* can extract per-ancestor packets.
+                                ![t].walkWrapper = result.wrapper]
                            /\ pc' = [pc EXCEPT ![t] =
                                 IF Len(casTargets) >= 1
                                 THEN "unbundle_cas_loop"
@@ -1182,27 +1185,58 @@ UnbundleCASLoop(t) ==
     /\ pc[t] = "unbundle_cas_loop"
     /\ IF UnbundleCASAtomic = "coarse"
        THEN \* All CAS done atomically in one action.
-            LET targets == local[t].casTargets
-                allOk == \A i \in 1..Len(targets) :
-                           LET n == targets[i]
-                               w == linkage[n]
-                           IN  w.hasPriority
-                \* One fresh serial for all ancestor wrappers -- each ancestor's newPkt
+            \* Same fix as fine path: drop the "all ancestors hasPriority"
+            \* gate (was wrong — Parent is bundled-ref during unbundle and
+            \* should still be CASable). Extract per-ancestor packet from
+            \* walkWrapper (super-wrapper saved at walk-end), drilling one
+            \* level via .sub[n] for descendants of super-root.
+            LET targets   == local[t].casTargets
+                superW    == local[t].walkWrapper
+                superNode == IF superW = Null \/ superW.packet = Null
+                             THEN Null
+                             ELSE superW.packet.node
+                superFresh == /\ superNode /= Null
+                              /\ linkage[superNode] = superW
+                superPkt  == IF superW = Null THEN Null ELSE superW.packet
+                ExtractAt(n) ==
+                    IF superPkt = Null THEN Null
+                    ELSE IF n = superNode THEN superPkt
+                         ELSE IF n \in DOMAIN superPkt.sub
+                              THEN superPkt.sub[n]
+                              ELSE Null
+                allExtractable ==
+                    \A i \in 1..Len(targets) : ExtractAt(targets[i]) /= Null
+                allCanProceed ==
+                    \A i \in 1..Len(targets) : CanProceed(t, targets[i])
+                \* Wrapper identity match (walk-time = current) at every
+                \* ancestor, ensuring the chain is undisturbed.
+                allMatch ==
+                    \A i \in 1..Len(targets) : linkage[targets[i]] =
+                       (IF targets[i] = superNode
+                        THEN superW
+                        ELSE linkage[targets[i]])  \* non-super: just use current
+                \* One fresh serial for all ancestor wrappers — each ancestor's newPkt
                 \* contains a different 'node' field, so wrappers remain distinct.
                 ser == GenSerial(t, globalSerial)
             IN
-            IF allOk
+            IF allCanProceed /\ superFresh /\ allExtractable
             THEN /\ linkage' = [n \in AllNodes |->
                        IF \E i \in 1..Len(targets) : targets[i] = n
-                       THEN LET newPkt == MakePacket(n, linkage[n].packet.payload,
-                                                     linkage[n].packet.sub, TRUE)
+                       THEN LET ext == ExtractAt(n)
+                                newPkt == MakePacket(n, ext.payload, ext.sub, TRUE)
                             IN  PriorityWrapper(newPkt, ser)
                        ELSE linkage[n]]
                  /\ UpdateSerial(t, ser)
                  /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_child"]
                  /\ UNCHANGED <<local, op, target, iterBudget, childQueue, priorityTag>>
-            ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
+            ELSE /\ allCanProceed
+                 /\ pc' = [pc EXCEPT ![t] = "commit_read"]
+                 \* Eager tag every ancestor on disturbed restart.
+                 /\ priorityTag' = [n \in AllNodes |->
+                       IF \E i \in 1..Len(targets) : targets[i] = n
+                       THEN TagAfterFail(t, n)
+                       ELSE priorityTag[n]]
+                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
        ELSE \* fine: one CAS per action.
             \* Ancestor CAS: convert each casTargets entry to a priority
             \* wrapper with missing=TRUE. Packet is extracted from walkWrapper
