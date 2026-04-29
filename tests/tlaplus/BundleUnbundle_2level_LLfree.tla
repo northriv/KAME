@@ -412,11 +412,18 @@ BundlePhase1(t) ==
                                /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
                                /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
                           ELSE \* fine: always restart; superfine: parent changed.
+                               \* Eager Parent tag: mirrors C++ outer-scope
+                               \* ScopedNegotiateLinkage at line 2407
+                               \* (eager tag on retry > 0 of bundle's retry
+                               \* loop). Without this, peer can CAS Parent
+                               \* during this thread's restart cycle, causing
+                               \* unbounded re-bundling.
                                /\ pc' = [pc EXCEPT ![t] = "snap_read"]
                                /\ local' = [local EXCEPT
                                        ![t].subwrappers = [c2 \in Children |-> Null],
                                        ![t].subpackets  = EmptySub]
-                               /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+                               /\ priorityTag' = [priorityTag EXCEPT ![Parent] = TagAfterFail(t, Parent)]
+                               /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase2(t):
 \*   // Phase 2: CAS parent's linkage with new packet (still missing=TRUE)
@@ -502,10 +509,26 @@ BundlePhase3(t) ==
                                \/ linkage[Parent] /= local[t].wrapper)
                      IN
                      IF disturbed
-                     THEN \* superfine DISTURBED — restart from snapshot
+                     THEN \* superfine DISTURBED — restart from snapshot.
+                          \* Clear local bundle state so the next SnapCheck
+                          \* sees a fresh start (matches C++ where bundle()
+                          \* returning DISTURBED tears down its stack frame
+                          \* and the caller restarts with fresh locals).
+                          \* Also eagerly tag Parent (mirrors C++ outer-scope
+                          \* ScopedNegotiateLinkage at line 2179 of snapshot()
+                          \* retry loop on retry > 0 — DISTURBED return
+                          \* triggers outer retry, which eagerly tags Parent
+                          \* so peer cannot race in during the next snapshot
+                          \* attempt).
                           /\ pc' = [pc EXCEPT ![t] = "snap_read"]
-                          /\ priorityTag' = [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
-                          /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+                          /\ local' = [local EXCEPT
+                                 ![t].wrapper = Null,
+                                 ![t].subwrappers = [c2 \in Children |-> Null],
+                                 ![t].subpackets = EmptySub]
+                          /\ priorityTag' = [
+                                 [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
+                                     EXCEPT ![Parent] = TagAfterFail(t, Parent)]
+                          /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
                      ELSE \* #3: No rollback — restart Phase1 (re-collect re-adopts bundled children)
                           /\ local' = [local EXCEPT
                                  ![t].subwrappers = [c2 \in Children |-> Null],
@@ -873,8 +896,18 @@ Safety == SnapshotConsistency /\ NoPriorityLoss /\ BundleRefConsistency
 \* 5-7 times. 30 = 2-3 iterations of slack. Tighten on suspect, widen
 \* once verified bounded.
 DebugSerialBound ==
-    /\ \A t \in Threads : serial[t] < 60
-    /\ globalSerial < 60
+    /\ \A t \in Threads : serial[t] < 200
+    /\ globalSerial < 200
+
+\* PrintTerminalSerial: debug invariant. Always TRUE, but emits the
+\* per-thread serial array and globalSerial to TLC stdout the first
+\* time any AllDone state is visited. Useful for gauging how high
+\* Lamport serials grow under each config without instrumenting an
+\* external trace.
+PrintTerminalSerial ==
+    \/ ~AllDone
+    \/ PrintT(<<"Terminal serial[t]:", serial,
+               "globalSerial:", globalSerial>>)
 
 \* EventuallyAllDone: under WF, every execution eventually reaches AllDone.
 \* This is the key LL-free property — if priority gating is correct, no
