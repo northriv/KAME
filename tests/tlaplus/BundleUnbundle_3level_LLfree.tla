@@ -1215,10 +1215,16 @@ UnbundleCASLoop(t) ==
             \* cas_info loop (transaction_impl.h:1488-1500).
             LET idx        == local[t].casIdx
                 casNode    == local[t].casTargets[idx]
-                superNode  == local[t].casTargets[Len(local[t].casTargets)]
-                oldW       == linkage[casNode]
+                \* super-root identity from saved walkWrapper.packet.node;
+                \* works for both leaf-first ("fine") and root-first
+                \* ("superfine") casTargets orderings.
                 superW     == local[t].walkWrapper
-                superFresh == linkage[superNode] = superW
+                superNode  == IF superW = Null \/ superW.packet = Null
+                              THEN Null
+                              ELSE superW.packet.node
+                oldW       == linkage[casNode]
+                superFresh == /\ superNode /= Null
+                              /\ linkage[superNode] = superW
                 superPkt   == IF superW = Null THEN Null ELSE superW.packet
                 extracted  ==
                     IF superPkt = Null
@@ -1251,9 +1257,12 @@ UnbundleCASLoop(t) ==
                     \* or local wrapper changed). Eager Parent/Grand tag
                     \* on restart so peer can't immediately race in again.
                     /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                    /\ priorityTag' = [
-                           [priorityTag EXCEPT ![casNode] = TagAfterFail(t, casNode)]
-                               EXCEPT ![superNode] = TagAfterFail(t, superNode)]
+                    /\ priorityTag' =
+                           IF superNode /= Null /\ superNode /= casNode
+                           THEN [
+                                 [priorityTag EXCEPT ![casNode] = TagAfterFail(t, casNode)]
+                                     EXCEPT ![superNode] = TagAfterFail(t, superNode)]
+                           ELSE [priorityTag EXCEPT ![casNode] = TagAfterFail(t, casNode)]
                     /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action UnbundleCASChild(t):
