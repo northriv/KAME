@@ -1,0 +1,192 @@
+# TLA+ Verification Log
+
+## 2026-04-16: BundlePhase3 Fine-Grained Fix + iterBudget
+
+### Bug: BundlePhase3 allDone check (Layer 2)
+
+**Problem:** In fine-grained BundlePhase3, the completion check used `~hasPriority`
+to determine whether a child had been CAS'd. This incorrectly counted children
+bundled by *other* threads as done, allowing the bundling thread to proceed to
+Phase4 before all its own children were linked.
+
+**Root cause:** Thread t1 bundles Child1 (setting `hasPriority=FALSE`). Thread t2,
+performing its own bundle, checks `~hasPriority` on Child1 and treats it as
+already done — even though t2 never CAS'd it with its own serial.
+
+**Fix:** Changed allDone from:
+```tla
+\A c2 \in children \ {c} : ~linkage[c2].hasPriority
+```
+to:
+```tla
+\A c2 \in children \ {c} : linkage[c2] = BundledRefWrapper(node, ser)
+```
+This ensures each child is verified against THIS bundle's serial, not just any
+bundle state.
+
+**Affected files:**
+- `BundleUnbundle.tla` (3-level, line ~439)
+- `BundleUnbundle_2level.tla` (2-level, line ~319)
+
+**Corresponding C++ fix:** Commit `54898aec` — "Fix BundlePhase3 rollback: only
+revert OUR bundled children"
+
+### Fix: MaxSerial increase (Layer 2)
+
+**Problem:** Fine-grained mode generates ~64 serials per commit cycle due to CAS
+retries across bundle/unbundle/snapshot operations. With MaxSerial=128,
+`MaxSerial/2 = 64` — barely enough, and the ModGT comparison becomes undefined
+when serial difference equals exactly MaxSerial/2.
+
+**Fix:**
+- 3-level: MaxSerial 128 -> 1024 (`BundleUnbundle_mc.cfg`)
+- 2-level: MaxSerial 128 -> 512 (`BundleUnbundle_2level_mc.cfg`)
+
+### Enhancement: iterBudget for deterministic termination (Layer 0)
+
+**Problem:** `atomic_shared_ptr.tla` had unbounded operation sequences, making TLC
+model checking non-terminating without external constraints.
+
+**Solution:** Added `MaxOps` constant and `iterBudget` per-thread variable:
+- Each thread starts with `iterBudget[t] = MaxOps`
+- `ReturnToIdle` decrements the budget
+- `StartLoadShared`, `StartCAS`, `StartSwap`, `Recycle` require `iterBudget[t] > 0`
+- `Reset` has NO budget guard (must release references after budget exhaustion)
+- `TerminalCheck` invariant: when all threads idle with budget=0 and no holds,
+  the installed object has exactly refcount=1 and all others are freed
+
+**Config changes** (`atomic_shared_ptr_mc.cfg`, `_swap_mc.cfg`, `_all_mc.cfg`, `_swap_load_mc.cfg`):
+- Added `MaxOps = 3`
+- Added `CHECK_DEADLOCK FALSE` (threads intentionally stop after budget exhaustion)
+- Added `TerminalCheck` to invariant list
+
+### Systematic C++ comparison and superfine mode (2026-04-17)
+
+Compared fine-grained TLA+ model against C++ `transaction_impl.h` and identified
+9 differences. Categorized into three tiers:
+
+**fine mode (always active):**
+
+- **#3 No rollback in Phase3 failure.** C++ does not restore children to original
+  wrappers on Phase3 CAS failure. Instead, Phase1 re-collection re-adopts bundled
+  children via `CollectSubpacket`'s `bundledBy==node` path. State space unchanged
+  (1.2M). Important for future insert/release modeling — rollback could mask bugs
+  when tree structure changes dynamically.
+
+**superfine mode (configurable, ohtaka-class state space):**
+
+- **#1 Pre-bundle serial CAS** (`BundleCollectAtomic`): C++ stamps `bundle_serial`
+  on the parent's wrapper before Phase1 collection. Without `negotiate()` backoff
+  this causes livelock in TLA+ (both threads alternate pre-CAS, exhausting MaxSerial).
+- **#2 Inner bundle phases** (`BundleCollectAtomic`, 3-level only): C++ calls
+  `bundle()` recursively for children needing inner bundle (4-phase protocol).
+  TLA+ fine mode does this atomically. superfine adds `inner_phase2/3/4` pc states.
+- **#4 Phase3 serial/parent check** (`BundlePhase3Atomic`): C++ checks failing
+  child's `m_bundle_serial != bundle_serial` or parent changed → DISTURBED.
+  fine mode always restarts Phase1.
+- **#5 casTargets root-first** (`UnbundleWalkAtomic`, 3-level only): C++
+  `snapshotForUnbundle` builds cas_infos root-first via recursive `emplace_back`.
+  fine mode uses leaf-first (Append). superfine uses prepend for root-first.
+- **#6 Phase1 retry same child** (`BundleCollectAtomic`): C++ retries the same
+  child if parent unchanged. fine mode always restarts from snap_check.
+
+**Fidelity notes (documented, not implemented):**
+
+- **#7 CommitTryCAS serial reuse:** C++ creates `newwrapper` once with `tr.m_serial`
+  and reuses across inner retries. TLA+ calls `GenSerial` each time. Effect: TLA+
+  consumes slightly more serial space. No correctness impact.
+- **#8 UnbundleCASChild serial source:** C++ uses `gen(superwrapper->m_bundle_serial)`
+  where `superwrapper` is the root wrapper after walk (may have higher serial).
+  TLA+ uses `oldChildW.serial` (child's bundled_ref serial). Both equal at bundle
+  time; diverge if root was re-committed. No correctness impact.
+- **#9 Unbundle children bundled elsewhere:** C++ actively unbundles via
+  `bundle_subpacket`. TLA+ returns Null and retries. Unreachable in current models
+  (fixed tree, no hard links). Only relevant for future hard-link modeling.
+
+### Layer 0 (atomic_shared_ptr) C++ comparison (2026-04-17)
+
+Full action-by-action comparison of `atomic_shared_ptr.tla` against C++
+`atomic_smart_ptr.h` (acquire_tag_ref_, load_shared_, release_tag_ref_,
+compareAndSwap_(NOSWAP=true), local_shared_ptr::swap(atomic_shared_ptr&),
+reset, Recycle). **No correctness differences found.** Three minor
+simplifications, all safe:
+
+- **release_tag_ref_ read**: C++ atomically reads (ptr, rcnt_old) and checks
+  both in one condition. TLA+ reads local_rc in `ReleaseTagRefRead`, defers
+  ptr check to `ReleaseTagRefCAS`. One extra intermediate state; result identical.
+- **release_tag_ref_ post-CAS re-read**: C++ does a separate `load_tagged_().first`
+  after CAS failure to decide retry vs. global fallback. TLA+ decides in the same
+  action as the CAS. TLA+ may take extra retries but converges to same result.
+- **LOCAL_REF_CAPACITY overflow**: C++ spin-waits when `rcnt_new >= CAPACITY`.
+  TLA+ omits this; `LocalRCBounded` invariant verifies the bound instead.
+
+**Design notes:**
+
+- superfine features are C++ performance optimizations (early exits, reduced retry
+  work) that don't affect protocol correctness. TLA+ fine mode proves this.
+- MaxSerial cannot be replaced by natural-number serials: commit retry loops
+  (iterBudget not consumed on failure) create unbounded serial growth without
+  modular wrap-around, turning the state space into an infinite DAG.
+
+### Model Checking Results
+
+| Spec | Mode | MaxCommits | MaxSerial | Result | States |
+|------|------|-----------|-----------|--------|--------|
+| 3-level | coarse | 1 | 48 | PASS | 110K |
+| 3-level | coarse | 5 | 128 | PASS | ~8.5M |
+| 3-level | fine | 1 | 256 | PASS (local) | 1.2M |
+| 3-level | fine | 5 | 128 | FAIL (NoSerialWrapAround) | - |
+| 3-level | fine | 5 | 1024 | pending (ohtaka) | - |
+| 2-level | coarse | 1 | 24 | PASS | 483K |
+| 2-level | coarse | 5 | 64 | PASS | ~3.2M |
+| 2-level | fine | 1 | 128 | ohtaka only | 70M+ |
+| 2-level | fine (pre-fix) | 1 | 64 | FAIL (TerminalPayloadCheck) | ~2.1M |
+| **2-level LL-free** | **fine** | **1** | **N/A (no CONSTRAINT)** | **PASS (Safety + EventuallyAllDone)** | **665K, depth 89, 28s** |
+| atomic_shared_ptr | all ops | MaxOps=3 | - | PASS | ~1.3M |
+
+---
+
+## 2026-04-29: Gen 3 (`BundleUnbundle_2level_LLfree.tla`) Complete
+
+### LL-free protocol formally proven
+
+After several iterations, the LL-free spec terminates **without `CONSTRAINT SerialBound`** while passing every invariant and the `EventuallyAllDone` liveness PROPERTY. This satisfies the conditions in `proof_semantics.md` §2 ("終了 + CONSTRAINT なし → LL-free is automatic"):
+
+- Lamport serial as plain `Nat` (no modular wrap)
+- Every retry-able CAS bumps a monotonic serial
+- Priority `priorityTag[n]: Null | <<iter, tid>>` per node, gating CAS attempts
+- Older active transaction wins via explicit `PreemptTag`
+- Stale tags from finished threads are zombie-detected via `ActiveThread`
+- Tags persist Transaction-scope (not per CAS): set on CAS fail (`TagAfterFail`), released only at `CommitParent`/`CommitDone` (`ClearMyTags`) — mirrors C++ `drop_tags_n_privilege` called from `~Transaction`, `Snapshot` ctor end, `Transaction::finalizeCommitment`
+- `Terminating` self-loop at `AllDone` so default `CHECK_DEADLOCK TRUE` distinguishes legitimate termination from a real stuck state (no `-deadlock` flag)
+
+### Result
+
+```
+2,656,169 states generated, 665,218 distinct states found, 0 states left on queue
+Depth 89; Finished in 28s
+Model checking completed. No error has been found.
+```
+
+Invariants checked: SnapshotConsistency, NoPriorityLoss, BundleRefConsistency, MissingPropagation, TerminalPayloadCheck, DebugSerialBound. Property: EventuallyAllDone.
+
+### Key design lessons (intermediate failure modes)
+
+1. **Per-CAS tag clear is too eager** (initial impl). With tag clearing on every CAS success, peer thread races in between phases, forcing endless re-bundle/unbundle cycles. Bound-60 trace showed a clean repeating pattern: t1 succeeds Phase 4 → tag clears → t2 immediately unbundles Parent → t1 must re-bundle. Fix: keep tag through entire Transaction.
+2. **Zombie tags from finished threads** (intermediate impl). After a thread finished its iterations, its remaining tags blocked peers that couldn't preempt (`TagOlder` failed against equal-iter younger). Fix: `ActiveThread(t)` check in `CanProceed`, `PreemptTag`, and `TagAfterFail`.
+3. **Symmetry incompatible with naturals + liveness**. `TagOlder` requires Nat-ordered threads, but `Permutations` only works on model values; symmetry also can mask liveness violations. Fix: drop `SYMMETRY ThreadSymmetry` in this cfg; safety still holds, liveness now checkable.
+
+### Note: `tags_successful_cas` ≠ `release_privileged_tidstamp`
+
+Earlier draft conflated them. C++ `tags_successful_cas` is a **per-CAS C_obs counter** consumed by `negotiate_internal`'s adaptive backoff, not privilege release. Privilege tidstamp is released exclusively via `drop_tags_n_privilege`, called from:
+- `Snapshot` ctor end (transaction.h:976)
+- `Transaction::finalizeCommitment` (transaction.h:1413, = `tr.commit()` success)
+- `~Transaction` (transaction.h:1268, = abort)
+
+TLA+ `ClearMyTags` correctly maps to `drop_tags_n_privilege` at these three points.
+
+### Source files
+
+- `BundleUnbundle_2level_LLfree.tla` — Gen 3 spec, 700+ lines
+- `BundleUnbundle_2level_LLfree_micro_mc.cfg` — micro config (Threads={1,2}, MaxPayload=3, MaxCommits=1)
+- C++ counterpart (verified separately): commit `2d141d5` — full FINE/SUPERFINE multi-thread stress PASS
