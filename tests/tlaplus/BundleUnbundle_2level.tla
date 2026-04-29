@@ -41,10 +41,10 @@ CONSTANTS
     Child1, Child2,
     Null,
     MaxPayload,          \* Payloads wrap at this value
-    MaxSerial,           \* Serial modulus. Must exceed 2x the max serial consumed per run.
-                         \* Fine-mode uses ~64 serials/commit; set >= 64*MaxCommits*|Threads|.
-                         \* Modular wrap-around is required for TLC termination: commit retry
-                         \* loops increment serial without consuming iterBudget.
+    MaxSerial,           \* Serial upper bound for CONSTRAINT SerialBound (not a modulus).
+                         \* TLC prunes branches where any serial reaches MaxSerial.
+                         \* Serial arithmetic is plain natural-number (no wrap); set large
+                         \* enough that realistic paths are not pruned prematurely.
     MaxCommits,          \* Per-child direct commit budget per thread
     BundleCollectAtomic, \* "coarse" / "fine" / "superfine"
     BundlePhase3Atomic   \* "coarse" / "fine" / "superfine"
@@ -87,9 +87,8 @@ ThreadSymmetry == Permutations(Threads)
 \* @c11_var linkage[n].bundledBy:       PacketWrapper::bundledBy() -- shared_ptr<Linkage>
 \*
 \* @c11_var serial[t]:        thread-local Lamport clock (SerialGenerator per thread)
-\*   Modular arithmetic: (base + 1) % MaxSerial. Comparisons via ModGT
-\*   (signed-difference mod MaxSerial), matching C++ unsigned subtraction
-\*   reinterpreted as signed. MaxSerial must be even.
+\*   Plain natural-number arithmetic (matching C++ 48-bit unsigned, no modular wrap).
+\*   Comparisons use regular >. Bounded by CONSTRAINT SerialBound.
 \* @c11_var globalSerial:     max serial seen (simplified; C++ uses per-thread gen)
 \*
 \* @c11_var local[t].wrapper:     thread-local snapshot of linkage[target]
@@ -124,17 +123,19 @@ MakePacket(node, payload, sub, miss) ==
 
 EmptySub == [c \in Children |-> Null]
 
-\* Modular serial comparison (same as C++ signed-difference comparison)
-ModGT(a, b) == LET diff == (a - b + MaxSerial) % MaxSerial
-               IN  diff > 0 /\ diff < MaxSerial \div 2
-
 GenSerial(t, lastSer) ==
-    LET base == IF ModGT(lastSer, serial[t]) THEN lastSer ELSE serial[t]
-    IN  (base + 1) % MaxSerial
+    (IF lastSer > serial[t] THEN lastSer ELSE serial[t]) + 1
 
 UpdateSerial(t, ser) ==
     /\ serial' = [serial EXCEPT ![t] = ser]
-    /\ globalSerial' = IF ModGT(ser, globalSerial) THEN ser ELSE globalSerial
+    /\ globalSerial' = IF ser > globalSerial THEN ser ELSE globalSerial
+
+\* Constraint: prune branches where any serial reaches MaxSerial.
+\* Replaces the old modular-wrap approach; keeps state space finite without
+\* distorting serial ordering semantics.
+SerialBound ==
+    /\ \A t \in Threads     : serial[t] < MaxSerial
+    /\ globalSerial < MaxSerial
 
 InitLocal == [
     wrapper     |-> Null,
@@ -657,19 +658,11 @@ BundleRefConsistency ==
         IN  (~cw.hasPriority /\ cw.bundledBy = Parent) =>
             linkage[Parent].hasPriority
 
-\* NoSerialWrapAround: all "active" serials must be totally ordered by ModGT.
-\* Active serials = thread-local serials + hasPriority node serials.
-\* Bundled (hasPriority=FALSE) nodes' serials are excluded: they can go stale
-\* without affecting correctness, because their wrappers are compared by full
-\* structural equality, not ModGT.
-\* When wrap-around makes |a - b| = MaxSerial/2, ModGT(a,b) and ModGT(b,a) are
-\* both FALSE — the serial space is exhausted. Increase MaxSerial.
-NoSerialWrapAround ==
-    LET activeSerials == {serial[t] : t \in Threads}
-                         \cup {linkage[n].serial :
-                               n \in {m \in Nodes : linkage[m].hasPriority}}
-    IN \A a \in activeSerials : \A b \in activeSerials :
-        a = b \/ ModGT(a, b) \/ ModGT(b, a)
+\* NoSerialWrapAround: retired. With plain natural-number serial arithmetic and
+\* CONSTRAINT SerialBound, serials are always totally ordered by > and never
+\* ambiguous. This predicate is trivially TRUE; use SerialBound as CONSTRAINT
+\* instead of this as INVARIANT.
+NoSerialWrapAround == TRUE
 
 \* MissingPropagation: mirrors Node<XN>::Packet::checkConsistensy check #4.
 \* If parent packet is NOT missing, all its sub-packets must also be NOT missing.

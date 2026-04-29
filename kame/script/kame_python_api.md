@@ -110,8 +110,17 @@ payload = shot[driver]
 payload.time()                    # When phenomenon occurred
 payload.timeAwared()              # Acquisition start time (when measurement began)
 
-# Read driver channel values (if driver has value() method)
-voltage = shot[driver].value(0)   # Channel 0
+# Read driver values via its scalar entries (the `Drivers/<name>/<entry>`
+# children for DMMs, thermometers, etc.)
+#   driver["EntryName"]["Value"] is the XDoubleNode holding the latest
+#   reading; take a snapshot covering it and convert to float.
+val_node = driver["Voltage"]["Value"]
+voltage = float(Snapshot(val_node)[val_node])
+# Or iterate through scalar entries owned by this driver:
+for e in Snapshot(Root()["ScalarEntries"]).list(Root()["ScalarEntries"]):
+    if e.driver() == driver:
+        v_node = e["Value"]
+        print(e.getName(), float(Snapshot(v_node)[v_node]))
 
 # Access driver child nodes (settings, readings)
 shot = Snapshot(driver)
@@ -158,16 +167,23 @@ The root node (`Root()`) has these children:
 drivers = Root()["Drivers"]
 dc = drivers.dynamic_cast()         # downcast to XDriverList
 
-# Discover registered driver types — don't guess
-dc.typenames()                      # ['TestDriver', 'DMM', ...]
-dc.typelabels()                     # human-readable labels (Add-driver dialog)
+# Discover registered driver types — don't guess. Returns model-
+# specific keys (the strings shown in KAME's "Add driver" dialog),
+# which depend on which modules the running KAME has loaded.
+dc.typenames()
+# e.g. ['TestDriver', 'DMMKE2700', 'DCSrcKE2400', 'OxfordITC503', ...]
+dc.typelabels()                     # parallel list of human-readable labels
 
-# Create
+# Create — pass an exact key from typenames(); returns None for an
+# unregistered key, so verify first.
+if "TestDriver" not in dc.typenames():
+    raise RuntimeError("TestDriver module not loaded")
 driver = dc.createByTypename("TestDriver", "Test1")
-# NOTE: returns None for unregistered typenames — verify against typenames() first.
 
-# Start acquisition (TestDriver uses DummyInterface, no hardware)
-driver["Interface"]["Control"] = True
+# After creation, the driver's child structure is type-specific:
+# inspect children with Snapshot(driver).list(driver). For interface-
+# backed drivers (most C++ ones), an "Interface" subtree exists with
+# at least a Boolean "Control" child to open/close the connection.
 
 # Release: also removes the driver's ChartList / ScalarEntries
 dc.release(driver)
@@ -185,6 +201,10 @@ for d in shot.list(drivers):
 
 ### Read a value node by path
 ```python
+# Path elements after the driver are driver-specific child names —
+# inspect with Snapshot(driver).list(driver) to discover them.
+# Example: a Lakeshore-style temperature controller exposes per-channel
+# readings as XDoubleNode children named "Ch.A", "Ch.B", ...
 node = Root()["Drivers"]["TempControl"]["Ch.B"]
 shot = Snapshot(node)
 print(float(shot[node]))
@@ -251,7 +271,8 @@ labels = p.labels()
 plt.plot(x, y)
 plt.xlabel(labels[0])
 plt.ylabel(labels[1])
-plt.gcf()
+plt.gcf()  # ← last expression returns the Figure; MCP `execute_code`
+           #    captures it as inline image content. Don't `plt.show()`.
 ```
 
 ### X2DImagePlot (2D images)
@@ -266,7 +287,8 @@ To reach `to_png()`, navigate: X2DImage → Graph child → Plots → ImagePlot.
 
 imgplot = Root()["Drivers"]["JAI"]["LiveImage"]["LiveImage"]["Plots"]["ImagePlot"]
 shot = Snapshot(imgplot)
-png_bytes = shot[imgplot].to_png()  # QImage as PNG bytes (or None)
+png_bytes = shot[imgplot].to_png()  # PNG-encoded image bytes
+                                    # (or None if no image is available yet)
 
 # Image dimensions (pixels)
 w = shot[imgplot].imageWidth()
@@ -280,7 +302,7 @@ display(Image(data=png_bytes, format='png'))
 import matplotlib.pyplot as plt, io
 img = plt.imread(io.BytesIO(png_bytes))
 plt.imshow(img)
-plt.gcf()
+plt.gcf()  # last-expression Figure → captured by MCP as image
 ```
 
 ## 2D Math Tools
