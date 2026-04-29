@@ -1419,6 +1419,16 @@ DebugSerialBound ==
     /\ \A t \in Threads : serial[t] < 200
     /\ globalSerial < 200
 
+\* PrintTerminalSerial: debug invariant. Always TRUE, but emits the
+\* per-thread serial array and globalSerial to TLC stdout the first
+\* time any AllDone state is visited. Useful for gauging how high
+\* Lamport serials grow under each config without instrumenting an
+\* external trace. Mirrors the 2-level LL-free version.
+PrintTerminalSerial ==
+    \/ ~(\A t \in Threads : iterBudget[t] = 0 /\ pc[t] = "idle")
+    \/ PrintT(<<"Terminal serial[t]:", serial,
+               "globalSerial:", globalSerial>>)
+
 \* EventuallyAllDone: under WF, every execution reaches AllDone.
 \* The key LL-free liveness property — priority gating must guarantee
 \* no thread is starved indefinitely.
