@@ -62,7 +62,6 @@ CONSTANTS
     Parent,
     Child1, Child2,
     Null,
-    MaxPayload,          \* Payloads wrap at this value
     MaxSerial,           \* Serial upper bound for CONSTRAINT SerialBound (not a modulus).
                          \* TLC prunes branches where any serial reaches MaxSerial.
                          \* Serial arithmetic is plain natural-number (no wrap); set large
@@ -580,7 +579,7 @@ CommitParent(t) ==
            snapPkt == local[t].snapResult
            newSub  == [c \in Children |->
                MakePacket(c,
-                   (snapPkt.sub[c].payload + 1) % MaxPayload,
+                   snapPkt.sub[c].payload + 1,
                    snapPkt.sub[c].sub,
                    snapPkt.sub[c].missing)]
            newPkt  == MakePacket(Parent, snapPkt.payload, newSub, snapPkt.missing)
@@ -642,7 +641,7 @@ CommitRead(t) ==
                 ![t].wrapper   = w,
                 ![t].oldpacket = w.packet,
                 ![t].newpacket = MakePacket(childNode,
-                                     (w.packet.payload + 1) % MaxPayload,
+                                     w.packet.payload + 1,
                                      w.packet.sub,
                                      w.packet.missing)]
             /\ pc' = [pc EXCEPT ![t] = "commit_try_cas"]
@@ -710,7 +709,7 @@ UnbundleWalk(t) ==
                    ![t].parentWrapper = parentW,
                    ![t].oldpacket = parentW.packet.sub[childNode],
                    ![t].newpacket = MakePacket(childNode,
-                       (parentW.packet.sub[childNode].payload + 1) % MaxPayload,
+                       parentW.packet.sub[childNode].payload + 1,
                        parentW.packet.sub[childNode].sub,
                        parentW.packet.sub[childNode].missing)]
             /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_ancestors"]
@@ -925,6 +924,6 @@ TerminalPayloadCheck ==
         \A c \in Children :
             /\ linkage[c].hasPriority
             /\ linkage[c].packet.payload =
-                   (2 * MaxCommits * Cardinality(Threads)) % MaxPayload
+                   2 * MaxCommits * Cardinality(Threads)
 
 =============================================================================
