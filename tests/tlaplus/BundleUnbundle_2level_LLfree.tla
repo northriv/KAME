@@ -408,8 +408,16 @@ BundlePhase1(t) ==
                           IF BundleCollectAtomic = "superfine"
                              /\ linkage[Parent] = parentW
                           THEN \* superfine + parent unchanged — retry same child.
+                               \* Eager Child tag on retry: mirrors C++
+                               \* ScopedNegotiateLinkage at transaction_impl.h
+                               \* :2431 placed BEFORE the fast-path read
+                               \* check (reverted to original layout 2026-04-29
+                               \* per benchmark; eager tag fires on
+                               \* child_retry > 0 even when the read turns
+                               \* into a fast-path no-op).
                                /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-                               /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
+                               /\ priorityTag' = [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
+                               /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
                           ELSE \* fine: always restart; superfine: parent changed.
                                \* Eager Parent tag: mirrors C++ outer-scope
                                \* ScopedNegotiateLinkage at line 2407
