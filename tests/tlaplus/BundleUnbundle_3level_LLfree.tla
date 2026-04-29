@@ -696,17 +696,10 @@ BundlePhase3(t) ==
                                 \/ linkage[node] /= local[t].wrapper)
                       IN
                       IF disturbed
-                      THEN \* superfine DISTURBED — restart from snapshot.
-                           \* Eager Parent/Grand tag mirroring 2-level fix.
+                      THEN \* superfine DISTURBED — restart from snapshot
                            /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-                           /\ local' = [local EXCEPT
-                                  ![t].wrapper = Null,
-                                  ![t].subwrappers = [cc \in children |-> Null],
-                                  ![t].subpackets  = [cc \in children |-> Null]]
-                           /\ priorityTag' = [
-                                  [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
-                                      EXCEPT ![node] = TagAfterFail(t, node)]
-                           /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
+                           /\ priorityTag' = [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
+                           /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
                       ELSE \* No rollback — restart Phase1.
                            /\ local' = [local EXCEPT
                                   ![t].subwrappers = [cc \in children |-> Null],
@@ -1096,10 +1089,7 @@ UnbundleWalk(t) ==
                                     subPkt.payload + 1,
                                     subPkt.sub, subPkt.missing),
                                 ![t].casTargets = casTargets,
-                                ![t].casIdx = 1,
-                                \* SAVE the super-wrapper so UnbundleCASLoop
-                                \* can extract per-ancestor packets.
-                                ![t].walkWrapper = result.wrapper]
+                                ![t].casIdx = 1]
                            /\ pc' = [pc EXCEPT ![t] =
                                 IF Len(casTargets) >= 1
                                 THEN "unbundle_cas_loop"
@@ -1161,14 +1151,7 @@ UnbundleWalk(t) ==
                                                 subPkt.sub, subPkt.missing),
                                             ![t].casTargets = newTargets,
                                             ![t].casIdx = 1,
-                                            ![t].walkNode = Null,
-                                            \* SAVE the super-wrapper so
-                                            \* UnbundleCASLoop can extract
-                                            \* per-ancestor packets via
-                                            \* recursive sub[] navigation
-                                            \* (mirrors C++ super-wrapper
-                                            \* held by snapshotForUnbundle).
-                                            ![t].walkWrapper = pw]
+                                            ![t].walkNode = Null]
                                      /\ pc' = [pc EXCEPT ![t] =
                                             IF Len(newTargets) >= 1
                                             THEN "unbundle_cas_loop"
@@ -1198,110 +1181,54 @@ UnbundleWalk(t) ==
 \* missing is already TRUE (same packet content). In TLA+, records compare by value, so we
 \* use GenSerial for a fresh serial, making the new wrapper value-distinct. This prevents
 \* BundlePhase4 from CAS-ing over an ancestor-CAS'd wrapper when missing was already TRUE.
+\* Restored from old BundleUnbundle.tla logic verbatim, with only minimal
+\* LL-free additions: CanProceed gate at CAS attempt + TagAfterFail on
+\* disturbed restart. Protocol semantics (oldW.hasPriority gate, packet
+\* read from linkage[n], no walkWrapper extraction) preserved as in
+\* original spec.
 UnbundleCASLoop(t) ==
     /\ pc[t] = "unbundle_cas_loop"
     /\ IF UnbundleCASAtomic = "coarse"
        THEN \* All CAS done atomically in one action.
-            \* Same fix as fine path: drop the "all ancestors hasPriority"
-            \* gate (was wrong — Parent is bundled-ref during unbundle and
-            \* should still be CASable). Extract per-ancestor packet from
-            \* walkWrapper (super-wrapper saved at walk-end), drilling one
-            \* level via .sub[n] for descendants of super-root.
-            LET targets   == local[t].casTargets
-                superW    == local[t].walkWrapper
-                superNode == IF superW = Null \/ superW.packet = Null
-                             THEN Null
-                             ELSE superW.packet.node
-                superFresh == /\ superNode /= Null
-                              /\ linkage[superNode] = superW
-                superPkt  == IF superW = Null THEN Null ELSE superW.packet
-                ExtractAt(n) ==
-                    IF superPkt = Null THEN Null
-                    ELSE IF n = superNode THEN superPkt
-                         ELSE IF n \in DOMAIN superPkt.sub
-                              THEN superPkt.sub[n]
-                              ELSE Null
-                allExtractable ==
-                    \A i \in 1..Len(targets) : ExtractAt(targets[i]) /= Null
-                allCanProceed ==
-                    \A i \in 1..Len(targets) : CanProceed(t, targets[i])
-                \* Wrapper identity match (walk-time = current) at every
-                \* ancestor, ensuring the chain is undisturbed.
-                allMatch ==
-                    \A i \in 1..Len(targets) : linkage[targets[i]] =
-                       (IF targets[i] = superNode
-                        THEN superW
-                        ELSE linkage[targets[i]])  \* non-super: just use current
-                \* One fresh serial for all ancestor wrappers — each ancestor's newPkt
-                \* contains a different 'node' field, so wrappers remain distinct.
+            LET targets == local[t].casTargets
+                allOk == \A i \in 1..Len(targets) :
+                           LET n == targets[i]
+                               w == linkage[n]
+                           IN  w.hasPriority
+                allCanProceed == \A i \in 1..Len(targets) :
+                                    CanProceed(t, targets[i])
                 ser == GenSerial(t, globalSerial)
             IN
-            IF allCanProceed /\ superFresh /\ allExtractable
-            THEN /\ linkage' = [n \in AllNodes |->
-                       IF \E i \in 1..Len(targets) : targets[i] = n
-                       THEN LET ext == ExtractAt(n)
-                                newPkt == MakePacket(n, ext.payload, ext.sub, TRUE)
-                            IN  PriorityWrapper(newPkt, ser)
-                       ELSE linkage[n]]
-                 /\ UpdateSerial(t, ser)
-                 /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_child"]
-                 /\ UNCHANGED <<local, op, target, iterBudget, childQueue, priorityTag>>
-            ELSE /\ allCanProceed
-                 /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                 \* Eager tag every ancestor on disturbed restart.
-                 /\ priorityTag' = [n \in AllNodes |->
-                       IF \E i \in 1..Len(targets) : targets[i] = n
-                       THEN TagAfterFail(t, n)
-                       ELSE priorityTag[n]]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
-       ELSE \* fine: one CAS per action.
-            \* Ancestor CAS: convert each casTargets entry to a priority
-            \* wrapper with missing=TRUE. Packet is extracted from walkWrapper
-            \* (the priority super-wrapper saved at walk-end) by drilling
-            \* one level into sub[] when casNode is below the super-root.
-            \* casTargets always ends with the super-root (last element).
-            \*
-            \* Super-wrapper identity check: before each CAS, verify
-            \* linkage[superNode] = walkWrapper. If a peer thread modified
-            \* the super-wrapper (e.g., a peer CommitGrand) between our
-            \* walk and this CAS, our extracted packet is stale and the
-            \* CAS would write wrong values. Serial mismatch on
-            \* linkage[superNode] vs walkWrapper detects this race.
-            \* Mirrors C++ super-wrapper identity comparison via
-            \* atomic_shared_ptr pointer equality in snapshotForUnbundle's
-            \* cas_info loop (transaction_impl.h:1488-1500).
-            LET idx        == local[t].casIdx
-                casNode    == local[t].casTargets[idx]
-                \* super-root identity from saved walkWrapper.packet.node;
-                \* works for both leaf-first ("fine") and root-first
-                \* ("superfine") casTargets orderings.
-                superW     == local[t].walkWrapper
-                superNode  == IF superW = Null \/ superW.packet = Null
-                              THEN Null
-                              ELSE superW.packet.node
-                oldW       == linkage[casNode]
-                superFresh == /\ superNode /= Null
-                              /\ linkage[superNode] = superW
-                superPkt   == IF superW = Null THEN Null ELSE superW.packet
-                extracted  ==
-                    IF superPkt = Null
-                    THEN Null
-                    ELSE IF casNode = superNode
-                         THEN superPkt
-                         ELSE IF casNode \in DOMAIN superPkt.sub
-                              THEN superPkt.sub[casNode]
-                              ELSE Null
-                ser        == GenSerial(t, oldW.serial)
-                newPkt     == IF extracted = Null THEN Null
-                              ELSE MakePacket(casNode, extracted.payload,
-                                              extracted.sub, TRUE)
-                newW       == IF newPkt = Null THEN Null
-                              ELSE PriorityWrapper(newPkt, ser)
-                nextIdx    == idx + 1
-                done       == nextIdx > Len(local[t].casTargets)
+            /\ allCanProceed
+            /\ IF allOk
+               THEN /\ linkage' = [n \in AllNodes |->
+                          IF \E i \in 1..Len(targets) : targets[i] = n
+                          THEN LET newPkt == MakePacket(n, linkage[n].packet.payload,
+                                                        linkage[n].packet.sub, TRUE)
+                               IN  PriorityWrapper(newPkt, ser)
+                          ELSE linkage[n]]
+                    /\ UpdateSerial(t, ser)
+                    /\ pc' = [pc EXCEPT ![t] = "unbundle_cas_child"]
+                    /\ UNCHANGED <<local, op, target, iterBudget, childQueue, priorityTag>>
+               ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
+                    /\ priorityTag' = [n \in AllNodes |->
+                          IF \E i \in 1..Len(targets) : targets[i] = n
+                          THEN TagAfterFail(t, n)
+                          ELSE priorityTag[n]]
+                    /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+       ELSE \* fine: one CAS per action
+            LET idx       == local[t].casIdx
+                casNode   == local[t].casTargets[idx]
+                oldW      == linkage[casNode]
+                ser       == GenSerial(t, oldW.serial)
+                newPkt    == MakePacket(casNode, oldW.packet.payload,
+                                        oldW.packet.sub, TRUE)
+                newW      == PriorityWrapper(newPkt, ser)
+                nextIdx   == idx + 1
+                done      == nextIdx > Len(local[t].casTargets)
             IN
             /\ CanProceed(t, casNode)
-            /\ IF newW /= Null /\ superFresh /\ linkage[casNode] = oldW
+            /\ IF oldW.hasPriority /\ linkage[casNode] = oldW
                THEN /\ linkage' = [linkage EXCEPT ![casNode] = newW]
                     /\ UpdateSerial(t, ser)
                     /\ local' = [local EXCEPT ![t].casIdx = nextIdx]
@@ -1310,16 +1237,9 @@ UnbundleCASLoop(t) ==
                          THEN "unbundle_cas_child"
                          ELSE "unbundle_cas_loop"]
                     /\ UNCHANGED <<op, target, iterBudget, childQueue, priorityTag>>
-               ELSE \* Disturbed (super-wrapper changed, extraction failed,
-                    \* or local wrapper changed). Eager Parent/Grand tag
-                    \* on restart so peer can't immediately race in again.
+               ELSE \* Disturbed
                     /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                    /\ priorityTag' =
-                           IF superNode /= Null /\ superNode /= casNode
-                           THEN [
-                                 [priorityTag EXCEPT ![casNode] = TagAfterFail(t, casNode)]
-                                     EXCEPT ![superNode] = TagAfterFail(t, superNode)]
-                           ELSE [priorityTag EXCEPT ![casNode] = TagAfterFail(t, casNode)]
+                    /\ priorityTag' = [priorityTag EXCEPT ![casNode] = TagAfterFail(t, casNode)]
                     /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action UnbundleCASChild(t):
@@ -1335,52 +1255,18 @@ UnbundleCASLoop(t) ==
 \*   diverge only when the root was re-committed. Effect: C++ produces a higher serial
 \*   (stronger Lamport guarantee). No correctness impact.
 \* Final: CAS child's linkage to restore priority with new (committed) packet.
-\*
-\* Atomic ancestor-packet sync: when child is restored to priority, also
-\* update the immediate Parent's packet.sub[child] to the new child packet,
-\* IF Parent is currently priority (i.e., t1's earlier UnbundleCASLoop
-\* left Parent priority+missing=TRUE with the chain's packet structure).
-\* Without this sync, Parent.packet.sub[child] retains the snap-time stale
-\* value, and a peer's subsequent BundlePhase1 reads stale, leading to lost
-\* increments at the next CommitGrand. Identified via TLA+ exhaustive
-\* check (TerminalPayloadCheck violation) + matching C11 retry-storm
-\* observation.
-\*
-\* Grand-level packet (Grand.sub[Parent].sub[child]) is updated implicitly
-\* on the next bundle re-collection from the now-correct Parent.packet.
+\* Restored from old BundleUnbundle.tla logic verbatim, with minimal
+\* LL-free addition: CanProceed gate + TagAfterFail on disturbed restart.
 UnbundleCASChild(t) ==
     /\ pc[t] = "unbundle_cas_child"
     /\ CanProceed(t, target[t])
     /\ LET node       == target[t]
            oldChildW  == local[t].wrapper
-           parentNode == ParentOf(node)
-           parentW    == IF parentNode = Null THEN Null ELSE linkage[parentNode]
            ser        == GenSerial(t, oldChildW.serial)
            newChildW  == PriorityWrapper(local[t].newpacket, ser)
-           \* Sync Parent.packet.sub[node] only when Parent is priority and
-           \* its packet is structurally compatible.
-           parentSync ==
-               /\ parentNode /= Null
-               /\ parentW /= Null
-               /\ parentW.hasPriority
-               /\ parentW.packet /= Null
-               /\ node \in DOMAIN parentW.packet.sub
-           newParentPkt ==
-               IF parentSync
-               THEN [parentW.packet EXCEPT !.sub[node] = local[t].newpacket]
-               ELSE Null
-           newParentW ==
-               IF parentSync
-               THEN PriorityWrapper(newParentPkt, ser)
-               ELSE Null
        IN
        IF linkage[node] = oldChildW
-       THEN /\ linkage' =
-                IF parentSync
-                THEN [linkage EXCEPT
-                          ![node] = newChildW,
-                          ![parentNode] = newParentW]
-                ELSE [linkage EXCEPT ![node] = newChildW]
+       THEN /\ linkage' = [linkage EXCEPT ![node] = newChildW]
             /\ UpdateSerial(t, ser)
             /\ local' = [local EXCEPT ![t].commitOk = "ok"]
             /\ pc' = [pc EXCEPT ![t] = "commit_done"]
