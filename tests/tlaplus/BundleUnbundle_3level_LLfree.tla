@@ -544,7 +544,11 @@ InnerPhase3(t) ==
                  THEN pc' = [pc EXCEPT ![t] = "inner_phase4"]
                  ELSE pc' = [pc EXCEPT ![t] = "inner_phase3"]
               /\ UNCHANGED <<serial, globalSerial, local, op, target, iterBudget, childQueue, priorityTag>>
-       \* Failure: some grandchild changed — restart inner from Phase2
+       \* Failure: some grandchild changed — restart inner from Phase2.
+       \* Symmetric eager tag: tag the failed grandchild AND the inner-
+       \* bundling node c (mirrors outer BundlePhase3 SUPERFINE DISTURBED
+       \* and matches the C11 generator's symmetric tagging — earlier
+       \* TLA+ tagged only gc; C11 added c-tagging for consistency).
        \/ \E gc \in gcs :
               /\ CanProceed(t, gc)
               /\ gcWs[gc] /= Null
@@ -553,7 +557,9 @@ InnerPhase3(t) ==
               /\ local' = [local EXCEPT
                      ![t].innerSubWs = [g \in gcs |-> linkage[g]]]
               /\ pc' = [pc EXCEPT ![t] = "inner_phase2"]
-              /\ priorityTag' = [priorityTag EXCEPT ![gc] = TagAfterFail(t, gc)]
+              /\ priorityTag' = [
+                     [priorityTag EXCEPT ![gc] = TagAfterFail(t, gc)]
+                         EXCEPT ![c] = TagAfterFail(t, c)]
               /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
 
 \* InnerPhase4: finalize — set missing=FALSE on innerChild
