@@ -84,7 +84,15 @@ CONSTANTS
                           \*     superfine: casTargets in root-first order (matching C++)
     UnbundleCASAtomic,    \* #2: unbundle CAS loop (coarse=all-at-once, fine=1/action)
     BundleCollectAtomic,  \* #3: BundlePhase1 child collection (coarse=all children, fine=1 child/action)
-    BundlePhase3Atomic    \* #4: BundlePhase3 child CAS (coarse=all-at-once, fine=1/action)
+    BundlePhase3Atomic,   \* #4: BundlePhase3 child CAS (coarse=all-at-once, fine=1/action)
+    Privilege             \* TRUE: LL-free priorityTag gating active (CanProceed gates CAS,
+                          \*       PreemptTag fires, ClearMyTags releases at Tx-end). Main mode.
+                          \* FALSE: tags neutralized (CanProceed=TRUE, TagAfterFail/ClearMyTags
+                          \*        no-op, PreemptTag disabled). Sanity-check mode for comparing
+                          \*        against old BundleUnbundle.tla semantics. Without privilege,
+                          \*        finite state space is NOT guaranteed (no LL-free retry bound),
+                          \*        so use only with small configs / CONSTRAINT SerialBound /
+                          \*        SAFETY-only invariants (no liveness PROPERTY).
 
 GrandChildren == {Parent}         \* Grand's children
 ParentChildren == {Child1, Child2} \* Parent's children
@@ -170,36 +178,44 @@ TagOlder(a, b) ==
 ActiveThread(t) == iterBudget[t] > 0 \/ pc[t] /= "idle"
 
 \* CanProceed: gate for any CAS attempt at node n by thread t.
+\* When Privilege = FALSE, gate is disabled (always TRUE).
 CanProceed(t, n) ==
-    LET tag == priorityTag[n] IN
-    \/ tag = Null
-    \/ /\ tag /= Null
-       /\ \/ tag[2] = t
-          \/ ~ActiveThread(tag[2])
+    \/ ~Privilege
+    \/ LET tag == priorityTag[n] IN
+       \/ tag = Null
+       \/ /\ tag /= Null
+          /\ \/ tag[2] = t
+             \/ ~ActiveThread(tag[2])
 
 \* TagAfterFail(t, n): the value priorityTag[n] should hold after CAS fail.
+\* When Privilege = FALSE, no-op (returns existing tag).
 TagAfterFail(t, n) ==
-    IF priorityTag[n] = Null
-    THEN MyTag(t)
-    ELSE IF priorityTag[n][2] = t
+    IF ~Privilege
+    THEN priorityTag[n]
+    ELSE IF priorityTag[n] = Null
          THEN MyTag(t)
-         ELSE IF ~ActiveThread(priorityTag[n][2])
+         ELSE IF priorityTag[n][2] = t
               THEN MyTag(t)
-              ELSE IF TagOlder(MyTag(t), priorityTag[n])
+              ELSE IF ~ActiveThread(priorityTag[n][2])
                    THEN MyTag(t)
-                   ELSE priorityTag[n]
+                   ELSE IF TagOlder(MyTag(t), priorityTag[n])
+                        THEN MyTag(t)
+                        ELSE priorityTag[n]
 
 \* TagAfterSuccess: NO-OP (Transaction-scope persistence; release at Tx end).
 TagAfterSuccess(t, n) == priorityTag[n]
 
 \* ClearMyTags(t): release ALL of thread t's tags. Called at Tx-end.
+\* When Privilege = FALSE, no-op (priorityTag unchanged).
 ClearMyTags(t) ==
-    [n \in AllNodes |->
-        IF priorityTag[n] = Null
-        THEN priorityTag[n]
-        ELSE IF priorityTag[n][2] = t
-             THEN Null
-             ELSE priorityTag[n]]
+    IF ~Privilege
+    THEN priorityTag
+    ELSE [n \in AllNodes |->
+              IF priorityTag[n] = Null
+              THEN priorityTag[n]
+              ELSE IF priorityTag[n][2] = t
+                   THEN Null
+                   ELSE priorityTag[n]]
 
 -----------------------------------------------------------------------------
 (* Data structures *)
@@ -268,6 +284,7 @@ Init ==
 \* active thread's tag at node n. Mirrors C++
 \* try_register_privileged_tidstamp() succeeding for an older Transaction.
 PreemptTag(t, n) ==
+    /\ Privilege  \* disabled when Privilege = FALSE
     /\ ActiveThread(t)
     /\ priorityTag[n] /= Null
     /\ priorityTag[n][2] /= t
@@ -1317,17 +1334,53 @@ UnbundleCASLoop(t) ==
 \*   (the child's bundled_ref serial). Both equal bundle_serial at bundle time; they
 \*   diverge only when the root was re-committed. Effect: C++ produces a higher serial
 \*   (stronger Lamport guarantee). No correctness impact.
-\* Final: CAS child's linkage to restore priority with new (committed) packet
+\* Final: CAS child's linkage to restore priority with new (committed) packet.
+\*
+\* Atomic ancestor-packet sync: when child is restored to priority, also
+\* update the immediate Parent's packet.sub[child] to the new child packet,
+\* IF Parent is currently priority (i.e., t1's earlier UnbundleCASLoop
+\* left Parent priority+missing=TRUE with the chain's packet structure).
+\* Without this sync, Parent.packet.sub[child] retains the snap-time stale
+\* value, and a peer's subsequent BundlePhase1 reads stale, leading to lost
+\* increments at the next CommitGrand. Identified via TLA+ exhaustive
+\* check (TerminalPayloadCheck violation) + matching C11 retry-storm
+\* observation.
+\*
+\* Grand-level packet (Grand.sub[Parent].sub[child]) is updated implicitly
+\* on the next bundle re-collection from the now-correct Parent.packet.
 UnbundleCASChild(t) ==
     /\ pc[t] = "unbundle_cas_child"
     /\ CanProceed(t, target[t])
-    /\ LET node     == target[t]
-           oldChildW == local[t].wrapper
-           ser      == GenSerial(t, oldChildW.serial)
-           newChildW == PriorityWrapper(local[t].newpacket, ser)
+    /\ LET node       == target[t]
+           oldChildW  == local[t].wrapper
+           parentNode == ParentOf(node)
+           parentW    == IF parentNode = Null THEN Null ELSE linkage[parentNode]
+           ser        == GenSerial(t, oldChildW.serial)
+           newChildW  == PriorityWrapper(local[t].newpacket, ser)
+           \* Sync Parent.packet.sub[node] only when Parent is priority and
+           \* its packet is structurally compatible.
+           parentSync ==
+               /\ parentNode /= Null
+               /\ parentW /= Null
+               /\ parentW.hasPriority
+               /\ parentW.packet /= Null
+               /\ node \in DOMAIN parentW.packet.sub
+           newParentPkt ==
+               IF parentSync
+               THEN [parentW.packet EXCEPT !.sub[node] = local[t].newpacket]
+               ELSE Null
+           newParentW ==
+               IF parentSync
+               THEN PriorityWrapper(newParentPkt, ser)
+               ELSE Null
        IN
        IF linkage[node] = oldChildW
-       THEN /\ linkage' = [linkage EXCEPT ![node] = newChildW]
+       THEN /\ linkage' =
+                IF parentSync
+                THEN [linkage EXCEPT
+                          ![node] = newChildW,
+                          ![parentNode] = newParentW]
+                ELSE [linkage EXCEPT ![node] = newChildW]
             /\ UpdateSerial(t, ser)
             /\ local' = [local EXCEPT ![t].commitOk = "ok"]
             /\ pc' = [pc EXCEPT ![t] = "commit_done"]
