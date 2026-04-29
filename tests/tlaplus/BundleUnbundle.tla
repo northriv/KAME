@@ -46,10 +46,10 @@ CONSTANTS
     Child1, Child2, \* Leaf nodes (children of Parent)
     Null,
     MaxPayload,     \* Payloads wrap at this value (e.g. 2)
-    MaxSerial,      \* Serial modulus. Must exceed 2x the max serial consumed per run.
-                    \* Fine-mode generates ~64 serials/commit; set MaxSerial >= 64*MaxCommits*|Threads|.
-                    \* Modular arithmetic creates state-space cycles that let TLC terminate quickly;
-                    \* natural-number serials would cause explosion due to unbounded retry loops.
+    MaxSerial,      \* Serial upper bound for CONSTRAINT SerialBound (not a modulus).
+                    \* TLC prunes branches where any serial reaches MaxSerial.
+                    \* Serial arithmetic is plain natural-number (no wrap); bounded by
+                    \* CONSTRAINT to keep state space finite.
     MaxCommits,     \* Max CommitStart/CommitDone cycles per thread in "child" phase
     \* ------------------------------------------------------------
     \* Atomicity granularity for each of 4 bulk-operation sites.
@@ -98,17 +98,12 @@ ChildrenOf(n) ==
 \* @c11_var linkage[n].packet.sub[c]:  Packet::subpackets()[i]
 \* @c11_var linkage[n].bundledBy:      PacketWrapper::bundledBy()
 \* @c11_var serial[t]:        thread-local Lamport clock (SerialGenerator)
-\*   Modular arithmetic: (base + 1) % MaxSerial. Comparisons via ModGT
-\*   (signed-difference mod MaxSerial), matching C++ unsigned subtraction
-\*   reinterpreted as signed. MaxSerial must be even.
-\*   Modular wrap-around creates state-space cycles essential for TLC termination:
-\*   commit retry loops increment serial without consuming iterBudget, so without
-\*   modular bounds the serial dimension becomes an infinite DAG.
+\*   Plain natural-number arithmetic (matching C++ 48-bit unsigned, no modular wrap).
+\*   Comparisons use regular >. Bounded by CONSTRAINT SerialBound.
 \*
 \* 3-level adds: recursive bundle (Grand bundles Parent which bundles Children),
 \* 2-level unbundle walk (Child->Parent->Grand via walkUpChain/snapshotForUnbundle recursion),
 \* and UnbundleCASGP / UnbundleRestoreParent for the grandparent path.
-\* Serial arithmetic is modular (required for finite state space; see MaxSerial comment).
 \*
 \* Source: kame/transaction.h, kame/transaction_impl.h
 \* ==========================================================================
@@ -121,20 +116,19 @@ VARIABLES
 vars == <<serial, globalSerial, linkage, pc, op, target, local, iterBudget, childQueue>>
 
 -----------------------------------------------------------------------------
-(* Modular serial arithmetic *)
+(* Plain natural-number serial arithmetic *)
 
-\* Modular serial comparison (same as C++ signed-difference comparison)
-ModGT(a, b) == LET diff == (a - b + MaxSerial) % MaxSerial
-               IN  diff > 0 /\ diff < MaxSerial \div 2
-
-\* Advance past lastSer then increment (Lamport step)
 GenSerial(t, lastSer) ==
-    LET base == IF ModGT(lastSer, serial[t]) THEN lastSer ELSE serial[t]
-    IN  (base + 1) % MaxSerial
+    (IF lastSer > serial[t] THEN lastSer ELSE serial[t]) + 1
 
 UpdateSerial(t, ser) ==
     /\ serial' = [serial EXCEPT ![t] = ser]
-    /\ globalSerial' = IF ModGT(ser, globalSerial) THEN ser ELSE globalSerial
+    /\ globalSerial' = IF ser > globalSerial THEN ser ELSE globalSerial
+
+\* Constraint: prune branches where any serial reaches MaxSerial.
+SerialBound ==
+    /\ \A t \in Threads : serial[t] < MaxSerial
+    /\ globalSerial < MaxSerial
 
 -----------------------------------------------------------------------------
 (* Data structures *)
@@ -1220,19 +1214,10 @@ MissingPropagation ==
             (\A c \in ChildrenOf(n) :
                 w.packet.sub[c] /= Null => ~w.packet.sub[c].missing)
 
-\* NoSerialWrapAround: all "active" serials must be totally ordered by ModGT.
-\* Active serials = thread-local serials + hasPriority node serials.
-\* Bundled (hasPriority=FALSE) nodes' serials are excluded: they can go stale
-\* (e.g. grandchildren in 3-level bundling) without affecting correctness,
-\* because their wrappers are compared by full structural equality, not ModGT.
-\* When wrap-around makes |a - b| = MaxSerial/2, ModGT(a,b) and ModGT(b,a) are
-\* both FALSE — the serial space is exhausted. Increase MaxSerial.
-NoSerialWrapAround ==
-    LET activeSerials == {serial[t] : t \in Threads}
-                         \cup {linkage[n].serial :
-                               n \in {m \in AllNodes : linkage[m].hasPriority}}
-    IN \A a \in activeSerials : \A b \in activeSerials :
-        a = b \/ ModGT(a, b) \/ ModGT(b, a)
+\* NoSerialWrapAround: retired. With plain natural-number serial arithmetic and
+\* CONSTRAINT SerialBound, serials are always totally ordered by > and never
+\* ambiguous. Trivially TRUE; use SerialBound as CONSTRAINT instead.
+NoSerialWrapAround == TRUE
 
 Safety ==
     /\ SnapshotConsistency

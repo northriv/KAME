@@ -2432,7 +2432,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                     child->m_link, snap, child_retry);
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i]) {
-                    child_scope.commit();
+                    child_scope.commit(); //fast path for retry > 0.
                     break;
                 }
                 SerialGenerator::gen(subwrapper->m_bundle_serial); //Lamport: advance past sub-node serial.
