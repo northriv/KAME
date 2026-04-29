@@ -236,4 +236,15 @@ Laptop budget exhausted at MaxCommits=2 / MaxPayload=3 / 2 threads (queue 1.2M n
 
 Cfg files already committed: `_commits2_mc.cfg`, `_superfine_mc.cfg`, `_payload4_mc.cfg`, `_superfine_phase0only_mc.cfg`, `_superfine_phase3only_mc.cfg`. To add 3-thread cfg, copy `_micro_mc.cfg` and change `Threads = {1, 2, 3}` (keep `SYMMETRY` removed for liveness).
 
-Optional simplification: `MaxPayload = Nat` (no MOD). State space grows roughly `((1 + 2*MaxCommits*|Threads|) / MaxPayload)^5`; doable on ohtaka, gives a stricter `TerminalPayloadCheck` (true cumulative count without wrap-disambiguation hazard).
+Optional simplification: ~~`MaxPayload = Nat` (no MOD)~~ — **applied 2026-04-29**. See below.
+
+### MaxPayload MOD removed (2026-04-29)
+
+Tested empirically that `(payload + 1) % MaxPayload` could be replaced with `payload + 1` (and `TerminalPayloadCheck`'s `% MaxPayload` removed). Result for micro fine 2t MaxCommits=1: **665,216 states / depth 89 / 29s** — *identical* to MOD-bearing version (665,218; 2-state fingerprint difference). MOD never produced a state-space collision in this protocol because the LL-free + bounded-iteration discipline pins each reachable payload value to a distinct execution position; two different "real" payloads never collapse to the same state under MOD.
+
+Benefits applied:
+- `TerminalPayloadCheck` is now a strict cumulative count (`payload = 2 * MaxCommits * |Threads|`) — exact assertion, no wrap-disambiguation hazard.
+- `MaxPayload` constant removed from spec and all `_mc.cfg` files.
+- `_payload4_mc.cfg` deleted (no longer meaningful).
+
+Java/TLC integer behavior: TLC uses `IntValue` (Java `long`) on the fast path with automatic promotion to `BigIntValue` (`BigInteger`) on overflow, so payload-Nat arithmetic stays exact even at large scales. Our values stay << `Long.MAX_VALUE` (~9.2e18), so the fast path is never abandoned.
