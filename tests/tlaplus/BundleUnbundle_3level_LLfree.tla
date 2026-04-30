@@ -56,7 +56,6 @@
  *     2. CommitChild for EACH child: direct commit (retry until success). Exercises the
  *                     full 2-level unbundle walk triggered by the earlier CommitGrand.
  * Each child receives exactly 2 * MaxCommits * |Threads| increments total.
- * Serial wrap-around is covered when MaxCommits >= MaxSerial / 2.
  *)
 
 EXTENDS Integers, Sequences, FiniteSets, TLC
@@ -487,7 +486,7 @@ BundlePhase1(t) ==
             \* --- #1 superfine: Pre-bundle serial CAS (C++ bundle() entry, line 1182-1191) ---
             \* Stamp bundle_serial on the parent's wrapper before collection.
             \* Without negotiate(), this causes livelock in fine mode (both threads
-            \* alternate pre-CAS → Phase2 fail → retry, exhausting MaxSerial).
+            \* alternate pre-CAS → Phase2 fail → retry, causing livelock).
             IF BundleCollectAtomic = "superfine" /\ parentW.serial /= ser
             THEN /\ CanProceed(t, node)
                  /\ LET newW == PriorityWrapper(parentW.packet, ser)

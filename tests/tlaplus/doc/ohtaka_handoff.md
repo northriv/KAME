@@ -97,7 +97,6 @@ CONSTANTS
     Child1 = Child1
     Child2 = Child2
     Null = Null
-    MaxSerial = 256
     MaxCommits = 1
     UnbundleWalkAtomic  = "superfine"
     UnbundleCASAtomic   = "superfine"
@@ -141,5 +140,5 @@ grep -E "^[0-9]+$" output.log | wc -l
 
 - `Privilege = FALSE` は意図的に発散（proof_semantics.md §4–§5）
 - `SYMMETRY` は使用不可（`TagOlder` が Nat 順序を要求、liveness も mask される）
-- `MaxSerial` は cfg に残っているが `DebugSerialBound == TRUE` で無効化済み
+- `MaxSerial` は LLfree spec の CONSTANTS から削除済み（cfg からも除去済み）
 - TLC `PrintT` は `System.out.println()` 経由でスレッドセーフ（文字混在なし）
