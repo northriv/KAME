@@ -38,20 +38,24 @@ AllDone 状態ごとにスレッド別 serial を出力:
 
 ## スパコン対象 cfg（優先順）
 
-### Tier 1: 3 スレッド（最優先 — 新しい contention パターン）
+### Tier 1: 2L 3thr fine（実行中）
 
 3-way priority resolution、2thr では不可能な「2者競合中に第3者割り込み」を検証。
 
+| cfg | spec | Threads | MaxCommits | 実測 distinct | メモ |
+|---|---|---|---|---|---|
+| `2level_LLfree_3thr_mc` | 2L | {1,2,3} | 1 | **650M+ (24h f1fat, queue 114M)** | `PrintTerminalMaxCounter` 追加要 |
+
+f1fat 24h 時点 (2026-04-30): 3.9B generated, 650M distinct, 114M queue, depth 49。
+収束まで推定あと数日〜1 週間。i8cpu の方が良いかもしれない。
+
+### Tier 2: 3L 3thr（2L 完了後）
+
 | cfg | spec | Threads | MaxCommits | 推定 distinct | メモ |
 |---|---|---|---|---|---|
-| `2level_LLfree_3thr_mc` | 2L | {1,2,3} | 1 | 50–200M | 既存 cfg, `PrintTerminalMaxCounter` 追加要 |
-| (新規) `3level_LLfree_3thr_mc` | 3L | {1,2,3} | 1 | 数百M〜数B | cfg 新規作成要 |
+| (新規) `3level_LLfree_3thr_mc` | 3L | {1,2,3} | 1 | **数B〜数十B** (2L の数倍以上) | cfg 新規作成要 |
 
-### Tier 2: 3thr superfine（オプション）
-
-| cfg | spec | Threads | MaxCommits | 推定 distinct | メモ |
-|---|---|---|---|---|---|
-| (新規) 2L 3thr superfine | 2L | {1,2,3} | 1 | 100–500M | |
+2L が 650M+ なので 3L は数十億規模。最大ノードが必要。
 
 ### Tier 3: MaxCommits=2（低優先）
 
