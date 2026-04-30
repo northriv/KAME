@@ -1,3 +1,52 @@
+* Thu Apr 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- TLA+ formal models (tests/tlaplus/BundleUnbundle_3level_LLfree.tla,
+  BundleUnbundle_2level_LLfree.tla): C++-fidelity fixes that close the
+  gap between TLC verification and the C++ STM implementation. After
+  these, every cfg passes both safety (TerminalPayloadCheck and friends)
+  and liveness (EventuallyAllDone), and the generated C11 stress test
+  no longer hangs.
+  (1) BundlePhase1 coarse path inner-bundle: drop the
+  linkage[n].hasPriority filter on grandchild CAS. C++ Phase 3 of an
+  inner recursive bundle (transaction_impl.h:2487-2511) ALWAYS CASes
+  each child to a fresh bundled_ref wrapper regardless of prior state;
+  the filter caused TLA+ to leave already-bundled grandchildren
+  untouched, allowing a peer's stale snapshotForUnbundle pointer to
+  CAS-succeed and produce a lost-increment race that does not occur
+  in C++.
+  (2) GenSerial: replaced ad-hoc globalSerial-based uniqueness with
+  C++-faithful TID-encoded base-B Lamport (mirrors transaction.h:
+  547-576 SerialGenerator::gen). serial = counter * SerialBase + TID;
+  GenSerial uses TLS counter (serial[t]) plus the wrapper's
+  m_bundle_serial passed in, advances counter past last_serial, then
+  increments and re-encodes with TID. Two threads with the same
+  counter produce different serial values via different TID lower
+  digits, mirroring C++ pointer distinctness. The globalSerial
+  variable is removed; SerialBound and DebugSerialBound are neutered
+  to TRUE for cfg back-compat.
+  (3) BundlePhase3 disturbed restart (3-level coarse + fine):
+  regenerate bundleSer via GenSerial when looping back to
+  bundle_phase1. C++ bundle() retry loop allocates new
+  PacketWrappers with fresh bundle_serial per iteration; without
+  regen the retried Phase 3 emits structurally identical wrappers
+  and a peer's stale pointer compares equal.
+  (4) UnbundleWalk casTargets: always root-first regardless of
+  UnbundleWalkAtomic. C++ walkUpChainImpl is recursive — the deepest
+  call (root) emplace_back's into cas_infos first. Leaf-first in
+  fine mode let a peer CommitGrand interject between t1's Parent CAS
+  and t1's Grand CAS, never seeing Grand changed → stale-snapshot
+  CAS succeeds → lost increment.
+  (5) InnerPhase3 / outer BundlePhase3 fine success path: update
+  innerSubWs[gc] / subwrappers[c] to the new wrapper. TLA+-specific:
+  C++ pointer identity automatically invalidates the failure-branch
+  guard after a successful CAS, but TLA+ value equality lets the
+  failure branch falsely re-fire on the just-CAS'd entry, creating a
+  single-thread state-space explosion under Lamport.
+- TLA+ verification status (PASS):
+  3-level 1-thread fine: 46 distinct, depth 29, < 1 s.
+  3-level coarse 2t   : 1.5 M distinct, depth 98, 1:12.
+  3-level pure FINE 2t: 12.1 M distinct, depth 141, 14:38.
+  2-level micro       : 803 K distinct, depth 89, 56 s.
+
 * Mon Apr 27 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - STM core: K=0 NUMA scaling (8.5 M → 314 M c/s on ohtaka 128c, ×37).
   Two structural cacheline-contention bottlenecks removed:

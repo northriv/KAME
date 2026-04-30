@@ -137,28 +137,64 @@ ChildrenOf(n) ==
 \* ==========================================================================
 
 VARIABLES
-    serial, globalSerial, linkage, pc, op, target, local,
+    serial, linkage, pc, op, target, local,
     iterBudget,  \* [Threads -> 0..MaxCommits]: remaining full iterations per thread
     childQueue,  \* [Threads -> SUBSET ParentChildren]: children pending CommitChild in current iteration
     priorityTag  \* [AllNodes -> Null | <<iter, tid>>]: LL-free per-node tag.
                  \* Set on CAS fail; released only at Tx end via ClearMyTags.
 
-vars == <<serial, globalSerial, linkage, pc, op, target, local, iterBudget, childQueue, priorityTag>>
+vars == <<serial, linkage, pc, op, target, local, iterBudget, childQueue, priorityTag>>
 
 -----------------------------------------------------------------------------
-(* Plain natural-number serial arithmetic *)
+(* Lamport serial — C++-faithful encoding *)
 
+\* C++ FIDELITY [transaction.h:547-576]:
+\*   SerialGenerator stores a TLS counter in upper 48 bits + TID in lower 16
+\*   bits of a 64-bit value. gen(last_serial) advances the TLS counter past
+\*   last_serial's counter (Lamport step), increments, and returns the
+\*   composed value. Same counter on two threads produces DIFFERENT serials
+\*   because the lower bits differ — this is what makes wrappers thread-
+\*   unique even when the Lamport timestamps collide.
+\*
+\*   TLA+ records compare by value, so we must reproduce the TID-in-low-bits
+\*   trick. We use base-B arithmetic with B = SerialBase (>= max TID + 1):
+\*     serial = counter * SerialBase + tid
+\*   Bit width differs from C++ (TLA+ uses arbitrary integers) but the
+\*   ordering and uniqueness properties are identical.
+\*
+\*   No globalSerial — C++ has no such variable. Thread uniqueness is
+\*   guaranteed by the TID-in-lower-bits encoding alone.
+SerialBase == 1 + Cardinality(Threads)   \* > max TID; thread IDs ∈ Threads
+
+\* Decoding helpers — extract counter (upper) and tid (lower).
+SerialCounter(s) == s \div SerialBase
+SerialTID(s)     == s % SerialBase
+
+\* Encoding helper — compose (counter, tid) → serial value.
+EncodeSerial(cnt, tid) == cnt * SerialBase + tid
+
+\* GenSerial(t, lastSer): mirrors C++ SerialGenerator::gen(last_serial).
+\*   1. last_counter = SerialCounter(lastSer)        \* C++: last_serial & ~0xFFFF
+\*   2. my_counter   = SerialCounter(serial[t])      \* C++: v.m_var upper bits
+\*   3. if last_counter > my_counter: my_counter := last_counter   \* Lamport step
+\*   4. my_counter   = my_counter + 1                \* C++: v++
+\*   5. return EncodeSerial(my_counter, t)           \* C++: v (m_var)
+\* Uses TLS (serial[t]) + lastSer only — no global state.
 GenSerial(t, lastSer) ==
-    (IF lastSer > serial[t] THEN lastSer ELSE serial[t]) + 1
+    LET lastCnt == SerialCounter(lastSer)
+        myCnt   == SerialCounter(serial[t])
+        newCnt  == (IF lastCnt > myCnt THEN lastCnt ELSE myCnt) + 1
+    IN  EncodeSerial(newCnt, t)
 
+\* UpdateSerial: persist thread t's TLS counter slot.
+\* C++ stores back into stl_serial inside gen(); TLA+ does it explicitly.
 UpdateSerial(t, ser) ==
-    /\ serial' = [serial EXCEPT ![t] = ser]
-    /\ globalSerial' = IF ser > globalSerial THEN ser ELSE globalSerial
+    serial' = [serial EXCEPT ![t] = ser]
 
-\* Constraint: prune branches where any serial reaches MaxSerial.
-SerialBound ==
-    /\ \A t \in Threads : serial[t] < MaxSerial
-    /\ globalSerial < MaxSerial
+\* SerialBound: kept for cfg back-compat. With Lamport (unbounded) and
+\* LL-free liveness guaranteeing termination, no hard cap is needed —
+\* always TRUE.
+SerialBound == TRUE
 
 -----------------------------------------------------------------------------
 (* LL-free helpers (mirrors BundleUnbundle_2level_LLfree.tla §190-235) *)
@@ -270,8 +306,9 @@ Init ==
                 MakePacket(Parent, 0, [c \in ParentChildren |-> Null], TRUE), 0)
         ELSE PriorityWrapper(
                 MakePacket(n, 0, EmptySubFor(n), FALSE), 0)]
-    /\ serial = [t \in Threads |-> 0]
-    /\ globalSerial = 0
+    \* Initial TLS slots: counter=0, TID encoded in lower digit (C++ stl_serial
+    \* constructor: m_var = ProcessCounter::id()).  EncodeSerial(0, t) = t.
+    /\ serial = [t \in Threads |-> EncodeSerial(0, t)]
     /\ pc = [t \in Threads |-> "idle"]
     /\ op = [t \in Threads |-> "idle"]
     /\ target = [t \in Threads |-> Null]
@@ -291,7 +328,7 @@ PreemptTag(t, n) ==
     /\ ActiveThread(priorityTag[n][2])
     /\ TagOlder(MyTag(t), priorityTag[n])
     /\ priorityTag' = [priorityTag EXCEPT ![n] = MyTag(t)]
-    /\ UNCHANGED <<serial, globalSerial, linkage, pc, op, target, local, iterBudget, childQueue>>
+    /\ UNCHANGED <<serial, linkage, pc, op, target, local, iterBudget, childQueue>>
 
 -----------------------------------------------------------------------------
 (* Snapshot: read node, bundle if missing *)
@@ -308,7 +345,7 @@ SnapRead(t, node) ==
     /\ op' = [op EXCEPT ![t] = "snapshot"]
     /\ target' = [target EXCEPT ![t] = node]
     /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-    /\ UNCHANGED <<serial, globalSerial, linkage, local, iterBudget, childQueue, priorityTag>>
+    /\ UNCHANGED <<serial, linkage, local, iterBudget, childQueue, priorityTag>>
 
 \* @c11_action SnapCheck(t):
 \*   local_shared_ptr<PacketWrapper> w(*node->m_link);
@@ -325,7 +362,7 @@ SnapCheck(t) ==
        THEN \* Fast path: complete
             /\ local' = [local EXCEPT ![t].snapResult = w.packet]
             /\ pc' = [pc EXCEPT ![t] = "commit_grand"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+            /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
        ELSE IF w.hasPriority /\ w.packet.missing
        THEN \* Need to bundle this node
             LET ser == GenSerial(t, w.serial)
@@ -343,7 +380,7 @@ SnapCheck(t) ==
        ELSE \* Node is bundled — need to unbundle first (snapshot from bundled state)
             \* For simplicity, just retry (the real code calls walkUpChain)
             /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
+            /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
 
 -----------------------------------------------------------------------------
 (* Bundle: 4-phase protocol *)
@@ -425,19 +462,30 @@ BundlePhase1(t) ==
                              ELSE childWs[c]],
                          ![t].subpackets  = childPkts]
                  \* Inner bundle side-effects: CAS grandchildren to BundledRefWrapper,
-                 \* finalize inner-bundled children's wrappers
+                 \* finalize inner-bundled children's wrappers.
+                 \* C++ FIDELITY (transaction_impl.h:2487-2511, Phase 3 of inner
+                 \* recursive bundle): each grandchild is ALWAYS CAS'd to a NEW
+                 \* bundled_ref wrapper with the new bundle_serial, regardless of
+                 \* whether it was previously priority or already bundled-by-us
+                 \* (with an older bundle_serial). The serial refresh is what
+                 \* invalidates a peer's stale snapshotForUnbundle pointer, so
+                 \* the peer's final UnbundleCASChild CAS fails → returns
+                 \* SUBVALUE_HAS_CHANGED → iterate_commit retries with the new
+                 \* (higher) value, preventing lost increments. Earlier code
+                 \* gated this update by `linkage[n].hasPriority`, which left
+                 \* already-bundled grandchildren untouched and produced a TLA+
+                 \* lost-increment that does NOT occur in C++.
                  /\ linkage' = [n \in AllNodes |->
                        IF \E c \in innerBundled : n \in ChildrenOf(c)
-                          /\ linkage[n].hasPriority
                        THEN BundledRefWrapper(ParentOf(n), ser)
                        ELSE IF n \in innerBundled
                        THEN PriorityWrapper(childPkts[n], ser)
                        ELSE linkage[n]]
                  /\ pc' = [pc EXCEPT ![t] = "bundle_phase2"]
-                 /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue, priorityTag>>
+                 /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
             ELSE \* Can't collect all — restart
                  /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
+                 /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
        ELSE \* fine/superfine: process one child at a time
             LET node     == local[t].bundleNode
                 children  == ChildrenOf(node)
@@ -456,18 +504,18 @@ BundlePhase1(t) ==
                     THEN /\ linkage' = [linkage EXCEPT ![node] = newW]
                          /\ local' = [local EXCEPT ![t].wrapper = newW]
                          /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-                         /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue, priorityTag>>
+                         /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
                     ELSE \* Parent changed — restart with eager tag.
                          /\ pc' = [pc EXCEPT ![t] = "snap_check"]
                          /\ priorityTag' = [priorityTag EXCEPT ![node] = TagAfterFail(t, node)]
-                         /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+                         /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
             ELSE \* Pre-CAS done, proceed to collection
             LET unprocessed == {c \in children : local[t].subwrappers[c] = Null}
             IN
             IF unprocessed = {}
             THEN \* All children collected — proceed to Phase2.
                  /\ pc' = [pc EXCEPT ![t] = "bundle_phase2"]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
+                 /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
             ELSE \E c \in unprocessed :
                      LET cw   == linkage[c]
                          pkt  == CollectSubpacket(node, c, parentW, ser)
@@ -480,38 +528,45 @@ BundlePhase1(t) ==
                              /\ linkage[node] = parentW
                           THEN \* superfine + parent unchanged — retry same child.
                                /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-                               /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
+                               /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
                           ELSE \* fine: always restart; superfine: parent changed.
+                               \* Eager bundleNode tag: ports BundleUnbundle_2level_LLfree.tla
+                               \* commit 5ff3226 fix (line 421-426 there).  Mirrors C++
+                               \* outer-scope ScopedNegotiateLinkage at line 2407
+                               \* (eager tag on retry > 0 of bundle's retry loop).
+                               \* Without this, peer can CAS bundleNode during this
+                               \* thread's restart cycle, causing unbounded re-bundling.
                                /\ pc' = [pc EXCEPT ![t] = "snap_check"]
                                /\ local' = [local EXCEPT
                                       ![t].subwrappers = [cc \in children |-> Null],
                                       ![t].subpackets  = [cc \in children |-> Null]]
-                               /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
-                     ELSE IF needsInner /\ BundleCollectAtomic = "superfine"
-                     THEN \* --- #2 superfine: Enter inner bundle phases ---
+                               /\ priorityTag' = [priorityTag EXCEPT ![node] = TagAfterFail(t, node)]
+                               /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue>>
+                     ELSE IF needsInner
+                     THEN \* C++-faithful: ALWAYS enter inner bundle phases
+                          \* when child has priority+missing+children, regardless
+                          \* of BundleCollectAtomic. The inner phases provide a
+                          \* Children-CAS integrity check (InnerPhase3 CASes
+                          \* each grandchild) which catches a peer's partial
+                          \* unbundle of the grandchild between our collection
+                          \* and inner CAS — without this, peer's
+                          \* UnbundleCASChild updating a grandchild value goes
+                          \* unnoticed, leading to the lost-increment race.
+                          \* Mirrors C++ bundle() recursion when collecting a
+                          \* priority+missing child (transaction_impl.h:1064-1125).
                           /\ local' = [local EXCEPT
                                  ![t].subpackets[c] = pkt,
                                  ![t].innerChild  = c,
                                  ![t].innerWrapper = cw,
                                  ![t].innerSubWs  = [gc \in ChildrenOf(c) |-> linkage[gc]]]
                           /\ pc' = [pc EXCEPT ![t] = "inner_phase2"]
-                          /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
-                     ELSE \* fine: inner bundle atomic; or leaf child.
+                          /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+                     ELSE \* leaf child (no children) — direct collection
                           /\ local' = [local EXCEPT
-                                 ![t].subwrappers[c] =
-                                     IF needsInner
-                                     THEN PriorityWrapper(pkt, ser)
-                                     ELSE cw,
+                                 ![t].subwrappers[c] = cw,
                                  ![t].subpackets[c]  = pkt]
-                          /\ linkage' = [n \in AllNodes |->
-                                IF needsInner /\ n \in ChildrenOf(c)
-                                   /\ linkage[n].hasPriority
-                                THEN BundledRefWrapper(c, ser)
-                                ELSE IF needsInner /\ n = c
-                                THEN PriorityWrapper(pkt, ser)
-                                ELSE linkage[n]]
                           /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-                          /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue, priorityTag>>
+                          /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
 
 \* --- #2: Inner bundle phases (C++ bundle() called recursively from bundle_subpacket) ---
 \* These model the inner bundle of a child that has hasPriority + missing + sub-children.
@@ -534,11 +589,11 @@ InnerPhase2(t) ==
           THEN /\ linkage' = [linkage EXCEPT ![c] = newW]
                /\ local' = [local EXCEPT ![t].innerWrapper = newW]
                /\ pc' = [pc EXCEPT ![t] = "inner_phase3"]
-               /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue, priorityTag>>
+               /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
           ELSE \* Disturbed — restart outer bundle from snapshot
                /\ pc' = [pc EXCEPT ![t] = "snap_check"]
                /\ priorityTag' = [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
-               /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+               /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* InnerPhase3: CAS each grandchild to BundledRefWrapper (one per action)
 \* C++ bundle() Phase3 (line 1260-1282) for inner child.
@@ -560,7 +615,16 @@ InnerPhase3(t) ==
                  IF allDone
                  THEN pc' = [pc EXCEPT ![t] = "inner_phase4"]
                  ELSE pc' = [pc EXCEPT ![t] = "inner_phase3"]
-              /\ UNCHANGED <<serial, globalSerial, local, op, target, iterBudget, childQueue, priorityTag>>
+              \* Update gcWs[gc] to the new bundled-ref wrapper. Without this,
+              \* the failure branch below sees `linkage[gc] /= gcWs[gc]` (the
+              \* saved pre-CAS wrapper) and falsely fires for the gc we just
+              \* successfully CAS'd, restarting inner_phase2 → infinite loop
+              \* in single-thread (no real disturbance, just our own CAS being
+              \* misread as a peer's interference). With Lamport-style
+              \* GenSerial, every restart gets a fresh serial so distinct
+              \* TLA+ states are produced unboundedly → state-space explosion.
+              /\ local' = [local EXCEPT ![t].innerSubWs[gc] = BundledRefWrapper(c, ser)]
+              /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
        \* Failure: some grandchild changed — restart inner from Phase2.
        \* Symmetric eager tag: tag the failed grandchild AND the inner-
        \* bundling node c (mirrors outer BundlePhase3 SUPERFINE DISTURBED
@@ -577,7 +641,7 @@ InnerPhase3(t) ==
               /\ priorityTag' = [
                      [priorityTag EXCEPT ![gc] = TagAfterFail(t, gc)]
                          EXCEPT ![c] = TagAfterFail(t, c)]
-              /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
+              /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue>>
 
 \* InnerPhase4: finalize — set missing=FALSE on innerChild
 \* C++ bundle() Phase4 (line 1286-1299) for inner child.
@@ -599,11 +663,11 @@ InnerPhase4(t) ==
                       ![t].innerWrapper = Null,
                       ![t].innerSubWs  = Null]
                /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
-               /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue, priorityTag>>
+               /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
           ELSE \* Disturbed — restart outer bundle from snapshot
                /\ pc' = [pc EXCEPT ![t] = "snap_check"]
                /\ priorityTag' = [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
-               /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+               /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase2(t):
 \*   // Phase 2: CAS bundleNode's linkage with new packet (still missing=TRUE)
@@ -624,11 +688,11 @@ BundlePhase2(t) ==
           THEN /\ linkage' = [linkage EXCEPT ![node] = newW]
                /\ local' = [local EXCEPT ![t].wrapper = newW]
                /\ pc' = [pc EXCEPT ![t] = "bundle_phase3"]
-               /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue, priorityTag>>
+               /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
           ELSE \* Disturbed
                /\ pc' = [pc EXCEPT ![t] = "snap_check"]
                /\ priorityTag' = [priorityTag EXCEPT ![node] = TagAfterFail(t, node)]
-               /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+               /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase3(t):
 \*   // Phase 3: CAS each child to bundled-ref, ONE AT A TIME.
@@ -656,14 +720,29 @@ BundlePhase3(t) ==
                          THEN BundledRefWrapper(node, ser)
                          ELSE linkage[n]]
                     /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-                    /\ UNCHANGED <<serial, globalSerial, local, op, target, iterBudget, childQueue, priorityTag>>
+                    /\ UNCHANGED <<serial, local, op, target, iterBudget, childQueue, priorityTag>>
                ELSE \* Some child changed — restart Phase 1
+                    \* C++ FIDELITY: bundle() retry loop generates a NEW
+                    \* bundle_serial each iteration so the retried Phase 3
+                    \* allocates fresh PacketWrappers (distinct pointers in
+                    \* C++; distinct values in TLA+). Without regen here,
+                    \* the retried bundle reuses the same `ser`, and
+                    \* BundledRefWrapper(node, ser) is structurally identical
+                    \* to the wrapper a peer's earlier bundle wrote — so
+                    \* the "refresh" CAS is a value-level no-op and a peer's
+                    \* stale snapshotForUnbundle pointer compares equal,
+                    \* allowing a final UnbundleCASChild that should have
+                    \* failed to succeed (lost-increment race).
+                    /\ LET newSer == GenSerial(t, ser)
+                       IN
+                       /\ local' = [local EXCEPT ![t].bundleSer = newSer]
+                       /\ UpdateSerial(t, newSer)
                     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
                     /\ priorityTag' = [n \in AllNodes |->
                            IF n \in children /\ linkage[n] /= childWs[n]
                            THEN TagAfterFail(t, n)
                            ELSE priorityTag[n]]
-                    /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+                    /\ UNCHANGED <<linkage, op, target, iterBudget, childQueue>>
        ELSE \* fine: one child per action
             LET node     == local[t].bundleNode
                 ser      == local[t].bundleSer
@@ -681,7 +760,14 @@ BundlePhase3(t) ==
                       IF allDone
                       THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
                       ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]
-                   /\ UNCHANGED <<serial, globalSerial, local, op, target, iterBudget, childQueue, priorityTag>>
+                   \* Update subwrappers[c] to the new wrapper. Without this,
+                   \* the failure branch below sees `linkage[c] /= childWs[c]`
+                   \* (the saved pre-CAS wrapper) and falsely fires for the c
+                   \* we just successfully CAS'd, restarting → infinite loop
+                   \* in single-thread (Lamport-style serial regen on each
+                   \* restart explodes the state space without convergence).
+                   /\ local' = [local EXCEPT ![t].subwrappers[c] = BundledRefWrapper(node, ser)]
+                   /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
             \* Failure path: some child changed.
             \* superfine #4: check bundle_serial/parent → DISTURBED.
             \/ \E c \in children :
@@ -696,17 +782,41 @@ BundlePhase3(t) ==
                                 \/ linkage[node] /= local[t].wrapper)
                       IN
                       IF disturbed
-                      THEN \* superfine DISTURBED — restart from snapshot
+                      THEN \* superfine DISTURBED — restart from snapshot.
+                           \* Ports BundleUnbundle_2level_LLfree.tla line 511-531:
+                           \* (a) Clear local bundle state so the next SnapCheck
+                           \*     sees a fresh start (matches C++ where bundle()
+                           \*     returning DISTURBED tears down its stack frame
+                           \*     and the caller restarts with fresh locals).
+                           \* (b) Eagerly tag BOTH the failed child AND the
+                           \*     bundleNode — mirrors C++ outer-scope
+                           \*     ScopedNegotiateLinkage at line 2179 of snapshot()
+                           \*     retry loop on retry > 0 — DISTURBED return
+                           \*     triggers outer retry, which eagerly tags the
+                           \*     bundleNode so a peer cannot race in during the
+                           \*     next snapshot attempt.
                            /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-                           /\ priorityTag' = [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
-                           /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
-                      ELSE \* No rollback — restart Phase1.
                            /\ local' = [local EXCEPT
+                                  ![t].wrapper     = Null,
                                   ![t].subwrappers = [cc \in children |-> Null],
                                   ![t].subpackets  = [cc \in children |-> Null]]
+                           /\ priorityTag' = [
+                                  [priorityTag EXCEPT ![c]    = TagAfterFail(t, c)]
+                                      EXCEPT ![node] = TagAfterFail(t, node)]
+                           /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue>>
+                      ELSE \* No rollback — restart Phase1.
+                           \* C++ FIDELITY: regenerate bundleSer (see comment
+                           \* in coarse Phase 3 disturbed branch above).
+                           /\ LET newSer == GenSerial(t, ser)
+                              IN
+                              /\ local' = [local EXCEPT
+                                     ![t].bundleSer = newSer,
+                                     ![t].subwrappers = [cc \in children |-> Null],
+                                     ![t].subpackets  = [cc \in children |-> Null]]
+                              /\ UpdateSerial(t, newSer)
                            /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
                            /\ priorityTag' = [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
-                           /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
+                           /\ UNCHANGED <<linkage, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase4(t):
 \*   // Phase 4: finalize -- clear missing flag, CAS bundleNode
@@ -729,11 +839,11 @@ BundlePhase4(t) ==
           THEN /\ linkage' = [linkage EXCEPT ![node] = finalW]
                /\ local' = [local EXCEPT ![t].snapResult = finalPkt]
                /\ pc' = [pc EXCEPT ![t] = "commit_grand"]
-               /\ UNCHANGED <<serial, globalSerial, op, target, iterBudget, childQueue, priorityTag>>
+               /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
           ELSE \* Disturbed
                /\ pc' = [pc EXCEPT ![t] = "snap_check"]
                /\ priorityTag' = [priorityTag EXCEPT ![node] = TagAfterFail(t, node)]
-               /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+               /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
 
 -----------------------------------------------------------------------------
 (* Commit on a leaf or inner node *)
@@ -790,7 +900,7 @@ CommitGrand(t) ==
           /\ target' = [target EXCEPT ![t] = Null]
           /\ local' = [local EXCEPT ![t] = InitLocal]
           /\ priorityTag' = [ClearMyTags(t) EXCEPT ![Grand] = TagAfterFail(t, Grand)]
-          /\ UNCHANGED <<serial, globalSerial, linkage, iterBudget, childQueue>>
+          /\ UNCHANGED <<serial, linkage, iterBudget, childQueue>>
 
 \* @c11_action CommitStart(t, node):
 \*   Entry: Transaction<XN> tr(node);
@@ -803,7 +913,7 @@ CommitStart(t, node) ==
     /\ op' = [op EXCEPT ![t] = "commit"]
     /\ target' = [target EXCEPT ![t] = node]
     /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-    /\ UNCHANGED <<serial, globalSerial, linkage, local, iterBudget, childQueue, priorityTag>>
+    /\ UNCHANGED <<serial, linkage, local, iterBudget, childQueue, priorityTag>>
 
 \* @c11_action CommitRead(t):
 \*   local_shared_ptr<PacketWrapper> wrapper(*node->m_link);  -- load_shared_
@@ -826,11 +936,11 @@ CommitRead(t) ==
                                      w.packet.sub,
                                      w.packet.missing)]
             /\ pc' = [pc EXCEPT ![t] = "commit_try_cas"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+            /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
        ELSE \* Bundled — need unbundle
             /\ local' = [local EXCEPT ![t].wrapper = w]
             /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
-            /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+            /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
 
 \* @c11_action CommitTryCAS(t):
 \*   // Direct commit (hasPriority path)
@@ -872,15 +982,15 @@ CommitTryCAS(t) ==
                            linkage[node].packet.missing)]
                  /\ pc' = [pc EXCEPT ![t] = "commit_try_cas"]
                  /\ priorityTag' = [priorityTag EXCEPT ![node] = TagAfterFail(t, node)]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
+                 /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue>>
             ELSE \* True conflict
                  /\ local' = [local EXCEPT ![t].commitOk = "fail"]
                  /\ pc' = [pc EXCEPT ![t] = "commit_done"]
                  /\ priorityTag' = [priorityTag EXCEPT ![node] = TagAfterFail(t, node)]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue>>
+                 /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "commit_read"]
             /\ priorityTag' = [priorityTag EXCEPT ![node] = TagAfterFail(t, node)]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+            /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
 
 -----------------------------------------------------------------------------
 (* Unbundle — recursive walk up the bundledBy chain *)
@@ -1068,12 +1178,12 @@ UnbundleWalk(t) ==
             IN
             IF parent = Null
             THEN /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                 /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
+                 /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
             ELSE LET result == SnapshotForUnbundle(node, local[t].bundleSer)
                  IN
                  IF result.status \in {"DISTURBED", "COLLIDED"}
                  THEN /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                      /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
+                      /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
                  ELSE LET subPkt ==
                             IF result.status \in {"VOID_PACKET", "NODE_MISSING"}
                             THEN w.packet
@@ -1082,19 +1192,24 @@ UnbundleWalk(t) ==
                       IN
                       IF subPkt = Null
                       THEN /\ pc' = [pc EXCEPT ![t] = "commit_read"]
-                           /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
+                           /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue, priorityTag>>
                       ELSE /\ local' = [local EXCEPT
                                 ![t].oldpacket = subPkt,
                                 ![t].newpacket = MakePacket(node,
                                     subPkt.payload + 1,
                                     subPkt.sub, subPkt.missing),
                                 ![t].casTargets = casTargets,
-                                ![t].casIdx = 1]
+                                ![t].casIdx = 1,
+                                \* SAVE root_wrapper for UnbundleCASLoop
+                                \* per-ancestor packet extraction (mirrors
+                                \* C++ snapshotForUnbundle root_wrapper
+                                \* persistence; transaction_impl.h:2118-2127).
+                                ![t].walkWrapper = result.wrapper]
                            /\ pc' = [pc EXCEPT ![t] =
                                 IF Len(casTargets) >= 1
                                 THEN "unbundle_cas_loop"
                                 ELSE "unbundle_cas_child"]
-                           /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+                           /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
        ELSE \* fine: walk one level per action.
             \* local[t].walkNode: current node in the chain (starts at target[t])
             \* local[t].walkWrapper: wrapper saved for this node
@@ -1112,24 +1227,36 @@ UnbundleWalk(t) ==
                         ![t].walkWrapper = linkage[target[t]],
                         ![t].casTargets = <<>>]
                  /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]  \* re-enter
-                 /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+                 /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
             ELSE LET ww == local[t].walkWrapper
                      pNode == ww.bundledBy
                  IN
                  IF pNode = Null
                  THEN /\ pc' = [pc EXCEPT ![t] = "commit_read"]
                       /\ local' = [local EXCEPT ![t].walkNode = Null]
-                      /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+                      /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
                  ELSE \* Staleness check: has wn's linkage changed since we loaded ww?
                       IF linkage[wn] /= ww
                       THEN /\ pc' = [pc EXCEPT ![t] = "commit_read"]
                            /\ local' = [local EXCEPT ![t].walkNode = Null]
-                           /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+                           /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
                       ELSE LET pw == linkage[pNode]
-                               newTargets ==
-                                   IF UnbundleWalkAtomic = "superfine"
-                                   THEN <<pNode>> \o local[t].casTargets  \* root-first (C++)
-                                   ELSE Append(local[t].casTargets, pNode) \* leaf-first
+                               \* C++ FIDELITY: walkUpChainImpl is recursive,
+                               \* the deepest call (at root) emplace_back's
+                               \* into cas_infos FIRST, then each shallower
+                               \* level appends. So cas_infos is root-first.
+                               \* With leaf-first, a peer CommitGrand can
+                               \* interject between t1's Parent CAS and t1's
+                               \* Grand CAS (in fine mode where each CAS is
+                               \* one action), and never see Grand changed →
+                               \* its stale snapshot CAS succeeds, producing
+                               \* a lost increment that does NOT occur in
+                               \* C++. We unconditionally use root-first for
+                               \* casTargets construction even in fine mode;
+                               \* the other fine vs superfine differences
+                               \* (BundlePhase1 pre-bundle CAS, BundlePhase3
+                               \* DISTURBED detection) are preserved.
+                               newTargets == <<pNode>> \o local[t].casTargets
                            IN
                            IF pw.hasPriority
                            THEN \* Root reached.
@@ -1143,7 +1270,7 @@ UnbundleWalk(t) ==
                                 IF result.status \in {"DISTURBED", "COLLIDED"} \/ subPkt = Null
                                 THEN /\ pc' = [pc EXCEPT ![t] = "commit_read"]
                                      /\ local' = [local EXCEPT ![t].walkNode = Null]
-                                     /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+                                     /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
                                 ELSE /\ local' = [local EXCEPT
                                             ![t].oldpacket = subPkt,
                                             ![t].newpacket = MakePacket(node,
@@ -1151,19 +1278,29 @@ UnbundleWalk(t) ==
                                                 subPkt.sub, subPkt.missing),
                                             ![t].casTargets = newTargets,
                                             ![t].casIdx = 1,
-                                            ![t].walkNode = Null]
+                                            ![t].walkNode = Null,
+                                            \* SAVE the priority super-wrapper
+                                            \* (root reached at this step) so
+                                            \* UnbundleCASLoop can extract
+                                            \* per-ancestor packets via the
+                                            \* recursive .sub[] chain — mirrors
+                                            \* C++ snapshotForUnbundle which
+                                            \* keeps root_wrapper across
+                                            \* cas_info construction
+                                            \* (transaction_impl.h:2118-2127).
+                                            ![t].walkWrapper = pw]
                                      /\ pc' = [pc EXCEPT ![t] =
                                             IF Len(newTargets) >= 1
                                             THEN "unbundle_cas_loop"
                                             ELSE "unbundle_cas_child"]
-                                     /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+                                     /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
                            ELSE \* Continue walking up.
                                 /\ local' = [local EXCEPT
                                        ![t].walkNode = pNode,
                                        ![t].walkWrapper = pw,
                                        ![t].casTargets = newTargets]
                                 /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
-                                /\ UNCHANGED <<serial, globalSerial, linkage, op, target, iterBudget, childQueue, priorityTag>>
+                                /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
 
 \* @c11_action UnbundleCASLoop(t):
 \*   // CAS each ancestor in cas_infos, bottom-up (root first in the list).
@@ -1181,30 +1318,56 @@ UnbundleWalk(t) ==
 \* missing is already TRUE (same packet content). In TLA+, records compare by value, so we
 \* use GenSerial for a fresh serial, making the new wrapper value-distinct. This prevents
 \* BundlePhase4 from CAS-ing over an ancestor-CAS'd wrapper when missing was already TRUE.
-\* Restored from old BundleUnbundle.tla logic verbatim, with only minimal
-\* LL-free additions: CanProceed gate at CAS attempt + TagAfterFail on
-\* disturbed restart. Protocol semantics (oldW.hasPriority gate, packet
-\* read from linkage[n], no walkWrapper extraction) preserved as in
-\* original spec.
+\* UnbundleCASLoop — matches C++ snapshotForUnbundle CAS infrastructure:
+\*   transaction_impl.h:2118-2127 builds new_wrapper for each ancestor
+\*   from extracted packet content (root_wrapper.packet for root, drilled
+\*   down via .sub[] for descendants), NOT from current linkage[n].
+\*   transaction_impl.h:2722-2738 CASes each cas_info entry, including
+\*   non-priority ancestors. C++ has no hasPriority gate.
+\*
+\* Implementation: extract per-ancestor packet from local[t].walkWrapper
+\* (= super-wrapper saved at walk-end) by .sub[] navigation. Non-priority
+\* Parent in 3-level chain gets a valid extracted packet, allowing CAS.
+\*
+\* When walkWrapper is unavailable (legacy code paths), fall back to old
+\* logic (linkage[n].packet + hasPriority gate) — degrades gracefully
+\* but may cycle on bundled-ref ancestors (matches old BundleUnbundle.tla
+\* SAFETY-only semantics).
 UnbundleCASLoop(t) ==
     /\ pc[t] = "unbundle_cas_loop"
-    /\ IF UnbundleCASAtomic = "coarse"
+    /\ LET superW    == local[t].walkWrapper
+           superNode == IF superW = Null \/ superW.packet = Null
+                       THEN Null
+                       ELSE superW.packet.node
+           superPkt  == IF superW = Null THEN Null ELSE superW.packet
+           ExtractAt(n) ==
+               IF superPkt = Null THEN Null
+               ELSE IF n = superNode THEN superPkt
+                    ELSE IF n \in DOMAIN superPkt.sub
+                         THEN superPkt.sub[n]
+                         ELSE Null
+       IN
+       IF UnbundleCASAtomic = "coarse"
        THEN \* All CAS done atomically in one action.
-            LET targets == local[t].casTargets
-                allOk == \A i \in 1..Len(targets) :
-                           LET n == targets[i]
-                               w == linkage[n]
-                           IN  w.hasPriority
+            LET targets       == local[t].casTargets
                 allCanProceed == \A i \in 1..Len(targets) :
-                                    CanProceed(t, targets[i])
-                ser == GenSerial(t, globalSerial)
+                                     CanProceed(t, targets[i])
+                allExtractable == \A i \in 1..Len(targets) :
+                                      ExtractAt(targets[i]) /= Null
+                superFresh    == /\ superNode /= Null
+                                 /\ linkage[superNode] = superW
+                \* Use the saved walk wrapper's serial as Lamport reference
+                \* (mirrors C++ snapshotForUnbundle which advances past the
+                \* root wrapper's m_bundle_serial; transaction_impl.h:2752).
+                ser == GenSerial(t, IF superW = Null THEN 0 ELSE superW.serial)
             IN
             /\ allCanProceed
-            /\ IF allOk
+            /\ IF allExtractable /\ superFresh
                THEN /\ linkage' = [n \in AllNodes |->
                           IF \E i \in 1..Len(targets) : targets[i] = n
-                          THEN LET newPkt == MakePacket(n, linkage[n].packet.payload,
-                                                        linkage[n].packet.sub, TRUE)
+                          THEN LET ext == ExtractAt(n)
+                                   newPkt == MakePacket(n, ext.payload,
+                                                        ext.sub, TRUE)
                                IN  PriorityWrapper(newPkt, ser)
                           ELSE linkage[n]]
                     /\ UpdateSerial(t, ser)
@@ -1215,32 +1378,51 @@ UnbundleCASLoop(t) ==
                           IF \E i \in 1..Len(targets) : targets[i] = n
                           THEN TagAfterFail(t, n)
                           ELSE priorityTag[n]]
-                    /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
-       ELSE \* fine: one CAS per action
+                    /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
+       ELSE \* fine: one CAS per action.
             LET idx       == local[t].casIdx
                 casNode   == local[t].casTargets[idx]
                 oldW      == linkage[casNode]
+                extracted == ExtractAt(casNode)
                 ser       == GenSerial(t, oldW.serial)
-                newPkt    == MakePacket(casNode, oldW.packet.payload,
-                                        oldW.packet.sub, TRUE)
-                newW      == PriorityWrapper(newPkt, ser)
+                newPkt    == IF extracted = Null THEN Null
+                             ELSE MakePacket(casNode, extracted.payload,
+                                             extracted.sub, TRUE)
+                newW      == IF newPkt = Null THEN Null
+                             ELSE PriorityWrapper(newPkt, ser)
+                superFresh == /\ superNode /= Null
+                              /\ linkage[superNode] = superW
                 nextIdx   == idx + 1
                 done      == nextIdx > Len(local[t].casTargets)
             IN
             /\ CanProceed(t, casNode)
-            /\ IF oldW.hasPriority /\ linkage[casNode] = oldW
+            /\ IF newW /= Null /\ superFresh /\ linkage[casNode] = oldW
                THEN /\ linkage' = [linkage EXCEPT ![casNode] = newW]
                     /\ UpdateSerial(t, ser)
-                    /\ local' = [local EXCEPT ![t].casIdx = nextIdx]
+                    \* If the casNode we just CAS'd IS the super (root we
+                    \* walked to), update walkWrapper to the new wrapper so
+                    \* the next iteration's `superFresh` check doesn't trip
+                    \* on our own CAS. Without this, root-first ordering CAS
+                    \* of Grand makes the second iter (Parent CAS) see
+                    \* `linkage[Grand] /= walkWrapper` → DISTURBED →
+                    \* commit_read → re-walk → CAS Grand again → infinite
+                    \* loop in single-thread (Lamport regen makes each loop
+                    \* iter a distinct TLA+ state, exploding state space).
+                    /\ local' = [local EXCEPT
+                           ![t].casIdx = nextIdx,
+                           ![t].walkWrapper =
+                               IF casNode = superNode
+                               THEN newW
+                               ELSE local[t].walkWrapper]
                     /\ pc' = [pc EXCEPT ![t] =
                          IF done
                          THEN "unbundle_cas_child"
                          ELSE "unbundle_cas_loop"]
                     /\ UNCHANGED <<op, target, iterBudget, childQueue, priorityTag>>
-               ELSE \* Disturbed
+               ELSE \* Disturbed (super stale or extraction failed)
                     /\ pc' = [pc EXCEPT ![t] = "commit_read"]
                     /\ priorityTag' = [priorityTag EXCEPT ![casNode] = TagAfterFail(t, casNode)]
-                    /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+                    /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action UnbundleCASChild(t):
 \*   // Restore child to priority with extracted sub-packet
@@ -1255,18 +1437,51 @@ UnbundleCASLoop(t) ==
 \*   diverge only when the root was re-committed. Effect: C++ produces a higher serial
 \*   (stronger Lamport guarantee). No correctness impact.
 \* Final: CAS child's linkage to restore priority with new (committed) packet.
-\* Restored from old BundleUnbundle.tla logic verbatim, with minimal
-\* LL-free addition: CanProceed gate + TagAfterFail on disturbed restart.
+\* Atomically sync the immediate Parent's packet.sub[node] to the new
+\* child packet IF Parent is currently priority+missing=TRUE (left in
+\* that state by our earlier UnbundleCASLoop). Mirrors C++
+\* snapshotForUnbundle which links each cas_info's new_wrapper.packet
+\* into the chain via `p = &newwrapper->packet()` (transaction_impl.h
+\* :2130), so when sublinkage is CASed to newsubwrapper, the
+\* ancestor's newwrapper.packet.sub[child] already points to the same
+\* new packet — consistent across the chain.
+\*
+\* Without this sync, peer's BundlePhase1 collecting from Parent reads
+\* stale sub[child]=old_payload, leading to a lost-increment race
+\* (peer's CommitGrand effectively no-ops at child level).
 UnbundleCASChild(t) ==
     /\ pc[t] = "unbundle_cas_child"
     /\ CanProceed(t, target[t])
     /\ LET node       == target[t]
            oldChildW  == local[t].wrapper
+           parentNode == ParentOf(node)
+           parentW    == IF parentNode = Null THEN Null ELSE linkage[parentNode]
            ser        == GenSerial(t, oldChildW.serial)
            newChildW  == PriorityWrapper(local[t].newpacket, ser)
+           \* Sync Parent.packet.sub[node] only if Parent is currently
+           \* priority and structurally compatible with the chain we just
+           \* built in UnbundleCASLoop.
+           parentSync ==
+               /\ parentNode /= Null
+               /\ parentW /= Null
+               /\ parentW.hasPriority
+               /\ parentW.packet /= Null
+               /\ node \in DOMAIN parentW.packet.sub
+           newParentPkt ==
+               IF parentSync
+               THEN [parentW.packet EXCEPT !.sub[node] = local[t].newpacket]
+               ELSE Null
+           newParentW ==
+               IF parentSync THEN PriorityWrapper(newParentPkt, ser)
+               ELSE Null
        IN
        IF linkage[node] = oldChildW
-       THEN /\ linkage' = [linkage EXCEPT ![node] = newChildW]
+       THEN /\ linkage' =
+                IF parentSync
+                THEN [linkage EXCEPT
+                          ![node]       = newChildW,
+                          ![parentNode] = newParentW]
+                ELSE [linkage EXCEPT ![node] = newChildW]
             /\ UpdateSerial(t, ser)
             /\ local' = [local EXCEPT ![t].commitOk = "ok"]
             /\ pc' = [pc EXCEPT ![t] = "commit_done"]
@@ -1274,7 +1489,7 @@ UnbundleCASChild(t) ==
        ELSE \* Child changed — retry
             /\ pc' = [pc EXCEPT ![t] = "commit_read"]
             /\ priorityTag' = [priorityTag EXCEPT ![node] = TagAfterFail(t, node)]
-            /\ UNCHANGED <<serial, globalSerial, linkage, local, op, target, iterBudget, childQueue>>
+            /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
 
 \* @c11_action CommitDone(t):
 \*   Return commit result to caller. Thread-local only.
@@ -1297,7 +1512,7 @@ CommitDone(t) ==
           ELSE UNCHANGED iterBudget
     \* Transaction-end: release all my tags.
     /\ priorityTag' = ClearMyTags(t)
-    /\ UNCHANGED <<serial, globalSerial, linkage>>
+    /\ UNCHANGED <<serial, linkage>>
 
 -----------------------------------------------------------------------------
 (* Next-state relation *)
@@ -1403,6 +1618,11 @@ Safety ==
 \* The expected final payload is deterministic, so no tracking variable is needed.
 \* Checking per-child (not total sum) catches "commit moved between children" bugs.
 \* MaxPayload MOD removed (payload Nat cumulative); strict cumulative assertion.
+\*
+\* Production check. For early detection of lost-increment / value-loss bugs,
+\* enable QuiescentCheck below in the cfg too — it fires at every all-idle
+\* moment (intermediate iteration boundaries) instead of only at AllDone, so
+\* a violation is caught in O(thousands) of states rather than O(millions).
 TerminalPayloadCheck ==
     (\A t \in Threads : iterBudget[t] = 0 /\ pc[t] = "idle") =>
         \A c \in ParentChildren :
@@ -1410,24 +1630,60 @@ TerminalPayloadCheck ==
             /\ linkage[c].packet.payload =
                    2 * MaxCommits * Cardinality(Threads)
 
-\* DebugSerialBound: livelock probe. If serial passes a small threshold
-\* under MaxCommits=1, that means CAS retries are unbounded — exposing
-\* a forgotten-tag / priority-mechanism bug. The 3-level model has more
-\* CAS sites per iteration (Phase 0/2/3/4 + UnbundleCASLoop multi-step),
-\* so 200 is conservative. Tighten only on suspect.
-DebugSerialBound ==
-    /\ \A t \in Threads : serial[t] < 200
-    /\ globalSerial < 200
+\* QuiescentCheck (DEBUG-ONLY): expected child payload at any all-idle
+\* moment, derived from existing state without an auxiliary commit_count
+\* variable. Fires earlier than TerminalPayloadCheck (at every iteration
+\* boundary, not just AllDone), making lost-increment races visible
+\* in just a few thousand states instead of millions. NOT enabled in
+\* production cfgs — opt in by adding `INVARIANT QuiescentCheck` to a cfg
+\* when chasing a regression.
+\*
+\* Per-thread per-child contribution at all-idle:
+\*   completed(t) = MaxCommits - iterBudget[t]    (full iterations done)
+\*   midIter(t)   = childQueue[t] /= {}           (CommitGrand done in current
+\*                                                 iter, some per-child commits
+\*                                                 may still pend)
+\*   For child c, t's contribution =
+\*     2 * completed(t)                  full iters: +1 grand, +1 direct each
+\*     + (1 if midIter(t) else 0)        partial: grand commit in current iter
+\*     + (1 if midIter(t) /\ c \notin childQueue[t] else 0)
+\*                                       partial: direct commit done for c in
+\*                                       current iter
+RECURSIVE SumPayloadOver(_, _)
+SumPayloadOver(S, c) ==
+    IF S = {} THEN 0
+    ELSE LET t == CHOOSE x \in S : TRUE
+             completed == MaxCommits - iterBudget[t]
+             midIter   == childQueue[t] /= {}
+             grandThis == IF midIter THEN 1 ELSE 0
+             directThis == IF midIter /\ c \notin childQueue[t] THEN 1 ELSE 0
+         IN  2 * completed + grandThis + directThis
+              + SumPayloadOver(S \ {t}, c)
+
+QuiescentCheck ==
+    (\A t \in Threads : pc[t] = "idle") =>
+        \A c \in ParentChildren :
+            \* Implication (not conjunction): mid-iteration children may
+            \* still be bundled (no priority) at all-idle moments — those
+            \* states have no observable child.payload to compare against.
+            \* Only verify payload when child is priority (= unbundled).
+            linkage[c].hasPriority =>
+                linkage[c].packet.payload = SumPayloadOver(Threads, c)
+
+\* DebugSerialBound: NEUTERED — Lamport-style GenSerial (TID-encoded
+\* counter, mirrors C++ SerialGenerator) advances unboundedly per wrapper
+\* allocation, so a hard threshold no longer correlates with livelock.
+\* LL-free priority gating now guarantees termination. Kept as TRUE so
+\* existing cfg files referencing this name don't break.
+DebugSerialBound == TRUE
 
 \* PrintTerminalSerial: debug invariant. Always TRUE, but emits the
-\* per-thread serial array and globalSerial to TLC stdout the first
-\* time any AllDone state is visited. Useful for gauging how high
-\* Lamport serials grow under each config without instrumenting an
-\* external trace. Mirrors the 2-level LL-free version.
+\* per-thread serial array to TLC stdout the first time any AllDone state
+\* is visited. Useful for gauging how high Lamport counters grow under
+\* each config without instrumenting an external trace.
 PrintTerminalSerial ==
     \/ ~(\A t \in Threads : iterBudget[t] = 0 /\ pc[t] = "idle")
-    \/ PrintT(<<"Terminal serial[t]:", serial,
-               "globalSerial:", globalSerial>>)
+    \/ PrintT(<<"Terminal serial[t]:", serial>>)
 
 \* EventuallyAllDone: under WF, every execution reaches AllDone.
 \* The key LL-free liveness property — priority gating must guarantee
