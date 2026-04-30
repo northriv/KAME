@@ -41,11 +41,16 @@
   guard after a successful CAS, but TLA+ value equality lets the
   failure branch falsely re-fire on the just-CAS'd entry, creating a
   single-thread state-space explosion under Lamport.
-- TLA+ verification status (PASS):
-  3-level 1-thread fine: 46 distinct, depth 29, < 1 s.
-  3-level coarse 2t   : 1.5 M distinct, depth 98, 1:12.
-  3-level pure FINE 2t: 12.1 M distinct, depth 141, 14:38.
-  2-level micro       : 803 K distinct, depth 89, 56 s.
+- TLA+ verification status (all PASS, laptop -Xmx14g):
+  3-level 1-thread fine  : 46 distinct, depth 29, < 1 s, counter 7.
+  3-level coarse 2t      : 1.5 M distinct, depth 98, 1:53, counter 6–22.
+  3-level superfine 2t   : 12.1 M distinct, depth 140, 18:39, counter 22–26.
+  2-level micro (fine)   : 804 K distinct, depth 89, 54 s, counter 6–18.
+  2-level superfine      : 2.5 M distinct, depth 129, 3:06, counter 6–23.
+  2-level phase0only     : 927 K distinct, depth 87, 52 s, counter 6–18.
+  2-level phase3only     : 2.4 M distinct, depth 129, 2:31, counter 6–24.
+  3-level off (Priv=FALSE): diverges (killed at 118M states, §4–§5).
+  Lamport counter = serial ÷ (1 + |Threads|). See doc/verification_log.md.
 
 * Mon Apr 27 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - STM core: K=0 NUMA scaling (8.5 M → 314 M c/s on ohtaka 128c, ×37).

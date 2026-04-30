@@ -18,10 +18,10 @@
  *   - Lamport serial as plain Nat (no MOD); state-space finiteness via
  *     priority gating, not CONSTRAINT SerialBound.
  *   - priorityTag[n] per node (Null | <<iter, tid>>); set on CAS fail,
- *     released only at Transaction-end via ClearMyTags.
+ *     released only on commit SUCCESS via ClearMyTags (matches C++
+ *     finalizeCommitment). Tags preserved across retries (C++ operator++).
  *   - CanProceed gate at every CAS site; older-Tx wins; PreemptTag
- *     allows older active threads to take over younger tags.
- *   - ActiveThread guards against zombie tags from finished threads.
+ *     allows older threads to take over younger tags.
  *   - Eager Parent/Grand tag on snap_read restart paths (mirrors C++
  *     ScopedNegotiateLinkage outer scope at retry > 0).
  *   - Terminating disjunct + EventuallyAllDone PROPERTY for liveness
@@ -67,9 +67,6 @@ CONSTANTS
     Parent,         \* Parent node (child of Grand)
     Child1, Child2, \* Leaf nodes (children of Parent)
     Null,
-    MaxSerial,      \* Serial upper bound for safety-net CONSTRAINT (not a modulus).
-                    \* Serial arithmetic is plain natural-number (no wrap); finite
-                    \* state space comes from priorityTag gating, not this bound.
     MaxCommits,     \* Max CommitStart/CommitDone cycles per thread in "child" phase
     \* ------------------------------------------------------------
     \* Atomicity granularity for each of 4 bulk-operation sites.
@@ -86,7 +83,7 @@ CONSTANTS
     BundleCollectAtomic,  \* #3: BundlePhase1 child collection (coarse=all children, fine=1 child/action)
     BundlePhase3Atomic,   \* #4: BundlePhase3 child CAS (coarse=all-at-once, fine=1/action)
     Privilege             \* TRUE: LL-free priorityTag gating active (CanProceed gates CAS,
-                          \*       PreemptTag fires, ClearMyTags releases at Tx-end). Main mode.
+                          \*       PreemptTag fires, ClearMyTags on commit success). Main mode.
                           \* FALSE: tags neutralized (CanProceed=TRUE, TagAfterFail/ClearMyTags
                           \*        no-op, PreemptTag disabled). Sanity-check mode for comparing
                           \*        against old BundleUnbundle.tla semantics. Without privilege,
@@ -141,7 +138,7 @@ VARIABLES
     iterBudget,  \* [Threads -> 0..MaxCommits]: remaining full iterations per thread
     childQueue,  \* [Threads -> SUBSET ParentChildren]: children pending CommitChild in current iteration
     priorityTag  \* [AllNodes -> Null | <<iter, tid>>]: LL-free per-node tag.
-                 \* Set on CAS fail; released only at Tx end via ClearMyTags.
+                 \* Set on CAS fail; released only on commit success via ClearMyTags.
 
 vars == <<serial, linkage, pc, op, target, local, iterBudget, childQueue, priorityTag>>
 
@@ -209,21 +206,19 @@ TagOlder(a, b) ==
     \/ a[1] < b[1]
     \/ (a[1] = b[1] /\ a[2] < b[2])
 
-\* ActiveThread(t): thread t is mid-Transaction or has more iterations.
-\* Stale tags from inactive threads must be ignored.
-ActiveThread(t) == iterBudget[t] > 0 \/ pc[t] /= "idle"
-
 \* CanProceed: gate for any CAS attempt at node n by thread t.
 \* When Privilege = FALSE, gate is disabled (always TRUE).
+\* No "zombie tag" check: tags are cleared only on commit success
+\* (ClearMyTags), and inactive state is reached exclusively through
+\* success → no stale tags outlive a thread's active lifetime.
 CanProceed(t, n) ==
     \/ ~Privilege
     \/ LET tag == priorityTag[n] IN
        \/ tag = Null
-       \/ /\ tag /= Null
-          /\ \/ tag[2] = t
-             \/ ~ActiveThread(tag[2])
+       \/ tag /= Null /\ tag[2] = t
 
 \* TagAfterFail(t, n): the value priorityTag[n] should hold after CAS fail.
+\* Mirrors C++ tag_as_contender(): overwrite if slot empty, mine, or I'm older.
 \* When Privilege = FALSE, no-op (returns existing tag).
 TagAfterFail(t, n) ==
     IF ~Privilege
@@ -232,16 +227,15 @@ TagAfterFail(t, n) ==
          THEN MyTag(t)
          ELSE IF priorityTag[n][2] = t
               THEN MyTag(t)
-              ELSE IF ~ActiveThread(priorityTag[n][2])
+              ELSE IF TagOlder(MyTag(t), priorityTag[n])
                    THEN MyTag(t)
-                   ELSE IF TagOlder(MyTag(t), priorityTag[n])
-                        THEN MyTag(t)
-                        ELSE priorityTag[n]
+                   ELSE priorityTag[n]
 
 \* TagAfterSuccess: NO-OP (Transaction-scope persistence; release at Tx end).
 TagAfterSuccess(t, n) == priorityTag[n]
 
-\* ClearMyTags(t): release ALL of thread t's tags. Called at Tx-end.
+\* ClearMyTags(t): release ALL of thread t's tags. Called only on commit
+\* SUCCESS — matches C++ finalizeCommitment → drop_tags_n_privilege.
 \* When Privilege = FALSE, no-op (priorityTag unchanged).
 ClearMyTags(t) ==
     IF ~Privilege
@@ -322,10 +316,8 @@ Init ==
 \* try_register_privileged_tidstamp() succeeding for an older Transaction.
 PreemptTag(t, n) ==
     /\ Privilege  \* disabled when Privilege = FALSE
-    /\ ActiveThread(t)
     /\ priorityTag[n] /= Null
     /\ priorityTag[n][2] /= t
-    /\ ActiveThread(priorityTag[n][2])
     /\ TagOlder(MyTag(t), priorityTag[n])
     /\ priorityTag' = [priorityTag EXCEPT ![n] = MyTag(t)]
     /\ UNCHANGED <<serial, linkage, pc, op, target, local, iterBudget, childQueue>>
@@ -892,14 +884,15 @@ CommitGrand(t) ==
           /\ local' = [local EXCEPT ![t] = InitLocal]
           /\ priorityTag' = ClearMyTags(t)
           /\ UNCHANGED iterBudget
-       \/ \* CAS failure: retry. ClearMyTags then refresh Grand tag for retry.
+       \/ \* CAS failure: retry. Tags preserved across retries — matches C++
+          \* operator++() which does not call drop_tags_n_privilege().
           /\ CanProceed(t, Grand)
           /\ ~(w.hasPriority /\ w.packet = snapPkt)
           /\ pc' = [pc EXCEPT ![t] = "idle"]
           /\ op' = [op EXCEPT ![t] = "idle"]
           /\ target' = [target EXCEPT ![t] = Null]
           /\ local' = [local EXCEPT ![t] = InitLocal]
-          /\ priorityTag' = [ClearMyTags(t) EXCEPT ![Grand] = TagAfterFail(t, Grand)]
+          /\ priorityTag' = [priorityTag EXCEPT ![Grand] = TagAfterFail(t, Grand)]
           /\ UNCHANGED <<serial, linkage, iterBudget, childQueue>>
 
 \* @c11_action CommitStart(t, node):
@@ -1510,8 +1503,11 @@ CommitDone(t) ==
        /\ IF success /\ newQueue = {}
           THEN iterBudget' = [iterBudget EXCEPT ![t] = iterBudget[t] - 1]
           ELSE UNCHANGED iterBudget
-    \* Transaction-end: release all my tags.
-    /\ priorityTag' = ClearMyTags(t)
+    \* Transaction-end: on success, release all tags (C++ finalizeCommitment
+    \* → drop_tags_n_privilege). On failure, preserve tags (C++ operator++).
+    /\ IF local[t].commitOk = "ok"
+       THEN priorityTag' = ClearMyTags(t)
+       ELSE UNCHANGED priorityTag
     /\ UNCHANGED <<serial, linkage>>
 
 -----------------------------------------------------------------------------

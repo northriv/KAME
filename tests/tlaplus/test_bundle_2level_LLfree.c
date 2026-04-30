@@ -112,9 +112,32 @@ static inline bool ser_gt(uint32_t a, uint32_t b) {
     uint32_t diff = (a - b) & SER_MASK;
     return diff > 0 && diff < (SER_MOD >> 1);
 }
-static inline uint32_t gen_serial(uint32_t thread_ser, uint32_t last_ser) {
-    uint32_t base = ser_gt(last_ser, thread_ser) ? last_ser : thread_ser;
-    return (base + 1u) & SER_MASK;
+
+/* TID-encoded base-B Lamport serial — mirrors C++
+ * SerialGenerator::gen() (transaction.h:547-576).  Counter in upper
+ * bits + TID in lower bits → same counter on two threads produces
+ * DIFFERENT serials, so wrappers are thread-unique without any global
+ * atomic.
+ *
+ * TLA+: serial = counter * SerialBase + tid, SerialBase > max TID.
+ * GenSerial: newCnt = max(SerialCounter(lastSer), SerialCounter(serial[t])) + 1
+ *            return EncodeSerial(newCnt, t)
+ * Pure TLS + linkage-serial Lamport — no globalSerial. */
+#define SERIAL_BASE  ((uint32_t)(NUM_THREADS + 1))   /* > max tid */
+
+static inline uint32_t serial_counter(uint32_t s) { return s / SERIAL_BASE; }
+__attribute__((unused))
+static inline uint32_t serial_tid(uint32_t s)     { return s % SERIAL_BASE; }
+static inline uint32_t encode_serial(uint32_t cnt, uint32_t tid) {
+    return ((cnt * SERIAL_BASE) + tid) & SER_MASK;
+}
+
+static inline uint32_t gen_serial(uint32_t thread_ser, uint32_t last_ser, uint32_t my_tid) {
+    uint32_t last_cnt = serial_counter(last_ser);
+    uint32_t my_cnt   = serial_counter(thread_ser);
+    uint32_t base_cnt = ser_gt(last_cnt, my_cnt) ? last_cnt : my_cnt;
+    uint32_t new_cnt  = base_cnt + 1u;
+    return encode_serial(new_cnt, my_tid);
 }
 
 /* ============================================================================
@@ -221,31 +244,23 @@ static inline bool     tag_older(Tag a, Tag b) {
 }
 
 static _Atomic(Tag)  priority_tag[NUM_NODES];
-/* thread_active uses tid (1-indexed) so [0] is unused (tid 0 is reserved
- * for the Null/initial tag value). */
-static _Atomic(bool) thread_active[NUM_THREADS + 1];
+
+/* TLA+ Privilege simplification (no zombie / inactive-thread check):
+ * tags are released ONLY on commit success (ClearMyTags in CommitDone),
+ * so a thread can never reach an "inactive" state with stale tags
+ * outliving its lifetime — the spec's invariant.  Removed
+ * `thread_active[]` tracking entirely. */
 
 /* can_proceed_with_preempt: TLA+ CanProceed merged with PreemptTag.
- * Returns true if thread (my_iter, my_tid) is allowed to attempt a CAS at
- * node n.  If a younger active thread holds the tag, this routine
- * preempts (CAS-installs MyTag).  If the holder is inactive (zombie),
- * the tag is taken over.  If an older active thread holds the tag, we
- * return false; caller backs off and retries. */
+ * Returns true if (tag null) OR (tag mine) OR (we successfully preempted
+ * an older active holder).  No zombie branch. */
 static bool can_proceed_with_preempt(int n, uint32_t my_iter, uint32_t my_tid) {
     Tag mine = make_tag(my_iter, my_tid);
     for (;;) {
         Tag cur = atomic_load_explicit(&priority_tag[n], memory_order_acquire);
         if (tag_is_null(cur))             return true;
         if (tag_tid(cur) == my_tid)       return true;
-        if (!atomic_load_explicit(&thread_active[tag_tid(cur)], memory_order_relaxed)) {
-            /* Holder finished; reclaim. */
-            if (atomic_compare_exchange_weak_explicit(
-                    &priority_tag[n], &cur, mine,
-                    memory_order_acq_rel, memory_order_relaxed)) return true;
-            continue;
-        }
         if (tag_older(mine, cur)) {
-            /* Holder is younger; preempt. */
             if (atomic_compare_exchange_weak_explicit(
                     &priority_tag[n], &cur, mine,
                     memory_order_acq_rel, memory_order_relaxed)) {
@@ -254,17 +269,15 @@ static bool can_proceed_with_preempt(int n, uint32_t my_iter, uint32_t my_tid) {
             }
             continue;
         }
-        /* Holder is older + active — we wait. */
         return false;
     }
 }
 
-/* tag_after_fail: register / refresh / preempt my tag at n.  TLA+ rule:
- *   null            -> mine
- *   mine.tid==t     -> mine (refresh iter)
- *   holder inactive -> mine
- *   mine older      -> mine (preempt)
- *   else            -> keep cur */
+/* tag_after_fail: register/refresh/preempt my tag at n.  TLA+ rule:
+ *   null     -> mine
+ *   mine     -> mine
+ *   I'm older-> mine (preempt)
+ *   else     -> keep cur */
 static void tag_after_fail(int n, uint32_t my_iter, uint32_t my_tid) {
     Tag mine = make_tag(my_iter, my_tid);
     for (;;) {
@@ -272,8 +285,6 @@ static void tag_after_fail(int n, uint32_t my_iter, uint32_t my_tid) {
         Tag desired;
         if (tag_is_null(cur))                 desired = mine;
         else if (tag_tid(cur) == my_tid)      desired = mine;
-        else if (!atomic_load_explicit(&thread_active[tag_tid(cur)], memory_order_relaxed))
-                                              desired = mine;
         else if (tag_older(mine, cur))        desired = mine;
         else                                  return;
         if (atomic_compare_exchange_weak_explicit(
@@ -282,19 +293,16 @@ static void tag_after_fail(int n, uint32_t my_iter, uint32_t my_tid) {
     }
 }
 
-/* tag_after_success: TLA+ rule changed — per-CAS clearing was unsafe
- * (peer Transactions raced in between this Transaction's CAS phases and
- * forced endless re-bundling).  Now a NO-OP; tags persist across all
- * CASes within a Transaction and are released ONLY at Transaction
- * boundaries via clear_my_tags() (mirrors C++ ScopedNegotiateLinkage). */
+/* tag_after_success: NO-OP (Tx-scope persistence; tags persist within a
+ * Transaction across all CASes and are released ONLY at Tx-success via
+ * clear_my_tags). */
 static inline void tag_after_success(int n, uint32_t my_tid) {
     (void)n; (void)my_tid;
 }
 
-/* clear_my_tags: TLA+ ClearMyTags(t).  Walk every node, drop the tag if
- * still mine.  Called at Transaction-end transitions: commit_parent
- * success/failure (the failure path then re-tags Parent) and
- * commit_child success (mirrors CommitDone). */
+/* clear_my_tags: TLA+ ClearMyTags(t).  Called ONLY on commit success.
+ * On CAS failure, tags are preserved across retries — matches C++
+ * operator++() which does not call drop_tags_n_privilege(). */
 static void clear_my_tags(uint32_t my_tid) {
     for (int n = 0; n < NUM_NODES; n++) {
         Tag cur = atomic_load_explicit(&priority_tag[n], memory_order_acquire);
@@ -410,7 +418,7 @@ static bool try_bundle(ThreadCtx *ctx, Wrapper *out_final) {
 
     if (!pw_missing) { *out_final = pw; return true; }
 
-    uint32_t bundle_ser = gen_serial(ctx->serial, pw.serial);
+    uint32_t bundle_ser = gen_serial(ctx->serial, pw.serial, ctx->tid);
     ctx->serial = bundle_ser;
 
 #if MODE == MODE_SUPERFINE
@@ -437,7 +445,11 @@ static bool try_bundle(ThreadCtx *ctx, Wrapper *out_final) {
     if (cw2.has_priority)                                           sp2 = cw2.packet_slot;
     else if (cw2.bundled_by == NODE_PARENT && old_s1 != SLOT_NULL)  sp2 = old_s1;
     else                                                            sp2 = SLOT_NULL;
+    /* Collect-fail: eagerly tag Parent (= bundleNode) before caller
+     * restarts from snap_read.  Mirrors TLA+ BundleUnbundle_2level_LLfree
+     * line 421-426 (commit 5ff3226 fix). */
     if (sp1 == SLOT_NULL || sp2 == SLOT_NULL) {
+        tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
         SPIN_INC(spin_bundle); return false;
     }
 
@@ -538,7 +550,7 @@ static void commit_parent(ThreadCtx *ctx) {
         uint32_t new_c1 = alloc_slot(c1_new, SLOT_NULL, SLOT_NULL, false);
         uint32_t new_c2 = alloc_slot(c2_new, SLOT_NULL, SLOT_NULL, false);
 
-        uint32_t ser = gen_serial(ctx->serial, pw.serial);
+        uint32_t ser = gen_serial(ctx->serial, pw.serial, ctx->tid);
         Wrapper new_pw = make_priority_parent(pp, ser, new_c1, new_c2, false);
         gate(NODE_PARENT, ctx->iter, ctx->tid);
         Wrapper exp = pw;
@@ -551,9 +563,10 @@ static void commit_parent(ThreadCtx *ctx) {
             OP_UNLOCK();
             return;
         }
-        /* Transaction-end on CAS failure: clear my tags, then re-tag Parent
-         * (TLA+: priorityTag' = ClearMyTags(t) EXCEPT ![Parent] = TagAfterFail). */
-        clear_my_tags(ctx->tid);
+        /* CAS fail: TLA+ literal —
+         *   priorityTag' = [priorityTag EXCEPT ![Parent] = TagAfterFail]
+         * Tags preserved across retries (no ClearMyTags on fail).
+         * Mirrors C++ operator++() which does not call drop_tags. */
         tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
         SPIN_INC(spin_commit_parent);
     }
@@ -573,7 +586,7 @@ static void commit_child(int child_node, ThreadCtx *ctx) {
             uint8_t old_payload = load_pkt_payload(cw.packet_slot);
             if (pool_stale(start_counter)) continue;
             uint8_t new_payload = (uint8_t)((old_payload + 1u) % MAX_PAYLOAD);
-            uint32_t ser = gen_serial(ctx->serial, cw.serial);
+            uint32_t ser = gen_serial(ctx->serial, cw.serial, ctx->tid);
             Wrapper new_cw = make_priority_leaf(new_payload, ser, false);
             gate(child_node, ctx->iter, ctx->tid);
             Wrapper exp = cw;
@@ -604,7 +617,7 @@ static void commit_child(int child_node, ThreadCtx *ctx) {
         uint8_t new_payload = (uint8_t)((old_payload + 1u) % MAX_PAYLOAD);
 
         /* UnbundleCASAncestor: Parent packet missing=true, subs preserved. */
-        uint32_t anc_ser = gen_serial(ctx->serial, pw.serial);
+        uint32_t anc_ser = gen_serial(ctx->serial, pw.serial, ctx->tid);
         Wrapper new_pw = make_priority_parent(pp, anc_ser, p_s0, p_s1, true);
         gate(NODE_PARENT, ctx->iter, ctx->tid);
         Wrapper exp_pw = pw;
@@ -616,7 +629,7 @@ static void commit_child(int child_node, ThreadCtx *ctx) {
         ctx->serial = anc_ser;
 
         /* UnbundleCASChild: child becomes priority with new payload. */
-        uint32_t c_ser = gen_serial(ctx->serial, cw.serial);
+        uint32_t c_ser = gen_serial(ctx->serial, cw.serial, ctx->tid);
         Wrapper new_child = make_priority_leaf(new_payload, c_ser, false);
         gate(child_node, ctx->iter, ctx->tid);
         Wrapper exp_child = cw;
@@ -635,12 +648,12 @@ static void commit_child(int child_node, ThreadCtx *ctx) {
 
 /* =========================================================================
  * Thread worker.  iter advances at end of each iteration (TLA+ rule:
- * iter(t) = MaxCommits - iterBudget[t]).  thread_active[tid] flips false
- * on exit so other threads stop being blocked by my zombie tags.
+ * iter(t) = MaxCommits - iterBudget[t]).  No thread_active tracking needed:
+ * the new Privilege model releases tags only on commit success, and every
+ * iteration ends with success → no stale tags survive a thread's lifetime.
  * ========================================================================= */
 static void *worker(void *arg) {
     ThreadCtx ctx = *(ThreadCtx*)arg;
-    atomic_store_explicit(&thread_active[ctx.tid], true, memory_order_release);
 
     for (uint32_t i = 0; i < (uint32_t)MAX_COMMITS; i++) {
         if (atomic_load_explicit(&g_stop, memory_order_relaxed)) break;
@@ -649,7 +662,6 @@ static void *worker(void *arg) {
         commit_child(NODE_CHILD2, &ctx);
         ctx.iter++;
     }
-    atomic_store_explicit(&thread_active[ctx.tid], false, memory_order_release);
     return NULL;
 }
 
@@ -696,7 +708,6 @@ int main(void) {
     atomic_store(&linkage[NODE_CHILD2], wrapper_pack(init_c2));
     for (int i = 0; i < NUM_NODES; i++) atomic_store(&commit_count[i], 0);
     for (int i = 0; i < NUM_NODES; i++) atomic_store(&priority_tag[i], TAG_NULL);
-    for (int i = 0; i <= NUM_THREADS; i++) atomic_store(&thread_active[i], false);
     atomic_store(&g_stop, false);
 
     pthread_t threads[NUM_THREADS];
