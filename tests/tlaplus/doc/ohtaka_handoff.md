@@ -38,24 +38,28 @@ AllDone 状態ごとにスレッド別 serial を出力:
 
 ## スパコン対象 cfg（優先順）
 
-### Tier 1: 2L 3thr fine（実行中）
+### Tier 1: 2L 3thr superfine（最優先）
 
-3-way priority resolution、2thr では不可能な「2者競合中に第3者割り込み」を検証。
+3-way priority resolution を **C++ 忠実モード** で検証。fine は簡略抽象であり、
+Phase 0 prestamp CAS と Phase 3 DISTURBED 検出を省いているため、スパコン時間を
+使うなら superfine でなければ価値が薄い。
 
-| cfg | spec | Threads | MaxCommits | 実測 distinct | メモ |
-|---|---|---|---|---|---|
-| `2level_LLfree_3thr_mc` | 2L | {1,2,3} | 1 | **650M+ (24h f1fat, queue 114M)** | `PrintTerminalMaxCounter` 追加要 |
-
-f1fat 24h 時点 (2026-04-30): 3.9B generated, 650M distinct, 114M queue, depth 49。
-収束まで推定あと数日〜1 週間。i8cpu の方が良いかもしれない。
-
-### Tier 2: 3L 3thr（2L 完了後）
+2thr スケーリング比: fine 804K → superfine 2.5M (3.1x)。
 
 | cfg | spec | Threads | MaxCommits | 推定 distinct | メモ |
 |---|---|---|---|---|---|
-| (新規) `3level_LLfree_3thr_mc` | 3L | {1,2,3} | 1 | **数B〜数十B** (2L の数倍以上) | cfg 新規作成要 |
+| (新規) `2level_LLfree_3thr_superfine_mc` | 2L | {1,2,3} | 1 | **2B+** (fine 650M × 3x) | i8cpu 推奨 |
 
-2L が 650M+ なので 3L は数十億規模。最大ノードが必要。
+参考: 2L 3thr **fine** は f1fat 24h で 650M distinct / 114M queue (depth 49) に
+到達し未収束。superfine はこれの 3倍以上を見込む。
+
+### Tier 2: 3L 3thr superfine（2L 完了後）
+
+| cfg | spec | Threads | MaxCommits | 推定 distinct | メモ |
+|---|---|---|---|---|---|
+| (新規) `3level_LLfree_3thr_mc` | 3L | {1,2,3} | 1 | **数十B** | 2L の数倍以上 |
+
+2L superfine が 2B+ なら 3L は数十億規模。最大ノード・最大メモリが必要。
 
 ### Tier 3: MaxCommits=2（低優先）
 
