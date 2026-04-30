@@ -1685,6 +1685,15 @@ PrintTerminalSerial ==
     \/ ~(\A t \in Threads : iterBudget[t] = 0 /\ pc[t] = "idle")
     \/ PrintT(<<"Terminal serial[t]:", serial>>)
 
+\* PrintTerminalMaxCounter: compact variant for supercomputer runs.
+\* Outputs only the maximum Lamport counter across all threads at AllDone.
+\* Use this instead of PrintTerminalSerial to minimize output bytes.
+PrintTerminalMaxCounter ==
+    \/ ~(\A t \in Threads : iterBudget[t] = 0 /\ pc[t] = "idle")
+    \/ LET counts == {SerialCounter(serial[t]) : t \in Threads}
+           maxC == CHOOSE m \in counts : \A c \in counts : m >= c
+       IN PrintT(maxC)
+
 \* EventuallyAllDone: under WF, every execution reaches AllDone.
 \* The key LL-free liveness property — priority gating must guarantee
 \* no thread is starved indefinitely.
