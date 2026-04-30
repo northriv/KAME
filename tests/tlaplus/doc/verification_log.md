@@ -151,7 +151,7 @@ all reachable terminal states.
 | 3L coarse 2t | 1,497,098 | 98 | 1:38 | 6–22 | 110 | ✅ PASS |
 | 3L purefine 2t | 11,841,706 | 134 | 36:13 | 7–24 | 152 | ✅ PASS |
 | 3L superfine 2t | 11,542,923 | 135 | 35:31 | 7–26 | 155 | ✅ PASS |
-| 3L micro (mixed) | — | — | — | — | — | ⏳ running (purefine と同一のはず) |
+| 3L micro (mixed) | 11,841,706 | 134 | 13:12 | 7–24 | 152 | ✅ PASS |
 | 3L off (Privilege=FALSE) | — | — | — | — | — | ⛔ diverges |
 | 2L micro (fine) | 867,696 | 89 | 46 s | 6–18 | 71 | ✅ PASS |
 | 2L superfine | 2,676,196 | 129 | 3:12 | 6–23 | 123 | ✅ PASS |

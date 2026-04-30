@@ -19,9 +19,8 @@
  * enforcing the strict TerminalPayloadCheck count assertion.
  *
  * Key differences from the base 2level spec:
- *   - Lamport serial is plain Naturals (no `% MaxSerial`). The LL-free
- *     priority-tag mechanism bounds total wrapper churn so SerialBound
- *     CONSTRAINT can be relaxed (or kept large as a safety net).
+ *   - Lamport serial is plain Naturals (unbounded). The LL-free
+ *     priority-tag mechanism bounds total wrapper churn structurally.
  *   - New variable priorityTag[n]: per-node (Null | <<iter, tid>>) tag.
  *     Set by a thread when its CAS fails at a "negotiate point" (the
  *     places C++ calls m_link->negotiate()); other threads see the tag
@@ -113,7 +112,7 @@ ThreadSymmetry == Permutations(Threads)
 \*
 \* All reads/writes to linkage go through atomic_shared_ptr:
 \*   load_shared_() for reads, compareAndSet() for CAS updates.
-\* Serial arithmetic is modular (required for finite state space; see MaxSerial comment).
+\* Serial arithmetic is plain Naturals (Lamport counter, unbounded).
 \*
 \* Source: kame/transaction.h, kame/transaction_impl.h
 \* ==========================================================================
