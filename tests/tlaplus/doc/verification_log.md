@@ -147,18 +147,25 @@ all reachable terminal states.
 | cfg | distinct states | depth | wall time | Lamport counter (min–max) | terminal states | result |
 |---|---|---|---|---|---|---|
 | 3L 1thr fine | 46 | 29 | < 1 s | 7 | 1 | ✅ PASS |
-| 3L coarse 2t | 1,497,261 | 98 | 1:53 | 6–22 | 110 | ✅ PASS |
-| 3L purefine 2t | 12,115,634 | 141 | 43:36 | 7–25 | 162 | ✅ PASS |
-| 3L superfine 2t | 12,134,591 | 140 | 17:10 | 7–26 | 166 | ✅ PASS |
-| 3L micro (mixed) | 12,115,634 | 141 | 16:14 | 7–25 | 162 | ✅ PASS |
+| 3L 1thr superfine | 47 | 30 | < 1 s | 7 | 1 | ✅ PASS |
+| 3L coarse 2t | 1,497,098 | 98 | 1:38 | 6–22 | 110 | ✅ PASS |
+| 3L purefine 2t | 11,841,706 | 134 | 36:13 | 7–24 | 152 | ✅ PASS |
+| 3L superfine 2t | 11,542,923 | 135 | 35:31 | 7–26 | 155 | ✅ PASS |
+| 3L micro (mixed) | — | — | — | — | — | ⏳ running (purefine と同一のはず) |
 | 3L off (Privilege=FALSE) | — | — | — | — | — | ⛔ diverges |
-| 2L micro (fine) | 803,631 | 89 | 1:06 | 6–18 | 71 | ✅ PASS |
-| 2L superfine | 2,511,525 | 129 | 3:06 | 6–23 | 123 | ✅ PASS |
-| 2L phase0only | 927,066 | 87 | 52 s | 6–18 | 71 | ✅ PASS |
-| 2L phase3only | 2,379,184 | 129 | 2:31 | 6–24 | 124 | ✅ PASS |
+| 2L micro (fine) | 867,696 | 89 | 46 s | 6–18 | 71 | ✅ PASS |
+| 2L superfine | 2,676,196 | 129 | 3:12 | 6–23 | 123 | ✅ PASS |
+| 2L phase0only | 997,511 | 87 | 46 s | 6–18 | 71 | ✅ PASS |
+| 2L phase3only | 2,525,381 | 129 | 2:20 | 6–24 | 124 | ✅ PASS |
 | 2L commits2 (MaxCommits=2) | — | — | — | — | — | ⏳ ohtaka |
 
 Notes:
+- **Tag-preserve fix (2026-04-30)**: ClearMyTags now called only on commit
+  success, matching C++ `finalizeCommitment → drop_tags_n_privilege`. Tags
+  are preserved across `iterate_commit` retries (C++ `operator++` keeps
+  `m_tagged_linkages`). ActiveThread / zombie-tag handling removed — provably
+  unreachable since inactive state is reached only through success path.
+  State counts changed vs previous model (serial encoding + tag fix combined).
 - **3L off (Privilege=FALSE)**: intentionally diverges — LL-free priority
   gating disabled means serial grows monotonically without bound, so TLC
   never terminates. Killed at 118M states / depth 114. This confirms
@@ -168,15 +175,8 @@ Notes:
   in the 3-level chain gets its own GenSerial in the per-CAS loop).
   Both match the expected single-thread minimum GenSerial call count.
 - **Lamport counter max**: grows with contention. 2-level fine reaches
-  counter 18; 3-level coarse reaches 22; 3-level superfine reaches 26.
+  counter 18; 3-level coarse reaches 22.
   Higher atomicity modes add CAS retry and DISTURBED restart paths.
-- An earlier superfine run with grep-piped output showed only 3 terminal
-  states (grep output loss); re-running with full file output confirmed
-  166 terminal states with counter min = 7 (matching 1-thread baseline).
-- **3L purefine = 3L micro**: identical state space (12,115,634 distinct,
-  depth 141, 162 terminals, counter 7–25). micro differs only in
-  Walk/CAS = superfine (root-first already unified), so all reachable
-  states are the same.
 - **2L commits2**: deferred to ohtaka. Laptop run reached 33.6M distinct
   / depth 79 / queue 1.46M before being killed. The non-LLfree 2-level
   spec already passed MaxCommits=2; 3-thread configs are higher priority.
@@ -187,6 +187,14 @@ Notes:
 - 3L p0 2t (14.4 M commits), p0 4t (3.6 M, 以前は失敗してた), p1 2t (19.3 M), p1 4t (3.9 M)
 - 3L SUPERFINE 2t (22.1 M), COARSE 2t (64.5 M)
 - 2L LLfree unit + 2t (18.6 M)
+
+**C11 stress test post tag-preserve fix:**
+
+- 3L p1 fine 4t: 3.7M → 5.9M (+60%)
+- 3L p0 fine 4t: 4.7M/3s → 7.7M/3s (+63%)
+- 2L fine 4t: 2.7M → 5.5M (+100%)
+- All PASS: 3L p0/p1 unit, 3L p1 fine 2t/4t, 3L p1 superfine 2t,
+  3L p0 fine 4t regression, 2L fine 4t, 2L superfine 2t.
 
 The generated C11 stress test (`test_bundle_3level_LLfree.c`) no longer
 hangs and passes including the 4-thread configs that were previously
