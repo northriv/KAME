@@ -538,12 +538,19 @@ public:
   //   Windows: timer tick ≈ 15.6 ms (default), wait_for(1 ms)
   //            actually waits ~16 ms. PRIV_AGE under that round-up
   //            risks preempt thrash in heavy-contention scenarios.
-  //   Linux/macOS: 1 ms or finer granularity. 750 µs gives the
-  //                K=10 N=128 sweet-spot found on Mac M3 Air.
+  //   Linux/macOS: 1 ms or finer granularity. The M3 Air 9-point sweep
+  //                (2026-04-29) found 100–200 µs as the throughput sweet-
+  //                spot for K=10 N=128 (2L +135 % / 3L +55 % vs 750 µs)
+  //                with bimodal regime collapse eliminated. 300 µs is a
+  //                conservative pick: it captures most of the gain
+  //                (2L +82 % / 3L +27 %) while staying out of the
+  //                non-monotonic 3L window where 200 µs regresses.
+  //                Other arches (x86 Xeon, NUMA AMD EPYC) are unmeasured;
+  //                300 µs is the safer default for them too.
   #if defined(_WIN32) || defined(WINDOWS) || defined(__WIN32__)
     #define KAME_STM_PRIV_AGE_NORMAL_US 10'000   // 10 ms — Windows scheduler quantum
   #else
-    #define KAME_STM_PRIV_AGE_NORMAL_US 750      // 750 us — Linux/macOS
+    #define KAME_STM_PRIV_AGE_NORMAL_US 300      // 300 us — Linux/macOS
   #endif
 #endif
 template <class XN>

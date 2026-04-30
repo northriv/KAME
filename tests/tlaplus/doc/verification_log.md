@@ -1,5 +1,159 @@
 # TLA+ Verification Log
 
+## 2026-04-30: C++-fidelity overhaul of 3-level/2-level LL-free models
+
+### Context
+
+`BundleUnbundle_3level_LLfree.tla` (and to a lesser extent the 2-level
+sibling) was producing `TerminalPayloadCheck` violations under coarse 2t
+and pure-FINE 2t cfgs, while the C++ implementation of the same protocol
+([`tests/transaction_payload_integrity_3level_test.cpp`](../../transaction_payload_integrity_3level_test.cpp))
+runs for hours on the ohtaka supercomputer with no payload mismatch. The
+C11 reference test generated from the spec was hanging. So all observed
+failures were spec-modeling bugs, not protocol bugs. "Same semantics
+must yield same results" (user).
+
+### Root causes (5 fixes)
+
+1. **`BundlePhase1` coarse path inner-bundle: drop the
+   `linkage[n].hasPriority` filter on grandchild CAS.**
+   C++ Phase 3 of an inner recursive bundle
+   ([`transaction_impl.h:2487-2511`](../../../kame/transaction_impl.h#L2487))
+   ALWAYS CASes each child to a fresh `bundled_ref` wrapper, regardless
+   of prior state. The TLA+ filter left already-bundled grandchildren
+   untouched, so a peer's stale `snapshotForUnbundle` pointer compared
+   value-equal to current `linkage[gc]` and the peer's final
+   `UnbundleCASChild` succeeded when it should have failed → lost
+   increment race that does not occur in C++.
+
+2. **Replace ad-hoc `globalSerial` uniqueness with C++-faithful
+   TID-encoded base-B Lamport.**
+   C++ `SerialGenerator::gen(last_serial)`
+   ([`transaction.h:547-576`](../../../kame/transaction.h#L547))
+   uses a TLS counter (upper 48 bits) + TID (lower 16 bits). `gen()`
+   advances the TLS past `last_serial` (Lamport step), increments,
+   re-encodes with TID. Two threads with the same counter still
+   produce different serial values via TID lower digits — that is what
+   makes wrappers thread-unique even when timestamps collide.
+   The previous TLA+ added a non-C++ `globalSerial` to force
+   uniqueness; this is replaced by:
+   ```tla
+   SerialBase == 1 + Cardinality(Threads)
+   SerialCounter(s) == s \div SerialBase
+   SerialTID(s)     == s % SerialBase
+   EncodeSerial(cnt, tid) == cnt * SerialBase + tid
+
+   GenSerial(t, lastSer) ==
+       LET lastCnt == SerialCounter(lastSer)
+           myCnt   == SerialCounter(serial[t])
+           newCnt  == (IF lastCnt > myCnt THEN lastCnt ELSE myCnt) + 1
+       IN  EncodeSerial(newCnt, t)
+   ```
+   `globalSerial` variable is deleted from the spec; `SerialBound` and
+   `DebugSerialBound` are neutered to `TRUE` for cfg back-compat.
+   Bit width differs (TLA+ uses arbitrary integers) but ordering and
+   uniqueness are identical to C++.
+
+3. **`BundlePhase3` disturbed restart: regenerate `bundleSer` via
+   `GenSerial` when looping back to `bundle_phase1`.**
+   C++ `bundle()` retry loop allocates new `PacketWrapper`s with a
+   fresh `bundle_serial` each iteration. Without regen, the retried
+   Phase 3 emits `BundledRefWrapper(node, ser)` that is structurally
+   identical to a peer's earlier wrapper — the "refresh" CAS becomes
+   a value-level no-op, and a peer's stale `snapshotForUnbundle`
+   pointer compares equal, allowing a final `UnbundleCASChild` that
+   should have failed to succeed. Applied to coarse + fine paths in
+   3-level. 2-level was already passing without this; left as-is per
+   "passing means it wasn't needed in bundle/unbundle".
+
+4. **`UnbundleWalk` casTargets: always root-first.**
+   C++ `walkUpChainImpl` is recursive; the deepest call (root)
+   `emplace_back`s into `cas_infos` first, so the CAS loop processes
+   root first. Leaf-first in fine mode let a peer `CommitGrand`
+   interject between t1's Parent CAS and t1's Grand CAS — the peer
+   never sees Grand changed → its stale-snapshot CAS succeeds → lost
+   increment. Fix unifies fine and superfine on this point; the other
+   fine vs superfine differences (BundlePhase1 pre-bundle CAS,
+   BundlePhase3 DISTURBED detection) are preserved so fine remains a
+   meaningful "stripped-down C++-faithful" mode.
+
+5. **`InnerPhase3` / outer `BundlePhase3` fine success path: update
+   `innerSubWs[gc]` / `subwrappers[c]` to the new wrapper.**
+   *TLA+-specific* fix (no C++ counterpart). C++ pointer identity
+   automatically invalidates the failure-branch guard
+   `linkage[gc] /= gcWs[gc]` after a successful CAS — the saved old
+   pointer differs from the freshly allocated one. TLA+ value
+   equality makes the pre-CAS saved wrapper still compare-equal to
+   nothing (since linkage[gc] now holds the new wrapper), but the
+   failure branch's check fires for the just-CAS'd entry, restarting
+   inner_phase2. Combined with Lamport regen, this produced an
+   **infinite single-thread state-space explosion** (51K states in
+   5 s, growing). Updating the saved wrapper after success closes
+   the self-cycle.
+
+### Notes on what was NOT changed
+
+- Superfine cfg semantics — superfine was already root-first and was
+  passing, so it required no changes.
+- 2-level `GenSerial` — same C++-fidelity rewrite applied for
+  consistency, but no `BundlePhase3` disturbed regen was added since
+  2-level already passed without it.
+- C++ STM implementation — no changes; the implementation has always
+  been correct, only the formal model needed alignment.
+
+### Side cleanup
+
+- `SerialBound` and `DebugSerialBound` neutered to `TRUE`. With Lamport
+  serials being unbounded by design and LL-free priority gating
+  guaranteeing termination, hard-cap heuristics no longer correlate
+  with livelock and were tripping on legitimate Lamport advancement.
+- `PrintTerminalSerial` debug print: removed `globalSerial` from
+  emitted tuple.
+- `*TTrace*` files and `states/` directory cleaned up at user request.
+
+### TLA+ → C11 cross-check summary
+
+| Category | Action |
+|---|---|
+| GenSerial Lamport TID-encoded base-B | Ported to both 3L + 2L LLfree (`SerialBase = NUM_THREADS+1`, `serial = counter*B + tid`) |
+| BundlePhase1 inner-bundle 孫 priority 関係なく CAS | Ported (3L `try_outer_bundle` Phase 3 — `if (pw.has_priority)` ゲート削除) |
+| BundlePhase3 disturbed bundleSer 再生成 | C11 retry loop が `gen_serial` 再呼び出しで自然に処理 — N/A |
+| UnbundleWalk root-first 統一 | C11 既に root-first — N/A |
+| InnerPhase3 / fine BundlePhase3 success state-tracking | TLC self-fail 防止のみ — N/A |
+| UnbundleCASLoop fine walkWrapper 更新 | 対 peer の `superFresh` check を 2-level unbundle に追加 |
+| DebugSerialBound neuter | TLA+ のみ — N/A |
+| QuiescentCheck 常時 ON | C11 terminal check 既存; 中間 idle check は skip per user |
+| `-deadlock` 撤去 | TLA+ のみ — N/A |
+| (追加) 2-level unbundle Grand step を `extracted.sub` literal に | 適用 — `fresh_parent_slot` を `Grand.sub[Parent]` にも入れる ad-hoc 強化を撤回 |
+
+### Verification results (all PASS)
+
+**TLC (this run):**
+
+| cfg | distinct states | depth | wall time |
+|---|---|---|---|
+| 3-level 1-thread fine | 46 | 29 | < 1 s |
+| 3-level coarse 2t | 1.5 M | 98 | 1 m 12 |
+| 3-level pure FINE 2t | 12.1 M | 141 | 14 m 38 |
+| 2-level micro | 803 K | 89 | 56 s |
+
+**C11 stress test (generated from spec):**
+
+- 3L p0/p1 unit (NT=2, MAX_COMMITS=1)
+- 3L p0 2t (14.4 M commits), p0 4t (3.6 M, 以前は失敗してた), p1 2t (19.3 M), p1 4t (3.9 M)
+- 3L SUPERFINE 2t (22.1 M), COARSE 2t (64.5 M)
+- 2L LLfree unit + 2t (18.6 M)
+
+All TLC cfgs pass `TerminalPayloadCheck`, `BundleChainValid`,
+`BundledByCorrect`, `MissingPropagation`, `SnapshotConsistency`,
+`NoPriorityLoss`, and the `EventuallyAllDone` liveness property.
+
+The generated C11 stress test (`test_bundle_3level_LLfree.c`) no longer
+hangs and passes including the 4-thread configs that were previously
+failing.
+
+---
+
 ## 2026-04-16: BundlePhase3 Fine-Grained Fix + iterBudget
 
 ### Bug: BundlePhase3 allDone check (Layer 2)
