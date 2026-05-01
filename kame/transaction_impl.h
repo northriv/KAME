@@ -473,21 +473,20 @@ public:
             (Node<XN>::NegotiationCounter::s_privileged_tidstamp.load(std::memory_order_relaxed)
              == m_snap.m_started_time);
 #endif
-        const int negotiate_retry = (retry < 0) ? 0 : retry;
-        m_link->negotiate_after_retry_pause(negotiate_retry, snap, mult_wait);
+        if(retry < 0)
+            m_link->negotiate(snap, mult_wait);  // always negotiate, no retry_pause
+        else
+            m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         if(m_eager && m_should_tag)
             m_snap.tag_as_contender(m_link);
     }
     ScopedNegotiateLinkage(const ScopedNegotiateLinkage &) = delete;
     ScopedNegotiateLinkage &operator=(const ScopedNegotiateLinkage &) = delete;
     void commit() noexcept { m_committed = true; }
-    //! Convenience: when the scope's linkage IS the CAS target and
-    //! the CAS just succeeded, this calls
-    //! `m_link->tags_successful_cas(started_time)` (updates the
-    //! priority slot) and marks the scope committed in one step.
-    //! `started_time = 0` (default) tells `tags_successful_cas` to
-    //! use `now_us()` instead of unpacking a tid-stamped value.
-    void commit_after_cas(typename Node<XN>::NegotiationCounter::cnt_t
+    //! Marks committed and updates the priority/lease hint on the linkage
+    //! via `m_link->tags_successful_cas(started_time)`.
+    //! `started_time = 0` (default) uses `now_us()` for the timestamp.
+    void commit_add_priority_hint(typename Node<XN>::NegotiationCounter::cnt_t
                           started_time = 0) noexcept {
         m_link->tags_successful_cas(started_time);
         m_committed = true;
@@ -1500,7 +1499,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
                 tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
                 return false;  // RAII tags
             }
-            scope.commit_after_cas();
+            scope.commit_add_priority_hint();
             break;
         }
     }
@@ -1644,14 +1643,13 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     tr.m_packet = newpacket;
 
     //Unload the packet of the released node.
-    // Negotiate before CAS for livelock-free fair-mode yield.
-    var->m_link->negotiate(tr, 2.0f);
+    ScopedNegotiateLinkage<XN> scope(var->m_link, tr, -1,
+        ScopedNegotiateLinkage<XN>::TagMode::OnExit, 2.0f);
     if( !var->m_link->compareAndSet(nullsubwrapper, newsubwrapper)) {
-        tr.tag_as_contender(var->m_link);
         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
-        return false;
+        return false; // destructor tags
     }
-    var->m_link->tags_successful_cas();
+    scope.commit_add_priority_hint();
     STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
     return true;
 }
@@ -2398,12 +2396,11 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         //Tags serial.
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper(oldsuperwrapper->packet(), bundle_serial));
-        // Negotiate before Phase 0 CAS for livelock-free fair-mode yield.
-        supernode.m_link->negotiate(snap, 2.0f);
-        if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
-            snap.tag_as_contender(supernode.m_link);
-            return BundledStatus::DISTURBED;
-        }
+        ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
+            ScopedNegotiateLinkage<XN>::TagMode::OnExit, 2.0f);
+        if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper))
+            return BundledStatus::DISTURBED; // destructor tags
+        scope.commit();
         oldsuperwrapper = std::move(superwrapper);
     }
 
@@ -2492,15 +2489,13 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             else
                 bundled_ref.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
 
-            //this negotiation may decrease a commiting rate.
-            child->m_link->negotiate(snap, 2.0f / subnodes->size());
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
+            ScopedNegotiateLinkage<XN> childScope(child->m_link, snap, retry,
+                ScopedNegotiateLinkage<XN>::TagMode::OnExit,
+                2.0f / subnodes->size());
             if( !child->m_link->compareAndSet(subwrappers_org[i], bundled_ref)) {
-                // Phase 3 is on a CHILD linkage, not covered by the
-                // outer RAII (which scopes supernode.m_link). Tag the
-                // child explicitly on retry > 0 lose.
-                if(retry) snap.tag_as_contender(child->m_link);
+                // childScope destructor tags child on retry > 0.
                 if((local_shared_ptr<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
                  || (oldsuperwrapper != *supernode.m_link)) {
                     return BundledStatus::DISTURBED;
@@ -2508,6 +2503,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
                 changed_during_bundling = true;
                 break;
             }
+            childScope.commit();
         }
         if(changed_during_bundling)
             continue;
@@ -2532,7 +2528,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             //this tagging significantly increased a commiting rate.
             child->m_link->tags_successful_cas(started_time);
         }
-        scope.commit_after_cas(started_time);  // supernode tags_successful_cas + commit
+        scope.commit_add_priority_hint(started_time);  // supernode tags_successful_cas + commit
         break;
     }
     return BundledStatus::SUCCESS;
@@ -2629,7 +2625,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 
             // (negotiate covered by retry-loop top on m_link)
             if(m_link->compareAndSet(wrapper, newwrapper)) {
-                scope.commit_after_cas(tr.m_started_time);
+                scope.commit_add_priority_hint(tr.m_started_time);
                 return true;
             }
             continue;  // RAII tagged eagerly at iter top
@@ -2759,7 +2755,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         if( !sublinkage->compareAndSet(bundled_ref, newsubwrapper)) {
             return UnbundledStatus::SUBVALUE_HAS_CHANGED;
         }
-        scope.commit_after_cas(time_started);
+        scope.commit_add_priority_hint(time_started);
     }
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {

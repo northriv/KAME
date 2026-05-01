@@ -48,14 +48,12 @@
  *
  * Serials use modular arithmetic to keep the state space finite.
  *
- * Thread lifecycle (phase variable):
  * Thread lifecycle (MaxCommits iterations per thread):
- *   Each iteration:
- *     1. CommitGrand: snapshot Grand, increment ALL leaf children (2 levels deep), CAS
- *                     (retry until success). Exercises the deepest commit path.
- *     2. CommitChild for EACH child: direct commit (retry until success). Exercises the
- *                     full 2-level unbundle walk triggered by the earlier CommitGrand.
- * Each child receives exactly 2 * MaxCommits * |Threads| increments total.
+ *   RootThreads do CommitGrand (snapshot Grand, increment ALL leaves, CAS).
+ *   LeafThreads do CommitChild for EACH child (direct commit, retry until success).
+ *   Threads in both sets do CommitGrand then CommitChild per iteration (default).
+ *   Threads in neither set are not allowed (ASSUME covers this).
+ * Each child receives MaxCommits * (|RootThreads| + |LeafThreads|) increments total.
  *)
 
 EXTENDS Integers, Sequences, FiniteSets, TLC
@@ -81,7 +79,7 @@ CONSTANTS
     UnbundleCASAtomic,    \* #2: unbundle CAS loop (coarse=all-at-once, fine=1/action)
     BundleCollectAtomic,  \* #3: BundlePhase1 child collection (coarse=all children, fine=1 child/action)
     BundlePhase3Atomic,   \* #4: BundlePhase3 child CAS (coarse=all-at-once, fine=1/action)
-    Privilege             \* TRUE: LL-free priorityTag gating active (CanProceed gates CAS,
+    Privilege,            \* TRUE: LL-free priorityTag gating active (CanProceed gates CAS,
                           \*       PreemptTag fires, ClearMyTags on commit success). Main mode.
                           \* FALSE: tags neutralized (CanProceed=TRUE, TagAfterFail/ClearMyTags
                           \*        no-op, PreemptTag disabled). Sanity-check mode for comparing
@@ -89,12 +87,22 @@ CONSTANTS
                           \*        finite state space is NOT guaranteed (no LL-free retry bound),
                           \*        so use only with small configs / CONSTRAINT SerialBound /
                           \*        SAFETY-only invariants (no liveness PROPERTY).
+    RootThreads,          \* ⊆ Threads: threads performing CommitGrand (root transaction).
+                          \*   Set to Threads for default (all threads do both phases).
+    LeafThreads           \* ⊆ Threads: threads performing CommitChild (leaf direct commit).
+                          \*   Set to Threads for default. Threads in both sets do both phases.
+                          \*   Config A: Root={2}, Leaf={1,3} -- 2 leaf + 1 root
+                          \*   Config C: Root=Threads, Leaf={} -- all root-only
+                          \*   Config D: Root={}, Leaf=Threads -- all leaf-only
 
 GrandChildren == {Parent}         \* Grand's children
 ParentChildren == {Child1, Child2} \* Parent's children
 AllNodes == {Grand, Parent, Child1, Child2}
 LeafNodes == {Child1, Child2}
 InnerNodes == {Grand, Parent}
+
+ASSUME RootThreads \cup LeafThreads = Threads   \* every thread has at least one role
+ASSUME RootThreads \subseteq Threads /\ LeafThreads \subseteq Threads
 
 (* Symmetry sets for state space reduction *)
 ThreadSymmetry == Permutations(Threads)
@@ -331,6 +339,7 @@ PreemptTag(t, n) ==
 SnapRead(t, node) ==
     /\ pc[t] = "idle"
     /\ node = Grand
+    /\ t \in RootThreads          \* only root-phase threads snapshot Grand
     /\ iterBudget[t] > 0
     /\ childQueue[t] = {}
     /\ op' = [op EXCEPT ![t] = "snapshot"]
@@ -869,20 +878,24 @@ CommitGrand(t) ==
            ser          == GenSerial(t, w.serial)
            newW         == PriorityWrapper(newPkt, ser)
        IN
-       \/ \* CAS success: commit and move to per-child phase.
+       \/ \* CAS success: commit and move to per-child phase (if LeafThread),
+          \* or complete iteration immediately (if root-only).
           \* Transaction-end: release all my tags via ClearMyTags.
           /\ CanProceed(t, Grand)
           /\ w.hasPriority
           /\ w.packet = snapPkt
           /\ linkage' = [linkage EXCEPT ![Grand] = newW]
           /\ UpdateSerial(t, ser)
-          /\ childQueue' = [childQueue EXCEPT ![t] = ParentChildren]
+          /\ IF t \in LeafThreads
+             THEN /\ childQueue' = [childQueue EXCEPT ![t] = ParentChildren]
+                  /\ UNCHANGED iterBudget
+             ELSE /\ iterBudget' = [iterBudget EXCEPT ![t] = iterBudget[t] - 1]
+                  /\ UNCHANGED childQueue
           /\ pc' = [pc EXCEPT ![t] = "idle"]
           /\ op' = [op EXCEPT ![t] = "idle"]
           /\ target' = [target EXCEPT ![t] = Null]
           /\ local' = [local EXCEPT ![t] = InitLocal]
           /\ priorityTag' = ClearMyTags(t)
-          /\ UNCHANGED iterBudget
        \/ \* CAS failure: retry. Tags preserved across retries — matches C++
           \* operator++() which does not call drop_tags_n_privilege().
           /\ CanProceed(t, Grand)
@@ -893,6 +906,18 @@ CommitGrand(t) ==
           /\ local' = [local EXCEPT ![t] = InitLocal]
           /\ priorityTag' = [priorityTag EXCEPT ![Grand] = TagAfterFail(t, Grand)]
           /\ UNCHANGED <<serial, linkage, iterBudget, childQueue>>
+
+\* BeginChildIteration(t): leaf-only threads (not in RootThreads) start their
+\* child-commit iteration directly, without going through CommitGrand.
+\* Populates childQueue so CommitStart can proceed.
+BeginChildIteration(t) ==
+    /\ pc[t] = "idle"
+    /\ t \in LeafThreads
+    /\ t \notin RootThreads       \* root+leaf threads enter via CommitGrand success
+    /\ iterBudget[t] > 0
+    /\ childQueue[t] = {}
+    /\ childQueue' = [childQueue EXCEPT ![t] = ParentChildren]
+    /\ UNCHANGED <<serial, linkage, pc, op, target, local, iterBudget, priorityTag>>
 
 \* @c11_action CommitStart(t, node):
 \*   Entry: Transaction<XN> tr(node);
@@ -1528,6 +1553,7 @@ NextStep ==
         \/ BundlePhase3(t)
         \/ BundlePhase4(t)
         \/ CommitGrand(t)
+        \/ BeginChildIteration(t)
         \/ \E n \in ParentChildren : CommitStart(t, n)
         \/ CommitRead(t)
         \/ CommitTryCAS(t)
@@ -1606,24 +1632,34 @@ Safety ==
     /\ MissingPropagation
     /\ NoSerialWrapAround
 
+\* ChildPayload(c): extract the effective payload for a ParentChild c,
+\* regardless of whether it is currently priority (unbundled), bundled
+\* under Parent, or transitively bundled under Grand (when Parent itself
+\* is also bundled).  Grand always has hasPriority (GrandAlwaysPriority).
+ChildPayload(c) ==
+    IF linkage[c].hasPriority
+    THEN linkage[c].packet.payload
+    ELSE IF linkage[Parent].hasPriority
+         THEN linkage[Parent].packet.sub[c].payload
+         ELSE linkage[Grand].packet.sub[Parent].sub[c].payload
+
 \* TerminalPayloadCheck: at termination (all threads: iterBudget=0 and idle),
-\* each child received exactly 2 * MaxCommits * |Threads| payload increments:
-\*   - MaxCommits * |Threads| from CommitGrand (ALL children incremented per iteration)
-\*   - MaxCommits * |Threads| from CommitChild (one direct commit per child per iteration)
-\* The expected final payload is deterministic, so no tracking variable is needed.
-\* Checking per-child (not total sum) catches "commit moved between children" bugs.
-\* MaxPayload MOD removed (payload Nat cumulative); strict cumulative assertion.
+\* each child received exactly MaxCommits * (|RootThreads| + |LeafThreads|)
+\* payload increments:
+\*   - MaxCommits * |RootThreads| from CommitGrand (ALL children incremented)
+\*   - MaxCommits * |LeafThreads| from CommitChild (one direct commit per child)
+\* Threads in both sets contribute +2 per iteration (counted in both terms).
+\* Default (RootThreads = LeafThreads = Threads): reduces to 2 * MaxCommits * |Threads|.
 \*
-\* Production check. For early detection of lost-increment / value-loss bugs,
-\* enable QuiescentCheck below in the cfg too — it fires at every all-idle
-\* moment (intermediate iteration boundaries) instead of only at AllDone, so
-\* a violation is caught in O(thousands) of states rather than O(millions).
+\* Note: children may be bundled at terminal state when the last operation is
+\* a root thread's CommitGrand (BundlePhase3 CAS-es children to bundled refs,
+\* and Parent itself may be bundled under Grand).
+\* ChildPayload(c) reads the payload from wherever it resides.
 TerminalPayloadCheck ==
     (\A t \in Threads : iterBudget[t] = 0 /\ pc[t] = "idle") =>
         \A c \in ParentChildren :
-            /\ linkage[c].hasPriority
-            /\ linkage[c].packet.payload =
-                   2 * MaxCommits * Cardinality(Threads)
+            ChildPayload(c) =
+                MaxCommits * (Cardinality(RootThreads) + Cardinality(LeafThreads))
 
 \* QuiescentCheck (DEBUG-ONLY): expected child payload at any all-idle
 \* moment, derived from existing state without an auxiliary commit_count
@@ -1633,37 +1669,35 @@ TerminalPayloadCheck ==
 \* production cfgs — opt in by adding `INVARIANT QuiescentCheck` to a cfg
 \* when chasing a regression.
 \*
-\* Per-thread per-child contribution at all-idle:
+\* Per-thread per-child contribution at all-idle (role-aware):
 \*   completed(t) = MaxCommits - iterBudget[t]    (full iterations done)
 \*   midIter(t)   = childQueue[t] /= {}           (CommitGrand done in current
 \*                                                 iter, some per-child commits
 \*                                                 may still pend)
+\*   isRoot(t)  = t \in RootThreads   (contributes via CommitGrand)
+\*   isLeaf(t)  = t \in LeafThreads   (contributes via CommitChild)
 \*   For child c, t's contribution =
-\*     2 * completed(t)                  full iters: +1 grand, +1 direct each
-\*     + (1 if midIter(t) else 0)        partial: grand commit in current iter
-\*     + (1 if midIter(t) /\ c \notin childQueue[t] else 0)
-\*                                       partial: direct commit done for c in
-\*                                       current iter
+\*     completed(t) * (root + leaf)     full iters: +root grand, +leaf direct each
+\*     + (root if midIter(t) else 0)    partial: grand commit in current iter
+\*     + (leaf if midIter(t) /\ c \notin childQueue[t] else 0)
+\*                                      partial: direct commit done for c
 RECURSIVE SumPayloadOver(_, _)
 SumPayloadOver(S, c) ==
     IF S = {} THEN 0
     ELSE LET t == CHOOSE x \in S : TRUE
              completed == MaxCommits - iterBudget[t]
              midIter   == childQueue[t] /= {}
-             grandThis == IF midIter THEN 1 ELSE 0
-             directThis == IF midIter /\ c \notin childQueue[t] THEN 1 ELSE 0
-         IN  2 * completed + grandThis + directThis
+             isRoot == IF t \in RootThreads THEN 1 ELSE 0
+             isLeaf == IF t \in LeafThreads THEN 1 ELSE 0
+             grandThis == IF midIter THEN isRoot ELSE 0
+             directThis == IF midIter /\ c \notin childQueue[t] THEN isLeaf ELSE 0
+         IN  completed * (isRoot + isLeaf) + grandThis + directThis
               + SumPayloadOver(S \ {t}, c)
 
 QuiescentCheck ==
     (\A t \in Threads : pc[t] = "idle") =>
         \A c \in ParentChildren :
-            \* Implication (not conjunction): mid-iteration children may
-            \* still be bundled (no priority) at all-idle moments — those
-            \* states have no observable child.payload to compare against.
-            \* Only verify payload when child is priority (= unbundled).
-            linkage[c].hasPriority =>
-                linkage[c].packet.payload = SumPayloadOver(Threads, c)
+            ChildPayload(c) = SumPayloadOver(Threads, c)
 
 \* DebugSerialBound: NEUTERED — Lamport-style GenSerial (TID-encoded
 \* counter, mirrors C++ SerialGenerator) advances unboundedly per wrapper
