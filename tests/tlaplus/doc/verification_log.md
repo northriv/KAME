@@ -88,7 +88,7 @@ Property: EventuallyAllDone (liveness).
 | 2L-dyn 1thr coarse | 70 | 36 | < 1 s | 11 | 2 | ✅ PASS |
 | 2L-dyn coarse 2t (ReleaseThreads={}) | 763,478 | 104 | 43 s | 11–26 | 71 | ✅ PASS |
 | 2L-dyn release coarse 2t (ReleaseThreads={1,2}) | 14,203,816 | 150 | 19:03 | 15–37 | 3,344 | ✅ PASS |
-| 2L-dyn superfine 2t (ReleaseThreads={}) | — | — | — | — | — | ⏳ pending |
+| 2L-dyn superfine 2t (ReleaseThreads={}) | 4,862,872 | 162 | 7:05 | 12–31 | 1,374 | ✅ PASS |
 | 2L-dyn release superfine 2t | — | — | — | — | — | ⏳ ohtaka |
 
 Notes:
@@ -272,6 +272,7 @@ all reachable terminal states.
 | 2L superfine | 2,676,196 | 129 | 3:12 | 6–23 | 123 | ✅ PASS |
 | 2L phase0only | 997,511 | 87 | 46 s | 6–18 | 71 | ✅ PASS |
 | 2L phase3only | 2,525,381 | 129 | 2:20 | 6–24 | 124 | ✅ PASS |
+| 2L superfine 3t confC (all root) | 137,333,348 | 96 | 6:35:00 | 4–15 | 170 | ✅ PASS (ohtaka) |
 | 2L commits2 (MaxCommits=2) | — | — | — | — | — | ⏳ ohtaka |
 
 Notes:
@@ -292,6 +293,13 @@ Notes:
 - **Lamport counter max**: grows with contention. 2-level fine reaches
   counter 18; 3-level coarse reaches 22.
   Higher atomicity modes add CAS retry and DISTURBED restart paths.
+- **2L superfine 3t confC (ohtaka)**: 137M distinct states, 3-thread
+  all-root (CommitParent only). Temporal property check took 3h 33min of
+  the 6h 35min total. Fingerprint collision probability 0.75% (acceptable
+  for this state space size). Counter min=4 is lower than 2-thread min=6
+  because 3 threads share `SerialBase = 1 + 3 = 4`, reducing per-thread
+  counter increment. Consider `-lncheck final` and `-metadir /dev/shm`
+  (RAM disk) for future ohtaka runs to reduce temporal checking time.
 - **2L commits2**: deferred to ohtaka. Laptop run reached 33.6M distinct
   / depth 79 / queue 1.46M before being killed. The non-LLfree 2-level
   spec already passed MaxCommits=2; 3-thread configs are higher priority.
