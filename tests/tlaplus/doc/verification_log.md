@@ -1,5 +1,120 @@
 # TLA+ Verification Log
 
+## 2026-05-01: Dynamic insert/release model (`BundleUnbundle_2level_LLfree_dynamic.tla`)
+
+### Context
+
+New TLA+ spec for modeling dynamic child insertion (`insert(online=true)`)
+and release, extending the static 2-level LL-free model. All threads are
+configurable via constants: `InsertThreads`, `RootThreads`, `LeafThreads`,
+`ReleaseThreads`. Children are discovered dynamically from transaction
+snapshots (`snapChildren = {c ∈ AllChildren : snapPkt.sub[c] ≠ Null}`),
+not hardcoded.
+
+### Design
+
+- **Tree**: Parent ← DynChild1, DynChild2 (both start unattached)
+- **Phase 1 — Insert**: InsertThreads pick uninserted children and
+  perform `insert(online=true)`. `everInserted[c]` one-way flag
+  distinguishes "not yet inserted" from "released".
+- **Phase 2 — Commit + Release** (interleaved):
+  - RootThreads: CommitParent (snapshot Parent, increment discovered
+    children, CAS). Dynamic child discovery via `snapChildren`.
+  - LeafThreads: CommitChild per discovered child (direct commit).
+  - ReleaseThreads: Release inserted children after own commits done.
+- **Release lifecycle**: `release_snap → (bundle if missing) →
+  release_cas_parent → release_read_child → release_cas_child`.
+  Two-phase CAS (parent then child) matches C++ `release(tr, var)`.
+- **`commitCount[c]`**: Per-child counter tracking successful commits,
+  used by `TerminalPayloadCheck` for precise payload assertion.
+- **Unified `ReadParent`**: Replaces separate InsertSnap + SnapCheck,
+  shared by insert/snapshot/release paths.
+
+### Stale priority tag fix
+
+Three liveness violations discovered and fixed during release modeling:
+
+1. **Deadlock (idle thread during release)**: Thread 2 has no enabled
+   actions while thread 1 is mid-release. Fix: Replace `WaitingForInserts`
+   with generalized `Waiting` action (checks `releaseTarget[t] = Null`).
+
+2. **Livelock (CommitChild on released child)**: Thread loops CommitRead →
+   UnbundleWalk on a released child (parent `sub[c]=Null`, child still
+   `BundledRef`). Fix: `~inserted[childNode]` check in UnbundleWalk to
+   abort commit.
+
+3. **Livelock (stale priority tags)**: Idle threads leave tags that block
+   other threads from `CanProceed`. Chain: CommitDone failure preserves
+   child tags → CommitSkip drains queue → SkipIteration → thread fully
+   idle with stale tags. Fix: `ClearMyTags(t)` at three points:
+   - `CommitParent` empty `snapChildren` path (thread goes idle, no
+     children to commit)
+   - `CommitSkip` when queue drains to empty (released children skipped)
+   - `SkipIteration` (all children released, budget drained to 0)
+
+   In C++, these correspond to `~Transaction()` / `finalizeCommitment()`
+   calling `drop_tags_n_privilege()` when each `iterate_commit` exits.
+   TLA+ lacks RAII, so explicit `ClearMyTags` is needed at these
+   phase boundaries. The model is a sound over-approximation: tags
+   persist across phases more than in C++ (no per-iterate_commit
+   scoping), so if liveness passes, C++ is also correct.
+
+### C++ fidelity notes (release-specific)
+
+| Aspect | C++ | TLA+ | Match |
+|---|---|---|---|
+| Parent CAS failure → retry | Tag persists, `++tr` | `TagAfterFail(Parent)` | ✓ |
+| Parent CAS success → child | Tag persists | `TagAfterSuccess(Parent)` | ✓ |
+| Child CAS negotiate | `ScopedNegotiate(OnExit)` | `CanProceed(t, c)` | ✓ |
+| Child CAS success → done | `finalizeCommitment` → all clear | `ClearMyTags(t)` | ✓ |
+| Child CAS failure → retry | dtor tags child | `TagAfterFail(t, c)` | ✓ |
+| Child read ordering | Before parent CAS (L1579) | After parent CAS | △ safe |
+
+The child read ordering difference is safe: after parent CAS removes the
+child, no concurrent thread modifies the child's linkage (CommitChild
+aborts via `~inserted` check, unbundle finds `sub[c]=Null`).
+
+### Verification results (all PASS)
+
+**TLC laptop verification** (MacBook, `-Xmx14g`, `-workers auto`):
+
+Invariants: SnapshotConsistency, NoPriorityLoss, BundleRefConsistency,
+MissingPropagation, TerminalPayloadCheck, QuiescentCheck,
+DebugSerialBound, PrintTerminalMaxCounter.
+Property: EventuallyAllDone (liveness).
+
+| cfg | distinct states | depth | wall time | Lamport counter (min–max) | terminal states | result |
+|---|---|---|---|---|---|---|
+| 2L-dyn 1thr coarse | 70 | 36 | < 1 s | 11 | 2 | ✅ PASS |
+| 2L-dyn coarse 2t (ReleaseThreads={}) | 763,478 | 104 | 43 s | 11–26 | 71 | ✅ PASS |
+| 2L-dyn release coarse 2t (ReleaseThreads={1,2}) | 14,203,816 | 150 | 19:03 | 15–37 | 3,344 | ✅ PASS |
+| 2L-dyn superfine 2t (ReleaseThreads={}) | — | — | — | — | — | ⏳ pending |
+| 2L-dyn release superfine 2t | — | — | — | — | — | ⏳ ohtaka |
+
+Notes:
+- **State count with ReleaseThreads={}**: 763,478 vs static spec's 763,675
+  (−0.03%). Different variables (`commitCount`, `everInserted`,
+  `releaseTarget`) and refactored action structure prevent exact match;
+  behavioral equivalence confirmed by identical invariant/property results.
+- **Release coarse state space**: 14.2M (18.6× the non-release case).
+  Release adds interleaving between commit and release phases, plus
+  CommitSkip/SkipIteration transitions for released children.
+- **Counter min 15 (release)** vs 11 (non-release): Release operations
+  add GenSerial calls (ReleaseCASParent + ReleaseCASChild), raising the
+  minimum Lamport counter for terminal states.
+- **3,344 terminal states (release)**: Includes all interleavings of
+  commit order × release order × per-thread serial advancement.
+
+### Source files
+
+- `BundleUnbundle_2level_LLfree_dynamic.tla` — dynamic insert/release spec
+- `*_1thr_mc.cfg` — 1-thread sanity (counter=11)
+- `*_coarse_mc.cfg` — 2-thread coarse, ReleaseThreads={}
+- `*_superfine_mc.cfg` — 2-thread superfine, ReleaseThreads={}
+- `*_release_coarse_mc.cfg` — 2-thread coarse, ReleaseThreads={1,2}
+
+---
+
 ## 2026-04-30: C++-fidelity overhaul of 3-level/2-level LL-free models
 
 ### Context
