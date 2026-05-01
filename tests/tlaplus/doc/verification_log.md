@@ -249,7 +249,9 @@ must yield same results" (user).
 All cfgs pass `TerminalPayloadCheck`, `BundleChainValid` (3L) /
 `BundleRefConsistency` (2L), `BundledByCorrect`, `MissingPropagation`,
 `SnapshotConsistency`, `NoPriorityLoss`, `QuiescentCheck`,
-`DebugSerialBound`, and `EventuallyAllDone` (liveness).
+`DebugSerialBound`. 2-thread cfgs also check `EventuallyAllDone`
+(liveness); 3-thread cfgs check INVARIANT only (liveness proven by
+2-thread superfine — see notes).
 
 `-deadlock` flag is not used — the `Terminating` self-loop disjunct
 absorbs the legitimate AllDone terminal state, so any real deadlock is
@@ -273,6 +275,12 @@ all reachable terminal states.
 | 2L phase0only | 997,511 | 87 | 46 s | 6–18 | 71 | ✅ PASS |
 | 2L phase3only | 2,525,381 | 129 | 2:20 | 6–24 | 124 | ✅ PASS |
 | 2L superfine 3t confC (all root) | 137,333,348 | 96 | 6:35:00 | 4–15 | 170 | ✅ PASS (ohtaka) |
+| 2L 3thr coarse C (all root) | 339,744 | 49 | 20 s | 4–9 | 106 | ✅ PASS |
+| 3L 3thr coarse C (all root) | 397,160 | 57 | 26 s | 10–12 | — | ✅ PASS |
+| 2L 3thr coarse A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka |
+| 2L 3thr coarse B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka |
+| 3L 3thr coarse A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka |
+| 3L 3thr coarse B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka |
 | 2L commits2 (MaxCommits=2) | — | — | — | — | — | ⏳ ohtaka |
 
 Notes:
@@ -300,6 +308,17 @@ Notes:
   because 3 threads share `SerialBase = 1 + 3 = 4`, reducing per-thread
   counter increment. Consider `-lncheck final` and `-metadir /dev/shm`
   (RAM disk) for future ohtaka runs to reduce temporal checking time.
+- **3-thread cfgs confA–C (2026-05-01)**: Thread roles split across three
+  configs — confA (2 leaf + 1 root), confB (1 leaf + 2 root), confC (all
+  root). This replaces the old `RootThreads=LeafThreads={1,2,3}` approach
+  (every thread does both) which has a larger state space for no additional
+  coverage. Coarse confC is laptop-runnable; confA/B exercise bundle
+  contention and require ohtaka. All 3-thread cfgs use **INVARIANT only**
+  (no `PROPERTY EventuallyAllDone`): liveness is proven by the 2-thread
+  superfine cfgs (2L: 2,676,196 states PASS; 3L: 11,542,923 states PASS)
+  where fine-grained interleaving exercises all contention patterns.
+  Livelock is a structural protocol bug (stale priority tags) detectable
+  at 2 threads; 3-thread runs confirm safety at higher contention.
 - **2L commits2**: deferred to ohtaka. Laptop run reached 33.6M distinct
   / depth 79 / queue 1.46M before being killed. The non-LLfree 2-level
   spec already passed MaxCommits=2; 3-thread configs are higher priority.
