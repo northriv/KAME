@@ -27,7 +27,16 @@ struct DECLSPEC_KAME ProcessCounter {
     ProcessCounter();
     operator cnt_t() const noexcept {return m_var;}
     enum : cnt_t { MAINTHREADID = 1 };
+    // On Windows, id() must not be inlined: the inline body would access
+    // XThreadLocal<ProcessCounter>::m_var compiled into the caller's DLL,
+    // giving each plugin its own TLS slot.  A non-inline DECLSPEC_KAME
+    // definition in transaction_impl.h runs inside kame.dll, guaranteeing
+    // a single TLS slot per thread regardless of how many DLLs call this.
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    DECLSPEC_KAME static cnt_t id() noexcept;
+#else
     static cnt_t id() noexcept {return *stl_processID;}
+#endif
 private:
     cnt_t m_var;
     static atomic<cnt_t> s_count;

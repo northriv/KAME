@@ -133,6 +133,10 @@ namespace detail {
     //! function-local thread_local avoids the per-DLL aliasing that occurs
     //! with XThreadLocal<FuncPayloadCreator> template statics on Windows.
     DECLSPEC_KAME void*& tls_payload_creator_ptr() noexcept;
+    //! Cross-DLL Lamport serial: SerialGenerator::gen()/current() use this
+    //! instead of XThreadLocal<cnt_t>::m_var (which is per-DLL on Windows).
+    //! Initialized to ProcessCounter::id() on first call (same as cnt_t ctor).
+    DECLSPEC_KAME int64_t& tls_serial_ref() noexcept;
 #else
     extern thread_local int s_tx_nest;
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
@@ -564,18 +568,33 @@ private:
             int64_t m_var;
         };
         static int64_t current() noexcept {
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+            return detail::tls_serial_ref();
+#else
             return *stl_serial;
+#endif
         }
         //! Generates a new serial, optionally advancing the counter past \a last_serial.
         //! When \a last_serial is provided, the counter is advanced to at least
         //! last_serial's counter + 1 (Lamport clock), ensuring temporal ordering.
         static int64_t gen(int64_t last_serial = SERIAL_NULL) noexcept {
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+            // Use the exported TLS accessor so all DLLs share one serial slot
+            // per thread (see tls_serial_ref() in transaction_impl.h).
+            auto &m = detail::tls_serial_ref();
+            int64_t last_counter = last_serial & ~int64_t(0xFFFF);
+            if(int64_t(uint64_t(last_counter) - uint64_t(m & ~int64_t(0xFFFF))) > 0)
+                m = last_counter | (m & int64_t(0xFFFF));
+            m = int64_t(uint64_t(m) + uint64_t(int64_t(1) << 16));  // equiv. cnt_t::operator++
+            return m;
+#else
             auto &v = *stl_serial;
             int64_t last_counter = last_serial & ~int64_t(0xFFFF);
             if(int64_t(uint64_t(last_counter) - uint64_t(v.m_var & ~int64_t(0xFFFF))) > 0)
                 v.m_var = last_counter | (v.m_var & int64_t(0xFFFF));
             v++;
             return v;
+#endif
         }
         static XThreadLocal<cnt_t> stl_serial;
     };

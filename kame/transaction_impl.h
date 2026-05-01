@@ -147,6 +147,14 @@ namespace detail {
 DECLSPEC_KAME int& s_tx_nest_ref() noexcept { thread_local int v = 0; return v; }
 DECLSPEC_KAME int& s_sleep_nest_ref() noexcept { thread_local int v = 0; return v; }
 DECLSPEC_KAME void*& tls_payload_creator_ptr() noexcept { thread_local void* v = nullptr; return v; }
+// Lamport serial: int64_t holding (48-bit counter | 16-bit thread ID).
+// Initialized to ProcessCounter::id() on first call (matches cnt_t ctor).
+// Must be defined AFTER tls_payload_creator_ptr so ProcessCounter::id()
+// is already declared (via transaction_signal.h included before this block).
+DECLSPEC_KAME int64_t& tls_serial_ref() noexcept {
+    thread_local int64_t v = (int64_t)ProcessCounter::id();
+    return v;
+}
 DECLSPEC_KAME std::shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
     thread_local std::shared_ptr<RunnerCounterEntry> v;
     return v;
@@ -855,6 +863,11 @@ ProcessCounter::ProcessCounter() {
         }
     }
 }
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+// Non-inline definition so the body compiles into kame.dll and is imported by
+// plugin DLLs — ensuring *stl_processID is always kame.dll's TLS slot.
+ProcessCounter::cnt_t ProcessCounter::id() noexcept { return *stl_processID; }
+#endif
 
 XThreadLocal<Priority> stl_currentPriority;
 
