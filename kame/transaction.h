@@ -128,6 +128,11 @@ namespace detail {
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     DECLSPEC_KAME int& s_tx_nest_ref() noexcept;
     DECLSPEC_KAME int& s_sleep_nest_ref() noexcept;
+    //! Cross-DLL payload-creator slot: create<T>() stores the typed creator
+    //! here; Node<XN>::Node() reads and clears it. A single exported
+    //! function-local thread_local avoids the per-DLL aliasing that occurs
+    //! with XThreadLocal<FuncPayloadCreator> template statics on Windows.
+    DECLSPEC_KAME void*& tls_payload_creator_ptr() noexcept;
 #else
     extern thread_local int s_tx_nest;
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
@@ -940,7 +945,22 @@ private:
 template <class XN>
 template <class T, typename... Args>
 T *Node<XN>::create(Args&&... args) {
+    // Non-capturing lambda → convertible to a plain function pointer.
+    // On Apple/Linux the typed XThreadLocal TLS slot is per-program
+    // (transaction_impl.h compiled once); on Windows DLLs the template
+    // static lives in whichever DLL instantiates the template, so
+    // create<T>() (kame.dll) and Node<T>::Node() (plugin.dll) would
+    // access different slots.  A single exported function-local
+    // thread_local (tls_payload_creator_ptr) is the correct fix: the
+    // function lives in one DLL (kame.dll), so every caller—regardless
+    // of which DLL it is compiled into—touches the same TLS slot.
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    static constexpr FuncPayloadCreator s_fn =
+        [](XN &node)->Payload *{ return new PayloadWrapper<T>(node); };
+    detail::tls_payload_creator_ptr() = reinterpret_cast<void *>(s_fn);
+#else
     *T::stl_funcPayloadCreator = [](XN &node)->Payload *{ return new PayloadWrapper<T>(node);};
+#endif
     return new T(std::forward<Args>(args)...);
 }
 

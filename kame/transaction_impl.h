@@ -146,6 +146,7 @@ namespace detail {
 #  undef tls_runner_counter_ptr
 DECLSPEC_KAME int& s_tx_nest_ref() noexcept { thread_local int v = 0; return v; }
 DECLSPEC_KAME int& s_sleep_nest_ref() noexcept { thread_local int v = 0; return v; }
+DECLSPEC_KAME void*& tls_payload_creator_ptr() noexcept { thread_local void* v = nullptr; return v; }
 DECLSPEC_KAME std::shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
     thread_local std::shared_ptr<RunnerCounterEntry> v;
     return v;
@@ -1396,8 +1397,16 @@ Node<XN>::Node() : m_link(std::make_shared<Linkage>()) {
     local_shared_ptr<Packet> packet(new Packet());
     m_link->reset(new PacketWrapper(packet, SerialGenerator::gen()));
     //Use create() for this hack.
-    packet->m_payload.reset(( *stl_funcPayloadCreator)(static_cast<XN&>( *this)));
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    // Read and clear the shared void* slot — see create() for why we use
+    // this instead of stl_funcPayloadCreator on Windows.
+    auto creator = reinterpret_cast<FuncPayloadCreator>(detail::tls_payload_creator_ptr());
+    detail::tls_payload_creator_ptr() = nullptr;
+#else
+    auto creator = *stl_funcPayloadCreator;
     *stl_funcPayloadCreator = nullptr;
+#endif
+    packet->m_payload.reset(creator(static_cast<XN&>( *this)));
 }
 template <class XN>
 Node<XN>::~Node() {
