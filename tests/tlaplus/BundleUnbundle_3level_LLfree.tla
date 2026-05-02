@@ -672,10 +672,28 @@ InnerPhase4(t) ==
                       ![t].innerSubWs  = Null]
                /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
                /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
-          ELSE \* Disturbed — restart outer bundle from snapshot
+          ELSE \* Disturbed — restart outer bundle from snapshot.
+               \* Clear outer bundle state (wrapper/subwrappers/subpackets) so
+               \* snap_check sees a fresh start, matching the InnerPhase3 fix:
+               \* a peer's direct CommitChild that races between InnerPhase3
+               \* and InnerPhase4 changes the inner child's linkage, invalidating
+               \* the collected subpackets. Clearing here prevents the stale
+               \* subpackets from being used in a subsequent BundlePhase2.
+               \* Also eagerly tag bundleNode (Grand) in addition to c (Parent),
+               \* matching the symmetric eager-tag pattern in InnerPhase3 and
+               \* BundlePhase3 DISTURBED.
+               /\ LET node     == local[t].bundleNode
+                      children == ChildrenOf(node)
+                  IN
+                  /\ local' = [local EXCEPT
+                         ![t].wrapper     = Null,
+                         ![t].subwrappers = [cc \in children |-> Null],
+                         ![t].subpackets  = [cc \in children |-> Null]]
                /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-               /\ priorityTag' = [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
-               /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
+               /\ priorityTag' = [
+                      [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
+                          EXCEPT ![local[t].bundleNode] = TagAfterFail(t, local[t].bundleNode)]
+               /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue>>
 
 \* @c11_action BundlePhase2(t):
 \*   // Phase 2: CAS bundleNode's linkage with new packet (still missing=TRUE)
