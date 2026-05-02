@@ -267,7 +267,7 @@ all reachable terminal states.
 | 3L 1thr superfine | 47 | 30 | < 1 s | 7 | 1 | ✅ PASS |
 | 3L coarse 2t | 1,497,098 | 98 | 1:38 | 6–22 | 110 | ✅ PASS |
 | 3L purefine 2t | 11,841,706 | 134 | 36:13 | 7–24 | 152 | ✅ PASS |
-| 3L superfine 2t | 11,542,923 | 135 | 35:31 | 7–26 | 155 | ✅ PASS |
+| 3L superfine 2t | 15,570,842 | 154 | 18:01 | 7–26 | — | ✅ PASS |
 | 3L micro (mixed) | 11,841,706 | 134 | 13:12 | 7–24 | 152 | ✅ PASS |
 | 3L off (Privilege=FALSE) | — | — | — | — | — | ⛔ diverges |
 | 2L micro (fine) | 867,696 | 89 | 46 s | 6–18 | 71 | ✅ PASS |
@@ -284,6 +284,19 @@ all reachable terminal states.
 | 2L commits2 (MaxCommits=2) | — | — | — | — | — | ⏳ ohtaka |
 
 Notes:
+- **InnerPhase3 restart fix (2026-05-02)**: `QuiescentCheck` violated with
+  3-thread mixed root+leaf configs (confA/B) on ohtaka. Root cause: when
+  `InnerPhase3` detected a grandchild wrapper change and restarted, it
+  went to `inner_phase2` with stale `subpackets` — a leaf thread's direct
+  `CommitChild` between `BundlePhase1` collection and `InnerPhase3` CAS
+  caused a lost increment. Fix: restart to `snap_check` (clearing
+  `subwrappers`/`subpackets`/`wrapper`), matching C++ where inner
+  `bundle()` returning DISTURBED causes the outer bundle to restart from
+  Phase1. Not triggered by all-root configs (confC) because bundle
+  operations don't modify payloads, so stale collection is harmless.
+  Not triggered by 2-thread all-root configs for the same reason.
+  3L superfine 2t state count updated: 11.5M → 15.6M (new restart path
+  adds states; liveness and safety still hold).
 - **Tag-preserve fix (2026-04-30)**: ClearMyTags now called only on commit
   success, matching C++ `finalizeCommitment → drop_tags_n_privilege`. Tags
   are preserved across `iterate_commit` retries (C++ `operator++` keeps

@@ -625,22 +625,30 @@ InnerPhase3(t) ==
               \* TLA+ states are produced unboundedly → state-space explosion.
               /\ local' = [local EXCEPT ![t].innerSubWs[gc] = BundledRefWrapper(c, ser)]
               /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
-       \* Failure: some grandchild changed — restart inner from Phase2.
-       \* Symmetric eager tag: tag the failed grandchild AND the inner-
-       \* bundling node c (mirrors outer BundlePhase3 SUPERFINE DISTURBED
-       \* and matches the C11 generator's symmetric tagging — earlier
-       \* TLA+ tagged only gc; C11 added c-tagging for consistency).
+       \* Failure: some grandchild changed — restart outer bundle.
+       \* C++ inner bundle() returns DISTURBED → outer bundle restarts
+       \* from Phase1, re-collecting all subpackets with fresh data.
+       \* Previous code restarted to inner_phase2 with stale subpackets,
+       \* allowing a peer's direct CommitChild payload increment to be
+       \* overwritten by the bundled copy (lost increment, detected by
+       \* QuiescentCheck with 3 threads: 2 root + 1 leaf).
+       \* Symmetric eager tag: tag the failed grandchild AND the
+       \* bundleNode (same pattern as BundlePhase3 DISTURBED).
        \/ \E gc \in gcs :
               /\ CanProceed(t, gc)
               /\ gcWs[gc] /= Null
               /\ linkage[gc] /= gcWs[gc]
-              \* Re-read grandchild wrappers for next attempt (no rollback, C++ behavior #3)
-              /\ local' = [local EXCEPT
-                     ![t].innerSubWs = [g \in gcs |-> linkage[g]]]
-              /\ pc' = [pc EXCEPT ![t] = "inner_phase2"]
+              /\ LET node     == local[t].bundleNode
+                     children == ChildrenOf(node)
+                 IN
+                 /\ local' = [local EXCEPT
+                        ![t].wrapper     = Null,
+                        ![t].subwrappers = [cc \in children |-> Null],
+                        ![t].subpackets  = [cc \in children |-> Null]]
+              /\ pc' = [pc EXCEPT ![t] = "snap_check"]
               /\ priorityTag' = [
                      [priorityTag EXCEPT ![gc] = TagAfterFail(t, gc)]
-                         EXCEPT ![c] = TagAfterFail(t, c)]
+                         EXCEPT ![local[t].bundleNode] = TagAfterFail(t, local[t].bundleNode)]
               /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue>>
 
 \* InnerPhase4: finalize — set missing=FALSE on innerChild
