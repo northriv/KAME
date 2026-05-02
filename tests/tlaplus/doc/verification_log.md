@@ -277,6 +277,8 @@ all reachable terminal states.
 | 2L superfine 3t confC (all root) | 137,333,348 | 96 | 6:35:00 | 4–15 | 170 | ✅ PASS (ohtaka) |
 | 2L 3thr coarse C (all root) | 339,744 | 49 | 20 s | 4–9 | 106 | ✅ PASS |
 | 3L 3thr coarse C (all root) | 397,160 | 57 | 26 s | 10–12 | — | ✅ PASS |
+| 2L 3thr superfine A (2 leaf + 1 root) | 755,078,964 | 117 | 1:33:00 | 2–21 | 3,412 | ✅ PASS (ohtaka) |
+| 2L 3thr superfine D (all leaf) | 203,512 | 38 | 6 s | 3–6 | 156 | ✅ PASS (ohtaka) |
 | 2L 3thr coarse A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka |
 | 2L 3thr coarse B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka |
 | 3L 3thr coarse A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka |
@@ -314,6 +316,13 @@ Notes:
 - **Lamport counter max**: grows with contention. 2-level fine reaches
   counter 18; 3-level coarse reaches 22.
   Higher atomicity modes add CAS retry and DISTURBED restart paths.
+- **2L 3thr superfine confA (ohtaka)**: 755M distinct states, fingerprint
+  collision probability 13% (optimistic 7.2%). Largest run to date. The
+  high collision rate means ~13% of distinct states may share a fingerprint
+  with another state — TLC may have missed some reachable states. Safety
+  invariants hold over all checked states; re-run with `-fp N` (different
+  seed) or `-fpbits 64` for higher confidence if needed.
+  Counter min=2 (SerialBase=4, CommitChild path with minimal retries).
 - **2L superfine 3t confC (ohtaka)**: 137M distinct states, 3-thread
   all-root (CommitParent only). Temporal property check took 3h 33min of
   the 6h 35min total. Fingerprint collision probability 0.75% (acceptable
