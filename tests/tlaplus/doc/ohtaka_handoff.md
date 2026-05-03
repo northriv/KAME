@@ -1,10 +1,8 @@
-# Ohtaka スパコン TLC 検証 引き継ぎ
+# Ohtaka TLC 検証 引き継ぎガイド
 
-## 前提
+検証結果の全詳細は `verification_log.md` を参照。本文書は ohtaka 投入の操作手順と現在の pending ジョブのみを記載する。
 
-- ラップトップ検証済み cfg は `verification_log.md` 参照（全 PASS）
-- spec: `BundleUnbundle_3level_LLfree.tla`, `BundleUnbundle_2level_LLfree.tla`
-- TLC: `tla2tools.jar` (2026.04.06.150550)
+---
 
 ## 実行コマンド
 
@@ -15,109 +13,50 @@ java -XX:+UseParallelGC -Xmx<MEM>g -cp tla2tools.jar tlc2.TLC \
   <SPEC>.tla > <OUTPUT>.log 2>&1
 ```
 
-- `-deadlock` は不要（`Terminating` disjunct で吸収、proof_semantics.md §6）
-- `-Xmx`: i8cpu ノードなら `-Xmx180g` 程度
+- `-deadlock` 不要（`Terminating` disjunct が AllDone 終端状態を吸収。`proof_semantics.md §6`）
+- `-Xmx`: i8cpu ノード (384 GB) なら `-Xmx180g` 程度
 - 出力は必ずファイルにリダイレクト（grep パイプは行欠落のリスクあり）
+- sbatch スクリプト: cfg を `CFG=<cfg filename>` 環境変数で渡す
 
-## Lamport counter 出力
+### sbatch 例
 
-### `PrintTerminalMaxCounter`（スパコン用・最小バイト数）
-AllDone 状態ごとに最大 counter のみ出力:
-```
-22
-```
+```bash
+# 3L superfine confA/B (safety のみ)
+CFG=BundleUnbundle_3level_LLfree_3thr_superfine_A_mc.cfg \
+  sbatch ohtaka/run_l3llf_3thr_superfine_live.sh
 
-cfg で `INVARIANT PrintTerminalMaxCounter` を使用。
-counter の意味: `counter = serial ÷ SerialBase`, `SerialBase = 1 + |Threads|`
+CFG=BundleUnbundle_3level_LLfree_3thr_superfine_B_mc.cfg \
+  sbatch ohtaka/run_l3llf_3thr_superfine_live.sh
 
-### `PrintTerminalSerial`（ラップトップ用・詳細）
-AllDone 状態ごとにスレッド別 serial を出力:
-```
-<<"Terminal serial[t]:", <<52, 62>>>>
-```
+# safety PASS 後に live 版
+CFG=BundleUnbundle_3level_LLfree_3thr_superfine_A_live_mc.cfg \
+  sbatch ohtaka/run_l3llf_3thr_superfine_live.sh
 
-## スパコン対象 cfg（優先順）
-
-### Tier 1a: 2L 3thr fine（実行中 — 先に完了させる）
-
-3-way priority resolution の基本正しさを確認。fine は簡略抽象だが、
-FAIL すれば superfine に進む意味がないため、スクリーニングとして先行。
-
-| cfg | spec | Threads | MaxCommits | 実測 distinct | メモ |
-|---|---|---|---|---|---|
-| `2level_LLfree_3thr_mc` | 2L | {1,2,3} | 1 | **650M+ (24h f1fat, queue 114M)** | 実行中、`PrintTerminalMaxCounter` 追加要 |
-
-f1fat 24h 時点 (2026-04-30): 3.9B generated, 650M distinct, 114M queue, depth 49。
-
-### Tier 1b: 2L 3thr superfine（fine PASS 後）
-
-C++ 忠実モードでの最終証明。Phase 0 prestamp CAS と Phase 3 DISTURBED 検出を含む。
-2thr スケーリング比: fine 804K → superfine 2.5M (3.1x)。
-
-| cfg | spec | Threads | MaxCommits | 推定 distinct | メモ |
-|---|---|---|---|---|---|
-| (新規) `2level_LLfree_3thr_superfine_mc` | 2L | {1,2,3} | 1 | **2B+** (fine 650M × 3x) | i8cpu 推奨 |
-
-### Tier 2: 3L 3thr（2L superfine 完了後）
-
-| cfg | spec | Threads | MaxCommits | 推定 distinct | メモ |
-|---|---|---|---|---|---|
-| (新規) `3level_LLfree_3thr_mc` | 3L | {1,2,3} | 1 | **数十B** | 2L の数倍以上 |
-
-### Tier 3: MaxCommits=2（低優先）
-
-2thr MaxCommits=1 で全 CAS パスを網羅済み。旧 spec (非LLfree) で MaxCommits=2
-PASS 済みのため追加検証価値は薄い。
-
-| cfg | spec | Threads | MaxCommits | 推定 distinct | メモ |
-|---|---|---|---|---|---|
-| `2level_LLfree_commits2_mc` | 2L | {1,2} | 2 | 30–50M | ラップトップで 33.6M まで確認 |
-
-## cfg 作成テンプレート
-
-### 2L 3thr に PrintTerminalMaxCounter 追加
-
-`BundleUnbundle_2level_LLfree_3thr_mc.cfg` 末尾に追加:
-```
-INVARIANT PrintTerminalMaxCounter
+# 2L dynamic 3thr release
+CFG=BundleUnbundle_2level_LLfree_dynamic_3thr_release_mc.cfg \
+  sbatch ohtaka/run_l2llf_dynamic_live.sh
 ```
 
-### 3L 3thr micro（新規: `BundleUnbundle_3level_LLfree_3thr_mc.cfg`）
+---
 
-```
-\* 3-thread 3-level LL-free micro. Ohtaka target.
-\* Walk/CAS = superfine (root-first), Collect/Phase3 = fine.
+## 現在の pending ジョブ
 
-SPECIFICATION Spec
+| spec | cfg | 状況 | 備考 |
+|---|---|---|---|
+| 3L | `_3thr_superfine_A_mc.cfg` | **要投入** | InnerPhase2 fix 適用済み |
+| 3L | `_3thr_superfine_A_live_mc.cfg` | safety PASS 後 | |
+| 3L | `_3thr_superfine_B_mc.cfg` | **要投入** | InnerPhase2 fix 適用済み |
+| 3L | `_3thr_superfine_B_live_mc.cfg` | safety PASS 後 | |
+| 2L-dyn | `_3thr_release_mc.cfg` | **要投入** | 3-thread + release |
 
-CONSTANTS
-    Threads = {1, 2, 3}
-    Grand = Grand
-    Parent = Parent
-    Child1 = Child1
-    Child2 = Child2
-    Null = Null
-    MaxCommits = 1
-    UnbundleWalkAtomic  = "superfine"
-    UnbundleCASAtomic   = "superfine"
-    BundleCollectAtomic = "fine"
-    BundlePhase3Atomic  = "fine"
-    Privilege = TRUE
+### 完了済み (最新)
+- 3L superfine confC live — 640M states, PASS + liveness (2026-05-03)
+- 2L-dyn release superfine live — 413M states, PASS + liveness (2026-05-03)
+- 2L-dyn 3thr-A/B live — 53K / 149K states, PASS + liveness (2026-05-03)
 
-INVARIANT SnapshotConsistency
-INVARIANT NoPriorityLoss
-INVARIANT BundleChainValid
-INVARIANT BundledByCorrect
-INVARIANT MissingPropagation
-INVARIANT TerminalPayloadCheck
-INVARIANT QuiescentCheck
-INVARIANT DebugSerialBound
-INVARIANT PrintTerminalMaxCounter
+---
 
-PROPERTY EventuallyAllDone
-```
-
-## 結果の読み方
+## 出力の読み方
 
 ```bash
 # PASS 確認
@@ -128,17 +67,53 @@ grep "states generated.*distinct" output.log | tail -1
 grep "depth of" output.log
 grep "^Finished" output.log
 
-# Lamport max counter 一覧 (PrintTerminalMaxCounter 使用時)
-grep -E "^[0-9]+$" output.log | sort -n | uniq
-# → min = 先頭, max = 末尾
+# Lamport max counter 分布 (PrintTerminalMaxCounter 使用時)
+grep -E "^[0-9]+$" output.log | sort -n | uniq -c
+#  → 左列: terminal state 数, 右列: counter 値
 
-# terminal state 数 (重複あり — unique counter 数ではない)
+# min/max counter
+grep -E "^[0-9]+$" output.log | sort -n | awk 'NR==1{min=$1} END{print "min="min, "max="$1}'
+
+# terminal state 総数
 grep -E "^[0-9]+$" output.log | wc -l
 ```
 
-## 注意事項
+counter の意味: `counter = serial ÷ SerialBase`, `SerialBase = 1 + |Threads|`
+
+---
+
+## cfg ガイド
+
+### PrintTerminalMaxCounter vs PrintTerminalSerial
+
+| invariant | 出力 | 用途 |
+|---|---|---|
+| `PrintTerminalMaxCounter` | 各 AllDone 状態で最大 counter 1 整数 | ohtaka（バイト数最小） |
+| `PrintTerminalSerial` | 各 AllDone 状態でスレッド別 serial タプル | ラップトップ（詳細） |
+
+ohtaka 向け大規模 cfg は `INVARIANT PrintTerminalMaxCounter` を使用。
+
+### PROPERTY の方針
+
+- liveness (`PROPERTY EventuallyAllDone`) は状態数に対して非線形に高価（SCC 解析）
+- 2-thread coarse で liveness 証明 → 全粒度に波及（`proof_semantics.md §10`）
+- 100M 超の ohtaka cfg は原則 INVARIANT のみ（live 版は `_live_mc.cfg` を別途）
+
+### 注意事項
 
 - `Privilege = FALSE` は意図的に発散（proof_semantics.md §4–§5）
-- `SYMMETRY` は使用不可（`TagOlder` が Nat 順序を要求、liveness も mask される）
-- `MaxSerial` は LLfree spec の CONSTANTS から削除済み（cfg からも除去済み）
-- TLC `PrintT` は `System.out.println()` 経由でスレッドセーフ（文字混在なし）
+- `SYMMETRY` 使用不可（`TagOlder` が Nat 順序を要求、liveness も mask される）
+- `DebugSerialBound` は定数レベル TRUE（Lamport serial は非有界のため）— TLC 警告は無視してよい
+- TLC `PrintT` はスレッドセーフ（`System.out.println()` 経由）
+
+---
+
+## spec の現在の状態 (2026-05-03)
+
+| spec | ファイル | 主な修正履歴 |
+|---|---|---|
+| 2L LLfree | `BundleUnbundle_2level_LLfree.tla` | GenSerial Lamport, UnbundleWalk root-first, Terminating disjunct |
+| 2L dynamic | `BundleUnbundle_2level_LLfree_dynamic.tla` | 上記 + BundlePhase1 second disjunct (deadlock fix) |
+| 3L LLfree | `BundleUnbundle_3level_LLfree.tla` | 2L 修正 + InnerPhase2/3/4 outer-bundle-clear on DISTURBED |
+
+詳細な修正経緯は `verification_log.md` の Notes 節を参照。

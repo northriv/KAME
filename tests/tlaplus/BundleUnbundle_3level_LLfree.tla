@@ -590,10 +590,27 @@ InnerPhase2(t) ==
                /\ local' = [local EXCEPT ![t].innerWrapper = newW]
                /\ pc' = [pc EXCEPT ![t] = "inner_phase3"]
                /\ UNCHANGED <<serial, op, target, iterBudget, childQueue, priorityTag>>
-          ELSE \* Disturbed — restart outer bundle from snapshot
+          ELSE \* Disturbed — restart outer bundle from snapshot.
+               \* Clear outer bundle state (wrapper/subwrappers/subpackets) so
+               \* snap_check sees a fresh start, matching the InnerPhase3/4 fix:
+               \* a peer's direct CommitChild that races at Phase 2 changes the
+               \* inner child's linkage, invalidating the collected subpackets.
+               \* Clearing here prevents stale subpackets from being used in a
+               \* subsequent BundlePhase2 (lost increment → QuiescentCheck violation).
+               \* Also eagerly tag bundleNode (Grand) in addition to c (Parent),
+               \* matching the symmetric eager-tag pattern in InnerPhase3/4.
+               /\ LET node     == local[t].bundleNode
+                      children == ChildrenOf(node)
+                  IN
+                  /\ local' = [local EXCEPT
+                         ![t].wrapper     = Null,
+                         ![t].subwrappers = [cc \in children |-> Null],
+                         ![t].subpackets  = [cc \in children |-> Null]]
                /\ pc' = [pc EXCEPT ![t] = "snap_check"]
-               /\ priorityTag' = [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
-               /\ UNCHANGED <<serial, linkage, local, op, target, iterBudget, childQueue>>
+               /\ priorityTag' = [
+                      [priorityTag EXCEPT ![c] = TagAfterFail(t, c)]
+                          EXCEPT ![local[t].bundleNode] = TagAfterFail(t, local[t].bundleNode)]
+               /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue>>
 
 \* InnerPhase3: CAS each grandchild to BundledRefWrapper (one per action)
 \* C++ bundle() Phase3 (line 1260-1282) for inner child.

@@ -1,3 +1,53 @@
+* Sat May  3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- TLA+ formal models: three fixes and ohtaka verification results.
+
+  (1) BundleUnbundle_2level_LLfree_dynamic.tla — BundlePhase1 deadlock
+  fix for release_superfine config. When a child is released mid-collection
+  (ActiveChildren shrinks), Thread A's first disjunct
+  (∃c ∈ ActiveChildren : subwrappers[c] = Null) goes FALSE with all
+  remaining children already collected, leaving no enabled action.
+  Fix: second disjunct (∀c ∈ ActiveChildren : subwrappers[c] ≠ Null)
+  drops stale released-child entries and advances to bundle_phase2; Phase 2
+  CAS fails (parent updated by release) → BundleRetryPC → ReadParent
+  picks up the new parent wrapper. C++-faithful: same retry path as C++
+  (prestamp CAS → collection loop → Phase 2 CAS fail → snap_read retry).
+  Verified: release_superfine_live 2-thread exhaustive run on ohtaka —
+  413,884,516 distinct states / depth 320 / 7h 13min / counter 15–55 /
+  5,972 terminal emits / queue 0 (exhaustion) — Safety + liveness PASS.
+
+  (2) BundleUnbundle_3level_LLfree.tla — InnerPhase2 restart fix.
+  QuiescentCheck violated at depth 61 on ohtaka (spec 8fb19385, 3L
+  superfine confA, 2 leaf + 1 root). Root cause: InnerPhase2 (Phase 2
+  CAS for inner child = Parent) used UNCHANGED local on failure, leaving
+  subwrappers[Parent] non-Null. BundlePhase1 on restart saw
+  subwrappers[Parent] ≠ Null and skipped re-collecting Parent, proceeding
+  to BundlePhase2 with stale subpackets (pre-CommitChild payload value) →
+  lost increment. Fix: same pattern as InnerPhase3/InnerPhase4 — clear
+  outer bundle state (wrapper, subwrappers, subpackets) on failure, eagerly
+  tag bundleNode (Grand) in addition to inner child (Parent). C++-faithful:
+  bundle_subpacket returning DISTURBED from inner bundle Phase 2 causes
+  the outer Phase 1 child_retry to continue without updating
+  subwrappers_org[i], re-reading Parent fresh — equivalent to clearing and
+  re-collecting. All three inner-phase failure paths (InnerPhase2/3/4) now
+  consistently clear outer bundle state on DISTURBED. Sanity checks:
+  1-thread PASS (47 states); 2-thread coarse PASS (1,497,098 states /
+  depth 98 / 1:35 + liveness). 3L superfine confA/B re-submitted to ohtaka.
+
+  (3) Ohtaka results recorded:
+  3L 3thr superfine confC live: 640,894,951 states / depth 88 / 15:25:00
+    / counter 4–15 / 1,140 terminal emits — Safety + liveness PASS.
+    First formal proof of 3-level 3-thread superfine liveness.
+  2L-dyn 3thr-A live (Ins={1},Root={2},Leaf={3}): 53,397 states / depth 68
+    / 7 s / counter 10–15 / 42 terminals — PASS + liveness.
+  2L-dyn 3thr-B live (Ins={1},Root={2,3},Leaf={}): 149,137 states / depth
+    82 / 14 s / counter 8–15 / 22 terminals — PASS + liveness.
+  2L-dyn release superfine 2t live: 413,884,516 states / depth 320 / 7:13
+    / counter 15–55 / 5,972 terminals — PASS + liveness (see item 1).
+  Dynamic spec 2-thread verification now complete: coarse/superfine ×
+  no-release/release, all Safety + liveness PASS.
+
+  See tests/tlaplus/doc/verification_log.md for full results table.
+
 * Thu Apr 30 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - TLA+ formal models (tests/tlaplus/BundleUnbundle_3level_LLfree.tla,
   BundleUnbundle_2level_LLfree.tla): C++-fidelity fixes that close the

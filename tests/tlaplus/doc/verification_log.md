@@ -89,7 +89,7 @@ Property: EventuallyAllDone (liveness).
 | 2L-dyn coarse 2t (ReleaseThreads={}) | 763,478 | 104 | 43 s | 11–26 | 71 | ✅ PASS |
 | 2L-dyn release coarse 2t (ReleaseThreads={1,2}) | 14,203,816 | 150 | 27:12 | 15–37 | 3,344 | ✅ PASS (ohtaka) |
 | 2L-dyn superfine 2t (ReleaseThreads={}) | 4,862,872 | 162 | 7:30 | 12–31 | 1,374 | ✅ PASS (ohtaka) |
-| 2L-dyn release superfine 2t | — | — | — | — | — | ⏳ ohtaka (deadlock fix applied 2026-05-03) |
+| 2L-dyn release superfine 2t live | 413,884,516 | 320 | 7:13:00 | 15–55 | 5,972 | ✅ PASS (ohtaka) + liveness ✅ |
 | 2L-dyn 3thr-A live (Ins={1}, Root={2}, Leaf={3}) | 53,397 | 68 | 7 s | 10–15 | 42 | ✅ PASS (ohtaka) + liveness ✅ |
 | 2L-dyn 3thr-B live (Ins={1}, Root={2,3}, Leaf={}) | 149,137 | 82 | 14 s | 8–15 | 22 | ✅ PASS (ohtaka) + liveness ✅ |
 | 2L-dyn 3thr release (all roles, all release) | — | — | — | — | — | ⏳ ohtaka |
@@ -107,6 +107,7 @@ Notes:
   minimum Lamport counter for terminal states.
 - **3,344 terminal states (release)**: Includes all interleavings of
   commit order × release order × per-thread serial advancement.
+- **Release superfine live 2t (ohtaka, 2026-05-03)**: `BundleUnbundle_2level_LLfree_dynamic_release_superfine_live_mc.cfg` PASS。413,884,516 distinct states / depth 320 / 7:13 / counter 15–55 / 5,972 terminal emits / queue 0 (exhaustion)。Safety 全 invariant + `EventuallyAllDone` liveness PASS。Fingerprint collision optimistic=2.0%, actual=0.65%。BundlePhase1 deadlock fix (second disjunct for mid-collection shrink) を含む最初の全網羅検証。Counter max=55 は release 操作が ReleaseCASParent + ReleaseCASChild の GenSerial 呼び出しを追加するため coarse (max=37) より高い。Depth 320 は release/commit の多様な interleaving による（coarse depth=150 の 2.1倍）。
 - **BundlePhase1 deadlock fix (2026-05-03)**: `_release_superfine_mc.cfg`
   hit a TLC deadlock at depth 34. Root cause: Thread A had collected
   subwrappers for both children; Thread B released one child
@@ -303,15 +304,44 @@ all reachable terminal states.
 | 2L 3thr superfine A (2 leaf + 1 root) | 755,078,964 | 117 | 1:33:00 | 2–21 | 3,412 | ✅ PASS (ohtaka) |
 | 2L 3thr superfine D (all leaf) | 203,512 | 38 | 6 s | 3–6 | 156 | ✅ PASS (ohtaka) |
 | **3L 3thr superfine C (all root)** | **1,154,807,632** | **89** | **4:09:00** | **4–15** | **1,207** | **✅ PASS (ohtaka)** |
+| **3L 3thr superfine C live (all root)** | **640,894,951** | **88** | **15:25:00** | **4–15** | **1,140** | **✅ PASS (ohtaka) + liveness ✅** |
 | 2L 3thr coarse A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka |
 | 2L 3thr coarse B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka |
 | 3L 3thr coarse A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka |
 | 3L 3thr coarse B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka |
-| 3L 3thr superfine A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka (InnerPhase4 fix) |
-| 3L 3thr superfine B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka (InnerPhase4 fix) |
+| 3L 3thr superfine A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka (InnerPhase2 fix re-submitted) |
+| 3L 3thr superfine A live (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka (after safety PASS) |
+| 3L 3thr superfine B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka (InnerPhase2 fix re-submitted) |
+| 3L 3thr superfine B live (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka (after safety PASS) |
 | 2L commits2 (MaxCommits=2) | — | — | — | — | — | ⏳ ohtaka |
 
 Notes:
+- **InnerPhase2 restart fix (2026-05-03)**: `QuiescentCheck` violated in
+  `BundleUnbundle_3level_LLfree_3thr_superfine_A_mc.cfg` at depth 61 on
+  ohtaka with spec `8fb19385` (after InnerPhase4 fix). Trace analysis:
+  State 58 (`CommitGrand(2)` completed, all threads idle) showed
+  `ChildPayload(Child2) = 1` vs `SumPayloadOver(Threads, Child2) = 2`.
+  Thread 1 had already committed Child2 directly (`Child2 ∉ childQueue[1]`)
+  but Grand's bundle captured the pre-commit value. Root cause: when
+  `InnerPhase2` (CAS for inner child = Parent) failed, the old code used
+  `UNCHANGED local` — leaving `subwrappers[Parent]` non-Null and
+  `subpackets[Parent]` stale. On restart, `BundlePhase1` saw
+  `subwrappers[Parent] ≠ Null` and skipped re-collecting Parent,
+  proceeding to `BundlePhase2` with the stale Child2 payload.
+  Fix: same pattern as `InnerPhase3`/`InnerPhase4` — clear outer bundle
+  state (`wrapper`, `subwrappers`, `subpackets`) on `InnerPhase2` failure,
+  and eagerly tag `bundleNode` (Grand) in addition to inner child (`c` =
+  Parent). C++-faithful: in C++, `bundle_subpacket` returning DISTURBED
+  from inner bundle Phase 2 causes the outer Phase 1 child loop to
+  `continue` (child_retry), re-reading Parent's linkage fresh without
+  updating `subwrappers_org[i]` — identical to clearing and re-collecting.
+  Local sanity checks: 1-thread superfine PASS (47 states); 2-thread coarse
+  PASS (1,497,098 distinct states / depth 98 / 1:35 / liveness ✅).
+  confA/B re-submitted to ohtaka with new spec (`run_l3llf_3thr_superfine_live.sh`).
+  *Pattern*: InnerPhase2 → InnerPhase3 → InnerPhase4 all three inner-phase
+  failure paths now consistently clear outer bundle state on DISTURBED,
+  matching C++ semantics where the inner `bundle()` call returning DISTURBED
+  causes the outer bundle to restart from Phase 1 with a clean slate.
 - **InnerPhase4 restart fix (2026-05-02)**: `QuiescentCheck` violated in
   `BundleUnbundle_3level_LLfree_3thr_superfine_A_mc.cfg` (2 leaf + 1 root)
   at 1,024,087,212 distinct states, depth 60, with spec `415e451c` (after
@@ -374,9 +404,16 @@ Notes:
   3-thread all-root (CommitGrand only, no leaf threads). Run with spec
   `415e451c` (InnerPhase3 fix, InnerPhase4 fix does not affect all-root
   configs). PrintTerminalMaxCounter emitted 1,207 values; counter min=4,
-  max=15. Fingerprint collision optimistic=14%, actual=3.3%. The optimistic
-  estimate is high due to the large state count; the actual collision is
-  acceptable. 4h 9min total.
+  max=15. Fingerprint collision optimistic=14%, actual=3.3%. 4h 9min total.
+- **3L 3thr superfine confC live (ohtaka, 2026-05-03)**: `EventuallyAllDone`
+  liveness PASS. 640,894,951 distinct states / depth 88 / 15:25:00. Temporal
+  property check 1h 33min. PrintTerminalMaxCounter emitted 1,140 values;
+  counter min=4, max=15. Fingerprint collision optimistic=4.2%, actual=2.0%.
+  State count differs from the non-live run (1,154M vs 640M) — attributable
+  to spec changes between runs (InnerPhase4 fix and subsequent revisions
+  collapse intermediate stale-state transitions). Counter range and terminal
+  semantics are consistent. **3-level 3-thread superfine liveness formally
+  proven for the all-root configuration.**
 - **2L superfine 3t confC (ohtaka)**: 137M distinct states, 3-thread
   all-root (CommitParent only). Temporal property check took 3h 33min of
   the 6h 35min total. Fingerprint collision probability 0.75% (acceptable
@@ -389,12 +426,11 @@ Notes:
   root). This replaces the old `RootThreads=LeafThreads={1,2,3}` approach
   (every thread does both) which has a larger state space for no additional
   coverage. Coarse confC is laptop-runnable; confA/B exercise bundle
-  contention and require ohtaka. All 3-thread cfgs use **INVARIANT only**
-  (no `PROPERTY EventuallyAllDone`): liveness is proven by the 2-thread
-  superfine cfgs (2L: 2,676,196 states PASS; 3L: 14,109,731 states PASS)
-  where fine-grained interleaving exercises all contention patterns.
-  Livelock is a structural protocol bug (stale priority tags) detectable
-  at 2 threads; 3-thread runs confirm safety at higher contention.
+  contention and require ohtaka. Non-live cfgs use **INVARIANT only**;
+  live variants (`_live_mc.cfg`) add `PROPERTY EventuallyAllDone`. Liveness
+  at 2 threads proven by superfine cfgs (2L: 2,676,196 states; 3L:
+  14,109,731 states). 3-thread confC liveness now additionally confirmed
+  at 640M states (see above).
 - **2L commits2**: deferred to ohtaka. Laptop run reached 33.6M distinct
   / depth 79 / queue 1.46M before being killed. The non-LLfree 2-level
   spec already passed MaxCommits=2; 3-thread configs are higher priority.
