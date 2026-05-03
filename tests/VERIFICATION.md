@@ -2,14 +2,15 @@
 
 ## Overview
 
-Three complementary verification approaches covering the full stack:
+Three complementary verification approaches covering the full stack.
+TLA+ layers: Layer 0 = `atomic_shared_ptr` protocol; Layer 1 = 2-level bundle/unbundle (LL-free); Layer 2 = 3-level bundle/unbundle (recursive inner bundle).
 
 | Layer | Tool | Target | What it verifies |
 |---|---|---|---|
 | Memory model | GenMC v0.16.1 (RC11) | `atomic_shared_ptr` | `memory_order_relaxed` / `acq_rel` safety under weak memory |
 | Layer 0 (TLA+) | TLC | `atomic_shared_ptr` | Tagged-pointer refcounting protocol (scan/CAS/reset) with ABA + non-atomic reads |
-| Layer 1 (TLA+) | TLC | STM commit | Single-node optimistic Snapshot + Write + Commit cycle |
-| Layer 2 (TLA+) | TLC | bundle/unbundle | Multi-phase CAS protocol for subtree atomic snapshots |
+| Layer 1 (TLA+) | TLC | 2-level bundle/unbundle | Multi-phase CAS + LL-free priority for 2-level subtree (Parent → Children); static + dynamic |
+| Layer 2 (TLA+) | TLC | 3-level bundle/unbundle | Same protocol extended to 3-level tree (Grand → Parent → Children); recursive inner bundle |
 
 ---
 
@@ -161,89 +162,44 @@ thread interleavings of the higher-level CAS protocol.
 
 ---
 
-## 3. TLA+ Layer 1: STM Commit Protocol Verification
+## 3. TLA+ Layer 1: 2-level bundle/unbundle Verification
 
 **Directory:** `tests/tlaplus/`  
-**Spec:** `stm_commit.tla`
+**Specs:** `BundleUnbundle_2level_LLfree.tla`, `BundleUnbundle_2level_LLfree_dynamic.tla`
 
 ### What it tests
 
-The optimistic concurrency control cycle for single-node transactions from `kame/transaction.h`
-and `kame/transaction_impl.h`. Abstracts `atomic_shared_ptr` (verified in Layer 0) as a
-correct atomic register.
+The multi-phase CAS bundle/unbundle protocol for a 2-level tree (Parent → {Child1, Child2}),
+plus the livelock-free (LL-free) priority mechanism. Models `bundle()`, `unbundle()`,
+`commit()`, and `snapshot()` from `kame/transaction_impl.h` for the 2-level case.
 
-### Modeled cycle
+### Priority (LL-free) mechanism
 
-1. **Snapshot**: Read current `PacketWrapper` via atomic scan (captures `node_val` + `node_serial`)
-2. **Write**: Copy-on-write modification of payload (both nondeterministic and deterministic increment)
-3. **Commit**: CAS on `m_link` — succeeds only if `(node_val, node_serial)` unchanged since snapshot
-4. **Retry**: On CAS failure, take new snapshot and repeat (`iterate_commit` pattern)
+`priorityTag[n] ∈ {Null} ∪ ({0..MaxIter} × Threads)` per node. Older transaction (smaller
+iter, then smaller tid) wins. CAS failure → set own tag if older (`TagAfterFail`). Older tag
+blocks younger threads (`CanProceed`). `PreemptTag` lets an active older thread snatch a tag.
+Tags cleared only on commit success (`ClearMyTags`). Mirrors `m_priority_tidstamp` /
+`ScopedNegotiateLinkage` in `transaction_impl.h`.
 
-### Verified invariants (6)
+### Specification generations
 
-| Invariant | Description |
-|---|---|
-| `NoLostUpdate` | If two threads both committed, at least 2 serial increments occurred |
-| `CommitSerializes` | Total commits across all threads <= node_serial |
-| `SnapshotBeforeCommit` | Each committer's snapshot serial < current serial |
-| `WriteReadConsistency` | Last committer's write value is reflected in node_val |
-| `ValueBounded` | node_val <= MaxVal |
-| `TypeOK` | Type invariant |
+| Generation | Serial | Finiteness | Liveness | Status |
+|---|---|---|---|---|
+| Gen 1 (modular) | `% MaxSerial` wrap | Structural | Fails (SerialWrapAround violated) | Counter-example: shows LL-free necessary |
+| Gen 2 (Nat+CONSTRAINT) | Nat monotone | `CONSTRAINT SerialBound` cutoff | Not proven | Shows Nat alone insufficient |
+| **Gen 3 (LL-free)** | Nat monotone | **Structural** (priority bounds retries) | **Proven** | **Current reference** |
 
-### Results
+### Static spec: `BundleUnbundle_2level_LLfree.tla`
 
-| Threads | MaxVal | MaxSerial | Distinct states | Depth | Time | Result |
-|---|---|---|---|---|---|---|
-| 3 | 3 | 6 | 109,901,200 | 27 | 10min | **Pass (complete)** |
+- 4-phase bundle: collect sub-packets → CAS parent (missing=TRUE) → CAS each child to
+  BundledRef → CAS parent (missing=FALSE, finalize)
+- Unbundle for commit: mark child slot Null (missing=TRUE) → restore child priority
+- 3 atomicity granularities: `coarse` / `fine` / `superfine` (most C++-faithful)
 
----
+### Dynamic spec: `BundleUnbundle_2level_LLfree_dynamic.tla`
 
-## 4. TLA+ Layer 2: bundle/unbundle Protocol Verification
-
-**Directory:** `tests/tlaplus/` (also `tests/tla_bundle/`)
-
-### What it tests
-
-The multi-phase CAS protocol that makes subtrees atomically snapshotable. The specification
-models `bundle()`, `unbundle()`, `commit()`, and `snapshot()` from `kame/transaction_impl.h`.
-
-### Two models
-
-#### Model A: 2-level tree (Parent → {Child1, Child2})
-
-Simpler model covering:
-- 4-phase bundle protocol (collect → CAS parent → CAS children → finalize)
-- Unbundle for commit (CAS parent to mark slot missing → CAS child to restore priority)
-- Concurrent snapshot + commit interference
-- Single-node commit optimization (adopt new children if payload unchanged)
-
-#### Model B: 3-level tree (Grand → Parent → {Child1, Child2})
-
-Full model additionally covering:
-- **Recursive bundling**: `snapshot(Grand)` bundles Parent, which bundles Children
-- **Multi-level unbundle**: `commit(Child)` when bundled 2 levels deep (Child→Parent→Grand)
-- **`snapshotSupernode()` walk**: traversing `bundledBy` chain up 2 levels
-- **`BundledByCorrect` invariant**: `bundledBy` always points to structural parent
-
-### Modeled operations
-
-**Snapshot (triggers bundle if needed):**
-1. Read node's linkage
-2. If `hasPriority` and not `missing`: fast path (return packet)
-3. If `hasPriority` and `missing`: 4-phase bundle:
-   - Phase 1: Collect sub-packets from children
-   - Phase 2: CAS node's linkage with new packet (missing=TRUE)
-   - Phase 3: CAS each child to `BundledRefWrapper` (back-reference to parent)
-   - Phase 4: CAS node's linkage with missing=FALSE (finalize)
-4. If not `hasPriority` (bundled): retry
-
-**Commit (triggers unbundle if needed):**
-1. Read target node's linkage
-2. If `hasPriority`: CAS with new payload (fast path)
-   - Single-node optimization: if CAS fails but payload unchanged, adopt new children
-3. If bundled: unbundle walk
-   - 1-level: CAS parent (mark child slot Null, missing=TRUE) → CAS child (restore priority)
-   - 2-level (Model B only): CAS grandparent → restore parent → CAS child
+Extends the static spec with online child insertion (`insert(online=true)`) and release.
+Thread roles configurable via `InsertThreads`, `RootThreads`, `LeafThreads`, `ReleaseThreads`.
 
 ### Verified invariants
 
@@ -251,59 +207,108 @@ Full model additionally covering:
 |---|---|
 | `SnapshotConsistency` | If node has `missing=FALSE`, all sub-packets exist |
 | `NoPriorityLoss` | Non-root nodes always have `hasPriority=TRUE` or `bundledBy≠Null` |
-| `BundleChainValid` | (Model B) Bundled node's `bundledBy` target is priority or itself bundled |
-| `BundledByCorrect` | (Model B) `bundledBy` always points to the structural parent |
-| `GrandAlwaysPriority` | (Model B) Root node always has priority |
-| `BundleRefConsistency` | (Model A) If child bundled to parent, parent has priority |
+| `BundleRefConsistency` | If child is bundled to parent, parent has priority |
+| `MissingPropagation` | `missing=TRUE` propagates to all ancestors |
+| `TerminalPayloadCheck` | At termination each child received exactly the expected increments |
+| `EventuallyAllDone` (PROPERTY) | All threads eventually complete — formal liveness proof |
 
-### Modular serial arithmetic
+### Selected results (Gen 3, CONSTRAINT-free exhaustion)
 
-Serials and payload versions use modular arithmetic (`% MaxSerial`, `% MaxPayload`) to make
-the state space naturally finite without artificial CONSTRAINT cutoffs.
+| Config | Threads | Distinct states | Depth | Time | Result |
+|---|---|---|---|---|---|
+| 2-thread coarse | 2 | 665,218 | 89 | 28 s | **Pass + liveness** |
+| 2-thread superfine | 2 | 2,676,196 | 129 | 3:12 | **Pass + liveness** |
+| 3-thread superfine confC (all-root) | 3 | 137,333,348 | 96 | 6:35 | **Pass** (ohtaka) |
+| MaxCommits=2 superfine | 2 | 127,586,599 | 311 | 4:40 | **Pass** (ohtaka) |
+| dynamic release superfine live | 2 | 413,884,516 | 320 | 7:13 | **Pass + liveness** (ohtaka) |
 
-### Results
+Full results: `tests/tlaplus/doc/verification_log.md`
 
-| Model | Threads | MaxSerial | MaxPayload | Distinct states | Depth | Time | Result |
-|---|---|---|---|---|---|---|---|
-| A: 2-level | 2 | N/A* | 2 | 3,967,507 | 62 | 11s | **Pass (complete)** |
-| B: 3-level | 2 | 3 | 1 | 622,118,022 | 167 | 4h 20min | **Pass (complete)** |
+### Build & run
 
-*Model A uses CONSTRAINT StateConstraint with MaxPayload=2 instead of modular arithmetic.
+```bash
+cd tests/tlaplus
+# tla2tools.jar included; requires OpenJDK 21+
+
+# 1-thread sanity (< 1 s)
+java -XX:+UseParallelGC -Xmx8g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_2level_LLfree_coarse_mc.cfg \
+  BundleUnbundle_2level_LLfree.tla
+
+# 2-thread coarse with liveness (~30 s)
+java -XX:+UseParallelGC -Xmx14g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_2level_LLfree_coarse_mc.cfg \
+  BundleUnbundle_2level_LLfree.tla
+```
+
+---
+
+## 4. TLA+ Layer 2: 3-level bundle/unbundle Verification
+
+**Directory:** `tests/tlaplus/`  
+**Spec:** `BundleUnbundle_3level_LLfree.tla`
+
+### What it tests
+
+Same protocol as Layer 1 extended to a 3-level tree (Grand → Parent → {Child1, Child2}).
+Additionally verifies recursive bundling (snapshot of Grand triggers inner bundle of Parent)
+and multi-level unbundle walk.
+
+### Additional coverage vs Layer 1
+
+- **Recursive inner bundle**: `InnerPhase2/3/4` model the inner `bundle()` call when
+  `snapshot(Grand)` encounters Parent with `missing=TRUE`
+- **Multi-level unbundle walk**: `commit(Child)` when Child is bundled 2 levels deep
+  (Child → Parent → Grand); walk traverses `bundledBy` chain up to Grand
+- **`BundleChainValid`** / **`BundledByCorrect`** invariants: structural correctness of
+  the 3-level `bundledBy` chain
+
+### Verified invariants (adds to Layer 1)
+
+| Invariant | Description |
+|---|---|
+| `BundleChainValid` | Bundled node's `bundledBy` target is priority or itself bundled |
+| `BundledByCorrect` | `bundledBy` always points to the structural parent |
+| `GrandAlwaysPriority` | Root (Grand) node always has priority |
+
+### Selected results (Gen 3, CONSTRAINT-free exhaustion)
+
+| Config | Threads | Distinct states | Depth | Time | Result |
+|---|---|---|---|---|---|
+| 2-thread coarse | 2 | 1,497,098 | 98 | 1:35 | **Pass + liveness** |
+| 2-thread superfine | 2 | 14,109,731 | 148 | 19:13 | **Pass + liveness** |
+| 3-thread superfine confC (all-root) | 3 | 640,894,951 | 88 | 15:25 | **Pass + liveness** (ohtaka) |
+
+Full results: `tests/tlaplus/doc/verification_log.md`
 
 ### Build & run
 
 ```bash
 cd tests/tlaplus
 
-# Java required
-brew install openjdk
-export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+# 1-thread sanity (< 1 s)
+java -XX:+UseParallelGC -Xmx8g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_3level_LLfree_1thr_superfine_mc.cfg \
+  BundleUnbundle_3level_LLfree.tla
 
-# All TLA+ specs (Layer 0, 1, 2) and tla2tools.jar are in this directory.
-
-# Layer 0: atomic_shared_ptr (fast — 9 min)
-java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
-  atomic_shared_ptr -config atomic_shared_ptr_mc.cfg -workers auto
-
-# Layer 1: STM commit (fast — 10 min)
-java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
-  stm_commit -config stm_commit_mc.cfg -workers auto
-
-# Layer 2, Model A: 2-level bundle/unbundle (fast — 11s)
-java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
-  MC_2level -config MC_2level.cfg -workers auto
-
-# Layer 2, Model B: 3-level bundle/unbundle (heavy — ~4.5 hours, 622M states)
-# Use -metadir on a disk with >50GB free space for state files.
-java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
-  MC -config MC.cfg -metadir /path/to/large/disk/states -workers auto
+# 2-thread coarse with liveness (~2 min)
+java -XX:+UseParallelGC -Xmx14g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_3level_LLfree_coarse_mc.cfg \
+  BundleUnbundle_3level_LLfree.tla
 ```
 
-### Liveness
+Large configs (3-thread superfine) require a supercomputer; see
+`tests/tlaplus/doc/ohtaka_handoff.md`.
 
-Lock-free progress (`~>`) was tested but violated — this is expected. The protocol is
-lock-free (system-wide progress) but not wait-free (per-thread). The `negotiate()` backoff
-mechanism, which provides fairness in the real implementation, is not modeled.
+### Liveness (both Layer 1 and Layer 2)
+
+**Lock-free + livelock-free formally proven** via `EventuallyAllDone` PROPERTY. Priority
+gating makes unbounded retries structurally impossible: serials increment monotonically, the
+state graph is acyclic, and TLC terminates without `CONSTRAINT`. See
+`tests/tlaplus/doc/proof_semantics.md` §2–§4 for the full argument.
+
+Wait-free is not claimed — CAS-retry-based with fairness (`WF_vars`) required for per-thread
+liveness. See `proof_semantics.md` §7.
 
 ---
 
