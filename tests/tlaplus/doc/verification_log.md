@@ -87,9 +87,12 @@ Property: EventuallyAllDone (liveness).
 |---|---|---|---|---|---|---|
 | 2L-dyn 1thr coarse | 70 | 36 | < 1 s | 11 | 2 | ✅ PASS |
 | 2L-dyn coarse 2t (ReleaseThreads={}) | 763,478 | 104 | 43 s | 11–26 | 71 | ✅ PASS |
-| 2L-dyn release coarse 2t (ReleaseThreads={1,2}) | 14,203,816 | 150 | 19:03 | 15–37 | 3,344 | ✅ PASS |
-| 2L-dyn superfine 2t (ReleaseThreads={}) | 4,862,872 | 162 | 7:05 | 12–31 | 1,374 | ✅ PASS |
-| 2L-dyn release superfine 2t | — | — | — | — | — | ⏳ ohtaka |
+| 2L-dyn release coarse 2t (ReleaseThreads={1,2}) | 14,203,816 | 150 | 27:12 | 15–37 | 3,344 | ✅ PASS (ohtaka) |
+| 2L-dyn superfine 2t (ReleaseThreads={}) | 4,862,872 | 162 | 7:30 | 12–31 | 1,374 | ✅ PASS (ohtaka) |
+| 2L-dyn release superfine 2t | — | — | — | — | — | ⏳ ohtaka (deadlock fix applied 2026-05-03) |
+| 2L-dyn 3thr-A live (Ins={1}, Root={2}, Leaf={3}) | 53,397 | 68 | 7 s | 10–15 | 42 | ✅ PASS (ohtaka) + liveness ✅ |
+| 2L-dyn 3thr-B live (Ins={1}, Root={2,3}, Leaf={}) | 149,137 | 82 | 14 s | 8–15 | 22 | ✅ PASS (ohtaka) + liveness ✅ |
+| 2L-dyn 3thr release (all roles, all release) | — | — | — | — | — | ⏳ ohtaka |
 
 Notes:
 - **State count with ReleaseThreads={}**: 763,478 vs static spec's 763,675
@@ -104,6 +107,22 @@ Notes:
   minimum Lamport counter for terminal states.
 - **3,344 terminal states (release)**: Includes all interleavings of
   commit order × release order × per-thread serial advancement.
+- **BundlePhase1 deadlock fix (2026-05-03)**: `_release_superfine_mc.cfg`
+  hit a TLC deadlock at depth 34. Root cause: Thread A had collected
+  subwrappers for both children; Thread B released one child
+  (`inserted[c]=FALSE`, `linkage[Parent]` updated). The surviving
+  `ActiveChildren = {remaining_child}` had its subwrapper already
+  collected, so the first disjunct (`∃c ∈ ActiveChildren :
+  subwrappers[c] = Null`) was FALSE, and no action was enabled.
+  Fix: added second disjunct to `BundlePhase1` fine/superfine branch:
+  when `∀c ∈ ActiveChildren : subwrappers[c] ≠ Null` (mid-collection
+  shrink detected), drop stale released-child entries and advance to
+  `bundle_phase2`. Phase 2 CAS then fails (parent updated by release),
+  retries from `BundleRetryPC` → `ReadParent` picks up the new parent
+  wrapper (released child removed). C++-faithful: same path as C++
+  (prestamp CAS → collection loop → Phase 2 CAS fails → snap_read retry).
+  Local check: depth 45 reached without deadlock, terminal states
+  (counter 15–18) observed. Full exhaustive verification: ohtaka.
 
 ### Source files
 
@@ -112,6 +131,10 @@ Notes:
 - `*_coarse_mc.cfg` — 2-thread coarse, ReleaseThreads={}
 - `*_superfine_mc.cfg` — 2-thread superfine, ReleaseThreads={}
 - `*_release_coarse_mc.cfg` — 2-thread coarse, ReleaseThreads={1,2}
+- `*_release_superfine_mc.cfg` — 2-thread superfine, ReleaseThreads={1,2} (deadlock fix applied)
+- `*_3thr_A_mc.cfg` / `*_3thr_A_live_mc.cfg` — 3-thread Ins={1}/Root={2}/Leaf={3}, w/ and w/o liveness
+- `*_3thr_B_mc.cfg` / `*_3thr_B_live_mc.cfg` — 3-thread Ins={1}/Root={2,3}/Leaf={}, w/ and w/o liveness
+- `*_3thr_release_mc.cfg` / `*_3thr_release_live_mc.cfg` — 3-thread all-roles + release
 
 ---
 

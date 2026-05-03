@@ -378,6 +378,19 @@ BundlePhase1(t) ==
                                /\ UNCHANGED <<serial, linkage, op, target, inserted,
                                               insertTarget, releaseTarget, everInserted,
                                               iterBudget, childQueue, commitCount>>
+            \* All active children already have subwrappers, but ActiveChildren shrank
+            \* mid-collection (a child was released). Drop stale released-child entries
+            \* and advance to bundle_phase2 to complete the bundle with surviving children.
+            \/ /\ \A c \in ActiveChildren : local[t].subwrappers[c] /= Null
+               /\ local' = [local EXCEPT
+                        ![t].subwrappers = [c2 \in AllChildren |->
+                            IF c2 \in ActiveChildren THEN local[t].subwrappers[c2] ELSE Null],
+                        ![t].subpackets  = [c2 \in AllChildren |->
+                            IF c2 \in ActiveChildren THEN local[t].subpackets[c2] ELSE Null]]
+               /\ pc' = [pc EXCEPT ![t] = "bundle_phase2"]
+               /\ UNCHANGED <<serial, linkage, op, target, priorityTag,
+                              inserted, insertTarget, releaseTarget, everInserted,
+                              iterBudget, childQueue, commitCount>>
 
 BundlePhase2(t) ==
     /\ pc[t] = "bundle_phase2"
