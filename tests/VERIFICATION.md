@@ -3,15 +3,13 @@
 ## Overview
 
 Three complementary verification approaches covering the full stack.
-TLA+ layers: Layer 0 = `atomic_shared_ptr` protocol; Layer 1 = 2-level bundle/unbundle (LL-free); Layer 2 = 3-level bundle/unbundle (recursive inner bundle).
+TLA+ layers: Layer 0 = `atomic_shared_ptr` protocol; Layer 2 = commit + 2/3-level bundle/unbundle.
 
 | Layer | Tool | Target | What it verifies |
 |---|---|---|---|
 | Memory model | GenMC v0.16.1 (RC11) | `atomic_shared_ptr` | `memory_order_relaxed` / `acq_rel` safety under weak memory |
-| Layer 0 (TLA+) | TLC | `atomic_shared_ptr` | Tagged-pointer refcounting protocol (scan/CAS/reset) with ABA + non-atomic reads |
-| Layer 1 (TLA+) | TLC | 2-level bundle/unbundle | Multi-phase CAS + LL-free priority for 2-level subtree (Parent → Children); static + dynamic |
-| Layer 2 (TLA+) | TLC | 3-level bundle/unbundle | Same protocol extended to 3-level tree (Grand → Parent → Children); recursive inner bundle |
-
+| Layer 1 (TLA+) | TLC | `atomic_shared_ptr` | Tagged-pointer refcounting protocol (scan/CAS/reset) with ABA + non-atomic reads |
+| Layer 2 (TLA+) | TLC | 2-level bundle/unbundle | Multi-phase CAS + LL-free priority for 2-level subtree (Parent → Children)/ 3-level subtree (Grand → Parent → Children); recursive inner bundle; static + dynamic |
 ---
 
 ## 1. GenMC: `atomic_shared_ptr` Memory Model Verification
@@ -107,7 +105,7 @@ The `--unroll=5` flag bounds CAS retry loops. Increase if GenMC warns about insu
 
 ---
 
-## 2. TLA+ Layer 0: `atomic_shared_ptr` Protocol Verification
+## 2. TLA+ Layer 1: `atomic_shared_ptr` Protocol Verification
 
 **Directory:** `tests/tlaplus/`  
 **Spec:** `atomic_shared_ptr.tla`
@@ -162,7 +160,7 @@ thread interleavings of the higher-level CAS protocol.
 
 ---
 
-## 3. TLA+ Layer 1: 2-level bundle/unbundle Verification
+## 3. TLA+ Layer 2, 2-level bundle/unbundle Verification:
 
 **Directory:** `tests/tlaplus/`  
 **Specs:** `BundleUnbundle_2level_LLfree.tla`, `BundleUnbundle_2level_LLfree_dynamic.tla`
@@ -243,7 +241,7 @@ java -XX:+UseParallelGC -Xmx14g -cp tla2tools.jar tlc2.TLC \
 
 ---
 
-## 4. TLA+ Layer 2: 3-level bundle/unbundle Verification
+## 4. TLA+ Layer 2, 3-level bundle/unbundle Verification:
 
 **Directory:** `tests/tlaplus/`  
 **Spec:** `BundleUnbundle_3level_LLfree.tla`
