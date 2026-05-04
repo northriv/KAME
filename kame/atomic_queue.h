@@ -76,7 +76,7 @@ public:
                 break;
             }
         }
-        for(;;) {
+        for(int spins = 1;;) {
             atomic<T> *last = m_pLast;
             atomic<T> *last_org = last;
             //finds zero.
@@ -84,6 +84,10 @@ public:
                 last++;
                 if(last == &m_ptrs[SIZE]) {
                     last = m_ptrs;
+
+                    spins *= 2;
+                    for(int i = 0; i < spins - 1; ++i)
+                        pause4spin(); //exponential backoff.
                 }
             }
             //tags the end of the queue.

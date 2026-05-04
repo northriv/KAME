@@ -1,5 +1,81 @@
 # TLA+ Verification Log
 
+## 2026-05-04: 3-level dynamic model (`BundleUnbundle_3level_LLfree_dynamic.tla`)
+
+### Context
+
+New TLA+ spec combining `BundleUnbundle_3level_LLfree.tla` (static Grand→Parent→{Child1,Child2}
+bundle/unbundle protocol) with `BundleUnbundle_2level_LLfree_dynamic.tla` (dynamic child
+insertion/release). Models the full 3-level LL-free protocol where DynChild1 and DynChild2 are
+dynamically inserted and released at runtime. All thread roles configurable via constants.
+
+### Design
+
+- **Tree**: Grand → Parent → {DynChild1, DynChild2} (children start unattached)
+- **`ChildrenOf(Parent) = ActiveChildren`**: state-dependent set of currently inserted children
+- **`SubDomainOf(Parent) = AllChildren`**: sub-packet domain always covers all possible children
+  (inserted or not) to prevent domain mismatch across bundle/unbundle
+- **`BundlePhase1` dispatch**: `IF bundleNode=Grand THEN 3L-static logic (with InnerPhase)`
+  `ELSE 2L-dynamic logic (with shrink disjunct)`. Clean separation of the two bundling contexts.
+- **`InnerPhase3` fixed grandchild set**: `{gc ∈ AllChildren : innerSubWs[gc] ≠ Null}` — uses
+  the collected set, not current `ActiveChildren`, to avoid stale-set after mid-InnerPhase release.
+- **`CommitGrand` dynamic discovery**: `snapChildren = {c ∈ AllChildren : parentPkt.sub[c] ≠ Null}`
+  discovers active children from the snapshot packet; no dependence on `ActiveChildren` at commit time.
+- **`commitCount[c]`**: Per-child counter (inherited from 2L dynamic) for `TerminalPayloadCheck`.
+- **`BundleRetryPC`**: Routes retry to `"insert_snap"` / `"release_snap"` / `"snap_check"` based
+  on `op[t]`.
+
+### Key design challenges
+
+1. **Sub-packet domain consistency**: Parent bundles use `AllChildren` as the domain of `sub[·]`
+   even while children are released (their slots become Null). If the domain changed dynamically,
+   a bundle captured before release and an unbundle occurring after would have mismatched domains.
+   Fixed by `SubDomainOf(Parent) = AllChildren` always.
+
+2. **`InitLocal` field domains**: `subwrappers`, `subpackets`, `innerSubWs` all use `AllNodes`
+   as domain to avoid conflicts: Grand-level bundling needs a `Parent` slot, Parent-level bundling
+   needs `DynChild1/2` slots. A per-role domain would cause TLC domain mismatch on role transitions.
+
+3. **`BundlePhase2` explicit domain reconstruction**:
+   `IF node=Parent THEN [c ∈ AllChildren |-> subs[c]] ELSE [c ∈ GrandChildren |-> subs[c]]`
+   matches the domain expected by `CommitGrand`'s `snapChildren` discovery.
+
+4. **`InnerPhase3` stale set**: After `BundlePhase1` collects grandchild wrappers into
+   `innerSubWs`, a release may shrink `ActiveChildren`. Using `ActiveChildren` in `InnerPhase3`
+   would skip collected-but-released entries. Fix: use the collected set
+   `{gc ∈ AllChildren : innerSubWs[gc] ≠ Null}` (same pattern as InnerPhase4 fix for 3L static).
+
+### Source files
+
+- `BundleUnbundle_3level_LLfree_dynamic.tla` — 3L dynamic spec
+- `*_1thr_mc.cfg` — 1-thread sanity (coarse; all roles in Thread 1)
+- `*_coarse_mc.cfg` — 2-thread coarse, ReleaseThreads={}
+- `*_release_coarse_mc.cfg` — 2-thread coarse, ReleaseThreads={1,2}
+- `*_3thr_A_mc.cfg` — ohtaka superfine, Ins={1}/Root={2}/Leaf={3}, no release
+- `*_3thr_B_mc.cfg` — ohtaka superfine, Ins={1}/Root={2,3}/Leaf={}, no release
+- `*_3thr_release_mc.cfg` — ohtaka superfine, Ins={1}/Root={2}/Leaf={3}, all threads release
+
+### Verification results
+
+| cfg | distinct states | depth | wall time | Lamport counter (min–max) | terminal states | result |
+|---|---|---|---|---|---|---|
+| 3L-dyn 1thr coarse | 66 | 36 | < 1 s | 11 | 2 | ✅ PASS |
+| 3L-dyn coarse 2t (ReleaseThreads={}) | 6,444,080 | 127 | 8:11 | 10–30 | 2,700 | ✅ PASS + liveness ✅ |
+| 3L-dyn release coarse 2t (ReleaseThreads={1,2}) | — | — | — | — | — | ⏳ local (est. ~115M states) |
+| 3L-dyn 3thr-A live (Ins={1},Root={2},Leaf={3}) | 122,150 | 87 | 10 s | 5–15 | 157 | ✅ PASS (ohtaka) + liveness ✅ |
+| 3L-dyn 3thr-B live (Ins={1},Root={2,3},Leaf={}) | 120,193 | 75 | 10 s | 5–10 | 58 | ✅ PASS (ohtaka) + liveness ✅ |
+| 3L-dyn 3thr release (Ins={1},Root={2},Leaf={3}, all release) | — | — | — | — | — | ⏳ ohtaka |
+
+Notes:
+- **1thr counter=11**: Same as 2L-dyn 1thr, confirming correct terminal state accounting (both children inserted + 1 commit each via CommitGrand/CommitChild, 4 GenSerial calls).
+- **2t coarse state count (6.4M)**: 4.3× larger than 3L static coarse (1.5M) and 8.4× larger than 2L-dyn coarse (763K), reflecting the combined Grand/Parent/Child bundle machinery plus insert sequencing.
+- **Counter min=10**: Lower than 3L static coarse min=6 — insert operations add GenSerial calls (InsertCASParent + InsertCASChild) before any commit, raising the baseline counter.
+- **Counter max=30**: Higher than 3L static coarse max=22, accounting for the additional insert/discovery phase Lamport steps.
+- **release coarse est. ~115M states**: Based on 2L-dyn release-coarse/no-release-coarse ratio of 18.6× applied to 6.4M. Too large for routine local runs; designated as ohtaka target.
+- **3thr-A/B live (ohtaka, 2026-05-04)**: State counts (122K / 120K) are comparable to 2L-dyn 3thr-A/B (53K / 149K), confirming that role-separated 3-thread configs remain tractable despite the extra Grand level. Counter min=5 is lower than 2t coarse (min=10) because separated roles with MaxCommits=1 allow shorter paths where fewer Lamport steps accumulate before termination. 3thr-A has more terminal states (157) than 3thr-B (58) due to additional interleaving from separate LeafThreads. Both fingerprint collision rates are negligible (≤6.2E-8).
+
+---
+
 ## 2026-05-01: Dynamic insert/release model (`BundleUnbundle_2level_LLfree_dynamic.tla`)
 
 ### Context

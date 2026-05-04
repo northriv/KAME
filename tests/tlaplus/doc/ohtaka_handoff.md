@@ -48,8 +48,11 @@ CFG=BundleUnbundle_2level_LLfree_dynamic_3thr_release_mc.cfg \
 | 3L | `_3thr_superfine_B_mc.cfg` | **要投入** | InnerPhase2 fix 適用済み |
 | 3L | `_3thr_superfine_B_live_mc.cfg` | safety PASS 後 | |
 | 2L-dyn | `_3thr_release_mc.cfg` | **要投入** | 3-thread + release |
+| **3L-dyn** | `_3thr_release_mc.cfg` | **要投入 (local PASS 後)** | Ins={1}/Root={2}/Leaf={3}, all release |
 
 ### 完了済み (最新)
+- 3L-dyn 3thr-A live — 122K states, PASS + liveness (2026-05-04)
+- 3L-dyn 3thr-B live — 120K states, PASS + liveness (2026-05-04)
 - 3L superfine confC live — 640M states, PASS + liveness (2026-05-03)
 - 2L-dyn release superfine live — 413M states, PASS + liveness (2026-05-03)
 - 2L-dyn 3thr-A/B live — 53K / 149K states, PASS + liveness (2026-05-03)
@@ -108,12 +111,50 @@ ohtaka 向け大規模 cfg は `INVARIANT PrintTerminalMaxCounter` を使用。
 
 ---
 
-## spec の現在の状態 (2026-05-03)
+## spec の現在の状態 (2026-05-04)
 
 | spec | ファイル | 主な修正履歴 |
 |---|---|---|
 | 2L LLfree | `BundleUnbundle_2level_LLfree.tla` | GenSerial Lamport, UnbundleWalk root-first, Terminating disjunct |
 | 2L dynamic | `BundleUnbundle_2level_LLfree_dynamic.tla` | 上記 + BundlePhase1 second disjunct (deadlock fix) |
 | 3L LLfree | `BundleUnbundle_3level_LLfree.tla` | 2L 修正 + InnerPhase2/3/4 outer-bundle-clear on DISTURBED |
+| **3L dynamic** | **`BundleUnbundle_3level_LLfree_dynamic.tla`** | **3L static + 2L dynamic 統合. BundlePhase1 dispatch on bundleNode, SubDomainOf = AllChildren, InnerPhase3 fixed grandchild set, CommitGrand dynamic discovery** |
 
 詳細な修正経緯は `verification_log.md` の Notes 節を参照。
+
+### 3L dynamic sbatch コマンド (local sanity PASS 後に投入)
+
+```bash
+# 3L dynamic 3thr-A (insert/root/leaf separated, no release)
+CFG=BundleUnbundle_3level_LLfree_dynamic_3thr_A_mc.cfg \
+  sbatch ohtaka/run_l3llf_3thr_superfine_live.sh
+
+# 3L dynamic 3thr-B (insert + 2 root, no leaf)
+CFG=BundleUnbundle_3level_LLfree_dynamic_3thr_B_mc.cfg \
+  sbatch ohtaka/run_l3llf_3thr_superfine_live.sh
+
+# 3L dynamic 3thr release (insert/root/leaf + all release)
+CFG=BundleUnbundle_3level_LLfree_dynamic_3thr_release_mc.cfg \
+  sbatch ohtaka/run_l3llf_3thr_superfine_live.sh
+```
+
+### 3L dynamic ローカル sanity チェック手順
+
+```bash
+cd tests/tlaplus
+
+# 1-thread (< 1s)
+java -Xmx4g -cp tla2tools.jar tlc2.TLC \
+  -config BundleUnbundle_3level_LLfree_dynamic_1thr_mc.cfg \
+  BundleUnbundle_3level_LLfree_dynamic.tla
+
+# 2-thread coarse (目安: 数分)
+java -Xmx8g -workers auto -cp tla2tools.jar tlc2.TLC \
+  -config BundleUnbundle_3level_LLfree_dynamic_coarse_mc.cfg \
+  BundleUnbundle_3level_LLfree_dynamic.tla
+
+# 2-thread coarse with release
+java -Xmx8g -workers auto -cp tla2tools.jar tlc2.TLC \
+  -config BundleUnbundle_3level_LLfree_dynamic_release_coarse_mc.cfg \
+  BundleUnbundle_3level_LLfree_dynamic.tla
+```

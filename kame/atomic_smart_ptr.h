@@ -19,6 +19,8 @@
 #include <utility>
 #include <assert.h>
 
+// #define DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
+
 //! \brief This is an atomic variant of \a std::unique_ptr.
 //! An instance of atomic_unique_ptr can be shared among threads by the use of \a swap(\a _shared_target_).\n
 //! Namely, it is destructive reading.
@@ -464,7 +466,7 @@ inline typename atomic_shared_ptr<T>::Ref *
 atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt) const noexcept {
     Ref *pref;
     Refcnt rcnt_new;
-    for(;;) {
+    for(int spins = 1;; spins *= 2) {
         auto [p, rcnt_old] = load_tagged_();
         pref = p;
         if( !pref) {
@@ -480,16 +482,19 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt) const noexcept {
             fprintf(stderr, "max_rcnt=%d\n", rcnt_max);
         }
         */
-        if(rcnt_new >= this->LOCAL_REF_CAPACITY) {
-            // This would never happen.
-            pause4spin();
-            continue;
+        if(rcnt_new < this->LOCAL_REF_CAPACITY) { // This would never happen in typical machines.
+            // trying to increase local reference counter w/ same serial.
+            if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
+                TaggedPtr((uintptr_t)pref + rcnt_old),
+                TaggedPtr((uintptr_t)pref + rcnt_new)))
+                break;
         }
-        // trying to increase local reference counter w/ same serial.
-        if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
-            TaggedPtr((uintptr_t)pref + rcnt_old),
-            TaggedPtr((uintptr_t)pref + rcnt_new)))
-            break;
+#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
+        for(int i = 0; i < spins - 1; ++i)
+            pause4spin(); //exponential backoff.
+#else
+        spins;
+#endif
     }
     assert(rcnt_new);
     *rcnt = rcnt_new;
@@ -514,7 +519,7 @@ atomic_shared_ptr<T>::load_shared_() const noexcept {
 template <typename T>
 inline void
 atomic_shared_ptr<T>::release_tag_ref_(Ref *pref) const noexcept {
-    for(;;) {
+    for(int spins = 1;; spins *= 2) {
         auto [cur_ptr, rcnt_old] = load_tagged_();
         if(rcnt_old && (cur_ptr == pref)) {
             Refcnt rcnt_new = rcnt_old - 1;
@@ -523,8 +528,15 @@ atomic_shared_ptr<T>::release_tag_ref_(Ref *pref) const noexcept {
                 TaggedPtr((uintptr_t)pref + rcnt_old),
                 TaggedPtr((uintptr_t)pref + rcnt_new)))
                 break;
-            if(load_tagged_().first == pref)
+            if(load_tagged_().first == pref) {
+#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
+                for(int i = 0; i < spins - 1; ++i)
+                    pause4spin(); //exponential backoff.
+#else
+                spins;
+#endif
                 continue; // pointer unchanged, retry.
+            }
         }
         // local reference has released by other processes.
         if(pref->refcnt.decAndTest()) {
@@ -561,7 +573,7 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
     if(newr.ref_ptr_()) {
         newr.ref_ptr_()->refcnt.fetch_add(1, std::memory_order_relaxed);
     }
-    for(;;) {
+    for(int spins = 1;; spins *= 2) {
         Refcnt rcnt_old, rcnt_new;
         pref = acquire_tag_ref_( &rcnt_old);
         if(pref != oldr.ref_ptr_()) {
@@ -598,6 +610,12 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
                 pref->refcnt.fetch_add(-(Refcnt)(rcnt_old - 1u), std::memory_order_relaxed);
             release_tag_ref_(pref);
         }
+#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
+        for(int i = 0; i < spins - 1; ++i)
+            pause4spin(); //exponential backoff.
+#else
+        spins;
+#endif
     }
     if(pref) {
         pref->refcnt.fetch_sub(1, std::memory_order_acq_rel); //atomic: release m_ref's ownership
@@ -626,7 +644,7 @@ template <typename T, typename reflocal_var_t>
 void
 local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
     Ref *pref;
-    for(;;) {
+    for(int spins = 1;; spins *= 2) {
         Refcnt rcnt_old, rcnt_new;
         pref = r.acquire_tag_ref_( &rcnt_old);
         if(pref && (rcnt_old != 1u)) {
@@ -643,6 +661,12 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
                 pref->refcnt.fetch_add(-(Refcnt)(rcnt_old - 1u), std::memory_order_relaxed);
             r.release_tag_ref_(pref);
         }
+#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
+        for(int i = 0; i < spins - 1; ++i)
+            pause4spin(); //exponential backoff.
+#else
+        spins;
+#endif
     }
     this->m_ref = (TaggedPtr)pref;
 }
