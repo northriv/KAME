@@ -19,10 +19,10 @@
 #include <utility>
 #include <assert.h>
 
-#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
+#ifndef BACKOFF_IN_ATOMIC_SMART_PTR
 //if defined as 0, backoff by pause4spin()[=__mm_spin/yield] will be completely killed.
-//if > 0, 2^(retry) spin count will by divided by DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR.
-    #define DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR 32
+//if > 0, 2^(retry) spin count will by divided by BACKOFF_IN_ATOMIC_SMART_PTR.
+    #define BACKOFF_IN_ATOMIC_SMART_PTR 0 //disabled by default, in accord with our tests for AppleSilicon M4 and EPYC 128CPU.
 #endif
 
 //! \brief This is an atomic variant of \a std::unique_ptr.
@@ -493,8 +493,11 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt) const noexcept {
                 TaggedPtr((uintptr_t)pref + rcnt_new)))
                 break;
         }
-#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
-        for(int i = 0; i < spins / DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
+        else {
+            pause4spin();
+        }
+#ifndef BACKOFF_IN_ATOMIC_SMART_PTR
+        for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
         spins;
@@ -533,8 +536,8 @@ atomic_shared_ptr<T>::release_tag_ref_(Ref *pref) const noexcept {
                 TaggedPtr((uintptr_t)pref + rcnt_new)))
                 break;
             if(load_tagged_().first == pref) {
-#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
-                for(int i = 0; i < spins / DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
+#ifndef BACKOFF_IN_ATOMIC_SMART_PTR
+                for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
                     pause4spin(); //exponential backoff.
 #else
                 spins;
@@ -614,8 +617,8 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
                 pref->refcnt.fetch_add(-(Refcnt)(rcnt_old - 1u), std::memory_order_relaxed);
             release_tag_ref_(pref);
         }
-#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
-        for(int i = 0; i < spins / DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
+#ifndef BACKOFF_IN_ATOMIC_SMART_PTR
+        for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
         spins;
@@ -665,8 +668,8 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
                 pref->refcnt.fetch_add(-(Refcnt)(rcnt_old - 1u), std::memory_order_relaxed);
             r.release_tag_ref_(pref);
         }
-#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
-        for(int i = 0; i < spins / DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
+#ifndef BACKOFF_IN_ATOMIC_SMART_PTR
+        for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
         spins;
