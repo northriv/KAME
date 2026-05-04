@@ -86,7 +86,7 @@ public:
                     last = m_ptrs;
 
                     spins *= 2;
-                    for(int i = 0; i < spins - 1; ++i)
+                    for(int i = 0; i < spins / 2; ++i)
                         pause4spin(); //exponential backoff.
                 }
             }

@@ -19,7 +19,11 @@
 #include <utility>
 #include <assert.h>
 
-// #define DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
+#ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
+//if defined as 0, backoff by pause4spin()[=__mm_spin/yield] will be completely killed.
+//if > 0, 2^(retry) spin count will by divided by DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR.
+    #define DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR 32
+#endif
 
 //! \brief This is an atomic variant of \a std::unique_ptr.
 //! An instance of atomic_unique_ptr can be shared among threads by the use of \a swap(\a _shared_target_).\n
@@ -490,7 +494,7 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt) const noexcept {
                 break;
         }
 #ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
-        for(int i = 0; i < spins - 1; ++i)
+        for(int i = 0; i < spins / DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
         spins;
@@ -530,7 +534,7 @@ atomic_shared_ptr<T>::release_tag_ref_(Ref *pref) const noexcept {
                 break;
             if(load_tagged_().first == pref) {
 #ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
-                for(int i = 0; i < spins - 1; ++i)
+                for(int i = 0; i < spins / DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
                     pause4spin(); //exponential backoff.
 #else
                 spins;
@@ -611,7 +615,7 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
             release_tag_ref_(pref);
         }
 #ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
-        for(int i = 0; i < spins - 1; ++i)
+        for(int i = 0; i < spins / DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
         spins;
@@ -662,7 +666,7 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
             r.release_tag_ref_(pref);
         }
 #ifndef DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR
-        for(int i = 0; i < spins - 1; ++i)
+        for(int i = 0; i < spins / DISABLE_BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
         spins;
