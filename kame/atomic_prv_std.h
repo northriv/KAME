@@ -60,9 +60,6 @@ public:
     bool decAndTest() noexcept {
         return this->fetch_sub(1, std::memory_order_acq_rel) == 1;
     }
-    bool addAndTest(T t) noexcept {
-        return (this->fetch_add(t, std::memory_order_acq_rel) + t) == T(0);
-    }
 };
 
 #endif /*ATOMIC_PRV_STD_H_*/
