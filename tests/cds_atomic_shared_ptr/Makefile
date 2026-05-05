@@ -21,7 +21,7 @@ GMCFLAGS ?= --rc11 --unroll=5
 
 SRCDIR = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-run: run-test1 run-test2 run-test3 run-test4
+run: run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7
 
 run-test1:
 	@echo "=== Test 1: load_shared_ / release_tag_ref_ safety ==="
@@ -43,8 +43,23 @@ run-test4:
 	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_swap.c
 	@echo ""
 
+run-test5:
+	@echo "=== Test 5: multi CAS with release_tag_ref leave_excess ==="
+	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_multi_cas_excess.c
+	@echo ""
+
+run-test6:
+	@echo "=== Test 6: CAS+load with release_tag_ref leave_excess ==="
+	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_cas_excess.c
+	@echo ""
+
+run-test7:
+	@echo "=== Test 7: swap with release_tag_ref cas_rcnt ==="
+	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_swap_excess.c
+	@echo ""
+
 # Run with IMM memory model
 run-imm: GMCFLAGS = --imm --unroll=5
 run-imm: run
 
-.PHONY: run run-test1 run-test2 run-test3 run-test4 run-imm
+.PHONY: run run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-imm

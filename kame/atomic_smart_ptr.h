@@ -346,6 +346,12 @@ public:
     //! \return true if succeeded.
     //! \sa compareAndSet()
     bool compareAndSwap(local_shared_ptr<T> &oldvalue, const local_shared_ptr<T> &newvalue) noexcept;
+    //! \return true if succeeded.
+    //! \sa compareAndSet()
+    bool compareAndSetWeak(const local_shared_ptr<T> &oldvalue, const local_shared_ptr<T> &newvalue) noexcept;
+    //! \return true if succeeded.
+    //! \sa compareAndSwap()
+    bool compareAndSwapWeak(local_shared_ptr<T> &oldvalue, const local_shared_ptr<T> &newvalue) noexcept;
 
     bool operator!() const noexcept {return !this->m_ref;}
     operator bool() const noexcept {return this->m_ref;}
@@ -386,12 +392,14 @@ protected:
     inline Ref *load_shared_() const noexcept;
     //! Atomically scans \a m_ref and increases the  local (temporary) reference counter.
     //! use \a release_tag_ref_() to release the temporary reference.
-    inline Ref *acquire_tag_ref_(Refcnt *) const noexcept;
+    inline std::pair<Ref*, bool> acquire_tag_ref_(Refcnt *, bool weakly = false) const noexcept;
     //! Tries to decrease local (temporary) reference counter.
     //! In case the reference is lost, \a release_tag_ref_() releases the global reference counter instead.
-    inline void release_tag_ref_(Ref *) const noexcept;
+    //! When \a left_global_rcnt > 0, undoes step 4's
+    //! excess (left_global_rcnt - 1) on tag-success, or combines undo+release on pointer-changed.
+    inline bool release_tag_ref_(Ref *, Refcnt added_global_rcnt, bool weakly = false) const noexcept;
 
-    template <bool NOSWAP>
+    template <bool NOSWAP, bool WEAK>
     inline bool compareAndSwap_(local_shared_ptr<T> &oldvalue, const local_shared_ptr<T> &newvalue) noexcept;
 private:
 };
@@ -466,8 +474,8 @@ local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
 // The caller MUST call release_tag_ref_() after it is done with the pointer.
 //=============================================================================
 template <typename T>
-inline typename atomic_shared_ptr<T>::Ref *
-atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt) const noexcept {
+inline std::pair<typename atomic_shared_ptr<T>::Ref *, bool>
+atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept {
     Ref *pref;
     Refcnt rcnt_new;
     for(int spins = 1;; spins *= 2) {
@@ -476,7 +484,7 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt) const noexcept {
         if( !pref) {
             // target is null.
             *rcnt = rcnt_old;
-            return (Ref*)nullptr;
+            return {(Ref*)nullptr, true};
         }
         rcnt_new = rcnt_old + 1u;
         /*
@@ -496,6 +504,8 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt) const noexcept {
         else {
             pause4spin();
         }
+        if(weakly)
+            return {(Ref*)nullptr, false};
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
@@ -505,16 +515,22 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt) const noexcept {
     }
     assert(rcnt_new);
     *rcnt = rcnt_new;
-    return pref;
+    return {pref, true};
 }
 template <typename T>
 inline typename atomic_shared_ptr<T>::Ref *
 atomic_shared_ptr<T>::load_shared_() const noexcept {
     Refcnt rcnt;
-    Ref *pref = acquire_tag_ref_( &rcnt);
+    auto [pref, success] = acquire_tag_ref_( &rcnt);
     if( !pref) return (Ref*)nullptr;
-    pref->refcnt.fetch_add(1, std::memory_order_relaxed);
-    release_tag_ref_(pref);
+    // Transfer all rcnt tag refs to global at once (instead of just +1). The
+    // matching release_tag_ref_(pref, rcnt) attempts to drain rcnt tag refs in
+    // a single CAS, stealing from other threads' tag refs. Those threads then
+    // fall back to fetch_sub(1) on refcnt on their own release_tag_ref_, which
+    // shifts contention from m_ref (the hot tagged pointer) to refcnt (per
+    // object). When rcnt=1 this is identical to the previous +1 / K=1 pattern.
+    pref->refcnt.fetch_add(rcnt, std::memory_order_relaxed);
+    release_tag_ref_(pref, rcnt);
     return pref;
 }
 
@@ -523,19 +539,53 @@ atomic_shared_ptr<T>::load_shared_() const noexcept {
 // swapped out by another thread since acquire_tag_ref_(), the local counter
 // is gone — fall back to decrementing the global refcount instead (the
 // swapper transferred local counts to global before swapping).
+//
+// added_global_rcnt (default 1): total number of global refcount units that
+//   the caller has pre-added to pref->refcnt on top of the 1 local ref being
+//   released. Callers use this to batch-release excess refs in one shot:
+//
+//   compareAndSwap_ / compareAndSwapWeak_ / swap (CAS failure path):
+//     Step 4 pre-added (rcnt_old - 1) to global. Pass added_global_rcnt=rcnt_old
+//     to release that excess and our own local ref in a single operation.
+//
+//   load_shared_ (rcnt-bulk transfer):
+//     fetch_add(rcnt) pre-adds rcnt to global (instead of the usual +1). Pass
+//     added_global_rcnt=rcnt so the tag drain and global undo are consistent.
+//
+// Same-pointer CAS success path:
+//   Drains local_release = min(rcnt_old, added_global_rcnt) from the tag.
+//   Remaining excess = (added_global_rcnt - local_release) is undone from global
+//   via fetch_sub(excess, acq_rel) with a delete check. MUST be acq_rel (not
+//   relaxed): a concurrent local_reset can drop refcnt to exactly the excess
+//   amount; our fetch_sub would then reach 0 and the deleter must fire.
+//
+// Pointer-changed path:
+//   Combines excess undo + our own 1 ref into a single fetch_sub(added_global_rcnt,
+//   acq_rel) with delete check — one fewer atomic op vs. the two-step old code.
 template <typename T>
-inline void
-atomic_shared_ptr<T>::release_tag_ref_(Ref *pref) const noexcept {
+inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_global_rcnt, bool weakly) const noexcept {
+    Refcnt sub_amount = added_global_rcnt;
     for(int spins = 1;; spins *= 2) {
         auto [cur_ptr, rcnt_old] = load_tagged_();
         if(rcnt_old && (cur_ptr == pref)) {
-            Refcnt rcnt_new = rcnt_old - 1;
+            Refcnt local_release = std::min(rcnt_old, added_global_rcnt); //1 by default.
+            Refcnt rcnt_new = rcnt_old - local_release;
             // trying to dec. reference counter if stored pointer is unchanged.
             if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
                 TaggedPtr((uintptr_t)pref + rcnt_old),
-                TaggedPtr((uintptr_t)pref + rcnt_new)))
+                TaggedPtr((uintptr_t)pref + rcnt_new))) {
+                //decreases the rest of global counting.
+                // CRITICAL: must be acq_rel + delete check, NOT relaxed.
+                // Concurrent local_reset() can drop refcnt to (added_global_rcnt -
+                // local_release), and our fetch_sub then takes it to 0. Without the
+                // delete check the object leaks. Discovered via GenMC test 7
+                sub_amount = added_global_rcnt - local_release;
+                weakly = false;
                 break;
+            }
             if(load_tagged_().first == pref) {
+                if(weakly)
+                    break; //return false in the end.
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
                 for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
                     pause4spin(); //exponential backoff.
@@ -546,11 +596,15 @@ atomic_shared_ptr<T>::release_tag_ref_(Ref *pref) const noexcept {
             }
         }
         // local reference has released by other processes.
-        if(pref->refcnt.decAndTest()) {
-            const_cast<atomic_shared_ptr*>(this)->deleter(pref);
-        }
+        weakly = false;
         break;
     }
+    if(sub_amount) {
+        if(pref->refcnt.fetch_sub(sub_amount, std::memory_order_acq_rel) == sub_amount) {
+            const_cast<atomic_shared_ptr*>(this)->deleter(pref);
+        }
+    }
+    return !weakly;
 }
 
 //=============================================================================
@@ -573,22 +627,22 @@ atomic_shared_ptr<T>::release_tag_ref_(Ref *pref) const noexcept {
 //   6. On success, decrement pref's global refcount (m_ref no longer owns it).
 //=============================================================================
 template <typename T>
-template <bool NOSWAP>
+template <bool NOSWAP, bool WEAK>
 inline bool
 atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_shared_ptr<T> &newr) noexcept {
-    Ref *pref;
     if(newr.ref_ptr_()) {
         newr.ref_ptr_()->refcnt.fetch_add(1, std::memory_order_relaxed);
     }
     for(int spins = 1;; spins *= 2) {
         Refcnt rcnt_old, rcnt_new;
-        pref = acquire_tag_ref_( &rcnt_old);
+        auto [pref, success] = acquire_tag_ref_( &rcnt_old, WEAK);
+        if(WEAK && !success) return false;
         if(pref != oldr.ref_ptr_()) {
             if(pref) {
                 if( !NOSWAP) {
                     pref->refcnt.fetch_add(1, std::memory_order_relaxed);
                 }
-                release_tag_ref_(pref);
+                release_tag_ref_(pref, 1u, WEAK);
             }
             if(newr.ref_ptr_())
                 newr.ref_ptr_()->refcnt.fetch_sub(1, std::memory_order_relaxed);
@@ -609,14 +663,17 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
         rcnt_new = 0;
         if(this->m_ref.compare_set_weak(
             TaggedPtr((uintptr_t)pref + rcnt_old),
-            TaggedPtr((uintptr_t)newr.ref_ptr_() + rcnt_new)))
-            break;
+            TaggedPtr((uintptr_t)newr.ref_ptr_() + rcnt_new))) {
+            if(pref) {
+                pref->refcnt.fetch_sub(1, std::memory_order_acq_rel); //atomic: release m_ref's ownership
+            }
+            return true;
+        }
         if(pref) {
             assert(rcnt_old);
-            if(rcnt_old != 1u)
-                pref->refcnt.fetch_add(-(Refcnt)(rcnt_old - 1u), std::memory_order_relaxed);
-            release_tag_ref_(pref);
+            release_tag_ref_(pref, rcnt_old, WEAK);
         }
+        if(WEAK) return false;
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
@@ -624,20 +681,26 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
         spins;
 #endif
     }
-    if(pref) {
-        pref->refcnt.fetch_sub(1, std::memory_order_acq_rel); //atomic: release m_ref's ownership
-    }
-    return true;
 }
 template <typename T>
 bool
 atomic_shared_ptr<T>::compareAndSet(const local_shared_ptr<T> &oldr, const local_shared_ptr<T> &newr) noexcept {
-    return compareAndSwap_<true>(const_cast<local_shared_ptr<T> &>(oldr), newr);
+    return compareAndSwap_<true, false>(const_cast<local_shared_ptr<T> &>(oldr), newr);
 }
 template <typename T>
 bool
 atomic_shared_ptr<T>::compareAndSwap(local_shared_ptr<T> &oldr, const local_shared_ptr<T> &newr) noexcept {
-    return compareAndSwap_<false>(oldr, newr);
+    return compareAndSwap_<false, false>(oldr, newr);
+}
+template <typename T>
+bool
+atomic_shared_ptr<T>::compareAndSetWeak(const local_shared_ptr<T> &oldr, const local_shared_ptr<T> &newr) noexcept {
+    return compareAndSwapWeak_<true, true>(const_cast<local_shared_ptr<T> &>(oldr), newr);
+}
+template <typename T>
+bool
+atomic_shared_ptr<T>::compareAndSwapWeak(local_shared_ptr<T> &oldr, const local_shared_ptr<T> &newr) noexcept {
+    return compareAndSwapWeak_<false, true>(oldr, newr);
 }
 template <typename T, typename reflocal_var_t>
 inline void
@@ -650,23 +713,22 @@ local_shared_ptr<T, reflocal_var_t>::swap(local_shared_ptr &r) noexcept {
 template <typename T, typename reflocal_var_t>
 void
 local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
-    Ref *pref;
     for(int spins = 1;; spins *= 2) {
         Refcnt rcnt_old, rcnt_new;
-        pref = r.acquire_tag_ref_( &rcnt_old);
+        auto [pref, success] = r.acquire_tag_ref_( &rcnt_old);
         if(pref && (rcnt_old != 1u)) {
             pref->refcnt.fetch_add(rcnt_old - 1u, std::memory_order_relaxed);
         }
         rcnt_new = 0;
         if(r.m_ref.compare_set_weak(
             TaggedPtr((uintptr_t)pref + rcnt_old),
-            TaggedPtr((uintptr_t)this->m_ref + rcnt_new)))
-            break;
+            TaggedPtr((uintptr_t)this->m_ref + rcnt_new))) {
+            this->m_ref = (TaggedPtr)pref;
+            return;
+        }
         if(pref) {
             assert(rcnt_old);
-            if(rcnt_old != 1u)
-                pref->refcnt.fetch_add(-(Refcnt)(rcnt_old - 1u), std::memory_order_relaxed);
-            r.release_tag_ref_(pref);
+            r.release_tag_ref_(pref, rcnt_old);
         }
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
@@ -675,7 +737,6 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
         spins;
 #endif
     }
-    this->m_ref = (TaggedPtr)pref;
 }
 
 #endif /*ATOMIC_SMART_PTR_H_*/

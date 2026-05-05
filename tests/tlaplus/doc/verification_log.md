@@ -51,6 +51,8 @@ dynamically inserted and released at runtime. All thread roles configurable via 
 - `*_1thr_mc.cfg` — 1-thread sanity (coarse; all roles in Thread 1)
 - `*_coarse_mc.cfg` — 2-thread coarse, ReleaseThreads={}
 - `*_release_coarse_mc.cfg` — 2-thread coarse, ReleaseThreads={1,2}
+- `*_superfine_mc.cfg` — ohtaka superfine, 2-thread all-roles, ReleaseThreads={}
+- `*_release_superfine_mc.cfg` — ohtaka superfine, 2-thread all-roles, ReleaseThreads={1,2}
 - `*_3thr_A_mc.cfg` — ohtaka superfine, Ins={1}/Root={2}/Leaf={3}, no release
 - `*_3thr_B_mc.cfg` — ohtaka superfine, Ins={1}/Root={2,3}/Leaf={}, no release
 - `*_3thr_release_mc.cfg` — ohtaka superfine, Ins={1}/Root={2}/Leaf={3}, all threads release
@@ -60,19 +62,57 @@ dynamically inserted and released at runtime. All thread roles configurable via 
 | cfg | distinct states | depth | wall time | Lamport counter (min–max) | terminal states | result |
 |---|---|---|---|---|---|---|
 | 3L-dyn 1thr coarse | 66 | 36 | < 1 s | 11 | 2 | ✅ PASS |
-| 3L-dyn coarse 2t (ReleaseThreads={}) | 6,444,080 | 127 | 8:11 | 10–30 | 2,700 | ✅ PASS + liveness ✅ |
+| 3L-dyn coarse 2t (ReleaseThreads={}) | 6,825,326 | 127 | 9:30 | 10–30 | 2,700 | ✅ PASS + liveness ✅ |
 | 3L-dyn release coarse 2t (ReleaseThreads={1,2}) | — | — | — | — | — | ⏳ local (est. ~115M states) |
+| 3L-dyn release superfine 2t (all-roles, ohtaka) | 921,351,233 | 284 | 3h 24min | 11–49 | 94,630 | ✅ PASS (ohtaka) |
 | 3L-dyn 3thr-A live (Ins={1},Root={2},Leaf={3}) | 122,150 | 87 | 10 s | 5–15 | 157 | ✅ PASS (ohtaka) + liveness ✅ |
 | 3L-dyn 3thr-B live (Ins={1},Root={2,3},Leaf={}) | 120,193 | 75 | 10 s | 5–10 | 58 | ✅ PASS (ohtaka) + liveness ✅ |
-| 3L-dyn 3thr release (Ins={1},Root={2},Leaf={3}, all release) | — | — | — | — | — | ⏳ ohtaka |
+| 3L-dyn 3thr release (Ins={1},Root={2},Leaf={3}, all release) | — | — | — | — | — | ⏳ ohtaka (casOldWrappers fix applied) |
 
 Notes:
 - **1thr counter=11**: Same as 2L-dyn 1thr, confirming correct terminal state accounting (both children inserted + 1 commit each via CommitGrand/CommitChild, 4 GenSerial calls).
-- **2t coarse state count (6.4M)**: 4.3× larger than 3L static coarse (1.5M) and 8.4× larger than 2L-dyn coarse (763K), reflecting the combined Grand/Parent/Child bundle machinery plus insert sequencing.
+- **2t coarse state count (6.8M)**: Slightly increased from pre-fix 6,444,080 due to `casOldWrappers` adding state space. 4.5× larger than 3L static coarse (1.5M) and 8.9× larger than 2L-dyn coarse (763K), reflecting the combined Grand/Parent/Child bundle machinery plus insert sequencing.
 - **Counter min=10**: Lower than 3L static coarse min=6 — insert operations add GenSerial calls (InsertCASParent + InsertCASChild) before any commit, raising the baseline counter.
 - **Counter max=30**: Higher than 3L static coarse max=22, accounting for the additional insert/discovery phase Lamport steps.
 - **release coarse est. ~115M states**: Based on 2L-dyn release-coarse/no-release-coarse ratio of 18.6× applied to 6.4M. Too large for routine local runs; designated as ohtaka target.
 - **3thr-A/B live (ohtaka, 2026-05-04)**: State counts (122K / 120K) are comparable to 2L-dyn 3thr-A/B (53K / 149K), confirming that role-separated 3-thread configs remain tractable despite the extra Grand level. Counter min=5 is lower than 2t coarse (min=10) because separated roles with MaxCommits=1 allow shorter paths where fewer Lamport steps accumulate before termination. 3thr-A has more terminal states (157) than 3thr-B (58) due to additional interleaving from separate LeafThreads. Both fingerprint collision rates are negligible (≤6.2E-8).
+- **release superfine 2t (ohtaka, 2026-05-05, slurm-2898329)**: 921M states, 3h 24min. Largest 3L-dyn run to date; 2.2× the 2L-dyn release superfine (413M). Counter min=11 matches 1thr (all-roles path still uses same GenSerial sequence); max=49 reflects extra Lamport steps from superfine atomicity. Fingerprint collision rate 6.3E-2 — high due to state space size, but within acceptable range for a safety check. Safety only (PHASE=1), no PROPERTY.
+
+### Bug fix: `casOldWrappers` — stale `UnbundleCASLoop` CAS (2026-05-05)
+
+**Violation**: `QuiescentCheck` + `TerminalPayloadCheck` in `_3thr_release_mc.cfg` (ohtaka, `slurm-2896201.out`, 73 states).
+`ChildPayload(DC1) = 3 ≠ 1 + commitCount[DC1] = 4` at terminal state — `linkage[Parent].sub[DC1].payload` regressed from 4 to 3.
+
+**Root cause**: `UnbundleCASLoop` fine/superfine branch read `oldW := linkage[casNode]` immediately
+before the CAS, making the guard `linkage[casNode] = oldW` trivially true regardless of intervening
+writes by other threads. The `superFresh` guard covered only the root node (Grand); intermediate
+nodes (Parent, etc.) had no freshness check. When Thread 1 completed `UnbundleWalk` at S45 (capturing
+stale data with `Grand.sub = (3,3)`) and then executed `UnbundleCASLoop` at S67, Thread 2 had
+already advanced `linkage[Parent]` to sub=(4,4) and back (via leaf commits × 2 + rebundle + release),
+but the trivial `oldW` check allowed Thread 1's stale CAS to overwrite it back to sub=(3,3).
+
+In the 2L dynamic spec, `UnbundleCASAncestors` stores `parentWrapper` at walk time, preventing
+this race. The 3L spec introduced `casTargets` for multi-level unbundle but omitted the parallel
+`casOldWrappers` field — the same walk-time snapshot of each node's wrapper.
+
+**Fix** (all in `BundleUnbundle_3level_LLfree_dynamic.tla`):
+
+1. `InitLocal`: added `casOldWrappers |-> <<>>` field.
+
+2. `SnapshotForUnbundle`: captures `parentOldW == linkage[parentNode]` at each level of the
+   recursive walk and returns it in `casOldWrappers` alongside `casTargets`.
+
+3. `UnbundleWalk` (both coarse and fine branches): saves `result.casOldWrappers` /
+   `<<pw>> \o local[t].casOldWrappers` into `local[t].casOldWrappers` in parallel with `casTargets`.
+
+4. `UnbundleCASLoop` fine branch: `oldW` now reads `local[t].casOldWrappers[idx]` (walk-time
+   snapshot) instead of fresh `linkage[casNode]`, making `linkage[casNode] = oldW` a genuine CAS gate.
+
+5. `UnbundleCASLoop` coarse branch: added `allFresh` predicate
+   `\A i \in 1..Len(targets) : linkage[targets[i]] = local[t].casOldWrappers[i]`
+   and gated the CAS on `allExtractable /\ superFresh /\ allFresh`.
+
+**Regression**: 1-thread sanity (66 states, PASS), 2-thread coarse (6,825,326 states, PASS + liveness).
 
 ---
 
@@ -365,7 +405,7 @@ all reachable terminal states.
 |---|---|---|---|---|---|---|
 | 3L 1thr fine | 46 | 29 | < 1 s | 7 | 1 | ✅ PASS |
 | 3L 1thr superfine | 47 | 30 | < 1 s | 7 | 1 | ✅ PASS |
-| 3L coarse 2t | 1,497,098 | 98 | 1:38 | 6–22 | 110 | ✅ PASS |
+| 3L coarse 2t | 1,542,814 | 98 | 1:51 | 6–22 | 110 | ✅ PASS |
 | 3L purefine 2t | 11,841,706 | 134 | 36:13 | 7–24 | 152 | ✅ PASS |
 | 3L superfine 2t | 14,109,731 | 148 | 19:13 | 7–26 | 4,048 | ✅ PASS |
 | 3L micro (mixed) | 11,841,706 | 134 | 13:12 | 7–24 | 152 | ✅ PASS |
@@ -385,13 +425,25 @@ all reachable terminal states.
 | 2L 3thr coarse B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka |
 | 3L 3thr coarse A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka |
 | 3L 3thr coarse B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka |
-| 3L 3thr superfine A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka (InnerPhase2 fix re-submitted) |
+| 3L 3thr superfine A (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka (casOldWrappers fix applied) |
 | 3L 3thr superfine A live (2 leaf + 1 root) | — | — | — | — | — | ⏳ ohtaka (after safety PASS) |
-| 3L 3thr superfine B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka (InnerPhase2 fix re-submitted) |
+| 3L 3thr superfine B (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka (casOldWrappers fix applied) |
 | 3L 3thr superfine B live (1 leaf + 2 root) | — | — | — | — | — | ⏳ ohtaka (after safety PASS) |
 | 2L commits2 (MaxCommits=2) | — | — | — | — | — | ⏳ ohtaka |
 
 Notes:
+- **`casOldWrappers` fix (2026-05-05)**: Same bug as 3L-dyn (see above) was
+  present in `BundleUnbundle_3level_LLfree.tla`. `UnbundleCASLoop` fine/superfine
+  branch re-read `oldW := linkage[casNode]` at CAS time (trivially true gate);
+  coarse branch had no per-intermediate-node freshness check (only `superFresh`).
+  Fix: same `casOldWrappers` mechanism added to `InitLocal`, `SnapshotForUnbundle`,
+  `UnbundleWalk` (both branches), and `UnbundleCASLoop` (both branches). Local
+  regression: 1-thread PASS (46 states), 2-thread coarse PASS (1,542,814 states,
+  depth 98, liveness ✅). No violations were observed in previous runs because
+  tested configs (superfine C = all-root, coarse 2t) did not exercise the specific
+  interleaving where a peer thread modifies an intermediate-node wrapper between
+  walk and CAS; the pending 3thr superfine A/B (leaf+root mix) are the highest-risk
+  configs and must be run with the fixed spec.
 - **InnerPhase2 restart fix (2026-05-03)**: `QuiescentCheck` violated in
   `BundleUnbundle_3level_LLfree_3thr_superfine_A_mc.cfg` at depth 61 on
   ohtaka with spec `8fb19385` (after InnerPhase4 fix). Trace analysis:

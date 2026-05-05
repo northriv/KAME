@@ -289,6 +289,7 @@ InitLocal == [
     snapResult  |-> Null,
     commitOk    |-> Null,
     casTargets  |-> <<>>,      \* sequence of ancestor nodes for unbundle CAS loop
+    casOldWrappers |-> <<>>,   \* walk-time wrappers for each casTargets entry
     casIdx      |-> 0,         \* current index in casTargets loop
     walkNode    |-> Null,      \* (fine UnbundleWalk) current node in chain walk
     walkWrapper |-> Null,      \* (fine UnbundleWalk) wrapper saved for walkNode
@@ -1135,8 +1136,11 @@ WalkUpChain(node) ==
 \*   - Serial collision detection
 \*   - CAS info construction (modeled as list of ancestors to CAS)
 \*
-\* Returns: {status, subpacket, casTargets}
-\*   casTargets: sequence of ancestor nodes whose linkage needs CAS
+\* Returns: {status, subpacket, casTargets, casOldWrappers}
+\*   casTargets:    sequence of ancestor nodes whose linkage needs CAS
+\*   casOldWrappers: walk-time wrappers for each casTargets entry (parallel seq)
+\*                  Used by UnbundleCASLoop to gate CAS on per-node freshness.
+\*                  Mirrors C++ cas_info::old_wrapper (transaction_impl.h).
 \*
 \* C++ correspondence: transaction_impl.h snapshotForUnbundle(), lines 888-960
 \* --------------------------------------------------------------------------
@@ -1147,12 +1151,13 @@ SnapshotForUnbundle(node, ser) ==
     IF w.hasPriority
     THEN \* Root reached
          [status |-> "NODE_MISSING", packet |-> w.packet,
-          subpacket |-> Null, casTargets |-> <<>>, wrapper |-> w]
+          subpacket |-> Null, casTargets |-> <<>>, casOldWrappers |-> <<>>, wrapper |-> w]
     ELSE IF w.bundledBy = Null
          THEN [status |-> "DISTURBED", packet |-> Null,
-               subpacket |-> Null, casTargets |-> <<>>, wrapper |-> Null]
+               subpacket |-> Null, casTargets |-> <<>>, casOldWrappers |-> <<>>, wrapper |-> Null]
          ELSE
-         LET parentNode == w.bundledBy
+         LET parentNode  == w.bundledBy
+             parentOldW  == linkage[parentNode]   \* walk-time wrapper of parent
              upper == SnapshotForUnbundle(parentNode, ser)
          IN
          IF upper.status = "DISTURBED"
@@ -1171,7 +1176,7 @@ SnapshotForUnbundle(node, ser) ==
               \* --- Staleness check ---
               IF linkage[node] /= w
               THEN [status |-> "DISTURBED", packet |-> Null,
-                    subpacket |-> Null, casTargets |-> <<>>, wrapper |-> Null]
+                    subpacket |-> Null, casTargets |-> <<>>, casOldWrappers |-> <<>>, wrapper |-> Null]
               ELSE
               \* --- Child slot search ---
               IF upperpacket.sub[node] /= Null
@@ -1179,45 +1184,61 @@ SnapshotForUnbundle(node, ser) ==
                    IF effStatus = "COLLIDED"
                    THEN [status |-> "COLLIDED", packet |-> upperpacket,
                          subpacket |-> upperpacket.sub[node],
-                         casTargets |-> upper.casTargets, wrapper |-> upper.wrapper]
+                         casTargets |-> upper.casTargets,
+                         casOldWrappers |-> upper.casOldWrappers,
+                         wrapper |-> upper.wrapper]
                    ELSE \* Serial collision check (C++ line 795)
                         IF ser /= 0 /\ linkage[parentNode].serial = ser
                         THEN [status |-> "COLLIDED", packet |-> upperpacket,
                               subpacket |-> upperpacket.sub[node],
-                              casTargets |-> upper.casTargets, wrapper |-> upper.wrapper]
+                              casTargets |-> upper.casTargets,
+                              casOldWrappers |-> upper.casOldWrappers,
+                              wrapper |-> upper.wrapper]
                         ELSE \* Build CAS info
                              LET newTargets == Append(upper.casTargets, parentNode)
+                                 newOldWs  == Append(upper.casOldWrappers, parentOldW)
                              IN
                              [status |-> "SUCCESS", packet |-> upperpacket,
                               subpacket |-> upperpacket.sub[node],
-                              casTargets |-> newTargets, wrapper |-> upper.wrapper]
+                              casTargets |-> newTargets,
+                              casOldWrappers |-> newOldWs,
+                              wrapper |-> upper.wrapper]
               ELSE IF upperpacket.missing
               THEN \* VOID_PACKET: clear cas_infos (C++ line 777)
                    [status |-> "VOID_PACKET", packet |-> upperpacket,
-                    subpacket |-> Null, casTargets |-> <<>>, wrapper |-> upper.wrapper]
+                    subpacket |-> Null, casTargets |-> <<>>, casOldWrappers |-> <<>>, wrapper |-> upper.wrapper]
               ELSE \* NODE_MISSING
                    IF effStatus = "COLLIDED"
                    THEN [status |-> "NODE_MISSING", packet |-> upperpacket,
-                         subpacket |-> Null, casTargets |-> upper.casTargets,
+                         subpacket |-> Null,
+                         casTargets |-> upper.casTargets,
+                         casOldWrappers |-> upper.casOldWrappers,
                          wrapper |-> upper.wrapper]
                    ELSE \* --- CAS preparation (C++ line 791-829) ---
                         \* Serial collision check
                         IF ser /= 0 /\ linkage[parentNode].serial = ser
                         THEN [status |-> "NODE_MISSING", packet |-> upperpacket,
-                              subpacket |-> Null, casTargets |-> upper.casTargets,
+                              subpacket |-> Null,
+                              casTargets |-> upper.casTargets,
+                              casOldWrappers |-> upper.casOldWrappers,
                               wrapper |-> upper.wrapper]
                         ELSE \* Build CAS info for this ancestor
                              LET newTargets == Append(upper.casTargets, parentNode)
+                                 newOldWs  == Append(upper.casOldWrappers, parentOldW)
                              IN
                              \* Check NODE_MISSING_AND_COLLIDED (C++ line 825-828)
                              IF ser /= 0
                                 /\ ~w.hasPriority /\ w.serial = ser
                              THEN [status |-> "NODE_MISSING_AND_COLLIDED",
                                    packet |-> upperpacket, subpacket |-> Null,
-                                   casTargets |-> newTargets, wrapper |-> upper.wrapper]
+                                   casTargets |-> newTargets,
+                                   casOldWrappers |-> newOldWs,
+                                   wrapper |-> upper.wrapper]
                              ELSE [status |-> "NODE_MISSING",
                                    packet |-> upperpacket, subpacket |-> Null,
-                                   casTargets |-> newTargets, wrapper |-> upper.wrapper]
+                                   casTargets |-> newTargets,
+                                   casOldWrappers |-> newOldWs,
+                                   wrapper |-> upper.wrapper]
 
 \* --------------------------------------------------------------------------
 \* UnbundleWalk action — uses SnapshotForUnbundle operator
@@ -1259,6 +1280,7 @@ UnbundleWalk(t) ==
                                     subPkt.payload + 1,
                                     subPkt.sub, subPkt.missing),
                                 ![t].casTargets = casTargets,
+                                ![t].casOldWrappers = result.casOldWrappers,
                                 ![t].casIdx = 1,
                                 \* SAVE root_wrapper for UnbundleCASLoop
                                 \* per-ancestor packet extraction (mirrors
@@ -1285,7 +1307,8 @@ UnbundleWalk(t) ==
                  /\ local' = [local EXCEPT
                         ![t].walkNode = target[t],
                         ![t].walkWrapper = linkage[target[t]],
-                        ![t].casTargets = <<>>]
+                        ![t].casTargets = <<>>,
+                        ![t].casOldWrappers = <<>>]
                  /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]  \* re-enter
                  /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
             ELSE LET ww == local[t].walkWrapper
@@ -1337,6 +1360,11 @@ UnbundleWalk(t) ==
                                                 subPkt.payload + 1,
                                                 subPkt.sub, subPkt.missing),
                                             ![t].casTargets = newTargets,
+                                            \* casOldWrappers mirrors casTargets
+                                            \* (root-first prepend); pw is the
+                                            \* walk-time wrapper for pNode.
+                                            ![t].casOldWrappers =
+                                                <<pw>> \o local[t].casOldWrappers,
                                             ![t].casIdx = 1,
                                             ![t].walkNode = Null,
                                             \* SAVE the priority super-wrapper
@@ -1358,7 +1386,9 @@ UnbundleWalk(t) ==
                                 /\ local' = [local EXCEPT
                                        ![t].walkNode = pNode,
                                        ![t].walkWrapper = pw,
-                                       ![t].casTargets = newTargets]
+                                       ![t].casTargets = newTargets,
+                                       ![t].casOldWrappers =
+                                           <<pw>> \o local[t].casOldWrappers]
                                 /\ pc' = [pc EXCEPT ![t] = "unbundle_walk"]
                                 /\ UNCHANGED <<serial, linkage, op, target, iterBudget, childQueue, priorityTag>>
 
@@ -1410,19 +1440,25 @@ UnbundleCASLoop(t) ==
        IF UnbundleCASAtomic = "coarse"
        THEN \* All CAS done atomically in one action.
             LET targets       == local[t].casTargets
+                oldWs         == local[t].casOldWrappers
                 allCanProceed == \A i \in 1..Len(targets) :
                                      CanProceed(t, targets[i])
                 allExtractable == \A i \in 1..Len(targets) :
                                       ExtractAt(targets[i]) /= Null
                 superFresh    == /\ superNode /= Null
                                  /\ linkage[superNode] = superW
+                \* Per-node freshness: each casTarget must still hold the wrapper
+                \* observed at walk time (mirrors C++ cas_info::old_wrapper check).
+                allFresh      == /\ Len(oldWs) = Len(targets)
+                                 /\ \A i \in 1..Len(targets) :
+                                        linkage[targets[i]] = oldWs[i]
                 \* Use the saved walk wrapper's serial as Lamport reference
                 \* (mirrors C++ snapshotForUnbundle which advances past the
                 \* root wrapper's m_bundle_serial; transaction_impl.h:2752).
                 ser == GenSerial(t, IF superW = Null THEN 0 ELSE superW.serial)
             IN
             /\ allCanProceed
-            /\ IF allExtractable /\ superFresh
+            /\ IF allExtractable /\ superFresh /\ allFresh
                THEN /\ linkage' = [n \in AllNodes |->
                           IF \E i \in 1..Len(targets) : targets[i] = n
                           THEN LET ext == ExtractAt(n)
@@ -1442,10 +1478,17 @@ UnbundleCASLoop(t) ==
        ELSE \* fine: one CAS per action.
             LET idx       == local[t].casIdx
                 casNode   == local[t].casTargets[idx]
-                oldW      == linkage[casNode]
+                \* Use walk-time wrapper as CAS expected value — mirrors C++
+                \* cas_info::old_wrapper. A fresh read here would make the
+                \* guard linkage[casNode]=oldW trivially true, allowing stale
+                \* extractions to overwrite legitimately-advanced wrappers.
+                oldW      == IF idx <= Len(local[t].casOldWrappers)
+                             THEN local[t].casOldWrappers[idx]
+                             ELSE Null
                 extracted == ExtractAt(casNode)
-                ser       == GenSerial(t, oldW.serial)
-                newPkt    == IF extracted = Null THEN Null
+                ser       == IF oldW = Null THEN 0
+                             ELSE GenSerial(t, oldW.serial)
+                newPkt    == IF extracted = Null \/ oldW = Null THEN Null
                              ELSE MakePacket(casNode, extracted.payload,
                                              extracted.sub, TRUE)
                 newW      == IF newPkt = Null THEN Null
