@@ -1252,17 +1252,6 @@ public:
 protected:
 };
 
-//! Assert that the given Snapshot/Transaction is NOT currently the
-//! fair-mode privileged Tx. Use at any CAS-fail / loop-fail site to
-//! catch livelock-free invariant violations: a privileged Tx must
-//! make forward progress, so failing a CAS or re-iterating a spin
-//! loop while privileged means some other thread bypassed the
-//! fair-mode yield (= a bug in the negotiate / tag_as_contender
-//! coverage). Compiled out via `-DKAME_STM_ASSERT_PRIVILEGE=0`.
-#ifndef KAME_STM_ASSERT_PRIVILEGE
-#define KAME_STM_ASSERT_PRIVILEGE 1
-#endif
-
 // ScopedNegotiateLinkage<XN> definition lives in transaction_impl.h
 // (only used by impl-side retry loops). Forward-declared near the top
 // of this file; friend-declared in Node<XN> and Snapshot<XN>.
