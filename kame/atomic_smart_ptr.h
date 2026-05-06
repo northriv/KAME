@@ -507,6 +507,24 @@ public:
         }
     }
 
+    //! Move-construct from a `local_shared_ptr<T>&&`.  Takes ownership of
+    //! `from`'s +1 refcount with ZERO atomic ops — the new view starts in
+    //! Owned mode (`m_rcnt_at_acquire == 0`) reusing `from`'s refcount.
+    //! `asp` is the atomic_shared_ptr the view is bound to (used for the
+    //! weak-CAS scoped path and for release on dtor).  Caller is
+    //! responsible that the moved-from `local_shared_ptr` was a valid
+    //! reference to `asp`'s current value at construction time (we do
+    //! NOT verify; standard move-semantics caveat).
+    scoped_atomic_view(atomic_shared_ptr<T> &asp, local_shared_ptr<T> &&from) noexcept
+        : m_asp(&asp), m_pref(nullptr), m_rcnt_at_acquire(0),
+          m_acquire_succeeded(true) {
+        if(from.m_ref) {
+            m_pref = (Ref *)from.m_ref;
+            // m_rcnt_at_acquire stays 0 → Owned mode.
+            from.m_ref = 0;  // empty out the source
+        }
+    }
+
     scoped_atomic_view(scoped_atomic_view &&other) noexcept
         : m_asp(other.m_asp), m_pref(other.m_pref),
           m_rcnt_at_acquire(other.m_rcnt_at_acquire),
@@ -570,6 +588,32 @@ public:
             //   new local_shared_ptr's own ownership.
             m_pref->refcnt.fetch_add(1, std::memory_order_relaxed);
             ret.m_ref = (uintptr_t)m_pref;
+        }
+        return ret;
+    }
+
+    //! \brief rvalue (move) conversion — transfer ownership to a
+    //! `local_shared_ptr<T>`, leaving this view empty.
+    //!   - From Owned: ZERO atomic ops — the +1 refcnt is just transferred.
+    //!   - From TagHeld: promote (tag → refcnt; 2 ops) but skip the
+    //!     fetch_add(1) for the new local_shared_ptr's ownership (the
+    //!     promoted ref IS the new ownership).
+    //!   - From Empty: returns empty.
+    //! Use `std::move(scoped)` to explicitly opt in.  Saves 1 atomic op
+    //! vs the lvalue conversion when the view will not be used again.
+    operator local_shared_ptr<T>() && noexcept {
+        local_shared_ptr<T> ret;
+        if(m_pref) {
+            if(m_rcnt_at_acquire) {
+                // TagHeld → Promote: transfer tag to refcnt.  No extra
+                // fetch_add(1) — the promoted refs ARE the new ownership.
+                m_pref->refcnt.fetch_add(m_rcnt_at_acquire, std::memory_order_relaxed);
+                m_asp->release_tag_ref_(m_pref, m_rcnt_at_acquire);
+            }
+            // Transfer m_pref to ret.  Empty out self so dtor is a no-op.
+            ret.m_ref = (uintptr_t)m_pref;
+            m_pref = nullptr;
+            m_rcnt_at_acquire = 0;
         }
         return ret;
     }
