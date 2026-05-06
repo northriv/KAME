@@ -2527,8 +2527,15 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             }
             childScope.commit();
         }
-        if(changed_during_bundling)
+        if(changed_during_bundling) {
+            // Phase 2 CAS already succeeded — supernode state advanced.
+            // Mark the scope committed before re-iterating so the dtor's
+            // privilege-violation assert isn't tripped by what is in fact
+            // legitimate forward progress (continuation handles Phase 3
+            // contention by retrying the entire bundle).
+            scope.commit();
             continue;
+        }
 
         //--- Phase 4: finalize — clear missing flag if all sub-packets are present ---
         superwrapper.reset(new PacketWrapper( *superwrapper, bundle_serial));
@@ -2541,6 +2548,11 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
         // (negotiate + tag covered by RAII at retry-loop top)
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
+            // Phase 2 CAS earlier already advanced supernode; commit the
+            // scope (the work did happen) to avoid a false-positive
+            // privilege-violation assert. Return DISTURBED for the caller
+            // to reissue the bundle on the new state.
+            scope.commit();
             return BundledStatus::DISTURBED;
         }
         oldsuperwrapper = std::move(superwrapper);
