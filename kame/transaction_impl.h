@@ -521,10 +521,14 @@ public:
     ScopedNegotiateLinkage(const ScopedNegotiateLinkage &) = delete;
     ScopedNegotiateLinkage &operator=(const ScopedNegotiateLinkage &) = delete;
 
-    //! Strong CAS on the scope's linkage.  Auto-commits on success.
+    //! Weak CAS on the scope's linkage.  Auto-commits on success.
+    //! Spurious failures (no actual mismatch) are possible on
+    //! LL/SC architectures; the retry loop handles them.  A spurious
+    //! failure conservatively records m_contention_observed → dtor
+    //! tag (one extra dedup walk; tag_as_contender is idempotent).
     bool compareAndSet(const local_shared_ptr<PacketWrapper> &expected,
                        const local_shared_ptr<PacketWrapper> &desired) noexcept {
-        if(m_link->compareAndSet(expected, desired)) {
+        if(m_link->compareAndSetWeak(expected, desired)) {
             m_committed = true;
             return true;
         }
@@ -532,13 +536,43 @@ public:
         return false;
     }
 
-    //! Strong CAS + tags_successful_cas() priority/lease hint on success.
+    //! Scoped variant — `expected` is a `scoped_local_shared_ptr`
+    //! holding a tag-bit reference to the linkage's current
+    //! PacketWrapper.  Avoids the heap fetch_add(1) of a regular
+    //! load_shared_ when the caller's reference is short-lived
+    //! (acquire-CAS-discard pattern).  See atomic_smart_ptr.h for
+    //! the underlying weak+scoped CAS contract.
+    bool compareAndSet(scoped_local_shared_ptr<PacketWrapper> &expected,
+                       const local_shared_ptr<PacketWrapper> &desired) noexcept {
+        if(m_link->compareAndSetWeak(expected, desired)) {
+            m_committed = true;
+            return true;
+        }
+        m_contention_observed = true;
+        return false;
+    }
+
+    //! Weak CAS + tags_successful_cas() priority/lease hint on success.
     //! `started_time = 0` (default) makes `tags_successful_cas` use now_us().
     bool compareAndSetWithHint(const local_shared_ptr<PacketWrapper> &expected,
                                 const local_shared_ptr<PacketWrapper> &desired,
                                 typename Node<XN>::NegotiationCounter::cnt_t
                                     started_time = 0) noexcept {
-        if(m_link->compareAndSet(expected, desired)) {
+        if(m_link->compareAndSetWeak(expected, desired)) {
+            m_link->tags_successful_cas(started_time);
+            m_committed = true;
+            return true;
+        }
+        m_contention_observed = true;
+        return false;
+    }
+
+    //! Scoped variant of compareAndSetWithHint.
+    bool compareAndSetWithHint(scoped_local_shared_ptr<PacketWrapper> &expected,
+                                const local_shared_ptr<PacketWrapper> &desired,
+                                typename Node<XN>::NegotiationCounter::cnt_t
+                                    started_time = 0) noexcept {
+        if(m_link->compareAndSetWeak(expected, desired)) {
             m_link->tags_successful_cas(started_time);
             m_committed = true;
             return true;
@@ -1615,7 +1649,10 @@ Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
         // RAII OnExit.
         ScopedNegotiateLinkage<XN> scope(packet->node().m_link, snap, iter,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-        local_shared_ptr<PacketWrapper> wrapper( *packet->node().m_link);
+        // Tag-ref'd load (avoids heap fetch_add when ref is short-lived).
+        scoped_local_shared_ptr<PacketWrapper> wrapper(
+            *packet->node().m_link,
+            scoped_local_shared_ptr<PacketWrapper>::ADAPTIVE_THRESHOLD);
         if(wrapper->m_bundle_serial != serial) {
             scope.commit();
             break;

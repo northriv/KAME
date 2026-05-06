@@ -105,6 +105,7 @@ private:
     template <typename X, typename Y, typename Z, typename E> friend struct atomic_shared_ptr_base;
     template <typename X> friend class atomic_shared_ptr;
     template <typename X, typename Y> friend class local_shared_ptr;
+    template <typename X> friend class scoped_local_shared_ptr;
     typedef uintptr_t Refcnt;
     //! Global reference counter.
     atomic<Refcnt> refcnt;
