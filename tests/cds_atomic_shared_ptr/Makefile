@@ -64,7 +64,7 @@ run-test8:
 	@echo ""
 
 run-test9:
-	@echo "=== Test 9: scoped_local_shared_ptr + compareAndSetWeak race ==="
+	@echo "=== Test 9: scoped_atomic_view + compareAndSetWeak race ==="
 	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_scoped_weak.c
 	@echo ""
 

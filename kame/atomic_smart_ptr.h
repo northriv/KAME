@@ -91,7 +91,7 @@ struct atomic_shared_ptr_gref_ {
 template <typename X, typename Y, typename Z, typename E> struct atomic_shared_ptr_base;
 template <typename X> class atomic_shared_ptr;
 template <typename X, typename Y> class local_shared_ptr;
-template <typename X> class scoped_local_shared_ptr;
+template <typename X> class scoped_atomic_view;
 
 //! Use subclass of this to be storaged in atomic_shared_ptr with
 //! intrusive counting to obtain better performance.
@@ -105,7 +105,7 @@ private:
     template <typename X, typename Y, typename Z, typename E> friend struct atomic_shared_ptr_base;
     template <typename X> friend class atomic_shared_ptr;
     template <typename X, typename Y> friend class local_shared_ptr;
-    template <typename X> friend class scoped_local_shared_ptr;
+    template <typename X> friend class scoped_atomic_view;
     typedef uintptr_t Refcnt;
     //! Global reference counter.
     atomic<Refcnt> refcnt;
@@ -352,12 +352,12 @@ public:
     //! \sa compareAndSet()
     bool compareAndSetWeak(const local_shared_ptr<T> &oldvalue, const local_shared_ptr<T> &newvalue) noexcept;
     //! \return true if succeeded.
-    //! \brief Weakly version using a pre-acquired \a scoped_local_shared_ptr.
+    //! \brief Weakly version using a pre-acquired \a scoped_atomic_view.
     //!   On success, \a scoped is reset to Empty (tag consumed by CAS). On
     //!   weak failure (CAS contention), \a scoped remains TagHeld for retry.
     //!   On pointer change since acquire, \a scoped is eagerly cleaned up
     //!   to Empty so the caller can detect it via \a scoped.operator bool().
-    inline bool compareAndSetWeak(scoped_local_shared_ptr<T> &scoped, const local_shared_ptr<T> &newvalue) noexcept;
+    inline bool compareAndSetWeak(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newvalue) noexcept;
 
     bool operator!() const noexcept {return !this->m_ref;}
     operator bool() const noexcept {return this->m_ref;}
@@ -377,7 +377,7 @@ public:
 protected:
     template <typename Y, typename Z> friend class local_shared_ptr;
     template <typename Y> friend class atomic_shared_ptr;
-    template <typename Y> friend class scoped_local_shared_ptr;
+    template <typename Y> friend class scoped_atomic_view;
     typedef typename atomic_shared_ptr_base<T, uintptr_t, atomic<uintptr_t>>::Ref Ref;
     typedef typename atomic_shared_ptr_base<T, uintptr_t, atomic<uintptr_t>>::Refcnt Refcnt;
     typedef atomic<uintptr_t> TaggedPtr;
@@ -416,7 +416,7 @@ protected:
     //!   - OldrT = local_shared_ptr<T> (Swap):
     //!       acquire_tag_ref_ required (will update oldr on mismatch);
     //!       step4 = +(T-1); failure undo via release_tag_ref_(pref, T).
-    //!   - OldrT = scoped_local_shared_ptr<T> (SetScoped, weak only):
+    //!   - OldrT = scoped_atomic_view<T> (SetScoped, weak only):
     //!       scoped already holds tag (no acquire); step4 = +(T-1);
     //!       failure undo via plain fetch_sub(T-1, relaxed); on success,
     //!       scoped's tag is consumed by CAS (m_pref reset to nullptr).
@@ -455,7 +455,7 @@ private:
 //!     - threshold = 1: always promote → equivalent to load_shared_().
 //!     - threshold = LOCAL_REF_CAPACITY/2 (e.g. 4 for capacity 8): adaptive.
 template <typename T>
-class scoped_local_shared_ptr {
+class scoped_atomic_view {
 public:
     typedef typename atomic_shared_ptr<T>::Ref Ref;
     typedef typename atomic_shared_ptr<T>::Refcnt Refcnt;
@@ -466,7 +466,7 @@ public:
         ADAPTIVE_THRESHOLD = LOCAL_REF_CAPACITY / 2, //!< promote at half capacity
     };
 
-    scoped_local_shared_ptr() noexcept
+    scoped_atomic_view() noexcept
         : m_asp(nullptr), m_pref(nullptr), m_rcnt_at_acquire(0),
           m_acquire_succeeded(true) {}
 
@@ -483,7 +483,7 @@ public:
     //!       asp held nullptr (genuinely empty atomic_shared_ptr).
     //!   - \a acquire_succeeded() == false AND \a m_pref == nullptr →
     //!       weakly = true and the acquire CAS lost (caller should retry).
-    explicit scoped_local_shared_ptr(atomic_shared_ptr<T> &asp,
+    explicit scoped_atomic_view(atomic_shared_ptr<T> &asp,
                                      Refcnt promote_threshold = DEFER_THRESHOLD,
                                      bool weakly = false) noexcept
         : m_asp(&asp), m_pref(nullptr), m_rcnt_at_acquire(0),
@@ -506,7 +506,7 @@ public:
         }
     }
 
-    scoped_local_shared_ptr(scoped_local_shared_ptr &&other) noexcept
+    scoped_atomic_view(scoped_atomic_view &&other) noexcept
         : m_asp(other.m_asp), m_pref(other.m_pref),
           m_rcnt_at_acquire(other.m_rcnt_at_acquire),
           m_acquire_succeeded(other.m_acquire_succeeded) {
@@ -514,7 +514,7 @@ public:
         other.m_rcnt_at_acquire = 0;
         other.m_acquire_succeeded = true;
     }
-    scoped_local_shared_ptr &operator=(scoped_local_shared_ptr &&other) noexcept {
+    scoped_atomic_view &operator=(scoped_atomic_view &&other) noexcept {
         if(this != &other) {
             release_();
             m_asp = other.m_asp;
@@ -527,10 +527,26 @@ public:
         }
         return *this;
     }
-    scoped_local_shared_ptr(const scoped_local_shared_ptr &) = delete;
-    scoped_local_shared_ptr &operator=(const scoped_local_shared_ptr &) = delete;
+    scoped_atomic_view(const scoped_atomic_view &) = delete;
+    scoped_atomic_view &operator=(const scoped_atomic_view &) = delete;
 
-    ~scoped_local_shared_ptr() noexcept { release_(); }
+    //! Exchange internal state with another view.  Useful for
+    //! "transferring ownership through a sub-routine":
+    //!   void f(scoped_atomic_view<T> &out) {
+    //!       scoped_atomic_view<T> local(*some_asp, ADAPTIVE_THRESHOLD);
+    //!       ... use local for CAS / read ...
+    //!       out.swap(local);  // hand it back to caller; local goes
+    //!                         // out of scope releasing the *old* out.
+    //!   }
+    //! No tag refcount op happens — just a stateless rearrangement.
+    void swap(scoped_atomic_view &other) noexcept {
+        std::swap(m_asp, other.m_asp);
+        std::swap(m_pref, other.m_pref);
+        std::swap(m_rcnt_at_acquire, other.m_rcnt_at_acquire);
+        std::swap(m_acquire_succeeded, other.m_acquire_succeeded);
+    }
+
+    ~scoped_atomic_view() noexcept { release_(); }
 
     //! \brief Convert to local_shared_ptr<T>. Internally promotes if needed.
     //!   - From TagHeld: promote (tag → refcnt; bit-identical to load_shared_),
@@ -817,7 +833,7 @@ inline void atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
 //   - OldrT = local_shared_ptr<T> (Swap, ACQUIRE):
 //       acquire_tag_ref_() to pin pref while updating oldr on mismatch;
 //       step4 = +(T-1); failure undo via release_tag_ref_(pref, T).
-//   - OldrT = scoped_local_shared_ptr<T> (SetScoped, WEAK only):
+//   - OldrT = scoped_atomic_view<T> (SetScoped, WEAK only):
 //       scoped already holds tag; step4 = +(T-1);
 //       failure undo via plain fetch_sub(T-1, relaxed) (eager); on success,
 //       scoped's tag is consumed by CAS (m_pref reset to nullptr).
@@ -839,10 +855,10 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
     const local_shared_ptr<T> &newr) noexcept {
 
     using OldrPlain = typename std::remove_cv<OldrT>::type;
-    constexpr bool SCOPED = std::is_same<OldrPlain, scoped_local_shared_ptr<T>>::value;
+    constexpr bool SCOPED = std::is_same<OldrPlain, scoped_atomic_view<T>>::value;
     constexpr bool ACQUIRE = !std::is_const<OldrT>::value && !SCOPED;
     static_assert( !(SCOPED && !WEAK),
-        "compareAndSet on scoped_local_shared_ptr is weak-only");
+        "compareAndSet on scoped_atomic_view is weak-only");
 
     auto oldr_pref = [&]() -> Ref* {
         if constexpr (SCOPED) return oldr.m_pref;
@@ -1023,8 +1039,8 @@ atomic_shared_ptr<T>::compareAndSetWeak(const local_shared_ptr<T> &oldr, const l
 }
 template <typename T>
 inline bool
-atomic_shared_ptr<T>::compareAndSetWeak(scoped_local_shared_ptr<T> &scoped, const local_shared_ptr<T> &newr) noexcept {
-    return compareAndSet_impl_<scoped_local_shared_ptr<T>, true>(scoped, newr);
+atomic_shared_ptr<T>::compareAndSetWeak(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newr) noexcept {
+    return compareAndSet_impl_<scoped_atomic_view<T>, true>(scoped, newr);
 }
 template <typename T, typename reflocal_var_t>
 inline void

@@ -79,7 +79,7 @@ start_routine() {
     	//   0: compareAndSet      (strong, const oldr)
     	//   1: compareAndSetWeak  (weak,   const oldr)
     	//   2: compareAndSwap     (strong, mutable oldr — updates on mismatch)
-    	//   3: compareAndSetWeak  (weak,   scoped_local_shared_ptr; ADAPTIVE)
+    	//   3: compareAndSetWeak  (weak,   scoped_atomic_view; ADAPTIVE)
     	switch(i % 4) {
     	case 0:
         	for(;;) {
@@ -103,8 +103,8 @@ start_routine() {
         	break;
     	case 3:
         	for(;;) {
-            	scoped_local_shared_ptr<A> sp(gp1,
-            		scoped_local_shared_ptr<A>::ADAPTIVE_THRESHOLD);
+            	scoped_atomic_view<A> sp(gp1,
+            		scoped_atomic_view<A>::ADAPTIVE_THRESHOLD);
         		if(sp) xxx = sp->x();
             	if(gp1.compareAndSetWeak(sp, p1)) break;
         	}

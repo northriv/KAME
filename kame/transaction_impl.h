@@ -536,13 +536,13 @@ public:
         return false;
     }
 
-    //! Scoped variant — `expected` is a `scoped_local_shared_ptr`
+    //! Scoped variant — `expected` is a `scoped_atomic_view`
     //! holding a tag-bit reference to the linkage's current
     //! PacketWrapper.  Avoids the heap fetch_add(1) of a regular
     //! load_shared_ when the caller's reference is short-lived
     //! (acquire-CAS-discard pattern).  See atomic_smart_ptr.h for
     //! the underlying weak+scoped CAS contract.
-    bool compareAndSet(scoped_local_shared_ptr<PacketWrapper> &expected,
+    bool compareAndSet(scoped_atomic_view<PacketWrapper> &expected,
                        const local_shared_ptr<PacketWrapper> &desired) noexcept {
         if(m_link->compareAndSetWeak(expected, desired)) {
             m_committed = true;
@@ -568,7 +568,7 @@ public:
     }
 
     //! Scoped variant of compareAndSetWithHint.
-    bool compareAndSetWithHint(scoped_local_shared_ptr<PacketWrapper> &expected,
+    bool compareAndSetWithHint(scoped_atomic_view<PacketWrapper> &expected,
                                 const local_shared_ptr<PacketWrapper> &desired,
                                 typename Node<XN>::NegotiationCounter::cnt_t
                                     started_time = 0) noexcept {
@@ -1650,9 +1650,9 @@ Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
         ScopedNegotiateLinkage<XN> scope(packet->node().m_link, snap, iter,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         // Tag-ref'd load (avoids heap fetch_add when ref is short-lived).
-        scoped_local_shared_ptr<PacketWrapper> wrapper(
+        scoped_atomic_view<PacketWrapper> wrapper(
             *packet->node().m_link,
-            scoped_local_shared_ptr<PacketWrapper>::ADAPTIVE_THRESHOLD);
+            scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD);
         if(wrapper->m_bundle_serial != serial) {
             scope.commit();
             break;

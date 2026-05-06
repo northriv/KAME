@@ -12,7 +12,7 @@
         see the files COPYING and AUTHORS.
  ***************************************************************************/
 /*
- * GenMC test 9: scoped_local_shared_ptr + compareAndSetWeak race.
+ * GenMC test 9: scoped_atomic_view + compareAndSetWeak race.
  *
  * Models compareAndSetWeak(scoped, newr) from kame/atomic_smart_ptr.h
  * where the scoped already holds a tag ref (acquired in its constructor).
