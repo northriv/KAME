@@ -75,15 +75,42 @@ start_routine() {
     	gp1 = gp1;
     	p2.swap(p3);
 
-    	for(;;) {
-    		local_shared_ptr<A> p(gp1);
-    		if(p)
-    			xxx = p->x();
-	    	if(gp1.compareAndSet(p, p1)) {
-	    		break;
-	    	}
-//    		printf("f");
+    	// 4 CAS variants selected by i % 4 (against gp1):
+    	//   0: compareAndSet      (strong, const oldr)
+    	//   1: compareAndSetWeak  (weak,   const oldr)
+    	//   2: compareAndSwap     (strong, mutable oldr — updates on mismatch)
+    	//   3: compareAndSetWeak  (weak,   scoped_local_shared_ptr; ADAPTIVE)
+    	switch(i % 4) {
+    	case 0:
+        	for(;;) {
+        		local_shared_ptr<A> p(gp1);
+        		if(p) xxx = p->x();
+            	if(gp1.compareAndSet(p, p1)) break;
+        	}
+        	break;
+    	case 1:
+        	for(;;) {
+        		local_shared_ptr<A> p(gp1);
+        		if(p) xxx = p->x();
+            	if(gp1.compareAndSetWeak(p, p1)) break;
+        	}
+        	break;
+    	case 2:
+        	for(local_shared_ptr<A> p(gp1);;) {
+        		if(p) xxx = p->x();
+            	if(gp1.compareAndSwap(p, p1)) break;
+        	}
+        	break;
+    	case 3:
+        	for(;;) {
+            	scoped_local_shared_ptr<A> sp(gp1,
+            		scoped_local_shared_ptr<A>::ADAPTIVE_THRESHOLD);
+        		if(sp) xxx = sp->x();
+            	if(gp1.compareAndSetWeak(sp, p1)) break;
+        	}
+        	break;
     	}
+    	// Always exercise compareAndSwap on gp3 every iteration.
     	for(local_shared_ptr<A> p(gp3);;) {
     		if(p)
     			xxx = p->x();

@@ -531,23 +531,27 @@ public:
 
     ~scoped_local_shared_ptr() noexcept { release_(); }
 
-    //! \brief Promote to local_shared_ptr<T> by transferring ownership.
-    //!   - From TagHeld: bit-identical to load_shared_() (fetch_add(rcnt) +
-    //!     release_tag_ref_(pref, rcnt)).
-    //!   - From Owned: zero atomic ops (just transfer the +1 to the result).
-    //! \note rvalue-only — the scoped instance becomes Empty after this.
-    operator local_shared_ptr<T>() && noexcept {
+    //! \brief Convert to local_shared_ptr<T>. Internally promotes if needed.
+    //!   - From TagHeld: promote (tag → refcnt; bit-identical to load_shared_),
+    //!     then fetch_add(1) for the new ref. Scoped transitions to Owned.
+    //!   - From Owned: just fetch_add(1) for the new ref. Scoped retains.
+    //!   - From Empty: returns empty.
+    //! \note lvalue conversion — scoped remains usable after the call.
+    //!   For scoped that holds a long-lived ref, consider whether
+    //!   the extra fetch_add(1) is worth it vs. holding the scoped directly.
+    operator local_shared_ptr<T>() & noexcept {
         local_shared_ptr<T> ret;
         if(m_pref) {
             if(m_rcnt_at_acquire) {
-                // TagHeld: promote tag → refcnt
+                // TagHeld → Promote: transfer tag to refcnt (load_shared_ shape).
                 m_pref->refcnt.fetch_add(m_rcnt_at_acquire, std::memory_order_relaxed);
                 m_asp->release_tag_ref_(m_pref, m_rcnt_at_acquire);
+                m_rcnt_at_acquire = 0;  // mode flips to Owned
             }
-            // Owned: scoped's +1 in refcnt transfers to the local_shared_ptr.
+            // Owned: scoped already has +1 in refcnt. Add another +1 for the
+            //   new local_shared_ptr's own ownership.
+            m_pref->refcnt.fetch_add(1, std::memory_order_relaxed);
             ret.m_ref = (uintptr_t)m_pref;
-            m_pref = nullptr;
-            m_rcnt_at_acquire = 0;
         }
         return ret;
     }
@@ -562,6 +566,18 @@ public:
     bool is_tag_held() const noexcept { return m_pref && m_rcnt_at_acquire > 0; }
     //! \return true if currently in Owned mode (promoted at construction).
     bool is_owned() const noexcept { return m_pref && m_rcnt_at_acquire == 0; }
+
+    //! Smart-pointer accessors (return T*).
+    T *get() const noexcept {
+        if( !m_pref) return nullptr;
+        if constexpr (is_intrusive<T>::value) {
+            return reinterpret_cast<T*>(m_pref);
+        } else {
+            return m_pref->ptr;
+        }
+    }
+    T *operator->() const noexcept { assert(m_pref); return get(); }
+    T &operator*() const noexcept { assert(m_pref); return *get(); }
 
     Ref *ref_ptr_() const noexcept { return m_pref; }
     Refcnt rcnt_at_acquire_() const noexcept { return m_rcnt_at_acquire; }
@@ -970,7 +986,16 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                 pref->refcnt.fetch_sub(step4_amount, std::memory_order_relaxed);
             }
         }
-        if constexpr (WEAK) return false;
+        if constexpr (WEAK) {
+            // Roll back the optimistic newr fetch_add(1) from the entry of
+            // this function — STRONG mode keeps it across retries, but WEAK
+            // returns false without retry, so the +1 must be undone.
+            // Pre-existing bug: prior compareAndSet_(weakly=true) path
+            // also leaked newr on CAS failure (not exercised by old tests).
+            if(newr.ref_ptr_())
+                newr.ref_ptr_()->refcnt.fetch_sub(1, std::memory_order_relaxed);
+            return false;
+        }
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
