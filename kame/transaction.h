@@ -922,7 +922,7 @@ private:
     //! \param[in] snap Snapshot that chains started_time, tid_bitset and
     //! the tagged-linkage list through the commit/negotiate/bundle path.
     static UnbundledStatus unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
-        const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &bundled_ref,
+        ScopedNegotiateLinkage<XN> &subscope,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
         local_shared_ptr<PacketWrapper> *superwrapper = NULL);
