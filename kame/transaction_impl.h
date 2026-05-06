@@ -551,23 +551,36 @@ public:
             m_snap.tag_as_contender(m_link);
     }
 
-    //! Move-in ctor: negotiate + take ownership of an existing
+    //! Move-in ctor: take ownership of an existing
     //! local_shared_ptr<PacketWrapper> (e.g. one already loaded in the
     //! caller's frame).  Zero atomic ops for the view setup — the
     //! local_shared_ptr's +1 ref is reused as the view's Owned ref.
-    //! Useful when the caller already paid for a load_shared_ and we
-    //! just want to negotiate + tag and own the view.
+    //!
+    //! By default does **not** negotiate (`with_negotiate=false`):
+    //! the move-in pattern signals that the caller already has an
+    //! outer ScopedNegotiateLinkage on the same linkage (e.g. bundle's
+    //! Phase 1 child_scope wraps subnode->m_link, then bundle_subpacket
+    //! constructs an inner subscope on the same linkage).  The outer
+    //! scope's negotiate already covers this iteration; double-
+    //! negotiating the same linkage is redundant.  This matches the
+    //! pre-view-ification baseline where bundle_subpacket had no scope
+    //! at all and only the outer Phase 1 child_scope negotiated.
+    //! Pass `with_negotiate=true` for sites that genuinely need their
+    //! own negotiate (no outer scope on this linkage).
     ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
                            local_shared_ptr<PacketWrapper> &&from,
                            TagMode mode = TagMode::OnEntry,
-                           float mult_wait = 2.0f) noexcept
+                           float mult_wait = 2.0f,
+                           bool with_negotiate = false) noexcept
         : m_link(std::move(link)), m_snap(snap),
           m_eager(mode == TagMode::OnEntry),
           m_should_tag(retry != 0) {
-        if(retry < 0)
-            m_link->negotiate(snap, mult_wait);
-        else
-            m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+        if(with_negotiate) {
+            if(retry < 0)
+                m_link->negotiate(snap, mult_wait);
+            else
+                m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+        }
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         if(m_eager && m_should_tag)
             m_snap.tag_as_contender(m_link);
