@@ -525,6 +525,27 @@ public:
         }
     }
 
+    //! Replace the current view with a value from `from`, taking
+    //! ownership of `from`'s +1 refcount (zero atomic ops on the
+    //! transfer).  The previous view is released first.
+    //!
+    //! Use this after a successful CAS to update the view to the new
+    //! linkage value without paying a load_shared_ — e.g. a multi-phase
+    //! CAS protocol where each phase advances the linkage and we want
+    //! the view to track without re-reading the atomic_shared_ptr.
+    void assign_from_local(local_shared_ptr<T> &&from) noexcept {
+        release_();
+        if(from.m_ref) {
+            m_pref = (Ref *)from.m_ref;
+            m_rcnt_at_acquire = 0;  // Owned mode
+            from.m_ref = 0;  // empty out the source
+        } else {
+            m_pref = nullptr;
+            m_rcnt_at_acquire = 0;
+        }
+        m_acquire_succeeded = true;
+    }
+
     scoped_atomic_view(scoped_atomic_view &&other) noexcept
         : m_asp(other.m_asp), m_pref(other.m_pref),
           m_rcnt_at_acquire(other.m_rcnt_at_acquire),

@@ -610,6 +610,15 @@ public:
         m_view = scoped_atomic_view<PacketWrapper>(*m_link);
     }
 
+    //! Replace the internal view with a value from `from`, taking
+    //! ownership of `from`'s +1 refcount (zero atomic ops on the
+    //! transfer).  Use after a successful multi-phase CAS where the
+    //! caller wants the scope's view to track the new linkage value
+    //! without paying a load_shared_.
+    void set_view(local_shared_ptr<PacketWrapper> &&from) noexcept {
+        m_view.assign_from_local(std::move(from));
+    }
+
     // ---------- CAS using internal view ----------
 
     //! Weak CAS using the internal view as oldr.  Auto-commits on success.
@@ -2465,19 +2474,18 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
                 break;
             }
         }
-        // Fall through to bundle.  Move the view out as a value-typed
-        // local_shared_ptr because bundle() mutates its oldsuperwrapper
-        // parameter across multi-phase CAS.  Owned mode → 0 atomic ops;
-        // TagHeld → 2 ops (promote).
-        local_shared_ptr<PacketWrapper> root_wrapper = scope.consume_view();
+        // Fall through to bundle.  Pass scope directly — bundle()
+        // consumes scope's view at entry and restores via set_view on
+        // success, so on SUCCESS we can read the post-bundle wrapper
+        // through scope->packet().
         BundledStatus status = const_cast<Node *>(this)->bundle(
-            root_wrapper, snapshot, snapshot.m_serial, true);
+            scope, snapshot, snapshot.m_serial, true);
         switch (status) {
         case BundledStatus::SUCCESS:
-            assert( !root_wrapper->packet()->missing());
-            STRICT_assert(root_wrapper->packet()->checkConsistensy(root_wrapper->packet()));
+            assert( !scope->packet()->missing());
+            STRICT_assert(scope->packet()->checkConsistensy(scope->packet()));
             snapshot.m_serial = SerialGenerator::gen(); //Capture Lamport advances from bundle().
-            snapshot.m_packet = root_wrapper->packet();
+            snapshot.m_packet = scope->packet();
             scope.commit();
             return;
         default:
@@ -2579,7 +2587,17 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
     }
     if(subwrapper->packet()->missing()) {
         assert(subwrapper->packet()->size());
-        BundledStatus status = subnode->bundle(subwrapper, snap, bundle_serial, false);
+        // Move-in subwrapper as the temporary subscope's view (zero
+        // atomic ops — reuses subwrapper's +1 ref).  bundle() consumes
+        // the view and restores via set_view on SUCCESS.
+        ScopedNegotiateLinkage<XN> subscope(subnode->m_link, snap, -1,
+            std::move(subwrapper),
+            ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
+        BundledStatus status = subnode->bundle(subscope, snap, bundle_serial, false);
+        // Restore subwrapper from subscope.view (move-out, 0 ops on
+        // SUCCESS Owned; empty on DISTURBED).  For DISTURBED the
+        // caller (bundle Phase 1) doesn't use subwrapper after.
+        subwrapper = subscope.consume_view();
         switch(status) {
         case BundledStatus::SUCCESS:
             break;
@@ -2638,11 +2656,19 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
 //=============================================================================
 template <class XN>
 typename Node<XN>::BundledStatus
-Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
+Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     Snapshot<XN> &snap,
     int64_t bundle_serial, bool is_bundle_root) {
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
+
+    // Move-out the caller's view as a value-typed local_shared_ptr.
+    // Bundle's multi-phase CAS reassigns this across Phase 2/4 success;
+    // cannot stay as a scoped view bound to a single atomic.  Owned
+    // mode → 0 atomic ops; TagHeld → 2 ops (promote).  At the success
+    // exit below we move the final wrapper back into supscope.view via
+    // set_view (zero atomic ops).
+    local_shared_ptr<PacketWrapper> oldsuperwrapper = supscope.consume_view();
 
     assert(oldsuperwrapper->packet());
     assert(oldsuperwrapper->packet()->size());
@@ -2822,6 +2848,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         // tagged successful_cas on supernode.m_link.
         break;
     }
+    // Restore supscope.view from the final wrapper (move-in, 0 ops).
+    supscope.set_view(std::move(oldsuperwrapper));
     return BundledStatus::SUCCESS;
 }
 

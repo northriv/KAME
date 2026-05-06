@@ -903,7 +903,7 @@ private:
     //! All the subpackets held by \a m_link at the subnodes will be
     //! cleared and each PacketWrapper::bundledBy() will point to its upper node.
     //! \sa snapshot().
-    BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
+    BundledStatus bundle(ScopedNegotiateLinkage<XN> &supscope,
         Snapshot<XN> &snap,
         int64_t bundle_serial, bool is_bundle_root);
     BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
