@@ -514,7 +514,20 @@ class ScopedNegotiateLinkage {
 public:
     enum class TagMode { OnEntry, OnExit };
 
-    //! Standard ctor: negotiate + tag-bit acquire view of m_link.
+    //! Standard ctor: negotiate + tag-bit WEAK-acquire view of m_link.
+    //!
+    //! The view acquire is single-shot (`weakly=true`) — on contention
+    //! the underlying CAS may lose without retry.  A lost acquire is
+    //! treated as a CAS failure: `m_contention_observed` is set (so
+    //! the dtor tags this iteration as a contender), and the view is
+    //! empty so `bool(*this)` returns false.
+    //!
+    //! Callers that access the view (operator->, operator*, internal
+    //! scope-driven CAS via compareAndSet(desired)) MUST guard with
+    //! `if(!scope) continue;` after construction in their retry loop.
+    //! Sites that only use external-expected CAS
+    //! (compareAndSet(expected, desired)) may proceed unguarded since
+    //! the empty view does not affect that path.
     ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
                            TagMode mode = TagMode::OnEntry,
                            float mult_wait = 2.0f) noexcept
@@ -525,7 +538,15 @@ public:
             m_link->negotiate(snap, mult_wait);  // always negotiate, no retry_pause
         else
             m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
-        m_view = scoped_atomic_view<PacketWrapper>(*m_link);
+        m_view = scoped_atomic_view<PacketWrapper>(
+            *m_link,
+            scoped_atomic_view<PacketWrapper>::DEFER_THRESHOLD,
+            /*weakly=*/true);
+        if(!m_view.acquire_succeeded()) {
+            // Weak acquire CAS lost — same treatment as a CAS failure:
+            // forces dtor tag despite retry==0 fast-path optimization.
+            m_contention_observed = true;
+        }
         if(m_eager && m_should_tag)
             m_snap.tag_as_contender(m_link);
     }
@@ -1677,6 +1698,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             // untagged (cheap fast path).
             ScopedNegotiateLinkage<XN> scope(var->m_link, tr, iter,
                 ScopedNegotiateLinkage<XN>::TagMode::OnExit);
+            if( !scope) continue;  // weak acquire lost — treat as CAS failure
 
             local_shared_ptr<Packet> subpacket_new;
             local_shared_ptr<PacketWrapper> subwrapper;
@@ -1746,6 +1768,7 @@ Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
         // RAII OnExit.
         ScopedNegotiateLinkage<XN> scope(packet->node().m_link, snap, iter,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
+        if( !scope) continue;  // weak acquire lost — treat as CAS failure
         // Tag-ref'd load (avoids heap fetch_add when ref is short-lived).
         scoped_atomic_view<PacketWrapper> wrapper(
             *packet->node().m_link,
@@ -2406,6 +2429,11 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
         // + tags eagerly (retry > 0).
         ScopedNegotiateLinkage<XN> scope(m_link, snapshot, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
+        if( !scope) {
+            // Weak acquire CAS lost — treat as CAS failure: skip body
+            // (m_contention_observed already set in ctor → dtor tags).
+            continue;
+        }
         snapshot.m_serial = SerialGenerator::gen(scope->m_bundle_serial);
         if(scope->hasPriority()) {
             if( !multi_nodal) {
@@ -2687,6 +2715,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // on the same supernode.m_link as commit/bundle main loop.
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
+        if( !scope) return BundledStatus::DISTURBED;  // weak acquire lost
         if( !scope.compareAndSet(oldsuperwrapper, superwrapper))
             return BundledStatus::DISTURBED; // dtor tags
         oldsuperwrapper = std::move(superwrapper);
@@ -2698,6 +2727,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // RAII OnEntry: negotiates supernode.m_link + tags eagerly (retry > 0).
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
+        if( !scope) continue;  // weak acquire lost — retry
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *oldsuperwrapper, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
@@ -2724,6 +2754,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 ScopedNegotiateLinkage<XN> child_scope(
                     child->m_link, snap, child_retry,
                     ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
+                if( !child_scope) continue;  // weak acquire lost — retry
                 subwrapper = *child->m_link;
                 if(subwrapper == subwrappers_org[i]) {
                     child_scope.commit(); //fast path for retry > 0.
@@ -2792,6 +2823,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             ScopedNegotiateLinkage<XN> childScope(child->m_link, snap, retry,
                 ScopedNegotiateLinkage<XN>::TagMode::OnExit,
                 2.0f / subnodes->size());
+            if( !childScope) {
+                // Weak acquire lost — treat as Phase 3 CAS failure.
+                changed_during_bundling = true;
+                break;
+            }
             if( !childScope.compareAndSet(subwrappers_org[i], bundled_ref)) {
                 // Phase 3 child-CAS failure.  childScope auto-recorded
                 // contention (dtor will tag).  Note: priv-assert WILL fire
@@ -2925,6 +2961,11 @@ Node<XN>::commit(Transaction<XN> &tr) {
         // CAS oldr.
         ScopedNegotiateLinkage<XN> scope(m_link, tr, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
+        if( !scope) {
+            // Weak acquire CAS lost.  m_contention_observed already
+            // set in ctor — dtor tags this iteration.  Skip the body.
+            continue;
+        }
         if(scope->hasPriority()) {
             //Committing directly to the node.
             if(scope->packet() != tr.m_oldpacket) {
@@ -3076,6 +3117,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         // linkage), so a fresh ScopedNegotiateLinkage is needed here.
         ScopedNegotiateLinkage<XN> scope(it->linkage, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 2.0f / cas_infos.size());
+        if( !scope) return UnbundledStatus::DISTURBED;  // weak acquire lost
         if( !scope.compareAndSet(it->old_wrapper, it->new_wrapper))
             return UnbundledStatus::DISTURBED;
         // scope.compareAndSet auto-committed on success.  A subsequent
