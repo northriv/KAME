@@ -1258,9 +1258,16 @@ protected:
 //! make forward progress, so failing a CAS or re-iterating a spin
 //! loop while privileged means some other thread bypassed the
 //! fair-mode yield (= a bug in the negotiate / tag_as_contender
-//! coverage). Compiled out via `-DKAME_STM_ASSERT_PRIVILEGE=0`.
+//! coverage). Defaults to 0 under NDEBUG so benchmark/release builds
+//! never pay for the assertion if the developer forgot to disable it
+//! explicitly; defaults to 1 in debug builds. Override with
+//! `-DKAME_STM_ASSERT_PRIVILEGE=0` (or 1).
 #ifndef KAME_STM_ASSERT_PRIVILEGE
+#ifdef NDEBUG
+#define KAME_STM_ASSERT_PRIVILEGE 0
+#else
 #define KAME_STM_ASSERT_PRIVILEGE 1
+#endif
 #endif
 
 // ScopedNegotiateLinkage<XN> definition lives in transaction_impl.h
