@@ -499,12 +499,22 @@ class ScopedNegotiateLinkage {
     using PacketWrapper = typename Node<XN>::PacketWrapper;
     LinkagePtr      m_link;
     Snapshot<XN>   &m_snap;
+    //! Tag-ref'd view of m_link's current PacketWrapper.  Acquired in
+    //! ctor (DEFER_THRESHOLD — stays TagHeld; no fetch_add unless
+    //! moved out as local_shared_ptr).  Used as oldr for the scope's
+    //! built-in compareAndSet / compareAndSetWithHint methods.
+    //! After a successful CAS the view is consumed (empty); after a
+    //! failed CAS the view may also be empty depending on the
+    //! weak+scoped contract — caller can re-acquire via reload_view().
+    scoped_atomic_view<PacketWrapper> m_view;
     bool            m_eager;
     bool            m_should_tag;            // retry != 0 — fast-path optimization
     bool            m_committed = false;
     bool            m_contention_observed = false;  // forces dtor tag despite retry==0
 public:
     enum class TagMode { OnEntry, OnExit };
+
+    //! Standard ctor: negotiate + tag-bit acquire view of m_link.
     ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
                            TagMode mode = TagMode::OnEntry,
                            float mult_wait = 2.0f) noexcept
@@ -515,17 +525,108 @@ public:
             m_link->negotiate(snap, mult_wait);  // always negotiate, no retry_pause
         else
             m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+        m_view = scoped_atomic_view<PacketWrapper>(*m_link);
         if(m_eager && m_should_tag)
             m_snap.tag_as_contender(m_link);
     }
+
+    //! Move-in ctor: negotiate + take ownership of an existing
+    //! local_shared_ptr<PacketWrapper> (e.g. one already loaded in the
+    //! caller's frame).  Zero atomic ops for the view setup — the
+    //! local_shared_ptr's +1 ref is reused as the view's Owned ref.
+    //! Useful when the caller already paid for a load_shared_ and we
+    //! just want to negotiate + tag and own the view.
+    ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
+                           local_shared_ptr<PacketWrapper> &&from,
+                           TagMode mode = TagMode::OnEntry,
+                           float mult_wait = 2.0f) noexcept
+        : m_link(std::move(link)), m_snap(snap),
+          m_eager(mode == TagMode::OnEntry),
+          m_should_tag(retry != 0) {
+        if(retry < 0)
+            m_link->negotiate(snap, mult_wait);
+        else
+            m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+        m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
+        if(m_eager && m_should_tag)
+            m_snap.tag_as_contender(m_link);
+    }
+
     ScopedNegotiateLinkage(const ScopedNegotiateLinkage &) = delete;
     ScopedNegotiateLinkage &operator=(const ScopedNegotiateLinkage &) = delete;
 
-    //! Weak CAS on the scope's linkage.  Auto-commits on success.
-    //! Spurious failures (no actual mismatch) are possible on
-    //! LL/SC architectures; the retry loop handles them.  A spurious
-    //! failure conservatively records m_contention_observed → dtor
-    //! tag (one extra dedup walk; tag_as_contender is idempotent).
+    // ---------- View access (forwarding to internal scoped view) ----------
+
+    //! Pointer-style access to the wrapped PacketWrapper.
+    PacketWrapper *operator->() const noexcept { return m_view.get(); }
+    PacketWrapper &operator*() const noexcept { return *m_view; }
+    explicit operator bool() const noexcept { return bool(m_view); }
+    bool operator!() const noexcept { return !m_view; }
+
+    //! Identity comparisons against another local_shared_ptr<PacketWrapper>
+    //! (avoids materialising a fresh local_shared_ptr from the view).
+    bool operator==(const local_shared_ptr<PacketWrapper> &rhs) const noexcept {
+        return m_view.ref_ptr_() == rhs.ref_ptr_();
+    }
+    bool operator!=(const local_shared_ptr<PacketWrapper> &rhs) const noexcept {
+        return !(*this == rhs);
+    }
+    friend bool operator==(const local_shared_ptr<PacketWrapper> &lhs,
+                           const ScopedNegotiateLinkage &rhs) noexcept { return rhs == lhs; }
+    friend bool operator!=(const local_shared_ptr<PacketWrapper> &lhs,
+                           const ScopedNegotiateLinkage &rhs) noexcept { return rhs != lhs; }
+
+    //! Move-out the view as a local_shared_ptr<PacketWrapper>.  After
+    //! this, the scope's view is empty; the scope can no longer be
+    //! used as oldr for compareAndSet*() until reload_view() is called.
+    //! Use for sub-routines that need a chain-walking value-typed
+    //! wrapper (walkUpChain etc).  Cheap when the view is in Owned
+    //! mode (zero atomic ops); two ops if still TagHeld (promote).
+    local_shared_ptr<PacketWrapper> consume_view() noexcept {
+        return std::move(m_view);
+    }
+
+    //! Re-acquire the view from m_link (after a CAS failure or after
+    //! consume_view()).
+    void reload_view() noexcept {
+        m_view = scoped_atomic_view<PacketWrapper>(*m_link);
+    }
+
+    // ---------- CAS using internal view ----------
+
+    //! Weak CAS using the internal view as oldr.  Auto-commits on success.
+    //! Spurious failures (no actual mismatch) are possible on LL/SC
+    //! architectures; the retry loop handles them.  A spurious failure
+    //! conservatively records m_contention_observed → dtor tag.
+    bool compareAndSet(const local_shared_ptr<PacketWrapper> &desired) noexcept {
+        if(m_link->compareAndSetWeak(m_view, desired)) {
+            m_committed = true;
+            return true;
+        }
+        m_contention_observed = true;
+        return false;
+    }
+
+    //! Weak CAS using internal view + tags_successful_cas() priority/
+    //! lease hint on success.  `started_time = 0` (default) makes
+    //! `tags_successful_cas` use now_us().
+    bool compareAndSetWithHint(const local_shared_ptr<PacketWrapper> &desired,
+                                typename Node<XN>::NegotiationCounter::cnt_t
+                                    started_time = 0) noexcept {
+        if(m_link->compareAndSetWeak(m_view, desired)) {
+            m_link->tags_successful_cas(started_time);
+            m_committed = true;
+            return true;
+        }
+        m_contention_observed = true;
+        return false;
+    }
+
+    // ---------- CAS with externally-supplied expected (legacy) ----------
+
+    //! Weak CAS on the scope's linkage with caller-supplied `expected`.
+    //! Used by the few sites that hold the expected wrapper as a
+    //! separate value (e.g. bundle Phase 3 child CAS).
     bool compareAndSet(const local_shared_ptr<PacketWrapper> &expected,
                        const local_shared_ptr<PacketWrapper> &desired) noexcept {
         if(m_link->compareAndSetWeak(expected, desired)) {
@@ -536,39 +637,8 @@ public:
         return false;
     }
 
-    //! Scoped variant — `expected` is a `scoped_atomic_view`
-    //! holding a tag-bit reference to the linkage's current
-    //! PacketWrapper.  Avoids the heap fetch_add(1) of a regular
-    //! load_shared_ when the caller's reference is short-lived
-    //! (acquire-CAS-discard pattern).  See atomic_smart_ptr.h for
-    //! the underlying weak+scoped CAS contract.
-    bool compareAndSet(scoped_atomic_view<PacketWrapper> &expected,
-                       const local_shared_ptr<PacketWrapper> &desired) noexcept {
-        if(m_link->compareAndSetWeak(expected, desired)) {
-            m_committed = true;
-            return true;
-        }
-        m_contention_observed = true;
-        return false;
-    }
-
-    //! Weak CAS + tags_successful_cas() priority/lease hint on success.
-    //! `started_time = 0` (default) makes `tags_successful_cas` use now_us().
+    //! Weak CAS with hint, externally-supplied expected.
     bool compareAndSetWithHint(const local_shared_ptr<PacketWrapper> &expected,
-                                const local_shared_ptr<PacketWrapper> &desired,
-                                typename Node<XN>::NegotiationCounter::cnt_t
-                                    started_time = 0) noexcept {
-        if(m_link->compareAndSetWeak(expected, desired)) {
-            m_link->tags_successful_cas(started_time);
-            m_committed = true;
-            return true;
-        }
-        m_contention_observed = true;
-        return false;
-    }
-
-    //! Scoped variant of compareAndSetWithHint.
-    bool compareAndSetWithHint(scoped_atomic_view<PacketWrapper> &expected,
                                 const local_shared_ptr<PacketWrapper> &desired,
                                 typename Node<XN>::NegotiationCounter::cnt_t
                                     started_time = 0) noexcept {
@@ -1686,16 +1756,20 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     packet->subnodes().reset(new NodeList( *packet->subnodes()));
     unsigned int idx = 0;
     int old_idx = -1;
-    // Tag-ref'd view (DEFER_THRESHOLD — stays TagHeld, no fetch_add).
-    // Used as oldr in the final scope.compareAndSetWithHint below.
-    scoped_atomic_view<PacketWrapper> nullsubwrapper;
+    // Loaded once below into a scope at function tail; pre-CAS read
+    // here uses load_shared_ since we need the value across the
+    // packet-loop iterations and the final commit() call before the
+    // CAS.  Move-into a scope just before the CAS to avoid an extra
+    // fetch_add (the ScopedNegotiateLinkage move-in ctor reuses the
+    // local_shared_ptr's +1 ref).
+    local_shared_ptr<PacketWrapper> nullsubwrapper;
     local_shared_ptr<PacketWrapper> newsubwrapper;
     auto nit = packet->subnodes()->begin();
     for(auto pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
         assert(nit != packet->subnodes()->end());
         if(nit->get() == &*var) {
             if( *pit) {
-                nullsubwrapper = scoped_atomic_view<PacketWrapper>(*var->m_link);
+                nullsubwrapper = *var->m_link;
                 if(nullsubwrapper->hasPriority()) {
                     if(nullsubwrapper->packet() != *pit) {
                         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
@@ -1762,9 +1836,12 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     tr.m_packet = newpacket;
 
     //Unload the packet of the released node.
+    // Move-in the pre-loaded nullsubwrapper as the scope's view (the
+    // +1 refcount transfers without a fresh fetch_add).
     ScopedNegotiateLinkage<XN> scope(var->m_link, tr, -1,
+        std::move(nullsubwrapper),
         ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-    if( !scope.compareAndSetWithHint(nullsubwrapper, newsubwrapper)) {
+    if( !scope.compareAndSetWithHint(newsubwrapper)) {
         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
         return false; // destructor tags
     }
@@ -2764,19 +2841,18 @@ Node<XN>::commit(Transaction<XN> &tr) {
 
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
     for(int retry = 0;; ++retry) {
-        // RAII OnEntry: negotiates m_link + tags eagerly (retry > 0).
+        // RAII OnEntry: negotiates + tag-bit acquires view of m_link
+        // + tags eagerly (retry > 0).  scope's internal view is the
+        // CAS oldr.
         ScopedNegotiateLinkage<XN> scope(m_link, tr, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
-        // Tag-ref'd view (DEFER_THRESHOLD — stays TagHeld, no fetch_add
-        // on acquire/release).  Used as oldr in compareAndSetWithHint.
-        scoped_atomic_view<PacketWrapper> wrapper(*m_link);
-        if(wrapper->hasPriority()) {
+        if(scope->hasPriority()) {
             //Committing directly to the node.
-            if(wrapper->packet() != tr.m_oldpacket) {
-                if( !tr.isMultiNodal() && (wrapper->packet()->payload() == tr.m_oldpacket->payload())) {
+            if(scope->packet() != tr.m_oldpacket) {
+                if( !tr.isMultiNodal() && (scope->packet()->payload() == tr.m_oldpacket->payload())) {
                     //Single-node mode, the payload in the snapshot is unchanged.
-                    tr.m_packet->subpackets() = wrapper->packet()->subpackets();
-                    tr.m_packet->m_missing = wrapper->packet()->missing();
+                    tr.m_packet->subpackets() = scope->packet()->subpackets();
+                    tr.m_packet->m_missing = scope->packet()->missing();
                 }
                 else {
                     STRICT_TEST(s_serial_abandoned = tr.m_serial);
@@ -2795,19 +2871,20 @@ Node<XN>::commit(Transaction<XN> &tr) {
             STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
 
             // CAS via the scope: success → auto-commit + priority hint;
-            // failure → m_contention_observed → dtor tag.  CAS-time
-            // priv-assert fires if another Tx holds privilege right now.
-            if(scope.compareAndSetWithHint(wrapper, newwrapper, tr.m_started_time))
+            // failure → m_contention_observed → dtor tag.
+            if(scope.compareAndSetWithHint(newwrapper, tr.m_started_time))
                 return true;
             continue;
         }
         //Unbundling this node from the super packet.
-        // Convert scoped → local_shared_ptr for unbundle (rare path).
-        // TODO: thread scoped_atomic_view through unbundle() / walkUpChain
-        // to avoid the conversion cost (3 atomic ops in TagHeld mode).
-        local_shared_ptr<PacketWrapper> wrapper_for_unbundle = wrapper;
+        // Move-out the view as local_shared_ptr (rvalue conversion,
+        // 0 ops Owned / 2 ops TagHeld).  unbundle() takes
+        // bundled_ref by const-ref; no further conversion.  The
+        // scope's view is empty after this; if we retry, the next
+        // iter constructs a fresh scope.
+        local_shared_ptr<PacketWrapper> bundled_ref = scope.consume_view();
         UnbundledStatus status = unbundle(nullptr, tr,
-            m_link, wrapper_for_unbundle,
+            m_link, bundled_ref,
             tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr);
         switch(status) {
         case UnbundledStatus::W_NEW_SUBVALUE:
