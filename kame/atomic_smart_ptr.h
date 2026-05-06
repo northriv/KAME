@@ -273,6 +273,7 @@ public:
 protected:
     template <typename Y, typename Z> friend class local_shared_ptr;
     template <typename Y> friend class atomic_shared_ptr;
+    template <typename Y> friend class scoped_atomic_view;  // operator local_shared_ptr<T>() needs m_ref
     typedef typename atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::Ref Ref;
     typedef typename atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::Refcnt Refcnt;
     typedef uintptr_t TaggedPtr;

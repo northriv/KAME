@@ -1686,13 +1686,16 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     packet->subnodes().reset(new NodeList( *packet->subnodes()));
     unsigned int idx = 0;
     int old_idx = -1;
-    local_shared_ptr<PacketWrapper> nullsubwrapper, newsubwrapper;
+    // Tag-ref'd view (DEFER_THRESHOLD — stays TagHeld, no fetch_add).
+    // Used as oldr in the final scope.compareAndSetWithHint below.
+    scoped_atomic_view<PacketWrapper> nullsubwrapper;
+    local_shared_ptr<PacketWrapper> newsubwrapper;
     auto nit = packet->subnodes()->begin();
     for(auto pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
         assert(nit != packet->subnodes()->end());
         if(nit->get() == &*var) {
             if( *pit) {
-                nullsubwrapper = *var->m_link;
+                nullsubwrapper = scoped_atomic_view<PacketWrapper>(*var->m_link);
                 if(nullsubwrapper->hasPriority()) {
                     if(nullsubwrapper->packet() != *pit) {
                         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
@@ -2760,12 +2763,13 @@ Node<XN>::commit(Transaction<XN> &tr) {
     assert(this == &tr.m_packet->node());
 
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
-    local_shared_ptr<PacketWrapper> wrapper;
     for(int retry = 0;; ++retry) {
         // RAII OnEntry: negotiates m_link + tags eagerly (retry > 0).
         ScopedNegotiateLinkage<XN> scope(m_link, tr, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
-        wrapper = *m_link;
+        // Tag-ref'd view (DEFER_THRESHOLD — stays TagHeld, no fetch_add
+        // on acquire/release).  Used as oldr in compareAndSetWithHint.
+        scoped_atomic_view<PacketWrapper> wrapper(*m_link);
         if(wrapper->hasPriority()) {
             //Committing directly to the node.
             if(wrapper->packet() != tr.m_oldpacket) {
@@ -2798,8 +2802,12 @@ Node<XN>::commit(Transaction<XN> &tr) {
             continue;
         }
         //Unbundling this node from the super packet.
+        // Convert scoped → local_shared_ptr for unbundle (rare path).
+        // TODO: thread scoped_atomic_view through unbundle() / walkUpChain
+        // to avoid the conversion cost (3 atomic ops in TagHeld mode).
+        local_shared_ptr<PacketWrapper> wrapper_for_unbundle = wrapper;
         UnbundledStatus status = unbundle(nullptr, tr,
-            m_link, wrapper,
+            m_link, wrapper_for_unbundle,
             tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr);
         switch(status) {
         case UnbundledStatus::W_NEW_SUBVALUE:
