@@ -465,6 +465,9 @@ class ScopedNegotiateLinkage {
     bool            m_eager;
     bool            m_should_tag;   // false at retry==0; true at retry>0 or retry==-1
     bool            m_committed = false;
+#if KAME_STM_ASSERT_PRIVILEGE
+    bool            m_privilege_onentry;
+#endif
 public:
     enum class TagMode { OnEntry, OnExit };
     ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
@@ -473,6 +476,12 @@ public:
         : m_link(std::move(link)), m_snap(snap),
           m_eager(mode == TagMode::OnEntry),
           m_should_tag(retry != 0) {
+#if KAME_STM_ASSERT_PRIVILEGE
+        // True iff THIS Tx currently owns the privileged slot.
+        m_privilege_onentry =
+            (Node<XN>::NegotiationCounter::s_privileged_tidstamp.load(std::memory_order_relaxed)
+             == m_snap.m_started_time);
+#endif
         if(retry < 0)
             m_link->negotiate(snap, mult_wait);  // always negotiate, no retry_pause
         else
@@ -493,6 +502,15 @@ public:
     }
     ~ScopedNegotiateLinkage() noexcept {
         if(!m_committed) {
+       #if KAME_STM_ASSERT_PRIVILEGE
+            // Fires when we held the privilege at entry AND still hold
+            // it at exit without committing — the privileged Tx failed a
+            // CAS / loop iteration, violating the livelock-free invariant.
+            assert(!(m_privilege_onentry &&
+                Node<XN>::NegotiationCounter::s_privileged_tidstamp.load(std::memory_order_relaxed)
+                    == m_snap.m_started_time)
+                && "privileged Tx CAS/loop failure: ScopedNegotiateLinkage dtor");
+       #endif
             if(!m_eager && m_should_tag)
                 m_snap.tag_as_contender(m_link);
         }
