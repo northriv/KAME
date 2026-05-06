@@ -2750,6 +2750,11 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper)) {
             return UnbundledStatus::DISTURBED;
         }
+        // CAS succeeded — mark scope committed BEFORE the oldsuperwrapper
+        // consistency check, since the linkage state already advanced and
+        // a subsequent return DISTURBED here would otherwise leave the
+        // scope un-committed (false-positive privilege-violation assert).
+        scope.commit();
         if(oldsuperwrapper) {
             if( ( *oldsuperwrapper)->packet()->node().m_link == it->linkage) {
                 if( *oldsuperwrapper != it->old_wrapper)
@@ -2758,7 +2763,6 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
                 *oldsuperwrapper = it->new_wrapper;
             }
         }
-        scope.commit();
     }
     if(status == SnapshotStatus::COLLIDED)
         return UnbundledStatus::COLLIDED;
