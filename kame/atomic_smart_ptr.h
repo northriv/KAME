@@ -350,6 +350,13 @@ public:
     //! \return true if succeeded.
     //! \sa compareAndSet()
     bool compareAndSetWeak(const local_shared_ptr<T> &oldvalue, const local_shared_ptr<T> &newvalue) noexcept;
+    //! \return true if succeeded.
+    //! \brief Weakly version using a pre-acquired \a scoped_local_shared_ptr.
+    //!   On success, \a scoped is reset to Empty (tag consumed by CAS). On
+    //!   weak failure (CAS contention), \a scoped remains TagHeld for retry.
+    //!   On pointer change since acquire, \a scoped is eagerly cleaned up
+    //!   to Empty so the caller can detect it via \a scoped.operator bool().
+    inline bool compareAndSetWeak(scoped_local_shared_ptr<T> &scoped, const local_shared_ptr<T> &newvalue) noexcept;
 
     bool operator!() const noexcept {return !this->m_ref;}
     operator bool() const noexcept {return this->m_ref;}
@@ -398,17 +405,22 @@ protected:
     //! excess (left_global_rcnt - 1) on tag-success, or combines undo+release on pointer-changed.
     inline void release_tag_ref_(Ref *, Refcnt added_global_rcnt) const noexcept;
 
-    //! Unified CAS template covering compareAndSet / compareAndSetWeak
-    //! (ACQUIRE = false: caller's oldr keeps pref alive, no acquire_tag_ref_
-    //!   needed; step4 = +T; failure undo via plain fetch_sub) and
-    //! compareAndSwap (ACQUIRE = true: oldr may be updated on mismatch,
-    //!   acquire_tag_ref_ required to pin pref; step4 = +(T-1); failure undo
-    //!   via release_tag_ref_(pref, rcnt_old)).
-    template<bool ACQUIRE, bool WEAK = false>
-    inline bool compareAndSet_impl_(
-        typename std::conditional<ACQUIRE,
-            local_shared_ptr<T>&,
-            const local_shared_ptr<T>&>::type oldr,
+    //! Unified CAS template covering all flavours of compareAndSet/Swap.
+    //!
+    //! The OldrT parameter is deduced from the call site and selects the
+    //! variant via constexpr if branches:
+    //!   - OldrT = const local_shared_ptr<T> (Set):
+    //!       no acquire_tag_ref_ (oldr keeps pref alive); step4 = +T;
+    //!       failure undo via plain fetch_sub(T, relaxed).
+    //!   - OldrT = local_shared_ptr<T> (Swap):
+    //!       acquire_tag_ref_ required (will update oldr on mismatch);
+    //!       step4 = +(T-1); failure undo via release_tag_ref_(pref, T).
+    //!   - OldrT = scoped_local_shared_ptr<T> (SetScoped, weak only):
+    //!       scoped already holds tag (no acquire); step4 = +(T-1);
+    //!       failure undo via plain fetch_sub(T-1, relaxed); on success,
+    //!       scoped's tag is consumed by CAS (m_pref reset to nullptr).
+    template<typename OldrT, bool WEAK = false>
+    inline bool compareAndSet_impl_(OldrT &oldr,
         const local_shared_ptr<T> &newr) noexcept;
 private:
 };
@@ -416,47 +428,90 @@ private:
 //! \brief RAII scoped tag holder on \a atomic_shared_ptr<T>.
 //!
 //! Acquires a tag ref on the supplied atomic_shared_ptr's m_ref in the
-//! constructor (1 CAS) and releases it on destruction. Move-only.
+//! constructor (1 CAS). Releases on destruction. Move-only.
 //!
-//! Two states: Empty (m_pref == nullptr) and TagHeld (m_pref != nullptr).
+//! Three logical states:
+//!   - Empty (m_pref == nullptr):
+//!       - asp was nullptr, or
+//!       - weakly acquire failed (\a acquire_succeeded() == false), or
+//!       - tag was consumed by a successful compareAndSetWeak.
+//!   - TagHeld (m_pref != nullptr, m_rcnt_at_acquire > 0):
+//!       Tag still held in m_ref's tag count. Destructor calls
+//!       release_tag_ref_(pref, 1u). compareAndSetWeak uses scoped path.
+//!   - Owned (m_pref != nullptr, m_rcnt_at_acquire == 0):
+//!       Tag was promoted to refcnt at construction time
+//!       (fetch_add(rcnt) + release_tag_ref_). Destructor does plain
+//!       fetch_sub(1, acq_rel) + delete check (like local_shared_ptr).
+//!       compareAndSetWeak uses Set path (regular const local_shared_ptr
+//!       semantics).
 //!
-//! Usage:
-//!   - Promote to local_shared_ptr<T> via the rvalue-only conversion
-//!     \a operator local_shared_ptr<T>() &&. The conversion is bit-identical
-//!     to \a atomic_shared_ptr::load_shared_(): fetch_add(rcnt) on
-//!     pref->refcnt + release_tag_ref_(pref, rcnt). After conversion the
-//!     scoped is Empty (destructor no-op).
-//!   - Phase 2 will add \a compareAndSetWeak(newr) using the held tag
-//!     directly (no fresh acquire). On success, m_pref is cleared (Consumed
-//!     state encoded as Empty). On failure, the scoped remains TagHeld and
-//!     can be reused for retry.
+//! Adaptive promotion:
+//!   The optional \a promote_threshold parameter selects between TagHeld and
+//!   Owned at construction. If the tag count after acquire (rcnt_new) is >=
+//!   threshold, the scoped is promoted to Owned (frees a tag slot). Useful
+//!   when many concurrent readers risk filling LOCAL_REF_CAPACITY.
+//!     - threshold = LOCAL_REF_CAPACITY (default): never promote → always TagHeld.
+//!     - threshold = 1: always promote → equivalent to load_shared_().
+//!     - threshold = LOCAL_REF_CAPACITY/2 (e.g. 4 for capacity 8): adaptive.
 template <typename T>
 class scoped_local_shared_ptr {
 public:
     typedef typename atomic_shared_ptr<T>::Ref Ref;
     typedef typename atomic_shared_ptr<T>::Refcnt Refcnt;
 
-    scoped_local_shared_ptr() noexcept
-        : m_asp(nullptr), m_pref(nullptr), m_rcnt_at_acquire(0) {}
+    enum {
+        LOCAL_REF_CAPACITY = atomic_shared_ptr<T>::LOCAL_REF_CAPACITY,
+        DEFER_THRESHOLD = LOCAL_REF_CAPACITY,        //!< never promote (default)
+        ADAPTIVE_THRESHOLD = LOCAL_REF_CAPACITY / 2, //!< promote at half capacity
+    };
 
-    //! Acquires a tag ref on \a asp.m_ref. On null target / weakly-fail,
-    //! constructs an Empty instance.
-    explicit scoped_local_shared_ptr(atomic_shared_ptr<T> &asp) noexcept
-        : m_asp(&asp), m_pref(nullptr), m_rcnt_at_acquire(0) {
+    scoped_local_shared_ptr() noexcept
+        : m_asp(nullptr), m_pref(nullptr), m_rcnt_at_acquire(0),
+          m_acquire_succeeded(true) {}
+
+    //! Acquires a tag ref on \a asp.m_ref.
+    //! \param[in] promote_threshold Tag-count threshold for adaptive
+    //!   promotion. After acquire bumps tag to rcnt_new, if rcnt_new >=
+    //!   promote_threshold the tag is promoted to refcnt (Owned mode).
+    //!   Default \a DEFER_THRESHOLD never promotes (always TagHeld).
+    //! \param[in] weakly If true, the acquire CAS is single-shot — on
+    //!   contention, this constructs an Empty instance with
+    //!   \a acquire_succeeded() == false. Strong (default) loops until success.
+    //! \note On Empty after construction, distinguish:
+    //!   - \a acquire_succeeded() == true  AND \a m_pref == nullptr →
+    //!       asp held nullptr (genuinely empty atomic_shared_ptr).
+    //!   - \a acquire_succeeded() == false AND \a m_pref == nullptr →
+    //!       weakly = true and the acquire CAS lost (caller should retry).
+    explicit scoped_local_shared_ptr(atomic_shared_ptr<T> &asp,
+                                     Refcnt promote_threshold = DEFER_THRESHOLD,
+                                     bool weakly = false) noexcept
+        : m_asp(&asp), m_pref(nullptr), m_rcnt_at_acquire(0),
+          m_acquire_succeeded(true) {
         Refcnt rcnt;
-        auto [p, ok] = asp.acquire_tag_ref_( &rcnt);
-        (void)ok;
-        if(p) {
-            m_pref = p;
-            m_rcnt_at_acquire = rcnt;
+        auto [p, ok] = asp.acquire_tag_ref_( &rcnt, weakly);
+        if(p && ok) {
+            if(rcnt >= promote_threshold) {
+                // Promote: tag → refcnt. Bit-identical to load_shared_.
+                p->refcnt.fetch_add(rcnt, std::memory_order_relaxed);
+                asp.release_tag_ref_(p, rcnt);
+                m_pref = p;
+                m_rcnt_at_acquire = 0;  // sentinel for Owned
+            } else {
+                m_pref = p;
+                m_rcnt_at_acquire = rcnt;  // TagHeld
+            }
+        } else {
+            m_acquire_succeeded = ok;  // false on weak fail; true on null asp
         }
     }
 
     scoped_local_shared_ptr(scoped_local_shared_ptr &&other) noexcept
         : m_asp(other.m_asp), m_pref(other.m_pref),
-          m_rcnt_at_acquire(other.m_rcnt_at_acquire) {
+          m_rcnt_at_acquire(other.m_rcnt_at_acquire),
+          m_acquire_succeeded(other.m_acquire_succeeded) {
         other.m_pref = nullptr;
         other.m_rcnt_at_acquire = 0;
+        other.m_acquire_succeeded = true;
     }
     scoped_local_shared_ptr &operator=(scoped_local_shared_ptr &&other) noexcept {
         if(this != &other) {
@@ -464,8 +519,10 @@ public:
             m_asp = other.m_asp;
             m_pref = other.m_pref;
             m_rcnt_at_acquire = other.m_rcnt_at_acquire;
+            m_acquire_succeeded = other.m_acquire_succeeded;
             other.m_pref = nullptr;
             other.m_rcnt_at_acquire = 0;
+            other.m_acquire_succeeded = true;
         }
         return *this;
     }
@@ -474,15 +531,20 @@ public:
 
     ~scoped_local_shared_ptr() noexcept { release_(); }
 
-    //! \brief Promote to local_shared_ptr<T> by transferring the tag ref to
-    //!   the global refcount. Bit-identical to load_shared_().
+    //! \brief Promote to local_shared_ptr<T> by transferring ownership.
+    //!   - From TagHeld: bit-identical to load_shared_() (fetch_add(rcnt) +
+    //!     release_tag_ref_(pref, rcnt)).
+    //!   - From Owned: zero atomic ops (just transfer the +1 to the result).
     //! \note rvalue-only — the scoped instance becomes Empty after this.
     operator local_shared_ptr<T>() && noexcept {
         local_shared_ptr<T> ret;
         if(m_pref) {
-            // Promote: rcnt tag refs → global, then drain tag.
-            m_pref->refcnt.fetch_add(m_rcnt_at_acquire, std::memory_order_relaxed);
-            m_asp->release_tag_ref_(m_pref, m_rcnt_at_acquire);
+            if(m_rcnt_at_acquire) {
+                // TagHeld: promote tag → refcnt
+                m_pref->refcnt.fetch_add(m_rcnt_at_acquire, std::memory_order_relaxed);
+                m_asp->release_tag_ref_(m_pref, m_rcnt_at_acquire);
+            }
+            // Owned: scoped's +1 in refcnt transfers to the local_shared_ptr.
             ret.m_ref = (uintptr_t)m_pref;
             m_pref = nullptr;
             m_rcnt_at_acquire = 0;
@@ -493,14 +555,29 @@ public:
     bool operator!() const noexcept { return m_pref == nullptr; }
     explicit operator bool() const noexcept { return m_pref != nullptr; }
 
+    //! \return false only when weakly acquire CAS lost; true otherwise (incl. null asp).
+    bool acquire_succeeded() const noexcept { return m_acquire_succeeded; }
+
+    //! \return true if currently in TagHeld mode (vs Owned or Empty).
+    bool is_tag_held() const noexcept { return m_pref && m_rcnt_at_acquire > 0; }
+    //! \return true if currently in Owned mode (promoted at construction).
+    bool is_owned() const noexcept { return m_pref && m_rcnt_at_acquire == 0; }
+
     Ref *ref_ptr_() const noexcept { return m_pref; }
     Refcnt rcnt_at_acquire_() const noexcept { return m_rcnt_at_acquire; }
 
 private:
     void release_() noexcept {
         if(m_pref) {
-            // TagHeld → release_tag_ref_ (drain CAS or fetch_sub on pointer-changed).
-            m_asp->release_tag_ref_(m_pref, 1u);
+            if(m_rcnt_at_acquire) {
+                // TagHeld → release_tag_ref_ (drain CAS or pointer-changed fetch_sub).
+                m_asp->release_tag_ref_(m_pref, 1u);
+            } else {
+                // Owned → plain fetch_sub(1) + delete check, like local_shared_ptr.
+                if(m_pref->refcnt.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                    m_asp->deleter(m_pref);
+                }
+            }
             m_pref = nullptr;
             m_rcnt_at_acquire = 0;
         }
@@ -509,6 +586,7 @@ private:
     atomic_shared_ptr<T> *m_asp;
     Ref *m_pref;
     Refcnt m_rcnt_at_acquire;
+    bool m_acquire_succeeded;
 
     template <typename Y> friend class atomic_shared_ptr;
 };
@@ -713,32 +791,46 @@ inline void atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
 }
 
 //=============================================================================
-// compareAndSet_impl_<MODE, WEAK>() — unified atomic CAS on the shared pointer
+// compareAndSet_impl_<OldrT, WEAK>() — unified atomic CAS on the shared pointer
 //
-// Steps (common to Set and Swap):
+// OldrT-driven dispatch via constexpr if:
+//   - OldrT = const local_shared_ptr<T> (Set):
+//       no acquire (oldr keeps pref alive); step4 = +T;
+//       failure undo via plain fetch_sub(T, relaxed).
+//   - OldrT = local_shared_ptr<T> (Swap, ACQUIRE):
+//       acquire_tag_ref_() to pin pref while updating oldr on mismatch;
+//       step4 = +(T-1); failure undo via release_tag_ref_(pref, T).
+//   - OldrT = scoped_local_shared_ptr<T> (SetScoped, WEAK only):
+//       scoped already holds tag; step4 = +(T-1);
+//       failure undo via plain fetch_sub(T-1, relaxed) (eager); on success,
+//       scoped's tag is consumed by CAS (m_pref reset to nullptr).
+//
+// Common steps:
 //   1. Pre-increment newr's global refcount (optimistic).
-//   2. Read the current pointer:
-//      - Set:  load_tagged_() (no acquire — oldr keeps pref alive).
-//      - Swap: acquire_tag_ref_() (must pin pref since we may update oldr).
-//   3. If current != oldr: CAS fails.
-//      - Set:  just undo newr's pre-increment; return false.
-//      - Swap: release the acquired tag, transfer ref to oldr, release
-//              oldr's old pref, update oldr to current.
-//   4. Pre-pay other tag holders:
-//      - Set:  step4 = +T (no implicit acquire ref consumed).
-//      - Swap: step4 = +(T-1) (own acquired tag is consumed by CAS).
-//   5. CAS m_ref: replace (pref + rcnt_old) with (newr + 0).
-//      On failure, undo step 4 and retry (or return false if WEAK).
+//   2. Read the current pointer (acquire_tag_ref_ or load_tagged_).
+//   3. Pointer mismatch → undo + return false.
+//   4. Pre-pay other tag holders via fetch_add(step4_amount).
+//   5. CAS m_ref: (pref + rcnt_old) → (newr + 0).
+//      On failure, undo step 4; retry (or return false if WEAK).
 //   6. On success, decrement pref's global refcount (m_ref no longer owns it).
 //=============================================================================
 template <typename T>
-template<bool ACQUIRE, bool WEAK>
+template<typename OldrT, bool WEAK>
 inline bool
 atomic_shared_ptr<T>::compareAndSet_impl_(
-    typename std::conditional<ACQUIRE,
-        local_shared_ptr<T>&,
-        const local_shared_ptr<T>&>::type oldr,
+    OldrT &oldr,
     const local_shared_ptr<T> &newr) noexcept {
+
+    using OldrPlain = typename std::remove_cv<OldrT>::type;
+    constexpr bool SCOPED = std::is_same<OldrPlain, scoped_local_shared_ptr<T>>::value;
+    constexpr bool ACQUIRE = !std::is_const<OldrT>::value && !SCOPED;
+    static_assert( !(SCOPED && !WEAK),
+        "compareAndSet on scoped_local_shared_ptr is weak-only");
+
+    auto oldr_pref = [&]() -> Ref* {
+        if constexpr (SCOPED) return oldr.m_pref;
+        else return oldr.ref_ptr_();
+    };
 
     if(newr.ref_ptr_()) {
         newr.ref_ptr_()->refcnt.fetch_add(1, std::memory_order_relaxed);
@@ -761,7 +853,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             std::tie(pref, rcnt_old) = load_tagged_();
         }
 
-        if(pref != oldr.ref_ptr_()) {
+        if(pref != oldr_pref()) {
             // pointer mismatch
             if constexpr (ACQUIRE) {
                 if(pref) {
@@ -779,13 +871,38 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                     }
                 }
                 oldr.m_ref = (uintptr_t)pref;
+            } else if constexpr (SCOPED) {
+                // For TagHeld: pointer changed since acquire; our tag was
+                //   absorbed by the swapper (their step 4 pre-paid us +1).
+                //   Eagerly clean up so scoped becomes Empty and the caller
+                //   can detect "tag gone" via scoped.operator bool() == false.
+                // For Owned: scoped still holds its +1 in OLD pref's refcnt.
+                //   No special cleanup; caller sees scoped as still valid
+                //   but the CAS returned false (caller may retry or destruct).
+                if(oldr.m_rcnt_at_acquire) {
+                    // TagHeld
+                    release_tag_ref_(oldr.m_pref, 1u);
+                    oldr.m_pref = nullptr;
+                    oldr.m_rcnt_at_acquire = 0;
+                }
             }
             return false;
         }
 
         // step 4: pre-pay other tag holders.
-        // Set:  +T  (no implicit ref consumed by CAS — caller's oldr keeps pref alive)
-        // Swap: +(T-1) (our own acquired tag is consumed by CAS)
+        //
+        //   - Swap (ACQUIRE): step4 = +(T-1) — own acquired tag is consumed
+        //     by the CAS (no pre-pay needed for self).
+        //   - Set: step4 = +T — caller's oldr keeps pref alive separately
+        //     via its +1 in refcnt, so all T tag holders are external.
+        //   - SCOPED: step4 = +T — treat scoped's tag as if it were already
+        //     +1 in refcnt (because: in the ABSORBED case our CAS will
+        //     consume scoped's tag along with others, and we owe -1 in the
+        //     success path; in the DRAINED case some drainer already
+        //     pre-paid scoped +1, and we likewise owe -1). Either way,
+        //     a fetch_sub(2) at success consumes both m_ref's release and
+        //     scoped's tag-share uniformly. This avoids needing to detect
+        //     ABSORBED vs DRAINED at runtime.
         Refcnt step4_amount;
         if constexpr (ACQUIRE) {
             step4_amount = (rcnt_old > 1u) ? rcnt_old - 1u : 0u;
@@ -802,7 +919,34 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                 TaggedPtr((uintptr_t)pref + rcnt_old),
                 TaggedPtr((uintptr_t)newr.ref_ptr_() + rcnt_new))) {
             if(pref) {
-                pref->refcnt.fetch_sub(1, std::memory_order_acq_rel); //atomic: release m_ref's ownership
+                // Release m_ref's implicit ownership.
+                // For SCOPED in TagHeld mode, additionally consume scoped's
+                // tag-share in the same fetch_sub (sub = 2). For Owned mode
+                // and non-SCOPED, scoped's/oldr's +1 stays — sub = 1.
+                //   TagHeld (refcnt >= 2 always at this point):
+                //     ABSORBED: step4=+T pre-paid T including scoped →
+                //       refcnt >= R_init + T - (T-1) = R_init + 1 >= 2.
+                //     DRAINED:  drainer pre-paid +1 → R_init >= 2;
+                //       step4=+T (T>=0) → refcnt >= 2.
+                Refcnt sub = 1u;
+                if constexpr (SCOPED) {
+                    if(oldr.m_rcnt_at_acquire) sub = 2u;  // TagHeld
+                    // else Owned: sub = 1
+                }
+                if(pref->refcnt.fetch_sub(sub, std::memory_order_acq_rel) == sub) {
+                    const_cast<atomic_shared_ptr*>(this)->deleter(pref);
+                }
+            }
+            if constexpr (SCOPED) {
+                if(oldr.m_rcnt_at_acquire) {
+                    // TagHeld: tag-share consumed via fetch_sub(2). Mark Empty.
+                    oldr.m_pref = nullptr;
+                    oldr.m_rcnt_at_acquire = 0;
+                }
+                // Owned: scoped retains its +1 in pref's refcnt — but pref is
+                //   no longer in m_ref. Caller may still hold it as if from
+                //   compareAndSet on a const local_shared_ptr; destructor
+                //   eventually releases via fetch_sub(1).
             }
             return true;
         }
@@ -816,8 +960,12 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                 release_tag_ref_(pref, rcnt_old);
             }
         } else {
-            // Set: caller's oldr keeps pref alive (refcnt >= 2 always),
-            //   so plain relaxed fetch_sub is safe (cannot underflow nor reach 0).
+            // Set / SCOPED: a held ref keeps pref alive (refcnt >= 2),
+            //   so plain relaxed fetch_sub is safe.
+            //   - Set:    caller's oldr provides the +1.
+            //   - SCOPED: scoped's tag is still held (in m_ref's tag count
+            //             OR pre-paid by an external drainer); destructor's
+            //             release_tag_ref_(pref, 1u) handles cleanup.
             if(pref && step4_amount) {
                 pref->refcnt.fetch_sub(step4_amount, std::memory_order_relaxed);
             }
@@ -835,17 +983,22 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
 template <typename T>
 inline bool
 atomic_shared_ptr<T>::compareAndSwap(local_shared_ptr<T> &oldr, const local_shared_ptr<T> &newr) noexcept {
-    return compareAndSet_impl_<true, false>(oldr, newr);
+    return compareAndSet_impl_<local_shared_ptr<T>, false>(oldr, newr);
 }
 template <typename T>
 bool
 atomic_shared_ptr<T>::compareAndSet(const local_shared_ptr<T> &oldr, const local_shared_ptr<T> &newr) noexcept {
-    return compareAndSet_impl_<false, false>(oldr, newr);
+    return compareAndSet_impl_<const local_shared_ptr<T>, false>(oldr, newr);
 }
 template <typename T>
 bool
 atomic_shared_ptr<T>::compareAndSetWeak(const local_shared_ptr<T> &oldr, const local_shared_ptr<T> &newr) noexcept {
-    return compareAndSet_impl_<false, true>(oldr, newr);
+    return compareAndSet_impl_<const local_shared_ptr<T>, true>(oldr, newr);
+}
+template <typename T>
+inline bool
+atomic_shared_ptr<T>::compareAndSetWeak(scoped_local_shared_ptr<T> &scoped, const local_shared_ptr<T> &newr) noexcept {
+    return compareAndSet_impl_<scoped_local_shared_ptr<T>, true>(scoped, newr);
 }
 template <typename T, typename reflocal_var_t>
 inline void

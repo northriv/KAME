@@ -21,7 +21,7 @@ GMCFLAGS ?= --rc11 --unroll=5
 
 SRCDIR = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-run: run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8
+run: run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9
 
 run-test1:
 	@echo "=== Test 1: load_shared_ / release_tag_ref_ safety ==="
@@ -63,8 +63,13 @@ run-test8:
 	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_cas_noacquire.c
 	@echo ""
 
+run-test9:
+	@echo "=== Test 9: scoped_local_shared_ptr + compareAndSetWeak race ==="
+	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_scoped_weak.c
+	@echo ""
+
 # Run with IMM memory model
 run-imm: GMCFLAGS = --imm --unroll=5
 run-imm: run
 
-.PHONY: run run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-imm
+.PHONY: run run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9 run-imm
