@@ -756,6 +756,20 @@ public:
 
     ~ScopedNegotiateLinkage() noexcept {
         if(!m_committed) {
+            // Yield to other threads before tagging.  This gives:
+            //  - drainers of m_link's tag bits (load_shared_, successful
+            //    CAS) a chance to absorb leftover IOUs before our caller
+            //    re-enters the loop and acquires a fresh tag,
+            //  - the privileged Tx (if any) a window to make progress
+            //    while we're parked in the scheduler queue,
+            //  - the contention pattern on m_ref to dissipate by
+            //    splitting the natural same-cycle re-entry back into
+            //    interleaved iterations.
+            // Only fires when contention was actually observed (CAS
+            // failure or confirm_contention) — the common no-contention
+            // path stays cheap.
+            if(m_contention_observed)
+                std::this_thread::yield();
             // Tag rules:
             //  - OnEntry m_should_tag: ctor already tagged; skip dtor.
             //  - Otherwise: tag iff m_contention_observed (CAS failure
