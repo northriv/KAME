@@ -1714,8 +1714,13 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             if( !scope) continue;  // weak acquire lost — treat as CAS failure
 
             local_shared_ptr<Packet> subpacket_new;
-            local_shared_ptr<PacketWrapper> subwrapper;
-            subwrapper = *var->m_link;
+            // Reuse scope's view instead of a fresh load_shared_ on the
+            // same var->m_link.  view_copy is one fetch_add (Owned) or
+            // 2-3 ops (TagHeld → promote); fresh load is ~2 ops via
+            // tag-bit acquire CAS plus fetch_add.  Slightly older
+            // value on contention is fine — the CAS at scope.compareAndSetWithHint
+            // below will detect any drift and retry.
+            local_shared_ptr<PacketWrapper> subwrapper = scope.view_copy();
             BundledStatus status = bundle_subpacket(0, var, subwrapper, subpacket_new,
                 tr, tr.m_serial);
             if(status != BundledStatus::SUCCESS) {
@@ -1782,16 +1787,16 @@ Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
         ScopedNegotiateLinkage<XN> scope(packet->node().m_link, snap, iter,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         if( !scope) continue;  // weak acquire lost — treat as CAS failure
-        // Tag-ref'd load (avoids heap fetch_add when ref is short-lived).
-        scoped_atomic_view<PacketWrapper> wrapper(
-            *packet->node().m_link,
-            scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD);
-        if(wrapper->m_bundle_serial != serial) {
+        // Use scope's internal m_view directly — no separate
+        // scoped_atomic_view on the same linkage needed.  scope-> reads
+        // through m_view; scope.compareAndSet(newwrapper) (1-arg) uses
+        // m_view as the CAS oldr.
+        if(scope->m_bundle_serial != serial) {
             scope.commit();
             break;
         }
-        local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper( *wrapper, SerialGenerator::SERIAL_NULL));
-        if(scope.compareAndSet(wrapper, newwrapper))
+        local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper( *scope, SerialGenerator::SERIAL_NULL));
+        if(scope.compareAndSet(newwrapper))
             break;
         // RAII tags on continue (iter > 0)
     }
@@ -2793,7 +2798,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                     child->m_link, snap, child_retry,
                     ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
                 if( !child_scope) continue;  // weak acquire lost — retry
-                subwrapper = *child->m_link;
+                // Reuse child_scope's view as subwrapper instead of a
+                // fresh load on child->m_link.  view_copy ≤ load_shared_
+                // in atomic ops; bundle_subpacket may then reassign
+                // subwrapper internally.
+                subwrapper = child_scope.view_copy();
                 if(subwrapper == subwrappers_org[i]) {
                     child_scope.commit(); //fast path for retry > 0.
                     break;
