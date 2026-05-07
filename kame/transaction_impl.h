@@ -756,20 +756,6 @@ public:
 
     ~ScopedNegotiateLinkage() noexcept {
         if(!m_committed) {
-            // Yield to other threads before tagging.  This gives:
-            //  - drainers of m_link's tag bits (load_shared_, successful
-            //    CAS) a chance to absorb leftover IOUs before our caller
-            //    re-enters the loop and acquires a fresh tag,
-            //  - the privileged Tx (if any) a window to make progress
-            //    while we're parked in the scheduler queue,
-            //  - the contention pattern on m_ref to dissipate by
-            //    splitting the natural same-cycle re-entry back into
-            //    interleaved iterations.
-            // Only fires when contention was actually observed (CAS
-            // failure or confirm_contention) — the common no-contention
-            // path stays cheap.
-            if(m_contention_observed)
-                std::this_thread::yield();
             // Tag rules:
             //  - OnEntry m_should_tag: ctor already tagged; skip dtor.
             //  - Otherwise: tag iff m_contention_observed (CAS failure
@@ -777,9 +763,51 @@ public:
             //    optimization (!m_eager && m_should_tag).
             // tag_as_contender dedups internally, but we skip the call
             // when ctor already tagged to avoid the dedup walk.
+            //
+            // Tag is performed BEFORE the wait below so that any
+            // subsequent notify_n_contenders walking tid_bitset can
+            // find us and wake our sleep slot.
             if( !(m_eager && m_should_tag) &&
                 (m_contention_observed || (!m_eager && m_should_tag)))
                 m_snap.tag_as_contender(m_link);
+
+            // On observed contention, wait before letting the caller
+            // re-enter the loop.  But: if our view is in Owned mode
+            // (already promoted to global ref via fetch_add), we hold
+            // a ref decoupled from m_link's tag bits — neither
+            // contender for tag-space (other acquires) nor for the
+            // CAS (other compareAndSet's) gates us.  We can fall
+            // through immediately; the caller's retry will load a
+            // fresh state.  Skip the wait entirely in that case.
+            //
+            // For TagHeld and Empty views, wait based on privilege
+            // state:
+            //
+            //   - **Someone ELSE holds privilege**: that Tx is making
+            //     progress; we won't get the CAS until it commits.
+            //     Block on the same CV slot negotiate_internal uses,
+            //     so notify_n_contenders (called by the privileged Tx
+            //     on commit) wakes us.  1ms timeout bounds latency if
+            //     no notification arrives.  Avoids burning CPU yields.
+            //   - **No privilege held / we hold privilege**: no specific
+            //     thread to wait for; a light std::this_thread::yield()
+            //     suffices to break the same-cycle re-entry pattern
+            //     without paying the mutex/CV overhead.
+            if(m_contention_observed) {
+                bool view_owned = bool(m_view)
+                    && (m_view.rcnt_at_acquire_() == 0);
+                if( !view_owned) {
+                    using NC = typename Node<XN>::NegotiationCounter;
+                    auto priv = NC::s_privileged_tidstamp.load(std::memory_order_relaxed);
+                    bool other_holds_priv = (priv != (typename NC::cnt_t)0)
+                        && (detail::stamp_tid(priv)
+                            != detail::stamp_tid(m_snap.m_started_time));
+                    if(other_holds_priv)
+                        NC::negotiate_sleep(1);
+                    else
+                        std::this_thread::yield();
+                }
+            }
         }
     }
 };
