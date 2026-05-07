@@ -454,7 +454,11 @@ private:
 //!   when many concurrent readers risk filling LOCAL_REF_CAPACITY.
 //!     - threshold = LOCAL_REF_CAPACITY (default): never promote → always TagHeld.
 //!     - threshold = 1: always promote → equivalent to load_shared_().
-//!     - threshold = LOCAL_REF_CAPACITY/2 (e.g. 4 for capacity 8): adaptive.
+//!     - threshold = LOCAL_REF_CAPACITY-1: promote only when at the last
+//!       available slot (= "make room for the next contender").  Acts as
+//!       a back-pressure escape valve: most acquires stay cheap (TagHeld),
+//!       but the thread that lands at rcnt = CAPACITY-1 promotes and frees
+//!       up tag bits before the next thread weakly-fails on overflow.
 template <typename T>
 class scoped_atomic_view {
 public:
@@ -463,8 +467,8 @@ public:
 
     enum {
         LOCAL_REF_CAPACITY = atomic_shared_ptr<T>::LOCAL_REF_CAPACITY,
-        DEFER_THRESHOLD = LOCAL_REF_CAPACITY,        //!< never promote (default)
-        ADAPTIVE_THRESHOLD = LOCAL_REF_CAPACITY / 2, //!< promote at half capacity
+        DEFER_THRESHOLD = LOCAL_REF_CAPACITY,            //!< never promote (default)
+        ADAPTIVE_THRESHOLD = LOCAL_REF_CAPACITY - 1,     //!< promote at last-slot (back-pressure escape)
     };
 
     scoped_atomic_view() noexcept
@@ -780,8 +784,18 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept
             fprintf(stderr, "max_rcnt=%d\n", rcnt_max);
         }
         */
-        if(rcnt_new < this->LOCAL_REF_CAPACITY) { // This would never happen in typical machines.
-            // trying to increase local reference counter w/ same serial.
+        // Weak callers fail-fast on either overflow OR CAS-loss with
+        // no pause (caller retries at a higher level).
+        if(weakly) {
+            if(rcnt_new < this->LOCAL_REF_CAPACITY
+               && const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
+                   TaggedPtr((uintptr_t)pref + rcnt_old),
+                   TaggedPtr((uintptr_t)pref + rcnt_new)))
+                break;
+            return {(Ref*)nullptr, false};
+        }
+        // Strong path: pause on overflow, exponential backoff on CAS loss.
+        if(rcnt_new < this->LOCAL_REF_CAPACITY) {
             if(const_cast<atomic_shared_ptr<T> *>(this)->m_ref.compare_set_weak(
                 TaggedPtr((uintptr_t)pref + rcnt_old),
                 TaggedPtr((uintptr_t)pref + rcnt_new)))
@@ -790,8 +804,6 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept
         else {
             pause4spin();
         }
-        if(weakly)
-            return {(Ref*)nullptr, false};
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.

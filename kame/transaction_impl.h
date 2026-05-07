@@ -538,13 +538,42 @@ public:
             m_link->negotiate(snap, mult_wait);  // always negotiate, no retry_pause
         else
             m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+        // Privilege-state-aware threshold for the weak tag-bit acquire:
+        //
+        //   - **We hold privilege** (TID matches s_privileged_tidstamp):
+        //     DEFER_THRESHOLD — sole contender by design, no need to
+        //     promote (and pay an extra fetch_add + release_tag_ref_).
+        //   - **Otherwise** (no privilege OR someone else holds it):
+        //     ADAPTIVE_THRESHOLD = LOCAL_REF_CAPACITY-1 — the thread
+        //     that lands at the last free tag slot promotes to Owned,
+        //     freeing the slot for the next contender.  This is a
+        //     back-pressure escape valve specifically for high-thread-
+        //     count systems (>LOCAL_REF_CAPACITY contenders) where
+        //     plain DEFER_THRESHOLD would weakly-fail most acquires.
+        //
+        // Negotiate-bypass note: a non-privileged thread "shouldn't"
+        // reach this point under livelock-free design (negotiate parks
+        // it in negotiate_sleep), but TOCTOU between negotiate's fast
+        // path and our s_privileged_tidstamp load makes a hard
+        // refusal here counter-productive (causes spurious view
+        // failures and livelock — observed empirically).  We let the
+        // acquire proceed; if it loses CAS, the normal weak-fail path
+        // handles it.
+        using NC = typename Node<XN>::NegotiationCounter;
+        auto priv = NC::s_privileged_tidstamp.load(std::memory_order_relaxed);
+        bool we_hold_priv = (priv != (typename NC::cnt_t)0)
+            && (detail::stamp_tid(priv)
+                == detail::stamp_tid(m_snap.m_started_time));
         m_view = scoped_atomic_view<PacketWrapper>(
             *m_link,
-            scoped_atomic_view<PacketWrapper>::DEFER_THRESHOLD,
+            we_hold_priv
+                ? scoped_atomic_view<PacketWrapper>::DEFER_THRESHOLD
+                : scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
             /*weakly=*/true);
         if(!m_view.acquire_succeeded()) {
-            // Weak acquire CAS lost — same treatment as a CAS failure:
-            // forces dtor tag despite retry==0 fast-path optimization.
+            // Weak acquire CAS lost (or local refcnt at capacity) —
+            // same treatment as a CAS failure: forces dtor tag despite
+            // retry==0 fast-path optimization.
             m_contention_observed = true;
         }
         if(m_eager && m_should_tag)
