@@ -2126,12 +2126,29 @@ Node<XN>::upperNode(Snapshot<XN> &shot) {
 // ascendOneLevel() — read bundledBy and prepare to go one level up
 //
 // Reads the bundledBy pointer from root_wrapper. On success:
-//   - Saves child_wrapper for staleness check.
-//   - Updates root_wrapper in-place to the parent's wrapper (= *bundledBy).
-//   - Copies root_wrapper to parent_wrapper as a snapshot for this level.
+//   - Moves root_wrapper into r.child_wrapper for staleness check
+//     (zero atomic ops — steals caller's +1 ref).
+//   - Loads the parent's wrapper into root_wrapper via *r.parent_linkage.
+//   - Copies root_wrapper to parent_wrapper as a snapshot for this level
+//     (one fetch_add — used by convertRecursiveStatus to restore
+//     root_wrapper on the VOID_PACKET / NODE_MISSING fallback path).
 // Returns a WalkUpResult with find_status indicating success/failure.
 // Other fields (status, is_root_level, parent_packet) are set later by
 // walkUpChainImpl.
+//
+// child_wrapper is a non-owning identity reference for the staleness
+// check at Step D in walkUpChainImpl (only `*child_linkage !=
+// r.child_wrapper`, which compares the underlying Ref* pointers).
+// Liveness of the saved Ref is guaranteed by the caller's ownership
+// chain:
+//   - LEVEL 0: caller's outer ScopedNegotiateLinkage view
+//     (snapshot: scope.m_view; unbundle: subscope.m_view) holds the
+//     original linkage value alive for the duration of walkUpChain.
+//   - LEVEL N (recursion): the previous level's r.parent_wrapper
+//     (still a value-typed local_shared_ptr) holds the next level's
+//     incoming Ref alive across the recursive call.
+// This is why we can std::move the save without paying a fetch_add —
+// the caller's frame already keeps the Ref alive.
 //=============================================================================
 template <class XN>
 inline typename Node<XN>::WalkUpResult
@@ -2148,8 +2165,16 @@ Node<XN>::ascendOneLevel(
             ? SnapshotStatus::NODE_MISSING : SnapshotStatus::DISTURBED;
         return r;
     }
-    r.child_wrapper = root_wrapper;
+    // Read reverse_index BEFORE moving root_wrapper out (the move
+    // empties root_wrapper, so any further root_wrapper-> access would
+    // be invalid).
     r.reverse_index = root_wrapper->reverseIndex();
+    // Steal caller's +1 ref into r.child_wrapper for the staleness
+    // check.  Zero atomic ops — root_wrapper is now empty.
+    r.child_wrapper = std::move(root_wrapper);
+    // Load parent into the now-empty root_wrapper — operator= calls
+    // reset() first which is a no-op on empty, so no fetch_sub on the
+    // (already moved-out) old value.
     root_wrapper = *r.parent_linkage;
     r.parent_wrapper = root_wrapper;
     r.find_status = SnapshotStatus::SUCCESS;
