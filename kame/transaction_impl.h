@@ -507,6 +507,7 @@ class ScopedNegotiateLinkage {
     //! failed CAS the view may also be empty depending on the
     //! weak+scoped contract — caller can re-acquire via reload_view().
     scoped_atomic_view<PacketWrapper> m_view;
+    float           m_mult_wait;             // retained from ctor for dtor's negotiate
     bool            m_eager;
     bool            m_should_tag;            // retry != 0 — fast-path optimization
     bool            m_committed = false;
@@ -532,6 +533,7 @@ public:
                            TagMode mode = TagMode::OnEntry,
                            float mult_wait = 2.0f) noexcept
         : m_link(std::move(link)), m_snap(snap),
+          m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
           m_should_tag(retry != 0) {
         if(retry < 0)
@@ -602,6 +604,7 @@ public:
                            float mult_wait = 2.0f,
                            bool with_negotiate = false) noexcept
         : m_link(std::move(link)), m_snap(snap),
+          m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
           m_should_tag(retry != 0) {
         if(with_negotiate) {
@@ -800,19 +803,14 @@ public:
             //   - We hold privilege: bare retry (no-op).
             //   - Other holds privilege: CV-wait via negotiate_sleep.
             //   - No privilege: yield.
+            // Direct negotiate call mirroring ctor's retry<0 path.
+            // m_mult_wait inherited from ctor — per-scope tuning carries
+            // through (e.g. bundle's Phase 3 childScope's smaller
+            // mult_wait stays smaller in dtor too).
             if(m_contention_observed) {
-                using NC = typename Node<XN>::NegotiationCounter;
                 uintptr_t rcnt_added = 0;
                 while( !m_view.try_release_single_attempt(rcnt_added)) {
-                    if(NC::fair_mode_blocks_me(m_snap.m_started_time)) {
-                        NC::negotiate_sleep(1);
-                    }
-                    else if(m_snap.m_registered_privileged) {
-                        // We hold privilege — bare retry.
-                    }
-                    else {
-                        std::this_thread::yield();
-                    }
+                    m_link->negotiate(m_snap, m_mult_wait);
                 }
             }
         }
