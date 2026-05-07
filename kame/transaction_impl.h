@@ -794,8 +794,7 @@ public:
             //     suffices to break the same-cycle re-entry pattern
             //     without paying the mutex/CV overhead.
             if(m_contention_observed) {
-                bool view_owned = bool(m_view)
-                    && (m_view.rcnt_at_acquire_() == 0);
+                bool view_owned = m_view.is_owned();
                 if( !view_owned) {
                     using NC = typename Node<XN>::NegotiationCounter;
                     auto priv = NC::s_privileged_tidstamp.load(std::memory_order_relaxed);
