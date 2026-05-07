@@ -777,13 +777,22 @@ public:
     //! Caller initialises rcnt_added=0 before first call.
     bool try_release_single_attempt(uintptr_t &rcnt_added) noexcept {
         if( !m_pref) return true;
-        if( !m_tag_held) {
-            // Owned: plain fetch_sub.  Plus undo any pre-pay (Owned
-            // mode shouldn't have pre-pay normally; safety).
-            uintptr_t sub = rcnt_added + 1;
-            if(m_pref->refcnt.fetch_sub(sub, std::memory_order_acq_rel) == sub) {
-                m_asp->deleter(m_pref);
+        // Helper: skip fetch_sub when sub == 0 (a fetch_sub(0, acq_rel)
+        // is not a no-op — its delete check fires if OLD refcnt == 0,
+        // a race that can occur if m_ref was reset between our CAS and
+        // this fetch_sub).  Captures m_pref and m_asp for deleter.
+        auto sub_with_delete_check = [this](uintptr_t sub) {
+            if(sub) {
+                if(m_pref->refcnt.fetch_sub(sub,
+                        std::memory_order_acq_rel) == sub) {
+                    m_asp->deleter(m_pref);
+                }
             }
+        };
+        if( !m_tag_held) {
+            // Owned: plain fetch_sub(1).  Plus undo any pre-pay (Owned
+            // mode shouldn't have pre-pay normally; safety).
+            sub_with_delete_check(rcnt_added + 1);
             m_pref = nullptr;
             rcnt_added = 0;
             return true;
@@ -792,53 +801,32 @@ public:
         if(cur_ptr != m_pref || rcnt_now == 0) {
             // ptr changed (swapper absorbed our +1) or tag drained.
             // Release our +1 (now in refcnt) + undo our pre-pay.
-            uintptr_t sub = rcnt_added + 1;
-            if(m_pref->refcnt.fetch_sub(sub, std::memory_order_acq_rel) == sub) {
-                m_asp->deleter(m_pref);
-            }
+            sub_with_delete_check(rcnt_added + 1);
             m_pref = nullptr;
             m_tag_held = false;
             rcnt_added = 0;
             return true;
         }
-        // TagHeld + ptr unchanged.  Adjust pre-pay diff.
+        // TagHeld + ptr unchanged.  One-shot pre-pay LOCAL_REF_CAPACITY
+        // (an upper bound — rcnt_now never exceeds CAPACITY-1, so
+        // CAP-1 + slack always covers needed).  After the first entry,
+        // rcnt_added stays at CAP and the branch is never re-entered.
         uintptr_t needed = rcnt_now - 1;
         if(needed > rcnt_added) {
-            m_pref->refcnt.fetch_add(needed - rcnt_added,
+            // This route fires at most once per loop.
+            m_pref->refcnt.fetch_add(LOCAL_REF_CAPACITY,
                 std::memory_order_relaxed);
-            rcnt_added = needed;
+            rcnt_added = LOCAL_REF_CAPACITY;
         }
-        else if(needed < rcnt_added) {
-            // Reduce pre-pay.  acq_rel for synchronization; refcnt
-            // SHOULD NOT drop to 0 here because our tag is still in
-            // m_ref (cur_ptr == m_pref guaranteed by the inner load
-            // above), so m_ref's implicit +1 keeps refcnt >= 1 even
-            // after our subtraction.  Use always-on assertion (not
-            // standard assert which is gated by NDEBUG) to catch any
-            // unexpected case in release builds too.
-            uintptr_t diff = rcnt_added - needed;
-            uintptr_t old = m_pref->refcnt.fetch_sub(diff,
-                std::memory_order_acq_rel);
-#ifndef KAME_NO_ALWAYS_ASSERT
-            if(old == diff) {
-                // Should not happen — tag still holds pref alive.
-                fprintf(stderr,
-                    "FATAL: scoped try_release diff fetch_sub took refcnt to 0 "
-                    "(diff=%lu pref=%p)\n",
-                    (unsigned long)diff, (void*)m_pref);
-                std::abort();
-            }
-#endif
-            rcnt_added = needed;
-        }
-        // else: needed == rcnt_added → no-op.
         // Single-shot drain CAS: tag rcnt_now → 0.
         if(const_cast<atomic_shared_ptr<T> *>(m_asp)->m_ref.compare_set_weak(
             (uintptr_t)m_pref + rcnt_now,
             (uintptr_t)m_pref + 0)) {
+            // Adjust for excess pre-pay.
+            sub_with_delete_check(rcnt_added - needed);
+            rcnt_added = 0;
             m_pref = nullptr;
             m_tag_held = false;
-            rcnt_added = 0;
             return true;
         }
         return false;
