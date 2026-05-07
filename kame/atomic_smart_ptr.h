@@ -147,7 +147,19 @@ protected:
     // (Ref IS the object, whose alignment may differ). Both are 8 on 64-bit,
     // giving 3 usable bits (max local refcount = 7).
     // Do NOT use alignas/alignof — see CLAUDE.md for details.
+    //
+    // KAME_LOCAL_REF_CAPACITY_OVERRIDE: force a smaller capacity for
+    // stress-testing the back-pressure relief design under simulated
+    // high-CPU contention without changing actual allocator alignment.
+    // E.g. -DKAME_LOCAL_REF_CAPACITY_OVERRIDE=4 makes 128-thread
+    // benchmarks behave like 1024 threads vs. CAPACITY=32 systems.
+    // Must be a power of two and <= sizeof(intptr_t) so the pointer
+    // mask still strips only zero bits.
+#ifdef KAME_LOCAL_REF_CAPACITY_OVERRIDE
+    enum {LOCAL_REF_CAPACITY = KAME_LOCAL_REF_CAPACITY_OVERRIDE};
+#else
     enum {LOCAL_REF_CAPACITY = (sizeof(intptr_t))};
+#endif
 };
 //! \brief Base class for atomic_shared_ptr with intrusive counting.
 template <typename T, typename reflocal_t, typename reflocal_var_t>
@@ -169,7 +181,12 @@ protected:
     int _use_count_() const noexcept {return ((const T*)(reflocal_t)this->m_ref)->refcnt;}
 
     reflocal_var_t m_ref;
+    // See LOCAL_REF_CAPACITY notes in the non-intrusive base above.
+#ifdef KAME_LOCAL_REF_CAPACITY_OVERRIDE
+    enum {LOCAL_REF_CAPACITY = KAME_LOCAL_REF_CAPACITY_OVERRIDE};
+#else
     enum {LOCAL_REF_CAPACITY = (sizeof(double))};
+#endif
 };
 
 //! \brief This class provides non-reentrant interfaces for atomic_shared_ptr: operator->(), operator*() and so on.\n
