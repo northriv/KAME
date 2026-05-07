@@ -422,7 +422,10 @@ protected:
     //! In case the reference is lost, \a release_tag_ref_() releases the global reference counter instead.
     //! When \a left_global_rcnt > 0, undoes step 4's
     //! excess (left_global_rcnt - 1) on tag-success, or combines undo+release on pointer-changed.
-    inline void release_tag_ref_(Ref *, Refcnt added_global_rcnt) const noexcept;
+    //! \param[in] single_attempt  If true, drain CAS is single-shot;
+    //!   on CAS-loss, returns false WITHOUT global fetch_sub.
+    inline bool release_tag_ref_(Ref *, Refcnt added_global_rcnt,
+                                  bool single_attempt = false) const noexcept;
 
     //! Unified CAS template covering all flavours of compareAndSet/Swap.
     //!
@@ -748,29 +751,106 @@ private:
     //! All cases: net true ref change = -1.  Verified by induction
     //! on the standard refcnt invariant (true_refs = global + tag
     //! when m_ref still points to pref).
-    void release_tagheld_zeroreset_() noexcept {
+    bool release_tagheld_zeroreset_(bool single_attempt) noexcept {
         auto [cur_ptr, rcnt_now] = m_asp->load_tagged_();
         if(cur_ptr == m_pref && rcnt_now > 0) {
             if(rcnt_now > 1) {
                 m_pref->refcnt.fetch_add(rcnt_now - 1,
                     std::memory_order_relaxed);
             }
-            m_asp->release_tag_ref_(m_pref, rcnt_now);
-        } else {
-            // ptr changed or tag already drained — our +1 is in global.
-            if(m_pref->refcnt.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-                m_asp->deleter(m_pref);
-            }
+            return m_asp->release_tag_ref_(m_pref, rcnt_now, single_attempt);
         }
+        // ptr changed or tag already drained — our +1 is in global.
+        if(m_pref->refcnt.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+            m_asp->deleter(m_pref);
+        }
+        return true;
     }
 
+public:
+    //! Single-attempt release.  Returns true on success (view becomes
+    //! empty); false if drain CAS lost (view stays valid; caller must
+    //! retry).  Tracks rcnt_added across iterations so we only
+    //! fetch_add / fetch_sub the DIFF when observed tag count changes.
+    //! All fetch_sub use acq_rel + delete check (memory ordering
+    //! correctness even though the typical case won't drop refcnt to 0).
+    //! Caller initialises rcnt_added=0 before first call.
+    bool try_release_single_attempt(uintptr_t &rcnt_added) noexcept {
+        if( !m_pref) return true;
+        if( !m_tag_held) {
+            // Owned: plain fetch_sub.  Plus undo any pre-pay (Owned
+            // mode shouldn't have pre-pay normally; safety).
+            uintptr_t sub = rcnt_added + 1;
+            if(m_pref->refcnt.fetch_sub(sub, std::memory_order_acq_rel) == sub) {
+                m_asp->deleter(m_pref);
+            }
+            m_pref = nullptr;
+            rcnt_added = 0;
+            return true;
+        }
+        auto [cur_ptr, rcnt_now] = m_asp->load_tagged_();
+        if(cur_ptr != m_pref || rcnt_now == 0) {
+            // ptr changed (swapper absorbed our +1) or tag drained.
+            // Release our +1 (now in refcnt) + undo our pre-pay.
+            uintptr_t sub = rcnt_added + 1;
+            if(m_pref->refcnt.fetch_sub(sub, std::memory_order_acq_rel) == sub) {
+                m_asp->deleter(m_pref);
+            }
+            m_pref = nullptr;
+            m_tag_held = false;
+            rcnt_added = 0;
+            return true;
+        }
+        // TagHeld + ptr unchanged.  Adjust pre-pay diff.
+        uintptr_t needed = rcnt_now - 1;
+        if(needed > rcnt_added) {
+            m_pref->refcnt.fetch_add(needed - rcnt_added,
+                std::memory_order_relaxed);
+            rcnt_added = needed;
+        }
+        else if(needed < rcnt_added) {
+            // Reduce pre-pay.  acq_rel for synchronization; refcnt
+            // SHOULD NOT drop to 0 here because our tag is still in
+            // m_ref (cur_ptr == m_pref guaranteed by the inner load
+            // above), so m_ref's implicit +1 keeps refcnt >= 1 even
+            // after our subtraction.  Use always-on assertion (not
+            // standard assert which is gated by NDEBUG) to catch any
+            // unexpected case in release builds too.
+            uintptr_t diff = rcnt_added - needed;
+            uintptr_t old = m_pref->refcnt.fetch_sub(diff,
+                std::memory_order_acq_rel);
+#ifndef KAME_NO_ALWAYS_ASSERT
+            if(old == diff) {
+                // Should not happen — tag still holds pref alive.
+                fprintf(stderr,
+                    "FATAL: scoped try_release diff fetch_sub took refcnt to 0 "
+                    "(diff=%lu pref=%p)\n",
+                    (unsigned long)diff, (void*)m_pref);
+                std::abort();
+            }
+#endif
+            rcnt_added = needed;
+        }
+        // else: needed == rcnt_added → no-op.
+        // Single-shot drain CAS: tag rcnt_now → 0.
+        if(const_cast<atomic_shared_ptr<T> *>(m_asp)->m_ref.compare_set_weak(
+            (uintptr_t)m_pref + rcnt_now,
+            (uintptr_t)m_pref + 0)) {
+            m_pref = nullptr;
+            m_tag_held = false;
+            rcnt_added = 0;
+            return true;
+        }
+        return false;
+    }
+
+private:
     void release_() noexcept {
         if(m_pref) {
             if(m_tag_held) {
-                // Zero-reset TagHeld release.  See above for math.
-                release_tagheld_zeroreset_();
+                (void)release_tagheld_zeroreset_(/*single_attempt=*/false);
             } else {
-                // Owned → plain fetch_sub(1) + delete check, like local_shared_ptr.
+                // Owned → plain fetch_sub(1) + delete check.
                 if(m_pref->refcnt.fetch_sub(1, std::memory_order_acq_rel) == 1) {
                     m_asp->deleter(m_pref);
                 }
@@ -955,7 +1035,8 @@ atomic_shared_ptr<T>::load_shared_() const noexcept {
 //   Combines excess undo + our own 1 ref into a single fetch_sub(added_global_rcnt,
 //   acq_rel) with delete check — one fewer atomic op vs. the two-step old code.
 template <typename T>
-inline void atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_global_rcnt) const noexcept {
+inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_global_rcnt,
+                                                    bool single_attempt) const noexcept {
     Refcnt sub_amount = added_global_rcnt;
     for(int spins = 1;; spins *= 2) {
         auto [cur_ptr, rcnt_old] = load_tagged_();
@@ -974,6 +1055,11 @@ inline void atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
                 sub_amount = added_global_rcnt - local_release;
                 break;
             }
+            // CAS lost.  single_attempt callers return false WITHOUT
+            // doing the global fetch_sub — caller's pre-pay IOU stays
+            // in pref->refcnt and is balanced by a later call.
+            if(single_attempt)
+                return false;
             auto [cur_ptr, rcnt_old] = load_tagged_();
             if((cur_ptr == pref) && rcnt_old) {
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
@@ -993,6 +1079,7 @@ inline void atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
             const_cast<atomic_shared_ptr*>(this)->deleter(pref);
         }
     }
+    return true;
 }
 
 //=============================================================================

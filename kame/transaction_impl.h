@@ -793,18 +793,26 @@ public:
             //     thread to wait for; a light std::this_thread::yield()
             //     suffices to break the same-cycle re-entry pattern
             //     without paying the mutex/CV overhead.
+            // Lock-free style release loop with privilege-aware
+            // back-off.  rcnt_added tracks our cumulative pre-pay so
+            // we only fetch_add/fetch_sub the DIFF on each iter
+            // (no-op when observed tag count is stable).
+            //   - We hold privilege: bare retry (no-op).
+            //   - Other holds privilege: CV-wait via negotiate_sleep.
+            //   - No privilege: yield.
             if(m_contention_observed) {
-                bool view_owned = m_view.is_owned();
-                if( !view_owned) {
-                    using NC = typename Node<XN>::NegotiationCounter;
-                    auto priv = NC::s_privileged_tidstamp.load(std::memory_order_relaxed);
-                    bool other_holds_priv = (priv != (typename NC::cnt_t)0)
-                        && (detail::stamp_tid(priv)
-                            != detail::stamp_tid(m_snap.m_started_time));
-                    if(other_holds_priv)
+                using NC = typename Node<XN>::NegotiationCounter;
+                uintptr_t rcnt_added = 0;
+                while( !m_view.try_release_single_attempt(rcnt_added)) {
+                    if(NC::fair_mode_blocks_me(m_snap.m_started_time)) {
                         NC::negotiate_sleep(1);
-                    else
+                    }
+                    else if(m_snap.m_registered_privileged) {
+                        // We hold privilege — bare retry.
+                    }
+                    else {
                         std::this_thread::yield();
+                    }
                 }
             }
         }
