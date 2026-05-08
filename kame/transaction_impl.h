@@ -1896,7 +1896,8 @@ Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
             scope.commit();
             break;
         }
-        local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper( *scope, SerialGenerator::SERIAL_NULL));
+        // unique_ptr: ownership to m_link on success.
+        auto newwrapper = make_local_unique<PacketWrapper>( *scope, SerialGenerator::SERIAL_NULL);
         if(scope.compareAndSet(newwrapper))
             break;
         // RAII tags on continue (iter > 0)
@@ -1932,7 +1933,9 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     // fetch_add (the ScopedNegotiateLinkage move-in ctor reuses the
     // local_shared_ptr's +1 ref).
     local_shared_ptr<PacketWrapper> nullsubwrapper;
-    local_shared_ptr<PacketWrapper> newsubwrapper;
+    // newsubwrapper: ownership transferred to var->m_link on CAS
+    // success.  unique_ptr saves 2 atomic ops vs local_shared_ptr.
+    local_unique_ptr<PacketWrapper> newsubwrapper;
     auto nit = packet->subnodes()->begin();
     for(auto pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
         assert(nit != packet->subnodes()->end());
@@ -1953,7 +1956,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
                         return false;
                     }
                 }
-                newsubwrapper.reset(new PacketWrapper(m_link, idx, SerialGenerator::SERIAL_NULL));
+                newsubwrapper = make_local_unique<PacketWrapper>(m_link, idx, SerialGenerator::SERIAL_NULL);
                 newsubwrapper->packet() = *pit;
             }
             pit = packet->subpackets()->erase(pit);
