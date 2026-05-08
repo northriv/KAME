@@ -2689,7 +2689,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
 //=============================================================================
 template <class XN>
 typename Node<XN>::BundledStatus
-Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
+Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
     const shared_ptr<Node> &subnode,
     ScopedNegotiateLinkage<XN> &subscope, local_shared_ptr<Packet> &subpacket_new,
     Snapshot<XN> &snap,
@@ -2735,7 +2735,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
             // dereferencing subscope->.
             local_shared_ptr<PacketWrapper> subwrapper_new;
             UnbundledStatus status = unbundle(detect_collision ? &bundle_serial : nullptr, snap,
-                subscope, nullptr, &subwrapper_new, superwrapper);
+                subscope, nullptr, &subwrapper_new, supscope_super);
             switch(status) {
             case UnbundledStatus::W_NEW_SUBVALUE:
                 // Final CAS in unbundle succeeded → subscope's view
@@ -2824,38 +2824,44 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 
-    // Move-out the caller's view as a value-typed local_shared_ptr.
-    // Bundle's multi-phase CAS reassigns this across Phase 2/4 success;
-    // cannot stay as a scoped view bound to a single atomic.  Owned
-    // mode → 0 atomic ops; TagHeld → 2 ops (promote).  At the success
-    // exit below we move the final wrapper back into supscope.view via
-    // set_view (zero atomic ops).
-    local_shared_ptr<PacketWrapper> oldsuperwrapper = supscope.consume_view();
+    // Use supscope.view directly throughout — it tracks the current
+    // m_link state across phases.  set_view updates after each
+    // successful CAS; unbundle's cas_infos loop also updates via
+    // set_view when an ancestor advances.  Saves the consume_view +
+    // local var ledger management of the previous design.
 
-    assert(oldsuperwrapper->packet());
-    assert(oldsuperwrapper->packet()->size());
-    assert(oldsuperwrapper->packet()->missing());
+    assert(supscope->packet());
+    assert(supscope->packet()->size());
+    assert(supscope->packet()->missing());
 
-    Node &supernode(oldsuperwrapper->packet()->node());
+    Node &supernode(supscope->packet()->node());
 
-    if( !oldsuperwrapper->hasPriority() ||
-        (oldsuperwrapper->m_bundle_serial != bundle_serial)) {
+    if( !supscope->hasPriority() ||
+        (supscope->m_bundle_serial != bundle_serial)) {
         //Tags serial.
+        // Keep local_shared_ptr (not unique_ptr) here: superwrapper is
+        // moved into supscope.set_view after CAS for tracking.  unique_ptr
+        // would lose the ref on CAS release, requiring a fetch_add to
+        // re-acquire for supscope.  local_shared_ptr's CAS does fetch_add
+        // internally (newr +1 for m_ref's implicit), and the caller's
+        // local_shared_ptr's +1 transfers cleanly into supscope.view via
+        // move-in set_view (0 ops).  Net: same atomic ops, simpler flow.
         local_shared_ptr<PacketWrapper> superwrapper(
-            new PacketWrapper(oldsuperwrapper->packet(), bundle_serial));
-        // OnExit retry==-1: negotiates eagerly; tagging on dtor when
-        // !m_committed.  Note: a CAS failure here on a privileged Tx
-        // would still trip priv-assert, since serial-tag CAS contends
-        // on the same supernode.m_link as commit/bundle main loop.
+            new PacketWrapper(supscope->packet(), bundle_serial));
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-        if( !scope) return BundledStatus::DISTURBED;  // weak acquire lost
-        if( !scope.compareAndSet(oldsuperwrapper, superwrapper))
-            return BundledStatus::DISTURBED; // dtor tags
-        oldsuperwrapper = std::move(superwrapper);
+        if( !scope) return BundledStatus::DISTURBED;
+        // 2-arg CAS via inner scope, using supscope's view as expected.
+        // view_copy provides a +1 ref (1 fetch_add).
+        if( !scope.compareAndSet(supscope.view_copy(), superwrapper))
+            return BundledStatus::DISTURBED;
+        // CAS success: m_link advanced to superwrapper.  Update
+        // supscope's view (move-in: 0 ops; supscope's old view is
+        // released by set_view's internal release_).
+        supscope.set_view(std::move(superwrapper));
     }
 
-    fast_vector<local_shared_ptr<PacketWrapper>, 16> subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
+    fast_vector<local_shared_ptr<PacketWrapper>, 16> subwrappers_org(supscope->packet()->subpackets()->size());
 
     for(int retry = 0;; ++retry) {
         // RAII OnEntry: negotiates supernode.m_link + tags eagerly (retry > 0).
@@ -2863,7 +2869,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
         if( !scope) continue;  // weak acquire lost — retry
         local_shared_ptr<PacketWrapper> superwrapper(
-            new PacketWrapper( *oldsuperwrapper, bundle_serial));
+            new PacketWrapper( *supscope, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
             reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
         assert(newpacket->size());
@@ -2898,7 +2904,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 // Pass child_scope directly — bundle_subpacket uses its
                 // view for unbundle / recursive bundle, eliminating the
                 // previous view_copy + temporary subscope dance.
-                BundledStatus status = bundle_subpacket( &oldsuperwrapper,
+                BundledStatus status = bundle_subpacket( &supscope,
                     child, child_scope, subpacket_new, snap, bundle_serial);
                 switch(status) {
                 case BundledStatus::SUCCESS:
@@ -2906,7 +2912,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 case BundledStatus::DISTURBED:
                 default:
                     child_scope.confirm_contention();
-                    if(oldsuperwrapper == *supernode.m_link)
+                    if(supscope == *supernode.m_link)
                         continue;
                     scope.confirm_contention();
                     return status;
@@ -2934,12 +2940,14 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         newpacket->m_missing = true;
 
         //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
-        // CAS via scope: success auto-commits; failure records
-        // m_contention_observed (dtor tag) and triggers priv-assert at
-        // the CAS site if the negotiate-yield was bypassed.
-        if( !scope.compareAndSet(oldsuperwrapper, superwrapper))
+        // 2-arg CAS via scope: expected = supscope.view (current m_link
+        // state), desired = superwrapper.  view_copy gives a +1 ref of
+        // expected (1 fetch_add).
+        if( !scope.compareAndSet(supscope.view_copy(), superwrapper))
             return BundledStatus::DISTURBED;
-        oldsuperwrapper = superwrapper;
+        // Update supscope.view to track the new m_link state.
+        // Pass copy of superwrapper (still needed for Phase 4).
+        supscope.set_view(local_shared_ptr<PacketWrapper>(superwrapper));
 
         //--- Phase 3: second checkpoint — CAS each child's Linkage to point back to parent ---
         //  Each bundled_ref is a PacketWrapper holding a back-reference
@@ -2970,7 +2978,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 // another thread raced our bundling, which under privilege
                 // should be impossible.
                 if((local_shared_ptr<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
-                 || (oldsuperwrapper != *supernode.m_link)) {
+                 || (supscope != *supernode.m_link)) {
                     // Phase 2 CAS on supernode.m_link already succeeded;
                     // commit the outer scope before returning DISTURBED so
                     // its dtor doesn't re-tag/assert on legitimate
@@ -3004,11 +3012,12 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // CAS via scope.  On failure, Phase 2 already advanced state, so
         // the outer scope.commit() is needed to suppress the dtor tag
         // (legitimate forward progress).
-        if( !scope.compareAndSetWithHint(oldsuperwrapper, superwrapper, started_time)) {
+        if( !scope.compareAndSetWithHint(supscope.view_copy(), superwrapper, started_time)) {
             scope.commit();
             return BundledStatus::DISTURBED;
         }
-        oldsuperwrapper = std::move(superwrapper);
+        // CAS success: m_link advanced.  Update supscope.view to track.
+        supscope.set_view(std::move(superwrapper));
 
         for(unsigned int i = 0; i < subnodes->size(); i++) {
             shared_ptr<Node> child(( *subnodes)[i]);
@@ -3019,8 +3028,6 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // tagged successful_cas on supernode.m_link.
         break;
     }
-    // Restore supscope.view from the final wrapper (move-in, 0 ops).
-    supscope.set_view(std::move(oldsuperwrapper));
     return BundledStatus::SUCCESS;
 }
 
@@ -3214,7 +3221,7 @@ typename Node<XN>::UnbundledStatus
 Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     ScopedNegotiateLinkage<XN> &subscope,
     const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned,
-    local_shared_ptr<PacketWrapper> *oldsuperwrapper) {
+    ScopedNegotiateLinkage<XN> *supscope_super) {
     auto &time_started = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 
@@ -3259,12 +3266,15 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         // return DISTURBED below from the oldsuperwrapper check is
         // legitimate forward progress (linkage already advanced), and
         // m_committed=true silences the dtor's tag/assert.
-        if(oldsuperwrapper) {
-            if( ( *oldsuperwrapper)->packet()->node().m_link == it->linkage) {
-                if( *oldsuperwrapper != it->old_wrapper)
+        if(supscope_super) {
+            if( ( *supscope_super)->packet()->node().m_link == it->linkage) {
+                if( *supscope_super != it->old_wrapper)
                     return UnbundledStatus::DISTURBED;
-//				printf("1\n");
-                *oldsuperwrapper = it->new_wrapper;
+                // Update super-scope's view to track ancestor's new
+                // wrapper.  set_view (move version): release old view
+                // (~1 op) + transfer new (0 ops).  it->new_wrapper is
+                // local to cas_infos and not used after this iteration.
+                supscope_super->set_view(std::move(it->new_wrapper));
             }
         }
     }

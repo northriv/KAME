@@ -1194,13 +1194,26 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
         if constexpr (UNIQUE) return (Ref *)newr.get();
         else return newr.ref_ptr_();
     };
+    auto new_refcnt_sub_one = [&newr]() {
+        if constexpr ( !UNIQUE) {
+            if(newr.ref_ptr_()) {
+                if(newr.use_count() == 2) //unique at start pt., and was +1.
+                    newr.ref_ptr_()->refcnt--;
+                else
+                    newr.ref_ptr_()->refcnt.fetch_sub(1, std::memory_order_relaxed);
+            }
+        }
+    };
 
     if constexpr ( !UNIQUE) {
         // Optimistic +1 for m_ref's implicit ref on success; will undo
         // on WEAK-failure or pointer-mismatch.  UNIQUE skips this:
         // newr's existing refcnt=1 transfers directly to m_ref on success.
         if(newr_pref()) {
-            newr_pref()->refcnt.fetch_add(1, std::memory_order_relaxed);
+            if(newr.unique())
+                newr_pref()->refcnt++;
+            else
+                newr_pref()->refcnt.fetch_add(1, std::memory_order_relaxed);
         }
     }
     for(int spins = 1;; spins *= 2) {
@@ -1211,10 +1224,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             auto [p, success] = acquire_tag_ref_( &rcnt_old, WEAK);
             if constexpr (WEAK) {
                 if( !success) {
-                    if constexpr ( !UNIQUE) {
-                        if(newr_pref())
-                            newr_pref()->refcnt.fetch_sub(1, std::memory_order_relaxed);
-                    }
+                    new_refcnt_sub_one();
                     return false;
                 }
             }
@@ -1231,10 +1241,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                     release_tag_ref_(pref, 1u);
                 }
             }
-            if constexpr ( !UNIQUE) {
-                if(newr_pref())
-                    newr_pref()->refcnt.fetch_sub(1, std::memory_order_relaxed);
-            }
+            new_refcnt_sub_one();
             if constexpr (ACQUIRE) {
                 if(oldr.ref_ptr_()) {
                     // decreasing global reference counter.
@@ -1354,10 +1361,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             // returns false without retry, so the +1 must be undone.
             // UNIQUE skips this: caller's unique_ptr keeps the wrapper;
             // its destructor handles cleanup if not retried.
-            if constexpr ( !UNIQUE) {
-                if(newr_pref())
-                    newr_pref()->refcnt.fetch_sub(1, std::memory_order_relaxed);
-            }
+            new_refcnt_sub_one();
             return false;
         }
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR

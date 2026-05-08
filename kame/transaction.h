@@ -906,7 +906,11 @@ private:
     BundledStatus bundle(ScopedNegotiateLinkage<XN> &supscope,
         Snapshot<XN> &snap,
         int64_t bundle_serial, bool is_bundle_root);
-    BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
+    //! \param[in,out] supscope_super If non-null, the parent (super-)
+    //!   node's scope.  Its view tracks the current super-link state;
+    //!   unbundle's cas_infos loop may update it via set_view when an
+    //!   ancestor CAS advances the super-linkage past us.
+    BundledStatus bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super, const shared_ptr<Node> &subnode,
         ScopedNegotiateLinkage<XN> &subscope, local_shared_ptr<Packet> &subpacket_new,
         Snapshot<XN> &snap,
         int64_t bundle_serial);
@@ -921,11 +925,14 @@ private:
     //! If \a oldsubpacket is zero, unloaded value  of \a sublinkage will be substituted to \a newsubwrapper.
     //! \param[in] snap Snapshot that chains started_time, tid_bitset and
     //! the tagged-linkage list through the commit/negotiate/bundle path.
+    //! \param[in,out] supscope_super If non-null, the parent (super-)
+    //!   node's scope.  cas_infos loop tracks ancestor advances via
+    //!   supscope_super->set_view when an ancestor's m_link matches.
     static UnbundledStatus unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         ScopedNegotiateLinkage<XN> &subscope,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
-        local_shared_ptr<PacketWrapper> *superwrapper = NULL);
+        ScopedNegotiateLinkage<XN> *supscope_super = NULL);
     //! The point where the packet is held.
     shared_ptr<Linkage> m_link;
 
