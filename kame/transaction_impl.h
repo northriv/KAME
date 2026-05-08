@@ -747,6 +747,33 @@ public:
         return false;
     }
 
+    // ---------- CAS with local_unique_ptr desired ----------
+
+    //! Weak CAS using internal view as oldr, with local_unique_ptr<T>
+    //! as desired (saves 2 atomic ops vs the local_shared_ptr<T>
+    //! version).  desired is in/out: released on success (m_ref takes
+    //! ownership), retained on failure.
+    bool compareAndSet(local_unique_ptr<PacketWrapper> &desired) noexcept {
+        if(m_link->compareAndSetWeak(m_view, desired)) {
+            m_committed = true;
+            return true;
+        }
+        m_contention_observed = true;
+        return false;
+    }
+
+    bool compareAndSetWithHint(local_unique_ptr<PacketWrapper> &desired,
+                                typename Node<XN>::NegotiationCounter::cnt_t
+                                    started_time = 0) noexcept {
+        if(m_link->compareAndSetWeak(m_view, desired)) {
+            m_link->tags_successful_cas(started_time);
+            m_committed = true;
+            return true;
+        }
+        m_contention_observed = true;
+        return false;
+    }
+
     //! Caller-side hook for pre-CAS conflict detection (e.g.
     //! `wrapper->packet() != tr.m_oldpacket`,
     //! UnbundledStatus::SUBVALUE_HAS_CHANGED, walkUpChain DISTURBED).
@@ -1814,18 +1841,18 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             tr.m_oldpacket = tr.m_packet;
             tr.m_packet = newpacket;
 
-            local_shared_ptr<PacketWrapper> newwrapper(
-                new PacketWrapper(m_link, packet->size() - 1, tr.m_serial));
+            // local_unique_ptr: ownership transfers to m_ref on CAS
+            // success (saves 2 atomic ops vs local_shared_ptr).
+            auto newwrapper = make_local_unique<PacketWrapper>(
+                m_link, packet->size() - 1, tr.m_serial);
             newwrapper->packet() = subpacket_new;
             packet->subpackets()->back() = subpacket_new;
             if(has_failed)
                 return false;
-            // 1-arg CAS uses scope.m_view (updated by bundle_subpacket).
             if( !scope.compareAndSetWithHint(newwrapper)) {
                 tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket));
                 return false;
             }
-            // scope auto-committed + tagged successful_cas via the call.
             break;
         }
     }
