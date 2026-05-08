@@ -632,7 +632,10 @@ public:
     //! Identity comparisons against another local_shared_ptr<PacketWrapper>
     //! (avoids materialising a fresh local_shared_ptr from the view).
     bool operator==(const local_shared_ptr<PacketWrapper> &rhs) const noexcept {
-        return m_view.ref_ptr_() == rhs.ref_ptr_();
+        // Public access: get() is public; ref_ptr_ is protected.
+        // For intrusive types (PacketWrapper inherits atomic_countable),
+        // Ref == T, so rhs.get() == rhs.ref_ptr_().
+        return m_view.ref_ptr_() == rhs.get();
     }
     bool operator!=(const local_shared_ptr<PacketWrapper> &rhs) const noexcept {
         return !(*this == rhs);
@@ -1790,20 +1793,14 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             if( !scope) continue;  // weak acquire lost — treat as CAS failure
 
             local_shared_ptr<Packet> subpacket_new;
-            // Reuse scope's view instead of a fresh load_shared_ on the
-            // same var->m_link.  view_copy is one fetch_add (Owned) or
-            // 2-3 ops (TagHeld → promote); fresh load is ~2 ops via
-            // tag-bit acquire CAS plus fetch_add.  Slightly older
-            // value on contention is fine — the CAS at scope.compareAndSetWithHint
-            // below will detect any drift and retry.
-            local_shared_ptr<PacketWrapper> subwrapper = scope.view_copy();
-            BundledStatus status = bundle_subpacket(0, var, subwrapper, subpacket_new,
+            // Pass scope directly — bundle_subpacket uses its view for
+            // unbundle/bundle and updates via set_view on success.
+            BundledStatus status = bundle_subpacket(0, var, scope, subpacket_new,
                 tr, tr.m_serial);
             if(status != BundledStatus::SUCCESS) {
-                continue;  // RAII tags on scope exit (iter > 0)
+                continue;
             }
             if( !subpacket_new) {
-                //Inserted twice inside the package.
                 scope.commit();
                 break;
             }
@@ -1823,9 +1820,10 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             packet->subpackets()->back() = subpacket_new;
             if(has_failed)
                 return false;
-            if( !scope.compareAndSetWithHint(subwrapper, newwrapper)) {
-                tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
-                return false;  // RAII tags
+            // 1-arg CAS uses scope.m_view (updated by bundle_subpacket).
+            if( !scope.compareAndSetWithHint(newwrapper)) {
+                tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket));
+                return false;
             }
             // scope auto-committed + tagged successful_cas via the call.
             break;
@@ -2663,14 +2661,19 @@ template <class XN>
 typename Node<XN>::BundledStatus
 Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
     const shared_ptr<Node> &subnode,
-    local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
+    ScopedNegotiateLinkage<XN> &subscope, local_shared_ptr<Packet> &subpacket_new,
     Snapshot<XN> &snap,
     int64_t bundle_serial) {
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 
-    if( !subwrapper->hasPriority()) {
-        shared_ptr<Linkage > linkage(subwrapper->bundledBy());
+    // Caller's subscope is on subnode->m_link.  We use its view directly
+    // for unbundle / recursive bundle, eliminating the previous internal
+    // subscope construction (which was a redundant move-in/move-out
+    // dance through a temporary local_shared_ptr).
+
+    if( !subscope->hasPriority()) {
+        shared_ptr<Linkage > linkage(subscope->bundledBy());
         bool need_for_unbundle = false;
         bool detect_collision = false;
         if(linkage == m_link) {
@@ -2682,7 +2685,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
                     return BundledStatus::SUCCESS;
             }
             else {
-                if(subwrapper->packet()) {
+                if(subscope->packet()) {
                     //Re-inserted.
 //					need_for_unbundle = true;
                 }
@@ -2695,56 +2698,38 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
             detect_collision = true;
         }
         if(need_for_unbundle) {
-            // Move-in subwrapper as the temporary subscope's view (zero
-            // atomic ops; reuses subwrapper's +1 ref).  The new
-            // unbundle() takes ScopedNegotiateLinkage&, replacing the
-            // separate (sublinkage, bundled_ref) parameters.  Tag mode
-            // OnEntry retry==-1 matches the previous inner-scope used
-            // inside unbundle for its final sublinkage CAS.
-            ScopedNegotiateLinkage<XN> subscope(subnode->m_link, snap, -1,
-                std::move(subwrapper),
-                ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
+            // Pass subscope directly to unbundle.  unbundle's final CAS
+            // (via subscope.compareAndSetWithHint) consumes subscope's
+            // view on W_NEW_SUBVALUE; we restore it via set_view from
+            // subwrapper_new so the rest of this function can continue
+            // dereferencing subscope->.
             local_shared_ptr<PacketWrapper> subwrapper_new;
             UnbundledStatus status = unbundle(detect_collision ? &bundle_serial : nullptr, snap,
                 subscope, nullptr, &subwrapper_new, superwrapper);
             switch(status) {
             case UnbundledStatus::W_NEW_SUBVALUE:
-                // Final CAS via subscope succeeded → subscope's view
-                // is consumed.  Promote the returned newsubwrapper
-                // into our local subwrapper for the rest of the
-                // function (the bundle() recurse below mutates it).
-                subwrapper = subwrapper_new;
+                // Final CAS in unbundle succeeded → subscope's view
+                // is empty.  Move the new wrapper back into the view
+                // (zero atomic ops, just pointer take).
+                subscope.set_view(std::move(subwrapper_new));
                 break;
             case UnbundledStatus::COLLIDED:
-                //The subpacket has already been included in the snapshot.
                 // unbundle returned pre-CAS; subscope's view is still
-                // valid.  Restore subwrapper from it (zero ops Owned /
-                // 2 ops TagHeld) so the caller's `subwrappers_org[i] =
-                // subwrapper` after this returns sees a valid value.
-                subwrapper = subscope.consume_view();
+                // valid.  Caller continues with the view as-is.
                 subpacket_new.reset();
                 return BundledStatus::SUCCESS;
             case UnbundledStatus::SUBVALUE_HAS_CHANGED:
             default:
-                // Caller (bundle Phase 1) does not use subwrapper after
-                // a non-SUCCESS return — no need to restore it.
                 return BundledStatus::DISTURBED;
             }
         }
     }
-    if(subwrapper->packet()->missing()) {
-        assert(subwrapper->packet()->size());
-        // Move-in subwrapper as the temporary subscope's view (zero
-        // atomic ops — reuses subwrapper's +1 ref).  bundle() consumes
-        // the view and restores via set_view on SUCCESS.
-        ScopedNegotiateLinkage<XN> subscope(subnode->m_link, snap, -1,
-            std::move(subwrapper),
-            ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
+    if(subscope->packet()->missing()) {
+        assert(subscope->packet()->size());
+        // Recursive bundle on subnode using the caller's subscope.
+        // bundle() consumes the view at entry and restores via set_view
+        // on SUCCESS (with the new bundled value).
         BundledStatus status = subnode->bundle(subscope, snap, bundle_serial, false);
-        // Restore subwrapper from subscope.view (move-out, 0 ops on
-        // SUCCESS Owned; empty on DISTURBED).  For DISTURBED the
-        // caller (bundle Phase 1) doesn't use subwrapper after.
-        subwrapper = subscope.consume_view();
         switch(status) {
         case BundledStatus::SUCCESS:
             break;
@@ -2753,7 +2738,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
             return BundledStatus::DISTURBED;
         }
     }
-    subpacket_new = subwrapper->packet();
+    subpacket_new = subscope->packet();
     return BundledStatus::SUCCESS;
 }
 
@@ -2865,44 +2850,41 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         for(unsigned int i = 0; i < subpackets->size(); ++i) {
             shared_ptr<Node> child(( *subnodes)[i]);
             local_shared_ptr<Packet> &subpacket_new(( *subpackets)[i]);
-            local_shared_ptr<PacketWrapper> subwrapper;
             for(int child_retry = 0;; ++child_retry) {
                 // RAII OnEntry: negotiates child->m_link + tags eagerly
-                // on retry > 0.  Covers the read at *child->m_link below
-                // and the CAS in bundle_subpacket → unbundle.
+                // on retry > 0.
                 ScopedNegotiateLinkage<XN> child_scope(
                     child->m_link, snap, child_retry,
                     ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
                 if( !child_scope) continue;  // weak acquire lost — retry
-                // Reuse child_scope's view as subwrapper instead of a
-                // fresh load on child->m_link.  view_copy ≤ load_shared_
-                // in atomic ops; bundle_subpacket may then reassign
-                // subwrapper internally.
-                subwrapper = child_scope.view_copy();
-                if(subwrapper == subwrappers_org[i]) {
+                // Fast-path: child's m_link unchanged since last iter's
+                // observation.  Compare child_scope's view directly
+                // (operator== on ref pointer, no atomic op).
+                if(child_scope == subwrappers_org[i]) {
                     child_scope.commit(); //fast path for retry > 0.
                     break;
                 }
-                SerialGenerator::gen(subwrapper->m_bundle_serial); //Lamport: advance past sub-node serial.
+                SerialGenerator::gen(child_scope->m_bundle_serial); //Lamport: advance past sub-node serial.
+                // Pass child_scope directly — bundle_subpacket uses its
+                // view for unbundle / recursive bundle, eliminating the
+                // previous view_copy + temporary subscope dance.
                 BundledStatus status = bundle_subpacket( &oldsuperwrapper,
-                    child, subwrapper, subpacket_new, snap, bundle_serial);
+                    child, child_scope, subpacket_new, snap, bundle_serial);
                 switch(status) {
                 case BundledStatus::SUCCESS:
                     break;
                 case BundledStatus::DISTURBED:
                 default:
-                    // bundle_subpacket DISTURBED: contention observed on
-                    // child->m_link (no scope-CAS attempted; pre-CAS conflict).
                     child_scope.confirm_contention();
                     if(oldsuperwrapper == *supernode.m_link)
                         continue;
-                    // Phase 1 early exit: no CAS on supernode.m_link was
-                    // attempted yet (Phase 2 not reached).  Outer scope
-                    // observed contention indirectly via child failure.
                     scope.confirm_contention();
                     return status;
                 }
-                subwrappers_org[i] = subwrapper;
+                // Copy child_scope's view into subwrappers_org[i].
+                // view_copy (lvalue): 1 fetch_add + promote-if-TagHeld.
+                // Leaves child_scope's view valid for dtor's release.
+                subwrappers_org[i] = child_scope.view_copy();
                 if(subpacket_new) {
                     if(subpacket_new->missing()) {
                         missing = true;

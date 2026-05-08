@@ -907,7 +907,7 @@ private:
         Snapshot<XN> &snap,
         int64_t bundle_serial, bool is_bundle_root);
     BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
-        local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
+        ScopedNegotiateLinkage<XN> &subscope, local_shared_ptr<Packet> &subpacket_new,
         Snapshot<XN> &snap,
         int64_t bundle_serial);
     enum class UnbundledStatus {W_NEW_SUBVALUE, SUBVALUE_HAS_CHANGED, COLLIDED, DISTURBED};
