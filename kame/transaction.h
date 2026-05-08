@@ -823,10 +823,11 @@ private:
         VOID_PACKET = 2, NODE_MISSING = 4,
         COLLIDED = 8, NODE_MISSING_AND_COLLIDED = 12};
     struct CASInfo {
-        CASInfo(const shared_ptr<Linkage> &b, const local_shared_ptr<PacketWrapper> &o,
-            const local_shared_ptr<PacketWrapper> &n) : linkage(b), old_wrapper(o), new_wrapper(n) {}
+        CASInfo(const shared_ptr<Linkage> &b, scoped_atomic_view<PacketWrapper> &&o,
+            const local_shared_ptr<PacketWrapper> &n) : linkage(b), old_wrapper(std::move(o)), new_wrapper(n) {}
         shared_ptr<Linkage> linkage;
-        local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
+        scoped_atomic_view<PacketWrapper> old_wrapper;
+        local_shared_ptr<PacketWrapper> new_wrapper;
     };
     using CASInfoList = fast_vector<CASInfo, 32>;
 
@@ -839,7 +840,7 @@ private:
         bool is_root_level;          //!< true if this parent is the chain root
         shared_ptr<Linkage> parent_linkage;    //!< m_link of the parent node (= bundledBy)
         local_shared_ptr<PacketWrapper> parent_wrapper;  //!< snapshot of parent's wrapper (= original shot_upper)
-        local_shared_ptr<PacketWrapper> child_wrapper;   //!< wrapper saved before ascending (for staleness check)
+        scoped_atomic_view<PacketWrapper> child_wrapper;   //!< view of child wrapper (Owned via move from root_wrapper; keeps wrapper alive for staleness check)
         int reverse_index;
         local_shared_ptr<Packet> *parent_packet;  //!< parent's packet containing child slot
     };

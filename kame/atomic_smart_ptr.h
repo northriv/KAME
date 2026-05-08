@@ -456,6 +456,11 @@ public:
     template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const noexcept {
         static_assert(sizeof(static_cast<const T*>(x.get())), "");
         return (ref_ptr_() != (const Ref*)x.ref_ptr_());}
+    //! Comparison with scoped_atomic_view (staleness check etc.).
+    bool operator==(const scoped_atomic_view<T> &x) const noexcept {
+        return (ref_ptr_() == x.ref_ptr_());}
+    bool operator!=(const scoped_atomic_view<T> &x) const noexcept {
+        return (ref_ptr_() != x.ref_ptr_());}
 protected:
     template <typename Y, typename Z> friend class local_shared_ptr;
     template <typename Y> friend class atomic_shared_ptr;
@@ -762,6 +767,21 @@ public:
     T &operator*() const noexcept { assert(m_pref); return *get(); }
 
     Ref *ref_ptr_() const noexcept { return m_pref; }
+
+    //! Identity comparison against atomic_shared_ptr (e.g. Linkage).
+    //! Pure relaxed load + pointer comparison — no load_shared_,
+    //! no refcount manipulation.  scoped_atomic_view is a friend of
+    //! atomic_shared_ptr, so ref_ptr_() access is valid.
+    //! Reverse direction (asp != view) uses inherited
+    //! local_shared_ptr::operator!=(scoped_atomic_view) — no friend
+    //! needed (adding one would create ambiguity with the inherited
+    //! member via Linkage's inheritance chain).
+    bool operator==(const atomic_shared_ptr<T> &rhs) const noexcept {
+        return m_pref == rhs.ref_ptr_();
+    }
+    bool operator!=(const atomic_shared_ptr<T> &rhs) const noexcept {
+        return m_pref != rhs.ref_ptr_();
+    }
 
 private:
     //! Promote TagHeld → Owned via "zero-reset": load current tag

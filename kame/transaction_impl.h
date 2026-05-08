@@ -618,6 +618,32 @@ public:
             m_snap.tag_as_contender(m_link);
     }
 
+    //! Move-in ctor: take ownership of an existing
+    //! scoped_atomic_view<PacketWrapper> (e.g. one stored in a CASInfo).
+    //! Zero atomic ops — the view is directly moved.
+    //!
+    //! By default does **not** negotiate (`with_negotiate=false`):
+    //! use `with_negotiate=true` for sites that need their own negotiate.
+    ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
+                           scoped_atomic_view<PacketWrapper> &&from,
+                           TagMode mode = TagMode::OnEntry,
+                           float mult_wait = 2.0f,
+                           bool with_negotiate = false) noexcept
+        : m_link(std::move(link)), m_snap(snap),
+          m_mult_wait(mult_wait),
+          m_eager(mode == TagMode::OnEntry),
+          m_should_tag(retry != 0) {
+        if(with_negotiate) {
+            if(retry < 0)
+                m_link->negotiate(snap, mult_wait);
+            else
+                m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+        }
+        m_view = std::move(from);
+        if(m_eager && m_should_tag)
+            m_snap.tag_as_contender(m_link);
+    }
+
     ScopedNegotiateLinkage(const ScopedNegotiateLinkage &) = delete;
     ScopedNegotiateLinkage &operator=(const ScopedNegotiateLinkage &) = delete;
 
@@ -644,6 +670,25 @@ public:
                            const ScopedNegotiateLinkage &rhs) noexcept { return rhs == lhs; }
     friend bool operator!=(const local_shared_ptr<PacketWrapper> &lhs,
                            const ScopedNegotiateLinkage &rhs) noexcept { return rhs != lhs; }
+
+    //! Identity comparisons against scoped_atomic_view<PacketWrapper>
+    //! (e.g. CASInfo::old_wrapper after it's been changed to view type).
+    bool operator==(const scoped_atomic_view<PacketWrapper> &rhs) const noexcept {
+        return m_view.ref_ptr_() == rhs.ref_ptr_();
+    }
+    bool operator!=(const scoped_atomic_view<PacketWrapper> &rhs) const noexcept {
+        return !(*this == rhs);
+    }
+
+    //! Identity comparisons against atomic_shared_ptr / Linkage.
+    //! Forwards to scoped_atomic_view::operator==/!=(atomic_shared_ptr).
+    //! Pure relaxed load + pointer comparison — no load_shared_.
+    bool operator==(const atomic_shared_ptr<PacketWrapper> &rhs) const noexcept {
+        return m_view == rhs;
+    }
+    bool operator!=(const atomic_shared_ptr<PacketWrapper> &rhs) const noexcept {
+        return m_view != rhs;
+    }
 
     //! Move-out the view as a local_shared_ptr<PacketWrapper>.  After
     //! this, the scope's view is empty; the scope can no longer be
@@ -1926,13 +1971,10 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     packet->subnodes().reset(new NodeList( *packet->subnodes()));
     unsigned int idx = 0;
     int old_idx = -1;
-    // Loaded once below into a scope at function tail; pre-CAS read
-    // here uses load_shared_ since we need the value across the
-    // packet-loop iterations and the final commit() call before the
-    // CAS.  Move-into a scope just before the CAS to avoid an extra
-    // fetch_add (the ScopedNegotiateLinkage move-in ctor reuses the
-    // local_shared_ptr's +1 ref).
-    local_shared_ptr<PacketWrapper> nullsubwrapper;
+    // Tag-ref view loaded once below; read for hasPriority/bundledBy
+    // checks, then moved into ScopedNeg at function tail (zero extra
+    // atomic ops — the scoped_atomic_view&& ctor transfers directly).
+    scoped_atomic_view<PacketWrapper> nullsubwrapper;
     // newsubwrapper: ownership transferred to var->m_link on CAS
     // success.  unique_ptr saves 2 atomic ops vs local_shared_ptr.
     local_unique_ptr<PacketWrapper> newsubwrapper;
@@ -1941,7 +1983,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         assert(nit != packet->subnodes()->end());
         if(nit->get() == &*var) {
             if( *pit) {
-                nullsubwrapper = *var->m_link;
+                nullsubwrapper = scoped_atomic_view<PacketWrapper>(*var->m_link);
                 if(nullsubwrapper->hasPriority()) {
                     if(nullsubwrapper->packet() != *pit) {
                         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
@@ -2008,8 +2050,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     tr.m_packet = newpacket;
 
     //Unload the packet of the released node.
-    // Move-in the pre-loaded nullsubwrapper as the scope's view (the
-    // +1 refcount transfers without a fresh fetch_add).
+    // Move the pre-loaded view directly into scope (0 atomic ops).
     ScopedNegotiateLinkage<XN> scope(var->m_link, tr, -1,
         std::move(nullsubwrapper),
         ScopedNegotiateLinkage<XN>::TagMode::OnExit);
@@ -2083,7 +2124,10 @@ Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
     local_shared_ptr<Packet> *upperpacket, int *index) {
     if( !superpacket->size())
         return nullptr;
-    local_shared_ptr<PacketWrapper> wrapper( *linkage);
+    // Tag-ref view instead of load_shared_ — avoids fetch_add/sub pair
+    // for this short-lived read (hasPriority, bundledBy, reverseIndex).
+    scoped_atomic_view<PacketWrapper> wrapper( *linkage);
+    if( !wrapper) return nullptr;
     if(wrapper->hasPriority())
         return nullptr;
     shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
@@ -2278,9 +2322,11 @@ Node<XN>::ascendOneLevel(
     // empties root_wrapper, so any further root_wrapper-> access would
     // be invalid).
     r.reverse_index = root_wrapper->reverseIndex();
-    // Steal caller's +1 ref into r.child_wrapper for the staleness
-    // check.  Zero atomic ops — root_wrapper is now empty.
-    r.child_wrapper = std::move(root_wrapper);
+    // Move root_wrapper into scoped_atomic_view (Owned mode).  Zero
+    // atomic ops — just transfers the local_shared_ptr's +1 refcount.
+    // root_wrapper becomes empty; child_wrapper keeps the old wrapper
+    // alive for the staleness check at Step D.
+    r.child_wrapper = scoped_atomic_view<PacketWrapper>(*child_linkage, std::move(root_wrapper));
     // Load parent into the now-empty root_wrapper — operator= calls
     // reset() first which is a no-op on empty, so no fetch_sub on the
     // (already moved-out) old value.
@@ -2517,7 +2563,13 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
             new PacketWrapper( *p, root_wrapper->m_bundle_serial));
     }
     if(newwrapper) {
-        cas_infos->emplace_back(r.parent_linkage, r.parent_wrapper, newwrapper);
+        // Move parent_wrapper into a scoped_atomic_view (Owned mode) for
+        // the CASInfo.  Zero atomic ops — just transfers the refcount.
+        // parent_wrapper is not used after this point (parent_packet still
+        // points into the PacketWrapper kept alive by the view).
+        cas_infos->emplace_back(r.parent_linkage,
+            scoped_atomic_view<PacketWrapper>(*r.parent_linkage, std::move(r.parent_wrapper)),
+            newwrapper);
         p = &newwrapper->packet();
     }
     int size = ( *r.parent_packet)->size();
@@ -2851,9 +2903,15 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         if( !scope) return BundledStatus::DISTURBED;
-        // 2-arg CAS via inner scope, using supscope's view as expected.
-        // view_copy provides a +1 ref (1 fetch_add).
-        if( !scope.compareAndSet(supscope.view_copy(), superwrapper))
+        // Pointer check + 1-arg CAS: scope loaded m_link at construction;
+        // if it matches supscope's expected state, scope's internal view
+        // serves as the CAS expected.  Saves 1 fetch_add + promote vs
+        // view_copy().
+        if(scope.operator->() != supscope.operator->()) {
+            scope.confirm_contention();
+            return BundledStatus::DISTURBED;
+        }
+        if( !scope.compareAndSet(superwrapper))
             return BundledStatus::DISTURBED;
         // CAS success: m_link advanced to superwrapper.  Update
         // supscope's view (move-in: 0 ops; supscope's old view is
@@ -2940,10 +2998,18 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         newpacket->m_missing = true;
 
         //--- Phase 2: first checkpoint — CAS the parent PacketWrapper ---
-        // 2-arg CAS via scope: expected = supscope.view (current m_link
-        // state), desired = superwrapper.  view_copy gives a +1 ref of
-        // expected (1 fetch_add).
-        if( !scope.compareAndSet(supscope.view_copy(), superwrapper))
+        // Pointer check + 1-arg CAS: scope's view was loaded from
+        // supernode.m_link at scope creation; if it matches supscope's
+        // expected state, the internal view serves as CAS expected.
+        // Saves 1 fetch_add + promote vs view_copy().
+        // Note: 1-arg CAS (scoped path) consumes m_view on success
+        // (TagHeld → Empty).  Phase 4's CAS uses 2-arg (Set path)
+        // which does not rely on m_view.
+        if(scope.operator->() != supscope.operator->()) {
+            scope.confirm_contention();
+            return BundledStatus::DISTURBED;
+        }
+        if( !scope.compareAndSet(superwrapper))
             return BundledStatus::DISTURBED;
         // Update supscope.view to track the new m_link state.
         // Pass copy of superwrapper (still needed for Phase 4).
@@ -2977,7 +3043,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 // for a privileged Tx here — Phase 3 CAS failure means
                 // another thread raced our bundling, which under privilege
                 // should be impossible.
-                if((local_shared_ptr<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
+                if((scoped_atomic_view<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
                  || (supscope != *supernode.m_link)) {
                     // Phase 2 CAS on supernode.m_link already succeeded;
                     // commit the outer scope before returning DISTURBED so
@@ -3254,13 +3320,18 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-        // RAII OnEntry retry==-1: negotiates + tags eagerly.
-        // Each cas_info is a different ancestor linkage (≠ subscope's
-        // linkage), so a fresh ScopedNegotiateLinkage is needed here.
+        // Save old wrapper identity before moving into scope.
+        PacketWrapper *old_pw = it->old_wrapper.get();
+        // Move CASInfo's scoped_atomic_view into ScopedNeg — reuses the
+        // view directly (0 tag-acquire ops vs standard ctor's ~1 CAS).
+        // with_negotiate=true: each cas_info is a different ancestor
+        // linkage, so a fresh negotiate is needed.
         ScopedNegotiateLinkage<XN> scope(it->linkage, snap, -1,
-            ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 2.0f / cas_infos.size());
-        if( !scope) return UnbundledStatus::DISTURBED;  // weak acquire lost
-        if( !scope.compareAndSet(it->old_wrapper, it->new_wrapper))
+            std::move(it->old_wrapper),
+            ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 2.0f / cas_infos.size(),
+            /*with_negotiate=*/true);
+        if( !scope) return UnbundledStatus::DISTURBED;  // view was empty
+        if( !scope.compareAndSet(it->new_wrapper))
             return UnbundledStatus::DISTURBED;
         // scope.compareAndSet auto-committed on success.  A subsequent
         // return DISTURBED below from the oldsuperwrapper check is
@@ -3268,7 +3339,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         // m_committed=true silences the dtor's tag/assert.
         if(supscope_super) {
             if( ( *supscope_super)->packet()->node().m_link == it->linkage) {
-                if( *supscope_super != it->old_wrapper)
+                if(supscope_super->operator->() != old_pw)
                     return UnbundledStatus::DISTURBED;
                 // Update super-scope's view to track ancestor's new
                 // wrapper.  set_view (move version): release old view
