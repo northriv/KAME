@@ -700,6 +700,15 @@ public:
         return std::move(m_view);
     }
 
+    //! Move-out the view as a scoped_atomic_view<PacketWrapper>.
+    //! ZERO atomic ops regardless of mode — the view is directly moved.
+    //! After this, the scope's view is empty.  Use when the caller
+    //! wants to store the view for later comparison (e.g. bundle's
+    //! subwrappers_org) without paying promote + fetch_add costs.
+    scoped_atomic_view<PacketWrapper> consume_scoped_view() noexcept {
+        return std::move(m_view);
+    }
+
     //! Lvalue-copy the view as a local_shared_ptr<PacketWrapper>.
     //! Scope's view is preserved (still usable as oldr).  Costs one
     //! fetch_add(1) for the new ref, plus 2 ops if the view was in
@@ -2919,7 +2928,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         supscope.set_view(std::move(superwrapper));
     }
 
-    fast_vector<local_shared_ptr<PacketWrapper>, 16> subwrappers_org(supscope->packet()->subpackets()->size());
+    fast_vector<scoped_atomic_view<PacketWrapper>, 16> subwrappers_org(supscope->packet()->subpackets()->size());
 
     for(int retry = 0;; ++retry) {
         // RAII OnEntry: negotiates supernode.m_link + tags eagerly (retry > 0).
@@ -2975,10 +2984,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                     scope.confirm_contention();
                     return status;
                 }
-                // Copy child_scope's view into subwrappers_org[i].
-                // view_copy (lvalue): 1 fetch_add + promote-if-TagHeld.
-                // Leaves child_scope's view valid for dtor's release.
-                subwrappers_org[i] = child_scope.view_copy();
+                // Move child_scope's view into subwrappers_org[i].
+                // ZERO atomic ops — direct scoped_atomic_view move.
+                // child_scope's view becomes empty; dtor is a no-op
+                // (child_scope.commit() below prevents tagging).
+                subwrappers_org[i] = child_scope.consume_scoped_view();
                 if(subpacket_new) {
                     if(subpacket_new->missing()) {
                         missing = true;
@@ -3037,23 +3047,31 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 changed_during_bundling = true;
                 break;
             }
-            if( !childScope.compareAndSet(subwrappers_org[i], bundled_ref)) {
-                // Phase 3 child-CAS failure.  childScope auto-recorded
-                // contention (dtor will tag).  Note: priv-assert WILL fire
-                // for a privileged Tx here — Phase 3 CAS failure means
-                // another thread raced our bundling, which under privilege
-                // should be impossible.
-                if((scoped_atomic_view<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
-                 || (supscope != *supernode.m_link)) {
-                    // Phase 2 CAS on supernode.m_link already succeeded;
-                    // commit the outer scope before returning DISTURBED so
-                    // its dtor doesn't re-tag/assert on legitimate
-                    // forward progress.
-                    scope.commit();
-                    return BundledStatus::DISTURBED;
+            // Pointer check + 1-arg CAS: verify childScope loaded
+            // the same wrapper we saved in Phase 1, then CAS to
+            // bundled_ref.  Saves view_copy's fetch_add + promote.
+            {
+                bool child_cas_ok =
+                    (childScope.operator->() == subwrappers_org[i].get());
+                if(child_cas_ok)
+                    child_cas_ok = childScope.compareAndSet(bundled_ref);
+                if( !child_cas_ok) {
+                    // Phase 3 child-CAS failure (pointer mismatch or
+                    // CAS lost).  confirm_contention is idempotent with
+                    // compareAndSet's internal m_contention_observed.
+                    childScope.confirm_contention();
+                    if((scoped_atomic_view<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
+                     || (supscope != *supernode.m_link)) {
+                        // Phase 2 CAS on supernode.m_link already
+                        // succeeded; commit the outer scope before
+                        // returning DISTURBED so its dtor doesn't
+                        // re-tag/assert on legitimate forward progress.
+                        scope.commit();
+                        return BundledStatus::DISTURBED;
+                    }
+                    changed_during_bundling = true;
+                    break;
                 }
-                changed_during_bundling = true;
-                break;
             }
             // childScope auto-committed via scope.compareAndSet.
         }
