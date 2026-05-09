@@ -832,32 +832,33 @@ private:
     using CASInfoList = fast_vector<CASInfo, 32>;
 
     //! Result of walkUpChainImpl() / ascendOneLevel().
-    //! ascendOneLevel fills parent_linkage, parent_wrapper, reverse_index.
+    //! ascendOneLevel fills parent_linkage, parent_view, reverse_index.
     //! walkUpChainImpl adds find_status, status, is_root_level, parent_packet.
-    //! Staleness check uses the caller's incoming_wrapper (const &) directly,
+    //! Staleness check uses the caller's incoming_view (const &) directly,
     //! so no child_wrapper field is needed.
+    //! Move-only (scoped_atomic_view is non-copyable).
     struct WalkUpResult {
         SnapshotStatus find_status;  //!< result of findChildSlot (or early-return status)
         SnapshotStatus status;       //!< status after convertRecursiveStatus (before find)
         bool is_root_level;          //!< true if this parent is the chain root
         shared_ptr<Linkage> parent_linkage;    //!< m_link of the parent node (= bundledBy)
-        local_shared_ptr<PacketWrapper> parent_wrapper;  //!< snapshot of parent's wrapper (= original shot_upper)
+        scoped_atomic_view<PacketWrapper> parent_view;  //!< scoped view of parent's wrapper (1 CAS vs 3 ops)
         int reverse_index;
         local_shared_ptr<Packet> *parent_packet;  //!< parent's packet containing child slot
     };
 
-    //! Ascend one level: read incoming_wrapper, load parent into r.parent_wrapper.
-    //! incoming_wrapper is NOT consumed (const &); the caller keeps it alive
+    //! Ascend one level: read incoming_view, acquire parent into r.parent_view.
+    //! incoming_view is NOT consumed (const &); the caller keeps it alive
     //! for the staleness check (Step D).
     //! On success, find_status == SUCCESS and parent fields are filled.
     //! On failure, find_status == DISTURBED or NODE_MISSING.
     static inline WalkUpResult ascendOneLevel(
         const shared_ptr<Linkage> &child_linkage,
-        const local_shared_ptr<PacketWrapper> &incoming_wrapper);
+        const scoped_atomic_view<PacketWrapper> &incoming_view);
 
     //! Convert recursive status and determine the upper packet.
     //! Sets is_root_level = true if this parent level is the root.
-    //! parent_packet points into r.parent_wrapper (kept alive by caller's frame).
+    //! parent_packet points into r.parent_view (kept alive by caller's frame).
     static inline SnapshotStatus convertRecursiveStatus(
         SnapshotStatus recursive_status,
         WalkUpResult &r,
@@ -873,24 +874,24 @@ private:
 
     //! Common chain-walk: Steps A→B→C→D→E (ascend, recurse, convert, staleness, findChildSlot).
     //! Recurser performs the recursive call at Step B.
-    //! incoming_wrapper is const & — each level passes r.parent_wrapper to the
-    //! next level without copying.  Staleness check (Step D) compares
-    //! child_linkage against incoming_wrapper directly.
+    //! incoming_view is const scoped_atomic_view & — each level passes
+    //! r.parent_view to the next level without copying.  Staleness check
+    //! (Step D) compares child_linkage against incoming_view directly.
     template <class Recurser>
     static inline WalkUpResult walkUpChainImpl(
         const shared_ptr<Linkage> &child_linkage,
-        const local_shared_ptr<PacketWrapper> &incoming_wrapper,
+        const scoped_atomic_view<PacketWrapper> &incoming_view,
         local_shared_ptr<Packet> **child_subpacket_out,
         Recurser &&recurse);
 
     //! Recursively walks up the bundledBy chain to locate a child's sub-packet.
     //! Used by snapshot() (FOR_BUNDLE path).
-    //! root_lifetime receives the root-level PacketWrapper (via move) to keep
-    //! the Packet tree alive after walkUpChain returns — foundpacket points
-    //! into it.
+    //! root_lifetime receives the root-level PacketWrapper (via move-convert
+    //! from scoped_atomic_view) to keep the Packet tree alive after
+    //! walkUpChain returns — foundpacket points into it.
     static inline SnapshotStatus walkUpChain(
         const shared_ptr<Linkage> &child_linkage,
-        const local_shared_ptr<PacketWrapper> &incoming_wrapper,
+        const scoped_atomic_view<PacketWrapper> &incoming_view,
         local_shared_ptr<Packet> **child_subpacket_out,
         local_shared_ptr<PacketWrapper> &root_lifetime);
 
@@ -898,7 +899,7 @@ private:
     //! Used only by unbundle().
     static inline SnapshotStatus snapshotForUnbundle(
         const shared_ptr<Linkage> &child_linkage,
-        const local_shared_ptr<PacketWrapper> &incoming_wrapper,
+        const scoped_atomic_view<PacketWrapper> &incoming_view,
         local_shared_ptr<Packet> **child_subpacket_out,
         int64_t serial, CASInfoList *cas_infos);
 
