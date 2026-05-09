@@ -3219,13 +3219,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 2.0f / subnodes->size());
             if( !childScope) {
                 // Weak acquire lost — treat as Phase 3 CAS failure.
-                // CRITICAL: release subwrappers_org[i..n-1] BEFORE
-                // childScope's dtor runs negotiate/sleep.  Otherwise
-                // their live TagHeld refs persist on child linkages,
-                // permanently blocking the privileged thread's
-                // zero-reset CAS (drain CAS needs tag=0).
-                for(unsigned int j = i; j < subnodes->size(); ++j)
-                    subwrappers_org[j] = scoped_atomic_view<PacketWrapper>();
+                // No need to manually release subwrappers_org[i..n-1]:
+                // ADAPTIVE_THRESHOLD ensures non-privileged threads
+                // drain their tags on saturation (rcnt >= LOCAL_CAP-2),
+                // so peer-thread acquires will eventually drain our
+                // parked TagHelds via promote.
                 changed_during_bundling = true;
                 break;
             }
@@ -3254,23 +3252,14 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                             // succeeded; commit the outer scope before
                             // returning DISTURBED so its dtor doesn't
                             // re-tag/assert on legitimate forward progress.
-                            // Release subwrappers_org slots to free
-                            // child linkages' tag space before the
-                            // childScope dtor enters negotiate/sleep.
-                            for(unsigned int j = i; j < subnodes->size(); ++j)
-                                subwrappers_org[j] = scoped_atomic_view<PacketWrapper>();
                             scope.commit();
                             return BundledStatus::DISTURBED;
                         }
                     }
-                    // CRITICAL: release subwrappers_org[i..n-1] BEFORE
-                    // childScope's dtor runs negotiate/sleep.  Their
-                    // live TagHeld refs would persist on child linkages,
-                    // permanently blocking the privileged thread's
-                    // zero-reset CAS (drain CAS needs tag=0) — this
-                    // was the LL introduced by b413a98b.
-                    for(unsigned int j = i; j < subnodes->size(); ++j)
-                        subwrappers_org[j] = scoped_atomic_view<PacketWrapper>();
+                    // No need to manually release subwrappers_org[i..n-1]:
+                    // ADAPTIVE_THRESHOLD ensures peer-thread acquires
+                    // promote-and-drain on saturation, naturally
+                    // recovering tag space without explicit cleanup.
                     changed_during_bundling = true;
                     break;
                 }
