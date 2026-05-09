@@ -512,6 +512,15 @@ class ScopedNegotiateLinkage {
     bool            m_should_tag;            // retry != 0 — fast-path optimization
     bool            m_committed = false;
     bool            m_contention_observed = false;  // forces dtor tag despite retry==0
+    //! True iff the privileged thread (s_privileged_tidstamp holder)
+    //! constructed this scope.  Cached at construction; subsequent CAS
+    //! operations dispatch to STRONG (spinning) variants when set —
+    //! safe because privilege is exclusive and fair_mode blocks all
+    //! other threads' CAS, so single-thread strong cannot livelock.
+    //! Stale-true case (privilege preempted mid-scope) is bounded —
+    //! scope ends quickly, and the strong CAS still terminates: it
+    //! returns false on real pointer mismatch.
+    bool            m_strong_mode = false;
 public:
     enum class TagMode { OnEntry, OnExit };
 
@@ -562,20 +571,31 @@ public:
         // acquire proceed; if it loses CAS, the normal weak-fail path
         // handles it.
         using NC = typename Node<XN>::NegotiationCounter;
-        auto priv = NC::s_privileged_tidstamp.load(std::memory_order_relaxed);
-        bool we_hold_priv = (priv != (typename NC::cnt_t)0)
-            && (detail::stamp_tid(priv)
-                == detail::stamp_tid(m_snap->m_started_time));
+        bool we_hold_priv = NC::i_am_privileged_now(m_snap->m_started_time);
+        // STRONG-mode acquire+CAS for the privileged thread: privilege
+        // is exclusive and fair_mode blocks all other threads' CAS on
+        // this linkage, so a strong spin has no peer to contend with.
+        // Single-thread strong cannot livelock by definition.  All
+        // other threads use weak acquire (the existing fast path).
+        //
+        // Use ADAPTIVE_THRESHOLD even on the privileged path: when
+        // tag count saturates (rcnt >= LOCAL_REF_CAPACITY-1), strong
+        // acquire promotes to Owned and DRAINS all tags via
+        // release_tag_ref_(p, rcnt).  This drain side-effect is
+        // essential — without it, peer-thread TagHeld views (e.g.
+        // subwrappers_org) accumulated by Phase 1 stay parked on the
+        // child linkages, blocking the privileged thread's
+        // zero-reset CAS indefinitely (livelock from b413a98b).
+        m_strong_mode = we_hold_priv;
         m_view = scoped_atomic_view<PacketWrapper>(
             *m_link,
-            we_hold_priv
-                ? scoped_atomic_view<PacketWrapper>::DEFER_THRESHOLD
-                : scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
-            /*weakly=*/true);
+            scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
+            /*weakly=*/!we_hold_priv);
         if(!m_view.acquire_succeeded()) {
             // Weak acquire CAS lost (or local refcnt at capacity) —
             // same treatment as a CAS failure: forces dtor tag despite
-            // retry==0 fast-path optimization.
+            // retry==0 fast-path optimization.  STRONG mode never
+            // returns acquire_succeeded()==false (it spins until success).
             m_contention_observed = true;
         }
         if(m_eager && m_should_tag)
@@ -614,6 +634,8 @@ public:
                 m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         }
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
+        m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
+                            m_snap->m_started_time);
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
     }
@@ -640,6 +662,8 @@ public:
                 m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         }
         m_view = std::move(from);
+        m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
+                            m_snap->m_started_time);
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
     }
@@ -651,7 +675,8 @@ public:
           m_view(std::move(o.m_view)),
           m_mult_wait(o.m_mult_wait), m_eager(o.m_eager),
           m_should_tag(o.m_should_tag), m_committed(o.m_committed),
-          m_contention_observed(o.m_contention_observed) {
+          m_contention_observed(o.m_contention_observed),
+          m_strong_mode(o.m_strong_mode) {
         o.m_committed = true;  // prevent dtor effects on moved-from
     }
     ScopedNegotiateLinkage &operator=(ScopedNegotiateLinkage &&o) noexcept {
@@ -667,6 +692,7 @@ public:
             m_should_tag = o.m_should_tag;
             m_committed = o.m_committed;
             m_contention_observed = o.m_contention_observed;
+            m_strong_mode = o.m_strong_mode;
             o.m_committed = true;
         }
         return *this;
@@ -756,12 +782,18 @@ public:
 
     // ---------- CAS using internal view ----------
 
-    //! Weak CAS using the internal view as oldr.  Auto-commits on success.
-    //! Spurious failures (no actual mismatch) are possible on LL/SC
-    //! architectures; the retry loop handles them.  A spurious failure
-    //! conservatively records m_contention_observed → dtor tag.
+    //! CAS using the internal view as oldr.  Auto-commits on success.
+    //! Dispatches to STRONG (spinning) variant when this scope was
+    //! constructed by the privileged thread (m_strong_mode set in
+    //! ctor).  STRONG retries internally on spurious weak failures;
+    //! returns false only on real pointer mismatch.  Non-privileged
+    //! scopes use the WEAK fast path; conservative dtor tag on
+    //! spurious failure (m_contention_observed).
     bool compareAndSet(const local_shared_ptr<PacketWrapper> &desired) noexcept {
-        if(m_link->compareAndSetWeak(m_view, desired)) {
+        bool ok = m_strong_mode
+            ? m_link->compareAndSetStrong(m_view, desired)
+            : m_link->compareAndSetWeak(m_view, desired);
+        if(ok) {
             m_committed = true;
             return true;
         }
@@ -769,13 +801,16 @@ public:
         return false;
     }
 
-    //! Weak CAS using internal view + tags_successful_cas() priority/
-    //! lease hint on success.  `started_time = 0` (default) makes
-    //! `tags_successful_cas` use now_us().
+    //! compareAndSet + tags_successful_cas() priority/lease hint on
+    //! success.  `started_time = 0` (default) makes `tags_successful_cas`
+    //! use now_us().  Strong/weak dispatch as in compareAndSet.
     bool compareAndSetWithHint(const local_shared_ptr<PacketWrapper> &desired,
                                 typename Node<XN>::NegotiationCounter::cnt_t
                                     started_time = 0) noexcept {
-        if(m_link->compareAndSetWeak(m_view, desired)) {
+        bool ok = m_strong_mode
+            ? m_link->compareAndSetStrong(m_view, desired)
+            : m_link->compareAndSetWeak(m_view, desired);
+        if(ok) {
             m_link->tags_successful_cas(started_time);
             m_committed = true;
             return true;
@@ -795,8 +830,12 @@ public:
     //! to track the new m_link value — no reload needed for a follow-up
     //! CAS in a later phase.  Entry does fetch_add(2) instead of (1);
     //! failure undo is fetch_sub(2) (same op count).
+    //! Strong/weak dispatch as in compareAndSet.
     bool compareAndSetRetain(const local_shared_ptr<PacketWrapper> &desired) noexcept {
-        if(m_link->compareAndSetWeakRetain(m_view, desired)) {
+        bool ok = m_strong_mode
+            ? m_link->compareAndSetStrongRetain(m_view, desired)
+            : m_link->compareAndSetWeakRetain(m_view, desired);
+        if(ok) {
             m_committed = true;
             return true;
         }
@@ -808,7 +847,10 @@ public:
     bool compareAndSetRetainWithHint(const local_shared_ptr<PacketWrapper> &desired,
                                 typename Node<XN>::NegotiationCounter::cnt_t
                                     started_time = 0) noexcept {
-        if(m_link->compareAndSetWeakRetain(m_view, desired)) {
+        bool ok = m_strong_mode
+            ? m_link->compareAndSetStrongRetain(m_view, desired)
+            : m_link->compareAndSetWeakRetain(m_view, desired);
+        if(ok) {
             m_link->tags_successful_cas(started_time);
             m_committed = true;
             return true;
@@ -957,6 +999,22 @@ struct Node<XN>::WalkUpResult {
 // blocked by its own privilege and self-deadlocked. With that fix in
 // place the threshold can be set as low as a few ms without
 // triggering the test_dyn churn-deadlock.
+//
+// PRIV_EXPIRE_US: how long a holder must have held the privilege slot
+// before another thread may preempt them. With many threads (e.g. 128
+// on 10 cores), the old age_diff-based preemption caused rapid
+// privilege switching — hundreds of threads all satisfied the 300 µs
+// age_diff condition and preempted each other before any could finish
+// a multi-CAS bundle commit. The holder-expiry approach is stable:
+// only preempt when the current holder's Tx has been running long
+// enough that it is likely OS-preempted or stuck.
+#ifndef KAME_STM_PRIV_EXPIRE_US
+  #if defined(_WIN32) || defined(WINDOWS) || defined(__WIN32__)
+    #define KAME_STM_PRIV_EXPIRE_US 100'000  // 100 ms — Windows
+  #else
+    #define KAME_STM_PRIV_EXPIRE_US 50'000   // 50 ms — Linux/macOS
+  #endif
+#endif
 #ifndef KAME_STM_PRIV_AGE_NORMAL_US
   // OS-aware default. The lower bound is set by the OS scheduler
   // quantum and condition-variable wait granularity, since the
@@ -991,24 +1049,48 @@ int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept
 
 template <class XN>
 bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
-    Priority pr, cnt_t tidstamp) noexcept
+    Priority pr, cnt_t tidstamp, int sig_C) noexcept
 {
-    int64_t tx_age_us = detail::ll_now_us() - detail::stamp_us(tidstamp);
+    int64_t now_us = detail::ll_now_us();
+    int64_t tx_age_us = now_us - detail::stamp_us(tidstamp);
     // CAS-loop: claim the slot if empty, OR preempt the current holder
-    // if we are older than them by at least min_privilege_age_us(pr).
-    // Preemption helps when the existing privileged Tx is itself stuck
-    // (failed to release in finite time): a sufficiently older Tx can
-    // take over and try to make progress instead of waiting indefinitely.
+    // if their Tx has been running longer than PRIV_EXPIRE_US (holder
+    // is likely OS-preempted or stuck). The old age_diff-based scheme
+    // caused privilege thrash with many threads — all threads had ages
+    // >> age_floor and preempted each other endlessly.
+    //
+    // For the initial claim (empty slot), the age threshold is scaled
+    // by max(1, N/4) where N = numThreadsRunning(). This prevents
+    // privilege churn at high thread counts: with 128 threads on ~10
+    // cores, many threads exceed the base 300µs threshold after just
+    // one OS scheduling quantum and all race to claim the empty slot.
+    // Scaling by N/4 raises the bar proportionally to system load.
+    // At N=128: claim_floor = 300 * 32 = 9600µs ≈ 10ms, giving the
+    // privileged thread enough scheduling slices to complete a
+    // multi-CAS bundle before another thread can claim the slot.
     cnt_t expected = s_privileged_tidstamp.load(std::memory_order_relaxed);
     const int64_t age_floor = min_privilege_age_us(pr);
+    // Scale initial-claim threshold by global thread count / 4.
+    int N = (int)numThreadsRunning();
+    int scale = N / 4;
+    if (scale < 1) scale = 1;
+    const int64_t claim_floor = age_floor * scale;
     while (true) {
         if (expected != (cnt_t)0) {
-            // Slot held. Allow override only if we are older than the
-            // current holder by at least age_floor µs.
-            int64_t age_diff =
-                (int64_t)detail::stamp_us(expected)
-                - (int64_t)detail::stamp_us(tidstamp);
-            if (age_diff < age_floor)
+            // Slot held. Only preempt if the holder's Tx has been
+            // running for longer than the expiry threshold — this
+            // means they are likely OS-preempted or stuck.
+            int64_t holder_tx_age = now_us - (int64_t)detail::stamp_us(expected);
+            if (holder_tx_age < KAME_STM_PRIV_EXPIRE_US)
+                return false;
+            // Also require that WE are old enough to deserve privilege
+            // (prevents very young Tx from preempting).
+            if (tx_age_us < age_floor)
+                return false;
+        } else {
+            // Empty slot. Require scaled age threshold to reduce churn
+            // when many threads are contending.
+            if (tx_age_us < claim_floor)
                 return false;
         }
         if (s_privileged_tidstamp.compare_exchange_weak(
@@ -1020,9 +1102,9 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     }
     std::fprintf(stderr,
         "[ll-probe] privileged_tid=%u "
-        "(claimed by stuck oldest Tx; age=%lld us, prio=%d%s)\n",
+        "(claimed by stuck oldest Tx; age=%lld us, prio=%d, N=%d%s)\n",
         (unsigned)detail::stamp_tid(tidstamp),
-        (long long)tx_age_us, (int)pr,
+        (long long)tx_age_us, (int)pr, N,
         expected == (cnt_t)0 ? "" : " preempted");
     return true;
 }
@@ -1060,6 +1142,18 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(cnt_t tidstamp) noexcept 
     // transaction_dynamic_node_test backtrace (~Node->releaseAll on
     // frame #15-16, negotiate_sleep on frame #9).
     return detail::stamp_tid(priv) != detail::stamp_tid(tidstamp);
+}
+
+template <class XN>
+bool Node<XN>::NegotiationCounter::i_am_privileged_now(cnt_t my_tidstamp) noexcept {
+    // Compare by TID (upper bits) — the privileged Tx and a *nested* Tx
+    // on the same thread carry different started_time stamps but share
+    // the same TID. Either Tx is "privileged" for the purpose of choosing
+    // STRONG-mode acquire/CAS: no other thread is doing CAS on the same
+    // linkage (fair_mode blocks them), so a strong spin has no peer.
+    cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
+    if(priv == (cnt_t)0) return false;
+    return detail::stamp_tid(priv) == detail::stamp_tid(my_tidstamp);
 }
 
 template <class XN>
@@ -1535,7 +1629,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // finalizeCommitment / ~Transaction.
         if (_ll_saw && !snap.m_registered_privileged
             && NegotiationCounter::try_register_privileged_tidstamp(
-                   entry_pr, snap.m_started_time)) {
+                   entry_pr, snap.m_started_time, sig_C)) {
             snap.m_registered_privileged = true;
         }
     }
@@ -1729,8 +1823,20 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
             if((KAME_STM_GATE_MULT > 0.0f) && (lhs_j < rhs_j)) {
 #if KAME_STM_MAX_RUNNERS != 0
+                // The privileged thread must bypass the MAX_RUNNERS cap.
+                // Without this, the privileged thread entering negotiate on
+                // a child/parent linkage during bundle/unbundle is blocked
+                // by the runner limit — all other threads are sleeping, but
+                // the privileged thread itself counts as a runner and gets
+                // stuck waiting for a runner slot that will never open.
+                // This causes a convoy: no thread can commit, dt2 grows
+                // for everyone, and the system livelocks.
+                // Check: snap.m_registered_privileged is true ONLY for the
+                // thread that owns the privilege slot. This is passed via
+                // the Snapshot that negotiate_internal receives.
                 const int max_r = effective_max_runners(C_obs);
-                if(NegotiationCounter::numThreadsRunning() < max_r)
+                if(NegotiationCounter::numThreadsRunning() < max_r
+                   || snap.m_registered_privileged)
 #endif
                     break; // gate: earned priority — always proceeds, never capped
             }
@@ -1765,6 +1871,28 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         }
 
         ms = std::max((int)(dt2 * mult_wait / 10000),  ms + 1);
+        // Cap negotiate sleep to prevent the positive feedback loop
+        // that causes livelock at high thread counts. The formula
+        // ms = dt2 * mult_wait / 10000 grows without bound as dt2
+        // increases (contending Tx has been stuck a long time). With
+        // 128 threads, dt2 easily reaches seconds, producing sleep
+        // times of hundreds of ms. This makes ALL threads sleep long,
+        // further increasing dt2 for the next iteration.
+        //
+        // When fair-mode is active (privilege slot is held), cap to
+        // FAIR_SLEEP_CAP_MS so threads wake frequently and can retry
+        // once the privileged thread commits. The general cap
+        // prevents runaway growth in all cases.
+#ifndef KAME_STM_FAIR_SLEEP_CAP_MS
+#define KAME_STM_FAIR_SLEEP_CAP_MS 5
+#endif
+#ifndef KAME_STM_NEGOTIATE_SLEEP_CAP_MS
+#define KAME_STM_NEGOTIATE_SLEEP_CAP_MS 10
+#endif
+        if(_fair_blocks && ms > KAME_STM_FAIR_SLEEP_CAP_MS)
+            ms = KAME_STM_FAIR_SLEEP_CAP_MS;
+        else if(ms > KAME_STM_NEGOTIATE_SLEEP_CAP_MS)
+            ms = KAME_STM_NEGOTIATE_SLEEP_CAP_MS;
         if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
             fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
@@ -3089,6 +3217,13 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 2.0f / subnodes->size());
             if( !childScope) {
                 // Weak acquire lost — treat as Phase 3 CAS failure.
+                // CRITICAL: release subwrappers_org[i..n-1] BEFORE
+                // childScope's dtor runs negotiate/sleep.  Otherwise
+                // their live TagHeld refs persist on child linkages,
+                // permanently blocking the privileged thread's
+                // zero-reset CAS (drain CAS needs tag=0).
+                for(unsigned int j = i; j < subnodes->size(); ++j)
+                    subwrappers_org[j] = scoped_atomic_view<PacketWrapper>();
                 changed_during_bundling = true;
                 break;
             }
@@ -3117,10 +3252,23 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                             // succeeded; commit the outer scope before
                             // returning DISTURBED so its dtor doesn't
                             // re-tag/assert on legitimate forward progress.
+                            // Release subwrappers_org slots to free
+                            // child linkages' tag space before the
+                            // childScope dtor enters negotiate/sleep.
+                            for(unsigned int j = i; j < subnodes->size(); ++j)
+                                subwrappers_org[j] = scoped_atomic_view<PacketWrapper>();
                             scope.commit();
                             return BundledStatus::DISTURBED;
                         }
                     }
+                    // CRITICAL: release subwrappers_org[i..n-1] BEFORE
+                    // childScope's dtor runs negotiate/sleep.  Their
+                    // live TagHeld refs would persist on child linkages,
+                    // permanently blocking the privileged thread's
+                    // zero-reset CAS (drain CAS needs tag=0) — this
+                    // was the LL introduced by b413a98b.
+                    for(unsigned int j = i; j < subnodes->size(); ++j)
+                        subwrappers_org[j] = scoped_atomic_view<PacketWrapper>();
                     changed_during_bundling = true;
                     break;
                 }

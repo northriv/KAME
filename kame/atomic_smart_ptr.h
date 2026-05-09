@@ -461,6 +461,16 @@ public:
     //!   Entry does fetch_add(2) instead of (1); failure undo is fetch_sub(2).
     inline bool compareAndSetWeakRetain(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newvalue) noexcept;
 
+    //! \brief STRONG (spinning) version of compareAndSetWeak(scoped, newr).
+    //!   Internal CAS retry loop on spurious weak failure; returns false
+    //!   only on pointer mismatch (real contention). Intended for use by
+    //!   the privileged thread (s_privileged_tidstamp holder), where
+    //!   fair_mode blocks all other CAS — no peer to contend with.
+    inline bool compareAndSetStrong(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newvalue) noexcept;
+    //! \brief STRONG + RETAIN_NEWR variant — see compareAndSetStrong and
+    //!   compareAndSetWeakRetain.
+    inline bool compareAndSetStrongRetain(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newvalue) noexcept;
+
     bool operator!() const noexcept {return !this->m_ref;}
     operator bool() const noexcept {return this->m_ref;}
 
@@ -1230,8 +1240,12 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
     constexpr bool SCOPED = std::is_same<OldrPlain, scoped_atomic_view<T>>::value;
     constexpr bool ACQUIRE = !std::is_const<OldrT>::value && !SCOPED;
     constexpr bool UNIQUE = std::is_same<NewrPlain, local_unique_ptr<T>>::value;
-    static_assert( !(SCOPED && !WEAK),
-        "compareAndSet on scoped_atomic_view is weak-only");
+    // SCOPED + STRONG: enabled for the privileged-thread fast path.
+    // Privilege is exclusive (s_privileged_tidstamp slot) and fair_mode
+    // blocks all other threads' CAS on this linkage, so the strong-spin
+    // has no peer to contend with — guaranteed forward progress, no
+    // livelock. Caller is responsible for invoking strong-mode only
+    // when privileged.
     static_assert( !(RETAIN_NEWR && !SCOPED),
         "RETAIN_NEWR requires SCOPED (scoped_atomic_view oldr)");
     static_assert( !(RETAIN_NEWR && UNIQUE),
@@ -1468,6 +1482,19 @@ template <typename T>
 inline bool
 atomic_shared_ptr<T>::compareAndSetWeakRetain(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newr) noexcept {
     return compareAndSet_impl_<scoped_atomic_view<T>, const local_shared_ptr<T>, true, true>(scoped, newr);
+}
+template <typename T>
+inline bool
+atomic_shared_ptr<T>::compareAndSetStrong(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newr) noexcept {
+    // STRONG (WEAK=false): the impl_'s outer for-loop spins on weak CAS
+    // failure.  Pointer mismatch (oldr.m_pref != m_ref's load) returns
+    // false unconditionally — the only "real contention" exit.
+    return compareAndSet_impl_<scoped_atomic_view<T>, const local_shared_ptr<T>, false, false>(scoped, newr);
+}
+template <typename T>
+inline bool
+atomic_shared_ptr<T>::compareAndSetStrongRetain(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newr) noexcept {
+    return compareAndSet_impl_<scoped_atomic_view<T>, const local_shared_ptr<T>, false, true>(scoped, newr);
 }
 
 //! ----- local_unique_ptr<T> CAS variants (newr ownership transfer) -----

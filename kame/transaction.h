@@ -461,9 +461,16 @@ private:
 
         static int64_t min_privilege_age_us(Priority pr) noexcept;
         static bool    try_register_privileged_tidstamp(Priority pr,
-                                                        cnt_t tidstamp) noexcept;
+                                                        cnt_t tidstamp,
+                                                        int sig_C = 1) noexcept;
         static void    release_privileged_tidstamp(cnt_t my_tidstamp) noexcept;
         static bool    fair_mode_blocks_me(cnt_t tidstamp) noexcept;
+        //! Returns true iff this thread currently holds the privilege slot.
+        //! Used to switch acquire/CAS to STRONG mode for the privileged
+        //! thread: privilege is exclusive, fair_mode blocks all other
+        //! threads' CAS, so the privileged thread's strong spin has no
+        //! peer to contend with — guaranteed forward progress, no livelock.
+        static bool    i_am_privileged_now(cnt_t my_tidstamp) noexcept;
 
         //! Per-priority livelock-probe parameters (retry threshold + label).
         struct PriorityProbeInfo {
