@@ -455,6 +455,12 @@ public:
     //!   to Empty so the caller can detect it via \a scoped.operator bool().
     inline bool compareAndSetWeak(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newvalue) noexcept;
 
+    //! \brief Like compareAndSetWeak(scoped, newr) but on success \a scoped
+    //!   transitions to Owned(newr) instead of Empty.  Saves a reload when
+    //!   the caller needs to keep tracking the new value after CAS success.
+    //!   Entry does fetch_add(2) instead of (1); failure undo is fetch_sub(2).
+    inline bool compareAndSetWeakRetain(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newvalue) noexcept;
+
     bool operator!() const noexcept {return !this->m_ref;}
     operator bool() const noexcept {return this->m_ref;}
 
@@ -535,7 +541,7 @@ protected:
     //!       On CAS failure (weak): caller's unique_ptr keeps the
     //!       wrapper; its destructor handles cleanup.
     //!       Saves 2 atomic ops per CAS (success or failure path).
-    template<typename OldrT, typename NewrT, bool WEAK = false>
+    template<typename OldrT, typename NewrT, bool WEAK = false, bool RETAIN_NEWR = false>
     inline bool compareAndSet_impl_(OldrT &oldr,
         NewrT &newr) noexcept;
 private:
@@ -1182,7 +1188,7 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
 }
 
 //=============================================================================
-// compareAndSet_impl_<OldrT, WEAK>() — unified atomic CAS on the shared pointer
+// compareAndSet_impl_<OldrT, WEAK, RETAIN_NEWR>() — unified atomic CAS on the shared pointer
 //
 // OldrT-driven dispatch via constexpr if:
 //   - OldrT = const local_shared_ptr<T> (Set):
@@ -1196,6 +1202,13 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
 //       failure undo via plain fetch_sub(T-1, relaxed) (eager); on success,
 //       scoped's tag is consumed by CAS (m_pref reset to nullptr).
 //
+// RETAIN_NEWR (SCOPED+WEAK only): on CAS success, scoped transitions to
+//   Owned mode on newr instead of going Empty.  Entry does fetch_add(2)
+//   instead of (1) — one for m_ref, one for scoped's Owned ref.  Failure
+//   undo is fetch_sub(2) (same op count, different amount).  Useful when
+//   the caller needs to keep tracking the new value after CAS (e.g.
+//   bundle Phase 2 → Phase 4: scoped retains newr, eliminating reload).
+//
 // Common steps:
 //   1. Pre-increment newr's global refcount (optimistic).
 //   2. Read the current pointer (acquire_tag_ref_ or load_tagged_).
@@ -1206,7 +1219,7 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
 //   6. On success, decrement pref's global refcount (m_ref no longer owns it).
 //=============================================================================
 template <typename T>
-template<typename OldrT, typename NewrT, bool WEAK>
+template<typename OldrT, typename NewrT, bool WEAK, bool RETAIN_NEWR>
 inline bool
 atomic_shared_ptr<T>::compareAndSet_impl_(
     OldrT &oldr,
@@ -1219,6 +1232,10 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
     constexpr bool UNIQUE = std::is_same<NewrPlain, local_unique_ptr<T>>::value;
     static_assert( !(SCOPED && !WEAK),
         "compareAndSet on scoped_atomic_view is weak-only");
+    static_assert( !(RETAIN_NEWR && !SCOPED),
+        "RETAIN_NEWR requires SCOPED (scoped_atomic_view oldr)");
+    static_assert( !(RETAIN_NEWR && UNIQUE),
+        "RETAIN_NEWR not supported with local_unique_ptr newr");
 
     auto oldr_pref = [&]() -> Ref* {
         if constexpr (SCOPED) return oldr.m_pref;
@@ -1230,26 +1247,35 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
         if constexpr (UNIQUE) return (Ref *)newr.get();
         else return newr.ref_ptr_();
     };
-    auto new_refcnt_sub_one = [&newr]() {
+    // RETAIN_NEWR adds +1 for scoped's Owned ref on newr after CAS success.
+    constexpr Refcnt NEWR_ADD = RETAIN_NEWR ? 2u : 1u;
+    auto new_refcnt_undo = [&newr]() {
         if constexpr ( !UNIQUE) {
             if(newr.ref_ptr_()) {
-                if(newr.use_count() == 2) //unique at start pt., and was +1.
-                    newr.ref_ptr_()->refcnt--;
-                else
-                    newr.ref_ptr_()->refcnt.fetch_sub(1, std::memory_order_relaxed);
+                if constexpr ( !RETAIN_NEWR) {
+                    if(newr.use_count() == 2) //unique at start pt., and was +1.
+                        { newr.ref_ptr_()->refcnt--; return; }
+                }
+                newr.ref_ptr_()->refcnt.fetch_sub(NEWR_ADD, std::memory_order_relaxed);
             }
         }
     };
 
     if constexpr ( !UNIQUE) {
-        // Optimistic +1 for m_ref's implicit ref on success; will undo
-        // on WEAK-failure or pointer-mismatch.  UNIQUE skips this:
-        // newr's existing refcnt=1 transfers directly to m_ref on success.
+        // Optimistic +NEWR_ADD for m_ref's implicit ref (+ scoped's Owned
+        // ref when RETAIN_NEWR) on success; will undo on WEAK-failure or
+        // pointer-mismatch.  UNIQUE skips this: newr's existing refcnt=1
+        // transfers directly to m_ref on success.
         if(newr_pref()) {
-            if(newr.unique())
-                newr_pref()->refcnt++;
-            else
-                newr_pref()->refcnt.fetch_add(1, std::memory_order_relaxed);
+            if constexpr ( !RETAIN_NEWR) {
+                if(newr.unique())
+                    { newr_pref()->refcnt++; }
+                else
+                    newr_pref()->refcnt.fetch_add(1, std::memory_order_relaxed);
+            }
+            else {
+                newr_pref()->refcnt.fetch_add(NEWR_ADD, std::memory_order_relaxed);
+            }
         }
     }
     for(int spins = 1;; spins *= 2) {
@@ -1260,7 +1286,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             auto [p, success] = acquire_tag_ref_( &rcnt_old, WEAK);
             if constexpr (WEAK) {
                 if( !success) {
-                    new_refcnt_sub_one();
+                    new_refcnt_undo();
                     return false;
                 }
             }
@@ -1277,7 +1303,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                     release_tag_ref_(pref, 1u);
                 }
             }
-            new_refcnt_sub_one();
+            new_refcnt_undo();
             if constexpr (ACQUIRE) {
                 if(oldr.ref_ptr_()) {
                     // decreasing global reference counter.
@@ -1359,15 +1385,24 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                 }
             }
             if constexpr (SCOPED) {
-                if(oldr.m_tag_held) {
-                    // TagHeld: tag-share consumed via fetch_sub(2). Mark Empty.
-                    oldr.m_pref = nullptr;
-                    oldr.m_tag_held = false;
+                if constexpr (RETAIN_NEWR) {
+                    // Transition scoped to Owned(newr).  The extra +1
+                    // from NEWR_ADD at entry provides the Owned ref.
+                    if(oldr.m_tag_held) oldr.m_tag_held = false;
+                    oldr.m_pref = newr_pref();
+                    // oldr is now Owned on newr.  Destructor will
+                    // release_tag_ref_(newr, 1u) → fetch_sub(1).
+                } else {
+                    if(oldr.m_tag_held) {
+                        // TagHeld: tag-share consumed via fetch_sub(2). Mark Empty.
+                        oldr.m_pref = nullptr;
+                        oldr.m_tag_held = false;
+                    }
+                    // Owned: scoped retains its +1 in pref's refcnt — but pref is
+                    //   no longer in m_ref. Caller may still hold it as if from
+                    //   compareAndSet on a const local_shared_ptr; destructor
+                    //   eventually releases via fetch_sub(1).
                 }
-                // Owned: scoped retains its +1 in pref's refcnt — but pref is
-                //   no longer in m_ref. Caller may still hold it as if from
-                //   compareAndSet on a const local_shared_ptr; destructor
-                //   eventually releases via fetch_sub(1).
             }
             return true;
         }
@@ -1397,7 +1432,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
             // returns false without retry, so the +1 must be undone.
             // UNIQUE skips this: caller's unique_ptr keeps the wrapper;
             // its destructor handles cleanup if not retried.
-            new_refcnt_sub_one();
+            new_refcnt_undo();
             return false;
         }
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
@@ -1428,6 +1463,11 @@ template <typename T>
 inline bool
 atomic_shared_ptr<T>::compareAndSetWeak(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newr) noexcept {
     return compareAndSet_impl_<scoped_atomic_view<T>, const local_shared_ptr<T>, true>(scoped, newr);
+}
+template <typename T>
+inline bool
+atomic_shared_ptr<T>::compareAndSetWeakRetain(scoped_atomic_view<T> &scoped, const local_shared_ptr<T> &newr) noexcept {
+    return compareAndSet_impl_<scoped_atomic_view<T>, const local_shared_ptr<T>, true, true>(scoped, newr);
 }
 
 //! ----- local_unique_ptr<T> CAS variants (newr ownership transfer) -----

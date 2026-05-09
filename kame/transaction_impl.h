@@ -505,7 +505,7 @@ class ScopedNegotiateLinkage {
     //! built-in compareAndSet / compareAndSetWithHint methods.
     //! After a successful CAS the view is consumed (empty); after a
     //! failed CAS the view may also be empty depending on the
-    //! weak+scoped contract — caller can re-acquire via reload_weak_view().
+    //! weak+scoped contract — caller can re-acquire via compareAndSetRetain().
     scoped_atomic_view<PacketWrapper> m_view;
     float           m_mult_wait;             // retained from ctor for dtor's negotiate
     bool            m_eager;
@@ -715,15 +715,8 @@ public:
         return m_view != rhs;
     }
 
-    //! Move-out the view as a local_shared_ptr<PacketWrapper>.  After
-    //! this, the scope's view is empty; the scope can no longer be
-    //! used as oldr for compareAndSet*() until reload_weak_view() is called.
-    //! Use for sub-routines that need a chain-walking value-typed
-    //! wrapper (walkUpChain etc).  Cheap when the view is in Owned
-    //! mode (zero atomic ops); two ops if still TagHeld (promote).
-    local_shared_ptr<PacketWrapper> consume_view() noexcept {
-        return std::move(m_view);
-    }
+    // consume_view() removed — promotes TagHeld to Owned (fetch_add).
+    // Use consume_scoped_view() (zero ops) or view() (const ref) instead.
 
     //! Move-out the view as a scoped_atomic_view<PacketWrapper>.
     //! ZERO atomic ops regardless of mode — the view is directly moved.
@@ -734,16 +727,8 @@ public:
         return std::move(m_view);
     }
 
-    //! Lvalue-copy the view as a local_shared_ptr<PacketWrapper>.
-    //! Scope's view is preserved (still usable as oldr).  Costs one
-    //! fetch_add(1) for the new ref, plus 2 ops if the view was in
-    //! TagHeld mode (promotes to Owned in-place).  Use when the
-    //! scope's CAS will still be needed after extracting a copy
-    //! (e.g. unbundle's superwrapper for walkUpChain, while the
-    //! scope's internal view is reserved as oldr for the final CAS).
-    local_shared_ptr<PacketWrapper> view_copy() noexcept {
-        return m_view;  // forwards to scoped_atomic_view::operator local_shared_ptr<T>() &
-    }
+    // view_copy() removed — promotes TagHeld to Owned (fetch_add + release_tag_ref_).
+    // Use pointer comparison + compareAndSetRetain (retain newr) instead.
 
     //! Bare pointer to the linkage (for code that needs to compare
     //! linkage identity, e.g. unbundle()'s `oldsuperwrapper` chain
@@ -759,28 +744,6 @@ public:
 
     //! Access the Snapshot this scope is bound to.
     Snapshot<XN> &snap() const noexcept { return *m_snap; }
-
-    //! Re-acquire the view from m_link with weak acquire (after a CAS
-    //! failure or after consume_view()).  Returns false if weak acquire
-    //! failed (contention); caller should retry or return DISTURBED.
-    bool reload_weak_view() noexcept {
-        using NC = typename Node<XN>::NegotiationCounter;
-        auto priv = NC::s_privileged_tidstamp.load(std::memory_order_relaxed);
-        bool we_hold_priv = (priv != (typename NC::cnt_t)0)
-            && (detail::stamp_tid(priv)
-                == detail::stamp_tid(m_snap->m_started_time));
-        m_view = scoped_atomic_view<PacketWrapper>(
-            *m_link,
-            we_hold_priv
-                ? scoped_atomic_view<PacketWrapper>::DEFER_THRESHOLD
-                : scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
-            /*weakly=*/true);
-        if(!m_view.acquire_succeeded()) {
-            m_contention_observed = true;
-            return false;
-        }
-        return true;
-    }
 
     //! Replace the internal view with a value from `from`, taking
     //! ownership of `from`'s +1 refcount (zero atomic ops on the
@@ -821,14 +784,19 @@ public:
         return false;
     }
 
-    // ---------- CAS with externally-supplied expected (legacy) ----------
+    // External-expected CAS overloads removed — they accept
+    // local_shared_ptr which forces callers to promote (view_copy).
+    // Use pointer comparison + 1-arg CAS (internal view) instead.
 
-    //! Weak CAS on the scope's linkage with caller-supplied `expected`.
-    //! Used by the few sites that hold the expected wrapper as a
-    //! separate value (e.g. bundle Phase 3 child CAS).
-    bool compareAndSet(const local_shared_ptr<PacketWrapper> &expected,
-                       const local_shared_ptr<PacketWrapper> &desired) noexcept {
-        if(m_link->compareAndSetWeak(expected, desired)) {
+    // ---------- CAS with newr retention (RETAIN_NEWR) ----------
+
+    //! Like compareAndSet but on success the internal view transitions
+    //! to Owned(desired) instead of going Empty.  The scope continues
+    //! to track the new m_link value — no reload needed for a follow-up
+    //! CAS in a later phase.  Entry does fetch_add(2) instead of (1);
+    //! failure undo is fetch_sub(2) (same op count).
+    bool compareAndSetRetain(const local_shared_ptr<PacketWrapper> &desired) noexcept {
+        if(m_link->compareAndSetWeakRetain(m_view, desired)) {
             m_committed = true;
             return true;
         }
@@ -836,12 +804,11 @@ public:
         return false;
     }
 
-    //! Weak CAS with hint, externally-supplied expected.
-    bool compareAndSetWithHint(const local_shared_ptr<PacketWrapper> &expected,
-                                const local_shared_ptr<PacketWrapper> &desired,
+    //! compareAndSetRetain + tags_successful_cas hint.
+    bool compareAndSetRetainWithHint(const local_shared_ptr<PacketWrapper> &desired,
                                 typename Node<XN>::NegotiationCounter::cnt_t
                                     started_time = 0) noexcept {
-        if(m_link->compareAndSetWeak(expected, desired)) {
+        if(m_link->compareAndSetWeakRetain(m_view, desired)) {
             m_link->tags_successful_cas(started_time);
             m_committed = true;
             return true;
@@ -3090,15 +3057,14 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // Pointer check + 1-arg CAS: scope's view was loaded from
         // supernode.m_link at scope creation; if it matches supscope's
         // expected state, the internal view serves as CAS expected.
-        // Saves 1 fetch_add + promote vs view_copy().
-        // Note: 1-arg CAS (scoped path) consumes m_view on success
-        // (TagHeld → Empty).  Phase 4's CAS uses 2-arg (Set path)
-        // which does not rely on m_view.
+        // compareAndSetRetain: on success scope transitions to
+        // Owned(superwrapper) — scope's view tracks the new m_link
+        // value through Phase 3, ready for Phase 4's CAS without reload.
         if(scope.operator->() != supscope.operator->()) {
             scope.confirm_contention();
             return BundledStatus::DISTURBED;
         }
-        if( !scope.compareAndSet(superwrapper))
+        if( !scope.compareAndSetRetain(superwrapper))
             return BundledStatus::DISTURBED;
         // Update supscope.view to track the new m_link state.
         // Pass copy of superwrapper (still needed for Phase 4).
@@ -3179,10 +3145,15 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             STRICT_assert(newpacket->checkConsistensy(newpacket));
         }
 
-        // CAS via scope.  On failure, Phase 2 already advanced state, so
-        // the outer scope.commit() is needed to suppress the dtor tag
-        // (legitimate forward progress).
-        if( !scope.compareAndSetWithHint(supscope.view_copy(), superwrapper, started_time)) {
+        // CAS via scope.  Phase 2's compareAndSetRetain left scope in
+        // Owned(Phase 2 newr) — no reload needed.  Pointer check
+        // confirms no concurrent change to supernode.m_link since Phase 2.
+        if(scope.operator->() != supscope.operator->()) {
+            scope.confirm_contention();
+            scope.commit();
+            return BundledStatus::DISTURBED;
+        }
+        if( !scope.compareAndSetWithHint(superwrapper, started_time)) {
             scope.commit();
             return BundledStatus::DISTURBED;
         }
