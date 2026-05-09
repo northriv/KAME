@@ -17,7 +17,21 @@
 #include "atomic_prv_basic.h"
 #include <functional>
 #include <utility>
+#include <type_traits>
 #include <assert.h>
+
+//! Trait to disable load_shared_() for specific types at compile time.
+//! To disable for type T, add `using load_shared_disabled_tag = void;` to T.
+//! Detected via SFINAE — no template specialization required.
+namespace detail_asp {
+    template <typename T, typename = void>
+    struct load_shared_enabled_impl : std::true_type {};
+    template <typename T>
+    struct load_shared_enabled_impl<T, typename std::conditional<true, void,
+        typename T::load_shared_disabled_tag>::type> : std::false_type {};
+}
+template <typename T>
+struct load_shared_enabled : detail_asp::load_shared_enabled_impl<T> {};
 
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
 //if defined as 0, backoff by pause4spin()[=__mm_spin/yield] will be completely killed.
@@ -1075,6 +1089,8 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept
 template <typename T>
 inline typename atomic_shared_ptr<T>::Ref *
 atomic_shared_ptr<T>::load_shared_() const noexcept {
+    static_assert(load_shared_enabled<T>::value,
+        "load_shared_ is disabled for this type; use scoped_atomic_view instead");
     Refcnt rcnt;
     auto [pref, success] = acquire_tag_ref_( &rcnt);
     if( !pref) return (Ref*)nullptr;

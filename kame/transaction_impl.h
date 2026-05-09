@@ -1812,7 +1812,7 @@ Node<XN>::~Node() {
 template <class XN>
 void
 Node<XN>::print_() const {
-    local_shared_ptr<PacketWrapper> packet( *m_link);
+    scoped_atomic_view<PacketWrapper> packet( *m_link);
 //	printf("Node:%p, ", this);
 //	printf("BP:%p, ", m_link.get());
 //	printf(" packet: ");

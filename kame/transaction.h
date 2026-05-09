@@ -602,6 +602,8 @@ private:
     //! If packet() is absent, a super node should have the up-to-date Packet.\n
     //! If hasPriority() is not set, Packet in a super node may be latest.
     struct DECLSPEC_KAME PacketWrapper : public atomic_countable {
+        //! Tag to disable load_shared_() at compile time — use scoped_atomic_view instead.
+        using load_shared_disabled_tag = void;
         PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept;
         //! creates a wrapper not containing a packet but pointing to the upper node.
         //! \param[in] bp \a m_link of the upper node.
