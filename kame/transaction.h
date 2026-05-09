@@ -893,7 +893,7 @@ private:
         const shared_ptr<Linkage> &child_linkage,
         const scoped_atomic_view<PacketWrapper> &incoming_view,
         local_shared_ptr<Packet> **child_subpacket_out,
-        local_shared_ptr<PacketWrapper> &root_lifetime);
+        scoped_atomic_view<PacketWrapper> &root_lifetime);
 
     //! Walk up the chain and build CAS info list for unbundling.
     //! Used only by unbundle().

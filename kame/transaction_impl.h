@@ -2474,7 +2474,7 @@ inline typename Node<XN>::SnapshotStatus
 Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
     const scoped_atomic_view<PacketWrapper> &incoming_view,
     local_shared_ptr<Packet> **child_subpacket_out,
-    local_shared_ptr<PacketWrapper> &root_lifetime) {
+    scoped_atomic_view<PacketWrapper> &root_lifetime) {
 
     auto r = walkUpChainImpl(child_linkage, incoming_view, child_subpacket_out,
         [&root_lifetime](const shared_ptr<Linkage> &pl,
@@ -2664,7 +2664,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
             // foundpacket (pointing into the Packet tree) remains valid.
             shared_ptr<Linkage > linkage(m_link);
             local_shared_ptr<Packet> *foundpacket;
-            local_shared_ptr<PacketWrapper> root_lifetime;
+            scoped_atomic_view<PacketWrapper> root_lifetime;
             auto status = walkUpChain(linkage,
                 scoped_atomic_view<PacketWrapper>(*linkage, scope.view_copy()),
                 &foundpacket, root_lifetime);
