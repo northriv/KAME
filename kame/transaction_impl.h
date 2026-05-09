@@ -498,7 +498,7 @@ class ScopedNegotiateLinkage {
     using LinkagePtr = std::shared_ptr<typename Node<XN>::Linkage>;
     using PacketWrapper = typename Node<XN>::PacketWrapper;
     LinkagePtr      m_link;
-    Snapshot<XN>   &m_snap;
+    Snapshot<XN>   *m_snap;
     //! Tag-ref'd view of m_link's current PacketWrapper.  Acquired in
     //! ctor (DEFER_THRESHOLD — stays TagHeld; no fetch_add unless
     //! moved out as local_shared_ptr).  Used as oldr for the scope's
@@ -532,7 +532,7 @@ public:
     ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
                            TagMode mode = TagMode::OnEntry,
                            float mult_wait = 2.0f) noexcept
-        : m_link(std::move(link)), m_snap(snap),
+        : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
           m_should_tag(retry != 0) {
@@ -565,7 +565,7 @@ public:
         auto priv = NC::s_privileged_tidstamp.load(std::memory_order_relaxed);
         bool we_hold_priv = (priv != (typename NC::cnt_t)0)
             && (detail::stamp_tid(priv)
-                == detail::stamp_tid(m_snap.m_started_time));
+                == detail::stamp_tid(m_snap->m_started_time));
         m_view = scoped_atomic_view<PacketWrapper>(
             *m_link,
             we_hold_priv
@@ -579,7 +579,7 @@ public:
             m_contention_observed = true;
         }
         if(m_eager && m_should_tag)
-            m_snap.tag_as_contender(m_link);
+            m_snap->tag_as_contender(m_link);
     }
 
     //! Move-in ctor: take ownership of an existing
@@ -603,7 +603,7 @@ public:
                            TagMode mode = TagMode::OnEntry,
                            float mult_wait = 2.0f,
                            bool with_negotiate = false) noexcept
-        : m_link(std::move(link)), m_snap(snap),
+        : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
           m_should_tag(retry != 0) {
@@ -615,7 +615,7 @@ public:
         }
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         if(m_eager && m_should_tag)
-            m_snap.tag_as_contender(m_link);
+            m_snap->tag_as_contender(m_link);
     }
 
     //! Move-in ctor: take ownership of an existing
@@ -629,7 +629,7 @@ public:
                            TagMode mode = TagMode::OnEntry,
                            float mult_wait = 2.0f,
                            bool with_negotiate = false) noexcept
-        : m_link(std::move(link)), m_snap(snap),
+        : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
           m_should_tag(retry != 0) {
@@ -641,11 +641,36 @@ public:
         }
         m_view = std::move(from);
         if(m_eager && m_should_tag)
-            m_snap.tag_as_contender(m_link);
+            m_snap->tag_as_contender(m_link);
     }
 
     ScopedNegotiateLinkage(const ScopedNegotiateLinkage &) = delete;
     ScopedNegotiateLinkage &operator=(const ScopedNegotiateLinkage &) = delete;
+    ScopedNegotiateLinkage(ScopedNegotiateLinkage &&o) noexcept
+        : m_link(std::move(o.m_link)), m_snap(o.m_snap),
+          m_view(std::move(o.m_view)),
+          m_mult_wait(o.m_mult_wait), m_eager(o.m_eager),
+          m_should_tag(o.m_should_tag), m_committed(o.m_committed),
+          m_contention_observed(o.m_contention_observed) {
+        o.m_committed = true;  // prevent dtor effects on moved-from
+    }
+    ScopedNegotiateLinkage &operator=(ScopedNegotiateLinkage &&o) noexcept {
+        if(this != &o) {
+            // Run this->dtor logic first (release current view, tag if needed).
+            // Simplified: just mark committed to skip dtor effects.
+            m_committed = true;  // suppress this->dtor side effects
+            m_view = std::move(o.m_view);  // release old view, take new
+            m_link = std::move(o.m_link);
+            m_snap = o.m_snap;
+            m_mult_wait = o.m_mult_wait;
+            m_eager = o.m_eager;
+            m_should_tag = o.m_should_tag;
+            m_committed = o.m_committed;
+            m_contention_observed = o.m_contention_observed;
+            o.m_committed = true;
+        }
+        return *this;
+    }
 
     // ---------- View access (forwarding to internal scoped view) ----------
 
@@ -726,6 +751,14 @@ public:
     const std::shared_ptr<typename Node<XN>::Linkage> &linkage() const noexcept {
         return m_link;
     }
+
+    //! Const-ref access to the internal scoped_atomic_view.
+    const scoped_atomic_view<PacketWrapper> &view() const noexcept {
+        return m_view;
+    }
+
+    //! Access the Snapshot this scope is bound to.
+    Snapshot<XN> &snap() const noexcept { return *m_snap; }
 
     //! Re-acquire the view from m_link (after a CAS failure or after
     //! consume_view()).
@@ -856,7 +889,7 @@ public:
             // find us and wake our sleep slot.
             if( !(m_eager && m_should_tag) &&
                 (m_contention_observed || (!m_eager && m_should_tag)))
-                m_snap.tag_as_contender(m_link);
+                m_snap->tag_as_contender(m_link);
 
             // On observed contention, wait before letting the caller
             // re-enter the loop.  But: if our view is in Owned mode
@@ -894,11 +927,30 @@ public:
             if(m_contention_observed) {
                 uintptr_t rcnt_added = 0;
                 while( !m_view.try_release_single_attempt(rcnt_added)) {
-                    m_link->negotiate(m_snap, m_mult_wait);
+                    m_link->negotiate(*m_snap, m_mult_wait);
                 }
             }
         }
     }
+};
+
+// =====================================================================
+// WalkUpResult — defined here (not in transaction.h) because
+// std::optional<ScopedNegotiateLinkage<XN>> requires a complete type,
+// and ScopedNegotiateLinkage is only forward-declared in transaction.h.
+// =====================================================================
+template <class XN>
+struct Node<XN>::WalkUpResult {
+    SnapshotStatus find_status;  //!< result of findChildSlot (or early-return status)
+    SnapshotStatus status;       //!< status after convertRecursiveStatus (before find)
+    bool is_root_level;          //!< true if this parent is the chain root
+    shared_ptr<Linkage> parent_linkage;    //!< m_link of the parent node (= bundledBy)
+    //! ScopedNeg on parent's linkage (1 CAS, with_negotiate=false).
+    //! Provides contention tagging on DISTURBED unwind.
+    //! Disengaged on early-return (DISTURBED/NODE_MISSING before acquire).
+    std::optional<ScopedNegotiateLinkage<XN>> parent_scope;
+    int reverse_index;
+    local_shared_ptr<Packet> *parent_packet;  //!< parent's packet containing child slot
 };
 
 // =====================================================================
@@ -2303,22 +2355,26 @@ template <class XN>
 inline typename Node<XN>::WalkUpResult
 Node<XN>::ascendOneLevel(
     const shared_ptr<Linkage> &child_linkage,
-    const scoped_atomic_view<PacketWrapper> &incoming_view) {
+    const ScopedNegotiateLinkage<XN> &incoming_scope) {
 
     WalkUpResult r;
     r.parent_packet = nullptr;
-    assert( !incoming_view->hasPriority());
-    r.parent_linkage = incoming_view->bundledBy();
+    assert( !incoming_scope->hasPriority());
+    r.parent_linkage = incoming_scope->bundledBy();
     if( !r.parent_linkage) {
-        r.find_status = ( *child_linkage == incoming_view)
+        r.find_status = (incoming_scope == *child_linkage)
             ? SnapshotStatus::NODE_MISSING : SnapshotStatus::DISTURBED;
         return r;
     }
-    r.reverse_index = incoming_view->reverseIndex();
-    // Acquire parent via scoped_atomic_view (1 CAS vs 3 ops for load_shared_).
-    // incoming_view is NOT consumed (const &) — the caller keeps it alive
-    // for the staleness check at Step D.
-    r.parent_view = scoped_atomic_view<PacketWrapper>(*r.parent_linkage);
+    r.reverse_index = incoming_scope->reverseIndex();
+    // Acquire parent via ScopedNeg (1 CAS, with_negotiate=false).
+    // retry=0 + no contention → dtor is a plain view release (no tag, no wait).
+    // On DISTURBED unwind the dtor tags contention on the parent linkage.
+    r.parent_scope.emplace(r.parent_linkage, incoming_scope.snap(), 0);
+    if( !*r.parent_scope) {
+        r.find_status = SnapshotStatus::DISTURBED;
+        return r;
+    }
     r.find_status = SnapshotStatus::SUCCESS;
     return r;
 }
@@ -2339,13 +2395,13 @@ Node<XN>::convertRecursiveStatus(
         return recursive_status;
     case SnapshotStatus::VOID_PACKET:
     case SnapshotStatus::NODE_MISSING:
-        // parent_packet points into r.parent_view's PacketWrapper.
-        // r.parent_view (in the caller's WalkUpResult) keeps it alive.
-        parent_packet = &r.parent_view->packet();
+        // parent_packet points into r.parent_scope's PacketWrapper.
+        // r.parent_scope (in the caller's WalkUpResult) keeps it alive.
+        parent_packet = &(*r.parent_scope)->packet();
         r.is_root_level = true;
         return SnapshotStatus::SUCCESS;
     case SnapshotStatus::NODE_MISSING_AND_COLLIDED:
-        parent_packet = &r.parent_view->packet();
+        parent_packet = &(*r.parent_scope)->packet();
         r.is_root_level = true;
         return SnapshotStatus::COLLIDED;
     case SnapshotStatus::COLLIDED:
@@ -2418,25 +2474,25 @@ template <class XN>
 template <class Recurser>
 inline typename Node<XN>::WalkUpResult
 Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
-    const scoped_atomic_view<PacketWrapper> &incoming_view,
+    const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
     Recurser &&recurse) {
 
-    // Step A: ascend one level — reads incoming_view (const &),
-    // acquires parent into r.parent_view (1 CAS).
-    WalkUpResult r = ascendOneLevel(child_linkage, incoming_view);
+    // Step A: ascend one level — reads incoming_scope (const &),
+    // acquires parent into r.parent_scope (ScopedNeg, 1 CAS).
+    WalkUpResult r = ascendOneLevel(child_linkage, incoming_scope);
     if(r.find_status != SnapshotStatus::SUCCESS)
         return r;
 
     // Step B: recurse if parent is also bundled.
-    // Pass r.parent_view by const & — zero copy.  The next level's
-    // ascendOneLevel reads it without consuming it; r.parent_view
+    // Pass *r.parent_scope by const & — zero copy.
+    // ascendOneLevel reads it without consuming it; parent_scope
     // remains intact for Step F.
     SnapshotStatus recursive_status = SnapshotStatus::NODE_MISSING;
     local_shared_ptr<Packet> *parent_packet;
-    if( !r.parent_view->hasPriority()) {
+    if( !(*r.parent_scope)->hasPriority()) {
         recursive_status = recurse(r.parent_linkage,
-            r.parent_view, &parent_packet);
+            *r.parent_scope, &parent_packet);
     }
 
     // Step C: convert recursive result — sets is_root_level.
@@ -2447,10 +2503,10 @@ Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
         return r;
     }
 
-    // Step D: staleness check — compare child_linkage against the
-    // incoming_view (const & kept alive by the caller's frame).
+    // Step D: staleness check — compare child_linkage against
+    // incoming_scope (const & kept alive by the caller's frame).
     // No child_wrapper field needed; ABA prevented by caller's refcount.
-    if( *child_linkage != incoming_view) {
+    if(incoming_scope != *child_linkage) {
         r.find_status = SnapshotStatus::DISTURBED;
         return r;
     }
@@ -2472,18 +2528,18 @@ Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
 Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
-    const scoped_atomic_view<PacketWrapper> &incoming_view,
+    const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
-    scoped_atomic_view<PacketWrapper> &root_lifetime) {
+    std::optional<ScopedNegotiateLinkage<XN>> &root_lifetime) {
 
-    auto r = walkUpChainImpl(child_linkage, incoming_view, child_subpacket_out,
+    auto r = walkUpChainImpl(child_linkage, incoming_scope, child_subpacket_out,
         [&root_lifetime](const shared_ptr<Linkage> &pl,
-           const scoped_atomic_view<PacketWrapper> &iv,
+           const ScopedNegotiateLinkage<XN> &is,
            local_shared_ptr<Packet> **pp) {
-            return walkUpChain(pl, iv, pp, root_lifetime);
+            return walkUpChain(pl, is, pp, root_lifetime);
         });
     if(r.is_root_level)
-        root_lifetime = std::move(r.parent_view);
+        root_lifetime = std::move(r.parent_scope);
     return r.find_status;
 }
 
@@ -2496,15 +2552,15 @@ Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
 Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
-    const scoped_atomic_view<PacketWrapper> &incoming_view,
+    const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
     int64_t serial, CASInfoList *cas_infos) {
 
-    auto r = walkUpChainImpl(child_linkage, incoming_view, child_subpacket_out,
+    auto r = walkUpChainImpl(child_linkage, incoming_scope, child_subpacket_out,
         [serial, cas_infos](const shared_ptr<Linkage> &pl,
-           const scoped_atomic_view<PacketWrapper> &iv,
+           const ScopedNegotiateLinkage<XN> &is,
            local_shared_ptr<Packet> **pp) {
-            return snapshotForUnbundle(pl, iv, pp, serial, cas_infos);
+            return snapshotForUnbundle(pl, is, pp, serial, cas_infos);
         });
 
     // --- Post-processing for unbundle (Step F) ---
@@ -2546,7 +2602,7 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
         return SnapshotStatus::COLLIDED;
 
     if((serial != SerialGenerator::SERIAL_NULL) &&
-        (r.parent_view->m_bundle_serial == serial)) {
+        ((*r.parent_scope)->m_bundle_serial == serial)) {
         if(status == SnapshotStatus::NODE_MISSING)
             return SnapshotStatus::NODE_MISSING;
         return SnapshotStatus::COLLIDED;
@@ -2557,7 +2613,7 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
     local_shared_ptr<PacketWrapper> newwrapper;
     if(r.is_root_level) {
         newwrapper.reset(
-            new PacketWrapper( *r.parent_view, r.parent_view->m_bundle_serial));
+            new PacketWrapper( **r.parent_scope, (*r.parent_scope)->m_bundle_serial));
     }
     else {
         assert(cas_infos->size());
@@ -2571,12 +2627,12 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
             new PacketWrapper( *p, cas_infos->front().new_wrapper->m_bundle_serial));
     }
     if(newwrapper) {
-        // Move parent_view directly into CASInfo — already a scoped_atomic_view.
-        // Zero extra atomic ops.  parent_view is not used after this point
-        // (parent_packet still points into the PacketWrapper kept alive
-        // by the CASInfo's view).
+        // Extract scoped_atomic_view from parent_scope into CASInfo.
+        // parent_scope is not used after this point (parent_packet still
+        // points into the PacketWrapper kept alive by the CASInfo's view).
+        // The ScopedNeg's dtor handles its empty-view case cleanly.
         cas_infos->emplace_back(r.parent_linkage,
-            std::move(r.parent_view),
+            r.parent_scope->consume_scoped_view(),
             newwrapper);
         p = &newwrapper->packet();
     }
@@ -2587,7 +2643,7 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
     }
 
     if((status == SnapshotStatus::NODE_MISSING) && (serial != SerialGenerator::SERIAL_NULL) &&
-        (( !incoming_view->hasPriority()) && (incoming_view->m_bundle_serial == serial))) {
+        (( !incoming_scope->hasPriority()) && (incoming_scope->m_bundle_serial == serial))) {
         printf("!");
         return SnapshotStatus::NODE_MISSING_AND_COLLIDED;
     }
@@ -2656,18 +2712,16 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
             }
         }
         else {
-            // Taking a snapshot inside the super packet.  walkUpChain
-            // takes incoming_view by const scoped_atomic_view &.
-            // Construct a scoped_atomic_view from the scope's view_copy()
-            // with zero atomic ops (Owned-mode transfer).
-            // root_lifetime keeps the root PacketWrapper alive so that
+            // Taking a snapshot inside the super packet.
+            // Pass scope directly as incoming_scope (const ScopedNeg &)
+            // — no view_copy() or temporary needed.
+            // root_lifetime keeps the root-level ScopedNeg alive so that
             // foundpacket (pointing into the Packet tree) remains valid.
             shared_ptr<Linkage > linkage(m_link);
             local_shared_ptr<Packet> *foundpacket;
-            scoped_atomic_view<PacketWrapper> root_lifetime;
+            std::optional<ScopedNegotiateLinkage<XN>> root_lifetime;
             auto status = walkUpChain(linkage,
-                scoped_atomic_view<PacketWrapper>(*linkage, scope.view_copy()),
-                &foundpacket, root_lifetime);
+                scope, &foundpacket, root_lifetime);
             switch(status) {
             case SnapshotStatus::SUCCESS: {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
@@ -3313,13 +3367,12 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
 
     assert( !subscope->hasPriority());
 
-// snapshotForUnbundle takes incoming_view as const scoped_atomic_view &.
-// Construct from subscope.view_copy() with zero atomic ops (Owned-mode transfer).
+// Pass subscope directly as incoming_scope (const ScopedNeg &)
+// — no view_copy() or temporary needed.
     local_shared_ptr<Packet> *newsubpacket;
     CASInfoList cas_infos;
     SnapshotStatus status = snapshotForUnbundle(subscope.linkage(),
-        scoped_atomic_view<PacketWrapper>(*subscope.linkage(), subscope.view_copy()),
-        &newsubpacket,
+        subscope, &newsubpacket,
         bundle_serial ? *bundle_serial : SerialGenerator::SERIAL_NULL, &cas_infos);
     if(status == SnapshotStatus::DISTURBED)
         return UnbundledStatus::DISTURBED;
