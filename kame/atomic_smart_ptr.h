@@ -1085,7 +1085,7 @@ atomic_shared_ptr<T>::acquire_tag_ref_(Refcnt *rcnt, bool weakly) const noexcept
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
-        spins;
+        (void)spins;
 #endif
     }
     assert(rcnt_new);
@@ -1171,7 +1171,7 @@ inline bool atomic_shared_ptr<T>::release_tag_ref_(Ref *pref, Refcnt added_globa
                 for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
                     pause4spin(); //exponential backoff.
 #else
-                spins;
+                (void)spins;
 #endif
                 continue; // pointer unchanged, retry.
             }
@@ -1439,7 +1439,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
-        spins;
+        (void)spins;
 #endif
     }
 }
@@ -1522,7 +1522,7 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
         for(int i = 0; i < spins / BACKOFF_IN_ATOMIC_SMART_PTR; ++i)
             pause4spin(); //exponential backoff.
 #else
-        spins;
+        (void)spins;
 #endif
     }
 }
