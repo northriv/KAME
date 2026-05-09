@@ -505,7 +505,7 @@ class ScopedNegotiateLinkage {
     //! built-in compareAndSet / compareAndSetWithHint methods.
     //! After a successful CAS the view is consumed (empty); after a
     //! failed CAS the view may also be empty depending on the
-    //! weak+scoped contract — caller can re-acquire via reload_view().
+    //! weak+scoped contract — caller can re-acquire via reload_weak_view().
     scoped_atomic_view<PacketWrapper> m_view;
     float           m_mult_wait;             // retained from ctor for dtor's negotiate
     bool            m_eager;
@@ -717,7 +717,7 @@ public:
 
     //! Move-out the view as a local_shared_ptr<PacketWrapper>.  After
     //! this, the scope's view is empty; the scope can no longer be
-    //! used as oldr for compareAndSet*() until reload_view() is called.
+    //! used as oldr for compareAndSet*() until reload_weak_view() is called.
     //! Use for sub-routines that need a chain-walking value-typed
     //! wrapper (walkUpChain etc).  Cheap when the view is in Owned
     //! mode (zero atomic ops); two ops if still TagHeld (promote).
@@ -760,10 +760,26 @@ public:
     //! Access the Snapshot this scope is bound to.
     Snapshot<XN> &snap() const noexcept { return *m_snap; }
 
-    //! Re-acquire the view from m_link (after a CAS failure or after
-    //! consume_view()).
-    void reload_view() noexcept {
-        m_view = scoped_atomic_view<PacketWrapper>(*m_link);
+    //! Re-acquire the view from m_link with weak acquire (after a CAS
+    //! failure or after consume_view()).  Returns false if weak acquire
+    //! failed (contention); caller should retry or return DISTURBED.
+    bool reload_weak_view() noexcept {
+        using NC = typename Node<XN>::NegotiationCounter;
+        auto priv = NC::s_privileged_tidstamp.load(std::memory_order_relaxed);
+        bool we_hold_priv = (priv != (typename NC::cnt_t)0)
+            && (detail::stamp_tid(priv)
+                == detail::stamp_tid(m_snap->m_started_time));
+        m_view = scoped_atomic_view<PacketWrapper>(
+            *m_link,
+            we_hold_priv
+                ? scoped_atomic_view<PacketWrapper>::DEFER_THRESHOLD
+                : scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
+            /*weakly=*/true);
+        if(!m_view.acquire_succeeded()) {
+            m_contention_observed = true;
+            return false;
+        }
+        return true;
     }
 
     //! Replace the internal view with a value from `from`, taking
@@ -2044,7 +2060,14 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         assert(nit != packet->subnodes()->end());
         if(nit->get() == &*var) {
             if( *pit) {
-                nullsubwrapper = scoped_atomic_view<PacketWrapper>(*var->m_link);
+                nullsubwrapper = scoped_atomic_view<PacketWrapper>(
+                    *var->m_link,
+                    scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
+                    /*weakly=*/true);
+                if(!nullsubwrapper.acquire_succeeded()) {
+                    tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+                    return false;
+                }
                 if(nullsubwrapper->hasPriority()) {
                     if(nullsubwrapper->packet() != *pit) {
                         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
@@ -3116,14 +3139,21 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                     // CAS lost).  confirm_contention is idempotent with
                     // compareAndSet's internal m_contention_observed.
                     childScope.confirm_contention();
-                    if((scoped_atomic_view<PacketWrapper>( *child->m_link)->m_bundle_serial != bundle_serial)
-                     || (supscope != *supernode.m_link)) {
-                        // Phase 2 CAS on supernode.m_link already
-                        // succeeded; commit the outer scope before
-                        // returning DISTURBED so its dtor doesn't
-                        // re-tag/assert on legitimate forward progress.
-                        scope.commit();
-                        return BundledStatus::DISTURBED;
+                    {
+                        scoped_atomic_view<PacketWrapper> child_check(
+                            *child->m_link,
+                            scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
+                            /*weakly=*/true);
+                        if(!child_check.acquire_succeeded()
+                         || (child_check->m_bundle_serial != bundle_serial)
+                         || (supscope != *supernode.m_link)) {
+                            // Phase 2 CAS on supernode.m_link already
+                            // succeeded; commit the outer scope before
+                            // returning DISTURBED so its dtor doesn't
+                            // re-tag/assert on legitimate forward progress.
+                            scope.commit();
+                            return BundledStatus::DISTURBED;
+                        }
                     }
                     changed_during_bundling = true;
                     break;
