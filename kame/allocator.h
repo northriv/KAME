@@ -191,8 +191,8 @@ public:
     const_reference operator[](size_type n) const {return is_fixed() ? m_array[n] : m_vector[n];}
     const_reference at(size_type n) const {if(n >= size()) throw std::out_of_range(""); return (*this)[n];}
     reference at(size_type n) {if(n >= size()) throw std::out_of_range(""); return (*this)[n];}
-    reference front() {return is_fixed() ? m_array.front() : m_vector.front();}
-    const_reference front() const {return is_fixed() ? m_array.front() : m_vector.front();}
+    reference front() {return (*this)[0];}
+    const_reference front() const {return (*this)[0];}
     reference back() {return (*this)[this->size() - 1];}
     const_reference back() const {return (*this)[this->size() - 1];}
     void push_back(const T& x) {
