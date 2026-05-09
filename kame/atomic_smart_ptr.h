@@ -582,13 +582,18 @@ private:
 //!   Owned at construction. If the tag count after acquire (rcnt_new) is >=
 //!   threshold, the scoped is promoted to Owned (frees a tag slot). Useful
 //!   when many concurrent readers risk filling LOCAL_REF_CAPACITY.
-//!     - threshold = LOCAL_REF_CAPACITY (default): never promote → always TagHeld.
 //!     - threshold = 1: always promote → equivalent to load_shared_().
-//!     - threshold = LOCAL_REF_CAPACITY-1: promote only when at the last
-//!       available slot (= "make room for the next contender").  Acts as
-//!       a back-pressure escape valve: most acquires stay cheap (TagHeld),
-//!       but the thread that lands at rcnt = CAPACITY-1 promotes and frees
-//!       up tag bits before the next thread weakly-fails on overflow.
+//!     - threshold = LOCAL_REF_CAPACITY-1 (DEFER, default): promote only at
+//!       the LAST slot. Reserved for the privileged thread (single contender
+//!       guarantee, see ScopedNegotiateLinkage); keeps TagHeld cheap.
+//!     - threshold = LOCAL_REF_CAPACITY-2 (ADAPTIVE): promote one slot earlier
+//!       — the thread that lands at the second-to-last slot pre-emptively
+//!       drains tag bits, leaving room (the LAST slot) for the privileged
+//!       thread.  Used by all non-privileged acquires.
+//!
+//!   A "never-promote" mode (formerly threshold = LOCAL_REF_CAPACITY) was
+//!   removed — without promote, peer-thread TagHeld views accumulate and
+//!   block zero-reset CAS indefinitely (see livelock fixed in c363629a).
 template <typename T>
 class scoped_atomic_view {
 public:
@@ -597,8 +602,8 @@ public:
 
     enum {
         LOCAL_REF_CAPACITY = atomic_shared_ptr<T>::LOCAL_REF_CAPACITY,
-        DEFER_THRESHOLD = LOCAL_REF_CAPACITY,            //!< never promote (default)
-        ADAPTIVE_THRESHOLD = LOCAL_REF_CAPACITY - 1,     //!< promote at last-slot (back-pressure escape)
+        DEFER_THRESHOLD = LOCAL_REF_CAPACITY - 1,        //!< promote at last slot (privileged-only)
+        ADAPTIVE_THRESHOLD = LOCAL_REF_CAPACITY - 2,     //!< promote one slot early (non-privileged)
     };
 
     scoped_atomic_view() noexcept
@@ -609,7 +614,9 @@ public:
     //! \param[in] promote_threshold Tag-count threshold for adaptive
     //!   promotion. After acquire bumps tag to rcnt_new, if rcnt_new >=
     //!   promote_threshold the tag is promoted to refcnt (Owned mode).
-    //!   Default \a DEFER_THRESHOLD never promotes (always TagHeld).
+    //!   Default \a ADAPTIVE_THRESHOLD promotes one slot before the cap
+    //!   (= reserve last slot for the privileged thread).  Use
+    //!   \a DEFER_THRESHOLD only on the privileged path.
     //! \param[in] weakly If true, the acquire CAS is single-shot — on
     //!   contention, this constructs an Empty instance with
     //!   \a acquire_succeeded() == false. Strong (default) loops until success.
@@ -619,7 +626,7 @@ public:
     //!   - \a acquire_succeeded() == false AND \a m_pref == nullptr →
     //!       weakly = true and the acquire CAS lost (caller should retry).
     explicit scoped_atomic_view(atomic_shared_ptr<T> &asp,
-                                     Refcnt promote_threshold = DEFER_THRESHOLD,
+                                     Refcnt promote_threshold = ADAPTIVE_THRESHOLD,
                                      bool weakly = false) noexcept
         : m_asp(&asp), m_pref(nullptr), m_tag_held(false),
           m_acquire_succeeded(true) {

@@ -578,18 +578,20 @@ public:
         // Single-thread strong cannot livelock by definition.  All
         // other threads use weak acquire (the existing fast path).
         //
-        // Use ADAPTIVE_THRESHOLD even on the privileged path: when
-        // tag count saturates (rcnt >= LOCAL_REF_CAPACITY-1), strong
-        // acquire promotes to Owned and DRAINS all tags via
-        // release_tag_ref_(p, rcnt).  This drain side-effect is
-        // essential — without it, peer-thread TagHeld views (e.g.
-        // subwrappers_org) accumulated by Phase 1 stay parked on the
-        // child linkages, blocking the privileged thread's
-        // zero-reset CAS indefinitely (livelock from b413a98b).
+        // Threshold split: privileged uses DEFER (= last slot), all
+        // others use ADAPTIVE (= second-to-last slot — drain one slot
+        // earlier).  Non-privileged threads pre-emptively drain so the
+        // privileged thread is more likely to find tag space without
+        // promoting (cheap TagHeld preserved).  Both paths DO promote
+        // eventually; "never-promote" mode was removed because it lets
+        // peer-thread TagHelds accumulate and block the privileged
+        // zero-reset CAS indefinitely (b413a98b livelock).
         m_strong_mode = we_hold_priv;
         m_view = scoped_atomic_view<PacketWrapper>(
             *m_link,
-            scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
+            we_hold_priv
+                ? scoped_atomic_view<PacketWrapper>::DEFER_THRESHOLD
+                : scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
             /*weakly=*/!we_hold_priv);
         if(!m_view.acquire_succeeded()) {
             // Weak acquire CAS lost (or local refcnt at capacity) —
