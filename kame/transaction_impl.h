@@ -1631,7 +1631,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // finalizeCommitment / ~Transaction.
         if (_ll_saw && !snap.m_registered_privileged
             && NegotiationCounter::try_register_privileged_tidstamp(
-                   entry_pr, snap.m_started_time, sig_C)) {
+                   entry_pr, snap.m_started_time)) {
             snap.m_registered_privileged = true;
         }
     }
@@ -1825,20 +1825,8 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             uint64_t rhs_j = (uint64_t)dt2 * 65536u;
             if((KAME_STM_GATE_MULT > 0.0f) && (lhs_j < rhs_j)) {
 #if KAME_STM_MAX_RUNNERS != 0
-                // The privileged thread must bypass the MAX_RUNNERS cap.
-                // Without this, the privileged thread entering negotiate on
-                // a child/parent linkage during bundle/unbundle is blocked
-                // by the runner limit — all other threads are sleeping, but
-                // the privileged thread itself counts as a runner and gets
-                // stuck waiting for a runner slot that will never open.
-                // This causes a convoy: no thread can commit, dt2 grows
-                // for everyone, and the system livelocks.
-                // Check: snap.m_registered_privileged is true ONLY for the
-                // thread that owns the privilege slot. This is passed via
-                // the Snapshot that negotiate_internal receives.
                 const int max_r = effective_max_runners(C_obs);
-                if(NegotiationCounter::numThreadsRunning() < max_r
-                   || snap.m_registered_privileged)
+                if(NegotiationCounter::numThreadsRunning() < max_r)
 #endif
                     break; // gate: earned priority — always proceeds, never capped
             }
@@ -1873,28 +1861,6 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         }
 
         ms = std::max((int)(dt2 * mult_wait / 10000),  ms + 1);
-        // Cap negotiate sleep to prevent the positive feedback loop
-        // that causes livelock at high thread counts. The formula
-        // ms = dt2 * mult_wait / 10000 grows without bound as dt2
-        // increases (contending Tx has been stuck a long time). With
-        // 128 threads, dt2 easily reaches seconds, producing sleep
-        // times of hundreds of ms. This makes ALL threads sleep long,
-        // further increasing dt2 for the next iteration.
-        //
-        // When fair-mode is active (privilege slot is held), cap to
-        // FAIR_SLEEP_CAP_MS so threads wake frequently and can retry
-        // once the privileged thread commits. The general cap
-        // prevents runaway growth in all cases.
-#ifndef KAME_STM_FAIR_SLEEP_CAP_MS
-#define KAME_STM_FAIR_SLEEP_CAP_MS 5
-#endif
-#ifndef KAME_STM_NEGOTIATE_SLEEP_CAP_MS
-#define KAME_STM_NEGOTIATE_SLEEP_CAP_MS 10
-#endif
-        if(_fair_blocks && ms > KAME_STM_FAIR_SLEEP_CAP_MS)
-            ms = KAME_STM_FAIR_SLEEP_CAP_MS;
-        else if(ms > KAME_STM_NEGOTIATE_SLEEP_CAP_MS)
-            ms = KAME_STM_NEGOTIATE_SLEEP_CAP_MS;
         if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
             fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
