@@ -1002,40 +1002,42 @@ struct Node<XN>::WalkUpResult {
 // place the threshold can be set as low as a few ms without
 // triggering the test_dyn churn-deadlock.
 //
-// PRIV_PREEMPT_WINDOW_US: hysteresis for age-ordered privilege preemption.
-// A thread may preempt the current holder only if its own Tx started at
-// least PRIV_PREEMPT_WINDOW_US earlier (i.e. it is strictly older).
-// This gives priority to the longest-waiting transaction naturally:
-// a long transaction accumulates age monotonically and will eventually
-// outrank any newer holder, regardless of the holder's wall-clock age.
-// The window prevents thrash when multiple threads start at nearly the
-// same time — 1 ms is sufficient on Linux/macOS (scheduler quantum ≪ 1 ms);
-// Windows uses 16 ms to match its ~15.6 ms timer tick.
-// Unlike the old PRIV_EXPIRE_US approach (absolute holder age), this
-// scheme is independent of N and PRIV_AGE: a long transaction is always
-// eventually the oldest and always wins, with no risk of an "immediately
-// preemptable" holder that arises when claim_floor > EXPIRE.
-#ifndef KAME_STM_PRIV_PREEMPT_WINDOW_US
+// PRIV_EXPIRE_US: how long a holder must have held the privilege slot
+// before another thread may preempt them. With many threads (e.g. 128
+// on 10 cores), the old age_diff-based preemption caused rapid
+// privilege switching — hundreds of threads all satisfied the 300 µs
+// age_diff condition and preempted each other before any could finish
+// a multi-CAS bundle commit. The holder-expiry approach is stable:
+// only preempt when the current holder's Tx has been running long
+// enough that it is likely OS-preempted or stuck.
+#ifndef KAME_STM_PRIV_EXPIRE_US
   #if defined(_WIN32) || defined(WINDOWS) || defined(__WIN32__)
-    #define KAME_STM_PRIV_PREEMPT_WINDOW_US 16'000  // 16 ms — Windows timer tick
+    #define KAME_STM_PRIV_EXPIRE_US 100'000  // 100 ms — Windows
   #else
-    #define KAME_STM_PRIV_PREEMPT_WINDOW_US 1'000   // 1 ms — Linux/macOS
+    #define KAME_STM_PRIV_EXPIRE_US 50'000   // 50 ms — Linux/macOS
   #endif
 #endif
 #ifndef KAME_STM_PRIV_AGE_NORMAL_US
-  // Minimum Tx age to claim an empty privilege slot. The effective
-  // claim threshold scales with thread count: claim_floor = AGE × max(1, N/4),
-  // so a higher AGE raises the bar proportionally under load.
-  //   Windows: timer tick ≈ 15.6 ms; claim_floor must exceed that.
-  //   Linux/macOS: M3 Air sweep (2026-05-10) over AGE ∈ {100,200,300,500,1000}
-  //                at N=128 found avg4 increasing monotonically;
-  //                1000 µs wins (avg4=5.72M vs 5.48M at 300 µs).
-  //                claim_floor at N=128: 1000 × 32 = 32 ms, matching
-  //                ~2–3 OS scheduling quanta on a loaded 10-core machine.
+  // OS-aware default. The lower bound is set by the OS scheduler
+  // quantum and condition-variable wait granularity, since the
+  // privileged Tx's commit critical path includes one or more
+  // OS-scheduled wake/sleep cycles.
+  //   Windows: timer tick ≈ 15.6 ms (default), wait_for(1 ms)
+  //            actually waits ~16 ms. PRIV_AGE under that round-up
+  //            risks preempt thrash in heavy-contention scenarios.
+  //   Linux/macOS: 1 ms or finer granularity. The M3 Air 9-point sweep
+  //                (2026-04-29) found 100–200 µs as the throughput sweet-
+  //                spot for K=10 N=128 (2L +135 % / 3L +55 % vs 750 µs)
+  //                with bimodal regime collapse eliminated. 300 µs is a
+  //                conservative pick: it captures most of the gain
+  //                (2L +82 % / 3L +27 %) while staying out of the
+  //                non-monotonic 3L window where 200 µs regresses.
+  //                Other arches (x86 Xeon, NUMA AMD EPYC) are unmeasured;
+  //                300 µs is the safer default for them too.
   #if defined(_WIN32) || defined(WINDOWS) || defined(__WIN32__)
     #define KAME_STM_PRIV_AGE_NORMAL_US 10'000   // 10 ms — Windows scheduler quantum
   #else
-    #define KAME_STM_PRIV_AGE_NORMAL_US 1'000    // 1 ms — Linux/macOS sweep winner
+    #define KAME_STM_PRIV_AGE_NORMAL_US 300      // 300 us — Linux/macOS
   #endif
 #endif
 template <class XN>
@@ -1054,10 +1056,10 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     int64_t now_us = detail::ll_now_us();
     int64_t tx_age_us = now_us - detail::stamp_us(tidstamp);
     // CAS-loop: claim the slot if empty, OR preempt the current holder
-    // if our Tx started earlier (we are strictly older) by at least
-    // PRIV_PREEMPT_WINDOW_US. Age-ordering ensures the longest-waiting
-    // transaction always holds privilege. Old schemes (age_diff, absolute
-    // PRIV_EXPIRE_US) caused privilege thrash at high thread counts.
+    // if their Tx has been running longer than PRIV_EXPIRE_US (holder
+    // is likely OS-preempted or stuck). The old age_diff-based scheme
+    // caused privilege thrash with many threads — all threads had ages
+    // >> age_floor and preempted each other endlessly.
     //
     // For the initial claim (empty slot), the age threshold is scaled
     // by max(1, N/4) where N = numThreadsRunning(). This prevents
@@ -1077,15 +1079,16 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     const int64_t claim_floor = age_floor * scale;
     while (true) {
         if (expected != (cnt_t)0) {
-            // Slot held. Preempt only if WE are strictly older than the
-            // holder by at least PRIV_PREEMPT_WINDOW_US. Age-ordering
-            // guarantees the longest-waiting transaction holds privilege;
-            // the window prevents thrash when threads start simultaneously.
-            // This is independent of N and absolute time — a long Tx
-            // accumulates age monotonically and always eventually wins.
+            // Slot held. Only preempt if the holder's Tx has been
+            // running for longer than the expiry threshold — this
+            // means they are likely OS-preempted or stuck.
             int64_t holder_tx_age = now_us - (int64_t)detail::stamp_us(expected);
-            if (tx_age_us < holder_tx_age + KAME_STM_PRIV_PREEMPT_WINDOW_US)
-                return false;  // holder is at least as old as us (within window)
+            if (holder_tx_age < KAME_STM_PRIV_EXPIRE_US)
+                return false;
+            // Also require that WE are old enough to deserve privilege
+            // (prevents very young Tx from preempting).
+            if (tx_age_us < age_floor)
+                return false;
         } else {
             // Empty slot. Require scaled age threshold to reduce churn
             // when many threads are contending.
@@ -1101,10 +1104,10 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     }
     std::fprintf(stderr,
         "[ll-probe] privileged_tid=%u "
-        "(oldest stuck Tx claimed privilege; age=%lld us, prio=%d, N=%d%s)\n",
+        "(claimed by stuck oldest Tx; age=%lld us, prio=%d, N=%d%s)\n",
         (unsigned)detail::stamp_tid(tidstamp),
         (long long)tx_age_us, (int)pr, N,
-        expected == (cnt_t)0 ? "" : " preempted older holder");
+        expected == (cnt_t)0 ? "" : " preempted");
     return true;
 }
 
@@ -1160,7 +1163,7 @@ typename Node<XN>::NegotiationCounter::PriorityProbeInfo
 Node<XN>::NegotiationCounter::priority_probe_info(Priority pr) noexcept {
     switch (pr) {
 #ifndef KAME_STM_RETRY_THRESH_NORMAL
-#define KAME_STM_RETRY_THRESH_NORMAL 8   // sweep winner (2026-05-10): 16>8>2>4; 8 chosen for long-Tx safety
+#define KAME_STM_RETRY_THRESH_NORMAL 4   // sweep winner: 4 > 3 > 5 at AGE=20ms
 #endif
         case Priority::HIGHEST:       return { 2, "HIGHEST" };
         case Priority::NORMAL:        return { KAME_STM_RETRY_THRESH_NORMAL, "NORMAL" };
@@ -1177,6 +1180,7 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     uint64_t tx_commit_count,
     int tags_owned,
     int tags_total,
+    int sig_C,
     int64_t tx_age_us,
     Priority prio) noexcept
 {
@@ -1206,22 +1210,35 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
 
     const auto pinfo = priority_probe_info(prio);
 
+    // Dynamic LL-probe retry threshold: each peer contributes ~2
+    // expected CAS retries (bidirectional contention), capped at
+    // hardware_concurrency() since beyond that count, threads can't all
+    // be physically running CAS simultaneously. Floor 3 keeps the
+    // early-call (sig_C ≈ 0) path safe before the bitset has accumulated
+    // peers. Machine-generic: no per-platform tuning constants — the
+    // hardware_concurrency() call adapts to SMT / core count.
+    int hw_procs = (int)std::thread::hardware_concurrency();
+    if (hw_procs <= 0) hw_procs = 4;
+    int retry_thresh_dyn = sig_C * 2;
+    if (retry_thresh_dyn < 3) retry_thresh_dyn = 3;
+    if (retry_thresh_dyn > hw_procs) retry_thresh_dyn = hw_procs;
+
     const char *verdict =
         (tags_total > 0 && tags_owned == tags_total
-         && (int)my_tx_retries >= pinfo.retry_threshold
+         && (int)my_tx_retries >= retry_thresh_dyn
          && tx_age_us > min_privilege_age_us(prio))
             ? "LIVELOCK" : "ok";
 
     if(window_us > 100'000)
         if(verdict[0] == 'L')
             std::fprintf(stderr,
-                "[ll-probe] tid=%u linkage=%p prio=%s threshold=%d "
+                "[ll-probe] tid=%u linkage=%p prio=%s threshold=%d (sig_C=%d) "
                 "my_tx_retries=%u my_tx_retry_rate=%.0f/s "
                 "tx_commit_rate=%.0f/s ratio=%.1f "
                 "tags_owned=%d/%d tx_age_us=%lld "
                 "verdict=%s window_ms=%lld\n",
                 (unsigned)ProcessCounter::id(), linkage,
-                pinfo.name, pinfo.retry_threshold,
+                pinfo.name, retry_thresh_dyn, sig_C,
                 (unsigned)my_tx_retries, my_retry_rate, tx_commit_rate,
                 ratio, tags_owned, tags_total,
                 (long long)(tx_age_us), verdict,
@@ -1618,7 +1635,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             static_cast<const void*>(this),
             snap.m_tx_retry_count,
             m_tx_commit_count,
-            _ll_owned, _ll_total, _ll_age_us,
+            _ll_owned, _ll_total, sig_C, _ll_age_us,
             entry_pr);
         // Fair-mode escape: when verdict=LIVELOCK fires for this Tx, the
         // global slot is free, and the Tx has aged past the per-priority

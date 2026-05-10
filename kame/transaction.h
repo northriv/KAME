@@ -487,6 +487,7 @@ private:
                                            uint64_t tx_commit_count,
                                            int tags_owned,
                                            int tags_total,
+                                           int sig_C,
                                            int64_t tx_age_us,
                                            Priority prio) noexcept;
 
