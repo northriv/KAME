@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
 
         for(int iter = 0; iter < MaxCommits; ++iter) {
             if(StressSeconds > 0 && stop.load(std::memory_order_relaxed)) break;
-            bool warming = warming_up.load(std::memory_order_relaxed);
+            bool warming = warming_up.load(std::memory_order_acquire);
             if(was_warming && !warming) {
                 // Just flipped to timed phase — reset the timed counter
                 // baseline so the first timed iteration starts from 0.

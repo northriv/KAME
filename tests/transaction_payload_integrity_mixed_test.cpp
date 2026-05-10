@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
 
         for(int iter = 0; iter < MaxCommits; ++iter) {
             if(StressSeconds > 0 && stop.load(std::memory_order_relaxed)) break;
-            bool warming = warming_up.load(std::memory_order_relaxed);
+            bool warming = warming_up.load(std::memory_order_acquire);
 
             bool do_parent = (CrossRatio > 0) && ((iter % CrossRatio) == 0);
             if(do_parent) {
