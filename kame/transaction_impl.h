@@ -1079,15 +1079,14 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     const int64_t claim_floor = age_floor * scale;
     while (true) {
         if (expected != (cnt_t)0) {
-            // Slot held. Only preempt if the holder's Tx has been
-            // running for longer than the expiry threshold — this
-            // means they are likely OS-preempted or stuck.
+            // Slot held. Preempt unconditionally once the holder's Tx has
+            // been running longer than KAME_STM_PRIV_EXPIRE_US — at that
+            // point the holder is treated as expired (likely OS-preempted
+            // or stuck) and any challenger may take over, regardless of
+            // its own age. EXPIRE_US is therefore a hard expiry floor on
+            // how long any single holder may keep the privilege slot.
             int64_t holder_tx_age = now_us - (int64_t)detail::stamp_us(expected);
             if (holder_tx_age < KAME_STM_PRIV_EXPIRE_US)
-                return false;
-            // Also require that WE are old enough to deserve privilege
-            // (prevents very young Tx from preempting).
-            if (tx_age_us < age_floor)
                 return false;
         } else {
             // Empty slot. Require scaled age threshold to reduce churn
