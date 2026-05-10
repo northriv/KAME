@@ -160,6 +160,8 @@ int main(int argc, char** argv) {
     std::vector<std::thread> threads;
     threads.reserve(NumThreads);
     for(int i = 0; i < NumThreads; ++i) threads.emplace_back(worker, i);
+    while(barrier.load(std::memory_order_acquire) < NumThreads)
+        std::this_thread::yield();
 
     // Warmup (1s by default) — workers run the mixed workload with
     // warming_up=true so their timed counters stay at zero; the real
