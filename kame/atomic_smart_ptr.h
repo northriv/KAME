@@ -1396,10 +1396,17 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
                 //       refcnt >= R_init + T - (T-1) = R_init + 1 >= 2.
                 //     DRAINED:  drainer pre-paid +1 → R_init >= 2;
                 //       step4=+T (T>=0) → refcnt >= 2.
+                // RETAIN_NEWR + Owned: scoped is reassigned to newr below,
+                //   so its Owned +1 on OLD pref must also be released here
+                //   (sub = 2).  Without this, OLD pref's refcnt leaks +1
+                //   per Owned-RETAIN call — the bug appears at low
+                //   LOCAL_REF_CAPACITY where Owned mode is hit frequently
+                //   (e.g., CAP=4 ADAPTIVE=2 → any rcnt>=2 acquire promotes).
                 Refcnt sub = 1u;
                 if constexpr (SCOPED) {
                     if(oldr.m_tag_held) sub = 2u;  // TagHeld
-                    // else Owned: sub = 1
+                    else if constexpr (RETAIN_NEWR) sub = 2u;  // Owned + RETAIN
+                    // else Owned non-RETAIN: sub = 1 (scoped keeps OLD)
                 }
                 if(pref->refcnt.fetch_sub(sub, std::memory_order_acq_rel) == sub) {
                     const_cast<atomic_shared_ptr*>(this)->deleter(pref);
