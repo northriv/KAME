@@ -1209,9 +1209,12 @@ public:
         // corrected by other Txs' retries); the probe-side false-positive
         // is still avoided because this Tx simply doesn't track the
         // linkage in its list when its store didn't survive.
-        const auto my_us = NC::stamp_us(m_started_time);
+        //
+        // signed_diff_us_packed(cur, m_started_time) > 0  iff  cur is
+        // YOUNGER (later in steady-clock µs) than my stamp — modular at
+        // STAMP_US_BITS = 46, wrap-safe over any realistic boot session.
         auto cur = slot.load(std::memory_order_relaxed);
-        if(!cur || NC::stamp_us(cur) > my_us) {
+        if(!cur || NC::signed_diff_us_packed(cur, m_started_time) > 0) {
             slot.store(m_started_time, std::memory_order_release);
             if(slot.load(std::memory_order_acquire) != m_started_time) [[unlikely]]
                 return;  // overwritten — don't add to list
@@ -1223,7 +1226,8 @@ public:
         // window). Costlier on contention (CAS retries).
         //
         //     auto cur = slot.load(std::memory_order_relaxed);
-        //     while(!cur || NC::stamp_us(cur) > NC::stamp_us(m_started_time)) {
+        //     while(!cur ||
+        //           NC::signed_diff_us_packed(cur, m_started_time) > 0) {
         //         if(slot.compare_exchange_weak(cur, m_started_time,
         //                 std::memory_order_release,
         //                 std::memory_order_relaxed))
