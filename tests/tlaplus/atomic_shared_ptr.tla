@@ -51,11 +51,20 @@
  *     empirically.
  *
  * Improvements over v1:
- *   - ABA problem modeling: freed objects can be recycled (same pointer value
- *     reappears), testing whether the tagged-pointer CAS prevents ABA.
  *   - acquire_tag_ref_ read modeled as single atomic load of m_ref (ptr + local_rc
- *     are extracted from the same load in C++); CAS catches stale values.
+ *     are extracted from the same load in C++); CAS catches concurrent in-flight
+ *     modifications between read and CAS.
  *   - Symmetry support for state space reduction.
+ *
+ * Note on ABA: ABA-by-recycling (allocator returning a freed address for a
+ * new object) is NOT modelled.  It is prevented by the shared-pointer
+ * ownership contract: compareAndSwap_(oldr, newr)'s caller holds a
+ * local_shared_ptr<T> oldr with oldr->refcnt >= 1, so oldr cannot be
+ * destroyed and its address cannot be recycled.  This is an API invariant
+ * imposed on callers, not a property the tagged-pointer protocol enforces
+ * structurally.  The (ptr, local_rc) tag CAS alone does not prevent
+ * recycle-based ABA because local_rc can cycle back to the same value
+ * under concurrent acquire/release activity.
  *
  * Source: kame/atomic_smart_ptr.h
  *)
@@ -67,8 +76,7 @@ CONSTANTS
     Objects,          \* set of possible object IDs (Ref objects)
     MaxOps,           \* per-thread operation budget (0 = unlimited for backward compat)
     EnableCAS,        \* TRUE to enable compareAndSwap_ operations
-    EnableSwap,       \* TRUE to enable local_shared_ptr::swap(atomic_shared_ptr&)
-    EnableRecycle     \* TRUE to enable ABA recycling of freed objects
+    EnableSwap        \* TRUE to enable local_shared_ptr::swap(atomic_shared_ptr&)
 
 ASSUME Cardinality(Objects) >= 2
 
@@ -275,30 +283,10 @@ Init ==
     /\ scope_state = [t \in Threads |-> "none"]
     /\ scope_pref = [t \in Threads |-> NULL]
 
-(* ========================================================================== *)
-(* ABA Recycling: a freed object can be "reallocated" at the same address     *)
-(* This simulates the allocator returning the same pointer value, which is    *)
-(* the precondition for an ABA problem. The recycled object gets global_rc=1  *)
-(* and is given to a thread (simulating new + local_shared_ptr assignment).   *)
-(* ========================================================================== *)
-\* @c11_action Recycle(t):
-\*   Models: Obj *newobj = malloc(sizeof(Obj));
-\*   The allocator may return the same address as a previously freed object
-\*   (ABA scenario). newobj->refcnt = 1; newobj->destroyed = 0;
-\*   Not an atomic operation — models heap reuse / constructor.
-Recycle(t) ==
-    /\ EnableRecycle
-    /\ pc[t] \in {"idle", "done"}
-    /\ iterBudget[t] > 0  \* only recycle if future ops remain
-    /\ \A o2 \in Objects : thr_holds[t][o2] = 0  \* C++: old local_shared_ptr destroyed before new allocation
-    /\ \E o \in Objects :
-       /\ freed[o] = TRUE
-       /\ global_rc[o] = 0
-       /\ freed' = [freed EXCEPT ![o] = FALSE]
-       /\ global_rc' = [global_rc EXCEPT ![o] = 1]
-       /\ thr_holds' = [thr_holds EXCEPT ![t][o] = @ + 1]
-    /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
+\* (Recycle action removed: ABA-by-recycling is prevented by the
+\*  shared-pointer ownership contract — caller's local_shared_ptr keeps
+\*  oldr alive, so the allocator cannot recycle its address.  Modelling
+\*  Recycle would represent invalid caller usage, not a protocol bug.)
 
 (* ========================================================================== *)
 (* load_shared_() operation: acquire_tag_ref_ + increment global_rc + release_tag_ref_       *)
@@ -1100,7 +1088,6 @@ Next ==
         \/ ReleaseTagRefCAS(t)
         \/ ReleaseTagRefGlobal(t)
         \/ Reset(t)
-        \/ Recycle(t)
         \/ StartCAS(t)
         \/ CASPreInc(t)
         \/ CASReserve(t)
@@ -1168,15 +1155,7 @@ FreedImpliesZeroRC ==
 InstalledNotFreed ==
     ptr /= NULL => freed[ptr] = FALSE
 
-(* 6. ABA safety: if a CAS at cas_swap succeeds, the object identity is      *)
-(*    consistent — the pref that was checked at cas_check is the same         *)
-(*    "logical" object (not a recycled imposter). Since we use the same       *)
-(*    Object IDs for recycled objects, this is verified indirectly by          *)
-(*    MemorySafety: a recycled object that gets installed into ptr won't      *)
-(*    have the same local_rc state, so the CAS at rs_cas or cas_swap          *)
-(*    would fail if the object was recycled between reads.                    *)
-(*    The invariants above capture this: if any invariant is violated when    *)
-(*    EnableRecycle=TRUE, it demonstrates an ABA vulnerability.               *)
+(* 6. (ABA-by-recycling intentionally not modelled — see spec header note.)  *)
 
 (* 7. Quiescent consistency: when all threads are idle, the reference     *)
 (*    counting state is fully consistent.                                 *)
