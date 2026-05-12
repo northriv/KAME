@@ -1622,11 +1622,15 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // Count tagged linkages whose m_transaction_started_time == ours
         // (= "priority is already mine on every linkage" = primary
         //   livelock precondition per the refined definition).
+        // Identity check ignores kind bits — see drop_tags_n_privilege.
+        const auto _ll_my_id = NegotiationCounter::strip_kind(
+                                    snap.m_started_time);
         int _ll_total = (int)snap.m_tagged_linkages.size();
         int _ll_owned = 0;
         for (auto &_l : snap.m_tagged_linkages) {
-            if (_l && _l->m_transaction_started_time.load(
-                    std::memory_order_relaxed) == snap.m_started_time)
+            if (_l && NegotiationCounter::strip_kind(
+                    _l->m_transaction_started_time.load(
+                        std::memory_order_relaxed)) == _ll_my_id)
                 ++_ll_owned;
         }
         // `entry_pr` was read once at function entry; the probe maps it
@@ -3040,6 +3044,10 @@ typename Node<XN>::BundledStatus
 Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     Snapshot<XN> &snap,
     int64_t bundle_serial, bool is_bundle_root) {
+    // Mark every linkage we tag during this bundle (via tag_as_contender)
+    // with op_kind = BUNDLE.  Read side (peer-piggyback) not yet wired —
+    // see VERIFICATION.md / paper notes.
+    detail::ScopedOpKind _op_kind_scope(detail::StampKind::BUNDLE);
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 
@@ -3484,6 +3492,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     ScopedNegotiateLinkage<XN> &subscope,
     const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned,
     ScopedNegotiateLinkage<XN> *supscope_super) {
+    // Mark every linkage we tag during this unbundle (via tag_as_contender)
+    // with op_kind = UNBUNDLE.  Read side not yet wired.
+    detail::ScopedOpKind _op_kind_scope(detail::StampKind::UNBUNDLE);
     auto &time_started = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 

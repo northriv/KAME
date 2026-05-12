@@ -208,6 +208,27 @@ namespace detail {
         COMMIT   = 3,
     };
 
+    //! Thread-local "current operation kind".  Set via the RAII
+    //! ScopedOpKind helper at bundle/unbundle/commit entry points; read
+    //! by tag_as_contender to stamp the linkage's
+    //! m_transaction_started_time with the appropriate kind.  Default
+    //! (outside any tagged op) is NONE — preserves the pre-piggyback
+    //! stamp behavior bit-for-bit.
+    inline thread_local StampKind s_current_op_kind = StampKind::NONE;
+
+    //! RAII helper to push a new op_kind onto the thread-local slot.
+    //! Nested usage (e.g. bundle inside another bundle, or unbundle
+    //! during commit) is supported: the previous value is saved and
+    //! restored on scope exit.
+    struct ScopedOpKind {
+        StampKind prev;
+        explicit ScopedOpKind(StampKind k) noexcept
+            : prev(s_current_op_kind) { s_current_op_kind = k; }
+        ~ScopedOpKind() noexcept { s_current_op_kind = prev; }
+        ScopedOpKind(const ScopedOpKind &) = delete;
+        ScopedOpKind &operator=(const ScopedOpKind &) = delete;
+    };
+
     //! Cacheline-padded "I am currently running a Tx" counter, owned
     //! by exactly one thread. Heap-allocated per thread so increments
     //! are TLS-affine (no cacheline ping-pong even across NUMA nodes).
@@ -526,6 +547,15 @@ private:
             return (stamp & ~KIND_FIELD)
                  | ((cnt_t{(uint8_t)kind} & detail::STAMP_KIND_MASK)
                         << detail::STAMP_KIND_SHIFT);
+        }
+        //! Zero the kind bits — useful for "mine?" identity compares
+        //! where two stamps differ only in kind (e.g. a Tx tagged its
+        //! linkage with kind=BUNDLE earlier, now drops it after the
+        //! ScopedOpKind has restored to NONE).
+        static inline cnt_t strip_kind(cnt_t stamp) noexcept {
+            constexpr cnt_t KIND_FIELD =
+                detail::STAMP_KIND_MASK << detail::STAMP_KIND_SHIFT;
+            return stamp & ~KIND_FIELD;
         }
 
         //=====================================================================
@@ -1210,13 +1240,22 @@ public:
         // is still avoided because this Tx simply doesn't track the
         // linkage in its list when its store didn't survive.
         //
-        // signed_diff_us_packed(cur, m_started_time) > 0  iff  cur is
+        // The kind bits in the stamp are taken from the thread-local
+        // detail::s_current_op_kind, set by ScopedOpKind at bundle /
+        // unbundle / commit entry.  Outside those scopes the kind is
+        // NONE (= 0) and the stamp is bit-identical to the pre-
+        // piggyback layout.  No reader currently compares kind, so this
+        // is observationally invariant.
+        const auto my_stamp = NC::with_kind(m_started_time,
+                                            detail::s_current_op_kind);
+        //
+        // signed_diff_us_packed(cur, my_stamp) > 0  iff  cur is
         // YOUNGER (later in steady-clock µs) than my stamp — modular at
         // STAMP_US_BITS = 46, wrap-safe over any realistic boot session.
         auto cur = slot.load(std::memory_order_relaxed);
-        if(!cur || NC::signed_diff_us_packed(cur, m_started_time) > 0) {
-            slot.store(m_started_time, std::memory_order_release);
-            if(slot.load(std::memory_order_acquire) != m_started_time) [[unlikely]]
+        if(!cur || NC::signed_diff_us_packed(cur, my_stamp) > 0) {
+            slot.store(my_stamp, std::memory_order_release);
+            if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
                 return;  // overwritten — don't add to list
         }
 
@@ -1257,8 +1296,14 @@ public:
     //! overwrote ours) is left alone — the other thread will clear it
     //! from its own tranaction destructor.
     void drop_tags_n_privilege() noexcept {
+        using NC = typename Node<XN>::NegotiationCounter;
+        // Identity = (us, tid) — kind bits ignored because tag_as_contender
+        // may have stamped the linkage with kind=BUNDLE/UNBUNDLE/COMMIT
+        // (driven by the thread-local ScopedOpKind) while my_started_time
+        // still has kind=NONE.
+        const auto my_id = NC::strip_kind(m_started_time);
         for(auto &sp : m_tagged_linkages) {
-            if(sp->m_transaction_started_time == m_started_time)
+            if(NC::strip_kind(sp->m_transaction_started_time) == my_id)
                 sp->m_transaction_started_time = 0;
         }
         // If we held the fair-mode privilege, release it on commit so the
