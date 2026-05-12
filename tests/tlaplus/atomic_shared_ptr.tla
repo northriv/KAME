@@ -152,15 +152,37 @@ VARIABLES
     (* never passed by any current call site.                            *)
     thr_cas_rcnt,     \* drain target: try to remove this many tag refs in one CAS
     thr_added_grc,    \* total global rcnt the caller pre-added on top of the local ref
-    thr_drained       \* output: how many tag refs were actually drained by the CAS
+    thr_drained,      \* output: how many tag refs were actually drained by the CAS
+
+    (* scoped_atomic_view<T> RAII state — minimal 2-state subset.          *)
+    (*   "none"    : no scope active (initial state or after destruction). *)
+    (*   "tagheld" : scope holds 1 tag ref in atomic_shared_ptr's local_rc *)
+    (*               on scope_pref. Released either by:                     *)
+    (*                 (a) compareAndSet_impl_<scoped, ...> CAS consumes    *)
+    (*                     the tag (fetch_sub 2 absorbs both m_ref's       *)
+    (*                     release and scope's tag-share), or              *)
+    (*                 (b) destructor calls release_tag_ref_(scope_pref, 1)*)
+    (* The "empty" sub-state (scope exists but has no tag — e.g. acquire   *)
+    (* on NULL asp, or post-CAS-consume) collapses to "none" in this model:*)
+    (* no observable behavior differs, since the only operation valid on an *)
+    (* empty scope is destruction (which yields "none" again).             *)
+    (* Owned state and adaptive promotion are NOT modelled: Owned mode is  *)
+    (* structurally equivalent to const local_shared_ptr in compareAndSet  *)
+    (* (already covered by the existing CAS path with thr_op = "cas").     *)
+    scope_state,      \* scope_state[t] ∈ {"none", "tagheld"}
+    scope_pref        \* scope's m_pref (Object or NULL); NULL iff scope_state = "none"
 
 vars == <<ptr, local_rc, global_rc, freed, pc, thr_op, thr_pref, thr_rcnt,
           thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
-          thr_cas_rcnt, thr_added_grc, thr_drained>>
+          thr_cas_rcnt, thr_added_grc, thr_drained,
+          scope_state, scope_pref>>
 
 \* Convenience tuple for actions that don't touch the drain-parameter
 \* variables — keeps UNCHANGED clauses readable.
 drain_vars == <<thr_cas_rcnt, thr_added_grc, thr_drained>>
+
+\* Convenience tuple for actions that don't touch scope state.
+scope_vars == <<scope_state, scope_pref>>
 
 (* -------------------------------------------------------------------------- *)
 (* Type invariant                                                             *)
@@ -186,9 +208,18 @@ TypeOK ==
                            "cas_transfer",  \* CAS: transfer local_rc to global_rc
                            "cas_swap",      \* CAS: the actual CAS on the atomic word
                            "cas_undo",      \* CAS: undo transfer on CAS failure
-                           "cas_cleanup"    \* CAS: decrement pref's global_rc on success
+                           "cas_cleanup",   \* CAS: decrement pref's global_rc on success
+                           \* scoped_atomic_view path
+                           "scope_set_state",  \* transition: post acquire_tag_ref_ → set scope state
+                           "scope_cas_preinc", \* SCOPED CAS: newr fetch_add (step 2)
+                           "scope_cas_load",   \* SCOPED CAS: load_tagged (no acquire)
+                           "scope_cas_check",  \* SCOPED CAS: pref == scope_pref check
+                           "scope_cas_transfer", \* SCOPED CAS: step4 = +T (not T-1)
+                           "scope_cas_swap",     \* SCOPED CAS: install newr, drain all
+                           "scope_cas_cleanup",  \* SCOPED CAS: fetch_sub(2) on pref
+                           "scope_cas_undo"      \* SCOPED CAS: undo step4
                           }]
-    /\ thr_op \in [Threads -> {"load", "cas", "swap", "idle"}]
+    /\ thr_op \in [Threads -> {"load", "cas", "swap", "scope_acquire", "scope_cas", "scope_dtor", "idle"}]
     /\ thr_pref \in [Threads -> Objects \cup {NULL}]
     /\ thr_rcnt \in [Threads -> Nat]
     /\ thr_old \in [Threads -> Objects \cup {NULL}]
@@ -200,6 +231,8 @@ TypeOK ==
     /\ thr_cas_rcnt \in [Threads -> Nat]
     /\ thr_added_grc \in [Threads -> Nat]
     /\ thr_drained \in [Threads -> Nat]
+    /\ scope_state \in [Threads -> {"none", "tagheld"}]
+    /\ scope_pref \in [Threads -> Objects \cup {NULL}]
 
 (* -------------------------------------------------------------------------- *)
 (* Initial state                                                              *)
@@ -232,6 +265,8 @@ Init ==
     /\ thr_cas_rcnt = [t \in Threads |-> 1]
     /\ thr_added_grc = [t \in Threads |-> 1]
     /\ thr_drained = [t \in Threads |-> 0]
+    /\ scope_state = [t \in Threads |-> "none"]
+    /\ scope_pref = [t \in Threads |-> NULL]
 
 (* ========================================================================== *)
 (* ABA Recycling: a freed object can be "reallocated" at the same address     *)
@@ -256,7 +291,7 @@ Recycle(t) ==
        /\ global_rc' = [global_rc EXCEPT ![o] = 1]
        /\ thr_holds' = [thr_holds EXCEPT ![t][o] = @ + 1]
     /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_rtr_ctx, iterBudget, drain_vars>>
+                   thr_old, thr_new, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 (* ========================================================================== *)
 (* load_shared_() operation: acquire_tag_ref_ + increment global_rc + release_tag_ref_       *)
@@ -301,7 +336,7 @@ AcquireTagRefRead(t) ==
     /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = local_rc]
     /\ pc' = [pc EXCEPT ![t] = "atr_cas"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_old,
-                   thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                   thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 \* @c11_action AcquireTagRefCAS(t):
 \* uintptr_t expected = (uintptr_t)pref + rcnt_old;
@@ -323,14 +358,17 @@ AcquireTagRefCAS(t) ==
           /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = thr_rcnt[t] + 1]
           /\ pc' = [pc EXCEPT ![t] = CASE thr_op[t] = "load" -> "ls_inc"
                                        [] thr_op[t] = "swap" -> "cas_transfer"
+                                       [] thr_op[t] = "scope_acquire" -> "scope_set_state"
                                        [] OTHER -> "cas_check"]
           /\ UNCHANGED <<ptr, global_rc, freed, thr_op, thr_pref, thr_old,
-                         thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                         thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                         drain_vars, scope_vars>>
        \/ (* CAS fails: retry from read *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ pc' = [pc EXCEPT ![t] = "atr_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                         drain_vars, scope_vars>>
 
 \* @c11_action AcquireTagRefNull(t):
 \* if (!pref) { *rcnt = rcnt_old; return NULL; }
@@ -340,9 +378,11 @@ AcquireTagRefNull(t) ==
     /\ thr_pref[t] = NULL
     /\ pc' = [pc EXCEPT ![t] = CASE thr_op[t] = "load" -> "done"
                                   [] thr_op[t] = "swap" -> "cas_transfer"
+                                  [] thr_op[t] = "scope_acquire" -> "scope_set_state"
                                   [] OTHER -> "cas_check"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                   drain_vars, scope_vars>>
 
 \* @c11_action LoadSharedIncGlobal(t):
 \* Modern atomic_smart_ptr.h: bulk transfer of ALL acquired tag refs to global.
@@ -374,7 +414,7 @@ LoadSharedStartRelease(t) ==
     /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
     /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "load_done"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, iterBudget, drain_vars>>
+                   thr_old, thr_new, thr_holds, iterBudget, drain_vars, scope_vars>>
 
 (* ========================================================================== *)
 (* release_tag_ref_() operation (shared by load_shared_ and compareAndSwap_)              *)
@@ -396,7 +436,7 @@ ReleaseTagRefRead(t) ==
     /\ pc' = [pc EXCEPT ![t] = IF local_rc > 0 THEN "rtr_cas" ELSE "rtr_global"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
                    thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
-                   drain_vars>>
+                   drain_vars, scope_vars>>
 
 \* @c11_action ReleaseTagRefCAS(t):
 \* Modern atomic_smart_ptr.h: drain pattern.
@@ -451,14 +491,14 @@ ReleaseTagRefCAS(t) ==
           /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
                          thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
-                         drain_vars>>
+                         drain_vars, scope_vars>>
        \/ (* CAS fails, ptr changed -> fallback to global dec by added_global_rcnt *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ ptr /= thr_pref[t]
           /\ pc' = [pc EXCEPT ![t] = "rtr_global"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
                          thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
-                         drain_vars>>
+                         drain_vars, scope_vars>>
 
 \* @c11_action ReleaseTagRefGlobal(t):
 \* uintptr_t old_rc = atomic_fetch_sub_explicit(&pref->refcnt, sub_amount,
@@ -488,7 +528,7 @@ ReleaseTagRefGlobal(t) ==
           ELSE UNCHANGED thr_holds
        /\ pc' = [pc EXCEPT ![t] = returnPC]
        /\ UNCHANGED <<ptr, local_rc, thr_op, thr_pref, thr_rcnt, thr_old,
-                      thr_new, thr_rtr_ctx, iterBudget, drain_vars>>
+                      thr_new, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 (* ========================================================================== *)
 (* local_shared_ptr::reset()                                                  *)
@@ -513,7 +553,7 @@ Reset(t) ==
           THEN freed' = [freed EXCEPT ![o] = TRUE]
           ELSE freed' = freed
     /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt, thr_old,
-                   thr_new, thr_rtr_ctx, iterBudget, drain_vars>>
+                   thr_new, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 (* ========================================================================== *)
 (* compareAndSwap_() operation                                                *)
@@ -565,7 +605,7 @@ CASPreInc(t) ==
        ELSE UNCHANGED global_rc
     /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 \* @c11_action CASReserve(t):
 \* // Enter acquire_tag_ref_ loop for CAS/swap
@@ -575,7 +615,7 @@ CASReserve(t) ==
     /\ pc[t] = "cas_acquire"
     /\ pc' = [pc EXCEPT ![t] = "atr_read"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 \* @c11_action CASCheck(t):
 \* if (pref != oldr) {
@@ -600,16 +640,16 @@ CASCheck(t) ==
                  /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "cas_fail"]
                  /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
                                 thr_rcnt, thr_old, thr_new, thr_holds, iterBudget,
-                                drain_vars>>
+                                drain_vars, scope_vars>>
             ELSE /\ pc' = [pc EXCEPT ![t] = "cas_fail_done"]
                  /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
                                 thr_rcnt, thr_old, thr_new, thr_holds, thr_rtr_ctx,
-                                iterBudget, drain_vars>>
+                                iterBudget, drain_vars, scope_vars>>
        ELSE
             /\ pc' = [pc EXCEPT ![t] = "cas_transfer"]
             /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
                            thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
-                           drain_vars>>
+                           drain_vars, scope_vars>>
 
 \* @c11_action CASFailDone(t):
 \* // Rollback newr's pre-incremented refcount
@@ -630,7 +670,7 @@ CASFailDone(t) ==
     /\ pc' = [pc EXCEPT ![t] = "done"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new,
-                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 \* @c11_action CASTransfer(t):
 \* // Transfer local refcount to global before the pointer CAS
@@ -647,7 +687,7 @@ CASTransfer(t) ==
        ELSE UNCHANGED global_rc
     /\ pc' = [pc EXCEPT ![t] = "cas_swap"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 \* @c11_action CASSwap(t):
 \* uintptr_t expected = (uintptr_t)pref + rcnt_old;
@@ -685,12 +725,12 @@ CASSwap(t) ==
                   /\ pc' = [pc EXCEPT ![t] = "cas_cleanup"]
                   /\ UNCHANGED <<thr_holds, thr_op>>
           /\ UNCHANGED <<global_rc, freed, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_rtr_ctx, iterBudget, drain_vars>>
+                         thr_old, thr_new, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
        \/ (* CAS fails *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ pc' = [pc EXCEPT ![t] = "cas_undo"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 \* @c11_action CASUndo(t):
 \* // Undo the transfer and release local ref
@@ -716,7 +756,7 @@ CASUndo(t) ==
        ELSE /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]
             /\ UNCHANGED <<global_rc, thr_rtr_ctx>>
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, iterBudget, drain_vars>>
+                   thr_old, thr_new, thr_holds, iterBudget, drain_vars, scope_vars>>
 
 \* @c11_action CASCleanup(t):
 \* // Release m_ref's old ownership after successful CAS
@@ -739,7 +779,7 @@ CASCleanup(t) ==
     /\ pc' = [pc EXCEPT ![t] = "done"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new,
-                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
 
 (* ========================================================================== *)
 (* local_shared_ptr::swap(atomic_shared_ptr&)                                 *)
@@ -775,7 +815,254 @@ StartSwap(t) ==
     /\ thr_cas_rcnt'  = [thr_cas_rcnt  EXCEPT ![t] = 1]
     /\ thr_added_grc' = [thr_added_grc EXCEPT ![t] = 1]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_old, thr_holds, thr_rtr_ctx, iterBudget, thr_drained>>
+                   thr_old, thr_holds, thr_rtr_ctx, iterBudget, thr_drained,
+                   scope_vars>>
+
+(* ========================================================================== *)
+(* scoped_atomic_view<T> — minimal TagHeld lifecycle                          *)
+(*                                                                            *)
+(* Models the three operations:                                                *)
+(*   1. acquire        : ScopeStartAcquire → atr_read/atr_cas → ScopeSetState *)
+(*   2. compareAndSet  : ScopeCASStart → ScopeCASPreInc → ScopeCASLoad →       *)
+(*                       ScopeCASCheck →                                       *)
+(*                         (mismatch: release scope's tag via rtr_read with   *)
+(*                          ctx=scope_release_absorbed; undo step 2; done)    *)
+(*                         (match:    ScopeCASTransfer → ScopeCASSwap →        *)
+(*                                    (success: ScopeCASCleanup → done)       *)
+(*                                    (failure: ScopeCASUndo → done))         *)
+(*   3. destructor     : ScopeDtor → rtr_read with ctx=scope_release           *)
+(*                                                                            *)
+(* Key differences from regular CAS (compareAndSwap_ path):                   *)
+(*   - Skips acquire_tag_ref_ — scope's existing TagHeld provides +1.         *)
+(*   - step4 = rcnt_old (full T), NOT (T-1):  the scope's tag-share is         *)
+(*     treated as if already promoted to global +1, so we pre-pay for all     *)
+(*     T tag holders including ourselves.                                     *)
+(*   - On CAS success: fetch_sub(2) on pref (not 1) — absorbs both m_ref's   *)
+(*     release AND scope's tag-share uniformly (handles ABSORBED and DRAINED *)
+(*     cases without runtime detection).  After this, scope transitions to    *)
+(*     "empty" (tag consumed).                                                *)
+(*   - On CAS failure: undo step4 via fetch_sub(rcnt_old) on pref relaxed.    *)
+(*     Scope remains "tagheld" with its +1 in pref's tag count.               *)
+(*                                                                            *)
+(* Owned mode and RETAIN_NEWR are deliberately NOT modelled (the user noted   *)
+(* Owned is structurally equivalent to const local_shared_ptr in CAS,         *)
+(* already covered by the existing CAS path).                                  *)
+(* Source: atomic_smart_ptr.h:1240-1450 (compareAndSet_impl_ with SCOPED).    *)
+(* ========================================================================== *)
+
+\* Construct a scoped_atomic_view: enter the shared acquire_tag_ref_ pipeline
+\* (thr_op="scope_acquire" routes the post-CAS step to scope_set_state).
+ScopeStartAcquire(t) ==
+    /\ pc[t] = "idle"
+    /\ scope_state[t] = "none"
+    /\ iterBudget[t] > 0
+    /\ pc' = [pc EXCEPT ![t] = "atr_read"]
+    /\ thr_op' = [thr_op EXCEPT ![t] = "scope_acquire"]
+    /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                   drain_vars, scope_vars>>
+
+\* @c11_action ScopeSetState(t):
+\* Transition reached from AcquireTagRefCAS / AcquireTagRefNull with
+\* thr_op="scope_acquire".  Materialises the scope state from the
+\* acquire result: tag held iff thr_pref /= NULL.
+ScopeSetState(t) ==
+    /\ pc[t] = "scope_set_state"
+    /\ thr_op[t] = "scope_acquire"
+    /\ IF thr_pref[t] /= NULL
+       THEN /\ scope_state' = [scope_state EXCEPT ![t] = "tagheld"]
+            /\ scope_pref'  = [scope_pref  EXCEPT ![t] = thr_pref[t]]
+       ELSE \* acquire on NULL asp: no tag acquired, scope stays "none".
+            UNCHANGED <<scope_state, scope_pref>>
+    /\ pc' = [pc EXCEPT ![t] = "done"]
+    /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
+    /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                   drain_vars>>
+
+\* @c11_action ScopeCASStart(t):
+\* Begin compareAndSet_impl_<scoped_atomic_view, ...> in TagHeld mode.
+\* Picks the newr value (caller's local_shared_ptr) and routes through the
+\* dedicated SCOPED CAS pipeline (steps 2-5 differ from regular CAS).
+ScopeCASStart(t) ==
+    /\ pc[t] = "idle"
+    /\ scope_state[t] = "tagheld"
+    /\ iterBudget[t] > 0
+    /\ \E newObj \in Objects \cup {NULL} :
+       /\ newObj /= scope_pref[t]
+       /\ (newObj /= NULL => (freed[newObj] = FALSE /\ thr_holds[t][newObj] > 0))
+       /\ thr_new' = [thr_new EXCEPT ![t] = newObj]
+       /\ thr_old' = [thr_old EXCEPT ![t] = scope_pref[t]]
+    /\ pc' = [pc EXCEPT ![t] = "scope_cas_preinc"]
+    /\ thr_op' = [thr_op EXCEPT ![t] = "scope_cas"]
+    /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
+                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
+
+\* @c11_action ScopeCASPreInc(t):
+\* Step 2: newr->refcnt.fetch_add(1)  (skipped if newr is NULL).
+ScopeCASPreInc(t) ==
+    /\ pc[t] = "scope_cas_preinc"
+    /\ thr_op[t] = "scope_cas"
+    /\ IF thr_new[t] /= NULL
+       THEN global_rc' = [global_rc EXCEPT ![thr_new[t]] = @ + 1]
+       ELSE UNCHANGED global_rc
+    /\ pc' = [pc EXCEPT ![t] = "scope_cas_load"]
+    /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                   drain_vars, scope_vars>>
+
+\* @c11_action ScopeCASLoad(t):
+\* Step 3a: load_tagged_() — read ptr and local_rc into thr_pref / thr_rcnt.
+\* No acquire (scope already holds 1 tag).
+ScopeCASLoad(t) ==
+    /\ pc[t] = "scope_cas_load"
+    /\ thr_op[t] = "scope_cas"
+    /\ thr_pref' = [thr_pref EXCEPT ![t] = ptr]
+    /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = local_rc]
+    /\ pc' = [pc EXCEPT ![t] = "scope_cas_check"]
+    /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_old, thr_new,
+                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
+
+\* @c11_action ScopeCASCheck(t):
+\* Step 3b: if pref != scope.m_pref, the scope's tag was absorbed by a
+\* swapper.  Release scope's tag (release_tag_ref_(scope_pref, 1)) via
+\* the shared rtr_read pipeline with ctx="scope_release"; the absorbed
+\* path will mark scope empty when release completes.  Otherwise proceed
+\* to step 4 (transfer).
+ScopeCASCheck(t) ==
+    /\ pc[t] = "scope_cas_check"
+    /\ thr_op[t] = "scope_cas"
+    /\ IF thr_pref[t] /= scope_pref[t]
+       THEN \* mismatch: undo step2 (newr -= 1), release scope's tag, scope→empty
+            /\ IF thr_new[t] /= NULL
+               THEN /\ global_rc' = [global_rc EXCEPT ![thr_new[t]] = @ - 1]
+                    /\ IF global_rc[thr_new[t]] = 1
+                       THEN freed' = [freed EXCEPT ![thr_new[t]] = TRUE]
+                       ELSE freed' = freed
+               ELSE UNCHANGED <<global_rc, freed>>
+            \* Route via release_tag_ref pipeline to release scope's 1 tag.
+            /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
+            /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "scope_release"]
+            /\ thr_pref' = [thr_pref EXCEPT ![t] = scope_pref[t]]
+            /\ thr_cas_rcnt'  = [thr_cas_rcnt  EXCEPT ![t] = 1]
+            /\ thr_added_grc' = [thr_added_grc EXCEPT ![t] = 1]
+            \* scope becomes "none" eagerly; rtr pipeline handles the
+            \* physical release using thr_pref (= old scope_pref).
+            /\ scope_state' = [scope_state EXCEPT ![t] = "none"]
+            /\ scope_pref'  = [scope_pref  EXCEPT ![t] = NULL]
+            /\ UNCHANGED <<ptr, local_rc, thr_op, thr_rcnt, thr_old, thr_new,
+                           thr_holds, iterBudget, thr_drained>>
+       ELSE \* match: proceed to step 4 (transfer)
+            /\ pc' = [pc EXCEPT ![t] = "scope_cas_transfer"]
+            /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
+                           thr_rcnt, thr_old, thr_new, thr_holds, thr_rtr_ctx,
+                           iterBudget, drain_vars, scope_vars>>
+
+\* @c11_action ScopeCASTransfer(t):
+\* Step 4: pref->refcnt.fetch_add(rcnt_old)  — note: T, not T-1.
+\* The scope's tag is treated as if it were already promoted to global +1,
+\* so we pre-pay for all T tag holders (including scope's own +1 share).
+ScopeCASTransfer(t) ==
+    /\ pc[t] = "scope_cas_transfer"
+    /\ thr_op[t] = "scope_cas"
+    /\ IF thr_rcnt[t] > 0 /\ thr_pref[t] /= NULL
+       THEN global_rc' = [global_rc EXCEPT ![thr_pref[t]] = @ + thr_rcnt[t]]
+       ELSE UNCHANGED global_rc
+    /\ pc' = [pc EXCEPT ![t] = "scope_cas_swap"]
+    /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                   drain_vars, scope_vars>>
+
+\* @c11_action ScopeCASSwap(t):
+\* Step 5: CAS m_ref: pref + rcnt_old → newr + 0.
+\* Success: ptr=thr_pref ∧ local_rc=thr_rcnt; install newr, drain all tag refs.
+\* Failure: state changed; undo step4.
+ScopeCASSwap(t) ==
+    /\ pc[t] = "scope_cas_swap"
+    /\ thr_op[t] = "scope_cas"
+    /\ \/ (* CAS succeeds *)
+          /\ ptr = thr_pref[t]
+          /\ local_rc = thr_rcnt[t]
+          /\ ptr' = thr_new[t]
+          /\ local_rc' = 0
+          /\ pc' = [pc EXCEPT ![t] = "scope_cas_cleanup"]
+          /\ UNCHANGED <<global_rc, freed, thr_op, thr_pref, thr_rcnt,
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                         drain_vars, scope_vars>>
+       \/ (* CAS fails *)
+          /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
+          /\ pc' = [pc EXCEPT ![t] = "scope_cas_undo"]
+          /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
+                         thr_rcnt, thr_old, thr_new, thr_holds, thr_rtr_ctx,
+                         iterBudget, drain_vars, scope_vars>>
+
+\* @c11_action ScopeCASCleanup(t):
+\* Success path: pref->refcnt.fetch_sub(2)  — absorbs m_ref's release AND
+\* scope's tag-share uniformly.  Scope's tag is consumed; scope → empty.
+\* Sub-amount = 2 (not 1) is the key SCOPED-vs-Set distinction: scope's
+\* tag-share gets pre-counted in step4 and must be released here.
+ScopeCASCleanup(t) ==
+    /\ pc[t] = "scope_cas_cleanup"
+    /\ thr_op[t] = "scope_cas"
+    /\ scope_pref[t] /= NULL
+    /\ global_rc' = [global_rc EXCEPT ![scope_pref[t]] = @ - 2]
+    /\ IF global_rc[scope_pref[t]] = 2
+       THEN freed' = [freed EXCEPT ![scope_pref[t]] = TRUE]
+       ELSE freed' = freed
+    /\ scope_state' = [scope_state EXCEPT ![t] = "none"]
+    /\ scope_pref'  = [scope_pref  EXCEPT ![t] = NULL]
+    /\ pc' = [pc EXCEPT ![t] = "done"]
+    /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
+    /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new,
+                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
+
+\* @c11_action ScopeCASUndo(t):
+\* Failure path: undo step 4 — fetch_sub(rcnt_old, relaxed) on pref.
+\* No delete check needed: scope's +1 tag still in m_ref's tag count
+\* keeps pref alive (refcnt >= 2 invariant for SCOPED+TagHeld).
+\* Also undo step 2 (newr).  Scope remains "tagheld" (caller may retry).
+\* This Layer 1 spec does not model the retry loop — caller's responsibility.
+ScopeCASUndo(t) ==
+    /\ pc[t] = "scope_cas_undo"
+    /\ thr_op[t] = "scope_cas"
+    \* Combined undo of step4 (pref) and step2 (newr) in a single
+    \* global_rc' assignment.  Pref's refcnt remains >= 1 (scope's
+    \* tag still held in atomic word) so no delete check.
+    /\ global_rc' = [o \in Objects |->
+           LET sub_pref == IF o = thr_pref[t]
+                              /\ thr_rcnt[t] > 0
+                              /\ thr_pref[t] /= NULL
+                           THEN thr_rcnt[t]
+                           ELSE 0
+               sub_newr == IF o = thr_new[t] /\ thr_new[t] /= NULL
+                           THEN 1
+                           ELSE 0
+           IN global_rc[o] - sub_pref - sub_newr]
+    /\ pc' = [pc EXCEPT ![t] = "done"]
+    /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
+    /\ UNCHANGED <<ptr, local_rc, freed, thr_pref, thr_rcnt, thr_old, thr_new,
+                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars, scope_vars>>
+
+\* @c11_action ScopeDtor(t):
+\* scoped_atomic_view destructor: if tag still held, release_tag_ref_(pref, 1).
+\* In TagHeld mode this is the only physical action; the bookkeeping
+\* (scope_state ← "none", scope_pref ← NULL) is set eagerly here so the
+\* thread can immediately start a new scope after ReturnToIdle.  The rtr
+\* pipeline operates on thr_pref (= old scope_pref) regardless.
+ScopeDtor(t) ==
+    /\ pc[t] = "idle"
+    /\ scope_state[t] = "tagheld"
+    /\ scope_pref[t] /= NULL
+    /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
+    /\ thr_op' = [thr_op EXCEPT ![t] = "scope_dtor"]
+    /\ thr_pref' = [thr_pref EXCEPT ![t] = scope_pref[t]]
+    /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "scope_release"]
+    /\ thr_cas_rcnt'  = [thr_cas_rcnt  EXCEPT ![t] = 1]
+    /\ thr_added_grc' = [thr_added_grc EXCEPT ![t] = 1]
+    /\ scope_state' = [scope_state EXCEPT ![t] = "none"]
+    /\ scope_pref'  = [scope_pref  EXCEPT ![t] = NULL]
+    /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_rcnt,
+                   thr_old, thr_new, thr_holds, iterBudget, thr_drained>>
 
 ReturnToIdle(t) ==
     /\ pc[t] = "done"
@@ -784,7 +1071,7 @@ ReturnToIdle(t) ==
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ iterBudget' = [iterBudget EXCEPT ![t] = @ - 1]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, drain_vars>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, drain_vars, scope_vars>>
 
 (* ========================================================================== *)
 (* Next-state relation                                                        *)
@@ -812,6 +1099,17 @@ Next ==
         \/ CASUndo(t)
         \/ CASCleanup(t)
         \/ StartSwap(t)
+        \/ ScopeStartAcquire(t)
+        \/ ScopeSetState(t)
+        \/ ScopeCASStart(t)
+        \/ ScopeCASPreInc(t)
+        \/ ScopeCASLoad(t)
+        \/ ScopeCASCheck(t)
+        \/ ScopeCASTransfer(t)
+        \/ ScopeCASSwap(t)
+        \/ ScopeCASCleanup(t)
+        \/ ScopeCASUndo(t)
+        \/ ScopeDtor(t)
         \/ ReturnToIdle(t)
 
 (* Natural bounds — verified as invariants, no StateConstraint needed *)
@@ -875,15 +1173,25 @@ QuiescentCheck ==
 (*    references released, the global state is fully determined.          *)
 (*    - The installed object has exactly 1 reference (from ptr)           *)
 (*    - All other objects are freed with rc=0                             *)
-(*    - No thread holds any references                                    *)
+(*    - No thread holds any references or active scope                    *)
 TerminalCheck ==
     LET allDone == \A t \in Threads :
                        pc[t] = "idle" /\ iterBudget[t] = 0
                        /\ \A o \in Objects : thr_holds[t][o] = 0
+                       /\ scope_state[t] = "none"
     IN allDone =>
         /\ \A o \in Objects :
             IF o = ptr
             THEN global_rc[o] = 1 /\ freed[o] = FALSE
             ELSE global_rc[o] = 0 /\ freed[o] = TRUE
+
+(* 9. Scope consistency: scope_state and scope_pref agree.                  *)
+ScopeConsistent ==
+    \A t \in Threads :
+        \/ /\ scope_state[t] = "none"
+           /\ scope_pref[t] = NULL
+        \/ /\ scope_state[t] = "tagheld"
+           /\ scope_pref[t] /= NULL
+           /\ freed[scope_pref[t]] = FALSE
 
 =============================================================================
