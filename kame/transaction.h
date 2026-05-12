@@ -1565,6 +1565,10 @@ private:
         // field declaration. The probe consumes the aggregated value.
         ++this->m_tx_retry_count;
         Node<XN> &node(this->m_packet->node());
+        // Pre-commit retry tag: kind = COMMIT (same direction as
+        // UNBUNDLE; see Node<XN>::commit() comment).  An inner
+        // snapshot()/bundle() may push BUNDLE on top.
+        detail::ScopedOpKind _op_kind_scope(detail::StampKind::COMMIT);
         if(isMultiNodal())
             this->tag_as_contender(node.m_link);
         // Preserve m_tid_bitset across retry cycles: contention evidence

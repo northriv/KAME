@@ -3366,6 +3366,18 @@ Node<XN>::commit(Transaction<XN> &tr) {
     assert(tr.isMultiNodal() || tr.m_packet->subpackets() == tr.m_oldpacket->subpackets());
     assert(this == &tr.m_packet->node());
 
+    // Stamp every linkage tagged during commit with kind = COMMIT.
+    // Direction-wise, COMMIT is similar to UNBUNDLE (both publish a
+    // priority wrapper to a leaf / non-bundled linkage, vs. BUNDLE
+    // which installs a BundledRef wrapper).  Kept distinct because
+    // peer-piggyback is invalid between commits (each carries a
+    // unique payload diff) and between commit and unbundle (the
+    // unbundle's "completed" state has the *previous* wrapper, not
+    // the committer's new one).  An inner unbundle()/bundle() called
+    // during commit pushes its own ScopedOpKind, so the kind is
+    // refined automatically as control descends.
+    detail::ScopedOpKind _op_kind_scope(detail::StampKind::COMMIT);
+
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
     for(int retry = 0;; ++retry) {
         // RAII OnEntry: negotiates + tag-bit acquires view of m_link
