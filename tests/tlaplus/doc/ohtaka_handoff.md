@@ -43,6 +43,8 @@ CFG=BundleUnbundle_2level_LLfree_dynamic_3thr_release_mc.cfg \
 
 | spec | cfg | 状況 | 備考 |
 |---|---|---|---|
+| **L1** | `atomic_shared_ptr_3thr_cas_mc.cfg` | **要投入** | 3-thread + load+CAS+scope, MaxOps=2, SYMMETRY. Local 41% / 1h44m で queue 増加 → ohtaka 必須。`sbatch run_atomic_shared_ptr.sh` |
+| **L1** | `atomic_shared_ptr_3thr_full_mc.cfg` | **要投入** (cas PASS 後) | + EnableSwap=TRUE |
 | 3L | `_3thr_superfine_A_mc.cfg` | **要投入** | casOldWrappers fix 適用済み |
 | 3L | `_3thr_superfine_A_live_mc.cfg` | safety PASS 後 | |
 | 3L | `_3thr_superfine_B_mc.cfg` | **要投入** | casOldWrappers fix 適用済み |
