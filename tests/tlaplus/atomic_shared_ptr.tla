@@ -1201,6 +1201,14 @@ TerminalCheck ==
             THEN global_rc[o] = 1 /\ freed[o] = FALSE
             ELSE global_rc[o] = 0 /\ freed[o] = TRUE
 
+(* Liveness: eventually every thread exhausts its budget and idles.        *)
+(* Expected to FAIL on Layer 1 — CAS retry loops (cas_retry ctx ->          *)
+(* cas_acquire -> atr_cas) do not consume iterBudget, so an adversarial    *)
+(* scheduler can keep one thread retrying forever.  Layer 2 fixes this via *)
+(* the priority older-wins (LL-free negotiate) mechanism.                  *)
+AllDone == \A t \in Threads : pc[t] = "idle" /\ iterBudget[t] = 0
+EventuallyAllDone == <>AllDone
+
 (* 9. Scope consistency: scope_state and scope_pref agree.                  *)
 ScopeConsistent ==
     \A t \in Threads :
