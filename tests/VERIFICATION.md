@@ -225,9 +225,9 @@ except 1-thread and liveness configs.
 |---|---|---|---|---|---|---|---|
 | `atomic_shared_ptr_1thr_mc.cfg` | 1 | 3 | load+CAS+swap+scope | 4,014 | 33 | <1s | **Pass** (complete) |
 | `atomic_shared_ptr_small_mc.cfg` | 2 | 2 | load+CAS+scope | 613,990 | 69 | 12s | **Pass** (complete) |
-| `atomic_shared_ptr_mc.cfg` | 2 | 3 | load+CAS+scope | (running on local) | — | — | (planned) |
-| `atomic_shared_ptr_all_mc.cfg` | 2 | 3 | load+CAS+swap+scope (full) | (running on local) | — | — | (planned) |
-| `atomic_shared_ptr_3thr_cas_mc.cfg` | 3 | 2 | load+CAS+scope | — | — | — | (planned, local) |
+| `atomic_shared_ptr_mc.cfg` | 2 | 3 | load+CAS+scope | (subset of all_mc.cfg) | — | — | superseded |
+| `atomic_shared_ptr_all_mc.cfg` | 2 | 3 | load+CAS+swap+scope (full) | **66,537,058** | 84 | 1h 30min | **Pass** (complete) |
+| `atomic_shared_ptr_3thr_cas_mc.cfg` | 3 | 2 | load+CAS+scope | — | — | — | (running on local) |
 | `atomic_shared_ptr_live_mc.cfg` | 2 | 2 | `<>AllDone` liveness | (lasso) | — | 40s | **Fail (expected)** — confirms Layer 1 has no LL-freedom |
 
 ### Key findings
