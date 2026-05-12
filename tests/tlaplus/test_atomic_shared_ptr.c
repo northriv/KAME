@@ -12,7 +12,7 @@
         see the files COPYING and AUTHORS.
  ***************************************************************************/
 /*
- * C11 test generated mechanically from atomic_shared_ptr.tla (Layer 0)
+ * C11 test generated mechanically from atomic_shared_ptr.tla (Layer 1)
  *
  * Models the tagged-pointer scheme: an atomic word packs (ptr, local_rc).
  * Three threads perform load_shared / compareAndSwap_ / swap concurrently.

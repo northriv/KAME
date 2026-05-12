@@ -126,7 +126,7 @@ ChildrenOf(n) ==
 \*   Grand -> Parent -> {Child1, Child2}
 \*
 \* @c11_var linkage[n]:       atomic_shared_ptr<PacketWrapper> n->m_link
-\*   Read: load_shared_(), Write: compareAndSet() -- both Layer 0 ops
+\*   Read: load_shared_(), Write: compareAndSet() -- both Layer 1 ops
 \* @c11_var linkage[n].packet.sub[c]:  Packet::subpackets()[i]
 \* @c11_var linkage[n].bundledBy:      PacketWrapper::bundledBy()
 \* @c11_var serial[t]:        thread-local Lamport clock (SerialGenerator)

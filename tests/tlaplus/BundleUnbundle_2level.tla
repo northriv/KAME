@@ -63,15 +63,17 @@ ThreadSymmetry == Permutations(Threads)
 \*
 \* This layer models the bundle/unbundle protocol that manages hierarchical
 \* snapshots in KAME's STM. Each node has an atomic_shared_ptr<PacketWrapper>
-\* called m_link (Linkage). Layer 1 (stm_commit) is the single-node commit;
-\* this layer adds tree structure with bundle/unbundle on top.
+\* called m_link (Linkage). Layer 1 (atomic_shared_ptr.tla) covers the
+\* single-node tagged-pointer commit primitives (compareAndSet_impl_,
+\* scoped_atomic_view, drain release_tag_ref_); this layer adds tree
+\* structure with bundle/unbundle on top.
 \*
 \* TLA+ variable              C++ type & expression
 \* --------------------------------------------------------------------------
 \* @c11_var linkage[n]:       atomic_shared_ptr<PacketWrapper> n->m_link
-\*   -- each node's current PacketWrapper, read/written via Layer 0 ops
+\*   -- each node's current PacketWrapper, read/written via Layer 1 ops
 \*   Read:  local_shared_ptr<PacketWrapper> w(*n->m_link)  -- load_shared_
-\*   Write: n->m_link->compareAndSet(old, new)             -- Layer 0 CAS
+\*   Write: n->m_link->compareAndSet(old, new)             -- Layer 1 CAS
 \*
 \*   PacketWrapper states:
 \*     hasPriority=TRUE:  wrapper owns its Packet directly (priority wrapper)

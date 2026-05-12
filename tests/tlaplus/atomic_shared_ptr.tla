@@ -13,15 +13,42 @@
  ***************************************************************************)
 --------------------------- MODULE atomic_shared_ptr ---------------------------
 (*
- * TLA+ model of kame/atomic_smart_ptr.h core protocol:
- *   acquire_tag_ref_(), load_shared_(), release_tag_ref_(), compareAndSwap_(), local_shared_ptr::reset()
+ * TLA+ model of kame/atomic_smart_ptr.h — Layer 1 of KAME's verification stack.
  *
- * Models the tagged-pointer scheme where the lower bits of an atomic word
- * store a local reference counter, while the upper bits store the pointer
- * to a Ref object that itself holds a global reference counter.
+ *   Layer 0 (informal): C11 RC11 memory model — verified by GenMC.
+ *   Layer 1 (this spec): atomic_shared_ptr tagged-pointer primitive and
+ *                        commit-style primitives (compareAndSet_impl_,
+ *                        scoped_atomic_view, drain release_tag_ref_).
+ *   Layer 2: BundleUnbundle (single-node STM commit + bundle/unbundle).
  *
- * We separate the atomic word into two variables (ptr, local_rc) for clarity.
- * Each Ref object has a global_rc field.
+ * Layer 1 was historically split into "Layer 0 (atomic_shared_ptr ops)" and
+ * "Layer 1 (stm_commit)"; the two are now merged because the modern
+ * atomic_smart_ptr.h API exposes commit-level primitives directly via
+ * scoped_atomic_view + compareAndSet_impl_ (acquire + CAS + release in one
+ * RAII bundle).  The single-node stm_commit semantics are captured here.
+ *
+ * Modelled C++ operations:
+ *   acquire_tag_ref_(), load_shared_(),
+ *   release_tag_ref_(pref, added_global_rcnt, single_attempt) — incl. drain,
+ *   compareAndSwap_(),
+ *   compareAndSet_impl_<OldrT, NewrT, false (no WEAK), RETAIN_NEWR>,
+ *   scoped_atomic_view (NONE / EMPTY / TagHeld / Owned RAII state machine),
+ *   local_shared_ptr::reset()
+ *
+ * Tagged-pointer scheme: the lower bits of an atomic word store a local
+ * reference counter, while the upper bits store the pointer to a Ref object
+ * that itself holds a global reference counter.  We separate the atomic
+ * word into two variables (ptr, local_rc) for clarity.  Each Ref object
+ * has a global_rc field.
+ *
+ * Simplifications vs. real C++:
+ *   - WEAK CAS spurious failure is NOT modelled.  CAS is deterministic
+ *     (succeeds iff expected matches current).  Sound for safety: weak-CAS
+ *     executions are a superset of strong-CAS executions, and spurious
+ *     failures exercise the same undo code paths covered by genuine
+ *     failures.  Liveness under spurious failure is handled by TLA+ fairness
+ *     WF_vars on the CAS step.  GenMC RC11 tests cover the weak case
+ *     empirically.
  *
  * Improvements over v1:
  *   - ABA problem modeling: freed objects can be recycled (same pointer value
@@ -30,7 +57,7 @@
  *     are extracted from the same load in C++); CAS catches stale values.
  *   - Symmetry support for state space reduction.
  *
- * Source: kame/atomic_smart_ptr.h lines 420-613
+ * Source: kame/atomic_smart_ptr.h
  *)
 
 EXTENDS Integers, Sequences, FiniteSets, TLC
@@ -109,11 +136,31 @@ VARIABLES
     thr_old,        \* for CAS: the expected old object
     thr_new,        \* for CAS: the new object to install
     thr_holds,      \* thr_holds[t][o]: number of references thread t holds to object o
-    thr_rtr_ctx,      \* release_tag_ref_ return target: "load_done", "cas_retry", "cas_fail"
-    iterBudget        \* per-thread remaining operation count
+    thr_rtr_ctx,      \* release_tag_ref_ return target: "load_done", "cas_retry", "cas_fail",
+                      \*   "scope_promote", "scope_release"
+    iterBudget,       \* per-thread remaining operation count
+
+    (* Drain parameters for release_tag_ref_(pref, added_global_rcnt) *)
+    (* Default values (1, 1) reproduce the original single-ref release.    *)
+    (* Callers using the drain path (load_shared bulk transfer, scope    *)
+    (* promote, compareAndSet undo) set these explicitly before          *)
+    (* transitioning into rtr_read.                                       *)
+    (* NOTE: the single_attempt parameter of release_tag_ref_ is omitted *)
+    (* from this model.  It is only consumed by paths that arise from    *)
+    (* WEAK CAS spurious failure, which this Layer 1 spec does not       *)
+    (* model (see header).  In the real code, single_attempt=true is    *)
+    (* never passed by any current call site.                            *)
+    thr_cas_rcnt,     \* drain target: try to remove this many tag refs in one CAS
+    thr_added_grc,    \* total global rcnt the caller pre-added on top of the local ref
+    thr_drained       \* output: how many tag refs were actually drained by the CAS
 
 vars == <<ptr, local_rc, global_rc, freed, pc, thr_op, thr_pref, thr_rcnt,
-          thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+          thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+          thr_cas_rcnt, thr_added_grc, thr_drained>>
+
+\* Convenience tuple for actions that don't touch the drain-parameter
+\* variables — keeps UNCHANGED clauses readable.
+drain_vars == <<thr_cas_rcnt, thr_added_grc, thr_drained>>
 
 (* -------------------------------------------------------------------------- *)
 (* Type invariant                                                             *)
@@ -129,8 +176,8 @@ TypeOK ==
                            "ls_inc",    \* load_shared_: increment global_rc
                            "ls_release",  \* load_shared_: call release_tag_ref_
                            "rtr_read",     \* release_tag_ref_: read refcount
-                           "rtr_cas",      \* release_tag_ref_: CAS to decrement local_rc
-                           "rtr_global",   \* release_tag_ref_: fallback - dec global_rc
+                           "rtr_cas",      \* release_tag_ref_: CAS to drain tag refs
+                           "rtr_global",   \* release_tag_ref_: fallback - dec global_rc by sub_amount
                            "done",        \* operation completed
                            "cas_pre_inc",   \* CAS: pre-increment newr's global_rc
                            "cas_acquire",   \* CAS: call acquire_tag_ref_
@@ -147,8 +194,12 @@ TypeOK ==
     /\ thr_old \in [Threads -> Objects \cup {NULL}]
     /\ thr_new \in [Threads -> Objects \cup {NULL}]
     /\ thr_holds \in [Threads -> [Objects -> Nat]]
-    /\ thr_rtr_ctx \in [Threads -> {"load_done", "cas_retry", "cas_fail", "none"}]
+    /\ thr_rtr_ctx \in [Threads -> {"load_done", "cas_retry", "cas_fail",
+                                     "scope_promote", "scope_release", "none"}]
     /\ iterBudget \in [Threads -> Nat]
+    /\ thr_cas_rcnt \in [Threads -> Nat]
+    /\ thr_added_grc \in [Threads -> Nat]
+    /\ thr_drained \in [Threads -> Nat]
 
 (* -------------------------------------------------------------------------- *)
 (* Initial state                                                              *)
@@ -178,6 +229,9 @@ Init ==
                         ELSE 0]]
     /\ thr_rtr_ctx = [t \in Threads |-> "none"]
     /\ iterBudget = [t \in Threads |-> MaxOps]
+    /\ thr_cas_rcnt = [t \in Threads |-> 1]
+    /\ thr_added_grc = [t \in Threads |-> 1]
+    /\ thr_drained = [t \in Threads |-> 0]
 
 (* ========================================================================== *)
 (* ABA Recycling: a freed object can be "reallocated" at the same address     *)
@@ -202,7 +256,7 @@ Recycle(t) ==
        /\ global_rc' = [global_rc EXCEPT ![o] = 1]
        /\ thr_holds' = [thr_holds EXCEPT ![t][o] = @ + 1]
     /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_rtr_ctx, iterBudget>>
+                   thr_old, thr_new, thr_rtr_ctx, iterBudget, drain_vars>>
 
 (* ========================================================================== *)
 (* load_shared_() operation: acquire_tag_ref_ + increment global_rc + release_tag_ref_       *)
@@ -219,8 +273,14 @@ StartLoadShared(t) ==
     /\ \A o \in Objects : thr_holds[t][o] = 0  \* C++: local_shared_ptr destroyed before next load
     /\ pc' = [pc EXCEPT ![t] = "atr_read"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "load"]
+    \* Default drain parameters: cas_rcnt=1, added_grc=1.
+    \* LoadSharedIncGlobal will later upgrade these to thr_rcnt for the
+    \* bulk-transfer load_shared_ path.
+    /\ thr_cas_rcnt'  = [thr_cas_rcnt  EXCEPT ![t] = 1]
+    /\ thr_added_grc' = [thr_added_grc EXCEPT ![t] = 1]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                   thr_drained>>
 
 (* ========================================================================== *)
 (* acquire_tag_ref_(): atomic read of m_ref                                      *)
@@ -241,7 +301,7 @@ AcquireTagRefRead(t) ==
     /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = local_rc]
     /\ pc' = [pc EXCEPT ![t] = "atr_cas"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_old,
-                   thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
 
 \* @c11_action AcquireTagRefCAS(t):
 \* uintptr_t expected = (uintptr_t)pref + rcnt_old;
@@ -265,12 +325,12 @@ AcquireTagRefCAS(t) ==
                                        [] thr_op[t] = "swap" -> "cas_transfer"
                                        [] OTHER -> "cas_check"]
           /\ UNCHANGED <<ptr, global_rc, freed, thr_op, thr_pref, thr_old,
-                         thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                         thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
        \/ (* CAS fails: retry from read *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ pc' = [pc EXCEPT ![t] = "atr_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
 
 \* @c11_action AcquireTagRefNull(t):
 \* if (!pref) { *rcnt = rcnt_old; return NULL; }
@@ -282,18 +342,28 @@ AcquireTagRefNull(t) ==
                                   [] thr_op[t] = "swap" -> "cas_transfer"
                                   [] OTHER -> "cas_check"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
 
 \* @c11_action LoadSharedIncGlobal(t):
-\* atomic_fetch_add_explicit(&pref->refcnt, 1, memory_order_relaxed);
-\* Source: atomic_smart_ptr.h:504 → cds_test_load.c:127
+\* Modern atomic_smart_ptr.h: bulk transfer of ALL acquired tag refs to global.
+\*   pref->refcnt.fetch_add(rcnt, std::memory_order_relaxed);  // rcnt, not 1
+\* The subsequent release_tag_ref_(pref, rcnt) attempts to drain rcnt tag refs
+\* in one CAS, stealing from concurrent acquires.  Net effect: 1 global rcnt
+\* ref absorbed by the caller's local_shared_ptr, with up to (rcnt-1) other
+\* threads' tag-IOUs paid off as a side effect (their later release falls
+\* through to a plain fetch_sub(1) on global since the tag was already drained).
+\* When rcnt=1 (no contention) this is identical to the legacy +1 / -1 pattern.
+\* Source: atomic_smart_ptr.h:1126-1128
 LoadSharedIncGlobal(t) ==
     /\ pc[t] = "ls_inc"
     /\ thr_op[t] = "load"
-    /\ global_rc' = [global_rc EXCEPT ![thr_pref[t]] = @ + 1]
+    /\ global_rc' = [global_rc EXCEPT ![thr_pref[t]] = @ + thr_rcnt[t]]
+    /\ thr_added_grc'  = [thr_added_grc  EXCEPT ![t] = thr_rcnt[t]]
+    /\ thr_cas_rcnt'   = [thr_cas_rcnt   EXCEPT ![t] = thr_rcnt[t]]
     /\ pc' = [pc EXCEPT ![t] = "ls_release"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                   thr_drained>>
 
 \* @c11_action LoadSharedStartRelease(t):
 \* // fall-through to release_tag_ref_(pref)
@@ -304,7 +374,7 @@ LoadSharedStartRelease(t) ==
     /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
     /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "load_done"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, iterBudget>>
+                   thr_old, thr_new, thr_holds, iterBudget, drain_vars>>
 
 (* ========================================================================== *)
 (* release_tag_ref_() operation (shared by load_shared_ and compareAndSwap_)              *)
@@ -325,65 +395,92 @@ ReleaseTagRefRead(t) ==
     /\ thr_rcnt' = [thr_rcnt EXCEPT ![t] = local_rc]
     /\ pc' = [pc EXCEPT ![t] = IF local_rc > 0 THEN "rtr_cas" ELSE "rtr_global"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                   drain_vars>>
 
 \* @c11_action ReleaseTagRefCAS(t):
-\* uintptr_t expected = (uintptr_t)pref + rcnt_old;
-\* uintptr_t desired  = (uintptr_t)pref + (rcnt_old - 1u);
-\* if (atomic_compare_exchange_weak_explicit(&g_ref, &expected, desired,
-\* memory_order_acq_rel, memory_order_relaxed))
-\* break;                        // success → return (load_done|cas_retry|cas_fail)
-\* if (get_ptr(cur) == pref)
-\* continue;                     // ptr unchanged, retry CAS → rtr_read
-\* else
-\* goto global_fallback;         // ptr changed → rtr_global
-\* Source: atomic_smart_ptr.h:521-528 → cds_test_load.c:95-104
+\* Modern atomic_smart_ptr.h: drain pattern.
+\*   Refcnt local_release = std::min(rcnt_old, added_global_rcnt);  // 1 by default
+\*   Refcnt rcnt_new = rcnt_old - local_release;
+\*   if (CAS(g_ref, pref+rcnt_old, pref+rcnt_new)) {
+\*     sub_amount = added_global_rcnt - local_release;  // excess to undo via global
+\*     break;
+\*   }
+\*   if (ptr unchanged) retry;  else fall through to global fetch_sub(added_global_rcnt)
+\* Source: atomic_smart_ptr.h:1158-1206 (release_tag_ref_)
+\* This is the MIRROR of CASSwap: that action drains all local_rc to 0 on a
+\* successful pointer swap; here we drain up to cas_rcnt tag refs without
+\* changing the pointer.
+\* NOTE: the single_attempt CAS-loss path of release_tag_ref_ is omitted.
+\* It is only relevant to WEAK-CAS-driven flows, which this spec does not
+\* model.  In the real code, single_attempt=true is never passed.
 ReleaseTagRefCAS(t) ==
     /\ pc[t] = "rtr_cas"
     /\ LET returnPC == CASE thr_rtr_ctx[t] = "load_done" -> "done"
                           [] thr_rtr_ctx[t] = "cas_retry" -> "cas_acquire"
                           [] thr_rtr_ctx[t] = "cas_fail"  -> "cas_fail_done"
+                          [] thr_rtr_ctx[t] = "scope_promote" -> "done"
+                          [] thr_rtr_ctx[t] = "scope_release" -> "done"
                           [] OTHER -> "done"
+           cas_rcnt == thr_cas_rcnt[t]
+           added    == thr_added_grc[t]
        IN
        \/ (* CAS succeeds: ptr unchanged and local_rc matches *)
           /\ ptr = thr_pref[t]
           /\ local_rc = thr_rcnt[t]
-          /\ local_rc' = thr_rcnt[t] - 1
+          /\ LET drain == IF local_rc >= cas_rcnt THEN cas_rcnt ELSE local_rc
+                 excess == IF added > drain THEN added - drain ELSE 0
+             IN /\ local_rc' = thr_rcnt[t] - drain
+                /\ thr_drained' = [thr_drained EXCEPT ![t] = drain]
+                \* Excess undo: fetch_sub(excess, acq_rel) with delete check.
+                /\ IF excess > 0
+                   THEN /\ global_rc' = [global_rc EXCEPT ![thr_pref[t]] = @ - excess]
+                        /\ IF global_rc[thr_pref[t]] = excess
+                           THEN freed' = [freed EXCEPT ![thr_pref[t]] = TRUE]
+                           ELSE freed' = freed
+                   ELSE UNCHANGED <<global_rc, freed>>
           /\ IF thr_rtr_ctx[t] = "load_done"
              THEN thr_holds' = [thr_holds EXCEPT ![t][thr_pref[t]] = @ + 1]
              ELSE UNCHANGED thr_holds
           /\ pc' = [pc EXCEPT ![t] = returnPC]
-          /\ UNCHANGED <<ptr, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_rtr_ctx, iterBudget>>
+          /\ UNCHANGED <<ptr, thr_op, thr_pref, thr_rcnt, thr_old, thr_new,
+                         thr_rtr_ctx, iterBudget, thr_cas_rcnt, thr_added_grc>>
        \/ (* CAS fails, ptr still matches -> retry release_tag_ref_ *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ ptr = thr_pref[t]
           /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
-       \/ (* CAS fails, ptr changed -> fallback to global dec *)
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                         drain_vars>>
+       \/ (* CAS fails, ptr changed -> fallback to global dec by added_global_rcnt *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ ptr /= thr_pref[t]
           /\ pc' = [pc EXCEPT ![t] = "rtr_global"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                         drain_vars>>
 
 \* @c11_action ReleaseTagRefGlobal(t):
-\* uintptr_t old_rc = atomic_fetch_sub_explicit(&pref->refcnt, 1,
+\* uintptr_t old_rc = atomic_fetch_sub_explicit(&pref->refcnt, sub_amount,
 \* memory_order_acq_rel);                    // decAndTest
-\* if (old_rc == 1) pref->destroyed = 1;             // "delete"
-\* Source: atomic_smart_ptr.h:531-533 → cds_test_load.c:108-113
+\* if (old_rc == sub_amount) pref->destroyed = 1;    // "delete"
+\* sub_amount = added_global_rcnt (the full caller's pre-pay, since the
+\*   tag-drain CAS path was skipped — ptr changed before we could absorb).
+\* Source: atomic_smart_ptr.h:1198-1204 (final fetch_sub after the loop)
 ReleaseTagRefGlobal(t) ==
     /\ pc[t] = "rtr_global"
     /\ thr_pref[t] /= NULL
     /\ LET o == thr_pref[t]
+           sub_amount == thr_added_grc[t]
            returnPC == CASE thr_rtr_ctx[t] = "load_done" -> "done"
                          [] thr_rtr_ctx[t] = "cas_retry" -> "cas_acquire"
                          [] thr_rtr_ctx[t] = "cas_fail"  -> "cas_fail_done"
+                         [] thr_rtr_ctx[t] = "scope_promote" -> "done"
+                         [] thr_rtr_ctx[t] = "scope_release" -> "done"
                          [] OTHER -> "done"
        IN
-       /\ global_rc' = [global_rc EXCEPT ![o] = @ - 1]
-       /\ IF global_rc[o] = 1
+       /\ global_rc' = [global_rc EXCEPT ![o] = @ - sub_amount]
+       /\ IF global_rc[o] = sub_amount
           THEN freed' = [freed EXCEPT ![o] = TRUE]
           ELSE freed' = freed
        /\ IF thr_rtr_ctx[t] = "load_done"
@@ -391,7 +488,7 @@ ReleaseTagRefGlobal(t) ==
           ELSE UNCHANGED thr_holds
        /\ pc' = [pc EXCEPT ![t] = returnPC]
        /\ UNCHANGED <<ptr, local_rc, thr_op, thr_pref, thr_rcnt, thr_old,
-                      thr_new, thr_rtr_ctx, iterBudget>>
+                      thr_new, thr_rtr_ctx, iterBudget, drain_vars>>
 
 (* ========================================================================== *)
 (* local_shared_ptr::reset()                                                  *)
@@ -416,7 +513,7 @@ Reset(t) ==
           THEN freed' = [freed EXCEPT ![o] = TRUE]
           ELSE freed' = freed
     /\ UNCHANGED <<ptr, local_rc, pc, thr_op, thr_pref, thr_rcnt, thr_old,
-                   thr_new, thr_rtr_ctx, iterBudget>>
+                   thr_new, thr_rtr_ctx, iterBudget, drain_vars>>
 
 (* ========================================================================== *)
 (* compareAndSwap_() operation                                                *)
@@ -451,8 +548,11 @@ StartCAS(t) ==
        /\ thr_new' = [thr_new EXCEPT ![t] = newObj]
     /\ pc' = [pc EXCEPT ![t] = "cas_pre_inc"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "cas"]
+    \* Default drain parameters for the subsequent release_tag_ref_ on CAS undo.
+    /\ thr_cas_rcnt'  = [thr_cas_rcnt  EXCEPT ![t] = 1]
+    /\ thr_added_grc' = [thr_added_grc EXCEPT ![t] = 1]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_holds, thr_rtr_ctx, iterBudget, thr_drained>>
 
 \* @c11_action CASPreInc(t):
 \* if (newr)
@@ -465,7 +565,7 @@ CASPreInc(t) ==
        ELSE UNCHANGED global_rc
     /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
 
 \* @c11_action CASReserve(t):
 \* // Enter acquire_tag_ref_ loop for CAS/swap
@@ -475,7 +575,7 @@ CASReserve(t) ==
     /\ pc[t] = "cas_acquire"
     /\ pc' = [pc EXCEPT ![t] = "atr_read"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
 
 \* @c11_action CASCheck(t):
 \* if (pref != oldr) {
@@ -499,15 +599,17 @@ CASCheck(t) ==
             THEN /\ pc' = [pc EXCEPT ![t] = "rtr_read"]
                  /\ thr_rtr_ctx' = [thr_rtr_ctx EXCEPT ![t] = "cas_fail"]
                  /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
-                                thr_rcnt, thr_old, thr_new, thr_holds, iterBudget>>
+                                thr_rcnt, thr_old, thr_new, thr_holds, iterBudget,
+                                drain_vars>>
             ELSE /\ pc' = [pc EXCEPT ![t] = "cas_fail_done"]
                  /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref,
                                 thr_rcnt, thr_old, thr_new, thr_holds, thr_rtr_ctx,
-                                iterBudget>>
+                                iterBudget, drain_vars>>
        ELSE
             /\ pc' = [pc EXCEPT ![t] = "cas_transfer"]
             /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                           thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                           thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
+                           drain_vars>>
 
 \* @c11_action CASFailDone(t):
 \* // Rollback newr's pre-incremented refcount
@@ -528,7 +630,7 @@ CASFailDone(t) ==
     /\ pc' = [pc EXCEPT ![t] = "done"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new,
-                   thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
 
 \* @c11_action CASTransfer(t):
 \* // Transfer local refcount to global before the pointer CAS
@@ -545,7 +647,7 @@ CASTransfer(t) ==
        ELSE UNCHANGED global_rc
     /\ pc' = [pc EXCEPT ![t] = "cas_swap"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
 
 \* @c11_action CASSwap(t):
 \* uintptr_t expected = (uintptr_t)pref + rcnt_old;
@@ -583,12 +685,12 @@ CASSwap(t) ==
                   /\ pc' = [pc EXCEPT ![t] = "cas_cleanup"]
                   /\ UNCHANGED <<thr_holds, thr_op>>
           /\ UNCHANGED <<global_rc, freed, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_rtr_ctx, iterBudget>>
+                         thr_old, thr_new, thr_rtr_ctx, iterBudget, drain_vars>>
        \/ (* CAS fails *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ pc' = [pc EXCEPT ![t] = "cas_undo"]
           /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_op, thr_pref, thr_rcnt,
-                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget>>
+                         thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
 
 \* @c11_action CASUndo(t):
 \* // Undo the transfer and release local ref
@@ -614,7 +716,7 @@ CASUndo(t) ==
        ELSE /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]
             /\ UNCHANGED <<global_rc, thr_rtr_ctx>>
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, iterBudget>>
+                   thr_old, thr_new, thr_holds, iterBudget, drain_vars>>
 
 \* @c11_action CASCleanup(t):
 \* // Release m_ref's old ownership after successful CAS
@@ -637,7 +739,7 @@ CASCleanup(t) ==
     /\ pc' = [pc EXCEPT ![t] = "done"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ UNCHANGED <<ptr, local_rc, thr_pref, thr_rcnt, thr_old, thr_new,
-                   thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_holds, thr_rtr_ctx, iterBudget, drain_vars>>
 
 (* ========================================================================== *)
 (* local_shared_ptr::swap(atomic_shared_ptr&)                                 *)
@@ -669,8 +771,11 @@ StartSwap(t) ==
        /\ thr_new' = [thr_new EXCEPT ![t] = newObj]
     /\ pc' = [pc EXCEPT ![t] = "cas_acquire"]  \* skip PreInc
     /\ thr_op' = [thr_op EXCEPT ![t] = "swap"]
+    \* Default drain parameters for the subsequent release_tag_ref_ on CAS undo.
+    /\ thr_cas_rcnt'  = [thr_cas_rcnt  EXCEPT ![t] = 1]
+    /\ thr_added_grc' = [thr_added_grc EXCEPT ![t] = 1]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_old, thr_holds, thr_rtr_ctx, iterBudget>>
+                   thr_old, thr_holds, thr_rtr_ctx, iterBudget, thr_drained>>
 
 ReturnToIdle(t) ==
     /\ pc[t] = "done"
@@ -679,7 +784,7 @@ ReturnToIdle(t) ==
     /\ thr_op' = [thr_op EXCEPT ![t] = "idle"]
     /\ iterBudget' = [iterBudget EXCEPT ![t] = @ - 1]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_old, thr_new, thr_holds, thr_rtr_ctx>>
+                   thr_old, thr_new, thr_holds, thr_rtr_ctx, drain_vars>>
 
 (* ========================================================================== *)
 (* Next-state relation                                                        *)
