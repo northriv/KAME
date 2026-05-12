@@ -184,6 +184,13 @@ drain_vars == <<thr_cas_rcnt, thr_added_grc, thr_drained>>
 \* Convenience tuple for actions that don't touch scope state.
 scope_vars == <<scope_state, scope_pref>>
 
+\* Budget guard for Start* actions: while scope_state[t] = "tagheld",
+\* the thread must reserve 1 iterBudget unit for the eventual ScopeDtor
+\* (so a budgeted op that leaves scope tagheld requires >= 2; an op when
+\* scope is "none" requires >= 1).
+BudgetForStart(t) ==
+    IF scope_state[t] = "tagheld" THEN iterBudget[t] >= 2 ELSE iterBudget[t] >= 1
+
 (* -------------------------------------------------------------------------- *)
 (* Type invariant                                                             *)
 (* -------------------------------------------------------------------------- *)
@@ -304,7 +311,7 @@ Recycle(t) ==
 \*   Source: atomic_smart_ptr.h:500 -> cds_test_load.c:122
 StartLoadShared(t) ==
     /\ pc[t] = "idle"
-    /\ iterBudget[t] > 0
+    /\ BudgetForStart(t)
     /\ \A o \in Objects : thr_holds[t][o] = 0  \* C++: local_shared_ptr destroyed before next load
     /\ pc' = [pc EXCEPT ![t] = "atr_read"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "load"]
@@ -315,7 +322,7 @@ StartLoadShared(t) ==
     /\ thr_added_grc' = [thr_added_grc EXCEPT ![t] = 1]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
                    thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
-                   thr_drained>>
+                   thr_drained, scope_vars>>
 
 (* ========================================================================== *)
 (* acquire_tag_ref_(): atomic read of m_ref                                      *)
@@ -403,7 +410,7 @@ LoadSharedIncGlobal(t) ==
     /\ pc' = [pc EXCEPT ![t] = "ls_release"]
     /\ UNCHANGED <<ptr, local_rc, freed, thr_op, thr_pref, thr_rcnt,
                    thr_old, thr_new, thr_holds, thr_rtr_ctx, iterBudget,
-                   thr_drained>>
+                   thr_drained, scope_vars>>
 
 \* @c11_action LoadSharedStartRelease(t):
 \* // fall-through to release_tag_ref_(pref)
@@ -484,7 +491,8 @@ ReleaseTagRefCAS(t) ==
              ELSE UNCHANGED thr_holds
           /\ pc' = [pc EXCEPT ![t] = returnPC]
           /\ UNCHANGED <<ptr, thr_op, thr_pref, thr_rcnt, thr_old, thr_new,
-                         thr_rtr_ctx, iterBudget, thr_cas_rcnt, thr_added_grc>>
+                         thr_rtr_ctx, iterBudget, thr_cas_rcnt, thr_added_grc,
+                         scope_vars>>
        \/ (* CAS fails, ptr still matches -> retry release_tag_ref_ *)
           /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
           /\ ptr = thr_pref[t]
@@ -580,7 +588,7 @@ Reset(t) ==
 StartCAS(t) ==
     /\ EnableCAS
     /\ pc[t] = "idle"
-    /\ iterBudget[t] > 0
+    /\ BudgetForStart(t)
     /\ \E oldObj \in Objects \cup {NULL}, newObj \in Objects \cup {NULL} :
        /\ oldObj /= newObj
        /\ (newObj /= NULL => (freed[newObj] = FALSE /\ thr_holds[t][newObj] > 0))
@@ -592,7 +600,7 @@ StartCAS(t) ==
     /\ thr_cas_rcnt'  = [thr_cas_rcnt  EXCEPT ![t] = 1]
     /\ thr_added_grc' = [thr_added_grc EXCEPT ![t] = 1]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
-                   thr_holds, thr_rtr_ctx, iterBudget, thr_drained>>
+                   thr_holds, thr_rtr_ctx, iterBudget, thr_drained, scope_vars>>
 
 \* @c11_action CASPreInc(t):
 \* if (newr)
@@ -805,7 +813,7 @@ CASCleanup(t) ==
 StartSwap(t) ==
     /\ EnableSwap
     /\ pc[t] = "idle"
-    /\ iterBudget[t] > 0
+    /\ BudgetForStart(t)
     /\ \E newObj \in Objects \cup {NULL} :
        /\ (newObj /= NULL => (freed[newObj] = FALSE /\ thr_holds[t][newObj] > 0))
        /\ thr_new' = [thr_new EXCEPT ![t] = newObj]
@@ -855,7 +863,9 @@ StartSwap(t) ==
 ScopeStartAcquire(t) ==
     /\ pc[t] = "idle"
     /\ scope_state[t] = "none"
-    /\ iterBudget[t] > 0
+    \* Reserve 1 budget unit for the eventual ScopeDtor: post-action
+    \* leaves scope=tagheld, so post-budget >= 1 is required → pre >= 2.
+    /\ iterBudget[t] >= 2
     /\ pc' = [pc EXCEPT ![t] = "atr_read"]
     /\ thr_op' = [thr_op EXCEPT ![t] = "scope_acquire"]
     /\ UNCHANGED <<ptr, local_rc, global_rc, freed, thr_pref, thr_rcnt,
@@ -887,7 +897,9 @@ ScopeSetState(t) ==
 ScopeCASStart(t) ==
     /\ pc[t] = "idle"
     /\ scope_state[t] = "tagheld"
-    /\ iterBudget[t] > 0
+    \* Conservative: CAS may fail (post-state still tagheld), so reserve
+    \* 1 budget for the eventual ScopeDtor → pre >= 2.
+    /\ iterBudget[t] >= 2
     /\ \E newObj \in Objects \cup {NULL} :
        /\ newObj /= scope_pref[t]
        /\ (newObj /= NULL => (freed[newObj] = FALSE /\ thr_holds[t][newObj] > 0))
@@ -1113,9 +1125,13 @@ Next ==
         \/ ReturnToIdle(t)
 
 (* Natural bounds — verified as invariants, no StateConstraint needed *)
-(* local_rc <= N: at most N threads can each increment local_rc by 1 *)
+(* local_rc <= 2N: each thread can hold at most 2 tag refs simultaneously: *)
+(*   - 1 long-lived scope tag (scope_state = "tagheld"), AND               *)
+(*   - 1 in-progress acquire (load_shared/CAS/swap mid-acquire).            *)
+(* The two activities can overlap because operations on the local_rc are   *)
+(* independent of scope ownership.                                          *)
 LocalRCBounded ==
-    local_rc <= Cardinality(Threads)
+    local_rc <= 2 * Cardinality(Threads)
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
