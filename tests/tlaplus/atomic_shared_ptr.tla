@@ -56,15 +56,25 @@
  *     modifications between read and CAS.
  *   - Symmetry support for state space reduction.
  *
- * Note on ABA: ABA-by-recycling (allocator returning a freed address for a
- * new object) is NOT modelled.  It is prevented by the shared-pointer
- * ownership contract: compareAndSwap_(oldr, newr)'s caller holds a
- * local_shared_ptr<T> oldr with oldr->refcnt >= 1, so oldr cannot be
- * destroyed and its address cannot be recycled.  This is an API invariant
- * imposed on callers, not a property the tagged-pointer protocol enforces
- * structurally.  The (ptr, local_rc) tag CAS alone does not prevent
- * recycle-based ABA because local_rc can cycle back to the same value
- * under concurrent acquire/release activity.
+ * Note on ABA: not modelled, because in the KAME STM usage pattern ABA
+ * cannot meaningfully occur — for two distinct reasons:
+ *
+ *   (1) Allocator recycle.  compareAndSwap_(oldr, newr)'s caller holds a
+ *       local_shared_ptr<T> oldr with oldr->refcnt >= 1, so oldr cannot be
+ *       destroyed and the allocator cannot return its address for a new
+ *       object.  This is an API contract on callers, not something the
+ *       tagged-pointer protocol enforces structurally.  In particular the
+ *       (ptr, local_rc) tag CAS alone does NOT prevent recycle-based ABA:
+ *       local_rc can cycle back to the same value under concurrent
+ *       acquire/release activity.
+ *
+ *   (2) Re-installation by a peer.  Thread B doing CAS sequence
+ *       oldr -> newr2 -> oldr is physically possible (the pointer word
+ *       returns to oldr after two CASes).  However, in the COW-based STM
+ *       above, every commit produces a fresh wrapper; re-installing the
+ *       SAME oldr would mean using stale data — itself a usage violation.
+ *       So this kind of "logical ABA" only arises in pathological usage,
+ *       not in valid STM behavior, and is therefore out of scope.
  *
  * Source: kame/atomic_smart_ptr.h
  *)
