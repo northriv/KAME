@@ -1054,7 +1054,7 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     Priority pr, cnt_t tidstamp, int sig_C) noexcept
 {
     int64_t now_us = detail::ll_now_us();
-    int64_t tx_age_us = now_us - detail::stamp_us(tidstamp);
+    int64_t tx_age_us = (int64_t)detail::diff_us_packed(now_us, tidstamp);
     // CAS-loop: claim the slot if empty, OR preempt the current holder
     // if their Tx has been running longer than PRIV_EXPIRE_US (holder
     // is likely OS-preempted or stuck). The old age_diff-based scheme
@@ -1085,7 +1085,7 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
             // or stuck) and any challenger may take over, regardless of
             // its own age. EXPIRE_US is therefore a hard expiry floor on
             // how long any single holder may keep the privilege slot.
-            int64_t holder_tx_age = now_us - (int64_t)detail::stamp_us(expected);
+            int64_t holder_tx_age = (int64_t)detail::diff_us_packed(now_us, expected);
             if (holder_tx_age < KAME_STM_PRIV_EXPIRE_US)
                 return false;
         } else {
@@ -1612,10 +1612,11 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // and Transaction ctors and is not reset by operator++ — so the
     // probe's `tx_age_us` printout is really "Snapshot/Tx age". The
     // `tx_` label is kept for log-format continuity.
-    // m_started_time is tid-packed; unpack the µs component before
-    // subtracting the raw-µs now_us() value.
-    int64_t _ll_age_us = now_us_entry
-                     - NegotiationCounter::stamp_us(started_time);
+    // m_started_time is a tid+kind+us-packed stamp; diff_us_packed
+    // extracts the µs component and applies modular subtraction
+    // (wrap-safe at US_BITS = 46).
+    int64_t _ll_age_us =
+        (int64_t)NegotiationCounter::diff_us_packed(now_us_entry, started_time);
     if (_ll_age_us >= NegotiationCounter::min_privilege_age_us(Priority::HIGHEST)
         && !snap.m_tagged_linkages.empty()) {  // skip when too young or untagged
         // Count tagged linkages whose m_transaction_started_time == ours
@@ -1670,12 +1671,11 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // `entry_pr` is computed once at the top of negotiate_internal.
 #ifdef KAME_PRIORITY_LEASE
     if(entry_pr != Priority::LOWEST && entry_pr != Priority::UI_DEFERRABLE) {
-    // transaction_started_time is tid-packed; unpack before diffing
-    // against the raw-µs now_us() clock.
+    // transaction_started_time is tid+kind+us-packed; diff_us_packed
+    // extracts the µs and applies modular subtraction (wrap-safe).
     auto adapt_dt2_last_us =
-        (typename NegotiationCounter::cnt_t)
-        (now_us_entry
-         - Node<XN>::NegotiationCounter::stamp_us(transaction_started_time));
+        NegotiationCounter::diff_us_packed(
+            now_us_entry, transaction_started_time);
 
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     s_adapt_dt2_last_us = adapt_dt2_last_us;
@@ -1792,9 +1792,11 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             NegotiationCounter::notify_n_contenders(tid_bitset, 1);
             break;
         }
-        // Both stamps are tid-packed; subtract their µs components.
-        auto dt = NegotiationCounter::stamp_us(started_time)
-                - NegotiationCounter::stamp_us(transaction_started_time);
+        // Both stamps are tid+kind+us-packed; signed_diff_us_packed
+        // returns (my_us - other_us) interpreted as a signed wrap-safe
+        // delta.  dt <= 0  ⇒  I am oldest (or equal) → break.
+        int64_t dt = NegotiationCounter::signed_diff_us_packed(
+            started_time, transaction_started_time);
         if(dt <= 0)
             break; //This thread is the oldest.
         auto transaction_started_time =
@@ -1802,8 +1804,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         if( !transaction_started_time)
             break; //collision has not been detected.
 
-        auto dt2 = Node<XN>::NegotiationCounter::now_us()
-                 - NegotiationCounter::stamp_us(transaction_started_time);
+        auto dt2 = NegotiationCounter::diff_us_packed(
+            Node<XN>::NegotiationCounter::now_us(),
+            transaction_started_time);
 
         // Fair-mode escape: when some other thread holds the privileged-
         // TID slot, suppress the jittered gate and the √C lottery so the

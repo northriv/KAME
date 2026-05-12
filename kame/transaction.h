@@ -144,17 +144,69 @@ namespace detail {
     extern thread_local int s_sleep_nest;
 #endif
     using cnt_t = int64_t;
-    inline cnt_t pack_stamp(cnt_t us, uint16_t tid) noexcept {
-        return (us & ((cnt_t{1} << 48) - 1)) | (cnt_t{tid} << 48);
+    //! Packed stamp layout (low → high):
+    //!   [ us : US_BITS | kind : KIND_BITS | tid : TID_BITS ]
+    //! US_BITS = 46 gives ~2.2 yr of monotonic µs (wrap-safe over any
+    //! KAME operation; longest real wait is EXPIRE_US = 50 ms).
+    //! KIND_BITS = 2 carries the operation discriminator (BUNDLE /
+    //! UNBUNDLE / COMMIT / NONE) used by the same-op piggyback path.
+    //! KIND defaults to 0 (NONE) in all existing call sites; readers
+    //! that don't compare kind are bit-stable.
+    constexpr int    STAMP_US_BITS    = 46;
+    constexpr int    STAMP_KIND_BITS  = 2;
+    constexpr int    STAMP_KIND_SHIFT = STAMP_US_BITS;                       // 46
+    constexpr int    STAMP_TID_SHIFT  = STAMP_US_BITS + STAMP_KIND_BITS;     // 48
+    constexpr cnt_t  STAMP_US_MASK    = (cnt_t{1} << STAMP_US_BITS) - 1;
+    constexpr cnt_t  STAMP_KIND_MASK  = (cnt_t{1} << STAMP_KIND_BITS) - 1;
+
+    inline cnt_t pack_stamp(cnt_t us, uint16_t tid, uint8_t kind = 0) noexcept {
+        return (us & STAMP_US_MASK)
+             | ((cnt_t{kind} & STAMP_KIND_MASK) << STAMP_KIND_SHIFT)
+             | (cnt_t{tid} << STAMP_TID_SHIFT);
     }
     inline cnt_t stamp_us(cnt_t x) noexcept {
-        // Low 48 bits; steady-clock µs is always positive so a
-        // plain mask is correct (no sign-extension needed).
-        return x & ((cnt_t{1} << 48) - 1);
+        // Low US_BITS; steady-clock µs is always positive so a plain
+        // mask is correct (no sign-extension needed).
+        return x & STAMP_US_MASK;
+    }
+    inline uint8_t stamp_kind(cnt_t x) noexcept {
+        return (uint8_t)(((uint64_t)x >> STAMP_KIND_SHIFT) & STAMP_KIND_MASK);
     }
     inline uint16_t stamp_tid(cnt_t x) noexcept {
-        return (uint16_t)((uint64_t)x >> 48);
+        return (uint16_t)((uint64_t)x >> STAMP_TID_SHIFT);
     }
+    //! Modular µs difference: returns (now - past) mod 2^STAMP_US_BITS,
+    //! interpreted as elapsed microseconds.  Inputs may be raw `now_us()`
+    //! (64-bit) or already-masked stamps; the result is correct as long
+    //! as the true elapsed time is < 2^(STAMP_US_BITS - 1) µs (~1 yr at
+    //! 46 bits).  All KAME diffs are <= EXPIRE_US = 50 ms.
+    inline cnt_t diff_us(cnt_t now, cnt_t past) noexcept {
+        return (cnt_t)((uint64_t)(now - past) & (uint64_t)STAMP_US_MASK);
+    }
+    //! Convenience: input is a packed stamp; extract us and diff.
+    inline cnt_t diff_us_packed(cnt_t now, cnt_t past_packed) noexcept {
+        return diff_us(now, stamp_us(past_packed));
+    }
+    //! Signed µs difference between two packed stamps.
+    //! Returns (stamp_us(a) - stamp_us(b)) interpreted as a signed
+    //! US_BITS-wide value, sign-extended to int64_t.
+    //!   > 0 ⇒ a is younger (later) than b
+    //!   < 0 ⇒ a is older (earlier) than b
+    //!   = 0 ⇒ equal
+    //! Wrap-safe: true delta must be < 2^(STAMP_US_BITS-1) µs.
+    inline int64_t signed_diff_us_packed(cnt_t a_packed, cnt_t b_packed) noexcept {
+        cnt_t u = diff_us(stamp_us(a_packed), stamp_us(b_packed));
+        constexpr cnt_t SIGN_BIT = cnt_t{1} << (STAMP_US_BITS - 1);
+        return (int64_t)(((uint64_t)u ^ (uint64_t)SIGN_BIT) - (uint64_t)SIGN_BIT);
+    }
+    //! op_kind discriminator values.  0 (NONE) is reserved as the
+    //! default for non-piggyback-aware code paths.
+    enum class StampKind : uint8_t {
+        NONE     = 0,
+        BUNDLE   = 1,
+        UNBUNDLE = 2,
+        COMMIT   = 3,
+    };
 
     //! Cacheline-padded "I am currently running a Tx" counter, owned
     //! by exactly one thread. Heap-allocated per thread so increments
@@ -427,14 +479,30 @@ private:
         //! and the other hot paths go through the same helpers — at
         //! -O2/-O3 the mask is folded into the surrounding instruction
         //! stream at zero extra cost on top of the atomic load itself.
-        static inline cnt_t pack_stamp(cnt_t us, uint16_t tid) noexcept {
-            return detail::pack_stamp(us, tid);
+        using StampKind = detail::StampKind;
+
+        static inline cnt_t pack_stamp(cnt_t us, uint16_t tid,
+                                       uint8_t kind = 0) noexcept {
+            return detail::pack_stamp(us, tid, kind);
         }
         static inline cnt_t stamp_us(cnt_t x) noexcept {
             return detail::stamp_us(x);
         }
+        static inline uint8_t stamp_kind(cnt_t x) noexcept {
+            return detail::stamp_kind(x);
+        }
         static inline uint16_t stamp_tid(cnt_t x) noexcept {
             return detail::stamp_tid(x);
+        }
+        //! Modular µs difference helpers — see detail::diff_us.
+        static inline cnt_t diff_us(cnt_t now, cnt_t past) noexcept {
+            return detail::diff_us(now, past);
+        }
+        static inline cnt_t diff_us_packed(cnt_t now, cnt_t past_packed) noexcept {
+            return detail::diff_us_packed(now, past_packed);
+        }
+        static inline int64_t signed_diff_us_packed(cnt_t a, cnt_t b) noexcept {
+            return detail::signed_diff_us_packed(a, b);
         }
         //! `now_us()` with the current thread's ProcessCounter::id
         //! packed into the upper 16 bits. Used at Transaction /
@@ -442,6 +510,22 @@ private:
         static inline cnt_t now_us_tagged() noexcept {
             return pack_stamp(now_us(),
                 (uint16_t)(ProcessCounter::id() & 0xFFFFu));
+        }
+        //! Kind-tagged variant: stamps op_kind into the 2-bit kind slot.
+        //! Used by bundle/unbundle entry to advertise the in-flight op.
+        static inline cnt_t now_us_tagged(StampKind kind) noexcept {
+            return pack_stamp(now_us(),
+                (uint16_t)(ProcessCounter::id() & 0xFFFFu),
+                (uint8_t)kind);
+        }
+        //! Replace the kind bits of an existing stamp, preserving us+tid.
+        //! For stamping linkage with `m_started_time` + op kind.
+        static inline cnt_t with_kind(cnt_t stamp, StampKind kind) noexcept {
+            constexpr cnt_t KIND_FIELD =
+                detail::STAMP_KIND_MASK << detail::STAMP_KIND_SHIFT;
+            return (stamp & ~KIND_FIELD)
+                 | ((cnt_t{(uint8_t)kind} & detail::STAMP_KIND_MASK)
+                        << detail::STAMP_KIND_SHIFT);
         }
 
         //=====================================================================
