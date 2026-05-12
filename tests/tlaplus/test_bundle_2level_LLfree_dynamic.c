@@ -1,0 +1,1165 @@
+/***************************************************************************
+        Copyright (C) 2002-2026 Kentaro Kitagawa
+                           kitag@issp.u-tokyo.ac.jp
+
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
+
+        You should have received a copy of the GNU General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
+ ***************************************************************************/
+/*
+ * C11 test generated mechanically from BundleUnbundle_2level_LLfree_dynamic.tla.
+ * Dynamic-child variant of the 2-level LL-free model.
+ *
+ * Tree (dynamic): Parent --+-- DynChild1  (inserted/released at runtime)
+ *                          +-- DynChild2  (inserted/released at runtime)
+ *
+ * Both children start UNATTACHED with own priority wrappers.
+ *   Phase A — Insert: ROLE_INSERT threads pick uninserted children and
+ *     run insert(online=true) — CAS Parent → CAS Child to InsertedRef
+ *     → CAS Parent installing new sub[c] with payload+1.
+ *   Phase B — Commit (interleaved with optional Release):
+ *     ROLE_ROOT does CommitParent (snapshot Parent, +1 to ALL currently
+ *     inserted children atomically).
+ *     ROLE_LEAF does CommitChild for each child currently inserted
+ *     (direct commit per child; skip if released mid-iteration).
+ *   Phase C — Release: ROLE_RELEASE threads release inserted children
+ *     after own commits done — CAS Parent dropping sub[c] → CAS Child
+ *     restoring priority wrapper.
+ *
+ * Children are discovered dynamically from the `inserted[]` flag.
+ * Each child's expected final payload = 1 (from insert) + commit_count[c].
+ *
+ * State additions vs static 2L LLfree:
+ *   inserted[c]        : currently online flag (per child)
+ *   ever_inserted[c]   : sticky "was ever inserted" — gates SnapRead/SkipIteration
+ *   insert_target[t]   : thread-claimed insert target (atomic CAS to claim)
+ *   release_target[t]  : thread-claimed release target
+ *
+ * Atomicity modes / Option Z / diag counters carry over verbatim.
+ */
+
+#include <stdint.h>
+#include <stdatomic.h>
+#include <pthread.h>
+#include <assert.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/* --- Compile-time mode selection --- */
+#define MODE_COARSE    1
+#define MODE_FINE      2
+#define MODE_SUPERFINE 3
+
+#ifndef MODE
+#define MODE MODE_FINE
+#endif
+
+#ifndef NUM_THREADS
+#define NUM_THREADS 2
+#endif
+
+#ifndef STRESS_SECONDS
+#define STRESS_SECONDS 0
+#endif
+
+#ifndef MAX_COMMITS
+#  if STRESS_SECONDS > 0
+#    define MAX_COMMITS 0x7fffffff
+#  else
+#    define MAX_COMMITS 1
+#  endif
+#endif
+
+#ifndef MAX_PAYLOAD
+#define MAX_PAYLOAD 3
+#endif
+
+/* Mirrors TLA+ CONSTANTS InsertThreads / RootThreads / LeafThreads /
+ * ReleaseThreads (2-level dynamic).
+ *   ROLE_INSERT  : participates in initial insert phase
+ *   ROLE_ROOT    : CommitParent (snapshot Parent, +1 to ALL inserted children)
+ *   ROLE_LEAF    : CommitChild per inserted child (direct commit)
+ *   ROLE_RELEASE : participates in final release phase (after own commits)
+ * Default per-thread role mask = ROLE_ROOT|ROLE_LEAF|ROLE_INSERT|ROLE_RELEASE
+ * unless overridden via per-bit count macros.
+ * Each child's final payload = 1 (insert) + MAX_COMMITS * (|root| + |leaf|). */
+#define ROLE_ROOT     0x1u
+#define ROLE_LEAF     0x2u
+#define ROLE_INSERT   0x4u
+#define ROLE_RELEASE  0x8u
+#define ROLE_BOTH     (ROLE_ROOT | ROLE_LEAF)
+
+/* Per-role thread counts.  Default = all threads have ROLE_ROOT|ROLE_LEAF.
+ * INSERT is enabled on the first NUM_INSERT_THREADS tids (default = all);
+ * RELEASE is enabled on the first NUM_RELEASE_THREADS tids (default = 0,
+ * since the model permits ReleaseThreads = {}). */
+#ifndef NUM_ROOT_ONLY
+#define NUM_ROOT_ONLY 0
+#endif
+#ifndef NUM_LEAF_ONLY
+#define NUM_LEAF_ONLY 0
+#endif
+#ifndef NUM_INSERT_THREADS
+#define NUM_INSERT_THREADS NUM_THREADS    /* ASSUME InsertThreads /= {} */
+#endif
+#ifndef NUM_RELEASE_THREADS
+#define NUM_RELEASE_THREADS 0
+#endif
+#if (NUM_ROOT_ONLY + NUM_LEAF_ONLY) > NUM_THREADS
+#  error "NUM_ROOT_ONLY + NUM_LEAF_ONLY exceeds NUM_THREADS"
+#endif
+#if NUM_INSERT_THREADS < 1
+#  error "TLA+ ASSUME violation: InsertThreads must be non-empty"
+#endif
+#if NUM_INSERT_THREADS > NUM_THREADS || NUM_RELEASE_THREADS > NUM_THREADS
+#  error "Insert/Release thread count exceeds NUM_THREADS"
+#endif
+#define NUM_BOTH         (NUM_THREADS - NUM_ROOT_ONLY - NUM_LEAF_ONLY)
+#define NUM_ROOT_THREADS (NUM_ROOT_ONLY + NUM_BOTH)
+#define NUM_LEAF_THREADS (NUM_LEAF_ONLY + NUM_BOTH)
+#if (NUM_ROOT_THREADS + NUM_LEAF_THREADS) < NUM_THREADS
+#  error "TLA+ ASSUME violation: RootThreads ∪ LeafThreads must equal Threads"
+#endif
+
+/* Packet pool: ring-buffer of packets (immutable once written).  Larger than
+ * max in-flight references prevents pool-wrap silent corruption.  Default
+ * 65536 (L2-friendly); raise via -DPACKET_POOL_ENTRIES up to 134217727. */
+/* Safe default: max 27-bit pool (widest wrap margin). */
+#ifndef PACKET_POOL_ENTRIES
+#define PACKET_POOL_ENTRIES 134217727u
+#endif
+#if (PACKET_POOL_ENTRIES) > 134217727u
+#  error "PACKET_POOL_ENTRIES must fit in 27 bits (<=134217727)"
+#endif
+
+/* --- Node IDs --- */
+#define NODE_PARENT 0
+#define NODE_CHILD1 1
+#define NODE_CHILD2 2
+#define NUM_NODES   3
+
+/* bundled_by is a 2-bit field: 0=PARENT, 3=NULL_NODE (priority).  The
+ * 2-level tree only has Parent as a possible bundler (Children have no
+ * other ancestor); values 1 and 2 are unused. */
+#define NULL_NODE   0x3u
+
+/* --- Serial + slot widths (symmetric, matches 3-level) --- */
+#define SER_BITS   27u
+#define SER_MOD    (1u << SER_BITS)
+#define SER_MASK   (SER_MOD - 1u)
+#define SLOT_BITS  27u
+#define SLOT_MASK  ((1u << SLOT_BITS) - 1u)
+#define SLOT_NULL  0u   /* reserved */
+
+/* --- Modular serial comparison (TLA+ ModGT) --- */
+static inline bool ser_gt(uint32_t a, uint32_t b) {
+    uint32_t diff = (a - b) & SER_MASK;
+    return diff > 0 && diff < (SER_MOD >> 1);
+}
+
+/* TID-encoded base-B Lamport serial — mirrors C++
+ * SerialGenerator::gen() (transaction.h:547-576).  Counter in upper
+ * bits + TID in lower bits → same counter on two threads produces
+ * DIFFERENT serials, so wrappers are thread-unique without any global
+ * atomic.
+ *
+ * TLA+: serial = counter * SerialBase + tid, SerialBase > max TID.
+ * GenSerial: newCnt = max(SerialCounter(lastSer), SerialCounter(serial[t])) + 1
+ *            return EncodeSerial(newCnt, t)
+ * Pure TLS + linkage-serial Lamport — no globalSerial. */
+#define SERIAL_BASE  ((uint32_t)(NUM_THREADS + 1))   /* > max tid */
+
+static inline uint32_t serial_counter(uint32_t s) { return s / SERIAL_BASE; }
+__attribute__((unused))
+static inline uint32_t serial_tid(uint32_t s)     { return s % SERIAL_BASE; }
+static inline uint32_t encode_serial(uint32_t cnt, uint32_t tid) {
+    return ((cnt * SERIAL_BASE) + tid) & SER_MASK;
+}
+
+static inline uint32_t gen_serial(uint32_t thread_ser, uint32_t last_ser, uint32_t my_tid) {
+    uint32_t last_cnt = serial_counter(last_ser);
+    uint32_t my_cnt   = serial_counter(thread_ser);
+    uint32_t base_cnt = ser_gt(last_cnt, my_cnt) ? last_cnt : my_cnt;
+    uint32_t new_cnt  = base_cnt + 1u;
+    return encode_serial(new_cnt, my_tid);
+}
+
+/* ============================================================================
+ * Packet pool.  Packet bits:
+ *   payload(8) | sub_slot[0](27) | sub_slot[1](27) | missing(1)
+ * ============================================================================ */
+static _Atomic(uint64_t) packet_pool[PACKET_POOL_ENTRIES + 1];
+static _Atomic(uint32_t) global_slot_counter;
+
+static inline uint64_t pkt_pack(uint8_t payload, uint32_t s0, uint32_t s1, bool missing) {
+    uint64_t v = 0;
+    v |= (uint64_t)payload;
+    v |= ((uint64_t)(s0 & SLOT_MASK)) << 8;
+    v |= ((uint64_t)(s1 & SLOT_MASK)) << 35;
+    v |= ((uint64_t)(missing ? 1u : 0u)) << 62;
+    return v;
+}
+static inline void pkt_unpack(uint64_t v, uint8_t *payload,
+                              uint32_t *s0, uint32_t *s1, bool *missing) {
+    if (payload) *payload = (uint8_t)(v & 0xFFu);
+    if (s0)      *s0      = (uint32_t)((v >> 8)  & (uint64_t)SLOT_MASK);
+    if (s1)      *s1      = (uint32_t)((v >> 35) & (uint64_t)SLOT_MASK);
+    if (missing) *missing = (v >> 62) & 1u;
+}
+
+static inline uint32_t alloc_slot(uint8_t payload, uint32_t s0, uint32_t s1, bool missing) {
+    uint32_t c = atomic_fetch_add_explicit(&global_slot_counter, 1u, memory_order_relaxed);
+    uint32_t s = (c % PACKET_POOL_ENTRIES) + 1u;
+    atomic_store_explicit(&packet_pool[s],
+        pkt_pack(payload, s0, s1, missing), memory_order_release);
+    return s;
+}
+
+static inline uint64_t load_pkt_raw(uint32_t slot) {
+    return atomic_load_explicit(&packet_pool[slot], memory_order_acquire);
+}
+static inline uint8_t load_pkt_payload(uint32_t slot) {
+    uint8_t p; pkt_unpack(load_pkt_raw(slot), &p, NULL, NULL, NULL);
+    return p;
+}
+
+/* ============================================================================
+ * Wrapper: serial(27) | has_priority(1) | bundled_by(2) | packet_slot(27).
+ * No wrapper-level missing (lives in Packet).
+ * ============================================================================ */
+typedef struct {
+    bool     has_priority;
+    uint32_t serial;
+    uint8_t  bundled_by;
+    uint32_t packet_slot;
+} Wrapper;
+
+static inline uint64_t wrapper_pack(Wrapper w) {
+    uint64_t v = 0;
+    v |= (uint64_t)(w.serial & SER_MASK);
+    v |= ((uint64_t)(w.has_priority ? 1u : 0u)) << 27;
+    v |= ((uint64_t)(w.bundled_by & 0x3u)) << 28;
+    v |= ((uint64_t)(w.packet_slot & SLOT_MASK)) << 30;
+    return v;
+}
+static inline Wrapper wrapper_unpack(uint64_t v) {
+    Wrapper w;
+    w.serial       = (uint32_t)(v & SER_MASK);
+    w.has_priority = (v >> 27) & 1u;
+    w.bundled_by   = (uint8_t)((v >> 28) & 0x3u);
+    w.packet_slot  = (uint32_t)((v >> 30) & (uint64_t)SLOT_MASK);
+    return w;
+}
+
+/* --- Shared state --- */
+static _Atomic(uint64_t) linkage[NUM_NODES];
+static _Atomic(uint32_t) commit_count[NUM_NODES];
+static _Atomic(bool)     g_stop;
+
+/* Dynamic-child state (TLA+ BundleUnbundle_2level_LLfree_dynamic).
+ *   inserted[c]      : currently online flag (mirrors TLA+ inserted).
+ *   ever_inserted[c] : sticky "was ever inserted" — gates SnapRead /
+ *                      SkipIteration / Release.  Set TRUE in InsertFinal.
+ *   insert_target[c] : atomic claim flag for child c (used as
+ *                      bool 0/1 via CAS to enforce TLA+'s
+ *                      `\A t2 /= t : insertTarget[t2] /= c`).
+ *   release_target[c]: same but for release. */
+static _Atomic(bool)     inserted[NUM_NODES];       /* per-node, only child slots used */
+static _Atomic(bool)     ever_inserted[NUM_NODES];
+static _Atomic(uint32_t) insert_target_claim[NUM_NODES];   /* tid of claimer, 0 = unclaimed */
+static _Atomic(uint32_t) release_target_claim[NUM_NODES];
+
+/* --- Spin / race-detection counters (stress diagnostics) --- */
+static _Atomic(uint64_t) spin_bundle;        /* try_bundle bailouts        */
+static _Atomic(uint64_t) spin_commit_parent; /* commit_parent CAS failures */
+static _Atomic(uint64_t) spin_commit_child;  /* commit_child  CAS failures */
+static _Atomic(uint64_t) spin_stale_read;    /* pool-wrap detector fires   */
+static _Atomic(uint64_t) spin_negotiate;     /* can_proceed gated waits    */
+static _Atomic(uint64_t) spin_preempt;       /* tag preemptions issued     */
+#define SPIN_INC(name) atomic_fetch_add_explicit(&(name), 1u, memory_order_relaxed)
+
+/* ============================================================================
+ * LL-free negotiate machinery.
+ *   Tag = uint64_t. Bit 63 = "valid" flag. Bits 32-62 = iter (31 bit).
+ *   Bits 0-31 = tid.  Tag value 0 == Null (no holder).
+ * ============================================================================ */
+typedef uint64_t Tag;
+#define TAG_NULL   ((Tag)0)
+#define TAG_VALID  (((Tag)1) << 63)
+#define TAG_ITER_MASK 0x7FFFFFFFu
+
+static inline Tag make_tag(uint32_t iter, uint32_t tid) {
+    return TAG_VALID | ((Tag)(iter & TAG_ITER_MASK) << 32) | (Tag)tid;
+}
+static inline bool     tag_is_null(Tag t) { return t == TAG_NULL; }
+static inline uint32_t tag_iter(Tag t)    { return (uint32_t)((t >> 32) & TAG_ITER_MASK); }
+static inline uint32_t tag_tid(Tag t)     { return (uint32_t)(t & 0xFFFFFFFFu); }
+/* Strict <iter, tid> lexicographic order — smaller is older. */
+static inline bool     tag_older(Tag a, Tag b) {
+    if (tag_iter(a) != tag_iter(b)) return tag_iter(a) < tag_iter(b);
+    return tag_tid(a) < tag_tid(b);
+}
+
+static _Atomic(Tag)  priority_tag[NUM_NODES];
+
+/* TLA+ Privilege simplification (no zombie / inactive-thread check):
+ * tags are released ONLY on commit success (ClearMyTags in CommitDone),
+ * so a thread can never reach an "inactive" state with stale tags
+ * outliving its lifetime — the spec's invariant.  Removed
+ * `thread_active[]` tracking entirely. */
+
+/* can_proceed_with_preempt: TLA+ CanProceed merged with PreemptTag.
+ * Returns true if (tag null) OR (tag mine) OR (we successfully preempted
+ * an older active holder).  No zombie branch. */
+static bool can_proceed_with_preempt(int n, uint32_t my_iter, uint32_t my_tid) {
+    Tag mine = make_tag(my_iter, my_tid);
+    for (;;) {
+        Tag cur = atomic_load_explicit(&priority_tag[n], memory_order_acquire);
+        if (tag_is_null(cur))             return true;
+        if (tag_tid(cur) == my_tid)       return true;
+        if (tag_older(mine, cur)) {
+            if (atomic_compare_exchange_weak_explicit(
+                    &priority_tag[n], &cur, mine,
+                    memory_order_acq_rel, memory_order_relaxed)) {
+                SPIN_INC(spin_preempt);
+                return true;
+            }
+            continue;
+        }
+        return false;
+    }
+}
+
+/* tag_after_fail: register/refresh/preempt my tag at n.  TLA+ rule:
+ *   null     -> mine
+ *   mine     -> mine
+ *   I'm older-> mine (preempt)
+ *   else     -> keep cur */
+static void tag_after_fail(int n, uint32_t my_iter, uint32_t my_tid) {
+    Tag mine = make_tag(my_iter, my_tid);
+    for (;;) {
+        Tag cur = atomic_load_explicit(&priority_tag[n], memory_order_acquire);
+        Tag desired;
+        if (tag_is_null(cur))                 desired = mine;
+        else if (tag_tid(cur) == my_tid)      desired = mine;
+        else if (tag_older(mine, cur))        desired = mine;
+        else                                  return;
+        if (atomic_compare_exchange_weak_explicit(
+                &priority_tag[n], &cur, desired,
+                memory_order_acq_rel, memory_order_relaxed)) return;
+    }
+}
+
+/* tag_after_success: NO-OP (Tx-scope persistence; tags persist within a
+ * Transaction across all CASes and are released ONLY at Tx-success via
+ * clear_my_tags). */
+static inline void tag_after_success(int n, uint32_t my_tid) {
+    (void)n; (void)my_tid;
+}
+
+/* clear_my_tags: TLA+ ClearMyTags(t).  Called ONLY on commit success.
+ * On CAS failure, tags are preserved across retries — matches C++
+ * operator++() which does not call drop_tags_n_privilege(). */
+static void clear_my_tags(uint32_t my_tid) {
+    for (int n = 0; n < NUM_NODES; n++) {
+        Tag cur = atomic_load_explicit(&priority_tag[n], memory_order_acquire);
+        while (!tag_is_null(cur) && tag_tid(cur) == my_tid) {
+            if (atomic_compare_exchange_weak_explicit(
+                    &priority_tag[n], &cur, TAG_NULL,
+                    memory_order_acq_rel, memory_order_relaxed)) break;
+        }
+    }
+}
+
+/* gate(): block until proceed allowed at node n; counts negotiate spins. */
+static inline void gate(int n, uint32_t my_iter, uint32_t my_tid) {
+    while (!can_proceed_with_preempt(n, my_iter, my_tid)) {
+        SPIN_INC(spin_negotiate);
+        /* short backoff — keeps CPU available to the older holder */
+#if defined(__x86_64__) || defined(__i386__)
+        __asm__ __volatile__("pause");
+#endif
+    }
+}
+
+typedef struct {
+    uint32_t tid;          /* 1-indexed */
+    uint32_t iter;         /* completed iterations */
+    uint32_t serial;       /* Lamport thread-local clock */
+    uint32_t role;         /* ROLE_ROOT | ROLE_LEAF | ROLE_INSERT | ROLE_RELEASE */
+} ThreadCtx;
+
+/* Pool-wrap / stale-snapshot detector (Option Z).  See test_bundle_3level.c
+ * for the rationale — (A) pool recycle safety, (B) transaction-age bound. */
+#define POOL_SAFETY_MARGIN 64u
+#define TRANSACTION_WINDOW 4096u
+static inline uint32_t cur_slot_counter(void) {
+    return atomic_load_explicit(&global_slot_counter, memory_order_relaxed);
+}
+static inline bool pool_stale(uint32_t start_counter) {
+    uint32_t advanced = (uint32_t)(cur_slot_counter() - start_counter);
+    uint32_t pool_bound = PACKET_POOL_ENTRIES - POOL_SAFETY_MARGIN;
+    uint32_t threshold = pool_bound < TRANSACTION_WINDOW ? pool_bound : TRANSACTION_WINDOW;
+    if (advanced >= threshold) {
+        SPIN_INC(spin_stale_read);
+        return true;
+    }
+    return false;
+}
+
+#if MODE == MODE_COARSE
+static pthread_mutex_t coarse_mtx = PTHREAD_MUTEX_INITIALIZER;
+#  define OP_LOCK()   pthread_mutex_lock(&coarse_mtx)
+#  define OP_UNLOCK() pthread_mutex_unlock(&coarse_mtx)
+#else
+#  define OP_LOCK()   ((void)0)
+#  define OP_UNLOCK() ((void)0)
+#endif
+
+static inline Wrapper load_w(int n) {
+    return wrapper_unpack(atomic_load_explicit(&linkage[n], memory_order_acquire));
+}
+
+static inline bool cas_w(int n, Wrapper *expected, Wrapper desired) {
+    uint64_t e = wrapper_pack(*expected);
+    uint64_t d = wrapper_pack(desired);
+    bool ok = atomic_compare_exchange_strong_explicit(
+        &linkage[n], &e, d, memory_order_acq_rel, memory_order_relaxed);
+    if (!ok) *expected = wrapper_unpack(e);
+    return ok;
+}
+
+/* --- Wrapper builders --- */
+static inline Wrapper make_priority_leaf(uint8_t payload, uint32_t serial, bool pkt_missing) {
+    return (Wrapper){
+        .has_priority = true, .serial = serial, .bundled_by = NULL_NODE,
+        .packet_slot  = alloc_slot(payload, SLOT_NULL, SLOT_NULL, pkt_missing),
+    };
+}
+static inline Wrapper make_priority_parent(uint8_t payload, uint32_t serial,
+                                           uint32_t s0, uint32_t s1, bool pkt_missing) {
+    return (Wrapper){
+        .has_priority = true, .serial = serial, .bundled_by = NULL_NODE,
+        .packet_slot  = alloc_slot(payload, s0, s1, pkt_missing),
+    };
+}
+/* Reuse an existing packet slot (SUPERFINE prestamp / identity-stable path).
+ * Only invoked in SUPERFINE mode; quiet -Wunused-function in other builds. */
+__attribute__((unused))
+static inline Wrapper make_priority_from_slot(uint32_t packet_slot, uint32_t serial) {
+    return (Wrapper){
+        .has_priority = true, .serial = serial, .bundled_by = NULL_NODE,
+        .packet_slot  = packet_slot,
+    };
+}
+static inline Wrapper make_bundled(uint8_t parent_node, uint32_t serial) {
+    return (Wrapper){
+        .has_priority = false, .serial = serial, .bundled_by = parent_node,
+        .packet_slot  = SLOT_NULL,
+    };
+}
+
+/* =========================================================================
+ * try_bundle (Phase1..Phase4): run when Parent's packet.missing=true.
+ * Collects Child sub-packet slots, CASes Parent to Phase2 state, flips
+ * Children to bundled-ref, then CASes Parent to Phase4 (missing=false).
+ * Returns the finalized Parent wrapper in *out_final on success.
+ * ========================================================================= */
+static bool try_bundle(ThreadCtx *ctx, Wrapper *out_final) {
+    Wrapper pw = load_w(NODE_PARENT);
+    if (!pw.has_priority) { SPIN_INC(spin_bundle); return false; }
+
+    uint8_t  pp;
+    uint32_t old_s0, old_s1;
+    bool     pw_missing;
+    pkt_unpack(load_pkt_raw(pw.packet_slot), &pp, &old_s0, &old_s1, &pw_missing);
+
+    if (!pw_missing) { *out_final = pw; return true; }
+
+    uint32_t bundle_ser = gen_serial(ctx->serial, pw.serial, ctx->tid);
+    ctx->serial = bundle_ser;
+
+#if MODE == MODE_SUPERFINE
+    if (pw.serial != bundle_ser) {
+        gate(NODE_PARENT, ctx->iter, ctx->tid);
+        Wrapper prestamp = make_priority_from_slot(pw.packet_slot, bundle_ser);
+        Wrapper exp = pw;
+        if (!cas_w(NODE_PARENT, &exp, prestamp)) {
+            tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
+            SPIN_INC(spin_bundle); return false;
+        }
+        tag_after_success(NODE_PARENT, ctx->tid);
+        pw = prestamp;
+    }
+#endif
+
+    /* Phase1 collect: TLA+ dynamic — only collect for ActiveChildren
+     * (inserted[c]==true).  Non-inserted children get sub=SLOT_NULL,
+     * matching the spec's sub being [c -> Null] for c \notin ActiveChildren.
+     * Collect-fail is only an error if an INSERTED child can't yield a
+     * sub-packet. */
+    bool c1_active = atomic_load_explicit(&inserted[NODE_CHILD1], memory_order_acquire);
+    bool c2_active = atomic_load_explicit(&inserted[NODE_CHILD2], memory_order_acquire);
+    Wrapper cw1 = load_w(NODE_CHILD1);
+    Wrapper cw2 = load_w(NODE_CHILD2);
+    uint32_t sp1 = SLOT_NULL, sp2 = SLOT_NULL;
+    /* TLA+ BundlePhase1 collect (dynamic):
+     *   priority c       → cw.packet
+     *   bundled-by-Parent → parentW.packet.sub[c]  (authoritative; cw.packet
+     *                       on InsertedRef is just a held-over old packet
+     *                       not used here)
+     *   else             → Null (collect-fail) */
+    if (c1_active) {
+        if (cw1.has_priority)                                           sp1 = cw1.packet_slot;
+        else if (cw1.bundled_by == NODE_PARENT && old_s0 != SLOT_NULL)  sp1 = old_s0;
+    }
+    if (c2_active) {
+        if (cw2.has_priority)                                           sp2 = cw2.packet_slot;
+        else if (cw2.bundled_by == NODE_PARENT && old_s1 != SLOT_NULL)  sp2 = old_s1;
+    }
+    if ((c1_active && sp1 == SLOT_NULL) || (c2_active && sp2 == SLOT_NULL)) {
+        tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
+        SPIN_INC(spin_bundle); return false;
+    }
+
+    /* Phase2: Parent packet = (pp, sp1, sp2, missing=TRUE). */
+    gate(NODE_PARENT, ctx->iter, ctx->tid);
+    Wrapper p2 = make_priority_parent(pp, bundle_ser, sp1, sp2, true);
+    Wrapper exp_p2 = pw;
+    if (!cas_w(NODE_PARENT, &exp_p2, p2)) {
+        tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
+        SPIN_INC(spin_bundle); return false;
+    }
+    tag_after_success(NODE_PARENT, ctx->tid);
+
+    /* Phase3: Children -> bundled-ref.
+     *
+     * On CAS failure in SUPERFINE mode the TLA+ DISTURBED path eagerly
+     * tags BOTH the child and Parent before returning to snap_read, so
+     * peers cannot race in during the next snapshot attempt (mirrors
+     * C++ outer-scope ScopedNegotiateLinkage at the snapshot() retry
+     * loop).  In FINE mode only the child is tagged (no DISTURBED check). */
+#if MODE == MODE_SUPERFINE
+#  define PHASE3_FAIL_TAG_PARENT() tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid)
+#else
+#  define PHASE3_FAIL_TAG_PARENT() ((void)0)
+#endif
+    Wrapper b = make_bundled(NODE_PARENT, bundle_ser);
+    if (c1_active) {
+        gate(NODE_CHILD1, ctx->iter, ctx->tid);
+        Wrapper exp_c1 = cw1;
+        if (!cas_w(NODE_CHILD1, &exp_c1, b)) {
+            tag_after_fail(NODE_CHILD1, ctx->iter, ctx->tid);
+            PHASE3_FAIL_TAG_PARENT();
+            SPIN_INC(spin_bundle); return false;
+        }
+        tag_after_success(NODE_CHILD1, ctx->tid);
+    }
+    if (c2_active) {
+        gate(NODE_CHILD2, ctx->iter, ctx->tid);
+        Wrapper exp_c2 = cw2;
+        if (!cas_w(NODE_CHILD2, &exp_c2, b)) {
+            tag_after_fail(NODE_CHILD2, ctx->iter, ctx->tid);
+            PHASE3_FAIL_TAG_PARENT();
+            SPIN_INC(spin_bundle); return false;
+        }
+        tag_after_success(NODE_CHILD2, ctx->tid);
+    }
+#undef PHASE3_FAIL_TAG_PARENT
+
+    /* Phase4: Parent packet.missing=false (fresh slot prevents ABA). */
+    gate(NODE_PARENT, ctx->iter, ctx->tid);
+    Wrapper p4 = make_priority_parent(pp, bundle_ser, sp1, sp2, false);
+    Wrapper exp_p4 = p2;
+    if (!cas_w(NODE_PARENT, &exp_p4, p4)) {
+        tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
+        SPIN_INC(spin_bundle); return false;
+    }
+    tag_after_success(NODE_PARENT, ctx->tid);
+
+    *out_final = p4;
+    return true;
+}
+
+/* snapshot(): loop until Parent is priority with a non-missing packet. */
+static void snapshot(ThreadCtx *ctx, Wrapper *out) {
+    for (;;) {
+        Wrapper pw = load_w(NODE_PARENT);
+        if (!pw.has_priority) continue;   /* Parent never bundled (root). */
+        bool m;
+        pkt_unpack(load_pkt_raw(pw.packet_slot), NULL, NULL, NULL, &m);
+        if (!m) { *out = pw; return; }
+        Wrapper tmp;
+        if (try_bundle(ctx, &tmp)) { *out = tmp; return; }
+    }
+}
+
+/* =========================================================================
+ * CommitParent: snapshot Parent, bump BOTH children's sub-packets (fresh
+ * slots) and CAS Parent with the new chain.  Gated by negotiate tag.
+ * ========================================================================= */
+static void commit_parent(ThreadCtx *ctx) {
+    OP_LOCK();
+    for (;;) {
+        uint32_t start_counter = cur_slot_counter();
+        Wrapper pw;
+        snapshot(ctx, &pw);
+
+        uint8_t  pp; uint32_t c1_slot, c2_slot; bool pm;
+        pkt_unpack(load_pkt_raw(pw.packet_slot), &pp, &c1_slot, &c2_slot, &pm);
+        if (pm) { SPIN_INC(spin_commit_parent); continue; }
+
+        /* Dynamic: snapshot which children are present in the packet
+         * (sub[c] != Null).  Mirrors TLA+ snapChildren in CommitParent. */
+        bool c1_in_snap = (c1_slot != SLOT_NULL);
+        bool c2_in_snap = (c2_slot != SLOT_NULL);
+        if (!c1_in_snap && !c2_in_snap) {
+            /* TLA+: all children released since snapshot; skip iteration. */
+            clear_my_tags(ctx->tid);
+            OP_UNLOCK();
+            return;
+        }
+
+        uint8_t c1_payload = c1_in_snap ? load_pkt_payload(c1_slot) : 0;
+        uint8_t c2_payload = c2_in_snap ? load_pkt_payload(c2_slot) : 0;
+
+        if (pool_stale(start_counter)) continue;
+
+        uint32_t new_c1 = c1_in_snap
+            ? alloc_slot((uint8_t)((c1_payload + 1u) % MAX_PAYLOAD), SLOT_NULL, SLOT_NULL, false)
+            : SLOT_NULL;
+        uint32_t new_c2 = c2_in_snap
+            ? alloc_slot((uint8_t)((c2_payload + 1u) % MAX_PAYLOAD), SLOT_NULL, SLOT_NULL, false)
+            : SLOT_NULL;
+
+        uint32_t ser = gen_serial(ctx->serial, pw.serial, ctx->tid);
+        Wrapper new_pw = make_priority_parent(pp, ser, new_c1, new_c2, false);
+        gate(NODE_PARENT, ctx->iter, ctx->tid);
+        Wrapper exp = pw;
+        if (cas_w(NODE_PARENT, &exp, new_pw)) {
+            ctx->serial = ser;
+            if (c1_in_snap)
+                atomic_fetch_add_explicit(&commit_count[NODE_CHILD1], 1, memory_order_relaxed);
+            if (c2_in_snap)
+                atomic_fetch_add_explicit(&commit_count[NODE_CHILD2], 1, memory_order_relaxed);
+            clear_my_tags(ctx->tid);
+            OP_UNLOCK();
+            return;
+        }
+        tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
+        SPIN_INC(spin_commit_parent);
+    }
+}
+
+/* =========================================================================
+ * CommitChild: direct commit if priority, else 1-level unbundle.  All CAS
+ * sites are gated by the LL-free negotiate tag.
+ * ========================================================================= */
+/* commit_child: returns true if the commit completed (success or
+ * release-abort); false is reserved (we always loop until completion). */
+static void commit_child(int child_node, ThreadCtx *ctx) {
+    OP_LOCK();
+    for (;;) {
+        /* TLA+ CommitSkip: child was released between queue setup and
+         * commit attempt — drop it from the queue silently. */
+        if (!atomic_load_explicit(&inserted[child_node], memory_order_acquire)) {
+            clear_my_tags(ctx->tid);
+            OP_UNLOCK();
+            return;
+        }
+        uint32_t start_counter = cur_slot_counter();
+        Wrapper cw = load_w(child_node);
+
+        if (cw.has_priority) {
+            uint8_t old_payload = load_pkt_payload(cw.packet_slot);
+            if (pool_stale(start_counter)) continue;
+            uint8_t new_payload = (uint8_t)((old_payload + 1u) % MAX_PAYLOAD);
+            uint32_t ser = gen_serial(ctx->serial, cw.serial, ctx->tid);
+            Wrapper new_cw = make_priority_leaf(new_payload, ser, false);
+            gate(child_node, ctx->iter, ctx->tid);
+            Wrapper exp = cw;
+            if (cas_w(child_node, &exp, new_cw)) {
+                ctx->serial = ser;
+                atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
+                /* Transaction-end (CommitDone success): release my tags. */
+                clear_my_tags(ctx->tid);
+                OP_UNLOCK();
+                return;
+            }
+            tag_after_fail(child_node, ctx->iter, ctx->tid);
+            SPIN_INC(spin_commit_child);
+            continue;
+        }
+
+        if (cw.bundled_by != NODE_PARENT) { SPIN_INC(spin_commit_child); continue; }
+
+        Wrapper pw = load_w(NODE_PARENT);
+        if (!pw.has_priority) { SPIN_INC(spin_commit_child); continue; }
+
+        uint8_t  pp; uint32_t p_s0, p_s1; bool pm;
+        pkt_unpack(load_pkt_raw(pw.packet_slot), &pp, &p_s0, &p_s1, &pm);
+        uint32_t old_child_slot = (child_node == NODE_CHILD1) ? p_s0 : p_s1;
+        if (old_child_slot == SLOT_NULL) {
+            /* TLA+ UnbundleWalk: parent.sub[c]=Null + !inserted[c]
+             * → child was released mid-commit → abort. */
+            if (!atomic_load_explicit(&inserted[child_node], memory_order_acquire)) {
+                clear_my_tags(ctx->tid);
+                OP_UNLOCK();
+                return;
+            }
+            SPIN_INC(spin_commit_child); continue;
+        }
+        uint8_t old_payload = load_pkt_payload(old_child_slot);
+        if (pool_stale(start_counter)) continue;
+        uint8_t new_payload = (uint8_t)((old_payload + 1u) % MAX_PAYLOAD);
+
+        /* UnbundleCASAncestor: Parent packet missing=true, subs preserved. */
+        uint32_t anc_ser = gen_serial(ctx->serial, pw.serial, ctx->tid);
+        Wrapper new_pw = make_priority_parent(pp, anc_ser, p_s0, p_s1, true);
+        gate(NODE_PARENT, ctx->iter, ctx->tid);
+        Wrapper exp_pw = pw;
+        if (!cas_w(NODE_PARENT, &exp_pw, new_pw)) {
+            tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
+            SPIN_INC(spin_commit_child); continue;
+        }
+        tag_after_success(NODE_PARENT, ctx->tid);
+        ctx->serial = anc_ser;
+
+        /* UnbundleCASChild: child becomes priority with new payload. */
+        uint32_t c_ser = gen_serial(ctx->serial, cw.serial, ctx->tid);
+        Wrapper new_child = make_priority_leaf(new_payload, c_ser, false);
+        gate(child_node, ctx->iter, ctx->tid);
+        Wrapper exp_child = cw;
+        if (cas_w(child_node, &exp_child, new_child)) {
+            ctx->serial = c_ser;
+            atomic_fetch_add_explicit(&commit_count[child_node], 1, memory_order_relaxed);
+            /* Transaction-end (CommitDone success): release my tags. */
+            clear_my_tags(ctx->tid);
+            OP_UNLOCK();
+            return;
+        }
+        tag_after_fail(child_node, ctx->iter, ctx->tid);
+        SPIN_INC(spin_commit_child);
+    }
+}
+
+/* =========================================================================
+ * insert_child(c): TLA+ InsertStart → ReadParent → (try_bundle if missing)
+ *                  → InsertCASParent → InsertReadChild → InsertCASChild
+ *                  → InsertFinal.
+ * Claims child c via atomic CAS on insert_target_claim[c] (mirrors TLA+
+ * `\A t2 /= t : insertTarget[t2] /= c`).  On final CAS success, marks
+ * inserted[c] = ever_inserted[c] = TRUE and clears the claim.
+ * Returns true on success, false if the child was already claimed/inserted
+ * (try the next child).
+ * ========================================================================= */
+static bool insert_child(int child_node, ThreadCtx *ctx) {
+    /* Claim: CAS insert_target_claim[c] from 0 to my_tid. */
+    uint32_t expected_claim = 0;
+    if (!atomic_compare_exchange_strong_explicit(
+            &insert_target_claim[child_node], &expected_claim, ctx->tid,
+            memory_order_acq_rel, memory_order_relaxed))
+        return false;
+    if (atomic_load_explicit(&ever_inserted[child_node], memory_order_acquire)) {
+        /* Already inserted by some other run; release claim. */
+        atomic_store_explicit(&insert_target_claim[child_node], 0u, memory_order_release);
+        return false;
+    }
+    OP_LOCK();
+    for (;;) {
+        /* InsertSnap = ReadParent: run try_bundle until Parent is
+         * priority + !missing (i.e. snapshot ready). */
+        Wrapper pw;
+        snapshot(ctx, &pw);
+
+        /* InsertCASParent: serial-bump CAS on Parent (no packet change). */
+        uint32_t s_ser = gen_serial(ctx->serial, pw.serial, ctx->tid);
+        Wrapper stamped = make_priority_from_slot(pw.packet_slot, s_ser);
+        gate(NODE_PARENT, ctx->iter, ctx->tid);
+        Wrapper exp_pw = pw;
+        if (!cas_w(NODE_PARENT, &exp_pw, stamped)) {
+            tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
+            continue;
+        }
+        tag_after_success(NODE_PARENT, ctx->tid);
+        ctx->serial = s_ser;
+        pw = stamped;
+
+        /* InsertReadChild + InsertCASChild: read child's wrapper.  If
+         * priority, save its packet and CAS to InsertedRef (bundled-by-
+         * Parent, packet_slot retained).  If already bundled-by-Parent
+         * (re-insert), just proceed using saved sub. */
+        Wrapper cw = load_w(child_node);
+        uint32_t saved_child_pkt;
+        if (cw.has_priority) {
+            saved_child_pkt = cw.packet_slot;
+            /* InsertedRef: has_priority=false, bundled_by=Parent,
+             * packet_slot retained.  Mirrors TLA+ InsertedRef. */
+            Wrapper inserted_ref = (Wrapper){
+                .has_priority = false, .serial = s_ser,
+                .bundled_by = NODE_PARENT, .packet_slot = saved_child_pkt,
+            };
+            gate(child_node, ctx->iter, ctx->tid);
+            Wrapper exp_c = cw;
+            if (!cas_w(child_node, &exp_c, inserted_ref)) {
+                tag_after_fail(child_node, ctx->iter, ctx->tid);
+                /* Restart from snapshot — local state cleared by loop. */
+                continue;
+            }
+            tag_after_success(child_node, ctx->tid);
+        } else if (cw.bundled_by == NODE_PARENT) {
+            /* Re-insert case: pull saved packet from cw or Parent.sub[c]. */
+            if (cw.packet_slot != SLOT_NULL) {
+                saved_child_pkt = cw.packet_slot;
+            } else {
+                uint32_t p_s0, p_s1;
+                pkt_unpack(load_pkt_raw(pw.packet_slot), NULL, &p_s0, &p_s1, NULL);
+                saved_child_pkt = (child_node == NODE_CHILD1) ? p_s0 : p_s1;
+                if (saved_child_pkt == SLOT_NULL) continue;
+            }
+        } else {
+            continue;  /* unexpected state, restart */
+        }
+
+        /* InsertFinal: CAS Parent installing new sub[c] = (payload+1, sub, missing). */
+        uint8_t saved_payload;
+        uint32_t saved_s0_sub, saved_s1_sub;
+        bool saved_missing;
+        pkt_unpack(load_pkt_raw(saved_child_pkt),
+                   &saved_payload, &saved_s0_sub, &saved_s1_sub, &saved_missing);
+        uint32_t new_child_slot = alloc_slot(
+            (uint8_t)((saved_payload + 1u) % MAX_PAYLOAD),
+            saved_s0_sub, saved_s1_sub, saved_missing);
+
+        uint8_t pp; uint32_t p_s0, p_s1; bool pm;
+        pkt_unpack(load_pkt_raw(pw.packet_slot), &pp, &p_s0, &p_s1, &pm);
+        uint32_t new_s0 = (child_node == NODE_CHILD1) ? new_child_slot : p_s0;
+        uint32_t new_s1 = (child_node == NODE_CHILD2) ? new_child_slot : p_s1;
+
+        uint32_t f_ser = gen_serial(ctx->serial, pw.serial, ctx->tid);
+        /* TLA+ InsertFinal sets parent.missing=TRUE — mirrors the spec
+         * (`newPkt = MakePacket(Parent, payload, newSub, TRUE)`). The
+         * next snapshot will re-bundle and clear missing. */
+        Wrapper new_pw = make_priority_parent(pp, f_ser, new_s0, new_s1, true);
+        gate(NODE_PARENT, ctx->iter, ctx->tid);
+        Wrapper exp_pw2 = pw;
+        if (!cas_w(NODE_PARENT, &exp_pw2, new_pw)) {
+            tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
+            continue;
+        }
+        ctx->serial = f_ser;
+        /* InsertFinal success: mark inserted + ever_inserted. */
+        atomic_store_explicit(&inserted[child_node], true, memory_order_release);
+        atomic_store_explicit(&ever_inserted[child_node], true, memory_order_release);
+        clear_my_tags(ctx->tid);
+        atomic_store_explicit(&insert_target_claim[child_node], 0u, memory_order_release);
+        OP_UNLOCK();
+        return true;
+    }
+}
+
+/* =========================================================================
+ * release_child(c): TLA+ ReleaseStart → ReadParent → (try_bundle if missing)
+ *                   → ReleaseCASParent → ReleaseReadChild → ReleaseCASChild.
+ * Claims via release_target_claim[c].  On ReleaseCASParent success, marks
+ * inserted[c] = FALSE.  ReleaseCASChild restores child wrapper to priority.
+ * ========================================================================= */
+static bool release_child(int child_node, ThreadCtx *ctx) {
+    uint32_t expected_claim = 0;
+    if (!atomic_compare_exchange_strong_explicit(
+            &release_target_claim[child_node], &expected_claim, ctx->tid,
+            memory_order_acq_rel, memory_order_relaxed))
+        return false;
+    if (!atomic_load_explicit(&inserted[child_node], memory_order_acquire)) {
+        atomic_store_explicit(&release_target_claim[child_node], 0u, memory_order_release);
+        return false;
+    }
+    OP_LOCK();
+    for (;;) {
+        Wrapper pw;
+        snapshot(ctx, &pw);
+
+        /* ReleaseCASParent: CAS Parent to new packet with sub[c]=Null. */
+        uint8_t pp; uint32_t p_s0, p_s1; bool pm;
+        pkt_unpack(load_pkt_raw(pw.packet_slot), &pp, &p_s0, &p_s1, &pm);
+        uint32_t saved_child_pkt = (child_node == NODE_CHILD1) ? p_s0 : p_s1;
+        if (saved_child_pkt == SLOT_NULL) {
+            /* Already released by peer (shouldn't happen given our claim). */
+            atomic_store_explicit(&inserted[child_node], false, memory_order_release);
+            clear_my_tags(ctx->tid);
+            atomic_store_explicit(&release_target_claim[child_node], 0u, memory_order_release);
+            OP_UNLOCK();
+            return true;
+        }
+        uint32_t new_s0 = (child_node == NODE_CHILD1) ? SLOT_NULL : p_s0;
+        uint32_t new_s1 = (child_node == NODE_CHILD2) ? SLOT_NULL : p_s1;
+        uint32_t r_ser = gen_serial(ctx->serial, pw.serial, ctx->tid);
+        Wrapper new_pw = make_priority_parent(pp, r_ser, new_s0, new_s1, pm);
+        gate(NODE_PARENT, ctx->iter, ctx->tid);
+        Wrapper exp_pw = pw;
+        if (!cas_w(NODE_PARENT, &exp_pw, new_pw)) {
+            tag_after_fail(NODE_PARENT, ctx->iter, ctx->tid);
+            continue;
+        }
+        ctx->serial = r_ser;
+        atomic_store_explicit(&inserted[child_node], false, memory_order_release);
+
+        /* ReleaseReadChild + ReleaseCASChild: if child is bundled, restore
+         * to priority with the saved packet content.  If already priority
+         * (peer un-bundled), nothing more to do. */
+        for (;;) {
+            Wrapper cw = load_w(child_node);
+            if (cw.has_priority) break;
+            /* Restore priority wrapper holding the saved child packet. */
+            uint32_t c_ser = gen_serial(ctx->serial, cw.serial, ctx->tid);
+            Wrapper restored = make_priority_from_slot(saved_child_pkt, c_ser);
+            gate(child_node, ctx->iter, ctx->tid);
+            Wrapper exp_c = cw;
+            if (cas_w(child_node, &exp_c, restored)) {
+                ctx->serial = c_ser;
+                break;
+            }
+            tag_after_fail(child_node, ctx->iter, ctx->tid);
+        }
+        clear_my_tags(ctx->tid);
+        atomic_store_explicit(&release_target_claim[child_node], 0u, memory_order_release);
+        OP_UNLOCK();
+        return true;
+    }
+}
+
+/* =========================================================================
+ * Thread worker (dynamic): per-thread role-gated phases.
+ *   Phase A (Insert): if ROLE_INSERT, claim and insert one child.
+ *   Phase B (Commit): standard ROLE_ROOT/ROLE_LEAF iteration loop.
+ *                     Gated on ever_inserted (TLA+ SnapRead precondition).
+ *   Phase C (Release): if ROLE_RELEASE, release one inserted child.
+ * iter advances at end of each commit iteration.  Tags cleared on success.
+ * ========================================================================= */
+static void *worker(void *arg) {
+    ThreadCtx ctx = *(ThreadCtx*)arg;
+
+    /* --- Phase A: Insert --- */
+    if (ctx.role & ROLE_INSERT) {
+        for (int c = NODE_CHILD1; c <= NODE_CHILD2; c++) {
+            if (atomic_load_explicit(&g_stop, memory_order_relaxed)) goto release_phase;
+            (void)insert_child(c, &ctx);  /* idempotent: skips already-claimed */
+        }
+    }
+
+    /* --- Phase B: Commit loop --- */
+    if (ctx.role & (ROLE_ROOT | ROLE_LEAF)) {
+        /* Waiting: spin until all AllChildren have been ever_inserted
+         * (TLA+ SnapRead/BeginChildIteration precondition). */
+        for (;;) {
+            if (atomic_load_explicit(&g_stop, memory_order_relaxed)) goto release_phase;
+            bool all_ever = true;
+            for (int c = NODE_CHILD1; c <= NODE_CHILD2; c++) {
+                if (!atomic_load_explicit(&ever_inserted[c], memory_order_acquire)) {
+                    all_ever = false; break;
+                }
+            }
+            if (all_ever) break;
+#if defined(__x86_64__) || defined(__i386__)
+            __asm__ __volatile__("pause");
+#endif
+        }
+
+        for (uint32_t i = 0; i < (uint32_t)MAX_COMMITS; i++) {
+            if (atomic_load_explicit(&g_stop, memory_order_relaxed)) break;
+            /* SkipIteration: if no children currently inserted (all
+             * released), drain budget. */
+            bool any_active = false;
+            for (int c = NODE_CHILD1; c <= NODE_CHILD2; c++) {
+                if (atomic_load_explicit(&inserted[c], memory_order_acquire)) {
+                    any_active = true; break;
+                }
+            }
+            if (!any_active) break;
+            if (ctx.role & ROLE_ROOT) commit_parent(&ctx);
+            if (ctx.role & ROLE_LEAF) {
+                for (int c = NODE_CHILD1; c <= NODE_CHILD2; c++) {
+                    if (atomic_load_explicit(&inserted[c], memory_order_acquire))
+                        commit_child(c, &ctx);
+                }
+            }
+            ctx.iter++;
+        }
+    }
+
+release_phase:
+    /* --- Phase C: Release --- */
+    if (ctx.role & ROLE_RELEASE) {
+        for (int c = NODE_CHILD1; c <= NODE_CHILD2; c++) {
+            if (atomic_load_explicit(&g_stop, memory_order_relaxed)) break;
+            (void)release_child(c, &ctx);
+        }
+    }
+    return NULL;
+}
+
+/* =========================================================================
+ * Post-join invariant checks.
+ * ========================================================================= */
+static void check_invariants(void) {
+    Wrapper pw = load_w(NODE_PARENT);
+    assert(pw.has_priority);   /* Parent is root, always priority. */
+
+    for (int c = NODE_CHILD1; c <= NODE_CHILD2; c++) {
+        Wrapper w = load_w(c);
+        assert(w.has_priority || w.bundled_by == NODE_PARENT);
+    }
+
+    /* SnapshotConsistency (dynamic): only ActiveChildren require sub[c] /= Null
+     * when Parent.packet is !missing. */
+    uint32_t s0, s1; bool pm;
+    pkt_unpack(load_pkt_raw(pw.packet_slot), NULL, &s0, &s1, &pm);
+    if (!pm) {
+        if (atomic_load(&inserted[NODE_CHILD1])) assert(s0 != SLOT_NULL);
+        if (atomic_load(&inserted[NODE_CHILD2])) assert(s1 != SLOT_NULL);
+    }
+}
+
+int main(void) {
+    atomic_store(&global_slot_counter, 0u);
+
+    /* Init (dynamic): TLA+ Init —
+     *   linkage[Parent] = PriorityWrapper(MakePacket(Parent,0,EmptySub,FALSE))
+     *   linkage[c]      = PriorityWrapper(MakePacket(c,0,EmptySub,FALSE))
+     *   inserted[c] = FALSE  (children start unattached)
+     * Parent's initial packet is !missing with all-Null sub — bundle()
+     * trivially completes with ActiveChildren={}, no Phase3 CAS. */
+    uint32_t s_c1 = alloc_slot(0, SLOT_NULL, SLOT_NULL, false);
+    uint32_t s_c2 = alloc_slot(0, SLOT_NULL, SLOT_NULL, false);
+    uint32_t s_p  = alloc_slot(0, SLOT_NULL, SLOT_NULL, false);
+
+    Wrapper init_parent = (Wrapper){.has_priority=true, .serial=0,
+                                    .bundled_by=NULL_NODE, .packet_slot=s_p};
+    Wrapper init_c1     = (Wrapper){.has_priority=true, .serial=0,
+                                    .bundled_by=NULL_NODE, .packet_slot=s_c1};
+    Wrapper init_c2     = (Wrapper){.has_priority=true, .serial=0,
+                                    .bundled_by=NULL_NODE, .packet_slot=s_c2};
+
+    atomic_store(&linkage[NODE_PARENT], wrapper_pack(init_parent));
+    atomic_store(&linkage[NODE_CHILD1], wrapper_pack(init_c1));
+    atomic_store(&linkage[NODE_CHILD2], wrapper_pack(init_c2));
+    for (int i = 0; i < NUM_NODES; i++) atomic_store(&commit_count[i], 0);
+    for (int i = 0; i < NUM_NODES; i++) atomic_store(&priority_tag[i], TAG_NULL);
+    for (int i = 0; i < NUM_NODES; i++) atomic_store(&inserted[i], false);
+    for (int i = 0; i < NUM_NODES; i++) atomic_store(&ever_inserted[i], false);
+    for (int i = 0; i < NUM_NODES; i++) atomic_store(&insert_target_claim[i], 0u);
+    for (int i = 0; i < NUM_NODES; i++) atomic_store(&release_target_claim[i], 0u);
+    atomic_store(&g_stop, false);
+
+    pthread_t threads[NUM_THREADS];
+    ThreadCtx ctxs[NUM_THREADS];
+    for (int i = 0; i < NUM_THREADS; i++) {
+        ctxs[i].tid    = (uint32_t)(i + 1);   /* 1-indexed; tid 0 reserved for Null */
+        ctxs[i].iter   = 0;
+        ctxs[i].serial = 0;
+        if (i < NUM_ROOT_ONLY)                       ctxs[i].role = ROLE_ROOT;
+        else if (i < NUM_ROOT_ONLY + NUM_LEAF_ONLY)  ctxs[i].role = ROLE_LEAF;
+        else                                         ctxs[i].role = ROLE_BOTH;
+        if (i < NUM_INSERT_THREADS)  ctxs[i].role |= ROLE_INSERT;
+        if (i < NUM_RELEASE_THREADS) ctxs[i].role |= ROLE_RELEASE;
+        pthread_create(&threads[i], NULL, worker, &ctxs[i]);
+    }
+
+#if STRESS_SECONDS > 0
+    struct timespec ts = { .tv_sec = STRESS_SECONDS, .tv_nsec = 0 };
+    nanosleep(&ts, NULL);
+    atomic_store_explicit(&g_stop, true, memory_order_release);
+#endif
+
+    for (int i = 0; i < NUM_THREADS; i++) pthread_join(threads[i], NULL);
+
+    check_invariants();
+
+    uint32_t cc1 = atomic_load(&commit_count[NODE_CHILD1]);
+    uint32_t cc2 = atomic_load(&commit_count[NODE_CHILD2]);
+
+    Wrapper c1 = load_w(NODE_CHILD1);
+    Wrapper c2 = load_w(NODE_CHILD2);
+    /* TLA+ dynamic ChildPayload(c): priority c → c.packet.payload,
+     * c bundled → Parent.packet.sub[c].payload (may be Null if released —
+     * payload then resides in the released child's own restored wrapper).
+     * After release, child wrapper is priority again with restored packet
+     * holding the pre-release payload. */
+    Wrapper pw_t = load_w(NODE_PARENT);
+    uint32_t pp_s0, pp_s1;
+    pkt_unpack(load_pkt_raw(pw_t.packet_slot), NULL, &pp_s0, &pp_s1, NULL);
+    uint8_t c1_payload = c1.has_priority
+        ? load_pkt_payload(c1.packet_slot)
+        : (pp_s0 != SLOT_NULL ? load_pkt_payload(pp_s0) : 0);
+    uint8_t c2_payload = c2.has_priority
+        ? load_pkt_payload(c2.packet_slot)
+        : (pp_s1 != SLOT_NULL ? load_pkt_payload(pp_s1) : 0);
+
+    /* TLA+ dynamic TerminalPayloadCheck:
+     *   ChildPayload(c) = 1 + commitCount[c]   (+1 from insert)
+     * commit_count counts CommitParent + CommitChild successes only.
+     * Insert adds +1 to payload directly. */
+    uint32_t expected1 = (1u + cc1) % MAX_PAYLOAD;
+    uint32_t expected2 = (1u + cc2) % MAX_PAYLOAD;
+    bool e1_ok = atomic_load(&ever_inserted[NODE_CHILD1]);
+    bool e2_ok = atomic_load(&ever_inserted[NODE_CHILD2]);
+    if (!e1_ok || !e2_ok ||
+        (uint32_t)c1_payload != expected1 ||
+        (uint32_t)c2_payload != expected2) {
+        Wrapper pdbg = load_w(NODE_PARENT);
+        uint8_t  p_pl=0; uint32_t p_s0=0,p_s1=0; bool p_m=false;
+        if (pdbg.has_priority)
+            pkt_unpack(load_pkt_raw(pdbg.packet_slot), &p_pl, &p_s0, &p_s1, &p_m);
+        fprintf(stderr,
+            "FAIL: MaxPayload=%d pool=%u\n"
+            "  Parent : prio=%d ser=%u slot=%u pkt=(pl=%u s0=%u s1=%u m=%d)\n"
+            "  Child1 : prio=%d bundled_by=%u ser=%u slot=%u payload=%u cc=%u (cc%%M=%u)\n"
+            "  Child2 : prio=%d bundled_by=%u ser=%u slot=%u payload=%u cc=%u (cc%%M=%u)\n",
+            MAX_PAYLOAD, (unsigned)PACKET_POOL_ENTRIES,
+            pdbg.has_priority, pdbg.serial, pdbg.packet_slot,
+            p_pl, p_s0, p_s1, p_m,
+            c1.has_priority, c1.bundled_by, c1.serial, c1.packet_slot,
+            c1_payload, cc1, cc1 % MAX_PAYLOAD,
+            c2.has_priority, c2.bundled_by, c2.serial, c2.packet_slot,
+            c2_payload, cc2, cc2 % MAX_PAYLOAD);
+        abort();
+    }
+
+#if STRESS_SECONDS > 0
+    const char *mode_str =
+#  if MODE == MODE_COARSE
+        "COARSE";
+#  elif MODE == MODE_SUPERFINE
+        "SUPERFINE";
+#  else
+        "FINE";
+#  endif
+    printf("[2level-LLfree stress %s %ds pool=%u] Child1=%u commits, Child2=%u commits (total=%u)\n",
+           mode_str, STRESS_SECONDS, (unsigned)PACKET_POOL_ENTRIES,
+           cc1, cc2, cc1 + cc2);
+    printf("  spin: commit_parent=%llu commit_child=%llu bundle=%llu stale_read=%llu\n",
+           (unsigned long long)atomic_load(&spin_commit_parent),
+           (unsigned long long)atomic_load(&spin_commit_child),
+           (unsigned long long)atomic_load(&spin_bundle),
+           (unsigned long long)atomic_load(&spin_stale_read));
+    printf("  llfree: negotiate_wait=%llu preempt=%llu\n",
+           (unsigned long long)atomic_load(&spin_negotiate),
+           (unsigned long long)atomic_load(&spin_preempt));
+#else
+    /* Dynamic terminal: commit_count counts CommitParent + CommitChild
+     * successes only.  +1 from insert is handled in ChildPayload check
+     * above (which compared payload against 1+commit_count). */
+    /* (no stress-mode equivalent of expected_total assertion — count
+     *  depends on dynamic skip/release behavior) */
+#endif
+
+    return 0;
+}
