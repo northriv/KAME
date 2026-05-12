@@ -3,13 +3,19 @@
 ## Overview
 
 Three complementary verification approaches covering the full stack.
-TLA+ layers: Layer 0 = `atomic_shared_ptr` protocol; Layer 2 = commit + 2/3-level bundle/unbundle.
+
+- **Layer 0 (informal)**: C11 RC11 memory model — verified by GenMC.
+- **Layer 1 (TLA+)**: `atomic_shared_ptr` tagged-pointer primitive **and**
+  commit-style primitives (`compareAndSet_impl_`, `scoped_atomic_view`,
+  drain `release_tag_ref_`) — merged: the modern API exposes commit-level
+  operations directly, subsuming the formerly separate "stm_commit" layer.
+- **Layer 2 (TLA+)**: 2/3-level bundle/unbundle with LL-free negotiate.
 
 | Layer | Tool | Target | What it verifies |
 |---|---|---|---|
-| Memory model | GenMC v0.16.1 (RC11) | `atomic_shared_ptr` | `memory_order_relaxed` / `acq_rel` safety under weak memory |
-| Layer 1 (TLA+) | TLC | `atomic_shared_ptr` | Tagged-pointer refcounting protocol (scan/CAS/reset) with ABA + non-atomic reads |
-| Layer 2 (TLA+) | TLC | 2-level bundle/unbundle | Multi-phase CAS + LL-free priority for 2-level subtree (Parent → Children)/ 3-level subtree (Grand → Parent → Children); recursive inner bundle; static + dynamic |
+| 0 (informal) | GenMC v0.17 (RC11) | `atomic_shared_ptr` | `memory_order_relaxed` / `acq_rel` safety under weak memory |
+| 1 (TLA+) | TLC | `atomic_shared_ptr` | Tagged-pointer protocol + drain release + scoped_atomic_view RAII (TagHeld + CAS set + dtor). Safety only — no liveness (livelock-free is a Layer 2 property) |
+| 2 (TLA+) | TLC | 2/3-level bundle/unbundle | Multi-phase CAS + LL-free priority for Parent→Children / Grand→Parent→Children; recursive inner bundle; static + dynamic; **safety + liveness** |
 ---
 
 ## 1. GenMC: `atomic_shared_ptr` Memory Model Verification
@@ -39,6 +45,12 @@ standalone C11 programs with all `memory_order` annotations exactly matching the
 | `cds_test_load.c` | 3 threads concurrently `load_shared_()` + `release_tag_ref_()` | 3 |
 | `cds_test_cas.c` | Reader (`load_shared_`) vs writer (`compareAndSwap_<false>`) | 2 |
 | `cds_test_multi_cas.c` | 2 threads race `compareAndSet` on same target | 2 |
+| `cds_test_swap.c` | `local_shared_ptr::swap(atomic_shared_ptr&)` under contention | 2 |
+| `cds_test_multi_cas_excess.c` | Drain `release_tag_ref_(pref, T)` with `cas_rcnt` parameter | 3 |
+| `cds_test_swap_excess.c` | Swap with drain release | 2 |
+| `cds_test_cas_excess.c` | CAS with drain release excess undo | 2 |
+| `cds_test_cas_noacquire.c` | `compareAndSet_impl_<NOSWAP=true>` no-acquire optimization | 2 |
+| `cds_test_scoped_weak.c` | `scoped_atomic_view` + `compareAndSetWeak` race (Layer 1 SCOPED path) | 2 |
 
 ### Key modeled details
 
@@ -59,13 +71,34 @@ standalone C11 programs with all `memory_order` annotations exactly matching the
 
 ### Results
 
+All 9 tests pass under RC11 (`make run` in `tests/cds_atomic_shared_ptr/`):
+
 | Test | Complete executions | Blocked executions | Wall time | Result |
 |---|---|---|---|---|
-| 1: concurrent load | 5,757 | 6,428 | 0.5s | **Pass** |
-| 2: load + CAS | 240 | 7 | 0.05s | **Pass** |
-| 3: multi CAS | 464,164 | 705,296 | 145s | **Pass** |
+| 1: load_shared / release_tag_ref safety | 5,757 | 6,428 | 1s | **Pass** |
+| 2: load + compareAndSwap_ race | 240 | 7 | 0.06s | **Pass** |
+| 3: multiple compareAndSwap_ race | 464,164 | 705,296 | ~270s | **Pass** |
+| 4: swap + local_reset safety | 4 | 0 | 0.1s | **Pass** |
+| 5: multi CAS with release_tag_ref drain | (large) | (large) | (varies) | **Pass** |
+| 6: CAS+load with release_tag_ref drain | (large) | (large) | (varies) | **Pass** |
+| 7: swap with release_tag_ref cas_rcnt | 120,118 | 401,606 | 117s | **Pass** |
+| 8: compareAndSet_ (NOSWAP=true) no-acquire | 74 | 3 | 0.13s | **Pass** |
+| 9: scoped_atomic_view + compareAndSetWeak race | 85 | 12 | 0.04s | **Pass** |
 
 "Blocked executions" are partial executions pruned by GenMC's DPOR algorithm as redundant.
+
+### TLA+-derived GenMC tests (`tests/tlaplus/test_*.c`)
+
+C11 programs **mechanically translated** from the TLA+ specifications, with each
+TLA+ atomic step corresponding 1:1 to a C atomic operation:
+
+| File | Source spec | Status |
+|---|---|---|
+| `test_atomic_shared_ptr.c` | `atomic_shared_ptr.tla` (Layer 1, core) | Pass |
+| `test_scoped_atomic_view.c` | `atomic_shared_ptr.tla` (Layer 1, scope) | Pass — 96 executions, 0.28s |
+| `test_stm_commit.c` | (legacy stm_commit layer) | Pass |
+| `test_bundle_2level.c`, `test_bundle_2level_LLfree.c` | `BundleUnbundle_2level*.tla` | Pass |
+| `test_bundle_3level.c`, `test_bundle_3level_LLfree.c` | `BundleUnbundle_3level*.tla` | Pass |
 
 ### Key findings
 
@@ -105,58 +138,113 @@ The `--unroll=5` flag bounds CAS retry loops. Increase if GenMC warns about insu
 
 ---
 
-## 2. TLA+ Layer 1: `atomic_shared_ptr` Protocol Verification
+## 2. TLA+ Layer 1: `atomic_shared_ptr` + Commit Primitives Verification
 
-**Directory:** `tests/tlaplus/`  
+**Directory:** `tests/tlaplus/`
 **Spec:** `atomic_shared_ptr.tla`
 
 ### What it tests
 
-The tagged-pointer reference counting protocol from `kame/atomic_smart_ptr.h` under sequential
-consistency. Complements GenMC (which checks memory ordering) by exhaustively exploring all
-thread interleavings of the higher-level CAS protocol.
+The full Layer 1 vocabulary of `kame/atomic_smart_ptr.h` under sequential
+consistency.  Complements GenMC (which checks memory ordering) by exhaustively
+exploring all thread interleavings of:
+
+- the tagged-pointer reference-counting protocol
+  (`acquire_tag_ref_`, `load_shared_`, `release_tag_ref_`),
+- the **modern drain release pattern**
+  (`release_tag_ref_(pref, added_global_rcnt)` with `cas_rcnt` parameter),
+- the **modern bulk-transfer `load_shared_`**
+  (`pref->refcnt.fetch_add(rcnt)` + drain), which steals concurrent threads'
+  tag IOUs and shifts contention from `m_ref` to `refcnt`,
+- the unified **`compareAndSet_impl_<OldrT, NewrT, false (no WEAK), RETAIN_NEWR>`**
+  template (covering Set / Swap variants),
+- **`scoped_atomic_view<T>` RAII lifecycle** (TagHeld state):
+  acquire → CAS set (SCOPED variant with step4 = +T, fetch_sub(2) on success) → dtor.
 
 ### Modeled operations
 
 | Operation | C++ source | Key detail |
 |---|---|---|
-| `reserve_scan_()` | Lines 462-488 | CAS on full word (ptr + local_rc); **non-atomic read modeled as 2 steps** |
-| `scan_()` | Lines 494-503 | reserve_scan_ + global_rc++ + leave_scan_ |
-| `leave_scan_()` | Lines 512-531 | CAS to dec local_rc; **fallback to global_rc-- if ptr changed** |
-| `compareAndSwap_()` | Lines 556-603 | 6 phases: pre-inc, reserve, check/mismatch, transfer, CAS, cleanup |
-| `local_shared_ptr::reset()` | | global_rc-- with free on zero |
-| ABA Recycle | (synthetic) | Freed objects reallocated at same address to test ABA |
+| `acquire_tag_ref_()` | `atomic_smart_ptr.h:1058-1108` | Single atomic load of `m_ref` + CAS to +1 local tag |
+| `load_shared_()` (bulk) | `atomic_smart_ptr.h:1116-1128` | `fetch_add(rcnt)` to global + drain `release_tag_ref_(pref, rcnt)` |
+| `release_tag_ref_(pref, T)` | `atomic_smart_ptr.h:1158-1206` | Drain `min(local_rc, T)` tags in one CAS + fetch_sub the excess |
+| `compareAndSwap_()` (legacy) | `atomic_smart_ptr.h:550-650` | 6-phase: pre-inc, acquire, check, transfer, CAS, cleanup/undo |
+| `local_shared_ptr::swap(asp&)` | `atomic_smart_ptr.h:628-649` | Like CAS but unconditional and hold-transfer |
+| `compareAndSet_impl_<SCOPED>` | `atomic_smart_ptr.h:1240-1450` | No acquire (scope holds +1); step4 = +T (full); fetch_sub(2) on success |
+| `scoped_atomic_view` ctor | `atomic_smart_ptr.h:598-700` | Acquire → TagHeld |
+| `scoped_atomic_view` dtor | `atomic_smart_ptr.h:730-845` | `release_tag_ref_(pref, 1)` if TagHeld |
+| `local_shared_ptr::reset()` | `atomic_smart_ptr.h:433-444` | `fetch_sub(1, acq_rel)` + delete check |
 
 ### Key modeling decisions
 
-1. **Non-atomic read splitting**: `pref_()` and `refcnt_()` are two separate `m_ref.load()` calls in C++. Modeled as `rs_read_ptr` → `rs_read_rc` (two interleaving steps). Another thread can change `m_ref` between them; the subsequent CAS catches the inconsistency.
-2. **ABA recycling**: Freed objects can be "recycled" (same pointer value reappears). Verifies that the tagged-pointer local_rc prevents ABA — the CAS compares the full word including the refcount bits, not just the pointer.
-3. **CAS mismatch = return false**: `compareAndSwap_` with `pref != oldr` returns false immediately (no retry). Only the *inner* CAS (on `m_ref`) retries on failure.
+1. **WEAK CAS spurious failure NOT modelled** — `compare_exchange_strong` semantics
+   used throughout.  Sound for safety: weak-CAS behaviors are a superset of
+   strong-CAS behaviors, and spurious failures exercise the same undo paths
+   covered by genuine failures.  The weak case is empirically validated by
+   GenMC RC11 (`cds_test_scoped_weak.c`).
+2. **ABA-by-recycling NOT modelled** — prevented by the shared-pointer
+   ownership contract (`oldr->refcnt >= 1` keeps oldr alive); not a
+   structural property of the tagged-pointer protocol.  See spec header.
+3. **`scoped_atomic_view` simplified to 2 states** — `"none"` and `"tagheld"`.
+   The `"empty"` and `"owned"` C++ states collapse to `"none"` in this model
+   (no observable behavior depends on the distinction at Layer 1).
+4. **Drain modelled by extending the existing release CAS** — `cas_rcnt`,
+   `added_global_rcnt`, and `drained` parameters generalise the 1-tag
+   release to arbitrary K-tag release.
 
-### Verified invariants (6)
+### Verified invariants (10)
 
 | Invariant | Description |
 |---|---|
-| `MemorySafety` | After reserve_scan_ succeeds, object is not freed until leave_scan_ completes |
-| `NoUseAfterFree` | Objects held by local_shared_ptrs are not freed |
-| `GlobalRCNonNeg` | Global refcount >= 0 for live objects |
-| `FreedImpliesZeroRC` | Freed objects have global_rc = 0 |
-| `InstalledNotFreed` | Object currently in atomic_shared_ptr is not freed |
 | `TypeOK` | Type invariant |
+| `MemorySafety` | While a thread holds a tag/ref on pref, pref is not freed |
+| `NoUseAfterFree` | Objects held by `local_shared_ptr`s are not freed |
+| `GlobalRCNonNeg` | Global refcount >= 0 for live objects |
+| `FreedImpliesZeroRC` | Freed objects have `global_rc = 0` |
+| `InstalledNotFreed` | Object currently in `atomic_shared_ptr.m_ref` is not freed |
+| `LocalRCBounded` | `local_rc <= 2 * |Threads|` (each thread: 1 scope tag + 1 in-flight acquire) |
+| `QuiescentCheck` | All-threads-idle implies `freed[o] = (global_rc[o] = 0)` |
+| `TerminalCheck` | All-budgets-exhausted + no held refs + scope="none" → ptr has rc=1, others freed |
+| `ScopeConsistent` | `scope_state` and `scope_pref` agree; tagheld implies pref not freed |
+
+### Liveness
+
+**Liveness `<>AllDone` is INTENTIONALLY VIOLATED** at Layer 1.  TLC finds a
+lasso where two threads enter mutual CAS retry (`cas_retry` ctx → `cas_acquire` →
+`atr_cas` → ...) — internal CAS retries do not consume `iterBudget`, so an
+adversarial scheduler can sustain the loop indefinitely.  This is the expected
+behavior: livelock-freedom is supplied by Layer 2's priority older-wins
+(LL-free negotiate) mechanism, not by Layer 1.
 
 ### Results
 
-| Config | Threads | Objects | Features | Distinct states | Depth | Time | Result |
+All configurations enable `SYMMETRY AllSymmetry` (Threads ∪ Objects permutable)
+except 1-thread and liveness configs.
+
+| Config | Threads | MaxOps | Ops | Distinct states | Depth | Time | Result |
 |---|---|---|---|---|---|---|---|
-| step1_scan_only | 2 | 2 | non-atomic read | 14,280 | - | 2s | **Pass** |
-| step2_scan_plus_cas | 2 | 2 | CAS + ABA + non-atomic read | 115,714,315 | 167 | 9min | **Pass (complete)** |
-| step3_concurrent_cas | 3 | 2 | CAS + ABA + non-atomic read + symmetry | 71,335,517+ | - | 10min | **Pass (partial, no violations)** |
+| `atomic_shared_ptr_1thr_mc.cfg` | 1 | 3 | load+CAS+swap+scope | 4,014 | 33 | <1s | **Pass** (complete) |
+| `atomic_shared_ptr_small_mc.cfg` | 2 | 2 | load+CAS+scope | 613,990 | 69 | 12s | **Pass** (complete) |
+| `atomic_shared_ptr_mc.cfg` | 2 | 3 | load+CAS+scope | (running on local) | — | — | (planned) |
+| `atomic_shared_ptr_all_mc.cfg` | 2 | 3 | load+CAS+swap+scope (full) | (running on local) | — | — | (planned) |
+| `atomic_shared_ptr_3thr_cas_mc.cfg` | 3 | 2 | load+CAS+scope | — | — | — | (planned, local) |
+| `atomic_shared_ptr_live_mc.cfg` | 2 | 2 | `<>AllDone` liveness | (lasso) | — | 40s | **Fail (expected)** — confirms Layer 1 has no LL-freedom |
 
 ### Key findings
 
-- **ABA does not cause memory safety violations**: The TLA+ model permits object recycling at the same pointer value (sound over-approximation). For `scan_()`/`load_shared_()`, where the thread holds no reference during `acquire_tag_ref`, ABA recycling can in principle occur; the model verifies that reference counting invariants are preserved even in this case. For `compareAndSwap_()`, the caller holds a `local_shared_ptr` to the old value, so ABA cannot occur in practice (the old object is never freed). 115.7M states verified with no memory safety violations.
-- **Non-atomic read is safe**: Inconsistency between the two loads is always caught by the subsequent CAS (which compares the full atomic word).
-- **`leave_scan_` fallback branch is essential**: When the pointer is swapped between reserve and leave, the `global_rc--` fallback (lines 526-529) correctly maintains refcount invariants. Without it, refcount leaks or use-after-free would occur.
+- **All modelled safety invariants hold** under exhaustive 1-thread (4k
+  states) and 2-thread MaxOps=2 (614k states) exploration — no memory safety
+  violations, no refcount leaks, no use-after-free.
+- **Drain release preserves refcount balance** under arbitrary `cas_rcnt`
+  values: excess undo (`fetch_sub(added - drained)`) keeps `global_rc`
+  consistent whether the drain succeeds or falls through.
+- **Scope tag CAS-consume invariant holds**: SCOPED CAS's `fetch_sub(2)` on
+  success uniformly absorbs both `m_ref`'s release and scope's tag-share,
+  regardless of whether the scope was in the ABSORBED or DRAINED logical
+  state at CAS time.
+- **Layer 1 has no liveness guarantee** — formally confirmed via the
+  `EventuallyAllDone` counter-example, motivating the need for Layer 2's
+  priority older-wins mechanism.
 
 ---
 
@@ -248,11 +336,12 @@ java -XX:+UseParallelGC -Xmx14g -cp tla2tools.jar tlc2.TLC \
 
 ### What it tests
 
-Same protocol as Layer 1 extended to a 3-level tree (Grand → Parent → {Child1, Child2}).
-Additionally verifies recursive bundling (snapshot of Grand triggers inner bundle of Parent)
-and multi-level unbundle walk.
+Same protocol as the 2-level Layer 2 (§3) extended to a 3-level tree
+(Grand → Parent → {Child1, Child2}).  Additionally verifies recursive
+bundling (snapshot of Grand triggers inner bundle of Parent) and
+multi-level unbundle walk.
 
-### Additional coverage vs Layer 1
+### Additional coverage vs the 2-level spec
 
 - **Recursive inner bundle**: `InnerPhase2/3/4` model the inner `bundle()` call when
   `snapshot(Grand)` encounters Parent with `missing=TRUE`
@@ -261,7 +350,7 @@ and multi-level unbundle walk.
 - **`BundleChainValid`** / **`BundledByCorrect`** invariants: structural correctness of
   the 3-level `bundledBy` chain
 
-### Verified invariants (adds to Layer 1)
+### Verified invariants (adds to the 2-level set)
 
 | Invariant | Description |
 |---|---|
@@ -298,15 +387,21 @@ java -XX:+UseParallelGC -Xmx14g -cp tla2tools.jar tlc2.TLC \
 Large configs (3-thread superfine) require a supercomputer; see
 `tests/tlaplus/doc/ohtaka_handoff.md`.
 
-### Liveness (both Layer 1 and Layer 2)
+### Liveness (Layer 2 only)
 
-**Lock-free + livelock-free formally proven** via `EventuallyAllDone` PROPERTY. Priority
-gating makes unbounded retries structurally impossible: serials increment monotonically, the
-state graph is acyclic, and TLC terminates without `CONSTRAINT`. See
-`tests/tlaplus/doc/proof_semantics.md` §2–§4 for the full argument.
+**Layer 2 is lock-free + livelock-free**, formally proven via the
+`EventuallyAllDone` PROPERTY.  Priority gating (TagOlder older-wins
+arbitration) makes unbounded retries structurally impossible: serials
+increment monotonically, the state graph is acyclic, and TLC terminates
+without `CONSTRAINT`.  See `tests/tlaplus/doc/proof_semantics.md` §2–§4
+for the full argument.
 
-Wait-free is not claimed — CAS-retry-based with fairness (`WF_vars`) required for per-thread
-liveness. See `proof_semantics.md` §7.
+**Layer 1 is NOT livelock-free** — see §2 above for the counter-example.
+Liveness is supplied by the Layer 2 priority mechanism, not by the bare
+tagged-pointer protocol.
+
+Wait-free is not claimed at either layer — CAS-retry-based with fairness
+(`WF_vars`) required for per-thread liveness.  See `proof_semantics.md` §7.
 
 ---
 
@@ -346,9 +441,10 @@ make -f Makefile.tests check   # builds and runs all tests
 | Property | Stress tests | GenMC | TLA+ |
 |---|---|---|---|
 | Memory ordering correctness | Probabilistic (timing-dependent) | **Exhaustive** (RC11 model) | N/A (seq. consistency) |
-| Protocol logic (refcount) | Probabilistic | Assertion-based | **Exhaustive** (115.7M states) |
-| STM commit correctness | `gn2 <= gn3` invariant | N/A | **Exhaustive** (109.9M states) |
-| Bundle/unbundle protocol | Implicit (via STM tests) | N/A | **Exhaustive** (622M states) |
+| Protocol logic (refcount + drain + scope) | Probabilistic | Assertion-based | **Exhaustive** (Layer 1, this work) |
+| STM commit correctness | `gn2 <= gn3` invariant | N/A | **Exhaustive** (Layer 1 + Layer 2) |
+| Bundle/unbundle protocol | Implicit (via STM tests) | N/A | **Exhaustive** (Layer 2, 622M states) |
+| Livelock-freedom (LL-free) | Asymmetric stress | N/A | **Exhaustive** (Layer 2 only; Layer 1 has counter-example) |
 | Fairness / starvation | `transaction_negotiation_test` | N/A | Not modeled |
 | Real compiler/hardware bugs | **Yes** (actual binary) | No (abstract model) | No (abstract model) |
 
