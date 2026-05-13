@@ -661,6 +661,12 @@ class ScopedNegotiateLinkage {
     bool            m_strong_mode = false;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     int             m_caller_line = 0;  // __LINE__ of the ctor call site
+    //! Whether THIS scope's ctor-time negotiate fired a gate-return.
+    //! Per-scope (not thread_local) so nested scopes don't overwrite
+    //! one another's correlation flag.  Written by negotiate_internal
+    //! via the thread_local sink s_last_was_gate_return; read and
+    //! consumed by _on_cas_fail of THIS scope only.
+    bool            m_was_gate_return = false;
 #endif
 public:
     enum class TagMode { OnEntry, OnExit };
@@ -704,6 +710,9 @@ public:
         // this thread's stats into the global aggregator) is wired
         // up for this thread.  Cost: one TLS access on first ctor.
         (void)&detail::_auto_merge_neg_stats;
+        // Snapshot the gate-return flag set by negotiate_internal
+        // (called below) into per-scope storage in the post-negotiate
+        // segment.  See _maybe_capture_gate_return().
 #else
         (void)caller_line;
 #endif
@@ -711,6 +720,9 @@ public:
             m_link->negotiate(snap, mult_wait);  // always negotiate, no retry_pause
         else
             m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        _capture_gate_return();
+#endif
         // Privilege-state-aware threshold for the weak tag-bit acquire:
         //
         //   - **We hold privilege** (TID matches s_privileged_tidstamp):
@@ -803,6 +815,9 @@ public:
         // this thread's stats into the global aggregator) is wired
         // up for this thread.  Cost: one TLS access on first ctor.
         (void)&detail::_auto_merge_neg_stats;
+        // Snapshot the gate-return flag set by negotiate_internal
+        // (called below) into per-scope storage in the post-negotiate
+        // segment.  See _maybe_capture_gate_return().
 #else
         (void)caller_line;
 #endif
@@ -812,6 +827,9 @@ public:
             else
                 m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         }
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        _capture_gate_return();
+#endif
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time);
@@ -846,6 +864,9 @@ public:
         // this thread's stats into the global aggregator) is wired
         // up for this thread.  Cost: one TLS access on first ctor.
         (void)&detail::_auto_merge_neg_stats;
+        // Snapshot the gate-return flag set by negotiate_internal
+        // (called below) into per-scope storage in the post-negotiate
+        // segment.  See _maybe_capture_gate_return().
 #else
         (void)caller_line;
 #endif
@@ -855,6 +876,9 @@ public:
             else
                 m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         }
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        _capture_gate_return();
+#endif
         m_view = std::move(from);
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time);
@@ -873,9 +897,13 @@ public:
           m_strong_mode(o.m_strong_mode)
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         , m_caller_line(o.m_caller_line)
+        , m_was_gate_return(o.m_was_gate_return)
 #endif
     {
         o.m_committed = true;  // prevent dtor effects on moved-from
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        o.m_was_gate_return = false;  // moved out — don't double-attribute
+#endif
     }
     ScopedNegotiateLinkage &operator=(ScopedNegotiateLinkage &&o) noexcept {
         if(this != &o) {
@@ -893,6 +921,8 @@ public:
             m_strong_mode = o.m_strong_mode;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             m_caller_line = o.m_caller_line;
+            m_was_gate_return = o.m_was_gate_return;
+            o.m_was_gate_return = false;
 #endif
             o.m_committed = true;
         }
@@ -1096,26 +1126,38 @@ public:
     void confirm_contention() noexcept { m_contention_observed = true; }
 
 private:
-    //! Common CAS-success path: mark committed and clear the
-    //! last-gate-return correlation flag (a successful CAS resolves
-    //! the "gate-return → next CAS" pairing, so subsequent unrelated
-    //! CAS failures should not be attributed to this gate-return).
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    //! Snapshot the thread_local gate-return flag set by the
+    //! ctor-time negotiate_internal into this scope's per-scope
+    //! storage, then clear the thread_local.  Called once per ctor
+    //! after the negotiate call returns and before any CAS in the
+    //! body.  Per-scope storage avoids nested-scope leakage where a
+    //! nested scope's negotiate would overwrite the outer scope's
+    //! gate-return flag.
+    void _capture_gate_return() noexcept {
+        m_was_gate_return = detail::s_last_was_gate_return;
+        detail::s_last_was_gate_return = false;
+    }
+#endif
+    //! Common CAS-success path: mark committed and clear the per-scope
+    //! gate-return correlation flag (a successful CAS resolves the
+    //! "gate-return → next CAS" pairing; subsequent unrelated CAS
+    //! failures must not be attributed to this gate-return).
     void _on_cas_success() noexcept {
         m_committed = true;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-        detail::s_last_was_gate_return = false;
+        m_was_gate_return = false;
 #endif
     }
     //! Common CAS-fail path: set the contention flag and, when profiling
-    //! is enabled, correlate with the most recent negotiate outcome at
-    //! this caller_line (gate-return immediately followed by a CAS that
-    //! still failed is a strong signal that gate-skip didn't help here).
+    //! is enabled, correlate with this scope's own gate-return outcome
+    //! (per-scope, so nested scopes don't poison each other).
     void _on_cas_fail() noexcept {
         m_contention_observed = true;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-        if(detail::s_last_was_gate_return)
+        if(m_was_gate_return)
             ++detail::s_neg_site_stats[m_caller_line].gate_then_cas_fail;
-        detail::s_last_was_gate_return = false;
+        m_was_gate_return = false;
 #endif
     }
 public:
@@ -2072,6 +2114,14 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         //       snapshot/release/insert/SingleTransaction) likewise
         //       fall through to preserve their fairness window.
         //   (3) I am not fair-blocked or already privileged.
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        // Reset the gate→cas_fail correlation flag at every negotiate
+        // entry so the flag reflects ONLY this call's outcome.  Without
+        // this reset, a gate-return at scope A leaks into scope B's CAS
+        // failure when scope B's negotiate took the my_kind==NONE path
+        // (which doesn't touch the flag).
+        detail::s_last_was_gate_return = false;
+#endif
         if(!_fair_blocks && !snap.m_registered_privileged) {
             const detail::StampKind my_kind = detail::s_current_op_kind;
             if(my_kind != detail::StampKind::NONE) {
@@ -2087,7 +2137,6 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     detail::s_last_was_gate_return = true;
                 } else {
                     ++_st.blocked_by_peer[(int)peer_kind & 3];
-                    detail::s_last_was_gate_return = false;
                 }
 #endif
                 if(take_gate) {

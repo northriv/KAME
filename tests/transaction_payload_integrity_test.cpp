@@ -152,5 +152,8 @@ int main(int argc, char** argv) {
     }
 
     fprintf(stderr, "PASS\n");
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    Transactional::detail::dumpAdaptStats(stderr);
+#endif
     return 0;
 }
