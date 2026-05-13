@@ -199,15 +199,22 @@ namespace detail {
         constexpr cnt_t SIGN_BIT = cnt_t{1} << (STAMP_US_BITS - 1);
         return (int64_t)(((uint64_t)u ^ (uint64_t)SIGN_BIT) - (uint64_t)SIGN_BIT);
     }
-    //! op_kind discriminator values.  0 (NONE) is reserved as the
-    //! default for non-piggyback-aware code paths (stand-alone
-    //! snapshot / release / insert / SingleTransaction).  The other
-    //! values mark Tx-driven sub-operations of a multilevel commit.
+    //! op_kind discriminator values.  0 (NONE) is the default for
+    //! non-piggyback-aware code paths (stand-alone snapshot / release
+    //! / insert / SingleTransaction).  The other values mark
+    //! Tx-driven sub-operations of a multilevel commit:
+    //!   BUNDLE / UNBUNDLE: tree-walk sub-CASes inside a multi-nodal
+    //!     commit; tagged inside Node<XN>::bundle() / ::unbundle().
+    //!   MultiNodalCommit:  the outer iterate_commit / commit_loop of a
+    //!     multi-nodal Transaction; tagged inside Node<XN>::commit()
+    //!     and Transaction::operator++() when isMultiNodal() is true.
+    //!     Single-nodal Tx (SingleTransaction) keeps kind = NONE to
+    //!     share fairness semantics with the other stand-alone ops.
     enum class StampKind : uint8_t {
-        NONE     = 0,
-        BUNDLE   = 1,
-        UNBUNDLE = 2,
-        COMMIT   = 3,
+        NONE             = 0,
+        BUNDLE           = 1,
+        UNBUNDLE         = 2,
+        MultiNodalCommit = 3,
     };
 
     //! Per-thread "current operation kind".  Pushed via ScopedOpKind
@@ -1573,12 +1580,12 @@ private:
         // field declaration. The probe consumes the aggregated value.
         ++this->m_tx_retry_count;
         Node<XN> &node(this->m_packet->node());
-        // Pre-commit retry tag: kind = COMMIT for multilevel
+        // Pre-commit retry tag: kind = MultiNodalCommit for multilevel
         // (multi-nodal) Tx, NONE for SingleTransaction.  See
         // Node::commit() comment.  An inner snapshot()/bundle() may
         // push BUNDLE on top.
         detail::ScopedOpKind _op_kind_scope(
-            isMultiNodal() ? detail::StampKind::COMMIT
+            isMultiNodal() ? detail::StampKind::MultiNodalCommit
                            : detail::StampKind::NONE);
         if(isMultiNodal())
             this->tag_as_contender(node.m_link);

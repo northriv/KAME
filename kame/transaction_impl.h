@@ -1832,24 +1832,37 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         //       enclosing commit — ms-grain sleep is a granularity
         //       mismatch; my CAS failure cascades back to the outer
         //       commit-level negotiate, which has its own sleep).
-        //   (2) the peer on this linkage is also kind-tagged (BUNDLE /
-        //       UNBUNDLE / COMMIT) — i.e. a Transaction-driven
-        //       sub-operation, not a stand-alone snapshot/release/insert
-        //       which tags with NONE.  Stand-alone ops have different
-        //       fairness semantics (no enclosing commit retry to absorb
-        //       failure cascade), so they must use the normal sleep.
+        //   (2) the peer on this linkage is doing a SAME-direction
+        //       sub-operation (same kind) OR an enclosing
+        //       MultiNodalCommit — i.e. the contention is between
+        //       compatible / co-directional Tx-driven phases whose
+        //       failures cascade back to commit-level sleep.
+        //       OPPOSITE-direction peers (my BUNDLE vs peer UNBUNDLE,
+        //       or vice versa) take the normal adaptive sleep — they
+        //       are structurally antagonistic and benefit from the
+        //       usual fairness pacing.  NONE peers (stand-alone
+        //       snapshot/release/insert/SingleTransaction) likewise
+        //       fall through to preserve their fairness window.
         //   (3) I am not fair-blocked or already privileged.
         if(!_fair_blocks && !snap.m_registered_privileged) {
             const detail::StampKind my_kind = detail::s_current_op_kind;
-            if(my_kind == detail::StampKind::BUNDLE
-               || my_kind == detail::StampKind::UNBUNDLE) {
+            if(my_kind != detail::StampKind::NONE) {
                 const detail::StampKind peer_kind = (detail::StampKind)
                     NegotiationCounter::stamp_kind(transaction_started_time);
-                if(peer_kind != detail::StampKind::NONE)
-                    break;   // gate-return — both sides are Tx-driven sub-ops
-                // peer_kind == NONE: peer is a stand-alone snapshot /
-                // release / insert.  Fall through to normal sleep
-                // (preserves their fairness window).
+                if(peer_kind == my_kind
+                   || peer_kind == detail::StampKind::MultiNodalCommit) {
+                    // gate-return when:
+                    //   - peer is same-direction (BUNDLE-BUNDLE,
+                    //     UNBUNDLE-UNBUNDLE, MNC-MNC), or
+                    //   - peer is an enclosing MultiNodalCommit (covers
+                    //     my=BUNDLE/UNBUNDLE vs peer=MNC).
+                    // Other cases fall through to normal adaptive sleep:
+                    //   - peer_kind == NONE              → stand-alone op
+                    //   - peer_kind opposite direction   → BUNDLE↔UNBUNDLE
+                    //   - my=MNC vs peer=BUNDLE/UNBUNDLE → preserve
+                    //     fairness pacing at the outermost retry level.
+                    break;
+                }
             }
         }
         // -----------------------------------------------------------------
@@ -3402,20 +3415,22 @@ Node<XN>::commit(Transaction<XN> &tr) {
     assert(tr.isMultiNodal() || tr.m_packet->subpackets() == tr.m_oldpacket->subpackets());
     assert(this == &tr.m_packet->node());
 
-    // Stamp every linkage tagged during commit with kind = COMMIT,
-    // BUT ONLY for multilevel (multi-nodal) transactions whose commit
-    // involves nested bundle/unbundle on tree linkages.  A
-    // SingleTransaction is a stand-alone single-node CAS — structurally
-    // closer to a snapshot/release (no enclosing retry loop with sub-
-    // operations), so it tags with kind = NONE to share the normal
-    // adaptive-sleep fairness path with those stand-alone ops.
+    // Stamp every linkage tagged during commit with kind =
+    // MultiNodalCommit, but ONLY for multilevel (multi-nodal)
+    // transactions whose commit involves nested bundle/unbundle on
+    // tree linkages.  A SingleTransaction is a stand-alone single-
+    // node CAS — structurally closer to a snapshot/release (no
+    // enclosing retry loop with sub-operations), so it tags with
+    // kind = NONE to share the normal adaptive-sleep fairness path
+    // with those stand-alone ops.
     //
     // Downstream effect: the bundle/unbundle-level kind-gated gate-
-    // return in negotiate_internal will piggyback only when peer is
-    // also a multilevel Tx (kind = COMMIT/BUNDLE/UNBUNDLE), preserving
-    // the SingleTransaction's adaptive-sleep fairness window.
+    // return in negotiate_internal piggybacks only when peer is also
+    // a multilevel Tx (kind ∈ {MultiNodalCommit, BUNDLE, UNBUNDLE}),
+    // preserving the SingleTransaction's adaptive-sleep fairness
+    // window.
     detail::ScopedOpKind _op_kind_scope(
-        tr.isMultiNodal() ? detail::StampKind::COMMIT
+        tr.isMultiNodal() ? detail::StampKind::MultiNodalCommit
                           : detail::StampKind::NONE);
 
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
