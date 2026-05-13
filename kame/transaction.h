@@ -258,25 +258,49 @@ namespace detail {
     //!     subsequent CAS still failed (gate-skip not paying off).
     //! Sites with low commit rate / high gate→fail rate are candidates
     //! for tightening (e.g. removing gate-return at that site).
-    //! Per-call-site adaptive gate ↔ normal-sleep state.  Lives in the
-    //! production hot path (not INSTRUMENT-gated): default GATE (=
-    //! step-1, my_kind != NONE → gate-return), transitions to NORMAL
-    //! when a streak of K_FAIL gate→fail events all land inside a
-    //! FAIL_WINDOW_US time window (bursty AND persistent failure),
-    //! auto-recovers to GATE when NORMAL_LEASE_US elapses.
+    //! Per-call-site adaptive state — production hot path.
+    //!
+    //! Stored value is a tri-state `take_gate`:
+    //!   -1 (UNDEFINED)   : initial state, also post-privilege and
+    //!                      post-lease-expiry reset state.  Hot path
+    //!                      decides take_gate by my_kind alone
+    //!                      (non-NONE → gate, NONE → sleep).
+    //!    0 (FORCE_SLEEP) : forced sleep, regardless of my_kind.
+    //!                      Time-leased via `normal_until_us`.
+    //!    1 (FORCE_GATE)  : forced gate-return, regardless of
+    //!                      my_kind (NONE included).  Time-leased.
+    //!
+    //! Transitions (driven by _on_cas_fail / _on_cas_success):
+    //!   UNDEFINED   → FORCE_SLEEP : K_FAIL gate→fails inside
+    //!                               FAIL_WINDOW_US (gated calls
+    //!                               only — i.e. my_kind != NONE).
+    //!   UNDEFINED   → FORCE_GATE  : K_SUCC gate→succs (gated calls
+    //!                               only).  Path is implicitly
+    //!                               gated by my_kind != NONE since
+    //!                               only those produce m_was_gate_return.
+    //!   FORCE_SLEEP → FORCE_GATE  : K_SUCC consecutive CAS successes
+    //!                               (any my_kind — site is "quiet
+    //!                               enough" to risk all-kind gating).
+    //!   FORCE_GATE  → FORCE_SLEEP : K_FAIL gate→fails (in FORCE_GATE
+    //!                               every caller gates, so every
+    //!                               fail counts toward demotion).
+    //!   any FORCE   → UNDEFINED   : lease expiry (in negotiate_internal)
+    //!                               or privilege observation.
     //!
     //! Storage: thread_local per-thread map keyed by ScopedNeg call
     //! line.  Hot path dereferences a cached pointer maintained by
-    //! ScopedNegSite (RAII).  Per-thread storage avoids cross-thread
-    //! atomic contention; learning is independent per thread, which is
-    //! acceptable because each thread sees its own contention pattern.
+    //! ScopedNegSite (RAII).  Per-thread keeps the state cheap (no
+    //! atomic contention) and matches the per-thread observation
+    //! pattern of contention.
     struct NegSiteAdaptive {
-        uint8_t  mode = 0;                     // 0 = GATE, 1 = NORMAL
-        uint16_t consec_fails = 0;
-        uint64_t last_fail_us = 0;             // start of current streak
-        uint64_t normal_until_us = 0;          // NORMAL-mode lease expiry
-        uint64_t mode_flips_g2n = 0;           // diagnostic counters
-        uint64_t mode_flips_n2g = 0;
+        int8_t   take_gate = -1;               // -1=UNDEFINED, 0=SLEEP, 1=GATE
+        uint16_t consec_fails = 0;             // streak toward FORCE_SLEEP
+        uint16_t consec_succs = 0;             // streak toward FORCE_GATE
+        uint64_t last_fail_us = 0;             // start of current fail-streak
+        uint64_t normal_until_us = 0;          // lease expiry (both FORCE states)
+        uint64_t mode_flips_g2n = 0;           // diagnostic: any → FORCE_SLEEP
+        uint64_t mode_flips_n2g = 0;           // diagnostic: FORCE → UNDEFINED
+        uint64_t mode_flips_promote = 0;       // diagnostic: FORCE_SLEEP → FORCE_GATE
     };
     //! INSTRUMENT-only diagnostic stats.  Disjoint from NegSiteAdaptive
     //! so production code never touches it.  See dumpAdaptStats().
@@ -288,13 +312,16 @@ namespace detail {
         uint64_t gate_then_cas_fail = 0;       // gate-return → CAS failed
     };
 #ifndef KAME_GATE_K_FAIL
-#define KAME_GATE_K_FAIL 320            // streak depth threshold
+#define KAME_GATE_K_FAIL 320            // gate→fail streak depth → FORCE_SLEEP
+#endif
+#ifndef KAME_GATE_K_SUCC
+#define KAME_GATE_K_SUCC 320            // CAS-success streak in FORCE_SLEEP → FORCE_GATE
 #endif
 #ifndef KAME_GATE_FAIL_WINDOW_US
-#define KAME_GATE_FAIL_WINDOW_US 1000   // 1 ms streak-validity window
+#define KAME_GATE_FAIL_WINDOW_US 1000   // 1 ms streak-validity window for fails
 #endif
 #ifndef KAME_NORMAL_LEASE_US
-#define KAME_NORMAL_LEASE_US 1000       // 1 ms NORMAL lease before auto-recover
+#define KAME_NORMAL_LEASE_US 1000       // 1 ms lease for both FORCE states
 #endif
 
     //! Thread-local storage for NegSiteAdaptive — same DSO-portable
@@ -306,16 +333,25 @@ namespace detail {
     //! by ScopedNegSite to point at the active call-site's entry; the
     //! hot path dereferences the pointer instead of doing a per-call
     //! map lookup.
+    //! Thread-local sink for the most recent negotiate_internal()
+    //! gate-return decision (true if take_gate fired).  Captured at
+    //! ScopedNeg ctor into m_was_gate_return for per-scope use by
+    //! _on_cas_fail / _on_cas_success (state-machine streak counting
+    //! correlates the next CAS outcome with the gate decision that
+    //! preceded it).  Always-on (production path).
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     DECLSPEC_KAME std::unordered_map<int, NegSiteAdaptive>&
         s_neg_site_adaptive_map_ref() noexcept;
     DECLSPEC_KAME NegSiteAdaptive*& s_current_neg_adaptive_ptr_ref() noexcept;
+    DECLSPEC_KAME bool& s_last_was_gate_return_ref() noexcept;
 #  define s_neg_site_adaptive_map     s_neg_site_adaptive_map_ref()
 #  define s_current_neg_adaptive_ptr  s_current_neg_adaptive_ptr_ref()
+#  define s_last_was_gate_return      s_last_was_gate_return_ref()
 #else
     extern thread_local std::unordered_map<int, NegSiteAdaptive>
         s_neg_site_adaptive_map;
     extern thread_local NegSiteAdaptive* s_current_neg_adaptive_ptr;
+    extern thread_local bool s_last_was_gate_return;
 #endif
 
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
@@ -324,14 +360,11 @@ namespace detail {
 #  if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     DECLSPEC_KAME std::unordered_map<int, NegSiteStat>& s_neg_site_stats_ref() noexcept;
     DECLSPEC_KAME int& s_current_neg_site_line_ref() noexcept;
-    DECLSPEC_KAME bool& s_last_was_gate_return_ref() noexcept;
 #    define s_neg_site_stats        s_neg_site_stats_ref()
 #    define s_current_neg_site_line s_current_neg_site_line_ref()
-#    define s_last_was_gate_return  s_last_was_gate_return_ref()
 #  else
     extern thread_local std::unordered_map<int, NegSiteStat> s_neg_site_stats;
     extern thread_local int  s_current_neg_site_line;
-    extern thread_local bool s_last_was_gate_return;
 #  endif
 #endif
 
