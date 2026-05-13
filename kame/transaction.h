@@ -312,10 +312,10 @@ namespace detail {
         uint64_t gate_then_cas_fail = 0;       // gate-return → CAS failed
     };
 #ifndef KAME_GATE_K_FAIL
-#define KAME_GATE_K_FAIL 10             // gate→fail streak depth → FORCE_SLEEP. Sweep winner (macOS M3 Air, 2026-05).
+#define KAME_GATE_K_FAIL 20             // gate→fail streak depth → FORCE_SLEEP. 2x bump (iMac x86 K=100 N=128 retest, 2026-05).
 #endif
 #ifndef KAME_GATE_K_SUCC
-#define KAME_GATE_K_SUCC 5              // CAS-success streak → FORCE_GATE. Sweep winner.
+#define KAME_GATE_K_SUCC 10             // CAS-success streak → FORCE_GATE. 2x bump (same retest).
 #endif
 #ifndef KAME_GATE_FAIL_WINDOW_US
 #define KAME_GATE_FAIL_WINDOW_US 1000   // 1 ms streak-validity window for fails
