@@ -23,7 +23,9 @@
 #include <condition_variable>
 #include <mutex>
 #include <optional>
+#include <unordered_map>
 #include <vector>
+#include <cstdio>
 #include "atomic.h"
 #include "xtime.h"
 #include "transaction_signal.h"
@@ -243,6 +245,80 @@ namespace detail {
         ScopedOpKind(const ScopedOpKind &) = delete;
         ScopedOpKind &operator=(const ScopedOpKind &) = delete;
     };
+
+    //! Per-call-site profiling stats for ScopedNegotiateLinkage.  Keyed
+    //! by the __LINE__ of the ScopedNeg constructor at the call site.
+    //! Opt-in via -DKAME_ADAPT_INSTRUMENT=1 (off by default — zero cost
+    //! in production builds).  Inspect via dumpAdaptStats() at the end
+    //! of a stress run to see, per source-line:
+    //!   - commit success rate (commits / entries)
+    //!   - which peer-kinds *blocked* the gate-return (i.e. led to
+    //!     normal adaptive sleep instead of the fast break-out)
+    //!   - which peer-kinds *triggered* gate-return, and how often the
+    //!     subsequent CAS still failed (gate-skip not paying off).
+    //! Sites with low commit rate / high gate→fail rate are candidates
+    //! for tightening (e.g. removing gate-return at that site).
+    struct NegSiteStat {
+        uint64_t entries = 0;                  // ScopedNeg ctor count
+        uint64_t commits = 0;                  // m_committed at dtor
+        uint64_t blocked_by_peer[4] = {};      // gate not taken: normal sleep
+        uint64_t gate_returns_by_peer[4] = {}; // gate-return fired
+        uint64_t gate_then_cas_fail = 0;       // gate-return → CAS failed
+    };
+
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    //! Thread-local profiling state.  Same DSO-portability pattern as
+    //! s_current_op_kind: extern thread_local on Apple/Linux, accessor
+    //! function on Windows.
+#  if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    DECLSPEC_KAME std::unordered_map<int, NegSiteStat>& s_neg_site_stats_ref() noexcept;
+    DECLSPEC_KAME int& s_current_neg_site_line_ref() noexcept;
+    DECLSPEC_KAME bool& s_last_was_gate_return_ref() noexcept;
+#    define s_neg_site_stats        s_neg_site_stats_ref()
+#    define s_current_neg_site_line s_current_neg_site_line_ref()
+#    define s_last_was_gate_return  s_last_was_gate_return_ref()
+#  else
+    extern thread_local std::unordered_map<int, NegSiteStat> s_neg_site_stats;
+    extern thread_local int  s_current_neg_site_line;
+    extern thread_local bool s_last_was_gate_return;
+#  endif
+
+    //! RAII helper: push the current ScopedNeg's caller line onto the
+    //! per-thread slot, so negotiate_internal can attribute gating
+    //! events to the correct call site.  Mirrors ScopedOpKind.
+    struct ScopedNegSite {
+        int prev;
+        explicit ScopedNegSite(int line) noexcept
+            : prev(s_current_neg_site_line) { s_current_neg_site_line = line; }
+        ~ScopedNegSite() noexcept { s_current_neg_site_line = prev; }
+        ScopedNegSite(const ScopedNegSite &) = delete;
+        ScopedNegSite &operator=(const ScopedNegSite &) = delete;
+    };
+#endif
+
+    //! Merge this thread's NegSiteStat map into the global aggregator
+    //! and dump a human-readable summary.  No-op when
+    //! KAME_ADAPT_INSTRUMENT is 0.
+    DECLSPEC_KAME void mergeNegSiteStatsToGlobal() noexcept;
+    DECLSPEC_KAME void dumpAdaptStats(std::FILE *fp = nullptr) noexcept;
+
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    //! Thread-local sentinel whose dtor flushes the per-thread
+    //! NegSiteStat map into the global aggregator at thread exit.
+    //! Defined here (before its thread_local declaration in
+    //! transaction_impl.h) so the type is complete at the point of
+    //! that declaration.  The dtor calls mergeNegSiteStatsToGlobal()
+    //! declared above.
+    struct _AutoMergeNegStats {
+        ~_AutoMergeNegStats() noexcept { mergeNegSiteStatsToGlobal(); }
+    };
+#  if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    DECLSPEC_KAME _AutoMergeNegStats& _auto_merge_neg_stats_ref() noexcept;
+#    define _auto_merge_neg_stats _auto_merge_neg_stats_ref()
+#  else
+    extern thread_local _AutoMergeNegStats _auto_merge_neg_stats;
+#  endif
+#endif
 
     //! Cacheline-padded "I am currently running a Tx" counter, owned
     //! by exactly one thread. Heap-allocated per thread so increments
@@ -955,6 +1031,11 @@ private:
 
     void snapshot(Snapshot<XN> &target, bool multi_nodal) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        // This negotiate is not wrapped by a ScopedNegotiateLinkage —
+        // give it its own NegSiteStat bucket so it shows up in dumps.
+        detail::ScopedNegSite _site_scope(__LINE__);
+#endif
         m_link->negotiate(target, 4.0f);
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal);
         target.m_oldpacket = target.m_packet;

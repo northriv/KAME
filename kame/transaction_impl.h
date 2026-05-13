@@ -168,6 +168,27 @@ DECLSPEC_KAME StampKind& s_current_op_kind_ref() noexcept {
     thread_local StampKind v = StampKind::NONE;
     return v;
 }
+#  if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+#    undef s_neg_site_stats
+#    undef s_current_neg_site_line
+#    undef s_last_was_gate_return
+DECLSPEC_KAME std::unordered_map<int, NegSiteStat>& s_neg_site_stats_ref() noexcept {
+    thread_local std::unordered_map<int, NegSiteStat> v;
+    return v;
+}
+DECLSPEC_KAME int& s_current_neg_site_line_ref() noexcept {
+    thread_local int v = 0;
+    return v;
+}
+DECLSPEC_KAME bool& s_last_was_gate_return_ref() noexcept {
+    thread_local bool v = false;
+    return v;
+}
+DECLSPEC_KAME _AutoMergeNegStats& _auto_merge_neg_stats_ref() noexcept {
+    thread_local _AutoMergeNegStats v;
+    return v;
+}
+#  endif
 // Re-instate the aliases so the rest of transaction_impl.h refers to
 // the variables uniformly.
 #  define s_tx_nest                  s_tx_nest_ref()
@@ -175,12 +196,23 @@ DECLSPEC_KAME StampKind& s_current_op_kind_ref() noexcept {
 #  define tls_runner_counter_holder  tls_runner_counter_holder_ref()
 #  define tls_runner_counter_ptr     tls_runner_counter_ptr_ref()
 #  define s_current_op_kind          s_current_op_kind_ref()
+#  if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+#    define s_neg_site_stats        s_neg_site_stats_ref()
+#    define s_current_neg_site_line s_current_neg_site_line_ref()
+#    define s_last_was_gate_return  s_last_was_gate_return_ref()
+#  endif
 #else
 thread_local int s_tx_nest = 0;
 thread_local int s_sleep_nest = 0;
 thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 thread_local StampKind s_current_op_kind = StampKind::NONE;
+#  if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+thread_local std::unordered_map<int, NegSiteStat> s_neg_site_stats;
+thread_local int  s_current_neg_site_line = 0;
+thread_local bool s_last_was_gate_return  = false;
+thread_local _AutoMergeNegStats _auto_merge_neg_stats;
+#  endif
 #endif
 
 // `DECLSPEC_KAME` on the definitions too — MSVC is more lenient when
@@ -189,6 +221,26 @@ thread_local StampKind s_current_op_kind = StampKind::NONE;
 // symbols, defeating the libkame singleton invariant (the macOS DSO
 // duplication failure mode that motivated this whole reorg).
 DECLSPEC_KAME atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
+
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+//! Global aggregator for NegSiteStat — every thread merges its
+//! thread-local map into here at thread exit (via the thread_local
+//! _AutoMergeNegStats dtor below) or on demand via
+//! mergeNegSiteStatsToGlobal().  Mutex-guarded; merges are rare
+//! (once per thread at termination) so contention is negligible.
+struct GlobalNegStats {
+    std::mutex mu;
+    std::unordered_map<int, NegSiteStat> agg;
+};
+inline GlobalNegStats& globalNegStats() noexcept {
+    static GlobalNegStats g;
+    return g;
+}
+
+// _AutoMergeNegStats struct + thread_local declaration live in
+// transaction.h (so the thread_local definition further down in this
+// file sees the complete type).
+#endif
 
 DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
     auto sp = std::make_shared<RunnerCounterEntry>();
@@ -226,6 +278,85 @@ DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept {
         if(auto sp = w.lock())
             s += sp->v.load(std::memory_order_relaxed);
     return (unsigned)s;
+}
+
+DECLSPEC_KAME void mergeNegSiteStatsToGlobal() noexcept {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    auto &g = globalNegStats();
+    std::lock_guard<std::mutex> _lk(g.mu);
+    for(auto &kv : s_neg_site_stats) {
+        auto &dst = g.agg[kv.first];
+        dst.entries          += kv.second.entries;
+        dst.commits          += kv.second.commits;
+        for(int i = 0; i < 4; ++i) {
+            dst.blocked_by_peer[i]      += kv.second.blocked_by_peer[i];
+            dst.gate_returns_by_peer[i] += kv.second.gate_returns_by_peer[i];
+        }
+        dst.gate_then_cas_fail += kv.second.gate_then_cas_fail;
+    }
+    s_neg_site_stats.clear();
+#endif
+}
+
+DECLSPEC_KAME void dumpAdaptStats(std::FILE *fp) noexcept {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    if( !fp) fp = stderr;
+    mergeNegSiteStatsToGlobal();   // pull in this thread's stats first
+    auto &g = globalNegStats();
+    std::lock_guard<std::mutex> _lk(g.mu);
+    if(g.agg.empty()) {
+        std::fprintf(fp, "[neg_site stats] (empty)\n");
+        return;
+    }
+    // Sort by call-site line ascending for stable output.
+    std::vector<std::pair<int, NegSiteStat>> rows(g.agg.begin(), g.agg.end());
+    std::sort(rows.begin(), rows.end(),
+              [](const auto &a, const auto &b){ return a.first < b.first; });
+    std::fprintf(fp, "[neg_site stats] (KAME_ADAPT_INSTRUMENT)\n");
+    static const char *kindLabel[4] = {"N", "B", "U", "M"};
+    for(auto &row : rows) {
+        const int line = row.first;
+        const auto &s = row.second;
+        const double commit_rate = s.entries
+            ? 100.0 * (double)s.commits / (double)s.entries : 0.0;
+        const uint64_t gate_tot = s.gate_returns_by_peer[0]
+                                + s.gate_returns_by_peer[1]
+                                + s.gate_returns_by_peer[2]
+                                + s.gate_returns_by_peer[3];
+        const uint64_t blk_tot  = s.blocked_by_peer[0]
+                                + s.blocked_by_peer[1]
+                                + s.blocked_by_peer[2]
+                                + s.blocked_by_peer[3];
+        const double gate_then_fail_rate = gate_tot
+            ? 100.0 * (double)s.gate_then_cas_fail / (double)gate_tot : 0.0;
+        std::fprintf(fp,
+            "  [line=%d]  entries=%llu commit_rate=%.1f%%\n",
+            line,
+            (unsigned long long)s.entries, commit_rate);
+        std::fprintf(fp,
+            "    gate_returns(%s/%s/%s/%s) = %llu / %llu / %llu / %llu  (tot=%llu)\n",
+            kindLabel[0], kindLabel[1], kindLabel[2], kindLabel[3],
+            (unsigned long long)s.gate_returns_by_peer[0],
+            (unsigned long long)s.gate_returns_by_peer[1],
+            (unsigned long long)s.gate_returns_by_peer[2],
+            (unsigned long long)s.gate_returns_by_peer[3],
+            (unsigned long long)gate_tot);
+        std::fprintf(fp,
+            "    blocked     (%s/%s/%s/%s) = %llu / %llu / %llu / %llu  (tot=%llu)\n",
+            kindLabel[0], kindLabel[1], kindLabel[2], kindLabel[3],
+            (unsigned long long)s.blocked_by_peer[0],
+            (unsigned long long)s.blocked_by_peer[1],
+            (unsigned long long)s.blocked_by_peer[2],
+            (unsigned long long)s.blocked_by_peer[3],
+            (unsigned long long)blk_tot);
+        std::fprintf(fp,
+            "    gate->cas_fail = %llu  (%.1f%% of gate_returns)\n",
+            (unsigned long long)s.gate_then_cas_fail, gate_then_fail_rate);
+    }
+    std::fflush(fp);
+#else
+    (void)fp;
+#endif
 }
 
 } // namespace detail
@@ -528,6 +659,9 @@ class ScopedNegotiateLinkage {
     //! scope ends quickly, and the strong CAS still terminates: it
     //! returns false on real pointer mismatch.
     bool            m_strong_mode = false;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    int             m_caller_line = 0;  // __LINE__ of the ctor call site
+#endif
 public:
     enum class TagMode { OnEntry, OnExit };
 
@@ -545,13 +679,34 @@ public:
     //! Sites that only use external-expected CAS
     //! (compareAndSet(expected, desired)) may proceed unguarded since
     //! the empty view does not affect that path.
+    //!
+    //! `caller_line` is auto-populated by __builtin_LINE() as a default
+    //! argument — it resolves at the call site (not the ctor's
+    //! definition line).  Used by KAME_ADAPT_INSTRUMENT profiling to
+    //! key NegSiteStat per source-line.  Zero overhead when the
+    //! instrumentation macro is off.
     ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
                            TagMode mode = TagMode::OnEntry,
-                           float mult_wait = 2.0f) noexcept
+                           float mult_wait = 2.0f,
+                           int caller_line = __builtin_LINE()) noexcept
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0) {
+          m_should_tag(retry != 0)
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        , m_caller_line(caller_line)
+#endif
+    {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        detail::ScopedNegSite _site_scope(caller_line);
+        ++detail::s_neg_site_stats[caller_line].entries;
+        // Touch the thread_local sentinel so its dtor (which merges
+        // this thread's stats into the global aggregator) is wired
+        // up for this thread.  Cost: one TLS access on first ctor.
+        (void)&detail::_auto_merge_neg_stats;
+#else
+        (void)caller_line;
+#endif
         if(retry < 0)
             m_link->negotiate(snap, mult_wait);  // always negotiate, no retry_pause
         else
@@ -605,7 +760,7 @@ public:
             // same treatment as a CAS failure: forces dtor tag despite
             // retry==0 fast-path optimization.  STRONG mode never
             // returns acquire_succeeded()==false (it spins until success).
-            m_contention_observed = true;
+            _on_cas_fail();
         }
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
@@ -631,11 +786,26 @@ public:
                            local_shared_ptr<PacketWrapper> &&from,
                            TagMode mode = TagMode::OnEntry,
                            float mult_wait = 2.0f,
-                           bool with_negotiate = false) noexcept
+                           bool with_negotiate = false,
+                           int caller_line = __builtin_LINE()) noexcept
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0) {
+          m_should_tag(retry != 0)
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        , m_caller_line(caller_line)
+#endif
+    {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        detail::ScopedNegSite _site_scope(caller_line);
+        ++detail::s_neg_site_stats[caller_line].entries;
+        // Touch the thread_local sentinel so its dtor (which merges
+        // this thread's stats into the global aggregator) is wired
+        // up for this thread.  Cost: one TLS access on first ctor.
+        (void)&detail::_auto_merge_neg_stats;
+#else
+        (void)caller_line;
+#endif
         if(with_negotiate) {
             if(retry < 0)
                 m_link->negotiate(snap, mult_wait);
@@ -659,11 +829,26 @@ public:
                            scoped_atomic_view<PacketWrapper> &&from,
                            TagMode mode = TagMode::OnEntry,
                            float mult_wait = 2.0f,
-                           bool with_negotiate = false) noexcept
+                           bool with_negotiate = false,
+                           int caller_line = __builtin_LINE()) noexcept
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0) {
+          m_should_tag(retry != 0)
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        , m_caller_line(caller_line)
+#endif
+    {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        detail::ScopedNegSite _site_scope(caller_line);
+        ++detail::s_neg_site_stats[caller_line].entries;
+        // Touch the thread_local sentinel so its dtor (which merges
+        // this thread's stats into the global aggregator) is wired
+        // up for this thread.  Cost: one TLS access on first ctor.
+        (void)&detail::_auto_merge_neg_stats;
+#else
+        (void)caller_line;
+#endif
         if(with_negotiate) {
             if(retry < 0)
                 m_link->negotiate(snap, mult_wait);
@@ -685,7 +870,11 @@ public:
           m_mult_wait(o.m_mult_wait), m_eager(o.m_eager),
           m_should_tag(o.m_should_tag), m_committed(o.m_committed),
           m_contention_observed(o.m_contention_observed),
-          m_strong_mode(o.m_strong_mode) {
+          m_strong_mode(o.m_strong_mode)
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        , m_caller_line(o.m_caller_line)
+#endif
+    {
         o.m_committed = true;  // prevent dtor effects on moved-from
     }
     ScopedNegotiateLinkage &operator=(ScopedNegotiateLinkage &&o) noexcept {
@@ -702,6 +891,9 @@ public:
             m_committed = o.m_committed;
             m_contention_observed = o.m_contention_observed;
             m_strong_mode = o.m_strong_mode;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+            m_caller_line = o.m_caller_line;
+#endif
             o.m_committed = true;
         }
         return *this;
@@ -803,10 +995,10 @@ public:
             ? m_link->compareAndSetStrong(m_view, desired)
             : m_link->compareAndSetWeak(m_view, desired);
         if(ok) {
-            m_committed = true;
+            _on_cas_success();
             return true;
         }
-        m_contention_observed = true;
+        _on_cas_fail();
         return false;
     }
 
@@ -821,10 +1013,10 @@ public:
             : m_link->compareAndSetWeak(m_view, desired);
         if(ok) {
             m_link->tags_successful_cas(started_time);
-            m_committed = true;
+            _on_cas_success();
             return true;
         }
-        m_contention_observed = true;
+        _on_cas_fail();
         return false;
     }
 
@@ -845,10 +1037,10 @@ public:
             ? m_link->compareAndSetStrongRetain(m_view, desired)
             : m_link->compareAndSetWeakRetain(m_view, desired);
         if(ok) {
-            m_committed = true;
+            _on_cas_success();
             return true;
         }
-        m_contention_observed = true;
+        _on_cas_fail();
         return false;
     }
 
@@ -861,10 +1053,10 @@ public:
             : m_link->compareAndSetWeakRetain(m_view, desired);
         if(ok) {
             m_link->tags_successful_cas(started_time);
-            m_committed = true;
+            _on_cas_success();
             return true;
         }
-        m_contention_observed = true;
+        _on_cas_fail();
         return false;
     }
 
@@ -876,10 +1068,10 @@ public:
     //! ownership), retained on failure.
     bool compareAndSet(local_unique_ptr<PacketWrapper> &desired) noexcept {
         if(m_link->compareAndSetWeak(m_view, desired)) {
-            m_committed = true;
+            _on_cas_success();
             return true;
         }
-        m_contention_observed = true;
+        _on_cas_fail();
         return false;
     }
 
@@ -888,10 +1080,10 @@ public:
                                     started_time = 0) noexcept {
         if(m_link->compareAndSetWeak(m_view, desired)) {
             m_link->tags_successful_cas(started_time);
-            m_committed = true;
+            _on_cas_success();
             return true;
         }
-        m_contention_observed = true;
+        _on_cas_fail();
         return false;
     }
 
@@ -899,8 +1091,34 @@ public:
     //! `wrapper->packet() != tr.m_oldpacket`,
     //! UnbundledStatus::SUBVALUE_HAS_CHANGED, walkUpChain DISTURBED).
     //! Forces the dtor to tag this iteration despite the retry==0
-    //! fast-path optimization.
+    //! fast-path optimization.  Not a CAS failure → does not bump
+    //! the gate→cas_fail correlation counter.
     void confirm_contention() noexcept { m_contention_observed = true; }
+
+private:
+    //! Common CAS-success path: mark committed and clear the
+    //! last-gate-return correlation flag (a successful CAS resolves
+    //! the "gate-return → next CAS" pairing, so subsequent unrelated
+    //! CAS failures should not be attributed to this gate-return).
+    void _on_cas_success() noexcept {
+        m_committed = true;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        detail::s_last_was_gate_return = false;
+#endif
+    }
+    //! Common CAS-fail path: set the contention flag and, when profiling
+    //! is enabled, correlate with the most recent negotiate outcome at
+    //! this caller_line (gate-return immediately followed by a CAS that
+    //! still failed is a strong signal that gate-skip didn't help here).
+    void _on_cas_fail() noexcept {
+        m_contention_observed = true;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        if(detail::s_last_was_gate_return)
+            ++detail::s_neg_site_stats[m_caller_line].gate_then_cas_fail;
+        detail::s_last_was_gate_return = false;
+#endif
+    }
+public:
 
     //! Manual commit override.  Use when (a) the CAS happened in a
     //! nested scope so this scope's logical work is done, or (b) a
@@ -909,6 +1127,16 @@ public:
     void commit() noexcept { m_committed = true; }
 
     ~ScopedNegotiateLinkage() noexcept {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        // Push the caller line again so any negotiate() invocation
+        // below attributes its events to the right site.
+        // Skip stat updates entirely when this is a moved-from scope
+        // (m_link reset by std::move) — the move target's dtor will
+        // account for the real outcome.
+        detail::ScopedNegSite _site_scope(m_caller_line);
+        if(m_committed && m_link)
+            ++detail::s_neg_site_stats[m_caller_line].commits;
+#endif
         if(!m_committed) {
             // Tag rules:
             //  - OnEntry m_should_tag: ctor already tagged; skip dtor.
@@ -1849,8 +2077,20 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             if(my_kind != detail::StampKind::NONE) {
                 const detail::StampKind peer_kind = (detail::StampKind)
                     NegotiationCounter::stamp_kind(transaction_started_time);
-                if(peer_kind == my_kind
-                   || peer_kind == detail::StampKind::MultiNodalCommit) {
+                const bool take_gate = (peer_kind == my_kind)
+                    || (peer_kind == detail::StampKind::MultiNodalCommit);
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+                auto &_st = detail::s_neg_site_stats
+                                [detail::s_current_neg_site_line];
+                if(take_gate) {
+                    ++_st.gate_returns_by_peer[(int)peer_kind & 3];
+                    detail::s_last_was_gate_return = true;
+                } else {
+                    ++_st.blocked_by_peer[(int)peer_kind & 3];
+                    detail::s_last_was_gate_return = false;
+                }
+#endif
+                if(take_gate) {
                     // gate-return when:
                     //   - peer is same-direction (BUNDLE-BUNDLE,
                     //     UNBUNDLE-UNBUNDLE, MNC-MNC), or
@@ -2525,7 +2765,10 @@ Node<XN>::ascendOneLevel(
     // Acquire parent via ScopedNeg (1 CAS, with_negotiate=false).
     // retry=0 + no contention → dtor is a plain view release (no tag, no wait).
     // On DISTURBED unwind the dtor tags contention on the parent linkage.
-    r.parent_scope.emplace(r.parent_linkage, incoming_scope.snap(), 0);
+    // (Pass __LINE__ explicitly: emplace() resolves __builtin_LINE() inside
+    //  <optional>, which would attribute these to a libc++ header line.)
+    r.parent_scope.emplace(r.parent_linkage, incoming_scope.snap(), 0,
+        ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 2.0f, __LINE__);
     if( !*r.parent_scope) {
         r.find_status = SnapshotStatus::DISTURBED;
         return r;
