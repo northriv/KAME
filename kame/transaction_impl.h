@@ -2123,8 +2123,21 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             bool take_gate;
             const int8_t tg = _adapt ? _adapt->take_gate : (int8_t)-1;
             if(tg == -1) {
-                // UNDEFINED → my_kind decides.
+                // UNDEFINED → my_kind decides, and the decision is
+                // cached into take_gate state with a fresh lease so
+                // subsequent callers (any my_kind) follow the same
+                // verdict for KAME_NORMAL_LEASE_US, then re-evaluate.
                 take_gate = (my_kind != detail::StampKind::NONE);
+                if(_adapt) {
+                    _adapt->take_gate = take_gate ? (int8_t)1 : (int8_t)0;
+                    _adapt->normal_until_us =
+                        (uint64_t)now_us_entry
+                        + (uint64_t)KAME_NORMAL_LEASE_US;
+                    _adapt->consec_fails = 0;
+                    _adapt->consec_succs = 0;
+                    if(take_gate) ++_adapt->mode_flips_promote;
+                    else          ++_adapt->mode_flips_g2n;
+                }
             } else {
                 take_gate = (tg != 0);            // 0 = FORCE_SLEEP, 1 = FORCE_GATE
             }

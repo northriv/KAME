@@ -312,10 +312,10 @@ namespace detail {
         uint64_t gate_then_cas_fail = 0;       // gate-return → CAS failed
     };
 #ifndef KAME_GATE_K_FAIL
-#define KAME_GATE_K_FAIL 320            // gate→fail streak depth → FORCE_SLEEP
+#define KAME_GATE_K_FAIL 1000           // gate→fail streak depth → FORCE_SLEEP
 #endif
 #ifndef KAME_GATE_K_SUCC
-#define KAME_GATE_K_SUCC 320            // CAS-success streak in FORCE_SLEEP → FORCE_GATE
+#define KAME_GATE_K_SUCC 1000           // CAS-success streak → FORCE_GATE
 #endif
 #ifndef KAME_GATE_FAIL_WINDOW_US
 #define KAME_GATE_FAIL_WINDOW_US 1000   // 1 ms streak-validity window for fails
