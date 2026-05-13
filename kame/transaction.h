@@ -200,7 +200,9 @@ namespace detail {
         return (int64_t)(((uint64_t)u ^ (uint64_t)SIGN_BIT) - (uint64_t)SIGN_BIT);
     }
     //! op_kind discriminator values.  0 (NONE) is reserved as the
-    //! default for non-piggyback-aware code paths.
+    //! default for non-piggyback-aware code paths (stand-alone
+    //! snapshot / release / insert / SingleTransaction).  The other
+    //! values mark Tx-driven sub-operations of a multilevel commit.
     enum class StampKind : uint8_t {
         NONE     = 0,
         BUNDLE   = 1,
@@ -208,18 +210,24 @@ namespace detail {
         COMMIT   = 3,
     };
 
-    //! Thread-local "current operation kind".  Set via the RAII
-    //! ScopedOpKind helper at bundle/unbundle/commit entry points; read
-    //! by tag_as_contender to stamp the linkage's
-    //! m_transaction_started_time with the appropriate kind.  Default
-    //! (outside any tagged op) is NONE — preserves the pre-piggyback
-    //! stamp behavior bit-for-bit.
-    inline thread_local StampKind s_current_op_kind = StampKind::NONE;
+    //! Per-thread "current operation kind".  Pushed via ScopedOpKind
+    //! (below) at bundle/unbundle/commit entry; read by Snapshot's
+    //! tag_as_contender to stamp the linkage with the appropriate kind.
+    //! Outside any ScopedOpKind scope the value is NONE, so stamps
+    //! are bit-identical to the pre-piggyback layout.  Follows the
+    //! same DSO-portability pattern as s_tx_nest above (extern on
+    //! Apple/Linux, accessor function on Windows).
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    DECLSPEC_KAME StampKind& s_current_op_kind_ref() noexcept;
+#  define s_current_op_kind s_current_op_kind_ref()
+#else
+    extern thread_local StampKind s_current_op_kind;
+#endif
 
-    //! RAII helper to push a new op_kind onto the thread-local slot.
-    //! Nested usage (e.g. bundle inside another bundle, or unbundle
-    //! during commit) is supported: the previous value is saved and
-    //! restored on scope exit.
+    //! RAII helper to push a new op_kind onto the per-thread slot.
+    //! Nested usage (e.g. bundle inside a commit, or unbundle during
+    //! commit's CASInfo loop) is supported via save/restore in
+    //! ctor/dtor.
     struct ScopedOpKind {
         StampKind prev;
         explicit ScopedOpKind(StampKind k) noexcept
@@ -1565,10 +1573,13 @@ private:
         // field declaration. The probe consumes the aggregated value.
         ++this->m_tx_retry_count;
         Node<XN> &node(this->m_packet->node());
-        // Pre-commit retry tag: kind = COMMIT (same direction as
-        // UNBUNDLE; see Node<XN>::commit() comment).  An inner
-        // snapshot()/bundle() may push BUNDLE on top.
-        detail::ScopedOpKind _op_kind_scope(detail::StampKind::COMMIT);
+        // Pre-commit retry tag: kind = COMMIT for multilevel
+        // (multi-nodal) Tx, NONE for SingleTransaction.  See
+        // Node::commit() comment.  An inner snapshot()/bundle() may
+        // push BUNDLE on top.
+        detail::ScopedOpKind _op_kind_scope(
+            isMultiNodal() ? detail::StampKind::COMMIT
+                           : detail::StampKind::NONE);
         if(isMultiNodal())
             this->tag_as_contender(node.m_link);
         // Preserve m_tid_bitset across retry cycles: contention evidence

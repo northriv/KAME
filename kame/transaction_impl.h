@@ -163,17 +163,24 @@ DECLSPEC_KAME RunnerCounterEntry*& tls_runner_counter_ptr_ref() noexcept {
     thread_local RunnerCounterEntry* v = nullptr;
     return v;
 }
+#  undef s_current_op_kind
+DECLSPEC_KAME StampKind& s_current_op_kind_ref() noexcept {
+    thread_local StampKind v = StampKind::NONE;
+    return v;
+}
 // Re-instate the aliases so the rest of transaction_impl.h refers to
 // the variables uniformly.
 #  define s_tx_nest                  s_tx_nest_ref()
 #  define s_sleep_nest               s_sleep_nest_ref()
 #  define tls_runner_counter_holder  tls_runner_counter_holder_ref()
 #  define tls_runner_counter_ptr     tls_runner_counter_ptr_ref()
+#  define s_current_op_kind          s_current_op_kind_ref()
 #else
 thread_local int s_tx_nest = 0;
 thread_local int s_sleep_nest = 0;
 thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
+thread_local StampKind s_current_op_kind = StampKind::NONE;
 #endif
 
 // `DECLSPEC_KAME` on the definitions too — MSVC is more lenient when
@@ -1819,20 +1826,31 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // to allocate priority while fair-mode is active.
         const bool _fair_blocks = NegotiationCounter::fair_mode_blocks_me(started_time);
 
-        // ----- Bundle/Unbundle: unconditional gate-return ----------------
-        // Empirical observation: bundle/unbundle CAS sequences are sub-µs
-        // and form sub-operations of a larger commit.  The ms-grain
-        // adaptive sleep at this level is far coarser than the natural
-        // rhythm of these ops; just letting the caller retry CAS lets
-        // priority older-wins arbitrate at the natural granularity.  The
-        // outer Tx-level negotiate (kind = COMMIT or NONE) still sleeps
-        // as before, providing the commit-level fairness window.
-        // Skip when fair-blocked or already privileged.
+        // ----- Bundle/Unbundle: kind-gated gate-return -------------------
+        // Skip the adaptive sleep when:
+        //   (1) my op is BUNDLE or UNBUNDLE (a sub-µs sub-operation of an
+        //       enclosing commit — ms-grain sleep is a granularity
+        //       mismatch; my CAS failure cascades back to the outer
+        //       commit-level negotiate, which has its own sleep).
+        //   (2) the peer on this linkage is also kind-tagged (BUNDLE /
+        //       UNBUNDLE / COMMIT) — i.e. a Transaction-driven
+        //       sub-operation, not a stand-alone snapshot/release/insert
+        //       which tags with NONE.  Stand-alone ops have different
+        //       fairness semantics (no enclosing commit retry to absorb
+        //       failure cascade), so they must use the normal sleep.
+        //   (3) I am not fair-blocked or already privileged.
         if(!_fair_blocks && !snap.m_registered_privileged) {
             const detail::StampKind my_kind = detail::s_current_op_kind;
             if(my_kind == detail::StampKind::BUNDLE
-               || my_kind == detail::StampKind::UNBUNDLE)
-                break;   // unconditional gate-return for bundle/unbundle
+               || my_kind == detail::StampKind::UNBUNDLE) {
+                const detail::StampKind peer_kind = (detail::StampKind)
+                    NegotiationCounter::stamp_kind(transaction_started_time);
+                if(peer_kind != detail::StampKind::NONE)
+                    break;   // gate-return — both sides are Tx-driven sub-ops
+                // peer_kind == NONE: peer is a stand-alone snapshot /
+                // release / insert.  Fall through to normal sleep
+                // (preserves their fairness window).
+            }
         }
         // -----------------------------------------------------------------
 
@@ -3384,17 +3402,21 @@ Node<XN>::commit(Transaction<XN> &tr) {
     assert(tr.isMultiNodal() || tr.m_packet->subpackets() == tr.m_oldpacket->subpackets());
     assert(this == &tr.m_packet->node());
 
-    // Stamp every linkage tagged during commit with kind = COMMIT.
-    // Direction-wise, COMMIT is similar to UNBUNDLE (both publish a
-    // priority wrapper to a leaf / non-bundled linkage, vs. BUNDLE
-    // which installs a BundledRef wrapper).  Kept distinct because
-    // peer-piggyback is invalid between commits (each carries a
-    // unique payload diff) and between commit and unbundle (the
-    // unbundle's "completed" state has the *previous* wrapper, not
-    // the committer's new one).  An inner unbundle()/bundle() called
-    // during commit pushes its own ScopedOpKind, so the kind is
-    // refined automatically as control descends.
-    detail::ScopedOpKind _op_kind_scope(detail::StampKind::COMMIT);
+    // Stamp every linkage tagged during commit with kind = COMMIT,
+    // BUT ONLY for multilevel (multi-nodal) transactions whose commit
+    // involves nested bundle/unbundle on tree linkages.  A
+    // SingleTransaction is a stand-alone single-node CAS — structurally
+    // closer to a snapshot/release (no enclosing retry loop with sub-
+    // operations), so it tags with kind = NONE to share the normal
+    // adaptive-sleep fairness path with those stand-alone ops.
+    //
+    // Downstream effect: the bundle/unbundle-level kind-gated gate-
+    // return in negotiate_internal will piggyback only when peer is
+    // also a multilevel Tx (kind = COMMIT/BUNDLE/UNBUNDLE), preserving
+    // the SingleTransaction's adaptive-sleep fairness window.
+    detail::ScopedOpKind _op_kind_scope(
+        tr.isMultiNodal() ? detail::StampKind::COMMIT
+                          : detail::StampKind::NONE);
 
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
     for(int retry = 0;; ++retry) {
