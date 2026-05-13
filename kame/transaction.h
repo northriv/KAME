@@ -258,6 +258,29 @@ namespace detail {
     //!     subsequent CAS still failed (gate-skip not paying off).
     //! Sites with low commit rate / high gate→fail rate are candidates
     //! for tightening (e.g. removing gate-return at that site).
+    //! Per-call-site adaptive gate ↔ normal-sleep state.  Lives in the
+    //! production hot path (not INSTRUMENT-gated): default GATE (=
+    //! step-1, my_kind != NONE → gate-return), transitions to NORMAL
+    //! when a streak of K_FAIL gate→fail events all land inside a
+    //! FAIL_WINDOW_US time window (bursty AND persistent failure),
+    //! auto-recovers to GATE when NORMAL_LEASE_US elapses (time-leased
+    //! analogue of the per-Linkage owner-skip LEASE on PriorityState).
+    //!
+    //! Storage: thread_local per-thread map keyed by ScopedNeg call
+    //! line.  Hot path dereferences a cached pointer maintained by
+    //! ScopedNegSite (RAII).  Per-thread storage avoids cross-thread
+    //! atomic contention; learning is independent per thread, which is
+    //! acceptable because each thread sees its own contention pattern.
+    struct NegSiteAdaptive {
+        uint8_t  mode = 0;                     // 0 = GATE, 1 = NORMAL
+        uint16_t consec_fails = 0;
+        uint64_t last_fail_us = 0;             // start of current streak
+        uint64_t normal_until_us = 0;          // NORMAL-mode lease expiry
+        uint64_t mode_flips_g2n = 0;           // diagnostic counters
+        uint64_t mode_flips_n2g = 0;
+    };
+    //! INSTRUMENT-only diagnostic stats.  Disjoint from NegSiteAdaptive
+    //! so production code never touches it.  See dumpAdaptStats().
     struct NegSiteStat {
         uint64_t entries = 0;                  // ScopedNeg ctor count
         uint64_t commits = 0;                  // m_committed at dtor
@@ -265,11 +288,40 @@ namespace detail {
         uint64_t gate_returns_by_peer[4] = {}; // gate-return fired
         uint64_t gate_then_cas_fail = 0;       // gate-return → CAS failed
     };
+#ifndef KAME_GATE_K_FAIL
+#define KAME_GATE_K_FAIL 320            // streak depth threshold
+#endif
+#ifndef KAME_GATE_FAIL_WINDOW_US
+#define KAME_GATE_FAIL_WINDOW_US 1000   // 1 ms streak-validity window
+#endif
+#ifndef KAME_NORMAL_LEASE_US
+#define KAME_NORMAL_LEASE_US 1000       // 1 ms NORMAL lease before auto-recover
+#endif
+
+    //! Thread-local storage for NegSiteAdaptive — same DSO-portable
+    //! pattern as s_tx_nest / s_current_op_kind: extern thread_local
+    //! on Apple/Linux, accessor function with function-local
+    //! thread_local on Windows (sidesteps Apple clang / arm64 TLS
+    //! wrapper emission bug + MSVC dllexport thread_local restriction).
+    //! The thread_local pointer s_current_neg_adaptive_ptr is updated
+    //! by ScopedNegSite to point at the active call-site's entry; the
+    //! hot path dereferences the pointer instead of doing a per-call
+    //! map lookup.
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    DECLSPEC_KAME std::unordered_map<int, NegSiteAdaptive>&
+        s_neg_site_adaptive_map_ref() noexcept;
+    DECLSPEC_KAME NegSiteAdaptive*& s_current_neg_adaptive_ptr_ref() noexcept;
+#  define s_neg_site_adaptive_map     s_neg_site_adaptive_map_ref()
+#  define s_current_neg_adaptive_ptr  s_current_neg_adaptive_ptr_ref()
+#else
+    extern thread_local std::unordered_map<int, NegSiteAdaptive>
+        s_neg_site_adaptive_map;
+    extern thread_local NegSiteAdaptive* s_current_neg_adaptive_ptr;
+#endif
 
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-    //! Thread-local profiling state.  Same DSO-portability pattern as
-    //! s_current_op_kind: extern thread_local on Apple/Linux, accessor
-    //! function on Windows.
+    //! INSTRUMENT-only thread-local diagnostic stats (same DSO
+    //! portability pattern as the adaptive map above).
 #  if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     DECLSPEC_KAME std::unordered_map<int, NegSiteStat>& s_neg_site_stats_ref() noexcept;
     DECLSPEC_KAME int& s_current_neg_site_line_ref() noexcept;
@@ -282,19 +334,40 @@ namespace detail {
     extern thread_local int  s_current_neg_site_line;
     extern thread_local bool s_last_was_gate_return;
 #  endif
+#endif
 
-    //! RAII helper: push the current ScopedNeg's caller line onto the
-    //! per-thread slot, so negotiate_internal can attribute gating
-    //! events to the correct call site.  Mirrors ScopedOpKind.
+    //! RAII helper: push the active call-site's adaptive state pointer
+    //! (and, when INSTRUMENT is on, the caller line) onto thread-local
+    //! slots.  The hot path in negotiate_internal dereferences
+    //! s_current_neg_adaptive_ptr directly — avoiding a per-call map
+    //! lookup.  Mirrors ScopedOpKind.
     struct ScopedNegSite {
-        int prev;
+        NegSiteAdaptive *prev_adapt;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        int prev_line;
+#endif
         explicit ScopedNegSite(int line) noexcept
-            : prev(s_current_neg_site_line) { s_current_neg_site_line = line; }
-        ~ScopedNegSite() noexcept { s_current_neg_site_line = prev; }
+            : prev_adapt(s_current_neg_adaptive_ptr)
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+            , prev_line(s_current_neg_site_line)
+#endif
+        {
+            s_current_neg_adaptive_ptr = &s_neg_site_adaptive_map[line];
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+            s_current_neg_site_line = line;
+#else
+            (void)line;
+#endif
+        }
+        ~ScopedNegSite() noexcept {
+            s_current_neg_adaptive_ptr = prev_adapt;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+            s_current_neg_site_line = prev_line;
+#endif
+        }
         ScopedNegSite(const ScopedNegSite &) = delete;
         ScopedNegSite &operator=(const ScopedNegSite &) = delete;
     };
-#endif
 
     //! Merge this thread's NegSiteStat map into the global aggregator
     //! and dump a human-readable summary.  No-op when
