@@ -1818,6 +1818,24 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // started_time wins → I sleep below) is the only mechanism left
         // to allocate priority while fair-mode is active.
         const bool _fair_blocks = NegotiationCounter::fair_mode_blocks_me(started_time);
+
+        // ----- Bundle/Unbundle: unconditional gate-return ----------------
+        // Empirical observation: bundle/unbundle CAS sequences are sub-µs
+        // and form sub-operations of a larger commit.  The ms-grain
+        // adaptive sleep at this level is far coarser than the natural
+        // rhythm of these ops; just letting the caller retry CAS lets
+        // priority older-wins arbitrate at the natural granularity.  The
+        // outer Tx-level negotiate (kind = COMMIT or NONE) still sleeps
+        // as before, providing the commit-level fairness window.
+        // Skip when fair-blocked or already privileged.
+        if(!_fair_blocks && !snap.m_registered_privileged) {
+            const detail::StampKind my_kind = detail::s_current_op_kind;
+            if(my_kind == detail::StampKind::BUNDLE
+               || my_kind == detail::StampKind::UNBUNDLE)
+                break;   // unconditional gate-return for bundle/unbundle
+        }
+        // -----------------------------------------------------------------
+
         if(entry_pr != Priority::LOWEST && dt > 0 && !_fair_blocks) {
             // Single LCG advance per iteration; bits 16-31 → r_j (jitter),
             // bits 0-15 → r_l (lottery). Independent windows of one PRNG
