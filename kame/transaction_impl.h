@@ -2096,30 +2096,29 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // to allocate priority while fair-mode is active.
         const bool _fair_blocks = NegotiationCounter::fair_mode_blocks_me(started_time);
 
-        // ----- Bundle/Unbundle: kind-gated gate-return -------------------
-        // Skip the adaptive sleep when:
-        //   (1) my op is BUNDLE or UNBUNDLE (a sub-µs sub-operation of an
-        //       enclosing commit — ms-grain sleep is a granularity
-        //       mismatch; my CAS failure cascades back to the outer
-        //       commit-level negotiate, which has its own sleep).
-        //   (2) the peer on this linkage is doing a SAME-direction
-        //       sub-operation (same kind) OR an enclosing
-        //       MultiNodalCommit — i.e. the contention is between
-        //       compatible / co-directional Tx-driven phases whose
-        //       failures cascade back to commit-level sleep.
-        //       OPPOSITE-direction peers (my BUNDLE vs peer UNBUNDLE,
-        //       or vice versa) take the normal adaptive sleep — they
-        //       are structurally antagonistic and benefit from the
-        //       usual fairness pacing.  NONE peers (stand-alone
-        //       snapshot/release/insert/SingleTransaction) likewise
-        //       fall through to preserve their fairness window.
-        //   (3) I am not fair-blocked or already privileged.
+        // ----- Tx-driven gate-return ------------------------------------
+        // Skip the adaptive sleep for any Tx-driven op
+        // (BUNDLE / UNBUNDLE / MultiNodalCommit) on a non-privileged,
+        // non-fair-blocked thread, regardless of peer kind.  The only
+        // guard is `my_kind != NONE`: stand-alone snapshot / release /
+        // insert / SingleTransaction (which do not push an op-kind)
+        // fall through to the normal adaptive sleep so their fairness
+        // window is preserved.
+        //
+        // Rationale: Tx-driven sub-ops are sub-µs and any CAS failure
+        // cascades to the enclosing commit's retry loop, which has its
+        // own ms-grain adaptive sleep — adding another ms-grain sleep
+        // at the inner level is a granularity mismatch.  Empirically
+        // (KAME_ADAPT_INSTRUMENT data across N=4-128 × CR=1-20):
+        //   - kind-gated (Case A: peer == my || peer == MNC) was too
+        //     conservative; opposite-direction peers benefited from
+        //     gate too (sub-µs phases mesh well together).
+        //   - all-gate (no guard) crashed because my=NONE paths
+        //     (stand-alone read/release) lost their fairness window.
+        //   - my != NONE alone is the goldilocks: +9-23% over Case A
+        //     across the entire CR=5-20 contention band.
+        // ------------------------------------------------------------
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-        // Reset the gate→cas_fail correlation flag at every negotiate
-        // entry so the flag reflects ONLY this call's outcome.  Without
-        // this reset, a gate-return at scope A leaks into scope B's CAS
-        // failure when scope B's negotiate took the my_kind==NONE path
-        // (which doesn't touch the flag).
         detail::s_last_was_gate_return = false;
 #endif
         if(!_fair_blocks && !snap.m_registered_privileged) {
@@ -2127,31 +2126,15 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             if(my_kind != detail::StampKind::NONE) {
                 const detail::StampKind peer_kind = (detail::StampKind)
                     NegotiationCounter::stamp_kind(transaction_started_time);
-                const bool take_gate = (peer_kind == my_kind)
-                    || (peer_kind == detail::StampKind::MultiNodalCommit);
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
                 auto &_st = detail::s_neg_site_stats
                                 [detail::s_current_neg_site_line];
-                if(take_gate) {
-                    ++_st.gate_returns_by_peer[(int)peer_kind & 3];
-                    detail::s_last_was_gate_return = true;
-                } else {
-                    ++_st.blocked_by_peer[(int)peer_kind & 3];
-                }
+                ++_st.gate_returns_by_peer[(int)peer_kind & 3];
+                detail::s_last_was_gate_return = true;
+#else
+                (void)peer_kind;
 #endif
-                if(take_gate) {
-                    // gate-return when:
-                    //   - peer is same-direction (BUNDLE-BUNDLE,
-                    //     UNBUNDLE-UNBUNDLE, MNC-MNC), or
-                    //   - peer is an enclosing MultiNodalCommit (covers
-                    //     my=BUNDLE/UNBUNDLE vs peer=MNC).
-                    // Other cases fall through to normal adaptive sleep:
-                    //   - peer_kind == NONE              → stand-alone op
-                    //   - peer_kind opposite direction   → BUNDLE↔UNBUNDLE
-                    //   - my=MNC vs peer=BUNDLE/UNBUNDLE → preserve
-                    //     fairness pacing at the outermost retry level.
-                    break;
-                }
+                break;
             }
         }
         // -----------------------------------------------------------------
