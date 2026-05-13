@@ -73,12 +73,6 @@
 #define KAME_STM_MIN_RUNNERS -1
 #endif
 
-// (Former adaptive-lease tuning macros KAME_LEASE_GROW_PER_C_PERCENT
-//  / KAME_LEASE_GROW_MAX_PERCENT / KAME_LEASE_SHRINK_PERCENT /
-//  KAME_LEASE_QWRITE_US / KAME_LEASE_US_MIN / KAME_LEASE_US_MAX /
-//  KAME_DT2_FAIRNESS_US were retired together with the per-Linkage
-//  PriorityState lease — their role is now covered by the per-call-
-//  site NegSiteAdaptive state machine in ScopedNegotiateLinkage.)
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
 // STRICT_assert(expr): behaves like assert(expr) when TRANSACTIONAL_STRICT_assert is defined;
@@ -564,7 +558,7 @@ namespace detail {
     // V0 (legacy non-adaptive) and the V0↔ADAPTIVE mode switch were
     // removed in this revision: empirical M4 / iMac Pro comparison
     // (paper §3.6) showed V0 to be at best on par and sometimes 5×
-    // slower than the always-on adaptive-lease path. The fair-mode
+    // slower than the always-on adaptive path. The fair-mode
     // escape, in contrast, is orthogonal to mode and the retry-path
     // tag_as_contender call sites are now unconditional.
     //=============================================================================
@@ -1845,13 +1839,6 @@ Node<XN>::print_recoverable_error(const char* reason) {
 }
 
 
-// (Former KAME_ADAPT_INSTRUMENT thread_local counters
-//   s_adapt_dt2_last_us / s_adapt_C_last / s_adapt_last_priority_tid
-//   / s_adapt_bounce_count / s_adapt_negotiate_calls /
-//   s_adapt_skip_hits / s_adapt_skip_per1k were tied to the retired
-//   per-Linkage LEASE and were deleted with it.  The replacement
-//   per-call-site diagnostics live in NegSiteStat — see
-//   dumpAdaptStats() for the dump format.)
 //=============================================================================
 // negotiate_internal() — priority-based backoff for collision avoidance
 //
@@ -1892,14 +1879,15 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                                       float mult_wait) noexcept {
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
-    // Single now_us() snapshot: livelock-probe window, livelock age,
-    // adaptive-lease dt2 and owner-skip lease age all read it. The few
-    // µs between these reads in the original code carried no useful
-    // information (no observable state changes between them).
+    // Single now_us() snapshot: livelock-probe window, livelock age and
+    // the per-call-site adaptive NORMAL-lease expiry check below all
+    // read it.  The few µs between these reads in the original code
+    // carried no useful information (no observable state changes
+    // between them).
     const int64_t now_us_entry = Node<XN>::NegotiationCounter::now_us();
     // Priority is a per-thread/per-Tx invariant for the duration of this
     // call: read it once and reuse for both the livelock-probe block and
-    // the adaptive-lease block below.
+    // the per-call-site adaptive gate decision below.
     const Priority entry_pr = getCurrentPriorityMode();
 
     // Compute popcount once per call; the live tid_bitset is unchanged
@@ -1965,13 +1953,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         }
     }
 
-    // The per-Linkage adaptive LEASE (owner-skip on lease_us window)
-    // was removed: its role (per-Linkage time-leased back-off after a
-    // recent successful commit) is now subsumed by the per-call-site
-    // adaptive layer (NegSiteAdaptive, GATE↔NORMAL state machine).
-    // We still update tid_bitset from m_priority_tid so the popcount
-    // sig_C reflects observed committer diversity (used by the sleep
-    // jitter scaling below).
+    // Update tid_bitset from m_priority_tid so the popcount sig_C
+    // reflects observed committer diversity (used to scale the sleep
+    // jitter range below).
   {
     const uint16_t prio_tid =
         m_priority_tid.load(std::memory_order_relaxed);

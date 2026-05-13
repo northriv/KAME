@@ -263,8 +263,7 @@ namespace detail {
     //! step-1, my_kind != NONE → gate-return), transitions to NORMAL
     //! when a streak of K_FAIL gate→fail events all land inside a
     //! FAIL_WINDOW_US time window (bursty AND persistent failure),
-    //! auto-recovers to GATE when NORMAL_LEASE_US elapses (time-leased
-    //! analogue of the per-Linkage owner-skip LEASE on PriorityState).
+    //! auto-recovers to GATE when NORMAL_LEASE_US elapses.
     //!
     //! Storage: thread_local per-thread map keyed by ScopedNeg call
     //! line.  Hot path dereferences a cached pointer maintained by
@@ -946,19 +945,15 @@ private:
         //! ProcessCounter::id()).  Used by negotiate_internal() to
         //! accumulate distinct contender TIDs into the per-Tx
         //! tid_bitset (popcount → sig_C contention estimate that
-        //! scales the adaptive sleep jitter).  Relaxed-stored on
-        //! successful CAS by tags_successful_cas; the previous
-        //! per-Linkage adaptive LEASE (lease_us + start_us packed
-        //! alongside) was retired after the adaptive per-call-site
-        //! gate took over the same role (verified: removing LEASE
-        //! showed no measurable change in commit throughput).
+        //! scales the backoff sleep jitter).  Relaxed-stored on
+        //! successful CAS by tags_successful_cas.
         atomic<uint16_t> m_priority_tid;
 
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
         //! \a tid_bitset accumulates observed committer TIDs (via the Linkage's
         //! m_priority_tid atomic) over the lifetime of the calling transaction.
         //! negotiate_internal() uses its popcount C to scale the backoff jitter
-        //! range as √C; negotiate() uses C to drive the adaptive-lease length.
+        //! range as √C.
         void negotiate(Snapshot<XN> &snap,
                        float mult_wait) noexcept {
 #if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
@@ -1415,7 +1410,7 @@ protected:
     //! covers both Snapshot age and Transaction age depending on which
     //! ctor stamped this field.
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time = {};
-    //! Per-attempt TID observation bitset for the adaptive-lease path.
+    //! Per-attempt TID observation bitset for the contention estimate.
     //! Also promoted from Transaction<XN>. The standalone-Snapshot ctor
     //! fills this in tree-walk; Transaction<XN> inherits and reuses.
     typename Node<XN>::TidBitset m_tid_bitset = {};
