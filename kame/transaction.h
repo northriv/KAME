@@ -924,14 +924,10 @@ private:
     static constexpr int TID_BITSET_WORDS = 8;
     using TidBitset = uint64_t[TID_BITSET_WORDS];
 
-#ifndef KAME_LEASE_NS_BASE
-#define KAME_LEASE_NS_BASE 10000    // initial 10 µs
-#endif
-
     struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
             m_transaction_started_time(0),
-            m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)) {}
+            m_priority_tid(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
 
@@ -946,82 +942,17 @@ private:
         //! this Linkage.
         mutable uint64_t m_tx_commit_count = 0;
 
-        // Implicit commit-lease. within a certain window after the
-        // current wrapper was installed, the committing TID holds a soft lease —
-        // a subsequent negotiate() call from the same TID skips the msec-sleep
-        // path so it can chain a follow-up commit attempt immediately. Lease
-        // auto-expires by wall-clock; no explicit release. Override via
-        // -DKAMEE_PRIORITY_LEASE_DISABLE
-#ifndef KAME_PRIORITY_LEASE_DISABLE
-#define KAME_PRIORITY_LEASE
-#endif
-        //! Packed per-Linkage priority/lease state. One 64-bit atomic holds
-        //! three fields that are always read together on the fast path:
-        //!
-        //!   bits  0..15 :  tid       — last committer TID (lower 16 bits of
-        //!                              ProcessCounter::id()).
-        //!   bits 16..31 :  lease_us  — adaptive lease window in µs,
-        //!                              clamped to [KAME_LEASE_NS_MIN/1000,
-        //!                              KAME_LEASE_NS_MAX/1000] (default
-        //!                              1..500 µs, fits in 16 bits).
-        //!   bits 32..63 :  start_us  — install time (µs since counter
-        //!                              epoch). 32 bits wraps at ~71 min;
-        //!                              age diffs use unsigned modular
-        //!                              subtraction so wrap is transparent
-        //!                              for windows < 35 min (our lease is
-        //!                              ≤ 500 µs).
-        //!
-        //! Packing keeps the three fields on one cache line and makes the
-        //! negotiate() fast path a single atomic load + shifts instead of
-        //! three separate atomic loads (one per former field). Writes are
-        //! relaxed-store or CAS via the pack/unpack helpers below.
-        atomic<uint64_t> m_priority_state;
-
-        struct PriorityState {
-            uint16_t tid;
-            uint16_t lease_us;
-            uint32_t start_us;
-        };
-        static inline uint64_t packPriority(uint16_t tid, uint16_t lease_us,
-                                            uint32_t start_us) noexcept {
-            return ((uint64_t)start_us << 32)
-                 | ((uint64_t)lease_us << 16)
-                 | (uint64_t)tid;
-        }
-        static inline PriorityState unpackPriority(uint64_t raw) noexcept {
-            return PriorityState{
-                (uint16_t)(raw & 0xFFFFu),
-                (uint16_t)((raw >> 16) & 0xFFFFu),
-                (uint32_t)(raw >> 32)
-            };
-        }
-        //! Fast-path load of the packed priority/lease state. Relaxed by
-        //! default: m_priority_state is self-contained (consumers use the
-        //! unpacked fields directly and don't infer order on any other
-        //! memory from this load), and on every caller's hot path a
-        //! wrapper-CAS (acq_rel) has already executed, so the thread
-        //! naturally observes post-CAS state without needing another
-        //! acquire fence. Callers that specifically need acquire can pass
-        //! std::memory_order_acquire.
-        PriorityState loadPriority(std::memory_order mo = std::memory_order_relaxed)
-            const noexcept {
-            return unpackPriority(m_priority_state.load(mo));
-        }
-        //! Store a new packed state (relaxed; lease adaptation is advisory).
-        void storePriority(PriorityState ps,
-                           std::memory_order mo = std::memory_order_relaxed) noexcept {
-            m_priority_state.store(packPriority(ps.tid, ps.lease_us, ps.start_us), mo);
-        }
-        //! CAS on the packed state. Succeeds only if the whole 64-bit word
-        //! hasn't changed since \p expected was read. On failure, refreshes
-        //! \p expected to the current observed value.
-        bool casPriority(PriorityState &expected, PriorityState desired) noexcept {
-            uint64_t e = packPriority(expected.tid, expected.lease_us, expected.start_us);
-            uint64_t d = packPriority(desired.tid,  desired.lease_us,  desired.start_us);
-            if(m_priority_state.compare_set_strong(e, d)) return true;
-            expected = unpackPriority(m_priority_state.load(std::memory_order_acquire));
-            return false;
-        }
+        //! Most-recent committer TID for this Linkage (lower 16 bits of
+        //! ProcessCounter::id()).  Used by negotiate_internal() to
+        //! accumulate distinct contender TIDs into the per-Tx
+        //! tid_bitset (popcount → sig_C contention estimate that
+        //! scales the adaptive sleep jitter).  Relaxed-stored on
+        //! successful CAS by tags_successful_cas; the previous
+        //! per-Linkage adaptive LEASE (lease_us + start_us packed
+        //! alongside) was retired after the adaptive per-call-site
+        //! gate took over the same role (verified: removing LEASE
+        //! showed no measurable change in commit throughput).
+        atomic<uint16_t> m_priority_tid;
 
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
         //! \a tid_bitset accumulates observed committer TIDs (via the Linkage's
@@ -1050,37 +981,16 @@ private:
             (void)started_time;
             return;
 #else
-            auto ps = loadPriority();
-            // Build the desired tuple. Keep ps.start_us when the owner TID
-            // hasn't changed — a same-owner re-commit doesn't count as a
-            // fresh lease start, so we avoid differing start_us values
-            // making `desired != ps` spuriously true on every call. lease_us
-            // is always preserved (owner change doesn't reset the Linkage's
-            // contention profile).
+            (void)started_time;
             uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
-            PriorityState desired{ my_tid, ps.lease_us, ps.start_us };
-            if(my_tid != ps.tid) {
-                // started_time is a tid-packed stamp; unpack the µs
-                // component before feeding into the 32-bit µs field.
-                desired.start_us = started_time
-                    ? Node<XN>::NegotiationCounter::stamp_us(started_time)
-                    : Node<XN>::NegotiationCounter::now_us();
-            }
-            // Only store when something actually changed. The 64-bit
-            // packed compare is one instruction; skipping the store on
-            // identical state avoids cache-line ping-pong on same-owner
-            // recommits.
-            //
-            // Relaxed order suffices: m_priority_state is self-contained
-            // (consumers use ps.tid / ps.lease_us / ps.start_us on their
-            // own; they don't infer ordering on any other memory from this
-            // store). The companion wrapper CAS on m_link carries its own
-            // release semantics and the wrapper's TID lives in the serial
-            // low bits, so no cross-atomic happens-before is needed here.
-            if(packPriority(desired.tid, desired.lease_us, desired.start_us)
-               != packPriority(ps.tid, ps.lease_us, ps.start_us)) {
-                storePriority(desired, std::memory_order_relaxed);
-            }
+            // Update the recent-committer TID only when it actually
+            // changes — skip the store on same-owner recommits to
+            // avoid cache-line ping-pong on the per-Linkage atomic.
+            // Relaxed: this field is self-contained (consumers read
+            // it via m_priority_tid.load()); ordering is carried by
+            // the wrapper CAS that succeeded immediately before this.
+            if(m_priority_tid.load(std::memory_order_relaxed) != my_tid)
+                m_priority_tid.store(my_tid, std::memory_order_relaxed);
 #endif
         }
         //! Unified retry-loop backoff helper. Called once per retry (retry > 0)
