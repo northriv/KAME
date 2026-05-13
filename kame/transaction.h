@@ -312,16 +312,16 @@ namespace detail {
         uint64_t gate_then_cas_fail = 0;       // gate-return → CAS failed
     };
 #ifndef KAME_GATE_K_FAIL
-#define KAME_GATE_K_FAIL 1000           // gate→fail streak depth → FORCE_SLEEP
+#define KAME_GATE_K_FAIL 10             // gate→fail streak depth → FORCE_SLEEP. Sweep winner (macOS M3 Air, 2026-05).
 #endif
 #ifndef KAME_GATE_K_SUCC
-#define KAME_GATE_K_SUCC 1000           // CAS-success streak → FORCE_GATE
+#define KAME_GATE_K_SUCC 5              // CAS-success streak → FORCE_GATE. Sweep winner.
 #endif
 #ifndef KAME_GATE_FAIL_WINDOW_US
 #define KAME_GATE_FAIL_WINDOW_US 1000   // 1 ms streak-validity window for fails
 #endif
 #ifndef KAME_NORMAL_LEASE_US
-#define KAME_NORMAL_LEASE_US 1000       // 1 ms lease for both FORCE states
+#define KAME_NORMAL_LEASE_US 50         // 50 µs lease for both FORCE states. Sweep winner.
 #endif
 
     //! Thread-local storage for NegSiteAdaptive — same DSO-portable

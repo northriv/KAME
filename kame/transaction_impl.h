@@ -99,7 +99,7 @@
 // stay below the gate and benefit from the skip; long-held tx
 // (test_negotiation msecsleep, dt2 ≈ 60-150 µs) bypass it.
 #ifndef KAME_DT2_FAIRNESS_US
-#define KAME_DT2_FAIRNESS_US 2000
+#define KAME_DT2_FAIRNESS_US 4000       // sweep winner (x86, 2026-05): 4 ms
 #endif
 
 // STRICT_assert / STRICT_TEST — debug-build-only macros.
@@ -1379,19 +1379,20 @@ struct Node<XN>::WalkUpResult {
 // place the threshold can be set as low as a few ms without
 // triggering the test_dyn churn-deadlock.
 //
-// PRIV_EXPIRE_US: how long a holder must have held the privilege slot
-// before another thread may preempt them. With many threads (e.g. 128
-// on 10 cores), the old age_diff-based preemption caused rapid
-// privilege switching — hundreds of threads all satisfied the 300 µs
-// age_diff condition and preempted each other before any could finish
-// a multi-CAS bundle commit. The holder-expiry approach is stable:
-// only preempt when the current holder's Tx has been running long
-// enough that it is likely OS-preempted or stuck.
-#ifndef KAME_STM_PRIV_EXPIRE_US
+// PRIV_PREEMPT_WINDOW_US: age-ordered preemption window.
+// A challenger may preempt the slot holder only if the challenger's Tx
+// is at least PRIV_PREEMPT_WINDOW_US *older* than the holder's Tx.
+// This serialises privilege by age (older-first) rather than by
+// hard expiry, so long-running OS-preempted holders are still
+// eventually displaced once a sufficiently older challenger appears,
+// but rapid privilege cycling between roughly-contemporaneous threads
+// is suppressed. 1 ms gives ~10 M3 Air scheduling quanta before
+// preemption is possible; 16 ms aligns with the Windows timer tick.
+#ifndef KAME_STM_PRIV_PREEMPT_WINDOW_US
   #if defined(_WIN32) || defined(WINDOWS) || defined(__WIN32__)
-    #define KAME_STM_PRIV_EXPIRE_US 100'000  // 100 ms — Windows
+    #define KAME_STM_PRIV_PREEMPT_WINDOW_US 16'000  // 16 ms — Windows timer tick
   #else
-    #define KAME_STM_PRIV_EXPIRE_US 50'000   // 50 ms — Linux/macOS
+    #define KAME_STM_PRIV_PREEMPT_WINDOW_US 1'000   // 1 ms — Linux/macOS
   #endif
 #endif
 #ifndef KAME_STM_PRIV_AGE_NORMAL_US
@@ -1433,10 +1434,9 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     int64_t now_us = detail::ll_now_us();
     int64_t tx_age_us = (int64_t)detail::diff_us_packed(now_us, tidstamp);
     // CAS-loop: claim the slot if empty, OR preempt the current holder
-    // if their Tx has been running longer than PRIV_EXPIRE_US (holder
-    // is likely OS-preempted or stuck). The old age_diff-based scheme
-    // caused privilege thrash with many threads — all threads had ages
-    // >> age_floor and preempted each other endlessly.
+    // using age-ordered preemption (challenger must be older than holder
+    // by ≥ PRIV_PREEMPT_WINDOW_US). This serialises privilege by age
+    // while suppressing rapid cycling between contemporaneous threads.
     //
     // For the initial claim (empty slot), the age threshold is scaled
     // by max(1, N/4) where N = numThreadsRunning(). This prevents
@@ -1456,15 +1456,16 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     const int64_t claim_floor = age_floor * scale;
     while (true) {
         if (expected != (cnt_t)0) {
-            // Slot held. Preempt unconditionally once the holder's Tx has
-            // been running longer than KAME_STM_PRIV_EXPIRE_US — at that
-            // point the holder is treated as expired (likely OS-preempted
-            // or stuck) and any challenger may take over, regardless of
-            // its own age. EXPIRE_US is therefore a hard expiry floor on
-            // how long any single holder may keep the privilege slot.
+            // Slot held. Preempt only if the challenger (us) is older
+            // than the holder by at least PRIV_PREEMPT_WINDOW_US.
+            // Age-ordered preemption: older transactions take priority,
+            // but a small window prevents rapid cycling between threads
+            // of similar age. This replaces the old hard-expiry approach
+            // (PRIV_EXPIRE_US) which was unresponsive (50 ms) and could
+            // not distinguish OS-preempted holders from merely slow ones.
             int64_t holder_tx_age = (int64_t)detail::diff_us_packed(now_us, expected);
-            if (holder_tx_age < KAME_STM_PRIV_EXPIRE_US)
-                return false;
+            if (tx_age_us < holder_tx_age + (int64_t)KAME_STM_PRIV_PREEMPT_WINDOW_US)
+                return false;  // holder is at least as old; don't preempt
         } else {
             // Empty slot. Require scaled age threshold to reduce churn
             // when many threads are contending.
@@ -1907,7 +1908,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 #define KAME_LEASE_US_MIN  1     // 1 µs
 #endif
 #ifndef KAME_LEASE_US_MAX
-#define KAME_LEASE_US_MAX  20   // 20 µs — uint16_t field; keep ≤65535. Sweep winner.
+#define KAME_LEASE_US_MAX  10   // 10 µs — uint16_t field; keep ≤65535. Sweep winner (x86, 2026-05).
 #endif
 
 
