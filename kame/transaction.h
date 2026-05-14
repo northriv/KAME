@@ -349,6 +349,33 @@ namespace detail {
 #define KAME_NORMAL_LEASE_US 50         // 50 µs lease for both FORCE states. Sweep winner.
 #endif
 
+//! Spin-for-same-kind path tunables (PR3 of per-Linkage thrash
+//! mitigation).  Spin is entered only when this Linkage is in a
+//! "flip burst" — i.e. the per-Linkage ops_since_flip counter is
+//! below the live contender count sig_C ≈ "周期 < N_threads" —
+//! AND the peer's last_kind ≠ my op_kind.  Empirically the EMA
+//! `flip_period_us_ema` proved unreliable as a spin trigger (it
+//! gets dragged up by the long-tail flip intervals so the EMA
+//! sits at ms scale even for Linkages with bursty µs-scale flips).
+//! ops_since_flip is reset on every flip, so it picks up the
+//! burstiness directly.  The EMA period is still recorded in
+//! m_flip_state for diagnostic / future-tuning use.
+//!
+//! Spin budget = KAME_SPIN_MAX_US, fixed.  Capping at 100-200 µs
+//! keeps the wasted-CPU cost bounded if the predicted same-kind
+//! event doesn't arrive.
+#ifndef KAME_SPIN_MAX_US
+#define KAME_SPIN_MAX_US 100
+#endif
+
+//! Age window (in µs) under which a Linkage is considered to have
+//! "recently flipped" — drives the spin-entry decision as a wall-
+//! clock alternative to ops_since_flip (which saturates quickly under
+//! heavy tag activity).
+#ifndef KAME_SPIN_RECENT_FLIP_US
+#define KAME_SPIN_RECENT_FLIP_US 100
+#endif
+
 //! Per-call-site adaptive state + diagnostics for ScopedNegotiateLinkage.
 //!
 //! Non-template, namespace-style class: all members are static.  Holds
@@ -497,6 +524,23 @@ public:
                                                   uint32_t interval_us) noexcept;
 #else
     static void record_linkage_flip(uint8_t, uint8_t, uint32_t) noexcept {}
+#endif
+
+    //! Outcome tag for spin-for-same-kind events.  Aggregated as
+    //! [outcome] counters and printed by dump().  INSTRUMENT-only.
+    enum class SpinOutcome : uint8_t {
+        SKIPPED_NO_PERIOD = 0,  // period_us == 0 (Linkage never flipped)
+        SKIPPED_COLD      = 1,  // period_us > THRESHOLD (cold Linkage)
+        SKIPPED_PAST      = 2,  // age >= period (predicted flip already past)
+        SKIPPED_SAME_KIND = 3,  // last_kind == my_kind (already aligned)
+        WON               = 4,  // spin saw same kind / Linkage release
+        TIMEOUT           = 5,  // spin budget expired
+    };
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    DECLSPEC_KAME static void record_spin_event(SpinOutcome o,
+                                                uint32_t elapsed_us) noexcept;
+#else
+    static void record_spin_event(SpinOutcome, uint32_t) noexcept {}
 #endif
 
     NegSite() = delete;

@@ -313,6 +313,28 @@ DECLSPEC_KAME void NegSite::record_linkage_flip(uint8_t prev_kind,
     g_flip_period_hist[flip_period_bucket(interval_us)]
         .fetch_add(1, std::memory_order_relaxed);
 }
+
+// Spin-event counters (PR3): 6 outcomes × cumulative count, plus a
+// separate accumulator for the WON elapsed_us so we can compute the
+// average spin duration on success.
+namespace {
+std::atomic<uint64_t> g_spin_count[6]{};
+std::atomic<uint64_t> g_spin_won_elapsed_us_sum{0};
+std::atomic<uint64_t> g_spin_timeout_elapsed_us_sum{0};
+} // anonymous namespace
+
+DECLSPEC_KAME void NegSite::record_spin_event(SpinOutcome o,
+                                              uint32_t elapsed_us) noexcept {
+    const unsigned idx = (unsigned)o & 0x7;
+    if(idx < 6)
+        g_spin_count[idx].fetch_add(1, std::memory_order_relaxed);
+    if(o == SpinOutcome::WON)
+        g_spin_won_elapsed_us_sum
+            .fetch_add(elapsed_us, std::memory_order_relaxed);
+    else if(o == SpinOutcome::TIMEOUT)
+        g_spin_timeout_elapsed_us_sum
+            .fetch_add(elapsed_us, std::memory_order_relaxed);
+}
 #endif
 
 DECLSPEC_KAME void NegSite::mergeStatsToGlobal() noexcept {
@@ -464,6 +486,48 @@ DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
                          bucketLabel[i],
                          (unsigned long long)hist[i], pct,
                          (i == median_bucket) ? "  ← median" : "");
+        }
+    }
+    // Spin-for-same-kind outcomes.
+    uint64_t spin_counts[6];
+    uint64_t spin_total = 0, spin_attempts = 0;
+    for(int i = 0; i < 6; ++i) {
+        spin_counts[i] = g_spin_count[i].load(std::memory_order_relaxed);
+        spin_total += spin_counts[i];
+    }
+    spin_attempts = spin_counts[4] + spin_counts[5];   // WON + TIMEOUT
+    if(spin_total > 0) {
+        static const char *spinLabel[6] = {
+            "skipped(no_period)", "skipped(cold)", "skipped(past)",
+            "skipped(same_kind)", "won", "timeout"
+        };
+        std::fprintf(fp, "[spin-for-same-kind]  total_calls=%llu attempts=%llu\n",
+                     (unsigned long long)spin_total,
+                     (unsigned long long)spin_attempts);
+        for(int i = 0; i < 6; ++i) {
+            double pct = 100.0 * (double)spin_counts[i] / (double)spin_total;
+            std::fprintf(fp, "  %-20s : %9llu (%5.1f%%)\n",
+                         spinLabel[i],
+                         (unsigned long long)spin_counts[i], pct);
+        }
+        if(spin_attempts > 0) {
+            uint64_t won = spin_counts[4];
+            uint64_t tmo = spin_counts[5];
+            uint64_t won_us = g_spin_won_elapsed_us_sum
+                                  .load(std::memory_order_relaxed);
+            uint64_t tmo_us = g_spin_timeout_elapsed_us_sum
+                                  .load(std::memory_order_relaxed);
+            double win_rate = 100.0 * (double)won / (double)spin_attempts;
+            std::fprintf(fp, "  win_rate = %.1f%% (%llu/%llu)\n",
+                         win_rate,
+                         (unsigned long long)won,
+                         (unsigned long long)spin_attempts);
+            if(won > 0)
+                std::fprintf(fp, "  avg_won_elapsed     = %.1f us\n",
+                             (double)won_us / (double)won);
+            if(tmo > 0)
+                std::fprintf(fp, "  avg_timeout_elapsed = %.1f us\n",
+                             (double)tmo_us / (double)tmo);
         }
     }
 #endif
@@ -2459,6 +2523,90 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
             fprintf(stderr, "for BP@%p\n", this);
             ms = 5000;
+        }
+
+        // --- Spin-for-same-kind shortcut (PR3 of per-Linkage thrash
+        // mitigation).  Trigger: this Linkage flipped within the last
+        // KAME_SPIN_RECENT_FLIP_US µs (wall-clock age since last
+        // contention flip) AND the last writer's kind ≠ my op_kind.
+        //
+        // Wall-clock age is used rather than ops_since_flip because
+        // the tag-count counter saturates at sig_C after just a few µs
+        // of heavy activity (bench data: 7/792 attempts with strict
+        // ops_since < sig_C, 8/793 with relaxed < sig_C*4).  Age
+        // catches the broader "Linkage is currently thrashing" regime.
+        //
+        // We spin on m_transaction_started_time for up to
+        // KAME_SPIN_MAX_US µs (default 100), waiting for the kind to
+        // flip to mine OR the Linkage to be released.  On success:
+        // break out of the negotiate loop, caller retries CAS
+        // immediately (gate-return semantics).  On timeout: fall
+        // through to the CV-sleep path below — we burned ≤ 100 µs of
+        // CPU vs ~1 ms otherwise (10× latency improvement when WON).
+        //
+        // Cold Linkages (age >= KAME_SPIN_RECENT_FLIP_US, i.e. no
+        // flip within the last ms) skip the spin entirely.  EMA
+        // period is not used as a gate here — it proved too smoothed
+        // by the long-tail intervals to discriminate live bursts;
+        // kept in m_flip_state for diagnostic dump + future tuning.
+        {
+            using L = Linkage;
+            const uint64_t fs = m_flip_state.load(std::memory_order_relaxed);
+            const uint8_t  fs_last_kind = (uint8_t)(fs & 0x3u);
+            const uint64_t fs_last_us   =
+                (fs >> L::FLIP_LAST_US_SHIFT) & L::FLIP_LAST_US_MASK;
+            const uint64_t fs_ops_since =
+                (fs >> L::FLIP_OPS_SHIFT) & 0xFFu;
+            const uint8_t  my_op_kind   =
+                (uint8_t)detail::s_current_op_kind & 0x3u;
+            const uint64_t now_lo =
+                (uint64_t)NegotiationCounter::now_us() & L::FLIP_LAST_US_MASK;
+            const uint64_t age =
+                (now_lo - fs_last_us) & L::FLIP_LAST_US_MASK;
+            NegSite::SpinOutcome outcome;
+            // Combined gate: BOTH wall-clock age AND tag-count burst
+            // must indicate active thrashing.  Either alone proved too
+            // permissive on this bench (age<1ms triggered too often →
+            // CAS retry storm; ops_since<sig_C strict triggered too
+            // rarely).  Conjunction: age<100us (very recent flip) AND
+            // ops_since<sig_C*8 (still in the immediate-burst window
+            // in terms of tag activity).
+            if(fs == 0) {
+                outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
+            } else if(age > (uint64_t)KAME_SPIN_RECENT_FLIP_US
+                      || fs_ops_since >= (uint64_t)(sig_C * 8u)) {
+                outcome = NegSite::SpinOutcome::SKIPPED_COLD;
+            } else if(fs_last_kind == my_op_kind) {
+                outcome = NegSite::SpinOutcome::SKIPPED_SAME_KIND;
+            } else {
+                const uint64_t budget = (uint64_t)KAME_SPIN_MAX_US;
+                const uint64_t start_us = (uint64_t)NegotiationCounter::now_us();
+                const uint64_t deadline = start_us + budget;
+                bool won = false;
+                do {
+                    for(int i = 0; i < 16; ++i) pause4spin();
+                    auto t = m_transaction_started_time.load(
+                        std::memory_order_relaxed);
+                    if(!t) { won = true; break; }     // Linkage released
+                    if((uint8_t)NegotiationCounter::stamp_kind(t)
+                            == my_op_kind) {
+                        won = true; break;            // kind matched mine
+                    }
+                } while((uint64_t)NegotiationCounter::now_us() < deadline);
+                const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
+                const uint32_t elapsed =
+                    (uint32_t)(end_us > start_us ? end_us - start_us : 0);
+                outcome = won
+                    ? NegSite::SpinOutcome::WON
+                    : NegSite::SpinOutcome::TIMEOUT;
+                NegSite::record_spin_event(outcome, elapsed);
+                if(won) break;   // gate-return: caller retries CAS
+                // else fall through to sleep block below
+            }
+            if(outcome != NegSite::SpinOutcome::WON
+               && outcome != NegSite::SpinOutcome::TIMEOUT) {
+                NegSite::record_spin_event(outcome, 0);
+            }
         }
 
         // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.
