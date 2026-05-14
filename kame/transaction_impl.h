@@ -673,30 +673,54 @@ class ScopedNegotiateLinkage {
     //! and publish it atomically (relaxed) to this thread's Runner
     //! slot.  Called once per scope, at dtor entry — peers see the
     //! scope-end snapshot (outcome reflected in `m_site_state`).
-    //! No `now_us()` call: tx_start_us is taken directly from the
+    //!
+    //! Bitfield writes are issued against a register-local copy
+    //! (`local.raw` loaded from TLS once, written back once after all
+    //! fields are set).  This avoids the per-field load-modify-store
+    //! against TLS memory that a naive `tls_runner_digest.f.x = …`
+    //! sequence would generate for each bitfield assignment.  No
+    //! `now_us()` call: tx_start_us is taken directly from the
     //! Snapshot's already-packed stamp; peer computes age locally.
     void _publish_digest() noexcept {
-        auto &d = detail::tls_runner_digest;
+        detail::RunnerDigest local;
+        local.raw = detail::tls_runner_digest.raw;
         using NC = typename Node<XN>::NegotiationCounter;
-        d.f.tx_start_us = (uint64_t)NC::stamp_us(m_snap->m_started_time)
-                          & ((1ULL << 22) - 1);
-        d.f.op_kind = (uint64_t)detail::s_current_op_kind & 0x3u;
+        local.f.tx_start_us = (uint64_t)NC::stamp_us(m_snap->m_started_time)
+                              & ((1ULL << 22) - 1);
+        local.f.op_kind = (uint64_t)detail::s_current_op_kind & 0x3u;
         if(m_site_state) {
-            d.f.consec_succs = m_site_state->consec_succs > 255
+            local.f.consec_succs = m_site_state->consec_succs > 255
                 ? (uint64_t)255 : (uint64_t)m_site_state->consec_succs;
-            d.f.consec_fails = m_site_state->consec_fails > 255
+            local.f.consec_fails = m_site_state->consec_fails > 255
                 ? (uint64_t)255 : (uint64_t)m_site_state->consec_fails;
             // take_gate ∈ {-1, 0, 1} → +1 = {0, 1, 2}; 3 reserved.
             int8_t tg = m_site_state->take_gate;
-            d.f.take_gate_p1 = (uint64_t)(tg < 0 ? 0 : (tg + 1)) & 0x3u;
+            local.f.take_gate_p1 = (uint64_t)(tg < 0 ? 0 : (tg + 1)) & 0x3u;
         } else {
-            d.f.consec_succs = 0;
-            d.f.consec_fails = 0;
-            d.f.take_gate_p1 = 0;
+            local.f.consec_succs = 0;
+            local.f.consec_fails = 0;
+            local.f.take_gate_p1 = 0;
         }
-        d.f.site_line_lo = (uint64_t)(m_caller_line & 0xFFF);
+        local.f.site_line_lo = (uint64_t)(m_caller_line & 0xFFF);
+        detail::tls_runner_digest.raw = local.raw;
+        // Skip the atomic store when the *peer-actionable* fields
+        // haven't changed since the previous publish from this thread.
+        // gate_history and site_line_lo are excluded from the diff —
+        // they tick every scope and the CV-sleep judge primarily reads
+        // consec_*/take_gate/op_kind/tx_start_us, which only change on
+        // CAS events / op_kind transitions / Tx boundaries.  Saves an
+        // atomic store on uncontended retry loops without losing
+        // peer-relevant signal.
+        constexpr uint64_t SITE_LINE_MASK = ((1ULL << 12) - 1) << 50;
+        constexpr uint64_t GATE_HIST_MASK = ((1ULL << 8) - 1) << 24;
+        constexpr uint64_t ACTIONABLE_MASK = ~(SITE_LINE_MASK | GATE_HIST_MASK);
+        static thread_local uint64_t s_last_actionable = 0;
+        const uint64_t actionable = local.raw & ACTIONABLE_MASK;
+        if(actionable == s_last_actionable)
+            return;
+        s_last_actionable = actionable;
         if(auto *r = detail::tls_runner_counter_ptr)
-            r->digest.store(d.raw, std::memory_order_relaxed);
+            r->digest.store(local.raw, std::memory_order_relaxed);
     }
 public:
     enum class TagMode { OnEntry, OnExit };
@@ -1238,9 +1262,15 @@ public:
         if(m_link) NegSite::current_state() = m_site_state;
         if(m_committed && m_link && m_site_state)
             ++m_site_state->commits;
-        // Publish the scope-end digest snapshot so peers see the
-        // outcome (consec_succs/fails / take_gate updated by
-        // _on_cas_*).  Skip when moved-from (m_link cleared).
+        // Publish the scope-end digest snapshot ONLY when this scope
+        // observed contention (CAS-fail / weak-acquire-fail /
+        // confirm_contention).  Rationale: peer threads consult the
+        // digest specifically when deciding to CV-sleep on a Linkage;
+        // a peer that's making progress with no contention is invisible
+        // (v != 0 alone) and that's enough — the digest details are
+        // only actionable for stuck/contending peers.  Skipping K=0
+        // and clean-commit paths halves the per-Tx overhead on
+        // low-contention workloads.
         if(m_link)
             _publish_digest();
         if(!m_committed) {
