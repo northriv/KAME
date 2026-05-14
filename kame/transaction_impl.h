@@ -281,6 +281,20 @@ DECLSPEC_KAME NegSite::AutoMergeStats& NegSite::auto_merge_stats() noexcept {
 NegSite::AutoMergeStats::~AutoMergeStats() noexcept {
     NegSite::mergeStatsToGlobal();
 }
+
+// Global Linkage-flip aggregator — 4x4 atomic matrix indexed by
+// [prev_kind][curr_kind] (StampKind values 0..3).  Incremented from
+// Snapshot::tag_as_contender when a contention flip is detected on a
+// Linkage.  Read+printed by NegSite::dump().
+namespace {
+std::atomic<uint64_t> g_linkage_flips[4][4]{};
+} // anonymous namespace
+
+DECLSPEC_KAME void NegSite::record_linkage_flip(uint8_t prev_kind,
+                                                uint8_t curr_kind) noexcept {
+    g_linkage_flips[prev_kind & 0x3][curr_kind & 0x3]
+        .fetch_add(1, std::memory_order_relaxed);
+}
 #endif
 
 DECLSPEC_KAME void NegSite::mergeStatsToGlobal() noexcept {
@@ -371,6 +385,40 @@ DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
             (unsigned long long)s.mode_flips_n2g,
             (unsigned long long)s.mode_flips_promote);
     }
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    // Linkage-flip matrix — cumulative count of B/U-style kind
+    // transitions across all Linkages, by (prev_kind, curr_kind).
+    // Read snapshot under no lock; rows/cols labelled N/B/U/M.
+    static const char *kindLabel2[4] = {"N", "B", "U", "M"};
+    uint64_t flips[4][4];
+    uint64_t total = 0;
+    for(int i = 0; i < 4; ++i)
+        for(int j = 0; j < 4; ++j) {
+            flips[i][j] = g_linkage_flips[i][j].load(std::memory_order_relaxed);
+            total += flips[i][j];
+        }
+    std::fprintf(fp, "\n[linkage flip matrix]  (prev → curr)  total=%llu\n",
+                 (unsigned long long)total);
+    std::fprintf(fp, "                curr=N         B         U         M\n");
+    for(int i = 0; i < 4; ++i) {
+        std::fprintf(fp, "  prev=%s   ", kindLabel2[i]);
+        for(int j = 0; j < 4; ++j) {
+            std::fprintf(fp, " %9llu",
+                         (unsigned long long)flips[i][j]);
+        }
+        std::fprintf(fp, "\n");
+    }
+    // Per-pair B/U cycle and B/M cycle detection — the most directly
+    // wasteful patterns (bundle-then-unbundle on same parent).
+    if(total > 0) {
+        uint64_t bu = flips[1][2] + flips[2][1];  // B↔U cycling
+        uint64_t bm = flips[1][3] + flips[3][1];  // B↔M cycling
+        std::fprintf(fp,
+            "  B↔U flips = %llu (%.1f%%)   B↔M flips = %llu (%.1f%%)\n",
+            (unsigned long long)bu, 100.0 * (double)bu / (double)total,
+            (unsigned long long)bm, 100.0 * (double)bm / (double)total);
+    }
+#endif
     std::fflush(fp);
 }
 
