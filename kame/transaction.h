@@ -349,6 +349,33 @@ namespace detail {
 #define KAME_NORMAL_LEASE_US 50         // 50 µs lease for both FORCE states. Sweep winner.
 #endif
 
+//! Spin-for-same-kind path tunables (PR3 of per-Linkage thrash
+//! mitigation).  Spin is entered only when this Linkage is in a
+//! "flip burst" — i.e. the per-Linkage ops_since_flip counter is
+//! below the live contender count sig_C ≈ "周期 < N_threads" —
+//! AND the peer's last_kind ≠ my op_kind.  Empirically the EMA
+//! `flip_period_us_ema` proved unreliable as a spin trigger (it
+//! gets dragged up by the long-tail flip intervals so the EMA
+//! sits at ms scale even for Linkages with bursty µs-scale flips).
+//! ops_since_flip is reset on every flip, so it picks up the
+//! burstiness directly.  The EMA period is still recorded in
+//! m_flip_state for diagnostic / future-tuning use.
+//!
+//! Spin budget = KAME_SPIN_MAX_US, fixed.  Capping at 100-200 µs
+//! keeps the wasted-CPU cost bounded if the predicted same-kind
+//! event doesn't arrive.
+#ifndef KAME_SPIN_MAX_US
+#define KAME_SPIN_MAX_US 100
+#endif
+
+//! Age window (in µs) under which a Linkage is considered to have
+//! "recently flipped" — drives the spin-entry decision as a wall-
+//! clock alternative to ops_since_flip (which saturates quickly under
+//! heavy tag activity).
+#ifndef KAME_SPIN_RECENT_FLIP_US
+#define KAME_SPIN_RECENT_FLIP_US 100
+#endif
+
 //! Per-call-site adaptive state + diagnostics for ScopedNegotiateLinkage.
 //!
 //! Non-template, namespace-style class: all members are static.  Holds
@@ -484,6 +511,37 @@ public:
     //! Calls mergeStatsToGlobal() internally to pull in the caller
     //! thread's state.  Always-callable in production.
     DECLSPEC_KAME static void dump(std::FILE *fp = nullptr) noexcept;
+
+    //! Record a Linkage-level kind flip — i.e., a tag-as-contender by a
+    //! DIFFERENT thread with a DIFFERENT op_kind than the previous
+    //! tagger on the same Linkage.  Aggregated globally as a 4x4
+    //! matrix [prev_kind][curr_kind] for `dump()`, plus a log-binned
+    //! histogram of the inter-flip interval (`interval_us`, in µs).
+    //! INSTRUMENT-only; folds to a no-op in production builds.
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    DECLSPEC_KAME static void record_linkage_flip(uint8_t prev_kind,
+                                                  uint8_t curr_kind,
+                                                  uint32_t interval_us) noexcept;
+#else
+    static void record_linkage_flip(uint8_t, uint8_t, uint32_t) noexcept {}
+#endif
+
+    //! Outcome tag for spin-for-same-kind events.  Aggregated as
+    //! [outcome] counters and printed by dump().  INSTRUMENT-only.
+    enum class SpinOutcome : uint8_t {
+        SKIPPED_NO_PERIOD = 0,  // period_us == 0 (Linkage never flipped)
+        SKIPPED_COLD      = 1,  // period_us > THRESHOLD (cold Linkage)
+        SKIPPED_PAST      = 2,  // age >= period (predicted flip already past)
+        SKIPPED_SAME_KIND = 3,  // last_kind == my_kind (already aligned)
+        WON               = 4,  // spin saw same kind / Linkage release
+        TIMEOUT           = 5,  // spin budget expired
+    };
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    DECLSPEC_KAME static void record_spin_event(SpinOutcome o,
+                                                uint32_t elapsed_us) noexcept;
+#else
+    static void record_spin_event(SpinOutcome, uint32_t) noexcept {}
+#endif
 
     NegSite() = delete;
     ~NegSite() = delete;
@@ -1064,7 +1122,8 @@ private:
     struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
             m_transaction_started_time(0),
-            m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)) {}
+            m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)),
+            m_flip_state(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
 
@@ -1109,6 +1168,51 @@ private:
         //! three separate atomic loads (one per former field). Writes are
         //! relaxed-store or CAS via the pack/unpack helpers below.
         atomic<uint64_t> m_priority_state;
+
+        //! Per-Linkage thrash detector — tracks contention "flips"
+        //! (kind changes by different threads on this Linkage) plus
+        //! their inter-flip period for spin-budget computation.
+        //!
+        //! Layout (LSB → MSB, packed uint64_t):
+        //!   bits  0..1 : last_kind            (StampKind of last tagger)
+        //!   bits  2..7 : last_writer_tid_lo6  (ProcessCounter::id low 6 bits)
+        //!   bits  8..15: ops_since_flip       (saturating 0..255)
+        //!   bits 16..37: last_flip_us         (22 bit, mod 4.2 s)
+        //!   bits 38..49: flip_period_us_ema   (12 bit, max ~4 ms;
+        //!                                       3-sample EMA of inter-
+        //!                                       contention-flip interval)
+        //!   bits 50..63: reserved
+        //!
+        //! Updated by `Snapshot::tag_as_contender` after a successful
+        //! stamp store.  "Flip" = (last_kind != my_kind) AND
+        //! (last_writer_tid_lo6 != my_tid_lo6) — same-thread B/U inside
+        //! one Tx doesn't count.  On flip: ops_since_flip → 0,
+        //! last_flip_us → now, flip_period_us_ema updated with
+        //! (now - prev_last_flip_us) clamped to [0, 4095] µs.
+        //!
+        //! Read by negotiate_internal at gate-decision time (PR3):
+        //! `ops_since_flip < N_competing` = thrash regime; if so AND
+        //! `last_kind != my_kind` AND `age_us < flip_period_us_ema`
+        //! → spin-for-same-kind for (flip_period_us_ema - age_us),
+        //! else mandatory sleep.
+        //!
+        //! Sits in the same cacheline as m_priority_state and
+        //! m_transaction_started_time — writes coalesce with the
+        //! existing tag-as-contender store, reads coalesce with the
+        //! priority load on the fast path.  Relaxed atomic; CAS-free
+        //! (last-writer wins, advisory).
+        atomic<uint64_t> m_flip_state;
+        // Bit-layout helpers (kept inline-friendly).
+        static constexpr int     FLIP_KIND_SHIFT     = 0;
+        static constexpr int     FLIP_TID_SHIFT      = 2;
+        static constexpr int     FLIP_OPS_SHIFT      = 8;
+        static constexpr int     FLIP_LAST_US_SHIFT  = 16;
+        static constexpr int     FLIP_PERIOD_SHIFT   = 38;
+        static constexpr int     FLIP_LAST_US_BITS   = 22;
+        static constexpr int     FLIP_PERIOD_BITS    = 12;
+        static constexpr uint64_t FLIP_LAST_US_MASK  = (1ULL << FLIP_LAST_US_BITS) - 1;
+        static constexpr uint64_t FLIP_PERIOD_MASK   = (1ULL << FLIP_PERIOD_BITS) - 1;
+        static constexpr uint64_t FLIP_PERIOD_MAX    = (1ULL << FLIP_PERIOD_BITS) - 1;
 
         struct PriorityState {
             uint16_t tid;
@@ -1559,6 +1663,55 @@ public:
             slot.store(my_stamp, std::memory_order_release);
             if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
                 return;  // overwritten — don't add to list
+
+            // Update per-Linkage flip detector.  Verify just passed so
+            // our stamp is the live one — record this transition.
+            // Same cacheline as `slot`, so the store coalesces.
+            using L = typename Node<XN>::Linkage;
+            auto &fs_atom = link->m_flip_state;
+            const uint64_t old_fs    = fs_atom.load(std::memory_order_relaxed);
+            const uint8_t  last_kind = (uint8_t)(old_fs & 0x3u);
+            const uint8_t  last_tid6 = (uint8_t)((old_fs >> L::FLIP_TID_SHIFT) & 0x3Fu);
+            const uint8_t  my_kind   = (uint8_t)detail::s_current_op_kind & 0x3u;
+            const uint8_t  my_tid6   = (uint8_t)(NC::stamp_tid(my_stamp) & 0x3Fu);
+            uint8_t        ops_since = (uint8_t)((old_fs >> L::FLIP_OPS_SHIFT) & 0xFFu);
+            uint64_t       last_flip_us = (old_fs >> L::FLIP_LAST_US_SHIFT) & L::FLIP_LAST_US_MASK;
+            uint64_t       period_us    = (old_fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
+            // Flip = different kind by a different thread.  Same-thread
+            // intra-Tx B/U (e.g. bundle phase then unbundle on abort)
+            // is the same writer and doesn't count as contention flip.
+            // Initial state (old_fs == 0) is treated as "no previous
+            // tagger" — record a flip only if my_kind != 0 to avoid
+            // counting the first NONE-stamp on a fresh Linkage.
+            const bool contention_flip =
+                (old_fs != 0)
+                && (last_kind != my_kind)
+                && (last_tid6 != my_tid6);
+            const uint64_t now_us_low = (uint64_t)NC::stamp_us(my_stamp)
+                                        & L::FLIP_LAST_US_MASK;
+            if(contention_flip) {
+                ops_since = 0;
+                // Interval since previous flip, modular 22-bit.
+                uint64_t interval = (now_us_low - last_flip_us) & L::FLIP_LAST_US_MASK;
+                if(interval > L::FLIP_PERIOD_MAX) interval = L::FLIP_PERIOD_MAX;
+                // 3-sample EMA: period = (3 * old + interval) / 4.
+                // First flip (old period == 0): take interval as-is.
+                period_us = (period_us == 0)
+                            ? interval
+                            : ((3 * period_us + interval) / 4);
+                last_flip_us = now_us_low;
+                NegSite::record_linkage_flip(last_kind, my_kind,
+                                             (uint32_t)interval);
+            } else if(ops_since < 255) {
+                ++ops_since;
+            }
+            const uint64_t new_fs =
+                  ((uint64_t)my_kind   << L::FLIP_KIND_SHIFT)
+                | ((uint64_t)my_tid6  << L::FLIP_TID_SHIFT)
+                | ((uint64_t)ops_since << L::FLIP_OPS_SHIFT)
+                | (last_flip_us       << L::FLIP_LAST_US_SHIFT)
+                | (period_us          << L::FLIP_PERIOD_SHIFT);
+            fs_atom.store(new_fs, std::memory_order_relaxed);
         }
 
         // ----- Option A (CAS-loop; kept for bench comparison) ---------------
