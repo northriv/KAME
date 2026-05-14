@@ -210,6 +210,29 @@
 #define KAME_NORMAL_LEASE_US 50         // 50 µs lease for both FORCE states
 #endif
 
+// Experimental: disable the per-site take_gate break in negotiate_internal
+// so heavy-thrash sites fall through to the spin-for-same-kind path
+// (which is per-Linkage, finer-grained, and µs-bounded) instead of
+// being bypassed by the per-site FORCE_GATE shortcut.
+//
+// Rationale: take_gate FORCE_GATE was tuned before the per-Linkage spin
+// path existed.  On sites that flip frequently it promotes to FORCE_GATE
+// and `break`s out of the negotiate loop *before* the spin block has a
+// chance to wait for peer-progress.  Those are exactly the sites the
+// spin path was designed for, so the two mechanisms conflict.
+//
+// With this knob == 1 (default):
+//   - take_gate state machine still runs and accumulates INSTRUMENT
+//     statistics (gate_returns_by_peer / blocked_by_peer / mode_flips)
+//   - but the FORCE_GATE / UNDEFINED-non-NONE early break is suppressed
+//   - control falls through to the lottery → spin → sleep cascade
+//
+// Set to 0 to restore the legacy per-site gate-return behaviour for
+// A/B benchmarking.
+#ifndef KAME_DISABLE_TAKE_GATE_RETURN
+#define KAME_DISABLE_TAKE_GATE_RETURN 1
+#endif
+
 // --- Spin-for-same-kind / peer-progress path ------------------------
 
 // Hard cap on per-call spin time in µs.  The actual budget is

@@ -778,9 +778,16 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 else
                     ++_adapt->blocked_by_peer[(int)peer_kind & 3];
             }
+#if !KAME_DISABLE_TAKE_GATE_RETURN
             if(take_gate) break;
+#endif
             // Otherwise fall through to adaptive sleep (FORCE_SLEEP
-            // or UNDEFINED-with-my_kind-NONE).
+            // or UNDEFINED-with-my_kind-NONE).  When
+            // KAME_DISABLE_TAKE_GATE_RETURN==1 (default), even
+            // take_gate==true falls through so the spin-for-same-kind
+            // block (further down) gets first crack at heavy-thrash
+            // sites — the two mechanisms conflict at FORCE_GATE sites
+            // and spin is the finer-grained, µs-bounded one.
         }
         // -----------------------------------------------------------------
 
