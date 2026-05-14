@@ -487,6 +487,49 @@ static inline int popcount_u64(uint64_t x) noexcept {
 #endif
 }
 
+//! Per-Transaction observation bitset for the contention estimate.
+//!
+//! Accumulates distinct ProcessCounter::id values (low 16 bits of the
+//! Linkage's `m_priority_state.tid` field) observed during a
+//! transaction's lifetime; the popcount feeds the √C lottery / jitter
+//! scaling in negotiate_internal and selects which sleep slots
+//! notify_n_contenders wakes.
+//!
+//! TIDs are reduced mod CAPACITY (= 512) before indexing — collisions
+//! are benign (they conservatively under-estimate C, which only widens
+//! the jitter range; correctness is unaffected).  Non-template by
+//! design: the storage layout is XN-independent and pinning it to a
+//! single type lets `Snapshot::m_tid_bitset` and the
+//! `NegotiationCounter::notify_n_contenders` parameter share a type
+//! without template ceremony.
+class TidBitset {
+public:
+    static constexpr int WORDS    = 8;
+    static constexpr int CAPACITY = WORDS * 64;   // 512 distinct TIDs
+
+    //! Set the bit corresponding to `tid` (reduced mod CAPACITY).
+    void observe(unsigned tid) noexcept {
+        unsigned idx = tid & (CAPACITY - 1);
+        m_words[idx >> 6] |= 1ULL << (idx & 63);
+    }
+    //! Number of distinct TIDs observed (= live contender estimate C).
+    int popcount() const noexcept {
+        int s = 0;
+        for(int i = 0; i < WORDS; ++i)
+            s += popcount_u64(m_words[i]);
+        return s;
+    }
+    //! Word access for low-level walkers (notify_n_contenders).
+    uint64_t word(int i) const noexcept { return m_words[i]; }
+    //! Clear all observations.  Not called on the hot path (the Tx
+    //! default-ctors the bitset to zero); provided for completeness.
+    void clear() noexcept {
+        for(auto &w : m_words) w = 0;
+    }
+private:
+    uint64_t m_words[WORDS] = {};
+};
+
 //! \brief This is a base class of nodes which carries data sets for itself (Payload) and for subnodes.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.
 //!
@@ -826,11 +869,9 @@ private:
 
         static void negotiate_sleep(int ms_timeout) noexcept;
 
-        template<int WORDS>
-        static void notify_n_contenders(const uint64_t (&tid_bitset)[WORDS],
+        static void notify_n_contenders(const TidBitset &tid_bitset,
                                         int n) noexcept;
-        template<int WORDS>
-        static void try_notify_n_contenders(const uint64_t (&tid_bitset)[WORDS],
+        static void try_notify_n_contenders(const TidBitset &tid_bitset,
                                             int n) noexcept;
 
         //! Sum of per-thread "in Tx" counters. See
@@ -954,13 +995,9 @@ private:
 
         PacketWrapper(const PacketWrapper &) = delete;
     };
-    //! Contention-observation bitset size (512 TIDs = 8 * uint64_t).
-    //! Used by negotiate() to accumulate distinct ProcessCounter::id values
-    //! extracted from PacketWrapper::m_bundle_serial (low 16 bits) during a
-    //! transaction's lifetime. Lives inside Transaction; Snapshot-only paths
-    //! use a stack-local array.
-    static constexpr int TID_BITSET_WORDS = 8;
-    using TidBitset = uint64_t[TID_BITSET_WORDS];
+    // (Contention-observation bitset moved to the non-template
+    //  `Transactional::TidBitset` class above; Snapshot::m_tid_bitset
+    //  holds an instance.)
 
 #ifndef KAME_LEASE_NS_BASE
 #define KAME_LEASE_NS_BASE 10000    // initial 10 µs
@@ -1546,7 +1583,7 @@ protected:
     //! Per-attempt TID observation bitset for the contention estimate.
     //! Also promoted from Transaction<XN>. The standalone-Snapshot ctor
     //! fills this in tree-walk; Transaction<XN> inherits and reuses.
-    typename Node<XN>::TidBitset m_tid_bitset = {};
+    TidBitset m_tid_bitset;
     //! Retry count consumed by the livelock probe.
     //!
     //! Bumped from **two** distinct sites:

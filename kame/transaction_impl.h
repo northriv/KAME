@@ -1598,9 +1598,8 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(int ms_timeout) noexcept {
 }
 
 template <class XN>
-template <int WORDS>
 void Node<XN>::NegotiationCounter::notify_n_contenders(
-    const uint64_t (&tid_bitset)[WORDS], int n) noexcept
+    const TidBitset &tid_bitset, int n) noexcept
 {
     // Fair-mode escape: if a privileged TID is registered, wake its
     // sleep slot first so the stuck oldest Tx gets a chance to retry
@@ -1615,8 +1614,8 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
         st.cv.notify_one();
         --n;
     }
-    for(int i = 0; i < WORDS && n > 0; ++i) {
-        uint64_t word = tid_bitset[i];
+    for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
+        uint64_t word = tid_bitset.word(i);
         while(word && n > 0) {
             int bit = __builtin_ctzll(word);
             word &= word - 1;
@@ -1631,12 +1630,11 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
 }
 
 template <class XN>
-template <int WORDS>
 void Node<XN>::NegotiationCounter::try_notify_n_contenders(
-    const uint64_t (&tid_bitset)[WORDS], int n) noexcept
+    const TidBitset &tid_bitset, int n) noexcept
 {
-    for(int i = 0; i < WORDS && n > 0; ++i) {
-        uint64_t word = tid_bitset[i];
+    for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
+        uint64_t word = tid_bitset.word(i);
         while(word && n > 0) {
             int bit = __builtin_ctzll(word);
             word &= word - 1;
@@ -1937,9 +1935,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 
     // Compute popcount once per call; the live tid_bitset is unchanged
     // until the loop body's first iteration adds new entries.
-    int sig_C = 0;
-    for(int i = 0; i < TID_BITSET_WORDS; ++i)
-        sig_C += popcount_u64(tid_bitset[i]);
+    int sig_C = tid_bitset.popcount();
     // No pre-loop yield: the m_transaction_started_time load below is
     // the cheap collision-clear check.
     // tx age = wall time since the Snapshot/Transaction ctor stamped
@@ -2005,8 +2001,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // One atomic load of the packed (tid | lease_us | start_us) tuple.
     auto ps = loadPriority();
     if(ps.tid) {
-        unsigned tid = (unsigned)ps.tid & (unsigned)(TID_BITSET_WORDS * 64 - 1);
-        tid_bitset[tid >> 6] |= 1ULL << (tid & 63);
+        tid_bitset.observe((unsigned)ps.tid);
     }
     typename NegotiationCounter::cnt_t transaction_started_time =
         m_transaction_started_time.load(std::memory_order_relaxed);
