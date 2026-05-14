@@ -841,24 +841,37 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             ms = 5000;
         }
 
-        // --- Spin-for-peer-progress shortcut.  Trigger: this Linkage
-        // flipped within the last KAME_SPIN_RECENT_FLIP_US µs (wall-
-        // clock age) AND ops_since_flip < sig_C × 8 (still in immediate
-        // burst window).  Both signals required — either alone proved
-        // too permissive (CAS retry storm) or too narrow.
+        // --- Spin-for-peer-progress shortcut.
         //
-        // We spin on m_transaction_started_time waiting for ANY change
-        // from its initial value: release (t == 0) OR a different
-        // stamp.  This unifies two cases:
-        //   - peer has different kind → spin wins when peer flips or
-        //     releases
-        //   - peer has SAME kind → spin wins when peer finishes / a
-        //     new tagger steps in (= peer's scope ended).
+        // Two distinct policies, selected at compile time:
         //
-        // Even without a kind flip, spinning ~one scope-execution time
-        // beats ms-sleep when N-1 threads are waiting on 1 holder.
-        // Budget = per-Linkage EMA period (a proxy for typical scope
-        // hold time), capped at KAME_SPIN_MAX_US.
+        //  (A) KAME_COALESCE_MODE != 0 — kind-match coalesce
+        //      Trigger fires iff peer is doing the SAME kind of
+        //      operation as us (peer_kind == my_kind, both != NONE).
+        //      Rationale: when the slot holder is about to commit a
+        //      same-kind op, we bet that stepping in right after them
+        //      is cheaper than negotiate_sleep + CV wake.  When the
+        //      kinds differ, spin has no payoff — we'd retry the CAS
+        //      only to lose to a different kind anyway.
+        //
+        //      Win condition (K1 strict / K4 blind): peer released
+        //          (slot == 0).
+        //      Lose condition (K1):  peer_kind changed mid-spin (some
+        //          other thread stepped in with a different op).
+        //      Loose mode (K2):  also treat kind change as win.
+        //      Blind mode (K4):  no in-loop reads — relevant for ARM
+        //          where polling the slot triggers holder stlxr fails.
+        //
+        //  (B) KAME_COALESCE_MODE == 0 — legacy any-change spin
+        //      Trigger: this Linkage flipped within the last
+        //      KAME_SPIN_RECENT_FLIP_US µs (wall-clock age) AND
+        //      ops_since_flip < sig_C × 8.  We spin on
+        //      m_transaction_started_time waiting for ANY change
+        //      from its initial value (release OR different stamp).
+        //      Effectively disabled when KAME_SPIN_RECENT_FLIP_US == 0.
+        //
+        // Budget = min(flip_period_us_ema, KAME_{SPIN,COALESCE}_MAX_US)
+        // (per-Linkage EMA period as proxy for typical scope hold time).
         {
             using L = Linkage;
             const uint64_t fs = m_flip_state.load(std::memory_order_relaxed);
@@ -871,17 +884,77 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             const uint64_t age =
                 (now_lo - fs_last_us) & L::FLIP_LAST_US_MASK;
             NegSite::SpinOutcome outcome;
+#if KAME_COALESCE_MODE != 0
+            // ===== (A) Kind-match coalesce ============================
+            const auto slot_now =
+                m_transaction_started_time.load(std::memory_order_relaxed);
+            const uint8_t my_kind  =
+                (uint8_t)detail::s_current_op_kind & 0x3u;
+            const uint8_t peer_kind =
+                NegotiationCounter::stamp_kind(slot_now);
+            if(fs == 0) {
+                outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
+            } else if(my_kind == 0
+                      || peer_kind != my_kind
+                      || age > (uint64_t)KAME_COALESCE_RECENT_US
+                      || fs_ops_since >= (uint64_t)(sig_C * 8u)) {
+                outcome = NegSite::SpinOutcome::SKIPPED_COLD;
+            } else {
+                const uint64_t fs_period =
+                    (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
+                const uint64_t budget =
+                    (fs_period > 0
+                     && fs_period < (uint64_t)KAME_COALESCE_MAX_US)
+                    ? fs_period
+                    : (uint64_t)KAME_COALESCE_MAX_US;
+                const uint64_t start_us =
+                    (uint64_t)NegotiationCounter::now_us();
+                const uint64_t deadline = start_us + budget;
+                bool won = false;
+#if KAME_COALESCE_MODE == 4
+                // K4 blind: no in-loop reads; single check at end.
+                while((uint64_t)NegotiationCounter::now_us() < deadline) {
+                    for(int i = 0; i < 16; ++i) pause4spin();
+                }
+                {
+                    auto t = m_transaction_started_time.load(
+                        std::memory_order_relaxed);
+                    won = (!t)
+                        || (NegotiationCounter::stamp_kind(t) != my_kind);
+                }
+#else
+                // K1 (strict) or K2 (loose) polled.
+                do {
+                    for(int i = 0; i < 16; ++i) pause4spin();
+                    auto t = m_transaction_started_time.load(
+                        std::memory_order_relaxed);
+                    if(!t) { won = true; break; }     // peer released
+                    if(NegotiationCounter::stamp_kind(t) != my_kind) {
+#  if KAME_COALESCE_MODE == 2
+                        won = true; break;            // K2 loose: also win
+#  else
+                        won = false; break;           // K1 strict: lose
+#  endif
+                    }
+                } while((uint64_t)NegotiationCounter::now_us() < deadline);
+#endif // KAME_COALESCE_MODE
+                const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
+                const uint32_t elapsed =
+                    (uint32_t)(end_us > start_us ? end_us - start_us : 0);
+                outcome = won
+                    ? NegSite::SpinOutcome::WON
+                    : NegSite::SpinOutcome::TIMEOUT;
+                NegSite::record_spin_event(outcome, elapsed);
+                if(won) break;   // gate-return: caller retries CAS
+            }
+#else // KAME_COALESCE_MODE == 0
+            // ===== (B) Legacy any-change spin =========================
             if(fs == 0) {
                 outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
             } else if(age > (uint64_t)KAME_SPIN_RECENT_FLIP_US
                       || fs_ops_since >= (uint64_t)(sig_C * 8u)) {
                 outcome = NegSite::SpinOutcome::SKIPPED_COLD;
             } else {
-                // Spin budget: prefer the per-Linkage EMA period.
-                // Short EMA → spin only as long as a same-kind flip
-                // (or peer release) is *typically* due — no point
-                // waiting longer than the observed period.  Stale or
-                // missing EMA → fall back to KAME_SPIN_MAX_US.
                 const uint64_t fs_period =
                     (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
                 const uint64_t budget =
@@ -892,9 +965,6 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 const uint64_t start_us =
                     (uint64_t)NegotiationCounter::now_us();
                 const uint64_t deadline = start_us + budget;
-                // Snapshot the initial stamp.  Any change to a
-                // different non-zero value or to zero (release) means
-                // peer made progress — break out for CAS retry.
                 const auto initial_t =
                     m_transaction_started_time.load(std::memory_order_relaxed);
                 bool won = false;
@@ -914,6 +984,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 NegSite::record_spin_event(outcome, elapsed);
                 if(won) break;   // gate-return: caller retries CAS
             }
+#endif // KAME_COALESCE_MODE
             if(outcome != NegSite::SpinOutcome::WON
                && outcome != NegSite::SpinOutcome::TIMEOUT) {
                 NegSite::record_spin_event(outcome, 0);
