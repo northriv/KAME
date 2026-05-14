@@ -26,6 +26,7 @@
 #include "atomic.h"
 #include "xtime.h"
 #include "transaction_signal.h"
+#include "transaction_definitions.h"
 
 namespace Transactional {
 
@@ -322,10 +323,11 @@ private:
 
         //=====================================================================
         // Fair-mode escape API. State + accessors are owned by
-        // NegotiationCounter; bodies live out-of-class in transaction_impl.h
-        // (template member definitions). The thread_local LivelockProbe
-        // remains namespace-scope (Transactional::detail) due to an Apple
-        // clang / arm64 bug with template static `thread_local`.
+        // NegotiationCounter; bodies live out-of-class in
+        // transaction_neg_impl.h (template member definitions). The
+        // thread_local LivelockProbe remains namespace-scope
+        // (Transactional::detail) due to an Apple clang / arm64 bug
+        // with template static `thread_local`.
         //=====================================================================
         //! Globally registered "privileged TID+stamp" for the fair-mode
         //! escape. Set by `try_register_privileged_tidstamp`, cleared by
@@ -492,9 +494,8 @@ private:
     static constexpr int TID_BITSET_WORDS = 8;
     using TidBitset = uint64_t[TID_BITSET_WORDS];
 
-#ifndef KAME_LEASE_NS_BASE
-#define KAME_LEASE_NS_BASE 10000    // initial 10 µs
-#endif
+    // KAME_LEASE_NS_BASE and other tuning macros are defined in
+    // transaction_definitions.h (included near the top of this file).
 
     struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
@@ -519,10 +520,7 @@ private:
         // a subsequent negotiate() call from the same TID skips the msec-sleep
         // path so it can chain a follow-up commit attempt immediately. Lease
         // auto-expires by wall-clock; no explicit release. Override via
-        // -DKAMEE_PRIORITY_LEASE_DISABLE
-#ifndef KAME_PRIORITY_LEASE_DISABLE
-#define KAME_PRIORITY_LEASE
-#endif
+        // -DKAME_PRIORITY_LEASE_DISABLE (knob lives in transaction_definitions.h).
         //! Packed per-Linkage priority/lease state. One 64-bit atomic holds
         //! three fields that are always read together on the fast path:
         //!
@@ -1083,21 +1081,13 @@ public:
 protected:
 };
 
-//! Assert that the given Snapshot/Transaction is NOT currently the
-//! fair-mode privileged Tx. Use at any CAS-fail / loop-fail site to
-//! catch livelock-free invariant violations: a privileged Tx must
-//! make forward progress, so failing a CAS or re-iterating a spin
-//! loop while privileged means some other thread bypassed the
-//! fair-mode yield (= a bug in the negotiate / tag_as_contender
-//! coverage). Default 0 (production); enable with
-//! `-DKAME_STM_ASSERT_PRIVILEGE=1` for debug builds.
-#ifndef KAME_STM_ASSERT_PRIVILEGE
-#define KAME_STM_ASSERT_PRIVILEGE 0
-#endif
+// KAME_STM_ASSERT_PRIVILEGE lives in transaction_definitions.h. Use
+// `-DKAME_STM_ASSERT_PRIVILEGE=1` to enable the fair-mode invariant
+// check inside ScopedNegotiateLinkage (see transaction_negotiation.h).
 
-// ScopedNegotiateLinkage<XN> definition lives in transaction_impl.h
-// (only used by impl-side retry loops). Forward-declared near the top
-// of this file; friend-declared in Node<XN> and Snapshot<XN>.
+// ScopedNegotiateLinkage<XN> definition lives in transaction_negotiation.h
+// (included from transaction_impl.h). Forward-declared near the top of
+// this file; friend-declared in Node<XN> and Snapshot<XN>.
 
 //! \brief A class supporting transactional writing for a subtree.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.\n
