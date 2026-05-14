@@ -208,6 +208,7 @@ namespace detail {
     //! every Tx entry/exit was the K=0 disjoint NUMA-scaling ceiling
     //! on 128c EPYC (≈8.3 M Tx/s × 2 atomic RMWs/Tx ≈ 16.6 M ops/s ≈
     //! cross-socket cacheline bandwidth).
+#if KAME_ENABLE_RUNNER_DIGEST
     //! Bit-packed peer-readable digest of a thread's negotiation
     //! state.  Owner mutates the per-thread cache `tls_runner_digest`
     //! at ScopedNeg boundaries and publishes the raw uint64 via a
@@ -247,23 +248,28 @@ namespace detail {
     };
     static_assert(sizeof(RunnerDigest) == sizeof(uint64_t),
                   "RunnerDigest must pack into 64 bits");
+#endif // KAME_ENABLE_RUNNER_DIGEST
 
-    //! Per-thread "I'm in a Tx" counter + peer-readable digest.
-    //! `v` and `digest` share the cacheline intentionally — peer
-    //! reads happen at the same slow-path cadence (negotiate_internal
-    //! / CV-sleep judge), so colocating them costs one M→S transition
-    //! per peer-read for both fields instead of two.  Both are owner-
-    //! write, peer-read; `v` is RMW'd at Tx entry/exit (frequent,
-    //! TLS-affine), `digest` is stored at ScopedNeg ctor/dtor (also
-    //! TLS-affine).  The pad fills the rest of the cacheline to keep
-    //! thread B's entry off thread A's line.
+    //! Per-thread "I'm in a Tx" counter (plus, when enabled, the
+    //! peer-readable digest).  `v` is RMW'd at Tx entry/exit by the
+    //! owner and SUMmed across all entries by `num_threads_running()`.
+    //! When KAME_ENABLE_RUNNER_DIGEST is set, `digest` shares the
+    //! cacheline — peer reads at the same slow-path cadence so
+    //! colocating costs one M→S transition for both fields instead
+    //! of two.  Default off: digest field disappears, padding fills
+    //! the cacheline.
     struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
         std::atomic<uint64_t> v{0};
+#if KAME_ENABLE_RUNNER_DIGEST
         std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
         char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)];
+#else
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)];
+#endif
     };
     using RunnerCounterVec = std::vector<std::weak_ptr<RunnerCounterEntry>>;
 
+#if KAME_ENABLE_RUNNER_DIGEST
     //! Per-thread local cache of the digest.  Owner mutates this on
     //! scope/Tx boundaries; publish atomically to
     //! `RunnerCounterEntry::digest` via the publish path in
@@ -274,6 +280,7 @@ namespace detail {
 #else
     extern thread_local RunnerDigest tls_runner_digest;
 #endif
+#endif // KAME_ENABLE_RUNNER_DIGEST
 
     //! TLS holder of this thread's RunnerCounterEntry. The shared_ptr
     //! is the sole strong reference; the global s_runner_counters

@@ -277,6 +277,25 @@
 #define KAME_LEGACY_GATING 0
 #endif
 
+// ---------------------------------------------------------------------
+// Runner digest — peer-readable bit-packed thread state.
+//
+// Bit-packed snapshot of each thread's negotiation state, published
+// per-ScopedNeg to RunnerCounterEntry::digest.  Designed for a future
+// "peer-judge" code path that walks s_runner_counters and reads each
+// peer's digest to inform CV-sleep decisions.  No consumer exists
+// today.
+//
+// Default 0 (= digest mechanism compiled out).  K=0 fast-path then
+// pays zero atomic writes for it (the publish was a measurable
+// per-commit cost on M4 weak-memory at low N).
+//
+// Set to 1 when adding peer-judge consumers; the mechanism is
+// otherwise inert.
+#ifndef KAME_ENABLE_RUNNER_DIGEST
+#define KAME_ENABLE_RUNNER_DIGEST 0
+#endif
+
 // --- Spin-for-same-kind / peer-progress path ------------------------
 
 // Hard cap on per-call spin time in µs.  The actual budget is

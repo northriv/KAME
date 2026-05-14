@@ -93,11 +93,13 @@ DECLSPEC_KAME StampKind& s_current_op_kind_ref() noexcept {
     thread_local StampKind v = StampKind::NONE;
     return v;
 }
+#if KAME_ENABLE_RUNNER_DIGEST
 #  undef tls_runner_digest
 DECLSPEC_KAME RunnerDigest& tls_runner_digest_ref() noexcept {
     thread_local RunnerDigest v;
     return v;
 }
+#endif
 // Re-instate the aliases so the rest of transaction_impl.h refers to
 // the variables uniformly.
 #  define s_tx_nest                  s_tx_nest_ref()
@@ -105,14 +107,18 @@ DECLSPEC_KAME RunnerDigest& tls_runner_digest_ref() noexcept {
 #  define tls_runner_counter_holder  tls_runner_counter_holder_ref()
 #  define tls_runner_counter_ptr     tls_runner_counter_ptr_ref()
 #  define s_current_op_kind          s_current_op_kind_ref()
+#if KAME_ENABLE_RUNNER_DIGEST
 #  define tls_runner_digest          tls_runner_digest_ref()
+#endif
 #else
 thread_local int s_tx_nest = 0;
 thread_local int s_sleep_nest = 0;
 thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 thread_local StampKind s_current_op_kind = StampKind::NONE;
+#if KAME_ENABLE_RUNNER_DIGEST
 thread_local RunnerDigest tls_runner_digest;
+#endif
 #endif
 
 // `DECLSPEC_KAME` on the definitions too — MSVC is more lenient when

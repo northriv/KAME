@@ -212,6 +212,7 @@ class ScopedNegotiateLinkage {
     //! via the thread_local sink NegSite::last_was_gate_return(); consumed
     //! by _on_cas_fail / _on_cas_success of THIS scope only.
     bool            m_was_gate_return = false;
+#if KAME_ENABLE_RUNNER_DIGEST
     //! __LINE__ of the ctor call site.  Used to fill the digest's
     //! `site_line_lo` field at each publish point so peers can tell
     //! which scope this thread is currently in.
@@ -279,6 +280,7 @@ class ScopedNegotiateLinkage {
         if(auto *r = detail::tls_runner_counter_ptr)
             r->digest.store(local.raw, std::memory_order_relaxed);
     }
+#endif // KAME_ENABLE_RUNNER_DIGEST
 public:
     enum class TagMode { OnEntry, OnExit };
 
@@ -310,8 +312,10 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0),
-          m_caller_line(caller_line)
+          m_should_tag(retry != 0)
+#if KAME_ENABLE_RUNNER_DIGEST
+        , m_caller_line(caller_line)
+#endif
     {
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
@@ -334,7 +338,9 @@ public:
         else
             m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         _capture_gate_return();
+#if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
+#endif
         // Privilege-state-aware threshold for the weak tag-bit acquire:
         //
         //   - **We hold privilege** (TID matches s_privileged_tidstamp):
@@ -415,8 +421,10 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0),
-          m_caller_line(caller_line)
+          m_should_tag(retry != 0)
+#if KAME_ENABLE_RUNNER_DIGEST
+        , m_caller_line(caller_line)
+#endif
     {
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
@@ -441,7 +449,9 @@ public:
                 m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         }
         _capture_gate_return();
+#if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
+#endif
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time);
@@ -464,8 +474,10 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0),
-          m_caller_line(caller_line)
+          m_should_tag(retry != 0)
+#if KAME_ENABLE_RUNNER_DIGEST
+        , m_caller_line(caller_line)
+#endif
     {
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
@@ -490,7 +502,9 @@ public:
                 m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         }
         _capture_gate_return();
+#if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
+#endif
         m_view = std::move(from);
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time);
@@ -508,8 +522,10 @@ public:
           m_contention_observed(o.m_contention_observed),
           m_strong_mode(o.m_strong_mode),
           m_site_state(o.m_site_state),
-          m_was_gate_return(o.m_was_gate_return),
-          m_caller_line(o.m_caller_line)
+          m_was_gate_return(o.m_was_gate_return)
+#if KAME_ENABLE_RUNNER_DIGEST
+        , m_caller_line(o.m_caller_line)
+#endif
     {
         o.m_committed = true;  // prevent dtor effects on moved-from
         o.m_site_state = nullptr;
@@ -533,7 +549,9 @@ public:
             o.m_site_state = nullptr;
             m_was_gate_return = o.m_was_gate_return;
             o.m_was_gate_return = false;
+#if KAME_ENABLE_RUNNER_DIGEST
             m_caller_line = o.m_caller_line;
+#endif
             o.m_committed = true;
         }
         return *this;
@@ -842,11 +860,13 @@ public:
         if(m_link) {
             NegSite::current_state() = m_site_state;
             if(m_committed) ++m_site_state->commits;
+#if KAME_ENABLE_RUNNER_DIGEST
             // Scope-end digest publish — peer-visible snapshot of
             // outcome (consec_succs/fails / take_gate updated by
             // _on_cas_*).  Internal skip-unchanged guard avoids the
             // atomic store when peer-actionable fields are stable.
             _publish_digest();
+#endif
         }
         if(!m_committed) {
             // Tag rules:
