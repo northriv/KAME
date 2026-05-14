@@ -480,6 +480,52 @@ public:
     ~NegSite() = delete;
 };
 
+//! Livelock observation probe (always on).
+//!
+//! Per-thread rolling-window observer for the LIVELOCK verdict that
+//! drives the fair-mode escape in negotiate_internal.  Signal: MY
+//! Transaction-retry rate vs. the LINKAGE's Transaction-commit rate on
+//! a rolling ≥ 10 ms window.  Emits one stderr line per window:
+//!   [ll-probe] tid=... linkage=... my_tx_retry_rate=N/s
+//!              tx_commit_rate=M/s ratio=X window_ms=T
+//!
+//! Transaction-level, NOT CAS-level: "CAS operations succeed but
+//! iterate_commit keeps invalidating the whole Transaction" is the
+//! pathology we care about.  my_tx_retry comes from
+//! Snapshot::m_tx_retry_count, tx_commit from Linkage::m_tx_commit_count
+//! (bumped in finalizeCommitment).
+//!
+//! Fires only at negotiate_internal entry (slow path); gate hits and
+//! lottery wins stay zero-cost.  Cost over a probe-less build is one
+//! uint32_t per Snapshot, one uint64_t per Linkage, and two
+//! unconditional `++` statements.
+//!
+//! The verdict tick body (the per-priority retry-threshold logic and
+//! the stderr emit) is owned by Node<XN>::NegotiationCounter::
+//! livelock_probe_tx_tick — this class only carries the per-thread
+//! window state and the time helper.  Non-template + function-local
+//! thread_local for the same DSO-portability reasons as NegSite.
+class DECLSPEC_KAME LivelockProbe {
+public:
+    //! Per-thread rolling window state for the LIVELOCK observer.
+    struct State {
+        const void *linkage_id       = nullptr;
+        int64_t     t_window_us      = 0;
+        uint32_t    tx_retry_window  = 0;
+        uint64_t    tx_commit_window = 0;
+    };
+    //! TLS accessor — one slot per thread, one symbol per program.
+    DECLSPEC_KAME static State& state() noexcept;
+    //! steady_clock µs (wraps the std::chrono boilerplate).
+    static inline int64_t now_us() noexcept {
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    LivelockProbe()  = delete;
+    ~LivelockProbe() = delete;
+};
+
 // Portable 64-bit popcount. Visible in transaction.h so inline member
 // functions (e.g. negotiate()) can use it. GCC/Clang/MSVC intrinsics.
 static inline int popcount_u64(uint64_t x) noexcept {
@@ -736,9 +782,10 @@ private:
         //=====================================================================
         // Fair-mode escape API. State + accessors are owned by
         // NegotiationCounter; bodies live out-of-class in transaction_impl.h
-        // (template member definitions). The thread_local LivelockProbe
-        // remains namespace-scope (Transactional::detail) due to an Apple
-        // clang / arm64 bug with template static `thread_local`.
+        // (template member definitions). The per-thread livelock-probe
+        // window state lives on the non-template `LivelockProbe` class
+        // (see above) because Apple clang / arm64 has a wrapper-emission
+        // bug for template static `thread_local`.
         //=====================================================================
         //! Globally registered "privileged TID+stamp" for the fair-mode
         //! escape. Set by `try_register_privileged_tidstamp`, cleared by
@@ -768,9 +815,10 @@ private:
         };
         static PriorityProbeInfo priority_probe_info(Priority pr) noexcept;
 
-        //! Livelock probe tick. Body references `Transactional::detail::
-        //! tls_livelock_probe` (TLS, kept namespace-scope for portability).
-        //! Returns true iff this tick concluded `verdict=LIVELOCK`.
+        //! Livelock probe tick.  Body references
+        //! `Transactional::LivelockProbe::state()` (TLS, kept on the
+        //! non-template helper class for DSO portability).  Returns
+        //! true iff this tick concluded `verdict=LIVELOCK`.
         static bool livelock_probe_tx_tick(const void *linkage,
                                            uint32_t my_tx_retries,
                                            uint64_t tx_commit_count,

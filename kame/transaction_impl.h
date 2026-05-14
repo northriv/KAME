@@ -484,49 +484,15 @@ inline int effective_runners(int) noexcept {
 }
 #endif
 
+// LivelockProbe TLS state — non-template, one slot per thread per
+// program (libkame defines the accessor once; modules link to it).
+// Class declaration lives in transaction.h.
+DECLSPEC_KAME LivelockProbe::State& LivelockProbe::state() noexcept {
+    thread_local State v;
+    return v;
+}
+
 namespace detail {
-
-    // Livelock observation probe (always on).
-    //
-    // Signal: MY Transaction-retry rate vs. the LINKAGE's
-    // Transaction-commit rate on a rolling ≥ 10 ms window. Emits one
-    // stderr line per window:
-    //   [ll-probe] tid=... linkage=... my_tx_retry_rate=N/s
-    //              tx_commit_rate=M/s ratio=X window_ms=T
-    //
-    // Transaction-level, NOT CAS-level: "CAS operations succeed but
-    // iterate_commit keeps invalidating the whole Transaction" is the
-    // pathology we care about. my_tx_retry comes from Snapshot's
-    // m_tx_retry_count, tx_commit from Linkage::m_tx_commit_count
-    // (bumped in finalizeCommitment).
-    //
-    // Note: m_tx_retry_count is bumped from TWO sites — Transaction::
-    // operator++ (outer iterate_commit retries) AND Node::snapshot()'s
-    // retry loop (pure-Snapshot bundle retries). The `tx_retry_window`
-    // member below snapshots that field, so the printed `my_tx_retries`
-    // / `my_tx_retry_rate` aggregate both Tx-retry and bundle-retry
-    // counts. Name is kept for log-format / ABI continuity (see
-    // m_tx_retry_count doc-block in transaction.h).
-    //
-    // Fires only at negotiate_internal entry (slow path); gate hits
-    // and lottery wins stay zero-cost. Cost over a probe-less build
-    // is one uint32_t per Snapshot, one uint64_t per Linkage, and two
-    // unconditional `++` statements.
-    struct LivelockProbe {
-        const void *linkage_id       = nullptr;
-        int64_t     t_window_us      = 0;
-        uint32_t    tx_retry_window  = 0;
-        uint64_t    tx_commit_window = 0;
-    };
-    // Non-inline: transaction_impl.h is materialised in exactly one
-    // TU per binary (see header-block comment above), so a plain
-    // `thread_local` definition gives one slot per program.
-    thread_local LivelockProbe tls_livelock_probe;
-
-    inline int64_t ll_now_us() noexcept {
-        return std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count();
-    }
 
     // Fires the livelock probe. The caller (negotiate_internal, which
     // has access to Snapshot's protected members via enclosing-class
@@ -1350,7 +1316,7 @@ struct Node<XN>::WalkUpResult {
 // =====================================================================
 // Out-of-class template member definitions for Node<XN>::NegotiationCounter.
 // Declarations live in transaction.h; bodies here pick up the namespace-
-// scope `detail::tls_livelock_probe`, `detail::ll_now_us`, and the
+// scope `LivelockProbe::state()`, `LivelockProbe::now_us()`, and the
 // `s_privileged_tidstamp` / `s_sleep_slots` C++17 inline static members
 // (defined in the class body in transaction.h).
 // =====================================================================
@@ -1421,7 +1387,7 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     Priority pr, cnt_t tidstamp, int sig_C) noexcept
 {
-    int64_t now_us = detail::ll_now_us();
+    int64_t now_us = LivelockProbe::now_us();
     int64_t tx_age_us = (int64_t)detail::diff_us_packed(now_us, tidstamp);
     // CAS-loop: claim the slot if empty, OR preempt the current holder
     // using age-ordered preemption (challenger must be older than holder
@@ -1551,15 +1517,15 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     int64_t tx_age_us,
     Priority prio) noexcept
 {
-    auto &p = detail::tls_livelock_probe;
+    auto &p = LivelockProbe::state();
     if (p.linkage_id != linkage) {
         p.linkage_id       = linkage;
-        p.t_window_us      = detail::ll_now_us();
+        p.t_window_us      = LivelockProbe::now_us();
         p.tx_retry_window  = my_tx_retries;
         p.tx_commit_window = tx_commit_count;
         return false;
     }
-    int64_t now_us    = detail::ll_now_us();
+    int64_t now_us    = LivelockProbe::now_us();
     int64_t window_us = now_us - p.t_window_us;
 
     // m_tx_retry_count restarts at 0 when a new Transaction ctor fires;
