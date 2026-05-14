@@ -40,6 +40,9 @@ HEADERS += \
     transaction_impl.h \
     transaction_signal.h \
     transaction.h \
+    transaction_negotiation.h \
+    transaction_neg_impl.h \
+    transaction_definitions.h \
     xthread.h \
     xtime.h \
     atomic_prv_std.h \
