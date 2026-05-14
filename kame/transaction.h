@@ -328,9 +328,14 @@ namespace detail {
 //!   any FORCE   → UNDEFINED   : lease expiry (in negotiate_internal)
 //!                               or privilege observation.
 //!
-//! Opt-in INSTRUMENT (`-DKAME_ADAPT_INSTRUMENT=1`) adds per-line
-//! diagnostic stats inspected via `NegSite::dump()` at the end of a
-//! stress run.  Off by default — zero cost in production.
+//! Opt-in INSTRUMENT (`-DKAME_ADAPT_INSTRUMENT=1`) now only controls
+//! whether per-thread stats are auto-merged into the global aggregator
+//! at thread exit (via the AutoMergeStats sentinel) and whether
+//! `dump()` is wired into testbench teardown.  The per-site counters
+//! themselves are **always on** — they live alongside the adaptive
+//! state machine in `NegSite::SiteState`, so live introspection (e.g.
+//! via the Python MCP `kame.NegSite.dump()`) sees current data without
+//! a special build.
 class DECLSPEC_KAME NegSite {
 public:
     //! State-machine tuning knobs (overridable via -DKAME_GATE_*).
@@ -339,8 +344,14 @@ public:
     static constexpr int GATE_FAIL_WINDOW_US = KAME_GATE_FAIL_WINDOW_US;
     static constexpr int NORMAL_LEASE_US     = KAME_NORMAL_LEASE_US;
 
-    //! Per-call-site adaptive state — production hot path.
-    struct Adaptive {
+    //! Per-call-site state — unified container for the production
+    //! adaptive state machine (take_gate, streak counters, lease) and
+    //! the cumulative diagnostic counters (entries/commits/per-peer
+    //! breakdowns).  All fields are always-on; the previous
+    //! INSTRUMENT-only split (`Adaptive` vs `Stat`) was merged so that
+    //! ScopedNeg only ever touches one struct.
+    struct SiteState {
+        // --- Adaptive state machine (production hot path) ---
         int8_t   take_gate = -1;               // -1=UNDEFINED, 0=SLEEP, 1=GATE
         uint16_t consec_fails = 0;             // streak toward FORCE_SLEEP
         uint16_t consec_succs = 0;             // streak toward FORCE_GATE
@@ -349,12 +360,7 @@ public:
         uint64_t mode_flips_g2n = 0;           // diagnostic: any → FORCE_SLEEP
         uint64_t mode_flips_n2g = 0;           // diagnostic: FORCE → UNDEFINED
         uint64_t mode_flips_promote = 0;       // diagnostic: FORCE_SLEEP → FORCE_GATE
-    };
-
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-    //! INSTRUMENT-only diagnostic stats.  Disjoint from Adaptive so
-    //! production code never touches it.  See NegSite::dump().
-    struct Stat {
+        // --- Cumulative counters (live, always-on) ---
         uint64_t entries = 0;                  // ScopedNeg ctor count
         uint64_t commits = 0;                  // m_committed at dtor
         uint64_t blocked_by_peer[4] = {};      // gate not taken: normal sleep
@@ -362,43 +368,32 @@ public:
         uint64_t gate_then_cas_fail = 0;       // gate-return → CAS failed
     };
 
-    //! Thread-local sentinel whose dtor flushes the per-thread stats
-    //! map into the global aggregator at thread exit.  Touching the
-    //! TLS via NegSite::auto_merge_stats() in ScopedNeg ctor wires up
-    //! this thread's dtor.
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    //! INSTRUMENT-only thread-exit sentinel.  Its dtor flushes the
+    //! per-thread state_map into the global aggregator so dump() at
+    //! process end sees stats from threads that have already exited.
+    //! Production builds rely on on-demand merge from dump() instead,
+    //! so a thread that runs and never exits before dump() is still
+    //! covered if the dump-issuing thread invokes mergeStatsToGlobal()
+    //! synchronously.
     struct AutoMergeStats {
         ~AutoMergeStats() noexcept;
     };
 #endif
 
-    //! RAII helper: push the active call-site's adaptive state pointer
-    //! (and, when INSTRUMENT is on, the caller line) onto thread-local
-    //! slots.  The hot path in negotiate_internal dereferences
-    //! current_adaptive_ptr() directly — avoiding a per-call map
-    //! lookup.  Mirrors detail::ScopedOpKind.
+    //! RAII helper: push the active call-site's SiteState pointer onto
+    //! the TLS slot.  The hot path in negotiate_internal / _on_cas_*
+    //! dereferences `current_state()` directly — avoiding a per-call
+    //! unordered_map lookup.  Mirrors detail::ScopedOpKind.
     struct Scope {
-        Adaptive *prev_adapt;
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-        int prev_line;
-#endif
+        SiteState *prev_state;
         explicit Scope(int line) noexcept
-            : prev_adapt(NegSite::current_adaptive_ptr())
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-            , prev_line(NegSite::current_site_line())
-#endif
+            : prev_state(NegSite::current_state())
         {
-            NegSite::current_adaptive_ptr() = &NegSite::adaptive_map()[line];
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-            NegSite::current_site_line() = line;
-#else
-            (void)line;
-#endif
+            NegSite::current_state() = &NegSite::state_map()[line];
         }
         ~Scope() noexcept {
-            NegSite::current_adaptive_ptr() = prev_adapt;
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-            NegSite::current_site_line() = prev_line;
-#endif
+            NegSite::current_state() = prev_state;
         }
         Scope(const Scope &) = delete;
         Scope &operator=(const Scope &) = delete;
@@ -407,24 +402,26 @@ public:
     //! TLS accessors.  Function-local thread_local inside each body —
     //! one slot per program because libkame defines each accessor once
     //! (modules link against libkame's exported symbol).
-    DECLSPEC_KAME static std::unordered_map<int, Adaptive>& adaptive_map() noexcept;
-    DECLSPEC_KAME static Adaptive*& current_adaptive_ptr() noexcept;
+    DECLSPEC_KAME static std::unordered_map<int, SiteState>& state_map() noexcept;
+    DECLSPEC_KAME static SiteState*& current_state() noexcept;
     //! Sink for the most recent negotiate_internal() gate-return
     //! decision (true if take_gate fired).  Captured at ScopedNeg ctor
     //! into m_was_gate_return for per-scope use by _on_cas_fail /
     //! _on_cas_success.  Always-on (production path).
     DECLSPEC_KAME static bool& last_was_gate_return() noexcept;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-    DECLSPEC_KAME static std::unordered_map<int, Stat>& stats_map() noexcept;
-    DECLSPEC_KAME static int&            current_site_line() noexcept;
     DECLSPEC_KAME static AutoMergeStats& auto_merge_stats() noexcept;
 #endif
 
-    //! Merge this thread's Stat map into the global aggregator.  No-op
-    //! when KAME_ADAPT_INSTRUMENT is 0.
+    //! Merge this thread's state_map into the global aggregator.
+    //! Always-callable now (no INSTRUMENT guard): the global aggregator
+    //! exists in production, this thread's per-line entries get folded
+    //! in, and dump() prints them.  Cheap enough to call on demand from
+    //! any thread (one mutex + a map merge of <100 entries).
     DECLSPEC_KAME static void mergeStatsToGlobal() noexcept;
     //! Dump a human-readable per-site summary to `fp` (stderr by default).
-    //! No-op when KAME_ADAPT_INSTRUMENT is 0.
+    //! Calls mergeStatsToGlobal() internally to pull in the caller
+    //! thread's state.  Always-callable in production.
     DECLSPEC_KAME static void dump(std::FILE *fp = nullptr) noexcept;
 
     NegSite() = delete;
@@ -1181,7 +1178,7 @@ private:
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         // This negotiate is not wrapped by a ScopedNegotiateLinkage —
-        // give it its own NegSite::Stat bucket so it shows up in dumps.
+        // give it its own NegSite::SiteState bucket so it shows up in dumps.
         NegSite::Scope _site_scope(__LINE__);
 #endif
         m_link->negotiate(target, 4.0f);
