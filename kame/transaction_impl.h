@@ -168,6 +168,11 @@ DECLSPEC_KAME StampKind& s_current_op_kind_ref() noexcept {
     thread_local StampKind v = StampKind::NONE;
     return v;
 }
+#  undef tls_runner_digest
+DECLSPEC_KAME RunnerDigest& tls_runner_digest_ref() noexcept {
+    thread_local RunnerDigest v;
+    return v;
+}
 // Re-instate the aliases so the rest of transaction_impl.h refers to
 // the variables uniformly.
 #  define s_tx_nest                  s_tx_nest_ref()
@@ -175,12 +180,14 @@ DECLSPEC_KAME StampKind& s_current_op_kind_ref() noexcept {
 #  define tls_runner_counter_holder  tls_runner_counter_holder_ref()
 #  define tls_runner_counter_ptr     tls_runner_counter_ptr_ref()
 #  define s_current_op_kind          s_current_op_kind_ref()
+#  define tls_runner_digest          tls_runner_digest_ref()
 #else
 thread_local int s_tx_nest = 0;
 thread_local int s_sleep_nest = 0;
 thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 thread_local StampKind s_current_op_kind = StampKind::NONE;
+thread_local RunnerDigest tls_runner_digest;
 #endif
 
 // `DECLSPEC_KAME` on the definitions too — MSVC is more lenient when
@@ -646,6 +653,75 @@ class ScopedNegotiateLinkage {
     //! via the thread_local sink NegSite::last_was_gate_return(); consumed
     //! by _on_cas_fail / _on_cas_success of THIS scope only.
     bool            m_was_gate_return = false;
+    //! __LINE__ of the ctor call site.  Used to fill the digest's
+    //! `site_line_lo` field at each publish point so peers can tell
+    //! which scope this thread is currently in.
+    int             m_caller_line = 0;
+
+    //! Shift this scope's gate decision into the TLS digest's
+    //! `gate_history` ring (LSB = newest).  Called from ctor right
+    //! after `_capture_gate_return()` — before `_on_cas_*` clears
+    //! `m_was_gate_return`.  Mutates the TLS cache only; the value is
+    //! published at scope end via `_publish_digest()`.
+    void _shift_gate_history() noexcept {
+        auto &d = detail::tls_runner_digest;
+        d.f.gate_history = ((unsigned)d.f.gate_history << 1
+                           | (m_was_gate_return ? 1u : 0u)) & 0xFFu;
+    }
+
+    //! Pack the current scope/site state into the TLS digest cache
+    //! and publish it atomically (relaxed) to this thread's Runner
+    //! slot.  Called once per scope, at dtor entry — peers see the
+    //! scope-end snapshot (outcome reflected in `m_site_state`).
+    //!
+    //! Bitfield writes are issued against a register-local copy
+    //! (`local.raw` loaded from TLS once, written back once after all
+    //! fields are set).  This avoids the per-field load-modify-store
+    //! against TLS memory that a naive `tls_runner_digest.f.x = …`
+    //! sequence would generate for each bitfield assignment.  No
+    //! `now_us()` call: tx_start_us is taken directly from the
+    //! Snapshot's already-packed stamp; peer computes age locally.
+    void _publish_digest() noexcept {
+        detail::RunnerDigest local;
+        local.raw = detail::tls_runner_digest.raw;
+        using NC = typename Node<XN>::NegotiationCounter;
+        local.f.tx_start_us = (uint64_t)NC::stamp_us(m_snap->m_started_time)
+                              & ((1ULL << 22) - 1);
+        local.f.op_kind = (uint64_t)detail::s_current_op_kind & 0x3u;
+        if(m_site_state) {
+            local.f.consec_succs = m_site_state->consec_succs > 255
+                ? (uint64_t)255 : (uint64_t)m_site_state->consec_succs;
+            local.f.consec_fails = m_site_state->consec_fails > 255
+                ? (uint64_t)255 : (uint64_t)m_site_state->consec_fails;
+            // take_gate ∈ {-1, 0, 1} → +1 = {0, 1, 2}; 3 reserved.
+            int8_t tg = m_site_state->take_gate;
+            local.f.take_gate_p1 = (uint64_t)(tg < 0 ? 0 : (tg + 1)) & 0x3u;
+        } else {
+            local.f.consec_succs = 0;
+            local.f.consec_fails = 0;
+            local.f.take_gate_p1 = 0;
+        }
+        local.f.site_line_lo = (uint64_t)(m_caller_line & 0xFFF);
+        detail::tls_runner_digest.raw = local.raw;
+        // Skip the atomic store when the *peer-actionable* fields
+        // haven't changed since the previous publish from this thread.
+        // gate_history and site_line_lo are excluded from the diff —
+        // they tick every scope and the CV-sleep judge primarily reads
+        // consec_*/take_gate/op_kind/tx_start_us, which only change on
+        // CAS events / op_kind transitions / Tx boundaries.  Saves an
+        // atomic store on uncontended retry loops without losing
+        // peer-relevant signal.
+        constexpr uint64_t SITE_LINE_MASK = ((1ULL << 12) - 1) << 50;
+        constexpr uint64_t GATE_HIST_MASK = ((1ULL << 8) - 1) << 24;
+        constexpr uint64_t ACTIONABLE_MASK = ~(SITE_LINE_MASK | GATE_HIST_MASK);
+        static thread_local uint64_t s_last_actionable = 0;
+        const uint64_t actionable = local.raw & ACTIONABLE_MASK;
+        if(actionable == s_last_actionable)
+            return;
+        s_last_actionable = actionable;
+        if(auto *r = detail::tls_runner_counter_ptr)
+            r->digest.store(local.raw, std::memory_order_relaxed);
+    }
 public:
     enum class TagMode { OnEntry, OnExit };
 
@@ -677,7 +753,8 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0),
+          m_caller_line(caller_line)
     {
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
@@ -695,6 +772,7 @@ public:
         else
             m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         _capture_gate_return();
+        _shift_gate_history();   // captures decision before _on_cas_* clears it
         // Privilege-state-aware threshold for the weak tag-bit acquire:
         //
         //   - **We hold privilege** (TID matches s_privileged_tidstamp):
@@ -775,7 +853,8 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0),
+          m_caller_line(caller_line)
     {
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
@@ -795,6 +874,7 @@ public:
                 m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         }
         _capture_gate_return();
+        _shift_gate_history();   // captures decision before _on_cas_* clears it
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time);
@@ -817,7 +897,8 @@ public:
         : m_link(std::move(link)), m_snap(&snap),
           m_mult_wait(mult_wait),
           m_eager(mode == TagMode::OnEntry),
-          m_should_tag(retry != 0)
+          m_should_tag(retry != 0),
+          m_caller_line(caller_line)
     {
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
@@ -837,6 +918,7 @@ public:
                 m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
         }
         _capture_gate_return();
+        _shift_gate_history();   // captures decision before _on_cas_* clears it
         m_view = std::move(from);
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time);
@@ -854,7 +936,8 @@ public:
           m_contention_observed(o.m_contention_observed),
           m_strong_mode(o.m_strong_mode),
           m_site_state(o.m_site_state),
-          m_was_gate_return(o.m_was_gate_return)
+          m_was_gate_return(o.m_was_gate_return),
+          m_caller_line(o.m_caller_line)
     {
         o.m_committed = true;  // prevent dtor effects on moved-from
         o.m_site_state = nullptr;
@@ -878,6 +961,7 @@ public:
             o.m_site_state = nullptr;
             m_was_gate_return = o.m_was_gate_return;
             o.m_was_gate_return = false;
+            m_caller_line = o.m_caller_line;
             o.m_committed = true;
         }
         return *this;
@@ -1178,6 +1262,17 @@ public:
         if(m_link) NegSite::current_state() = m_site_state;
         if(m_committed && m_link && m_site_state)
             ++m_site_state->commits;
+        // Publish the scope-end digest snapshot ONLY when this scope
+        // observed contention (CAS-fail / weak-acquire-fail /
+        // confirm_contention).  Rationale: peer threads consult the
+        // digest specifically when deciding to CV-sleep on a Linkage;
+        // a peer that's making progress with no contention is invisible
+        // (v != 0 alone) and that's enough — the digest details are
+        // only actionable for stuck/contending peers.  Skipping K=0
+        // and clean-commit paths halves the per-Tx overhead on
+        // low-contention workloads.
+        if(m_link)
+            _publish_digest();
         if(!m_committed) {
             // Tag rules:
             //  - OnEntry m_should_tag: ctor already tagged; skip dtor.
