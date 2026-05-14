@@ -299,9 +299,26 @@
 // --- Spin-for-same-kind / peer-progress path ------------------------
 
 // Hard cap on per-call spin time in µs.  The actual budget is
-// min(flip_period_us_ema, KAME_SPIN_MAX_US).
+// min(flip_period_us_ema, KAME_SPIN_MAX_US).  Default tightened from
+// 100 → 30 to bound the "blind" waste when KAME_SPIN_POLL=0 — even
+// without polling, a short budget catches most peer releases within
+// typical scope-execution time.
 #ifndef KAME_SPIN_MAX_US
-#define KAME_SPIN_MAX_US 100
+#define KAME_SPIN_MAX_US 30
+#endif
+
+// Polling mode for the spin loop.
+//   1 = read m_transaction_started_time every 16 pauses and break
+//       on release / kind-change (early exit, but spinner reads
+//       interfere with holder writes — bad on weak-memory like ARM).
+//   0 = blind spin: no in-loop reads, wait the full budget, then do
+//       ONE final read for INSTRUMENT outcome.  Holder is unobstructed,
+//       at the cost of losing the early exit.  Preferred on M4 / ARM.
+//
+// Default 0 (blind) — pairs with the reduced KAME_SPIN_MAX_US above so
+// the waste from no-early-exit is bounded (≤ 30 µs/spin worst case).
+#ifndef KAME_SPIN_POLL
+#define KAME_SPIN_POLL 0
 #endif
 
 // Age window (in µs) under which a Linkage is considered to have
