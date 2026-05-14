@@ -290,14 +290,19 @@
 // alternative to ops_since_flip (which saturates quickly under heavy
 // tag activity).
 //
-// Default tuned on macOS / Apple Silicon: 300 µs picks up the
-// N=128 / mid-CR spin window where ms-grain sleep is worse than
-// a longer-tail spin even with win_rate ≈ 55 %.  At N≤8 / low-CR,
-// the gate stays cold (B↔U flips don't trigger) so the wider window
-// costs nothing.  See benchmark notes in kame/transaction_neg_impl.h
-// (negotiate_internal spin block).
+// 0 = spin effectively disabled: condition (age > 0) is always true
+// for any real inter-call interval, so every call goes to SKIPPED_COLD.
+// The flip-state tracking (m_flip_state CAS on commit) still runs and
+// keeps the EMA period live for diagnostic use and future re-enablement.
+//
+// macOS M3 Air sweep (2026-05, LEGACY_GATING=0, DISABLE_LOTTERY=1):
+//   off (RECENT=0):  avg8 = 5 202 111  ← winner across all N/CR
+//   MAX=20..500:     avg8 = 4 933..5 049 k  (all lower)
+// With the spin-path architecture, the negotiate_sleep (yield for N≤2,
+// CV-sleep otherwise) outperforms spin on Apple Silicon.  x86 results
+// may differ; raise to e.g. 100–300 µs to re-enable on those platforms.
 #ifndef KAME_SPIN_RECENT_FLIP_US
-#define KAME_SPIN_RECENT_FLIP_US 300
+#define KAME_SPIN_RECENT_FLIP_US 0
 #endif
 
 #endif /* TRANSACTION_DEFINITIONS_H */
