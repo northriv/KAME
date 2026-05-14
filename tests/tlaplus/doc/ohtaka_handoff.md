@@ -53,6 +53,9 @@ CFG=BundleUnbundle_2level_LLfree_dynamic_3thr_release_mc.cfg \
 | **3L-dyn** | `_3thr_release_mc.cfg` | **要投入** | casOldWrappers fix 適用済み, local 2t PASS ✅ |
 
 ### 完了済み (最新)
+- **2L superfine 3t confC live — 137M states, depth 96, 2h53m, PASS + liveness (ohtaka, slurm-2906729, 2026-05-13)**
+  - PHASE=1 (safety, slurm-2905644) は 16:23 で終了 → checkpoint 未作成のまま Exit
+  - PHASE=2 は `No checkpoint found — starting fresh.` で再走 (fresh 開始)、結果 2h53m で safety+liveness 完了
 - **3L-dyn release superfine 2t — 921M states, PASS (ohtaka, slurm-2898329, 2026-05-05)**
 - 3L-dyn 3thr-A live — 122K states, PASS + liveness (2026-05-04)
 - 3L-dyn 3thr-B live — 120K states, PASS + liveness (2026-05-04)

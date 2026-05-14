@@ -415,6 +415,7 @@ all reachable terminal states.
 | 2L phase0only | 997,511 | 87 | 46 s | 6–18 | 71 | ✅ PASS |
 | 2L phase3only | 2,525,381 | 129 | 2:20 | 6–24 | 124 | ✅ PASS |
 | 2L superfine 3t confC (all root) | 137,333,348 | 96 | 6:35:00 | 4–15 | 170 | ✅ PASS (ohtaka) |
+| **2L superfine 3t confC live (all root)** | **137,333,348** | **96** | **2:53:00** | **4–15** | **170** | **✅ PASS (ohtaka) + liveness ✅** |
 | 2L 3thr coarse C (all root) | 339,744 | 49 | 20 s | 4–9 | 106 | ✅ PASS |
 | 3L 3thr coarse C (all root) | 397,160 | 57 | 26 s | 10–12 | — | ✅ PASS |
 | 2L 3thr superfine A (2 leaf + 1 root) | 755,078,964 | 117 | 1:33:00 | 2–21 | 3,412 | ✅ PASS (ohtaka) |
@@ -549,6 +550,21 @@ Notes:
   because 3 threads share `SerialBase = 1 + 3 = 4`, reducing per-thread
   counter increment. Consider `-lncheck final` and `-metadir /dev/shm`
   (RAM disk) for future ohtaka runs to reduce temporal checking time.
+- **2L superfine 3t confC live (ohtaka, 2026-05-13)**: `EventuallyAllDone`
+  liveness PASS. Same state space (137,333,348 distinct states / depth 96)
+  / 2h53m total / temporal check 19min31s. PrintTerminalMaxCounter emitted
+  170 values; counter min=4, max=15. Fingerprint collision optimistic=0.23%,
+  actual=0.83% (slightly higher on this run than the safety-only run's 0.075%
+  but well within acceptable bounds). Total wall time dropped from 6h35m
+  (earlier safety-only) to 2h53m (safety + liveness here) thanks to
+  `-metadir /dev/shm` on a B1cpu node. **2-level 3-thread superfine
+  liveness formally proven for the all-root configuration.** Notes on the
+  resume attempt: PHASE=1 (slurm-2905644) finished in 16m23s, too quickly
+  for TLC's default 30-min checkpoint cadence, so no `_stable` snapshot
+  was written. PHASE=2 (slurm-2906729) saw `No checkpoint found — starting
+  fresh.` and re-ran safety + liveness end-to-end. For short-lived
+  safety runs, either run safety + liveness as a single PHASE=2 job, or
+  add `-checkpoint 5` to force minute-scale checkpointing.
 - **3-thread cfgs confA–C (2026-05-01)**: Thread roles split across three
   configs — confA (2 leaf + 1 root), confB (1 leaf + 2 root), confC (all
   root). This replaces the old `RootThreads=LeafThreads={1,2,3}` approach
