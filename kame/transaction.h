@@ -29,6 +29,7 @@
 #include "atomic.h"
 #include "xtime.h"
 #include "transaction_signal.h"
+#include "transaction_definitions.h"
 
 // L1 dcache line size by ABI. Used to prevent false sharing on hot
 // per-thread / per-shard counters. ABI-driven, not host-detected:
@@ -336,52 +337,9 @@ namespace detail {
     }
 } // namespace detail
 
-#ifndef KAME_GATE_K_FAIL
-#define KAME_GATE_K_FAIL 20             // gate→fail streak depth → FORCE_SLEEP. 2x bump (iMac x86 K=100 N=128 retest, 2026-05).
-#endif
-#ifndef KAME_GATE_K_SUCC
-#define KAME_GATE_K_SUCC 10             // CAS-success streak → FORCE_GATE. 2x bump (same retest).
-#endif
-#ifndef KAME_GATE_FAIL_WINDOW_US
-#define KAME_GATE_FAIL_WINDOW_US 1000   // 1 ms streak-validity window for fails
-#endif
-#ifndef KAME_NORMAL_LEASE_US
-#define KAME_NORMAL_LEASE_US 50         // 50 µs lease for both FORCE states. Sweep winner.
-#endif
-
-//! Spin-for-same-kind path tunables (PR3 of per-Linkage thrash
-//! mitigation).  Spin is entered only when this Linkage is in a
-//! "flip burst" — i.e. the per-Linkage ops_since_flip counter is
-//! below the live contender count sig_C ≈ "周期 < N_threads" —
-//! AND the peer's last_kind ≠ my op_kind.  Empirically the EMA
-//! `flip_period_us_ema` proved unreliable as a spin trigger (it
-//! gets dragged up by the long-tail flip intervals so the EMA
-//! sits at ms scale even for Linkages with bursty µs-scale flips).
-//! ops_since_flip is reset on every flip, so it picks up the
-//! burstiness directly.  The EMA period is still recorded in
-//! m_flip_state for diagnostic / future-tuning use.
-//!
-//! Spin budget = KAME_SPIN_MAX_US, fixed.  Capping at 100-200 µs
-//! keeps the wasted-CPU cost bounded if the predicted same-kind
-//! event doesn't arrive.
-#ifndef KAME_SPIN_MAX_US
-#define KAME_SPIN_MAX_US 100
-#endif
-
-//! Age window (in µs) under which a Linkage is considered to have
-//! "recently flipped" — drives the spin-entry decision as a wall-
-//! clock alternative to ops_since_flip (which saturates quickly under
-//! heavy tag activity).
-//!
-//! Default tuned on macOS / Apple Silicon: 300 µs picks up the
-//! N=128 / mid-CR spin window where ms-grain sleep is worse than
-//! a longer-tail spin even with win_rate ≈ 55 %.  At N≤8 / low-CR,
-//! the gate stays cold (B↔U flips don't trigger) so the wider
-//! window costs nothing.  See benchmark notes in
-//! kame/transaction_impl.h (negotiate_internal spin block).
-#ifndef KAME_SPIN_RECENT_FLIP_US
-#define KAME_SPIN_RECENT_FLIP_US 300
-#endif
+// Adaptive-gate / spin-path tuning knobs live in transaction_definitions.h
+// (KAME_GATE_K_FAIL, KAME_GATE_K_SUCC, KAME_GATE_FAIL_WINDOW_US,
+// KAME_NORMAL_LEASE_US, KAME_SPIN_MAX_US, KAME_SPIN_RECENT_FLIP_US).
 
 //! Per-call-site adaptive state + diagnostics for ScopedNegotiateLinkage.
 //!
@@ -1122,9 +1080,8 @@ private:
     //  `Transactional::TidBitset` class above; Snapshot::m_tid_bitset
     //  holds an instance.)
 
-#ifndef KAME_LEASE_NS_BASE
-#define KAME_LEASE_NS_BASE 10000    // initial 10 µs
-#endif
+    // KAME_LEASE_NS_BASE and other tuning macros live in
+    // transaction_definitions.h.
 
     struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
@@ -1150,10 +1107,7 @@ private:
         // a subsequent negotiate() call from the same TID skips the msec-sleep
         // path so it can chain a follow-up commit attempt immediately. Lease
         // auto-expires by wall-clock; no explicit release. Override via
-        // -DKAMEE_PRIORITY_LEASE_DISABLE
-#ifndef KAME_PRIORITY_LEASE_DISABLE
-#define KAME_PRIORITY_LEASE
-#endif
+        // -DKAME_PRIORITY_LEASE_DISABLE (knob lives in transaction_definitions.h).
         //! Packed per-Linkage priority/lease state. One 64-bit atomic holds
         //! three fields that are always read together on the fast path:
         //!
@@ -1866,23 +1820,7 @@ public:
 protected:
 };
 
-//! Assert that the given Snapshot/Transaction is NOT currently the
-//! fair-mode privileged Tx. Use at any CAS-fail / loop-fail site to
-//! catch livelock-free invariant violations: a privileged Tx must
-//! make forward progress, so failing a CAS or re-iterating a spin
-//! loop while privileged means some other thread bypassed the
-//! fair-mode yield (= a bug in the negotiate / tag_as_contender
-//! coverage). Defaults to 0 under NDEBUG so benchmark/release builds
-//! never pay for the assertion if the developer forgot to disable it
-//! explicitly; defaults to 1 in debug builds. Override with
-//! `-DKAME_STM_ASSERT_PRIVILEGE=0` (or 1).
-#ifndef KAME_STM_ASSERT_PRIVILEGE
-#ifdef NDEBUG
-#define KAME_STM_ASSERT_PRIVILEGE 0
-#else
-#define KAME_STM_ASSERT_PRIVILEGE 1
-#endif
-#endif
+// KAME_STM_ASSERT_PRIVILEGE knob lives in transaction_definitions.h.
 
 // ScopedNegotiateLinkage<XN> definition lives in transaction_impl.h
 // (only used by impl-side retry loops). Forward-declared near the top
