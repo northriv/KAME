@@ -2579,7 +2579,20 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             } else if(fs_last_kind == my_op_kind) {
                 outcome = NegSite::SpinOutcome::SKIPPED_SAME_KIND;
             } else {
-                const uint64_t budget = (uint64_t)KAME_SPIN_MAX_US;
+                // Spin budget: prefer the per-Linkage EMA period.
+                // When the EMA is short (e.g. 30 µs), spin only as
+                // long as a same-kind flip is *typically* due — no
+                // point waiting longer than the observed period.
+                // When the EMA is long or zero, fall back to the hard
+                // cap KAME_SPIN_MAX_US.  Hard cap also bounds the
+                // worst case (CPU + cacheline) when a stale EMA misses.
+                const uint64_t fs_period =
+                    (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
+                const uint64_t budget =
+                    (fs_period > 0
+                     && fs_period < (uint64_t)KAME_SPIN_MAX_US)
+                    ? fs_period
+                    : (uint64_t)KAME_SPIN_MAX_US;
                 const uint64_t start_us = (uint64_t)NegotiationCounter::now_us();
                 const uint64_t deadline = start_us + budget;
                 bool won = false;
