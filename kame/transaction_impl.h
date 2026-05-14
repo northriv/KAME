@@ -283,16 +283,34 @@ NegSite::AutoMergeStats::~AutoMergeStats() noexcept {
 }
 
 // Global Linkage-flip aggregator — 4x4 atomic matrix indexed by
-// [prev_kind][curr_kind] (StampKind values 0..3).  Incremented from
+// [prev_kind][curr_kind] (StampKind values 0..3), plus a log-binned
+// histogram of the inter-flip interval in µs.  Incremented from
 // Snapshot::tag_as_contender when a contention flip is detected on a
 // Linkage.  Read+printed by NegSite::dump().
 namespace {
 std::atomic<uint64_t> g_linkage_flips[4][4]{};
+// Log-binned histogram of inter-flip intervals (µs).  8 buckets:
+//   0: <1us, 1: 1-3, 2: 3-10, 3: 10-30, 4: 30-100, 5: 100-300,
+//   6: 300-1000, 7: ≥1000us
+std::atomic<uint64_t> g_flip_period_hist[8]{};
+inline int flip_period_bucket(uint32_t us) noexcept {
+    if(us < 1)    return 0;
+    if(us < 3)    return 1;
+    if(us < 10)   return 2;
+    if(us < 30)   return 3;
+    if(us < 100)  return 4;
+    if(us < 300)  return 5;
+    if(us < 1000) return 6;
+    return 7;
+}
 } // anonymous namespace
 
 DECLSPEC_KAME void NegSite::record_linkage_flip(uint8_t prev_kind,
-                                                uint8_t curr_kind) noexcept {
+                                                uint8_t curr_kind,
+                                                uint32_t interval_us) noexcept {
     g_linkage_flips[prev_kind & 0x3][curr_kind & 0x3]
+        .fetch_add(1, std::memory_order_relaxed);
+    g_flip_period_hist[flip_period_bucket(interval_us)]
         .fetch_add(1, std::memory_order_relaxed);
 }
 #endif
@@ -417,6 +435,36 @@ DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
             "  B↔U flips = %llu (%.1f%%)   B↔M flips = %llu (%.1f%%)\n",
             (unsigned long long)bu, 100.0 * (double)bu / (double)total,
             (unsigned long long)bm, 100.0 * (double)bm / (double)total);
+    }
+    // Period histogram (inter-flip interval, log-binned in µs).
+    // Buckets:  <1us, 1-3, 3-10, 10-30, 30-100, 100-300, 300-1000, ≥1000us
+    uint64_t hist[8];
+    uint64_t hist_total = 0;
+    for(int i = 0; i < 8; ++i) {
+        hist[i] = g_flip_period_hist[i].load(std::memory_order_relaxed);
+        hist_total += hist[i];
+    }
+    if(hist_total > 0) {
+        static const char *bucketLabel[8] = {
+            "<1us", "1-3us", "3-10us", "10-30us",
+            "30-100us", "100-300us", "300us-1ms", ">=1ms"
+        };
+        std::fprintf(fp, "[linkage flip period histogram]  samples=%llu\n",
+                     (unsigned long long)hist_total);
+        // Compute weighted median bucket (for a quick "typical period" read).
+        uint64_t acc = 0;
+        int median_bucket = 0;
+        for(int i = 0; i < 8; ++i) {
+            acc += hist[i];
+            if(acc * 2 >= hist_total) { median_bucket = i; break; }
+        }
+        for(int i = 0; i < 8; ++i) {
+            double pct = 100.0 * (double)hist[i] / (double)hist_total;
+            std::fprintf(fp, "  %-10s : %9llu (%5.1f%%)%s\n",
+                         bucketLabel[i],
+                         (unsigned long long)hist[i], pct,
+                         (i == median_bucket) ? "  ← median" : "");
+        }
     }
 #endif
     std::fflush(fp);
