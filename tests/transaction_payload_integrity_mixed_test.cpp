@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
     if(!ok) return 1;
     fprintf(stderr, "PASS\n");
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-    Transactional::detail::dumpAdaptStats(stderr);
+    Transactional::NegSite::dump(stderr);
 #endif
     return 0;
 }

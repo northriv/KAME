@@ -168,39 +168,6 @@ DECLSPEC_KAME StampKind& s_current_op_kind_ref() noexcept {
     thread_local StampKind v = StampKind::NONE;
     return v;
 }
-#  undef s_neg_site_adaptive_map
-#  undef s_current_neg_adaptive_ptr
-DECLSPEC_KAME std::unordered_map<int, NegSiteAdaptive>&
-    s_neg_site_adaptive_map_ref() noexcept {
-    thread_local std::unordered_map<int, NegSiteAdaptive> v;
-    return v;
-}
-DECLSPEC_KAME NegSiteAdaptive*& s_current_neg_adaptive_ptr_ref() noexcept {
-    thread_local NegSiteAdaptive* v = nullptr;
-    return v;
-}
-#  if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-#    undef s_neg_site_stats
-#    undef s_current_neg_site_line
-DECLSPEC_KAME std::unordered_map<int, NegSiteStat>& s_neg_site_stats_ref() noexcept {
-    thread_local std::unordered_map<int, NegSiteStat> v;
-    return v;
-}
-DECLSPEC_KAME int& s_current_neg_site_line_ref() noexcept {
-    thread_local int v = 0;
-    return v;
-}
-DECLSPEC_KAME _AutoMergeNegStats& _auto_merge_neg_stats_ref() noexcept {
-    thread_local _AutoMergeNegStats v;
-    return v;
-}
-#  endif
-// s_last_was_gate_return is always-on (production state machine).
-#  undef s_last_was_gate_return
-DECLSPEC_KAME bool& s_last_was_gate_return_ref() noexcept {
-    thread_local bool v = false;
-    return v;
-}
 // Re-instate the aliases so the rest of transaction_impl.h refers to
 // the variables uniformly.
 #  define s_tx_nest                  s_tx_nest_ref()
@@ -208,27 +175,12 @@ DECLSPEC_KAME bool& s_last_was_gate_return_ref() noexcept {
 #  define tls_runner_counter_holder  tls_runner_counter_holder_ref()
 #  define tls_runner_counter_ptr     tls_runner_counter_ptr_ref()
 #  define s_current_op_kind          s_current_op_kind_ref()
-#  define s_neg_site_adaptive_map    s_neg_site_adaptive_map_ref()
-#  define s_current_neg_adaptive_ptr s_current_neg_adaptive_ptr_ref()
-#  define s_last_was_gate_return    s_last_was_gate_return_ref()
-#  if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-#    define s_neg_site_stats        s_neg_site_stats_ref()
-#    define s_current_neg_site_line s_current_neg_site_line_ref()
-#  endif
 #else
 thread_local int s_tx_nest = 0;
 thread_local int s_sleep_nest = 0;
 thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 thread_local StampKind s_current_op_kind = StampKind::NONE;
-thread_local std::unordered_map<int, NegSiteAdaptive> s_neg_site_adaptive_map;
-thread_local NegSiteAdaptive* s_current_neg_adaptive_ptr = nullptr;
-thread_local bool s_last_was_gate_return = false;
-#  if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-thread_local std::unordered_map<int, NegSiteStat> s_neg_site_stats;
-thread_local int  s_current_neg_site_line = 0;
-thread_local _AutoMergeNegStats _auto_merge_neg_stats;
-#  endif
 #endif
 
 // `DECLSPEC_KAME` on the definitions too — MSVC is more lenient when
@@ -237,27 +189,6 @@ thread_local _AutoMergeNegStats _auto_merge_neg_stats;
 // symbols, defeating the libkame singleton invariant (the macOS DSO
 // duplication failure mode that motivated this whole reorg).
 DECLSPEC_KAME atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
-
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-//! Global aggregator for NegSiteStat — every thread merges its
-//! thread-local map into here at thread exit (via the thread_local
-//! _AutoMergeNegStats dtor below) or on demand via
-//! mergeNegSiteStatsToGlobal().  Mutex-guarded; merges are rare
-//! (once per thread at termination) so contention is negligible.
-struct GlobalNegStats {
-    std::mutex mu;
-    std::unordered_map<int, NegSiteStat> agg;
-    std::unordered_map<int, NegSiteAdaptive> adapt_agg;
-};
-inline GlobalNegStats& globalNegStats() noexcept {
-    static GlobalNegStats g;
-    return g;
-}
-
-// _AutoMergeNegStats struct + thread_local declaration live in
-// transaction.h (so the thread_local definition further down in this
-// file sees the complete type).
-#endif
 
 DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
     auto sp = std::make_shared<RunnerCounterEntry>();
@@ -297,11 +228,71 @@ DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept {
     return (unsigned)s;
 }
 
-DECLSPEC_KAME void mergeNegSiteStatsToGlobal() noexcept {
+} // namespace detail
+
+// =============================================================================
+// NegSite — per-call-site adaptive state + INSTRUMENT diagnostics.
+// Declared in transaction.h; storage and impls live here (single-TU-
+// per-binary include site, matching detail:: TLS above).
+// =============================================================================
+
+DECLSPEC_KAME std::unordered_map<int, NegSite::Adaptive>&
+NegSite::adaptive_map() noexcept {
+    thread_local std::unordered_map<int, Adaptive> v;
+    return v;
+}
+DECLSPEC_KAME NegSite::Adaptive*& NegSite::current_adaptive_ptr() noexcept {
+    thread_local Adaptive *v = nullptr;
+    return v;
+}
+DECLSPEC_KAME bool& NegSite::last_was_gate_return() noexcept {
+    thread_local bool v = false;
+    return v;
+}
+
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+DECLSPEC_KAME std::unordered_map<int, NegSite::Stat>&
+NegSite::stats_map() noexcept {
+    thread_local std::unordered_map<int, Stat> v;
+    return v;
+}
+DECLSPEC_KAME int& NegSite::current_site_line() noexcept {
+    thread_local int v = 0;
+    return v;
+}
+
+//! Global aggregator — every thread merges its TLS map here at thread
+//! exit (via AutoMergeStats dtor) or on demand via mergeStatsToGlobal().
+//! Mutex-guarded; merges are rare (once per thread at termination) so
+//! contention is negligible.
+namespace {
+struct GlobalNegStats {
+    std::mutex mu;
+    std::unordered_map<int, NegSite::Stat> agg;
+    std::unordered_map<int, NegSite::Adaptive> adapt_agg;
+};
+inline GlobalNegStats& globalNegStats() noexcept {
+    static GlobalNegStats g;
+    return g;
+}
+} // anonymous namespace
+
+DECLSPEC_KAME NegSite::AutoMergeStats& NegSite::auto_merge_stats() noexcept {
+    thread_local AutoMergeStats v;
+    return v;
+}
+
+NegSite::AutoMergeStats::~AutoMergeStats() noexcept {
+    NegSite::mergeStatsToGlobal();
+}
+#endif
+
+DECLSPEC_KAME void NegSite::mergeStatsToGlobal() noexcept {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     auto &g = globalNegStats();
     std::lock_guard<std::mutex> _lk(g.mu);
-    for(auto &kv : s_neg_site_stats) {
+    auto &my_stats = stats_map();
+    for(auto &kv : my_stats) {
         auto &dst = g.agg[kv.first];
         dst.entries          += kv.second.entries;
         dst.commits          += kv.second.commits;
@@ -311,12 +302,13 @@ DECLSPEC_KAME void mergeNegSiteStatsToGlobal() noexcept {
         }
         dst.gate_then_cas_fail += kv.second.gate_then_cas_fail;
     }
-    s_neg_site_stats.clear();
+    my_stats.clear();
     // Merge adaptive-mode diagnostics (mode + flips) into the same
     // global agg entries.  Adaptive map is production-side; stats map
     // is INSTRUMENT-side — keyed identically by call_line so merging
-    // here lets dumpAdaptStats present them side-by-side.
-    for(auto &kv : s_neg_site_adaptive_map) {
+    // here lets dump() present them side-by-side.
+    auto &my_adapt = adaptive_map();
+    for(auto &kv : my_adapt) {
         auto &dst = g.adapt_agg[kv.first];
         // Take MAX of take_gate so the "stickiest" forcing across
         // threads shows in the dump (-1 < 0 < 1 → FORCE_GATE
@@ -327,14 +319,14 @@ DECLSPEC_KAME void mergeNegSiteStatsToGlobal() noexcept {
         dst.mode_flips_n2g     += kv.second.mode_flips_n2g;
         dst.mode_flips_promote += kv.second.mode_flips_promote;
     }
-    s_neg_site_adaptive_map.clear();
+    my_adapt.clear();
 #endif
 }
 
-DECLSPEC_KAME void dumpAdaptStats(std::FILE *fp) noexcept {
+DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     if( !fp) fp = stderr;
-    mergeNegSiteStatsToGlobal();   // pull in this thread's stats first
+    mergeStatsToGlobal();   // pull in this thread's stats first
     auto &g = globalNegStats();
     std::lock_guard<std::mutex> _lk(g.mu);
     if(g.agg.empty()) {
@@ -342,7 +334,7 @@ DECLSPEC_KAME void dumpAdaptStats(std::FILE *fp) noexcept {
         return;
     }
     // Sort by call-site line ascending for stable output.
-    std::vector<std::pair<int, NegSiteStat>> rows(g.agg.begin(), g.agg.end());
+    std::vector<std::pair<int, Stat>> rows(g.agg.begin(), g.agg.end());
     std::sort(rows.begin(), rows.end(),
               [](const auto &a, const auto &b){ return a.first < b.first; });
     std::fprintf(fp, "[neg_site stats] (KAME_ADAPT_INSTRUMENT)\n");
@@ -402,8 +394,6 @@ DECLSPEC_KAME void dumpAdaptStats(std::FILE *fp) noexcept {
     (void)fp;
 #endif
 }
-
-} // namespace detail
 
 // tx_nest / sleep_nest are defined at namespace scope in transaction.h
 // (detail::s_tx_nest, detail::s_sleep_nest). Placing them outside the
@@ -703,16 +693,16 @@ class ScopedNegotiateLinkage {
     //! scope ends quickly, and the strong CAS still terminates: it
     //! returns false on real pointer mismatch.
     bool            m_strong_mode = false;
-    //! Cached pointer into the thread-local NegSiteAdaptive map for
-    //! this scope's call-site.  Populated by ScopedNegSite at ctor
-    //! entry — the hot path in _on_cas_success / _on_cas_fail (and the
-    //! lease check in negotiate_internal) dereferences this pointer
-    //! instead of doing a per-call unordered_map lookup.
-    detail::NegSiteAdaptive *m_adaptive_ptr = nullptr;
+    //! Cached pointer into NegSite::adaptive_map() for this scope's
+    //! call-site.  Populated by NegSite::Scope at ctor entry — the hot
+    //! path in _on_cas_success / _on_cas_fail (and the lease check in
+    //! negotiate_internal) dereferences this pointer instead of doing
+    //! a per-call unordered_map lookup.
+    NegSite::Adaptive *m_adaptive_ptr = nullptr;
     //! Whether THIS scope's ctor-time negotiate fired a gate-return.
     //! Per-scope (not thread_local) so nested scopes don't overwrite
     //! one another's correlation flag.  Written by negotiate_internal
-    //! via the thread_local sink s_last_was_gate_return; consumed
+    //! via the thread_local sink NegSite::last_was_gate_return(); consumed
     //! by _on_cas_fail / _on_cas_success of THIS scope only.
     bool            m_was_gate_return = false;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
@@ -739,7 +729,7 @@ public:
     //! `caller_line` is auto-populated by __builtin_LINE() as a default
     //! argument — it resolves at the call site (not the ctor's
     //! definition line).  Used by KAME_ADAPT_INSTRUMENT profiling to
-    //! key NegSiteStat per source-line.  Zero overhead when the
+    //! key NegSite::Stat per source-line.  Zero overhead when the
     //! instrumentation macro is off.
     ScopedNegotiateLinkage(LinkagePtr link, Snapshot<XN> &snap, int retry,
                            TagMode mode = TagMode::OnEntry,
@@ -753,17 +743,17 @@ public:
         , m_caller_line(caller_line)
 #endif
     {
-        // ScopedNegSite primes both the adaptive pointer and (when
+        // NegSite::Scope primes both the adaptive pointer and (when
         // INSTRUMENT is on) the caller_line slot so negotiate / CAS
         // hooks below can address per-site state by pointer alone.
-        detail::ScopedNegSite _site_scope(caller_line);
-        m_adaptive_ptr = detail::s_current_neg_adaptive_ptr;
+        NegSite::Scope _site_scope(caller_line);
+        m_adaptive_ptr = NegSite::current_adaptive_ptr();
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-        ++detail::s_neg_site_stats[caller_line].entries;
+        ++NegSite::stats_map()[caller_line].entries;
         // Touch the thread_local sentinel so its dtor (which merges
         // this thread's stats into the global aggregator) is wired
         // up for this thread.  Cost: one TLS access on first ctor.
-        (void)&detail::_auto_merge_neg_stats;
+        (void)NegSite::auto_merge_stats();
 #endif
         if(retry < 0)
             m_link->negotiate(snap, mult_wait);  // always negotiate, no retry_pause
@@ -855,17 +845,17 @@ public:
         , m_caller_line(caller_line)
 #endif
     {
-        // ScopedNegSite primes both the adaptive pointer and (when
+        // NegSite::Scope primes both the adaptive pointer and (when
         // INSTRUMENT is on) the caller_line slot so negotiate / CAS
         // hooks below can address per-site state by pointer alone.
-        detail::ScopedNegSite _site_scope(caller_line);
-        m_adaptive_ptr = detail::s_current_neg_adaptive_ptr;
+        NegSite::Scope _site_scope(caller_line);
+        m_adaptive_ptr = NegSite::current_adaptive_ptr();
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-        ++detail::s_neg_site_stats[caller_line].entries;
+        ++NegSite::stats_map()[caller_line].entries;
         // Touch the thread_local sentinel so its dtor (which merges
         // this thread's stats into the global aggregator) is wired
         // up for this thread.  Cost: one TLS access on first ctor.
-        (void)&detail::_auto_merge_neg_stats;
+        (void)NegSite::auto_merge_stats();
 #endif
         if(with_negotiate) {
             if(retry < 0)
@@ -901,17 +891,17 @@ public:
         , m_caller_line(caller_line)
 #endif
     {
-        // ScopedNegSite primes both the adaptive pointer and (when
+        // NegSite::Scope primes both the adaptive pointer and (when
         // INSTRUMENT is on) the caller_line slot so negotiate / CAS
         // hooks below can address per-site state by pointer alone.
-        detail::ScopedNegSite _site_scope(caller_line);
-        m_adaptive_ptr = detail::s_current_neg_adaptive_ptr;
+        NegSite::Scope _site_scope(caller_line);
+        m_adaptive_ptr = NegSite::current_adaptive_ptr();
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-        ++detail::s_neg_site_stats[caller_line].entries;
+        ++NegSite::stats_map()[caller_line].entries;
         // Touch the thread_local sentinel so its dtor (which merges
         // this thread's stats into the global aggregator) is wired
         // up for this thread.  Cost: one TLS access on first ctor.
-        (void)&detail::_auto_merge_neg_stats;
+        (void)NegSite::auto_merge_stats();
 #endif
         if(with_negotiate) {
             if(retry < 0)
@@ -1177,8 +1167,8 @@ private:
     //! nested scope's negotiate would overwrite the outer scope's
     //! gate-return flag.
     void _capture_gate_return() noexcept {
-        m_was_gate_return = detail::s_last_was_gate_return;
-        detail::s_last_was_gate_return = false;
+        m_was_gate_return = NegSite::last_was_gate_return();
+        NegSite::last_was_gate_return() = false;
     }
     //! Common CAS-success path: mark committed and drive the
     //! per-site promotion-to-FORCE_GATE transition.
@@ -1202,12 +1192,12 @@ private:
                 || (tg == -1 /*UNDEFINED*/ && m_was_gate_return);
             if(count_succ
                && ++m_adaptive_ptr->consec_succs
-                      >= (uint16_t)KAME_GATE_K_SUCC) {
+                      >= (uint16_t)NegSite::GATE_K_SUCC) {
                 const uint64_t now_us = (uint64_t)
                     Node<XN>::NegotiationCounter::now_us();
                 m_adaptive_ptr->take_gate = 1;    // FORCE_GATE
                 m_adaptive_ptr->normal_until_us = now_us
-                    + (uint64_t)KAME_NORMAL_LEASE_US;
+                    + (uint64_t)NegSite::NORMAL_LEASE_US;
                 m_adaptive_ptr->consec_succs = 0;
                 ++m_adaptive_ptr->mode_flips_promote;
             }
@@ -1225,7 +1215,7 @@ private:
         m_contention_observed = true;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         if(m_was_gate_return)
-            ++detail::s_neg_site_stats[m_caller_line].gate_then_cas_fail;
+            ++NegSite::stats_map()[m_caller_line].gate_then_cas_fail;
 #endif
         if(m_adaptive_ptr) {
             m_adaptive_ptr->consec_succs = 0;     // any fail clears succs
@@ -1234,16 +1224,16 @@ private:
                     Node<XN>::NegotiationCounter::now_us();
                 if(m_adaptive_ptr->consec_fails == 0
                    || (now_us - m_adaptive_ptr->last_fail_us)
-                          > (uint64_t)KAME_GATE_FAIL_WINDOW_US) {
+                          > (uint64_t)NegSite::GATE_FAIL_WINDOW_US) {
                     m_adaptive_ptr->consec_fails = 1;
                     m_adaptive_ptr->last_fail_us = now_us;
                 } else {
                     ++m_adaptive_ptr->consec_fails;
                     if(m_adaptive_ptr->consec_fails
-                           >= (uint16_t)KAME_GATE_K_FAIL) {
+                           >= (uint16_t)NegSite::GATE_K_FAIL) {
                         m_adaptive_ptr->take_gate = 0;  // FORCE_SLEEP
                         m_adaptive_ptr->normal_until_us = now_us
-                            + (uint64_t)KAME_NORMAL_LEASE_US;
+                            + (uint64_t)NegSite::NORMAL_LEASE_US;
                         m_adaptive_ptr->consec_fails = 0;
                         ++m_adaptive_ptr->mode_flips_g2n;
                     }
@@ -1266,14 +1256,14 @@ public:
         // this scope was moved-from (m_link reset by std::move) — the
         // move target's dtor handles the real accounting.
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-        detail::ScopedNegSite _site_scope(m_caller_line);
+        NegSite::Scope _site_scope(m_caller_line);
         if(m_committed && m_link)
-            ++detail::s_neg_site_stats[m_caller_line].commits;
+            ++NegSite::stats_map()[m_caller_line].commits;
 #else
         // Without INSTRUMENT we don't have caller_line, but we can
         // still re-prime the adaptive pointer slot.
-        auto *_save_adapt = detail::s_current_neg_adaptive_ptr;
-        detail::s_current_neg_adaptive_ptr = m_adaptive_ptr;
+        auto *_save_adapt = NegSite::current_adaptive_ptr();
+        NegSite::current_adaptive_ptr() = m_adaptive_ptr;
 #endif
         if(!m_committed) {
             // Tag rules:
@@ -1333,7 +1323,7 @@ public:
         }
 #if !(defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT)
         // Restore the adaptive-pointer slot saved at top of dtor.
-        detail::s_current_neg_adaptive_ptr = _save_adapt;
+        NegSite::current_adaptive_ptr() = _save_adapt;
 #endif
     }
 };
@@ -2229,9 +2219,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         //   - my != NONE alone is the goldilocks: +9-23% over Case A
         //     across the entire CR=5-20 contention band.
         // ------------------------------------------------------------
-        detail::s_last_was_gate_return = false;
+        NegSite::last_was_gate_return() = false;
         // ----- Adaptive gate-return decision (tri-state take_gate) -----
-        // Per-site state s_current_neg_adaptive_ptr->take_gate:
+        // Per-site state NegSite::current_adaptive_ptr()->take_gate:
         //   -1 (UNDEFINED)   : initial / post-privilege state — the
         //                      hot-path decides by my_kind alone
         //                      (non-NONE → gate, NONE → sleep).
@@ -2242,7 +2232,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         //                      expiry, or on privilege observation
         //                      (the streak history is stale once
         //                      contention enters the privilege path).
-        auto *_adapt = detail::s_current_neg_adaptive_ptr;
+        auto *_adapt = NegSite::current_adaptive_ptr();
         if(_fair_blocks || snap.m_registered_privileged) {
             // Privilege observed at this site → reset to UNDEFINED.
             if(_adapt && _adapt->take_gate != -1) {
@@ -2267,13 +2257,13 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 // UNDEFINED → my_kind decides, and the decision is
                 // cached into take_gate state with a fresh lease so
                 // subsequent callers (any my_kind) follow the same
-                // verdict for KAME_NORMAL_LEASE_US, then re-evaluate.
+                // verdict for NegSite::NORMAL_LEASE_US, then re-evaluate.
                 take_gate = (my_kind != detail::StampKind::NONE);
                 if(_adapt) {
                     _adapt->take_gate = take_gate ? (int8_t)1 : (int8_t)0;
                     _adapt->normal_until_us =
                         (uint64_t)now_us_entry
-                        + (uint64_t)KAME_NORMAL_LEASE_US;
+                        + (uint64_t)NegSite::NORMAL_LEASE_US;
                     _adapt->consec_fails = 0;
                     _adapt->consec_succs = 0;
                     if(take_gate) ++_adapt->mode_flips_promote;
@@ -2283,12 +2273,12 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 take_gate = (tg != 0);            // 0 = FORCE_SLEEP, 1 = FORCE_GATE
             }
             if(take_gate)
-                detail::s_last_was_gate_return = true;
+                NegSite::last_was_gate_return() = true;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             const detail::StampKind peer_kind = (detail::StampKind)
                 NegotiationCounter::stamp_kind(transaction_started_time);
-            auto &_st = detail::s_neg_site_stats
-                            [detail::s_current_neg_site_line];
+            auto &_st = NegSite::stats_map()
+                            [NegSite::current_site_line()];
             if(take_gate)
                 ++_st.gate_returns_by_peer[(int)peer_kind & 3];
             else
