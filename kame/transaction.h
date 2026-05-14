@@ -372,8 +372,15 @@ namespace detail {
 //! "recently flipped" — drives the spin-entry decision as a wall-
 //! clock alternative to ops_since_flip (which saturates quickly under
 //! heavy tag activity).
+//!
+//! Default tuned on macOS / Apple Silicon: 300 µs picks up the
+//! N=128 / mid-CR spin window where ms-grain sleep is worse than
+//! a longer-tail spin even with win_rate ≈ 55 %.  At N≤8 / low-CR,
+//! the gate stays cold (B↔U flips don't trigger) so the wider
+//! window costs nothing.  See benchmark notes in
+//! kame/transaction_impl.h (negotiate_internal spin block).
 #ifndef KAME_SPIN_RECENT_FLIP_US
-#define KAME_SPIN_RECENT_FLIP_US 100
+#define KAME_SPIN_RECENT_FLIP_US 300
 #endif
 
 //! Per-call-site adaptive state + diagnostics for ScopedNegotiateLinkage.
