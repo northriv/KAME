@@ -145,62 +145,13 @@ namespace detail {
     //! Per-thread nesting depth of ReleaseOneCount (sleeping) scopes.
     extern thread_local int s_sleep_nest;
 #endif
-    using cnt_t = int64_t;
-    //! Packed stamp layout (low → high):
-    //!   [ us : US_BITS | kind : KIND_BITS | tid : TID_BITS ]
-    //! US_BITS = 46 gives ~2.2 yr of monotonic µs (wrap-safe over any
-    //! KAME operation; longest real wait is EXPIRE_US = 50 ms).
-    //! KIND_BITS = 2 carries the operation discriminator (BUNDLE /
-    //! UNBUNDLE / COMMIT / NONE) used by the same-op piggyback path.
-    //! KIND defaults to 0 (NONE) in all existing call sites; readers
-    //! that don't compare kind are bit-stable.
-    constexpr int    STAMP_US_BITS    = 46;
-    constexpr int    STAMP_KIND_BITS  = 2;
-    constexpr int    STAMP_KIND_SHIFT = STAMP_US_BITS;                       // 46
-    constexpr int    STAMP_TID_SHIFT  = STAMP_US_BITS + STAMP_KIND_BITS;     // 48
-    constexpr cnt_t  STAMP_US_MASK    = (cnt_t{1} << STAMP_US_BITS) - 1;
-    constexpr cnt_t  STAMP_KIND_MASK  = (cnt_t{1} << STAMP_KIND_BITS) - 1;
+    // (Stamp packing/arithmetic helpers — STAMP_*, pack_stamp,
+    //  stamp_us / stamp_kind / stamp_tid, diff_us(_packed) /
+    //  signed_diff_us_packed, cnt_t — now live as static members of
+    //  Node<XN>::NegotiationCounter, where the public accessors and
+    //  now_us() / now_us_tagged() / with_kind / strip_kind already
+    //  sit.  detail:: retains only the op-kind state machine below.)
 
-    inline cnt_t pack_stamp(cnt_t us, uint16_t tid, uint8_t kind = 0) noexcept {
-        return (us & STAMP_US_MASK)
-             | ((cnt_t{kind} & STAMP_KIND_MASK) << STAMP_KIND_SHIFT)
-             | (cnt_t{tid} << STAMP_TID_SHIFT);
-    }
-    inline cnt_t stamp_us(cnt_t x) noexcept {
-        // Low US_BITS; steady-clock µs is always positive so a plain
-        // mask is correct (no sign-extension needed).
-        return x & STAMP_US_MASK;
-    }
-    inline uint8_t stamp_kind(cnt_t x) noexcept {
-        return (uint8_t)(((uint64_t)x >> STAMP_KIND_SHIFT) & STAMP_KIND_MASK);
-    }
-    inline uint16_t stamp_tid(cnt_t x) noexcept {
-        return (uint16_t)((uint64_t)x >> STAMP_TID_SHIFT);
-    }
-    //! Modular µs difference: returns (now - past) mod 2^STAMP_US_BITS,
-    //! interpreted as elapsed microseconds.  Inputs may be raw `now_us()`
-    //! (64-bit) or already-masked stamps; the result is correct as long
-    //! as the true elapsed time is < 2^(STAMP_US_BITS - 1) µs (~1 yr at
-    //! 46 bits).  All KAME diffs are <= EXPIRE_US = 50 ms.
-    inline cnt_t diff_us(cnt_t now, cnt_t past) noexcept {
-        return (cnt_t)((uint64_t)(now - past) & (uint64_t)STAMP_US_MASK);
-    }
-    //! Convenience: input is a packed stamp; extract us and diff.
-    inline cnt_t diff_us_packed(cnt_t now, cnt_t past_packed) noexcept {
-        return diff_us(now, stamp_us(past_packed));
-    }
-    //! Signed µs difference between two packed stamps.
-    //! Returns (stamp_us(a) - stamp_us(b)) interpreted as a signed
-    //! US_BITS-wide value, sign-extended to int64_t.
-    //!   > 0 ⇒ a is younger (later) than b
-    //!   < 0 ⇒ a is older (earlier) than b
-    //!   = 0 ⇒ equal
-    //! Wrap-safe: true delta must be < 2^(STAMP_US_BITS-1) µs.
-    inline int64_t signed_diff_us_packed(cnt_t a_packed, cnt_t b_packed) noexcept {
-        cnt_t u = diff_us(stamp_us(a_packed), stamp_us(b_packed));
-        constexpr cnt_t SIGN_BIT = cnt_t{1} << (STAMP_US_BITS - 1);
-        return (int64_t)(((uint64_t)u ^ (uint64_t)SIGN_BIT) - (uint64_t)SIGN_BIT);
-    }
     //! op_kind discriminator values.  0 (NONE) is the default for
     //! non-piggyback-aware code paths (stand-alone snapshot / release
     //! / insert / SingleTransaction).  The other values mark
@@ -697,54 +648,85 @@ private:
     };
 
     struct DECLSPEC_KAME NegotiationCounter {
-        using cnt_t = detail::cnt_t;
+        using cnt_t = int64_t;
+
+        //! Packed stamp layout (low → high):
+        //!   [ us : STAMP_US_BITS | kind : STAMP_KIND_BITS | tid : 16 ]
+        //! STAMP_US_BITS = 46 gives ~2.2 yr of monotonic µs (wrap-safe
+        //! over any KAME operation; longest real wait is EXPIRE_US = 50
+        //! ms). STAMP_KIND_BITS = 2 carries the operation discriminator
+        //! (BUNDLE / UNBUNDLE / MultiNodalCommit / NONE) used by the
+        //! same-op piggyback path; defaults to 0 (NONE) in stand-alone
+        //! call sites so stamps stay bit-stable.
+        //!
+        //! Raw µs timestamps collide at ~1 MHz (same CPU can issue two
+        //! Transactions in the same µs), which breaks the "older wins"
+        //! comparison in tag_as_contender() and makes tag-ownership
+        //! detection in the livelock probe ambiguous. Packing
+        //! ProcessCounter::id (16 bits) into the upper bits makes every
+        //! stamp unique per-thread.
+        static constexpr int   STAMP_US_BITS    = 46;
+        static constexpr int   STAMP_KIND_BITS  = 2;
+        static constexpr int   STAMP_KIND_SHIFT = STAMP_US_BITS;
+        static constexpr int   STAMP_TID_SHIFT  = STAMP_US_BITS + STAMP_KIND_BITS;
+        static constexpr cnt_t STAMP_US_MASK    = (cnt_t{1} << STAMP_US_BITS) - 1;
+        static constexpr cnt_t STAMP_KIND_MASK  = (cnt_t{1} << STAMP_KIND_BITS) - 1;
+
         //! Monotonic µs counter. Uses steady_clock (not wall-clock
         //! gettimeofday) so the µs since program start fit comfortably
-        //! in 48 bits — the lower half of the tid-packed stamp type
-        //! defined below. Boot-to-now-in-µs is at most a few days on
-        //! any realistic machine, well under 2^48 µs (~9 years).
+        //! in STAMP_US_BITS (~9 years headroom).
         static cnt_t now_us() noexcept {
             return std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count();
         }
 
-        //! Packed transaction stamp: [ tid : 16 bits | us : 48 bits ].
-        //! Raw µs timestamps collide at ~1 MHz (same CPU can issue two
-        //! Transactions in the same µs), which breaks the "older wins"
-        //! comparison in tag_as_contender() and makes tag-ownership
-        //! detection in the livelock probe ambiguous. Packing the
-        //! ProcessCounter::id (low 16 bits) into the upper 16 bits makes
-        //! every stamp unique per-thread.
-        //!
-        //! Accessors are in Node<XN>::Linkage (see stamp_us / stamp_tid
-        //! / pack_stamp / now_us_tagged below) so negotiate_internal
-        //! and the other hot paths go through the same helpers — at
-        //! -O2/-O3 the mask is folded into the surrounding instruction
-        //! stream at zero extra cost on top of the atomic load itself.
         using StampKind = detail::StampKind;
 
+        //! Build a packed stamp from (us, tid, optional kind).  At
+        //! -O2/-O3 the masks fold into the surrounding instructions —
+        //! zero cost on the atomic-load hot paths.
         static inline cnt_t pack_stamp(cnt_t us, uint16_t tid,
                                        uint8_t kind = 0) noexcept {
-            return detail::pack_stamp(us, tid, kind);
+            return (us & STAMP_US_MASK)
+                 | ((cnt_t{kind} & STAMP_KIND_MASK) << STAMP_KIND_SHIFT)
+                 | (cnt_t{tid} << STAMP_TID_SHIFT);
         }
+        //! Extract the µs field.  steady-clock µs is always positive so
+        //! a plain mask suffices (no sign-extension).
         static inline cnt_t stamp_us(cnt_t x) noexcept {
-            return detail::stamp_us(x);
+            return x & STAMP_US_MASK;
         }
         static inline uint8_t stamp_kind(cnt_t x) noexcept {
-            return detail::stamp_kind(x);
+            return (uint8_t)(((uint64_t)x >> STAMP_KIND_SHIFT) & STAMP_KIND_MASK);
         }
         static inline uint16_t stamp_tid(cnt_t x) noexcept {
-            return detail::stamp_tid(x);
+            return (uint16_t)((uint64_t)x >> STAMP_TID_SHIFT);
         }
-        //! Modular µs difference helpers — see detail::diff_us.
+        //! Modular µs difference: returns (now - past) mod 2^STAMP_US_BITS,
+        //! interpreted as elapsed µs.  Inputs may be raw `now_us()` (64-bit)
+        //! or already-masked stamps; correct as long as the true elapsed
+        //! time is < 2^(STAMP_US_BITS-1) µs (~1 yr at 46 bits).  All KAME
+        //! diffs are <= EXPIRE_US = 50 ms.
         static inline cnt_t diff_us(cnt_t now, cnt_t past) noexcept {
-            return detail::diff_us(now, past);
+            return (cnt_t)((uint64_t)(now - past) & (uint64_t)STAMP_US_MASK);
         }
+        //! Convenience: input is a packed stamp; extract us and diff.
         static inline cnt_t diff_us_packed(cnt_t now, cnt_t past_packed) noexcept {
-            return detail::diff_us_packed(now, past_packed);
+            return diff_us(now, stamp_us(past_packed));
         }
-        static inline int64_t signed_diff_us_packed(cnt_t a, cnt_t b) noexcept {
-            return detail::signed_diff_us_packed(a, b);
+        //! Signed µs difference between two packed stamps.
+        //! Returns (stamp_us(a) - stamp_us(b)) interpreted as a signed
+        //! STAMP_US_BITS-wide value, sign-extended to int64_t.
+        //!   > 0 ⇒ a is younger (later) than b
+        //!   < 0 ⇒ a is older (earlier) than b
+        //!   = 0 ⇒ equal
+        //! Wrap-safe: true delta must be < 2^(STAMP_US_BITS-1) µs.
+        static inline int64_t signed_diff_us_packed(cnt_t a_packed,
+                                                    cnt_t b_packed) noexcept {
+            cnt_t u = diff_us(stamp_us(a_packed), stamp_us(b_packed));
+            constexpr cnt_t SIGN_BIT = cnt_t{1} << (STAMP_US_BITS - 1);
+            return (int64_t)(((uint64_t)u ^ (uint64_t)SIGN_BIT)
+                             - (uint64_t)SIGN_BIT);
         }
         //! `now_us()` with the current thread's ProcessCounter::id
         //! packed into the upper 16 bits. Used at Transaction /
@@ -763,19 +745,16 @@ private:
         //! Replace the kind bits of an existing stamp, preserving us+tid.
         //! For stamping linkage with `m_started_time` + op kind.
         static inline cnt_t with_kind(cnt_t stamp, StampKind kind) noexcept {
-            constexpr cnt_t KIND_FIELD =
-                detail::STAMP_KIND_MASK << detail::STAMP_KIND_SHIFT;
+            constexpr cnt_t KIND_FIELD = STAMP_KIND_MASK << STAMP_KIND_SHIFT;
             return (stamp & ~KIND_FIELD)
-                 | ((cnt_t{(uint8_t)kind} & detail::STAMP_KIND_MASK)
-                        << detail::STAMP_KIND_SHIFT);
+                 | ((cnt_t{(uint8_t)kind} & STAMP_KIND_MASK) << STAMP_KIND_SHIFT);
         }
         //! Zero the kind bits — useful for "mine?" identity compares
         //! where two stamps differ only in kind (e.g. a Tx tagged its
         //! linkage with kind=BUNDLE earlier, now drops it after the
         //! ScopedOpKind has restored to NONE).
         static inline cnt_t strip_kind(cnt_t stamp) noexcept {
-            constexpr cnt_t KIND_FIELD =
-                detail::STAMP_KIND_MASK << detail::STAMP_KIND_SHIFT;
+            constexpr cnt_t KIND_FIELD = STAMP_KIND_MASK << STAMP_KIND_SHIFT;
             return stamp & ~KIND_FIELD;
         }
 

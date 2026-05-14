@@ -1388,7 +1388,7 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     Priority pr, cnt_t tidstamp, int sig_C) noexcept
 {
     int64_t now_us = LivelockProbe::now_us();
-    int64_t tx_age_us = (int64_t)detail::diff_us_packed(now_us, tidstamp);
+    int64_t tx_age_us = (int64_t)diff_us_packed(now_us, tidstamp);
     // CAS-loop: claim the slot if empty, OR preempt the current holder
     // using age-ordered preemption (challenger must be older than holder
     // by ≥ PRIV_PREEMPT_WINDOW_US). This serialises privilege by age
@@ -1419,7 +1419,7 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
             // of similar age. This replaces the old hard-expiry approach
             // (PRIV_EXPIRE_US) which was unresponsive (50 ms) and could
             // not distinguish OS-preempted holders from merely slow ones.
-            int64_t holder_tx_age = (int64_t)detail::diff_us_packed(now_us, expected);
+            int64_t holder_tx_age = (int64_t)diff_us_packed(now_us, expected);
             if (tx_age_us < holder_tx_age + (int64_t)KAME_STM_PRIV_PREEMPT_WINDOW_US)
                 return false;  // holder is at least as old; don't preempt
         } else {
@@ -1438,7 +1438,7 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     std::fprintf(stderr,
         "[ll-probe] privileged_tid=%u "
         "(claimed by stuck oldest Tx; age=%lld us, prio=%d, N=%d%s)\n",
-        (unsigned)detail::stamp_tid(tidstamp),
+        (unsigned)stamp_tid(tidstamp),
         (long long)tx_age_us, (int)pr, N,
         expected == (cnt_t)0 ? "" : " preempted");
     return true;
@@ -1476,7 +1476,7 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(cnt_t tidstamp) noexcept 
     // it already holds via the outer Tx — see hang in
     // transaction_dynamic_node_test backtrace (~Node->releaseAll on
     // frame #15-16, negotiate_sleep on frame #9).
-    return detail::stamp_tid(priv) != detail::stamp_tid(tidstamp);
+    return stamp_tid(priv) != stamp_tid(tidstamp);
 }
 
 template <class XN>
@@ -1488,7 +1488,7 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(cnt_t my_tidstamp) noexce
     // linkage (fair_mode blocks them), so a strong spin has no peer.
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
     if(priv == (cnt_t)0) return false;
-    return detail::stamp_tid(priv) == detail::stamp_tid(my_tidstamp);
+    return stamp_tid(priv) == stamp_tid(my_tidstamp);
 }
 
 template <class XN>
@@ -1605,7 +1605,7 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
     // Fair-mode escape: if a privileged TID is registered, wake its
     // sleep slot first so the stuck oldest Tx gets a chance to retry
     // ahead of the rest of the bitset.
-    uint16_t priv_tid = detail::stamp_tid(
+    uint16_t priv_tid = stamp_tid(
         s_privileged_tidstamp.load(std::memory_order_relaxed));
     int priv_slot = -1;
     if (priv_tid != 0 && n > 0) {
