@@ -894,34 +894,17 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 const uint64_t deadline = start_us + budget;
                 // Snapshot the initial stamp.  Any change to a
                 // different non-zero value or to zero (release) means
-                // peer made progress — break out for CAS retry
-                // (polling mode), or use it as the post-spin outcome
-                // baseline (blind mode).
+                // peer made progress — break out for CAS retry.
                 const auto initial_t =
                     m_transaction_started_time.load(std::memory_order_relaxed);
                 bool won = false;
                 do {
                     for(int i = 0; i < 16; ++i) pause4spin();
-#if KAME_SPIN_POLL
-                    // Polling mode: read every batch, early-exit on
-                    // peer progress.  Costs cacheline interference
-                    // with holder — bad on weak-memory architectures.
                     auto t = m_transaction_started_time.load(
                         std::memory_order_relaxed);
                     if(!t) { won = true; break; }     // Linkage released
                     if(t != initial_t) { won = true; break; }  // peer changed
-#endif
                 } while((uint64_t)NegotiationCounter::now_us() < deadline);
-#if !KAME_SPIN_POLL
-                // Blind mode: single post-spin outcome check.
-                // One atomic load → at most one M↔S transition on the
-                // holder's cacheline (vs many in polling mode).
-                {
-                    auto t = m_transaction_started_time.load(
-                        std::memory_order_relaxed);
-                    won = (!t) || (t != initial_t);
-                }
-#endif
                 const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
                 const uint32_t elapsed =
                     (uint32_t)(end_us > start_us ? end_us - start_us : 0);

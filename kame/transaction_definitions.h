@@ -299,26 +299,21 @@
 // --- Spin-for-same-kind / peer-progress path ------------------------
 
 // Hard cap on per-call spin time in µs.  The actual budget is
-// min(flip_period_us_ema, KAME_SPIN_MAX_US).  Default tightened from
-// 100 → 30 to bound the "blind" waste when KAME_SPIN_POLL=0 — even
-// without polling, a short budget catches most peer releases within
-// typical scope-execution time.
-#ifndef KAME_SPIN_MAX_US
-#define KAME_SPIN_MAX_US 30
-#endif
-
-// Polling mode for the spin loop.
-//   1 = read m_transaction_started_time every 16 pauses and break
-//       on release / kind-change (early exit, but spinner reads
-//       interfere with holder writes — bad on weak-memory like ARM).
-//   0 = blind spin: no in-loop reads, wait the full budget, then do
-//       ONE final read for INSTRUMENT outcome.  Holder is unobstructed,
-//       at the cost of losing the early exit.  Preferred on M4 / ARM.
+// min(flip_period_us_ema, KAME_SPIN_MAX_US).
 //
-// Default 0 (blind) — pairs with the reduced KAME_SPIN_MAX_US above so
-// the waste from no-early-exit is bounded (≤ 30 µs/spin worst case).
-#ifndef KAME_SPIN_POLL
-#define KAME_SPIN_POLL 0
+// Note: the generic peer-progress spin path (waits for ANY change to
+// m_transaction_started_time, regardless of peer kind) is structurally
+// bad when threads >> physical cores — spinners consume CPU that the
+// holder needs, so the spin time directly delays the holder.  Both
+// polled and blind variants of this path were benched on M4 and lost
+// at high N.  Default is therefore "spin OFF"
+// (KAME_SPIN_RECENT_FLIP_US=0); this cap only matters when spin is
+// explicitly opted in on x86/TSO with N ≲ physical cores.
+//
+// A targeted same-kind coalesce spin (bundle→bundle, unbundle→unbundle)
+// is a separate, future code path — see paper §X.
+#ifndef KAME_SPIN_MAX_US
+#define KAME_SPIN_MAX_US 100
 #endif
 
 // Age window (in µs) under which a Linkage is considered to have
