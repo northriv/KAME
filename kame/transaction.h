@@ -207,11 +207,72 @@ namespace detail {
     //! every Tx entry/exit was the K=0 disjoint NUMA-scaling ceiling
     //! on 128c EPYC (≈8.3 M Tx/s × 2 atomic RMWs/Tx ≈ 16.6 M ops/s ≈
     //! cross-socket cacheline bandwidth).
+    //! Bit-packed peer-readable digest of a thread's negotiation
+    //! state.  Owner mutates the per-thread cache `tls_runner_digest`
+    //! at ScopedNeg boundaries and publishes the raw uint64 via a
+    //! single relaxed atomic store on `RunnerCounterEntry::digest`.
+    //! Peer threads (CV-sleep judge, low-probability re-evaluation)
+    //! issue one relaxed load + decode the union locally — no per-
+    //! field synchronisation needed.  Layout (LSB → MSB, total 64):
+    //!   tx_start_us  22  low bits of the Tx's m_started_time µs
+    //!                    field; peer computes age via
+    //!                    `(now_us - tx_start_us) mod 4.2 s`.
+    //!                    Published value is the Snapshot's stamp_us
+    //!                    cached at scope-end — no per-publish
+    //!                    steady_clock call.
+    //!   op_kind       2  detail::StampKind
+    //!   gate_history  8  recent gate/sleep decisions, LSB=newest
+    //!   consec_succs  8  saturating mirror of SiteState::consec_succs
+    //!   consec_fails  8  saturating mirror of SiteState::consec_fails
+    //!   take_gate_p1  2  SiteState::take_gate + 1 (0=UNDEF, 1=SLEEP, 2=GATE)
+    //!   site_line_lo 12  __LINE__ low 12 bits (4096 sites)
+    //!   reserved      2
+    //! Idle vs stale: peer should consult `v` first — if v==0 the
+    //! thread is between Tx, and the digest's last published values
+    //! are simply old.
+    union RunnerDigest {
+        struct Fields {
+            uint64_t tx_start_us  : 22;
+            uint64_t op_kind      : 2;
+            uint64_t gate_history : 8;
+            uint64_t consec_succs : 8;
+            uint64_t consec_fails : 8;
+            uint64_t take_gate_p1 : 2;
+            uint64_t site_line_lo : 12;
+            uint64_t reserved     : 2;
+        } f;
+        uint64_t raw;
+        RunnerDigest() noexcept : raw(0) {}
+    };
+    static_assert(sizeof(RunnerDigest) == sizeof(uint64_t),
+                  "RunnerDigest must pack into 64 bits");
+
+    //! Per-thread "I'm in a Tx" counter + peer-readable digest.
+    //! `v` and `digest` share the cacheline intentionally — peer
+    //! reads happen at the same slow-path cadence (negotiate_internal
+    //! / CV-sleep judge), so colocating them costs one M→S transition
+    //! per peer-read for both fields instead of two.  Both are owner-
+    //! write, peer-read; `v` is RMW'd at Tx entry/exit (frequent,
+    //! TLS-affine), `digest` is stored at ScopedNeg ctor/dtor (also
+    //! TLS-affine).  The pad fills the rest of the cacheline to keep
+    //! thread B's entry off thread A's line.
     struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
         std::atomic<uint64_t> v{0};
-        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)];
+        std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
+        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)];
     };
     using RunnerCounterVec = std::vector<std::weak_ptr<RunnerCounterEntry>>;
+
+    //! Per-thread local cache of the digest.  Owner mutates this on
+    //! scope/Tx boundaries; publish atomically to
+    //! `RunnerCounterEntry::digest` via the publish path in
+    //! ScopedNegotiateLinkage.  Non-atomic — never touched by peers.
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    DECLSPEC_KAME RunnerDigest& tls_runner_digest_ref() noexcept;
+#  define tls_runner_digest tls_runner_digest_ref()
+#else
+    extern thread_local RunnerDigest tls_runner_digest;
+#endif
 
     //! TLS holder of this thread's RunnerCounterEntry. The shared_ptr
     //! is the sole strong reference; the global s_runner_counters
