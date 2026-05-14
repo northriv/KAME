@@ -2525,67 +2525,47 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             ms = 5000;
         }
 
-        // --- Spin-for-same-kind shortcut (PR3 of per-Linkage thrash
-        // mitigation).  Trigger: this Linkage flipped within the last
-        // KAME_SPIN_RECENT_FLIP_US µs (wall-clock age since last
-        // contention flip) AND the last writer's kind ≠ my op_kind.
+        // --- Spin-for-peer-progress shortcut.  Trigger: this Linkage
+        // flipped within the last KAME_SPIN_RECENT_FLIP_US µs (wall-
+        // clock age) AND ops_since_flip < sig_C × 8 (still in immediate
+        // burst window).  Both signals required — either alone proved
+        // too permissive (CAS retry storm) or too narrow.
         //
-        // Wall-clock age is used rather than ops_since_flip because
-        // the tag-count counter saturates at sig_C after just a few µs
-        // of heavy activity (bench data: 7/792 attempts with strict
-        // ops_since < sig_C, 8/793 with relaxed < sig_C*4).  Age
-        // catches the broader "Linkage is currently thrashing" regime.
+        // We spin on m_transaction_started_time waiting for ANY change
+        // from its initial value: release (t == 0) OR a different
+        // stamp.  This unifies two cases:
+        //   - peer has different kind → spin wins when peer flips or
+        //     releases
+        //   - peer has SAME kind → spin wins when peer finishes / a
+        //     new tagger steps in (= peer's scope ended).
         //
-        // We spin on m_transaction_started_time for up to
-        // KAME_SPIN_MAX_US µs (default 100), waiting for the kind to
-        // flip to mine OR the Linkage to be released.  On success:
-        // break out of the negotiate loop, caller retries CAS
-        // immediately (gate-return semantics).  On timeout: fall
-        // through to the CV-sleep path below — we burned ≤ 100 µs of
-        // CPU vs ~1 ms otherwise (10× latency improvement when WON).
-        //
-        // Cold Linkages (age >= KAME_SPIN_RECENT_FLIP_US, i.e. no
-        // flip within the last ms) skip the spin entirely.  EMA
-        // period is not used as a gate here — it proved too smoothed
-        // by the long-tail intervals to discriminate live bursts;
-        // kept in m_flip_state for diagnostic dump + future tuning.
+        // Even without a kind flip, spinning ~one scope-execution time
+        // beats ms-sleep when N-1 threads are waiting on 1 holder.
+        // Budget = per-Linkage EMA period (a proxy for typical scope
+        // hold time), capped at KAME_SPIN_MAX_US.
         {
             using L = Linkage;
             const uint64_t fs = m_flip_state.load(std::memory_order_relaxed);
-            const uint8_t  fs_last_kind = (uint8_t)(fs & 0x3u);
-            const uint64_t fs_last_us   =
+            const uint64_t fs_last_us =
                 (fs >> L::FLIP_LAST_US_SHIFT) & L::FLIP_LAST_US_MASK;
             const uint64_t fs_ops_since =
                 (fs >> L::FLIP_OPS_SHIFT) & 0xFFu;
-            const uint8_t  my_op_kind   =
-                (uint8_t)detail::s_current_op_kind & 0x3u;
             const uint64_t now_lo =
                 (uint64_t)NegotiationCounter::now_us() & L::FLIP_LAST_US_MASK;
             const uint64_t age =
                 (now_lo - fs_last_us) & L::FLIP_LAST_US_MASK;
             NegSite::SpinOutcome outcome;
-            // Combined gate: BOTH wall-clock age AND tag-count burst
-            // must indicate active thrashing.  Either alone proved too
-            // permissive on this bench (age<1ms triggered too often →
-            // CAS retry storm; ops_since<sig_C strict triggered too
-            // rarely).  Conjunction: age<100us (very recent flip) AND
-            // ops_since<sig_C*8 (still in the immediate-burst window
-            // in terms of tag activity).
             if(fs == 0) {
                 outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
             } else if(age > (uint64_t)KAME_SPIN_RECENT_FLIP_US
                       || fs_ops_since >= (uint64_t)(sig_C * 8u)) {
                 outcome = NegSite::SpinOutcome::SKIPPED_COLD;
-            } else if(fs_last_kind == my_op_kind) {
-                outcome = NegSite::SpinOutcome::SKIPPED_SAME_KIND;
             } else {
                 // Spin budget: prefer the per-Linkage EMA period.
-                // When the EMA is short (e.g. 30 µs), spin only as
-                // long as a same-kind flip is *typically* due — no
-                // point waiting longer than the observed period.
-                // When the EMA is long or zero, fall back to the hard
-                // cap KAME_SPIN_MAX_US.  Hard cap also bounds the
-                // worst case (CPU + cacheline) when a stale EMA misses.
+                // Short EMA → spin only as long as a same-kind flip
+                // (or peer release) is *typically* due — no point
+                // waiting longer than the observed period.  Stale or
+                // missing EMA → fall back to KAME_SPIN_MAX_US.
                 const uint64_t fs_period =
                     (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
                 const uint64_t budget =
@@ -2593,18 +2573,21 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                      && fs_period < (uint64_t)KAME_SPIN_MAX_US)
                     ? fs_period
                     : (uint64_t)KAME_SPIN_MAX_US;
-                const uint64_t start_us = (uint64_t)NegotiationCounter::now_us();
+                const uint64_t start_us =
+                    (uint64_t)NegotiationCounter::now_us();
                 const uint64_t deadline = start_us + budget;
+                // Snapshot the initial stamp.  Any change to a
+                // different non-zero value or to zero (release) means
+                // peer made progress — break out for CAS retry.
+                const auto initial_t =
+                    m_transaction_started_time.load(std::memory_order_relaxed);
                 bool won = false;
                 do {
                     for(int i = 0; i < 16; ++i) pause4spin();
                     auto t = m_transaction_started_time.load(
                         std::memory_order_relaxed);
                     if(!t) { won = true; break; }     // Linkage released
-                    if((uint8_t)NegotiationCounter::stamp_kind(t)
-                            == my_op_kind) {
-                        won = true; break;            // kind matched mine
-                    }
+                    if(t != initial_t) { won = true; break; }  // peer changed
                 } while((uint64_t)NegotiationCounter::now_us() < deadline);
                 const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
                 const uint32_t elapsed =
@@ -2614,7 +2597,6 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     : NegSite::SpinOutcome::TIMEOUT;
                 NegSite::record_spin_event(outcome, elapsed);
                 if(won) break;   // gate-return: caller retries CAS
-                // else fall through to sleep block below
             }
             if(outcome != NegSite::SpinOutcome::WON
                && outcome != NegSite::SpinOutcome::TIMEOUT) {
