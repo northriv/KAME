@@ -761,6 +761,8 @@ private:
     //! Any fail resets the streak (handled in _on_cas_fail).
     void _on_cas_success() noexcept {
         m_committed = true;
+#if KAME_LEGACY_GATING
+        // ===== Legacy gating: success-streak → FORCE_GATE transition ===
         m_site_state->consec_fails = 0;     // any success clears fails
         const int8_t tg = m_site_state->take_gate;
         const bool count_succ =
@@ -777,20 +779,26 @@ private:
             m_site_state->consec_succs = 0;
             ++m_site_state->mode_flips_promote;
         }
+        // ===== end legacy gating =======================================
+#endif
         m_was_gate_return = false;
     }
-    //! Common CAS-fail path: drive the per-site demotion-to-
-    //! FORCE_SLEEP transition when the gate→fail streak is BOTH
-    //! deep (K_FAIL) AND time-clustered (FAIL_WINDOW_US).  Failures
-    //! count in UNDEFINED (when gated) and FORCE_GATE (always gated);
-    //! they cannot occur in FORCE_SLEEP (no gate, so
-    //! m_was_gate_return is false).  Any failure also clears the
-    //! success streak.
+    //! Common CAS-fail path.  Marks contention observed, accumulates the
+    //! INSTRUMENT `gate_then_cas_fail` counter, and (under
+    //! KAME_LEGACY_GATING) drives the per-site demotion-to-FORCE_SLEEP
+    //! transition when the gate→fail streak is BOTH deep (K_FAIL) AND
+    //! time-clustered (FAIL_WINDOW_US).
     void _on_cas_fail() noexcept {
         m_contention_observed = true;
         if(m_was_gate_return)
             ++m_site_state->gate_then_cas_fail;
-        m_site_state->consec_succs = 0;     // any fail clears succs
+#if KAME_LEGACY_GATING
+        // ===== Legacy gating: fail-streak → FORCE_SLEEP transition =====
+        // Failures count in UNDEFINED (when gated) and FORCE_GATE
+        // (always gated); they cannot occur in FORCE_SLEEP (no gate, so
+        // m_was_gate_return is false).  Any failure also clears the
+        // success streak.
+        m_site_state->consec_succs = 0;
         if(m_was_gate_return) {
             const uint64_t now_us = (uint64_t)
                 Node<XN>::NegotiationCounter::now_us();
@@ -811,6 +819,8 @@ private:
                 }
             }
         }
+        // ===== end legacy gating =======================================
+#endif
         m_was_gate_return = false;
     }
 public:

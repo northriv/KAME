@@ -693,31 +693,13 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // to allocate priority while fair-mode is active.
         const bool _fair_blocks = NegotiationCounter::fair_mode_blocks_me(started_time);
 
-        // ----- Tx-driven gate-return (adaptive when INSTRUMENT on) ------
-        // Skip the adaptive sleep for any Tx-driven op
-        // (BUNDLE / UNBUNDLE / MultiNodalCommit) on a non-privileged,
-        // non-fair-blocked thread, regardless of peer kind.  The only
-        // guard is `my_kind != NONE`: stand-alone snapshot / release /
-        // insert / SingleTransaction (which do not push an op-kind)
-        // fall through to the normal adaptive sleep so their fairness
-        // window is preserved.
-        //
-        // Rationale: Tx-driven sub-ops are sub-µs and any CAS failure
-        // cascades to the enclosing commit's retry loop, which has its
-        // own ms-grain adaptive sleep — adding another ms-grain sleep
-        // at the inner level is a granularity mismatch.  Empirically
-        // (KAME_ADAPT_INSTRUMENT data across N=4-128 × CR=1-20):
-        //   - kind-gated (Case A: peer == my || peer == MNC) was too
-        //     conservative; opposite-direction peers benefited from
-        //     gate too (sub-µs phases mesh well together).
-        //   - all-gate (no guard) crashed because my=NONE paths
-        //     (stand-alone read/release) lost their fairness window.
-        //   - my != NONE alone is the goldilocks: +9-23% over Case A
-        //     across the entire CR=5-20 contention band.
-        // ------------------------------------------------------------
         NegSite::last_was_gate_return() = false;
-        // ----- Adaptive gate-return decision (tri-state take_gate) -----
-        // Per-site state NegSite::current_state()->take_gate:
+#if KAME_LEGACY_GATING
+        // ===== Legacy per-site adaptive gating ============================
+        // Deprecation candidate; superseded by the per-Linkage spin-for-
+        // same-kind path further down.  Enable with -DKAME_LEGACY_GATING=1
+        // for A/B regression.  Tri-state `take_gate` per call-site:
+        //
         //   -1 (UNDEFINED)   : initial / post-privilege state — the
         //                      hot-path decides by my_kind alone
         //                      (non-NONE → gate, NONE → sleep).
@@ -728,6 +710,13 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         //                      expiry, or on privilege observation
         //                      (the streak history is stale once
         //                      contention enters the privilege path).
+        //    1 (FORCE_GATE)  : forced bypass via the `break` below.
+        //
+        // Empirically (KAME_ADAPT_INSTRUMENT, N=4-128 × CR=1-20):
+        //   - kind-gated (peer == my || peer == MNC) was too conservative
+        //   - all-gate crashed my=NONE fairness (stand-alone read/release)
+        //   - my != NONE alone was the goldilocks (+9-23 % over kind-gated).
+        // ------------------------------------------------------------------
         auto *_adapt = NegSite::current_state();
         if(_fair_blocks || snap.m_registered_privileged) {
             // Privilege observed at this site → reset to UNDEFINED.
@@ -750,10 +739,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             bool take_gate;
             const int8_t tg = _adapt ? _adapt->take_gate : (int8_t)-1;
             if(tg == -1) {
-                // UNDEFINED → my_kind decides, and the decision is
-                // cached into take_gate state with a fresh lease so
-                // subsequent callers (any my_kind) follow the same
-                // verdict for NegSite::NORMAL_LEASE_US, then re-evaluate.
+                // UNDEFINED → my_kind decides; cache verdict with a
+                // fresh lease so subsequent callers follow it for
+                // NegSite::NORMAL_LEASE_US, then re-evaluate.
                 take_gate = (my_kind != detail::StampKind::NONE);
                 if(_adapt) {
                     _adapt->take_gate = take_gate ? (int8_t)1 : (int8_t)0;
@@ -766,7 +754,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     else          ++_adapt->mode_flips_g2n;
                 }
             } else {
-                take_gate = (tg != 0);            // 0 = FORCE_SLEEP, 1 = FORCE_GATE
+                take_gate = (tg != 0);     // 0 = FORCE_SLEEP, 1 = FORCE_GATE
             }
             if(take_gate)
                 NegSite::last_was_gate_return() = true;
@@ -778,18 +766,12 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 else
                     ++_adapt->blocked_by_peer[(int)peer_kind & 3];
             }
-#if !KAME_DISABLE_TAKE_GATE_RETURN
             if(take_gate) break;
-#endif
             // Otherwise fall through to adaptive sleep (FORCE_SLEEP
-            // or UNDEFINED-with-my_kind-NONE).  When
-            // KAME_DISABLE_TAKE_GATE_RETURN==1 (default), even
-            // take_gate==true falls through so the spin-for-same-kind
-            // block (further down) gets first crack at heavy-thrash
-            // sites — the two mechanisms conflict at FORCE_GATE sites
-            // and spin is the finer-grained, µs-bounded one.
+            // or UNDEFINED-with-my_kind-NONE).
         }
-        // -----------------------------------------------------------------
+        // ===== end legacy gating ==========================================
+#endif // KAME_LEGACY_GATING
 
         if(entry_pr != Priority::LOWEST && dt > 0 && !_fair_blocks) {
             // Single LCG advance per iteration; bits 16-31 → r_j (jitter),

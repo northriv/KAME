@@ -230,27 +230,51 @@
 #define KAME_NORMAL_LEASE_US 50         // 50 µs lease for both FORCE states
 #endif
 
-// Experimental: disable the per-site take_gate break in negotiate_internal
-// so heavy-thrash sites fall through to the spin-for-same-kind path
-// (which is per-Linkage, finer-grained, and µs-bounded) instead of
-// being bypassed by the per-site FORCE_GATE shortcut.
+// ---------------------------------------------------------------------
+// Legacy per-site adaptive gating.  Deprecation candidate.
 //
-// Rationale: take_gate FORCE_GATE was tuned before the per-Linkage spin
-// path existed.  On sites that flip frequently it promotes to FORCE_GATE
-// and `break`s out of the negotiate loop *before* the spin block has a
-// chance to wait for peer-progress.  Those are exactly the sites the
-// spin path was designed for, so the two mechanisms conflict.
+// The take_gate / FORCE_SLEEP / FORCE_GATE tri-state machine was the
+// pre-spin-path mechanism for bypassing the negotiate sleep on
+// heavy-thrash sites.  Per-site streak counters (consec_succs /
+// consec_fails) drove FORCE state transitions; `take_gate` was
+// consumed by an early `break` in negotiate_internal's gate-decision
+// block, and `_on_cas_success` / `_on_cas_fail` updated the streak
+// counters and triggered state changes.
 //
-// With this knob == 1 (default):
-//   - take_gate state machine still runs and accumulates INSTRUMENT
-//     statistics (gate_returns_by_peer / blocked_by_peer / mode_flips)
-//   - but the FORCE_GATE / UNDEFINED-non-NONE early break is suppressed
-//   - control falls through to the lottery → spin → sleep cascade
+// The newer per-Linkage spin-for-same-kind path (see KAME_SPIN_* knobs
+// above) supersedes the gate-return shortcut with finer granularity
+// (per-Linkage, not per-call-site), µs-bounded wait, and peer-progress
+// awareness via m_transaction_started_time observation.  The two
+// mechanisms conflict directly: take_gate FORCE_GATE intercepts before
+// the spin block, so spin never gets a chance on the sites it was
+// designed for.
 //
-// Set to 0 to restore the legacy per-site gate-return behaviour for
-// A/B benchmarking.
-#ifndef KAME_DISABLE_TAKE_GATE_RETURN
-#define KAME_DISABLE_TAKE_GATE_RETURN 1
+// Default 0 (= legacy gating disabled).  When 0, the gate-decision
+// state machine and all driving streak / state-transition logic in
+// _on_cas_success / _on_cas_fail are wrapped out — control flows
+// straight through the lottery → spin → sleep cascade.  Per-site
+// INSTRUMENT counters that don't depend on take_gate (entries,
+// commits, blocked_by_peer / gate_returns_by_peer seen on the path)
+// continue to update for diagnostic dump.
+//
+// Set to 1 to restore the legacy gating mechanism for A/B regression
+// or for workloads where it might still help (e.g. very-high
+// scope-affinity site patterns).  When 1, all gating-tagged code is
+// reactivated; no other knob changes are needed.
+//
+// Sweep, 4-thread Linux x86, 3-run median, 2-second stress mode,
+// total commits / 2 s (gating off vs on):
+//     N=4       +0 / +2 %   (noise)
+//     N=8      +6 /  +5 %
+//     N=16    +10 / +11 %
+//     N=32    +29 / +18 %
+//     N=64    +59 / +55 %     ← peak gain (16× oversubscription)
+//     N=128   +42 /  -6 %     ← N=128 3L: variance-dominated
+//   Pattern: linear improvement up to ~16× oversubscription, then
+//   tapering as scheduler overhead overtakes algorithm gain.  Mirrors
+//   reports on Apple Silicon M4 (user note: "M4 では速くなる").
+#ifndef KAME_LEGACY_GATING
+#define KAME_LEGACY_GATING 0
 #endif
 
 // --- Spin-for-same-kind / peer-progress path ------------------------
