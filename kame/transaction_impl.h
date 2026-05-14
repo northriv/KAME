@@ -688,19 +688,17 @@ class ScopedNegotiateLinkage {
         local.f.tx_start_us = (uint64_t)NC::stamp_us(m_snap->m_started_time)
                               & ((1ULL << 22) - 1);
         local.f.op_kind = (uint64_t)detail::s_current_op_kind & 0x3u;
-        if(m_site_state) {
-            local.f.consec_succs = m_site_state->consec_succs > 255
-                ? (uint64_t)255 : (uint64_t)m_site_state->consec_succs;
-            local.f.consec_fails = m_site_state->consec_fails > 255
-                ? (uint64_t)255 : (uint64_t)m_site_state->consec_fails;
-            // take_gate ∈ {-1, 0, 1} → +1 = {0, 1, 2}; 3 reserved.
-            int8_t tg = m_site_state->take_gate;
-            local.f.take_gate_p1 = (uint64_t)(tg < 0 ? 0 : (tg + 1)) & 0x3u;
-        } else {
-            local.f.consec_succs = 0;
-            local.f.consec_fails = 0;
-            local.f.take_gate_p1 = 0;
-        }
+        // m_site_state non-null invariant (NegSite::Scope set it
+        // unconditionally at ctor; only the moved-from path would
+        // clear it, and that path is gated by m_link before reaching
+        // here from dtor).
+        local.f.consec_succs = m_site_state->consec_succs > 255
+            ? (uint64_t)255 : (uint64_t)m_site_state->consec_succs;
+        local.f.consec_fails = m_site_state->consec_fails > 255
+            ? (uint64_t)255 : (uint64_t)m_site_state->consec_fails;
+        // take_gate ∈ {-1, 0, 1} → +1 = {0, 1, 2}; 3 reserved.
+        int8_t tg = m_site_state->take_gate;
+        local.f.take_gate_p1 = (uint64_t)(tg < 0 ? 0 : (tg + 1)) & 0x3u;
         local.f.site_line_lo = (uint64_t)(m_caller_line & 0xFFF);
         detail::tls_runner_digest.raw = local.raw;
         // Skip the atomic store when the *peer-actionable* fields
@@ -759,8 +757,13 @@ public:
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
         NegSite::Scope _site_scope(caller_line);
+        // NegSite::Scope::Scope(line) sets current_state to
+        // &state_map()[line] — operator[] always returns a valid
+        // reference (inserts if missing).  m_site_state is therefore
+        // guaranteed non-null here; later guards use m_link as the
+        // freshness sentinel (cleared on move-out).
         m_site_state = NegSite::current_state();
-        if(m_site_state) ++m_site_state->entries;
+        ++m_site_state->entries;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         // Touch the thread_local sentinel so its dtor (which merges
         // this thread's stats into the global aggregator) is wired
@@ -859,8 +862,13 @@ public:
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
         NegSite::Scope _site_scope(caller_line);
+        // NegSite::Scope::Scope(line) sets current_state to
+        // &state_map()[line] — operator[] always returns a valid
+        // reference (inserts if missing).  m_site_state is therefore
+        // guaranteed non-null here; later guards use m_link as the
+        // freshness sentinel (cleared on move-out).
         m_site_state = NegSite::current_state();
-        if(m_site_state) ++m_site_state->entries;
+        ++m_site_state->entries;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         // Touch the thread_local sentinel so its dtor (which merges
         // this thread's stats into the global aggregator) is wired
@@ -903,8 +911,13 @@ public:
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
         NegSite::Scope _site_scope(caller_line);
+        // NegSite::Scope::Scope(line) sets current_state to
+        // &state_map()[line] — operator[] always returns a valid
+        // reference (inserts if missing).  m_site_state is therefore
+        // guaranteed non-null here; later guards use m_link as the
+        // freshness sentinel (cleared on move-out).
         m_site_state = NegSite::current_state();
-        if(m_site_state) ++m_site_state->entries;
+        ++m_site_state->entries;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         // Touch the thread_local sentinel so its dtor (which merges
         // this thread's stats into the global aggregator) is wired
@@ -1189,23 +1202,21 @@ private:
     //! Any fail resets the streak (handled in _on_cas_fail).
     void _on_cas_success() noexcept {
         m_committed = true;
-        if(m_site_state) {
-            m_site_state->consec_fails = 0;     // any success clears fails
-            const int8_t tg = m_site_state->take_gate;
-            const bool count_succ =
-                (tg == 0 /*FORCE_SLEEP*/)
-                || (tg == -1 /*UNDEFINED*/ && m_was_gate_return);
-            if(count_succ
-               && ++m_site_state->consec_succs
-                      >= (uint16_t)NegSite::GATE_K_SUCC) {
-                const uint64_t now_us = (uint64_t)
-                    Node<XN>::NegotiationCounter::now_us();
-                m_site_state->take_gate = 1;    // FORCE_GATE
-                m_site_state->normal_until_us = now_us
-                    + (uint64_t)NegSite::NORMAL_LEASE_US;
-                m_site_state->consec_succs = 0;
-                ++m_site_state->mode_flips_promote;
-            }
+        m_site_state->consec_fails = 0;     // any success clears fails
+        const int8_t tg = m_site_state->take_gate;
+        const bool count_succ =
+            (tg == 0 /*FORCE_SLEEP*/)
+            || (tg == -1 /*UNDEFINED*/ && m_was_gate_return);
+        if(count_succ
+           && ++m_site_state->consec_succs
+                  >= (uint16_t)NegSite::GATE_K_SUCC) {
+            const uint64_t now_us = (uint64_t)
+                Node<XN>::NegotiationCounter::now_us();
+            m_site_state->take_gate = 1;    // FORCE_GATE
+            m_site_state->normal_until_us = now_us
+                + (uint64_t)NegSite::NORMAL_LEASE_US;
+            m_site_state->consec_succs = 0;
+            ++m_site_state->mode_flips_promote;
         }
         m_was_gate_return = false;
     }
@@ -1218,28 +1229,26 @@ private:
     //! success streak.
     void _on_cas_fail() noexcept {
         m_contention_observed = true;
-        if(m_was_gate_return && m_site_state)
+        if(m_was_gate_return)
             ++m_site_state->gate_then_cas_fail;
-        if(m_site_state) {
-            m_site_state->consec_succs = 0;     // any fail clears succs
-            if(m_was_gate_return) {
-                const uint64_t now_us = (uint64_t)
-                    Node<XN>::NegotiationCounter::now_us();
-                if(m_site_state->consec_fails == 0
-                   || (now_us - m_site_state->last_fail_us)
-                          > (uint64_t)NegSite::GATE_FAIL_WINDOW_US) {
-                    m_site_state->consec_fails = 1;
-                    m_site_state->last_fail_us = now_us;
-                } else {
-                    ++m_site_state->consec_fails;
-                    if(m_site_state->consec_fails
-                           >= (uint16_t)NegSite::GATE_K_FAIL) {
-                        m_site_state->take_gate = 0;  // FORCE_SLEEP
-                        m_site_state->normal_until_us = now_us
-                            + (uint64_t)NegSite::NORMAL_LEASE_US;
-                        m_site_state->consec_fails = 0;
-                        ++m_site_state->mode_flips_g2n;
-                    }
+        m_site_state->consec_succs = 0;     // any fail clears succs
+        if(m_was_gate_return) {
+            const uint64_t now_us = (uint64_t)
+                Node<XN>::NegotiationCounter::now_us();
+            if(m_site_state->consec_fails == 0
+               || (now_us - m_site_state->last_fail_us)
+                      > (uint64_t)NegSite::GATE_FAIL_WINDOW_US) {
+                m_site_state->consec_fails = 1;
+                m_site_state->last_fail_us = now_us;
+            } else {
+                ++m_site_state->consec_fails;
+                if(m_site_state->consec_fails
+                       >= (uint16_t)NegSite::GATE_K_FAIL) {
+                    m_site_state->take_gate = 0;  // FORCE_SLEEP
+                    m_site_state->normal_until_us = now_us
+                        + (uint64_t)NegSite::NORMAL_LEASE_US;
+                    m_site_state->consec_fails = 0;
+                    ++m_site_state->mode_flips_g2n;
                 }
             }
         }
@@ -1255,24 +1264,21 @@ public:
 
     ~ScopedNegotiateLinkage() noexcept {
         // Re-prime the SiteState slot so any negotiate() invocation
-        // below sees the right per-site state.  Skip stat updates when
-        // this scope was moved-from (m_link reset by std::move) — the
-        // move target's dtor handles the real accounting.
+        // below sees the right per-site state.  m_link is the
+        // freshness sentinel — cleared on move-out, so the moved-from
+        // dtor skips all side effects (the move target handles them).
+        // m_site_state itself is guaranteed non-null whenever m_link
+        // is, so no additional null checks are needed.
         auto *_save_state = NegSite::current_state();
-        if(m_link) NegSite::current_state() = m_site_state;
-        if(m_committed && m_link && m_site_state)
-            ++m_site_state->commits;
-        // Publish the scope-end digest snapshot ONLY when this scope
-        // observed contention (CAS-fail / weak-acquire-fail /
-        // confirm_contention).  Rationale: peer threads consult the
-        // digest specifically when deciding to CV-sleep on a Linkage;
-        // a peer that's making progress with no contention is invisible
-        // (v != 0 alone) and that's enough — the digest details are
-        // only actionable for stuck/contending peers.  Skipping K=0
-        // and clean-commit paths halves the per-Tx overhead on
-        // low-contention workloads.
-        if(m_link)
+        if(m_link) {
+            NegSite::current_state() = m_site_state;
+            if(m_committed) ++m_site_state->commits;
+            // Scope-end digest publish — peer-visible snapshot of
+            // outcome (consec_succs/fails / take_gate updated by
+            // _on_cas_*).  Internal skip-unchanged guard avoids the
+            // atomic store when peer-actionable fields are stable.
             _publish_digest();
+        }
         if(!m_committed) {
             // Tag rules:
             //  - OnEntry m_should_tag: ctor already tagged; skip dtor.
