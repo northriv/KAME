@@ -187,10 +187,30 @@
 #define KAME_STM_C_OBS_MIN 2
 #endif
 
-// Wake-broadcast lottery firing point.  Default: blocking lock_guard.
-// -DKAME_STM_NOTIFY_TRY_LOCK=1 selects the try_lock skip variant.
+// √C wake-broadcast lottery in negotiate_internal.  Probabilistic
+// per-iteration bypass meant to break tied retry loops; predates the
+// per-Linkage spin-for-same-kind path.
+//
+// Default 1 (= disabled) since the spin path now handles the same
+// pivot more deterministically — and at N ≥ 8 the lottery becomes
+// actively counter-productive (it wakes O(C) threads on every
+// notify_n_contenders call, multiplying the post-wake CAS retry
+// storm).  Set to 0 to restore the legacy probabilistic lottery for
+// A/B regression.
+//
+// 4-thread Linux x86 sweep (KAME_DISABLE_TAKE_GATE_RETURN=1,
+//   3-run median, 2-second stress mode, total commits over 2 s):
+//     N=4       +0 / +2 %   (noise)
+//     N=8      +6 /  +5 %
+//     N=16    +10 / +11 %
+//     N=32    +29 / +18 %
+//     N=64    +59 / +55 %     ← peak gain (16× oversubscription)
+//     N=128   +42 /  -6 %     ← N=128 3L: variance-dominated
+//   Pattern: linear improvement up to ~16× oversubscription, then
+//   tapering as scheduler overhead overtakes algorithm gain.  Mirrors
+//   reports on Apple Silicon M4 (user note: "M4 では速くなる").
 #ifndef KAME_STM_DISABLE_LOTTERY
-#define KAME_STM_DISABLE_LOTTERY 0
+#define KAME_STM_DISABLE_LOTTERY 1
 #endif
 
 // --- Per-call-site adaptive gate state machine (NegSite::SiteState) -
