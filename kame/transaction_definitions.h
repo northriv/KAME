@@ -466,14 +466,21 @@
 #define KAME_THRASHING_C_MULT_DEN 1
 #endif
 
-// Per-kind freshness window (µs) for the gate-return / spin trigger
-// machinery.  When peer's last B/U/C event on a Linkage is younger
-// than this, the kind is considered "recently active" for coalesce
-// decisions.  Diff is computed modulo 2^12 (12-bit per-kind
-// timestamp); ages over half-range (= 2048 µs) are stale by
-// construction.
-#ifndef KAME_KIND_RECENT_US
-#define KAME_KIND_RECENT_US 200
+// Absolute-time window width (µs) for the windowed per-kind count
+// scheme in Linkage::m_recent_ops_state.  Events are bucketed into
+// windows of this width, and two adjacent windows (cur + prev) are
+// retained.  Counts older than 2 × WINDOW_US are dropped by
+// rotation.  Pow-of-2 simplifies the (now_us / WINDOW_US) op.
+#ifndef KAME_KIND_WINDOW_US
+#define KAME_KIND_WINDOW_US 256
+#endif
+
+// Minimum aggregate count (over cur + prev windows) of recent same-
+// kind B/U/C publish events needed to trigger gate-return.  1 = "any
+// recent event"; 2 = "at least two in window" (the user's intuition
+// "周期的であることを確認" — confirm periodicity, not just one-off).
+#ifndef KAME_KIND_COUNT_THRESHOLD
+#define KAME_KIND_COUNT_THRESHOLD 2
 #endif
 
 // Slot release strategy.  When a Tx commits / cleans up, it currently

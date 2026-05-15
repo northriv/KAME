@@ -875,26 +875,40 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         {
             using L = Linkage;
             const uint64_t fs = m_recent_ops_state.load(std::memory_order_relaxed);
-            const uint64_t last_B_us = (fs >> L::RSO_LAST_B_SHIFT) & L::RSO_FIELD_MASK;
-            const uint64_t last_U_us = (fs >> L::RSO_LAST_U_SHIFT) & L::RSO_FIELD_MASK;
-            const uint64_t last_C_us = (fs >> L::RSO_LAST_C_SHIFT) & L::RSO_FIELD_MASK;
+            // Decode windowed per-kind counts.  Apply rotation logic
+            // at READ time so the stored state isn't perturbed.
+            const uint64_t now_us_full =
+                (uint64_t)NegotiationCounter::now_us();
+            const uint8_t  now_epoch = (uint8_t)((now_us_full / KAME_KIND_WINDOW_US) & 0xFFu);
+            const uint8_t  cur_epoch = (uint8_t)((fs >> L::RSO_CUR_EPOCH_SHIFT)
+                                                  & L::RSO_BYTE_MASK);
+            const uint8_t  delta_ep = (uint8_t)((now_epoch - cur_epoch) & 0xFFu);
+            uint64_t eff_B = 0, eff_U = 0, eff_C = 0;
+            if(fs != 0) {
+                if(delta_ep == 0) {
+                    eff_B = ((fs >> L::RSO_CUR_B_SHIFT) & L::RSO_BYTE_MASK)
+                          + ((fs >> L::RSO_PREV_B_SHIFT) & L::RSO_BYTE_MASK);
+                    eff_U = ((fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK)
+                          + ((fs >> L::RSO_PREV_U_SHIFT) & L::RSO_BYTE_MASK);
+                    eff_C = ((fs >> L::RSO_CUR_C_SHIFT) & L::RSO_BYTE_MASK)
+                          + ((fs >> L::RSO_PREV_C_SHIFT) & L::RSO_BYTE_MASK);
+                } else if(delta_ep == 1) {
+                    // cur (= window now-1) → effective prev only.
+                    eff_B = (fs >> L::RSO_CUR_B_SHIFT) & L::RSO_BYTE_MASK;
+                    eff_U = (fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK;
+                    eff_C = (fs >> L::RSO_CUR_C_SHIFT) & L::RSO_BYTE_MASK;
+                }
+                // delta >= 2: all stale, all zeros.
+            }
             const uint8_t  fs_latest_kind =
                 (uint8_t)((fs >> L::RSO_LATEST_KIND_SHIFT) & L::RSO_LATEST_KIND_MASK);
-            const uint64_t now_lo =
-                (uint64_t)NegotiationCounter::now_us() & L::RSO_FIELD_MASK;
-            auto kind_age = [&](uint64_t t) -> uint64_t {
-                if(t == 0) return L::RSO_FIELD_MASK;  // never seen → max
-                return (now_lo - t) & L::RSO_FIELD_MASK;
-            };
-            const uint64_t age_B = kind_age(last_B_us);
-            const uint64_t age_U = kind_age(last_U_us);
-            const uint64_t age_C = kind_age(last_C_us);
-            // age = age of the most-recently-published kind (any of
-            // B/U/C) — keeps the spin trigger's "linkage activity"
-            // gate working.
-            uint64_t age = age_B;
-            if(age_U < age) age = age_U;
-            if(age_C < age) age = age_C;
+            // "age" pseudo-metric: 0 if recent activity (delta<=1 and
+            // any count > 0), otherwise a large value (legacy spin
+            // trigger uses age > RECENT threshold for COLD).
+            const uint64_t age =
+                (delta_ep <= 1 && (eff_B + eff_U + eff_C) > 0)
+                ? 0
+                : (uint64_t)KAME_KIND_WINDOW_US * 16;  // = very old
             (void)fs_latest_kind;  // used below in gate-return only
             NegSite::SpinOutcome outcome;
 #if KAME_COALESCE_MODE != 0
@@ -1155,27 +1169,24 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         //
                         // Condition: we want to ride right after a
                         // B/U publish, so:
-                        //   Per-kind age within KAME_KIND_RECENT_US:
-                        //   - outer (mk == 0): ANY kind seen recently
-                        //     (any of age_B, age_U, age_C below
-                        //     RECENT_US)
-                        //   - inner mk == B: age_B  < RECENT_US
-                        //   - inner mk == U: age_U  < RECENT_US
-                        //   - inner mk == C: age_C  < RECENT_US
-                        //   No period/2 condition — per-kind freshness
-                        //   replaces it.
-                        const uint64_t window = (uint64_t)KAME_KIND_RECENT_US;
+                        //   Per-kind windowed count check:
+                        //   - outer (mk == 0): sum of recent B/U/C
+                        //     counts ≥ KAME_KIND_COUNT_THRESHOLD
+                        //   - inner mk == B/U/C: per-kind count ≥
+                        //     KAME_KIND_COUNT_THRESHOLD
+                        //   Counts are the sum over the current + prev
+                        //   absolute-time windows (auto-decayed by
+                        //   window rotation).
+                        const uint64_t thr = (uint64_t)KAME_KIND_COUNT_THRESHOLD;
                         bool kind_ok;
                         if(mk == 0) {
-                            kind_ok = (age_B < window)
-                                   || (age_U < window)
-                                   || (age_C < window);
+                            kind_ok = (eff_B + eff_U + eff_C) >= thr;
                         } else if(mk == (uint8_t)detail::StampKind::BUNDLE) {
-                            kind_ok = age_B < window;
+                            kind_ok = eff_B >= thr;
                         } else if(mk == (uint8_t)detail::StampKind::UNBUNDLE) {
-                            kind_ok = age_U < window;
+                            kind_ok = eff_U >= thr;
                         } else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) {
-                            kind_ok = age_C < window;
+                            kind_ok = eff_C >= thr;
                         } else {
                             kind_ok = false;
                         }
