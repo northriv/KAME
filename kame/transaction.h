@@ -1205,6 +1205,56 @@ private:
         static constexpr uint64_t FLIP_PERIOD_MASK   = (1ULL << FLIP_PERIOD_BITS) - 1;
         static constexpr uint64_t FLIP_PERIOD_MAX    = (1ULL << FLIP_PERIOD_BITS) - 1;
 
+        //! Record a successfully-published B/U event on this Linkage.
+        //! Called from bundle's Phase 4 success (missing=false set) and
+        //! unbundle's final CAS success — i.e. when a new wrapper that
+        //! represents a real B/U transition has been installed at
+        //! m_link.  NOT called from tag_as_contender (speculative tag
+        //! at scope construction) — those events do not represent a
+        //! published transition and were a source of noise (tagged
+        //! retries, failed Tx, snapshot's outer scope, etc.) in the
+        //! prior write-on-tag scheme.
+        //!
+        //! `stamp_with_kind` carries (us, tid, kind) of the Tx that
+        //! just committed; bit-layout matches NC::pack_stamp.
+        template <class NC>
+        void record_flip_event(typename NC::cnt_t stamp_with_kind) noexcept {
+            const uint64_t old_fs = m_flip_state.load(std::memory_order_relaxed);
+            const uint8_t  last_kind = (uint8_t)(old_fs & 0x3u);
+            const uint8_t  last_tid6 = (uint8_t)((old_fs >> FLIP_TID_SHIFT) & 0x3Fu);
+            const uint8_t  my_kind   = (uint8_t)NC::stamp_kind(stamp_with_kind) & 0x3u;
+            const uint8_t  my_tid6   = (uint8_t)(NC::stamp_tid(stamp_with_kind) & 0x3Fu);
+            uint8_t        ops_since = (uint8_t)((old_fs >> FLIP_OPS_SHIFT) & 0xFFu);
+            uint64_t       last_flip_us = (old_fs >> FLIP_LAST_US_SHIFT) & FLIP_LAST_US_MASK;
+            uint64_t       period_us    = (old_fs >> FLIP_PERIOD_SHIFT) & FLIP_PERIOD_MASK;
+            const bool contention_flip =
+                (old_fs != 0)
+                && (last_kind != my_kind)
+                && (last_tid6 != my_tid6);
+            const uint64_t now_us_low = (uint64_t)NC::stamp_us(stamp_with_kind)
+                                        & FLIP_LAST_US_MASK;
+            if(contention_flip) {
+                ops_since = 0;
+                uint64_t interval = (now_us_low - last_flip_us) & FLIP_LAST_US_MASK;
+                if(interval > FLIP_PERIOD_MAX) interval = FLIP_PERIOD_MAX;
+                period_us = (period_us == 0)
+                            ? interval
+                            : ((3 * period_us + interval) / 4);
+                last_flip_us = now_us_low;
+                NegSite::record_linkage_flip(last_kind, my_kind,
+                                             (uint32_t)interval);
+            } else if(ops_since < 255) {
+                ++ops_since;
+            }
+            const uint64_t new_fs =
+                  ((uint64_t)my_kind   << FLIP_KIND_SHIFT)
+                | ((uint64_t)my_tid6  << FLIP_TID_SHIFT)
+                | ((uint64_t)ops_since << FLIP_OPS_SHIFT)
+                | (last_flip_us       << FLIP_LAST_US_SHIFT)
+                | (period_us          << FLIP_PERIOD_SHIFT);
+            m_flip_state.store(new_fs, std::memory_order_relaxed);
+        }
+
         struct PriorityState {
             uint16_t tid;
             uint16_t lease_us;
@@ -1660,62 +1710,13 @@ public:
             if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
                 return;  // overwritten — don't add to list
 
-            // Update per-Linkage flip detector on every successful tag.
-            // We need m_flip_state to be populated even on cold (cur==0)
-            // tags: otherwise sequential cold uses leave fs == 0 and
-            // the spin path never gets a period reading.  The previous
-            // cur != 0 guard saved an atomic store per cold tag but
-            // killed period measurement in workloads without
-            // contention overlap.
-            //
-            // Verify just passed so our stamp is the live one — record
-            // this transition.  Same cacheline as `slot`, so the store
-            // coalesces.
-            using L = typename Node<XN>::Linkage;
-            auto &fs_atom = link->m_flip_state;
-            const uint64_t old_fs    = fs_atom.load(std::memory_order_relaxed);
-            const uint8_t  last_kind = (uint8_t)(old_fs & 0x3u);
-            const uint8_t  last_tid6 = (uint8_t)((old_fs >> L::FLIP_TID_SHIFT) & 0x3Fu);
-            const uint8_t  my_kind   = (uint8_t)detail::s_current_op_kind & 0x3u;
-            const uint8_t  my_tid6   = (uint8_t)(NC::stamp_tid(my_stamp) & 0x3Fu);
-            uint8_t        ops_since = (uint8_t)((old_fs >> L::FLIP_OPS_SHIFT) & 0xFFu);
-            uint64_t       last_flip_us = (old_fs >> L::FLIP_LAST_US_SHIFT) & L::FLIP_LAST_US_MASK;
-            uint64_t       period_us    = (old_fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
-            // Flip = different kind by a different thread.  Same-thread
-            // intra-Tx B/U (e.g. bundle phase then unbundle on abort)
-            // is the same writer and doesn't count as contention flip.
-            // Initial state (old_fs == 0) is treated as "no previous
-            // tagger" — record a flip only if my_kind != 0 to avoid
-            // counting the first NONE-stamp on a fresh Linkage.
-            const bool contention_flip =
-                (old_fs != 0)
-                && (last_kind != my_kind)
-                && (last_tid6 != my_tid6);
-            const uint64_t now_us_low = (uint64_t)NC::stamp_us(my_stamp)
-                                        & L::FLIP_LAST_US_MASK;
-            if(contention_flip) {
-                ops_since = 0;
-                // Interval since previous flip, modular 22-bit.
-                uint64_t interval = (now_us_low - last_flip_us) & L::FLIP_LAST_US_MASK;
-                if(interval > L::FLIP_PERIOD_MAX) interval = L::FLIP_PERIOD_MAX;
-                // 3-sample EMA: period = (3 * old + interval) / 4.
-                // First flip (old period == 0): take interval as-is.
-                period_us = (period_us == 0)
-                            ? interval
-                            : ((3 * period_us + interval) / 4);
-                last_flip_us = now_us_low;
-                NegSite::record_linkage_flip(last_kind, my_kind,
-                                             (uint32_t)interval);
-            } else if(ops_since < 255) {
-                ++ops_since;
-            }
-            const uint64_t new_fs =
-                  ((uint64_t)my_kind   << L::FLIP_KIND_SHIFT)
-                | ((uint64_t)my_tid6  << L::FLIP_TID_SHIFT)
-                | ((uint64_t)ops_since << L::FLIP_OPS_SHIFT)
-                | (last_flip_us       << L::FLIP_LAST_US_SHIFT)
-                | (period_us          << L::FLIP_PERIOD_SHIFT);
-            fs_atom.store(new_fs, std::memory_order_relaxed);
+            // Per-Linkage flip detector (m_flip_state) is updated only
+            // at confirmed publish points (bundle Phase 4 success with
+            // !missing, unbundle final CAS success) via
+            // Linkage::record_flip_event.  Tag time (= here) is just
+            // an *intent* signal; recording it would mix speculative
+            // tag events (retries, failures, snapshot's outer scope)
+            // into the period EMA and pollute the gate-return signal.
         }
 
         // ----- Option A (CAS-loop; kept for bench comparison) ---------------

@@ -2082,7 +2082,19 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             scope.commit();
             return BundledStatus::DISTURBED;
         }
-        // CAS success: m_link advanced.  Update supscope.view to track.
+        // CAS success: m_link advanced.  If the new wrapper has its
+        // missing flag cleared (Phase 4 finalize executed because all
+        // children were collected), this is a *real* BUNDLE publish
+        // event on supernode.m_link — record it on the flip detector.
+        // Partial-bundle publishes (missing=true) do not count: peers
+        // can't ride them as a coalesce result, so they shouldn't bias
+        // the period EMA.
+        if( !missing) {
+            supernode.m_link->template record_flip_event<NegotiationCounter>(
+                NegotiationCounter::with_kind(started_time,
+                                              detail::StampKind::BUNDLE));
+        }
+        // Update supscope.view to track.
         supscope.set_view(std::move(superwrapper));
 
         for(unsigned int i = 0; i < subnodes->size(); i++) {
@@ -2392,6 +2404,11 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     if( !subscope.compareAndSetWithHint(newsubwrapper, time_started))
         return UnbundledStatus::SUBVALUE_HAS_CHANGED;
     // subscope.compareAndSetWithHint auto-committed + tagged success.
+    // The new wrapper at subscope.linkage is hasPriority (its own
+    // packet) — this is a real UNBUNDLE publish event.
+    subscope.linkage()->template record_flip_event<NegotiationCounter>(
+        NegotiationCounter::with_kind(time_started,
+                                      detail::StampKind::UNBUNDLE));
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
         it->linkage->tags_successful_cas(time_started);
