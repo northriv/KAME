@@ -876,7 +876,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             using L = Linkage;
             const uint64_t fs = m_recent_ops_state.load(std::memory_order_relaxed);
             const uint64_t fs_last_us =
-                (fs >> L::RSO_LAST_US_SHIFT) & L::RSO_LAST_US_MASK;
+                (fs >> L::RSO_LAST_FLIP_SHIFT) & L::RSO_LAST_FLIP_MASK;
             // Latest kind from recent_ops history (bits 0-1 of the
             // 30-bit ops field).  This replaces the old
             // tag-time slot kind read — flipped is now updated only at
@@ -886,9 +886,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             const uint8_t fs_latest_kind =
                 (uint8_t)((fs >> L::RSO_OPS_SHIFT) & 0x3u);
             const uint64_t now_lo =
-                (uint64_t)NegotiationCounter::now_us() & L::RSO_LAST_US_MASK;
+                (uint64_t)NegotiationCounter::now_us() & L::RSO_LAST_FLIP_MASK;
             const uint64_t age =
-                (now_lo - fs_last_us) & L::RSO_LAST_US_MASK;
+                (now_lo - fs_last_us) & L::RSO_LAST_FLIP_MASK;
             NegSite::SpinOutcome outcome;
 #if KAME_COALESCE_MODE != 0
             // ===== (A) Kind-match coalesce ============================
