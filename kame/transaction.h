@@ -511,6 +511,11 @@ public:
                                 // regime — flips arrive faster than
                                 // thread round-robin, so even one-period
                                 // spin can't catch a stable window)
+        GATE_RETURN_SAMEKIND = 7, // flip detected, spin gate closed
+                                // (COLD / THRASHING), but peer's current
+                                // kind matches ours — skip CV-sleep and
+                                // retry CAS immediately (cheap
+                                // piggyback on peer's same-kind work).
     };
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     DECLSPEC_KAME static void record_spin_event(SpinOutcome o,

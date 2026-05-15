@@ -249,7 +249,7 @@ DECLSPEC_KAME void NegSite::record_linkage_flip(uint8_t prev_kind,
 // separate accumulator for the WON elapsed_us so we can compute the
 // average spin duration on success.
 namespace {
-std::atomic<uint64_t> g_spin_count[7]{};
+std::atomic<uint64_t> g_spin_count[8]{};
 std::atomic<uint64_t> g_spin_won_elapsed_us_sum{0};
 std::atomic<uint64_t> g_spin_timeout_elapsed_us_sum{0};
 } // anonymous namespace
@@ -257,7 +257,7 @@ std::atomic<uint64_t> g_spin_timeout_elapsed_us_sum{0};
 DECLSPEC_KAME void NegSite::record_spin_event(SpinOutcome o,
                                               uint32_t elapsed_us) noexcept {
     const unsigned idx = (unsigned)o & 0x7;
-    if(idx < 7)
+    if(idx < 8)
         g_spin_count[idx].fetch_add(1, std::memory_order_relaxed);
     if(o == SpinOutcome::WON)
         g_spin_won_elapsed_us_sum
@@ -420,23 +420,23 @@ DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
         }
     }
     // Spin-for-same-kind outcomes.
-    uint64_t spin_counts[7];
+    uint64_t spin_counts[8];
     uint64_t spin_total = 0, spin_attempts = 0;
-    for(int i = 0; i < 7; ++i) {
+    for(int i = 0; i < 8; ++i) {
         spin_counts[i] = g_spin_count[i].load(std::memory_order_relaxed);
         spin_total += spin_counts[i];
     }
     spin_attempts = spin_counts[4] + spin_counts[5];   // WON + TIMEOUT
     if(spin_total > 0) {
-        static const char *spinLabel[7] = {
+        static const char *spinLabel[8] = {
             "skipped(no_period)", "skipped(cold)", "skipped(past)",
             "skipped(same_kind)", "won", "timeout",
-            "skipped(thrashing)"
+            "skipped(thrashing)", "gate_return(same_kind)"
         };
         std::fprintf(fp, "[spin-for-same-kind]  total_calls=%llu attempts=%llu\n",
                      (unsigned long long)spin_total,
                      (unsigned long long)spin_attempts);
-        for(int i = 0; i < 7; ++i) {
+        for(int i = 0; i < 8; ++i) {
             double pct = 100.0 * (double)spin_counts[i] / (double)spin_total;
             std::fprintf(fp, "  %-20s : %9llu (%5.1f%%)\n",
                          spinLabel[i],

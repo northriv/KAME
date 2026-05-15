@@ -1018,7 +1018,35 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #endif // KAME_COALESCE_MODE
             if(outcome != NegSite::SpinOutcome::WON
                && outcome != NegSite::SpinOutcome::TIMEOUT) {
-                NegSite::record_spin_event(outcome, 0);
+                // Same-kind gate-return: flipping is detected
+                // (fs != 0) but the spin trigger didn't fully open
+                // (COLD or THRASHING).  If peer is doing the SAME
+                // kind right now, skip CV-sleep and retry CAS
+                // immediately — peer will finish their B/U and we
+                // can piggyback on their result.  Bounded by the
+                // outer ms-backoff if peer never lets go.
+                bool gate_returned = false;
+                if(outcome == NegSite::SpinOutcome::SKIPPED_COLD
+                   || outcome == NegSite::SpinOutcome::SKIPPED_THRASHING) {
+                    const uint8_t mk =
+                        (uint8_t)detail::s_current_op_kind & 0x3u;
+                    if(mk != 0) {
+                        const auto slot =
+                            m_transaction_started_time.load(
+                                std::memory_order_relaxed);
+                        const uint8_t pk =
+                            NegotiationCounter::stamp_kind(slot);
+                        if(slot && pk == mk) {
+                            NegSite::record_spin_event(
+                                NegSite::SpinOutcome::
+                                  GATE_RETURN_SAMEKIND, 0);
+                            gate_returned = true;
+                        }
+                    }
+                }
+                if(!gate_returned)
+                    NegSite::record_spin_event(outcome, 0);
+                if(gate_returned) break;
             }
         }
 
