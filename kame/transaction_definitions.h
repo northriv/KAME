@@ -428,4 +428,18 @@
 #define KAME_SPIN_BUDGET_PCT 100
 #endif
 
+// Over-thrashing detection multiplier for the SKIPPED_THRASHING gate.
+// Spin is skipped iff fs_period_us < sig_C * KAME_THRASHING_C_MULT.
+//   1 = strict (legacy): only skip when 1 period < 1 thread
+//   2 = default: accounts for BUDGET_PCT=100 plus margin for one
+//       round-robin through C threads (default for both polled and
+//       blind modes)
+//   3+ = aggressive thrashing detection (skip more cases) — useful
+//       when raising BUDGET_PCT (e.g. PCT=600 effectively spins for
+//       6 periods, so requiring period >= 3*C reduces "period too
+//       short for our extended budget" false positives)
+#ifndef KAME_THRASHING_C_MULT
+#define KAME_THRASHING_C_MULT 2
+#endif
+
 #endif /* TRANSACTION_DEFINITIONS_H */
