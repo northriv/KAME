@@ -448,17 +448,22 @@
 #endif
 
 // Over-thrashing detection multiplier for the SKIPPED_THRASHING gate.
-// Spin is skipped iff fs_period_us < sig_C * KAME_THRASHING_C_MULT.
-//   1 = strict (legacy): only skip when 1 period < 1 thread
-//   2 = default: accounts for BUDGET_PCT=100 plus margin for one
-//       round-robin through C threads (default for both polled and
-//       blind modes)
-//   3+ = aggressive thrashing detection (skip more cases) — useful
-//       when raising BUDGET_PCT (e.g. PCT=600 effectively spins for
-//       6 periods, so requiring period >= 3*C reduces "period too
-//       short for our extended budget" false positives)
+// Spin is skipped iff
+//   fs_period_us * KAME_THRASHING_C_MULT_DEN
+//     < sig_C * KAME_THRASHING_C_MULT
+// i.e. effective ratio = KAME_THRASHING_C_MULT / KAME_THRASHING_C_MULT_DEN.
+// Use DEN to express non-integer multipliers (phase effects in B/U
+// cycles can put the optimum between consecutive integers):
+//   NUM=2, DEN=1 → ratio 2.0  (default; "1 round-robin + 1 period margin")
+//   NUM=5, DEN=2 → ratio 2.5  (mid-point between C=2 and C=3 sweep peaks)
+//   NUM=3, DEN=1 → ratio 3.0
+// Larger ratio → more cases classified as THRASHING → more gate-return
+// firings on peer same-kind, fewer spin attempts.
 #ifndef KAME_THRASHING_C_MULT
 #define KAME_THRASHING_C_MULT 2
+#endif
+#ifndef KAME_THRASHING_C_MULT_DEN
+#define KAME_THRASHING_C_MULT_DEN 1
 #endif
 
 #endif /* TRANSACTION_DEFINITIONS_H */

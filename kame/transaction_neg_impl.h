@@ -988,6 +988,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                        & L::FLIP_PERIOD_MASK) > 0
                       && ((fs >> L::FLIP_PERIOD_SHIFT)
                           & L::FLIP_PERIOD_MASK)
+                         * KAME_THRASHING_C_MULT_DEN
                          < (uint64_t)(sig_C * KAME_THRASHING_C_MULT)) {
                 // Over-thrashing: period (µs) shorter than 2 × thread
                 // count means even with a 2-period spin budget we'd
@@ -1057,6 +1058,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                        & L::FLIP_PERIOD_MASK) > 0
                       && ((fs >> L::FLIP_PERIOD_SHIFT)
                           & L::FLIP_PERIOD_MASK)
+                         * KAME_THRASHING_C_MULT_DEN
                          < (uint64_t)(sig_C * KAME_THRASHING_C_MULT)) {
                 // Over-thrashing: see (A) for rationale.
                 outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
