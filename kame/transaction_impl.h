@@ -1851,6 +1851,19 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         if( !scope) return BundledStatus::DISTURBED;
+        // Peer-completed early return: scope's fresh load of
+        // supernode.m_link may show that a peer thread bundled this
+        // subtree while we were negotiating.  Require hasPriority()
+        // because a bundled-by-ancestor wrapper has m_packet=null
+        // (m_bundledBy is the redirect target) — packet()->missing()
+        // would crash there.  hasPriority() guarantees the wrapper
+        // owns its packet, and !missing() means the bundle phase is
+        // complete (Phase 4 cleared the flag).
+        if(scope->hasPriority() && scope->packet()
+           && !scope->packet()->missing()) {
+            supscope = std::move(scope);
+            return BundledStatus::SUCCESS;
+        }
         // Pointer check + 1-arg CAS: scope loaded m_link at construction;
         // if it matches supscope's expected state, scope's internal view
         // serves as the CAS expected.  Saves 1 fetch_add + promote vs
@@ -1874,6 +1887,16 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
         if( !scope) continue;  // weak acquire lost — retry
+        // Peer-completed early return — same idea as the serial-tag
+        // block above: skip Phases 1..4 entirely if peer has already
+        // produced a non-missing, self-bundled wrapper at
+        // supernode.m_link while we were negotiating.  hasPriority()
+        // guard rejects bundled-by-ancestor wrappers (packet() == null).
+        if(scope->hasPriority() && scope->packet()
+           && !scope->packet()->missing()) {
+            supscope = std::move(scope);
+            return BundledStatus::SUCCESS;
+        }
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *supscope, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
