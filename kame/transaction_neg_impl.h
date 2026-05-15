@@ -903,11 +903,13 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                        & L::FLIP_PERIOD_MASK) > 0
                       && ((fs >> L::FLIP_PERIOD_SHIFT)
                           & L::FLIP_PERIOD_MASK)
-                         < (uint64_t)sig_C) {
-                // Over-thrashing: period (µs) shorter than thread count
-                // means flips arrive faster than one round-robin through
-                // C threads.  Even a one-period spin can't catch a
-                // stable same-kind window — defer to negotiate_sleep.
+                         < (uint64_t)(sig_C * 2u)) {
+                // Over-thrashing: period (µs) shorter than 2 × thread
+                // count means even with a 2-period spin budget we'd
+                // still race more flips than we could catch.  Defer
+                // to negotiate_sleep.  (Bare sig_C is too conservative
+                // for BUBU rapid-alternation patterns where 1 period
+                // ≈ N µs is still spin-recoverable.)
                 outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
             } else {
                 const uint64_t fs_period =
@@ -976,7 +978,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                        & L::FLIP_PERIOD_MASK) > 0
                       && ((fs >> L::FLIP_PERIOD_SHIFT)
                           & L::FLIP_PERIOD_MASK)
-                         < (uint64_t)sig_C) {
+                         < (uint64_t)(sig_C * 2u)) {
                 // Over-thrashing: see (A) for rationale.
                 outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
             } else {

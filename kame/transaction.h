@@ -1636,20 +1636,14 @@ public:
             if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
                 return;  // overwritten — don't add to list
 
-            // Update per-Linkage flip detector ONLY when we overrode a
-            // live tagger (cur != 0).  cur == 0 means the slot was empty
-            // when we loaded it — this is the START of a contention
-            // episode, not a flip *within* one.  Skipping the flip-state
-            // write on cold tags has three desirable effects:
-            //   1. Removes a per-cold-tag atomic store on the same
-            //      cacheline as `slot` (N=4 fast-path overhead recovery).
-            //   2. Correct semantics: only intra-episode kind changes
-            //      count toward the EMA period, not episode boundaries.
-            //   3. `last_flip_us` decays naturally on idle Linkages,
-            //      so the spin trigger disengages on truly cold sites.
-            // No side effect on CM priority (slot.store above is
-            // unchanged) or m_tagged_linkages tracking.
-            if(cur != 0) {
+            // Update per-Linkage flip detector on every successful tag.
+            // We need m_flip_state to be populated even on cold (cur==0)
+            // tags: otherwise sequential cold uses leave fs == 0 and
+            // the spin path never gets a period reading.  The previous
+            // cur != 0 guard saved an atomic store per cold tag but
+            // killed period measurement in workloads without
+            // contention overlap.
+            //
             // Verify just passed so our stamp is the live one — record
             // this transition.  Same cacheline as `slot`, so the store
             // coalesces.
@@ -1698,7 +1692,6 @@ public:
                 | (last_flip_us       << L::FLIP_LAST_US_SHIFT)
                 | (period_us          << L::FLIP_PERIOD_SHIFT);
             fs_atom.store(new_fs, std::memory_order_relaxed);
-            } // end if(cur != 0)
         }
 
         // ----- Option A (CAS-loop; kept for bench comparison) ---------------
