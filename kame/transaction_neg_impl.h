@@ -893,21 +893,85 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             const uint8_t peer_kind =
                 NegotiationCounter::stamp_kind(slot_now);
 #if KAME_COALESCE_MODE == 4
-            // ----- K4 blind: gate-return BEFORE any spin attempt -----
-            // The blind spin has no in-loop reads, so a peer kind
-            // change mid-spin is invisible to us.  Spending the
-            // budget on a doomed-blind wait is strictly worse than
-            // just retrying CAS now.  Skip the period gate entirely
-            // ("振動があるだけで周期を問わず return"):
-            //   fs != 0  (flipping observed at all)  AND
-            //   peer is currently same-kind as us
-            // → gate-return immediately.  Otherwise classify the
-            // skip and fall through to negotiate_sleep.
-            if(fs != 0 && my_kind != 0 && slot_now
-               && peer_kind == my_kind) {
-                NegSite::record_spin_event(
-                    NegSite::SpinOutcome::GATE_RETURN_SAMEKIND, 0);
-                break;  // gate-return: outer CAS retry
+            // ----- K4 flip-wait coalesce -----------------------------
+            // Wait for the next commit on this Linkage by polling
+            // m_flip_state with acquire ordering, then judge whether
+            // the post-commit slot kind matches ours.  Two reasons
+            // this is preferable to slot-polling on ARM:
+            //
+            //   1. m_flip_state is updated only on a *successful*
+            //      commit (≪ slot CAS frequency), so polling it does
+            //      not contend on the cache line that the holder's
+            //      stlxr is actively writing.
+            //   2. Acquire on the flip-state load synchronizes-with
+            //      the committing thread's release; the slot read
+            //      that follows therefore observes a post-commit,
+            //      coherent kind tag (no B/U misread).
+            //
+            // Entry guard: fs != 0 (we have history), my_kind != 0,
+            // numThreadsRunning() <= effective_max_runners(C_obs).
+            // The runner cap prevents thundering-herd CAS races on
+            // every flip event: with no cap, all N polling threads
+            // wake on each commit and stampede the slot's CAS, only
+            // one wins and the rest reset and re-poll — pathological
+            // at N >> cores.  Set KAME_STM_MAX_RUNNERS=-1 to bind
+            // the cap to hardware_concurrency (physical CPU count)
+            // rather than the over-restrictive default 2.
+            //
+            // Decision after a flip is observed (or at timeout):
+            //   slot empty       → gate-return (slot is ours for the
+            //                      taking)
+            //   slot same-kind   → gate-return (coalesce: ride the
+            //                      next bundle/unbundle wave)
+            //   slot diff-kind   → fall through to negotiate_sleep
+            //   timeout          → fall through to negotiate_sleep
+            if(fs != 0 && my_kind != 0
+#if KAME_STM_MAX_RUNNERS != 0
+               && NegotiationCounter::numThreadsRunning()
+                  < effective_max_runners(C_obs)
+#endif
+               ) {
+                const uint64_t fs_period_k4 =
+                    (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
+                const uint64_t scaled_period =
+                    fs_period_k4 * (uint64_t)KAME_COALESCE_BUDGET_PCT
+                    / 100u;
+                const uint64_t budget =
+                    (fs_period_k4 > 0
+                     && scaled_period < (uint64_t)KAME_COALESCE_MAX_US)
+                    ? scaled_period
+                    : (uint64_t)KAME_COALESCE_MAX_US;
+                const uint64_t start_us =
+                    (uint64_t)NegotiationCounter::now_us();
+                const uint64_t deadline = start_us + budget;
+                uint64_t fs_now = fs;     // initial (relaxed)
+                // Spin until flip-state advances or budget expires.
+                while(fs_now == fs
+                      && (uint64_t)NegotiationCounter::now_us()
+                         < deadline) {
+                    for(int i = 0; i < 16; ++i) pause4spin();
+                    fs_now = m_flip_state.load(
+                        std::memory_order_acquire);
+                }
+                if(fs_now != fs) {
+                    // A commit just happened; acquire above
+                    // synchronizes-with the committing thread's
+                    // release.  The slot now reflects the
+                    // post-commit state.
+                    const auto slot_ack =
+                        m_transaction_started_time.load(
+                            std::memory_order_acquire);
+                    const uint8_t pk_ack =
+                        NegotiationCounter::stamp_kind(slot_ack);
+                    if(!slot_ack || pk_ack == my_kind) {
+                        NegSite::record_spin_event(
+                            NegSite::SpinOutcome::
+                              GATE_RETURN_SAMEKIND, 0);
+                        break;  // gate-return: outer CAS retry
+                    }
+                    // Different kind observed post-commit → sleep.
+                }
+                // Else: timeout w/o flip change → sleep.
             }
             outcome = (fs == 0)
                 ? NegSite::SpinOutcome::SKIPPED_NO_PERIOD
@@ -952,6 +1016,13 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 const uint64_t deadline = start_us + budget;
                 bool won = false;
                 // K1 (strict) or K2 (loose) polled.
+                // In-loop poll uses relaxed: eventual visibility is
+                // sufficient for change detection, and acquire on every
+                // iteration adds a dmb per pause-batch on ARM with no
+                // payoff (spurious early-exit on a partially-visible
+                // kind only delays exit by one pause-batch in steady
+                // state).  The committing decision (gate-return at
+                // outer scope) uses acquire instead.
                 do {
                     for(int i = 0; i < 16; ++i) pause4spin();
                     auto t = m_transaction_started_time.load(
@@ -1007,6 +1078,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 const auto initial_t =
                     m_transaction_started_time.load(std::memory_order_relaxed);
                 bool won = false;
+                // Polled change detector; relaxed is sufficient since
+                // we only test for "value has changed" and need not
+                // synchronize-with the holder for in-loop polling.
                 do {
                     for(int i = 0; i < 16; ++i) pause4spin();
                     auto t = m_transaction_started_time.load(
@@ -1029,26 +1103,60 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 // Same-kind gate-return: flipping is detected
                 // (fs != 0) but the spin trigger didn't fully open
                 // (COLD or THRASHING).  If peer is doing the SAME
-                // kind right now, skip CV-sleep and retry CAS
-                // immediately — peer will finish their B/U and we
-                // can piggyback on their result.  Bounded by the
-                // outer ms-backoff if peer never lets go.
+                // kind right now AND the running-thread count is
+                // below the CAS-retry budget cap, skip CV-sleep and
+                // retry CAS immediately — peer will finish their
+                // B/U and we can piggyback on their result.
+                //
+                // Runner-cap guard (numThreadsRunning < max_r):
+                //   shares the effective_max_runners threshold with
+                //   the gate-mult "earned priority" break.  Without
+                //   this, every contender at high N falls into the
+                //   gate-return path simultaneously → CAS retry
+                //   storm.  M4 N=128 3L benched at avg8 −12 % with
+                //   the guard absent (see ceb85fe8 commit history)
+                //   versus +0.66 % with the gate-return path
+                //   entirely disabled (NOcebREVERT measurement).
+                //
+                // Bounded by the outer ms-backoff if peer never
+                // lets go.
                 bool gate_returned = false;
                 if(outcome == NegSite::SpinOutcome::SKIPPED_COLD
                    || outcome == NegSite::SpinOutcome::SKIPPED_THRASHING) {
                     const uint8_t mk =
                         (uint8_t)detail::s_current_op_kind & 0x3u;
-                    if(mk != 0) {
+                    if(mk != 0
+#if KAME_STM_MAX_RUNNERS != 0
+                       && NegotiationCounter::numThreadsRunning()
+                          < effective_max_runners(C_obs)
+#endif
+                       ) {
+                        // Cheap relaxed pre-check filters out obvious
+                        // non-matches.
                         const auto slot =
                             m_transaction_started_time.load(
                                 std::memory_order_relaxed);
                         const uint8_t pk =
                             NegotiationCounter::stamp_kind(slot);
                         if(slot && pk == mk) {
-                            NegSite::record_spin_event(
-                                NegSite::SpinOutcome::
-                                  GATE_RETURN_SAMEKIND, 0);
-                            gate_returned = true;
+                            // Acquire-confirm before committing to
+                            // gate-return; synchronizes-with the
+                            // holder's release-store on the slot so
+                            // the kind we are about to act on is
+                            // their latest published state.  Without
+                            // this, a B/U misread can drive a CAS
+                            // retry into a stale kind and storm.
+                            const auto slot_ack =
+                                m_transaction_started_time.load(
+                                    std::memory_order_acquire);
+                            if(slot_ack
+                               && NegotiationCounter::stamp_kind(
+                                      slot_ack) == mk) {
+                                NegSite::record_spin_event(
+                                    NegSite::SpinOutcome::
+                                      GATE_RETURN_SAMEKIND, 0);
+                                gate_returned = true;
+                            }
                         }
                     }
                 }
