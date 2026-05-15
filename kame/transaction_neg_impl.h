@@ -892,6 +892,27 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 (uint8_t)detail::s_current_op_kind & 0x3u;
             const uint8_t peer_kind =
                 NegotiationCounter::stamp_kind(slot_now);
+#if KAME_COALESCE_MODE == 4
+            // ----- K4 blind: gate-return BEFORE any spin attempt -----
+            // The blind spin has no in-loop reads, so a peer kind
+            // change mid-spin is invisible to us.  Spending the
+            // budget on a doomed-blind wait is strictly worse than
+            // just retrying CAS now.  Skip the period gate entirely
+            // ("振動があるだけで周期を問わず return"):
+            //   fs != 0  (flipping observed at all)  AND
+            //   peer is currently same-kind as us
+            // → gate-return immediately.  Otherwise classify the
+            // skip and fall through to negotiate_sleep.
+            if(fs != 0 && my_kind != 0 && slot_now
+               && peer_kind == my_kind) {
+                NegSite::record_spin_event(
+                    NegSite::SpinOutcome::GATE_RETURN_SAMEKIND, 0);
+                break;  // gate-return: outer CAS retry
+            }
+            outcome = (fs == 0)
+                ? NegSite::SpinOutcome::SKIPPED_NO_PERIOD
+                : NegSite::SpinOutcome::SKIPPED_COLD;
+#else
             if(fs == 0) {
                 outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
             } else if(my_kind == 0
@@ -916,8 +937,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
                 // Budget = min(fs_period * BUDGET_PCT / 100, MAX_US).
                 // Polled defaults to 100 % (one period; early-exit
-                // makes over-shooting cheap), blind defaults to 75 %
-                // (no early-exit so cap waste).  Override
+                // makes over-shooting cheap).  Override
                 // KAME_COALESCE_BUDGET_PCT to widen (e.g. 200 = 2
                 // periods on x86 to raise coalesce hit rate).
                 const uint64_t period_cap =
@@ -931,18 +951,6 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     (uint64_t)NegotiationCounter::now_us();
                 const uint64_t deadline = start_us + budget;
                 bool won = false;
-#if KAME_COALESCE_MODE == 4
-                // K4 blind: no in-loop reads; single check at end.
-                while((uint64_t)NegotiationCounter::now_us() < deadline) {
-                    for(int i = 0; i < 16; ++i) pause4spin();
-                }
-                {
-                    auto t = m_transaction_started_time.load(
-                        std::memory_order_relaxed);
-                    won = (!t)
-                        || (NegotiationCounter::stamp_kind(t) != my_kind);
-                }
-#else
                 // K1 (strict) or K2 (loose) polled.
                 do {
                     for(int i = 0; i < 16; ++i) pause4spin();
@@ -957,7 +965,6 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #  endif
                     }
                 } while((uint64_t)NegotiationCounter::now_us() < deadline);
-#endif // KAME_COALESCE_MODE
                 const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
                 const uint32_t elapsed =
                     (uint32_t)(end_us > start_us ? end_us - start_us : 0);
@@ -967,6 +974,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 NegSite::record_spin_event(outcome, elapsed);
                 if(won) break;   // gate-return: caller retries CAS
             }
+#endif // KAME_COALESCE_MODE == 4
 #else // KAME_COALESCE_MODE == 0
             // ===== (B) Legacy any-change spin =========================
             if(fs == 0) {
