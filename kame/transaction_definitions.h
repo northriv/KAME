@@ -466,6 +466,16 @@
 #define KAME_THRASHING_C_MULT_DEN 1
 #endif
 
+// Per-kind freshness window (µs) for the gate-return / spin trigger
+// machinery.  When peer's last B/U/C event on a Linkage is younger
+// than this, the kind is considered "recently active" for coalesce
+// decisions.  Diff is computed modulo 2^12 (12-bit per-kind
+// timestamp); ages over half-range (= 2048 µs) are stale by
+// construction.
+#ifndef KAME_KIND_RECENT_US
+#define KAME_KIND_RECENT_US 200
+#endif
+
 // Slot release strategy.  When a Tx commits / cleans up, it currently
 // zero-stores its tag from each tagged Linkage's
 // m_transaction_started_time slot (drop_tags_n_privilege, line ~1747

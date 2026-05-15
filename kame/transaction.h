@@ -1192,88 +1192,93 @@ private:
         //! existing tag-as-contender store, reads coalesce with the
         //! priority load on the fast path.  Relaxed atomic; CAS-free
         //! (last-writer wins, advisory).
-        //! Recent-Successful-Ops log on this Linkage.  Only BUNDLE and
-        //! UNBUNDLE events are recorded — MultiNodalCommit / NONE are
-        //! skipped, because the gate-return / spin trigger machinery
-        //! is concerned with B/U coalesce decisions on the structural
-        //! linkage, not with payload-level Tx commit.
+        //! Recent-Successful-Ops log on this Linkage.  Per-kind last-
+        //! timestamp scheme (P-C): for each tracked event kind we
+        //! store the low 12 bits of the wall-clock at which the most
+        //! recent successful publish of that kind happened on this
+        //! Linkage.  Readers compute `(now_lo - last_K_us) & 0xFFF`
+        //! to age-test individual kinds independently.
+        //!
+        //! Tracked kinds: BUNDLE, UNBUNDLE, MultiNodalCommit
+        //! (Transaction::commit also yields a wrapper change that
+        //! peers may want to coalesce on).
         //!
         //! Layout (64 bits):
-        //!   bits  0-29  recent_ops: 15 × 2-bit kinds (B or U only),
-        //!               bits 0-1 are the most recent.
-        //!   bits 30-51  last_flip_us (22 bits): wall-clock low part
-        //!               of the most recent KIND CHANGE.
-        //!   bits 52-63  period_us   (12 bits): EMA of inter-flip
-        //!               interval (= real B/U half-period).
+        //!   bits  0-11  last_B_us    (12 bits) — last BUNDLE
+        //!   bits 12-23  last_U_us    (12 bits) — last UNBUNDLE
+        //!   bits 24-35  last_C_us    (12 bits) — last MultiNodalCommit
+        //!   bits 36-47  period_us    (12 bits) — EMA of inter-publish
+        //!                                        interval (spin budget)
+        //!   bits 48-49  latest_kind  (2 bits)  — the kind of the most
+        //!                                        recent op (any of B/U/C)
+        //!   bits 50-63  free         (14 bits)
         //!
-        //! period semantic (β): "true flip-to-flip interval" — the
-        //! time between successive kind changes (B→U or U→B).
-        //! Same-kind streaks (B-B-B-...) do NOT update period.
+        //! Stale entries are not physically cleared; readers treat
+        //! ages > half the 12-bit range as "no event in window".
         atomic<uint64_t> m_recent_ops_state;
-        static constexpr int     RSO_OPS_SHIFT       = 0;
-        static constexpr int     RSO_OPS_BITS        = 30;   // 15 × 2 bits
-        static constexpr int     RSO_LAST_FLIP_SHIFT = 30;
-        static constexpr int     RSO_LAST_FLIP_BITS  = 22;
-        static constexpr int     RSO_PERIOD_SHIFT    = 52;
-        static constexpr int     RSO_PERIOD_BITS     = 12;
-        static constexpr uint64_t RSO_OPS_MASK       = (1ULL << RSO_OPS_BITS) - 1;
-        static constexpr uint64_t RSO_LAST_FLIP_MASK = (1ULL << RSO_LAST_FLIP_BITS) - 1;
-        static constexpr uint64_t RSO_PERIOD_MASK    = (1ULL << RSO_PERIOD_BITS) - 1;
-        static constexpr uint64_t RSO_PERIOD_MAX     = RSO_PERIOD_MASK;
-        static constexpr int     RSO_HISTORY_LEN    = RSO_OPS_BITS / 2;  // = 15
+        static constexpr int     RSO_LAST_B_SHIFT     = 0;
+        static constexpr int     RSO_LAST_U_SHIFT     = 12;
+        static constexpr int     RSO_LAST_C_SHIFT     = 24;
+        static constexpr int     RSO_PERIOD_SHIFT     = 36;
+        static constexpr int     RSO_LATEST_KIND_SHIFT = 48;
+        static constexpr int     RSO_FIELD_BITS       = 12;
+        static constexpr uint64_t RSO_FIELD_MASK      = (1ULL << RSO_FIELD_BITS) - 1;
+        static constexpr uint64_t RSO_PERIOD_MASK     = RSO_FIELD_MASK;
+        static constexpr uint64_t RSO_PERIOD_MAX      = RSO_FIELD_MASK;
+        static constexpr uint64_t RSO_LATEST_KIND_MASK = 0x3ULL;
 
-        //! Record a successfully-published B/U event on this Linkage.
-        //! Called from bundle's Phase 4 success (missing=false set) and
-        //! unbundle's final CAS success.  Non-B/U kinds (NONE,
-        //! MultiNodalCommit) are silently ignored.
+        //! Shift offset of the per-kind timestamp slot for a given
+        //! StampKind.  NONE returns -1 (caller must check).
+        static constexpr int kind_slot_shift(uint8_t kind) noexcept {
+            return  kind == (uint8_t)detail::StampKind::BUNDLE   ? RSO_LAST_B_SHIFT
+                  : kind == (uint8_t)detail::StampKind::UNBUNDLE ? RSO_LAST_U_SHIFT
+                  : kind == (uint8_t)detail::StampKind::MultiNodalCommit ? RSO_LAST_C_SHIFT
+                  : -1;
+        }
+
+        //! Record a successfully-published op on this Linkage.
+        //! Called from bundle Phase 4 success, unbundle final CAS
+        //! success, and Tx::commit success.  Kind == NONE is silently
+        //! skipped (snapshot's outer scope etc. don't publish).
         //!
-        //! period EMA + last_flip_us are updated ONLY on kind change
-        //! (β semantic).  Same-kind events still shift the recent_ops
-        //! history (so latest_kind is always current) but do not move
-        //! the flip clock — the interval EMA measures the true
-        //! cycle half-period.
-        //!
-        //! `stamp_with_kind` carries (us, tid, kind) of the Tx that
-        //! just committed; bit-layout matches NC::pack_stamp.
+        //! Updates the per-kind timestamp slot, and refreshes the
+        //! period EMA on any kind-change event (= this op's kind
+        //! differs from the most-recently-recorded kind).
         template <class NC>
         void record_successful_op(typename NC::cnt_t stamp_with_kind) noexcept {
             const uint8_t my_kind =
                 (uint8_t)NC::stamp_kind(stamp_with_kind) & 0x3u;
-            // Filter to B/U only — drop NONE / MultiNodalCommit.
-            if(my_kind != (uint8_t)detail::StampKind::BUNDLE
-               && my_kind != (uint8_t)detail::StampKind::UNBUNDLE) {
-                return;
-            }
+            const int my_shift = kind_slot_shift(my_kind);
+            if(my_shift < 0) return;  // NONE: skip
             const uint64_t old_fs = m_recent_ops_state.load(
                 std::memory_order_relaxed);
-            const uint64_t old_recent = (old_fs >> RSO_OPS_SHIFT) & RSO_OPS_MASK;
-            const uint8_t  last_kind  = (uint8_t)(old_recent & 0x3u);
-            uint64_t       last_flip_us = (old_fs >> RSO_LAST_FLIP_SHIFT)
-                                          & RSO_LAST_FLIP_MASK;
-            uint64_t       period_us  = (old_fs >> RSO_PERIOD_SHIFT)
-                                        & RSO_PERIOD_MASK;
-            const uint64_t now_us_low = (uint64_t)NC::stamp_us(stamp_with_kind)
-                                        & RSO_LAST_FLIP_MASK;
-            const bool kind_change = (old_fs != 0) && (last_kind != my_kind);
-            if(kind_change) {
-                uint64_t interval = (now_us_low - last_flip_us) & RSO_LAST_FLIP_MASK;
+            const uint8_t  prior_kind = (uint8_t)((old_fs >> RSO_LATEST_KIND_SHIFT)
+                                                   & RSO_LATEST_KIND_MASK);
+            const int prior_shift = kind_slot_shift(prior_kind);
+            uint64_t       period_us = (old_fs >> RSO_PERIOD_SHIFT) & RSO_PERIOD_MASK;
+            const uint64_t now_lo = (uint64_t)NC::stamp_us(stamp_with_kind)
+                                    & RSO_FIELD_MASK;
+            if(prior_kind != 0 && prior_kind != my_kind && prior_shift >= 0) {
+                // Kind change → update period EMA using interval since
+                // the prior kind's last timestamp.
+                const uint64_t prior_t = (old_fs >> prior_shift) & RSO_FIELD_MASK;
+                uint64_t interval = (now_lo - prior_t) & RSO_FIELD_MASK;
                 if(interval > RSO_PERIOD_MAX) interval = RSO_PERIOD_MAX;
                 period_us = (period_us == 0)
                             ? interval
                             : ((3 * period_us + interval) / 4);
-                last_flip_us = now_us_low;
-                NegSite::record_linkage_flip(last_kind, my_kind,
+                NegSite::record_linkage_flip(prior_kind, my_kind,
                                              (uint32_t)interval);
             }
-            // Shift history (always — same-kind ops still extend the
-            // history so the latest-kind slot reflects what just
-            // happened).  Oldest kind drops off the top.
-            const uint64_t new_recent =
-                ((old_recent << 2) | (uint64_t)my_kind) & RSO_OPS_MASK;
+            // Write the per-kind timestamp slot + latest_kind + period.
+            const uint64_t slot_mask    = RSO_FIELD_MASK     << my_shift;
+            const uint64_t period_mask  = RSO_PERIOD_MASK    << RSO_PERIOD_SHIFT;
+            const uint64_t latest_mask  = RSO_LATEST_KIND_MASK << RSO_LATEST_KIND_SHIFT;
             const uint64_t new_fs =
-                  (new_recent   << RSO_OPS_SHIFT)
-                | (last_flip_us << RSO_LAST_FLIP_SHIFT)
-                | (period_us    << RSO_PERIOD_SHIFT);
+                  (old_fs & ~slot_mask & ~period_mask & ~latest_mask)
+                | (now_lo            << my_shift)
+                | (period_us         << RSO_PERIOD_SHIFT)
+                | ((uint64_t)my_kind << RSO_LATEST_KIND_SHIFT);
             m_recent_ops_state.store(new_fs, std::memory_order_relaxed);
         }
 

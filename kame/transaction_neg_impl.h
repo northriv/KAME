@@ -875,20 +875,27 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         {
             using L = Linkage;
             const uint64_t fs = m_recent_ops_state.load(std::memory_order_relaxed);
-            const uint64_t fs_last_us =
-                (fs >> L::RSO_LAST_FLIP_SHIFT) & L::RSO_LAST_FLIP_MASK;
-            // Latest kind from recent_ops history (bits 0-1 of the
-            // 30-bit ops field).  This replaces the old
-            // tag-time slot kind read — flipped is now updated only at
-            // confirmed B/U publish, so its latest kind directly
-            // represents the last successfully-committed op on this
-            // Linkage.
-            const uint8_t fs_latest_kind =
-                (uint8_t)((fs >> L::RSO_OPS_SHIFT) & 0x3u);
+            const uint64_t last_B_us = (fs >> L::RSO_LAST_B_SHIFT) & L::RSO_FIELD_MASK;
+            const uint64_t last_U_us = (fs >> L::RSO_LAST_U_SHIFT) & L::RSO_FIELD_MASK;
+            const uint64_t last_C_us = (fs >> L::RSO_LAST_C_SHIFT) & L::RSO_FIELD_MASK;
+            const uint8_t  fs_latest_kind =
+                (uint8_t)((fs >> L::RSO_LATEST_KIND_SHIFT) & L::RSO_LATEST_KIND_MASK);
             const uint64_t now_lo =
-                (uint64_t)NegotiationCounter::now_us() & L::RSO_LAST_FLIP_MASK;
-            const uint64_t age =
-                (now_lo - fs_last_us) & L::RSO_LAST_FLIP_MASK;
+                (uint64_t)NegotiationCounter::now_us() & L::RSO_FIELD_MASK;
+            auto kind_age = [&](uint64_t t) -> uint64_t {
+                if(t == 0) return L::RSO_FIELD_MASK;  // never seen → max
+                return (now_lo - t) & L::RSO_FIELD_MASK;
+            };
+            const uint64_t age_B = kind_age(last_B_us);
+            const uint64_t age_U = kind_age(last_U_us);
+            const uint64_t age_C = kind_age(last_C_us);
+            // age = age of the most-recently-published kind (any of
+            // B/U/C) — keeps the spin trigger's "linkage activity"
+            // gate working.
+            uint64_t age = age_B;
+            if(age_U < age) age = age_U;
+            if(age_C < age) age = age_C;
+            (void)fs_latest_kind;  // used below in gate-return only
             NegSite::SpinOutcome outcome;
 #if KAME_COALESCE_MODE != 0
             // ===== (A) Kind-match coalesce ============================
@@ -1148,26 +1155,31 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         //
                         // Condition: we want to ride right after a
                         // B/U publish, so:
-                        //   - period > 0 (EMA established;
-                        //     pre-observation phase = abstain)
-                        //   - age < period / 2 (we are in the FIRST
-                        //     HALF of the typical inter-op window
-                        //     since the last publish → next op is
-                        //     statistically in the back half, still
-                        //     ahead of us → retry now to ride it).
-                        //     "後半に居るなら既に miss 直前" として
-                        //     諦め CV-sleep へ。
-                        //   - kind match (outer mk == 0 accepts any
-                        //     recent B/U; inner mk != 0 needs
-                        //     fs_latest_kind == mk)
-                        const uint64_t fs_period =
-                            (fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK;
-                        const bool fresh =
-                            fs_period > 0 && age < (fs_period / 2);
-                        const bool kind_ok =
-                              (mk == 0 && fs_latest_kind != 0)
-                           || (mk != 0 && fs_latest_kind == mk);
-                        if(fresh && kind_ok) {
+                        //   Per-kind age within KAME_KIND_RECENT_US:
+                        //   - outer (mk == 0): ANY kind seen recently
+                        //     (any of age_B, age_U, age_C below
+                        //     RECENT_US)
+                        //   - inner mk == B: age_B  < RECENT_US
+                        //   - inner mk == U: age_U  < RECENT_US
+                        //   - inner mk == C: age_C  < RECENT_US
+                        //   No period/2 condition — per-kind freshness
+                        //   replaces it.
+                        const uint64_t window = (uint64_t)KAME_KIND_RECENT_US;
+                        bool kind_ok;
+                        if(mk == 0) {
+                            kind_ok = (age_B < window)
+                                   || (age_U < window)
+                                   || (age_C < window);
+                        } else if(mk == (uint8_t)detail::StampKind::BUNDLE) {
+                            kind_ok = age_B < window;
+                        } else if(mk == (uint8_t)detail::StampKind::UNBUNDLE) {
+                            kind_ok = age_U < window;
+                        } else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) {
+                            kind_ok = age_C < window;
+                        } else {
+                            kind_ok = false;
+                        }
+                        if(kind_ok) {
                             NegSite::record_spin_event(
                                 NegSite::SpinOutcome::
                                   GATE_RETURN_SAMEKIND, 0);
