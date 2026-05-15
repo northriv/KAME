@@ -958,14 +958,15 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                   < effective_max_runners(C_obs)
 #endif
                ) {
-                const uint64_t fs_period_k4 =
-                    (fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK;
+                const uint64_t _tot_k4 = eff_B + eff_U + eff_C;
+                const uint64_t fs_period_k4 = (_tot_k4 > 0)
+                    ? (2u * (uint64_t)KAME_KIND_WINDOW_US / _tot_k4)
+                    : (uint64_t)KAME_KIND_WINDOW_US;
                 const uint64_t scaled_period =
                     fs_period_k4 * (uint64_t)KAME_COALESCE_BUDGET_PCT
                     / 100u;
                 const uint64_t budget =
-                    (fs_period_k4 > 0
-                     && scaled_period < (uint64_t)KAME_COALESCE_MAX_US)
+                    scaled_period < (uint64_t)KAME_COALESCE_MAX_US
                     ? scaled_period
                     : (uint64_t)KAME_COALESCE_MAX_US;
                 const uint64_t start_us =
@@ -1005,27 +1006,23 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 : NegSite::SpinOutcome::SKIPPED_COLD;
 #else
             // Require fs_period > 0 to spin (same rationale as path (B)).
-            if(fs == 0
-               || ((fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK) == 0) {
+            if(fs == 0 || (eff_B + eff_U + eff_C) == 0) {
                 outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
             } else if(my_kind == 0
                       || peer_kind != my_kind
                       || age > (uint64_t)KAME_COALESCE_RECENT_US) {
                 outcome = NegSite::SpinOutcome::SKIPPED_COLD;
-            } else if(((fs >> L::RSO_PERIOD_SHIFT)
-                       & L::RSO_PERIOD_MASK)
+            } else if((eff_B + eff_U + eff_C) > 0
+                      && (2u * (uint64_t)KAME_KIND_WINDOW_US
+                          / (eff_B + eff_U + eff_C))
                          * KAME_THRASHING_C_MULT_DEN
                          < (uint64_t)(sig_C * KAME_THRASHING_C_MULT)) {
-                // Over-thrashing: period (µs) shorter than 2 × thread
-                // count means even with a 2-period spin budget we'd
-                // still race more flips than we could catch.  Defer
-                // to negotiate_sleep.  (Bare sig_C is too conservative
-                // for BUBU rapid-alternation patterns where 1 period
-                // ≈ N µs is still spin-recoverable.)
                 outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
             } else {
-                const uint64_t fs_period =
-                    (fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK;
+                const uint64_t _tot_kn = eff_B + eff_U + eff_C;
+                const uint64_t fs_period = (_tot_kn > 0)
+                    ? (2u * (uint64_t)KAME_KIND_WINDOW_US / _tot_kn)
+                    : (uint64_t)KAME_KIND_WINDOW_US;
                 // Budget = min(fs_period * BUDGET_PCT / 100, MAX_US).
                 // Polled defaults to 100 % (one period; early-exit
                 // makes over-shooting cheap).  Override
@@ -1080,27 +1077,30 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             // kind-change is observed.  Spinning blindly (budget =
             // KAME_SPIN_MAX_US) while period is 0 wastes a lot of CPU
             // under high oversubscription and stalls the holder.
-            if(fs == 0
-               || ((fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK) == 0) {
+            if(fs == 0 || (eff_B + eff_U + eff_C) == 0) {
                 outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
             } else if(age > (uint64_t)KAME_SPIN_RECENT_FLIP_US) {
                 outcome = NegSite::SpinOutcome::SKIPPED_COLD;
-            } else if(((fs >> L::RSO_PERIOD_SHIFT)
-                       & L::RSO_PERIOD_MASK)
+            } else if((eff_B + eff_U + eff_C) > 0
+                      && (2u * (uint64_t)KAME_KIND_WINDOW_US
+                          / (eff_B + eff_U + eff_C))
                          * KAME_THRASHING_C_MULT_DEN
                          < (uint64_t)(sig_C * KAME_THRASHING_C_MULT)) {
-                // Over-thrashing: see (A) for rationale.
                 outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
             } else {
-                const uint64_t fs_period =
-                    (fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK;
-                // Legacy path is polled.  budget = min(fs_period *
-                // KAME_SPIN_BUDGET_PCT / 100, KAME_SPIN_MAX_US).
+                // Period = (2 windows) / total flip count.  Counts are
+                // filtered to true flips at record time (same-kind
+                // consecutive events skipped), so this is the mean
+                // inter-flip interval over the last 2 windows.
+                const uint64_t total_count = eff_B + eff_U + eff_C;
+                const uint64_t fs_period = (total_count > 0)
+                    ? (2u * (uint64_t)KAME_KIND_WINDOW_US / total_count)
+                    : (uint64_t)KAME_KIND_WINDOW_US;
+                // budget = min(fs_period * BUDGET_PCT/100, MAX_US).
                 const uint64_t period_cap =
                     (fs_period * (uint64_t)KAME_SPIN_BUDGET_PCT) / 100u;
                 const uint64_t budget =
-                    (fs_period > 0
-                     && period_cap < (uint64_t)KAME_SPIN_MAX_US)
+                    period_cap < (uint64_t)KAME_SPIN_MAX_US
                     ? period_cap
                     : (uint64_t)KAME_SPIN_MAX_US;
                 const uint64_t start_us =

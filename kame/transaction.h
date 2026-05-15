@@ -1218,6 +1218,13 @@ private:
         //!   delta == 0: cur is the live window, prev is one back.
         //!   delta == 1: cur is one back; prev is two back (= stale).
         //!   delta >= 2: both stale.
+        //!
+        //! Filter: same-kind consecutive events are NOT recorded.  This
+        //! way (count_B + count_U) equals the number of actual B/U
+        //! flips, and a reader can compute the inter-flip period at
+        //! read time as `(2 * WINDOW_US) / total_count` (factor 2 = cur
+        //! + prev windows).  The stored period field is therefore
+        //! removed; the 6 freed bits are reserved for future use.
         atomic<uint64_t> m_recent_ops_state;
         static constexpr int     RSO_CUR_B_SHIFT       = 0;
         static constexpr int     RSO_CUR_U_SHIFT       = 8;
@@ -1227,11 +1234,9 @@ private:
         static constexpr int     RSO_PREV_U_SHIFT      = 40;
         static constexpr int     RSO_PREV_C_SHIFT      = 48;
         static constexpr int     RSO_LATEST_KIND_SHIFT = 56;
-        static constexpr int     RSO_PERIOD_SHIFT      = 58;
+        // bits 58-63: free (6 bits).
         static constexpr uint64_t RSO_BYTE_MASK        = 0xFFULL;
         static constexpr uint64_t RSO_LATEST_KIND_MASK = 0x3ULL;
-        static constexpr uint64_t RSO_PERIOD_MASK      = 0x3FULL;  // 6 bits
-        static constexpr uint64_t RSO_PERIOD_MAX       = RSO_PERIOD_MASK;
 
         //! cur_count slot shift for a given StampKind.  NONE → -1.
         static constexpr int kind_cur_count_shift(uint8_t kind) noexcept {
@@ -1248,25 +1253,29 @@ private:
                   : -1;
         }
 
-        //! Record a successfully-published op.  Rotates windows on
-        //! wall-clock crossing into a new epoch; increments
+        //! Record a successfully-published op.  Filters out same-kind
+        //! consecutive events (so count == flip count); rotates
+        //! windows on wall-clock crossing; increments
         //! cur_count[my_kind] (saturating at 255).  Updates
-        //! latest_kind and (on kind change) the period EMA.
+        //! latest_kind.  Period is derived at read time as
+        //! `(2 * WINDOW_US) / total_count`.
         template <class NC>
         void record_successful_op(typename NC::cnt_t stamp_with_kind) noexcept {
             const uint8_t my_kind =
                 (uint8_t)NC::stamp_kind(stamp_with_kind) & 0x3u;
             const int my_cur_shift = kind_cur_count_shift(my_kind);
             if(my_cur_shift < 0) return;  // NONE: skip
-            const uint64_t now_us = (uint64_t)NC::stamp_us(stamp_with_kind);
-            const uint8_t  new_epoch = (uint8_t)((now_us / KAME_KIND_WINDOW_US) & 0xFFu);
             const uint64_t old_fs = m_recent_ops_state.load(
                 std::memory_order_relaxed);
-            const uint8_t  cur_epoch = (uint8_t)((old_fs >> RSO_CUR_EPOCH_SHIFT)
-                                                  & RSO_BYTE_MASK);
             const uint8_t  prior_kind = (uint8_t)((old_fs >> RSO_LATEST_KIND_SHIFT)
                                                    & RSO_LATEST_KIND_MASK);
-            uint64_t period_us_q = (old_fs >> RSO_PERIOD_SHIFT) & RSO_PERIOD_MASK;
+            // Same-kind consecutive filter — only true flips count.
+            // BBBB...UUUU sequence records as one B + one U event.
+            if(prior_kind == my_kind && old_fs != 0) return;
+            const uint64_t now_us = (uint64_t)NC::stamp_us(stamp_with_kind);
+            const uint8_t  new_epoch = (uint8_t)((now_us / KAME_KIND_WINDOW_US) & 0xFFu);
+            const uint8_t  cur_epoch = (uint8_t)((old_fs >> RSO_CUR_EPOCH_SHIFT)
+                                                  & RSO_BYTE_MASK);
 
             // Window-rotation logic.  Build the new (cur, prev) state
             // before reapplying the increment.
@@ -1306,19 +1315,9 @@ private:
                                                                   : &cur_C;
             if(*cur_slot < 255) ++(*cur_slot);
 
-            // Period EMA (6-bit, scale=4 ⇒ stored = µs/4).
-            if(prior_kind != 0 && prior_kind != my_kind) {
-                // Approximate interval since prior kind by 1 window
-                // (= KAME_KIND_WINDOW_US) — we don't store sub-window
-                // timestamps anymore.  Fold into the EMA at /4 scale.
-                uint64_t interval = (uint64_t)KAME_KIND_WINDOW_US;
-                uint64_t interval_q = interval / 4;
-                if(interval_q > RSO_PERIOD_MAX) interval_q = RSO_PERIOD_MAX;
-                period_us_q = (period_us_q == 0)
-                              ? interval_q
-                              : ((3 * period_us_q + interval_q) / 4);
-                NegSite::record_linkage_flip(prior_kind, my_kind,
-                                             (uint32_t)interval);
+            // Diagnostic only — flip count went to count slots.
+            if(prior_kind != 0) {
+                NegSite::record_linkage_flip(prior_kind, my_kind, 0);
             }
 
             const uint64_t new_fs =
@@ -1329,8 +1328,7 @@ private:
                 | (prev_B      << RSO_PREV_B_SHIFT)
                 | (prev_U      << RSO_PREV_U_SHIFT)
                 | (prev_C      << RSO_PREV_C_SHIFT)
-                | ((uint64_t)my_kind << RSO_LATEST_KIND_SHIFT)
-                | (period_us_q << RSO_PERIOD_SHIFT);
+                | ((uint64_t)my_kind << RSO_LATEST_KIND_SHIFT);
             m_recent_ops_state.store(new_fs, std::memory_order_relaxed);
         }
         struct PriorityState {
