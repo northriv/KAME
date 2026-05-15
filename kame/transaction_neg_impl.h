@@ -1144,6 +1144,21 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         const auto slot_ack =
                             m_transaction_started_time.load(
                                 std::memory_order_acquire);
+                        // Gate-return only when peer is observably
+                        // doing a B/U operation (kind == BUNDLE or
+                        // UNBUNDLE).  Active peers doing
+                        // MultiNodalCommit or NONE (no kind set yet)
+                        // do not yield a coalesce opportunity from
+                        // this snapshot's viewpoint — fall through
+                        // to CV-sleep instead.
+                        // Gate-return on any active peer.  Filtering
+                        // by kind (BUNDLE/UNBUNDLE-only, or
+                        // kind != NONE) was tested and consistently
+                        // regressed vs unrestricted on x86 4-core,
+                        // suggesting NONE-active peers (in their own
+                        // outer scope) usually transition to a real
+                        // op soon — waking on them yields a coalesce
+                        // opportunity for the immediate next attempt.
                         if(NegotiationCounter::is_active_stamp(slot_ack)) {
                             NegSite::record_spin_event(
                                 NegSite::SpinOutcome::
