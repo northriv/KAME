@@ -483,6 +483,19 @@
 #define KAME_KIND_COUNT_THRESHOLD 2
 #endif
 
+// Gate-return anti-phase backoff (per-thread).  After this many
+// consecutive gate-returns *without* an intervening CAS success on
+// any Linkage, the gate-return path is suppressed for
+// KAME_GATE_RETURN_SUPPRESS_US µs.  This breaks the
+// peer-anti-phase loop where retries keep racing into mid-commit
+// state and failing.
+#ifndef KAME_GATE_RETURN_FAIL_THRESHOLD
+#define KAME_GATE_RETURN_FAIL_THRESHOLD 3
+#endif
+#ifndef KAME_GATE_RETURN_SUPPRESS_US
+#define KAME_GATE_RETURN_SUPPRESS_US 100
+#endif
+
 // Slot release strategy.  When a Tx commits / cleans up, it currently
 // zero-stores its tag from each tagged Linkage's
 // m_transaction_started_time slot (drop_tags_n_privilege, line ~1747

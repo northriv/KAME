@@ -116,6 +116,9 @@ thread_local int s_sleep_nest = 0;
 thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 thread_local StampKind s_current_op_kind = StampKind::NONE;
+thread_local bool     s_last_gate_returned          = false;
+thread_local uint8_t  s_gate_return_fail_streak     = 0;
+thread_local uint64_t s_gate_return_suppress_until_us = 0;
 #if KAME_ENABLE_RUNNER_DIGEST
 thread_local RunnerDigest tls_runner_digest;
 #endif

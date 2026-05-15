@@ -1190,11 +1190,34 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         } else {
                             kind_ok = false;
                         }
-                        if(kind_ok) {
+                        // Anti-phase backoff: if previous gate-return
+                        // didn't lead to a CAS success (s_last_gate_returned
+                        // still true), increment the fail streak.  Above
+                        // threshold, suppress gate-return for a short
+                        // window — peer is in anti-phase, fall to
+                        // CV-sleep which naturally de-phases us.
+                        const uint64_t now_us =
+                            (uint64_t)NegotiationCounter::now_us();
+                        if(detail::s_last_gate_returned) {
+                            if(detail::s_gate_return_fail_streak < 255)
+                                ++detail::s_gate_return_fail_streak;
+                            if(detail::s_gate_return_fail_streak
+                               >= (uint8_t)KAME_GATE_RETURN_FAIL_THRESHOLD) {
+                                detail::s_gate_return_suppress_until_us =
+                                    now_us
+                                    + (uint64_t)KAME_GATE_RETURN_SUPPRESS_US;
+                                detail::s_gate_return_fail_streak = 0;
+                                detail::s_last_gate_returned = false;
+                            }
+                        }
+                        const bool suppressed =
+                            now_us < detail::s_gate_return_suppress_until_us;
+                        if(kind_ok && !suppressed) {
                             NegSite::record_spin_event(
                                 NegSite::SpinOutcome::
                                   GATE_RETURN_SAMEKIND, 0);
                             gate_returned = true;
+                            detail::s_last_gate_returned = true;
                         }
                     }
                 }
