@@ -299,21 +299,25 @@
 // --- Spin-for-same-kind / peer-progress path ------------------------
 
 // Hard cap on per-call spin time in µs.  The actual budget is
-// min(flip_period_us_ema, KAME_SPIN_MAX_US).
+// min(flip_period_us_ema * KAME_SPIN_BUDGET_PCT / 100, KAME_SPIN_MAX_US).
 //
-// Note: the generic peer-progress spin path (waits for ANY change to
-// m_transaction_started_time, regardless of peer kind) is structurally
-// bad when threads >> physical cores — spinners consume CPU that the
-// holder needs, so the spin time directly delays the holder.  Both
-// polled and blind variants of this path were benched on M4 and lost
-// at high N.  Default is therefore "spin OFF"
-// (KAME_SPIN_RECENT_FLIP_US=0); this cap only matters when spin is
-// explicitly opted in on x86/TSO with N ≲ physical cores.
+// History: the generic peer-progress spin (waits for ANY change to
+// m_transaction_started_time, regardless of peer kind) was previously
+// considered structurally bad at high N (spinners delay the holder).
+// Earlier sweeps with PCT=100 (1 period budget) and MAX=100 confirmed
+// this — all polled / blind variants lost at high N on M4 / M3 Air.
 //
-// A targeted same-kind coalesce spin (bundle→bundle, unbundle→unbundle)
-// is a separate, future code path — see paper §X.
+// The KAME_SPIN_BUDGET_PCT (period multiplier) and
+// KAME_THRASHING_C_MULT (over-thrashing guard) knobs added 2026-05
+// reshape the trade-off.  With a wide budget (PCT=600, ~6 periods)
+// AND thrashing-skip on a too-short period (period < sig_C * 2),
+// the spin path actually beats CV-sleep on both x86 4-core and M4.
+//
+// MAX=1000 (vs the old 100) accommodates the wider PCT — the cap now
+// only kicks in for Linkages with > ~1.6 ms observed period, which is
+// effectively never in steady-state contention.
 #ifndef KAME_SPIN_MAX_US
-#define KAME_SPIN_MAX_US 100
+#define KAME_SPIN_MAX_US 1000
 #endif
 
 // Age window (in µs) under which a Linkage is considered to have
@@ -326,14 +330,18 @@
 // The flip-state tracking (m_flip_state CAS on commit) still runs and
 // keeps the EMA period live for diagnostic use and future re-enablement.
 //
-// macOS M3 Air sweep (2026-05, LEGACY_GATING=0, DISABLE_LOTTERY=1):
-//   off (RECENT=0):  avg8 = 5 202 111  ← winner across all N/CR
-//   MAX=20..500:     avg8 = 4 933..5 049 k  (all lower)
-// With the spin-path architecture, the negotiate_sleep (yield for N≤2,
-// CV-sleep otherwise) outperforms spin on Apple Silicon.  x86 results
-// may differ; raise to e.g. 100–300 µs to re-enable on those platforms.
+// macOS M4 sweep (2026-05, MAX=1000 RECENT=1000 PCT=600 C_MULT=2):
+//   spin OFF (RECENT=0):       avg8 = 5 455 165  ← previous default
+//   spin ON  (RECENT=1000):    avg8 = 5 468 017  (+0.24%, new winner)
+// x86 4-core sweep (same config family): PCT=600 / 800 with C_MULT=2
+// were balanced winners across N=4 / 16 / 64.
+// Lower / higher RECENT values were measured indirectly — RECENT=1000
+// is wide enough that any contended call falls inside the window;
+// the SKIPPED_THRASHING guard (period < sig_C * C_MULT) handles the
+// case where spin would actually hurt (period too short for the
+// extended budget).
 #ifndef KAME_SPIN_RECENT_FLIP_US
-#define KAME_SPIN_RECENT_FLIP_US 0
+#define KAME_SPIN_RECENT_FLIP_US 1000
 #endif
 
 // --- Kind-match coalesce spin (experimental, opt-in) ---------------
@@ -422,10 +430,21 @@
 #endif
 
 // Same knob for the legacy any-change spin path
-// (KAME_SPIN_RECENT_FLIP_US > 0).  Always polled, so the 100 % default
-// matches the early-exit-friendly behaviour.
+// (KAME_SPIN_RECENT_FLIP_US > 0).  Always polled, so over-shooting is
+// cheap (early-exit on any slot change).
+//
+// macOS M4 sweep (2026-05, RECENT=1000 MAX=1000 C_MULT=2):
+//   PCT=300:  avg8 ≈ 5.40 M  (mild gain on x86 noise, loss on M4 3L)
+//   PCT=600:  avg8 = 5 468 017  ← winner (+0.24% vs spin OFF)
+//   PCT=800:  avg8 = 5 446 509  (essentially tied)
+//   PCT=1000: avg8 ≈ 5.40 M  (over-spin)
+// Same PCT family was the cross-platform winner on x86 4-core (the
+// long-period sweep that motivated the knob).  600 % = spin up to
+// 6× the observed flip period before yielding to CV-sleep; combined
+// with C_MULT=2 thrashing guard this turns out positive at all N on
+// M4 and on x86 4-core.
 #ifndef KAME_SPIN_BUDGET_PCT
-#define KAME_SPIN_BUDGET_PCT 100
+#define KAME_SPIN_BUDGET_PCT 600
 #endif
 
 // Over-thrashing detection multiplier for the SKIPPED_THRASHING gate.
