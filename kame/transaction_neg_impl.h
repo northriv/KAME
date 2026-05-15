@@ -1127,38 +1127,28 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                    || outcome == NegSite::SpinOutcome::SKIPPED_THRASHING) {
                     const uint8_t mk =
                         (uint8_t)detail::s_current_op_kind & 0x3u;
-                    if(mk != 0
+                    // ISOLATION EXPERIMENT: only fire gate-return at
+                    // the OUTER scope (mk == NONE) so we can measure
+                    // its effect alone.  Inner same-kind gate-return
+                    // is suppressed for this run.
+                    if(mk == 0
 #if KAME_STM_MAX_RUNNERS != 0
                        && NegotiationCounter::numThreadsRunning()
                           < effective_max_runners(C_obs)
 #endif
                        ) {
-                        // Cheap relaxed pre-check filters out obvious
-                        // non-matches.
-                        const auto slot =
+                        // Acquire-load slot once: synchronizes-with
+                        // holder's release-store on the slot so the
+                        // active bit reflects their latest published
+                        // state.
+                        const auto slot_ack =
                             m_transaction_started_time.load(
-                                std::memory_order_relaxed);
-                        const uint8_t pk =
-                            NegotiationCounter::stamp_kind(slot);
-                        if(slot && pk == mk) {
-                            // Acquire-confirm before committing to
-                            // gate-return; synchronizes-with the
-                            // holder's release-store on the slot so
-                            // the kind we are about to act on is
-                            // their latest published state.  Without
-                            // this, a B/U misread can drive a CAS
-                            // retry into a stale kind and storm.
-                            const auto slot_ack =
-                                m_transaction_started_time.load(
-                                    std::memory_order_acquire);
-                            if(slot_ack
-                               && NegotiationCounter::stamp_kind(
-                                      slot_ack) == mk) {
-                                NegSite::record_spin_event(
-                                    NegSite::SpinOutcome::
-                                      GATE_RETURN_SAMEKIND, 0);
-                                gate_returned = true;
-                            }
+                                std::memory_order_acquire);
+                        if(NegotiationCounter::is_active_stamp(slot_ack)) {
+                            NegSite::record_spin_event(
+                                NegSite::SpinOutcome::
+                                  GATE_RETURN_SAMEKIND, 0);
+                            gate_returned = true;
                         }
                     }
                 }
