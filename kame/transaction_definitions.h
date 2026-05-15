@@ -403,4 +403,29 @@
 #define KAME_COALESCE_RECENT_US 30
 #endif
 
+// Spin-budget scaling, expressed as a percentage of fs_period_us.
+// budget = min(fs_period * PCT / 100, KAME_COALESCE_MAX_US).
+//   100 = exactly one observed flip period (default for polled modes
+//         K1 / K2, which can early-exit so over-shooting is cheap)
+//    75 = 3/4 period (default for K4 blind; can't early-exit so a
+//         tighter budget caps the worst-case waste)
+//   200 = two periods (for x86 / wide-core sweeps where waiting two
+//         observed cycles further raises the same-kind-coalesce hit
+//         rate)
+// Set explicitly to override per-mode defaults.
+#ifndef KAME_COALESCE_BUDGET_PCT
+#  if KAME_COALESCE_MODE == 4
+#    define KAME_COALESCE_BUDGET_PCT 75
+#  else
+#    define KAME_COALESCE_BUDGET_PCT 100
+#  endif
+#endif
+
+// Same knob for the legacy any-change spin path
+// (KAME_SPIN_RECENT_FLIP_US > 0).  Always polled, so the 100 % default
+// matches the early-exit-friendly behaviour.
+#ifndef KAME_SPIN_BUDGET_PCT
+#define KAME_SPIN_BUDGET_PCT 100
+#endif
+
 #endif /* TRANSACTION_DEFINITIONS_H */

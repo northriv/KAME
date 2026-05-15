@@ -912,16 +912,14 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             } else {
                 const uint64_t fs_period =
                     (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
-                // Spin budget: max = fs_period (one observed flip cycle).
-                // Blind mode (K4) reduces to 3/4 × period — without
-                // early-exit, the full period would be wasted if peer
-                // takes the typical hold time; 3/4 catches the
-                // expectation slightly early while bounding waste.
-#if KAME_COALESCE_MODE == 4
-                const uint64_t period_cap = (fs_period * 3u) / 4u;
-#else
-                const uint64_t period_cap = fs_period;
-#endif
+                // Budget = min(fs_period * BUDGET_PCT / 100, MAX_US).
+                // Polled defaults to 100 % (one period; early-exit
+                // makes over-shooting cheap), blind defaults to 75 %
+                // (no early-exit so cap waste).  Override
+                // KAME_COALESCE_BUDGET_PCT to widen (e.g. 200 = 2
+                // periods on x86 to raise coalesce hit rate).
+                const uint64_t period_cap =
+                    (fs_period * (uint64_t)KAME_COALESCE_BUDGET_PCT) / 100u;
                 const uint64_t budget =
                     (fs_period > 0
                      && period_cap < (uint64_t)KAME_COALESCE_MAX_US)
@@ -984,12 +982,14 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             } else {
                 const uint64_t fs_period =
                     (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
-                // Legacy path is polled (no blind variant after POLL
-                // macro removal), so budget = full period.
+                // Legacy path is polled.  budget = min(fs_period *
+                // KAME_SPIN_BUDGET_PCT / 100, KAME_SPIN_MAX_US).
+                const uint64_t period_cap =
+                    (fs_period * (uint64_t)KAME_SPIN_BUDGET_PCT) / 100u;
                 const uint64_t budget =
                     (fs_period > 0
-                     && fs_period < (uint64_t)KAME_SPIN_MAX_US)
-                    ? fs_period
+                     && period_cap < (uint64_t)KAME_SPIN_MAX_US)
+                    ? period_cap
                     : (uint64_t)KAME_SPIN_MAX_US;
                 const uint64_t start_us =
                     (uint64_t)NegotiationCounter::now_us();
