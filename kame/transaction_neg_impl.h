@@ -1150,16 +1150,20 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         // B/U publish, so:
                         //   - period > 0 (EMA established;
                         //     pre-observation phase = abstain)
-                        //   - age < period (we are within one typical
-                        //     inter-op window since the last publish
-                        //     → another op is statistically due soon)
+                        //   - age < period / 2 (we are in the FIRST
+                        //     HALF of the typical inter-op window
+                        //     since the last publish → next op is
+                        //     statistically in the back half, still
+                        //     ahead of us → retry now to ride it).
+                        //     "後半に居るなら既に miss 直前" として
+                        //     諦め CV-sleep へ。
                         //   - kind match (outer mk == 0 accepts any
                         //     recent B/U; inner mk != 0 needs
                         //     fs_latest_kind == mk)
                         const uint64_t fs_period =
                             (fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK;
                         const bool fresh =
-                            fs_period > 0 && age < fs_period;
+                            fs_period > 0 && age < (fs_period / 2);
                         const bool kind_ok =
                               (mk == 0 && fs_latest_kind != 0)
                            || (mk != 0 && fs_latest_kind == mk);
