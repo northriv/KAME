@@ -26,7 +26,7 @@
 //
 // Out-of-class definitions of NegotiationCounter members and the full
 // negotiate_internal() body live in transaction_neg_impl.h.  Tuning
-// macros live in transaction_definitions.h.  Linkage::m_flip_state,
+// macros live in transaction_definitions.h.  Linkage::m_recent_ops_state,
 // NegSite, LivelockProbe, RunnerDigest are declared in transaction.h
 // (they're referenced from inline bodies in Snapshot/Linkage).
 //

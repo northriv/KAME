@@ -874,15 +874,21 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // (per-Linkage EMA period as proxy for typical scope hold time).
         {
             using L = Linkage;
-            const uint64_t fs = m_flip_state.load(std::memory_order_relaxed);
+            const uint64_t fs = m_recent_ops_state.load(std::memory_order_relaxed);
             const uint64_t fs_last_us =
-                (fs >> L::FLIP_LAST_US_SHIFT) & L::FLIP_LAST_US_MASK;
-            const uint64_t fs_ops_since =
-                (fs >> L::FLIP_OPS_SHIFT) & 0xFFu;
+                (fs >> L::RSO_LAST_US_SHIFT) & L::RSO_LAST_US_MASK;
+            // Latest kind from recent_ops history (bits 0-1 of the
+            // 30-bit ops field).  This replaces the old
+            // tag-time slot kind read — flipped is now updated only at
+            // confirmed B/U publish, so its latest kind directly
+            // represents the last successfully-committed op on this
+            // Linkage.
+            const uint8_t fs_latest_kind =
+                (uint8_t)((fs >> L::RSO_OPS_SHIFT) & 0x3u);
             const uint64_t now_lo =
-                (uint64_t)NegotiationCounter::now_us() & L::FLIP_LAST_US_MASK;
+                (uint64_t)NegotiationCounter::now_us() & L::RSO_LAST_US_MASK;
             const uint64_t age =
-                (now_lo - fs_last_us) & L::FLIP_LAST_US_MASK;
+                (now_lo - fs_last_us) & L::RSO_LAST_US_MASK;
             NegSite::SpinOutcome outcome;
 #if KAME_COALESCE_MODE != 0
             // ===== (A) Kind-match coalesce ============================
@@ -895,15 +901,15 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #if KAME_COALESCE_MODE == 4
             // ----- K4 flip-wait coalesce -----------------------------
             // Wait for the next commit on this Linkage by polling
-            // m_flip_state with acquire ordering, then judge whether
+            // m_recent_ops_state with acquire ordering, then judge whether
             // the post-commit slot kind matches ours.  Two reasons
             // this is preferable to slot-polling on ARM:
             //
-            //   1. m_flip_state is updated only on a *successful*
+            //   1. m_recent_ops_state is updated only on a *successful*
             //      commit (≪ slot CAS frequency), so polling it does
             //      not contend on the cache line that the holder's
             //      stlxr is actively writing.
-            //   2. Acquire on the flip-state load synchronizes-with
+            //   2. Acquire on the recent-ops-state load synchronizes-with
             //      the committing thread's release; the slot read
             //      that follows therefore observes a post-commit,
             //      coherent kind tag (no B/U misread).
@@ -932,7 +938,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #endif
                ) {
                 const uint64_t fs_period_k4 =
-                    (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
+                    (fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK;
                 const uint64_t scaled_period =
                     fs_period_k4 * (uint64_t)KAME_COALESCE_BUDGET_PCT
                     / 100u;
@@ -945,12 +951,12 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     (uint64_t)NegotiationCounter::now_us();
                 const uint64_t deadline = start_us + budget;
                 uint64_t fs_now = fs;     // initial (relaxed)
-                // Spin until flip-state advances or budget expires.
+                // Spin until recent-ops-state advances or budget expires.
                 while(fs_now == fs
                       && (uint64_t)NegotiationCounter::now_us()
                          < deadline) {
                     for(int i = 0; i < 16; ++i) pause4spin();
-                    fs_now = m_flip_state.load(
+                    fs_now = m_recent_ops_state.load(
                         std::memory_order_acquire);
                 }
                 if(fs_now != fs) {
@@ -977,17 +983,16 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 ? NegSite::SpinOutcome::SKIPPED_NO_PERIOD
                 : NegSite::SpinOutcome::SKIPPED_COLD;
 #else
-            if(fs == 0) {
+            // Require fs_period > 0 to spin (same rationale as path (B)).
+            if(fs == 0
+               || ((fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK) == 0) {
                 outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
             } else if(my_kind == 0
                       || peer_kind != my_kind
-                      || age > (uint64_t)KAME_COALESCE_RECENT_US
-                      || fs_ops_since >= (uint64_t)(sig_C * 8u)) {
+                      || age > (uint64_t)KAME_COALESCE_RECENT_US) {
                 outcome = NegSite::SpinOutcome::SKIPPED_COLD;
-            } else if(((fs >> L::FLIP_PERIOD_SHIFT)
-                       & L::FLIP_PERIOD_MASK) > 0
-                      && ((fs >> L::FLIP_PERIOD_SHIFT)
-                          & L::FLIP_PERIOD_MASK)
+            } else if(((fs >> L::RSO_PERIOD_SHIFT)
+                       & L::RSO_PERIOD_MASK)
                          * KAME_THRASHING_C_MULT_DEN
                          < (uint64_t)(sig_C * KAME_THRASHING_C_MULT)) {
                 // Over-thrashing: period (µs) shorter than 2 × thread
@@ -999,7 +1004,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
             } else {
                 const uint64_t fs_period =
-                    (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
+                    (fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK;
                 // Budget = min(fs_period * BUDGET_PCT / 100, MAX_US).
                 // Polled defaults to 100 % (one period; early-exit
                 // makes over-shooting cheap).  Override
@@ -1049,22 +1054,25 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
 #endif // KAME_COALESCE_MODE == 4
 #else // KAME_COALESCE_MODE == 0
             // ===== (B) Legacy any-change spin =========================
-            if(fs == 0) {
+            // Require fs_period > 0 to spin: with write-on-publish
+            // semantics, period only builds up after the first
+            // kind-change is observed.  Spinning blindly (budget =
+            // KAME_SPIN_MAX_US) while period is 0 wastes a lot of CPU
+            // under high oversubscription and stalls the holder.
+            if(fs == 0
+               || ((fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK) == 0) {
                 outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
-            } else if(age > (uint64_t)KAME_SPIN_RECENT_FLIP_US
-                      || fs_ops_since >= (uint64_t)(sig_C * 8u)) {
+            } else if(age > (uint64_t)KAME_SPIN_RECENT_FLIP_US) {
                 outcome = NegSite::SpinOutcome::SKIPPED_COLD;
-            } else if(((fs >> L::FLIP_PERIOD_SHIFT)
-                       & L::FLIP_PERIOD_MASK) > 0
-                      && ((fs >> L::FLIP_PERIOD_SHIFT)
-                          & L::FLIP_PERIOD_MASK)
+            } else if(((fs >> L::RSO_PERIOD_SHIFT)
+                       & L::RSO_PERIOD_MASK)
                          * KAME_THRASHING_C_MULT_DEN
                          < (uint64_t)(sig_C * KAME_THRASHING_C_MULT)) {
                 // Over-thrashing: see (A) for rationale.
                 outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
             } else {
                 const uint64_t fs_period =
-                    (fs >> L::FLIP_PERIOD_SHIFT) & L::FLIP_PERIOD_MASK;
+                    (fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK;
                 // Legacy path is polled.  budget = min(fs_period *
                 // KAME_SPIN_BUDGET_PCT / 100, KAME_SPIN_MAX_US).
                 const uint64_t period_cap =
@@ -1127,39 +1135,35 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                    || outcome == NegSite::SpinOutcome::SKIPPED_THRASHING) {
                     const uint8_t mk =
                         (uint8_t)detail::s_current_op_kind & 0x3u;
-                    // ISOLATION EXPERIMENT: only fire gate-return at
-                    // the OUTER scope (mk == NONE) so we can measure
-                    // its effect alone.  Inner same-kind gate-return
-                    // is suppressed for this run.
-                    if(mk == 0
+                    if(true
 #if KAME_STM_MAX_RUNNERS != 0
                        && NegotiationCounter::numThreadsRunning()
                           < effective_max_runners(C_obs)
 #endif
                        ) {
-                        // Acquire-load slot once: synchronizes-with
-                        // holder's release-store on the slot so the
-                        // active bit reflects their latest published
-                        // state.
-                        const auto slot_ack =
-                            m_transaction_started_time.load(
-                                std::memory_order_acquire);
-                        // Gate-return only when peer is observably
-                        // doing a B/U operation (kind == BUNDLE or
-                        // UNBUNDLE).  Active peers doing
-                        // MultiNodalCommit or NONE (no kind set yet)
-                        // do not yield a coalesce opportunity from
-                        // this snapshot's viewpoint — fall through
-                        // to CV-sleep instead.
-                        // Gate-return on any active peer.  Filtering
-                        // by kind (BUNDLE/UNBUNDLE-only, or
-                        // kind != NONE) was tested and consistently
-                        // regressed vs unrestricted on x86 4-core,
-                        // suggesting NONE-active peers (in their own
-                        // outer scope) usually transition to a real
-                        // op soon — waking on them yields a coalesce
-                        // opportunity for the immediate next attempt.
-                        if(NegotiationCounter::is_active_stamp(slot_ack)) {
+                        // Pure flipped-based gate-return.  Slot is no
+                        // longer consulted (its content = "an older
+                        // Tx tried to B/U and failed" — little value
+                        // for coalesce decisions).
+                        //
+                        // Condition: we want to ride right after a
+                        // B/U publish, so:
+                        //   - period > 0 (EMA established;
+                        //     pre-observation phase = abstain)
+                        //   - age < period (we are within one typical
+                        //     inter-op window since the last publish
+                        //     → another op is statistically due soon)
+                        //   - kind match (outer mk == 0 accepts any
+                        //     recent B/U; inner mk != 0 needs
+                        //     fs_latest_kind == mk)
+                        const uint64_t fs_period =
+                            (fs >> L::RSO_PERIOD_SHIFT) & L::RSO_PERIOD_MASK;
+                        const bool fresh =
+                            fs_period > 0 && age < fs_period;
+                        const bool kind_ok =
+                              (mk == 0 && fs_latest_kind != 0)
+                           || (mk != 0 && fs_latest_kind == mk);
+                        if(fresh && kind_ok) {
                             NegSite::record_spin_event(
                                 NegSite::SpinOutcome::
                                   GATE_RETURN_SAMEKIND, 0);

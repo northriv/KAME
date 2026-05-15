@@ -1117,7 +1117,7 @@ private:
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
             m_transaction_started_time(0),
             m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)),
-            m_flip_state(0) {}
+            m_recent_ops_state(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
 
@@ -1192,18 +1192,33 @@ private:
         //! existing tag-as-contender store, reads coalesce with the
         //! priority load on the fast path.  Relaxed atomic; CAS-free
         //! (last-writer wins, advisory).
-        atomic<uint64_t> m_flip_state;
-        // Bit-layout helpers (kept inline-friendly).
-        static constexpr int     FLIP_KIND_SHIFT     = 0;
-        static constexpr int     FLIP_TID_SHIFT      = 2;
-        static constexpr int     FLIP_OPS_SHIFT      = 8;
-        static constexpr int     FLIP_LAST_US_SHIFT  = 16;
-        static constexpr int     FLIP_PERIOD_SHIFT   = 38;
-        static constexpr int     FLIP_LAST_US_BITS   = 22;
-        static constexpr int     FLIP_PERIOD_BITS    = 12;
-        static constexpr uint64_t FLIP_LAST_US_MASK  = (1ULL << FLIP_LAST_US_BITS) - 1;
-        static constexpr uint64_t FLIP_PERIOD_MASK   = (1ULL << FLIP_PERIOD_BITS) - 1;
-        static constexpr uint64_t FLIP_PERIOD_MAX    = (1ULL << FLIP_PERIOD_BITS) - 1;
+        //! Recent-Successful-Ops log on this Linkage.
+        //!
+        //! Layout (64 bits):
+        //!   bits  0-29  recent_ops: 15 × 2-bit kinds, bits 0-1 are
+        //!               the most recent, bits 28-29 the 15th-most
+        //!               recent (oldest).
+        //!   bits 30-51  last_op_us  (22 bits): wall-clock low part
+        //!               of the most recent op.
+        //!   bits 52-63  period_us   (12 bits): EMA of inter-kind-change
+        //!               interval (= "thrash period" estimate).
+        //!
+        //! Written only at confirmed publish points (bundle Phase 4
+        //! with !missing, unbundle final CAS, ...) — not at
+        //! speculative tag time.  Each op shifts the history left by
+        //! 2 bits; the oldest kind drops off.
+        atomic<uint64_t> m_recent_ops_state;
+        static constexpr int     RSO_OPS_SHIFT     = 0;
+        static constexpr int     RSO_OPS_BITS      = 30;   // 15 × 2 bits
+        static constexpr int     RSO_LAST_US_SHIFT = 30;
+        static constexpr int     RSO_LAST_US_BITS  = 22;
+        static constexpr int     RSO_PERIOD_SHIFT  = 52;
+        static constexpr int     RSO_PERIOD_BITS   = 12;
+        static constexpr uint64_t RSO_OPS_MASK     = (1ULL << RSO_OPS_BITS) - 1;
+        static constexpr uint64_t RSO_LAST_US_MASK = (1ULL << RSO_LAST_US_BITS) - 1;
+        static constexpr uint64_t RSO_PERIOD_MASK  = (1ULL << RSO_PERIOD_BITS) - 1;
+        static constexpr uint64_t RSO_PERIOD_MAX   = RSO_PERIOD_MASK;
+        static constexpr int     RSO_HISTORY_LEN   = RSO_OPS_BITS / 2;  // = 15
 
         //! Record a successfully-published B/U event on this Linkage.
         //! Called from bundle's Phase 4 success (missing=false set) and
@@ -1218,41 +1233,36 @@ private:
         //! `stamp_with_kind` carries (us, tid, kind) of the Tx that
         //! just committed; bit-layout matches NC::pack_stamp.
         template <class NC>
-        void record_flip_event(typename NC::cnt_t stamp_with_kind) noexcept {
-            const uint64_t old_fs = m_flip_state.load(std::memory_order_relaxed);
-            const uint8_t  last_kind = (uint8_t)(old_fs & 0x3u);
-            const uint8_t  last_tid6 = (uint8_t)((old_fs >> FLIP_TID_SHIFT) & 0x3Fu);
-            const uint8_t  my_kind   = (uint8_t)NC::stamp_kind(stamp_with_kind) & 0x3u;
-            const uint8_t  my_tid6   = (uint8_t)(NC::stamp_tid(stamp_with_kind) & 0x3Fu);
-            uint8_t        ops_since = (uint8_t)((old_fs >> FLIP_OPS_SHIFT) & 0xFFu);
-            uint64_t       last_flip_us = (old_fs >> FLIP_LAST_US_SHIFT) & FLIP_LAST_US_MASK;
-            uint64_t       period_us    = (old_fs >> FLIP_PERIOD_SHIFT) & FLIP_PERIOD_MASK;
-            const bool contention_flip =
-                (old_fs != 0)
-                && (last_kind != my_kind)
-                && (last_tid6 != my_tid6);
+        void record_successful_op(typename NC::cnt_t stamp_with_kind) noexcept {
+            const uint64_t old_fs = m_recent_ops_state.load(
+                std::memory_order_relaxed);
+            const uint64_t old_recent = (old_fs >> RSO_OPS_SHIFT) & RSO_OPS_MASK;
+            const uint8_t  last_kind = (uint8_t)(old_recent & 0x3u);
+            const uint8_t  my_kind   =
+                (uint8_t)NC::stamp_kind(stamp_with_kind) & 0x3u;
+            uint64_t       last_op_us = (old_fs >> RSO_LAST_US_SHIFT) & RSO_LAST_US_MASK;
+            uint64_t       period_us  = (old_fs >> RSO_PERIOD_SHIFT)  & RSO_PERIOD_MASK;
             const uint64_t now_us_low = (uint64_t)NC::stamp_us(stamp_with_kind)
-                                        & FLIP_LAST_US_MASK;
-            if(contention_flip) {
-                ops_since = 0;
-                uint64_t interval = (now_us_low - last_flip_us) & FLIP_LAST_US_MASK;
-                if(interval > FLIP_PERIOD_MAX) interval = FLIP_PERIOD_MAX;
+                                        & RSO_LAST_US_MASK;
+            const bool kind_change = (old_fs != 0) && (last_kind != my_kind);
+            if(kind_change) {
+                uint64_t interval = (now_us_low - last_op_us) & RSO_LAST_US_MASK;
+                if(interval > RSO_PERIOD_MAX) interval = RSO_PERIOD_MAX;
                 period_us = (period_us == 0)
                             ? interval
                             : ((3 * period_us + interval) / 4);
-                last_flip_us = now_us_low;
                 NegSite::record_linkage_flip(last_kind, my_kind,
                                              (uint32_t)interval);
-            } else if(ops_since < 255) {
-                ++ops_since;
             }
+            // Shift left 2 bits, OR in new kind, mask to RSO_OPS_BITS.
+            // Newest kind at bits 0-1; oldest drops off the top.
+            const uint64_t new_recent =
+                ((old_recent << 2) | (uint64_t)my_kind) & RSO_OPS_MASK;
             const uint64_t new_fs =
-                  ((uint64_t)my_kind   << FLIP_KIND_SHIFT)
-                | ((uint64_t)my_tid6  << FLIP_TID_SHIFT)
-                | ((uint64_t)ops_since << FLIP_OPS_SHIFT)
-                | (last_flip_us       << FLIP_LAST_US_SHIFT)
-                | (period_us          << FLIP_PERIOD_SHIFT);
-            m_flip_state.store(new_fs, std::memory_order_relaxed);
+                  (new_recent  << RSO_OPS_SHIFT)
+                | (now_us_low  << RSO_LAST_US_SHIFT)
+                | (period_us   << RSO_PERIOD_SHIFT);
+            m_recent_ops_state.store(new_fs, std::memory_order_relaxed);
         }
 
         struct PriorityState {
@@ -1710,10 +1720,10 @@ public:
             if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
                 return;  // overwritten — don't add to list
 
-            // Per-Linkage flip detector (m_flip_state) is updated only
+            // Per-Linkage recent-ops log (m_recent_ops_state) is updated only
             // at confirmed publish points (bundle Phase 4 success with
             // !missing, unbundle final CAS success) via
-            // Linkage::record_flip_event.  Tag time (= here) is just
+            // Linkage::record_successful_op.  Tag time (= here) is just
             // an *intent* signal; recording it would mix speculative
             // tag events (retries, failures, snapshot's outer scope)
             // into the period EMA and pollute the gate-return signal.

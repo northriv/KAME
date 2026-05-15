@@ -327,7 +327,7 @@
 //
 // 0 = spin effectively disabled: condition (age > 0) is always true
 // for any real inter-call interval, so every call goes to SKIPPED_COLD.
-// The flip-state tracking (m_flip_state CAS on commit) still runs and
+// The recent-ops-state tracking (m_recent_ops_state CAS on commit) still runs and
 // keeps the EMA period live for diagnostic use and future re-enablement.
 //
 // macOS M4 sweep (2026-05, MAX=1000 RECENT=1000 PCT=600 C_MULT=2):
