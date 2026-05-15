@@ -679,7 +679,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             break; //This thread is the oldest.
         auto transaction_started_time =
             m_transaction_started_time.load(std::memory_order_acquire);
-        if( !transaction_started_time)
+        if( !NegotiationCounter::is_active_stamp(transaction_started_time))
             break; //collision has not been detected.
 
         auto dt2 = NegotiationCounter::diff_us_packed(

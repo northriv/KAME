@@ -898,6 +898,20 @@ private:
             return stamp & ~KIND_FIELD;
         }
 
+        //! Whether the stamp represents an active (currently-tagged) Tx
+        //! on its slot.  With KAME_SLOT_KEEP_KIND=0 (default), the slot
+        //! is zero-reset on release so `stamp != 0` is sufficient.  With
+        //! KAME_SLOT_KEEP_KIND=1, release leaves the kind bits behind
+        //! as a "last released kind" hint, so active-ness is defined
+        //! strictly by the us field.
+        static inline bool is_active_stamp(cnt_t stamp) noexcept {
+#if KAME_SLOT_KEEP_KIND
+            return stamp_us(stamp) != 0;
+#else
+            return stamp != 0;
+#endif
+        }
+
         //=====================================================================
         // Fair-mode escape API. State + accessors are owned by
         // NegotiationCounter; bodies live out-of-class in transaction_impl.h
@@ -1254,7 +1268,12 @@ private:
             // so we short-circuit when the collision marker is clear. The
             // relaxed load here is the same one negotiate_internal would
             // do first, so we pay no extra in the collision case either.
-            if( !m_transaction_started_time.load(std::memory_order_relaxed)) [[likely]]
+            // With KAME_SLOT_KEEP_KIND, a kind-only stamp (us=0) is still
+            // "no active tagger" — use is_active_stamp to filter on
+            // the us field rather than the full word.
+            if( !NegotiationCounter::is_active_stamp(
+                    m_transaction_started_time.load(std::memory_order_relaxed)))
+                [[likely]]
                 return;
             negotiate_internal(snap, mult_wait);
 #endif
@@ -1743,8 +1762,20 @@ public:
         // still has kind=NONE.
         const auto my_id = NC::strip_kind(m_started_time);
         for(auto &sp : m_tagged_linkages) {
-            if(NC::strip_kind(sp->m_transaction_started_time) == my_id)
+            if(NC::strip_kind(sp->m_transaction_started_time) == my_id) {
+#if KAME_SLOT_KEEP_KIND
+                // Preserve kind bits on release: the slot becomes
+                // "0 us + my_kind", a same-kind hint readable by
+                // subsequent gate-return checks on this Linkage
+                // (extends the coalesce window from "peer holding"
+                // to "peer just released with our kind").
+                sp->m_transaction_started_time =
+                    NC::with_kind((typename NC::cnt_t)0,
+                                  detail::s_current_op_kind);
+#else
                 sp->m_transaction_started_time = 0;
+#endif
+            }
         }
         // If we held the fair-mode privilege, release it on commit so the
         // global slot is available for the next stuck Tx. Reset the local
