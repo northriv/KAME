@@ -507,6 +507,10 @@ public:
         SKIPPED_SAME_KIND = 3,  // last_kind == my_kind (already aligned)
         WON               = 4,  // spin saw same kind / Linkage release
         TIMEOUT           = 5,  // spin budget expired
+        SKIPPED_THRASHING = 6,  // fs_period_us < sig_C (over-thrashing
+                                // regime — flips arrive faster than
+                                // thread round-robin, so even one-period
+                                // spin can't catch a stable window)
     };
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     DECLSPEC_KAME static void record_spin_event(SpinOutcome o,
