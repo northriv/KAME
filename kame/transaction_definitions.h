@@ -89,6 +89,24 @@
 #define KAME_ENABLE_SPIN_BAND_GATE 1
 #endif
 
+// Per-Linkage privilege overlay.  When ON (= 1, default), a Tx that
+// successfully claims the global fair-mode privilege also walks its
+// m_tagged_linkages and CAS-upgrades the kind field of each slot from
+// {NONE/BUNDLE/UNBUNDLE} to Reserved (= 3) — peers checking
+// `is_priv_stamp` on that Linkage will yield even after the global
+// slot has been preempted.  See "Plan A Step 2" commit on the branch.
+//
+// When OFF (= 0), the claim's per-Linkage CAS walk is compiled out and
+// `_fair_blocks` only considers the global slot — i.e. the C++ matches
+// the pre-Step-2 (global-only) behaviour.  Useful for A-B benches when
+// the per-Linkage overlay is suspected to add overhead without a
+// matching throughput gain on a given workload + hardware combination.
+//
+// Default: ON (= 1).  Disable with -DKAME_PER_LINKAGE_PRIVILEGE=0.
+#ifndef KAME_PER_LINKAGE_PRIVILEGE
+#define KAME_PER_LINKAGE_PRIVILEGE 1
+#endif
+
 // --- Compile-time tuning knobs for the adaptive-negotiate backoff ---
 
 // Half-range of the jittered gate in percent; must be ≥1 (0 causes

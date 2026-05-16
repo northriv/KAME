@@ -893,6 +893,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             // — the global slot still backs us up.  drop_tags_n_privilege
             // clears these stamps via strip_kind, so no explicit
             // per-Linkage release is needed.
+            //
+            // Compile out when KAME_PER_LINKAGE_PRIVILEGE=0 — the
+            // global slot then handles the entire fair-mode escape
+            // (= pre-Step-2 behaviour).
+#if KAME_PER_LINKAGE_PRIVILEGE
             const auto my_id = NegotiationCounter::strip_kind(snap.m_started_time);
             const auto my_priv = NegotiationCounter::with_kind(
                 snap.m_started_time, detail::StampKind::Reserved);
@@ -908,6 +913,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                         std::memory_order_relaxed);
                 }
             }
+#endif
         }
     }
 
@@ -1007,11 +1013,20 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // Linkage only — yields the CAS to the privileged peer without
         // needing the global slot to still match it (so disjoint
         // privileged Txs don't starve each other).
+        //
+        // Compile out the per-Linkage clause when
+        // KAME_PER_LINKAGE_PRIVILEGE=0 (claim side also compiled out
+        // — no kind=Reserved stamps ever observed).
+#if KAME_PER_LINKAGE_PRIVILEGE
         const bool _fair_blocks =
             NegotiationCounter::fair_mode_blocks_me(started_time)
             || (NegotiationCounter::is_priv_stamp(transaction_started_time)
                 && NegotiationCounter::strip_kind(transaction_started_time)
                    != NegotiationCounter::strip_kind(started_time));
+#else
+        const bool _fair_blocks =
+            NegotiationCounter::fair_mode_blocks_me(started_time);
+#endif
 
         NegSite::last_was_gate_return() = false;
 #if KAME_LEGACY_GATING
