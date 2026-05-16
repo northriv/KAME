@@ -881,6 +881,34 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             // step-1 behaviour (my_kind != NONE → gate-return) is the
             // initial / post-privilege resting state, and NORMAL
             // engages only via the streak+time path below.
+            //
+            // Per-Linkage privilege overlay (Step 2 of plan A):
+            // stamp `StampKind::Reserved` on every linkage in our
+            // tagged set whose slot still holds our (us, tid)
+            // identity.  Peers reading those slots in their own
+            // negotiate_internal will detect `is_priv_stamp` and
+            // yield (CV-sleep) just like they would for the global
+            // fair-mode flag.  Localising the yield to the linkages
+            // we actually hold avoids penalising unrelated disjoint
+            // Txs.  Failures (slot moved on while we CAS) are silent
+            // — the global slot still backs us up.  drop_tags_n_privilege
+            // clears these stamps via strip_kind, so no explicit
+            // per-Linkage release is needed.
+            const auto my_id = NegotiationCounter::strip_kind(snap.m_started_time);
+            const auto my_priv = NegotiationCounter::with_kind(
+                snap.m_started_time, detail::StampKind::Reserved);
+            for (auto &l : snap.m_tagged_linkages) {
+                if (!l) continue;
+                auto cur = l->m_transaction_started_time.load(
+                    std::memory_order_relaxed);
+                if (cur != 0
+                    && NegotiationCounter::strip_kind(cur) == my_id) {
+                    l->m_transaction_started_time.compare_exchange_strong(
+                        cur, my_priv,
+                        std::memory_order_release,
+                        std::memory_order_relaxed);
+                }
+            }
         }
     }
 
@@ -971,7 +999,20 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // privileged Tx alone gets to commit. Strict Greedy CM (older
         // started_time wins → I sleep below) is the only mechanism left
         // to allocate priority while fair-mode is active.
-        const bool _fair_blocks = NegotiationCounter::fair_mode_blocks_me(started_time);
+        //
+        // Per-Linkage privilege overlay (Step 2 of plan A): in addition
+        // to the global `s_privileged_tidstamp`, the peer holding this
+        // Linkage's slot may carry a stamp with kind = Reserved (set by
+        // a Tx that successfully claimed global privilege and walked
+        // its tagged-linkages list).  Treat that as fair-mode for THIS
+        // Linkage only — yields the CAS to the privileged peer without
+        // needing the global slot to still match it (so disjoint
+        // privileged Txs don't starve each other).
+        const bool _fair_blocks =
+            NegotiationCounter::fair_mode_blocks_me(started_time)
+            || (NegotiationCounter::is_priv_stamp(transaction_started_time)
+                && NegotiationCounter::strip_kind(transaction_started_time)
+                   != NegotiationCounter::strip_kind(started_time));
 
         NegSite::last_was_gate_return() = false;
 #if KAME_LEGACY_GATING

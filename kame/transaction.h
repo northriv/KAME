@@ -901,6 +901,16 @@ private:
         static inline uint16_t stamp_tid(cnt_t x) noexcept {
             return (uint16_t)((uint64_t)x >> STAMP_TID_SHIFT);
         }
+        //! True iff `x` is a stamp whose kind field is `Reserved` (=3),
+        //! repurposed as the per-Linkage privilege flag — set by a Tx
+        //! that has acquired global fair-mode privilege on every
+        //! Linkage it has tagged.  Peers seeing a Privileged stamp on
+        //! a Linkage they want to commit to should yield (CV-sleep)
+        //! instead of fighting for the CAS, even when the global
+        //! `s_privileged_tidstamp` slot has cycled away.
+        static inline bool is_priv_stamp(cnt_t x) noexcept {
+            return stamp_kind(x) == (uint8_t)detail::StampKind::Reserved;
+        }
         //! Modular µs difference: returns (now - past) mod 2^STAMP_US_BITS,
         //! interpreted as elapsed µs.  Inputs may be raw `now_us()` (64-bit)
         //! or already-masked stamps; correct as long as the true elapsed
