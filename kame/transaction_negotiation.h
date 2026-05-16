@@ -334,9 +334,9 @@ public:
         (void)NegSite::auto_merge_stats();
 #endif
         if(retry < 0)
-            m_link->negotiate(snap, mult_wait);  // always negotiate, no retry_pause
+            _negotiate();   // always negotiate, no retry_pause
         else
-            m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+            _negotiate_after_retry_pause(retry);
         _capture_gate_return();
 #if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
@@ -444,9 +444,9 @@ public:
 #endif
         if(with_negotiate) {
             if(retry < 0)
-                m_link->negotiate(snap, mult_wait);
+                _negotiate();
             else
-                m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+                _negotiate_after_retry_pause(retry);
         }
         _capture_gate_return();
 #if KAME_ENABLE_RUNNER_DIGEST
@@ -497,9 +497,9 @@ public:
 #endif
         if(with_negotiate) {
             if(retry < 0)
-                m_link->negotiate(snap, mult_wait);
+                _negotiate();
             else
-                m_link->negotiate_after_retry_pause(retry, snap, mult_wait);
+                _negotiate_after_retry_pause(retry);
         }
         _capture_gate_return();
 #if KAME_ENABLE_RUNNER_DIGEST
@@ -857,6 +857,24 @@ private:
 #endif
         m_was_gate_return = false;
     }
+
+    //! Adaptive backoff entry point — replaces the former
+    //! `Linkage::negotiate()` inline.  Loads m_link's collision marker
+    //! and short-circuits the call when no peer Tx has tagged this
+    //! Linkage; otherwise delegates to `_negotiate_internal()`.
+    void _negotiate() noexcept;
+
+    //! Replaces `Linkage::negotiate_after_retry_pause(retry, snap, mult_wait)`.
+    //! `retry==0` fast-paths out unless fair-mode privilege blocks
+    //! this Tx; otherwise issues `retry_pause(retry)` then `_negotiate()`.
+    void _negotiate_after_retry_pause(int retry) noexcept;
+
+    //! Body of the priority-based adaptive backoff loop.  Moved from
+    //! `Linkage::negotiate_internal` into this scope so that per-scope
+    //! state (m_snap, m_mult_wait, m_link, m_site_state) is accessed
+    //! directly instead of being threaded through arguments.  See the
+    //! header comment on the definition for the algorithm details.
+    void _negotiate_internal() noexcept;
 public:
 
     //! Manual commit override.  Use when (a) the CAS happened in a
@@ -936,7 +954,7 @@ public:
             if(m_contention_observed) {
                 uintptr_t rcnt_added = 0;
                 while( !m_view.try_release_single_attempt(rcnt_added)) {
-                    m_link->negotiate(*m_snap, m_mult_wait);
+                    _negotiate();
                 }
             }
         }

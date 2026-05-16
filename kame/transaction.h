@@ -1425,33 +1425,6 @@ private:
             return false;
         }
 
-        //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
-        //! \a tid_bitset accumulates observed committer TIDs (via the Linkage's
-        //! m_priority_state.tid field) over the lifetime of the calling transaction.
-        //! negotiate_internal() uses its popcount C to scale the backoff jitter
-        //! range as √C.
-        void negotiate(Snapshot<XN> &snap,
-                       float mult_wait) noexcept {
-#if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
-            (void)snap; (void)mult_wait;
-            return;
-#else
-            // Fast path for the common "no collision" case. An extra
-            // atomic_shared_ptr load plus an out-of-line call inside
-            // negotiate_internal is measurable in low-contention workloads,
-            // so we short-circuit when the collision marker is clear. The
-            // relaxed load here is the same one negotiate_internal would
-            // do first, so we pay no extra in the collision case either.
-            // With KAME_SLOT_KEEP_KIND, a kind-only stamp (us=0) is still
-            // "no active tagger" — use is_active_stamp to filter on
-            // the us field rather than the full word.
-            if( !NegotiationCounter::is_active_stamp(
-                    m_transaction_started_time.load(std::memory_order_relaxed)))
-                [[likely]]
-                return;
-            negotiate_internal(snap, mult_wait);
-#endif
-        }
         void tags_successful_cas(typename NegotiationCounter::cnt_t started_time = {}) noexcept {
 #if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
             (void)started_time;
@@ -1490,19 +1463,12 @@ private:
             }
 #endif
         }
-        //! Unified retry-loop backoff helper. Called once per retry (retry > 0)
-        //! at the top of each CAS-retry loop (commit/snapshot/bundle/bundle-child).
-        //! Always issues retry_pause (CPU-side pause spins, count ∝ retry);
-        //! at retry ≥ NEGOTIATE_THRESHOLD also engages sleep-based negotiate()
-        //! so the contender gets priority escalation that pure spin cannot give.
-        //! GDB-sampling on 32-thread 3level stress showed ~52% of time in
-        //! bundle()'s outer retry, which previously had only retry_pause and
-        //! no negotiate between Phase 3 failure and the next Phase 1 attempt.
-        void negotiate_after_retry_pause(int retry,
-                                         Snapshot<XN> &snap,
-                                         float mult_wait) noexcept;
-        void negotiate_internal(Snapshot<XN> &snap,
-                                float mult_wait) noexcept;
+        // Adaptive-backoff entry points (negotiate / negotiate_after_retry_pause /
+        // negotiate_internal) were moved into ScopedNegotiateLinkage so that
+        // their bodies access per-scope state (m_snap, m_mult_wait, m_link,
+        // m_site_state) directly instead of being threaded through arguments.
+        // See ScopedNegotiateLinkage<XN>::_negotiate / _negotiate_after_retry_pause /
+        // _negotiate_internal in transaction_negotiation.h + transaction_neg_impl.h.
 
     };
 

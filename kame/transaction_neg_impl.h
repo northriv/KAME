@@ -382,6 +382,28 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
     }
 #endif // KAME_STM_MIN_RUNNERS != 0 || KAME_STM_MAX_RUNNERS != 0
 
+// Fast-path adaptive-backoff entry point.  Short-circuits when no peer
+// Tx has tagged this Linkage; otherwise calls `_negotiate_internal()`.
+// The relaxed load on m_transaction_started_time is the same one
+// `_negotiate_internal` would do first, so the collision path pays no
+// extra.  With KAME_SLOT_KEEP_KIND, a kind-only stamp (us=0) is still
+// "no active tagger" — use is_active_stamp to filter on the us field
+// rather than the full word.
+template <class XN>
+void
+ScopedNegotiateLinkage<XN>::_negotiate() noexcept {
+#if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
+    return;
+#else
+    using NC = typename Node<XN>::NegotiationCounter;
+    if( !NC::is_active_stamp(
+            m_link->m_transaction_started_time.load(std::memory_order_relaxed)))
+        [[likely]]
+        return;
+    _negotiate_internal();
+#endif
+}
+
 // Unified retry-loop backoff: always call retry_pause + negotiate.
 // retry==0 → fast-path return UNLESS another Tx currently holds the
 // fair-mode privileged slot. The yield is part of the livelock-free
@@ -390,15 +412,13 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
 // retry>0 always runs retry_pause + negotiate.
 template <class XN>
 void
-Node<XN>::Linkage::negotiate_after_retry_pause(
-    int retry,
-    Snapshot<XN> &snap,
-    float mult_wait) noexcept {
+ScopedNegotiateLinkage<XN>::_negotiate_after_retry_pause(int retry) noexcept {
+    using NC = typename Node<XN>::NegotiationCounter;
     if(retry == 0
-        && !NegotiationCounter::fair_mode_blocks_me(snap.m_started_time))
+        && !NC::fair_mode_blocks_me(m_snap->m_started_time))
         [[likely]] return;  // fast path; zero-overhead steady state
     retry_pause(retry);
-    negotiate(snap, mult_wait);
+    _negotiate();
 }
 
 // KAME_LEASE_US_MIN / KAME_LEASE_US_MAX live in transaction_definitions.h.
@@ -455,8 +475,12 @@ thread_local uint32_t s_adapt_skip_per1k        = 0;  // skip_hits/calls × 1000
 //=============================================================================
 template <class XN>
 void
-Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
-                                      float mult_wait) noexcept {
+ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
+    using NegotiationCounter = typename Node<XN>::NegotiationCounter;
+    using Linkage = typename Node<XN>::Linkage;
+    Linkage *const self = m_link.get();
+    Snapshot<XN> &snap = *m_snap;
+    const float mult_wait = m_mult_wait;
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
     // Single now_us() snapshot: livelock-probe window, livelock age and
@@ -504,9 +528,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // `entry_pr` was read once at function entry; the probe maps it
         // to retry-threshold / label internally.
         bool _ll_saw = NegotiationCounter::livelock_probe_tx_tick(
-            static_cast<const void*>(this),
+            static_cast<const void*>(self),
             snap.m_tx_retry_count,
-            m_tx_commit_count,
+            self->m_tx_commit_count,
             _ll_owned, _ll_total, sig_C, _ll_age_us,
             entry_pr);
         // Fair-mode escape: when verdict=LIVELOCK fires for this Tx, the
@@ -536,12 +560,12 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     // escape (s_privileged_tidstamp). See top of detail:: in this file.
   { // adaptive-path scope
     // One atomic load of the packed (tid | lease_us | start_us) tuple.
-    auto ps = loadPriority();
+    auto ps = self->loadPriority();
     if(ps.tid) {
         tid_bitset.observe((unsigned)ps.tid);
     }
     typename NegotiationCounter::cnt_t transaction_started_time =
-        m_transaction_started_time.load(std::memory_order_relaxed);
+        self->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !transaction_started_time)
         return; //collision has not been detected.
     // LOWEST and UI_DEFERRABLE explicitly tolerate yielding, so skip
@@ -597,9 +621,9 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
     }
     int delta = (int)new_lease_us - (int)ps.lease_us;
     if(delta >= (int)KAME_LEASE_QWRITE_US || delta <= -(int)KAME_LEASE_QWRITE_US) {
-        PriorityState drifted = ps;
+        typename Linkage::PriorityState drifted = ps;
         drifted.lease_us = new_lease_us;
-        storePriority(drifted);
+        self->storePriority(drifted);
         ps.lease_us = new_lease_us;
     }
 
@@ -678,7 +702,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         if(dt <= 0)
             break; //This thread is the oldest.
         auto transaction_started_time =
-            m_transaction_started_time.load(std::memory_order_acquire);
+            self->m_transaction_started_time.load(std::memory_order_acquire);
         if( !NegotiationCounter::is_active_stamp(transaction_started_time))
             break; //collision has not been detected.
 
@@ -837,7 +861,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
             fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
-            fprintf(stderr, "for BP@%p\n", this);
+            fprintf(stderr, "for BP@%p\n", (void*)self);
             ms = 5000;
         }
 
@@ -855,7 +879,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
         // out at record time, so count == flip count).
         {
             using L = Linkage;
-            const uint64_t fs = m_recent_ops_state.load(std::memory_order_relaxed);
+            const uint64_t fs = self->m_recent_ops_state.load(std::memory_order_relaxed);
             // Decode windowed per-kind counts.  Apply rotation logic
             // at READ time so the stored state isn't perturbed.
             const uint64_t now_us_full =
@@ -986,7 +1010,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 bool won = false;
                 do {
                     for(int i = 0; i < 16; ++i) pause4spin();
-                    auto ro = m_recent_ops_state.load(
+                    auto ro = self->m_recent_ops_state.load(
                         std::memory_order_relaxed);
                     if(ro != initial_ro) { won = true; break; }
                 } while((uint64_t)NegotiationCounter::now_us() < deadline);
