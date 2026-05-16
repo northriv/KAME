@@ -723,7 +723,7 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
         // if(ro != initial_ro) {
         if( !is_ro_unbundle || (ro_kind == mk)) {
             //Not unbundled or my kind is unbundling.
-            if((end_us - ro_timestamp - ro_timelimit) & L::RSO_LATEST_TIMESTAMP_MASK > L::RSO_LATEST_TIMESTAMP_MASK / 2) {
+            if(((end_us - ro_timestamp - ro_timelimit) & L::RSO_LATEST_TIMESTAMP_MASK) > L::RSO_LATEST_TIMESTAMP_MASK / 2) {
                 won = true;
                 break;
             }
