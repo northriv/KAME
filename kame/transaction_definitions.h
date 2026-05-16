@@ -320,29 +320,13 @@
 #define KAME_SPIN_MAX_US 1000
 #endif
 
-// Age window (in µs) under which a Linkage is considered to have
-// "recently flipped" — drives the spin-entry decision as a wall-clock
-// alternative to ops_since_flip (which saturates quickly under heavy
-// tag activity).
-//
-// 0 = spin effectively disabled: condition (age > 0) is always true
-// for any real inter-call interval, so every call goes to SKIPPED_COLD.
-// The recent-ops-state tracking (m_recent_ops_state CAS on commit) still runs and
-// keeps the EMA period live for diagnostic use and future re-enablement.
-//
-// macOS M4 sweep (2026-05, MAX=1000 RECENT=1000 PCT=600 C_MULT=2):
-//   spin OFF (RECENT=0):       avg8 = 5 455 165  ← previous default
-//   spin ON  (RECENT=1000):    avg8 = 5 468 017  (+0.24%, new winner)
-// x86 4-core sweep (same config family): PCT=600 / 800 with C_MULT=2
-// were balanced winners across N=4 / 16 / 64.
-// Lower / higher RECENT values were measured indirectly — RECENT=1000
-// is wide enough that any contended call falls inside the window;
-// the SKIPPED_THRASHING guard (period < sig_C * C_MULT) handles the
-// case where spin would actually hurt (period too short for the
-// extended budget).
-#ifndef KAME_SPIN_RECENT_FLIP_US
-#define KAME_SPIN_RECENT_FLIP_US 1000
-#endif
+// (Retired) KAME_SPIN_RECENT_FLIP_US — used to gate the spin block
+// via `age > RECENT` SKIPPED_COLD outcome.  Removed when the
+// unified PRE-spin band gate replaced the age check: spin entry is
+// now decided by the per-kind count in the [LOW, HIGH] window
+// (m_recent_ops_state), not by a wall-clock age.  Macro kept here
+// solely so legacy -D flags don't error; it has no effect on
+// behaviour.
 
 // --- Kind-match coalesce spin (experimental, opt-in) ---------------
 //
