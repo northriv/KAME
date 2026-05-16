@@ -475,37 +475,40 @@
 #define KAME_KIND_WINDOW_US 256
 #endif
 
-// Minimum aggregate count (over cur + prev windows) of recent same-
-// kind B/U/C publish events needed to trigger gate-return.  1 = "any
-// recent event"; 2 = "at least two in window" (the user's intuition
-// "周期的であることを確認" — confirm periodicity, not just one-off).
+// Gate-return fires only when the per-kind count (summed over the
+// cur + prev windows of m_recent_ops_state) falls within the
+// sweet-spot band [LOW, HIGH]:
+//
+//   below LOW   →  not enough evidence the workload is periodic
+//                  (= count < threshold semantics from before)
+//   in [LOW,HIGH]→  good periodic signal; gate-return safe
+//   above HIGH  →  HYPER-thrashing; peer is changing too fast for
+//                  our CAS retry to land — fall to CV-sleep,
+//                  which naturally de-phases us
+//
+// The HIGH upper bound replaces the prior "raise the LOW threshold
+// on each anti-phase fail" tighten design — pushing LOW up at high
+// counts was exactly backwards (hyper-thrashing workloads have high
+// counts, and that's PRECISELY where we should NOT gate-return).
 #ifndef KAME_KIND_COUNT_THRESHOLD
 #define KAME_KIND_COUNT_THRESHOLD 2
 #endif
-
-// Gate-return adaptive tightening — replaces the prior streak-then-
-// suppress design.  On each detected fail (= previous gate-return
-// without intervening CAS success), Snapshot::m_gate_return_tighten
-// increments.  The tightening level controls two knobs:
-//
-//   freshness window:  period >> (1 + min(L, WINDOW_CAP_LEVELS))
-//     L=0 → window = period/2 (default, untightened)
-//     L=1 → period/4
-//     L=2 → period/8
-//     L=WINDOW_CAP_LEVELS → period/(2^(1+CAP)) (floor)
-//
-//   count threshold:   KAME_KIND_COUNT_THRESHOLD << max(0, L − CAP)
-//     L>CAP → threshold doubles per step (= require more flips
-//             to be confident the workload is periodic before
-//             firing gate-return)
-//
-// Reset to 0 on any CAS success (= peer's anti-phase resolved).
-// Saturates at KAME_GATE_RETURN_MAX_TIGHTEN.
-#ifndef KAME_GATE_RETURN_WINDOW_CAP_LEVELS
-#define KAME_GATE_RETURN_WINDOW_CAP_LEVELS 3
+#ifndef KAME_KIND_COUNT_HIGH
+#define KAME_KIND_COUNT_HIGH 32
 #endif
+
+// Adaptive band narrowing on anti-phase fails.  Each detected fail
+// (Snapshot::m_last_gate_returned still true at next gate-return
+// decision) increments m_gate_return_tighten, which RIGHT-SHIFTS the
+// effective HIGH bound:
+//
+//   effective_high = KAME_KIND_COUNT_HIGH >> tighten
+//
+// At tighten = log2(HIGH / LOW), the band collapses to [LOW, LOW] —
+// only an exact-count match fires; beyond, the gate is effectively
+// closed.  Reset to 0 on any CAS success.
 #ifndef KAME_GATE_RETURN_MAX_TIGHTEN
-#define KAME_GATE_RETURN_MAX_TIGHTEN 7
+#define KAME_GATE_RETURN_MAX_TIGHTEN 4
 #endif
 
 // Slot release strategy.  When a Tx commits / cleans up, it currently

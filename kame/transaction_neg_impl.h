@@ -1177,39 +1177,37 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         //   Counts are the sum over the current + prev
                         //   absolute-time windows (auto-decayed by
                         //   window rotation).
-                        // Adaptive anti-phase tighten: if previous
-                        // gate-return didn't lead to a CAS success
-                        // (m_last_gate_returned still true), increment
-                        // m_gate_return_tighten.  This progressively
-                        // raises the count threshold (T << L), making
-                        // gate-return harder to fire — protects
-                        // against repeated anti-phase racing.  On any
-                        // CAS success the tighten resets (see
-                        // ScopedNeg::_on_cas_success).
+                        // Adaptive anti-phase tighten — narrows the
+                        // HIGH bound on each detected fail (= previous
+                        // gate-return without intervening CAS success).
+                        // High count = hyper-thrashing; closing the
+                        // upper bound steers us away from that zone
+                        // toward CV-sleep, which de-phases naturally.
                         if(snap.m_last_gate_returned
                            && snap.m_gate_return_tighten
                               < (uint8_t)KAME_GATE_RETURN_MAX_TIGHTEN) {
                             ++snap.m_gate_return_tighten;
                         }
-                        // Reset latch — we'll re-set if we gate-return
-                        // again below.  This way each gate-return
-                        // requires fresh evidence (= subsequent CAS
-                        // success or another gate-return decision)
-                        // to influence the tighten level.
                         snap.m_last_gate_returned = false;
                         const uint8_t tighten =
                             snap.m_gate_return_tighten;
-                        const uint64_t thr =
-                            (uint64_t)KAME_KIND_COUNT_THRESHOLD << tighten;
+                        const uint64_t lo =
+                            (uint64_t)KAME_KIND_COUNT_THRESHOLD;
+                        uint64_t hi =
+                            (uint64_t)KAME_KIND_COUNT_HIGH >> tighten;
+                        if(hi < lo) hi = lo;  // band collapses to {LOW}
+                        auto in_band = [lo, hi](uint64_t c) {
+                            return c >= lo && c <= hi;
+                        };
                         bool kind_ok;
                         if(mk == 0) {
-                            kind_ok = (eff_B + eff_U + eff_C) >= thr;
+                            kind_ok = in_band(eff_B + eff_U + eff_C);
                         } else if(mk == (uint8_t)detail::StampKind::BUNDLE) {
-                            kind_ok = eff_B >= thr;
+                            kind_ok = in_band(eff_B);
                         } else if(mk == (uint8_t)detail::StampKind::UNBUNDLE) {
-                            kind_ok = eff_U >= thr;
+                            kind_ok = in_band(eff_U);
                         } else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) {
-                            kind_ok = eff_C >= thr;
+                            kind_ok = in_band(eff_C);
                         } else {
                             kind_ok = false;
                         }
