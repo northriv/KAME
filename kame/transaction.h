@@ -524,6 +524,45 @@ public:
     static void record_spin_event(SpinOutcome, uint32_t) noexcept {}
 #endif
 
+    //! Outcome tag for the gate-return count-band decision.  Captures
+    //! WHERE the observed flip count fell relative to the sweet-spot
+    //! band [LOW, effective_HIGH].  INSTRUMENT-only.
+    enum class BandOutcome : uint8_t {
+        BELOW_LOW   = 0,  // count < LOW           (no periodic evidence)
+        IN_BAND     = 1,  // LOW <= count <= HIGH  (gate-return fires)
+        ABOVE_HIGH  = 2,  // count > effective_HIGH (hyper-thrashing,
+                          // skipped to protect anti-phase)
+    };
+    //! Record a gate-return band decision keyed by (kind, outcome,
+    //! tighten level).  kind: 0=any/outer (mk=NONE), 1=B, 2=U, 3=C.
+    //! Aggregated as 4 × 3 × (MAX_TIGHTEN+1) counters by dump().
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    DECLSPEC_KAME static void record_band_event(uint8_t kind,
+                                                BandOutcome outcome,
+                                                uint8_t tighten) noexcept;
+#else
+    static void record_band_event(uint8_t, BandOutcome, uint8_t) noexcept {}
+#endif
+
+    //! Record gate-return outcome: "in time" (CAS succeeded soon
+    //! after the gate-return decision).  latency_us is the wall-clock
+    //! delta from the gate-return decision to the CAS success.  Bucketed
+    //! into a log-binned histogram.  my_kind: kind of the Tx that
+    //! issued the gate-return (1=B, 2=U, 3=C, 0=outer).
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    DECLSPEC_KAME static void record_gr_in_time(uint8_t my_kind,
+                                                uint32_t latency_us) noexcept;
+    //! Record gate-return outcome: "not in time" (no CAS success
+    //! before the next gate-return decision).  active_kind: the
+    //! currently-dominant kind on the Linkage (= which kind's count
+    //! is highest in the window — likely what peer is busy with).
+    DECLSPEC_KAME static void record_gr_not_in_time(uint8_t my_kind,
+                                                    uint8_t active_kind) noexcept;
+#else
+    static void record_gr_in_time(uint8_t, uint32_t) noexcept {}
+    static void record_gr_not_in_time(uint8_t, uint8_t) noexcept {}
+#endif
+
     NegSite() = delete;
     ~NegSite() = delete;
 };
@@ -1959,6 +1998,15 @@ protected:
     //   success.  Saturates at KAME_GATE_RETURN_MAX_TIGHTEN.
     bool     m_last_gate_returned = false;
     uint8_t  m_gate_return_tighten = 0;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    // INSTRUMENT: wall-clock (low 32 bits) at the most recent
+    // gate-return decision.  Read in ScopedNeg::_on_cas_success to
+    // compute the gate-return → CAS-success latency for the latency
+    // histogram.  Also: my_kind at the time of gate-return for the
+    // success/fail attribution.
+    uint32_t m_gate_return_time_us = 0;
+    uint8_t  m_gate_return_my_kind = 0;
+#endif
 
     Snapshot() = default;
 };

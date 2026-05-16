@@ -781,6 +781,18 @@ private:
         m_committed = true;
         // Adaptive anti-phase tighten: any CAS success means peer's
         // coalesce window is in sync — reset to default sensitivity.
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        // INSTRUMENT: if this CAS success follows a recent gate-return
+        // (m_last_gate_returned still true), record the latency.
+        if(m_snap->m_last_gate_returned) {
+            const uint32_t now_us =
+                (uint32_t)Node<XN>::NegotiationCounter::now_us();
+            const uint32_t latency =
+                now_us - m_snap->m_gate_return_time_us;
+            NegSite::record_gr_in_time(
+                m_snap->m_gate_return_my_kind, latency);
+        }
+#endif
         m_snap->m_last_gate_returned = false;
         m_snap->m_gate_return_tighten = 0;
 #if KAME_LEGACY_GATING

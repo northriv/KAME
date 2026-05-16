@@ -252,7 +252,52 @@ namespace {
 std::atomic<uint64_t> g_spin_count[8]{};
 std::atomic<uint64_t> g_spin_won_elapsed_us_sum{0};
 std::atomic<uint64_t> g_spin_timeout_elapsed_us_sum{0};
+// Gate-return band counters: [kind][outcome][tighten].
+// kind: 0=outer (mk=NONE) / 1=B / 2=U / 3=C
+// outcome: 0=BELOW_LOW / 1=IN_BAND / 2=ABOVE_HIGH
+// tighten: 0..7 (KAME_GATE_RETURN_MAX_TIGHTEN cap)
+std::atomic<uint64_t> g_band_count[4][3][8]{};
+// Gate-return outcome counters: in-time vs not-in-time.
+//   g_gr_in_time_hist[my_kind][bucket]: latency histogram on success
+//   g_gr_not_in_time[my_kind][active_kind]: who was busy when we failed
+std::atomic<uint64_t> g_gr_in_time_hist[4][8]{};
+std::atomic<uint64_t> g_gr_not_in_time[4][4]{};
+
+static inline unsigned gr_latency_bucket(uint32_t us) noexcept {
+    // Log2 buckets: 0=<1µs, 1=<2µs, 2=<4, 3=<8, 4=<16, 5=<32, 6=<64,
+    // 7=>=64µs.
+    if(us < 1)   return 0;
+    if(us < 2)   return 1;
+    if(us < 4)   return 2;
+    if(us < 8)   return 3;
+    if(us < 16)  return 4;
+    if(us < 32)  return 5;
+    if(us < 64)  return 6;
+    return 7;
+}
 } // anonymous namespace
+
+DECLSPEC_KAME void NegSite::record_band_event(uint8_t kind,
+                                              BandOutcome outcome,
+                                              uint8_t tighten) noexcept {
+    const unsigned ki = kind & 0x3u;
+    const unsigned oi = (unsigned)outcome & 0x3u;
+    const unsigned ti = tighten & 0x7u;
+    if(oi < 3)
+        g_band_count[ki][oi][ti].fetch_add(1, std::memory_order_relaxed);
+}
+
+DECLSPEC_KAME void NegSite::record_gr_in_time(uint8_t my_kind,
+                                              uint32_t latency_us) noexcept {
+    g_gr_in_time_hist[my_kind & 0x3u][gr_latency_bucket(latency_us)]
+        .fetch_add(1, std::memory_order_relaxed);
+}
+
+DECLSPEC_KAME void NegSite::record_gr_not_in_time(uint8_t my_kind,
+                                                  uint8_t active_kind) noexcept {
+    g_gr_not_in_time[my_kind & 0x3u][active_kind & 0x3u]
+        .fetch_add(1, std::memory_order_relaxed);
+}
 
 DECLSPEC_KAME void NegSite::record_spin_event(SpinOutcome o,
                                               uint32_t elapsed_us) noexcept {
@@ -460,6 +505,93 @@ DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
             if(tmo > 0)
                 std::fprintf(fp, "  avg_timeout_elapsed = %.1f us\n",
                              (double)tmo_us / (double)tmo);
+        }
+    }
+    // Gate-return diagnostics.
+    static const char *grKindLabel[4] = {"outer", "B", "U", "C"};
+    static const char *bandLabel[3] = {"below_low", "in_band", "above_hi"};
+    bool any_band = false;
+    for(int k = 0; k < 4 && !any_band; ++k)
+        for(int b = 0; b < 3 && !any_band; ++b)
+            for(int t = 0; t < 8 && !any_band; ++t)
+                if(g_band_count[k][b][t].load(std::memory_order_relaxed))
+                    any_band = true;
+    if(any_band) {
+        std::fprintf(fp, "[gate-return band]\n");
+        for(int k = 0; k < 4; ++k) {
+            for(int b = 0; b < 3; ++b) {
+                uint64_t sum = 0;
+                for(int t = 0; t < 8; ++t)
+                    sum += g_band_count[k][b][t].load(std::memory_order_relaxed);
+                if(sum == 0) continue;
+                std::fprintf(fp, "  %-6s %-10s : total=%9llu",
+                             grKindLabel[k], bandLabel[b],
+                             (unsigned long long)sum);
+                for(int t = 0; t < 8; ++t) {
+                    uint64_t c = g_band_count[k][b][t]
+                        .load(std::memory_order_relaxed);
+                    if(c > 0)
+                        std::fprintf(fp, " L%d=%llu", t,
+                                     (unsigned long long)c);
+                }
+                std::fprintf(fp, "\n");
+            }
+        }
+    }
+    // Gate-return in-time (post-gate-return CAS success) latency.
+    bool any_in_time = false;
+    for(int k = 0; k < 4 && !any_in_time; ++k)
+        for(int b = 0; b < 8 && !any_in_time; ++b)
+            if(g_gr_in_time_hist[k][b].load(std::memory_order_relaxed))
+                any_in_time = true;
+    if(any_in_time) {
+        static const char *latLabel[8] = {
+            "<1us", "<2us", "<4us", "<8us",
+            "<16us", "<32us", "<64us", ">=64us"
+        };
+        std::fprintf(fp, "[gate-return in-time latency]\n");
+        for(int k = 0; k < 4; ++k) {
+            uint64_t total = 0;
+            for(int b = 0; b < 8; ++b)
+                total += g_gr_in_time_hist[k][b]
+                    .load(std::memory_order_relaxed);
+            if(total == 0) continue;
+            std::fprintf(fp, "  %-6s : total=%9llu",
+                         grKindLabel[k], (unsigned long long)total);
+            for(int b = 0; b < 8; ++b) {
+                uint64_t c = g_gr_in_time_hist[k][b]
+                    .load(std::memory_order_relaxed);
+                if(c > 0)
+                    std::fprintf(fp, " %s=%llu", latLabel[b],
+                                 (unsigned long long)c);
+            }
+            std::fprintf(fp, "\n");
+        }
+    }
+    // Gate-return not-in-time: who was active when we failed.
+    bool any_nit = false;
+    for(int k = 0; k < 4 && !any_nit; ++k)
+        for(int a = 0; a < 4 && !any_nit; ++a)
+            if(g_gr_not_in_time[k][a].load(std::memory_order_relaxed))
+                any_nit = true;
+    if(any_nit) {
+        std::fprintf(fp, "[gate-return NOT-in-time: my_kind → active]\n");
+        for(int k = 0; k < 4; ++k) {
+            uint64_t total = 0;
+            for(int a = 0; a < 4; ++a)
+                total += g_gr_not_in_time[k][a]
+                    .load(std::memory_order_relaxed);
+            if(total == 0) continue;
+            std::fprintf(fp, "  my=%-6s : total=%9llu",
+                         grKindLabel[k], (unsigned long long)total);
+            for(int a = 0; a < 4; ++a) {
+                uint64_t c = g_gr_not_in_time[k][a]
+                    .load(std::memory_order_relaxed);
+                if(c > 0)
+                    std::fprintf(fp, " active=%s:%llu", grKindLabel[a],
+                                 (unsigned long long)c);
+            }
+            std::fprintf(fp, "\n");
         }
     }
 #endif

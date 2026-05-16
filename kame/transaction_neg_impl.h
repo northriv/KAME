@@ -1180,10 +1180,8 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         // Adaptive anti-phase tighten — narrows the
                         // HIGH bound on each detected fail (= previous
                         // gate-return without intervening CAS success).
-                        // High count = hyper-thrashing; closing the
-                        // upper bound steers us away from that zone
-                        // toward CV-sleep, which de-phases naturally.
-                        if(snap.m_last_gate_returned
+                        const bool prev_failed = snap.m_last_gate_returned;
+                        if(prev_failed
                            && snap.m_gate_return_tighten
                               < (uint8_t)KAME_GATE_RETURN_MAX_TIGHTEN) {
                             ++snap.m_gate_return_tighten;
@@ -1199,24 +1197,59 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         auto in_band = [lo, hi](uint64_t c) {
                             return c >= lo && c <= hi;
                         };
-                        bool kind_ok;
+                        // Identify the count we'll judge against.
+                        uint64_t my_count;
                         if(mk == 0) {
-                            kind_ok = in_band(eff_B + eff_U + eff_C);
+                            my_count = eff_B + eff_U + eff_C;
                         } else if(mk == (uint8_t)detail::StampKind::BUNDLE) {
-                            kind_ok = in_band(eff_B);
+                            my_count = eff_B;
                         } else if(mk == (uint8_t)detail::StampKind::UNBUNDLE) {
-                            kind_ok = in_band(eff_U);
+                            my_count = eff_U;
                         } else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) {
-                            kind_ok = in_band(eff_C);
+                            my_count = eff_C;
                         } else {
-                            kind_ok = false;
+                            my_count = 0;
                         }
+                        const bool kind_ok = in_band(my_count);
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+                        // INSTRUMENT: record band outcome for diagnostic
+                        // dump.  Skip on mk=NONE+invalid (kind_ok=false
+                        // due to "else" clause), only record real
+                        // outcomes.
+                        {
+                            NegSite::BandOutcome bo =
+                                  (my_count < lo) ? NegSite::BandOutcome::BELOW_LOW
+                                : (my_count > hi) ? NegSite::BandOutcome::ABOVE_HIGH
+                                                  : NegSite::BandOutcome::IN_BAND;
+                            NegSite::record_band_event(mk, bo, tighten);
+                        }
+                        // INSTRUMENT: if previous gate-return didn't
+                        // reach CAS success, record "not in time" with
+                        // the currently-dominant kind on this Linkage.
+                        if(prev_failed) {
+                            uint8_t active_kind = 0;
+                            uint64_t mx = 0;
+                            if(eff_B > mx) { mx = eff_B; active_kind =
+                                (uint8_t)detail::StampKind::BUNDLE; }
+                            if(eff_U > mx) { mx = eff_U; active_kind =
+                                (uint8_t)detail::StampKind::UNBUNDLE; }
+                            if(eff_C > mx) { mx = eff_C; active_kind =
+                                (uint8_t)detail::StampKind::MultiNodalCommit; }
+                            NegSite::record_gr_not_in_time(
+                                snap.m_gate_return_my_kind, active_kind);
+                        }
+#endif
                         if(kind_ok) {
                             NegSite::record_spin_event(
                                 NegSite::SpinOutcome::
                                   GATE_RETURN_SAMEKIND, 0);
                             gate_returned = true;
                             snap.m_last_gate_returned = true;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+                            snap.m_gate_return_time_us =
+                                (uint32_t)NegotiationCounter::now_us();
+                            snap.m_gate_return_my_kind = mk;
+#endif
                         }
                     }
                 }
