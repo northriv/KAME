@@ -1481,23 +1481,16 @@ private:
         scoped_atomic_view<PacketWrapper> empty;
         snapshot(target, multi_nodal, std::move(empty));
     }
-    void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-        // Outer ScopedNeg: negotiate on m_link, load a view, then
-        // commit() so the dtor doesn't tag/wait.  consume_scoped_view
-        // moves the view OUT (zero atomic ops) into a local
-        // scoped_atomic_view which we then hand to the inner
-        // snapshot — saves the inner's first-iter view load.
-        scoped_atomic_view<PacketWrapper> initial_view;
-        {
-            ScopedNegotiateLinkage<XN> scope(m_link, target, -1,
-                ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 4.0f);
-            scope.commit();
-            initial_view = scope.consume_scoped_view();
-        }
-        snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal,
-                 std::move(initial_view));
-        target.m_oldpacket = target.m_packet;
-    }
+    //! Body lives out-of-line in transaction_impl.h.  It constructs a
+    //! `ScopedNegotiateLinkage<XN>` (complete type only visible after
+    //! `transaction_negotiation.h`) to negotiate + acquire the
+    //! outer view, then threads the view into the 3-arg overload.
+    //! Keeping the body inline here would force every user-facing TU
+    //! that includes `transaction.h` (driver headers, modules, …) to
+    //! also include the negotiation machinery just to instantiate
+    //! `Transaction<XN>::Transaction` — which is unnecessary, since
+    //! these TUs only need the public API.
+    void snapshot(Transaction<XN> &target, bool multi_nodal) const;
     enum class SnapshotStatus {SUCCESS = 0, DISTURBED = 1,
         VOID_PACKET = 2, NODE_MISSING = 4,
         COLLIDED = 8, NODE_MISSING_AND_COLLIDED = 12};

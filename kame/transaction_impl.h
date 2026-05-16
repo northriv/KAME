@@ -1680,6 +1680,29 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
 // committed state it observes. After bundle(), gen() is called again to
 // capture any Lamport advances that occurred during the recursive bundling.
 //=============================================================================
+
+// Out-of-line so that user-facing TUs which include only transaction.h
+// (driver headers, modules, etc.) don't need the full ScopedNeg
+// definition to instantiate Transaction<XN>::Transaction.  The outer
+// ScopedNeg here is a "negotiate + load initial view" wrapper: after
+// `commit()` we consume the view (zero atomic ops) and thread it into
+// the 3-arg `snapshot` overload, sparing its first iteration the
+// view-acquire load.
+template <class XN>
+void
+Node<XN>::snapshot(Transaction<XN> &target, bool multi_nodal) const {
+    scoped_atomic_view<PacketWrapper> initial_view;
+    {
+        ScopedNegotiateLinkage<XN> scope(m_link, target, -1,
+            ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 4.0f);
+        scope.commit();
+        initial_view = scope.consume_scoped_view();
+    }
+    snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal,
+             std::move(initial_view));
+    target.m_oldpacket = target.m_packet;
+}
+
 template <class XN>
 void
 Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
