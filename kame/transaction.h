@@ -1335,7 +1335,18 @@ private:
             const uint8_t  new_epoch = (uint8_t)((now_us / KAME_KIND_WINDOW_US) & 0xFFu);
             const uint8_t  cur_epoch = (uint8_t)((old_fs >> RSO_CUR_EPOCH_SHIFT)
                                                   & RSO_BYTE_MASK);
-            const uint8_t  new_timestamp = (uint8_t)(now_us % RSO_LATEST_TIMESTAMP_MASK);
+            // Sub-µs `new_timestamp`: encoded in (KAME_KIND_WINDOW_NS /
+            // 4096) ≈ 31 ns units at WINDOW_US=128.  6-bit field thus
+            // spans a ~2 µs visible window — sufficient for the
+            // high-count regime where fs_period_ns drops below 1 µs.
+            // The reader (`_neg_spin_block`) must use the SAME unit.
+            // Bug-fix: pre-existing `% RSO_LATEST_TIMESTAMP_MASK` (mod
+            // 63) wasted one slot; switched to `& RSO_LATEST_TIMESTAMP_MASK`
+            // (mod 64) which matches the field width.
+            const uint64_t now_ns_val = (uint64_t)NC::now_ns();
+            constexpr uint64_t TS_UNIT_NS = (uint64_t)KAME_KIND_WINDOW_NS / 4096u;
+            const uint8_t  new_timestamp = (uint8_t)((now_ns_val / TS_UNIT_NS)
+                                                     & RSO_LATEST_TIMESTAMP_MASK);
 
             // Window-rotation logic.  Build the new (cur, prev) state
             // before reapplying the increment.

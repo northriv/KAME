@@ -694,25 +694,35 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // (= a confirmed B/U publish on this Linkage), which is the
     // actual signal we want to ride.
     //
-    // `end_us` (= end_ns / 1000) is kept for the ro_timestamp check
-    // because m_recent_ops_state's 6-bit RSO_LATEST_TIMESTAMP field is
-    // encoded as (now_us % 64) at record time — comparing it against
-    // an ns-domain value would be meaningless.  One `now_ns()` call
-    // per iter feeds both domains (no extra clock read).
+    // Two win predicates depending on the count regime:
+    //
+    //   (b) High count (fs_period_ns small) → fine-grain "recent"
+    //       check using the 6-bit `ro_timestamp` field, encoded in
+    //       (KAME_KIND_WINDOW_NS / 4096) ≈ 31 ns units.  Visible
+    //       window = 64 units ≈ 2 µs.  Works when ro_timelimit_units
+    //       < MASK/2 (= 31 units ≈ 1 µs) — i.e. fs_period_ns < ~4 µs.
+    //
+    //   (a) Low count → ro_timelimit_units overflows the visible
+    //       window so the modular comparison is unusable.  Fall back
+    //       to `ro != initial_ro` (any-change), which is bounded by
+    //       the spin budget anyway (changes during spin are recent
+    //       by construction).
+    //
+    // The kind filter (`!is_ro_unbundle || ro_kind == mk`) applies to
+    // both — peer's UNBUNDLE on this Linkage doesn't help a BUNDLE
+    // or MultiNodalCommit retry.
     const uint64_t initial_ro = fs;
-    (void)initial_ro;
     bool won = false;
-    // ro_timelimit stays µs-domain (matching ro_timestamp's encoding).
-    // Derived from fs_period_ns/2 then truncated to µs.  Floor at 1 µs
-    // so the modular "recent" check remains meaningful at very high
-    // count where fs_period_ns/2 < 1000 ns (sub-µs).
-    uint64_t ro_timelimit = (((fs_period_ns / 2) / 1000u) >> tighten);
-    if(ro_timelimit == 0) ro_timelimit = 1;
+    constexpr uint64_t TS_UNIT_NS = (uint64_t)KAME_KIND_WINDOW_NS / 4096u;
+    const uint64_t MAX_USABLE_UNITS = L::RSO_LATEST_TIMESTAMP_MASK / 2u;
+    const uint64_t ro_timelimit_raw =
+        ((fs_period_ns / 2u) / TS_UNIT_NS) >> tighten;
+    const bool use_recency = (ro_timelimit_raw > 0
+                              && ro_timelimit_raw < MAX_USABLE_UNITS);
+    const uint64_t ro_timelimit = use_recency ? ro_timelimit_raw : 0;
     uint64_t end_ns = NegotiationCounter::now_ns();
-    uint64_t end_us = end_ns / 1000u;
     for(;;) {
         end_ns = NegotiationCounter::now_ns();
-        end_us = end_ns / 1000u;
         for(int i = 0; i < 2; ++i) pause4spin();
         auto ro = self->m_recent_ops_state.load(
             std::memory_order_acquire);
@@ -720,13 +730,19 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
         auto ro_kind = (ro >> L::RSO_LATEST_KIND_SHIFT) & L::RSO_LATEST_KIND_MASK;
         auto ro_timestamp = (ro >> L::RSO_LATEST_TIMESTAMP_SHIFT) & L::RSO_LATEST_TIMESTAMP_MASK;
         bool is_ro_unbundle = ro_kind == (uint8_t)detail::StampKind::UNBUNDLE;
-        // if(ro != initial_ro) {
         if( !is_ro_unbundle || (ro_kind == mk)) {
-            //Not unbundled or my kind is unbundling.
-            if(((end_us - ro_timestamp - ro_timelimit) & L::RSO_LATEST_TIMESTAMP_MASK) > L::RSO_LATEST_TIMESTAMP_MASK / 2) {
-                won = true;
-                break;
+            // Kind filter passes — choose predicate by regime.
+            bool fired;
+            if(use_recency) {
+                const uint64_t end_ts =
+                    (end_ns / TS_UNIT_NS) & L::RSO_LATEST_TIMESTAMP_MASK;
+                fired = (((end_ts - ro_timestamp - ro_timelimit)
+                          & L::RSO_LATEST_TIMESTAMP_MASK)
+                         > L::RSO_LATEST_TIMESTAMP_MASK / 2);
+            } else {
+                fired = (ro != initial_ro);
             }
+            if(fired) { won = true; break; }
         }
         if(end_ns > deadline_ns)
             break;
