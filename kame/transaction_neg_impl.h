@@ -440,6 +440,278 @@ thread_local uint64_t s_adapt_skip_hits         = 0;  // lease-skip fires
 thread_local uint32_t s_adapt_skip_per1k        = 0;  // skip_hits/calls × 1000
 #endif
 //=============================================================================
+// _neg_apply_lease() — per-Linkage adaptive lease drift + owner-skip
+//
+// Updates `ps.lease_us` by drifting it up (sig_C >= 2) or down
+// (sig_C == 0) using the KAME_LEASE_GROW_* / KAME_LEASE_SHRINK_PERCENT
+// schedule, writing back via `storePriority` when the delta crosses
+// the quantum (KAME_LEASE_QWRITE_US).
+//
+// Then, when our TID matches the recorded committer and our Tx age
+// is below `ps.lease_us`, fires the owner-skip → caller returns
+// early.  This is the soft "this thread just committed; let it chain
+// a follow-up" fairness gate.
+//
+// LOWEST / UI_DEFERRABLE skip the whole block (priority-tag CAS,
+// lease tracking, fairness gate, owner-skip).  When
+// KAME_PRIORITY_LEASE is not defined, the helper is a no-op
+// (returns false).
+//=============================================================================
+template <class XN>
+bool
+ScopedNegotiateLinkage<XN>::_neg_apply_lease(
+    typename Node<XN>::Linkage::PriorityState &ps,
+    typename Node<XN>::NegotiationCounter::cnt_t transaction_started_time,
+    int sig_C,
+    int64_t now_us_entry,
+    Priority entry_pr) noexcept {
+#ifdef KAME_PRIORITY_LEASE
+    using NegotiationCounter = typename Node<XN>::NegotiationCounter;
+    using Linkage = typename Node<XN>::Linkage;
+    Linkage *const self = m_link.get();
+    if(entry_pr == Priority::LOWEST || entry_pr == Priority::UI_DEFERRABLE)
+        return false;
+    // transaction_started_time is tid+kind+us-packed; diff_us_packed
+    // extracts the µs and applies modular subtraction (wrap-safe).
+    auto adapt_dt2_last_us =
+        NegotiationCounter::diff_us_packed(
+            now_us_entry, transaction_started_time);
+
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    s_adapt_dt2_last_us = adapt_dt2_last_us;
+    s_adapt_C_last = sig_C;
+    if(ps.tid && ps.tid != s_adapt_last_priority_tid) {
+        ++s_adapt_bounce_count;
+        s_adapt_last_priority_tid = ps.tid;
+    }
+    ++s_adapt_negotiate_calls;
+    s_adapt_skip_per1k = s_adapt_negotiate_calls > 0
+                             ? (uint32_t)((uint64_t)s_adapt_skip_hits * 1000
+                                           / s_adapt_negotiate_calls)
+                             : 0;
+#endif
+
+    // Adaptive lease tracking (per-Linkage). Drift the lease_us field
+    // and write back via storePriority; relaxed races benignly because
+    // any value in [MIN,MAX] is a valid lease. Only touch the atomic
+    // if the value actually changes. Schedule constants live at file
+    // top (KAME_LEASE_*).
+    static constexpr uint16_t LEASE_US_MIN =
+        (uint16_t)(KAME_LEASE_US_MIN ? KAME_LEASE_US_MIN : 1);
+    static constexpr uint16_t LEASE_US_MAX =
+        (uint16_t)(KAME_LEASE_US_MAX);
+    uint16_t new_lease_us = ps.lease_us;
+    if(sig_C >= 2) {
+        int grow = (sig_C - 1) * (int)KAME_LEASE_GROW_PER_C_PERCENT;
+        if(grow > (int)KAME_LEASE_GROW_MAX_PERCENT)
+            grow = (int)KAME_LEASE_GROW_MAX_PERCENT;
+        uint32_t next = (uint32_t)ps.lease_us
+                        * (uint32_t)(100 + grow) / 100;
+        if(next > LEASE_US_MAX) next = LEASE_US_MAX;
+        new_lease_us = (uint16_t)next;
+    } else if(sig_C == 0) {
+        uint32_t next = (uint32_t)ps.lease_us
+                        * (uint32_t)(100 - KAME_LEASE_SHRINK_PERCENT) / 100;
+        if(next < LEASE_US_MIN) next = LEASE_US_MIN;
+        new_lease_us = (uint16_t)next;
+    }
+    int delta = (int)new_lease_us - (int)ps.lease_us;
+    if(delta >= (int)KAME_LEASE_QWRITE_US || delta <= -(int)KAME_LEASE_QWRITE_US) {
+        typename Linkage::PriorityState drifted = ps;
+        drifted.lease_us = new_lease_us;
+        self->storePriority(drifted);
+        ps.lease_us = new_lease_us;
+    }
+
+    // Adaptive gate: suppress owner-skip when dt2 exceeds
+    // KAME_DT2_FAIRNESS_US (long-held competing tx → starvation risk).
+    unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
+#if KAME_STM_MIN_RUNNERS != 0
+    const int min_r_pre = effective_min_runners(1);
+    if(NegotiationCounter::numThreadsRunning() < min_r_pre)
+#endif
+    if(my_tid == ps.tid
+        && adapt_dt2_last_us < (uint64_t)KAME_DT2_FAIRNESS_US) {
+        // Age in µs via modular 32-bit subtraction (wrap-safe up to ~35 min).
+        uint32_t age_us = (uint32_t)now_us_entry - ps.start_us;
+        if(age_us < (uint32_t)ps.lease_us) {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+            ++s_adapt_skip_hits;
+#endif
+            if(entry_pr == Priority::HIGHEST || entry_pr == Priority::NORMAL)
+                return true;  // owner-skip → caller returns early
+        }
+    }
+    return false;
+#else
+    (void)ps; (void)transaction_started_time; (void)sig_C;
+    (void)now_us_entry; (void)entry_pr;
+    return false;
+#endif
+}
+
+//=============================================================================
+// _neg_spin_block() — unified PRE-spin band gate + any-change spin shortcut
+//
+// band [LOW, HIGH>>tighten] gates whether we attempt the spin at all —
+// failed gate routes to CV-sleep instead.  spin-win (= peer's
+// m_recent_ops_state changed during our budget) and the speculative
+// "no-spin gate-return" are the SAME break path: they only differ in
+// the initial-time spent.
+//
+// Period (= spin budget proxy) = (2 × window_us) / total_count.
+// Counts are the per-kind windowed counters in m_recent_ops_state
+// (same-kind consecutive events filtered out at record time, so
+// count == flip count).
+//
+//   tighten ramps up on each detected fail (previous break-for-CAS
+//   didn't reach a CAS success); CAS success resets tighten=0 (see
+//   `_on_cas_success`).  The effective HIGH band narrows right-shift
+//   per step.
+//
+//   Below LOW       → SKIPPED_NO_PERIOD
+//   Above HIGH      → SKIPPED_THRASHING (hyper-thrash)
+//   Runners cap hit → SKIPPED_THRASHING (CAS-storm risk)
+//   In-band & runners ok → spin → WON / TIMEOUT
+//=============================================================================
+template <class XN>
+bool
+ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
+    using NegotiationCounter = typename Node<XN>::NegotiationCounter;
+    using Linkage = typename Node<XN>::Linkage;
+    using L = Linkage;
+    Linkage *const self = m_link.get();
+    Snapshot<XN> &snap = *m_snap;
+
+    const uint64_t fs = self->m_recent_ops_state.load(std::memory_order_relaxed);
+    // Decode windowed per-kind counts.  Apply rotation logic at READ
+    // time so the stored state isn't perturbed.
+    const uint64_t now_us_full =
+        (uint64_t)NegotiationCounter::now_us();
+    const uint8_t  now_epoch = (uint8_t)((now_us_full / KAME_KIND_WINDOW_US) & 0xFFu);
+    const uint8_t  cur_epoch = (uint8_t)((fs >> L::RSO_CUR_EPOCH_SHIFT)
+                                          & L::RSO_BYTE_MASK);
+    const uint8_t  delta_ep = (uint8_t)((now_epoch - cur_epoch) & 0xFFu);
+    uint64_t eff_B = 0, eff_U = 0, eff_C = 0;
+    if(fs != 0) {
+        if(delta_ep == 0) {
+            eff_B = ((fs >> L::RSO_CUR_B_SHIFT) & L::RSO_BYTE_MASK)
+                  + ((fs >> L::RSO_PREV_B_SHIFT) & L::RSO_BYTE_MASK);
+            eff_U = ((fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK)
+                  + ((fs >> L::RSO_PREV_U_SHIFT) & L::RSO_BYTE_MASK);
+            eff_C = ((fs >> L::RSO_CUR_C_SHIFT) & L::RSO_BYTE_MASK)
+                  + ((fs >> L::RSO_PREV_C_SHIFT) & L::RSO_BYTE_MASK);
+        } else if(delta_ep == 1) {
+            // cur (= window now-1) → effective prev only.
+            eff_B = (fs >> L::RSO_CUR_B_SHIFT) & L::RSO_BYTE_MASK;
+            eff_U = (fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK;
+            eff_C = (fs >> L::RSO_CUR_C_SHIFT) & L::RSO_BYTE_MASK;
+        }
+        // delta >= 2: all stale, all zeros.
+    }
+
+    const uint8_t mk = (uint8_t)detail::s_current_op_kind & 0x3u;
+    const bool prev_failed = snap.m_last_gate_returned;
+    if(prev_failed
+       && snap.m_gate_return_tighten
+          < (uint8_t)KAME_GATE_RETURN_MAX_TIGHTEN) {
+        ++snap.m_gate_return_tighten;
+    }
+    snap.m_last_gate_returned = false;
+    const uint8_t tighten = snap.m_gate_return_tighten;
+    const uint64_t lo = (uint64_t)KAME_KIND_COUNT_THRESHOLD;
+    uint64_t hi = (uint64_t)KAME_KIND_COUNT_HIGH >> tighten;
+    if(hi < lo) hi = lo;
+    uint64_t my_count;
+    if(mk == 0) my_count = eff_B + eff_U + eff_C;
+    else if(mk == (uint8_t)detail::StampKind::BUNDLE) my_count = eff_B;
+    else if(mk == (uint8_t)detail::StampKind::UNBUNDLE) my_count = eff_U;
+    else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) my_count = eff_C;
+    else my_count = 0;
+    bool runners_ok = true;
+#if KAME_STM_MAX_RUNNERS != 0
+    runners_ok = NegotiationCounter::numThreadsRunning()
+                 < effective_max_runners(C_obs);
+#else
+    (void)C_obs;
+#endif
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    {
+        NegSite::BandOutcome bo =
+              (my_count < lo) ? NegSite::BandOutcome::BELOW_LOW
+            : (my_count > hi) ? NegSite::BandOutcome::ABOVE_HIGH
+                              : NegSite::BandOutcome::IN_BAND;
+        NegSite::record_band_event(mk, bo, tighten);
+    }
+    if(prev_failed) {
+        uint8_t active_kind = 0;
+        uint64_t mx = 0;
+        if(eff_B > mx) { mx = eff_B; active_kind =
+            (uint8_t)detail::StampKind::BUNDLE; }
+        if(eff_U > mx) { mx = eff_U; active_kind =
+            (uint8_t)detail::StampKind::UNBUNDLE; }
+        if(eff_C > mx) { mx = eff_C; active_kind =
+            (uint8_t)detail::StampKind::MultiNodalCommit; }
+        NegSite::record_gr_not_in_time(
+            snap.m_gate_return_my_kind, active_kind);
+    }
+#endif
+    if(fs == 0 || my_count == 0 || my_count < lo) {
+        NegSite::record_spin_event(
+            NegSite::SpinOutcome::SKIPPED_NO_PERIOD, 0);
+        return false;
+    }
+    if(my_count > hi || !runners_ok) {
+        NegSite::record_spin_event(
+            NegSite::SpinOutcome::SKIPPED_THRASHING, 0);
+        return false;
+    }
+    // Band IN_BAND + runners OK → spin attempt.
+    // Period = (2 windows) / total count → spin budget.
+    const uint64_t total_count = eff_B + eff_U + eff_C;
+    const uint64_t fs_period = (total_count > 0)
+        ? (2u * (uint64_t)KAME_KIND_WINDOW_US / total_count)
+        : (uint64_t)KAME_KIND_WINDOW_US;
+    const uint64_t period_cap =
+        (fs_period * (uint64_t)KAME_SPIN_BUDGET_PCT) / 100u;
+    const uint64_t budget =
+        period_cap < (uint64_t)KAME_SPIN_MAX_US
+        ? period_cap : (uint64_t)KAME_SPIN_MAX_US;
+    const uint64_t start_us =
+        (uint64_t)NegotiationCounter::now_us();
+    const uint64_t deadline = start_us + budget;
+    // Poll m_recent_ops_state (not the slot) for peer progress.  The
+    // slot only flags "an older Tx is tagging me" — low diagnostic
+    // value.  recent_ops changes only when record_successful_op fires
+    // (= a confirmed B/U publish on this Linkage), which is the
+    // actual signal we want to ride.
+    const uint64_t initial_ro = fs;
+    bool won = false;
+    do {
+        for(int i = 0; i < 16; ++i) pause4spin();
+        auto ro = self->m_recent_ops_state.load(
+            std::memory_order_relaxed);
+        if(ro != initial_ro) { won = true; break; }
+    } while((uint64_t)NegotiationCounter::now_us() < deadline);
+    const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
+    const uint32_t elapsed =
+        (uint32_t)(end_us > start_us ? end_us - start_us : 0);
+    NegSite::record_spin_event(
+        won ? NegSite::SpinOutcome::WON
+            : NegSite::SpinOutcome::TIMEOUT, elapsed);
+    if( !won)
+        return false;  // TIMEOUT → fall to CV-sleep.
+    // Break for CAS retry — mark for fail tracking.
+    snap.m_last_gate_returned = true;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    snap.m_gate_return_time_us =
+        (uint32_t)NegotiationCounter::now_us();
+    snap.m_gate_return_my_kind = mk;
+#endif
+    return true;
+}
+
+//=============================================================================
 // negotiate_internal() — priority-based backoff for collision avoidance
 //
 // Purpose: when two transactions contend on the same Linkage, impose a
@@ -568,86 +840,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         self->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !transaction_started_time)
         return; //collision has not been detected.
-    // LOWEST and UI_DEFERRABLE explicitly tolerate yielding, so skip
-    // the adaptive-lease block entirely (priority-tag CAS, lease
-    // tracking, fairness gate, owner-skip). The main sleep loop
-    // below is plenty for these priorities.
-    // `entry_pr` is computed once at the top of negotiate_internal.
-#ifdef KAME_PRIORITY_LEASE
-    if(entry_pr != Priority::LOWEST && entry_pr != Priority::UI_DEFERRABLE) {
-    // transaction_started_time is tid+kind+us-packed; diff_us_packed
-    // extracts the µs and applies modular subtraction (wrap-safe).
-    auto adapt_dt2_last_us =
-        NegotiationCounter::diff_us_packed(
-            now_us_entry, transaction_started_time);
-
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-    s_adapt_dt2_last_us = adapt_dt2_last_us;
-    s_adapt_C_last = sig_C;
-    if(ps.tid && ps.tid != s_adapt_last_priority_tid) {
-        ++s_adapt_bounce_count;
-        s_adapt_last_priority_tid = ps.tid;
-    }
-    ++s_adapt_negotiate_calls;
-    s_adapt_skip_per1k = s_adapt_negotiate_calls > 0
-                             ? (uint32_t)((uint64_t)s_adapt_skip_hits * 1000
-                                           / s_adapt_negotiate_calls)
-                             : 0;
-#endif
-
-    // Adaptive lease tracking (per-Linkage). Drift the lease_us field
-    // and write back via storePriority; relaxed races benignly because
-    // any value in [MIN,MAX] is a valid lease. Only touch the atomic
-    // if the value actually changes. Schedule constants live at file
-    // top (KAME_LEASE_*).
-    static constexpr uint16_t LEASE_US_MIN =
-        (uint16_t)(KAME_LEASE_US_MIN ? KAME_LEASE_US_MIN : 1);
-    static constexpr uint16_t LEASE_US_MAX =
-        (uint16_t)(KAME_LEASE_US_MAX);
-    uint16_t new_lease_us = ps.lease_us;
-    if(sig_C >= 2) {
-        int grow = (sig_C - 1) * (int)KAME_LEASE_GROW_PER_C_PERCENT;
-        if(grow > (int)KAME_LEASE_GROW_MAX_PERCENT)
-            grow = (int)KAME_LEASE_GROW_MAX_PERCENT;
-        uint32_t next = (uint32_t)ps.lease_us
-                        * (uint32_t)(100 + grow) / 100;
-        if(next > LEASE_US_MAX) next = LEASE_US_MAX;
-        new_lease_us = (uint16_t)next;
-    } else if(sig_C == 0) {
-        uint32_t next = (uint32_t)ps.lease_us
-                        * (uint32_t)(100 - KAME_LEASE_SHRINK_PERCENT) / 100;
-        if(next < LEASE_US_MIN) next = LEASE_US_MIN;
-        new_lease_us = (uint16_t)next;
-    }
-    int delta = (int)new_lease_us - (int)ps.lease_us;
-    if(delta >= (int)KAME_LEASE_QWRITE_US || delta <= -(int)KAME_LEASE_QWRITE_US) {
-        typename Linkage::PriorityState drifted = ps;
-        drifted.lease_us = new_lease_us;
-        self->storePriority(drifted);
-        ps.lease_us = new_lease_us;
-    }
-
-    // Adaptive gate: suppress owner-skip when dt2 exceeds
-    // KAME_DT2_FAIRNESS_US (long-held competing tx → starvation risk).
-    unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
-#if KAME_STM_MIN_RUNNERS != 0
-    const int min_r_pre = effective_min_runners(1);
-    if(NegotiationCounter::numThreadsRunning() < min_r_pre)
-#endif
-    if(my_tid == ps.tid
-        && adapt_dt2_last_us < (uint64_t)KAME_DT2_FAIRNESS_US) {
-        // Age in µs via modular 32-bit subtraction (wrap-safe up to ~35 min).
-        uint32_t age_us = (uint32_t)now_us_entry - ps.start_us;
-        if(age_us < (uint32_t)ps.lease_us) {
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-            ++s_adapt_skip_hits;
-#endif
-            if(entry_pr == Priority::HIGHEST || entry_pr == Priority::NORMAL)
-                return; //skips
-        }
-    }
-    } // end lease-block
-#endif
+    // LOWEST and UI_DEFERRABLE explicitly tolerate yielding, so the
+    // helper internally skips the lease/owner-skip block for those
+    // priorities.  Returns true iff the owner-skip fired (we hold the
+    // soft lease and our age < lease_us) — caller returns early.
+    if(_neg_apply_lease(ps, transaction_started_time, sig_C,
+                        now_us_entry, entry_pr))
+        return;
 
     // Thread-local LCG for sleep-duration jitter randomization.
     // Seed mixes thread ID (unique per thread) with stack address; Murmur finalizer
@@ -865,175 +1064,12 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             ms = 5000;
         }
 
-        // --- Unified PRE-spin band gate + any-change spin shortcut.
-        //
-        // band [LOW, HIGH>>tighten] gates whether we attempt the spin
-        // at all — failed gate routes to CV-sleep instead.  spin-win
-        // (= peer's m_recent_ops_state changed during our budget)
-        // and the speculative "no-spin gate-return" are the SAME
-        // break path: they only differ in the initial-time spent.
-        //
-        // Period (= spin budget proxy) = (2 × window_us) / total_count.
-        // Counts are the per-kind windowed counters in
-        // m_recent_ops_state (same-kind consecutive events filtered
-        // out at record time, so count == flip count).
-        {
-            using L = Linkage;
-            const uint64_t fs = self->m_recent_ops_state.load(std::memory_order_relaxed);
-            // Decode windowed per-kind counts.  Apply rotation logic
-            // at READ time so the stored state isn't perturbed.
-            const uint64_t now_us_full =
-                (uint64_t)NegotiationCounter::now_us();
-            const uint8_t  now_epoch = (uint8_t)((now_us_full / KAME_KIND_WINDOW_US) & 0xFFu);
-            const uint8_t  cur_epoch = (uint8_t)((fs >> L::RSO_CUR_EPOCH_SHIFT)
-                                                  & L::RSO_BYTE_MASK);
-            const uint8_t  delta_ep = (uint8_t)((now_epoch - cur_epoch) & 0xFFu);
-            uint64_t eff_B = 0, eff_U = 0, eff_C = 0;
-            if(fs != 0) {
-                if(delta_ep == 0) {
-                    eff_B = ((fs >> L::RSO_CUR_B_SHIFT) & L::RSO_BYTE_MASK)
-                          + ((fs >> L::RSO_PREV_B_SHIFT) & L::RSO_BYTE_MASK);
-                    eff_U = ((fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK)
-                          + ((fs >> L::RSO_PREV_U_SHIFT) & L::RSO_BYTE_MASK);
-                    eff_C = ((fs >> L::RSO_CUR_C_SHIFT) & L::RSO_BYTE_MASK)
-                          + ((fs >> L::RSO_PREV_C_SHIFT) & L::RSO_BYTE_MASK);
-                } else if(delta_ep == 1) {
-                    // cur (= window now-1) → effective prev only.
-                    eff_B = (fs >> L::RSO_CUR_B_SHIFT) & L::RSO_BYTE_MASK;
-                    eff_U = (fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK;
-                    eff_C = (fs >> L::RSO_CUR_C_SHIFT) & L::RSO_BYTE_MASK;
-                }
-                // delta >= 2: all stale, all zeros.
-            }
-            const uint8_t  fs_latest_kind =
-                (uint8_t)((fs >> L::RSO_LATEST_KIND_SHIFT) & L::RSO_LATEST_KIND_MASK);
-            // "age" pseudo-metric: 0 if recent activity (delta<=1 and
-            // any count > 0), otherwise a large value (legacy spin
-            // trigger uses age > RECENT threshold for COLD).
-            const uint64_t age =
-                (delta_ep <= 1 && (eff_B + eff_U + eff_C) > 0)
-                ? 0
-                : (uint64_t)KAME_KIND_WINDOW_US * 16;  // = very old
-            (void)fs_latest_kind;  // used below in gate-return only
-            NegSite::SpinOutcome outcome;
-            // ===== (B) Unified PRE-spin gate + any-change spin ========
-            //
-            // Per user observation "初期時間以外の取り扱いは同じに
-            // すべし": the band + runners + tighten checks must gate
-            // whether we ENTER the spin at all.  spin-win and the old
-            // separate "gate-return" path are the same decision —
-            // they only differed in how long they waited before
-            // breaking.  Apply the gate ONCE here, BEFORE spin.
-            //
-            //   tighten ramps up on each detected fail (previous
-            //   break-for-CAS didn't reach a CAS success); CAS
-            //   success resets tighten=0 (see ScopedNeg::
-            //   _on_cas_success).  The effective HIGH band narrows
-            //   right-shift per step.
-            //
-            //   Below LOW       → SKIPPED_NO_PERIOD
-            //   Above HIGH      → SKIPPED_THRASHING (hyper-thrash)
-            //   Runners cap hit → SKIPPED_THRASHING (CAS-storm risk)
-            //   In-band & runners ok → spin → WON / TIMEOUT
-            const uint8_t mk = (uint8_t)detail::s_current_op_kind & 0x3u;
-            const bool prev_failed = snap.m_last_gate_returned;
-            if(prev_failed
-               && snap.m_gate_return_tighten
-                  < (uint8_t)KAME_GATE_RETURN_MAX_TIGHTEN) {
-                ++snap.m_gate_return_tighten;
-            }
-            snap.m_last_gate_returned = false;
-            const uint8_t tighten = snap.m_gate_return_tighten;
-            const uint64_t lo = (uint64_t)KAME_KIND_COUNT_THRESHOLD;
-            uint64_t hi = (uint64_t)KAME_KIND_COUNT_HIGH >> tighten;
-            if(hi < lo) hi = lo;
-            uint64_t my_count;
-            if(mk == 0) my_count = eff_B + eff_U + eff_C;
-            else if(mk == (uint8_t)detail::StampKind::BUNDLE) my_count = eff_B;
-            else if(mk == (uint8_t)detail::StampKind::UNBUNDLE) my_count = eff_U;
-            else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) my_count = eff_C;
-            else my_count = 0;
-            bool runners_ok = true;
-#if KAME_STM_MAX_RUNNERS != 0
-            runners_ok = NegotiationCounter::numThreadsRunning()
-                         < effective_max_runners(C_obs);
-#endif
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-            {
-                NegSite::BandOutcome bo =
-                      (my_count < lo) ? NegSite::BandOutcome::BELOW_LOW
-                    : (my_count > hi) ? NegSite::BandOutcome::ABOVE_HIGH
-                                      : NegSite::BandOutcome::IN_BAND;
-                NegSite::record_band_event(mk, bo, tighten);
-            }
-            if(prev_failed) {
-                uint8_t active_kind = 0;
-                uint64_t mx = 0;
-                if(eff_B > mx) { mx = eff_B; active_kind =
-                    (uint8_t)detail::StampKind::BUNDLE; }
-                if(eff_U > mx) { mx = eff_U; active_kind =
-                    (uint8_t)detail::StampKind::UNBUNDLE; }
-                if(eff_C > mx) { mx = eff_C; active_kind =
-                    (uint8_t)detail::StampKind::MultiNodalCommit; }
-                NegSite::record_gr_not_in_time(
-                    snap.m_gate_return_my_kind, active_kind);
-            }
-#endif
-            if(fs == 0 || my_count == 0 || my_count < lo) {
-                outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
-                NegSite::record_spin_event(outcome, 0);
-            } else if(my_count > hi || !runners_ok) {
-                outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
-                NegSite::record_spin_event(outcome, 0);
-            } else {
-                // Band IN_BAND + runners OK → spin attempt.
-                // Period = (2 windows) / total count → spin budget.
-                const uint64_t total_count = eff_B + eff_U + eff_C;
-                const uint64_t fs_period = (total_count > 0)
-                    ? (2u * (uint64_t)KAME_KIND_WINDOW_US / total_count)
-                    : (uint64_t)KAME_KIND_WINDOW_US;
-                const uint64_t period_cap =
-                    (fs_period * (uint64_t)KAME_SPIN_BUDGET_PCT) / 100u;
-                const uint64_t budget =
-                    period_cap < (uint64_t)KAME_SPIN_MAX_US
-                    ? period_cap : (uint64_t)KAME_SPIN_MAX_US;
-                const uint64_t start_us =
-                    (uint64_t)NegotiationCounter::now_us();
-                const uint64_t deadline = start_us + budget;
-                // Poll m_recent_ops_state (not the slot) for peer
-                // progress.  The slot only flags "an older Tx is
-                // tagging me" — low diagnostic value.  recent_ops
-                // changes only when record_successful_op fires
-                // (= a confirmed B/U publish on this Linkage), which
-                // is the actual signal we want to ride.
-                const uint64_t initial_ro = fs;
-                bool won = false;
-                do {
-                    for(int i = 0; i < 16; ++i) pause4spin();
-                    auto ro = self->m_recent_ops_state.load(
-                        std::memory_order_relaxed);
-                    if(ro != initial_ro) { won = true; break; }
-                } while((uint64_t)NegotiationCounter::now_us() < deadline);
-                const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
-                const uint32_t elapsed =
-                    (uint32_t)(end_us > start_us ? end_us - start_us : 0);
-                outcome = won
-                    ? NegSite::SpinOutcome::WON
-                    : NegSite::SpinOutcome::TIMEOUT;
-                NegSite::record_spin_event(outcome, elapsed);
-                if(won) {
-                    // Break for CAS retry — mark for fail tracking.
-                    snap.m_last_gate_returned = true;
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-                    snap.m_gate_return_time_us =
-                        (uint32_t)NegotiationCounter::now_us();
-                    snap.m_gate_return_my_kind = mk;
-#endif
-                    break;
-                }
-                // TIMEOUT → fall to CV-sleep.
-            }
-        }
+        // Unified PRE-spin band gate + any-change spin shortcut.
+        // Spin won → break out of the negotiate loop; otherwise fall
+        // through to CV-sleep.  See `_neg_spin_block` definition for
+        // the band / tighten / spin-budget rationale.
+        if(_neg_spin_block(C_obs))
+            break;
 
         // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.
         // Jitter breaks the synchronized-wakeup oscillation that forms when

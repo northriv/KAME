@@ -875,6 +875,35 @@ private:
     //! directly instead of being threaded through arguments.  See the
     //! header comment on the definition for the algorithm details.
     void _negotiate_internal() noexcept;
+
+    //! Helper extracted from `_negotiate_internal`: adaptive per-Linkage
+    //! lease drift + owner-skip fairness gate.  Drifts `ps.lease_us`
+    //! based on `sig_C` and writes it back via `storePriority` when
+    //! the delta crosses the quantum.  Then, when our TID matches the
+    //! recorded committer and our lease is still in flight, fires the
+    //! owner-skip → caller returns early.  No-op (returns false) for
+    //! LOWEST / UI_DEFERRABLE, or when KAME_PRIORITY_LEASE is undefined.
+    //!
+    //! \return true iff caller should return early from `_negotiate_internal`.
+    bool _neg_apply_lease(
+        typename Node<XN>::Linkage::PriorityState &ps,
+        typename Node<XN>::NegotiationCounter::cnt_t transaction_started_time,
+        int sig_C,
+        int64_t now_us_entry,
+        Priority entry_pr) noexcept;
+
+    //! Helper extracted from `_negotiate_internal`'s loop body:
+    //! unified PRE-spin band gate + any-change spin shortcut.  Reads
+    //! windowed per-kind counters in `m_link->m_recent_ops_state` to
+    //! decide whether to enter the spin (count in [LOW, HIGH>>tighten],
+    //! runners below cap), then spins on `m_recent_ops_state` for up
+    //! to a budget derived from the observed flip period.  Sets
+    //! `m_snap->m_last_gate_returned` on a winning spin.
+    //!
+    //! \return true iff caller should break out of the negotiate loop
+    //!         (spin won → caller retries CAS); false → fall through
+    //!         to CV-sleep.
+    bool _neg_spin_block(int C_obs) noexcept;
 public:
 
     //! Manual commit override.  Use when (a) the CAS happened in a
