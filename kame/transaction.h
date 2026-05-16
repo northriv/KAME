@@ -1258,12 +1258,14 @@ private:
         //!   delta == 1: cur is one back; prev is two back (= stale).
         //!   delta >= 2: both stale.
         //!
-        //! Filter: same-kind consecutive events are NOT recorded.  This
-        //! way (count_B + count_U) equals the number of actual B/U
-        //! flips, and a reader can compute the inter-flip period at
-        //! read time as `(2 * WINDOW_US) / total_count` (factor 2 = cur
-        //! + prev windows).  The stored period field is therefore
-        //! removed; the 6 freed bits are reserved for future use.
+        //! Every successful B/U publish is recorded; counts represent
+        //! per-kind Linkage activity rate (events per 2-window
+        //! interval).  Reader can derive a flip period proxy at read
+        //! time as `(2 * WINDOW_US) / total_count`.  A prior same-kind
+        //! consecutive filter (BBBB compressed to one event) was
+        //! retired because unidirectional workloads (Linkage only
+        //! receives BUNDLE, never UNBUNDLE on its own m_link) stayed
+        //! at count=1 forever and gate-return never crossed LOW.
         atomic<uint64_t> m_recent_ops_state;
         static constexpr int     RSO_CUR_B_SHIFT       = 0;
         static constexpr int     RSO_CUR_U_SHIFT       = 8;
@@ -1308,9 +1310,14 @@ private:
                 std::memory_order_relaxed);
             const uint8_t  prior_kind = (uint8_t)((old_fs >> RSO_LATEST_KIND_SHIFT)
                                                    & RSO_LATEST_KIND_MASK);
-            // Same-kind consecutive filter — only true flips count.
-            // BBBB...UUUU sequence records as one B + one U event.
-            if(prior_kind == my_kind && old_fs != 0) return;
+            // NOTE: previously had a "same-kind consecutive skip"
+            // (BBBB / UUUU compressed to one event) for "count == true
+            // flip count" semantics.  Removed: unidirectional
+            // workloads (e.g. a Node that only receives BUNDLE events,
+            // never UNBUNDLE on its own m_link) stayed at count=1
+            // forever and never reached the gate-return LOW band.
+            // Now records every successful publish; count represents
+            // "Linkage activity rate" rather than flip frequency.
             const uint64_t now_us = (uint64_t)NC::stamp_us(stamp_with_kind);
             const uint8_t  new_epoch = (uint8_t)((now_us / KAME_KIND_WINDOW_US) & 0xFFu);
             const uint8_t  cur_epoch = (uint8_t)((old_fs >> RSO_CUR_EPOCH_SHIFT)
