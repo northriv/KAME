@@ -159,16 +159,21 @@ namespace detail {
     //! Tx-driven sub-operations of a multilevel commit:
     //!   BUNDLE / UNBUNDLE: tree-walk sub-CASes inside a multi-nodal
     //!     commit; tagged inside Node<XN>::bundle() / ::unbundle().
-    //!   MultiNodalCommit:  the outer iterate_commit / commit_loop of a
-    //!     multi-nodal Transaction; tagged inside Node<XN>::commit()
-    //!     and Transaction::operator++() when isMultiNodal() is true.
-    //!     Single-nodal Tx (SingleTransaction) keeps kind = NONE to
-    //!     share fairness semantics with the other stand-alone ops.
+    //!     Multi-nodal commits at the outer iterate_commit /
+    //!     commit_loop level also stamp BUNDLE — the per-Linkage flip
+    //!     accounting (m_recent_ops_state) and the spin-block kind
+    //!     filter treat outer-commit and inner-bundle identically, so
+    //!     a separate marker added no information.
+    //!   Reserved (= 3): formerly `MultiNodalCommit`, an alias of
+    //!     BUNDLE in every production code path (only INSTRUMENT
+    //!     counters distinguished it).  Now free for re-use as a
+    //!     per-Linkage privilege flag (`m_transaction_started_time`
+    //!     kind=3 → "this Tx holds privilege on this Linkage").
     enum class StampKind : uint8_t {
         NONE             = 0,
         BUNDLE           = 1,
         UNBUNDLE         = 2,
-        MultiNodalCommit = 3,
+        Reserved         = 3,
     };
 
     //! Per-thread "current operation kind".  Pushed via ScopedOpKind
@@ -834,9 +839,10 @@ private:
         //! STAMP_US_BITS = 46 gives ~2.2 yr of monotonic µs (wrap-safe
         //! over any KAME operation; longest real wait is EXPIRE_US = 50
         //! ms). STAMP_KIND_BITS = 2 carries the operation discriminator
-        //! (BUNDLE / UNBUNDLE / MultiNodalCommit / NONE) used by the
-        //! same-op piggyback path; defaults to 0 (NONE) in stand-alone
-        //! call sites so stamps stay bit-stable.
+        //! (NONE / BUNDLE / UNBUNDLE / Reserved) used by the same-op
+        //! piggyback path; defaults to 0 (NONE) in stand-alone call
+        //! sites so stamps stay bit-stable.  Slot 3 (Reserved) is
+        //! held back for a future per-Linkage privilege flag.
         //!
         //! Raw µs timestamps collide at ~1 MHz (same CPU can issue two
         //! Transactions in the same µs), which breaks the "older wins"
@@ -1291,18 +1297,16 @@ private:
         static constexpr uint64_t RSO_LATEST_KIND_MASK = 0x3ULL;
         static constexpr uint64_t RSO_LATEST_TIMESTAMP_MASK = 0x3FULL;
 
-        //! cur_count slot shift for a given StampKind.  NONE → -1.
+        //! cur_count slot shift for a given StampKind.  NONE / Reserved → -1.
         static constexpr int kind_cur_count_shift(uint8_t kind) noexcept {
             return  kind == (uint8_t)detail::StampKind::BUNDLE   ? RSO_CUR_O_SHIFT
                   : kind == (uint8_t)detail::StampKind::UNBUNDLE ? RSO_CUR_U_SHIFT
-                  : kind == (uint8_t)detail::StampKind::MultiNodalCommit ? RSO_CUR_O_SHIFT
                   : -1;
         }
         //! prev_count slot shift (parallel to cur_count_shift).
         static constexpr int kind_prev_count_shift(uint8_t kind) noexcept {
             return  kind == (uint8_t)detail::StampKind::BUNDLE   ? RSO_PREV_O_SHIFT
                   : kind == (uint8_t)detail::StampKind::UNBUNDLE ? RSO_PREV_U_SHIFT
-                  : kind == (uint8_t)detail::StampKind::MultiNodalCommit ? RSO_PREV_O_SHIFT
                   : -1;
         }
 
@@ -2170,12 +2174,14 @@ private:
         // field declaration. The probe consumes the aggregated value.
         ++this->m_tx_retry_count;
         Node<XN> &node(this->m_packet->node());
-        // Pre-commit retry tag: kind = MultiNodalCommit for multilevel
+        // Pre-commit retry tag: kind = BUNDLE for multilevel
         // (multi-nodal) Tx, NONE for SingleTransaction.  See
         // Node::commit() comment.  An inner snapshot()/bundle() may
-        // push BUNDLE on top.
+        // push BUNDLE on top (= same value, idempotent).  Previously
+        // stamped `MultiNodalCommit` (=3), but that was an alias of
+        // BUNDLE in every production path; slot 3 is now Reserved.
         detail::ScopedOpKind _op_kind_scope(
-            isMultiNodal() ? detail::StampKind::MultiNodalCommit
+            isMultiNodal() ? detail::StampKind::BUNDLE
                            : detail::StampKind::NONE);
         if(isMultiNodal())
             this->tag_as_contender(node.m_link);

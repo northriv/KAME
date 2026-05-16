@@ -630,10 +630,8 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
         my_count = eff_O;
     else if(mk == (uint8_t)detail::StampKind::UNBUNDLE)
         my_count = eff_U;
-    else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit)
-        my_count = eff_O;
     else
-        my_count = 0;
+        my_count = 0;  // Reserved (3): not a publish kind; treat as no-op
     bool runners_ok = true;
 #if KAME_STM_MIN_RUNNERS != 0
     runners_ok = NegotiationCounter::numThreadsRunning()
@@ -652,12 +650,10 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     if(prev_failed) {
         uint8_t active_kind = 0;
         uint64_t mx = 0;
-        if(eff_B > mx) { mx = eff_B; active_kind =
+        if(eff_O > mx) { mx = eff_O; active_kind =
             (uint8_t)detail::StampKind::BUNDLE; }
         if(eff_U > mx) { mx = eff_U; active_kind =
             (uint8_t)detail::StampKind::UNBUNDLE; }
-        if(eff_C > mx) { mx = eff_C; active_kind =
-            (uint8_t)detail::StampKind::MultiNodalCommit; }
         NegSite::record_gr_not_in_time(
             snap.m_gate_return_my_kind, active_kind);
     }
@@ -714,7 +710,8 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     //
     // The kind filter (`!is_ro_unbundle || ro_kind == mk`) applies to
     // both — peer's UNBUNDLE on this Linkage doesn't help a BUNDLE
-    // or MultiNodalCommit retry.
+    // retry.  (Multi-nodal commits now stamp BUNDLE too — the former
+    // MultiNodalCommit kind was an alias and is now Reserved.)
     const uint64_t initial_ro = fs;
     bool won = false;
     constexpr uint64_t TS_UNIT_NS = (uint64_t)KAME_KIND_WINDOW_NS / 4096u;

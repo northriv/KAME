@@ -2343,9 +2343,9 @@ Node<XN>::commit(Transaction<XN> &tr) {
     assert(tr.isMultiNodal() || tr.m_packet->subpackets() == tr.m_oldpacket->subpackets());
     assert(this == &tr.m_packet->node());
 
-    // Stamp every linkage tagged during commit with kind =
-    // MultiNodalCommit, but ONLY for multilevel (multi-nodal)
-    // transactions whose commit involves nested bundle/unbundle on
+    // Stamp every linkage tagged during commit with kind = BUNDLE,
+    // but ONLY for multilevel (multi-nodal) transactions whose
+    // commit involves nested bundle/unbundle on
     // tree linkages.  A SingleTransaction is a stand-alone single-
     // node CAS — structurally closer to a snapshot/release (no
     // enclosing retry loop with sub-operations), so it tags with
@@ -2354,11 +2354,13 @@ Node<XN>::commit(Transaction<XN> &tr) {
     //
     // Downstream effect: the bundle/unbundle-level kind-gated gate-
     // return in negotiate_internal piggybacks only when peer is also
-    // a multilevel Tx (kind ∈ {MultiNodalCommit, BUNDLE, UNBUNDLE}),
-    // preserving the SingleTransaction's adaptive-sleep fairness
-    // window.
+    // a multilevel Tx (kind ∈ {BUNDLE, UNBUNDLE}), preserving the
+    // SingleTransaction's adaptive-sleep fairness window.  Multinodal
+    // commits previously stamped `MultiNodalCommit` (=3) — now folded
+    // into BUNDLE (functionally identical in every production path);
+    // slot 3 is reserved for a per-Linkage privilege flag.
     detail::ScopedOpKind _op_kind_scope(
-        tr.isMultiNodal() ? detail::StampKind::MultiNodalCommit
+        tr.isMultiNodal() ? detail::StampKind::BUNDLE
                           : detail::StampKind::NONE);
 
     local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
