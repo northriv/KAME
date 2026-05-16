@@ -1258,14 +1258,15 @@ private:
         //!   delta == 1: cur is one back; prev is two back (= stale).
         //!   delta >= 2: both stale.
         //!
-        //! Every successful B/U publish is recorded; counts represent
-        //! per-kind Linkage activity rate (events per 2-window
-        //! interval).  Reader can derive a flip period proxy at read
-        //! time as `(2 * WINDOW_US) / total_count`.  A prior same-kind
-        //! consecutive filter (BBBB compressed to one event) was
-        //! retired because unidirectional workloads (Linkage only
-        //! receives BUNDLE, never UNBUNDLE on its own m_link) stayed
-        //! at count=1 forever and gate-return never crossed LOW.
+        //! Same-kind consecutive events are filtered out (BBBB and
+        //! UUUU compressed to one), so (count_B + count_U) equals
+        //! the actual flip count.  Reader can derive the inter-flip
+        //! period at read time as `(2 * WINDOW_US) / total_count`
+        //! (factor 2 = cur + prev windows).  Linkages with no
+        //! alternation (only BUNDLE OR only UNBUNDLE on their own
+        //! m_link) stay at count=1 — the correct anti-thrash
+        //! semantic, since they have no "B/U periodicity" to
+        //! coalesce on.
         atomic<uint64_t> m_recent_ops_state;
         static constexpr int     RSO_CUR_B_SHIFT       = 0;
         static constexpr int     RSO_CUR_U_SHIFT       = 8;
@@ -1310,14 +1311,15 @@ private:
                 std::memory_order_relaxed);
             const uint8_t  prior_kind = (uint8_t)((old_fs >> RSO_LATEST_KIND_SHIFT)
                                                    & RSO_LATEST_KIND_MASK);
-            // NOTE: previously had a "same-kind consecutive skip"
-            // (BBBB / UUUU compressed to one event) for "count == true
-            // flip count" semantics.  Removed: unidirectional
-            // workloads (e.g. a Node that only receives BUNDLE events,
-            // never UNBUNDLE on its own m_link) stayed at count=1
-            // forever and never reached the gate-return LOW band.
-            // Now records every successful publish; count represents
-            // "Linkage activity rate" rather than flip frequency.
+            // Same-kind consecutive filter — BBBB...UUUU compressed
+            // to one event each, so (count_B + count_U) == true flip
+            // count.  Trade-off: unidirectional workloads (a Linkage
+            // that only receives one kind on its own m_link) stay at
+            // count=1 forever and the gate-return LOW band is never
+            // crossed.  That's the correct semantic for an
+            // anti-thrashing flip detector: a Linkage with no
+            // alternation has no "B/U periodicity" to coalesce on.
+            if(prior_kind == my_kind && old_fs != 0) return;
             const uint64_t now_us = (uint64_t)NC::stamp_us(stamp_with_kind);
             const uint8_t  new_epoch = (uint8_t)((now_us / KAME_KIND_WINDOW_US) & 0xFFu);
             const uint8_t  cur_epoch = (uint8_t)((old_fs >> RSO_CUR_EPOCH_SHIFT)
