@@ -426,30 +426,4 @@
 #define KAME_GATE_RETURN_MAX_TIGHTEN 4
 #endif
 
-// Slot release strategy.  When a Tx commits / cleans up, it currently
-// zero-stores its tag from each tagged Linkage's
-// m_transaction_started_time slot (drop_tags_n_privilege, line ~1747
-// of transaction.h).
-//
-// KAME_SLOT_KEEP_KIND=1 changes the release to leave the kind bits
-// behind ("0 us + my_kind") so that subsequent peer readers can see
-// "the last released kind on this Linkage", extending the
-// same-kind-coalesce hint window from "peer currently holding" to
-// "peer just released with our kind".
-//
-// All slot==0 checks (Linkage::negotiate fast path, livelock probe
-// match, spin-loop release detection, etc.) are routed through
-// `NegotiationCounter::is_active_stamp(s)` so the kind-only state
-// is recognised as "no active tagger" — semantic invariants
-// preserved.
-//
-// Default 0 (off): a clean experiment knob.  Enabling adds a single
-// `stamp_us(load) != 0` shift on the negotiate fast path; the
-// expected gain comes from gate-return firing on a wider time window
-// (peer-just-released also matches), at the cost of one extra mask
-// on the cold path.
-#ifndef KAME_SLOT_KEEP_KIND
-#define KAME_SLOT_KEEP_KIND 0
-#endif
-
 #endif /* TRANSACTION_DEFINITIONS_H */

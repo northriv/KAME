@@ -968,17 +968,11 @@ private:
         }
 
         //! Whether the stamp represents an active (currently-tagged) Tx
-        //! on its slot.  With KAME_SLOT_KEEP_KIND=0 (default), the slot
-        //! is zero-reset on release so `stamp != 0` is sufficient.  With
-        //! KAME_SLOT_KEEP_KIND=1, release leaves the kind bits behind
-        //! as a "last released kind" hint, so active-ness is defined
-        //! strictly by the us field.
+        //! on its slot.  Release zero-stores the slot
+        //! (drop_tags_n_privilege), so a non-zero word always means
+        //! "some Tx is currently tagged here".
         static inline bool is_active_stamp(cnt_t stamp) noexcept {
-#if KAME_SLOT_KEEP_KIND
-            return stamp_us(stamp) != 0;
-#else
             return stamp != 0;
-#endif
         }
 
         //=====================================================================
@@ -1900,18 +1894,7 @@ public:
         const auto my_id = NC::strip_kind(m_started_time);
         for(auto &sp : m_tagged_linkages) {
             if(NC::strip_kind(sp->m_transaction_started_time) == my_id) {
-#if KAME_SLOT_KEEP_KIND
-                // Preserve kind bits on release: the slot becomes
-                // "0 us + my_kind", a same-kind hint readable by
-                // subsequent gate-return checks on this Linkage
-                // (extends the coalesce window from "peer holding"
-                // to "peer just released with our kind").
-                sp->m_transaction_started_time =
-                    NC::with_kind((typename NC::cnt_t)0,
-                                  detail::s_current_op_kind);
-#else
                 sp->m_transaction_started_time = 0;
-#endif
             }
         }
         // If we held the fair-mode privilege, release it on commit so the

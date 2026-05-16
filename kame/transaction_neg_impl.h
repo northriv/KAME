@@ -386,9 +386,8 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
 // Tx has tagged this Linkage; otherwise calls `_negotiate_internal()`.
 // The relaxed load on m_transaction_started_time is the same one
 // `_negotiate_internal` would do first, so the collision path pays no
-// extra.  With KAME_SLOT_KEEP_KIND, a kind-only stamp (us=0) is still
-// "no active tagger" — use is_active_stamp to filter on the us field
-// rather than the full word.
+// extra.  `is_active_stamp(s)` is just `s != 0` — release zero-stores
+// the slot, so any non-zero word means "tagged".
 template <class XN>
 void
 ScopedNegotiateLinkage<XN>::_negotiate() noexcept {
