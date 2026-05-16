@@ -1475,12 +1475,20 @@ private:
 
     void snapshot(Snapshot<XN> &target, bool multi_nodal) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-        // This negotiate is not wrapped by a ScopedNegotiateLinkage —
-        // give it its own NegSite::SiteState bucket so it shows up in dumps.
-        NegSite::Scope _site_scope(__LINE__);
-#endif
-        m_link->negotiate(target, 4.0f);
+        // Wait for any active contention on m_link to clear before the
+        // snapshot loop.  Wrapped in a ScopedNeg (rather than a bare
+        // m_link->negotiate call) so ALL negotiate-issuing sites in
+        // the codebase live inside ScopedNeg — this is what enables
+        // per-scope state tracking (e.g. gate-return anti-phase
+        // feedback) to attach data to the scope object instead of TLS.
+        // scope.commit() suppresses dtor tag/wait side effects since
+        // no CAS happens in this block; the subsequent
+        // snapshot(target) constructs its own ScopedNeg per retry.
+        {
+            ScopedNegotiateLinkage<XN> scope(m_link, target, -1,
+                ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 4.0f);
+            scope.commit();
+        }
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal);
         target.m_oldpacket = target.m_packet;
     }
