@@ -2059,11 +2059,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // produced a non-missing, self-bundled wrapper at
         // supernode.m_link while we were negotiating.  hasPriority()
         // guard rejects bundled-by-ancestor wrappers (packet() == null).
-        if(scope->hasPriority() && scope->packet()
-           && !scope->packet()->missing()) {
-            supscope = std::move(scope);
-            return BundledStatus::SUCCESS;
-        }
+        // if(scope->hasPriority() && scope->packet()
+        //    && !scope->packet()->missing()) {
+        //     supscope = std::move(scope);
+        //     return BundledStatus::SUCCESS;
+        // }
         local_shared_ptr<PacketWrapper> superwrapper(
             new PacketWrapper( *supscope, bundle_serial));
         local_shared_ptr<Packet> &newpacket(

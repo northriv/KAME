@@ -344,7 +344,7 @@
 // retained.  Counts older than 2 × WINDOW_US are dropped by
 // rotation.  Pow-of-2 simplifies the (now_us / WINDOW_US) op.
 #ifndef KAME_KIND_WINDOW_US
-#define KAME_KIND_WINDOW_US 256
+#define KAME_KIND_WINDOW_US 128
 #endif
 
 // Gate-return fires only when the per-kind count (summed over the
@@ -363,10 +363,10 @@
 // counts was exactly backwards (hyper-thrashing workloads have high
 // counts, and that's PRECISELY where we should NOT gate-return).
 #ifndef KAME_KIND_COUNT_THRESHOLD
-#define KAME_KIND_COUNT_THRESHOLD 6
+#define KAME_KIND_COUNT_THRESHOLD 3
 #endif
 #ifndef KAME_KIND_COUNT_HIGH
-#define KAME_KIND_COUNT_HIGH 64
+#define KAME_KIND_COUNT_HIGH 254
 #endif
 
 // Adaptive band narrowing on anti-phase fails.  Each detected fail

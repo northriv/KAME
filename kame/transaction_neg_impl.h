@@ -583,7 +583,7 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     Linkage *const self = m_link.get();
     Snapshot<XN> &snap = *m_snap;
 
-    const uint64_t fs = self->m_recent_ops_state.load(std::memory_order_relaxed);
+    const uint64_t fs = self->m_recent_ops_state.load(std::memory_order_acquire);
     // Decode windowed per-kind counts.  Apply rotation logic at READ
     // time so the stored state isn't perturbed.
     const uint64_t now_us_full =
@@ -592,20 +592,17 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     const uint8_t  cur_epoch = (uint8_t)((fs >> L::RSO_CUR_EPOCH_SHIFT)
                                           & L::RSO_BYTE_MASK);
     const uint8_t  delta_ep = (uint8_t)((now_epoch - cur_epoch) & 0xFFu);
-    uint64_t eff_B = 0, eff_U = 0, eff_C = 0;
+    uint64_t eff_U = 0, eff_O = 0;
     if(fs != 0) {
         if(delta_ep == 0) {
-            eff_B = ((fs >> L::RSO_CUR_B_SHIFT) & L::RSO_BYTE_MASK)
-                  + ((fs >> L::RSO_PREV_B_SHIFT) & L::RSO_BYTE_MASK);
             eff_U = ((fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK)
                   + ((fs >> L::RSO_PREV_U_SHIFT) & L::RSO_BYTE_MASK);
-            eff_C = ((fs >> L::RSO_CUR_C_SHIFT) & L::RSO_BYTE_MASK)
-                  + ((fs >> L::RSO_PREV_C_SHIFT) & L::RSO_BYTE_MASK);
+            eff_O = ((fs >> L::RSO_CUR_O_SHIFT) & L::RSO_BYTE_MASK)
+                  + ((fs >> L::RSO_PREV_O_SHIFT) & L::RSO_BYTE_MASK);
         } else if(delta_ep == 1) {
             // cur (= window now-1) → effective prev only.
-            eff_B = (fs >> L::RSO_CUR_B_SHIFT) & L::RSO_BYTE_MASK;
             eff_U = (fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK;
-            eff_C = (fs >> L::RSO_CUR_C_SHIFT) & L::RSO_BYTE_MASK;
+            eff_O = (fs >> L::RSO_CUR_O_SHIFT) & L::RSO_BYTE_MASK;
         }
         // delta >= 2: all stale, all zeros.
     }
@@ -623,11 +620,16 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     uint64_t hi = (uint64_t)KAME_KIND_COUNT_HIGH >> tighten;
     if(hi < lo) hi = lo;
     uint64_t my_count;
-    if(mk == 0) my_count = eff_B + eff_U + eff_C;
-    else if(mk == (uint8_t)detail::StampKind::BUNDLE) my_count = eff_B;
-    else if(mk == (uint8_t)detail::StampKind::UNBUNDLE) my_count = eff_U;
-    else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) my_count = eff_C;
-    else my_count = 0;
+    if(mk == 0)
+        my_count = eff_U + eff_O;
+    else if(mk == (uint8_t)detail::StampKind::BUNDLE)
+        my_count = eff_O;
+    else if(mk == (uint8_t)detail::StampKind::UNBUNDLE)
+        my_count = eff_U;
+    else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit)
+        my_count = eff_O;
+    else
+        my_count = 0;
     bool runners_ok = true;
 #if KAME_STM_MIN_RUNNERS != 0
     runners_ok = NegotiationCounter::numThreadsRunning()
@@ -668,7 +670,7 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     }
     // Band IN_BAND + runners OK → spin attempt.
     // Period = (2 windows) / total count → spin budget.
-    const uint64_t total_count = eff_B + eff_U + eff_C;
+    const uint64_t total_count = eff_U + eff_O;
     const uint64_t fs_period = (total_count > 0)
         ? (2u * (uint64_t)KAME_KIND_WINDOW_US / total_count)
         : (uint64_t)KAME_KIND_WINDOW_US;
@@ -687,13 +689,28 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // actual signal we want to ride.
     const uint64_t initial_ro = fs;
     bool won = false;
-    do {
-        for(int i = 0; i < 16; ++i) pause4spin();
+    uint64_t ro_timelimit = (fs_period / 2) >> tighten;
+    uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
+    for(;;) {
+        end_us = NegotiationCounter::now_us();
+        for(int i = 0; i < 2; ++i) pause4spin();
         auto ro = self->m_recent_ops_state.load(
             std::memory_order_acquire);
-        if(ro != initial_ro) { won = true; break; }
-    } while((uint64_t)NegotiationCounter::now_us() < deadline);
-    const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
+
+        auto ro_kind = (ro >> L::RSO_LATEST_KIND_SHIFT) & L::RSO_LATEST_KIND_MASK;
+        auto ro_timestamp = (ro >> L::RSO_LATEST_TIMESTAMP_SHIFT) & L::RSO_LATEST_TIMESTAMP_MASK;
+        bool is_ro_unbundle = ro_kind == (uint8_t)detail::StampKind::UNBUNDLE;
+        // if(ro != initial_ro) {
+        if( !is_ro_unbundle || (ro_kind == mk)) {
+            //Not unbundled or my kind is unbundling.
+            if((end_us - ro_timestamp - ro_timelimit) & L::RSO_LATEST_TIMESTAMP_MASK > L::RSO_LATEST_TIMESTAMP_MASK / 2) {
+                won = true;
+                break;
+            }
+        }
+        if(end_us > deadline)
+            break;
+    }
     const uint32_t elapsed =
         (uint32_t)(end_us > start_us ? end_us - start_us : 0);
     NegSite::record_spin_event(
