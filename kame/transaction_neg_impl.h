@@ -1071,53 +1071,99 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             }
 #endif // KAME_COALESCE_MODE == 4
 #else // KAME_COALESCE_MODE == 0
-            // ===== (B) Legacy any-change spin =========================
-            // Require fs_period > 0 to spin: with write-on-publish
-            // semantics, period only builds up after the first
-            // kind-change is observed.  Spinning blindly (budget =
-            // KAME_SPIN_MAX_US) while period is 0 wastes a lot of CPU
-            // under high oversubscription and stalls the holder.
-            if(fs == 0 || (eff_B + eff_U + eff_C) == 0) {
+            // ===== (B) Unified PRE-spin gate + any-change spin ========
+            //
+            // Per user observation "初期時間以外の取り扱いは同じに
+            // すべし": the band + runners + tighten checks must gate
+            // whether we ENTER the spin at all.  spin-win and the old
+            // separate "gate-return" path are the same decision —
+            // they only differed in how long they waited before
+            // breaking.  Apply the gate ONCE here, BEFORE spin.
+            //
+            //   tighten ramps up on each detected fail (previous
+            //   break-for-CAS didn't reach a CAS success); CAS
+            //   success resets tighten=0 (see ScopedNeg::
+            //   _on_cas_success).  The effective HIGH band narrows
+            //   right-shift per step.
+            //
+            //   Below LOW       → SKIPPED_NO_PERIOD
+            //   Above HIGH      → SKIPPED_THRASHING (hyper-thrash)
+            //   Runners cap hit → SKIPPED_THRASHING (CAS-storm risk)
+            //   In-band & runners ok → spin → WON / TIMEOUT
+            const uint8_t mk = (uint8_t)detail::s_current_op_kind & 0x3u;
+            const bool prev_failed = snap.m_last_gate_returned;
+            if(prev_failed
+               && snap.m_gate_return_tighten
+                  < (uint8_t)KAME_GATE_RETURN_MAX_TIGHTEN) {
+                ++snap.m_gate_return_tighten;
+            }
+            snap.m_last_gate_returned = false;
+            const uint8_t tighten = snap.m_gate_return_tighten;
+            const uint64_t lo = (uint64_t)KAME_KIND_COUNT_THRESHOLD;
+            uint64_t hi = (uint64_t)KAME_KIND_COUNT_HIGH >> tighten;
+            if(hi < lo) hi = lo;
+            uint64_t my_count;
+            if(mk == 0) my_count = eff_B + eff_U + eff_C;
+            else if(mk == (uint8_t)detail::StampKind::BUNDLE) my_count = eff_B;
+            else if(mk == (uint8_t)detail::StampKind::UNBUNDLE) my_count = eff_U;
+            else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) my_count = eff_C;
+            else my_count = 0;
+            bool runners_ok = true;
+#if KAME_STM_MAX_RUNNERS != 0
+            runners_ok = NegotiationCounter::numThreadsRunning()
+                         < effective_max_runners(C_obs);
+#endif
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+            {
+                NegSite::BandOutcome bo =
+                      (my_count < lo) ? NegSite::BandOutcome::BELOW_LOW
+                    : (my_count > hi) ? NegSite::BandOutcome::ABOVE_HIGH
+                                      : NegSite::BandOutcome::IN_BAND;
+                NegSite::record_band_event(mk, bo, tighten);
+            }
+            if(prev_failed) {
+                uint8_t active_kind = 0;
+                uint64_t mx = 0;
+                if(eff_B > mx) { mx = eff_B; active_kind =
+                    (uint8_t)detail::StampKind::BUNDLE; }
+                if(eff_U > mx) { mx = eff_U; active_kind =
+                    (uint8_t)detail::StampKind::UNBUNDLE; }
+                if(eff_C > mx) { mx = eff_C; active_kind =
+                    (uint8_t)detail::StampKind::MultiNodalCommit; }
+                NegSite::record_gr_not_in_time(
+                    snap.m_gate_return_my_kind, active_kind);
+            }
+#endif
+            if(fs == 0 || my_count == 0 || my_count < lo) {
                 outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
-            } else if(age > (uint64_t)KAME_SPIN_RECENT_FLIP_US) {
-                outcome = NegSite::SpinOutcome::SKIPPED_COLD;
-            } else if((eff_B + eff_U + eff_C) > 0
-                      && (2u * (uint64_t)KAME_KIND_WINDOW_US
-                          / (eff_B + eff_U + eff_C))
-                         * KAME_THRASHING_C_MULT_DEN
-                         < (uint64_t)(sig_C * KAME_THRASHING_C_MULT)) {
+                NegSite::record_spin_event(outcome, 0);
+            } else if(my_count > hi || !runners_ok) {
                 outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
+                NegSite::record_spin_event(outcome, 0);
             } else {
-                // Period = (2 windows) / total flip count.  Counts are
-                // filtered to true flips at record time (same-kind
-                // consecutive events skipped), so this is the mean
-                // inter-flip interval over the last 2 windows.
+                // Band IN_BAND + runners OK → spin attempt.
+                // Period = (2 windows) / total count → spin budget.
                 const uint64_t total_count = eff_B + eff_U + eff_C;
                 const uint64_t fs_period = (total_count > 0)
                     ? (2u * (uint64_t)KAME_KIND_WINDOW_US / total_count)
                     : (uint64_t)KAME_KIND_WINDOW_US;
-                // budget = min(fs_period * BUDGET_PCT/100, MAX_US).
                 const uint64_t period_cap =
                     (fs_period * (uint64_t)KAME_SPIN_BUDGET_PCT) / 100u;
                 const uint64_t budget =
                     period_cap < (uint64_t)KAME_SPIN_MAX_US
-                    ? period_cap
-                    : (uint64_t)KAME_SPIN_MAX_US;
+                    ? period_cap : (uint64_t)KAME_SPIN_MAX_US;
                 const uint64_t start_us =
                     (uint64_t)NegotiationCounter::now_us();
                 const uint64_t deadline = start_us + budget;
                 const auto initial_t =
                     m_transaction_started_time.load(std::memory_order_relaxed);
                 bool won = false;
-                // Polled change detector; relaxed is sufficient since
-                // we only test for "value has changed" and need not
-                // synchronize-with the holder for in-loop polling.
                 do {
                     for(int i = 0; i < 16; ++i) pause4spin();
                     auto t = m_transaction_started_time.load(
                         std::memory_order_relaxed);
-                    if(!t) { won = true; break; }     // Linkage released
-                    if(t != initial_t) { won = true; break; }  // peer changed
+                    if(!t) { won = true; break; }
+                    if(t != initial_t) { won = true; break; }
                 } while((uint64_t)NegotiationCounter::now_us() < deadline);
                 const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
                 const uint32_t elapsed =
@@ -1126,137 +1172,19 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                     ? NegSite::SpinOutcome::WON
                     : NegSite::SpinOutcome::TIMEOUT;
                 NegSite::record_spin_event(outcome, elapsed);
-                if(won) break;   // gate-return: caller retries CAS
+                if(won) {
+                    // Break for CAS retry — mark for fail tracking.
+                    snap.m_last_gate_returned = true;
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+                    snap.m_gate_return_time_us =
+                        (uint32_t)NegotiationCounter::now_us();
+                    snap.m_gate_return_my_kind = mk;
+#endif
+                    break;
+                }
+                // TIMEOUT → fall to CV-sleep.
             }
 #endif // KAME_COALESCE_MODE
-            if(outcome != NegSite::SpinOutcome::WON
-               && outcome != NegSite::SpinOutcome::TIMEOUT) {
-                // Same-kind gate-return: flipping is detected
-                // (fs != 0) but the spin trigger didn't fully open
-                // (COLD or THRASHING).  If peer is doing the SAME
-                // kind right now AND the running-thread count is
-                // below the CAS-retry budget cap, skip CV-sleep and
-                // retry CAS immediately — peer will finish their
-                // B/U and we can piggyback on their result.
-                //
-                // Runner-cap guard (numThreadsRunning < max_r):
-                //   shares the effective_max_runners threshold with
-                //   the gate-mult "earned priority" break.  Without
-                //   this, every contender at high N falls into the
-                //   gate-return path simultaneously → CAS retry
-                //   storm.  M4 N=128 3L benched at avg8 −12 % with
-                //   the guard absent (see ceb85fe8 commit history)
-                //   versus +0.66 % with the gate-return path
-                //   entirely disabled (NOcebREVERT measurement).
-                //
-                // Bounded by the outer ms-backoff if peer never
-                // lets go.
-                bool gate_returned = false;
-                if(outcome == NegSite::SpinOutcome::SKIPPED_COLD
-                   || outcome == NegSite::SpinOutcome::SKIPPED_THRASHING) {
-                    const uint8_t mk =
-                        (uint8_t)detail::s_current_op_kind & 0x3u;
-                    if(true
-#if KAME_STM_MAX_RUNNERS != 0
-                       && NegotiationCounter::numThreadsRunning()
-                          < effective_max_runners(C_obs)
-#endif
-                       ) {
-                        // Pure flipped-based gate-return.  Slot is no
-                        // longer consulted (its content = "an older
-                        // Tx tried to B/U and failed" — little value
-                        // for coalesce decisions).
-                        //
-                        // Condition: we want to ride right after a
-                        // B/U publish, so:
-                        //   Per-kind windowed count check:
-                        //   - outer (mk == 0): sum of recent B/U/C
-                        //     counts ≥ KAME_KIND_COUNT_THRESHOLD
-                        //   - inner mk == B/U/C: per-kind count ≥
-                        //     KAME_KIND_COUNT_THRESHOLD
-                        //   Counts are the sum over the current + prev
-                        //   absolute-time windows (auto-decayed by
-                        //   window rotation).
-                        // Adaptive anti-phase tighten — narrows the
-                        // HIGH bound on each detected fail (= previous
-                        // gate-return without intervening CAS success).
-                        const bool prev_failed = snap.m_last_gate_returned;
-                        if(prev_failed
-                           && snap.m_gate_return_tighten
-                              < (uint8_t)KAME_GATE_RETURN_MAX_TIGHTEN) {
-                            ++snap.m_gate_return_tighten;
-                        }
-                        snap.m_last_gate_returned = false;
-                        const uint8_t tighten =
-                            snap.m_gate_return_tighten;
-                        const uint64_t lo =
-                            (uint64_t)KAME_KIND_COUNT_THRESHOLD;
-                        uint64_t hi =
-                            (uint64_t)KAME_KIND_COUNT_HIGH >> tighten;
-                        if(hi < lo) hi = lo;  // band collapses to {LOW}
-                        auto in_band = [lo, hi](uint64_t c) {
-                            return c >= lo && c <= hi;
-                        };
-                        // Identify the count we'll judge against.
-                        uint64_t my_count;
-                        if(mk == 0) {
-                            my_count = eff_B + eff_U + eff_C;
-                        } else if(mk == (uint8_t)detail::StampKind::BUNDLE) {
-                            my_count = eff_B;
-                        } else if(mk == (uint8_t)detail::StampKind::UNBUNDLE) {
-                            my_count = eff_U;
-                        } else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) {
-                            my_count = eff_C;
-                        } else {
-                            my_count = 0;
-                        }
-                        const bool kind_ok = in_band(my_count);
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-                        // INSTRUMENT: record band outcome for diagnostic
-                        // dump.  Skip on mk=NONE+invalid (kind_ok=false
-                        // due to "else" clause), only record real
-                        // outcomes.
-                        {
-                            NegSite::BandOutcome bo =
-                                  (my_count < lo) ? NegSite::BandOutcome::BELOW_LOW
-                                : (my_count > hi) ? NegSite::BandOutcome::ABOVE_HIGH
-                                                  : NegSite::BandOutcome::IN_BAND;
-                            NegSite::record_band_event(mk, bo, tighten);
-                        }
-                        // INSTRUMENT: if previous gate-return didn't
-                        // reach CAS success, record "not in time" with
-                        // the currently-dominant kind on this Linkage.
-                        if(prev_failed) {
-                            uint8_t active_kind = 0;
-                            uint64_t mx = 0;
-                            if(eff_B > mx) { mx = eff_B; active_kind =
-                                (uint8_t)detail::StampKind::BUNDLE; }
-                            if(eff_U > mx) { mx = eff_U; active_kind =
-                                (uint8_t)detail::StampKind::UNBUNDLE; }
-                            if(eff_C > mx) { mx = eff_C; active_kind =
-                                (uint8_t)detail::StampKind::MultiNodalCommit; }
-                            NegSite::record_gr_not_in_time(
-                                snap.m_gate_return_my_kind, active_kind);
-                        }
-#endif
-                        if(kind_ok) {
-                            NegSite::record_spin_event(
-                                NegSite::SpinOutcome::
-                                  GATE_RETURN_SAMEKIND, 0);
-                            gate_returned = true;
-                            snap.m_last_gate_returned = true;
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-                            snap.m_gate_return_time_us =
-                                (uint32_t)NegotiationCounter::now_us();
-                            snap.m_gate_return_my_kind = mk;
-#endif
-                        }
-                    }
-                }
-                if(!gate_returned)
-                    NegSite::record_spin_event(outcome, 0);
-                if(gate_returned) break;
-            }
         }
 
         // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.
