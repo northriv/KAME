@@ -2256,11 +2256,13 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // Partial-bundle publishes (missing=true) do not count: peers
         // can't ride them as a coalesce result, so they shouldn't bias
         // the period EMA.
+#if KAME_ENABLE_SPIN_BAND_GATE
         if( !missing) {
             supernode.m_link->template record_successful_op<NegotiationCounter>(
                 NegotiationCounter::with_kind(started_time,
                                               detail::StampKind::BUNDLE));
         }
+#endif
         // Update supscope.view to track.
         supscope.set_view(std::move(superwrapper));
 
@@ -2573,9 +2575,11 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     // subscope.compareAndSetWithHint auto-committed + tagged success.
     // The new wrapper at subscope.linkage is hasPriority (its own
     // packet) — this is a real UNBUNDLE publish event.
+#if KAME_ENABLE_SPIN_BAND_GATE
     subscope.linkage()->template record_successful_op<NegotiationCounter>(
         NegotiationCounter::with_kind(time_started,
                                       detail::StampKind::UNBUNDLE));
+#endif
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
         it->linkage->tags_successful_cas(time_started);

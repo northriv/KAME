@@ -65,6 +65,30 @@
 #define KAME_STM_LIVELOCK_FALLBACK 1
 #endif
 
+// --- Per-Linkage flip / spin gate subsystem -------------------------
+
+// Master enable for the per-Linkage flip-detection + spin-for-period
+// gate subsystem.  When set to 0 (or undefined), the following are
+// compiled out:
+//   - `ScopedNegotiateLinkage::_neg_spin_block` body + call from
+//     `_negotiate_internal`
+//   - `Linkage::record_successful_op` body + its two call sites in
+//     transaction_impl.h
+//   - The Snapshot-side tighten / gate-return latency bookkeeping in
+//     `_on_cas_success`
+// All the related tuning macros (KAME_KIND_WINDOW_*, KAME_KIND_COUNT_*,
+// KAME_SPIN_*, KAME_GATE_RETURN_*) and the RSO_* layout constants are
+// still defined unconditionally — they are simply unreferenced when
+// the gate is off, so zero runtime/code-size cost beyond the macro
+// definitions themselves.
+//
+// Default: ON (= 1).  Disable with -DKAME_ENABLE_SPIN_BAND_GATE=0 (or
+// =OFF via cmake) for ablation / A-B benches showing the gate has no
+// net effect on a given workload + hardware combination.
+#ifndef KAME_ENABLE_SPIN_BAND_GATE
+#define KAME_ENABLE_SPIN_BAND_GATE 1
+#endif
+
 // --- Compile-time tuning knobs for the adaptive-negotiate backoff ---
 
 // Half-range of the jittered gate in percent; must be ≥1 (0 causes

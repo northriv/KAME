@@ -573,7 +573,11 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
 //   Above HIGH      → SKIPPED_THRASHING (hyper-thrash)
 //   Runners cap hit → SKIPPED_THRASHING (CAS-storm risk)
 //   In-band & runners ok → spin → WON / TIMEOUT
+//
+// The entire body is compiled out when KAME_ENABLE_SPIN_BAND_GATE=0
+// — see the master-enable comment in transaction_definitions.h.
 //=============================================================================
+#if KAME_ENABLE_SPIN_BAND_GATE
 template <class XN>
 bool
 ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
@@ -765,6 +769,7 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
 #endif
     return true;
 }
+#endif // KAME_ENABLE_SPIN_BAND_GATE
 
 //=============================================================================
 // negotiate_internal() — priority-based backoff for collision avoidance
@@ -1123,8 +1128,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // Spin won → break out of the negotiate loop; otherwise fall
         // through to CV-sleep.  See `_neg_spin_block` definition for
         // the band / tighten / spin-budget rationale.
+        // Compiled out entirely when KAME_ENABLE_SPIN_BAND_GATE=0.
+#if KAME_ENABLE_SPIN_BAND_GATE
         if(_neg_spin_block(C_obs))
             break;
+#else
+        (void)C_obs;
+#endif
 
         // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.
         // Jitter breaks the synchronized-wakeup oscillation that forms when

@@ -1312,8 +1312,13 @@ private:
         //! cur_count[my_kind] (saturating at 255).  Updates
         //! latest_kind.  Period is derived at read time as
         //! `(2 * WINDOW_US) / total_count`.
+        //!
+        //! Body compiled out when KAME_ENABLE_SPIN_BAND_GATE=0 (see
+        //! transaction_definitions.h) — call sites in transaction_impl.h
+        //! are also guarded so the template is never instantiated.
         template <class NC>
         void record_successful_op(typename NC::cnt_t stamp_with_kind) noexcept {
+#if KAME_ENABLE_SPIN_BAND_GATE
             const uint8_t my_kind =
                 (uint8_t)NC::stamp_kind(stamp_with_kind) & 0x3u;
             const int my_cur_shift = kind_cur_count_shift(my_kind);
@@ -1397,6 +1402,9 @@ private:
                 | ((uint64_t)my_kind << RSO_LATEST_KIND_SHIFT)
                 | ((uint64_t)new_timestamp << RSO_LATEST_TIMESTAMP_SHIFT);
             m_recent_ops_state.store(new_fs, std::memory_order_relaxed);
+#else
+            (void)stamp_with_kind;
+#endif // KAME_ENABLE_SPIN_BAND_GATE
         }
         struct PriorityState {
             uint16_t tid;

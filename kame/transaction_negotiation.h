@@ -781,6 +781,10 @@ private:
         m_committed = true;
         // Adaptive anti-phase tighten: any CAS success means peer's
         // coalesce window is in sync — reset to default sensitivity.
+        // Spin/band-gate-related bookkeeping (compiled out when the
+        // master switch is off; the Snapshot fields stay at their
+        // default zero values).
+#if KAME_ENABLE_SPIN_BAND_GATE
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         // INSTRUMENT: if this CAS success follows a recent gate-return
         // (m_last_gate_returned still true), record the latency.
@@ -795,6 +799,7 @@ private:
 #endif
         m_snap->m_last_gate_returned = false;
         m_snap->m_gate_return_tighten = 0;
+#endif // KAME_ENABLE_SPIN_BAND_GATE
 #if KAME_LEGACY_GATING
         // ===== Legacy gating: success-streak → FORCE_GATE transition ===
         m_site_state->consec_fails = 0;     // any success clears fails
@@ -892,6 +897,7 @@ private:
         int64_t now_us_entry,
         Priority entry_pr) noexcept;
 
+#if KAME_ENABLE_SPIN_BAND_GATE
     //! Helper extracted from `_negotiate_internal`'s loop body:
     //! unified PRE-spin band gate + any-change spin shortcut.  Reads
     //! windowed per-kind counters in `m_link->m_recent_ops_state` to
@@ -904,6 +910,7 @@ private:
     //!         (spin won → caller retries CAS); false → fall through
     //!         to CV-sleep.
     bool _neg_spin_block(int C_obs) noexcept;
+#endif // KAME_ENABLE_SPIN_BAND_GATE
 public:
 
     //! Manual commit override.  Use when (a) the CAS happened in a
