@@ -629,9 +629,9 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     else if(mk == (uint8_t)detail::StampKind::MultiNodalCommit) my_count = eff_C;
     else my_count = 0;
     bool runners_ok = true;
-#if KAME_STM_MAX_RUNNERS != 0
+#if KAME_STM_MIN_RUNNERS != 0
     runners_ok = NegotiationCounter::numThreadsRunning()
-                 < effective_max_runners(C_obs);
+                 < effective_min_runners(C_obs);
 #else
     (void)C_obs;
 #endif
@@ -690,7 +690,7 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     do {
         for(int i = 0; i < 16; ++i) pause4spin();
         auto ro = self->m_recent_ops_state.load(
-            std::memory_order_relaxed);
+            std::memory_order_acquire);
         if(ro != initial_ro) { won = true; break; }
     } while((uint64_t)NegotiationCounter::now_us() < deadline);
     const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();

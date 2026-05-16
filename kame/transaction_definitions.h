@@ -317,25 +317,8 @@
 // only kicks in for Linkages with > ~1.6 ms observed period, which is
 // effectively never in steady-state contention.
 #ifndef KAME_SPIN_MAX_US
-#define KAME_SPIN_MAX_US 1000
+#define KAME_SPIN_MAX_US 300
 #endif
-
-// (Retired) KAME_SPIN_RECENT_FLIP_US — used to gate the spin block
-// via `age > RECENT` SKIPPED_COLD outcome.  Removed when the
-// unified PRE-spin band gate replaced the age check: spin entry is
-// now decided by the per-kind count in the [LOW, HIGH] window
-// (m_recent_ops_state), not by a wall-clock age.  Macro kept here
-// solely so legacy -D flags don't error; it has no effect on
-// behaviour.
-
-// (Retired) KAME_COALESCE_MODE / KAME_COALESCE_MAX_US /
-// KAME_COALESCE_RECENT_US / KAME_COALESCE_BUDGET_PCT — kind-match
-// "K-variant" coalesce paths (K1 polled-strict, K2 polled-loose,
-// K4 ARM-blind).  Explored 2026-05; all variants lost to the
-// unified PRE-spin band gate baseline on both M4 and x86 4-core
-// (M4 best: K4 M5R30 at −0.53 %, statistically tied with spin
-// OFF).  Removed in favour of the simpler always-on band gate
-// (KAME_KIND_COUNT_THRESHOLD / KAME_KIND_COUNT_HIGH below).
 
 // Same budget-scaling knob for the legacy any-change spin path
 // (KAME_SPIN_RECENT_FLIP_US > 0).  Always polled, so over-shooting is
@@ -353,25 +336,6 @@
 // M4 and on x86 4-core.
 #ifndef KAME_SPIN_BUDGET_PCT
 #define KAME_SPIN_BUDGET_PCT 600
-#endif
-
-// Over-thrashing detection multiplier for the SKIPPED_THRASHING gate.
-// Spin is skipped iff
-//   fs_period_us * KAME_THRASHING_C_MULT_DEN
-//     < sig_C * KAME_THRASHING_C_MULT
-// i.e. effective ratio = KAME_THRASHING_C_MULT / KAME_THRASHING_C_MULT_DEN.
-// Use DEN to express non-integer multipliers (phase effects in B/U
-// cycles can put the optimum between consecutive integers):
-//   NUM=2, DEN=1 → ratio 2.0  (default; "1 round-robin + 1 period margin")
-//   NUM=5, DEN=2 → ratio 2.5  (mid-point between C=2 and C=3 sweep peaks)
-//   NUM=3, DEN=1 → ratio 3.0
-// Larger ratio → more cases classified as THRASHING → more gate-return
-// firings on peer same-kind, fewer spin attempts.
-#ifndef KAME_THRASHING_C_MULT
-#define KAME_THRASHING_C_MULT 2
-#endif
-#ifndef KAME_THRASHING_C_MULT_DEN
-#define KAME_THRASHING_C_MULT_DEN 1
 #endif
 
 // Absolute-time window width (µs) for the windowed per-kind count
@@ -399,10 +363,10 @@
 // counts was exactly backwards (hyper-thrashing workloads have high
 // counts, and that's PRECISELY where we should NOT gate-return).
 #ifndef KAME_KIND_COUNT_THRESHOLD
-#define KAME_KIND_COUNT_THRESHOLD 2
+#define KAME_KIND_COUNT_THRESHOLD 6
 #endif
 #ifndef KAME_KIND_COUNT_HIGH
-#define KAME_KIND_COUNT_HIGH 32
+#define KAME_KIND_COUNT_HIGH 64
 #endif
 
 // Adaptive band narrowing on anti-phase fails.  Each detected fail
