@@ -996,13 +996,35 @@ private:
                                                         cnt_t tidstamp,
                                                         int sig_C = 1) noexcept;
         static void    release_privileged_tidstamp(cnt_t my_tidstamp) noexcept;
-        static bool    fair_mode_blocks_me(cnt_t tidstamp) noexcept;
-        //! Returns true iff this thread currently holds the privilege slot.
-        //! Used to switch acquire/CAS to STRONG mode for the privileged
-        //! thread: privilege is exclusive, fair_mode blocks all other
-        //! threads' CAS, so the privileged thread's strong spin has no
-        //! peer to contend with — guaranteed forward progress, no livelock.
-        static bool    i_am_privileged_now(cnt_t my_tidstamp) noexcept;
+        //! Whether some other Tx currently blocks us via the fair-mode
+        //! privilege mechanism.  With KAME_PER_LINKAGE_PRIVILEGE=1
+        //! (default), the per-Linkage `m_transaction_started_time`
+        //! slot's kind field is consulted (Reserved = "peer holds
+        //! privilege on THIS Linkage").  With =0, the global
+        //! `s_privileged_tidstamp` slot is checked.  Either way the
+        //! returned bool has the same meaning: "another Tx will get
+        //! the CAS first, yield".
+        //!
+        //! `link` is optional (defaults to nullptr): callers that
+        //! cannot point at a specific Linkage will get `false` under
+        //! the per-Linkage mode (no link → no check); the global
+        //! mode ignores the arg.  Pass `m_link.get()` whenever
+        //! available so the per-Linkage path can do its work.
+        static bool    fair_mode_blocks_me(
+                           cnt_t tidstamp,
+                           const Linkage *link = nullptr) noexcept;
+        //! Returns true iff this thread currently holds the privilege.
+        //! Under KAME_PER_LINKAGE_PRIVILEGE=1, "privilege" means our
+        //! stamp is on `link->m_transaction_started_time` with
+        //! kind = Reserved.  Under =0, we hold the global
+        //! `s_privileged_tidstamp` slot (TID match).  In either mode,
+        //! the result is used to switch acquire/CAS to STRONG mode:
+        //! privilege ensures no peer will fight us on this Linkage.
+        //!
+        //! Same nullptr-default policy as `fair_mode_blocks_me`.
+        static bool    i_am_privileged_now(
+                           cnt_t my_tidstamp,
+                           const Linkage *link = nullptr) noexcept;
 
         //! Per-priority livelock-probe parameters (retry threshold + label).
         struct PriorityProbeInfo {
@@ -1897,12 +1919,23 @@ public:
                 sp->m_transaction_started_time = 0;
             }
         }
-        // If we held the fair-mode privilege, release it on commit so the
-        // global slot is available for the next stuck Tx. Reset the local
-        // flag too, otherwise ~Transaction() would attempt a redundant
-        // (and now stale) clear.
+        // If we held the fair-mode privilege, release it on commit so
+        // subsequent stuck Txs can claim it.  Reset the local flag so
+        // ~Transaction() won't attempt a redundant (and now stale)
+        // clear.
+        //
+        // Per-Linkage mode (KAME_PER_LINKAGE_PRIVILEGE=1): the
+        // Reserved-kind stamps were already cleared by the
+        // strip_kind-matching loop above (it zero-stores any slot
+        // whose identity matches ours, regardless of kind bits).
+        // No global slot was ever claimed, so the global release
+        // CAS is skipped.
+        //
+        // Global mode (=0): CAS-release the singleton slot.
         if (this->m_registered_privileged) {
+#if !KAME_PER_LINKAGE_PRIVILEGE
             Node<XN>::NegotiationCounter::release_privileged_tidstamp(this->m_started_time);
+#endif
             this->m_registered_privileged = false;
         }
     }

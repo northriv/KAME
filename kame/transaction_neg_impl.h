@@ -165,7 +165,19 @@ void Node<XN>::NegotiationCounter::release_privileged_tidstamp(cnt_t my_tidstamp
 }
 
 template <class XN>
-bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(cnt_t tidstamp) noexcept {
+bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
+        cnt_t tidstamp,
+        const Linkage *link) noexcept {
+#if KAME_PER_LINKAGE_PRIVILEGE
+    // Per-Linkage: check the linkage's own slot for a Reserved-kind
+    // stamp held by some other thread.  Nested Txs on the same TID
+    // are NOT blocked (strip_kind identity match returns "us").
+    if(link == nullptr) return false;
+    cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
+    if( !is_priv_stamp(slot)) return false;
+    return strip_kind(slot) != strip_kind(tidstamp);
+#else
+    (void)link;
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
     if(priv == (cnt_t)0) return false;
     // Compare by TID only (upper 16 bits of the packed stamp), NOT by
@@ -180,10 +192,22 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(cnt_t tidstamp) noexcept 
     // transaction_dynamic_node_test backtrace (~Node->releaseAll on
     // frame #15-16, negotiate_sleep on frame #9).
     return stamp_tid(priv) != stamp_tid(tidstamp);
+#endif
 }
 
 template <class XN>
-bool Node<XN>::NegotiationCounter::i_am_privileged_now(cnt_t my_tidstamp) noexcept {
+bool Node<XN>::NegotiationCounter::i_am_privileged_now(
+        cnt_t my_tidstamp,
+        const Linkage *link) noexcept {
+#if KAME_PER_LINKAGE_PRIVILEGE
+    // Per-Linkage: "I am privileged" iff this Linkage's slot carries
+    // a Reserved-kind stamp whose (us, tid) identity matches mine.
+    if(link == nullptr) return false;
+    cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
+    if( !is_priv_stamp(slot)) return false;
+    return strip_kind(slot) == strip_kind(my_tidstamp);
+#else
+    (void)link;
     // Compare by TID (upper bits) — the privileged Tx and a *nested* Tx
     // on the same thread carry different started_time stamps but share
     // the same TID. Either Tx is "privileged" for the purpose of choosing
@@ -192,6 +216,7 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(cnt_t my_tidstamp) noexce
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
     if(priv == (cnt_t)0) return false;
     return stamp_tid(priv) == stamp_tid(my_tidstamp);
+#endif
 }
 
 template <class XN>
@@ -414,7 +439,7 @@ void
 ScopedNegotiateLinkage<XN>::_negotiate_after_retry_pause(int retry) noexcept {
     using NC = typename Node<XN>::NegotiationCounter;
     if(retry == 0
-        && !NC::fair_mode_blocks_me(m_snap->m_started_time))
+        && !NC::fair_mode_blocks_me(m_snap->m_started_time, m_link.get()))
         [[likely]] return;  // fast path; zero-overhead steady state
     retry_pause(retry);
     _negotiate();
@@ -861,43 +886,29 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             self->m_tx_commit_count,
             _ll_owned, _ll_total, sig_C, _ll_age_us,
             entry_pr);
-        // Fair-mode escape: when verdict=LIVELOCK fires for this Tx, the
-        // global slot is free, and the Tx has aged past the per-priority
-        // floor (see NegotiationCounter::min_privilege_age_us), claim it.
-        // Subsequent LIVELOCK ticks on the same Tx are no-ops because
-        // m_registered_privileged is already set. Cleared in
-        // finalizeCommitment / ~Transaction.
-        if (_ll_saw && !snap.m_registered_privileged
-            && NegotiationCounter::try_register_privileged_tidstamp(
-                   entry_pr, snap.m_started_time)) {
-            snap.m_registered_privileged = true;
-            // (No adaptive-state reset here.)  Privileged threads
-            // skip the gate-decision block entirely (guarded by
-            // `!_fair_blocks && !snap.m_registered_privileged`) and
-            // fall through to the adaptive sleep automatically.  Once
-            // privilege is released at Tx finalize/dtor, the next
-            // Tx starts with default per-site state = GATE — i.e.
-            // step-1 behaviour (my_kind != NONE → gate-return) is the
-            // initial / post-privilege resting state, and NORMAL
-            // engages only via the streak+time path below.
-            //
-            // Per-Linkage privilege overlay (Step 2 of plan A):
-            // stamp `StampKind::Reserved` on every linkage in our
-            // tagged set whose slot still holds our (us, tid)
-            // identity.  Peers reading those slots in their own
-            // negotiate_internal will detect `is_priv_stamp` and
-            // yield (CV-sleep) just like they would for the global
-            // fair-mode flag.  Localising the yield to the linkages
-            // we actually hold avoids penalising unrelated disjoint
-            // Txs.  Failures (slot moved on while we CAS) are silent
-            // — the global slot still backs us up.  drop_tags_n_privilege
-            // clears these stamps via strip_kind, so no explicit
-            // per-Linkage release is needed.
-            //
-            // Compile out when KAME_PER_LINKAGE_PRIVILEGE=0 — the
-            // global slot then handles the entire fair-mode escape
-            // (= pre-Step-2 behaviour).
+        // Fair-mode escape: when verdict=LIVELOCK fires for this Tx
+        // and the Tx has aged past the per-priority floor (see
+        // NegotiationCounter::min_privilege_age_us), claim privilege.
+        //
+        // Per-Linkage mode (KAME_PER_LINKAGE_PRIVILEGE=1, default):
+        //   walk our `m_tagged_linkages` and CAS the kind field of
+        //   each slot we still own (strip_kind match) to Reserved.
+        //   The global `s_privileged_tidstamp` slot is NOT touched —
+        //   peers detect privilege by reading the per-Linkage stamp
+        //   directly via `is_priv_stamp` in fair_mode_blocks_me.
+        //   `claimed` = at least one slot upgraded; sets
+        //   `m_registered_privileged` so subsequent probe ticks are
+        //   no-ops on this Tx.  drop_tags_n_privilege clears the
+        //   Reserved stamps via strip_kind, so no explicit release
+        //   is needed.
+        //
+        // Global mode (=0):
+        //   CAS-claim the singleton `s_privileged_tidstamp`.  Peers
+        //   detect privilege globally via the old code path.
+        if (_ll_saw && !snap.m_registered_privileged) {
+            bool claimed = false;
 #if KAME_PER_LINKAGE_PRIVILEGE
+            (void)entry_pr;
             const auto my_id = NegotiationCounter::strip_kind(snap.m_started_time);
             const auto my_priv = NegotiationCounter::with_kind(
                 snap.m_started_time, detail::StampKind::Reserved);
@@ -907,13 +918,20 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     std::memory_order_relaxed);
                 if (cur != 0
                     && NegotiationCounter::strip_kind(cur) == my_id) {
-                    l->m_transaction_started_time.compare_exchange_strong(
-                        cur, my_priv,
-                        std::memory_order_release,
-                        std::memory_order_relaxed);
+                    if (l->m_transaction_started_time.compare_exchange_strong(
+                            cur, my_priv,
+                            std::memory_order_release,
+                            std::memory_order_relaxed)) {
+                        claimed = true;
+                    }
                 }
             }
+#else
+            claimed = NegotiationCounter::try_register_privileged_tidstamp(
+                          entry_pr, snap.m_started_time);
 #endif
+            if (claimed)
+                snap.m_registered_privileged = true;
         }
     }
 
@@ -1005,28 +1023,16 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // started_time wins → I sleep below) is the only mechanism left
         // to allocate priority while fair-mode is active.
         //
-        // Per-Linkage privilege overlay (Step 2 of plan A): in addition
-        // to the global `s_privileged_tidstamp`, the peer holding this
-        // Linkage's slot may carry a stamp with kind = Reserved (set by
-        // a Tx that successfully claimed global privilege and walked
-        // its tagged-linkages list).  Treat that as fair-mode for THIS
-        // Linkage only — yields the CAS to the privileged peer without
-        // needing the global slot to still match it (so disjoint
-        // privileged Txs don't starve each other).
-        //
-        // Compile out the per-Linkage clause when
-        // KAME_PER_LINKAGE_PRIVILEGE=0 (claim side also compiled out
-        // — no kind=Reserved stamps ever observed).
-#if KAME_PER_LINKAGE_PRIVILEGE
+        // Whether some peer's privilege blocks our CAS on this Linkage.
+        // The choice between per-Linkage and global privilege happens
+        // inside `fair_mode_blocks_me` based on KAME_PER_LINKAGE_PRIVILEGE
+        // — see helper definition in this file.  Pre-loaded
+        // `transaction_started_time` is *not* reused here because the
+        // helper does its own load; the cost is one extra atomic load
+        // under per-Linkage mode (negligible vs. the surrounding CV-wait
+        // / spin work).
         const bool _fair_blocks =
-            NegotiationCounter::fair_mode_blocks_me(started_time)
-            || (NegotiationCounter::is_priv_stamp(transaction_started_time)
-                && NegotiationCounter::strip_kind(transaction_started_time)
-                   != NegotiationCounter::strip_kind(started_time));
-#else
-        const bool _fair_blocks =
-            NegotiationCounter::fair_mode_blocks_me(started_time);
-#endif
+            NegotiationCounter::fair_mode_blocks_me(started_time, self);
 
         NegSite::last_was_gate_return() = false;
 #if KAME_LEGACY_GATING

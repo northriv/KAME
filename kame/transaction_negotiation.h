@@ -363,7 +363,8 @@ public:
         // acquire proceed; if it loses CAS, the normal weak-fail path
         // handles it.
         using NC = typename Node<XN>::NegotiationCounter;
-        bool we_hold_priv = NC::i_am_privileged_now(m_snap->m_started_time);
+        bool we_hold_priv = NC::i_am_privileged_now(m_snap->m_started_time,
+                                                    m_link.get());
         // STRONG-mode acquire+CAS for the privileged thread: privilege
         // is exclusive and fair_mode blocks all other threads' CAS on
         // this linkage, so a strong spin has no peer to contend with.
@@ -454,7 +455,7 @@ public:
 #endif
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
-                            m_snap->m_started_time);
+                            m_snap->m_started_time, m_link.get());
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
     }
@@ -507,7 +508,7 @@ public:
 #endif
         m_view = std::move(from);
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
-                            m_snap->m_started_time);
+                            m_snap->m_started_time, m_link.get());
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
     }
