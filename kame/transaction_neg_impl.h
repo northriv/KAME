@@ -841,37 +841,18 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
             ms = 5000;
         }
 
-        // --- Spin-for-peer-progress shortcut.
+        // --- Unified PRE-spin band gate + any-change spin shortcut.
         //
-        // Two distinct policies, selected at compile time:
+        // band [LOW, HIGH>>tighten] gates whether we attempt the spin
+        // at all — failed gate routes to CV-sleep instead.  spin-win
+        // (= peer's m_recent_ops_state changed during our budget)
+        // and the speculative "no-spin gate-return" are the SAME
+        // break path: they only differ in the initial-time spent.
         //
-        //  (A) KAME_COALESCE_MODE != 0 — kind-match coalesce
-        //      Trigger fires iff peer is doing the SAME kind of
-        //      operation as us (peer_kind == my_kind, both != NONE).
-        //      Rationale: when the slot holder is about to commit a
-        //      same-kind op, we bet that stepping in right after them
-        //      is cheaper than negotiate_sleep + CV wake.  When the
-        //      kinds differ, spin has no payoff — we'd retry the CAS
-        //      only to lose to a different kind anyway.
-        //
-        //      Win condition (K1 strict / K4 blind): peer released
-        //          (slot == 0).
-        //      Lose condition (K1):  peer_kind changed mid-spin (some
-        //          other thread stepped in with a different op).
-        //      Loose mode (K2):  also treat kind change as win.
-        //      Blind mode (K4):  no in-loop reads — relevant for ARM
-        //          where polling the slot triggers holder stlxr fails.
-        //
-        //  (B) KAME_COALESCE_MODE == 0 — legacy any-change spin
-        //      Trigger: this Linkage flipped within the last
-        //      KAME_SPIN_RECENT_FLIP_US µs (wall-clock age) AND
-        //      ops_since_flip < sig_C × 8.  We spin on
-        //      m_transaction_started_time waiting for ANY change
-        //      from its initial value (release OR different stamp).
-        //      Effectively disabled when KAME_SPIN_RECENT_FLIP_US == 0.
-        //
-        // Budget = min(flip_period_us_ema, KAME_{SPIN,COALESCE}_MAX_US)
-        // (per-Linkage EMA period as proxy for typical scope hold time).
+        // Period (= spin budget proxy) = (2 × window_us) / total_count.
+        // Counts are the per-kind windowed counters in
+        // m_recent_ops_state (same-kind consecutive events filtered
+        // out at record time, so count == flip count).
         {
             using L = Linkage;
             const uint64_t fs = m_recent_ops_state.load(std::memory_order_relaxed);
@@ -911,166 +892,6 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 : (uint64_t)KAME_KIND_WINDOW_US * 16;  // = very old
             (void)fs_latest_kind;  // used below in gate-return only
             NegSite::SpinOutcome outcome;
-#if KAME_COALESCE_MODE != 0
-            // ===== (A) Kind-match coalesce ============================
-            const auto slot_now =
-                m_transaction_started_time.load(std::memory_order_relaxed);
-            const uint8_t my_kind  =
-                (uint8_t)detail::s_current_op_kind & 0x3u;
-            const uint8_t peer_kind =
-                NegotiationCounter::stamp_kind(slot_now);
-#if KAME_COALESCE_MODE == 4
-            // ----- K4 flip-wait coalesce -----------------------------
-            // Wait for the next commit on this Linkage by polling
-            // m_recent_ops_state with acquire ordering, then judge whether
-            // the post-commit slot kind matches ours.  Two reasons
-            // this is preferable to slot-polling on ARM:
-            //
-            //   1. m_recent_ops_state is updated only on a *successful*
-            //      commit (≪ slot CAS frequency), so polling it does
-            //      not contend on the cache line that the holder's
-            //      stlxr is actively writing.
-            //   2. Acquire on the recent-ops-state load synchronizes-with
-            //      the committing thread's release; the slot read
-            //      that follows therefore observes a post-commit,
-            //      coherent kind tag (no B/U misread).
-            //
-            // Entry guard: fs != 0 (we have history), my_kind != 0,
-            // numThreadsRunning() <= effective_max_runners(C_obs).
-            // The runner cap prevents thundering-herd CAS races on
-            // every flip event: with no cap, all N polling threads
-            // wake on each commit and stampede the slot's CAS, only
-            // one wins and the rest reset and re-poll — pathological
-            // at N >> cores.  Set KAME_STM_MAX_RUNNERS=-1 to bind
-            // the cap to hardware_concurrency (physical CPU count)
-            // rather than the over-restrictive default 2.
-            //
-            // Decision after a flip is observed (or at timeout):
-            //   slot empty       → gate-return (slot is ours for the
-            //                      taking)
-            //   slot same-kind   → gate-return (coalesce: ride the
-            //                      next bundle/unbundle wave)
-            //   slot diff-kind   → fall through to negotiate_sleep
-            //   timeout          → fall through to negotiate_sleep
-            if(fs != 0 && my_kind != 0
-#if KAME_STM_MAX_RUNNERS != 0
-               && NegotiationCounter::numThreadsRunning()
-                  < effective_max_runners(C_obs)
-#endif
-               ) {
-                const uint64_t _tot_k4 = eff_B + eff_U + eff_C;
-                const uint64_t fs_period_k4 = (_tot_k4 > 0)
-                    ? (2u * (uint64_t)KAME_KIND_WINDOW_US / _tot_k4)
-                    : (uint64_t)KAME_KIND_WINDOW_US;
-                const uint64_t scaled_period =
-                    fs_period_k4 * (uint64_t)KAME_COALESCE_BUDGET_PCT
-                    / 100u;
-                const uint64_t budget =
-                    scaled_period < (uint64_t)KAME_COALESCE_MAX_US
-                    ? scaled_period
-                    : (uint64_t)KAME_COALESCE_MAX_US;
-                const uint64_t start_us =
-                    (uint64_t)NegotiationCounter::now_us();
-                const uint64_t deadline = start_us + budget;
-                uint64_t fs_now = fs;     // initial (relaxed)
-                // Spin until recent-ops-state advances or budget expires.
-                while(fs_now == fs
-                      && (uint64_t)NegotiationCounter::now_us()
-                         < deadline) {
-                    for(int i = 0; i < 16; ++i) pause4spin();
-                    fs_now = m_recent_ops_state.load(
-                        std::memory_order_acquire);
-                }
-                if(fs_now != fs) {
-                    // A commit just happened; acquire above
-                    // synchronizes-with the committing thread's
-                    // release.  The slot now reflects the
-                    // post-commit state.
-                    const auto slot_ack =
-                        m_transaction_started_time.load(
-                            std::memory_order_acquire);
-                    const uint8_t pk_ack =
-                        NegotiationCounter::stamp_kind(slot_ack);
-                    if(!slot_ack || pk_ack == my_kind) {
-                        NegSite::record_spin_event(
-                            NegSite::SpinOutcome::
-                              GATE_RETURN_SAMEKIND, 0);
-                        break;  // gate-return: outer CAS retry
-                    }
-                    // Different kind observed post-commit → sleep.
-                }
-                // Else: timeout w/o flip change → sleep.
-            }
-            outcome = (fs == 0)
-                ? NegSite::SpinOutcome::SKIPPED_NO_PERIOD
-                : NegSite::SpinOutcome::SKIPPED_COLD;
-#else
-            // Require fs_period > 0 to spin (same rationale as path (B)).
-            if(fs == 0 || (eff_B + eff_U + eff_C) == 0) {
-                outcome = NegSite::SpinOutcome::SKIPPED_NO_PERIOD;
-            } else if(my_kind == 0
-                      || peer_kind != my_kind
-                      || age > (uint64_t)KAME_COALESCE_RECENT_US) {
-                outcome = NegSite::SpinOutcome::SKIPPED_COLD;
-            } else if((eff_B + eff_U + eff_C) > 0
-                      && (2u * (uint64_t)KAME_KIND_WINDOW_US
-                          / (eff_B + eff_U + eff_C))
-                         * KAME_THRASHING_C_MULT_DEN
-                         < (uint64_t)(sig_C * KAME_THRASHING_C_MULT)) {
-                outcome = NegSite::SpinOutcome::SKIPPED_THRASHING;
-            } else {
-                const uint64_t _tot_kn = eff_B + eff_U + eff_C;
-                const uint64_t fs_period = (_tot_kn > 0)
-                    ? (2u * (uint64_t)KAME_KIND_WINDOW_US / _tot_kn)
-                    : (uint64_t)KAME_KIND_WINDOW_US;
-                // Budget = min(fs_period * BUDGET_PCT / 100, MAX_US).
-                // Polled defaults to 100 % (one period; early-exit
-                // makes over-shooting cheap).  Override
-                // KAME_COALESCE_BUDGET_PCT to widen (e.g. 200 = 2
-                // periods on x86 to raise coalesce hit rate).
-                const uint64_t period_cap =
-                    (fs_period * (uint64_t)KAME_COALESCE_BUDGET_PCT) / 100u;
-                const uint64_t budget =
-                    (fs_period > 0
-                     && period_cap < (uint64_t)KAME_COALESCE_MAX_US)
-                    ? period_cap
-                    : (uint64_t)KAME_COALESCE_MAX_US;
-                const uint64_t start_us =
-                    (uint64_t)NegotiationCounter::now_us();
-                const uint64_t deadline = start_us + budget;
-                bool won = false;
-                // K1 (strict) or K2 (loose) polled.
-                // In-loop poll uses relaxed: eventual visibility is
-                // sufficient for change detection, and acquire on every
-                // iteration adds a dmb per pause-batch on ARM with no
-                // payoff (spurious early-exit on a partially-visible
-                // kind only delays exit by one pause-batch in steady
-                // state).  The committing decision (gate-return at
-                // outer scope) uses acquire instead.
-                do {
-                    for(int i = 0; i < 16; ++i) pause4spin();
-                    auto t = m_transaction_started_time.load(
-                        std::memory_order_relaxed);
-                    if(!t) { won = true; break; }     // peer released
-                    if(NegotiationCounter::stamp_kind(t) != my_kind) {
-#  if KAME_COALESCE_MODE == 2
-                        won = true; break;            // K2 loose: also win
-#  else
-                        won = false; break;           // K1 strict: lose
-#  endif
-                    }
-                } while((uint64_t)NegotiationCounter::now_us() < deadline);
-                const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
-                const uint32_t elapsed =
-                    (uint32_t)(end_us > start_us ? end_us - start_us : 0);
-                outcome = won
-                    ? NegSite::SpinOutcome::WON
-                    : NegSite::SpinOutcome::TIMEOUT;
-                NegSite::record_spin_event(outcome, elapsed);
-                if(won) break;   // gate-return: caller retries CAS
-            }
-#endif // KAME_COALESCE_MODE == 4
-#else // KAME_COALESCE_MODE == 0
             // ===== (B) Unified PRE-spin gate + any-change spin ========
             //
             // Per user observation "初期時間以外の取り扱いは同じに
@@ -1155,15 +976,19 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 const uint64_t start_us =
                     (uint64_t)NegotiationCounter::now_us();
                 const uint64_t deadline = start_us + budget;
-                const auto initial_t =
-                    m_transaction_started_time.load(std::memory_order_relaxed);
+                // Poll m_recent_ops_state (not the slot) for peer
+                // progress.  The slot only flags "an older Tx is
+                // tagging me" — low diagnostic value.  recent_ops
+                // changes only when record_successful_op fires
+                // (= a confirmed B/U publish on this Linkage), which
+                // is the actual signal we want to ride.
+                const uint64_t initial_ro = fs;
                 bool won = false;
                 do {
                     for(int i = 0; i < 16; ++i) pause4spin();
-                    auto t = m_transaction_started_time.load(
+                    auto ro = m_recent_ops_state.load(
                         std::memory_order_relaxed);
-                    if(!t) { won = true; break; }
-                    if(t != initial_t) { won = true; break; }
+                    if(ro != initial_ro) { won = true; break; }
                 } while((uint64_t)NegotiationCounter::now_us() < deadline);
                 const uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
                 const uint32_t elapsed =
@@ -1184,7 +1009,6 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                 }
                 // TIMEOUT → fall to CV-sleep.
             }
-#endif // KAME_COALESCE_MODE
         }
 
         // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.

@@ -328,92 +328,16 @@
 // solely so legacy -D flags don't error; it has no effect on
 // behaviour.
 
-// --- Kind-match coalesce spin (experimental, opt-in) ---------------
-//
-// Tighter spin variant that fires only when the current slot holder
-// (peer) is performing the *same kind* of operation as us.  Rationale:
-// when peer_kind == my_kind, the slot will be released into a state we
-// can step into directly; we bet on being next in line.  When the
-// kinds differ, spinning has no payoff (we'd retry the CAS only to
-// lose to a different kind anyway), so we skip straight to negotiate_sleep.
-//
-// Mode selector:
-//   0 = OFF (legacy any-change spin path active iff KAME_SPIN_RECENT_FLIP_US > 0)
-//   1 = K1 polled strict — win on slot release; kind change = lose (exit spin)
-//   2 = K2 polled loose  — win on slot release OR kind change
-//   4 = K4 blind         — no in-loop reads (ARM stlxr-friendly)
-//
-// Budget = min(flip_period_ema, KAME_COALESCE_MAX_US).
-// Entry condition (all required):
-//   my_kind != NONE
-//   peer_kind == my_kind
-//   age <= KAME_COALESCE_RECENT_US
-//   ops_since_flip < sig_C * 8
-//
-// When MODE != 0, the legacy KAME_SPIN_RECENT_FLIP_US path is bypassed
-// completely — the coalesce trigger replaces it.
-//
-// macOS M4 sweep (2026-05):
-//   Phase 1 (3 modes @ MAX=50 RECENT=200):
-//     MODE=0 spin OFF baseline:       avg8 = 5 455 165
-//     MODE=4 K4 blind:                avg8 = 5 168 946  (−5.25%)
-//     MODE=2 K2 loose:                avg8 = 5 030 149  (−7.79%)
-//     MODE=1 K1 strict:               avg8 = 5 016 120  (−8.04%)
-//     K4 > K2 > K1: ARM stlxr interference is real (~3% gap K1→K4)
-//     but the dominant cost is the spin trigger firing on every
-//     contended commit (kind-match almost always true).
-//
-//   Phase 2 (K4 parameter tightening):
-//     MAX=50 RECENT=200 (initial):    avg8 = 5 168 946  (−5.25%)
-//     MAX=30 RECENT=100:              avg8 = 5 287 101  (−3.08%)
-//     MAX=10 RECENT=200:              avg8 = 5 293 740  (−2.96%)
-//     MAX=10 RECENT=50:               avg8 = 5 403 890  (−0.94%)
-//     MAX=10 RECENT=30:               avg8 = 5 283 464  (−3.15%)
-//     MAX=5  RECENT=50:               avg8 = 5 308 442  (−2.69%)
-//     MAX=5  RECENT=30  ← winner:     avg8 = 5 426 038  (−0.53%)  ← within noise
-//     N128CR2_3L recovers from −10.96% (M10R50) to +0.92% at M5R30.
-//     N128CR10_3L remains the persistent regressor (~−6%).
-//
-// Conclusion: with M5R30 defaults, K4 is statistically tied with
-// spin OFF on M4.  The opt-in is preserved (MODE=0 default) so the
-// shipping behaviour is unchanged.  Defaults below match the M4
-// sweep winner so enabling MODE=4 alone gets the tuned config.
-#ifndef KAME_COALESCE_MODE
-#define KAME_COALESCE_MODE 0
-#endif
+// (Retired) KAME_COALESCE_MODE / KAME_COALESCE_MAX_US /
+// KAME_COALESCE_RECENT_US / KAME_COALESCE_BUDGET_PCT — kind-match
+// "K-variant" coalesce paths (K1 polled-strict, K2 polled-loose,
+// K4 ARM-blind).  Explored 2026-05; all variants lost to the
+// unified PRE-spin band gate baseline on both M4 and x86 4-core
+// (M4 best: K4 M5R30 at −0.53 %, statistically tied with spin
+// OFF).  Removed in favour of the simpler always-on band gate
+// (KAME_KIND_COUNT_THRESHOLD / KAME_KIND_COUNT_HIGH below).
 
-// Hard cap on coalesce spin budget (µs).  Actual budget is
-// min(flip_period_ema, KAME_COALESCE_MAX_US).
-#ifndef KAME_COALESCE_MAX_US
-#define KAME_COALESCE_MAX_US 5
-#endif
-
-// Trigger gate (µs): spin only if last flip was within this window.
-// Tight value keeps the spin from firing on stale "recently active"
-// linkages that have since cooled.
-#ifndef KAME_COALESCE_RECENT_US
-#define KAME_COALESCE_RECENT_US 30
-#endif
-
-// Spin-budget scaling, expressed as a percentage of fs_period_us.
-// budget = min(fs_period * PCT / 100, KAME_COALESCE_MAX_US).
-//   100 = exactly one observed flip period (default for polled modes
-//         K1 / K2, which can early-exit so over-shooting is cheap)
-//    75 = 3/4 period (default for K4 blind; can't early-exit so a
-//         tighter budget caps the worst-case waste)
-//   200 = two periods (for x86 / wide-core sweeps where waiting two
-//         observed cycles further raises the same-kind-coalesce hit
-//         rate)
-// Set explicitly to override per-mode defaults.
-#ifndef KAME_COALESCE_BUDGET_PCT
-#  if KAME_COALESCE_MODE == 4
-#    define KAME_COALESCE_BUDGET_PCT 75
-#  else
-#    define KAME_COALESCE_BUDGET_PCT 100
-#  endif
-#endif
-
-// Same knob for the legacy any-change spin path
+// Same budget-scaling knob for the legacy any-change spin path
 // (KAME_SPIN_RECENT_FLIP_US > 0).  Always polled, so over-shooting is
 // cheap (early-exit on any slot change).
 //
