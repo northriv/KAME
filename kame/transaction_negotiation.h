@@ -781,8 +781,8 @@ private:
         m_committed = true;
         // Anti-phase tracker: any CAS success clears the gate-return
         // fail streak — the peer's coalesce window is in sync again.
-        detail::s_last_gate_returned = false;
-        detail::s_gate_return_fail_streak = 0;
+        m_snap->m_last_gate_returned = false;
+        m_snap->m_gate_return_fail_streak = 0;
 #if KAME_LEGACY_GATING
         // ===== Legacy gating: success-streak → FORCE_GATE transition ===
         m_site_state->consec_fails = 0;     // any success clears fails

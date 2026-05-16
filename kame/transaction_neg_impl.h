@@ -1198,26 +1198,26 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         // CV-sleep which naturally de-phases us.
                         const uint64_t now_us =
                             (uint64_t)NegotiationCounter::now_us();
-                        if(detail::s_last_gate_returned) {
-                            if(detail::s_gate_return_fail_streak < 255)
-                                ++detail::s_gate_return_fail_streak;
-                            if(detail::s_gate_return_fail_streak
+                        if(snap.m_last_gate_returned) {
+                            if(snap.m_gate_return_fail_streak < 255)
+                                ++snap.m_gate_return_fail_streak;
+                            if(snap.m_gate_return_fail_streak
                                >= (uint8_t)KAME_GATE_RETURN_FAIL_THRESHOLD) {
-                                detail::s_gate_return_suppress_until_us =
+                                snap.m_gate_return_suppress_until_us =
                                     now_us
                                     + (uint64_t)KAME_GATE_RETURN_SUPPRESS_US;
-                                detail::s_gate_return_fail_streak = 0;
-                                detail::s_last_gate_returned = false;
+                                snap.m_gate_return_fail_streak = 0;
+                                snap.m_last_gate_returned = false;
                             }
                         }
                         const bool suppressed =
-                            now_us < detail::s_gate_return_suppress_until_us;
+                            now_us < snap.m_gate_return_suppress_until_us;
                         if(kind_ok && !suppressed) {
                             NegSite::record_spin_event(
                                 NegSite::SpinOutcome::
                                   GATE_RETURN_SAMEKIND, 0);
                             gate_returned = true;
-                            detail::s_last_gate_returned = true;
+                            snap.m_last_gate_returned = true;
                         }
                     }
                 }

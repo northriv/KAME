@@ -342,18 +342,6 @@ namespace detail {
     inline unsigned int num_threads_running() noexcept {
         return num_threads_running_impl();
     }
-
-    // ---- Gate-return anti-phase tracker (per-thread TLS) ----
-    //!
-    //! Detects "we keep gate-returning but CAS keeps failing" = peer's
-    //! coalesce window is anti-phase to ours.  After
-    //! KAME_GATE_RETURN_FAIL_THRESHOLD consecutive gate-returns
-    //! without an intervening CAS success, the gate-return path is
-    //! suppressed for KAME_GATE_RETURN_SUPPRESS_US µs — falls back to
-    //! CV-sleep, which naturally de-phases the thread.
-    extern thread_local bool     s_last_gate_returned;
-    extern thread_local uint8_t  s_gate_return_fail_streak;
-    extern thread_local uint64_t s_gate_return_suppress_until_us;
 } // namespace detail
 
 // Adaptive-gate / spin-path tuning knobs live in transaction_definitions.h
@@ -1953,6 +1941,15 @@ protected:
     //! further restructuring. Inline-first-16 (fast_vector) keeps
     //! low-contention workloads zero-alloc.
     fast_vector<std::shared_ptr<typename Node<XN>::Linkage>, 16> m_tagged_linkages;
+
+    // Per-Tx (= per-Snapshot) gate-return anti-phase tracker.  Lives
+    // here rather than in TLS so the state correctly resets at each
+    // Tx boundary (TLS persisted across unrelated Tx and conflated
+    // their failure histories).  See KAME_GATE_RETURN_FAIL_THRESHOLD
+    // / KAME_GATE_RETURN_SUPPRESS_US in transaction_definitions.h.
+    bool     m_last_gate_returned = false;
+    uint8_t  m_gate_return_fail_streak = 0;
+    uint64_t m_gate_return_suppress_until_us = 0;
 
     Snapshot() = default;
 };
