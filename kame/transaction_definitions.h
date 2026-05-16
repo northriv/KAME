@@ -138,7 +138,7 @@
 // dt2 fairness gate: suppress owner-skip when the competing tx has
 // been waiting longer than this (µs).
 #ifndef KAME_DT2_FAIRNESS_US
-#define KAME_DT2_FAIRNESS_US 4000
+#define KAME_DT2_FAIRNESS_US 1000
 #endif
 
 // Active lease window (us) range, stored per-Linkage as
@@ -178,7 +178,7 @@
 // row; HIGHEST/UI_DEFERRABLE/LOWEST are hard-coded in
 // priority_probe_info()).
 #ifndef KAME_STM_RETRY_THRESH_NORMAL
-#define KAME_STM_RETRY_THRESH_NORMAL 4
+#define KAME_STM_RETRY_THRESH_NORMAL 3
 #endif
 
 // Floor for the live-contender estimate used in negotiate_internal's
@@ -317,7 +317,7 @@
 // only kicks in for Linkages with > ~1.6 ms observed period, which is
 // effectively never in steady-state contention.
 #ifndef KAME_SPIN_MAX_US
-#define KAME_SPIN_MAX_US 300
+#define KAME_SPIN_MAX_US 0
 #endif
 
 // ns companion to KAME_SPIN_MAX_US.  Used by `_neg_spin_block`'s
@@ -352,7 +352,7 @@
 // retained.  Counts older than 2 × WINDOW_US are dropped by
 // rotation.  Pow-of-2 simplifies the (now_us / WINDOW_US) op.
 #ifndef KAME_KIND_WINDOW_US
-#define KAME_KIND_WINDOW_US 128
+#define KAME_KIND_WINDOW_US 15
 #endif
 
 // ns companion to KAME_KIND_WINDOW_US for the spin-budget formula in
