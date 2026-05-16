@@ -670,29 +670,49 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     }
     // Band IN_BAND + runners OK → spin attempt.
     // Period = (2 windows) / total count → spin budget.
+    //
+    // The budget arithmetic lives in ns because µs-domain integer
+    // division underflows to 0 at high `total_count` (e.g. count=300
+    // → 2*128/300 = 0 µs).  Using ns gives ~3-decimal-digit headroom
+    // before underflow.  The `cnt_t` packed-stamp API (stamp_us /
+    // diff_us_packed) is NOT touched — it stays µs-domain.
     const uint64_t total_count = eff_U + eff_O;
-    const uint64_t fs_period = (total_count > 0)
-        ? (2u * (uint64_t)KAME_KIND_WINDOW_US / total_count)
-        : (uint64_t)KAME_KIND_WINDOW_US;
-    const uint64_t period_cap =
-        (fs_period * (uint64_t)KAME_SPIN_BUDGET_PCT) / 100u;
-    const uint64_t budget =
-        period_cap < (uint64_t)KAME_SPIN_MAX_US
-        ? period_cap : (uint64_t)KAME_SPIN_MAX_US;
-    const uint64_t start_us =
-        (uint64_t)NegotiationCounter::now_us();
-    const uint64_t deadline = start_us + budget;
+    const uint64_t fs_period_ns = (total_count > 0)
+        ? (2u * (uint64_t)KAME_KIND_WINDOW_NS / total_count)
+        : (uint64_t)KAME_KIND_WINDOW_NS;
+    const uint64_t period_cap_ns =
+        (fs_period_ns * (uint64_t)KAME_SPIN_BUDGET_PCT) / 100u;
+    const uint64_t budget_ns =
+        period_cap_ns < (uint64_t)KAME_SPIN_MAX_NS
+        ? period_cap_ns : (uint64_t)KAME_SPIN_MAX_NS;
+    const uint64_t start_ns =
+        (uint64_t)NegotiationCounter::now_ns();
+    const uint64_t deadline_ns = start_ns + budget_ns;
     // Poll m_recent_ops_state (not the slot) for peer progress.  The
     // slot only flags "an older Tx is tagging me" — low diagnostic
     // value.  recent_ops changes only when record_successful_op fires
     // (= a confirmed B/U publish on this Linkage), which is the
     // actual signal we want to ride.
+    //
+    // `end_us` (= end_ns / 1000) is kept for the ro_timestamp check
+    // because m_recent_ops_state's 6-bit RSO_LATEST_TIMESTAMP field is
+    // encoded as (now_us % 64) at record time — comparing it against
+    // an ns-domain value would be meaningless.  One `now_ns()` call
+    // per iter feeds both domains (no extra clock read).
     const uint64_t initial_ro = fs;
+    (void)initial_ro;
     bool won = false;
-    uint64_t ro_timelimit = (fs_period / 2) >> tighten;
-    uint64_t end_us = (uint64_t)NegotiationCounter::now_us();
+    // ro_timelimit stays µs-domain (matching ro_timestamp's encoding).
+    // Derived from fs_period_ns/2 then truncated to µs.  Floor at 1 µs
+    // so the modular "recent" check remains meaningful at very high
+    // count where fs_period_ns/2 < 1000 ns (sub-µs).
+    uint64_t ro_timelimit = (((fs_period_ns / 2) / 1000u) >> tighten);
+    if(ro_timelimit == 0) ro_timelimit = 1;
+    uint64_t end_ns = NegotiationCounter::now_ns();
+    uint64_t end_us = end_ns / 1000u;
     for(;;) {
-        end_us = NegotiationCounter::now_us();
+        end_ns = NegotiationCounter::now_ns();
+        end_us = end_ns / 1000u;
         for(int i = 0; i < 2; ++i) pause4spin();
         auto ro = self->m_recent_ops_state.load(
             std::memory_order_acquire);
@@ -708,11 +728,13 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
                 break;
             }
         }
-        if(end_us > deadline)
+        if(end_ns > deadline_ns)
             break;
     }
+    // elapsed reported in µs to keep record_spin_event histogram
+    // binning compatible across the macro change.
     const uint32_t elapsed =
-        (uint32_t)(end_us > start_us ? end_us - start_us : 0);
+        (uint32_t)(end_ns > start_ns ? (end_ns - start_ns) / 1000u : 0);
     NegSite::record_spin_event(
         won ? NegSite::SpinOutcome::WON
             : NegSite::SpinOutcome::TIMEOUT, elapsed);

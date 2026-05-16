@@ -320,6 +320,14 @@
 #define KAME_SPIN_MAX_US 300
 #endif
 
+// ns companion to KAME_SPIN_MAX_US.  Used by `_neg_spin_block`'s
+// budget arithmetic which lives entirely in ns to avoid the
+// integer-µs underflow at high per-Linkage event counts.  Defaults
+// to KAME_SPIN_MAX_US × 1000; override here for sub-µs cap.
+#ifndef KAME_SPIN_MAX_NS
+#define KAME_SPIN_MAX_NS ((uint64_t)KAME_SPIN_MAX_US * 1000u)
+#endif
+
 // Same budget-scaling knob for the legacy any-change spin path
 // (KAME_SPIN_RECENT_FLIP_US > 0).  Always polled, so over-shooting is
 // cheap (early-exit on any slot change).
@@ -345,6 +353,17 @@
 // rotation.  Pow-of-2 simplifies the (now_us / WINDOW_US) op.
 #ifndef KAME_KIND_WINDOW_US
 #define KAME_KIND_WINDOW_US 128
+#endif
+
+// ns companion to KAME_KIND_WINDOW_US for the spin-budget formula in
+// `_neg_spin_block`.  The arithmetic
+//   fs_period_ns = (2 * KAME_KIND_WINDOW_NS) / total_count
+// stays meaningful at high count (where the µs version underflows to 0).
+// The 6-bit `ro_timestamp` packed into m_recent_ops_state is unchanged —
+// it remains µs-domain (now_us % 64) and is compared against end_us
+// derived from `now_ns() / 1000`.
+#ifndef KAME_KIND_WINDOW_NS
+#define KAME_KIND_WINDOW_NS ((uint64_t)KAME_KIND_WINDOW_US * 1000u)
 #endif
 
 // Gate-return fires only when the per-kind count (summed over the

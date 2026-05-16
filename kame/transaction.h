@@ -858,6 +858,20 @@ private:
             return std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count();
         }
+        //! Sub-µs companion to now_us() — same steady_clock backend, ns
+        //! resolution.  Used by `_neg_spin_block` for the spin-budget /
+        //! deadline arithmetic where integer-µs underflows at high
+        //! per-Linkage event counts (e.g. fs_period < 1 µs).
+        //!
+        //! NOT to be mixed with the packed `cnt_t` stamp / `stamp_us` /
+        //! `diff_us_packed` API — those continue to live in µs.  This
+        //! returns a raw int64_t (ns since steady_clock epoch); callers
+        //! should subtract two now_ns() readings or compare against a
+        //! pre-computed deadline_ns.  Range: ±292 yr → no wrap concern.
+        static int64_t now_ns() noexcept {
+            return std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
 
         using StampKind = detail::StampKind;
 
