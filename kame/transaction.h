@@ -1473,23 +1473,27 @@ private:
     friend class Snapshot<XN>;
     friend class Transaction<XN>;
 
-    void snapshot(Snapshot<XN> &target, bool multi_nodal) const;
+    void snapshot(Snapshot<XN> &target, bool multi_nodal,
+                  scoped_atomic_view<PacketWrapper> &&initial_view) const;
+    void snapshot(Snapshot<XN> &target, bool multi_nodal) const {
+        scoped_atomic_view<PacketWrapper> empty;
+        snapshot(target, multi_nodal, std::move(empty));
+    }
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-        // Wait for any active contention on m_link to clear before the
-        // snapshot loop.  Wrapped in a ScopedNeg (rather than a bare
-        // m_link->negotiate call) so ALL negotiate-issuing sites in
-        // the codebase live inside ScopedNeg — this is what enables
-        // per-scope state tracking (e.g. gate-return anti-phase
-        // feedback) to attach data to the scope object instead of TLS.
-        // scope.commit() suppresses dtor tag/wait side effects since
-        // no CAS happens in this block; the subsequent
-        // snapshot(target) constructs its own ScopedNeg per retry.
+        // Outer ScopedNeg: negotiate on m_link, load a view, then
+        // commit() so the dtor doesn't tag/wait.  consume_scoped_view
+        // moves the view OUT (zero atomic ops) into a local
+        // scoped_atomic_view which we then hand to the inner
+        // snapshot — saves the inner's first-iter view load.
+        scoped_atomic_view<PacketWrapper> initial_view;
         {
             ScopedNegotiateLinkage<XN> scope(m_link, target, -1,
                 ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 4.0f);
             scope.commit();
+            initial_view = scope.consume_scoped_view();
         }
-        snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal);
+        snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal,
+                 std::move(initial_view));
         target.m_oldpacket = target.m_packet;
     }
     enum class SnapshotStatus {SUCCESS = 0, DISTURBED = 1,

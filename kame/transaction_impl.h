@@ -1553,7 +1553,8 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
 //=============================================================================
 template <class XN>
 void
-Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
+Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
+                   scoped_atomic_view<PacketWrapper> &&initial_view) const {
     auto &started_time = snapshot.m_started_time;
     auto &tid_bitset = snapshot.m_tid_bitset;
     struct GuardSnapshotRetryCount {
@@ -1570,10 +1571,21 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
     for(int retry = 0;; ++retry) {
         if(retry)
             ++snapshot.m_tx_retry_count;
-        // RAII OnEntry: negotiates + tag-bit acquires view of m_link
-        // + tags eagerly (retry > 0).
-        ScopedNegotiateLinkage<XN> scope(m_link, snapshot, retry,
-            ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
+        // First iter: if caller supplied a pre-loaded view (e.g. from
+        // the outer ScopedNeg in snapshot(Transaction&, ...) wrap),
+        // use the move-in ctor (zero negotiate, zero view-acquire).
+        // Subsequent iters: standard ctor (full negotiate + acquire).
+        std::optional<ScopedNegotiateLinkage<XN>> scope_holder;
+        if(retry == 0 && initial_view) {
+            scope_holder.emplace(m_link, snapshot, retry,
+                std::move(initial_view),
+                ScopedNegotiateLinkage<XN>::TagMode::OnEntry,
+                2.0f, /*with_negotiate=*/false);
+        } else {
+            scope_holder.emplace(m_link, snapshot, retry,
+                ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
+        }
+        ScopedNegotiateLinkage<XN> &scope = *scope_holder;
         if( !scope) {
             // Weak acquire CAS lost — treat as CAS failure: skip body
             // (m_contention_observed already set in ctor → dtor tags).
