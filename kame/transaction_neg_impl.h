@@ -1177,7 +1177,30 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         //   Counts are the sum over the current + prev
                         //   absolute-time windows (auto-decayed by
                         //   window rotation).
-                        const uint64_t thr = (uint64_t)KAME_KIND_COUNT_THRESHOLD;
+                        // Adaptive anti-phase tighten: if previous
+                        // gate-return didn't lead to a CAS success
+                        // (m_last_gate_returned still true), increment
+                        // m_gate_return_tighten.  This progressively
+                        // raises the count threshold (T << L), making
+                        // gate-return harder to fire — protects
+                        // against repeated anti-phase racing.  On any
+                        // CAS success the tighten resets (see
+                        // ScopedNeg::_on_cas_success).
+                        if(snap.m_last_gate_returned
+                           && snap.m_gate_return_tighten
+                              < (uint8_t)KAME_GATE_RETURN_MAX_TIGHTEN) {
+                            ++snap.m_gate_return_tighten;
+                        }
+                        // Reset latch — we'll re-set if we gate-return
+                        // again below.  This way each gate-return
+                        // requires fresh evidence (= subsequent CAS
+                        // success or another gate-return decision)
+                        // to influence the tighten level.
+                        snap.m_last_gate_returned = false;
+                        const uint8_t tighten =
+                            snap.m_gate_return_tighten;
+                        const uint64_t thr =
+                            (uint64_t)KAME_KIND_COUNT_THRESHOLD << tighten;
                         bool kind_ok;
                         if(mk == 0) {
                             kind_ok = (eff_B + eff_U + eff_C) >= thr;
@@ -1190,29 +1213,7 @@ Node<XN>::Linkage::negotiate_internal(Snapshot<XN> &snap,
                         } else {
                             kind_ok = false;
                         }
-                        // Anti-phase backoff: if previous gate-return
-                        // didn't lead to a CAS success (s_last_gate_returned
-                        // still true), increment the fail streak.  Above
-                        // threshold, suppress gate-return for a short
-                        // window — peer is in anti-phase, fall to
-                        // CV-sleep which naturally de-phases us.
-                        const uint64_t now_us =
-                            (uint64_t)NegotiationCounter::now_us();
-                        if(snap.m_last_gate_returned) {
-                            if(snap.m_gate_return_fail_streak < 255)
-                                ++snap.m_gate_return_fail_streak;
-                            if(snap.m_gate_return_fail_streak
-                               >= (uint8_t)KAME_GATE_RETURN_FAIL_THRESHOLD) {
-                                snap.m_gate_return_suppress_until_us =
-                                    now_us
-                                    + (uint64_t)KAME_GATE_RETURN_SUPPRESS_US;
-                                snap.m_gate_return_fail_streak = 0;
-                                snap.m_last_gate_returned = false;
-                            }
-                        }
-                        const bool suppressed =
-                            now_us < snap.m_gate_return_suppress_until_us;
-                        if(kind_ok && !suppressed) {
+                        if(kind_ok) {
                             NegSite::record_spin_event(
                                 NegSite::SpinOutcome::
                                   GATE_RETURN_SAMEKIND, 0);

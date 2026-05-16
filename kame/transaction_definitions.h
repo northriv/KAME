@@ -483,17 +483,29 @@
 #define KAME_KIND_COUNT_THRESHOLD 2
 #endif
 
-// Gate-return anti-phase backoff (per-thread).  After this many
-// consecutive gate-returns *without* an intervening CAS success on
-// any Linkage, the gate-return path is suppressed for
-// KAME_GATE_RETURN_SUPPRESS_US µs.  This breaks the
-// peer-anti-phase loop where retries keep racing into mid-commit
-// state and failing.
-#ifndef KAME_GATE_RETURN_FAIL_THRESHOLD
-#define KAME_GATE_RETURN_FAIL_THRESHOLD 3
+// Gate-return adaptive tightening — replaces the prior streak-then-
+// suppress design.  On each detected fail (= previous gate-return
+// without intervening CAS success), Snapshot::m_gate_return_tighten
+// increments.  The tightening level controls two knobs:
+//
+//   freshness window:  period >> (1 + min(L, WINDOW_CAP_LEVELS))
+//     L=0 → window = period/2 (default, untightened)
+//     L=1 → period/4
+//     L=2 → period/8
+//     L=WINDOW_CAP_LEVELS → period/(2^(1+CAP)) (floor)
+//
+//   count threshold:   KAME_KIND_COUNT_THRESHOLD << max(0, L − CAP)
+//     L>CAP → threshold doubles per step (= require more flips
+//             to be confident the workload is periodic before
+//             firing gate-return)
+//
+// Reset to 0 on any CAS success (= peer's anti-phase resolved).
+// Saturates at KAME_GATE_RETURN_MAX_TIGHTEN.
+#ifndef KAME_GATE_RETURN_WINDOW_CAP_LEVELS
+#define KAME_GATE_RETURN_WINDOW_CAP_LEVELS 3
 #endif
-#ifndef KAME_GATE_RETURN_SUPPRESS_US
-#define KAME_GATE_RETURN_SUPPRESS_US 100
+#ifndef KAME_GATE_RETURN_MAX_TIGHTEN
+#define KAME_GATE_RETURN_MAX_TIGHTEN 7
 #endif
 
 // Slot release strategy.  When a Tx commits / cleans up, it currently

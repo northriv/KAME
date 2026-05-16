@@ -1942,14 +1942,23 @@ protected:
     //! low-contention workloads zero-alloc.
     fast_vector<std::shared_ptr<typename Node<XN>::Linkage>, 16> m_tagged_linkages;
 
-    // Per-Tx (= per-Snapshot) gate-return anti-phase tracker.  Lives
-    // here rather than in TLS so the state correctly resets at each
-    // Tx boundary (TLS persisted across unrelated Tx and conflated
-    // their failure histories).  See KAME_GATE_RETURN_FAIL_THRESHOLD
-    // / KAME_GATE_RETURN_SUPPRESS_US in transaction_definitions.h.
+    // Per-Tx (= per-Snapshot) gate-return adaptive tightener.
+    //
+    //   m_last_gate_returned: set true on each gate-return, cleared
+    //   by ScopedNeg::_on_cas_success.  Read at gate-return decision
+    //   to detect "previous gate-return didn't lead to a CAS success"
+    //   (= we stepped on peer's anti-phase).
+    //
+    //   m_gate_return_tighten: progressive tightening level
+    //     L=0: window = period >> 1 (= period/2, current default)
+    //     L=k (k <= KAME_GATE_RETURN_WINDOW_CAP_LEVELS):
+    //           window halves each step (period >> (1+k))
+    //     L=k beyond cap: window stays at min, count threshold doubles
+    //           per step (T << (k − CAP))
+    //   Incremented on each detected fail; reset to 0 on any CAS
+    //   success.  Saturates at KAME_GATE_RETURN_MAX_TIGHTEN.
     bool     m_last_gate_returned = false;
-    uint8_t  m_gate_return_fail_streak = 0;
-    uint64_t m_gate_return_suppress_until_us = 0;
+    uint8_t  m_gate_return_tighten = 0;
 
     Snapshot() = default;
 };

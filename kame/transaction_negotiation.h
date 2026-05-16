@@ -779,10 +779,10 @@ private:
     //! Any fail resets the streak (handled in _on_cas_fail).
     void _on_cas_success() noexcept {
         m_committed = true;
-        // Anti-phase tracker: any CAS success clears the gate-return
-        // fail streak — the peer's coalesce window is in sync again.
+        // Adaptive anti-phase tighten: any CAS success means peer's
+        // coalesce window is in sync — reset to default sensitivity.
         m_snap->m_last_gate_returned = false;
-        m_snap->m_gate_return_fail_streak = 0;
+        m_snap->m_gate_return_tighten = 0;
 #if KAME_LEGACY_GATING
         // ===== Legacy gating: success-streak → FORCE_GATE transition ===
         m_site_state->consec_fails = 0;     // any success clears fails
