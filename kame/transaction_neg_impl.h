@@ -782,35 +782,45 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // since) is a speculative gate-return: peer may already be
     // done, our view is probably still valid, no abort needed.
     bool observed_change_during_spin = false;
-    uint64_t end_ns = NegotiationCounter::now_ns();
-    for(;;) {
+    uint64_t end_ns;
+    {
+        // Yield this thread's running slot for the duration of the
+        // spin loop.  The thread is logically waiting on peer
+        // activity (not making CAS progress), so it should not
+        // count against MAX_RUNNERS' storm guard for OTHER threads
+        // trying to enter the CAS-retry phase.  Mirrors the same
+        // pattern used by the CV-sleep tail of negotiate_internal.
+        typename NegotiationCounter::ReleaseOneCount _release;
         end_ns = NegotiationCounter::now_ns();
-        for(int i = 0; i < 2; ++i) pause4spin();
-        auto ro = self->m_recent_ops_state.load(
-            std::memory_order_acquire);
-        if(ro != initial_ro)
-            observed_change_during_spin = true;
+        for(;;) {
+            end_ns = NegotiationCounter::now_ns();
+            for(int i = 0; i < 2; ++i) pause4spin();
+            auto ro = self->m_recent_ops_state.load(
+                std::memory_order_acquire);
+            if(ro != initial_ro)
+                observed_change_during_spin = true;
 
-        auto ro_kind = (ro >> L::RSO_LATEST_KIND_SHIFT) & L::RSO_LATEST_KIND_MASK;
-        auto ro_timestamp = (ro >> L::RSO_LATEST_TIMESTAMP_SHIFT) & L::RSO_LATEST_TIMESTAMP_MASK;
-        bool is_ro_unbundle = ro_kind == (uint8_t)detail::StampKind::UNBUNDLE;
-        if( !is_ro_unbundle || (ro_kind == mk)) {
-            // Kind filter passes — choose predicate by regime.
-            bool fired;
-            if(use_recency) {
-                const uint64_t end_ts =
-                    (end_ns / TS_UNIT_NS) & L::RSO_LATEST_TIMESTAMP_MASK;
-                fired = (((end_ts - ro_timestamp - ro_timelimit)
-                          & L::RSO_LATEST_TIMESTAMP_MASK)
-                         > L::RSO_LATEST_TIMESTAMP_MASK / 2);
-            } else {
-                fired = (ro != initial_ro);
+            auto ro_kind = (ro >> L::RSO_LATEST_KIND_SHIFT) & L::RSO_LATEST_KIND_MASK;
+            auto ro_timestamp = (ro >> L::RSO_LATEST_TIMESTAMP_SHIFT) & L::RSO_LATEST_TIMESTAMP_MASK;
+            bool is_ro_unbundle = ro_kind == (uint8_t)detail::StampKind::UNBUNDLE;
+            if( !is_ro_unbundle || (ro_kind == mk)) {
+                // Kind filter passes — choose predicate by regime.
+                bool fired;
+                if(use_recency) {
+                    const uint64_t end_ts =
+                        (end_ns / TS_UNIT_NS) & L::RSO_LATEST_TIMESTAMP_MASK;
+                    fired = (((end_ts - ro_timestamp - ro_timelimit)
+                              & L::RSO_LATEST_TIMESTAMP_MASK)
+                             > L::RSO_LATEST_TIMESTAMP_MASK / 2);
+                } else {
+                    fired = (ro != initial_ro);
+                }
+                if(fired) { won = true; break; }
             }
-            if(fired) { won = true; break; }
+            if(end_ns > deadline_ns)
+                break;
         }
-        if(end_ns > deadline_ns)
-            break;
-    }
+    }  // ~ReleaseOneCount: re-acquire running slot
     // elapsed reported in µs to keep record_spin_event histogram
     // binning compatible across the macro change.
     const uint32_t elapsed =
