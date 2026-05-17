@@ -1010,6 +1010,11 @@ private:
                                                         cnt_t tidstamp,
                                                         int sig_C = 1) noexcept;
         static void    release_privileged_tidstamp(cnt_t my_tidstamp) noexcept;
+        //! Decrement the global `s_num_privileged_threads` counter,
+        //! paired with the increment in the per-Tx privilege claim
+        //! path of `_negotiate_internal`.  Called from
+        //! `Snapshot::drop_tags_n_privilege`.
+        static void    release_priv_count_slot() noexcept;
         //! Whether some other Tx currently blocks us via the fair-mode
         //! privilege mechanism.  With KAME_PER_LINKAGE_PRIVILEGE=1
         //! (default), the per-Linkage `m_transaction_started_time`
@@ -1027,13 +1032,18 @@ private:
         static bool    fair_mode_blocks_me(
                            cnt_t tidstamp,
                            const Linkage *link = nullptr) noexcept;
-        // `i_am_privileged_now()` was removed.  Callers use
-        // `Snapshot::m_registered_privileged` directly — the flag is
-        // set when the per-Tx privilege claim succeeds, and any code
-        // path that needs "am I priv?" is reachable only from the
-        // claiming Tx itself (peers see fair_mode_blocks_me=true and
-        // wait), so the snapshot-local bool is an exact answer
-        // without an atomic load on the Linkage's privilege stamp.
+        //! Returns true iff this thread currently holds privilege on
+        //! `link` (per-Linkage Reserved stamp matches our identity).
+        //! Distinct from `Snapshot::m_registered_privileged` which
+        //! can be stale after preemption — a peer's older Tx may
+        //! have overwritten our Reserved stamp via
+        //! `tag_as_contender` (the "younger-overwrites" check
+        //! reverses when our stamp becomes the younger one after
+        //! a sleep / re-tag), making the snapshot flag inaccurate.
+        //! Strong-mode acquire decisions must read the slot itself.
+        static bool    i_am_privileged_now(
+                           cnt_t my_tidstamp,
+                           const Linkage *link = nullptr) noexcept;
 
         //! Per-priority livelock-probe parameters (retry threshold + label).
         struct PriorityProbeInfo {
@@ -1970,6 +1980,11 @@ public:
 #if !KAME_PER_LINKAGE_PRIVILEGE
             Node<XN>::NegotiationCounter::release_privileged_tidstamp(this->m_started_time);
 #endif
+            // Pair with the increment in the per-Tx privilege claim
+            // path of `_negotiate_internal`.  Applies in both modes
+            // (per-Linkage / global): each `m_registered_privileged`
+            // transition true→false yields exactly one decrement.
+            Node<XN>::NegotiationCounter::release_priv_count_slot();
             this->m_registered_privileged = false;
         }
     }

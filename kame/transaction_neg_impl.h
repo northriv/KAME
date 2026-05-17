@@ -148,6 +148,25 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
 }
 
 template <class XN>
+bool Node<XN>::NegotiationCounter::i_am_privileged_now(
+        cnt_t my_tidstamp,
+        const Linkage *link) noexcept {
+#if KAME_PER_LINKAGE_PRIVILEGE
+    // Per-Linkage: "I am privileged" iff this Linkage's slot carries
+    // a Reserved-kind stamp whose (us, tid) identity matches mine.
+    if(link == nullptr) return false;
+    cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
+    if( !is_priv_stamp(slot)) return false;
+    return strip_kind(slot) == strip_kind(my_tidstamp);
+#else
+    (void)link;
+    cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
+    if(priv == (cnt_t)0) return false;
+    return stamp_tid(priv) == stamp_tid(my_tidstamp);
+#endif
+}
+
+template <class XN>
 void Node<XN>::NegotiationCounter::release_privileged_tidstamp(cnt_t my_tidstamp) noexcept {
     // CAS-based release: only clear the slot if it still holds OUR
     // stamp. Required because age-preempt can cause an older Tx to
@@ -428,6 +447,26 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
     // hardware_concurrency() returns 0.
     alignas(KAME_CACHE_LINE) std::atomic<int> s_max_c_obs{1};
 
+    // Spinners actively busy-polling the per-Linkage privilege state.
+    // Inc/dec around the fair-spin block in `_negotiate_internal`.
+    alignas(KAME_CACHE_LINE) std::atomic<unsigned> s_fair_spinners{0};
+
+    // Threads currently holding per-Linkage privilege on at least one
+    // Linkage.  Unrelated Linkages can be claimed independently, so the
+    // count can grow up to `numThreadsRunning()` in principle.  Used
+    // to subtract from the fair-spin admission cap: spinners +
+    // priv-holders together should not exceed `effective_runners`.
+    alignas(KAME_CACHE_LINE) std::atomic<unsigned> s_num_privileged_threads{0};
+#endif // (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
+
+template <class XN>
+void Node<XN>::NegotiationCounter::release_priv_count_slot() noexcept {
+#if (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
+    s_num_privileged_threads.fetch_sub(1, std::memory_order_relaxed);
+#endif
+}
+
+#if (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
     // Update max C_obs (relaxed: approximate max is fine)
     inline int effective_runners(int c_obs) noexcept {
         int prev = s_max_c_obs.load(std::memory_order_relaxed);
@@ -1027,8 +1066,12 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             claimed = NegotiationCounter::try_register_privileged_tidstamp(
                           entry_pr, snap.m_started_time);
 #endif
-            if (claimed)
+            if (claimed) {
                 snap.m_registered_privileged = true;
+                // Pair with the decrement in
+                // `Snapshot::drop_tags_n_privilege`.
+                s_num_privileged_threads.fetch_add(1, std::memory_order_relaxed);
+            }
         }
     }
 
@@ -1318,43 +1361,62 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
 
         // Privilege bistability guard: when a peer holds per-Linkage
-        // privilege (`_fair_blocks`) and the running-thread count has
-        // capacity left (`< effective_runners(C_obs)` ≈ hardware
-        // concurrency), busy-poll the privilege stamp instead of
-        // CV-sleep so the peer's release has an immediate retry
-        // candidate — avoids the ~1 ms CV-wake restart.
+        // privilege on `self` (`_fair_blocks`) and the spinner pool
+        // has capacity, busy-poll until the peer releases instead of
+        // going to CV-sleep — saves the ~1 ms CV-wake restart on
+        // privilege release.
         //
-        // The cap is the same as the lottery's "max useful runners"
-        // ceiling: at most `effective_runners` threads stay running
-        // (including the privilege holder), leaving the rest to
-        // CV-sleep so they don't oversubscribe the cores.
+        // Cap: spinners + currently-privileged threads ≤
+        //   effective_runners(C_obs) (≈ hardware concurrency).
+        // Priv holders are independent on unrelated Linkages, so the
+        // global `s_num_privileged_threads` counter is subtracted
+        // from the spinner admission ceiling — otherwise spinners
+        // would oversubscribe the cores against the productive priv
+        // holders.
         //
-        // Per the design: only threads "intending to sleep" pay the
-        // `numThreadsRunning()` cost (one weak_ptr-sum over all thread
-        // slots).  The decision is made once on the way *into* the
-        // spin; the inner loop body reads only `fair_mode_blocks_me`
-        // (a single relaxed atomic load — on x86 a plain `mov`,
-        // acquire != cmpxchg).
+        // The decision pays one `numThreadsRunning()`-style cost
+        // *once* on the way in (here: two relaxed atomic loads on
+        // `s_fair_spinners` / `s_num_privileged_threads` —
+        // significantly cheaper than the weak_ptr-sum in
+        // `num_threads_running()`).  The inner loop only reads
+        // `fair_mode_blocks_me` (one relaxed atomic load on x86 —
+        // plain `mov`, acquire ≠ cmpxchg).
         //
-        // No iteration bound: the cap on concurrent spinners is what
-        // guarantees the privilege holder always has CPU available to
-        // make progress.  An unbounded spin that never terminates
-        // means a programming error (peer privilege held forever) —
-        // the lack of a fallback exposes such bugs rather than hides
-        // them under a timeout.
+        // No iteration bound: an unbounded spin that never
+        // terminates means a programming error (peer privilege held
+        // forever) — the lack of a fallback exposes such bugs
+        // rather than masking them under a timeout.
+        //
+        // Note: `m_snap->m_registered_privileged` may be true here.
+        // Unrelated Linkages can be claimed by us independently, so
+        // we may hold priv on Linkage A while waiting on peer's priv
+        // on Linkage B (= self).
 #if KAME_STM_MIN_RUNNERS != 0
-        if(_fair_blocks
-           && (int)NegotiationCounter::numThreadsRunning()
-              < effective_runners(C_obs)) {
-            // Invariant: if we held priv on `self`,
-            // `fair_mode_blocks_me` would have returned false
-            // (strip_kind match) — so `_fair_blocks=true` implies
-            // we are *not* the privileged thread here.
-            assert( !m_snap->m_registered_privileged);
-            do {
-                pause4spin();
-            } while(NegotiationCounter::fair_mode_blocks_me(started_time, self));
-            continue;
+        {
+            const int run_cap = effective_runners(C_obs);
+            const int n_priv =
+                (int)s_num_privileged_threads.load(std::memory_order_relaxed);
+            const int spin_cap = run_cap > n_priv ? run_cap - n_priv : 0;
+            if(_fair_blocks
+               && (int)s_fair_spinners.load(std::memory_order_relaxed)
+                  < spin_cap) {
+                s_fair_spinners.fetch_add(1, std::memory_order_relaxed);
+                // Periodic yield: even with our spinner cap respecting
+                // the core count, *external* processes can saturate
+                // cores beyond our control.  Yield every ~2^18 PAUSE
+                // iterations (~1 ms at typical x86 PAUSE latency) so
+                // the OS scheduler has a chance to run any preempted
+                // privilege holder / other progress-maker.
+                unsigned iter = 0;
+                do {
+                    pause4spin();
+                    if((++iter & 0x3FFFFu) == 0)
+                        std::this_thread::yield();
+                } while(NegotiationCounter::fair_mode_blocks_me(
+                                started_time, self));
+                s_fair_spinners.fetch_sub(1, std::memory_order_relaxed);
+                continue;
+            }
         }
 #endif
 
