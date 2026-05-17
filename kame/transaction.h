@@ -991,28 +991,6 @@ private:
         alignas(KAME_CACHE_LINE) static inline std::atomic<cnt_t>
             s_privileged_tidstamp{0};
 
-        //! Runtime cache-line co-residence check.  Used by Linkage's
-        //! constructor to decide whether `m_transaction_started_time`
-        //! and the `atomic_shared_ptr<PacketWrapper>` base happen to
-        //! sit in the same cache line — i.e. whether hardware cache
-        //! coherence will propagate stamp updates alongside the
-        //! main-CAS acquire-loads that peers issue on the base.
-        //! When true, the stamp's `tag_as_contender` store can be
-        //! relaxed (saves a release barrier).
-        //!
-        //! Compile-time `alignas(KAME_CACHE_LINE)` on Linkage would
-        //! give the same guarantee unconditionally, but heap-allocated
-        //! instances can land at sub-line-aligned offsets in pre-C++17
-        //! `new` (and on some allocators even in C++17) — so we check
-        //! at runtime per-instance instead of relying on a layout
-        //! invariant.
-        static inline bool is_on_same_cacheline(const void *a,
-                                                const void *b) noexcept {
-            constexpr uintptr_t LINE = (uintptr_t)KAME_CACHE_LINE;
-            return (reinterpret_cast<uintptr_t>(a) / LINE)
-                 == (reinterpret_cast<uintptr_t>(b) / LINE);
-        }
-
         static int64_t min_privilege_age_us(Priority pr) noexcept;
         static bool    try_register_privileged_tidstamp(Priority pr,
                                                         cnt_t tidstamp,
@@ -1224,17 +1202,7 @@ private:
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
             m_transaction_started_time(0),
             m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)),
-            m_recent_ops_state(0),
-            // Runtime check: does m_transaction_started_time share a
-            // cache line with the atomic_shared_ptr<PacketWrapper>
-            // base (= the main commit-CAS target)?  If yes, peer
-            // CAS-acquires on the base also pick up the stamp's
-            // latest value through hardware cache coherence — we
-            // can use relaxed on the stamp's publish writes.
-            m_stamp_same_line_as_cas(
-                NegotiationCounter::is_on_same_cacheline(
-                    static_cast<const atomic_shared_ptr<PacketWrapper>*>(this),
-                    &m_transaction_started_time)) {}
+            m_recent_ops_state(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
 
@@ -1344,17 +1312,6 @@ private:
         //! semantic, since they have no "B/U periodicity" to
         //! coalesce on.
         atomic<uint64_t> m_recent_ops_state;
-
-        //! Immutable per-Linkage flag set in the ctor by an
-        //! `is_on_same_cacheline` runtime check.  True iff
-        //! `m_transaction_started_time` shares a cache line with the
-        //! `atomic_shared_ptr<PacketWrapper>` base (= main commit-CAS
-        //! target).  Used to skip release / acquire barriers on the
-        //! stamp where hardware cache coherence already propagates
-        //! updates via peer CAS-acquires on the base.  Heap
-        //! allocations may or may not place these on the same line,
-        //! so the check is per-instance.
-        const bool m_stamp_same_line_as_cas;
         static constexpr int     RSO_CUR_U_SHIFT       = 0;
         static constexpr int     RSO_CUR_O_SHIFT       = 12;
         static constexpr int     RSO_CUR_EPOCH_SHIFT   = 24;
@@ -1901,21 +1858,9 @@ public:
         // STAMP_US_BITS = 46, wrap-safe over any realistic boot session.
         auto cur = slot.load(std::memory_order_relaxed);
         if(!cur || NC::signed_diff_us_packed(cur, my_stamp) > 0) {
-            // Branch on cache-line co-residence: when the stamp
-            // shares a line with the atomic_shared_ptr CAS target,
-            // peer CAS-acquires on the base propagate this store
-            // through hardware coherence — relaxed is enough.
-            // Otherwise keep the release barrier so peer
-            // `acquire`/`relaxed` reads see a coherent stamp.
-            if(link->m_stamp_same_line_as_cas) {
-                slot.store(my_stamp, std::memory_order_relaxed);
-                if(slot.load(std::memory_order_relaxed) != my_stamp) [[unlikely]]
-                    return;
-            } else {
-                slot.store(my_stamp, std::memory_order_release);
-                if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
-                    return;  // overwritten — don't add to list
-            }
+            slot.store(my_stamp, std::memory_order_release);
+            if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
+                return;  // overwritten — don't add to list
 
             // Per-Linkage recent-ops log (m_recent_ops_state) is updated only
             // at confirmed publish points (bundle Phase 4 success with
@@ -1970,17 +1915,8 @@ public:
         // still has kind=NONE.
         const auto my_id = NC::strip_kind(m_started_time);
         for(auto &sp : m_tagged_linkages) {
-            if(NC::strip_kind(
-                    sp->m_transaction_started_time.load(
-                        std::memory_order_relaxed)) == my_id) {
-                // Advisory clear (relaxed): the slot is monotonic
-                // (0 = "no contender"), so a transient stale read by
-                // a peer just causes one extra negotiate iter — no
-                // correctness impact.  Default `= 0` would issue
-                // seq_cst, which is unnecessary on the per-Linkage
-                // tag hot path.
-                sp->m_transaction_started_time.store(
-                    0, std::memory_order_relaxed);
+            if(NC::strip_kind(sp->m_transaction_started_time) == my_id) {
+                sp->m_transaction_started_time = 0;
             }
         }
         // If we held the fair-mode privilege, release it on commit so
