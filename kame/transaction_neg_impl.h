@@ -918,9 +918,16 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     std::memory_order_relaxed);
                 if (cur != 0
                     && NegotiationCounter::strip_kind(cur) == my_id) {
+                    // Relaxed/relaxed CAS: priv-kind publish is
+                    // advisory — peers that miss our flag will lose
+                    // the upcoming commit CAS to us (we hold the
+                    // older stamp) and retry, at which point they
+                    // see the fresh stamp.  No correctness anchor
+                    // here (atomic_shared_ptr CAS provides the
+                    // ordering for the actual publish).
                     if (l->m_transaction_started_time.compare_exchange_strong(
                             cur, my_priv,
-                            std::memory_order_release,
+                            std::memory_order_relaxed,
                             std::memory_order_relaxed)) {
                         claimed = true;
                     }
@@ -1008,8 +1015,15 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             started_time, transaction_started_time);
         if(dt <= 0)
             break; //This thread is the oldest.
+        // Relaxed load: the value is only used to refresh the
+        // advisory Greedy-CM `dt2` for sleep duration scaling.
+        // Stale reads cost one extra sleep iteration at most; the
+        // atomic_shared_ptr CAS that actually publishes the new
+        // wrapper is the correctness anchor and uses its own
+        // ordering.  All other m_transaction_started_time loads in
+        // negotiate (livelock probe, fast path) are already relaxed.
         auto transaction_started_time =
-            self->m_transaction_started_time.load(std::memory_order_acquire);
+            self->m_transaction_started_time.load(std::memory_order_relaxed);
         if( !NegotiationCounter::is_active_stamp(transaction_started_time))
             break; //collision has not been detected.
 

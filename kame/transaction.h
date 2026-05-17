@@ -1915,8 +1915,17 @@ public:
         // still has kind=NONE.
         const auto my_id = NC::strip_kind(m_started_time);
         for(auto &sp : m_tagged_linkages) {
-            if(NC::strip_kind(sp->m_transaction_started_time) == my_id) {
-                sp->m_transaction_started_time = 0;
+            if(NC::strip_kind(
+                    sp->m_transaction_started_time.load(
+                        std::memory_order_relaxed)) == my_id) {
+                // Advisory clear (relaxed): the slot is monotonic
+                // (0 = "no contender"), so a transient stale read by
+                // a peer just causes one extra negotiate iter — no
+                // correctness impact.  Default `= 0` would issue
+                // seq_cst, which is unnecessary on the per-Linkage
+                // tag hot path.
+                sp->m_transaction_started_time.store(
+                    0, std::memory_order_relaxed);
             }
         }
         // If we held the fair-mode privilege, release it on commit so
