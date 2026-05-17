@@ -1123,11 +1123,27 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // flip the linkage and pass the spin-block same-kind filter
         // more often).  Read fresh per iteration since m_recent_ops_state
         // can advance while we are looping.
+        //
+        // Default-OFF: 5-run A-B on 3level_mixed N=64 CR=2/10 showed
+        // -0.5 % / -2.3 % means under the kind-preference bias.  The
+        // two-pass walk's extra mutex acquisition on kind-mismatch
+        // slots was not amortised by the BB/UU streak gain, likely
+        // because the typical wake count is 1-3 (priv_slot or first
+        // bit) where biased ordering has no effect, while the per-skip
+        // lock cost still applies.  Set -DKAME_CV_WAKE_KIND_PREF=1 to
+        // re-enable (kept as a knob for future tuning).
+#ifndef KAME_CV_WAKE_KIND_PREF
+#define KAME_CV_WAKE_KIND_PREF 0
+#endif
         auto preferred_kind_for_wake = [&]() -> uint8_t {
+#if KAME_CV_WAKE_KIND_PREF
             const uint64_t fs =
                 self->m_recent_ops_state.load(std::memory_order_relaxed);
             return (uint8_t)((fs >> Linkage::RSO_LATEST_KIND_SHIFT)
                              & Linkage::RSO_LATEST_KIND_MASK);
+#else
+            return (uint8_t)0xFFu;
+#endif
         };
 
         if(sig_C == 1) {
