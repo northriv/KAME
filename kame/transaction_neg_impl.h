@@ -739,23 +739,16 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // BUNDLE, etc.).
     const uint64_t my_count = eff_count;
     // Storm guard: skip spin attempt when the running-thread count
-    // has reached the floor below which the wake lottery is fired.
-    // If too many threads are simultaneously in the CAS-retry phase,
-    // even a successful spin-WON just dumps us into a contended CAS
-    // race we are very likely to lose.  Falling through to
-    // SKIPPED_THRASHING routes us to CV-sleep instead, where the
-    // wake-up pipeline naturally limits concurrent CAS attempts.
-    //
-    // Reuses `effective_min_runners` (the lottery's wake floor —
-    // hardware_concurrency() in auto mode, or KAME_STM_MIN_RUNNERS
-    // when positive) rather than introducing a separate spin-only
-    // knob.  Modifying KAME_STM_MAX_RUNNERS would also affect the
-    // lottery's excess-winner sleep redirect, which is unrelated to
-    // spin admission.
+    // is already at or above the MAX_RUNNERS cap.  If too many threads
+    // are simultaneously in the CAS-retry phase, even a successful
+    // spin-WON just dumps us into a contended CAS race we are very
+    // likely to lose.  Falling through to SKIPPED_THRASHING routes us
+    // to CV-sleep instead, where the wake-up pipeline naturally
+    // limits concurrent CAS attempts.
     bool runners_ok = true;
-#if (KAME_STM_MIN_RUNNERS != 0) || (KAME_STM_MAX_RUNNERS != 0)
+#if KAME_STM_MAX_RUNNERS != 0
     runners_ok = NegotiationCounter::numThreadsRunning()
-                 < effective_min_runners(C_obs);
+                 < effective_max_runners(C_obs);
 #else
     (void)C_obs;
 #endif
