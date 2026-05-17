@@ -431,8 +431,26 @@
 // on each anti-phase fail" tighten design — pushing LOW up at high
 // counts was exactly backwards (hyper-thrashing workloads have high
 // counts, and that's PRECISELY where we should NOT gate-return).
+// LOW too low (= 3) → spin block enters on Linkages whose flip
+// period is too long for the spin to catch, leading to 40-50 %
+// TIMEOUT and a wasted spin-then-fall-to-CV-sleep cycle.  LOW too
+// high (≥ 12 with WINDOW_US=128) → spin block never enters at all
+// — flip counts in a single 2-window observation rarely reach
+// double digits even on hot Linkages.
+//
+// 5 = 5σ confidence floor for Poisson(N): with N flips observed
+// per window, σ = √N, so N ≥ 5 puts the signal at 5σ above the
+// no-flip noise floor (= count would have to be ≤ 0 by random
+// chance) — a reliable "periodic activity is real" threshold.
+//
+// 3level_mixed N=64, CR=10, 3 s stress sweep (INSTRUMENT):
+//   LOW=3  : WON 16.5 % TIMEOUT 41.1 % commits=631 k  ← over-fires
+//   LOW=4  : WON 13.9 % TIMEOUT 30.6 % commits=479 k
+//   LOW=5  : WON 10.4 % TIMEOUT 24.6 % commits=739 k  ← 5σ pick
+//   LOW=6  : WON  8.5 % TIMEOUT 16.2 % commits=858 k
+//   LOW=8+ : attempts=0
 #ifndef KAME_KIND_COUNT_THRESHOLD
-#define KAME_KIND_COUNT_THRESHOLD 3
+#define KAME_KIND_COUNT_THRESHOLD 5
 #endif
 // Calibrated to the 16-bit cur_count / prev_count fields in
 // m_recent_ops_state (max 65535).  The old default 254 mirrored
