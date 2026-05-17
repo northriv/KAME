@@ -260,8 +260,14 @@ std::atomic<uint64_t> g_band_count[4][3][8]{};
 // Gate-return outcome counters: in-time vs not-in-time.
 //   g_gr_in_time_hist[my_kind][bucket]: latency histogram on success
 //   g_gr_not_in_time[my_kind][active_kind]: who was busy when we failed
+//   g_gr_cas_fail[my_kind]: WON-then-CAS-failed
+//     (= spin block broke out, caller re-tried CAS, CAS lost again).
+//     Distinguishes "spin won but CAS still lost" (this counter) from
+//     "spin won, CAS succeeded" (g_gr_in_time_hist) and "spin won but
+//     no CAS attempted before next negotiate" (g_gr_not_in_time).
 std::atomic<uint64_t> g_gr_in_time_hist[4][8]{};
 std::atomic<uint64_t> g_gr_not_in_time[4][4]{};
+std::atomic<uint64_t> g_gr_cas_fail[4]{};
 
 static inline unsigned gr_latency_bucket(uint32_t us) noexcept {
     // Log2 buckets: 0=<1µs, 1=<2µs, 2=<4, 3=<8, 4=<16, 5=<32, 6=<64,
@@ -296,6 +302,11 @@ DECLSPEC_KAME void NegSite::record_gr_in_time(uint8_t my_kind,
 DECLSPEC_KAME void NegSite::record_gr_not_in_time(uint8_t my_kind,
                                                   uint8_t active_kind) noexcept {
     g_gr_not_in_time[my_kind & 0x3u][active_kind & 0x3u]
+        .fetch_add(1, std::memory_order_relaxed);
+}
+
+DECLSPEC_KAME void NegSite::record_gr_cas_fail(uint8_t my_kind) noexcept {
+    g_gr_cas_fail[my_kind & 0x3u]
         .fetch_add(1, std::memory_order_relaxed);
 }
 
@@ -592,6 +603,31 @@ DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
                                  (unsigned long long)c);
             }
             std::fprintf(fp, "\n");
+        }
+    }
+    // Gate-return WON-then-CAS-failed: spin caught peer activity,
+    // broke out, the caller's retry CAS still lost.  Pair these with
+    // [gate-return in-time latency] (= WON-then-CAS-succeeded) to
+    // get the WON outcome split:
+    //   WON → in_time : caller's CAS won shortly after gate-return.
+    //   WON → cas_fail: caller's CAS lost (peer beat us).
+    //   WON → not_in_time : no CAS happened between gate-return and
+    //                       the next negotiate (e.g. caller went off
+    //                       to do something else, or the spin block
+    //                       fired twice in a row without an
+    //                       intervening CAS).
+    bool any_cas_fail = false;
+    for(int k = 0; k < 4 && !any_cas_fail; ++k)
+        if(g_gr_cas_fail[k].load(std::memory_order_relaxed))
+            any_cas_fail = true;
+    if(any_cas_fail) {
+        std::fprintf(fp, "[gate-return WON then CAS failed]\n");
+        for(int k = 0; k < 4; ++k) {
+            uint64_t c = g_gr_cas_fail[k]
+                .load(std::memory_order_relaxed);
+            if(c == 0) continue;
+            std::fprintf(fp, "  my=%-6s : count=%llu\n",
+                         grKindLabel[k], (unsigned long long)c);
         }
     }
 #endif

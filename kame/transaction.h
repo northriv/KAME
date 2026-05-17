@@ -563,9 +563,16 @@ public:
     //! is highest in the window — likely what peer is busy with).
     DECLSPEC_KAME static void record_gr_not_in_time(uint8_t my_kind,
                                                     uint8_t active_kind) noexcept;
+    //! Record gate-return outcome: "CAS failed" (spin block broke out
+    //! with WON, caller re-tried the CAS but lost).  Separates the
+    //! WON-but-still-conflict case from the "WON and committed"
+    //! (in_time) and "WON but no CAS happened before the next gate
+    //! decision" (not_in_time) buckets.  my_kind: 1=B, 2=U.
+    DECLSPEC_KAME static void record_gr_cas_fail(uint8_t my_kind) noexcept;
 #else
     static void record_gr_in_time(uint8_t, uint32_t) noexcept {}
     static void record_gr_not_in_time(uint8_t, uint8_t) noexcept {}
+    static void record_gr_cas_fail(uint8_t) noexcept {}
 #endif
 
     NegSite() = delete;

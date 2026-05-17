@@ -832,6 +832,22 @@ private:
         m_contention_observed = true;
         if(m_was_gate_return)
             ++m_site_state->gate_then_cas_fail;
+#if KAME_ENABLE_SPIN_BAND_GATE
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        // Track "spin WON → CAS failed".  m_last_gate_returned is set
+        // by `_neg_spin_block` only on a winning spin (production
+        // gate-return path); cleared in `_on_cas_success` and at the
+        // next `_neg_spin_block` entry.  When still set at CAS fail,
+        // it means: the spin saw peer activity, we broke out and
+        // retried the CAS, and the CAS still lost.  Distinct from
+        // gate_then_cas_fail (which is fed by `m_was_gate_return` =
+        // TLS sink, only populated by the dormant KAME_LEGACY_GATING
+        // code path).
+        if(m_snap->m_last_gate_returned) {
+            NegSite::record_gr_cas_fail(m_snap->m_gate_return_my_kind);
+        }
+#endif
+#endif
 #if KAME_LEGACY_GATING
         // ===== Legacy gating: fail-streak → FORCE_SLEEP transition =====
         // Failures count in UNDEFINED (when gated) and FORCE_GATE
