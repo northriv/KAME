@@ -451,6 +451,16 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
     // hardware_concurrency() returns 0.
     alignas(KAME_CACHE_LINE) std::atomic<int> s_max_c_obs{1};
 
+    // Count of threads currently busy-polling the fair-mode block (peer
+    // holds per-Linkage privilege).  Used to keep a floor of "ready"
+    // spinners so privilege release has immediate retry candidates,
+    // avoiding the ~1 ms CV-wake restart latency.  Read is one relaxed
+    // load (cheap); increment/decrement is fetch_add/sub on the entry
+    // and exit of the spin.  On x86 the privilege-stamp acquire load
+    // inside the spin loop is a plain `mov` (acquire != cmpxchg), so
+    // the loop itself is essentially free per iter.
+    alignas(KAME_CACHE_LINE) std::atomic<unsigned> s_fair_spinners{0};
+
     // Update max C_obs (relaxed: approximate max is fine)
     inline int effective_runners(int c_obs) noexcept {
         int prev = s_max_c_obs.load(std::memory_order_relaxed);
@@ -1338,6 +1348,44 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             break;
 #else
         (void)C_obs;
+#endif
+
+        // Privilege bistability guard: keep up to `effective_min_runners`
+        // threads busy-polling the per-Linkage privilege stamp while a
+        // peer holds privilege, so its release has immediate retry
+        // candidates instead of incurring a ~1 ms CV-wake restart.
+        // x86 acquire load = plain `mov` (no cmpxchg), so the spin's
+        // hot read is essentially free; the floor is gated by the
+        // dedicated `s_fair_spinners` counter (one relaxed load) — we
+        // do NOT call the expensive `numThreadsRunning()` (weak_ptr
+        // sum across all thread slots) inside the spin.
+        //
+        // Bounded by KAME_FAIR_SPIN_ITERS to avoid cross-privilege
+        // deadlock: thread A holds priv on L1 and waits for priv on L2
+        // (held by B) while B mirrors the situation.  Bounded spin
+        // falls back to CV-sleep (which has 1 ms timeouts) so Greedy
+        // CM / privilege preemption can eventually break the cycle.
+#if KAME_STM_MIN_RUNNERS != 0
+        if(_fair_blocks
+           && (unsigned)s_fair_spinners.load(std::memory_order_relaxed)
+              < (unsigned)effective_min_runners(C_obs)) {
+            s_fair_spinners.fetch_add(1, std::memory_order_relaxed);
+            constexpr int FAIR_SPIN_ITERS = 4096;
+            bool still_blocked = true;
+            for(int k = 0; k < FAIR_SPIN_ITERS; ++k) {
+#if defined(__x86_64__) || defined(__i386__)
+                __builtin_ia32_pause();
+#elif defined(__aarch64__) || defined(__arm__)
+                __asm__ __volatile__("yield" ::: "memory");
+#endif
+                still_blocked = NegotiationCounter::fair_mode_blocks_me(
+                    started_time, self);
+                if( !still_blocked) break;
+            }
+            s_fair_spinners.fetch_sub(1, std::memory_order_relaxed);
+            if( !still_blocked) continue;
+            // Still blocked after the budget — fall through to CV-sleep.
+        }
 #endif
 
         // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.
