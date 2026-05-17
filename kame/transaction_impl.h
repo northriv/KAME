@@ -2224,6 +2224,21 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                     (childScope.operator->() == subwrappers_org[i].get());
                 if(child_cas_ok)
                     child_cas_ok = childScope.compareAndSet(bundled_ref);
+                if(child_cas_ok) {
+                    // Phase 3 child-CAS succeeded: this child's linkage
+                    // just transitioned from "owns its own packet" to
+                    // BundledRefWrapper (bundled into supernode).
+                    // From the child linkage's perspective this is a
+                    // real BUNDLE event — record it so the per-Linkage
+                    // flip detector sees the BUNDLE side too, not only
+                    // the supernode's Phase 4 record.  Symmetric with
+                    // unbundle's cas_infos loop UNBUNDLE record.
+#if KAME_ENABLE_SPIN_BAND_GATE
+                    child->m_link->template record_successful_op<NegotiationCounter>(
+                        NegotiationCounter::with_kind(started_time,
+                                                      detail::StampKind::BUNDLE));
+#endif
+                }
                 if( !child_cas_ok) {
                     // Phase 3 child-CAS failure (pointer mismatch or
                     // CAS lost).  confirm_contention is idempotent with
