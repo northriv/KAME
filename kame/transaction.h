@@ -1073,16 +1073,29 @@ private:
             std::mutex mtx;
             std::condition_variable cv;
             bool notified = false;
+            //! Kind (0=NONE/Reserved, 1=BUNDLE, 2=UNBUNDLE, 3=Reserved)
+            //! the sleeping thread is going to commit.  Stored under
+            //! the lock right before sleeping; read under the lock by
+            //! `notify_n_contenders` to bias wake-up toward the same
+            //! kind as the linkage's most recent commit.
+            uint8_t op_kind = 0;
         };
         static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
         static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};
 
         static void negotiate_sleep(int ms_timeout) noexcept;
 
+        //! Wake up to `n` sleeping threads whose TIDs are set in
+        //! `tid_bitset`.  When `preferred_kind` is in {1,2}, prefer
+        //! slots whose stored `op_kind == preferred_kind` in a first
+        //! pass before walking the rest in a second pass.  Pass
+        //! 0xFFu for "no preference" (default).
         static void notify_n_contenders(const TidBitset &tid_bitset,
-                                        int n) noexcept;
+                                        int n,
+                                        uint8_t preferred_kind = 0xFFu) noexcept;
         static void try_notify_n_contenders(const TidBitset &tid_bitset,
-                                            int n) noexcept;
+                                            int n,
+                                            uint8_t preferred_kind = 0xFFu) noexcept;
 
         //! Sum of per-thread "in Tx" counters. See
         //! detail::num_threads_running for the design rationale. Hot

@@ -314,7 +314,13 @@ template <class XN>
 void Node<XN>::NegotiationCounter::negotiate_sleep(int ms_timeout) noexcept {
     int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
     auto &st = s_sleep_slots[slot];
+    // Snapshot the kind this thread is about to commit; the notifier
+    // reads this field under the slot lock to bias wake-up toward the
+    // same kind as the linkage's most recent commit (see
+    // `notify_n_contenders` preferred_kind argument).
+    const uint8_t my_kind = (uint8_t)detail::s_current_op_kind & 0x3u;
     std::unique_lock<std::mutex> lock(st.mtx);
+    st.op_kind = my_kind;
     // Reset under the lock so a notify delivered between the previous
     // call's wake and this reset is not silently consumed.
     st.notified = false;
@@ -324,7 +330,7 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(int ms_timeout) noexcept {
 
 template <class XN>
 void Node<XN>::NegotiationCounter::notify_n_contenders(
-    const TidBitset &tid_bitset, int n) noexcept
+    const TidBitset &tid_bitset, int n, uint8_t preferred_kind) noexcept
 {
     // Fair-mode escape: if a privileged TID is registered, wake its
     // sleep slot first so the stuck oldest Tx gets a chance to retry
@@ -339,6 +345,39 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
         st.cv.notify_one();
         --n;
     }
+    // Two-pass walk when a preferred kind is supplied: pass 1 wakes
+    // only kind-matching slots; pass 2 wakes any remaining slots.
+    // `woken` tracks which slot indices were already notified by pass
+    // 1 so pass 2 doesn't burn the budget redundantly.
+    const bool has_pref = (preferred_kind <= 2u);
+    uint64_t woken[NEGOTIATE_SLEEP_SLOTS / 64] = {0};
+    auto mark_woken = [&](int slot) {
+        woken[slot >> 6] |= (uint64_t)1u << (slot & 63);
+    };
+    auto is_woken = [&](int slot) -> bool {
+        return (woken[slot >> 6] >> (slot & 63)) & 1u;
+    };
+    if(has_pref) {
+        for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
+            uint64_t word = tid_bitset.word(i);
+            while(word && n > 0) {
+                int bit = __builtin_ctzll(word);
+                word &= word - 1;
+                int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
+                if (slot == priv_slot) continue;
+                if (is_woken(slot)) continue;
+                auto &st = s_sleep_slots[slot];
+                {
+                    std::lock_guard<std::mutex> lk(st.mtx);
+                    if(st.op_kind != preferred_kind) continue;
+                    st.notified = true;
+                }
+                st.cv.notify_one();
+                mark_woken(slot);
+                --n;
+            }
+        }
+    }
     for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
         uint64_t word = tid_bitset.word(i);
         while(word && n > 0) {
@@ -346,9 +385,11 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
             word &= word - 1;
             int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
             if (slot == priv_slot) continue;
+            if (has_pref && is_woken(slot)) continue;
             auto &st = s_sleep_slots[slot];
             { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
             st.cv.notify_one();
+            if(has_pref) mark_woken(slot);
             --n;
         }
     }
@@ -356,20 +397,50 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
 
 template <class XN>
 void Node<XN>::NegotiationCounter::try_notify_n_contenders(
-    const TidBitset &tid_bitset, int n) noexcept
+    const TidBitset &tid_bitset, int n, uint8_t preferred_kind) noexcept
 {
+    const bool has_pref = (preferred_kind <= 2u);
+    uint64_t woken[NEGOTIATE_SLEEP_SLOTS / 64] = {0};
+    auto mark_woken = [&](int slot) {
+        woken[slot >> 6] |= (uint64_t)1u << (slot & 63);
+    };
+    auto is_woken = [&](int slot) -> bool {
+        return (woken[slot >> 6] >> (slot & 63)) & 1u;
+    };
+    if(has_pref) {
+        for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
+            uint64_t word = tid_bitset.word(i);
+            while(word && n > 0) {
+                int bit = __builtin_ctzll(word);
+                word &= word - 1;
+                int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
+                if (is_woken(slot)) continue;
+                auto &st = s_sleep_slots[slot];
+                std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
+                if( !lk.owns_lock()) continue;
+                if(st.op_kind != preferred_kind) continue;
+                st.notified = true;
+                lk.unlock();
+                st.cv.notify_one();
+                mark_woken(slot);
+                --n;
+            }
+        }
+    }
     for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
         uint64_t word = tid_bitset.word(i);
         while(word && n > 0) {
             int bit = __builtin_ctzll(word);
             word &= word - 1;
             int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
+            if (has_pref && is_woken(slot)) continue;
             auto &st = s_sleep_slots[slot];
             std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
             if( !lk.owns_lock()) continue;
             st.notified = true;
             lk.unlock();
             st.cv.notify_one();
+            if(has_pref) mark_woken(slot);
             --n;
         }
     }
@@ -1046,8 +1117,22 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // resolves any concurrent commit by the older Tx; if a real
         // contender appears later, tid_bitset accumulates and the
         // next negotiate call sees sig_C ≥ 2.
+        // preferred_kind: wake threads whose op_kind matches the
+        // linkage's most recent commit, so BB or UU streaks have a
+        // better chance of forming (peers with matching kinds don't
+        // flip the linkage and pass the spin-block same-kind filter
+        // more often).  Read fresh per iteration since m_recent_ops_state
+        // can advance while we are looping.
+        auto preferred_kind_for_wake = [&]() -> uint8_t {
+            const uint64_t fs =
+                self->m_recent_ops_state.load(std::memory_order_relaxed);
+            return (uint8_t)((fs >> Linkage::RSO_LATEST_KIND_SHIFT)
+                             & Linkage::RSO_LATEST_KIND_MASK);
+        };
+
         if(sig_C == 1) {
-            NegotiationCounter::notify_n_contenders(tid_bitset, 1);
+            NegotiationCounter::notify_n_contenders(
+                tid_bitset, 1, preferred_kind_for_wake());
             break;
         }
         // Both stamps are tid+kind+us-packed; signed_diff_us_packed
@@ -1163,6 +1248,34 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // ===== end legacy gating ==========================================
 #endif // KAME_LEGACY_GATING
 
+        ms = std::max((int)(dt2 * mult_wait / 10000),  ms + 1);
+        if(ms > 5000) {
+            fprintf(stderr, "Nested transaction?, ");
+            fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
+            fprintf(stderr, "for BP@%p\n", (void*)self);
+            ms = 5000;
+        }
+
+        // ---------- Spin gate (first) ----------
+        // Unified PRE-spin band gate + any-change spin shortcut.
+        // Spin won → break out of the negotiate loop; otherwise fall
+        // through to the jittered-gate / lottery / CV-sleep below.
+        // Reordered to fire BEFORE the jitter gate so peer-activity-
+        // driven WON wins precedence over wall-clock "earned priority"
+        // breaks.  Compiled out entirely when
+        // KAME_ENABLE_SPIN_BAND_GATE=0.
+#if KAME_ENABLE_SPIN_BAND_GATE
+        if(_neg_spin_block(C_obs))
+            break;
+#else
+        (void)C_obs;
+#endif
+
+        // ---------- Jittered "earned priority" gate + lottery ----------
+        // Reached only when spin block returned false (TIMEOUT or
+        // SKIPPED_*).  Acts as the livelock-escape fallback when the
+        // spin can't find peer activity but the wall-clock wait has
+        // exceeded the dt-proportional threshold.
         if(entry_pr != Priority::LOWEST && dt > 0 && !_fair_blocks) {
             // Single LCG advance per iteration; bits 16-31 → r_j (jitter),
             // bits 0-15 → r_l (lottery). Independent windows of one PRNG
@@ -1213,35 +1326,17 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     // -DKAME_STM_NOTIFY_TRY_LOCK=1 to select the try_lock
                     // skip variant for ablation / regression measurement.
 #if defined(KAME_STM_NOTIFY_TRY_LOCK) && KAME_STM_NOTIFY_TRY_LOCK
-                    NegotiationCounter::try_notify_n_contenders(tid_bitset, C_obs);
+                    NegotiationCounter::try_notify_n_contenders(
+                        tid_bitset, C_obs, preferred_kind_for_wake());
 #else
-                    NegotiationCounter::notify_n_contenders(tid_bitset, C_obs);
+                    NegotiationCounter::notify_n_contenders(
+                        tid_bitset, C_obs, preferred_kind_for_wake());
 #endif
                     break;
                 }
             }
 #endif
         }
-
-        ms = std::max((int)(dt2 * mult_wait / 10000),  ms + 1);
-        if(ms > 5000) {
-            fprintf(stderr, "Nested transaction?, ");
-            fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
-            fprintf(stderr, "for BP@%p\n", (void*)self);
-            ms = 5000;
-        }
-
-        // Unified PRE-spin band gate + any-change spin shortcut.
-        // Spin won → break out of the negotiate loop; otherwise fall
-        // through to CV-sleep.  See `_neg_spin_block` definition for
-        // the band / tighten / spin-budget rationale.
-        // Compiled out entirely when KAME_ENABLE_SPIN_BAND_GATE=0.
-#if KAME_ENABLE_SPIN_BAND_GATE
-        if(_neg_spin_block(C_obs))
-            break;
-#else
-        (void)C_obs;
-#endif
 
         // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.
         // Jitter breaks the synchronized-wakeup oscillation that forms when
@@ -1280,7 +1375,8 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 int running = (int)NegotiationCounter::numThreadsRunning();
                 if(running < min_r)
                     NegotiationCounter::notify_n_contenders(tid_bitset,
-                        std::min(min_r - running, C_obs));
+                        std::min(min_r - running, C_obs),
+                        preferred_kind_for_wake());
 #if KAME_STM_DISABLE_JITTER
                 NegotiationCounter::negotiate_sleep(1);
 #else
