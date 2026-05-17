@@ -612,25 +612,24 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     Snapshot<XN> &snap = *m_snap;
 
     const uint64_t fs = self->m_recent_ops_state.load(std::memory_order_acquire);
-    // Decode windowed per-kind counts.  Apply rotation logic at READ
-    // time so the stored state isn't perturbed.
+    // Decode windowed counts.  The state now carries a single
+    // 16-bit merged flip count per window (BUNDLE and UNBUNDLE
+    // share the slot — kind-specific filtering happens via
+    // `latest_kind` below).  Apply rotation logic at READ time.
     const uint64_t now_us_full =
         (uint64_t)NegotiationCounter::now_us();
     const uint8_t  now_epoch = (uint8_t)((now_us_full / KAME_KIND_WINDOW_US) & 0xFFu);
     const uint8_t  cur_epoch = (uint8_t)((fs >> L::RSO_CUR_EPOCH_SHIFT)
-                                          & L::RSO_BYTE_MASK);
+                                          & L::RSO_EPOCH_MASK);
     const uint8_t  delta_ep = (uint8_t)((now_epoch - cur_epoch) & 0xFFu);
-    uint64_t eff_U = 0, eff_O = 0;
+    uint64_t eff_count = 0;
     if(fs != 0) {
         if(delta_ep == 0) {
-            eff_U = ((fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK)
-                  + ((fs >> L::RSO_PREV_U_SHIFT) & L::RSO_BYTE_MASK);
-            eff_O = ((fs >> L::RSO_CUR_O_SHIFT) & L::RSO_BYTE_MASK)
-                  + ((fs >> L::RSO_PREV_O_SHIFT) & L::RSO_BYTE_MASK);
+            eff_count = ((fs >> L::RSO_CUR_COUNT_SHIFT)  & L::RSO_COUNT_MASK)
+                      + ((fs >> L::RSO_PREV_COUNT_SHIFT) & L::RSO_COUNT_MASK);
         } else if(delta_ep == 1) {
             // cur (= window now-1) → effective prev only.
-            eff_U = (fs >> L::RSO_CUR_U_SHIFT) & L::RSO_BYTE_MASK;
-            eff_O = (fs >> L::RSO_CUR_O_SHIFT) & L::RSO_BYTE_MASK;
+            eff_count = (fs >> L::RSO_CUR_COUNT_SHIFT) & L::RSO_COUNT_MASK;
         }
         // delta >= 2: all stale, all zeros.
     }
@@ -647,15 +646,12 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     const uint64_t lo = (uint64_t)KAME_KIND_COUNT_THRESHOLD;
     uint64_t hi = (uint64_t)KAME_KIND_COUNT_HIGH >> tighten;
     if(hi < lo) hi = lo;
-    uint64_t my_count;
-    if(mk == 0)
-        my_count = eff_U + eff_O;
-    else if(mk == (uint8_t)detail::StampKind::BUNDLE)
-        my_count = eff_O;
-    else if(mk == (uint8_t)detail::StampKind::UNBUNDLE)
-        my_count = eff_U;
-    else
-        my_count = 0;  // Reserved (3): not a publish kind; treat as no-op
+    // my_count = total flip count.  Per-kind separation was dropped
+    // when BUNDLE / UNBUNDLE slots were merged; kind sensitivity is
+    // now carried in `latest_kind` and consumed by the kind filter
+    // in the spin loop below (peer's UNBUNDLE doesn't yield to my
+    // BUNDLE, etc.).
+    const uint64_t my_count = eff_count;
     bool runners_ok = true;
 #if KAME_STM_MIN_RUNNERS != 0
     runners_ok = NegotiationCounter::numThreadsRunning()
@@ -672,12 +668,10 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
         NegSite::record_band_event(mk, bo, tighten);
     }
     if(prev_failed) {
-        uint8_t active_kind = 0;
-        uint64_t mx = 0;
-        if(eff_O > mx) { mx = eff_O; active_kind =
-            (uint8_t)detail::StampKind::BUNDLE; }
-        if(eff_U > mx) { mx = eff_U; active_kind =
-            (uint8_t)detail::StampKind::UNBUNDLE; }
+        // With per-kind counts merged, the "who was active" diagnostic
+        // collapses to "the latest publisher" — read latest_kind.
+        const uint8_t active_kind = (uint8_t)((fs >> L::RSO_LATEST_KIND_SHIFT)
+                                              & L::RSO_LATEST_KIND_MASK);
         NegSite::record_gr_not_in_time(
             snap.m_gate_return_my_kind, active_kind);
     }
@@ -700,7 +694,7 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // → 2*128/300 = 0 µs).  Using ns gives ~3-decimal-digit headroom
     // before underflow.  The `cnt_t` packed-stamp API (stamp_us /
     // diff_us_packed) is NOT touched — it stays µs-domain.
-    const uint64_t total_count = eff_U + eff_O;
+    const uint64_t total_count = eff_count;
     const uint64_t fs_period_ns = (total_count > 0)
         ? (2u * (uint64_t)KAME_KIND_WINDOW_NS / total_count)
         : (uint64_t)KAME_KIND_WINDOW_NS;
@@ -721,10 +715,12 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // Two win predicates depending on the count regime:
     //
     //   (b) High count (fs_period_ns small) → fine-grain "recent"
-    //       check using the 6-bit `ro_timestamp` field, encoded in
-    //       (KAME_KIND_WINDOW_NS / 4096) ≈ 31 ns units.  Visible
-    //       window = 64 units ≈ 2 µs.  Works when ro_timelimit_units
-    //       < MASK/2 (= 31 units ≈ 1 µs) — i.e. fs_period_ns < ~4 µs.
+    //       check using the 22-bit `ro_timestamp` field, encoded in
+    //       (KAME_KIND_WINDOW_NS / 65536) ≈ 2 ns units.  Visible
+    //       window ≈ 8 ms.  The denominator 65536 matches the
+    //       16-bit count saturation (= smallest meaningful fs_period
+    //       ≈ 2·WINDOW_NS / 65535 ≈ 4 ns, so unit ≤ 2 ns resolves it).
+    //       Works when ro_timelimit_units < MASK/2.
     //
     //   (a) Low count → ro_timelimit_units overflows the visible
     //       window so the modular comparison is unusable.  Fall back
@@ -738,7 +734,11 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // MultiNodalCommit kind was an alias and is now Reserved.)
     const uint64_t initial_ro = fs;
     bool won = false;
-    constexpr uint64_t TS_UNIT_NS = (uint64_t)KAME_KIND_WINDOW_NS / 4096u;
+    // Floor unit at 1 ns so very short windows
+    // (KAME_KIND_WINDOW_NS < 65536) don't trigger div-by-zero.  Same
+    // clamp as the writer side in `Linkage::record_successful_op`.
+    constexpr uint64_t TS_UNIT_NS_RAW = (uint64_t)KAME_KIND_WINDOW_NS / 65536u;
+    constexpr uint64_t TS_UNIT_NS = TS_UNIT_NS_RAW < 1u ? 1u : TS_UNIT_NS_RAW;
     const uint64_t MAX_USABLE_UNITS = L::RSO_LATEST_TIMESTAMP_MASK / 2u;
     const uint64_t ro_timelimit_raw =
         ((fs_period_ns / 2u) / TS_UNIT_NS) >> tighten;

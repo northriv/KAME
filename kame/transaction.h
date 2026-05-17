@@ -1312,36 +1312,45 @@ private:
         //! semantic, since they have no "B/U periodicity" to
         //! coalesce on.
         atomic<uint64_t> m_recent_ops_state;
-        static constexpr int     RSO_CUR_U_SHIFT       = 0;
-        static constexpr int     RSO_CUR_O_SHIFT       = 12;
-        static constexpr int     RSO_CUR_EPOCH_SHIFT   = 24;
-        static constexpr int     RSO_PREV_U_SHIFT      = 32;
-        static constexpr int     RSO_PREV_O_SHIFT      = 44;
-        static constexpr int     RSO_LATEST_KIND_SHIFT = 56;
-        static constexpr int     RSO_LATEST_TIMESTAMP_SHIFT = 58;
-        static constexpr uint64_t RSO_BYTE_MASK        = 0x3FFULL;
-        static constexpr uint64_t RSO_LATEST_KIND_MASK = 0x3ULL;
-        static constexpr uint64_t RSO_LATEST_TIMESTAMP_MASK = 0x3FULL;
-
-        //! cur_count slot shift for a given StampKind.  NONE / Reserved → -1.
-        static constexpr int kind_cur_count_shift(uint8_t kind) noexcept {
-            return  kind == (uint8_t)detail::StampKind::BUNDLE   ? RSO_CUR_O_SHIFT
-                  : kind == (uint8_t)detail::StampKind::UNBUNDLE ? RSO_CUR_U_SHIFT
-                  : -1;
-        }
-        //! prev_count slot shift (parallel to cur_count_shift).
-        static constexpr int kind_prev_count_shift(uint8_t kind) noexcept {
-            return  kind == (uint8_t)detail::StampKind::BUNDLE   ? RSO_PREV_O_SHIFT
-                  : kind == (uint8_t)detail::StampKind::UNBUNDLE ? RSO_PREV_U_SHIFT
-                  : -1;
-        }
+        // 64-bit layout (LSB → MSB):
+        //   bits  0..15  cur_count        — merged flip count for the
+        //                                   current window (16-bit
+        //                                   saturating; same-kind
+        //                                   consecutive events filtered
+        //                                   out at record time so this
+        //                                   is the true flip count).
+        //   bits 16..31  prev_count       — flip count for previous window.
+        //   bits 32..39  cur_epoch        — (now_us / KAME_KIND_WINDOW_US) & 0xFF.
+        //   bits 40..41  latest_kind      — StampKind of last published op
+        //                                   (BUNDLE / UNBUNDLE; NONE never
+        //                                   stored, Reserved unused here).
+        //   bits 42..63  latest_timestamp — sub-µs timestamp at unit
+        //                                   (KAME_KIND_WINDOW_NS / 65536) ≈
+        //                                   2 ns @ WINDOW_US=128; 22 bits
+        //                                   gives a ~8 ms visible window.
+        //                                   The denominator 65536 = 2^16
+        //                                   matches the 16-bit count
+        //                                   saturation: at count=65535 the
+        //                                   inter-flip period (= 2·WINDOW_NS
+        //                                   / count) is ~4 ns, so the
+        //                                   timestamp must resolve below
+        //                                   that to distinguish back-to-back
+        //                                   events.
+        static constexpr int     RSO_CUR_COUNT_SHIFT       = 0;
+        static constexpr int     RSO_PREV_COUNT_SHIFT      = 16;
+        static constexpr int     RSO_CUR_EPOCH_SHIFT       = 32;
+        static constexpr int     RSO_LATEST_KIND_SHIFT     = 40;
+        static constexpr int     RSO_LATEST_TIMESTAMP_SHIFT = 42;
+        static constexpr uint64_t RSO_COUNT_MASK            = 0xFFFFULL;            // 16 bits
+        static constexpr uint64_t RSO_EPOCH_MASK            = 0xFFULL;              //  8 bits
+        static constexpr uint64_t RSO_LATEST_KIND_MASK      = 0x3ULL;               //  2 bits
+        static constexpr uint64_t RSO_LATEST_TIMESTAMP_MASK = (1ULL << 22) - 1ULL;  // 22 bits
 
         //! Record a successfully-published op.  Filters out same-kind
         //! consecutive events (so count == flip count); rotates
-        //! windows on wall-clock crossing; increments
-        //! cur_count[my_kind] (saturating at 255).  Updates
-        //! latest_kind.  Period is derived at read time as
-        //! `(2 * WINDOW_US) / total_count`.
+        //! windows on wall-clock crossing; increments cur_count
+        //! (saturating at 65535).  Updates latest_kind and
+        //! latest_timestamp.
         //!
         //! Body compiled out when KAME_ENABLE_SPIN_BAND_GATE=0 (see
         //! transaction_definitions.h) — call sites in transaction_impl.h
@@ -1351,16 +1360,18 @@ private:
 #if KAME_ENABLE_SPIN_BAND_GATE
             const uint8_t my_kind =
                 (uint8_t)NC::stamp_kind(stamp_with_kind) & 0x3u;
-            const int my_cur_shift = kind_cur_count_shift(my_kind);
-            if(my_cur_shift < 0) return;  // NONE: skip
+            // NONE / Reserved are not publish kinds; skip.
+            if(my_kind != (uint8_t)detail::StampKind::BUNDLE
+               && my_kind != (uint8_t)detail::StampKind::UNBUNDLE)
+                return;
             const uint64_t old_fs = m_recent_ops_state.load(
                 std::memory_order_relaxed);
             const uint8_t  prior_kind = (uint8_t)((old_fs >> RSO_LATEST_KIND_SHIFT)
                                                    & RSO_LATEST_KIND_MASK);
             // Same-kind consecutive filter — BBBB...UUUU compressed
-            // to one event each, so (count_B + count_U) == true flip
-            // count.  Trade-off: unidirectional workloads (a Linkage
-            // that only receives one kind on its own m_link) stay at
+            // to one event each, so cur_count == true flip count.
+            // Trade-off: unidirectional workloads (a Linkage that
+            // only receives one kind on its own m_link) stay at
             // count=1 forever and the gate-return LOW band is never
             // crossed.  That's the correct semantic for an
             // anti-thrashing flip detector: a Linkage with no
@@ -1369,68 +1380,56 @@ private:
             const uint64_t now_us = (uint64_t)NC::stamp_us(stamp_with_kind);
             const uint8_t  new_epoch = (uint8_t)((now_us / KAME_KIND_WINDOW_US) & 0xFFu);
             const uint8_t  cur_epoch = (uint8_t)((old_fs >> RSO_CUR_EPOCH_SHIFT)
-                                                  & RSO_BYTE_MASK);
-            // Sub-µs `new_timestamp`: encoded in (KAME_KIND_WINDOW_NS /
-            // 4096) ≈ 31 ns units at WINDOW_US=128.  6-bit field thus
-            // spans a ~2 µs visible window — sufficient for the
-            // high-count regime where fs_period_ns drops below 1 µs.
-            // The reader (`_neg_spin_block`) must use the SAME unit.
-            // Bug-fix: pre-existing `% RSO_LATEST_TIMESTAMP_MASK` (mod
-            // 63) wasted one slot; switched to `& RSO_LATEST_TIMESTAMP_MASK`
-            // (mod 64) which matches the field width.
+                                                  & RSO_EPOCH_MASK);
+            // Sub-µs `new_timestamp`: encoded in
+            // (KAME_KIND_WINDOW_NS / 65536) ≈ 2 ns units at
+            // WINDOW_US=128.  22-bit field thus spans a ~8 ms
+            // visible window.  Denominator 65536 = 2^16 matches
+            // the 16-bit count saturation (see RSO_COUNT_MASK).
             const uint64_t now_ns_val = (uint64_t)NC::now_ns();
-            constexpr uint64_t TS_UNIT_NS = (uint64_t)KAME_KIND_WINDOW_NS / 4096u;
-            const uint8_t  new_timestamp = (uint8_t)((now_ns_val / TS_UNIT_NS)
-                                                     & RSO_LATEST_TIMESTAMP_MASK);
+            // Floor unit at 1 ns so very short windows
+            // (KAME_KIND_WINDOW_NS < 65536) don't trigger div-by-zero.
+            // Same clamp on the reader side in `_neg_spin_block`.
+            constexpr uint64_t TS_UNIT_NS_RAW = (uint64_t)KAME_KIND_WINDOW_NS / 65536u;
+            constexpr uint64_t TS_UNIT_NS = TS_UNIT_NS_RAW < 1u ? 1u : TS_UNIT_NS_RAW;
+            const uint64_t new_timestamp = (now_ns_val / TS_UNIT_NS)
+                                            & RSO_LATEST_TIMESTAMP_MASK;
 
             // Window-rotation logic.  Build the new (cur, prev) state
             // before reapplying the increment.
-            uint64_t cur_O, cur_U;
-            uint64_t prev_O, prev_U;
+            uint64_t cur_count, prev_count;
             if(old_fs == 0) {
-                // Fresh state: start in new_epoch with all counts 0.
-                cur_O = cur_U = 0;
-                prev_O = prev_U = 0;
+                cur_count = prev_count = 0;
             } else {
                 const uint8_t delta = (uint8_t)((new_epoch - cur_epoch) & 0xFFu);
                 if(delta == 0) {
                     // Same window — keep cur and prev as-is.
-                    cur_U = (old_fs >> RSO_CUR_U_SHIFT) & RSO_BYTE_MASK;
-                    cur_O = (old_fs >> RSO_CUR_O_SHIFT) & RSO_BYTE_MASK;
-                    prev_U = (old_fs >> RSO_PREV_U_SHIFT) & RSO_BYTE_MASK;
-                    prev_O = (old_fs >> RSO_PREV_O_SHIFT) & RSO_BYTE_MASK;
+                    cur_count  = (old_fs >> RSO_CUR_COUNT_SHIFT)  & RSO_COUNT_MASK;
+                    prev_count = (old_fs >> RSO_PREV_COUNT_SHIFT) & RSO_COUNT_MASK;
                 } else if(delta == 1) {
                     // Single rotate: previous cur → new prev, cur clears.
-                    prev_U = (old_fs >> RSO_CUR_U_SHIFT) & RSO_BYTE_MASK;
-                    prev_O = (old_fs >> RSO_CUR_O_SHIFT) & RSO_BYTE_MASK;
-                    cur_O = cur_U = 0;
+                    prev_count = (old_fs >> RSO_CUR_COUNT_SHIFT) & RSO_COUNT_MASK;
+                    cur_count  = 0;
                 } else {
                     // delta >= 2 — both prior windows are stale; reset.
-                    cur_U = cur_O = 0;
-                    prev_U = prev_O = 0;
+                    cur_count = prev_count = 0;
                 }
             }
 
-            // Saturating increment of cur_count[my_kind].
-            uint64_t *cur_slot =
-                  my_kind == (uint8_t)detail::StampKind::BUNDLE   ? &cur_O
-                : my_kind == (uint8_t)detail::StampKind::UNBUNDLE ? &cur_U
-                                                                  : &cur_O;
-            if(*cur_slot < 255) ++(*cur_slot);
+            // Saturating increment of cur_count.
+            if(cur_count < RSO_COUNT_MASK) ++cur_count;
 
-            // Diagnostic only — flip count went to count slots.
+            // Diagnostic only — flip count went to count slot.
             if(prior_kind != 0) {
                 NegSite::record_linkage_flip(prior_kind, my_kind, 0);
             }
 
             const uint64_t new_fs =
-                 (cur_U       << RSO_CUR_U_SHIFT)
-                | (cur_O       << RSO_CUR_O_SHIFT)
+                 (cur_count  << RSO_CUR_COUNT_SHIFT)
+                | (prev_count << RSO_PREV_COUNT_SHIFT)
                 | ((uint64_t)new_epoch << RSO_CUR_EPOCH_SHIFT)
-                | (prev_U      << RSO_PREV_U_SHIFT)
-                | (prev_O      << RSO_PREV_O_SHIFT)
                 | ((uint64_t)my_kind << RSO_LATEST_KIND_SHIFT)
-                | ((uint64_t)new_timestamp << RSO_LATEST_TIMESTAMP_SHIFT);
+                | (new_timestamp << RSO_LATEST_TIMESTAMP_SHIFT);
             // Release matches the acquire-loads at gate-return decision
             // (negotiate_internal) and band-gate spin (transaction_neg_impl.h).
             // Without release, the reader's acquire has no synchronizes-with
