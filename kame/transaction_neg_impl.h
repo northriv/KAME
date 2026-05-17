@@ -636,10 +636,15 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
 
     const uint8_t mk = (uint8_t)detail::s_current_op_kind & 0x3u;
     const bool prev_failed = snap.m_last_gate_returned;
-    if(prev_failed
-       && snap.m_gate_return_tighten
-          < (uint8_t)KAME_GATE_RETURN_MAX_TIGHTEN) {
-        ++snap.m_gate_return_tighten;
+    if(prev_failed) {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        // Log the tighten depth right when prev_failed is detected.
+        // The post-increment value is the level we were AT when the
+        // failure happened.
+        NegSite::record_gr_tighten_level(snap.m_gate_return_tighten);
+#endif
+        if(snap.m_gate_return_tighten < (uint8_t)KAME_GATE_RETURN_MAX_TIGHTEN)
+            ++snap.m_gate_return_tighten;
     }
     snap.m_last_gate_returned = false;
     const uint8_t tighten = snap.m_gate_return_tighten;
@@ -747,29 +752,34 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     constexpr uint64_t TS_UNIT_NS_RAW = (uint64_t)KAME_KIND_WINDOW_NS / 65536u;
     constexpr uint64_t TS_UNIT_NS = TS_UNIT_NS_RAW < 1u ? 1u : TS_UNIT_NS_RAW;
     const uint64_t MAX_USABLE_UNITS = L::RSO_LATEST_TIMESTAMP_MASK / 2u;
-    // ro_timelimit = (fs_period_ns / 16) shifted by tighten, in ts-units.
-    // /16 (was /2) keeps the "recent" window to ~6 % of the inter-flip
-    // period.  x86 4-core sweep (3level_mixed N=64 CR=10, INSTRUMENT):
-    //   /2  : WON 10.3% TIMEOUT 24.8% commits=798k
-    //   /4  : WON  7.6% TIMEOUT 39.5% commits=788k
-    //   /8  : WON  4.2% TIMEOUT 53.0% commits=922k
-    //   /16 : WON  2.6% TIMEOUT 58.4% commits=989k  ← winner
-    // Lower /N tightens the WON predicate, reducing false-WON cases
-    // where the peer published "recently" but is still mid-commit (or
-    // a different peer beat us to the next CAS).  The remaining
-    // attempts that DO win now correlate better with imminent CAS
-    // success → less wasted spin-then-retry-then-storm.
+    // ro_timelimit = (fs_period_ns / 4) shifted by tighten, in ts-units.
+    // /4 keeps the "recent" window to 25 % of the inter-flip period —
+    // a balance between catching genuine fresh activity (which /8 and
+    // /16 increasingly miss) and not over-firing on stale events
+    // (which /2 did).  x86 4-core sweep WON / attempts share:
+    //   /2  : 29.4 %  /4 : 16.1 %  /8 : 7.3 %  /16 : 4.3 %
     const uint64_t ro_timelimit_raw =
-        ((fs_period_ns / 16u) / TS_UNIT_NS) >> tighten;
+        ((fs_period_ns / 4u) / TS_UNIT_NS) >> tighten;
     const bool use_recency = (ro_timelimit_raw > 0
                               && ro_timelimit_raw < MAX_USABLE_UNITS);
     const uint64_t ro_timelimit = use_recency ? ro_timelimit_raw : 0;
+    // Track whether m_recent_ops_state actually changed while we
+    // were spinning.  WON with a state CHANGE during spin (= peer
+    // wrote DURING our wait) signals an active in-flight CAS and
+    // hence a stale view → caller's scope must abort.  WON without
+    // any observed change (the LOAD-AND-CHECK we did at function
+    // entry already satisfied the recency predicate, no peer wrote
+    // since) is a speculative gate-return: peer may already be
+    // done, our view is probably still valid, no abort needed.
+    bool observed_change_during_spin = false;
     uint64_t end_ns = NegotiationCounter::now_ns();
     for(;;) {
         end_ns = NegotiationCounter::now_ns();
         for(int i = 0; i < 2; ++i) pause4spin();
         auto ro = self->m_recent_ops_state.load(
             std::memory_order_acquire);
+        if(ro != initial_ro)
+            observed_change_during_spin = true;
 
         auto ro_kind = (ro >> L::RSO_LATEST_KIND_SHIFT) & L::RSO_LATEST_KIND_MASK;
         auto ro_timestamp = (ro >> L::RSO_LATEST_TIMESTAMP_SHIFT) & L::RSO_LATEST_TIMESTAMP_MASK;
@@ -800,13 +810,23 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
             : NegSite::SpinOutcome::TIMEOUT, elapsed);
     if( !won)
         return false;  // TIMEOUT → fall to CV-sleep.
-    // Break for CAS retry — mark for fail tracking.
-    snap.m_last_gate_returned = true;
+    // Mark as gate-return ONLY if we actually observed a state
+    // change while spinning.  No-spin / speculative WON (initial ro
+    // already satisfied the recency predicate, no fresh peer write
+    // during our wait) does NOT set m_last_gate_returned: the ctor
+    // will use the freshly-acquired view and the post-WON CAS has a
+    // fair chance.  Spin WON with change (peer wrote during the
+    // wait) means the view is racing — set the flag so the ctor's
+    // abort-on-WON path drops the view and the retry loop produces
+    // a fresh scope.
+    if(observed_change_during_spin) {
+        snap.m_last_gate_returned = true;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-    snap.m_gate_return_time_us =
-        (uint32_t)NegotiationCounter::now_us();
-    snap.m_gate_return_my_kind = mk;
+        snap.m_gate_return_time_us =
+            (uint32_t)NegotiationCounter::now_us();
+        snap.m_gate_return_my_kind = mk;
 #endif
+    }
     return true;
 }
 #endif // KAME_ENABLE_SPIN_BAND_GATE

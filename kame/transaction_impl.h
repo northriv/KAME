@@ -268,6 +268,17 @@ std::atomic<uint64_t> g_band_count[4][3][8]{};
 std::atomic<uint64_t> g_gr_in_time_hist[4][8]{};
 std::atomic<uint64_t> g_gr_not_in_time[4][4]{};
 std::atomic<uint64_t> g_gr_cas_fail[4]{};
+// `tighten` increments at `_neg_spin_block` entry when the previous
+// gate-return for this Snapshot did not lead to a CAS success
+// (snap.m_last_gate_returned was still true).  Per-level histogram
+// gives the post-WON failure profile: g_gr_tighten_hist[level]
+// counts how many gate-returns were observed at each tighten level
+// (level 0 = first, level KAME_GATE_RETURN_MAX_TIGHTEN = saturated).
+// (level i counts can be summed and compared against WON-event count
+// from spin_count[WON]: when most WON events do reach a CAS success,
+// almost all hits fall in level 0; persistent failure spreads the
+// distribution toward the max.)
+std::atomic<uint64_t> g_gr_tighten_hist[8]{};
 
 static inline unsigned gr_latency_bucket(uint32_t us) noexcept {
     // Log2 buckets: 0=<1µs, 1=<2µs, 2=<4, 3=<8, 4=<16, 5=<32, 6=<64,
@@ -308,6 +319,11 @@ DECLSPEC_KAME void NegSite::record_gr_not_in_time(uint8_t my_kind,
 DECLSPEC_KAME void NegSite::record_gr_cas_fail(uint8_t my_kind) noexcept {
     g_gr_cas_fail[my_kind & 0x3u]
         .fetch_add(1, std::memory_order_relaxed);
+}
+
+DECLSPEC_KAME void NegSite::record_gr_tighten_level(uint8_t level) noexcept {
+    if(level < 8)
+        g_gr_tighten_hist[level].fetch_add(1, std::memory_order_relaxed);
 }
 
 DECLSPEC_KAME void NegSite::record_spin_event(SpinOutcome o,
@@ -628,6 +644,31 @@ DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
             if(c == 0) continue;
             std::fprintf(fp, "  my=%-6s : count=%llu\n",
                          grKindLabel[k], (unsigned long long)c);
+        }
+    }
+    // Tighten-level histogram: how deep did the post-WON failure
+    // ladder climb?  Sum across levels = total prev_failed events
+    // observed at `_neg_spin_block` entry (= count of WON events
+    // whose follow-up CAS did NOT commit by the next entry).  Most
+    // hits at level 0 → WON usually leads to commit before the
+    // next negotiate fires; spread toward MAX = repeated failure.
+    {
+        uint64_t tighten_total = 0;
+        for(int i = 0; i < 8; ++i)
+            tighten_total += g_gr_tighten_hist[i]
+                .load(std::memory_order_relaxed);
+        if(tighten_total > 0) {
+            std::fprintf(fp,
+                "[gate-return tighten level distribution]  total=%llu\n",
+                (unsigned long long)tighten_total);
+            for(int i = 0; i < 8; ++i) {
+                uint64_t c = g_gr_tighten_hist[i]
+                    .load(std::memory_order_relaxed);
+                if(c == 0) continue;
+                double pct = 100.0 * (double)c / (double)tighten_total;
+                std::fprintf(fp, "  L=%d : %9llu (%5.1f%%)\n",
+                             i, (unsigned long long)c, pct);
+            }
         }
     }
 #endif

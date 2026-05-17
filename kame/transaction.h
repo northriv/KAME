@@ -569,10 +569,17 @@ public:
     //! (in_time) and "WON but no CAS happened before the next gate
     //! decision" (not_in_time) buckets.  my_kind: 1=B, 2=U.
     DECLSPEC_KAME static void record_gr_cas_fail(uint8_t my_kind) noexcept;
+    //! Record the `tighten` level at the entry of `_neg_spin_block`
+    //! when prev_failed was set (= previous gate-return did NOT lead
+    //! to a CAS success on this Snapshot).  Level distribution maps
+    //! the post-WON failure depth: most hits at level 0 → WON usually
+    //! succeeds; spread toward max → repeated WON-then-fail cycles.
+    DECLSPEC_KAME static void record_gr_tighten_level(uint8_t level) noexcept;
 #else
     static void record_gr_in_time(uint8_t, uint32_t) noexcept {}
     static void record_gr_not_in_time(uint8_t, uint8_t) noexcept {}
     static void record_gr_cas_fail(uint8_t) noexcept {}
+    static void record_gr_tighten_level(uint8_t) noexcept {}
 #endif
 
     NegSite() = delete;
