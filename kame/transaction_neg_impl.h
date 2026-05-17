@@ -1118,29 +1118,23 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // contender appears later, tid_bitset accumulates and the
         // next negotiate call sees sig_C ≥ 2.
         // preferred_kind: wake threads whose op_kind matches the
-        // linkage's most recent commit, so BB or UU streaks have a
-        // better chance of forming (peers with matching kinds don't
-        // flip the linkage and pass the spin-block same-kind filter
-        // more often).  Read fresh per iteration since m_recent_ops_state
-        // can advance while we are looping.
+        // *notifier's own* op_kind.  Rationale: we only fire
+        // notify_n_contenders at points where the notifier is about
+        // to retry CAS itself (sig_C==1 fast path and lottery break)
+        // or to refill the running pipeline (MIN_RUNNERS escape).
+        // In either case the upcoming commit is the notifier's kind,
+        // so peers with matching kind set up a same-kind streak
+        // (BB or UU) that passes the spin-block same-kind filter.
+        // An earlier variant biased on the linkage's last_commit
+        // kind, but that is stale relative to the imminent CAS.
         //
-        // Default-OFF: 5-run A-B on 3level_mixed N=64 CR=2/10 showed
-        // -0.5 % / -2.3 % means under the kind-preference bias.  The
-        // two-pass walk's extra mutex acquisition on kind-mismatch
-        // slots was not amortised by the BB/UU streak gain, likely
-        // because the typical wake count is 1-3 (priv_slot or first
-        // bit) where biased ordering has no effect, while the per-skip
-        // lock cost still applies.  Set -DKAME_CV_WAKE_KIND_PREF=1 to
-        // re-enable (kept as a knob for future tuning).
+        // Set -DKAME_CV_WAKE_KIND_PREF=0 to disable (ablation knob).
 #ifndef KAME_CV_WAKE_KIND_PREF
-#define KAME_CV_WAKE_KIND_PREF 0
+#define KAME_CV_WAKE_KIND_PREF 1
 #endif
-        auto preferred_kind_for_wake = [&]() -> uint8_t {
+        auto preferred_kind_for_wake = []() -> uint8_t {
 #if KAME_CV_WAKE_KIND_PREF
-            const uint64_t fs =
-                self->m_recent_ops_state.load(std::memory_order_relaxed);
-            return (uint8_t)((fs >> Linkage::RSO_LATEST_KIND_SHIFT)
-                             & Linkage::RSO_LATEST_KIND_MASK);
+            return (uint8_t)detail::s_current_op_kind & 0x3u;
 #else
             return (uint8_t)0xFFu;
 #endif
