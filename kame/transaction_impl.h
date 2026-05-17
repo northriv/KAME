@@ -2233,8 +2233,13 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                     // flip detector sees the BUNDLE side too, not only
                     // the supernode's Phase 4 record.  Symmetric with
                     // unbundle's cas_infos loop UNBUNDLE record.
+                    // Deferred to childScope's dtor so the publish
+                    // fires after the chain has settled past this
+                    // sub-CAS — peers reading m_recent_ops_state see
+                    // events more strongly correlated with "CAS truly
+                    // done" rather than "CAS just happened".
 #if KAME_ENABLE_SPIN_BAND_GATE
-                    child->m_link->template record_successful_op<NegotiationCounter>(
+                    childScope.arm_record_on_commit(
                         NegotiationCounter::with_kind(started_time,
                                                       detail::StampKind::BUNDLE));
 #endif
@@ -2606,9 +2611,12 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         // not only the final subscope.  Record it so the per-Linkage
         // flip detector can build up evidence on intermediate nodes
         // (which otherwise see BUNDLE only and never cross the LOW
-        // band).
+        // band).  Deferred to scope dtor so the publish fires after
+        // the cas_infos loop progresses past this ancestor (peer
+        // reading m_recent_ops_state sees an event more strongly
+        // correlated with "ancestor settled").
 #if KAME_ENABLE_SPIN_BAND_GATE
-        it->linkage->template record_successful_op<NegotiationCounter>(
+        scope.arm_record_on_commit(
             NegotiationCounter::with_kind(time_started,
                                           detail::StampKind::UNBUNDLE));
 #endif

@@ -212,6 +212,14 @@ class ScopedNegotiateLinkage {
     //! via the thread_local sink NegSite::last_was_gate_return(); consumed
     //! by _on_cas_fail / _on_cas_success of THIS scope only.
     bool            m_was_gate_return = false;
+    //! Deferred `record_successful_op` payload.  When set by
+    //! `arm_record_on_commit(stamp_with_kind)`, the dtor fires
+    //! `m_link->record_successful_op` only if the scope was actually
+    //! committed (= the CAS we wrapped won).  Delaying the publish to
+    //! scope end avoids peers reading "B/U just happened" while the
+    //! enclosing Tx is still mid-chain (peer would WON-then-CAS-fail).
+    typename Node<XN>::NegotiationCounter::cnt_t m_deferred_record_stamp = 0;
+    bool            m_deferred_record_pending = false;
 #if KAME_ENABLE_RUNNER_DIGEST
     //! __LINE__ of the ctor call site.  Used to fill the digest's
     //! `site_line_lo` field at each publish point so peers can tell
@@ -754,6 +762,22 @@ public:
     //! the gate→cas_fail correlation counter.
     void confirm_contention() noexcept { m_contention_observed = true; }
 
+    //! Arm a deferred `Linkage::record_successful_op` to fire from
+    //! the dtor iff the scope reaches dtor with `m_committed == true`
+    //! (= the CAS we wrapped here actually won, no abort).  Pushing
+    //! the publish to scope end gives the enclosing Tx a moment to
+    //! progress past the immediately-after-CAS state — peer reading
+    //! `m_recent_ops_state` sees an event that is more strongly
+    //! correlated with "publish actually settled" than the inline
+    //! record at the CAS site.  Used by bundle's Phase 3 child-CAS
+    //! and unbundle's cas_infos chain CAS, where the chain CAS is
+    //! followed by more work in the enclosing routine.
+    void arm_record_on_commit(
+            typename Node<XN>::NegotiationCounter::cnt_t stamp_with_kind) noexcept {
+        m_deferred_record_stamp = stamp_with_kind;
+        m_deferred_record_pending = true;
+    }
+
 private:
     //! Snapshot the thread_local gate-return flag set by the
     //! ctor-time negotiate_internal into this scope's per-scope
@@ -947,6 +971,17 @@ public:
         if(m_link) {
             NegSite::current_state() = m_site_state;
             if(m_committed) ++m_site_state->commits;
+#if KAME_ENABLE_SPIN_BAND_GATE
+            // Fire deferred record_successful_op only if the wrapped
+            // CAS won.  Aborted / contention-detected scopes carry no
+            // publish — peer would otherwise read a misleading "B/U
+            // just happened" event for a transaction that never made
+            // it past the chain CAS.
+            if(m_committed && m_deferred_record_pending) {
+                using NC = typename Node<XN>::NegotiationCounter;
+                m_link->template record_successful_op<NC>(m_deferred_record_stamp);
+            }
+#endif
 #if KAME_ENABLE_RUNNER_DIGEST
             // Scope-end digest publish — peer-visible snapshot of
             // outcome (consec_succs/fails / take_gate updated by

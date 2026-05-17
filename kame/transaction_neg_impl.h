@@ -652,10 +652,17 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // in the spin loop below (peer's UNBUNDLE doesn't yield to my
     // BUNDLE, etc.).
     const uint64_t my_count = eff_count;
+    // Storm guard: skip spin attempt when the running-thread count
+    // is already at or above the MAX_RUNNERS cap.  If too many threads
+    // are simultaneously in the CAS-retry phase, even a successful
+    // spin-WON just dumps us into a contended CAS race we are very
+    // likely to lose.  Falling through to SKIPPED_THRASHING routes us
+    // to CV-sleep instead, where the wake-up pipeline naturally
+    // limits concurrent CAS attempts.
     bool runners_ok = true;
-#if KAME_STM_MIN_RUNNERS != 0
+#if KAME_STM_MAX_RUNNERS != 0
     runners_ok = NegotiationCounter::numThreadsRunning()
-                 < effective_min_runners(C_obs);
+                 < effective_max_runners(C_obs);
 #else
     (void)C_obs;
 #endif
@@ -740,8 +747,20 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     constexpr uint64_t TS_UNIT_NS_RAW = (uint64_t)KAME_KIND_WINDOW_NS / 65536u;
     constexpr uint64_t TS_UNIT_NS = TS_UNIT_NS_RAW < 1u ? 1u : TS_UNIT_NS_RAW;
     const uint64_t MAX_USABLE_UNITS = L::RSO_LATEST_TIMESTAMP_MASK / 2u;
+    // ro_timelimit = (fs_period_ns / 16) shifted by tighten, in ts-units.
+    // /16 (was /2) keeps the "recent" window to ~6 % of the inter-flip
+    // period.  x86 4-core sweep (3level_mixed N=64 CR=10, INSTRUMENT):
+    //   /2  : WON 10.3% TIMEOUT 24.8% commits=798k
+    //   /4  : WON  7.6% TIMEOUT 39.5% commits=788k
+    //   /8  : WON  4.2% TIMEOUT 53.0% commits=922k
+    //   /16 : WON  2.6% TIMEOUT 58.4% commits=989k  ← winner
+    // Lower /N tightens the WON predicate, reducing false-WON cases
+    // where the peer published "recently" but is still mid-commit (or
+    // a different peer beat us to the next CAS).  The remaining
+    // attempts that DO win now correlate better with imminent CAS
+    // success → less wasted spin-then-retry-then-storm.
     const uint64_t ro_timelimit_raw =
-        ((fs_period_ns / 2u) / TS_UNIT_NS) >> tighten;
+        ((fs_period_ns / 16u) / TS_UNIT_NS) >> tighten;
     const bool use_recency = (ro_timelimit_raw > 0
                               && ro_timelimit_raw < MAX_USABLE_UNITS);
     const uint64_t ro_timelimit = use_recency ? ro_timelimit_raw : 0;
