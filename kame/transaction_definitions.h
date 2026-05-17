@@ -393,8 +393,16 @@
 // windows of this width, and two adjacent windows (cur + prev) are
 // retained.  Counts older than 2 × WINDOW_US are dropped by
 // rotation.  Pow-of-2 simplifies the (now_us / WINDOW_US) op.
+// WINDOW too short → unidirectional Linkages never accumulate flip
+// count, the LOW-band gate never fires, the spin block degenerates to
+// 100 % SKIPPED_NO_PERIOD (confirmed via KAME_ADAPT_INSTRUMENT dump
+// on the 3level_mixed workload).  128 µs gives ~256 µs visible
+// (cur + prev windows) — long enough for a B↔U pair to fall in even
+// on lightly contended Linkages, while still short enough that the
+// fs_period_ns / count derived spin budget remains in the sub-µs to
+// few-µs range we want.
 #ifndef KAME_KIND_WINDOW_US
-#define KAME_KIND_WINDOW_US 15
+#define KAME_KIND_WINDOW_US 128
 #endif
 
 // ns companion to KAME_KIND_WINDOW_US for the spin-budget formula in
