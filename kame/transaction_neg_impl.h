@@ -277,10 +277,12 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
     if (retry_thresh_dyn < 3) retry_thresh_dyn = 3;
     if (retry_thresh_dyn > hw_procs) retry_thresh_dyn = hw_procs;
 
+    // Age condition (`tx_age_us > min_privilege_age_us(prio)`)
+    // dropped — claim eligibility now depends on tag-ownership +
+    // retry count.  `tx_age_us` is still logged below for diagnostic.
     const char *verdict =
         (tags_total > 0 && tags_owned == tags_total
-         && (int)my_tx_retries >= retry_thresh_dyn
-         && tx_age_us > min_privilege_age_us(prio))
+         && (int)my_tx_retries >= retry_thresh_dyn)
             ? "LIVELOCK" : "ok";
 
     if(window_us > 100'000)
@@ -998,8 +1000,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // (wrap-safe at US_BITS = 46).
     int64_t _ll_age_us =
         (int64_t)NegotiationCounter::diff_us_packed(now_us_entry, started_time);
-    if (_ll_age_us >= NegotiationCounter::min_privilege_age_us(Priority::HIGHEST)
-        && !snap.m_tagged_linkages.empty()) {  // skip when too young or untagged
+    // Age threshold removed: claim eligibility now depends on
+    // tag-ownership (in the probe) and retry count, not wall-clock age.
+    // Rationale — CAS storms manifest in microseconds, well before the
+    // old 300 µs age floor would have fired; serializing early via
+    // privilege limits the storm window.  `_ll_age_us` is still
+    // computed and passed to the probe for diagnostic logging.
+    if ( !snap.m_tagged_linkages.empty()) {
         // Count tagged linkages whose m_transaction_started_time == ours
         // (= "priority is already mine on every linkage" = primary
         //   livelock precondition per the refined definition).
