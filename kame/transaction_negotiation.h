@@ -388,46 +388,20 @@ public:
         // peer-thread TagHelds accumulate and block the privileged
         // zero-reset CAS indefinitely (b413a98b livelock).
         //
-        // Spin WON abort: `_neg_spin_block` setting `m_last_gate_returned`
-        // (only when it observed a change during the spin) means peer
-        // just published on this Linkage and a follow-up CAS via our
-        // captured view would race-lose.  Skip the view acquire so
-        // `operator bool() == false`; the caller's retry loop creates a
-        // fresh scope on the next pass (re-negotiate + fresh view).
-        //
-        // The flag is intentionally LEFT SET — the next
-        // `_neg_spin_block` entry will read it as `prev_failed`,
-        // increment `m_gate_return_tighten`, and narrow the recency
-        // window.  This keeps the tighten ladder driving the gate
-        // toward more selective firing while we keep retrying.  The
-        // flag is cleared by `_on_cas_success` once a real CAS
-        // commits, restoring the ladder to level 0.
-        bool spin_won = m_snap->m_last_gate_returned;
         m_strong_mode = we_hold_priv;
-        if(spin_won) {
-            // Leave m_view default-constructed (empty).  Set
-            // m_contention_observed so the dtor still tags this
-            // linkage as contended — keeps Greedy-CM signal alive
-            // for peers.
-            m_contention_observed = true;
+        m_view = scoped_atomic_view<PacketWrapper>(
+            *m_link,
+            we_hold_priv
+                ? scoped_atomic_view<PacketWrapper>::DEFER_THRESHOLD
+                : scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
+            /*weakly=*/!we_hold_priv);
+        if(!m_view.acquire_succeeded()) {
+            // Weak acquire CAS lost (or local refcnt at capacity) —
+            // same treatment as a CAS failure: forces dtor tag despite
+            // retry==0 fast-path optimization.  STRONG mode never
+            // returns acquire_succeeded()==false (it spins until success).
+            _on_cas_fail();
         }
-        else {
-            m_view = scoped_atomic_view<PacketWrapper>(
-                *m_link,
-                we_hold_priv
-                    ? scoped_atomic_view<PacketWrapper>::DEFER_THRESHOLD
-                    : scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
-                /*weakly=*/!we_hold_priv);
-            if(!m_view.acquire_succeeded()) {
-                // Weak acquire CAS lost (or local refcnt at capacity) —
-                // same treatment as a CAS failure: forces dtor tag despite
-                // retry==0 fast-path optimization.  STRONG mode never
-                // returns acquire_succeeded()==false (it spins until success).
-                _on_cas_fail();
-            }
-        }
-        // spin_won path leaves m_view empty without _on_cas_fail() —
-        // we deliberately abandoned the attempt; not a CAS failure.
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
     }
@@ -488,21 +462,9 @@ public:
 #if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
-        // Same abort-on-WON path as the standard ctor: spin observed
-        // a change → caller's `from` is racing peer's publish →
-        // drop `from` (goes out of scope at function exit) and leave
-        // m_view default-empty so the caller's retry loop creates a
-        // fresh scope.  Flag is NOT cleared — see the standard ctor
-        // for the tighten-ladder rationale.
-        bool spin_won = m_snap->m_last_gate_returned;
+        m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time, m_link.get());
-        if(spin_won) {
-            m_contention_observed = true;
-        }
-        else {
-            m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
-        }
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
     }
@@ -553,23 +515,9 @@ public:
 #if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
-        // Same abort-on-WON path: caller's `from` view is racing —
-        // drop it (move-source goes out of scope, ~1 tag release)
-        // and leave m_view empty so the caller's retry loop sees
-        // `if(!scope)` and re-tries with a fresh scope.  Flag is
-        // NOT cleared — see the standard ctor for the tighten-ladder
-        // rationale.
-        bool spin_won = m_snap->m_last_gate_returned;
+        m_view = std::move(from);
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time, m_link.get());
-        if(spin_won) {
-            m_contention_observed = true;
-            // `from` falls out of scope here — its tag-ref is
-            // released by scoped_atomic_view's dtor.
-        }
-        else {
-            m_view = std::move(from);
-        }
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
     }

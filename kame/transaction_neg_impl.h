@@ -647,7 +647,17 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
             ++snap.m_gate_return_tighten;
     }
     snap.m_last_gate_returned = false;
-    const uint8_t tighten = snap.m_gate_return_tighten;
+    // First-failure grace: the very first observed WON-then-fail
+    // doesn't get to narrow the window — CAS naturally retries and
+    // the natural retry pause is often enough to clear the race.
+    // Only from the 2nd recorded failure onwards do we right-shift,
+    // hence `effective = tighten > 0 ? tighten - 1 : 0`.  The
+    // counter itself still increments normally so the level
+    // histogram remains comparable across runs.
+    const uint8_t raw_tighten = snap.m_gate_return_tighten;
+    const uint8_t tighten = raw_tighten > 0
+                            ? (uint8_t)(raw_tighten - 1)
+                            : (uint8_t)0;
     const uint64_t lo = (uint64_t)KAME_KIND_COUNT_THRESHOLD;
     uint64_t hi = (uint64_t)KAME_KIND_COUNT_HIGH >> tighten;
     if(hi < lo) hi = lo;

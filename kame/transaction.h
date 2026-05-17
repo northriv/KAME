@@ -1382,15 +1382,18 @@ private:
                 std::memory_order_relaxed);
             const uint8_t  prior_kind = (uint8_t)((old_fs >> RSO_LATEST_KIND_SHIFT)
                                                    & RSO_LATEST_KIND_MASK);
-            // Same-kind consecutive filter — BBBB...UUUU compressed
-            // to one event each, so cur_count == true flip count.
-            // Trade-off: unidirectional workloads (a Linkage that
-            // only receives one kind on its own m_link) stay at
-            // count=1 forever and the gate-return LOW band is never
-            // crossed.  That's the correct semantic for an
-            // anti-thrashing flip detector: a Linkage with no
-            // alternation has no "B/U periodicity" to coalesce on.
-            if(prior_kind == my_kind && old_fs != 0) return;
+            // Same-kind consecutive (BB or UU) does NOT increment
+            // cur_count — keeping `cur_count == true flip count`
+            // semantics so the LOW/HIGH band keeps measuring the
+            // alternation rate, not the raw publish rate.  But we
+            // still write the FRESH timestamp + latest_kind below:
+            // the spin block's recency check (`end_ts -
+            // ro_timestamp < ro_timelimit`) wants the LATEST publish
+            // time, and dropping the entire update on BB would leave
+            // ro_timestamp frozen at the first B — misleading peers
+            // into reading a stale "X us ago" when the actual last B
+            // is right now.
+            const bool same_kind = (prior_kind == my_kind && old_fs != 0);
             const uint64_t now_us = (uint64_t)NC::stamp_us(stamp_with_kind);
             const uint8_t  new_epoch = (uint8_t)((now_us / KAME_KIND_WINDOW_US) & 0xFFu);
             const uint8_t  cur_epoch = (uint8_t)((old_fs >> RSO_CUR_EPOCH_SHIFT)
@@ -1430,11 +1433,15 @@ private:
                 }
             }
 
-            // Saturating increment of cur_count.
-            if(cur_count < RSO_COUNT_MASK) ++cur_count;
+            // Saturating increment of cur_count — skipped on
+            // same-kind consecutive (= cur_count tracks flips only).
+            if(!same_kind && cur_count < RSO_COUNT_MASK)
+                ++cur_count;
 
             // Diagnostic only — flip count went to count slot.
-            if(prior_kind != 0) {
+            // record_linkage_flip is for genuine kind transitions,
+            // so suppress on same-kind too.
+            if(!same_kind && prior_kind != 0) {
                 NegSite::record_linkage_flip(prior_kind, my_kind, 0);
             }
 
