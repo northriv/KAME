@@ -1008,11 +1008,28 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                                     snap.m_started_time);
         int _ll_total = (int)snap.m_tagged_linkages.size();
         int _ll_owned = 0;
+        int _ll_priv_held = 0;  // # linkages still carrying our Reserved
         for (auto &_l : snap.m_tagged_linkages) {
-            if (_l && NegotiationCounter::strip_kind(
-                    _l->m_transaction_started_time.load(
-                        std::memory_order_relaxed)) == _ll_my_id)
+            if (!_l) continue;
+            auto cur = _l->m_transaction_started_time.load(
+                std::memory_order_relaxed);
+            if (NegotiationCounter::strip_kind(cur) == _ll_my_id) {
                 ++_ll_owned;
+                if (NegotiationCounter::is_priv_stamp(cur))
+                    ++_ll_priv_held;
+            }
+        }
+        // Preemption detection: the snapshot's m_registered_privileged
+        // flag is set on first successful claim and previously was
+        // cleared only in `drop_tags_n_privilege` (Tx scope end).
+        // After preemption (tag_as_contender's older-overwrites-younger
+        // rule replaces our Reserved on every Linkage), the flag
+        // stays stale-true and the claim gate below blocks all
+        // re-claim attempts.  Detect "no Reserved still mine" here
+        // and clear the flag so the claim path can re-fire.
+        if (snap.m_registered_privileged && _ll_priv_held == 0) {
+            snap.m_registered_privileged = false;
+            NegotiationCounter::release_priv_count_slot();
         }
         // `entry_pr` was read once at function entry; the probe maps it
         // to retry-threshold / label internally.
