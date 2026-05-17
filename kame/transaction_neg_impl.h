@@ -195,29 +195,6 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
 #endif
 }
 
-template <class XN>
-bool Node<XN>::NegotiationCounter::i_am_privileged_now(
-        cnt_t my_tidstamp,
-        const Linkage *link) noexcept {
-#if KAME_PER_LINKAGE_PRIVILEGE
-    // Per-Linkage: "I am privileged" iff this Linkage's slot carries
-    // a Reserved-kind stamp whose (us, tid) identity matches mine.
-    if(link == nullptr) return false;
-    cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
-    if( !is_priv_stamp(slot)) return false;
-    return strip_kind(slot) == strip_kind(my_tidstamp);
-#else
-    (void)link;
-    // Compare by TID (upper bits) — the privileged Tx and a *nested* Tx
-    // on the same thread carry different started_time stamps but share
-    // the same TID. Either Tx is "privileged" for the purpose of choosing
-    // STRONG-mode acquire/CAS: no other thread is doing CAS on the same
-    // linkage (fair_mode blocks them), so a strong spin has no peer.
-    cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
-    if(priv == (cnt_t)0) return false;
-    return stamp_tid(priv) == stamp_tid(my_tidstamp);
-#endif
-}
 
 template <class XN>
 typename Node<XN>::NegotiationCounter::PriorityProbeInfo
@@ -1369,15 +1346,16 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         if(_fair_blocks
            && (unsigned)s_fair_spinners.load(std::memory_order_relaxed)
               < (unsigned)effective_min_runners(C_obs)) {
+            // Invariant: m_snap->m_registered_privileged must be false
+            // here.  If we held priv on `self`, fair_mode_blocks_me
+            // would have returned false (strip_kind match) — so the
+            // outer guard `_fair_blocks` rules that case out.
+            assert( !m_snap->m_registered_privileged);
             s_fair_spinners.fetch_add(1, std::memory_order_relaxed);
             constexpr int FAIR_SPIN_ITERS = 4096;
             bool still_blocked = true;
             for(int k = 0; k < FAIR_SPIN_ITERS; ++k) {
-#if defined(__x86_64__) || defined(__i386__)
-                __builtin_ia32_pause();
-#elif defined(__aarch64__) || defined(__arm__)
-                __asm__ __volatile__("yield" ::: "memory");
-#endif
+                pause4spin();
                 still_blocked = NegotiationCounter::fair_mode_blocks_me(
                     started_time, self);
                 if( !still_blocked) break;

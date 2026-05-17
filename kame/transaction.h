@@ -1027,18 +1027,13 @@ private:
         static bool    fair_mode_blocks_me(
                            cnt_t tidstamp,
                            const Linkage *link = nullptr) noexcept;
-        //! Returns true iff this thread currently holds the privilege.
-        //! Under KAME_PER_LINKAGE_PRIVILEGE=1, "privilege" means our
-        //! stamp is on `link->m_transaction_started_time` with
-        //! kind = Reserved.  Under =0, we hold the global
-        //! `s_privileged_tidstamp` slot (TID match).  In either mode,
-        //! the result is used to switch acquire/CAS to STRONG mode:
-        //! privilege ensures no peer will fight us on this Linkage.
-        //!
-        //! Same nullptr-default policy as `fair_mode_blocks_me`.
-        static bool    i_am_privileged_now(
-                           cnt_t my_tidstamp,
-                           const Linkage *link = nullptr) noexcept;
+        // `i_am_privileged_now()` was removed.  Callers use
+        // `Snapshot::m_registered_privileged` directly — the flag is
+        // set when the per-Tx privilege claim succeeds, and any code
+        // path that needs "am I priv?" is reachable only from the
+        // claiming Tx itself (peers see fair_mode_blocks_me=true and
+        // wait), so the snapshot-local bool is an exact answer
+        // without an atomic load on the Linkage's privilege stamp.
 
         //! Per-priority livelock-probe parameters (retry threshold + label).
         struct PriorityProbeInfo {

@@ -370,9 +370,16 @@ public:
         // failures and livelock — observed empirically).  We let the
         // acquire proceed; if it loses CAS, the normal weak-fail path
         // handles it.
-        using NC = typename Node<XN>::NegotiationCounter;
-        bool we_hold_priv = NC::i_am_privileged_now(m_snap->m_started_time,
-                                                    m_link.get());
+        // Snapshot-based answer to "am I currently privileged?": the
+        // priv claim sets `m_registered_privileged` exactly once per
+        // Tx, no atomic load on this Linkage is required.  In
+        // per-Linkage mode this may be slightly optimistic on a
+        // specific link whose CAS failed during claim, but only
+        // priv-claiming threads ever take this branch (m_registered_
+        // privileged starts false), so strong-strong contention on
+        // the same link requires *both* threads to have completed a
+        // livelock-probe claim — a rare coincidence in practice.
+        bool we_hold_priv = m_snap->m_registered_privileged;
         // STRONG-mode acquire+CAS for the privileged thread: privilege
         // is exclusive and fair_mode blocks all other threads' CAS on
         // this linkage, so a strong spin has no peer to contend with.
@@ -463,8 +470,7 @@ public:
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
-        m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
-                            m_snap->m_started_time, m_link.get());
+        m_strong_mode = m_snap->m_registered_privileged;
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
     }
@@ -516,8 +522,7 @@ public:
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
         m_view = std::move(from);
-        m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
-                            m_snap->m_started_time, m_link.get());
+        m_strong_mode = m_snap->m_registered_privileged;
         if(m_eager && m_should_tag)
             m_snap->tag_as_contender(m_link);
     }
