@@ -2584,6 +2584,19 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
         // return DISTURBED below from the oldsuperwrapper check is
         // legitimate forward progress (linkage already advanced), and
         // m_committed=true silences the dtor's tag/assert.
+        //
+        // Each ancestor's packet just got replaced (subtree shrunk —
+        // a descendant was extracted by this unbundle), so this is a
+        // real UNBUNDLE event from THIS linkage's point of view too,
+        // not only the final subscope.  Record it so the per-Linkage
+        // flip detector can build up evidence on intermediate nodes
+        // (which otherwise see BUNDLE only and never cross the LOW
+        // band).
+#if KAME_ENABLE_SPIN_BAND_GATE
+        it->linkage->template record_successful_op<NegotiationCounter>(
+            NegotiationCounter::with_kind(time_started,
+                                          detail::StampKind::UNBUNDLE));
+#endif
         if(supscope_super) {
             if( ( *supscope_super)->packet()->node().m_link == it->linkage) {
                 if(supscope_super->operator->() != old_pw)
