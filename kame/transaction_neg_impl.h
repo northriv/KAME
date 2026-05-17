@@ -739,19 +739,22 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // BUNDLE, etc.).
     const uint64_t my_count = eff_count;
     // Storm guard: skip spin attempt when the running-thread count
-    // is already at or above the MAX_RUNNERS cap.  If too many threads
+    // is already at or above the spin-only cap.  If too many threads
     // are simultaneously in the CAS-retry phase, even a successful
     // spin-WON just dumps us into a contended CAS race we are very
     // likely to lose.  Falling through to SKIPPED_THRASHING routes us
     // to CV-sleep instead, where the wake-up pipeline naturally
     // limits concurrent CAS attempts.
-    bool runners_ok = true;
-#if KAME_STM_MAX_RUNNERS != 0
-    runners_ok = NegotiationCounter::numThreadsRunning()
-                 < effective_max_runners(C_obs);
-#else
+    //
+    // KAME_SPIN_MAX_RUNNERS is decoupled from KAME_STM_MAX_RUNNERS:
+    // raising the global MAX_RUNNERS cap regresses the lottery path
+    // catastrophically (-88 % at MAX=4 on x86 4-core), but the spin
+    // path is admission-controlled by the same-kind band gate so it
+    // can tolerate a higher concurrent cap.  Default 4 lets up to
+    // four threads spin at once.
+    bool runners_ok = NegotiationCounter::numThreadsRunning()
+                      <= (unsigned int)KAME_SPIN_MAX_RUNNERS;
     (void)C_obs;
-#endif
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     {
         NegSite::BandOutcome bo =
