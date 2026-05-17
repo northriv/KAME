@@ -359,7 +359,7 @@
 // only kicks in for Linkages with > ~1.6 ms observed period, which is
 // effectively never in steady-state contention.
 #ifndef KAME_SPIN_MAX_US
-#define KAME_SPIN_MAX_US 0
+#define KAME_SPIN_MAX_US 20
 #endif
 
 // ns companion to KAME_SPIN_MAX_US.  Used by `_neg_spin_block`'s
