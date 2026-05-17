@@ -145,29 +145,6 @@
 #define KAME_STM_MAX_RUNNERS 2
 #endif
 
-// Spin-block-only runner cap.  Decoupled from KAME_STM_MAX_RUNNERS so
-// the spin storm-guard can be tuned without touching the lottery's
-// excess-winner sleep redirect (which regresses by -88 % at MAX=4 on
-// x86 4-core).  `numThreadsRunning() <= KAME_SPIN_MAX_RUNNERS` is the
-// admission test in `_neg_spin_block`.
-//
-// Default 1 = bit-identical to the previous `< KAME_STM_MAX_RUNNERS`
-// guard at MAX=2 (only this thread running → admit).  Sweep on N=64
-// × 4-core x86, 3level_mixed:
-//   cap=1  CR=2 965 k / CR=10 903 k  (baseline)
-//   cap=2  CR=2 616 k / CR=10 736 k  (-36 %, -19 %)
-//   cap=3  CR=2 583 k / CR=10 480 k  (-40 %, -47 %)
-//   cap=4  CR=2 466 k / CR=10 636 k  (-52 %, -30 %)
-// The spin-WON path still has to win the CAS, and any peer in the
-// running state is a likely CAS-storm participant.  Higher caps make
-// sense only on hardware with more cores than the spin-WON+CAS step
-// duration permits.
-//   N >= 1 = fixed cap (no auto/disable variants here; the spin block
-//            is a fast path and the macro is read inline).
-#ifndef KAME_SPIN_MAX_RUNNERS
-#define KAME_SPIN_MAX_RUNNERS 1
-#endif
-
 // Floor on concurrent runners; lottery wins are denied while fewer
 // than this many runners are active so the wake pipeline has room.
 //  -1 = auto, 0 = disabled, N > 0 = fixed
