@@ -359,7 +359,7 @@
 // only kicks in for Linkages with > ~1.6 ms observed period, which is
 // effectively never in steady-state contention.
 #ifndef KAME_SPIN_MAX_US
-#define KAME_SPIN_MAX_US 20
+#define KAME_SPIN_MAX_US 40
 #endif
 
 // ns companion to KAME_SPIN_MAX_US.  Used by `_neg_spin_block`'s
@@ -450,7 +450,7 @@
 //   LOW=6  : WON  8.5 % TIMEOUT 16.2 % commits=858 k
 //   LOW=8+ : attempts=0
 #ifndef KAME_KIND_COUNT_THRESHOLD
-#define KAME_KIND_COUNT_THRESHOLD 5
+#define KAME_KIND_COUNT_THRESHOLD 3
 #endif
 // Calibrated to the 16-bit cur_count / prev_count fields in
 // m_recent_ops_state (max 65535).  The old default 254 mirrored
