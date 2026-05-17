@@ -426,8 +426,16 @@
 #ifndef KAME_KIND_COUNT_THRESHOLD
 #define KAME_KIND_COUNT_THRESHOLD 3
 #endif
+// Calibrated to the 16-bit cur_count / prev_count fields in
+// m_recent_ops_state (max 65535).  The old default 254 mirrored
+// the now-retired 8-bit slot saturation — it would gate out the
+// IN_BAND regime entirely on any sustained workload now that
+// counts can climb into the thousands.  16383 (= 2^14 - 1) keeps
+// the same ~1/4-of-saturation ratio the old 254 / 1023 had on the
+// 10-bit slots, with `tighten` right-shifts still giving useful
+// adaptive narrowing.
 #ifndef KAME_KIND_COUNT_HIGH
-#define KAME_KIND_COUNT_HIGH 254
+#define KAME_KIND_COUNT_HIGH 16383
 #endif
 
 // Adaptive band narrowing on anti-phase fails.  Each detected fail
