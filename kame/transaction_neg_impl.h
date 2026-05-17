@@ -1258,34 +1258,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // ===== end legacy gating ==========================================
 #endif // KAME_LEGACY_GATING
 
-        ms = std::max((int)(dt2 * mult_wait / 10000),  ms + 1);
-        if(ms > 5000) {
-            fprintf(stderr, "Nested transaction?, ");
-            fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
-            fprintf(stderr, "for BP@%p\n", (void*)self);
-            ms = 5000;
-        }
-
-        // ---------- Spin gate (first) ----------
-        // Unified PRE-spin band gate + any-change spin shortcut.
-        // Spin won → break out of the negotiate loop; otherwise fall
-        // through to the jittered-gate / lottery / CV-sleep below.
-        // Reordered to fire BEFORE the jitter gate so peer-activity-
-        // driven WON wins precedence over wall-clock "earned priority"
-        // breaks.  Compiled out entirely when
-        // KAME_ENABLE_SPIN_BAND_GATE=0.
-#if KAME_ENABLE_SPIN_BAND_GATE
-        if(_neg_spin_block(C_obs))
-            break;
-#else
-        (void)C_obs;
-#endif
-
-        // ---------- Jittered "earned priority" gate + lottery ----------
-        // Reached only when spin block returned false (TIMEOUT or
-        // SKIPPED_*).  Acts as the livelock-escape fallback when the
-        // spin can't find peer activity but the wall-clock wait has
-        // exceeded the dt-proportional threshold.
         if(entry_pr != Priority::LOWEST && dt > 0 && !_fair_blocks) {
             // Single LCG advance per iteration; bits 16-31 → r_j (jitter),
             // bits 0-15 → r_l (lottery). Independent windows of one PRNG
@@ -1347,6 +1319,26 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             }
 #endif
         }
+
+        ms = std::max((int)(dt2 * mult_wait / 10000),  ms + 1);
+        if(ms > 5000) {
+            fprintf(stderr, "Nested transaction?, ");
+            fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
+            fprintf(stderr, "for BP@%p\n", (void*)self);
+            ms = 5000;
+        }
+
+        // Unified PRE-spin band gate + any-change spin shortcut.
+        // Spin won → break out of the negotiate loop; otherwise fall
+        // through to CV-sleep.  See `_neg_spin_block` definition for
+        // the band / tighten / spin-budget rationale.
+        // Compiled out entirely when KAME_ENABLE_SPIN_BAND_GATE=0.
+#if KAME_ENABLE_SPIN_BAND_GATE
+        if(_neg_spin_block(C_obs))
+            break;
+#else
+        (void)C_obs;
+#endif
 
         // Sleep ms in 1-ms CV chunks + random ±1ms de-phasing jitter.
         // Jitter breaks the synchronized-wakeup oscillation that forms when
