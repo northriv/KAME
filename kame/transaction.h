@@ -1431,7 +1431,13 @@ private:
                 | (prev_O      << RSO_PREV_O_SHIFT)
                 | ((uint64_t)my_kind << RSO_LATEST_KIND_SHIFT)
                 | ((uint64_t)new_timestamp << RSO_LATEST_TIMESTAMP_SHIFT);
-            m_recent_ops_state.store(new_fs, std::memory_order_relaxed);
+            // Release matches the acquire-loads at gate-return decision
+            // (negotiate_internal) and band-gate spin (transaction_neg_impl.h).
+            // Without release, the reader's acquire has no synchronizes-with
+            // edge — the kind tag and timestamp in the packed word may
+            // arrive out of order from the writer's other publishes
+            // (atomic_shared_ptr CAS) on weakly-ordered platforms (ARM/M4).
+            m_recent_ops_state.store(new_fs, std::memory_order_release);
 #else
             (void)stamp_with_kind;
 #endif // KAME_ENABLE_SPIN_BAND_GATE
