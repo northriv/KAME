@@ -309,7 +309,9 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
 }
 
 template <class XN>
-void Node<XN>::NegotiationCounter::negotiate_sleep(int ms_timeout) noexcept {
+void Node<XN>::NegotiationCounter::negotiate_sleep(
+    int ms_timeout, cnt_t started_time) noexcept
+{
     int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
     auto &st = s_sleep_slots[slot];
     // Snapshot the kind this thread is about to commit; the notifier
@@ -319,11 +321,42 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(int ms_timeout) noexcept {
     const uint8_t my_kind = (uint8_t)detail::s_current_op_kind & 0x3u;
     std::unique_lock<std::mutex> lock(st.mtx);
     st.op_kind = my_kind;
+    // Publish our started_time so `notify_older_sleepers` peers can
+    // identify us if we're older than them.  Defaults to 0 when the
+    // caller doesn't know its stamp — older-scan then skips this slot.
+    st.started_time = started_time;
     // Reset under the lock so a notify delivered between the previous
     // call's wake and this reset is not silently consumed.
     st.notified = false;
     st.cv.wait_for(lock, std::chrono::milliseconds(ms_timeout),
                    [&]{ return st.notified; });
+    // Clear started_time on wake so a subsequent older-scan can tell
+    // we are no longer sleeping.  Safe: we hold the lock.
+    st.started_time = 0;
+}
+
+template <class XN>
+void Node<XN>::NegotiationCounter::notify_older_sleepers(
+    cnt_t my_started_time, int n_max) noexcept
+{
+    if(my_started_time == 0 || n_max <= 0) return;
+    for(int slot = 0; slot < NEGOTIATE_SLEEP_SLOTS && n_max > 0; ++slot) {
+        auto &st = s_sleep_slots[slot];
+        // Try-lock to avoid serialising hot spin loops on slot contention;
+        // a slot held by its sleeper (mtx not free) is by definition
+        // currently servicing wait_for / wake-up, so a missed pass is
+        // harmless — the next caller picks it up.
+        std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
+        if(!lk.owns_lock()) continue;
+        if(st.started_time == 0) continue;
+        if(st.notified) continue;
+        // signed_diff_us_packed(st_stamp, my_stamp) < 0  iff  st is older.
+        if(signed_diff_us_packed(st.started_time, my_started_time) >= 0)
+            continue;
+        st.notified = true;
+        st.cv.notify_one();
+        --n_max;
+    }
 }
 
 template <class XN>
@@ -1422,6 +1455,71 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             ms = 5000;
         }
 
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+        // ====== PRIV-HOLDER-YIELDING DIAGNOSTIC (opt-in) ======
+        // Per user: "プリビレッジは譲り合い不要なはずなので、譲り合い
+        // 必要な時点でバグ".  If we are a priv holder about to either
+        // fair-spin or CV-sleep, that violates the design invariant —
+        // dump the slot state so we can identify the owner of the
+        // Reserved tag blocking us.
+        if(snap.m_registered_privileged && ms >= 30) {
+            // Throttle: at most one dump per Linkage per ~50ms across
+            // all threads.  Use the slot's address as the throttle key;
+            // since slot is a Linkage-owned atomic, racing prints from
+            // multiple threads on the same Linkage CAS each other for
+            // the next-print-us value — at most one wins per window.
+            static std::atomic<int64_t> s_next_print_us{0};
+            int64_t now_us_dump = NegotiationCounter::now_us();
+            int64_t exp = s_next_print_us.load(std::memory_order_relaxed);
+            if(now_us_dump >= exp
+               && s_next_print_us.compare_exchange_strong(
+                      exp, now_us_dump + 50000,
+                      std::memory_order_relaxed)) {
+                // Decode this thread / Tx state
+                auto self_slot = self->m_transaction_started_time.load(
+                    std::memory_order_relaxed);
+                fprintf(stderr,
+                    "[PRIV-YIELDING] tid=%u my_stamp=0x%llx kind=%u "
+                    "self=%p self.slot=0x%llx slot.tid=%u slot.kind=%u "
+                    "slot.age_us=%lld ms=%d retry=%u "
+                    "s_num_priv=%u s_fair_spinners=%u tagged.size=%zu\n",
+                    (unsigned)ProcessCounter::id(),
+                    (unsigned long long)started_time,
+                    (unsigned)NegotiationCounter::stamp_kind(started_time),
+                    (void*)self,
+                    (unsigned long long)self_slot,
+                    (unsigned)NegotiationCounter::stamp_tid(self_slot),
+                    (unsigned)NegotiationCounter::stamp_kind(self_slot),
+                    (long long)NegotiationCounter::diff_us_packed(
+                        now_us_dump, self_slot),
+                    ms, (unsigned)snap.m_tx_retry_count,
+                    (unsigned)s_num_privileged_threads.load(
+                        std::memory_order_relaxed),
+                    (unsigned)s_fair_spinners.load(
+                        std::memory_order_relaxed),
+                    snap.m_tagged_linkages.size());
+                int idx = 0;
+                for(auto &sp : snap.m_tagged_linkages) {
+                    if(!sp) { ++idx; continue; }
+                    auto slot_val = sp->m_transaction_started_time.load(
+                        std::memory_order_relaxed);
+                    fprintf(stderr,
+                        "  [tagged[%d]] link=%p slot=0x%llx tid=%u kind=%u "
+                        "age_us=%lld is_self=%d\n",
+                        idx, (void*)sp.get(),
+                        (unsigned long long)slot_val,
+                        (unsigned)NegotiationCounter::stamp_tid(slot_val),
+                        (unsigned)NegotiationCounter::stamp_kind(slot_val),
+                        (long long)NegotiationCounter::diff_us_packed(
+                            now_us_dump, slot_val),
+                        (sp.get() == self) ? 1 : 0);
+                    ++idx;
+                }
+            }
+        }
+        // ====== end PRIV-YIELDING DIAGNOSTIC ======
+#endif
+
         // Unified PRE-spin band gate + any-change spin shortcut.
         // Spin won → break out of the negotiate loop; otherwise fall
         // through to CV-sleep.  See `_neg_spin_block` definition for
@@ -1542,14 +1640,39 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     NegotiationCounter::notify_n_contenders(tid_bitset,
                         std::min(min_r - running, C_obs),
                         preferred_kind_for_wake());
+                // Symmetric wake-older rule (per user) — runs every
+                // CV chunk so repeated notifies keep the oldest peer
+                // awake until our Reserved is preempted:
+                //   - newer non-priv: ALWAYS wake older before sleeping.
+                //   - newer priv:     within the burst window from our
+                //                     own start, do NOT disturb older.
+                //                     Outside the window, wake older (so
+                //                     they can preempt our Reserved via
+                //                     the matching tag_as_contender
+                //                     window — see Snapshot::tag_as_contender).
+                // Budget = 1 keeps the per-chunk overhead bounded (one
+                // 512-slot try-lock scan).  Independent of MIN_RUNNERS
+                // per user: "olderは、MIN_RUNNERSの設定によらず起こす".
+                bool _wake_older = true;
+                if(snap.m_registered_privileged) {
+                    int64_t _my_age_us = (int64_t)NegotiationCounter::diff_us(
+                        NegotiationCounter::now_us(),
+                        NegotiationCounter::stamp_us(started_time));
+                    if(_my_age_us < KAME_STM_PREEMPT_WINDOW_US)
+                        _wake_older = false;
+                }
+                if(_wake_older)
+                    NegotiationCounter::notify_older_sleepers(
+                        started_time, 1);
 #if KAME_STM_DISABLE_JITTER
-                NegotiationCounter::negotiate_sleep(1);
+                NegotiationCounter::negotiate_sleep(1, started_time);
 #else
-                NegotiationCounter::negotiate_sleep(1 + (int)(s_backoff_seed >> 31));
+                NegotiationCounter::negotiate_sleep(
+                    1 + (int)(s_backoff_seed >> 31), started_time);
 #endif
             } while(Node<XN>::NegotiationCounter::now_us() < t_end);
 #else
-            NegotiationCounter::negotiate_sleep(ms_actual);
+            NegotiationCounter::negotiate_sleep(ms_actual, started_time);
 #endif
         }
     }

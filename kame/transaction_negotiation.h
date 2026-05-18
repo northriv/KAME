@@ -414,7 +414,21 @@ public:
             // returns acquire_succeeded()==false (it spins until success).
             _on_cas_fail();
         }
-        if(m_eager && m_should_tag)
+        // Per user ("olderがpreemptできるように"): when someone else
+        // holds per-Linkage privilege on this slot, force tag_as_contender
+        // even on retry=0 (m_should_tag=false).  tag_as_contender's window
+        // rule then decides whether to actually preempt; if we're older
+        // than the priv holder AND the burst window has expired, the
+        // CAS-overwrite fires and the priv holder's preempt-recovery
+        // clears its stale priv flag.  Without this, ascendOneLevel's
+        // retry=0 scope ctor would silently skip the only opportunity an
+        // older non-priv thread has to preempt a younger priv's Reserved
+        // stamp during walkUpChain / snapshotForUnbundle.
+        using NC2 = typename Node<XN>::NegotiationCounter;
+        const bool _force_tag_for_preempt =
+            m_eager && !m_should_tag
+            && NC2::fair_mode_blocks_me(m_snap->m_started_time, m_link.get());
+        if((m_eager && m_should_tag) || _force_tag_for_preempt)
             m_snap->tag_as_contender(m_link);
     }
 
@@ -477,7 +491,21 @@ public:
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time, m_link.get());
-        if(m_eager && m_should_tag)
+        // Per user ("olderがpreemptできるように"): when someone else
+        // holds per-Linkage privilege on this slot, force tag_as_contender
+        // even on retry=0 (m_should_tag=false).  tag_as_contender's window
+        // rule then decides whether to actually preempt; if we're older
+        // than the priv holder AND the burst window has expired, the
+        // CAS-overwrite fires and the priv holder's preempt-recovery
+        // clears its stale priv flag.  Without this, ascendOneLevel's
+        // retry=0 scope ctor would silently skip the only opportunity an
+        // older non-priv thread has to preempt a younger priv's Reserved
+        // stamp during walkUpChain / snapshotForUnbundle.
+        using NC2 = typename Node<XN>::NegotiationCounter;
+        const bool _force_tag_for_preempt =
+            m_eager && !m_should_tag
+            && NC2::fair_mode_blocks_me(m_snap->m_started_time, m_link.get());
+        if((m_eager && m_should_tag) || _force_tag_for_preempt)
             m_snap->tag_as_contender(m_link);
     }
 
@@ -530,7 +558,21 @@ public:
         m_view = std::move(from);
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time, m_link.get());
-        if(m_eager && m_should_tag)
+        // Per user ("olderがpreemptできるように"): when someone else
+        // holds per-Linkage privilege on this slot, force tag_as_contender
+        // even on retry=0 (m_should_tag=false).  tag_as_contender's window
+        // rule then decides whether to actually preempt; if we're older
+        // than the priv holder AND the burst window has expired, the
+        // CAS-overwrite fires and the priv holder's preempt-recovery
+        // clears its stale priv flag.  Without this, ascendOneLevel's
+        // retry=0 scope ctor would silently skip the only opportunity an
+        // older non-priv thread has to preempt a younger priv's Reserved
+        // stamp during walkUpChain / snapshotForUnbundle.
+        using NC2 = typename Node<XN>::NegotiationCounter;
+        const bool _force_tag_for_preempt =
+            m_eager && !m_should_tag
+            && NC2::fair_mode_blocks_me(m_snap->m_started_time, m_link.get());
+        if((m_eager && m_should_tag) || _force_tag_for_preempt)
             m_snap->tag_as_contender(m_link);
     }
 

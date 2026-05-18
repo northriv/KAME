@@ -1084,11 +1084,20 @@ private:
             //! `notify_n_contenders` to bias wake-up toward the same
             //! kind as the linkage's most recent commit.
             uint8_t op_kind = 0;
+            //! Stamp of the Tx the slot's thread is currently
+            //! negotiating for.  Non-zero only while the thread is
+            //! inside `negotiate_sleep`.  Read under the slot lock by
+            //! `notify_older_sleepers` to wake threads whose stamp is
+            //! older than a blocked peer's — guarantees the oldest
+            //! thread always has a chance to run (and via the TLA+
+            //! older-wins rule, preempt any blocking Reserved).
+            cnt_t started_time = 0;
         };
         static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
         static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};
 
-        static void negotiate_sleep(int ms_timeout) noexcept;
+        static void negotiate_sleep(int ms_timeout,
+                                    cnt_t started_time = 0) noexcept;
 
         //! Wake up to `n` sleeping threads whose TIDs are set in
         //! `tid_bitset`.  When `preferred_kind` is in {1,2}, prefer
@@ -1101,6 +1110,15 @@ private:
         static void try_notify_n_contenders(const TidBitset &tid_bitset,
                                             int n,
                                             uint8_t preferred_kind = 0xFFu) noexcept;
+        //! Wake up all sleep slots whose stored `started_time` is OLDER
+        //! than `my_started_time` (modular µs compare).  Used by a
+        //! thread that's about to CV-sleep or fair-spin to ensure any
+        //! older peer is awake — older peers always win via TLA+
+        //! `tag_as_contender` preemption, so waking them resolves
+        //! mutual-wait livelocks.  Fires independently of
+        //! `KAME_STM_MIN_RUNNERS`.
+        static void notify_older_sleepers(cnt_t my_started_time,
+                                          int n_max) noexcept;
 
         //! Sum of per-thread "in Tx" counters. See
         //! detail::num_threads_running for the design rationale. Hot
@@ -1892,35 +1910,105 @@ public:
         // detail::s_current_op_kind, set by ScopedOpKind at bundle /
         // unbundle / commit entry.  Outside those scopes the kind is
         // NONE (= 0) and the stamp is bit-identical to the pre-
-        // piggyback layout.  No reader currently compares kind, so this
-        // is observationally invariant.
-        const auto my_stamp = NC::with_kind(m_started_time,
-                                            detail::s_current_op_kind);
+        // piggyback layout.
+        //
+        // When this Snapshot has already escalated to per-Linkage
+        // privilege (m_registered_privileged=true), every subsequent
+        // tag writes the Reserved kind directly — extending the priv
+        // set to new Linkages.
+        const detail::StampKind my_kind = m_registered_privileged
+            ? detail::StampKind::Reserved
+            : detail::s_current_op_kind;
+        const auto my_stamp = NC::with_kind(m_started_time, my_kind);
         //
         // signed_diff_us_packed(cur, my_stamp) > 0  iff  cur is
         // YOUNGER (later in steady-clock µs) than my stamp — modular at
         // STAMP_US_BITS = 46, wrap-safe over any realistic boot session.
         auto cur = slot.load(std::memory_order_relaxed);
-        // TLA+-equivalent rule: older always wins.  `tag_as_contender`
-        // overwrites the slot when it is empty OR the current tagger
-        // is YOUNGER than us — *including* when the current tagger
-        // has the Reserved kind (priv claim).  An older Tx can
-        // preempt a younger Tx's privilege; the younger Tx detects
-        // its preempted state via the preempt-recovery scan in
-        // `_negotiate_internal` (clears `m_registered_privileged`
-        // when no Linkage still carries our Reserved stamp).
         //
-        // -DKAME_PREEMPT_RESERVED=0 disables Reserved preemption
-        // for debugging only — production always restores age order.
-#ifndef KAME_PREEMPT_RESERVED
-#define KAME_PREEMPT_RESERVED 1
+        // Symmetric "preempt window" rule (per user):
+        //
+        //   1. older priv tagging:         always preempt (older priv = strongest)
+        //   2. older non-priv vs cur priv: yield within burst window
+        //                                  (cur.age < KAME_STM_PREEMPT_WINDOW_US),
+        //                                  preempt outside.
+        //   3. older same-class:           preempt (TLA+ older-wins).
+        //   4. younger or same age:        yield (older wins by default).
+        //
+        // The window is measured from cur's m_started_time stamp.  Each
+        // Linkage slot carries the priv holder's started_time, so any
+        // contender sees the same age, ensuring symmetric decisions on
+        // both sides.  The reciprocal "wake older after window" rule
+        // lives in `_negotiate_internal`'s CV-sleep path so a priv
+        // holder that has consumed its burst signals older sleepers
+        // they may now preempt.
+#ifndef KAME_STM_PREEMPT_WINDOW_US
+#define KAME_STM_PREEMPT_WINDOW_US 100
 #endif
-#if KAME_PREEMPT_RESERVED
-        if(!cur || NC::signed_diff_us_packed(cur, my_stamp) > 0) {
-#else
-        if(!cur ||
-           ( !NC::is_priv_stamp(cur)
-             && NC::signed_diff_us_packed(cur, my_stamp) > 0)) {
+        bool _preempt;
+        if(!cur) {
+            _preempt = true;
+        } else {
+            int64_t _diff = NC::signed_diff_us_packed(cur, my_stamp);
+            const bool _i_am_priv  = NC::is_priv_stamp(my_stamp);
+            const bool _cur_is_priv = NC::is_priv_stamp(cur);
+            if(_diff > 0) {
+                // I'm older.  cur is younger.
+                if(!_i_am_priv && _cur_is_priv) {
+                    // Older non-priv vs younger priv: respect the
+                    // burst window starting at cur's m_started_time.
+                    int64_t _cur_age_us = (int64_t)NC::diff_us(
+                        NC::now_us(), NC::stamp_us(cur));
+                    _preempt = (_cur_age_us >= KAME_STM_PREEMPT_WINDOW_US);
+                } else {
+                    // older priv, older non-priv-vs-non-priv, etc.: standard older-wins.
+                    _preempt = true;
+                }
+            } else {
+                // I'm younger (or same age) than cur.
+                if(_i_am_priv && !_cur_is_priv) {
+                    // Younger priv vs older non-priv: within the burst
+                    // window from MY start, priv may preempt the older
+                    // non-priv tag — symmetric with the older-tagging
+                    // branch above (same WINDOW boundary).
+                    int64_t _my_age_us = (int64_t)NC::diff_us(
+                        NC::now_us(), NC::stamp_us(my_stamp));
+                    _preempt = (_my_age_us < KAME_STM_PREEMPT_WINDOW_US);
+                } else {
+                    // Same-class younger, or younger non-priv vs older priv,
+                    // or younger priv vs older priv: yield (older wins).
+                    _preempt = false;
+                }
+            }
+        }
+        if(_preempt) {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+            // ====== PREEMPT-RESERVED DIAGNOSTIC (opt-in) ======
+            // If we are about to overwrite a Reserved-kind slot (= we
+            // are preempting someone's priv), log it once per ~50ms
+            // globally.  The owner's TID is in the low 16 bits of cur.
+            if(NC::is_priv_stamp(cur)) {
+                static std::atomic<int64_t> s_next_preempt_print_us{0};
+                int64_t now_us_p = NC::now_us();
+                int64_t exp_p = s_next_preempt_print_us.load(
+                    std::memory_order_relaxed);
+                if(now_us_p >= exp_p
+                   && s_next_preempt_print_us.compare_exchange_strong(
+                          exp_p, now_us_p + 50000,
+                          std::memory_order_relaxed)) {
+                    fprintf(stderr,
+                        "[PREEMPT-RES] me_tid=%u me_stamp=0x%llx "
+                        "victim_tid=%u victim_stamp=0x%llx age_diff_us=%lld "
+                        "link=%p\n",
+                        (unsigned)ProcessCounter::id(),
+                        (unsigned long long)my_stamp,
+                        (unsigned)NC::stamp_tid(cur),
+                        (unsigned long long)cur,
+                        (long long)NC::signed_diff_us_packed(cur, my_stamp),
+                        (void*)link.get());
+                }
+            }
+            // ====== end PREEMPT-RESERVED DIAGNOSTIC ======
 #endif
             slot.store(my_stamp, std::memory_order_release);
             if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
