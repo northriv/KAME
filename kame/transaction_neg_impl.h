@@ -1603,8 +1603,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             // MAX_RUNNERS preempt-windows from the oldest (linkage
             // slot stamp) — a 100 µs preempt-window with MAX=3
             // admits the 3 newest contenders to busy-spin.
+            // Override via -DKAME_STM_BUSY_SPIN_DT_THRESH_US=<us>.
             constexpr int64_t _busy_dt_thresh =
-#if KAME_STM_MAX_RUNNERS != 0
+#if defined(KAME_STM_BUSY_SPIN_DT_THRESH_US)
+                (int64_t)KAME_STM_BUSY_SPIN_DT_THRESH_US;
+#elif KAME_STM_MAX_RUNNERS != 0
                 (int64_t)KAME_STM_PREEMPT_WINDOW_US * KAME_STM_MAX_RUNNERS;
 #else
                 (int64_t)KAME_STM_PREEMPT_WINDOW_US * 8;  // permissive default
