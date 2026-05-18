@@ -1208,7 +1208,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // KAME_STM_C_OBS_MIN lives in transaction_definitions.h.
     int C_obs = sig_C < KAME_STM_C_OBS_MIN ? KAME_STM_C_OBS_MIN : sig_C;
 
-    for(int ms = 0; ; ++ms) {
+    // Wall-clock elapsed (in µs) since this _negotiate_internal call
+    // started — used by the inner `ms >= 30` CV-sleep break and the
+    // 5 s safety limit below.  Computed afresh per iteration so
+    // busy-spin iterations (no CV-sleep) do not inflate it.
+    for(int ms = 0; ;
+        ms = (int)(((int64_t)Node<XN>::NegotiationCounter::now_us()
+                    - now_us_entry) / 1000)) {
         if(entry_pr == Priority::HIGHEST)
             return true;
         // Re-load the linkage slot at every iteration so a thread
