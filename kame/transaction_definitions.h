@@ -82,11 +82,13 @@
 // the gate is off, so zero runtime/code-size cost beyond the macro
 // definitions themselves.
 //
-// Default: ON (= 1).  Disable with -DKAME_ENABLE_SPIN_BAND_GATE=0 (or
-// =OFF via cmake) for ablation / A-B benches showing the gate has no
-// net effect on a given workload + hardware combination.
+// Default: OFF (= 0) per the P2 philosophy ("P0 はアドホックゲートが
+// 多すぎて哲学がない" — strict older-wins + lease + targeted blocker
+// wake replaces the spin-band peek).  Re-enable per build with
+// -DKAME_ENABLE_SPIN_BAND_GATE=1 if a workload genuinely benefits
+// from the brief m_recent_ops_state spin.
 #ifndef KAME_ENABLE_SPIN_BAND_GATE
-#define KAME_ENABLE_SPIN_BAND_GATE 1
+#define KAME_ENABLE_SPIN_BAND_GATE 0
 #endif
 
 // Per-Linkage privilege overlay.  When ON (= 1, default), a Tx that
