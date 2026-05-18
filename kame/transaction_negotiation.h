@@ -347,11 +347,21 @@ public:
         // up for this thread.  Cost: one TLS access on first ctor.
         (void)NegSite::auto_merge_stats();
 #endif
-        if(retry < 0)
-            _negotiate();   // always negotiate, no retry_pause
-        else
-            _negotiate_after_retry_pause(retry);
+        const bool _neg_may_cas = (retry < 0)
+            ? _negotiate()                       // always negotiate, no retry_pause
+            : _negotiate_after_retry_pause(retry);
         _capture_gate_return();
+        // Older-wins step-aside: when negotiate returns false this
+        // thread is younger than the linkage's tag-holder.  Skip the
+        // m_view acquire (and all downstream CAS-related setup) so
+        // `bool(scope)` reports false; callers' standard
+        // `if(!scope) continue;` retry loop then provides the
+        // pause-spin backoff (via retry_pause inside
+        // _negotiate_after_retry_pause on the next iteration).
+        if( !_neg_may_cas) {
+            m_contention_observed = true;  // forces dtor tag despite retry==0
+            return;
+        }
 #if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
@@ -478,16 +488,22 @@ public:
         // up for this thread.  Cost: one TLS access on first ctor.
         (void)NegSite::auto_merge_stats();
 #endif
+        bool _neg_may_cas = true;
         if(with_negotiate) {
-            if(retry < 0)
-                _negotiate();
-            else
-                _negotiate_after_retry_pause(retry);
+            _neg_may_cas = (retry < 0)
+                ? _negotiate()
+                : _negotiate_after_retry_pause(retry);
         }
         _capture_gate_return();
 #if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
+        if( !_neg_may_cas) {
+            m_contention_observed = true;
+            // Discard the moved-in view too — caller will retry.
+            (void)scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
+            return;
+        }
         m_view = scoped_atomic_view<PacketWrapper>(*m_link, std::move(from));
         m_strong_mode = Node<XN>::NegotiationCounter::i_am_privileged_now(
                             m_snap->m_started_time, m_link.get());
@@ -973,19 +989,33 @@ private:
     //! `Linkage::negotiate()` inline.  Loads m_link's collision marker
     //! and short-circuits the call when no peer Tx has tagged this
     //! Linkage; otherwise delegates to `_negotiate_internal()`.
-    void _negotiate() noexcept;
+    //!
+    //! Returns `true` if the calling thread may attempt the upcoming
+    //! CAS (it is the oldest or no contention is visible).  Returns
+    //! `false` when older-wins demands we step aside — the caller's
+    //! primary ctor then skips the `m_view` acquire, leaving the
+    //! scope falsy so the standard `if(!scope) continue;` retry loop
+    //! picks the skip up without any other code change.
+    bool _negotiate() noexcept;
 
     //! Replaces `Linkage::negotiate_after_retry_pause(retry, snap, mult_wait)`.
     //! `retry==0` fast-paths out unless fair-mode privilege blocks
     //! this Tx; otherwise issues `retry_pause(retry)` then `_negotiate()`.
-    void _negotiate_after_retry_pause(int retry) noexcept;
+    //!
+    //! Returns the same bool as `_negotiate()` — `false` means "skip
+    //! the CAS this round".
+    bool _negotiate_after_retry_pause(int retry) noexcept;
 
     //! Body of the priority-based adaptive backoff loop.  Moved from
     //! `Linkage::negotiate_internal` into this scope so that per-scope
     //! state (m_snap, m_mult_wait, m_link, m_site_state) is accessed
     //! directly instead of being threaded through arguments.  See the
     //! header comment on the definition for the algorithm details.
-    void _negotiate_internal() noexcept;
+    //! Body of the priority-based adaptive backoff.  Returns `true` if
+    //! the caller may proceed to acquire the view + attempt CAS;
+    //! returns `false` to instruct the ctor to skip the view acquire
+    //! (older-wins step-aside).
+    bool _negotiate_internal() noexcept;
 
     //! Helper extracted from `_negotiate_internal`: adaptive per-Linkage
     //! lease drift + owner-skip fairness gate.  Drifts `ps.lease_us`

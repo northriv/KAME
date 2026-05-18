@@ -512,17 +512,17 @@ void Node<XN>::NegotiationCounter::release_priv_count_slot() noexcept {
 // extra.  `is_active_stamp(s)` is just `s != 0` — release zero-stores
 // the slot, so any non-zero word means "tagged".
 template <class XN>
-void
+bool
 ScopedNegotiateLinkage<XN>::_negotiate() noexcept {
 #if defined(KAME_STM_DISABLE_BACKOFF) && KAME_STM_DISABLE_BACKOFF
-    return;
+    return true;
 #else
     using NC = typename Node<XN>::NegotiationCounter;
     if( !NC::is_active_stamp(
             m_link->m_transaction_started_time.load(std::memory_order_relaxed)))
         [[likely]]
-        return;
-    _negotiate_internal();
+        return true;
+    return _negotiate_internal();
 #endif
 }
 
@@ -533,14 +533,14 @@ ScopedNegotiateLinkage<XN>::_negotiate() noexcept {
 // release their CAS pressure so the privileged commit can succeed.
 // retry>0 always runs retry_pause + negotiate.
 template <class XN>
-void
+bool
 ScopedNegotiateLinkage<XN>::_negotiate_after_retry_pause(int retry) noexcept {
     using NC = typename Node<XN>::NegotiationCounter;
     if(retry == 0
         && !NC::fair_mode_blocks_me(m_snap->m_started_time, m_link.get()))
-        [[likely]] return;  // fast path; zero-overhead steady state
+        [[likely]] return true;  // fast path; zero-overhead steady state
     retry_pause(retry);
-    _negotiate();
+    return _negotiate();
 }
 
 // KAME_LEASE_US_MIN / KAME_LEASE_US_MAX live in transaction_definitions.h.
@@ -982,7 +982,7 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
 //   naturally. No CAS or peek of the linkage is performed inside the loop.
 //=============================================================================
 template <class XN>
-void
+bool
 ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     using NegotiationCounter = typename Node<XN>::NegotiationCounter;
     using Linkage = typename Node<XN>::Linkage;
@@ -1170,14 +1170,14 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     typename NegotiationCounter::cnt_t transaction_started_time =
         self->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !transaction_started_time)
-        return; //collision has not been detected.
+        return true; //collision has not been detected.
     // LOWEST and UI_DEFERRABLE explicitly tolerate yielding, so the
     // helper internally skips the lease/owner-skip block for those
     // priorities.  Returns true iff the owner-skip fired (we hold the
     // soft lease and our age < lease_us) — caller returns early.
     if(_neg_apply_lease(ps, transaction_started_time, sig_C,
                         now_us_entry, entry_pr))
-        return;
+        return true;
 
     // Thread-local LCG for sleep-duration jitter randomization.
     // Seed mixes thread ID (unique per thread) with stack address; Murmur finalizer
@@ -1209,7 +1209,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 
     for(int ms = 0;;) {
         if(entry_pr == Priority::HIGHEST)
-            break;
+            return true;
         // Single-contender fast path: only this thread is visible in
         // tid_bitset (sig_C=1). The probabilistic √C lottery is
         // meaningless when there is no peer to share the slot with —
@@ -1246,7 +1246,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         if(sig_C == 1) {
             NegotiationCounter::notify_n_contenders(
                 tid_bitset, 1, preferred_kind_for_wake());
-            break;
+            return true;
         }
         // Both stamps are tid+kind+us-packed; signed_diff_us_packed
         // returns (my_us - other_us) interpreted as a signed wrap-safe
@@ -1254,11 +1254,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         int64_t dt = NegotiationCounter::signed_diff_us_packed(
             started_time, transaction_started_time);
         if(dt <= 0)
-            break; //This thread is the oldest.
+            return true; //This thread is the oldest.
         auto transaction_started_time =
             self->m_transaction_started_time.load(std::memory_order_acquire);
         if( !NegotiationCounter::is_active_stamp(transaction_started_time))
-            break; //collision has not been detected.
+            return true; //collision has not been detected.
 
         auto dt2 = NegotiationCounter::diff_us_packed(
             Node<XN>::NegotiationCounter::now_us(),
@@ -1354,7 +1354,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 else
                     ++_adapt->blocked_by_peer[(int)peer_kind & 3];
             }
-            if(take_gate) break;
+            if(take_gate) return true;
             // Otherwise fall through to adaptive sleep (FORCE_SLEEP
             // or UNDEFINED-with-my_kind-NONE).
         }
@@ -1391,7 +1391,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 const int max_r = effective_max_runners(C_obs);
                 if(NegotiationCounter::numThreadsRunning() < max_r)
 #endif
-                    break; // gate: earned priority — always proceeds, never capped
+                    return true; // gate: earned priority — always proceeds, never capped
             }
     // KAME_STM_DISABLE_LOTTERY lives in transaction_definitions.h.
 #if !KAME_STM_DISABLE_LOTTERY
@@ -1417,7 +1417,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     NegotiationCounter::notify_n_contenders(
                         tid_bitset, C_obs, preferred_kind_for_wake());
 #endif
-                    break;
+                    return true;
                 }
             }
 #endif
@@ -1503,7 +1503,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // Compiled out entirely when KAME_ENABLE_SPIN_BAND_GATE=0.
 #if KAME_ENABLE_SPIN_BAND_GATE
         if(_neg_spin_block(C_obs))
-            break;
+            return true;
 #else
         (void)C_obs;
 #endif
@@ -1592,12 +1592,18 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // was already preempted via `tag_as_contender`, and the
         // preempt-recovery scan in `_negotiate_internal` cleared
         // our `m_registered_privileged` flag before reaching here.
-        if(NegotiationCounter::numThreadsRunning() <= 2 && ms <= 1) {
-            typename NegotiationCounter::ReleaseOneCount onedown;
-            std::this_thread::yield();
-        }
-        else {
-            int ms_actual = ms;
+        {
+            int ms_actual = ms; (void)ms_actual;
+            // Sample runner count BEFORE the ReleaseOneCount decrement
+            // (else all 64 about-to-step-aside threads see ~0 running
+            // and never trip the MAX_RUNNERS cap).
+            const bool _cap_reached =
+#if KAME_STM_MAX_RUNNERS != 0
+                (NegotiationCounter::numThreadsRunning()
+                 >= effective_max_runners(C_obs));
+#else
+                false;
+#endif
             typename NegotiationCounter::ReleaseOneCount onedown;
 #if KAME_STM_MIN_RUNNERS != 0
             // Sleep in 1 ms chunks so the MIN_RUNNERS check fires after this
@@ -1606,10 +1612,8 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             // notify_n_contenders, so effective latency is well below 1 ms
             // once a lottery winner fires.
             const int min_r = effective_min_runners(C_obs);
-            auto t_end = Node<XN>::NegotiationCounter::now_us()
-                         + (int64_t)ms_actual * 1000;
-            do {
-                // Advance seed for de-phasing; chunk sleep = 1 or 2 ms.
+            {
+                // Advance seed for de-phasing.
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
                 int running = (int)NegotiationCounter::numThreadsRunning();
                 if(running < min_r)
@@ -1668,7 +1672,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                        && ( !NegotiationCounter::is_active_stamp(_slot_val)
                             || NegotiationCounter::signed_diff_us_packed(
                                    started_time, _slot_val) <= 0))
-                        goto _exit_cv_sleep;
+                        return true;
                     uint16_t _blocker_tid =
                         NegotiationCounter::stamp_tid(_slot_val);
                     if(_blocker_tid != 0) {
@@ -1690,19 +1694,25 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                         }
                     }
                 }
-#if KAME_STM_DISABLE_JITTER
-                NegotiationCounter::negotiate_sleep(1, started_time);
-#else
-                NegotiationCounter::negotiate_sleep(
-                    1 + (int)(s_backoff_seed >> 31), started_time);
-#endif
-            } while(Node<XN>::NegotiationCounter::now_us() < t_end);
+                // Younger step-aside.  If the running-thread count
+                // sampled BEFORE our ReleaseOneCount decrement was at
+                // or above the MAX_RUNNERS cap, CV-sleep deeply (per
+                // user: "MaxRunnersで天井とめる") so we do not burn a
+                // core hot-spinning while older peers are still
+                // busy.  Otherwise just return false and let the
+                // caller's retry_pause provide the pause-spin
+                // backoff (busy mission = wake CV-sleeping older).
+                if(_cap_reached) {
+                    NegotiationCounter::negotiate_sleep(1, started_time);
+                }
+                return false;
+            }
 #else
             NegotiationCounter::negotiate_sleep(ms_actual, started_time);
+            return false;
 #endif
         }
     }
-_exit_cv_sleep:;
   } // end adaptive-path scope
 }
 
