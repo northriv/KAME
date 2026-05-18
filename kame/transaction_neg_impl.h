@@ -971,6 +971,19 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     using Linkage = typename Node<XN>::Linkage;
     Linkage *const self = m_link.get();
     Snapshot<XN> &snap = *m_snap;
+    // Cross-link invariant (per-Linkage privilege mode, preempt-OFF
+    // for Reserved): we must never enter _negotiate_internal while
+    // holding privilege.  If we hold priv on any Linkage, our retry
+    // path either (a) targets one of our priv'd Linkages, where
+    // fair_mode_blocks_me returns false and the caller's fast path
+    // skips _negotiate_internal entirely, or (b) finishes its commit
+    // and releases priv via drop_tags_n_privilege.  Reaching this
+    // line with m_registered_privileged=true means we are negotiating
+    // on a Linkage we don't have priv on while we still hold priv
+    // elsewhere — the cross-link condition the user identified as a
+    // bug.  Fires only when asserts are enabled (NDEBUG undefined).
+    assert( !snap.m_registered_privileged
+            && "cross-link: entered _negotiate_internal while holding privilege on another Linkage");
     const float mult_wait = m_mult_wait;
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;

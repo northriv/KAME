@@ -1901,7 +1901,16 @@ public:
         // YOUNGER (later in steady-clock µs) than my stamp — modular at
         // STAMP_US_BITS = 46, wrap-safe over any realistic boot session.
         auto cur = slot.load(std::memory_order_relaxed);
-        if(!cur || NC::signed_diff_us_packed(cur, my_stamp) > 0) {
+        // Privilege protection (preempt OFF for Reserved): do NOT
+        // overwrite a Reserved-kind stamp.  Older peers may still
+        // overwrite our regular (non-Reserved) tag — that's the
+        // ordinary `tag_as_contender` preemption.  This block stays
+        // until per-Linkage cross-link priv is fully debugged; once
+        // the cross-link invariant is enforced elsewhere, the
+        // Reserved-skip can be lifted to restore full TLA+ semantics.
+        if(!cur ||
+           ( !NC::is_priv_stamp(cur)
+             && NC::signed_diff_us_packed(cur, my_stamp) > 0)) {
             slot.store(my_stamp, std::memory_order_release);
             if(slot.load(std::memory_order_acquire) != my_stamp) [[unlikely]]
                 return;  // overwritten — don't add to list
