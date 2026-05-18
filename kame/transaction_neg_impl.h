@@ -1207,9 +1207,19 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // KAME_STM_C_OBS_MIN lives in transaction_definitions.h.
     int C_obs = sig_C < KAME_STM_C_OBS_MIN ? KAME_STM_C_OBS_MIN : sig_C;
 
-    for(int ms = 0;;) {
+    for(int ms = 0; ; ++ms) {
         if(entry_pr == Priority::HIGHEST)
             return true;
+        // Re-load the linkage slot at every iteration so a thread
+        // woken from CV-sleep (via `continue` below) sees fresh dt.
+        // Without this the dt computed below would forever reflect
+        // the slot value at function entry, even after the blocker
+        // has long since committed and a younger Tx now owns the
+        // slot (or the slot is empty).
+        transaction_started_time =
+            self->m_transaction_started_time.load(std::memory_order_acquire);
+        if( !NegotiationCounter::is_active_stamp(transaction_started_time))
+            return true; //collision cleared.
         // Single-contender fast path: only this thread is visible in
         // tid_bitset (sig_C=1). The probabilistic √C lottery is
         // meaningless when there is no peer to share the slot with —
@@ -1255,10 +1265,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             started_time, transaction_started_time);
         if(dt <= 0)
             return true; //This thread is the oldest.
-        auto transaction_started_time =
-            self->m_transaction_started_time.load(std::memory_order_acquire);
-        if( !NegotiationCounter::is_active_stamp(transaction_started_time))
-            return true; //collision has not been detected.
 
         auto dt2 = NegotiationCounter::diff_us_packed(
             Node<XN>::NegotiationCounter::now_us(),
@@ -1704,17 +1710,19 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     }
                 }
                 // Younger step-aside.  Threads in the top-MAX-by-age
-                // band (_go_deep_sleep == false) busy-spin via the
-                // caller's retry_pause; the rest CV-sleep 1 ms so
-                // they do not flood the m_link cache line.
+                // band busy-spin (skip wait → continue → top-of-loop
+                // re-checks dt); the rest CV-sleep 1 ms then continue.
+                // Either way the loop re-evaluates dt at the top with
+                // a fresh slot load, so when the blocker commits we
+                // promptly observe the cleared / rotated slot.
                 if(_go_deep_sleep) {
                     NegotiationCounter::negotiate_sleep(1, started_time);
                 }
-                return false;
+                continue;
             }
 #else
             NegotiationCounter::negotiate_sleep(ms_actual, started_time);
-            return false;
+            continue;
 #endif
         }
     }
