@@ -980,18 +980,20 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     Linkage *const self = m_link.get();
     Snapshot<XN> &snap = *m_snap;
     // Cross-link invariant (per-Linkage privilege mode, preempt-OFF
-    // for Reserved): we must never enter _negotiate_internal while
-    // holding privilege.  If we hold priv on any Linkage, our retry
-    // path either (a) targets one of our priv'd Linkages, where
-    // fair_mode_blocks_me returns false and the caller's fast path
-    // skips _negotiate_internal entirely, or (b) finishes its commit
-    // and releases priv via drop_tags_n_privilege.  Reaching this
-    // line with m_registered_privileged=true means we are negotiating
-    // on a Linkage we don't have priv on while we still hold priv
-    // elsewhere — the cross-link condition the user identified as a
-    // bug.  Fires only when asserts are enabled (NDEBUG undefined).
-    assert( !snap.m_registered_privileged
-            && "cross-link: entered _negotiate_internal while holding privilege on another Linkage");
+    // for Reserved): a privilege-holding Tx may re-enter
+    // `_negotiate_internal` on one of ITS OWN priv'd Linkages (e.g.
+    // during bundle traversal that runs scope ctors).  That is fine
+    // — `fair_mode_blocks_me(self)` returns false on our own
+    // Reserved, the dt-break path fires, and we exit without
+    // sleeping.  The bug is reaching here while we hold priv
+    // *elsewhere* and a *peer* holds Reserved on `self`: then
+    // `fair_mode_blocks_me(self)` returns true, we want to wait,
+    // and the peer is also waiting on one of our priv'd Linkages —
+    // bidirectional cross-link deadlock.
+    assert(( !snap.m_registered_privileged
+             || !NegotiationCounter::fair_mode_blocks_me(
+                       snap.m_started_time, self))
+           && "cross-link: holding privilege elsewhere while a peer holds Reserved on this Linkage");
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     if(snap.m_registered_privileged)
         g_neg_internal_calls_priv.fetch_add(1, std::memory_order_relaxed);
@@ -1102,17 +1104,65 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             const auto my_id = NegotiationCounter::strip_kind(snap.m_started_time);
             const auto my_priv = NegotiationCounter::with_kind(
                 snap.m_started_time, detail::StampKind::Reserved);
+            // All-or-nothing claim: upgrade EVERY tagged Linkage's slot
+            // to our Reserved stamp, or abort the entire claim and roll
+            // back any successful upgrades.  Partial claims are the
+            // source of the cross-link bug — if even one tagged
+            // Linkage is held by a peer (because their `tag_as_contender`
+            // preempted our regular tag between our probe and our CAS),
+            // setting `m_registered_privileged` would let our later
+            // commit walk that Linkage, enter `_negotiate_internal`
+            // while still flagged priv, and fair-spin against the peer's
+            // Reserved → deadlock.
+            //
+            // The probe's `tags_owned == tags_total` precondition makes
+            // partial races rare (we know we owned all our tags moments
+            // ago), but not impossible.  Rollback is bounded: we walk
+            // exactly the prefix we upgraded.
+            int n_upgraded = 0;
+            bool all_ok = true;
             for (auto &l : snap.m_tagged_linkages) {
                 if (!l) continue;
                 auto cur = l->m_transaction_started_time.load(
                     std::memory_order_relaxed);
-                if (cur != 0
-                    && NegotiationCounter::strip_kind(cur) == my_id) {
-                    if (l->m_transaction_started_time.compare_exchange_strong(
-                            cur, my_priv,
-                            std::memory_order_release,
-                            std::memory_order_relaxed)) {
-                        claimed = true;
+                if (cur == 0
+                    || NegotiationCounter::strip_kind(cur) != my_id) {
+                    // Some peer stole our tag between probe and claim.
+                    all_ok = false;
+                    break;
+                }
+                if (l->m_transaction_started_time.compare_exchange_strong(
+                        cur, my_priv,
+                        std::memory_order_release,
+                        std::memory_order_relaxed)) {
+                    ++n_upgraded;
+                } else {
+                    // Lost the race (cur changed between load and CAS).
+                    all_ok = false;
+                    break;
+                }
+            }
+            if (all_ok && n_upgraded > 0) {
+                claimed = true;
+            } else if (n_upgraded > 0) {
+                // Roll back the partial successes by CAS-downgrading
+                // our Reserved back to a regular tag.  With preempt-OFF
+                // protecting Reserved, no peer can have changed our
+                // priv stamp between our upgrade and this restore, so
+                // the CAS should always succeed.
+                const auto my_tag = snap.m_started_time;
+                int restored = 0;
+                for (auto &l : snap.m_tagged_linkages) {
+                    if (restored >= n_upgraded) break;
+                    if (!l) continue;
+                    auto cur = l->m_transaction_started_time.load(
+                        std::memory_order_relaxed);
+                    if (cur == my_priv) {
+                        if (l->m_transaction_started_time.compare_exchange_strong(
+                                cur, my_tag,
+                                std::memory_order_release,
+                                std::memory_order_relaxed))
+                            ++restored;
                     }
                 }
             }
