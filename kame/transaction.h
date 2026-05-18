@@ -1633,9 +1633,18 @@ private:
     //! for the staleness check (Step D).
     //! On success, find_status == SUCCESS and parent fields are filled.
     //! On failure, find_status == DISTURBED or NODE_MISSING.
+    //!
+    //! \a retry is the outer retry counter (from Node::commit /
+    //! Node::snapshot loop).  It propagates to the inner parent_scope ctor
+    //! so the standard `m_should_tag = (retry != 0)` gate fires
+    //! eagerly on retry > 0 — without this, the parent_scope's tag is
+    //! deferred to dtor and the only opportunity an older non-priv Tx
+    //! has to preempt a younger priv's Reserved during walkUpChain is
+    //! missed.
     static inline WalkUpResult ascendOneLevel(
         const shared_ptr<Linkage> &child_linkage,
-        const ScopedNegotiateLinkage<XN> &incoming_scope);
+        const ScopedNegotiateLinkage<XN> &incoming_scope,
+        int retry = 0);
 
     //! Convert recursive status and determine the upper packet.
     //! Sets is_root_level = true if this parent level is the root.
@@ -1658,12 +1667,14 @@ private:
     //! incoming_scope is const ScopedNegotiateLinkage & — each level passes
     //! *r.parent_scope to the next level without copying.  Staleness check
     //! (Step D) compares child_linkage against incoming_scope directly.
+    //! \a retry is propagated to ascendOneLevel for the parent_scope ctor.
     template <class Recurser>
     static inline WalkUpResult walkUpChainImpl(
         const shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope,
         local_shared_ptr<Packet> **child_subpacket_out,
-        Recurser &&recurse);
+        Recurser &&recurse,
+        int retry = 0);
 
     //! Recursively walks up the bundledBy chain to locate a child's sub-packet.
     //! Used by snapshot() (FOR_BUNDLE path).
@@ -1673,7 +1684,8 @@ private:
         const shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope,
         local_shared_ptr<Packet> **child_subpacket_out,
-        std::optional<ScopedNegotiateLinkage<XN>> &root_lifetime);
+        std::optional<ScopedNegotiateLinkage<XN>> &root_lifetime,
+        int retry = 0);
 
     //! Walk up the chain and build CAS info list for unbundling.
     //! Used only by unbundle().
@@ -1681,7 +1693,8 @@ private:
         const shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope,
         local_shared_ptr<Packet> **child_subpacket_out,
-        int64_t serial, CASInfoList *cas_infos);
+        int64_t serial, CASInfoList *cas_infos,
+        int retry = 0);
 
     //! Updates a packet to \a tr.m_packet if the current packet is unchanged (== \a tr.m_oldpacket).
     //! If this node has been bundled at the super node, unbundle() will be called.
@@ -1724,7 +1737,8 @@ private:
         ScopedNegotiateLinkage<XN> &subscope,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
-        ScopedNegotiateLinkage<XN> *supscope_super = NULL);
+        ScopedNegotiateLinkage<XN> *supscope_super = NULL,
+        int retry = 0);
     //! The point where the packet is held.
     shared_ptr<Linkage> m_link;
 

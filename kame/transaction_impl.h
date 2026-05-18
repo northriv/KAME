@@ -1467,7 +1467,8 @@ template <class XN>
 inline typename Node<XN>::WalkUpResult
 Node<XN>::ascendOneLevel(
     const shared_ptr<Linkage> &child_linkage,
-    const ScopedNegotiateLinkage<XN> &incoming_scope) {
+    const ScopedNegotiateLinkage<XN> &incoming_scope,
+    int retry) {
 
     WalkUpResult r;
     r.parent_packet = nullptr;
@@ -1479,12 +1480,17 @@ Node<XN>::ascendOneLevel(
         return r;
     }
     r.reverse_index = incoming_scope->reverseIndex();
-    // Acquire parent via ScopedNeg (1 CAS, with_negotiate=false).
-    // retry=0 + no contention → dtor is a plain view release (no tag, no wait).
-    // On DISTURBED unwind the dtor tags contention on the parent linkage.
+    // Acquire parent via ScopedNeg.
+    // \a retry propagates from the outer Node::commit / Node::snapshot
+    // loop.  retry > 0 → m_should_tag=true so the ctor eagerly tags the
+    // parent linkage (enabling preemption of any younger priv's
+    // Reserved stamp via tag_as_contender's symmetric window rule).
+    // retry=0 keeps the original fast-path optimization (no preemptive
+    // tag) — the ctor's force_tag_for_preempt path still handles the
+    // sub-case where fair_mode_blocks_me at scope entry.
     // (Pass __LINE__ explicitly: emplace() resolves __builtin_LINE() inside
     //  <optional>, which would attribute these to a libc++ header line.)
-    r.parent_scope.emplace(r.parent_linkage, incoming_scope.snap(), 0,
+    r.parent_scope.emplace(r.parent_linkage, incoming_scope.snap(), retry,
         ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 2.0f, __LINE__);
     if( !*r.parent_scope) {
         r.find_status = SnapshotStatus::DISTURBED;
@@ -1591,11 +1597,15 @@ inline typename Node<XN>::WalkUpResult
 Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
-    Recurser &&recurse) {
+    Recurser &&recurse,
+    int retry) {
 
     // Step A: ascend one level — reads incoming_scope (const &),
     // acquires parent into r.parent_scope (ScopedNeg, 1 CAS).
-    WalkUpResult r = ascendOneLevel(child_linkage, incoming_scope);
+    // \a retry propagates from the outer Node::commit / Node::snapshot
+    // loop so the parent_scope ctor's m_should_tag gate fires on
+    // retries (= a known-contention context).
+    WalkUpResult r = ascendOneLevel(child_linkage, incoming_scope, retry);
     if(r.find_status != SnapshotStatus::SUCCESS)
         return r;
 
@@ -1645,14 +1655,16 @@ inline typename Node<XN>::SnapshotStatus
 Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
-    std::optional<ScopedNegotiateLinkage<XN>> &root_lifetime) {
+    std::optional<ScopedNegotiateLinkage<XN>> &root_lifetime,
+    int retry) {
 
     auto r = walkUpChainImpl(child_linkage, incoming_scope, child_subpacket_out,
-        [&root_lifetime](const shared_ptr<Linkage> &pl,
+        [&root_lifetime, retry](const shared_ptr<Linkage> &pl,
            const ScopedNegotiateLinkage<XN> &is,
            local_shared_ptr<Packet> **pp) {
-            return walkUpChain(pl, is, pp, root_lifetime);
-        });
+            return walkUpChain(pl, is, pp, root_lifetime, retry);
+        },
+        retry);
     if(r.is_root_level)
         root_lifetime = std::move(r.parent_scope);
     return r.find_status;
@@ -1669,14 +1681,16 @@ inline typename Node<XN>::SnapshotStatus
 Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
-    int64_t serial, CASInfoList *cas_infos) {
+    int64_t serial, CASInfoList *cas_infos,
+    int retry) {
 
     auto r = walkUpChainImpl(child_linkage, incoming_scope, child_subpacket_out,
-        [serial, cas_infos](const shared_ptr<Linkage> &pl,
+        [serial, cas_infos, retry](const shared_ptr<Linkage> &pl,
            const ScopedNegotiateLinkage<XN> &is,
            local_shared_ptr<Packet> **pp) {
-            return snapshotForUnbundle(pl, is, pp, serial, cas_infos);
-        });
+            return snapshotForUnbundle(pl, is, pp, serial, cas_infos, retry);
+        },
+        retry);
 
     // --- Post-processing for unbundle (Step F) ---
     if(r.find_status == SnapshotStatus::DISTURBED)
@@ -1871,7 +1885,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             local_shared_ptr<Packet> *foundpacket;
             std::optional<ScopedNegotiateLinkage<XN>> root_lifetime;
             auto status = walkUpChain(linkage,
-                scope, &foundpacket, root_lifetime);
+                scope, &foundpacket, root_lifetime, retry);
             switch(status) {
             case SnapshotStatus::SUCCESS: {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
@@ -1883,7 +1897,8 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     // The packet is imperfect, and then re-bundling the
                     // subpackets via unbundle.  Pass scope directly —
                     // its view IS the bundled_ref for the final CAS.
-                    UnbundledStatus status = unbundle(nullptr, snapshot, scope);
+                    UnbundledStatus status = unbundle(nullptr, snapshot, scope,
+                        nullptr, nullptr, nullptr, retry);
                     switch(status) {
                     case UnbundledStatus::W_NEW_SUBVALUE:
                         // unbundle's final CAS via subscope succeeded —
@@ -2535,7 +2550,9 @@ Node<XN>::commit(Transaction<XN> &tr) {
         // subscope.compareAndSetWithHint() for the final CAS, no
         // separate inner negotiate.
         UnbundledStatus status = unbundle(nullptr, tr, scope,
-            tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr);
+            tr.isMultiNodal() ? &tr.m_oldpacket : nullptr,
+            tr.isMultiNodal() ? &newwrapper : nullptr,
+            nullptr, retry);
         switch(status) {
         case UnbundledStatus::W_NEW_SUBVALUE:
             if(tr.isMultiNodal()) {
@@ -2612,7 +2629,8 @@ typename Node<XN>::UnbundledStatus
 Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     ScopedNegotiateLinkage<XN> &subscope,
     const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned,
-    ScopedNegotiateLinkage<XN> *supscope_super) {
+    ScopedNegotiateLinkage<XN> *supscope_super,
+    int retry) {
     // Mark every linkage we tag during this unbundle (via tag_as_contender)
     // with op_kind = UNBUNDLE.  Read side not yet wired.
     detail::ScopedOpKind _op_kind_scope(detail::StampKind::UNBUNDLE);
@@ -2627,7 +2645,8 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     CASInfoList cas_infos;
     SnapshotStatus status = snapshotForUnbundle(subscope.linkage(),
         subscope, &newsubpacket,
-        bundle_serial ? *bundle_serial : SerialGenerator::SERIAL_NULL, &cas_infos);
+        bundle_serial ? *bundle_serial : SerialGenerator::SERIAL_NULL, &cas_infos,
+        retry);
     if(status == SnapshotStatus::DISTURBED)
         return UnbundledStatus::DISTURBED;
     if(status == SnapshotStatus::VOID_PACKET || status == SnapshotStatus::NODE_MISSING) {
