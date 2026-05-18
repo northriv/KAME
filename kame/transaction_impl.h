@@ -294,6 +294,16 @@ static inline unsigned gr_latency_bucket(uint32_t us) noexcept {
 }
 } // anonymous namespace
 
+// Per-Linkage privilege diagnostic counters (KAME_ADAPT_INSTRUMENT).
+// Out of the anonymous namespace so transaction_neg_impl.h (included
+// later in this same TU) can reference them via `extern` linkage.
+// Tracks claim attempts/successes and the priv-state at every
+// `_negotiate_internal` entry.  Dumped by `NegSite::dump`.
+std::atomic<uint64_t> g_neg_claim_attempts{0};
+std::atomic<uint64_t> g_neg_claim_successes{0};
+std::atomic<uint64_t> g_neg_internal_calls_non_priv{0};
+std::atomic<uint64_t> g_neg_internal_calls_priv{0};
+
 DECLSPEC_KAME void NegSite::record_band_event(uint8_t kind,
                                               BandOutcome outcome,
                                               uint8_t tighten) noexcept {
@@ -670,6 +680,23 @@ DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
                              i, (unsigned long long)c, pct);
             }
         }
+    }
+    // Per-Linkage privilege diagnostic counters.
+    {
+        uint64_t cl_att = g_neg_claim_attempts.load(std::memory_order_relaxed);
+        uint64_t cl_suc = g_neg_claim_successes.load(std::memory_order_relaxed);
+        uint64_t ni_np  = g_neg_internal_calls_non_priv.load(std::memory_order_relaxed);
+        uint64_t ni_p   = g_neg_internal_calls_priv.load(std::memory_order_relaxed);
+        std::fprintf(fp,
+            "[per-Linkage privilege]\n"
+            "  claim attempts          : %llu\n"
+            "  claim successes         : %llu  (%.1f%%)\n"
+            "  _negotiate_internal     : non-priv=%llu  priv=%llu\n",
+            (unsigned long long)cl_att,
+            (unsigned long long)cl_suc,
+            cl_att > 0 ? 100.0 * (double)cl_suc / (double)cl_att : 0.0,
+            (unsigned long long)ni_np,
+            (unsigned long long)ni_p);
     }
 #endif
     std::fflush(fp);

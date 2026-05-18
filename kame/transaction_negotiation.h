@@ -212,6 +212,12 @@ class ScopedNegotiateLinkage {
     //! via the thread_local sink NegSite::last_was_gate_return(); consumed
     //! by _on_cas_fail / _on_cas_success of THIS scope only.
     bool            m_was_gate_return = false;
+    //! Per-scope CAS-fail counter (saturating at 255).  Used by the
+    //! debug-only "priv holder must not fail CAS twice" assert in
+    //! `_on_cas_fail`: privilege is supposed to prevent peer CAS on
+    //! this Linkage, so a priv-holder's CAS-fail >= 2 is a sign that
+    //! the privilege guarantee is being violated.
+    uint8_t         m_cas_fail_count = 0;
     //! Deferred `record_successful_op` payload.  When set by
     //! `arm_record_on_commit(stamp_with_kind)`, the dtor fires
     //! `m_link->record_successful_op` only if the scope was actually
@@ -861,6 +867,16 @@ private:
     //! time-clustered (FAIL_WINDOW_US).
     void _on_cas_fail() noexcept {
         m_contention_observed = true;
+        // Privilege-holder CAS-fail invariant: if we hold Reserved
+        // on this Linkage, no peer should be CASing m_packet (they
+        // fair_block).  A single fail is tolerable (race window
+        // around tag/claim).  >= 2 fails means the privilege
+        // guarantee is broken — peers are still racing us.
+        if(m_cas_fail_count < 255) ++m_cas_fail_count;
+        assert((!Node<XN>::NegotiationCounter::i_am_privileged_now(
+                    m_snap->m_started_time, m_link.get())
+                || m_cas_fail_count < 2)
+               && "privilege holder failed CAS twice — peer is racing despite our Reserved stamp");
         if(m_was_gate_return)
             ++m_site_state->gate_then_cas_fail;
 #if KAME_ENABLE_SPIN_BAND_GATE

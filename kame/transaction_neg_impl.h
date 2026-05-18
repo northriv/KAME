@@ -549,6 +549,14 @@ thread_local int      s_adapt_C_last            = 0;  // popcount(tid_bitset)
 thread_local uint32_t s_adapt_last_priority_tid = 0;  // last m_priority_state.tid seen
 thread_local uint32_t s_adapt_bounce_count      = 0;  // # times it changed
 thread_local uint64_t s_adapt_negotiate_calls   = 0;  // negotiate() entries
+
+// Per-Linkage privilege diagnostic counters declared in transaction_impl.h
+// (g_neg_claim_attempts / g_neg_claim_successes /
+//  g_neg_internal_calls_non_priv / g_neg_internal_calls_priv).
+extern std::atomic<uint64_t> g_neg_claim_attempts;
+extern std::atomic<uint64_t> g_neg_claim_successes;
+extern std::atomic<uint64_t> g_neg_internal_calls_non_priv;
+extern std::atomic<uint64_t> g_neg_internal_calls_priv;
 thread_local uint64_t s_adapt_skip_hits         = 0;  // lease-skip fires
 thread_local uint32_t s_adapt_skip_per1k        = 0;  // skip_hits/calls × 1000
 #endif
@@ -984,6 +992,12 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // bug.  Fires only when asserts are enabled (NDEBUG undefined).
     assert( !snap.m_registered_privileged
             && "cross-link: entered _negotiate_internal while holding privilege on another Linkage");
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+    if(snap.m_registered_privileged)
+        g_neg_internal_calls_priv.fetch_add(1, std::memory_order_relaxed);
+    else
+        g_neg_internal_calls_non_priv.fetch_add(1, std::memory_order_relaxed);
+#endif
     const float mult_wait = m_mult_wait;
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
@@ -1079,6 +1093,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         //   CAS-claim the singleton `s_privileged_tidstamp`.  Peers
         //   detect privilege globally via the old code path.
         if (_ll_saw && !snap.m_registered_privileged) {
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+            g_neg_claim_attempts.fetch_add(1, std::memory_order_relaxed);
+#endif
             bool claimed = false;
 #if KAME_PER_LINKAGE_PRIVILEGE
             (void)entry_pr;
@@ -1108,6 +1125,26 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 // Pair with the decrement in
                 // `Snapshot::drop_tags_n_privilege`.
                 s_num_privileged_threads.fetch_add(1, std::memory_order_relaxed);
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+                g_neg_claim_successes.fetch_add(1, std::memory_order_relaxed);
+#endif
+                // (b) Post-claim sanity: after a successful claim, at
+                // least one tagged Linkage must carry our Reserved
+                // stamp.  If priv_held == 0 here, the CAS-upgrade
+                // loop returned `claimed=true` but no slot actually
+                // holds our priv (logical contradiction).
+                int _post_priv_held = 0;
+                for (auto &l : snap.m_tagged_linkages) {
+                    if (!l) continue;
+                    auto cur = l->m_transaction_started_time.load(
+                        std::memory_order_relaxed);
+                    if (NegotiationCounter::is_priv_stamp(cur)
+                        && NegotiationCounter::strip_kind(cur) == my_id)
+                        ++_post_priv_held;
+                }
+                assert(_post_priv_held > 0
+                       && "claim reported success but no Linkage holds our Reserved");
+                (void)_post_priv_held;
             }
         }
     }
@@ -1472,6 +1509,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // hot-spinning the CAS, which loses the alternation; yield
         // gives the OS scheduler the opportunity to swap to the
         // other contender, allowing it to commit cleanly.
+        // Privilege-holder must never sleep/yield from negotiate:
+        // priv is held to push the commit through ASAP; sleeping
+        // delays release for every peer fair-blocked on our links.
+        // If we hold priv anywhere and end up here, the design is
+        // violated.  Fires only when asserts are enabled.
+        assert( !m_snap->m_registered_privileged
+                && "privilege holder must not enter CV-sleep / yield from negotiate");
         if(NegotiationCounter::numThreadsRunning() <= 2 && ms <= 1) {
             typename NegotiationCounter::ReleaseOneCount onedown;
             std::this_thread::yield();
