@@ -1084,20 +1084,11 @@ private:
             //! `notify_n_contenders` to bias wake-up toward the same
             //! kind as the linkage's most recent commit.
             uint8_t op_kind = 0;
-            //! Stamp of the Tx the slot's thread is currently
-            //! negotiating for.  Non-zero only while the thread is
-            //! inside `negotiate_sleep`.  Read under the slot lock by
-            //! `notify_older_sleepers` to wake threads whose stamp is
-            //! older than a blocked peer's — guarantees the oldest
-            //! thread always has a chance to run (and via the TLA+
-            //! older-wins rule, preempt any blocking Reserved).
-            cnt_t started_time = 0;
         };
         static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
         static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};
 
-        static void negotiate_sleep(int ms_timeout,
-                                    cnt_t started_time = 0) noexcept;
+        static void negotiate_sleep(int ms_timeout) noexcept;
 
         //! Wake up to `n` sleeping threads whose TIDs are set in
         //! `tid_bitset`.  When `preferred_kind` is in {1,2}, prefer
@@ -1110,15 +1101,13 @@ private:
         static void try_notify_n_contenders(const TidBitset &tid_bitset,
                                             int n,
                                             uint8_t preferred_kind = 0xFFu) noexcept;
-        //! Wake up all sleep slots whose stored `started_time` is OLDER
-        //! than `my_started_time` (modular µs compare).  Used by a
-        //! thread that's about to CV-sleep or fair-spin to ensure any
-        //! older peer is awake — older peers always win via TLA+
-        //! `tag_as_contender` preemption, so waking them resolves
-        //! mutual-wait livelocks.  Fires independently of
-        //! `KAME_STM_MIN_RUNNERS`.
-        static void notify_older_sleepers(cnt_t my_started_time,
-                                          int n_max) noexcept;
+        // `notify_older_sleepers` was removed: the broad 512-slot
+        // scan it performed before every CV-sleep cost ~3.5x the
+        // throughput at MAX=2.  The CV-sleep call site now does a
+        // targeted wake on the single TID identified by reading the
+        // blocking Linkage's `m_transaction_started_time` stamp —
+        // no scan, O(1) cost, and the blocker is the only thread
+        // whose progress we depend on.
 
         //! Sum of per-thread "in Tx" counters. See
         //! detail::num_threads_running for the design rationale. Hot

@@ -309,8 +309,7 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
 }
 
 template <class XN>
-void Node<XN>::NegotiationCounter::negotiate_sleep(
-    int ms_timeout, cnt_t started_time) noexcept
+void Node<XN>::NegotiationCounter::negotiate_sleep(int ms_timeout) noexcept
 {
     int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
     auto &st = s_sleep_slots[slot];
@@ -321,46 +320,11 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
     const uint8_t my_kind = (uint8_t)detail::s_current_op_kind & 0x3u;
     std::unique_lock<std::mutex> lock(st.mtx);
     st.op_kind = my_kind;
-    // Publish our started_time so `notify_older_sleepers` peers can
-    // identify us if we're older than them.  Defaults to 0 when the
-    // caller doesn't know its stamp — older-scan then skips this slot.
-    st.started_time = started_time;
     // Reset under the lock so a notify delivered between the previous
     // call's wake and this reset is not silently consumed.
     st.notified = false;
     st.cv.wait_for(lock, std::chrono::milliseconds(ms_timeout),
                    [&]{ return st.notified; });
-    // Clear started_time on wake so a subsequent older-scan can tell
-    // we are no longer sleeping.  Safe: we hold the lock.
-    st.started_time = 0;
-}
-
-template <class XN>
-void Node<XN>::NegotiationCounter::notify_older_sleepers(
-    cnt_t my_started_time, int n_max) noexcept
-{
-#if defined(KAME_DISABLE_WAKE_OLDER) && KAME_DISABLE_WAKE_OLDER
-    (void)my_started_time; (void)n_max;
-    return;
-#endif
-    if(my_started_time == 0 || n_max <= 0) return;
-    for(int slot = 0; slot < NEGOTIATE_SLEEP_SLOTS && n_max > 0; ++slot) {
-        auto &st = s_sleep_slots[slot];
-        // Try-lock to avoid serialising hot spin loops on slot contention;
-        // a slot held by its sleeper (mtx not free) is by definition
-        // currently servicing wait_for / wake-up, so a missed pass is
-        // harmless — the next caller picks it up.
-        std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
-        if(!lk.owns_lock()) continue;
-        if(st.started_time == 0) continue;
-        if(st.notified) continue;
-        // signed_diff_us_packed(st_stamp, my_stamp) < 0  iff  st is older.
-        if(signed_diff_us_packed(st.started_time, my_started_time) >= 0)
-            continue;
-        st.notified = true;
-        st.cv.notify_one();
-        --n_max;
-    }
 }
 
 template <class XN>
@@ -1665,18 +1629,38 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     if(_my_age_us < KAME_STM_PREEMPT_WINDOW_US)
                         _wake_older = false;
                 }
-                if(_wake_older)
-                    NegotiationCounter::notify_older_sleepers(
-                        started_time, 1);
+                if(_wake_older) {
+                    // Targeted wake (per user): we know which Tx
+                    // blocked us — the stamp on `self->m_transaction_
+                    // started_time`.  No 512-slot scan needed.  The
+                    // blocker is presumably committing (not sleeping)
+                    // in the normal case, in which case the notify is
+                    // harmless; the wake is a safety net for the bug
+                    // case where the blocker is somehow stuck in
+                    // CV-sleep itself.
+                    auto _slot_val =
+                        self->m_transaction_started_time.load(
+                            std::memory_order_relaxed);
+                    uint16_t _blocker_tid =
+                        NegotiationCounter::stamp_tid(_slot_val);
+                    if(_blocker_tid != 0) {
+                        int _idx = (int)((unsigned)_blocker_tid
+                            % NegotiationCounter::NEGOTIATE_SLEEP_SLOTS);
+                        auto &_st = NegotiationCounter::s_sleep_slots[_idx];
+                        std::lock_guard<std::mutex> _lk(_st.mtx);
+                        _st.notified = true;
+                        _st.cv.notify_one();
+                    }
+                }
 #if KAME_STM_DISABLE_JITTER
-                NegotiationCounter::negotiate_sleep(1, started_time);
+                NegotiationCounter::negotiate_sleep(1);
 #else
                 NegotiationCounter::negotiate_sleep(
-                    1 + (int)(s_backoff_seed >> 31), started_time);
+                    1 + (int)(s_backoff_seed >> 31));
 #endif
             } while(Node<XN>::NegotiationCounter::now_us() < t_end);
 #else
-            NegotiationCounter::negotiate_sleep(ms_actual, started_time);
+            NegotiationCounter::negotiate_sleep(ms_actual);
 #endif
         }
     }
