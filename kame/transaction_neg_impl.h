@@ -339,6 +339,10 @@ template <class XN>
 void Node<XN>::NegotiationCounter::notify_older_sleepers(
     cnt_t my_started_time, int n_max) noexcept
 {
+#if defined(KAME_DISABLE_WAKE_OLDER) && KAME_DISABLE_WAKE_OLDER
+    (void)my_started_time; (void)n_max;
+    return;
+#endif
     if(my_started_time == 0 || n_max <= 0) return;
     for(int slot = 0; slot < NEGOTIATE_SLEEP_SLOTS && n_max > 0; ++slot) {
         auto &st = s_sleep_slots[slot];
