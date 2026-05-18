@@ -2026,6 +2026,13 @@ public:
             Node<XN>::NegotiationCounter::release_priv_count_slot();
             this->m_registered_privileged = false;
         }
+        // Clear the list after we've finished walking it.  Stale
+        // entries here are observationally harmless (the slots they
+        // point to are zero, and strip_kind(0) doesn't match anyone),
+        // but a downstream `++tr` would re-tag through them and grow
+        // the vector unboundedly.  Clearing returns the Snapshot to
+        // the fresh-acquire state.
+        m_tagged_linkages.clear();
     }
 
 protected:
