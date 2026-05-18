@@ -1641,6 +1641,26 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     auto _slot_val =
                         self->m_transaction_started_time.load(
                             std::memory_order_relaxed);
+                    // Fresh dt re-check: the outer `dt` (computed once
+                    // at function entry) can become stale when the
+                    // slot rotates to a YOUNGER stamp during the
+                    // CV-sleep cycle.  Without this re-check the loop
+                    // sleeps forever on a now-stale "I'm younger"
+                    // verdict.  Two gates limit the eager break-out:
+                    //   - `m_registered_privileged`: priv holders MUST
+                    //     break out (otherwise they hold their
+                    //     Reserved indefinitely and block everyone).
+                    //   - `ms >= 30`: non-priv threads only escape
+                    //     after a substantial wait has accumulated.
+                    //     M2 (low contention) rarely hits this; M3
+                    //     (CAS-storm prone) reaches it during
+                    //     mutual-wait cycles.  Threshold chosen so M2
+                    //     fast path (ms ≤ a few ms) is unaffected.
+                    if((snap.m_registered_privileged || ms >= 30)
+                       && ( !NegotiationCounter::is_active_stamp(_slot_val)
+                            || NegotiationCounter::signed_diff_us_packed(
+                                   started_time, _slot_val) <= 0))
+                        goto _exit_cv_sleep;
                     uint16_t _blocker_tid =
                         NegotiationCounter::stamp_tid(_slot_val);
                     if(_blocker_tid != 0) {
@@ -1664,6 +1684,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
         }
     }
+_exit_cv_sleep:;
   } // end adaptive-path scope
 }
 
