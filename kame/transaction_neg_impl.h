@@ -1594,16 +1594,22 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // our `m_registered_privileged` flag before reaching here.
         {
             int ms_actual = ms; (void)ms_actual;
-            // Sample runner count BEFORE the ReleaseOneCount decrement
-            // (else all 64 about-to-step-aside threads see ~0 running
-            // and never trip the MAX_RUNNERS cap).
-            const bool _cap_reached =
+            // Age-ranked spinner cap (per user: "古参のやつのほうがいい"
+            // + "MaxRunnersで天井とめる"): only the youngest of the
+            // top MAX_RUNNERS by age busy-spin via the caller's
+            // retry_pause; threads with dt past that threshold drop
+            // into a 1 ms CV-sleep so they do not burn cores while
+            // the older peers race to commit.  Threshold sized as
+            // MAX_RUNNERS preempt-windows from the oldest (linkage
+            // slot stamp) — a 100 µs preempt-window with MAX=3
+            // admits the 3 newest contenders to busy-spin.
+            constexpr int64_t _busy_dt_thresh =
 #if KAME_STM_MAX_RUNNERS != 0
-                (NegotiationCounter::numThreadsRunning()
-                 >= effective_max_runners(C_obs));
+                (int64_t)KAME_STM_PREEMPT_WINDOW_US * KAME_STM_MAX_RUNNERS;
 #else
-                false;
+                (int64_t)KAME_STM_PREEMPT_WINDOW_US * 8;  // permissive default
 #endif
+            const bool _go_deep_sleep = (dt > _busy_dt_thresh);
             typename NegotiationCounter::ReleaseOneCount onedown;
 #if KAME_STM_MIN_RUNNERS != 0
             // Sleep in 1 ms chunks so the MIN_RUNNERS check fires after this
@@ -1694,15 +1700,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                         }
                     }
                 }
-                // Younger step-aside.  If the running-thread count
-                // sampled BEFORE our ReleaseOneCount decrement was at
-                // or above the MAX_RUNNERS cap, CV-sleep deeply (per
-                // user: "MaxRunnersで天井とめる") so we do not burn a
-                // core hot-spinning while older peers are still
-                // busy.  Otherwise just return false and let the
-                // caller's retry_pause provide the pause-spin
-                // backoff (busy mission = wake CV-sleeping older).
-                if(_cap_reached) {
+                // Younger step-aside.  Threads in the top-MAX-by-age
+                // band (_go_deep_sleep == false) busy-spin via the
+                // caller's retry_pause; the rest CV-sleep 1 ms so
+                // they do not flood the m_link cache line.
+                if(_go_deep_sleep) {
                     NegotiationCounter::negotiate_sleep(1, started_time);
                 }
                 return false;
