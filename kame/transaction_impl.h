@@ -997,7 +997,17 @@ Node<XN>::insert(const shared_ptr<XN> &var) {
 template <class XN>
 bool
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion) {
-    local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
+    local_shared_ptr<Packet> packet;
+    try {
+        packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
+    }
+    catch (NodeNotFoundError &) {
+        // `this` is no longer in tr's view (a peer released us before
+        // our commit landed) — treat as a benign retry signal.  Caller's
+        // iterate_commit*-driven retry loop re-snapshots and tries again.
+        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+        return false;
+    }
     packet->subpackets() = packet->size() ? std::make_shared<PacketList>( *packet->subpackets()) : std::make_shared<PacketList>();
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
@@ -1130,7 +1140,16 @@ Node<XN>::lookupFailure() const {
 template <class XN>
 bool
 Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
-    local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
+    local_shared_ptr<Packet> packet;
+    try {
+        packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
+    }
+    catch (NodeNotFoundError &) {
+        // `this` is no longer in tr's view (a peer released us before
+        // our commit landed) — benign retry signal.
+        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+        return false;
+    }
     assert(packet->size());
     packet->subpackets().reset(new PacketList( *packet->subpackets()));
     packet->subpackets()->m_serial = tr.m_serial;
@@ -1184,8 +1203,12 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
             ++idx;
         }
     }
-    if(old_idx < 0)
-        lookupFailure();
+    if(old_idx < 0) {
+        // var is no longer a child of `this` in tr's view (peer
+        // released the same edge concurrently) — benign retry signal.
+        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+        return false;
+    }
 
     if( !packet->subpackets()->size()) {
         packet->subpackets().reset();
@@ -1257,7 +1280,15 @@ Node<XN>::swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
 template <class XN>
 bool
 Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
-    local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
+    local_shared_ptr<Packet> packet;
+    try {
+        packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
+    }
+    catch (NodeNotFoundError &) {
+        // `this` is no longer in tr's view — benign retry signal.
+        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+        return false;
+    }
     packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
@@ -1271,8 +1302,13 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
             y_idx = idx;
         ++idx;
     }
-    if((x_idx < 0) || (y_idx < 0))
-        lookupFailure();
+    if((x_idx < 0) || (y_idx < 0)) {
+        // x or y is no longer a child of `this` in tr's view (peer
+        // released or swapped the same edge concurrently) — benign
+        // retry signal.
+        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+        return false;
+    }
     local_shared_ptr<Packet> px = packet->subpackets()->at(x_idx);
     local_shared_ptr<Packet> py = packet->subpackets()->at(y_idx);
     packet->subpackets()->at(x_idx) = py;
