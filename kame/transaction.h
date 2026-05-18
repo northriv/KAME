@@ -1084,11 +1084,20 @@ private:
             //! `notify_n_contenders` to bias wake-up toward the same
             //! kind as the linkage's most recent commit.
             uint8_t op_kind = 0;
+            //! Tenant verification stamp = sleeper's started_time
+            //! (tid+kind+us packed).  Set under the lock right before
+            //! `cv.wait_for`, cleared to 0 right after.  Wakers compare
+            //! this against their intended target (the linkage slot
+            //! value for targeted wake, or the tid bit for bitset wake)
+            //! to avoid notifying the wrong thread on `tid % N_SLOTS`
+            //! hash collisions.  On mismatch we skip the notify and
+            //! accept the intended target's natural 1 ms timeout.
+            uint64_t stamp = 0;
         };
         static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
         static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};
 
-        static void negotiate_sleep(int ms_timeout) noexcept;
+        static void negotiate_sleep(int ms_timeout, uint64_t my_stamp) noexcept;
 
         //! Wake up to `n` sleeping threads whose TIDs are set in
         //! `tid_bitset`.  When `preferred_kind` is in {1,2}, prefer

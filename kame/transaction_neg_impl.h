@@ -309,7 +309,8 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
 }
 
 template <class XN>
-void Node<XN>::NegotiationCounter::negotiate_sleep(int ms_timeout) noexcept
+void Node<XN>::NegotiationCounter::negotiate_sleep(
+    int ms_timeout, uint64_t my_stamp) noexcept
 {
     int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
     auto &st = s_sleep_slots[slot];
@@ -320,11 +321,18 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(int ms_timeout) noexcept
     const uint8_t my_kind = (uint8_t)detail::s_current_op_kind & 0x3u;
     std::unique_lock<std::mutex> lock(st.mtx);
     st.op_kind = my_kind;
+    // Publish the tenant stamp under the lock so wakers (also holding
+    // the lock) can verify they are notifying the intended thread on a
+    // `tid % N_SLOTS` hash collision.
+    st.stamp = my_stamp;
     // Reset under the lock so a notify delivered between the previous
     // call's wake and this reset is not silently consumed.
     st.notified = false;
     st.cv.wait_for(lock, std::chrono::milliseconds(ms_timeout),
                    [&]{ return st.notified; });
+    // Clear the tenant stamp on exit so the next sleeper's stamp
+    // is not preceded by a stale value that could match a target.
+    st.stamp = 0;
 }
 
 template <class XN>
@@ -1668,19 +1676,29 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                             % NegotiationCounter::NEGOTIATE_SLEEP_SLOTS);
                         auto &_st = NegotiationCounter::s_sleep_slots[_idx];
                         std::lock_guard<std::mutex> _lk(_st.mtx);
-                        _st.notified = true;
-                        _st.cv.notify_one();
+                        // Tenant verification: only wake when the slot's
+                        // current tenant matches the blocker (same tid +
+                        // same started_us).  Comparison strips the kind
+                        // bits because the linkage slot is stamped via
+                        // `with_kind(started_time, op_kind)` in
+                        // `tag_as_contender` while the sleep slot stores
+                        // the bare `started_time` (kind=NONE).
+                        if(NegotiationCounter::strip_kind(_st.stamp)
+                           == NegotiationCounter::strip_kind(_slot_val)) {
+                            _st.notified = true;
+                            _st.cv.notify_one();
+                        }
                     }
                 }
 #if KAME_STM_DISABLE_JITTER
-                NegotiationCounter::negotiate_sleep(1);
+                NegotiationCounter::negotiate_sleep(1, started_time);
 #else
                 NegotiationCounter::negotiate_sleep(
-                    1 + (int)(s_backoff_seed >> 31));
+                    1 + (int)(s_backoff_seed >> 31), started_time);
 #endif
             } while(Node<XN>::NegotiationCounter::now_us() < t_end);
 #else
-            NegotiationCounter::negotiate_sleep(ms_actual);
+            NegotiationCounter::negotiate_sleep(ms_actual, started_time);
 #endif
         }
     }
