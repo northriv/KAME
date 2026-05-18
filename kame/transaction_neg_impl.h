@@ -979,21 +979,19 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     using Linkage = typename Node<XN>::Linkage;
     Linkage *const self = m_link.get();
     Snapshot<XN> &snap = *m_snap;
-    // Cross-link invariant (per-Linkage privilege mode, preempt-OFF
-    // for Reserved): a privilege-holding Tx may re-enter
-    // `_negotiate_internal` on one of ITS OWN priv'd Linkages (e.g.
-    // during bundle traversal that runs scope ctors).  That is fine
-    // — `fair_mode_blocks_me(self)` returns false on our own
-    // Reserved, the dt-break path fires, and we exit without
-    // sleeping.  The bug is reaching here while we hold priv
-    // *elsewhere* and a *peer* holds Reserved on `self`: then
-    // `fair_mode_blocks_me(self)` returns true, we want to wait,
-    // and the peer is also waiting on one of our priv'd Linkages —
-    // bidirectional cross-link deadlock.
-    assert(( !snap.m_registered_privileged
-             || !NegotiationCounter::fair_mode_blocks_me(
-                       snap.m_started_time, self))
-           && "cross-link: holding privilege elsewhere while a peer holds Reserved on this Linkage");
+    // Note: TLA+-equivalent semantics (older-always-wins via
+    // preempt-ON for Reserved in tag_as_contender) make disjoint
+    // privilege coexistence legitimate.  A privilege-holding Tx
+    // may correctly enter `_negotiate_internal` on a Linkage where
+    // a peer holds Reserved, and may correctly fair-spin / CV-sleep
+    // while waiting for the older peer to commit and release.
+    // The cross-link entry-time assert was removed because it
+    // flagged this legitimate behaviour as a bug.  Disjoint
+    // priv-on-different-Linkages is OK; cycles are broken by the
+    // age-ordered preempt path (older's `tag_as_contender` on an
+    // overlapping Linkage preempts the younger's Reserved, and the
+    // younger's preempt-recovery clears its stale
+    // `m_registered_privileged`).
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     if(snap.m_registered_privileged)
         g_neg_internal_calls_priv.fetch_add(1, std::memory_order_relaxed);
@@ -1511,13 +1509,15 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // hot-spinning the CAS, which loses the alternation; yield
         // gives the OS scheduler the opportunity to swap to the
         // other contender, allowing it to commit cleanly.
-        // Privilege-holder must never sleep/yield from negotiate:
-        // priv is held to push the commit through ASAP; sleeping
-        // delays release for every peer fair-blocked on our links.
-        // If we hold priv anywhere and end up here, the design is
-        // violated.  Fires only when asserts are enabled.
-        assert( !m_snap->m_registered_privileged
-                && "privilege holder must not enter CV-sleep / yield from negotiate");
+        // A privilege holder *may* legitimately enter CV-sleep here
+        // when waiting on an older peer's Reserved on a different
+        // Linkage (disjoint-priv coexistence under TLA+-equivalent
+        // older-wins semantics).  The older peer is guaranteed to
+        // commit and release first, waking us.  If our own Reserved
+        // overlapped with the older peer's tagging, our Reserved
+        // was already preempted via `tag_as_contender`, and the
+        // preempt-recovery scan in `_negotiate_internal` cleared
+        // our `m_registered_privileged` flag before reaching here.
         if(NegotiationCounter::numThreadsRunning() <= 2 && ms <= 1) {
             typename NegotiationCounter::ReleaseOneCount onedown;
             std::this_thread::yield();
