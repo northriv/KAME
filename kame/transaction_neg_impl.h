@@ -653,15 +653,17 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
         ps.lease_us = new_lease_us;
     }
 
-    // Adaptive gate: suppress owner-skip when dt2 exceeds
-    // KAME_DT2_FAIRNESS_US (long-held competing tx → starvation risk).
+    // Owner-skip: if the lease's tid matches us and the lease has not
+    // expired, return without negotiating (we hold the slot).  P2
+    // (per user "P0 はアドホックゲートが多すぎて哲学がない") removed the
+    // KAME_DT2_FAIRNESS_US dt2 suppression — the lease is the only
+    // principled exception to strict older-wins.
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
 #if KAME_STM_MIN_RUNNERS != 0
     const int min_r_pre = effective_min_runners(1);
     if(NegotiationCounter::numThreadsRunning() < min_r_pre)
 #endif
-    if(my_tid == ps.tid
-        && adapt_dt2_last_us < (uint64_t)KAME_DT2_FAIRNESS_US) {
+    if(my_tid == ps.tid) {
         // Age in µs via modular 32-bit subtraction (wrap-safe up to ~35 min).
         uint32_t age_us = (uint32_t)now_us_entry - ps.start_us;
         if(age_us < (uint32_t)ps.lease_us) {
@@ -1007,7 +1009,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     else
         g_neg_internal_calls_non_priv.fetch_add(1, std::memory_order_relaxed);
 #endif
-    const float mult_wait = m_mult_wait;
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
     // Single now_us() snapshot: livelock-probe window, livelock age and
@@ -1266,170 +1267,21 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         if(dt <= 0)
             return true; //This thread is the oldest.
 
-        auto dt2 = NegotiationCounter::diff_us_packed(
-            Node<XN>::NegotiationCounter::now_us(),
-            transaction_started_time);
-
-        // Fair-mode escape: when some other thread holds the privileged-
-        // TID slot, suppress the jittered gate and the √C lottery so the
-        // privileged Tx alone gets to commit. Strict Greedy CM (older
-        // started_time wins → I sleep below) is the only mechanism left
-        // to allocate priority while fair-mode is active.
-        //
-        // Whether some peer's privilege blocks our CAS on this Linkage.
-        // The choice between per-Linkage and global privilege happens
-        // inside `fair_mode_blocks_me` based on KAME_PER_LINKAGE_PRIVILEGE
-        // — see helper definition in this file.  Pre-loaded
-        // `transaction_started_time` is *not* reused here because the
-        // helper does its own load; the cost is one extra atomic load
-        // under per-Linkage mode (negligible vs. the surrounding CV-wait
-        // / spin work).
+        // P2 (per user "P0 はアドホックゲートが多すぎて哲学がない"):
+        //   removed the dt2 jittered gate, √C lottery, and legacy
+        //   per-site adaptive gating.  These were ad-hoc "throw younger
+        //   threads at the CAS occasionally" mechanisms — the bool-
+        //   return + view-skip architecture from P1 (7ef27095) provides
+        //   the principled equivalent: older-wins is determined purely
+        //   by `dt <= 0`, the lease via `_neg_apply_lease`, and the
+        //   targeted blocker wake during CV-sleep.  The fair_blocks
+        //   probe is still needed downstream for the MIN_RUNNERS
+        //   spinner-cap path (see s_fair_spinners block below).
         const bool _fair_blocks =
             NegotiationCounter::fair_mode_blocks_me(started_time, self);
 
         NegSite::last_was_gate_return() = false;
-#if KAME_LEGACY_GATING
-        // ===== Legacy per-site adaptive gating ============================
-        // Deprecation candidate; superseded by the per-Linkage spin-for-
-        // same-kind path further down.  Enable with -DKAME_LEGACY_GATING=1
-        // for A/B regression.  Tri-state `take_gate` per call-site:
-        //
-        //   -1 (UNDEFINED)   : initial / post-privilege state — the
-        //                      hot-path decides by my_kind alone
-        //                      (non-NONE → gate, NONE → sleep).
-        //    0 (FORCE_SLEEP) : forced sleep, time-leased.  Set by
-        //                      K_FAIL gate→fail streak inside
-        //                      FAIL_WINDOW_US (see _on_cas_fail);
-        //                      auto-reverts to UNDEFINED at lease
-        //                      expiry, or on privilege observation
-        //                      (the streak history is stale once
-        //                      contention enters the privilege path).
-        //    1 (FORCE_GATE)  : forced bypass via the `break` below.
-        //
-        // Empirically (KAME_ADAPT_INSTRUMENT, N=4-128 × CR=1-20):
-        //   - kind-gated (peer == my || peer == MNC) was too conservative
-        //   - all-gate crashed my=NONE fairness (stand-alone read/release)
-        //   - my != NONE alone was the goldilocks (+9-23 % over kind-gated).
-        // ------------------------------------------------------------------
-        auto *_adapt = NegSite::current_state();
-        if(_fair_blocks || snap.m_registered_privileged) {
-            // Privilege observed at this site → reset to UNDEFINED.
-            if(_adapt && _adapt->take_gate != -1) {
-                _adapt->take_gate = -1;
-                _adapt->consec_fails = 0;
-                _adapt->consec_succs = 0;
-                ++_adapt->mode_flips_n2g;
-            }
-        } else {
-            // Lease expiry: any FORCE state → UNDEFINED.
-            if(_adapt && _adapt->take_gate != -1
-               && (uint64_t)now_us_entry >= _adapt->normal_until_us) {
-                _adapt->take_gate = -1;
-                _adapt->consec_fails = 0;
-                _adapt->consec_succs = 0;
-                ++_adapt->mode_flips_n2g;
-            }
-            const detail::StampKind my_kind = detail::s_current_op_kind;
-            bool take_gate;
-            const int8_t tg = _adapt ? _adapt->take_gate : (int8_t)-1;
-            if(tg == -1) {
-                // UNDEFINED → my_kind decides; cache verdict with a
-                // fresh lease so subsequent callers follow it for
-                // NegSite::NORMAL_LEASE_US, then re-evaluate.
-                take_gate = (my_kind != detail::StampKind::NONE);
-                if(_adapt) {
-                    _adapt->take_gate = take_gate ? (int8_t)1 : (int8_t)0;
-                    _adapt->normal_until_us =
-                        (uint64_t)now_us_entry
-                        + (uint64_t)NegSite::NORMAL_LEASE_US;
-                    _adapt->consec_fails = 0;
-                    _adapt->consec_succs = 0;
-                    if(take_gate) ++_adapt->mode_flips_promote;
-                    else          ++_adapt->mode_flips_g2n;
-                }
-            } else {
-                take_gate = (tg != 0);     // 0 = FORCE_SLEEP, 1 = FORCE_GATE
-            }
-            if(take_gate)
-                NegSite::last_was_gate_return() = true;
-            if(_adapt) {
-                const detail::StampKind peer_kind = (detail::StampKind)
-                    NegotiationCounter::stamp_kind(transaction_started_time);
-                if(take_gate)
-                    ++_adapt->gate_returns_by_peer[(int)peer_kind & 3];
-                else
-                    ++_adapt->blocked_by_peer[(int)peer_kind & 3];
-            }
-            if(take_gate) return true;
-            // Otherwise fall through to adaptive sleep (FORCE_SLEEP
-            // or UNDEFINED-with-my_kind-NONE).
-        }
-        // ===== end legacy gating ==========================================
-#endif // KAME_LEGACY_GATING
 
-        if(entry_pr != Priority::LOWEST && dt > 0 && !_fair_blocks) {
-            // Single LCG advance per iteration; bits 16-31 → r_j (jitter),
-            // bits 0-15 → r_l (lottery). Independent windows of one PRNG
-            // sample are sufficient and save one multiply+add per loop.
-            s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
-            uint32_t r_j = (s_backoff_seed >> 16) & 0xFFFFu;
-            uint32_t r_l =  s_backoff_seed        & 0xFFFFu;
-            // (a) Jittered gate: break early when the waiting time justifies it.
-            //     LHS = mult_wait * 2 * dt * J, RHS = dt2.  J ∈ [1-R/100, 1+R/100]
-            //     with R = KAME_STM_JITTER_RANGE.  Fixed-point: multiply both sides
-            //     by 65536; J encoded as (LO + r_j / DIV) where LO = (100-R)*65536/100.
-            enum {
-                JITTER_LO  = (100 - KAME_STM_JITTER_RANGE) * 65536 / 100,
-                JITTER_DIV = 100 / (2 * KAME_STM_JITTER_RANGE)
-            };
-#if KAME_STM_DISABLE_JITTER
-            // Ablation: gate factor pinned at J = 1.0 (LO mid-point = 65536).
-            (void)r_j;
-            uint64_t lhs_j = (uint64_t)(mult_wait * KAME_STM_GATE_MULT * (double)dt)
-                           * (uint64_t)65536u;
-#else
-            uint64_t lhs_j = (uint64_t)(mult_wait * KAME_STM_GATE_MULT * (double)dt)
-                           * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
-#endif
-            uint64_t rhs_j = (uint64_t)dt2 * 65536u;
-            if((KAME_STM_GATE_MULT > 0.0f) && (lhs_j < rhs_j)) {
-#if KAME_STM_MAX_RUNNERS != 0
-                const int max_r = effective_max_runners(C_obs);
-                if(NegotiationCounter::numThreadsRunning() < max_r)
-#endif
-                    return true; // gate: earned priority — always proceeds, never capped
-            }
-    // KAME_STM_DISABLE_LOTTERY lives in transaction_definitions.h.
-#if !KAME_STM_DISABLE_LOTTERY
-            // (b) C fairness lottery: LOTTERY_MULT*C threads bypass per iteration.
-            //     Prevents all threads from being stuck in the gate simultaneously.
-#if KAME_STM_MIN_RUNNERS != 0
-            const int min_r_lot = effective_min_runners(C_obs);
-            if(NegotiationCounter::numThreadsRunning() < min_r_lot) {
-#else
-            if(C_obs > 1) {
-#endif
-                uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)C_obs;
-                uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
-                if(r_l < threshold) {
-                    // Lottery firing at the wake-broadcast point. Default:
-                    // blocking lock_guard for reliable wakes. Rebuild with
-                    // -DKAME_STM_NOTIFY_TRY_LOCK=1 to select the try_lock
-                    // skip variant for ablation / regression measurement.
-#if defined(KAME_STM_NOTIFY_TRY_LOCK) && KAME_STM_NOTIFY_TRY_LOCK
-                    NegotiationCounter::try_notify_n_contenders(
-                        tid_bitset, C_obs, preferred_kind_for_wake());
-#else
-                    NegotiationCounter::notify_n_contenders(
-                        tid_bitset, C_obs, preferred_kind_for_wake());
-#endif
-                    return true;
-                }
-            }
-#endif
-        }
-
-        ms = std::max((int)(dt2 * mult_wait / 10000),  ms + 1);
         if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
             fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
