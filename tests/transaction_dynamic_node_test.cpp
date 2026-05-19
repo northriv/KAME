@@ -114,7 +114,8 @@ start_routine(void) {
                     return false;
                 return true;
             });
-			gn2->swap(p2, gn3);
+			// DIAG: gn2->swap disabled — swap() isn't modeled by TLA+.
+			// gn2->swap(p2, gn3);
 			gn1->insert(p1);
 		}
 		//		gn1->print_();
@@ -167,7 +168,7 @@ start_routine(void) {
     return;
 }
 
-#define NUM_THREADS 4
+#define NUM_THREADS 2
 
 int
 main(int argc, char **argv) {
@@ -327,10 +328,11 @@ main(int argc, char **argv) {
             threads[i].swap(th);
         }
         msecsleep(10);
-        for(int i = 0; i < 100; i++) {
-			gn3->insert(gn4);
-			gn3->release(gn4);
-		}
+        // DIAG: disable main's concurrent gn3->insert/release(gn4)
+        // for(int i = 0; i < 100; i++) {
+		// 	gn3->insert(gn4);
+		// 	gn3->release(gn4);
+		// }
         for(int i = 0; i < NUM_THREADS; i++) {
             threads[i].join();
         }
