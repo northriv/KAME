@@ -132,7 +132,8 @@ start_routine(void) {
 			}
 //			printf("f");
         });
-		trans(*gn3) += 1;
+		// DIAG: trans(*gn3) disabled — single-node tx on bundled gn3
+		// trans(*gn3) += 1;
         gn4->iterate_commit([=](Transaction &tr1){
 			tr1[gn4] = tr1[gn4] + 1;
 			tr1[gn4] = tr1[gn4] - 1;
@@ -148,7 +149,7 @@ start_routine(void) {
 			}
 //			printf("f");
         });
-		trans(*gn3) += -1;
+		// trans(*gn3) += -1;
 		if((i % 10) == 0) {
             gn1->iterate_commit_if([=](Transaction &tr1)->bool{
 				if( !gn2->release(tr1, p2))
@@ -168,7 +169,7 @@ start_routine(void) {
     return;
 }
 
-#define NUM_THREADS 1
+#define NUM_THREADS 2
 
 int
 main(int argc, char **argv) {
