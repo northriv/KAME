@@ -867,23 +867,8 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
             if( !subpackets()->at(i)) {
                 if( !rootpacket->missing()) {
                     if( !subnodes()->at(i)->reverseLookup(
-                        const_cast<local_shared_ptr<Packet>&>(rootpacket), false, 0, false, 0)) {
-                        // DIAG: dump failure details prior to throw at line 871
-                        fprintf(stderr,
-                            "DIAG checkConsistensy fail: parent_packet=%p parent_node=%p "
-                            "parent_missing=%d i=%d failing_subnode=%p root_packet=%p root_node=%p "
-                            "root_missing=%d size=%d serial=%lld root_serial=%lld\n",
-                            (const void*)this, (const void*)&this->node(),
-                            (int)this->missing(), i,
-                            (const void*)subnodes()->at(i).get(),
-                            (const void*)rootpacket.get(),
-                            (const void*)&rootpacket->node(),
-                            (int)rootpacket->missing(),
-                            (int)this->size(),
-                            (long long)payload()->m_serial,
-                            (long long)rootpacket->payload()->m_serial);
+                        const_cast<local_shared_ptr<Packet>&>(rootpacket), false, 0, false, 0))
                         throw __LINE__;
-                    }
                 }
             }
             else {
@@ -2043,8 +2028,6 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
             case UnbundledStatus::COLLIDED:
                 // unbundle returned pre-CAS; subscope's view is still
                 // valid.  Caller continues with the view as-is.
-                fprintf(stderr, "DIAG bundle_subpacket COLLIDED subnode=%p caller_super=%p\n",
-                    (const void*)subnode.get(), (const void*)this);
                 subpacket_new.reset();
                 return BundledStatus::SUCCESS;
             case UnbundledStatus::SUBVALUE_HAS_CHANGED:
@@ -2228,7 +2211,16 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 // Fast-path: child's m_link unchanged since last iter's
                 // observation.  Compare child_scope's view directly
                 // (operator== on ref pointer, no atomic op).
-                if(child_scope == subwrappers_org[i]) {
+                // Skip the fast path if this slot is null or missing —
+                // a prior retry's COLLIDED resolution may have left it
+                // null, and the fast path would otherwise carry that
+                // state forward into Phase 4 (where the is_bundle_root
+                // override would clear m_missing on a packet that
+                // still has null subpackets).  Forcing bundle_subpacket
+                // to re-run lets the peer's bundle settle and produce
+                // a non-null subpacket on a subsequent attempt.
+                if(child_scope == subwrappers_org[i]
+                   && subpacket_new && !subpacket_new->missing()) {
                     child_scope.commit(); //fast path for retry > 0.
                     break;
                 }
@@ -2268,6 +2260,25 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         }
         if(is_bundle_root) {
             assert( &supernode == this);
+            // If any child returned SUCCESS+null subpacket (COLLIDED via
+            // a hard-linked sibling chain), `missing` stays true here.
+            // Clearing m_missing in Phase 4 anyway would publish a
+            // non-missing packet with a null subpackets slot — the
+            // post-publish !missing()/checkConsistensy asserts on the
+            // snapshot SUCCESS path catch this, but the inconsistent
+            // wrapper is already externally observable.  Retry from
+            // the outer loop so the peer's bundle can settle.
+            // Self-collision: our own pre-Phase-2 CAS tagged
+            // supernode.m_link with bundle_serial, and a hard-linked
+            // descendant's unbundle walked up the alt-parent chain to
+            // hit our marker (COLLIDED).  Local `continue` would loop
+            // forever on the same serial.  Returning DISTURBED unwinds
+            // to snapshot(), which mints a fresh serial on the next
+            // retry — breaking the self-collision cycle.
+            if(missing) {
+                scope.commit();
+                return BundledStatus::DISTURBED;
+            }
             missing = false;
         }
         newpacket->m_missing = true;
