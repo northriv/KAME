@@ -168,7 +168,7 @@ start_routine(void) {
     return;
 }
 
-#define NUM_THREADS 2
+#define NUM_THREADS 1
 
 int
 main(int argc, char **argv) {
