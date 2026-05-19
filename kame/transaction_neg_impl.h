@@ -1610,15 +1610,18 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     NegotiationCounter::notify_n_contenders(tid_bitset,
                                                             std::min(min_r - running - 1, C_obs),
                                                             preferred_kind_for_wake());
-                    continue;  // DIAG: was `return false` — view-skip path
+                    return false;
                 }
-                // DIAG: was `return false` (view-skip) — replaced with
-                // `continue` so the loop re-evaluates instead of forcing
-                // the caller's ctor into the empty-m_view path.
+                // Restored: return false flushes out the underlying
+                // snapshot-consistency issue by exercising the
+                // view-skip path on every CV-sleep tick.  Masking with
+                // `continue` reduced abort rate from 20/20 to 1/20 but
+                // did not fix the root cause.
                 if(_go_deep_sleep) {
                     NegotiationCounter::negotiate_sleep(1, started_time);
+                    return false;
                 }
-                continue;
+                return false;
             }
 #else
             NegotiationCounter::negotiate_sleep(ms_actual, started_time);

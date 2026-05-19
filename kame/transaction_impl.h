@@ -867,8 +867,23 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
             if( !subpackets()->at(i)) {
                 if( !rootpacket->missing()) {
                     if( !subnodes()->at(i)->reverseLookup(
-                        const_cast<local_shared_ptr<Packet>&>(rootpacket), false, 0, false, 0))
+                        const_cast<local_shared_ptr<Packet>&>(rootpacket), false, 0, false, 0)) {
+                        // DIAG: dump failure details prior to throw at line 871
+                        fprintf(stderr,
+                            "DIAG checkConsistensy fail: parent_packet=%p parent_node=%p "
+                            "parent_missing=%d i=%d failing_subnode=%p root_packet=%p root_node=%p "
+                            "root_missing=%d size=%d serial=%lld root_serial=%lld\n",
+                            (const void*)this, (const void*)&this->node(),
+                            (int)this->missing(), i,
+                            (const void*)subnodes()->at(i).get(),
+                            (const void*)rootpacket.get(),
+                            (const void*)&rootpacket->node(),
+                            (int)rootpacket->missing(),
+                            (int)this->size(),
+                            (long long)payload()->m_serial,
+                            (long long)rootpacket->payload()->m_serial);
                         throw __LINE__;
+                    }
                 }
             }
             else {
@@ -2028,6 +2043,8 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
             case UnbundledStatus::COLLIDED:
                 // unbundle returned pre-CAS; subscope's view is still
                 // valid.  Caller continues with the view as-is.
+                fprintf(stderr, "DIAG bundle_subpacket COLLIDED subnode=%p caller_super=%p\n",
+                    (const void*)subnode.get(), (const void*)this);
                 subpacket_new.reset();
                 return BundledStatus::SUCCESS;
             case UnbundledStatus::SUBVALUE_HAS_CHANGED:
