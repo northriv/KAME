@@ -1708,8 +1708,7 @@ private:
     //! \sa snapshot().
     BundledStatus bundle(ScopedNegotiateLinkage<XN> &supscope,
         Snapshot<XN> &snap,
-        int64_t bundle_serial, bool is_bundle_root,
-        int outer_retry = 0);
+        int64_t bundle_serial, bool is_bundle_root);
     //! \param[in,out] supscope_super If non-null, the parent (super-)
     //!   node's scope.  Its view tracks the current super-link state;
     //!   unbundle's cas_infos loop may update it via set_view when an
@@ -1717,8 +1716,7 @@ private:
     BundledStatus bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super, const shared_ptr<Node> &subnode,
         ScopedNegotiateLinkage<XN> &subscope, local_shared_ptr<Packet> &subpacket_new,
         Snapshot<XN> &snap,
-        int64_t bundle_serial,
-        int outer_retry = 0);
+        int64_t bundle_serial);
     enum class UnbundledStatus {W_NEW_SUBVALUE, SUBVALUE_HAS_CHANGED, COLLIDED, DISTURBED};
     //! Unbundles a subpacket to \a sublinkage from a snapshot.
     //! it performs unbundling for all the super nodes.

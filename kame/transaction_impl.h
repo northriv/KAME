@@ -1972,7 +1972,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
         // success, so on SUCCESS we can read the post-bundle wrapper
         // through scope->packet().
         BundledStatus status = const_cast<Node *>(this)->bundle(
-            scope, snapshot, snapshot.m_serial, true, retry);
+            scope, snapshot, snapshot.m_serial, true);
         switch (status) {
         case BundledStatus::SUCCESS:
             assert( !scope->packet()->missing());
@@ -2011,8 +2011,7 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
     const shared_ptr<Node> &subnode,
     ScopedNegotiateLinkage<XN> &subscope, local_shared_ptr<Packet> &subpacket_new,
     Snapshot<XN> &snap,
-    int64_t bundle_serial,
-    int outer_retry) {
+    int64_t bundle_serial) {
     auto &started_time = snap.m_started_time;
     auto &tid_bitset = snap.m_tid_bitset;
 
@@ -2054,7 +2053,7 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
             // dereferencing subscope->.
             local_shared_ptr<PacketWrapper> subwrapper_new;
             UnbundledStatus status = unbundle(detect_collision ? &bundle_serial : nullptr, snap,
-                subscope, nullptr, &subwrapper_new, supscope_super, outer_retry);
+                subscope, nullptr, &subwrapper_new, supscope_super);
             switch(status) {
             case UnbundledStatus::W_NEW_SUBVALUE:
                 // Final CAS in unbundle succeeded → subscope's view
@@ -2078,7 +2077,7 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
         // Recursive bundle on subnode using the caller's subscope.
         // bundle() consumes the view at entry and restores via set_view
         // on SUCCESS (with the new bundled value).
-        BundledStatus status = subnode->bundle(subscope, snap, bundle_serial, false, outer_retry);
+        BundledStatus status = subnode->bundle(subscope, snap, bundle_serial, false);
         switch(status) {
         case BundledStatus::SUCCESS:
             break;
@@ -2139,8 +2138,7 @@ template <class XN>
 typename Node<XN>::BundledStatus
 Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
     Snapshot<XN> &snap,
-    int64_t bundle_serial, bool is_bundle_root,
-    int outer_retry) {
+    int64_t bundle_serial, bool is_bundle_root) {
     // Mark every linkage we tag during this bundle (via tag_as_contender)
     // with op_kind = BUNDLE.  Read side (peer-piggyback) not yet wired —
     // see VERIFICATION.md / paper notes.
@@ -2208,10 +2206,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
 
     for(int retry = 0;; ++retry) {
         // RAII OnEntry: negotiates supernode.m_link + tags eagerly (retry > 0).
-        // Blend the local bundle retry with outer_retry so the FIRST
-        // bundle iteration in a known-contention outer Tx tags eagerly.
-        const int _eff_retry = (retry != 0) ? retry : outer_retry;
-        ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, _eff_retry,
+        ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
         if( !scope) continue;  // weak acquire lost — retry
         // Peer-completed early return — same idea as the serial-tag
@@ -2244,15 +2239,9 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             local_shared_ptr<Packet> &subpacket_new(( *subpackets)[i]);
             for(int child_retry = 0;; ++child_retry) {
                 // RAII OnEntry: negotiates child->m_link + tags eagerly
-                // on retry > 0.  effective_retry blends the per-child
-                // local retry with the outer Node::commit / Node::snapshot
-                // retry so the m_should_tag=(retry!=0) gate fires on the
-                // first child iteration when the outer Tx is already in
-                // a known-contention retry.
-                const int _effective_retry = (child_retry != 0) ? child_retry
-                                                                : outer_retry;
+                // on retry > 0.
                 ScopedNegotiateLinkage<XN> child_scope(
-                    child->m_link, snap, _effective_retry,
+                    child->m_link, snap, child_retry,
                     ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
                 if( !child_scope) continue;  // weak acquire lost — retry
                 // Fast-path: child's m_link unchanged since last iter's
@@ -2267,8 +2256,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 // view for unbundle / recursive bundle, eliminating the
                 // previous view_copy + temporary subscope dance.
                 BundledStatus status = bundle_subpacket( &supscope,
-                    child, child_scope, subpacket_new, snap, bundle_serial,
-                    outer_retry);
+                    child, child_scope, subpacket_new, snap, bundle_serial);
                 switch(status) {
                 case BundledStatus::SUCCESS:
                     break;
@@ -2334,11 +2322,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
 
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
-            // Blend with outer_retry so dtor's tag fires even on the
-            // first Phase 3 pass when the outer Tx is known to be in
-            // contention (outer_retry > 0).
-            const int _eff_p3_retry = (retry != 0) ? retry : outer_retry;
-            ScopedNegotiateLinkage<XN> childScope(child->m_link, snap, _eff_p3_retry,
+            ScopedNegotiateLinkage<XN> childScope(child->m_link, snap, retry,
                 ScopedNegotiateLinkage<XN>::TagMode::OnExit,
                 2.0f / subnodes->size());
             if( !childScope) {
