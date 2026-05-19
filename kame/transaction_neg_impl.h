@@ -1476,7 +1476,24 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #else
                 (int64_t)KAME_STM_PREEMPT_WINDOW_US * 8;  // permissive default
 #endif
-            const bool _go_deep_sleep = (dt > _busy_dt_thresh);
+            // Re-evaluate dt with a FRESH slot load just before deciding
+            // sleep depth.  The dt computed at top-of-iteration (line
+            // ~1271) becomes stale by this point — spin_band_gate /
+            // fair_blocks spin / per-Linkage-priv probing may have run
+            // for non-trivial wall time between the two reads.  Without
+            // this re-evaluation, a thread can fire a 1 ms CV-sleep on
+            // a stale "I'm way behind" verdict even though the blocker
+            // has just committed and the slot is now cleared or held by
+            // a younger Tx (in which case we are the new oldest).
+            const typename NegotiationCounter::cnt_t _slot_now =
+                self->m_transaction_started_time.load(std::memory_order_relaxed);
+            if( !NegotiationCounter::is_active_stamp(_slot_now))
+                return true;  // slot cleared while we deliberated
+            const int64_t _dt_now = NegotiationCounter::signed_diff_us_packed(
+                started_time, _slot_now);
+            if(_dt_now <= 0)
+                return true;  // we are now the oldest
+            const bool _go_deep_sleep = (_dt_now > _busy_dt_thresh);
             typename NegotiationCounter::ReleaseOneCount onedown;
 #if KAME_STM_MIN_RUNNERS != 0
             // Sleep in 1 ms chunks so the MIN_RUNNERS check fires after this
