@@ -2080,30 +2080,17 @@ public:
         // (driven by the thread-local ScopedOpKind) while my_started_time
         // still has kind=NONE.
         const auto my_id = NC::strip_kind(m_started_time);
-#ifndef NDEBUG
-        int _pre_priv_held = 0;
-        if(m_registered_privileged) {
-            for(auto &sp : m_tagged_linkages) {
-                auto cur = sp->m_transaction_started_time.load(
-                    std::memory_order_relaxed);
-                if(NC::is_priv_stamp(cur)
-                   && NC::strip_kind(cur) == my_id)
-                    ++_pre_priv_held;
-            }
-        }
-#endif
         for(auto &sp : m_tagged_linkages) {
             if(NC::strip_kind(sp->m_transaction_started_time) == my_id) {
                 sp->m_transaction_started_time = 0;
             }
         }
-        // (c) Pre-drop invariant: if we held priv (m_registered_
-        // privileged=true), at least one tagged Linkage must have
-        // carried our Reserved stamp before we cleared.  If the
-        // count is 0, our priv was silently lost (rollback bug,
-        // double-drop, or stale flag).
-        assert(( !m_registered_privileged || _pre_priv_held > 0)
-               && "drop_tags_n_privilege: m_registered_privileged=true but no Linkage held our Reserved");
+        // Note: there is no "if priv flag is true then some Linkage still
+        // carries our Reserved" invariant.  A peer's tag_as_contender can
+        // preempt our Reserved on every Linkage (symmetric window rule)
+        // between negotiate calls without us noticing — our local flag is
+        // not synced.  The accounting decrement below stays paired with
+        // the increment regardless of what peers did to the slots.
         // If we held the fair-mode privilege, release it on commit so
         // subsequent stuck Txs can claim it.  Reset the local flag so
         // ~Transaction() won't attempt a redundant (and now stale)
