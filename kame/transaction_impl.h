@@ -997,17 +997,18 @@ Node<XN>::insert(const shared_ptr<XN> &var) {
 template <class XN>
 bool
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion) {
-    local_shared_ptr<Packet> packet;
-    try {
-        packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-    }
-    catch (NodeNotFoundError &) {
-        // `this` is no longer in tr's view (a peer released us before
-        // our commit landed) — treat as a benign retry signal.  Caller's
-        // iterate_commit*-driven retry loop re-snapshots and tries again.
+    // Non-throwing 5-arg reverseLookup overload: returns nullptr when
+    // `this` is no longer in tr's view (peer released us before our
+    // commit landed) — direct predicate check, no exception-driven
+    // fallback.  Benign retry signal: caller's iterate_commit*-driven
+    // retry loop re-snapshots and tries again.
+    local_shared_ptr<Packet> *packet_ptr =
+        reverseLookup(tr.m_packet, true, tr.m_serial, true, 0);
+    if( !packet_ptr) {
         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
         return false;
     }
+    local_shared_ptr<Packet> packet = *packet_ptr;
     packet->subpackets() = packet->size() ? std::make_shared<PacketList>( *packet->subpackets()) : std::make_shared<PacketList>();
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
@@ -1140,16 +1141,14 @@ Node<XN>::lookupFailure() const {
 template <class XN>
 bool
 Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
-    local_shared_ptr<Packet> packet;
-    try {
-        packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-    }
-    catch (NodeNotFoundError &) {
-        // `this` is no longer in tr's view (a peer released us before
-        // our commit landed) — benign retry signal.
+    // See insert() above for rationale on the 5-arg non-throwing form.
+    local_shared_ptr<Packet> *packet_ptr =
+        reverseLookup(tr.m_packet, true, tr.m_serial, true, 0);
+    if( !packet_ptr) {
         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
         return false;
     }
+    local_shared_ptr<Packet> packet = *packet_ptr;
     assert(packet->size());
     packet->subpackets().reset(new PacketList( *packet->subpackets()));
     packet->subpackets()->m_serial = tr.m_serial;
@@ -1280,15 +1279,14 @@ Node<XN>::swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
 template <class XN>
 bool
 Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
-    local_shared_ptr<Packet> packet;
-    try {
-        packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-    }
-    catch (NodeNotFoundError &) {
-        // `this` is no longer in tr's view — benign retry signal.
+    // See insert() above for rationale on the 5-arg non-throwing form.
+    local_shared_ptr<Packet> *packet_ptr =
+        reverseLookup(tr.m_packet, true, tr.m_serial, true, 0);
+    if( !packet_ptr) {
         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
         return false;
     }
+    local_shared_ptr<Packet> packet = *packet_ptr;
     packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
