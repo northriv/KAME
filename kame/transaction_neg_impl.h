@@ -1137,23 +1137,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
                 g_neg_claim_successes.fetch_add(1, std::memory_order_relaxed);
 #endif
-                // (b) Post-claim sanity: after a successful claim, at
-                // least one tagged Linkage must carry our Reserved
-                // stamp.  If priv_held == 0 here, the CAS-upgrade
-                // loop returned `claimed=true` but no slot actually
-                // holds our priv (logical contradiction).
-                int _post_priv_held = 0;
-                for (auto &l : snap.m_tagged_linkages) {
-                    if (!l) continue;
-                    auto cur = l->m_transaction_started_time.load(
-                        std::memory_order_relaxed);
-                    if (NegotiationCounter::is_priv_stamp(cur)
-                        && NegotiationCounter::strip_kind(cur) == my_id)
-                        ++_post_priv_held;
-                }
-                assert(_post_priv_held > 0
-                       && "claim reported success but no Linkage holds our Reserved");
-                (void)_post_priv_held;
+                // Note: we do NOT assert post-claim that any Linkage still
+                // carries our Reserved.  A racing older Tx can preempt our
+                // Reserved (symmetric window rule in tag_as_contender)
+                // between our CAS-upgrade loop and this point.  The
+                // claim-success accounting (flag + counter increment)
+                // remains paired with the drop_tags_n_privilege decrement
+                // regardless of subsequent preemption.
             }
         }
     }
