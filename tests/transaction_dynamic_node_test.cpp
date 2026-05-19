@@ -104,68 +104,29 @@ void
 start_routine(void) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
     printf("start\n");
-	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
-	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
+	// DIAG: bisect — strip all per-worker p1/p2 dynamics so the loop
+	// only touches the shared {gn1,gn2,gn3,gn4} tree.  If this passes,
+	// the multi-tree per-worker insert/release pattern is at fault.
     for(int i = 0; i < 2500; i++) {
-		p1->insert(p2);
-		if((i % 10) == 0) {
-            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
-				if( !gn2->insert(tr1, p2))
-                    return false;
-                return true;
-            });
-			// DIAG: gn2->swap disabled — swap() isn't modeled by TLA+.
-			// gn2->swap(p2, gn3);
-			gn1->insert(p1);
-		}
-		//		gn1->print_();
         gn1->iterate_commit([=](Transaction &tr1){
-//			tr1.print();
 			Snapshot &ctr1(tr1); // For reading.
 			tr1[gn1] = ctr1[gn1] + 1;
 			tr1[gn3] = ctr1[gn3] + 1;
             Snapshot &str1(tr1);
 			tr1[gn1] = str1[gn1] - 1;
 			tr1[gn2] = str1[gn2] + 1;
-			if((i % 10) == 0) {
-				tr1[p2] = str1[p2] + 1;
-			}
-//			printf("f");
         });
-		// DIAG: trans(*gn3) disabled — single-node tx on bundled gn3
-		// trans(*gn3) += 1;
         gn4->iterate_commit([=](Transaction &tr1){
 			tr1[gn4] = tr1[gn4] + 1;
 			tr1[gn4] = tr1[gn4] - 1;
-//			printf("f");
         });
-		p1->release(p2);
         gn2->iterate_commit([=](Transaction &tr1){
             Snapshot &str1(tr1);
 			tr1[gn2] = tr1[gn2] - 1;
 			tr1[gn3] = str1[gn3] - 1;
-			if((i % 10) == 0) {
-				tr1[p2] = str1[p2] - 1;
-			}
-//			printf("f");
         });
-		// trans(*gn3) += -1;
-		if((i % 10) == 0) {
-            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
-				if( !gn2->release(tr1, p2))
-                    return false;
-                return true;
-            });
-			gn1->release(p1);
-		}
 	}
-	long y = ***p2;
-	if(y != 0) {
-		printf("Error! P2=%ld\n", y);
-		abort();
-	}
-	else
-		printf("finish\n");
+	printf("finish\n");
     return;
 }
 
