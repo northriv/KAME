@@ -654,16 +654,21 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
     }
 
     // Owner-skip: if the lease's tid matches us and the lease has not
-    // expired, return without negotiating (we hold the slot).  P2
-    // (per user "P0 はアドホックゲートが多すぎて哲学がない") removed the
-    // KAME_DT2_FAIRNESS_US dt2 suppression — the lease is the only
-    // principled exception to strict older-wins.
+    // expired, return without negotiating (we hold the slot).
+    // Restored per user "Ｐ２系列のＢ−１部分を戻してみては？" —
+    // P2 (d5eb6f3d) had removed the KAME_DT2_FAIRNESS_US dt2
+    // suppression as ad-hoc, but bench on the other session shows the
+    // un-suppressed owner-skip causes a measurable slowdown (long-held
+    // peer Tx → owner skips while peer is still mid-commit).  Restore
+    // the suppression so owner-skip is gated on "no severe contention
+    // observed in the most-recent negotiate() call".
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
 #if KAME_STM_MIN_RUNNERS != 0
     const int min_r_pre = effective_min_runners(1);
     if(NegotiationCounter::numThreadsRunning() < min_r_pre)
 #endif
-    if(my_tid == ps.tid) {
+    if(my_tid == ps.tid
+        && adapt_dt2_last_us < (uint64_t)KAME_DT2_FAIRNESS_US) {
         // Age in µs via modular 32-bit subtraction (wrap-safe up to ~35 min).
         uint32_t age_us = (uint32_t)now_us_entry - ps.start_us;
         if(age_us < (uint32_t)ps.lease_us) {
