@@ -104,12 +104,19 @@ void
 start_routine(void) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
     printf("start\n");
-	// DIAG: bisect — strip all per-worker p1/p2 dynamics so the loop
-	// only touches the shared {gn1,gn2,gn3,gn4} tree.  If this passes,
-	// the multi-tree per-worker insert/release pattern is at fault.
+	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
+	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
+	// DIAG: bisect — restore p1->insert(p2) + gn1 insert/release of p1
+	// (worker-local p1 owns worker-local p2 → no hard link to shared
+	// tree).  If this passes, hard-link is the culprit; if it fails,
+	// even non-hard-link multi-tree insertion is buggy.
     for(int i = 0; i < 2500; i++) {
+		p1->insert(p2);
+		if((i % 10) == 0) {
+			gn1->insert(p1);   // p1 (with p2 as child) attaches to gn1
+		}
         gn1->iterate_commit([=](Transaction &tr1){
-			Snapshot &ctr1(tr1); // For reading.
+			Snapshot &ctr1(tr1);
 			tr1[gn1] = ctr1[gn1] + 1;
 			tr1[gn3] = ctr1[gn3] + 1;
             Snapshot &str1(tr1);
@@ -120,11 +127,15 @@ start_routine(void) {
 			tr1[gn4] = tr1[gn4] + 1;
 			tr1[gn4] = tr1[gn4] - 1;
         });
+		p1->release(p2);
         gn2->iterate_commit([=](Transaction &tr1){
             Snapshot &str1(tr1);
 			tr1[gn2] = tr1[gn2] - 1;
 			tr1[gn3] = str1[gn3] - 1;
         });
+		if((i % 10) == 0) {
+			gn1->release(p1);
+		}
 	}
 	printf("finish\n");
     return;
