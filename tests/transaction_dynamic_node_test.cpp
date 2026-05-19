@@ -113,7 +113,13 @@ start_routine(void) {
     for(int i = 0; i < 2500; i++) {
 		p1->insert(p2);
 		if((i % 10) == 0) {
-			gn1->insert(p1);   // p1 (with p2 as child) attaches to gn1
+            // hard link: p2 also becomes a child of gn2
+            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
+				if( !gn2->insert(tr1, p2))
+                    return false;
+                return true;
+            });
+			gn1->insert(p1);
 		}
         gn1->iterate_commit([=](Transaction &tr1){
 			Snapshot &ctr1(tr1);
@@ -122,6 +128,9 @@ start_routine(void) {
             Snapshot &str1(tr1);
 			tr1[gn1] = str1[gn1] - 1;
 			tr1[gn2] = str1[gn2] + 1;
+			if((i % 10) == 0) {
+				tr1[p2] = str1[p2] + 1;
+			}
         });
         gn4->iterate_commit([=](Transaction &tr1){
 			tr1[gn4] = tr1[gn4] + 1;
@@ -132,8 +141,16 @@ start_routine(void) {
             Snapshot &str1(tr1);
 			tr1[gn2] = tr1[gn2] - 1;
 			tr1[gn3] = str1[gn3] - 1;
+			if((i % 10) == 0) {
+				tr1[p2] = str1[p2] - 1;
+			}
         });
 		if((i % 10) == 0) {
+            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
+				if( !gn2->release(tr1, p2))
+                    return false;
+                return true;
+            });
 			gn1->release(p1);
 		}
 	}

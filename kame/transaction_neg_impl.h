@@ -1610,19 +1610,15 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     NegotiationCounter::notify_n_contenders(tid_bitset,
                                                             std::min(min_r - running - 1, C_obs),
                                                             preferred_kind_for_wake());
-                    return false;
+                    continue;  // DIAG: was `return false` — view-skip path
                 }
-                // Younger step-aside.  Threads in the top-MAX-by-age
-                // band busy-spin (skip wait → continue → top-of-loop
-                // re-checks dt); the rest CV-sleep 1 ms then continue.
-                // Either way the loop re-evaluates dt at the top with
-                // a fresh slot load, so when the blocker commits we
-                // promptly observe the cleared / rotated slot.
+                // DIAG: was `return false` (view-skip) — replaced with
+                // `continue` so the loop re-evaluates instead of forcing
+                // the caller's ctor into the empty-m_view path.
                 if(_go_deep_sleep) {
                     NegotiationCounter::negotiate_sleep(1, started_time);
-                    return false;
                 }
-                return false;
+                continue;
             }
 #else
             NegotiationCounter::negotiate_sleep(ms_actual, started_time);
