@@ -1288,6 +1288,37 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 
         NegSite::last_was_gate_return() = false;
 
+#if defined(KAME_STM_RESTORE_GATING) && KAME_STM_RESTORE_GATING
+        // ABLATION: re-enable the P2-removed dt2 jittered gate to
+        // measure its empirical contribution.  Build with
+        // -DKAME_STM_RESTORE_GATING=1.  Philosophy note: this is the
+        // ad-hoc "occasional younger CAS" mechanism the user removed
+        // in d5eb6f3d as principle-violating; restored here only for
+        // bench, not as a recommendation for default.
+        if(entry_pr != Priority::LOWEST && dt > 0 && !_fair_blocks) {
+            const auto _dt2_now = NegotiationCounter::diff_us_packed(
+                Node<XN>::NegotiationCounter::now_us(),
+                transaction_started_time);
+            s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
+            uint32_t r_j = (s_backoff_seed >> 16) & 0xFFFFu;
+            enum {
+                JITTER_LO  = (100 - KAME_STM_JITTER_RANGE) * 65536 / 100,
+                JITTER_DIV = 100 / (2 * KAME_STM_JITTER_RANGE)
+            };
+            const float _mult_wait = m_mult_wait;
+            uint64_t lhs_j = (uint64_t)(_mult_wait * KAME_STM_GATE_MULT * (double)dt)
+                           * (uint64_t)(JITTER_LO + r_j / JITTER_DIV);
+            uint64_t rhs_j = (uint64_t)_dt2_now * 65536u;
+            if((KAME_STM_GATE_MULT > 0.0f) && (lhs_j < rhs_j)) {
+#if KAME_STM_MAX_RUNNERS != 0
+                const int max_r = effective_max_runners(C_obs);
+                if(NegotiationCounter::numThreadsRunning() < max_r)
+#endif
+                    return true; // gate fires — younger earned a CAS
+            }
+        }
+#endif // KAME_STM_RESTORE_GATING
+
         if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
             fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
