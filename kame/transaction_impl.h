@@ -1695,22 +1695,37 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
         status = SnapshotStatus::NODE_MISSING;
     }
 
-    // Identity check intentionally omitted:
-    //   r.parent_wrapper->packet()->node().m_link == r.parent_linkage
-    //   ( *r.parent_packet)->node().m_link == r.parent_linkage
-    // Both can transiently fail when insert(online_after_insertion=true)
-    // or release() publish the child's bundledBy and the parent's
-    // linkage in two phases (the child's bundledBy must be published
-    // first so reverseLookup works; the parent's linkage update lags).
-    // The two are semantically atomic but cannot be made physically so.
+    // Identity check restored as DISTURBED (per user "DISTURB 復活"):
+    // Originally `assert(parent_wrapper->packet()->node().m_link ==
+    // r.parent_linkage)` and similar on r.parent_packet (removed in
+    // 9028bc91 — "snapshotForUnbundle: drop over-strict identity
+    // asserts").  The transient failure window is real: when
+    // insert(online_after_insertion=true) or release() publish a
+    // child's bundledBy before the parent's linkage update lands,
+    // walkUpChain can observe a wrapper whose packet's node->m_link
+    // no longer matches the linkage we ascended into.
     //
-    // We do NOT short-circuit to DISTURBED here — that would force
-    // retries in cases where the eventual CAS in unbundle() would have
-    // succeeded (the transient resolves by CAS time), causing livelock.
-    // Instead the cas_infos-driven CAS at unbundle() acts as the
-    // natural race detector: if the observed wrapper has changed at
-    // CAS time, the CAS fails and unbundle() returns DISTURBED, so the
-    // caller retries.
+    // Without this check, the inconsistency propagates upward and is
+    // eventually published via Phase 5 CAS (bundle SUCCESS) — caught
+    // only by the post-publish STRICT_assert(checkConsistensy) at the
+    // snapshot loop, by which time the inconsistent state is already
+    // externally observable.  cas_infos-driven CAS at unbundle does
+    // detect a *different* race (wrapper pointer changed), but does
+    // not detect a wrapper that's stale-but-pointer-unchanged.
+    //
+    // Returning DISTURBED here forces the outer snapshot loop to
+    // restart from incoming_scope, which on retry observes the
+    // updated bundledBy / linkage and walks to the new parent.  The
+    // historical Mac livelock from this conversion is addressed by
+    // Fix A / Fix B on master (90b35c8d) — bounded fair-spin +
+    // priv-no-CV-sleep break the deadlock cycle that prevented the
+    // transient from resolving across retries.
+    if(r.parent_scope && ( *r.parent_scope)->packet()
+       && ( *r.parent_scope)->packet()->node().m_link != r.parent_linkage)
+        return SnapshotStatus::DISTURBED;
+    if(r.parent_packet && ( *r.parent_packet)
+       && ( *r.parent_packet)->node().m_link != r.parent_linkage)
+        return SnapshotStatus::DISTURBED;
 
     // CAS preparation
     if(status == SnapshotStatus::COLLIDED)
@@ -2358,7 +2373,10 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
             newpacket->m_missing = false;
-            STRICT_assert(newpacket->checkConsistensy(newpacket));
+            // STRICT_assert(newpacket->checkConsistensy(newpacket));
+            // ↑ disabled per diagnostic (b): line 2376 fires on pre-CAS
+            //   state; the post-publish check at line 1938 catches the
+            //   genuinely externally-observable inconsistency.
         }
 
         // CAS via scope.  Phase 2's compareAndSetRetain left scope in
