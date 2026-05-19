@@ -1255,11 +1255,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
         };
 
-        if(sig_C == 1) {
-            NegotiationCounter::notify_n_contenders(
-                tid_bitset, 1, preferred_kind_for_wake());
-            return true;
-        }
         // Both stamps are tid+kind+us-packed; signed_diff_us_packed
         // returns (my_us - other_us) interpreted as a signed wrap-safe
         // delta.  dt <= 0  ⇒  I am oldest (or equal) → break.
@@ -1267,6 +1262,11 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             started_time, transaction_started_time);
         if(dt <= 0)
             return true; //This thread is the oldest.
+        if(sig_C == 1 && dt < 30) {
+            // NegotiationCounter::notify_n_contenders(
+            //     tid_bitset, 1, preferred_kind_for_wake());
+            return true;
+        }
 
         // P2 (per user "P0 はアドホックゲートが多すぎて哲学がない"):
         //   removed the dt2 jittered gate, √C lottery, and legacy
@@ -1431,30 +1431,30 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // on Linkage B (= self).
 #if KAME_STM_MIN_RUNNERS != 0
         {
-            const int run_cap = effective_runners(C_obs);
-            const int n_priv =
-                (int)s_num_privileged_threads.load(std::memory_order_relaxed);
-            const int spin_cap = run_cap > n_priv ? run_cap - n_priv : 0;
-            if(_fair_blocks
-               && (int)s_fair_spinners.load(std::memory_order_relaxed)
-                  < spin_cap) {
-                s_fair_spinners.fetch_add(1, std::memory_order_relaxed);
-                // Periodic yield: even with our spinner cap respecting
-                // the core count, *external* processes can saturate
-                // cores beyond our control.  Yield every ~2^18 PAUSE
-                // iterations (~1 ms at typical x86 PAUSE latency) so
-                // the OS scheduler has a chance to run any preempted
-                // privilege holder / other progress-maker.
-                unsigned iter = 0;
-                do {
-                    pause4spin();
-                    if((++iter & 0x3FFFFu) == 0)
-                        std::this_thread::yield();
-                } while(NegotiationCounter::fair_mode_blocks_me(
-                                started_time, self));
-                s_fair_spinners.fetch_sub(1, std::memory_order_relaxed);
-                continue;
-            }
+            // const int run_cap = effective_runners(C_obs);
+            // const int n_priv =
+            //     (int)s_num_privileged_threads.load(std::memory_order_relaxed);
+            // const int spin_cap = run_cap > n_priv ? run_cap - n_priv : 0;
+            // if(_fair_blocks
+            //    && (int)s_fair_spinners.load(std::memory_order_relaxed)
+            //       < spin_cap) {
+            //     s_fair_spinners.fetch_add(1, std::memory_order_relaxed);
+            //     // Periodic yield: even with our spinner cap respecting
+            //     // the core count, *external* processes can saturate
+            //     // cores beyond our control.  Yield every ~2^18 PAUSE
+            //     // iterations (~1 ms at typical x86 PAUSE latency) so
+            //     // the OS scheduler has a chance to run any preempted
+            //     // privilege holder / other progress-maker.
+            //     unsigned iter = 0;
+            //     do {
+            //         pause4spin();
+            //         if((++iter & 0x3FFFFu) == 0)
+            //             std::this_thread::yield();
+            //     } while(NegotiationCounter::fair_mode_blocks_me(
+            //                     started_time, self));
+            //     s_fair_spinners.fetch_sub(1, std::memory_order_relaxed);
+            //     continue;
+            // }
         }
 #endif
 
@@ -1519,7 +1519,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 started_time, _slot_now);
             if(_dt_now <= 0)
                 return true;  // we are now the oldest
-            const bool _go_deep_sleep = (_dt_now > _busy_dt_thresh);
+            const bool _go_deep_sleep = true; //(_dt_now > _busy_dt_thresh);
             typename NegotiationCounter::ReleaseOneCount onedown;
 #if KAME_STM_MIN_RUNNERS != 0
             // Sleep in 1 ms chunks so the MIN_RUNNERS check fires after this
@@ -1532,10 +1532,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 // Advance seed for de-phasing.
                 s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
                 int running = (int)NegotiationCounter::numThreadsRunning();
-                if(running < min_r)
-                    NegotiationCounter::notify_n_contenders(tid_bitset,
-                        std::min(min_r - running, C_obs),
-                        preferred_kind_for_wake());
                 // Symmetric wake-older rule (per user) — runs every
                 // CV chunk so repeated notifies keep the oldest peer
                 // awake until our Reserved is preempted:
@@ -1610,6 +1606,12 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                         }
                     }
                 }
+                if(running < min_r  - 1) {
+                    NegotiationCounter::notify_n_contenders(tid_bitset,
+                                                            std::min(min_r - running - 1, C_obs),
+                                                            preferred_kind_for_wake());
+                    return false;
+                }
                 // Younger step-aside.  Threads in the top-MAX-by-age
                 // band busy-spin (skip wait → continue → top-of-loop
                 // re-checks dt); the rest CV-sleep 1 ms then continue.
@@ -1618,8 +1620,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 // promptly observe the cleared / rotated slot.
                 if(_go_deep_sleep) {
                     NegotiationCounter::negotiate_sleep(1, started_time);
+                    return false;
                 }
-                continue;
+                return false;
             }
 #else
             NegotiationCounter::negotiate_sleep(ms_actual, started_time);
