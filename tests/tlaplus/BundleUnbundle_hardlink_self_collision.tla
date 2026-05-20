@@ -250,10 +250,11 @@ BundlePhase2(t) ==
             /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
             /\ UNCHANGED <<linkage, hardlinkDone, bundleDone>>
 
-\* Phase 3 (CAS child) — CAS A and C wrappers to BundledRefWrapper(R).
-\* Per superfine atomicity, the two are separate CAS steps; we model
-\* them as one nondeterministic choice over which child to flip next.
-\* If wrapper changed by peer, abort & retry from Phase 1.
+\* Phase 3 (CAS child) — CAS A's wrapper to BundledRefWrapper(R).
+\* C is A's child and stays bundledBy=A (its packet remains under
+\* A.sub[C]); R.sub[C] = Null is the legitimate hardlink reference.
+\* So Phase 3 only re-tags A.  If A wrapper changed by peer, abort &
+\* retry from Phase 1.
 BundlePhase3(t) ==
     /\ pc[t] = "bundle_phase3"
     /\ \/ \* CAS A
@@ -261,42 +262,19 @@ BundlePhase3(t) ==
           /\ linkage' = [linkage EXCEPT ![A] = BundledRefWrapper(R)]
           /\ local' = [local EXCEPT ![t].aWrapper =
                   [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> R]]
-          /\ LET cDone == local[t].cWrapper = Null
-                          \/ linkage[C].bundledBy = R
-             IN
-             IF cDone
-             THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-             ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]
+          /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
           /\ UNCHANGED <<hardlinkDone, bundleDone, retryCount>>
-       \/ \* CAS C
-          /\ linkage[C] = local[t].cWrapper
-          /\ linkage[C].bundledBy = A   \* re-tag from A to R
-          /\ ~hardlinkDone   \* without hardlink, C migrates to R directly
-          /\ linkage' = [linkage EXCEPT ![C] = BundledRefWrapper(R)]
-          /\ local' = [local EXCEPT ![t].cWrapper =
-                  [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> R]]
-          /\ LET aDone == linkage[A].bundledBy = R
-             IN
-             IF aDone
-             THEN pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-             ELSE pc' = [pc EXCEPT ![t] = "bundle_phase3"]
-          /\ UNCHANGED <<hardlinkDone, bundleDone, retryCount>>
-       \/ \* Both already done OR C is hardlinked and stays under A
+       \/ \* A already at R — skip Phase 3
           /\ linkage[A].bundledBy = R
-          /\ (hardlinkDone \/ linkage[C].bundledBy = R)
           /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
           /\ UNCHANGED <<linkage, local, hardlinkDone, bundleDone, retryCount>>
 
-\* Phase 3 fail — wrappers diverged from collected; retry Phase 1.
+\* Phase 3 fail — A's wrapper diverged from collected; retry Phase 1.
 BundlePhase3Fail(t) ==
     /\ pc[t] = "bundle_phase3"
-    /\ \/ /\ local[t].aWrapper /= Null
-          /\ linkage[A] /= local[t].aWrapper
-          /\ linkage[A].bundledBy /= R
-       \/ /\ local[t].cWrapper /= Null
-          /\ ~hardlinkDone
-          /\ linkage[C] /= local[t].cWrapper
-          /\ linkage[C].bundledBy /= R
+    /\ local[t].aWrapper /= Null
+    /\ linkage[A] /= local[t].aWrapper
+    /\ linkage[A].bundledBy /= R
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
