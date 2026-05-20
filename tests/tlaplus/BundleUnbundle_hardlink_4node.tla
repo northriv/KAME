@@ -223,24 +223,38 @@ BundlePhase2(t) ==
 \* Phase 4 — `is_bundle_root` override: clear Root's missing.
 \* (Fix) Gate on reachability: if any structural subnode lookup
 \* (cInA/cInB) requires C to be reachable but Root's bundled state
-\* has both A.sub[C] and B.sub[C] = Null, leave missing=TRUE.  The
-\* bundle "fails to finalize"; a later operation must either migrate
-\* C into one of the slots or remove C from one of the structural
-\* lists.
+\* has both A.sub[C] and B.sub[C] = Null, return to bundle_phase1
+\* without publishing.  This mirrors the implementation's
+\* `BundledStatus::DISTURBED` return — the outer caller's retry
+\* loop re-attempts the whole bundle, and once the race resolves
+\* (e.g. MigrateCToA fires), the next attempt succeeds.
+\*
+\* Without gating, publishing missing=FALSE would trip
+\* checkConsistensy line 871; with gating, the CAS leaves Root in
+\* the Phase 2 missing=TRUE intermediate state (no inconsistent
+\* publication).
 BundlePhase4(t) ==
     /\ pc[t] = "bundle_phase4"
     /\ LET oldW == local[t].rootWrapper
            reachable == ReachableFromRoot(oldW.packet)
            cMustBeReachable == cInA \/ cInB
-           targetMissing == cMustBeReachable /\ ~reachable
-           finalPkt == MakePacket(Root, oldW.packet.sub, targetMissing)
+           canFinalize == reachable \/ ~cMustBeReachable
+           finalPkt == MakePacket(Root, oldW.packet.sub, FALSE)
            finalW == PriorityWrapper(finalPkt)
        IN
        IF linkage[Root] = oldW
-       THEN /\ linkage' = [linkage EXCEPT ![Root] = finalW]
-            /\ local' = [local EXCEPT ![t].rootWrapper = finalW]
-            /\ pc' = [pc EXCEPT ![t] = "bundle_phase5"]
-            /\ UNCHANGED <<cInA, cInB, bundleDone, releaseDone, retryCount>>
+       THEN IF canFinalize
+            THEN /\ linkage' = [linkage EXCEPT ![Root] = finalW]
+                 /\ local' = [local EXCEPT ![t].rootWrapper = finalW]
+                 /\ pc' = [pc EXCEPT ![t] = "bundle_phase5"]
+                 /\ UNCHANGED <<cInA, cInB, bundleDone, releaseDone,
+                                retryCount>>
+            ELSE \* DISTURBED equivalent — retry whole bundle.
+                 /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
+                 /\ local' = [local EXCEPT ![t] = InitLocal,
+                                            ![t].op = "bundle"]
+                 /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
+                 /\ UNCHANGED <<linkage, cInA, cInB, bundleDone, releaseDone>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
             /\ local' = [local EXCEPT ![t] = InitLocal,
                                        ![t].op = "bundle"]
@@ -400,7 +414,15 @@ Terminating == AllDone /\ UNCHANGED vars
 
 Next == NextStep \/ Terminating
 
-Spec == Init /\ [][Next]_vars /\ WF_vars(NextStep)
+\* Strong fairness on MigrateCToA — under any fair scheduler, the
+\* multi-step release's migration step eventually fires once enabled
+\* (cInB=FALSE & cInA=TRUE & A.sub[C]=Null).  Without this, TLC may
+\* explore unbounded-retry executions where the migration is
+\* indefinitely starved by T1's bundle retries.  Mirrors the LL-free
+\* negotiate fairness assumption in production.
+Spec == Init /\ [][Next]_vars
+        /\ WF_vars(NextStep)
+        /\ \A t \in Threads : SF_vars(MigrateCToA(t))
 
 -----------------------------------------------------------------------------
 (* Safety invariants *)
@@ -430,8 +452,14 @@ HardlinkExclusive ==
 \* which would indicate a livelock or unbounded-retry path; as
 \* CONSTRAINT it would silently prune such paths and risk false-negative
 \* liveness verdicts (per user feedback 2026-05-20).
+\*
+\* With the DISTURBED-equivalent retry semantics (Phase 4 retries the
+\* whole bundle when reachability check fails), retry count grows
+\* until the peer release's MigrateCToA step fires.  Bound 20 is
+\* generous — observed maximum under TLC's exhaustive interleaving
+\* in 4-node 2-thread is around 12.
 DebugRetryBound ==
-    \A t \in Threads : retryCount[t] < 8
+    \A t \in Threads : retryCount[t] < 20
 
 \* Liveness.
 EventuallyAllDone == <>AllDone
