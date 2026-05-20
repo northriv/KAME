@@ -2417,13 +2417,20 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             // If not, the published ~missing state would trip
             // checkConsistensy line 871 (the production "30/30 abort"
             // pattern, see tests/tlaplus/BundleUnbundle_hardlink_4node).
-            // Leave m_missing=true and let the outer retry loop
-            // re-attempt — once the race resolves (e.g. a multi-step
-            // release completes its migration step), the next bundle
-            // finalizes cleanly.
+            // Return DISTURBED so the outer snapshot() retry loop
+            // re-attempts the whole bundle — once the race resolves
+            // (e.g. a multi-step release completes its migration step),
+            // the next bundle finalizes cleanly.
+            // (Returning SUCCESS with m_missing=true would trip the
+            //  `assert(!scope->packet()->missing())` in the caller.)
             if(newpacket->allSubReachable(newpacket)) {
                 newpacket->m_missing = false;
                 STRICT_assert(newpacket->checkConsistensy(newpacket));
+            }
+            else {
+                scope.confirm_contention();
+                scope.commit();
+                return BundledStatus::DISTURBED;
             }
         }
 
