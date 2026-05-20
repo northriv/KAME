@@ -1,5 +1,153 @@
 # TLA+ Verification Log
 
+## 2026-05-20: Hard-link models (`BundleUnbundle_hardlink_*.tla`)
+
+### Context
+
+Production reports of low-frequency `dyn_node_test` aborts on one
+environment ("30/30 abort on another env") motivated formal modelling of
+the bundle/unbundle protocol under hard-link topologies — a child node
+referenced from two parents.  The hard-link case had only been called
+out informally in `CLAUDE.md` / `README.md` as a "transactions may
+always fail and retry" liveness caveat; no formal model existed.
+
+Two complementary topologies were modelled:
+
+| Spec | Topology |
+|---|---|
+| `BundleUnbundle_hardlink_dynamic.tla` | sibling parents (Parent1 ‖ Parent2 → DynChild1) |
+| `BundleUnbundle_hardlink_self_collision.tla` | self-collision (R-root → A → C, R also direct parent of C) |
+
+### `_hardlink_dynamic` (sibling-parents, superfine)
+
+Adapted from `BundleUnbundle_2level_LLfree_dynamic.tla`.  Init places
+hardlink topology directly (skip the second-insert: an insert into the
+parent that already shares the child requires its own migration logic
+inside the insert pipeline — deferred for this minimal spec).
+
+Operations: bundle/unbundle/commit/release of either parent's subtree.
+Migration cascade `MigrateClearOther` triggers when one parent's
+bundle finds the shared child currently bundled under the other parent.
+
+Invariants (all hold under exhaustive exploration):
+* `SnapshotConsistency`, `HardlinkExclusive` (new), `BundleRefConsistency`,
+  `NoPriorityLoss`, `MissingPropagation`, `QuiescentCheck`, `TerminalPayloadCheck`
+
+| Config | Distinct states | Result |
+|---|---|---|
+| 1-thread, MaxCommits=1 | 7 | PASS |
+| 2-thread, MaxCommits=1 | 62 | PASS |
+| 2-thread, MaxCommits=2 | 703 | PASS |
+
+This variant did **not** reproduce the production-suspected bug — the
+race surface is the `MigrateClearOther` phase, which appears
+self-contained in this topology.
+
+### `_hardlink_self_collision` (R-A-C, superfine, 6 actions)
+
+Per user proposal: minimum non-trivial hard-link topology has **the
+root also as direct parent** of the shared child:
+
+```
+       R           (bundle root, direct parent of C)
+      / \
+     A   |         (intermediate; A is also parent of C)
+      \ /
+       C           (hard-linked: direct child of both R and A)
+```
+
+Initial state: post-bundle(R), `A.bundledBy=R`, `C.bundledBy=A`.
+Operations: 5-phase bundle(R, is_bundle_root=TRUE) + `InsertHardLink`
+(atomic register C as direct child of R, with `R.sub[C] = Null` since
+C's packet still lives in `A.sub[C]`).  No commit / no release —
+bundle is the bug carrier.
+
+`SnapshotConsistency` mirrors `Packet::checkConsistensy` at
+`transaction_impl.h:870-871`: a `Null` sub-slot is consistent iff the
+root packet is missing OR the child is reachable via `reverseLookup`
+(through the A→C path for hard-link).
+
+A new debug invariant `DebugRetryBound == \A t : retryCount[t] < 10`
+caps per-thread bundle-Phase-1 entries to expose runaway-retry paths
+(Lamport-bound equivalent for this serial-less spec).
+
+### Bug reproduction
+
+| Config | Result |
+|---|---|
+| 2-thread | **FAIL** — `SnapshotConsistency` violated at 376 states / 222 distinct |
+
+Trace summary (T1 bundles R, T2 races with InsertHardLink):
+1. T1 Phase 2 → R `missing=TRUE` with collected `sub[A]`
+2. T1 Phase 3 → CAS C `bundledBy: A → R` (modeled in this earlier
+   draft of Phase 3; see fix below)
+3. T2 InsertHardLink CAS R → resets `missing=FALSE` (intermediate state
+   destroyed)
+4. T1 Phase 4 fails → retry Phase 1
+5. T1 Phase 1 re-collect → C's `bundledBy=R` already, all branches that
+   recover `cSubPkt` were tied to `bundledBy=A` → `cSubPkt = Null`
+6. T1 Phase 2 republishes R with `sub[A].sub[C] = Null` AND
+   `sub[C] = Null` → `ReachableFrom(R, C) = FALSE` → violation
+
+This trace pattern matches the production "30/30 abort" reports: the
+bundle's retry path does not preserve the migration state of children
+already CAS-tagged in a previous attempt; the second collection from
+stale assumptions corrupts the tree.
+
+### Fix simulation
+
+Proposed C++-side rule: `BundlePhase3` should only CAS child wrappers
+whose packets actually move into `parent.sub[]`.  Hard-link references
+(`parent.sub[c] = Null`, packet lives elsewhere) must be skipped:
+
+```cpp
+for (child in subnodes) {
+    if (local.subpackets[child] == nullptr) continue;  // ← NEW
+    // existing CAS to BundledRef(this)
+}
+```
+
+Applied in the model:
+- `BundlePhase3` only CAS-tags A (the child whose packet moves into
+  `R.sub[A]`).  C stays bundled under A.
+- `BundlePhase3Fail` simplified to only A-wrapper divergence.
+
+Results after fix:
+
+| Config | Distinct states | Result |
+|---|---|---|
+| 2-thread | 270 | PASS + liveness |
+| 3-thread | 6,396 | PASS + liveness |
+
+### Rejected alternative
+
+A simpler fix — gate `InsertHardLink` on `~R.packet.missing` (wait
+until the in-flight bundle clears) — was tried.  TLC passed, but the
+fix is unacceptable: it breaks lock-freedom (busy-wait equivalent on
+the bundling thread) and risks 3-thread deadlock when multiple
+inserters wait on the same in-flight bundle.  Rejected.
+
+### Impact on non-hard-link models
+
+The Phase 3 skip-Null fix only triggers when `local.subpackets[c] ==
+Null`.  In the existing 2level / 3level dynamic models and the C++
+tests (`dyn_node_test`, `3level_mixed_test`, `payload_integrity_*`),
+every inserted child's packet lives in exactly one parent's `sub[]` —
+no `Null` sub-slot in steady state — so the fix is a no-op for them.
+
+### Open follow-ups
+
+- C++ implementation of the Phase 3 skip-Null rule in
+  `kame/transaction_impl.h`'s `bundle` Phase 3 loop, then re-run the
+  affected stress tests in the env that previously reproduced
+  "30/30 abort"
+- Per-parent insert pipeline that handles the second-insert
+  (inserting into a parent while the child is already homed at the
+  other parent) — currently the `_hardlink_dynamic` model gates that
+  out at Init; a richer model could exercise the migrating-insert path
+
+---
+
 ## 2026-05-04: 3-level dynamic model (`BundleUnbundle_3level_LLfree_dynamic.tla`)
 
 ### Context

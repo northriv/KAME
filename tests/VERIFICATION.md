@@ -9,7 +9,9 @@ Three complementary verification approaches covering the full stack.
   commit-style primitives (`compareAndSet_impl_`, `scoped_atomic_view`,
   drain `release_tag_ref_`) — merged: the modern API exposes commit-level
   operations directly, subsuming the formerly separate "stm_commit" layer.
-- **Layer 2 (TLA+)**: 2/3-level bundle/unbundle with LL-free negotiate.
+- **Layer 2 (TLA+)**: 2/3-level bundle/unbundle with LL-free negotiate,
+  plus hard-link topologies (sibling parents and root-with-intermediate
+  self-collision).
 
 | Layer | Tool | Target | What it verifies |
 |---|---|---|---|
@@ -405,7 +407,123 @@ Wait-free is not claimed at either layer — CAS-retry-based with fairness
 
 ---
 
-## 5. Runtime Stress Tests (C++)
+## 5. TLA+ Layer 2, Hard-link Verification (2-parent + 1-child topologies)
+
+**Directory:** `tests/tlaplus/`
+**Specs:**
+- `BundleUnbundle_hardlink_dynamic.tla` — sibling-parents variant (Parent1 || Parent2 share DynChild1)
+- `BundleUnbundle_hardlink_self_collision.tla` — self-collision variant (R-root + intermediate parent A, both directly parent of C)
+
+### Background
+
+The "hard-link" case — one child node referenced from two distinct parents
+— had been called out informally in `CLAUDE.md` / `README.md` as a
+"transactions may always fail and retry" liveness caveat.  Production
+reports of low-frequency dyn_node aborts ("30/30 abort on another env")
+prompted formal modelling of the protocol under hard-link topologies.
+
+Two complementary topologies are modelled:
+
+| Spec | Topology | Bug surface |
+|---|---|---|
+| `_hardlink_dynamic` | Parent1 ‖ Parent2 → DynChild1 (sibling parents) | migration race when one parent's bundle pulls the child from the other parent's `sub[]` |
+| `_hardlink_self_collision` | R → A → C and R → C (root is also direct parent) | bundle(R) walks both R→C and R→A→C; the `is_bundle_root` Phase 4 `m_missing=false` override interacts with the doubled path |
+
+### Self-collision: bug repro and fix simulation
+
+The self-collision spec (`_hardlink_self_collision`) reproduces a real
+race captured in the production trace and confirms a proposed fix.
+
+**Bug surface:** during `bundle(R)` Phase 2 (R missing=TRUE, child sub-packets
+collected), a peer thread's `insert(R, C)` (hard-link registration) CAS
+of R may execute, overwriting R's wrapper with `missing=FALSE`.  The
+bundling thread's Phase 4 CAS then fails; on retry, Phase 1 collects C
+via a now-stale `bundledBy=A` branch and writes `R.sub[A].sub[C] = Null`,
+losing the packet.  `SnapshotConsistency` (mirroring C++
+`Packet::checkConsistensy` at `transaction_impl.h:870-871`) is violated.
+
+**Proposed fix:** `BundlePhase3` should only CAS-tag child wrappers
+whose packets actually *move* into the parent's `sub[]`.  Hard-link
+references — where `parent.sub[c] = Null` indicates the packet lives
+elsewhere — must be skipped:
+
+```cpp
+// pseudo-diff in bundle() Phase 3
+for (child in subnodes) {
+    if (local.subpackets[child] == nullptr) continue;  // ← NEW
+    // existing CAS to BundledRef(this)
+}
+```
+
+A naive alternative — gating `insert(R, C)` on `~R.missing` (waiting for
+in-flight bundle to clear) — was rejected: it breaks lock-freedom and
+risks deadlock at 3+ threads.  The Phase 3 skip lives entirely inside
+the bundle protocol and needs no external coordination.
+
+### Impact on non-hard-link models / tests
+
+The fix only triggers when `local.subpackets[child] == nullptr`.  In
+the non-hard-link 2level/3level dynamic models and the existing C++
+tests (`dyn_node_test`, `3level_mixed_test`, `payload_integrity_*`),
+every inserted child's packet lives in exactly one parent's `sub[]` —
+no `Null` sub-slot occurs in steady state — so the fix is a no-op.
+
+### Verified invariants
+
+| Invariant | Description |
+|---|---|
+| `SnapshotConsistency` | mirrors `Packet::checkConsistensy` — a `Null` sub-slot is consistent only if reachable via `reverseLookup` (hard-link path) |
+| `HardlinkExclusive` | at most one parent's `sub[]` holds the child's packet (no duplicate homing) |
+| `BundleRefConsistency` | `child.bundledBy` parent has priority and either holds the packet or the child wrapper carries an `InsertedRef` |
+| `NoPriorityLoss`, `NoMissingHole`, `MissingPropagation` | structural sanity |
+| `DebugRetryBound` | per-thread bundle-Phase-1 entries < 10 (catches runaway retry — Lamport-bound equivalent for this serial-less model) |
+
+### Results
+
+`_hardlink_dynamic` (sibling parents, superfine):
+
+| Config | Threads | Distinct states | Result |
+|---|---|---|---|
+| 1-thread, MaxCommits=1 | 1 | 7 | **Pass** |
+| 2-thread, MaxCommits=1 | 2 | 62 | **Pass** |
+| 2-thread, MaxCommits=2 | 2 | 703 | **Pass** |
+
+`_hardlink_self_collision` (R-A-C, before fix):
+
+| Config | Result |
+|---|---|
+| 2-thread | **FAIL** — `SnapshotConsistency` violated at 376 states / 222 distinct |
+
+`_hardlink_self_collision` (after Phase 3 skip-Null fix):
+
+| Config | Threads | Distinct states | Result |
+|---|---|---|---|
+| 2-thread | 2 | 270 | **Pass** + liveness |
+| 3-thread | 3 | 6,396 | **Pass** + liveness |
+
+### Build & run
+
+```bash
+cd tests/tlaplus
+
+# Self-collision (after fix) 2-thread (<1 s)
+java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_hardlink_self_collision_2thr_mc.cfg \
+  BundleUnbundle_hardlink_self_collision.tla
+
+# Sibling-parents 2-thread (<1 s)
+java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_hardlink_dynamic_2thr_mc.cfg \
+  BundleUnbundle_hardlink_dynamic.tla
+```
+
+To reproduce the original bug, revert the Phase 3 `subpackets[c] == Null`
+skip in `BundlePhase3` and `BundlePhase3Fail` (re-add the `CAS C` branch
+and the `local[t].cWrapper /= Null` disjunct).
+
+---
+
+## 6. Runtime Stress Tests (C++)
 
 **Directory:** `tests/`
 

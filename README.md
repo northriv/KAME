@@ -257,6 +257,8 @@ On modern compilers (GCC 5.1+, Clang, MSVC), the CAS primitives delegate to `std
 `iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
 
 > **Caution:** Taking a nested `Snapshot` inside a transaction can trigger bundling, which may cause the transaction's CAS to always fail. This is not a data corruption issue but a liveness issue — the transaction retries indefinitely. This occurs when the `Snapshot` target is an ancestor of the transaction target, or when hard links exist (a child with two parents) and a `Snapshot` on one parent's tree interferes with the other. Use `tr[*node]` instead of a nested `Snapshot` in these situations.
+>
+> The hard-link case is now formally modelled in `tests/tlaplus/BundleUnbundle_hardlink_*.tla` (sibling-parents and root-with-intermediate self-collision); see `tests/VERIFICATION.md` §5.
 
 #### Comparison with other STM designs
 
