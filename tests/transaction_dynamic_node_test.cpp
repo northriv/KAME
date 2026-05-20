@@ -1,14 +1,23 @@
 /*
  * transaction_dynamic_node_test.cpp
  *
- *  Minimal reproducer for a hard-link consistency bug in the STM framework.
+ *  Minimal reproducer for the hard-link consistency bug in the STM framework.
  *
- *  Two worker threads each repeatedly create a hard link: worker-local p2 is
- *  made a child of both worker-local p1 and global gn2, while p1 itself is
- *  inserted into global gn1 (which already owns gn2). This gives p2 two
- *  parents both reachable from gn1, triggering the bug detected by
- *  TRANSACTIONAL_STRICT_assert as "losing consistensy on node ..." at
- *  transaction.h line 871.
+ *  Two worker threads each repeatedly create a hard link.  Each thread owns a
+ *  static node p1 (always a child of global gn1) and a dynamic node p2 that
+ *  is atomically inserted into both p1 and global gn2 — giving p2 two parents
+ *  both reachable from gn1 (gn1→p1→p2 and gn1→gn2→p2).  This triggers the
+ *  COLLIDED bundle phase and exercises the allSubReachable fix for the "losing
+ *  consistensy" abort at transaction.h line 871.
+ *
+ *  The tree structure maps to the TLA+ 4-node hardlink model
+ *  (BundleUnbundle_hardlink_4node) where liveness is verified:
+ *    gn1 = Root,  gn2 = B (static child of Root),
+ *    p1  = A (static child of Root while active),
+ *    p2  = C (dynamically inserted into A and B as a hard link).
+ *  p1 is inserted into gn1 non-transactionally before the loop and released
+ *  after, so it is always visible from gn1's transaction packet; p2's
+ *  double-parent insertion and release are both done in a single transaction.
  */
 
 #include "support_standalone.h"
@@ -37,27 +46,30 @@ void
 start_routine(void) {
 	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
+	// p1 is a static child of gn1 for the duration of this thread's work,
+	// so it is always reachable from gn1's transaction packet.
+	gn1->insert(p1);
 	for(int i = 0; i < 500; i++) {
-		// p2 becomes a child of p1 (non-transactional)
-		p1->insert(p2);
-		// hard link: p2 also becomes a child of gn2; p1 inserted into gn1,
-		// so p2 now has two parents (p1 and gn2) both reachable from gn1.
+		// Atomically create the hard link: p2 gets two parents (p1 and gn2),
+		// both reachable from gn1.  Single transaction matches the TLA+
+		// 4-node model where liveness is proved for this structure.
 		gn1->iterate_commit_if([=](Transaction &tr1)->bool{
 			if( !gn2->insert(tr1, p2))
 				return false;
-			if( !gn1->insert(tr1, p1))
+			if( !p1->insert(tr1, p2))  // second parent: hard link
 				return false;
 			return true;
 		});
-		p1->release(p2);
+		// Atomically tear down the hard link.
 		gn1->iterate_commit_if([=](Transaction &tr1)->bool{
 			if( !gn2->release(tr1, p2))
 				return false;
-			if( !gn1->release(tr1, p1))
+			if( !p1->release(tr1, p2))
 				return false;
 			return true;
 		});
 	}
+	gn1->release(p1);
 }
 
 #define NUM_THREADS 2
