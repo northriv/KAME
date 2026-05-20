@@ -110,11 +110,20 @@
 // the gate is off, so zero runtime/code-size cost beyond the macro
 // definitions themselves.
 //
-// Default: ON (= 1).  Disable with -DKAME_ENABLE_SPIN_BAND_GATE=0 (or
-// =OFF via cmake) for ablation / A-B benches showing the gate has no
-// net effect on a given workload + hardware combination.
+// Default: OFF (= 0).  Originally enabled by default on iMac Pro /
+// Linux x86 where the per-Linkage spin gate produced a small net
+// throughput win on heavily contended bundles.  Re-benchmarked on
+// Apple Silicon M3 (2026-05-21, 4-thread payload_integrity / dyn /
+// 3level):
+//   - 2level: no measurable difference (within noise)
+//   - 3level: OFF ~5% faster (mean), lower variance
+//   - dyn:    no measurable difference
+// On M3 the gate's bookkeeping cost outweighs the saved CV-sleeps,
+// so the default is flipped to OFF.  Enable per-target with
+// `-DKAME_ENABLE_SPIN_BAND_GATE=1` if a particular workload +
+// hardware combination shows a positive A-B result.
 #ifndef KAME_ENABLE_SPIN_BAND_GATE
-#define KAME_ENABLE_SPIN_BAND_GATE 1
+#define KAME_ENABLE_SPIN_BAND_GATE 0
 #endif
 
 // Per-Linkage privilege overlay.  When ON (= 1, default), a Tx that
