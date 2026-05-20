@@ -424,7 +424,12 @@ HardlinkExclusive ==
           /\ rw.packet.sub[A].sub[C] /= Null
           /\ rw.packet.sub[B].sub[C] /= Null)
 
-\* DebugRetryBound.
+\* DebugRetryBound — used as INVARIANT (NOT CONSTRAINT).  Verifies no
+\* execution path requires more than N bundle retries.  As INVARIANT,
+\* TLC reports a violation if any reachable state exceeds the bound —
+\* which would indicate a livelock or unbounded-retry path; as
+\* CONSTRAINT it would silently prune such paths and risk false-negative
+\* liveness verdicts (per user feedback 2026-05-20).
 DebugRetryBound ==
     \A t \in Threads : retryCount[t] < 8
 
