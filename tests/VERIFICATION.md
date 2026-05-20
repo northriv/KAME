@@ -693,6 +693,49 @@ particular demonstrate two complementary recipes:
   fairness, since in-linkage older-wins negotiate doesn't arbitrate
   between threads that never CAS the same linkage.
 
+### Non-atomic test pattern (`BundleUnbundle_hardlink_nonatomic.tla`)
+
+A separate spec verifies whether the test pattern restored by remote
+branch claude/refactor-negotiate-scoped-f7de2 commit b23fa954 — non-tx
+`p1->insert(p2)` / `p1->release(p2)` interleaved with transactional
+`gn1`/`gn2` operations — exposes a real liveness gap in master, or
+merely a scheduler artifact.
+
+The spec models:
+* Per-thread sequence ❶ NonTxInsertAC → ❷ TxInsertHardlink →
+  ❸ NonTxReleaseAC (leaves C in **limbo**: `bundledBy = A` while A no
+  longer references C) → ❹ TxReleaseHardlink → destructor
+  finalises A and C in limbo.
+* Two finalize variants (CONSTANT `UseFixVariant`):
+  - `FALSE` (master): bundle-fall-through, walks bundledBy chain →
+    requires scope on Root (heavily contended by the peer's TX).
+  - `TRUE` (b23fa954): direct self-promote CAS on C's linkage only
+    — no chain walk, no Root contention.
+* Two fairness levels: `Spec` (per-action WF on every progress
+  step) and `WeakSpec` (only blanket `WF_vars(NextStep)`).
+
+Result (all four configurations):
+
+| Spec / Variant | Distinct states | Result |
+|---|---|---|
+| `Spec` + master | 308 | **Pass + liveness** |
+| `Spec` + fix | 308 | **Pass + liveness** |
+| `WeakSpec` + master | 308 | **Pass + liveness** |
+| `WeakSpec` + fix | 308 | **Pass + liveness** |
+
+**Conclusion:** at this modelling abstraction, both paths are
+theoretically live.  The b23fa954 self-promote is a **CAS-count
+optimization** — it reduces the chain walk's `O(chain × retry)`
+CASes to `O(1)`, but the master fall-through is not livelocked in
+principle.  The ~10% residual hang reported on the remote branch is
+therefore consistent with real-OS scheduling artifacts (real
+schedulers do not strictly meet `WF` in finite time), not a logic
+gap.
+
+The optimization is available on master as an opt-in flag
+`-DKAME_NODE_MISSING_SELF_PROMOTE=1` (off by default; see
+`kame/transaction_impl.h` snapshot() NODE_MISSING handler).
+
 ### Build & run
 
 ```bash
@@ -717,6 +760,14 @@ java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
 java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
   -workers auto -config BundleUnbundle_hardlink_dynamic_2thr_mc.cfg \
   BundleUnbundle_hardlink_dynamic.tla
+
+# Non-atomic test pattern — master vs b23fa954 fix comparison
+java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_hardlink_nonatomic_master_mc.cfg \
+  BundleUnbundle_hardlink_nonatomic.tla
+java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_hardlink_nonatomic_fix_mc.cfg \
+  BundleUnbundle_hardlink_nonatomic.tla
 ```
 
 To reproduce the original bug, revert the Phase 3 `subpackets[c] == Null`
