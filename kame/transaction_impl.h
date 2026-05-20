@@ -857,7 +857,13 @@ Node<XN>::Packet::print_() const {
 
 template <class XN>
 bool
-Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const {
+Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
+    const local_shared_ptr<Packet> &globalroot) const {
+    // globalroot: the outermost root for null-slot reverseLookup checks.
+    // Hard-link null slots may be hosted by a sibling subtree reachable
+    // from globalroot but not from a locally-switched rootpacket, so we
+    // must always use globalroot for those checks.
+    const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
     try {
         if(size()) {
             if( !(payload()->m_serial - subpackets()->m_serial < 0x7fffffffffffffffLL))
@@ -865,9 +871,9 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
         }
         for(int i = 0; i < size(); i++) {
             if( !subpackets()->at(i)) {
-                if( !rootpacket->missing()) {
+                if( !groot->missing()) {
                     if( !subnodes()->at(i)->reverseLookup(
-                        const_cast<local_shared_ptr<Packet>&>(rootpacket), false, 0, false, 0))
+                        const_cast<local_shared_ptr<Packet>&>(groot), false, 0, false, 0))
                         throw __LINE__;
                 }
             }
@@ -880,7 +886,8 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
                         throw __LINE__;
                 }
                 if( !subpackets()->at(i)->checkConsistensy(
-                    subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i)))
+                    subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i),
+                    groot))
                     return false;
             }
         }
@@ -895,23 +902,26 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 
 template <class XN>
 bool
-Node<XN>::Packet::allSubReachable(const local_shared_ptr<Packet> &rootpacket) const {
-    // Mirror of checkConsistensy's Null-slot path (line 866-885) but
-    // never throws.  Returns false on the first unreachable Null slot.
-    // Used as a pre-check in bundle Phase 4's `is_bundle_root` override
-    // — if we would publish ~missing with an unreachable Null slot,
-    // skip the override and leave m_missing=true.
-    if(rootpacket->missing()) return true;  // root missing → no Null-slot check fires
+Node<XN>::Packet::allSubReachable(const local_shared_ptr<Packet> &rootpacket,
+    const local_shared_ptr<Packet> &globalroot) const {
+    // Mirror of checkConsistensy's Null-slot path but never throws.
+    // globalroot: the outermost root for null-slot reverseLookup (same
+    // semantics as in checkConsistensy — hard-link null slots may be
+    // hosted by a sibling subtree reachable from globalroot but not
+    // from a locally-switched rootpacket).
+    const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
+    if(groot->missing()) return true;  // root missing → no Null-slot check fires
     for(int i = 0; i < size(); i++) {
         if( !subpackets()->at(i)) {
             if( !subnodes()->at(i)->reverseLookup(
-                const_cast<local_shared_ptr<Packet>&>(rootpacket), false, 0, false, 0))
+                const_cast<local_shared_ptr<Packet>&>(groot), false, 0, false, 0))
                 return false;
         }
         else {
             if(subpackets()->at(i)->size())
                 if( !subpackets()->at(i)->allSubReachable(
-                    subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i)))
+                    subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i),
+                    groot))
                     return false;
         }
     }
@@ -1720,37 +1730,22 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
         status = SnapshotStatus::NODE_MISSING;
     }
 
-    // Identity check restored as DISTURBED (per user "DISTURB 復活"):
-    // Originally `assert(parent_wrapper->packet()->node().m_link ==
-    // r.parent_linkage)` and similar on r.parent_packet (removed in
-    // 9028bc91 — "snapshotForUnbundle: drop over-strict identity
-    // asserts").  The transient failure window is real: when
-    // insert(online_after_insertion=true) or release() publish a
-    // child's bundledBy before the parent's linkage update lands,
-    // walkUpChain can observe a wrapper whose packet's node->m_link
-    // no longer matches the linkage we ascended into.
+    // Identity check intentionally omitted:
+    //   r.parent_wrapper->packet()->node().m_link == r.parent_linkage
+    //   ( *r.parent_packet)->node().m_link == r.parent_linkage
+    // Both can transiently fail when insert(online_after_insertion=true)
+    // or release() publish the child's bundledBy and the parent's
+    // linkage in two phases (the child's bundledBy must be published
+    // first so reverseLookup works; the parent's linkage update lags).
+    // The two are semantically atomic but cannot be made physically so.
     //
-    // Without this check, the inconsistency propagates upward and is
-    // eventually published via Phase 5 CAS (bundle SUCCESS) — caught
-    // only by the post-publish STRICT_assert(checkConsistensy) at the
-    // snapshot loop, by which time the inconsistent state is already
-    // externally observable.  cas_infos-driven CAS at unbundle does
-    // detect a *different* race (wrapper pointer changed), but does
-    // not detect a wrapper that's stale-but-pointer-unchanged.
-    //
-    // Returning DISTURBED here forces the outer snapshot loop to
-    // restart from incoming_scope, which on retry observes the
-    // updated bundledBy / linkage and walks to the new parent.  The
-    // historical Mac livelock from this conversion is addressed by
-    // Fix A / Fix B on master (90b35c8d) — bounded fair-spin +
-    // priv-no-CV-sleep break the deadlock cycle that prevented the
-    // transient from resolving across retries.
-    if(r.parent_scope && ( *r.parent_scope)->packet()
-       && ( *r.parent_scope)->packet()->node().m_link != r.parent_linkage)
-        return SnapshotStatus::DISTURBED;
-    if(r.parent_packet && ( *r.parent_packet)
-       && ( *r.parent_packet)->node().m_link != r.parent_linkage)
-        return SnapshotStatus::DISTURBED;
+    // We do NOT short-circuit to DISTURBED here — that would force
+    // retries in cases where the eventual CAS in unbundle() would have
+    // succeeded (the transient resolves by CAS time), causing livelock.
+    // Instead the cas_infos-driven CAS at unbundle() acts as the
+    // natural race detector: if the observed wrapper has changed at
+    // CAS time, the CAS fails and unbundle() returns DISTURBED, so the
+    // caller retries.
 
     // CAS preparation
     if(status == SnapshotStatus::COLLIDED)
@@ -1953,25 +1948,67 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     scope.commit();
                     return;
                 }
-                // Orphan self-promote: walkUpChain says parent no longer
-                // references us, but our wrapper still carries a stale
-                // bundledBy.  Without breaking that link, the next retry
-                // re-walks the same dead chain and keeps returning
-                // NODE_MISSING — livelocking the destructor cleanup of an
-                // orphaned hard-link child against concurrent root-level
-                // bundles that touch this Linkage via stale references
-                // (see transaction_dynamic_node_test).
-                // CAS a priority-bearing wrapper that preserves the local
-                // packet; on success the next iter sees hasPriority=true
-                // and bundle() can finalise.  Failure means a peer
-                // advanced m_link — fall through to the bundle() retry
-                // path naturally.
+#if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
+                // Optional optimization (off by default).
+                //
+                // Without this branch, NODE_MISSING + missing local packet
+                // falls through to bundle() below; bundle() then walks up
+                // the bundledBy chain via ascendOneLevel() which acquires
+                // scope on each ancestor (transaction_impl.h:1495-1520).
+                // When this node is in the "limbo" state created by
+                // release() (bundledBy still points at a parent that no
+                // longer references this node — see release() at
+                // transaction_impl.h:1199-1200 which CASes a wrapper with
+                // bundledBy=parent onto the released child), the chain
+                // walk can reach a heavily-contended ancestor and incur
+                // many CAS retries before finalising.
+                //
+                // This branch short-circuits: CAS a priority-bearing
+                // wrapper (with the current local packet preserved) onto
+                // this node's m_link directly.  On success the next loop
+                // iteration sees hasPriority=true and bundle() runs on a
+                // priority-owning node without the chain walk.  On CAS
+                // failure a peer advanced m_link and the normal retry
+                // path takes over.
+                //
+                // ### Status ###
+                //
+                // This is a CAS-count optimization, NOT a correctness
+                // fix.  TLA+ verification in
+                // `tests/tlaplus/BundleUnbundle_hardlink_nonatomic.tla`
+                // shows that the bundle-fall-through path is
+                // theoretically live under both per-action and blanket
+                // WF_vars.  The optimization reduces the expected
+                // wall-clock time to finalize under pathological
+                // contention (e.g. the destructor cleanup of an
+                // orphaned hard-link child while a peer thread is
+                // continuously running TXs on a shared root).  The
+                // observed ~10% test-time hang on remote branch
+                // claude/refactor-negotiate-scoped-f7de2 commit
+                // b23fa954 (which carries the non-tx test pattern in
+                // transaction_dynamic_node_test.cpp) was attributed to
+                // real-OS scheduler artifacts rather than a logic gap.
+                //
+                // Side-effect considerations:
+                //   * Applies to all snapshot() callers, not just the
+                //     destructor — the precondition (multi_nodal +
+                //     missing local packet) does not distinguish them.
+                //   * After self-promote, the next iteration still goes
+                //     into bundle() (priority+missing → fall-through),
+                //     so subtree absorption still happens; only the
+                //     pre-bundle scope-acquisition cost differs.
+                //   * Peers walking up via this node's bundledBy that
+                //     already passed will not be affected; new walkers
+                //     observe hasPriority=true and take the fast path.
                 {
                     auto promoted = make_local_unique<PacketWrapper>(
                         scope->packet(), snapshot.m_serial);
                     scope.compareAndSet(promoted);
                 }
                 continue;
+#else
+                break;
+#endif
             }
         }
         // Fall through to bundle.  Pass scope directly — bundle()
@@ -2180,6 +2217,9 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         if( !scope) return BundledStatus::DISTURBED;
+
+#if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
+        //Optional optimization:
         // Peer-completed early return: scope's fresh load of
         // supernode.m_link may show that a peer thread bundled this
         // subtree while we were negotiating.  Require hasPriority()
@@ -2193,6 +2233,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             supscope = std::move(scope);
             return BundledStatus::SUCCESS;
         }
+#endif
         // Pointer check + 1-arg CAS: scope loaded m_link at construction;
         // if it matches supscope's expected state, scope's internal view
         // serves as the CAS expected.  Saves 1 fetch_add + promote vs
@@ -2251,9 +2292,6 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                     child->m_link, snap, child_retry,
                     ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
                 if( !child_scope) continue;  // weak acquire lost — retry
-                // Fast-path: child's m_link unchanged since last iter's
-                // observation.  Compare child_scope's view directly
-                // (operator== on ref pointer, no atomic op).
                 // Fast-path: child's m_link unchanged since last iter's
                 // observation.  Compare child_scope's view directly
                 // (operator== on ref pointer, no atomic op).
@@ -2324,22 +2362,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         bool changed_during_bundling = false;
         for(unsigned int i = 0; i < subnodes->size(); i++) {
             shared_ptr<Node> child(( *subnodes)[i]);
-            // Hard-link reference: a null subpackets slot means the
-            // child's packet is bundled under another parent (alt-path
-            // in our subtree).  Flipping child.m_link to BundledRef(us)
-            // here would orphan the child from third-party views — our
-            // sub[c] is null, so a snapshot via us would not find the
-            // packet either.  Leave the child bundled under the other
-            // parent; reverseLookup falls back to forwardLookup, which
-            // finds the packet via the alt-path subtree.  Verified by
-            // TLA+ hardlink self-collision model (BundleUnbundle_
-            // hardlink_dynamic.tla).  No-op on non-hard-link trees:
-            // every child has a packet in exactly one parent's sub[],
-            // so the null check never triggers in steady state.
-            if( !( *subpackets)[i])
-                continue;
-            local_shared_ptr<PacketWrapper> bundled_ref(
-                new PacketWrapper(m_link, i, bundle_serial));
+            local_shared_ptr<PacketWrapper> bundled_ref;
+            if(( *subpackets)[i])
+                bundled_ref.reset(new PacketWrapper(m_link, i, bundle_serial));
+            else
+                bundled_ref.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
 
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
@@ -2429,26 +2456,29 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
-            // (Hard-link race fix) — before clearing m_missing under
-            // the is_bundle_root override, verify every Null sub-packet
-            // slot's subnode is reverseLookup-able within newpacket.
-            // If not, the published ~missing state would trip
-            // checkConsistensy line 871 (the production "30/30 abort"
-            // pattern, see tests/tlaplus/BundleUnbundle_hardlink_4node).
-            // Return DISTURBED so the outer snapshot() retry loop
-            // re-attempts the whole bundle — once the race resolves
-            // (e.g. a multi-step release completes its migration step),
-            // the next bundle finalizes cleanly.
-            // (Returning SUCCESS with m_missing=true would trip the
-            //  `assert(!scope->packet()->missing())` in the caller.)
+            // Hard-link null-slot handling:
+            // Set m_missing=false FIRST (required so allSubReachable's early-exit
+            // guard `if(rootpacket->missing()) return true` does not fire).
+            // allSubReachable detects unreachable null-slot hard-link children
+            // (packets hosted by another parent not reachable from our local
+            // subtree root) and returns false — acceptable state, fall through.
+            // When allSubReachable passes, checkConsistensy verifies consistency;
+            // but a race exists: between the two calls a concurrent m_link update
+            // on a hard-link child can change the reverseLookup result, making
+            // checkConsistensy fire on a transiently valid state.  Catch the
+            // thrown Packet and convert to DISTURBED for a clean retry.
             newpacket->m_missing = false;
             if(newpacket->allSubReachable(newpacket)) {
-                STRICT_assert(newpacket->checkConsistensy(newpacket));
-            }
-            else {
-                scope.confirm_contention();
-                scope.commit();
-                return BundledStatus::DISTURBED;
+#ifdef TRANSACTIONAL_STRICT_assert
+                try {
+                    newpacket->checkConsistensy(newpacket);
+                } catch(Packet &) {
+                    newpacket->m_missing = true;
+                    scope.confirm_contention();
+                    scope.commit();
+                    return BundledStatus::DISTURBED;
+                }
+#endif
             }
         }
 

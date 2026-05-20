@@ -153,11 +153,14 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         const Linkage *link) noexcept {
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: "I am privileged" iff this Linkage's slot carries
-    // a Reserved-kind stamp whose (us, tid) identity matches mine.
+    // a Reserved-kind stamp whose TID matches mine.  Compare by TID
+    // only — strip_kind preserves the US field, so two Txs on the
+    // same thread (different US) would not match, mis-identifying a
+    // nested Tx as non-privileged (self-deadlock).
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
-    return strip_kind(slot) == strip_kind(my_tidstamp);
+    return stamp_tid(slot) == stamp_tid(my_tidstamp);
 #else
     (void)link;
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
@@ -189,12 +192,13 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
         const Linkage *link) noexcept {
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: check the linkage's own slot for a Reserved-kind
-    // stamp held by some other thread.  Nested Txs on the same TID
-    // are NOT blocked (strip_kind identity match returns "us").
+    // stamp held by SOME OTHER THREAD.  Nested Txs on the same TID
+    // must NOT be blocked — compare by TID only, not strip_kind (which
+    // preserves US, causing same-thread nested Tx self-deadlock).
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
-    return strip_kind(slot) != strip_kind(tidstamp);
+    return stamp_tid(slot) != stamp_tid(tidstamp);
 #else
     (void)link;
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);

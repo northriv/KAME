@@ -838,16 +838,17 @@ private:
         //! For debugging.
         void print_() const;
         //! For debugging.
-        bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
+        bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
+            const local_shared_ptr<Packet> &globalroot = {}) const;
         //! Non-throwing reachability check.  Mirrors `checkConsistensy`'s
         //! Null-slot reverseLookup test but returns `false` instead of
         //! throwing.  Used by `bundle` Phase 4 to gate the
         //! `is_bundle_root` `m_missing=false` override: if any Null
         //! sub-packet slot under this packet has a child node that is
-        //! NOT reverseLookup-able within `rootpacket`, returns false.
-        //! This catches the hard-link race where bundle would publish
-        //! ~missing with an unreachable Null slot.
-        bool allSubReachable(const local_shared_ptr<Packet> &rootpacket) const;
+        //! NOT reverseLookup-able within `globalroot` (the outermost
+        //! bundle root), returns false.
+        bool allSubReachable(const local_shared_ptr<Packet> &rootpacket,
+            const local_shared_ptr<Packet> &globalroot = {}) const;
 
         local_shared_ptr<Payload> m_payload;
         shared_ptr<PacketList> m_subpackets;
@@ -1260,7 +1261,10 @@ private:
             m_transaction_started_time(0),
             m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)),
             m_recent_ops_state(0) {}
-        ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
+        ~Linkage() {
+            assert(m_transaction_started_time.load(std::memory_order_relaxed) == 0);
+            this->reset(); //Packet should be freed before memory pools.
+        }
         atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
 
         //! Non-atomic Transaction-commit counter — bumped in
@@ -1819,7 +1823,18 @@ public:
         typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
         node.snapshot( *this, multi_nodal);
         drop_tags_n_privilege();
+        // Verify that drop_tags_n_privilege released all our thread's stamps.
+        // Must be checked here, immediately after release — ~Snapshot() is too late
+        // because by then a subsequent same-thread Tx may have re-stamped these
+        // linkages with our TID, producing a false positive.
+        using NC = typename Node<XN>::NegotiationCounter;
+        auto my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
+        for(auto &sp : m_tagged_linkages) {
+            assert(NC::stamp_tid(sp->m_transaction_started_time.load(
+                std::memory_order_relaxed)) != my_tid);
+        }
     }
+    ~Snapshot() = default;
 
     //! \return Payload instance for \a node, which should be included in the snapshot.
     template <class T>
