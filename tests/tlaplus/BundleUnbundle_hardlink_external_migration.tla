@@ -53,10 +53,14 @@ VARIABLES
     linkage,       \* [Nodes -> Wrapper]
     pc,            \* [Threads -> String]
     local,         \* [Threads -> Record]
-    bundleDone,    \* [Threads -> BOOLEAN]
-    retryCount     \* [Threads -> Nat]
+    bundleDone     \* [Threads -> BOOLEAN]
 
-vars == <<linkage, pc, local, bundleDone, retryCount>>
+\* retryCount removed (per user 2026-05-21): bounded domain state
+\* + bundle retry on CAS fail produces naturally finite state space
+\* without an artificial counter that would need CONSTRAINT/INVARIANT
+\* bounding.  See _hardlink_4node for the same clean-up pattern.
+
+vars == <<linkage, pc, local, bundleDone>>
 
 -----------------------------------------------------------------------------
 (* Wrapper helpers *)
@@ -104,7 +108,6 @@ Init ==
     /\ pc = [t \in Threads |-> "idle"]
     /\ local = [t \in Threads |-> InitLocal]
     /\ bundleDone = [t \in Threads |-> FALSE]
-    /\ retryCount = [t \in Threads |-> 0]
 
 -----------------------------------------------------------------------------
 (* reverseLookup(P2, root=GN1) — same as previous model. *)
@@ -125,7 +128,6 @@ BundleStart(t) ==
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
-    /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
     /\ UNCHANGED <<linkage, bundleDone>>
 
 \* Phase 1 — read all 4 wrappers.  Detect P2's current home.
@@ -145,7 +147,7 @@ BundlePhase1(t) ==
        /\ pc' = [pc EXCEPT ![t] =
                     IF p2w.bundledBy = P1 THEN "bundle_pull_p1"
                     ELSE "bundle_phase4"]   \* P2 already in GN2 — finalize
-       /\ UNCHANGED <<linkage, bundleDone, retryCount>>
+       /\ UNCHANGED <<linkage, bundleDone>>
 
 \* New phase: pull P2 from P1.  CAS P1 to set sub[P2]=Null and read
 \* the packet into local.p2Pkt.  Requires P1 has priority and currently
@@ -166,7 +168,7 @@ BundlePullP1(t) ==
           /\ linkage' = [linkage EXCEPT ![P1] = newP1W]
           /\ local' = [local EXCEPT ![t].p2Pkt = pulled]
           /\ pc' = [pc EXCEPT ![t] = "bundle_cas_p2"]
-          /\ UNCHANGED <<bundleDone, retryCount>>
+          /\ UNCHANGED <<bundleDone>>
 
 \* Pull failure: P1's wrapper changed under us OR P2 not at P1 anymore.
 \* Retry from Phase 1.
@@ -180,7 +182,6 @@ BundlePullP1Fail(t) ==
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
-    /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
     /\ UNCHANGED <<linkage, bundleDone>>
 
 \* CAS P2.bundledBy from P1 to GN2.
@@ -193,7 +194,7 @@ BundleCASP2(t) ==
        /\ linkage' = [linkage EXCEPT ![P2] = BundledRefWrapper(GN2)]
        /\ local' = [local EXCEPT ![t].p2Wrapper = BundledRefWrapper(GN2)]
        /\ pc' = [pc EXCEPT ![t] = "bundle_update_gn1"]
-       /\ UNCHANGED <<bundleDone, retryCount>>
+       /\ UNCHANGED <<bundleDone>>
 
 BundleCASP2Fail(t) ==
     /\ pc[t] = "bundle_cas_p2"
@@ -202,7 +203,6 @@ BundleCASP2Fail(t) ==
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
-    /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
     /\ UNCHANGED <<linkage, bundleDone>>
 
 \* Update GN1 so GN2.sub[P2] holds the pulled packet.  Keep GN1 missing.
@@ -223,7 +223,7 @@ BundleUpdateGN1(t) ==
           /\ linkage' = [linkage EXCEPT ![GN1] = newGN1W]
           /\ local' = [local EXCEPT ![t].gn1Wrapper = newGN1W]
           /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-          /\ UNCHANGED <<bundleDone, retryCount>>
+          /\ UNCHANGED <<bundleDone>>
 
 BundleUpdateGN1Fail(t) ==
     /\ pc[t] = "bundle_update_gn1"
@@ -232,7 +232,6 @@ BundleUpdateGN1Fail(t) ==
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
-    /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
     /\ UNCHANGED <<linkage, bundleDone>>
 
 \* Phase 4 (Finalize) — clear GN1 missing, gated on subtree integrity.
@@ -252,7 +251,7 @@ BundlePhase4(t) ==
        /\ linkage' = [linkage EXCEPT ![GN1] = finalW]
        /\ local' = [local EXCEPT ![t].gn1Wrapper = finalW]
        /\ pc' = [pc EXCEPT ![t] = "bundle_phase5"]
-       /\ UNCHANGED <<bundleDone, retryCount>>
+       /\ UNCHANGED <<bundleDone>>
 
 BundlePhase4Fail(t) ==
     /\ pc[t] = "bundle_phase4"
@@ -261,7 +260,6 @@ BundlePhase4Fail(t) ==
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
-    /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
     /\ UNCHANGED <<linkage, bundleDone>>
 
 BundlePhase5(t) ==
@@ -269,7 +267,7 @@ BundlePhase5(t) ==
     /\ pc' = [pc EXCEPT ![t] = "idle"]
     /\ local' = [local EXCEPT ![t] = InitLocal]
     /\ bundleDone' = [bundleDone EXCEPT ![t] = TRUE]
-    /\ UNCHANGED <<linkage, retryCount>>
+    /\ UNCHANGED <<linkage>>
 
 -----------------------------------------------------------------------------
 (* P1 race — a peer operation on P1's tree (e.g., another bundle, or
@@ -290,7 +288,7 @@ P1RaceBundle(t) ==
             LET refresh == PriorityWrapper(MakePacket(P1, p1w.packet.sub, newMiss))
             IN  /\ refresh /= p1w
                 /\ linkage' = [linkage EXCEPT ![P1] = refresh]
-                /\ UNCHANGED <<pc, local, bundleDone, retryCount>>
+                /\ UNCHANGED <<pc, local, bundleDone>>
 
 -----------------------------------------------------------------------------
 (* Next *)
@@ -316,7 +314,24 @@ Terminating == AllDone /\ UNCHANGED vars
 
 Next == NextStep \/ Terminating
 
-Spec == Init /\ [][Next]_vars /\ WF_vars(NextStep)
+\* Per-thread per-action weak fairness on the progress actions.
+\* `WF_vars(NextStep)` (blanket on the disjunction) is too weak here:
+\* TLC's BFS can explore executions where one thread's retry path
+\* (e.g. BundlePullP1Fail) fires repeatedly while the other thread's
+\* progress action (e.g. BundleCASP2) is starved.  Per-action WF
+\* binds fairness to each specific action and thread.
+\*
+\* Models OS-level thread scheduling fairness — each thread's enabled
+\* progress steps eventually fire.
+Spec == Init /\ [][Next]_vars
+        /\ WF_vars(NextStep)
+        /\ \A t \in Threads :
+            /\ WF_vars(BundlePhase1(t))
+            /\ WF_vars(BundlePullP1(t))
+            /\ WF_vars(BundleCASP2(t))
+            /\ WF_vars(BundleUpdateGN1(t))
+            /\ WF_vars(BundlePhase4(t))
+            /\ WF_vars(BundlePhase5(t))
 
 -----------------------------------------------------------------------------
 (* Safety invariants *)
@@ -356,15 +371,6 @@ ReachesPriority(n, depth) ==
 BundleRefConsistency ==
     \A n \in {GN2, P2} :
         ~linkage[n].hasPriority => ReachesPriority(linkage[n].bundledBy, 3)
-
-\* DebugRetryBound — state-space bound (not a true safety property).
-\* The minimal model lacks priority/negotiate gating, so peer-race
-\* actions like P1RaceBundle can cause unbounded bundle retries under
-\* fair scheduling.  Bound exists to keep TLC's state space finite;
-\* safety invariants are checked at every state reachable within the
-\* bound.
-DebugRetryBound ==
-    \A t \in Threads : retryCount[t] < 5
 
 \* MigrationLiveness — at end, P2 should be either in GN2 (= migrated)
 \* OR still in P1 (= bundle gave up safely with GN1 missing).
