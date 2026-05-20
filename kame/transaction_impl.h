@@ -1938,7 +1938,67 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     scope.commit();
                     return;
                 }
+#if defined(KAME_NODE_MISSING_SELF_PROMOTE) && KAME_NODE_MISSING_SELF_PROMOTE
+                // Optional optimization (off by default).
+                //
+                // Without this branch, NODE_MISSING + missing local packet
+                // falls through to bundle() below; bundle() then walks up
+                // the bundledBy chain via ascendOneLevel() which acquires
+                // scope on each ancestor (transaction_impl.h:1495-1520).
+                // When this node is in the "limbo" state created by
+                // release() (bundledBy still points at a parent that no
+                // longer references this node — see release() at
+                // transaction_impl.h:1199-1200 which CASes a wrapper with
+                // bundledBy=parent onto the released child), the chain
+                // walk can reach a heavily-contended ancestor and incur
+                // many CAS retries before finalising.
+                //
+                // This branch short-circuits: CAS a priority-bearing
+                // wrapper (with the current local packet preserved) onto
+                // this node's m_link directly.  On success the next loop
+                // iteration sees hasPriority=true and bundle() runs on a
+                // priority-owning node without the chain walk.  On CAS
+                // failure a peer advanced m_link and the normal retry
+                // path takes over.
+                //
+                // ### Status ###
+                //
+                // This is a CAS-count optimization, NOT a correctness
+                // fix.  TLA+ verification in
+                // `tests/tlaplus/BundleUnbundle_hardlink_nonatomic.tla`
+                // shows that the bundle-fall-through path is
+                // theoretically live under both per-action and blanket
+                // WF_vars.  The optimization reduces the expected
+                // wall-clock time to finalize under pathological
+                // contention (e.g. the destructor cleanup of an
+                // orphaned hard-link child while a peer thread is
+                // continuously running TXs on a shared root).  The
+                // observed ~10% test-time hang on remote branch
+                // claude/refactor-negotiate-scoped-f7de2 commit
+                // b23fa954 (which carries the non-tx test pattern in
+                // transaction_dynamic_node_test.cpp) was attributed to
+                // real-OS scheduler artifacts rather than a logic gap.
+                //
+                // Side-effect considerations:
+                //   * Applies to all snapshot() callers, not just the
+                //     destructor — the precondition (multi_nodal +
+                //     missing local packet) does not distinguish them.
+                //   * After self-promote, the next iteration still goes
+                //     into bundle() (priority+missing → fall-through),
+                //     so subtree absorption still happens; only the
+                //     pre-bundle scope-acquisition cost differs.
+                //   * Peers walking up via this node's bundledBy that
+                //     already passed will not be affected; new walkers
+                //     observe hasPriority=true and take the fast path.
+                {
+                    auto promoted = make_local_unique<PacketWrapper>(
+                        scope->packet(), snapshot.m_serial);
+                    scope.compareAndSet(promoted);
+                }
+                continue;
+#else
                 break;
+#endif
             }
         }
         // Fall through to bundle.  Pass scope directly — bundle()
