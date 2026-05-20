@@ -312,6 +312,49 @@ Thread roles configurable via `InsertThreads`, `RootThreads`, `LeafThreads`, `Re
 
 Full results: `tests/tlaplus/doc/verification_log.md`
 
+### Equivalence of the existing models with the new C++ Phase 4 reachability gate
+
+The hard-link work (§5) introduced a `Packet::allSubReachable` gate in
+the C++ bundle Phase 4 (`transaction_impl.h`, commits `87892b35` and
+`92b15f62`): the `is_bundle_root=true` override now only clears
+`m_missing` when every Null sub-slot has a `reverseLookup`-able
+subnode, otherwise the bundle returns `BundledStatus::DISTURBED` so
+the outer `snapshot()` retry loop re-attempts.
+
+**The 2level / 3level LL-free (static + dynamic) TLA+ models do not
+need to be updated** for this C++ change.  In all non-hard-link
+topologies the gate is provably a no-op:
+
+1. Each child node has exactly one parent.  When `bundle(P)` reaches
+   Phase 4 with a Null sub-slot for an active child `c`, the only way
+   `reverseLookup` could fail is if `c`'s packet lives *outside*
+   `P`'s subtree — but with a single parent that is impossible by
+   construction.
+2. The existing `SnapshotConsistency` invariant in these specs
+   (`2level_LLfree_dynamic.tla:1093-1096`,
+   `3level_LLfree_dynamic.tla:1831-1835`) states exactly the
+   property the gate enforces:
+
+   ```tla
+   (pw.hasPriority /\ ~pw.packet.missing) =>
+       (\A c \in ActiveChildren : pw.packet.sub[c] /= Null)
+   ```
+
+   In words: if a node is published with `missing=FALSE`, no active
+   child has a Null sub-slot.  This is precisely the precondition
+   `allSubReachable` checks before letting the publish proceed.
+3. The 413 M-state `dynamic release superfine live` run and all
+   smaller dynamic / static configurations have verified this
+   invariant without violation.  Therefore the C++ `else { return
+   DISTURBED }` branch is provably unreachable in non-hard-link
+   topology, and the models accurately represent the implementation
+   without modification.
+
+The gate is only effectful in the hard-link topology, where multiple
+parents share a child and the multi-step release can leave the child
+transiently Null in two parents' `sub[]`.  That case is modelled in
+§5.
+
 ### Build & run
 
 ```bash
