@@ -839,6 +839,15 @@ private:
         void print_() const;
         //! For debugging.
         bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
+        //! Non-throwing reachability check.  Mirrors `checkConsistensy`'s
+        //! Null-slot reverseLookup test but returns `false` instead of
+        //! throwing.  Used by `bundle` Phase 4 to gate the
+        //! `is_bundle_root` `m_missing=false` override: if any Null
+        //! sub-packet slot under this packet has a child node that is
+        //! NOT reverseLookup-able within `rootpacket`, returns false.
+        //! This catches the hard-link race where bundle would publish
+        //! ~missing with an unreachable Null slot.
+        bool allSubReachable(const local_shared_ptr<Packet> &rootpacket) const;
 
         local_shared_ptr<Payload> m_payload;
         shared_ptr<PacketList> m_subpackets;
