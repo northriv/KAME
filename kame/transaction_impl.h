@@ -2423,8 +2423,8 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             // the next bundle finalizes cleanly.
             // (Returning SUCCESS with m_missing=true would trip the
             //  `assert(!scope->packet()->missing())` in the caller.)
+            newpacket->m_missing = false;
             if(newpacket->allSubReachable(newpacket)) {
-                newpacket->m_missing = false;
                 STRICT_assert(newpacket->checkConsistensy(newpacket));
             }
             else {
