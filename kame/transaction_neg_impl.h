@@ -153,11 +153,21 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         const Linkage *link) noexcept {
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: "I am privileged" iff this Linkage's slot carries
-    // a Reserved-kind stamp whose (us, tid) identity matches mine.
+    // a Reserved-kind stamp whose TID matches mine.  Compare by TID
+    // only — NOT by `strip_kind` (which preserves the US field) —
+    // for the same reason the global mode (else branch below) uses
+    // `stamp_tid`: a nested Tx on the same thread has its own
+    // `m_started_time` (different US from the outer Tx) but is still
+    // owned by the privilege-holding thread.  Comparing by US+TID
+    // would self-deadlock the inner Tx (it would not recognise itself
+    // as privileged and wait for a privilege it already holds via
+    // the outer Tx).  (Fix 2026-05-20: was `strip_kind ==`, which
+    // mis-identified nested Tx and matched the dropped `if(!l)
+    // continue` line's stale-slot semantics.)
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
-    return strip_kind(slot) == strip_kind(my_tidstamp);
+    return stamp_tid(slot) == stamp_tid(my_tidstamp);
 #else
     (void)link;
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
@@ -189,12 +199,22 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
         const Linkage *link) noexcept {
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: check the linkage's own slot for a Reserved-kind
-    // stamp held by some other thread.  Nested Txs on the same TID
-    // are NOT blocked (strip_kind identity match returns "us").
+    // stamp held by SOME OTHER THREAD.  Nested Txs on the same TID
+    // are NOT blocked — comparison is by TID alone, NOT by
+    // `strip_kind` (which preserves the US field).  See `i_am_
+    // privileged_now` above and the global-mode branch below for
+    // the same rationale: the outer Tx and a nested inner Tx
+    // (e.g. via destructor->releaseAll triggered during the outer
+    // Tx's retry) carry different `m_started_time` US fields, so a
+    // `strip_kind`-based inequality would treat the inner Tx as a
+    // peer of the outer and self-deadlock.
+    // (Fix 2026-05-20: was `strip_kind !=`; reverted to TID-only
+    // compare to match the global mode's well-known self-deadlock
+    // workaround.)
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
-    return strip_kind(slot) != strip_kind(tidstamp);
+    return stamp_tid(slot) != stamp_tid(tidstamp);
 #else
     (void)link;
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);

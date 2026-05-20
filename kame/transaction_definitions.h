@@ -27,6 +27,30 @@
 // Silicon / Linux x86; see git history for rationale per knob.
 // =====================================================================
 
+// Umbrella flag for opt-in STM optimizations that bypass the strictly
+// TLA+-modelled code paths.  Default = 1 (enabled).
+//
+// Currently gates:
+//   * `snapshot()` NODE_MISSING/VOID_PACKET self-promote CAS — a
+//     one-CAS shortcut around the bundle-fall-through chain walk
+//     when the local packet is "missing" (limbo state left by
+//     `release()`).
+//   * `bundle()` peer-completed early-return — fast path that
+//     accepts a peer's already-bundled root and returns SUCCESS
+//     without redoing Phase 1-4.
+//
+// NOTE: These shortcuts are NOT covered by the TLA+ suite under
+// `tests/tlaplus/`.  The hard-link models (`_hardlink_*`) verify
+// the unconditional paths only — they do not encode the
+// short-circuit branches.  The non-atomic model
+// (`BundleUnbundle_hardlink_nonatomic.tla`) does compare a
+// "self-promote" finalize variant against the bundle-fall-through
+// one, but both are shown live at the same modelling abstraction;
+// the C++ shortcut is a CAS-count optimization rather than a
+// liveness-required mechanism.
+//
+// Set `-DKAME_STM_OPTIONAL_OPTIMIZATION=0` to fall back to the
+// strictly TLA+-modelled paths if a regression is suspected.
 #ifndef KAME_STM_OPTIONAL_OPTIMIZATION
 #define KAME_STM_OPTIONAL_OPTIMIZATION 1
 #endif
