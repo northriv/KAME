@@ -2485,20 +2485,35 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             // (Returning SUCCESS with m_missing=true would trip the
             //  `assert(!scope->packet()->missing())` in the caller.)
             //
-            // Pass `superwrapper->packet()` as the GLOBAL root: `newpacket`
-            // is a sub-packet within superwrapper's packet, and hard-link
-            // siblings (Case B: e.g. another child of supernode holds
-            // the hard-linked child's packet) are reachable from
-            // superwrapper's view but NOT from newpacket's local view.
-            // Without globalroot, allSubReachable would false-DISTURBED
-            // on every retry — a livelock surface.  See
-            // `BundleUnbundle_hardlink_4node.tla::ReachableFromRoot` for
-            // the semantic match.
-            if(newpacket->allSubReachable(newpacket, superwrapper->packet())) {
-                newpacket->m_missing = false;
-                STRICT_assert(newpacket->checkConsistensy(newpacket, superwrapper->packet()));
+            // Order matters here (restored from 404fa137):
+            //   1. Speculatively clear `newpacket->m_missing` BEFORE
+            //      calling allSubReachable / checkConsistensy.  At this
+            //      point newpacket->m_missing was set to true at line
+            //      ~2356, and BOTH allSubReachable and checkConsistensy
+            //      short-circuit their null-slot reverseLookup when the
+            //      root packet they observe is missing (mid-bundle
+            //      semantics — null is legitimate during a bundle in
+            //      progress).  If we leave m_missing=true, the gate
+            //      vacuously returns "all reachable" and we publish
+            //      without verifying — defeating the whole point of
+            //      this gate.
+            //   2. For `is_bundle_root=true` (the only path that takes
+            //      this branch), `newpacket == superwrapper->packet()`
+            //      (reverseLookup returns the packet itself when
+            //      &superpacket->node() == this — see line 1440), so
+            //      passing default globalroot makes groot=newpacket
+            //      which IS the bundle's global root view.  Hard-link
+            //      Case B siblings within this tree are then reachable
+            //      via the propagated groot.
+            //   3. On reachability failure, restore m_missing=true so
+            //      the wrapper we hand back to outer retries does not
+            //      claim "published, ready" prematurely.
+            newpacket->m_missing = false;
+            if(newpacket->allSubReachable(newpacket)) {
+                STRICT_assert(newpacket->checkConsistensy(newpacket));
             }
             else {
+                newpacket->m_missing = true;
                 scope.confirm_contention();
                 scope.commit();
                 return BundledStatus::DISTURBED;
