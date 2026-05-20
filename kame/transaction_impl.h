@@ -1953,7 +1953,25 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     scope.commit();
                     return;
                 }
-                break;
+                // Orphan self-promote: walkUpChain says parent no longer
+                // references us, but our wrapper still carries a stale
+                // bundledBy.  Without breaking that link, the next retry
+                // re-walks the same dead chain and keeps returning
+                // NODE_MISSING — livelocking the destructor cleanup of an
+                // orphaned hard-link child against concurrent root-level
+                // bundles that touch this Linkage via stale references
+                // (see transaction_dynamic_node_test).
+                // CAS a priority-bearing wrapper that preserves the local
+                // packet; on success the next iter sees hasPriority=true
+                // and bundle() can finalise.  Failure means a peer
+                // advanced m_link — fall through to the bundle() retry
+                // path naturally.
+                {
+                    auto promoted = make_local_unique<PacketWrapper>(
+                        scope->packet(), snapshot.m_serial);
+                    scope.compareAndSet(promoted);
+                }
+                continue;
             }
         }
         // Fall through to bundle.  Pass scope directly — bundle()
