@@ -70,6 +70,9 @@ target_link_libraries(transaction_test Threads::Threads)
 add_executable(transaction_dynamic_node_test transaction_dynamic_node_test.cpp ${support_SRCS})
 target_link_libraries(transaction_dynamic_node_test Threads::Threads)
 
+add_executable(transaction_hardlink_collision_test transaction_hardlink_collision_test.cpp ${support_SRCS})
+target_link_libraries(transaction_hardlink_collision_test Threads::Threads)
+
 add_executable(transaction_negotiation_test transaction_negotiation_test.cpp ${support_SRCS})
 target_link_libraries(transaction_negotiation_test Threads::Threads)
 
