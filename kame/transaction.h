@@ -837,17 +837,31 @@ private:
 
         //! For debugging.
         void print_() const;
-        //! For debugging.
-        bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
+        //! For debugging.  Walks the sub-tree under this packet and
+        //! throws on any inconsistency.  `rootpacket` is the LOCAL
+        //! sub-bundle root used for the standard "sub is missing →
+        //! self is missing" propagation check (line 878 area).
+        //! `globalroot`, when provided, is the GLOBAL (top-level) root
+        //! used for the Null-slot `reverseLookup` test — this matters
+        //! for hard-link topologies where a sub-bundle locally cannot
+        //! find its hard-linked child but the global tree can (the
+        //! child's packet lives in a sibling sub-tree).  When omitted
+        //! (default `{}`), the global root degenerates to the local
+        //! root, matching the original pre-2026-05-21 semantics.
+        bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
+                              const local_shared_ptr<Packet> &globalroot = {}) const;
         //! Non-throwing reachability check.  Mirrors `checkConsistensy`'s
         //! Null-slot reverseLookup test but returns `false` instead of
         //! throwing.  Used by `bundle` Phase 4 to gate the
         //! `is_bundle_root` `m_missing=false` override: if any Null
         //! sub-packet slot under this packet has a child node that is
-        //! NOT reverseLookup-able within `rootpacket`, returns false.
-        //! This catches the hard-link race where bundle would publish
-        //! ~missing with an unreachable Null slot.
-        bool allSubReachable(const local_shared_ptr<Packet> &rootpacket) const;
+        //! NOT reverseLookup-able within `globalroot` (or `rootpacket`
+        //! when `globalroot` is omitted), returns false.  Pass the
+        //! actual global tree root as `globalroot` for hard-link
+        //! topologies (otherwise locally-correct hard-link references
+        //! to siblings produce false-negatives).
+        bool allSubReachable(const local_shared_ptr<Packet> &rootpacket,
+                             const local_shared_ptr<Packet> &globalroot = {}) const;
 
         local_shared_ptr<Payload> m_payload;
         shared_ptr<PacketList> m_subpackets;

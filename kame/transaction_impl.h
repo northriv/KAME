@@ -857,7 +857,22 @@ Node<XN>::Packet::print_() const {
 
 template <class XN>
 bool
-Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const {
+Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
+                                   const local_shared_ptr<Packet> &globalroot) const {
+    // `rootpacket` = LOCAL sub-bundle root (switches on recursion when
+    //                a sub-packet is not missing — see line "subpackets()
+    //                ->at(i)->missing() ? rootpacket : subpackets()->at(i)"
+    //                below).  Used for the "sub missing → self missing"
+    //                propagation check.
+    // `groot`      = GLOBAL (top-level) root, threaded unchanged through
+    //                recursion.  Used for the Null-slot reverseLookup.
+    //                When the caller passes `{}` (default), groot
+    //                degenerates to the local root and the function
+    //                behaves like the pre-2026-05-21 form — this
+    //                produces false-positives in hard-link topologies
+    //                (Case B: sub-bundle locally cannot find its
+    //                hard-linked child but the global tree can).
+    const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
     try {
         if(size()) {
             if( !(payload()->m_serial - subpackets()->m_serial < 0x7fffffffffffffffLL))
@@ -865,9 +880,9 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
         }
         for(int i = 0; i < size(); i++) {
             if( !subpackets()->at(i)) {
-                if( !rootpacket->missing()) {
+                if( !groot->missing()) {
                     if( !subnodes()->at(i)->reverseLookup(
-                        const_cast<local_shared_ptr<Packet>&>(rootpacket), false, 0, false, 0))
+                        const_cast<local_shared_ptr<Packet>&>(groot), false, 0, false, 0))
                         throw __LINE__;
                 }
             }
@@ -879,15 +894,18 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
                     if( !missing())
                         throw __LINE__;
                 }
+                // Recurse with groot UNCHANGED (always the original
+                // top-level root) — only the local root switches.
                 if( !subpackets()->at(i)->checkConsistensy(
-                    subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i)))
+                    subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i),
+                    groot))
                     return false;
             }
         }
     }
     catch (int &line) {
         fprintf(stderr, "Line %d, losing consistensy on node %p:\n", line, &node());
-        rootpacket->print_();
+        groot->print_();
         throw *this;
     }
     return true;
@@ -895,23 +913,31 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 
 template <class XN>
 bool
-Node<XN>::Packet::allSubReachable(const local_shared_ptr<Packet> &rootpacket) const {
+Node<XN>::Packet::allSubReachable(const local_shared_ptr<Packet> &rootpacket,
+                                  const local_shared_ptr<Packet> &globalroot) const {
     // Mirror of checkConsistensy's Null-slot path (line 866-885) but
     // never throws.  Returns false on the first unreachable Null slot.
     // Used as a pre-check in bundle Phase 4's `is_bundle_root` override
     // — if we would publish ~missing with an unreachable Null slot,
     // skip the override and leave m_missing=true.
-    if(rootpacket->missing()) return true;  // root missing → no Null-slot check fires
+    //
+    // `globalroot` follows the same semantics as in checkConsistensy:
+    // the GLOBAL (top-level) root used for Null-slot reverseLookup.
+    // Default `{}` degenerates groot to the local root (pre-2026-05-21
+    // semantics) which is unsafe for hard-link sibling references.
+    const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
+    if(groot->missing()) return true;  // root missing → no Null-slot check fires
     for(int i = 0; i < size(); i++) {
         if( !subpackets()->at(i)) {
             if( !subnodes()->at(i)->reverseLookup(
-                const_cast<local_shared_ptr<Packet>&>(rootpacket), false, 0, false, 0))
+                const_cast<local_shared_ptr<Packet>&>(groot), false, 0, false, 0))
                 return false;
         }
         else {
             if(subpackets()->at(i)->size())
                 if( !subpackets()->at(i)->allSubReachable(
-                    subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i)))
+                    subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i),
+                    groot))
                     return false;
         }
     }
@@ -2458,9 +2484,19 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             // the next bundle finalizes cleanly.
             // (Returning SUCCESS with m_missing=true would trip the
             //  `assert(!scope->packet()->missing())` in the caller.)
-            if(newpacket->allSubReachable(newpacket)) {
+            //
+            // Pass `superwrapper->packet()` as the GLOBAL root: `newpacket`
+            // is a sub-packet within superwrapper's packet, and hard-link
+            // siblings (Case B: e.g. another child of supernode holds
+            // the hard-linked child's packet) are reachable from
+            // superwrapper's view but NOT from newpacket's local view.
+            // Without globalroot, allSubReachable would false-DISTURBED
+            // on every retry — a livelock surface.  See
+            // `BundleUnbundle_hardlink_4node.tla::ReachableFromRoot` for
+            // the semantic match.
+            if(newpacket->allSubReachable(newpacket, superwrapper->packet())) {
                 newpacket->m_missing = false;
-                STRICT_assert(newpacket->checkConsistensy(newpacket));
+                STRICT_assert(newpacket->checkConsistensy(newpacket, superwrapper->packet()));
             }
             else {
                 scope.confirm_contention();
