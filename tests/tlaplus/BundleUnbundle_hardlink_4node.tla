@@ -257,10 +257,10 @@ BundlePhase5(t) ==
 -----------------------------------------------------------------------------
 (* Non-tx release operations — single CAS to clear a sub[C] slot. *)
 
-\* B.release(C) — single CAS on B's own wrapper to clear sub[C].
+\* B.release(C) step 1 — single CAS on B's own wrapper to clear sub[C].
 \* DOES NOT migrate the packet to A; this models the race window where
-\* the migration is a separate (later) step.  Equivalent to step 1 of
-\* a 2-step release protocol.
+\* the migration is a separate (later) step.  Step 2 (MigrateCToA below)
+\* completes the migration.
 ReleaseBCNoMigrate(t) ==
     /\ pc[t] = "idle"
     /\ ~releaseDone[t]
@@ -268,6 +268,7 @@ ReleaseBCNoMigrate(t) ==
     /\ LET bw == linkage[B]
        IN
        /\ bw.hasPriority
+       /\ bw.packet.sub[C] /= Null
        /\ LET newBSub == [c \in {C} |-> Null]
               newBPkt == MakePacket(B, newBSub, FALSE)
               newW == PriorityWrapper(newBPkt)
@@ -275,8 +276,32 @@ ReleaseBCNoMigrate(t) ==
           /\ linkage[B] = bw
           /\ linkage' = [linkage EXCEPT ![B] = newW]
           /\ cInB' = FALSE
+          /\ UNCHANGED <<pc, local, cInA, bundleDone, releaseDone, retryCount>>
+
+\* B.release(C) step 2 — atomically migrate C's packet into A.sub[C]
+\* and update C's bundledBy.  This is what the real KAME release does
+\* after the step-1 clear.  Without this, C is lost forever.
+\* Precondition: C was just cleared from B (cInB=FALSE) AND C is still
+\* in A's subnodes (cInA).
+MigrateCToA(t) ==
+    /\ pc[t] = "idle"
+    /\ ~releaseDone[t]
+    /\ ~cInB
+    /\ cInA
+    /\ LET aw == linkage[A]
+       IN
+       /\ aw.hasPriority
+       /\ aw.packet.sub[C] = Null
+       /\ LET newASub == [c \in {C} |-> CPacket]
+              newAPkt == MakePacket(A, newASub, FALSE)
+              newAW == PriorityWrapper(newAPkt)
+          IN
+          /\ linkage[A] = aw
+          /\ linkage' = [linkage EXCEPT
+                  ![A] = newAW,
+                  ![C] = BundledRefWrapper(A)]
           /\ releaseDone' = [releaseDone EXCEPT ![t] = TRUE]
-          /\ UNCHANGED <<pc, local, cInA, bundleDone, retryCount>>
+          /\ UNCHANGED <<pc, local, cInA, cInB, bundleDone, retryCount>>
 
 \* (kept) the older migrating release is OFF in the NextStep —
 \* keep the definition for reference.
@@ -369,6 +394,7 @@ NextStep ==
         \/ BundlePhase4(t)
         \/ BundlePhase5(t)
         \/ ReleaseBCNoMigrate(t)
+        \/ MigrateCToA(t)
 
 Terminating == AllDone /\ UNCHANGED vars
 
