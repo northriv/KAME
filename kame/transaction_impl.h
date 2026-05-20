@@ -894,6 +894,31 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 }
 
 template <class XN>
+bool
+Node<XN>::Packet::allSubReachable(const local_shared_ptr<Packet> &rootpacket) const {
+    // Mirror of checkConsistensy's Null-slot path (line 866-885) but
+    // never throws.  Returns false on the first unreachable Null slot.
+    // Used as a pre-check in bundle Phase 4's `is_bundle_root` override
+    // — if we would publish ~missing with an unreachable Null slot,
+    // skip the override and leave m_missing=true.
+    if(rootpacket->missing()) return true;  // root missing → no Null-slot check fires
+    for(int i = 0; i < size(); i++) {
+        if( !subpackets()->at(i)) {
+            if( !subnodes()->at(i)->reverseLookup(
+                const_cast<local_shared_ptr<Packet>&>(rootpacket), false, 0, false, 0))
+                return false;
+        }
+        else {
+            if(subpackets()->at(i)->size())
+                if( !subpackets()->at(i)->allSubReachable(
+                    subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i)))
+                    return false;
+        }
+    }
+    return true;
+}
+
+template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept :
     m_bundledBy(), m_packet(x), m_reverse_index((int)PACKET_STATE::PACKET_HAS_PRIORITY),
     m_bundle_serial(bundle_serial) {
@@ -2386,11 +2411,20 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
-            newpacket->m_missing = false;
-            // STRICT_assert(newpacket->checkConsistensy(newpacket));
-            // ↑ disabled per diagnostic (b): line 2376 fires on pre-CAS
-            //   state; the post-publish check at line 1938 catches the
-            //   genuinely externally-observable inconsistency.
+            // (Hard-link race fix) — before clearing m_missing under
+            // the is_bundle_root override, verify every Null sub-packet
+            // slot's subnode is reverseLookup-able within newpacket.
+            // If not, the published ~missing state would trip
+            // checkConsistensy line 871 (the production "30/30 abort"
+            // pattern, see tests/tlaplus/BundleUnbundle_hardlink_4node).
+            // Leave m_missing=true and let the outer retry loop
+            // re-attempt — once the race resolves (e.g. a multi-step
+            // release completes its migration step), the next bundle
+            // finalizes cleanly.
+            if(newpacket->allSubReachable(newpacket)) {
+                newpacket->m_missing = false;
+                STRICT_assert(newpacket->checkConsistensy(newpacket));
+            }
         }
 
         // CAS via scope.  Phase 2's compareAndSetRetain left scope in
