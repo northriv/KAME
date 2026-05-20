@@ -1911,7 +1911,8 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             case SnapshotStatus::SUCCESS: {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
                         snapshot.m_packet = *foundpacket;
-                        STRICT_assert(snapshot.m_packet->checkConsistensy(snapshot.m_packet));
+                        STRICT_assert(snapshot.m_packet->checkConsistensy(
+                            snapshot.m_packet, (*root_lifetime)->packet()));
                         scope.commit();
                         return;
                     }
@@ -2456,29 +2457,26 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
-            // Hard-link null-slot handling:
-            // Set m_missing=false FIRST (required so allSubReachable's early-exit
-            // guard `if(rootpacket->missing()) return true` does not fire).
-            // allSubReachable detects unreachable null-slot hard-link children
-            // (packets hosted by another parent not reachable from our local
-            // subtree root) and returns false — acceptable state, fall through.
-            // When allSubReachable passes, checkConsistensy verifies consistency;
-            // but a race exists: between the two calls a concurrent m_link update
-            // on a hard-link child can change the reverseLookup result, making
-            // checkConsistensy fire on a transiently valid state.  Catch the
-            // thrown Packet and convert to DISTURBED for a clean retry.
-            newpacket->m_missing = false;
+            // (Hard-link race fix) — before clearing m_missing under
+            // the is_bundle_root override, verify every Null sub-packet
+            // slot's subnode is reverseLookup-able within newpacket.
+            // If not, the published ~missing state would trip
+            // checkConsistensy line 871 (the production "30/30 abort"
+            // pattern, see tests/tlaplus/BundleUnbundle_hardlink_4node).
+            // Return DISTURBED so the outer snapshot() retry loop
+            // re-attempts the whole bundle — once the race resolves
+            // (e.g. a multi-step release completes its migration step),
+            // the next bundle finalizes cleanly.
+            // (Returning SUCCESS with m_missing=true would trip the
+            //  `assert(!scope->packet()->missing())` in the caller.)
             if(newpacket->allSubReachable(newpacket)) {
-#ifdef TRANSACTIONAL_STRICT_assert
-                try {
-                    newpacket->checkConsistensy(newpacket);
-                } catch(Packet &) {
-                    newpacket->m_missing = true;
-                    scope.confirm_contention();
-                    scope.commit();
-                    return BundledStatus::DISTURBED;
-                }
-#endif
+                newpacket->m_missing = false;
+                STRICT_assert(newpacket->checkConsistensy(newpacket));
+            }
+            else {
+                scope.confirm_contention();
+                scope.commit();
+                return BundledStatus::DISTURBED;
             }
         }
 
