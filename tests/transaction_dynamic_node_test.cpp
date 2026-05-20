@@ -124,7 +124,6 @@ start_routine(void) {
         gn1->iterate_commit([=](Transaction &tr1){
 			Snapshot &ctr1(tr1);
 			tr1[gn1] = ctr1[gn1] + 1;
-			tr1[gn3] = ctr1[gn3] + 1;
             Snapshot &str1(tr1);
 			tr1[gn1] = str1[gn1] - 1;
 			tr1[gn2] = str1[gn2] + 1;
@@ -132,19 +131,7 @@ start_routine(void) {
 				tr1[p2] = str1[p2] + 1;
 			}
         });
-        gn4->iterate_commit([=](Transaction &tr1){
-			tr1[gn4] = tr1[gn4] + 1;
-			tr1[gn4] = tr1[gn4] - 1;
-        });
 		p1->release(p2);
-        gn2->iterate_commit([=](Transaction &tr1){
-            Snapshot &str1(tr1);
-			tr1[gn2] = tr1[gn2] - 1;
-			tr1[gn3] = str1[gn3] - 1;
-			if((i % 10) == 0) {
-				tr1[p2] = str1[p2] - 1;
-			}
-        });
 		if((i % 10) == 0) {
             gn1->iterate_commit_if([=](Transaction &tr1)->bool{
 				if( !gn2->release(tr1, p2))
@@ -169,147 +156,7 @@ main(int argc, char **argv) {
         gn3.reset(LongNode::create<LongNode>());
         gn4.reset(LongNode::create<LongNode>());
 
-        gn1->iterate_commit_if([=](Transaction &tr1)->bool{
-            printf("1");
-			if( !gn1->insert(tr1, gn2, true))
-                return false;
-			tr1[ *gn2] = tr1[ *gn2] + 1;
-			if( !gn2->insert(tr1, gn3, true))
-                return false;
-			tr1.print();
-			if( !gn3->insert(tr1, gn4, true))
-                return false;
-			tr1.print();
-			if( !gn3->release(tr1, gn4))
-                return false;
-			tr1.print();
-            return true;
-        });
-		gn1->print_();
-		gn1->release(gn2);
-		gn1->print_();
-		gn1->insert(gn2);
-		gn1->print_();
-        gn2->iterate_commit([=](Transaction &tr1){
-            printf("2");
-			tr1[ *gn2] = tr1[ *gn2] - 1;
-			tr1[ *gn3] = 0;
-        });
-		{
-			Snapshot shot1(*gn1);
-			shot1.print();
-			long x = shot1[*gn3];
-			printf("Gn3:%ld\n", x);
-		}
-		trans(*gn3) = 3;
-		long x = ***gn3;
-		printf("Gn3:%ld\n", x);
-		trans(*gn3) = 0;
-
-		shared_ptr<LongNode> p1(LongNode::create<LongNode>());
-		gn3->insert(p1);
-		gn1->insert(p1);
-		gn1->swap(p1, gn2);
-		trans(*gn1) = 3;
-		trans(*gn1) = 0;
-
-		{
-			shared_ptr<LongNode> p2(LongNode::create<LongNode>());
-			shared_ptr<LongNode> p22(LongNode::create<LongNode>());
-			shared_ptr<LongNode> p211(LongNode::create<LongNode>());
-			shared_ptr<LongNode> p21(LongNode::create<LongNode>());
-			p2->insert(p21);
-			p21->insert(p211);
-			p2->insert(p211);
-			trans(*p211) = 1;
-			p21->insert(p22);
-			p211->insert(p22);
-
-			gn1->insert(p2);
-			gn3->insert(p2);
-			gn1->release(p2);
-			gn3->release(p2);
-
-			shared_ptr<ComplexNode> p2111;
-
-            gn3->iterate_commit_if([=, &p2111](Transaction &tr1)->bool{
-				printf("3");
-				if( !p1->insert(tr1, p22, true))
-                    return false;
-				if( !gn3->insert(tr1, p2, true))
-                    return false;
-
-                p2111.reset(LongNode::create<ComplexNode>(ref(tr1), gn3));
-				shared_ptr<LongNode> p2112(LongNode::create<LongNode>());
-				shared_ptr<LongNode> p2113(LongNode::create<LongNode>());
-				shared_ptr<LongNode> p2114(LongNode::create<LongNode>());
-				p2111->insert(p2112);
-				p2112->insert(p2113);
-				p2111->insert(p2114);
-				trans( *p2113) = 1;
-				trans( *p2114) = 1;
-
-				if( !p21->insert(tr1, p2111, true))
-                    return false;
-				if( !gn3->insert(tr1, p2111, true))
-                    return false;
-
-				tr1[ *p2113] = 0;
-				tr1[ *p2114] = 0;
-
-				tr1[*p22] = 1;
-                return true;
-            });
-			{
-				Snapshot shot1(*gn3);
-				shot1[ *p2111->n1()];
-			}
-            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
-                printf("4");
-				if( !gn3->insert(tr1, gn4, true))
-                    return false;
-				if( !gn2->insert(tr1, gn4, true))
-                    return false;
-                return true;
-            });
-            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
-				printf("5");
-				if( !gn3->release(tr1, gn4))
-                    return false;
-				if( !gn2->release(tr1, gn4))
-                    return false;
-                return true;
-            });
-			{
-				Snapshot shot1(*gn3);
-				shot1[ *p2];
-				shot1[ *p21];
-				shot1[ *p22];
-			}
-			trans(*p211) = 0;
-            gn3->iterate_commit_if([=](Transaction &tr1)->bool{
-                if( !p1->release(tr1, p22))
-                    return false;
-                if( !gn3->release(tr1, p2))
-                    return false;
-                if( !gn3->release(tr1, p2111))
-                    return false;
-                return true;
-            });
-			trans(*p22) = 0;
-
-            gn1->iterate_commit([=](Transaction &tr1){
-                Snapshot &ctr1(tr1); // For reading.
-				tr1[gn1] = ctr1[gn1] + 1;
-				tr1[gn3] = ctr1[gn3] + 1;
-                Snapshot &str1(tr1);
-				tr1[gn1] = str1[gn1] - 1;
-				tr1[gn3] = str1[gn3] - 1;
-            });
-		}
-		gn1->print_();
-		gn1->release(p1);
-		gn1->print_();
+        gn1->insert(gn2);
 
         std::thread threads[NUM_THREADS];
 
@@ -341,7 +188,6 @@ main(int argc, char **argv) {
 		gn2.reset();
 		gn3.reset();
 		gn4.reset();
-		p1.reset();
 
 		if(objcnt != 0) {
 			printf("failed1\n");
