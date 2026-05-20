@@ -411,8 +411,11 @@ Wait-free is not claimed at either layer — CAS-retry-based with fairness
 
 **Directory:** `tests/tlaplus/`
 **Specs:**
-- `BundleUnbundle_hardlink_dynamic.tla` — sibling-parents variant (Parent1 || Parent2 share DynChild1)
+- `BundleUnbundle_hardlink_dynamic.tla` — sibling-parents variant (Parent1 ‖ Parent2 share DynChild1)
 - `BundleUnbundle_hardlink_self_collision.tla` — self-collision variant (R-root + intermediate parent A, both directly parent of C)
+- `BundleUnbundle_hardlink_4node.tla` — Root-A-B-C topology with C hard-linked under both A and B (production-race repro, mirrors the C++ Phase 4 reachability-gating fix)
+- `BundleUnbundle_hardlink_external.tla` — minimal 4-node external-parent repro (`P2` hard-linked external to `P1`, `bundle(GN1)` triggers `SnapshotConsistency` violation without the fix)
+- `BundleUnbundle_hardlink_external_migration.tla` — cross-tree migration (bundle on `GN1` reaches into `P1`'s tree to pull `P2` into `GN2.sub[P2]`)
 
 ### Background
 
@@ -422,12 +425,15 @@ The "hard-link" case — one child node referenced from two distinct parents
 reports of low-frequency dyn_node aborts ("30/30 abort on another env")
 prompted formal modelling of the protocol under hard-link topologies.
 
-Two complementary topologies are modelled:
+Five complementary topologies are modelled:
 
 | Spec | Topology | Bug surface |
 |---|---|---|
 | `_hardlink_dynamic` | Parent1 ‖ Parent2 → DynChild1 (sibling parents) | migration race when one parent's bundle pulls the child from the other parent's `sub[]` |
 | `_hardlink_self_collision` | R → A → C and R → C (root is also direct parent) | bundle(R) walks both R→C and R→A→C; the `is_bundle_root` Phase 4 `m_missing=false` override interacts with the doubled path |
+| `_hardlink_4node` | Root → A, Root → B, A → C, B → C (C shared between A and B) | bundle(Root) Phase 4 reachability gating + outer `DISTURBED` retry; production-race repro |
+| `_hardlink_external` | GN1 → P2 (hardlink), P1 → P2 (external owner of P2's packet) | bundle(GN1) finalises `GN1 ~missing` while `GN2.sub[P2]=Null` is unreachable from GN1 → SnapshotConsistency violation without Phase 4 gating |
+| `_hardlink_external_migration` | as above, but the bundle is allowed to migrate P2 from P1's tree | bundle(GN1) must atomically pull P2 out of P1's `sub[]` and into GN2's `sub[]` while the peer races on P1 |
 
 ### Self-collision: bug repro and fix simulation
 
@@ -470,13 +476,13 @@ no `Null` sub-slot occurs in steady state — so the fix is a no-op.
 
 ### Verified invariants
 
-| Invariant | Description |
+| Invariant / Property | Description |
 |---|---|
 | `SnapshotConsistency` | mirrors `Packet::checkConsistensy` — a `Null` sub-slot is consistent only if reachable via `reverseLookup` (hard-link path) |
 | `HardlinkExclusive` | at most one parent's `sub[]` holds the child's packet (no duplicate homing) |
 | `BundleRefConsistency` | `child.bundledBy` parent has priority and either holds the packet or the child wrapper carries an `InsertedRef` |
 | `NoPriorityLoss`, `NoMissingHole`, `MissingPropagation` | structural sanity |
-| `DebugRetryBound` | per-thread bundle-Phase-1 entries < 10 (catches runaway retry — Lamport-bound equivalent for this serial-less model) |
+| `EventuallyAllDone` (PROPERTY) | all threads eventually complete — checked on every hard-link cfg (uniform safety+liveness coverage as of 2026-05-20) |
 
 ### Results
 
@@ -484,8 +490,8 @@ no `Null` sub-slot occurs in steady state — so the fix is a no-op.
 
 | Config | Threads | Distinct states | Result |
 |---|---|---|---|
-| 1-thread, MaxCommits=1 | 1 | 7 | **Pass** |
-| 2-thread, MaxCommits=1 | 2 | 62 | **Pass** |
+| 1-thread, MaxCommits=1 | 1 | 7 | **Pass** + liveness |
+| 2-thread, MaxCommits=1 | 2 | 62 | **Pass** + liveness |
 | 2-thread, MaxCommits=2 | 2 | 703 | **Pass** |
 
 `_hardlink_self_collision` (R-A-C, before fix):
@@ -498,8 +504,8 @@ no `Null` sub-slot occurs in steady state — so the fix is a no-op.
 
 | Config | Threads | Distinct states | Result |
 |---|---|---|---|
-| 2-thread | 2 | 270 | **Pass** + liveness |
-| 3-thread | 3 | 6,396 | **Pass** + liveness |
+| 2-thread | 2 | 114 | **Pass** + liveness |
+| 3-thread | 3 | 760 | **Pass** + liveness |
 
 `_hardlink_4node` (R + A + B + shared C, production-race repro
 with Phase 4 reachability gating + outer-retry semantics):
@@ -507,7 +513,25 @@ with Phase 4 reachability gating + outer-retry semantics):
 | Config | Threads | Distinct states | Result |
 |---|---|---|---|
 | 2-thread (production-race, no fix) | 2 | 97 | **FAIL** — SnapshotConsistency violated |
-| 2-thread (Phase 4 reachability gating + DISTURBED retry) | 2 | 531 | **Pass** + liveness under `WF(MigrateCToA)` |
+| 2-thread (Phase 4 reachability gating + DISTURBED retry) | 2 | 531 | **Pass** + liveness under per-action `WF(MigrateCToA)` |
+
+`_hardlink_external` (P2 hard-linked under both GN1 and P1, no migration —
+direct repro of `SnapshotConsistency` violation when Phase 4 finalises
+GN1 ~missing while GN2.sub[P2] is unreachable):
+
+| Config | Threads | Distinct states | Result |
+|---|---|---|---|
+| 1-thread | 1 | 15 | **Pass** + liveness (with Phase 4 reachability gate) |
+| 2-thread | 2 | 136 | **Pass** + liveness |
+
+`_hardlink_external_migration` (bundle on GN1 atomically migrates P2 from
+P1's tree into GN2.sub[P2]; per-action WF on every progress step):
+
+| Config | Threads | Distinct states | Result |
+|---|---|---|---|
+| 1-thread | 1 | 8 | **Pass** + liveness |
+| 2-thread | 2 | (~hundreds) | **Pass** + liveness |
+| 3-thread | 3 | 1,202 | **Pass** + liveness under per-action WF on every BundlePhase* / BundlePullP1 / BundleCASP2 / BundleUpdateGN1 step |
 
 ### First per-action fairness in the KAME TLA+ corpus
 
@@ -519,6 +543,23 @@ TLA+ spec to use **per-action fairness** rather than the blanket
 Spec == Init /\ [][Next]_vars
         /\ WF_vars(NextStep)
         /\ \A t \in Threads : WF_vars(MigrateCToA(t))
+```
+
+`_hardlink_external_migration` extends the same idea further — every
+progress action of every thread gets its own per-action WF, since
+each step of the bundle pipeline must be guaranteed to fire against
+arbitrary peer retries:
+
+```tla
+Spec == Init /\ [][Next]_vars
+        /\ WF_vars(NextStep)
+        /\ \A t \in Threads :
+            /\ WF_vars(BundlePhase1(t))
+            /\ WF_vars(BundlePullP1(t))
+            /\ WF_vars(BundleCASP2(t))
+            /\ WF_vars(BundleUpdateGN1(t))
+            /\ WF_vars(BundlePhase4(t))
+            /\ WF_vars(BundlePhase5(t))
 ```
 
 Rationale.  With the production-faithful retry semantics (Phase 4 on
@@ -578,24 +619,36 @@ structurally and `WF_vars(NextStep)` suffices.
 
 ### State-space bounding policy
 
-User feedback 2026-05-20 / 2026-05-21 led to a clear policy across
-all hardlink models:
+User feedback 2026-05-20 led to a uniform policy across all hardlink
+models — **no artificial retry bound, no CONSTRAINT, no MOD wrap-around**:
 
-| Model | DebugRetryBound | Rationale |
+| Model | retryCount / DebugRetryBound | Bounding mechanism |
 |---|---|---|
-| `_hardlink_self_collision` | INVARIANT (bound 10) | Bundle retries are structurally bounded; INVARIANT catches false-negative liveness misses |
-| `_hardlink_external_migration` | CONSTRAINT (bound 5) | Documented limitation — model omits priority/negotiate; CONSTRAINT bounds state space for safety check only |
-| `_hardlink_4node` (production-faithful) | **removed entirely** | retryCount removed from model; all variables bounded → naturally finite state space without any artificial bound |
+| `_hardlink_4node` | **removed** (gold standard) | `"in_release"` pc state binds the 2-step release into one atomic-from-caller API call (mirrors C++ `release(B, C)`); finite because every other variable has a finite domain |
+| `_hardlink_self_collision` | **removed** | finite by bounded domains |
+| `_hardlink_external` | **removed** | finite by bounded domains |
+| `_hardlink_external_migration` | **removed** | per-action WF on every progress step replaces the retry-counter role; finite by bounded domains |
+| `_hardlink_dynamic` | never had one | finite by bounded domains + `MaxCommits=1` |
 
-The 4-node model is the gold standard: no CONSTRAINT (which can mask
-false-negative liveness), no INVARIANT bound on a retry counter
-(which can false-positive on legitimate retries), no MOD wrap-around
-arithmetic, no VIEW.  The retry-counter pattern is replaced by an
-`"in_release"` pc state that mirrors the real C++ API:
-`release(B, C)` is a single API call that internally completes both
-steps (clear B.sub + migrate to A) before returning, so the caller
-cannot start a new bundle mid-release.  This matches the
-implementation exactly and produces a naturally finite state space.
+Rationale.  CONSTRAINT silently prunes long-retry paths and risks
+false-negative liveness verdicts; INVARIANT bounds on a retry counter
+false-positive on legitimate retries that recover.  Removing both
+gives an honest verification: TLC terminates naturally on the bounded
+state space, and `EventuallyAllDone` is checkable end-to-end.
+
+The `_hardlink_4node` and `_hardlink_external_migration` models in
+particular demonstrate two complementary recipes:
+
+* **4-node**: a 2-step release becomes a single "logical action" via
+  a binding pc state — mirrors how the C++ `release(B, C)` API is a
+  single non-preemptible call from the caller's standpoint.  No
+  per-action fairness on the bundling thread is needed because the
+  retry/release pairing is structural.
+* **external_migration**: cross-tree races where three different
+  linkages are involved use **per-action WF** on every progress step
+  for every thread.  This models OS-level thread scheduling
+  fairness, since in-linkage older-wins negotiate doesn't arbitrate
+  between threads that never CAS the same linkage.
 
 ### Build & run
 
@@ -611,6 +664,16 @@ java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
 java -XX:+UseParallelGC -Xmx6g -cp tla2tools.jar tlc2.TLC \
   -workers auto -config BundleUnbundle_hardlink_4node_2thr_mc.cfg \
   BundleUnbundle_hardlink_4node.tla
+
+# External migration 3-thread (<1 s)
+java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_hardlink_external_migration_3thr_mc.cfg \
+  BundleUnbundle_hardlink_external_migration.tla
+
+# Dynamic 2-thread (sibling parents, with liveness)
+java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_hardlink_dynamic_2thr_mc.cfg \
+  BundleUnbundle_hardlink_dynamic.tla
 ```
 
 To reproduce the original bug, revert the Phase 3 `subpackets[c] == Null`
