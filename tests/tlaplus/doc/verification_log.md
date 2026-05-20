@@ -1,5 +1,105 @@
 # TLA+ Verification Log
 
+## 2026-05-21: Hard-link 4-node — first per-action SF, DISTURBED-equivalent retry
+
+### Context
+
+While committing the C++ Phase 4 hardlink fix (`92b15f62`), a critical
+mismatch was discovered between the model and implementation:
+
+- **Implementation** (transaction_impl.h, after fix): when Phase 4's
+  reachability gate fails, returns `BundledStatus::DISTURBED` and lets
+  the outer `snapshot()` retry loop re-attempt.  The published Root
+  state from Phase 2 (`m_missing=true` intermediate) is left as-is.
+
+- **Model (`_hardlink_4node.tla` initial version)**: Phase 4 published
+  Root with `missing=true` and set `bundleDone=TRUE` — modelled as
+  "bundle finishes with missing=true".  Equivalent to a SUCCESS
+  return in C++ terms, which would trip the caller's
+  `assert(!scope->packet()->missing())` (transaction_impl.h:1952).
+
+The model was updated to mirror DISTURBED: on reachability failure,
+Phase 4 returns `pc` to `bundle_phase1` (without setting bundleDone)
+so the bundle retries from scratch — exactly what the outer snapshot
+loop does in production.
+
+### Per-action Strong Fairness — first use in KAME TLA+ work
+
+The retry-style Phase 4 introduces an unbounded-retry possibility:
+if `MigrateCToA` (= the peer release's step-2 migration, which
+restores `A.sub[C]` so the next bundle can finalise) is starved by
+T1's bundle retries, the model has executions where T1 retries
+forever without progress.
+
+TLC's `WF_vars(NextStep)` (used in every previous KAME spec —
+`BundleUnbundle_2level_LLfree`, `_3level_LLfree`, `_2level_LLfree_dynamic`,
+`_3level_LLfree_dynamic`, the previous hardlink specs, and even
+`atomic_shared_ptr.tla`) is **insufficient for this case**: weak
+fairness on a disjunction guarantees "some action eventually fires"
+but does not pick out a specific action.  An infinite sequence
+firing only the bundle-retry actions and never `MigrateCToA`
+satisfies `WF_vars(NextStep)` (because some action did fire) yet
+violates the production fairness assumption.
+
+The fix: **Strong Fairness on the specific action** `MigrateCToA`:
+
+```tla
+Spec == Init /\ [][Next]_vars
+        /\ WF_vars(NextStep)
+        /\ \A t \in Threads : SF_vars(MigrateCToA(t))
+```
+
+`SF_vars(MigrateCToA(t))` says: if `MigrateCToA(t)` is enabled
+infinitely often (even with disabled-enabled cycles), it eventually
+fires.  Under this stronger fairness, every infinite execution must
+include `MigrateCToA` firing, after which T1's next bundle succeeds.
+
+This is the **first per-action SF annotation** in the KAME TLA+
+corpus.  All earlier specs were either:
+- terminating without needing per-action fairness (`_2level_LLfree`,
+  `_3level_LLfree` — LL-free priority gating bounded retries
+  structurally), or
+- using `WF_vars(NextStep)` as a blanket assumption sufficient for
+  the bug they targeted.
+
+The hardlink-with-external-migration case is genuinely different:
+two threads each making independent progress, with one thread's
+forward progress dependent on the other's specific step firing.
+Production C++ achieves this via LL-free negotiate + OS-level
+thread scheduling; the model abstracts both as `SF(MigrateCToA)`.
+
+### DebugRetryBound — back to CONSTRAINT, with rationale
+
+With DISTURBED-style retry + SF, retry count grows in TLC's
+bounded exploration until `MigrateCToA` fires.  `DebugRetryBound`
+returns to `CONSTRAINT` to keep the state space finite (now serves
+purely as a state-space bound, not a safety check).  Safety
+invariants are checked at every state up to the bound; liveness
+under fairness is proven analytically by SF + EventuallyAllDone.
+
+This reverses the 2026-05-20 INVARIANT change for this specific
+model — the earlier model's bound-INVARIANT use was valid because
+that model had bounded retries by construction (Phase 4 always
+published & set bundleDone, no DISTURBED retry).  The DISTURBED-
+faithful model has unbounded retry by construction; CONSTRAINT
++ SF is the right combination here.
+
+### Results
+
+| Config | Distinct states | Safety | Liveness |
+|---|---|---|---|
+| 4-node 2-thread (DISTURBED + SF) | 13,056 | PASS (SnapshotConsistency, HardlinkExclusive) | PASS (EventuallyAllDone under SF(MigrateCToA)) |
+
+### Open follow-up
+
+Other hardlink models (`_dynamic`, `_self_collision`, `_external`,
+`_external_migration`) still use `WF_vars(NextStep)` — they may
+need similar per-action SF analysis if their retry paths involve
+peer-progress dependencies.  Not retrofitted here because those
+models don't target the same race surface.
+
+---
+
 ## 2026-05-20: Hard-link models (`BundleUnbundle_hardlink_*.tla`)
 
 ### Context

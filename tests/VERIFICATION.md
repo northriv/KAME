@@ -501,6 +501,77 @@ no `Null` sub-slot occurs in steady state — so the fix is a no-op.
 | 2-thread | 2 | 270 | **Pass** + liveness |
 | 3-thread | 3 | 6,396 | **Pass** + liveness |
 
+`_hardlink_4node` (R + A + B + shared C, production-race repro
+with Phase 4 reachability gating + outer-retry semantics):
+
+| Config | Threads | Distinct states | Result |
+|---|---|---|---|
+| 2-thread (production-race, no fix) | 2 | 97 | **FAIL** — SnapshotConsistency violated |
+| 2-thread (Phase 4 reachability gating + DISTURBED retry) | 2 | 13,056 | **Pass** + liveness under `SF(MigrateCToA)` |
+
+### First per-action Strong Fairness in the KAME TLA+ corpus
+
+The `_hardlink_4node` (with the C++ fix mirrored) is the first KAME
+TLA+ spec to use **per-action Strong Fairness** rather than the
+blanket `WF_vars(NextStep)`:
+
+```tla
+Spec == Init /\ [][Next]_vars
+        /\ WF_vars(NextStep)
+        /\ \A t \in Threads : SF_vars(MigrateCToA(t))
+```
+
+Rationale.  With the production-faithful retry semantics (Phase 4 on
+reachability failure returns to `bundle_phase1` — matching the C++
+`BundledStatus::DISTURBED` return out to `snapshot()`'s outer retry
+loop), the model admits executions where the bundling thread retries
+arbitrarily many times.  The retry only terminates after the peer's
+release-step-2 (`MigrateCToA` in the model) fires, restoring
+`A.sub[C]` to a reachable state.
+
+`WF_vars(NextStep)` is too weak here.  Weak fairness on a
+disjunction guarantees "some enabled action fires" — an infinite
+sequence firing only `BundlePhase1A/B/2/4` (= bundle retries)
+satisfies it, even though `MigrateCToA` is continuously enabled in
+parallel.  Such a trace violates the production fairness assumption
+(LL-free negotiate + OS-level fair scheduling), but TLC's liveness
+checker accepts it.
+
+`SF_vars(MigrateCToA(t))` — strong fairness on the specific action —
+excludes those traces: every infinite execution must include
+`MigrateCToA(t)` firing whenever it is enabled infinitely often.
+After it fires, the next bundle attempt sees the reachable state and
+finalizes cleanly.
+
+All earlier KAME TLA+ specs (`BundleUnbundle_2level_LLfree`,
+`_3level_LLfree`, both `_dynamic` variants, the other hardlink
+specs, and `atomic_shared_ptr.tla`) terminate without needing
+per-action SF — they either bound retries structurally via LL-free
+priority gating, or use blanket `WF_vars(NextStep)` for cases
+where any-action progress is sufficient.
+
+The hardlink-with-external-migration race is genuinely different:
+two threads making independent progress, one thread's forward
+progress dependent on the other's specific step.  Production
+achieves this via LL-free negotiate priority + scheduler fairness;
+the model abstracts both as `SF(MigrateCToA)`.
+
+### DebugRetryBound usage clarification
+
+| Model | DebugRetryBound mode | Rationale |
+|---|---|---|
+| `_hardlink_self_collision` | INVARIANT (bound 10) | Bundle retries are structurally bounded; INVARIANT catches false-negative liveness misses |
+| `_hardlink_external_migration` | CONSTRAINT (bound 5) | Peer race can cause unbounded retries; documented model limitation, CONSTRAINT bounds state space for safety check |
+| `_hardlink_4node` (production-faithful) | CONSTRAINT (bound 20) | DISTURBED-style retry is unbounded by construction; CONSTRAINT bounds state space, SF(MigrateCToA) proves liveness analytically |
+
+User feedback 2026-05-20 flagged that CONSTRAINT can mask
+false-negative liveness verdicts.  The fix is two-pronged:
+1. For models with structurally-bounded retry → use INVARIANT
+2. For models with retry bounded only by fair scheduling → use
+   CONSTRAINT *with explicit fairness annotation* (SF on the
+   progress-making action), so liveness verification under fairness
+   is analytically sound within the bound
+
 ### Build & run
 
 ```bash
@@ -511,15 +582,16 @@ java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
   -workers auto -config BundleUnbundle_hardlink_self_collision_2thr_mc.cfg \
   BundleUnbundle_hardlink_self_collision.tla
 
-# Sibling-parents 2-thread (<1 s)
-java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
-  -workers auto -config BundleUnbundle_hardlink_dynamic_2thr_mc.cfg \
-  BundleUnbundle_hardlink_dynamic.tla
+# 4-node production-race + fix 2-thread (~1 s)
+java -XX:+UseParallelGC -Xmx6g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_hardlink_4node_2thr_mc.cfg \
+  BundleUnbundle_hardlink_4node.tla
 ```
 
 To reproduce the original bug, revert the Phase 3 `subpackets[c] == Null`
 skip in `BundlePhase3` and `BundlePhase3Fail` (re-add the `CAS C` branch
-and the `local[t].cWrapper /= Null` disjunct).
+and the `local[t].cWrapper /= Null` disjunct), or in `_hardlink_4node`
+remove the `canFinalize` gating in `BundlePhase4`.
 
 ---
 
