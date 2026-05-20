@@ -1938,7 +1938,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     scope.commit();
                     return;
                 }
-#if defined(KAME_NODE_MISSING_SELF_PROMOTE) && KAME_NODE_MISSING_SELF_PROMOTE
+#if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
                 // Optional optimization (off by default).
                 //
                 // Without this branch, NODE_MISSING + missing local packet
@@ -2207,6 +2207,9 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         if( !scope) return BundledStatus::DISTURBED;
+
+#if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
+        //Optional optimization:
         // Peer-completed early return: scope's fresh load of
         // supernode.m_link may show that a peer thread bundled this
         // subtree while we were negotiating.  Require hasPriority()
@@ -2220,6 +2223,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             supscope = std::move(scope);
             return BundledStatus::SUCCESS;
         }
+#endif
         // Pointer check + 1-arg CAS: scope loaded m_link at construction;
         // if it matches supscope's expected state, scope's internal view
         // serves as the CAS expected.  Saves 1 fetch_add + promote vs

@@ -1112,7 +1112,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             const auto my_priv = NegotiationCounter::with_kind(
                 snap.m_started_time, detail::StampKind::Reserved);
             for (auto &l : snap.m_tagged_linkages) {
-                if (!l) continue;
                 auto cur = l->m_transaction_started_time.load(
                     std::memory_order_relaxed);
                 if (cur != 0
@@ -1666,7 +1665,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             using NC = NegotiationCounter;
             const auto _my_id = NC::strip_kind(snap.m_started_time);
             for(auto &_l : snap.m_tagged_linkages) {
-                if(!_l) continue;
                 auto _cur = _l->m_transaction_started_time.load(
                     std::memory_order_relaxed);
                 if(NC::is_priv_stamp(_cur)

@@ -27,6 +27,10 @@
 // Silicon / Linux x86; see git history for rationale per knob.
 // =====================================================================
 
+#ifndef KAME_STM_OPTIONAL_OPTIMIZATION
+#define KAME_STM_OPTIONAL_OPTIMIZATION 1
+#endif
+
 // --- Per-Linkage priority / lease ------------------------------------
 
 // Initial per-Linkage lease (ns). Stored as µs in the packed priority
