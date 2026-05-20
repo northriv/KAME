@@ -71,10 +71,12 @@ VARIABLES
     pc,            \* [Threads -> String]
     local,         \* [Threads -> Record]: thread-local
     hardlinkDone,  \* BOOLEAN: InsertHardLink completed?
-    bundleDone,    \* [Threads -> BOOLEAN]: this thread finished its bundle
-    retryCount     \* [Threads -> Nat]: bundle phase1 entries (debug bound)
+    bundleDone     \* [Threads -> BOOLEAN]: this thread finished its bundle
 
-vars == <<linkage, pc, local, hardlinkDone, bundleDone, retryCount>>
+\* retryCount removed (per user 2026-05-21).  See _hardlink_4node /
+\* _external_migration for the same clean-up rationale.
+
+vars == <<linkage, pc, local, hardlinkDone, bundleDone>>
 
 -----------------------------------------------------------------------------
 (* Wrapper helpers *)
@@ -124,7 +126,6 @@ Init ==
     /\ local = [t \in Threads |-> InitLocal]
     /\ hardlinkDone = FALSE
     /\ bundleDone = [t \in Threads |-> FALSE]
-    /\ retryCount = [t \in Threads |-> 0]
 
 -----------------------------------------------------------------------------
 (* reverseLookup — for SnapshotConsistency check.
@@ -167,7 +168,7 @@ InsertHardLink(t) ==
           /\ linkage[R] = rw
           /\ linkage' = [linkage EXCEPT ![R] = newW]
           /\ hardlinkDone' = TRUE
-          /\ UNCHANGED <<pc, local, bundleDone, retryCount>>
+          /\ UNCHANGED <<pc, local, bundleDone>>
 
 -----------------------------------------------------------------------------
 (* Bundle pipeline — operates on R (root).  All actions guarded on pc[t]. *)
@@ -179,7 +180,6 @@ BundleStart(t) ==
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
-    /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
     /\ UNCHANGED <<linkage, hardlinkDone, bundleDone>>
 
 \* Phase 1 (Collect) — read R's wrapper, capture A's wrapper, capture C's
@@ -211,7 +211,7 @@ BundlePhase1(t) ==
                                         THEN rw.packet.sub[A].sub[C]
                                         ELSE Null]
        /\ pc' = [pc EXCEPT ![t] = "bundle_phase2"]
-       /\ UNCHANGED <<linkage, hardlinkDone, bundleDone, retryCount>>
+       /\ UNCHANGED <<linkage, hardlinkDone, bundleDone>>
 
 \* Phase 2 (CAS R) — CAS R wrapper to missing=TRUE with collected sub[].
 \* For self-collision modeling: the bundle "absorbs" both A and (if
@@ -243,11 +243,10 @@ BundlePhase2(t) ==
             /\ local' = [local EXCEPT ![t].wrapper = newW,
                                        ![t].newRSub = newRSub]
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase3"]
-            /\ UNCHANGED <<hardlinkDone, bundleDone, retryCount>>
+            /\ UNCHANGED <<hardlinkDone, bundleDone>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
             /\ local' = [local EXCEPT ![t] = InitLocal,
                                        ![t].op = "bundle"]
-            /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
             /\ UNCHANGED <<linkage, hardlinkDone, bundleDone>>
 
 \* Phase 3 (CAS child) — CAS A's wrapper to BundledRefWrapper(R).
@@ -263,11 +262,11 @@ BundlePhase3(t) ==
           /\ local' = [local EXCEPT ![t].aWrapper =
                   [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> R]]
           /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-          /\ UNCHANGED <<hardlinkDone, bundleDone, retryCount>>
+          /\ UNCHANGED <<hardlinkDone, bundleDone>>
        \/ \* A already at R — skip Phase 3
           /\ linkage[A].bundledBy = R
           /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-          /\ UNCHANGED <<linkage, local, hardlinkDone, bundleDone, retryCount>>
+          /\ UNCHANGED <<linkage, local, hardlinkDone, bundleDone>>
 
 \* Phase 3 fail — A's wrapper diverged from collected; retry Phase 1.
 BundlePhase3Fail(t) ==
@@ -278,7 +277,6 @@ BundlePhase3Fail(t) ==
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
-    /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
     /\ UNCHANGED <<linkage, hardlinkDone, bundleDone>>
 
 \* Phase 4 (Finalize) — clear R's missing flag (is_bundle_root override).
@@ -294,11 +292,10 @@ BundlePhase4(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![R] = finalW]
             /\ local' = [local EXCEPT ![t].wrapper = finalW]
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase5"]
-            /\ UNCHANGED <<hardlinkDone, bundleDone, retryCount>>
+            /\ UNCHANGED <<hardlinkDone, bundleDone>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
             /\ local' = [local EXCEPT ![t] = InitLocal,
                                        ![t].op = "bundle"]
-            /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
             /\ UNCHANGED <<linkage, hardlinkDone, bundleDone>>
 
 \* Phase 5 (Publish) — completion step.  In KAME's bundle this is the
@@ -310,7 +307,7 @@ BundlePhase5(t) ==
     /\ pc' = [pc EXCEPT ![t] = "idle"]
     /\ local' = [local EXCEPT ![t] = InitLocal]
     /\ bundleDone' = [bundleDone EXCEPT ![t] = TRUE]
-    /\ UNCHANGED <<linkage, hardlinkDone, retryCount>>
+    /\ UNCHANGED <<linkage, hardlinkDone>>
 
 -----------------------------------------------------------------------------
 (* Next *)
@@ -380,14 +377,8 @@ HardlinkExclusive ==
           /\ rw.packet.sub[A].sub[C] /= Null
           /\ ~hardlinkDone)  \* before hardlink, no double-placement
 
-\* DebugRetryBound — Lamport-bound equivalent for the bundle retry
-\* counter.  Caps the number of bundle Phase 1 entries per thread; if
-\* TLC reports a violation here, it indicates an infinite-retry path
-\* (model bug or genuine livelock).  Default 10 — generous for normal
-\* finite-retry behaviour but small enough to catch runaway loops.
-\* Tighten on suspect runs, widen once verified bounded.
-DebugRetryBound ==
-    \A t \in Threads : retryCount[t] < 10
+\* (DebugRetryBound removed — retryCount no longer in vars; bounded
+\* state gives naturally finite state space.)
 
 \* EventuallyAllDone: liveness.
 EventuallyAllDone == <>AllDone

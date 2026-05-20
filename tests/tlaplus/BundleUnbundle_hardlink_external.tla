@@ -61,10 +61,12 @@ VARIABLES
     linkage,       \* [Nodes -> Wrapper]
     pc,            \* [Threads -> String]
     local,         \* [Threads -> Record]
-    bundleDone,    \* [Threads -> BOOLEAN]
-    retryCount     \* [Threads -> Nat]: bundle phase1 entries (debug bound)
+    bundleDone     \* [Threads -> BOOLEAN]
 
-vars == <<linkage, pc, local, bundleDone, retryCount>>
+\* retryCount removed (per user 2026-05-21).  See _hardlink_4node /
+\* _external_migration / _self_collision for the same clean-up.
+
+vars == <<linkage, pc, local, bundleDone>>
 
 -----------------------------------------------------------------------------
 (* Wrapper helpers *)
@@ -115,7 +117,6 @@ Init ==
     /\ pc = [t \in Threads |-> "idle"]
     /\ local = [t \in Threads |-> InitLocal]
     /\ bundleDone = [t \in Threads |-> FALSE]
-    /\ retryCount = [t \in Threads |-> 0]
 
 -----------------------------------------------------------------------------
 (* reverseLookup(p2, root) — searches within `root`'s subtree only.
@@ -172,7 +173,7 @@ ExternalMigration(t) ==
                   ![GN1] = newGN1W,
                   ![P1]  = newP1W,
                   ![P2]  = newP2W]
-          /\ UNCHANGED <<pc, local, bundleDone, retryCount>>
+          /\ UNCHANGED <<pc, local, bundleDone>>
 
 -----------------------------------------------------------------------------
 (* Bundle pipeline for GN1.  5 phases. *)
@@ -183,7 +184,6 @@ BundleStart(t) ==
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
-    /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
     /\ UNCHANGED <<linkage, bundleDone>>
 
 \* Phase 1 (Collect) — read GN1, GN2, P2 wrappers; capture sub-packets.
@@ -216,7 +216,7 @@ BundlePhase1(t) ==
                                           THEN gn1w.packet.sub[GN2].sub[P2]
                                           ELSE Null]
        /\ pc' = [pc EXCEPT ![t] = "bundle_phase2"]
-       /\ UNCHANGED <<linkage, bundleDone, retryCount>>
+       /\ UNCHANGED <<linkage, bundleDone>>
 
 \* Phase 2 (CAS GN1) — CAS GN1 to missing=TRUE.  The new sub[] mirrors
 \* the collected state: GN1.sub[GN2] holds GN2's packet, GN2.sub[P2]
@@ -238,11 +238,10 @@ BundlePhase2(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![GN1] = newW]
             /\ local' = [local EXCEPT ![t].wrapper = newW]
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase3"]
-            /\ UNCHANGED <<bundleDone, retryCount>>
+            /\ UNCHANGED <<bundleDone>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
             /\ local' = [local EXCEPT ![t] = InitLocal,
                                        ![t].op = "bundle"]
-            /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
             /\ UNCHANGED <<linkage, bundleDone>>
 
 \* Phase 3 (CAS child) — Apply the Phase 3 skip-Null fix from the
@@ -258,11 +257,11 @@ BundlePhase3(t) ==
           /\ local' = [local EXCEPT ![t].gn2Wrapper =
                   [packet |-> Null, hasPriority |-> FALSE, bundledBy |-> GN1]]
           /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-          /\ UNCHANGED <<bundleDone, retryCount>>
+          /\ UNCHANGED <<bundleDone>>
        \/ \* Already at GN1 — skip
           /\ linkage[GN2].bundledBy = GN1
           /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-          /\ UNCHANGED <<linkage, local, bundleDone, retryCount>>
+          /\ UNCHANGED <<linkage, local, bundleDone>>
 
 \* Phase 4 (Finalize) — `is_bundle_root` override: clear GN1's missing
 \* flag, GATED on all subtree Null slots being reachable within GN1.
@@ -295,11 +294,10 @@ BundlePhase4(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![GN1] = finalW]
             /\ local' = [local EXCEPT ![t].wrapper = finalW]
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase5"]
-            /\ UNCHANGED <<bundleDone, retryCount>>
+            /\ UNCHANGED <<bundleDone>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
             /\ local' = [local EXCEPT ![t] = InitLocal,
                                        ![t].op = "bundle"]
-            /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
             /\ UNCHANGED <<linkage, bundleDone>>
 
 \* Phase 5 (Publish) — done.
@@ -308,7 +306,7 @@ BundlePhase5(t) ==
     /\ pc' = [pc EXCEPT ![t] = "idle"]
     /\ local' = [local EXCEPT ![t] = InitLocal]
     /\ bundleDone' = [bundleDone EXCEPT ![t] = TRUE]
-    /\ UNCHANGED <<linkage, retryCount>>
+    /\ UNCHANGED <<linkage>>
 
 -----------------------------------------------------------------------------
 (* Next *)
@@ -358,9 +356,7 @@ BundleRefConsistency ==
     LET gn2w == linkage[GN2]
     IN  ~gn2w.hasPriority => linkage[gn2w.bundledBy].hasPriority
 
-\* DebugRetryBound — cap bundle Phase 1 entries.
-DebugRetryBound ==
-    \A t \in Threads : retryCount[t] < 10
+\* (DebugRetryBound removed — retryCount no longer in vars.)
 
 \* EventuallyAllDone — liveness.
 EventuallyAllDone == <>AllDone
