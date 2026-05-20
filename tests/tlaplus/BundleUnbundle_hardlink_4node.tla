@@ -57,11 +57,17 @@ VARIABLES
     cInA,            \* BOOLEAN — is C structurally in A's subnodes?
     cInB,            \* BOOLEAN — is C structurally in B's subnodes?
     bundleDone,      \* [Threads -> BOOLEAN]
-    releaseDone,     \* [Threads -> BOOLEAN]
-    retryCount       \* [Threads -> Nat]
+    releaseDone      \* [Threads -> BOOLEAN]
+
+\* retryCount removed: with bounded linkage/pc/local/flag state and
+\* the DISTURBED-retry going back to a previously-visited state, the
+\* model has a naturally finite state space without an artificial
+\* retry counter (per user 2026-05-21 — CONSTRAINT/INVARIANT bound
+\* on retryCount risks false-negative liveness verdicts or trips on
+\* legitimate retry behaviour).
 
 vars == <<linkage, pc, local, cInA, cInB,
-          bundleDone, releaseDone, retryCount>>
+          bundleDone, releaseDone>>
 
 -----------------------------------------------------------------------------
 (* Wrapper helpers *)
@@ -130,7 +136,6 @@ Init ==
     /\ cInB = TRUE
     /\ bundleDone = [t \in Threads |-> FALSE]
     /\ releaseDone = [t \in Threads |-> FALSE]
-    /\ retryCount = [t \in Threads |-> 0]
 
 -----------------------------------------------------------------------------
 (* reverseLookup(C, Root) — searches Root's published packet for C.
@@ -157,7 +162,6 @@ BundleStart(t) ==
     /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
     /\ local' = [local EXCEPT ![t] = InitLocal,
                               ![t].op = "bundle"]
-    /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
     /\ UNCHANGED <<linkage, cInA, cInB, bundleDone, releaseDone>>
 
 \* Phase 1a — read Root wrapper and A's wrapper (subtree A's packet).
@@ -176,7 +180,7 @@ BundlePhase1A(t) ==
               ![t].aSubPkt = aw.packet,
               ![t].aCSubPkt = aw.packet.sub[C]]
        /\ pc' = [pc EXCEPT ![t] = "bundle_phase1b"]
-       /\ UNCHANGED <<linkage, cInA, cInB, bundleDone, releaseDone, retryCount>>
+       /\ UNCHANGED <<linkage, cInA, cInB, bundleDone, releaseDone>>
 
 \* Phase 1b — read B's wrapper.  This is a DIFFERENT atomic snapshot,
 \* so peer operations (e.g., ReleaseBC) can interleave between
@@ -191,7 +195,7 @@ BundlePhase1B(t) ==
               ![t].bSubPkt = bw.packet,
               ![t].bCSubPkt = bw.packet.sub[C]]
        /\ pc' = [pc EXCEPT ![t] = "bundle_phase2"]
-       /\ UNCHANGED <<linkage, cInA, cInB, bundleDone, releaseDone, retryCount>>
+       /\ UNCHANGED <<linkage, cInA, cInB, bundleDone, releaseDone>>
 
 \* Phase 2 — CAS Root to missing=TRUE with rebuilt sub[].
 \* Rebuild: A and B's sub[C] preserve collected values (one or both can
@@ -213,11 +217,10 @@ BundlePhase2(t) ==
        THEN /\ linkage' = [linkage EXCEPT ![Root] = newW]
             /\ local' = [local EXCEPT ![t].rootWrapper = newW]
             /\ pc' = [pc EXCEPT ![t] = "bundle_phase4"]
-            /\ UNCHANGED <<cInA, cInB, bundleDone, releaseDone, retryCount>>
+            /\ UNCHANGED <<cInA, cInB, bundleDone, releaseDone>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
             /\ local' = [local EXCEPT ![t] = InitLocal,
                                        ![t].op = "bundle"]
-            /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
             /\ UNCHANGED <<linkage, cInA, cInB, bundleDone, releaseDone>>
 
 \* Phase 4 — `is_bundle_root` override: clear Root's missing.
@@ -247,18 +250,15 @@ BundlePhase4(t) ==
             THEN /\ linkage' = [linkage EXCEPT ![Root] = finalW]
                  /\ local' = [local EXCEPT ![t].rootWrapper = finalW]
                  /\ pc' = [pc EXCEPT ![t] = "bundle_phase5"]
-                 /\ UNCHANGED <<cInA, cInB, bundleDone, releaseDone,
-                                retryCount>>
+                 /\ UNCHANGED <<cInA, cInB, bundleDone, releaseDone>>
             ELSE \* DISTURBED equivalent — retry whole bundle.
                  /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
                  /\ local' = [local EXCEPT ![t] = InitLocal,
                                             ![t].op = "bundle"]
-                 /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
                  /\ UNCHANGED <<linkage, cInA, cInB, bundleDone, releaseDone>>
        ELSE /\ pc' = [pc EXCEPT ![t] = "bundle_phase1"]
             /\ local' = [local EXCEPT ![t] = InitLocal,
                                        ![t].op = "bundle"]
-            /\ retryCount' = [retryCount EXCEPT ![t] = retryCount[t] + 1]
             /\ UNCHANGED <<linkage, cInA, cInB, bundleDone, releaseDone>>
 
 BundlePhase5(t) ==
@@ -266,15 +266,18 @@ BundlePhase5(t) ==
     /\ pc' = [pc EXCEPT ![t] = "idle"]
     /\ local' = [local EXCEPT ![t] = InitLocal]
     /\ bundleDone' = [bundleDone EXCEPT ![t] = TRUE]
-    /\ UNCHANGED <<linkage, cInA, cInB, releaseDone, retryCount>>
+    /\ UNCHANGED <<linkage, cInA, cInB, releaseDone>>
 
 -----------------------------------------------------------------------------
 (* Non-tx release operations — single CAS to clear a sub[C] slot. *)
 
-\* B.release(C) step 1 — single CAS on B's own wrapper to clear sub[C].
-\* DOES NOT migrate the packet to A; this models the race window where
-\* the migration is a separate (later) step.  Step 2 (MigrateCToA below)
-\* completes the migration.
+\* B.release(C) step 1 — CAS on B's own wrapper to clear sub[C].
+\* Transitions the thread's pc to "in_release", binding step 2
+\* (MigrateCToA) as the next action on the same thread.  This mirrors
+\* the real implementation where release(B,C) is a single API call
+\* that internally performs both steps before returning to the caller;
+\* the thread cannot start another operation (e.g. its own bundle)
+\* until release completes.
 ReleaseBCNoMigrate(t) ==
     /\ pc[t] = "idle"
     /\ ~releaseDone[t]
@@ -290,15 +293,16 @@ ReleaseBCNoMigrate(t) ==
           /\ linkage[B] = bw
           /\ linkage' = [linkage EXCEPT ![B] = newW]
           /\ cInB' = FALSE
-          /\ UNCHANGED <<pc, local, cInA, bundleDone, releaseDone, retryCount>>
+          /\ pc' = [pc EXCEPT ![t] = "in_release"]
+          /\ UNCHANGED <<local, cInA, bundleDone, releaseDone>>
 
 \* B.release(C) step 2 — atomically migrate C's packet into A.sub[C]
-\* and update C's bundledBy.  This is what the real KAME release does
-\* after the step-1 clear.  Without this, C is lost forever.
-\* Precondition: C was just cleared from B (cInB=FALSE) AND C is still
-\* in A's subnodes (cInA).
+\* and update C's bundledBy.  Fires from "in_release" pc state.
+\* This keeps the release operation as a single logical unit from
+\* the caller's point of view (matches the C++ API: release() does
+\* both steps before returning).
 MigrateCToA(t) ==
-    /\ pc[t] = "idle"
+    /\ pc[t] = "in_release"
     /\ ~releaseDone[t]
     /\ ~cInB
     /\ cInA
@@ -315,7 +319,8 @@ MigrateCToA(t) ==
                   ![A] = newAW,
                   ![C] = BundledRefWrapper(A)]
           /\ releaseDone' = [releaseDone EXCEPT ![t] = TRUE]
-          /\ UNCHANGED <<pc, local, cInA, cInB, bundleDone, retryCount>>
+          /\ pc' = [pc EXCEPT ![t] = "idle"]
+          /\ UNCHANGED <<local, cInA, cInB, bundleDone>>
 
 \* (kept) the older migrating release is OFF in the NextStep —
 \* keep the definition for reference.
@@ -356,7 +361,7 @@ ReleaseBC(t) ==
           /\ linkage' = [linkage EXCEPT ![Root] = newW]
           /\ cInB' = FALSE
           /\ releaseDone' = [releaseDone EXCEPT ![t] = TRUE]
-          /\ UNCHANGED <<pc, local, cInA, bundleDone, retryCount>>
+          /\ UNCHANGED <<pc, local, cInA, bundleDone>>
 
 \* A.release(C) — symmetric to ReleaseBC.
 ReleaseAC(t) ==
@@ -392,7 +397,7 @@ ReleaseAC(t) ==
           /\ linkage' = [linkage EXCEPT ![Root] = newW]
           /\ cInA' = FALSE
           /\ releaseDone' = [releaseDone EXCEPT ![t] = TRUE]
-          /\ UNCHANGED <<pc, local, cInB, bundleDone, retryCount>>
+          /\ UNCHANGED <<pc, local, cInB, bundleDone>>
 
 -----------------------------------------------------------------------------
 (* Next *)
@@ -414,15 +419,24 @@ Terminating == AllDone /\ UNCHANGED vars
 
 Next == NextStep \/ Terminating
 
-\* Strong fairness on MigrateCToA — under any fair scheduler, the
-\* multi-step release's migration step eventually fires once enabled
-\* (cInB=FALSE & cInA=TRUE & A.sub[C]=Null).  Without this, TLC may
-\* explore unbounded-retry executions where the migration is
-\* indefinitely starved by T1's bundle retries.  Mirrors the LL-free
-\* negotiate fairness assumption in production.
+\* Weak fairness on MigrateCToA — once enabled (cInB=FALSE & cInA=TRUE
+\* & A.sub[C]=Null), the action stays enabled until it fires (no peer
+\* action re-disables it).  WF suffices for continuously-enabled
+\* actions.  Without this, TLC may explore executions where T1's
+\* bundle retries arbitrarily while T2's MigrateCToA never gets a
+\* scheduling slot — that would satisfy `WF_vars(NextStep)` (some
+\* action did fire) but corresponds to a starvation scenario that
+\* real OS schedulers don't admit.
+\*
+\* Note (per user 2026-05-21): the implementation's LL-free negotiate
+\* `older wins` arbitration handles in-linkage CAS contention, but
+\* the race here spans THREE different linkages (Root, B, A).
+\* Cross-linkage progress for the migrating peer is provided by
+\* OS-level thread fairness, which the model abstracts via this WF
+\* annotation on the specific peer action.
 Spec == Init /\ [][Next]_vars
         /\ WF_vars(NextStep)
-        /\ \A t \in Threads : SF_vars(MigrateCToA(t))
+        /\ \A t \in Threads : WF_vars(MigrateCToA(t))
 
 -----------------------------------------------------------------------------
 (* Safety invariants *)
@@ -445,21 +459,6 @@ HardlinkExclusive ==
           /\ rw.packet.sub[B] /= Null
           /\ rw.packet.sub[A].sub[C] /= Null
           /\ rw.packet.sub[B].sub[C] /= Null)
-
-\* DebugRetryBound — used as INVARIANT (NOT CONSTRAINT).  Verifies no
-\* execution path requires more than N bundle retries.  As INVARIANT,
-\* TLC reports a violation if any reachable state exceeds the bound —
-\* which would indicate a livelock or unbounded-retry path; as
-\* CONSTRAINT it would silently prune such paths and risk false-negative
-\* liveness verdicts (per user feedback 2026-05-20).
-\*
-\* With the DISTURBED-equivalent retry semantics (Phase 4 retries the
-\* whole bundle when reachability check fails), retry count grows
-\* until the peer release's MigrateCToA step fires.  Bound 20 is
-\* generous — observed maximum under TLC's exhaustive interleaving
-\* in 4-node 2-thread is around 12.
-DebugRetryBound ==
-    \A t \in Threads : retryCount[t] < 20
 
 \* Liveness.
 EventuallyAllDone == <>AllDone

@@ -23,7 +23,7 @@ Phase 4 returns `pc` to `bundle_phase1` (without setting bundleDone)
 so the bundle retries from scratch — exactly what the outer snapshot
 loop does in production.
 
-### Per-action Strong Fairness — first use in KAME TLA+ work
+### Per-action fairness — first use in KAME TLA+ work
 
 The retry-style Phase 4 introduces an unbounded-retry possibility:
 if `MigrateCToA` (= the peer release's step-2 migration, which
@@ -41,54 +41,104 @@ firing only the bundle-retry actions and never `MigrateCToA`
 satisfies `WF_vars(NextStep)` (because some action did fire) yet
 violates the production fairness assumption.
 
-The fix: **Strong Fairness on the specific action** `MigrateCToA`:
+The fix: **per-action Weak Fairness** on `MigrateCToA`:
 
 ```tla
 Spec == Init /\ [][Next]_vars
         /\ WF_vars(NextStep)
-        /\ \A t \in Threads : SF_vars(MigrateCToA(t))
+        /\ \A t \in Threads : WF_vars(MigrateCToA(t))
 ```
 
-`SF_vars(MigrateCToA(t))` says: if `MigrateCToA(t)` is enabled
-infinitely often (even with disabled-enabled cycles), it eventually
-fires.  Under this stronger fairness, every infinite execution must
+`WF_vars(MigrateCToA(t))` says: if `MigrateCToA(t)` is continuously
+enabled, it eventually fires.  In this model `MigrateCToA` becomes
+enabled when `cInB=FALSE ∧ cInA=TRUE ∧ A.sub[C]=Null` and stays
+enabled until it fires (no peer action re-disables it) — so WF
+suffices.  Under this fairness, every infinite execution must
 include `MigrateCToA` firing, after which T1's next bundle succeeds.
 
-This is the **first per-action SF annotation** in the KAME TLA+
-corpus.  All earlier specs were either:
-- terminating without needing per-action fairness (`_2level_LLfree`,
-  `_3level_LLfree` — LL-free priority gating bounded retries
-  structurally), or
-- using `WF_vars(NextStep)` as a blanket assumption sufficient for
-  the bug they targeted.
+(SF would also work but is overkill here — SF only adds value when
+the action can be repeatedly enabled-disabled.  Confirmed
+empirically: WF vs SF both produce the same 13,056-distinct-state
+verification with `EventuallyAllDone` PASS.)
 
-The hardlink-with-external-migration case is genuinely different:
-two threads each making independent progress, with one thread's
-forward progress dependent on the other's specific step firing.
-Production C++ achieves this via LL-free negotiate + OS-level
-thread scheduling; the model abstracts both as `SF(MigrateCToA)`.
+### Why "older wins" doesn't subsume this fairness
 
-### DebugRetryBound — back to CONSTRAINT, with rationale
+Reasonable question (per user 2026-05-21): the production code's
+LL-free negotiate gives `older-wins` arbitration on CAS contention.
+Doesn't this already ensure progress for the migrating peer?
 
-With DISTURBED-style retry + SF, retry count grows in TLC's
-bounded exploration until `MigrateCToA` fires.  `DebugRetryBound`
-returns to `CONSTRAINT` to keep the state space finite (now serves
-purely as a state-space bound, not a safety check).  Safety
-invariants are checked at every state up to the bound; liveness
-under fairness is proven analytically by SF + EventuallyAllDone.
+Answer: `older-wins` resolves contention on **the same linkage**.
+The race here spans **three different linkages**:
 
-This reverses the 2026-05-20 INVARIANT change for this specific
-model — the earlier model's bound-INVARIANT use was valid because
-that model had bounded retries by construction (Phase 4 always
-published & set bundleDone, no DISTURBED retry).  The DISTURBED-
-faithful model has unbounded retry by construction; CONSTRAINT
-+ SF is the right combination here.
+* T1's bundle CAS — operates on `Root`'s `m_link`
+* T2's release step 1 (`ReleaseBCNoMigrate`) — operates on **B**'s `m_link`
+* T2's release step 2 (`MigrateCToA`) — operates on **A**'s `m_link`
+
+T1 and T2 never CAS the same linkage in this scenario, so
+`older-wins` has nothing to arbitrate between them.  T1 can retry
+its Root-CAS arbitrarily many times without ever blocking T2 from
+running its B-CAS or A-CAS.
+
+Production progress for T2 therefore depends on **OS-level thread
+scheduling** (each thread gets CPU time), not on negotiate.  The
+TLA+ model abstracts the OS-scheduling guarantee as per-action WF
+on the peer action.
+
+This is the **first per-action fairness annotation** in the KAME
+TLA+ corpus.  All earlier specs either:
+- terminate without needing per-action fairness — LL-free priority
+  gating bounds retries structurally within a single bundle's
+  linkage chain (`_2level_LLfree`, `_3level_LLfree`), or
+- use `WF_vars(NextStep)` as a blanket sufficient for in-linkage
+  contention cases (the targeted bugs all fit this pattern).
+
+The hardlink-with-external-migration race is genuinely different:
+two threads making independent progress on **disjoint linkage sets**,
+with one thread's forward progress dependent on the other's
+specific step firing.  Cross-linkage progress is supplied by OS
+scheduling fairness, abstracted in the model as
+`WF_vars(MigrateCToA)`.
+
+### DebugRetryBound and retryCount removed entirely
+
+Per user feedback (2026-05-21): both CONSTRAINT and INVARIANT modes
+of a retry-counter bound are problematic:
+
+- CONSTRAINT silently prunes long-retry paths and risks false-negative
+  liveness verdicts (the original concern).
+- INVARIANT on an unbounded-by-construction counter will report
+  violations on legitimate retry behaviour — a false positive that
+  obscures real bugs.
+
+The clean fix: **remove `retryCount` from the model entirely**.  Once
+removed, the remaining state variables (`linkage`, `pc`, `local`,
+`cInA`, `cInB`, `bundleDone`, `releaseDone`) all range over bounded
+domains, so the state space is naturally finite without any
+artificial bound.  TLC reaches fingerprint-clash termination on its
+own.
+
+### Cleaner release-step model (2-step pc state)
+
+A counter-example surfaced once retryCount was removed: T1 could fire
+ReleaseBCNoMigrate then start its own bundle (pc != "idle") before
+ever firing MigrateCToA, deadlocking liveness.  Real KAME's
+`release(B, C)` is a single API call that internally performs both
+steps before returning — the caller can't start a new operation
+mid-release.
+
+Fixed by introducing an `"in_release"` pc state: ReleaseBCNoMigrate
+transitions to it, MigrateCToA fires only from it.  The thread
+cannot start a bundle until release completes — matching the C++
+API semantics exactly.
 
 ### Results
 
 | Config | Distinct states | Safety | Liveness |
 |---|---|---|---|
-| 4-node 2-thread (DISTURBED + SF) | 13,056 | PASS (SnapshotConsistency, HardlinkExclusive) | PASS (EventuallyAllDone under SF(MigrateCToA)) |
+| 4-node 2-thread (final form) | **531** | PASS (SnapshotConsistency, HardlinkExclusive) | PASS (EventuallyAllDone) |
+
+No CONSTRAINT.  No MOD.  No INVARIANT-bound tripwire.  The model is
+fully self-contained finite-state.
 
 ### Open follow-up
 
