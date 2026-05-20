@@ -2211,16 +2211,10 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
                 // Fast-path: child's m_link unchanged since last iter's
                 // observation.  Compare child_scope's view directly
                 // (operator== on ref pointer, no atomic op).
-                // Skip the fast path if this slot is null or missing —
-                // a prior retry's COLLIDED resolution may have left it
-                // null, and the fast path would otherwise carry that
-                // state forward into Phase 4 (where the is_bundle_root
-                // override would clear m_missing on a packet that
-                // still has null subpackets).  Forcing bundle_subpacket
-                // to re-run lets the peer's bundle settle and produce
-                // a non-null subpacket on a subsequent attempt.
-                if(child_scope == subwrappers_org[i]
-                   && subpacket_new && !subpacket_new->missing()) {
+                // Fast-path: child's m_link unchanged since last iter's
+                // observation.  Compare child_scope's view directly
+                // (operator== on ref pointer, no atomic op).
+                if(child_scope == subwrappers_org[i]) {
                     child_scope.commit(); //fast path for retry > 0.
                     break;
                 }
@@ -2260,25 +2254,6 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         }
         if(is_bundle_root) {
             assert( &supernode == this);
-            // If any child returned SUCCESS+null subpacket (COLLIDED via
-            // a hard-linked sibling chain), `missing` stays true here.
-            // Clearing m_missing in Phase 4 anyway would publish a
-            // non-missing packet with a null subpackets slot — the
-            // post-publish !missing()/checkConsistensy asserts on the
-            // snapshot SUCCESS path catch this, but the inconsistent
-            // wrapper is already externally observable.  Retry from
-            // the outer loop so the peer's bundle can settle.
-            // Self-collision: our own pre-Phase-2 CAS tagged
-            // supernode.m_link with bundle_serial, and a hard-linked
-            // descendant's unbundle walked up the alt-parent chain to
-            // hit our marker (COLLIDED).  Local `continue` would loop
-            // forever on the same serial.  Returning DISTURBED unwinds
-            // to snapshot(), which mints a fresh serial on the next
-            // retry — breaking the self-collision cycle.
-            if(missing) {
-                scope.commit();
-                return BundledStatus::DISTURBED;
-            }
             missing = false;
         }
         newpacket->m_missing = true;
@@ -2306,11 +2281,22 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         bool changed_during_bundling = false;
         for(unsigned int i = 0; i < subnodes->size(); i++) {
             shared_ptr<Node> child(( *subnodes)[i]);
-            local_shared_ptr<PacketWrapper> bundled_ref;
-            if(( *subpackets)[i])
-                bundled_ref.reset(new PacketWrapper(m_link, i, bundle_serial));
-            else
-                bundled_ref.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
+            // Hard-link reference: a null subpackets slot means the
+            // child's packet is bundled under another parent (alt-path
+            // in our subtree).  Flipping child.m_link to BundledRef(us)
+            // here would orphan the child from third-party views — our
+            // sub[c] is null, so a snapshot via us would not find the
+            // packet either.  Leave the child bundled under the other
+            // parent; reverseLookup falls back to forwardLookup, which
+            // finds the packet via the alt-path subtree.  Verified by
+            // TLA+ hardlink self-collision model (BundleUnbundle_
+            // hardlink_dynamic.tla).  No-op on non-hard-link trees:
+            // every child has a packet in exactly one parent's sub[],
+            // so the null check never triggers in steady state.
+            if( !( *subpackets)[i])
+                continue;
+            local_shared_ptr<PacketWrapper> bundled_ref(
+                new PacketWrapper(m_link, i, bundle_serial));
 
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
