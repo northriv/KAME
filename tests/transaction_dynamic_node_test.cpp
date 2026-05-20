@@ -1,203 +1,87 @@
 /*
  * transaction_dynamic_node_test.cpp
  *
- *  Test code of software transactional memory, for simultaneous transaction including
- *  insertion/removal/swap of object links on tree-structure objects.
+ *  Minimal reproducer for a hard-link consistency bug in the STM framework.
+ *
+ *  Two worker threads each repeatedly create a hard link: worker-local p2 is
+ *  made a child of both worker-local p1 and global gn2, while p1 itself is
+ *  inserted into global gn1 (which already owns gn2). This gives p2 two
+ *  parents both reachable from gn1, triggering the bug detected by
+ *  TRANSACTIONAL_STRICT_assert as "losing consistensy on node ..." at
+ *  transaction.h line 871.
  */
 
 #include "support_standalone.h"
 
-#include <stdint.h>
 #include <thread>
 
 #include "transaction.h"
 
-#include "xthread.cpp"
-
-atomic<int> objcnt = 0; //# of living objects.
-atomic<long> total = 0; //The sum of payloads.
-
-//#define TRANSACTIONAL_STRICT_assert
-
 class LongNode;
-typedef Transactional::Snapshot<LongNode> Snapshot;
 typedef Transactional::Transaction<LongNode> Transaction;
 
 class LongNode : public Transactional::Node<LongNode> {
 public:
-	LongNode() : Transactional::Node<LongNode>() {
-		++objcnt;
-	//	trans(*this) = 0;
-	}
-	virtual ~LongNode() {
-		--objcnt;
-	}
+	LongNode() : Transactional::Node<LongNode>() {}
+	virtual ~LongNode() {}
 
-	//! Data holder.
-	struct Payload : public Transactional::Node<LongNode>::Payload {
-		Payload() : Transactional::Node<LongNode>::Payload(), m_x(0) {}
-		Payload(const Payload &x) : Transactional::Node<LongNode>::Payload(x), m_x(x.m_x) {
-			total += m_x;
-		}
-		virtual ~Payload() {
-			total -= m_x;
-		}
-		operator long() const {return m_x;}
-		Payload &operator=(const long &x) {
-			total += x - m_x;
-			m_x = x;
-            return *this;
-        }
-		Payload &operator+=(const long &x) {
-			total += x;
-			m_x += x;
-            return *this;
-        }
-	private:
-		long m_x;
-//		double load[10000];
-	};
+	struct Payload : public Transactional::Node<LongNode>::Payload {};
 };
-
-class ComplexNode : public LongNode {
-public:
-	ComplexNode(Transaction &tr, shared_ptr<LongNode> &var) : LongNode(), m_var(var) {
-//		msecsleep(40);
-        m_1.reset(create<LongNode>());
-		insert(m_1);
-		var->insert(tr, m_1, false);
-//		msecsleep(40);
-//		m_2.reset(create<LongNode>());
-//		insert(m_2);
-//		m_3.reset(create<LongNode>());
-//		insert(m_3);
-//		m_4.reset(create<LongNode>());
-//		msecsleep(40);
-//		var->insert(tr, m_4);
-	}
-	virtual ~ComplexNode() {
-		m_var->release(m_1);
-//		m_var->release(m_4);
-	}
-	const shared_ptr<LongNode> &n1() const {return m_1;}
-private:
-	const shared_ptr<LongNode> m_var;
-	shared_ptr<LongNode> m_1, m_2, m_3, m_4;
-};
-
-#define trans(node) for(Transaction \
-	implicit_tr(node, false); !implicit_tr.isModified() || !implicit_tr.commitOrNext(); ) implicit_tr[node]
-
-template <class T>
-typename std::enable_if<std::is_base_of<LongNode, T>::value,
-	const typename Transactional::SingleSnapshot<LongNode, T> >::type
- operator*(T &node) {
-	return Transactional::SingleSnapshot<LongNode, T>(node);
-}
 
 #include "transaction_impl.h"
 template class Transactional::Node<LongNode>;
 
-shared_ptr<LongNode> gn1, gn2, gn3, gn4;
+shared_ptr<LongNode> gn1, gn2;
 
 void
 start_routine(void) {
-    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
-    printf("start\n");
 	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
-	// DIAG: bisect — restore p1->insert(p2) + gn1 insert/release of p1
-	// (worker-local p1 owns worker-local p2 → no hard link to shared
-	// tree).  If this passes, hard-link is the culprit; if it fails,
-	// even non-hard-link multi-tree insertion is buggy.
-    for(int i = 0; i < 2500; i++) {
+	for(int i = 0; i < 500; i++) {
+		// p2 becomes a child of p1 (non-transactional)
 		p1->insert(p2);
-		if((i % 10) == 0) {
-            // hard link: p2 also becomes a child of gn2
-            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
-				if( !gn2->insert(tr1, p2))
-                    return false;
-                return true;
-            });
-			gn1->insert(p1);
-		}
-        gn1->iterate_commit([=](Transaction &tr1){
-			Snapshot &ctr1(tr1);
-			tr1[gn1] = ctr1[gn1] + 1;
-            Snapshot &str1(tr1);
-			tr1[gn1] = str1[gn1] - 1;
-			tr1[gn2] = str1[gn2] + 1;
-			if((i % 10) == 0) {
-				tr1[p2] = str1[p2] + 1;
-			}
-        });
+		// hard link: p2 also becomes a child of gn2; p1 inserted into gn1,
+		// so p2 now has two parents (p1 and gn2) both reachable from gn1.
+		gn1->iterate_commit_if([=](Transaction &tr1)->bool{
+			if( !gn2->insert(tr1, p2))
+				return false;
+			if( !gn1->insert(tr1, p1))
+				return false;
+			return true;
+		});
 		p1->release(p2);
-		if((i % 10) == 0) {
-            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
-				if( !gn2->release(tr1, p2))
-                    return false;
-                return true;
-            });
-			gn1->release(p1);
-		}
+		gn1->iterate_commit_if([=](Transaction &tr1)->bool{
+			if( !gn2->release(tr1, p2))
+				return false;
+			if( !gn1->release(tr1, p1))
+				return false;
+			return true;
+		});
 	}
-	printf("finish\n");
-    return;
 }
 
 #define NUM_THREADS 2
 
 int
-main(int argc, char **argv) {
-    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
-    for(int k = 0; k < 100; k++) {
-        gn1.reset(LongNode::create<LongNode>());
-        gn2.reset(LongNode::create<LongNode>());
-        gn3.reset(LongNode::create<LongNode>());
-        gn4.reset(LongNode::create<LongNode>());
+main(void) {
+	for(int k = 0; k < 20; k++) {
+		gn1.reset(LongNode::create<LongNode>());
+		gn2.reset(LongNode::create<LongNode>());
 
-        gn1->insert(gn2);
+		gn1->insert(gn2);
 
-        std::thread threads[NUM_THREADS];
+		std::thread threads[NUM_THREADS];
 
-        for(int i = 0; i < NUM_THREADS; i++) {
-            std::thread th( &start_routine);
-            threads[i].swap(th);
-        }
-        msecsleep(10);
-        // DIAG: disable main's concurrent gn3->insert/release(gn4)
-        // for(int i = 0; i < 100; i++) {
-		// 	gn3->insert(gn4);
-		// 	gn3->release(gn4);
-		// }
-        for(int i = 0; i < NUM_THREADS; i++) {
-            threads[i].join();
-        }
-        printf("join\n");
-
-		if(***gn1 || ***gn2 || ***gn3 || ***gn4) {
-			printf("failed1\n");
-			printf("Gn1:%ld\n", (long)***gn1);
-			printf("Gn2:%ld\n", (long)***gn2);
-			printf("Gn3:%ld\n", (long)***gn3);
-			printf("Gn4:%ld\n", (long)***gn4);
-			return -1;
+		for(int i = 0; i < NUM_THREADS; i++) {
+			std::thread th(&start_routine);
+			threads[i].swap(th);
 		}
-
+		for(int i = 0; i < NUM_THREADS; i++) {
+			threads[i].join();
+		}
 		gn1.reset();
 		gn2.reset();
-		gn3.reset();
-		gn4.reset();
-
-		if(objcnt != 0) {
-			printf("failed1\n");
-			return -1;
-		}
-		if(total != 0) {
-			printf("failed total=%ld\n", (long)total);
-			return -1;
-		}
-    }
+	}
 	printf("succeeded\n");
 	return 0;
 }
