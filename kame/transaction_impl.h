@@ -917,20 +917,20 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
                 throw __LINE__;
         }
         for(int i = 0; i < size(); i++) {
-            if( !subpackets()->at(i)) [[unlikely]] {  // hard-link only
+            if( !subpackets()->at(i)) {
                 if( !groot->missing()) {
                     if( !subnodes()->at(i)->reverseLookup(
                         const_cast<local_shared_ptr<Packet>&>(groot), false, 0, false, 0))
-                        [[unlikely]] throw __LINE__;
+                        throw __LINE__;
                 }
             }
             else {
                 if(subpackets()->at(i)->size())
                     if( !(subpackets()->m_serial - subpackets()->at(i)->subpackets()->m_serial < 0x7fffffffffffffffLL))
-                        [[unlikely]] throw __LINE__;
+                        throw __LINE__;
                 if(subpackets()->at(i)->missing() && (rootpacket.get() != this)) {
                     if( !missing())
-                        [[unlikely]] throw __LINE__;
+                        throw __LINE__;
                 }
                 // Recurse with groot UNCHANGED (always the original
                 // top-level root) — only the local root switches.
@@ -1110,7 +1110,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             // untagged (cheap fast path).
             ScopedNegotiateLinkage<XN> scope(var->m_link, tr, iter,
                 ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-            if( !scope) [[unlikely]] continue;  // weak acquire lost — treat as CAS failure
+            if( !scope) continue;  // weak acquire lost — treat as CAS failure
 
             local_shared_ptr<Packet> subpacket_new;
             // Pass scope directly — bundle_subpacket uses its view for
@@ -1180,7 +1180,7 @@ Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
         // RAII OnExit.
         ScopedNegotiateLinkage<XN> scope(packet->node().m_link, snap, iter,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-        if( !scope) [[unlikely]] continue;  // weak acquire lost — treat as CAS failure
+        if( !scope) continue;  // weak acquire lost — treat as CAS failure
         // Use scope's internal m_view directly — no separate
         // scoped_atomic_view on the same linkage needed.  scope-> reads
         // through m_view; scope.compareAndSet(newwrapper) (1-arg) uses
@@ -1924,7 +1924,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                 ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
         }
         ScopedNegotiateLinkage<XN> &scope = *scope_holder;
-        if( !scope) [[unlikely]] {
+        if( !scope) {
             // Weak acquire CAS lost — treat as CAS failure: skip body
             // (m_contention_observed already set in ctor → dtor tags).
             continue;
@@ -1955,8 +1955,8 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             auto status = walkUpChain(linkage,
                 scope, &foundpacket, root_lifetime);
             switch(status) {
-            [[likely]] case SnapshotStatus::SUCCESS: {
-                    if( !( *foundpacket)->missing() || !multi_nodal) [[likely]] {
+            case SnapshotStatus::SUCCESS: {
+                    if( !( *foundpacket)->missing() || !multi_nodal) {
                         snapshot.m_packet = *foundpacket;
                         STRICT_assert(snapshot.m_packet->checkConsistensy(
                             snapshot.m_packet, (*root_lifetime)->packet()));
@@ -1983,7 +1983,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     }
                     continue;
                 }
-            [[unlikely]] case SnapshotStatus::DISTURBED:
+            case SnapshotStatus::DISTURBED:
             default:
                 // walkUpChain disturbed by another thread; pre-CAS contention.
                 scope.confirm_contention();
@@ -2028,14 +2028,14 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
         BundledStatus status = const_cast<Node *>(this)->bundle(
             scope, snapshot, snapshot.m_serial, true);
         switch (status) {
-        [[likely]] case BundledStatus::SUCCESS:
+        case BundledStatus::SUCCESS:
             assert( !scope->packet()->missing());
             STRICT_assert(scope->packet()->checkConsistensy(scope->packet()));
             snapshot.m_serial = SerialGenerator::gen(); //Capture Lamport advances from bundle().
             snapshot.m_packet = scope->packet();
             scope.commit();
             return;
-        [[unlikely]] default:
+        default:
             // bundle() failed (DISTURBED); pre-CAS contention from
             // another thread's interference within bundle's own scopes.
             scope.confirm_contention();
@@ -2226,7 +2226,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             new PacketWrapper(supscope->packet(), bundle_serial));
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-        if( !scope) [[unlikely]] return BundledStatus::DISTURBED;
+        if( !scope) return BundledStatus::DISTURBED;
 
 #if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
         //Optional optimization:
@@ -2248,11 +2248,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // if it matches supscope's expected state, scope's internal view
         // serves as the CAS expected.  Saves 1 fetch_add + promote vs
         // view_copy().
-        if(scope.operator->() != supscope.operator->()) [[unlikely]] {
+        if(scope.operator->() != supscope.operator->()) {
             scope.confirm_contention();
             return BundledStatus::DISTURBED;
         }
-        if( !scope.compareAndSet(superwrapper)) [[unlikely]]
+        if( !scope.compareAndSet(superwrapper))
             return BundledStatus::DISTURBED;
         // CAS success: m_link advanced to superwrapper.  Update
         // supscope's view (move-in: 0 ops; supscope's old view is
@@ -2266,7 +2266,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // RAII OnEntry: negotiates supernode.m_link + tags eagerly (retry > 0).
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
-        if( !scope) [[unlikely]] continue;  // weak acquire lost — retry
+        if( !scope) continue;  // weak acquire lost — retry
         // Peer-completed early return — same idea as the serial-tag
         // block above: skip Phases 1..4 entirely if peer has already
         // produced a non-missing, self-bundled wrapper at
@@ -2356,11 +2356,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // compareAndSetRetain: on success scope transitions to
         // Owned(superwrapper) — scope's view tracks the new m_link
         // value through Phase 3, ready for Phase 4's CAS without reload.
-        if(scope.operator->() != supscope.operator->()) [[unlikely]] {
+        if(scope.operator->() != supscope.operator->()) {
             scope.confirm_contention();
             return BundledStatus::DISTURBED;
         }
-        if( !scope.compareAndSetRetain(superwrapper)) [[unlikely]]
+        if( !scope.compareAndSetRetain(superwrapper))
             return BundledStatus::DISTURBED;
         // Update supscope.view to track the new m_link state.
         // Pass copy of superwrapper (still needed for Phase 4).
@@ -2494,12 +2494,12 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // CAS via scope.  Phase 2's compareAndSetRetain left scope in
         // Owned(Phase 2 newr) — no reload needed.  Pointer check
         // confirms no concurrent change to supernode.m_link since Phase 2.
-        if(scope.operator->() != supscope.operator->()) [[unlikely]] {
+        if(scope.operator->() != supscope.operator->()) {
             scope.confirm_contention();
             scope.commit();
             return BundledStatus::DISTURBED;
         }
-        if( !scope.compareAndSetWithHint(superwrapper, started_time)) [[unlikely]] {
+        if( !scope.compareAndSetWithHint(superwrapper, started_time)) {
             scope.commit();
             return BundledStatus::DISTURBED;
         }
@@ -2624,7 +2624,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
         // CAS oldr.
         ScopedNegotiateLinkage<XN> scope(m_link, tr, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
-        if( !scope) [[unlikely]] {
+        if( !scope) {
             // Weak acquire CAS lost.  m_contention_observed already
             // set in ctor — dtor tags this iteration.  Skip the body.
             continue;
@@ -2795,7 +2795,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
             std::move(it->old_wrapper),
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 2.0f / cas_infos.size(),
             /*with_negotiate=*/true);
-        if( !scope) [[unlikely]] return UnbundledStatus::DISTURBED;  // view was empty
+        if( !scope) return UnbundledStatus::DISTURBED;  // view was empty
         if( !scope.compareAndSet(it->new_wrapper))
             return UnbundledStatus::DISTURBED;
         // scope.compareAndSet auto-committed on success.  A subsequent

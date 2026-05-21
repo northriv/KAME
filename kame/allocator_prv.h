@@ -72,6 +72,12 @@ public:
 	static inline bool deallocate(void *p);
 	static void release_chunks();
 	virtual void report_statistics(size_t &chunk_size, size_t &used_size) = 0;
+	//! Hook called from `AllocPinCleanup` on thread exit: any items
+	//! parked in the per-chunk owner-thread freelist (FS=true chunks
+	//! only) are flushed back to the bitmap via the normal CAS path so
+	//! they don't leak when the chunk is later released.  Default
+	//! no-op; FS=true PoolAllocator overrides.
+	virtual void flush_owner_freelist() noexcept {}
 protected:
 	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
 	virtual bool deallocate_pooled(char *p) = 0;
@@ -150,6 +156,27 @@ protected:
 	//! release_allocator() returns false when this is non-zero so the
 	//! chunk is not freed while any thread's TLS pointer references it.
 	std::atomic<int> m_thread_pinned_count{0};
+
+	//! Per-chunk owner-thread freelist (fixed-size FS=true chunks only —
+	//! the FS=false specialization overrides `deallocate_pooled` to
+	//! bypass this push because variable-size slots don't share a
+	//! uniform size).  Only the thread whose TLS `s_my_chunk == this`
+	//! pushes to / pops from these members, so they stay non-atomic.
+	//! Non-owner deallocs see `s_my_chunk != this` (via the dealloc
+	//! fast-path check at the top of `deallocate_pooled`) and skip
+	//! straight to the bitmap CAS path.  Owner check is `s_my_chunk
+	//! == this` — `s_my_chunk` is `__thread` (gcc extension) on
+	//! GCC/Clang per the `ALLOC_TLS` macro, i.e. a plain memory load,
+	//! NOT the `_tlv_get_addr` runtime call macOS uses for
+	//! `thread_local`.  Cleanup hook in `AllocPinCleanup` flushes
+	//! residual entries on thread exit.  Cap of 8 keeps the array
+	//! compact (~72 bytes per chunk).
+	enum {FREELIST_CAP = 8};
+	void *m_freelist[FREELIST_CAP] = {};
+	int m_freelist_count = 0;
+
+	void flush_owner_freelist() noexcept override;
+	void flush_owner_freelist_to_bitmap() noexcept;
 
 	void operator delete(void *) throw();
 private:
