@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -109,13 +109,14 @@ public:
 	static void *allocate();
 	static void release_pools();
 	void report_leaks();
-	virtual void report_statistics(size_t &chunk_size, size_t &used_size);
+	void report_statistics(size_t &chunk_size, size_t &used_size) override;
 
 	typedef uintptr_t FUINT;
 protected:
-	PoolAllocator(int count, char *addr, char *ppool);
+	PoolAllocator(int count, char *addr, char *ppool,
+	              void **freelist, int freelist_cap);
 	inline void *allocate_pooled(unsigned int SIZE);
-	virtual bool deallocate_pooled(char *p);
+	bool deallocate_pooled(char *p) override;
 	static bool create_allocator(int &aidx);
 	static bool release_allocator(PoolAllocator *alloc);
 
@@ -160,19 +161,30 @@ protected:
 	//! Per-chunk owner-thread freelist (fixed-size FS=true chunks only —
 	//! the FS=false specialization overrides `deallocate_pooled` to
 	//! bypass this push because variable-size slots don't share a
-	//! uniform size).  Only the thread whose TLS `s_my_chunk == this`
-	//! pushes to / pops from these members, so they stay non-atomic.
-	//! Non-owner deallocs see `s_my_chunk != this` (via the dealloc
-	//! fast-path check at the top of `deallocate_pooled`) and skip
-	//! straight to the bitmap CAS path.  Owner check is `s_my_chunk
-	//! == this` — `s_my_chunk` is `__thread` (gcc extension) on
-	//! GCC/Clang per the `ALLOC_TLS` macro, i.e. a plain memory load,
-	//! NOT the `_tlv_get_addr` runtime call macOS uses for
-	//! `thread_local`.  Cleanup hook in `AllocPinCleanup` flushes
-	//! residual entries on thread exit.  Cap of 8 keeps the array
-	//! compact (~72 bytes per chunk).
-	enum {FREELIST_CAP = 8};
-	void *m_freelist[FREELIST_CAP] = {};
+	//! uniform size; for FS=false instances `m_freelist == nullptr`,
+	//! `m_freelist_cap == 0`).  Only the thread whose TLS
+	//! `s_my_chunk == this` pushes to / pops from these members, so
+	//! they stay non-atomic.  Non-owner deallocs see `s_my_chunk !=
+	//! this` (via the dealloc fast-path check at the top of
+	//! `deallocate_pooled`) and skip straight to the bitmap CAS path.
+	//! Owner check is `s_my_chunk == this` — `s_my_chunk` is
+	//! `__thread` (gcc extension) on GCC/Clang per the `ALLOC_TLS`
+	//! macro, i.e. a plain memory load, NOT the `_tlv_get_addr`
+	//! runtime call macOS uses for `thread_local`.  Cleanup hook in
+	//! `AllocPinCleanup` flushes residual entries on thread exit.
+	//!
+	//! Capacity is dynamic, scaled to ~10% of the chunk's total slot
+	//! count clamped to `[FREELIST_CAP_MIN, FREELIST_CAP_MAX]`, so
+	//! larger chunks absorb more same-thread alloc/dealloc cycles
+	//! before hitting the bitmap CAS path.  The freelist array itself
+	//! lives at the tail of the chunk-metadata malloc block; `create()`
+	//! reserves the space and passes the pointer + cap into this ctor.
+	enum {
+		FREELIST_CAP_MIN = 32,
+		FREELIST_CAP_MAX = 4096,
+	};
+	void ** const m_freelist;
+	const int m_freelist_cap;
 	int m_freelist_count = 0;
 
 	void flush_owner_freelist() noexcept override;
@@ -190,12 +202,13 @@ template <unsigned int ALIGN, bool DUMMY>
 class PoolAllocator<ALIGN, false, DUMMY> : public PoolAllocator<ALIGN, true, false> {
 public:
 	void report_leaks();
-	virtual void report_statistics(size_t &chunk_size, size_t &used_size);
+	void report_statistics(size_t &chunk_size, size_t &used_size) override;
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
-	PoolAllocator(int count, char *addr, char *ppool);
+	PoolAllocator(int count, char *addr, char *ppool,
+	              void **freelist, int freelist_cap);
 	inline void *allocate_pooled(unsigned int SIZE);
-	virtual bool deallocate_pooled(char *p);
+	bool deallocate_pooled(char *p) override;
 
 private:
 	friend class PoolAllocatorBase;
