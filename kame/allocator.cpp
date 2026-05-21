@@ -37,14 +37,23 @@
 namespace {
 struct AllocPinCleanup {
     static constexpr int MAX = 32;
-    std::atomic<int> *pinned[MAX] = {};
+    struct Pin {
+        std::atomic<int> *count_ptr;
+        PoolAllocatorBase *chunk;
+    };
+    Pin pinned[MAX] = {};
     int count = 0;
-    void add(std::atomic<int> *p) noexcept {
-        if(count < MAX) pinned[count++] = p;
+    void add(std::atomic<int> *p, PoolAllocatorBase *c) noexcept {
+        if(count < MAX) pinned[count++] = {p, c};
     }
     ~AllocPinCleanup() noexcept {
+        // Flush per-chunk owner freelists FIRST so their slots are
+        // returned to the bitmap before the chunk is potentially
+        // released (pin count → 0).
         for(int i = 0; i < count; ++i)
-            pinned[i]->fetch_sub(1, std::memory_order_release);
+            pinned[i].chunk->flush_owner_freelist();
+        for(int i = 0; i < count; ++i)
+            pinned[i].count_ptr->fetch_sub(1, std::memory_order_release);
     }
 };
 thread_local AllocPinCleanup tls_alloc_pin_cleanup;
@@ -471,8 +480,65 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	return false;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
+void
+PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist_to_bitmap() noexcept {
+	// Walk freelist contents and return each entry to the bitmap via
+	// the inline path of deallocate_pooled().  We've already moved
+	// past the owner-check at the top of deallocate_pooled, so flag
+	// the recursion via a temporary by going through the bitmap-only
+	// code below.  Caller (`AllocPinCleanup::~AllocPinCleanup`) runs
+	// on thread exit (rare).
+	while(this->m_freelist_count > 0) {
+		char *p = static_cast<char *>(this->m_freelist[--this->m_freelist_count]);
+		// Bitmap CAS clear loop — duplicated here from
+		// deallocate_pooled() so we skip the freelist push check
+		// (which would refer to the now-being-flushed freelist).
+		int midx = (p - this->m_mempool) / ALIGN;
+		int idx = midx / (sizeof(FUINT) * 8);
+		unsigned int sidx = midx % (sizeof(FUINT) * 8);
+		FUINT none = ~((FUINT)1u << sidx);
+#ifdef GUARDIAN
+		for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
+			reinterpret_cast<uint64_t *>(p)[i] = GUARDIAN;
+#endif
+		FUINT *pflags = &this->m_flags[idx];
+		for(;;) {
+			FUINT oldv = *pflags;
+			FUINT newv = oldv & none;
+			if(atomicCompareAndSet(oldv, newv, pflags)) {
+				if(oldv == ~(FUINT)0u)
+					atomicDec( &this->m_flags_filled_cnt);
+				else if(newv == 0)
+					atomicDec( &this->m_flags_nonzero_cnt);
+				break;
+			}
+		}
+	}
+}
+
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void
+PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist() noexcept {
+	flush_owner_freelist_to_bitmap();
+}
+
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
+	// Owner-thread freelist fast path (fixed-size FS=true only).
+	// `s_my_chunk` is `__thread` (gcc extension via ALLOC_TLS) — a
+	// plain memory load, no `_tlv_get_addr` runtime cost — so the
+	// owner check is essentially free.  Non-owner deallocs fail the
+	// check and fall through to the bitmap CAS path.  The FS=false
+	// specialization overrides this method completely and never
+	// reaches here, so the uniform-slot freelist push is safe.
+	if(s_my_chunk == this && this->m_freelist_count < (int)this->FREELIST_CAP) {
+		this->m_freelist[this->m_freelist_count++] = p;
+		// Don't trigger chunk-release path: the slot is still
+		// "allocated" from the bitmap's perspective; flushing on
+		// thread exit returns it via the same path.
+		return false;
+	}
 	writeBarrier(); //for the contents written by the user.
 
 	int midx = (p - this->m_mempool) / ALIGN;
@@ -631,6 +697,25 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 	// release_allocator() is gated on m_thread_pinned_count == 0 so the
 	// chunk cannot be freed underneath us.
 	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *my = s_my_chunk) {
+		// Owner-thread freelist fast path (FS=true chunks only — the
+		// FS=false chunks never push, so this stays empty for them).
+		// We just verified `s_my_chunk == my`, so single-writer access
+		// to m_freelist_count / m_freelist[] is safe.
+		if(my->m_freelist_count > 0) {
+			void *p = my->m_freelist[--my->m_freelist_count];
+#ifdef GUARDIAN
+			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
+				if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
+					fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
+				}
+			}
+#endif
+#ifdef FILLING_AFTER_ALLOC
+			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
+				static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
+#endif
+			return p;
+		}
 		if(void *p = my->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
 			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
@@ -668,9 +753,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 			int expected = 0;
 			if(chunk->m_thread_pinned_count.compare_exchange_strong(
 					expected, 1, std::memory_order_acq_rel)) {
-				// Exclusive claim succeeded — register pin cleanup,
+				// Exclusive claim succeeded — register pin cleanup
+				// (with chunk pointer so the cleanup hook can flush
+				// the per-chunk owner-thread freelist on thread exit),
 				// cache as TLS fast-path target, and allocate.
-				tls_alloc_pin_cleanup.add(&chunk->m_thread_pinned_count);
+				tls_alloc_pin_cleanup.add(&chunk->m_thread_pinned_count, chunk);
 				s_my_chunk = chunk;
 				if(void *p = chunk->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
