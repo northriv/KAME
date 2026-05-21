@@ -522,15 +522,9 @@ ScopedNegotiateLinkage<XN>::_negotiate() noexcept {
     return true;
 #else
     using NC = typename Node<XN>::NegotiationCounter;
-    auto slot = m_link->m_transaction_started_time.load(std::memory_order_relaxed);
-    if( !NC::is_active_stamp(slot))
+    if( !NC::is_active_stamp(
+            m_link->m_transaction_started_time.load(std::memory_order_relaxed)))
         [[likely]]
-        return true;
-    // Self-stamp fast path: if the Linkage carries OUR TID, we are the
-    // tag thread here and must not be disturbed.  The internal function
-    // would return true on the dt <= 0 check anyway, but only after
-    // paying _neg_apply_lease (numThreadsRunning) + backoff init.
-    if(NC::stamp_tid(slot) == NC::stamp_tid(m_snap->m_started_time))
         return true;
     return _negotiate_internal();
 #endif
@@ -1177,9 +1171,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         self->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !transaction_started_time)
         return true; //collision has not been detected.
-    // Note: `_negotiate()` already filters out the self-stamp case (the
-    // Linkage carries our own TID) via the cheap TID compare before
-    // calling us, so we don't need to repeat the check here.
     // LOWEST and UI_DEFERRABLE explicitly tolerate yielding, so the
     // helper internally skips the lease/owner-skip block for those
     // priorities.  Returns true iff the owner-skip fired (we hold the
