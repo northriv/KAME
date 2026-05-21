@@ -859,19 +859,12 @@ template <class XN>
 bool
 Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
                                    const local_shared_ptr<Packet> &globalroot) const {
-    // `rootpacket` = LOCAL sub-bundle root (switches on recursion when
-    //                a sub-packet is not missing — see line "subpackets()
-    //                ->at(i)->missing() ? rootpacket : subpackets()->at(i)"
-    //                below).  Used for the "sub missing → self missing"
-    //                propagation check.
-    // `groot`      = GLOBAL (top-level) root, threaded unchanged through
-    //                recursion.  Used for the Null-slot reverseLookup.
-    //                When the caller passes `{}` (default), groot
-    //                degenerates to the local root and the function
-    //                behaves like the pre-2026-05-21 form — this
-    //                produces false-positives in hard-link topologies
-    //                (Case B: sub-bundle locally cannot find its
-    //                hard-linked child but the global tree can).
+    // `rootpacket` switches on recursion (local sub-bundle root) for
+    // the "sub missing → self missing" propagation; `groot` stays
+    // unchanged through recursion and drives the Null-slot
+    // reverseLookup (needed for hard-link Case B).  Default
+    // `globalroot={}` degenerates groot to rootpacket — semantics doc
+    // in `transaction.h`.
     const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
     try {
         if(size()) {
@@ -915,16 +908,9 @@ template <class XN>
 bool
 Node<XN>::Packet::allSubReachable(const local_shared_ptr<Packet> &rootpacket,
                                   const local_shared_ptr<Packet> &globalroot) const {
-    // Mirror of checkConsistensy's Null-slot path (line 866-885) but
-    // never throws.  Returns false on the first unreachable Null slot.
-    // Used as a pre-check in bundle Phase 4's `is_bundle_root` override
-    // — if we would publish ~missing with an unreachable Null slot,
-    // skip the override and leave m_missing=true.
-    //
-    // `globalroot` follows the same semantics as in checkConsistensy:
-    // the GLOBAL (top-level) root used for Null-slot reverseLookup.
-    // Default `{}` degenerates groot to the local root (pre-2026-05-21
-    // semantics) which is unsafe for hard-link sibling references.
+    // Non-throwing mirror of checkConsistensy's Null-slot path.  Used
+    // by bundle Phase 4 to gate the `is_bundle_root` `m_missing=false`
+    // publish.  `globalroot` follows checkConsistensy's semantics.
     const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
     if(groot->missing()) return true;  // root missing → no Null-slot check fires
     for(int i = 0; i < size(); i++) {
@@ -1965,57 +1951,19 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     return;
                 }
 #if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
-                // Optional optimization (off by default).
-                //
-                // Without this branch, NODE_MISSING + missing local packet
-                // falls through to bundle() below; bundle() then walks up
-                // the bundledBy chain via ascendOneLevel() which acquires
-                // scope on each ancestor (transaction_impl.h:1495-1520).
-                // When this node is in the "limbo" state created by
-                // release() (bundledBy still points at a parent that no
-                // longer references this node — see release() at
-                // transaction_impl.h:1199-1200 which CASes a wrapper with
-                // bundledBy=parent onto the released child), the chain
-                // walk can reach a heavily-contended ancestor and incur
-                // many CAS retries before finalising.
-                //
-                // This branch short-circuits: CAS a priority-bearing
-                // wrapper (with the current local packet preserved) onto
-                // this node's m_link directly.  On success the next loop
-                // iteration sees hasPriority=true and bundle() runs on a
-                // priority-owning node without the chain walk.  On CAS
-                // failure a peer advanced m_link and the normal retry
-                // path takes over.
-                //
-                // ### Status ###
-                //
-                // This is a CAS-count optimization, NOT a correctness
-                // fix.  TLA+ verification in
-                // `tests/tlaplus/BundleUnbundle_hardlink_nonatomic.tla`
-                // shows that the bundle-fall-through path is
-                // theoretically live under both per-action and blanket
-                // WF_vars.  The optimization reduces the expected
-                // wall-clock time to finalize under pathological
-                // contention (e.g. the destructor cleanup of an
-                // orphaned hard-link child while a peer thread is
-                // continuously running TXs on a shared root).  The
-                // observed ~10% test-time hang on remote branch
-                // claude/refactor-negotiate-scoped-f7de2 commit
-                // b23fa954 (which carries the non-tx test pattern in
-                // transaction_dynamic_node_test.cpp) was attributed to
-                // real-OS scheduler artifacts rather than a logic gap.
-                //
-                // Side-effect considerations:
-                //   * Applies to all snapshot() callers, not just the
-                //     destructor — the precondition (multi_nodal +
-                //     missing local packet) does not distinguish them.
-                //   * After self-promote, the next iteration still goes
-                //     into bundle() (priority+missing → fall-through),
-                //     so subtree absorption still happens; only the
-                //     pre-bundle scope-acquisition cost differs.
-                //   * Peers walking up via this node's bundledBy that
-                //     already passed will not be affected; new walkers
-                //     observe hasPriority=true and take the fast path.
+                // CAS-count optimization (not a correctness fix; see
+                // VERIFICATION.md §5 and BundleUnbundle_hardlink_
+                // nonatomic.tla).  Short-circuit the bundle-fall-
+                // through's chain walk by self-promoting this node
+                // directly: CAS a priority wrapper carrying the
+                // current local packet.  On success the next loop iter
+                // takes the hasPriority path; on CAS failure a peer
+                // advanced m_link and the normal retry resumes.
+                // Subtree absorption still happens via the subsequent
+                // bundle() (priority+missing falls through).  The
+                // ~10% test-time hang seen on
+                // claude/refactor-negotiate-scoped-f7de2 (b23fa954)
+                // is consistent with OS scheduling, not a logic gap.
                 {
                     auto promoted = make_local_unique<PacketWrapper>(
                         scope->packet(), snapshot.m_serial);
@@ -2472,42 +2420,19 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
-            // (Hard-link race fix) — before clearing m_missing under
-            // the is_bundle_root override, verify every Null sub-packet
-            // slot's subnode is reverseLookup-able within newpacket.
-            // If not, the published ~missing state would trip
-            // checkConsistensy line 871 (the production "30/30 abort"
-            // pattern, see tests/tlaplus/BundleUnbundle_hardlink_4node).
-            // Return DISTURBED so the outer snapshot() retry loop
-            // re-attempts the whole bundle — once the race resolves
-            // (e.g. a multi-step release completes its migration step),
-            // the next bundle finalizes cleanly.
-            // (Returning SUCCESS with m_missing=true would trip the
-            //  `assert(!scope->packet()->missing())` in the caller.)
+            // Hard-link race gate: verify every Null sub-slot is
+            // reverseLookup-able before publishing ~missing (the
+            // production "30/30 abort" pattern; see VERIFICATION.md §5
+            // and tests/tlaplus/BundleUnbundle_hardlink_4node).  On
+            // failure, restore m_missing=true and DISTURBED so the
+            // outer retry re-attempts once the race resolves.
             //
-            // Order matters here (restored from 404fa137):
-            //   1. Speculatively clear `newpacket->m_missing` BEFORE
-            //      calling allSubReachable / checkConsistensy.  At this
-            //      point newpacket->m_missing was set to true at line
-            //      ~2356, and BOTH allSubReachable and checkConsistensy
-            //      short-circuit their null-slot reverseLookup when the
-            //      root packet they observe is missing (mid-bundle
-            //      semantics — null is legitimate during a bundle in
-            //      progress).  If we leave m_missing=true, the gate
-            //      vacuously returns "all reachable" and we publish
-            //      without verifying — defeating the whole point of
-            //      this gate.
-            //   2. For `is_bundle_root=true` (the only path that takes
-            //      this branch), `newpacket == superwrapper->packet()`
-            //      (reverseLookup returns the packet itself when
-            //      &superpacket->node() == this — see line 1440), so
-            //      passing default globalroot makes groot=newpacket
-            //      which IS the bundle's global root view.  Hard-link
-            //      Case B siblings within this tree are then reachable
-            //      via the propagated groot.
-            //   3. On reachability failure, restore m_missing=true so
-            //      the wrapper we hand back to outer retries does not
-            //      claim "published, ready" prematurely.
+            // Clear m_missing BEFORE the gate: both helpers short-
+            // circuit their Null-slot reverseLookup when the observed
+            // root is missing (mid-bundle).  Default globalroot is
+            // correct: for `is_bundle_root=true` the reverseLookup
+            // at line ~1440 makes newpacket alias superwrapper's
+            // packet, i.e. the bundle's global root.
             newpacket->m_missing = false;
             if(newpacket->allSubReachable(newpacket)) {
                 STRICT_assert(newpacket->checkConsistensy(newpacket));
