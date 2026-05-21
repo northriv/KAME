@@ -80,8 +80,8 @@ DECLSPEC_KAME int64_t& tls_serial_ref() noexcept {
     thread_local int64_t v = (int64_t)ProcessCounter::id();
     return v;
 }
-DECLSPEC_KAME std::shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
-    thread_local std::shared_ptr<RunnerCounterEntry> v;
+DECLSPEC_KAME local_shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
+    thread_local local_shared_ptr<RunnerCounterEntry> v;
     return v;
 }
 DECLSPEC_KAME RunnerCounterEntry*& tls_runner_counter_ptr_ref() noexcept {
@@ -113,7 +113,7 @@ DECLSPEC_KAME RunnerDigest& tls_runner_digest_ref() noexcept {
 #else
 thread_local int s_tx_nest = 0;
 thread_local int s_sleep_nest = 0;
-thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
+thread_local local_shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 thread_local StampKind s_current_op_kind = StampKind::NONE;
 #if KAME_ENABLE_RUNNER_DIGEST
@@ -128,26 +128,70 @@ thread_local RunnerDigest tls_runner_digest;
 // duplication failure mode that motivated this whole reorg).
 DECLSPEC_KAME atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
 
-DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
-    auto sp = std::make_shared<RunnerCounterEntry>();
-    tls_runner_counter_holder = sp;
-    tls_runner_counter_ptr = sp.get();
-    // COW publish: append our weak_ptr to the global vector and prune
-    // expired entries (threads that have exited) in the same step so
-    // the vector self-trims without a separate maintenance path.
+// COW helpers shared between register/unregister.
+static void s_runner_counters_cow_append(
+    const local_shared_ptr<RunnerCounterEntry> &sp) {
     for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
         local_shared_ptr<RunnerCounterVec> next;
         next.reset(new RunnerCounterVec);
         if(old) {
             next->reserve(old->size() + 1);
-            for(auto &w : *old)
-                if( !w.expired())
-                    next->push_back(w);
+            for(auto &e : *old) next->push_back(e);
         }
-        next->push_back(std::weak_ptr<RunnerCounterEntry>(sp));
+        next->push_back(sp);
         if(s_runner_counters.compareAndSwap(old, next)) break;
     }
-    return *sp;
+}
+
+static void s_runner_counters_cow_remove(
+    const RunnerCounterEntry *target) {
+    for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
+        if( !old) break;
+        local_shared_ptr<RunnerCounterVec> next;
+        next.reset(new RunnerCounterVec);
+        next->reserve(old->size());
+        for(auto &e : *old)
+            if(e.get() != target) next->push_back(e);
+        if(s_runner_counters.compareAndSwap(old, next)) break;
+    }
+}
+
+// TLS RAII wrapper: a thread's first call to `runner_counter_register`
+// constructs this; thread exit invokes the dtor, which removes our
+// entry from the global vec.  Strong-ref design (no weak_ptr): the
+// entry lives until the last snapshot of `s_runner_counters` that
+// contains it is released, then the local_shared_ptr refcnt drops to
+// 0 and the entry is freed.  C++ standard guarantees thread_local
+// non-trivial dtors run on thread exit / join (per [basic.start.term]
+// and pthread_key semantics in major implementations).
+struct RunnerCounterRegistration {
+    local_shared_ptr<RunnerCounterEntry> entry;
+    RunnerCounterRegistration() = default;
+    ~RunnerCounterRegistration() noexcept {
+        if(entry) s_runner_counters_cow_remove(entry.get());
+    }
+    RunnerCounterRegistration(const RunnerCounterRegistration &) = delete;
+    RunnerCounterRegistration &operator=(const RunnerCounterRegistration &) = delete;
+};
+
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+// Windows: route via libkame-exported accessor (DSO singleton).
+DECLSPEC_KAME RunnerCounterRegistration& tls_runner_counter_registration_ref() noexcept {
+    thread_local RunnerCounterRegistration v;
+    return v;
+}
+#  define tls_runner_counter_registration tls_runner_counter_registration_ref()
+#else
+thread_local RunnerCounterRegistration tls_runner_counter_registration;
+#endif
+
+DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
+    auto &reg = tls_runner_counter_registration;
+    reg.entry.reset(new RunnerCounterEntry());
+    tls_runner_counter_holder = reg.entry;   // back-compat: still expose holder
+    tls_runner_counter_ptr = reg.entry.get();
+    s_runner_counters_cow_append(reg.entry);
+    return *reg.entry;
 }
 
 DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
@@ -160,9 +204,10 @@ DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept {
     local_shared_ptr<RunnerCounterVec> snap(s_runner_counters);
     if( !snap) return 0;
     uint64_t s = 0;
-    for(auto &w : *snap)
-        if(auto sp = w.lock())
-            s += sp->v.load(std::memory_order_relaxed);
+    // Direct deref — entries kept alive by snap's local_shared_ptrs.
+    // No `.lock()` overhead (vs old `vector<weak_ptr>` design).
+    for(auto &sp : *snap)
+        s += sp->v.load(std::memory_order_relaxed);
     return (unsigned)s;
 }
 
