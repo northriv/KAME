@@ -1294,7 +1294,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         const bool _fair_blocks =
             NegotiationCounter::fair_mode_blocks_me(started_time, self);
 
+#if KAME_NEGSITE_ENABLED
         NegSite::last_was_gate_return() = false;
+#endif
 #if KAME_LEGACY_GATING
         // ===== Legacy per-site adaptive gating ============================
         // Deprecation candidate; superseded by the per-Linkage spin-for-

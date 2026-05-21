@@ -89,15 +89,19 @@ private:
 //! \sa atomic_shared_ptr
 template <typename T>
 struct atomic_shared_ptr_gref_ {
-    template <typename D>
-    atomic_shared_ptr_gref_(T *p, D d) noexcept : ptr(p), refcnt(1), deleter(d) {}
-    ~atomic_shared_ptr_gref_() noexcept { assert(refcnt == 0); deleter(); }
+    explicit atomic_shared_ptr_gref_(T *p) noexcept : ptr(p), refcnt(1) {}
+    // Direct `delete ptr` — sufficient because every caller historically
+    // used `[p]{delete p;}` as the deleter (no custom-deleter callers in
+    // the codebase).  Polymorphic T's are handled via virtual destructor
+    // on the stored T* (e.g. Payload : virtual ~Payload).  Non-
+    // polymorphic T's are constructed only with Y == T; a static_assert
+    // in local_shared_ptr enforces that contract.
+    ~atomic_shared_ptr_gref_() noexcept { assert(refcnt == 0); delete ptr; }
     //! The pointer to the object.
     T *ptr;
     typedef uintptr_t Refcnt;
     //! The global reference counter.
     atomic<Refcnt> refcnt;
-    std::function<void()> deleter;
 
     atomic_shared_ptr_gref_(const atomic_shared_ptr_gref_ &) = delete;
 };
@@ -133,9 +137,10 @@ private:
     //! Global reference counter.
     atomic<Refcnt> refcnt;
 
-    void set_deleter(const std::function<void()> &d) {m_deleter = d;}
-    std::function<void()> get_deleter() const {return m_deleter;}
-    std::function<void()> m_deleter;
+    // (Dynamic deleter removed 2026-05-21: all callers were the trivial
+    // `[p]{delete p;}` form so the static `delete p` path in
+    // `atomic_shared_ptr_base::deleter` suffices.  Polymorphic T's
+    // dispatch correctly via their virtual destructor.)
 };
 
 //! Type trait: true when T uses intrusive reference counting.
@@ -184,9 +189,7 @@ using local_unique_ptr = std::unique_ptr<T, atomic_countable_deleter<T>>;
 //! reset_unsafe pattern.
 template <typename T, typename... Args>
 local_unique_ptr<T> make_local_unique(Args&&... args) {
-    T *p = new T(std::forward<Args>(args)...);
-    p->set_deleter([p]() { delete p; });
-    return local_unique_ptr<T>(p);
+    return local_unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
 //! \brief Base class for atomic_shared_ptr without intrusive counting, so-called "simple counted".\n
@@ -201,8 +204,8 @@ protected:
 
     //! can be used to initialize the internal pointer \a m_ref.
     //! \sa reset()
-    template<typename Y, typename D> void reset_unsafe(Y *y, D deleter) {
-        m_ref = (reflocal_t)new Ref(y, deleter);
+    template<typename Y> void reset_unsafe(Y *y) {
+        m_ref = (reflocal_t)new Ref(y);
     }
     T *get() noexcept { return this->m_ref ? ((Ref*)(reflocal_t)this->m_ref)->ptr : NULL; }
     const T *get() const noexcept { return this->m_ref ? ((const Ref*)(reflocal_t)this->m_ref)->ptr : NULL; }
@@ -238,12 +241,14 @@ protected:
     typedef T Ref;
     typedef typename atomic_countable::Refcnt Refcnt;
 
-    int deleter(T *p) noexcept { auto d = p->get_deleter(); d(); return 1;}
+    // Static `delete p` for intrusive case.  T's destructor is invoked
+    // directly; if T is polymorphic (e.g. Payload : virtual ~Payload)
+    // the virtual dispatch handles derived-class cleanup.
+    static int deleter(T *p) noexcept { delete p; return 1; }
 
     //! can be used to initialize the internal pointer \a m_ref.
-    template<typename Y, typename D> void reset_unsafe(Y *y, D d) noexcept {
+    template<typename Y> void reset_unsafe(Y *y) noexcept {
         m_ref = (reflocal_t)static_cast<T*>(y);
-        get()->set_deleter(d);
     }
     T *get() noexcept { return (T*)(reflocal_t)this->m_ref; }
     const T *get() const noexcept { return (const T*)(reflocal_t)this->m_ref; }
@@ -267,8 +272,14 @@ class local_shared_ptr : protected atomic_shared_ptr_base<T, uintptr_t, reflocal
 public:
     local_shared_ptr() noexcept { this->m_ref = (TaggedPtr)nullptr; }
 
-    template<typename Y> explicit local_shared_ptr(Y *y) { this->reset_unsafe(y, [y](){delete y;}); }
-    template<typename Y, typename D> local_shared_ptr(Y *y, D deleter) { this->reset_unsafe(y, deleter); }
+    template<typename Y> explicit local_shared_ptr(Y *y) {
+        // For non-polymorphic T, Y must equal T (otherwise the
+        // virtual-less destructor in the deleter path would slice).
+        // Polymorphic T's accept derived Y via virtual ~T.
+        static_assert(std::is_same<T, Y>::value || std::has_virtual_destructor<T>::value,
+            "local_shared_ptr<T>(Y*): T must be polymorphic when Y != T");
+        this->reset_unsafe(y);
+    }
 
     explicit local_shared_ptr(const atomic_shared_ptr<T> &t) noexcept { this->m_ref = reinterpret_cast<TaggedPtr>(t.load_shared_()); }
     template<typename Y> local_shared_ptr(const atomic_shared_ptr<Y> &y) {
@@ -327,8 +338,12 @@ public:
     //! The pointer held by this instance is reset to null pointer.
     inline void reset() noexcept;
     //! The pointer held by this instance is reset with a pointer \a y.
-    template<typename Y> void reset(Y *y) { reset(); this->reset_unsafe(y, [y](){ delete y;}); }
-    template<typename Y, typename D> void reset(Y *y, D deleter) { reset(); this->reset_unsafe(y, deleter); }
+    template<typename Y> void reset(Y *y) {
+        static_assert(std::is_same<T, Y>::value || std::has_virtual_destructor<T>::value,
+            "local_shared_ptr<T>::reset(Y*): T must be polymorphic when Y != T");
+        reset();
+        this->reset_unsafe(y);
+    }
 
     T *get() noexcept { return atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::get(); }
     const T *get() const noexcept { return atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::get(); }

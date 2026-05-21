@@ -375,6 +375,29 @@
 #define KAME_ENABLE_RUNNER_DIGEST 0
 #endif
 
+// Master switch for the per-call-site adaptive-state machinery
+// (`NegSite::Scope`, `m_site_state`, `last_was_gate_return`, the
+// state_map hash insert at every `ScopedNegotiateLinkage` ctor, etc.).
+// The state is only CONSUMED by one of the four mechanisms below; if
+// they are all off, every NegSite write is dead instrumentation.
+// Profile (2026-05-21, M3) showed the hash insert path costing ~1.1%
+// + the forward_as_tuple plumbing another ~0.8% with all four off.
+//
+// Default: 1 iff any consumer is enabled; otherwise 0.  Set
+// `-DKAME_NEGSITE_ENABLED=1` to keep the state machinery alive (e.g.
+// to call `NegSite::dump()` at the end of a run for diagnostics even
+// without `KAME_ADAPT_INSTRUMENT`).
+#ifndef KAME_NEGSITE_ENABLED
+#  if (defined(KAME_LEGACY_GATING) && KAME_LEGACY_GATING) \
+   || (defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT) \
+   || (defined(KAME_ENABLE_RUNNER_DIGEST) && KAME_ENABLE_RUNNER_DIGEST) \
+   || (defined(KAME_ENABLE_SPIN_BAND_GATE) && KAME_ENABLE_SPIN_BAND_GATE)
+#    define KAME_NEGSITE_ENABLED 1
+#  else
+#    define KAME_NEGSITE_ENABLED 0
+#  endif
+#endif
+
 // --- Spin-for-same-kind / peer-progress path ------------------------
 
 // Hard cap on per-call spin time in µs.  The actual budget is

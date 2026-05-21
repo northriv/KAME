@@ -197,14 +197,15 @@ class ScopedNegotiateLinkage {
     //! scope ends quickly, and the strong CAS still terminates: it
     //! returns false on real pointer mismatch.
     bool            m_strong_mode = false;
+#if KAME_NEGSITE_ENABLED
     //! Cached pointer into NegSite::state_map() for this scope's
     //! call-site.  Populated by NegSite::Scope at ctor entry — the hot
     //! path in _on_cas_success / _on_cas_fail (and the lease check in
     //! negotiate_internal) dereferences this pointer instead of doing
-    //! a per-call unordered_map lookup.  Carries both the adaptive
-    //! state machine (take_gate/streak/lease) and the cumulative
-    //! counters (entries/commits/per-peer breakdowns) — counters are
-    //! always-on now, gated only by m_link (skipped when moved-from).
+    //! a per-call unordered_map lookup.  Gated by KAME_NEGSITE_ENABLED:
+    //! when all four consumers (LEGACY_GATING / ADAPT_INSTRUMENT /
+    //! RUNNER_DIGEST / SPIN_BAND_GATE) are off the state is dead
+    //! instrumentation — eliminated entirely.
     NegSite::SiteState *m_site_state = nullptr;
     //! Whether THIS scope's ctor-time negotiate fired a gate-return.
     //! Per-scope (not thread_local) so nested scopes don't overwrite
@@ -212,6 +213,7 @@ class ScopedNegotiateLinkage {
     //! via the thread_local sink NegSite::last_was_gate_return(); consumed
     //! by _on_cas_fail / _on_cas_success of THIS scope only.
     bool            m_was_gate_return = false;
+#endif
     //! Per-scope CAS-fail counter (saturating at 255).  Used by the
     //! debug-only "priv holder must not fail CAS twice" assert in
     //! `_on_cas_fail`: privilege is supposed to prevent peer CAS on
@@ -331,27 +333,29 @@ public:
         , m_caller_line(caller_line)
 #endif
     {
+#if KAME_NEGSITE_ENABLED
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
+        // Gated by KAME_NEGSITE_ENABLED — dead when all consumers off.
         NegSite::Scope _site_scope(caller_line);
-        // NegSite::Scope::Scope(line) sets current_state to
-        // &state_map()[line] — operator[] always returns a valid
-        // reference (inserts if missing).  m_site_state is therefore
-        // guaranteed non-null here; later guards use m_link as the
-        // freshness sentinel (cleared on move-out).
         m_site_state = NegSite::current_state();
         ++m_site_state->entries;
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+#  if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         // Touch the thread_local sentinel so its dtor (which merges
         // this thread's stats into the global aggregator) is wired
         // up for this thread.  Cost: one TLS access on first ctor.
         (void)NegSite::auto_merge_stats();
+#  endif
+#else
+        (void)caller_line;
 #endif
         if(retry < 0)
             _negotiate();   // always negotiate, no retry_pause
         else
             _negotiate_after_retry_pause(retry);
+#if KAME_NEGSITE_ENABLED
         _capture_gate_return();
+#endif
 #if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
@@ -462,21 +466,20 @@ public:
         , m_caller_line(caller_line)
 #endif
     {
+#if KAME_NEGSITE_ENABLED
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
         NegSite::Scope _site_scope(caller_line);
-        // NegSite::Scope::Scope(line) sets current_state to
-        // &state_map()[line] — operator[] always returns a valid
-        // reference (inserts if missing).  m_site_state is therefore
-        // guaranteed non-null here; later guards use m_link as the
-        // freshness sentinel (cleared on move-out).
         m_site_state = NegSite::current_state();
         ++m_site_state->entries;
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+#  if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         // Touch the thread_local sentinel so its dtor (which merges
         // this thread's stats into the global aggregator) is wired
         // up for this thread.  Cost: one TLS access on first ctor.
         (void)NegSite::auto_merge_stats();
+#  endif
+#else
+        (void)caller_line;
 #endif
         if(with_negotiate) {
             if(retry < 0)
@@ -484,7 +487,9 @@ public:
             else
                 _negotiate_after_retry_pause(retry);
         }
+#if KAME_NEGSITE_ENABLED
         _capture_gate_return();
+#endif
 #if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
@@ -529,21 +534,20 @@ public:
         , m_caller_line(caller_line)
 #endif
     {
+#if KAME_NEGSITE_ENABLED
         // NegSite::Scope primes the SiteState pointer so negotiate /
         // CAS hooks below can address per-site state by pointer alone.
         NegSite::Scope _site_scope(caller_line);
-        // NegSite::Scope::Scope(line) sets current_state to
-        // &state_map()[line] — operator[] always returns a valid
-        // reference (inserts if missing).  m_site_state is therefore
-        // guaranteed non-null here; later guards use m_link as the
-        // freshness sentinel (cleared on move-out).
         m_site_state = NegSite::current_state();
         ++m_site_state->entries;
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+#  if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         // Touch the thread_local sentinel so its dtor (which merges
         // this thread's stats into the global aggregator) is wired
         // up for this thread.  Cost: one TLS access on first ctor.
         (void)NegSite::auto_merge_stats();
+#  endif
+#else
+        (void)caller_line;
 #endif
         if(with_negotiate) {
             if(retry < 0)
@@ -551,7 +555,9 @@ public:
             else
                 _negotiate_after_retry_pause(retry);
         }
+#if KAME_NEGSITE_ENABLED
         _capture_gate_return();
+#endif
 #if KAME_ENABLE_RUNNER_DIGEST
         _shift_gate_history();   // captures decision before _on_cas_* clears it
 #endif
@@ -584,16 +590,20 @@ public:
           m_mult_wait(o.m_mult_wait), m_eager(o.m_eager),
           m_should_tag(o.m_should_tag), m_committed(o.m_committed),
           m_contention_observed(o.m_contention_observed),
-          m_strong_mode(o.m_strong_mode),
-          m_site_state(o.m_site_state),
-          m_was_gate_return(o.m_was_gate_return)
+          m_strong_mode(o.m_strong_mode)
+#if KAME_NEGSITE_ENABLED
+        , m_site_state(o.m_site_state)
+        , m_was_gate_return(o.m_was_gate_return)
+#endif
 #if KAME_ENABLE_RUNNER_DIGEST
         , m_caller_line(o.m_caller_line)
 #endif
     {
         o.m_committed = true;  // prevent dtor effects on moved-from
+#if KAME_NEGSITE_ENABLED
         o.m_site_state = nullptr;
         o.m_was_gate_return = false;  // moved out — don't double-attribute
+#endif
     }
     ScopedNegotiateLinkage &operator=(ScopedNegotiateLinkage &&o) noexcept {
         if(this != &o) {
@@ -609,10 +619,12 @@ public:
             m_committed = o.m_committed;
             m_contention_observed = o.m_contention_observed;
             m_strong_mode = o.m_strong_mode;
+#if KAME_NEGSITE_ENABLED
             m_site_state = o.m_site_state;
             o.m_site_state = nullptr;
             m_was_gate_return = o.m_was_gate_return;
             o.m_was_gate_return = false;
+#endif
 #if KAME_ENABLE_RUNNER_DIGEST
             m_caller_line = o.m_caller_line;
 #endif
@@ -841,10 +853,12 @@ private:
     //! body.  Per-scope storage avoids nested-scope leakage where a
     //! nested scope's negotiate would overwrite the outer scope's
     //! gate-return flag.
+#if KAME_NEGSITE_ENABLED
     void _capture_gate_return() noexcept {
         m_was_gate_return = NegSite::last_was_gate_return();
         NegSite::last_was_gate_return() = false;
     }
+#endif
     //! Common CAS-success path: mark committed and drive the
     //! per-site promotion-to-FORCE_GATE transition.
     //!
@@ -900,7 +914,9 @@ private:
         }
         // ===== end legacy gating =======================================
 #endif
+#if KAME_NEGSITE_ENABLED
         m_was_gate_return = false;
+#endif
     }
     //! Common CAS-fail path.  Marks contention observed, accumulates the
     //! INSTRUMENT `gate_then_cas_fail` counter, and (under
@@ -919,8 +935,10 @@ private:
                     m_snap->m_started_time, m_link.get())
                 || m_cas_fail_count < 2)
                && "privilege holder failed CAS twice — peer is racing despite our Reserved stamp");
+#if KAME_NEGSITE_ENABLED
         if(m_was_gate_return)
             ++m_site_state->gate_then_cas_fail;
+#endif
 #if KAME_ENABLE_SPIN_BAND_GATE
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
         // Track "spin WON → CAS failed".  m_last_gate_returned is set
@@ -966,7 +984,9 @@ private:
         }
         // ===== end legacy gating =======================================
 #endif
+#if KAME_NEGSITE_ENABLED
         m_was_gate_return = false;
+#endif
     }
 
     //! Adaptive backoff entry point — replaces the former
@@ -1026,6 +1046,7 @@ public:
     void commit() noexcept { m_committed = true; }
 
     ~ScopedNegotiateLinkage() noexcept {
+#if KAME_NEGSITE_ENABLED
         // Re-prime the SiteState slot so any negotiate() invocation
         // below sees the right per-site state.  m_link is the
         // freshness sentinel — cleared on move-out, so the moved-from
@@ -1033,9 +1054,12 @@ public:
         // m_site_state itself is guaranteed non-null whenever m_link
         // is, so no additional null checks are needed.
         auto *_save_state = NegSite::current_state();
+#endif
         if(m_link) {
+#if KAME_NEGSITE_ENABLED
             NegSite::current_state() = m_site_state;
             if(m_committed) ++m_site_state->commits;
+#endif
 #if KAME_ENABLE_SPIN_BAND_GATE
             // Fire deferred record_successful_op only if the wrapped
             // CAS won.  Aborted / contention-detected scopes carry no
@@ -1111,8 +1135,10 @@ public:
                 }
             }
         }
+#if KAME_NEGSITE_ENABLED
         // Restore the SiteState slot saved at the top of dtor.
         NegSite::current_state() = _save_state;
+#endif
     }
 };
 
