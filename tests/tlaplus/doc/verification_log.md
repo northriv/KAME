@@ -1,5 +1,71 @@
 # TLA+ Verification Log
 
+## 2026-05-21: Non-atomic test pattern spec + C++ correctness sweep
+
+### TLA+ spec: `BundleUnbundle_hardlink_nonatomic.tla` (new)
+
+Models the test pattern revived on remote branch
+claude/refactor-negotiate-scoped-f7de2 commit `b23fa954` —
+non-transactional `p1->insert/release(p2)` interleaved with
+transactional `gn1`/`gn2` operations.  The crucial state is the
+"limbo" after step ❸ (`A.sub[C] ← Null` non-tx) where `C.bundledBy`
+still points at `A` even though A no longer references C.
+
+Two finalize variants compared (CONSTANT `UseFixVariant`):
+
+* `FALSE` (master): bundle-fall-through; `walkUpChain` walks
+  bundledBy chain → must acquire scope on Root.
+* `TRUE` (b23fa954): direct self-promote CAS on C's linkage only.
+
+Two fairness levels: `Spec` (per-action WF) and `WeakSpec` (blanket
+WF only).
+
+All four configurations PASS with 308 distinct states.  Conclusion:
+at this modelling abstraction master is theoretically live; the
+self-promote is a CAS-count optimization (O(chain × retry) → O(1)),
+not a logic fix.  The ~10% residual hang reported on the remote
+branch is consistent with real-OS scheduling artifacts.  The
+optimization landed on master gated by `KAME_STM_OPTIONAL_OPTIMIZATION`
+(default ON), and now also covers the existing `bundle()`
+"peer-completed early return" — both are explicit shortcuts around
+TLA+-modelled paths.
+
+### C++ companions verified by other models
+
+The hard-link sweep also produced C++ fixes whose semantics align
+with the existing TLA+ models:
+
+* **`checkConsistensy` / `allSubReachable` globalroot parameter**
+  (commits `1ffd8dce`, `b12e1895`).  Adds an optional `globalroot`
+  arg to thread the top-level tree root through recursion so that
+  Null-slot `reverseLookup` finds hard-link siblings (Case B).
+  `BundleUnbundle_hardlink_4node.tla::ReachableFromRoot` (lines
+  145-154) already implements this from-Root reachability — the
+  C++ change brings the implementation in line with the model.
+  Phase 4 order: `newpacket->m_missing = false` must be set BEFORE
+  `allSubReachable`/`checkConsistensy` (their Null-slot gates
+  short-circuit on `groot.missing()` — the mid-bundle semantics
+  would otherwise skip every check vacuously); on reachability
+  failure the flag is restored before returning `DISTURBED`.
+
+* **`fair_mode_blocks_me` / `i_am_privileged_now` TID compare**
+  (commit `9a0f9848`).  Fixes nested-Tx self-deadlock in the
+  per-linkage privilege path that arose from comparing by
+  `strip_kind` (US + TID) instead of `stamp_tid` (TID only).  Not
+  directly modelled in TLA+ (the negotiate stamp layout is below
+  the abstraction level we use), but logically a counterpart to
+  the global-mode self-deadlock workaround comment already in
+  `transaction_neg_impl.h` line 200-213.
+
+* **`KAME_ENABLE_SPIN_BAND_GATE` default flip to OFF**
+  (commit `472d193d`).  M3 ablation showed no net benefit (3level
+  ~5% faster with gate OFF, others within noise).  Independent of
+  formal verification — the gate is a CAS-bookkeeping optimization
+  whose cost/benefit depends on hardware behaviour, not protocol
+  correctness.
+
+---
+
 ## 2026-05-21: Hard-link 4-node — first per-action SF, DISTURBED-equivalent retry
 
 ### Context
