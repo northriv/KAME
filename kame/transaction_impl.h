@@ -917,20 +917,20 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
                 throw __LINE__;
         }
         for(int i = 0; i < size(); i++) {
-            if( !subpackets()->at(i)) [[unlikely]] {  // hard-link only
+            if( !subpackets()->at(i)) {
                 if( !groot->missing()) {
                     if( !subnodes()->at(i)->reverseLookup(
                         const_cast<local_shared_ptr<Packet>&>(groot), false, 0, false, 0))
-                        [[unlikely]] throw __LINE__;
+                        throw __LINE__;
                 }
             }
             else {
                 if(subpackets()->at(i)->size())
                     if( !(subpackets()->m_serial - subpackets()->at(i)->subpackets()->m_serial < 0x7fffffffffffffffLL))
-                        [[unlikely]] throw __LINE__;
+                        throw __LINE__;
                 if(subpackets()->at(i)->missing() && (rootpacket.get() != this)) {
                     if( !missing())
-                        [[unlikely]] throw __LINE__;
+                        throw __LINE__;
                 }
                 // Recurse with groot UNCHANGED (always the original
                 // top-level root) — only the local root switches.
