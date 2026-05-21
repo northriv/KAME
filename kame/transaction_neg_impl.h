@@ -323,7 +323,7 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
     // reads this field under the slot lock to bias wake-up toward the
     // same kind as the linkage's most recent commit (see
     // `notify_n_contenders` preferred_kind argument).
-    const uint8_t my_kind = (uint8_t)detail::s_current_op_kind & 0x3u;
+    const uint8_t my_kind = (uint8_t)*detail::s_current_op_kind & 0x3u;
     std::unique_lock<std::mutex> lock(st.mtx);
     st.op_kind = my_kind;
     // Publish the tenant stamp under the lock so wakers (also holding
@@ -556,13 +556,27 @@ ScopedNegotiateLinkage<XN>::_negotiate_after_retry_pause(int retry) noexcept {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
 // dt2 of the most recent negotiate() call — used by the adaptive fairness
 // gate (always-on, zero cost beyond one thread_local store).
-// Non-inline: see runner-counter detail block above for why
-// transaction_impl.h drops `inline` on namespace-scope thread_local.
-thread_local uint64_t s_adapt_dt2_last_us       = 0;
-thread_local int      s_adapt_C_last            = 0;  // popcount(tid_bitset)
-thread_local uint32_t s_adapt_last_priority_tid = 0;  // last m_priority_state.tid seen
-thread_local uint32_t s_adapt_bounce_count      = 0;  // # times it changed
-thread_local uint64_t s_adapt_negotiate_calls   = 0;  // negotiate() entries
+//
+// Routed through XThreadLocal so the TLS storage qualifier (`__thread`
+// on POSIX GCC/Clang, `thread_local` elsewhere) is decided in
+// `threadlocal.h` alone.  Each variable carries a unique empty Tag
+// struct to keep its class-static `m_var` distinct from sibling
+// counters that share the same underlying scalar type (so that, e.g.,
+// `s_adapt_dt2_last_us` and `s_adapt_negotiate_calls` don't alias).
+namespace {
+struct STagAdaptDt2LastUs;
+struct STagAdaptCLast;
+struct STagAdaptLastPriorityTid;
+struct STagAdaptBounceCount;
+struct STagAdaptNegotiateCalls;
+struct STagAdaptSkipHits;
+struct STagAdaptSkipPer1k;
+}
+XThreadLocal<uint64_t, STagAdaptDt2LastUs>        s_adapt_dt2_last_us;
+XThreadLocal<int,      STagAdaptCLast>            s_adapt_C_last;
+XThreadLocal<uint32_t, STagAdaptLastPriorityTid>  s_adapt_last_priority_tid;
+XThreadLocal<uint32_t, STagAdaptBounceCount>      s_adapt_bounce_count;
+XThreadLocal<uint64_t, STagAdaptNegotiateCalls>   s_adapt_negotiate_calls;
 
 // Per-Linkage privilege diagnostic counters declared in transaction_impl.h
 // (g_neg_claim_attempts / g_neg_claim_successes /
@@ -571,8 +585,8 @@ extern std::atomic<uint64_t> g_neg_claim_attempts;
 extern std::atomic<uint64_t> g_neg_claim_successes;
 extern std::atomic<uint64_t> g_neg_internal_calls_non_priv;
 extern std::atomic<uint64_t> g_neg_internal_calls_priv;
-thread_local uint64_t s_adapt_skip_hits         = 0;  // lease-skip fires
-thread_local uint32_t s_adapt_skip_per1k        = 0;  // skip_hits/calls × 1000
+XThreadLocal<uint64_t, STagAdaptSkipHits>  s_adapt_skip_hits;   // lease-skip fires
+XThreadLocal<uint32_t, STagAdaptSkipPer1k> s_adapt_skip_per1k;  // skip_hits/calls × 1000
 #endif
 //=============================================================================
 // _neg_apply_lease() — per-Linkage adaptive lease drift + owner-skip
@@ -613,16 +627,16 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
             now_us_entry, transaction_started_time);
 
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-    s_adapt_dt2_last_us = adapt_dt2_last_us;
-    s_adapt_C_last = sig_C;
-    if(ps.tid && ps.tid != s_adapt_last_priority_tid) {
-        ++s_adapt_bounce_count;
-        s_adapt_last_priority_tid = ps.tid;
+    *s_adapt_dt2_last_us = adapt_dt2_last_us;
+    *s_adapt_C_last = sig_C;
+    if(ps.tid && ps.tid != *s_adapt_last_priority_tid) {
+        ++*s_adapt_bounce_count;
+        *s_adapt_last_priority_tid = ps.tid;
     }
-    ++s_adapt_negotiate_calls;
-    s_adapt_skip_per1k = s_adapt_negotiate_calls > 0
-                             ? (uint32_t)((uint64_t)s_adapt_skip_hits * 1000
-                                           / s_adapt_negotiate_calls)
+    ++*s_adapt_negotiate_calls;
+    *s_adapt_skip_per1k = *s_adapt_negotiate_calls > 0
+                             ? (uint32_t)((uint64_t)(*s_adapt_skip_hits) * 1000
+                                           / *s_adapt_negotiate_calls)
                              : 0;
 #endif
 
@@ -671,7 +685,7 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
         uint32_t age_us = (uint32_t)now_us_entry - ps.start_us;
         if(age_us < (uint32_t)ps.lease_us) {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-            ++s_adapt_skip_hits;
+            ++*s_adapt_skip_hits;
 #endif
             if(entry_pr == Priority::HIGHEST || entry_pr == Priority::NORMAL)
                 return true;  // owner-skip → caller returns early
@@ -745,7 +759,7 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
         // delta >= 2: all stale, all zeros.
     }
 
-    const uint8_t mk = (uint8_t)detail::s_current_op_kind & 0x3u;
+    const uint8_t mk = (uint8_t)*detail::s_current_op_kind & 0x3u;
     const bool prev_failed = snap.m_last_gate_returned;
     if(prev_failed) {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
@@ -1250,7 +1264,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif
         auto preferred_kind_for_wake = []() -> uint8_t {
 #if KAME_CV_WAKE_KIND_PREF
-            return (uint8_t)detail::s_current_op_kind & 0x3u;
+            return (uint8_t)*detail::s_current_op_kind & 0x3u;
 #else
             return (uint8_t)0xFFu;
 #endif
@@ -1338,7 +1352,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 _adapt->consec_succs = 0;
                 ++_adapt->mode_flips_n2g;
             }
-            const detail::StampKind my_kind = detail::s_current_op_kind;
+            const detail::StampKind my_kind = *detail::s_current_op_kind;
             bool take_gate;
             const int8_t tg = _adapt ? _adapt->take_gate : (int8_t)-1;
             if(tg == -1) {

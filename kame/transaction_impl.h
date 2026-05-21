@@ -62,63 +62,28 @@ namespace detail {
 // so libkame instead exports `*_ref()` accessor functions; the storage
 // lives as a function-local `thread_local` inside each accessor (one
 // instance per thread, per program — same DLL hosts the storage).
-#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
-// transaction.h aliases bare names to the accessor calls. Undef here
-// so we can write the accessor bodies without recursive expansion.
-#  undef s_tx_nest
-#  undef s_sleep_nest
-#  undef tls_runner_counter_holder
-#  undef tls_runner_counter_ptr
-DECLSPEC_KAME int& s_tx_nest_ref() noexcept { thread_local int v = 0; return v; }
-DECLSPEC_KAME int& s_sleep_nest_ref() noexcept { thread_local int v = 0; return v; }
-DECLSPEC_KAME void*& tls_payload_creator_ptr() noexcept { thread_local void* v = nullptr; return v; }
-// Lamport serial: int64_t holding (48-bit counter | 16-bit thread ID).
-// Initialized to ProcessCounter::id() on first call (matches cnt_t ctor).
-// Must be defined AFTER tls_payload_creator_ptr so ProcessCounter::id()
-// is already declared (via transaction_signal.h included before this block).
-DECLSPEC_KAME int64_t& tls_serial_ref() noexcept {
-    thread_local int64_t v = (int64_t)ProcessCounter::id();
-    return v;
-}
-DECLSPEC_KAME local_shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
-    thread_local local_shared_ptr<RunnerCounterEntry> v;
-    return v;
-}
-DECLSPEC_KAME RunnerCounterEntry*& tls_runner_counter_ptr_ref() noexcept {
-    thread_local RunnerCounterEntry* v = nullptr;
-    return v;
-}
-#  undef s_current_op_kind
-DECLSPEC_KAME StampKind& s_current_op_kind_ref() noexcept {
-    thread_local StampKind v = StampKind::NONE;
-    return v;
-}
+// Per-thread TLS variables — all migrated to XThreadLocal.  Each
+// (T, Tag) is hosted in libkame via a member-template explicit
+// instantiation at the bottom of this file (`template int& ...
+// ::libkame_storage();`).  Consumers (other libkame TUs, tests, and
+// plugin DLLs) see the matching `extern template` declarations at the
+// bottom of transaction.h; plugins additionally get a per-DLL cached
+// pointer for the hot path (gated on `BUILDING_PLUGIN`).  No more
+// `#ifdef _WIN32` dichotomy, no `*_ref()` accessor functions, no
+// `#define` macro aliases.
+DECLSPEC_KAME XThreadLocal<int, STxNestTag>     s_tx_nest;
+DECLSPEC_KAME XThreadLocal<int, SSleepNestTag>  s_sleep_nest;
+DECLSPEC_KAME XThreadLocal<void*, TlsPayloadCreatorPtrTag>
+                                                tls_payload_creator_ptr;
+DECLSPEC_KAME XThreadLocal<TlsSerial>           tls_serial;
+DECLSPEC_KAME XThreadLocal<local_shared_ptr<RunnerCounterEntry>>
+                                                tls_runner_counter_holder;
+DECLSPEC_KAME XThreadLocal<RunnerCounterEntry*, TlsRunnerCounterPtrTag>
+                                                tls_runner_counter_ptr;
+DECLSPEC_KAME XThreadLocal<StampKind, SCurrentOpKindTag>
+                                                s_current_op_kind;
 #if KAME_ENABLE_RUNNER_DIGEST
-#  undef tls_runner_digest
-DECLSPEC_KAME RunnerDigest& tls_runner_digest_ref() noexcept {
-    thread_local RunnerDigest v;
-    return v;
-}
-#endif
-// Re-instate the aliases so the rest of transaction_impl.h refers to
-// the variables uniformly.
-#  define s_tx_nest                  s_tx_nest_ref()
-#  define s_sleep_nest               s_sleep_nest_ref()
-#  define tls_runner_counter_holder  tls_runner_counter_holder_ref()
-#  define tls_runner_counter_ptr     tls_runner_counter_ptr_ref()
-#  define s_current_op_kind          s_current_op_kind_ref()
-#if KAME_ENABLE_RUNNER_DIGEST
-#  define tls_runner_digest          tls_runner_digest_ref()
-#endif
-#else
-thread_local int s_tx_nest = 0;
-thread_local int s_sleep_nest = 0;
-thread_local local_shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
-thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
-thread_local StampKind s_current_op_kind = StampKind::NONE;
-#if KAME_ENABLE_RUNNER_DIGEST
-thread_local RunnerDigest tls_runner_digest;
-#endif
+DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 #endif
 
 // `DECLSPEC_KAME` on the definitions too — MSVC is more lenient when
@@ -174,28 +139,23 @@ struct RunnerCounterRegistration {
     RunnerCounterRegistration &operator=(const RunnerCounterRegistration &) = delete;
 };
 
-#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
-// Windows: route via libkame-exported accessor (DSO singleton).
-DECLSPEC_KAME RunnerCounterRegistration& tls_runner_counter_registration_ref() noexcept {
-    thread_local RunnerCounterRegistration v;
-    return v;
-}
-#  define tls_runner_counter_registration tls_runner_counter_registration_ref()
-#else
-thread_local RunnerCounterRegistration tls_runner_counter_registration;
-#endif
+// Intra-libkame TLS — only `runner_counter_register()` below references
+// it.  Plain XThreadLocal (no explicit instantiation needed because no
+// plugin TU touches it).  Non-trivial dtor runs at thread exit via
+// `static thread_local`'s standard guarantee.
+static XThreadLocal<RunnerCounterRegistration> tls_runner_counter_registration;
 
 DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
-    auto &reg = tls_runner_counter_registration;
+    auto &reg = *tls_runner_counter_registration;
     reg.entry.reset(new RunnerCounterEntry());
-    tls_runner_counter_holder = reg.entry;   // back-compat: still expose holder
-    tls_runner_counter_ptr = reg.entry.get();
+    *tls_runner_counter_holder = reg.entry;   // back-compat: still expose holder
+    *tls_runner_counter_ptr = reg.entry.get();
     s_runner_counters_cow_append(reg.entry);
     return *reg.entry;
 }
 
 DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
-    auto *p = tls_runner_counter_ptr;
+    auto *p = *tls_runner_counter_ptr;
     if(p) return *p;
     return runner_counter_register();
 }
@@ -219,19 +179,18 @@ DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept {
 // per-binary include site, matching detail:: TLS above).
 // =============================================================================
 
-DECLSPEC_KAME std::unordered_map<int, NegSite::SiteState>&
-NegSite::state_map() noexcept {
-    thread_local std::unordered_map<int, SiteState> v;
-    return v;
-}
-DECLSPEC_KAME NegSite::SiteState*& NegSite::current_state() noexcept {
-    thread_local SiteState *v = nullptr;
-    return v;
-}
-DECLSPEC_KAME bool& NegSite::last_was_gate_return() noexcept {
-    thread_local bool v = false;
-    return v;
-}
+// NegSite TLS storage — class-static XThreadLocal definitions.  The
+// inline accessor functions (`state_map()` etc.) in transaction.h are
+// thin wrappers that dereference these.  Per-member explicit template
+// instantiations at the bottom of this file export
+// `libkame_storage()` so plugins import libkame's single instance.
+DECLSPEC_KAME XThreadLocal<std::unordered_map<int, NegSite::SiteState>,
+                            NegSite::StateMapTag>
+                                              NegSite::tls_state_map;
+DECLSPEC_KAME XThreadLocal<NegSite::SiteState *, NegSite::CurrentStateTag>
+                                              NegSite::tls_current_state;
+DECLSPEC_KAME XThreadLocal<bool, NegSite::LastWasGateReturnTag>
+                                              NegSite::tls_last_was_gate_return;
 
 //! Global aggregator — threads merge their TLS state_map here at
 //! thread exit (when INSTRUMENT wires up AutoMergeStats) or on demand
@@ -249,10 +208,8 @@ inline GlobalNegStats& globalNegStats() noexcept {
 } // anonymous namespace
 
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-DECLSPEC_KAME NegSite::AutoMergeStats& NegSite::auto_merge_stats() noexcept {
-    thread_local AutoMergeStats v;
-    return v;
-}
+DECLSPEC_KAME XThreadLocal<NegSite::AutoMergeStats, NegSite::AutoMergeStatsTag>
+                                              NegSite::tls_auto_merge_stats;
 
 NegSite::AutoMergeStats::~AutoMergeStats() noexcept {
     NegSite::mergeStatsToGlobal();
@@ -845,8 +802,11 @@ namespace Transactional {
 template <class XN>
 XThreadLocal<typename Node<XN>::FuncPayloadCreator> Node<XN>::stl_funcPayloadCreator;
 
-template <class XN>
-XThreadLocal<typename Node<XN>::SerialGenerator::cnt_t> Node<XN>::SerialGenerator::stl_serial;
+// `Node<XN>::SerialGenerator::stl_serial` removed — replaced by the
+// non-templated `Transactional::detail::tls_serial`
+// (`XThreadLocal<TlsSerial>`) which is cross-DLL singleton via
+// explicit instantiation.  See transaction.h's SerialGenerator
+// implementation.
 
 atomic<ProcessCounter::cnt_t> ProcessCounter::s_count = ProcessCounter::MAINTHREADID - 1;
 XThreadLocal<ProcessCounter> ProcessCounter::stl_processID;
@@ -1036,8 +996,8 @@ Node<XN>::Node() : m_link(std::make_shared<Linkage>()) {
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     // Read and clear the shared void* slot — see create() for why we use
     // this instead of stl_funcPayloadCreator on Windows.
-    auto creator = reinterpret_cast<FuncPayloadCreator>(detail::tls_payload_creator_ptr());
-    detail::tls_payload_creator_ptr() = nullptr;
+    auto creator = reinterpret_cast<FuncPayloadCreator>(*detail::tls_payload_creator_ptr);
+    *detail::tls_payload_creator_ptr = nullptr;
 #else
     auto creator = *stl_funcPayloadCreator;
     *stl_funcPayloadCreator = nullptr;
@@ -2884,4 +2844,49 @@ void setCurrentPriorityMode(Priority pr) {
 }
 
 } //namespace Transactional
+
+// Per-member explicit instantiations for cross-DLL singleton TLS —
+// each emits `libkame_storage()` as an exported symbol in libkame.
+// Live at global scope ([temp.explicit]: explicit instantiation must
+// appear in an enclosing namespace of the template — XThreadLocal is
+// declared at global scope in threadlocal.h).  `operator*()` is
+// intentionally NOT explicit-instantiated so each consuming TU
+// inlines its own copy (libkame-side: direct path; plugin-side:
+// per-DLL `cached` pointer path under `BUILDING_PLUGIN`).
+template DECLSPEC_KAME int&
+    XThreadLocal<int, Transactional::detail::STxNestTag>::libkame_storage();
+template DECLSPEC_KAME int&
+    XThreadLocal<int, Transactional::detail::SSleepNestTag>::libkame_storage();
+template DECLSPEC_KAME void*&
+    XThreadLocal<void*, Transactional::detail::TlsPayloadCreatorPtrTag>::libkame_storage();
+template DECLSPEC_KAME Transactional::detail::TlsSerial&
+    XThreadLocal<Transactional::detail::TlsSerial>::libkame_storage();
+template DECLSPEC_KAME local_shared_ptr<Transactional::detail::RunnerCounterEntry>&
+    XThreadLocal<local_shared_ptr<Transactional::detail::RunnerCounterEntry>>::libkame_storage();
+template DECLSPEC_KAME Transactional::detail::RunnerCounterEntry*&
+    XThreadLocal<Transactional::detail::RunnerCounterEntry*,
+                 Transactional::detail::TlsRunnerCounterPtrTag>::libkame_storage();
+template DECLSPEC_KAME Transactional::detail::StampKind&
+    XThreadLocal<Transactional::detail::StampKind,
+                 Transactional::detail::SCurrentOpKindTag>::libkame_storage();
+#if KAME_ENABLE_RUNNER_DIGEST
+template DECLSPEC_KAME Transactional::detail::RunnerDigest&
+    XThreadLocal<Transactional::detail::RunnerDigest>::libkame_storage();
+#endif
+
+// NegSite TLS — per-member explicit instantiations for the
+// class-static `tls_*` members declared in `class NegSite`.
+template DECLSPEC_KAME std::unordered_map<int, Transactional::NegSite::SiteState>&
+    XThreadLocal<std::unordered_map<int, Transactional::NegSite::SiteState>,
+                 Transactional::NegSite::StateMapTag>::libkame_storage();
+template DECLSPEC_KAME Transactional::NegSite::SiteState *&
+    XThreadLocal<Transactional::NegSite::SiteState *,
+                 Transactional::NegSite::CurrentStateTag>::libkame_storage();
+template DECLSPEC_KAME bool&
+    XThreadLocal<bool, Transactional::NegSite::LastWasGateReturnTag>::libkame_storage();
+#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
+template DECLSPEC_KAME Transactional::NegSite::AutoMergeStats&
+    XThreadLocal<Transactional::NegSite::AutoMergeStats,
+                 Transactional::NegSite::AutoMergeStatsTag>::libkame_storage();
+#endif
 

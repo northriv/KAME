@@ -240,7 +240,7 @@ class ScopedNegotiateLinkage {
     //! `m_was_gate_return`.  Mutates the TLS cache only; the value is
     //! published at scope end via `_publish_digest()`.
     void _shift_gate_history() noexcept {
-        auto &d = detail::tls_runner_digest;
+        auto &d = *detail::tls_runner_digest;
         d.f.gate_history = ((unsigned)d.f.gate_history << 1
                            | (m_was_gate_return ? 1u : 0u)) & 0xFFu;
     }
@@ -259,11 +259,11 @@ class ScopedNegotiateLinkage {
     //! Snapshot's already-packed stamp; peer computes age locally.
     void _publish_digest() noexcept {
         detail::RunnerDigest local;
-        local.raw = detail::tls_runner_digest.raw;
+        local.raw = detail::tls_runner_digest->raw;
         using NC = typename Node<XN>::NegotiationCounter;
         local.f.tx_start_us = (uint64_t)NC::stamp_us(m_snap->m_started_time)
                               & ((1ULL << 22) - 1);
-        local.f.op_kind = (uint64_t)detail::s_current_op_kind & 0x3u;
+        local.f.op_kind = (uint64_t)*detail::s_current_op_kind & 0x3u;
         // m_site_state non-null invariant (NegSite::Scope set it
         // unconditionally at ctor; only the moved-from path would
         // clear it, and that path is gated by m_link before reaching
@@ -276,7 +276,7 @@ class ScopedNegotiateLinkage {
         int8_t tg = m_site_state->take_gate;
         local.f.take_gate_p1 = (uint64_t)(tg < 0 ? 0 : (tg + 1)) & 0x3u;
         local.f.site_line_lo = (uint64_t)(m_caller_line & 0xFFF);
-        detail::tls_runner_digest.raw = local.raw;
+        detail::tls_runner_digest->raw = local.raw;
         // Skip the atomic store when the *peer-actionable* fields
         // haven't changed since the previous publish from this thread.
         // gate_history and site_line_lo are excluded from the diff —
@@ -293,7 +293,7 @@ class ScopedNegotiateLinkage {
         if(actionable == s_last_actionable)
             return;
         s_last_actionable = actionable;
-        if(auto *r = detail::tls_runner_counter_ptr)
+        if(auto *r = *detail::tls_runner_counter_ptr)
             r->digest.store(local.raw, std::memory_order_relaxed);
     }
 #endif // KAME_ENABLE_RUNNER_DIGEST
