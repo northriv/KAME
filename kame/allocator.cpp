@@ -214,11 +214,14 @@ bool g_sys_image_loaded = false;
 void activateAllocator() {g_sys_image_loaded = true;}
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
+inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool,
+                                                      void **freelist, int freelist_cap) :
 	PoolAllocatorBase(ppool),
 	m_flags(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)])),
 	m_idx(0),
-	m_count(count) {
+	m_count(count),
+	m_freelist(freelist),
+	m_freelist_cap(freelist_cap) {
 	m_flags_nonzero_cnt = 0;
 	m_flags_filled_cnt = 0;
 	for(int i = count - 1; i >= 0 ; --i)
@@ -232,15 +235,30 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(size_t size, char *ppool) {
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
 	int count = size / ALIGN / sizeof(FUINT) / 8;
-	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count));
+	// Owner-thread freelist sized to ~10% of the chunk's total slot
+	// count, clamped to [FREELIST_CAP_MIN, FREELIST_CAP_MAX].  Larger
+	// chunks absorb more same-thread alloc/dealloc cycles before
+	// hitting the bitmap CAS path.  Memory overhead: 8 B per entry,
+	// ≤ 32 KiB per chunk at the max cap (4096).  Lives at the tail of
+	// the chunk-metadata malloc block, so a single malloc covers it.
+	int slot_count = count * (int)(sizeof(FUINT) * 8);
+	int freelist_cap = slot_count / 10;
+	if(freelist_cap < (int)PoolAllocator::FREELIST_CAP_MIN)
+		freelist_cap = PoolAllocator::FREELIST_CAP_MIN;
+	if(freelist_cap > (int)PoolAllocator::FREELIST_CAP_MAX)
+		freelist_cap = PoolAllocator::FREELIST_CAP_MAX;
+	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count
+	                                        + sizeof(void *) * freelist_cap));
 	if( !area)
 		return 0;
-	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool);
+	void **freelist = reinterpret_cast<void **>(area + size_alloc + sizeof(FUINT) * count);
+	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool, freelist, freelist_cap);
 	return p;
 }
 template <unsigned int ALIGN, bool DUMMY>
-inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
-	PoolAllocator<ALIGN, true, false>(count, addr, ppool),
+inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool,
+                                                          void **freelist, int freelist_cap) :
+	PoolAllocator<ALIGN, true, false>(count, addr, ppool, freelist, freelist_cap),
 	m_sizes(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)
 	                                         + sizeof(FUINT) * count])) {
 	m_available_bits = sizeof(FUINT) * 8;
@@ -249,10 +267,16 @@ template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(size_t size, char *ppool) {
 	int count = size / ALIGN / sizeof(FUINT) / 8;
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
+	// FS=false variant overrides deallocate_pooled() and never uses
+	// the owner-thread freelist (variable-size slots can't share a
+	// uniform free entry).  Pass nullptr/0 to the FS=true base; the
+	// dealloc fast-path push is gated by `m_freelist_count <
+	// m_freelist_cap` (with cap=0 nothing is ever pushed) plus the
+	// override bypasses it entirely.  No freelist space is reserved.
 	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count * 2));
 	if( !area)
 		return 0;
-	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool);
+	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool, nullptr, 0);
 	return p;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -532,7 +556,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// check and fall through to the bitmap CAS path.  The FS=false
 	// specialization overrides this method completely and never
 	// reaches here, so the uniform-slot freelist push is safe.
-	if(s_my_chunk == this && this->m_freelist_count < (int)this->FREELIST_CAP) {
+	if(s_my_chunk == this && this->m_freelist_count < this->m_freelist_cap) {
 		this->m_freelist[this->m_freelist_count++] = p;
 		// Don't trigger chunk-release path: the slot is still
 		// "allocated" from the bitmap's perspective; flushing on
