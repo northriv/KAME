@@ -1165,6 +1165,16 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         self->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !transaction_started_time)
         return; //collision has not been detected.
+    // Self-tagged short-circuit (KAME_STM_OPTIONAL_OPTIMIZATION).
+    // If the slot's TID matches ours, this thread tagged the linkage
+    // — the lease drift, numThreadsRunning probe in `_neg_apply_lease`,
+    // backoff init, and the `dt <= 0` loop bail-out below are all
+    // wasted work on a self-encounter.  Skip them all here.
+#if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
+    if(NegotiationCounter::stamp_tid(transaction_started_time)
+       == NegotiationCounter::stamp_tid(started_time))
+        return;
+#endif
     // LOWEST and UI_DEFERRABLE explicitly tolerate yielding, so the
     // helper internally skips the lease/owner-skip block for those
     // priorities.  Returns true iff the owner-skip fired (we hold the
