@@ -80,8 +80,8 @@ DECLSPEC_KAME int64_t& tls_serial_ref() noexcept {
     thread_local int64_t v = (int64_t)ProcessCounter::id();
     return v;
 }
-DECLSPEC_KAME std::shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
-    thread_local std::shared_ptr<RunnerCounterEntry> v;
+DECLSPEC_KAME local_shared_ptr<RunnerCounterEntry>& tls_runner_counter_holder_ref() noexcept {
+    thread_local local_shared_ptr<RunnerCounterEntry> v;
     return v;
 }
 DECLSPEC_KAME RunnerCounterEntry*& tls_runner_counter_ptr_ref() noexcept {
@@ -113,7 +113,7 @@ DECLSPEC_KAME RunnerDigest& tls_runner_digest_ref() noexcept {
 #else
 thread_local int s_tx_nest = 0;
 thread_local int s_sleep_nest = 0;
-thread_local std::shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
+thread_local local_shared_ptr<RunnerCounterEntry> tls_runner_counter_holder;
 thread_local RunnerCounterEntry* tls_runner_counter_ptr = nullptr;
 thread_local StampKind s_current_op_kind = StampKind::NONE;
 #if KAME_ENABLE_RUNNER_DIGEST
@@ -128,26 +128,70 @@ thread_local RunnerDigest tls_runner_digest;
 // duplication failure mode that motivated this whole reorg).
 DECLSPEC_KAME atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
 
-DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
-    auto sp = std::make_shared<RunnerCounterEntry>();
-    tls_runner_counter_holder = sp;
-    tls_runner_counter_ptr = sp.get();
-    // COW publish: append our weak_ptr to the global vector and prune
-    // expired entries (threads that have exited) in the same step so
-    // the vector self-trims without a separate maintenance path.
+// COW helpers shared between register/unregister.
+static void s_runner_counters_cow_append(
+    const local_shared_ptr<RunnerCounterEntry> &sp) {
     for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
         local_shared_ptr<RunnerCounterVec> next;
         next.reset(new RunnerCounterVec);
         if(old) {
             next->reserve(old->size() + 1);
-            for(auto &w : *old)
-                if( !w.expired())
-                    next->push_back(w);
+            for(auto &e : *old) next->push_back(e);
         }
-        next->push_back(std::weak_ptr<RunnerCounterEntry>(sp));
+        next->push_back(sp);
         if(s_runner_counters.compareAndSwap(old, next)) break;
     }
-    return *sp;
+}
+
+static void s_runner_counters_cow_remove(
+    const RunnerCounterEntry *target) {
+    for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
+        if( !old) break;
+        local_shared_ptr<RunnerCounterVec> next;
+        next.reset(new RunnerCounterVec);
+        next->reserve(old->size());
+        for(auto &e : *old)
+            if(e.get() != target) next->push_back(e);
+        if(s_runner_counters.compareAndSwap(old, next)) break;
+    }
+}
+
+// TLS RAII wrapper: a thread's first call to `runner_counter_register`
+// constructs this; thread exit invokes the dtor, which removes our
+// entry from the global vec.  Strong-ref design (no weak_ptr): the
+// entry lives until the last snapshot of `s_runner_counters` that
+// contains it is released, then the local_shared_ptr refcnt drops to
+// 0 and the entry is freed.  C++ standard guarantees thread_local
+// non-trivial dtors run on thread exit / join (per [basic.start.term]
+// and pthread_key semantics in major implementations).
+struct RunnerCounterRegistration {
+    local_shared_ptr<RunnerCounterEntry> entry;
+    RunnerCounterRegistration() = default;
+    ~RunnerCounterRegistration() noexcept {
+        if(entry) s_runner_counters_cow_remove(entry.get());
+    }
+    RunnerCounterRegistration(const RunnerCounterRegistration &) = delete;
+    RunnerCounterRegistration &operator=(const RunnerCounterRegistration &) = delete;
+};
+
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+// Windows: route via libkame-exported accessor (DSO singleton).
+DECLSPEC_KAME RunnerCounterRegistration& tls_runner_counter_registration_ref() noexcept {
+    thread_local RunnerCounterRegistration v;
+    return v;
+}
+#  define tls_runner_counter_registration tls_runner_counter_registration_ref()
+#else
+thread_local RunnerCounterRegistration tls_runner_counter_registration;
+#endif
+
+DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
+    auto &reg = tls_runner_counter_registration;
+    reg.entry.reset(new RunnerCounterEntry());
+    tls_runner_counter_holder = reg.entry;   // back-compat: still expose holder
+    tls_runner_counter_ptr = reg.entry.get();
+    s_runner_counters_cow_append(reg.entry);
+    return *reg.entry;
 }
 
 DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
@@ -160,9 +204,10 @@ DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept {
     local_shared_ptr<RunnerCounterVec> snap(s_runner_counters);
     if( !snap) return 0;
     uint64_t s = 0;
-    for(auto &w : *snap)
-        if(auto sp = w.lock())
-            s += sp->v.load(std::memory_order_relaxed);
+    // Direct deref — entries kept alive by snap's local_shared_ptrs.
+    // No `.lock()` overhead (vs old `vector<weak_ptr>` design).
+    for(auto &sp : *snap)
+        s += sp->v.load(std::memory_order_relaxed);
     return (unsigned)s;
 }
 
@@ -858,11 +903,13 @@ Node<XN>::Packet::print_() const {
 template <class XN>
 bool
 Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
-    const local_shared_ptr<Packet> &globalroot) const {
-    // globalroot: the outermost root for null-slot reverseLookup checks.
-    // Hard-link null slots may be hosted by a sibling subtree reachable
-    // from globalroot but not from a locally-switched rootpacket, so we
-    // must always use globalroot for those checks.
+                                   const local_shared_ptr<Packet> &globalroot) const {
+    // `rootpacket` switches on recursion (local sub-bundle root) for
+    // the "sub missing → self missing" propagation; `groot` stays
+    // unchanged through recursion and drives the Null-slot
+    // reverseLookup (needed for hard-link Case B).  Default
+    // `globalroot={}` degenerates groot to rootpacket — semantics doc
+    // in `transaction.h`.
     const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
     try {
         if(size()) {
@@ -870,21 +917,23 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
                 throw __LINE__;
         }
         for(int i = 0; i < size(); i++) {
-            if( !subpackets()->at(i)) {
+            if( !subpackets()->at(i)) [[unlikely]] {  // hard-link only
                 if( !groot->missing()) {
                     if( !subnodes()->at(i)->reverseLookup(
                         const_cast<local_shared_ptr<Packet>&>(groot), false, 0, false, 0))
-                        throw __LINE__;
+                        [[unlikely]] throw __LINE__;
                 }
             }
             else {
                 if(subpackets()->at(i)->size())
                     if( !(subpackets()->m_serial - subpackets()->at(i)->subpackets()->m_serial < 0x7fffffffffffffffLL))
-                        throw __LINE__;
+                        [[unlikely]] throw __LINE__;
                 if(subpackets()->at(i)->missing() && (rootpacket.get() != this)) {
                     if( !missing())
-                        throw __LINE__;
+                        [[unlikely]] throw __LINE__;
                 }
+                // Recurse with groot UNCHANGED (always the original
+                // top-level root) — only the local root switches.
                 if( !subpackets()->at(i)->checkConsistensy(
                     subpackets()->at(i)->missing() ? rootpacket : subpackets()->at(i),
                     groot))
@@ -894,7 +943,7 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
     }
     catch (int &line) {
         fprintf(stderr, "Line %d, losing consistensy on node %p:\n", line, &node());
-        rootpacket->print_();
+        groot->print_();
         throw *this;
     }
     return true;
@@ -903,16 +952,14 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
 template <class XN>
 bool
 Node<XN>::Packet::allSubReachable(const local_shared_ptr<Packet> &rootpacket,
-    const local_shared_ptr<Packet> &globalroot) const {
-    // Mirror of checkConsistensy's Null-slot path but never throws.
-    // globalroot: the outermost root for null-slot reverseLookup (same
-    // semantics as in checkConsistensy — hard-link null slots may be
-    // hosted by a sibling subtree reachable from globalroot but not
-    // from a locally-switched rootpacket).
+                                  const local_shared_ptr<Packet> &globalroot) const {
+    // Non-throwing mirror of checkConsistensy's Null-slot path.  Used
+    // by bundle Phase 4 to gate the `is_bundle_root` `m_missing=false`
+    // publish.  `globalroot` follows checkConsistensy's semantics.
     const local_shared_ptr<Packet> &groot = globalroot ? globalroot : rootpacket;
     if(groot->missing()) return true;  // root missing → no Null-slot check fires
     for(int i = 0; i < size(); i++) {
-        if( !subpackets()->at(i)) {
+        if( !subpackets()->at(i)) [[unlikely]] {  // hard-link only
             if( !subnodes()->at(i)->reverseLookup(
                 const_cast<local_shared_ptr<Packet>&>(groot), false, 0, false, 0))
                 return false;
@@ -1063,7 +1110,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             // untagged (cheap fast path).
             ScopedNegotiateLinkage<XN> scope(var->m_link, tr, iter,
                 ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-            if( !scope) continue;  // weak acquire lost — treat as CAS failure
+            if( !scope) [[unlikely]] continue;  // weak acquire lost — treat as CAS failure
 
             local_shared_ptr<Packet> subpacket_new;
             // Pass scope directly — bundle_subpacket uses its view for
@@ -1133,7 +1180,7 @@ Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
         // RAII OnExit.
         ScopedNegotiateLinkage<XN> scope(packet->node().m_link, snap, iter,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-        if( !scope) continue;  // weak acquire lost — treat as CAS failure
+        if( !scope) [[unlikely]] continue;  // weak acquire lost — treat as CAS failure
         // Use scope's internal m_view directly — no separate
         // scoped_atomic_view on the same linkage needed.  scope-> reads
         // through m_view; scope.compareAndSet(newwrapper) (1-arg) uses
@@ -1877,7 +1924,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                 ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
         }
         ScopedNegotiateLinkage<XN> &scope = *scope_holder;
-        if( !scope) {
+        if( !scope) [[unlikely]] {
             // Weak acquire CAS lost — treat as CAS failure: skip body
             // (m_contention_observed already set in ctor → dtor tags).
             continue;
@@ -1908,8 +1955,8 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             auto status = walkUpChain(linkage,
                 scope, &foundpacket, root_lifetime);
             switch(status) {
-            case SnapshotStatus::SUCCESS: {
-                    if( !( *foundpacket)->missing() || !multi_nodal) {
+            [[likely]] case SnapshotStatus::SUCCESS: {
+                    if( !( *foundpacket)->missing() || !multi_nodal) [[likely]] {
                         snapshot.m_packet = *foundpacket;
                         STRICT_assert(snapshot.m_packet->checkConsistensy(
                             snapshot.m_packet, (*root_lifetime)->packet()));
@@ -1936,13 +1983,13 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     }
                     continue;
                 }
-            case SnapshotStatus::DISTURBED:
+            [[unlikely]] case SnapshotStatus::DISTURBED:
             default:
                 // walkUpChain disturbed by another thread; pre-CAS contention.
                 scope.confirm_contention();
                 continue;
-            case SnapshotStatus::NODE_MISSING:
-            case SnapshotStatus::VOID_PACKET:
+            [[unlikely]] case SnapshotStatus::NODE_MISSING:
+            [[unlikely]] case SnapshotStatus::VOID_PACKET:
                 //The packet has been released.
                 if( !scope->packet()->missing() || !multi_nodal) {
                     snapshot.m_packet = scope->packet();
@@ -1950,57 +1997,19 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                     return;
                 }
 #if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
-                // Optional optimization (off by default).
-                //
-                // Without this branch, NODE_MISSING + missing local packet
-                // falls through to bundle() below; bundle() then walks up
-                // the bundledBy chain via ascendOneLevel() which acquires
-                // scope on each ancestor (transaction_impl.h:1495-1520).
-                // When this node is in the "limbo" state created by
-                // release() (bundledBy still points at a parent that no
-                // longer references this node — see release() at
-                // transaction_impl.h:1199-1200 which CASes a wrapper with
-                // bundledBy=parent onto the released child), the chain
-                // walk can reach a heavily-contended ancestor and incur
-                // many CAS retries before finalising.
-                //
-                // This branch short-circuits: CAS a priority-bearing
-                // wrapper (with the current local packet preserved) onto
-                // this node's m_link directly.  On success the next loop
-                // iteration sees hasPriority=true and bundle() runs on a
-                // priority-owning node without the chain walk.  On CAS
-                // failure a peer advanced m_link and the normal retry
-                // path takes over.
-                //
-                // ### Status ###
-                //
-                // This is a CAS-count optimization, NOT a correctness
-                // fix.  TLA+ verification in
-                // `tests/tlaplus/BundleUnbundle_hardlink_nonatomic.tla`
-                // shows that the bundle-fall-through path is
-                // theoretically live under both per-action and blanket
-                // WF_vars.  The optimization reduces the expected
-                // wall-clock time to finalize under pathological
-                // contention (e.g. the destructor cleanup of an
-                // orphaned hard-link child while a peer thread is
-                // continuously running TXs on a shared root).  The
-                // observed ~10% test-time hang on remote branch
-                // claude/refactor-negotiate-scoped-f7de2 commit
-                // b23fa954 (which carries the non-tx test pattern in
-                // transaction_dynamic_node_test.cpp) was attributed to
-                // real-OS scheduler artifacts rather than a logic gap.
-                //
-                // Side-effect considerations:
-                //   * Applies to all snapshot() callers, not just the
-                //     destructor — the precondition (multi_nodal +
-                //     missing local packet) does not distinguish them.
-                //   * After self-promote, the next iteration still goes
-                //     into bundle() (priority+missing → fall-through),
-                //     so subtree absorption still happens; only the
-                //     pre-bundle scope-acquisition cost differs.
-                //   * Peers walking up via this node's bundledBy that
-                //     already passed will not be affected; new walkers
-                //     observe hasPriority=true and take the fast path.
+                // CAS-count optimization (not a correctness fix; see
+                // VERIFICATION.md §5 and BundleUnbundle_hardlink_
+                // nonatomic.tla).  Short-circuit the bundle-fall-
+                // through's chain walk by self-promoting this node
+                // directly: CAS a priority wrapper carrying the
+                // current local packet.  On success the next loop iter
+                // takes the hasPriority path; on CAS failure a peer
+                // advanced m_link and the normal retry resumes.
+                // Subtree absorption still happens via the subsequent
+                // bundle() (priority+missing falls through).  The
+                // ~10% test-time hang seen on
+                // claude/refactor-negotiate-scoped-f7de2 (b23fa954)
+                // is consistent with OS scheduling, not a logic gap.
                 {
                     auto promoted = make_local_unique<PacketWrapper>(
                         scope->packet(), snapshot.m_serial);
@@ -2019,14 +2028,14 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
         BundledStatus status = const_cast<Node *>(this)->bundle(
             scope, snapshot, snapshot.m_serial, true);
         switch (status) {
-        case BundledStatus::SUCCESS:
+        [[likely]] case BundledStatus::SUCCESS:
             assert( !scope->packet()->missing());
             STRICT_assert(scope->packet()->checkConsistensy(scope->packet()));
             snapshot.m_serial = SerialGenerator::gen(); //Capture Lamport advances from bundle().
             snapshot.m_packet = scope->packet();
             scope.commit();
             return;
-        default:
+        [[unlikely]] default:
             // bundle() failed (DISTURBED); pre-CAS contention from
             // another thread's interference within bundle's own scopes.
             scope.confirm_contention();
@@ -2217,7 +2226,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             new PacketWrapper(supscope->packet(), bundle_serial));
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-        if( !scope) return BundledStatus::DISTURBED;
+        if( !scope) [[unlikely]] return BundledStatus::DISTURBED;
 
 #if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
         //Optional optimization:
@@ -2239,11 +2248,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // if it matches supscope's expected state, scope's internal view
         // serves as the CAS expected.  Saves 1 fetch_add + promote vs
         // view_copy().
-        if(scope.operator->() != supscope.operator->()) {
+        if(scope.operator->() != supscope.operator->()) [[unlikely]] {
             scope.confirm_contention();
             return BundledStatus::DISTURBED;
         }
-        if( !scope.compareAndSet(superwrapper))
+        if( !scope.compareAndSet(superwrapper)) [[unlikely]]
             return BundledStatus::DISTURBED;
         // CAS success: m_link advanced to superwrapper.  Update
         // supscope's view (move-in: 0 ops; supscope's old view is
@@ -2257,7 +2266,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // RAII OnEntry: negotiates supernode.m_link + tags eagerly (retry > 0).
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
-        if( !scope) continue;  // weak acquire lost — retry
+        if( !scope) [[unlikely]] continue;  // weak acquire lost — retry
         // Peer-completed early return — same idea as the serial-tag
         // block above: skip Phases 1..4 entirely if peer has already
         // produced a non-missing, self-bundled wrapper at
@@ -2347,11 +2356,11 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // compareAndSetRetain: on success scope transitions to
         // Owned(superwrapper) — scope's view tracks the new m_link
         // value through Phase 3, ready for Phase 4's CAS without reload.
-        if(scope.operator->() != supscope.operator->()) {
+        if(scope.operator->() != supscope.operator->()) [[unlikely]] {
             scope.confirm_contention();
             return BundledStatus::DISTURBED;
         }
-        if( !scope.compareAndSetRetain(superwrapper))
+        if( !scope.compareAndSetRetain(superwrapper)) [[unlikely]]
             return BundledStatus::DISTURBED;
         // Update supscope.view to track the new m_link state.
         // Pass copy of superwrapper (still needed for Phase 4).
@@ -2457,23 +2466,25 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
-            // (Hard-link race fix) — before clearing m_missing under
-            // the is_bundle_root override, verify every Null sub-packet
-            // slot's subnode is reverseLookup-able within newpacket.
-            // If not, the published ~missing state would trip
-            // checkConsistensy line 871 (the production "30/30 abort"
-            // pattern, see tests/tlaplus/BundleUnbundle_hardlink_4node).
-            // Return DISTURBED so the outer snapshot() retry loop
-            // re-attempts the whole bundle — once the race resolves
-            // (e.g. a multi-step release completes its migration step),
-            // the next bundle finalizes cleanly.
-            // (Returning SUCCESS with m_missing=true would trip the
-            //  `assert(!scope->packet()->missing())` in the caller.)
+            // Hard-link race gate: verify every Null sub-slot is
+            // reverseLookup-able before publishing ~missing (the
+            // production "30/30 abort" pattern; see VERIFICATION.md §5
+            // and tests/tlaplus/BundleUnbundle_hardlink_4node).  On
+            // failure, restore m_missing=true and DISTURBED so the
+            // outer retry re-attempts once the race resolves.
+            //
+            // Clear m_missing BEFORE the gate: both helpers short-
+            // circuit their Null-slot reverseLookup when the observed
+            // root is missing (mid-bundle).  Default globalroot is
+            // correct: for `is_bundle_root=true` the reverseLookup
+            // at line ~1440 makes newpacket alias superwrapper's
+            // packet, i.e. the bundle's global root.
             newpacket->m_missing = false;
-            if(newpacket->allSubReachable(newpacket)) {
+            if(newpacket->allSubReachable(newpacket)) [[likely]] {
                 STRICT_assert(newpacket->checkConsistensy(newpacket));
             }
             else {
+                newpacket->m_missing = true;
                 scope.confirm_contention();
                 scope.commit();
                 return BundledStatus::DISTURBED;
@@ -2483,12 +2494,12 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // CAS via scope.  Phase 2's compareAndSetRetain left scope in
         // Owned(Phase 2 newr) — no reload needed.  Pointer check
         // confirms no concurrent change to supernode.m_link since Phase 2.
-        if(scope.operator->() != supscope.operator->()) {
+        if(scope.operator->() != supscope.operator->()) [[unlikely]] {
             scope.confirm_contention();
             scope.commit();
             return BundledStatus::DISTURBED;
         }
-        if( !scope.compareAndSetWithHint(superwrapper, started_time)) {
+        if( !scope.compareAndSetWithHint(superwrapper, started_time)) [[unlikely]] {
             scope.commit();
             return BundledStatus::DISTURBED;
         }
@@ -2613,7 +2624,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
         // CAS oldr.
         ScopedNegotiateLinkage<XN> scope(m_link, tr, retry,
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry);
-        if( !scope) {
+        if( !scope) [[unlikely]] {
             // Weak acquire CAS lost.  m_contention_observed already
             // set in ctor — dtor tags this iteration.  Skip the body.
             continue;
@@ -2784,7 +2795,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
             std::move(it->old_wrapper),
             ScopedNegotiateLinkage<XN>::TagMode::OnEntry, 2.0f / cas_infos.size(),
             /*with_negotiate=*/true);
-        if( !scope) return UnbundledStatus::DISTURBED;  // view was empty
+        if( !scope) [[unlikely]] return UnbundledStatus::DISTURBED;  // view was empty
         if( !scope.compareAndSet(it->new_wrapper))
             return UnbundledStatus::DISTURBED;
         // scope.compareAndSet auto-committed on success.  A subsequent

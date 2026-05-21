@@ -1,5 +1,369 @@
 # TLA+ Verification Log
 
+## 2026-05-21: Non-atomic test pattern spec + C++ correctness sweep
+
+### TLA+ spec: `BundleUnbundle_hardlink_nonatomic.tla` (new)
+
+Models the test pattern revived on remote branch
+claude/refactor-negotiate-scoped-f7de2 commit `b23fa954` —
+non-transactional `p1->insert/release(p2)` interleaved with
+transactional `gn1`/`gn2` operations.  The crucial state is the
+"limbo" after step ❸ (`A.sub[C] ← Null` non-tx) where `C.bundledBy`
+still points at `A` even though A no longer references C.
+
+Two finalize variants compared (CONSTANT `UseFixVariant`):
+
+* `FALSE` (master): bundle-fall-through; `walkUpChain` walks
+  bundledBy chain → must acquire scope on Root.
+* `TRUE` (b23fa954): direct self-promote CAS on C's linkage only.
+
+Two fairness levels: `Spec` (per-action WF) and `WeakSpec` (blanket
+WF only).
+
+All four configurations PASS with 308 distinct states.  Conclusion:
+at this modelling abstraction master is theoretically live; the
+self-promote is a CAS-count optimization (O(chain × retry) → O(1)),
+not a logic fix.  The ~10% residual hang reported on the remote
+branch is consistent with real-OS scheduling artifacts.  The
+optimization landed on master gated by `KAME_STM_OPTIONAL_OPTIMIZATION`
+(default ON), and now also covers the existing `bundle()`
+"peer-completed early return" — both are explicit shortcuts around
+TLA+-modelled paths.
+
+### C++ companions verified by other models
+
+The hard-link sweep also produced C++ fixes whose semantics align
+with the existing TLA+ models:
+
+* **`checkConsistensy` / `allSubReachable` globalroot parameter**
+  (commits `1ffd8dce`, `b12e1895`).  Adds an optional `globalroot`
+  arg to thread the top-level tree root through recursion so that
+  Null-slot `reverseLookup` finds hard-link siblings (Case B).
+  `BundleUnbundle_hardlink_4node.tla::ReachableFromRoot` (lines
+  145-154) already implements this from-Root reachability — the
+  C++ change brings the implementation in line with the model.
+  Phase 4 order: `newpacket->m_missing = false` must be set BEFORE
+  `allSubReachable`/`checkConsistensy` (their Null-slot gates
+  short-circuit on `groot.missing()` — the mid-bundle semantics
+  would otherwise skip every check vacuously); on reachability
+  failure the flag is restored before returning `DISTURBED`.
+
+* **`fair_mode_blocks_me` / `i_am_privileged_now` TID compare**
+  (commit `9a0f9848`).  Fixes nested-Tx self-deadlock in the
+  per-linkage privilege path that arose from comparing by
+  `strip_kind` (US + TID) instead of `stamp_tid` (TID only).  Not
+  directly modelled in TLA+ (the negotiate stamp layout is below
+  the abstraction level we use), but logically a counterpart to
+  the global-mode self-deadlock workaround comment already in
+  `transaction_neg_impl.h` line 200-213.
+
+* **`KAME_ENABLE_SPIN_BAND_GATE` default flip to OFF**
+  (commit `472d193d`).  M3 ablation showed no net benefit (3level
+  ~5% faster with gate OFF, others within noise).  Independent of
+  formal verification — the gate is a CAS-bookkeeping optimization
+  whose cost/benefit depends on hardware behaviour, not protocol
+  correctness.
+
+---
+
+## 2026-05-21: Hard-link 4-node — first per-action SF, DISTURBED-equivalent retry
+
+### Context
+
+While committing the C++ Phase 4 hardlink fix (`92b15f62`), a critical
+mismatch was discovered between the model and implementation:
+
+- **Implementation** (transaction_impl.h, after fix): when Phase 4's
+  reachability gate fails, returns `BundledStatus::DISTURBED` and lets
+  the outer `snapshot()` retry loop re-attempt.  The published Root
+  state from Phase 2 (`m_missing=true` intermediate) is left as-is.
+
+- **Model (`_hardlink_4node.tla` initial version)**: Phase 4 published
+  Root with `missing=true` and set `bundleDone=TRUE` — modelled as
+  "bundle finishes with missing=true".  Equivalent to a SUCCESS
+  return in C++ terms, which would trip the caller's
+  `assert(!scope->packet()->missing())` (transaction_impl.h:1952).
+
+The model was updated to mirror DISTURBED: on reachability failure,
+Phase 4 returns `pc` to `bundle_phase1` (without setting bundleDone)
+so the bundle retries from scratch — exactly what the outer snapshot
+loop does in production.
+
+### Per-action fairness — first use in KAME TLA+ work
+
+The retry-style Phase 4 introduces an unbounded-retry possibility:
+if `MigrateCToA` (= the peer release's step-2 migration, which
+restores `A.sub[C]` so the next bundle can finalise) is starved by
+T1's bundle retries, the model has executions where T1 retries
+forever without progress.
+
+TLC's `WF_vars(NextStep)` (used in every previous KAME spec —
+`BundleUnbundle_2level_LLfree`, `_3level_LLfree`, `_2level_LLfree_dynamic`,
+`_3level_LLfree_dynamic`, the previous hardlink specs, and even
+`atomic_shared_ptr.tla`) is **insufficient for this case**: weak
+fairness on a disjunction guarantees "some action eventually fires"
+but does not pick out a specific action.  An infinite sequence
+firing only the bundle-retry actions and never `MigrateCToA`
+satisfies `WF_vars(NextStep)` (because some action did fire) yet
+violates the production fairness assumption.
+
+The fix: **per-action Weak Fairness** on `MigrateCToA`:
+
+```tla
+Spec == Init /\ [][Next]_vars
+        /\ WF_vars(NextStep)
+        /\ \A t \in Threads : WF_vars(MigrateCToA(t))
+```
+
+`WF_vars(MigrateCToA(t))` says: if `MigrateCToA(t)` is continuously
+enabled, it eventually fires.  In this model `MigrateCToA` becomes
+enabled when `cInB=FALSE ∧ cInA=TRUE ∧ A.sub[C]=Null` and stays
+enabled until it fires (no peer action re-disables it) — so WF
+suffices.  Under this fairness, every infinite execution must
+include `MigrateCToA` firing, after which T1's next bundle succeeds.
+
+(SF would also work but is overkill here — SF only adds value when
+the action can be repeatedly enabled-disabled.  Confirmed
+empirically: WF vs SF both produce the same 13,056-distinct-state
+verification with `EventuallyAllDone` PASS.)
+
+### Why "older wins" doesn't subsume this fairness
+
+Reasonable question (per user 2026-05-21): the production code's
+LL-free negotiate gives `older-wins` arbitration on CAS contention.
+Doesn't this already ensure progress for the migrating peer?
+
+Answer: `older-wins` resolves contention on **the same linkage**.
+The race here spans **three different linkages**:
+
+* T1's bundle CAS — operates on `Root`'s `m_link`
+* T2's release step 1 (`ReleaseBCNoMigrate`) — operates on **B**'s `m_link`
+* T2's release step 2 (`MigrateCToA`) — operates on **A**'s `m_link`
+
+T1 and T2 never CAS the same linkage in this scenario, so
+`older-wins` has nothing to arbitrate between them.  T1 can retry
+its Root-CAS arbitrarily many times without ever blocking T2 from
+running its B-CAS or A-CAS.
+
+Production progress for T2 therefore depends on **OS-level thread
+scheduling** (each thread gets CPU time), not on negotiate.  The
+TLA+ model abstracts the OS-scheduling guarantee as per-action WF
+on the peer action.
+
+This is the **first per-action fairness annotation** in the KAME
+TLA+ corpus.  All earlier specs either:
+- terminate without needing per-action fairness — LL-free priority
+  gating bounds retries structurally within a single bundle's
+  linkage chain (`_2level_LLfree`, `_3level_LLfree`), or
+- use `WF_vars(NextStep)` as a blanket sufficient for in-linkage
+  contention cases (the targeted bugs all fit this pattern).
+
+The hardlink-with-external-migration race is genuinely different:
+two threads making independent progress on **disjoint linkage sets**,
+with one thread's forward progress dependent on the other's
+specific step firing.  Cross-linkage progress is supplied by OS
+scheduling fairness, abstracted in the model as
+`WF_vars(MigrateCToA)`.
+
+### DebugRetryBound and retryCount removed entirely
+
+Per user feedback (2026-05-21): both CONSTRAINT and INVARIANT modes
+of a retry-counter bound are problematic:
+
+- CONSTRAINT silently prunes long-retry paths and risks false-negative
+  liveness verdicts (the original concern).
+- INVARIANT on an unbounded-by-construction counter will report
+  violations on legitimate retry behaviour — a false positive that
+  obscures real bugs.
+
+The clean fix: **remove `retryCount` from the model entirely**.  Once
+removed, the remaining state variables (`linkage`, `pc`, `local`,
+`cInA`, `cInB`, `bundleDone`, `releaseDone`) all range over bounded
+domains, so the state space is naturally finite without any
+artificial bound.  TLC reaches fingerprint-clash termination on its
+own.
+
+### Cleaner release-step model (2-step pc state)
+
+A counter-example surfaced once retryCount was removed: T1 could fire
+ReleaseBCNoMigrate then start its own bundle (pc != "idle") before
+ever firing MigrateCToA, deadlocking liveness.  Real KAME's
+`release(B, C)` is a single API call that internally performs both
+steps before returning — the caller can't start a new operation
+mid-release.
+
+Fixed by introducing an `"in_release"` pc state: ReleaseBCNoMigrate
+transitions to it, MigrateCToA fires only from it.  The thread
+cannot start a bundle until release completes — matching the C++
+API semantics exactly.
+
+### Results
+
+| Config | Distinct states | Safety | Liveness |
+|---|---|---|---|
+| 4-node 2-thread (final form) | **531** | PASS (SnapshotConsistency, HardlinkExclusive) | PASS (EventuallyAllDone) |
+
+No CONSTRAINT.  No MOD.  No INVARIANT-bound tripwire.  The model is
+fully self-contained finite-state.
+
+### Open follow-up
+
+Other hardlink models (`_dynamic`, `_self_collision`, `_external`,
+`_external_migration`) still use `WF_vars(NextStep)` — they may
+need similar per-action SF analysis if their retry paths involve
+peer-progress dependencies.  Not retrofitted here because those
+models don't target the same race surface.
+
+---
+
+## 2026-05-20: Hard-link models (`BundleUnbundle_hardlink_*.tla`)
+
+### Context
+
+Production reports of low-frequency `dyn_node_test` aborts on one
+environment ("30/30 abort on another env") motivated formal modelling of
+the bundle/unbundle protocol under hard-link topologies — a child node
+referenced from two parents.  The hard-link case had only been called
+out informally in `CLAUDE.md` / `README.md` as a "transactions may
+always fail and retry" liveness caveat; no formal model existed.
+
+Two complementary topologies were modelled:
+
+| Spec | Topology |
+|---|---|
+| `BundleUnbundle_hardlink_dynamic.tla` | sibling parents (Parent1 ‖ Parent2 → DynChild1) |
+| `BundleUnbundle_hardlink_self_collision.tla` | self-collision (R-root → A → C, R also direct parent of C) |
+
+### `_hardlink_dynamic` (sibling-parents, superfine)
+
+Adapted from `BundleUnbundle_2level_LLfree_dynamic.tla`.  Init places
+hardlink topology directly (skip the second-insert: an insert into the
+parent that already shares the child requires its own migration logic
+inside the insert pipeline — deferred for this minimal spec).
+
+Operations: bundle/unbundle/commit/release of either parent's subtree.
+Migration cascade `MigrateClearOther` triggers when one parent's
+bundle finds the shared child currently bundled under the other parent.
+
+Invariants (all hold under exhaustive exploration):
+* `SnapshotConsistency`, `HardlinkExclusive` (new), `BundleRefConsistency`,
+  `NoPriorityLoss`, `MissingPropagation`, `QuiescentCheck`, `TerminalPayloadCheck`
+
+| Config | Distinct states | Result |
+|---|---|---|
+| 1-thread, MaxCommits=1 | 7 | PASS |
+| 2-thread, MaxCommits=1 | 62 | PASS |
+| 2-thread, MaxCommits=2 | 703 | PASS |
+
+This variant did **not** reproduce the production-suspected bug — the
+race surface is the `MigrateClearOther` phase, which appears
+self-contained in this topology.
+
+### `_hardlink_self_collision` (R-A-C, superfine, 6 actions)
+
+Per user proposal: minimum non-trivial hard-link topology has **the
+root also as direct parent** of the shared child:
+
+```
+       R           (bundle root, direct parent of C)
+      / \
+     A   |         (intermediate; A is also parent of C)
+      \ /
+       C           (hard-linked: direct child of both R and A)
+```
+
+Initial state: post-bundle(R), `A.bundledBy=R`, `C.bundledBy=A`.
+Operations: 5-phase bundle(R, is_bundle_root=TRUE) + `InsertHardLink`
+(atomic register C as direct child of R, with `R.sub[C] = Null` since
+C's packet still lives in `A.sub[C]`).  No commit / no release —
+bundle is the bug carrier.
+
+`SnapshotConsistency` mirrors `Packet::checkConsistensy` at
+`transaction_impl.h:870-871`: a `Null` sub-slot is consistent iff the
+root packet is missing OR the child is reachable via `reverseLookup`
+(through the A→C path for hard-link).
+
+A new debug invariant `DebugRetryBound == \A t : retryCount[t] < 10`
+caps per-thread bundle-Phase-1 entries to expose runaway-retry paths
+(Lamport-bound equivalent for this serial-less spec).
+
+### Bug reproduction
+
+| Config | Result |
+|---|---|
+| 2-thread | **FAIL** — `SnapshotConsistency` violated at 376 states / 222 distinct |
+
+Trace summary (T1 bundles R, T2 races with InsertHardLink):
+1. T1 Phase 2 → R `missing=TRUE` with collected `sub[A]`
+2. T1 Phase 3 → CAS C `bundledBy: A → R` (modeled in this earlier
+   draft of Phase 3; see fix below)
+3. T2 InsertHardLink CAS R → resets `missing=FALSE` (intermediate state
+   destroyed)
+4. T1 Phase 4 fails → retry Phase 1
+5. T1 Phase 1 re-collect → C's `bundledBy=R` already, all branches that
+   recover `cSubPkt` were tied to `bundledBy=A` → `cSubPkt = Null`
+6. T1 Phase 2 republishes R with `sub[A].sub[C] = Null` AND
+   `sub[C] = Null` → `ReachableFrom(R, C) = FALSE` → violation
+
+This trace pattern matches the production "30/30 abort" reports: the
+bundle's retry path does not preserve the migration state of children
+already CAS-tagged in a previous attempt; the second collection from
+stale assumptions corrupts the tree.
+
+### Fix simulation
+
+Proposed C++-side rule: `BundlePhase3` should only CAS child wrappers
+whose packets actually move into `parent.sub[]`.  Hard-link references
+(`parent.sub[c] = Null`, packet lives elsewhere) must be skipped:
+
+```cpp
+for (child in subnodes) {
+    if (local.subpackets[child] == nullptr) continue;  // ← NEW
+    // existing CAS to BundledRef(this)
+}
+```
+
+Applied in the model:
+- `BundlePhase3` only CAS-tags A (the child whose packet moves into
+  `R.sub[A]`).  C stays bundled under A.
+- `BundlePhase3Fail` simplified to only A-wrapper divergence.
+
+Results after fix:
+
+| Config | Distinct states | Result |
+|---|---|---|
+| 2-thread | 270 | PASS + liveness |
+| 3-thread | 6,396 | PASS + liveness |
+
+### Rejected alternative
+
+A simpler fix — gate `InsertHardLink` on `~R.packet.missing` (wait
+until the in-flight bundle clears) — was tried.  TLC passed, but the
+fix is unacceptable: it breaks lock-freedom (busy-wait equivalent on
+the bundling thread) and risks 3-thread deadlock when multiple
+inserters wait on the same in-flight bundle.  Rejected.
+
+### Impact on non-hard-link models
+
+The Phase 3 skip-Null fix only triggers when `local.subpackets[c] ==
+Null`.  In the existing 2level / 3level dynamic models and the C++
+tests (`dyn_node_test`, `3level_mixed_test`, `payload_integrity_*`),
+every inserted child's packet lives in exactly one parent's `sub[]` —
+no `Null` sub-slot in steady state — so the fix is a no-op for them.
+
+### Open follow-ups
+
+- C++ implementation of the Phase 3 skip-Null rule in
+  `kame/transaction_impl.h`'s `bundle` Phase 3 loop, then re-run the
+  affected stress tests in the env that previously reproduced
+  "30/30 abort"
+- Per-parent insert pipeline that handles the second-insert
+  (inserting into a parent while the child is already homed at the
+  other parent) — currently the `_hardlink_dynamic` model gates that
+  out at Init; a richer model could exercise the migrating-insert path
+
+---
+
 ## 2026-05-04: 3-level dynamic model (`BundleUnbundle_3level_LLfree_dynamic.tla`)
 
 ### Context

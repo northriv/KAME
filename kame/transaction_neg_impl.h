@@ -152,11 +152,13 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
         const Linkage *link) noexcept {
 #if KAME_PER_LINKAGE_PRIVILEGE
-    // Per-Linkage: "I am privileged" iff this Linkage's slot carries
-    // a Reserved-kind stamp whose TID matches mine.  Compare by TID
-    // only — strip_kind preserves the US field, so two Txs on the
-    // same thread (different US) would not match, mis-identifying a
-    // nested Tx as non-privileged (self-deadlock).
+    // Per-Linkage: "mine" iff this Linkage's slot carries a Reserved-
+    // kind stamp with matching TID.  Compare by TID alone (NOT
+    // `strip_kind`, which keeps the US field) so that a nested inner
+    // Tx on the same thread — different `m_started_time` from the
+    // outer Tx but same TID — recognises itself as the privilege
+    // holder.  Mirrors the global-mode self-deadlock workaround in
+    // the else branch below.  (Fix 2026-05-20: was `strip_kind`.)
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
@@ -191,10 +193,9 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
         cnt_t tidstamp,
         const Linkage *link) noexcept {
 #if KAME_PER_LINKAGE_PRIVILEGE
-    // Per-Linkage: check the linkage's own slot for a Reserved-kind
-    // stamp held by SOME OTHER THREAD.  Nested Txs on the same TID
-    // must NOT be blocked — compare by TID only, not strip_kind (which
-    // preserves US, causing same-thread nested Tx self-deadlock).
+    // Per-Linkage: blocked iff the slot's Reserved stamp is held by
+    // SOME OTHER thread.  TID-only compare (see `i_am_privileged_now`
+    // above for the nested-Tx self-deadlock rationale).
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
@@ -1122,7 +1123,6 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             const auto my_priv = NegotiationCounter::with_kind(
                 snap.m_started_time, detail::StampKind::Reserved);
             for (auto &l : snap.m_tagged_linkages) {
-                if (!l) continue;
                 auto cur = l->m_transaction_started_time.load(
                     std::memory_order_relaxed);
                 if (cur != 0
@@ -1171,6 +1171,16 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         self->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !transaction_started_time)
         return true; //collision has not been detected.
+    // Self-tagged short-circuit (KAME_STM_OPTIONAL_OPTIMIZATION).
+    // If the slot's TID matches ours, this thread tagged the linkage
+    // — the lease drift, numThreadsRunning probe in `_neg_apply_lease`,
+    // backoff init, and the `dt <= 0` loop bail-out below are all
+    // wasted work on a self-encounter.  Skip them all here.
+#if defined(KAME_STM_OPTIONAL_OPTIMIZATION) && KAME_STM_OPTIONAL_OPTIMIZATION
+    if(NegotiationCounter::stamp_tid(transaction_started_time)
+       == NegotiationCounter::stamp_tid(started_time))
+        return true;
+#endif
     // LOWEST and UI_DEFERRABLE explicitly tolerate yielding, so the
     // helper internally skips the lease/owner-skip block for those
     // priorities.  Returns true iff the owner-skip fired (we hold the
@@ -1206,6 +1216,15 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
     // contender count anywhere else.
     // KAME_STM_C_OBS_MIN lives in transaction_definitions.h.
     int C_obs = sig_C < KAME_STM_C_OBS_MIN ? KAME_STM_C_OBS_MIN : sig_C;
+
+    // Per-call hang counter (counts how many times we've hit the
+    // "ms > 5000" sleep-cap branch).  After KAME_STM_HANG_ABORT_N
+    // such hits we abort() so we can get a core dump + stack trace
+    // for offline analysis (set =0 to disable abort, keeping dump).
+#ifndef KAME_STM_HANG_ABORT_N
+#define KAME_STM_HANG_ABORT_N 3
+#endif
+    int _hang_hits = 0;
 
     // Wall-clock elapsed (in µs) since this _negotiate_internal call
     // started — used by the inner `ms >= 30` CV-sleep break and the
@@ -1285,7 +1304,87 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         const bool _fair_blocks =
             NegotiationCounter::fair_mode_blocks_me(started_time, self);
 
+#if KAME_NEGSITE_ENABLED
         NegSite::last_was_gate_return() = false;
+#endif
+#if KAME_LEGACY_GATING
+        // ===== Legacy per-site adaptive gating ============================
+        // Deprecation candidate; superseded by the per-Linkage spin-for-
+        // same-kind path further down.  Enable with -DKAME_LEGACY_GATING=1
+        // for A/B regression.  Tri-state `take_gate` per call-site:
+        //
+        //   -1 (UNDEFINED)   : initial / post-privilege state — the
+        //                      hot-path decides by my_kind alone
+        //                      (non-NONE → gate, NONE → sleep).
+        //    0 (FORCE_SLEEP) : forced sleep, time-leased.  Set by
+        //                      K_FAIL gate→fail streak inside
+        //                      FAIL_WINDOW_US (see _on_cas_fail);
+        //                      auto-reverts to UNDEFINED at lease
+        //                      expiry, or on privilege observation
+        //                      (the streak history is stale once
+        //                      contention enters the privilege path).
+        //    1 (FORCE_GATE)  : forced bypass via the `break` below.
+        //
+        // Empirically (KAME_ADAPT_INSTRUMENT, N=4-128 × CR=1-20):
+        //   - kind-gated (peer == my || peer == MNC) was too conservative
+        //   - all-gate crashed my=NONE fairness (stand-alone read/release)
+        //   - my != NONE alone was the goldilocks (+9-23 % over kind-gated).
+        // ------------------------------------------------------------------
+        auto *_adapt = NegSite::current_state();
+        if(_fair_blocks || snap.m_registered_privileged) {
+            // Privilege observed at this site → reset to UNDEFINED.
+            if(_adapt && _adapt->take_gate != -1) {
+                _adapt->take_gate = -1;
+                _adapt->consec_fails = 0;
+                _adapt->consec_succs = 0;
+                ++_adapt->mode_flips_n2g;
+            }
+        } else {
+            // Lease expiry: any FORCE state → UNDEFINED.
+            if(_adapt && _adapt->take_gate != -1
+               && (uint64_t)now_us_entry >= _adapt->normal_until_us) {
+                _adapt->take_gate = -1;
+                _adapt->consec_fails = 0;
+                _adapt->consec_succs = 0;
+                ++_adapt->mode_flips_n2g;
+            }
+            const detail::StampKind my_kind = detail::s_current_op_kind;
+            bool take_gate;
+            const int8_t tg = _adapt ? _adapt->take_gate : (int8_t)-1;
+            if(tg == -1) {
+                // UNDEFINED → my_kind decides; cache verdict with a
+                // fresh lease so subsequent callers follow it for
+                // NegSite::NORMAL_LEASE_US, then re-evaluate.
+                take_gate = (my_kind != detail::StampKind::NONE);
+                if(_adapt) {
+                    _adapt->take_gate = take_gate ? (int8_t)1 : (int8_t)0;
+                    _adapt->normal_until_us =
+                        (uint64_t)now_us_entry
+                        + (uint64_t)NegSite::NORMAL_LEASE_US;
+                    _adapt->consec_fails = 0;
+                    _adapt->consec_succs = 0;
+                    if(take_gate) ++_adapt->mode_flips_promote;
+                    else          ++_adapt->mode_flips_g2n;
+                }
+            } else {
+                take_gate = (tg != 0);     // 0 = FORCE_SLEEP, 1 = FORCE_GATE
+            }
+            if(take_gate)
+                NegSite::last_was_gate_return() = true;
+            if(_adapt) {
+                const detail::StampKind peer_kind = (detail::StampKind)
+                    NegotiationCounter::stamp_kind(transaction_started_time);
+                if(take_gate)
+                    ++_adapt->gate_returns_by_peer[(int)peer_kind & 3];
+                else
+                    ++_adapt->blocked_by_peer[(int)peer_kind & 3];
+            }
+            if(take_gate) return true;  // bool path: gate fires → CAS proceeds
+            // Otherwise fall through to adaptive sleep (FORCE_SLEEP
+            // or UNDEFINED-with-my_kind-NONE).
+        }
+        // ===== end legacy gating ==========================================
+#endif // KAME_LEGACY_GATING
 
 #if defined(KAME_STM_RESTORE_GATING) && KAME_STM_RESTORE_GATING
         // ABLATION: re-enable the P2-removed dt2 jittered gate to
@@ -1319,9 +1418,70 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #endif // KAME_STM_RESTORE_GATING
 
         if(ms > 5000) {
-            fprintf(stderr, "Nested transaction?, ");
-            fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
-            fprintf(stderr, "for BP@%p\n", (void*)self);
+            ++_hang_hits;
+            // Comprehensive hang-state dump.  Repeats every hit so a
+            // sustained hang prints a trail of identical/evolving state;
+            // abort after KAME_STM_HANG_ABORT_N hits if enabled.
+            using NC = NegotiationCounter;
+            // dt2 for diagnostic only (branch removed dt2 from hot path).
+            const int64_t dt2 = (int64_t)NC::diff_us_packed(
+                NC::now_us(), transaction_started_time);
+            fprintf(stderr,
+                "Nested transaction?, Negotiating, %f sec. requested, "
+                "limited to 5s. for BP@%p\n"
+                "  [HANG#%d] self_tid=%u self.started_us=%lld self.kind=%u "
+                "priv_flag=%d age_us=%lld\n"
+                "  [HANG#%d] slot=0x%llx slot.tid=%u slot.started_us=%lld "
+                "slot.kind=%u is_priv=%d\n"
+                "  [HANG#%d] dt=%lld dt2=%lld sig_C=%d fair_blocks=%d "
+                "tagged_n=%d tx_retry=%u commit=%llu\n",
+                ms * 1e-3, (void*)self,
+                _hang_hits,
+                (unsigned)NC::stamp_tid(started_time),
+                (long long)NC::stamp_us(started_time),
+                (unsigned)NC::stamp_kind(started_time),
+                (int)snap.m_registered_privileged,
+                (long long)_ll_age_us,
+                _hang_hits,
+                (unsigned long long)transaction_started_time,
+                (unsigned)NC::stamp_tid(transaction_started_time),
+                (long long)NC::stamp_us(transaction_started_time),
+                (unsigned)NC::stamp_kind(transaction_started_time),
+                (int)NC::is_priv_stamp(transaction_started_time),
+                _hang_hits,
+                (long long)dt, (long long)dt2, sig_C, (int)_fair_blocks,
+                (int)snap.m_tagged_linkages.size(),
+                (unsigned)snap.m_tx_retry_count,
+                (unsigned long long)self->m_tx_commit_count);
+            // Dump every tagged Linkage's current slot stamp so we can
+            // see who else is holding which slot.
+            int _idx = 0;
+            for(auto &_l : snap.m_tagged_linkages) {
+                if(!_l) { ++_idx; continue; }
+                auto _cur = _l->m_transaction_started_time.load(
+                    std::memory_order_relaxed);
+                fprintf(stderr,
+                    "  [HANG#%d]   link[%d]=%p stamp=0x%llx tid=%u "
+                    "started_us=%lld kind=%u priv=%d\n",
+                    _hang_hits, _idx, (void*)_l.get(),
+                    (unsigned long long)_cur,
+                    (unsigned)NC::stamp_tid(_cur),
+                    (long long)NC::stamp_us(_cur),
+                    (unsigned)NC::stamp_kind(_cur),
+                    (int)NC::is_priv_stamp(_cur));
+                ++_idx;
+            }
+            fflush(stderr);
+#if KAME_STM_HANG_ABORT_N
+            if(_hang_hits >= KAME_STM_HANG_ABORT_N) {
+                fprintf(stderr,
+                    "  [HANG] %d consecutive 5s-cap hits — aborting for "
+                    "core dump.  Set -DKAME_STM_HANG_ABORT_N=0 to disable.\n",
+                    _hang_hits);
+                fflush(stderr);
+                std::abort();
+            }
+#endif
             ms = 5000;
         }
 
@@ -1435,30 +1595,55 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // on Linkage B (= self).
 #if KAME_STM_MIN_RUNNERS != 0
         {
-            // const int run_cap = effective_runners(C_obs);
-            // const int n_priv =
-            //     (int)s_num_privileged_threads.load(std::memory_order_relaxed);
-            // const int spin_cap = run_cap > n_priv ? run_cap - n_priv : 0;
-            // if(_fair_blocks
-            //    && (int)s_fair_spinners.load(std::memory_order_relaxed)
-            //       < spin_cap) {
-            //     s_fair_spinners.fetch_add(1, std::memory_order_relaxed);
-            //     // Periodic yield: even with our spinner cap respecting
-            //     // the core count, *external* processes can saturate
-            //     // cores beyond our control.  Yield every ~2^18 PAUSE
-            //     // iterations (~1 ms at typical x86 PAUSE latency) so
-            //     // the OS scheduler has a chance to run any preempted
-            //     // privilege holder / other progress-maker.
-            //     unsigned iter = 0;
-            //     do {
-            //         pause4spin();
-            //         if((++iter & 0x3FFFFu) == 0)
-            //             std::this_thread::yield();
-            //     } while(NegotiationCounter::fair_mode_blocks_me(
-            //                     started_time, self));
-            //     s_fair_spinners.fetch_sub(1, std::memory_order_relaxed);
-            //     continue;
-            // }
+            const int run_cap = effective_runners(C_obs);
+            const int n_priv =
+                (int)s_num_privileged_threads.load(std::memory_order_relaxed);
+            const int spin_cap = run_cap > n_priv ? run_cap - n_priv : 0;
+            if(_fair_blocks
+               && (int)s_fair_spinners.load(std::memory_order_relaxed)
+                  < spin_cap) {
+                s_fair_spinners.fetch_add(1, std::memory_order_relaxed);
+                // Periodic yield: even with our spinner cap respecting
+                // the core count, *external* processes can saturate
+                // cores beyond our control.  Yield every ~2^18 PAUSE
+                // iterations (~1 ms at typical x86 PAUSE latency) so
+                // the OS scheduler has a chance to run any preempted
+                // privilege holder / other progress-maker.
+                //
+                // Bounded: previously unbounded ("expose programming
+                // error if peer priv held forever").  Diagnosis
+                // showed real cycles where peer-priv stays Reserved
+                // because the holder is itself CV-sleeping waiting
+                // on us — the spin would run forever.  Cap at
+                // KAME_STM_FAIR_SPIN_MAX_US (default 2 ms); on
+                // timeout fall through to the CV-sleep path below,
+                // which (with Fix A) drops our own Reserved before
+                // sleeping so the cycle can break.
+#ifndef KAME_STM_FAIR_SPIN_MAX_US
+#define KAME_STM_FAIR_SPIN_MAX_US 2000
+#endif
+                const int64_t _spin_start_us =
+                    (int64_t)NegotiationCounter::now_us();
+                unsigned iter = 0;
+                bool _spin_timed_out = false;
+                do {
+                    pause4spin();
+                    if((++iter & 0x3FFFFu) == 0) {
+                        std::this_thread::yield();
+                        if((int64_t)NegotiationCounter::now_us()
+                           - _spin_start_us > KAME_STM_FAIR_SPIN_MAX_US) {
+                            _spin_timed_out = true;
+                            break;
+                        }
+                    }
+                } while(NegotiationCounter::fair_mode_blocks_me(
+                                started_time, self));
+                s_fair_spinners.fetch_sub(1, std::memory_order_relaxed);
+                if( !_spin_timed_out)
+                    continue;
+                // Timed out: fall through to CV-sleep section so we
+                // can yield + (Fix A) drop our own Reserved.
+            }
         }
 #endif
 
@@ -1466,6 +1651,32 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // Jitter breaks the synchronized-wakeup oscillation that forms when
         // all threads enter and exit negotiate_sleep at the same 1 ms tick.
         //
+        // (Fix A) priv-no-sleep: if we hold privilege and are about
+        // to CV-sleep, that breaks the design invariant "priv should
+        // not yield".  Real deadlocks observed via HANG dumps showed
+        // mutual cycles: priv holder CV-sleeping on Linkage X owned
+        // by an older peer, while the older peer fair-spins on one
+        // of our Reserved Linkages.  Drop our Reserved here so the
+        // peer's fair-spin breaks; on wake-up the claim path can
+        // re-fire if still needed.
+        if(snap.m_registered_privileged) {
+            using NC = NegotiationCounter;
+            const auto _my_id = NC::strip_kind(snap.m_started_time);
+            for(auto &_l : snap.m_tagged_linkages) {
+                auto _cur = _l->m_transaction_started_time.load(
+                    std::memory_order_relaxed);
+                if(NC::is_priv_stamp(_cur)
+                   && NC::strip_kind(_cur) == _my_id) {
+                    auto _exp = _cur;
+                    _l->m_transaction_started_time.compare_exchange_strong(
+                        _exp, (typename NC::cnt_t)0,
+                        std::memory_order_release,
+                        std::memory_order_relaxed);
+                }
+            }
+            snap.m_registered_privileged = false;
+            NC::release_priv_count_slot();
+        }
         // Low-contention shortcut: at numThreadsRunning() ≤ 2 the
         // privileged-TID escape cannot fire (age-spread between
         // 2 contenders stays µs-scale, well below
@@ -1486,7 +1697,15 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // was already preempted via `tag_as_contender`, and the
         // preempt-recovery scan in `_negotiate_internal` cleared
         // our `m_registered_privileged` flag before reaching here.
-        {
+        if(NegotiationCounter::numThreadsRunning() <= 2 && ms <= 1) {
+            // Low-contention fast path (from master): bare yield rather
+            // than CV-sleep when only ~2 threads are active and we're
+            // at the first iteration — avoids the CV-sleep / notify
+            // dance overhead in the common 2-thread case.
+            typename NegotiationCounter::ReleaseOneCount onedown;
+            std::this_thread::yield();
+        }
+        else {
             int ms_actual = ms; (void)ms_actual;
             // Age-ranked spinner cap (per user: "古参のやつのほうがいい"
             // + "MaxRunnersで天井とめる"): only the youngest of the

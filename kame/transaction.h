@@ -263,16 +263,31 @@ namespace detail {
     //! colocating costs one M→S transition for both fields instead
     //! of two.  Default off: digest field disappears, padding fills
     //! the cacheline.
-    struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
+    // Intrusive (subclass of atomic_countable) so the per-entry shared
+    // pointer can use KAME's `local_shared_ptr` (8-byte tagged pointer
+    // with amortised local refcnt) instead of std::shared_ptr (16-byte
+    // pair, always-atomic refcnt) — better cache density inside the
+    // global RunnerCounterVec and cheaper cow_append / cow_remove.
+    struct alignas(KAME_CACHE_LINE) RunnerCounterEntry : public atomic_countable {
         std::atomic<uint64_t> v{0};
 #if KAME_ENABLE_RUNNER_DIGEST
         std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
-        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)];
+        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>) - sizeof(atomic_countable)];
 #else
-        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)];
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>) - sizeof(atomic_countable)];
 #endif
     };
-    using RunnerCounterVec = std::vector<std::weak_ptr<RunnerCounterEntry>>;
+    // Strong refs (local_shared_ptr): each thread holds its own entry
+    // in TLS *and* the global vec carries a copy.  On thread exit the
+    // TLS RAII wrapper (`RunnerCounterRegistration` below) COW-removes
+    // the entry from the global vec.  Readers iterate without
+    // `.lock()` overhead — direct deref of `sp->v` — because the
+    // snapshot's local_shared_ptrs keep entries alive for the
+    // snapshot's lifetime.  (Was `vector<weak_ptr<...>>` until
+    // 2026-05-21; under 128-thread contention the per-iter
+    // `weak_ptr::lock()` atomic refcnt pair dominated
+    // `num_threads_running_impl` — see profile.)
+    using RunnerCounterVec = std::vector<local_shared_ptr<RunnerCounterEntry>>;
 
 #if KAME_ENABLE_RUNNER_DIGEST
     //! Per-thread local cache of the digest.  Owner mutates this on
@@ -287,19 +302,24 @@ namespace detail {
 #endif
 #endif // KAME_ENABLE_RUNNER_DIGEST
 
-    //! TLS holder of this thread's RunnerCounterEntry. The shared_ptr
-    //! is the sole strong reference; the global s_runner_counters
-    //! vector only holds weak_ptrs that expire on thread exit. The raw
-    //! pointer cache below makes the hot path (`AcquireOneCount` ctor)
-    //! a single TLS load + relaxed fetch_add — no shared_ptr ref ops.
+    //! TLS holder of this thread's RunnerCounterEntry.  The
+    //! local_shared_ptr is one strong reference; the global
+    //! s_runner_counters vector holds another (also local_shared_ptr).
+    //! On thread exit, the `RunnerCounterRegistration` RAII wrapper
+    //! (defined in transaction_impl.h) COW-removes the vec entry; the
+    //! TLS holder then releases its ref.  Entry stays alive while any
+    //! older snapshot of `s_runner_counters` still references it.
+    //! The raw pointer cache below makes the hot path
+    //! (`AcquireOneCount` ctor) a single TLS load + relaxed fetch_add
+    //! — no shared_ptr ref ops.
     //! Defined in transaction_impl.h (see s_tx_nest comment).
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
-    DECLSPEC_KAME std::shared_ptr<RunnerCounterEntry>&
+    DECLSPEC_KAME local_shared_ptr<RunnerCounterEntry>&
         tls_runner_counter_holder_ref() noexcept;
     DECLSPEC_KAME RunnerCounterEntry*&
         tls_runner_counter_ptr_ref() noexcept;
 #else
-    extern thread_local std::shared_ptr<RunnerCounterEntry>
+    extern thread_local local_shared_ptr<RunnerCounterEntry>
         tls_runner_counter_holder;
     extern thread_local RunnerCounterEntry*
         tls_runner_counter_ptr;
@@ -837,18 +857,31 @@ private:
 
         //! For debugging.
         void print_() const;
-        //! For debugging.
+        //! For debugging.  Walks the sub-tree under this packet and
+        //! throws on any inconsistency.  `rootpacket` is the LOCAL
+        //! sub-bundle root used for the standard "sub is missing →
+        //! self is missing" propagation check (line 878 area).
+        //! `globalroot`, when provided, is the GLOBAL (top-level) root
+        //! used for the Null-slot `reverseLookup` test — this matters
+        //! for hard-link topologies where a sub-bundle locally cannot
+        //! find its hard-linked child but the global tree can (the
+        //! child's packet lives in a sibling sub-tree).  When omitted
+        //! (default `{}`), the global root degenerates to the local
+        //! root, matching the original pre-2026-05-21 semantics.
         bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket,
-            const local_shared_ptr<Packet> &globalroot = {}) const;
+                              const local_shared_ptr<Packet> &globalroot = {}) const;
         //! Non-throwing reachability check.  Mirrors `checkConsistensy`'s
         //! Null-slot reverseLookup test but returns `false` instead of
         //! throwing.  Used by `bundle` Phase 4 to gate the
         //! `is_bundle_root` `m_missing=false` override: if any Null
         //! sub-packet slot under this packet has a child node that is
-        //! NOT reverseLookup-able within `globalroot` (the outermost
-        //! bundle root), returns false.
+        //! NOT reverseLookup-able within `globalroot` (or `rootpacket`
+        //! when `globalroot` is omitted), returns false.  Pass the
+        //! actual global tree root as `globalroot` for hard-link
+        //! topologies (otherwise locally-correct hard-link references
+        //! to siblings produce false-negatives).
         bool allSubReachable(const local_shared_ptr<Packet> &rootpacket,
-            const local_shared_ptr<Packet> &globalroot = {}) const;
+                             const local_shared_ptr<Packet> &globalroot = {}) const;
 
         local_shared_ptr<Payload> m_payload;
         shared_ptr<PacketList> m_subpackets;
@@ -2123,12 +2156,8 @@ public:
             Node<XN>::NegotiationCounter::release_priv_count_slot();
             this->m_registered_privileged = false;
         }
-        // Clear the list after we've finished walking it.  Stale
-        // entries here are observationally harmless (the slots they
-        // point to are zero, and strip_kind(0) doesn't match anyone),
-        // but a downstream `++tr` would re-tag through them and grow
-        // the vector unboundedly.  Clearing returns the Snapshot to
-        // the fresh-acquire state.
+        // Clear after walking — otherwise a downstream `++tr` would
+        // re-tag through stale entries and grow the vector unboundedly.
         m_tagged_linkages.clear();
     }
 

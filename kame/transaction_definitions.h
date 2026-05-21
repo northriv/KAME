@@ -110,11 +110,20 @@
 // the gate is off, so zero runtime/code-size cost beyond the macro
 // definitions themselves.
 //
-// Default: ON (= 1).  Disable with -DKAME_ENABLE_SPIN_BAND_GATE=0 (or
-// =OFF via cmake) for ablation / A-B benches showing the gate has no
-// net effect on a given workload + hardware combination.
+// Default: OFF (= 0).  Originally enabled by default on iMac Pro /
+// Linux x86 where the per-Linkage spin gate produced a small net
+// throughput win on heavily contended bundles.  Re-benchmarked on
+// Apple Silicon M3 (2026-05-21, 4-thread payload_integrity / dyn /
+// 3level):
+//   - 2level: no measurable difference (within noise)
+//   - 3level: OFF ~5% faster (mean), lower variance
+//   - dyn:    no measurable difference
+// On M3 the gate's bookkeeping cost outweighs the saved CV-sleeps,
+// so the default is flipped to OFF.  Enable per-target with
+// `-DKAME_ENABLE_SPIN_BAND_GATE=1` if a particular workload +
+// hardware combination shows a positive A-B result.
 #ifndef KAME_ENABLE_SPIN_BAND_GATE
-#define KAME_ENABLE_SPIN_BAND_GATE 1
+#define KAME_ENABLE_SPIN_BAND_GATE 0
 #endif
 
 // Per-Linkage privilege overlay.  When ON (= 1, default), a Tx that
@@ -364,6 +373,29 @@
 // otherwise inert.
 #ifndef KAME_ENABLE_RUNNER_DIGEST
 #define KAME_ENABLE_RUNNER_DIGEST 0
+#endif
+
+// Master switch for the per-call-site adaptive-state machinery
+// (`NegSite::Scope`, `m_site_state`, `last_was_gate_return`, the
+// state_map hash insert at every `ScopedNegotiateLinkage` ctor, etc.).
+// The state is only CONSUMED by one of the four mechanisms below; if
+// they are all off, every NegSite write is dead instrumentation.
+// Profile (2026-05-21, M3) showed the hash insert path costing ~1.1%
+// + the forward_as_tuple plumbing another ~0.8% with all four off.
+//
+// Default: 1 iff any consumer is enabled; otherwise 0.  Set
+// `-DKAME_NEGSITE_ENABLED=1` to keep the state machinery alive (e.g.
+// to call `NegSite::dump()` at the end of a run for diagnostics even
+// without `KAME_ADAPT_INSTRUMENT`).
+#ifndef KAME_NEGSITE_ENABLED
+#  if (defined(KAME_LEGACY_GATING) && KAME_LEGACY_GATING) \
+   || (defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT) \
+   || (defined(KAME_ENABLE_RUNNER_DIGEST) && KAME_ENABLE_RUNNER_DIGEST) \
+   || (defined(KAME_ENABLE_SPIN_BAND_GATE) && KAME_ENABLE_SPIN_BAND_GATE)
+#    define KAME_NEGSITE_ENABLED 1
+#  else
+#    define KAME_NEGSITE_ENABLED 0
+#  endif
 #endif
 
 // --- Spin-for-same-kind / peer-progress path ------------------------

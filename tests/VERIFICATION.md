@@ -314,15 +314,33 @@ Full results: `tests/tlaplus/doc/verification_log.md`
 
 ### Equivalence of the existing models with the new C++ Phase 4 reachability gate
 
-The hard-link work (§5) introduced a `Packet::allSubReachable` gate in
-the C++ bundle Phase 4 (`transaction_impl.h`, commits `87892b35` and
-`92b15f62`): the `is_bundle_root=true` override now only clears
-`m_missing` when every Null sub-slot has a `reverseLookup`-able
-subnode, otherwise the bundle returns `BundledStatus::DISTURBED` so
-the outer `snapshot()` retry loop re-attempts.
+The hard-link work (§5) introduced a `Packet::allSubReachable` gate
+in the C++ bundle Phase 4 (`transaction_impl.h`, commits `87892b35`,
+`92b15f62`, `404fa137`, `b12e1895`): the `is_bundle_root=true`
+override now only clears `m_missing` when every Null sub-slot has a
+`reverseLookup`-able subnode, otherwise the bundle returns
+`BundledStatus::DISTURBED` so the outer `snapshot()` retry loop
+re-attempts.  The gate's order matters: `newpacket->m_missing` is
+cleared *before* `allSubReachable` / `checkConsistensy` are called,
+because both functions short-circuit their Null-slot reverseLookup
+when the root they observe is `missing` (mid-bundle semantics).  On
+reachability failure the flag is restored to `true` before returning
+DISTURBED (see `b12e1895` for the order-of-operations subtlety
+introduced by the global-root parameter).
+
+`checkConsistensy` and `allSubReachable` were also given an optional
+`globalroot` parameter (commit `1ffd8dce`) so callers with a non-root
+`pkt` can supply the true global tree root for the Null-slot
+`reverseLookup` — necessary for hard-link Case B (where the
+hard-linked child's packet lives in a sibling sub-tree).  At the
+Phase 4 call site, `newpacket` aliases the global root for
+`is_bundle_root=true` (see `reverseLookup` line 1440 — when
+`&superpacket->node() == this` the function returns `superpacket`
+itself), so the default `globalroot = {}` is correct without
+explicit threading.
 
 **The 2level / 3level LL-free (static + dynamic) TLA+ models do not
-need to be updated** for this C++ change.  In all non-hard-link
+need to be updated** for these C++ changes.  In all non-hard-link
 topologies the gate is provably a no-op:
 
 1. Each child node has exactly one parent.  When `bundle(P)` reaches
@@ -732,9 +750,36 @@ therefore consistent with real-OS scheduling artifacts (real
 schedulers do not strictly meet `WF` in finite time), not a logic
 gap.
 
-The optimization is available on master as an opt-in flag
-`-DKAME_NODE_MISSING_SELF_PROMOTE=1` (off by default; see
-`kame/transaction_impl.h` snapshot() NODE_MISSING handler).
+The optimization is gated by `KAME_STM_OPTIONAL_OPTIMIZATION`
+(defined to `1` by default in `kame/transaction_definitions.h`,
+commits `ead762be`, `b7a4d882`).  Compile with
+`-DKAME_STM_OPTIONAL_OPTIMIZATION=0` to disable the self-promote
+shortcut and the related `bundle()` "peer-completed early return";
+the resulting build matches the strictly TLA+-modelled master path
+with no opt-in shortcuts.
+
+**Note**: these shortcuts are NOT covered by the TLA+ models in
+`tests/tlaplus/` — the unconditional master path is verified, the
+shortcuts are CAS-count optimizations that bypass the modelled
+control flow.
+
+### Other STM correctness / perf knobs touched in this work
+
+* **`KAME_ENABLE_SPIN_BAND_GATE` default flipped to `0`** on Apple
+  Silicon (commit `472d193d`).  Re-benchmarked on M3 (4-thread):
+  3level `payload_integrity` ~5% faster (mean, lower variance) with
+  the gate OFF, others within noise.  Older sweeps had the gate ON
+  by default for iMac Pro / Linux x86.  Override with
+  `-DKAME_ENABLE_SPIN_BAND_GATE=1` if a target shows positive A-B.
+* **`fair_mode_blocks_me` / `i_am_privileged_now` TID compare**
+  (commit `9a0f9848`).  Fixed nested-Tx self-deadlock in the
+  per-linkage privilege path: the per-linkage branches used
+  `strip_kind` (which preserves the US timestamp field) for
+  "is this slot mine?" identity, mis-identifying a nested inner Tx
+  on the same thread as a peer.  Now use `stamp_tid` (TID only),
+  matching the well-documented global-mode logic.  Measurable side
+  effect: `payload_integrity` runs faster than before due to
+  removed spurious CV-sleeps.
 
 ### Build & run
 
