@@ -1,14 +1,14 @@
 /***************************************************************************
         Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU General 
-		Public License and a list of authors along with this program; 
+
+		You should have received a copy of the GNU General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #ifndef THREADLOCAL_H_
@@ -16,113 +16,149 @@
 
 #include "support.h"
 #include <type_traits>
+#include <cassert>
 
-#ifdef USE_QTHREAD
-    #include <QThreadStorage>
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+// Win32 Fiber-Local Storage (Vista+) — forward-declared to avoid
+// pulling in <windows.h>.  WINAPI = __stdcall on x86, no-op on
+// x64/ARM64; declaring __stdcall is safe on all three.
+extern "C" {
+    __declspec(dllimport) unsigned long __stdcall
+        FlsAlloc(void (__stdcall *)(void *));
+    __declspec(dllimport) void * __stdcall FlsGetValue(unsigned long);
+    __declspec(dllimport) int __stdcall FlsSetValue(unsigned long, void *);
+    __declspec(dllimport) int __stdcall FlsFree(unsigned long);
+}
+constexpr unsigned long KAME_FLS_OUT_OF_INDEXES = 0xFFFFFFFFu;
 #endif
 
-//! Thread Local Storage template.
-//! \p T must have constructor T()
-//! object \p T will be deleted only when the thread is finished.
-//!
-//! Two specializations picked via SFINAE on is_trivially_destructible<T>:
-//!   * trivially-destructible T  →  native C++ `thread_local` (fast). Safe on
-//!                                  libstdc++/libc++ because no per-thread
-//!                                  destructor is ever required to run — the
-//!                                  historical TLS-destructor portability
-//!                                  gaps do not apply to trivial T.
-//!   * non-trivially-destructible →  pthread_key_t / QThreadStorage path
-//!                                  (slower but runs the destructor at
-//!                                  thread exit). Preserved for types that
-//!                                  actually need cleanup.
-template <typename T, typename = void>
-class XThreadLocal;
+//! Applied to the cached `T*` in `operator*()` below.  `__thread` lets
+//! the linker pick initial-exec TLS for libkame (loaded at startup) →
+//! one register-offset load on Linux ELF.  Plugins (dlopen'd) get
+//! general-dynamic automatically.  macOS goes through `_tlv_get_addr`
+//! either way; MSVC requires `thread_local`.
+#if (defined(__GNUC__) || defined(__clang__)) \
+    && !defined(_WIN32) && !defined(__WIN32__) && !defined(WINDOWS)
+    #define KAME_TLS_QUAL __thread
+#else
+    #define KAME_TLS_QUAL thread_local
+#endif
 
-// Fast path: trivially-destructible T uses compiler-native thread_local.
-// Non-trivial constructors are fine — thread-local dynamic init is standard.
-// NOTE: the thread_local storage is per-T (class-static), so having two
-// XThreadLocal<T> instances of the *same* T would make them alias. KAME
-// uses distinct T per instance (ProcessCounter, SerialGenerator::cnt_t,
-// Priority__, FuncPayloadCreator, ...), so the aliasing is benign.
-template <typename T>
-class XThreadLocal<T, typename std::enable_if<std::is_trivially_destructible<T>::value>::type> {
+//! Thread Local Storage template — single abstraction for per-thread
+//! storage in KAME.
+//!
+//! Two paths:
+//!
+//!   * `operator*()` (hot) — per-TU per-thread `KAME_TLS_QUAL T*`
+//!     cache.  First access calls `libkame_storage()` and latches
+//!     the returned address; subsequent accesses are a single
+//!     cached-pointer deref.  `T*` is trivial so `__thread` applies
+//!     regardless of `T`'s traits.
+//!
+//!   * `libkame_storage()` (cold) — actual storage.  Speed doesn't
+//!     matter (amortised by the cache).  Internal `if constexpr`:
+//!       - trivial-dtor T → `static thread_local T v{}`.
+//!       - non-trivial-dtor T → OS TLS slot with explicit cleanup:
+//!         Windows `FlsAlloc`, POSIX `pthread_key_create`.  Works
+//!         around g++ pre-10 thread_local-dtor bugs in shared
+//!         libraries; also drops the Qt dependency that the
+//!         previous `QThreadStorage` path needed.
+//!
+//! \tparam T   Per-thread datum; default-constructed on first access.
+//! \tparam Tag Disambiguator (defaulted to `void`).  Same `T` + same
+//!             `Tag` alias the function-local storage of
+//!             `libkame_storage()`; supply a distinct empty struct
+//!             when shared `T` needs distinct slots.
+//!
+//! Cross-DLL singleton via explicit member-template instantiation:
+//!
+//! ```cpp
+//! struct STxNestTag;
+//! extern template int&
+//!     XThreadLocal<int, STxNestTag>::libkame_storage();   // header
+//! DECLSPEC_KAME extern XThreadLocal<int, STxNestTag> s_tx_nest;
+//!
+//! template DECLSPEC_KAME int&
+//!     XThreadLocal<int, STxNestTag>::libkame_storage();   // libkame TU
+//! DECLSPEC_KAME XThreadLocal<int, STxNestTag> s_tx_nest;
+//! ```
+template <typename T, typename Tag = void>
+class XThreadLocal {
 public:
     template <typename ...Arg>
     XThreadLocal(Arg&& ...) noexcept {}
-    T &operator*() const {return m_var;}
-    T *operator->() const {return &m_var;}
-private:
-    static thread_local T m_var;
-};
-template <typename T>
-thread_local T XThreadLocal<T, typename std::enable_if<std::is_trivially_destructible<T>::value>::type>::m_var{};
+    XThreadLocal(const XThreadLocal &) = delete;
+    XThreadLocal &operator=(const XThreadLocal &) = delete;
 
-// Slow path: non-trivially-destructible T keeps the pthread/QThread layout
-// so the destructor runs at thread exit. Impl defined inline to avoid the
-// verbose out-of-line syntax on a SFINAE specialization.
-template <typename T>
-class XThreadLocal<T, typename std::enable_if<!std::is_trivially_destructible<T>::value>::type> {
-public:
-#ifdef USE_QTHREAD
-    XThreadLocal() {}
-    ~XThreadLocal() {}
-    T &operator*() const {
-        if( !m_tls.hasLocalData())
-            m_tls.setLocalData(new T);
-        return *m_tls.localData();
+    T &operator*() const noexcept {
+        static KAME_TLS_QUAL T *cached = nullptr;
+        if( !cached) [[unlikely]]
+            cached = &libkame_storage();
+        return *cached;
     }
-#elif defined(USE_PTHREAD)
-    XThreadLocal() {
-        int ret = pthread_key_create( &m_key, &XThreadLocal::delete_tls);
-        assert( !ret);
+    T *operator->() const noexcept { return &( **this); }
+
+    DECLSPEC_KAME static T &libkame_storage();
+
+private:
+    static void delete_tls(void *p) noexcept { delete static_cast<T *>(p); }
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    static void __stdcall delete_tls_winapi(void *p) noexcept {
+        delete static_cast<T *>(p);
     }
-    ~XThreadLocal() {
-        delete static_cast<T *>(pthread_getspecific(m_key));
-        int ret = pthread_key_delete(m_key);
-        assert( !ret);
+#endif
+};
+
+template <typename T, typename Tag>
+inline T &XThreadLocal<T, Tag>::libkame_storage() {
+    if constexpr (std::is_trivially_destructible<T>::value) {
+        static thread_local T v{};
+        return v;
     }
-    T &operator*() const {
-        void *p = pthread_getspecific(m_key);
-        if(p == NULL) {
-            int ret = pthread_setspecific(m_key, p = new T);
-            assert( !ret);
+    else {
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+        struct Key {
+            unsigned long k;
+            Key() {
+                k = FlsAlloc(&delete_tls_winapi);
+                assert(k != KAME_FLS_OUT_OF_INDEXES); (void)k;
+            }
+            ~Key() { FlsFree(k); }
+        };
+        static Key key;
+        T *p = static_cast<T *>(FlsGetValue(key.k));
+        if( !p) [[unlikely]] {
+            p = new T;
+            int ok = FlsSetValue(key.k, p);
+            assert(ok); (void)ok;
         }
-        return *static_cast<T*>(p);
-    }
-#else
-    // Portable fallback: native C++11 thread_local. The spec guarantees
-    // T's destructor runs at thread exit. MSVC before VS 2017 15.5 had
-    // issues with non-trivial thread_local across DLL boundaries — that
-    // matters only for old-MSVC + DLL builds, for which the Qt build
-    // should define USE_QTHREAD. Linux/macOS pthread is the primary
-    // platform; this branch exists so a bare `#include "threadlocal.h"`
-    // in a toolchain-minimal TU (e.g. a unit test with neither Qt nor
-    // explicit USE_PTHREAD) still links.
-    //
-    // NOTE: thread_local storage is class-static and keyed by T, same
-    // constraint as the trivial specialization — two XThreadLocal<same T>
-    // instances would alias. KAME's convention of unique T per instance
-    // makes this benign.
-    XThreadLocal() = default;
-    T &operator*() const {return m_var;}
-#endif
-    T *operator->() const {return &( **this);}
-private:
-#ifdef USE_QTHREAD
-    mutable QThreadStorage<T*> m_tls;
+        return *p;
 #elif defined(USE_PTHREAD)
-    mutable pthread_key_t m_key;
-    static void delete_tls(void *var) { delete static_cast<T *>(var); }
+        struct Key {
+            pthread_key_t k;
+            Key() {
+                int ret = pthread_key_create( &k, &delete_tls);
+                assert( !ret); (void)ret;
+            }
+            ~Key() {
+                int ret = pthread_key_delete(k);
+                assert( !ret); (void)ret;
+            }
+        };
+        static Key key;
+        T *p = static_cast<T *>(pthread_getspecific(key.k));
+        if( !p) [[unlikely]] {
+            p = new T;
+            int ret = pthread_setspecific(key.k, p);
+            assert( !ret); (void)ret;
+        }
+        return *p;
 #else
-    static thread_local T m_var;
+        // Fallback for minimal TUs with neither USE_PTHREAD nor Windows.
+        static thread_local T v{};
+        return v;
 #endif
-};
-
-#if !defined(USE_QTHREAD) && !defined(USE_PTHREAD)
-template <typename T>
-thread_local T XThreadLocal<T,
-    typename std::enable_if<!std::is_trivially_destructible<T>::value>::type>::m_var{};
-#endif
-
+    }
+}
 
 #endif /*THREADLOCAL_H_*/
