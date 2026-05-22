@@ -138,6 +138,17 @@ private:
     long m_x;
 };
 
+//! Test class for DEFAULT local_weak_ptr — no marker inheritance.
+//! Uses separate allocation (gref_<T> with weak_refcnt).
+class WDefault {
+public:
+    explicit WDefault(long x) : m_x(x) { ++objcnt; total += x; }
+    ~WDefault() { --objcnt; total -= m_x; }
+    long x() const { return m_x; }
+private:
+    long m_x;
+};
+
 //! Basic local_weak_ptr sanity: construct from local_shared_ptr,
 //! lock() while alive, expired() after the last strong drops, CB
 //! deleted only when both counters hit zero.
@@ -191,11 +202,66 @@ static void test_local_weak_ptr_race() {
     assert(objcnt == objcnt_before);
 }
 
+//! Test local_weak_ptr with DEFAULT class (no marker) — validates that
+//! weak_refcnt is present in gref_<T> by default.  Uses 2-alloc path
+//! (separate T + control block).
+static void test_local_weak_ptr_default() {
+    printf("test_local_weak_ptr_default\n");
+    int objcnt_before = objcnt;
+    {
+        //!< 2-allocation path: new WDefault + new gref_<WDefault>
+        local_shared_ptr<WDefault> sp(new WDefault(99));
+        assert(objcnt == objcnt_before + 1);
+        local_weak_ptr<WDefault> wp(sp);
+        assert( !wp.expired());
+        {
+            local_shared_ptr<WDefault> locked = wp.lock();
+            assert(locked);
+            assert(locked->x() == 99);
+            assert(sp.use_count() == 2);
+        }
+        assert(sp.use_count() == 1);
+        sp.reset();
+        //!< Object destroyed (strong=0) but CB lives for weak.
+        assert(objcnt == objcnt_before);
+        assert(wp.expired());
+        assert( !wp.lock());
+    }
+    //!< wp out of scope → CB freed.
+}
+
+//! Race test for default-T weak_ptr.
+static void test_local_weak_ptr_default_race() {
+    printf("test_local_weak_ptr_default_race\n");
+    constexpr int N = 4;
+    constexpr int ITERS = 10000;
+    int objcnt_before = objcnt;
+    std::thread ths[N];
+    for(int t = 0; t < N; ++t) {
+        ths[t] = std::thread([](){
+            for(int i = 0; i < ITERS; ++i) {
+                local_shared_ptr<WDefault> sp(new WDefault(i + 1));
+                local_weak_ptr<WDefault> wp(sp);
+                {
+                    auto l = wp.lock();
+                    assert(l && l->x() == i + 1);
+                }
+                sp.reset();
+                assert(wp.expired());
+            }
+        });
+    }
+    for(auto &t : ths) t.join();
+    assert(objcnt == objcnt_before);
+}
+
 int
 main(int argc, char **argv)
 {
     test_local_weak_ptr_basic();
     test_local_weak_ptr_race();
+    test_local_weak_ptr_default();
+    test_local_weak_ptr_default_race();
 
     std::thread threads[NUM_THREADS];
 
