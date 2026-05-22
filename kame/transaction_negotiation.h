@@ -171,7 +171,7 @@ namespace Transactional {
 //! friend declarations in Node<XN> / Snapshot<XN> for the assert path.
 template <class XN>
 class ScopedNegotiateLinkage {
-    using LinkagePtr = std::shared_ptr<typename Node<XN>::Linkage>;
+    using LinkagePtr = local_shared_ptr<typename Node<XN>::Linkage>;
     using PacketWrapper = typename Node<XN>::PacketWrapper;
     LinkagePtr      m_link;
     Snapshot<XN>   *m_snap;
@@ -694,7 +694,7 @@ public:
     //! Bare pointer to the linkage (for code that needs to compare
     //! linkage identity, e.g. unbundle()'s `oldsuperwrapper` chain
     //! tracking).
-    const std::shared_ptr<typename Node<XN>::Linkage> &linkage() const noexcept {
+    const local_shared_ptr<typename Node<XN>::Linkage> &linkage() const noexcept {
         return m_link;
     }
 

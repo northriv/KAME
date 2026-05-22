@@ -126,6 +126,18 @@ start_routine() {
 
 #define NUM_THREADS 4
 
+//! Test class for local_weak_ptr — opt-in via atomic_weakable marker
+//! triggers `make_local_shared<W>(args)` to do single-allocation
+//! combined buffer + weak_refcnt.
+class W : public atomic_weakable {
+public:
+    explicit W(long x) : m_x(x) { ++objcnt; total += x; }
+    ~W() { --objcnt; total -= m_x; }
+    long x() const { return m_x; }
+private:
+    long m_x;
+};
+
 //! Basic local_weak_ptr sanity: construct from local_shared_ptr,
 //! lock() while alive, expired() after the last strong drops, CB
 //! deleted only when both counters hit zero.
@@ -133,12 +145,12 @@ static void test_local_weak_ptr_basic() {
     printf("test_local_weak_ptr_basic\n");
     int objcnt_before = objcnt;
     {
-        local_shared_ptr<A> sp(new A(42));
+        local_shared_ptr<W> sp = make_local_shared<W>(42);
         assert(objcnt == objcnt_before + 1);
-        local_weak_ptr<A> wp(sp);
+        local_weak_ptr<W> wp(sp);
         assert( !wp.expired());
         {
-            local_shared_ptr<A> locked = wp.lock();
+            local_shared_ptr<W> locked = wp.lock();
             assert(locked);
             assert(locked->x() == 42);
             assert(sp.use_count() == 2);
@@ -150,9 +162,7 @@ static void test_local_weak_ptr_basic() {
         assert(wp.expired());
         assert( !wp.lock());
     }
-    //!< wp out of scope → CB freed (no leak detection here, but the
-    //!< Refcnt asserts in ~atomic_shared_ptr_gref_ catch double-free /
-    //!< stuck refs).
+    //!< wp out of scope → CB freed.
 }
 
 //! Concurrent lock() racing strong destruction: stresses try_promote
@@ -166,8 +176,8 @@ static void test_local_weak_ptr_race() {
     for(int t = 0; t < N; ++t) {
         ths[t] = std::thread([](){
             for(int i = 0; i < ITERS; ++i) {
-                local_shared_ptr<A> sp(new A(i + 1));
-                local_weak_ptr<A> wp(sp);
+                local_shared_ptr<W> sp = make_local_shared<W>(i + 1);
+                local_weak_ptr<W> wp(sp);
                 {
                     auto l = wp.lock();
                     assert(l && l->x() == i + 1);

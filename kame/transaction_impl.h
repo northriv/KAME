@@ -915,7 +915,7 @@ Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, int64_
     m_bundle_serial(bundle_serial) {
 }
 template <class XN>
-Node<XN>::PacketWrapper::PacketWrapper(const shared_ptr<Linkage > &bp, int reverse_index,
+Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Linkage > &bp, int reverse_index,
     int64_t bundle_serial) noexcept :
     m_bundledBy(bp), m_packet(), m_reverse_index(),
     m_bundle_serial(bundle_serial) {
@@ -963,7 +963,7 @@ Node<XN>::print_recoverable_error(const char* reason) {
 
 
 template <class XN>
-Node<XN>::Node() : m_link(std::make_shared<Linkage>()) {
+Node<XN>::Node() : m_link(make_local_shared<Linkage>()) {
     local_shared_ptr<Packet> packet(new Packet());
     m_link->reset(new PacketWrapper(packet, SerialGenerator::gen()));
     //Use create() for this hack.
@@ -1180,7 +1180,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
                     }
                 }
                 else {
-                    shared_ptr<Linkage> bp(nullsubwrapper->bundledBy());
+                    local_shared_ptr<Linkage> bp(nullsubwrapper->bundledBy());
                     if((bp && (bp != m_link)) ||
                         ( !bp && (nullsubwrapper->packet() != *pit))) {
                         tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
@@ -1308,7 +1308,7 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 // When copy_branch is true, applies copy-on-write along the path.
 template <class XN>
 local_shared_ptr<typename Node<XN>::Packet>*
-Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
+Node<XN>::reverseLookupWithHint(local_shared_ptr<Linkage> &linkage,
     local_shared_ptr<Packet> &superpacket, bool copy_branch, int64_t tr_serial, bool set_missing,
     local_shared_ptr<Packet> *upperpacket, int *index) {
     if( !superpacket->size())
@@ -1319,7 +1319,7 @@ Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
     if( !wrapper) return nullptr;
     if(wrapper->hasPriority())
         return nullptr;
-    shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
+    local_shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
     if( !linkage_upper)
         return nullptr;
     local_shared_ptr<Packet> *foundpacket;
@@ -1482,7 +1482,7 @@ Node<XN>::upperNode(Snapshot<XN> &shot) {
 template <class XN>
 inline typename Node<XN>::WalkUpResult
 Node<XN>::ascendOneLevel(
-    const shared_ptr<Linkage> &child_linkage,
+    const local_shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope) {
 
     WalkUpResult r;
@@ -1557,7 +1557,7 @@ Node<XN>::convertRecursiveStatus(
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
 Node<XN>::findChildSlot(
-    const shared_ptr<Linkage> &child_linkage,
+    const local_shared_ptr<Linkage> &child_linkage,
     local_shared_ptr<Packet> *parent_packet,
     local_shared_ptr<Packet> **child_subpacket_out,
     int &reverse_index,
@@ -1604,7 +1604,7 @@ Node<XN>::findChildSlot(
 template <class XN>
 template <class Recurser>
 inline typename Node<XN>::WalkUpResult
-Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
+Node<XN>::walkUpChainImpl(const local_shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
     Recurser &&recurse) {
@@ -1658,13 +1658,13 @@ Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
 //=============================================================================
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
-Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
+Node<XN>::walkUpChain(const local_shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
     std::optional<ScopedNegotiateLinkage<XN>> &root_lifetime) {
 
     auto r = walkUpChainImpl(child_linkage, incoming_scope, child_subpacket_out,
-        [&root_lifetime](const shared_ptr<Linkage> &pl,
+        [&root_lifetime](const local_shared_ptr<Linkage> &pl,
            const ScopedNegotiateLinkage<XN> &is,
            local_shared_ptr<Packet> **pp) {
             return walkUpChain(pl, is, pp, root_lifetime);
@@ -1682,13 +1682,13 @@ Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
 //=============================================================================
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
-Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
+Node<XN>::snapshotForUnbundle(const local_shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
     int64_t serial, CASInfoList *cas_infos) {
 
     auto r = walkUpChainImpl(child_linkage, incoming_scope, child_subpacket_out,
-        [serial, cas_infos](const shared_ptr<Linkage> &pl,
+        [serial, cas_infos](const local_shared_ptr<Linkage> &pl,
            const ScopedNegotiateLinkage<XN> &is,
            local_shared_ptr<Packet> **pp) {
             return snapshotForUnbundle(pl, is, pp, serial, cas_infos);
@@ -1883,7 +1883,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             // — no view_copy() or temporary needed.
             // root_lifetime keeps the root-level ScopedNeg alive so that
             // foundpacket (pointing into the Packet tree) remains valid.
-            shared_ptr<Linkage > linkage(m_link);
+            local_shared_ptr<Linkage > linkage(m_link);
             local_shared_ptr<Packet> *foundpacket;
             std::optional<ScopedNegotiateLinkage<XN>> root_lifetime;
             auto status = walkUpChain(linkage,
@@ -2008,7 +2008,7 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
     // dance through a temporary local_shared_ptr).
 
     if( !subscope->hasPriority()) {
-        shared_ptr<Linkage > linkage(subscope->bundledBy());
+        local_shared_ptr<Linkage > linkage(subscope->bundledBy());
         bool need_for_unbundle = false;
         bool detect_collision = false;
         if(linkage == m_link) {

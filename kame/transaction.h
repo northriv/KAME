@@ -1238,20 +1238,20 @@ private:
         //! creates a wrapper not containing a packet but pointing to the upper node.
         //! \param[in] bp \a m_link of the upper node.
         //! \param[in] reverse_index The index for this node in the list of the upper node.
-        PacketWrapper(const shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial) noexcept;
+        PacketWrapper(const local_shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial) noexcept;
         PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) noexcept;
         bool hasPriority() const noexcept { return m_reverse_index == (int)PACKET_STATE::PACKET_HAS_PRIORITY; }
         const local_shared_ptr<Packet> &packet() const noexcept {return m_packet;}
         local_shared_ptr<Packet> &packet() noexcept {return m_packet;}
 
         //! Points to the upper node that should have the up-to-date Packet when this lacks priority.
-        shared_ptr<Linkage> bundledBy() const noexcept {return m_bundledBy.lock();}
+        local_shared_ptr<Linkage> bundledBy() const noexcept {return m_bundledBy.lock();}
         //! The index for this node in the list of the upper node.
         int reverseIndex() const noexcept {return m_reverse_index;}
         void setReverseIndex(int i) noexcept {m_reverse_index = i;}
 
         void print_() const;
-        weak_ptr<Linkage> const m_bundledBy;
+        local_weak_ptr<Linkage> const m_bundledBy;
         local_shared_ptr<Packet> m_packet;
         int m_reverse_index;
         int64_t m_bundle_serial;
@@ -1266,7 +1266,13 @@ private:
     // KAME_LEASE_NS_BASE and other tuning macros live in
     // transaction_definitions.h.
 
-    struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
+    //! `atomic_weakable` marker → combined-alloc + weak_refcnt
+    //! semantics for `local_shared_ptr<Linkage>` / `local_weak_ptr<Linkage>`.
+    //! Empty base, zero size overhead (EBO).  Allocate via
+    //! `make_local_shared<Linkage>()`.
+    struct DECLSPEC_KAME Linkage
+        : public atomic_shared_ptr<PacketWrapper>,
+          public atomic_weakable {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
             m_transaction_started_time(0),
             m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)),
@@ -1632,9 +1638,9 @@ private:
         VOID_PACKET = 2, NODE_MISSING = 4,
         COLLIDED = 8, NODE_MISSING_AND_COLLIDED = 12};
     struct CASInfo {
-        CASInfo(const shared_ptr<Linkage> &b, scoped_atomic_view<PacketWrapper> &&o,
+        CASInfo(const local_shared_ptr<Linkage> &b, scoped_atomic_view<PacketWrapper> &&o,
             const local_shared_ptr<PacketWrapper> &n) : linkage(b), old_wrapper(std::move(o)), new_wrapper(n) {}
-        shared_ptr<Linkage> linkage;
+        local_shared_ptr<Linkage> linkage;
         scoped_atomic_view<PacketWrapper> old_wrapper;
         local_shared_ptr<PacketWrapper> new_wrapper;
     };
@@ -1652,7 +1658,7 @@ private:
     //! On success, find_status == SUCCESS and parent fields are filled.
     //! On failure, find_status == DISTURBED or NODE_MISSING.
     static inline WalkUpResult ascendOneLevel(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope);
 
     //! Convert recursive status and determine the upper packet.
@@ -1665,7 +1671,7 @@ private:
 
     //! Find child's sub-packet slot in parent's packet by scanning from reverse_index hint.
     static inline SnapshotStatus findChildSlot(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         local_shared_ptr<Packet> *parent_packet,
         local_shared_ptr<Packet> **child_subpacket_out,
         int &reverse_index,
@@ -1678,7 +1684,7 @@ private:
     //! (Step D) compares child_linkage against incoming_scope directly.
     template <class Recurser>
     static inline WalkUpResult walkUpChainImpl(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope,
         local_shared_ptr<Packet> **child_subpacket_out,
         Recurser &&recurse);
@@ -1688,7 +1694,7 @@ private:
     //! root_lifetime receives the root-level ScopedNeg (via move) to keep
     //! the Packet tree alive after walkUpChain returns — foundpacket points into it.
     static inline SnapshotStatus walkUpChain(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope,
         local_shared_ptr<Packet> **child_subpacket_out,
         std::optional<ScopedNegotiateLinkage<XN>> &root_lifetime);
@@ -1696,7 +1702,7 @@ private:
     //! Walk up the chain and build CAS info list for unbundling.
     //! Used only by unbundle().
     static inline SnapshotStatus snapshotForUnbundle(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope,
         local_shared_ptr<Packet> **child_subpacket_out,
         int64_t serial, CASInfoList *cas_infos);
@@ -1744,7 +1750,7 @@ private:
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
         ScopedNegotiateLinkage<XN> *supscope_super = NULL);
     //! The point where the packet is held.
-    shared_ptr<Linkage> m_link;
+    local_shared_ptr<Linkage> m_link;
 
     //! finds the packet for this node in the (un)bundled \a packet.
     //! \param[in,out] superpacket The bundled packet.
@@ -1755,7 +1761,7 @@ private:
     local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &superpacket,
         bool copy_branch, int64_t tr_serial = 0, bool set_missing = false);
     const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &superpacket) const;
-    inline static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<Linkage > &linkage,
+    inline static local_shared_ptr<Packet> *reverseLookupWithHint(local_shared_ptr<Linkage > &linkage,
         local_shared_ptr<Packet> &superpacket, bool copy_branch, int64_t tr_serial, bool set_missing,
         local_shared_ptr<Packet> *upperpacket, int *index);
     //! finds this node and a corresponding packet in the (un)bundled \a packet.
@@ -1905,7 +1911,7 @@ public:
     //! Transaction::operator++; this is just the extraction into a
     //! Snapshot-level helper so snapshot()/bundle() can adopt it too in
     //! later refactor passes.
-    void tag_as_contender(const std::shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
+    void tag_as_contender(const local_shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
         // CAS-loop variant (Option A). Atomically claim the linkage's
         // priority slot iff the slot is empty OR the current tagger is
         // YOUNGER than us (compare on stamp_us only — the tid packed in
@@ -2188,7 +2194,7 @@ protected:
     //! eager-tag / eager-clear logic out of tr++/Negotiator RAII without
     //! further restructuring. Inline-first-16 (fast_vector) keeps
     //! low-contention workloads zero-alloc.
-    fast_vector<std::shared_ptr<typename Node<XN>::Linkage>, 16> m_tagged_linkages;
+    fast_vector<local_shared_ptr<typename Node<XN>::Linkage>, 16> m_tagged_linkages;
 
     // Per-Tx (= per-Snapshot) gate-return adaptive tightener.
     //

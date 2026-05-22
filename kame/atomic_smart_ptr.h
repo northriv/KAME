@@ -85,49 +85,116 @@ private:
     atomic<t_ptr> m_ptr;
 };
 
-//! This is an internal class holding a global reference counter and a pointer to the object.
-//! Two-counter design (std::shared_ptr/weak_ptr style):
-//!   - `refcnt` = strong (local_shared_ptr / atomic_shared_ptr)
-//!   - `weak_refcnt` = weak (local_weak_ptr) + 1 while strong > 0
-//! Strong → 0 deletes the object; CB itself is freed when weak → 0.
-//! \sa atomic_shared_ptr, local_weak_ptr
+//! Legacy non-intrusive control block: T allocated separately, gref
+//! holds a pointer to it.  Used when T inherits no marker (default
+//! mode).  Does NOT support `local_weak_ptr<T>` — that requires
+//! `atomic_weakable` (see below).
+//! \sa atomic_shared_ptr
 template <typename T>
 struct atomic_shared_ptr_gref_ {
-    explicit atomic_shared_ptr_gref_(T *p) noexcept
-        : ptr(p), refcnt(1), weak_refcnt(1) {}
-    ~atomic_shared_ptr_gref_() noexcept {
-        assert(refcnt == 0);
-        assert(weak_refcnt == 0);
-        //!< ptr already deleted in release_strong_zero (or never set).
-    }
-    //! The pointer to the object.  Set to nullptr after release_strong_zero.
+    explicit atomic_shared_ptr_gref_(T *p) noexcept : ptr(p), refcnt(1) {}
+    //!< Polymorphic T's dispatch via virtual destructor on T* (e.g.
+    //!< Payload : virtual ~Payload).  Non-polymorphic T's are
+    //!< constructed only with Y == T (static_assert in
+    //!< local_shared_ptr).
+    ~atomic_shared_ptr_gref_() noexcept { assert(refcnt == 0); delete ptr; }
+    //! The pointer to the object.
     T *ptr;
     typedef uintptr_t Refcnt;
-    //! Strong reference counter.
+    //! Reference counter.
     atomic<Refcnt> refcnt;
-    //! Weak reference counter (+1 while strong > 0, the "object-alive" sentinel).
-    atomic<Refcnt> weak_refcnt;
 
-    //! Called from `deleter()` when strong refcnt hits 0: delete the
-    //! pointee and drop the implicit +1 on `weak_refcnt`.  Static so it
-    //! plugs into the existing `deleter(Ref*)` signature.
-    static void release_strong_zero(atomic_shared_ptr_gref_ *p) noexcept {
-        //!< Polymorphic T's dispatch via virtual destructor on T* (e.g.
-        //!< Payload : virtual ~Payload).  Non-polymorphic T's are
-        //!< constructed only with Y == T (static_assert in
-        //!< local_shared_ptr).
-        delete p->ptr;
-        p->ptr = nullptr;
-        //!< Drop the implicit +1 weak that strong was holding.  Fast
-        //!< path: if weak_refcnt == 1 there are no live weak_ptr's (the
-        //!< "1" IS our implicit), so skip the atomic fetch_sub.  Safe
-        //!< because:
-        //!<   * weak_ptr creation from local_shared_ptr requires
-        //!<     strong > 0 — impossible here.
-        //!<   * weak_ptr copy from another weak_ptr requires at least
-        //!<     one weak_ptr to exist — weak_refcnt == 1 (implicit only)
-        //!<     means no such exists.
-        //!< So weak_refcnt can NOT increase past the load.
+    atomic_shared_ptr_gref_(const atomic_shared_ptr_gref_ &) = delete;
+};
+
+//! Marker base classes (opt-in).  Empty structs — empty base
+//! optimisation makes them zero-cost in `sizeof(T)`.
+//!
+//!   * `atomic_emplaced`: T is constructed inside its control block
+//!     via `make_local_shared<T>(args)` (single allocation, T + refcnt
+//!     in one buffer).  No `local_weak_ptr<T>` support.
+//!   * `atomic_weakable` (extends `atomic_emplaced`): same combined-
+//!     alloc layout PLUS a `weak_refcnt` for `local_weak_ptr<T>`
+//!     support.  Object dies at strong → 0; control block lives until
+//!     weak → 0.
+//!
+//! Mixing with `atomic_countable` (legacy intrusive) is disallowed —
+//! the SFINAE branches in `atomic_shared_ptr_base` ensure exactly one
+//! mode is selected per T.
+struct atomic_emplaced {};
+struct atomic_weakable : atomic_emplaced {};
+
+//! Non-intrusive control block, T embedded (emplaced) — single
+//! allocation.  Used when `T : atomic_emplaced` but NOT
+//! `atomic_weakable`.  No weak_ptr support.
+template <typename T>
+struct atomic_shared_ptr_gref_emplaced_ {
+    typedef uintptr_t Refcnt;
+    atomic<Refcnt> refcnt;
+    alignas(T) unsigned char data_storage[sizeof(T)];   //!< T placement-new'd here
+
+    template <typename ...Args>
+    explicit atomic_shared_ptr_gref_emplaced_(Args&&... args)
+        : refcnt(1) {
+        new ( &data_storage) T(std::forward<Args>(args)...);
+    }
+    ~atomic_shared_ptr_gref_emplaced_() noexcept {
+        assert(refcnt == 0);
+        //!< T's dtor already invoked in release_strong_zero.
+    }
+
+    T *ptr_() noexcept { return reinterpret_cast<T *>( &data_storage); }
+    const T *ptr_() const noexcept {
+        return reinterpret_cast<const T *>( &data_storage);
+    }
+
+    static void release_strong_zero(atomic_shared_ptr_gref_emplaced_ *p) noexcept {
+        p->ptr_()->~T();
+        delete p;
+    }
+
+    atomic_shared_ptr_gref_emplaced_(const atomic_shared_ptr_gref_emplaced_ &) = delete;
+};
+
+//! Non-intrusive control block, T embedded + weak refcount — single
+//! allocation, supports `local_weak_ptr<T>`.  Used when
+//! `T : atomic_weakable`.  Two-counter design (std::shared_ptr /
+//! std::weak_ptr style):
+//!   * `refcnt`      — strong refs (local_shared_ptr / atomic_shared_ptr)
+//!   * `weak_refcnt` — weak refs + 1 while strong > 0 ("alive" sentinel)
+//! Strong → 0 destroys T; control block lives until weak → 0.
+template <typename T>
+struct atomic_shared_ptr_gref_weakable_ {
+    typedef uintptr_t Refcnt;
+    atomic<Refcnt> refcnt;
+    atomic<Refcnt> weak_refcnt;
+    alignas(T) unsigned char data_storage[sizeof(T)];
+
+    template <typename ...Args>
+    explicit atomic_shared_ptr_gref_weakable_(Args&&... args)
+        : refcnt(1), weak_refcnt(1) {
+        new ( &data_storage) T(std::forward<Args>(args)...);
+    }
+    ~atomic_shared_ptr_gref_weakable_() noexcept {
+        assert(refcnt == 0);
+        //!< Fast path in `release_strong_zero` deletes without decrementing
+        //!< when weak_refcnt == 1 (no live weak_ptr).  Slow path leaves 0.
+        //!< Both are valid pre-delete states.
+        assert(weak_refcnt == 0 || weak_refcnt == 1);
+    }
+
+    T *ptr_() noexcept { return reinterpret_cast<T *>( &data_storage); }
+    const T *ptr_() const noexcept {
+        return reinterpret_cast<const T *>( &data_storage);
+    }
+
+    static void release_strong_zero(atomic_shared_ptr_gref_weakable_ *p) noexcept {
+        p->ptr_()->~T();
+        //!< Drop the implicit +1 weak.  Fast path: if weak_refcnt == 1
+        //!< no live `local_weak_ptr<T>` exists (the "1" IS the implicit),
+        //!< so skip the atomic fetch_sub.  Safe — no new weak_ptr can
+        //!< come into existence (no strong → no copy from shared; no
+        //!< existing weak → no copy from weak).
         if(p->weak_refcnt.load(std::memory_order_acquire) == 1) {
             delete p;
         }
@@ -135,16 +202,12 @@ struct atomic_shared_ptr_gref_ {
             delete p;
         }
     }
-    //! Called from `local_weak_ptr::reset()` when weak refcnt hits 0.
-    //! Strong was already 0 (otherwise weak_refcnt would still hold the
-    //! implicit +1), so it's safe to free the CB outright.
-    static void release_weak_zero(atomic_shared_ptr_gref_ *p) noexcept {
+    static void release_weak_zero(atomic_shared_ptr_gref_weakable_ *p) noexcept {
         delete p;
     }
-    //! Try to promote weak → strong (`local_weak_ptr::lock()`):
-    //! atomically increment `refcnt` if it's still > 0.  Returns true
-    //! when the object is still alive (strong was bumped); false when
-    //! expired.
+    //! Try to promote weak → strong (`local_weak_ptr::lock()`).  CAS
+    //! `refcnt` from N to N+1 iff N > 0.  Returns true if the object is
+    //! still alive.
     bool try_promote() noexcept {
         Refcnt cur = refcnt.load(std::memory_order_relaxed);
         for(;;) {
@@ -155,14 +218,14 @@ struct atomic_shared_ptr_gref_ {
         }
     }
 
-    atomic_shared_ptr_gref_(const atomic_shared_ptr_gref_ &) = delete;
+    atomic_shared_ptr_gref_weakable_(const atomic_shared_ptr_gref_weakable_ &) = delete;
 };
 
 template <typename X, typename Y, typename Z, typename E> struct atomic_shared_ptr_base;
 template <typename X> class atomic_shared_ptr;
 template <typename X, typename Y> class local_shared_ptr;
 template <typename X> class scoped_atomic_view;
-template <typename X, typename E = void> class local_weak_ptr;
+template <typename X> class local_weak_ptr;
 
 //! Use subclass of this to be storaged in atomic_shared_ptr with
 //! intrusive counting to obtain better performance.
@@ -245,17 +308,18 @@ local_unique_ptr<T> make_local_unique(Args&&... args) {
     return local_unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
-//! \brief Base class for atomic_shared_ptr without intrusive counting, so-called "simple counted".\n
-//! A global referece counter (an instance of atomic_shared_ptr_gref_) will be created.
+//! \brief Default base for non-intrusive `T` with separate object alloc
+//! (legacy mode).  `T` is allocated outside, gref holds a `T*`.  Does
+//! NOT support `local_weak_ptr<T>` — use `atomic_weakable` marker for
+//! that.
 template <typename T, typename reflocal_t, typename reflocal_var_t, typename Enable = void>
 struct atomic_shared_ptr_base {
 protected:
     typedef atomic_shared_ptr_gref_<T> Ref;
     typedef typename Ref::Refcnt Refcnt;
 
-    //!< Strong refcnt → 0 path.  Object delete + implicit-weak drop.
-    //!< CB itself is freed here only if no weak_ptr is alive.
-    static int deleter(Ref *p) noexcept { Ref::release_strong_zero(p); return 1; }
+    //!< Direct `delete p`: invokes `~Ref` which does `delete ptr`.
+    static int deleter(Ref *p) noexcept { delete p; return 1; }
 
     //! can be used to initialize the internal pointer \a m_ref.
     //! \sa reset()
@@ -283,6 +347,74 @@ protected:
     // benchmarks behave like 1024 threads vs. CAPACITY=32 systems.
     // Must be a power of two and <= sizeof(intptr_t) so the pointer
     // mask still strips only zero bits.
+#ifdef KAME_LOCAL_REF_CAPACITY_OVERRIDE
+    enum {LOCAL_REF_CAPACITY = KAME_LOCAL_REF_CAPACITY_OVERRIDE};
+#else
+    enum {LOCAL_REF_CAPACITY = (sizeof(intptr_t))};
+#endif
+};
+//! \brief Base for `T : atomic_emplaced` (combined alloc, no weak_ptr).
+//!  `T` lives inside the gref buffer; `reset_unsafe(Y*)` is intentionally
+//!  absent — use `make_local_shared<T>(args...)`.
+template <typename T, typename reflocal_t, typename reflocal_var_t>
+struct atomic_shared_ptr_base<T, reflocal_t, reflocal_var_t,
+        typename std::enable_if<
+            std::is_base_of<atomic_emplaced, T>::value
+            && !std::is_base_of<atomic_weakable, T>::value
+            && !std::is_base_of<atomic_countable, T>::value>::type> {
+protected:
+    typedef atomic_shared_ptr_gref_emplaced_<T> Ref;
+    typedef typename Ref::Refcnt Refcnt;
+
+    static int deleter(Ref *p) noexcept { Ref::release_strong_zero(p); return 1; }
+
+    //!< No reset_unsafe(Y*) — combined alloc requires constructor args.
+    //!< Use make_local_shared<T>(args).
+
+    T *get() noexcept {
+        return this->m_ref ? ((Ref*)(reflocal_t)this->m_ref)->ptr_() : NULL;
+    }
+    const T *get() const noexcept {
+        return this->m_ref ? ((const Ref*)(reflocal_t)this->m_ref)->ptr_() : NULL;
+    }
+    int _use_count_() const noexcept {
+        return ((const Ref*)(reflocal_t)this->m_ref)->refcnt;
+    }
+
+    reflocal_var_t m_ref;
+#ifdef KAME_LOCAL_REF_CAPACITY_OVERRIDE
+    enum {LOCAL_REF_CAPACITY = KAME_LOCAL_REF_CAPACITY_OVERRIDE};
+#else
+    enum {LOCAL_REF_CAPACITY = (sizeof(intptr_t))};
+#endif
+};
+//! \brief Base for `T : atomic_weakable` (combined alloc + weak refcnt).
+//!  Supports `local_weak_ptr<T>`.  Use `make_local_shared<T>(args)`.
+template <typename T, typename reflocal_t, typename reflocal_var_t>
+struct atomic_shared_ptr_base<T, reflocal_t, reflocal_var_t,
+        typename std::enable_if<
+            std::is_base_of<atomic_weakable, T>::value
+            && !std::is_base_of<atomic_countable, T>::value>::type> {
+protected:
+    typedef atomic_shared_ptr_gref_weakable_<T> Ref;
+    typedef typename Ref::Refcnt Refcnt;
+
+    static int deleter(Ref *p) noexcept { Ref::release_strong_zero(p); return 1; }
+
+    //!< No reset_unsafe(Y*) — combined alloc requires constructor args.
+    //!< Use make_local_shared<T>(args).
+
+    T *get() noexcept {
+        return this->m_ref ? ((Ref*)(reflocal_t)this->m_ref)->ptr_() : NULL;
+    }
+    const T *get() const noexcept {
+        return this->m_ref ? ((const Ref*)(reflocal_t)this->m_ref)->ptr_() : NULL;
+    }
+    int _use_count_() const noexcept {
+        return ((const Ref*)(reflocal_t)this->m_ref)->refcnt;
+    }
+
+    reflocal_var_t m_ref;
 #ifdef KAME_LOCAL_REF_CAPACITY_OVERRIDE
     enum {LOCAL_REF_CAPACITY = KAME_LOCAL_REF_CAPACITY_OVERRIDE};
 #else
@@ -400,14 +532,18 @@ public:
         this->reset_unsafe(y);
     }
 
-    T *get() noexcept { return atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::get(); }
-    const T *get() const noexcept { return atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::get(); }
+    //! Const-transparent (std::shared_ptr semantics): `get()`,
+    //! `operator*`, `operator->` always return non-const `T*` / `T&`
+    //! regardless of the constness of `*this`.  The smart pointer's
+    //! constness applies to the pointer itself (cannot reset / swap),
+    //! not to the pointee.  This matches what migrating code from
+    //! `std::shared_ptr<T>` expects.
+    T *get() const noexcept {
+        return const_cast<local_shared_ptr *>(this)->atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::get();
+    }
 
-    T &operator*() noexcept { assert( *this); return *get();}
-    const T &operator*() const noexcept { assert( *this); return *get();}
-
-    T *operator->() noexcept { assert( *this); return get();}
-    const T *operator->() const noexcept { assert( *this); return get();}
+    T &operator*() const noexcept { assert( *this); return *get();}
+    T *operator->() const noexcept { assert( *this); return get();}
 
     bool operator!() const noexcept {return !this->m_ref;}
     operator bool() const noexcept {return this->m_ref;}
@@ -441,7 +577,7 @@ protected:
     template <typename Y, typename Z> friend class local_shared_ptr;
     template <typename Y> friend class atomic_shared_ptr;
     template <typename Y> friend class scoped_atomic_view;  // operator local_shared_ptr<T>() needs m_ref
-    template <typename Y, typename E> friend class local_weak_ptr;  // lock() / promote path
+    template <typename Y> friend class local_weak_ptr;  // lock() / promote path
     typedef typename atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::Ref Ref;
     typedef typename atomic_shared_ptr_base<T, uintptr_t, reflocal_var_t>::Refcnt Refcnt;
     typedef uintptr_t TaggedPtr;
@@ -450,62 +586,56 @@ protected:
     Ref* ref_ptr_() const noexcept {return (Ref *)(TaggedPtr)(this->m_ref);}
 };
 
-//! \brief Weak counterpart of `local_shared_ptr<T>` — non-intrusive T only.
+//! \brief Weak counterpart of `local_shared_ptr<T>`.  Requires
+//! `T : atomic_weakable` so that the control block carries a
+//! `weak_refcnt`.  Holds a `Ref*` without contributing to
+//! `Ref::refcnt`; bumps `Ref::weak_refcnt` instead.  CB survives until
+//! both counters hit zero.  `lock()` atomically promotes to
+//! `local_shared_ptr<T>` if `T` is still alive.
 //!
-//! Holds a `Ref*` without contributing to `Ref::refcnt`; instead bumps
-//! `Ref::weak_refcnt`.  The CB (Ref) survives until both `refcnt` and
-//! `weak_refcnt` hit zero.  `lock()` atomically promotes to
-//! `local_shared_ptr<T>` if the object is still alive.
-//!
-//! Intrusive (`atomic_countable`-derived) `T` is not supported — there
-//! is no separate CB to track weak references.  SFINAE rejects such
-//! instantiations.
-//!
-//! Local refcount cache uses the same tagged-pointer LOCAL_REF_CAPACITY
-//! machinery as `local_shared_ptr` so weak-ptr copies / destroys are
-//! amortised: most operations are no-op atomic; only on cache overflow
-//! / drain does a `weak_refcnt` atomic fire.
+//! Standalone (no `atomic_shared_ptr_base` inheritance) so the class
+//! can be declared when `T` is only forward-declared — the
+//! `is_base_of` SFINAE in `atomic_shared_ptr_base` would otherwise
+//! require `T` complete.
 template <typename T>
-class local_weak_ptr<T, typename std::enable_if<!is_intrusive<T>::value>::type>
-    : protected atomic_shared_ptr_base<T, uintptr_t, uintptr_t> {
+class local_weak_ptr {
 public:
-    local_weak_ptr() noexcept { this->m_ref = (TaggedPtr)nullptr; }
+    //!< Note: T must inherit from `atomic_weakable` (provides
+    //!< `weak_refcnt`).  We don't `static_assert` here because the
+    //!< class is often declared with `T` only forward-declared
+    //!< (e.g., `PacketWrapper` holds `local_weak_ptr<Linkage>` before
+    //!< Linkage's full definition); the SFINAE in atomic_shared_ptr_base
+    //!< would require T complete.  Wrong-T instantiation fails at
+    //!< first use of `weak_refcnt` / `try_promote` with a reasonably
+    //!< clear error.
+
+    //!< `Ref` is only a typedef alias — declaring it does NOT instantiate
+    //!< `atomic_shared_ptr_gref_weakable_<T>`.  Pointer-to-Ref members and
+    //!< method bodies referencing `Ref::weak_refcnt` / `release_weak_zero`
+    //!< only force completion at first use, not at class-definition time.
+    //!< This is critical for the forward-decl pattern: `PacketWrapper`
+    //!< holds `local_weak_ptr<Linkage>` while `Linkage` is only declared.
+    //!< Do NOT add a `typedef typename Ref::Refcnt Refcnt;` here — that
+    //!< accesses a nested name of `Ref` and forces its completion.
+    typedef atomic_shared_ptr_gref_weakable_<T> Ref;
+
+    local_weak_ptr() noexcept : m_ref(nullptr) {}
 
     //! Construct from a `local_shared_ptr<T>` — bumps weak_refcnt by 1.
     template <typename Z>
-    explicit local_weak_ptr(const local_shared_ptr<T, Z> &sp) noexcept {
-        Ref *r = reinterpret_cast<Ref *>((TaggedPtr)sp.m_ref & ~(TaggedPtr)REFCNT_MASK);
-        this->m_ref = reinterpret_cast<TaggedPtr>(r);   //!< local weak count = 0
-        if(r)
-            r->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
+    explicit local_weak_ptr(const local_shared_ptr<T, Z> &sp) noexcept
+        : m_ref(reinterpret_cast<Ref *>(static_cast<uintptr_t>(sp.m_ref))) {
+        if(m_ref)
+            m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
     }
 
-    //! Copy: borrow from `o`'s local cache when possible (no atomic op).
-    //! Mirrors `local_shared_ptr` copy semantics but targets weak_refcnt.
-    local_weak_ptr(const local_weak_ptr &o) noexcept {
-        TaggedPtr v = o.m_ref;
-        Ref *r = reinterpret_cast<Ref *>(v & ~(TaggedPtr)REFCNT_MASK);
-        Refcnt local = v & REFCNT_MASK;
-        if(r && local + 1 < this->LOCAL_REF_CAPACITY) {
-            //!< Borrow: `o`'s local count +1 (covers `this`); this->m_ref
-            //!< stores the Ref* with local count 0.
-            o.m_ref = v + 1;
-            this->m_ref = reinterpret_cast<TaggedPtr>(r);
-        }
-        else if(r) {
-            //!< Cache full → one global atomic.
-            r->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
-            this->m_ref = reinterpret_cast<TaggedPtr>(r);
-        }
-        else {
-            this->m_ref = (TaggedPtr)nullptr;
-        }
+    //! Copy: straightforward global fetch_add (mirrors local_shared_ptr).
+    local_weak_ptr(const local_weak_ptr &o) noexcept : m_ref(o.m_ref) {
+        if(m_ref)
+            m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
     }
 
-    local_weak_ptr(local_weak_ptr &&o) noexcept {
-        this->m_ref = o.m_ref;
-        o.m_ref = (TaggedPtr)nullptr;
-    }
+    local_weak_ptr(local_weak_ptr &&o) noexcept : m_ref(o.m_ref) { o.m_ref = nullptr; }
 
     ~local_weak_ptr() noexcept { reset(); }
 
@@ -525,55 +655,34 @@ public:
     }
 
     void swap(local_weak_ptr &o) noexcept {
-        TaggedPtr t = this->m_ref;
-        this->m_ref = o.m_ref;
-        o.m_ref = t;
+        Ref *t = m_ref; m_ref = o.m_ref; o.m_ref = t;
     }
 
-    //! Drop weak ref; if last and strong also zero, free the CB.
+    //! Drop weak ref; if last, free the CB.
     void reset() noexcept {
-        TaggedPtr v = this->m_ref;
-        Ref *r = reinterpret_cast<Ref *>(v & ~(TaggedPtr)REFCNT_MASK);
-        if( !r) return;
-        Refcnt local = v & REFCNT_MASK;
-        //!< This instance plus its local-cache donors → `local + 1` weak refs.
-        if(r->weak_refcnt.fetch_sub(local + 1u, std::memory_order_acq_rel) == local + 1u) {
-            Ref::release_weak_zero(r);
+        if(m_ref) {
+            if(m_ref->weak_refcnt.fetch_sub(1, std::memory_order_acq_rel) == 1)
+                Ref::release_weak_zero(m_ref);
+            m_ref = nullptr;
         }
-        this->m_ref = (TaggedPtr)nullptr;
     }
 
     //! Promote to `local_shared_ptr<T>`; returns empty when expired.
     local_shared_ptr<T> lock() const noexcept {
-        Ref *r = reinterpret_cast<Ref *>((TaggedPtr)this->m_ref & ~(TaggedPtr)REFCNT_MASK);
-        if( !r || !r->try_promote()) return local_shared_ptr<T>();
-        //!< try_promote bumped refcnt; hand the Ref* to a local_shared_ptr
-        //!< with local count 0 via the adopt-promoted ctor.
-        return local_shared_ptr<T>(typename local_shared_ptr<T>::adopt_promoted_t{}, r);
+        if( !m_ref || !m_ref->try_promote()) return local_shared_ptr<T>();
+        return local_shared_ptr<T>(
+            typename local_shared_ptr<T>::adopt_promoted_t{}, m_ref);
     }
 
     bool expired() const noexcept {
-        Ref *r = reinterpret_cast<Ref *>((TaggedPtr)this->m_ref & ~(TaggedPtr)REFCNT_MASK);
-        return !r || r->refcnt.load(std::memory_order_acquire) == 0;
+        return !m_ref || m_ref->refcnt.load(std::memory_order_acquire) == 0;
     }
 
-    bool operator!() const noexcept {return !this->m_ref;}
-    explicit operator bool() const noexcept {return this->m_ref;}
+    bool operator!() const noexcept {return !m_ref;}
+    explicit operator bool() const noexcept {return m_ref;}
 
-protected:
-    template <typename Y, typename Z> friend class local_shared_ptr;
-    template <typename Y> friend class atomic_shared_ptr;
-    typedef typename atomic_shared_ptr_base<T, uintptr_t, uintptr_t>::Ref Ref;
-    typedef typename atomic_shared_ptr_base<T, uintptr_t, uintptr_t>::Refcnt Refcnt;
-    typedef uintptr_t TaggedPtr;
-    enum { LOCAL_REF_CAPACITY =
-        atomic_shared_ptr_base<T, uintptr_t, uintptr_t>::LOCAL_REF_CAPACITY };
-    static constexpr TaggedPtr REFCNT_MASK = (TaggedPtr)LOCAL_REF_CAPACITY - 1;
-
-    //!< `o.m_ref` is `mutable`-ish for copy ctor (donation pattern).  The
-    //!< inherited member is non-mutable; cheat via const_cast as
-    //!< local_shared_ptr does for the same purpose.
-    using atomic_shared_ptr_base<T, uintptr_t, uintptr_t>::m_ref;
+private:
+    Ref *m_ref;
 };
 
 /*! \brief This is an atomic variant of \a std::shared_ptr, and can be shared by atomic and lock-free means.\n
@@ -1195,9 +1304,36 @@ private:
     template <typename Y> friend class atomic_shared_ptr;
 };
 
+//! \brief Construct a `local_shared_ptr<T>` with `T(args...)` —
+//! single-allocation when `T` opts into `atomic_emplaced` or
+//! `atomic_weakable`, two-allocation legacy fallback otherwise.
+//!
+//! Dispatch (compile-time):
+//!   * `T : atomic_weakable`  → single alloc + weak_refcnt, supports
+//!                              `local_weak_ptr<T>`.
+//!   * `T : atomic_emplaced`  → single alloc, no weak.
+//!   * else (incl. intrusive `atomic_countable`) → 2 allocs via
+//!                              `local_shared_ptr<T>(new T(...))`.
 template <typename T, class... Args>
 local_shared_ptr<T> make_local_shared(Args&&... args) {
-    return local_shared_ptr<T>(new T(std::forward<Args>(args)...));
+    if constexpr (std::is_base_of<atomic_weakable, T>::value
+                  && !std::is_base_of<atomic_countable, T>::value) {
+        using Ref = atomic_shared_ptr_gref_weakable_<T>;
+        Ref *r = new Ref(std::forward<Args>(args)...);
+        return local_shared_ptr<T>(
+            typename local_shared_ptr<T>::adopt_promoted_t{}, r);
+    }
+    else if constexpr (std::is_base_of<atomic_emplaced, T>::value
+                       && !std::is_base_of<atomic_countable, T>::value) {
+        using Ref = atomic_shared_ptr_gref_emplaced_<T>;
+        Ref *r = new Ref(std::forward<Args>(args)...);
+        return local_shared_ptr<T>(
+            typename local_shared_ptr<T>::adopt_promoted_t{}, r);
+    }
+    else {
+        //!< Legacy / intrusive — 2 allocations.
+        return local_shared_ptr<T>(new T(std::forward<Args>(args)...));
+    }
 }
 
 template <typename T, class Alloc, class... Args>
