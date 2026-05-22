@@ -17,7 +17,7 @@ win32 {
     win32-msvc* {
         DEFINES += DECLSPEC_KAME=__declspec(dllimport)
         DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
-        DEFINES += DECLSPEC_SHARED=__declspec(dllimport)
+        DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
         LIBS += $${PRI_DIR}../kame.lib
     }
     else {
@@ -25,7 +25,7 @@ win32 {
         win32-clang-g++ {
             DEFINES += DECLSPEC_KAME=__declspec(dllimport)
             DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
-            DEFINES += DECLSPEC_SHARED=__declspec(dllimport)
+            DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
         }
     # -Wl,--whole-archive ${old_libs} -Wl,--no-whole-archive ${dependency_libs} -Wl,--enable-auto-import
         LIBS += $${PRI_DIR}../kame/kame.a
