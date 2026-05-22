@@ -78,6 +78,13 @@ public:
 	//! they don't leak when the chunk is later released.  Default
 	//! no-op; FS=true PoolAllocator overrides.
 	virtual void flush_owner_freelist() noexcept {}
+	//! Null out this thread's `s_my_chunk` for this chunk's ALIGN type.
+	//! Called from `AllocPinCleanup` after freelist flush, before pin
+	//! count decrement.  Prevents stale `s_my_chunk` from pushing to
+	//! a dead freelist when later TLS destructors (e.g.
+	//! `RunnerCounterRegistration` via `pthread_key`) do heap
+	//! alloc/dealloc after `AllocPinCleanup` has already run.
+	virtual void clear_owner_tls() noexcept {}
 protected:
 	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
 	virtual bool deallocate_pooled(char *p) = 0;
@@ -189,6 +196,7 @@ protected:
 
 	void flush_owner_freelist() noexcept override;
 	void flush_owner_freelist_to_bitmap() noexcept;
+	void clear_owner_tls() noexcept override;
 
 	void operator delete(void *) throw();
 private:
@@ -275,13 +283,14 @@ void* allocate_large_size_or_malloc(size_t size) throw();
 }
 
 extern bool g_sys_image_loaded;
+extern ALLOC_TLS bool s_alloc_tls_off;
 
 void activateAllocator();
 
 inline void* new_redirected(std::size_t size) {
 	//expecting a compile-time optimization because size is usually fixed to the object size.
-    if( !g_sys_image_loaded)
-        return malloc(size); //Not to allocate dyld objects.
+    if( !g_sys_image_loaded || s_alloc_tls_off)
+        return malloc(size); //Not to allocate dyld / post-TLS-cleanup objects.
 
 	if(size <= ALLOC_SIZE1)
 		return PoolAllocator<ALLOC_SIZE1, true>::allocate<ALLOC_SIZE1>();

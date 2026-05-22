@@ -28,6 +28,15 @@
 #include <string.h>
 #include <type_traits>
 
+// Per-thread flag: set to true when AllocPinCleanup has run, signalling
+// that pool-allocator TLS (s_my_chunk, freelists, pin counts) is no
+// longer valid.  Trivially destructible (`ALLOC_TLS` = `__thread`) so it
+// survives past all thread_local / pthread_key destructors.  Checked in
+// `new_redirected()` to fall back to malloc for any heap operations
+// that occur during later TLS cleanup phases (e.g. pthread_key dtors
+// like RunnerCounterRegistration).
+ALLOC_TLS bool s_alloc_tls_off = false;
+
 // Per-thread cleanup of pinned chunks. On thread exit the destructor of
 // this TLS object walks the registered atomic pin counters and decrements
 // each, allowing release_allocator() to reclaim chunks the thread had
@@ -52,6 +61,18 @@ struct AllocPinCleanup {
         // released (pin count → 0).
         for(int i = 0; i < count; ++i)
             pinned[i].chunk->flush_owner_freelist();
+        // Null out per-ALIGN `s_my_chunk` TLS pointers BEFORE
+        // decrementing pin counts.  Without this, later TLS destructors
+        // (e.g. RunnerCounterRegistration via pthread_key_create) that
+        // run after this thread_local destructor see a stale s_my_chunk
+        // and push to a dead freelist — permanent slot leak, or
+        // use-after-free if the chunk was released.
+        for(int i = 0; i < count; ++i)
+            pinned[i].chunk->clear_owner_tls();
+        // Signal that pool-allocator TLS is dead.  new_redirected()
+        // checks this and falls back to malloc() for any allocation
+        // during later TLS cleanup phases.
+        s_alloc_tls_off = true;
         for(int i = 0; i < count; ++i)
             pinned[i].count_ptr->fetch_sub(1, std::memory_order_release);
     }
@@ -544,6 +565,12 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist() noexcept {
 	flush_owner_freelist_to_bitmap();
+}
+
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void
+PoolAllocator<ALIGN, FS, DUMMY>::clear_owner_tls() noexcept {
+	s_my_chunk = nullptr;
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
