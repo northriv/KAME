@@ -109,8 +109,16 @@ private:
 #endif
 };
 
+// NOT `inline` — `inline` on a template function causes MSVC (and the
+// C++ standard) to treat `extern template` declarations as a no-op:
+// the compiler is free to emit a local instantiation, giving each DLL
+// its own `static thread_local T v{}` / `static Key key;`.  Removing
+// `inline` lets `extern template` suppress implicit instantiation, so
+// plugin DLLs import from libkame.dll and all callers share one TLS
+// slot.  Template definitions are permitted in headers without `inline`
+// (ODR exemption [temp.over.link]/5).
 template <typename T, typename Tag>
-inline T &XThreadLocal<T, Tag>::libkame_storage() {
+T &XThreadLocal<T, Tag>::libkame_storage() {
     if constexpr (std::is_trivially_destructible<T>::value) {
         static thread_local T v{};
         return v;
