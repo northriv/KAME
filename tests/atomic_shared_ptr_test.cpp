@@ -126,9 +126,67 @@ start_routine() {
 
 #define NUM_THREADS 4
 
+//! Basic local_weak_ptr sanity: construct from local_shared_ptr,
+//! lock() while alive, expired() after the last strong drops, CB
+//! deleted only when both counters hit zero.
+static void test_local_weak_ptr_basic() {
+    printf("test_local_weak_ptr_basic\n");
+    int objcnt_before = objcnt;
+    {
+        local_shared_ptr<A> sp(new A(42));
+        assert(objcnt == objcnt_before + 1);
+        local_weak_ptr<A> wp(sp);
+        assert( !wp.expired());
+        {
+            local_shared_ptr<A> locked = wp.lock();
+            assert(locked);
+            assert(locked->x() == 42);
+            assert(sp.use_count() == 2);
+        }
+        assert(sp.use_count() == 1);
+        sp.reset();
+        //!< Object is destroyed (strong=0) but CB lives for the weak.
+        assert(objcnt == objcnt_before);
+        assert(wp.expired());
+        assert( !wp.lock());
+    }
+    //!< wp out of scope → CB freed (no leak detection here, but the
+    //!< Refcnt asserts in ~atomic_shared_ptr_gref_ catch double-free /
+    //!< stuck refs).
+}
+
+//! Concurrent lock() racing strong destruction: stresses try_promote
+//! CAS loop + release_strong_zero's fast-path branch.
+static void test_local_weak_ptr_race() {
+    printf("test_local_weak_ptr_race\n");
+    constexpr int N = 4;
+    constexpr int ITERS = 10000;
+    int objcnt_before = objcnt;
+    std::thread ths[N];
+    for(int t = 0; t < N; ++t) {
+        ths[t] = std::thread([](){
+            for(int i = 0; i < ITERS; ++i) {
+                local_shared_ptr<A> sp(new A(i + 1));
+                local_weak_ptr<A> wp(sp);
+                {
+                    auto l = wp.lock();
+                    assert(l && l->x() == i + 1);
+                }
+                sp.reset();
+                assert(wp.expired());
+            }
+        });
+    }
+    for(auto &t : ths) t.join();
+    assert(objcnt == objcnt_before);
+}
+
 int
 main(int argc, char **argv)
 {
+    test_local_weak_ptr_basic();
+    test_local_weak_ptr_race();
+
     std::thread threads[NUM_THREADS];
 
     for(int i = 0; i < NUM_THREADS; i++) {
