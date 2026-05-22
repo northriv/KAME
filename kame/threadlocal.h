@@ -15,26 +15,11 @@
 #define THREADLOCAL_H_
 
 #include "support.h"
-#include <type_traits>
 #include <cassert>
 
-#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
-// Win32 Fiber-Local Storage (Vista+) — forward-declared to avoid
-// pulling in <windows.h>.  WINAPI = __stdcall on x86, no-op on
-// x64/ARM64; declaring __stdcall is safe on all three.
-extern "C" {
-    __declspec(dllimport) unsigned long __stdcall
-        FlsAlloc(void (__stdcall *)(void *));
-    __declspec(dllimport) void * __stdcall FlsGetValue(unsigned long);
-    __declspec(dllimport) int __stdcall FlsSetValue(unsigned long, void *);
-    __declspec(dllimport) int __stdcall FlsFree(unsigned long);
-}
-constexpr unsigned long KAME_FLS_OUT_OF_INDEXES = 0xFFFFFFFFu;
-#endif
-
-//! Applied to the cached `T*` in `operator*()` below.  `__thread` lets
-//! the linker pick initial-exec TLS for libkame (loaded at startup) →
-//! one register-offset load on Linux ELF.  Plugins (dlopen'd) get
+//! Applied to the per-DLL cached `T*` in `operator*()` below.  `__thread`
+//! lets the linker pick initial-exec TLS for libkame (loaded at startup)
+//! → one register-offset load on Linux ELF.  Plugins (dlopen'd) get
 //! general-dynamic automatically.  macOS goes through `_tlv_get_addr`
 //! either way; MSVC requires `thread_local`.
 #if (defined(__GNUC__) || defined(__clang__)) \
@@ -44,44 +29,64 @@ constexpr unsigned long KAME_FLS_OUT_OF_INDEXES = 0xFFFFFFFFu;
     #define KAME_TLS_QUAL thread_local
 #endif
 
+namespace Transactional { namespace detail {
+
+//! \brief Type-erased TLS slot acquisition — defined once in libkame.dll,
+//! dllimport from all plugin DLLs.  Identifies a slot by the address of
+//! the caller's `XThreadLocal<T, Tag>` object: when that object is
+//! declared `DECLSPEC_KAME extern` in a header and defined in libkame's
+//! TU, every DLL sees the same address, so every DLL gets the same
+//! per-thread storage.  Module-internal XThreadLocal (not DECLSPEC_KAME)
+//! has a per-DLL address — also correct: each module gets its own slot.
+//!
+//! \param key   Identity of the slot (one per XThreadLocal object).
+//! \param ctor  Called once per thread on first access; returns a heap
+//!              allocation of T.  Function pointer is captured at first
+//!              access and reused; pointer must remain valid for the
+//!              thread's lifetime (it is in practice — DLL unload after
+//!              all threads exited is the only way it could break).
+//! \param dtor  Called on thread exit with the ctor's result.
+//!
+//! Lookup is a short linked-list walk per first-access; subsequent
+//! accesses are served by `XThreadLocal::operator*()`'s `KAME_TLS_QUAL`
+//! cached pointer (one load, no function call).
+DECLSPEC_KAME void *tls_storage(const void *key,
+                                 void *(*ctor)(),
+                                 void (*dtor)(void *)) noexcept;
+
+}} // namespace Transactional::detail
+
 //! Thread Local Storage template — single abstraction for per-thread
 //! storage in KAME.
 //!
 //! Two paths:
 //!
 //!   * `operator*()` (hot) — per-TU per-thread `KAME_TLS_QUAL T*`
-//!     cache.  First access calls `libkame_storage()` and latches
-//!     the returned address; subsequent accesses are a single
-//!     cached-pointer deref.  `T*` is trivial so `__thread` applies
-//!     regardless of `T`'s traits.
+//!     cache.  First access calls `detail::tls_storage()` (in libkame.dll)
+//!     and latches the returned address; subsequent accesses are a
+//!     single cached-pointer deref.
 //!
-//!   * `libkame_storage()` (cold) — actual storage.  Speed doesn't
-//!     matter (amortised by the cache).  Internal `if constexpr`:
-//!       - trivial-dtor T → `static thread_local T v{}`.
-//!       - non-trivial-dtor T → OS TLS slot with explicit cleanup:
-//!         Windows `FlsAlloc`, POSIX `pthread_key_create`.  Works
-//!         around g++ pre-10 thread_local-dtor bugs in shared
-//!         libraries; also drops the Qt dependency that the
-//!         previous `QThreadStorage` path needed.
+//!   * `detail::tls_storage()` (cold) — single libkame-side
+//!     dispatcher.  Walks a per-thread linked list keyed by the
+//!     `XThreadLocal` object's address; on miss, calls `ctor_()` to
+//!     create the T and registers `dtor_()` for thread-exit cleanup.
+//!
+//! Cross-DLL singleton is automatic when the `XThreadLocal<T, Tag>`
+//! object itself is declared `DECLSPEC_KAME extern` in a shared header
+//! and defined once in libkame.dll — all DLLs then reference the same
+//! object address, which is the key for `tls_storage()`.  Module-internal
+//! `XThreadLocal` (no DECLSPEC_KAME) has a per-DLL address and gets its
+//! own per-DLL slot — also correct.
+//!
+//! No explicit instantiation or `extern template` declaration is
+//! required anywhere — the compile-time identity of `T` and `Tag` is
+//! used only to wire the type-specific `ctor_()` / `dtor_()` callbacks.
 //!
 //! \tparam T   Per-thread datum; default-constructed on first access.
 //! \tparam Tag Disambiguator (defaulted to `void`).  Same `T` + same
-//!             `Tag` alias the function-local storage of
-//!             `libkame_storage()`; supply a distinct empty struct
-//!             when shared `T` needs distinct slots.
-//!
-//! Cross-DLL singleton via explicit member-template instantiation:
-//!
-//! ```cpp
-//! struct STxNestTag;
-//! extern template int&
-//!     XThreadLocal<int, STxNestTag>::libkame_storage();   // header
-//! DECLSPEC_KAME extern XThreadLocal<int, STxNestTag> s_tx_nest;
-//!
-//! template DECLSPEC_KAME int&
-//!     XThreadLocal<int, STxNestTag>::libkame_storage();   // libkame TU
-//! DECLSPEC_KAME XThreadLocal<int, STxNestTag> s_tx_nest;
-//! ```
+//!             `Tag` with the same enclosing object address share a slot;
+//!             supply a distinct empty struct when you need distinct
+//!             slots for the same `T`.
 template <typename T, typename Tag = void>
 class XThreadLocal {
 public:
@@ -93,80 +98,16 @@ public:
     T &operator*() const noexcept {
         static KAME_TLS_QUAL T *cached = nullptr;
         if( !cached) [[unlikely]]
-            cached = &libkame_storage();
+            cached = static_cast<T *>(
+                Transactional::detail::tls_storage(
+                    static_cast<const void *>(this), &ctor_, &dtor_));
         return *cached;
     }
     T *operator->() const noexcept { return &( **this); }
 
-    DECLSPEC_KAME static T &libkame_storage();
-
 private:
-    static void delete_tls(void *p) noexcept { delete static_cast<T *>(p); }
-#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
-    static void __stdcall delete_tls_winapi(void *p) noexcept {
-        delete static_cast<T *>(p);
-    }
-#endif
+    static void *ctor_() { return new T(); }
+    static void dtor_(void *p) noexcept { delete static_cast<T *>(p); }
 };
-
-// NOT `inline` — `inline` on a template function causes MSVC (and the
-// C++ standard) to treat `extern template` declarations as a no-op:
-// the compiler is free to emit a local instantiation, giving each DLL
-// its own `static thread_local T v{}` / `static Key key;`.  Removing
-// `inline` lets `extern template` suppress implicit instantiation, so
-// plugin DLLs import from libkame.dll and all callers share one TLS
-// slot.  Template definitions are permitted in headers without `inline`
-// (ODR exemption [temp.over.link]/5).
-template <typename T, typename Tag>
-T &XThreadLocal<T, Tag>::libkame_storage() {
-    if constexpr (std::is_trivially_destructible<T>::value) {
-        static thread_local T v{};
-        return v;
-    }
-    else {
-#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
-        struct Key {
-            unsigned long k;
-            Key() {
-                k = FlsAlloc(&delete_tls_winapi);
-                assert(k != KAME_FLS_OUT_OF_INDEXES); (void)k;
-            }
-            ~Key() { FlsFree(k); }
-        };
-        static Key key;
-        T *p = static_cast<T *>(FlsGetValue(key.k));
-        if( !p) [[unlikely]] {
-            p = new T;
-            int ok = FlsSetValue(key.k, p);
-            assert(ok); (void)ok;
-        }
-        return *p;
-#elif defined(USE_PTHREAD)
-        struct Key {
-            pthread_key_t k;
-            Key() {
-                int ret = pthread_key_create( &k, &delete_tls);
-                assert( !ret); (void)ret;
-            }
-            ~Key() {
-                int ret = pthread_key_delete(k);
-                assert( !ret); (void)ret;
-            }
-        };
-        static Key key;
-        T *p = static_cast<T *>(pthread_getspecific(key.k));
-        if( !p) [[unlikely]] {
-            p = new T;
-            int ret = pthread_setspecific(key.k, p);
-            assert( !ret); (void)ret;
-        }
-        return *p;
-#else
-        // Fallback for minimal TUs with neither USE_PTHREAD nor Windows.
-        static thread_local T v{};
-        return v;
-#endif
-    }
-}
 
 #endif /*THREADLOCAL_H_*/

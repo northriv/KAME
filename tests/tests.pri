@@ -22,6 +22,11 @@ QMAKE_CXXFLAGS += -include $${_PRO_FILE_PWD_}/support_standalone.h
 # ../kame/allocator.h) and this file contributes nothing.
 SOURCES += $${_PRO_FILE_PWD_}/allocator.cpp
 
+# `detail::tls_storage()` is the type-erased TLS dispatcher every
+# `XThreadLocal<T, Tag>` calls into.  In the real build this lives in
+# kame.dll; the standalone test binary needs its own copy.
+SOURCES += $${_PRO_FILE_PWD_}/../kame/threadlocal.cpp
+
 win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2
 }

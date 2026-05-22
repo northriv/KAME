@@ -19,12 +19,6 @@
 
 DECLSPEC_KAME XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;
 
-// Matches the `extern template` declaration in xnode.h — emits one
-// exported `libkame_storage()` symbol so all DLLs share kame.dll's TLS
-// slot for `XNode::stl_thisCreating`.
-template DECLSPEC_KAME std::deque<shared_ptr<XNode> >&
-    XThreadLocal<std::deque<shared_ptr<XNode> > >::libkame_storage();
-
 void
 XNode::Payload::setUIEnabled(bool var) {
 	if(isDisabled()) return;

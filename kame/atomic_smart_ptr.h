@@ -204,14 +204,15 @@ struct atomic_weakable : atomic_emplaced {};
 struct atomic_emplaced_strict : atomic_emplaced, atomic_strictrefonly {};
 
 //! Non-intrusive control block, T embedded (emplaced) — single
-//! allocation, NO weak_ptr support.  `data_storage` is placed first
-//! so that `ptr_()` returns `this` with zero offset — matching the
-//! intrusive layout for hot-path dereferences.
+//! allocation, NO weak_ptr support.  `refcnt` is placed first so
+//! that polymorphic types (where `local_shared_ptr<Base>` holds
+//! `gref_emplaced_<Derived>*`) access refcnt at a fixed offset
+//! regardless of T's size.
 template <typename T>
 struct atomic_shared_ptr_gref_emplaced_ {
     typedef uintptr_t Refcnt;
-    alignas(T) unsigned char data_storage[sizeof(T)];
     atomic<Refcnt> refcnt;
+    alignas(T) unsigned char data_storage[sizeof(T)];
 
     template <typename ...Args>
     explicit atomic_shared_ptr_gref_emplaced_(Args&&... args)
@@ -222,9 +223,9 @@ struct atomic_shared_ptr_gref_emplaced_ {
         assert(refcnt == 0);
     }
 
-    T *ptr_() noexcept { return reinterpret_cast<T *>(this); }
+    T *ptr_() noexcept { return reinterpret_cast<T *>( &data_storage); }
     const T *ptr_() const noexcept {
-        return reinterpret_cast<const T *>(this);
+        return reinterpret_cast<const T *>( &data_storage);
     }
 
     static void release_strong_zero(atomic_shared_ptr_gref_emplaced_ *p) noexcept {
@@ -369,8 +370,7 @@ protected:
 };
 //! \brief Base for `T : atomic_emplaced + atomic_strictrefonly` (combined
 //!  alloc, NO weak refcnt).  Single allocation, `local_weak_ptr<T>` not
-//!  supported.  `data_storage` is at offset 0 in `gref_emplaced_`, so
-//!  `(T*)m_ref` is valid without indirection — matching intrusive layout.
+//!  supported.  Saves 8 bytes per control block vs the weak-capable path.
 template <typename T, typename reflocal_t, typename reflocal_var_t>
 struct atomic_shared_ptr_base<T, reflocal_t, reflocal_var_t,
         typename std::enable_if<
@@ -382,8 +382,12 @@ protected:
 
     static int deleter(Ref *p) noexcept { Ref::release_strong_zero(p); return 1; }
 
-    T *get() noexcept { return (T*)(reflocal_t)this->m_ref; }
-    const T *get() const noexcept { return (const T*)(reflocal_t)this->m_ref; }
+    T *get() noexcept {
+        return this->m_ref ? ((Ref*)(reflocal_t)this->m_ref)->ptr_() : NULL;
+    }
+    const T *get() const noexcept {
+        return this->m_ref ? ((const Ref*)(reflocal_t)this->m_ref)->ptr_() : NULL;
+    }
     int _use_count_() const noexcept {
         return ((const Ref*)(reflocal_t)this->m_ref)->refcnt;
     }

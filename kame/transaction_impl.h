@@ -55,10 +55,10 @@ namespace Transactional {
 // break the runner-counter / nest-depth singleton invariants.
 namespace detail {
 
-// Per-thread TLS variables — XThreadLocal instances hosted in libkame,
-// imported by plugins via the matching `extern template ...
-// ::libkame_storage();` declarations at the bottom of transaction.h.
-// Per-member explicit instantiations at the bottom of this file.
+// Per-thread TLS singletons — `DECLSPEC_KAME` exports each XThreadLocal
+// object from libkame; plugin DLLs see the same object address via
+// dllimport, which is what `detail::tls_storage()` uses as the slot key.
+// (See threadlocal.h for the type-erased dispatcher design.)
 DECLSPEC_KAME XThreadLocal<int, STxNestTag>     s_tx_nest;
 DECLSPEC_KAME XThreadLocal<int, SSleepNestTag>  s_sleep_nest;
 DECLSPEC_KAME XThreadLocal<void*, TlsPayloadCreatorPtrTag>
@@ -2816,42 +2816,4 @@ void setCurrentPriorityMode(Priority pr) {
 }
 
 } //namespace Transactional
-
-// Explicit instantiations of `libkame_storage()` — emit one exported
-// symbol per (T, Tag) in libkame.  Global scope, per [temp.explicit].
-template DECLSPEC_KAME int&
-    XThreadLocal<int, Transactional::detail::STxNestTag>::libkame_storage();
-template DECLSPEC_KAME int&
-    XThreadLocal<int, Transactional::detail::SSleepNestTag>::libkame_storage();
-template DECLSPEC_KAME void*&
-    XThreadLocal<void*, Transactional::detail::TlsPayloadCreatorPtrTag>::libkame_storage();
-template DECLSPEC_KAME Transactional::detail::TlsSerial&
-    XThreadLocal<Transactional::detail::TlsSerial>::libkame_storage();
-template DECLSPEC_KAME local_shared_ptr<Transactional::detail::RunnerCounterEntry>&
-    XThreadLocal<local_shared_ptr<Transactional::detail::RunnerCounterEntry>>::libkame_storage();
-template DECLSPEC_KAME Transactional::detail::RunnerCounterEntry*&
-    XThreadLocal<Transactional::detail::RunnerCounterEntry*,
-                 Transactional::detail::TlsRunnerCounterPtrTag>::libkame_storage();
-template DECLSPEC_KAME Transactional::detail::StampKind&
-    XThreadLocal<Transactional::detail::StampKind,
-                 Transactional::detail::SCurrentOpKindTag>::libkame_storage();
-#if KAME_ENABLE_RUNNER_DIGEST
-template DECLSPEC_KAME Transactional::detail::RunnerDigest&
-    XThreadLocal<Transactional::detail::RunnerDigest>::libkame_storage();
-#endif
-
-// NegSite class-static TLS.
-template DECLSPEC_KAME std::unordered_map<int, Transactional::NegSite::SiteState>&
-    XThreadLocal<std::unordered_map<int, Transactional::NegSite::SiteState>,
-                 Transactional::NegSite::StateMapTag>::libkame_storage();
-template DECLSPEC_KAME Transactional::NegSite::SiteState *&
-    XThreadLocal<Transactional::NegSite::SiteState *,
-                 Transactional::NegSite::CurrentStateTag>::libkame_storage();
-template DECLSPEC_KAME bool&
-    XThreadLocal<bool, Transactional::NegSite::LastWasGateReturnTag>::libkame_storage();
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-template DECLSPEC_KAME Transactional::NegSite::AutoMergeStats&
-    XThreadLocal<Transactional::NegSite::AutoMergeStats,
-                 Transactional::NegSite::AutoMergeStatsTag>::libkame_storage();
-#endif
 

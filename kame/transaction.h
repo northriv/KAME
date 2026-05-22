@@ -52,13 +52,7 @@
   #endif
 #endif
 
-// Forward-declare the Tag struct so the global-scope `extern template`
-// below can name it.  The remaining `extern template` declarations for
-// other (T, Tag) pairs live at the bottom of this header (after all
-// types are defined; [temp.explicit] requires global scope).
 namespace Transactional { namespace detail { struct STxNestTag; }}
-extern template DECLSPEC_KAME int&
-    XThreadLocal<int, Transactional::detail::STxNestTag>::libkame_storage();
 
 namespace Transactional {
 
@@ -2582,42 +2576,5 @@ void Node<XN>::iterate_commit_while(Closure &&closure) {
 }
 
 } //namespace Transactional
-
-// `extern template` declarations for cross-DLL TLS — match the
-// `template ... ::libkame_storage();` definitions at the bottom of
-// transaction_impl.h.  See threadlocal.h.
-extern template DECLSPEC_KAME int&
-    XThreadLocal<int, Transactional::detail::SSleepNestTag>::libkame_storage();
-extern template DECLSPEC_KAME void*&
-    XThreadLocal<void*, Transactional::detail::TlsPayloadCreatorPtrTag>::libkame_storage();
-extern template DECLSPEC_KAME Transactional::detail::TlsSerial&
-    XThreadLocal<Transactional::detail::TlsSerial>::libkame_storage();
-extern template DECLSPEC_KAME local_shared_ptr<Transactional::detail::RunnerCounterEntry>&
-    XThreadLocal<local_shared_ptr<Transactional::detail::RunnerCounterEntry>>::libkame_storage();
-extern template DECLSPEC_KAME Transactional::detail::RunnerCounterEntry*&
-    XThreadLocal<Transactional::detail::RunnerCounterEntry*,
-                 Transactional::detail::TlsRunnerCounterPtrTag>::libkame_storage();
-extern template DECLSPEC_KAME Transactional::detail::StampKind&
-    XThreadLocal<Transactional::detail::StampKind,
-                 Transactional::detail::SCurrentOpKindTag>::libkame_storage();
-#if KAME_ENABLE_RUNNER_DIGEST
-extern template DECLSPEC_KAME Transactional::detail::RunnerDigest&
-    XThreadLocal<Transactional::detail::RunnerDigest>::libkame_storage();
-#endif
-
-// NegSite class-static TLS.
-extern template DECLSPEC_KAME std::unordered_map<int, Transactional::NegSite::SiteState>&
-    XThreadLocal<std::unordered_map<int, Transactional::NegSite::SiteState>,
-                 Transactional::NegSite::StateMapTag>::libkame_storage();
-extern template DECLSPEC_KAME Transactional::NegSite::SiteState *&
-    XThreadLocal<Transactional::NegSite::SiteState *,
-                 Transactional::NegSite::CurrentStateTag>::libkame_storage();
-extern template DECLSPEC_KAME bool&
-    XThreadLocal<bool, Transactional::NegSite::LastWasGateReturnTag>::libkame_storage();
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-extern template DECLSPEC_KAME Transactional::NegSite::AutoMergeStats&
-    XThreadLocal<Transactional::NegSite::AutoMergeStats,
-                 Transactional::NegSite::AutoMergeStatsTag>::libkame_storage();
-#endif
 
 #endif /*TRANSACTION_H*/
