@@ -51,9 +51,25 @@
     }
     #endif
 
+    extern void activateAllocator();
     extern void release_pools();
-
 #endif
+
+//! RAII guard: enables the KAME pool allocator on construction, tears
+//! it down on destruction.  Declare one in `main()` (or any function
+//! whose scope brackets all pool-allocated lifetimes).  Until the
+//! guard is alive, `operator new` falls back to `malloc` — so dyld
+//! and static-constructor allocations stay out of the pool.
+//!
+//! On `USE_STD_ALLOCATOR` builds (Windows by default) the guard is a
+//! no-op.  Idempotent — multiple guards in nested scopes are harmless.
+class KamePooledAllocGuard {
+public:
+    KamePooledAllocGuard() noexcept { activateAllocator(); }
+    ~KamePooledAllocGuard() noexcept { release_pools(); }
+    KamePooledAllocGuard(const KamePooledAllocGuard &) = delete;
+    KamePooledAllocGuard &operator=(const KamePooledAllocGuard &) = delete;
+};
 
 
 #include <array>
