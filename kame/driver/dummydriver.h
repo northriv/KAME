@@ -37,7 +37,7 @@ private:
 	bool m_bOpened;
 };
 template<class tDriver>
-class DECLSPEC_KAME XDummyDriver : public tDriver {
+class XDummyDriver : public tDriver {
 public:
 	XDummyDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XDummyDriver() {}
