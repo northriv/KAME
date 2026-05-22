@@ -196,12 +196,34 @@ struct atomic_shared_ptr_gref_strictrefonly_ {
 //!   * `atomic_emplaced_strict`: combines `atomic_emplaced` +
 //!     `atomic_strictrefonly`.  Single allocation, no weak_refcnt.
 //!     `local_weak_ptr<T>` is not supported.
+//!   * `atomic_countable`: intrusive refcnt — T IS its own control
+//!     block (one allocation, refcnt embedded as a member).  Gives the
+//!     fastest hot-path get() (no offset, no null check) at the cost
+//!     of exposing the refcnt field in `sizeof(T)`.  Used for the
+//!     hottest STM types (Packet, PacketWrapper, Payload).  No
+//!     `local_weak_ptr<T>` support.
 //!
 //! The SFINAE branches in `atomic_shared_ptr_base` ensure exactly one
 //! mode is selected per T.
 struct atomic_emplaced {};
 struct atomic_weakable : atomic_emplaced {};
 struct atomic_emplaced_strict : atomic_emplaced, atomic_strictrefonly {};
+
+//! Intrusive refcnt base — T inherits and gets a built-in refcnt field.
+//! sizeof(T) includes the refcnt; `local_shared_ptr<T>` stores T*
+//! directly (no separate control block).  Restored 2026-05-22 after
+//! benchmarks showed the emplaced control-block path costs ~5% on the
+//! hottest STM types.
+struct atomic_countable {
+    atomic_countable() noexcept : refcnt(1) {}
+    atomic_countable(const atomic_countable &) noexcept : refcnt(1) {}
+    ~atomic_countable() { assert(refcnt == 0); }
+
+    atomic_countable &operator=(const atomic_countable &) = delete;
+
+    typedef uintptr_t Refcnt;
+    atomic<Refcnt> refcnt;
+};
 
 //! Non-intrusive control block, T embedded (emplaced) — single
 //! allocation, NO weak_ptr support.  `refcnt` is placed first so
@@ -338,6 +360,44 @@ protected:
     enum {LOCAL_REF_CAPACITY = (sizeof(intptr_t))};
 #endif
 };
+//! \brief Base for `T : atomic_countable` (intrusive refcnt — T IS its
+//!  own control block).  Fastest get(): direct cast of m_ref to T*
+//!  with no offset and no null check (because (T*)0 == nullptr).
+//!  `local_weak_ptr<T>` is not supported.
+template <typename T, typename reflocal_t, typename reflocal_var_t>
+struct atomic_shared_ptr_base<T, reflocal_t, reflocal_var_t,
+        typename std::enable_if<
+            std::is_base_of<atomic_countable, T>::value>::type> {
+protected:
+    typedef T Ref;
+    typedef typename atomic_countable::Refcnt Refcnt;
+
+    //! Static `delete p`: invokes T's destructor (including the
+    //! `atomic_countable` base subobject's `assert(refcnt == 0)`).
+    //! Polymorphic T's dispatch correctly via their virtual dtor.
+    static int deleter(T *p) noexcept { delete p; return 1; }
+
+    template<typename Y> void reset_unsafe(Y *y) noexcept {
+        m_ref = (reflocal_t)static_cast<T*>(y);
+    }
+    T *get() noexcept { return (T*)(reflocal_t)this->m_ref; }
+    const T *get() const noexcept { return (const T*)(reflocal_t)this->m_ref; }
+
+    int _use_count_() const noexcept {
+        return ((const T*)(reflocal_t)this->m_ref)->refcnt;
+    }
+
+    reflocal_var_t m_ref;
+    // Intrusive mode: Ref IS the object T.  T's alignment is at least
+    // sizeof(double) on 64-bit (the embedded `atomic<uintptr_t> refcnt`
+    // forces this), so the lower 3 bits of any T* are always zero —
+    // safe for the tagged-pointer scheme.
+#ifdef KAME_LOCAL_REF_CAPACITY_OVERRIDE
+    enum {LOCAL_REF_CAPACITY = KAME_LOCAL_REF_CAPACITY_OVERRIDE};
+#else
+    enum {LOCAL_REF_CAPACITY = (sizeof(double))};
+#endif
+};
 //! \brief Base for `T : atomic_strictrefonly` (separate alloc, NO weak).
 //!  Ref holds a `T*` and a refcnt only.  `local_weak_ptr<T>` is not
 //!  supported (compile error at point of use).
@@ -345,7 +405,8 @@ template <typename T, typename reflocal_t, typename reflocal_var_t>
 struct atomic_shared_ptr_base<T, reflocal_t, reflocal_var_t,
         typename std::enable_if<
             std::is_base_of<atomic_strictrefonly, T>::value
-            && !std::is_base_of<atomic_emplaced, T>::value>::type> {
+            && !std::is_base_of<atomic_emplaced, T>::value
+            && !std::is_base_of<atomic_countable, T>::value>::type> {
 protected:
     typedef atomic_shared_ptr_gref_strictrefonly_<T> Ref;
     typedef typename Ref::Refcnt Refcnt;
@@ -375,7 +436,8 @@ template <typename T, typename reflocal_t, typename reflocal_var_t>
 struct atomic_shared_ptr_base<T, reflocal_t, reflocal_var_t,
         typename std::enable_if<
             std::is_base_of<atomic_emplaced, T>::value
-            && std::is_base_of<atomic_strictrefonly, T>::value>::type> {
+            && std::is_base_of<atomic_strictrefonly, T>::value
+            && !std::is_base_of<atomic_countable, T>::value>::type> {
 protected:
     typedef atomic_shared_ptr_gref_emplaced_<T> Ref;
     typedef typename Ref::Refcnt Refcnt;
@@ -407,7 +469,8 @@ template <typename T, typename reflocal_t, typename reflocal_var_t>
 struct atomic_shared_ptr_base<T, reflocal_t, reflocal_var_t,
         typename std::enable_if<
             std::is_base_of<atomic_emplaced, T>::value
-            && !std::is_base_of<atomic_strictrefonly, T>::value>::type> {
+            && !std::is_base_of<atomic_strictrefonly, T>::value
+            && !std::is_base_of<atomic_countable, T>::value>::type> {
 protected:
     typedef atomic_shared_ptr_gref_weakable_<T> Ref;
     typedef typename Ref::Refcnt Refcnt;
@@ -1086,7 +1149,9 @@ public:
     //! Smart-pointer accessors (return T*).
     T *get() const noexcept {
         if( !m_pref) return nullptr;
-        if constexpr (std::is_base_of<atomic_emplaced, T>::value) {
+        if constexpr (std::is_base_of<atomic_countable, T>::value) {
+            return m_pref;                  //!< Intrusive: Ref IS T.
+        } else if constexpr (std::is_base_of<atomic_emplaced, T>::value) {
             return m_pref->ptr_();
         } else {
             return m_pref->ptr;
