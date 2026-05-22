@@ -828,7 +828,7 @@ private:
     //! and packets possessed by the sub-instances may be out-of-date.\n
     //! "missing" indicates that the package lacks any Packet for subnodes, or
     //! any content may be out-of-date.\n
-    struct DECLSPEC_KAME Packet : public atomic_emplaced {
+    struct DECLSPEC_KAME Packet : public atomic_emplaced_strict {
         Packet() noexcept : m_missing(false) {}
         int size() const noexcept {return subpackets() ? subpackets()->size() : 0;}
         local_shared_ptr<Payload> &payload() noexcept { return m_payload;}
@@ -1229,7 +1229,7 @@ private:
     //! A class wrapping Packet and providing indice and links for lookup.\n
     //! If packet() is absent, a super node should have the up-to-date Packet.\n
     //! If hasPriority() is not set, Packet in a super node may be latest.
-    struct DECLSPEC_KAME PacketWrapper : public atomic_emplaced {
+    struct DECLSPEC_KAME PacketWrapper : public atomic_emplaced_strict {
         //! Tag to disable load_shared_() at compile time — use scoped_atomic_view instead.
         using load_shared_disabled_tag = void;
         PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept;
