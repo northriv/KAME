@@ -14,7 +14,6 @@ atomic<int> objcnt = 0;
 atomic<long> total = 0;
 atomic<int> xxx = 0;
 
-//class A : public atomic_countable<A> {
 class A {
 public:
 	A(long x) : m_x(x) {

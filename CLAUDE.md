@@ -48,7 +48,6 @@ The core abstraction is a lock-free, snapshot-based STM in `kame/transaction.h`.
   - **`atomic_strictrefonly`**: separate alloc, refcnt only (no `weak_refcnt`). `local_weak_ptr<T>` is a compile error. Saves 8 bytes per control block.
   - **`atomic_emplaced`**: combined alloc (`T` embedded in control block via `make_local_shared<T>`), `weak_refcnt` included.
   - **`atomic_weakable`** (extends `atomic_emplaced`): backward-compat alias, identical to `atomic_emplaced`.
-  - **`atomic_countable`**: intrusive — `T` IS the control block (refcnt in `T` itself). No `weak_refcnt`.
   - All weak-capable control blocks (`gref_<T>`, `gref_weakable_<T>`) inherit from `gref_weak_base_`, which provides the type-erased `refcnt + weak_refcnt + try_promote()` layout used by `local_weak_ptr<T>`.
 
 ```cpp

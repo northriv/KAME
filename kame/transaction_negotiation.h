@@ -644,9 +644,6 @@ public:
     //! Identity comparisons against another local_shared_ptr<PacketWrapper>
     //! (avoids materialising a fresh local_shared_ptr from the view).
     bool operator==(const local_shared_ptr<PacketWrapper> &rhs) const noexcept {
-        // Public access: get() is public; ref_ptr_ is protected.
-        // For intrusive types (PacketWrapper inherits atomic_countable),
-        // Ref == T, so rhs.get() == rhs.ref_ptr_().
         return m_view.ref_ptr_() == rhs.get();
     }
     bool operator!=(const local_shared_ptr<PacketWrapper> &rhs) const noexcept {
@@ -794,9 +791,6 @@ public:
         return false;
     }
 
-    // (local_unique_ptr<PacketWrapper> CAS overloads removed —
-    // PacketWrapper is now atomic_emplaced, using local_shared_ptr.
-    // The local_shared_ptr overloads above cover all callers.)
 
     //! Caller-side hook for pre-CAS conflict detection (e.g.
     //! `wrapper->packet() != tr.m_oldpacket`,

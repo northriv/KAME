@@ -1068,8 +1068,6 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             tr.m_oldpacket = tr.m_packet;
             tr.m_packet = newpacket;
 
-            // local_unique_ptr: ownership transfers to m_ref on CAS
-            // success (saves 2 atomic ops vs local_shared_ptr).
             auto newwrapper = make_local_shared<PacketWrapper>(
                 m_link, packet->size() - 1, tr.m_serial);
             newwrapper->packet() = subpacket_new;

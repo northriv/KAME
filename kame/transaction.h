@@ -807,7 +807,7 @@ private:
     };
 
     template <class P>
-    struct DECLSPEC_KAME PayloadWrapper : public P::Payload {
+    struct PayloadWrapper : public P::Payload {
         virtual typename PayloadWrapper::rettype_clone clone(Transaction<XN> &tr, int64_t serial) {
 //            auto p = allocate_local_shared<PayloadWrapper>(this->m_node->m_allocatorPayload, *this);
             auto p = make_local_shared<PayloadWrapper>( *this);

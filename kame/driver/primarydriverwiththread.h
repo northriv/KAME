@@ -16,7 +16,7 @@
 
 #include "primarydriver.h"
 
-class DECLSPEC_KAME XPrimaryDriverWithThread : public XPrimaryDriver {
+class XPrimaryDriverWithThread : public XPrimaryDriver {
 public:
     using XPrimaryDriver::XPrimaryDriver; //inherits constructors.
     virtual ~XPrimaryDriverWithThread() = default;
@@ -26,7 +26,7 @@ public:
 	//! This should not cause an exception.
     virtual void stop() override;
 
-    class DECLSPEC_KAME Payload : public XPrimaryDriver::Payload {};
+    class Payload : public XPrimaryDriver::Payload {};
 protected:
 	//! Starts up your threads, connects GUI, and activates signals.
 	//! This function should not cause an exception.
