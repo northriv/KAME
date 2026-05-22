@@ -108,6 +108,13 @@ private:
     const XString m_name;
     static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
 };
+// Cross-DLL TLS singleton — declare libkame_storage() as `extern template`
+// so plugin DLLs import it from libkame.dll instead of implicitly
+// instantiating their own copy.  Without this, every DLL got its own
+// `static thread_local deque<shared_ptr<XNode>>`, and `createOrphan`'s
+// `back()` on a different DLL's empty TLS deque crashed.
+extern template DECLSPEC_KAME std::deque<shared_ptr<XNode> >&
+    XThreadLocal<std::deque<shared_ptr<XNode> > >::libkame_storage();
 
 class DECLSPEC_KAME XTouchableNode : public XNode {
 public:
