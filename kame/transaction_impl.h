@@ -964,8 +964,8 @@ Node<XN>::print_recoverable_error(const char* reason) {
 
 template <class XN>
 Node<XN>::Node() : m_link(make_local_shared<Linkage>()) {
-    local_shared_ptr<Packet> packet(new Packet());
-    m_link->reset(new PacketWrapper(packet, SerialGenerator::gen()));
+    local_shared_ptr<Packet> packet(make_local_shared<Packet>());
+    *m_link = make_local_shared<PacketWrapper>(packet, SerialGenerator::gen());
     //Use create() for this hack.
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     // Read and clear the shared void* slot — see create() for why we use
@@ -976,7 +976,7 @@ Node<XN>::Node() : m_link(make_local_shared<Linkage>()) {
     auto creator = *stl_funcPayloadCreator;
     *stl_funcPayloadCreator = nullptr;
 #endif
-    packet->m_payload.reset(creator(static_cast<XN&>( *this)));
+    packet->m_payload = creator(static_cast<XN&>( *this));
 }
 template <class XN>
 Node<XN>::~Node() {
@@ -1031,7 +1031,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
         bool has_failed = false;
         //Tags serial.
         local_shared_ptr<Packet> newpacket(tr.m_packet);
-        tr.m_packet.reset(new Packet( *tr.m_oldpacket));
+        tr.m_packet = make_local_shared<Packet>( *tr.m_oldpacket);
         if( !tr.m_packet->node().commit(tr)) {
             printf("*\n");
             has_failed = true;
@@ -1060,7 +1060,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             }
 
             //Marks for writing at subnode.
-            tr.m_packet.reset(new Packet( *tr.m_oldpacket));
+            tr.m_packet = make_local_shared<Packet>( *tr.m_oldpacket);
             if( !tr.m_packet->node().commit(tr)) {
                 printf("&\n");
                 has_failed = true;
@@ -1070,14 +1070,14 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 
             // local_unique_ptr: ownership transfers to m_ref on CAS
             // success (saves 2 atomic ops vs local_shared_ptr).
-            auto newwrapper = make_local_unique<PacketWrapper>(
+            auto newwrapper = make_local_shared<PacketWrapper>(
                 m_link, packet->size() - 1, tr.m_serial);
             newwrapper->packet() = subpacket_new;
             packet->subpackets()->back() = subpacket_new;
             if(has_failed)
                 return false;
             if( !scope.compareAndSetWithHint(newwrapper)) {
-                tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket));
+                tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket);
                 return false;
             }
             break;
@@ -1124,7 +1124,7 @@ Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
             break;
         }
         // unique_ptr: ownership to m_link on success.
-        auto newwrapper = make_local_unique<PacketWrapper>( *scope, SerialGenerator::SERIAL_NULL);
+        auto newwrapper = make_local_shared<PacketWrapper>( *scope, SerialGenerator::SERIAL_NULL);
         if(scope.compareAndSet(newwrapper))
             break;
         // RAII tags on continue (iter > 0)
@@ -1159,7 +1159,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     scoped_atomic_view<PacketWrapper> nullsubwrapper;
     // newsubwrapper: ownership transferred to var->m_link on CAS
     // success.  unique_ptr saves 2 atomic ops vs local_shared_ptr.
-    local_unique_ptr<PacketWrapper> newsubwrapper;
+    local_shared_ptr<PacketWrapper> newsubwrapper;
     auto nit = packet->subnodes()->begin();
     for(auto pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
         assert(nit != packet->subnodes()->end());
@@ -1170,12 +1170,12 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
                     scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
                     /*weakly=*/true);
                 if(!nullsubwrapper.acquire_succeeded()) {
-                    tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+                    tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
                     return false;
                 }
                 if(nullsubwrapper->hasPriority()) {
                     if(nullsubwrapper->packet() != *pit) {
-                        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+                        tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
                         return false;
                     }
                 }
@@ -1183,11 +1183,11 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
                     local_shared_ptr<Linkage> bp(nullsubwrapper->bundledBy());
                     if((bp && (bp != m_link)) ||
                         ( !bp && (nullsubwrapper->packet() != *pit))) {
-                        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+                        tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
                         return false;
                     }
                 }
-                newsubwrapper = make_local_unique<PacketWrapper>(m_link, idx, SerialGenerator::SERIAL_NULL);
+                newsubwrapper = make_local_shared<PacketWrapper>(m_link, idx, SerialGenerator::SERIAL_NULL);
                 newsubwrapper->packet() = *pit;
             }
             pit = packet->subpackets()->erase(pit);
@@ -1229,9 +1229,9 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 
     local_shared_ptr<Packet> newpacket(tr.m_packet);
     tr.m_packet = tr.m_oldpacket;
-    tr.m_packet.reset(new Packet( *tr.m_packet));
+    tr.m_packet = make_local_shared<Packet>( *tr.m_packet);
     if( !tr.m_packet->node().commit(tr)) {
-        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+        tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
         tr.m_packet = newpacket;
         return false;
     }
@@ -1244,7 +1244,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         std::move(nullsubwrapper),
         ScopedNegotiateLinkage<XN>::TagMode::OnExit);
     if( !scope.compareAndSetWithHint(newsubwrapper)) {
-        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+        tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
         return false; // destructor tags
     }
     // scope auto-committed + tagged successful_cas via the call.
@@ -1336,7 +1336,7 @@ Node<XN>::reverseLookupWithHint(local_shared_ptr<Linkage> &linkage,
         return nullptr;
     if(copy_branch) {
         if(( *foundpacket)->subpackets()->m_serial != tr_serial) {
-            foundpacket->reset(new Packet( **foundpacket));
+            *foundpacket = make_local_shared<Packet>( **foundpacket);
             ( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
             ( *foundpacket)->m_missing = ( *foundpacket)->m_missing || set_missing;
             ( *foundpacket)->subpackets()->m_serial = tr_serial;
@@ -1366,7 +1366,7 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &superpacket,
         return nullptr;
     if(copy_branch) {
         if(superpacket->subpackets()->m_serial != tr_serial) {
-            superpacket.reset(new Packet( *superpacket));
+            superpacket = make_local_shared<Packet>( *superpacket);
             superpacket->subpackets().reset(new PacketList( *superpacket->subpackets()));
             superpacket->subpackets()->m_serial = tr_serial;
             superpacket->m_missing = superpacket->m_missing || set_missing;
@@ -1425,7 +1425,7 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
         assert( &( *foundpacket)->node() == this);
     }
     if(copy_branch && (( *foundpacket)->payload()->m_serial != tr_serial)) {
-        foundpacket->reset(new Packet( **foundpacket));
+        *foundpacket = make_local_shared<Packet>( **foundpacket);
     }
 //						printf("#");
     return foundpacket;
@@ -1743,8 +1743,8 @@ Node<XN>::snapshotForUnbundle(const local_shared_ptr<Linkage> &child_linkage,
     local_shared_ptr<Packet> *p(r.parent_packet);
     local_shared_ptr<PacketWrapper> newwrapper;
     if(r.is_root_level) {
-        newwrapper.reset(
-            new PacketWrapper( **r.parent_scope, (*r.parent_scope)->m_bundle_serial));
+        newwrapper =
+            make_local_shared<PacketWrapper>( **r.parent_scope, (*r.parent_scope)->m_bundle_serial);
     }
     else {
         assert(cas_infos->size());
@@ -1754,8 +1754,8 @@ Node<XN>::snapshotForUnbundle(const local_shared_ptr<Linkage> &child_linkage,
         // and subsequent levels copy the same value).  This avoids
         // a post-recursion READ of root_wrapper, which is the
         // prerequisite for converting root_wrapper to a lighter type.
-        newwrapper.reset(
-            new PacketWrapper( *p, cas_infos->front().new_wrapper->m_bundle_serial));
+        newwrapper =
+            make_local_shared<PacketWrapper>( *p, cas_infos->front().new_wrapper->m_bundle_serial);
     }
     if(newwrapper) {
         // Extract scoped_atomic_view from parent_scope into CASInfo.
@@ -1769,7 +1769,7 @@ Node<XN>::snapshotForUnbundle(const local_shared_ptr<Linkage> &child_linkage,
     }
     int size = ( *r.parent_packet)->size();
     if(size) {
-        p->reset(new Packet( **p));
+        *p = make_local_shared<Packet>( **p);
         ( *p)->m_missing = true;
     }
 
@@ -1944,7 +1944,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                 // claude/refactor-negotiate-scoped-f7de2 (b23fa954)
                 // is consistent with OS scheduling, not a logic gap.
                 {
-                    auto promoted = make_local_unique<PacketWrapper>(
+                    auto promoted = make_local_shared<PacketWrapper>(
                         scope->packet(), snapshot.m_serial);
                     scope.compareAndSet(promoted);
                 }
@@ -2156,7 +2156,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // local_shared_ptr's +1 transfers cleanly into supscope.view via
         // move-in set_view (0 ops).  Net: same atomic ops, simpler flow.
         local_shared_ptr<PacketWrapper> superwrapper(
-            new PacketWrapper(supscope->packet(), bundle_serial));
+            make_local_shared<PacketWrapper>(supscope->packet(), bundle_serial));
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         if( !scope) return BundledStatus::DISTURBED;
@@ -2211,7 +2211,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         //     return BundledStatus::SUCCESS;
         // }
         local_shared_ptr<PacketWrapper> superwrapper(
-            new PacketWrapper( *supscope, bundle_serial));
+            make_local_shared<PacketWrapper>( *supscope, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
             reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
         assert(newpacket->size());
@@ -2307,9 +2307,9 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             shared_ptr<Node> child(( *subnodes)[i]);
             local_shared_ptr<PacketWrapper> bundled_ref;
             if(( *subpackets)[i])
-                bundled_ref.reset(new PacketWrapper(m_link, i, bundle_serial));
+                bundled_ref = make_local_shared<PacketWrapper>(m_link, i, bundle_serial);
             else
-                bundled_ref.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
+                bundled_ref = make_local_shared<PacketWrapper>( *subwrappers_org[i], bundle_serial);
 
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
@@ -2395,7 +2395,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         }
 
         //--- Phase 4: finalize — clear missing flag if all sub-packets are present ---
-        superwrapper.reset(new PacketWrapper( *superwrapper, bundle_serial));
+        superwrapper = make_local_shared<PacketWrapper>( *superwrapper, bundle_serial);
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
@@ -2550,7 +2550,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
         tr.isMultiNodal() ? detail::StampKind::BUNDLE
                           : detail::StampKind::NONE);
 
-    local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
+    local_shared_ptr<PacketWrapper> newwrapper(make_local_shared<PacketWrapper>(tr.m_packet, tr.m_serial));
     for(int retry = 0;; ++retry) {
         // RAII OnEntry: negotiates + tag-bit acquires view of m_link
         // + tags eagerly (retry > 0).  scope's internal view is the
@@ -2770,7 +2770,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     if(oldsubpacket)
         newsubwrapper = *newsubwrapper_returned;
     else
-        newsubwrapper.reset(new PacketWrapper( *newsubpacket, SerialGenerator::gen(root_bundle_serial)));
+        newsubwrapper = make_local_shared<PacketWrapper>( *newsubpacket, SerialGenerator::gen(root_bundle_serial));
 
     // Final sublinkage CAS via the caller-provided subscope.  The
     // outer scope's negotiate (at construction) covers this CAS — no

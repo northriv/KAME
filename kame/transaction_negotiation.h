@@ -794,32 +794,9 @@ public:
         return false;
     }
 
-    // ---------- CAS with local_unique_ptr desired ----------
-
-    //! Weak CAS using internal view as oldr, with local_unique_ptr<T>
-    //! as desired (saves 2 atomic ops vs the local_shared_ptr<T>
-    //! version).  desired is in/out: released on success (m_ref takes
-    //! ownership), retained on failure.
-    bool compareAndSet(local_unique_ptr<PacketWrapper> &desired) noexcept {
-        if(m_link->compareAndSetWeak(m_view, desired)) {
-            _on_cas_success();
-            return true;
-        }
-        _on_cas_fail();
-        return false;
-    }
-
-    bool compareAndSetWithHint(local_unique_ptr<PacketWrapper> &desired,
-                                typename Node<XN>::NegotiationCounter::cnt_t
-                                    started_time = 0) noexcept {
-        if(m_link->compareAndSetWeak(m_view, desired)) {
-            m_link->tags_successful_cas(started_time);
-            _on_cas_success();
-            return true;
-        }
-        _on_cas_fail();
-        return false;
-    }
+    // (local_unique_ptr<PacketWrapper> CAS overloads removed —
+    // PacketWrapper is now atomic_emplaced, using local_shared_ptr.
+    // The local_shared_ptr overloads above cover all callers.)
 
     //! Caller-side hook for pre-CAS conflict detection (e.g.
     //! `wrapper->packet() != tr.m_oldpacket`,

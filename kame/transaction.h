@@ -249,18 +249,16 @@ namespace detail {
     //! colocating costs one M→S transition for both fields instead
     //! of two.  Default off: digest field disappears, padding fills
     //! the cacheline.
-    // Intrusive (subclass of atomic_countable) so the per-entry shared
-    // pointer can use KAME's `local_shared_ptr` (8-byte tagged pointer
-    // with amortised local refcnt) instead of std::shared_ptr (16-byte
-    // pair, always-atomic refcnt) — better cache density inside the
-    // global RunnerCounterVec and cheaper cow_append / cow_remove.
-    struct alignas(KAME_CACHE_LINE) RunnerCounterEntry : public atomic_countable {
+    // atomic_strictrefonly: separate control block (gref_strictrefonly_),
+    // no weak_refcnt.  local_shared_ptr<RunnerCounterEntry> uses KAME's
+    // 8-byte tagged pointer with amortised local refcnt.
+    struct alignas(KAME_CACHE_LINE) RunnerCounterEntry : public atomic_strictrefonly {
         std::atomic<uint64_t> v{0};
 #if KAME_ENABLE_RUNNER_DIGEST
         std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
-        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>) - sizeof(atomic_countable)];
+        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)];
 #else
-        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>) - sizeof(atomic_countable)];
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)];
 #endif
     };
     // Strong refs (local_shared_ptr): each thread holds its own entry
@@ -762,7 +760,7 @@ public:
     //! Data holder and accessor for the node.
     //! Derive Node<XN>::Payload as (\a subclass)::Payload.
     //! The instances have to be capable of copy-construction and be safe to be shared reading.
-    struct DECLSPEC_KAME Payload : public atomic_countable {
+    struct DECLSPEC_KAME Payload : public atomic_emplaced {
         Payload() noexcept : m_node(nullptr), m_serial(-1), m_tr(nullptr) {}
         virtual ~Payload() = default;
 
@@ -830,7 +828,7 @@ private:
     //! and packets possessed by the sub-instances may be out-of-date.\n
     //! "missing" indicates that the package lacks any Packet for subnodes, or
     //! any content may be out-of-date.\n
-    struct DECLSPEC_KAME Packet : public atomic_countable {
+    struct DECLSPEC_KAME Packet : public atomic_emplaced {
         Packet() noexcept : m_missing(false) {}
         int size() const noexcept {return subpackets() ? subpackets()->size() : 0;}
         local_shared_ptr<Payload> &payload() noexcept { return m_payload;}
@@ -1231,7 +1229,7 @@ private:
     //! A class wrapping Packet and providing indice and links for lookup.\n
     //! If packet() is absent, a super node should have the up-to-date Packet.\n
     //! If hasPriority() is not set, Packet in a super node may be latest.
-    struct DECLSPEC_KAME PacketWrapper : public atomic_countable {
+    struct DECLSPEC_KAME PacketWrapper : public atomic_emplaced {
         //! Tag to disable load_shared_() at compile time — use scoped_atomic_view instead.
         using load_shared_disabled_tag = void;
         PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept;
@@ -1273,6 +1271,7 @@ private:
     struct DECLSPEC_KAME Linkage
         : public atomic_shared_ptr<PacketWrapper>,
           public atomic_weakable {
+        using atomic_shared_ptr<PacketWrapper>::operator=;
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
             m_transaction_started_time(0),
             m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)),
@@ -1776,7 +1775,7 @@ protected:
     //! Use \a create().
     Node();
 private:
-    using FuncPayloadCreator = Payload *(*)(XN &);
+    using FuncPayloadCreator = local_shared_ptr<Payload> (*)(XN &);
     static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
     void lookupFailure() const;
     local_shared_ptr<typename Node<XN>::Packet>*lookupFromChild(local_shared_ptr<Packet> &superpacket,
@@ -1798,10 +1797,10 @@ T *Node<XN>::create(Args&&... args) {
     // of which DLL it is compiled into—touches the same TLS slot.
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     static constexpr FuncPayloadCreator s_fn =
-        [](XN &node)->Payload *{ return new PayloadWrapper<T>(node); };
+        [](XN &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
     *detail::tls_payload_creator_ptr = reinterpret_cast<void *>(s_fn);
 #else
-    *T::stl_funcPayloadCreator = [](XN &node)->Payload *{ return new PayloadWrapper<T>(node);};
+    *T::stl_funcPayloadCreator = [](XN &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
 #endif
     return new T(std::forward<Args>(args)...);
 }
