@@ -280,23 +280,6 @@ namespace detail {
     //! blind reuse — no penalty on uniform-memory single-socket
     //! systems where the M3 production target lives.
     //!
-    //! Two-cacheline layout: the hot fields (`v`, `next`, etc.) are
-    //! kept together in the first cacheline; the sleep-slot fields
-    //! (`mtx`, `cv`, ...) occupy the second cacheline.  Cacheline
-    //! isolation between hot path (per-Tx `v.fetch_add`) and cold path
-    //! (sleep/wake mutex ops by other threads) avoids false-sharing
-    //! bounces when a notifier targets this entry.
-    //!
-    //! Embedded sleep slot: the previous design had a separate
-    //! `s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]` array (BSS, all on the
-    //! main-thread NUMA — a cross-socket pain on dual-socket EPYC).
-    //! Folding the mutex/cv/stamp into the heap-allocated, NUMA-local,
-    //! per-thread entry gives the sleep slot the same NUMA-local
-    //! placement as the runner counter — first-touch on the owning
-    //! thread's NUMA via the single `new RunnerCounterEntry(...)` call.
-    //! TID→entry lookup is via the global `s_tid_to_entry` hash table
-    //! (replaces the s_sleep_slots indexing).
-    //!
     //! A process-exit teardown sentinel walks and deletes the list
     //! for leak-detector hygiene.
     //!
@@ -305,9 +288,6 @@ namespace detail {
     //! intermediate chunked-array design (eliminated the cross-socket
     //! NUMA pitfall of contiguous slot blocks).
     struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
-        // =====================================================
-        // HOT cacheline — per-Tx access
-        // =====================================================
         std::atomic<uint64_t> v{0};
         //! Set once during `runner_counter_register` (just before the
         //! CAS-prepend onto `s_runner_entries_head`); immutable
@@ -331,32 +311,20 @@ namespace detail {
         //! reuse path's first pass to prefer entries on the
         //! calling thread's local NUMA.  Reader does not touch this.
         int8_t allocated_node;
-        //! Owner's TID at the time of registration (claim).  Set by
-        //! `runner_counter_register`; re-set on reuse by the new
-        //! owner.  Used as the hash table key in `s_tid_to_entry`
-        //! and verified by the wake side to disambiguate hash
-        //! collisions.
-        uint16_t tid{0};
-#if KAME_ENABLE_RUNNER_DIGEST
-        std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
-#endif
-        // =====================================================
-        // COLD cacheline — sleep/wake state, touched only on
-        // negotiate_sleep / notify_n_contenders paths.
-        // alignas() forces start of new cacheline so wake-side
-        // writes (mtx.lock, notified, cv.notify) do not invalidate
-        // the hot cacheline (v).
-        // =====================================================
-        alignas(KAME_CACHE_LINE) std::mutex mtx;
-        std::condition_variable cv;
-        bool notified{false};
-        uint8_t op_kind{0};
-        uint64_t stamp{0};
-        // (no explicit trailing padding — alignas(KAME_CACHE_LINE)
-        //  on the struct rounds total size up to a CL multiple)
-
         RunnerCounterEntry(int8_t node) noexcept
             : allocated_node(node) {}
+#if KAME_ENABLE_RUNNER_DIGEST
+        std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
+        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)
+                                  - sizeof(std::atomic<RunnerCounterEntry*>)
+                                  - sizeof(std::atomic<bool>)
+                                  - sizeof(int8_t)];
+#else
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)
+                                  - sizeof(std::atomic<RunnerCounterEntry*>)
+                                  - sizeof(std::atomic<bool>)
+                                  - sizeof(int8_t)];
+#endif
     };
 
 #if KAME_ENABLE_RUNNER_DIGEST
@@ -383,28 +351,6 @@ namespace detail {
     //! walks `head → entry.next → ...`; once an entry is in the
     //! list its `next` pointer is immutable.
     DECLSPEC_KAME extern std::atomic<RunnerCounterEntry*> s_runner_entries_head;
-
-    //! Forward-declare for the hash table size in the next decl.
-    //! (Real value is `Node<XN>::NegotiationCounter::NEGOTIATE_SLEEP_SLOTS
-    //! = 512`; declaring it here as a compile-time constant avoids a
-    //! template instantiation dependency in this file.)
-    static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
-
-    //! TID → RunnerCounterEntry hash table for targeted wake-up.
-    //! Replaces the previous `s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]`
-    //! BSS array of mutex/cv slots — the sleep state itself now lives
-    //! inside each thread's heap-allocated entry (NUMA-local for free
-    //! via the same first-touch as the runner counter).
-    //!
-    //! Indexed by `tid & (NEGOTIATE_SLEEP_SLOTS - 1)`.  Slot value:
-    //! a pointer to the most-recently-registered entry whose tid
-    //! hashes here.  Wake-side `notify_n_contenders` verifies the
-    //! returned entry's `tid` matches the target TID — on hash
-    //! collision (different live TIDs sharing a slot), only the
-    //! later-registered TID is targetable; the other relies on
-    //! `cv.wait_for` timeout.
-    DECLSPEC_KAME extern std::atomic<RunnerCounterEntry*>
-        s_tid_to_entry[NEGOTIATE_SLEEP_SLOTS];
 
     //! Allocate + register this thread's counter on first call;
     //! return the cached raw pointer thereafter. Defined in
@@ -1217,18 +1163,34 @@ private:
         //=====================================================================
         // Sleep-slot infrastructure for negotiate_sleep / notify_n_contenders.
         //=====================================================================
-        //! Hash-table capacity for TID → RunnerCounterEntry lookup.
-        //! The actual sleep slot (mutex/cv/notified/op_kind/stamp) lives
-        //! *inside* each thread's heap-allocated `RunnerCounterEntry`
-        //! (NUMA-local via first-touch).  `detail::s_tid_to_entry[tid &
-        //! (N-1)]` resolves a target TID to its entry; tid collisions
-        //! (`tid_a & 511 == tid_b & 511` with both alive) leave at most
-        //! one of the two reachable via targeted wake — the other
-        //! relies on its `cv.wait_for` timeout.  At 128 threads in
-        //! 512 slots the collision probability is small (~12 % per
-        //! pair; few collisions across the whole population) and the
-        //! timeout cost is bounded to 1 ms.
+        //! Cache-line aligned so adjacent slots don't false-share when
+        //! two notifier threads on different cores touch neighbouring
+        //! indices. KAME_CACHE_LINE matches the ABI L1d line size
+        //! (64/128/256 by arch); the previous fixed `alignas(128)` was
+        //! correct on x86 and Apple Silicon but oversized for x86 and
+        //! undersized for A64FX.
+        struct alignas(KAME_CACHE_LINE) NegotiateSleepSlot {
+            std::mutex mtx;
+            std::condition_variable cv;
+            bool notified = false;
+            //! Kind (0=NONE/Reserved, 1=BUNDLE, 2=UNBUNDLE, 3=Reserved)
+            //! the sleeping thread is going to commit.  Stored under
+            //! the lock right before sleeping; read under the lock by
+            //! `notify_n_contenders` to bias wake-up toward the same
+            //! kind as the linkage's most recent commit.
+            uint8_t op_kind = 0;
+            //! Tenant verification stamp = sleeper's started_time
+            //! (tid+kind+us packed).  Set under the lock right before
+            //! `cv.wait_for`, cleared to 0 right after.  Wakers compare
+            //! this against their intended target (the linkage slot
+            //! value for targeted wake, or the tid bit for bitset wake)
+            //! to avoid notifying the wrong thread on `tid % N_SLOTS`
+            //! hash collisions.  On mismatch we skip the notify and
+            //! accept the intended target's natural 1 ms timeout.
+            uint64_t stamp = 0;
+        };
         static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
+        static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};
 
         static void negotiate_sleep(int ms_timeout, uint64_t my_stamp) noexcept;
 
