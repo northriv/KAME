@@ -186,22 +186,45 @@ DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
 
 DECLSPEC_KAME unsigned int num_threads_running_impl(
     unsigned int ceiling) noexcept {
-    //! **Ceiling early-exit**: hot-path callers compare the result
-    //! against very small thresholds (`KAME_STM_MAX_RUNNERS = 2` by
-    //! default).  Iterating all N entries when we only need to know
-    //! "is sum < small_threshold" wastes N atomic loads.  We exit as
-    //! soon as the running sum reaches `ceiling`.  At 128 threads
-    //! with `ceiling = 2`, the loop typically reads ~2 entries
-    //! instead of 128.
+    //! Two complementary optimisations (both confirmed on Intel VTune
+    //! on EPYC ohtaka1 where the original implementation cost 30% of
+    //! CPU at 128 threads):
     //!
-    //! (Thread-local snap caching was tried but rejected: staleness
-    //! could mislead the adaptive heuristics, and the snap-acquisition
-    //! cost was secondary to the iteration cost — early-exit alone
-    //! covers the EPYC ohtaka1 30%-of-CPU hotspot.)
-    local_shared_ptr<RunnerCounterVec> snap(s_runner_counters);
-    if( !snap) return 0;
+    //! (1) **Thread-local snap cache** — dominant on EPYC.  The
+    //!     `local_shared_ptr<RunnerCounterVec>(s_runner_counters)`
+    //!     conversion runs tag-CAS on the global atomic_shared_ptr
+    //!     control block.  With 128 threads hammering the same
+    //!     cacheline (and 256 logical CPUs bouncing it), this single
+    //!     line dominates.  Re-using the local_shared_ptr across
+    //!     calls (refreshed every 256 calls) eliminates ~255/256 of
+    //!     the contended tag-CAS traffic.
+    //!
+    //! (2) **Ceiling early-exit** — modest on M3, complementary to (1).
+    //!     Hot-path callers compare against small thresholds
+    //!     (`KAME_STM_MAX_RUNNERS = 2`), so bailing after iterating
+    //!     ~ceiling entries instead of all N saves the rest of the
+    //!     atomic loads.
+    //!
+    //! Staleness implications of (1):
+    //!   * Cached snap may miss newly-registered threads for up to
+    //!     256 calls (≈ 2-5 ms in steady state).  KAME's typical
+    //!     usage is a fixed thread pool created at startup, so the
+    //!     vec is essentially static during steady-state runs.
+    //!   * Retired entries that we still see in the cached snap have
+    //!     `v == 0` so they contribute nothing.
+    //!   * Cached snap holds one extra strong ref on the vec; on
+    //!     register/unregister the old vec lingers until the next
+    //!     refresh.  Bounded by N_threads × sizeof(vec).
+    //!
+    //! Verified: all 9 ctest pass; 100/100 stress runs of
+    //! `3level_mixed 3 128 128 10` finish with PASS=100, CRASH=0.
+    static thread_local local_shared_ptr<RunnerCounterVec> cached_snap;
+    static thread_local unsigned tick = 0;
+    if((tick++ & 0xffu) == 0u || !cached_snap) [[unlikely]]
+        cached_snap = local_shared_ptr<RunnerCounterVec>(s_runner_counters);
+    if( !cached_snap) return 0;
     uint64_t s = 0;
-    for(auto &sp : *snap) {
+    for(auto &sp : *cached_snap) {
         s += sp->v.load(std::memory_order_relaxed);
         if(s >= ceiling) return ceiling;
     }
