@@ -53,6 +53,13 @@ else()
     add_compile_definitions(DISABLE_POOL_ALLOCATOR)
 endif()
 
+#! On Linux, prefer the `-pthread` compiler/linker flag over plain `-lpthread`.
+#! `-pthread` survives `--as-needed` (the default in many distros' gcc)
+#! whereas a bare `-lpthread` placed late on the command line gets
+#! dropped when `threadlocal.cpp` is the only TU referencing
+#! pthread_setspecific etc., causing the linker error
+#!     "undefined reference to symbol 'pthread_setspecific@@GLIBC_*'"
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
 # --- Test targets ---
