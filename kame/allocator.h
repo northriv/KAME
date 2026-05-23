@@ -34,6 +34,10 @@
 #if defined USE_STD_ALLOCATOR
     inline void activateAllocator() {}
     inline void release_pools() {}
+
+    //! \return always true on USE_STD_ALLOCATOR builds — no per-thread
+    //! pool state to worry about.
+    inline bool is_allocator_thread_active() noexcept { return true; }
 #else
     #include "allocator_prv.h"
 
@@ -53,6 +57,21 @@
 
     extern void activateAllocator();
     extern void release_pools();
+
+    //! \return true while this thread's pool allocator state is fully
+    //! live (`g_sys_image_loaded && !s_alloc_tls_off`).  Returns false
+    //! once ANY of the per-pool-template `TlsGuard` destructors has
+    //! fired, OR `AllocPinCleanup` has fired (whichever runs first).
+    //!
+    //! Allocator-using TLS destructors / pthread_key cleanups / atexit
+    //! hooks should check this before doing CAS-retry loops, COW
+    //! vector rebuilds, or anything that depends on a steady pool /
+    //! shared global atomic_shared_ptr state.  A bare `operator new`
+    //! (which has its own malloc fallback via `new_redirected`) is
+    //! safe regardless and need not check.
+    inline bool is_allocator_thread_active() noexcept {
+        return g_sys_image_loaded && !s_alloc_tls_off;
+    }
 #endif
 
 //! RAII guard: enables the KAME pool allocator on construction, tears

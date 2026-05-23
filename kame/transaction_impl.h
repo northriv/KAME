@@ -79,6 +79,14 @@ DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 DECLSPEC_KAME atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
 
 // COW helpers shared between register/unregister.
+//
+// `cow_append` also performs **lazy COW cleanup of retired entries**:
+// when a thread exits during the allocator-cleanup phase, its
+// `~RunnerCounterRegistration` sets `entry->retired=true` instead of
+// running `cow_remove` (see RunnerCounterRegistration below).  The
+// next thread that registers triggers this `cow_append`, which drops
+// retired entries while rebuilding the vec — single COW pass, cold
+// path, no separate scan needed.
 static void s_runner_counters_cow_append(
     const local_shared_ptr<RunnerCounterEntry> &sp) {
     for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
@@ -86,7 +94,17 @@ static void s_runner_counters_cow_append(
         next.reset(new RunnerCounterVec);
         if(old) {
             next->reserve(old->size() + 1);
-            for(auto &e : *old) next->push_back(e);
+            for(auto &e : *old) {
+                //! Lazy COW cleanup.  `retired` is published with
+                //! `release` in the registration dtor; acquire here
+                //! pairs with it.  Since only the owning thread (now
+                //! exited) ever writes `retired`, and we only ever
+                //! transition false → true, relaxed would also work
+                //! — acquire is for clarity of intent and zero cost
+                //! at this cold call site.
+                if( !e->retired.load(std::memory_order_acquire))
+                    next->push_back(e);
+            }
         }
         next->push_back(sp);
         if(s_runner_counters.compareAndSwap(old, next)) break;
@@ -118,7 +136,30 @@ struct RunnerCounterRegistration {
     local_shared_ptr<RunnerCounterEntry> entry;
     RunnerCounterRegistration() = default;
     ~RunnerCounterRegistration() noexcept {
-        if(entry) s_runner_counters_cow_remove(entry.get());
+        if( !entry) return;
+        //! Always mark the entry retired and bail out.  Do NOT call
+        //! `s_runner_counters_cow_remove` from here — the CAS retry
+        //! loop races dangerously with concurrent thread-exit on the
+        //! atomic_shared_ptr tag-drain path.  Earlier versions checked
+        //! `is_allocator_thread_active()` and only skipped cow_remove
+        //! when the allocator looked offline, but that left a ~2/100
+        //! crash rate intact — apparently macOS pthread_key destructors
+        //! can fire BEFORE C++ thread_local destructors (i.e. before
+        //! `AllocPinCleanup` / `PoolAllocator::TlsGuard` have a chance
+        //! to set `s_alloc_tls_off`), so the "active" branch is still
+        //! reachable during teardown.
+        //!
+        //! `entry->retired.store` is a single atomic op — no
+        //! allocation, no CAS retry, no atomic_shared_ptr interaction,
+        //! safe even mid-teardown.  Lazy COW cleanup in
+        //! `s_runner_counters_cow_append` (cold path on the next
+        //! thread's first `runner_counter_register`) prunes retired
+        //! entries.  Until then the entry contributes `0` to
+        //! `num_threads_running_impl()` (its `v` is 0, guaranteed by
+        //! `AcquireOneCount` RAII before exit).
+        //!
+        //! Release pairs with the acquire-load in `cow_append`.
+        entry->retired.store(true, std::memory_order_release);
     }
     RunnerCounterRegistration(const RunnerCounterRegistration &) = delete;
     RunnerCounterRegistration &operator=(const RunnerCounterRegistration &) = delete;

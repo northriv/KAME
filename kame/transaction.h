@@ -248,11 +248,23 @@ namespace detail {
     // 8-byte tagged pointer with amortised local refcnt.
     struct alignas(KAME_CACHE_LINE) RunnerCounterEntry : public atomic_strictrefonly {
         std::atomic<uint64_t> v{0};
+        //! Set `true` when the owning thread exited during the allocator-
+        //! cleanup phase (its `~RunnerCounterRegistration` checked
+        //! `is_allocator_thread_active()` and saw false → skipped the
+        //! CAS-heavy `cow_remove`).  The entry lingers in
+        //! `s_runner_counters` until the next thread registers; the
+        //! `cow_append` pass drops retired entries (lazy COW cleanup).
+        //! Until then it contributes `0` to `num_threads_running_impl()`
+        //! because `v == 0` is guaranteed by `AcquireOneCount` RAII
+        //! having fired before thread exit.
+        std::atomic<bool> retired{false};
 #if KAME_ENABLE_RUNNER_DIGEST
         std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
-        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)];
+        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)
+                                  - sizeof(std::atomic<bool>)];
 #else
-        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)];
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)
+                                  - sizeof(std::atomic<bool>)];
 #endif
     };
     // Strong refs (local_shared_ptr): each thread holds its own entry

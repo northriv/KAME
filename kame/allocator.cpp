@@ -741,6 +741,11 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
+	// ODR-use of the thread_local TlsGuard so it is initialised on
+	// this thread's first allocation through THIS template, and its
+	// dtor is registered for thread-exit cleanup.  Zero runtime cost
+	// (compiler optimises the (void)& away).
+	(void)&s_tls_guard;
 	// Fast path: this thread already pinned a chunk on a previous call.
 	// allocate_pooled() does its own per-flag atomic CAS so concurrent
 	// allocations from the same chunk by other threads are safe; the
@@ -1077,6 +1082,15 @@ int PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type_ubound;
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
     PoolAllocator<ALIGN, FS, DUMMY>::s_my_chunk;
+
+// Per-template thread_local TLS guard.  See PoolAllocator::TlsGuard
+// in allocator_prv.h for the rationale (redundant fallback flag setter
+// across all allocator TLS destructors, removing the single point of
+// failure that was AllocPinCleanup).
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+thread_local
+typename PoolAllocator<ALIGN, FS, DUMMY>::TlsGuard
+    PoolAllocator<ALIGN, FS, DUMMY>::s_tls_guard;
 
 template class PoolAllocator<ALLOC_ALIGN1>;
 template class PoolAllocator<ALLOC_ALIGN2>;
