@@ -113,20 +113,24 @@ DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 // fetch_sub by 1 between values 1 (idle) and 2 (running).
 // =====================================================================
 
-// DECLSPEC_KAME on definitions too — MSVC requires it for cross-DLL
+// DECLSPEC_KAME on the definition — MSVC requires it for cross-DLL
 // singleton symbols (without it each module DLL gets its own copy).
-DECLSPEC_KAME std::atomic<RunnerCounterChunk*> s_runner_counters_head{nullptr};
+// BSS-resident; zero-initialised at process start (all slots v=0,
+// next=nullptr).
+DECLSPEC_KAME RunnerCounterChunk s_runner_counters_first_chunk;
 
 namespace {
-// Process-exit cleanup: walk the chunk list and delete every chunk.
-// Runs after main() returns, after all threads have joined; no
-// concurrent access at this point.  Purely a hygiene measure so leak
-// detectors (ASan, valgrind) don't complain — runtime behavior is
-// unaffected because chunks never shrink during operation.
+// Process-exit cleanup: walk and delete only OVERFLOW chunks; the
+// first chunk is BSS, freed by the system at process exit.  Runs
+// after main() returns, after all threads have joined; no concurrent
+// access at this point.  Purely a hygiene measure so leak detectors
+// (ASan, valgrind) don't complain about the overflow chain — runtime
+// behavior is unaffected because chunks never shrink during operation.
 struct RunnerCountersTeardown {
     ~RunnerCountersTeardown() noexcept {
-        RunnerCounterChunk *c = s_runner_counters_head.exchange(
-            nullptr, std::memory_order_acq_rel);
+        RunnerCounterChunk *c =
+            s_runner_counters_first_chunk.next.exchange(
+                nullptr, std::memory_order_acq_rel);
         while(c) {
             RunnerCounterChunk *nx =
                 c->next.load(std::memory_order_relaxed);
@@ -138,23 +142,24 @@ struct RunnerCountersTeardown {
 RunnerCountersTeardown s_runner_counters_teardown;
 } // anonymous namespace
 
-// Try to claim a free slot in an existing chunk.  Walks the list from
-// head and CAS-grabs the first slot with `v == 0`, transitioning it to
-// `v == 1` (claimed-idle).  Returns the slot pointer on success, nullptr
-// when every slot in every existing chunk is already claimed.
+// Try to claim a free slot.  Scans the static first chunk first
+// (most common case — fits all threads when total active count
+// ≤ RunnerCounterChunk::N), then walks the overflow chain if needed.
 //
-// Memory ordering: `head.load(acquire)` is the one synchronisation
-// point that lets us see any chunk that has been CAS-prepended (its
-// slot[0] = 1 reservation and `next` pointer are published by that
-// CAS-prepend's release).  Subsequent `c->next.load(relaxed)` is safe
-// because **once a chunk is in the list its `next` pointer is
-// immutable** (prepends only ever insert at head — the existing
-// chain's pointers are never rewritten).  The slot CAS itself carries
-// the per-slot synchronisation.
+// Memory ordering:
+//   - First chunk's address is a compile-time constant; no atomic
+//     load to find it.
+//   - `s_runner_counters_first_chunk.next.load(acquire)` synchronises
+//     with the CAS-prepend that published any overflow chunk (its
+//     slot[0]=1 reservation and its own `next` pointer are released
+//     by that CAS's success ordering).
+//   - Subsequent overflow chunks' `next.load(relaxed)` is safe
+//     because **once an overflow chunk is in the list its `next`
+//     pointer is immutable** (prepends only ever insert at the
+//     `s_runner_counters_first_chunk.next` head of the overflow chain).
+//   - The slot CAS itself carries the per-slot synchronisation.
 static RunnerCounterEntry* try_claim_existing_slot() noexcept {
-    for(RunnerCounterChunk *c = s_runner_counters_head.load(
-            std::memory_order_acquire);
-        c; c = c->next.load(std::memory_order_relaxed)) {
+    auto try_chunk = [](RunnerCounterChunk *c) -> RunnerCounterEntry* {
         for(unsigned i = 0; i < RunnerCounterChunk::N; ++i) {
             uint64_t expected = 0;
             if(c->slots[i].v.compare_exchange_strong(
@@ -163,30 +168,39 @@ static RunnerCounterEntry* try_claim_existing_slot() noexcept {
                    std::memory_order_relaxed))
                 return &c->slots[i];
         }
+        return nullptr;
+    };
+    if(auto *p = try_chunk(&s_runner_counters_first_chunk)) return p;
+    for(RunnerCounterChunk *c = s_runner_counters_first_chunk.next.load(
+            std::memory_order_acquire);
+        c; c = c->next.load(std::memory_order_relaxed)) {
+        if(auto *p = try_chunk(c)) return p;
     }
     return nullptr;
 }
 
-// Grow the list by one chunk and claim slot 0 of the new chunk.  The
-// new chunk is CAS-prepended at the head; concurrent growers each end
+// Grow the overflow chain by one chunk and claim slot 0 of the new
+// chunk.  The new chunk is CAS-prepended onto
+// `s_runner_counters_first_chunk.next`; concurrent growers each end
 // up with their own newly-allocated chunk (cheap waste of one chunk's
 // memory per racing grower, bounded by simultaneous first-time
 // registrations — negligible in practice).
 //
-// `head.load(relaxed)` for the initial comparand: we only use the
-// pointer as a value to CAS against; we do not dereference the
-// loaded chunk before the CAS, so no acquire ordering is needed.
-// The CAS itself uses `acq_rel` on success to publish our `slot[0]=1`
-// and `next=old_head` stores to subsequent readers.
+// `s_runner_counters_first_chunk.next.load(relaxed)` for the initial
+// comparand: we only use the pointer as a value to CAS against; we
+// do not dereference the loaded chunk before the CAS, so no acquire
+// ordering is needed.  The CAS itself uses `acq_rel` on success to
+// publish our `slot[0]=1` and `next=old_head` stores to subsequent
+// readers.
 static RunnerCounterEntry* grow_and_claim_new_chunk() {
     auto *nc = new RunnerCounterChunk();
     nc->slots[0].v.store(1, std::memory_order_relaxed);
-    RunnerCounterChunk *head = s_runner_counters_head.load(
-        std::memory_order_relaxed);
+    auto &chain_head = s_runner_counters_first_chunk.next;
+    RunnerCounterChunk *cur = chain_head.load(std::memory_order_relaxed);
     do {
-        nc->next.store(head, std::memory_order_relaxed);
-    } while( !s_runner_counters_head.compare_exchange_weak(
-                  head, nc,
+        nc->next.store(cur, std::memory_order_relaxed);
+    } while( !chain_head.compare_exchange_weak(
+                  cur, nc,
                   std::memory_order_acq_rel,
                   std::memory_order_relaxed));
     return &nc->slots[0];
@@ -247,24 +261,30 @@ DECLSPEC_KAME unsigned int num_threads_running_impl(
     //! typically reads only the head chunk's first few slots.
     //!
     //! No shared refcount, no tag-CAS, no atomic_shared_ptr
-    //! conversion: this is just `load_acquire(head) → for each chunk:
-    //! load_relaxed(next), for each slot: load_relaxed(v)`.  On EPYC
-    //! the prior 27.8% CPU-time hotspot collapses to a few cycles per
-    //! call for the typical early-exit case.
+    //! conversion, **no head-pointer load**: the first chunk is at a
+    //! compile-time-constant address (`&s_runner_counters_first_chunk`,
+    //! a BSS-resident static).  On EPYC the prior 27.8% CPU-time
+    //! hotspot collapses to a few cycles per call for the typical
+    //! early-exit case.
     //!
-    //! Memory ordering: `head.load(acquire)` synchronises with the
-    //! publishing CAS-prepend that exposed the newest chunk (release
-    //! ordering on success transitively published all earlier chunks
-    //! and their `next` pointers).  Per-chunk `next.load(relaxed)`
-    //! is sufficient because **once a chunk is in the list its `next`
-    //! pointer is immutable** (single-CAS prepend at head; existing
-    //! `next` pointers are never modified).  Per-slot `v.load(relaxed)`
-    //! is sufficient because callers are adaptive — staleness is
-    //! tolerated by the negotiate-internal gate / lottery heuristics.
+    //! Memory ordering: **everything relaxed** on the reader side.
+    //!   - First chunk: at a compile-time-constant address; no atomic
+    //!     load to find it.
+    //!   - `c->next.load(relaxed)` even for the first-chunk's prepend-
+    //!     point next pointer: the reader is *adaptive*, so temporary
+    //!     under-counts (e.g. seeing a published next pointer but not
+    //!     yet the new chunk's slot[0]=1 reservation) are tolerated by
+    //!     the negotiate-internal gate / lottery heuristics.  C++
+    //!     memory model guarantees eventual visibility for atomic
+    //!     writes, so the staleness window is at most ~µs.
+    //!   - Per-slot `v.load(relaxed)`: same rationale.
+    //!
+    //! Correctness of slot reuse is ensured by the **slot CAS**
+    //! (`compare_exchange_strong` with `acq_rel` success in
+    //! `try_claim_existing_slot`), not by the read loop here.
     uint64_t s = 0;
-    for(RunnerCounterChunk *c = s_runner_counters_head.load(
-            std::memory_order_acquire);
-        c; c = c->next.load(std::memory_order_relaxed)) {
+    RunnerCounterChunk *c = &s_runner_counters_first_chunk;
+    for(; c; c = c->next.load(std::memory_order_relaxed)) {
         for(unsigned i = 0; i < RunnerCounterChunk::N; ++i) {
             uint64_t v = c->slots[i].v.load(std::memory_order_relaxed);
             s += (v >> 1);

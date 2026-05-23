@@ -324,13 +324,25 @@ namespace detail {
     DECLSPEC_KAME extern XThreadLocal<RunnerCounterEntry*, TlsRunnerCounterPtrTag>
         tls_runner_counter_ptr;
 
-    //! Head of the singly-linked list of `RunnerCounterChunk`s.  New
-    //! chunks are CAS-prepended when a thread can't find a free slot
-    //! in any existing chunk.  Readers traverse head → ... → null;
-    //! writers (AcquireOneCount / ReleaseOneCount) only touch their
-    //! own slot pointer — they never walk the list after registration.
-    DECLSPEC_KAME extern std::atomic<RunnerCounterChunk*>
-        s_runner_counters_head;
+    //! Statically-allocated first chunk of the runner-counter chunk
+    //! list.  Always present (BSS-resident, zero-initialised at
+    //! process start), found without an atomic pointer load — readers
+    //! and the slot-claim walker start at `&s_runner_counters_first_chunk`
+    //! directly.  This eliminates the per-call `head.load(acquire)`
+    //! that the original heap-allocated-head design required.
+    //!
+    //! Overflow chunks (rare — only when active-thread count exceeds
+    //! `RunnerCounterChunk::N`) are CAS-prepended onto
+    //! `s_runner_counters_first_chunk.next`.  The first chunk's `next`
+    //! is the moving prepend point (needs `acquire` to publish new
+    //! overflow chunks); overflow chunks' own `next` is immutable
+    //! once linked (relaxed loads are sufficient for traversal).
+    //!
+    //! Memory cost: one BSS-resident chunk (~4 KB on M3 with
+    //! KAME_CACHE_LINE=128).  Standalone test binaries that never
+    //! exercise the STM still pay this — accepted for the simpler
+    //! initialisation model.
+    DECLSPEC_KAME extern RunnerCounterChunk s_runner_counters_first_chunk;
 
     //! Allocate + register this thread's counter on first call;
     //! return the cached raw pointer thereafter. Defined in
