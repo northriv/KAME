@@ -263,15 +263,29 @@ namespace detail {
     //! sockets and per-tx fetch_add became cross-socket (~1 µs),
     //! yielding -37% throughput vs the heap-per-thread layout.
     //!
-    //! Each entry persists until process exit (never freed during
-    //! runtime).  Total memory ≈ (max-ever-thread-count) × 128 B,
-    //! which for typical KAME workloads (fixed worker pool) stays
-    //! below a few KB.  A process-exit teardown sentinel walks and
-    //! deletes the list for leak-detector hygiene.
+    //! Entries persist until process exit.  Bounded by **max-ever-
+    //! concurrent thread count** (not max-ever-total) via slot reuse:
+    //! when a thread exits, its TLS dtor sets `claimed=false`, leaving
+    //! the entry available for the next first-time thread to CAS-
+    //! claim.  This handles long-running processes with worker
+    //! spawn/destroy churn without unbounded leak.
+    //!
+    //! NUMA-aware reuse (Linux only): each entry stores its
+    //! `allocated_node` (set once at construction, from `getcpu(2)`).
+    //! `runner_counter_register` does a two-pass scan — first pass
+    //! prefers entries on the calling thread's local NUMA; second pass
+    //! takes any unclaimed entry as fallback.  Long-term steady-state
+    //! drives entries to settle on threads of matching NUMA, restoring
+    //! local `fetch_add/sub`.  On non-Linux (Win/Mac), single-pass
+    //! blind reuse — no penalty on uniform-memory single-socket
+    //! systems where the M3 production target lives.
+    //!
+    //! A process-exit teardown sentinel walks and deletes the list
+    //! for leak-detector hygiene.
     //!
     //! Replaces the heap-vector+atomic_shared_ptr design (eliminated
     //! the 27.8% EPYC hotspot and the TLS-teardown race) AND the
-    //! intermediate chunked-array design (eliminates the cross-socket
+    //! intermediate chunked-array design (eliminated the cross-socket
     //! NUMA pitfall of contiguous slot blocks).
     struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
         std::atomic<uint64_t> v{0};
@@ -284,13 +298,32 @@ namespace detail {
         //! Declared `std::atomic<>` for ABI/lint cleanliness; loads
         //! in the traversal hot path are `relaxed`.
         std::atomic<RunnerCounterEntry*> next{nullptr};
+        //! `true` while an owning thread holds this entry; `false`
+        //! when the entry is free for the next first-time-registering
+        //! thread to CAS-claim.  Newly-constructed entries have
+        //! `claimed=true` (the allocator is the first owner); the
+        //! TLS dtor `RunnerEntryReleaseGuard` flips this back to
+        //! `false` on thread exit.
+        std::atomic<bool> claimed{true};
+        //! Immutable after construction: the NUMA node id (from
+        //! `getcpu(2)` on Linux, else -1) of the thread that
+        //! originally allocated this entry's memory.  Used by the
+        //! reuse path's first pass to prefer entries on the
+        //! calling thread's local NUMA.  Reader does not touch this.
+        int8_t allocated_node;
+        RunnerCounterEntry(int8_t node) noexcept
+            : allocated_node(node) {}
 #if KAME_ENABLE_RUNNER_DIGEST
         std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
         char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)
-                                  - sizeof(std::atomic<RunnerCounterEntry*>)];
+                                  - sizeof(std::atomic<RunnerCounterEntry*>)
+                                  - sizeof(std::atomic<bool>)
+                                  - sizeof(int8_t)];
 #else
         char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)
-                                  - sizeof(std::atomic<RunnerCounterEntry*>)];
+                                  - sizeof(std::atomic<RunnerCounterEntry*>)
+                                  - sizeof(std::atomic<bool>)
+                                  - sizeof(int8_t)];
 #endif
     };
 

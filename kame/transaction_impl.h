@@ -81,32 +81,52 @@ DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 // **Linux first-touch policy places the entry on that thread's
 // local NUMA node** → subsequent per-tx `fetch_add/sub` on the
 // entry's `v` is a *local* atomic (~10 ns on EPYC, ~5 ns on M3),
-// not a cross-socket atomic (~1 µs on EPYC).  This is the design
-// property that the intermediate chunked-array attempt lost: 32
-// contiguous slots in a single chunk allocation forced 30-50% of
-// threads to do cross-socket RMW per transaction on dual-socket
-// EPYC, yielding -37% throughput vs the prior heap-per-thread
-// layout despite eliminating the function-level
-// `num_threads_running_impl` hotspot.
+// not a cross-socket atomic (~1 µs on EPYC).
 //
-// Entry lifetime = process lifetime.  Entries are never freed at
-// runtime — bounded by (max-ever-thread-count), which for KAME's
-// typical fixed-worker-pool deployment is a few hundred at most
-// (a few × 100 B per entry → KB-scale memory).  A process-exit
-// teardown sentinel walks and deletes the list for leak-detector
-// hygiene.
+// Slot reuse via `claimed` flag: when a thread exits, its TLS dtor
+// (`RunnerEntryReleaseGuard`) sets `claimed=false`, leaving the
+// entry in the list available for the next first-time-registering
+// thread to CAS-claim.  This bounds memory by **max-ever-concurrent
+// thread count** (not max-ever-total), handling long-running
+// processes with worker spawn/destroy churn.
 //
-// `v` encoding (back to the simple pre-chunked semantics):
+// NUMA-aware reuse (Linux only): `runner_counter_register` does a
+// two-pass scan — first pass prefers entries with `allocated_node`
+// matching the calling thread's current NUMA (via `getcpu(2)`),
+// second pass takes any unclaimed entry.  Steady-state drives
+// entries to settle on threads of matching NUMA → cross-socket
+// fetch_add/sub on reused entries is bounded to brief transients.
+//
+// `v` encoding (simple, pre-chunked semantics):
 //   v == 0 : not currently in a Tx
-//   v >= 1 : in a Tx (single-bit reservation; AcquireOneCount RAII
-//            guarantees v ∈ {0, 1} in steady state)
+//   v >= 1 : in a Tx (AcquireOneCount RAII keeps v ∈ {0, 1})
 //
 // Replaces:
 //   - the original `atomic_shared_ptr<vec<lsp<Entry>>>` design
-//     (eliminated the 27.8% EPYC hotspot and the TLS-teardown race)
-//   - the intermediate chunked-array design (eliminates the cross-
-//     socket NUMA pitfall by giving each thread its own heap entry)
+//   - the intermediate chunked-array design
 // =====================================================================
+
+#ifdef __linux__
+#include <unistd.h>
+#include <sys/syscall.h>
+// Returns the NUMA node of the CPU currently scheduling this thread,
+// or -1 if unknown / syscall failed.  Used by `runner_counter_register`
+// to pick entries on the calling thread's local NUMA preferentially.
+//
+// `getcpu(2)` is fast (vDSO-accelerated on x86_64); call frequency
+// is once per thread first-register, so even a plain syscall would
+// be acceptable.
+static inline int8_t kame_current_numa_node() noexcept {
+#ifdef SYS_getcpu
+    unsigned int cpu = 0, node = 0;
+    if(::syscall(SYS_getcpu, &cpu, &node, nullptr) == 0)
+        return (int8_t)((node > 127) ? 127 : node);
+#endif
+    return -1;
+}
+#else
+static inline int8_t kame_current_numa_node() noexcept { return -1; }
+#endif
 
 // DECLSPEC_KAME on the definition — MSVC requires it for cross-DLL
 // singleton symbols (without it each module DLL gets its own copy).
@@ -133,25 +153,101 @@ struct RunnerEntriesTeardown {
 RunnerEntriesTeardown s_runner_entries_teardown;
 } // anonymous namespace
 
+// TLS RAII: on thread exit, mark the entry unclaimed so the next
+// first-time-registering thread can pick it up via slot reuse.
+// Resets `v` to 0 explicitly for safety against the (impossible
+// under correct RAII, but cheap-to-defend-against) case of a thread
+// exiting mid-transaction with v=1 — the next claimer needs a
+// clean slate.
+//
+// Single relaxed-release atomic store, no allocator interaction,
+// no atomic_shared_ptr, no CAS retry — safe under any TLS-
+// destruction order (the issue that produced ~2-5/100 crashes in
+// the prior atomic_shared_ptr<vec> design).
+struct RunnerEntryReleaseGuard {
+    RunnerCounterEntry *entry;
+    RunnerEntryReleaseGuard() noexcept : entry(nullptr) {}
+    ~RunnerEntryReleaseGuard() noexcept {
+        if(entry) {
+            entry->v.store(0, std::memory_order_release);
+            entry->claimed.store(false, std::memory_order_release);
+        }
+    }
+    RunnerEntryReleaseGuard(const RunnerEntryReleaseGuard &) = delete;
+    RunnerEntryReleaseGuard &operator=(const RunnerEntryReleaseGuard &) = delete;
+};
+
+// Intra-libkame only — no plugin TU touches it.
+static XThreadLocal<RunnerEntryReleaseGuard> tls_runner_entry_release_guard;
+
+// Try to claim an existing unclaimed entry.  Two-pass design:
+//   Pass 1 (Linux only, when my_node >= 0): prefer entries with
+//          matching `allocated_node` — keeps post-reuse fetch_add
+//          local to the new owner's NUMA.
+//   Pass 2: take any unclaimed entry as fallback.
+// Returns nullptr if all entries are claimed.
+static RunnerCounterEntry* try_claim_existing_entry(int8_t my_node) noexcept {
+    if(my_node >= 0) {
+        for(RunnerCounterEntry *e = s_runner_entries_head.load(
+                std::memory_order_acquire);
+            e; e = e->next.load(std::memory_order_relaxed)) {
+            if(e->allocated_node != my_node) continue;
+            // Relaxed read first to avoid wasted CAS attempts on
+            // entries that are visibly claimed.
+            if(e->claimed.load(std::memory_order_relaxed)) continue;
+            bool exp = false;
+            if(e->claimed.compare_exchange_strong(
+                   exp, true,
+                   std::memory_order_acq_rel,
+                   std::memory_order_relaxed))
+                return e;
+        }
+    }
+    for(RunnerCounterEntry *e = s_runner_entries_head.load(
+            std::memory_order_acquire);
+        e; e = e->next.load(std::memory_order_relaxed)) {
+        if(e->claimed.load(std::memory_order_relaxed)) continue;
+        bool exp = false;
+        if(e->claimed.compare_exchange_strong(
+               exp, true,
+               std::memory_order_acq_rel,
+               std::memory_order_relaxed))
+            return e;
+    }
+    return nullptr;
+}
+
 DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
-    // Allocate a new entry on the *calling* thread's heap.  On Linux
-    // with the default first-touch NUMA policy this places the page
-    // on the thread's local NUMA node — making all subsequent
-    // `fetch_add/sub` operations on this entry's `v` local atomics.
-    auto *e = new RunnerCounterEntry();
-    // CAS-prepend onto the global list.  Set `next` BEFORE the CAS;
-    // the CAS's `acq_rel` on success publishes `e`'s `v=0` initial
-    // value and its `next` pointer to any reader that subsequently
-    // does `s_runner_entries_head.load(acquire)`.
-    RunnerCounterEntry *head = s_runner_entries_head.load(
-        std::memory_order_relaxed);
-    do {
-        e->next.store(head, std::memory_order_relaxed);
-    } while( !s_runner_entries_head.compare_exchange_weak(
-                  head, e,
-                  std::memory_order_acq_rel,
-                  std::memory_order_relaxed));
+    auto &guard = *tls_runner_entry_release_guard;
+    const int8_t my_node = kame_current_numa_node();
+    // First try slot reuse (bounded memory in the face of thread
+    // spawn/destroy churn).
+    RunnerCounterEntry *e = try_claim_existing_entry(my_node);
+    if( !e) {
+        // No free slot — allocate a new entry on the *calling*
+        // thread's heap.  On Linux with the default first-touch
+        // NUMA policy this places the page on the thread's local
+        // NUMA node — making all subsequent `fetch_add/sub`
+        // operations on this entry's `v` local atomics.  The
+        // constructor records `allocated_node` so future reuse
+        // attempts can prefer same-NUMA entries.
+        e = new RunnerCounterEntry(my_node);
+        // CAS-prepend onto the global list.  Set `next` BEFORE
+        // the CAS; the CAS's `acq_rel` on success publishes `e`'s
+        // initial state (v=0, claimed=true) and its `next` pointer
+        // to any reader that subsequently does
+        // `s_runner_entries_head.load(acquire)`.
+        RunnerCounterEntry *head = s_runner_entries_head.load(
+            std::memory_order_relaxed);
+        do {
+            e->next.store(head, std::memory_order_relaxed);
+        } while( !s_runner_entries_head.compare_exchange_weak(
+                      head, e,
+                      std::memory_order_acq_rel,
+                      std::memory_order_relaxed));
+    }
     *tls_runner_counter_ptr = e;
+    guard.entry = e;
     return *e;
 }
 
