@@ -236,74 +236,62 @@ namespace detail {
 #endif // KAME_ENABLE_RUNNER_DIGEST
 
     //! Per-thread "I'm in a Tx" counter (plus, when enabled, the
-    //! peer-readable digest).  Slot layout in the global chunked list
-    //! (see `RunnerCounterChunk` below).  `v` encodes both
-    //! **reservation** and **running** state in a single atomic word
-    //! so that reader, writer, and slot reuse share one cacheline:
+    //! peer-readable digest).  One instance per thread, heap-
+    //! allocated by `runner_counter_register()` and linked into the
+    //! global singly-linked list anchored at `s_runner_entries_head`.
     //!
-    //!   v == 0  : slot free (no thread owns it; can be CAS-claimed)
-    //!   v == 1  : slot claimed, owner idle (between transactions)
-    //!   v == 2  : slot claimed, owner currently in a transaction
+    //! `v` encoding (back to the simple pre-chunked semantics):
+    //!   v == 0  : idle (not currently in a transaction)
+    //!   v >= 1  : running (one per nesting depth, but
+    //!             AcquireOneCount RAII guarantees v ∈ {0, 1} in
+    //!             steady state)
     //!
-    //! The +1 reservation is added on first claim (`runner_counter_register`)
-    //! and removed on thread exit (TLS dtor `RunnerSlotReleaseGuard`).
-    //! AcquireOneCount / ReleaseOneCount RAII pairs simply
-    //! fetch_add(1)/fetch_sub(1) — they don't touch the reservation
-    //! bit.  The reader counts a slot as "running" iff `v >= 2`
-    //! (equivalently `(v >> 1)` since v is bounded to {0,1,2}).
+    //! `AcquireOneCount` does `v.fetch_add(1, release)` on the
+    //! outermost transaction (0 → 1); `~AcquireOneCount` does the
+    //! reciprocal `fetch_sub` (1 → 0).  `ReleaseOneCount` (CV-sleep
+    //! yield) mirrors the same with reversed direction.
+    //! `num_threads_running_impl` reads with `v.load(acquire)` and
+    //! sums across all entries (release/acquire pairing collapses
+    //! cross-socket NUMA staleness).
     //!
-    //! When KAME_ENABLE_RUNNER_DIGEST is set, `digest` shares the
-    //! cacheline — peer reads at the same slow-path cadence so
-    //! colocating costs one M→S transition for both fields instead
-    //! of two.  Default off: digest field disappears, padding fills
-    //! the cacheline.
+    //! Lifetime: heap-allocated by the owning thread on first STM
+    //! use → first-touch places the allocation on that thread's
+    //! local NUMA node → `fetch_add/sub` is **local** even on EPYC
+    //! dual-socket.  This is the critical NUMA placement property
+    //! that the previous chunked-array design lost — on ohtaka1
+    //! (256-CPU dual-socket EPYC) chunked arrays mixed slots across
+    //! sockets and per-tx fetch_add became cross-socket (~1 µs),
+    //! yielding -37% throughput vs the heap-per-thread layout.
     //!
-    //! No inheritance from atomic_strictrefonly — slots are owned by
-    //! the chunk that contains them (lifetime = process), not by
-    //! local_shared_ptr.  This eliminates the
-    //! `atomic_shared_ptr<RunnerCounterVec>` tag-CAS hotspot that
-    //! dominated EPYC profiling (`num_threads_running_impl` 27.8% of
-    //! CPU even with ceiling early-exit), and also removes the
-    //! `~RunnerCounterRegistration` CAS-retry race that produced
-    //! intermittent crashes during TLS teardown.
+    //! Each entry persists until process exit (never freed during
+    //! runtime).  Total memory ≈ (max-ever-thread-count) × 128 B,
+    //! which for typical KAME workloads (fixed worker pool) stays
+    //! below a few KB.  A process-exit teardown sentinel walks and
+    //! deletes the list for leak-detector hygiene.
+    //!
+    //! Replaces the heap-vector+atomic_shared_ptr design (eliminated
+    //! the 27.8% EPYC hotspot and the TLS-teardown race) AND the
+    //! intermediate chunked-array design (eliminates the cross-socket
+    //! NUMA pitfall of contiguous slot blocks).
     struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
         std::atomic<uint64_t> v{0};
+        //! Set once during `runner_counter_register` (just before the
+        //! CAS-prepend onto `s_runner_entries_head`); immutable
+        //! thereafter.  The publishing CAS uses `acq_rel`, so a
+        //! reader that synchronises-with the new head via
+        //! `s_runner_entries_head.load(acquire)` automatically sees
+        //! this `next` value with no further ordering needed.
+        //! Declared `std::atomic<>` for ABI/lint cleanliness; loads
+        //! in the traversal hot path are `relaxed`.
+        std::atomic<RunnerCounterEntry*> next{nullptr};
 #if KAME_ENABLE_RUNNER_DIGEST
         std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
-        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)];
+        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)
+                                  - sizeof(std::atomic<RunnerCounterEntry*>)];
 #else
-        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)];
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)
+                                  - sizeof(std::atomic<RunnerCounterEntry*>)];
 #endif
-    };
-
-    //! Chunk in the singly-linked list of runner-counter slots.  Each
-    //! chunk holds `N` cacheline-padded `RunnerCounterEntry` slots,
-    //! plus an atomic `next` pointer to the next chunk.  The list is
-    //! built with **CAS-prepend** at `s_runner_counters_head`: each
-    //! new chunk is inserted at the head, traversal walks head → ... →
-    //! null.  Chunks are never freed at runtime; they accumulate to
-    //! `max-ever-concurrent-threads / N` and are released only at
-    //! process exit (the global head's static dtor walks and deletes).
-    //!
-    //! Slot reuse within a chunk: when a thread exits its slot's `v`
-    //! is decremented from 1 (or whatever residual) back to 0, marking
-    //! it free for the next first-time thread to CAS-claim.  This keeps
-    //! the steady-state chunk count = ceil(active_threads / N).
-    //!
-    //! N=32 with KAME_CACHE_LINE=128 (M3) → chunk size ≈ 4 KB + next
-    //! pointer; fits well within L1d.  Multiple chunks are traversed
-    //! via pointer-chase, but with ceiling early-exit the reader
-    //! typically only touches the head chunk's first few slots.
-    struct RunnerCounterChunk {
-        static constexpr unsigned N = 32;
-        RunnerCounterEntry slots[N];
-        std::atomic<RunnerCounterChunk*> next{nullptr};
-        // Cacheline-pad the next pointer so its CAS-prepend traffic
-        // does not bounce the last slot's cacheline.  (Each slot is
-        // already alignas(KAME_CACHE_LINE), so `next` lands after the
-        // slots; padding ensures the chunk header occupies its own
-        // line.)
-        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<RunnerCounterChunk*>)];
     };
 
 #if KAME_ENABLE_RUNNER_DIGEST
@@ -314,35 +302,22 @@ namespace detail {
     DECLSPEC_KAME extern XThreadLocal<RunnerDigest> tls_runner_digest;
 #endif // KAME_ENABLE_RUNNER_DIGEST
 
-    //! Cached raw pointer to this thread's slot inside the chunk list.
+    //! Cached raw pointer to this thread's heap-allocated entry.
     //! Set once on first registration (`runner_counter_register`) and
     //! reused for the lifetime of the thread.  Hot-path consumers
     //! (AcquireOneCount, ReleaseOneCount, ScopedNeg digest publish)
-    //! dereference it directly — one TLS load + one relaxed fetch_add,
-    //! no shared_ptr / atomic_shared_ptr operations.
+    //! dereference it directly — one TLS load + one release/relaxed
+    //! fetch_add, no shared_ptr / atomic_shared_ptr operations.
     struct TlsRunnerCounterPtrTag;
     DECLSPEC_KAME extern XThreadLocal<RunnerCounterEntry*, TlsRunnerCounterPtrTag>
         tls_runner_counter_ptr;
 
-    //! Statically-allocated first chunk of the runner-counter chunk
-    //! list.  Always present (BSS-resident, zero-initialised at
-    //! process start), found without an atomic pointer load — readers
-    //! and the slot-claim walker start at `&s_runner_counters_first_chunk`
-    //! directly.  This eliminates the per-call `head.load(acquire)`
-    //! that the original heap-allocated-head design required.
-    //!
-    //! Overflow chunks (rare — only when active-thread count exceeds
-    //! `RunnerCounterChunk::N`) are CAS-prepended onto
-    //! `s_runner_counters_first_chunk.next`.  The first chunk's `next`
-    //! is the moving prepend point (needs `acquire` to publish new
-    //! overflow chunks); overflow chunks' own `next` is immutable
-    //! once linked (relaxed loads are sufficient for traversal).
-    //!
-    //! Memory cost: one BSS-resident chunk (~4 KB on M3 with
-    //! KAME_CACHE_LINE=128).  Standalone test binaries that never
-    //! exercise the STM still pay this — accepted for the simpler
-    //! initialisation model.
-    DECLSPEC_KAME extern RunnerCounterChunk s_runner_counters_first_chunk;
+    //! Head of the per-thread runner-counter linked list.  Each
+    //! thread CAS-prepends its heap-allocated `RunnerCounterEntry`
+    //! here on first STM use.  Reader (`num_threads_running_impl`)
+    //! walks `head → entry.next → ...`; once an entry is in the
+    //! list its `next` pointer is immutable.
+    DECLSPEC_KAME extern std::atomic<RunnerCounterEntry*> s_runner_entries_head;
 
     //! Allocate + register this thread's counter on first call;
     //! return the cached raw pointer thereafter. Defined in
