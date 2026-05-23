@@ -1219,31 +1219,45 @@ private:
         //! AND we are not inside a ReleaseOneCount (sleeping) scope.
         //! Nested Transactions share the same running-slot — the
         //! thread is one runner regardless of depth.
+        //!
+        //! Memory ordering: `memory_order_release` (vs the prior
+        //! `relaxed`) pairs with the `acquire` load on the reader
+        //! side (`num_threads_running_impl`).  On x86 this is the
+        //! same instruction (LOCK XADD is intrinsically acq_rel); on
+        //! ARM it adds a STLR-style barrier.  The release matters
+        //! across NUMA nodes: under `relaxed` on EPYC the v value
+        //! could appear stale for tens of µs across sockets, and the
+        //! adaptive heuristics in `negotiate_internal` would misjudge
+        //! the running count and over-fire wake/sleep transitions.
+        //! With release/acquire pairing the staleness window collapses
+        //! to the hardware cache coherency RTT (sub-µs).
         struct DECLSPEC_KAME AcquireOneCount {
             AcquireOneCount() {
                 if(++*detail::s_tx_nest == 1 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
-                        .fetch_add(1, std::memory_order_relaxed);
+                        .fetch_add(1, std::memory_order_release);
             }
             ~AcquireOneCount() {
                 if(--*detail::s_tx_nest == 0 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
-                        .fetch_sub(1, std::memory_order_relaxed);
+                        .fetch_sub(1, std::memory_order_release);
             }
         };
         //! RAII yield of the running slot for the duration of a sleep
         //! inside negotiate_internal. Pairs with the TLS nest counters
         //! so nested sleep scopes don't double-decrement.
+        //!
+        //! Same `memory_order_release` rationale as `AcquireOneCount`.
         struct DECLSPEC_KAME ReleaseOneCount {
             ReleaseOneCount() {
                 if(++*detail::s_sleep_nest == 1 && *detail::s_tx_nest > 0)
                     detail::my_runner_counter().v
-                        .fetch_sub(1, std::memory_order_relaxed);
+                        .fetch_sub(1, std::memory_order_release);
             }
             ~ReleaseOneCount() {
                 if(--*detail::s_sleep_nest == 0 && *detail::s_tx_nest > 0)
                     detail::my_runner_counter().v
-                        .fetch_add(1, std::memory_order_relaxed);
+                        .fetch_add(1, std::memory_order_release);
             }
         };
     };

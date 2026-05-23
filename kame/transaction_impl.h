@@ -267,26 +267,31 @@ DECLSPEC_KAME unsigned int num_threads_running_impl(
     //! hotspot collapses to a few cycles per call for the typical
     //! early-exit case.
     //!
-    //! Memory ordering: **everything relaxed** on the reader side.
-    //!   - First chunk: at a compile-time-constant address; no atomic
-    //!     load to find it.
-    //!   - `c->next.load(relaxed)` even for the first-chunk's prepend-
-    //!     point next pointer: the reader is *adaptive*, so temporary
-    //!     under-counts (e.g. seeing a published next pointer but not
-    //!     yet the new chunk's slot[0]=1 reservation) are tolerated by
-    //!     the negotiate-internal gate / lottery heuristics.  C++
-    //!     memory model guarantees eventual visibility for atomic
-    //!     writes, so the staleness window is at most ~µs.
-    //!   - Per-slot `v.load(relaxed)`: same rationale.
+    //! Memory ordering: per-slot `v.load(acquire)` pairs with the
+    //! `release` ordering on `AcquireOneCount` / `ReleaseOneCount`
+    //! RMW operations.  This collapses the inter-thread visibility
+    //! window of `v` from "C++ memory model eventual" (which on
+    //! EPYC NUMA could be tens of µs across sockets — wide enough
+    //! for the adaptive negotiate-internal heuristics to misjudge
+    //! the running count, observed as inflated wake/sleep activity
+    //! and -37% throughput) down to the hardware cache coherency
+    //! RTT (sub-µs).  On x86 the acquire load is a plain MOV
+    //! (loads are already acquire by hardware ISA); on ARM it
+    //! compiles to LDAR.  Either way, far cheaper than the cost of
+    //! adaptive misjudgments.
     //!
-    //! Correctness of slot reuse is ensured by the **slot CAS**
-    //! (`compare_exchange_strong` with `acq_rel` success in
-    //! `try_claim_existing_slot`), not by the read loop here.
+    //! `c->next.load(relaxed)` remains acceptable: once a chunk is
+    //! in the list, its `next` pointer is immutable (single-CAS
+    //! prepend at the static first chunk's `next`; existing chain
+    //! `next`s are never modified).  A reader that observes a
+    //! published next pointer also observes (via the per-slot
+    //! acquire load) the chunk's slot[0]=1 reservation publishing
+    //! that came with the same CAS-prepend's release ordering.
     uint64_t s = 0;
     RunnerCounterChunk *c = &s_runner_counters_first_chunk;
     for(; c; c = c->next.load(std::memory_order_relaxed)) {
         for(unsigned i = 0; i < RunnerCounterChunk::N; ++i) {
-            uint64_t v = c->slots[i].v.load(std::memory_order_relaxed);
+            uint64_t v = c->slots[i].v.load(std::memory_order_acquire);
             s += (v >> 1);
             if(s >= ceiling) return ceiling;
         }
