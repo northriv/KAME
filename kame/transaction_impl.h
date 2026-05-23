@@ -115,11 +115,13 @@ DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 //
 // `getcpu(2)` is fast (vDSO-accelerated on x86_64); call frequency
 // is once per thread first-register, so even a plain syscall would
-// be acceptable.
+// be acceptable.  No `::` prefix on `syscall` — glibc declares it
+// in the unistd.h namespace without making it a global-scope symbol
+// reachable via `::`.
 static inline int8_t kame_current_numa_node() noexcept {
 #ifdef SYS_getcpu
     unsigned int cpu = 0, node = 0;
-    if(::syscall(SYS_getcpu, &cpu, &node, nullptr) == 0)
+    if(syscall(SYS_getcpu, &cpu, &node, nullptr) == 0)
         return (int8_t)((node > 127) ? 127 : node);
 #endif
     return -1;
