@@ -134,6 +134,12 @@ static inline int8_t kame_current_numa_node() noexcept { return -1; }
 // singleton symbols (without it each module DLL gets its own copy).
 DECLSPEC_KAME std::atomic<RunnerCounterEntry*> s_runner_entries_head{nullptr};
 
+// TID → RunnerCounterEntry hash table for targeted wake-up.  See
+// declaration in transaction.h for the design rationale.  Zero-
+// initialised at process start (atomic{} default ctor).
+DECLSPEC_KAME std::atomic<RunnerCounterEntry*>
+    s_tid_to_entry[NEGOTIATE_SLEEP_SLOTS]{};
+
 namespace {
 // Process-exit cleanup: walk the entry list and delete every entry.
 // Runs after main() returns, after all threads have joined; no
@@ -157,21 +163,23 @@ RunnerEntriesTeardown s_runner_entries_teardown;
 
 // TLS RAII: on thread exit, mark the entry unclaimed so the next
 // first-time-registering thread can pick it up via slot reuse.
-// Resets `v` to 0 explicitly for safety against the (impossible
-// under correct RAII, but cheap-to-defend-against) case of a thread
-// exiting mid-transaction with v=1 — the next claimer needs a
-// clean slate.
+// Resets `v` to 0 and the sleep-state fields (notified/op_kind/
+// stamp) so the next claimer inherits a clean slate.  Mutex / cv
+// themselves are stateless once unlocked — safe to recycle.
 //
-// Single relaxed-release atomic store, no allocator interaction,
-// no atomic_shared_ptr, no CAS retry — safe under any TLS-
-// destruction order (the issue that produced ~2-5/100 crashes in
-// the prior atomic_shared_ptr<vec> design).
+// All ops are plain stores or release-stores, no allocator
+// interaction, no atomic_shared_ptr, no CAS retry — safe under
+// any TLS-destruction order (the issue that produced ~2-5/100
+// crashes in the prior atomic_shared_ptr<vec> design).
 struct RunnerEntryReleaseGuard {
     RunnerCounterEntry *entry;
     RunnerEntryReleaseGuard() noexcept : entry(nullptr) {}
     ~RunnerEntryReleaseGuard() noexcept {
         if(entry) {
             entry->v.store(0, std::memory_order_release);
+            entry->notified = false;
+            entry->op_kind  = 0;
+            entry->stamp    = 0;
             entry->claimed.store(false, std::memory_order_release);
         }
     }
@@ -222,6 +230,7 @@ static RunnerCounterEntry* try_claim_existing_entry(int8_t my_node) noexcept {
 DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
     auto &guard = *tls_runner_entry_release_guard;
     const int8_t my_node = kame_current_numa_node();
+    const uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
     // First try slot reuse (bounded memory in the face of thread
     // spawn/destroy churn).
     RunnerCounterEntry *e = try_claim_existing_entry(my_node);
@@ -230,9 +239,10 @@ DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
         // thread's heap.  On Linux with the default first-touch
         // NUMA policy this places the page on the thread's local
         // NUMA node — making all subsequent `fetch_add/sub`
-        // operations on this entry's `v` local atomics.  The
-        // constructor records `allocated_node` so future reuse
-        // attempts can prefer same-NUMA entries.
+        // operations on this entry's `v` (and the embedded sleep
+        // slot's `mtx` / `cv`) local atomics.  The constructor
+        // records `allocated_node` so future reuse attempts can
+        // prefer same-NUMA entries.
         e = new RunnerCounterEntry(my_node);
         // CAS-prepend onto the global list.  Set `next` BEFORE
         // the CAS; the CAS's `acq_rel` on success publishes `e`'s
@@ -248,6 +258,17 @@ DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
                       std::memory_order_acq_rel,
                       std::memory_order_relaxed));
     }
+    // Set the owner's TID (used both as the wake-side identifier and
+    // as the `s_tid_to_entry` hash key).  Plain store: `tid` is read
+    // by the wake side under the entry's `mtx` lock, so the
+    // mutex's release/acquire provides the necessary synchronisation.
+    e->tid = my_tid;
+    // Register in the TID→entry hash table for targeted wake-up.
+    // Last writer wins on hash collision; the loser remains
+    // discoverable only via list walk (e.g. the wake side's
+    // `op_kind` filter falls back to its second pass).
+    s_tid_to_entry[my_tid & (NEGOTIATE_SLEEP_SLOTS - 1)].store(
+        e, std::memory_order_release);
     *tls_runner_counter_ptr = e;
     guard.entry = e;
     return *e;
