@@ -325,17 +325,30 @@ namespace detail {
     //! Windows MSVC dllexport caveats both push us toward routing
     //! every access through libkame symbols.)
     DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl();
-    DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept;
+    DECLSPEC_KAME unsigned int num_threads_running_impl(unsigned int ceiling) noexcept;
 
     inline RunnerCounterEntry& my_runner_counter() {
         return my_runner_counter_impl();
     }
 
-    //! Sum across all registered threads. Called only from
-    //! `negotiate_internal` (gate / lottery / wake decisions) — never
-    //! on the K=0 disjoint hot path.
-    inline unsigned int num_threads_running() noexcept {
-        return num_threads_running_impl();
+    //! Sum across all registered threads — early-exits the per-entry
+    //! iteration once the partial sum reaches `ceiling`.  Called only
+    //! from `negotiate_internal` (gate / lottery / wake decisions) —
+    //! never on the K=0 disjoint hot path.
+    //!
+    //! Hot-path callers compare the result against small thresholds
+    //! (typically `KAME_STM_MAX_RUNNERS = 2` or `min_r = 1..2`); for
+    //! those, passing the threshold as `ceiling` lets the loop bail
+    //! after iterating ~ceiling entries instead of all 128 — VTune
+    //! on EPYC ohtaka1 showed the un-capped version costing 30% of
+    //! CPU time at 128 threads.
+    //!
+    //! Default `ceiling = ~0u` reproduces the original "exact sum"
+    //! semantics, for callers (lease scaling, wake-count calculation)
+    //! that actually use the magnitude.
+    inline unsigned int num_threads_running(
+        unsigned int ceiling = ~0u) noexcept {
+        return num_threads_running_impl(ceiling);
     }
 } // namespace detail
 
@@ -1162,8 +1175,9 @@ private:
         //! detail::num_threads_running for the design rationale. Hot
         //! path increments via AcquireOneCount; this read is only used
         //! inside `negotiate_internal`.
-        static unsigned int numThreadsRunning() noexcept {
-            return detail::num_threads_running();
+        static unsigned int numThreadsRunning(
+            unsigned int ceiling = ~0u) noexcept {
+            return detail::num_threads_running(ceiling);
         }
 
         //! RAII acquire: bumps this thread's per-thread counter iff

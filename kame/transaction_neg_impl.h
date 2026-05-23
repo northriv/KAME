@@ -671,7 +671,7 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
 #if KAME_STM_MIN_RUNNERS != 0
     const int min_r_pre = effective_min_runners(1);
-    if(NegotiationCounter::numThreadsRunning() < min_r_pre)
+    if(NegotiationCounter::numThreadsRunning((unsigned)min_r_pre) < (unsigned)min_r_pre)
 #endif
     if(my_tid == ps.tid
         && adapt_dt2_last_us < (uint64_t)KAME_DT2_FAIRNESS_US) {
@@ -795,8 +795,10 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // limits concurrent CAS attempts.
     bool runners_ok = true;
 #if KAME_STM_MAX_RUNNERS != 0
-    runners_ok = NegotiationCounter::numThreadsRunning()
-                 < effective_max_runners(C_obs);
+    {
+        const unsigned max_r = (unsigned)effective_max_runners(C_obs);
+        runners_ok = NegotiationCounter::numThreadsRunning(max_r) < max_r;
+    }
 #else
     (void)C_obs;
 #endif
@@ -1412,7 +1414,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             if((KAME_STM_GATE_MULT > 0.0f) && (lhs_j < rhs_j)) {
 #if KAME_STM_MAX_RUNNERS != 0
                 const int max_r = effective_max_runners(C_obs);
-                if(NegotiationCounter::numThreadsRunning() < max_r)
+                if(NegotiationCounter::numThreadsRunning((unsigned)max_r) < (unsigned)max_r)
 #endif
                     break; // gate: earned priority — always proceeds, never capped
             }
@@ -1422,7 +1424,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             //     Prevents all threads from being stuck in the gate simultaneously.
 #if KAME_STM_MIN_RUNNERS != 0
             const int min_r_lot = effective_min_runners(C_obs);
-            if(NegotiationCounter::numThreadsRunning() < min_r_lot) {
+            if(NegotiationCounter::numThreadsRunning((unsigned)min_r_lot) < (unsigned)min_r_lot) {
 #else
             if(C_obs > 1) {
 #endif
@@ -1715,7 +1717,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // hot-spinning the CAS, which loses the alternation; yield
         // gives the OS scheduler the opportunity to swap to the
         // other contender, allowing it to commit cleanly.
-        if(NegotiationCounter::numThreadsRunning() <= 2 && ms <= 1) {
+        if(NegotiationCounter::numThreadsRunning(3) <= 2 && ms <= 1) {
             typename NegotiationCounter::ReleaseOneCount onedown;
             std::this_thread::yield();
         }
