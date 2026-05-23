@@ -186,43 +186,22 @@ DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
 
 DECLSPEC_KAME unsigned int num_threads_running_impl(
     unsigned int ceiling) noexcept {
-    //! Two optimisations layered on the original "snapshot s_runner_counters,
-    //! iterate, sum each `v.load`" implementation:
+    //! **Ceiling early-exit**: hot-path callers compare the result
+    //! against very small thresholds (`KAME_STM_MAX_RUNNERS = 2` by
+    //! default).  Iterating all N entries when we only need to know
+    //! "is sum < small_threshold" wastes N atomic loads.  We exit as
+    //! soon as the running sum reaches `ceiling`.  At 128 threads
+    //! with `ceiling = 2`, the loop typically reads ~2 entries
+    //! instead of 128.
     //!
-    //! (1) **Ceiling early-exit**: hot-path callers compare the result
-    //!     against very small thresholds (`KAME_STM_MAX_RUNNERS = 2` by
-    //!     default).  Iterating all N entries when we only need to know
-    //!     "is sum < small_threshold" wastes N atomic loads.  We exit as
-    //!     soon as the running sum reaches `ceiling`.  At 128 threads
-    //!     with `ceiling = 2`, the loop typically reads ~2 entries
-    //!     instead of 128.
-    //!
-    //! (2) **Thread-local snap cache**: the expensive part of the call
-    //!     used to be `local_shared_ptr<RunnerCounterVec>(s_runner_counters)`
-    //!     — an `atomic_shared_ptr → local` conversion that runs tag-
-    //!     drain CAS operations on the global control block (Intel VTune
-    //!     on EPYC ohtaka1 attributed ~30 % of CPU time to this single
-    //!     function).  Since `s_runner_counters` changes only on
-    //!     thread register/unregister (rare), we cache the snap
-    //!     thread-locally and refresh every 256 calls.  The per-entry
-    //!     `v.load` is fresh every call (callers need current values).
-    //!
-    //! Staleness implications:
-    //!   * Cached snap may miss newly-registered threads for up to
-    //!     256 calls → sum is slightly low.  Adaptive heuristics are
-    //!     OK with this.
-    //!   * Pruned (retired) entries that we still see in the cached
-    //!     snap have `v == 0` so they contribute nothing.
-    //!   * Cached snap holds one extra strong ref on the vec; on
-    //!     register/unregister the old vec lingers until the next
-    //!     refresh.  Bounded.
-    static thread_local local_shared_ptr<RunnerCounterVec> cached_snap;
-    static thread_local unsigned tick = 0;
-    if((tick++ & 0xffu) == 0u || !cached_snap) [[unlikely]]
-        cached_snap = local_shared_ptr<RunnerCounterVec>(s_runner_counters);
-    if( !cached_snap) return 0;
+    //! (Thread-local snap caching was tried but rejected: staleness
+    //! could mislead the adaptive heuristics, and the snap-acquisition
+    //! cost was secondary to the iteration cost — early-exit alone
+    //! covers the EPYC ohtaka1 30%-of-CPU hotspot.)
+    local_shared_ptr<RunnerCounterVec> snap(s_runner_counters);
+    if( !snap) return 0;
     uint64_t s = 0;
-    for(auto &sp : *cached_snap) {
+    for(auto &sp : *snap) {
         s += sp->v.load(std::memory_order_relaxed);
         if(s >= ceiling) return ceiling;
     }
