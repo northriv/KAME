@@ -64,8 +64,6 @@ DECLSPEC_KAME XThreadLocal<int, SSleepNestTag>  s_sleep_nest;
 DECLSPEC_KAME XThreadLocal<void*, TlsPayloadCreatorPtrTag>
                                                 tls_payload_creator_ptr;
 DECLSPEC_KAME XThreadLocal<TlsSerial>           tls_serial;
-DECLSPEC_KAME XThreadLocal<local_shared_ptr<RunnerCounterEntry>>
-                                                tls_runner_counter_holder;
 DECLSPEC_KAME XThreadLocal<RunnerCounterEntry*, TlsRunnerCounterPtrTag>
                                                 tls_runner_counter_ptr;
 DECLSPEC_KAME XThreadLocal<StampKind, SCurrentOpKindTag>
@@ -74,108 +72,144 @@ DECLSPEC_KAME XThreadLocal<StampKind, SCurrentOpKindTag>
 DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 #endif
 
+// =====================================================================
+// Chunked singly-linked list of runner-counter slots.
+//
+// Replaces the prior `atomic_shared_ptr<vector<local_shared_ptr<Entry>>>`
+// design.  Motivation, in order of importance:
+//
+//   1. `local_shared_ptr<RunnerCounterVec>(s_runner_counters)` — the
+//      atomic_shared_ptr → local_shared_ptr conversion — was costing
+//      ~27.8% of CPU on EPYC ohtaka1 at 128 threads even with the
+//      ceiling early-exit.  Each call did a tag-CAS on the shared
+//      gref control block.  The chunked list has no shared refcount
+//      and no tag-CAS: reader does only a relaxed acquire-load of
+//      `s_runner_counters_head` plus chunk traversal.
+//
+//   2. `~RunnerCounterRegistration` previously had to run a CAS-retry
+//      `cow_remove` against the same atomic_shared_ptr; under TLS
+//      teardown order subtleties (macOS pthread_key dtors firing
+//      before C++ thread_local dtors) this raced with concurrent
+//      thread-exit and produced ~2-5/100 crash rate in
+//      transaction_payload_integrity_3level_mixed_test.  The chunked
+//      list reduces thread-exit cleanup to a single relaxed
+//      `fetch_sub(1)` on the slot — no CAS, no allocator interaction,
+//      no atomic_shared_ptr at all.  Race surface eliminated.
+//
+//   3. Slot lifetime = chunk lifetime = process lifetime.  Slots are
+//      *reused* (v→0 on thread exit → next first-time thread CAS-claims
+//      from v=0).  Steady-state memory ≈ ceil(active_threads/N) × chunk
+//      size; never freed at runtime (would require RCU/QSBR or hazard
+//      pointers — disproportionate complexity for the bounded growth
+//      KAME's typical use case sees).
+//
+// Slot `v` encoding (matches the comment in transaction.h):
+//   v == 0  : free.  CAS-claim target.
+//   v == 1  : claimed, owner idle.
+//   v == 2  : claimed, owner currently in a Tx.
+// The reservation +1 is added by `runner_counter_register` and
+// removed by the TLS-dtor guard `RunnerSlotReleaseGuard` below.
+// AcquireOneCount / ReleaseOneCount are unchanged: they fetch_add /
+// fetch_sub by 1 between values 1 (idle) and 2 (running).
+// =====================================================================
+
 // DECLSPEC_KAME on definitions too — MSVC requires it for cross-DLL
 // singleton symbols (without it each module DLL gets its own copy).
-DECLSPEC_KAME atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
+DECLSPEC_KAME std::atomic<RunnerCounterChunk*> s_runner_counters_head{nullptr};
 
-// COW helpers shared between register/unregister.
-//
-// `cow_append` also performs **lazy COW cleanup of retired entries**:
-// when a thread exits during the allocator-cleanup phase, its
-// `~RunnerCounterRegistration` sets `entry->retired=true` instead of
-// running `cow_remove` (see RunnerCounterRegistration below).  The
-// next thread that registers triggers this `cow_append`, which drops
-// retired entries while rebuilding the vec — single COW pass, cold
-// path, no separate scan needed.
-static void s_runner_counters_cow_append(
-    const local_shared_ptr<RunnerCounterEntry> &sp) {
-    for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
-        local_shared_ptr<RunnerCounterVec> next;
-        next.reset(new RunnerCounterVec);
-        if(old) {
-            next->reserve(old->size() + 1);
-            for(auto &e : *old) {
-                //! Lazy COW cleanup.  `retired` is published with
-                //! `release` in the registration dtor; acquire here
-                //! pairs with it.  Since only the owning thread (now
-                //! exited) ever writes `retired`, and we only ever
-                //! transition false → true, relaxed would also work
-                //! — acquire is for clarity of intent and zero cost
-                //! at this cold call site.
-                if( !e->retired.load(std::memory_order_acquire))
-                    next->push_back(e);
-            }
+namespace {
+// Process-exit cleanup: walk the chunk list and delete every chunk.
+// Runs after main() returns, after all threads have joined; no
+// concurrent access at this point.  Purely a hygiene measure so leak
+// detectors (ASan, valgrind) don't complain — runtime behavior is
+// unaffected because chunks never shrink during operation.
+struct RunnerCountersTeardown {
+    ~RunnerCountersTeardown() noexcept {
+        RunnerCounterChunk *c = s_runner_counters_head.exchange(
+            nullptr, std::memory_order_acq_rel);
+        while(c) {
+            RunnerCounterChunk *nx =
+                c->next.load(std::memory_order_relaxed);
+            delete c;
+            c = nx;
         }
-        next->push_back(sp);
-        if(s_runner_counters.compareAndSwap(old, next)) break;
     }
+};
+RunnerCountersTeardown s_runner_counters_teardown;
+} // anonymous namespace
+
+// Try to claim a free slot in an existing chunk.  Walks the list from
+// head and CAS-grabs the first slot with `v == 0`, transitioning it to
+// `v == 1` (claimed-idle).  Returns the slot pointer on success, nullptr
+// when every slot in every existing chunk is already claimed.
+static RunnerCounterEntry* try_claim_existing_slot() noexcept {
+    for(RunnerCounterChunk *c = s_runner_counters_head.load(
+            std::memory_order_acquire);
+        c; c = c->next.load(std::memory_order_acquire)) {
+        for(unsigned i = 0; i < RunnerCounterChunk::N; ++i) {
+            uint64_t expected = 0;
+            if(c->slots[i].v.compare_exchange_strong(
+                   expected, 1,
+                   std::memory_order_acq_rel,
+                   std::memory_order_relaxed))
+                return &c->slots[i];
+        }
+    }
+    return nullptr;
 }
 
-static void s_runner_counters_cow_remove(
-    const RunnerCounterEntry *target) {
-    for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
-        if( !old) break;
-        local_shared_ptr<RunnerCounterVec> next;
-        next.reset(new RunnerCounterVec);
-        next->reserve(old->size());
-        for(auto &e : *old)
-            if(e.get() != target) next->push_back(e);
-        if(s_runner_counters.compareAndSwap(old, next)) break;
-    }
+// Grow the list by one chunk and claim slot 0 of the new chunk.  The
+// new chunk is CAS-prepended at the head; concurrent growers each end
+// up with their own newly-allocated chunk (cheap waste of one chunk's
+// memory per racing grower, bounded by simultaneous first-time
+// registrations — negligible in practice).
+static RunnerCounterEntry* grow_and_claim_new_chunk() {
+    auto *nc = new RunnerCounterChunk();
+    nc->slots[0].v.store(1, std::memory_order_relaxed);
+    RunnerCounterChunk *head = s_runner_counters_head.load(
+        std::memory_order_acquire);
+    do {
+        nc->next.store(head, std::memory_order_relaxed);
+    } while( !s_runner_counters_head.compare_exchange_weak(
+                  head, nc,
+                  std::memory_order_acq_rel,
+                  std::memory_order_relaxed));
+    return &nc->slots[0];
 }
 
-// TLS RAII wrapper: a thread's first call to `runner_counter_register`
-// constructs this; thread exit invokes the dtor, which removes our
-// entry from the global vec.  Strong-ref design (no weak_ptr): the
-// entry lives until the last snapshot of `s_runner_counters` that
-// contains it is released, then the local_shared_ptr refcnt drops to
-// 0 and the entry is freed.  C++ standard guarantees thread_local
-// non-trivial dtors run on thread exit / join (per [basic.start.term]
-// and pthread_key semantics in major implementations).
-struct RunnerCounterRegistration {
-    local_shared_ptr<RunnerCounterEntry> entry;
-    RunnerCounterRegistration() = default;
-    ~RunnerCounterRegistration() noexcept {
-        if( !entry) return;
-        //! Always mark the entry retired and bail out.  Do NOT call
-        //! `s_runner_counters_cow_remove` from here — the CAS retry
-        //! loop races dangerously with concurrent thread-exit on the
-        //! atomic_shared_ptr tag-drain path.  Earlier versions checked
-        //! `is_allocator_thread_active()` and only skipped cow_remove
-        //! when the allocator looked offline, but that left a ~2/100
-        //! crash rate intact — apparently macOS pthread_key destructors
-        //! can fire BEFORE C++ thread_local destructors (i.e. before
-        //! `AllocPinCleanup` / `PoolAllocator::TlsGuard` have a chance
-        //! to set `s_alloc_tls_off`), so the "active" branch is still
-        //! reachable during teardown.
-        //!
-        //! `entry->retired.store` is a single atomic op — no
-        //! allocation, no CAS retry, no atomic_shared_ptr interaction,
-        //! safe even mid-teardown.  Lazy COW cleanup in
-        //! `s_runner_counters_cow_append` (cold path on the next
-        //! thread's first `runner_counter_register`) prunes retired
-        //! entries.  Until then the entry contributes `0` to
-        //! `num_threads_running_impl()` (its `v` is 0, guaranteed by
-        //! `AcquireOneCount` RAII before exit).
-        //!
-        //! Release pairs with the acquire-load in `cow_append`.
-        entry->retired.store(true, std::memory_order_release);
+// TLS RAII guard: a thread's first call to `runner_counter_register`
+// constructs this; thread exit invokes the dtor, which releases the
+// slot back to the pool by transitioning `v` from 1 → 0.  Safe under
+// any TLS-destruction order (no allocator interaction, no
+// atomic_shared_ptr, no CAS retry — just one relaxed fetch_sub).
+//
+// AcquireOneCount RAII guarantees that by the time this dtor fires
+// the slot's `v` is back at 1 (the reservation value): every Tx
+// scope on this thread has been left, so v has returned from 2 →
+// 1.  fetch_sub(1) makes it 0 = free, available to the next
+// first-time thread to claim.
+struct RunnerSlotReleaseGuard {
+    RunnerCounterEntry *slot;
+    RunnerSlotReleaseGuard() noexcept : slot(nullptr) {}
+    ~RunnerSlotReleaseGuard() noexcept {
+        if(slot)
+            slot->v.fetch_sub(1, std::memory_order_release);
     }
-    RunnerCounterRegistration(const RunnerCounterRegistration &) = delete;
-    RunnerCounterRegistration &operator=(const RunnerCounterRegistration &) = delete;
+    RunnerSlotReleaseGuard(const RunnerSlotReleaseGuard &) = delete;
+    RunnerSlotReleaseGuard &operator=(const RunnerSlotReleaseGuard &) = delete;
 };
 
 // Intra-libkame only — no plugin TU touches it, no explicit
 // instantiation needed.
-static XThreadLocal<RunnerCounterRegistration> tls_runner_counter_registration;
+static XThreadLocal<RunnerSlotReleaseGuard> tls_runner_slot_release_guard;
 
 DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
-    auto &reg = *tls_runner_counter_registration;
-    reg.entry.reset(new RunnerCounterEntry());
-    *tls_runner_counter_holder = reg.entry;   // back-compat: still expose holder
-    *tls_runner_counter_ptr = reg.entry.get();
-    s_runner_counters_cow_append(reg.entry);
-    return *reg.entry;
+    auto &guard = *tls_runner_slot_release_guard;
+    RunnerCounterEntry *slot = try_claim_existing_slot();
+    if( !slot) slot = grow_and_claim_new_chunk();
+    *tls_runner_counter_ptr = slot;
+    guard.slot = slot;
+    return *slot;
 }
 
 DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
@@ -186,24 +220,31 @@ DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
 
 DECLSPEC_KAME unsigned int num_threads_running_impl(
     unsigned int ceiling) noexcept {
-    //! **Ceiling early-exit**: hot-path callers compare the result
-    //! against very small thresholds (`KAME_STM_MAX_RUNNERS = 2` by
-    //! default).  Iterating all N entries when we only need to know
-    //! "is sum < small_threshold" wastes N atomic loads.  We exit as
-    //! soon as the running sum reaches `ceiling`.  At 128 threads
-    //! with `ceiling = 2`, the loop typically reads ~2 entries
-    //! instead of 128.
+    //! Traverse the chunk list summing per-slot running indicators.
+    //! Slot `v` is bounded to {0, 1, 2} (see encoding comment above):
+    //! `v >> 1` is therefore exactly the running indicator (0 for free
+    //! or idle slots, 1 for slots whose owner is currently in a Tx).
     //!
-    //! (Thread-local snap caching was tried but rejected: staleness
-    //! could mislead the adaptive heuristics, and the snap-acquisition
-    //! cost was secondary to the iteration cost — early-exit alone
-    //! covers the EPYC ohtaka1 30%-of-CPU hotspot.)
-    local_shared_ptr<RunnerCounterVec> snap(s_runner_counters);
-    if( !snap) return 0;
+    //! **Ceiling early-exit**: hot-path callers compare the result
+    //! against very small thresholds (`KAME_STM_MAX_RUNNERS = 2` or
+    //! `min_r = 1..2`); we exit as soon as the partial sum reaches
+    //! `ceiling`.  At 128 active threads with `ceiling = 2`, the loop
+    //! typically reads only the head chunk's first few slots.
+    //!
+    //! No shared refcount, no tag-CAS, no atomic_shared_ptr
+    //! conversion: this is just `load_acquire(head) → for each chunk:
+    //! load_acquire(next), for each slot: load_relaxed(v)`.  On EPYC
+    //! the prior 27.8% CPU-time hotspot collapses to a few cycles per
+    //! call for the typical early-exit case.
     uint64_t s = 0;
-    for(auto &sp : *snap) {
-        s += sp->v.load(std::memory_order_relaxed);
-        if(s >= ceiling) return ceiling;
+    for(RunnerCounterChunk *c = s_runner_counters_head.load(
+            std::memory_order_acquire);
+        c; c = c->next.load(std::memory_order_acquire)) {
+        for(unsigned i = 0; i < RunnerCounterChunk::N; ++i) {
+            uint64_t v = c->slots[i].v.load(std::memory_order_relaxed);
+            s += (v >> 1);
+            if(s >= ceiling) return ceiling;
+        }
     }
     return (unsigned)s;
 }

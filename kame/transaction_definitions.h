@@ -361,9 +361,9 @@
 //
 // Bit-packed snapshot of each thread's negotiation state, published
 // per-ScopedNeg to RunnerCounterEntry::digest.  Designed for a future
-// "peer-judge" code path that walks s_runner_counters and reads each
-// peer's digest to inform CV-sleep decisions.  No consumer exists
-// today.
+// "peer-judge" code path that walks the chunked runner-counter list
+// (`s_runner_counters_head`) and reads each peer's digest to inform
+// CV-sleep decisions.  No consumer exists today.
 //
 // Default 0 (= digest mechanism compiled out).  K=0 fast-path then
 // pays zero atomic writes for it (the publish was a measurable

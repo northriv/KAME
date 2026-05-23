@@ -236,48 +236,75 @@ namespace detail {
 #endif // KAME_ENABLE_RUNNER_DIGEST
 
     //! Per-thread "I'm in a Tx" counter (plus, when enabled, the
-    //! peer-readable digest).  `v` is RMW'd at Tx entry/exit by the
-    //! owner and SUMmed across all entries by `num_threads_running()`.
+    //! peer-readable digest).  Slot layout in the global chunked list
+    //! (see `RunnerCounterChunk` below).  `v` encodes both
+    //! **reservation** and **running** state in a single atomic word
+    //! so that reader, writer, and slot reuse share one cacheline:
+    //!
+    //!   v == 0  : slot free (no thread owns it; can be CAS-claimed)
+    //!   v == 1  : slot claimed, owner idle (between transactions)
+    //!   v == 2  : slot claimed, owner currently in a transaction
+    //!
+    //! The +1 reservation is added on first claim (`runner_counter_register`)
+    //! and removed on thread exit (TLS dtor `RunnerSlotReleaseGuard`).
+    //! AcquireOneCount / ReleaseOneCount RAII pairs simply
+    //! fetch_add(1)/fetch_sub(1) — they don't touch the reservation
+    //! bit.  The reader counts a slot as "running" iff `v >= 2`
+    //! (equivalently `(v >> 1)` since v is bounded to {0,1,2}).
+    //!
     //! When KAME_ENABLE_RUNNER_DIGEST is set, `digest` shares the
     //! cacheline — peer reads at the same slow-path cadence so
     //! colocating costs one M→S transition for both fields instead
     //! of two.  Default off: digest field disappears, padding fills
     //! the cacheline.
-    // atomic_strictrefonly: separate control block (gref_strictrefonly_),
-    // no weak_refcnt.  local_shared_ptr<RunnerCounterEntry> uses KAME's
-    // 8-byte tagged pointer with amortised local refcnt.
-    struct alignas(KAME_CACHE_LINE) RunnerCounterEntry : public atomic_strictrefonly {
+    //!
+    //! No inheritance from atomic_strictrefonly — slots are owned by
+    //! the chunk that contains them (lifetime = process), not by
+    //! local_shared_ptr.  This eliminates the
+    //! `atomic_shared_ptr<RunnerCounterVec>` tag-CAS hotspot that
+    //! dominated EPYC profiling (`num_threads_running_impl` 27.8% of
+    //! CPU even with ceiling early-exit), and also removes the
+    //! `~RunnerCounterRegistration` CAS-retry race that produced
+    //! intermittent crashes during TLS teardown.
+    struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
         std::atomic<uint64_t> v{0};
-        //! Set `true` when the owning thread exited during the allocator-
-        //! cleanup phase (its `~RunnerCounterRegistration` checked
-        //! `is_allocator_thread_active()` and saw false → skipped the
-        //! CAS-heavy `cow_remove`).  The entry lingers in
-        //! `s_runner_counters` until the next thread registers; the
-        //! `cow_append` pass drops retired entries (lazy COW cleanup).
-        //! Until then it contributes `0` to `num_threads_running_impl()`
-        //! because `v == 0` is guaranteed by `AcquireOneCount` RAII
-        //! having fired before thread exit.
-        std::atomic<bool> retired{false};
 #if KAME_ENABLE_RUNNER_DIGEST
         std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
-        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)
-                                  - sizeof(std::atomic<bool>)];
+        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)];
 #else
-        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)
-                                  - sizeof(std::atomic<bool>)];
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)];
 #endif
     };
-    // Strong refs (local_shared_ptr): each thread holds its own entry
-    // in TLS *and* the global vec carries a copy.  On thread exit the
-    // TLS RAII wrapper (`RunnerCounterRegistration` below) COW-removes
-    // the entry from the global vec.  Readers iterate without
-    // `.lock()` overhead — direct deref of `sp->v` — because the
-    // snapshot's local_shared_ptrs keep entries alive for the
-    // snapshot's lifetime.  (Was `vector<weak_ptr<...>>` until
-    // 2026-05-21; under 128-thread contention the per-iter
-    // `weak_ptr::lock()` atomic refcnt pair dominated
-    // `num_threads_running_impl` — see profile.)
-    using RunnerCounterVec = std::vector<local_shared_ptr<RunnerCounterEntry>>;
+
+    //! Chunk in the singly-linked list of runner-counter slots.  Each
+    //! chunk holds `N` cacheline-padded `RunnerCounterEntry` slots,
+    //! plus an atomic `next` pointer to the next chunk.  The list is
+    //! built with **CAS-prepend** at `s_runner_counters_head`: each
+    //! new chunk is inserted at the head, traversal walks head → ... →
+    //! null.  Chunks are never freed at runtime; they accumulate to
+    //! `max-ever-concurrent-threads / N` and are released only at
+    //! process exit (the global head's static dtor walks and deletes).
+    //!
+    //! Slot reuse within a chunk: when a thread exits its slot's `v`
+    //! is decremented from 1 (or whatever residual) back to 0, marking
+    //! it free for the next first-time thread to CAS-claim.  This keeps
+    //! the steady-state chunk count = ceil(active_threads / N).
+    //!
+    //! N=32 with KAME_CACHE_LINE=128 (M3) → chunk size ≈ 4 KB + next
+    //! pointer; fits well within L1d.  Multiple chunks are traversed
+    //! via pointer-chase, but with ceiling early-exit the reader
+    //! typically only touches the head chunk's first few slots.
+    struct RunnerCounterChunk {
+        static constexpr unsigned N = 32;
+        RunnerCounterEntry slots[N];
+        std::atomic<RunnerCounterChunk*> next{nullptr};
+        // Cacheline-pad the next pointer so its CAS-prepend traffic
+        // does not bounce the last slot's cacheline.  (Each slot is
+        // already alignas(KAME_CACHE_LINE), so `next` lands after the
+        // slots; padding ensures the chunk header occupies its own
+        // line.)
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<RunnerCounterChunk*>)];
+    };
 
 #if KAME_ENABLE_RUNNER_DIGEST
     //! Per-thread local cache of the digest.  Owner mutates this on
@@ -287,28 +314,23 @@ namespace detail {
     DECLSPEC_KAME extern XThreadLocal<RunnerDigest> tls_runner_digest;
 #endif // KAME_ENABLE_RUNNER_DIGEST
 
-    //! TLS holder of this thread's RunnerCounterEntry.  The
-    //! local_shared_ptr is one strong reference; the global
-    //! s_runner_counters vector holds another (also local_shared_ptr).
-    //! On thread exit, the `RunnerCounterRegistration` RAII wrapper
-    //! (defined in transaction_impl.h) COW-removes the vec entry; the
-    //! TLS holder then releases its ref.  Entry stays alive while any
-    //! older snapshot of `s_runner_counters` still references it.
-    //! The raw pointer cache below makes the hot path
-    //! (`AcquireOneCount` ctor) a single TLS load + relaxed fetch_add
-    //! — no shared_ptr ref ops.
-    DECLSPEC_KAME extern XThreadLocal<local_shared_ptr<RunnerCounterEntry>>
-        tls_runner_counter_holder;
+    //! Cached raw pointer to this thread's slot inside the chunk list.
+    //! Set once on first registration (`runner_counter_register`) and
+    //! reused for the lifetime of the thread.  Hot-path consumers
+    //! (AcquireOneCount, ReleaseOneCount, ScopedNeg digest publish)
+    //! dereference it directly — one TLS load + one relaxed fetch_add,
+    //! no shared_ptr / atomic_shared_ptr operations.
     struct TlsRunnerCounterPtrTag;
     DECLSPEC_KAME extern XThreadLocal<RunnerCounterEntry*, TlsRunnerCounterPtrTag>
         tls_runner_counter_ptr;
 
-    //! Global "currently registered runner counters" vector. COW: any
-    //! thread's first registration publishes a new vector via
-    //! compareAndSwap, pruning expired entries (threads that have
-    //! exited) in the same step. Defined in transaction_impl.h.
-    DECLSPEC_KAME extern atomic_shared_ptr<RunnerCounterVec>
-        s_runner_counters;
+    //! Head of the singly-linked list of `RunnerCounterChunk`s.  New
+    //! chunks are CAS-prepended when a thread can't find a free slot
+    //! in any existing chunk.  Readers traverse head → ... → null;
+    //! writers (AcquireOneCount / ReleaseOneCount) only touch their
+    //! own slot pointer — they never walk the list after registration.
+    DECLSPEC_KAME extern std::atomic<RunnerCounterChunk*>
+        s_runner_counters_head;
 
     //! Allocate + register this thread's counter on first call;
     //! return the cached raw pointer thereafter. Defined in
