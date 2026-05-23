@@ -142,10 +142,19 @@ RunnerCountersTeardown s_runner_counters_teardown;
 // head and CAS-grabs the first slot with `v == 0`, transitioning it to
 // `v == 1` (claimed-idle).  Returns the slot pointer on success, nullptr
 // when every slot in every existing chunk is already claimed.
+//
+// Memory ordering: `head.load(acquire)` is the one synchronisation
+// point that lets us see any chunk that has been CAS-prepended (its
+// slot[0] = 1 reservation and `next` pointer are published by that
+// CAS-prepend's release).  Subsequent `c->next.load(relaxed)` is safe
+// because **once a chunk is in the list its `next` pointer is
+// immutable** (prepends only ever insert at head — the existing
+// chain's pointers are never rewritten).  The slot CAS itself carries
+// the per-slot synchronisation.
 static RunnerCounterEntry* try_claim_existing_slot() noexcept {
     for(RunnerCounterChunk *c = s_runner_counters_head.load(
             std::memory_order_acquire);
-        c; c = c->next.load(std::memory_order_acquire)) {
+        c; c = c->next.load(std::memory_order_relaxed)) {
         for(unsigned i = 0; i < RunnerCounterChunk::N; ++i) {
             uint64_t expected = 0;
             if(c->slots[i].v.compare_exchange_strong(
@@ -163,11 +172,17 @@ static RunnerCounterEntry* try_claim_existing_slot() noexcept {
 // up with their own newly-allocated chunk (cheap waste of one chunk's
 // memory per racing grower, bounded by simultaneous first-time
 // registrations — negligible in practice).
+//
+// `head.load(relaxed)` for the initial comparand: we only use the
+// pointer as a value to CAS against; we do not dereference the
+// loaded chunk before the CAS, so no acquire ordering is needed.
+// The CAS itself uses `acq_rel` on success to publish our `slot[0]=1`
+// and `next=old_head` stores to subsequent readers.
 static RunnerCounterEntry* grow_and_claim_new_chunk() {
     auto *nc = new RunnerCounterChunk();
     nc->slots[0].v.store(1, std::memory_order_relaxed);
     RunnerCounterChunk *head = s_runner_counters_head.load(
-        std::memory_order_acquire);
+        std::memory_order_relaxed);
     do {
         nc->next.store(head, std::memory_order_relaxed);
     } while( !s_runner_counters_head.compare_exchange_weak(
@@ -233,13 +248,23 @@ DECLSPEC_KAME unsigned int num_threads_running_impl(
     //!
     //! No shared refcount, no tag-CAS, no atomic_shared_ptr
     //! conversion: this is just `load_acquire(head) → for each chunk:
-    //! load_acquire(next), for each slot: load_relaxed(v)`.  On EPYC
+    //! load_relaxed(next), for each slot: load_relaxed(v)`.  On EPYC
     //! the prior 27.8% CPU-time hotspot collapses to a few cycles per
     //! call for the typical early-exit case.
+    //!
+    //! Memory ordering: `head.load(acquire)` synchronises with the
+    //! publishing CAS-prepend that exposed the newest chunk (release
+    //! ordering on success transitively published all earlier chunks
+    //! and their `next` pointers).  Per-chunk `next.load(relaxed)`
+    //! is sufficient because **once a chunk is in the list its `next`
+    //! pointer is immutable** (single-CAS prepend at head; existing
+    //! `next` pointers are never modified).  Per-slot `v.load(relaxed)`
+    //! is sufficient because callers are adaptive — staleness is
+    //! tolerated by the negotiate-internal gate / lottery heuristics.
     uint64_t s = 0;
     for(RunnerCounterChunk *c = s_runner_counters_head.load(
             std::memory_order_acquire);
-        c; c = c->next.load(std::memory_order_acquire)) {
+        c; c = c->next.load(std::memory_order_relaxed)) {
         for(unsigned i = 0; i < RunnerCounterChunk::N; ++i) {
             uint64_t v = c->slots[i].v.load(std::memory_order_relaxed);
             s += (v >> 1);
