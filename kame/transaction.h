@@ -1098,19 +1098,41 @@ private:
             return (int64_t)(((uint64_t)u ^ (uint64_t)SIGN_BIT)
                              - (uint64_t)SIGN_BIT);
         }
+        //! Helper: read the calling thread's priority and return the
+        //! lowprio mask if it's a LOW-priority level (LOWEST /
+        //! UI_DEFERRABLE / SCRIPTING), else 0.  Used by
+        //! `now_us_tagged()` to fold the lowprio bit into the stamp
+        //! at construction.  `getCurrentPriorityMode()` is a single
+        //! thread-local read — negligible cost.
+        static inline cnt_t lowprio_mask_for_current_priority() noexcept {
+            Priority pr = getCurrentPriorityMode();
+            return (pr == Priority::LOWEST
+                 || pr == Priority::UI_DEFERRABLE
+                 || pr == Priority::SCRIPTING)
+                 ? STAMP_LOWPRIO_MASK : (cnt_t)0;
+        }
         //! `now_us()` with the current thread's ProcessCounter::id
-        //! packed into the upper 16 bits. Used at Transaction /
-        //! Snapshot construction to stamp m_started_time.
+        //! packed into the upper 16 bits, plus the lowprio bit
+        //! auto-set when this thread is at a LOW priority.  Used at
+        //! Transaction / Snapshot construction to stamp
+        //! m_started_time; downstream consumers (CAS-claim of
+        //! `s_privileged_tidstamp`, per-Linkage Reserved tags, sleep
+        //! stamps) inherit the lowprio bit transparently through
+        //! `with_kind` / `strip_kind` (which only touch the kind
+        //! bits).
         static inline cnt_t now_us_tagged() noexcept {
             return pack_stamp(now_us(),
-                (uint16_t)(ProcessCounter::id() & 0xFFFFu));
+                (uint16_t)(ProcessCounter::id() & 0xFFFFu))
+                 | lowprio_mask_for_current_priority();
         }
         //! Kind-tagged variant: stamps op_kind into the 2-bit kind slot.
         //! Used by bundle/unbundle entry to advertise the in-flight op.
+        //! Lowprio bit handled identically to the no-kind variant.
         static inline cnt_t now_us_tagged(StampKind kind) noexcept {
             return pack_stamp(now_us(),
                 (uint16_t)(ProcessCounter::id() & 0xFFFFu),
-                (uint8_t)kind);
+                (uint8_t)kind)
+                 | lowprio_mask_for_current_priority();
         }
         //! Replace the kind bits of an existing stamp, preserving us+tid.
         //! For stamping linkage with `m_started_time` + op kind.
@@ -1959,20 +1981,13 @@ public:
     explicit Snapshot(Transaction<XN>&&x) noexcept
         : Snapshot(static_cast<Snapshot&&>(x)) {}
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
+        // `now_us_tagged()` auto-folds the lowprio bit (set when this
+        // thread is at LOWEST / UI_DEFERRABLE / SCRIPTING priority) so
+        // the privilege hold-timeout in
+        // `try_register_privileged_tidstamp` / `i_am_privileged_now`
+        // can gate timeout-based eviction on holder priority — NORMAL
+        // / HIGHEST stamps are immune.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        // Tag the stamp with the lowprio flag if this thread is
-        // running at a LOW priority (LOWEST / UI_DEFERRABLE / SCRIPTING).
-        // The flag propagates through `with_kind` (which only touches
-        // the kind bits) and is consumed by the privilege hold-timeout
-        // in `try_register_privileged_tidstamp` / `i_am_privileged_now`
-        // to gate eviction — NORMAL / HIGHEST stamps are immune.
-        {
-            Priority pr = getCurrentPriorityMode();
-            if(pr == Priority::LOWEST || pr == Priority::UI_DEFERRABLE
-               || pr == Priority::SCRIPTING)
-                m_started_time = Node<XN>::NegotiationCounter::with_lowprio_flag(
-                    m_started_time);
-        }
         typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
         node.snapshot( *this, multi_nodal);
         drop_tags_n_privilege();
@@ -2417,15 +2432,9 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
         Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
+        // `now_us_tagged()` auto-folds the lowprio bit — see
+        // Snapshot ctor above for the priority-gated timeout rationale.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        // Tag lowprio flag — see Snapshot ctor above for rationale.
-        {
-            Priority pr = getCurrentPriorityMode();
-            if(pr == Priority::LOWEST || pr == Priority::UI_DEFERRABLE
-               || pr == Priority::SCRIPTING)
-                m_started_time = Node<XN>::NegotiationCounter::with_lowprio_flag(
-                    m_started_time);
-        }
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
         node.snapshot( *this, multi_nodal);
         assert( &m_packet->node() == &node);
@@ -2436,14 +2445,6 @@ public:
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        // Tag lowprio flag — see Snapshot ctor above for rationale.
-        {
-            Priority pr = getCurrentPriorityMode();
-            if(pr == Priority::LOWEST || pr == Priority::UI_DEFERRABLE
-               || pr == Priority::SCRIPTING)
-                m_started_time = Node<XN>::NegotiationCounter::with_lowprio_flag(
-                    m_started_time);
-        }
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
     }
     Transaction(Transaction&&x) = default;
