@@ -74,18 +74,42 @@
     }
 #endif
 
-//! RAII guard: enables the KAME pool allocator on construction, tears
-//! it down on destruction.  Declare one in `main()` (or any function
-//! whose scope brackets all pool-allocated lifetimes).  Until the
-//! guard is alive, `operator new` falls back to `malloc` — so dyld
-//! and static-constructor allocations stay out of the pool.
+//! RAII guard: enables the KAME pool allocator on construction.
+//! Declare one in `main()` (or any function whose scope brackets all
+//! pool-allocated lifetimes).  Until the guard is alive, `operator
+//! new` falls back to `malloc` — so dyld and static-constructor
+//! allocations stay out of the pool.
+//!
+//! ## Why the destructor does NOT call `release_pools()`
+//!
+//! `main()` has stack-local objects whose destructors run in LIFO
+//! order at function return: the pool guard is constructed last in
+//! `main()`, so it is destructed FIRST.  Any object constructed
+//! earlier (e.g. `QTranslator`) is destructed AFTER the guard.
+//!
+//! `~QTranslator` calls `QCoreApplication::removeTranslator`, which
+//! sends a `LanguageChange` event synchronously to every registered
+//! widget; the event handlers go through Qt's normal allocator,
+//! which is hooked into our pool via `operator new` / `delete`.
+//! If `~KamePooledAllocGuard` had already `munmap`'d the pool
+//! chunks, those allocations dereference unmapped memory → SIGSEGV.
+//! (Observed in kame-2026-05-24-193408.ips: faulting address
+//! 0x13ec60028 falls in an unmapped gap left by a torn-down chunk;
+//! stack is `main -> ~QTranslator -> removeTranslator -> sendEvent
+//! -> QApplication::event`.)
+//!
+//! Letting pool chunks live until process exit is harmless: the
+//! mmap'd regions are reclaimed by the kernel.  Callers who genuinely
+//! want to tear pools down at a specific point (e.g. unit-test
+//! harnesses that recreate allocator state) may still invoke
+//! `release_pools()` directly.
 //!
 //! On `USE_STD_ALLOCATOR` builds (Windows by default) the guard is a
 //! no-op.  Idempotent — multiple guards in nested scopes are harmless.
 class KamePooledAllocGuard {
 public:
     KamePooledAllocGuard() noexcept { activateAllocator(); }
-    ~KamePooledAllocGuard() noexcept { release_pools(); }
+    ~KamePooledAllocGuard() noexcept = default;
     KamePooledAllocGuard(const KamePooledAllocGuard &) = delete;
     KamePooledAllocGuard &operator=(const KamePooledAllocGuard &) = delete;
 };
