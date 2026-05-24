@@ -107,7 +107,29 @@ class Transaction;
 template <class XN>
 class ScopedNegotiateLinkage;
 
-enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST};
+//! Per-Tx priority used by the privilege ("fair-mode oldest-Tx
+//! escape") mechanism in `negotiate_internal`.
+//!
+//! The privilege machinery promotes a Tx to "stuck oldest" status
+//! after it has been waiting longer than `min_privilege_age_us(pr)`,
+//! allowing it to preempt forward progress.  Lower priorities use
+//! a larger age threshold so they yield to measurement traffic
+//! by default and only escalate on prolonged starvation.
+//!
+//!   HIGHEST / NORMAL  — production measurement and driver activity
+//!   UI_DEFERRABLE     — interactive UI updates (50 ms threshold)
+//!   LOWEST            — bulk/analysis (30 ms threshold)
+//!   SCRIPTING         — external scripting / inspection callers:
+//!                       MCP server / AI agents, Python or Ruby
+//!                       user scripts via the IPython kernel,
+//!                       future ZMQ command handlers.  1-second
+//!                       threshold: yields to *everything* for the
+//!                       first second of any contention, then
+//!                       claims privilege so the request still
+//!                       eventually completes.  Prevents scripted
+//!                       inspection from disrupting a live
+//!                       measurement loop while bounding starvation.
+enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST, SCRIPTING};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
 

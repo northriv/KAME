@@ -527,6 +527,26 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def(py::init([](const system_clock::time_point &t)->XTime{return {t};}));
     py::implicitly_convertible<system_clock::time_point, XTime>();
 //    py::implicitly_convertible<XTime, system_clock::time_point>();
+
+    //! Per-thread transaction priority for the privilege ("fair-
+    //! mode oldest-Tx escape") mechanism.  Use `SCRIPTING` for
+    //! external scripting callers (MCP, ZMQ, AI-driven inspection,
+    //! Python/Ruby user scripts) so their Tx yields to measurement
+    //! traffic for ~1 s before escalating; that prevents starvation
+    //! while keeping the measurement loop's quick commits undisturbed.
+    py::enum_<Transactional::Priority>(m, "Priority")
+        .value("NORMAL",        Transactional::Priority::NORMAL)
+        .value("LOWEST",        Transactional::Priority::LOWEST)
+        .value("UI_DEFERRABLE", Transactional::Priority::UI_DEFERRABLE)
+        .value("HIGHEST",       Transactional::Priority::HIGHEST)
+        .value("SCRIPTING",     Transactional::Priority::SCRIPTING)
+        .export_values();
+    m.def("setCurrentPriorityMode", &Transactional::setCurrentPriorityMode,
+          "Set this thread's Tx privilege priority. Defaults to UI_DEFERRABLE\n"
+          "for the Python kernel thread; switch to SCRIPTING for light\n"
+          "MCP/ZMQ commands, NORMAL for measurement-critical script blocks.");
+    m.def("getCurrentPriorityMode", &Transactional::getCurrentPriorityMode);
+
     //Exceptions
     py::register_exception<XNode::NodeNotFoundError>(m, "KAMENodeNotFoundError", PyExc_KeyError);
     py::register_exception<XKameError>(m, "KAMEError", PyExc_RuntimeError);

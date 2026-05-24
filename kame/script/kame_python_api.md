@@ -162,6 +162,32 @@ Write closures so they are *idempotent under retry*:
          actions).  Do these **after** `iterate_commit` returns
          and you have the committed Snapshot in hand.
 
+### Priority (light vs. measurement-critical Tx)
+
+`kame.setCurrentPriorityMode(kame.Priority.<level>)` sets the current
+thread's priority for the **privilege ("oldest-Tx escape")** mechanism.
+After waiting longer than the level's threshold, a Tx claims privilege
+to force forward progress; a longer threshold = more deferential.
+
+| Level | Threshold | Use case |
+|---|---|---|
+| `HIGHEST` / `NORMAL` | ~300 µs | Measurement, driver activity |
+| `UI_DEFERRABLE` | 50 ms | Interactive UI updates |
+| `LOWEST` | 30 ms | Bulk / analysis |
+| `SCRIPTING` | **1 s** | **External scripting (MCP / AI / ZMQ / user scripts)** — yields to *everything* for the first second of contention before escalating; ensures the script command eventually completes without disrupting a live measurement |
+
+The MCP server sets `SCRIPTING` on connection.  Override per cell when
+running a measurement-critical script:
+
+```python
+prev = kame.getCurrentPriorityMode()
+kame.setCurrentPriorityMode(kame.Priority.NORMAL)
+try:
+    run_measurement_sweep()
+finally:
+    kame.setCurrentPriorityMode(prev)
+```
+
 ### SIGINT / KeyboardInterrupt — IS interruptible
 
 The C++ STM retry loop runs with the **GIL released**, and we

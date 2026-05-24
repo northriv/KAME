@@ -59,6 +59,14 @@ Key patterns:
 - Drivers: Root()["Drivers"]["DriverName"]
 - Scalar entry value: entry["Value"] is XDoubleNode, float(shot[entry["Value"]])
 
+NOTE: This MCP session runs at `Priority.SCRIPTING` — your Tx will
+yield to active measurement traffic for ~1 s before claiming privilege.
+If running a measurement-critical block, temporarily elevate:
+    prev = kame.getCurrentPriorityMode()
+    kame.setCurrentPriorityMode(kame.Priority.NORMAL)
+    try: ...
+    finally: kame.setCurrentPriorityMode(prev)
+
 NOTE: print() in KAME's kernel produces HTML, not plain text.
 In execute_code, use expression results (last line as bare expression)
 instead of print(). Example: use `result` not `print(result)`.
@@ -91,6 +99,17 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
         raise RuntimeError("KAME kernel is not responding.")
     # Enable inline matplotlib so plots produce image/png
     client.execute("%matplotlib inline")
+    # MCP-driven Tx are external scripting — should yield to the
+    # measurement loop for the first ~1 s of any contention before
+    # claiming privilege.  Falls back silently on older KAME builds
+    # without the Priority binding.
+    client.execute(
+        "try:\n"
+        "    import kame\n"
+        "    kame.setCurrentPriorityMode(kame.Priority.SCRIPTING)\n"
+        "except (AttributeError, ImportError):\n"
+        "    pass\n"
+    )
     _client = client
     return client
 

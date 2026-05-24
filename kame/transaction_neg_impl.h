@@ -80,8 +80,9 @@ struct Node<XN>::WalkUpResult {
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
     switch (pr) {
-    case Priority::LOWEST:        return 30'000;
-    case Priority::UI_DEFERRABLE: return 50'000;
+    case Priority::SCRIPTING:     return 1'000'000;    // 1 s — external scripting / MCP / ZMQ
+    case Priority::LOWEST:        return 30'000;       // 30 ms — bulk / analysis
+    case Priority::UI_DEFERRABLE: return 50'000;       // 50 ms — interactive UI
     default:                      return KAME_STM_PRIV_AGE_NORMAL_US;  /* HIGHEST / NORMAL */
     }
 }
