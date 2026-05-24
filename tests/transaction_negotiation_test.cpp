@@ -83,7 +83,17 @@ shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 
 void
 start_routine(int th_no) {
-    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
+    // Slow threads run at SCRIPTING priority to exercise the
+    // lowprio-bit / privilege-hold timeout / fair_mode expiry
+    // interactions under contention with NORMAL fast threads.
+    // SCRIPTING's 1 s claim floor matches roughly one slow-thread
+    // pass through this loop (10 iters * ~100 ms internal sleep),
+    // so the slow path does get a chance to claim privilege and
+    // force the fast threads to yield via fair_mode_blocks_me.
+    Transactional::setCurrentPriorityMode(
+        th_no < NUM_SLOW_THREADS
+            ? Transactional::Priority::SCRIPTING
+            : Transactional::Priority::NORMAL);
     printf("start\n");
 
 	int lps = 5000000;
