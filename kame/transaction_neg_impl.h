@@ -250,6 +250,23 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // lets peers fall through to the ordinary commit CAS, which
     // clobbers the dead stamp naturally.  NORMAL / HIGHEST stamps
     // never carry the lowprio bit, so they are never reported expired.
+    // Diagnostic helper: print once per observed expired-stamp value
+    // per thread (TLS dedup), then suppress further prints for the
+    // same stamp.  Without dedup, `fair_mode_blocks_me` can be called
+    // many times for the same dead stamp before someone's commit CAS
+    // overwrites it (1 per retry pass × N peers), spamming stderr.
+    auto report_expired = [](cnt_t stamp) {
+        // TLS so each thread tracks its own "last seen" stamp.
+        static thread_local cnt_t s_last_reported = 0;
+        if(stamp == s_last_reported) return;
+        s_last_reported = stamp;
+        std::fprintf(stderr,
+            "[priv-timeout] expired lowprio stamp tid=%u age>%lld us "
+            "(treated as not blocking; peer commit CAS will overwrite)\n",
+            (unsigned)stamp_tid(stamp),
+            (long long)(min_privilege_age_us(Priority::SCRIPTING)
+                        + (int64_t)KAME_STM_PRIV_MAX_HOLD_US));
+    };
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: blocked iff the slot's Reserved stamp is held by
     // SOME OTHER thread.  TID-only compare (see `i_am_privileged_now`
@@ -258,7 +275,7 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
-    if(stamp_is_expired_lowprio(slot)) return false;
+    if(stamp_is_expired_lowprio(slot)) { report_expired(slot); return false; }
     return true;
 #else
     (void)link;
@@ -276,7 +293,7 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // transaction_dynamic_node_test backtrace (~Node->releaseAll on
     // frame #15-16, negotiate_sleep on frame #9).
     if(stamp_tid(priv) == stamp_tid(tidstamp)) return false;
-    if(stamp_is_expired_lowprio(priv)) return false;
+    if(stamp_is_expired_lowprio(priv)) { report_expired(priv); return false; }
     return true;
 #endif
 }
