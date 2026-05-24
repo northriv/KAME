@@ -340,23 +340,6 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
     st.stamp = 0;
 }
 
-// NUMA-aware wake bias (Linux only when `kame_current_numa_node()`
-// returns >= 0):  cross-socket inter-processor interrupts (IPI) cost
-// ~5 µs on EPYC, vs ~1 µs same-socket.  When the wake budget `n` is
-// small (typically 1-3), preferring same-NUMA targets shifts the IPI
-// route from cross-socket to same-socket — observed contribution to
-// `notify_one / cond_signal` in EPYC profiles is ~10 % of CPU; this
-// pass aims to cut a significant fraction by route shortening.
-//
-// 3-pass walk when both kind and NUMA preferences apply:
-//   Pass 0: kind match AND same NUMA  (strongest preference)
-//   Pass 1: kind match (any NUMA)     (original pass 1)
-//   Pass 2: any                       (original pass 2)
-//
-// When only one preference applies (no kind preference, OR no NUMA
-// hint available), the matching subset of passes runs.  When neither
-// applies, behaviour collapses to the original any-pass.
-
 template <class XN>
 void Node<XN>::NegotiationCounter::notify_n_contenders(
     const TidBitset &tid_bitset, int n, uint8_t preferred_kind) noexcept
@@ -374,9 +357,11 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
         st.cv.notify_one();
         --n;
     }
+    // Two-pass walk when a preferred kind is supplied: pass 1 wakes
+    // only kind-matching slots; pass 2 wakes any remaining slots.
+    // `woken` tracks which slot indices were already notified by pass
+    // 1 so pass 2 doesn't burn the budget redundantly.
     const bool has_pref = (preferred_kind <= 2u);
-    const int my_numa = detail::kame_current_numa_node();
-    const bool has_numa = (my_numa >= 0);
     uint64_t woken[NEGOTIATE_SLEEP_SLOTS / 64] = {0};
     auto mark_woken = [&](int slot) {
         woken[slot >> 6] |= (uint64_t)1u << (slot & 63);
@@ -384,38 +369,6 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
     auto is_woken = [&](int slot) -> bool {
         return (woken[slot >> 6] >> (slot & 63)) & 1u;
     };
-    auto same_numa = [&](int slot) -> bool {
-        int sleeper_numa = detail::s_tid_to_numa[slot].load(
-            std::memory_order_relaxed);
-        return sleeper_numa == my_numa;
-    };
-
-    // Pass 0: kind match AND same NUMA.  Skipped when either
-    // preference is absent (degenerates to the original 2-pass
-    // walk in that case).
-    if(has_pref && has_numa) {
-        for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
-            uint64_t word = tid_bitset.word(i);
-            while(word && n > 0) {
-                int bit = __builtin_ctzll(word);
-                word &= word - 1;
-                int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
-                if (slot == priv_slot) continue;
-                if (is_woken(slot)) continue;
-                if ( !same_numa(slot)) continue;
-                auto &st = s_sleep_slots[slot];
-                {
-                    std::lock_guard<std::mutex> lk(st.mtx);
-                    if(st.op_kind != preferred_kind) continue;
-                    st.notified = true;
-                }
-                st.cv.notify_one();
-                mark_woken(slot);
-                --n;
-            }
-        }
-    }
-    // Pass 1: kind match (any NUMA).  Original pass 1.
     if(has_pref) {
         for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
             uint64_t word = tid_bitset.word(i);
@@ -437,7 +390,6 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
             }
         }
     }
-    // Pass 2: any.  Original pass 2.
     for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
         uint64_t word = tid_bitset.word(i);
         while(word && n > 0) {
@@ -460,8 +412,6 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
     const TidBitset &tid_bitset, int n, uint8_t preferred_kind) noexcept
 {
     const bool has_pref = (preferred_kind <= 2u);
-    const int my_numa = detail::kame_current_numa_node();
-    const bool has_numa = (my_numa >= 0);
     uint64_t woken[NEGOTIATE_SLEEP_SLOTS / 64] = {0};
     auto mark_woken = [&](int slot) {
         woken[slot >> 6] |= (uint64_t)1u << (slot & 63);
@@ -469,35 +419,6 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
     auto is_woken = [&](int slot) -> bool {
         return (woken[slot >> 6] >> (slot & 63)) & 1u;
     };
-    auto same_numa = [&](int slot) -> bool {
-        int sleeper_numa = detail::s_tid_to_numa[slot].load(
-            std::memory_order_relaxed);
-        return sleeper_numa == my_numa;
-    };
-
-    // Pass 0: kind match + same NUMA
-    if(has_pref && has_numa) {
-        for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
-            uint64_t word = tid_bitset.word(i);
-            while(word && n > 0) {
-                int bit = __builtin_ctzll(word);
-                word &= word - 1;
-                int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
-                if (is_woken(slot)) continue;
-                if ( !same_numa(slot)) continue;
-                auto &st = s_sleep_slots[slot];
-                std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
-                if( !lk.owns_lock()) continue;
-                if(st.op_kind != preferred_kind) continue;
-                st.notified = true;
-                lk.unlock();
-                st.cv.notify_one();
-                mark_woken(slot);
-                --n;
-            }
-        }
-    }
-    // Pass 1: kind match
     if(has_pref) {
         for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
             uint64_t word = tid_bitset.word(i);
@@ -518,7 +439,6 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
             }
         }
     }
-    // Pass 2: any
     for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
         uint64_t word = tid_bitset.word(i);
         while(word && n > 0) {

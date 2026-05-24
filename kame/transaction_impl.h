@@ -134,17 +134,6 @@ static inline int8_t kame_current_numa_node() noexcept { return -1; }
 // singleton symbols (without it each module DLL gets its own copy).
 DECLSPEC_KAME std::atomic<RunnerCounterEntry*> s_runner_entries_head{nullptr};
 
-// TID → NUMA-node hash, populated at `runner_counter_register`.
-// Used by `notify_n_contenders` / `try_notify_n_contenders` to bias
-// targeted wake toward sleepers on the same NUMA as the waker —
-// reducing cross-socket IPI cost (cross-NUMA wake ~5 µs vs same-
-// socket ~1 µs on EPYC).  Zero-initialised; subsequent register
-// calls overwrite with each thread's `kame_current_numa_node()`
-// reading.  On non-Linux platforms the readers always store -1
-// (no syscall), the wake-side same-NUMA pass becomes a no-op, and
-// behaviour collapses to the previous 2-pass wake.
-DECLSPEC_KAME std::atomic<int> s_tid_to_numa[NEGOTIATE_SLEEP_SLOTS]{};
-
 namespace {
 // Process-exit cleanup: walk the entry list and delete every entry.
 // Runs after main() returns, after all threads have joined; no
@@ -261,20 +250,6 @@ DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
     }
     *tls_runner_counter_ptr = e;
     guard.entry = e;
-
-    // Publish this thread's NUMA node into the TID→NUMA hash for the
-    // wake-side NUMA-aware bias.  Indexed by `tid & (N-1)` — same hash
-    // the wake side uses for `s_sleep_slots[]` lookup, so we naturally
-    // co-locate the NUMA hint with the slot it describes.  On hash
-    // collision two TIDs share an entry; the wake-side same-NUMA pass
-    // may be wrong for the losing TID but always succeeds via the
-    // kind/any fallback passes.
-    {
-        const unsigned tid = ProcessCounter::id() & 0xFFFFu;
-        s_tid_to_numa[tid & (NEGOTIATE_SLEEP_SLOTS - 1)].store(
-            my_node, std::memory_order_relaxed);
-    }
-
     return *e;
 }
 
