@@ -730,22 +730,6 @@ PoolAllocatorBase::allocate_chunk(int8_t numa_node) {
 	palloc->m_numa_node = numa_node;
 	s_chunks[cidx] = palloc;
 
-	// Diagnostic: per-NUMA chunk counter.  Prints to stderr once per
-	// 16 chunks created on each node, so we can verify the NUMA-aware
-	// path is actually creating chunks on multiple nodes on dual-
-	// socket EPYC.  On single-NUMA systems (macOS, M3) numa_node = -1
-	// so we only see the "[-1]" bucket.
-	{
-		static std::atomic<int> s_chunk_count_per_numa[16]{};
-		int bucket = (numa_node < 0) ? 15 : (numa_node & 14);
-		int n = s_chunk_count_per_numa[bucket].fetch_add(1) + 1;
-		if(n == 1 || (n & 15) == 0) {
-			fprintf(stderr,
-				"[allocator] chunk #%d on NUMA %d (chunk_size=%zuKiB)\n",
-				n, (int)numa_node, chunk_size / 1024);
-		}
-	}
-
 	return palloc;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
