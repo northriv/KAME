@@ -55,29 +55,15 @@ namespace Transactional {
 // break the runner-counter / nest-depth singleton invariants.
 namespace detail {
 
-// Per-thread nesting / TLS storage. Apple/Linux: declared `extern
-// thread_local` in transaction.h, defined here as plain thread_local
-// (transaction_impl.h is included from exactly one TU per binary).
-// Windows: `__declspec(dllexport) thread_local` is forbidden by MSVC,
-// so libkame instead exports `*_ref()` accessor functions; the storage
-// lives as a function-local `thread_local` inside each accessor (one
-// instance per thread, per program — same DLL hosts the storage).
-// Per-thread TLS variables — all migrated to XThreadLocal.  Each
-// (T, Tag) is hosted in libkame via a member-template explicit
-// instantiation at the bottom of this file (`template int& ...
-// ::libkame_storage();`).  Consumers (other libkame TUs, tests, and
-// plugin DLLs) see the matching `extern template` declarations at the
-// bottom of transaction.h; plugins additionally get a per-DLL cached
-// pointer for the hot path (gated on `BUILDING_PLUGIN`).  No more
-// `#ifdef _WIN32` dichotomy, no `*_ref()` accessor functions, no
-// `#define` macro aliases.
+// Per-thread TLS singletons — `DECLSPEC_KAME` exports each XThreadLocal
+// object from libkame; plugin DLLs see the same object address via
+// dllimport, which is what `detail::tls_storage()` uses as the slot key.
+// (See threadlocal.h for the type-erased dispatcher design.)
 DECLSPEC_KAME XThreadLocal<int, STxNestTag>     s_tx_nest;
 DECLSPEC_KAME XThreadLocal<int, SSleepNestTag>  s_sleep_nest;
 DECLSPEC_KAME XThreadLocal<void*, TlsPayloadCreatorPtrTag>
                                                 tls_payload_creator_ptr;
 DECLSPEC_KAME XThreadLocal<TlsSerial>           tls_serial;
-DECLSPEC_KAME XThreadLocal<local_shared_ptr<RunnerCounterEntry>>
-                                                tls_runner_counter_holder;
 DECLSPEC_KAME XThreadLocal<RunnerCounterEntry*, TlsRunnerCounterPtrTag>
                                                 tls_runner_counter_ptr;
 DECLSPEC_KAME XThreadLocal<StampKind, SCurrentOpKindTag>
@@ -86,72 +72,185 @@ DECLSPEC_KAME XThreadLocal<StampKind, SCurrentOpKindTag>
 DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 #endif
 
-// `DECLSPEC_KAME` on the definitions too — MSVC is more lenient when
-// dllexport appears on both declaration and definition. Without it,
-// each module DLL can end up with its own private copy of these
-// symbols, defeating the libkame singleton invariant (the macOS DSO
-// duplication failure mode that motivated this whole reorg).
-DECLSPEC_KAME atomic_shared_ptr<RunnerCounterVec> s_runner_counters{};
+// =====================================================================
+// Per-thread heap entries linked into a singly-linked list anchored
+// at `s_runner_entries_head`.
+//
+// Each thread allocates its own `RunnerCounterEntry` on first STM
+// use (`runner_counter_register`).  Heap allocation via `new` →
+// **Linux first-touch policy places the entry on that thread's
+// local NUMA node** → subsequent per-tx `fetch_add/sub` on the
+// entry's `v` is a *local* atomic (~10 ns on EPYC, ~5 ns on M3),
+// not a cross-socket atomic (~1 µs on EPYC).
+//
+// Slot reuse via `claimed` flag: when a thread exits, its TLS dtor
+// (`RunnerEntryReleaseGuard`) sets `claimed=false`, leaving the
+// entry in the list available for the next first-time-registering
+// thread to CAS-claim.  This bounds memory by **max-ever-concurrent
+// thread count** (not max-ever-total), handling long-running
+// processes with worker spawn/destroy churn.
+//
+// NUMA-aware reuse (Linux only): `runner_counter_register` does a
+// two-pass scan — first pass prefers entries with `allocated_node`
+// matching the calling thread's current NUMA (via `getcpu(2)`),
+// second pass takes any unclaimed entry.  Steady-state drives
+// entries to settle on threads of matching NUMA → cross-socket
+// fetch_add/sub on reused entries is bounded to brief transients.
+//
+// `v` encoding (simple, pre-chunked semantics):
+//   v == 0 : not currently in a Tx
+//   v >= 1 : in a Tx (AcquireOneCount RAII keeps v ∈ {0, 1})
+//
+// Replaces:
+//   - the original `atomic_shared_ptr<vec<lsp<Entry>>>` design
+//   - the intermediate chunked-array design
+// =====================================================================
 
-// COW helpers shared between register/unregister.
-static void s_runner_counters_cow_append(
-    const local_shared_ptr<RunnerCounterEntry> &sp) {
-    for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
-        local_shared_ptr<RunnerCounterVec> next;
-        next.reset(new RunnerCounterVec);
-        if(old) {
-            next->reserve(old->size() + 1);
-            for(auto &e : *old) next->push_back(e);
+#ifdef __linux__
+#include <unistd.h>
+#include <sys/syscall.h>
+// Returns the NUMA node of the CPU currently scheduling this thread,
+// or -1 if unknown / syscall failed.  Used by `runner_counter_register`
+// to pick entries on the calling thread's local NUMA preferentially.
+//
+// `getcpu(2)` is fast (vDSO-accelerated on x86_64); call frequency
+// is once per thread first-register, so even a plain syscall would
+// be acceptable.  No `::` prefix on `syscall` — glibc declares it
+// in the unistd.h namespace without making it a global-scope symbol
+// reachable via `::`.
+static inline int8_t kame_current_numa_node() noexcept {
+#ifdef SYS_getcpu
+    unsigned int cpu = 0, node = 0;
+    if(syscall(SYS_getcpu, &cpu, &node, nullptr) == 0)
+        return (int8_t)((node > 127) ? 127 : node);
+#endif
+    return -1;
+}
+#else
+static inline int8_t kame_current_numa_node() noexcept { return -1; }
+#endif
+
+// DECLSPEC_KAME on the definition — MSVC requires it for cross-DLL
+// singleton symbols (without it each module DLL gets its own copy).
+DECLSPEC_KAME std::atomic<RunnerCounterEntry*> s_runner_entries_head{nullptr};
+
+namespace {
+// Process-exit cleanup: walk the entry list and delete every entry.
+// Runs after main() returns, after all threads have joined; no
+// concurrent access at this point.  Purely a hygiene measure so leak
+// detectors (ASan, valgrind) don't complain — runtime behavior is
+// unaffected because entries never shrink during operation.
+struct RunnerEntriesTeardown {
+    ~RunnerEntriesTeardown() noexcept {
+        RunnerCounterEntry *e = s_runner_entries_head.exchange(
+            nullptr, std::memory_order_acq_rel);
+        while(e) {
+            RunnerCounterEntry *nx =
+                e->next.load(std::memory_order_relaxed);
+            delete e;
+            e = nx;
         }
-        next->push_back(sp);
-        if(s_runner_counters.compareAndSwap(old, next)) break;
     }
-}
+};
+RunnerEntriesTeardown s_runner_entries_teardown;
+} // anonymous namespace
 
-static void s_runner_counters_cow_remove(
-    const RunnerCounterEntry *target) {
-    for(local_shared_ptr<RunnerCounterVec> old(s_runner_counters);;) {
-        if( !old) break;
-        local_shared_ptr<RunnerCounterVec> next;
-        next.reset(new RunnerCounterVec);
-        next->reserve(old->size());
-        for(auto &e : *old)
-            if(e.get() != target) next->push_back(e);
-        if(s_runner_counters.compareAndSwap(old, next)) break;
+// TLS RAII: on thread exit, mark the entry unclaimed so the next
+// first-time-registering thread can pick it up via slot reuse.
+// Resets `v` to 0 explicitly for safety against the (impossible
+// under correct RAII, but cheap-to-defend-against) case of a thread
+// exiting mid-transaction with v=1 — the next claimer needs a
+// clean slate.
+//
+// Single relaxed-release atomic store, no allocator interaction,
+// no atomic_shared_ptr, no CAS retry — safe under any TLS-
+// destruction order (the issue that produced ~2-5/100 crashes in
+// the prior atomic_shared_ptr<vec> design).
+struct RunnerEntryReleaseGuard {
+    RunnerCounterEntry *entry;
+    RunnerEntryReleaseGuard() noexcept : entry(nullptr) {}
+    ~RunnerEntryReleaseGuard() noexcept {
+        if(entry) {
+            entry->v.store(0, std::memory_order_release);
+            entry->claimed.store(false, std::memory_order_release);
+        }
     }
-}
-
-// TLS RAII wrapper: a thread's first call to `runner_counter_register`
-// constructs this; thread exit invokes the dtor, which removes our
-// entry from the global vec.  Strong-ref design (no weak_ptr): the
-// entry lives until the last snapshot of `s_runner_counters` that
-// contains it is released, then the local_shared_ptr refcnt drops to
-// 0 and the entry is freed.  C++ standard guarantees thread_local
-// non-trivial dtors run on thread exit / join (per [basic.start.term]
-// and pthread_key semantics in major implementations).
-struct RunnerCounterRegistration {
-    local_shared_ptr<RunnerCounterEntry> entry;
-    RunnerCounterRegistration() = default;
-    ~RunnerCounterRegistration() noexcept {
-        if(entry) s_runner_counters_cow_remove(entry.get());
-    }
-    RunnerCounterRegistration(const RunnerCounterRegistration &) = delete;
-    RunnerCounterRegistration &operator=(const RunnerCounterRegistration &) = delete;
+    RunnerEntryReleaseGuard(const RunnerEntryReleaseGuard &) = delete;
+    RunnerEntryReleaseGuard &operator=(const RunnerEntryReleaseGuard &) = delete;
 };
 
-// Intra-libkame TLS — only `runner_counter_register()` below references
-// it.  Plain XThreadLocal (no explicit instantiation needed because no
-// plugin TU touches it).  Non-trivial dtor runs at thread exit via
-// `static thread_local`'s standard guarantee.
-static XThreadLocal<RunnerCounterRegistration> tls_runner_counter_registration;
+// Intra-libkame only — no plugin TU touches it.
+static XThreadLocal<RunnerEntryReleaseGuard> tls_runner_entry_release_guard;
+
+// Try to claim an existing unclaimed entry.  Two-pass design:
+//   Pass 1 (Linux only, when my_node >= 0): prefer entries with
+//          matching `allocated_node` — keeps post-reuse fetch_add
+//          local to the new owner's NUMA.
+//   Pass 2: take any unclaimed entry as fallback.
+// Returns nullptr if all entries are claimed.
+static RunnerCounterEntry* try_claim_existing_entry(int8_t my_node) noexcept {
+    if(my_node >= 0) {
+        for(RunnerCounterEntry *e = s_runner_entries_head.load(
+                std::memory_order_acquire);
+            e; e = e->next.load(std::memory_order_relaxed)) {
+            if(e->allocated_node != my_node) continue;
+            // Relaxed read first to avoid wasted CAS attempts on
+            // entries that are visibly claimed.
+            if(e->claimed.load(std::memory_order_relaxed)) continue;
+            bool exp = false;
+            if(e->claimed.compare_exchange_strong(
+                   exp, true,
+                   std::memory_order_acq_rel,
+                   std::memory_order_relaxed))
+                return e;
+        }
+    }
+    for(RunnerCounterEntry *e = s_runner_entries_head.load(
+            std::memory_order_acquire);
+        e; e = e->next.load(std::memory_order_relaxed)) {
+        if(e->claimed.load(std::memory_order_relaxed)) continue;
+        bool exp = false;
+        if(e->claimed.compare_exchange_strong(
+               exp, true,
+               std::memory_order_acq_rel,
+               std::memory_order_relaxed))
+            return e;
+    }
+    return nullptr;
+}
 
 DECLSPEC_KAME RunnerCounterEntry& runner_counter_register() {
-    auto &reg = *tls_runner_counter_registration;
-    reg.entry.reset(new RunnerCounterEntry());
-    *tls_runner_counter_holder = reg.entry;   // back-compat: still expose holder
-    *tls_runner_counter_ptr = reg.entry.get();
-    s_runner_counters_cow_append(reg.entry);
-    return *reg.entry;
+    auto &guard = *tls_runner_entry_release_guard;
+    const int8_t my_node = kame_current_numa_node();
+    // First try slot reuse (bounded memory in the face of thread
+    // spawn/destroy churn).
+    RunnerCounterEntry *e = try_claim_existing_entry(my_node);
+    if( !e) {
+        // No free slot — allocate a new entry on the *calling*
+        // thread's heap.  On Linux with the default first-touch
+        // NUMA policy this places the page on the thread's local
+        // NUMA node — making all subsequent `fetch_add/sub`
+        // operations on this entry's `v` local atomics.  The
+        // constructor records `allocated_node` so future reuse
+        // attempts can prefer same-NUMA entries.
+        e = new RunnerCounterEntry(my_node);
+        // CAS-prepend onto the global list.  Set `next` BEFORE
+        // the CAS; the CAS's `acq_rel` on success publishes `e`'s
+        // initial state (v=0, claimed=true) and its `next` pointer
+        // to any reader that subsequently does
+        // `s_runner_entries_head.load(acquire)`.
+        RunnerCounterEntry *head = s_runner_entries_head.load(
+            std::memory_order_relaxed);
+        do {
+            e->next.store(head, std::memory_order_relaxed);
+        } while( !s_runner_entries_head.compare_exchange_weak(
+                      head, e,
+                      std::memory_order_acq_rel,
+                      std::memory_order_relaxed));
+    }
+    *tls_runner_counter_ptr = e;
+    guard.entry = e;
+    return *e;
 }
 
 DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
@@ -160,14 +259,43 @@ DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl() {
     return runner_counter_register();
 }
 
-DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept {
-    local_shared_ptr<RunnerCounterVec> snap(s_runner_counters);
-    if( !snap) return 0;
+DECLSPEC_KAME unsigned int num_threads_running_impl(
+    unsigned int ceiling) noexcept {
+    //! Walk the per-thread entry list summing `v` values.  `v` is 0
+    //! (not in Tx) or 1 (in Tx) per the AcquireOneCount semantics,
+    //! so the sum directly equals the number of threads currently
+    //! in a transaction.
+    //!
+    //! **Ceiling early-exit**: hot-path callers compare the result
+    //! against very small thresholds (`KAME_STM_MAX_RUNNERS = 2` or
+    //! `min_r = 1..2`); we exit as soon as the partial sum reaches
+    //! `ceiling`.  Under heavy load most entries have v=1, so the
+    //! loop typically touches only the first few entries.
+    //!
+    //! Memory ordering:
+    //!   - `s_runner_entries_head.load(acquire)` synchronises with
+    //!     the CAS-prepend that published any entry.  Once an entry
+    //!     is in the list its `next` pointer is immutable (single-
+    //!     CAS prepend at head; existing chain is never modified),
+    //!     so subsequent `next.load(relaxed)` is safe.
+    //!   - Per-entry `v.load(acquire)` pairs with the `release`
+    //!     ordering on `AcquireOneCount` / `ReleaseOneCount` RMW,
+    //!     collapsing the cross-socket NUMA visibility window from
+    //!     "C++ memory model eventual" (tens of µs) to hardware
+    //!     cache coherency RTT (sub-µs).  On x86 the acquire load
+    //!     is a plain MOV; on ARM it compiles to LDAR.
+    //!
+    //! No shared refcount, no tag-CAS, no atomic_shared_ptr
+    //! conversion: this is `load_acquire(head) → for each entry:
+    //! load_acquire(v), load_relaxed(next)`.
     uint64_t s = 0;
-    // Direct deref — entries kept alive by snap's local_shared_ptrs.
-    // No `.lock()` overhead (vs old `vector<weak_ptr>` design).
-    for(auto &sp : *snap)
-        s += sp->v.load(std::memory_order_relaxed);
+    for(RunnerCounterEntry *e = s_runner_entries_head.load(
+            std::memory_order_acquire);
+        e; e = e->next.load(std::memory_order_relaxed)) {
+        uint64_t v = e->v.load(std::memory_order_acquire);
+        s += v;
+        if(s >= ceiling) return ceiling;
+    }
     return (unsigned)s;
 }
 
@@ -179,11 +307,8 @@ DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept {
 // per-binary include site, matching detail:: TLS above).
 // =============================================================================
 
-// NegSite TLS storage — class-static XThreadLocal definitions.  The
-// inline accessor functions (`state_map()` etc.) in transaction.h are
-// thin wrappers that dereference these.  Per-member explicit template
-// instantiations at the bottom of this file export
-// `libkame_storage()` so plugins import libkame's single instance.
+// NegSite TLS — class-static XThreadLocal definitions.  Inline
+// accessors in transaction.h dereference these.
 DECLSPEC_KAME XThreadLocal<std::unordered_map<int, NegSite::SiteState>,
                             NegSite::StateMapTag>
                                               NegSite::tls_state_map;
@@ -802,12 +927,6 @@ namespace Transactional {
 template <class XN>
 XThreadLocal<typename Node<XN>::FuncPayloadCreator> Node<XN>::stl_funcPayloadCreator;
 
-// `Node<XN>::SerialGenerator::stl_serial` removed — replaced by the
-// non-templated `Transactional::detail::tls_serial`
-// (`XThreadLocal<TlsSerial>`) which is cross-DLL singleton via
-// explicit instantiation.  See transaction.h's SerialGenerator
-// implementation.
-
 atomic<ProcessCounter::cnt_t> ProcessCounter::s_count = ProcessCounter::MAINTHREADID - 1;
 XThreadLocal<ProcessCounter> ProcessCounter::stl_processID;
 
@@ -941,7 +1060,7 @@ Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, int64_
     m_bundle_serial(bundle_serial) {
 }
 template <class XN>
-Node<XN>::PacketWrapper::PacketWrapper(const shared_ptr<Linkage > &bp, int reverse_index,
+Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Linkage > &bp, int reverse_index,
     int64_t bundle_serial) noexcept :
     m_bundledBy(bp), m_packet(), m_reverse_index(),
     m_bundle_serial(bundle_serial) {
@@ -989,9 +1108,9 @@ Node<XN>::print_recoverable_error(const char* reason) {
 
 
 template <class XN>
-Node<XN>::Node() : m_link(std::make_shared<Linkage>()) {
-    local_shared_ptr<Packet> packet(new Packet());
-    m_link->reset(new PacketWrapper(packet, SerialGenerator::gen()));
+Node<XN>::Node() : m_link(make_local_shared<Linkage>()) {
+    local_shared_ptr<Packet> packet(make_local_shared<Packet>());
+    *m_link = make_local_shared<PacketWrapper>(packet, SerialGenerator::gen());
     //Use create() for this hack.
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     // Read and clear the shared void* slot — see create() for why we use
@@ -1002,7 +1121,7 @@ Node<XN>::Node() : m_link(std::make_shared<Linkage>()) {
     auto creator = *stl_funcPayloadCreator;
     *stl_funcPayloadCreator = nullptr;
 #endif
-    packet->m_payload.reset(creator(static_cast<XN&>( *this)));
+    packet->m_payload = creator(static_cast<XN&>( *this));
 }
 template <class XN>
 Node<XN>::~Node() {
@@ -1057,7 +1176,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
         bool has_failed = false;
         //Tags serial.
         local_shared_ptr<Packet> newpacket(tr.m_packet);
-        tr.m_packet.reset(new Packet( *tr.m_oldpacket));
+        tr.m_packet = make_local_shared<Packet>( *tr.m_oldpacket);
         if( !tr.m_packet->node().commit(tr)) {
             printf("*\n");
             has_failed = true;
@@ -1086,7 +1205,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             }
 
             //Marks for writing at subnode.
-            tr.m_packet.reset(new Packet( *tr.m_oldpacket));
+            tr.m_packet = make_local_shared<Packet>( *tr.m_oldpacket);
             if( !tr.m_packet->node().commit(tr)) {
                 printf("&\n");
                 has_failed = true;
@@ -1094,16 +1213,14 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             tr.m_oldpacket = tr.m_packet;
             tr.m_packet = newpacket;
 
-            // local_unique_ptr: ownership transfers to m_ref on CAS
-            // success (saves 2 atomic ops vs local_shared_ptr).
-            auto newwrapper = make_local_unique<PacketWrapper>(
+            auto newwrapper = make_local_shared<PacketWrapper>(
                 m_link, packet->size() - 1, tr.m_serial);
             newwrapper->packet() = subpacket_new;
             packet->subpackets()->back() = subpacket_new;
             if(has_failed)
                 return false;
             if( !scope.compareAndSetWithHint(newwrapper)) {
-                tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket));
+                tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket);
                 return false;
             }
             break;
@@ -1150,7 +1267,7 @@ Node<XN>::eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial,
             break;
         }
         // unique_ptr: ownership to m_link on success.
-        auto newwrapper = make_local_unique<PacketWrapper>( *scope, SerialGenerator::SERIAL_NULL);
+        auto newwrapper = make_local_shared<PacketWrapper>( *scope, SerialGenerator::SERIAL_NULL);
         if(scope.compareAndSet(newwrapper))
             break;
         // RAII tags on continue (iter > 0)
@@ -1185,7 +1302,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     scoped_atomic_view<PacketWrapper> nullsubwrapper;
     // newsubwrapper: ownership transferred to var->m_link on CAS
     // success.  unique_ptr saves 2 atomic ops vs local_shared_ptr.
-    local_unique_ptr<PacketWrapper> newsubwrapper;
+    local_shared_ptr<PacketWrapper> newsubwrapper;
     auto nit = packet->subnodes()->begin();
     for(auto pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
         assert(nit != packet->subnodes()->end());
@@ -1196,24 +1313,24 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
                     scoped_atomic_view<PacketWrapper>::ADAPTIVE_THRESHOLD,
                     /*weakly=*/true);
                 if(!nullsubwrapper.acquire_succeeded()) {
-                    tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+                    tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
                     return false;
                 }
                 if(nullsubwrapper->hasPriority()) {
                     if(nullsubwrapper->packet() != *pit) {
-                        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+                        tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
                         return false;
                     }
                 }
                 else {
-                    shared_ptr<Linkage> bp(nullsubwrapper->bundledBy());
+                    local_shared_ptr<Linkage> bp(nullsubwrapper->bundledBy());
                     if((bp && (bp != m_link)) ||
                         ( !bp && (nullsubwrapper->packet() != *pit))) {
-                        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+                        tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
                         return false;
                     }
                 }
-                newsubwrapper = make_local_unique<PacketWrapper>(m_link, idx, SerialGenerator::SERIAL_NULL);
+                newsubwrapper = make_local_shared<PacketWrapper>(m_link, idx, SerialGenerator::SERIAL_NULL);
                 newsubwrapper->packet() = *pit;
             }
             pit = packet->subpackets()->erase(pit);
@@ -1255,9 +1372,9 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 
     local_shared_ptr<Packet> newpacket(tr.m_packet);
     tr.m_packet = tr.m_oldpacket;
-    tr.m_packet.reset(new Packet( *tr.m_packet));
+    tr.m_packet = make_local_shared<Packet>( *tr.m_packet);
     if( !tr.m_packet->node().commit(tr)) {
-        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+        tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
         tr.m_packet = newpacket;
         return false;
     }
@@ -1270,7 +1387,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         std::move(nullsubwrapper),
         ScopedNegotiateLinkage<XN>::TagMode::OnExit);
     if( !scope.compareAndSetWithHint(newsubwrapper)) {
-        tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+        tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
         return false; // destructor tags
     }
     // scope auto-committed + tagged successful_cas via the call.
@@ -1334,7 +1451,7 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 // When copy_branch is true, applies copy-on-write along the path.
 template <class XN>
 local_shared_ptr<typename Node<XN>::Packet>*
-Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
+Node<XN>::reverseLookupWithHint(local_shared_ptr<Linkage> &linkage,
     local_shared_ptr<Packet> &superpacket, bool copy_branch, int64_t tr_serial, bool set_missing,
     local_shared_ptr<Packet> *upperpacket, int *index) {
     if( !superpacket->size())
@@ -1345,7 +1462,7 @@ Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
     if( !wrapper) return nullptr;
     if(wrapper->hasPriority())
         return nullptr;
-    shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
+    local_shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
     if( !linkage_upper)
         return nullptr;
     local_shared_ptr<Packet> *foundpacket;
@@ -1362,7 +1479,7 @@ Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
         return nullptr;
     if(copy_branch) {
         if(( *foundpacket)->subpackets()->m_serial != tr_serial) {
-            foundpacket->reset(new Packet( **foundpacket));
+            *foundpacket = make_local_shared<Packet>( **foundpacket);
             ( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
             ( *foundpacket)->m_missing = ( *foundpacket)->m_missing || set_missing;
             ( *foundpacket)->subpackets()->m_serial = tr_serial;
@@ -1392,7 +1509,7 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &superpacket,
         return nullptr;
     if(copy_branch) {
         if(superpacket->subpackets()->m_serial != tr_serial) {
-            superpacket.reset(new Packet( *superpacket));
+            superpacket = make_local_shared<Packet>( *superpacket);
             superpacket->subpackets().reset(new PacketList( *superpacket->subpackets()));
             superpacket->subpackets()->m_serial = tr_serial;
             superpacket->m_missing = superpacket->m_missing || set_missing;
@@ -1451,7 +1568,7 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
         assert( &( *foundpacket)->node() == this);
     }
     if(copy_branch && (( *foundpacket)->payload()->m_serial != tr_serial)) {
-        foundpacket->reset(new Packet( **foundpacket));
+        *foundpacket = make_local_shared<Packet>( **foundpacket);
     }
 //						printf("#");
     return foundpacket;
@@ -1508,7 +1625,7 @@ Node<XN>::upperNode(Snapshot<XN> &shot) {
 template <class XN>
 inline typename Node<XN>::WalkUpResult
 Node<XN>::ascendOneLevel(
-    const shared_ptr<Linkage> &child_linkage,
+    const local_shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope) {
 
     WalkUpResult r;
@@ -1583,7 +1700,7 @@ Node<XN>::convertRecursiveStatus(
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
 Node<XN>::findChildSlot(
-    const shared_ptr<Linkage> &child_linkage,
+    const local_shared_ptr<Linkage> &child_linkage,
     local_shared_ptr<Packet> *parent_packet,
     local_shared_ptr<Packet> **child_subpacket_out,
     int &reverse_index,
@@ -1630,7 +1747,7 @@ Node<XN>::findChildSlot(
 template <class XN>
 template <class Recurser>
 inline typename Node<XN>::WalkUpResult
-Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
+Node<XN>::walkUpChainImpl(const local_shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
     Recurser &&recurse) {
@@ -1684,13 +1801,13 @@ Node<XN>::walkUpChainImpl(const shared_ptr<Linkage> &child_linkage,
 //=============================================================================
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
-Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
+Node<XN>::walkUpChain(const local_shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
     std::optional<ScopedNegotiateLinkage<XN>> &root_lifetime) {
 
     auto r = walkUpChainImpl(child_linkage, incoming_scope, child_subpacket_out,
-        [&root_lifetime](const shared_ptr<Linkage> &pl,
+        [&root_lifetime](const local_shared_ptr<Linkage> &pl,
            const ScopedNegotiateLinkage<XN> &is,
            local_shared_ptr<Packet> **pp) {
             return walkUpChain(pl, is, pp, root_lifetime);
@@ -1708,13 +1825,13 @@ Node<XN>::walkUpChain(const shared_ptr<Linkage> &child_linkage,
 //=============================================================================
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
-Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
+Node<XN>::snapshotForUnbundle(const local_shared_ptr<Linkage> &child_linkage,
     const ScopedNegotiateLinkage<XN> &incoming_scope,
     local_shared_ptr<Packet> **child_subpacket_out,
     int64_t serial, CASInfoList *cas_infos) {
 
     auto r = walkUpChainImpl(child_linkage, incoming_scope, child_subpacket_out,
-        [serial, cas_infos](const shared_ptr<Linkage> &pl,
+        [serial, cas_infos](const local_shared_ptr<Linkage> &pl,
            const ScopedNegotiateLinkage<XN> &is,
            local_shared_ptr<Packet> **pp) {
             return snapshotForUnbundle(pl, is, pp, serial, cas_infos);
@@ -1769,8 +1886,8 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
     local_shared_ptr<Packet> *p(r.parent_packet);
     local_shared_ptr<PacketWrapper> newwrapper;
     if(r.is_root_level) {
-        newwrapper.reset(
-            new PacketWrapper( **r.parent_scope, (*r.parent_scope)->m_bundle_serial));
+        newwrapper =
+            make_local_shared<PacketWrapper>( **r.parent_scope, (*r.parent_scope)->m_bundle_serial);
     }
     else {
         assert(cas_infos->size());
@@ -1780,8 +1897,8 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
         // and subsequent levels copy the same value).  This avoids
         // a post-recursion READ of root_wrapper, which is the
         // prerequisite for converting root_wrapper to a lighter type.
-        newwrapper.reset(
-            new PacketWrapper( *p, cas_infos->front().new_wrapper->m_bundle_serial));
+        newwrapper =
+            make_local_shared<PacketWrapper>( *p, cas_infos->front().new_wrapper->m_bundle_serial);
     }
     if(newwrapper) {
         // Extract scoped_atomic_view from parent_scope into CASInfo.
@@ -1795,7 +1912,7 @@ Node<XN>::snapshotForUnbundle(const shared_ptr<Linkage> &child_linkage,
     }
     int size = ( *r.parent_packet)->size();
     if(size) {
-        p->reset(new Packet( **p));
+        *p = make_local_shared<Packet>( **p);
         ( *p)->m_missing = true;
     }
 
@@ -1909,7 +2026,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
             // — no view_copy() or temporary needed.
             // root_lifetime keeps the root-level ScopedNeg alive so that
             // foundpacket (pointing into the Packet tree) remains valid.
-            shared_ptr<Linkage > linkage(m_link);
+            local_shared_ptr<Linkage > linkage(m_link);
             local_shared_ptr<Packet> *foundpacket;
             std::optional<ScopedNegotiateLinkage<XN>> root_lifetime;
             auto status = walkUpChain(linkage,
@@ -1971,7 +2088,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                 // claude/refactor-negotiate-scoped-f7de2 (b23fa954)
                 // is consistent with OS scheduling, not a logic gap.
                 {
-                    auto promoted = make_local_unique<PacketWrapper>(
+                    auto promoted = make_local_shared<PacketWrapper>(
                         scope->packet(), snapshot.m_serial);
                     scope.compareAndSet(promoted);
                 }
@@ -2035,7 +2152,7 @@ Node<XN>::bundle_subpacket(ScopedNegotiateLinkage<XN> *supscope_super,
     // dance through a temporary local_shared_ptr).
 
     if( !subscope->hasPriority()) {
-        shared_ptr<Linkage > linkage(subscope->bundledBy());
+        local_shared_ptr<Linkage > linkage(subscope->bundledBy());
         bool need_for_unbundle = false;
         bool detect_collision = false;
         if(linkage == m_link) {
@@ -2183,7 +2300,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         // local_shared_ptr's +1 transfers cleanly into supscope.view via
         // move-in set_view (0 ops).  Net: same atomic ops, simpler flow.
         local_shared_ptr<PacketWrapper> superwrapper(
-            new PacketWrapper(supscope->packet(), bundle_serial));
+            make_local_shared<PacketWrapper>(supscope->packet(), bundle_serial));
         ScopedNegotiateLinkage<XN> scope(supernode.m_link, snap, -1,
             ScopedNegotiateLinkage<XN>::TagMode::OnExit);
         if( !scope) return BundledStatus::DISTURBED;
@@ -2238,7 +2355,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         //     return BundledStatus::SUCCESS;
         // }
         local_shared_ptr<PacketWrapper> superwrapper(
-            new PacketWrapper( *supscope, bundle_serial));
+            make_local_shared<PacketWrapper>( *supscope, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
             reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
         assert(newpacket->size());
@@ -2334,9 +2451,9 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
             shared_ptr<Node> child(( *subnodes)[i]);
             local_shared_ptr<PacketWrapper> bundled_ref;
             if(( *subpackets)[i])
-                bundled_ref.reset(new PacketWrapper(m_link, i, bundle_serial));
+                bundled_ref = make_local_shared<PacketWrapper>(m_link, i, bundle_serial);
             else
-                bundled_ref.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
+                bundled_ref = make_local_shared<PacketWrapper>( *subwrappers_org[i], bundle_serial);
 
             assert( !bundled_ref->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
@@ -2422,7 +2539,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
         }
 
         //--- Phase 4: finalize — clear missing flag if all sub-packets are present ---
-        superwrapper.reset(new PacketWrapper( *superwrapper, bundle_serial));
+        superwrapper = make_local_shared<PacketWrapper>( *superwrapper, bundle_serial);
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
@@ -2577,7 +2694,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
         tr.isMultiNodal() ? detail::StampKind::BUNDLE
                           : detail::StampKind::NONE);
 
-    local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
+    local_shared_ptr<PacketWrapper> newwrapper(make_local_shared<PacketWrapper>(tr.m_packet, tr.m_serial));
     for(int retry = 0;; ++retry) {
         // RAII OnEntry: negotiates + tag-bit acquires view of m_link
         // + tags eagerly (retry > 0).  scope's internal view is the
@@ -2797,7 +2914,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, Snapshot<XN> &snap,
     if(oldsubpacket)
         newsubwrapper = *newsubwrapper_returned;
     else
-        newsubwrapper.reset(new PacketWrapper( *newsubpacket, SerialGenerator::gen(root_bundle_serial)));
+        newsubwrapper = make_local_shared<PacketWrapper>( *newsubpacket, SerialGenerator::gen(root_bundle_serial));
 
     // Final sublinkage CAS via the caller-provided subscope.  The
     // outer scope's negotiate (at construction) covers this CAS — no
@@ -2845,49 +2962,4 @@ void setCurrentPriorityMode(Priority pr) {
 }
 
 } //namespace Transactional
-
-// Per-member explicit instantiations for cross-DLL singleton TLS —
-// each emits `libkame_storage()` as an exported symbol in libkame.
-// Live at global scope ([temp.explicit]: explicit instantiation must
-// appear in an enclosing namespace of the template — XThreadLocal is
-// declared at global scope in threadlocal.h).  `operator*()` is
-// intentionally NOT explicit-instantiated so each consuming TU
-// inlines its own copy (libkame-side: direct path; plugin-side:
-// per-DLL `cached` pointer path under `BUILDING_PLUGIN`).
-template DECLSPEC_KAME int&
-    XThreadLocal<int, Transactional::detail::STxNestTag>::libkame_storage();
-template DECLSPEC_KAME int&
-    XThreadLocal<int, Transactional::detail::SSleepNestTag>::libkame_storage();
-template DECLSPEC_KAME void*&
-    XThreadLocal<void*, Transactional::detail::TlsPayloadCreatorPtrTag>::libkame_storage();
-template DECLSPEC_KAME Transactional::detail::TlsSerial&
-    XThreadLocal<Transactional::detail::TlsSerial>::libkame_storage();
-template DECLSPEC_KAME local_shared_ptr<Transactional::detail::RunnerCounterEntry>&
-    XThreadLocal<local_shared_ptr<Transactional::detail::RunnerCounterEntry>>::libkame_storage();
-template DECLSPEC_KAME Transactional::detail::RunnerCounterEntry*&
-    XThreadLocal<Transactional::detail::RunnerCounterEntry*,
-                 Transactional::detail::TlsRunnerCounterPtrTag>::libkame_storage();
-template DECLSPEC_KAME Transactional::detail::StampKind&
-    XThreadLocal<Transactional::detail::StampKind,
-                 Transactional::detail::SCurrentOpKindTag>::libkame_storage();
-#if KAME_ENABLE_RUNNER_DIGEST
-template DECLSPEC_KAME Transactional::detail::RunnerDigest&
-    XThreadLocal<Transactional::detail::RunnerDigest>::libkame_storage();
-#endif
-
-// NegSite TLS — per-member explicit instantiations for the
-// class-static `tls_*` members declared in `class NegSite`.
-template DECLSPEC_KAME std::unordered_map<int, Transactional::NegSite::SiteState>&
-    XThreadLocal<std::unordered_map<int, Transactional::NegSite::SiteState>,
-                 Transactional::NegSite::StateMapTag>::libkame_storage();
-template DECLSPEC_KAME Transactional::NegSite::SiteState *&
-    XThreadLocal<Transactional::NegSite::SiteState *,
-                 Transactional::NegSite::CurrentStateTag>::libkame_storage();
-template DECLSPEC_KAME bool&
-    XThreadLocal<bool, Transactional::NegSite::LastWasGateReturnTag>::libkame_storage();
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-template DECLSPEC_KAME Transactional::NegSite::AutoMergeStats&
-    XThreadLocal<Transactional::NegSite::AutoMergeStats,
-                 Transactional::NegSite::AutoMergeStatsTag>::libkame_storage();
-#endif
 

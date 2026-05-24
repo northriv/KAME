@@ -56,7 +56,7 @@ struct Node<XN>::WalkUpResult {
     SnapshotStatus find_status;  //!< result of findChildSlot (or early-return status)
     SnapshotStatus status;       //!< status after convertRecursiveStatus (before find)
     bool is_root_level;          //!< true if this parent is the chain root
-    shared_ptr<Linkage> parent_linkage;    //!< m_link of the parent node (= bundledBy)
+    local_shared_ptr<Linkage> parent_linkage;    //!< m_link of the parent node (= bundledBy)
     //! ScopedNeg on parent's linkage (1 CAS, with_negotiate=false).
     //! Provides contention tagging on DISTURBED unwind.
     //! Disengaged on early-return (DISTURBED/NODE_MISSING before acquire).
@@ -80,10 +80,31 @@ struct Node<XN>::WalkUpResult {
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
     switch (pr) {
-    case Priority::LOWEST:        return 30'000;
-    case Priority::UI_DEFERRABLE: return 50'000;
+    case Priority::SCRIPTING:     return 1'000;        // 1 ms — script/MCP/ZMQ
+    case Priority::LOWEST:        return 30'000;       // 30 ms — bulk/analysis
+    case Priority::UI_DEFERRABLE: return 50'000;       // 50 ms — interactive UI
     default:                      return KAME_STM_PRIV_AGE_NORMAL_US;  /* HIGHEST / NORMAL */
     }
+}
+
+template <class XN>
+bool Node<XN>::NegotiationCounter::stamp_is_expired_lowprio(cnt_t stamp) noexcept {
+    // Single source of truth shared by `try_register_privileged_tidstamp`,
+    // `i_am_privileged_now`, and `fair_mode_blocks_me`.  All three must
+    // agree on "expired" or per-Linkage Reserved stamps go stuck (see
+    // commit a0846cfd's analysis of the fair_mode_blocks_me path).
+    //
+    // SCRIPTING's claim floor dominates the threshold because it is the
+    // longest-tenured LOW priority — using its floor here uniformly
+    // gives LOWEST / UI_DEFERRABLE holders the same generous wall-clock
+    // window before eviction, which simplifies reasoning and avoids
+    // race windows where two LOW priorities use different cutoffs.
+    if( !stamp_is_lowprio(stamp)) return false;
+    int64_t now_us  = LivelockProbe::now_us();
+    int64_t age     = (int64_t)diff_us_packed(now_us, stamp);
+    int64_t max_age = min_privilege_age_us(Priority::SCRIPTING)
+                    + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
+    return age > max_age;
 }
 
 template <class XN>
@@ -114,8 +135,17 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     if (scale < 1) scale = 1;
     const int64_t claim_floor = age_floor * scale;
     while (true) {
-        if (expected != (cnt_t)0) {
-            // Slot held. Preempt only if the challenger (us) is older
+        // Expiration via shared helper.  Only LOW-priority holders
+        // (lowprio bit set; LOWEST / UI_DEFERRABLE / SCRIPTING) can
+        // expire; NORMAL / HIGHEST are immune (measurement / driver
+        // critical).  Treating an expired holder as "empty slot"
+        // lets a stuck older SCRIPTING Tx be evicted by a newer one
+        // that would otherwise be blocked by the older-only
+        // preemption rule.
+        bool holder_expired =
+            (expected != (cnt_t)0) && stamp_is_expired_lowprio(expected);
+        if (expected != (cnt_t)0 && !holder_expired) {
+            // Live holder. Preempt only if the challenger (us) is older
             // than the holder by at least PRIV_PREEMPT_WINDOW_US.
             // Age-ordered preemption: older transactions take priority,
             // but a small window prevents rapid cycling between threads
@@ -126,8 +156,8 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
             if (tx_age_us < holder_tx_age + (int64_t)KAME_STM_PRIV_PREEMPT_WINDOW_US)
                 return false;  // holder is at least as old; don't preempt
         } else {
-            // Empty slot. Require scaled age threshold to reduce churn
-            // when many threads are contending.
+            // Empty slot OR expired holder.  Require scaled age
+            // threshold to reduce churn when many threads are contending.
             if (tx_age_us < claim_floor)
                 return false;
         }
@@ -138,12 +168,11 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
             break;
         // CAS failed; `expected` reloaded — re-evaluate.
     }
-    std::fprintf(stderr,
-        "[ll-probe] privileged_tid=%u "
-        "(claimed by stuck oldest Tx; age=%lld us, prio=%d, N=%d%s)\n",
-        (unsigned)stamp_tid(tidstamp),
-        (long long)tx_age_us, (int)pr, N,
-        expected == (cnt_t)0 ? "" : " preempted");
+    // Diagnostic moved to the caller's `if (claimed)` block (see
+    // `_negotiate_internal`) so it fires uniformly for both global
+    // and per-Linkage privilege modes.  In per-Linkage mode this
+    // function is not called at all (the CAS-claim runs inline in
+    // the caller), so leaving the print here would make it dead.
     return true;
 }
 
@@ -151,6 +180,11 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
         const Linkage *link) noexcept {
+    // Expiration check delegated to `stamp_is_expired_lowprio`: a
+    // LOW-priority priv stamp older than `min_privilege_age_us(SCRIPTING)
+    // + PRIV_MAX_HOLD_US` is considered expired (holder lost privilege
+    // by timeout).  NORMAL / HIGHEST priv never expires — measurement
+    // / driver-critical Tx must not be disrupted.
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: "mine" iff this Linkage's slot carries a Reserved-
     // kind stamp with matching TID.  Compare by TID alone (NOT
@@ -162,12 +196,25 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
-    return stamp_tid(slot) == stamp_tid(my_tidstamp);
+    if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
+    // Expiration: stale priv stamp from a stuck Tx no longer grants
+    // privilege.  Peers see the matching update via `fair_mode_blocks_me`,
+    // which uses the same `stamp_is_expired_lowprio` predicate to
+    // treat the per-Linkage Reserved stamp as unblocking.
+    if(stamp_is_expired_lowprio(slot)) return false;
+    return true;
 #else
     (void)link;
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
     if(priv == (cnt_t)0) return false;
-    return stamp_tid(priv) == stamp_tid(my_tidstamp);
+    if(stamp_tid(priv) != stamp_tid(my_tidstamp)) return false;
+    // Global-mode expiration: pairs with the expired-slot detection
+    // in `try_register_privileged_tidstamp` so a stuck holder cannot
+    // block all other priv-claimants forever.  Critical for SCRIPTING
+    // (two stuck SCRIPTING Tx could otherwise deadlock each other
+    // under the older-only preemption rule).
+    if(stamp_is_expired_lowprio(priv)) return false;
+    return true;
 #endif
 }
 
@@ -192,6 +239,32 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
         cnt_t tidstamp,
         const Linkage *link) noexcept {
+    // Expiration check delegated to `stamp_is_expired_lowprio`.  A
+    // stuck low-priority holder leaves a stale Reserved stamp on some
+    // Linkage (per-Linkage mode) or in `s_privileged_tidstamp`
+    // (global mode) that the holder's own thread can no longer refresh
+    // (`i_am_privileged_now` returns false past the same threshold),
+    // yet without this check peers would still see the stamp here and
+    // yield to a holder that has already conceded — a frozen Linkage
+    // nobody can overwrite.  Treating expired stamps as unblocking
+    // lets peers fall through to the ordinary commit CAS, which
+    // clobbers the dead stamp naturally.  NORMAL / HIGHEST stamps
+    // never carry the lowprio bit, so they are never reported expired.
+    // KAME_STM_PRIV_DIAG: one-shot print per expired stamp (TLS-dedup).
+    auto report_expired = [](cnt_t stamp) {
+#if KAME_STM_PRIV_DIAG
+        static thread_local cnt_t s_last_reported = 0;
+        if(stamp == s_last_reported) return;
+        s_last_reported = stamp;
+        std::fprintf(stderr,
+            "[priv-timeout] expired lowprio stamp tid=%u age>%lld us\n",
+            (unsigned)stamp_tid(stamp),
+            (long long)(min_privilege_age_us(Priority::SCRIPTING)
+                        + (int64_t)KAME_STM_PRIV_MAX_HOLD_US));
+#else
+        (void)stamp;
+#endif
+    };
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: blocked iff the slot's Reserved stamp is held by
     // SOME OTHER thread.  TID-only compare (see `i_am_privileged_now`
@@ -199,7 +272,9 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
-    return stamp_tid(slot) != stamp_tid(tidstamp);
+    if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
+    if(stamp_is_expired_lowprio(slot)) { report_expired(slot); return false; }
+    return true;
 #else
     (void)link;
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
@@ -215,7 +290,9 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // it already holds via the outer Tx — see hang in
     // transaction_dynamic_node_test backtrace (~Node->releaseAll on
     // frame #15-16, negotiate_sleep on frame #9).
-    return stamp_tid(priv) != stamp_tid(tidstamp);
+    if(stamp_tid(priv) == stamp_tid(tidstamp)) return false;
+    if(stamp_is_expired_lowprio(priv)) { report_expired(priv); return false; }
+    return true;
 #endif
 }
 
@@ -228,6 +305,7 @@ Node<XN>::NegotiationCounter::priority_probe_info(Priority pr) noexcept {
         case Priority::NORMAL:        return { KAME_STM_RETRY_THRESH_NORMAL, "NORMAL" };
         case Priority::UI_DEFERRABLE: return { 4, "UI_DEFERRABLE" };
         case Priority::LOWEST:        return { 4, "LOWEST" };
+        case Priority::SCRIPTING:     return { 4, "SCRIPTING" };
         default:                      return { 3, "?" };
     }
 }
@@ -554,15 +632,9 @@ ScopedNegotiateLinkage<XN>::_negotiate_after_retry_pause(int retry) noexcept {
 // Inspect with gdb while a test runs: `thread apply all print <name>`.
 // Off by default to keep per-call overhead minimal in production builds.
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-// dt2 of the most recent negotiate() call — used by the adaptive fairness
-// gate (always-on, zero cost beyond one thread_local store).
-//
-// Routed through XThreadLocal so the TLS storage qualifier (`__thread`
-// on POSIX GCC/Clang, `thread_local` elsewhere) is decided in
-// `threadlocal.h` alone.  Each variable carries a unique empty Tag
-// struct to keep its class-static `m_var` distinct from sibling
-// counters that share the same underlying scalar type (so that, e.g.,
-// `s_adapt_dt2_last_us` and `s_adapt_negotiate_calls` don't alias).
+// dt2 of the most recent negotiate() call — used by the adaptive
+// fairness gate.  Tags disambiguate sibling counters sharing the same
+// scalar type.
 namespace {
 struct STagAdaptDt2LastUs;
 struct STagAdaptCLast;
@@ -618,7 +690,8 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
     using NegotiationCounter = typename Node<XN>::NegotiationCounter;
     using Linkage = typename Node<XN>::Linkage;
     Linkage *const self = m_link.get();
-    if(entry_pr == Priority::LOWEST || entry_pr == Priority::UI_DEFERRABLE)
+    if(entry_pr == Priority::LOWEST ||
+        entry_pr == Priority::UI_DEFERRABLE || entry_pr == Priority::SCRIPTING)
         return false;
     // transaction_started_time is tid+kind+us-packed; diff_us_packed
     // extracts the µs and applies modular subtraction (wrap-safe).
@@ -684,7 +757,7 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
     unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
 #if KAME_STM_MIN_RUNNERS != 0
     const int min_r_pre = effective_min_runners(1);
-    if(NegotiationCounter::numThreadsRunning() < min_r_pre)
+    if(NegotiationCounter::numThreadsRunning((unsigned)min_r_pre) < (unsigned)min_r_pre)
 #endif
     if(my_tid == ps.tid
         && adapt_dt2_last_us < (uint64_t)KAME_DT2_FAIRNESS_US) {
@@ -694,7 +767,8 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             ++*s_adapt_skip_hits;
 #endif
-            if(entry_pr == Priority::HIGHEST || entry_pr == Priority::NORMAL)
+            if(entry_pr == Priority::HIGHEST || entry_pr == Priority::NORMAL
+                    || entry_pr == Priority::SCRIPTING)
                 return true;  // owner-skip → caller returns early
         }
     }
@@ -808,8 +882,10 @@ ScopedNegotiateLinkage<XN>::_neg_spin_block(int C_obs) noexcept {
     // limits concurrent CAS attempts.
     bool runners_ok = true;
 #if KAME_STM_MAX_RUNNERS != 0
-    runners_ok = NegotiationCounter::numThreadsRunning()
-                 < effective_max_runners(C_obs);
+    {
+        const unsigned max_r = (unsigned)effective_max_runners(C_obs);
+        runners_ok = NegotiationCounter::numThreadsRunning(max_r) < max_r;
+    }
 #else
     (void)C_obs;
 #endif
@@ -1161,6 +1237,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
                 g_neg_claim_successes.fetch_add(1, std::memory_order_relaxed);
 #endif
+#if KAME_STM_PRIV_DIAG
+                std::fprintf(stderr,
+                    "[ll-probe] privileged_tid=%u age=%lld us prio=%d N=%d\n",
+                    (unsigned)NegotiationCounter::stamp_tid(snap.m_started_time),
+                    (long long)_ll_age_us, (int)entry_pr,
+                    (int)NegotiationCounter::numThreadsRunning());
+#endif
                 // Note: we do NOT assert post-claim that any Linkage still
                 // carries our Reserved.  A racing older Tx can preempt our
                 // Reserved (symmetric window rule in tag_as_contender)
@@ -1413,6 +1496,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                 transaction_started_time);
             s_backoff_seed = s_backoff_seed * 1103515245u + 12345u;
             uint32_t r_j = (s_backoff_seed >> 16) & 0xFFFFu;
+            uint32_t r_l =  s_backoff_seed        & 0xFFFFu;
             enum {
                 JITTER_LO  = (100 - KAME_STM_JITTER_RANGE) * 65536 / 100,
                 JITTER_DIV = 100 / (2 * KAME_STM_JITTER_RANGE)
@@ -1424,10 +1508,38 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
             if((KAME_STM_GATE_MULT > 0.0f) && (lhs_j < rhs_j)) {
 #if KAME_STM_MAX_RUNNERS != 0
                 const int max_r = effective_max_runners(C_obs);
-                if(NegotiationCounter::numThreadsRunning() < max_r)
+                if(NegotiationCounter::numThreadsRunning((unsigned)max_r) < (unsigned)max_r)
 #endif
                     return true; // gate fires — younger earned a CAS
             }
+    // KAME_STM_DISABLE_LOTTERY lives in transaction_definitions.h.
+#if !KAME_STM_DISABLE_LOTTERY
+            // (b) C fairness lottery: LOTTERY_MULT*C threads bypass per iteration.
+            //     Prevents all threads from being stuck in the gate simultaneously.
+#if KAME_STM_MIN_RUNNERS != 0
+            const int min_r_lot = effective_min_runners(C_obs);
+            if(NegotiationCounter::numThreadsRunning((unsigned)min_r_lot) < (unsigned)min_r_lot) {
+#else
+            if(C_obs > 1) {
+#endif
+                uint64_t t64 = (uint64_t)KAME_STM_LOTTERY_MULT * 0x10000u / (uint32_t)C_obs;
+                uint32_t threshold = (t64 >= 0xFFFFu) ? 0xFFFFu : (uint32_t)t64;
+                if(r_l < threshold) {
+                    // Lottery firing at the wake-broadcast point. Default:
+                    // blocking lock_guard for reliable wakes. Rebuild with
+                    // -DKAME_STM_NOTIFY_TRY_LOCK=1 to select the try_lock
+                    // skip variant for ablation / regression measurement.
+#if defined(KAME_STM_NOTIFY_TRY_LOCK) && KAME_STM_NOTIFY_TRY_LOCK
+                    NegotiationCounter::try_notify_n_contenders(
+                        tid_bitset, C_obs, preferred_kind_for_wake());
+#else
+                    NegotiationCounter::notify_n_contenders(
+                        tid_bitset, C_obs, preferred_kind_for_wake());
+#endif
+                    return true;  // bool path: lottery fires → CAS proceeds
+                }
+            }
+#endif
         }
 #endif // KAME_STM_RESTORE_GATING
 
@@ -1711,11 +1823,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // was already preempted via `tag_as_contender`, and the
         // preempt-recovery scan in `_negotiate_internal` cleared
         // our `m_registered_privileged` flag before reaching here.
-        if(NegotiationCounter::numThreadsRunning() <= 2 && ms <= 1) {
+        if(NegotiationCounter::numThreadsRunning(3) <= 2 && ms <= 1) {
             // Low-contention fast path (from master): bare yield rather
             // than CV-sleep when only ~2 threads are active and we're
             // at the first iteration — avoids the CV-sleep / notify
             // dance overhead in the common 2-thread case.
+            // ceiling=3 short-circuits the iteration once 3 distinct
+            // runners are seen.
             typename NegotiationCounter::ReleaseOneCount onedown;
             std::this_thread::yield();
         }

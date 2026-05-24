@@ -23,7 +23,12 @@ else()
     message(STATUS "Compiler does not support -include; each .cpp must #include support_standalone.h first")
 endif()
 
-set(support_SRCS support_standalone.cpp)
+set(support_SRCS
+    support_standalone.cpp
+    # `detail::tls_storage()` is the type-erased TLS dispatcher every
+    # `XThreadLocal<T, Tag>` calls into.  In the real build this lives
+    # in kame.dll; the standalone test binary needs its own copy.
+    ${CMAKE_CURRENT_SOURCE_DIR}/../kame/threadlocal.cpp)
 
 # KAME pool allocator: ON by default on Linux and macOS (incl. Apple
 # Silicon — the pool now uses __builtin_ctzll and the ARM8 dmb barriers
@@ -48,6 +53,13 @@ else()
     add_compile_definitions(DISABLE_POOL_ALLOCATOR)
 endif()
 
+#! On Linux, prefer the `-pthread` compiler/linker flag over plain `-lpthread`.
+#! `-pthread` survives `--as-needed` (the default in many distros' gcc)
+#! whereas a bare `-lpthread` placed late on the command line gets
+#! dropped when `threadlocal.cpp` is the only TU referencing
+#! pthread_setspecific etc., causing the linker error
+#!     "undefined reference to symbol 'pthread_setspecific@@GLIBC_*'"
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
 # --- Test targets ---

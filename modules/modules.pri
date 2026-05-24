@@ -2,12 +2,6 @@ TEMPLATE = lib
 
 CONFIG += plugin
 
-# Tell libkame headers (kame/threadlocal.h) that this TU is being
-# compiled as a plugin DLL.  XThreadLocal::operator*() then uses a
-# per-DLL per-thread cached pointer instead of calling libkame's
-# `libkame_storage()` on every access.
-DEFINES += BUILDING_PLUGIN
-
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame\
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame/analyzer\
@@ -23,13 +17,13 @@ win32 {
     win32-msvc* {
         DEFINES += DECLSPEC_KAME=__declspec(dllimport)
         DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
-        DEFINES += DECLSPEC_SHARED=__declspec(dllimport)
+        DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
         LIBS += $${PRI_DIR}../kame.lib
     }
     else {
         QMAKE_LFLAGS += -Wl,--export-all-symbols
         win32-clang-g++ {
-            DEFINES += DECLSPEC_KAME=__declspec(dllexport)
+            DEFINES += DECLSPEC_KAME=__declspec(dllimport)
             DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
             DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
         }

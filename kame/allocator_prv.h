@@ -78,6 +78,13 @@ public:
 	//! they don't leak when the chunk is later released.  Default
 	//! no-op; FS=true PoolAllocator overrides.
 	virtual void flush_owner_freelist() noexcept {}
+	//! Null out this thread's `s_my_chunk` for this chunk's ALIGN type.
+	//! Called from `AllocPinCleanup` after freelist flush, before pin
+	//! count decrement.  Prevents stale `s_my_chunk` from pushing to
+	//! a dead freelist when later TLS destructors (e.g.
+	//! `RunnerCounterRegistration` via `pthread_key`) do heap
+	//! alloc/dealloc after `AllocPinCleanup` has already run.
+	virtual void clear_owner_tls() noexcept {}
 protected:
 	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
 	virtual bool deallocate_pooled(char *p) = 0;
@@ -97,6 +104,13 @@ private:
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
 	static PoolAllocatorBase *s_chunks[ALLOC_MAX_CHUNKS];
 };
+
+//! Per-thread flag — true once any allocator-TLS destructor has fired
+//! (`PoolAllocator<X>::TlsGuard::~dtor` or `AllocPinCleanup::~dtor`).
+//! Forward-declared here so `PoolAllocator::TlsGuard` (below) can write
+//! it before the full `extern` declaration further down.  The variable
+//! is defined in allocator.cpp.
+extern ALLOC_TLS bool s_alloc_tls_off;
 
 //! \brief Memory blocks in a unit of double-quad word
 //! can be allocated from fixed-size or variable-size memory pools.
@@ -152,6 +166,31 @@ protected:
 	//! FS=false). Casting to the wrong type would mis-dispatch
 	//! allocate_pooled().
 	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_my_chunk;
+	//! Per-thread guard for THIS pool template's TLS state.  Each
+	//! PoolAllocator template instantiation has its own thread_local
+	//! `TlsGuard`, so the order in which thread_local destructors run
+	//! does not matter: whichever fires first sets `s_alloc_tls_off`,
+	//! and the rest are idempotent.  This removes the previous single
+	//! point of failure (only `AllocPinCleanup::~dtor` set the flag).
+	//!
+	//! `allocate<>()` performs an ODR-use of `s_tls_guard` so the
+	//! thread_local is initialised on this thread's first allocation,
+	//! and its destructor is registered for thread exit.
+	struct TlsGuard {
+		~TlsGuard() noexcept {
+			// Per-template cleanup, in case `AllocPinCleanup::~dtor`
+			// runs after us or skips this template.  Idempotent — both
+			// fields tolerate being re-cleared.
+			if(s_my_chunk) {
+				s_my_chunk->flush_owner_freelist();
+				s_my_chunk = nullptr;
+			}
+			// Global allocator-off flag — read by `is_allocator_thread_active()`
+			// from later (pthread_key) TLS dtors.
+			s_alloc_tls_off = true;
+		}
+	};
+	static thread_local TlsGuard s_tls_guard;
 	//! # of threads pinning this chunk via TLS s_my_chunk. Incremented
 	//! once per thread on first use; never decremented in steady state.
 	//! release_allocator() returns false when this is non-zero so the
@@ -189,6 +228,7 @@ protected:
 
 	void flush_owner_freelist() noexcept override;
 	void flush_owner_freelist_to_bitmap() noexcept;
+	void clear_owner_tls() noexcept override;
 
 	void operator delete(void *) throw();
 private:
@@ -275,13 +315,15 @@ void* allocate_large_size_or_malloc(size_t size) throw();
 }
 
 extern bool g_sys_image_loaded;
+//! `s_alloc_tls_off` is forward-declared earlier in this file (around the
+//! PoolAllocator class) so `PoolAllocator::TlsGuard` can reference it.
 
 void activateAllocator();
 
 inline void* new_redirected(std::size_t size) {
 	//expecting a compile-time optimization because size is usually fixed to the object size.
-    if( !g_sys_image_loaded)
-        return malloc(size); //Not to allocate dyld objects.
+    if( !g_sys_image_loaded || s_alloc_tls_off)
+        return malloc(size); //Not to allocate dyld / post-TLS-cleanup objects.
 
 	if(size <= ALLOC_SIZE1)
 		return PoolAllocator<ALLOC_SIZE1, true>::allocate<ALLOC_SIZE1>();

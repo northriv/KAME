@@ -17,7 +17,7 @@
 #include "driver.h"
 #include "interface.h"
 
-class DECLSPEC_KAME XDummyInterface : public XInterface {
+class XDummyInterface : public XInterface {
 public:
 	XDummyInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
 		: XInterface(name, runtime, driver), m_bOpened(false)
@@ -37,7 +37,7 @@ private:
 	bool m_bOpened;
 };
 template<class tDriver>
-class DECLSPEC_KAME XDummyDriver : public tDriver {
+class XDummyDriver : public tDriver {
 public:
 	XDummyDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XDummyDriver() {}

@@ -133,6 +133,7 @@ SOURCES += icons/icon.cpp \
     script/xrubywriter.cpp \
     script/rubywrapper.cpp \
     measure.cpp \
+    threadlocal.cpp \
     xnode.cpp \
     xnodeconnector.cpp \
     driver/driver.cpp \

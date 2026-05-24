@@ -1,11 +1,5 @@
 TEMPLATE = lib
 
-# Tell libkame headers (kame/threadlocal.h) that this TU is being
-# compiled as a (shared) plugin module — XThreadLocal::operator*()
-# uses a per-DLL per-thread cached pointer instead of calling
-# libkame's `libkame_storage()` on every access.
-DEFINES += BUILDING_PLUGIN
-
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame\
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame/analyzer\

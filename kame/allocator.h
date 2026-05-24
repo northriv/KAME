@@ -34,6 +34,10 @@
 #if defined USE_STD_ALLOCATOR
     inline void activateAllocator() {}
     inline void release_pools() {}
+
+    //! \return always true on USE_STD_ALLOCATOR builds — no per-thread
+    //! pool state to worry about.
+    inline bool is_allocator_thread_active() noexcept { return true; }
 #else
     #include "allocator_prv.h"
 
@@ -51,9 +55,64 @@
     }
     #endif
 
+    extern void activateAllocator();
     extern void release_pools();
 
+    //! \return true while this thread's pool allocator state is fully
+    //! live (`g_sys_image_loaded && !s_alloc_tls_off`).  Returns false
+    //! once ANY of the per-pool-template `TlsGuard` destructors has
+    //! fired, OR `AllocPinCleanup` has fired (whichever runs first).
+    //!
+    //! Allocator-using TLS destructors / pthread_key cleanups / atexit
+    //! hooks should check this before doing CAS-retry loops, COW
+    //! vector rebuilds, or anything that depends on a steady pool /
+    //! shared global atomic_shared_ptr state.  A bare `operator new`
+    //! (which has its own malloc fallback via `new_redirected`) is
+    //! safe regardless and need not check.
+    inline bool is_allocator_thread_active() noexcept {
+        return g_sys_image_loaded && !s_alloc_tls_off;
+    }
 #endif
+
+//! RAII guard: enables the KAME pool allocator on construction.
+//! Declare one in `main()` (or any function whose scope brackets all
+//! pool-allocated lifetimes).  Until the guard is alive, `operator
+//! new` falls back to `malloc` — so dyld and static-constructor
+//! allocations stay out of the pool.
+//!
+//! ## Why the destructor does NOT call `release_pools()`
+//!
+//! `main()` has stack-local objects whose destructors run in LIFO
+//! order at function return: the pool guard is constructed last in
+//! `main()`, so it is destructed FIRST.  Any object constructed
+//! earlier (e.g. `QTranslator`) is destructed AFTER the guard.
+//!
+//! `~QTranslator` calls `QCoreApplication::removeTranslator`, which
+//! sends a `LanguageChange` event synchronously to every registered
+//! widget; the event handlers go through Qt's normal allocator,
+//! which is hooked into our pool via `operator new` / `delete`.
+//! If `~KamePooledAllocGuard` had already `munmap`'d the pool
+//! chunks, those allocations dereference unmapped memory → SIGSEGV.
+//! (Observed in kame-2026-05-24-193408.ips: faulting address
+//! 0x13ec60028 falls in an unmapped gap left by a torn-down chunk;
+//! stack is `main -> ~QTranslator -> removeTranslator -> sendEvent
+//! -> QApplication::event`.)
+//!
+//! Letting pool chunks live until process exit is harmless: the
+//! mmap'd regions are reclaimed by the kernel.  Callers who genuinely
+//! want to tear pools down at a specific point (e.g. unit-test
+//! harnesses that recreate allocator state) may still invoke
+//! `release_pools()` directly.
+//!
+//! On `USE_STD_ALLOCATOR` builds (Windows by default) the guard is a
+//! no-op.  Idempotent — multiple guards in nested scopes are harmless.
+class KamePooledAllocGuard {
+public:
+    KamePooledAllocGuard() noexcept { activateAllocator(); }
+    ~KamePooledAllocGuard() noexcept = default;
+    KamePooledAllocGuard(const KamePooledAllocGuard &) = delete;
+    KamePooledAllocGuard &operator=(const KamePooledAllocGuard &) = delete;
+};
 
 
 #include <array>

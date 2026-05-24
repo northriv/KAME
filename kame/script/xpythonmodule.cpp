@@ -454,9 +454,63 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             else
                 throw std::runtime_error("Error: not a value node.");
         })
+        //! Closure-style transaction.  The Python callable is invoked
+        //! with the Transaction; the closure may be re-invoked any
+        //! number of times on CAS conflict, so keep it idempotent.
+        //!
+        //! SIGINT / KeyboardInterrupt: the C++ STM retry loop runs
+        //! with the GIL **released**, so the Python signal handler
+        //! thread can run concurrently.  After each closure invocation
+        //! we call `PyErr_CheckSignals()` — if a pending signal (e.g.
+        //! SIGINT from Ctrl+C) has set an error, we throw
+        //! `py::error_already_set` so the Python `KeyboardInterrupt`
+        //! propagates out of `iterate_commit` instead of letting the
+        //! retry loop spin forever.  This is critical for MCP/AI
+        //! control where a livelocking closure must be interruptible.
         .def("iterate_commit", [](shared_ptr<XNode> &self, py::object pyfunc)->Snapshot {
-            return self->iterate_commit([=](Transaction &tr){
+            py::gil_scoped_release release_gil;
+            return self->iterate_commit([&](Transaction &tr){
+                py::gil_scoped_acquire acquire_gil;
                 pyfunc(tr);
+                if(PyErr_CheckSignals() != 0)
+                    throw py::error_already_set();
+            });
+        })
+        //! Closure-style transaction with conditional commit.  The
+        //! Python callable is invoked with the Transaction and must
+        //! return a bool: True commits, False retries from the start
+        //! (no commit attempt).  Use when an intermediate operation
+        //! like `parent.insert(tr, child, True)` may fail because the
+        //! tree shape changed under us, and we want to retry from
+        //! scratch.  Like `iterate_commit`, the closure may be
+        //! re-invoked any number of times on CAS conflict — keep it
+        //! idempotent.  SIGINT-responsive (see `iterate_commit`).
+        .def("iterate_commit_if", [](shared_ptr<XNode> &self, py::object pyfunc)->Snapshot {
+            py::gil_scoped_release release_gil;
+            return self->iterate_commit_if([&](Transaction &tr)->bool {
+                py::gil_scoped_acquire acquire_gil;
+                py::object ret = pyfunc(tr);
+                if(PyErr_CheckSignals() != 0)
+                    throw py::error_already_set();
+                return py::cast<bool>(ret);
+            });
+        })
+        //! Closure-style transaction with bounded retry.  The Python
+        //! callable returns True to keep retrying (continue the
+        //! commit attempt loop), or False to give up — in which case
+        //! no commit happens and control returns.  Use when the
+        //! caller needs to cap retry count or has an external abort
+        //! condition.  Returns void (no Snapshot — the loop may have
+        //! given up before committing).  SIGINT-responsive (see
+        //! `iterate_commit`).
+        .def("iterate_commit_while", [](shared_ptr<XNode> &self, py::object pyfunc) {
+            py::gil_scoped_release release_gil;
+            self->iterate_commit_while([&](Transaction &tr)->bool {
+                py::gil_scoped_acquire acquire_gil;
+                py::object ret = pyfunc(tr);
+                if(PyErr_CheckSignals() != 0)
+                    throw py::error_already_set();
+                return py::cast<bool>(ret);
             });
         });
 
@@ -473,6 +527,52 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .def(py::init([](const system_clock::time_point &t)->XTime{return {t};}));
     py::implicitly_convertible<system_clock::time_point, XTime>();
 //    py::implicitly_convertible<XTime, system_clock::time_point>();
+
+    //! Per-thread transaction priority for the privilege ("fair-
+    //! mode oldest-Tx escape") mechanism.  Use `SCRIPTING` for
+    //! external scripting callers (MCP, ZMQ, AI-driven inspection,
+    //! Python/Ruby user scripts) so their Tx yields to measurement
+    //! traffic for ~1 s before escalating; that prevents starvation
+    //! while keeping the measurement loop's quick commits undisturbed.
+    py::enum_<Transactional::Priority>(m, "Priority")
+        .value("NORMAL",        Transactional::Priority::NORMAL)
+        .value("LOWEST",        Transactional::Priority::LOWEST)
+        .value("UI_DEFERRABLE", Transactional::Priority::UI_DEFERRABLE)
+        .value("HIGHEST",       Transactional::Priority::HIGHEST)
+        .value("SCRIPTING",     Transactional::Priority::SCRIPTING)
+        .export_values();
+    //! `setCurrentPriorityMode` enforces a one-way trapdoor at
+    //! `SCRIPTING`: once a thread enters SCRIPTING, any subsequent
+    //! attempt to change the priority is rejected.  This is a
+    //! safety guarantee for MCP/AI-driven sessions — the AI cannot
+    //! elevate its own privilege to disrupt a live measurement
+    //! loop, no matter what code it generates.  Initial entry into
+    //! SCRIPTING (from any other level) is allowed; calls with
+    //! `SCRIPTING` while already at SCRIPTING are silent no-ops.
+    //!
+    //! Non-MCP Python sessions (e.g. a user-launched Jupyter
+    //! notebook) inherit the kernel thread's default (UI_DEFERRABLE)
+    //! and can switch freely among the non-SCRIPTING levels, since
+    //! the trapdoor only triggers once SCRIPTING has been set.
+    m.def("setCurrentPriorityMode", [](Transactional::Priority pr){
+        auto cur = Transactional::getCurrentPriorityMode();
+        if(cur == Transactional::Priority::SCRIPTING
+           && pr != Transactional::Priority::SCRIPTING) {
+            throw std::runtime_error(
+                "Priority::SCRIPTING is sticky and cannot be changed "
+                "to another level.  This thread is running under "
+                "external-scripting mode (MCP / AI / ZMQ), which is "
+                "locked to SCRIPTING to protect the measurement loop "
+                "from privilege contention.");
+        }
+        Transactional::setCurrentPriorityMode(pr);
+    },
+          "Set this thread's Tx privilege priority.  SCRIPTING is\n"
+          "a one-way trapdoor — once set, the priority cannot be\n"
+          "changed (RuntimeError on attempt).  Use SCRIPTING for\n"
+          "MCP/ZMQ/AI handlers; other levels can be switched freely.");
+    m.def("getCurrentPriorityMode", &Transactional::getCurrentPriorityMode);
+
     //Exceptions
     py::register_exception<XNode::NodeNotFoundError>(m, "KAMENodeNotFoundError", PyExc_KeyError);
     py::register_exception<XKameError>(m, "KAMEError", PyExc_RuntimeError);

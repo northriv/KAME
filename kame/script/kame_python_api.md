@@ -95,6 +95,152 @@ tr.commit()                       # Returns final Snapshot
 touchable_node.touch()
 ```
 
+## Transactional Patterns (atomic multi-step writes)
+
+For any operation that needs **multiple reads/writes to commit
+together atomically** (e.g. read A, compute, write B based on A's
+value), use the closure-style transaction API:
+
+```python
+# Closure-style — recommended for atomic multi-step writes
+def step(tr):
+    tr[driver_a] = v_a
+    tr[driver_b] = v_b
+    # Read-after-write within the same tr sees the new value:
+    cur = float(tr[driver_a])
+    tr[driver_c] = cur * 2.0
+
+shot = node.iterate_commit(step)   # returns the committed Snapshot
+```
+
+### Conditional commit (`iterate_commit_if`)
+
+Closure returns `True` to commit, `False` to retry (e.g. when an
+intermediate `insert`/`release` failed because the tree shape
+changed under us):
+
+```python
+def try_insert(tr):
+    if not parent.insert(tr, child, True):
+        return False     # tree shape changed → retry
+    tr[child] = 0
+    return True          # commit
+
+parent.iterate_commit_if(try_insert)
+```
+
+### Bounded retry (`iterate_commit_while`)
+
+Closure returns `True` to keep retrying, `False` to give up
+(no commit happens on give-up):
+
+```python
+attempts = [0]
+def try_once(tr):
+    attempts[0] += 1
+    if attempts[0] > 10:
+        return False     # give up
+    tr[node] += 1
+    return True          # continue (but commit happens here regardless on success)
+
+node.iterate_commit_while(try_once)
+```
+
+### Retry semantics — IMPORTANT
+
+If another thread commits a conflicting change between snapshot and
+commit, the **entire closure body is re-invoked from the start**.
+Write closures so they are *idempotent under retry*:
+
+  - ✅ Pure data updates: `tr[x] = value`, `tr[y] = tr[x] * 2`
+  - ✅ Read-then-write within the same `tr`
+  - ⚠️  Mutating Python-side variables (counters, lists): expect
+         multiple increments / appends on retry; use carefully
+  - ⚠️  `print()` / logging — fires once per retry; be aware
+  - ❌ External side effects inside the closure: file I/O,
+         network calls, hardware commands (e.g. driver "send"
+         actions).  Do these **after** `iterate_commit` returns
+         and you have the committed Snapshot in hand.
+
+### Priority (light vs. measurement-critical Tx)
+
+`kame.setCurrentPriorityMode(kame.Priority.<level>)` sets the current
+thread's priority for the **privilege ("oldest-Tx escape")** mechanism.
+After waiting longer than the level's threshold, a Tx claims privilege
+to force forward progress; a longer threshold = more deferential.
+
+| Level | Threshold | Use case |
+|---|---|---|
+| `HIGHEST` / `NORMAL` | ~300 µs | Measurement, driver activity |
+| `UI_DEFERRABLE` | 50 ms | Interactive UI updates |
+| `LOWEST` | 30 ms | Bulk / analysis |
+| `SCRIPTING` | **1 s** | **External scripting (MCP / AI / ZMQ)** — yields to *everything* for the first second of contention before escalating; ensures the script command eventually completes without disrupting a live measurement |
+
+The MCP server sets `SCRIPTING` on connection.
+
+**Important: SCRIPTING is a one-way trapdoor.** Once a thread has been
+set to `SCRIPTING`, any subsequent `setCurrentPriorityMode(...)` call
+raises `RuntimeError`.  This is a safety guarantee: an MCP / AI session
+cannot elevate its own priority to disrupt a live measurement loop,
+no matter what code the AI generates.
+
+```python
+# Allowed: initial entry into SCRIPTING (set by MCP server on connect)
+kame.setCurrentPriorityMode(kame.Priority.SCRIPTING)
+
+# Allowed: re-asserting SCRIPTING (silent no-op)
+kame.setCurrentPriorityMode(kame.Priority.SCRIPTING)
+
+# Rejected: attempting to escape SCRIPTING → RuntimeError
+try:
+    kame.setCurrentPriorityMode(kame.Priority.NORMAL)
+except RuntimeError as e:
+    print(e)  # "Priority::SCRIPTING is sticky and cannot be changed..."
+```
+
+Non-MCP Python sessions (a user-launched Jupyter notebook, a Ruby
+script via `XScriptingThread`) inherit the kernel's default
+(`UI_DEFERRABLE`) and may switch freely among the non-SCRIPTING
+levels.  The trapdoor only triggers once SCRIPTING has been set.
+
+If you legitimately need NORMAL priority for measurement-critical
+work, **do not** call `setCurrentPriorityMode(SCRIPTING)` first;
+work from `UI_DEFERRABLE` (the default) and switch as needed.
+
+### SIGINT / KeyboardInterrupt — IS interruptible
+
+The C++ STM retry loop runs with the **GIL released**, and we
+check `PyErr_CheckSignals()` after every closure invocation.
+A `KeyboardInterrupt` (e.g. from a Jupyter notebook's "interrupt
+kernel" button or Ctrl+C in a script) **propagates out of
+`iterate_commit` cleanly**, even if the closure has been retrying
+in a livelock:
+
+```python
+def conflict_prone(tr):
+    tr[node] += 1
+try:
+    node.iterate_commit(conflict_prone)
+except KeyboardInterrupt:
+    print("interrupted before commit")
+```
+
+Note: GIL release during retry means that **other Python threads
+can run between retries**.  Closures that touch Python-side global
+state (without proper locking) may observe inconsistent values
+across retries.  Stick to data flowing through the `tr` Transaction
+for full STM consistency guarantees.
+
+### When to use what
+
+| Situation | API |
+|---|---|
+| Set a single value | `node["X"] = v` (auto-transactional) |
+| Multi-step atomic write | `iterate_commit(closure)` |
+| Insert/release that may need retry on tree-shape change | `iterate_commit_if(closure)` |
+| Want a retry-cap (give up after N tries) | `iterate_commit_while(closure)` |
+| External side effect alongside write | `iterate_commit` for the write, then act on the returned Snapshot |
+
 ## Driver Patterns
 
 ```python

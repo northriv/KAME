@@ -52,16 +52,7 @@
   #endif
 #endif
 
-// Cross-DLL singleton TLS variables — forward declare just the Tag
-// structs here.  The full `extern template` declarations for each
-// (T, Tag) pair live at the bottom of this header (`namespace
-// Transactional` already closed, types fully defined; explicit
-// instantiation must be at global scope per [temp.explicit]).  See
-// threadlocal.h for the instantiation-export pattern and the
-// plugin-side `cached` pointer optimisation gated on `BUILDING_PLUGIN`.
 namespace Transactional { namespace detail { struct STxNestTag; }}
-extern template DECLSPEC_KAME int&
-    XThreadLocal<int, Transactional::detail::STxNestTag>::libkame_storage();
 
 namespace Transactional {
 
@@ -116,39 +107,37 @@ class Transaction;
 template <class XN>
 class ScopedNegotiateLinkage;
 
-enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST};
+//! Per-Tx priority used by the privilege ("fair-mode oldest-Tx
+//! escape") mechanism in `negotiate_internal`.
+//!
+//! The privilege machinery promotes a Tx to "stuck oldest" status
+//! after it has been waiting longer than `min_privilege_age_us(pr)`,
+//! allowing it to preempt forward progress.  Lower priorities use
+//! a larger age threshold so they yield to measurement traffic
+//! by default and only escalate on prolonged starvation.
+//!
+//!   HIGHEST / NORMAL  — production measurement and driver activity
+//!   UI_DEFERRABLE     — interactive UI updates (50 ms threshold)
+//!   LOWEST            — bulk/analysis (30 ms threshold)
+//!   SCRIPTING         — external scripting / inspection callers:
+//!                       MCP server / AI agents, Python or Ruby
+//!                       user scripts via the IPython kernel,
+//!                       future ZMQ command handlers.  1-second
+//!                       threshold: yields to *everything* for the
+//!                       first second of any contention, then
+//!                       claims privilege so the request still
+//!                       eventually completes.  Prevents scripted
+//!                       inspection from disrupting a live
+//!                       measurement loop while bounding starvation.
+enum class Priority {NORMAL = 0, LOWEST, UI_DEFERRABLE, HIGHEST, SCRIPTING};
 DECLSPEC_KAME void setCurrentPriorityMode(Priority pr);
 DECLSPEC_KAME Priority getCurrentPriorityMode();
 
 namespace detail {
-    //! Per-thread nesting depth of Transaction/Snapshot scopes. The
-    //! per-thread runner counter (RunnerCounterEntry below) picks up +1
-    //! only on the 0 → 1 transition so nested transactions do not
-    //! inflate the runner count. Namespace-scope (not template static)
-    //! because nesting is a per-thread property and to work around an
-    //! Apple clang / arm64 TLS-wrapper-emission bug for template
-    //! static `thread_local`.
-    //! Definition lives in transaction_impl.h (single TU per binary)
-    //! to avoid macOS two-level-namespace duplication of `inline
-    //! thread_local` storage across DSOs (libkame vs. module dylibs).
-    //!
-    //! Apple/Linux: default-visibility `extern thread_local`, modules
-    //! bind to libkame's copy directly.
-    //!
-    //! Windows: `__declspec(dllexport) thread_local` is forbidden by
-    //! MSVC, and an unannotated `extern thread_local` is not exported
-    //! across DLL boundaries. We instead export accessor functions
-    //! returning `int&` to libkame's TLS, and a macro aliases the
-    //! variable name so call sites stay uniform.
-    //! `s_tx_nest`: migrated to XThreadLocal (proof-of-concept for
-    //! the cross-DLL singleton via explicit template instantiation
-    //! pattern, see threadlocal.h).  Replaces the per-platform
-    //! `extern thread_local` / `*_ref()` accessor dichotomy with a
-    //! single portable declaration.  Inside libkame `*s_tx_nest`
-    //! inlines to a direct function-local thread_local access; from
-    //! plugin DLLs it routes through libkame's exported `operator*()`
-    //! (one DLL-call worth of overhead, ~5–10 ns).  No `#define`
-    //! macros, no platform branches in user code.
+    //! Per-thread nesting depth of Transaction/Snapshot scopes.  The
+    //! per-thread runner counter (RunnerCounterEntry below) picks up
+    //! +1 only on the 0 → 1 transition so nested transactions do not
+    //! inflate the runner count.
     struct STxNestTag;
     DECLSPEC_KAME extern XThreadLocal<int, STxNestTag> s_tx_nest;
 
@@ -156,30 +145,21 @@ namespace detail {
     struct SSleepNestTag;
     DECLSPEC_KAME extern XThreadLocal<int, SSleepNestTag> s_sleep_nest;
 
-    //! Cross-DLL payload-creator slot: create<T>() stores the typed
-    //! creator here; Node<XN>::Node() reads and clears it.  Routes
-    //! through libkame's `libkame_storage()` so all DLLs share one
-    //! per-thread slot.
+    //! Payload-creator slot: create<T>() stores the typed creator
+    //! here; Node<XN>::Node() reads and clears it.
     struct TlsPayloadCreatorPtrTag;
     DECLSPEC_KAME extern XThreadLocal<void*, TlsPayloadCreatorPtrTag>
         tls_payload_creator_ptr;
 
-    //! Cross-DLL Lamport serial: `SerialGenerator::gen()` / `current()`
-    //! read+RMW this.  The wrapper's default ctor seeds the lower
-    //! 16-bit thread-ID half from `ProcessCounter::id()`, matching the
-    //! historical `SerialGenerator::cnt_t` initialiser.
+    //! Lamport serial: `SerialGenerator::gen()` / `current()` read+RMW
+    //! this.  Default ctor seeds the lower 16-bit thread-ID half from
+    //! `ProcessCounter::id()`.
     struct TlsSerial {
         int64_t v;
         TlsSerial() noexcept
             : v(static_cast<int64_t>(ProcessCounter::id())) {}
     };
     DECLSPEC_KAME extern XThreadLocal<TlsSerial> tls_serial;
-    // (Stamp packing/arithmetic helpers — STAMP_*, pack_stamp,
-    //  stamp_us / stamp_kind / stamp_tid, diff_us(_packed) /
-    //  signed_diff_us_packed, cnt_t — now live as static members of
-    //  Node<XN>::NegotiationCounter, where the public accessors and
-    //  now_us() / now_us_tagged() / with_kind / strip_kind already
-    //  sit.  detail:: retains only the op-kind state machine below.)
 
     //! op_kind discriminator values.  0 (NONE) is the default for
     //! non-piggyback-aware code paths (stand-alone snapshot / release
@@ -206,11 +186,8 @@ namespace detail {
 
     //! Per-thread "current operation kind".  Pushed via ScopedOpKind
     //! (below) at bundle/unbundle/commit entry; read by Snapshot's
-    //! tag_as_contender to stamp the linkage with the appropriate kind.
-    //! Outside any ScopedOpKind scope the value is NONE, so stamps
-    //! are bit-identical to the pre-piggyback layout.  Follows the
-    //! same DSO-portability pattern as s_tx_nest above (extern on
-    //! Apple/Linux, accessor function on Windows).
+    //! tag_as_contender to stamp the linkage with the appropriate
+    //! kind.  Outside any ScopedOpKind scope the value is NONE.
     struct SCurrentOpKindTag;
     DECLSPEC_KAME extern XThreadLocal<StampKind, SCurrentOpKindTag>
         s_current_op_kind;
@@ -281,38 +258,96 @@ namespace detail {
 #endif // KAME_ENABLE_RUNNER_DIGEST
 
     //! Per-thread "I'm in a Tx" counter (plus, when enabled, the
-    //! peer-readable digest).  `v` is RMW'd at Tx entry/exit by the
-    //! owner and SUMmed across all entries by `num_threads_running()`.
-    //! When KAME_ENABLE_RUNNER_DIGEST is set, `digest` shares the
-    //! cacheline — peer reads at the same slow-path cadence so
-    //! colocating costs one M→S transition for both fields instead
-    //! of two.  Default off: digest field disappears, padding fills
-    //! the cacheline.
-    // Intrusive (subclass of atomic_countable) so the per-entry shared
-    // pointer can use KAME's `local_shared_ptr` (8-byte tagged pointer
-    // with amortised local refcnt) instead of std::shared_ptr (16-byte
-    // pair, always-atomic refcnt) — better cache density inside the
-    // global RunnerCounterVec and cheaper cow_append / cow_remove.
-    struct alignas(KAME_CACHE_LINE) RunnerCounterEntry : public atomic_countable {
+    //! peer-readable digest).  One instance per thread, heap-
+    //! allocated by `runner_counter_register()` and linked into the
+    //! global singly-linked list anchored at `s_runner_entries_head`.
+    //!
+    //! `v` encoding (back to the simple pre-chunked semantics):
+    //!   v == 0  : idle (not currently in a transaction)
+    //!   v >= 1  : running (one per nesting depth, but
+    //!             AcquireOneCount RAII guarantees v ∈ {0, 1} in
+    //!             steady state)
+    //!
+    //! `AcquireOneCount` does `v.fetch_add(1, release)` on the
+    //! outermost transaction (0 → 1); `~AcquireOneCount` does the
+    //! reciprocal `fetch_sub` (1 → 0).  `ReleaseOneCount` (CV-sleep
+    //! yield) mirrors the same with reversed direction.
+    //! `num_threads_running_impl` reads with `v.load(acquire)` and
+    //! sums across all entries (release/acquire pairing collapses
+    //! cross-socket NUMA staleness).
+    //!
+    //! Lifetime: heap-allocated by the owning thread on first STM
+    //! use → first-touch places the allocation on that thread's
+    //! local NUMA node → `fetch_add/sub` is **local** even on EPYC
+    //! dual-socket.  This is the critical NUMA placement property
+    //! that the previous chunked-array design lost — on ohtaka1
+    //! (256-CPU dual-socket EPYC) chunked arrays mixed slots across
+    //! sockets and per-tx fetch_add became cross-socket (~1 µs),
+    //! yielding -37% throughput vs the heap-per-thread layout.
+    //!
+    //! Entries persist until process exit.  Bounded by **max-ever-
+    //! concurrent thread count** (not max-ever-total) via slot reuse:
+    //! when a thread exits, its TLS dtor sets `claimed=false`, leaving
+    //! the entry available for the next first-time thread to CAS-
+    //! claim.  This handles long-running processes with worker
+    //! spawn/destroy churn without unbounded leak.
+    //!
+    //! NUMA-aware reuse (Linux only): each entry stores its
+    //! `allocated_node` (set once at construction, from `getcpu(2)`).
+    //! `runner_counter_register` does a two-pass scan — first pass
+    //! prefers entries on the calling thread's local NUMA; second pass
+    //! takes any unclaimed entry as fallback.  Long-term steady-state
+    //! drives entries to settle on threads of matching NUMA, restoring
+    //! local `fetch_add/sub`.  On non-Linux (Win/Mac), single-pass
+    //! blind reuse — no penalty on uniform-memory single-socket
+    //! systems where the M3 production target lives.
+    //!
+    //! A process-exit teardown sentinel walks and deletes the list
+    //! for leak-detector hygiene.
+    //!
+    //! Replaces the heap-vector+atomic_shared_ptr design (eliminated
+    //! the 27.8% EPYC hotspot and the TLS-teardown race) AND the
+    //! intermediate chunked-array design (eliminated the cross-socket
+    //! NUMA pitfall of contiguous slot blocks).
+    struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
         std::atomic<uint64_t> v{0};
+        //! Set once during `runner_counter_register` (just before the
+        //! CAS-prepend onto `s_runner_entries_head`); immutable
+        //! thereafter.  The publishing CAS uses `acq_rel`, so a
+        //! reader that synchronises-with the new head via
+        //! `s_runner_entries_head.load(acquire)` automatically sees
+        //! this `next` value with no further ordering needed.
+        //! Declared `std::atomic<>` for ABI/lint cleanliness; loads
+        //! in the traversal hot path are `relaxed`.
+        std::atomic<RunnerCounterEntry*> next{nullptr};
+        //! `true` while an owning thread holds this entry; `false`
+        //! when the entry is free for the next first-time-registering
+        //! thread to CAS-claim.  Newly-constructed entries have
+        //! `claimed=true` (the allocator is the first owner); the
+        //! TLS dtor `RunnerEntryReleaseGuard` flips this back to
+        //! `false` on thread exit.
+        std::atomic<bool> claimed{true};
+        //! Immutable after construction: the NUMA node id (from
+        //! `getcpu(2)` on Linux, else -1) of the thread that
+        //! originally allocated this entry's memory.  Used by the
+        //! reuse path's first pass to prefer entries on the
+        //! calling thread's local NUMA.  Reader does not touch this.
+        int8_t allocated_node;
+        RunnerCounterEntry(int8_t node) noexcept
+            : allocated_node(node) {}
 #if KAME_ENABLE_RUNNER_DIGEST
         std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
-        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>) - sizeof(atomic_countable)];
+        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)
+                                  - sizeof(std::atomic<RunnerCounterEntry*>)
+                                  - sizeof(std::atomic<bool>)
+                                  - sizeof(int8_t)];
 #else
-        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>) - sizeof(atomic_countable)];
+        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)
+                                  - sizeof(std::atomic<RunnerCounterEntry*>)
+                                  - sizeof(std::atomic<bool>)
+                                  - sizeof(int8_t)];
 #endif
     };
-    // Strong refs (local_shared_ptr): each thread holds its own entry
-    // in TLS *and* the global vec carries a copy.  On thread exit the
-    // TLS RAII wrapper (`RunnerCounterRegistration` below) COW-removes
-    // the entry from the global vec.  Readers iterate without
-    // `.lock()` overhead — direct deref of `sp->v` — because the
-    // snapshot's local_shared_ptrs keep entries alive for the
-    // snapshot's lifetime.  (Was `vector<weak_ptr<...>>` until
-    // 2026-05-21; under 128-thread contention the per-iter
-    // `weak_ptr::lock()` atomic refcnt pair dominated
-    // `num_threads_running_impl` — see profile.)
-    using RunnerCounterVec = std::vector<local_shared_ptr<RunnerCounterEntry>>;
 
 #if KAME_ENABLE_RUNNER_DIGEST
     //! Per-thread local cache of the digest.  Owner mutates this on
@@ -322,28 +357,22 @@ namespace detail {
     DECLSPEC_KAME extern XThreadLocal<RunnerDigest> tls_runner_digest;
 #endif // KAME_ENABLE_RUNNER_DIGEST
 
-    //! TLS holder of this thread's RunnerCounterEntry.  The
-    //! local_shared_ptr is one strong reference; the global
-    //! s_runner_counters vector holds another (also local_shared_ptr).
-    //! On thread exit, the `RunnerCounterRegistration` RAII wrapper
-    //! (defined in transaction_impl.h) COW-removes the vec entry; the
-    //! TLS holder then releases its ref.  Entry stays alive while any
-    //! older snapshot of `s_runner_counters` still references it.
-    //! The raw pointer cache below makes the hot path
-    //! (`AcquireOneCount` ctor) a single TLS load + relaxed fetch_add
-    //! — no shared_ptr ref ops.
-    DECLSPEC_KAME extern XThreadLocal<local_shared_ptr<RunnerCounterEntry>>
-        tls_runner_counter_holder;
+    //! Cached raw pointer to this thread's heap-allocated entry.
+    //! Set once on first registration (`runner_counter_register`) and
+    //! reused for the lifetime of the thread.  Hot-path consumers
+    //! (AcquireOneCount, ReleaseOneCount, ScopedNeg digest publish)
+    //! dereference it directly — one TLS load + one release/relaxed
+    //! fetch_add, no shared_ptr / atomic_shared_ptr operations.
     struct TlsRunnerCounterPtrTag;
     DECLSPEC_KAME extern XThreadLocal<RunnerCounterEntry*, TlsRunnerCounterPtrTag>
         tls_runner_counter_ptr;
 
-    //! Global "currently registered runner counters" vector. COW: any
-    //! thread's first registration publishes a new vector via
-    //! compareAndSwap, pruning expired entries (threads that have
-    //! exited) in the same step. Defined in transaction_impl.h.
-    DECLSPEC_KAME extern atomic_shared_ptr<RunnerCounterVec>
-        s_runner_counters;
+    //! Head of the per-thread runner-counter linked list.  Each
+    //! thread CAS-prepends its heap-allocated `RunnerCounterEntry`
+    //! here on first STM use.  Reader (`num_threads_running_impl`)
+    //! walks `head → entry.next → ...`; once an entry is in the
+    //! list its `next` pointer is immutable.
+    DECLSPEC_KAME extern std::atomic<RunnerCounterEntry*> s_runner_entries_head;
 
     //! Allocate + register this thread's counter on first call;
     //! return the cached raw pointer thereafter. Defined in
@@ -360,17 +389,30 @@ namespace detail {
     //! Windows MSVC dllexport caveats both push us toward routing
     //! every access through libkame symbols.)
     DECLSPEC_KAME RunnerCounterEntry& my_runner_counter_impl();
-    DECLSPEC_KAME unsigned int num_threads_running_impl() noexcept;
+    DECLSPEC_KAME unsigned int num_threads_running_impl(unsigned int ceiling) noexcept;
 
     inline RunnerCounterEntry& my_runner_counter() {
         return my_runner_counter_impl();
     }
 
-    //! Sum across all registered threads. Called only from
-    //! `negotiate_internal` (gate / lottery / wake decisions) — never
-    //! on the K=0 disjoint hot path.
-    inline unsigned int num_threads_running() noexcept {
-        return num_threads_running_impl();
+    //! Sum across all registered threads — early-exits the per-entry
+    //! iteration once the partial sum reaches `ceiling`.  Called only
+    //! from `negotiate_internal` (gate / lottery / wake decisions) —
+    //! never on the K=0 disjoint hot path.
+    //!
+    //! Hot-path callers compare the result against small thresholds
+    //! (typically `KAME_STM_MAX_RUNNERS = 2` or `min_r = 1..2`); for
+    //! those, passing the threshold as `ceiling` lets the loop bail
+    //! after iterating ~ceiling entries instead of all 128 — VTune
+    //! on EPYC ohtaka1 showed the un-capped version costing 30% of
+    //! CPU time at 128 threads.
+    //!
+    //! Default `ceiling = ~0u` reproduces the original "exact sum"
+    //! semantics, for callers (lease scaling, wake-count calculation)
+    //! that actually use the magnitude.
+    inline unsigned int num_threads_running(
+        unsigned int ceiling = ~0u) noexcept {
+        return num_threads_running_impl(ceiling);
     }
 } // namespace detail
 
@@ -489,28 +531,18 @@ public:
         Scope &operator=(const Scope &) = delete;
     };
 
-    //! TLS accessors — inline wrappers around the XThreadLocal class-
-    //! static members below.  Cross-DLL singleton semantics come from
-    //! `XThreadLocal::libkame_storage()` explicit instantiation in
-    //! libkame (see threadlocal.h and the bottom of this file).  Call
-    //! sites use the same `NegSite::state_map()` / `current_state()`
-    //! / ... syntax as before.
+    //! TLS accessors — inline wrappers around the `tls_*` members below.
     static std::unordered_map<int, SiteState>& state_map() noexcept;
     static SiteState*& current_state() noexcept;
     //! Sink for the most recent negotiate_internal() gate-return
     //! decision (true if take_gate fired).  Captured at ScopedNeg ctor
     //! into m_was_gate_return for per-scope use by _on_cas_fail /
-    //! _on_cas_success.  Always-on (production path).
+    //! _on_cas_success.
     static bool& last_was_gate_return() noexcept;
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
     static AutoMergeStats& auto_merge_stats() noexcept;
 #endif
 
-    //! XThreadLocal storage — class-static, defined in libkame's TU.
-    //! Plugins import via `DECLSPEC_KAME extern` declaration; same
-    //! per-thread slot across all DLLs because the underlying
-    //! `libkame_storage()` is explicit-instantiated in libkame
-    //! (see end of file).
     struct StateMapTag;
     struct CurrentStateTag;
     struct LastWasGateReturnTag;
@@ -634,10 +666,6 @@ public:
     ~NegSite() = delete;
 };
 
-// Inline accessor wrappers — defined out-of-class so they can use the
-// XThreadLocal member-static definitions seen above.  Each just
-// dereferences the corresponding `tls_*` member via the cached-
-// pointer fast path of `XThreadLocal::operator*()`.
 inline std::unordered_map<int, NegSite::SiteState>&
 NegSite::state_map() noexcept { return *tls_state_map; }
 inline NegSite::SiteState*& NegSite::current_state() noexcept {
@@ -862,7 +890,7 @@ private:
     };
 
     template <class P>
-    struct DECLSPEC_KAME PayloadWrapper : public P::Payload {
+    struct PayloadWrapper : public P::Payload {
         virtual typename PayloadWrapper::rettype_clone clone(Transaction<XN> &tr, int64_t serial) {
 //            auto p = allocate_local_shared<PayloadWrapper>(this->m_node->m_allocatorPayload, *this);
             auto p = make_local_shared<PayloadWrapper>( *this);
@@ -937,15 +965,28 @@ private:
     struct DECLSPEC_KAME NegotiationCounter {
         using cnt_t = int64_t;
 
-        //! Packed stamp layout (low → high):
-        //!   [ us : STAMP_US_BITS | kind : STAMP_KIND_BITS | tid : 16 ]
-        //! STAMP_US_BITS = 46 gives ~2.2 yr of monotonic µs (wrap-safe
+        //! Packed stamp layout (low → high), 64-bit total:
+        //!   [ us:45 | lowprio:1 | kind:2 | tid:16 ]
+        //! STAMP_US_BITS = 45 gives ~1.1 yr of monotonic µs (wrap-safe
         //! over any KAME operation; longest real wait is EXPIRE_US = 50
-        //! ms). STAMP_KIND_BITS = 2 carries the operation discriminator
+        //! ms — was 46 bits before, reduced by 1 to make room for the
+        //! `lowprio` flag at bit 45).
+        //!
+        //! Bit 45 (`STAMP_LOWPRIO_SHIFT`) is set when the stamp belongs
+        //! to a Tx running at a LOW priority (LOWEST / UI_DEFERRABLE /
+        //! SCRIPTING).  Used by the privilege hold-timeout in
+        //! `try_register_privileged_tidstamp` / `i_am_privileged_now`
+        //! to only evict stuck low-priority holders — NORMAL / HIGHEST
+        //! holders are protected from timeout-based preemption.
+        //! Set once at Tx construction in `m_started_time` and
+        //! propagated transparently through `with_kind` / `strip_kind`
+        //! (which only touch the kind bits).
+        //!
+        //! STAMP_KIND_BITS = 2 carries the operation discriminator
         //! (NONE / BUNDLE / UNBUNDLE / Reserved) used by the same-op
         //! piggyback path; defaults to 0 (NONE) in stand-alone call
-        //! sites so stamps stay bit-stable.  Slot 3 (Reserved) is
-        //! held back for a future per-Linkage privilege flag.
+        //! sites so stamps stay bit-stable.  Reserved (=3) doubles as
+        //! the per-Linkage privilege flag.
         //!
         //! Raw µs timestamps collide at ~1 MHz (same CPU can issue two
         //! Transactions in the same µs), which breaks the "older wins"
@@ -953,12 +994,18 @@ private:
         //! detection in the livelock probe ambiguous. Packing
         //! ProcessCounter::id (16 bits) into the upper bits makes every
         //! stamp unique per-thread.
-        static constexpr int   STAMP_US_BITS    = 46;
-        static constexpr int   STAMP_KIND_BITS  = 2;
-        static constexpr int   STAMP_KIND_SHIFT = STAMP_US_BITS;
-        static constexpr int   STAMP_TID_SHIFT  = STAMP_US_BITS + STAMP_KIND_BITS;
-        static constexpr cnt_t STAMP_US_MASK    = (cnt_t{1} << STAMP_US_BITS) - 1;
-        static constexpr cnt_t STAMP_KIND_MASK  = (cnt_t{1} << STAMP_KIND_BITS) - 1;
+        static constexpr int   STAMP_US_BITS      = 45;
+        static constexpr int   STAMP_LOWPRIO_BITS = 1;
+        static constexpr int   STAMP_KIND_BITS    = 2;
+        // Shifts are (US_BITS, US_BITS+1, US_BITS+3) = (45, 46, 48).
+        static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;
+        static constexpr int   STAMP_KIND_SHIFT
+                                      = STAMP_LOWPRIO_SHIFT + STAMP_LOWPRIO_BITS;
+        static constexpr int   STAMP_TID_SHIFT
+                                      = STAMP_KIND_SHIFT + STAMP_KIND_BITS;
+        static constexpr cnt_t STAMP_US_MASK      = (cnt_t{1} << STAMP_US_BITS) - 1;
+        static constexpr cnt_t STAMP_KIND_MASK    = (cnt_t{1} << STAMP_KIND_BITS) - 1;
+        static constexpr cnt_t STAMP_LOWPRIO_MASK = cnt_t{1} << STAMP_LOWPRIO_SHIFT;
 
         //! Monotonic µs counter. Uses steady_clock (not wall-clock
         //! gettimeofday) so the µs since program start fit comfortably
@@ -1004,6 +1051,20 @@ private:
         static inline uint16_t stamp_tid(cnt_t x) noexcept {
             return (uint16_t)((uint64_t)x >> STAMP_TID_SHIFT);
         }
+        //! True iff `x` carries the lowprio flag — set at Tx
+        //! construction when the calling thread's priority is LOWEST,
+        //! UI_DEFERRABLE, or SCRIPTING.  Propagates through `with_kind`
+        //! and other stamp-manipulation helpers because they only
+        //! touch the kind bits.  Used by the privilege hold-timeout
+        //! to gate eviction: NORMAL / HIGHEST stamps are immune.
+        static inline bool stamp_is_lowprio(cnt_t x) noexcept {
+            return (x & STAMP_LOWPRIO_MASK) != 0;
+        }
+        //! Set the lowprio flag on a stamp (use at Tx construction
+        //! based on `getCurrentPriorityMode()`).
+        static inline cnt_t with_lowprio_flag(cnt_t stamp) noexcept {
+            return stamp | STAMP_LOWPRIO_MASK;
+        }
         //! True iff `x` is a stamp whose kind field is `Reserved` (=3),
         //! repurposed as the per-Linkage privilege flag — set by a Tx
         //! that has acquired global fair-mode privilege on every
@@ -1040,19 +1101,41 @@ private:
             return (int64_t)(((uint64_t)u ^ (uint64_t)SIGN_BIT)
                              - (uint64_t)SIGN_BIT);
         }
+        //! Helper: read the calling thread's priority and return the
+        //! lowprio mask if it's a LOW-priority level (LOWEST /
+        //! UI_DEFERRABLE / SCRIPTING), else 0.  Used by
+        //! `now_us_tagged()` to fold the lowprio bit into the stamp
+        //! at construction.  `getCurrentPriorityMode()` is a single
+        //! thread-local read — negligible cost.
+        static inline cnt_t lowprio_mask_for_current_priority() noexcept {
+            Priority pr = getCurrentPriorityMode();
+            return (pr == Priority::LOWEST
+                 || pr == Priority::UI_DEFERRABLE
+                 || pr == Priority::SCRIPTING)
+                 ? STAMP_LOWPRIO_MASK : (cnt_t)0;
+        }
         //! `now_us()` with the current thread's ProcessCounter::id
-        //! packed into the upper 16 bits. Used at Transaction /
-        //! Snapshot construction to stamp m_started_time.
+        //! packed into the upper 16 bits, plus the lowprio bit
+        //! auto-set when this thread is at a LOW priority.  Used at
+        //! Transaction / Snapshot construction to stamp
+        //! m_started_time; downstream consumers (CAS-claim of
+        //! `s_privileged_tidstamp`, per-Linkage Reserved tags, sleep
+        //! stamps) inherit the lowprio bit transparently through
+        //! `with_kind` / `strip_kind` (which only touch the kind
+        //! bits).
         static inline cnt_t now_us_tagged() noexcept {
             return pack_stamp(now_us(),
-                (uint16_t)(ProcessCounter::id() & 0xFFFFu));
+                (uint16_t)(ProcessCounter::id() & 0xFFFFu))
+                 | lowprio_mask_for_current_priority();
         }
         //! Kind-tagged variant: stamps op_kind into the 2-bit kind slot.
         //! Used by bundle/unbundle entry to advertise the in-flight op.
+        //! Lowprio bit handled identically to the no-kind variant.
         static inline cnt_t now_us_tagged(StampKind kind) noexcept {
             return pack_stamp(now_us(),
                 (uint16_t)(ProcessCounter::id() & 0xFFFFu),
-                (uint8_t)kind);
+                (uint8_t)kind)
+                 | lowprio_mask_for_current_priority();
         }
         //! Replace the kind bits of an existing stamp, preserving us+tid.
         //! For stamping linkage with `m_started_time` + op kind.
@@ -1095,6 +1178,22 @@ private:
             s_privileged_tidstamp{0};
 
         static int64_t min_privilege_age_us(Priority pr) noexcept;
+        //! True iff `stamp` is a LOW-priority priv stamp (lowprio bit
+        //! set; LOWEST / UI_DEFERRABLE / SCRIPTING) older than
+        //! `min_privilege_age_us(SCRIPTING) + PRIV_MAX_HOLD_US`.
+        //! NORMAL / HIGHEST stamps never carry the lowprio bit and
+        //! are never reported expired — measurement / driver-critical
+        //! Tx keep their privilege uninterrupted regardless of duration.
+        //!
+        //! Consulted by `try_register_privileged_tidstamp` (to allow
+        //! eviction of a stuck low-priority global holder),
+        //! `i_am_privileged_now` (so the holder itself stops claiming
+        //! priv past its timeout) and `fair_mode_blocks_me` (so peers
+        //! treat a dead Reserved stamp on a per-Linkage slot as empty).
+        //! Keeping all three in sync is critical — a divergence would
+        //! leave per-Linkage stamps no peer can overwrite (see
+        //! commit a0846cfd).
+        static bool    stamp_is_expired_lowprio(cnt_t stamp) noexcept;
         static bool    try_register_privileged_tidstamp(Priority pr,
                                                         cnt_t tidstamp,
                                                         int sig_C = 1) noexcept;
@@ -1211,8 +1310,9 @@ private:
         //! detail::num_threads_running for the design rationale. Hot
         //! path increments via AcquireOneCount; this read is only used
         //! inside `negotiate_internal`.
-        static unsigned int numThreadsRunning() noexcept {
-            return detail::num_threads_running();
+        static unsigned int numThreadsRunning(
+            unsigned int ceiling = ~0u) noexcept {
+            return detail::num_threads_running(ceiling);
         }
 
         //! RAII acquire: bumps this thread's per-thread counter iff
@@ -1220,31 +1320,45 @@ private:
         //! AND we are not inside a ReleaseOneCount (sleeping) scope.
         //! Nested Transactions share the same running-slot — the
         //! thread is one runner regardless of depth.
+        //!
+        //! Memory ordering: `memory_order_release` (vs the prior
+        //! `relaxed`) pairs with the `acquire` load on the reader
+        //! side (`num_threads_running_impl`).  On x86 this is the
+        //! same instruction (LOCK XADD is intrinsically acq_rel); on
+        //! ARM it adds a STLR-style barrier.  The release matters
+        //! across NUMA nodes: under `relaxed` on EPYC the v value
+        //! could appear stale for tens of µs across sockets, and the
+        //! adaptive heuristics in `negotiate_internal` would misjudge
+        //! the running count and over-fire wake/sleep transitions.
+        //! With release/acquire pairing the staleness window collapses
+        //! to the hardware cache coherency RTT (sub-µs).
         struct DECLSPEC_KAME AcquireOneCount {
             AcquireOneCount() {
                 if(++*detail::s_tx_nest == 1 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
-                        .fetch_add(1, std::memory_order_relaxed);
+                        .fetch_add(1, std::memory_order_release);
             }
             ~AcquireOneCount() {
                 if(--*detail::s_tx_nest == 0 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
-                        .fetch_sub(1, std::memory_order_relaxed);
+                        .fetch_sub(1, std::memory_order_release);
             }
         };
         //! RAII yield of the running slot for the duration of a sleep
         //! inside negotiate_internal. Pairs with the TLS nest counters
         //! so nested sleep scopes don't double-decrement.
+        //!
+        //! Same `memory_order_release` rationale as `AcquireOneCount`.
         struct DECLSPEC_KAME ReleaseOneCount {
             ReleaseOneCount() {
                 if(++*detail::s_sleep_nest == 1 && *detail::s_tx_nest > 0)
                     detail::my_runner_counter().v
-                        .fetch_sub(1, std::memory_order_relaxed);
+                        .fetch_sub(1, std::memory_order_release);
             }
             ~ReleaseOneCount() {
                 if(--*detail::s_sleep_nest == 0 && *detail::s_tx_nest > 0)
                     detail::my_runner_counter().v
-                        .fetch_add(1, std::memory_order_relaxed);
+                        .fetch_add(1, std::memory_order_release);
             }
         };
     };
@@ -1273,10 +1387,6 @@ private:
         //! When \a last_serial is provided, the counter is advanced to at least
         //! last_serial's counter + 1 (Lamport clock), ensuring temporal ordering.
         static int64_t gen(int64_t last_serial = SERIAL_NULL) noexcept {
-            // Single cross-DLL singleton accessor — `detail::tls_serial`
-            // is XThreadLocal<TlsSerial> explicit-instantiated in
-            // libkame.  Plugins reach libkame's per-thread slot via
-            // the per-DLL cached pointer (see threadlocal.h).
             auto &m = detail::tls_serial->v;
             int64_t last_counter = last_serial & ~int64_t(0xFFFF);
             if(int64_t(uint64_t(last_counter) - uint64_t(m & ~int64_t(0xFFFF))) > 0)
@@ -1295,20 +1405,20 @@ private:
         //! creates a wrapper not containing a packet but pointing to the upper node.
         //! \param[in] bp \a m_link of the upper node.
         //! \param[in] reverse_index The index for this node in the list of the upper node.
-        PacketWrapper(const shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial) noexcept;
+        PacketWrapper(const local_shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial) noexcept;
         PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) noexcept;
         bool hasPriority() const noexcept { return m_reverse_index == (int)PACKET_STATE::PACKET_HAS_PRIORITY; }
         const local_shared_ptr<Packet> &packet() const noexcept {return m_packet;}
         local_shared_ptr<Packet> &packet() noexcept {return m_packet;}
 
         //! Points to the upper node that should have the up-to-date Packet when this lacks priority.
-        shared_ptr<Linkage> bundledBy() const noexcept {return m_bundledBy.lock();}
+        local_shared_ptr<Linkage> bundledBy() const noexcept {return m_bundledBy.lock();}
         //! The index for this node in the list of the upper node.
         int reverseIndex() const noexcept {return m_reverse_index;}
         void setReverseIndex(int i) noexcept {m_reverse_index = i;}
 
         void print_() const;
-        weak_ptr<Linkage> const m_bundledBy;
+        local_weak_ptr<Linkage> const m_bundledBy;
         local_shared_ptr<Packet> m_packet;
         int m_reverse_index;
         int64_t m_bundle_serial;
@@ -1323,7 +1433,14 @@ private:
     // KAME_LEASE_NS_BASE and other tuning macros live in
     // transaction_definitions.h.
 
-    struct DECLSPEC_KAME Linkage : public atomic_shared_ptr<PacketWrapper> {
+    //! `atomic_weakable` marker → combined-alloc + weak_refcnt
+    //! semantics for `local_shared_ptr<Linkage>` / `local_weak_ptr<Linkage>`.
+    //! Empty base, zero size overhead (EBO).  Allocate via
+    //! `make_local_shared<Linkage>()`.
+    struct DECLSPEC_KAME Linkage
+        : public atomic_shared_ptr<PacketWrapper>,
+          public atomic_weakable {
+        using atomic_shared_ptr<PacketWrapper>::operator=;
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(),
             m_transaction_started_time(0),
             m_priority_state(packPriority(0, KAME_LEASE_NS_BASE / 1000, 0)),
@@ -1692,9 +1809,9 @@ private:
         VOID_PACKET = 2, NODE_MISSING = 4,
         COLLIDED = 8, NODE_MISSING_AND_COLLIDED = 12};
     struct CASInfo {
-        CASInfo(const shared_ptr<Linkage> &b, scoped_atomic_view<PacketWrapper> &&o,
+        CASInfo(const local_shared_ptr<Linkage> &b, scoped_atomic_view<PacketWrapper> &&o,
             const local_shared_ptr<PacketWrapper> &n) : linkage(b), old_wrapper(std::move(o)), new_wrapper(n) {}
-        shared_ptr<Linkage> linkage;
+        local_shared_ptr<Linkage> linkage;
         scoped_atomic_view<PacketWrapper> old_wrapper;
         local_shared_ptr<PacketWrapper> new_wrapper;
     };
@@ -1712,7 +1829,7 @@ private:
     //! On success, find_status == SUCCESS and parent fields are filled.
     //! On failure, find_status == DISTURBED or NODE_MISSING.
     static inline WalkUpResult ascendOneLevel(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope);
 
     //! Convert recursive status and determine the upper packet.
@@ -1725,7 +1842,7 @@ private:
 
     //! Find child's sub-packet slot in parent's packet by scanning from reverse_index hint.
     static inline SnapshotStatus findChildSlot(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         local_shared_ptr<Packet> *parent_packet,
         local_shared_ptr<Packet> **child_subpacket_out,
         int &reverse_index,
@@ -1738,7 +1855,7 @@ private:
     //! (Step D) compares child_linkage against incoming_scope directly.
     template <class Recurser>
     static inline WalkUpResult walkUpChainImpl(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope,
         local_shared_ptr<Packet> **child_subpacket_out,
         Recurser &&recurse);
@@ -1748,7 +1865,7 @@ private:
     //! root_lifetime receives the root-level ScopedNeg (via move) to keep
     //! the Packet tree alive after walkUpChain returns — foundpacket points into it.
     static inline SnapshotStatus walkUpChain(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope,
         local_shared_ptr<Packet> **child_subpacket_out,
         std::optional<ScopedNegotiateLinkage<XN>> &root_lifetime);
@@ -1756,7 +1873,7 @@ private:
     //! Walk up the chain and build CAS info list for unbundling.
     //! Used only by unbundle().
     static inline SnapshotStatus snapshotForUnbundle(
-        const shared_ptr<Linkage> &child_linkage,
+        const local_shared_ptr<Linkage> &child_linkage,
         const ScopedNegotiateLinkage<XN> &incoming_scope,
         local_shared_ptr<Packet> **child_subpacket_out,
         int64_t serial, CASInfoList *cas_infos);
@@ -1804,7 +1921,7 @@ private:
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
         ScopedNegotiateLinkage<XN> *supscope_super = NULL);
     //! The point where the packet is held.
-    shared_ptr<Linkage> m_link;
+    local_shared_ptr<Linkage> m_link;
 
     //! finds the packet for this node in the (un)bundled \a packet.
     //! \param[in,out] superpacket The bundled packet.
@@ -1815,7 +1932,7 @@ private:
     local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &superpacket,
         bool copy_branch, int64_t tr_serial = 0, bool set_missing = false);
     const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &superpacket) const;
-    inline static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<Linkage > &linkage,
+    inline static local_shared_ptr<Packet> *reverseLookupWithHint(local_shared_ptr<Linkage > &linkage,
         local_shared_ptr<Packet> &superpacket, bool copy_branch, int64_t tr_serial, bool set_missing,
         local_shared_ptr<Packet> *upperpacket, int *index);
     //! finds this node and a corresponding packet in the (un)bundled \a packet.
@@ -1830,7 +1947,7 @@ protected:
     //! Use \a create().
     Node();
 private:
-    using FuncPayloadCreator = Payload *(*)(XN &);
+    using FuncPayloadCreator = local_shared_ptr<Payload> (*)(XN &);
     static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
     void lookupFailure() const;
     local_shared_ptr<typename Node<XN>::Packet>*lookupFromChild(local_shared_ptr<Packet> &superpacket,
@@ -1852,10 +1969,10 @@ T *Node<XN>::create(Args&&... args) {
     // of which DLL it is compiled into—touches the same TLS slot.
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     static constexpr FuncPayloadCreator s_fn =
-        [](XN &node)->Payload *{ return new PayloadWrapper<T>(node); };
+        [](XN &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
     *detail::tls_payload_creator_ptr = reinterpret_cast<void *>(s_fn);
 #else
-    *T::stl_funcPayloadCreator = [](XN &node)->Payload *{ return new PayloadWrapper<T>(node);};
+    *T::stl_funcPayloadCreator = [](XN &node)->local_shared_ptr<Payload>{ return make_local_shared<PayloadWrapper<T>>(node); };
 #endif
     return new T(std::forward<Args>(args)...);
 }
@@ -1886,6 +2003,12 @@ public:
     explicit Snapshot(Transaction<XN>&&x) noexcept
         : Snapshot(static_cast<Snapshot&&>(x)) {}
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
+        // `now_us_tagged()` auto-folds the lowprio bit (set when this
+        // thread is at LOWEST / UI_DEFERRABLE / SCRIPTING priority) so
+        // the privilege hold-timeout in
+        // `try_register_privileged_tidstamp` / `i_am_privileged_now`
+        // can gate timeout-based eviction on holder priority — NORMAL
+        // / HIGHEST stamps are immune.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
         node.snapshot( *this, multi_nodal);
@@ -1976,7 +2099,7 @@ public:
     //! Transaction::operator++; this is just the extraction into a
     //! Snapshot-level helper so snapshot()/bundle() can adopt it too in
     //! later refactor passes.
-    void tag_as_contender(const std::shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
+    void tag_as_contender(const local_shared_ptr<typename Node<XN>::Linkage> &link) noexcept {
         // CAS-loop variant (Option A). Atomically claim the linkage's
         // priority slot iff the slot is empty OR the current tagger is
         // YOUNGER than us (compare on stamp_us only — the tid packed in
@@ -2259,7 +2382,7 @@ protected:
     //! eager-tag / eager-clear logic out of tr++/Negotiator RAII without
     //! further restructuring. Inline-first-16 (fast_vector) keeps
     //! low-contention workloads zero-alloc.
-    fast_vector<std::shared_ptr<typename Node<XN>::Linkage>, 16> m_tagged_linkages;
+    fast_vector<local_shared_ptr<typename Node<XN>::Linkage>, 16> m_tagged_linkages;
 
     // Per-Tx (= per-Snapshot) gate-return adaptive tightener.
     //
@@ -2342,6 +2465,8 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
         Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
+        // `now_us_tagged()` auto-folds the lowprio bit — see
+        // Snapshot ctor above for the priority-gated timeout rationale.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
         node.snapshot( *this, multi_nodal);
@@ -2648,48 +2773,5 @@ void Node<XN>::iterate_commit_while(Closure &&closure) {
 }
 
 } //namespace Transactional
-
-// Per-member `extern template` declarations for all cross-DLL TLS
-// variables.  Live at global scope (XThreadLocal lives at global
-// scope; [temp.explicit] requires explicit instantiation declarations
-// in an enclosing namespace of the template).  The matching `template
-// ... ::libkame_storage();` definitions are at the bottom of
-// transaction_impl.h.  Plugins (with `BUILDING_PLUGIN` defined) call
-// libkame_storage() once per thread and cache the returned pointer
-// in their own per-DLL TLS slot — see threadlocal.h for details.
-extern template DECLSPEC_KAME int&
-    XThreadLocal<int, Transactional::detail::SSleepNestTag>::libkame_storage();
-extern template DECLSPEC_KAME void*&
-    XThreadLocal<void*, Transactional::detail::TlsPayloadCreatorPtrTag>::libkame_storage();
-extern template DECLSPEC_KAME Transactional::detail::TlsSerial&
-    XThreadLocal<Transactional::detail::TlsSerial>::libkame_storage();
-extern template DECLSPEC_KAME local_shared_ptr<Transactional::detail::RunnerCounterEntry>&
-    XThreadLocal<local_shared_ptr<Transactional::detail::RunnerCounterEntry>>::libkame_storage();
-extern template DECLSPEC_KAME Transactional::detail::RunnerCounterEntry*&
-    XThreadLocal<Transactional::detail::RunnerCounterEntry*,
-                 Transactional::detail::TlsRunnerCounterPtrTag>::libkame_storage();
-extern template DECLSPEC_KAME Transactional::detail::StampKind&
-    XThreadLocal<Transactional::detail::StampKind,
-                 Transactional::detail::SCurrentOpKindTag>::libkame_storage();
-#if KAME_ENABLE_RUNNER_DIGEST
-extern template DECLSPEC_KAME Transactional::detail::RunnerDigest&
-    XThreadLocal<Transactional::detail::RunnerDigest>::libkame_storage();
-#endif
-
-// NegSite TLS — extern template declarations matching the explicit
-// instantiations in transaction_impl.h.
-extern template DECLSPEC_KAME std::unordered_map<int, Transactional::NegSite::SiteState>&
-    XThreadLocal<std::unordered_map<int, Transactional::NegSite::SiteState>,
-                 Transactional::NegSite::StateMapTag>::libkame_storage();
-extern template DECLSPEC_KAME Transactional::NegSite::SiteState *&
-    XThreadLocal<Transactional::NegSite::SiteState *,
-                 Transactional::NegSite::CurrentStateTag>::libkame_storage();
-extern template DECLSPEC_KAME bool&
-    XThreadLocal<bool, Transactional::NegSite::LastWasGateReturnTag>::libkame_storage();
-#if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
-extern template DECLSPEC_KAME Transactional::NegSite::AutoMergeStats&
-    XThreadLocal<Transactional::NegSite::AutoMergeStats,
-                 Transactional::NegSite::AutoMergeStatsTag>::libkame_storage();
-#endif
 
 #endif /*TRANSACTION_H*/

@@ -28,6 +28,15 @@
 #include <string.h>
 #include <type_traits>
 
+// Per-thread flag: set to true when AllocPinCleanup has run, signalling
+// that pool-allocator TLS (s_my_chunk, freelists, pin counts) is no
+// longer valid.  Trivially destructible (`ALLOC_TLS` = `__thread`) so it
+// survives past all thread_local / pthread_key destructors.  Checked in
+// `new_redirected()` to fall back to malloc for any heap operations
+// that occur during later TLS cleanup phases (e.g. pthread_key dtors
+// like RunnerCounterRegistration).
+ALLOC_TLS bool s_alloc_tls_off = false;
+
 // Per-thread cleanup of pinned chunks. On thread exit the destructor of
 // this TLS object walks the registered atomic pin counters and decrements
 // each, allowing release_allocator() to reclaim chunks the thread had
@@ -52,6 +61,18 @@ struct AllocPinCleanup {
         // released (pin count → 0).
         for(int i = 0; i < count; ++i)
             pinned[i].chunk->flush_owner_freelist();
+        // Null out per-ALIGN `s_my_chunk` TLS pointers BEFORE
+        // decrementing pin counts.  Without this, later TLS destructors
+        // (e.g. RunnerCounterRegistration via pthread_key_create) that
+        // run after this thread_local destructor see a stale s_my_chunk
+        // and push to a dead freelist — permanent slot leak, or
+        // use-after-free if the chunk was released.
+        for(int i = 0; i < count; ++i)
+            pinned[i].chunk->clear_owner_tls();
+        // Signal that pool-allocator TLS is dead.  new_redirected()
+        // checks this and falls back to malloc() for any allocation
+        // during later TLS cleanup phases.
+        s_alloc_tls_off = true;
         for(int i = 0; i < count; ++i)
             pinned[i].count_ptr->fetch_sub(1, std::memory_order_release);
     }
@@ -547,6 +568,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist() noexcept {
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
+void
+PoolAllocator<ALIGN, FS, DUMMY>::clear_owner_tls() noexcept {
+	s_my_chunk = nullptr;
+}
+
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// Owner-thread freelist fast path (fixed-size FS=true only).
@@ -714,6 +741,11 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
+	// ODR-use of the thread_local TlsGuard so it is initialised on
+	// this thread's first allocation through THIS template, and its
+	// dtor is registered for thread-exit cleanup.  Zero runtime cost
+	// (compiler optimises the (void)& away).
+	(void)&s_tls_guard;
 	// Fast path: this thread already pinned a chunk on a previous call.
 	// allocate_pooled() does its own per-flag atomic CAS so concurrent
 	// allocations from the same chunk by other threads are safe; the
@@ -1050,6 +1082,15 @@ int PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type_ubound;
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
     PoolAllocator<ALIGN, FS, DUMMY>::s_my_chunk;
+
+// Per-template thread_local TLS guard.  See PoolAllocator::TlsGuard
+// in allocator_prv.h for the rationale (redundant fallback flag setter
+// across all allocator TLS destructors, removing the single point of
+// failure that was AllocPinCleanup).
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+thread_local
+typename PoolAllocator<ALIGN, FS, DUMMY>::TlsGuard
+    PoolAllocator<ALIGN, FS, DUMMY>::s_tls_guard;
 
 template class PoolAllocator<ALLOC_ALIGN1>;
 template class PoolAllocator<ALLOC_ALIGN2>;

@@ -45,9 +45,28 @@ IMPORTANT: Call kame_api first to learn the Python API before writing code.
 Key patterns:
 - Read: shot = Snapshot(node); float(shot[node]) or str(shot[node])
 - List children: shot.list(node) returns list[XNode], use child.getName()
-- Write: node["Child"] = value (auto-transactional)
+- Write single: node["Child"] = value (auto-transactional)
+- Write atomic (multi-step):
+      def tx(tr):
+          tr[a] = v1
+          tr[b] = float(tr[a]) * 2   # read-after-write in same tr
+      node.iterate_commit(tx)
+  ⚠️ The closure may be re-invoked on conflict — keep it idempotent.
+     Do external side effects (file I/O, hardware commands) AFTER
+     iterate_commit returns, not inside the closure.
+- Conditional commit: node.iterate_commit_if(fn) — return True to commit, False to retry
+- Bounded retry:      node.iterate_commit_while(fn) — return False to give up
 - Drivers: Root()["Drivers"]["DriverName"]
 - Scalar entry value: entry["Value"] is XDoubleNode, float(shot[entry["Value"]])
+
+NOTE: This MCP session runs at `Priority.SCRIPTING` — your Tx will
+yield to active measurement traffic for ~1 s before claiming privilege.
+**SCRIPTING is a one-way trapdoor**: attempting
+`kame.setCurrentPriorityMode(...)` to any other level raises
+`RuntimeError`.  This is a safety guarantee — your generated code
+cannot disrupt the measurement loop regardless of priority calls.
+If a measurement-critical operation is needed, ask the user to run
+it from their own Jupyter notebook (which is not locked).
 
 NOTE: print() in KAME's kernel produces HTML, not plain text.
 In execute_code, use expression results (last line as bare expression)
@@ -81,6 +100,17 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
         raise RuntimeError("KAME kernel is not responding.")
     # Enable inline matplotlib so plots produce image/png
     client.execute("%matplotlib inline")
+    # MCP-driven Tx are external scripting — should yield to the
+    # measurement loop for the first ~1 s of any contention before
+    # claiming privilege.  Falls back silently on older KAME builds
+    # without the Priority binding.
+    client.execute(
+        "try:\n"
+        "    import kame\n"
+        "    kame.setCurrentPriorityMode(kame.Priority.SCRIPTING)\n"
+        "except (AttributeError, ImportError):\n"
+        "    pass\n"
+    )
     _client = client
     return client
 

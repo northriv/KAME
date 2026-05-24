@@ -25,7 +25,7 @@
 
 //! Base class for python based drivers
 template <class T>
-class DECLSPEC_KAME XPythonDriver : public T {
+class XPythonDriver : public T {
 public:
     template <typename... Args>
     XPythonDriver(const char *name, bool runtime,
@@ -78,7 +78,7 @@ public:
         }, label);
     }
 
-    struct DECLSPEC_KAME Payload : public T::Payload {
+    struct Payload : public T::Payload {
 #ifndef Py_GIL_DISABLED
         virtual ~Payload() {
             if( !m_dict && !m_module_copy) return;
@@ -169,7 +169,7 @@ struct DECLSPEC_MODULE XPythonCharDeviceDriverWithThread : public XPythonDriver<
         const XTime &time_awared, const XTime &time_recorded) {
         tBaseDriver::finishWritingRaw(rawdata, time_awared, time_recorded);}
 
-    struct DECLSPEC_KAME Payload : public tBaseDriver::Payload {};
+    struct Payload : public tBaseDriver::Payload {};
 
     virtual void executeInPython(const std::function<bool()> &is_terminated) = 0;
 protected:
@@ -249,7 +249,7 @@ struct DECLSPEC_MODULE XPythonSecondaryDriver : public XPythonDriver<XSecondaryD
         XDriver *emitter) = 0;
     virtual void visualize(const Snapshot &shot) override = 0;
 
-    struct DECLSPEC_KAME Payload : public XPythonDriver<XSecondaryDriver>::Payload {};
+    struct Payload : public XPythonDriver<XSecondaryDriver>::Payload {};
 protected:
     virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
                          XDriver *emitter) override {

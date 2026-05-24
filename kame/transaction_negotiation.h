@@ -171,7 +171,7 @@ namespace Transactional {
 //! friend declarations in Node<XN> / Snapshot<XN> for the assert path.
 template <class XN>
 class ScopedNegotiateLinkage {
-    using LinkagePtr = std::shared_ptr<typename Node<XN>::Linkage>;
+    using LinkagePtr = local_shared_ptr<typename Node<XN>::Linkage>;
     using PacketWrapper = typename Node<XN>::PacketWrapper;
     LinkagePtr      m_link;
     Snapshot<XN>   *m_snap;
@@ -660,9 +660,6 @@ public:
     //! Identity comparisons against another local_shared_ptr<PacketWrapper>
     //! (avoids materialising a fresh local_shared_ptr from the view).
     bool operator==(const local_shared_ptr<PacketWrapper> &rhs) const noexcept {
-        // Public access: get() is public; ref_ptr_ is protected.
-        // For intrusive types (PacketWrapper inherits atomic_countable),
-        // Ref == T, so rhs.get() == rhs.ref_ptr_().
         return m_view.ref_ptr_() == rhs.get();
     }
     bool operator!=(const local_shared_ptr<PacketWrapper> &rhs) const noexcept {
@@ -710,7 +707,7 @@ public:
     //! Bare pointer to the linkage (for code that needs to compare
     //! linkage identity, e.g. unbundle()'s `oldsuperwrapper` chain
     //! tracking).
-    const std::shared_ptr<typename Node<XN>::Linkage> &linkage() const noexcept {
+    const local_shared_ptr<typename Node<XN>::Linkage> &linkage() const noexcept {
         return m_link;
     }
 
@@ -810,32 +807,6 @@ public:
         return false;
     }
 
-    // ---------- CAS with local_unique_ptr desired ----------
-
-    //! Weak CAS using internal view as oldr, with local_unique_ptr<T>
-    //! as desired (saves 2 atomic ops vs the local_shared_ptr<T>
-    //! version).  desired is in/out: released on success (m_ref takes
-    //! ownership), retained on failure.
-    bool compareAndSet(local_unique_ptr<PacketWrapper> &desired) noexcept {
-        if(m_link->compareAndSetWeak(m_view, desired)) {
-            _on_cas_success();
-            return true;
-        }
-        _on_cas_fail();
-        return false;
-    }
-
-    bool compareAndSetWithHint(local_unique_ptr<PacketWrapper> &desired,
-                                typename Node<XN>::NegotiationCounter::cnt_t
-                                    started_time = 0) noexcept {
-        if(m_link->compareAndSetWeak(m_view, desired)) {
-            m_link->tags_successful_cas(started_time);
-            _on_cas_success();
-            return true;
-        }
-        _on_cas_fail();
-        return false;
-    }
 
     //! Caller-side hook for pre-CAS conflict detection (e.g.
     //! `wrapper->packet() != tr.m_oldpacket`,

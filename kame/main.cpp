@@ -340,7 +340,10 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "%s\n", greeting);
     gMessagePrint(greeting);
 
-    activateAllocator();
+    //! RAII guard: pool stays active until guard goes out of scope at
+    //! function return.  Replaces the historical bare `activateAllocator()`
+    //! call by also handling `release_pools()` on shutdown.
+    KamePooledAllocGuard pool_guard;
 
 #if defined __MACOSX__ || defined __APPLE__
     while(form->running()) {
