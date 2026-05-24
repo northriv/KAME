@@ -86,15 +86,31 @@ public:
 	//! alloc/dealloc after `AllocPinCleanup` has already run.
 	virtual void clear_owner_tls() noexcept {}
 protected:
-	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
+	PoolAllocatorBase(char *ppool) : m_mempool(ppool), m_numa_node(-1) {}
 	virtual bool deallocate_pooled(char *p) = 0;
 
 	template <class ALLOC>
-	static ALLOC *allocate_chunk();
+	static ALLOC *allocate_chunk(int8_t numa_node);
 	static void deallocate_chunk(int cidx, size_t chunk_size);
 
 	//! A chunk, memory block.
 	char * const m_mempool;
+	//! NUMA node id (from `getcpu(2)` on Linux, else -1) of the
+	//! thread that first-touched this chunk's memory pages via the
+	//! `mprotect(RW)` + constructor write sequence in
+	//! `allocate_chunk()`.  Set once at chunk creation; immutable.
+	//!
+	//! `PoolAllocator::allocate<>()` slow path uses this to prefer
+	//! chunks on the calling thread's local NUMA — keeping per-tx
+	//! allocations local even on dual-socket EPYC, where the
+	//! pre-NUMA-aware allocator placed *all* chunks on the main
+	//! thread's NUMA (the +27 % single-socket-pin gap observed in
+	//! VTune bisects).
+	//!
+	//! On non-NUMA platforms (macOS, Windows) `m_numa_node` is left
+	//! at -1; the slow-path filter degenerates to "match anything"
+	//! → zero overhead vs the pre-NUMA-aware behaviour.
+	int8_t m_numa_node;
 
 private:
 	friend void report_statistics();

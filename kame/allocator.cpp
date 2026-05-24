@@ -105,6 +105,15 @@ inline bool atomicDecAndTest(T *target) noexcept {
     #include <sys/mman.h>
 #endif
 #include <sys/types.h>
+// Linux-only: `getcpu(2)` syscall for NUMA detection at chunk creation.
+// `sys/syscall.h` provides the `SYS_getcpu` macro when the kernel
+// supports it (Linux 2.6.19+).  Used by `alloc_current_numa_node()`
+// below to record `m_numa_node` on each chunk → `allocate<>()`
+// slow path prefers same-NUMA chunks for the calling thread.
+#ifdef __linux__
+#  include <unistd.h>
+#  include <sys/syscall.h>
+#endif
 
 //! Bit count / population count for 32bit.
 //! Referred to H. S. Warren, Jr., "Beautiful Code", O'Reilly.
@@ -628,9 +637,23 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	return false;
 }
 
+// NUMA detection helper (Linux only; returns -1 elsewhere).  Used at
+// chunk-creation time to record the NUMA node of the first-touching
+// thread so the allocate<>() slow path can prefer same-NUMA chunks.
+// `getcpu(2)` is fast (vDSO-accelerated on x86_64) and called only
+// from the chunk-creation cold path, so cost is negligible.
+static inline int8_t alloc_current_numa_node() noexcept {
+#if defined(__linux__) && defined(SYS_getcpu)
+    unsigned int cpu = 0, node = 0;
+    if(syscall(SYS_getcpu, &cpu, &node, nullptr) == 0)
+        return (int8_t)((node > 127) ? 127 : node);
+#endif
+    return -1;
+}
+
 template <class ALLOC>
 inline ALLOC *
-PoolAllocatorBase::allocate_chunk() {
+PoolAllocatorBase::allocate_chunk(int8_t numa_node) {
 	int cidx = 0;
 	size_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
 	for(;;) {
@@ -696,7 +719,15 @@ PoolAllocatorBase::allocate_chunk() {
     }
 #endif
 
+	// First touch of the chunk's memory is the upcoming `ALLOC::create`
+	// constructor write (it zero-initialises the bitmap flags via the
+	// PoolAllocator ctor).  That write executes on the calling thread,
+	// so the kernel's first-touch NUMA policy places the chunk's pages
+	// on this thread's local NUMA node.  Record the node id so the
+	// allocate<>() slow path can pick same-NUMA chunks for future
+	// allocations from threads on this NUMA.
 	ALLOC *palloc = ALLOC::create(chunk_size, addr);
+	palloc->m_numa_node = numa_node;
 	s_chunks[cidx] = palloc;
 
 	return palloc;
@@ -713,8 +744,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::create_allocator(int &aidx) {
 			break;
 	}
 	if(atomicCompareAndSet((uintptr_t)0u, (uintptr_t)1u, &s_chunks_of_type[aidx])) {
+		const int8_t my_node = alloc_current_numa_node();
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *palloc =
-			allocate_chunk<PoolAllocator<ALIGN, DUMMY, DUMMY> >();
+			allocate_chunk<PoolAllocator<ALIGN, DUMMY, DUMMY> >(my_node);
 		if( !palloc) {
 			s_chunks_of_type[aidx] = 0;
 			throw std::bad_alloc();
@@ -799,6 +831,23 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 	// tls_alloc_pin_cleanup so it is decremented on thread exit, freeing
 	// the chunk for reuse by future threads (otherwise long-running
 	// programs with thread churn would exhaust ALLOC_MAX_CHUNKS_OF_TYPE).
+	//
+	// NUMA-aware claim (Linux): when `my_node >= 0`, the scan **skips
+	// chunks on other NUMA nodes** and creates a new chunk on this
+	// thread's NUMA if no same-NUMA chunk is free.  Cross-socket
+	// allocator traffic on EPYC dual-socket (a major contributor to
+	// the +27 % single-socket-pin gap observed in VTune) is thus
+	// eliminated for steady-state operation: each thread always
+	// allocates from a chunk whose pages first-touched on its local
+	// NUMA.
+	//
+	// Memory cost: up to (NUMA-count × pre-NUMA chunk count) chunks per
+	// size class.  On 2-NUMA EPYC this doubles steady-state chunk count
+	// — acceptable given the per-tx cost saving.  On single-NUMA
+	// systems (macOS, M3 single-socket) the filter degenerates to
+	// "match anything" (every chunk has `m_numa_node = -1`, my_node
+	// is also -1) → zero overhead.
+	const int8_t my_node = alloc_current_numa_node();
 	int aidx = s_curr_chunk_idx;
 	for(int cnt = 0;; ++cnt) {
 		uintptr_t *palloc = &s_chunks_of_type[aidx];
@@ -806,31 +855,40 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 		if(alloc && !(alloc & 1u)) {
 			PoolAllocator<ALIGN, DUMMY, DUMMY> *chunk =
 				reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc);
-			int expected = 0;
-			if(chunk->m_thread_pinned_count.compare_exchange_strong(
-					expected, 1, std::memory_order_acq_rel)) {
-				// Exclusive claim succeeded — register pin cleanup
-				// (with chunk pointer so the cleanup hook can flush
-				// the per-chunk owner-thread freelist on thread exit),
-				// cache as TLS fast-path target, and allocate.
-				tls_alloc_pin_cleanup.add(&chunk->m_thread_pinned_count, chunk);
-				s_my_chunk = chunk;
-				if(void *p = chunk->allocate_pooled(SIZE)) {
+			// NUMA filter: skip chunks on other nodes.  `my_node < 0`
+			// (non-Linux) means we accept any chunk;
+			// `chunk->m_numa_node < 0` (created before NUMA detection
+			// kicked in) also accepted, so the very first chunk is
+			// always usable.
+			bool numa_ok = (my_node < 0) || (chunk->m_numa_node < 0)
+			               || (chunk->m_numa_node == my_node);
+			if(numa_ok) {
+				int expected = 0;
+				if(chunk->m_thread_pinned_count.compare_exchange_strong(
+						expected, 1, std::memory_order_acq_rel)) {
+					// Exclusive claim succeeded — register pin cleanup
+					// (with chunk pointer so the cleanup hook can flush
+					// the per-chunk owner-thread freelist on thread exit),
+					// cache as TLS fast-path target, and allocate.
+					tls_alloc_pin_cleanup.add(&chunk->m_thread_pinned_count, chunk);
+					s_my_chunk = chunk;
+					if(void *p = chunk->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
-					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
-						if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
-							fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
+						for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
+							if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
+								fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
+							}
 						}
-					}
 #endif
 #ifdef FILLING_AFTER_ALLOC
-					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
-						static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
+						for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
+							static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
 #endif
-					return p;
+						return p;
+					}
+					// Claimed chunk is full — leave it pinned (we may still
+					// hold objects in it) and continue searching.
 				}
-				// Claimed chunk is full — leave it pinned (we may still
-				// hold objects in it) and continue searching.
 			}
 		}
 		int acnt = s_chunks_of_type_ubound;
