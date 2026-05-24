@@ -454,9 +454,26 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             else
                 throw std::runtime_error("Error: not a value node.");
         })
+        //! Closure-style transaction.  The Python callable is invoked
+        //! with the Transaction; the closure may be re-invoked any
+        //! number of times on CAS conflict, so keep it idempotent.
+        //!
+        //! SIGINT / KeyboardInterrupt: the C++ STM retry loop runs
+        //! with the GIL **released**, so the Python signal handler
+        //! thread can run concurrently.  After each closure invocation
+        //! we call `PyErr_CheckSignals()` — if a pending signal (e.g.
+        //! SIGINT from Ctrl+C) has set an error, we throw
+        //! `py::error_already_set` so the Python `KeyboardInterrupt`
+        //! propagates out of `iterate_commit` instead of letting the
+        //! retry loop spin forever.  This is critical for MCP/AI
+        //! control where a livelocking closure must be interruptible.
         .def("iterate_commit", [](shared_ptr<XNode> &self, py::object pyfunc)->Snapshot {
-            return self->iterate_commit([=](Transaction &tr){
+            py::gil_scoped_release release_gil;
+            return self->iterate_commit([&](Transaction &tr){
+                py::gil_scoped_acquire acquire_gil;
                 pyfunc(tr);
+                if(PyErr_CheckSignals() != 0)
+                    throw py::error_already_set();
             });
         })
         //! Closure-style transaction with conditional commit.  The
@@ -467,10 +484,14 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         //! tree shape changed under us, and we want to retry from
         //! scratch.  Like `iterate_commit`, the closure may be
         //! re-invoked any number of times on CAS conflict — keep it
-        //! idempotent.
+        //! idempotent.  SIGINT-responsive (see `iterate_commit`).
         .def("iterate_commit_if", [](shared_ptr<XNode> &self, py::object pyfunc)->Snapshot {
-            return self->iterate_commit_if([=](Transaction &tr)->bool {
+            py::gil_scoped_release release_gil;
+            return self->iterate_commit_if([&](Transaction &tr)->bool {
+                py::gil_scoped_acquire acquire_gil;
                 py::object ret = pyfunc(tr);
+                if(PyErr_CheckSignals() != 0)
+                    throw py::error_already_set();
                 return py::cast<bool>(ret);
             });
         })
@@ -480,10 +501,15 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         //! no commit happens and control returns.  Use when the
         //! caller needs to cap retry count or has an external abort
         //! condition.  Returns void (no Snapshot — the loop may have
-        //! given up before committing).
+        //! given up before committing).  SIGINT-responsive (see
+        //! `iterate_commit`).
         .def("iterate_commit_while", [](shared_ptr<XNode> &self, py::object pyfunc) {
-            self->iterate_commit_while([=](Transaction &tr)->bool {
+            py::gil_scoped_release release_gil;
+            self->iterate_commit_while([&](Transaction &tr)->bool {
+                py::gil_scoped_acquire acquire_gil;
                 py::object ret = pyfunc(tr);
+                if(PyErr_CheckSignals() != 0)
+                    throw py::error_already_set();
                 return py::cast<bool>(ret);
             });
         });

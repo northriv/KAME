@@ -162,6 +162,30 @@ Write closures so they are *idempotent under retry*:
          actions).  Do these **after** `iterate_commit` returns
          and you have the committed Snapshot in hand.
 
+### SIGINT / KeyboardInterrupt — IS interruptible
+
+The C++ STM retry loop runs with the **GIL released**, and we
+check `PyErr_CheckSignals()` after every closure invocation.
+A `KeyboardInterrupt` (e.g. from a Jupyter notebook's "interrupt
+kernel" button or Ctrl+C in a script) **propagates out of
+`iterate_commit` cleanly**, even if the closure has been retrying
+in a livelock:
+
+```python
+def conflict_prone(tr):
+    tr[node] += 1
+try:
+    node.iterate_commit(conflict_prone)
+except KeyboardInterrupt:
+    print("interrupted before commit")
+```
+
+Note: GIL release during retry means that **other Python threads
+can run between retries**.  Closures that touch Python-side global
+state (without proper locking) may observe inconsistent values
+across retries.  Stick to data flowing through the `tr` Transaction
+for full STM consistency guarantees.
+
 ### When to use what
 
 | Situation | API |
