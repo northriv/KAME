@@ -253,6 +253,25 @@
 #  endif
 #endif
 
+// Maximum extra time a privilege holder may keep the slot beyond its
+// initial claim threshold.  Once `tx_age > min_privilege_age_us(pr) +
+// PRIV_MAX_HOLD_US`, the holder is considered **expired**: subsequent
+// `try_register_privileged_tidstamp` calls treat the slot as if empty
+// and any thread that meets its own claim_floor may take over.  This
+// caps the maximum "stuck-but-still-blocking-everyone-else" duration
+// regardless of priority level — especially relevant for SCRIPTING
+// (1 s claim threshold) where two stuck SCRIPTING Tx could otherwise
+// indefinitely block each other (older-only preemption rule means a
+// newer SCRIPTING challenger can never preempt a stuck older one).
+//
+// Default 2 seconds: long enough to accommodate genuinely slow Tx
+// (e.g. SCRIPTING that claimed at 1 s + 1 s of useful processing),
+// short enough that an actually-stuck holder unblocks the system
+// within a couple of seconds.
+#ifndef KAME_STM_PRIV_MAX_HOLD_US
+#define KAME_STM_PRIV_MAX_HOLD_US 2'000'000   // 2 s
+#endif
+
 // Per-Priority retry threshold for the livelock probe's verdict (NORMAL
 // row; HIGHEST/UI_DEFERRABLE/LOWEST are hard-coded in
 // priority_probe_info()).

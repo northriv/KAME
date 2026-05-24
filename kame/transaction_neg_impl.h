@@ -115,8 +115,30 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     if (scale < 1) scale = 1;
     const int64_t claim_floor = age_floor * scale;
     while (true) {
+        bool holder_expired = false;
         if (expected != (cnt_t)0) {
-            // Slot held. Preempt only if the challenger (us) is older
+            int64_t holder_tx_age = (int64_t)diff_us_packed(now_us, expected);
+            // Expiration: if the holder has been holding for an
+            // unreasonably long time, treat the slot as empty.  Caps
+            // worst-case "stuck holder blocks everyone else" duration —
+            // critical for SCRIPTING (1 s claim threshold) where the
+            // older-only preemption rule otherwise lets a stuck older
+            // SCRIPTING Tx block all newer SCRIPTING Tx forever.
+            //
+            // We compare against `holder_age_floor + MAX_HOLD_US`, but
+            // we don't know the holder's priority level from just the
+            // stamp.  Use the most permissive (largest) claim floor
+            // — SCRIPTING's — to avoid evicting legitimate
+            // long-running SCRIPTING privilege early.
+            const int64_t holder_max_age =
+                min_privilege_age_us(Priority::SCRIPTING)
+                + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
+            if (holder_tx_age > holder_max_age) {
+                holder_expired = true;
+            }
+        }
+        if (expected != (cnt_t)0 && !holder_expired) {
+            // Live holder. Preempt only if the challenger (us) is older
             // than the holder by at least PRIV_PREEMPT_WINDOW_US.
             // Age-ordered preemption: older transactions take priority,
             // but a small window prevents rapid cycling between threads
@@ -127,8 +149,8 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
             if (tx_age_us < holder_tx_age + (int64_t)KAME_STM_PRIV_PREEMPT_WINDOW_US)
                 return false;  // holder is at least as old; don't preempt
         } else {
-            // Empty slot. Require scaled age threshold to reduce churn
-            // when many threads are contending.
+            // Empty slot OR expired holder.  Require scaled age
+            // threshold to reduce churn when many threads are contending.
             if (tx_age_us < claim_floor)
                 return false;
         }
@@ -152,6 +174,19 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
         const Linkage *link) noexcept {
+    // Expiration helper: a privilege stamp older than
+    // `min_privilege_age_us(SCRIPTING) + PRIV_MAX_HOLD_US` is
+    // considered expired — the holder lost privilege by timeout.
+    // Use SCRIPTING's threshold (the largest) as the floor so we
+    // don't evict legitimate long-running low-priority privilege
+    // early.  Returns true when the stamp has timed out.
+    auto stamp_expired = [&](cnt_t stamp) -> bool {
+        int64_t now_us = LivelockProbe::now_us();
+        int64_t age = (int64_t)diff_us_packed(now_us, stamp);
+        int64_t max_age = min_privilege_age_us(Priority::SCRIPTING)
+                        + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
+        return age > max_age;
+    };
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: "mine" iff this Linkage's slot carries a Reserved-
     // kind stamp with matching TID.  Compare by TID alone (NOT
@@ -163,12 +198,27 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
-    return stamp_tid(slot) == stamp_tid(my_tidstamp);
+    if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
+    // Expiration: stale priv stamp from a stuck Tx no longer grants
+    // privilege.  (Note: other observers of this per-Linkage stamp
+    // will continue to see the priv kind until the Tx releases or
+    // someone else writes the slot — full per-Linkage expiration is
+    // a separate concern; this check at least keeps the holder
+    // self-honest about losing privilege after the timeout.)
+    if(stamp_expired(slot)) return false;
+    return true;
 #else
     (void)link;
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
     if(priv == (cnt_t)0) return false;
-    return stamp_tid(priv) == stamp_tid(my_tidstamp);
+    if(stamp_tid(priv) != stamp_tid(my_tidstamp)) return false;
+    // Global-mode expiration: pairs with the expired-slot detection
+    // in `try_register_privileged_tidstamp` so a stuck holder cannot
+    // block all other priv-claimants forever.  Critical for SCRIPTING
+    // (two stuck SCRIPTING Tx could otherwise deadlock each other
+    // under the older-only preemption rule).
+    if(stamp_expired(priv)) return false;
+    return true;
 #endif
 }
 
