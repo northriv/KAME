@@ -352,6 +352,24 @@ namespace detail {
     //! list its `next` pointer is immutable.
     DECLSPEC_KAME extern std::atomic<RunnerCounterEntry*> s_runner_entries_head;
 
+    //! TID → NUMA-node hash for the NUMA-aware wake bias in
+    //! `notify_n_contenders` / `try_notify_n_contenders`.  Indexed by
+    //! `tid & (NEGOTIATE_SLEEP_SLOTS - 1)`; populated by
+    //! `runner_counter_register` on each thread's first STM use.
+    //!
+    //! Wake-side reads this with `relaxed` to pick same-NUMA sleepers
+    //! preferentially — reducing cross-socket IPI cost (cross-NUMA
+    //! ~5 µs vs same-socket ~1 µs).  Hash collisions just mean the
+    //! NUMA hint is stale for one of the colliding TIDs; the wake
+    //! still succeeds via the kind/any fallback passes, just without
+    //! the NUMA optimisation for that target.
+    //!
+    //! Size is `int` to match `kame_current_numa_node()` (future
+    //! chiplet topologies can exceed 8/16-bit NUMA counts).  Stored
+    //! `int` value -1 = "unknown" → wake-side treats as no-preference.
+    static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
+    DECLSPEC_KAME extern std::atomic<int> s_tid_to_numa[NEGOTIATE_SLEEP_SLOTS];
+
     //! Allocate + register this thread's counter on first call;
     //! return the cached raw pointer thereafter. Defined in
     //! transaction_impl.h.
