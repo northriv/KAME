@@ -88,6 +88,26 @@ int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept
 }
 
 template <class XN>
+bool Node<XN>::NegotiationCounter::stamp_is_expired_lowprio(cnt_t stamp) noexcept {
+    // Single source of truth shared by `try_register_privileged_tidstamp`,
+    // `i_am_privileged_now`, and `fair_mode_blocks_me`.  All three must
+    // agree on "expired" or per-Linkage Reserved stamps go stuck (see
+    // commit a0846cfd's analysis of the fair_mode_blocks_me path).
+    //
+    // SCRIPTING's claim floor dominates the threshold because it is the
+    // longest-tenured LOW priority — using its floor here uniformly
+    // gives LOWEST / UI_DEFERRABLE holders the same generous wall-clock
+    // window before eviction, which simplifies reasoning and avoids
+    // race windows where two LOW priorities use different cutoffs.
+    if( !stamp_is_lowprio(stamp)) return false;
+    int64_t now_us  = LivelockProbe::now_us();
+    int64_t age     = (int64_t)diff_us_packed(now_us, stamp);
+    int64_t max_age = min_privilege_age_us(Priority::SCRIPTING)
+                    + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
+    return age > max_age;
+}
+
+template <class XN>
 bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     Priority pr, cnt_t tidstamp, int sig_C) noexcept
 {
@@ -115,28 +135,15 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     if (scale < 1) scale = 1;
     const int64_t claim_floor = age_floor * scale;
     while (true) {
-        bool holder_expired = false;
-        if (expected != (cnt_t)0 && stamp_is_lowprio(expected)) {
-            // Expiration: only applies to LOW-priority holders
-            // (LOWEST / UI_DEFERRABLE / SCRIPTING — the stamp carries
-            // the lowprio bit set at Tx construction).  NORMAL /
-            // HIGHEST holders are immune from timeout-based eviction
-            // — they are measurement / driver critical and must not
-            // be disrupted.
-            //
-            // For low-priority holders we cap the worst-case
-            // "stuck holder blocks everyone else" duration.  Critical
-            // for SCRIPTING (1 s claim threshold) where the older-
-            // only preemption rule otherwise lets a stuck older
-            // SCRIPTING Tx block all newer SCRIPTING Tx forever.
-            int64_t holder_tx_age = (int64_t)diff_us_packed(now_us, expected);
-            const int64_t holder_max_age =
-                min_privilege_age_us(Priority::SCRIPTING)
-                + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
-            if (holder_tx_age > holder_max_age) {
-                holder_expired = true;
-            }
-        }
+        // Expiration via shared helper.  Only LOW-priority holders
+        // (lowprio bit set; LOWEST / UI_DEFERRABLE / SCRIPTING) can
+        // expire; NORMAL / HIGHEST are immune (measurement / driver
+        // critical).  Treating an expired holder as "empty slot"
+        // lets a stuck older SCRIPTING Tx be evicted by a newer one
+        // that would otherwise be blocked by the older-only
+        // preemption rule.
+        bool holder_expired =
+            (expected != (cnt_t)0) && stamp_is_expired_lowprio(expected);
         if (expected != (cnt_t)0 && !holder_expired) {
             // Live holder. Preempt only if the challenger (us) is older
             // than the holder by at least PRIV_PREEMPT_WINDOW_US.
@@ -174,21 +181,11 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
         const Linkage *link) noexcept {
-    // Expiration helper: a LOW-priority privilege stamp older than
-    // `min_privilege_age_us(SCRIPTING) + PRIV_MAX_HOLD_US` is
-    // considered expired — the holder lost privilege by timeout.
-    // Only applies to stamps with the `lowprio` flag set (LOWEST /
-    // UI_DEFERRABLE / SCRIPTING).  NORMAL / HIGHEST privilege never
-    // expires by timeout — those Tx are measurement / driver
-    // critical and must not be disrupted.
-    auto stamp_expired = [&](cnt_t stamp) -> bool {
-        if( !stamp_is_lowprio(stamp)) return false;
-        int64_t now_us = LivelockProbe::now_us();
-        int64_t age = (int64_t)diff_us_packed(now_us, stamp);
-        int64_t max_age = min_privilege_age_us(Priority::SCRIPTING)
-                        + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
-        return age > max_age;
-    };
+    // Expiration check delegated to `stamp_is_expired_lowprio`: a
+    // LOW-priority priv stamp older than `min_privilege_age_us(SCRIPTING)
+    // + PRIV_MAX_HOLD_US` is considered expired (holder lost privilege
+    // by timeout).  NORMAL / HIGHEST priv never expires — measurement
+    // / driver-critical Tx must not be disrupted.
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: "mine" iff this Linkage's slot carries a Reserved-
     // kind stamp with matching TID.  Compare by TID alone (NOT
@@ -202,12 +199,10 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) != stamp_tid(my_tidstamp)) return false;
     // Expiration: stale priv stamp from a stuck Tx no longer grants
-    // privilege.  (Note: other observers of this per-Linkage stamp
-    // will continue to see the priv kind until the Tx releases or
-    // someone else writes the slot — full per-Linkage expiration is
-    // a separate concern; this check at least keeps the holder
-    // self-honest about losing privilege after the timeout.)
-    if(stamp_expired(slot)) return false;
+    // privilege.  Peers see the matching update via `fair_mode_blocks_me`,
+    // which uses the same `stamp_is_expired_lowprio` predicate to
+    // treat the per-Linkage Reserved stamp as unblocking.
+    if(stamp_is_expired_lowprio(slot)) return false;
     return true;
 #else
     (void)link;
@@ -219,7 +214,7 @@ bool Node<XN>::NegotiationCounter::i_am_privileged_now(
     // block all other priv-claimants forever.  Critical for SCRIPTING
     // (two stuck SCRIPTING Tx could otherwise deadlock each other
     // under the older-only preemption rule).
-    if(stamp_expired(priv)) return false;
+    if(stamp_is_expired_lowprio(priv)) return false;
     return true;
 #endif
 }
@@ -245,30 +240,17 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
         cnt_t tidstamp,
         const Linkage *link) noexcept {
-    // Expiration helper mirrors `i_am_privileged_now`: a LOW-priority
-    // priv stamp (lowprio bit set; LOWEST / UI_DEFERRABLE / SCRIPTING)
-    // older than `min_privilege_age_us(SCRIPTING) + PRIV_MAX_HOLD_US`
-    // is considered expired and must NOT block peers.  Without this,
-    // a stuck low-priority holder leaves a stale Reserved stamp on
-    // some Linkage (per-Linkage mode) or in `s_privileged_tidstamp`
+    // Expiration check delegated to `stamp_is_expired_lowprio`.  A
+    // stuck low-priority holder leaves a stale Reserved stamp on some
+    // Linkage (per-Linkage mode) or in `s_privileged_tidstamp`
     // (global mode) that the holder's own thread can no longer refresh
     // (`i_am_privileged_now` returns false past the same threshold),
-    // yet peers would still see the stamp here and yield to a holder
-    // who has already conceded — i.e., a frozen Linkage that nobody
-    // can overwrite.  The fix lets peers treat the slot as empty so
-    // their ordinary commit CAS can clobber the dead stamp.
-    //
-    // NORMAL / HIGHEST stamps never carry the lowprio bit, so this
-    // check is a no-op for them (measurement / driver-critical Tx
-    // keep their privilege uninterrupted regardless of duration).
-    auto stamp_expired = [](cnt_t stamp) -> bool {
-        if( !stamp_is_lowprio(stamp)) return false;
-        int64_t now_us = LivelockProbe::now_us();
-        int64_t age = (int64_t)diff_us_packed(now_us, stamp);
-        int64_t max_age = min_privilege_age_us(Priority::SCRIPTING)
-                        + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
-        return age > max_age;
-    };
+    // yet without this check peers would still see the stamp here and
+    // yield to a holder that has already conceded — a frozen Linkage
+    // nobody can overwrite.  Treating expired stamps as unblocking
+    // lets peers fall through to the ordinary commit CAS, which
+    // clobbers the dead stamp naturally.  NORMAL / HIGHEST stamps
+    // never carry the lowprio bit, so they are never reported expired.
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: blocked iff the slot's Reserved stamp is held by
     // SOME OTHER thread.  TID-only compare (see `i_am_privileged_now`
@@ -277,7 +259,7 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
     if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
-    if(stamp_expired(slot)) return false;
+    if(stamp_is_expired_lowprio(slot)) return false;
     return true;
 #else
     (void)link;
@@ -295,7 +277,7 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // transaction_dynamic_node_test backtrace (~Node->releaseAll on
     // frame #15-16, negotiate_sleep on frame #9).
     if(stamp_tid(priv) == stamp_tid(tidstamp)) return false;
-    if(stamp_expired(priv)) return false;
+    if(stamp_is_expired_lowprio(priv)) return false;
     return true;
 #endif
 }

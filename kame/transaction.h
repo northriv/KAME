@@ -1175,6 +1175,22 @@ private:
             s_privileged_tidstamp{0};
 
         static int64_t min_privilege_age_us(Priority pr) noexcept;
+        //! True iff `stamp` is a LOW-priority priv stamp (lowprio bit
+        //! set; LOWEST / UI_DEFERRABLE / SCRIPTING) older than
+        //! `min_privilege_age_us(SCRIPTING) + PRIV_MAX_HOLD_US`.
+        //! NORMAL / HIGHEST stamps never carry the lowprio bit and
+        //! are never reported expired — measurement / driver-critical
+        //! Tx keep their privilege uninterrupted regardless of duration.
+        //!
+        //! Consulted by `try_register_privileged_tidstamp` (to allow
+        //! eviction of a stuck low-priority global holder),
+        //! `i_am_privileged_now` (so the holder itself stops claiming
+        //! priv past its timeout) and `fair_mode_blocks_me` (so peers
+        //! treat a dead Reserved stamp on a per-Linkage slot as empty).
+        //! Keeping all three in sync is critical — a divergence would
+        //! leave per-Linkage stamps no peer can overwrite (see
+        //! commit a0846cfd).
+        static bool    stamp_is_expired_lowprio(cnt_t stamp) noexcept;
         static bool    try_register_privileged_tidstamp(Priority pr,
                                                         cnt_t tidstamp,
                                                         int sig_C = 1) noexcept;
