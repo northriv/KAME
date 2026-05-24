@@ -245,6 +245,30 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
         cnt_t tidstamp,
         const Linkage *link) noexcept {
+    // Expiration helper mirrors `i_am_privileged_now`: a LOW-priority
+    // priv stamp (lowprio bit set; LOWEST / UI_DEFERRABLE / SCRIPTING)
+    // older than `min_privilege_age_us(SCRIPTING) + PRIV_MAX_HOLD_US`
+    // is considered expired and must NOT block peers.  Without this,
+    // a stuck low-priority holder leaves a stale Reserved stamp on
+    // some Linkage (per-Linkage mode) or in `s_privileged_tidstamp`
+    // (global mode) that the holder's own thread can no longer refresh
+    // (`i_am_privileged_now` returns false past the same threshold),
+    // yet peers would still see the stamp here and yield to a holder
+    // who has already conceded — i.e., a frozen Linkage that nobody
+    // can overwrite.  The fix lets peers treat the slot as empty so
+    // their ordinary commit CAS can clobber the dead stamp.
+    //
+    // NORMAL / HIGHEST stamps never carry the lowprio bit, so this
+    // check is a no-op for them (measurement / driver-critical Tx
+    // keep their privilege uninterrupted regardless of duration).
+    auto stamp_expired = [](cnt_t stamp) -> bool {
+        if( !stamp_is_lowprio(stamp)) return false;
+        int64_t now_us = LivelockProbe::now_us();
+        int64_t age = (int64_t)diff_us_packed(now_us, stamp);
+        int64_t max_age = min_privilege_age_us(Priority::SCRIPTING)
+                        + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
+        return age > max_age;
+    };
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: blocked iff the slot's Reserved stamp is held by
     // SOME OTHER thread.  TID-only compare (see `i_am_privileged_now`
@@ -252,7 +276,9 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     if(link == nullptr) return false;
     cnt_t slot = link->m_transaction_started_time.load(std::memory_order_relaxed);
     if( !is_priv_stamp(slot)) return false;
-    return stamp_tid(slot) != stamp_tid(tidstamp);
+    if(stamp_tid(slot) == stamp_tid(tidstamp)) return false;
+    if(stamp_expired(slot)) return false;
+    return true;
 #else
     (void)link;
     cnt_t priv = s_privileged_tidstamp.load(std::memory_order_relaxed);
@@ -268,7 +294,9 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // it already holds via the outer Tx — see hang in
     // transaction_dynamic_node_test backtrace (~Node->releaseAll on
     // frame #15-16, negotiate_sleep on frame #9).
-    return stamp_tid(priv) != stamp_tid(tidstamp);
+    if(stamp_tid(priv) == stamp_tid(tidstamp)) return false;
+    if(stamp_expired(priv)) return false;
+    return true;
 #endif
 }
 

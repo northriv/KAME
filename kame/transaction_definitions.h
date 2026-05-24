@@ -270,10 +270,14 @@
 // Without this cap, two stuck SCRIPTING Tx (1 s claim threshold) can
 // deadlock each other forever under the older-only preemption rule
 // (a newer SCRIPTING challenger can never preempt an older stuck
-// SCRIPTING holder).  This default-2-second window caps that
-// worst-case starvation.
+// SCRIPTING holder).  This window caps that worst-case starvation.
+//
+// 200 ms default: with SCRIPTING's 1 s claim floor, total expiration
+// is 1.2 s — enough for a legitimately busy low-priority Tx to
+// commit, short enough that genuinely-stuck holders unblock the
+// system within a quarter second of their natural timeout.
 #ifndef KAME_STM_PRIV_MAX_HOLD_US
-#define KAME_STM_PRIV_MAX_HOLD_US 2'000'000   // 2 s
+#define KAME_STM_PRIV_MAX_HOLD_US 200'000   // 200 ms
 #endif
 
 // Per-Priority retry threshold for the livelock probe's verdict (NORMAL
