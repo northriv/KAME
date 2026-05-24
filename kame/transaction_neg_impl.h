@@ -168,12 +168,11 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
             break;
         // CAS failed; `expected` reloaded — re-evaluate.
     }
-    std::fprintf(stderr,
-        "[ll-probe] privileged_tid=%u "
-        "(claimed by stuck oldest Tx; age=%lld us, prio=%d, N=%d%s)\n",
-        (unsigned)stamp_tid(tidstamp),
-        (long long)tx_age_us, (int)pr, N,
-        expected == (cnt_t)0 ? "" : " preempted");
+    // Diagnostic moved to the caller's `if (claimed)` block (see
+    // `_negotiate_internal`) so it fires uniformly for both global
+    // and per-Linkage privilege modes.  In per-Linkage mode this
+    // function is not called at all (the CAS-claim runs inline in
+    // the caller), so leaving the print here would make it dead.
     return true;
 }
 
@@ -1216,6 +1215,23 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
                 g_neg_claim_successes.fetch_add(1, std::memory_order_relaxed);
 #endif
+                // Diagnostic — uniform across per-Linkage and global
+                // privilege modes (was previously inside
+                // `try_register_privileged_tidstamp`, which is dead
+                // code under the default per-Linkage build).
+                std::fprintf(stderr,
+                    "[ll-probe] privileged_tid=%u "
+                    "(claimed by stuck oldest Tx; "
+                    "age=%lld us, prio=%d, N=%d, mode=%s)\n",
+                    (unsigned)NegotiationCounter::stamp_tid(snap.m_started_time),
+                    (long long)_ll_age_us, (int)entry_pr,
+                    (int)NegotiationCounter::numThreadsRunning(),
+#if KAME_PER_LINKAGE_PRIVILEGE
+                    "per-linkage"
+#else
+                    "global"
+#endif
+                    );
                 // Note: we do NOT assert post-claim that any Linkage still
                 // carries our Reserved.  A racing older Tx can preempt our
                 // Reserved (symmetric window rule in tag_as_contender)
