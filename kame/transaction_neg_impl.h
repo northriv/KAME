@@ -80,7 +80,7 @@ struct Node<XN>::WalkUpResult {
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
     switch (pr) {
-    case Priority::SCRIPTING:     return 1'000'000;    // 1 s — external scripting / MCP / ZMQ
+    case Priority::SCRIPTING:     return 1'000;       // 1 ms — external scripting / MCP / ZMQ
     case Priority::LOWEST:        return 30'000;       // 30 ms — bulk / analysis
     case Priority::UI_DEFERRABLE: return 50'000;       // 50 ms — interactive UI
     default:                      return KAME_STM_PRIV_AGE_NORMAL_US;  /* HIGHEST / NORMAL */
@@ -291,6 +291,7 @@ Node<XN>::NegotiationCounter::priority_probe_info(Priority pr) noexcept {
         case Priority::NORMAL:        return { KAME_STM_RETRY_THRESH_NORMAL, "NORMAL" };
         case Priority::UI_DEFERRABLE: return { 4, "UI_DEFERRABLE" };
         case Priority::LOWEST:        return { 4, "LOWEST" };
+        case Priority::SCRIPTING:     return { 4, "SCRIPTING" };
         default:                      return { 3, "?" };
     }
 }
@@ -675,7 +676,8 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
     using NegotiationCounter = typename Node<XN>::NegotiationCounter;
     using Linkage = typename Node<XN>::Linkage;
     Linkage *const self = m_link.get();
-    if(entry_pr == Priority::LOWEST || entry_pr == Priority::UI_DEFERRABLE)
+    if(entry_pr == Priority::LOWEST ||
+        entry_pr == Priority::UI_DEFERRABLE || entry_pr == Priority::SCRIPTING)
         return false;
     // transaction_started_time is tid+kind+us-packed; diff_us_packed
     // extracts the µs and applies modular subtraction (wrap-safe).
@@ -744,7 +746,7 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             ++*s_adapt_skip_hits;
 #endif
-            if(entry_pr == Priority::HIGHEST || entry_pr == Priority::NORMAL)
+            if(entry_pr == Priority::HIGHEST || entry_pr == Priority::NORMAL || entry_pr == Priority::SCRIPTING)
                 return true;  // owner-skip → caller returns early
         }
     }
