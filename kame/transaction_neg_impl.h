@@ -80,8 +80,8 @@ struct Node<XN>::WalkUpResult {
 template <class XN>
 int64_t Node<XN>::NegotiationCounter::min_privilege_age_us(Priority pr) noexcept {
     switch (pr) {
-    case Priority::SCRIPTING:     return 1'000;       // 1 ms — external scripting / MCP / ZMQ
-    case Priority::LOWEST:        return 30'000;       // 30 ms — bulk / analysis
+    case Priority::SCRIPTING:     return 1'000;        // 1 ms — script/MCP/ZMQ
+    case Priority::LOWEST:        return 30'000;       // 30 ms — bulk/analysis
     case Priority::UI_DEFERRABLE: return 50'000;       // 50 ms — interactive UI
     default:                      return KAME_STM_PRIV_AGE_NORMAL_US;  /* HIGHEST / NORMAL */
     }
@@ -250,22 +250,20 @@ bool Node<XN>::NegotiationCounter::fair_mode_blocks_me(
     // lets peers fall through to the ordinary commit CAS, which
     // clobbers the dead stamp naturally.  NORMAL / HIGHEST stamps
     // never carry the lowprio bit, so they are never reported expired.
-    // Diagnostic helper: print once per observed expired-stamp value
-    // per thread (TLS dedup), then suppress further prints for the
-    // same stamp.  Without dedup, `fair_mode_blocks_me` can be called
-    // many times for the same dead stamp before someone's commit CAS
-    // overwrites it (1 per retry pass × N peers), spamming stderr.
+    // KAME_STM_PRIV_DIAG: one-shot print per expired stamp (TLS-dedup).
     auto report_expired = [](cnt_t stamp) {
-        // TLS so each thread tracks its own "last seen" stamp.
+#if KAME_STM_PRIV_DIAG
         static thread_local cnt_t s_last_reported = 0;
         if(stamp == s_last_reported) return;
         s_last_reported = stamp;
         std::fprintf(stderr,
-            "[priv-timeout] expired lowprio stamp tid=%u age>%lld us "
-            "(treated as not blocking; peer commit CAS will overwrite)\n",
+            "[priv-timeout] expired lowprio stamp tid=%u age>%lld us\n",
             (unsigned)stamp_tid(stamp),
             (long long)(min_privilege_age_us(Priority::SCRIPTING)
                         + (int64_t)KAME_STM_PRIV_MAX_HOLD_US));
+#else
+        (void)stamp;
+#endif
     };
 #if KAME_PER_LINKAGE_PRIVILEGE
     // Per-Linkage: blocked iff the slot's Reserved stamp is held by
@@ -762,7 +760,8 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
             ++*s_adapt_skip_hits;
 #endif
-            if(entry_pr == Priority::HIGHEST || entry_pr == Priority::NORMAL || entry_pr == Priority::SCRIPTING)
+            if(entry_pr == Priority::HIGHEST || entry_pr == Priority::NORMAL
+                    || entry_pr == Priority::SCRIPTING)
                 return true;  // owner-skip → caller returns early
         }
     }
@@ -1232,23 +1231,13 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
 #if defined(KAME_ADAPT_INSTRUMENT) && KAME_ADAPT_INSTRUMENT
                 g_neg_claim_successes.fetch_add(1, std::memory_order_relaxed);
 #endif
-                // Diagnostic — uniform across per-Linkage and global
-                // privilege modes (was previously inside
-                // `try_register_privileged_tidstamp`, which is dead
-                // code under the default per-Linkage build).
+#if KAME_STM_PRIV_DIAG
                 std::fprintf(stderr,
-                    "[ll-probe] privileged_tid=%u "
-                    "(claimed by stuck oldest Tx; "
-                    "age=%lld us, prio=%d, N=%d, mode=%s)\n",
+                    "[ll-probe] privileged_tid=%u age=%lld us prio=%d N=%d\n",
                     (unsigned)NegotiationCounter::stamp_tid(snap.m_started_time),
                     (long long)_ll_age_us, (int)entry_pr,
-                    (int)NegotiationCounter::numThreadsRunning(),
-#if KAME_PER_LINKAGE_PRIVILEGE
-                    "per-linkage"
-#else
-                    "global"
+                    (int)NegotiationCounter::numThreadsRunning());
 #endif
-                    );
                 // Note: we do NOT assert post-claim that any Linkage still
                 // carries our Reserved.  A racing older Tx can preempt our
                 // Reserved (symmetric window rule in tag_as_contender)

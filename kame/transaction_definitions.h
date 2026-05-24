@@ -267,17 +267,27 @@
 // construction based on `getCurrentPriorityMode()`; the expiration
 // check gates on that flag.
 //
-// Without this cap, two stuck SCRIPTING Tx (1 s claim threshold) can
+// Without this cap, two stuck SCRIPTING Tx (1 ms claim threshold) can
 // deadlock each other forever under the older-only preemption rule
 // (a newer SCRIPTING challenger can never preempt an older stuck
 // SCRIPTING holder).  This window caps that worst-case starvation.
 //
-// 200 ms default: with SCRIPTING's 1 s claim floor, total expiration
-// is 1.2 s — enough for a legitimately busy low-priority Tx to
-// commit, short enough that genuinely-stuck holders unblock the
-// system within a quarter second of their natural timeout.
+// 50 ms default: combined with SCRIPTING's 1 ms claim floor the
+// total expiration window is ~51 ms — within human perception
+// budget (~100 ms is the typical "noticeable UI lag" threshold).
+// A scripting Tx must never freeze the interactive UI for longer
+// than this; if a legitimate low-priority commit needs more time
+// it should be restructured into smaller chunks, not granted a
+// longer privilege monopoly.
 #ifndef KAME_STM_PRIV_MAX_HOLD_US
-#define KAME_STM_PRIV_MAX_HOLD_US 200'000   // 200 ms
+#define KAME_STM_PRIV_MAX_HOLD_US 50'000   // 50 ms
+#endif
+
+// Diagnostic fprintf for priv claim / timeout — default ON.  Set to
+// 0 to silence (typically only desired when stderr is being scraped
+// for some other purpose).
+#ifndef KAME_STM_PRIV_DIAG
+#define KAME_STM_PRIV_DIAG 1
 #endif
 
 // Per-Priority retry threshold for the livelock probe's verdict (NORMAL
@@ -293,28 +303,9 @@
 #define KAME_STM_C_OBS_MIN 2
 #endif
 
-// √C wake-broadcast lottery in negotiate_internal.  Probabilistic
-// per-iteration bypass meant to break tied retry loops; predates the
-// per-Linkage spin-for-same-kind path.
-//
-// Default 1 (= disabled) since the spin path now handles the same
-// pivot more deterministically — and at N ≥ 8 the lottery becomes
-// actively counter-productive (it wakes O(C) threads on every
-// notify_n_contenders call, multiplying the post-wake CAS retry
-// storm).  Set to 0 to restore the legacy probabilistic lottery for
-// A/B regression.
-//
-// 4-thread Linux x86 sweep (KAME_DISABLE_TAKE_GATE_RETURN=1,
-//   3-run median, 2-second stress mode, total commits over 2 s):
-//     N=4       +0 / +2 %   (noise)
-//     N=8      +6 /  +5 %
-//     N=16    +10 / +11 %
-//     N=32    +29 / +18 %
-//     N=64    +59 / +55 %     ← peak gain (16× oversubscription)
-//     N=128   +42 /  -6 %     ← N=128 3L: variance-dominated
-//   Pattern: linear improvement up to ~16× oversubscription, then
-//   tapering as scheduler overhead overtakes algorithm gain.  Mirrors
-//   reports on Apple Silicon M4 (user note: "M4 では速くなる").
+// Legacy √C wake-broadcast lottery in negotiate_internal.  Superseded
+// by the per-Linkage spin-for-same-kind path; default 1 (= disabled).
+// Set to 0 only for A/B regression.
 #ifndef KAME_STM_DISABLE_LOTTERY
 #define KAME_STM_DISABLE_LOTTERY 1
 #endif
@@ -336,49 +327,11 @@
 #define KAME_NORMAL_LEASE_US 50         // 50 µs lease for both FORCE states
 #endif
 
-// ---------------------------------------------------------------------
-// Legacy per-site adaptive gating.  Deprecation candidate.
-//
-// The take_gate / FORCE_SLEEP / FORCE_GATE tri-state machine was the
-// pre-spin-path mechanism for bypassing the negotiate sleep on
-// heavy-thrash sites.  Per-site streak counters (consec_succs /
-// consec_fails) drove FORCE state transitions; `take_gate` was
-// consumed by an early `break` in negotiate_internal's gate-decision
-// block, and `_on_cas_success` / `_on_cas_fail` updated the streak
-// counters and triggered state changes.
-//
-// The newer per-Linkage spin-for-same-kind path (see KAME_SPIN_* knobs
-// above) supersedes the gate-return shortcut with finer granularity
-// (per-Linkage, not per-call-site), µs-bounded wait, and peer-progress
-// awareness via m_transaction_started_time observation.  The two
-// mechanisms conflict directly: take_gate FORCE_GATE intercepts before
-// the spin block, so spin never gets a chance on the sites it was
-// designed for.
-//
-// Default 0 (= legacy gating disabled).  When 0, the gate-decision
-// state machine and all driving streak / state-transition logic in
-// _on_cas_success / _on_cas_fail are wrapped out — control flows
-// straight through the lottery → spin → sleep cascade.  Per-site
-// INSTRUMENT counters that don't depend on take_gate (entries,
-// commits, blocked_by_peer / gate_returns_by_peer seen on the path)
-// continue to update for diagnostic dump.
-//
-// Set to 1 to restore the legacy gating mechanism for A/B regression
-// or for workloads where it might still help (e.g. very-high
-// scope-affinity site patterns).  When 1, all gating-tagged code is
-// reactivated; no other knob changes are needed.
-//
-// Sweep, 4-thread Linux x86, 3-run median, 2-second stress mode,
-// total commits / 2 s (gating off vs on):
-//     N=4       +0 / +2 %   (noise)
-//     N=8      +6 /  +5 %
-//     N=16    +10 / +11 %
-//     N=32    +29 / +18 %
-//     N=64    +59 / +55 %     ← peak gain (16× oversubscription)
-//     N=128   +42 /  -6 %     ← N=128 3L: variance-dominated
-//   Pattern: linear improvement up to ~16× oversubscription, then
-//   tapering as scheduler overhead overtakes algorithm gain.  Mirrors
-//   reports on Apple Silicon M4 (user note: "M4 では速くなる").
+// Legacy per-site adaptive gating (take_gate / FORCE_SLEEP / FORCE_GATE
+// tri-state).  Deprecation candidate — superseded by the per-Linkage
+// spin-for-same-kind path (KAME_SPIN_* knobs).  Default 0 (= disabled);
+// set to 1 only for A/B regression.  KAME_NEGSITE_ENABLED also lights
+// up when this is 1 so per-site counters stay live.
 #ifndef KAME_LEGACY_GATING
 #define KAME_LEGACY_GATING 0
 #endif
@@ -457,20 +410,10 @@
 #define KAME_SPIN_MAX_NS ((uint64_t)KAME_SPIN_MAX_US * 1000u)
 #endif
 
-// Same budget-scaling knob for the legacy any-change spin path
-// (KAME_SPIN_RECENT_FLIP_US > 0).  Always polled, so over-shooting is
-// cheap (early-exit on any slot change).
-//
-// macOS M4 sweep (2026-05, RECENT=1000 MAX=1000 C_MULT=2):
-//   PCT=300:  avg8 ≈ 5.40 M  (mild gain on x86 noise, loss on M4 3L)
-//   PCT=600:  avg8 = 5 468 017  ← winner (+0.24% vs spin OFF)
-//   PCT=800:  avg8 = 5 446 509  (essentially tied)
-//   PCT=1000: avg8 ≈ 5.40 M  (over-spin)
-// Same PCT family was the cross-platform winner on x86 4-core (the
-// long-period sweep that motivated the knob).  600 % = spin up to
-// 6× the observed flip period before yielding to CV-sleep; combined
-// with C_MULT=2 thrashing guard this turns out positive at all N on
-// M4 and on x86 4-core.
+// Period-multiplier for the spin-budget: spin up to PCT % of the
+// observed flip period before yielding to CV-sleep.  600 % was the
+// cross-platform sweep winner combined with the C_MULT=2 thrashing
+// guard.
 #ifndef KAME_SPIN_BUDGET_PCT
 #define KAME_SPIN_BUDGET_PCT 600
 #endif

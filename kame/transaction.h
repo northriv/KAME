@@ -965,8 +965,8 @@ private:
     struct DECLSPEC_KAME NegotiationCounter {
         using cnt_t = int64_t;
 
-        //! Packed stamp layout (low → high):
-        //!   [ us : STAMP_US_BITS | lowprio : 1 | kind : STAMP_KIND_BITS | tid : 16 ]
+        //! Packed stamp layout (low → high), 64-bit total:
+        //!   [ us:45 | lowprio:1 | kind:2 | tid:16 ]
         //! STAMP_US_BITS = 45 gives ~1.1 yr of monotonic µs (wrap-safe
         //! over any KAME operation; longest real wait is EXPIRE_US = 50
         //! ms — was 46 bits before, reduced by 1 to make room for the
@@ -997,9 +997,12 @@ private:
         static constexpr int   STAMP_US_BITS      = 45;
         static constexpr int   STAMP_LOWPRIO_BITS = 1;
         static constexpr int   STAMP_KIND_BITS    = 2;
-        static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;                       // 45
-        static constexpr int   STAMP_KIND_SHIFT   = STAMP_LOWPRIO_SHIFT + STAMP_LOWPRIO_BITS;  // 46
-        static constexpr int   STAMP_TID_SHIFT    = STAMP_KIND_SHIFT + STAMP_KIND_BITS;       // 48
+        // Shifts are (US_BITS, US_BITS+1, US_BITS+3) = (45, 46, 48).
+        static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;
+        static constexpr int   STAMP_KIND_SHIFT
+                                      = STAMP_LOWPRIO_SHIFT + STAMP_LOWPRIO_BITS;
+        static constexpr int   STAMP_TID_SHIFT
+                                      = STAMP_KIND_SHIFT + STAMP_KIND_BITS;
         static constexpr cnt_t STAMP_US_MASK      = (cnt_t{1} << STAMP_US_BITS) - 1;
         static constexpr cnt_t STAMP_KIND_MASK    = (cnt_t{1} << STAMP_KIND_BITS) - 1;
         static constexpr cnt_t STAMP_LOWPRIO_MASK = cnt_t{1} << STAMP_LOWPRIO_SHIFT;
