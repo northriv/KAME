@@ -966,14 +966,27 @@ private:
         using cnt_t = int64_t;
 
         //! Packed stamp layout (low → high):
-        //!   [ us : STAMP_US_BITS | kind : STAMP_KIND_BITS | tid : 16 ]
-        //! STAMP_US_BITS = 46 gives ~2.2 yr of monotonic µs (wrap-safe
+        //!   [ us : STAMP_US_BITS | lowprio : 1 | kind : STAMP_KIND_BITS | tid : 16 ]
+        //! STAMP_US_BITS = 45 gives ~1.1 yr of monotonic µs (wrap-safe
         //! over any KAME operation; longest real wait is EXPIRE_US = 50
-        //! ms). STAMP_KIND_BITS = 2 carries the operation discriminator
+        //! ms — was 46 bits before, reduced by 1 to make room for the
+        //! `lowprio` flag at bit 45).
+        //!
+        //! Bit 45 (`STAMP_LOWPRIO_SHIFT`) is set when the stamp belongs
+        //! to a Tx running at a LOW priority (LOWEST / UI_DEFERRABLE /
+        //! SCRIPTING).  Used by the privilege hold-timeout in
+        //! `try_register_privileged_tidstamp` / `i_am_privileged_now`
+        //! to only evict stuck low-priority holders — NORMAL / HIGHEST
+        //! holders are protected from timeout-based preemption.
+        //! Set once at Tx construction in `m_started_time` and
+        //! propagated transparently through `with_kind` / `strip_kind`
+        //! (which only touch the kind bits).
+        //!
+        //! STAMP_KIND_BITS = 2 carries the operation discriminator
         //! (NONE / BUNDLE / UNBUNDLE / Reserved) used by the same-op
         //! piggyback path; defaults to 0 (NONE) in stand-alone call
-        //! sites so stamps stay bit-stable.  Slot 3 (Reserved) is
-        //! held back for a future per-Linkage privilege flag.
+        //! sites so stamps stay bit-stable.  Reserved (=3) doubles as
+        //! the per-Linkage privilege flag.
         //!
         //! Raw µs timestamps collide at ~1 MHz (same CPU can issue two
         //! Transactions in the same µs), which breaks the "older wins"
@@ -981,12 +994,15 @@ private:
         //! detection in the livelock probe ambiguous. Packing
         //! ProcessCounter::id (16 bits) into the upper bits makes every
         //! stamp unique per-thread.
-        static constexpr int   STAMP_US_BITS    = 46;
-        static constexpr int   STAMP_KIND_BITS  = 2;
-        static constexpr int   STAMP_KIND_SHIFT = STAMP_US_BITS;
-        static constexpr int   STAMP_TID_SHIFT  = STAMP_US_BITS + STAMP_KIND_BITS;
-        static constexpr cnt_t STAMP_US_MASK    = (cnt_t{1} << STAMP_US_BITS) - 1;
-        static constexpr cnt_t STAMP_KIND_MASK  = (cnt_t{1} << STAMP_KIND_BITS) - 1;
+        static constexpr int   STAMP_US_BITS      = 45;
+        static constexpr int   STAMP_LOWPRIO_BITS = 1;
+        static constexpr int   STAMP_KIND_BITS    = 2;
+        static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;                       // 45
+        static constexpr int   STAMP_KIND_SHIFT   = STAMP_LOWPRIO_SHIFT + STAMP_LOWPRIO_BITS;  // 46
+        static constexpr int   STAMP_TID_SHIFT    = STAMP_KIND_SHIFT + STAMP_KIND_BITS;       // 48
+        static constexpr cnt_t STAMP_US_MASK      = (cnt_t{1} << STAMP_US_BITS) - 1;
+        static constexpr cnt_t STAMP_KIND_MASK    = (cnt_t{1} << STAMP_KIND_BITS) - 1;
+        static constexpr cnt_t STAMP_LOWPRIO_MASK = cnt_t{1} << STAMP_LOWPRIO_SHIFT;
 
         //! Monotonic µs counter. Uses steady_clock (not wall-clock
         //! gettimeofday) so the µs since program start fit comfortably
@@ -1031,6 +1047,20 @@ private:
         }
         static inline uint16_t stamp_tid(cnt_t x) noexcept {
             return (uint16_t)((uint64_t)x >> STAMP_TID_SHIFT);
+        }
+        //! True iff `x` carries the lowprio flag — set at Tx
+        //! construction when the calling thread's priority is LOWEST,
+        //! UI_DEFERRABLE, or SCRIPTING.  Propagates through `with_kind`
+        //! and other stamp-manipulation helpers because they only
+        //! touch the kind bits.  Used by the privilege hold-timeout
+        //! to gate eviction: NORMAL / HIGHEST stamps are immune.
+        static inline bool stamp_is_lowprio(cnt_t x) noexcept {
+            return (x & STAMP_LOWPRIO_MASK) != 0;
+        }
+        //! Set the lowprio flag on a stamp (use at Tx construction
+        //! based on `getCurrentPriorityMode()`).
+        static inline cnt_t with_lowprio_flag(cnt_t stamp) noexcept {
+            return stamp | STAMP_LOWPRIO_MASK;
         }
         //! True iff `x` is a stamp whose kind field is `Reserved` (=3),
         //! repurposed as the per-Linkage privilege flag — set by a Tx
@@ -1930,6 +1960,19 @@ public:
         : Snapshot(static_cast<Snapshot&&>(x)) {}
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
+        // Tag the stamp with the lowprio flag if this thread is
+        // running at a LOW priority (LOWEST / UI_DEFERRABLE / SCRIPTING).
+        // The flag propagates through `with_kind` (which only touches
+        // the kind bits) and is consumed by the privilege hold-timeout
+        // in `try_register_privileged_tidstamp` / `i_am_privileged_now`
+        // to gate eviction — NORMAL / HIGHEST stamps are immune.
+        {
+            Priority pr = getCurrentPriorityMode();
+            if(pr == Priority::LOWEST || pr == Priority::UI_DEFERRABLE
+               || pr == Priority::SCRIPTING)
+                m_started_time = Node<XN>::NegotiationCounter::with_lowprio_flag(
+                    m_started_time);
+        }
         typename Node<XN>::NegotiationCounter::AcquireOneCount oneup{};
         node.snapshot( *this, multi_nodal);
         drop_tags_n_privilege();
@@ -2375,6 +2418,14 @@ public:
     explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
         Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
+        // Tag lowprio flag — see Snapshot ctor above for rationale.
+        {
+            Priority pr = getCurrentPriorityMode();
+            if(pr == Priority::LOWEST || pr == Priority::UI_DEFERRABLE
+               || pr == Priority::SCRIPTING)
+                m_started_time = Node<XN>::NegotiationCounter::with_lowprio_flag(
+                    m_started_time);
+        }
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
         node.snapshot( *this, multi_nodal);
         assert( &m_packet->node() == &node);
@@ -2385,6 +2436,14 @@ public:
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
+        // Tag lowprio flag — see Snapshot ctor above for rationale.
+        {
+            Priority pr = getCurrentPriorityMode();
+            if(pr == Priority::LOWEST || pr == Priority::UI_DEFERRABLE
+               || pr == Priority::SCRIPTING)
+                m_started_time = Node<XN>::NegotiationCounter::with_lowprio_flag(
+                    m_started_time);
+        }
         m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
     }
     Transaction(Transaction&&x) = default;

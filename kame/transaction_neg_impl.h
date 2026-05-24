@@ -116,20 +116,20 @@ bool Node<XN>::NegotiationCounter::try_register_privileged_tidstamp(
     const int64_t claim_floor = age_floor * scale;
     while (true) {
         bool holder_expired = false;
-        if (expected != (cnt_t)0) {
-            int64_t holder_tx_age = (int64_t)diff_us_packed(now_us, expected);
-            // Expiration: if the holder has been holding for an
-            // unreasonably long time, treat the slot as empty.  Caps
-            // worst-case "stuck holder blocks everyone else" duration —
-            // critical for SCRIPTING (1 s claim threshold) where the
-            // older-only preemption rule otherwise lets a stuck older
-            // SCRIPTING Tx block all newer SCRIPTING Tx forever.
+        if (expected != (cnt_t)0 && stamp_is_lowprio(expected)) {
+            // Expiration: only applies to LOW-priority holders
+            // (LOWEST / UI_DEFERRABLE / SCRIPTING — the stamp carries
+            // the lowprio bit set at Tx construction).  NORMAL /
+            // HIGHEST holders are immune from timeout-based eviction
+            // — they are measurement / driver critical and must not
+            // be disrupted.
             //
-            // We compare against `holder_age_floor + MAX_HOLD_US`, but
-            // we don't know the holder's priority level from just the
-            // stamp.  Use the most permissive (largest) claim floor
-            // — SCRIPTING's — to avoid evicting legitimate
-            // long-running SCRIPTING privilege early.
+            // For low-priority holders we cap the worst-case
+            // "stuck holder blocks everyone else" duration.  Critical
+            // for SCRIPTING (1 s claim threshold) where the older-
+            // only preemption rule otherwise lets a stuck older
+            // SCRIPTING Tx block all newer SCRIPTING Tx forever.
+            int64_t holder_tx_age = (int64_t)diff_us_packed(now_us, expected);
             const int64_t holder_max_age =
                 min_privilege_age_us(Priority::SCRIPTING)
                 + (int64_t)KAME_STM_PRIV_MAX_HOLD_US;
@@ -174,13 +174,15 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::i_am_privileged_now(
         cnt_t my_tidstamp,
         const Linkage *link) noexcept {
-    // Expiration helper: a privilege stamp older than
+    // Expiration helper: a LOW-priority privilege stamp older than
     // `min_privilege_age_us(SCRIPTING) + PRIV_MAX_HOLD_US` is
     // considered expired — the holder lost privilege by timeout.
-    // Use SCRIPTING's threshold (the largest) as the floor so we
-    // don't evict legitimate long-running low-priority privilege
-    // early.  Returns true when the stamp has timed out.
+    // Only applies to stamps with the `lowprio` flag set (LOWEST /
+    // UI_DEFERRABLE / SCRIPTING).  NORMAL / HIGHEST privilege never
+    // expires by timeout — those Tx are measurement / driver
+    // critical and must not be disrupted.
     auto stamp_expired = [&](cnt_t stamp) -> bool {
+        if( !stamp_is_lowprio(stamp)) return false;
         int64_t now_us = LivelockProbe::now_us();
         int64_t age = (int64_t)diff_us_packed(now_us, stamp);
         int64_t max_age = min_privilege_age_us(Priority::SCRIPTING)

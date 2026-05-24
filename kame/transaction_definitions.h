@@ -253,21 +253,25 @@
 #  endif
 #endif
 
-// Maximum extra time a privilege holder may keep the slot beyond its
-// initial claim threshold.  Once `tx_age > min_privilege_age_us(pr) +
-// PRIV_MAX_HOLD_US`, the holder is considered **expired**: subsequent
-// `try_register_privileged_tidstamp` calls treat the slot as if empty
-// and any thread that meets its own claim_floor may take over.  This
-// caps the maximum "stuck-but-still-blocking-everyone-else" duration
-// regardless of priority level — especially relevant for SCRIPTING
-// (1 s claim threshold) where two stuck SCRIPTING Tx could otherwise
-// indefinitely block each other (older-only preemption rule means a
-// newer SCRIPTING challenger can never preempt a stuck older one).
+// Maximum extra time a LOW-priority (LOWEST / UI_DEFERRABLE /
+// SCRIPTING) privilege holder may keep the slot beyond its initial
+// claim threshold.  Once that holder's
+// `tx_age > min_privilege_age_us(SCRIPTING) + PRIV_MAX_HOLD_US`,
+// the slot is treated as if empty: subsequent
+// `try_register_privileged_tidstamp` calls let any thread meeting its
+// own claim_floor take over.
 //
-// Default 2 seconds: long enough to accommodate genuinely slow Tx
-// (e.g. SCRIPTING that claimed at 1 s + 1 s of useful processing),
-// short enough that an actually-stuck holder unblocks the system
-// within a couple of seconds.
+// **NORMAL / HIGHEST holders are immune** — they are measurement /
+// driver critical and must never be disrupted.  The stamp carries
+// a 1-bit `lowprio` flag (bit 45 of the packed stamp) set at Tx
+// construction based on `getCurrentPriorityMode()`; the expiration
+// check gates on that flag.
+//
+// Without this cap, two stuck SCRIPTING Tx (1 s claim threshold) can
+// deadlock each other forever under the older-only preemption rule
+// (a newer SCRIPTING challenger can never preempt an older stuck
+// SCRIPTING holder).  This default-2-second window caps that
+// worst-case starvation.
 #ifndef KAME_STM_PRIV_MAX_HOLD_US
 #define KAME_STM_PRIV_MAX_HOLD_US 2'000'000   // 2 s
 #endif
