@@ -541,10 +541,36 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
         .value("HIGHEST",       Transactional::Priority::HIGHEST)
         .value("SCRIPTING",     Transactional::Priority::SCRIPTING)
         .export_values();
-    m.def("setCurrentPriorityMode", &Transactional::setCurrentPriorityMode,
-          "Set this thread's Tx privilege priority. Defaults to UI_DEFERRABLE\n"
-          "for the Python kernel thread; switch to SCRIPTING for light\n"
-          "MCP/ZMQ commands, NORMAL for measurement-critical script blocks.");
+    //! `setCurrentPriorityMode` enforces a one-way trapdoor at
+    //! `SCRIPTING`: once a thread enters SCRIPTING, any subsequent
+    //! attempt to change the priority is rejected.  This is a
+    //! safety guarantee for MCP/AI-driven sessions — the AI cannot
+    //! elevate its own privilege to disrupt a live measurement
+    //! loop, no matter what code it generates.  Initial entry into
+    //! SCRIPTING (from any other level) is allowed; calls with
+    //! `SCRIPTING` while already at SCRIPTING are silent no-ops.
+    //!
+    //! Non-MCP Python sessions (e.g. a user-launched Jupyter
+    //! notebook) inherit the kernel thread's default (UI_DEFERRABLE)
+    //! and can switch freely among the non-SCRIPTING levels, since
+    //! the trapdoor only triggers once SCRIPTING has been set.
+    m.def("setCurrentPriorityMode", [](Transactional::Priority pr){
+        auto cur = Transactional::getCurrentPriorityMode();
+        if(cur == Transactional::Priority::SCRIPTING
+           && pr != Transactional::Priority::SCRIPTING) {
+            throw std::runtime_error(
+                "Priority::SCRIPTING is sticky and cannot be changed "
+                "to another level.  This thread is running under "
+                "external-scripting mode (MCP / AI / ZMQ), which is "
+                "locked to SCRIPTING to protect the measurement loop "
+                "from privilege contention.");
+        }
+        Transactional::setCurrentPriorityMode(pr);
+    },
+          "Set this thread's Tx privilege priority.  SCRIPTING is\n"
+          "a one-way trapdoor — once set, the priority cannot be\n"
+          "changed (RuntimeError on attempt).  Use SCRIPTING for\n"
+          "MCP/ZMQ/AI handlers; other levels can be switched freely.");
     m.def("getCurrentPriorityMode", &Transactional::getCurrentPriorityMode);
 
     //Exceptions

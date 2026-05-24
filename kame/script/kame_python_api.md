@@ -174,19 +174,38 @@ to force forward progress; a longer threshold = more deferential.
 | `HIGHEST` / `NORMAL` | ~300 µs | Measurement, driver activity |
 | `UI_DEFERRABLE` | 50 ms | Interactive UI updates |
 | `LOWEST` | 30 ms | Bulk / analysis |
-| `SCRIPTING` | **1 s** | **External scripting (MCP / AI / ZMQ / user scripts)** — yields to *everything* for the first second of contention before escalating; ensures the script command eventually completes without disrupting a live measurement |
+| `SCRIPTING` | **1 s** | **External scripting (MCP / AI / ZMQ)** — yields to *everything* for the first second of contention before escalating; ensures the script command eventually completes without disrupting a live measurement |
 
-The MCP server sets `SCRIPTING` on connection.  Override per cell when
-running a measurement-critical script:
+The MCP server sets `SCRIPTING` on connection.
+
+**Important: SCRIPTING is a one-way trapdoor.** Once a thread has been
+set to `SCRIPTING`, any subsequent `setCurrentPriorityMode(...)` call
+raises `RuntimeError`.  This is a safety guarantee: an MCP / AI session
+cannot elevate its own priority to disrupt a live measurement loop,
+no matter what code the AI generates.
 
 ```python
-prev = kame.getCurrentPriorityMode()
-kame.setCurrentPriorityMode(kame.Priority.NORMAL)
+# Allowed: initial entry into SCRIPTING (set by MCP server on connect)
+kame.setCurrentPriorityMode(kame.Priority.SCRIPTING)
+
+# Allowed: re-asserting SCRIPTING (silent no-op)
+kame.setCurrentPriorityMode(kame.Priority.SCRIPTING)
+
+# Rejected: attempting to escape SCRIPTING → RuntimeError
 try:
-    run_measurement_sweep()
-finally:
-    kame.setCurrentPriorityMode(prev)
+    kame.setCurrentPriorityMode(kame.Priority.NORMAL)
+except RuntimeError as e:
+    print(e)  # "Priority::SCRIPTING is sticky and cannot be changed..."
 ```
+
+Non-MCP Python sessions (a user-launched Jupyter notebook, a Ruby
+script via `XScriptingThread`) inherit the kernel's default
+(`UI_DEFERRABLE`) and may switch freely among the non-SCRIPTING
+levels.  The trapdoor only triggers once SCRIPTING has been set.
+
+If you legitimately need NORMAL priority for measurement-critical
+work, **do not** call `setCurrentPriorityMode(SCRIPTING)` first;
+work from `UI_DEFERRABLE` (the default) and switch as needed.
 
 ### SIGINT / KeyboardInterrupt — IS interruptible
 

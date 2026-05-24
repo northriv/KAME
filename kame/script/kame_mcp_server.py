@@ -61,11 +61,12 @@ Key patterns:
 
 NOTE: This MCP session runs at `Priority.SCRIPTING` — your Tx will
 yield to active measurement traffic for ~1 s before claiming privilege.
-If running a measurement-critical block, temporarily elevate:
-    prev = kame.getCurrentPriorityMode()
-    kame.setCurrentPriorityMode(kame.Priority.NORMAL)
-    try: ...
-    finally: kame.setCurrentPriorityMode(prev)
+**SCRIPTING is a one-way trapdoor**: attempting
+`kame.setCurrentPriorityMode(...)` to any other level raises
+`RuntimeError`.  This is a safety guarantee — your generated code
+cannot disrupt the measurement loop regardless of priority calls.
+If a measurement-critical operation is needed, ask the user to run
+it from their own Jupyter notebook (which is not locked).
 
 NOTE: print() in KAME's kernel produces HTML, not plain text.
 In execute_code, use expression results (last line as bare expression)
