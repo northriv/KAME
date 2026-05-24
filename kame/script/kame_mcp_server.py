@@ -45,7 +45,17 @@ IMPORTANT: Call kame_api first to learn the Python API before writing code.
 Key patterns:
 - Read: shot = Snapshot(node); float(shot[node]) or str(shot[node])
 - List children: shot.list(node) returns list[XNode], use child.getName()
-- Write: node["Child"] = value (auto-transactional)
+- Write single: node["Child"] = value (auto-transactional)
+- Write atomic (multi-step):
+      def tx(tr):
+          tr[a] = v1
+          tr[b] = float(tr[a]) * 2   # read-after-write in same tr
+      node.iterate_commit(tx)
+  ⚠️ The closure may be re-invoked on conflict — keep it idempotent.
+     Do external side effects (file I/O, hardware commands) AFTER
+     iterate_commit returns, not inside the closure.
+- Conditional commit: node.iterate_commit_if(fn) — return True to commit, False to retry
+- Bounded retry:      node.iterate_commit_while(fn) — return False to give up
 - Drivers: Root()["Drivers"]["DriverName"]
 - Scalar entry value: entry["Value"] is XDoubleNode, float(shot[entry["Value"]])
 

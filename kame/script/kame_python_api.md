@@ -95,6 +95,83 @@ tr.commit()                       # Returns final Snapshot
 touchable_node.touch()
 ```
 
+## Transactional Patterns (atomic multi-step writes)
+
+For any operation that needs **multiple reads/writes to commit
+together atomically** (e.g. read A, compute, write B based on A's
+value), use the closure-style transaction API:
+
+```python
+# Closure-style — recommended for atomic multi-step writes
+def step(tr):
+    tr[driver_a] = v_a
+    tr[driver_b] = v_b
+    # Read-after-write within the same tr sees the new value:
+    cur = float(tr[driver_a])
+    tr[driver_c] = cur * 2.0
+
+shot = node.iterate_commit(step)   # returns the committed Snapshot
+```
+
+### Conditional commit (`iterate_commit_if`)
+
+Closure returns `True` to commit, `False` to retry (e.g. when an
+intermediate `insert`/`release` failed because the tree shape
+changed under us):
+
+```python
+def try_insert(tr):
+    if not parent.insert(tr, child, True):
+        return False     # tree shape changed → retry
+    tr[child] = 0
+    return True          # commit
+
+parent.iterate_commit_if(try_insert)
+```
+
+### Bounded retry (`iterate_commit_while`)
+
+Closure returns `True` to keep retrying, `False` to give up
+(no commit happens on give-up):
+
+```python
+attempts = [0]
+def try_once(tr):
+    attempts[0] += 1
+    if attempts[0] > 10:
+        return False     # give up
+    tr[node] += 1
+    return True          # continue (but commit happens here regardless on success)
+
+node.iterate_commit_while(try_once)
+```
+
+### Retry semantics — IMPORTANT
+
+If another thread commits a conflicting change between snapshot and
+commit, the **entire closure body is re-invoked from the start**.
+Write closures so they are *idempotent under retry*:
+
+  - ✅ Pure data updates: `tr[x] = value`, `tr[y] = tr[x] * 2`
+  - ✅ Read-then-write within the same `tr`
+  - ⚠️  Mutating Python-side variables (counters, lists): expect
+         multiple increments / appends on retry; use carefully
+  - ⚠️  `print()` / logging — fires once per retry; be aware
+  - ❌ External side effects inside the closure: file I/O,
+         network calls, hardware commands (e.g. driver "send"
+         actions).  Do these **after** `iterate_commit` returns
+         and you have the committed Snapshot in hand.
+
+### When to use what
+
+| Situation | API |
+|---|---|
+| Set a single value | `node["X"] = v` (auto-transactional) |
+| Multi-step atomic write | `iterate_commit(closure)` |
+| Insert/release that may need retry on tree-shape change | `iterate_commit_if(closure)` |
+| Want a retry-cap (give up after N tries) | `iterate_commit_while(closure)` |
+| External side effect alongside write | `iterate_commit` for the write, then act on the returned Snapshot |
+
 ## Driver Patterns
 
 ```python

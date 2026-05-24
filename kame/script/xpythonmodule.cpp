@@ -458,6 +458,34 @@ KAMEPyBind::export_embedded_module_basic(pybind11::module_& m) {
             return self->iterate_commit([=](Transaction &tr){
                 pyfunc(tr);
             });
+        })
+        //! Closure-style transaction with conditional commit.  The
+        //! Python callable is invoked with the Transaction and must
+        //! return a bool: True commits, False retries from the start
+        //! (no commit attempt).  Use when an intermediate operation
+        //! like `parent.insert(tr, child, True)` may fail because the
+        //! tree shape changed under us, and we want to retry from
+        //! scratch.  Like `iterate_commit`, the closure may be
+        //! re-invoked any number of times on CAS conflict — keep it
+        //! idempotent.
+        .def("iterate_commit_if", [](shared_ptr<XNode> &self, py::object pyfunc)->Snapshot {
+            return self->iterate_commit_if([=](Transaction &tr)->bool {
+                py::object ret = pyfunc(tr);
+                return py::cast<bool>(ret);
+            });
+        })
+        //! Closure-style transaction with bounded retry.  The Python
+        //! callable returns True to keep retrying (continue the
+        //! commit attempt loop), or False to give up — in which case
+        //! no commit happens and control returns.  Use when the
+        //! caller needs to cap retry count or has an external abort
+        //! condition.  Returns void (no Snapshot — the loop may have
+        //! given up before committing).
+        .def("iterate_commit_while", [](shared_ptr<XNode> &self, py::object pyfunc) {
+            self->iterate_commit_while([=](Transaction &tr)->bool {
+                py::object ret = pyfunc(tr);
+                return py::cast<bool>(ret);
+            });
         });
 
     {   auto [node, payload] = XPython::bind.export_xnode<XScriptingThread, XNode, const std::string &>();
