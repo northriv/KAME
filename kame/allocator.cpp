@@ -600,13 +600,18 @@ PoolAllocator<ALIGN, false, DUMMY>::flush_owner_freelist() noexcept {
 template <unsigned int ALIGN, bool DUMMY>
 void
 PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
-    void **slots, int n) noexcept {
+    void **slot_ptrs, int n) noexcept {
+	// NOTE: parameter is named `slot_ptrs`, not `slots`, to avoid clashing
+	// with Qt's `slots` keyword macro (Qt6 qtmetamacros.h defines
+	// `#define slots Q_SLOTS`, which expands to an empty token in
+	// non-MOC builds — turning `slots[i]` into `[i]`, parsed as a lambda
+	// capture list and producing baffling errors at the use sites).
 	if(n <= 0) return;
 	int i = 0;
 	this->batch_clear_impl(
 		[&]() -> char * {
 			if(i >= n) return nullptr;
-			return static_cast<char *>(slots[i++]);
+			return static_cast<char *>(slot_ptrs[i++]);
 		},
 		// MaskFn: FS=false multi-bit (decode N from m_sizes)
 		[this](int idx, unsigned sidx, char *p) -> FUINT {
@@ -725,14 +730,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist() noexcept {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
-    void **slots, int n) noexcept {
+    void **slot_ptrs, int n) noexcept {
+	// `slot_ptrs` not `slots` — Qt's `slots` keyword macro (see comment
+	// on the FS=false sibling above) clobbers the name.
 	if(n <= 0) return;
 	int i = 0;
 	this->batch_clear_impl(
 		// FetchSlot: walk the argument array
 		[&]() -> char * {
 			if(i >= n) return nullptr;
-			char *p = static_cast<char *>(slots[i++]);
+			char *p = static_cast<char *>(slot_ptrs[i++]);
 #ifdef GUARDIAN
 			for(unsigned int j = 0; j < ALIGN / sizeof(uint64_t); ++j)
 				reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;

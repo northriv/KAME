@@ -145,7 +145,7 @@ public:
 	//! in ONE CAS per word, vs the naïve per-slot CAS.  Pure virtual
 	//! so every PoolAllocator instantiation supplies a concrete
 	//! implementation.
-	virtual void batch_return_to_bitmap(void **slots, int n) noexcept = 0;
+	virtual void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept = 0;
 protected:
 	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
 	virtual bool deallocate_pooled(char *p) = 0;
@@ -192,7 +192,7 @@ protected:
 	              uint16_t *freelist, int freelist_cap);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
-	void batch_return_to_bitmap(void **slots, int n) noexcept override;
+	void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept override;
 	static bool create_allocator(int &aidx);
 	static bool release_allocator(PoolAllocator *alloc);
 
@@ -376,7 +376,7 @@ protected:
 	              uint16_t *fs_buckets);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
-	void batch_return_to_bitmap(void **slots, int n) noexcept override;
+	void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept override;
 	void flush_owner_freelist() noexcept override;
 
 	//! Size-bucketed owner-thread freelist for variable-size FS=false
