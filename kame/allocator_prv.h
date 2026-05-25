@@ -200,8 +200,8 @@ protected:
 	//! Per-chunk owner-thread freelist (fixed-size FS=true chunks only —
 	//! the FS=false specialization overrides `deallocate_pooled` to
 	//! bypass this push because variable-size slots don't share a
-	//! uniform size; for FS=false instances `m_freelist == nullptr`,
-	//! `m_freelist_cap == 0`).  Only the thread whose TLS
+	//! uniform size; for FS=false instances `m_freelist ==
+	//! m_freelist_end == nullptr`).  Only the thread whose TLS
 	//! `s_my_chunk == this` pushes to / pops from these members, so
 	//! they stay non-atomic.  Non-owner deallocs see `s_my_chunk !=
 	//! this` (via the dealloc fast-path check at the top of
@@ -222,9 +222,21 @@ protected:
 		FREELIST_CAP_MIN = 32,
 		FREELIST_CAP_MAX = 4096,
 	};
+	//! Pointer-pair freelist (vs count-based).  Saves the per-op
+	//! `freelist[count]` address computation (`base + count*8`) — one
+	//! load avoided per push/pop, ~1 cycle.  Compiler strength-reduction
+	//! does not cross class-member load/store boundaries, so the
+	//! transformation must be made explicit at the data-layout level.
+	//!
+	//!   m_freelist        : array base (const) — derived count is
+	//!                       `m_freelist_curpos - m_freelist`.
+	//!   m_freelist_end    : array end (const) = m_freelist + cap.
+	//!                       Cap check: `m_freelist_curpos < m_freelist_end`.
+	//!   m_freelist_curpos : write head; push = `*curpos++ = p`,
+	//!                       pop  = `*--curpos`.
 	void ** const m_freelist;
-	const int m_freelist_cap;
-	int m_freelist_count = 0;
+	void ** const m_freelist_end;
+	void **m_freelist_curpos;
 
 	void flush_owner_freelist() noexcept override;
 	void flush_owner_freelist_to_bitmap() noexcept;

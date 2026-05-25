@@ -242,7 +242,8 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	m_idx(0),
 	m_count(count),
 	m_freelist(freelist),
-	m_freelist_cap(freelist_cap) {
+	m_freelist_end(freelist + freelist_cap),
+	m_freelist_curpos(freelist) {
 	m_flags_nonzero_cnt = 0;
 	m_flags_filled_cnt = 0;
 	for(int i = count - 1; i >= 0 ; --i)
@@ -256,17 +257,47 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(size_t size, char *ppool) {
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
 	int count = size / ALIGN / sizeof(FUINT) / 8;
-	// Owner-thread freelist sized to ~10% of the chunk's total slot
-	// count, clamped to [FREELIST_CAP_MIN, FREELIST_CAP_MAX].  Larger
-	// chunks absorb more same-thread alloc/dealloc cycles before
-	// hitting the bitmap CAS path.  Memory overhead: 8 B per entry,
-	// ≤ 32 KiB per chunk at the max cap (4096).  Lives at the tail of
-	// the chunk-metadata malloc block, so a single malloc covers it.
+	// Owner-thread freelist sizing — adaptive by inspecting the
+	// existing chunks of this template at create() time.  No runtime
+	// overflow counter needed: if ANY existing chunk's freelist is
+	// already at cap (`m_freelist_curpos >= m_freelist_end`), that
+	// chunk's pinning thread is overflowing to the bitmap path; scale
+	// the NEW chunk's freelist up so future deallocs land in it.
+	//
+	//   pressure (# chunks at freelist cap)   ratio of slot_count
+	//     0                                   1/10  (default 10 %)
+	//     1                                   1/5   (20 %)
+	//     2                                   1/2   (50 %)
+	//     ≥ 3                                 full  (100 %)
+	//
+	// Scan is O(s_chunks_of_type_ubound) — bounded (few dozen) and
+	// only runs at chunk creation (rare), so cost is amortised away.
+	// Read of m_freelist_curpos is non-atomic plain pointer load; the
+	// owner thread updates it without synchronization so we may see
+	// a stale value, which is fine for an approximate signal.
 	int slot_count = count * (int)(sizeof(FUINT) * 8);
-	int freelist_cap = slot_count / 10;
+	int pressure = 0;
+	{
+		int ubound = PoolAllocator::s_chunks_of_type_ubound;
+		for(int i = 0; i < ubound; ++i) {
+			uintptr_t v = PoolAllocator::s_chunks_of_type[i] & ~(uintptr_t)1u;
+			if( !v) continue;
+			auto *c = reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(v);
+			if(c->m_freelist_curpos >= c->m_freelist_end)
+				++pressure;
+		}
+	}
+	int freelist_cap;
+	if(pressure >= 3)      freelist_cap = slot_count;
+	else if(pressure >= 2) freelist_cap = slot_count / 2;
+	else if(pressure >= 1) freelist_cap = slot_count / 5;
+	else                   freelist_cap = slot_count / 10;
 	if(freelist_cap < (int)PoolAllocator::FREELIST_CAP_MIN)
 		freelist_cap = PoolAllocator::FREELIST_CAP_MIN;
-	if(freelist_cap > (int)PoolAllocator::FREELIST_CAP_MAX)
+	// Keep the FREELIST_CAP_MAX ceiling only for the default 10 % path
+	// — under pressure we want larger freelists; memory is still
+	// bounded by slot_count.
+	if(pressure == 0 && freelist_cap > (int)PoolAllocator::FREELIST_CAP_MAX)
 		freelist_cap = PoolAllocator::FREELIST_CAP_MAX;
 	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count
 	                                        + sizeof(void *) * freelist_cap));
@@ -291,9 +322,10 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 	// FS=false variant overrides deallocate_pooled() and never uses
 	// the owner-thread freelist (variable-size slots can't share a
 	// uniform free entry).  Pass nullptr/0 to the FS=true base; the
-	// dealloc fast-path push is gated by `m_freelist_count <
-	// m_freelist_cap` (with cap=0 nothing is ever pushed) plus the
-	// override bypasses it entirely.  No freelist space is reserved.
+	// dealloc fast-path push is gated by `m_freelist_curpos <
+	// m_freelist_end` (with end == begin == nullptr nothing is ever
+	// pushed) plus the override bypasses it entirely.  No freelist
+	// space is reserved.
 	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count * 2));
 	if( !area)
 		return 0;
@@ -540,12 +572,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist_to_bitmap() noexcept {
 	// a 256 KiB chunk with smallest ALIGN — trivial stack burn, O(1)
 	// indexing, O(m_count) zero-init.  Much cheaper than the O(N²)
 	// linear-search-batch alternative.
-	if(this->m_freelist_count <= 0) return;
+	if(this->m_freelist_curpos == this->m_freelist) return;
 	FUINT *masks = static_cast<FUINT *>(
 		alloca(sizeof(FUINT) * (size_t)this->m_count));
 	for(int i = 0; i < this->m_count; ++i) masks[i] = 0;
-	while(this->m_freelist_count > 0) {
-		char *p = static_cast<char *>(this->m_freelist[--this->m_freelist_count]);
+	while(this->m_freelist_curpos > this->m_freelist) {
+		char *p = static_cast<char *>(*--this->m_freelist_curpos);
 		int midx = (p - this->m_mempool) / ALIGN;
 		int idx = midx / (sizeof(FUINT) * 8);
 		unsigned int sidx = midx % (sizeof(FUINT) * 8);
@@ -601,11 +633,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// check and fall through to the bitmap CAS path.  The FS=false
 	// specialization overrides this method completely and never
 	// reaches here, so the uniform-slot freelist push is safe.
-	if(s_my_chunk == this && this->m_freelist_count < this->m_freelist_cap) {
-		this->m_freelist[this->m_freelist_count++] = p;
+	if(s_my_chunk == this && this->m_freelist_curpos < this->m_freelist_end) {
+		*this->m_freelist_curpos++ = p;
 		// Don't trigger chunk-release path: the slot is still
 		// "allocated" from the bitmap's perspective; flushing on
-		// thread exit returns it via the same path.
+		// thread exit returns it via the same path.  Owner-overflow
+		// (freelist at cap) falls through to bitmap CAS; create() picks
+		// up the "this chunk is at cap" signal and sizes the NEXT chunk
+		// of this template with a larger freelist (see adaptive sizing
+		// loop in PoolAllocator::create()).
 		return false;
 	}
 	writeBarrier(); //for the contents written by the user.
@@ -774,9 +810,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 		// Owner-thread freelist fast path (FS=true chunks only — the
 		// FS=false chunks never push, so this stays empty for them).
 		// We just verified `s_my_chunk == my`, so single-writer access
-		// to m_freelist_count / m_freelist[] is safe.
-		if(my->m_freelist_count > 0) {
-			void *p = my->m_freelist[--my->m_freelist_count];
+		// to m_freelist_curpos / m_freelist[] is safe.
+		if(my->m_freelist_curpos > my->m_freelist) {
+			void *p = *--my->m_freelist_curpos;
 #ifdef GUARDIAN
 			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
 				if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
