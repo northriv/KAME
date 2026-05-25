@@ -77,12 +77,6 @@ struct AllocPinCleanup {
         // — routes slots through `tls_cross_dealloc_batch` for batched
         // bitmap CAS per m_flags word.
         drain_thread_slot_freelists();
-        // Flush per-chunk owner freelists (FS=false bucket arrays — the
-        // FS=true linked list has been drained above via the AllocSlot
-        // path) so their slots are returned to the bitmap before the
-        // chunk is potentially released (pin count → 0).
-        for(int i = 0; i < count; ++i)
-            pinned[i].chunk->flush_owner_freelist();
         // Repoint every per-thread alloc slot to `malloc_fallback`
         // BEFORE the chunk pins drop to 0 — otherwise a later TLS
         // destructor that allocates could route through a chunk that's
@@ -323,8 +317,6 @@ void activateAllocator() {g_sys_image_loaded = true;}
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
 	PoolAllocatorBase(ppool),
-	// Empty-list sentinel: `(char *)this`.  See try_owner_freelist_pop.
-	m_freelist_head(reinterpret_cast<char *>(this)),
 	m_flags(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)])),
 	m_idx(0),
 	m_count(count) {
@@ -339,11 +331,10 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(size_t size, char *ppool) {
-	// Layout: [class][m_flags].  The owner-thread freelist is now a
-	// linked list embedded in free slots themselves (see
-	// try_owner_freelist_pop / _push and the `m_freelist_head` field
-	// comment in allocator_prv.h), so no separate uint16_t-index
-	// array follows m_flags.
+	// Layout: [class][m_flags].  The owner-thread freelist lives on the
+	// per-thread `AllocSlot` (`g_thread_slots[bucket]`) — embedded
+	// linked list with the next-pointer stored in each free slot's
+	// first 8 bytes — so no per-chunk freelist storage follows m_flags.
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
 	int count = size / ALIGN / sizeof(FUINT) / 8;
 	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count));
@@ -642,10 +633,9 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 // Body of `batch_clear_impl` — out-of-class definition kept in
 // allocator.cpp.  The function is template-on-lambdas; bodies in the
 // header would balloon allocator_prv.h with a non-trivial loop that's
-// only exercised from the cross-dealloc-batch flush and the
-// owner-thread freelist flush — both rare, "long" code paths.  The
-// SHORT push/pop helpers (try_owner_freelist_push/pop) ARE in the
-// header for inlining (per-dealloc / per-alloc hot paths).
+// only exercised from the cross-dealloc-batch flush (a rare, "long"
+// code path).  Hot owner-thread freelist push/pop is done inline on
+// `AllocSlot` in `new_redirected`, not via this helper.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 template <typename FetchSlot, typename MaskFn, typename OnClearFn>
 void
@@ -679,52 +669,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	}
 }
 
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-void
-PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist_to_bitmap() noexcept {
-	// Drain the chunk-private owner freelist (linked list embedded in
-	// the free slots — see `try_owner_freelist_pop` / `_push`) and
-	// CAS-clear the matching bits in m_flags, batched by word index.
-	// Shared `batch_clear_impl` skeleton — see allocator_prv.h.
-	if(this->m_freelist_head == reinterpret_cast<char *>(this)) return;
-	this->batch_clear_impl(
-		// FetchSlot: pop one slot from the head of the embedded linked
-		// list.  Each free slot's first 8 bytes hold the next pointer
-		// (or `(char *)this` sentinel for the list's tail).
-		[this]() -> char * {
-			char *head = this->m_freelist_head;
-			if(head == reinterpret_cast<char *>(this)) return nullptr;
-			this->m_freelist_head = *reinterpret_cast<char **>(head);
-#ifdef GUARDIAN
-			for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
-				reinterpret_cast<uint64_t *>(head)[i] = GUARDIAN;
-#endif
-			return head;
-		},
-		// MaskFn: FS=true single bit (same as batch_return_to_bitmap)
-		[](int /*idx*/, unsigned sidx, char * /*p*/) -> FUINT {
-			return ((FUINT)1u) << sidx;
-		},
-		// OnClearFn: FS=true counter updates
-		[this](FUINT oldv, FUINT newv) {
-			if(oldv == ~(FUINT)0u)
-				atomicDec( &this->m_flags_filled_cnt);
-			if(newv == 0 && oldv != 0)
-				atomicDec( &this->m_flags_nonzero_cnt);
-		});
-}
-
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-void
-PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist() noexcept {
-	flush_owner_freelist_to_bitmap();
-}
-
-// Batched bitmap clear of slots passed via argument array (vs the
-// chunk-private freelist drained by flush_owner_freelist_to_bitmap).
-// Called from CrossDeallocBatch::flush — slots all belong to THIS
-// chunk (caller groups by chunk pointer), so one shared direct-map
-// scratch suffices.
+// Batched bitmap clear of slots passed via argument array.  Called
+// from CrossDeallocBatch::flush — slots all belong to THIS chunk
+// (caller groups by chunk pointer), so one shared direct-map scratch
+// suffices.  This is now the sole consumer of `batch_clear_impl`
+// (the chunk-private freelist drain that previously also used it has
+// been folded into the per-thread AllocSlot drain in
+// `drain_thread_slot_freelists`).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
@@ -911,10 +862,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::create_allocator(int &aidx) {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
-	// Cold path of allocate<SIZE>().  Called only when the
-	// header-inline `try_owner_freelist_pop` fast path missed (either
-	// `s_my_chunk == nullptr` on first thread access, or the owner-
-	// thread freelist for this chunk was empty).
+	// Cold path of allocate<SIZE>().  Reached on the very first
+	// allocation of (this thread, this bucket) via
+	// `bucket_first_access<B>`, or whenever the per-thread `AllocSlot`
+	// freelist for this bucket misses and the slow path dispatcher
+	// (`bucket_steady_alloc<B>` in g_thread_alloc_fn[]) is invoked.
 	//
 	// Thread-exit cleanup is handled centrally by `AllocPinCleanup::~dtor`
 	// (registered via `XThreadLocal<AllocPinCleanup>::operator*()` on the
@@ -1423,10 +1375,11 @@ ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
 // (Per-template `thread_local TlsGuard s_tls_guard` removed.
 //  AllocPinCleanup::~AllocPinCleanup — fired via the pthread_key dtor
 //  registered by `XThreadLocal<AllocPinCleanup>` on first allocate() —
-//  is now the sole place that runs `flush_owner_freelist`,
-//  `clear_owner_tls`, and sets `s_alloc_tls_off = true` at thread exit.
-//  Eliminates the C++ thread_local init thunk that macOS arm64 emits
-//  for `(void)&s_tls_guard` in the allocate() hot path.)
+//  is now the sole place that drains the per-thread AllocSlot
+//  freelists, runs `clear_owner_tls`, and sets `s_alloc_tls_off =
+//  true` at thread exit.  Eliminates the C++ thread_local init thunk
+//  that macOS arm64 emits for `(void)&s_tls_guard` in the allocate()
+//  hot path.)
 
 template class PoolAllocator<ALLOC_ALIGN1>;
 template class PoolAllocator<ALLOC_ALIGN2>;

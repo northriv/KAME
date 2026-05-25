@@ -125,12 +125,6 @@ public:
 	static inline bool deallocate(void *p);
 	static void release_chunks();
 	virtual void report_statistics(size_t &chunk_size, size_t &used_size) = 0;
-	//! Hook called from `AllocPinCleanup` on thread exit: any items
-	//! parked in the per-chunk owner-thread freelist (FS=true chunks
-	//! only) are flushed back to the bitmap via the normal CAS path so
-	//! they don't leak when the chunk is later released.  Default
-	//! no-op; FS=true PoolAllocator overrides.
-	virtual void flush_owner_freelist() noexcept {}
 	//! Null out this thread's `s_my_chunk` for this chunk's ALIGN type.
 	//! Called from `AllocPinCleanup` after freelist flush, before pin
 	//! count decrement.  Prevents stale `s_my_chunk` from pushing to
@@ -179,33 +173,23 @@ extern ALLOC_TLS bool s_alloc_tls_off;
 template <unsigned int ALIGN, bool FS = false, bool DUMMY = true>
 class PoolAllocator : public PoolAllocatorBase {
 public:
-	//! Hot path: owner-thread freelist pop.  `[[gnu::always_inline]]`
-	//! ensures clang ignores its size-based inlining heuristic so this
-	//! inlines into `operator new` (cross-TU via the header), removing
-	//! the per-allocate call boundary.  Freelist miss falls through to
-	//! the out-of-line `allocate_chunk_path` (allocate_pooled +
-	//! chunk-claim + create_allocator).
-	//!
-	//! SIZE is a template parameter so the slot stride used by
-	//! `try_owner_freelist_pop` (= ALIGN) and the bitmap path inside
-	//! `allocate_chunk_path` can be constant-folded; the freelist hit
-	//! path itself uses ALIGN (not SIZE) to compute the slot address,
-	//! so it's identical for all SIZE values that share an ALIGN bucket.
+	//! Cold path: first-access chunk-claim + bitmap-CAS slow allocate.
+	//! `[[gnu::always_inline]]` is retained so `bucket_first_access<B>`
+	//! folds into a direct call to `allocate_chunk_path(SIZE)` per
+	//! template instantiation, keeping SIZE compile-time inside the
+	//! bitmap accounting in `allocate_pooled`.  The real hot path
+	//! (owner-thread freelist pop) lives in `new_redirected` on the
+	//! per-thread `AllocSlot`, not here.
 	template <unsigned int SIZE>
 	[[gnu::always_inline]] static void *allocate() noexcept {
-		// Single-instruction fast path on Apple Silicon: TLS load
-		// `s_my_chunk` (one `mrs tpidr_el0` + offset), null-check, and
-		// (if non-null) inlined `try_owner_freelist_pop` (5 instructions:
-		// load m_freelist_curpos, compare with m_freelist, decrement,
-		// load uint16_t, multiply-add for slot address).
-		if(PoolAllocator<ALIGN, DUMMY, DUMMY> *my = s_my_chunk) {
-			if(void *p = my->try_owner_freelist_pop())
-				return p;
-		}
-		// Cold path — pinned-chunk bitmap CAS, chunk-claim loop, chunk
-		// creation.  Stays in allocator.cpp as a non-template function
-		// (SIZE passed at runtime — only used inside allocate_pooled's
-		// bitmap accounting; ALIGN/FS/DUMMY-specific via the class).
+		// `bucket_first_access<B>`'s hot path entry — only reached on
+		// the very first allocation of (this thread, this bucket).  The
+		// real hot path is `new_redirected` → AllocSlot freelist pop in
+		// the header; this function just kicks the chunk-claim and the
+		// bitmap CAS path.  Stays in allocator.cpp as a non-template
+		// function (SIZE passed at runtime — only used inside
+		// allocate_pooled's bitmap accounting; ALIGN/FS/DUMMY-specific
+		// via the class).
 		return allocate_chunk_path(SIZE);
 	}
 	//! Public accessor for the per-thread functor-table dispatcher
@@ -238,32 +222,6 @@ protected:
 	static bool release_allocator(PoolAllocator *alloc);
 
 	// === Cache line 0: owner-side hot reads & const fields.
-	// Owner-thread freelist is a LIFO linked list **embedded in the
-	// free slots themselves** — each free slot's first 8 bytes hold a
-	// `char *` pointer to the next free slot, or the empty-sentinel
-	// `(char *)this` when this slot is the list's tail.  No separate
-	// uint16_t-index array, no cap, no slot-count limit: every freed
-	// owner-thread slot lands on the list.
-	//
-	// `m_freelist_head`:
-	//   - empty: equal to `(char *)this` (= the chunk metadata
-	//     address, which can never be a valid slot pointer because
-	//     slots live at `this + SLOT_POOL_OFFSET` and beyond);
-	//   - non-empty: pointer to the current head free slot.  The
-	//     slot's first 8 bytes hold the next pointer.
-	//
-	// On pop the critical path is just:
-	//   ldr  head, [this,#head]
-	//   cmp  head, this        ; sentinel check
-	//   b.eq slow
-	//   ldr  next, [head]      ; uses head as base; one dependent load
-	//   str  next, [this,#head]
-	//   mov  ret, head         ; return value ready right after first ldr
-	// — no per-template `s_my_chunk` TLV thunk, no `m_mempool` field
-	// load, no `m_freelist_end` field load.  Critical path to return:
-	// ldr head → ret (4 cycles), vs the uint16_t-index variant's
-	// ldr curpos → ldrh idx → add mempool+idx<<N (~10 cycles).
-	char *m_freelist_head;
 	//! Every bit indicates occupancy in m_mempool.
 	FUINT * const m_flags;
 	//! A hint for searching in a chunk.
@@ -304,29 +262,21 @@ protected:
 	// (removed: `thread_local TlsGuard s_tls_guard;` and its dtor.
 	//  AllocPinCleanup::~AllocPinCleanup — fired via
 	//  XThreadLocal<AllocPinCleanup>'s pthread_key dtor on thread exit —
-	//  already calls `chunk->flush_owner_freelist()`, `clear_owner_tls()`,
-	//  and sets `s_alloc_tls_off = true`, for every chunk this thread
-	//  pinned.  The TlsGuard was redundant and its `(void)&s_tls_guard`
-	//  ODR-use in `allocate<>()` emitted a per-template C++ thread_local
-	//  init thunk call on every allocation (macOS arm64), with no
-	//  observable correctness benefit.)
+	//  already drains the per-thread AllocSlot freelists, calls
+	//  `clear_owner_tls()`, and sets `s_alloc_tls_off = true`, for
+	//  every chunk this thread pinned.  The TlsGuard was redundant and
+	//  its `(void)&s_tls_guard` ODR-use in `allocate<>()` emitted a
+	//  per-template C++ thread_local init thunk call on every
+	//  allocation (macOS arm64), with no observable correctness
+	//  benefit.)
 	//! # of threads pinning this chunk via TLS s_my_chunk. Incremented
 	//! once per thread on first use; never decremented in steady state.
 	//! release_allocator() returns false when this is non-zero so the
 	//! chunk is not freed while any thread's TLS pointer references it.
 	std::atomic<int> m_thread_pinned_count{0};
 
-	//! Per-chunk owner-thread freelist (FS=true chunks only — FS=false's
-	//! `deallocate_pooled` override uses bucket-based push instead).
-	//! Single-writer (the thread whose TLS `s_my_chunk == this`);
-	//! non-owners see `s_my_chunk != this` and route to the cross-thread
-	//! TLS batch.  Cleanup hook in `AllocPinCleanup` flushes residual
-	//! entries on thread exit.  No cap, no slot-count limit: every
-	//! freed owner-thread slot lands on the embedded linked list.
-
-	void flush_owner_freelist() noexcept override;
-	void flush_owner_freelist_to_bitmap() noexcept;
 	void clear_owner_tls() noexcept override;
+
 
 	//! Shared batched bitmap-clear skeleton (body in allocator.cpp).
 	//! Parameterised on:
@@ -336,38 +286,13 @@ protected:
 	//!                                    FS=false: N bits via m_sizes)
 	//!   OnClearFn(oldv,newv)→ `void`  : per-word counter update
 	//!
-	//! Used by `flush_owner_freelist_to_bitmap` and
-	//! `batch_return_to_bitmap` (both FS=true and FS=false overrides).
+	//! Used by `batch_return_to_bitmap` (both FS=true and FS=false
+	//! overrides).  Sole remaining caller now that the chunk-local
+	//! freelist has been folded into AllocSlot.
 	template <typename FetchSlot, typename MaskFn, typename OnClearFn>
 	void batch_clear_impl(FetchSlot fetch_slot, MaskFn mask_fn,
 	                     OnClearFn on_clear) noexcept;
 
-	//! Owner-thread freelist push.  Inlined here in the header — hot
-	//! dealloc path.  Embeds the previous head pointer into the freed
-	//! slot's first 8 bytes (overwriting whatever user data lived
-	//! there; the slot is now free, user no longer owns it).  No cap
-	//! check, no size-class limit — every owner-thread dealloc lands
-	//! on the list.  Single-writer (TLS pin), so no atomics.
-	bool try_owner_freelist_push(void *p) noexcept {
-		*reinterpret_cast<char **>(p) = m_freelist_head;
-		m_freelist_head = static_cast<char *>(p);
-		return true;
-	}
-public:
-	//! Owner-thread freelist pop.  Inlined here in the header — hottest
-	//! alloc path.  Critical path is `ldr head, [this,#head] / cmp head,
-	//! this / b.eq slow / ldr next,[head] / str next,[this,#head]`
-	//! — head is the return value, ready ~4 cycles after entry.  Empty
-	//! sentinel is `(char *)this` (the chunk metadata address — never a
-	//! valid slot pointer, no field load needed).
-	//! Public so the per-thread functor-table dispatcher (anon-namespace
-	//! helpers in allocator.cpp) can call it without a friend declaration.
-	void *try_owner_freelist_pop() noexcept {
-		char *head = m_freelist_head;
-		if(head == reinterpret_cast<char *>(this)) return nullptr;
-		m_freelist_head = *reinterpret_cast<char **>(head);
-		return head;
-	}
 protected:
 
 	void operator delete(void *) throw();
