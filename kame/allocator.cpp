@@ -288,27 +288,16 @@ template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(size_t size, char *ppool) {
 	int count = size / ALIGN / sizeof(FUINT) / 8;
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
-	// FS=false uses its own per-bucket linked-list freelist (slots
-	// store next-ptr inline), so it does NOT use the FS=true base's
-	// array freelist.  Pass nullptr/0 to the base — its
-	// `m_freelist_count > 0` check in `allocate()` always fails for
-	// FS=false chunks and we fall through to our overridden
-	// `allocate_pooled()` which consults the bucket heads.
+	// FS=false variant overrides deallocate_pooled() and never uses
+	// the owner-thread freelist (variable-size slots can't share a
+	// uniform free entry).  Pass nullptr/0 to the FS=true base; the
+	// dealloc fast-path push is gated by `m_freelist_count <
+	// m_freelist_cap` (with cap=0 nothing is ever pushed) plus the
+	// override bypasses it entirely.  No freelist space is reserved.
 	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count * 2));
 	if( !area)
 		return 0;
 	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool, nullptr, 0);
-	// Total bucket cap ≈ 20 % of slot count, clamped — same intent as
-	// FS=true's array freelist cap (slot_count / 10) but with a
-	// generous budget since linked-list-in-slot storage is free
-	// (lives in the slots themselves).
-	int slot_count = count * (int)(sizeof(FUINT) * 8);
-	int cap = slot_count / 5;
-	// Same clamps as FS=true's FREELIST_CAP_MIN/MAX (inlined here to
-	// dodge protected-access across sibling template instantiations).
-	if(cap < 32) cap = 32;
-	if(cap > 4096) cap = 4096;
-	p->m_bucket_total_cap = (uint32_t)cap;
 	return p;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -375,46 +364,6 @@ PoolAllocator<ALIGN, false, DUMMY>::report_leaks() {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
-#ifndef GUARDIAN
-	// MPSC remote-freelist drain: non-owner deallocs accumulated into
-	// `m_remote_head` (see deallocate_pooled).  Drain on-demand when
-	// our private array freelist is already exhausted (otherwise
-	// `allocate()` would have popped from it before reaching here).
-	// Net effect: replaces N bitmap-CAS rounds (one per non-owner
-	// dealloc) with ONE exchange + cheap walk → less cross-socket
-	// cache line ping-pong on EPYC.
-	{
-		void *remote = this->m_remote_head.exchange(nullptr,
-		                                            std::memory_order_acquire);
-		if(remote) {
-			void *result = remote;
-			void *cur = *reinterpret_cast<void**>(remote);
-			int budget = this->m_freelist_cap - this->m_freelist_count;
-			while(cur && budget > 0) {
-				void *next = *reinterpret_cast<void**>(cur);
-				this->m_freelist[this->m_freelist_count++] = cur;
-				--budget;
-				cur = next;
-			}
-			if(cur) {
-				// Overflow: push the remaining chain back as a single
-				// atomic CAS-push so future drains can pick them up.
-				void *tail = cur;
-				while(*reinterpret_cast<void**>(tail))
-					tail = *reinterpret_cast<void**>(tail);
-				void *old_head = this->m_remote_head.load(
-					std::memory_order_relaxed);
-				do {
-					*reinterpret_cast<void**>(tail) = old_head;
-				} while(!this->m_remote_head.compare_exchange_weak(
-						old_head, cur,
-						std::memory_order_release,
-						std::memory_order_relaxed));
-			}
-			return result;
-		}
-	}
-#endif
 	FUINT one;
 	int idx = this->m_idx;
 	for(;;) {
@@ -461,85 +410,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 inline void *
 PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
-#ifndef GUARDIAN
-	// Owner-thread per-bucket freelist pop (CAS-free).  `allocate_pooled`
-	// is reached only after `allocate()` has pinned this chunk in
-	// `s_my_chunk`, so the bucket arrays are single-writer (this
-	// thread) and need no atomics.  Bucket b holds slots of size
-	// (b + 1) × ALIGN bytes; next-ptr lives in the slot's first 8 B.
-	// Disabled under GUARDIAN to avoid stomping the sentinel fill.
-	unsigned int n_slots = SIZE / ALIGN;
-	if(n_slots <= (unsigned)MAX_BUCKETS) {
-		void *h = m_bucket_heads[n_slots - 1];
-		if(h) {
-			m_bucket_heads[n_slots - 1] = *reinterpret_cast<void**>(h);
-			--m_bucket_total;
-			return h;
-		}
-	}
-	// MPSC remote-freelist drain: non-owner deallocs accumulated into
-	// `m_remote_head` (see deallocate_pooled).  Drain on-demand when
-	// the matching bucket is empty.  Each drained slot's n_slots is
-	// computed from m_sizes and routed to the appropriate bucket; if
-	// the slot matches our requested size and we haven't returned one
-	// yet, use it directly.  Overflow (per-bucket cap reached) gets
-	// pushed back to MPSC as a chain.
-	{
-		void *remote = this->m_remote_head.exchange(nullptr,
-		                                            std::memory_order_acquire);
-		if(remote) {
-			void *result = nullptr;
-			void *overflow_head = nullptr;
-			void *cur = remote;
-			while(cur) {
-				void *next = *reinterpret_cast<void**>(cur);
-				int d_midx = (static_cast<char*>(cur) - this->m_mempool) / ALIGN;
-				int d_idx = d_midx / (sizeof(FUINT) * 8);
-				unsigned d_sidx = d_midx % (sizeof(FUINT) * 8);
-				FUINT d_nones = find_zero_forward(m_sizes[d_idx] >> d_sidx);
-				d_nones = ~((d_nones | (d_nones - 1u)) << d_sidx);
-				unsigned int d_n = count_bits(~d_nones);
-				if(!result && d_n == n_slots) {
-					result = cur;
-				} else if(d_n <= (unsigned)MAX_BUCKETS
-				          && m_bucket_total < m_bucket_total_cap) {
-					*reinterpret_cast<void**>(cur) = m_bucket_heads[d_n - 1];
-					m_bucket_heads[d_n - 1] = cur;
-					++m_bucket_total;
-				} else {
-					// Push to overflow chain (will be re-published to MPSC)
-					*reinterpret_cast<void**>(cur) = overflow_head;
-					overflow_head = cur;
-				}
-				cur = next;
-			}
-			if(overflow_head) {
-				void *tail = overflow_head;
-				while(*reinterpret_cast<void**>(tail))
-					tail = *reinterpret_cast<void**>(tail);
-				void *old_head = this->m_remote_head.load(
-					std::memory_order_relaxed);
-				do {
-					*reinterpret_cast<void**>(tail) = old_head;
-				} while(!this->m_remote_head.compare_exchange_weak(
-						old_head, overflow_head,
-						std::memory_order_release,
-						std::memory_order_relaxed));
-			}
-			if(result) return result;
-			// If no drained slot matched our exact size, retry bucket
-			// pop (the drain may have populated our bucket).
-			if(n_slots <= (unsigned)MAX_BUCKETS) {
-				void *h = m_bucket_heads[n_slots - 1];
-				if(h) {
-					m_bucket_heads[n_slots - 1] = *reinterpret_cast<void**>(h);
-					--m_bucket_total;
-					return h;
-				}
-			}
-		}
-	}
-#endif
 	if(m_available_bits < SIZE / ALIGN)
 		return 0;
 	FUINT oldv, ones, cand;
@@ -606,47 +476,18 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
+	writeBarrier(); //for the contents written by the user.
+
 	int midx = (p - this->m_mempool) / ALIGN;
 	int idx = midx / (sizeof(FUINT) * 8);
 	unsigned int sidx = midx % (sizeof(FUINT) * 8);
 
 	FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
 	nones = ~((nones | (nones - 1u)) << sidx);
-	unsigned int n_slots = count_bits( ~nones);
-
-#ifndef GUARDIAN
-	// Owner-thread per-bucket freelist push (CAS-free).  Symmetric to
-	// FS=true's array freelist push but bucketed by slot count, and
-	// linked-list-in-slot (no separate array storage).  Cap per bucket
-	// bounds hoarding so other threads can still claim space via the
-	// bitmap CAS path below.  Disabled under GUARDIAN.
-	if(reinterpret_cast<uintptr_t>(this)
-	        == reinterpret_cast<uintptr_t>(this->s_my_chunk)
-	        && n_slots <= (unsigned)MAX_BUCKETS
-	        && m_bucket_total < m_bucket_total_cap) {
-		*reinterpret_cast<void**>(p) = m_bucket_heads[n_slots - 1];
-		m_bucket_heads[n_slots - 1] = p;
-		++m_bucket_total;
-		return false;
-	}
-	// Non-owner OR cap-exceeded OR over-sized: push to MPSC remote
-	// freelist (same NUMA-friendly rationale as FS=true).  Owner
-	// drains in allocate_pooled.
-	{
-		void *old = this->m_remote_head.load(std::memory_order_relaxed);
-		do {
-			*reinterpret_cast<void**>(p) = old;
-		} while (!this->m_remote_head.compare_exchange_weak(
-				old, p,
-				std::memory_order_release,
-				std::memory_order_relaxed));
-		return false;
-	}
-#endif
-	writeBarrier(); //for the contents written by the user.
 
 #ifdef GUARDIAN
-	for(unsigned int i = 0; i < n_slots * ALIGN / sizeof(uint64_t); ++i)
+	int size = count_bits( ~nones);
+	for(unsigned int i = 0; i < size * ALIGN / sizeof(uint64_t); ++i)
 		static_cast<uint64_t *>(p)[i] = GUARDIAN; //filling
 #endif
 	FUINT *pflags = &this->m_flags[idx];
@@ -724,100 +565,6 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist() noexcept {
 	flush_owner_freelist_to_bitmap();
-#ifndef GUARDIAN
-	// Drain MPSC remote-freelist back to bitmap.  Without this, slots
-	// queued by non-owners while we held this chunk would stay
-	// "allocated" in `m_flags[]` after thread exit and never get
-	// reclaimed (chunk's `release_allocator` gate never trips).
-	void *remote = this->m_remote_head.exchange(nullptr,
-	                                            std::memory_order_acquire);
-	while(remote) {
-		char *p = static_cast<char *>(remote);
-		remote = *reinterpret_cast<void**>(remote);
-		int midx = (p - this->m_mempool) / ALIGN;
-		int idx = midx / (sizeof(FUINT) * 8);
-		unsigned int sidx = midx % (sizeof(FUINT) * 8);
-		FUINT none = ~((FUINT)1u << sidx);
-		FUINT *pflags = &this->m_flags[idx];
-		for(;;) {
-			FUINT oldv = *pflags;
-			FUINT newv = oldv & none;
-			if(atomicCompareAndSet(oldv, newv, pflags)) {
-				if(oldv == ~(FUINT)0u)
-					atomicDec( &this->m_flags_filled_cnt);
-				else if(newv == 0)
-					atomicDec( &this->m_flags_nonzero_cnt);
-				break;
-			}
-		}
-	}
-#endif
-}
-
-template <unsigned int ALIGN, bool DUMMY>
-void
-PoolAllocator<ALIGN, false, DUMMY>::flush_owner_freelist() noexcept {
-	// FS=false override: drain each per-N_slots linked-list back to
-	// the bitmap via CAS.  Called from `AllocPinCleanup::~AllocPinCleanup`
-	// on thread exit while the chunk is still pinned (so single-writer
-	// access to the bucket arrays is safe), before pin-count decrement.
-	for(int b = 0; b < MAX_BUCKETS; ++b) {
-		while(m_bucket_heads[b]) {
-			char *p = static_cast<char *>(m_bucket_heads[b]);
-			m_bucket_heads[b] = *reinterpret_cast<void**>(p);
-			// Replicate FS=false dealloc_pooled's bitmap CAS path.
-			int midx = (p - this->m_mempool) / ALIGN;
-			int idx = midx / (sizeof(FUINT) * 8);
-			unsigned int sidx = midx % (sizeof(FUINT) * 8);
-			FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
-			nones = ~((nones | (nones - 1u)) << sidx);
-			FUINT *pflags = &this->m_flags[idx];
-			for(;;) {
-				FUINT oldv = *pflags;
-				FUINT newv = oldv & nones;
-				if(atomicCompareAndSet(oldv, newv, pflags)) {
-					if(newv == 0) {
-						m_available_bits = sizeof(FUINT) * 8;
-						atomicDec( &this->m_flags_nonzero_cnt);
-					}
-					break;
-				}
-			}
-		}
-	}
-	m_bucket_total = 0;
-	// Also flush the FS=true base's array freelist (always empty for
-	// FS=false chunks since they pass freelist_cap=0 in create(), but
-	// the call is layering-clean and cheap).
-	this->flush_owner_freelist_to_bitmap();
-#ifndef GUARDIAN
-	// Drain MPSC remote-freelist back to bitmap (FS=false multi-bit
-	// version).  Without this, slots queued by non-owners would stay
-	// "allocated" in m_flags after thread exit.
-	void *remote = this->m_remote_head.exchange(nullptr,
-	                                            std::memory_order_acquire);
-	while(remote) {
-		char *p = static_cast<char *>(remote);
-		remote = *reinterpret_cast<void**>(remote);
-		int midx = (p - this->m_mempool) / ALIGN;
-		int idx = midx / (sizeof(FUINT) * 8);
-		unsigned int sidx = midx % (sizeof(FUINT) * 8);
-		FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
-		nones = ~((nones | (nones - 1u)) << sidx);
-		FUINT *pflags = &this->m_flags[idx];
-		for(;;) {
-			FUINT oldv = *pflags;
-			FUINT newv = oldv & nones;
-			if(atomicCompareAndSet(oldv, newv, pflags)) {
-				if(newv == 0) {
-					m_available_bits = sizeof(FUINT) * 8;
-					atomicDec( &this->m_flags_nonzero_cnt);
-				}
-				break;
-			}
-		}
-	}
-#endif
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -843,25 +590,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		// thread exit returns it via the same path.
 		return false;
 	}
-#ifndef GUARDIAN
-	// Non-owner OR cap-exceeded: push to the cross-thread MPSC remote
-	// freelist instead of CAS-clearing the bitmap.  On EPYC dual-socket
-	// (Ohtaka) this collapses the cross-socket dirty cache line from a
-	// random m_flags[] word into a single fixed head pointer → much
-	// less inter-socket traffic.  The owner drains via `exchange` in
-	// `allocate_pooled`.  Disabled under GUARDIAN (next-ptr write would
-	// stomp the sentinel fill).
-	{
-		void *old = this->m_remote_head.load(std::memory_order_relaxed);
-		do {
-			*reinterpret_cast<void**>(p) = old;
-		} while (!this->m_remote_head.compare_exchange_weak(
-				old, p,
-				std::memory_order_release,
-				std::memory_order_relaxed));
-		return false;
-	}
-#endif
 	writeBarrier(); //for the contents written by the user.
 
 	int midx = (p - this->m_mempool) / ALIGN;

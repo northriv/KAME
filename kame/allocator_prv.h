@@ -96,21 +96,6 @@ protected:
 	//! A chunk, memory block.
 	char * const m_mempool;
 
-	//! Cross-thread (MPSC) freelist head.  Non-owner deallocs push
-	//! atomically into this single-word location instead of CAS-clearing
-	//! a bit in `m_flags[]` — collapses the cross-socket dirty cache
-	//! line from N flag-words to ONE pointer-sized field, which is the
-	//! NUMA-traffic win we want on EPYC dual-socket (Ohtaka).  The
-	//! owner thread drains via `exchange(nullptr)` whenever its
-	//! private bucket(s) are empty (see `allocate_pooled` overrides);
-	//! drained slots are routed to the per-size bucket(s) or back to
-	//! the bitmap once the bucket cap is exceeded.
-	//!
-	//! Slot's first 8 bytes hold the next-ptr while it sits in this
-	//! queue, mirroring the bucket design.  Disabled under GUARDIAN
-	//! (sentinel fill conflicts with the next-ptr write).
-	alignas(128) std::atomic<void*> m_remote_head{nullptr};
-
 private:
 	friend void report_statistics();
 	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE,
@@ -259,9 +244,6 @@ public:
 	void report_leaks();
 	void report_statistics(size_t &chunk_size, size_t &used_size) override;
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
-	//! Drain all per-bucket linked-lists back to the bitmap (CAS) on
-	//! thread exit.  Mirror of FS=true's array-freelist flush.
-	void flush_owner_freelist() noexcept override;
 protected:
 	PoolAllocator(int count, char *addr, char *ppool,
 	              void **freelist, int freelist_cap);
@@ -277,25 +259,6 @@ private:
 	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
 	FUINT * const m_sizes;
 	unsigned int m_available_bits;
-
-	//! Per-N_slots owner-thread freelist (FS=false variable-size variant).
-	//! Bucket b holds slots of size (b+1) × ALIGN bytes; head_ptr points
-	//! to the most recently freed slot of that size, with next-ptr
-	//! embedded in the first 8 bytes of each freed slot.  A single
-	//! TOTAL cap (`m_bucket_total_cap`, sized in `create()` to ~20 %
-	//! of the chunk's slot count) bounds hoarding so other threads can
-	//! still claim space via the bitmap CAS path.  Slot sizes greater
-	//! than MAX_BUCKETS × ALIGN bytes skip the freelist entirely.
-	//!
-	//! Single-writer (TLS-pinned owner thread) → no atomic; non-owner
-	//! deallocs / out-of-cap deallocs go through the bitmap CAS path.
-	//! Single shared cap (vs per-bucket) lets a hot size class soak the
-	//! whole budget when usage is skewed, common in KAME workloads
-	//! where only a few (size_in_slots) values dominate.
-	enum { MAX_BUCKETS = 32 };    // covers slot sizes ALIGN .. 32*ALIGN
-	void *m_bucket_heads[MAX_BUCKETS] = {};
-	uint32_t m_bucket_total = 0;
-	uint32_t m_bucket_total_cap = 0;   // set by create() based on slot count
 };
 
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
