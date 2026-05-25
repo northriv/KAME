@@ -283,11 +283,13 @@
 #define KAME_STM_PRIV_MAX_HOLD_US 50'000   // 50 ms
 #endif
 
-// Diagnostic fprintf for priv claim / timeout — default ON.  Set to
-// 0 to silence (typically only desired when stderr is being scraped
-// for some other purpose).
+// Diagnostic fprintf for priv claim / timeout — default OFF.  Set to
+// 1 to enable observability for privilege-hold timeout investigations.
+// When ON, every LL-probe successful claim emits one stderr line; this
+// disrupts hot-path throughput by ~2-3% on M3 because fprintf locks
+// stderr and syscalls, even when the message itself is infrequent.
 #ifndef KAME_STM_PRIV_DIAG
-#define KAME_STM_PRIV_DIAG 1
+#define KAME_STM_PRIV_DIAG 0
 #endif
 
 // Per-Priority retry threshold for the livelock probe's verdict (NORMAL
