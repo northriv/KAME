@@ -529,36 +529,64 @@ void activateAllocator();
 // ---------------------------------------------------------------------
 // Per-thread allocation functor table (hot-path dispatch).
 //
-// The if-chain over size + activation-flag checks that `new_redirected`
-// previously did on every allocation is replaced with:
-//   1. table lookup indexed by 16-B size bucket (`size_t -> 1..16`)
-//   2. indirect call through the slot's `alloc_fn`.
+// Each AllocSlot owns the per-thread freelist for one size bucket (FS=true
+// buckets only — FS=false uses chunk-local bucket arrays).  The freelist
+// is a LIFO linked list embedded in the free slots themselves: each free
+// slot's first 8 bytes hold a `char *` pointer to the next free slot.
 //
-// State is encoded *in the slot's function pointer*:
+// Hot path: `new_redirected` inlines the freelist pop directly on the
+// AllocSlot.  No indirect call on the freelist-hit path — the indirect
+// `alloc_fn` is only called on miss (freelist empty + slow chunk-bitmap
+// path).  Multiple slots' head/end fields live in the same cache line
+// (2 slots per 64-B line at sizeof(AllocSlot)=32) so adjacent-bucket
+// allocations share an L1d fetch.
+//
+// State machine (encoded in `alloc_fn`):
 //   - Initial value (pre-activation OR before this thread's first use
 //     of this bucket): `&bucket_first_access<Bucket>`.
 //     That function checks `g_sys_image_loaded`; if false returns
-//     `std::malloc(size)`, if true claims a chunk for this thread,
-//     stores it in `slot.chunk`, and rewrites `slot.alloc_fn` to
+//     `std::malloc(size)`; if true claims a chunk, stores it in
+//     `slot.chunk`, initialises the freelist sentinels (head = end =
+//     `(char*)slot`, a stable non-slot address that no slot pool
+//     pointer can equal), and rewrites `slot.alloc_fn` to
 //     `&bucket_steady_alloc<Bucket>` before tail-calling it.
-//   - Steady state: `&bucket_steady_alloc<Bucket>` — direct freelist
-//     pop on `slot.chunk` (no TLS reads, no activation check).
+//   - Steady state: `&bucket_steady_alloc<Bucket>` — bitmap-CAS path
+//     for freelist misses.  Hot-path freelist pop is *not* here; it's
+//     in `new_redirected` directly.
 //   - After `AllocPinCleanup::~dtor` on thread exit: all slots reset
-//     to `&malloc_fallback` so any subsequent allocation by a later
-//     TLS destructor on this thread routes safely to `std::malloc`.
-//
-// The whole table fits in one cache line per ~4 buckets (each slot is
-// 16 B on 64-bit) and is a single `__thread` symbol — 1 TLV thunk per
-// allocation on macOS arm64 instead of the per-template `s_my_chunk`
-// thunk used by the old `allocate<SIZE>()` path.  Not XThreadLocal —
-// the table's lifetime must extend past every TLS destructor on this
-// thread, which XThreadLocal cannot guarantee (its `dtor_` frees the
-// underlying `T`, leaving the `cached` thread_local pointer dangling).
+//     to `&malloc_fallback`, freelists drained back to the bitmap via
+//     the cross-thread batch path.
 // ---------------------------------------------------------------------
 
 struct AllocSlot {
+	//! Owner-thread freelist head (LIFO).  Each free slot's first 8
+	//! bytes hold the next pointer.  nullptr ⇒ empty: user data never
+	//! appears on the freelist link (push always overwrites the slot's
+	//! first 8 bytes with the previous head), so 0 unambiguously means
+	//! "end of list".  Zero-initialised at static init.
+	char *freelist_head;
+	//! Currently pinned chunk for this (thread, bucket).  Used by the
+	//! slow path and by `deallocate_pooled` for the owner check
+	//! (`slot.chunk == this` ⇒ push to slot's freelist; otherwise
+	//! cross-thread batch).
 	PoolAllocatorBase *chunk;
-	void *(*alloc_fn)(PoolAllocatorBase *chunk, std::size_t size) noexcept;
+	//! Slow path (= freelist-miss dispatcher).  Initial: bucket_first_access;
+	//! steady: bucket_steady_alloc; post-thread-exit: malloc_fallback.
+	void *(*alloc_fn)(AllocSlot *slot, std::size_t size) noexcept;
+
+	//! Owner-thread freelist push.  Single-writer (TLS pin), no atomics.
+	void push(void *p) noexcept {
+		*reinterpret_cast<char **>(p) = freelist_head;
+		freelist_head = static_cast<char *>(p);
+	}
+	//! Owner-thread freelist pop.  Returns nullptr on empty;
+	//! otherwise removes and returns the head slot.
+	void *pop() noexcept {
+		char *head = freelist_head;
+		if(!head) return nullptr;
+		freelist_head = *reinterpret_cast<char **>(head);
+		return head;
+	}
 };
 
 //! Bucket count: index 0 (size = 0) reuses bucket 1's 16-B allocator;
@@ -579,8 +607,19 @@ inline void *new_redirected(std::size_t size) {
 		// alloc_fn slot also points to the 16-B allocator);
 		// (size+15)>>4 gives 1..16 for size in 1..256.
 		unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
-		const AllocSlot &slot = g_thread_slots[bucket];
-		return slot.alloc_fn(slot.chunk, size);
+		AllocSlot &slot = g_thread_slots[bucket];
+		// Inline freelist pop — no indirect call on hit path.
+		// Empty sentinel: nullptr (push only ever writes the previous
+		// head into the slot's first 8 bytes, so user data is never
+		// on the freelist link).
+		char *head = slot.freelist_head;
+		if(head) {
+			slot.freelist_head = *reinterpret_cast<char **>(head);
+			return head;
+		}
+		// Freelist miss — bucket-specific slow path (first_access /
+		// steady_alloc / malloc_fallback).
+		return slot.alloc_fn(&slot, size);
 	}
 	return new_redirected_large(size);
 }
