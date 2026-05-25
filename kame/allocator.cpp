@@ -42,7 +42,7 @@ ALLOC_TLS bool s_alloc_tls_off = false;
 // Forward decl — the post-thread-exit functor used by AllocPinCleanup
 // to overwrite every slot of `g_thread_slots[]` before chunks are
 // released.  Defined later in this TU.
-namespace { void *malloc_fallback(AllocSlot *, std::size_t size) noexcept; }
+namespace { void *malloc_fallback(std::size_t size) noexcept; }
 
 // Forward decl: AllocPinCleanup's dtor needs to drain each per-bucket
 // AllocSlot freelist back to the bitmap via the cross-thread TLS batch
@@ -82,10 +82,13 @@ struct AllocPinCleanup {
         // destructor that allocates could route through a chunk that's
         // about to be released by another thread's deallocate.  This
         // also makes `new_redirected`'s hot path safe with no
-        // activation-flag check: the table itself encodes "pool off"
-        // (the freelist head==end check stays empty since both are 0).
+        // activation-flag check: the freelist head stays empty (zero
+        // by construction), and the slow-path dispatcher now points
+        // at `malloc_fallback`.  `g_thread_chunks[]` is cleared in
+        // the same loop so any later drain (none expected) routes to
+        // the cross-thread batch with a null chunk filter.
         for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
-            g_thread_slots[b].chunk = nullptr;
+            g_thread_chunks[b] = nullptr;
             g_thread_alloc_fn[b] = &malloc_fallback;
         }
         // Null out per-ALIGN `s_my_chunk` TLS pointers BEFORE
@@ -191,12 +194,13 @@ XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
 void drain_thread_slot_freelists() noexcept {
     for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
         AllocSlot &slot = g_thread_slots[b];
+        PoolAllocatorBase *chunk = g_thread_chunks[b];
         char *head = slot.freelist_head;
         slot.freelist_head = nullptr;
         while(head) {
             char *next = *reinterpret_cast<char **>(head);
-            if(slot.chunk)
-                tls_cross_dealloc_batch->push(slot.chunk, head);
+            if(chunk)
+                tls_cross_dealloc_batch->push(chunk, head);
             head = next;
         }
     }
@@ -728,21 +732,22 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	//   non-owner           → TLS cross-dealloc batch (batched bitmap CAS
 	//                          per m_flags word at flush time)
 	//
-	// Owner check uses the per-(thread, bucket) AllocSlot.chunk rather
-	// than the per-template `s_my_chunk` TLS: it agrees by construction
-	// (bucket_first_access / bucket_steady_alloc keep slot.chunk == s_my_chunk)
-	// and lives in the same cache line as the freelist head/end, so the
-	// dealloc path touches just one TLS slot.
+	// Owner check: per-template `s_my_chunk` TLS only.  The previous
+	// secondary `g_thread_slots[bucket].chunk == this` check was
+	// redundant — `bucket_first_access` / `bucket_steady_alloc` keep
+	// `g_thread_chunks[bucket]` in lockstep with `s_my_chunk` by
+	// construction, so the two would always agree.  Dropping it saves
+	// one TLS read on every owner-side dealloc, and freed up space
+	// for the AllocSlot to shrink to 8 B (chunk pointer moved into
+	// the parallel `g_thread_chunks[]` array).
 	constexpr int kBucket = ALIGN / ALLOC_ALIGNMENT;
-	AllocSlot &slot = g_thread_slots[kBucket];
-	if(static_cast<PoolAllocatorBase *>(s_my_chunk) == this &&
-	   slot.chunk == this) {
+	if(static_cast<PoolAllocatorBase *>(s_my_chunk) == this) {
 		// Slot stays "allocated" in the bitmap until flushed back via
 		// AllocPinCleanup (thread exit) or the chunk's bitmap is
 		// directly returned to (allocate_pooled goes there on freelist
 		// miss).  Owner's next alloc on this bucket pops it back
-		// immediately from `slot.freelist_head`.
-		slot.push(p);
+		// immediately from `g_thread_slots[kBucket].freelist_head`.
+		g_thread_slots[kBucket].push(p);
 		return false;
 	}
 	// Non-owner (or pre-first-access state): TLS batch.
@@ -1157,30 +1162,32 @@ KAME_DECL_BUCKET(23, ALLOC_ALIGN(ALLOC_SIZE15 * 2), false, ALLOC_SIZE15 * 2);  /
 KAME_DECL_BUCKET(24, ALLOC_ALIGN(ALLOC_SIZE16 * 2), false, ALLOC_SIZE16 * 2);  // size 512
 #undef KAME_DECL_BUCKET
 
-//! State-machine "off" / post-cleanup slot — every g_thread_slots[]
-//! entry's alloc_fn points here after AllocPinCleanup::~dtor runs.
-//! Also handles pre-activation (g_sys_image_loaded == false initially).
-void *malloc_fallback(AllocSlot * /*slot*/, std::size_t size) noexcept {
+//! State-machine "off" / post-cleanup slot — every g_thread_alloc_fn[]
+//! entry points here after AllocPinCleanup::~dtor runs.  Also handles
+//! pre-activation (g_sys_image_loaded == false initially).
+void *malloc_fallback(std::size_t size) noexcept {
     return std::malloc(size);
 }
 
 //! Slow path (freelist miss) for bucket B.  The freelist-hit fast path
 //! is inlined directly in `new_redirected` on the AllocSlot, so this
 //! function is invoked only when the slot's embedded linked list is
-//! empty (or has not yet been initialised).  Runs the chunk's
-//! bitmap-CAS / chunk-claim / create_allocator path.
+//! empty.  Runs the chunk's bitmap-CAS / chunk-claim / create_allocator
+//! path.  `bucket` index is the template parameter B, so the matching
+//! `g_thread_chunks[B]` slot is updated by name without runtime index
+//! arithmetic.
 template <int B>
 __attribute__((cold, noinline))
-void *bucket_steady_alloc(AllocSlot *slot, std::size_t /*size*/) noexcept {
+void *bucket_steady_alloc(std::size_t /*size*/) noexcept {
     using BT = BucketTraits<B>;
     using PA = typename BT::PoolType;
     void *p = PA::allocate_chunk_path(BT::SIZE);
     // After allocate_chunk_path, `PA::s_my_chunk` may have advanced to
     // a newly-claimed chunk (the old one filled).  Mirror it into the
-    // slot so the owner check in deallocate_pooled (and any other
-    // slot.chunk consumer) sees the current chunk.
+    // parallel chunk array so `drain_thread_slot_freelists` (and any
+    // other `g_thread_chunks` consumer) sees the current chunk.
     PoolAllocatorBase *new_chunk = PA::get_pinned_chunk_base();
-    if(new_chunk != slot->chunk) slot->chunk = new_chunk;
+    if(new_chunk != g_thread_chunks[B]) g_thread_chunks[B] = new_chunk;
     return p;
 }
 
@@ -1188,11 +1195,11 @@ void *bucket_steady_alloc(AllocSlot *slot, std::size_t /*size*/) noexcept {
 //! in `g_thread_alloc_fn[]`.  Checks the activation flag (the one place
 //! this check still lives — cold path).  On success, claims a chunk via
 //! the existing `allocate<>()` slow path which registers AllocPinCleanup,
-//! records the chunk into the slot, and rewrites `g_thread_alloc_fn[B]`
-//! to `bucket_steady_alloc<B>` so subsequent freelist-miss calls go
-//! straight to the bitmap path.
+//! records the chunk into `g_thread_chunks[B]`, and rewrites
+//! `g_thread_alloc_fn[B]` to `bucket_steady_alloc<B>` so subsequent
+//! freelist-miss calls go straight to the bitmap path.
 template <int B>
-void *bucket_first_access(AllocSlot *slot, std::size_t size) noexcept {
+void *bucket_first_access(std::size_t size) noexcept {
     if( !g_sys_image_loaded) {
         // Pool not activated yet (dyld / pre-main static-init phase).
         // Don't rewrite the table entry — we want to retry the
@@ -1205,9 +1212,7 @@ void *bucket_first_access(AllocSlot *slot, std::size_t size) noexcept {
     void *p = PA::template allocate<BT::SIZE>();
     PoolAllocatorBase *chunk = PA::get_pinned_chunk_base();
     if(chunk) {
-        slot->chunk = chunk;
-        // freelist_head stays at zero-init (empty list, nullptr
-        // sentinel — see AllocSlot doc).
+        g_thread_chunks[B] = chunk;
         g_thread_alloc_fn[B] = &bucket_steady_alloc<B>;
     }
     return p;
@@ -1221,16 +1226,24 @@ void *bucket_first_access(AllocSlot *slot, std::size_t size) noexcept {
 // leaving the `cached` pointer dangling for any later TLS dtor that
 // allocates.
 //
-// `g_thread_slots[]` is the hot table (16 B/entry, head+chunk); zero-
-// initialised so freelist_head = nullptr (empty) and chunk = nullptr
-// (the slow path will fill it on first access).  `g_thread_alloc_fn[]`
-// is the parallel cold table (8 B/entry) holding each bucket's
-// freelist-miss dispatcher; initial value is
-// `&bucket_first_access<Bucket>`.  Bucket 0 maps to bucket 1's 16-B
-// allocator so size=0 allocations don't fault.
+// Three parallel tables, all indexed by the same bucket:
+//   `g_thread_slots[]`     8 B/entry  – freelist head, the only field
+//                                       on the freelist-hit hot path.
+//   `g_thread_chunks[]`    8 B/entry  – currently pinned chunk, written
+//                                       by the slow path, read by drain.
+//   `g_thread_alloc_fn[]`  8 B/entry  – freelist-miss dispatcher, takes
+//                                       size only (chunk + slot index
+//                                       are recovered from the template
+//                                       parameter B inside the function).
+// Total 600 B per thread, same as before the split, but the hot
+// table is now half the size (cache density: 8 slots per 64-B line).
+//
+// Bucket 0 maps to bucket 1's 16-B allocator so size=0 allocations
+// don't fault.
 ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS] = {};
+ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS] = {};
 ALLOC_TLS void *(*g_thread_alloc_fn[ALLOC_NUM_BUCKETS])
-    (AllocSlot *slot, std::size_t size) noexcept = {
+    (std::size_t size) noexcept = {
     &bucket_first_access< 1>,  // bucket 0: size==0 → 16-B alloc
     &bucket_first_access< 1>,  // bucket 1: size ≤  16
     &bucket_first_access< 2>,  // bucket 2: size ≤  32
@@ -1276,7 +1289,7 @@ void *new_redirected_large(std::size_t size) noexcept {
             slot.freelist_head = *reinterpret_cast<char **>(head);
             return head;
         }
-        return g_thread_alloc_fn[bucket](&slot, size);
+        return g_thread_alloc_fn[bucket](size);
     }
     if( !g_sys_image_loaded || s_alloc_tls_off)
         return std::malloc(size);
