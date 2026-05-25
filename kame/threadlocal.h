@@ -106,8 +106,13 @@ class XThreadLocal {
     //! necessary for `T` types in the KAME tree whose default
     //! constructors invoke allocating standard-library code that may
     //! throw (e.g. internal hash-map rehash on first access).
-    static_assert(alignof(T) <= alignof(std::max_align_t),
-        "XThreadLocal<T>: alignof(T) exceeds malloc's alignment guarantee");
+    // `std::max_align_t` is the proper portable constant here but
+    // a few libstdc++ / libc++ vendor builds (esp. older HPC
+    // toolchains) don't expose it in `std::`.  Hardcode 16 — the
+    // C11 / POSIX malloc guarantee for 64-bit ABIs and the value
+    // of `alignof(max_align_t)` on every supported platform.
+    static_assert(alignof(T) <= 16,
+        "XThreadLocal<T>: alignof(T) > 16 exceeds malloc's typical guarantee");
 public:
     template <typename ...Arg>
     XThreadLocal(Arg&& ...) {}
