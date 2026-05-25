@@ -276,7 +276,13 @@ protected:
 	//! pointer-array cost).
 	enum {
 		FREELIST_CAP_MIN = 32,
-		FREELIST_CAP_MAX = 4096,
+		// 16384 entries × 2 B = 32 KB per chunk @ default-pressure cap.
+		// Matches the void*-era 4096-entry memory footprint while
+		// quadrupling the cap thanks to the uint16_t storage switch.
+		// Default 10% mode now hits 100% capacity for ALIGN=16 chunks
+		// up to ~640 KiB and stays near 100% up to the uint16_t-limit
+		// 1 MiB chunk (10% of 65 536 slots = 6 553).
+		FREELIST_CAP_MAX = 16384,
 	};
 
 	void flush_owner_freelist() noexcept override;
