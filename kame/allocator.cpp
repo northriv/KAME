@@ -256,26 +256,18 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(size_t size, char *ppool) {
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
 	int count = size / ALIGN / sizeof(FUINT) / 8;
-	// Owner-thread freelist sizing.  For "large" size classes
-	// (chunks with ≤ FREELIST_CAP_MAX = 4096 slots total) we
-	// over-provision to full slot_count coverage: memory cost is
-	// small (≤ 32 KiB / chunk) and owner-overflow → MPSC-push paths
-	// are eliminated entirely.  For small size classes (many slots
-	// per chunk) we keep the ~10 % heuristic clamped to 4096 — the
-	// MPSC remote-freelist absorbs any owner overflow at one
-	// atomic CAS per dealloc, so under-coverage is no longer a
-	// bitmap-CAS bottleneck.
+	// Owner-thread freelist sized to ~10% of the chunk's total slot
+	// count, clamped to [FREELIST_CAP_MIN, FREELIST_CAP_MAX].  Larger
+	// chunks absorb more same-thread alloc/dealloc cycles before
+	// hitting the bitmap CAS path.  Memory overhead: 8 B per entry,
+	// ≤ 32 KiB per chunk at the max cap (4096).  Lives at the tail of
+	// the chunk-metadata malloc block, so a single malloc covers it.
 	int slot_count = count * (int)(sizeof(FUINT) * 8);
-	int freelist_cap;
-	if(slot_count <= (int)PoolAllocator::FREELIST_CAP_MAX) {
-		freelist_cap = slot_count;
-	} else {
-		freelist_cap = slot_count / 10;
-		if(freelist_cap > (int)PoolAllocator::FREELIST_CAP_MAX)
-			freelist_cap = PoolAllocator::FREELIST_CAP_MAX;
-	}
+	int freelist_cap = slot_count / 10;
 	if(freelist_cap < (int)PoolAllocator::FREELIST_CAP_MIN)
 		freelist_cap = PoolAllocator::FREELIST_CAP_MIN;
+	if(freelist_cap > (int)PoolAllocator::FREELIST_CAP_MAX)
+		freelist_cap = PoolAllocator::FREELIST_CAP_MAX;
 	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count
 	                                        + sizeof(void *) * freelist_cap));
 	if( !area)
@@ -310,20 +302,12 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 	// FS=true's array freelist cap (slot_count / 10) but with a
 	// generous budget since linked-list-in-slot storage is free
 	// (lives in the slots themselves).
-	// FS=false bucket cap.  Same "large sizes only" policy as FS=true:
-	// fully cover small-slot-count chunks (cost is just a counter —
-	// next-ptr lives in the slot itself, no array storage), keep
-	// 20 % heuristic for many-slot chunks.  Inlined 32/4096 dodges
-	// protected-access across sibling template instantiations.
 	int slot_count = count * (int)(sizeof(FUINT) * 8);
-	int cap;
-	if(slot_count <= 4096) {
-		cap = slot_count;
-	} else {
-		cap = slot_count / 5;
-		if(cap > 4096) cap = 4096;
-	}
+	int cap = slot_count / 5;
+	// Same clamps as FS=true's FREELIST_CAP_MIN/MAX (inlined here to
+	// dodge protected-access across sibling template instantiations).
 	if(cap < 32) cap = 32;
+	if(cap > 4096) cap = 4096;
 	p->m_bucket_total_cap = (uint32_t)cap;
 	return p;
 }
