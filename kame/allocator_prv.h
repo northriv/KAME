@@ -267,7 +267,15 @@ protected:
 	//!                       Cap check: `m_freelist_curpos < m_freelist_end`.
 	//!   m_freelist_curpos : write head; push = `*curpos++ = p`,
 	//!                       pop  = `*--curpos`.
-	void ** const m_freelist;
+	//!
+	//! `alignas(64)` places all three on their own cache line, separated
+	//! from the cross-thread-written atomic counters (`m_flags_nonzero_cnt`
+	//! &c.) earlier in the class layout.  Without this, the owner's
+	//! pop/push reads of `m_freelist`/`m_freelist_end` suffer false-share
+	//! invalidations every time another thread's `atomicInc/Dec` lands on
+	//! `m_flags_nonzero_cnt` (frequent — bitmap CAS path on every
+	//! cross-thread dealloc and every owner-overflow flush).
+	alignas(64) void ** const m_freelist;
 	void ** const m_freelist_end;
 	void **m_freelist_curpos;
 
