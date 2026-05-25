@@ -39,6 +39,11 @@
 // like RunnerCounterRegistration).
 ALLOC_TLS bool s_alloc_tls_off = false;
 
+// Forward decl — the post-thread-exit functor used by AllocPinCleanup
+// to overwrite every slot of `g_thread_slots[]` before chunks are
+// released.  Defined later in this TU.
+namespace { void *malloc_fallback(PoolAllocatorBase *, std::size_t size) noexcept; }
+
 // Per-thread cleanup of pinned chunks. On thread exit the destructor of
 // this TLS object walks the registered atomic pin counters and decrements
 // each, allowing release_allocator() to reclaim chunks the thread had
@@ -63,6 +68,16 @@ struct AllocPinCleanup {
         // released (pin count → 0).
         for(int i = 0; i < count; ++i)
             pinned[i].chunk->flush_owner_freelist();
+        // Repoint every per-thread alloc slot to `malloc_fallback`
+        // BEFORE the chunk pins drop to 0 — otherwise a later TLS
+        // destructor that allocates could route through a chunk that's
+        // about to be released by another thread's deallocate.  This
+        // also makes `new_redirected`'s hot path safe with no
+        // activation-flag check: the table itself encodes "pool off".
+        for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
+            g_thread_slots[b].chunk = nullptr;
+            g_thread_slots[b].alloc_fn = &malloc_fallback;
+        }
         // Null out per-ALIGN `s_my_chunk` TLS pointers BEFORE
         // decrementing pin counts.  Without this, later TLS destructors
         // (e.g. RunnerCounterRegistration via pthread_key_create) that
@@ -71,9 +86,10 @@ struct AllocPinCleanup {
         // use-after-free if the chunk was released.
         for(int i = 0; i < count; ++i)
             pinned[i].chunk->clear_owner_tls();
-        // Signal that pool-allocator TLS is dead.  new_redirected()
-        // checks this and falls back to malloc() for any allocation
-        // during later TLS cleanup phases.
+        // Signal that pool-allocator TLS is dead.  Read by
+        // `is_allocator_thread_active()` from later (pthread_key) TLS
+        // dtors.  `new_redirected` itself no longer checks this flag —
+        // the per-bucket slot rewrite above is its analogue.
         s_alloc_tls_off = true;
         for(int i = 0; i < count; ++i)
             pinned[i].count_ptr->fetch_sub(1, std::memory_order_release);
@@ -1147,6 +1163,164 @@ void* allocate_large_size_or_malloc(size_t size) throw() {
 	ALLOCATE_9_16X(64, size);
 
     return std::malloc(size);
+}
+
+// =====================================================================
+// Per-thread allocation functor table.  See allocator_prv.h's comment
+// above `AllocSlot` for the high-level rationale.  Lives here so the
+// table's static initializer can take addresses of the per-bucket
+// `bucket_first_access` template instantiations.
+// =====================================================================
+namespace {
+
+//! Bucket → (ALIGN, FS, SIZE) mapping.  Specialized for buckets 1..16
+//! to match the dispatch in the old if-chain `new_redirected` body.
+//! `PunType` matches the `s_my_chunk` declaration in the bucket's
+//! PoolAllocator instantiation (= `PoolAllocator<ALIGN, DUMMY, DUMMY>`
+//! where DUMMY follows from the inheritance for FS=false partial specs).
+template <int B> struct BucketTraits;
+
+#define KAME_DECL_BUCKET(B_, ALIGN_, FS_, SIZE_) \
+    template<> struct BucketTraits<B_> { \
+        static constexpr unsigned int ALIGN = (ALIGN_); \
+        static constexpr bool FS = (FS_); \
+        static constexpr unsigned int SIZE = (SIZE_); \
+        using PoolType = PoolAllocator<ALIGN, FS>; \
+        using PunType = PoolAllocator<ALIGN, FS, FS>; \
+    }
+
+KAME_DECL_BUCKET( 1, ALLOC_SIZE1,                  true,  ALLOC_SIZE1 );
+KAME_DECL_BUCKET( 2, ALLOC_SIZE2,                  true,  ALLOC_SIZE2 );
+KAME_DECL_BUCKET( 3, ALLOC_SIZE3,                  true,  ALLOC_SIZE3 );
+KAME_DECL_BUCKET( 4, ALLOC_SIZE4,                  true,  ALLOC_SIZE4 );
+KAME_DECL_BUCKET( 5, ALLOC_SIZE5,                  true,  ALLOC_SIZE5 );
+KAME_DECL_BUCKET( 6, ALLOC_ALIGN(ALLOC_SIZE6),    false,  ALLOC_SIZE6 );
+KAME_DECL_BUCKET( 7, ALLOC_SIZE7,                  true,  ALLOC_SIZE7 );
+KAME_DECL_BUCKET( 8, ALLOC_ALIGN(ALLOC_SIZE8),    false,  ALLOC_SIZE8 );
+KAME_DECL_BUCKET( 9, ALLOC_SIZE9,                  true,  ALLOC_SIZE9 );
+KAME_DECL_BUCKET(10, ALLOC_ALIGN(ALLOC_SIZE10),   false,  ALLOC_SIZE10);
+KAME_DECL_BUCKET(11, ALLOC_SIZE11,                 true,  ALLOC_SIZE11);
+KAME_DECL_BUCKET(12, ALLOC_ALIGN(ALLOC_SIZE12),   false,  ALLOC_SIZE12);
+KAME_DECL_BUCKET(13, ALLOC_SIZE13,                 true,  ALLOC_SIZE13);
+KAME_DECL_BUCKET(14, ALLOC_ALIGN(ALLOC_SIZE14),   false,  ALLOC_SIZE14);
+KAME_DECL_BUCKET(15, ALLOC_SIZE15,                 true,  ALLOC_SIZE15);
+KAME_DECL_BUCKET(16, ALLOC_ALIGN(ALLOC_SIZE16),   false,  ALLOC_SIZE16);
+#undef KAME_DECL_BUCKET
+
+//! State-machine "off" / post-cleanup slot — every g_thread_slots[]
+//! entry points here after AllocPinCleanup::~dtor runs.  Also serves
+//! as the dispatch target for any path that wants to fall back to
+//! plain malloc (e.g. if a future bucket adds a size that overflows
+//! ALLOC_MAX_CHUNKS_OF_TYPE).
+void *malloc_fallback(PoolAllocatorBase * /*ignored*/, std::size_t size) noexcept {
+    return std::malloc(size);
+}
+
+//! Out-of-line cold path for bucket B: freelist miss → bitmap CAS /
+//! chunk-claim / create_allocator.  Marked `cold` so the compiler keeps
+//! it out of the hot icache lines.  Split out of `bucket_steady_alloc`
+//! so the fast path is frame-less (no callee-saved register push) —
+//! the compiler can pass `chunk` straight through x0 to a tail call
+//! here when the freelist misses.
+template <int B>
+__attribute__((cold, noinline))
+void *bucket_steady_alloc_slow(PoolAllocatorBase *chunk, std::size_t /*size*/) noexcept {
+    using BT = BucketTraits<B>;
+    using PA = typename BT::PoolType;
+    void *p = PA::allocate_chunk_path(BT::SIZE);
+    // After allocate_chunk_path, s_my_chunk may have advanced to a
+    // freshly-claimed chunk (the old one filled).  Keep g_thread_slots
+    // in sync — the next hot-path call will then use the new chunk.
+    PoolAllocatorBase *new_chunk = PA::get_pinned_chunk_base();
+    if(new_chunk != chunk) g_thread_slots[B].chunk = new_chunk;
+    return p;
+}
+
+//! Steady-state hot path for bucket B.  Reads `chunk` from the slot
+//! (passed as arg — no per-template `s_my_chunk` TLV thunk).  Pops
+//! from the chunk's owner freelist.  On miss, `musttail`-calls the
+//! cold path so this function itself remains frame-less.
+template <int B>
+__attribute__((hot))
+void *bucket_steady_alloc(PoolAllocatorBase *chunk, std::size_t /*size*/) noexcept {
+    using Pun = typename BucketTraits<B>::PunType;
+    if(void *p = static_cast<Pun *>(chunk)->try_owner_freelist_pop())
+        return p;
+    // Tail-call to slow path.  Same signature → compiler typically
+    // emits a `b` (jump) rather than `bl`/`ret`, keeping this function
+    // frame-less.  `musttail` is rejected here because of an implicit
+    // `noexcept`-induced cleanup boundary — the optimizer still does it.
+    return bucket_steady_alloc_slow<B>(chunk, 0);
+}
+
+//! First-access trampoline for bucket B.  Initial value of every slot
+//! `alloc_fn` field.  Checks the activation flag (the ONE place this
+//! check still lives — in the cold path), claims a chunk via the
+//! existing `allocate<SIZE>()` slow path which registers AllocPinCleanup,
+//! then rewrites the slot to point to `bucket_steady_alloc<B>` for all
+//! subsequent allocations on this thread.
+template <int B>
+void *bucket_first_access(PoolAllocatorBase * /*ignored*/, std::size_t size) noexcept {
+    if( !g_sys_image_loaded) {
+        // Pool not activated yet (dyld / pre-main static-init phase).
+        // Don't rewrite the slot — we want to retry the activation
+        // check on every call until activateAllocator() is invoked.
+        return std::malloc(size);
+    }
+    using BT = BucketTraits<B>;
+    using PA = typename BT::PoolType;
+    // Use the existing allocate<>() entry point: claims a chunk, pins
+    // it via tls_alloc_pin_cleanup, sets `PA::s_my_chunk`, and returns
+    // the allocated slot.  After this call returns, we know the chunk
+    // is reserved for this thread.
+    void *p = PA::template allocate<BT::SIZE>();
+    PoolAllocatorBase *chunk = PA::get_pinned_chunk_base();
+    if(chunk) {
+        // Install steady-state functor + cache the chunk pointer so
+        // subsequent allocations skip the activation check entirely.
+        g_thread_slots[B].chunk = chunk;
+        g_thread_slots[B].alloc_fn = &bucket_steady_alloc<B>;
+    }
+    return p;
+}
+
+} // anon namespace
+
+// The per-thread table.  `__thread` (= `ALLOC_TLS` on GCC/Clang) so the
+// storage lifetime extends past every TLS destructor on this thread —
+// XThreadLocal would `std::free` the underlying memory mid-cleanup,
+// leaving the `cached` pointer dangling for any later TLS dtor that
+// allocates.  Static initializer takes addresses of `bucket_first_access`
+// template instantiations (constant expressions); bucket 0 maps to
+// bucket 1's 16-B allocator so size=0 allocations don't fault.
+ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS] = {
+    { nullptr, &bucket_first_access< 1> },  // bucket 0: size==0 → 16-B alloc
+    { nullptr, &bucket_first_access< 1> },  // bucket 1: size ≤  16
+    { nullptr, &bucket_first_access< 2> },  // bucket 2: size ≤  32
+    { nullptr, &bucket_first_access< 3> },  // bucket 3: size ≤  48
+    { nullptr, &bucket_first_access< 4> },  // bucket 4: size ≤  64
+    { nullptr, &bucket_first_access< 5> },  // bucket 5: size ≤  80
+    { nullptr, &bucket_first_access< 6> },  // bucket 6: size ≤  96 (FS=false)
+    { nullptr, &bucket_first_access< 7> },  // bucket 7: size ≤ 112
+    { nullptr, &bucket_first_access< 8> },  // bucket 8: size ≤ 128 (FS=false)
+    { nullptr, &bucket_first_access< 9> },  // bucket 9: size ≤ 144
+    { nullptr, &bucket_first_access<10> },  // bucket 10: size ≤ 160 (FS=false)
+    { nullptr, &bucket_first_access<11> },  // bucket 11: size ≤ 176
+    { nullptr, &bucket_first_access<12> },  // bucket 12: size ≤ 192 (FS=false)
+    { nullptr, &bucket_first_access<13> },  // bucket 13: size ≤ 208
+    { nullptr, &bucket_first_access<14> },  // bucket 14: size ≤ 224 (FS=false)
+    { nullptr, &bucket_first_access<15> },  // bucket 15: size ≤ 240
+    { nullptr, &bucket_first_access<16> },  // bucket 16: size ≤ 256 (FS=false)
+};
+
+// Out-of-line large-size dispatch.  Sizes > 256 B fall here from
+// `new_redirected`.  Keeps the activation-flag check (cold path is the
+// right place for it — only paid by larger allocations).
+void *new_redirected_large(std::size_t size) noexcept {
+    if( !g_sys_image_loaded || s_alloc_tls_off)
+        return std::malloc(size);
+    ALLOCATE_9_16X(2, size);
+    return allocate_large_size_or_malloc(size);
 }
 
 inline void deallocate_pooled_or_free(void* p) throw() {
