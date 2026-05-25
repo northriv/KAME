@@ -314,47 +314,19 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(size_t size, char *ppool) {
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
 	int count = size / ALIGN / sizeof(FUINT) / 8;
-	// Owner-thread freelist sizing — adaptive by inspecting the
-	// existing chunks of this template at create() time.  No runtime
-	// overflow counter needed: if ANY existing chunk's freelist is
-	// already at cap (`m_freelist_curpos >= m_freelist_end`), that
-	// chunk's pinning thread is overflowing to the bitmap path; scale
-	// the NEW chunk's freelist up so future deallocs land in it.
-	//
-	//   pressure (# chunks at freelist cap)   ratio of slot_count
-	//     0                                   1/10  (default 10 %)
-	//     1                                   1/5   (20 %)
-	//     2                                   1/2   (50 %)
-	//     ≥ 3                                 full  (100 %)
-	//
-	// Scan is O(s_chunks_of_type_ubound) — bounded (few dozen) and
-	// only runs at chunk creation (rare), so cost is amortised away.
-	// Read of m_freelist_curpos is non-atomic plain pointer load; the
-	// owner thread updates it without synchronization so we may see
-	// a stale value, which is fine for an approximate signal.
+	// Owner-thread freelist sizing — fixed 10 % of slot count, clamped
+	// to [FREELIST_CAP_MIN, FREELIST_CAP_MAX].  Previously an adaptive
+	// pressure scan walked existing chunks to detect cap-saturation
+	// and bumped the new chunk's cap toward 100 %.  After the uint16_t
+	// storage switch (e9e60f66), slot indices are bounded to <= 65 536
+	// at chunk creation; the 10 % cap is therefore bounded to <= 6 553,
+	// well below FREELIST_CAP_MAX (16 384), so the pressure scan would
+	// never effectively kick in.  Drop the scan for simplicity.
 	int slot_count = count * (int)(sizeof(FUINT) * 8);
-	int pressure = 0;
-	{
-		int ubound = PoolAllocator::s_chunks_of_type_ubound;
-		for(int i = 0; i < ubound; ++i) {
-			uintptr_t v = PoolAllocator::s_chunks_of_type[i] & ~(uintptr_t)1u;
-			if( !v) continue;
-			auto *c = reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(v);
-			if(c->m_freelist_curpos >= c->m_freelist_end)
-				++pressure;
-		}
-	}
-	int freelist_cap;
-	if(pressure >= 3)      freelist_cap = slot_count;
-	else if(pressure >= 2) freelist_cap = slot_count / 2;
-	else if(pressure >= 1) freelist_cap = slot_count / 5;
-	else                   freelist_cap = slot_count / 10;
+	int freelist_cap = slot_count / 10;
 	if(freelist_cap < (int)PoolAllocator::FREELIST_CAP_MIN)
 		freelist_cap = PoolAllocator::FREELIST_CAP_MIN;
-	// Keep the FREELIST_CAP_MAX ceiling only for the default 10 % path
-	// — under pressure we want larger freelists; memory is still
-	// bounded by slot_count.
-	if(pressure == 0 && freelist_cap > (int)PoolAllocator::FREELIST_CAP_MAX)
+	if(freelist_cap > (int)PoolAllocator::FREELIST_CAP_MAX)
 		freelist_cap = PoolAllocator::FREELIST_CAP_MAX;
 	// uint16_t slot-index encoding cannot represent slot_idx ≥ 65536.
 	// Chunks whose slot_count exceeds this range get no owner-thread
