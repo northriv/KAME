@@ -527,33 +527,51 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist_to_bitmap() noexcept {
-	// Walk freelist contents and return each entry to the bitmap via
-	// the inline path of deallocate_pooled().  We've already moved
-	// past the owner-check at the top of deallocate_pooled, so flag
-	// the recursion via a temporary by going through the bitmap-only
-	// code below.  Caller (`AllocPinCleanup::~AllocPinCleanup`) runs
-	// on thread exit (rare).
+	// Batched bitmap CAS: group freelist entries by their m_flags[] word
+	// index and clear all bits in one CAS per word (vs one CAS per slot
+	// in the naïve loop).  Slots that hit the same FUINT word are
+	// common when the workload free()s many sequentially-allocated
+	// items.  Reduces the cross-socket cache-line ping-pong cost on
+	// EPYC dual-socket builds — one dirty line write per word vs N.
+	//
+	// Direct-mapped scratch: one FUINT per m_flags[] word, OR-merge
+	// every freelist entry's bit into masks[idx].  Then one CAS per
+	// non-zero mask.  Memory: sizeof(FUINT) * m_count ≤ ~2 KiB for
+	// a 256 KiB chunk with smallest ALIGN — trivial stack burn, O(1)
+	// indexing, O(m_count) zero-init.  Much cheaper than the O(N²)
+	// linear-search-batch alternative.
+	if(this->m_freelist_count <= 0) return;
+	FUINT *masks = static_cast<FUINT *>(
+		alloca(sizeof(FUINT) * (size_t)this->m_count));
+	for(int i = 0; i < this->m_count; ++i) masks[i] = 0;
 	while(this->m_freelist_count > 0) {
 		char *p = static_cast<char *>(this->m_freelist[--this->m_freelist_count]);
-		// Bitmap CAS clear loop — duplicated here from
-		// deallocate_pooled() so we skip the freelist push check
-		// (which would refer to the now-being-flushed freelist).
 		int midx = (p - this->m_mempool) / ALIGN;
 		int idx = midx / (sizeof(FUINT) * 8);
 		unsigned int sidx = midx % (sizeof(FUINT) * 8);
-		FUINT none = ~((FUINT)1u << sidx);
 #ifdef GUARDIAN
 		for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
 			reinterpret_cast<uint64_t *>(p)[i] = GUARDIAN;
 #endif
+		masks[idx] |= ((FUINT)1u) << sidx;
+	}
+	// One CAS per distinct (non-zero-mask) m_flags[] word.
+	for(int idx = 0; idx < this->m_count; ++idx) {
+		FUINT clear_mask = masks[idx];
+		if( !clear_mask) continue;
+		FUINT nones = ~clear_mask;
 		FUINT *pflags = &this->m_flags[idx];
 		for(;;) {
 			FUINT oldv = *pflags;
-			FUINT newv = oldv & none;
+			FUINT newv = oldv & nones;
 			if(atomicCompareAndSet(oldv, newv, pflags)) {
+				// Independent ifs (vs `else if` in single-slot
+				// dealloc): the batched mask can clear ALL bits
+				// in one CAS, transitioning full→empty in one
+				// step — BOTH counters must decrement.
 				if(oldv == ~(FUINT)0u)
 					atomicDec( &this->m_flags_filled_cnt);
-				else if(newv == 0)
+				if(newv == 0 && oldv != 0)
 					atomicDec( &this->m_flags_nonzero_cnt);
 				break;
 			}
