@@ -163,35 +163,9 @@ XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
 #endif
 #include <sys/types.h>
 
-//! Bit count / population count for 32bit.
-//! Referred to H. S. Warren, Jr., "Beautiful Code", O'Reilly.
-template <typename T>
-inline typename std::enable_if<sizeof(T) == 4, unsigned int>::type count_bits(T x) {
-    x = x - ((x >> 1) & 0x55555555u);
-    x = (x & 0x33333333u) + ((x >> 2) & 0x33333333u);
-    x = (x + (x >> 4)) & 0x0f0f0f0fu;
-    x = x + (x >> 8);
-    x = x + (x >> 16);
-    return x & 0xffu;
-}
-
-//! Bit count / population count for 64bit.
-template <typename T>
-inline typename std::enable_if<sizeof(T) == 8, unsigned int>::type count_bits(T x) {
-    x = x - ((x >> 1) & 0x5555555555555555uLL);
-    x = (x & 0x3333333333333333uLL) + ((x >> 2) & 0x3333333333333333uLL);
-    x = (x + (x >> 4)) & 0x0f0f0f0f0f0f0f0fuLL;
-    x = x + (x >> 8);
-    x = x + (x >> 16);
-    x = x + (x >> 32);
-    return x & 0xffu;
-}
-
-//! \return one bit at the first zero from the LSB in \a x.
-template <typename T>
-inline T find_zero_forward(T x) {
-	return (( ~x) & (x + 1u));
-}
+// `count_bits` and `find_zero_forward` are now in allocator_prv.h
+// (header-visible for inline use by FS=false bucket-freelist push).
+// Reference: H. S. Warren, Jr., "Beautiful Code", O'Reilly.
 
 //! \return one bit at the first one from the LSB in \a x.
 template <typename T>
@@ -353,27 +327,35 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool,
-                                                          uint16_t *freelist, int freelist_cap) :
+                                                          uint16_t *freelist, int freelist_cap,
+                                                          uint16_t *fs_buckets) :
 	PoolAllocator<ALIGN, true, false>(count, addr, ppool, freelist, freelist_cap),
 	m_sizes(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)
-	                                         + sizeof(FUINT) * count])) {
+	                                         + sizeof(FUINT) * count])),
+	m_fs_buckets(fs_buckets) {
 	m_available_bits = sizeof(FUINT) * 8;
+	for(int i = 0; i < FS_MAX_BUCKETS; ++i)
+		m_fs_bucket_count[i] = 0;
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(size_t size, char *ppool) {
 	int count = size / ALIGN / sizeof(FUINT) / 8;
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
-	// FS=false variant overrides deallocate_pooled() and never uses
-	// the owner-thread freelist (variable-size slots can't share a
-	// uniform free entry).  Pass nullptr/0 to the FS=true base; the
-	// dealloc fast-path push is gated by `m_freelist_curpos <
-	// m_freelist_end` (with end == begin == nullptr nothing is ever
-	// pushed) plus the override bypasses it entirely.  No freelist
-	// space is reserved.
-	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count * 2));
+	// FS=false variant overrides the inherited FS=true single freelist
+	// (`m_freelist == m_freelist_end == nullptr`).  Instead it carries
+	// its own per-size bucket array (m_fs_buckets) with
+	// FS_MAX_BUCKETS × FS_BUCKET_CAP × 2 B = 8 KiB tail-allocated
+	// after the m_flags / m_sizes arrays.
+	constexpr size_t fs_buckets_bytes =
+	    sizeof(uint16_t) * FS_MAX_BUCKETS * FS_BUCKET_CAP;
+	// Layout: [class][m_flags][m_sizes][m_fs_buckets]
+	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count * 2
+	                                        + fs_buckets_bytes));
 	if( !area)
 		return 0;
-	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool, nullptr, 0);
+	uint16_t *fs_buckets = reinterpret_cast<uint16_t *>(
+	    area + size_alloc + sizeof(FUINT) * count * 2);
+	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool, nullptr, 0, fs_buckets);
 	return p;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -486,6 +468,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 inline void *
 PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
+	// Owner-side per-size bucket fast path.  Safe to call regardless
+	// of s_my_chunk: in the owner case we are the single writer; in
+	// the slow-path-just-claimed case the buckets were drained on the
+	// previous owner's thread exit (m_fs_bucket_count[*] all zero).
+	// `m_sizes` at the popped slot is already correct (slot was
+	// allocated with the same N originally).
+	if(void *p = this->fs_try_bucket_pop(SIZE / ALIGN)) return p;
 	if(m_available_bits < SIZE / ALIGN)
 		return 0;
 	FUINT oldv, ones, cand;
@@ -552,13 +541,56 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
-	// FS=false has no owner-side freelist (variable slot sizes) —
-	// ALL deallocs (owner and non-owner) route to the cross-dealloc
-	// TLS batch.  Stage 2 unification.
+	// Owner-side per-size bucket fast path.  fs_try_bucket_push
+	// decodes N from m_sizes and stores slot_idx into bucket[N-1].
+	// Non-owner deallocs OR N outside FS_MAX_BUCKETS OR bucket-at-cap
+	// route to the cross-thread TLS batch.
+	//
+	// `s_my_chunk` has declared type `PoolAllocator<ALIGN, false, false>*`
+	// (from the base's `PoolAllocator<ALIGN, DUMMY, DUMMY>*` with
+	// DUMMY=false), while `this` has type `PoolAllocator<ALIGN, false,
+	// DUMMY>*` — different template instantiations referring to the
+	// same chunk object.  Compare as void* to bypass the type mismatch.
+	if(static_cast<void *>(PoolAllocator<ALIGN, true, false>::s_my_chunk)
+	    == static_cast<void *>(this)) {
+		if(this->fs_try_bucket_push(p)) return false;
+	}
 	tls_cross_dealloc_batch->push(this, p);
 	return false;
-	// Bitmap CAS path & release_allocator have moved to
-	// batch_return_to_bitmap (FS=false specialization); see below.
+}
+
+template <unsigned int ALIGN, bool DUMMY>
+void
+PoolAllocator<ALIGN, false, DUMMY>::flush_owner_freelist() noexcept {
+	// Walk each bucket; for each entry, CAS-clear the N corresponding
+	// bits in m_flags.  Per-slot CAS (vs the m_freelist_bits-style
+	// "OR all then one CAS per word" optimisation) — flush is a
+	// thread-exit-only path so the loop cost is amortised away.
+	for(int b = 0; b < FS_MAX_BUCKETS; ++b) {
+		unsigned N = (unsigned)(b + 1);
+		FUINT bit_pattern = (((FUINT)1u << N) - 1u);  // N low bits set
+		unsigned cnt = this->m_fs_bucket_count[b];
+		for(unsigned k = 0; k < cnt; ++k) {
+			uint32_t slot_idx =
+			    this->m_fs_buckets[(size_t)b * FS_BUCKET_CAP + k];
+			unsigned idx = slot_idx / (sizeof(FUINT) * 8);
+			unsigned sidx = slot_idx % (sizeof(FUINT) * 8);
+			FUINT mask = bit_pattern << sidx;
+			FUINT *pflag = &this->m_flags[idx];
+			for(;;) {
+				FUINT oldv = *pflag;
+				FUINT newv = oldv & ~mask;
+				if(atomicCompareAndSet(oldv, newv, pflag)) {
+					if(newv == 0 && oldv != 0) {
+						this->m_available_bits = sizeof(FUINT) * 8;
+						atomicDec( &this->m_flags_nonzero_cnt);
+					}
+					break;
+				}
+			}
+		}
+		this->m_fs_bucket_count[b] = 0;
+	}
 }
 
 // FS=false batch return — multi-bit clear (slots vary in n_slots,
