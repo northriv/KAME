@@ -23,6 +23,30 @@
 #include <stddef.h>
 #include <atomic>
 #include <limits>
+#include <type_traits>
+
+// Portable atomic primitives for the custom pool allocator (formerly
+// x86-only inline asm in atomic_prv_x86.h, then inline templates in
+// allocator.cpp; hoisted here so header-inlined PoolAllocator member
+// templates — `batch_clear_impl` etc. — can use them).  GCC/Clang
+// __sync builtins work on every arch the pool supports.
+template <typename T>
+inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
+atomicCompareAndSet(T oldv, T newv, T *target) noexcept {
+    return __sync_bool_compare_and_swap(target, oldv, newv);
+}
+template <typename T>
+inline void atomicInc(T *target) noexcept {
+    __sync_fetch_and_add(target, 1);
+}
+template <typename T>
+inline void atomicDec(T *target) noexcept {
+    __sync_fetch_and_sub(target, 1);
+}
+template <typename T>
+inline bool atomicDecAndTest(T *target) noexcept {
+    return __sync_sub_and_fetch(target, 1) == 0;
+}
 
 #if defined(__GNUC__) || defined(__clang__)
 	#define ALLOC_TLS __thread //TLS for allocations, could be better for NUMA.
@@ -250,6 +274,40 @@ protected:
 	void flush_owner_freelist() noexcept override;
 	void flush_owner_freelist_to_bitmap() noexcept;
 	void clear_owner_tls() noexcept override;
+
+	//! Shared batched bitmap-clear skeleton (body in allocator.cpp).
+	//! Parameterised on:
+	//!   FetchSlot()       → `char *`  : next slot to clear (nullptr=end)
+	//!   MaskFn(idx,sidx,p)→ `FUINT`   : bit-mask for one slot
+	//!                                    (FS=true: 1 bit at sidx;
+	//!                                    FS=false: N bits via m_sizes)
+	//!   OnClearFn(oldv,newv)→ `void`  : per-word counter update
+	//!
+	//! Used by `flush_owner_freelist_to_bitmap` and
+	//! `batch_return_to_bitmap` (both FS=true and FS=false overrides).
+	template <typename FetchSlot, typename MaskFn, typename OnClearFn>
+	void batch_clear_impl(FetchSlot fetch_slot, MaskFn mask_fn,
+	                     OnClearFn on_clear) noexcept;
+
+	//! Owner-thread freelist push.  Inlined here in the header because
+	//! it is the hottest dealloc path (called from every owner dealloc
+	//! that fits in the freelist).  Returns true if the slot was
+	//! pushed; false if the freelist is at cap and the caller must
+	//! route to the cross-thread batch.  Single-writer (TLS pin), so
+	//! no atomics.
+	bool try_owner_freelist_push(void *p) noexcept {
+		if(m_freelist_curpos >= m_freelist_end) return false;
+		*m_freelist_curpos++ = p;
+		return true;
+	}
+	//! Owner-thread freelist pop.  Inlined here in the header — hot
+	//! alloc path (called from every owner allocate that finds a
+	//! recycled slot).  Returns nullptr if the freelist is empty;
+	//! caller falls through to the bitmap allocate path.
+	void *try_owner_freelist_pop() noexcept {
+		if(m_freelist_curpos == m_freelist) return nullptr;
+		return *--m_freelist_curpos;
+	}
 
 	void operator delete(void *) throw();
 private:

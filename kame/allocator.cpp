@@ -144,26 +144,8 @@ thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
 } // anon namespace
 
-// Portable atomic primitives for the custom pool allocator.
-// These replace the former x86-only inline assembly (atomic_prv_x86.h)
-// with GCC/Clang __sync builtins that work on all architectures.
-template <typename T>
-inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
-atomicCompareAndSet(T oldv, T newv, T *target) noexcept {
-    return __sync_bool_compare_and_swap(target, oldv, newv);
-}
-template <typename T>
-inline void atomicInc(T *target) noexcept {
-    __sync_fetch_and_add(target, 1);
-}
-template <typename T>
-inline void atomicDec(T *target) noexcept {
-    __sync_fetch_and_sub(target, 1);
-}
-template <typename T>
-inline bool atomicDecAndTest(T *target) noexcept {
-    return __sync_sub_and_fetch(target, 1) == 0;
-}
+// Atomic helpers moved to allocator_prv.h so the header-inlined
+// `batch_clear_impl` template member of PoolAllocator can use them.
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 #else
     #include <sys/mman.h>
@@ -582,92 +564,72 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 }
 
 // FS=false batch return — multi-bit clear (slots vary in n_slots,
-// recovered from m_sizes).  Same direct-map word grouping as the
-// FS=true version; per-slot mask is N consecutive bits instead of 1.
+// recovered from m_sizes).  Reuses the inherited batch_clear_impl
+// skeleton with a multi-bit MaskFn and FS=false-specific OnClearFn
+// (no filled_cnt, updates m_available_bits).
 template <unsigned int ALIGN, bool DUMMY>
 void
 PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
     void **slots, int n) noexcept {
 	if(n <= 0) return;
-	FUINT *masks = static_cast<FUINT *>(
-		alloca(sizeof(FUINT) * (size_t)this->m_count));
-	for(int i = 0; i < this->m_count; ++i) masks[i] = 0;
-	for(int i = 0; i < n; ++i) {
-		char *p = static_cast<char *>(slots[i]);
-		int midx = (p - this->m_mempool) / ALIGN;
-		int idx = midx / (sizeof(FUINT) * 8);
-		unsigned int sidx = midx % (sizeof(FUINT) * 8);
-		FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
-		FUINT slot_mask = (nones | (nones - 1u)) << sidx;
-		masks[idx] |= slot_mask;
+	int i = 0;
+	this->batch_clear_impl(
+		[&]() -> char * {
+			if(i >= n) return nullptr;
+			return static_cast<char *>(slots[i++]);
+		},
+		// MaskFn: FS=false multi-bit (decode N from m_sizes)
+		[this](int idx, unsigned sidx, char *p) -> FUINT {
+			FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
+			FUINT slot_mask = (nones | (nones - 1u)) << sidx;
 #ifdef GUARDIAN
-		unsigned int n_slots = count_bits(slot_mask);
-		for(unsigned int j = 0; j < n_slots * ALIGN / sizeof(uint64_t); ++j)
-			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
+			unsigned int n_slots = count_bits(slot_mask);
+			for(unsigned int j = 0; j < n_slots * ALIGN / sizeof(uint64_t); ++j)
+				reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
+#else
+			(void)p;
 #endif
-	}
-	for(int idx = 0; idx < this->m_count; ++idx) {
-		FUINT clear_mask = masks[idx];
-		if( !clear_mask) continue;
-		FUINT nones = ~clear_mask;
-		FUINT *pflags = &this->m_flags[idx];
-		for(;;) {
-			FUINT oldv = *pflags;
-			FUINT newv = oldv & nones;
-			if(atomicCompareAndSet(oldv, newv, pflags)) {
-				if(newv == 0 && oldv != 0) {
-					m_available_bits = sizeof(FUINT) * 8;
-					atomicDec( &this->m_flags_nonzero_cnt);
-				}
-				break;
+			return slot_mask;
+		},
+		// OnClearFn: FS=false counter + available-bits hint
+		[this](FUINT oldv, FUINT newv) {
+			if(newv == 0 && oldv != 0) {
+				m_available_bits = sizeof(FUINT) * 8;
+				atomicDec( &this->m_flags_nonzero_cnt);
 			}
-		}
-	}
-	// Chunk-release check: if the batch emptied the chunk AND it is
-	// no longer pinned, release.  Stage 2 moves release ownership from
-	// per-slot deallocate_pooled here.  Safe to `delete this` because
-	// the CrossDeallocBatch flush caller advances past this chunk-group
-	// after the call (slots_buf is on its stack, but holds void* slot
-	// addresses, not chunk pointers — accessing them after delete is
-	// fine; we just don't touch *this any more after the delete).
+		});
+	// Chunk-release check.  Safe to delete this — the CrossDeallocBatch
+	// flush caller advances past this chunk-group after the call.
 	if(this->m_flags_nonzero_cnt == 0
 	        && PoolAllocator<ALIGN, true, false>::release_allocator(this)) {
 		delete this;
 	}
 }
 
+// Body of `batch_clear_impl` — out-of-class definition kept in
+// allocator.cpp.  The function is template-on-lambdas; bodies in the
+// header would balloon allocator_prv.h with a non-trivial loop that's
+// only exercised from the cross-dealloc-batch flush and the
+// owner-thread freelist flush — both rare, "long" code paths.  The
+// SHORT push/pop helpers (try_owner_freelist_push/pop) ARE in the
+// header for inlining (per-dealloc / per-alloc hot paths).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
+template <typename FetchSlot, typename MaskFn, typename OnClearFn>
 void
-PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist_to_bitmap() noexcept {
-	// Batched bitmap CAS: group freelist entries by their m_flags[] word
-	// index and clear all bits in one CAS per word (vs one CAS per slot
-	// in the naïve loop).  Slots that hit the same FUINT word are
-	// common when the workload free()s many sequentially-allocated
-	// items.  Reduces the cross-socket cache-line ping-pong cost on
-	// EPYC dual-socket builds — one dirty line write per word vs N.
-	//
-	// Direct-mapped scratch: one FUINT per m_flags[] word, OR-merge
-	// every freelist entry's bit into masks[idx].  Then one CAS per
-	// non-zero mask.  Memory: sizeof(FUINT) * m_count ≤ ~2 KiB for
-	// a 256 KiB chunk with smallest ALIGN — trivial stack burn, O(1)
-	// indexing, O(m_count) zero-init.  Much cheaper than the O(N²)
-	// linear-search-batch alternative.
-	if(this->m_freelist_curpos == this->m_freelist) return;
+PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
+    FetchSlot fetch_slot, MaskFn mask_fn, OnClearFn on_clear) noexcept {
 	FUINT *masks = static_cast<FUINT *>(
 		alloca(sizeof(FUINT) * (size_t)this->m_count));
 	for(int i = 0; i < this->m_count; ++i) masks[i] = 0;
-	while(this->m_freelist_curpos > this->m_freelist) {
-		char *p = static_cast<char *>(*--this->m_freelist_curpos);
+	bool any = false;
+	while(char *p = fetch_slot()) {
 		int midx = (p - this->m_mempool) / ALIGN;
 		int idx = midx / (sizeof(FUINT) * 8);
 		unsigned int sidx = midx % (sizeof(FUINT) * 8);
-#ifdef GUARDIAN
-		for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
-			reinterpret_cast<uint64_t *>(p)[i] = GUARDIAN;
-#endif
-		masks[idx] |= ((FUINT)1u) << sidx;
+		masks[idx] |= mask_fn(idx, sidx, p);
+		any = true;
 	}
-	// One CAS per distinct (non-zero-mask) m_flags[] word.
+	if( !any) return;
 	for(int idx = 0; idx < this->m_count; ++idx) {
 		FUINT clear_mask = masks[idx];
 		if( !clear_mask) continue;
@@ -677,18 +639,44 @@ PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist_to_bitmap() noexcept {
 			FUINT oldv = *pflags;
 			FUINT newv = oldv & nones;
 			if(atomicCompareAndSet(oldv, newv, pflags)) {
-				// Independent ifs (vs `else if` in single-slot
-				// dealloc): the batched mask can clear ALL bits
-				// in one CAS, transitioning full→empty in one
-				// step — BOTH counters must decrement.
-				if(oldv == ~(FUINT)0u)
-					atomicDec( &this->m_flags_filled_cnt);
-				if(newv == 0 && oldv != 0)
-					atomicDec( &this->m_flags_nonzero_cnt);
+				on_clear(oldv, newv);
 				break;
 			}
 		}
 	}
+}
+
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void
+PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist_to_bitmap() noexcept {
+	// Drain the chunk-private owner freelist (drain via curpos--) and
+	// CAS-clear the matching bits in m_flags, batched by word index.
+	// Shared `batch_clear_impl` skeleton — see allocator_prv.h.  Only
+	// the slot-source (linked-list-style decrement on curpos vs an
+	// external array) differs from batch_return_to_bitmap.
+	if(this->m_freelist_curpos == this->m_freelist) return;
+	this->batch_clear_impl(
+		// FetchSlot: pop from chunk's freelist tail
+		[this]() -> char * {
+			if(this->m_freelist_curpos == this->m_freelist) return nullptr;
+			char *p = static_cast<char *>(*--this->m_freelist_curpos);
+#ifdef GUARDIAN
+			for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
+				reinterpret_cast<uint64_t *>(p)[i] = GUARDIAN;
+#endif
+			return p;
+		},
+		// MaskFn: FS=true single bit (same as batch_return_to_bitmap)
+		[](int /*idx*/, unsigned sidx, char * /*p*/) -> FUINT {
+			return ((FUINT)1u) << sidx;
+		},
+		// OnClearFn: FS=true counter updates
+		[this](FUINT oldv, FUINT newv) {
+			if(oldv == ~(FUINT)0u)
+				atomicDec( &this->m_flags_filled_cnt);
+			if(newv == 0 && oldv != 0)
+				atomicDec( &this->m_flags_nonzero_cnt);
+		});
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -707,39 +695,30 @@ void
 PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
     void **slots, int n) noexcept {
 	if(n <= 0) return;
-	FUINT *masks = static_cast<FUINT *>(
-		alloca(sizeof(FUINT) * (size_t)this->m_count));
-	for(int i = 0; i < this->m_count; ++i) masks[i] = 0;
-	for(int i = 0; i < n; ++i) {
-		char *p = static_cast<char *>(slots[i]);
-		int midx = (p - this->m_mempool) / ALIGN;
-		int idx = midx / (sizeof(FUINT) * 8);
-		unsigned int sidx = midx % (sizeof(FUINT) * 8);
+	int i = 0;
+	this->batch_clear_impl(
+		// FetchSlot: walk the argument array
+		[&]() -> char * {
+			if(i >= n) return nullptr;
+			char *p = static_cast<char *>(slots[i++]);
 #ifdef GUARDIAN
-		for(unsigned int j = 0; j < ALIGN / sizeof(uint64_t); ++j)
-			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
+			for(unsigned int j = 0; j < ALIGN / sizeof(uint64_t); ++j)
+				reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
 #endif
-		masks[idx] |= ((FUINT)1u) << sidx;
-	}
-	for(int idx = 0; idx < this->m_count; ++idx) {
-		FUINT clear_mask = masks[idx];
-		if( !clear_mask) continue;
-		FUINT nones = ~clear_mask;
-		FUINT *pflags = &this->m_flags[idx];
-		for(;;) {
-			FUINT oldv = *pflags;
-			FUINT newv = oldv & nones;
-			if(atomicCompareAndSet(oldv, newv, pflags)) {
-				if(oldv == ~(FUINT)0u)
-					atomicDec( &this->m_flags_filled_cnt);
-				if(newv == 0 && oldv != 0)
-					atomicDec( &this->m_flags_nonzero_cnt);
-				break;
-			}
-		}
-	}
-	// Chunk-release check (Stage 2 — release moved here from
-	// deallocate_pooled).
+			return p;
+		},
+		// MaskFn: FS=true single bit
+		[](int /*idx*/, unsigned sidx, char * /*p*/) -> FUINT {
+			return ((FUINT)1u) << sidx;
+		},
+		// OnClearFn: FS=true counter updates
+		[this](FUINT oldv, FUINT newv) {
+			if(oldv == ~(FUINT)0u)
+				atomicDec( &this->m_flags_filled_cnt);
+			if(newv == 0 && oldv != 0)
+				atomicDec( &this->m_flags_nonzero_cnt);
+		});
+	// Chunk-release check.
 	if(this->m_flags_nonzero_cnt == 0
 	        && PoolAllocator<ALIGN, FS, DUMMY>::release_allocator(this)) {
 		delete this;
@@ -767,8 +746,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// is now entirely in batch_return_to_bitmap (called from the TLS
 	// batch flush), where multiple slots merge into 1 CAS per m_flags
 	// word.  release_allocator + chunk delete also moves there.
-	if(s_my_chunk == this && this->m_freelist_curpos < this->m_freelist_end) {
-		*this->m_freelist_curpos++ = p;
+	if(s_my_chunk == this && this->try_owner_freelist_push(p)) {
 		// Slot stays "allocated" in the bitmap until flushed back via
 		// flush_owner_freelist_to_bitmap (thread exit) or the chunk
 		// overflows.  Owner's next alloc may pop it back immediately.
@@ -907,9 +885,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 		// Owner-thread freelist fast path (FS=true chunks only — the
 		// FS=false chunks never push, so this stays empty for them).
 		// We just verified `s_my_chunk == my`, so single-writer access
-		// to m_freelist_curpos / m_freelist[] is safe.
-		if(my->m_freelist_curpos > my->m_freelist) {
-			void *p = *--my->m_freelist_curpos;
+		// is safe.  Uses the header-inlined try_owner_freelist_pop —
+		// short hot-path body lives in allocator_prv.h so it inlines
+		// into operator new without crossing the TU boundary.
+		if(void *p = my->try_owner_freelist_pop()) {
 #ifdef GUARDIAN
 			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
 				if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
