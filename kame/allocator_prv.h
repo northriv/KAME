@@ -585,14 +585,13 @@ extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
 void *new_redirected_large(std::size_t size) noexcept;
 
 inline void *new_redirected(std::size_t size) {
-	// Sizes > ALLOC_MAX_BUCKETED_SIZE (= 512) fall through to
-	// new_redirected_large for the X=4 / X=8 / ... ALIGN doublings;
-	// 1..512 dispatch via the shared `bucket_for_size` formula
-	// (also used by the FS=false dealloc to push to the matching
-	// bucket).
-	if(size > ALLOC_MAX_BUCKETED_SIZE)
+	// Hot path: sizes ≤ 256.  One branch + the inline `(size+15)>>4`
+	// formula (the small-range half of `bucket_for_size`).  Larger
+	// sizes go to `new_redirected_large`, which uses the full
+	// `bucket_for_size` helper for its own 257..512 dispatch.
+	if(size > (std::size_t)ALLOC_SIZE16)
 		return new_redirected_large(size);
-	unsigned int bucket = bucket_for_size(size);
+	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
 	AllocSlot &slot = g_thread_slots[bucket];
 	// Inline freelist pop — no indirect call on hit path.  Empty
 	// sentinel: nullptr (push only ever writes the previous head into

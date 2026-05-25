@@ -1300,12 +1300,26 @@ ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS] = {
     { nullptr, nullptr, &bucket_first_access<24> },  // bucket 24: size ≤ 512 (FS=false)
 };
 
-// Out-of-line large-size dispatch.  Sizes > 512 B fall here from
-// `new_redirected` (sizes ≤ 512 are dispatched inline via the
-// g_thread_slots table, buckets 17..24).  Keeps the activation-flag
-// check (cold path is the right place for it — only paid by larger
+// Out-of-line large-size dispatch.  Sizes > 256 B fall here from
+// `new_redirected`.  The 257..512 range dispatches via the same
+// g_thread_slots[] table (buckets 17..24) as the small range, just
+// from this colder function instead of inline — keeps the hot
+// path (sizes ≤ 256) lean (single branch + inline freelist pop).
+// Sizes > 512 fall through to allocate_large_size_or_malloc (the
+// X=4 / X=8 / ... ALIGN doublings).  Activation-flag check lives
+// here too (cold path is the right place — only paid by larger
 // allocations).
 void *new_redirected_large(std::size_t size) noexcept {
+    if(size <= ALLOC_MAX_BUCKETED_SIZE) {
+        unsigned int bucket = bucket_for_size(size);
+        AllocSlot &slot = g_thread_slots[bucket];
+        char *head = slot.freelist_head;
+        if(head) {
+            slot.freelist_head = *reinterpret_cast<char **>(head);
+            return head;
+        }
+        return slot.alloc_fn(&slot, size);
+    }
     if( !g_sys_image_loaded || s_alloc_tls_off)
         return std::malloc(size);
     return allocate_large_size_or_malloc(size);
