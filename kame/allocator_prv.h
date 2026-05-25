@@ -85,6 +85,14 @@ public:
 	//! `RunnerCounterRegistration` via `pthread_key`) do heap
 	//! alloc/dealloc after `AllocPinCleanup` has already run.
 	virtual void clear_owner_tls() noexcept {}
+	//! Batch return of `n` slots (all belonging to THIS chunk) to the
+	//! bitmap.  Called by the cross-thread TLS batch flush — see
+	//! `CrossDeallocBatch::flush` in allocator.cpp.  Each override
+	//! groups slots by their m_flags[] word and clears all the bits
+	//! in ONE CAS per word, vs the naïve per-slot CAS.  Pure virtual
+	//! so every PoolAllocator instantiation supplies a concrete
+	//! implementation.
+	virtual void batch_return_to_bitmap(void **slots, int n) noexcept = 0;
 protected:
 	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
 	virtual bool deallocate_pooled(char *p) = 0;
@@ -131,6 +139,7 @@ protected:
 	              void **freelist, int freelist_cap);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
+	void batch_return_to_bitmap(void **slots, int n) noexcept override;
 	static bool create_allocator(int &aidx);
 	static bool release_allocator(PoolAllocator *alloc);
 
@@ -261,6 +270,7 @@ protected:
 	              void **freelist, int freelist_cap);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
+	void batch_return_to_bitmap(void **slots, int n) noexcept override;
 
 private:
 	friend class PoolAllocatorBase;

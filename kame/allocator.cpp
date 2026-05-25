@@ -22,6 +22,7 @@
 
 #include "atomic.h"
 
+#include <algorithm>
 #include <assert.h>
 #include <cerrno>
 #include <cstdlib>
@@ -78,6 +79,69 @@ struct AllocPinCleanup {
     }
 };
 thread_local AllocPinCleanup tls_alloc_pin_cleanup;
+
+// Cross-thread dealloc batch — single TLS buffer per thread holding
+// {chunk, slot} pairs from non-owner deallocs.  Flushes when full
+// (CAP entries) or at thread exit.  Flush sorts by chunk pointer to
+// group same-chunk slots, then calls chunk->batch_return_to_bitmap
+// per group to merge multiple slots into ONE CAS per m_flags word.
+//
+// vs the previous design (immediate single-slot bitmap CAS per
+// non-owner dealloc): trades CAS count for a single TLS write +
+// occasional sorted flush.  Wins on:
+//   * UMA: TLS write (~2-5 ns) << atomic CAS (~10-20 ns);
+//   * NUMA (Ohtaka): collapses cross-socket cache-line traffic
+//     from N scattered m_flags words to one batched CAS per word
+//     per chunk group.
+//
+// Stage 1 (this commit): non-owner deallocs only.  Owner-overflow
+// (freelist full) keeps the existing single-slot bitmap CAS for
+// now.  Stage 2 would route owner-overflow here too.
+struct CrossDeallocBatch {
+    static constexpr int CAP = 64;
+    struct Entry { PoolAllocatorBase *chunk; void *slot; };
+    Entry buf[CAP];
+    int count = 0;
+
+    void push(PoolAllocatorBase *c, void *s) noexcept {
+        // We're called from deallocate paths; if the slot count has
+        // hit CAP we must drain before pushing the new entry.  Drain
+        // is in-thread (no synchronization needed beyond the bitmap
+        // CAS that batch_return_to_bitmap does internally).
+        if(count == CAP) flush();
+        buf[count++] = {c, s};
+    }
+    void flush() noexcept {
+        if(count == 0) return;
+        // Sort by chunk pointer so same-chunk entries are contiguous.
+        // Stable sort isn't required (slots from same chunk are
+        // interchangeable at the bitmap level).
+        std::sort(buf, buf + count,
+                  [](const Entry &a, const Entry &b) {
+                      return a.chunk < b.chunk;
+                  });
+        // Run per-chunk groups.  Each group → ONE virtual call →
+        // batch_return_to_bitmap groups slots by m_flags word
+        // internally for further CAS coalescing.
+        // Stack scratch sized to CAP — bounded.
+        void *slots_buf[CAP];
+        int i = 0;
+        while(i < count) {
+            PoolAllocatorBase *c = buf[i].chunk;
+            int j = i;
+            while(j < count && buf[j].chunk == c) {
+                slots_buf[j - i] = buf[j].slot;
+                ++j;
+            }
+            c->batch_return_to_bitmap(slots_buf, j - i);
+            i = j;
+        }
+        count = 0;
+    }
+    ~CrossDeallocBatch() noexcept { flush(); }
+};
+thread_local CrossDeallocBatch tls_cross_dealloc_batch;
+
 } // anon namespace
 
 // Portable atomic primitives for the custom pool allocator.
@@ -508,6 +572,16 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
+	// Non-owner: cross-thread batch.  Owner: in-line multi-bit bitmap
+	// CAS (FS=false has no owner-side array freelist).  s_my_chunk
+	// pointer compare is cross-instantiation safe — same physical
+	// chunk object (FS=false partial spec shares layout with the
+	// FS=true base its s_my_chunk is typed as).
+	if(reinterpret_cast<uintptr_t>(this)
+	        != reinterpret_cast<uintptr_t>(this->s_my_chunk)) {
+		tls_cross_dealloc_batch.push(this, p);
+		return false;
+	}
 	writeBarrier(); //for the contents written by the user.
 
 	int midx = (p - this->m_mempool) / ALIGN;
@@ -556,6 +630,51 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	}
 	return false;
 }
+
+// FS=false batch return — multi-bit clear (slots vary in n_slots,
+// recovered from m_sizes).  Same direct-map word grouping as the
+// FS=true version; per-slot mask is N consecutive bits instead of 1.
+template <unsigned int ALIGN, bool DUMMY>
+void
+PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
+    void **slots, int n) noexcept {
+	if(n <= 0) return;
+	FUINT *masks = static_cast<FUINT *>(
+		alloca(sizeof(FUINT) * (size_t)this->m_count));
+	for(int i = 0; i < this->m_count; ++i) masks[i] = 0;
+	for(int i = 0; i < n; ++i) {
+		char *p = static_cast<char *>(slots[i]);
+		int midx = (p - this->m_mempool) / ALIGN;
+		int idx = midx / (sizeof(FUINT) * 8);
+		unsigned int sidx = midx % (sizeof(FUINT) * 8);
+		FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
+		FUINT slot_mask = (nones | (nones - 1u)) << sidx;
+		masks[idx] |= slot_mask;
+#ifdef GUARDIAN
+		unsigned int n_slots = count_bits(slot_mask);
+		for(unsigned int j = 0; j < n_slots * ALIGN / sizeof(uint64_t); ++j)
+			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
+#endif
+	}
+	for(int idx = 0; idx < this->m_count; ++idx) {
+		FUINT clear_mask = masks[idx];
+		if( !clear_mask) continue;
+		FUINT nones = ~clear_mask;
+		FUINT *pflags = &this->m_flags[idx];
+		for(;;) {
+			FUINT oldv = *pflags;
+			FUINT newv = oldv & nones;
+			if(atomicCompareAndSet(oldv, newv, pflags)) {
+				if(newv == 0 && oldv != 0) {
+					m_available_bits = sizeof(FUINT) * 8;
+					atomicDec( &this->m_flags_nonzero_cnt);
+				}
+				break;
+			}
+		}
+	}
+}
+
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist_to_bitmap() noexcept {
@@ -617,6 +736,49 @@ PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist() noexcept {
 	flush_owner_freelist_to_bitmap();
 }
 
+// Batched bitmap clear of slots passed via argument array (vs the
+// chunk-private freelist drained by flush_owner_freelist_to_bitmap).
+// Called from CrossDeallocBatch::flush — slots all belong to THIS
+// chunk (caller groups by chunk pointer), so one shared direct-map
+// scratch suffices.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void
+PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
+    void **slots, int n) noexcept {
+	if(n <= 0) return;
+	FUINT *masks = static_cast<FUINT *>(
+		alloca(sizeof(FUINT) * (size_t)this->m_count));
+	for(int i = 0; i < this->m_count; ++i) masks[i] = 0;
+	for(int i = 0; i < n; ++i) {
+		char *p = static_cast<char *>(slots[i]);
+		int midx = (p - this->m_mempool) / ALIGN;
+		int idx = midx / (sizeof(FUINT) * 8);
+		unsigned int sidx = midx % (sizeof(FUINT) * 8);
+#ifdef GUARDIAN
+		for(unsigned int j = 0; j < ALIGN / sizeof(uint64_t); ++j)
+			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
+#endif
+		masks[idx] |= ((FUINT)1u) << sidx;
+	}
+	for(int idx = 0; idx < this->m_count; ++idx) {
+		FUINT clear_mask = masks[idx];
+		if( !clear_mask) continue;
+		FUINT nones = ~clear_mask;
+		FUINT *pflags = &this->m_flags[idx];
+		for(;;) {
+			FUINT oldv = *pflags;
+			FUINT newv = oldv & nones;
+			if(atomicCompareAndSet(oldv, newv, pflags)) {
+				if(oldv == ~(FUINT)0u)
+					atomicDec( &this->m_flags_filled_cnt);
+				if(newv == 0 && oldv != 0)
+					atomicDec( &this->m_flags_nonzero_cnt);
+				break;
+			}
+		}
+	}
+}
+
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::clear_owner_tls() noexcept {
@@ -633,15 +795,25 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// check and fall through to the bitmap CAS path.  The FS=false
 	// specialization overrides this method completely and never
 	// reaches here, so the uniform-slot freelist push is safe.
-	if(s_my_chunk == this && this->m_freelist_curpos < this->m_freelist_end) {
-		*this->m_freelist_curpos++ = p;
-		// Don't trigger chunk-release path: the slot is still
-		// "allocated" from the bitmap's perspective; flushing on
-		// thread exit returns it via the same path.  Owner-overflow
-		// (freelist at cap) falls through to bitmap CAS; create() picks
-		// up the "this chunk is at cap" signal and sizes the NEXT chunk
-		// of this template with a larger freelist (see adaptive sizing
-		// loop in PoolAllocator::create()).
+	if(s_my_chunk == this) {
+		if(this->m_freelist_curpos < this->m_freelist_end) {
+			*this->m_freelist_curpos++ = p;
+			// Don't trigger chunk-release path: the slot is still
+			// "allocated" from the bitmap's perspective; flushing on
+			// thread exit returns it via the same path.  Owner-overflow
+			// (freelist at cap) falls through to bitmap CAS; create()
+			// picks up the "this chunk is at cap" signal and sizes the
+			// NEXT chunk of this template with a larger freelist (see
+			// adaptive sizing loop in PoolAllocator::create()).
+			return false;
+		}
+		// Owner-overflow: fall through to bitmap CAS path (Stage 1).
+	} else {
+		// Non-owner: route to the per-thread cross-dealloc batch.
+		// Sorted flush merges multiple slots into one CAS per m_flags
+		// word — large NUMA win on EPYC dual-socket (Ohtaka), neutral
+		// on UMA M3 (TLS write ≤ atomic CAS).
+		tls_cross_dealloc_batch.push(this, p);
 		return false;
 	}
 	writeBarrier(); //for the contents written by the user.
