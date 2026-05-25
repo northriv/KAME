@@ -92,7 +92,7 @@ struct AllocPinCleanup {
         // (the freelist head==end check stays empty since both are 0).
         for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
             g_thread_slots[b].chunk = nullptr;
-            g_thread_slots[b].alloc_fn = &malloc_fallback;
+            g_thread_alloc_fn[b] = &malloc_fallback;
         }
         // Null out per-ALIGN `s_my_chunk` TLS pointers BEFORE
         // decrementing pin counts.  Without this, later TLS destructors
@@ -1232,20 +1232,20 @@ void *bucket_steady_alloc(AllocSlot *slot, std::size_t /*size*/) noexcept {
     return p;
 }
 
-//! First-access trampoline for bucket B.  Initial value of every slot's
-//! `alloc_fn` field.  Checks the activation flag (the one place this
-//! check still lives — cold path).  On success, claims a chunk via the
-//! existing `allocate<>()` slow path which registers AllocPinCleanup,
-//! initialises the slot's freelist sentinels (head = end = (char*)slot,
-//! a stable non-slot-pool address that the empty-check compares against),
-//! and rewrites `alloc_fn` to `bucket_steady_alloc<B>` so subsequent
-//! freelist-miss calls go straight to the bitmap path.
+//! First-access trampoline for bucket B.  Initial value of every entry
+//! in `g_thread_alloc_fn[]`.  Checks the activation flag (the one place
+//! this check still lives — cold path).  On success, claims a chunk via
+//! the existing `allocate<>()` slow path which registers AllocPinCleanup,
+//! records the chunk into the slot, and rewrites `g_thread_alloc_fn[B]`
+//! to `bucket_steady_alloc<B>` so subsequent freelist-miss calls go
+//! straight to the bitmap path.
 template <int B>
 void *bucket_first_access(AllocSlot *slot, std::size_t size) noexcept {
     if( !g_sys_image_loaded) {
         // Pool not activated yet (dyld / pre-main static-init phase).
-        // Don't rewrite the slot — we want to retry the activation
-        // check on every call until activateAllocator() is invoked.
+        // Don't rewrite the table entry — we want to retry the
+        // activation check on every call until activateAllocator()
+        // is invoked.
         return std::malloc(size);
     }
     using BT = BucketTraits<B>;
@@ -1256,48 +1256,54 @@ void *bucket_first_access(AllocSlot *slot, std::size_t size) noexcept {
         slot->chunk = chunk;
         // freelist_head stays at zero-init (empty list, nullptr
         // sentinel — see AllocSlot doc).
-        slot->alloc_fn = &bucket_steady_alloc<B>;
+        g_thread_alloc_fn[B] = &bucket_steady_alloc<B>;
     }
     return p;
 }
 
 } // anon namespace
 
-// The per-thread table.  `__thread` (= `ALLOC_TLS` on GCC/Clang) so the
+// The per-thread tables.  `__thread` (= `ALLOC_TLS` on GCC/Clang) so the
 // storage lifetime extends past every TLS destructor on this thread —
 // XThreadLocal would `std::free` the underlying memory mid-cleanup,
 // leaving the `cached` pointer dangling for any later TLS dtor that
-// allocates.  Static initializer takes addresses of `bucket_first_access`
-// template instantiations (constant expressions); bucket 0 maps to
-// bucket 1's 16-B allocator so size=0 allocations don't fault.
-ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS] = {
-    // {freelist_head, chunk, alloc_fn}.
-    // freelist_head = nullptr at static-init → empty.
-    { nullptr, nullptr, &bucket_first_access< 1> },  // bucket 0: size==0 → 16-B alloc
-    { nullptr, nullptr, &bucket_first_access< 1> },  // bucket 1: size ≤  16
-    { nullptr, nullptr, &bucket_first_access< 2> },  // bucket 2: size ≤  32
-    { nullptr, nullptr, &bucket_first_access< 3> },  // bucket 3: size ≤  48
-    { nullptr, nullptr, &bucket_first_access< 4> },  // bucket 4: size ≤  64
-    { nullptr, nullptr, &bucket_first_access< 5> },  // bucket 5: size ≤  80
-    { nullptr, nullptr, &bucket_first_access< 6> },  // bucket 6: size ≤  96 (FS=false)
-    { nullptr, nullptr, &bucket_first_access< 7> },  // bucket 7: size ≤ 112
-    { nullptr, nullptr, &bucket_first_access< 8> },  // bucket 8: size ≤ 128 (FS=false)
-    { nullptr, nullptr, &bucket_first_access< 9> },  // bucket 9: size ≤ 144
-    { nullptr, nullptr, &bucket_first_access<10> },  // bucket 10: size ≤ 160 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<11> },  // bucket 11: size ≤ 176
-    { nullptr, nullptr, &bucket_first_access<12> },  // bucket 12: size ≤ 192 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<13> },  // bucket 13: size ≤ 208
-    { nullptr, nullptr, &bucket_first_access<14> },  // bucket 14: size ≤ 224 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<15> },  // bucket 15: size ≤ 240
-    { nullptr, nullptr, &bucket_first_access<16> },  // bucket 16: size ≤ 256 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<17> },  // bucket 17: size ≤ 288 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<18> },  // bucket 18: size ≤ 320 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<19> },  // bucket 19: size ≤ 352 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<20> },  // bucket 20: size ≤ 384 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<21> },  // bucket 21: size ≤ 416 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<22> },  // bucket 22: size ≤ 448 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<23> },  // bucket 23: size ≤ 480 (FS=false)
-    { nullptr, nullptr, &bucket_first_access<24> },  // bucket 24: size ≤ 512 (FS=false)
+// allocates.
+//
+// `g_thread_slots[]` is the hot table (16 B/entry, head+chunk); zero-
+// initialised so freelist_head = nullptr (empty) and chunk = nullptr
+// (the slow path will fill it on first access).  `g_thread_alloc_fn[]`
+// is the parallel cold table (8 B/entry) holding each bucket's
+// freelist-miss dispatcher; initial value is
+// `&bucket_first_access<Bucket>`.  Bucket 0 maps to bucket 1's 16-B
+// allocator so size=0 allocations don't fault.
+ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS] = {};
+ALLOC_TLS void *(*g_thread_alloc_fn[ALLOC_NUM_BUCKETS])
+    (AllocSlot *slot, std::size_t size) noexcept = {
+    &bucket_first_access< 1>,  // bucket 0: size==0 → 16-B alloc
+    &bucket_first_access< 1>,  // bucket 1: size ≤  16
+    &bucket_first_access< 2>,  // bucket 2: size ≤  32
+    &bucket_first_access< 3>,  // bucket 3: size ≤  48
+    &bucket_first_access< 4>,  // bucket 4: size ≤  64
+    &bucket_first_access< 5>,  // bucket 5: size ≤  80
+    &bucket_first_access< 6>,  // bucket 6: size ≤  96 (FS=false)
+    &bucket_first_access< 7>,  // bucket 7: size ≤ 112
+    &bucket_first_access< 8>,  // bucket 8: size ≤ 128 (FS=false)
+    &bucket_first_access< 9>,  // bucket 9: size ≤ 144
+    &bucket_first_access<10>,  // bucket 10: size ≤ 160 (FS=false)
+    &bucket_first_access<11>,  // bucket 11: size ≤ 176
+    &bucket_first_access<12>,  // bucket 12: size ≤ 192 (FS=false)
+    &bucket_first_access<13>,  // bucket 13: size ≤ 208
+    &bucket_first_access<14>,  // bucket 14: size ≤ 224 (FS=false)
+    &bucket_first_access<15>,  // bucket 15: size ≤ 240
+    &bucket_first_access<16>,  // bucket 16: size ≤ 256 (FS=false)
+    &bucket_first_access<17>,  // bucket 17: size ≤ 288 (FS=false)
+    &bucket_first_access<18>,  // bucket 18: size ≤ 320 (FS=false)
+    &bucket_first_access<19>,  // bucket 19: size ≤ 352 (FS=false)
+    &bucket_first_access<20>,  // bucket 20: size ≤ 384 (FS=false)
+    &bucket_first_access<21>,  // bucket 21: size ≤ 416 (FS=false)
+    &bucket_first_access<22>,  // bucket 22: size ≤ 448 (FS=false)
+    &bucket_first_access<23>,  // bucket 23: size ≤ 480 (FS=false)
+    &bucket_first_access<24>,  // bucket 24: size ≤ 512 (FS=false)
 };
 
 // Out-of-line large-size dispatch.  Sizes > 256 B fall here from
@@ -1318,7 +1324,7 @@ void *new_redirected_large(std::size_t size) noexcept {
             slot.freelist_head = *reinterpret_cast<char **>(head);
             return head;
         }
-        return slot.alloc_fn(&slot, size);
+        return g_thread_alloc_fn[bucket](&slot, size);
     }
     if( !g_sys_image_loaded || s_alloc_tls_off)
         return std::malloc(size);

@@ -477,31 +477,37 @@ void activateAllocator();
 // ---------------------------------------------------------------------
 // Per-thread allocation functor table (hot-path dispatch).
 //
-// Each AllocSlot owns the per-thread freelist for one size bucket (FS=true
-// buckets only — FS=false uses chunk-local bucket arrays).  The freelist
-// is a LIFO linked list embedded in the free slots themselves: each free
-// slot's first 8 bytes hold a `char *` pointer to the next free slot.
+// Each AllocSlot owns the per-thread freelist for one size bucket.  The
+// freelist is a LIFO linked list embedded in the free slots themselves:
+// each free slot's first 8 bytes hold a `char *` pointer to the next
+// free slot.
 //
 // Hot path: `new_redirected` inlines the freelist pop directly on the
-// AllocSlot.  No indirect call on the freelist-hit path — the indirect
-// `alloc_fn` is only called on miss (freelist empty + slow chunk-bitmap
-// path).  Multiple slots' head/end fields live in the same cache line
-// (2 slots per 64-B line at sizeof(AllocSlot)=32) so adjacent-bucket
-// allocations share an L1d fetch.
+// AllocSlot.  No indirect call on the freelist-hit path — the slow
+// `alloc_fn` (in the parallel `g_thread_alloc_fn[]` TLS array) is only
+// called on miss (freelist empty + slow chunk-bitmap path).
 //
-// State machine (encoded in `alloc_fn`):
+// sizeof(AllocSlot) == 16: keeping it a power-of-two lets the compiler
+// turn `g_thread_slots[bucket]` indexing into a single `ldr x, [base,
+// offset]` where `offset = (size+15) & ~0xf` (the byte offset is
+// already what `bucket_for_size`'s shift-by-4 computes, just unshifted).
+// At 16 B/slot, 4 slots share a 64-B cache line, so adjacent-bucket
+// allocations share an L1d fetch.  `alloc_fn` is split into a separate
+// TLS array because (a) it isn't on the hot path — only called on
+// freelist miss — and (b) moving it out is what unlocks the 16-byte
+// size and the consequent shift-free indexing.
+//
+// State machine (encoded in `g_thread_alloc_fn[bucket]`):
 //   - Initial value (pre-activation OR before this thread's first use
 //     of this bucket): `&bucket_first_access<Bucket>`.
 //     That function checks `g_sys_image_loaded`; if false returns
 //     `std::malloc(size)`; if true claims a chunk, stores it in
-//     `slot.chunk`, initialises the freelist sentinels (head = end =
-//     `(char*)slot`, a stable non-slot address that no slot pool
-//     pointer can equal), and rewrites `slot.alloc_fn` to
+//     `slot.chunk`, and rewrites `g_thread_alloc_fn[Bucket]` to
 //     `&bucket_steady_alloc<Bucket>` before tail-calling it.
 //   - Steady state: `&bucket_steady_alloc<Bucket>` — bitmap-CAS path
 //     for freelist misses.  Hot-path freelist pop is *not* here; it's
 //     in `new_redirected` directly.
-//   - After `AllocPinCleanup::~dtor` on thread exit: all slots reset
+//   - After `AllocPinCleanup::~dtor` on thread exit: all entries reset
 //     to `&malloc_fallback`, freelists drained back to the bitmap via
 //     the cross-thread batch path.
 // ---------------------------------------------------------------------
@@ -518,9 +524,6 @@ struct AllocSlot {
 	//! (`slot.chunk == this` ⇒ push to slot's freelist; otherwise
 	//! cross-thread batch).
 	PoolAllocatorBase *chunk;
-	//! Slow path (= freelist-miss dispatcher).  Initial: bucket_first_access;
-	//! steady: bucket_steady_alloc; post-thread-exit: malloc_fallback.
-	void *(*alloc_fn)(AllocSlot *slot, std::size_t size) noexcept;
 
 	//! Owner-thread freelist push.  Single-writer (TLS pin), no atomics.
 	void push(void *p) noexcept {
@@ -536,6 +539,8 @@ struct AllocSlot {
 		return head;
 	}
 };
+static_assert(sizeof(AllocSlot) == 16,
+              "AllocSlot must stay 16 B — indexing assumes pow-of-two stride");
 
 //! Bucket count.
 //!   - index 0 (size = 0): reuses bucket 1's 16-B allocator
@@ -578,6 +583,15 @@ inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 
 extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
 
+//! Parallel TLS table holding each bucket's freelist-miss slow path
+//! (`bucket_first_access<B>` initially, `bucket_steady_alloc<B>` after
+//! first activation, `malloc_fallback` after thread-exit cleanup).
+//! Indexed by bucket — same index as `g_thread_slots`.  Not on the
+//! freelist-hit hot path; lives outside AllocSlot so the latter stays
+//! 16 B for shift-free indexing in `new_redirected`.
+extern ALLOC_TLS void *(*g_thread_alloc_fn[ALLOC_NUM_BUCKETS])
+    (AllocSlot *slot, std::size_t size) noexcept;
+
 //! Out-of-line path for sizes larger than the table covers (> 256 B).
 //! Handles activation-flag check + the existing if-chain for the
 //! `ALLOCATE_9_16X(2, size)` range and the malloc fallback for very
@@ -602,8 +616,9 @@ inline void *new_redirected(std::size_t size) {
 		return head;
 	}
 	// Freelist miss — bucket-specific slow path (first_access /
-	// steady_alloc / malloc_fallback).
-	return slot.alloc_fn(&slot, size);
+	// steady_alloc / malloc_fallback), looked up in the parallel
+	// TLS table (kept out of AllocSlot to keep the latter 16 B).
+	return g_thread_alloc_fn[bucket](&slot, size);
 }
 
 //void* operator new(std::size_t size) throw(std::bad_alloc);
