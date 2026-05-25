@@ -906,41 +906,27 @@ PoolAllocator<ALIGN, FS, DUMMY>::create_allocator(int &aidx) {
 	return false;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-template <unsigned int SIZE>
-inline void *
-PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
-	// ODR-use of the thread_local TlsGuard so it is initialised on
-	// this thread's first allocation through THIS template, and its
-	// dtor is registered for thread-exit cleanup.  Zero runtime cost
-	// (compiler optimises the (void)& away).
-	(void)&s_tls_guard;
-	// Fast path: this thread already pinned a chunk on a previous call.
+void *
+PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
+	// Cold path of allocate<SIZE>().  Called only when the
+	// header-inline `try_owner_freelist_pop` fast path missed (either
+	// `s_my_chunk == nullptr` on first thread access, or the owner-
+	// thread freelist for this chunk was empty).
+	//
+	// Thread-exit cleanup is handled centrally by `AllocPinCleanup::~dtor`
+	// (registered via `XThreadLocal<AllocPinCleanup>::operator*()` on the
+	// first call that pins a chunk, a few lines below).  No per-template
+	// thread_local guard is needed here, and the previous `(void)&s_tls_guard`
+	// ODR-use is removed so we don't pay a C++ thread_local init thunk call
+	// per allocation (macOS arm64 emits `bl __ZTH...11s_tls_guardE`).
+	// Try the bitmap-CAS path on the pinned chunk before falling all the
+	// way through to the chunk-claim loop.
 	// allocate_pooled() does its own per-flag atomic CAS so concurrent
 	// allocations from the same chunk by other threads are safe; the
 	// expensive bit0-lock CAS on s_chunks_of_type[] is skipped entirely.
 	// release_allocator() is gated on m_thread_pinned_count == 0 so the
 	// chunk cannot be freed underneath us.
 	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *my = s_my_chunk) {
-		// Owner-thread freelist fast path (FS=true chunks only — the
-		// FS=false chunks never push, so this stays empty for them).
-		// We just verified `s_my_chunk == my`, so single-writer access
-		// is safe.  Uses the header-inlined try_owner_freelist_pop —
-		// short hot-path body lives in allocator_prv.h so it inlines
-		// into operator new without crossing the TU boundary.
-		if(void *p = my->try_owner_freelist_pop()) {
-#ifdef GUARDIAN
-			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
-				if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
-					fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
-				}
-			}
-#endif
-#ifdef FILLING_AFTER_ALLOC
-			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
-				static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
-#endif
-			return p;
-		}
 		if(void *p = my->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
 			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
@@ -1252,14 +1238,13 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
     PoolAllocator<ALIGN, FS, DUMMY>::s_my_chunk;
 
-// Per-template thread_local TLS guard.  See PoolAllocator::TlsGuard
-// in allocator_prv.h for the rationale (redundant fallback flag setter
-// across all allocator TLS destructors, removing the single point of
-// failure that was AllocPinCleanup).
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-thread_local
-typename PoolAllocator<ALIGN, FS, DUMMY>::TlsGuard
-    PoolAllocator<ALIGN, FS, DUMMY>::s_tls_guard;
+// (Per-template `thread_local TlsGuard s_tls_guard` removed.
+//  AllocPinCleanup::~AllocPinCleanup — fired via the pthread_key dtor
+//  registered by `XThreadLocal<AllocPinCleanup>` on first allocate() —
+//  is now the sole place that runs `flush_owner_freelist`,
+//  `clear_owner_tls`, and sets `s_alloc_tls_off = true` at thread exit.
+//  Eliminates the C++ thread_local init thunk that macOS arm64 emits
+//  for `(void)&s_tls_guard` in the allocate() hot path.)
 
 template class PoolAllocator<ALLOC_ALIGN1>;
 template class PoolAllocator<ALLOC_ALIGN2>;
@@ -1278,30 +1263,12 @@ template class PoolAllocator<ALLOC_SIZE11, true>;
 template class PoolAllocator<ALLOC_SIZE13, true>;
 template class PoolAllocator<ALLOC_SIZE15, true>;
 
-template void *PoolAllocator<ALLOC_SIZE1, true>::allocate<ALLOC_SIZE1>();
-template void *PoolAllocator<ALLOC_SIZE2, true>::allocate<ALLOC_SIZE2>();
-template void *PoolAllocator<ALLOC_SIZE3, true>::allocate<ALLOC_SIZE3>();
-template void *PoolAllocator<ALLOC_SIZE4, true>::allocate<ALLOC_SIZE4>();
-template void *PoolAllocator<ALLOC_SIZE5, true>::allocate<ALLOC_SIZE5>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE6)>::allocate<ALLOC_SIZE6>();
-template void *PoolAllocator<ALLOC_SIZE7, true>::allocate<ALLOC_SIZE7>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE8)>::allocate<ALLOC_SIZE8>();
-template void *PoolAllocator<ALLOC_SIZE9, true>::allocate<ALLOC_SIZE9>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE10)>::allocate<ALLOC_SIZE10>();
-template void *PoolAllocator<ALLOC_SIZE11, true>::allocate<ALLOC_SIZE11>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE12)>::allocate<ALLOC_SIZE12>();
-template void *PoolAllocator<ALLOC_SIZE13, true>::allocate<ALLOC_SIZE13>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE14)>::allocate<ALLOC_SIZE14>();
-template void *PoolAllocator<ALLOC_SIZE15, true>::allocate<ALLOC_SIZE15>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE16)>::allocate<ALLOC_SIZE16>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE9 * 2)>::allocate<ALLOC_SIZE9 * 2>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE10 * 2)>::allocate<ALLOC_SIZE10 * 2>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE11 * 2)>::allocate<ALLOC_SIZE11 * 2>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE12 * 2)>::allocate<ALLOC_SIZE12 * 2>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE13 * 2)>::allocate<ALLOC_SIZE13 * 2>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE14 * 2)>::allocate<ALLOC_SIZE14 * 2>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE15 * 2)>::allocate<ALLOC_SIZE15 * 2>();
-template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE16 * 2)>::allocate<ALLOC_SIZE16 * 2>();
+// (Per-SIZE explicit instantiation of allocate<SIZE>() removed —
+//  allocate<SIZE>() is now header-inline in allocator_prv.h
+//  (`[[gnu::always_inline]]`).  The out-of-line cold path,
+//  `allocate_chunk_path(unsigned int)`, is a non-template member; it
+//  is instantiated once per `(ALIGN, FS, DUMMY)` class instantiation
+//  by the `template class PoolAllocator<...>;` directives above.)
 
 //static struct PoolReleaser {
 //	~PoolReleaser() {

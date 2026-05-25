@@ -166,11 +166,10 @@ private:
 	static PoolAllocatorBase *s_chunks[ALLOC_MAX_CHUNKS];
 };
 
-//! Per-thread flag — true once any allocator-TLS destructor has fired
-//! (`PoolAllocator<X>::TlsGuard::~dtor` or `AllocPinCleanup::~dtor`).
-//! Forward-declared here so `PoolAllocator::TlsGuard` (below) can write
-//! it before the full `extern` declaration further down.  The variable
-//! is defined in allocator.cpp.
+//! Per-thread flag — true once `AllocPinCleanup::~dtor` has fired.
+//! Read by `new_redirected()` (and other allocator-TLS-aware code via
+//! `is_allocator_thread_active()`) to fall back to malloc once the
+//! pool-allocator TLS state is dead.  Defined in allocator.cpp.
 extern ALLOC_TLS bool s_alloc_tls_off;
 
 //! \brief Memory blocks in a unit of double-quad word
@@ -180,8 +179,35 @@ extern ALLOC_TLS bool s_alloc_tls_off;
 template <unsigned int ALIGN, bool FS = false, bool DUMMY = true>
 class PoolAllocator : public PoolAllocatorBase {
 public:
+	//! Hot path: owner-thread freelist pop.  `[[gnu::always_inline]]`
+	//! ensures clang ignores its size-based inlining heuristic so this
+	//! inlines into `operator new` (cross-TU via the header), removing
+	//! the per-allocate call boundary.  Freelist miss falls through to
+	//! the out-of-line `allocate_chunk_path` (allocate_pooled +
+	//! chunk-claim + create_allocator).
+	//!
+	//! SIZE is a template parameter so the slot stride used by
+	//! `try_owner_freelist_pop` (= ALIGN) and the bitmap path inside
+	//! `allocate_chunk_path` can be constant-folded; the freelist hit
+	//! path itself uses ALIGN (not SIZE) to compute the slot address,
+	//! so it's identical for all SIZE values that share an ALIGN bucket.
 	template <unsigned int SIZE>
-	static void *allocate();
+	[[gnu::always_inline]] static void *allocate() noexcept {
+		// Single-instruction fast path on Apple Silicon: TLS load
+		// `s_my_chunk` (one `mrs tpidr_el0` + offset), null-check, and
+		// (if non-null) inlined `try_owner_freelist_pop` (5 instructions:
+		// load m_freelist_curpos, compare with m_freelist, decrement,
+		// load uint16_t, multiply-add for slot address).
+		if(PoolAllocator<ALIGN, DUMMY, DUMMY> *my = s_my_chunk) {
+			if(void *p = my->try_owner_freelist_pop())
+				return p;
+		}
+		// Cold path — pinned-chunk bitmap CAS, chunk-claim loop, chunk
+		// creation.  Stays in allocator.cpp as a non-template function
+		// (SIZE passed at runtime — only used inside allocate_pooled's
+		// bitmap accounting; ALIGN/FS/DUMMY-specific via the class).
+		return allocate_chunk_path(SIZE);
+	}
 	static void release_pools();
 	void report_leaks();
 	void report_statistics(size_t &chunk_size, size_t &used_size) override;
@@ -195,6 +221,14 @@ protected:
 	void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept override;
 	static bool create_allocator(int &aidx);
 	static bool release_allocator(PoolAllocator *alloc);
+	//! Out-of-line cold path: invoked by the header-inline `allocate()`
+	//! whenever the owner-thread freelist is empty (or `s_my_chunk`
+	//! is null on first call from this thread).  Tries
+	//! `allocate_pooled` on the pinned chunk first, then the chunk-
+	//! claim CAS loop, then `create_allocator` to mmap a new chunk.
+	//! Single function per (ALIGN, FS, DUMMY) instantiation — runtime
+	//! SIZE arg, no per-SIZE explosion.
+	static void *allocate_chunk_path(unsigned int SIZE);
 
 	// === Cache line 0: owner-side hot reads & const fields.
 	// Freelist members up front so they share a line with `m_flags`
@@ -254,31 +288,15 @@ protected:
 	//! FS=false). Casting to the wrong type would mis-dispatch
 	//! allocate_pooled().
 	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_my_chunk;
-	//! Per-thread guard for THIS pool template's TLS state.  Each
-	//! PoolAllocator template instantiation has its own thread_local
-	//! `TlsGuard`, so the order in which thread_local destructors run
-	//! does not matter: whichever fires first sets `s_alloc_tls_off`,
-	//! and the rest are idempotent.  This removes the previous single
-	//! point of failure (only `AllocPinCleanup::~dtor` set the flag).
-	//!
-	//! `allocate<>()` performs an ODR-use of `s_tls_guard` so the
-	//! thread_local is initialised on this thread's first allocation,
-	//! and its destructor is registered for thread exit.
-	struct TlsGuard {
-		~TlsGuard() noexcept {
-			// Per-template cleanup, in case `AllocPinCleanup::~dtor`
-			// runs after us or skips this template.  Idempotent — both
-			// fields tolerate being re-cleared.
-			if(s_my_chunk) {
-				s_my_chunk->flush_owner_freelist();
-				s_my_chunk = nullptr;
-			}
-			// Global allocator-off flag — read by `is_allocator_thread_active()`
-			// from later (pthread_key) TLS dtors.
-			s_alloc_tls_off = true;
-		}
-	};
-	static thread_local TlsGuard s_tls_guard;
+	// (removed: `thread_local TlsGuard s_tls_guard;` and its dtor.
+	//  AllocPinCleanup::~AllocPinCleanup — fired via
+	//  XThreadLocal<AllocPinCleanup>'s pthread_key dtor on thread exit —
+	//  already calls `chunk->flush_owner_freelist()`, `clear_owner_tls()`,
+	//  and sets `s_alloc_tls_off = true`, for every chunk this thread
+	//  pinned.  The TlsGuard was redundant and its `(void)&s_tls_guard`
+	//  ODR-use in `allocate<>()` emitted a per-template C++ thread_local
+	//  init thunk call on every allocation (macOS arm64), with no
+	//  observable correctness benefit.)
 	//! # of threads pinning this chunk via TLS s_my_chunk. Incremented
 	//! once per thread on first use; never decremented in steady state.
 	//! release_allocator() returns false when this is non-zero so the
@@ -508,8 +526,8 @@ void* allocate_large_size_or_malloc(size_t size) throw();
 }
 
 extern bool g_sys_image_loaded;
-//! `s_alloc_tls_off` is forward-declared earlier in this file (around the
-//! PoolAllocator class) so `PoolAllocator::TlsGuard` can reference it.
+//! `s_alloc_tls_off` is forward-declared earlier in this file (just above
+//! PoolAllocator) so new_redirected can read it.
 
 void activateAllocator();
 

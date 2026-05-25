@@ -60,8 +60,8 @@
 
     //! \return true while this thread's pool allocator state is fully
     //! live (`g_sys_image_loaded && !s_alloc_tls_off`).  Returns false
-    //! once ANY of the per-pool-template `TlsGuard` destructors has
-    //! fired, OR `AllocPinCleanup` has fired (whichever runs first).
+    //! once `AllocPinCleanup::~dtor` has fired on this thread (which
+    //! is the single point that sets `s_alloc_tls_off`).
     //!
     //! Allocator-using TLS destructors / pthread_key cleanups / atexit
     //! hooks should check this before doing CAS-retry loops, COW
