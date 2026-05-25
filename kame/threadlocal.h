@@ -97,15 +97,20 @@ class XThreadLocal {
     //! and recurse if XThreadLocal is used from inside the allocator
     //! bootstrap path).  malloc gives `alignof(std::max_align_t)` (16 B
     //! on common 64-bit ABIs); enforce that T fits.
-    static_assert(std::is_nothrow_default_constructible<T>::value,
-        "XThreadLocal<T>: T must be noexcept default-constructible");
-    static_assert(std::is_nothrow_destructible<T>::value,
-        "XThreadLocal<T>: T must be noexcept destructible");
+    //!
+    //! `T`'s default ctor / dtor are NOT required to be `noexcept`;
+    //! if they throw the exception propagates out of `ctor_`/`dtor_`
+    //! and through `tls_storage` (which is `noexcept`), so the program
+    //! calls `std::terminate`.  This matches the previous `new T()` /
+    //! `delete` behaviour.  Avoiding the noexcept constraint here is
+    //! necessary for `T` types in the KAME tree whose default
+    //! constructors invoke allocating standard-library code that may
+    //! throw (e.g. internal hash-map rehash on first access).
     static_assert(alignof(T) <= alignof(std::max_align_t),
         "XThreadLocal<T>: alignof(T) exceeds malloc's alignment guarantee");
 public:
     template <typename ...Arg>
-    XThreadLocal(Arg&& ...) noexcept {}
+    XThreadLocal(Arg&& ...) {}
     XThreadLocal(const XThreadLocal &) = delete;
     XThreadLocal &operator=(const XThreadLocal &) = delete;
 
@@ -120,7 +125,7 @@ public:
     T *operator->() const noexcept { return &( **this); }
 
 private:
-    static void *ctor_() noexcept {
+    static void *ctor_() {
         void *mem = std::malloc(sizeof(T));
         if( !mem) std::abort();
         return ::new(mem) T();
