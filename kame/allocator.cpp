@@ -576,10 +576,13 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
 		FUINT slot_mask = nones | (nones - 1u);
 		unsigned N = count_bits(slot_mask);
-		unsigned size_bytes = N * ALIGN;
-		unsigned bucket = (size_bytes + ALLOC_ALIGNMENT - 1u)
-		                  / ALLOC_ALIGNMENT;
-		if(N >= 1 && bucket < (unsigned)ALLOC_NUM_BUCKETS) {
+		std::size_t size_bytes = (std::size_t)N * ALIGN;
+		// Same `bucket_for_size` as `new_redirected` — slot sizes
+		// (multiples of 16 ≤ 256 or 32 between 288..512) all land
+		// on their canonical bucket regardless of which formula
+		// branch you came through.
+		if(N >= 1 && size_bytes <= ALLOC_MAX_BUCKETED_SIZE) {
+			unsigned bucket = bucket_for_size(size_bytes);
 			g_thread_slots[bucket].push(p);
 			return false;
 		}
@@ -1189,6 +1192,17 @@ KAME_DECL_BUCKET(13, ALLOC_SIZE13,                 true,  ALLOC_SIZE13);
 KAME_DECL_BUCKET(14, ALLOC_ALIGN(ALLOC_SIZE14),   false,  ALLOC_SIZE14);
 KAME_DECL_BUCKET(15, ALLOC_SIZE15,                 true,  ALLOC_SIZE15);
 KAME_DECL_BUCKET(16, ALLOC_ALIGN(ALLOC_SIZE16),   false,  ALLOC_SIZE16);
+// Buckets 17..24 cover sizes 288..512 (32-B increments) — previously
+// dispatched by new_redirected_large via ALLOCATE_9_16X(2, size).  All
+// FS=false, ALIGN per ALLOC_ALIGN(size) (= 32 except for size 512 → 256).
+KAME_DECL_BUCKET(17, ALLOC_ALIGN(ALLOC_SIZE9 * 2),  false, ALLOC_SIZE9 * 2);   // size 288
+KAME_DECL_BUCKET(18, ALLOC_ALIGN(ALLOC_SIZE10 * 2), false, ALLOC_SIZE10 * 2);  // size 320
+KAME_DECL_BUCKET(19, ALLOC_ALIGN(ALLOC_SIZE11 * 2), false, ALLOC_SIZE11 * 2);  // size 352
+KAME_DECL_BUCKET(20, ALLOC_ALIGN(ALLOC_SIZE12 * 2), false, ALLOC_SIZE12 * 2);  // size 384
+KAME_DECL_BUCKET(21, ALLOC_ALIGN(ALLOC_SIZE13 * 2), false, ALLOC_SIZE13 * 2);  // size 416
+KAME_DECL_BUCKET(22, ALLOC_ALIGN(ALLOC_SIZE14 * 2), false, ALLOC_SIZE14 * 2);  // size 448
+KAME_DECL_BUCKET(23, ALLOC_ALIGN(ALLOC_SIZE15 * 2), false, ALLOC_SIZE15 * 2);  // size 480
+KAME_DECL_BUCKET(24, ALLOC_ALIGN(ALLOC_SIZE16 * 2), false, ALLOC_SIZE16 * 2);  // size 512
 #undef KAME_DECL_BUCKET
 
 //! State-machine "off" / post-cleanup slot — every g_thread_slots[]
@@ -1276,15 +1290,24 @@ ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS] = {
     { nullptr, nullptr, &bucket_first_access<14> },  // bucket 14: size ≤ 224 (FS=false)
     { nullptr, nullptr, &bucket_first_access<15> },  // bucket 15: size ≤ 240
     { nullptr, nullptr, &bucket_first_access<16> },  // bucket 16: size ≤ 256 (FS=false)
+    { nullptr, nullptr, &bucket_first_access<17> },  // bucket 17: size ≤ 288 (FS=false)
+    { nullptr, nullptr, &bucket_first_access<18> },  // bucket 18: size ≤ 320 (FS=false)
+    { nullptr, nullptr, &bucket_first_access<19> },  // bucket 19: size ≤ 352 (FS=false)
+    { nullptr, nullptr, &bucket_first_access<20> },  // bucket 20: size ≤ 384 (FS=false)
+    { nullptr, nullptr, &bucket_first_access<21> },  // bucket 21: size ≤ 416 (FS=false)
+    { nullptr, nullptr, &bucket_first_access<22> },  // bucket 22: size ≤ 448 (FS=false)
+    { nullptr, nullptr, &bucket_first_access<23> },  // bucket 23: size ≤ 480 (FS=false)
+    { nullptr, nullptr, &bucket_first_access<24> },  // bucket 24: size ≤ 512 (FS=false)
 };
 
-// Out-of-line large-size dispatch.  Sizes > 256 B fall here from
-// `new_redirected`.  Keeps the activation-flag check (cold path is the
-// right place for it — only paid by larger allocations).
+// Out-of-line large-size dispatch.  Sizes > 512 B fall here from
+// `new_redirected` (sizes ≤ 512 are dispatched inline via the
+// g_thread_slots table, buckets 17..24).  Keeps the activation-flag
+// check (cold path is the right place for it — only paid by larger
+// allocations).
 void *new_redirected_large(std::size_t size) noexcept {
     if( !g_sys_image_loaded || s_alloc_tls_off)
         return std::malloc(size);
-    ALLOCATE_9_16X(2, size);
     return allocate_large_size_or_malloc(size);
 }
 

@@ -537,9 +537,44 @@ struct AllocSlot {
 	}
 };
 
-//! Bucket count: index 0 (size = 0) reuses bucket 1's 16-B allocator;
-//! indices 1..16 cover sizes 16..256 in 16-B increments.
-constexpr int ALLOC_NUM_BUCKETS = 17;
+//! Bucket count.
+//!   - index 0 (size = 0): reuses bucket 1's 16-B allocator
+//!   - 1..16: sizes 16..256 in 16-B increments    (FS=true + FS=false mixed)
+//!   - 17..24: sizes 288..512 in 32-B increments  (FS=false, was previously
+//!             handled by new_redirected_large via ALLOCATE_9_16X(2, ...))
+constexpr int ALLOC_NUM_BUCKETS = 25;
+
+//! Size → bucket-index for both allocation (user size → bucket of the
+//! smallest slot that fits) and deallocation (slot's actual size →
+//! its bucket).  Both ranges happen to fit the same formula because
+//! slot sizes coincide with the bucket boundary (the top of each
+//! bucket's user-size range == the slot size for that bucket):
+//!
+//!   user_size 1..16   ↘
+//!   slot_size = 16    ↗ → bucket 1
+//!   user_size 17..32  ↘
+//!   slot_size = 32    ↗ → bucket 2
+//!   ...
+//!   user_size 257..288  ↘
+//!   slot_size = 288     ↗ → bucket 17
+//!   ...
+//!   user_size 481..512  ↘
+//!   slot_size = 512     ↗ → bucket 24
+//!
+//! Sizes > ALLOC_MAX_BUCKETED_SIZE (= 512 = ALLOC_SIZE16*2) are not
+//! covered; callers must check before indexing.
+constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = (std::size_t)ALLOC_SIZE16 * 2u;
+
+inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
+	// size ≤ 256: 16-B step slots.  (size+15)>>4 gives 1..16 for
+	// size 1..256, and 0 for size==0 (reuses bucket 0's 16-B allocator).
+	if(size <= (std::size_t)ALLOC_SIZE16)
+		return static_cast<unsigned int>((size + 15u) >> 4);
+	// 257..512: 32-B step slots (288, 320, ..., 512).  17 + ((size-257)>>5)
+	// gives 17..24.  Works for both user size (rounding up to the
+	// next slot size) and slot size (already a multiple of 32 above 256).
+	return 17u + static_cast<unsigned int>((size - 257u) >> 5);
+}
 
 extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
 
@@ -550,26 +585,26 @@ extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
 void *new_redirected_large(std::size_t size) noexcept;
 
 inline void *new_redirected(std::size_t size) {
-	if(size <= ALLOC_SIZE16) {
-		// Bucket: 0 for size=0 (handled the same as bucket 1 — its
-		// alloc_fn slot also points to the 16-B allocator);
-		// (size+15)>>4 gives 1..16 for size in 1..256.
-		unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
-		AllocSlot &slot = g_thread_slots[bucket];
-		// Inline freelist pop — no indirect call on hit path.
-		// Empty sentinel: nullptr (push only ever writes the previous
-		// head into the slot's first 8 bytes, so user data is never
-		// on the freelist link).
-		char *head = slot.freelist_head;
-		if(head) {
-			slot.freelist_head = *reinterpret_cast<char **>(head);
-			return head;
-		}
-		// Freelist miss — bucket-specific slow path (first_access /
-		// steady_alloc / malloc_fallback).
-		return slot.alloc_fn(&slot, size);
+	// Sizes > ALLOC_MAX_BUCKETED_SIZE (= 512) fall through to
+	// new_redirected_large for the X=4 / X=8 / ... ALIGN doublings;
+	// 1..512 dispatch via the shared `bucket_for_size` formula
+	// (also used by the FS=false dealloc to push to the matching
+	// bucket).
+	if(size > ALLOC_MAX_BUCKETED_SIZE)
+		return new_redirected_large(size);
+	unsigned int bucket = bucket_for_size(size);
+	AllocSlot &slot = g_thread_slots[bucket];
+	// Inline freelist pop — no indirect call on hit path.  Empty
+	// sentinel: nullptr (push only ever writes the previous head into
+	// the slot's first 8 bytes, so user data is never on the link).
+	char *head = slot.freelist_head;
+	if(head) {
+		slot.freelist_head = *reinterpret_cast<char **>(head);
+		return head;
 	}
-	return new_redirected_large(size);
+	// Freelist miss — bucket-specific slow path (first_access /
+	// steady_alloc / malloc_fallback).
+	return slot.alloc_fn(&slot, size);
 }
 
 //void* operator new(std::size_t size) throw(std::bad_alloc);
