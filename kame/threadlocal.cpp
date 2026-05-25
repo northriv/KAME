@@ -15,6 +15,7 @@
 
 #include <cassert>
 #include <cstdlib>
+#include <new>
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 // Win32 Fiber-Local Storage (Vista+).  Forward-declare to avoid pulling
@@ -52,6 +53,13 @@ struct TLSEntry {
 //! Per-thread root of the linked list.  Owned via the OS TLS key below;
 //! its destructor walks the list LIFO and invokes each registered
 //! `dtor()`, then frees the entries.
+//!
+//! All allocations / deallocations on this path use `std::malloc` /
+//! `std::free` directly, bypassing the global `operator new` override
+//! (which would route through `PoolAllocator::allocate()`).  This
+//! keeps `XThreadLocal` lazy-init reentrancy-safe even when called
+//! from inside the allocator bootstrap path (e.g.
+//! `tls_alloc_pin_cleanup.add(...)` fires before `s_my_chunk` is set).
 struct PerThread {
     TLSEntry *head;
     PerThread() noexcept : head(nullptr) {}
@@ -60,7 +68,8 @@ struct PerThread {
         while(e) {
             TLSEntry *next = e->next;
             e->dtor(e->data);
-            delete e;
+            //! TLSEntry is trivially destructible; just free the malloc'd block.
+            std::free(e);
             e = next;
         }
     }
@@ -72,7 +81,9 @@ struct PerThread {
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 
 void __stdcall fls_destroy(void *p) noexcept {
-    delete static_cast<PerThread *>(p);
+    auto *pt = static_cast<PerThread *>(p);
+    pt->~PerThread();
+    std::free(pt);
 }
 
 unsigned long get_fls_key() noexcept {
@@ -92,7 +103,9 @@ PerThread &get_per_thread() noexcept {
     const unsigned long key = get_fls_key();
     PerThread *p = static_cast<PerThread *>(FlsGetValue(key));
     if( !p) {
-        p = new PerThread();
+        void *mem = std::malloc(sizeof(PerThread));
+        if( !mem) std::abort();
+        p = new(mem) PerThread();
         int ok = FlsSetValue(key, p);
         assert(ok); (void)ok;
     }
@@ -102,7 +115,9 @@ PerThread &get_per_thread() noexcept {
 #else // POSIX
 
 void pthread_destroy(void *p) noexcept {
-    delete static_cast<PerThread *>(p);
+    auto *pt = static_cast<PerThread *>(p);
+    pt->~PerThread();
+    std::free(pt);
 }
 
 pthread_key_t get_pthread_key() noexcept {
@@ -120,7 +135,9 @@ PerThread &get_per_thread() noexcept {
     const pthread_key_t key = get_pthread_key();
     PerThread *p = static_cast<PerThread *>(pthread_getspecific(key));
     if( !p) {
-        p = new PerThread();
+        void *mem = std::malloc(sizeof(PerThread));
+        if( !mem) std::abort();
+        p = new(mem) PerThread();
         int ret = pthread_setspecific(key, p);
         assert( !ret); (void)ret;
     }
@@ -141,8 +158,12 @@ tls_storage(const void *key, void *(*ctor)(), void (*dtor)(void *)) noexcept {
         if(e->key == key) return e->data;
     }
     //! First access on this thread for this key.  Allocate the
-    //! payload via ctor and chain-prepend the entry.
-    TLSEntry *e = new TLSEntry{key, ctor(), dtor, pt.head};
+    //! entry via malloc (NOT operator new — that would route through
+    //! the pool allocator) and chain-prepend.  `ctor()` is also
+    //! malloc-based (see `XThreadLocal::ctor_` in threadlocal.h).
+    void *mem = std::malloc(sizeof(TLSEntry));
+    if( !mem) std::abort();
+    TLSEntry *e = new(mem) TLSEntry{key, ctor(), dtor, pt.head};
     pt.head = e;
     return e->data;
 }

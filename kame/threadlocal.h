@@ -16,6 +16,9 @@
 
 #include "support.h"
 #include <cassert>
+#include <cstdlib>
+#include <new>
+#include <type_traits>
 
 //! Applied to the per-DLL cached `T*` in `operator*()` below.  `__thread`
 //! lets the linker pick initial-exec TLS for libkame (loaded at startup)
@@ -89,6 +92,17 @@ DECLSPEC_KAME void *tls_storage(const void *key,
 //!             slots for the same `T`.
 template <typename T, typename Tag = void>
 class XThreadLocal {
+    //! `ctor_` / `dtor_` go through `std::malloc` / `std::free` (NOT
+    //! `operator new`, which would route through the pool allocator
+    //! and recurse if XThreadLocal is used from inside the allocator
+    //! bootstrap path).  malloc gives `alignof(std::max_align_t)` (16 B
+    //! on common 64-bit ABIs); enforce that T fits.
+    static_assert(std::is_nothrow_default_constructible<T>::value,
+        "XThreadLocal<T>: T must be noexcept default-constructible");
+    static_assert(std::is_nothrow_destructible<T>::value,
+        "XThreadLocal<T>: T must be noexcept destructible");
+    static_assert(alignof(T) <= alignof(std::max_align_t),
+        "XThreadLocal<T>: alignof(T) exceeds malloc's alignment guarantee");
 public:
     template <typename ...Arg>
     XThreadLocal(Arg&& ...) noexcept {}
@@ -106,8 +120,15 @@ public:
     T *operator->() const noexcept { return &( **this); }
 
 private:
-    static void *ctor_() { return new T(); }
-    static void dtor_(void *p) noexcept { delete static_cast<T *>(p); }
+    static void *ctor_() noexcept {
+        void *mem = std::malloc(sizeof(T));
+        if( !mem) std::abort();
+        return ::new(mem) T();
+    }
+    static void dtor_(void *p) noexcept {
+        static_cast<T *>(p)->~T();
+        std::free(p);
+    }
 };
 
 #endif /*THREADLOCAL_H_*/

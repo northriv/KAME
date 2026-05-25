@@ -24,7 +24,7 @@ namespace Transactional {
 
 struct DECLSPEC_KAME ProcessCounter {
     using cnt_t = uint16_t;
-    ProcessCounter();
+    ProcessCounter() noexcept;
     operator cnt_t() const noexcept {return m_var;}
     enum : cnt_t { MAINTHREADID = 1 };
     // On Windows, id() must not be inlined: the inline body would access

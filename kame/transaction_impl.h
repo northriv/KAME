@@ -930,7 +930,7 @@ XThreadLocal<typename Node<XN>::FuncPayloadCreator> Node<XN>::stl_funcPayloadCre
 atomic<ProcessCounter::cnt_t> ProcessCounter::s_count = ProcessCounter::MAINTHREADID - 1;
 XThreadLocal<ProcessCounter> ProcessCounter::stl_processID;
 
-ProcessCounter::ProcessCounter() {
+ProcessCounter::ProcessCounter() noexcept {
     for(;;) {
         cnt_t oldv = s_count;
         cnt_t newv = oldv + (cnt_t)1u;
