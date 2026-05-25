@@ -353,35 +353,24 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	return p;
 }
 template <unsigned int ALIGN, bool DUMMY>
-inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool,
-                                                          uint16_t *fs_buckets) :
+inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
 	PoolAllocator<ALIGN, true, false>(count, addr, ppool),
 	m_sizes(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)
-	                                         + sizeof(FUINT) * count])),
-	m_fs_buckets(fs_buckets) {
+	                                         + sizeof(FUINT) * count])) {
 	m_available_bits = sizeof(FUINT) * 8;
-	for(int i = 0; i < FS_MAX_BUCKETS; ++i)
-		m_fs_bucket_count[i] = 0;
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(size_t size, char *ppool) {
 	int count = size / ALIGN / sizeof(FUINT) / 8;
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
-	// FS=false uses bucket-based push instead of the inherited FS=true
-	// linked-list freelist (which just stays at its empty sentinel).
-	// Its own per-size bucket array m_fs_buckets:
-	//   FS_MAX_BUCKETS × FS_BUCKET_CAP × 2 B = 8 KiB tail-allocated
-	// after the m_flags / m_sizes arrays.
-	constexpr size_t fs_buckets_bytes =
-	    sizeof(uint16_t) * FS_MAX_BUCKETS * FS_BUCKET_CAP;
-	// Layout: [class][m_flags][m_sizes][m_fs_buckets]
-	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count * 2
-	                                        + fs_buckets_bytes));
+	// Layout: [class][m_flags][m_sizes].  The previous tail-allocated
+	// m_fs_buckets (FS_MAX_BUCKETS × FS_BUCKET_CAP × 2 B = 8 KiB per
+	// chunk) is gone — FS=false dealloc now pushes to the per-thread
+	// AllocSlot freelist in `g_thread_slots[]`, identically to FS=true.
+	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count * 2));
 	if( !area)
 		return 0;
-	uint16_t *fs_buckets = reinterpret_cast<uint16_t *>(
-	    area + size_alloc + sizeof(FUINT) * count * 2);
-	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool, fs_buckets);
+	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool);
 	return p;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -494,13 +483,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 inline void *
 PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
-	// Owner-side per-size bucket fast path.  Safe to call regardless
-	// of s_my_chunk: in the owner case we are the single writer; in
-	// the slow-path-just-claimed case the buckets were drained on the
-	// previous owner's thread exit (m_fs_bucket_count[*] all zero).
-	// `m_sizes` at the popped slot is already correct (slot was
-	// allocated with the same N originally).
-	if(void *p = this->fs_try_bucket_pop(SIZE / ALIGN)) return p;
+	// Owner-side freelist hit is handled in `new_redirected` via the
+	// per-thread `g_thread_slots[bucket].freelist_head` — by the time
+	// we reach `allocate_pooled` the freelist has missed.  This path
+	// runs the bitmap CAS to claim N consecutive free bits.
 	if(m_available_bits < SIZE / ALIGN)
 		return 0;
 	FUINT oldv, ones, cand;
@@ -567,10 +553,14 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
-	// Owner-side per-size bucket fast path.  fs_try_bucket_push
-	// decodes N from m_sizes and stores slot_idx into bucket[N-1].
-	// Non-owner deallocs OR N outside FS_MAX_BUCKETS OR bucket-at-cap
-	// route to the cross-thread TLS batch.
+	// Owner-side dealloc: decode the slot's N (size in ALIGN units)
+	// from m_sizes, compute the global bucket index for size = N*ALIGN,
+	// and push to the per-thread `g_thread_slots[bucket].freelist_head`
+	// — exactly the slot that `new_redirected` pops from on the next
+	// allocation of that size.  Non-owner OR bucket-out-of-range
+	// (slot's size exceeds what `new_redirected` covers, i.e.
+	// size > 256 B) routes to the cross-thread TLS batch which
+	// eventually CASes the bitmap via `batch_return_to_bitmap`.
 	//
 	// `s_my_chunk` has declared type `PoolAllocator<ALIGN, false, false>*`
 	// (from the base's `PoolAllocator<ALIGN, DUMMY, DUMMY>*` with
@@ -579,44 +569,23 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// same chunk object.  Compare as void* to bypass the type mismatch.
 	if(static_cast<void *>(PoolAllocator<ALIGN, true, false>::s_my_chunk)
 	    == static_cast<void *>(this)) {
-		if(this->fs_try_bucket_push(p)) return false;
+		unsigned slot_idx = static_cast<unsigned>(
+		    (p - this->m_mempool) / ALIGN);
+		unsigned idx = slot_idx / (sizeof(FUINT) * 8);
+		unsigned sidx = slot_idx % (sizeof(FUINT) * 8);
+		FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
+		FUINT slot_mask = nones | (nones - 1u);
+		unsigned N = count_bits(slot_mask);
+		unsigned size_bytes = N * ALIGN;
+		unsigned bucket = (size_bytes + ALLOC_ALIGNMENT - 1u)
+		                  / ALLOC_ALIGNMENT;
+		if(N >= 1 && bucket < (unsigned)ALLOC_NUM_BUCKETS) {
+			g_thread_slots[bucket].push(p);
+			return false;
+		}
 	}
 	tls_cross_dealloc_batch->push(this, p);
 	return false;
-}
-
-template <unsigned int ALIGN, bool DUMMY>
-void
-PoolAllocator<ALIGN, false, DUMMY>::flush_owner_freelist() noexcept {
-	// Walk each bucket; for each entry, CAS-clear the N corresponding
-	// bits in m_flags.  Per-slot CAS (vs the m_freelist_bits-style
-	// "OR all then one CAS per word" optimisation) — flush is a
-	// thread-exit-only path so the loop cost is amortised away.
-	for(int b = 0; b < FS_MAX_BUCKETS; ++b) {
-		unsigned N = (unsigned)(b + 1);
-		FUINT bit_pattern = (((FUINT)1u << N) - 1u);  // N low bits set
-		unsigned cnt = this->m_fs_bucket_count[b];
-		for(unsigned k = 0; k < cnt; ++k) {
-			uint32_t slot_idx =
-			    this->m_fs_buckets[(size_t)b * FS_BUCKET_CAP + k];
-			unsigned idx = slot_idx / (sizeof(FUINT) * 8);
-			unsigned sidx = slot_idx % (sizeof(FUINT) * 8);
-			FUINT mask = bit_pattern << sidx;
-			FUINT *pflag = &this->m_flags[idx];
-			for(;;) {
-				FUINT oldv = *pflag;
-				FUINT newv = oldv & ~mask;
-				if(atomicCompareAndSet(oldv, newv, pflag)) {
-					if(newv == 0 && oldv != 0) {
-						this->m_available_bits = sizeof(FUINT) * 8;
-						atomicDec( &this->m_flags_nonzero_cnt);
-					}
-					break;
-				}
-			}
-		}
-		this->m_fs_bucket_count[b] = 0;
-	}
 }
 
 // FS=false batch return — multi-bit clear (slots vary in n_slots,

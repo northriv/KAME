@@ -385,70 +385,24 @@ public:
 	void report_statistics(size_t &chunk_size, size_t &used_size) override;
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
-	PoolAllocator(int count, char *addr, char *ppool,
-	              uint16_t *fs_buckets);
+	PoolAllocator(int count, char *addr, char *ppool);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
 	void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept override;
-	void flush_owner_freelist() noexcept override;
 
-	//! Size-bucketed owner-thread freelist for variable-size FS=false
-	//! chunks.  Bucket index = N - 1 where N is the slot size in ALIGN
-	//! units (1 ≤ N ≤ FS_MAX_BUCKETS = 16).  Each bucket is a uint16_t
-	//! slot-index LIFO of FS_BUCKET_CAP entries.  Single-writer (owner
-	//! thread), no atomics.
-	//!
-	//! Why per-size buckets: FS=false slots vary in size within a
-	//! chunk, so a single LIFO can't satisfy a size-N pop by returning
-	//! a top entry of size M ≠ N (would partial-allocate, leaking the
-	//! rest).  Per-size buckets give O(1) push and O(1) pop with
-	//! guaranteed size match.  m_sizes encoding is preserved (the
-	//! popped slot already has the correct N-bit pattern at its
-	//! sidx, since we re-allocate with the same N).
-	//!
-	//! Coverage: bucket array covers N = 1 to FS_MAX_BUCKETS = 16,
-	//! which is the full unit range for ALIGN1=32 chunks (sizes
-	//! 32 B – 512 B inclusive).  ALIGN2=256 chunks use units 1–8 in
-	//! the inline dispatch (256 B – 2 KiB) and 9+ via ALLOCATE_9_16X
-	//! (2 KiB+); the 9–16 range is covered, 17+ falls through to the
-	//! cross-thread TLS batch.
-	//!
-	//! Memory: 16 × 256 × 2 B = 8 KiB per FS=false chunk.
-	static constexpr int FS_MAX_BUCKETS = 16;
-	static constexpr int FS_BUCKET_CAP = 256;
-
-	//! Try-push slot to size-matched bucket.  Owner-only.  Returns
-	//! true if pushed (slot retained in owner-side freelist); false
-	//! if N is out of bucket range or the bucket is at cap (caller
-	//! routes to TLS cross-dealloc batch).
-	bool fs_try_bucket_push(char *p) noexcept {
-		unsigned slot_idx = static_cast<unsigned>(
-		    (p - this->m_mempool) / ALIGN);
-		unsigned idx = slot_idx / (sizeof(FUINT) * 8);
-		unsigned sidx = slot_idx % (sizeof(FUINT) * 8);
-		FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
-		FUINT slot_mask = nones | (nones - 1u);
-		unsigned N = count_bits(slot_mask);
-		if(N < 1 || N > (unsigned)FS_MAX_BUCKETS) return false;
-		unsigned b = N - 1;
-		if(m_fs_bucket_count[b] >= (uint16_t)FS_BUCKET_CAP) return false;
-		m_fs_buckets[(size_t)b * FS_BUCKET_CAP + m_fs_bucket_count[b]++] =
-		    static_cast<uint16_t>(slot_idx);
-		return true;
-	}
-	//! Try-pop slot from size-matched bucket.  Owner-only.  Returns
-	//! nullptr if bucket is empty; caller falls through to the
-	//! bitmap allocate path.  m_sizes at the popped slot is already
-	//! correct (the slot was alloc'd with the same N, pushed without
-	//! clearing m_sizes, and we re-alloc with the same N).
-	void *fs_try_bucket_pop(unsigned N) noexcept {
-		if(N < 1 || N > (unsigned)FS_MAX_BUCKETS) return nullptr;
-		unsigned b = N - 1;
-		if(m_fs_bucket_count[b] == 0) return nullptr;
-		uint32_t slot_idx =
-		    m_fs_buckets[(size_t)b * FS_BUCKET_CAP + --m_fs_bucket_count[b]];
-		return this->m_mempool + static_cast<size_t>(slot_idx) * ALIGN;
-	}
+	// FS=false's previous per-chunk size-bucketed freelist
+	// (m_fs_buckets, m_fs_bucket_count, fs_try_bucket_push,
+	// fs_try_bucket_pop, FS_MAX_BUCKETS, FS_BUCKET_CAP, and the
+	// flush_owner_freelist override) is removed: dealloc now pushes
+	// to the per-thread AllocSlot freelist at
+	// `g_thread_slots[bucket_for_size(N * ALIGN)]`, identically to
+	// FS=true.  Allocations get a freelist hit via the inline pop in
+	// `new_redirected` and never reach `allocate_pooled` on that
+	// path.  Drain at thread exit sweeps `g_thread_slots[*]` and
+	// routes slots through `tls_cross_dealloc_batch` →
+	// `batch_return_to_bitmap`, whose FS=false override decodes N
+	// from m_sizes and clears N bits per slot.
+	// Saves 8 KiB per FS=false chunk (m_fs_buckets storage).
 
 private:
 	friend class PoolAllocatorBase;
@@ -459,12 +413,6 @@ private:
 	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
 	FUINT * const m_sizes;
 	unsigned int m_available_bits;
-
-	//! Bucket storage and per-bucket counts.  Storage lives at the
-	//! tail of the chunk-metadata malloc block; pointer is set in
-	//! `create()`.  Counts are inline (small fixed array).
-	uint16_t * const m_fs_buckets;
-	uint16_t m_fs_bucket_count[FS_MAX_BUCKETS];
 };
 
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
