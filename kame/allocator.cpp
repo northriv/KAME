@@ -21,6 +21,7 @@
 #ifndef USE_STD_ALLOCATOR
 
 #include "atomic.h"
+#include "threadlocal.h"
 
 #include <algorithm>
 #include <assert.h>
@@ -78,6 +79,15 @@ struct AllocPinCleanup {
             pinned[i].count_ptr->fetch_sub(1, std::memory_order_release);
     }
 };
+// Raw `thread_local` (NOT XThreadLocal): this variable's first access
+// occurs INSIDE PoolAllocator::allocate()'s chunk-pin path.  An
+// XThreadLocal lazy-init would call `new TLSEntry{..., ctor_=new
+// AllocPinCleanup(), ...}` which recursively enters `allocate()`
+// before the outer call has set `s_my_chunk`, so the recursive call
+// re-enters chunk-pin → re-enters tls_alloc_pin_cleanup → infinite
+// recursion (observed as chunk exhaustion).  Keep this one trivially
+// initialised at thread start so it can be touched safely from the
+// allocator-bootstrap path.
 thread_local AllocPinCleanup tls_alloc_pin_cleanup;
 
 // Cross-thread dealloc batch — single TLS buffer per thread holding
@@ -140,7 +150,7 @@ struct CrossDeallocBatch {
     }
     ~CrossDeallocBatch() noexcept { flush(); }
 };
-thread_local CrossDeallocBatch tls_cross_dealloc_batch;
+XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
 
 } // anon namespace
 
@@ -557,7 +567,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// FS=false has no owner-side freelist (variable slot sizes) —
 	// ALL deallocs (owner and non-owner) route to the cross-dealloc
 	// TLS batch.  Stage 2 unification.
-	tls_cross_dealloc_batch.push(this, p);
+	tls_cross_dealloc_batch->push(this, p);
 	return false;
 	// Bitmap CAS path & release_allocator have moved to
 	// batch_return_to_bitmap (FS=false specialization); see below.
@@ -753,7 +763,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		return false;
 	}
 	// Owner-overflow OR non-owner: TLS batch.
-	tls_cross_dealloc_batch.push(this, p);
+	tls_cross_dealloc_batch->push(this, p);
 	return false;
 }
 
