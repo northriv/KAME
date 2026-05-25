@@ -79,16 +79,17 @@ struct AllocPinCleanup {
             pinned[i].count_ptr->fetch_sub(1, std::memory_order_release);
     }
 };
-// Raw `thread_local` (NOT XThreadLocal): this variable's first access
-// occurs INSIDE PoolAllocator::allocate()'s chunk-pin path.  An
-// XThreadLocal lazy-init would call `new TLSEntry{..., ctor_=new
-// AllocPinCleanup(), ...}` which recursively enters `allocate()`
-// before the outer call has set `s_my_chunk`, so the recursive call
-// re-enters chunk-pin → re-enters tls_alloc_pin_cleanup → infinite
-// recursion (observed as chunk exhaustion).  Keep this one trivially
-// initialised at thread start so it can be touched safely from the
-// allocator-bootstrap path.
-thread_local AllocPinCleanup tls_alloc_pin_cleanup;
+// XThreadLocal (NOT raw `thread_local`).  XThreadLocal's lazy-init
+// path (`tls_storage` + `XThreadLocal<T>::ctor_`) uses `std::malloc`
+// directly (commit 25998cbb), bypassing the global `operator new`
+// override → no re-entry into `PoolAllocator::allocate()`, so this is
+// safe to first-touch from the chunk-pin path inside `allocate()`.
+//
+// On Windows, raw `thread_local` would give each plugin DLL its own
+// TLS slot (and own AllocPinCleanup), so pins added in one DLL would
+// not be cleaned up via another DLL's slot.  XThreadLocal keyed on
+// the libkame-side global's address gives every DLL the same slot.
+XThreadLocal<AllocPinCleanup> tls_alloc_pin_cleanup;
 
 // Cross-thread dealloc batch — single TLS buffer per thread holding
 // {chunk, slot} pairs from non-owner deallocs.  Flushes when full
@@ -953,7 +954,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 				// (with chunk pointer so the cleanup hook can flush
 				// the per-chunk owner-thread freelist on thread exit),
 				// cache as TLS fast-path target, and allocate.
-				tls_alloc_pin_cleanup.add(&chunk->m_thread_pinned_count, chunk);
+				tls_alloc_pin_cleanup->add(&chunk->m_thread_pinned_count, chunk);
 				s_my_chunk = chunk;
 				if(void *p = chunk->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
