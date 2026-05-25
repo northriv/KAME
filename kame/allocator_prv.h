@@ -230,8 +230,7 @@ public:
 
 	typedef uintptr_t FUINT;
 protected:
-	PoolAllocator(int count, char *addr, char *ppool,
-	              uint16_t *freelist, int freelist_cap);
+	PoolAllocator(int count, char *addr, char *ppool);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
 	void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept override;
@@ -239,26 +238,32 @@ protected:
 	static bool release_allocator(PoolAllocator *alloc);
 
 	// === Cache line 0: owner-side hot reads & const fields.
-	// Freelist members up front so they share a line with `m_flags`
-	// (const ptr, read on every allocate / dealloc), `m_idx` (owner-
-	// side write), `m_count` (const), `m_idx_of_type` (const after
-	// chunk creation).  Cross-thread-written atomic counters are
-	// pushed to the next cache line via `alignas(64)` below.
+	// Owner-thread freelist is a LIFO linked list **embedded in the
+	// free slots themselves** — each free slot's first 8 bytes hold a
+	// `char *` pointer to the next free slot, or the empty-sentinel
+	// `(char *)this` when this slot is the list's tail.  No separate
+	// uint16_t-index array, no cap, no slot-count limit: every freed
+	// owner-thread slot lands on the list.
 	//
-	// Freelist stores slot indices as `uint16_t` (= (slot - mempool)/ALIGN)
-	// not raw pointers.  Memory per entry shrinks 8→2 B (4× more
-	// entries fit in the same memory budget; 4× more cache-line
-	// density).  Pop pays one extra ALU op (`slot_idx * ALIGN +
-	// mempool`, where ALIGN is a compile-time constant so the
-	// multiply becomes a shift).
+	// `m_freelist_head`:
+	//   - empty: equal to `(char *)this` (= the chunk metadata
+	//     address, which can never be a valid slot pointer because
+	//     slots live at `this + SLOT_POOL_OFFSET` and beyond);
+	//   - non-empty: pointer to the current head free slot.  The
+	//     slot's first 8 bytes hold the next pointer.
 	//
-	// Chunks whose slot count exceeds `uint16_t` range (slot_count >
-	// 65536) leave `m_freelist == m_freelist_end == nullptr` at
-	// creation, so the freelist push/pop short-circuit to "empty"
-	// and the caller falls back to the TLS cross-dealloc batch.
-	uint16_t * const m_freelist;
-	uint16_t * const m_freelist_end;
-	uint16_t *m_freelist_curpos;
+	// On pop the critical path is just:
+	//   ldr  head, [this,#head]
+	//   cmp  head, this        ; sentinel check
+	//   b.eq slow
+	//   ldr  next, [head]      ; uses head as base; one dependent load
+	//   str  next, [this,#head]
+	//   mov  ret, head         ; return value ready right after first ldr
+	// — no per-template `s_my_chunk` TLV thunk, no `m_mempool` field
+	// load, no `m_freelist_end` field load.  Critical path to return:
+	// ldr head → ret (4 cycles), vs the uint16_t-index variant's
+	// ldr curpos → ldrh idx → add mempool+idx<<N (~10 cycles).
+	char *m_freelist_head;
 	//! Every bit indicates occupancy in m_mempool.
 	FUINT * const m_flags;
 	//! A hint for searching in a chunk.
@@ -311,34 +316,13 @@ protected:
 	//! chunk is not freed while any thread's TLS pointer references it.
 	std::atomic<int> m_thread_pinned_count{0};
 
-	//! Per-chunk owner-thread freelist storage policy (FS=true chunks
-	//! only — FS=false's `deallocate_pooled` override bypasses the
-	//! push because variable-size slots don't share a uniform size;
-	//! for FS=false instances `m_freelist == m_freelist_end ==
-	//! nullptr` at construction).  Single-writer (the thread whose
-	//! TLS `s_my_chunk == this` only); non-owners see `s_my_chunk !=
-	//! this` and route to the cross-thread TLS batch.  Owner check is
-	//! a plain `__thread` load on Linux/macOS (GCC/Clang via
-	//! `ALLOC_TLS`); on Windows MSVC `thread_local` is used.  Cleanup
-	//! hook in `AllocPinCleanup` flushes residual entries on thread
-	//! exit.
-	//!
-	//! Capacity is dynamic at chunk creation, scaled to ~10% of the
-	//! chunk's slot count under low pressure, growing up to 100%
-	//! when many existing chunks are at cap.  Entries are
-	//! `uint16_t` slot indices (see field declarations above), so a
-	//! cap of 4096 costs 8 KB per chunk (1/4 of the equivalent
-	//! pointer-array cost).
-	enum {
-		FREELIST_CAP_MIN = 32,
-		// 16384 entries × 2 B = 32 KB per chunk @ default-pressure cap.
-		// Matches the void*-era 4096-entry memory footprint while
-		// quadrupling the cap thanks to the uint16_t storage switch.
-		// Default 10% mode now hits 100% capacity for ALIGN=16 chunks
-		// up to ~640 KiB and stays near 100% up to the uint16_t-limit
-		// 1 MiB chunk (10% of 65 536 slots = 6 553).
-		FREELIST_CAP_MAX = 16384,
-	};
+	//! Per-chunk owner-thread freelist (FS=true chunks only — FS=false's
+	//! `deallocate_pooled` override uses bucket-based push instead).
+	//! Single-writer (the thread whose TLS `s_my_chunk == this`);
+	//! non-owners see `s_my_chunk != this` and route to the cross-thread
+	//! TLS batch.  Cleanup hook in `AllocPinCleanup` flushes residual
+	//! entries on thread exit.  No cap, no slot-count limit: every
+	//! freed owner-thread slot lands on the embedded linked list.
 
 	void flush_owner_freelist() noexcept override;
 	void flush_owner_freelist_to_bitmap() noexcept;
@@ -358,31 +342,31 @@ protected:
 	void batch_clear_impl(FetchSlot fetch_slot, MaskFn mask_fn,
 	                     OnClearFn on_clear) noexcept;
 
-	//! Owner-thread freelist push.  Inlined here in the header because
-	//! it is the hottest dealloc path (called from every owner dealloc
-	//! that fits in the freelist).  Returns true if the slot was
-	//! pushed; false if the freelist is at cap or the chunk doesn't
-	//! have a freelist (slot_count > 65536).  Single-writer (TLS pin),
-	//! so no atomics.
+	//! Owner-thread freelist push.  Inlined here in the header — hot
+	//! dealloc path.  Embeds the previous head pointer into the freed
+	//! slot's first 8 bytes (overwriting whatever user data lived
+	//! there; the slot is now free, user no longer owns it).  No cap
+	//! check, no size-class limit — every owner-thread dealloc lands
+	//! on the list.  Single-writer (TLS pin), so no atomics.
 	bool try_owner_freelist_push(void *p) noexcept {
-		if(m_freelist_curpos >= m_freelist_end) return false;
-		uint32_t slot_idx = static_cast<uint32_t>(
-		    (static_cast<char *>(p) - this->m_mempool) / ALIGN);
-		// slot_idx fits uint16_t by chunk-creation invariant.
-		*m_freelist_curpos++ = static_cast<uint16_t>(slot_idx);
+		*reinterpret_cast<char **>(p) = m_freelist_head;
+		m_freelist_head = static_cast<char *>(p);
 		return true;
 	}
 public:
-	//! Owner-thread freelist pop.  Inlined here in the header — hot
-	//! alloc path.  Decodes slot_idx (uint16_t) → slot pointer via
-	//! `mempool + idx * ALIGN`; ALIGN is a compile-time constant so
-	//! the multiply is folded into a left shift.
+	//! Owner-thread freelist pop.  Inlined here in the header — hottest
+	//! alloc path.  Critical path is `ldr head, [this,#head] / cmp head,
+	//! this / b.eq slow / ldr next,[head] / str next,[this,#head]`
+	//! — head is the return value, ready ~4 cycles after entry.  Empty
+	//! sentinel is `(char *)this` (the chunk metadata address — never a
+	//! valid slot pointer, no field load needed).
 	//! Public so the per-thread functor-table dispatcher (anon-namespace
 	//! helpers in allocator.cpp) can call it without a friend declaration.
 	void *try_owner_freelist_pop() noexcept {
-		if(m_freelist_curpos == m_freelist) return nullptr;
-		uint32_t slot_idx = *--m_freelist_curpos;
-		return this->m_mempool + static_cast<size_t>(slot_idx) * ALIGN;
+		char *head = m_freelist_head;
+		if(head == reinterpret_cast<char *>(this)) return nullptr;
+		m_freelist_head = *reinterpret_cast<char **>(head);
+		return head;
 	}
 protected:
 
@@ -402,7 +386,6 @@ public:
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	PoolAllocator(int count, char *addr, char *ppool,
-	              uint16_t *freelist, int freelist_cap,
 	              uint16_t *fs_buckets);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;

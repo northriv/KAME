@@ -282,12 +282,10 @@ bool g_sys_image_loaded = false;
 void activateAllocator() {g_sys_image_loaded = true;}
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool,
-                                                      uint16_t *freelist, int freelist_cap) :
+inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
 	PoolAllocatorBase(ppool),
-	m_freelist(freelist),
-	m_freelist_end(freelist + freelist_cap),
-	m_freelist_curpos(freelist),
+	// Empty-list sentinel: `(char *)this`.  See try_owner_freelist_pop.
+	m_freelist_head(reinterpret_cast<char *>(this)),
 	m_flags(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)])),
 	m_idx(0),
 	m_count(count) {
@@ -302,50 +300,23 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(size_t size, char *ppool) {
+	// Layout: [class][m_flags].  The owner-thread freelist is now a
+	// linked list embedded in free slots themselves (see
+	// try_owner_freelist_pop / _push and the `m_freelist_head` field
+	// comment in allocator_prv.h), so no separate uint16_t-index
+	// array follows m_flags.
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
 	int count = size / ALIGN / sizeof(FUINT) / 8;
-	// Owner-thread freelist sizing — fixed 10 % of slot count, clamped
-	// to [FREELIST_CAP_MIN, FREELIST_CAP_MAX].  Previously an adaptive
-	// pressure scan walked existing chunks to detect cap-saturation
-	// and bumped the new chunk's cap toward 100 %.  After the uint16_t
-	// storage switch (e9e60f66), slot indices are bounded to <= 65 536
-	// at chunk creation; the 10 % cap is therefore bounded to <= 6 553,
-	// well below FREELIST_CAP_MAX (16 384), so the pressure scan would
-	// never effectively kick in.  Drop the scan for simplicity.
-	int slot_count = count * (int)(sizeof(FUINT) * 8);
-	int freelist_cap = slot_count / 10;
-	if(freelist_cap < (int)PoolAllocator::FREELIST_CAP_MIN)
-		freelist_cap = PoolAllocator::FREELIST_CAP_MIN;
-	if(freelist_cap > (int)PoolAllocator::FREELIST_CAP_MAX)
-		freelist_cap = PoolAllocator::FREELIST_CAP_MAX;
-	// uint16_t slot-index encoding cannot represent slot_idx ≥ 65536.
-	// Chunks whose slot_count exceeds this range get no owner-thread
-	// freelist (m_freelist == m_freelist_end == nullptr); all owner
-	// deallocs fall through to the cross-thread TLS batch.  In typical
-	// 3-second benchmark runs chunks stay under the limit (initial
-	// chunk size 256 KiB, GROW_CHUNK_SIZE * (5/4)^6 ≈ 1 MiB at
-	// ALIGN=16 reaches the threshold).
-	bool freelist_fits = ((unsigned)slot_count <= 65536u);
-	if( !freelist_fits) freelist_cap = 0;
-	// Layout: [class][m_flags][freelist (uint16_t cap entries, FUINT-padded)]
-	size_t freelist_bytes_raw = sizeof(uint16_t) * (size_t)freelist_cap;
-	size_t freelist_bytes = (freelist_bytes_raw + sizeof(FUINT) - 1)
-	    / sizeof(FUINT) * sizeof(FUINT);
-	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count
-	                                        + freelist_bytes));
+	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count));
 	if( !area)
 		return 0;
-	uint16_t *freelist = freelist_fits
-	    ? reinterpret_cast<uint16_t *>(area + size_alloc + sizeof(FUINT) * count)
-	    : nullptr;
-	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool, freelist, freelist_cap);
+	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool);
 	return p;
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool,
-                                                          uint16_t *freelist, int freelist_cap,
                                                           uint16_t *fs_buckets) :
-	PoolAllocator<ALIGN, true, false>(count, addr, ppool, freelist, freelist_cap),
+	PoolAllocator<ALIGN, true, false>(count, addr, ppool),
 	m_sizes(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)
 	                                         + sizeof(FUINT) * count])),
 	m_fs_buckets(fs_buckets) {
@@ -357,10 +328,10 @@ template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(size_t size, char *ppool) {
 	int count = size / ALIGN / sizeof(FUINT) / 8;
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
-	// FS=false variant overrides the inherited FS=true single freelist
-	// (`m_freelist == m_freelist_end == nullptr`).  Instead it carries
-	// its own per-size bucket array (m_fs_buckets) with
-	// FS_MAX_BUCKETS × FS_BUCKET_CAP × 2 B = 8 KiB tail-allocated
+	// FS=false uses bucket-based push instead of the inherited FS=true
+	// linked-list freelist (which just stays at its empty sentinel).
+	// Its own per-size bucket array m_fs_buckets:
+	//   FS_MAX_BUCKETS × FS_BUCKET_CAP × 2 B = 8 KiB tail-allocated
 	// after the m_flags / m_sizes arrays.
 	constexpr size_t fs_buckets_bytes =
 	    sizeof(uint16_t) * FS_MAX_BUCKETS * FS_BUCKET_CAP;
@@ -371,7 +342,7 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 		return 0;
 	uint16_t *fs_buckets = reinterpret_cast<uint16_t *>(
 	    area + size_alloc + sizeof(FUINT) * count * 2);
-	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool, nullptr, 0, fs_buckets);
+	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool, fs_buckets);
 	return p;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -700,24 +671,24 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
 PoolAllocator<ALIGN, FS, DUMMY>::flush_owner_freelist_to_bitmap() noexcept {
-	// Drain the chunk-private owner freelist (drain via curpos--) and
+	// Drain the chunk-private owner freelist (linked list embedded in
+	// the free slots — see `try_owner_freelist_pop` / `_push`) and
 	// CAS-clear the matching bits in m_flags, batched by word index.
-	// Shared `batch_clear_impl` skeleton — see allocator_prv.h.  Only
-	// the slot-source (linked-list-style decrement on curpos vs an
-	// external array) differs from batch_return_to_bitmap.
-	if(this->m_freelist_curpos == this->m_freelist) return;
+	// Shared `batch_clear_impl` skeleton — see allocator_prv.h.
+	if(this->m_freelist_head == reinterpret_cast<char *>(this)) return;
 	this->batch_clear_impl(
-		// FetchSlot: pop from chunk's freelist tail, decode slot index
-		// to slot pointer via mempool + slot_idx * ALIGN.
+		// FetchSlot: pop one slot from the head of the embedded linked
+		// list.  Each free slot's first 8 bytes hold the next pointer
+		// (or `(char *)this` sentinel for the list's tail).
 		[this]() -> char * {
-			if(this->m_freelist_curpos == this->m_freelist) return nullptr;
-			uint32_t slot_idx = *--this->m_freelist_curpos;
-			char *p = this->m_mempool + (size_t)slot_idx * ALIGN;
+			char *head = this->m_freelist_head;
+			if(head == reinterpret_cast<char *>(this)) return nullptr;
+			this->m_freelist_head = *reinterpret_cast<char **>(head);
 #ifdef GUARDIAN
 			for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
-				reinterpret_cast<uint64_t *>(p)[i] = GUARDIAN;
+				reinterpret_cast<uint64_t *>(head)[i] = GUARDIAN;
 #endif
-			return p;
+			return head;
 		},
 		// MaskFn: FS=true single bit (same as batch_return_to_bitmap)
 		[](int /*idx*/, unsigned sidx, char * /*p*/) -> FUINT {
