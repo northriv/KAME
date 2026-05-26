@@ -299,6 +299,28 @@ int main(int argc, char **argv) {
     bool leak = (allocs != frees);
     bool ok   = (fails == 0) && !leak;
 
+    // Report peak virtual / resident set so allocators can be compared
+    // on address-space cost.  VmPeak = peak virtual size (all mappings
+    // ever reserved, even if since unmapped); VmHWM = peak resident
+    // set (physically backed pages).
+    {
+        long vm_peak_kb = -1, vm_hwm_kb = -1, vm_size_kb = -1, vm_rss_kb = -1;
+        if(FILE *f = std::fopen("/proc/self/status", "r")) {
+            char line[256];
+            while(std::fgets(line, sizeof(line), f)) {
+                long kb;
+                if(std::sscanf(line, "VmPeak: %ld kB", &kb) == 1) vm_peak_kb = kb;
+                else if(std::sscanf(line, "VmHWM: %ld kB", &kb) == 1) vm_hwm_kb = kb;
+                else if(std::sscanf(line, "VmSize: %ld kB", &kb) == 1) vm_size_kb = kb;
+                else if(std::sscanf(line, "VmRSS: %ld kB", &kb) == 1) vm_rss_kb = kb;
+            }
+            std::fclose(f);
+        }
+        printf("[mem] VmPeak=%ld MiB  VmHWM=%ld MiB  VmSize=%ld MiB  VmRSS=%ld MiB\n",
+               vm_peak_kb / 1024, vm_hwm_kb / 1024,
+               vm_size_kb / 1024, vm_rss_kb / 1024);
+    }
+
     printf("%s\n", ok ? "PASS" : "FAIL");
     printf("[alloc_stress] threads=%d ops=%llu time=%.2fs "
            "rate=%.2fM ops/s (alloc+free)\n",
