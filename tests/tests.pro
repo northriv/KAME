@@ -14,6 +14,7 @@ SUBDIRS += \
     transaction_payload_integrity_3level_test\
     transaction_payload_integrity_mixed_test\
     transaction_payload_integrity_3level_mixed_test\
+    alloc_stress_test\
     xnode_typename_test
 
 atomic_shared_ptr_test.file = atomic_shared_ptr_test.pro
@@ -27,4 +28,5 @@ transaction_payload_integrity_test.file = transaction_payload_integrity_test.pro
 transaction_payload_integrity_3level_test.file = transaction_payload_integrity_3level_test.pro
 transaction_payload_integrity_mixed_test.file = transaction_payload_integrity_mixed_test.pro
 transaction_payload_integrity_3level_mixed_test.file = transaction_payload_integrity_3level_mixed_test.pro
+alloc_stress_test.file = alloc_stress_test.pro
 xnode_typename_test.file = xnode_typename_test.pro

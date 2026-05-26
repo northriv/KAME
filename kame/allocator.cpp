@@ -286,56 +286,53 @@ XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
 // `g_thread_chunks` clear and the chunk pin decrements.  Each free
 // slot's first 8 bytes hold the next pointer (see AllocSlot doc).
 //
-// Freelist invariant: every slot on `g_thread_slots[b].freelist` is
-// from `g_thread_chunks[b]`, because (a) FS=true/false dealloc only
-// pushes to the slot freelist when `s_my_chunk == this`, and (b) the
-// pinned chunk only advances on a freelist miss inside
-// `allocate_chunk_path`, at which point the freelist is already
-// empty.  So we can dispatch the entire bucket to ONE
-// `chunk->batch_return_to_bitmap()` call with no per-slot chunk
-// lookup — the chunk pointer is already in `g_thread_chunks[b]`.
+// Why we MUST look up each slot's chunk individually (not just use
+// `g_thread_chunks[b]`):
 //
-// Previously this routed through `tls_cross_dealloc_batch`, which
-// caused a double-free under glibc on thread exit: `AllocPinCleanup`
-// (XThreadLocal) is registered first (on first chunk pin), then
-// `tls_cross_dealloc_batch` is registered second (on first non-owner
-// dealloc).  Linux's pthread_key dtor order is LIFO, so
-// `tls_cross_dealloc_batch` is destroyed *before* `AllocPinCleanup`
-// runs `drain_thread_slot_freelists`, which then writes into freed
-// `CrossDeallocBatch` memory and corrupts glibc's tcache.  Symptom on
-// 128-thread STM stress on ohtaka: `double free or corruption (out)`
-// from `tcache_thread_shutdown`.  Direct dispatch sidesteps the
-// ordering entirely.
+// Multiple FS=false buckets share a single `PoolAllocator` template
+// instantiation (sizes 96/128/160/192/224/256 all use
+// `PoolAllocator<32, false>`, sizes 288..512 all use
+// `PoolAllocator<64, false>` etc.), sharing one `s_my_chunk` static.
+// When bucket B0 fills and `slow_allocate` claims a new chunk C2,
+// only `g_thread_chunks[B0]` is updated to C2; `g_thread_chunks[B1]`
+// still holds the previous chunk C1.  A subsequent
+// `deallocate_pooled` of a C2 slot via bucket B1's dealloc path
+// passes the owner check (`s_my_chunk == this == C2`) and pushes to
+// `g_thread_slots[B1].freelist_head` — but `g_thread_chunks[B1]` is
+// still C1.  At drain, the bucket's freelist may therefore hold
+// slots from BOTH C1 and C2.  Sending all of them at
+// `g_thread_chunks[B1]` (= C1) would make `batch_return_to_bitmap`
+// compute `(c2_slot - C1->m_mempool) / ALIGN` — a wild idx that
+// walks off `m_flags[]` into unrelated memory → SIGSEGV.  (Caught
+// by `alloc_stress_test 5000 64 5000 30` — the STM 3level_mixed
+// workload missed it because its allocs are near-fixed-size and all
+// land in one FS=true bucket.)
 //
-// Bug introduced in commit 9023940f when the per-chunk linked-list
-// freelist moved onto the thread-global `g_thread_slots[]` — the
-// drain was rewritten to use `tls_cross_dealloc_batch` without
-// considering the TLS dtor ordering against `AllocPinCleanup`.
+// Fix: per-slot `PoolAllocatorBase::lookup_chunk(p)` (address-only
+// `s_chunks[cidx]` lookup) gives the slot's true owner.  Per-slot
+// CAS is slower than batched but drain is rare (thread exit only).
+// Direct `batch_return_to_bitmap` call — must NOT route through
+// `tls_cross_dealloc_batch`, which in PerThread's LIFO TLS chain
+// dies before `~AllocPinCleanup` and would corrupt freed heap (see
+// the AllocPinCleanup comment).
+//
+// Each chunk we touch is still pinned at this point (pin counts
+// drop later in the same destructor), so `release_allocator`
+// returns false inside `batch_return_to_bitmap` and the chunk is
+// not deleted from under us.
 void drain_thread_slot_freelists() noexcept {
-    // Stack scratch buffer: one bucket's drain at a time.  Bucket
-    // capacity is bounded by the pool size; a few hundred slots is
-    // typical, but we chunk-flush in batches of 256 to keep the stack
-    // footprint small.  Each `batch_return_to_bitmap` call does its
-    // own per-m_flags-word CAS coalescing internally.
-    constexpr int kFlushBatch = 256;
-    void *batch[kFlushBatch];
     for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
         AllocSlot &slot = g_thread_slots[b];
-        PoolAllocatorBase *chunk = g_thread_chunks[b];
         char *head = slot.freelist_head;
         slot.freelist_head = nullptr;
-        if( !chunk) continue;   // bucket never activated on this thread
-        int n = 0;
         while(head) {
             char *next = *reinterpret_cast<char **>(head);
-            batch[n++] = head;
-            if(n == kFlushBatch) {
-                chunk->batch_return_to_bitmap(batch, n);
-                n = 0;
+            if(PoolAllocatorBase *c = PoolAllocatorBase::lookup_chunk(head)) {
+                void *one = head;
+                c->batch_return_to_bitmap(&one, 1);
             }
             head = next;
         }
-        if(n > 0) chunk->batch_return_to_bitmap(batch, n);
     }
 }
 
@@ -1254,6 +1251,35 @@ PoolAllocatorBase::deallocate_chunk(int cidx, size_t chunk_size) {
 #endif
 
 	s_chunks[cidx] = 0;
+}
+
+// Runtime walk of `s_mmapped_spaces[]` mirroring `deallocate_<>`'s
+// progressive `GROW_CHUNK_SIZE` ladder — find which mmap space
+// contains `p` and look up `s_chunks[cidx]`.  No `deallocate_pooled`
+// dispatch; pure address-to-chunk mapping for the drain path.  Kept
+// as a regular for-loop rather than reusing the recursive-template
+// `deallocate_<>` because that template lives on the hot operator
+// delete path and an extra branch arm there is undesirable.
+inline PoolAllocatorBase *
+PoolAllocatorBase::lookup_chunk(void *p) noexcept {
+	size_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
+	for(int ccnt = 0; ccnt < ALLOC_MAX_MMAP_ENTRIES; ++ccnt) {
+		char *mp = s_mmapped_spaces[ccnt];
+		if(ccnt > 0 && !mp) break;
+		if(mp) {
+			ptrdiff_t pdiff = static_cast<char *>(p) - mp;
+			if(pdiff >= 0
+			   && pdiff < (ptrdiff_t)chunk_size * NUM_ALLOCATORS_IN_SPACE) {
+				int cidx = int(pdiff / chunk_size)
+				           + ccnt * NUM_ALLOCATORS_IN_SPACE;
+				PoolAllocatorBase *palloc = s_chunks[cidx];
+				if((uintptr_t)palloc <= (uintptr_t)1u) return nullptr;
+				return palloc;
+			}
+		}
+		chunk_size = GROW_CHUNK_SIZE(chunk_size);
+	}
+	return nullptr;
 }
 
 template <int CCNT, size_t CHUNK_SIZE>

@@ -97,6 +97,9 @@ target_link_libraries(transaction_payload_integrity_mixed_test Threads::Threads)
 add_executable(transaction_payload_integrity_3level_mixed_test transaction_payload_integrity_3level_mixed_test.cpp ${support_SRCS})
 target_link_libraries(transaction_payload_integrity_3level_mixed_test Threads::Threads)
 
+add_executable(alloc_stress_test alloc_stress_test.cpp ${support_SRCS})
+target_link_libraries(alloc_stress_test Threads::Threads)
+
 # --- CTest registration ---
 
 enable_testing()
