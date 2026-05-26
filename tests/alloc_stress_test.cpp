@@ -29,8 +29,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <mutex>
-#include <queue>
 #include <random>
 #include <thread>
 #include <vector>
@@ -73,12 +71,66 @@ std::atomic<uint64_t> g_total_allocs{0};
 std::atomic<uint64_t> g_total_frees{0};
 std::atomic<uint64_t> g_sentinel_fails{0};
 
-// Cross-thread free queue.  std::queue<>'s std::deque does small
-// allocations of its own (which themselves go through the pool — that's
-// part of the workload).  We protect with a plain mutex to keep the
-// test code uncomplicated; throughput is dominated by per-thread work.
-std::mutex g_cross_mu;
-std::queue<AllocBlock> g_cross_q;
+// Lock-free cross-thread Treiber stack.  Producers push_cross() to the
+// head; consumers pop_cross() from the head.  No mutex; no `std::queue`/
+// `std::deque` whose internal block allocations would themselves go
+// through the pool and inject deque-shaped (~512 B / block) traffic into
+// the workload.  Each push/pop is exactly one CrossNode `new[]`/
+// `delete[]` so the cross-thread path adds only one extra slot churn
+// per cross-handed allocation.
+//
+// ABA-safe via 128-bit tagged head packed into `__int128`.  GCC's
+// `std::atomic<16-byte struct>` falls back to libatomic's mutex pool
+// (`is_lock_free() == false`); using the `__sync_*` builtins on
+// `__int128` with `-mcx16` instead emits a single `CMPXCHG16B`
+// instruction.  The tag bumps every push AND pop so we never compare
+// equal across a recycled-pointer cycle.
+struct CrossNode {
+    AllocBlock block;
+    CrossNode *next;
+};
+union TaggedHead {
+    __int128 raw;
+    struct {
+        CrossNode *p;
+        uintptr_t  tag;
+    } v;
+};
+static_assert(sizeof(TaggedHead) == 16, "TaggedHead must be 16 B");
+__int128 g_cross_head_raw = 0;
+
+void push_cross(const AllocBlock &b) {
+    CrossNode *node = new CrossNode{b, nullptr};
+    TaggedHead old_h, new_h;
+    old_h.raw = __sync_val_compare_and_swap(
+        &g_cross_head_raw, (__int128)0, (__int128)0);
+    for(;;) {
+        node->next = old_h.v.p;
+        new_h.v = {node, old_h.v.tag + 1};
+        if(__sync_bool_compare_and_swap(&g_cross_head_raw,
+                                        old_h.raw, new_h.raw))
+            return;
+        old_h.raw = __sync_val_compare_and_swap(
+        &g_cross_head_raw, (__int128)0, (__int128)0);
+    }
+}
+bool pop_cross(AllocBlock &out) {
+    TaggedHead old_h, new_h;
+    old_h.raw = __sync_val_compare_and_swap(
+        &g_cross_head_raw, (__int128)0, (__int128)0);
+    for(;;) {
+        if( !old_h.v.p) return false;
+        new_h.v = {old_h.v.p->next, old_h.v.tag + 1};
+        if(__sync_bool_compare_and_swap(&g_cross_head_raw,
+                                        old_h.raw, new_h.raw)) {
+            out = old_h.v.p->block;
+            delete old_h.v.p;
+            return true;
+        }
+        old_h.raw = __sync_val_compare_and_swap(
+        &g_cross_head_raw, (__int128)0, (__int128)0);
+    }
+}
 
 void check_sentinel(const AllocBlock &b, const char *where) {
     const uint8_t *q = static_cast<const uint8_t *>(b.p);
@@ -98,13 +150,22 @@ void worker(int tid, const Config &cfg) {
     std::mt19937 rng(uint32_t(tid * 2654435761u));
     std::uniform_int_distribution<int> pct(0, 99);
 
-    // Local live set — pop a random index to free.
+    // Local live set — pop a random index to free.  Capped to keep
+    // the bookkeeping vector itself out of the >16 KiB
+    // `allocate_large_size_or_malloc` fallback (which routes to glibc
+    // `std::malloc` on KAME and would distort the allocator
+    // comparison).  When `live` reaches the cap we force-free instead
+    // of allocating.
     std::vector<AllocBlock> live;
-    live.reserve(cfg.ops_per_thread / 4);
+    constexpr size_t LIVE_CAP = 256;  // 256 * 32 B = 8 KiB ≤ pool max
+    live.reserve(LIVE_CAP);
 
     for(int i = 0; i < cfg.ops_per_thread; ++i) {
-        // 60% alloc / 40% free when live is non-empty.
-        bool do_alloc = live.empty() || pct(rng) < 60;
+        // 60% alloc / 40% free when live is non-empty (and below cap).
+        // When at cap, force a free to keep `live` from growing the
+        // backing vector past `LIVE_CAP * 32 B`.
+        bool do_alloc =
+            (live.empty() || pct(rng) < 60) && live.size() < LIVE_CAP;
         if(do_alloc) {
             size_t s = pick_size(rng);
             auto *p = new char[s];
@@ -113,8 +174,7 @@ void worker(int tid, const Config &cfg) {
             AllocBlock b{p, s, sent, tid};
 
             if(pct(rng) < cfg.cross_thread_pct) {
-                std::lock_guard<std::mutex> lk(g_cross_mu);
-                g_cross_q.push(b);
+                push_cross(b);
             }
             else {
                 live.push_back(b);
@@ -138,12 +198,7 @@ void worker(int tid, const Config &cfg) {
         if((i & 31) == 7) {
             for(int j = 0; j < 4; ++j) {
                 AllocBlock b;
-                {
-                    std::lock_guard<std::mutex> lk(g_cross_mu);
-                    if(g_cross_q.empty()) break;
-                    b = g_cross_q.front();
-                    g_cross_q.pop();
-                }
+                if( !pop_cross(b)) break;
                 check_sentinel(b, "cross");
                 delete[] static_cast<char *>(b.p);
                 g_total_frees.fetch_add(1, std::memory_order_relaxed);
@@ -197,9 +252,9 @@ int main(int argc, char **argv) {
     }
 
     // Main thread drains anything stuck in the cross-thread queue.
-    while( !g_cross_q.empty()) {
-        AllocBlock b = g_cross_q.front();
-        g_cross_q.pop();
+    for(;;) {
+        AllocBlock b;
+        if( !pop_cross(b)) break;
         check_sentinel(b, "main-drain");
         delete[] static_cast<char *>(b.p);
         g_total_frees.fetch_add(1, std::memory_order_relaxed);
