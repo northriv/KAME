@@ -1241,31 +1241,34 @@ PoolAllocatorBase::allocate_chunk() {
             ALLOC_PAGE_SIZE, (unsigned long)(chunk_size % ALLOC_PAGE_SIZE));
         std::abort();
     }
-    // Pre-warm: one byte per OS page, on the claiming thread.  Forces
-    // the kernel's first-touch fault to fire HERE (cold chunk-claim
-    // path, rare) instead of inside each subsequent user-side write to
-    // freshly mapped slots (alloc/dealloc hot path, frequent).  Two
-    // wins:
+    // Optional pre-warm: one byte per OS page, on the claiming thread.
+    // Forces the kernel's first-touch fault to fire HERE (cold chunk-
+    // claim path, rare) instead of inside each subsequent user-side
+    // write to freshly mapped slots (alloc/dealloc hot path, frequent).
     //
     //   1. Latency: removes a 1-10 μs page-fault from the user's hot
-    //      path; instead concentrates the cost into the claim, which
-    //      is already a slow path with bounded-latency expectations.
+    //      path; instead concentrates the cost into the claim.
     //   2. NUMA placement: anonymous pages are bound to the NUMA node
     //      of the *first writer*.  Pre-warming on the claiming thread
-    //      pins the chunk's pages to that thread's node, so the same
-    //      thread's subsequent user accesses are node-local (matters
-    //      on ohtaka — 128 cores across multiple sockets).  Without
-    //      pre-warming, pages are bound to whichever thread first
-    //      writes a slot, which on a busy NUMA box is often a thread
-    //      that subsequently migrates away.
+    //      pins the chunk's pages to that thread's node (matters on
+    //      multi-socket NUMA boxes like ohtaka, 128 cores).
     //
-    // Cost is bounded: `chunk_size` is a few hundred KB to a few MB,
-    // ALLOC_PAGE_SIZE is 4 KiB (Linux) or 16 KiB (Apple Silicon), so
-    // 100..2000 stores per claim — negligible vs the mmap syscall and
-    // page-table setup the kernel already did.  `volatile` prevents
-    // the optimiser from eliding the stores.
-    for(size_t off = 0; off < chunk_size; off += ALLOC_PAGE_SIZE)
-        reinterpret_cast<volatile char *>(addr)[off] = 0;
+    // Off by default: on non-NUMA machines pre-warm is pure RSS bloat
+    // — it forces every claimed chunk fully resident even if only a
+    // few slots are ever touched.  4-core VM measurement on the
+    // alloc_stress heavy workload (200 thr × 16 conc. × 100 K ops):
+    // pre-warm ON → HWM 74 MiB / 20.7 M ops/s, pre-warm OFF → HWM
+    // 16 MiB / 21.3 M ops/s (combined with the chunk-size revert in
+    // allocator_prv.h).  Set `KAME_ALLOC_PREWARM=1` in the
+    // environment on NUMA hosts to opt in.
+    static const bool prewarm = [] {
+        const char *e = std::getenv("KAME_ALLOC_PREWARM");
+        return e && e[0] != '\0' && e[0] != '0';
+    }();
+    if(prewarm) {
+        for(size_t off = 0; off < chunk_size; off += ALLOC_PAGE_SIZE)
+            reinterpret_cast<volatile char *>(addr)[off] = 0;
+    }
 #endif
 
 	ALLOC *palloc = ALLOC::create(chunk_size, addr);

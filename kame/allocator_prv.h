@@ -83,13 +83,16 @@ inline bool atomicDecAndTest(T *target) noexcept {
 	#define ALLOC_TLS thread_local
 #endif
 
-#define ALLOC_MIN_CHUNK_SIZE (1024 * 48) //48KiB initial chunk + 4/3 grow (perf-tuned)
-                                          //ladder kicks in across mmap_space
-                                          //boundaries (every 128 chunks).
-                                          //Per-thread × per-template first-
-                                          //touch stays cheap; long-running
-                                          //threads naturally get bigger
-                                          //chunks as the ladder steps up.
+#define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256 KiB initial chunk + 5/4 grow.
+                                          //Ladder steps every 128 chunk
+                                          //claims (NUM_ALLOCATORS_IN_SPACE)
+                                          //via the GROW_CHUNK_SIZE multiplier.
+                                          //Larger min keeps cross-thread chunk
+                                          //residency tight under lazy commit:
+                                          //RSS scales with pages actually
+                                          //written, and a small set of large
+                                          //chunks beats a large set of small
+                                          //chunks for write locality.
 // OS page size used to align growing chunk sizes for mprotect(). macOS
 // arm64 uses 16 KiB pages; passing a non-page-aligned size to mprotect()
 // fails silently (assert is no-op under NDEBUG) and the next access faults
@@ -104,22 +107,20 @@ inline bool atomicDecAndTest(T *target) noexcept {
     #define ALLOC_PAGE_SIZE 4096   // 4 KiB
 #endif
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    #define GROW_CHUNK_SIZE(x) ((size_t)(x / 3 * 4) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
+    #define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
     #define ALLOC_MIN_MMAP_SIZE ALLOC_MIN_CHUNK_SIZE
     #define ALLOC_MAX_MMAP_ENTRIES 24
 #else
     #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
-        #define GROW_CHUNK_SIZE(x) ((size_t)(x / 3 * 4) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
-        //! Keep NUM_ALLOCATORS_IN_SPACE = MMAP_SIZE / CHUNK_SIZE = 128 so the
-        //! GROW_CHUNK_SIZE ladder advances every 128 chunk claims (same
-        //! cadence as the original 32 MiB / 256 KiB layout, but starts
-        //! from a smaller base).
-        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 6) //8MiB
-        #define ALLOC_MAX_MMAP_ENTRIES 24 //~6.5 GiB approx.
+        #define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
+        //! NUM_ALLOCATORS_IN_SPACE = MMAP_SIZE / CHUNK_SIZE = 128 — the
+        //! GROW_CHUNK_SIZE ladder advances every 128 chunk claims.
+        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32 MiB
+        #define ALLOC_MAX_MMAP_ENTRIES 24 //~27 GiB approx.
     #else
         #define GROW_CHUNK_SIZE(x) ((size_t)(x / 8 * 9) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
-        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 6) //8MiB
-        #define ALLOC_MAX_MMAP_ENTRIES 32 //2.7GiB approx.
+        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 8) //8 MiB
+        #define ALLOC_MAX_MMAP_ENTRIES 32 //~2.7 GiB approx.
     #endif
 #endif
 
