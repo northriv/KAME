@@ -140,6 +140,15 @@ public:
 	//! so every PoolAllocator instantiation supplies a concrete
 	//! implementation.
 	virtual void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept = 0;
+	//! Freelist-miss slow allocate.  Called from `new_redirected`'s
+	//! cold path through this chunk's vtable; runs the bitmap-CAS /
+	//! chunk-claim / create_allocator path with this template
+	//! instantiation's compile-time ALIGN.  `bucket` is the table
+	//! index of the freelist that missed, used to mirror an advanced
+	//! `s_my_chunk` back into `g_thread_chunks[bucket]`.  Pure virtual
+	//! so the dispatch is per-(ALIGN,FS) without a separate
+	//! function-pointer table.
+	virtual void *slow_allocate(unsigned bucket, std::size_t size) noexcept = 0;
 protected:
 	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
 	virtual bool deallocate_pooled(char *p) = 0;
@@ -218,6 +227,7 @@ protected:
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
 	void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept override;
+	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
 	static bool create_allocator(int &aidx);
 	static bool release_allocator(PoolAllocator *alloc);
 
@@ -314,6 +324,7 @@ protected:
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
 	void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept override;
+	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
 
 	// FS=false's previous per-chunk size-bucketed freelist
 	// (m_fs_buckets, m_fs_bucket_count, fs_try_bucket_push,
@@ -408,32 +419,34 @@ void activateAllocator();
 // free slot.
 //
 // Hot path: `new_redirected` inlines the freelist pop directly on the
-// AllocSlot.  No indirect call on the freelist-hit path — the slow
-// `alloc_fn` (in the parallel `g_thread_alloc_fn[]` TLS array) is only
-// called on miss (freelist empty + slow chunk-bitmap path).
+// AllocSlot.  No indirect call on the freelist-hit path.  On miss, the
+// slow path reads `g_thread_chunks[bucket]`; if non-null it dispatches
+// through the chunk's vtable (`slow_allocate(bucket, size)`), which
+// per-(ALIGN,FS) override runs the chunk-claim / bitmap CAS path.  If
+// null, it falls through to `cold_first_access(bucket, size)` which
+// handles activation-flag / cleanup-flag checks and the (rare)
+// per-bucket first-access dispatch.
 //
 // sizeof(AllocSlot) == 8: a single `char *`, so `g_thread_slots[bucket]`
 // indexing is a single shifted-load addressing-mode form
 // `ldr x, [base, bucket, lsl #3]` — no separate slot-address computation
-// needed.  8 slots share a 64-B cache line.  The chunk pointer and slow
-// dispatcher both live in *parallel* TLS arrays (`g_thread_chunks[]`
-// and `g_thread_alloc_fn[]`) so the freelist-hit hot path touches only
-// one cache line.
+// needed.  8 slots share a 64-B cache line.  The chunk pointer lives in
+// the parallel `g_thread_chunks[]` TLS array so the freelist-hit hot
+// path touches only one cache line.
 //
-// State machine (encoded in `g_thread_alloc_fn[bucket]`):
-//   - Initial value (pre-activation OR before this thread's first use
-//     of this bucket): `&bucket_first_access<Bucket>`.
-//     That function checks `g_sys_image_loaded`; if false returns
-//     `std::malloc(size)`; if true claims a chunk, stores it in
-//     `g_thread_chunks[Bucket]`, and rewrites
-//     `g_thread_alloc_fn[Bucket]` to `&bucket_steady_alloc<Bucket>`
-//     before tail-calling it.
-//   - Steady state: `&bucket_steady_alloc<Bucket>` — bitmap-CAS path
-//     for freelist misses.  Hot-path freelist pop is *not* here; it's
-//     in `new_redirected` directly.
-//   - After `AllocPinCleanup::~dtor` on thread exit: all entries reset
-//     to `&malloc_fallback`, `g_thread_chunks[]` cleared, freelists
-//     drained back to the bitmap via the cross-thread batch path.
+// State machine (encoded in `g_thread_chunks[bucket]`):
+//   - `nullptr`: pre-activation OR pre-first-use OR post-cleanup.
+//     Slow path goes to `cold_first_access`, which checks the
+//     activation flag (`g_sys_image_loaded`) and the cleanup flag
+//     (`s_alloc_tls_off`) and either returns `std::malloc(size)` or
+//     dispatches per-bucket to `PoolAllocator<ALIGN,FS>::allocate<SIZE>()`
+//     (which sets `g_thread_chunks[bucket]` as a side effect).
+//   - non-null: steady state — `chunk->slow_allocate(bucket, size)`
+//     virtual call updates `g_thread_chunks[bucket]` if `s_my_chunk`
+//     has advanced to a new chunk after a fill.
+//   - `AllocPinCleanup::~dtor` on thread exit clears all entries back
+//     to `nullptr`, and the cleanup flag `s_alloc_tls_off` is set so
+//     subsequent allocations route to `std::malloc`.
 // ---------------------------------------------------------------------
 
 struct AllocSlot {
@@ -502,22 +515,23 @@ inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 
 extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
 
-//! Parallel TLS table holding each bucket's currently pinned chunk
-//! (nullptr until first allocation on this thread/bucket).  Read by
-//! `drain_thread_slot_freelists` (to tag drained slots with their
-//! chunk for the cross-thread batch) and by the slow-path dispatcher
-//! `bucket_steady_alloc<B>` when checking whether `s_my_chunk` has
-//! advanced to a new chunk after a fill.
+//! Parallel TLS table holding each bucket's currently pinned chunk.
+//! Initial value (and post-cleanup) is `nullptr`; the slow path in
+//! `new_redirected` treats null as "first access on this (thread,
+//! bucket)" — see `cold_first_access` in allocator.cpp.  Once
+//! populated, the slow path dispatches through the chunk's vtable
+//! (`PoolAllocatorBase::slow_allocate`), so this single parallel TLS
+//! array carries both the state-machine state AND the dispatch
+//! target — no separate function-pointer table is needed.
 extern ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS];
 
-//! Parallel TLS table holding each bucket's freelist-miss slow path
-//! (`bucket_first_access<B>` initially, `bucket_steady_alloc<B>` after
-//! first activation, `malloc_fallback` after thread-exit cleanup).
-//! Indexed by bucket — same index as `g_thread_slots`.  Not on the
-//! freelist-hit hot path; lives outside AllocSlot so the latter stays
-//! 8 B for shift-free indexed addressing in `new_redirected`.
-extern ALLOC_TLS void *(*g_thread_alloc_fn[ALLOC_NUM_BUCKETS])
-    (std::size_t size) noexcept;
+//! Cold slow path: invoked when `g_thread_chunks[bucket] == nullptr`
+//! (first access on this (thread, bucket), or post-cleanup).  Handles
+//! activation-flag / cleanup-flag checks, then dispatches per bucket
+//! to the matching `PoolAllocator<ALIGN,FS>::allocate<SIZE>()`.
+//! Defined in allocator.cpp; declared here so `new_redirected` can
+//! tail-call it.
+void *cold_first_access(unsigned bucket, std::size_t size) noexcept;
 
 //! Out-of-line path for sizes larger than the table covers (> 256 B).
 //! Handles activation-flag check + the existing if-chain for the
@@ -542,10 +556,13 @@ inline void *new_redirected(std::size_t size) {
 		slot.freelist_head = *reinterpret_cast<char **>(head);
 		return head;
 	}
-	// Freelist miss — bucket-specific slow path (first_access /
-	// steady_alloc / malloc_fallback), looked up in the parallel
-	// TLS table (kept out of AllocSlot to keep the latter 8 B).
-	return g_thread_alloc_fn[bucket](size);
+	// Freelist miss — dispatch through the pinned chunk's vtable if
+	// the bucket has been activated on this thread, otherwise fall
+	// to `cold_first_access` for the (rare) first-time path + the
+	// pre-activation / post-cleanup malloc fallbacks.
+	if(PoolAllocatorBase *chunk = g_thread_chunks[bucket])
+		return chunk->slow_allocate(bucket, size);
+	return cold_first_access(bucket, size);
 }
 
 //void* operator new(std::size_t size) throw(std::bad_alloc);
