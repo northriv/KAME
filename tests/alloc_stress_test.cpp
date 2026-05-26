@@ -72,54 +72,74 @@ std::atomic<uint64_t> g_total_allocs{0};
 std::atomic<uint64_t> g_total_frees{0};
 std::atomic<uint64_t> g_sentinel_fails{0};
 
-// Lock-free cross-thread Treiber stack on KAME's `atomic_shared_ptr`.
-// Producers push_cross() to the head; consumers pop_cross() from the
-// head.  No mutex.  Self-referencing `local_shared_ptr<CrossNode> next`
-// member: `ref_traits` detects T-incompleteness inside the class
-// body via SFINAE and falls back to the plain (non-intrusive,
-// non-emplaced) `gref_<CrossNode>` path.  ABA-safety is built into
-// `atomic_shared_ptr` (reference held by the local copy during CAS
-// keeps the node alive across the compare-and-set window — no
-// tagged-pointer trickery needed).
+// Cross-thread handoff via single-slot atomic swap — NO queue, NO CAS
+// loop on the global, NO refcounting.  Each thread builds its outgoing
+// chain LOCALLY (single-writer, plain pointers, zero atomic ops); when
+// the chain fills its threshold (or the thread runs dry of pending
+// work), the thread does ONE `std::atomic::exchange` against a global
+// slot, trading its chain for whatever the slot held.  The acquired
+// chain becomes the thread's new local chain — items to free / process
+// locally.
 //
-// Note: we ALSO tried KAME's `atomic_pointer_queue` (bounded ring
-// with per-slot CAS).  Its scan-for-empty / scan-for-occupied loops
-// touch many cache lines per op AND require two CAS (one on
-// m_count, one on the slot).  On our 4-core VM with 64+ threads
-// the per-allocator throughput dropped uniformly by ~35-40% vs
-// the single-head Treiber stack — the focused cache-line ping-
-// pong on the Treiber head loses to atomic_shared_ptr's CAS
-// throughput on a 4-core box because L1d→L2 traffic is short and
-// the refcount manipulation is well-amortised.  Keep the Treiber.
+// Why this beats the previous Treiber stacks:
+//   * No CAS-loop: a single `exchange` per N pushes (here N = 32).
+//     32× fewer atomic ops on the global cache line than per-op CAS.
+//   * No refcounting: plain `CrossNode *`, no gref_ control block.
+//   * No UAF concerns: nodes are owned exactly once at any moment —
+//     by a thread's `tl_chain`, or by `g_swap_slot`, never both.
+//     Pops touch only the local chain (never deref nodes that may be
+//     in flight).
+//   * No queue infrastructure: the "queue" is just one pointer.  No
+//     ring, no allocator-shaped block traffic from std::deque.
+//
+// The trade-off: items are processed in a thread-shuffled order with
+// up to ~threshold latency between push and the first consumer
+// touching them.  Fine for a stress test — order doesn't matter, the
+// sentinel check verifies the data was preserved across the handoff.
 struct CrossNode {
     AllocBlock block;
-    local_shared_ptr<CrossNode> next;
+    CrossNode *next;
 };
-atomic_shared_ptr<CrossNode> g_cross_head;
+
+std::atomic<CrossNode *> g_swap_slot{nullptr};
+
+// Per-thread outgoing/incoming chain.  Single-writer (the thread
+// itself) so no atomic ops needed on the chain itself.  Items arrive
+// via the global swap and depart via the global swap or via local
+// drains in `pop_cross`.
+thread_local CrossNode *tl_chain = nullptr;
+thread_local int tl_chain_count = 0;
+constexpr int CROSS_SWAP_THRESHOLD = 32;
 
 void push_cross(const AllocBlock &b) {
-    local_shared_ptr<CrossNode> node = make_local_shared<CrossNode>();
-    node->block = b;
-    for(;;) {
-        local_shared_ptr<CrossNode> old_head(g_cross_head);
-        node->next = old_head;
-        if(g_cross_head.compareAndSet(old_head, node)) return;
+    auto *node = new CrossNode{b, tl_chain};
+    tl_chain = node;
+    if(++tl_chain_count >= CROSS_SWAP_THRESHOLD) {
+        // Hand off our accumulated chain to the global slot, taking
+        // whatever was there as our new local backlog.  One atomic
+        // exchange, no loops.  Memory ordering: release to publish
+        // the chain we built (so other threads see the linked-list
+        // writes), acquire to see the chain we get back.
+        CrossNode *mine = tl_chain;
+        tl_chain = g_swap_slot.exchange(mine, std::memory_order_acq_rel);
+        // Reset count.  We don't bother counting the chain we just
+        // acquired — it'll drain back to 0 through pop_cross calls
+        // and the next swap fires when it next exceeds the threshold.
+        tl_chain_count = 0;
     }
 }
 bool pop_cross(AllocBlock &out) {
-    for(;;) {
-        local_shared_ptr<CrossNode> old_head(g_cross_head);
-        if( !old_head) return false;
-        // Read `next` through the local refcount we hold — old_head
-        // keeps the node alive even if another thread pops it first.
-        local_shared_ptr<CrossNode> new_head(old_head->next);
-        if(g_cross_head.compareAndSet(old_head, new_head)) {
-            out = old_head->block;
-            return true;
-        }
+    if( !tl_chain) {
+        // Local empty — try to acquire whatever the global slot holds.
+        tl_chain = g_swap_slot.exchange(nullptr, std::memory_order_acquire);
+        if( !tl_chain) return false;
     }
+    CrossNode *n = tl_chain;
+    tl_chain = n->next;
+    out = n->block;
+    delete n;
+    return true;
 }
-
 void check_sentinel(const AllocBlock &b, const char *where) {
     const uint8_t *q = static_cast<const uint8_t *>(b.p);
     for(size_t i = 0; i < b.size; ++i) {
@@ -132,6 +152,21 @@ void check_sentinel(const AllocBlock &b, const char *where) {
             std::abort();
         }
     }
+}
+
+// Called at end of each worker (and at the end of `main`) to drain
+// the thread-local chain so no items are stuck in retired threads'
+// `tl_chain`s.
+void drain_local_cross() {
+    while(tl_chain) {
+        CrossNode *n = tl_chain;
+        tl_chain = n->next;
+        check_sentinel(n->block, "thread-exit");
+        delete[] static_cast<char *>(n->block.p);
+        delete n;
+        g_total_frees.fetch_add(1, std::memory_order_relaxed);
+    }
+    tl_chain_count = 0;
 }
 
 void worker(int tid, const Config &cfg) {
@@ -201,6 +236,11 @@ void worker(int tid, const Config &cfg) {
         delete[] static_cast<char *>(b.p);
         g_total_frees.fetch_add(1, std::memory_order_relaxed);
     }
+    // Drain whatever cross-thread items this worker still holds in
+    // `tl_chain` (received via global swap and not yet popped, plus
+    // own items added since the last swap).  Otherwise they'd be lost
+    // when the thread_local dtor wipes `tl_chain`.
+    drain_local_cross();
 }
 
 } // namespace
