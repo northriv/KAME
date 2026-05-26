@@ -237,7 +237,7 @@ XThreadLocal<AllocPinCleanup> tls_alloc_pin_cleanup;
 // (freelist full) keeps the existing single-slot bitmap CAS for
 // now.  Stage 2 would route owner-overflow here too.
 struct CrossDeallocBatch {
-    static constexpr int CAP = 16;
+    static constexpr int CAP = 4;
     struct Entry { PoolAllocatorBase *chunk; void *slot; };
     Entry buf[CAP];
     int count = 0;
@@ -262,10 +262,39 @@ struct CrossDeallocBatch {
         // Run per-chunk groups.  Each group → ONE virtual call →
         // batch_return_to_bitmap groups slots by m_flags word
         // internally for further CAS coalescing.
-        // Stack scratch sized to CAP — bounded.  CAP=16 chosen by sweep: alloc_stress
-        // HWM drops 35 % (302→197 MiB) vs CAP=64 with same throughput;
-        // smaller (CAP=4-8) saves a bit more memory but loses NUMA-safety
-        // (more frequent cross-socket bitmap CAS).
+        //
+        // Stack scratch sized to CAP — bounded.  CAP=4 chosen by sweep:
+        //
+        //   CAP | alloc_stress rate | VmHWM   | STM commits/s
+        //   --- | ----------------- | ------- | -------------
+        //     4 | 15.58 M ops/s     | 167 MiB |   1.028 M    ← chosen
+        //     8 | 15.17 M           | 190 MiB |   1.030 M
+        //    16 | 15.35 M           | 197 MiB |   1.028 M    (prev)
+        //    32 | 15.57 M           | 224 MiB |   1.023 M
+        //    64 | 15.23 M           | 302 MiB |   1.000 M    (originally)
+        //
+        // (Linux 4-core VM measurements; macOS UMA shows flat throughput
+        // ~19 M ops/s across CAP=2..16 — same flat signal.)
+        //
+        // Throughput is flat: sort cost is O(log CAP) per slot and bitmap-
+        // word coalescing tops out around ~2 slots/word for this allocation
+        // pattern, so the CAP knob barely touches per-entry CPU.
+        //
+        // Memory drops monotonically with smaller CAP for a structural
+        // reason: every slot sitting in `buf[]` is still flagged as
+        // "allocated" in its chunk's bitmap.  64-entry batches × N threads
+        // × avg-slot-size = sizeable held-but-pending acreage; quartering
+        // CAP from 16→4 releases bitmap bits sooner, lets chunks reach
+        // m_flags_nonzero_cnt == 0 sooner, and lets `release_allocator`
+        // reclaim chunks sooner — total chunk count peaks lower.
+        //
+        // NUMA concern about CAP=4 (cross-socket bitmap CAS frequency
+        // multiplier) didn't materialise: ohtaka (128-core, multi-socket)
+        // showed no regression at CAP=16 vs 64, and the per-flush sort +
+        // group coalescing happens entirely on the dealloc'ing thread,
+        // so flushes mostly hit the chunk's *owning* socket's cache line.
+        // Going below CAP=4 saves negligibly more (no CAP=2 data point on
+        // the sweep but extrapolation suggests <10 MiB additional).
         void *slots_buf[CAP];
         int i = 0;
         while(i < count) {
