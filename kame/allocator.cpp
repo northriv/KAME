@@ -148,9 +148,8 @@ PoolAllocatorBase **kame_chunks_cold() noexcept {
 // released.  Defined later in this TU.
 
 // Forward decl: AllocPinCleanup's dtor needs to drain each per-bucket
-// AllocSlot freelist back to the bitmap via the cross-thread TLS batch
-// (CrossDeallocBatch is defined further down).  Hide the dependency
-// behind a free function defined after CrossDeallocBatch.
+// AllocSlot freelist back to the bitmap; defined below the
+// PoolAllocatorBase::lookup_chunk helper it uses.
 namespace { void drain_thread_slot_freelists() noexcept; }
 
 // Per-thread cleanup of pinned chunks. On thread exit the destructor of
@@ -176,10 +175,7 @@ struct AllocPinCleanup {
         // FIRST.  Slots on the linked list inside the slot pool would
         // become unreachable after the chunk-pointer wipe below and
         // after the chunk pins drop (the chunk may be released).
-        // Calls `batch_return_to_bitmap` directly — must NOT route
-        // through `tls_cross_dealloc_batch`, which is destructed
-        // before us in the PerThread LIFO chain (touched later, so
-        // chained closer to the head).
+        // Calls `batch_return_to_bitmap` directly with n=1 per slot.
         drain_thread_slot_freelists();
         // Clear every per-thread chunk pointer BEFORE the chunk pins
         // drop to 0 — otherwise a later TLS destructor that allocates
@@ -220,70 +216,22 @@ struct AllocPinCleanup {
 // the libkame-side global's address gives every DLL the same slot.
 XThreadLocal<AllocPinCleanup> tls_alloc_pin_cleanup;
 
-// Cross-thread dealloc batch — single TLS buffer per thread holding
-// {chunk, slot} pairs from non-owner deallocs.  Flushes when full
-// (CAP entries) or at thread exit.  Flush sorts by chunk pointer to
-// group same-chunk slots, then calls chunk->batch_return_to_bitmap
-// per group to merge multiple slots into ONE CAS per m_flags word.
+// Cross-thread dealloc path: each non-owner free does a direct single-
+// slot bitmap CAS via the n=1 fast path in `batch_return_to_bitmap`,
+// inlined in `deallocate_pooled`.  The previous design (per-thread
+// TLS `CrossDeallocBatch` with sort + group-walk + per-group bitmap
+// CAS) was retired here: empirical CAP sweeps on both ohtaka (NUMA
+// 128c) and a 4-core VM showed CAP=1 was the fastest setting, which
+// means batching was paying no coalescing dividend — each batch's
+// slots come from N source threads' N distinct chunks, so the sort
+// just put N groups of n=1 next to each other, and `batch_clear_impl`
+// re-paid its m_count alloca + zero + scan per group.
 //
-// vs the previous design (immediate single-slot bitmap CAS per
-// non-owner dealloc): trades CAS count for a single TLS write +
-// occasional sorted flush.  Wins on:
-//   * UMA: TLS write (~2-5 ns) << atomic CAS (~10-20 ns);
-//   * NUMA (Ohtaka): collapses cross-socket cache-line traffic
-//     from N scattered m_flags words to one batched CAS per word
-//     per chunk group.
-//
-// Stage 1 (this commit): non-owner deallocs only.  Owner-overflow
-// (freelist full) keeps the existing single-slot bitmap CAS for
-// now.  Stage 2 would route owner-overflow here too.
-struct CrossDeallocBatch {
-    static constexpr int CAP = 16;
-    struct Entry { PoolAllocatorBase *chunk; void *slot; };
-    Entry buf[CAP];
-    int count = 0;
-
-    void push(PoolAllocatorBase *c, void *s) noexcept {
-        // We're called from deallocate paths; if the slot count has
-        // hit CAP we must drain before pushing the new entry.  Drain
-        // is in-thread (no synchronization needed beyond the bitmap
-        // CAS that batch_return_to_bitmap does internally).
-        if(count == CAP) flush();
-        buf[count++] = {c, s};
-    }
-    void flush() noexcept {
-        if(count == 0) return;
-        // Sort by chunk pointer so same-chunk entries are contiguous.
-        // Stable sort isn't required (slots from same chunk are
-        // interchangeable at the bitmap level).
-        std::sort(buf, buf + count,
-                  [](const Entry &a, const Entry &b) {
-                      return a.chunk < b.chunk;
-                  });
-        // Run per-chunk groups.  Each group → ONE virtual call →
-        // batch_return_to_bitmap groups slots by m_flags word
-        // internally for further CAS coalescing.
-        // Stack scratch sized to CAP — bounded.  CAP=16 chosen by sweep: alloc_stress
-        // HWM drops 35 % (302→197 MiB) vs CAP=64 with same throughput;
-        // smaller (CAP=4-8) saves a bit more memory but loses NUMA-safety
-        // (more frequent cross-socket bitmap CAS).
-        void *slots_buf[CAP];
-        int i = 0;
-        while(i < count) {
-            PoolAllocatorBase *c = buf[i].chunk;
-            int j = i;
-            while(j < count && buf[j].chunk == c) {
-                slots_buf[j - i] = buf[j].slot;
-                ++j;
-            }
-            c->batch_return_to_bitmap(slots_buf, j - i);
-            i = j;
-        }
-        count = 0;
-    }
-    ~CrossDeallocBatch() noexcept { flush(); }
-};
-XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
+// Removing the batch buffer also dodges the TLS-dtor-order hazard
+// the old design needed `s_alloc_tls_off` guards for (the batch's
+// XThreadLocal lived AFTER `tls_alloc_pin_cleanup` in PerThread's
+// LIFO chain, so it was destroyed first and references became
+// dangling).
 
 // Drain each per-bucket AllocSlot's freelist back to the bitmap.
 // Called from `AllocPinCleanup::~dtor` (forward-declared above), before
@@ -312,14 +260,14 @@ XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
 // Fix: per-slot `PoolAllocatorBase::lookup_chunk(p)` (address-only
 // `s_chunks[cidx]` lookup) gives the slot's true owner.  Slow per-slot
 // CAS, but drain is rare (thread exit only) so the cost is acceptable.
-// Calls `batch_return_to_bitmap` directly — must NOT route through
-// `tls_cross_dealloc_batch`, which in PerThread's LIFO TLS chain dies
-// before `~AllocPinCleanup` and would corrupt freed heap.
-//
-// Each chunk we touch is still pinned at this point (pin counts drop
-// later in the same destructor), so `release_allocator` returns
-// false inside `batch_return_to_bitmap` and the chunk is not deleted
-// from under us.
+// Calls `batch_return_to_bitmap` directly with n=1 per slot — slots
+// in a freelist may originate from different chunks (the freelist
+// invariant is only "all current owner-touched chunks for this
+// bucket", and the owner chunk for ALIGN can change as bucket-shared
+// templates fill).  Each chunk we touch is still pinned at this
+// point (pin counts drop later in the same destructor), so
+// `release_allocator` returns false inside `batch_return_to_bitmap`
+// and the chunk is not deleted from under us.
 void drain_thread_slot_freelists() noexcept {
     for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
         AllocSlot &slot = g_thread_slots[b];
@@ -713,17 +661,19 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			return false;
 		}
 	}
-	// Post-teardown bypass.  `~AllocPinCleanup` sets `s_alloc_tls_off`
-	// just before exiting; `~CrossDeallocBatch` ran earlier in the
-	// PerThread LIFO chain so the cross-batch storage is already
-	// `free()`d.  Later pthread_key dtors that delete pool slots must
-	// not push to it.  Skip the batch and clear the bit directly.
-	if(__builtin_expect(s_alloc_tls_off, 0)) {
-		void *one = p;
-		this->batch_return_to_bitmap(&one, 1);
-		return false;
-	}
-	tls_cross_dealloc_batch->push(this, p);
+	// Non-owner: direct single-slot bit clear via the n=1 fast path in
+	// `batch_return_to_bitmap`.  The previous TLS-batched approach
+	// (`tls_cross_dealloc_batch`) added sort + group-walk overhead
+	// without paying it back — sort/group only help when multiple
+	// slots in the same batch share a chunk's m_flags word, which
+	// almost never happens under realistic many-thread cross-free
+	// (each batch's slots come from N source threads' N distinct
+	// chunks).  CAP=1 was best in every ohtaka sweep, confirming the
+	// batching was pure overhead.  Going direct removes the
+	// CrossDeallocBatch infrastructure entirely and dodges the TLS-
+	// dtor-order hazard the batched path required guards for.
+	void *one = p;
+	this->batch_return_to_bitmap(&one, 1);
 	return false;
 }
 
@@ -982,18 +932,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		kame_slots_base()[kBucket].push(p);
 		return false;
 	}
-	// Post-teardown bypass.  See FS=false sibling above — once
-	// `s_alloc_tls_off` is set, `tls_cross_dealloc_batch` may have been
-	// destroyed; route the bit-clear through `batch_return_to_bitmap`
-	// directly so later pthread_key dtors that delete pool slots do not
-	// touch freed heap.
-	if(__builtin_expect(s_alloc_tls_off, 0)) {
-		void *one = p;
-		this->batch_return_to_bitmap(&one, 1);
-		return false;
-	}
-	// Non-owner (or pre-first-access state): TLS batch.
-	tls_cross_dealloc_batch->push(this, p);
+	// Non-owner: direct single-slot bit clear (see FS=false sibling
+	// for the rationale — batching was overhead-only under realistic
+	// many-thread cross-free).
+	void *one = p;
+	this->batch_return_to_bitmap(&one, 1);
 	return false;
 }
 
