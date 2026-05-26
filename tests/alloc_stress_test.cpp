@@ -74,24 +74,23 @@ std::atomic<uint64_t> g_sentinel_fails{0};
 
 // Lock-free cross-thread Treiber stack on KAME's `atomic_shared_ptr`.
 // Producers push_cross() to the head; consumers pop_cross() from the
-// head.  No mutex; no `std::queue`/`std::deque` whose internal block
-// allocations would themselves go through the pool and inject deque-
-// shaped (~512 B / block) traffic into the workload.  Each push/pop
-// is exactly one CrossNode `make_local_shared<>` so the cross-thread
-// path adds only one extra slot churn per cross-handed allocation.
+// head.  No mutex.  Self-referencing `local_shared_ptr<CrossNode> next`
+// member: `ref_traits` detects T-incompleteness inside the class
+// body via SFINAE and falls back to the plain (non-intrusive,
+// non-emplaced) `gref_<CrossNode>` path.  ABA-safety is built into
+// `atomic_shared_ptr` (reference held by the local copy during CAS
+// keeps the node alive across the compare-and-set window — no
+// tagged-pointer trickery needed).
 //
-// Self-referencing `local_shared_ptr<CrossNode> next` member: `ref_traits`
-// detects T-incompleteness inside the class body via SFINAE and falls
-// back to the plain (non-intrusive, non-emplaced) `gref_<CrossNode>`
-// path.  We don't need the `atomic_emplaced` single-alloc optimisation
-// here.  ABA-safety is built into `atomic_shared_ptr` (reference held
-// by the local copy during CAS keeps the node alive across the
-// compare-and-set window — no tagged-pointer trickery needed).
-//
-// Portable across x86_64 / aarch64: `atomic_shared_ptr` already
-// abstracts the underlying 8-byte CAS (tagged-pointer scheme — local
-// refcount in the lower bits of the natural pointer alignment), so
-// no -mcx16 / -march=armv8-a+lse is required on the test target.
+// Note: we ALSO tried KAME's `atomic_pointer_queue` (bounded ring
+// with per-slot CAS).  Its scan-for-empty / scan-for-occupied loops
+// touch many cache lines per op AND require two CAS (one on
+// m_count, one on the slot).  On our 4-core VM with 64+ threads
+// the per-allocator throughput dropped uniformly by ~35-40% vs
+// the single-head Treiber stack — the focused cache-line ping-
+// pong on the Treiber head loses to atomic_shared_ptr's CAS
+// throughput on a 4-core box because L1d→L2 traffic is short and
+// the refcount manipulation is well-amortised.  Keep the Treiber.
 struct CrossNode {
     AllocBlock block;
     local_shared_ptr<CrossNode> next;
