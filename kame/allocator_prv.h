@@ -195,6 +195,21 @@ public:
 	//!     comparison terminates without needing a count test.
 	virtual int batch_return_to_bitmap(
 	    const CrossDeallocEntry *entries) noexcept = 0;
+
+	//! Adaptive holding hint: last `batch_return_to_bitmap` call's
+	//! coalescing factor for this chunk, in fixed-point ×16
+	//! (16 = 1.0× = no coalescing benefit, 24 = 1.5× = 33 % CAS
+	//! saved, 32 = 2.0× = 50 % saved, etc.).  Updated `relaxed` on
+	//! each batch — it's a hint, not authoritative; races are
+	//! benign (next push reads slightly stale value, no
+	//! correctness impact).  Read by `CrossDeallocBatch::
+	//! push_direct` to decide adaptively whether to hold (route to
+	//! the per-thread holding buf for further coalescing
+	//! accumulation) or dispatch immediately.  Epsilon-greedy
+	//! explore in the caller occasionally force-holds regardless,
+	//! so a chunk whose factor dropped below threshold can be
+	//! re-evaluated.
+	std::atomic<uint8_t> m_last_coalesce_x16{16};
 	//! Freelist-miss slow allocate.  Called from `new_redirected`'s
 	//! cold path through this chunk's vtable; runs the bitmap-CAS /
 	//! chunk-claim / create_allocator path with this template

@@ -290,11 +290,57 @@ struct CrossDeallocBatch {
         buf[count++] = {c, s};
     }
 
-    //! FS=false path: bypass the buffer entirely, dispatch
+    //! FS=false / FS=true ALIGN > 48 path: adaptive direct/hold
+    //! dispatch.  Reads the chunk's `m_last_coalesce_x16` hint
+    //! (relaxed); routes to the hold buf when the last batch
+    //! returned a coalescing factor ≥ threshold, else dispatches
     //! immediately with a single-slot scratch + sentinel.
-    //! `static` so call sites don't pay the TLV thunk to reach
-    //! `tls_cross_dealloc_batch`.
-    static void push_direct(PoolAllocatorBase *c, void *s) noexcept {
+    //!
+    //! Threshold is per-ALIGN (template parameter from the caller's
+    //! `deallocate_pooled`) because the holding cost scales with
+    //! slot size — the bit held in m_flags reserves a slot's worth
+    //! of mempool real-estate against `release_allocator`, so
+    //! bigger slots need higher coalescing payback to be worth
+    //! holding.  Approximate tiers (ALIGN as a proxy for "average
+    //! held bytes per entry", since FS=false PoolAllocator<ALIGN>
+    //! serves multiple bucket sizes):
+    //!
+    //!   ALIGN ≤  64  → 18 (1.125×, hold readily)
+    //!   ALIGN ≤ 128  → 22 (1.375×)
+    //!   ALIGN ≤ 256  → 26 (1.625×)
+    //!   ALIGN >  256 → 32 (2.0×, hold only on strong evidence)
+    //!
+    //! Epsilon-greedy explore: every `EXPLORE_PERIOD`-th call,
+    //! force-hold regardless of the hint.  Without this a chunk
+    //! whose factor dropped below threshold (e.g., one bad batch
+    //! from a worker thread) would be permanently routed direct,
+    //! never giving its coalescing potential a chance to be
+    //! re-measured.  Period 64 ⇒ ~1.5 % exploration overhead.
+    //!
+    //! Not static — the explore counter lives in the per-thread
+    //! batch instance, naturally TLS-local.
+    static constexpr int EXPLORE_PERIOD = 64;
+    int explore_counter = 0;
+
+    template <unsigned ALIGN>
+    void push_direct(PoolAllocatorBase *c, void *s) noexcept {
+        constexpr uint8_t threshold_x16 =
+            (ALIGN <=  64) ? 18 :
+            (ALIGN <= 128) ? 22 :
+            (ALIGN <= 256) ? 26 : 32;
+        bool hold;
+        if(++explore_counter >= EXPLORE_PERIOD) {
+            explore_counter = 0;
+            hold = true;                                // explore
+        }
+        else {
+            hold = c->m_last_coalesce_x16.load(
+                       std::memory_order_relaxed) >= threshold_x16;
+        }
+        if(hold) {
+            push(c, s);
+            return;
+        }
         CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
         c->batch_return_to_bitmap(tmp);
     }
@@ -774,13 +820,16 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		this->batch_return_to_bitmap(tmp);
 		return false;
 	}
-	// FS=false large slots: bypass the holding buffer, dispatch
-	// immediately.  Each FS=false slot consumes N bits in m_flags
-	// (slot pointer's idx + N-1 successor bits via m_sizes decode),
-	// so per-word coalescing windows are small AND large-slot chunks
-	// repeat less frequently than FS=true small-slot chunks — the
-	// holding cost wouldn't pay back.
-	CrossDeallocBatch::push_direct(this, p);
+	// FS=false large slots: bypass the holding buffer by default,
+	// dispatch immediately.  Each FS=false slot consumes N bits in
+	// m_flags (slot pointer's idx + N-1 successor bits via m_sizes
+	// decode), so per-word coalescing windows are small AND large-
+	// slot chunks repeat less frequently than FS=true small-slot
+	// chunks — the holding cost wouldn't pay back.  `push_direct`
+	// consults the chunk's adaptive coalescing hint to override and
+	// hold if this particular chunk has shown high recent merge
+	// factor (epsilon-greedy explores periodically to re-evaluate).
+	tls_cross_dealloc_batch->template push_direct<ALIGN>(this, p);
 	return false;
 }
 
@@ -878,6 +927,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	// the m_count terms — gone now.
 	constexpr int FUINT_BITS = sizeof(FUINT) * 8;
 	int i = 0;
+	int n_words = 0;   // unique m_flags words touched — for coalesce hint
 	while(entries[i].chunk == this) {
 		char *p = static_cast<char *>(entries[i].slot);
 		int midx = (p - this->m_mempool) / ALIGN;
@@ -898,6 +948,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 			mask |= mask_fn(idx_q, sidx_q, q);
 			++j;
 		}
+		++n_words;
 		// CAS-clear `m_flags[idx] &= ~mask` with retry; on_clear gets
 		// the (oldv, newv) for counter updates (per-FS-variant logic).
 		FUINT nones = ~mask;
@@ -911,6 +962,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 			}
 		}
 		i = j;
+	}
+	// Update adaptive coalescing hint: factor_x16 = (entries × 16) /
+	// unique_words.  16 = 1.0× = no benefit; > 16 = adjacent merges
+	// happened.  Relaxed: it's just a hint, races benign (next push
+	// reads slightly stale value, no correctness impact).
+	if(n_words > 0) {
+		unsigned factor = (unsigned(i) * 16u) / unsigned(n_words);
+		if(factor > 255u) factor = 255u;
+		this->m_last_coalesce_x16.store(uint8_t(factor),
+		                                std::memory_order_relaxed);
 	}
 	return i;
 }
@@ -1033,7 +1094,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	if constexpr (ALIGN <= 48) {
 		tls_cross_dealloc_batch->push(this, p);
 	} else {
-		CrossDeallocBatch::push_direct(this, p);
+		tls_cross_dealloc_batch->template push_direct<ALIGN>(this, p);
 	}
 	return false;
 }
