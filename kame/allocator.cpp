@@ -1611,10 +1611,61 @@ void report_statistics() {
 		(double)used_size / chunk_size * 100.0);
 }
 
+#ifdef KAME_SIZE_HISTOGRAM
+// Allocation-size histogram for size-class profiling.  Enabled by
+// `-DKAME_SIZE_HISTOGRAM` at build time.  Per-bucket atomic counters
+// incremented on every operator new / new[] / nothrow variant; dumped
+// to stderr via atexit at process exit.
+//
+// Index = `(size + 15) >> 4`  →  16-byte granularity.  Covers
+// 16..16384 directly; sizes above 16384 fold into the top bucket.
+namespace {
+constexpr int KAME_HISTO_SIZE = 1024;
+std::atomic<uint64_t> g_alloc_size_histo[KAME_HISTO_SIZE];
+
+void kame_print_histo() noexcept {
+    fprintf(stderr, "=== KAME_SIZE_HISTOGRAM ===\n");
+    uint64_t total = 0;
+    for(int i = 0; i < KAME_HISTO_SIZE; ++i)
+        total += g_alloc_size_histo[i].load(std::memory_order_relaxed);
+    if( !total) { fprintf(stderr, "  (no allocations)\n"); return; }
+    uint64_t cum = 0;
+    fprintf(stderr, "  size_range      count        %%       cum%%\n");
+    for(int i = 0; i < KAME_HISTO_SIZE; ++i) {
+        uint64_t n = g_alloc_size_histo[i].load(std::memory_order_relaxed);
+        if(n == 0) continue;
+        cum += n;
+        int lo = (i == 0) ? 0 : (i - 1) * 16 + 1;
+        int hi = i * 16;
+        fprintf(stderr, "  %5d..%-6d %10llu  %6.2f%%  %6.2f%%\n",
+                lo, hi, (unsigned long long)n,
+                100.0 * n / total, 100.0 * cum / total);
+    }
+    fprintf(stderr, "  total: %llu allocs\n", (unsigned long long)total);
+}
+
+struct KameHistoInstaller {
+    KameHistoInstaller() noexcept { std::atexit(kame_print_histo); }
+};
+KameHistoInstaller g_kame_histo_installer;
+
+inline void kame_histo_record(std::size_t size) noexcept {
+    int idx = static_cast<int>((size + 15) >> 4);
+    if(idx >= KAME_HISTO_SIZE) idx = KAME_HISTO_SIZE - 1;
+    g_alloc_size_histo[idx].fetch_add(1, std::memory_order_relaxed);
+}
+} // namespace
+#define KAME_HISTO_REC(size) kame_histo_record(size)
+#else
+#define KAME_HISTO_REC(size) ((void)0)
+#endif
+
 void* operator new(std::size_t size) {
+    KAME_HISTO_REC(size);
     return new_redirected(size);
 }
 void* operator new[](std::size_t size) {
+    KAME_HISTO_REC(size);
     return new_redirected(size);
 }
 
@@ -1626,9 +1677,11 @@ void operator delete[](void* p) noexcept {
 }
 
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+    KAME_HISTO_REC(size);
     return new_redirected(size);
 }
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
+    KAME_HISTO_REC(size);
     return new_redirected(size);
 }
 void operator delete(void* p, const std::nothrow_t&) noexcept {
