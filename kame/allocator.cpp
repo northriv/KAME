@@ -237,7 +237,7 @@ XThreadLocal<AllocPinCleanup> tls_alloc_pin_cleanup;
 // (freelist full) keeps the existing single-slot bitmap CAS for
 // now.  Stage 2 would route owner-overflow here too.
 struct CrossDeallocBatch {
-    static constexpr int CAP = 64;
+    static constexpr int CAP = 16;
     struct Entry { PoolAllocatorBase *chunk; void *slot; };
     Entry buf[CAP];
     int count = 0;
@@ -262,7 +262,10 @@ struct CrossDeallocBatch {
         // Run per-chunk groups.  Each group → ONE virtual call →
         // batch_return_to_bitmap groups slots by m_flags word
         // internally for further CAS coalescing.
-        // Stack scratch sized to CAP — bounded.
+        // Stack scratch sized to CAP — bounded.  CAP=16 chosen by sweep: alloc_stress
+        // HWM drops 35 % (302→197 MiB) vs CAP=64 with same throughput;
+        // smaller (CAP=4-8) saves a bit more memory but loses NUMA-safety
+        // (more frequent cross-socket bitmap CAS).
         void *slots_buf[CAP];
         int i = 0;
         while(i < count) {
