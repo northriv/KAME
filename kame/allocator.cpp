@@ -29,6 +29,9 @@
 #include <cstdlib>
 #include <string.h>
 #include <type_traits>
+#if KAME_FAST_TSD
+    #include <pthread.h>
+#endif
 
 // Per-thread flag: set to true when AllocPinCleanup has run, signalling
 // that pool-allocator TLS (s_my_chunk, freelists, pin counts) is no
@@ -38,6 +41,107 @@
 // that occur during later TLS cleanup phases (e.g. pthread_key dtors
 // like RunnerCounterRegistration).
 ALLOC_TLS bool s_alloc_tls_off = false;
+
+#if KAME_FAST_TSD
+// Fast pthread-TSD bypass of macOS / Linux TLV thunk.  See header for
+// the design overview.  These two globals carry the discovered byte
+// offsets within the pthread struct (= `kame_thread_pointer()`) where
+// our two pthread_keys' TSD slots live.  Zero means "not yet
+// initialised"; the hot accessor falls back to TLV in that state.
+std::size_t s_kame_slots_tsd_offset = 0;
+std::size_t s_kame_chunks_tsd_offset = 0;
+
+namespace {
+pthread_key_t s_kame_slots_key;
+pthread_key_t s_kame_chunks_key;
+
+// Constructor priority 101: runs early but after libc/libpthread
+// constructors at priorities <= 100.  If pthread_key_create or the
+// sentinel scan fails, the offsets stay 0 and the allocator stays on
+// the TLV path with no further runtime overhead (degraded mode).
+//
+// Inter-TU ordering: other TUs' constructor(101)s may run before this
+// one and call operator new; they hit the TLV fallback (offset == 0),
+// which is safe.  Once we run, subsequent allocations on the main
+// thread go through fast TSD.  Other threads plant their own TSD slot
+// lazily on their first allocation via `kame_*_cold` below.
+__attribute__((constructor(101)))
+void kame_tls_init_fast() noexcept {
+    if(pthread_key_create(&s_kame_slots_key, nullptr) != 0) return;
+    if(pthread_key_create(&s_kame_chunks_key, nullptr) != 0) return;
+
+    char *tp = kame_thread_pointer();
+    if( !tp) return;
+
+    // Sentinel scan: write two distinct magic values via the POSIX
+    // API, then walk the pthread struct to find which byte offsets
+    // received them.  POSIX doesn't expose the layout, but the
+    // implementation must store the value somewhere reachable from
+    // the thread pointer for `pthread_getspecific` to be fast — we
+    // rely on it being a fixed offset, true for both Apple's libc
+    // and glibc.
+    const uintptr_t sent1 = (uintptr_t)0xDEAD600D11AA1234ull;
+    const uintptr_t sent2 = (uintptr_t)0xDEAD600D11BB5678ull;
+    pthread_setspecific(s_kame_slots_key,  (void *)sent1);
+    pthread_setspecific(s_kame_chunks_key, (void *)sent2);
+
+    std::size_t off1 = 0, off2 = 0;
+    // 4 KiB upper bound covers all libc TSD layouts we know about
+    // (Apple reserves slots 0..N, then user keys start; offsets are
+    // typically < 2 KiB).  Stride 8 — slot is a pointer.
+    for(std::size_t off = 0; off < 4096 && (!off1 || !off2); off += 8) {
+        uintptr_t v = *reinterpret_cast<uintptr_t *>(tp + off);
+        if(v == sent1 && !off1) off1 = off;
+        else if(v == sent2 && !off2) off2 = off;
+    }
+
+    if(off1 && off2) {
+        s_kame_slots_tsd_offset  = off1;
+        s_kame_chunks_tsd_offset = off2;
+        // Plant THIS thread's (= typically the main thread's) TSD
+        // slots now so the next allocation hits the fast path on the
+        // first try.  Touching the __thread arrays triggers TLV lazy
+        // init for this thread; the resulting addresses are stable
+        // for this thread's lifetime.
+        pthread_setspecific(s_kame_slots_key,  &g_thread_slots[0]);
+        pthread_setspecific(s_kame_chunks_key, &g_thread_chunks[0]);
+    }
+    else {
+        // Scan failed — leave offsets at 0 (degraded TLV-only mode).
+        pthread_setspecific(s_kame_slots_key,  nullptr);
+        pthread_setspecific(s_kame_chunks_key, nullptr);
+    }
+}
+} // anon namespace
+
+// Cold paths for the fast-TSD accessors in the header.  Called when
+// either guard branch fails (offset == 0 → pre-init, fall back to
+// TLV; or TSD slot null → first allocation on this thread, plant the
+// pointer).  `preserve_most` (matching the header decl) tells the
+// caller that this call preserves nearly all caller-saved registers,
+// so `operator new`'s hot-path prologue stays small.  cold + noinline
+// keeps the inlining budget separate.
+[[clang::preserve_most]]
+__attribute__((cold, noinline))
+AllocSlot *kame_slots_cold() noexcept {
+    if(s_kame_slots_tsd_offset != 0) {
+        // Post-init, per-thread first touch.  Plant the TSD slot for
+        // this thread; `&g_thread_slots[0]` is TLV-resolved here,
+        // which lazily allocates per-thread storage.  Subsequent
+        // hot-path reads will see the non-null TSD value.
+        pthread_setspecific(s_kame_slots_key, &g_thread_slots[0]);
+    }
+    return &g_thread_slots[0];
+}
+[[clang::preserve_most]]
+__attribute__((cold, noinline))
+PoolAllocatorBase **kame_chunks_cold() noexcept {
+    if(s_kame_chunks_tsd_offset != 0) {
+        pthread_setspecific(s_kame_chunks_key, &g_thread_chunks[0]);
+    }
+    return &g_thread_chunks[0];
+}
+#endif // KAME_FAST_TSD
 
 // Forward decl — the post-thread-exit functor used by AllocPinCleanup
 // to overwrite every slot of `g_thread_slots[]` before chunks are
@@ -573,7 +677,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		// branch you came through.
 		if(N >= 1 && size_bytes <= ALLOC_MAX_BUCKETED_SIZE) {
 			unsigned bucket = bucket_for_size(size_bytes);
-			g_thread_slots[bucket].push(p);
+			kame_slots_base()[bucket].push(p);
 			return false;
 		}
 	}
@@ -742,7 +846,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		// directly returned to (allocate_pooled goes there on freelist
 		// miss).  Owner's next alloc on this bucket pops it back
 		// immediately from `g_thread_slots[kBucket].freelist_head`.
-		g_thread_slots[kBucket].push(p);
+		kame_slots_base()[kBucket].push(p);
 		return false;
 	}
 	// Non-owner (or pre-first-access state): TLS batch.
@@ -1311,13 +1415,13 @@ ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS] = {};
 void *new_redirected_large(std::size_t size) noexcept {
     if(size <= ALLOC_MAX_BUCKETED_SIZE) {
         unsigned int bucket = bucket_for_size(size);
-        AllocSlot &slot = g_thread_slots[bucket];
+        AllocSlot &slot = kame_slots_base()[bucket];
         char *head = slot.freelist_head;
         if(head) {
             slot.freelist_head = *reinterpret_cast<char **>(head);
             return head;
         }
-        if(PoolAllocatorBase *chunk = g_thread_chunks[bucket])
+        if(PoolAllocatorBase *chunk = kame_chunks_base()[bucket])
             return chunk->slow_allocate(bucket, size);
         return cold_first_access(bucket, size);
     }

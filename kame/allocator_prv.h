@@ -525,6 +525,118 @@ extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
 //! target — no separate function-pointer table is needed.
 extern ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS];
 
+// ---------------------------------------------------------------------
+// Fast pthread-TSD bypass of the macOS TLV thunk.
+//
+// On macOS (and Linux), C++ `__thread` / `thread_local` accesses lower
+// to a TLV thunk: `adrp; add; ldr; blr tlv_get_addr` — roughly 10-15
+// cycles of dependent loads + a function call per access.  This block
+// bypasses that for the two hottest TLS arrays:
+//
+//   1. `kame_tls_init_fast` (constructor priority 101) allocates two
+//      `pthread_key_t`s, writes sentinel values into them via
+//      `pthread_setspecific`, then scans the current pthread struct
+//      (base = `kame_thread_pointer()`) byte-by-byte to find which
+//      offsets received the sentinels.  Offsets stored in
+//      `s_kame_slots_tsd_offset` / `s_kame_chunks_tsd_offset`.
+//   2. Each thread's first allocation routes through the cold path
+//      which writes `&g_thread_slots[0]` / `&g_thread_chunks[0]` (the
+//      *per-thread* TLV-resolved addresses) into its own TSD slots.
+//   3. Steady-state hot path reads `*(AllocSlot**)(TP + offset)` and
+//      indexes `[bucket]`.  Two null checks — `offset != 0` (pre-init
+//      guard) and `pointer != null` (per-thread first-touch guard) —
+//      both predict not-taken with 100% accuracy after warmup.
+//
+// On unsupported platforms (Windows; non-arm64/x86_64), the macros
+// expand to direct `&g_thread_slots[0]` / `&g_thread_chunks[0]`
+// references which keep the TLV thunk on the hot path.
+// ---------------------------------------------------------------------
+
+#if defined(__APPLE__) && (defined(__aarch64__) || defined(__x86_64__))
+    #define KAME_FAST_TSD 1
+#elif defined(__linux__) && (defined(__aarch64__) || defined(__x86_64__))
+    #define KAME_FAST_TSD 1
+#else
+    #define KAME_FAST_TSD 0
+#endif
+
+#if KAME_FAST_TSD
+//! Architecture-specific read of the thread-pointer register.  Returns
+//! the base of the pthread struct (or TCB on glibc).  Used as the base
+//! for the byte-offset TSD read.
+//!
+//! Important: `__builtin_thread_pointer()` on arm64 expands to
+//! `mrs TPIDR_EL0`, which is the *read-write* register.  On macOS,
+//! Apple's libc keeps the thread pointer in `TPIDRRO_EL0` (read-only)
+//! and leaves `TPIDR_EL0` zero / unused — so the builtin returns
+//! garbage there.  We always use explicit inline asm to read the
+//! correct register per ABI.
+static inline char *kame_thread_pointer() noexcept {
+    #if defined(__APPLE__) && defined(__aarch64__)
+        uintptr_t tp;
+        __asm__ volatile("mrs %0, TPIDRRO_EL0" : "=r"(tp));
+        return (char *)tp;
+    #elif defined(__linux__) && defined(__aarch64__)
+        uintptr_t tp;
+        __asm__ volatile("mrs %0, TPIDR_EL0" : "=r"(tp));
+        return (char *)tp;
+    #elif defined(__APPLE__) && defined(__x86_64__)
+        // macOS Intel: %gs:0 stores self-pointer == pthread struct base.
+        uintptr_t tp;
+        __asm__ volatile("movq %%gs:0, %0" : "=r"(tp));
+        return (char *)tp;
+    #elif defined(__linux__) && defined(__x86_64__)
+        // Linux x86_64: %fs:0 stores self-pointer == TCB base.
+        uintptr_t tp;
+        __asm__ volatile("movq %%fs:0, %0" : "=r"(tp));
+        return (char *)tp;
+    #endif
+}
+
+//! Discovered TSD byte offsets.  Zero means "not yet initialised"
+//! (constructor hasn't run, or `pthread_key_create` / sentinel scan
+//! failed); hot path falls to TLV fallback in that case.
+extern std::size_t s_kame_slots_tsd_offset;
+extern std::size_t s_kame_chunks_tsd_offset;
+
+//! Out-of-line cold paths invoked when either guard branch fails.
+//! Defined in allocator.cpp.  Plant the per-thread TSD slot if
+//! `s_kame_*_tsd_offset` is set, then return the TLV-resolved address.
+//!
+//! `[[clang::preserve_most]]`: caller-side register-spill avoidance.
+//! Without it, clang must spill the live `size` and `bucket` regs (in
+//! the caller-saved set) across the call, bloating `operator new`'s
+//! prologue with 4-6 reg saves.  preserve_most shifts the burden into
+//! the cold callee (cheap — cold).
+[[clang::preserve_most]] AllocSlot *kame_slots_cold() noexcept;
+[[clang::preserve_most]] PoolAllocatorBase **kame_chunks_cold() noexcept;
+
+//! Hot accessor: returns the base of this thread's `g_thread_slots[]`.
+//! Inlined into `new_redirected` and `deallocate_pooled`.
+inline AllocSlot *kame_slots_base() noexcept {
+    std::size_t off = s_kame_slots_tsd_offset;
+    if(__builtin_expect(off != 0, 1)) {
+        AllocSlot *p =
+            *reinterpret_cast<AllocSlot **>(kame_thread_pointer() + off);
+        if(__builtin_expect(p != nullptr, 1)) return p;
+    }
+    return kame_slots_cold();
+}
+//! Hot accessor: returns the base of this thread's `g_thread_chunks[]`.
+inline PoolAllocatorBase **kame_chunks_base() noexcept {
+    std::size_t off = s_kame_chunks_tsd_offset;
+    if(__builtin_expect(off != 0, 1)) {
+        PoolAllocatorBase **p =
+            *reinterpret_cast<PoolAllocatorBase ***>(kame_thread_pointer() + off);
+        if(__builtin_expect(p != nullptr, 1)) return p;
+    }
+    return kame_chunks_cold();
+}
+#else  // !KAME_FAST_TSD: fall back to direct TLV access
+inline AllocSlot *kame_slots_base() noexcept { return &g_thread_slots[0]; }
+inline PoolAllocatorBase **kame_chunks_base() noexcept { return &g_thread_chunks[0]; }
+#endif
+
 //! Cold slow path: invoked when `g_thread_chunks[bucket] == nullptr`
 //! (first access on this (thread, bucket), or post-cleanup).  Handles
 //! activation-flag / cleanup-flag checks, then dispatches per bucket
@@ -547,7 +659,9 @@ inline void *new_redirected(std::size_t size) {
 	if(size > (std::size_t)ALLOC_SIZE16)
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
-	AllocSlot &slot = g_thread_slots[bucket];
+	// Fast TSD access if available (macOS arm64/x86_64, Linux
+	// arm64/x86_64); else direct TLV access.
+	AllocSlot &slot = kame_slots_base()[bucket];
 	// Inline freelist pop — no indirect call on hit path.  Empty
 	// sentinel: nullptr (push only ever writes the previous head into
 	// the slot's first 8 bytes, so user data is never on the link).
@@ -560,7 +674,7 @@ inline void *new_redirected(std::size_t size) {
 	// the bucket has been activated on this thread, otherwise fall
 	// to `cold_first_access` for the (rare) first-time path + the
 	// pre-activation / post-cleanup malloc fallbacks.
-	if(PoolAllocatorBase *chunk = g_thread_chunks[bucket])
+	if(PoolAllocatorBase *chunk = kame_chunks_base()[bucket])
 		return chunk->slow_allocate(bucket, size);
 	return cold_first_access(bucket, size);
 }
