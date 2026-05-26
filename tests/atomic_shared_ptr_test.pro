@@ -3,9 +3,8 @@ TARGET = atomic_shared_ptr_test
 include(tests.pri)
 
 HEADERS += \
-    support_standalone.h \
-    ../kame/allocator.h
+    ../kame/atomic_smart_ptr.h \
+    ../kame/xthread.h
 
 SOURCES += \
-    atomic_shared_ptr_test.cpp \
-    support_standalone.cpp
+    atomic_shared_ptr_test.cpp
