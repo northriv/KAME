@@ -160,6 +160,25 @@ protected:
 	//! A chunk, memory block.
 	char * const m_mempool;
 
+	//! Index into `s_chunks[]` for this chunk, and the chunk size used
+	//! to address back into `s_mmapped_spaces`.  Stamped by
+	//! `allocate_chunk()` immediately after `s_chunks[cidx] = palloc`.
+	//! Read by the `batch_return_to_bitmap` chunk-release path
+	//! (FS=true and FS=false overrides) so it can call
+	//! `deallocate_chunk` after `release_allocator` returns true and
+	//! BEFORE the `delete this` self-suicide cascade — clearing
+	//! `s_chunks[cidx]` and mprotect-ing the mempool back to PROT_NONE.
+	//! Without this, `s_chunks[cidx]` would dangle, a later
+	//! `deallocate_<>` lookup would dereference the freed PoolAllocator
+	//! instance, and glibc would surface it as `free(): invalid pointer`
+	//! / `tcache_thread_shutdown(): unaligned tcache chunk detected`.
+	//! The owner-side dealloc path returns `true` from
+	//! `deallocate_pooled` which already calls `deallocate_chunk` in
+	//! `PoolAllocatorBase::deallocate_<>` — that path doesn't need
+	//! these fields, only the cross-batch self-suicide path does.
+	int m_cidx = -1;
+	size_t m_chunk_size = 0;
+
 private:
 	friend void report_statistics();
 	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE,
