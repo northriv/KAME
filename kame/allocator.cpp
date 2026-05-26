@@ -23,7 +23,6 @@
 #include "atomic.h"
 #include "threadlocal.h"
 
-#include <algorithm>
 #include <assert.h>
 #include <cerrno>
 #include <cstdlib>
@@ -176,9 +175,9 @@ struct AllocPinCleanup {
         // FIRST.  Slots on the linked list inside the slot pool would
         // become unreachable after the table-rewrite below (the head
         // pointer is wiped) and after the chunk pins drop (the chunk
-        // may be released).  See `drain_thread_slot_freelists` below
-        // — routes slots through `tls_cross_dealloc_batch` for batched
-        // bitmap CAS per m_flags word.
+        // may be released).  `drain_thread_slot_freelists` issues a
+        // per-slot `batch_return_to_bitmap(&one, 1)` via
+        // `lookup_chunk` (handles FS=false bucket-share invariant).
         drain_thread_slot_freelists();
         // Clear every per-thread chunk pointer BEFORE the chunk pins
         // drop to 0 — otherwise a later TLS destructor that allocates
@@ -219,97 +218,49 @@ struct AllocPinCleanup {
 // the libkame-side global's address gives every DLL the same slot.
 XThreadLocal<AllocPinCleanup> tls_alloc_pin_cleanup;
 
-// Cross-thread dealloc batch — single TLS buffer per thread holding
-// {chunk, slot} pairs from non-owner deallocs.  Flushes when full
-// (CAP entries) or at thread exit.  Flush sorts by chunk pointer to
-// group same-chunk slots, then calls chunk->batch_return_to_bitmap
-// per group to merge multiple slots into ONE CAS per m_flags word.
+// Cross-thread dealloc dispatch — non-owner deallocs go straight to
+// the chunk's `batch_return_to_bitmap` with a single-slot scratch.
+// No batching, no per-thread buffer, no sort.
 //
-// vs the previous design (immediate single-slot bitmap CAS per
-// non-owner dealloc): trades CAS count for a single TLS write +
-// occasional sorted flush.  Wins on:
-//   * UMA: TLS write (~2-5 ns) << atomic CAS (~10-20 ns);
-//   * NUMA (Ohtaka): collapses cross-socket cache-line traffic
-//     from N scattered m_flags words to one batched CAS per word
-//     per chunk group.
+// History: this used to be a real batch (`Entry buf[CAP]`, sort by
+// chunk pointer on flush, group-walk for m_flags-word CAS
+// coalescing).  A sweep on ohtaka (128-core multi-socket NUMA) found
+// that EVERY non-zero CAP regressed throughput vs CAP=1: the
+// per-flush `std::sort` + group-walk + extra alloca scratch in
+// `batch_clear_impl` cost more per call than the bitmap-word
+// coalescing saved, because realistic FS=true/false allocation
+// patterns yield ~1 slot/word per group (typical batch has slots
+// from many different chunks, and even within one chunk they spread
+// across `m_flags[]` words).
 //
-// Stage 1 (this commit): non-owner deallocs only.  Owner-overflow
-// (freelist full) keeps the existing single-slot bitmap CAS for
-// now.  Stage 2 would route owner-overflow here too.
+// Earlier sweep on a 4-core VM had shown a memory benefit from
+// smaller CAP (down to ~167 MiB at CAP=4 vs 302 MiB at CAP=64),
+// driven by held-but-pending slots delaying chunk release.  But on
+// the throughput axis, ohtaka with its much higher core count made
+// the per-call overhead the dominant signal — CAP=1 wins on rate
+// AND inherits the chunk-release latency win for free (no slots
+// sit in `buf[]`).
+//
+// The XThreadLocal wrapper survives the simplification (same TLS
+// dtor-order story as before: `~AllocPinCleanup` runs before this
+// TLS object dies; nothing pending here matters because there's
+// nothing pending), so call sites
+// (`tls_cross_dealloc_batch->push(this, p)`) continue to compile
+// unchanged.
+//
+// The post-teardown bypass in `deallocate_pooled` (s_alloc_tls_off
+// branch) still issues a direct `batch_return_to_bitmap(&one, 1)`
+// for the same reason — and it now matches what the steady-state
+// non-owner branch does, so the two paths are semantically
+// identical (only differing in the TLS access pattern, which is
+// itself irrelevant once we don't store anything in the TLS).
 struct CrossDeallocBatch {
-    static constexpr int CAP = 4;
-    struct Entry { PoolAllocatorBase *chunk; void *slot; };
-    Entry buf[CAP];
-    int count = 0;
-
     void push(PoolAllocatorBase *c, void *s) noexcept {
-        // We're called from deallocate paths; if the slot count has
-        // hit CAP we must drain before pushing the new entry.  Drain
-        // is in-thread (no synchronization needed beyond the bitmap
-        // CAS that batch_return_to_bitmap does internally).
-        if(count == CAP) flush();
-        buf[count++] = {c, s};
+        void *one = s;
+        c->batch_return_to_bitmap(&one, 1);
     }
-    void flush() noexcept {
-        if(count == 0) return;
-        // Sort by chunk pointer so same-chunk entries are contiguous.
-        // Stable sort isn't required (slots from same chunk are
-        // interchangeable at the bitmap level).
-        std::sort(buf, buf + count,
-                  [](const Entry &a, const Entry &b) {
-                      return a.chunk < b.chunk;
-                  });
-        // Run per-chunk groups.  Each group → ONE virtual call →
-        // batch_return_to_bitmap groups slots by m_flags word
-        // internally for further CAS coalescing.
-        //
-        // Stack scratch sized to CAP — bounded.  CAP=4 chosen by sweep:
-        //
-        //   CAP | alloc_stress rate | VmHWM   | STM commits/s
-        //   --- | ----------------- | ------- | -------------
-        //     4 | 15.58 M ops/s     | 167 MiB |   1.028 M    ← chosen
-        //     8 | 15.17 M           | 190 MiB |   1.030 M
-        //    16 | 15.35 M           | 197 MiB |   1.028 M    (prev)
-        //    32 | 15.57 M           | 224 MiB |   1.023 M
-        //    64 | 15.23 M           | 302 MiB |   1.000 M    (originally)
-        //
-        // (Linux 4-core VM measurements; macOS UMA shows flat throughput
-        // ~19 M ops/s across CAP=2..16 — same flat signal.)
-        //
-        // Throughput is flat: sort cost is O(log CAP) per slot and bitmap-
-        // word coalescing tops out around ~2 slots/word for this allocation
-        // pattern, so the CAP knob barely touches per-entry CPU.
-        //
-        // Memory drops monotonically with smaller CAP for a structural
-        // reason: every slot sitting in `buf[]` is still flagged as
-        // "allocated" in its chunk's bitmap.  64-entry batches × N threads
-        // × avg-slot-size = sizeable held-but-pending acreage; quartering
-        // CAP from 16→4 releases bitmap bits sooner, lets chunks reach
-        // m_flags_nonzero_cnt == 0 sooner, and lets `release_allocator`
-        // reclaim chunks sooner — total chunk count peaks lower.
-        //
-        // NUMA concern about CAP=4 (cross-socket bitmap CAS frequency
-        // multiplier) didn't materialise: ohtaka (128-core, multi-socket)
-        // showed no regression at CAP=16 vs 64, and the per-flush sort +
-        // group coalescing happens entirely on the dealloc'ing thread,
-        // so flushes mostly hit the chunk's *owning* socket's cache line.
-        // Going below CAP=4 saves negligibly more (no CAP=2 data point on
-        // the sweep but extrapolation suggests <10 MiB additional).
-        void *slots_buf[CAP];
-        int i = 0;
-        while(i < count) {
-            PoolAllocatorBase *c = buf[i].chunk;
-            int j = i;
-            while(j < count && buf[j].chunk == c) {
-                slots_buf[j - i] = buf[j].slot;
-                ++j;
-            }
-            c->batch_return_to_bitmap(slots_buf, j - i);
-            i = j;
-        }
-        count = 0;
-    }
-    ~CrossDeallocBatch() noexcept { flush(); }
+    // No pending state; nothing to flush at thread exit.
+    void flush() noexcept {}
 };
 XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
 
@@ -799,17 +750,20 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 				atomicDec( &this->m_flags_nonzero_cnt);
 			}
 		});
-	// Chunk-release check.  Safe to delete this — the CrossDeallocBatch
-	// flush caller advances past this chunk-group after the call.
-	// `deallocate_chunk` MUST follow `delete this` (using the
-	// pre-cached cidx/chunk_size) so `s_chunks[cidx]` is cleared and
-	// the mempool mprotect'd back to PROT_NONE.  Without it, the slot
-	// in `s_chunks[]` dangles past the suicide and a subsequent
+	// Chunk-release check.  Safe to delete this — the caller
+	// (`tls_cross_dealloc_batch->push`, `drain_thread_slot_freelists`,
+	// or the post-teardown bypass in `deallocate_pooled`) is on a
+	// single-slot path and won't reference this chunk again after
+	// the call.  `deallocate_chunk` MUST follow `delete this` (using
+	// the pre-cached cidx/chunk_size) so `s_chunks[cidx]` is cleared
+	// and the mempool mprotect'd back to PROT_NONE.  Without it, the
+	// slot in `s_chunks[]` dangles past the suicide and a subsequent
 	// `deallocate_<>` would dereference the freed PoolAllocator and
 	// glibc would catch it as `free(): invalid pointer`.  Owner-side
-	// `deallocate_pooled` returns `true` to get this same cleanup via
-	// `PoolAllocatorBase::deallocate_<>`; the cross-batch path doesn't
-	// have that cascade, so it must do the cleanup itself.
+	// `deallocate_pooled` returns `true` to get this same cleanup
+	// via `PoolAllocatorBase::deallocate_<>`; the
+	// `batch_return_to_bitmap` paths don't have that cascade and
+	// must do the cleanup themselves.
 	if(this->m_flags_nonzero_cnt == 0
 	        && PoolAllocator<ALIGN, true, false>::release_allocator(this)) {
 		int cidx = this->m_cidx;
@@ -858,12 +812,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	}
 }
 
-// Batched bitmap clear of slots passed via argument array.  Called
-// from CrossDeallocBatch::flush — slots all belong to THIS chunk
-// (caller groups by chunk pointer), so one shared direct-map scratch
-// suffices.  This is now the sole consumer of `batch_clear_impl`
-// (the chunk-private freelist drain that previously also used it has
-// been folded into the per-thread AllocSlot drain in
+// Bitmap clear of slots passed via argument array.  All slots must
+// belong to THIS chunk (callers always pass single-chunk groups —
+// `CrossDeallocBatch::push` issues `&one, 1`,
+// `drain_thread_slot_freelists` `lookup_chunk`s each slot and dispatches
+// per chunk, and the post-teardown bypass in `deallocate_pooled` issues
+// `&one, 1`).  Single-chunk invariant lets us share one direct-map
+// scratch.  Sole remaining consumer of `batch_clear_impl` (the
+// chunk-private freelist drain that previously also used it has been
+// folded into the per-thread AllocSlot drain in
 // `drain_thread_slot_freelists`).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
