@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cerrno>
+#include <mutex>
 #include <stdexcept>
 #include <unistd.h>     /* usleep */
 
@@ -41,8 +42,18 @@ static const struct { uint16_t pid; const char *name; } NI_PIDS[] = {
 
 /* ------------------------------------------------------------------ */
 
-NiGpibDriver::NiGpibDriver(int board_pad, unsigned int timeout_usec)
-    : board_pad_(board_pad), timeout_usec_(timeout_usec) {}
+/* Module init/exit refcount.  ni_usb_init_module() clears the static
+ * ni_usb_driver_interfaces[] array, so calling it again after a previous
+ * controller has been probed would wipe its registration.  Refcount it
+ * so init/exit happen exactly once across all NiGpibDriver instances. */
+static std::mutex g_module_mutex;
+static int        g_module_refcount = 0;
+
+NiGpibDriver::NiGpibDriver(int board_pad, unsigned int timeout_usec,
+                            int adapter_index)
+    : board_pad_(board_pad),
+      timeout_usec_(timeout_usec),
+      adapter_index_(adapter_index) {}
 
 NiGpibDriver::~NiGpibDriver() { close(); }
 
@@ -54,14 +65,21 @@ bool NiGpibDriver::open()
     }
     libusb_set_option(ctx_, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_NONE);
 
-    if (!findAndOpenDevice()) {
-        fprintf(stderr, "No supported NI USB-GPIB adapter found.\n");
+    if (!findAndOpenDevice(adapter_index_)) {
+        fprintf(stderr, "No supported NI USB-GPIB adapter found at index %d.\n",
+                adapter_index_);
         return false;
     }
 
-    if (ni_module_init() != 0) {
-        fprintf(stderr, "ni_module_init failed\n");
-        return false;
+    {
+        std::lock_guard<std::mutex> lock(g_module_mutex);
+        if (g_module_refcount == 0) {
+            if (ni_module_init() != 0) {
+                fprintf(stderr, "ni_module_init failed\n");
+                return false;
+            }
+        }
+        g_module_refcount++;
     }
     module_inited_ = true;
 
@@ -155,7 +173,9 @@ void NiGpibDriver::close()
         probed_ = false;
     }
     if (module_inited_) {
-        ni_module_exit();
+        std::lock_guard<std::mutex> lock(g_module_mutex);
+        if (--g_module_refcount == 0)
+            ni_module_exit();
         module_inited_ = false;
     }
     if (usb_dev_.handle) {
@@ -169,7 +189,7 @@ void NiGpibDriver::close()
     }
 }
 
-bool NiGpibDriver::findAndOpenDevice()
+bool NiGpibDriver::findAndOpenDevice(int adapter_index)
 {
     libusb_device **list = nullptr;
     ssize_t n = libusb_get_device_list(ctx_, &list);
@@ -179,55 +199,64 @@ bool NiGpibDriver::findAndOpenDevice()
         return false;
     }
 
+    /* Enumerate NI USB-GPIB adapters in USB-bus order; pick the
+     * adapter_index'th one.  Each NiGpibDriver instance must pass a
+     * distinct adapter_index to talk to a distinct physical adapter. */
     bool found = false;
+    int  match_count = 0;
     for (ssize_t i = 0; i < n && !found; i++) {
         struct libusb_device_descriptor desc;
         if (libusb_get_device_descriptor(list[i], &desc) != 0) continue;
         if (desc.idVendor != NI_VENDOR) continue;
 
+        const char *name = nullptr;
         for (int j = 0; NI_PIDS[j].pid; j++) {
-            if (desc.idProduct != NI_PIDS[j].pid) continue;
+            if (desc.idProduct == NI_PIDS[j].pid) { name = NI_PIDS[j].name; break; }
+        }
+        if (!name) continue;
 
-            libusb_device_handle *h = nullptr;
-            int r = libusb_open(list[i], &h);
-            if (r != 0) {
-                fprintf(stderr, "libusb_open failed (%s): %s\n",
-                        NI_PIDS[j].name, libusb_error_name(r));
-                break;
-            }
-            libusb_set_auto_detach_kernel_driver(h, 1);
-            int rc = libusb_claim_interface(h, 0);
-            if (rc != 0) {
-                fprintf(stderr, "libusb_claim_interface(0) failed: %s\n",
-                        libusb_error_name(rc));
-                if (rc == LIBUSB_ERROR_ACCESS)
-                    fprintf(stderr,
-                        "  Hint: another driver (e.g. NI-488.2) owns the interface.\n"
-                        "  Try running with sudo, or unload the NI kernel extension first.\n");
-            }
+        if (match_count++ != adapter_index) continue;
 
-            printf("Opened %s (VID=%04x PID=%04x bus=%d dev=%d)\n",
-                   NI_PIDS[j].name, desc.idVendor, desc.idProduct,
-                   libusb_get_bus_number(list[i]),
-                   libusb_get_device_address(list[i]));
-
-            memset(&usb_dev_, 0, sizeof(usb_dev_));
-            usb_dev_.handle               = h;
-            usb_dev_.descriptor.idVendor  = desc.idVendor;
-            usb_dev_.descriptor.idProduct = desc.idProduct;
-            usb_dev_.devnum               = (int)libusb_get_device_address(list[i]);
-            usb_dev_._bus_storage.busnum  = (int)libusb_get_bus_number(list[i]);
-            usb_dev_.bus                  = &usb_dev_._bus_storage;
-            snprintf(usb_dev_.dev.name, sizeof(usb_dev_.dev.name),
-                     "usb%d-%d", usb_dev_.bus->busnum, usb_dev_.devnum);
-
-            memset(&usb_intf_, 0, sizeof(usb_intf_));
-            usb_intf_.udev = &usb_dev_;
-            usb_set_intfdata(&usb_intf_, nullptr);
-
-            found = true;
+        libusb_device_handle *h = nullptr;
+        int r = libusb_open(list[i], &h);
+        if (r != 0) {
+            fprintf(stderr, "libusb_open failed (%s): %s\n",
+                    name, libusb_error_name(r));
             break;
         }
+        libusb_set_auto_detach_kernel_driver(h, 1);
+        int rc = libusb_claim_interface(h, 0);
+        if (rc != 0) {
+            fprintf(stderr, "libusb_claim_interface(0) failed: %s\n",
+                    libusb_error_name(rc));
+            if (rc == LIBUSB_ERROR_ACCESS)
+                fprintf(stderr,
+                    "  Hint: another driver (e.g. NI-488.2) owns the interface.\n"
+                    "  Try running with sudo, or unload the NI kernel extension first.\n");
+            libusb_close(h);
+            break;
+        }
+
+        printf("Opened %s [#%d] (VID=%04x PID=%04x bus=%d dev=%d)\n",
+               name, adapter_index, desc.idVendor, desc.idProduct,
+               libusb_get_bus_number(list[i]),
+               libusb_get_device_address(list[i]));
+
+        memset(&usb_dev_, 0, sizeof(usb_dev_));
+        usb_dev_.handle               = h;
+        usb_dev_.descriptor.idVendor  = desc.idVendor;
+        usb_dev_.descriptor.idProduct = desc.idProduct;
+        usb_dev_.devnum               = (int)libusb_get_device_address(list[i]);
+        usb_dev_._bus_storage.busnum  = (int)libusb_get_bus_number(list[i]);
+        usb_dev_.bus                  = &usb_dev_._bus_storage;
+        snprintf(usb_dev_.dev.name, sizeof(usb_dev_.dev.name),
+                 "usb%d-%d", usb_dev_.bus->busnum, usb_dev_.devnum);
+
+        memset(&usb_intf_, 0, sizeof(usb_intf_));
+        usb_intf_.udev = &usb_dev_;
+        usb_set_intfdata(&usb_intf_, nullptr);
+
+        found = true;
     }
     libusb_free_device_list(list, 1);
     return found;
@@ -257,7 +286,7 @@ void NiGpibDriver::deviceClear(int addr)
         cmd({ DCL });
     } else {
         cmd({ UNL, MLA((uint32_t)addr), SDC });
-        cmd({ UNL });
+        cmd({ UNL, UNT });
     }
 }
 

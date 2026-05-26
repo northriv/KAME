@@ -34,9 +34,12 @@ extern "C" {
 class NiGpibDriver {
 public:
     /* board_pad:      GPIB primary address of the controller (usually 0).
-     * timeout_usec:   read/write timeout in microseconds (default 3 s). */
+     * timeout_usec:   read/write timeout in microseconds (default 3 s).
+     * adapter_index:  which NI USB-GPIB adapter to use when multiple are
+     *                 connected (0 = first by USB enumeration order). */
     explicit NiGpibDriver(int board_pad = 0,
-                          unsigned int timeout_usec = 3000000);
+                          unsigned int timeout_usec = 3000000,
+                          int adapter_index = 0);
     ~NiGpibDriver();
 
     NiGpibDriver(const NiGpibDriver &) = delete;
@@ -106,6 +109,7 @@ public:
 private:
     int          board_pad_;
     unsigned int timeout_usec_;
+    int          adapter_index_;
 
     libusb_context      *ctx_      = nullptr;
     struct usb_device    usb_dev_  = {};
@@ -116,7 +120,7 @@ private:
     bool probed_        = false;
     bool attached_      = false;
 
-    bool findAndOpenDevice();
+    bool findAndOpenDevice(int adapter_index);
 
     /* Send a sequence of GPIB command bytes with ATN asserted. */
     void cmd(std::initializer_list<int> bytes);

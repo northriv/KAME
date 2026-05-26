@@ -32,9 +32,20 @@ NiGpibDriver &XNIUsermodeGPIBBoardPort::driver() {
 shared_ptr<XPort>
 XNIUsermodeGPIBBoardPort::open(const XCharInterface *intf) {
     Snapshot shot( *intf);
+    // `port` is reinterpreted as the *adapter index* — 0 = first NI
+    // USB-GPIB adapter on the bus, 1 = second, etc.  Multi-controller
+    // support (usermode-linux-gpib commit f7385e0) lets KAME bind
+    // each XNIUsermodeGPIBBoardPort to a specific physical adapter
+    // when more than one is plugged in.  The board's own GPIB primary
+    // address (`board_pad`) is hardcoded to 0 — the controller-side
+    // PAD is virtually never changed in practice for NI USB-GPIB.
+    // Existing .kam files with `port = "0"` keep their previous
+    // behaviour (= first adapter).
     m_drv = std::make_unique<NiGpibDriver>(
-        atoi(shot[ *intf->port()].to_str().c_str())/*board controller address*/,
-        3000000 /*3 s timeout*/);
+        0 /*board controller GPIB address — always 0 for NI USB-GPIB*/,
+        3000000 /*3 s timeout*/,
+        atoi(shot[ *intf->port()].to_str().c_str())
+            /*adapter index: 0 = first NI USB-GPIB, 1 = second, …*/);
     if(!m_drv->open())
         throw XInterface::XCommError(
             i18n("NI USB-GPIB: no supported adapter found or open failed"), __FILE__, __LINE__);
