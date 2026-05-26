@@ -127,6 +127,25 @@ inline bool atomicDecAndTest(T *target) noexcept {
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
 	(ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_MMAP_ENTRIES)
 
+class PoolAllocatorBase;
+//! Cross-dealloc batch entry — paired chunk + slot pointers.  Defined
+//! here so `PoolAllocatorBase::batch_return_to_bitmap` and
+//! `CrossDeallocBatch::buf[]` (in allocator.cpp) share the exact same
+//! layout — no per-chunk slot-pointer copy on flush, no SoA/AoS
+//! translation; `batch_return_to_bitmap` reads `entries[k].slot`
+//! directly from the caller's buffer.
+//!
+//! `CrossDeallocBatch` keeps a sentinel `{nullptr, nullptr}` entry at
+//! the position one past the live count, so the chunk-side walker
+//! only needs `while(entries[k].chunk == this)` — no `k < n_max` test
+//! in the inner loop.  Trailing sentinel is invariant by flush
+//! contract (any non-trivial chunk pointer `this` differs from
+//! nullptr, so the walk always terminates at the boundary).
+struct CrossDeallocEntry {
+	PoolAllocatorBase *chunk;
+	void              *slot;
+};
+
 class PoolAllocatorBase {
 public:
 	virtual ~PoolAllocatorBase() = default;
@@ -159,14 +178,23 @@ public:
 	//! `RunnerCounterRegistration` via `pthread_key`) do heap
 	//! alloc/dealloc after `AllocPinCleanup` has already run.
 	virtual void clear_owner_tls() noexcept {}
-	//! Batch return of `n` slots (all belonging to THIS chunk) to the
-	//! bitmap.  Called by the cross-thread TLS batch flush — see
-	//! `CrossDeallocBatch::flush` in allocator.cpp.  Each override
-	//! groups slots by their m_flags[] word and clears all the bits
-	//! in ONE CAS per word, vs the naïve per-slot CAS.  Pure virtual
-	//! so every PoolAllocator instantiation supplies a concrete
-	//! implementation.
-	virtual void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept = 0;
+	//! Batch return of a contiguous run of CrossDeallocEntries whose
+	//! `chunk == this` to the bitmap.  Each override walks
+	//! `entries[k]` while `entries[k].chunk == this` (terminating on
+	//! the trailing `{nullptr, nullptr}` sentinel or the next chunk's
+	//! group), merges adjacent same-m_flags-word slots into one CAS
+	//! per word, and returns the number of entries it consumed so the
+	//! caller can advance past them.  Pure virtual — each
+	//! `PoolAllocator<ALIGN, FS, DUMMY>` supplies its own ALIGN /
+	//! per-FS-variant counter logic.
+	//!
+	//! Caller contract:
+	//!   * `entries[0].chunk == this` on entry (else returns 0);
+	//!   * `entries[k].chunk` for k ≥ count past the buffer is
+	//!     `nullptr` (the sentinel) so the inner loop's chunk
+	//!     comparison terminates without needing a count test.
+	virtual int batch_return_to_bitmap(
+	    const CrossDeallocEntry *entries) noexcept = 0;
 	//! Freelist-miss slow allocate.  Called from `new_redirected`'s
 	//! cold path through this chunk's vtable; runs the bitmap-CAS /
 	//! chunk-claim / create_allocator path with this template
@@ -272,7 +300,7 @@ protected:
 	PoolAllocator(int count, char *addr, char *ppool);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
-	void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept override;
+	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
 	static bool create_allocator(int &aidx);
 	static bool release_allocator(PoolAllocator *alloc);
@@ -334,20 +362,27 @@ protected:
 	void clear_owner_tls() noexcept override;
 
 
-	//! Shared batched bitmap-clear skeleton (body in allocator.cpp).
+	//! Shared bitmap-clear skeleton (body in allocator.cpp).  Walks
+	//! `entries[k]` while `entries[k].chunk == this`, terminating on
+	//! the next chunk's group or the trailing `{nullptr, nullptr}`
+	//! sentinel.  Returns the number of entries it consumed.
 	//! Parameterised on:
-	//!   FetchSlot()       → `char *`  : next slot to clear (nullptr=end)
 	//!   MaskFn(idx,sidx,p)→ `FUINT`   : bit-mask for one slot
 	//!                                    (FS=true: 1 bit at sidx;
 	//!                                    FS=false: N bits via m_sizes)
 	//!   OnClearFn(oldv,newv)→ `void`  : per-word counter update
 	//!
+	//! Precondition: the chunk run is sorted by ascending slot pointer
+	//! address (== m_flags word index order).  `CrossDeallocBatch::
+	//! flush` enforces the sort; the post-teardown and drain paths
+	//! call with a single-entry run (trivially sorted).
+	//!
 	//! Used by `batch_return_to_bitmap` (both FS=true and FS=false
 	//! overrides).  Sole remaining caller now that the chunk-local
 	//! freelist has been folded into AllocSlot.
-	template <typename FetchSlot, typename MaskFn, typename OnClearFn>
-	void batch_clear_impl(FetchSlot fetch_slot, MaskFn mask_fn,
-	                     OnClearFn on_clear) noexcept;
+	template <typename MaskFn, typename OnClearFn>
+	int batch_clear_impl(const CrossDeallocEntry *entries,
+	                     MaskFn mask_fn, OnClearFn on_clear) noexcept;
 
 protected:
 
@@ -369,7 +404,7 @@ protected:
 	PoolAllocator(int count, char *addr, char *ppool);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
-	void batch_return_to_bitmap(void **slot_ptrs, int n) noexcept override;
+	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
 
 	// FS=false's previous per-chunk size-bucketed freelist
