@@ -123,6 +123,18 @@ public:
 	template <int CCNT, size_t CHUNK_SIZE>
 	static inline bool deallocate_(void *p);
 	static inline bool deallocate(void *p);
+	//! Address-only chunk lookup.  Mirrors `deallocate_<>`'s s_chunks
+	//! index calculation but stops at the chunk pointer — no
+	//! `deallocate_pooled` call.  Returns nullptr if `p` does not
+	//! belong to any pool chunk (or the chunk has been released).
+	//! Used by `drain_thread_slot_freelists` to handle the case where
+	//! `g_thread_slots[bucket].freelist_head` holds slots from
+	//! multiple chunks of the same PoolType (e.g. FS=false buckets
+	//! 6/8/10/12 share `PoolAllocator<32, false>`; a chunk transition
+	//! triggered by one bucket leaves the others' `g_thread_chunks`
+	//! entry stale, but the freelist may still receive both old- and
+	//! new-chunk slots).
+	static inline PoolAllocatorBase *lookup_chunk(void *p) noexcept;
 	static void release_chunks();
 	virtual void report_statistics(size_t &chunk_size, size_t &used_size) = 0;
 	//! Null out this thread's `s_my_chunk` for this chunk's ALIGN type.

@@ -288,52 +288,49 @@ XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
 // decrements.  Each free slot's first 8 bytes hold the next pointer
 // (see AllocSlot doc).
 //
-// Calls `chunk->batch_return_to_bitmap` directly rather than going via
-// `tls_cross_dealloc_batch`: `PerThread`'s TLS chain destroys in LIFO
-// order, and `tls_cross_dealloc_batch` is first touched LATER than
-// `tls_alloc_pin_cleanup` (the former on the first non-owner dealloc,
-// the latter on the first chunk-claim, which always runs first).  So
-// when this function runs from `~AllocPinCleanup`, the cross-batch's
-// underlying `CrossDeallocBatch` storage has already been freed; any
-// `tls_cross_dealloc_batch->push(...)` would corrupt freed heap and
-// trigger glibc's `tcache_thread_shutdown(): unaligned tcache chunk
-// detected` / `double free or corruption (out)` later in thread exit.
+// Why we MUST look up each slot's chunk individually (not just use
+// `g_thread_chunks[b]`):
 //
-// Invariant: every slot in `slot.freelist_head` was pushed when its
-// owning chunk equalled `g_thread_chunks[b]` (see
-// `deallocate_pooled`'s owner check), and `g_thread_chunks[b]` only
-// changes inside `bucket_steady_alloc`, which runs only on a freelist
-// MISS (= empty list) — so the list cannot contain slots from a
-// previous chunk.  Drain therefore directs the entire bucket's
-// list at the current `g_thread_chunks[b]`.
+// Multiple FS=false buckets share a single PoolAllocator template
+// instantiation (sizes 96/128/160/192/224/256/288/.../512 all use
+// `PoolAllocator<32, false>`, sharing one `s_my_chunk` static).  When
+// bucket B0 fills and `slow_allocate` claims a new chunk C2, only
+// `g_thread_chunks[B0]` is updated to C2; `g_thread_chunks[B1]` still
+// holds the previous chunk C1.  Subsequent `deallocate_pooled` of a
+// C2 slot via bucket B1's dealloc path passes the owner check (
+// `s_my_chunk == this == C2`) and pushes to `g_thread_slots[B1].
+// freelist_head` — but `g_thread_chunks[B1]` is still C1.  At drain
+// time, `g_thread_slots[B1].freelist_head` may therefore hold slots
+// from BOTH C1 and C2.  Sending all of them at `g_thread_chunks[B1]`
+// (= C1) makes `batch_return_to_bitmap` compute `(c2_slot -
+// C1->m_mempool) / ALIGN` — a wild idx that walks off `m_flags[]`
+// into unrelated memory — SIGSEGV.
 //
-// The chunk is still pinned at this point (pin counts are decremented
-// later in the same destructor), so `release_allocator` will return
-// false inside `batch_return_to_bitmap` and the chunk will not be
-// deleted from under us.
+// Fix: per-slot `PoolAllocatorBase::lookup_chunk(p)` (address-only
+// `s_chunks[cidx]` lookup) gives the slot's true owner.  Slow per-slot
+// CAS, but drain is rare (thread exit only) so the cost is acceptable.
+// Calls `batch_return_to_bitmap` directly — must NOT route through
+// `tls_cross_dealloc_batch`, which in PerThread's LIFO TLS chain dies
+// before `~AllocPinCleanup` and would corrupt freed heap.
+//
+// Each chunk we touch is still pinned at this point (pin counts drop
+// later in the same destructor), so `release_allocator` returns
+// false inside `batch_return_to_bitmap` and the chunk is not deleted
+// from under us.
 void drain_thread_slot_freelists() noexcept {
     for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
         AllocSlot &slot = g_thread_slots[b];
-        PoolAllocatorBase *chunk = g_thread_chunks[b];
         char *head = slot.freelist_head;
         slot.freelist_head = nullptr;
-        if( !chunk) continue;
-        // Collect chain entries in stack-bounded chunks of CAP and feed
-        // them straight to `batch_return_to_bitmap`, which groups them
-        // by `m_flags` word internally for batched CAS.
-        constexpr int CAP = CrossDeallocBatch::CAP;
-        void *batch[CAP];
-        int n = 0;
         while(head) {
             char *next = *reinterpret_cast<char **>(head);
-            batch[n++] = head;
-            if(n == CAP) {
-                chunk->batch_return_to_bitmap(batch, n);
-                n = 0;
+            PoolAllocatorBase *c = PoolAllocatorBase::lookup_chunk(head);
+            if(c) {
+                void *one = head;
+                c->batch_return_to_bitmap(&one, 1);
             }
             head = next;
         }
-        if(n > 0) chunk->batch_return_to_bitmap(batch, n);
     }
 }
 
@@ -1248,6 +1245,32 @@ PoolAllocatorBase::deallocate_chunk(int cidx, size_t chunk_size) {
 #endif
 
 	s_chunks[cidx] = 0;
+}
+
+//! Runtime walk of `s_mmapped_spaces[]` mirroring `deallocate_<>`'s
+//! progressive `GROW_CHUNK_SIZE` ladder — find which mmap space
+//! contains `p` and look up `s_chunks[cidx]`.  No `deallocate_pooled`
+//! dispatch; pure address-to-chunk mapping for the drain path.
+inline PoolAllocatorBase *
+PoolAllocatorBase::lookup_chunk(void *p) noexcept {
+	size_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
+	for(int ccnt = 0; ccnt < ALLOC_MAX_MMAP_ENTRIES; ++ccnt) {
+		char *mp = s_mmapped_spaces[ccnt];
+		if(ccnt > 0 && !mp) break;
+		if(mp) {
+			ptrdiff_t pdiff = static_cast<char *>(p) - mp;
+			if(pdiff >= 0
+			   && pdiff < (ptrdiff_t)chunk_size * NUM_ALLOCATORS_IN_SPACE) {
+				int cidx = int(pdiff / chunk_size)
+				           + ccnt * NUM_ALLOCATORS_IN_SPACE;
+				PoolAllocatorBase *palloc = s_chunks[cidx];
+				if((uintptr_t)palloc <= (uintptr_t)1u) return nullptr;
+				return palloc;
+			}
+		}
+		chunk_size = GROW_CHUNK_SIZE(chunk_size);
+	}
+	return nullptr;
 }
 
 template <int CCNT, size_t CHUNK_SIZE>
