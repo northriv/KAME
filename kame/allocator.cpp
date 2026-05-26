@@ -174,11 +174,12 @@ struct AllocPinCleanup {
     ~AllocPinCleanup() noexcept {
         // Drain each per-bucket AllocSlot freelist back to the bitmap
         // FIRST.  Slots on the linked list inside the slot pool would
-        // become unreachable after the table-rewrite below (the head
-        // pointer is wiped) and after the chunk pins drop (the chunk
-        // may be released).  See `drain_thread_slot_freelists` below
-        // — routes slots through `tls_cross_dealloc_batch` for batched
-        // bitmap CAS per m_flags word.
+        // become unreachable after the chunk-pointer wipe below and
+        // after the chunk pins drop (the chunk may be released).
+        // Calls `batch_return_to_bitmap` directly — must NOT route
+        // through `tls_cross_dealloc_batch`, which is destructed
+        // before us in the PerThread LIFO chain (touched later, so
+        // chained closer to the head).
         drain_thread_slot_freelists();
         // Clear every per-thread chunk pointer BEFORE the chunk pins
         // drop to 0 — otherwise a later TLS destructor that allocates
@@ -285,23 +286,54 @@ XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
 // Called from `AllocPinCleanup::~dtor` (forward-declared above), before
 // the table-wide rewrite to `malloc_fallback` and the chunk pin
 // decrements.  Each free slot's first 8 bytes hold the next pointer
-// (see AllocSlot doc) — walk the chain and queue each slot on the
-// cross-thread TLS batch, which groups by chunk and does the bitmap
-// CAS at flush time.  tls_cross_dealloc_batch lives in the same TLS
-// chain and is destructed after AllocPinCleanup (LIFO), so it
-// flushes any remaining queue.
+// (see AllocSlot doc).
+//
+// Calls `chunk->batch_return_to_bitmap` directly rather than going via
+// `tls_cross_dealloc_batch`: `PerThread`'s TLS chain destroys in LIFO
+// order, and `tls_cross_dealloc_batch` is first touched LATER than
+// `tls_alloc_pin_cleanup` (the former on the first non-owner dealloc,
+// the latter on the first chunk-claim, which always runs first).  So
+// when this function runs from `~AllocPinCleanup`, the cross-batch's
+// underlying `CrossDeallocBatch` storage has already been freed; any
+// `tls_cross_dealloc_batch->push(...)` would corrupt freed heap and
+// trigger glibc's `tcache_thread_shutdown(): unaligned tcache chunk
+// detected` / `double free or corruption (out)` later in thread exit.
+//
+// Invariant: every slot in `slot.freelist_head` was pushed when its
+// owning chunk equalled `g_thread_chunks[b]` (see
+// `deallocate_pooled`'s owner check), and `g_thread_chunks[b]` only
+// changes inside `bucket_steady_alloc`, which runs only on a freelist
+// MISS (= empty list) — so the list cannot contain slots from a
+// previous chunk.  Drain therefore directs the entire bucket's
+// list at the current `g_thread_chunks[b]`.
+//
+// The chunk is still pinned at this point (pin counts are decremented
+// later in the same destructor), so `release_allocator` will return
+// false inside `batch_return_to_bitmap` and the chunk will not be
+// deleted from under us.
 void drain_thread_slot_freelists() noexcept {
     for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
         AllocSlot &slot = g_thread_slots[b];
         PoolAllocatorBase *chunk = g_thread_chunks[b];
         char *head = slot.freelist_head;
         slot.freelist_head = nullptr;
+        if( !chunk) continue;
+        // Collect chain entries in stack-bounded chunks of CAP and feed
+        // them straight to `batch_return_to_bitmap`, which groups them
+        // by `m_flags` word internally for batched CAS.
+        constexpr int CAP = CrossDeallocBatch::CAP;
+        void *batch[CAP];
+        int n = 0;
         while(head) {
             char *next = *reinterpret_cast<char **>(head);
-            if(chunk)
-                tls_cross_dealloc_batch->push(chunk, head);
+            batch[n++] = head;
+            if(n == CAP) {
+                chunk->batch_return_to_bitmap(batch, n);
+                n = 0;
+            }
             head = next;
         }
+        if(n > 0) chunk->batch_return_to_bitmap(batch, n);
     }
 }
 
@@ -681,6 +713,16 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			return false;
 		}
 	}
+	// Post-teardown bypass.  `~AllocPinCleanup` sets `s_alloc_tls_off`
+	// just before exiting; `~CrossDeallocBatch` ran earlier in the
+	// PerThread LIFO chain so the cross-batch storage is already
+	// `free()`d.  Later pthread_key dtors that delete pool slots must
+	// not push to it.  Skip the batch and clear the bit directly.
+	if(__builtin_expect(s_alloc_tls_off, 0)) {
+		void *one = p;
+		this->batch_return_to_bitmap(&one, 1);
+		return false;
+	}
 	tls_cross_dealloc_batch->push(this, p);
 	return false;
 }
@@ -726,10 +768,18 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 			}
 		});
 	// Chunk-release check.  Safe to delete this — the CrossDeallocBatch
-	// flush caller advances past this chunk-group after the call.
+	// flush caller advances past this chunk-group after the call.  Must
+	// call `deallocate_chunk` AFTER `delete this` so a later
+	// `deallocate_<>` lookup either finds `s_chunks[cidx] == 0` (treated
+	// as "not our pointer", falls to std::free) or SIGSEGVs cleanly on
+	// the mprotect-PROT_NONE'd mempool — never silently dereferences a
+	// freed PoolAllocator instance.
 	if(this->m_flags_nonzero_cnt == 0
 	        && PoolAllocator<ALIGN, true, false>::release_allocator(this)) {
+		int cidx = this->m_cidx;
+		size_t csz = this->m_chunk_size;
 		delete this;
+		PoolAllocatorBase::deallocate_chunk(cidx, csz);
 	}
 }
 
@@ -809,10 +859,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 			if(newv == 0 && oldv != 0)
 				atomicDec( &this->m_flags_nonzero_cnt);
 		});
-	// Chunk-release check.
+	// Chunk-release check.  See FS=false sibling for the rationale —
+	// `deallocate_chunk` MUST follow `delete this` so the dangling
+	// `s_chunks[cidx]` slot is cleared and the mempool faults on later
+	// access.
 	if(this->m_flags_nonzero_cnt == 0
 	        && PoolAllocator<ALIGN, FS, DUMMY>::release_allocator(this)) {
+		int cidx = this->m_cidx;
+		size_t csz = this->m_chunk_size;
 		delete this;
+		PoolAllocatorBase::deallocate_chunk(cidx, csz);
 	}
 }
 
@@ -847,6 +903,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		// miss).  Owner's next alloc on this bucket pops it back
 		// immediately from `g_thread_slots[kBucket].freelist_head`.
 		kame_slots_base()[kBucket].push(p);
+		return false;
+	}
+	// Post-teardown bypass.  See FS=false sibling above — once
+	// `s_alloc_tls_off` is set, `tls_cross_dealloc_batch` may have been
+	// destroyed; route the bit-clear through `batch_return_to_bitmap`
+	// directly so later pthread_key dtors that delete pool slots do not
+	// touch freed heap.
+	if(__builtin_expect(s_alloc_tls_off, 0)) {
+		void *one = p;
+		this->batch_return_to_bitmap(&one, 1);
 		return false;
 	}
 	// Non-owner (or pre-first-access state): TLS batch.
@@ -971,6 +1037,14 @@ PoolAllocatorBase::allocate_chunk() {
 #endif
 
 	ALLOC *palloc = ALLOC::create(chunk_size, addr);
+	// Remember (cidx, chunk_size) on the instance so the
+	// `batch_return_to_bitmap` chunk-release path can call
+	// `deallocate_chunk(cidx, chunk_size)` — clearing `s_chunks[cidx]`
+	// and mprotect-ing the mempool back — before its `delete this`.
+	// Without it, `s_chunks[cidx]` dangles after the suicide and a
+	// later `deallocate_<>` lookup hits use-after-free.
+	palloc->m_cidx = cidx;
+	palloc->m_chunk_size = chunk_size;
 	s_chunks[cidx] = palloc;
 
 	return palloc;

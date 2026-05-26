@@ -159,6 +159,20 @@ protected:
 
 	//! A chunk, memory block.
 	char * const m_mempool;
+	//! Index into `s_chunks[]` for this chunk, and the chunk size used
+	//! to address back into `s_mmapped_spaces`.  Set by `allocate_chunk`
+	//! immediately after `s_chunks[cidx] = palloc`.  Read by the
+	//! `batch_return_to_bitmap` chunk-release path (FS=true and FS=false
+	//! overrides in allocator.cpp) so it can call `deallocate_chunk`
+	//! after `release_allocator` returns true and before `delete this`
+	//! — clearing `s_chunks[cidx]` and mprotect-ing the mempool back to
+	//! PROT_NONE.  Without this, `s_chunks[cidx]` would dangle after the
+	//! `delete this` self-suicide; a later thread's `deallocate_<>`
+	//! lookup would dereference the freed PoolAllocator instance and
+	//! glibc would surface it as `free(): invalid pointer` /
+	//! `tcache_thread_shutdown(): unaligned tcache chunk detected`.
+	int m_cidx = -1;
+	size_t m_chunk_size = 0;
 
 private:
 	friend void report_statistics();
@@ -528,10 +542,10 @@ extern ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS];
 // ---------------------------------------------------------------------
 // Fast pthread-TSD bypass of the macOS TLV thunk.
 //
-// On macOS (and Linux), C++ `__thread` / `thread_local` accesses lower
-// to a TLV thunk: `adrp; add; ldr; blr tlv_get_addr` — roughly 10-15
-// cycles of dependent loads + a function call per access.  This block
-// bypasses that for the two hottest TLS arrays:
+// On macOS, C++ `__thread` / `thread_local` accesses lower to a TLV
+// thunk: `adrp; add; ldr; blr tlv_get_addr` — roughly 10-15 cycles of
+// dependent loads + a function call per access.  This block bypasses
+// that for the two hottest TLS arrays:
 //
 //   1. `kame_tls_init_fast` (constructor priority 101) allocates two
 //      `pthread_key_t`s, writes sentinel values into them via
@@ -547,14 +561,23 @@ extern ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS];
 //      guard) and `pointer != null` (per-thread first-touch guard) —
 //      both predict not-taken with 100% accuracy after warmup.
 //
-// On unsupported platforms (Windows; non-arm64/x86_64), the macros
-// expand to direct `&g_thread_slots[0]` / `&g_thread_chunks[0]`
-// references which keep the TLV thunk on the hot path.
+// Linux note: on glibc/ELF, `__thread` for TUs linked into the main
+// executable (the KAME case) uses the initial-exec TLS model — a
+// single `mov %fs:OFFSET, %reg` instruction with no function call.
+// The TLV-bypass optimisation solves a macOS-specific problem and
+// adds no measurable win on Linux, while the sentinel-scan offset
+// discovery is brittle (depends on glibc's `struct pthread` layout
+// and on a key being placed in `specific_1stblock[]` rather than the
+// dynamically allocated second-level array).  Empirically it caused
+// glibc tcache corruption on x86_64 (`tcache_thread_shutdown():
+// unaligned tcache chunk detected`).  Keep Linux on direct TLV.
+//
+// On unsupported platforms, the macros expand to direct
+// `&g_thread_slots[0]` / `&g_thread_chunks[0]` references which keep
+// the TLV thunk on the hot path.
 // ---------------------------------------------------------------------
 
 #if defined(__APPLE__) && (defined(__aarch64__) || defined(__x86_64__))
-    #define KAME_FAST_TSD 1
-#elif defined(__linux__) && (defined(__aarch64__) || defined(__x86_64__))
     #define KAME_FAST_TSD 1
 #else
     #define KAME_FAST_TSD 0
