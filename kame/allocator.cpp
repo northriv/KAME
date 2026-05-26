@@ -1009,14 +1009,32 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		this->batch_return_to_bitmap(tmp);
 		return false;
 	}
-	// FS=true small slots: hold-and-batch path.  1 bit per slot in
-	// m_flags ⇒ up to 64 slots per FUINT word, so a deep (CAP=1024)
-	// accumulation window gives same-chunk same-word "buddies"
-	// arriving over time a chance to be coalesced into one CAS per
-	// word at flush time.  Cross-thread frees of small slots are
-	// numerous and their chunks repeat (a few hot per-size-class
-	// chunks serve most allocs), making this a high-yield pattern.
-	tls_cross_dealloc_batch->push(this, p);
+	// FS=true ALIGN ≤ 48 (sizes 16/32/48): hold-and-batch path.  1
+	// bit per slot in m_flags ⇒ up to 64 slots per FUINT word; a
+	// deep (CAP=1024) accumulation window gives same-chunk same-
+	// word "buddies" arriving over time a chance to be coalesced
+	// into one CAS per word at flush time.  The smallest buckets
+	// are picked for two reasons:
+	//
+	//   * held-bytes-per-entry = slot size.  Lowest slot sizes
+	//     minimise the "bitmap bit held" memory pressure that
+	//     delays chunk release in the owner thread (the
+	//     `ReserveSwapSpace` growth Linux Claude observed at
+	//     CAP=2048/4096 scaled with avg_held_bytes × CAP).
+	//   * Smallest ALIGN classes have the most slots per chunk
+	//     (3072 for ALIGN=16 vs 200 for ALIGN=240), so the buf's
+	//     chunk coverage is densest — buddies more likely.
+	//
+	// FS=true ALIGN > 48 (sizes 64..240) fall to the direct
+	// dispatch path: their per-entry held-bytes payback ratio is
+	// worse, and their chunks repeat less frequently in realistic
+	// STM workloads (allocation distribution is heavy-tailed
+	// toward smallest classes).
+	if constexpr (ALIGN <= 48) {
+		tls_cross_dealloc_batch->push(this, p);
+	} else {
+		CrossDeallocBatch::push_direct(this, p);
+	}
 	return false;
 }
 
