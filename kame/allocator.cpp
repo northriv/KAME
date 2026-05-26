@@ -296,19 +296,26 @@ struct CrossDeallocBatch {
     //! returned a coalescing factor ≥ threshold, else dispatches
     //! immediately with a single-slot scratch + sentinel.
     //!
-    //! Threshold is per-ALIGN (template parameter from the caller's
-    //! `deallocate_pooled`) because the holding cost scales with
-    //! slot size — the bit held in m_flags reserves a slot's worth
-    //! of mempool real-estate against `release_allocator`, so
-    //! bigger slots need higher coalescing payback to be worth
-    //! holding.  Approximate tiers (ALIGN as a proxy for "average
-    //! held bytes per entry", since FS=false PoolAllocator<ALIGN>
-    //! serves multiple bucket sizes):
+    //! Threshold is per (ALIGN, FS) — the holding cost scales with
+    //! slot size, and FS=false slots are wider than their ALIGN
+    //! (PoolAllocator<16, false> serves up to 256 B; <32, false>
+    //! up to 512 B) AND repeat less in realistic workloads, so
+    //! FS=false thresholds are 2× the FS=true ones at the same
+    //! ALIGN tier:
     //!
-    //!   ALIGN ≤  64  → 18 (1.125×, hold readily)
-    //!   ALIGN ≤ 128  → 22 (1.375×)
-    //!   ALIGN ≤ 256  → 26 (1.625×)
-    //!   ALIGN >  256 → 32 (2.0×, hold only on strong evidence)
+    //!                  FS=true (×1.1)   FS=false (×2)
+    //!   ALIGN ≤  64         20               36
+    //!   ALIGN ≤ 128         24               44
+    //!   ALIGN ≤ 256         29               52
+    //!   ALIGN >  256        35               64
+    //!
+    //! (Bumped up from the original 18/22/26/32 baseline because
+    //! ohtaka bench showed memory consumption growing too fast at
+    //! the original thresholds — too-aggressive holding inflates
+    //! the "held bitmap bit ⇒ chunk can't release" pressure.  ×2
+    //! for FS=false and ×1.1 for FS=true gives a more conservative
+    //! hold policy that keeps the speed win and trims the
+    //! ReserveSwapSpace footprint.)
     //!
     //! Epsilon-greedy explore: every `EXPLORE_PERIOD`-th call,
     //! force-hold regardless of the hint.  Without this a chunk
@@ -322,12 +329,15 @@ struct CrossDeallocBatch {
     static constexpr int EXPLORE_PERIOD = 64;
     int explore_counter = 0;
 
-    template <unsigned ALIGN>
+    template <unsigned ALIGN, bool FS>
     void push_direct(PoolAllocatorBase *c, void *s) noexcept {
-        constexpr uint8_t threshold_x16 =
-            (ALIGN <=  64) ? 18 :
-            (ALIGN <= 128) ? 22 :
-            (ALIGN <= 256) ? 26 : 32;
+        constexpr uint8_t threshold_x16 = FS
+            ? ((ALIGN <=  64) ? 20 :
+               (ALIGN <= 128) ? 24 :
+               (ALIGN <= 256) ? 29 : 35)
+            : ((ALIGN <=  64) ? 36 :
+               (ALIGN <= 128) ? 44 :
+               (ALIGN <= 256) ? 52 : 64);
         bool hold;
         if(++explore_counter >= EXPLORE_PERIOD) {
             explore_counter = 0;
@@ -555,6 +565,21 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	m_flags_filled_cnt = 0;
 	for(int i = count - 1; i >= 0 ; --i)
 		m_flags[i] = 0; //zero clear.
+	// Initial coalesce hint by (FS, real-instance):
+	//   FS=true real chunk (FS && DUMMY): start ABOVE all FS=true
+	//     thresholds (max 35) → push_direct optimistically routes
+	//     to hold on the first encounter, letting `batch_clear_impl`
+	//     measure the actual coalescing factor and refine the hint.
+	//   FS=false real chunk: leave default (16) — below all FS=false
+	//     thresholds (≥ 36), so first encounter direct-dispatches.
+	//     Adaptive ramps up only if the explore-period override
+	//     catches a strong coalescing factor on this chunk.
+	// `FS && DUMMY` distinguishes a real FS=true chunk (`<ALIGN,
+	// true, true>`) from the `<ALIGN, true, false>` base used by
+	// FS=false's partial spec.
+	if constexpr (FS && DUMMY) {
+		this->m_last_coalesce_x16.store(40, std::memory_order_relaxed);
+	}
 #ifdef GUARDIAN
 	for(unsigned int i = 0; i < count * sizeof(FUINT) * 8 * ALIGN / sizeof(uint64_t); ++i)
 		reinterpret_cast<uint64_t *>(ppool)[i] = GUARDIAN; //filling
@@ -829,7 +854,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// consults the chunk's adaptive coalescing hint to override and
 	// hold if this particular chunk has shown high recent merge
 	// factor (epsilon-greedy explores periodically to re-evaluate).
-	tls_cross_dealloc_batch->template push_direct<ALIGN>(this, p);
+	tls_cross_dealloc_batch->template push_direct<ALIGN, false>(this, p);
 	return false;
 }
 
@@ -1094,7 +1119,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	if constexpr (ALIGN <= 48) {
 		tls_cross_dealloc_batch->push(this, p);
 	} else {
-		tls_cross_dealloc_batch->template push_direct<ALIGN>(this, p);
+		tls_cross_dealloc_batch->template push_direct<ALIGN, true>(this, p);
 	}
 	return false;
 }
