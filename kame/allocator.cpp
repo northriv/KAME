@@ -290,54 +290,54 @@ struct CrossDeallocBatch {
         buf[count++] = {c, s};
     }
 
-    //! FS=false / FS=true ALIGN > 48 path: adaptive direct/hold
-    //! dispatch.  Reads the chunk's `m_last_coalesce_x16` hint
-    //! (relaxed); routes to the hold buf when the last batch
-    //! returned a coalescing factor ≥ threshold, else dispatches
-    //! immediately with a single-slot scratch + sentinel.
+    //! Direct/adaptive dispatch path.  Two regimes selected at
+    //! compile time by `FS`:
     //!
-    //! Threshold is per (ALIGN, FS) — the holding cost scales with
-    //! slot size, and FS=false slots are wider than their ALIGN
-    //! (PoolAllocator<16, false> serves up to 256 B; <32, false>
-    //! up to 512 B) AND repeat less in realistic workloads, so
-    //! FS=false thresholds are 2× the FS=true ones at the same
-    //! ALIGN tier:
+    //!   FS=true (ALIGN > 48 small/mid-slot, FS=false's path won't
+    //!     reach here — see below): adaptive.  Reads the chunk's
+    //!     `m_last_coalesce_x16` hint (relaxed); routes to hold
+    //!     when ≥ per-ALIGN threshold (compile-time folded), else
+    //!     direct.  Epsilon-greedy explore force-holds once per
+    //!     `EXPLORE_PERIOD` to re-measure chunks whose hint
+    //!     dropped below threshold.
     //!
-    //!                  FS=true (×1.1)   FS=false (×2)
-    //!   ALIGN ≤  64         20               36
-    //!   ALIGN ≤ 128         24               44
-    //!   ALIGN ≤ 256         29               52
-    //!   ALIGN >  256        35               64
+    //!   FS=false: pure direct dispatch — no hint load, no
+    //!     explore, no threshold check.  Empirically (ohtaka)
+    //!     FS=false chunks don't recover from a low-coalescing
+    //!     measurement: even when explore force-holds for
+    //!     evaluation, the actual coalescing factor stays below
+    //!     the (already-doubled, conservative) FS=false threshold
+    //!     → next push routes direct again.  The explore-hold's
+    //!     memory pressure pays nothing back.  Skipping the whole
+    //!     adaptive machinery saves the relaxed atomic load + the
+    //!     branch overhead on the hot non-owner dealloc path.
     //!
-    //! (Bumped up from the original 18/22/26/32 baseline because
-    //! ohtaka bench showed memory consumption growing too fast at
-    //! the original thresholds — too-aggressive holding inflates
-    //! the "held bitmap bit ⇒ chunk can't release" pressure.  ×2
-    //! for FS=false and ×1.1 for FS=true gives a more conservative
-    //! hold policy that keeps the speed win and trims the
-    //! ReserveSwapSpace footprint.)
+    //! FS=true thresholds (compile-time tiers):
     //!
-    //! Epsilon-greedy explore: every `EXPLORE_PERIOD`-th call,
-    //! force-hold regardless of the hint.  Without this a chunk
-    //! whose factor dropped below threshold (e.g., one bad batch
-    //! from a worker thread) would be permanently routed direct,
-    //! never giving its coalescing potential a chance to be
-    //! re-measured.  Period 64 ⇒ ~1.5 % exploration overhead.
+    //!   ALIGN ≤  64  → 20  (1.25×)
+    //!   ALIGN ≤ 128  → 24  (1.50×)
+    //!   ALIGN ≤ 256  → 29  (1.81×)
+    //!   ALIGN >  256 → 35  (2.19×)
     //!
     //! Not static — the explore counter lives in the per-thread
     //! batch instance, naturally TLS-local.
-    static constexpr int EXPLORE_PERIOD = 64;
+    static constexpr int EXPLORE_PERIOD = 128;
     int explore_counter = 0;
 
     template <unsigned ALIGN, bool FS>
     void push_direct(PoolAllocatorBase *c, void *s) noexcept {
-        constexpr uint8_t threshold_x16 = FS
-            ? ((ALIGN <=  64) ? 20 :
-               (ALIGN <= 128) ? 24 :
-               (ALIGN <= 256) ? 29 : 35)
-            : ((ALIGN <=  64) ? 36 :
-               (ALIGN <= 128) ? 44 :
-               (ALIGN <= 256) ? 52 : 64);
+        if constexpr ( !FS) {
+            // FS=false: always direct dispatch.  See class comment
+            // for rationale (large slots + low chunk-repeat →
+            // adaptive holding can't recover; skip the machinery).
+            CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
+            c->batch_return_to_bitmap(tmp);
+            return;
+        }
+        constexpr uint8_t threshold_x16 =
+            (ALIGN <=  64) ? 20 :
+            (ALIGN <= 128) ? 24 :
+            (ALIGN <= 256) ? 29 : 35;
         bool hold;
         if(++explore_counter >= EXPLORE_PERIOD) {
             explore_counter = 0;
@@ -990,13 +990,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	}
 	// Update adaptive coalescing hint: factor_x16 = (entries × 16) /
 	// unique_words.  16 = 1.0× = no benefit; > 16 = adjacent merges
-	// happened.  Relaxed: it's just a hint, races benign (next push
-	// reads slightly stale value, no correctness impact).
-	if(n_words > 0) {
-		unsigned factor = (unsigned(i) * 16u) / unsigned(n_words);
-		if(factor > 255u) factor = 255u;
-		this->m_last_coalesce_x16.store(uint8_t(factor),
-		                                std::memory_order_relaxed);
+	// happened.  Relaxed: it's just a hint, races benign.  Skip for
+	// FS=false — `push_direct<ALIGN, false>` ignores the hint and
+	// always dispatches direct, so the store would be wasted work.
+	if constexpr (FS) {
+		if(n_words > 0) {
+			unsigned factor = (unsigned(i) * 16u) / unsigned(n_words);
+			if(factor > 255u) factor = 255u;
+			this->m_last_coalesce_x16.store(uint8_t(factor),
+			                                std::memory_order_relaxed);
+		}
 	}
 	return i;
 }
