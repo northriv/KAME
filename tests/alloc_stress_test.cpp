@@ -22,6 +22,7 @@
 // Co-Authored-By: Claude <noreply@anthropic.com>
 
 #include "support_standalone.h"
+#include "atomic_smart_ptr.h"
 
 #include <atomic>
 #include <chrono>
@@ -71,64 +72,52 @@ std::atomic<uint64_t> g_total_allocs{0};
 std::atomic<uint64_t> g_total_frees{0};
 std::atomic<uint64_t> g_sentinel_fails{0};
 
-// Lock-free cross-thread Treiber stack.  Producers push_cross() to the
-// head; consumers pop_cross() from the head.  No mutex; no `std::queue`/
-// `std::deque` whose internal block allocations would themselves go
-// through the pool and inject deque-shaped (~512 B / block) traffic into
-// the workload.  Each push/pop is exactly one CrossNode `new[]`/
-// `delete[]` so the cross-thread path adds only one extra slot churn
-// per cross-handed allocation.
+// Lock-free cross-thread Treiber stack on KAME's `atomic_shared_ptr`.
+// Producers push_cross() to the head; consumers pop_cross() from the
+// head.  No mutex; no `std::queue`/`std::deque` whose internal block
+// allocations would themselves go through the pool and inject deque-
+// shaped (~512 B / block) traffic into the workload.  Each push/pop
+// is exactly one CrossNode `make_local_shared<>` so the cross-thread
+// path adds only one extra slot churn per cross-handed allocation.
 //
-// ABA-safe via 128-bit tagged head packed into `__int128`.  GCC's
-// `std::atomic<16-byte struct>` falls back to libatomic's mutex pool
-// (`is_lock_free() == false`); using the `__sync_*` builtins on
-// `__int128` with `-mcx16` instead emits a single `CMPXCHG16B`
-// instruction.  The tag bumps every push AND pop so we never compare
-// equal across a recycled-pointer cycle.
+// Self-referencing `local_shared_ptr<CrossNode> next` member: `ref_traits`
+// detects T-incompleteness inside the class body via SFINAE and falls
+// back to the plain (non-intrusive, non-emplaced) `gref_<CrossNode>`
+// path.  We don't need the `atomic_emplaced` single-alloc optimisation
+// here.  ABA-safety is built into `atomic_shared_ptr` (reference held
+// by the local copy during CAS keeps the node alive across the
+// compare-and-set window — no tagged-pointer trickery needed).
+//
+// Portable across x86_64 / aarch64: `atomic_shared_ptr` already
+// abstracts the underlying 8-byte CAS (tagged-pointer scheme — local
+// refcount in the lower bits of the natural pointer alignment), so
+// no -mcx16 / -march=armv8-a+lse is required on the test target.
 struct CrossNode {
     AllocBlock block;
-    CrossNode *next;
+    local_shared_ptr<CrossNode> next;
 };
-union TaggedHead {
-    __int128 raw;
-    struct {
-        CrossNode *p;
-        uintptr_t  tag;
-    } v;
-};
-static_assert(sizeof(TaggedHead) == 16, "TaggedHead must be 16 B");
-__int128 g_cross_head_raw = 0;
+atomic_shared_ptr<CrossNode> g_cross_head;
 
 void push_cross(const AllocBlock &b) {
-    CrossNode *node = new CrossNode{b, nullptr};
-    TaggedHead old_h, new_h;
-    old_h.raw = __sync_val_compare_and_swap(
-        &g_cross_head_raw, (__int128)0, (__int128)0);
+    local_shared_ptr<CrossNode> node = make_local_shared<CrossNode>();
+    node->block = b;
     for(;;) {
-        node->next = old_h.v.p;
-        new_h.v = {node, old_h.v.tag + 1};
-        if(__sync_bool_compare_and_swap(&g_cross_head_raw,
-                                        old_h.raw, new_h.raw))
-            return;
-        old_h.raw = __sync_val_compare_and_swap(
-        &g_cross_head_raw, (__int128)0, (__int128)0);
+        local_shared_ptr<CrossNode> old_head(g_cross_head);
+        node->next = old_head;
+        if(g_cross_head.compareAndSet(old_head, node)) return;
     }
 }
 bool pop_cross(AllocBlock &out) {
-    TaggedHead old_h, new_h;
-    old_h.raw = __sync_val_compare_and_swap(
-        &g_cross_head_raw, (__int128)0, (__int128)0);
     for(;;) {
-        if( !old_h.v.p) return false;
-        new_h.v = {old_h.v.p->next, old_h.v.tag + 1};
-        if(__sync_bool_compare_and_swap(&g_cross_head_raw,
-                                        old_h.raw, new_h.raw)) {
-            out = old_h.v.p->block;
-            delete old_h.v.p;
+        local_shared_ptr<CrossNode> old_head(g_cross_head);
+        if( !old_head) return false;
+        // Read `next` through the local refcount we hold — old_head
+        // keeps the node alive even if another thread pops it first.
+        local_shared_ptr<CrossNode> new_head(old_head->next);
+        if(g_cross_head.compareAndSet(old_head, new_head)) {
+            out = old_head->block;
             return true;
         }
-        old_h.raw = __sync_val_compare_and_swap(
-        &g_cross_head_raw, (__int128)0, (__int128)0);
     }
 }
 

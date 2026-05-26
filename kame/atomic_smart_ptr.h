@@ -276,8 +276,38 @@ template <typename X> class local_weak_ptr;
 //! "which `Ref` does T use" and the boolean flags that govern the
 //! deleter / get() / reset_unsafe paths.  All other logic lives in
 //! the single `atomic_shared_ptr_base` template below.
-template <typename T>
+//!
+//! Incomplete-T support: a self-referencing struct
+//! (`struct N { local_shared_ptr<N> next; };`) instantiates
+//! `local_shared_ptr<N>` BEFORE N is complete — at that point
+//! `std::is_base_of<atomic_countable, N>` is a hard error rather
+//! than `false`.  So gate the marker-detection on `sizeof(T)` via
+//! SFINAE: when T is incomplete, all three category flags default
+//! to `false` and `Ref = atomic_shared_ptr_gref_<T>` (the default
+//! two-alloc gref — its only T usage is `T *ptr;` which works on
+//! incomplete T).
+//!
+//! Trade-off: self-referential types lose the intrusive/emplaced/
+//! strict optimisations.  Intrusive (`atomic_countable`) is naturally
+//! incompatible — the user-side refcount member needs T complete —
+//! and `atomic_emplaced` just saves the second allocation, so the
+//! pay-back is bounded.  The first instantiation of `ref_traits<T>`
+//! wins (template-instantiation caching is per-args), so any other
+//! user of `local_shared_ptr<T>` in the same TU sees the same
+//! "treat as non-intrusive" decision.
+template <typename T, typename = void>
 struct ref_traits {
+    //! Incomplete T: default to plain non-intrusive gref_<T>.
+    static constexpr bool is_intrusive = false;
+    static constexpr bool is_emplaced  = false;
+    static constexpr bool is_strict    = false;
+    using Ref = atomic_shared_ptr_gref_<T>;
+    static constexpr bool has_weak = true;
+};
+
+template <typename T>
+struct ref_traits<T, std::void_t<decltype(sizeof(T))>> {
+    //! Complete T: full marker-base detection.
     static constexpr bool is_intrusive
         = std::is_base_of<atomic_countable, T>::value;
     static constexpr bool is_emplaced
