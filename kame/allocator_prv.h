@@ -83,7 +83,7 @@ inline bool atomicDecAndTest(T *target) noexcept {
 	#define ALLOC_TLS thread_local
 #endif
 
-#define ALLOC_MIN_CHUNK_SIZE (1024 * 512) //512KiB
+#define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
 // OS page size used to align growing chunk sizes for mprotect(). macOS
 // arm64 uses 16 KiB pages; passing a non-page-aligned size to mprotect()
 // fails silently (assert is no-op under NDEBUG) and the next access faults
