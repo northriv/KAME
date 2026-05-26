@@ -741,6 +741,40 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 	// non-MOC builds — turning `slots[i]` into `[i]`, parsed as a lambda
 	// capture list and producing baffling errors at the use sites).
 	if(n <= 0) return;
+	// Fast path for n == 1: see FS=true sibling for the rationale.
+	if(n == 1) {
+		char *p = static_cast<char *>(slot_ptrs[0]);
+		int midx = (p - this->m_mempool) / ALIGN;
+		int idx  = midx / (sizeof(FUINT) * 8);
+		unsigned sidx = midx % (sizeof(FUINT) * 8);
+		FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
+		FUINT slot_mask = (nones | (nones - 1u)) << sidx;
+#ifdef GUARDIAN
+		unsigned int n_slots = count_bits(slot_mask);
+		for(unsigned int j = 0; j < n_slots * ALIGN / sizeof(uint64_t); ++j)
+			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
+#endif
+		FUINT *pflags = &this->m_flags[idx];
+		for(;;) {
+			FUINT oldv = *pflags;
+			FUINT newv = oldv & ~slot_mask;
+			if(atomicCompareAndSet(oldv, newv, pflags)) {
+				if(newv == 0 && oldv != 0) {
+					m_available_bits = sizeof(FUINT) * 8;
+					atomicDec( &this->m_flags_nonzero_cnt);
+				}
+				break;
+			}
+		}
+		if(this->m_flags_nonzero_cnt == 0
+		        && PoolAllocator<ALIGN, true, false>::release_allocator(this)) {
+			int cidx = this->m_cidx;
+			size_t csz = this->m_chunk_size;
+			delete this;
+			PoolAllocatorBase::deallocate_chunk(cidx, csz);
+		}
+		return;
+	}
 	int i = 0;
 	this->batch_clear_impl(
 		[&]() -> char * {
@@ -836,6 +870,49 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 	// `slot_ptrs` not `slots` — Qt's `slots` keyword macro (see comment
 	// on the FS=false sibling above) clobbers the name.
 	if(n <= 0) return;
+	// Fast path for n == 1: skip the dense-masks accumulation in
+	// `batch_clear_impl` (alloca + O(m_count) zero + O(m_count) scan).
+	// This is the common case under CrossDeallocBatch flush when slot
+	// distribution is sparse (each chunk has at most one slot in the
+	// batch, e.g. ohtaka NUMA with many threads cross-freeing slots
+	// from different source chunks).  Also covers the post-teardown
+	// bypass in `deallocate_pooled` and the per-slot drain in
+	// `drain_thread_slot_freelists`, both of which always call with
+	// n == 1.  Profile: `batch_clear_impl` template instantiations
+	// summed to ~5 % of CPU at cross_pct=30 % on a 4-core VM; ohtaka
+	// CAP=1 winning the sweep was the direct symptom of this overhead.
+	if(n == 1) {
+		char *p = static_cast<char *>(slot_ptrs[0]);
+#ifdef GUARDIAN
+		for(unsigned int j = 0; j < ALIGN / sizeof(uint64_t); ++j)
+			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
+#endif
+		int midx = (p - this->m_mempool) / ALIGN;
+		int idx  = midx / (sizeof(FUINT) * 8);
+		unsigned sidx = midx % (sizeof(FUINT) * 8);
+		FUINT mask = ((FUINT)1u) << sidx;
+		FUINT *pflags = &this->m_flags[idx];
+		for(;;) {
+			FUINT oldv = *pflags;
+			FUINT newv = oldv & ~mask;
+			if(atomicCompareAndSet(oldv, newv, pflags)) {
+				if(oldv == ~(FUINT)0u)
+					atomicDec( &this->m_flags_filled_cnt);
+				if(newv == 0 && oldv != 0)
+					atomicDec( &this->m_flags_nonzero_cnt);
+				break;
+			}
+		}
+		// Chunk-release check still applies.
+		if(this->m_flags_nonzero_cnt == 0
+		        && PoolAllocator<ALIGN, FS, DUMMY>::release_allocator(this)) {
+			int cidx = this->m_cidx;
+			size_t csz = this->m_chunk_size;
+			delete this;
+			PoolAllocatorBase::deallocate_chunk(cidx, csz);
+		}
+		return;
+	}
 	int i = 0;
 	this->batch_clear_impl(
 		// FetchSlot: walk the argument array
