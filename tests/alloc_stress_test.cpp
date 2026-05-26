@@ -72,6 +72,16 @@ std::atomic<uint64_t> g_total_allocs{0};
 std::atomic<uint64_t> g_total_frees{0};
 std::atomic<uint64_t> g_sentinel_fails{0};
 
+// Start-barrier: workers register themselves into `g_workers_ready`
+// after their per-thread setup (mt19937, vector::reserve, etc.) and
+// spin on `g_go` until main releases them simultaneously.  Without
+// this the throughput timer would include staggered thread-spawn
+// latency — early workers finish their ops before later workers even
+// start, distorting the per-thread aggregate.  With the barrier the
+// timer measures the steady-state parallel phase only.
+std::atomic<int>  g_workers_ready{0};
+std::atomic<bool> g_go{false};
+
 // Cross-thread handoff via single-slot atomic swap — NO queue, NO CAS
 // loop on the global, NO refcounting.  Each thread builds its outgoing
 // chain LOCALLY (single-writer, plain pointers, zero atomic ops); when
@@ -183,6 +193,11 @@ void worker(int tid, const Config &cfg) {
     constexpr size_t LIVE_CAP = 256;  // 256 * 32 B = 8 KiB ≤ pool max
     live.reserve(LIVE_CAP);
 
+    // Start-barrier: signal we're ready, then spin until released.
+    g_workers_ready.fetch_add(1, std::memory_order_release);
+    while( !g_go.load(std::memory_order_acquire))
+        std::this_thread::yield();
+
     for(int i = 0; i < cfg.ops_per_thread; ++i) {
         // 60% alloc / 40% free when live is non-empty (and below cap).
         // When at cap, force a free to keep `live` from growing the
@@ -258,24 +273,51 @@ int main(int argc, char **argv) {
         cfg.total_threads, cfg.concurrent_threads, cfg.ops_per_thread,
         cfg.cross_thread_pct);
 
-    auto t0 = std::chrono::steady_clock::now();
-
-    // Rolling pool: keep up to `concurrent_threads` workers alive at a
-    // time.  Joining the FIRST element each cycle keeps thread teardown
-    // continuous (= our target stress).
+    // When total_threads == concurrent_threads (the common "fixed
+    // pool" bench case), spawn them all and use a start-barrier so
+    // the timer measures the parallel phase only — without the
+    // barrier, early workers finish before later ones have started
+    // and ops/s is distorted by the staggered spawn.  The "rolling
+    // pool" mode (total > concurrent) retains the original
+    // continuous-churn behaviour for thread-teardown stress.
     std::vector<std::thread> active;
     active.reserve(cfg.concurrent_threads);
     int spawned = 0;
     int next_tid = 1;
-    while(spawned < cfg.total_threads || !active.empty()) {
-        while((int)active.size() < cfg.concurrent_threads
-              && spawned < cfg.total_threads) {
+    const bool fixed_pool = (cfg.total_threads == cfg.concurrent_threads);
+    std::chrono::steady_clock::time_point t0;
+
+    if(fixed_pool) {
+        for(int i = 0; i < cfg.total_threads; ++i) {
             active.emplace_back(worker, next_tid++, std::cref(cfg));
             ++spawned;
         }
-        if( !active.empty()) {
-            active.front().join();
-            active.erase(active.begin());
+        // Wait for every worker to reach its start-barrier, then fire.
+        while(g_workers_ready.load(std::memory_order_acquire)
+              < cfg.total_threads) {
+            std::this_thread::yield();
+        }
+        t0 = std::chrono::steady_clock::now();
+        g_go.store(true, std::memory_order_release);
+        for(auto &t : active) t.join();
+        active.clear();
+    }
+    else {
+        // Rolling pool: keep up to `concurrent_threads` workers alive
+        // at a time, no barrier (continuous teardown stress is the
+        // point).  Release the go-flag once so workers never wait.
+        g_go.store(true, std::memory_order_release);
+        t0 = std::chrono::steady_clock::now();
+        while(spawned < cfg.total_threads || !active.empty()) {
+            while((int)active.size() < cfg.concurrent_threads
+                  && spawned < cfg.total_threads) {
+                active.emplace_back(worker, next_tid++, std::cref(cfg));
+                ++spawned;
+            }
+            if( !active.empty()) {
+                active.front().join();
+                active.erase(active.begin());
+            }
         }
     }
 
