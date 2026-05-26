@@ -284,15 +284,9 @@ struct CrossDeallocBatch {
     int               count = 0;
 
     //! FS=true path: hold and batch.  Caller passes its own `this`
-    //! as `c` (the chunk).  On overflow, first try `flush_lonely`
-    //! (release only single-entry chunks, keep dense groups for more
-    //! buddy accumulation); fall back to `flush` (full dump) if the
-    //! buf didn't shrink (all-dense pathological case).
+    //! as `c` (the chunk).
     void push(PoolAllocatorBase *c, void *s) noexcept {
-        if(count == CAP) {
-            flush_lonely();
-            if(count == CAP) flush();
-        }
+        if(count == CAP) flush();
         buf[count++] = {c, s};
     }
 
@@ -303,59 +297,6 @@ struct CrossDeallocBatch {
     static void push_direct(PoolAllocatorBase *c, void *s) noexcept {
         CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
         c->batch_return_to_bitmap(tmp);
-    }
-
-    //! Partial flush — releases ONLY chunk groups of size 1 (lonely
-    //! entries that won't gain from further holding) and compacts the
-    //! buffer in place to keep the dense (coalescable) groups for
-    //! more buddy accumulation.  Two passes:
-    //!
-    //!   1. Sort by (chunk, slot); walk groups; for each size-1
-    //!      group, dispatch (1 CAS) then mark the entry's chunk
-    //!      pointer null in-place.
-    //!   2. Compact: linear scan, copy non-null entries to the
-    //!      front.  One batched copy at the end (not per-group),
-    //!      cache-friendly stride-1 walk through the buf.
-    //!
-    //! Predicate "lonely = won't hit" is a natural prediction here:
-    //! a chunk that's appeared only once in the recent CAP-window is
-    //! unlikely to send a same-word buddy soon, so flushing it now
-    //! frees its held bitmap bit (lets the owning thread reclaim the
-    //! chunk sooner) without sacrificing coalescing potential.
-    void flush_lonely() noexcept {
-        if(count == 0) return;
-        std::sort(buf, buf + count,
-                  [](const CrossDeallocEntry &a, const CrossDeallocEntry &b) {
-                      if(a.chunk != b.chunk) return a.chunk < b.chunk;
-                      return a.slot < b.slot;
-                  });
-        buf[count] = {nullptr, nullptr};  // sentinel for the chunk walker
-        // Pass 1: dispatch + nullify lonely groups.
-        int i = 0;
-        while(i < count) {
-            int j = i + 1;
-            while(buf[j].chunk == buf[i].chunk) ++j;
-            if(j - i == 1) {
-                // 1-entry run.  `batch_return_to_bitmap` reads
-                // buf[i].chunk == this, then buf[i+1].chunk != this
-                // (next chunk's group, or the sentinel) ⇒ terminates
-                // after consuming exactly 1 entry.  1 CAS.
-                buf[i].chunk->batch_return_to_bitmap(&buf[i]);
-                buf[i].chunk = nullptr;   // mark for compaction
-            }
-            i = j;
-        }
-        // Pass 2: compact — single linear walk, copy surviving (chunk
-        // != nullptr) entries to the front.  Cache-friendly; the buf
-        // fits in L1d for CAP=1024 so the whole compaction is L1d-resident.
-        int write_idx = 0;
-        for(int k = 0; k < count; ++k) {
-            if(buf[k].chunk != nullptr) {
-                if(write_idx != k) buf[write_idx] = buf[k];
-                ++write_idx;
-            }
-        }
-        count = write_idx;
     }
 
     void flush() noexcept {
