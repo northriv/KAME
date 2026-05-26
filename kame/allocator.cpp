@@ -282,26 +282,60 @@ struct CrossDeallocBatch {
 XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
 
 // Drain each per-bucket AllocSlot's freelist back to the bitmap.
-// Called from `AllocPinCleanup::~dtor` (forward-declared above), before
-// the table-wide rewrite to `malloc_fallback` and the chunk pin
-// decrements.  Each free slot's first 8 bytes hold the next pointer
-// (see AllocSlot doc) — walk the chain and queue each slot on the
-// cross-thread TLS batch, which groups by chunk and does the bitmap
-// CAS at flush time.  tls_cross_dealloc_batch lives in the same TLS
-// chain and is destructed after AllocPinCleanup (LIFO), so it
-// flushes any remaining queue.
+// Called from `AllocPinCleanup::~dtor`, before the table-wide
+// `g_thread_chunks` clear and the chunk pin decrements.  Each free
+// slot's first 8 bytes hold the next pointer (see AllocSlot doc).
+//
+// Freelist invariant: every slot on `g_thread_slots[b].freelist` is
+// from `g_thread_chunks[b]`, because (a) FS=true/false dealloc only
+// pushes to the slot freelist when `s_my_chunk == this`, and (b) the
+// pinned chunk only advances on a freelist miss inside
+// `allocate_chunk_path`, at which point the freelist is already
+// empty.  So we can dispatch the entire bucket to ONE
+// `chunk->batch_return_to_bitmap()` call with no per-slot chunk
+// lookup — the chunk pointer is already in `g_thread_chunks[b]`.
+//
+// Previously this routed through `tls_cross_dealloc_batch`, which
+// caused a double-free under glibc on thread exit: `AllocPinCleanup`
+// (XThreadLocal) is registered first (on first chunk pin), then
+// `tls_cross_dealloc_batch` is registered second (on first non-owner
+// dealloc).  Linux's pthread_key dtor order is LIFO, so
+// `tls_cross_dealloc_batch` is destroyed *before* `AllocPinCleanup`
+// runs `drain_thread_slot_freelists`, which then writes into freed
+// `CrossDeallocBatch` memory and corrupts glibc's tcache.  Symptom on
+// 128-thread STM stress on ohtaka: `double free or corruption (out)`
+// from `tcache_thread_shutdown`.  Direct dispatch sidesteps the
+// ordering entirely.
+//
+// Bug introduced in commit 9023940f when the per-chunk linked-list
+// freelist moved onto the thread-global `g_thread_slots[]` — the
+// drain was rewritten to use `tls_cross_dealloc_batch` without
+// considering the TLS dtor ordering against `AllocPinCleanup`.
 void drain_thread_slot_freelists() noexcept {
+    // Stack scratch buffer: one bucket's drain at a time.  Bucket
+    // capacity is bounded by the pool size; a few hundred slots is
+    // typical, but we chunk-flush in batches of 256 to keep the stack
+    // footprint small.  Each `batch_return_to_bitmap` call does its
+    // own per-m_flags-word CAS coalescing internally.
+    constexpr int kFlushBatch = 256;
+    void *batch[kFlushBatch];
     for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
         AllocSlot &slot = g_thread_slots[b];
         PoolAllocatorBase *chunk = g_thread_chunks[b];
         char *head = slot.freelist_head;
         slot.freelist_head = nullptr;
+        if( !chunk) continue;   // bucket never activated on this thread
+        int n = 0;
         while(head) {
             char *next = *reinterpret_cast<char **>(head);
-            if(chunk)
-                tls_cross_dealloc_batch->push(chunk, head);
+            batch[n++] = head;
+            if(n == kFlushBatch) {
+                chunk->batch_return_to_bitmap(batch, n);
+                n = 0;
+            }
             head = next;
         }
+        if(n > 0) chunk->batch_return_to_bitmap(batch, n);
     }
 }
 

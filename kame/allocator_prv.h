@@ -528,10 +528,12 @@ extern ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS];
 // ---------------------------------------------------------------------
 // Fast pthread-TSD bypass of the macOS TLV thunk.
 //
-// On macOS (and Linux), C++ `__thread` / `thread_local` accesses lower
-// to a TLV thunk: `adrp; add; ldr; blr tlv_get_addr` — roughly 10-15
-// cycles of dependent loads + a function call per access.  This block
-// bypasses that for the two hottest TLS arrays:
+// On macOS, C++ `__thread` / `thread_local` accesses lower to a TLV
+// thunk: `adrp; add; ldr; blr tlv_get_addr` — roughly 10-15 cycles
+// of dependent loads + a function call per access.  This block
+// bypasses that for the two hottest TLS arrays.  (Linux glibc lowers
+// `__thread` to a direct `%fs:0 + offset` indexed load with no thunk
+// call, so there's nothing to bypass — `KAME_FAST_TSD` is macOS-only.)
 //
 //   1. `kame_tls_init_fast` (constructor priority 101) allocates two
 //      `pthread_key_t`s, writes sentinel values into them via
@@ -552,43 +554,37 @@ extern ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS];
 // references which keep the TLV thunk on the hot path.
 // ---------------------------------------------------------------------
 
+// macOS only: the TLV thunk (`tlv_get_addr` — `adrp/add/ldr/blr`) is
+// what makes per-access `__thread` expensive on Apple platforms; this
+// fast path replaces it with `mrs TPIDRRO_EL0` + an indexed load.
+// On Linux, glibc lowers `__thread` to `%fs:0 + offset` directly with
+// no thunk call (initial-exec model), so there is no thunk to bypass
+// and adding the pthread-TSD redirection only buys glibc-layout
+// fragility.  Restricted accordingly.
 #if defined(__APPLE__) && (defined(__aarch64__) || defined(__x86_64__))
-    #define KAME_FAST_TSD 1
-#elif defined(__linux__) && (defined(__aarch64__) || defined(__x86_64__))
     #define KAME_FAST_TSD 1
 #else
     #define KAME_FAST_TSD 0
 #endif
 
 #if KAME_FAST_TSD
-//! Architecture-specific read of the thread-pointer register.  Returns
-//! the base of the pthread struct (or TCB on glibc).  Used as the base
-//! for the byte-offset TSD read.
+//! Architecture-specific read of the thread-pointer register (pthread
+//! struct base).  Used as the base for the byte-offset TSD read.
 //!
 //! Important: `__builtin_thread_pointer()` on arm64 expands to
 //! `mrs TPIDR_EL0`, which is the *read-write* register.  On macOS,
 //! Apple's libc keeps the thread pointer in `TPIDRRO_EL0` (read-only)
 //! and leaves `TPIDR_EL0` zero / unused — so the builtin returns
-//! garbage there.  We always use explicit inline asm to read the
-//! correct register per ABI.
+//! garbage there.  Always use explicit inline asm.
 static inline char *kame_thread_pointer() noexcept {
-    #if defined(__APPLE__) && defined(__aarch64__)
+    #if defined(__aarch64__)
         uintptr_t tp;
         __asm__ volatile("mrs %0, TPIDRRO_EL0" : "=r"(tp));
         return (char *)tp;
-    #elif defined(__linux__) && defined(__aarch64__)
-        uintptr_t tp;
-        __asm__ volatile("mrs %0, TPIDR_EL0" : "=r"(tp));
-        return (char *)tp;
-    #elif defined(__APPLE__) && defined(__x86_64__)
+    #elif defined(__x86_64__)
         // macOS Intel: %gs:0 stores self-pointer == pthread struct base.
         uintptr_t tp;
         __asm__ volatile("movq %%gs:0, %0" : "=r"(tp));
-        return (char *)tp;
-    #elif defined(__linux__) && defined(__x86_64__)
-        // Linux x86_64: %fs:0 stores self-pointer == TCB base.
-        uintptr_t tp;
-        __asm__ volatile("movq %%fs:0, %0" : "=r"(tp));
         return (char *)tp;
     #endif
 }
@@ -659,8 +655,7 @@ inline void *new_redirected(std::size_t size) {
 	if(size > (std::size_t)ALLOC_SIZE16)
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
-	// Fast TSD access if available (macOS arm64/x86_64, Linux
-	// arm64/x86_64); else direct TLV access.
+	// Fast TSD access on macOS (arm64/x86_64); else direct TLV access.
 	AllocSlot &slot = kame_slots_base()[bucket];
 	// Inline freelist pop — no indirect call on hit path.  Empty
 	// sentinel: nullptr (push only ever writes the previous head into
