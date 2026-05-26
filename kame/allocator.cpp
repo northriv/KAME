@@ -252,30 +252,59 @@ XThreadLocal<AllocPinCleanup> tls_alloc_pin_cleanup;
 // Re-tune-able now that the O(n) impl removes the throughput cost
 // curve.
 struct CrossDeallocBatch {
-    static constexpr int CAP = 16;
-    // AoS layout — same struct shape as `PoolAllocatorBase::
-    // batch_return_to_bitmap`'s parameter type, so the chunk-side
-    // dispatch reads `entries[k].slot` directly from this buffer with
-    // no per-flush copy.  Extra slot at [CAP] receives the
-    // `{nullptr, nullptr}` sentinel planted in `flush()` — terminates
-    // the chunk-side walk via `entries[k].chunk == this` without
-    // needing an explicit `k < count` test.  No pre-initialisation
-    // needed: `flush` writes the sentinel before dispatch, and the
-    // empty-count case (no entries to walk) returns before reading.
-    CrossDeallocEntry buf[CAP + 1];
+    // FS=true small-slot batch.  FS=true buckets are ALIGN==SIZE
+    // (16..240 B), one bit per slot in m_flags ⇒ up to 64 slots per
+    // FUINT word.  Cross-thread frees of small slots are numerous AND
+    // their chunks tend to repeat (a few hot per-size-class chunks
+    // serve most allocs), so a deep accumulation window catches
+    // same-chunk same-word "buddies" arriving over time → at flush,
+    // sort + adjacent-merge coalesces them into one CAS per word.
+    //
+    // FS=false large-slot frees (sizes 96..512, N bits / slot) bypass
+    // this buffer via `push_direct` and dispatch immediately — the
+    // per-slot bit footprint is wider so word coalescing windows are
+    // smaller, and large-slot chunks repeat less, so the holding cost
+    // doesn't pay back.
+    //
+    // CAP=1024 chosen for L1d-resident accumulation:
+    //   16 B / entry × 1025 entries = 16.4 KiB.
+    // Most modern L1d is 32-64 KiB; the buf fits with room for other
+    // working set.  Per-thread; 128 threads × 16 KiB = 2 MiB total —
+    // acceptable for the throughput win expected on NUMA.
+    //
+    // Sort cost (~20000 cycles for 1024 entries) amortised over
+    // 1024 pushes ≈ 20 cycles/push — break-even with current CAP=1
+    // direct dispatch IF average coalescing factor > 1.08 (saves >
+    // 8 % of CAS, which at ~250 cycles per cross-socket CAS = 20
+    // cycles/push).  Realistic FS=true workload (STM Payload deep-
+    // copies, identical-size objects from a few chunks) should
+    // comfortably exceed this.
+    static constexpr int CAP = 1024;
+    CrossDeallocEntry buf[CAP + 1];   // +1 = sentinel slot
     int               count = 0;
 
+    //! FS=true path: hold and batch.  Caller passes its own `this`
+    //! as `c` (the chunk).
     void push(PoolAllocatorBase *c, void *s) noexcept {
         if(count == CAP) flush();
         buf[count++] = {c, s};
     }
+
+    //! FS=false path: bypass the buffer entirely, dispatch
+    //! immediately with a single-slot scratch + sentinel.
+    //! `static` so call sites don't pay the TLV thunk to reach
+    //! `tls_cross_dealloc_batch`.
+    static void push_direct(PoolAllocatorBase *c, void *s) noexcept {
+        CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
+        c->batch_return_to_bitmap(tmp);
+    }
+
     void flush() noexcept {
         if(count == 0) return;
         // Sort by (chunk, slot) lex — chunk primary key for grouping,
         // slot pointer secondary key so each chunk run is pointer-
-        // ascending (= m_flags-word-ascending).  std::sort on a 16-B
-        // trivially-copyable struct lowers to introsort with insertion
-        // sort fallback for small N; no heap, just register moves.
+        // ascending (= m_flags-word-ascending).  std::sort introsort,
+        // no heap, in-place swap-based.
         std::sort(buf, buf + count,
                   [](const CrossDeallocEntry &a, const CrossDeallocEntry &b) {
                       if(a.chunk != b.chunk) return a.chunk < b.chunk;
@@ -745,7 +774,13 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		this->batch_return_to_bitmap(tmp);
 		return false;
 	}
-	tls_cross_dealloc_batch->push(this, p);
+	// FS=false large slots: bypass the holding buffer, dispatch
+	// immediately.  Each FS=false slot consumes N bits in m_flags
+	// (slot pointer's idx + N-1 successor bits via m_sizes decode),
+	// so per-word coalescing windows are small AND large-slot chunks
+	// repeat less frequently than FS=true small-slot chunks — the
+	// holding cost wouldn't pay back.
+	CrossDeallocBatch::push_direct(this, p);
 	return false;
 }
 
@@ -974,7 +1009,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		this->batch_return_to_bitmap(tmp);
 		return false;
 	}
-	// Non-owner (or pre-first-access state): TLS batch.
+	// FS=true small slots: hold-and-batch path.  1 bit per slot in
+	// m_flags ⇒ up to 64 slots per FUINT word, so a deep (CAP=1024)
+	// accumulation window gives same-chunk same-word "buddies"
+	// arriving over time a chance to be coalesced into one CAS per
+	// word at flush time.  Cross-thread frees of small slots are
+	// numerous and their chunks repeat (a few hot per-size-class
+	// chunks serve most allocs), making this a high-yield pattern.
 	tls_cross_dealloc_batch->push(this, p);
 	return false;
 }
