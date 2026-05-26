@@ -99,6 +99,13 @@ target_link_libraries(transaction_payload_integrity_3level_mixed_test Threads::T
 
 add_executable(alloc_stress_test alloc_stress_test.cpp ${support_SRCS})
 target_link_libraries(alloc_stress_test Threads::Threads)
+# Lock-free 128-bit tagged head in alloc_stress_test needs CMPXCHG16B
+# on x86_64 (or LDXP/STXP on AArch64).  Use `-mcx16` so
+# `__sync_bool_compare_and_swap` on `__int128` lowers to a single
+# CMPXCHG16B (no libatomic fallback — that would be mutex-based).
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
+    target_compile_options(alloc_stress_test PRIVATE -mcx16)
+endif()
 
 # --- CTest registration ---
 
