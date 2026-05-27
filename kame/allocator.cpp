@@ -858,6 +858,17 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	return false;
 }
 
+// FS=false non-virtual static trampoline.  Sibling of the FS=true
+// `deallocate_pooled_static` above — see that comment for the
+// rationale (chunk-header fn pointer dispatch on the hot path).
+template <unsigned int ALIGN, bool DUMMY>
+bool
+PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled_static(
+    PoolAllocatorBase *base, char *p) {
+	PoolAllocator *self = static_cast<PoolAllocator *>(base);
+	return self->PoolAllocator::deallocate_pooled(p);
+}
+
 // FS=false batch return — multi-bit clear (slots vary in n_slots,
 // recovered from m_sizes).  Reuses the inherited batch_clear_impl
 // skeleton with a multi-bit MaskFn and FS=false-specific OnClearFn
@@ -1123,6 +1134,21 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	return false;
 }
 
+// FS=true non-virtual static trampoline for the chunk-header fn
+// pointer.  `allocate_chunk` stores `&PoolAllocator<ALIGN, FS, DUMMY>::
+// deallocate_pooled_static` at chunk_base + ALLOC_CHUNK_HEADER_FN_OFFSET;
+// `deallocate_<>`'s hot path reads it and invokes `fn(palloc, p)` —
+// one indirect branch, no vtable lookup.  The qualified-name call
+// `self->PoolAllocator::deallocate_pooled(p)` compiles to a direct
+// branch (non-virtual) on the bound derived type's body.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+bool
+PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled_static(
+    PoolAllocatorBase *base, char *p) {
+	PoolAllocator *self = static_cast<PoolAllocator *>(base);
+	return self->PoolAllocator::deallocate_pooled(p);
+}
+
 // FS=true slow_allocate override.  Called from `new_redirected`'s cold
 // path through this chunk's vtable when `g_thread_chunks[bucket]` is
 // non-null.  Equivalent to the previous `bucket_steady_alloc<B>`
@@ -1298,24 +1324,30 @@ PoolAllocatorBase::allocate_chunk() {
 					}
 #endif
 					// Chunk layout (chunk-size-aligned by mmap-over-and-trim above):
-					//   [0 .. ALLOC_CHUNK_HEADER-1]  reserved — holds
-					//                                `PoolAllocatorBase *metadata_ptr`
-					//                                at offset 0 (rest = pad).
-					//   [ALLOC_CHUNK_HEADER .. end]  slot region (m_mempool).
+					//   [0 .. 7]:     PoolAllocatorBase *palloc
+					//   [8 .. 15]:    bool (*deallocate_fn)(PoolAllocatorBase*, char*)
+					//   [16 .. 63]:   pad
+					//   [64 .. end]:  slot region (m_mempool)
 					//
-					// The chunk header pointer is the cornerstone of O(1)
-					// chunk lookup from any slot pointer:
-					//     PoolAllocatorBase *p = *(PoolAllocatorBase**)
-					//         ((uintptr_t)slot & ~(chunk_size - 1));
-					// One AND + one load.
+					// Two metadata pointers (palloc + deallocate_fn) sit in
+					// the same cache line and are read together by the
+					// `deallocate_<>` hot path:
+					//     palloc = *(PoolAllocatorBase**)cb;
+					//     fn     = *(DeallocateFn*)(cb + 8);
+					//     fn(palloc, p);   ← direct fn-pointer call,
+					//                       no vtable lookup.
 					ALLOC *palloc = ALLOC::create(chunk_size - ALLOC_CHUNK_HEADER,
 					                              addr + ALLOC_CHUNK_HEADER);
 					palloc->m_chunk_size = chunk_size;
-					// Write the chunk header pointer.  This is the source
-					// of truth for `lookup_chunk(slot)` and `deallocate_<>`.
-					// writeBarrier so the store is visible before any
+					// Write the chunk header.  `palloc` is the source of
+					// truth for `lookup_chunk(slot)`; the fn pointer
+					// devirtualises `deallocate_pooled` on the hot path.
+					// writeBarrier so both stores are visible before any
 					// allocation hands out a slot from this chunk.
 					*reinterpret_cast<PoolAllocatorBase **>(addr) = palloc;
+					*reinterpret_cast<DeallocateFn *>(
+					    addr + ALLOC_CHUNK_HEADER_FN_OFFSET) =
+					    &ALLOC::deallocate_pooled_static;
 					writeBarrier();
 					return palloc;
 				}
@@ -1616,7 +1648,14 @@ PoolAllocatorBase::deallocate_(void *p) {
 		// ICU/Foundation early startup).
 		if((uintptr_t)palloc <= (uintptr_t)1u)
 			return false;
-		if(palloc->deallocate_pooled(static_cast<char *>(p))) {
+		// Devirtualised dispatch: load fn pointer from chunk header
+		// offset ALLOC_CHUNK_HEADER_FN_OFFSET (= 8), call directly.
+		// Same cache line as palloc (already loaded one line above)
+		// so no extra cache miss.  Replaces a vtable load + indirect
+		// branch with a single load + indirect branch.
+		DeallocateFn fn = *reinterpret_cast<DeallocateFn *>(
+		    chunk_base + ALLOC_CHUNK_HEADER_FN_OFFSET);
+		if(fn(palloc, static_cast<char *>(p))) {
 			deallocate_chunk(chunk_base, CHUNK_SIZE);
 		}
 		return true;

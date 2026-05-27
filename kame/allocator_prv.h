@@ -126,13 +126,18 @@ inline bool atomicDecAndTest(T *target) noexcept {
     #endif
 #endif
 
-//! Reserved bytes at the head of every chunk.  Holds the
-//! `PoolAllocatorBase *` pointer used for O(1) lookup from any slot
-//! via `*(PoolAllocatorBase**)(slot & ~(chunk_size - 1))`.  Cache-
-//! line aligned so the metadata read doesn't share a line with the
-//! first slot's user data.  Slot region (`m_mempool`) starts at
-//! `chunk_base + ALLOC_CHUNK_HEADER`.
+//! Reserved bytes at the head of every chunk.  Layout:
+//!   [0 .. 7]:   `PoolAllocatorBase *` (chunk owner, source of truth
+//!               for O(1) lookup from any slot via
+//!               `*(PoolAllocatorBase**)(slot & ~(chunk_size - 1))`)
+//!   [8 .. 15]:  `DeallocateFn` — pointer to a non-virtual static
+//!               trampoline that dispatches the dealloc body
+//!               (`PoolAllocatorBase::DeallocateFn`).  Replaces
+//!               vtable dispatch on the `deallocate_<>` hot path.
+//!   [16 .. 63]: pad to a cache line.
+//! Slot region (`m_mempool`) starts at `chunk_base + ALLOC_CHUNK_HEADER`.
 #define ALLOC_CHUNK_HEADER 64
+#define ALLOC_CHUNK_HEADER_FN_OFFSET 8
 
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
@@ -159,6 +164,19 @@ struct CrossDeallocEntry {
 
 class PoolAllocatorBase {
 public:
+	//! Signature of the per-chunk dealloc trampoline stored in the
+	//! chunk header at offset `ALLOC_CHUNK_HEADER_FN_OFFSET` (= 8).
+	//! Set by `allocate_chunk` to `&PoolAllocator<ALIGN,FS,DUMMY>::
+	//! deallocate_pooled_static`, a non-virtual static wrapper that
+	//! casts `base` to the bound derived type and calls its inline
+	//! `deallocate_pooled_impl`.  Replaces vtable dispatch on the
+	//! `deallocate_<>` hot path: 1 load (function pointer, same cache
+	//! line as `palloc`) + 1 indirect branch, vs. the previous
+	//! 2 loads (vtable + slot) + 1 indirect branch.  Saving on macOS
+	//! arm64 with cache-hot vtable: ~1-2 cycles per dealloc; on
+	//! NUMA / cache-cold vtable: more.
+	using DeallocateFn = bool (*)(PoolAllocatorBase *base, char *slot);
+
 	virtual ~PoolAllocatorBase() = default;
 	template <int CCNT, size_t CHUNK_SIZE>
 	static inline bool deallocate_(void *p);
@@ -328,6 +346,18 @@ public:
 	//! instantiation — runtime SIZE arg, no per-SIZE explosion.
 	static void *allocate_chunk_path(unsigned int SIZE);
 
+	//! Non-virtual static trampoline for the chunk-header fn pointer.
+	//! `allocate_chunk` stamps the chunk header (offset
+	//! `ALLOC_CHUNK_HEADER_FN_OFFSET`) with `&deallocate_pooled_static`;
+	//! `deallocate_<>` reads that pointer and dispatches directly via
+	//! `fn(palloc, p)` — bypassing the vtable lookup that the virtual
+	//! `deallocate_pooled` override would require.  The body just
+	//! down-casts `base` to this template instantiation and invokes
+	//! the non-virtual qualified-name call
+	//! `self->PoolAllocator::deallocate_pooled(p)`, which compiles to
+	//! a direct branch.
+	static bool deallocate_pooled_static(PoolAllocatorBase *base, char *p);
+
 	static void release_pools();
 	void report_leaks();
 	void report_statistics(size_t &chunk_size, size_t &used_size) override;
@@ -436,6 +466,11 @@ class PoolAllocator<ALIGN, false, DUMMY> : public PoolAllocator<ALIGN, true, fal
 public:
 	void report_leaks();
 	void report_statistics(size_t &chunk_size, size_t &used_size) override;
+	//! See `PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled_static`.
+	//! FS=false partial spec provides its own trampoline that down-
+	//! casts to this leaf type and invokes the non-virtual
+	//! `PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled`.
+	static bool deallocate_pooled_static(PoolAllocatorBase *base, char *p);
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	PoolAllocator(int count, char *addr, char *ppool);
