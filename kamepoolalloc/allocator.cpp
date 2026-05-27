@@ -34,7 +34,12 @@
 #include <assert.h>
 #include <cerrno>
 #include <cstdlib>
-#include <string.h>
+#include <cstring>          // std::memset / std::memcpy
+                            // (glibc's `<string.h>` puts them in the
+                            //  global namespace only — libc++/Apple
+                            //  pull them into `std::` transitively but
+                            //  libstdc++ does not.  `<cstring>` is the
+                            //  portable C++ way.)
 #include <type_traits>
 #if defined(__APPLE__)
     #include <malloc/malloc.h>   // for malloc_zone_from_ptr / malloc_zone_free
