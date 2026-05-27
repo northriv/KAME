@@ -318,33 +318,57 @@ protected:
 	//! with the template's compile-time chunk_size.
 	size_t m_chunk_size = 0;
 
-private:
-	friend void report_statistics();
+public:
 	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE};
 	static_assert(NUM_ALLOCATORS_IN_SPACE == 128,
-		"NUM_ALLOCATORS_IN_SPACE expected to be 128 — matches the "
-		"two-uint64_t bitmap layout used by s_claim_bitmap[]");
-	// 32-bit hosts need DCAS (x86 CMPXCHG8B / ARMv7 LDREXD) for the
-	// chunk-claim bitmap and the `m_flags[]` per-slot bitmap CAS to
-	// remain lock-free.  All conformant targets emit ATOMIC_LLONG_LOCK_FREE
-	// == 2 (always lock-free) when DCAS is available — fail the build
-	// otherwise, since a mutex-based atomic<uint64_t> on the chunk-claim
-	// path would silently defeat the allocator's lock-free guarantees.
-	static_assert(ATOMIC_LLONG_LOCK_FREE == 2,
-		"atomic<uint64_t> must be always-lock-free for s_claim_bitmap[] "
-		"and the m_flags[] CAS path (need DCAS: x86 CMPXCHG8B / "
-		"ARMv7 LDREXD).  Targets without hardware DCAS are not supported.");
+		"NUM_ALLOCATORS_IN_SPACE expected to be 128 — total bit count "
+		"of the per-region chunk-claim bitmap "
+		"(BitmapWord × BITMAP_WORDS_PER_REGION).");
+	//! Word type for `s_claim_bitmap[]`.  Picked per-target so the
+	//! chunk-claim CAS remains genuinely lock-free:
+	//!   * Hosts where `atomic<uint64_t>` is always-lock-free
+	//!     (`ATOMIC_LLONG_LOCK_FREE == 2`) — 64-bit hosts, and 32-bit
+	//!     hosts with hardware DCAS (x86 CMPXCHG8B / ARMv7 LDREXD):
+	//!     `uint64_t`, 2 words per region.
+	//!   * Hosts without DCAS — fall back to `uint32_t`, 4 words per
+	//!     region.  Requires single-word atomic<uint32_t> to be
+	//!     always-lock-free (true on every architecture this allocator
+	//!     supports).
+	//! Total bits per region stays 128 (= `NUM_ALLOCATORS_IN_SPACE`)
+	//! so the chunk-claim semantics are identical across both layouts.
+#if ATOMIC_LLONG_LOCK_FREE == 2 && !defined(KAME_FORCE_UINT32_BITMAP)
+	using BitmapWord = uint64_t;
+	static constexpr int BITMAP_WORDS_PER_REGION = 2;
+#else
+	using BitmapWord = uint32_t;
+	static constexpr int BITMAP_WORDS_PER_REGION = 4;
+	static_assert(ATOMIC_INT_LOCK_FREE == 2,
+		"atomic<uint32_t> must be always-lock-free as the fallback "
+		"bitmap word type — targets without 32-bit atomic CAS are "
+		"not supported.");
+#endif
+	static constexpr int BITS_PER_BITMAP_WORD = int(sizeof(BitmapWord) * 8);
+	static_assert(BITS_PER_BITMAP_WORD * BITMAP_WORDS_PER_REGION
+	                 == NUM_ALLOCATORS_IN_SPACE,
+		"bitmap word size × word count must equal 128 chunks per region");
+private:
+	friend void report_statistics();
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
-	//! Per-mmap-region chunk-claim bitmap.  Two `uint64_t`s per region
-	//! = 128 bits = NUM_ALLOCATORS_IN_SPACE chunks.  Bit i set ⇒
-	//! chunk i is claimed (mprotect'd + initialised).  Replaces the
-	//! previous `s_chunks[ALLOC_MAX_CHUNKS]` 24 KiB cold global —
-	//! lookups now go via chunk-header dereference (see
-	//! `deallocate_<>` / `lookup_chunk`), so this array is only
-	//! consulted on the cold chunk-claim / release paths.  Total
-	//! storage: 24 × 16 B = 384 B (vs 24 KiB).
-	static std::atomic<uint64_t> s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * 2];
+	//! Per-mmap-region chunk-claim bitmap.  Bit i set ⇒ chunk i is
+	//! claimed (mprotect'd + initialised).  Word size selected at
+	//! compile time (see `BitmapWord` above) so the claim-CAS is
+	//! genuinely lock-free on every supported target — `uint64_t`
+	//! on 64-bit hosts and 32-bit hosts with DCAS, `uint32_t` on
+	//! 32-bit hosts without DCAS.  Total bits per region stays 128.
+	//!
+	//! Lookups go via chunk-header dereference (see `deallocate_<>` /
+	//! `lookup_chunk`), so this array is only consulted on the cold
+	//! chunk-claim / release paths.  Total storage: small (24 × 16 B
+	//! = 384 B on 64-bit, 24 × 16 B = 384 B on 32-bit-with-DCAS,
+	//! 24 × 16 B = 384 B on 32-bit-without-DCAS via 4 × uint32_t).
+	static std::atomic<BitmapWord>
+	    s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION];
 };
 
 //! Per-thread flag — true once `AllocPinCleanup::~dtor` has fired.

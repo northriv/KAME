@@ -1278,7 +1278,8 @@ inline ALLOC *
 PoolAllocatorBase::allocate_chunk() {
 	// Walk the ladder of mmap regions.  For each region, ensure it is
 	// mmap'd, then try to claim a free chunk via the per-region
-	// `s_claim_bitmap[]` (128 bits = 2 × uint64_t per region).  When
+	// `s_claim_bitmap[]` (128 bits = `BITMAP_WORDS_PER_REGION` ×
+	// `BitmapWord` per region — 2 × uint64_t or 4 × uint32_t).  When
 	// the bit-CAS succeeds, the corresponding chunk slot is exclusively
 	// ours to mprotect and initialise.  Failure (whole region full)
 	// falls through to the next level (chunk_size doubles).
@@ -1338,18 +1339,27 @@ PoolAllocatorBase::allocate_chunk() {
 #endif
 		}
 		// Try to claim a bit in this region's bitmap.  Each region has
-		// 128 bits split across two `std::atomic<uint64_t>` words.
-		for(int word = 0; word < 2; ++word) {
-			std::atomic<uint64_t> *bm = &s_claim_bitmap[region * 2 + word];
+		// 128 bits (NUM_ALLOCATORS_IN_SPACE) split across
+		// `BITMAP_WORDS_PER_REGION` `std::atomic<BitmapWord>` words —
+		// 2 × uint64_t on 64-bit / DCAS hosts, 4 × uint32_t on 32-bit
+		// hosts without DCAS (see allocator_prv.h).
+		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
+			std::atomic<BitmapWord> *bm =
+			    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
 			for(;;) {
-				uint64_t v = bm->load(std::memory_order_relaxed);
-				if(v == ~uint64_t(0)) break;  // word full, try next
-				int bit = __builtin_ctzll(~v);  // first zero bit
-				uint64_t newv = v | (uint64_t(1) << bit);
+				BitmapWord v = bm->load(std::memory_order_relaxed);
+				if(v == ~BitmapWord(0)) break;  // word full, try next
+				// __builtin_ctzll on widened ull works uniformly for
+				// both uint64_t and uint32_t BitmapWord (the upper
+				// 32 bits of the widened value are zero on the
+				// uint32_t path; trailing-zero count is unchanged).
+				int bit = __builtin_ctzll(
+				              static_cast<unsigned long long>(~v));
+				BitmapWord newv = v | (BitmapWord(1) << bit);
 				if(bm->compare_exchange_weak(v, newv,
 				                             std::memory_order_acquire,
 				                             std::memory_order_relaxed)) {
-					int cidx_in_region = word * 64 + bit;
+					int cidx_in_region = word * BITS_PER_BITMAP_WORD + bit;
 					char *addr = s_mmapped_spaces[region]
 					           + cidx_in_region * chunk_size;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
@@ -1848,10 +1858,10 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 			if(pdiff >= 0
 			   && pdiff < (ptrdiff_t)cs * NUM_ALLOCATORS_IN_SPACE) {
 				int cidx_in_region = int((size_t)pdiff / cs);
-				int word = cidx_in_region / 64;
-				int bit  = cidx_in_region % 64;
-				s_claim_bitmap[region * 2 + word].fetch_and(
-				    ~(uint64_t(1) << bit), std::memory_order_release);
+				int word = cidx_in_region / BITS_PER_BITMAP_WORD;
+				int bit  = cidx_in_region % BITS_PER_BITMAP_WORD;
+				s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word].fetch_and(
+				    ~(BitmapWord(1) << bit), std::memory_order_release);
 				return;
 			}
 		}
@@ -1999,7 +2009,7 @@ void
 PoolAllocatorBase::release_chunks() {
 	// Clear claim bitmaps + munmap regions.  Process exit only —
 	// individual chunk releases use `deallocate_chunk` instead.
-	for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES * 2; ++i)
+	for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION; ++i)
 		s_claim_bitmap[i].store(0, std::memory_order_relaxed);
 	size_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
 	for(int cnt = 0; cnt < ALLOC_MAX_MMAP_ENTRIES;
@@ -2631,13 +2641,16 @@ void report_statistics() {
 	    ++region, cs = GROW_CHUNK_SIZE(cs)) {
 		char *mp = PoolAllocatorBase::s_mmapped_spaces[region];
 		if( !mp) break;
-		for(int word = 0; word < 2; ++word) {
-			uint64_t bm = PoolAllocatorBase::s_claim_bitmap[region * 2 + word]
-			                  .load(std::memory_order_relaxed);
+		for(int word = 0; word < PoolAllocatorBase::BITMAP_WORDS_PER_REGION; ++word) {
+			PoolAllocatorBase::BitmapWord bm =
+			    PoolAllocatorBase::s_claim_bitmap[
+			        region * PoolAllocatorBase::BITMAP_WORDS_PER_REGION + word]
+			            .load(std::memory_order_relaxed);
 			while(bm) {
-				int bit = __builtin_ctzll(bm);
-				bm &= ~(uint64_t(1) << bit);
-				int cidx_in_region = word * 64 + bit;
+				int bit = __builtin_ctzll(static_cast<unsigned long long>(bm));
+				bm &= ~(PoolAllocatorBase::BitmapWord(1) << bit);
+				int cidx_in_region =
+				    word * PoolAllocatorBase::BITS_PER_BITMAP_WORD + bit;
 				char *cbase = mp + cidx_in_region * cs;
 				PoolAllocatorBase *palloc =
 				    *reinterpret_cast<PoolAllocatorBase **>(cbase);
@@ -2851,8 +2864,9 @@ void operator delete[](void* p, std::size_t /*size*/, std::align_val_t al) noexc
 }
 
 char *PoolAllocatorBase::s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
-std::atomic<uint64_t>
-    PoolAllocatorBase::s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * 2];
+std::atomic<PoolAllocatorBase::BitmapWord>
+    PoolAllocatorBase::s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES
+                                       * PoolAllocatorBase::BITMAP_WORDS_PER_REGION];
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 uintptr_t PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
 template <unsigned int ALIGN, bool FS, bool DUMMY>
