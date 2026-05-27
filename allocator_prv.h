@@ -453,40 +453,6 @@ protected:
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
-
-	//! Pre-fill (page-metadata-reserved) bits in `m_flags[word_idx]`.
-	//! Used by the `m_flags_packed` inc/dec gates so the "is chunk
-	//! empty?" check (`m_flags_packed == 0`) means "no REAL
-	//! allocations in any word" rather than "no bits set anywhere"
-	//! — pre-fill bits are excluded from the count.
-	//!
-	//! Returns 0 for any word that has no pre-filled metadata bits
-	//! (which is every word when pre-fill is disabled — backward
-	//! compatible with the pre-Phase-5b behaviour).  Computed
-	//! inline from ALIGN, ALLOC_PAGE_SIZE, ALLOC_CHUNK_HEADER —
-	//! all compile-time constants for this template instantiation.
-	//!
-	//! Called from the cold path (allocate / batch_return_to_bitmap
-	//! CAS sites); the per-call 64-iteration loop is amortised by
-	//! the surrounding atomic CAS cost.
-	FUINT bit_metadata(int word_idx) const noexcept {
-		constexpr int slots_per_word = int(sizeof(FUINT) * 8);
-		FUINT mask = 0;
-		const size_t base_off = size_t(word_idx) * slots_per_word * ALIGN
-		                       + ALLOC_CHUNK_HEADER;
-		for(int b = 0; b < slots_per_word; ++b) {
-			const size_t abs_off = base_off + size_t(b) * ALIGN;
-			// Metadata region = first ALLOC_CHUNK_HEADER bytes of each
-			// non-first page.  Skip page 0 (its header lives outside
-			// m_mempool at chunk_base + 0..63, already excluded).
-			if(abs_off >= ALLOC_PAGE_SIZE
-			   && (abs_off % ALLOC_PAGE_SIZE) < ALLOC_CHUNK_HEADER) {
-				mask |= FUINT(1) << b;
-			}
-		}
-		return mask;
-	}
-
 	//! Mmap a fresh chunk and register it in `s_chunks_of_type[]` for
 	//! diagnostic enumeration only (`release_pools` / `report_statistics`).
 	//! Mmap a fresh chunk for the current thread.  Phase 4b: no global
