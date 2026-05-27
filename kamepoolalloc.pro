@@ -43,6 +43,7 @@ HEADERS += \
     allocator.h \
     allocator_prv.h \
     atomic_mfence.h \
+    atomic_prv_mfence.h \
     atomic_prv_mfence_arm8.h \
     atomic_prv_mfence_x86.h
 
