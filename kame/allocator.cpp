@@ -1892,19 +1892,20 @@ void *new_redirected_large(std::size_t size) noexcept {
 }
 
 inline void deallocate_pooled_or_free(void* p) throw() {
-	// Mirror new_redirected's gate: when the pool isn't activated yet
-	// (very early in process startup, before main() runs
-	// activateAllocator()), all allocations went through malloc. The
-	// pool's mmap'd regions don't even exist yet, so any pointer must
-	// be a malloc'd one — skip the pool deallocate to avoid touching
-	// uninitialized s_mmapped_spaces / s_chunks.
-	if( !g_sys_image_loaded) {
-		std::free(p);
-		return;
-	}
+	// `PoolAllocatorBase::deallocate(p)` is safe to call pre-
+	// `activateAllocator()`.  `deallocate_<0, ALLOC_MIN_CHUNK_SIZE>`
+	// loads `s_mmapped_spaces[0]` which is zero-initialised (so
+	// `nullptr` pre-activation); the subsequent
+	// `(pdiff >= 0 && pdiff < CHUNK_SIZE * NUM_ALLOCATORS_IN_SPACE)`
+	// range check trivially fails for any real pointer against a
+	// `nullptr` base, the recursion through higher levels likewise
+	// fails, and the call returns `false`.  We then drop to
+	// `std::free(p)` — same outcome as an explicit
+	// `!g_sys_image_loaded` early-out, which previously guarded this
+	// path but was redundant.
 	if(PoolAllocatorBase::deallocate(p))
 		return;
-    std::free(p);
+	std::free(p);
 }
 
 void release_pools() {
