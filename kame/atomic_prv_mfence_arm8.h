@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2021 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -14,28 +14,10 @@
 #ifndef ATOMIC_PRV_MFENCE_ARM8_H_
 #define ATOMIC_PRV_MFENCE_ARM8_H_
 
-#ifdef _MSC_VER
-    #error
-#else
-
-#endif
-
-//! memory barriers.
-inline void readBarrier() noexcept {
-     __asm__ __volatile__ ("dmb 0xf" : : : "memory");
- //   __dmb(0xf);
-}
-inline void writeBarrier() noexcept {
-     __asm__ __volatile__ ("dmb 0xf" : : : "memory");
- //   __dmb(0xf);
-}
-inline void memoryBarrier() noexcept {
-     __asm__ __volatile__ ("dmb 0xf" : : : "memory");
- //   __dmb(0xf);
-}
-
-inline void pause4spin() noexcept {
-    __asm__ __volatile__("yield" ::: "memory");
-}
+// Backward-compat shim.  The ARM8-specific inline-asm barriers have
+// been folded into atomic_prv_mfence.h (std::atomic_thread_fence
+// based, portable C++17).  Direct include of this header is
+// discouraged — include atomic_prv_mfence.h instead.
+#include "atomic_prv_mfence.h"
 
 #endif /*ATOMIC_PRV_MFENCE_ARM8_H_*/

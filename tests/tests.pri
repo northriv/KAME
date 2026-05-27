@@ -87,12 +87,14 @@ HEADERS += support_standalone.h
 HEADERS += ../kamepoolalloc/allocator.h
 HEADERS += ../kamepoolalloc/allocator_prv.h
 HEADERS += ../kamepoolalloc/atomic_mfence.h
+HEADERS += ../kamepoolalloc/atomic_prv_mfence.h
 HEADERS += ../kamepoolalloc/atomic_prv_mfence_x86.h
 HEADERS += ../kamepoolalloc/atomic_prv_mfence_arm8.h
 HEADERS += ../kame/threadlocal.h
 HEADERS += ../kame/atomic.h
 HEADERS += ../kame/atomic_prv_basic.h
 HEADERS += ../kame/atomic_prv_std.h
+HEADERS += ../kame/atomic_prv_mfence.h
 HEADERS += ../kame/atomic_prv_mfence_x86.h
 HEADERS += ../kame/atomic_prv_mfence_arm8.h
 

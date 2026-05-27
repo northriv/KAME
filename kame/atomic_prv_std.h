@@ -18,17 +18,10 @@
 #include <inttypes.h>
 #include <atomic>
 
-#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__\
-    || defined __x86_64__ || defined _M_IX86 || defined _M_X64
-    #include "atomic_prv_mfence_x86.h"
-#elif defined(__arm64__) || defined(__aarch64__) || defined(_M_ARM64)
-    // __arm64__  — Apple Silicon (Clang)
-    // __aarch64__ — Linux ARM64 (GCC/Clang)
-    // _M_ARM64   — MSVC ARM64 (not otherwise supported)
-    #include "atomic_prv_mfence_arm8.h"
-#else
-    #error
-#endif
+// Barriers + spin-pause: unified, portable C++17 (std::atomic_thread_fence).
+// Per-arch dispatch is no longer needed — only pause4spin retains a small
+// arch-specific hint, encapsulated inside atomic_prv_mfence.h.
+#include "atomic_prv_mfence.h"
 
 #if ATOMIC_LLONG_LOCK_FREE == 2
     typedef long long int_cas_max;
@@ -38,6 +31,15 @@
     typedef int int_cas_max;
 #endif
 typedef int_cas_max uint_cas_max;
+
+// The STM transaction framework packs multiple fields into atomic<uint64_t>
+// (m_priority_state, m_recent_ops_state, RunnerCounterEntry::v, stamps, ...).
+// On 64-bit targets this is trivially lock-free; on 32-bit targets the
+// compiler maps it to a DCAS instruction (CMPXCHG8B on i486+, LDREXD/STREXD
+// on ARMv7-A) when available — std::atomic<uint64_t> stays lock-free.
+// Targets without hardware DCAS (i386, ARMv5/v6) previously used the
+// in-tree DCAS fallback; that path should be revived rather than blocked
+// here, hence no static_assert.
 
 template <typename T>
 class atomic<T, typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value>::type>
