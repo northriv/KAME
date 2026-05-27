@@ -735,6 +735,29 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// runs the bitmap CAS to claim N consecutive free bits.
 	if(m_available_bits < SIZE / ALIGN)
 		return 0;
+	// Phase 5a: fragmentation cutoff.  FS=false multi-bit slots
+	// progressively fragment the bitmap (free bits scattered across
+	// the word in pieces too small for a fresh N-bit allocation).
+	// Once nonzero bits cross the threshold, return 0 to force the
+	// caller (allocate_chunk_path) to look elsewhere — DLL scan
+	// for a less-fragmented chunk, or mmap fresh.  Avoids burning
+	// cycles in find_training_zeros sweeps that are unlikely to
+	// succeed.  count_bits walks all m_count words; this path is
+	// the slow-path (freelist-miss), so the O(m_count) walk is
+	// acceptable.
+	//
+	// Threshold = 80%.  Higher (e.g. 90%) wastes more space; lower
+	// (e.g. 70%) raises mmap rate.  80% is a conservative pick that
+	// favours throughput over memory.
+	{
+		unsigned bits_set = 0;
+		for(int i = 0; i < this->m_count; ++i)
+			bits_set += count_bits(this->m_flags[i]);
+		unsigned total_bits =
+		    (unsigned)this->m_count * (unsigned)(sizeof(FUINT) * 8);
+		if(bits_set * 5u >= total_bits * 4u)
+			return 0;
+	}
 	FUINT oldv, ones, cand;
 	int idx = this->m_idx;
 	FUINT *pflag = &this->m_flags[idx];
