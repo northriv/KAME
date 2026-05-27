@@ -52,6 +52,38 @@ int main(int argc, char **argv) {
             size, depth, rounds, total_ops, secs,
             total_ops / 1e6 / secs);
     }
+    else if(std::strcmp(pat, "alloc_only") == 0) {
+        // Pure alloc, then bulk free at end — measures only `operator new`
+        // cost (one alloc per iteration, no delete in the loop).
+        std::vector<char *> bag(iters, nullptr);
+        auto t0 = std::chrono::steady_clock::now();
+        for(int i = 0; i < iters; ++i) {
+            bag[i] = new char[size];
+            asm volatile("" : : "r"(bag[i]) : "memory");
+        }
+        auto t1 = std::chrono::steady_clock::now();
+        for(auto *p : bag) delete[] p;
+        double secs = std::chrono::duration<double>(t1 - t0).count();
+        std::printf("[minimal] size=%5d B  alloc_only  iters=%d  "
+            "time=%.3fs  rate=%.2fM ops/s  (alloc only)\n",
+            size, iters, secs, iters / 1e6 / secs);
+    }
+    else if(std::strcmp(pat, "free_only") == 0) {
+        // Pre-allocate, then time only the bulk free loop.  Isolates the
+        // `operator delete` cost.
+        std::vector<char *> bag(iters, nullptr);
+        for(int i = 0; i < iters; ++i) bag[i] = new char[size];
+        auto t0 = std::chrono::steady_clock::now();
+        for(auto *p : bag) {
+            asm volatile("" : : "r"(p) : "memory");
+            delete[] p;
+        }
+        auto t1 = std::chrono::steady_clock::now();
+        double secs = std::chrono::duration<double>(t1 - t0).count();
+        std::printf("[minimal] size=%5d B  free_only  iters=%d  "
+            "time=%.3fs  rate=%.2fM ops/s  (free only)\n",
+            size, iters, secs, iters / 1e6 / secs);
+    }
     else {
         // Defeat compiler elision of `new` + `delete[]` (the write to
         // `p[0]` becomes a dead store the compiler can remove, and then
