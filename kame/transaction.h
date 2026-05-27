@@ -311,6 +311,15 @@ namespace detail {
     //! NUMA pitfall of contiguous slot blocks).
     struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
         std::atomic<uint64_t> v{0};
+#if KAME_ENABLE_RUNNER_DIGEST
+        //! Placed immediately after `v` (both uint64_t, no implicit
+        //! alignment padding) so the _pad formula stays correct on
+        //! 32-bit and 64-bit alike.  If declared after `next`/`claimed`/
+        //! `allocated_node`, the compiler inserts hidden padding to
+        //! bring digest to an 8-byte boundary, causing the struct to
+        //! overflow one cache line.
+        std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
+#endif
         //! Set once during `runner_counter_register` (just before the
         //! CAS-prepend onto `s_runner_entries_head`); immutable
         //! thereafter.  The publishing CAS uses `acq_rel`, so a
@@ -336,7 +345,6 @@ namespace detail {
         RunnerCounterEntry(int8_t node) noexcept
             : allocated_node(node) {}
 #if KAME_ENABLE_RUNNER_DIGEST
-        std::atomic<uint64_t> digest{0};   // raw value of RunnerDigest
         char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)
                                   - sizeof(std::atomic<RunnerCounterEntry*>)
                                   - sizeof(std::atomic<bool>)
