@@ -892,26 +892,22 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 				atomicDec( &this->m_flags_nonzero_cnt);
 			}
 		});
-	// Chunk-release check.  Safe to delete this — the caller
-	// (`tls_cross_dealloc_batch->push`, `drain_thread_slot_freelists`,
-	// or the post-teardown bypass in `deallocate_pooled`) is on a
-	// single-slot path and won't reference this chunk again after
+	// Chunk-release check.  Safe to delete this — the caller is on
+	// a single-slot path and won't reference this chunk again after
 	// the call.  `deallocate_chunk` MUST follow `delete this` (using
-	// the pre-cached cidx/chunk_size) so `s_chunks[cidx]` is cleared
-	// and the mempool mprotect'd back to PROT_NONE.  Without it, the
-	// slot in `s_chunks[]` dangles past the suicide and a subsequent
-	// `deallocate_<>` would dereference the freed PoolAllocator and
-	// glibc would catch it as `free(): invalid pointer`.  Owner-side
-	// `deallocate_pooled` returns `true` to get this same cleanup
-	// via `PoolAllocatorBase::deallocate_<>`; the
-	// `batch_return_to_bitmap` paths don't have that cascade and
-	// must do the cleanup themselves.
+	// the pre-cached chunk_base/chunk_size) so the chunk header
+	// pointer is cleared and the mempool mprotect'd back to PROT_NONE.
+	// Without it, a subsequent `deallocate_<>` lookup on a stray
+	// pointer landing in this VA range would dereference the freed
+	// PoolAllocator instance via the chunk header.
 	if(this->m_flags_nonzero_cnt == 0
 	        && PoolAllocator<ALIGN, true, false>::release_allocator(this)) {
-		int cidx = this->m_cidx;
+		// chunk_base = m_mempool - ALLOC_CHUNK_HEADER (the slot region
+		// starts at the chunk's header-reserved offset).
+		char *cbase = this->m_mempool - ALLOC_CHUNK_HEADER;
 		size_t csz = this->m_chunk_size;
 		delete this;
-		PoolAllocatorBase::deallocate_chunk(cidx, csz);
+		PoolAllocatorBase::deallocate_chunk(cbase, csz);
 	}
 	return n;
 }
@@ -1041,15 +1037,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 				atomicDec( &this->m_flags_nonzero_cnt);
 		});
 	// Chunk-release check.  See FS=false sibling for the rationale —
-	// `deallocate_chunk` MUST follow `delete this` so the dangling
-	// `s_chunks[cidx]` slot is cleared and the mempool faults on a
-	// later stray access.
+	// `deallocate_chunk` MUST follow `delete this` so the chunk
+	// header pointer is cleared and the mempool faults on a later
+	// stray access.
 	if(this->m_flags_nonzero_cnt == 0
 	        && PoolAllocator<ALIGN, FS, DUMMY>::release_allocator(this)) {
-		int cidx = this->m_cidx;
+		char *cbase = this->m_mempool - ALLOC_CHUNK_HEADER;
 		size_t csz = this->m_chunk_size;
 		delete this;
-		PoolAllocatorBase::deallocate_chunk(cidx, csz);
+		PoolAllocatorBase::deallocate_chunk(cbase, csz);
 	}
 	return n;
 }
@@ -1201,16 +1197,39 @@ PoolAllocatorBase::allocate_chunk() {
 	while( !s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE]) {
 		size_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-        char *p = static_cast<char *>(
-            malloc(mmap_size));
+        // Windows: use _aligned_malloc for chunk-size aligned region.
+        // The chunk-base mask trick (slot & ~(chunk_size-1) → chunk_base)
+        // requires the entire mmap region to start at a chunk_size-
+        // aligned address.  mprotect path is no-op on Windows so we
+        // only need the alignment guarantee here.
+        char *p = static_cast<char *>(_aligned_malloc(mmap_size, chunk_size));
+        if( !p) {
+            fprintf(stderr, "_aligned_malloc(%zu, %zu) failed.\n",
+                    mmap_size, chunk_size);
+            s_chunks[cidx] = 0;
+            return 0;
+        }
 #else
-		char *p = static_cast<char *>(
-			mmap(0, mmap_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
-		if(p == MAP_FAILED) {
+		// Linux / macOS: mmap returns page-aligned (4-16 KiB), not
+		// chunk-aligned.  Over-allocate by one chunk_size and munmap
+		// the unaligned head + tail so the kept region starts at a
+		// chunk_size boundary.  Cost: 1 extra chunk_size of VA wasted
+		// per mmap region (out of 128 × chunk_size) ≈ 0.8 % overhead.
+		size_t total = mmap_size + chunk_size;
+		char *raw = static_cast<char *>(
+			mmap(0, total, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
+		if(raw == MAP_FAILED) {
 			fprintf(stderr, "mmap() failed.\n");
 			s_chunks[cidx] = 0;
 			return 0;
 		}
+		uintptr_t aligned =
+		    ((uintptr_t)raw + chunk_size - 1u) & ~(uintptr_t)(chunk_size - 1u);
+		char *p = reinterpret_cast<char *>(aligned);
+		size_t prefix = p - raw;
+		size_t suffix = total - prefix - mmap_size;
+		if(prefix > 0) munmap(raw, prefix);
+		if(suffix > 0) munmap(p + mmap_size, suffix);
 #endif
 		writeBarrier();
 		if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE])) {
@@ -1219,7 +1238,7 @@ PoolAllocatorBase::allocate_chunk() {
 			break;
 		}
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-        free(p);
+        _aligned_free(p);
 #else
         munmap(p, mmap_size);
 #endif
@@ -1271,14 +1290,30 @@ PoolAllocatorBase::allocate_chunk() {
     }
 #endif
 
-	ALLOC *palloc = ALLOC::create(chunk_size, addr);
+	// Chunk layout (chunk-size-aligned by mmap-over-and-trim above):
+	//   [0 .. ALLOC_CHUNK_HEADER-1]  reserved — holds
+	//                                `PoolAllocatorBase *metadata_ptr`
+	//                                at offset 0 (rest = pad).
+	//   [ALLOC_CHUNK_HEADER .. end]  slot region (m_mempool).
+	//
+	// The chunk header pointer is the cornerstone of O(1) chunk lookup
+	// from any slot pointer:
+	//     PoolAllocatorBase *p = *(PoolAllocatorBase**)
+	//         ((uintptr_t)slot & ~(chunk_size - 1));
+	// One AND + one load.  Replaces the previous
+	// pdiff/CHUNK_SIZE + s_chunks[cidx] sequence.
+	ALLOC *palloc = ALLOC::create(chunk_size - ALLOC_CHUNK_HEADER,
+	                              addr + ALLOC_CHUNK_HEADER);
 	// Stamp (cidx, chunk_size) on the instance so the cross-batch
 	// chunk-release self-suicide path in `batch_return_to_bitmap` can
-	// call `deallocate_chunk(cidx, chunk_size)` AFTER `delete this`
-	// — clearing `s_chunks[cidx]` so a later `deallocate_<>` lookup
-	// doesn't dereference the freed PoolAllocator instance.
+	// call `deallocate_chunk(chunk_base, chunk_size)` AFTER `delete this`.
 	palloc->m_cidx = cidx;
 	palloc->m_chunk_size = chunk_size;
+	// Write the chunk header pointer.  This is the source of truth for
+	// `lookup_chunk(slot)` and `deallocate_<>`.  Must be visible before
+	// `s_chunks[cidx]` becomes non-sentinel (writeBarrier below).
+	*reinterpret_cast<PoolAllocatorBase **>(addr) = palloc;
+	writeBarrier();
 	s_chunks[cidx] = palloc;
 
 	return palloc;
@@ -1472,25 +1507,55 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_allocator(PoolAllocator *palloc) {
 	return false;
 }
 inline void
-PoolAllocatorBase::deallocate_chunk(int cidx, size_t chunk_size) {
-	void *addr =
-		s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE] + chunk_size * (cidx % NUM_ALLOCATORS_IN_SPACE);
-	//releasing memory.
+PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
+	// Clear the chunk header pointer FIRST.  A racing
+	// `lookup_chunk` / `deallocate_<>` after this store sees nullptr
+	// and treats the pointer as foreign (falls back to std::free) —
+	// safe because by definition no live slot remains in this chunk
+	// once we're here (m_flags_nonzero_cnt == 0 was the precondition).
+	*reinterpret_cast<PoolAllocatorBase **>(chunk_base) = nullptr;
+	// mprotect the chunk back to PROT_NONE so any stray access SIGBUS's
+	// instead of silently corrupting reusable VA.
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
+	(void)chunk_size;
 #else
-    mprotect(addr, chunk_size, PROT_NONE);
+	mprotect(chunk_base, chunk_size, PROT_NONE);
 #endif
 
-	s_chunks[cidx] = 0;
+	// Mirror the clear in s_chunks[] too.  The cidx is recoverable from
+	// `chunk_base` via the s_mmapped_spaces walk, but we only need it
+	// here (cold path) so the walk cost is acceptable.  s_chunks[] is
+	// still consulted by chunk-claim CAS in `allocate_chunk` to
+	// reserve a slot, hence we keep it in sync.
+	size_t cs = ALLOC_MIN_CHUNK_SIZE;
+	for(int ccnt = 0; ccnt < ALLOC_MAX_MMAP_ENTRIES; ++ccnt) {
+		char *mp = s_mmapped_spaces[ccnt];
+		if(ccnt > 0 && !mp) break;
+		if(mp && cs == chunk_size) {
+			ptrdiff_t pdiff = chunk_base - mp;
+			if(pdiff >= 0
+			   && pdiff < (ptrdiff_t)cs * NUM_ALLOCATORS_IN_SPACE) {
+				int cidx = int((size_t)pdiff / cs)
+				           + ccnt * NUM_ALLOCATORS_IN_SPACE;
+				s_chunks[cidx] = 0;
+				break;
+			}
+		}
+		cs = GROW_CHUNK_SIZE(cs);
+	}
 }
 
-// Runtime walk of `s_mmapped_spaces[]` mirroring `deallocate_<>`'s
-// progressive `GROW_CHUNK_SIZE` ladder — find which mmap space
-// contains `p` and look up `s_chunks[cidx]`.  No `deallocate_pooled`
-// dispatch; pure address-to-chunk mapping for the drain path.  Kept
-// as a regular for-loop rather than reusing the recursive-template
-// `deallocate_<>` because that template lives on the hot operator
-// delete path and an extra branch arm there is undesirable.
+// Address → chunk lookup.  Walks `s_mmapped_spaces[]` to determine
+// which mmap region's chunk_size mask to apply, then reads the chunk
+// header pointer at `(slot & ~(chunk_size - 1))` directly.  Replaces
+// the previous `pdiff / chunk_size + s_chunks[cidx]` sequence — saves
+// the cold-global indexed load (the chunk header pointer sits in a
+// cache line right next to the slot itself).
+//
+// Each chunk's first ALLOC_CHUNK_HEADER bytes hold the
+// `PoolAllocatorBase *` written in `allocate_chunk`.  Chunks are
+// chunk_size-aligned (mmap-over-and-trim in allocate_chunk), so the
+// AND mask gives the chunk base directly.
 inline PoolAllocatorBase *
 PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 	size_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
@@ -1501,9 +1566,10 @@ PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 			ptrdiff_t pdiff = static_cast<char *>(p) - mp;
 			if(pdiff >= 0
 			   && pdiff < (ptrdiff_t)chunk_size * NUM_ALLOCATORS_IN_SPACE) {
-				int cidx = int(pdiff / chunk_size)
-				           + ccnt * NUM_ALLOCATORS_IN_SPACE;
-				PoolAllocatorBase *palloc = s_chunks[cidx];
+				char *chunk_base = reinterpret_cast<char *>(
+				    (uintptr_t)p & ~(uintptr_t)(chunk_size - 1));
+				PoolAllocatorBase *palloc =
+				    *reinterpret_cast<PoolAllocatorBase **>(chunk_base);
 				if((uintptr_t)palloc <= (uintptr_t)1u) return nullptr;
 				return palloc;
 			}
@@ -1521,19 +1587,26 @@ PoolAllocatorBase::deallocate_(void *p) {
 		return false;
 	ptrdiff_t pdiff = static_cast<char *>(p) - mp;
 	if((pdiff >= 0) && (pdiff < (ptrdiff_t)CHUNK_SIZE * NUM_ALLOCATORS_IN_SPACE)) {
-		int cidx = pdiff / CHUNK_SIZE + CCNT * NUM_ALLOCATORS_IN_SPACE;
-		PoolAllocatorBase *palloc = s_chunks[cidx];
-		// Defensive: cidx may map to a slot that is still in-creation
-		// (s_chunks[cidx] == (PoolAllocatorBase*)1u sentinel set by
-		// allocate_chunk's CAS) or freed (== nullptr) when a non-pool
-		// pointer (e.g. libsystem malloc on macOS Apple Silicon, used
-		// by ICU/Foundation during early process startup) happens to
-		// land within our mmap virtual address range. Treat both as
-		// "not our pointer" so the caller falls through to std::free.
+		// Chunk base from slot pointer — one AND, compile-time mask.
+		// Cheaper than the previous pdiff/CHUNK_SIZE + s_chunks[cidx]
+		// sequence: replaces a cold-global indexed load with a load
+		// from a cache line right next to the slot itself.
+		char *chunk_base = reinterpret_cast<char *>(
+		    (uintptr_t)p & ~(uintptr_t)(CHUNK_SIZE - 1));
+		PoolAllocatorBase *palloc =
+		    *reinterpret_cast<PoolAllocatorBase **>(chunk_base);
+		// Defensive: chunk header may hold nullptr (chunk released) or
+		// 1u (in-creation sentinel — unlikely to be observed past the
+		// allocate_chunk writeBarrier+s_chunks store).  Treat both as
+		// "not our pointer" so the caller falls through to std::free
+		// — same semantics as the previous s_chunks-based check,
+		// retained for libsystem-malloc pointers that happen to land
+		// inside our PROT_NONE mmap range (macOS Apple Silicon
+		// ICU/Foundation early startup).
 		if((uintptr_t)palloc <= (uintptr_t)1u)
 			return false;
 		if(palloc->deallocate_pooled(static_cast<char *>(p))) {
-			deallocate_chunk(cidx, CHUNK_SIZE);
+			deallocate_chunk(chunk_base, CHUNK_SIZE);
 		}
 		return true;
 	}

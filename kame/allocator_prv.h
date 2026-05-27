@@ -83,22 +83,24 @@ inline bool atomicDecAndTest(T *target) noexcept {
 	#define ALLOC_TLS thread_local
 #endif
 
-#define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256 KiB initial chunk + 5/4 grow.
-                                          //Ladder steps every 128 chunk
-                                          //claims (NUM_ALLOCATORS_IN_SPACE)
-                                          //via the GROW_CHUNK_SIZE multiplier.
-                                          //Larger min keeps cross-thread chunk
-                                          //residency tight under lazy commit:
-                                          //RSS scales with pages actually
-                                          //written, and a small set of large
-                                          //chunks beats a large set of small
-                                          //chunks for write locality.
-// OS page size used to align growing chunk sizes for mprotect(). macOS
-// arm64 uses 16 KiB pages; passing a non-page-aligned size to mprotect()
-// fails silently (assert is no-op under NDEBUG) and the next access faults
-// with SIGBUS. Linux x86_64 uses 4 KiB and Linux arm64 typically 4 KiB,
-// occasionally 64 KiB. POWER usually 64 KiB. Use the largest plausible
-// value per arch so chunk sizes round to a multiple in all cases.
+//! Chunk size: power-of-2 with 2× growth ladder.  Power-of-2 enables
+//! O(1) chunk-base lookup from any slot via `slot & ~(chunk_size - 1)`,
+//! and the 8-byte `PoolAllocatorBase *` written at the chunk's
+//! `chunk_base` becomes addressable in one AND + one load — far
+//! cheaper than the previous `pdiff / CHUNK_SIZE + s_chunks[cidx]`
+//! sequence (integer division ~15 cycles + cold global load).
+//!
+//! 256 KiB minimum carries over the upstream choice (f58b9d08) —
+//! keeps cross-thread chunk residency tight under lazy commit (RSS
+//! scales with pages actually written; a small set of large chunks
+//! beats a large set of small chunks for write locality).  Growth is
+//! 2× (was 5/4 — non-power-of-2) so every level's chunk_size remains
+//! power-of-2 and the AND-mask lookup works uniformly across the
+//! ladder.  NUM_ALLOCATORS_IN_SPACE stays 128 chunks per mmap region.
+#define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256 KiB initial chunk (power of 2) + 2× grow
+// OS page size — still relevant for mprotect() granularity within a
+// chunk.  All chunk sizes are now power-of-2 ≥ 256 KiB which auto-
+// satisfies every supported arch's page size.
 #if defined(__APPLE__) && defined(__aarch64__)
     #define ALLOC_PAGE_SIZE 16384  // 16 KiB
 #elif defined(__powerpc64__) || defined(__POWERPC__)
@@ -106,23 +108,31 @@ inline bool atomicDecAndTest(T *target) noexcept {
 #else
     #define ALLOC_PAGE_SIZE 4096   // 4 KiB
 #endif
+//! 2× growth.  No page-align rounding needed — both terms are power-of-2.
+#define GROW_CHUNK_SIZE(x) ((size_t)(x) * 2u)
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    #define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
     #define ALLOC_MIN_MMAP_SIZE ALLOC_MIN_CHUNK_SIZE
     #define ALLOC_MAX_MMAP_ENTRIES 24
 #else
     #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
-        #define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
         //! NUM_ALLOCATORS_IN_SPACE = MMAP_SIZE / CHUNK_SIZE = 128 — the
-        //! GROW_CHUNK_SIZE ladder advances every 128 chunk claims.
-        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32 MiB
-        #define ALLOC_MAX_MMAP_ENTRIES 24 //~27 GiB approx.
+        //! chunk-size ladder advances every 128 chunk claims.
+        //! 256 KiB × 128 = 32 MiB per level at the bottom of the ladder.
+        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32 MiB = 256K × 128
+        #define ALLOC_MAX_MMAP_ENTRIES 24 //2× ladder → up to 512 TiB VA at top level
     #else
-        #define GROW_CHUNK_SIZE(x) ((size_t)(x / 8 * 9) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
         #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 8) //8 MiB
-        #define ALLOC_MAX_MMAP_ENTRIES 32 //~2.7 GiB approx.
+        #define ALLOC_MAX_MMAP_ENTRIES 16 //smaller VA on 32-bit
     #endif
 #endif
+
+//! Reserved bytes at the head of every chunk.  Holds the
+//! `PoolAllocatorBase *` pointer used for O(1) lookup from any slot
+//! via `*(PoolAllocatorBase**)(slot & ~(chunk_size - 1))`.  Cache-
+//! line aligned so the metadata read doesn't share a line with the
+//! first slot's user data.  Slot region (`m_mempool`) starts at
+//! `chunk_base + ALLOC_CHUNK_HEADER`.
+#define ALLOC_CHUNK_HEADER 64
 
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
@@ -226,7 +236,13 @@ protected:
 
 	template <class ALLOC>
 	static ALLOC *allocate_chunk();
-	static void deallocate_chunk(int cidx, size_t chunk_size);
+	//! Release a chunk back to PROT_NONE.  Clears the chunk header
+	//! pointer at `chunk_base`, mprotect's the chunk back to PROT_NONE,
+	//! and clears the matching `s_chunks[cidx]` (located via a walk
+	//! over `s_mmapped_spaces[]`).  Called both from the owner-side
+	//! `deallocate_<>` last-slot release path and from the cross-batch
+	//! `batch_return_to_bitmap` suicide path.
+	static void deallocate_chunk(char *chunk_base, size_t chunk_size);
 
 	//! A chunk, memory block.
 	char * const m_mempool;
