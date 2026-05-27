@@ -113,7 +113,7 @@
 
     //! \return true while this thread's pool allocator state is fully
     //! live (`g_sys_image_loaded && !s_alloc_tls_off`).  Returns false
-    //! once `AllocPinCleanup::~dtor` has fired on this thread (which
+    //! once `AllocThreadExitCleanup::~dtor` has fired on this thread (which
     //! is the single point that sets `s_alloc_tls_off`).
     //!
     //! Allocator-using TLS destructors / pthread_key cleanups / atexit
