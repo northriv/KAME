@@ -23,6 +23,7 @@
 
 #include "support_standalone.h"
 #include "atomic_smart_ptr.h"
+#include "allocator_prv.h"   // for PoolAllocatorBase::count_live_chunks
 
 #include <atomic>
 #include <chrono>
@@ -273,6 +274,31 @@ int main(int argc, char **argv) {
         cfg.total_threads, cfg.concurrent_threads, cfg.ops_per_thread,
         cfg.cross_thread_pct);
 
+    // Chunk-release verification: snapshot live chunk count before the
+    // workload, after workers finish, and check it returns near zero.
+    // Counts mmap regions claimed (= chunks in s_claim_bitmap).  A
+    // working release path drains this to near zero once all live
+    // allocations are freed; a leak in owner_release / cross_release /
+    // release_dll_chunks_for_thread shows as a residual count
+    // proportional to peak working set.
+    const int chunks_initial = PoolAllocatorBase::count_live_chunks();
+    int chunks_peak = chunks_initial;
+    std::atomic<bool> stop_sampler{false};
+    std::thread sampler([&]() {
+        // 10ms interval — needs to be fast enough to catch the
+        // working-set peak of short-running tests (e.g. fixed-pool
+        // 8t with low ops/thread completes in ~50 ms).
+        while( !stop_sampler.load(std::memory_order_relaxed)) {
+            int n = PoolAllocatorBase::count_live_chunks();
+            int prev = chunks_peak;
+            while(n > prev
+                  && !__sync_bool_compare_and_swap(&chunks_peak, prev, n)) {
+                prev = chunks_peak;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    });
+
     // When total_threads == concurrent_threads (the common "fixed
     // pool" bench case), spawn them all and use a start-barrier so
     // the timer measures the parallel phase only — without the
@@ -321,6 +347,15 @@ int main(int argc, char **argv) {
         }
     }
 
+    // Snapshot the chunk count right after workers finish, before the
+    // main thread drains.  This isolates "what the worker-exit release
+    // paths reclaimed" from "what main's drain + main's own working set
+    // accounts for".  Worker chunks that had cross-thread-freed slots
+    // sit at BIT_OWNER_EXITED and wait for the next cross_release CAS
+    // (last-slot return), so a residual here is expected and equals
+    // (live cross-batched slots) / (slots per chunk).
+    const int chunks_after_workers = PoolAllocatorBase::count_live_chunks();
+
     // Main thread drains anything stuck in the cross-thread queue.
     for(;;) {
         AllocBlock b;
@@ -332,6 +367,16 @@ int main(int argc, char **argv) {
 
     auto t1 = std::chrono::steady_clock::now();
     double secs = std::chrono::duration<double>(t1 - t0).count();
+
+    // Stop the chunk-count sampler and capture the final snapshot.
+    // The final count reflects the main thread's own pool working set
+    // (the test's vectors / `AllocBlock` arrays) + any chunks owned by
+    // exited workers whose cross-batches haven't yet drained to zero.
+    // A large residual relative to the peak would indicate the release
+    // paths aren't firing.
+    stop_sampler.store(true, std::memory_order_relaxed);
+    sampler.join();
+    const int chunks_final = PoolAllocatorBase::count_live_chunks();
 
     uint64_t allocs = g_total_allocs.load();
     uint64_t frees  = g_total_frees.load();
@@ -375,6 +420,10 @@ int main(int argc, char **argv) {
         (unsigned long long)frees,
         (long long)(allocs - frees),
         (unsigned long long)fails);
+    printf("[chunks] initial=%d  peak=%d  post-workers=%d  final=%d  "
+           "(delta from initial: %+d)\n",
+        chunks_initial, chunks_peak, chunks_after_workers, chunks_final,
+        chunks_final - chunks_initial);
 
     return ok ? 0 : 1;
 }

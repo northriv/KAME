@@ -1771,6 +1771,21 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 	}
 }
 
+// Diagnostic probe — sum popcount across every region's claim bitmap
+// to get the count of currently-live chunks.  Diagnostic only; relaxed
+// loads across a possibly-concurrent claim/release race.  Used by tests
+// to verify chunk release paths fire (a chunk leak would show as
+// monotonic growth across repeated alloc/free cycles).
+int
+PoolAllocatorBase::count_live_chunks() noexcept {
+	int n = 0;
+	for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION; ++i) {
+		BitmapWord v = s_claim_bitmap[i].load(std::memory_order_relaxed);
+		n += int(count_bits(v));
+	}
+	return n;
+}
+
 // Address → chunk lookup.  Walks `s_mmapped_spaces[]` to determine
 // which mmap region's chunk_size mask to apply, then reads the chunk
 // header pointer at `(slot & ~(chunk_size - 1))` directly.  Replaces
