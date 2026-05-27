@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../kame)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../kame
+    ${CMAKE_CURRENT_SOURCE_DIR}/../kamepoolalloc)
 
 # Standalone support: replaces support.h + xtime.h with std::chrono.
 # -include preinclude so include guards block the Qt-dependent originals.
@@ -46,8 +47,27 @@ if(NOT DEFINED USE_KAME_ALLOCATOR)
 endif()
 message(STATUS "USE_KAME_ALLOCATOR = ${USE_KAME_ALLOCATOR}")
 if(USE_KAME_ALLOCATOR)
-    # Compile tests/allocator.cpp as a dedicated TU that brings in the
-    # pool allocator from ../kame/allocator.cpp. Mirrors the .pro layout.
+    # Build the pool allocator as a SHARED library (kamepoolalloc).
+    # Rationale:
+    #   1. dyld processes `__DATA,__interpose` sections only from
+    #      MH_DYLIB images, so the `free` interpose that catches
+    #      libcxx/libsystem_pthread thread-exit destructions cannot
+    #      live in the test executable — it must live in a dylib.
+    #   2. Future standalone publication: kamepoolalloc is a
+    #      self-contained allocator dylib, mirrors mimalloc/jemalloc
+    #      packaging.
+    # The tests link against the dylib via `target_link_libraries`;
+    # the activator (tests/allocator.cpp) just calls
+    # `activateAllocator()` from a static-init object so the pool is
+    # enabled before main().
+    add_library(kamepoolalloc SHARED
+        ${CMAKE_CURRENT_SOURCE_DIR}/../kamepoolalloc/allocator.cpp)
+    target_include_directories(kamepoolalloc PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../kamepoolalloc)
+    # macOS: rpath so test binaries find the dylib next to themselves.
+    set_target_properties(kamepoolalloc PROPERTIES
+        INSTALL_NAME_DIR "@rpath"
+        BUILD_WITH_INSTALL_RPATH TRUE)
     list(APPEND support_SRCS allocator.cpp)
 else()
     add_compile_definitions(DISABLE_POOL_ALLOCATOR)
@@ -63,42 +83,34 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
 # --- Test targets ---
+#
+# `test_link_libs` collects libraries every test executable links
+# against.  `kamepoolalloc` is appended when USE_KAME_ALLOCATOR is on
+# (see above) so the shared-library `operator new` / `delete` and the
+# `__DATA,__interpose` `free` override apply to every test binary.
+set(test_link_libs Threads::Threads)
+if(USE_KAME_ALLOCATOR)
+    list(APPEND test_link_libs kamepoolalloc)
+endif()
 
-add_executable(atomic_shared_ptr_test atomic_shared_ptr_test.cpp ${support_SRCS})
-target_link_libraries(atomic_shared_ptr_test Threads::Threads)
+set(test_names
+    atomic_shared_ptr_test
+    atomic_scoped_ptr_test
+    atomic_queue_test
+    mutex_test
+    transaction_test
+    transaction_dynamic_node_test
+    transaction_negotiation_test
+    transaction_payload_integrity_test
+    transaction_payload_integrity_3level_test
+    transaction_payload_integrity_mixed_test
+    transaction_payload_integrity_3level_mixed_test
+    alloc_stress_test)
 
-add_executable(atomic_scoped_ptr_test atomic_scoped_ptr_test.cpp ${support_SRCS})
-target_link_libraries(atomic_scoped_ptr_test Threads::Threads)
-
-add_executable(atomic_queue_test atomic_queue_test.cpp ${support_SRCS})
-target_link_libraries(atomic_queue_test Threads::Threads)
-
-add_executable(mutex_test mutex_test.cpp ${support_SRCS})
-target_link_libraries(mutex_test Threads::Threads)
-
-add_executable(transaction_test transaction_test.cpp ${support_SRCS})
-target_link_libraries(transaction_test Threads::Threads)
-
-add_executable(transaction_dynamic_node_test transaction_dynamic_node_test.cpp ${support_SRCS})
-target_link_libraries(transaction_dynamic_node_test Threads::Threads)
-
-add_executable(transaction_negotiation_test transaction_negotiation_test.cpp ${support_SRCS})
-target_link_libraries(transaction_negotiation_test Threads::Threads)
-
-add_executable(transaction_payload_integrity_test transaction_payload_integrity_test.cpp ${support_SRCS})
-target_link_libraries(transaction_payload_integrity_test Threads::Threads)
-
-add_executable(transaction_payload_integrity_3level_test transaction_payload_integrity_3level_test.cpp ${support_SRCS})
-target_link_libraries(transaction_payload_integrity_3level_test Threads::Threads)
-
-add_executable(transaction_payload_integrity_mixed_test transaction_payload_integrity_mixed_test.cpp ${support_SRCS})
-target_link_libraries(transaction_payload_integrity_mixed_test Threads::Threads)
-
-add_executable(transaction_payload_integrity_3level_mixed_test transaction_payload_integrity_3level_mixed_test.cpp ${support_SRCS})
-target_link_libraries(transaction_payload_integrity_3level_mixed_test Threads::Threads)
-
-add_executable(alloc_stress_test alloc_stress_test.cpp ${support_SRCS})
-target_link_libraries(alloc_stress_test Threads::Threads)
+foreach(t IN LISTS test_names)
+    add_executable(${t} ${t}.cpp ${support_SRCS})
+    target_link_libraries(${t} ${test_link_libs})
+endforeach()
 
 # --- CTest registration ---
 

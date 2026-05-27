@@ -1,26 +1,27 @@
 /*
- * tests/allocator.cpp — brings the KAME pool allocator into the standalone
- * test binaries (operator new/new[]/delete/delete[] overrides) as a real
- * translation unit, instead of being pulled in via an #include inside
- * support_standalone.cpp.
+ * tests/allocator.cpp — activator shim for the standalone test binaries.
  *
- * Compiled whenever DISABLE_POOL_ALLOCATOR is not defined. The CMake build
- * gates this via -DUSE_KAME_ALLOCATOR=ON/OFF (tests/CMakeLists.txt); the
- * qmake build (tests.pri) compiles it unconditionally and relies on
- * allocator.h setting USE_STD_ALLOCATOR on non-x86 so this TU collapses
- * to nothing there.
+ * Previously this file `#include`d the entire allocator translation unit
+ * inline.  Now the pool allocator is factored out into its own shared
+ * library (`kamepoolalloc`, built from `../kamepoolalloc/allocator.cpp`),
+ * so this TU only needs to flip the activation switch.
  *
- * activateAllocator() must be called for the pool to actually be used —
- * without it, new_redirected() in allocator_prv.h falls through to
- * malloc(). In kame/main.cpp that's done explicitly from main(); the
- * standalone test binaries each have their own main() and don't know
- * about the pool, so we flip the switch here from a static-init object.
- * It runs before main() — during dyld image load — but that's fine:
- * allocations before this constructor runs simply take the malloc branch,
- * which is the exact behaviour main.cpp relies on pre-activateAllocator.
+ * The shared-library split lets dyld process the `__DATA,__interpose`
+ * section that captures `free()` calls from libc++ / libsystem_pthread
+ * during thread teardown — dyld only honours interposing from MH_DYLIB
+ * images, never from MH_EXECUTE.
+ *
+ * `activateAllocator()` runs before `main()` via a static-init object
+ * (just like the previous inline-include design did). Allocations before
+ * the activator constructor runs simply take the malloc branch — the
+ * same pre-activation behaviour kame/main.cpp relies on.
  */
 #ifndef DISABLE_POOL_ALLOCATOR
-    #include "../kame/allocator.cpp"
+    // Exported from libkamepoolalloc.dylib (allocator.cpp).  Declared
+    // here without including the heavy allocator.h header, which would
+    // pull in <array>, <vector>, ALLOC_TLS, PoolAllocator templates,
+    // etc. just to compile a one-line static-init shim.
+    extern void activateAllocator();
 
     namespace {
         struct KamePoolActivator {

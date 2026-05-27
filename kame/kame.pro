@@ -15,6 +15,7 @@ CONFIG += CONSOLE
 
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}\
+    $${_PRO_FILE_PWD_}/../kamepoolalloc\
     $${_PRO_FILE_PWD_}/math\
     $${_PRO_FILE_PWD_}/forms\
     $${_PRO_FILE_PWD_}/thermometer\
@@ -25,7 +26,11 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/icons
 
 HEADERS += \
-    allocator.h \
+    ../kamepoolalloc/allocator.h \
+    ../kamepoolalloc/allocator_prv.h \
+    ../kamepoolalloc/atomic_mfence.h \
+    ../kamepoolalloc/atomic_prv_mfence_arm8.h \
+    ../kamepoolalloc/atomic_prv_mfence_x86.h \
     atomic_prv_mfence_arm8.h \
     graph/graphmathfittool.h \
     graph/graphmathtool.h \
@@ -160,11 +165,19 @@ unix {
     HEADERS += \
         math/matrix.h \
         math/freqest.h
+    # `../kamepoolalloc/allocator.cpp` was renamed from `kame/allocator.cpp`
+    # so the allocator lives in its own subdir (a standalone dylib in the
+    # tests' cmake build — see tests/CMakeLists.txt; here in qmake we
+    # keep it inline-compiled into the kame app for the non-LTO
+    # production build).  The `__DATA,__interpose` section in
+    # allocator.cpp is dead data when emitted into MH_EXECUTE — dyld
+    # only honours interpose from MH_DYLIB — so the inline build path
+    # is functionally identical to the previous `kame/allocator.cpp`
+    # layout.
     SOURCES += \
         math/freqest.cpp \
         math/matrix.cpp \
-        allocator_prv.h \
-        allocator.cpp \
+        ../kamepoolalloc/allocator.cpp \
 }
 
 FORMS += \

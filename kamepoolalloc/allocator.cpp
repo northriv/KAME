@@ -20,8 +20,9 @@
 
 #ifndef USE_STD_ALLOCATOR
 
-#include "atomic.h"
-#include "threadlocal.h"
+#include "atomic_mfence.h"   // readBarrier / writeBarrier / pause4spin
+                             // (kamepoolalloc-internal, mirrors kame/atomic.h's
+                             //  arch-select chain but drops atomic_shared_ptr et al)
 
 #include <algorithm>
 #include <assert.h>
@@ -29,6 +30,9 @@
 #include <cstdlib>
 #include <string.h>
 #include <type_traits>
+#if defined(__APPLE__)
+    #include <malloc/malloc.h>   // for malloc_zone_from_ptr / malloc_zone_free
+#endif
 #if KAME_FAST_TSD
     #include <pthread.h>
 #endif
@@ -207,17 +211,25 @@ struct AllocPinCleanup {
             pinned[i].count_ptr->fetch_sub(1, std::memory_order_release);
     }
 };
-// XThreadLocal (NOT raw `thread_local`).  XThreadLocal's lazy-init
-// path (`tls_storage` + `XThreadLocal<T>::ctor_`) uses `std::malloc`
-// directly (commit 25998cbb), bypassing the global `operator new`
-// override → no re-entry into `PoolAllocator::allocate()`, so this is
-// safe to first-touch from the chunk-pin path inside `allocate()`.
+// Raw `thread_local` — the kamepoolalloc dylib boundary already
+// ensures a single shared instance across all plugin DLLs/dylibs
+// that link against us, so the cross-DLL slot-sharing concern that
+// motivated `XThreadLocal` upstream is gone.
 //
-// On Windows, raw `thread_local` would give each plugin DLL its own
-// TLS slot (and own AllocPinCleanup), so pins added in one DLL would
-// not be cleaned up via another DLL's slot.  XThreadLocal keyed on
-// the libkame-side global's address gives every DLL the same slot.
-XThreadLocal<AllocPinCleanup> tls_alloc_pin_cleanup;
+// First-touch re-entry safety: C++ thread_local lazy init on macOS
+// uses `tlv_allocate_and_initialize_for_key` (libsystem) for the
+// storage, and `__cxa_thread_atexit` registers the dtor via
+// libcxxabi's `malloc` — both libsystem-malloc paths.  Neither
+// recurses into our pool, so first-touch from `allocate()` is safe.
+//
+// Destruction order: C++ destroys thread_locals in reverse order of
+// construction completion.  `AllocPinCleanup` is touched first
+// (via `tls_alloc_pin_cleanup.add(...)` in the allocate() hot path),
+// `CrossDeallocBatch` second (via `push(...)` in deallocate); so the
+// batch is flushed before AllocPinCleanup tears down chunks — the
+// ordering invariant the previous XThreadLocal PerThread LIFO chain
+// guaranteed.
+thread_local AllocPinCleanup tls_alloc_pin_cleanup;
 
 // Cross-thread dealloc batch — per-thread parallel arrays of slot
 // pointers and their owning chunks.  Parallel-array (SoA) layout is
@@ -381,7 +393,7 @@ struct CrossDeallocBatch {
     }
     ~CrossDeallocBatch() noexcept { flush(); }
 };
-XThreadLocal<CrossDeallocBatch> tls_cross_dealloc_batch;
+thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
 // Drain each per-bucket AllocSlot's freelist back to the bitmap.
 // Called from `AllocPinCleanup::~dtor`, before the table-wide
@@ -854,7 +866,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// consults the chunk's adaptive coalescing hint to override and
 	// hold if this particular chunk has shown high recent merge
 	// factor (epsilon-greedy explores periodically to re-evaluate).
-	tls_cross_dealloc_batch->template push_direct<ALIGN, false>(this, p);
+	tls_cross_dealloc_batch.template push_direct<ALIGN, false>(this, p);
 	return false;
 }
 
@@ -1127,9 +1139,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// STM workloads (allocation distribution is heavy-tailed
 	// toward smallest classes).
 	if constexpr (ALIGN <= 48) {
-		tls_cross_dealloc_batch->push(this, p);
+		tls_cross_dealloc_batch.push(this, p);
 	} else {
-		tls_cross_dealloc_batch->template push_direct<ALIGN, true>(this, p);
+		tls_cross_dealloc_batch.template push_direct<ALIGN, true>(this, p);
 	}
 	return false;
 }
@@ -1460,7 +1472,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				// (with chunk pointer so the cleanup hook can flush
 				// the per-chunk owner-thread freelist on thread exit),
 				// cache as TLS fast-path target, and allocate.
-				tls_alloc_pin_cleanup->add(&chunk->m_thread_pinned_count, chunk);
+				tls_alloc_pin_cleanup.add(&chunk->m_thread_pinned_count, chunk);
 				s_my_chunk = chunk;
 				if(void *p = chunk->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
@@ -1667,6 +1679,22 @@ PoolAllocatorBase::deallocate_(void *p) {
 }
 inline bool
 PoolAllocatorBase::deallocate(void *p) {
+	// `delete nullptr` is well-defined as a no-op per [expr.delete]/2.
+	// Without this guard, `deallocate_<0, ALLOC_MIN_CHUNK_SIZE>(nullptr)`
+	// computes `pdiff = nullptr - s_mmapped_spaces[0]`, which is 0 when
+	// the first mmap region is itself unallocated (s_mmapped_spaces[0]
+	// == nullptr — true pre-activateAllocator or in test builds that
+	// never touch the pool).  pdiff = 0 falls inside the range check,
+	// so we drop into `chunk_base = 0 & ~mask = 0` and dereference
+	// NULL.  Crash observed under qmake Release build: kame.app's
+	// QApplication-init path calls `icu::Locale::init` which does
+	// `operator delete[](nullptr)` very early — before any pool
+	// allocation has populated s_mmapped_spaces[0].
+	//
+	// Treat null as "not our pointer" so the caller (operator delete
+	// or kame_free) falls through to its libsystem-free path, which
+	// itself short-circuits on null.
+	if( !p) return false;
 	if(deallocate_<0, ALLOC_MIN_CHUNK_SIZE>(p))
 		return true;
 	return false;
@@ -1891,6 +1919,38 @@ void *new_redirected_large(std::size_t size) noexcept {
     return allocate_large_size_or_malloc(size);
 }
 
+// Forward non-pool pointers to the *actual* libsystem free, bypassing
+// the `free` symbol — which our `__DATA,__interpose` redirects back to
+// `kame_free`, causing infinite recursion.
+//
+// Why `dlsym(RTLD_NEXT, "free")` does NOT work: dyld applies interposing
+// at *bind time*, so `dlsym` returns the bound (interposed) symbol
+// address — i.e. `&kame_free` itself.  Verified empirically: on first
+// dealloc, dlsym hands back our own replacement and `orig(p)` recurses
+// straight into `kame_free` → infinite loop during libdispatch_init's
+// `NXCreateHashTable` → free, observed via lldb backtrace.
+//
+// macOS fix: use the zone API directly.  `malloc_zone_from_ptr(p)`
+// returns the zone that owns `p` (or NULL if `p` was not allocated by
+// libsystem_malloc); `malloc_zone_free(zone, p)` calls the zone's free
+// vtable entry, skipping the top-level `free()` symbol entirely.  This
+// mirrors what libsystem_malloc's own `free()` implementation does
+// (`free(p) = malloc_zone_free(malloc_zone_from_ptr(p), p)`), so
+// behaviour is identical from libsystem's perspective.
+//
+// Linux/Windows: `dlsym` doesn't have the same issue (no `__interpose`
+// section equivalent — our strong-symbol `free` shadows but doesn't
+// retarget all images).  We could still `dlsym(RTLD_NEXT, "free")`,
+// but for symmetry and to avoid pulling in `<dlfcn.h>` we use
+// `__libc_free` on glibc systems, or fall through to a static-linked
+// fallback otherwise.  For now, non-Darwin behaviour relies on the
+// `extern "C" free` shim defined below being the strong symbol — if
+// it's called, the pool path returned false so we just leak the
+// pointer (acceptable for a static-init-only edge case until we add
+// a proper Linux/Windows hook).
+__attribute__((noinline))
+static void libsystem_free_for_pool(void *p);
+
 inline void deallocate_pooled_or_free(void* p) throw() {
 	// `PoolAllocatorBase::deallocate(p)` is safe to call pre-
 	// `activateAllocator()`.  `deallocate_<0, ALLOC_MIN_CHUNK_SIZE>`
@@ -1900,13 +1960,99 @@ inline void deallocate_pooled_or_free(void* p) throw() {
 	// range check trivially fails for any real pointer against a
 	// `nullptr` base, the recursion through higher levels likewise
 	// fails, and the call returns `false`.  We then drop to
-	// `std::free(p)` — same outcome as an explicit
+	// `libsystem_free_for_pool(p)` — same outcome as an explicit
 	// `!g_sys_image_loaded` early-out, which previously guarded this
 	// path but was redundant.
 	if(PoolAllocatorBase::deallocate(p))
 		return;
-	std::free(p);
+	libsystem_free_for_pool(p);
 }
+
+static void libsystem_free_for_pool(void *p) {
+#if defined(__APPLE__)
+	// Zone-API direct dispatch — skips the interposed `free` symbol.
+	// `malloc_zone_from_ptr` may return NULL for pointers libsystem
+	// doesn't recognise (e.g. mmap'd memory we hand back via munmap
+	// elsewhere); in that case there's nothing to free at this layer.
+	if(malloc_zone_t *zone = malloc_zone_from_ptr(p))
+		malloc_zone_free(zone, p);
+#else
+	// Non-Darwin fallback: defer to whatever the runtime's `free`
+	// resolves to.  If we're the strong-symbol `free`, this recurses
+	// — but the dyld-interpose problem is macOS-specific, so on
+	// Linux/Windows this resolves to libc free as expected.
+	std::free(p);
+#endif
+}
+
+// Pool-aware `free()` replacement.  Any call site that resolves
+// `free` — whether from KAME code, libc++, libsystem (during thread
+// teardown), or a libcxx-thread-exit destruction inlined under LTO
+// — first checks if `p` belongs to our pool and routes through
+// `PoolAllocatorBase::deallocate` if so; otherwise hands off to the
+// real libsystem `free` via `libsystem_free_for_pool`.
+//
+// Motivation: under aggressive LTO + clang on macOS, some
+// thread-local destruction paths (notably `_pthread_tsd_cleanup`'s
+// per-key destructor invocations) end up calling `free(p)` directly
+// on memory we originally returned via `::operator new` (overridden
+// to come from our pool).  The resulting
+// `___BUG_IN_CLIENT_OF_LIBMALLOC_POINTER_BEING_FREED_WAS_NOT_ALLOCATED`
+// abort fires at thread exit.
+//
+// === macOS: DYLD_INTERPOSE from this dylib ===
+//
+// We rely on dyld processing the `__DATA,__interpose` section of
+// this dylib at load time, redirecting every `free` import — across
+// all dylibs (libc++, libsystem_pthread, etc.) — to `kame_free`.
+// This is the same mechanism mimalloc uses.  Note dyld *only*
+// processes interpose sections from `MH_DYLIB` images, not the main
+// executable — which is why `kamepoolalloc` is factored out as a
+// shared library.
+//
+// === Linux / Windows: strong-symbol `free` ===
+//
+// On non-Darwin we expose `kame_free` as the strong symbol `free`
+// from this dylib.  Anything that links against us and resolves
+// `free` via our dylib gets the pool-aware version.  Calls from
+// other shared libraries that bound to libc's `free` at their own
+// link time are not intercepted — equivalent to LD_PRELOAD-style
+// interposing, which requires runtime cooperation.
+//
+// Inverse direction (libsystem/libc-malloc'd pointer reaching this
+// override): `PoolAllocatorBase::deallocate(p)` returns `false` for
+// any pointer outside our mmap regions and we fall through to
+// libsystem free.  Safe.
+__attribute__((noinline))
+static void kame_free(void *p) {
+	if( !p) return;
+	if(g_sys_image_loaded && PoolAllocatorBase::deallocate(p))
+		return;
+	libsystem_free_for_pool(p);
+}
+
+#if defined(__APPLE__)
+extern "C" void free(void *);  // libsystem prototype, for address-of
+
+namespace {
+struct kame_interpose_entry {
+	const void *replacement;
+	const void *replacee;
+};
+__attribute__((used))
+kame_interpose_entry kame_interposers[]
+    __attribute__((section("__DATA,__interpose"))) = {
+        { reinterpret_cast<const void *>(&kame_free),
+          reinterpret_cast<const void *>(&free) },
+};
+} // namespace
+#else
+// Non-Darwin (Linux / Windows): emit `free` as a strong symbol so
+// our dylib's own consumers resolve to the pool-aware version.
+extern "C" __attribute__((noinline)) void free(void *p) {
+	kame_free(p);
+}
+#endif
 
 void release_pools() {
 	PoolAllocator<ALLOC_SIZE1, true>::release_pools();
