@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2021 Kentaro Kitagawa
+        Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -11,31 +11,10 @@
         Public License and a list of authors along with this program;
         see the files COPYING and AUTHORS.
  ***************************************************************************/
-#ifndef ATOMIC_PRV_MFENCE_ARM8_H_
-#define ATOMIC_PRV_MFENCE_ARM8_H_
+#ifndef KAMEPOOLALLOC_ATOMIC_PRV_MFENCE_ARM8_H_
+#define KAMEPOOLALLOC_ATOMIC_PRV_MFENCE_ARM8_H_
 
-#ifdef _MSC_VER
-    #error
-#else
+// Backward-compat shim.  Use atomic_prv_mfence.h directly.
+#include "atomic_prv_mfence.h"
 
-#endif
-
-//! memory barriers.
-inline void readBarrier() noexcept {
-     __asm__ __volatile__ ("dmb 0xf" : : : "memory");
- //   __dmb(0xf);
-}
-inline void writeBarrier() noexcept {
-     __asm__ __volatile__ ("dmb 0xf" : : : "memory");
- //   __dmb(0xf);
-}
-inline void memoryBarrier() noexcept {
-     __asm__ __volatile__ ("dmb 0xf" : : : "memory");
- //   __dmb(0xf);
-}
-
-inline void pause4spin() noexcept {
-    __asm__ __volatile__("yield" ::: "memory");
-}
-
-#endif /*ATOMIC_PRV_MFENCE_ARM8_H_*/
+#endif /*KAMEPOOLALLOC_ATOMIC_PRV_MFENCE_ARM8_H_*/
