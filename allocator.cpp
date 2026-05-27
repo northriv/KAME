@@ -701,7 +701,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			// only marginally slower and keeps the chunk thread-safe.
 			FUINT newv = oldv | one; //set a flag.
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
-				if(oldv == 0)
+				// Phase 5b-1: m_flags_packed counts words with REAL
+				// allocations (pre-fill bits excluded via bit_metadata
+				// mask).  Gate reduces to `oldv == 0` when no
+				// pre-fill — backward compatible.
+				const FUINT mask = this->bit_metadata(int(pflag - this->m_flags));
+				if((oldv & ~mask) == 0 && (newv & ~mask) != 0)
 					atomicInc( &this->m_flags_packed);
 				if(newv == ~(FUINT)0u)
                     atomicInc( &this->m_flags_filled_cnt);
@@ -776,7 +781,11 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			// non-atomic store would torn-write under contention.
 			FUINT newv = oldv | ones; //filling with SIZE ones.
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
-				if(oldv == 0)
+				// Phase 5b-1: m_flags_packed gates on (oldv & ~mask),
+				// excluding pre-fill bits.  Reduces to `oldv == 0`
+				// when no pre-fill exists.
+				const FUINT mask = this->bit_metadata(int(pflag - this->m_flags));
+				if((oldv & ~mask) == 0 && (newv & ~mask) != 0)
 					atomicInc( &this->m_flags_packed);
 				break;
 			}
@@ -938,8 +947,12 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 			return slot_mask;
 		},
 		// OnClearFn: FS=false counter + available-bits hint
-		[this](FUINT oldv, FUINT newv) {
-			if(newv == 0 && oldv != 0) {
+		[this](int idx, FUINT oldv, FUINT newv) {
+			// Phase 5b-1: gate dec on `(oldv & ~mask) != 0 → 0`
+			// where mask = pre-fill bits of word `idx`.  Reduces
+			// to `newv == 0 && oldv != 0` when no pre-fill.
+			const FUINT mask = this->bit_metadata(idx);
+			if((oldv & ~mask) != 0 && (newv & ~mask) == 0) {
 				m_available_bits = sizeof(FUINT) * 8;
 				atomicDec( &this->m_flags_packed);
 			}
@@ -1023,14 +1036,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 		}
 		++n_words;
 		// CAS-clear `m_flags[idx] &= ~mask` with retry; on_clear gets
-		// the (oldv, newv) for counter updates (per-FS-variant logic).
+		// (idx, oldv, newv) for counter updates.  Phase 5b-1: idx is
+		// passed through so the FS=true / FS=false OnClearFns can
+		// call `bit_metadata(idx)` for the pre-fill-aware m_flags_packed
+		// gate.
 		FUINT nones = ~mask;
 		FUINT *pflags = &this->m_flags[idx];
 		for(;;) {
 			FUINT oldv = *pflags;
 			FUINT newv = oldv & nones;
 			if(atomicCompareAndSet(oldv, newv, pflags)) {
-				on_clear(oldv, newv);
+				on_clear(idx, oldv, newv);
 				break;
 			}
 		}
@@ -1082,10 +1098,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 			return ((FUINT)1u) << sidx;
 		},
 		// OnClearFn: FS=true counter updates
-		[this](FUINT oldv, FUINT newv) {
+		[this](int idx, FUINT oldv, FUINT newv) {
 			if(oldv == ~(FUINT)0u)
 				atomicDec( &this->m_flags_filled_cnt);
-			if(newv == 0 && oldv != 0)
+			// Phase 5b-1: gate dec on real-bits transition to 0
+			// (pre-fill bits excluded).  Reduces to `newv == 0
+			// && oldv != 0` when no pre-fill.
+			const FUINT mask = this->bit_metadata(idx);
+			if((oldv & ~mask) != 0 && (newv & ~mask) == 0)
 				atomicDec( &this->m_flags_packed);
 		});
 	// Chunk-release check.  See FS=false sibling for the rationale —
