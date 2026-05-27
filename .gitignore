@@ -31,3 +31,16 @@ build*
 tests/cds_atomic_shared_ptr/genmc/
 tests/tla_bundle/tla2tools.jar
 tests/tla_bundle/states/
+
+# Ad-hoc microbench artifacts under tests/.  The cmake/qmake test suite
+# uses fixed names (alloc_stress_test, transaction_*) and stays tracked;
+# anything matching `tests/bench_*` is an experiment binary or source
+# file used to tune the allocator against mimalloc / sys malloc and
+# gets regenerated per run.  Excluded so paper-data collection doesn't
+# pollute `git status`.
+tests/bench_*
+tests/bench_*.dSYM/
+
+# cmake/ctest output (CTest writes "Testing/Temporary/" with last-run
+# logs).  Build-dir-local; never tracked.
+Testing/
