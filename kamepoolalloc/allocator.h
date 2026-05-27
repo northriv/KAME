@@ -188,6 +188,7 @@ public:
 // guarantee this transitive include and trip
 // "error: 'assert' was not declared in this scope".
 #include <cassert>
+#include <stdexcept>
 
 namespace Transactional {
 
