@@ -237,6 +237,15 @@ public:
 	//! `deallocate_<>` already serves the hot dealloc path and adding
 	//! a "no-dispatch" arm there would bloat operator delete.
 	static inline PoolAllocatorBase *lookup_chunk(void *p) noexcept;
+	//! Total live chunks across all regions, summed from
+	//! `s_claim_bitmap[]` (popcount of set bits).  Diagnostic probe for
+	//! tests that want to verify release paths actually fire — leak in
+	//! the chunk-release path would show as monotonic growth across
+	//! repeated alloc/free cycles.  Relaxed loads (rare path, hint
+	//! only; the snapshot races against concurrent
+	//! claim / release CAS but each bit is consistent at the moment of
+	//! its read).
+	static int count_live_chunks() noexcept;
 	//! Null out this thread's `s_my_chunk` for this chunk's ALIGN type.
 	//! Called from `AllocPinCleanup` after freelist flush, before pin
 	//! count decrement.  Prevents stale `s_my_chunk` from pushing to
