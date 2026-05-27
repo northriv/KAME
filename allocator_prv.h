@@ -292,10 +292,10 @@ protected:
 	//! `allocate_chunk()` from the per-level ladder value.  Read by
 	//! the cross-batch `batch_return_to_bitmap` chunk-release path
 	//! (FS=true and FS=false overrides) so it can call
-	//! `deallocate_chunk(chunk_base, chunk_size)` after
-	//! `release_allocator` returns true and BEFORE the `delete this`
-	//! self-suicide cascade — clearing the chunk-header pointer +
-	//! claim bit, and mprotect-ing the mempool back to PROT_NONE.
+	//! `deallocate_chunk(chunk_base, chunk_size)` after `cross_release`
+	//! returns true and BEFORE the `delete this` self-suicide cascade
+	//! — clearing the chunk-header pointer + claim bit, and
+	//! mprotect-ing the mempool back to PROT_NONE.
 	//! The owner-side dealloc path returns `true` from
 	//! `deallocate_pooled` and `PoolAllocatorBase::deallocate_<>`
 	//! calls `deallocate_chunk(chunk_base, CHUNK_SIZE)` directly
@@ -401,25 +401,51 @@ protected:
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
-	static bool create_allocator(int &aidx);
-	static bool release_allocator(PoolAllocator *alloc);
-	//! Owner-driven release of a chunk this thread already pins.
-	//! Bypasses `release_allocator`'s `m_thread_pinned_count > 0`
-	//! guard (which would otherwise reject because the *caller* is
-	//! the very thread that bumped the pin), but still goes through
-	//! the same bit-0-lock CAS on `s_chunks_of_type[aidx]` to keep
-	//! the registry consistent and prevent any concurrent claim.
-	//! On success, the caller must:
-	//!   1. Unlink `palloc` from this thread's DLL.
-	//!   2. `delete palloc` (so the chunk-header `palloc` pointer is
-	//!      cleared by the dtor's `s_chunks_of_type[aidx] = 0` —
-	//!      already done inside this helper).
+	//! Mmap a fresh chunk and register it in `s_chunks_of_type[]` for
+	//! diagnostic enumeration only (`release_pools` / `report_statistics`).
+	//! Phase 4b: chunk-claim no longer scans the registry; this function
+	//! is called from `allocate_chunk_path`'s slow path when the per-thread
+	//! DLL has no chunk with room.  Returns a fresh chunk pointer (not in
+	//! any thread's DLL yet — caller is responsible for appending) or
+	//! throws `std::bad_alloc` on mmap failure / registry overflow.
+	static PoolAllocator<ALIGN, DUMMY, DUMMY> *create_allocator();
+	//! Owner-driven release of a chunk this thread owns (DLL member).
+	//! Atomically claims `BIT_RELEASED` on `m_flags_packed`; on success
+	//! the chunk is the caller's to clean up.  Returns false if the
+	//! chunk is not actually empty (count > 0), if `BIT_RELEASED` was
+	//! already set (another thread / a previous owner-release path
+	//! beat us), or if the global chunk floor (`LEAVE_VACANT_CHUNKS`)
+	//! blocks release.
+	//!
+	//! Phase 4b: replaces the previous `release_allocator` /
+	//! `owner_release` pair (the pin-guard / bit-0-lock CAS dance is
+	//! gone — `BIT_RELEASED` on the packed word is the single
+	//! serialisation point across all release paths: owner-driven
+	//! neighbour release, cross-thread last-slot release, and thread-
+	//! exit cleanup all race for the same bit).
+	//!
+	//! On success the caller must:
+	//!   1. (If applicable) unlink `palloc` from this thread's DLL.
+	//!   2. `delete palloc` (frees the malloc-block holding the
+	//!      PoolAllocator metadata).
 	//!   3. `PoolAllocatorBase::deallocate_chunk(cbase, csz)` to
-	//!      `mprotect` the slot region back to `PROT_NONE` and clear
+	//!      mprotect the slot region back to `PROT_NONE` and clear
 	//!      the region's `s_claim_bitmap` bit.
-	//! Phase 4a entry point — used by the 3/4-fill / chunk-full
-	//! trigger to release accumulated empty neighbours in the DLL.
+	//! `cross_release` is the cross-thread variant that additionally
+	//! gates on `BIT_OWNER_EXITED` (only the owning thread's dtor or
+	//! its own slow-path may release while owner is alive).
 	static bool owner_release(PoolAllocator *palloc);
+	static bool cross_release(PoolAllocator *palloc);
+	//! Per-thread DLL teardown for thread-exit cleanup.  Called from
+	//! `AllocPinCleanup::~dtor` once per (ALIGN, FS) template the
+	//! thread has touched.  Walks the per-thread DLL with cached-next:
+	//! for each chunk, either claims `BIT_RELEASED` (if empty — release
+	//! it) or sets `BIT_OWNER_EXITED` (if non-empty — signal cross-
+	//! thread frees to release on the eventual dec-to-zero).  Clears
+	//! the per-thread `s_dll_head` / `s_dll_tail` / `s_my_chunk` slots
+	//! before the walk so a stale read by a TLS dtor running afterwards
+	//! cannot route into a released chunk.
+	static void release_dll_chunks_for_thread() noexcept;
 
 	// === Cache line 0: owner-side hot reads & const fields.
 	//! Every bit indicates occupancy in m_mempool.
@@ -432,72 +458,73 @@ protected:
 	// === Cache line 1+: cross-thread-written atomic counters.
 	// `alignas(64)` on the first counter forces them onto a separate
 	// cache line from the freelist + read-only members above, so an
-	// `atomicInc/Dec` on `m_flags_nonzero_cnt` by another thread does
-	// not invalidate the owner's freelist load/store cache line.
-	alignas(64) int m_flags_nonzero_cnt;
+	// `atomicInc/Dec` on `m_flags_packed` by another thread does not
+	// invalidate the owner's freelist load/store cache line.
+	//
+	// Packed counter + state bits (Phase 4b — replaces the previous
+	// separate `int m_flags_nonzero_cnt` and `atomic<bool> m_owner_exited`
+	// fields):
+	//   * Bits  0..29 — nonzero-flag-word count (i.e. the same value
+	//     `m_flags_nonzero_cnt` held).  Max value = `m_count` (chunk
+	//     slot count / FUINT bits) ≤ ALLOC_CHUNK_SIZE / ALIGN / 64 ≈ 16 K
+	//     even at ALIGN=16 / chunk-size=256 KiB; 30 bits (1 G) is comfortably
+	//     over-provisioned.
+	//   * Bit  30     — `BIT_RELEASED`: set by the winner of the
+	//     dec-to-zero / owner-release race so exactly one releaser
+	//     proceeds to `delete this; deallocate_chunk()`.
+	//   * Bit  31     — `BIT_OWNER_EXITED`: set by `AllocPinCleanup::~dtor`
+	//     when the owning thread exits while this chunk still holds
+	//     live slots; informs the cross-thread last-slot-returner that
+	//     the chunk has no owner pin and may be released.
+	//
+	// `atomicInc(&m_flags_packed)` / `atomicDec(&m_flags_packed)` operate
+	// on the low 30 bits correctly because the count never overflows
+	// past bit 29.  Bit-30 / bit-31 transitions go through
+	// `atomicCompareAndSet` (CAS).
+	static constexpr uint32_t MASK_CNT         = 0x3FFFFFFFu; // bits 0..29
+	static constexpr uint32_t BIT_RELEASED     = 0x40000000u; // bit 30
+	static constexpr uint32_t BIT_OWNER_EXITED = 0x80000000u; // bit 31
+	alignas(64) uint32_t m_flags_packed;
 	//! # of flags that having fully filled values.
 	int m_flags_filled_cnt;
 
-	//! Pointers to PooledAllocator. The LSB bit is set when allocation/releasing/creation is in progress.
+	//! Diagnostic-only registry of live chunks for `release_pools` /
+	//! `report_statistics`.  Phase 4b: the chunk-claim hot path no
+	//! longer touches this — the per-thread DLL is the sole source of
+	//! truth for chunk acquisition.  Maintained on `create_allocator`
+	//! (slot reservation via `0u → 1u` CAS sentinel, then write
+	//! `palloc`) and on the various release paths (`owner_release` /
+	//! `cross_release` / `release_dll_chunks_for_thread`) via plain
+	//! store of `0` after the BIT_RELEASED CAS wins on the chunk's
+	//! `m_flags_packed`.
 	static uintptr_t s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
-
-	static int ALLOC_TLS s_curr_chunk_idx;
+	//! Upper bound on `s_chunks_of_type[]` slots in use.  Bumped on
+	//! `create_allocator` via CAS, shrunk on release paths via CAS.
+	//! Used by `release_pools` to bound the iteration; also gates
+	//! `owner_release` / `cross_release` against the
+	//! `LEAVE_VACANT_CHUNKS` floor.
 	static int s_chunks_of_type_ubound;
-	//! Per-thread "currently owned" chunk for fast-path allocate(). When
-	//! non-null, allocate<SIZE>() goes directly through this pointer
-	//! instead of CAS-locking s_chunks_of_type[s_curr_chunk_idx]. The
-	//! chunk-internal allocate_pooled is already thread-safe (per-flag
-	//! atomic CAS on the bitmap), so multiple threads sharing the same
-	//! chunk via TLS is correct, but performance is best when each
-	//! thread has its own chunk (no inter-thread bitmap contention).
-	//! Lifetime: claimed via the slow path; held until process exit
-	//! (release_allocator is gated to skip thread-pinned chunks via
-	//! m_thread_pinned_count).
-	//! Type stored in s_chunks_of_type[]: chunks are of the inner-FS
-	//! variant (PoolAllocator<ALIGN, DUMMY, DUMMY>), not necessarily the
-	//! outer template (which may be FS=true while inner chunks are
-	//! FS=false). Casting to the wrong type would mis-dispatch
-	//! allocate_pooled().
+	//! Per-thread "currently owned" chunk for fast-path allocate().
+	//! When non-null, `allocate<SIZE>()` calls
+	//! `s_my_chunk->allocate_pooled()` directly without scanning the
+	//! DLL or mmaping fresh.  Type uses `<ALIGN, DUMMY, DUMMY>` so
+	//! FS=true and FS=false partial specs share the same TLS slot.
+	//! Lifetime: set on chunk-claim success; cleared in
+	//! `release_dll_chunks_for_thread` at thread exit.
 	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_my_chunk;
-	//! Per-thread, per-template DLL head / tail.  Same type-erasure
-	//! trick as `s_my_chunk` so FS=true and FS=false partial specs
-	//! see the same TLS slot.  Phase 1: populated on chunk-claim
-	//! success, unlinked on `release_allocator` success — list
-	//! invariant is maintained but not yet read by the allocation
-	//! path or the thread-exit cleanup.
+	//! Per-thread, per-template DLL head / tail.  Phase 4b: this is now
+	//! the sole source of truth for "chunks this thread can allocate
+	//! from".  Chunks are appended to the tail on `allocate_chunk_path`
+	//! mmap-fresh success and unlinked on `owner_release` success
+	//! (Phase 4a's chunk-full-trigger neighbour release) or on
+	//! `release_dll_chunks_for_thread` (thread exit).  Single-writer
+	//! (this thread); no atomic ops needed on the DLL pointers.
 	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_head;
 	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_tail;
-	// (removed: `thread_local TlsGuard s_tls_guard;` and its dtor.
-	//  AllocPinCleanup::~AllocPinCleanup — fired via
-	//  XThreadLocal<AllocPinCleanup>'s pthread_key dtor on thread exit —
-	//  already drains the per-thread AllocSlot freelists, calls
-	//  `clear_owner_tls()`, and sets `s_alloc_tls_off = true`, for
-	//  every chunk this thread pinned.  The TlsGuard was redundant and
-	//  its `(void)&s_tls_guard` ODR-use in `allocate<>()` emitted a
-	//  per-template C++ thread_local init thunk call on every
-	//  allocation (macOS arm64), with no observable correctness
-	//  benefit.)
-	//! # of threads pinning this chunk via TLS s_my_chunk. Incremented
-	//! once per thread on first use; never decremented in steady state.
-	//! release_allocator() returns false when this is non-zero so the
-	//! chunk is not freed while any thread's TLS pointer references it.
-	std::atomic<int> m_thread_pinned_count{0};
 
-	// ---------------------------------------------------------------
-	// Phase 1 of the per-thread DLL refactor (will eventually retire
-	// `m_thread_pinned_count` and the `s_chunks_of_type[]` global
-	// registry).  Today, these fields are MAINTAINED (linked in/out
-	// on pin success / `release_allocator` success) but NOT YET READ
-	// — allocation/release still go through the pin-CAS +
-	// `s_chunks_of_type[]` scan as before.  The DLL becomes the
-	// source of truth for chunk acquisition + thread-exit handling
-	// in subsequent phases.
-	// ---------------------------------------------------------------
-
-	//! Per-thread DLL pointers.  Single-writer (the owning thread —
-	//! the one that succeeded the pin CAS in `allocate_chunk_path`)
-	//! and single-reader (same thread, eventually).  No atomic
-	//! ordering needed for these two fields in steady state.
+	//! Per-thread DLL pointers.  Single-writer (the owning thread)
+	//! and single-reader (same thread).  No atomic ordering needed
+	//! for these two fields in steady state.
 	//!
 	//! Type uses the same `<ALIGN, DUMMY, DUMMY>` erasure trick as
 	//! `s_my_chunk` / `s_dll_head` so FS=true and FS=false partial
@@ -508,14 +535,11 @@ protected:
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_prev{nullptr};
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_next{nullptr};
 
-	//! Set true exactly once, by the owning thread on its exit, when
-	//! the chunk still holds live slots (so it cannot be released
-	//! immediately).  Other threads' `batch_return_to_bitmap` reads
-	//! this with acquire ordering on the last-slot-returns transition
-	//! to decide whether the now-empty chunk should be released
-	//! (yes if owner gone; no if owner is still actively using it).
-	//! Phase 1: written by no one, read by no one — just allocated.
-	std::atomic<bool> m_owner_exited{false};
+	// Phase 4b: the previous `std::atomic<bool> m_owner_exited` lives
+	// here as `BIT_OWNER_EXITED` inside `m_flags_packed` (above).
+	// Packing it together with the count lets the cross-thread
+	// last-slot-returner observe both the dec-to-zero transition AND
+	// the owner-gone state on one word, with no extra atomic load.
 
 	void clear_owner_tls() noexcept override;
 
