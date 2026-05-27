@@ -1858,6 +1858,34 @@ PoolAllocatorBase::deallocate_(void *p) {
 		// branch with a single load + indirect branch.
 		DeallocateFn fn = *reinterpret_cast<DeallocateFn *>(
 		    chunk_base + ALLOC_CHUNK_HEADER_FN_OFFSET);
+#ifdef KAME_DEBUG_CHUNK_HEADER
+		// Diagnostic check for the bucket-34 / m_count=1 corruption
+		// reported by user: verify fn doesn't point into the chunk's
+		// slot region (signature of "slot data overwrote header").
+		// In a healthy build fn is a code address far from chunk_base.
+		// Enable with `-DKAME_DEBUG_CHUNK_HEADER` in the kamepoolalloc
+		// build flags.
+		{
+			uintptr_t fn_addr = (uintptr_t)fn;
+			uintptr_t cb      = (uintptr_t)chunk_base;
+			uintptr_t cb_end  = cb + CHUNK_SIZE;
+			if(fn_addr >= cb && fn_addr < cb_end) {
+				fprintf(stderr,
+				    "[allocator] CORRUPTION: chunk_base=%p CHUNK_SIZE=0x%llx "
+				    "(CCNT=%d) palloc=%p fn=%p slot=%p\n"
+				    "  fn falls inside slot region (offset 0x%llx).\n"
+				    "  Header dump (chunk_base + 0..63):\n",
+				    chunk_base, (unsigned long long)CHUNK_SIZE, CCNT,
+				    palloc, (void *)fn_addr, p,
+				    (unsigned long long)(fn_addr - cb));
+				for(int i = 0; i < 64; i += 8) {
+					fprintf(stderr, "    +%02d: %016llx\n", i,
+					    (unsigned long long)*(uint64_t *)(chunk_base + i));
+				}
+				std::abort();
+			}
+		}
+#endif
 		if(fn(palloc, static_cast<char *>(p))) {
 			deallocate_chunk(chunk_base, CHUNK_SIZE);
 		}
