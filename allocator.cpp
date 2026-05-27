@@ -1938,16 +1938,18 @@ void *new_redirected_large(std::size_t size) noexcept {
 // (`free(p) = malloc_zone_free(malloc_zone_from_ptr(p), p)`), so
 // behaviour is identical from libsystem's perspective.
 //
-// Linux/Windows: `dlsym` doesn't have the same issue (no `__interpose`
+// Linux/Windows: `dlsym(RTLD_NEXT, "free")` works (no `__interpose`
 // section equivalent — our strong-symbol `free` shadows but doesn't
-// retarget all images).  We could still `dlsym(RTLD_NEXT, "free")`,
-// but for symmetry and to avoid pulling in `<dlfcn.h>` we use
-// `__libc_free` on glibc systems, or fall through to a static-linked
-// fallback otherwise.  For now, non-Darwin behaviour relies on the
-// `extern "C" free` shim defined below being the strong symbol — if
-// it's called, the pool path returned false so we just leak the
-// pointer (acceptable for a static-init-only edge case until we add
-// a proper Linux/Windows hook).
+// retarget all images), but for symmetry and to avoid pulling in
+// `<dlfcn.h>` we use `__libc_free` directly on glibc — it's a stable
+// public ABI symbol exposed for malloc-replacement libraries.
+//
+// IMPORTANT: do NOT call `std::free()` / `::free()` here — those names
+// resolve via the dylib's own export table, which the strong-symbol
+// `free` shim defined below shadows.  Calling `free()` from this dylib
+// recurses straight back into `kame_free`, producing an infinite tight
+// loop (under -O3 + noinline the inner call is tail-jumped, so no stack
+// overflow ever fires — the process just hangs).
 __attribute__((noinline))
 static void libsystem_free_for_pool(void *p);
 
@@ -1968,6 +1970,13 @@ inline void deallocate_pooled_or_free(void* p) throw() {
 	libsystem_free_for_pool(p);
 }
 
+#if defined(__linux__) && defined(__GLIBC__)
+// glibc internal entry point — same address as libc's `free` but with
+// a name our strong-symbol `free` shim does not shadow.  Declared with
+// the same signature as `free` so the call is ABI-compatible.
+extern "C" void __libc_free(void *) noexcept;
+#endif
+
 static void libsystem_free_for_pool(void *p) {
 #if defined(__APPLE__)
 	// Zone-API direct dispatch — skips the interposed `free` symbol.
@@ -1976,11 +1985,17 @@ static void libsystem_free_for_pool(void *p) {
 	// elsewhere); in that case there's nothing to free at this layer.
 	if(malloc_zone_t *zone = malloc_zone_from_ptr(p))
 		malloc_zone_free(zone, p);
+#elif defined(__linux__) && defined(__GLIBC__)
+	// Bypass our strong-symbol `free` shim — `__libc_free` is the real
+	// libc free under a name we don't override.  Without this the
+	// `std::free` / `::free` lookup re-binds to `kame_free` and we
+	// recurse forever (the call ends up tail-jumping under -O3).
+	__libc_free(p);
 #else
-	// Non-Darwin fallback: defer to whatever the runtime's `free`
-	// resolves to.  If we're the strong-symbol `free`, this recurses
-	// — but the dyld-interpose problem is macOS-specific, so on
-	// Linux/Windows this resolves to libc free as expected.
+	// Other platforms (musl, Windows): fall back to `::free`.  On musl
+	// the strong-symbol shadowing rule is the same as glibc, so this
+	// will recurse if KAME's pool is active — Linux non-glibc builds
+	// must add their own bypass before this branch is reachable.
 	std::free(p);
 #endif
 }
