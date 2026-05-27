@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <cerrno>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>          // std::memset / std::memcpy
                             // (glibc's `<string.h>` puts them in the
