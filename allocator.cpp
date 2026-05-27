@@ -565,7 +565,31 @@ inline void free_munmap(void *p) {
 
 bool g_sys_image_loaded = false;
 
+#if defined(KAMEPOOLALLOC_DYLIB)
+// Dylib mode: auto-activate at dylib load.  `__attribute__((constructor))`
+// with the priority slot we already use for `kame_tls_init_fast` (101)
+// runs after libc/libpthread (which use ≤100) but before any consumer
+// image's static-init — so by the time `main()` is reached, every
+// `operator new` call is fully pool-routed.  No `activateAllocator()`
+// call from user code is necessary; `KamePooledAllocGuard` and the
+// per-test `tests/allocator.cpp` activator shim are correspondingly
+// elided in dylib builds (see `KAMEPOOLALLOC_DYLIB` branches in
+// `allocator.h`, and the dropped `support_SRCS` entry in
+// `tests/CMakeLists.txt`).
+__attribute__((constructor(101)))
+static void kamepoolalloc_auto_activate() noexcept {
+    g_sys_image_loaded = true;
+}
+#else
+// Inline-compiled mode (qmake): the kame app and each standalone test
+// binary contain `allocator.cpp` as a TU of its own, and the activation
+// flag flip stays an explicit step — `kame/main.cpp` does it via
+// `KamePooledAllocGuard`, the standalone tests via the static-init
+// shim in `tests/allocator.cpp`.  Both are no-ops once the dylib build
+// path is selected (which is the case for the cmake test build that
+// chases LTO interpose semantics).
 void activateAllocator() {g_sys_image_loaded = true;}
+#endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :

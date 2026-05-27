@@ -97,7 +97,20 @@
     //! inlining of the alloc/dealloc fast paths is a job for LTO, not
     //! for header-only replacement operators.
 
-    extern void activateAllocator();
+    #if defined(KAMEPOOLALLOC_DYLIB)
+        //! Dylib mode (cmake test build): the pool is activated at dylib
+        //! load via a `__attribute__((constructor))` inside
+        //! libkamepoolalloc itself, before any consumer image's static
+        //! init runs.  Consumers therefore never call this — kept as an
+        //! inline no-op only so existing `KamePooledAllocGuard`
+        //! references compile uniformly across modes.
+        inline void activateAllocator() noexcept {}
+    #else
+        //! Inline-compiled mode (qmake production build): caller must
+        //! flip the activation switch explicitly, normally via
+        //! `KamePooledAllocGuard` in `main()`.
+        extern void activateAllocator();
+    #endif
     extern void release_pools();
 
     //! \return true while this thread's pool allocator state is fully
@@ -150,7 +163,17 @@
 //! no-op.  Idempotent — multiple guards in nested scopes are harmless.
 class KamePooledAllocGuard {
 public:
+#if defined(KAMEPOOLALLOC_DYLIB)
+    //! Dylib mode: pool is auto-activated at dylib load (see
+    //! allocator.cpp's `__attribute__((constructor))`); the guard is
+    //! a true no-op kept only for source-level uniformity with the
+    //! inline-compiled build.
+    KamePooledAllocGuard() noexcept = default;
+#else
+    //! Inline-compiled mode (USE_STD_ALLOCATOR or qmake non-dylib):
+    //! activate on construction.
     KamePooledAllocGuard() noexcept { activateAllocator(); }
+#endif
     ~KamePooledAllocGuard() noexcept = default;
     KamePooledAllocGuard(const KamePooledAllocGuard &) = delete;
     KamePooledAllocGuard &operator=(const KamePooledAllocGuard &) = delete;
