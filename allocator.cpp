@@ -1516,6 +1516,66 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		// while we still might dealloc objects originally allocated
 		// from it. New chunk's pin replaces it as the fast-path target.
 	}
+	// Phase 3 (chunk-full trigger): right after detecting that the
+	// active chunk has filled, flush this thread's cross-thread
+	// dealloc batch.  The flushed entries return slots to the
+	// originating chunks (often this thread's own DLL members from
+	// earlier in the run) — by the time the Phase 2 DLL scan below
+	// looks for a chunk with room, those chunks may have just
+	// recovered space.  Net effect:
+	//   * mmap pressure reduced (DLL scan finds reusable chunks
+	//     instead of falling through to `create_allocator`)
+	//   * batched cross-thread frees don't get postponed past the
+	//     point of memory growth
+	//
+	// Cost: O(N log N) sort + per-chunk bitmap CAS on the batch (N ≤
+	// CAP = 1024).  Paid once per chunk-fill event — orders of
+	// magnitude rarer than the per-allocation hot path.  Safe to call
+	// with an empty batch (early-out inside `flush`).
+	//
+	// Other threads' chunks emptied by this flush are NOT released
+	// here — the owning thread (eventually) handles those via the
+	// same trigger, or via Phase 4's thread-exit cleanup.  Own
+	// chunks emptied by the flush are visible to the Phase 2 scan
+	// directly below.
+	tls_cross_dealloc_batch.flush();
+	// Phase 2 of the DLL refactor: before climbing into the pin-CAS
+	// loop (which may end up `mmap`ing a fresh chunk), full-scan this
+	// thread's already-pinned chunks for one that has room.  Cross-
+	// thread frees on our previously-active chunks routinely empty
+	// out bits while those chunks sit at the back of our DLL — Phase
+	// 1 maintained the list, this commit lets us actually reuse them
+	// instead of growing the working set.
+	//
+	// Forward sweep from `s_dll_head` is a full scan of own chunks
+	// (newer chunks appear later in the list — see Phase 1's
+	// tail-append on chunk-claim) so it covers both "前方/後方"
+	// relative to the current `s_my_chunk`.  No atomic ops are
+	// needed: the DLL is single-writer (this thread).  Skipping
+	// `s_my_chunk` itself avoids a redundant retry of the just-failed
+	// `allocate_pooled` call above.
+	for(auto *c = s_dll_head; c; c = c->m_dll_next) {
+		if(c == s_my_chunk) continue;
+		if(void *p = c->allocate_pooled(SIZE)) {
+			s_my_chunk = c;
+#ifdef GUARDIAN
+			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
+				if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
+					fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
+				}
+			}
+#endif
+#ifdef FILLING_AFTER_ALLOC
+			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
+				static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
+#endif
+			return p;
+		}
+	}
+	// All own chunks full — fall through to the pin-CAS loop, which
+	// either grabs an unclaimed chunk from `s_chunks_of_type[]` or
+	// calls `create_allocator` to mmap a new one (and append it to
+	// our DLL via Phase 1 code).
 	// Slow path: claim an UNCLAIMED chunk exclusively (compare_exchange
 	// 0 → 1 on m_thread_pinned_count). This guarantees each thread has a
 	// dedicated chunk so the chunk's bitmap CAS in allocate_pooled is
