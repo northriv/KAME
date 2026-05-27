@@ -23,7 +23,9 @@
 
 #include "support_standalone.h"
 #include "atomic_smart_ptr.h"
-#include "allocator_prv.h"   // for PoolAllocatorBase::count_live_chunks
+#ifndef DISABLE_POOL_ALLOCATOR
+#  include "allocator_prv.h"   // for PoolAllocatorBase::count_live_chunks
+#endif
 
 #include <atomic>
 #include <chrono>
@@ -281,11 +283,22 @@ int main(int argc, char **argv) {
     // allocations are freed; a leak in owner_release / cross_release /
     // release_dll_chunks_for_thread shows as a residual count
     // proportional to peak working set.
+    // Chunk-count probe is only available when the KAME pool allocator
+    // is linked in (USE_KAME_ALLOCATOR=ON; DISABLE_POOL_ALLOCATOR
+    // undefined).  libsystem-malloc / mimalloc / jemalloc comparison
+    // builds drop these snapshots — the chunk-count metric is KAME-
+    // specific (other allocators have no notion of "chunk").
+#ifndef DISABLE_POOL_ALLOCATOR
     const int chunks_initial = PoolAllocatorBase::count_live_chunks();
+#else
+    const int chunks_initial = 0;
+#endif
     int chunks_peak = chunks_initial;
     std::atomic<bool> stop_sampler{false};
-#ifndef NO_CHUNK_SAMPLER  // A/B knob: -DNO_CHUNK_SAMPLER measures bench
-                         // perf without the background sampling thread.
+#if !defined(NO_CHUNK_SAMPLER) && !defined(DISABLE_POOL_ALLOCATOR)
+    // A/B knob: -DNO_CHUNK_SAMPLER measures bench perf without the
+    // background sampling thread.  Also off entirely on builds that
+    // don't link the KAME pool allocator.
     std::thread sampler([&]() {
         // 10ms interval — needs to be fast enough to catch the
         // working-set peak of short-running tests (e.g. fixed-pool
@@ -357,7 +370,11 @@ int main(int argc, char **argv) {
     // sit at BIT_OWNER_EXITED and wait for the next cross_release CAS
     // (last-slot return), so a residual here is expected and equals
     // (live cross-batched slots) / (slots per chunk).
+#ifndef DISABLE_POOL_ALLOCATOR
     const int chunks_after_workers = PoolAllocatorBase::count_live_chunks();
+#else
+    const int chunks_after_workers = 0;
+#endif
 
     // Main thread drains anything stuck in the cross-thread queue.
     for(;;) {
@@ -378,10 +395,14 @@ int main(int argc, char **argv) {
     // A large residual relative to the peak would indicate the release
     // paths aren't firing.
     stop_sampler.store(true, std::memory_order_relaxed);
-#ifndef NO_CHUNK_SAMPLER
+#if !defined(NO_CHUNK_SAMPLER) && !defined(DISABLE_POOL_ALLOCATOR)
     sampler.join();
 #endif
+#ifndef DISABLE_POOL_ALLOCATOR
     const int chunks_final = PoolAllocatorBase::count_live_chunks();
+#else
+    const int chunks_final = 0;
+#endif
 
     uint64_t allocs = g_total_allocs.load();
     uint64_t frees  = g_total_frees.load();
@@ -425,10 +446,15 @@ int main(int argc, char **argv) {
         (unsigned long long)frees,
         (long long)(allocs - frees),
         (unsigned long long)fails);
+#ifndef DISABLE_POOL_ALLOCATOR
     printf("[chunks] initial=%d  peak=%d  post-workers=%d  final=%d  "
            "(delta from initial: %+d)\n",
         chunks_initial, chunks_peak, chunks_after_workers, chunks_final,
         chunks_final - chunks_initial);
+#else
+    (void)chunks_initial; (void)chunks_peak;
+    (void)chunks_after_workers; (void)chunks_final;
+#endif
 
     return ok ? 0 : 1;
 }
