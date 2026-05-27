@@ -72,7 +72,6 @@
 
 #if defined USE_STD_ALLOCATOR
     inline void activateAllocator() {}
-    inline void release_pools() {}
 
     //! \return always true on USE_STD_ALLOCATOR builds — no per-thread
     //! pool state to worry about.
@@ -111,7 +110,6 @@
         //! `KamePooledAllocGuard` in `main()`.
         extern void activateAllocator();
     #endif
-    extern void release_pools();
 
     //! \return true while this thread's pool allocator state is fully
     //! live (`g_sys_image_loaded && !s_alloc_tls_off`).  Returns false
@@ -135,29 +133,30 @@
 //! new` falls back to `malloc` — so dyld and static-constructor
 //! allocations stay out of the pool.
 //!
-//! ## Why the destructor does NOT call `release_pools()`
+//! ## Why the destructor does NOT tear pools down
 //!
 //! `main()` has stack-local objects whose destructors run in LIFO
 //! order at function return: the pool guard is constructed last in
-//! `main()`, so it is destructed FIRST.  Any object constructed
-//! earlier (e.g. `QTranslator`) is destructed AFTER the guard.
+//! `main()`, so it would be destructed FIRST.  Any object
+//! constructed earlier (e.g. `QTranslator`) is destructed AFTER the
+//! guard.
 //!
 //! `~QTranslator` calls `QCoreApplication::removeTranslator`, which
 //! sends a `LanguageChange` event synchronously to every registered
 //! widget; the event handlers go through Qt's normal allocator,
 //! which is hooked into our pool via `operator new` / `delete`.
-//! If `~KamePooledAllocGuard` had already `munmap`'d the pool
-//! chunks, those allocations dereference unmapped memory → SIGSEGV.
-//! (Observed in kame-2026-05-24-193408.ips: faulting address
-//! 0x13ec60028 falls in an unmapped gap left by a torn-down chunk;
+//! Tearing the pool's mmap regions down before those allocations
+//! would cause `operator new` to dereference unmapped memory →
+//! SIGSEGV.  (Observed in kame-2026-05-24-193408.ips: faulting
+//! address falls in an unmapped gap left by a torn-down chunk;
 //! stack is `main -> ~QTranslator -> removeTranslator -> sendEvent
 //! -> QApplication::event`.)
 //!
 //! Letting pool chunks live until process exit is harmless: the
-//! mmap'd regions are reclaimed by the kernel.  Callers who genuinely
-//! want to tear pools down at a specific point (e.g. unit-test
-//! harnesses that recreate allocator state) may still invoke
-//! `release_pools()` directly.
+//! mmap'd regions are reclaimed by the kernel.  Phase 4b-final
+//! removed the `release_pools()` diagnostic API entirely (no
+//! callers anywhere in the tree), so the destructor is a true
+//! no-op.
 //!
 //! On `USE_STD_ALLOCATOR` builds (Windows by default) the guard is a
 //! no-op.  Idempotent — multiple guards in nested scopes are harmless.

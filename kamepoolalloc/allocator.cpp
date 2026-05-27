@@ -14,7 +14,13 @@
 
 //#define GUARDIAN 0xaaaaaaaauLL
 //#define FILLING_AFTER_ALLOC 0x55555555uLL
-#define LEAVE_VACANT_CHUNKS 64 //keep at least this # of chunks.
+// Phase 4b-final: per-thread floor on `owner_release`.  Stop releasing
+// when this thread's DLL has fewer than this many chunks for the given
+// (ALIGN, FS) template — avoids release / re-mmap thrashing on bursty
+// workloads.  Tuned conservatively low (2) because each thread typically
+// holds 1–3 chunks per template in steady state; the previous global
+// `LEAVE_VACANT_CHUNKS = 64` floor was scaled for an ~64-thread pool.
+#define LEAVE_VACANT_CHUNKS_PER_THREAD 2
 
 #include "allocator.h"
 
@@ -667,62 +673,6 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
 	free(p);
-}
-
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-void
-PoolAllocator<ALIGN, FS, DUMMY>::report_leaks() {
-	for(int idx = 0; idx < m_count; ++idx) {
-		while(m_flags[idx]) {
-			int sidx = count_zeros_forward(find_one_forward(m_flags[idx]));
-			fprintf(stderr, "Leak found for %dB @ %p.\n", (int)(ALIGN),
-				&m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN]);
-			m_flags[idx] &= ~(1u << sidx);
-		}
-	}
-}
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-void
-PoolAllocator<ALIGN, FS, DUMMY>::report_statistics(size_t &chunk_size, size_t &used_size) {
-	chunk_size = m_count * ALIGN * sizeof(FUINT) * 8;
-	printf("Chunk @%p, size of 0x%llx, ", m_mempool, (unsigned long long)chunk_size);
-	used_size = 0;
-	for(int idx = 0; idx < m_count; ++idx) {
-		used_size += count_bits(m_flags[idx]);
-	}
-	used_size *= ALIGN;
-	printf("for fixed %dB, nonzero=%.1f%%, filled=%.1f%%, filling = %.2f%%\n", ALIGN,
-		(double)(m_flags_packed & MASK_CNT) / m_count * 100.0,
-		(double)m_flags_filled_cnt / m_count * 100.0,
-		(double)used_size / chunk_size * 100.0);
-}
-template <unsigned int ALIGN, bool DUMMY>
-void
-PoolAllocator<ALIGN, false, DUMMY>::report_statistics(size_t &chunk_size, size_t &used_size) {
-	chunk_size = this->m_count * ALIGN * sizeof(FUINT) * 8;
-	printf("Chunk @%p, size of 0x%llx, ", this->m_mempool, (unsigned long long)chunk_size);
-	used_size = 0;
-	for(int idx = 0; idx < this->m_count; ++idx) {
-		used_size += count_bits(this->m_flags[idx]);
-	}
-	used_size *= ALIGN;
-	printf("for variable %dB, nonzero=%.2f%%, available=%d, filling = %.2f%%\n", ALIGN,
-		(double)(this->m_flags_packed & this->MASK_CNT) / this->m_count * 100,
-		m_available_bits,
-		(double)used_size / chunk_size * 100.0);
-}
-template <unsigned int ALIGN, bool DUMMY>
-void
-PoolAllocator<ALIGN, false, DUMMY>::report_leaks() {
-	for(int idx = 0; idx < this->m_count; ++idx) {
-		while(this->m_flags[idx]) {
-			int sidx = count_zeros_forward(find_one_forward(this->m_flags[idx]));
-			int size = count_zeros_forward(find_zero_forward(m_sizes[idx] >> sidx)) + 1;
-			fprintf(stderr, "Leak found for %dB @ %p.\n", (int)(size * ALIGN),
-				&this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN]);
-			this->m_flags[idx] &= ~((2 *(((FUINT)1u << (size - 1)) - 1u) + 1u) << sidx);
-		}
-	}
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -1455,54 +1405,22 @@ PoolAllocatorBase::allocate_chunk() {
 	fprintf(stderr, "# of chunks exceeds the limit.\n");
 	return 0;
 }
-// Phase 4b: chunk-claim no longer scans `s_chunks_of_type[]` — the
-// per-thread DLL is the sole source of truth for "chunks this thread
-// can allocate from".  `create_allocator()` mmaps a fresh chunk and
-// inserts it into the diagnostic registry; the caller (allocate_chunk_path)
-// appends the returned chunk to the per-thread DLL tail and sets
-// `s_my_chunk`.
-//
-// The registry insert uses the same `0u → 1u` sentinel-reservation
-// pattern as before (so two concurrent `create_allocator` calls pick
-// different slots), then stores the real `palloc` pointer after mmap.
-// Release paths (owner_release / cross_release /
-// release_dll_chunks_for_thread) clear the slot with a plain store
-// after their `BIT_RELEASED` CAS wins, so no further bit-0 lock CAS is
-// needed for serialisation.
+// Phase 4b-final: chunk-claim is purely mmap.  No global registry —
+// the per-thread DLL is the sole source of truth for "chunks this
+// thread can allocate from"; per-chunk ownership is encoded in the
+// chunk header's `PoolAllocatorBase *` (visible to cross-thread frees
+// via `lookup_chunk`) and the chunk's `m_flags_packed` BIT_RELEASED
+// race point.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 PoolAllocator<ALIGN, DUMMY, DUMMY> *
 PoolAllocator<ALIGN, FS, DUMMY>::create_allocator() {
-	// Find an empty slot in `s_chunks_of_type[]` and reserve it via
-	// `0 → 1u` CAS.  Repeat scanning if our chosen slot turns out to
-	// be already-reserved by another thread (rare race).
-	int aidx;
-	for(;;) {
-		for(aidx = 0;; ++aidx) {
-			if(aidx >= ALLOC_MAX_CHUNKS_OF_TYPE) {
-				fprintf(stderr, "# of chunks for %d align. exceeds the limit.\n", ALIGN);
-				throw std::bad_alloc();
-			}
-			if( !s_chunks_of_type[aidx])
-				break;
-		}
-		if(atomicCompareAndSet((uintptr_t)0u, (uintptr_t)1u, &s_chunks_of_type[aidx]))
-			break;  // we own slot `aidx`
-		// Lost the CAS race — retry from aidx=0.
-	}
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *palloc =
 		allocate_chunk<PoolAllocator<ALIGN, DUMMY, DUMMY> >();
 	if( !palloc) {
-		s_chunks_of_type[aidx] = 0;
+		fprintf(stderr,
+		    "# of chunks for %d align. exceeds the mmap region ladder.\n", ALIGN);
 		throw std::bad_alloc();
 	}
-	palloc->m_idx_of_type = aidx;
-	for(;;) {
-		int acnt = s_chunks_of_type_ubound;
-		if((aidx < acnt) || atomicCompareAndSet(acnt, aidx + 1, &s_chunks_of_type_ubound))
-			break;
-	}
-	writeBarrier(); //for alloc.
-	s_chunks_of_type[aidx] = reinterpret_cast<uintptr_t>(palloc);
 	return palloc;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -1594,10 +1512,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			if((nx->m_flags_packed & PoolAllocator<ALIGN, DUMMY, DUMMY>::MASK_CNT) != 0)
 				break;  // hit a non-empty
 			// `nx` is `PoolAllocator<ALIGN, DUMMY, DUMMY> *` (same
-			// type as `s_my_chunk`).  FS=true / FS=false templates
-			// each route through their own `s_chunks_of_type[]`, so
-			// the static call site uses the current template's
-			// `owner_release`.
+			// type as `s_my_chunk`).  Use the current template's
+			// `owner_release` (FS=true and FS=false specialisations
+			// share the static — `m_flags_packed` lives on the
+			// FS=true base).
 			if(PoolAllocator<ALIGN, FS, DUMMY>::owner_release(nx)) {
 				// DLL unlink (single-writer = us).
 				if(nx->m_dll_prev) nx->m_dll_prev->m_dll_next = nx->m_dll_next;
@@ -1622,8 +1540,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// Phase 2: forward-scan this thread's already-claimed chunks for
 	// one that has room.  Cross-thread frees on our previously-active
 	// chunks routinely empty out bits while those chunks sit older in
-	// the DLL — Phase 4b makes this the SOLE chunk-reuse mechanism
-	// (no more cross-thread chunk reclaim via `s_chunks_of_type[]`).
+	// the DLL — Phase 4b made this the SOLE chunk-reuse mechanism
+	// (the per-template global chunk registry, retired in 4b-final,
+	// no longer mediates cross-thread chunk reclaim).
 	//
 	// Forward sweep from `s_dll_head` covers the full DLL: newer
 	// chunks appear later in the list (see the tail-append at the
@@ -1651,18 +1570,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		}
 	}
 	// All own chunks full — mmap a fresh chunk.  Phase 4b retired the
-	// previous pin-CAS scan of `s_chunks_of_type[]`; chunks owned by
+	// previous pin-CAS scan of the global registry; chunks owned by
 	// other (live or exited) threads are no longer reclaimable here.
 	// Exited-thread chunks drain naturally via cross-thread frees +
 	// `BIT_OWNER_EXITED`; live-thread chunks are private DLL members
 	// of their owner.
 	//
-	// The fresh chunk gets registered in `s_chunks_of_type[]` for
-	// diagnostics (`release_pools` / `report_statistics`) and pushed
-	// onto this thread's DLL tail + cached in `s_my_chunk`.  Also
-	// register the per-template DLL teardown callback with
-	// `tls_alloc_pin_cleanup` if not already registered (deduped
-	// inside `add`), so thread-exit walks this template's DLL.
+	// The fresh chunk is appended to this thread's DLL tail and cached
+	// in `s_my_chunk`.  Also register the per-template DLL teardown
+	// callback with `tls_alloc_pin_cleanup` if not already registered
+	// (deduped inside `add`), so thread-exit walks this template's
+	// DLL.
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *chunk = create_allocator();
 	tls_alloc_pin_cleanup.add(
 	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
@@ -1690,33 +1608,40 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 #endif
 	return p;
 }
-// Phase 4b: chunk release is now a single CAS on the chunk's
+// Phase 4b-final: chunk release is a single CAS on the chunk's
 // `m_flags_packed` (BIT_RELEASED).  Whoever wins the CAS is the
-// exclusive releaser; they then clear the diagnostic registry slot
-// and call `delete` + `deallocate_chunk()`.  The previous pin-guard
-// (`m_thread_pinned_count > 0`) and bit-0-lock on
-// `s_chunks_of_type[aidx]` are both gone — the BIT_RELEASED CAS is
-// the single serialisation point across all release paths.
+// exclusive releaser; they then call `delete` + `deallocate_chunk()`.
+// The pin field, the bit-0-lock CAS on the per-template chunk
+// registry, and the registry itself are all gone — `BIT_RELEASED`
+// on the packed word is the single serialisation point across:
 //
-// Three release entry points:
-//   1. `owner_release(palloc)` — called by the owning thread from
-//      Phase 4a's chunk-full neighbour-release loop in
-//      `allocate_chunk_path`.  No `BIT_OWNER_EXITED` precondition:
-//      the owner is alive and choosing to release one of its own
-//      empty chunks.
-//   2. `cross_release(palloc)` — called by the cross-thread last-
-//      slot returner (in `batch_return_to_bitmap`) when dec-to-zero
-//      hits `BIT_OWNER_EXITED == 1`.  Releases the chunk on behalf
-//      of an exited owner.
-//   3. `release_dll_chunks_for_thread()` — called by
-//      `AllocPinCleanup::~dtor` to walk THIS thread's DLL: for each
-//      chunk, claims `BIT_RELEASED` directly if empty, else sets
-//      `BIT_OWNER_EXITED`.
+//   1. `owner_release(palloc)` — Phase 4a chunk-full neighbour
+//      release in `allocate_chunk_path`.  No `BIT_OWNER_EXITED`
+//      precondition (owner alive, releasing its own empty chunks);
+//      gated by `LEAVE_VACANT_CHUNKS_PER_THREAD` floor (DLL traversal
+//      to count this thread's chunks) so bursty workloads don't
+//      thrash release-then-mmap.
+//   2. `cross_release(palloc)` — cross-thread last-slot returner in
+//      `batch_return_to_bitmap` when dec-to-zero meets
+//      `BIT_OWNER_EXITED == 1`.  No floor: owner is gone, the chunk
+//      has no future, release immediately.
+//   3. `release_dll_chunks_for_thread()` — `AllocPinCleanup::~dtor`
+//      walks THIS thread's DLL: empty chunks claim `BIT_RELEASED`
+//      directly, non-empty set `BIT_OWNER_EXITED`.  No floor: thread
+//      is exiting, the chunks belong to nobody.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
-	if(s_chunks_of_type_ubound <= LEAVE_VACANT_CHUNKS)
-		return false;
+	// Per-thread floor check: count this thread's DLL chunks and skip
+	// release below the floor.  Cheap — DLL is single-writer (us) and
+	// typically holds 1–3 chunks per template, far below
+	// AllocPinCleanup::MAX = 32.  Called from the slow path only
+	// (chunk-full trigger), so the O(D) walk is invisible to the hot
+	// path.
+	int dll_len = 0;
+	for(auto *c = s_dll_head; c; c = c->m_dll_next) ++dll_len;
+	if(dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD) return false;
+
 	uint32_t old = palloc->m_flags_packed;
 	for(;;) {
 		if(old & BIT_RELEASED) return false;        // already-being-released
@@ -1725,8 +1650,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 			break;
 		old = palloc->m_flags_packed;
 	}
-	// We exclusively own the release.  Clear the diagnostic registry
-	// slot, shrink the upper bound.
 #ifdef GUARDIAN
 	void *ppool = palloc->m_mempool;
 	for(unsigned int i = 0; i < palloc->m_chunk_size / sizeof(uint64_t); ++i) {
@@ -1736,20 +1659,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 		}
 	}
 #endif
-	int aidx = palloc->m_idx_of_type;
-	s_chunks_of_type[aidx] = 0;
-	while(int acnt = s_chunks_of_type_ubound) {
-		if(s_chunks_of_type[acnt - 1]) break;
-		atomicCompareAndSet(acnt, acnt - 1, &s_chunks_of_type_ubound);
-	}
 	return true;
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::cross_release(PoolAllocator *palloc) {
-	if(s_chunks_of_type_ubound <= LEAVE_VACANT_CHUNKS)
-		return false;
 	uint32_t old = palloc->m_flags_packed;
 	for(;;) {
 		if(old & BIT_RELEASED) return false;
@@ -1758,12 +1673,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::cross_release(PoolAllocator *palloc) {
 		if(atomicCompareAndSet(old, old | BIT_RELEASED, &palloc->m_flags_packed))
 			break;
 		old = palloc->m_flags_packed;
-	}
-	int aidx = palloc->m_idx_of_type;
-	s_chunks_of_type[aidx] = 0;
-	while(int acnt = s_chunks_of_type_ubound) {
-		if(s_chunks_of_type[acnt - 1]) break;
-		atomicCompareAndSet(acnt, acnt - 1, &s_chunks_of_type_ubound);
 	}
 	return true;
 }
@@ -1814,12 +1723,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			old = c->m_flags_packed;
 		}
 		if(released) {
-			int aidx = c->m_idx_of_type;
-			s_chunks_of_type[aidx] = 0;
-			while(int acnt = s_chunks_of_type_ubound) {
-				if(s_chunks_of_type[acnt - 1]) break;
-				atomicCompareAndSet(acnt, acnt - 1, &s_chunks_of_type_ubound);
-			}
 			char *cbase = c->m_mempool - ALLOC_CHUNK_HEADER;
 			size_t csz = c->m_chunk_size;
 			delete c;
@@ -2005,42 +1908,6 @@ PoolAllocatorBase::size_of(void *p) {
 	if( !p) return 0;
 	return size_of_<0, ALLOC_MIN_CHUNK_SIZE>(p);
 }
-void
-PoolAllocatorBase::release_chunks() {
-	// Clear claim bitmaps + munmap regions.  Process exit only —
-	// individual chunk releases use `deallocate_chunk` instead.
-	for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION; ++i)
-		s_claim_bitmap[i].store(0, std::memory_order_relaxed);
-	size_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
-	for(int cnt = 0; cnt < ALLOC_MAX_MMAP_ENTRIES;
-	    ++cnt, chunk_size = GROW_CHUNK_SIZE(chunk_size)) {
-		char *mp = s_mmapped_spaces[cnt];
-		if( !mp)
-			break;
-		size_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-		_aligned_free(mp);
-#else
-		int ret = munmap(mp, mmap_size);
-		assert( !ret);
-#endif
-		s_mmapped_spaces[cnt] = 0;
-	}
-}
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-void
-PoolAllocator<ALIGN, FS, DUMMY>::release_pools() {
-	int acnt = s_chunks_of_type_ubound;
-	for(int aidx = 0; aidx < acnt; ++aidx) {
-		uintptr_t alloc = s_chunks_of_type[aidx];
-		alloc &= ~(uintptr_t)1u;
-		reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->report_leaks();
-		delete reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc);
-		s_chunks_of_type[aidx] = 0;
-	}
-	s_chunks_of_type_ubound = 0;
-}
-
 void* allocate_large_size_or_malloc(size_t size) throw() {
 	ALLOCATE_9_16X(4, size);
 	ALLOCATE_9_16X(8, size);
@@ -2610,65 +2477,20 @@ void *realloc(void *p, std::size_t n) {
 }
 #endif
 
-void release_pools() {
-	PoolAllocator<ALLOC_SIZE1, true>::release_pools();
-	PoolAllocator<ALLOC_SIZE2, true>::release_pools();
-	PoolAllocator<ALLOC_SIZE3, true>::release_pools();
-	PoolAllocator<ALLOC_SIZE4, true>::release_pools();
-	PoolAllocator<ALLOC_SIZE5, true>::release_pools();
-	PoolAllocator<ALLOC_SIZE7, true>::release_pools();
-	PoolAllocator<ALLOC_SIZE9, true>::release_pools();
-	PoolAllocator<ALLOC_SIZE11, true>::release_pools();
-	PoolAllocator<ALLOC_SIZE13, true>::release_pools();
-	PoolAllocator<ALLOC_SIZE15, true>::release_pools();
-	PoolAllocator<ALLOC_ALIGN1>::release_pools();
-	PoolAllocator<ALLOC_ALIGN2>::release_pools();
-#if defined ALLOC_ALIGN3
-	PoolAllocator<ALLOC_ALIGN3>::release_pools();
-#endif
-	PoolAllocatorBase::release_chunks();
-}
-void report_statistics() {
-	// Walk all mmap regions; for each region read the claim bitmap to
-	// find live chunks; dereference each live chunk's header pointer
-	// to get its `PoolAllocatorBase *`.  Same enumeration order as
-	// the previous `s_chunks[ALLOC_MAX_CHUNKS]` linear scan, but
-	// driven by the chunk-header source of truth.
-	size_t chunk_size_total = 0;
-	size_t used_size = 0;
-	size_t cs = ALLOC_MIN_CHUNK_SIZE;
-	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES;
-	    ++region, cs = GROW_CHUNK_SIZE(cs)) {
-		char *mp = PoolAllocatorBase::s_mmapped_spaces[region];
-		if( !mp) break;
-		for(int word = 0; word < PoolAllocatorBase::BITMAP_WORDS_PER_REGION; ++word) {
-			PoolAllocatorBase::BitmapWord bm =
-			    PoolAllocatorBase::s_claim_bitmap[
-			        region * PoolAllocatorBase::BITMAP_WORDS_PER_REGION + word]
-			            .load(std::memory_order_relaxed);
-			while(bm) {
-				int bit = __builtin_ctzll(static_cast<unsigned long long>(bm));
-				bm &= ~(PoolAllocatorBase::BitmapWord(1) << bit);
-				int cidx_in_region =
-				    word * PoolAllocatorBase::BITS_PER_BITMAP_WORD + bit;
-				char *cbase = mp + cidx_in_region * cs;
-				PoolAllocatorBase *palloc =
-				    *reinterpret_cast<PoolAllocatorBase **>(cbase);
-				if((uintptr_t)palloc > uintptr_t(1)) {
-					size_t c_cs, c_us;
-					palloc->report_statistics(c_cs, c_us);
-					chunk_size_total += c_cs;
-					used_size += c_us;
-				}
-			}
-		}
-	}
-	printf("Total chunk size = 0x%llxB, filling = %.2f%%\n",
-	    (unsigned long long)chunk_size_total,
-	    chunk_size_total
-	        ? (double)used_size / chunk_size_total * 100.0
-	        : 0.0);
-}
+// Phase 4b-final: `release_pools()` / `report_statistics()` / per-template
+// `release_pools()` / `PoolAllocatorBase::release_chunks()` are all gone.
+// They walked the per-template `s_chunks_of_type[]` registry — itself
+// retired — and had no live callers anywhere in the tree (only a
+// commented-out comment in `kame/main.cpp:345` and an unused declaration
+// in `allocator.h`).  Memory is reclaimed naturally:
+//   * Empty chunks released by `owner_release` (Phase 4a) /
+//     `cross_release` (cross-thread last-slot) / `release_dll_chunks_for_thread`
+//     (thread exit) call `deallocate_chunk` which mprotects PROT_NONE +
+//     clears the region's claim bit, so the slot region is available
+//     for a future chunk-claim.
+//   * Process exit reclaims all mmap'd regions via OS teardown; no
+//     `munmap` cleanup needed (see the comment in allocator.h about
+//     "Why the destructor does NOT call release_pools()").
 
 #ifdef KAME_SIZE_HISTOGRAM
 // Allocation-size histogram for size-class profiling.  Enabled by
@@ -2868,15 +2690,10 @@ std::atomic<PoolAllocatorBase::BitmapWord>
     PoolAllocatorBase::s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES
                                        * PoolAllocatorBase::BITMAP_WORDS_PER_REGION];
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-uintptr_t PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-int PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type_ubound;
-template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
     PoolAllocator<ALIGN, FS, DUMMY>::s_my_chunk;
 // Per-thread DLL head/tail — sole source of truth for chunks this
-// thread can allocate from (Phase 4b retired the s_chunks_of_type[]
-// chunk-claim scan in favour of DLL scan → mmap fresh).
+// thread can allocate from.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
     PoolAllocator<ALIGN, FS, DUMMY>::s_dll_head;

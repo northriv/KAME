@@ -237,8 +237,6 @@ public:
 	//! `deallocate_<>` already serves the hot dealloc path and adding
 	//! a "no-dispatch" arm there would bloat operator delete.
 	static inline PoolAllocatorBase *lookup_chunk(void *p) noexcept;
-	static void release_chunks();
-	virtual void report_statistics(size_t &chunk_size, size_t &used_size) = 0;
 	//! Null out this thread's `s_my_chunk` for this chunk's ALIGN type.
 	//! Called from `AllocPinCleanup` after freelist flush, before pin
 	//! count decrement.  Prevents stale `s_my_chunk` from pushing to
@@ -352,7 +350,6 @@ public:
 	                 == NUM_ALLOCATORS_IN_SPACE,
 		"bitmap word size × word count must equal 128 chunks per region");
 private:
-	friend void report_statistics();
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
 	//! Per-mmap-region chunk-claim bitmap.  Bit i set ⇒ chunk i is
@@ -440,10 +437,6 @@ public:
 	    return ALIGN;
 	}
 
-	static void release_pools();
-	void report_leaks();
-	void report_statistics(size_t &chunk_size, size_t &used_size) override;
-
 	typedef uintptr_t FUINT;
 protected:
 	PoolAllocator(int count, char *addr, char *ppool);
@@ -453,37 +446,34 @@ protected:
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
 	//! Mmap a fresh chunk and register it in `s_chunks_of_type[]` for
 	//! diagnostic enumeration only (`release_pools` / `report_statistics`).
-	//! Phase 4b: chunk-claim no longer scans the registry; this function
-	//! is called from `allocate_chunk_path`'s slow path when the per-thread
-	//! DLL has no chunk with room.  Returns a fresh chunk pointer (not in
-	//! any thread's DLL yet — caller is responsible for appending) or
-	//! throws `std::bad_alloc` on mmap failure / registry overflow.
+	//! Mmap a fresh chunk for the current thread.  Phase 4b: no global
+	//! registry — the per-thread DLL is the sole source of truth for
+	//! "chunks this thread can allocate from".  Called from
+	//! `allocate_chunk_path`'s slow path when the DLL scan finds no
+	//! reusable chunk.  Returns a fresh chunk pointer (not in any
+	//! thread's DLL yet — caller is responsible for appending) or
+	//! throws `std::bad_alloc` on mmap failure.
 	static PoolAllocator<ALIGN, DUMMY, DUMMY> *create_allocator();
 	//! Owner-driven release of a chunk this thread owns (DLL member).
-	//! Atomically claims `BIT_RELEASED` on `m_flags_packed`; on success
-	//! the chunk is the caller's to clean up.  Returns false if the
-	//! chunk is not actually empty (count > 0), if `BIT_RELEASED` was
-	//! already set (another thread / a previous owner-release path
-	//! beat us), or if the global chunk floor (`LEAVE_VACANT_CHUNKS`)
-	//! blocks release.
+	//! Atomically claims `BIT_RELEASED` on `m_flags_packed`.  Returns
+	//! true ⇒ caller must unlink from DLL + `delete palloc` +
+	//! `PoolAllocatorBase::deallocate_chunk(cbase, csz)`.
+	//! Returns false if the chunk is not actually empty (count > 0),
+	//! `BIT_RELEASED` was already set, or this thread's DLL has fewer
+	//! than `LEAVE_VACANT_CHUNKS_PER_THREAD` chunks (floor — avoid
+	//! thrashing on bursty workloads).
 	//!
-	//! Phase 4b: replaces the previous `release_allocator` /
-	//! `owner_release` pair (the pin-guard / bit-0-lock CAS dance is
-	//! gone — `BIT_RELEASED` on the packed word is the single
-	//! serialisation point across all release paths: owner-driven
-	//! neighbour release, cross-thread last-slot release, and thread-
-	//! exit cleanup all race for the same bit).
+	//! Phase 4b-final: `BIT_RELEASED` on the packed word is the
+	//! single serialisation point across all release paths (owner-
+	//! driven neighbour release, cross-thread last-slot release,
+	//! thread-exit cleanup) — exactly one CAS wins, the winner owns
+	//! the cleanup.  No global registry, no bit-0-lock CAS.
 	//!
-	//! On success the caller must:
-	//!   1. (If applicable) unlink `palloc` from this thread's DLL.
-	//!   2. `delete palloc` (frees the malloc-block holding the
-	//!      PoolAllocator metadata).
-	//!   3. `PoolAllocatorBase::deallocate_chunk(cbase, csz)` to
-	//!      mprotect the slot region back to `PROT_NONE` and clear
-	//!      the region's `s_claim_bitmap` bit.
-	//! `cross_release` is the cross-thread variant that additionally
-	//! gates on `BIT_OWNER_EXITED` (only the owning thread's dtor or
-	//! its own slow-path may release while owner is alive).
+	//! `cross_release` is the cross-thread variant: additionally
+	//! gates on `BIT_OWNER_EXITED == 1` (only the owning thread's
+	//! exit-path or its own slow-path may release while owner is
+	//! alive).  No DLL traversal — the cross-thread caller has no
+	//! access to the owner's DLL.
 	static bool owner_release(PoolAllocator *palloc);
 	static bool cross_release(PoolAllocator *palloc);
 	//! Per-thread DLL teardown for thread-exit cleanup.  Called from
@@ -503,7 +493,6 @@ protected:
 	//! A hint for searching in a chunk.
 	int m_idx;
 	const int m_count;
-	int m_idx_of_type;
 
 	// === Cache line 1+: cross-thread-written atomic counters.
 	// `alignas(64)` on the first counter forces them onto a separate
@@ -538,22 +527,6 @@ protected:
 	//! # of flags that having fully filled values.
 	int m_flags_filled_cnt;
 
-	//! Diagnostic-only registry of live chunks for `release_pools` /
-	//! `report_statistics`.  Phase 4b: the chunk-claim hot path no
-	//! longer touches this — the per-thread DLL is the sole source of
-	//! truth for chunk acquisition.  Maintained on `create_allocator`
-	//! (slot reservation via `0u → 1u` CAS sentinel, then write
-	//! `palloc`) and on the various release paths (`owner_release` /
-	//! `cross_release` / `release_dll_chunks_for_thread`) via plain
-	//! store of `0` after the BIT_RELEASED CAS wins on the chunk's
-	//! `m_flags_packed`.
-	static uintptr_t s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
-	//! Upper bound on `s_chunks_of_type[]` slots in use.  Bumped on
-	//! `create_allocator` via CAS, shrunk on release paths via CAS.
-	//! Used by `release_pools` to bound the iteration; also gates
-	//! `owner_release` / `cross_release` against the
-	//! `LEAVE_VACANT_CHUNKS` floor.
-	static int s_chunks_of_type_ubound;
 	//! Per-thread "currently owned" chunk for fast-path allocate().
 	//! When non-null, `allocate<SIZE>()` calls
 	//! `s_my_chunk->allocate_pooled()` directly without scanning the
@@ -629,8 +602,6 @@ private:
 template <unsigned int ALIGN, bool DUMMY>
 class PoolAllocator<ALIGN, false, DUMMY> : public PoolAllocator<ALIGN, true, false> {
 public:
-	void report_leaks();
-	void report_statistics(size_t &chunk_size, size_t &used_size) override;
 	//! See `PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled_static`.
 	//! FS=false partial spec provides its own trampoline that down-
 	//! casts to this leaf type and invokes the non-virtual
@@ -1044,9 +1015,6 @@ inline void *new_redirected(std::size_t size) {
 //void operator delete(void* p, const std::nothrow_t&) throw();
 //void operator delete[](void* p) throw();
 //void operator delete[](void* p, const std::nothrow_t&) throw();
-
-void release_pools();
-void report_statistics();
 
 #endif /* USE_STD_ALLOCATOR */
 
