@@ -1539,6 +1539,54 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// chunks emptied by the flush are visible to the Phase 2 scan
 	// directly below.
 	tls_cross_dealloc_batch.flush();
+	// Phase 4a: own-empty-neighbour release.  Walk forward from
+	// `s_my_chunk` along the DLL: if the immediate next chunk is
+	// empty (m_flags_nonzero_cnt == 0), release it; if its successor
+	// is *also* empty, release that too — capped at two consecutive
+	// releases per trigger so the cost stays bounded.  Steady-state
+	// memory growth = mmap rate (one new chunk per chunk-fill); this
+	// release path balances it at the same cadence.
+	//
+	// Safety: we still hold pin==1 on each chunk in our DLL, so no
+	// other thread can pin or release them concurrently.
+	// `owner_release` takes the bit-0 lock on `s_chunks_of_type[]`
+	// before clearing the registry entry, which serialises against
+	// the `release_allocator` path that any cross-thread emptier
+	// would otherwise enter (but they couldn't anyway — pin > 0
+	// blocks them).  Caller (us) handles the post-clear DLL unlink
+	// + `delete` + `deallocate_chunk`.
+	if(s_my_chunk) {
+		auto *nx = s_my_chunk->m_dll_next;
+		for(int released = 0; nx && released < 2; ) {
+			auto *nxnext = nx->m_dll_next;
+			if(nx->m_flags_nonzero_cnt != 0) break;  // hit a non-empty
+			// `nx` is `PoolAllocator<ALIGN, DUMMY, DUMMY> *` (same
+			// type as `s_my_chunk`).  Match the release_allocator
+			// call convention (see `batch_return_to_bitmap`): the
+			// FS=true / FS=false templates each route through their
+			// own `s_chunks_of_type[]`, so the static call site
+			// uses the current template's `owner_release`.
+			if(PoolAllocator<ALIGN, FS, DUMMY>::owner_release(nx)) {
+				// DLL unlink (single-writer = us).
+				if(nx->m_dll_prev) nx->m_dll_prev->m_dll_next = nx->m_dll_next;
+				else               s_dll_head = nx->m_dll_next;
+				if(nx->m_dll_next) nx->m_dll_next->m_dll_prev = nx->m_dll_prev;
+				else               s_dll_tail = nx->m_dll_prev;
+				char *cbase = nx->m_mempool - ALLOC_CHUNK_HEADER;
+				size_t csz = nx->m_chunk_size;
+				delete nx;
+				PoolAllocatorBase::deallocate_chunk(cbase, csz);
+				++released;
+			}
+			else {
+				// `owner_release` refused (LEAVE_VACANT_CHUNKS floor
+				// or a racing re-allocation).  Stop — don't try
+				// further neighbours, the chunk is still in use.
+				break;
+			}
+			nx = nxnext;
+		}
+	}
 	// Phase 2 of the DLL refactor: before climbing into the pin-CAS
 	// loop (which may end up `mmap`ing a fresh chunk), full-scan this
 	// thread's already-pinned chunks for one that has room.  Cross-
@@ -1684,6 +1732,50 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_allocator(PoolAllocator *palloc) {
 
 			s_chunks_of_type[aidx] = 0;
 			//decreasing upper boundary.
+			while(int acnt = s_chunks_of_type_ubound) {
+				if(s_chunks_of_type[acnt - 1])
+					break;
+				atomicCompareAndSet(acnt, acnt - 1, &s_chunks_of_type_ubound);
+			}
+			return true;
+		}
+		else {
+			s_chunks_of_type[aidx] = alloc;
+		}
+	}
+	return false;
+}
+
+// Owner-driven release.  Mirrors `release_allocator` but skips the
+// `m_thread_pinned_count > 0` block — the caller IS the pin holder
+// (this thread's `s_my_chunk` ancestry).  No other thread can be
+// in the middle of pinning the chunk: every claim path attempts a
+// `compare_exchange_strong(0, 1)` on the pin count, which fails
+// while we still hold pin==1, and the bit-0 lock CAS on
+// `s_chunks_of_type[aidx]` performed below atomically excludes
+// concurrent `release_allocator` (their `palloc->m_thread_pinned_count
+// > 0` check would also block them anyway).
+//
+// Same return-value contract as `release_allocator`: true ⇒ the
+// chunk's `s_chunks_of_type[]` slot has been cleared and the caller
+// owns the chunk for `delete` + `deallocate_chunk`; false ⇒ the
+// caller must abort the release (someone else just bumped the
+// nonzero count, or LEAVE_VACANT_CHUNKS floor blocks).
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+bool
+PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
+	if(s_chunks_of_type_ubound <= LEAVE_VACANT_CHUNKS) {
+		return false;
+	}
+	uintptr_t alloc = reinterpret_cast<uintptr_t>(palloc);
+	int aidx = palloc->m_idx_of_type;
+	if(atomicCompareAndSet(alloc, alloc | 1u, &s_chunks_of_type[aidx])) {
+		readBarrier();
+		// Re-verify vacancy under the bit-0 lock — slots may have come
+		// back from cross-thread frees between the caller's nonzero
+		// observation and now.
+		if( !palloc->m_flags_nonzero_cnt) {
+			s_chunks_of_type[aidx] = 0;
 			while(int acnt = s_chunks_of_type_ubound) {
 				if(s_chunks_of_type[acnt - 1])
 					break;
