@@ -284,6 +284,8 @@ int main(int argc, char **argv) {
     const int chunks_initial = PoolAllocatorBase::count_live_chunks();
     int chunks_peak = chunks_initial;
     std::atomic<bool> stop_sampler{false};
+#ifndef NO_CHUNK_SAMPLER  // A/B knob: -DNO_CHUNK_SAMPLER measures bench
+                         // perf without the background sampling thread.
     std::thread sampler([&]() {
         // 10ms interval — needs to be fast enough to catch the
         // working-set peak of short-running tests (e.g. fixed-pool
@@ -298,6 +300,7 @@ int main(int argc, char **argv) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
+#endif
 
     // When total_threads == concurrent_threads (the common "fixed
     // pool" bench case), spawn them all and use a start-barrier so
@@ -375,7 +378,9 @@ int main(int argc, char **argv) {
     // A large residual relative to the peak would indicate the release
     // paths aren't firing.
     stop_sampler.store(true, std::memory_order_relaxed);
+#ifndef NO_CHUNK_SAMPLER
     sampler.join();
+#endif
     const int chunks_final = PoolAllocatorBase::count_live_chunks();
 
     uint64_t allocs = g_total_allocs.load();
