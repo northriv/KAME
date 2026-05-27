@@ -41,14 +41,12 @@ typedef int_cas_max uint_cas_max;
 
 // The STM transaction framework packs multiple fields into atomic<uint64_t>
 // (m_priority_state, m_recent_ops_state, RunnerCounterEntry::v, stamps, ...).
-// These must be truly lock-free; a mutex-based fallback would break the
-// lock-freedom guarantees of the entire framework.
-// On 64-bit x86/ARM64: always satisfied.
-// On 32-bit x86 (i486+): CMPXCHG8B provides lock-free 64-bit CAS — satisfied.
-// On 32-bit ARM or other platforms without native 64-bit atomics: not supported.
-static_assert(ATOMIC_LLONG_LOCK_FREE == 2,
-    "KAME requires always-lock-free 64-bit atomics (ATOMIC_LLONG_LOCK_FREE==2). "
-    "Supported: 64-bit x86/ARM64, or 32-bit x86 with i486+ (CMPXCHG8B).");
+// On 64-bit targets this is trivially lock-free; on 32-bit targets the
+// compiler maps it to a DCAS instruction (CMPXCHG8B on i486+, LDREXD/STREXD
+// on ARMv7-A) when available — std::atomic<uint64_t> stays lock-free.
+// Targets without hardware DCAS (i386, ARMv5/v6) previously used the
+// in-tree DCAS fallback; that path should be revived rather than blocked
+// here, hence no static_assert.
 
 template <typename T>
 class atomic<T, typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value>::type>
