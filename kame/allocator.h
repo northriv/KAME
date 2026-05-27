@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+		Copyright (C) 2002-2026 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -11,6 +11,45 @@
 		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
+
+// =====================================================================
+//                       *** READ THIS FIRST ***
+//
+//  The KAME pool allocator is INACTIVE BY DEFAULT.  Until you call
+//  `activateAllocator()` (or instantiate `KamePooledAllocGuard` in your
+//  `main()`), every `operator new` / `operator delete` falls through to
+//  `std::malloc` / `std::free`.  This is intentional — dyld, static
+//  constructors, libc++ ICU/Foundation, and anything that runs before
+//  `main()` must use the system allocator (we cannot accept pool
+//  pointers before our mmap regions exist).
+//
+//  --- For application code ---
+//
+//    int main(int argc, char **argv) {
+//        KamePooledAllocGuard pool_guard;       // <-- activates here
+//        // ... rest of main() ...
+//    }
+//
+//  See `KamePooledAllocGuard` at the bottom of this file for the
+//  rationale on why the guard's destructor does NOT tear down pools.
+//
+//  --- For test binaries / benchmarks ---
+//
+//  If you build a custom standalone TU that links `kame/allocator.cpp`
+//  directly, ALSO link `tests/allocator.cpp` (or copy its
+//  `KamePoolActivator` static-init wrapper) so the pool is activated
+//  during dyld image load.  Without it, your "KAME bench" is silently
+//  measuring `std::malloc`.  Symptom: profile shows samples in
+//  `_xzm_xzone_malloc_*` instead of `PoolAllocator<...>::deallocate_*`.
+//
+//  --- Sanity check ---
+//
+//  When the pool is active, the first allocation prints
+//      "Reserve swap space starting @ 0x... w/ len. of 0x......B."
+//  to stderr (from `allocate_chunk` after the first mmap).  No such
+//  message ⇒ pool is inactive ⇒ check your activator wiring.
+//
+// =====================================================================
 
 #ifndef ALLOCATOR_H_
 #define ALLOCATOR_H_
@@ -41,19 +80,22 @@
 #else
     #include "allocator_prv.h"
 
-    //! Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
-    //! Memory blocks in a unit of double-quad word less than 8KiB
-    //! can be allocated from fixed-size or variable-size memory pools.
-    //! The larger memory is provided by standard malloc().
-    //! \sa PoolAllocator, allocator_test.cpp.
-    #ifdef USE_EXTERN_INLINE
-    extern inline void* operator new(std::size_t size) throw(std::bad_alloc) {
-        return new_redirected(size);
-    }
-    extern inline void* operator new[](std::size_t size) throw(std::bad_alloc) {
-        return new_redirected(size);
-    }
-    #endif
+    //! Fast lock-free allocators for small objects: new(), new[](),
+    //! delete(), delete[]() operators.  Memory blocks in a unit of
+    //! double-quad word less than 8 KiB can be allocated from
+    //! fixed-size or variable-size memory pools.  Larger memory is
+    //! provided by standard malloc().  \sa PoolAllocator,
+    //! allocator_test.cpp.
+    //!
+    //! These globals stay non-inline in `allocator.cpp` per C++ §17.6.4.6
+    //! (replacement allocation functions must not be `inline`).  An
+    //! earlier experiment to header-inline them tripped the
+    //! `-Winline-new-delete` warning and produced SIGTRAP on the STM
+    //! tests at link time — symptom of the linker resolving some
+    //! `delete p` sites to the libcxx default (which calls `free()` on
+    //! a KAME pool pointer) instead of to our replacement.  Cross-TU
+    //! inlining of the alloc/dealloc fast paths is a job for LTO, not
+    //! for header-only replacement operators.
 
     extern void activateAllocator();
     extern void release_pools();

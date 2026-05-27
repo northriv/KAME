@@ -1974,6 +1974,27 @@ inline void kame_histo_record(std::size_t size) noexcept {
 #define KAME_HISTO_REC(size) ((void)0)
 #endif
 
+// Global `operator new` / `operator delete` MUST stay non-inline
+// (C++ §17.6.4.6 replacement function rules).  An experiment to
+// header-inline them tripped clang's `-Winline-new-delete` warning
+// and crashed the STM tests with SIGTRAP at startup: `delete p`
+// sites in libcxx headers (which don't include allocator.h) resolved
+// to the libcxx default `operator delete` instead of our
+// replacement, calling `free()` on a KAME pool pointer.  Cross-TU
+// inlining of the alloc/dealloc fast paths is the job of LTO, not of
+// header-only replacement operators.
+//
+// The inner work is still as inline-friendly as possible:
+//   - `new_redirected` is header-inline (allocator_prv.h), so the
+//     full alloc fast path (size→bucket + freelist pop) folds into
+//     `operator new`'s single TU.
+//   - `deallocate_pooled_or_free` is `inline` here in the same TU
+//     so the recursive `deallocate_<>` ladder folds into
+//     `operator delete`.
+// The only remaining cross-TU boundary is `operator new` /
+// `operator delete` itself — one direct branch per `new T` /
+// `delete p`.
+
 void* operator new(std::size_t size) {
     KAME_HISTO_REC(size);
     return new_redirected(size);
