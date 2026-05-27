@@ -238,41 +238,46 @@ protected:
 	static ALLOC *allocate_chunk();
 	//! Release a chunk back to PROT_NONE.  Clears the chunk header
 	//! pointer at `chunk_base`, mprotect's the chunk back to PROT_NONE,
-	//! and clears the matching `s_chunks[cidx]` (located via a walk
-	//! over `s_mmapped_spaces[]`).  Called both from the owner-side
-	//! `deallocate_<>` last-slot release path and from the cross-batch
-	//! `batch_return_to_bitmap` suicide path.
+	//! and clears the matching claim bit in `s_claim_bitmap[]` (region
+	//! + bit located via a walk over `s_mmapped_spaces[]`).  Called
+	//! both from the owner-side `deallocate_<>` last-slot release path
+	//! and from the cross-batch `batch_return_to_bitmap` suicide path.
 	static void deallocate_chunk(char *chunk_base, size_t chunk_size);
 
 	//! A chunk, memory block.
 	char * const m_mempool;
 
-	//! Index into `s_chunks[]` for this chunk, and the chunk size used
-	//! to address back into `s_mmapped_spaces`.  Stamped by
-	//! `allocate_chunk()` immediately after `s_chunks[cidx] = palloc`.
-	//! Read by the `batch_return_to_bitmap` chunk-release path
+	//! Chunk size for this PoolAllocator instance.  Stamped by
+	//! `allocate_chunk()` from the per-level ladder value.  Read by
+	//! the cross-batch `batch_return_to_bitmap` chunk-release path
 	//! (FS=true and FS=false overrides) so it can call
-	//! `deallocate_chunk` after `release_allocator` returns true and
-	//! BEFORE the `delete this` self-suicide cascade — clearing
-	//! `s_chunks[cidx]` and mprotect-ing the mempool back to PROT_NONE.
-	//! Without this, `s_chunks[cidx]` would dangle, a later
-	//! `deallocate_<>` lookup would dereference the freed PoolAllocator
-	//! instance, and glibc would surface it as `free(): invalid pointer`
-	//! / `tcache_thread_shutdown(): unaligned tcache chunk detected`.
+	//! `deallocate_chunk(chunk_base, chunk_size)` after
+	//! `release_allocator` returns true and BEFORE the `delete this`
+	//! self-suicide cascade — clearing the chunk-header pointer +
+	//! claim bit, and mprotect-ing the mempool back to PROT_NONE.
 	//! The owner-side dealloc path returns `true` from
-	//! `deallocate_pooled` which already calls `deallocate_chunk` in
-	//! `PoolAllocatorBase::deallocate_<>` — that path doesn't need
-	//! these fields, only the cross-batch self-suicide path does.
-	int m_cidx = -1;
+	//! `deallocate_pooled` and `PoolAllocatorBase::deallocate_<>`
+	//! calls `deallocate_chunk(chunk_base, CHUNK_SIZE)` directly
+	//! with the template's compile-time chunk_size.
 	size_t m_chunk_size = 0;
 
 private:
 	friend void report_statistics();
-	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE,
-		ALLOC_MAX_CHUNKS = NUM_ALLOCATORS_IN_SPACE * ALLOC_MAX_MMAP_ENTRIES};
+	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE};
+	static_assert(NUM_ALLOCATORS_IN_SPACE == 128,
+		"NUM_ALLOCATORS_IN_SPACE expected to be 128 — matches the "
+		"two-uint64_t bitmap layout used by s_claim_bitmap[]");
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
-	static PoolAllocatorBase *s_chunks[ALLOC_MAX_CHUNKS];
+	//! Per-mmap-region chunk-claim bitmap.  Two `uint64_t`s per region
+	//! = 128 bits = NUM_ALLOCATORS_IN_SPACE chunks.  Bit i set ⇒
+	//! chunk i is claimed (mprotect'd + initialised).  Replaces the
+	//! previous `s_chunks[ALLOC_MAX_CHUNKS]` 24 KiB cold global —
+	//! lookups now go via chunk-header dereference (see
+	//! `deallocate_<>` / `lookup_chunk`), so this array is only
+	//! consulted on the cold chunk-claim / release paths.  Total
+	//! storage: 24 × 16 B = 384 B (vs 24 KiB).
+	static std::atomic<uint64_t> s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * 2];
 };
 
 //! Per-thread flag — true once `AllocPinCleanup::~dtor` has fired.

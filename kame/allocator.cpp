@@ -1174,92 +1174,100 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 template <class ALLOC>
 inline ALLOC *
 PoolAllocatorBase::allocate_chunk() {
-	int cidx = 0;
+	// Walk the ladder of mmap regions.  For each region, ensure it is
+	// mmap'd, then try to claim a free chunk via the per-region
+	// `s_claim_bitmap[]` (128 bits = 2 × uint64_t per region).  When
+	// the bit-CAS succeeds, the corresponding chunk slot is exclusively
+	// ours to mprotect and initialise.  Failure (whole region full)
+	// falls through to the next level (chunk_size doubles).
 	size_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
-	for(;;) {
-		if(cidx >= ALLOC_MAX_CHUNKS) {
-			fprintf(stderr, "# of chunks exceeds the limit.\n");
-			return 0;
-		}
-		if( !s_chunks[cidx]) {
-			if(atomicCompareAndSet((PoolAllocatorBase *)0, reinterpret_cast<PoolAllocatorBase *>(1u), &s_chunks[cidx])) {
-				writeBarrier();
+	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES;
+	    ++region, chunk_size = GROW_CHUNK_SIZE(chunk_size)) {
+		while( !s_mmapped_spaces[region]) {
+			size_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+			// Windows: use _aligned_malloc for chunk-size aligned region.
+			// The chunk-base mask trick (slot & ~(chunk_size-1) →
+			// chunk_base) requires the entire mmap region to start at a
+			// chunk_size-aligned address.  mprotect path is no-op on
+			// Windows so we only need the alignment guarantee here.
+			char *p = static_cast<char *>(
+			    _aligned_malloc(mmap_size, chunk_size));
+			if( !p) {
+				fprintf(stderr,
+				    "_aligned_malloc(%zu, %zu) failed.\n",
+				    mmap_size, chunk_size);
+				return 0;
+			}
+#else
+			// Linux / macOS: mmap returns page-aligned (4-16 KiB), not
+			// chunk-aligned.  Over-allocate by one chunk_size and
+			// munmap the unaligned head + tail so the kept region
+			// starts at a chunk_size boundary.  Cost: 1 extra
+			// chunk_size of VA wasted per mmap region (out of 128 ×
+			// chunk_size) ≈ 0.8 % overhead.
+			size_t total = mmap_size + chunk_size;
+			char *raw = static_cast<char *>(
+			    mmap(0, total, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
+			if(raw == MAP_FAILED) {
+				fprintf(stderr, "mmap() failed.\n");
+				return 0;
+			}
+			uintptr_t aligned =
+			    ((uintptr_t)raw + chunk_size - 1u) & ~(uintptr_t)(chunk_size - 1u);
+			char *p = reinterpret_cast<char *>(aligned);
+			size_t prefix = p - raw;
+			size_t suffix = total - prefix - mmap_size;
+			if(prefix > 0) munmap(raw, prefix);
+			if(suffix > 0) munmap(p + mmap_size, suffix);
+#endif
+			writeBarrier();
+			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[region])) {
+				readBarrier();
+				fprintf(stderr,
+				    "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n",
+				    p, (unsigned long long)mmap_size);
 				break;
 			}
-			continue;
-		}
-		++cidx;
-		if(cidx % NUM_ALLOCATORS_IN_SPACE == 0) {
-			chunk_size = GROW_CHUNK_SIZE(chunk_size);
-		}
-	}
-
-	while( !s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE]) {
-		size_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-        // Windows: use _aligned_malloc for chunk-size aligned region.
-        // The chunk-base mask trick (slot & ~(chunk_size-1) → chunk_base)
-        // requires the entire mmap region to start at a chunk_size-
-        // aligned address.  mprotect path is no-op on Windows so we
-        // only need the alignment guarantee here.
-        char *p = static_cast<char *>(_aligned_malloc(mmap_size, chunk_size));
-        if( !p) {
-            fprintf(stderr, "_aligned_malloc(%zu, %zu) failed.\n",
-                    mmap_size, chunk_size);
-            s_chunks[cidx] = 0;
-            return 0;
-        }
+			_aligned_free(p);
 #else
-		// Linux / macOS: mmap returns page-aligned (4-16 KiB), not
-		// chunk-aligned.  Over-allocate by one chunk_size and munmap
-		// the unaligned head + tail so the kept region starts at a
-		// chunk_size boundary.  Cost: 1 extra chunk_size of VA wasted
-		// per mmap region (out of 128 × chunk_size) ≈ 0.8 % overhead.
-		size_t total = mmap_size + chunk_size;
-		char *raw = static_cast<char *>(
-			mmap(0, total, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
-		if(raw == MAP_FAILED) {
-			fprintf(stderr, "mmap() failed.\n");
-			s_chunks[cidx] = 0;
-			return 0;
-		}
-		uintptr_t aligned =
-		    ((uintptr_t)raw + chunk_size - 1u) & ~(uintptr_t)(chunk_size - 1u);
-		char *p = reinterpret_cast<char *>(aligned);
-		size_t prefix = p - raw;
-		size_t suffix = total - prefix - mmap_size;
-		if(prefix > 0) munmap(raw, prefix);
-		if(suffix > 0) munmap(p + mmap_size, suffix);
+			munmap(p, mmap_size);
 #endif
-		writeBarrier();
-		if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE])) {
-			readBarrier();
-			fprintf(stderr, "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n", p, (unsigned long long)mmap_size);
-			break;
 		}
+		// Try to claim a bit in this region's bitmap.  Each region has
+		// 128 bits split across two `std::atomic<uint64_t>` words.
+		for(int word = 0; word < 2; ++word) {
+			std::atomic<uint64_t> *bm = &s_claim_bitmap[region * 2 + word];
+			for(;;) {
+				uint64_t v = bm->load(std::memory_order_relaxed);
+				if(v == ~uint64_t(0)) break;  // word full, try next
+				int bit = __builtin_ctzll(~v);  // first zero bit
+				uint64_t newv = v | (uint64_t(1) << bit);
+				if(bm->compare_exchange_weak(v, newv,
+				                             std::memory_order_acquire,
+				                             std::memory_order_relaxed)) {
+					int cidx_in_region = word * 64 + bit;
+					char *addr = s_mmapped_spaces[region]
+					           + cidx_in_region * chunk_size;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-        _aligned_free(p);
+					// no mprotect on Windows
 #else
-        munmap(p, mmap_size);
-#endif
-    }
-	char *addr =
-		s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE] + chunk_size * (cidx % NUM_ALLOCATORS_IN_SPACE);
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-#else
-    // mprotect failure is silent under NDEBUG (assert no-op); the next
-    // write to addr would then SIGBUS. Treat it as fatal so the failure
-    // is visible.
-    int ret = mprotect(addr, chunk_size, PROT_READ | PROT_WRITE);
-    if(ret != 0) {
-        fprintf(stderr,
-            "mprotect(%p, 0x%llx, RW) failed: errno=%d (chunk %d, "
-            "page-align: addr&%d=%lu size&%d=%lu)\n",
-            addr, (unsigned long long)chunk_size, errno, cidx,
-            ALLOC_PAGE_SIZE, (unsigned long)((uintptr_t)addr % ALLOC_PAGE_SIZE),
-            ALLOC_PAGE_SIZE, (unsigned long)(chunk_size % ALLOC_PAGE_SIZE));
-        std::abort();
-    }
+					// mprotect failure is silent under NDEBUG (assert
+					// no-op); the next write to addr would then SIGBUS.
+					// Treat it as fatal so the failure is visible.
+					int ret = mprotect(addr, chunk_size, PROT_READ | PROT_WRITE);
+					if(ret != 0) {
+						fprintf(stderr,
+						    "mprotect(%p, 0x%llx, RW) failed: errno=%d "
+						    "(region %d, chunk %d, page-align: addr&%d=%lu "
+						    "size&%d=%lu)\n",
+						    addr, (unsigned long long)chunk_size, errno,
+						    region, cidx_in_region,
+						    ALLOC_PAGE_SIZE, (unsigned long)((uintptr_t)addr % ALLOC_PAGE_SIZE),
+						    ALLOC_PAGE_SIZE, (unsigned long)(chunk_size % ALLOC_PAGE_SIZE));
+						std::abort();
+					}
     // Optional pre-warm: one byte per OS page, on the claiming thread.
     // Forces the kernel's first-touch fault to fire HERE (cold chunk-
     // claim path, rare) instead of inside each subsequent user-side
@@ -1279,44 +1287,46 @@ PoolAllocatorBase::allocate_chunk() {
     // pre-warm ON → HWM 74 MiB / 20.7 M ops/s, pre-warm OFF → HWM
     // 16 MiB / 21.3 M ops/s (combined with the chunk-size revert in
     // allocator_prv.h).  Set `KAME_ALLOC_PREWARM=1` in the
-    // environment on NUMA hosts to opt in.
-    static const bool prewarm = [] {
-        const char *e = std::getenv("KAME_ALLOC_PREWARM");
-        return e && e[0] != '\0' && e[0] != '0';
-    }();
-    if(prewarm) {
-        for(size_t off = 0; off < chunk_size; off += ALLOC_PAGE_SIZE)
-            reinterpret_cast<volatile char *>(addr)[off] = 0;
-    }
+					// environment on NUMA hosts to opt in.
+					static const bool prewarm = [] {
+						const char *e = std::getenv("KAME_ALLOC_PREWARM");
+						return e && e[0] != '\0' && e[0] != '0';
+					}();
+					if(prewarm) {
+						for(size_t off = 0; off < chunk_size; off += ALLOC_PAGE_SIZE)
+							reinterpret_cast<volatile char *>(addr)[off] = 0;
+					}
 #endif
-
-	// Chunk layout (chunk-size-aligned by mmap-over-and-trim above):
-	//   [0 .. ALLOC_CHUNK_HEADER-1]  reserved — holds
-	//                                `PoolAllocatorBase *metadata_ptr`
-	//                                at offset 0 (rest = pad).
-	//   [ALLOC_CHUNK_HEADER .. end]  slot region (m_mempool).
-	//
-	// The chunk header pointer is the cornerstone of O(1) chunk lookup
-	// from any slot pointer:
-	//     PoolAllocatorBase *p = *(PoolAllocatorBase**)
-	//         ((uintptr_t)slot & ~(chunk_size - 1));
-	// One AND + one load.  Replaces the previous
-	// pdiff/CHUNK_SIZE + s_chunks[cidx] sequence.
-	ALLOC *palloc = ALLOC::create(chunk_size - ALLOC_CHUNK_HEADER,
-	                              addr + ALLOC_CHUNK_HEADER);
-	// Stamp (cidx, chunk_size) on the instance so the cross-batch
-	// chunk-release self-suicide path in `batch_return_to_bitmap` can
-	// call `deallocate_chunk(chunk_base, chunk_size)` AFTER `delete this`.
-	palloc->m_cidx = cidx;
-	palloc->m_chunk_size = chunk_size;
-	// Write the chunk header pointer.  This is the source of truth for
-	// `lookup_chunk(slot)` and `deallocate_<>`.  Must be visible before
-	// `s_chunks[cidx]` becomes non-sentinel (writeBarrier below).
-	*reinterpret_cast<PoolAllocatorBase **>(addr) = palloc;
-	writeBarrier();
-	s_chunks[cidx] = palloc;
-
-	return palloc;
+					// Chunk layout (chunk-size-aligned by mmap-over-and-trim above):
+					//   [0 .. ALLOC_CHUNK_HEADER-1]  reserved — holds
+					//                                `PoolAllocatorBase *metadata_ptr`
+					//                                at offset 0 (rest = pad).
+					//   [ALLOC_CHUNK_HEADER .. end]  slot region (m_mempool).
+					//
+					// The chunk header pointer is the cornerstone of O(1)
+					// chunk lookup from any slot pointer:
+					//     PoolAllocatorBase *p = *(PoolAllocatorBase**)
+					//         ((uintptr_t)slot & ~(chunk_size - 1));
+					// One AND + one load.
+					ALLOC *palloc = ALLOC::create(chunk_size - ALLOC_CHUNK_HEADER,
+					                              addr + ALLOC_CHUNK_HEADER);
+					palloc->m_chunk_size = chunk_size;
+					// Write the chunk header pointer.  This is the source
+					// of truth for `lookup_chunk(slot)` and `deallocate_<>`.
+					// writeBarrier so the store is visible before any
+					// allocation hands out a slot from this chunk.
+					*reinterpret_cast<PoolAllocatorBase **>(addr) = palloc;
+					writeBarrier();
+					return palloc;
+				}
+				// CAS failed — concurrent claim, retry with updated v.
+			}
+			// word full — fall through to next word.
+		}
+		// both words full — fall through to next region.
+	}
+	fprintf(stderr, "# of chunks exceeds the limit.\n");
+	return 0;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
@@ -1522,26 +1532,27 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 	mprotect(chunk_base, chunk_size, PROT_NONE);
 #endif
 
-	// Mirror the clear in s_chunks[] too.  The cidx is recoverable from
-	// `chunk_base` via the s_mmapped_spaces walk, but we only need it
-	// here (cold path) so the walk cost is acceptable.  s_chunks[] is
-	// still consulted by chunk-claim CAS in `allocate_chunk` to
-	// reserve a slot, hence we keep it in sync.
+	// Clear the claim bit in s_claim_bitmap[].  Walk s_mmapped_spaces[]
+	// to find the region whose chunk_size matches and that contains
+	// chunk_base, then atomic_fetch_and to clear the bit.  Cold path
+	// (per-chunk release is rare), walk cost acceptable.
 	size_t cs = ALLOC_MIN_CHUNK_SIZE;
-	for(int ccnt = 0; ccnt < ALLOC_MAX_MMAP_ENTRIES; ++ccnt) {
-		char *mp = s_mmapped_spaces[ccnt];
-		if(ccnt > 0 && !mp) break;
+	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES;
+	    ++region, cs = GROW_CHUNK_SIZE(cs)) {
+		char *mp = s_mmapped_spaces[region];
+		if(region > 0 && !mp) break;
 		if(mp && cs == chunk_size) {
 			ptrdiff_t pdiff = chunk_base - mp;
 			if(pdiff >= 0
 			   && pdiff < (ptrdiff_t)cs * NUM_ALLOCATORS_IN_SPACE) {
-				int cidx = int((size_t)pdiff / cs)
-				           + ccnt * NUM_ALLOCATORS_IN_SPACE;
-				s_chunks[cidx] = 0;
-				break;
+				int cidx_in_region = int((size_t)pdiff / cs);
+				int word = cidx_in_region / 64;
+				int bit  = cidx_in_region % 64;
+				s_claim_bitmap[region * 2 + word].fetch_and(
+				    ~(uint64_t(1) << bit), std::memory_order_release);
+				return;
 			}
 		}
-		cs = GROW_CHUNK_SIZE(cs);
 	}
 }
 
@@ -1623,23 +1634,24 @@ PoolAllocatorBase::deallocate(void *p) {
 }
 void
 PoolAllocatorBase::release_chunks() {
-	for(int cidx = 0; cidx < ALLOC_MAX_CHUNKS; ++cidx) {
-		s_chunks[cidx] = 0;
-	}
+	// Clear claim bitmaps + munmap regions.  Process exit only —
+	// individual chunk releases use `deallocate_chunk` instead.
+	for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES * 2; ++i)
+		s_claim_bitmap[i].store(0, std::memory_order_relaxed);
 	size_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
-	for(int cnt = 0; cnt < ALLOC_MAX_MMAP_ENTRIES; ++cnt) {
+	for(int cnt = 0; cnt < ALLOC_MAX_MMAP_ENTRIES;
+	    ++cnt, chunk_size = GROW_CHUNK_SIZE(chunk_size)) {
 		char *mp = s_mmapped_spaces[cnt];
 		if( !mp)
 			break;
 		size_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-        free(mp);
+		_aligned_free(mp);
 #else
-        int ret = munmap(mp, mmap_size);
-        assert( !ret);
+		int ret = munmap(mp, mmap_size);
+		assert( !ret);
 #endif
 		s_mmapped_spaces[cnt] = 0;
-		chunk_size = GROW_CHUNK_SIZE(chunk_size);
 	}
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -1875,19 +1887,42 @@ void release_pools() {
 	PoolAllocatorBase::release_chunks();
 }
 void report_statistics() {
-	size_t chunk_size = 0;
+	// Walk all mmap regions; for each region read the claim bitmap to
+	// find live chunks; dereference each live chunk's header pointer
+	// to get its `PoolAllocatorBase *`.  Same enumeration order as
+	// the previous `s_chunks[ALLOC_MAX_CHUNKS]` linear scan, but
+	// driven by the chunk-header source of truth.
+	size_t chunk_size_total = 0;
 	size_t used_size = 0;
-	for(int cidx = 0; cidx < PoolAllocatorBase::ALLOC_MAX_CHUNKS; ++cidx) {
-		PoolAllocatorBase *palloc = PoolAllocatorBase::s_chunks[cidx];
-		if(palloc) {
-			size_t cs, us;
-			palloc->report_statistics(cs, us);
-			chunk_size += cs;
-			used_size += us;
+	size_t cs = ALLOC_MIN_CHUNK_SIZE;
+	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES;
+	    ++region, cs = GROW_CHUNK_SIZE(cs)) {
+		char *mp = PoolAllocatorBase::s_mmapped_spaces[region];
+		if( !mp) break;
+		for(int word = 0; word < 2; ++word) {
+			uint64_t bm = PoolAllocatorBase::s_claim_bitmap[region * 2 + word]
+			                  .load(std::memory_order_relaxed);
+			while(bm) {
+				int bit = __builtin_ctzll(bm);
+				bm &= ~(uint64_t(1) << bit);
+				int cidx_in_region = word * 64 + bit;
+				char *cbase = mp + cidx_in_region * cs;
+				PoolAllocatorBase *palloc =
+				    *reinterpret_cast<PoolAllocatorBase **>(cbase);
+				if((uintptr_t)palloc > uintptr_t(1)) {
+					size_t c_cs, c_us;
+					palloc->report_statistics(c_cs, c_us);
+					chunk_size_total += c_cs;
+					used_size += c_us;
+				}
+			}
 		}
 	}
-	printf("Total chunk size = 0x%llxB, filling = %.2f%%\n", (unsigned long long)chunk_size,
-		(double)used_size / chunk_size * 100.0);
+	printf("Total chunk size = 0x%llxB, filling = %.2f%%\n",
+	    (unsigned long long)chunk_size_total,
+	    chunk_size_total
+	        ? (double)used_size / chunk_size_total * 100.0
+	        : 0.0);
 }
 
 #ifdef KAME_SIZE_HISTOGRAM
@@ -1971,7 +2006,8 @@ void operator delete[](void* p, const std::nothrow_t&) noexcept {
 }
 
 char *PoolAllocatorBase::s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
-PoolAllocatorBase *PoolAllocatorBase::s_chunks[ALLOC_MAX_CHUNKS];
+std::atomic<uint64_t>
+    PoolAllocatorBase::s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * 2];
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 uintptr_t PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
 template <unsigned int ALIGN, bool FS, bool DUMMY>
