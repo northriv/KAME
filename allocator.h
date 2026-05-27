@@ -183,6 +183,12 @@ public:
 #include <array>
 #include <vector>
 #include <limits>
+// `fast_vector` below uses `assert()` (line ~403, ~417) — explicit
+// `<cassert>` so we don't depend on `<vector>`/`<array>` transitively
+// pulling it.  MinGW64 / MSVC standard-library implementations do not
+// guarantee this transitive include and trip
+// "error: 'assert' was not declared in this scope".
+#include <cassert>
 
 namespace Transactional {
 
