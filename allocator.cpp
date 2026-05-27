@@ -742,8 +742,21 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
-				if(newv == ~(FUINT)0u)
+				if(newv == ~(FUINT)0u) {
                     atomicInc( &this->m_flags_filled_cnt);
+                    // Proactive Phase 3 trigger: when this chunk hits 4/5
+                    // (80 %) of its words fully filled, flush this
+                    // thread's cross-dealloc batch.  Any batched frees
+                    // for OTHER chunks land back in their bitmaps,
+                    // letting the next chunk-full event's DLL scan
+                    // (Phase 2) find recovered space before mmaping
+                    // fresh memory.  Sampled at word-fill granularity
+                    // (~1 in FUINT_BITS = 64 allocs) so the overhead is
+                    // amortised; `flush()` is a no-op when the batch is
+                    // empty so post-cross-event calls are cheap.
+                    if(this->m_flags_filled_cnt * 5 >= this->m_count * 4)
+                        tls_cross_dealloc_batch.flush();
+                }
 				writeBarrier(); //for the counters.
 				break;
 			}
@@ -1625,6 +1638,30 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				else               s_dll_tail = nx->m_dll_prev;
 				char *cbase = nx->m_mempool - ALLOC_CHUNK_HEADER;
 				size_t csz = nx->m_chunk_size;
+				// Phase-4a stale-cache invariant: multiple FS=false
+				// buckets share one PoolAllocator<ALIGN,false>
+				// template, so the released chunk `nx` may still be
+				// cached in `g_thread_chunks[b]` for sibling buckets
+				// that never triggered a chunk-switch.  Sweep all
+				// per-thread bucket slots and clear matching pointers
+				// BEFORE `delete nx`; the next `new_redirected_large`
+				// on those buckets will route via `cold_first_access`
+				// → `bucket_first_access<B>` and re-pin against the
+				// current valid `s_my_chunk` for this template.
+				// Without this sweep the sibling slots become dangling
+				// pointers into freed malloc memory — the next
+				// virtual `chunk->slow_allocate(...)` dispatch reads a
+				// trashed vtable and jumps into garbage.
+				//
+				// FS=true templates don't share buckets so the sweep is
+				// a few comparisons of unrelated PoolAllocator pointers
+				// (always misses) on those paths; cheap enough to keep
+				// unconditional.
+				PoolAllocatorBase *nx_pa = static_cast<PoolAllocatorBase *>(nx);
+				for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
+					if(g_thread_chunks[b] == nx_pa)
+						g_thread_chunks[b] = nullptr;
+				}
 				delete nx;
 				PoolAllocatorBase::deallocate_chunk(cbase, csz);
 				++released;
