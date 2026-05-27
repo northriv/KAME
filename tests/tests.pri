@@ -22,44 +22,55 @@ CONFIG -= qt
 INCLUDEPATH += $${_PRO_FILE_PWD_}/../kame
 INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamepoolalloc
 
-# Mirror source-tree paths into the build output so
-# `tests/allocator.cpp` (activator shim) and
-# `../kamepoolalloc/allocator.cpp` (the real pool TU) — both basename
-# `allocator.cpp` — produce distinct .o files instead of clobbering
-# each other in a flat OBJECTS_DIR.
-CONFIG += object_parallel_to_source
+# Activate the dylib-mode `KAMEPOOLALLOC_DYLIB` codepath in
+# `allocator.h`: `activateAllocator()` collapses to an inline no-op
+# and `KamePooledAllocGuard` becomes a true no-op — the dylib's own
+# `__attribute__((constructor))` flips `g_sys_image_loaded = true`
+# at load, before any consumer image's static init.
+DEFINES += KAMEPOOLALLOC_DYLIB
 
 # Preinclude standalone support header to block Qt-dependent originals
 QMAKE_CXXFLAGS += -include $${_PRO_FILE_PWD_}/support_standalone.h
 
 # Common sources brought into every standalone test binary:
 #  - support_standalone.cpp:    Qt-free stub for `support.cpp` / `xtime.cpp`
-#  - tests/allocator.cpp:       activator shim — declares
-#                               `extern void activateAllocator()` and
-#                               calls it from a static-init object so
-#                               the pool is enabled before main().  No
-#                               longer #includes the allocator TU itself.
-#  - ../kamepoolalloc/allocator.cpp:
-#                               the actual pool-allocator TU (was
-#                               `kame/allocator.cpp` before the
-#                               kamepoolalloc/ split).  Compiled inline
-#                               into each test binary here in qmake; the
-#                               cmake build builds it as a shared
-#                               library (libkamepoolalloc.dylib) instead
-#                               so dyld can process the `__DATA,
-#                               __interpose` `free` redirection in it.
-#                               On non-x86 the pool is auto-disabled via
-#                               USE_STD_ALLOCATOR (see allocator.h) and
-#                               this file contributes nothing.
 #  - ../kame/threadlocal.cpp:   `detail::tls_storage()` — the type-erased
 #                               TLS dispatcher every `XThreadLocal<T,
 #                               Tag>` calls into; lives in kame.dll for
 #                               the real build, must be linked into the
 #                               standalone test binary directly.
+#
+# Notes on what is NOT compiled inline anymore:
+#  - tests/allocator.cpp:       gone.  The dylib auto-activates at load
+#                               via `__attribute__((constructor))` so
+#                               the static-init activator shim is
+#                               obsolete.
+#  - ../kamepoolalloc/allocator.cpp:
+#                               built as a shared library by the
+#                               sibling `kamepoolalloc.pro` (added to
+#                               the top-level kame.pro SUBDIRS and
+#                               `tests.depends`).  Tests `LIBS` against
+#                               it via the macx/unix-specific block at
+#                               the bottom of this file.
 SOURCES += support_standalone.cpp
-SOURCES += allocator.cpp
-SOURCES += ../kamepoolalloc/allocator.cpp
 SOURCES += ../kame/threadlocal.cpp
+
+# Link against libkamepoolalloc — built by ../kamepoolalloc/kamepoolalloc.pro
+# in the sibling subdir (top-level kame.pro orders this before tests via
+# `tests.depends = kamepoolalloc`).  The path is the per-test build dir's
+# `../kamepoolalloc` (each per-test .pro builds into its own subdir under
+# build/.../tests, parallel to build/.../kamepoolalloc).
+LIBS += -L$$OUT_PWD/../kamepoolalloc -lkamepoolalloc
+
+macx {
+    # rpath: search for libkamepoolalloc.dylib relative to the test
+    # binary's directory.  `@executable_path/../kamepoolalloc/` covers
+    # the `build/.../tests/<test>` → `build/.../kamepoolalloc/` hop.
+    QMAKE_LFLAGS += -Wl,-rpath,@executable_path/../kamepoolalloc
+}
+unix:!macx {
+    QMAKE_LFLAGS += -Wl,-rpath,\\$\$ORIGIN/../kamepoolalloc
+}
 
 # Headers that every standalone test transitively pulls in via
 # `support_standalone.h` / `allocator.h` / `threadlocal.h`.  Listed

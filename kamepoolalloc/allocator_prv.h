@@ -561,7 +561,10 @@ extern bool g_sys_image_loaded;
 //! `s_alloc_tls_off` is forward-declared earlier in this file (just above
 //! PoolAllocator) so new_redirected can read it.
 
-void activateAllocator();
+// `activateAllocator()` is declared by allocator.h — either as `extern`
+// (inline-compiled / qmake build) or as an `inline noexcept {}` no-op
+// (dylib build, where the dylib's __attribute__((constructor)) handles
+// activation).  Don't redeclare here, would shadow the inline form.
 
 // ---------------------------------------------------------------------
 // Per-thread allocation functor table (hot-path dispatch).

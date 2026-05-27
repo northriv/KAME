@@ -64,11 +64,18 @@ if(USE_KAME_ALLOCATOR)
         ${CMAKE_CURRENT_SOURCE_DIR}/../kamepoolalloc/allocator.cpp)
     target_include_directories(kamepoolalloc PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../kamepoolalloc)
+    # PUBLIC: define propagates to every test linking against the dylib.
+    # In dylib mode the allocator is auto-activated via a
+    # `__attribute__((constructor))` inside libkamepoolalloc itself (runs
+    # at dylib load, before the main exe's static init), so the explicit
+    # `activateAllocator()` call site / `tests/allocator.cpp` activator
+    # shim becomes obsolete.  `KamePooledAllocGuard` (in allocator.h)
+    # also degrades to a true no-op under this macro.
+    target_compile_definitions(kamepoolalloc PUBLIC KAMEPOOLALLOC_DYLIB)
     # macOS: rpath so test binaries find the dylib next to themselves.
     set_target_properties(kamepoolalloc PROPERTIES
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)
-    list(APPEND support_SRCS allocator.cpp)
 else()
     add_compile_definitions(DISABLE_POOL_ALLOCATOR)
 endif()
