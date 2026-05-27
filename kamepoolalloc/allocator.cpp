@@ -168,11 +168,11 @@ namespace { void drain_thread_slot_freelists() noexcept; }
 namespace {
 struct AllocPinCleanup {
     static constexpr int MAX = 32;
-    // `noexcept` not in the function-pointer type — that requires
-    // C++17 (we compile at C++14 to keep the kame_pool dylib usable
-    // by older deps).  Each `release_dll_chunks_for_thread`
-    // implementation is noexcept regardless.
-    using ReleaseDllFn = void (*)();
+    // `noexcept` is part of the function-pointer type since C++17 — the
+    // dylib + tests + production builds (cmake `-std=gnu++17`, qmake
+    // `CONFIG += c++17`) compile at C++17 so this is well-formed and
+    // matches the implementation's `noexcept` declaration.
+    using ReleaseDllFn = void (*)() noexcept;
     ReleaseDllFn release_fns[MAX] = {};
     int count = 0;
     //! Register a per-template DLL teardown callback.  Called once per

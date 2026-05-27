@@ -110,20 +110,36 @@ inline bool atomicDecAndTest(T *target) noexcept {
 #endif
 //! 2× growth.  No page-align rounding needed — both terms are power-of-2.
 #define GROW_CHUNK_SIZE(x) ((size_t)(x) * 2u)
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    #define ALLOC_MIN_MMAP_SIZE ALLOC_MIN_CHUNK_SIZE
-    #define ALLOC_MAX_MMAP_ENTRIES 24
+//! `NUM_ALLOCATORS_IN_SPACE == 128` is fixed across all targets — it's
+//! the bit count of the two-uint64_t `s_claim_bitmap[region*2..region*2+1]`
+//! per-region chunk-claim bitmap.  So `ALLOC_MIN_MMAP_SIZE` must equal
+//! `128 × ALLOC_MIN_CHUNK_SIZE = 32 MiB` regardless of host word size.
+//!
+//! `ALLOC_MAX_MMAP_ENTRIES` is the VA-budget knob — the ladder doubles
+//! chunk_size per level, so total reserved VA = 32 MiB × (2^N − 1).
+//! With anonymous PROT_NONE mmap, this only reserves VA (no physical
+//! commit), so the cost is paid in address space, not in RSS.
+//!
+//!   host         |  N  | top chunk           | total VA (sparse)
+//!   -------------+-----+---------------------+---------------------
+//!   64-bit       |  24 | 256 KiB × 2^23 ≈ 2 TiB | ≈ 512 TiB
+//!   32-bit       |   5 | 256 KiB × 2^4 = 4 MiB | 32 MiB × 31 = 992 MiB
+//!                |     | (5 ladder levels with 128 chunks each →
+//!                |     |  ~1 GiB usable pool memory, well within
+//!                |     |  the 3 GiB Linux 32-bit user-space VA)
+//!   Windows      |  24 | (same as 64-bit on _aligned_malloc; Windows
+//!                |     |  pool path is currently used only in tests
+//!                |     |  via the dylib build, opt-in)
+#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32 MiB = 256 KiB × 128
+#if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
+    #define ALLOC_MAX_MMAP_ENTRIES 24 //2× ladder → up to 512 TiB VA at top level
 #else
-    #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
-        //! NUM_ALLOCATORS_IN_SPACE = MMAP_SIZE / CHUNK_SIZE = 128 — the
-        //! chunk-size ladder advances every 128 chunk claims.
-        //! 256 KiB × 128 = 32 MiB per level at the bottom of the ladder.
-        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32 MiB = 256K × 128
-        #define ALLOC_MAX_MMAP_ENTRIES 24 //2× ladder → up to 512 TiB VA at top level
-    #else
-        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 8) //8 MiB
-        #define ALLOC_MAX_MMAP_ENTRIES 16 //smaller VA on 32-bit
-    #endif
+    //! 32-bit host: cap the ladder at 5 levels so the cumulative
+    //! PROT_NONE reservation (~1 GiB) leaves headroom under the Linux
+    //! 3 GiB / Win32 2 GiB user-VA limit.  Largest chunk = 4 MiB; the
+    //! pool's max bucket is 8 KiB so 4 MiB chunks hold 512 slots — far
+    //! more than enough.
+    #define ALLOC_MAX_MMAP_ENTRIES 5
 #endif
 
 //! Reserved bytes at the head of every chunk.  Layout:
@@ -308,6 +324,16 @@ private:
 	static_assert(NUM_ALLOCATORS_IN_SPACE == 128,
 		"NUM_ALLOCATORS_IN_SPACE expected to be 128 — matches the "
 		"two-uint64_t bitmap layout used by s_claim_bitmap[]");
+	// 32-bit hosts need DCAS (x86 CMPXCHG8B / ARMv7 LDREXD) for the
+	// chunk-claim bitmap and the `m_flags[]` per-slot bitmap CAS to
+	// remain lock-free.  All conformant targets emit ATOMIC_LLONG_LOCK_FREE
+	// == 2 (always lock-free) when DCAS is available — fail the build
+	// otherwise, since a mutex-based atomic<uint64_t> on the chunk-claim
+	// path would silently defeat the allocator's lock-free guarantees.
+	static_assert(ATOMIC_LLONG_LOCK_FREE == 2,
+		"atomic<uint64_t> must be always-lock-free for s_claim_bitmap[] "
+		"and the m_flags[] CAS path (need DCAS: x86 CMPXCHG8B / "
+		"ARMv7 LDREXD).  Targets without hardware DCAS are not supported.");
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
 	//! Per-mmap-region chunk-claim bitmap.  Two `uint64_t`s per region
