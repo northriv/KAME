@@ -142,25 +142,63 @@ inline bool atomicDecAndTest(T *target) noexcept {
     #define ALLOC_MAX_MMAP_ENTRIES 5
 #endif
 
-//! Reserved bytes at the head of every chunk.  Layout:
-//!   [0 .. 7]:   `PoolAllocatorBase *` (chunk owner, source of truth
+//! Reserved bytes at the head of every chunk.  Layout (Phase 5c):
+//!   [0 .. 7]:   chunk-wide SIZE info — `uint64_t`:
+//!                 FS=true  (fixed-size chunk): low 32 bits = slot
+//!                          size in bytes (= ALIGN; same for every
+//!                          slot in the chunk).  Non-zero ⇒ "jump
+//!                          straight to bucket-driven dispatch
+//!                          without a per-slot prefix read".
+//!                 FS=false (variable-size): 0.  Distinct from FS=true
+//!                          and from chunk-released (palloc==0); the
+//!                          dealloc path reads the SIZE from the
+//!                          per-slot prefix at `p - ALIGN` instead.
+//!               High 32 bits: reserved (future: bucket id / ALIGN
+//!               shift / dispatch hint for a fully-unified deallocate
+//!               that branches on `(hdr[0] != 0)` and avoids the
+//!               indirect `DeallocateFn` call).
+//!   [8 .. 15]:  `PoolAllocatorBase *` (chunk owner; source of truth
 //!               for O(1) lookup from any slot via
-//!               `*(PoolAllocatorBase**)(slot & ~(chunk_size - 1))`)
-//!   [8 .. 15]:  `DeallocateFn` — pointer to a non-virtual static
+//!               `*(PoolAllocatorBase**)(chunk_base + 8)`.  Moved
+//!               from [0..7] in Phase 5c to make room for the SIZE
+//!               info slot.)
+//!   [16 .. 23]: `DeallocateFn` — pointer to a non-virtual static
 //!               trampoline that dispatches the dealloc body
 //!               (`PoolAllocatorBase::DeallocateFn`).  Replaces
 //!               vtable dispatch on the `deallocate_<>` hot path.
-//!   [16 .. 23]: `SizeOfFn` — non-virtual static trampoline that
+//!               Moved from [8..15] in Phase 5c.
+//!   [24 .. 31]: `SizeOfFn` — non-virtual static trampoline that
 //!               returns the slot size (in bytes) for any slot
 //!               pointer in this chunk.  Used by `realloc()` /
 //!               `pool_slot_size()` to size copies without a vtable
 //!               call.  FS=true: returns the constant ALIGN; FS=false:
-//!               reads `m_sizes[idx]>>sidx` and decodes N * ALIGN.
-//!   [24 .. 63]: pad to a cache line.
+//!               reads the per-slot prefix at `p - ALIGN` (Phase 5c).
+//!               Moved from [16..23] in Phase 5c.
+//!   [32 .. 63]: pad to a cache line.
 //! Slot region (`m_mempool`) starts at `chunk_base + ALLOC_CHUNK_HEADER`.
+//!
+//! TODO (Phase 5d candidate): the [0..7] SIZE info enables a
+//! "unified deallocate" that branches on `(hdr[0] != 0)` instead of
+//! the indirect `DeallocateFn` call.  Requires also storing
+//! enough metadata (ALIGN or bucket) in the header so the FS=false
+//! arm can compute `p - ALIGN` without a per-template dispatch.
+//!
+//! TODO (memo, deferred per user 2026-05-28): an alternative to the
+//! Phase 5c "+1 prefix" scheme for FS=false is the "-8 bytes" scheme:
+//!   * Bitmap claims the original N bits (no +1).
+//!   * The first 8 bytes of the slot store SIZE (uint64_t), and the
+//!     returned pointer is `slot_start + 8`.
+//!   * The user-usable area is `N * ALIGN - 8 bytes`.
+//! This avoids the +1 ALIGN of slot-level overhead at the cost of
+//! shrinking the user area by 8 bytes.  Bucket sizes would need to
+//! be retuned so each natural bucket size still fits in `N*ALIGN-8`
+//! for the chosen N.  Defer until after Phase 5c lands and has
+//! shipped benchmarks.
 #define ALLOC_CHUNK_HEADER 64
-#define ALLOC_CHUNK_HEADER_FN_OFFSET     8
-#define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET 16
+#define ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET 0   // [0..7]: chunk SIZE info
+#define ALLOC_CHUNK_HEADER_PALLOC_OFFSET    8   // [8..15]: palloc (moved)
+#define ALLOC_CHUNK_HEADER_FN_OFFSET        16  // [16..23]: DeallocateFn
+#define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET 24  // [24..31]: SizeOfFn
 
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
@@ -294,6 +332,14 @@ public:
 	//! so the dispatch is per-(ALIGN,FS) without a separate
 	//! function-pointer table.
 	virtual void *slow_allocate(unsigned bucket, std::size_t size) noexcept = 0;
+	//! Public read-only accessor for `m_chunk_size` — used by
+	//! anonymous-namespace helpers (e.g. `drain_thread_slot_freelists`)
+	//! that need to compute `chunk_base = head & ~(chunk_size - 1)`
+	//! without a per-template dispatch (the helper iterates all
+	//! buckets and slots from all chunk-template instantiations may
+	//! coexist on its freelists).  Returns the chunk-size stamped by
+	//! `allocate_chunk()` at chunk-claim time.
+	std::size_t chunk_size() const noexcept { return m_chunk_size; }
 protected:
 	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
 	virtual bool deallocate_pooled(char *p) = 0;
@@ -440,10 +486,29 @@ public:
 	//! Non-virtual static trampoline for the chunk-header `SizeOfFn`
 	//! pointer.  FS=true returns the constant ALIGN — every slot in a
 	//! fixed-size chunk has the same length.  The FS=false partial
-	//! specialisation overrides this with the `m_sizes`-based decode.
+	//! specialisation overrides this to read SIZE from the per-slot
+	//! prefix at `p - ALIGN` (Phase 5c).
 	static std::size_t size_of_static(PoolAllocatorBase * /*base*/,
 	                                  char * /*p*/) noexcept {
 	    return ALIGN;
+	}
+
+	//! Value written to chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET
+	//! by `allocate_chunk()` (Phase 5c).  Layout:
+	//!   * Low 32 bits = FS-distinguishing "slot SIZE":
+	//!       FS=true  : ALIGN (slot size; non-zero ⇒ fixed-size chunk,
+	//!                  dispatcher can derive the bucket directly).
+	//!       FS=false : 0     (signal: read SIZE from per-slot prefix
+	//!                  at `p - ALIGN`).
+	//!   * High 32 bits = ALIGN (always — for FS=false dispatchers
+	//!       that need to convert user pointer → slot_start = p - ALIGN
+	//!       without dispatching through a per-template hook, e.g.
+	//!       `drain_thread_slot_freelists`).
+	//! Picked per-template so the chunk header carries the right
+	//! discriminator + the ALIGN needed for prefix-based dispatch.
+	static constexpr std::uint64_t chunk_header_size_info() noexcept {
+	    return static_cast<std::uint64_t>(ALIGN)
+	         | (static_cast<std::uint64_t>(ALIGN) << 32);
 	}
 
 	typedef uintptr_t FUINT;
@@ -583,7 +648,11 @@ protected:
 	//! Parameterised on:
 	//!   MaskFn(idx,sidx,p)→ `FUINT`   : bit-mask for one slot
 	//!                                    (FS=true: 1 bit at sidx;
-	//!                                    FS=false: N bits via m_sizes)
+	//!                                    FS=false: N+1 bits via the
+	//!                                    per-slot prefix SIZE — Phase
+	//!                                    5c.  `p` is `slot_start` (=
+	//!                                    `p_user - ALIGN`), `sidx` is
+	//!                                    the prefix bit position.)
 	//!   OnClearFn(oldv,newv)→ `void`  : per-word counter update
 	//!
 	//! Precondition: the chunk run is sorted by ascending slot pointer
@@ -616,13 +685,21 @@ public:
 	//! casts to this leaf type and invokes the non-virtual
 	//! `PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled`.
 	static bool deallocate_pooled_static(PoolAllocatorBase *base, char *p);
-	//! FS=false slot-size lookup.  Decodes the slot's run length from
-	//! `m_sizes[idx]>>sidx` (same pattern as `deallocate_pooled`'s
-	//! N-bit clear).  Returns N*ALIGN bytes — the slot's exact user
-	//! capacity.  Stamped into the chunk header at offset
+	//! FS=false slot-size lookup (Phase 5c).  Reads SIZE from the
+	//! per-slot prefix at `p - ALIGN`.  Returns the user-requested
+	//! size in bytes.  Stamped into the chunk header at offset
 	//! `ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET`; overrides the FS=true
 	//! constant returned by the base template's `size_of_static`.
 	static std::size_t size_of_static(PoolAllocatorBase *base, char *p) noexcept;
+	//! FS=false chunk-header SIZE info (Phase 5c).  Low 32 bits = 0 so
+	//! dispatchers can distinguish FS=false chunks (and read the per-
+	//! slot prefix at `p - ALIGN` instead of treating header[0..7] as
+	//! the slot size).  High 32 bits = ALIGN so non-templated callers
+	//! (e.g. `drain_thread_slot_freelists`) can recover the offset to
+	//! convert `p_user → slot_start = p - ALIGN` for FS=false slots.
+	static constexpr std::uint64_t chunk_header_size_info() noexcept {
+	    return static_cast<std::uint64_t>(ALIGN) << 32;
+	}
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	PoolAllocator(int count, char *addr, char *ppool);
@@ -651,9 +728,13 @@ private:
 
 	static PoolAllocator *create(size_t size, char *ppool);
 
-	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
-	FUINT * const m_sizes;
-	unsigned int m_available_bits;
+	// Phase 5c: m_sizes and m_available_bits dropped.  Per-slot SIZE
+	// metadata now lives in the slot's own first ALIGN bytes (the
+	// "+1 prefix" — bitmap claims N+1 bits, slot[0..3] stores SIZE as
+	// uint32_t, returned pointer is `slot_start + ALIGN`).
+	// Fragmentation cutoff (Phase 5a) at 80% bitmap fill obsoletes the
+	// `m_available_bits` "last SIZE we tried" hint; the cutoff fires
+	// earlier and is independent of SIZE.
 };
 
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
