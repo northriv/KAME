@@ -481,8 +481,15 @@ protected:
 	//! the one that succeeded the pin CAS in `allocate_chunk_path`)
 	//! and single-reader (same thread, eventually).  No atomic
 	//! ordering needed for these two fields in steady state.
-	PoolAllocator *m_dll_prev{nullptr};
-	PoolAllocator *m_dll_next{nullptr};
+	//!
+	//! Type uses the same `<ALIGN, DUMMY, DUMMY>` erasure trick as
+	//! `s_my_chunk` / `s_dll_head` so FS=true and FS=false partial
+	//! specialisations all link through identically-typed pointers
+	//! — the FS=false partial spec inherits `m_dll_prev/next` from
+	//! the `<ALIGN, true, false>` base, whose stored type then
+	//! aligns with the per-thread DLL head/tail above.
+	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_prev{nullptr};
+	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_next{nullptr};
 
 	//! Set true exactly once, by the owning thread on its exit, when
 	//! the chunk still holds live slots (so it cannot be released
