@@ -48,7 +48,7 @@
     #include <pthread.h>
 #endif
 
-// Per-thread flag: set to true when AllocPinCleanup has run, signalling
+// Per-thread flag: set to true when AllocThreadExitCleanup has run, signalling
 // that pool-allocator TLS (s_my_chunk, freelists, pin counts) is no
 // longer valid.  Trivially destructible (`ALLOC_TLS` = `__thread`) so it
 // survives past all thread_local / pthread_key destructors.  Checked in
@@ -158,11 +158,11 @@ PoolAllocatorBase **kame_chunks_cold() noexcept {
 }
 #endif // KAME_FAST_TSD
 
-// Forward decl — the post-thread-exit functor used by AllocPinCleanup
+// Forward decl — the post-thread-exit functor used by AllocThreadExitCleanup
 // to overwrite every slot of `g_thread_slots[]` before chunks are
 // released.  Defined later in this TU.
 
-// Forward decl: AllocPinCleanup's dtor needs to drain each per-bucket
+// Forward decl: AllocThreadExitCleanup's dtor needs to drain each per-bucket
 // AllocSlot freelist back to the bitmap via the cross-thread TLS batch
 // (CrossDeallocBatch is defined further down).  Hide the dependency
 // behind a free function defined after CrossDeallocBatch.
@@ -177,7 +177,7 @@ namespace { void drain_thread_slot_freelists() noexcept; }
 // them later.  Capacity covers the count of distinct PoolAllocator
 // template instantiations actually in use by this thread.
 namespace {
-struct AllocPinCleanup {
+struct AllocThreadExitCleanup {
     static constexpr int MAX = 32;
     // `noexcept` is part of the function-pointer type since C++17 — the
     // dylib + tests + production builds (cmake `-std=gnu++17`, qmake
@@ -195,7 +195,7 @@ struct AllocPinCleanup {
             if(release_fns[i] == fn) return;
         if(count < MAX) release_fns[count++] = fn;
     }
-    ~AllocPinCleanup() noexcept {
+    ~AllocThreadExitCleanup() noexcept {
         // Drain each per-bucket AllocSlot freelist back to the bitmap
         // FIRST.  Slots on the linked list inside the slot pool would
         // become unreachable after the per-template DLL walk below
@@ -241,13 +241,13 @@ struct AllocPinCleanup {
 // recurses into our pool, so first-touch from `allocate()` is safe.
 //
 // Destruction order: C++ destroys thread_locals in reverse order of
-// construction completion.  `AllocPinCleanup` is touched first
-// (via `tls_alloc_pin_cleanup.add(...)` in the allocate() hot path),
+// construction completion.  `AllocThreadExitCleanup` is touched first
+// (via `tls_alloc_thread_exit_cleanup.add(...)` in the allocate() hot path),
 // `CrossDeallocBatch` second (via `push(...)` in deallocate); so the
-// batch is flushed before AllocPinCleanup tears down chunks — the
+// batch is flushed before AllocThreadExitCleanup tears down chunks — the
 // ordering invariant the previous XThreadLocal PerThread LIFO chain
 // guaranteed.
-thread_local AllocPinCleanup tls_alloc_pin_cleanup;
+thread_local AllocThreadExitCleanup tls_alloc_thread_exit_cleanup;
 
 // Cross-thread dealloc batch — per-thread parallel arrays of slot
 // pointers and their owning chunks.  Parallel-array (SoA) layout is
@@ -414,7 +414,7 @@ struct CrossDeallocBatch {
 thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
 // Drain each per-bucket AllocSlot's freelist back to the bitmap.
-// Called from `AllocPinCleanup::~dtor`, before the table-wide
+// Called from `AllocThreadExitCleanup::~dtor`, before the table-wide
 // `g_thread_chunks` clear and the chunk pin decrements.  Each free
 // slot's first 8 bytes hold the next pointer (see AllocSlot doc).
 //
@@ -445,12 +445,12 @@ thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 // CAS is slower than batched but drain is rare (thread exit only).
 // Direct `batch_return_to_bitmap` call — must NOT route through
 // `tls_cross_dealloc_batch`, which in PerThread's LIFO TLS chain
-// dies before `~AllocPinCleanup` and would corrupt freed heap (see
-// the AllocPinCleanup comment).
+// dies before `~AllocThreadExitCleanup` and would corrupt freed heap (see
+// the AllocThreadExitCleanup comment).
 //
 // Phase 4b: each touched chunk still has `BIT_OWNER_EXITED == 0`
 // at this point (the per-template DLL walk that sets it runs
-// AFTER `drain_thread_slot_freelists` in `~AllocPinCleanup`), so
+// AFTER `drain_thread_slot_freelists` in `~AllocThreadExitCleanup`), so
 // the cross_release inside batch_return_to_bitmap returns false
 // — the owner thread (us) is still alive, no release allowed.
 void drain_thread_slot_freelists() noexcept {
@@ -833,7 +833,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			return false;
 		}
 	}
-	// Post-teardown bypass.  `~AllocPinCleanup` sets `s_alloc_tls_off`
+	// Post-teardown bypass.  `~AllocThreadExitCleanup` sets `s_alloc_tls_off`
 	// just before exiting; `~CrossDeallocBatch` ran earlier in the
 	// PerThread LIFO chain so the cross-batch storage is already
 	// `free()`d.  Later pthread_key dtors that delete pool slots must
@@ -1105,7 +1105,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	constexpr int kBucket = ALIGN / ALLOC_ALIGNMENT;
 	if(static_cast<PoolAllocatorBase *>(s_my_chunk) == this) {
 		// Slot stays "allocated" in the bitmap until flushed back via
-		// AllocPinCleanup (thread exit) or the chunk's bitmap is
+		// AllocThreadExitCleanup (thread exit) or the chunk's bitmap is
 		// directly returned to (allocate_pooled goes there on freelist
 		// miss).  Owner's next alloc on this bucket pops it back
 		// immediately from `g_thread_slots[kBucket].freelist_head`.
@@ -1437,8 +1437,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// freelist for this bucket misses and the slow path dispatcher
 	// (`bucket_steady_alloc<B>` in g_thread_alloc_fn[]) is invoked.
 	//
-	// Thread-exit cleanup is handled centrally by `AllocPinCleanup::~dtor`
-	// (registered via `XThreadLocal<AllocPinCleanup>::operator*()` on the
+	// Thread-exit cleanup is handled centrally by `AllocThreadExitCleanup::~dtor`
+	// (registered via `XThreadLocal<AllocThreadExitCleanup>::operator*()` on the
 	// first call that pins a chunk, a few lines below).  No per-template
 	// thread_local guard is needed here, and the previous `(void)&s_tls_guard`
 	// ODR-use is removed so we don't pay a C++ thread_local init thunk call
@@ -1583,11 +1583,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	//
 	// The fresh chunk is appended to this thread's DLL tail and cached
 	// in `s_my_chunk`.  Also register the per-template DLL teardown
-	// callback with `tls_alloc_pin_cleanup` if not already registered
+	// callback with `tls_alloc_thread_exit_cleanup` if not already registered
 	// (deduped inside `add`), so thread-exit walks this template's
 	// DLL.
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *chunk = create_allocator();
-	tls_alloc_pin_cleanup.add(
+	tls_alloc_thread_exit_cleanup.add(
 	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
 	s_my_chunk = chunk;
 	chunk->m_dll_prev = s_dll_tail;
@@ -1630,7 +1630,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 //      `batch_return_to_bitmap` when dec-to-zero meets
 //      `BIT_OWNER_EXITED == 1`.  No floor: owner is gone, the chunk
 //      has no future, release immediately.
-//   3. `release_dll_chunks_for_thread()` — `AllocPinCleanup::~dtor`
+//   3. `release_dll_chunks_for_thread()` — `AllocThreadExitCleanup::~dtor`
 //      walks THIS thread's DLL: empty chunks claim `BIT_RELEASED`
 //      directly, non-empty set `BIT_OWNER_EXITED`.  No floor: thread
 //      is exiting, the chunks belong to nobody.
@@ -1640,7 +1640,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 	// Per-thread floor check: count this thread's DLL chunks and skip
 	// release below the floor.  Cheap — DLL is single-writer (us) and
 	// typically holds 1–3 chunks per template, far below
-	// AllocPinCleanup::MAX = 32.  Called from the slow path only
+	// AllocThreadExitCleanup::MAX = 32.  Called from the slow path only
 	// (chunk-full trigger), so the O(D) walk is invisible to the hot
 	// path.
 	int dll_len = 0;
@@ -2015,7 +2015,7 @@ KAME_DECL_BUCKET(36, ALLOC_ALIGN3, false, 8192u);  // N=8 / N=16
 //! First-access trampoline for bucket B.  Invoked from the
 //! `cold_first_access` switch when `g_thread_chunks[B] == nullptr`.
 //! Claims a chunk via the existing `allocate<>()` slow path (which
-//! registers AllocPinCleanup) and records the chunk into
+//! registers AllocThreadExitCleanup) and records the chunk into
 //! `g_thread_chunks[B]` so subsequent freelist-miss calls go straight
 //! to the chunk vtable path (`PoolAllocatorBase::slow_allocate`) and
 //! never come back through `cold_first_access`.
@@ -2039,12 +2039,12 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
 //      std::malloc(size), don't claim a chunk.  Retried on every call
 //      until activateAllocator() is invoked.
 //   2. Post-cleanup (`s_alloc_tls_off == true`): same — return
-//      std::malloc(size).  Set by AllocPinCleanup::~dtor on thread
+//      std::malloc(size).  Set by AllocThreadExitCleanup::~dtor on thread
 //      exit; later TLS destructors that still allocate land here.
 //   3. First access: switch on bucket to invoke the per-bucket
 //      `bucket_first_access<B>`, which calls
 //      `PA::allocate<BT::SIZE>()` with SIZE compile-time-const,
-//      registers AllocPinCleanup, and populates
+//      registers AllocThreadExitCleanup, and populates
 //      `g_thread_chunks[B]`.
 //
 // `__attribute__((cold))`: clang places this out-of-line so the
@@ -2722,8 +2722,8 @@ ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
     PoolAllocator<ALIGN, FS, DUMMY>::s_dll_tail;
 
 // (Per-template `thread_local TlsGuard s_tls_guard` removed.
-//  AllocPinCleanup::~AllocPinCleanup — fired via the pthread_key dtor
-//  registered by `XThreadLocal<AllocPinCleanup>` on first allocate() —
+//  AllocThreadExitCleanup::~AllocThreadExitCleanup — fired via the pthread_key dtor
+//  registered by `XThreadLocal<AllocThreadExitCleanup>` on first allocate() —
 //  is now the sole place that drains the per-thread AllocSlot
 //  freelists, runs `clear_owner_tls`, and sets `s_alloc_tls_off =
 //  true` at thread exit.  Eliminates the C++ thread_local init thunk

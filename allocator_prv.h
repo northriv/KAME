@@ -247,11 +247,11 @@ public:
 	//! its read).
 	static int count_live_chunks() noexcept;
 	//! Null out this thread's `s_my_chunk` for this chunk's ALIGN type.
-	//! Called from `AllocPinCleanup` after freelist flush, before pin
+	//! Called from `AllocThreadExitCleanup` after freelist flush, before pin
 	//! count decrement.  Prevents stale `s_my_chunk` from pushing to
 	//! a dead freelist when later TLS destructors (e.g.
 	//! `RunnerCounterRegistration` via `pthread_key`) do heap
-	//! alloc/dealloc after `AllocPinCleanup` has already run.
+	//! alloc/dealloc after `AllocThreadExitCleanup` has already run.
 	virtual void clear_owner_tls() noexcept {}
 	//! Batch return of a contiguous run of CrossDeallocEntries whose
 	//! `chunk == this` to the bitmap.  Each override walks
@@ -377,7 +377,7 @@ private:
 	    s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION];
 };
 
-//! Per-thread flag — true once `AllocPinCleanup::~dtor` has fired.
+//! Per-thread flag — true once `AllocThreadExitCleanup::~dtor` has fired.
 //! Read by `new_redirected()` (and other allocator-TLS-aware code via
 //! `is_allocator_thread_active()`) to fall back to malloc once the
 //! pool-allocator TLS state is dead.  Defined in allocator.cpp.
@@ -486,7 +486,7 @@ protected:
 	static bool owner_release(PoolAllocator *palloc);
 	static bool cross_release(PoolAllocator *palloc);
 	//! Per-thread DLL teardown for thread-exit cleanup.  Called from
-	//! `AllocPinCleanup::~dtor` once per (ALIGN, FS) template the
+	//! `AllocThreadExitCleanup::~dtor` once per (ALIGN, FS) template the
 	//! thread has touched.  Walks the per-thread DLL with cached-next:
 	//! for each chunk, either claims `BIT_RELEASED` (if empty — release
 	//! it) or sets `BIT_OWNER_EXITED` (if non-empty — signal cross-
@@ -520,7 +520,7 @@ protected:
 	//   * Bit  30     — `BIT_RELEASED`: set by the winner of the
 	//     dec-to-zero / owner-release race so exactly one releaser
 	//     proceeds to `delete this; deallocate_chunk()`.
-	//   * Bit  31     — `BIT_OWNER_EXITED`: set by `AllocPinCleanup::~dtor`
+	//   * Bit  31     — `BIT_OWNER_EXITED`: set by `AllocThreadExitCleanup::~dtor`
 	//     when the owning thread exits while this chunk still holds
 	//     live slots; informs the cross-thread last-slot-returner that
 	//     the chunk has no owner pin and may be released.
@@ -758,7 +758,7 @@ extern bool g_sys_image_loaded;
 //   - non-null: steady state — `chunk->slow_allocate(bucket, size)`
 //     virtual call updates `g_thread_chunks[bucket]` if `s_my_chunk`
 //     has advanced to a new chunk after a fill.
-//   - `AllocPinCleanup::~dtor` on thread exit clears all entries back
+//   - `AllocThreadExitCleanup::~dtor` on thread exit clears all entries back
 //     to `nullptr`, and the cleanup flag `s_alloc_tls_off` is set so
 //     subsequent allocations route to `std::malloc`.
 // ---------------------------------------------------------------------
