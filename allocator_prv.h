@@ -442,6 +442,14 @@ protected:
 	//! FS=false). Casting to the wrong type would mis-dispatch
 	//! allocate_pooled().
 	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_my_chunk;
+	//! Per-thread, per-template DLL head / tail.  Same type-erasure
+	//! trick as `s_my_chunk` so FS=true and FS=false partial specs
+	//! see the same TLS slot.  Phase 1: populated on chunk-claim
+	//! success, unlinked on `release_allocator` success — list
+	//! invariant is maintained but not yet read by the allocation
+	//! path or the thread-exit cleanup.
+	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_head;
+	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_tail;
 	// (removed: `thread_local TlsGuard s_tls_guard;` and its dtor.
 	//  AllocPinCleanup::~AllocPinCleanup — fired via
 	//  XThreadLocal<AllocPinCleanup>'s pthread_key dtor on thread exit —
@@ -457,6 +465,33 @@ protected:
 	//! release_allocator() returns false when this is non-zero so the
 	//! chunk is not freed while any thread's TLS pointer references it.
 	std::atomic<int> m_thread_pinned_count{0};
+
+	// ---------------------------------------------------------------
+	// Phase 1 of the per-thread DLL refactor (will eventually retire
+	// `m_thread_pinned_count` and the `s_chunks_of_type[]` global
+	// registry).  Today, these fields are MAINTAINED (linked in/out
+	// on pin success / `release_allocator` success) but NOT YET READ
+	// — allocation/release still go through the pin-CAS +
+	// `s_chunks_of_type[]` scan as before.  The DLL becomes the
+	// source of truth for chunk acquisition + thread-exit handling
+	// in subsequent phases.
+	// ---------------------------------------------------------------
+
+	//! Per-thread DLL pointers.  Single-writer (the owning thread —
+	//! the one that succeeded the pin CAS in `allocate_chunk_path`)
+	//! and single-reader (same thread, eventually).  No atomic
+	//! ordering needed for these two fields in steady state.
+	PoolAllocator *m_dll_prev{nullptr};
+	PoolAllocator *m_dll_next{nullptr};
+
+	//! Set true exactly once, by the owning thread on its exit, when
+	//! the chunk still holds live slots (so it cannot be released
+	//! immediately).  Other threads' `batch_return_to_bitmap` reads
+	//! this with acquire ordering on the last-slot-returns transition
+	//! to decide whether the now-empty chunk should be released
+	//! (yes if owner gone; no if owner is still actively using it).
+	//! Phase 1: written by no one, read by no one — just allocated.
+	std::atomic<bool> m_owner_exited{false};
 
 	void clear_owner_tls() noexcept override;
 

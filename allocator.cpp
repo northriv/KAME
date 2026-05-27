@@ -1539,6 +1539,18 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				// cache as TLS fast-path target, and allocate.
 				tls_alloc_pin_cleanup.add(&chunk->m_thread_pinned_count, chunk);
 				s_my_chunk = chunk;
+				// Phase 1 of the DLL refactor: append the claimed chunk
+				// to this thread's DLL tail.  Single-writer (this thread)
+				// so no atomic needed.  The list is maintained but not
+				// yet consulted — Phase 2 will switch chunk-acquisition
+				// to scan it before mmaping fresh.
+				chunk->m_dll_prev = s_dll_tail;
+				chunk->m_dll_next = nullptr;
+				if(s_dll_tail)
+					s_dll_tail->m_dll_next = chunk;
+				else
+					s_dll_head = chunk;
+				s_dll_tail = chunk;
 				if(void *p = chunk->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
 					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
@@ -2669,6 +2681,15 @@ int PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type_ubound;
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
     PoolAllocator<ALIGN, FS, DUMMY>::s_my_chunk;
+// Phase 1 of the DLL refactor: head/tail definitions.  Maintained by
+// the chunk-claim path (allocate_chunk_path) and `release_allocator`,
+// not yet consulted by either.  See allocator_prv.h for the rationale.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
+    PoolAllocator<ALIGN, FS, DUMMY>::s_dll_head;
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
+    PoolAllocator<ALIGN, FS, DUMMY>::s_dll_tail;
 
 // (Per-template `thread_local TlsGuard s_tls_guard` removed.
 //  AllocPinCleanup::~AllocPinCleanup — fired via the pthread_key dtor
