@@ -785,8 +785,9 @@ struct AllocSlot {
 		return head;
 	}
 };
-static_assert(sizeof(AllocSlot) == 8,
-              "AllocSlot must stay 8 B — hot-path uses lsl #3 indexed addressing");
+static_assert(sizeof(AllocSlot) == sizeof(char *),
+              "AllocSlot must be exactly one pointer wide — "
+              "hot-path uses pointer-scaled indexed addressing (lsl #3 on 64-bit, lsl #2 on 32-bit)");
 
 //! Bucket count.
 //!   - index 0 (size = 0): reuses bucket 1's 16-B allocator
