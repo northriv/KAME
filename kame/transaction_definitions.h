@@ -14,6 +14,50 @@
 #ifndef TRANSACTION_DEFINITIONS_H
 #define TRANSACTION_DEFINITIONS_H
 
+#include <atomic>   // ATOMIC_LLONG_LOCK_FREE for KAME_STM_COMPACT_STATE
+
+// --- 32-bit platform fallback: compact STM state ---------------------
+//
+// The STM negotiation/priority machinery packs several fields into
+// `atomic<uint64_t>` and a 64-bit `cnt_t` stamp.  On 64-bit hosts these
+// are trivially lock-free; on 32-bit hosts with DCAS (CMPXCHG8B on
+// i486+, LDREXD/STREXD on ARMv7-A) the compiler emits a lock-free
+// 64-bit atomic via std::atomic, so we keep the full layout there too.
+//
+// When the toolchain reports `ATOMIC_LLONG_LOCK_FREE != 2`
+// (32-bit targets without hardware DCAS — e.g. i386 or ARMv5/v6, or a
+// toolchain configured to fall back to a mutex), KAME_STM_COMPACT_STATE
+// is auto-detected as 1.  In compact mode:
+//   * `NegotiationCounter::cnt_t` is `int32_t`, stamp is [us:24|tid:8],
+//     with the `lowprio` and `kind` fields sealed (no priv stamps, no
+//     lowprio expiration — these are heuristic-only paths, not
+//     correctness-critical).
+//   * `Linkage::m_priority_state` is `atomic<uint32_t>`,
+//     [tid:8|lease_us:8|start_us:16].
+//   * `Linkage::m_recent_ops_state` is `atomic<uint32_t>` (unused;
+//     forced off via KAME_ENABLE_SPIN_BAND_GATE=0).
+//   * `RunnerCounterEntry::v` is `atomic<uint32_t>` (0/1 in steady state).
+//   * `KAME_ENABLE_RUNNER_DIGEST` and `KAME_ENABLE_SPIN_BAND_GATE` are
+//     forced to 0 (their diagnostic atomic<uint64_t> stores would
+//     otherwise still require DCAS).
+//
+// The 8-bit TID range (256 values) collides for ProcessCounter::id()
+// values > 255 — `tag_as_contender` / `i_am_privileged_now` /
+// `fair_mode_blocks_me` may misidentify a different thread as "me",
+// but these are heuristic fast paths: the lower CAS layer
+// (`PacketWrapper` / Packet) is independent of TID, so data
+// integrity is preserved.  Worst case is extra CAS retries.
+//
+// To override (e.g. force compact on a 64-bit host for testing):
+//   -DKAME_STM_COMPACT_STATE=1 or -DKAME_STM_COMPACT_STATE=0
+#ifndef KAME_STM_COMPACT_STATE
+#  if ATOMIC_LLONG_LOCK_FREE == 2
+#    define KAME_STM_COMPACT_STATE 0
+#  else
+#    define KAME_STM_COMPACT_STATE 1
+#  endif
+#endif
+
 // =====================================================================
 // Compile-time tuning knobs for the STM negotiation / livelock-free /
 // adaptive-backoff / per-Linkage-flip / spin-for-same-kind machinery.
@@ -123,7 +167,16 @@
 // `-DKAME_ENABLE_SPIN_BAND_GATE=1` if a particular workload +
 // hardware combination shows a positive A-B result.
 #ifndef KAME_ENABLE_SPIN_BAND_GATE
-#define KAME_ENABLE_SPIN_BAND_GATE 0
+#  if KAME_STM_COMPACT_STATE
+//   Compact mode: m_recent_ops_state storage is 32 bits, can't hold the
+//   16+16+8+2+22 layout the gate needs. Force off.
+#    define KAME_ENABLE_SPIN_BAND_GATE 0
+#  else
+#    define KAME_ENABLE_SPIN_BAND_GATE 0
+#  endif
+#endif
+#if KAME_STM_COMPACT_STATE && KAME_ENABLE_SPIN_BAND_GATE
+#  error "KAME_ENABLE_SPIN_BAND_GATE requires 64-bit lock-free atomics; disable it on this target."
 #endif
 
 // Per-Linkage privilege overlay.  When ON (= 1, default), a Tx that
@@ -355,6 +408,9 @@
 // otherwise inert.
 #ifndef KAME_ENABLE_RUNNER_DIGEST
 #define KAME_ENABLE_RUNNER_DIGEST 0
+#endif
+#if KAME_STM_COMPACT_STATE && KAME_ENABLE_RUNNER_DIGEST
+#  error "KAME_ENABLE_RUNNER_DIGEST requires 64-bit lock-free atomics; disable it on this target."
 #endif
 
 // Master switch for the per-call-site adaptive-state machinery

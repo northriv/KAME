@@ -310,7 +310,16 @@ namespace detail {
     //! intermediate chunked-array design (eliminated the cross-socket
     //! NUMA pitfall of contiguous slot blocks).
     struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
+        // Steady-state values are 0/1 (one per nesting depth, but
+        // AcquireOneCount RAII keeps the outer ∈ {0,1}); 64-bit
+        // accommodates pathologically deep nesting on roomy hosts.
+        // Under compact mode (no lock-free 64-bit atomics) shrink to
+        // 32-bit — still > 4 G counts, far beyond any realistic nesting.
+#if KAME_STM_COMPACT_STATE
+        std::atomic<uint32_t> v{0};
+#else
         std::atomic<uint64_t> v{0};
+#endif
 #if KAME_ENABLE_RUNNER_DIGEST
         //! Placed immediately after `v` (both uint64_t, no implicit
         //! alignment padding) so the _pad formula stays correct on
@@ -345,12 +354,13 @@ namespace detail {
         RunnerCounterEntry(int8_t node) noexcept
             : allocated_node(node) {}
 #if KAME_ENABLE_RUNNER_DIGEST
-        char _pad[KAME_CACHE_LINE - 2*sizeof(std::atomic<uint64_t>)
+        char _pad[KAME_CACHE_LINE - sizeof(decltype(v))
+                                  - sizeof(std::atomic<uint64_t>)
                                   - sizeof(std::atomic<RunnerCounterEntry*>)
                                   - sizeof(std::atomic<bool>)
                                   - sizeof(int8_t)];
 #else
-        char _pad[KAME_CACHE_LINE - sizeof(std::atomic<uint64_t>)
+        char _pad[KAME_CACHE_LINE - sizeof(decltype(v))
                                   - sizeof(std::atomic<RunnerCounterEntry*>)
                                   - sizeof(std::atomic<bool>)
                                   - sizeof(int8_t)];
@@ -971,6 +981,34 @@ private:
     };
 
     struct DECLSPEC_KAME NegotiationCounter {
+#if KAME_STM_COMPACT_STATE
+        // 32-bit fallback for targets without lock-free 64-bit atomics.
+        // Stamp layout: [ us:24 | tid:8 ].  No `lowprio`, no `kind` —
+        // those bits are sealed (kind always 0 = NONE; lowprio always
+        // 0).  Cosmetic effects:
+        //   * `stamp_is_lowprio` always returns false → SCRIPTING
+        //     hold-timeout disabled (acceptable: 32-bit targets do not
+        //     run the Python embed).
+        //   * `is_priv_stamp` always returns false → per-Linkage privilege
+        //     overlay inactive; peers fall through to CV-sleep instead
+        //     of yielding to a Reserved tag (no correctness impact,
+        //     only a backoff-shape difference).
+        // µs field: 24 bits = 16.7 s range, wrap-safe diff < 8.3 s
+        // (≫ EXPIRE_US = 50 ms).
+        // TID field: 8 bits — see "8-bit TID collision is non-fatal"
+        // analysis at KAME_STM_COMPACT_STATE comment.
+        using cnt_t = int32_t;
+        static constexpr int   STAMP_US_BITS      = 24;
+        static constexpr int   STAMP_LOWPRIO_BITS = 0;
+        static constexpr int   STAMP_KIND_BITS    = 0;
+        static constexpr int   STAMP_TID_BITS     = 8;
+        static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;     // unused
+        static constexpr int   STAMP_KIND_SHIFT    = STAMP_US_BITS;     // unused
+        static constexpr int   STAMP_TID_SHIFT     = STAMP_US_BITS;     // tid sits right above us
+        static constexpr cnt_t STAMP_US_MASK      = (cnt_t{1} << STAMP_US_BITS) - 1;
+        static constexpr cnt_t STAMP_KIND_MASK    = 0;
+        static constexpr cnt_t STAMP_LOWPRIO_MASK = 0;
+#else
         using cnt_t = int64_t;
 
         //! Packed stamp layout (low → high), 64-bit total:
@@ -1005,6 +1043,7 @@ private:
         static constexpr int   STAMP_US_BITS      = 45;
         static constexpr int   STAMP_LOWPRIO_BITS = 1;
         static constexpr int   STAMP_KIND_BITS    = 2;
+        static constexpr int   STAMP_TID_BITS     = 16;
         // Shifts are (US_BITS, US_BITS+1, US_BITS+3) = (45, 46, 48).
         static constexpr int   STAMP_LOWPRIO_SHIFT = STAMP_US_BITS;
         static constexpr int   STAMP_KIND_SHIFT
@@ -1014,6 +1053,18 @@ private:
         static constexpr cnt_t STAMP_US_MASK      = (cnt_t{1} << STAMP_US_BITS) - 1;
         static constexpr cnt_t STAMP_KIND_MASK    = (cnt_t{1} << STAMP_KIND_BITS) - 1;
         static constexpr cnt_t STAMP_LOWPRIO_MASK = cnt_t{1} << STAMP_LOWPRIO_SHIFT;
+#endif // KAME_STM_COMPACT_STATE
+
+        //! Mask for ProcessCounter::id() at STAMP_TID_BITS width, used
+        //! everywhere that compares `my_tid == ps.tid` / `stamp_tid(x)`.
+        //! Under compact mode the underlying TID storage is 8-bit, so
+        //! comparisons must mask the live counter to the same width.
+        static constexpr uint32_t STAMP_TID_MASK_VAL =
+            (STAMP_TID_BITS >= 32) ? 0xFFFFFFFFu
+                                   : ((1u << STAMP_TID_BITS) - 1u);
+        static inline uint16_t my_tid_lo() noexcept {
+            return (uint16_t)((uint32_t)ProcessCounter::id() & STAMP_TID_MASK_VAL);
+        }
 
         //! Monotonic µs counter. Uses steady_clock (not wall-clock
         //! gettimeofday) so the µs since program start fit comfortably
@@ -1044,9 +1095,15 @@ private:
         //! zero cost on the atomic-load hot paths.
         static inline cnt_t pack_stamp(cnt_t us, uint16_t tid,
                                        uint8_t kind = 0) noexcept {
+#if KAME_STM_COMPACT_STATE
+            (void)kind; // sealed in compact mode
+            return (us & STAMP_US_MASK)
+                 | ((cnt_t)(tid & (uint16_t)STAMP_TID_MASK_VAL) << STAMP_TID_SHIFT);
+#else
             return (us & STAMP_US_MASK)
                  | ((cnt_t{kind} & STAMP_KIND_MASK) << STAMP_KIND_SHIFT)
                  | (cnt_t{tid} << STAMP_TID_SHIFT);
+#endif
         }
         //! Extract the µs field.  steady-clock µs is always positive so
         //! a plain mask suffices (no sign-extension).
@@ -1054,10 +1111,18 @@ private:
             return x & STAMP_US_MASK;
         }
         static inline uint8_t stamp_kind(cnt_t x) noexcept {
+#if KAME_STM_COMPACT_STATE
+            (void)x;
+            return 0; // kind sealed → always NONE in compact mode
+#else
             return (uint8_t)(((uint64_t)x >> STAMP_KIND_SHIFT) & STAMP_KIND_MASK);
+#endif
         }
         static inline uint16_t stamp_tid(cnt_t x) noexcept {
-            return (uint16_t)((uint64_t)x >> STAMP_TID_SHIFT);
+            // Cast to uint64_t before the shift: STAMP_TID_SHIFT is 48 in
+            // full-width mode (would overflow a uint32_t shift) and 24
+            // in compact mode (safe on uint64_t too).
+            return (uint16_t)(((uint64_t)x >> STAMP_TID_SHIFT) & STAMP_TID_MASK_VAL);
         }
         //! True iff `x` carries the lowprio flag — set at Tx
         //! construction when the calling thread's priority is LOWEST,
@@ -1066,12 +1131,21 @@ private:
         //! touch the kind bits.  Used by the privilege hold-timeout
         //! to gate eviction: NORMAL / HIGHEST stamps are immune.
         static inline bool stamp_is_lowprio(cnt_t x) noexcept {
+#if KAME_STM_COMPACT_STATE
+            (void)x;
+            return false; // lowprio sealed
+#else
             return (x & STAMP_LOWPRIO_MASK) != 0;
+#endif
         }
         //! Set the lowprio flag on a stamp (use at Tx construction
         //! based on `getCurrentPriorityMode()`).
         static inline cnt_t with_lowprio_flag(cnt_t stamp) noexcept {
+#if KAME_STM_COMPACT_STATE
+            return stamp; // no-op
+#else
             return stamp | STAMP_LOWPRIO_MASK;
+#endif
         }
         //! True iff `x` is a stamp whose kind field is `Reserved` (=3),
         //! repurposed as the per-Linkage privilege flag — set by a Tx
@@ -1081,7 +1155,12 @@ private:
         //! instead of fighting for the CAS, even when the global
         //! `s_privileged_tidstamp` slot has cycled away.
         static inline bool is_priv_stamp(cnt_t x) noexcept {
+#if KAME_STM_COMPACT_STATE
+            (void)x;
+            return false; // kind sealed → no Reserved stamps possible
+#else
             return stamp_kind(x) == (uint8_t)detail::StampKind::Reserved;
+#endif
         }
         //! Modular µs difference: returns (now - past) mod 2^STAMP_US_BITS,
         //! interpreted as elapsed µs.  Inputs may be raw `now_us()` (64-bit)
@@ -1116,11 +1195,15 @@ private:
         //! at construction.  `getCurrentPriorityMode()` is a single
         //! thread-local read — negligible cost.
         static inline cnt_t lowprio_mask_for_current_priority() noexcept {
+#if KAME_STM_COMPACT_STATE
+            return (cnt_t)0; // lowprio sealed in compact mode
+#else
             Priority pr = getCurrentPriorityMode();
             return (pr == Priority::LOWEST
                  || pr == Priority::UI_DEFERRABLE
                  || pr == Priority::SCRIPTING)
                  ? STAMP_LOWPRIO_MASK : (cnt_t)0;
+#endif
         }
         //! `now_us()` with the current thread's ProcessCounter::id
         //! packed into the upper 16 bits, plus the lowprio bit
@@ -1132,33 +1215,39 @@ private:
         //! `with_kind` / `strip_kind` (which only touch the kind
         //! bits).
         static inline cnt_t now_us_tagged() noexcept {
-            return pack_stamp(now_us(),
-                (uint16_t)(ProcessCounter::id() & 0xFFFFu))
+            return pack_stamp(now_us(), my_tid_lo())
                  | lowprio_mask_for_current_priority();
         }
         //! Kind-tagged variant: stamps op_kind into the 2-bit kind slot.
         //! Used by bundle/unbundle entry to advertise the in-flight op.
         //! Lowprio bit handled identically to the no-kind variant.
         static inline cnt_t now_us_tagged(StampKind kind) noexcept {
-            return pack_stamp(now_us(),
-                (uint16_t)(ProcessCounter::id() & 0xFFFFu),
-                (uint8_t)kind)
+            return pack_stamp(now_us(), my_tid_lo(), (uint8_t)kind)
                  | lowprio_mask_for_current_priority();
         }
         //! Replace the kind bits of an existing stamp, preserving us+tid.
         //! For stamping linkage with `m_started_time` + op kind.
         static inline cnt_t with_kind(cnt_t stamp, StampKind kind) noexcept {
+#if KAME_STM_COMPACT_STATE
+            (void)kind;
+            return stamp; // no-op: kind sealed
+#else
             constexpr cnt_t KIND_FIELD = STAMP_KIND_MASK << STAMP_KIND_SHIFT;
             return (stamp & ~KIND_FIELD)
                  | ((cnt_t{(uint8_t)kind} & STAMP_KIND_MASK) << STAMP_KIND_SHIFT);
+#endif
         }
         //! Zero the kind bits — useful for "mine?" identity compares
         //! where two stamps differ only in kind (e.g. a Tx tagged its
         //! linkage with kind=BUNDLE earlier, now drops it after the
         //! ScopedOpKind has restored to NONE).
         static inline cnt_t strip_kind(cnt_t stamp) noexcept {
+#if KAME_STM_COMPACT_STATE
+            return stamp; // no-op: kind sealed
+#else
             constexpr cnt_t KIND_FIELD = STAMP_KIND_MASK << STAMP_KIND_SHIFT;
             return stamp & ~KIND_FIELD;
+#endif
         }
 
         //! Whether the stamp represents an active (currently-tagged) Tx
@@ -1493,7 +1582,16 @@ private:
         //! negotiate() fast path a single atomic load + shifts instead of
         //! three separate atomic loads (one per former field). Writes are
         //! relaxed-store or CAS via the pack/unpack helpers below.
+        // Storage type follows KAME_STM_COMPACT_STATE: 64-bit on hosts
+        // with lock-free 64-bit atomics, 32-bit fallback otherwise.
+        // The packPriority / unpackPriority helpers below adapt the
+        // bit layout accordingly so the PriorityState struct interface
+        // is preserved across modes.
+#if KAME_STM_COMPACT_STATE
+        atomic<uint32_t> m_priority_state;
+#else
         atomic<uint64_t> m_priority_state;
+#endif
 
         //! Per-Linkage thrash detector — tracks contention "flips"
         //! (kind changes by different threads on this Linkage) plus
@@ -1561,7 +1659,14 @@ private:
         //! m_link) stay at count=1 — the correct anti-thrash
         //! semantic, since they have no "B/U periodicity" to
         //! coalesce on.
+        // Only consumed when KAME_ENABLE_SPIN_BAND_GATE; force-disabled
+        // under compact mode (the 64-bit packed layout doesn't fit).
+        // Storage shrinks to uint32_t there to avoid pulling in a DCAS.
+#if KAME_STM_COMPACT_STATE
+        atomic<uint32_t> m_recent_ops_state;
+#else
         atomic<uint64_t> m_recent_ops_state;
+#endif
         // 64-bit layout (LSB → MSB):
         //   bits  0..15  cur_count        — merged flip count for the
         //                                   current window (16-bit
@@ -1703,19 +1808,45 @@ private:
             uint16_t lease_us;
             uint32_t start_us;
         };
-        static inline uint64_t packPriority(uint16_t tid, uint16_t lease_us,
-                                            uint32_t start_us) noexcept {
+#if KAME_STM_COMPACT_STATE
+        // 32-bit packed layout: [start_us:16 | lease_us:8 | tid:8].
+        // start_us window = 65 ms (modular diffs safe below ~32 ms,
+        // well above the lease range of KAME_LEASE_US_MIN..MAX µs).
+        // lease_us clamped to 0..255 µs (KAME_LEASE_US_MAX is 10 µs by
+        // default — comfortably within range).
+        // tid mod 256: collisions degrade owner-skip heuristic only,
+        // never break commit correctness (see KAME_STM_COMPACT_STATE
+        // analysis comment).
+        using priority_raw_t = uint32_t;
+        static inline priority_raw_t packPriority(uint16_t tid, uint16_t lease_us,
+                                                  uint32_t start_us) noexcept {
+            return ((priority_raw_t)(start_us & 0xFFFFu) << 16)
+                 | ((priority_raw_t)(lease_us & 0xFFu)  <<  8)
+                 |  (priority_raw_t)(tid      & 0xFFu);
+        }
+        static inline PriorityState unpackPriority(priority_raw_t raw) noexcept {
+            return PriorityState{
+                (uint16_t)(raw & 0xFFu),
+                (uint16_t)((raw >> 8) & 0xFFu),
+                (uint32_t)((raw >> 16) & 0xFFFFu)
+            };
+        }
+#else
+        using priority_raw_t = uint64_t;
+        static inline priority_raw_t packPriority(uint16_t tid, uint16_t lease_us,
+                                                  uint32_t start_us) noexcept {
             return ((uint64_t)start_us << 32)
                  | ((uint64_t)lease_us << 16)
                  | (uint64_t)tid;
         }
-        static inline PriorityState unpackPriority(uint64_t raw) noexcept {
+        static inline PriorityState unpackPriority(priority_raw_t raw) noexcept {
             return PriorityState{
                 (uint16_t)(raw & 0xFFFFu),
                 (uint16_t)((raw >> 16) & 0xFFFFu),
                 (uint32_t)(raw >> 32)
             };
         }
+#endif
         //! Fast-path load of the packed priority/lease state. Relaxed by
         //! default: m_priority_state is self-contained (consumers use the
         //! unpacked fields directly and don't infer order on any other
@@ -1737,8 +1868,8 @@ private:
         //! hasn't changed since \p expected was read. On failure, refreshes
         //! \p expected to the current observed value.
         bool casPriority(PriorityState &expected, PriorityState desired) noexcept {
-            uint64_t e = packPriority(expected.tid, expected.lease_us, expected.start_us);
-            uint64_t d = packPriority(desired.tid,  desired.lease_us,  desired.start_us);
+            priority_raw_t e = packPriority(expected.tid, expected.lease_us, expected.start_us);
+            priority_raw_t d = packPriority(desired.tid,  desired.lease_us,  desired.start_us);
             if(m_priority_state.compare_set_strong(e, d)) return true;
             expected = unpackPriority(m_priority_state.load(std::memory_order_acquire));
             return false;
@@ -1756,7 +1887,10 @@ private:
             // making `desired != ps` spuriously true on every call. lease_us
             // is always preserved (owner change doesn't reset the Linkage's
             // contention profile).
-            uint16_t my_tid = (uint16_t)(ProcessCounter::id() & 0xFFFFu);
+            // Mask at STAMP_TID_BITS so the comparison vs ps.tid (the
+            // truncated stored TID) is consistent in both compact and
+            // full-width modes.
+            uint16_t my_tid = Node<XN>::NegotiationCounter::my_tid_lo();
             PriorityState desired{ my_tid, ps.lease_us, ps.start_us };
             if(my_tid != ps.tid) {
                 // started_time is a tid-packed stamp; unpack the µs

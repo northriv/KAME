@@ -747,7 +747,9 @@ ScopedNegotiateLinkage<XN>::_neg_apply_lease(
 
     // Adaptive gate: suppress owner-skip when dt2 exceeds
     // KAME_DT2_FAIRNESS_US (long-held competing tx → starvation risk).
-    unsigned my_tid = ProcessCounter::id() & 0xFFFFu;
+    // Mask at STAMP_TID_BITS width so the comparison against ps.tid
+    // (which carries the truncated TID under compact mode) is consistent.
+    unsigned my_tid = Node<XN>::NegotiationCounter::my_tid_lo();
 #if KAME_STM_MIN_RUNNERS != 0
     const int min_r_pre = effective_min_runners(1);
     if(NegotiationCounter::numThreadsRunning((unsigned)min_r_pre) < (unsigned)min_r_pre)
