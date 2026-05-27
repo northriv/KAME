@@ -2034,35 +2034,127 @@ inline void kame_histo_record(std::size_t size) noexcept {
 // `operator delete` itself — one direct branch per `new T` /
 // `delete p`.
 
+// `noinline` on every global `operator new` / `operator delete`:
+// prevents LTO from inlining our replacement into other TUs.
+// Without this, LTO can inline the pool path into library code
+// that subsequently calls `free()` directly on the returned pointer
+// (legal-but-fragile mixing of `new` with `free()`), and libsystem
+// aborts with "pointer being freed was not allocated" at thread
+// exit because the pool pointer never went through `malloc()`.
+// Marking the replacements `noinline` forces every call to traverse
+// the cross-TU boundary, which keeps the "all allocs go through one
+// override" invariant the standard expects of replacement functions.
+__attribute__((noinline))
 void* operator new(std::size_t size) {
     KAME_HISTO_REC(size);
     return new_redirected(size);
 }
+__attribute__((noinline))
 void* operator new[](std::size_t size) {
     KAME_HISTO_REC(size);
     return new_redirected(size);
 }
 
+__attribute__((noinline))
 void operator delete(void* p) noexcept {
     deallocate_pooled_or_free(p);
 }
+__attribute__((noinline))
 void operator delete[](void* p) noexcept {
     deallocate_pooled_or_free(p);
 }
 
+__attribute__((noinline))
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
     KAME_HISTO_REC(size);
     return new_redirected(size);
 }
+__attribute__((noinline))
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
     KAME_HISTO_REC(size);
     return new_redirected(size);
 }
+__attribute__((noinline))
 void operator delete(void* p, const std::nothrow_t&) noexcept {
     deallocate_pooled_or_free(p);
 }
+__attribute__((noinline))
 void operator delete[](void* p, const std::nothrow_t&) noexcept {
     deallocate_pooled_or_free(p);
+}
+
+// C++14 sized deallocation forms.  Without these overrides, libcxx's
+// inline `operator delete(p, size)` defaults to `free(p)` directly
+// (because the default sized form in libcxx is `inline void
+// operator delete(void *p, size_t) { ::operator delete(p); }` and
+// LTO can collapse the chain to a direct `free()`).  Any `new T[]` /
+// `std::vector<T>::~vector()` call site that uses the sized form
+// would then call `free()` on a KAME pool pointer → libsystem abort
+// at thread/process exit.  Symptom under LTO -O3: SIGTRAP from
+// `___BUG_IN_CLIENT_OF_LIBMALLOC_POINTER_BEING_FREED_WAS_NOT_ALLOCATED`
+// inside `_pthread_tsd_cleanup` calling a thread_local destructor
+// that frees a vector buffer.
+//
+// All sized / aligned forms route to the same `deallocate_pooled_or_free`
+// (size is unused — the bitmap lookup determines slot identity).
+__attribute__((noinline))
+void operator delete(void* p, std::size_t /*size*/) noexcept {
+    deallocate_pooled_or_free(p);
+}
+__attribute__((noinline))
+void operator delete[](void* p, std::size_t /*size*/) noexcept {
+    deallocate_pooled_or_free(p);
+}
+
+// C++17 aligned new — route to libsystem for over-aligned allocations.
+// Our pool guarantees 16 B slot alignment (max_align_t on every
+// supported arch), so under-16B aligned allocations come from us.
+// Over-aligned (`new (std::align_val_t{64}) Foo`) goes to libsystem
+// via posix_memalign and back via free — the aligned operator
+// delete forms below route there.
+__attribute__((noinline))
+void* operator new(std::size_t size, std::align_val_t al) {
+    if ((std::size_t)al <= ALLOC_ALIGNMENT)
+        return new_redirected(size);
+    void *p = nullptr;
+    if (posix_memalign(&p, (std::size_t)al, size) != 0)
+        throw std::bad_alloc();
+    return p;
+}
+__attribute__((noinline))
+void* operator new[](std::size_t size, std::align_val_t al) {
+    return ::operator new(size, al);
+}
+__attribute__((noinline))
+void* operator new(std::size_t size, std::align_val_t al, const std::nothrow_t&) noexcept {
+    if ((std::size_t)al <= ALLOC_ALIGNMENT)
+        return new_redirected(size);
+    void *p = nullptr;
+    posix_memalign(&p, (std::size_t)al, size);
+    return p;
+}
+__attribute__((noinline))
+void* operator new[](std::size_t size, std::align_val_t al, const std::nothrow_t&) noexcept {
+    return ::operator new(size, al, std::nothrow);
+}
+__attribute__((noinline))
+void operator delete(void* p, std::align_val_t al) noexcept {
+    if ((std::size_t)al <= ALLOC_ALIGNMENT)
+        deallocate_pooled_or_free(p);
+    else
+        std::free(p);  // came from posix_memalign
+}
+__attribute__((noinline))
+void operator delete[](void* p, std::align_val_t al) noexcept {
+    ::operator delete(p, al);
+}
+__attribute__((noinline))
+void operator delete(void* p, std::size_t /*size*/, std::align_val_t al) noexcept {
+    ::operator delete(p, al);
+}
+__attribute__((noinline))
+void operator delete[](void* p, std::size_t /*size*/, std::align_val_t al) noexcept {
+    ::operator delete(p, al);
 }
 
 char *PoolAllocatorBase::s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
