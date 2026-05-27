@@ -403,6 +403,23 @@ protected:
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
 	static bool create_allocator(int &aidx);
 	static bool release_allocator(PoolAllocator *alloc);
+	//! Owner-driven release of a chunk this thread already pins.
+	//! Bypasses `release_allocator`'s `m_thread_pinned_count > 0`
+	//! guard (which would otherwise reject because the *caller* is
+	//! the very thread that bumped the pin), but still goes through
+	//! the same bit-0-lock CAS on `s_chunks_of_type[aidx]` to keep
+	//! the registry consistent and prevent any concurrent claim.
+	//! On success, the caller must:
+	//!   1. Unlink `palloc` from this thread's DLL.
+	//!   2. `delete palloc` (so the chunk-header `palloc` pointer is
+	//!      cleared by the dtor's `s_chunks_of_type[aidx] = 0` —
+	//!      already done inside this helper).
+	//!   3. `PoolAllocatorBase::deallocate_chunk(cbase, csz)` to
+	//!      `mprotect` the slot region back to `PROT_NONE` and clear
+	//!      the region's `s_claim_bitmap` bit.
+	//! Phase 4a entry point — used by the 3/4-fill / chunk-full
+	//! trigger to release accumulated empty neighbours in the DLL.
+	static bool owner_release(PoolAllocator *palloc);
 
 	// === Cache line 0: owner-side hot reads & const fields.
 	//! Every bit indicates occupancy in m_mempool.
