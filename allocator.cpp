@@ -905,6 +905,25 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled_static(
 	return self->PoolAllocator::deallocate_pooled(p);
 }
 
+// FS=false slot-size trampoline.  Replays the same per-slot `m_sizes`
+// decode as `deallocate_pooled` (without touching `m_flags`).  Used by
+// `realloc()` via `PoolAllocatorBase::size_of()` to recover the exact
+// allocated byte count for a slot.
+template <unsigned int ALIGN, bool DUMMY>
+std::size_t
+PoolAllocator<ALIGN, false, DUMMY>::size_of_static(
+    PoolAllocatorBase *base, char *p) noexcept {
+	PoolAllocator *self = static_cast<PoolAllocator *>(base);
+	unsigned slot_idx = static_cast<unsigned>(
+	    (p - self->m_mempool) / ALIGN);
+	unsigned idx = slot_idx / (sizeof(FUINT) * 8);
+	unsigned sidx = slot_idx % (sizeof(FUINT) * 8);
+	FUINT nones = find_zero_forward(self->m_sizes[idx] >> sidx);
+	FUINT slot_mask = nones | (nones - 1u);
+	unsigned N = count_bits(slot_mask);
+	return static_cast<std::size_t>(N) * ALIGN;
+}
+
 // FS=false batch return — multi-bit clear (slots vary in n_slots,
 // recovered from m_sizes).  Reuses the inherited batch_clear_impl
 // skeleton with a multi-bit MaskFn and FS=false-specific OnClearFn
@@ -1211,17 +1230,30 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 // 14, 16 all live on PoolAllocator<16, false>), so the bucket's
 // slot size differs from ALIGN and must be derived from `bucket` at
 // runtime.  The inverse of `bucket_for_size`:
-//   bucket 1..16  →  slot_size = bucket * 16     (sizes 16..256, 16-B step)
-//   bucket 17..24 →  slot_size = 256 + (bucket-16)*32   (sizes 288..512)
+//   bucket 1..16  →  slot_size = bucket * 16           (sizes 16..256,  16-B step)
+//   bucket 17..24 →  slot_size = 256 + (bucket-16)*32  (sizes 288..512, 32-B step)
+//   bucket 25..30 →  slot_size = 512 + (bucket-24)*256 (sizes 768..2048, 256-B step)
+//   bucket 31..36 →  slot_size = 2048 + (bucket-30)*1024 (sizes 3072..8192, 1024-B step)
 // The FS=false `allocate_pooled` uses this SIZE to compute N=SIZE/ALIGN
-// (number of consecutive ALIGN-slots to claim from the bitmap).
+// (number of consecutive ALIGN-slots to claim from the bitmap).  Each
+// branch's slot_size is an exact multiple of that tier's ALIGN:
+//   tiers 1-2 (sizes ≤ 512)  use ALLOC_ALIGN1 = 32
+//   tier   3 (768..2048)     use ALLOC_ALIGN2 = 256
+//   tier   4 (3072..8192)    use ALLOC_ALIGN3 = 1024 (64-bit) / 512 (32-bit)
 template <unsigned int ALIGN, bool DUMMY>
 __attribute__((cold, noinline))
 void *
 PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
                                                   std::size_t /*size*/) noexcept {
-	unsigned int slot_size = (bucket <= 16) ? (bucket * 16u)
-	                                        : (256u + (bucket - 16u) * 32u);
+	unsigned int slot_size;
+	if(bucket <= 16)
+		slot_size = bucket * 16u;
+	else if(bucket <= 24)
+		slot_size = 256u + (bucket - 16u) * 32u;
+	else if(bucket <= 30)
+		slot_size = 512u + (bucket - 24u) * 256u;
+	else
+		slot_size = 2048u + (bucket - 30u) * 1024u;
 	// Inherited static; resolves to PoolAllocator<ALIGN, true, false>::
 	// allocate_chunk_path, which uses the FS=false-instantiated
 	// s_my_chunk under the hood (the DUMMY=false template trick).
@@ -1362,28 +1394,37 @@ PoolAllocatorBase::allocate_chunk() {
 					// Chunk layout (chunk-size-aligned by mmap-over-and-trim above):
 					//   [0 .. 7]:     PoolAllocatorBase *palloc
 					//   [8 .. 15]:    bool (*deallocate_fn)(PoolAllocatorBase*, char*)
-					//   [16 .. 63]:   pad
+					//   [16 .. 23]:   size_t (*sizeof_fn)(PoolAllocatorBase*, char*)
+					//   [24 .. 63]:   pad
 					//   [64 .. end]:  slot region (m_mempool)
 					//
-					// Two metadata pointers (palloc + deallocate_fn) sit in
-					// the same cache line and are read together by the
-					// `deallocate_<>` hot path:
+					// All three metadata pointers (palloc + deallocate_fn
+					// + sizeof_fn) sit in the same cache line; `deallocate_<>`
+					// reads palloc + deallocate_fn, `size_of_<>` reads palloc
+					// + sizeof_fn:
 					//     palloc = *(PoolAllocatorBase**)cb;
 					//     fn     = *(DeallocateFn*)(cb + 8);
 					//     fn(palloc, p);   ← direct fn-pointer call,
 					//                       no vtable lookup.
+					//     sz     = *(SizeOfFn*)(cb + 16);
+					//     sz(palloc, p);   ← used by realloc()
 					ALLOC *palloc = ALLOC::create(chunk_size - ALLOC_CHUNK_HEADER,
 					                              addr + ALLOC_CHUNK_HEADER);
 					palloc->m_chunk_size = chunk_size;
 					// Write the chunk header.  `palloc` is the source of
 					// truth for `lookup_chunk(slot)`; the fn pointer
-					// devirtualises `deallocate_pooled` on the hot path.
-					// writeBarrier so both stores are visible before any
-					// allocation hands out a slot from this chunk.
+					// devirtualises `deallocate_pooled` on the hot path;
+					// the sizeof fn devirtualises slot-size lookup for
+					// `realloc()`.  writeBarrier so all stores are visible
+					// before any allocation hands out a slot from this
+					// chunk.
 					*reinterpret_cast<PoolAllocatorBase **>(addr) = palloc;
 					*reinterpret_cast<DeallocateFn *>(
 					    addr + ALLOC_CHUNK_HEADER_FN_OFFSET) =
 					    &ALLOC::deallocate_pooled_static;
+					*reinterpret_cast<SizeOfFn *>(
+					    addr + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET) =
+					    &ALLOC::size_of_static;
 					writeBarrier();
 					return palloc;
 				}
@@ -1723,6 +1764,44 @@ PoolAllocatorBase::deallocate(void *p) {
 		return true;
 	return false;
 }
+
+// `size_of_<>` / `size_of` — read-only sibling of `deallocate_<>`.
+// Walks the same chunk-size ladder, performs the same chunk_base AND-
+// mask + header dereference, but instead of dispatching the dealloc
+// trampoline it dispatches `SizeOfFn` at offset
+// `ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET` (= 16) and returns the slot
+// size in bytes.  Used by `kame_realloc` to size copies.  Returns 0
+// for any pointer not inside our pool (libsystem-malloc'd, null, or
+// chunk released).
+template <int CCNT, size_t CHUNK_SIZE>
+inline std::size_t
+PoolAllocatorBase::size_of_(void *p) {
+	char *mp = s_mmapped_spaces[CCNT];
+	if((CCNT > 0) && !mp)
+		return 0;
+	ptrdiff_t pdiff = static_cast<char *>(p) - mp;
+	if((pdiff >= 0) && (pdiff < (ptrdiff_t)CHUNK_SIZE * NUM_ALLOCATORS_IN_SPACE)) {
+		char *chunk_base = reinterpret_cast<char *>(
+		    (uintptr_t)p & ~(uintptr_t)(CHUNK_SIZE - 1));
+		PoolAllocatorBase *palloc =
+		    *reinterpret_cast<PoolAllocatorBase **>(chunk_base);
+		if((uintptr_t)palloc <= (uintptr_t)1u)
+			return 0;
+		SizeOfFn fn = *reinterpret_cast<SizeOfFn *>(
+		    chunk_base + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET);
+		return fn(palloc, static_cast<char *>(p));
+	}
+	if(CCNT + 1 == ALLOC_MAX_MMAP_ENTRIES)
+		return 0;
+	return size_of_<(CCNT + 1 < ALLOC_MAX_MMAP_ENTRIES) ? CCNT + 1 : CCNT,
+		(CCNT + 1 < ALLOC_MAX_MMAP_ENTRIES) ? GROW_CHUNK_SIZE(CHUNK_SIZE) : CHUNK_SIZE>(p);
+}
+
+inline std::size_t
+PoolAllocatorBase::size_of(void *p) {
+	if( !p) return 0;
+	return size_of_<0, ALLOC_MIN_CHUNK_SIZE>(p);
+}
 void
 PoolAllocatorBase::release_chunks() {
 	// Clear claim bitmaps + munmap regions.  Process exit only —
@@ -1820,6 +1899,27 @@ KAME_DECL_BUCKET(21, ALLOC_ALIGN(ALLOC_SIZE13 * 2), false, ALLOC_SIZE13 * 2);  /
 KAME_DECL_BUCKET(22, ALLOC_ALIGN(ALLOC_SIZE14 * 2), false, ALLOC_SIZE14 * 2);  // size 448
 KAME_DECL_BUCKET(23, ALLOC_ALIGN(ALLOC_SIZE15 * 2), false, ALLOC_SIZE15 * 2);  // size 480
 KAME_DECL_BUCKET(24, ALLOC_ALIGN(ALLOC_SIZE16 * 2), false, ALLOC_SIZE16 * 2);  // size 512
+
+// Buckets 25..30 — sizes 768..2048 in 256-B increments.  All FS=false,
+// ALIGN=ALLOC_ALIGN2 (= 256 on 64-bit).  Slot sizes are exact multiples
+// of ALLOC_ALIGN2 (N = 3..8), so we bypass the ALLOC_ALIGN macro's
+// "is multiple of ALIGN2?" heuristic and name the tier directly.
+KAME_DECL_BUCKET(25, ALLOC_ALIGN2, false,  768u);  // ALIGN=256, N=3
+KAME_DECL_BUCKET(26, ALLOC_ALIGN2, false, 1024u);  // ALIGN=256, N=4
+KAME_DECL_BUCKET(27, ALLOC_ALIGN2, false, 1280u);  // ALIGN=256, N=5
+KAME_DECL_BUCKET(28, ALLOC_ALIGN2, false, 1536u);  // ALIGN=256, N=6
+KAME_DECL_BUCKET(29, ALLOC_ALIGN2, false, 1792u);  // ALIGN=256, N=7
+KAME_DECL_BUCKET(30, ALLOC_ALIGN2, false, 2048u);  // ALIGN=256, N=8
+
+// Buckets 31..36 — sizes 3072..8192 in 1024-B increments.  ALIGN=
+// ALLOC_ALIGN3 (= 1024 on 64-bit, = 512 on 32-bit; in both cases the
+// slot sizes 3072..8192 are exact multiples of ALIGN3).
+KAME_DECL_BUCKET(31, ALLOC_ALIGN3, false, 3072u);  // N=3 (64-bit) / N=6 (32-bit)
+KAME_DECL_BUCKET(32, ALLOC_ALIGN3, false, 4096u);  // N=4 / N=8
+KAME_DECL_BUCKET(33, ALLOC_ALIGN3, false, 5120u);  // N=5 / N=10
+KAME_DECL_BUCKET(34, ALLOC_ALIGN3, false, 6144u);  // N=6 / N=12
+KAME_DECL_BUCKET(35, ALLOC_ALIGN3, false, 7168u);  // N=7 / N=14
+KAME_DECL_BUCKET(36, ALLOC_ALIGN3, false, 8192u);  // N=8 / N=16
 #undef KAME_DECL_BUCKET
 
 //! First-access trampoline for bucket B.  Invoked from the
@@ -1889,6 +1989,18 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
         case 22:          return bucket_first_access<22>(size);
         case 23:          return bucket_first_access<23>(size);
         case 24:          return bucket_first_access<24>(size);
+        case 25:          return bucket_first_access<25>(size);
+        case 26:          return bucket_first_access<26>(size);
+        case 27:          return bucket_first_access<27>(size);
+        case 28:          return bucket_first_access<28>(size);
+        case 29:          return bucket_first_access<29>(size);
+        case 30:          return bucket_first_access<30>(size);
+        case 31:          return bucket_first_access<31>(size);
+        case 32:          return bucket_first_access<32>(size);
+        case 33:          return bucket_first_access<33>(size);
+        case 34:          return bucket_first_access<34>(size);
+        case 35:          return bucket_first_access<35>(size);
+        case 36:          return bucket_first_access<36>(size);
     }
     return std::malloc(size);  // unreachable
 }
@@ -2064,8 +2176,13 @@ static void libsystem_free_for_pool(void *p) {
 // libsystem free.  Safe.
 __attribute__((noinline))
 static void kame_free(void *p) {
-	if( !p) return;
-	if(g_sys_image_loaded && PoolAllocatorBase::deallocate(p))
+	// `PoolAllocatorBase::deallocate(p)` is itself pre-activation-safe:
+	// it early-returns false on null `p`, and the CCNT=0 lookup against
+	// `s_mmapped_spaces[0] == nullptr` (zero-initialised pre-pool-use)
+	// trivially fails its range check.  No outer `g_sys_image_loaded`
+	// guard needed — the natural state of `s_mmapped_spaces[]` covers
+	// the same fast-out.
+	if(PoolAllocatorBase::deallocate(p))
 		return;
 	libsystem_free_for_pool(p);
 }
@@ -2090,6 +2207,203 @@ kame_interpose_entry kame_interposers[]
 // our dylib's own consumers resolve to the pool-aware version.
 extern "C" __attribute__((noinline)) void free(void *p) {
 	kame_free(p);
+}
+#endif
+
+// === calloc / realloc ============================================
+//
+// Pool-aware companions to `free`.  Same interpose / strong-symbol
+// strategy as `free` above:
+//   - macOS: `__DATA,__interpose` table extended so dyld rewrites
+//     every `calloc` / `realloc` import across all dylibs to ours.
+//   - Linux glibc: emit strong-symbol `calloc` / `realloc`; the
+//     internal "forward to libc" path uses `__libc_calloc` /
+//     `__libc_realloc` to bypass our own shadowing (same trick as
+//     `__libc_free` for `free`).
+//
+// === Why interpose these too ===
+//
+// `realloc(p, n)` is the dangerous case.  If `p` came from our pool
+// (via `::operator new` → `new_redirected`) and libsystem `realloc`
+// gets the call, libsystem rejects the pointer with
+// `pointer being realloc'd was not allocated`.  Symmetric to the
+// `_pthread_tsd_cleanup → free` LTO crash we fixed for `free()`.
+//
+// `calloc` is safer: most consumers feed its result through to
+// `free`, which is already interposed.  But intercepting calloc lets
+// us serve `n * size ≤ ALLOC_MAX_BUCKETED_SIZE` allocations from the
+// pool too — a 4-5 % chunk of the `alloc_stress` micro-bench
+// distribution; on calloc-heavy workloads it can matter more.
+
+#if defined(__linux__) && defined(__GLIBC__)
+// glibc internal entries — same addresses as libc's `calloc` / `realloc`
+// but under names our strong-symbol shims do not shadow.
+extern "C" void *__libc_calloc(size_t, size_t) noexcept;
+extern "C" void *__libc_realloc(void *, size_t) noexcept;
+#endif
+
+__attribute__((noinline))
+static void *libsystem_realloc_for_pool(void *p, std::size_t n) {
+#if defined(__APPLE__)
+	// Zone-API direct dispatch — skips the interposed `realloc` symbol
+	// for the same reason `libsystem_free_for_pool` uses
+	// `malloc_zone_free`: `dlsym(RTLD_NEXT, "realloc")` would return
+	// our own replacement under interposing.  `malloc_zone_from_ptr`
+	// may return NULL for pointers libsystem doesn't recognise — in
+	// that case we fall back to the default zone's `realloc` to honour
+	// the "p == NULL  ⇒ malloc(n)" contract for calls that race a
+	// chunk-release.
+	malloc_zone_t *zone = p ? malloc_zone_from_ptr(p) : nullptr;
+	if( !zone) zone = malloc_default_zone();
+	return malloc_zone_realloc(zone, p, n);
+#elif defined(__linux__) && defined(__GLIBC__)
+	return __libc_realloc(p, n);
+#else
+	return std::realloc(p, n);
+#endif
+}
+
+__attribute__((noinline))
+static void *libsystem_calloc_for_pool(std::size_t n_elem, std::size_t sz) {
+#if defined(__APPLE__)
+	malloc_zone_t *zone = malloc_default_zone();
+	return malloc_zone_calloc(zone, n_elem, sz);
+#elif defined(__linux__) && defined(__GLIBC__)
+	return __libc_calloc(n_elem, sz);
+#else
+	return std::calloc(n_elem, sz);
+#endif
+}
+
+//! Pool-aware calloc.  Routes through `new_redirected` when the pool
+//! is active and the total fits a bucket; otherwise falls through to
+//! libsystem `calloc` (which sources zero-filled pages straight from
+//! the OS, no manual memset).
+__attribute__((noinline))
+static void *kame_calloc(std::size_t n_elem, std::size_t sz) {
+	// Overflow-checked multiply.  Mirrors libc's contract: return NULL
+	// (no errno set) when the product would wrap.
+	std::size_t total;
+	if(__builtin_mul_overflow(n_elem, sz, &total))
+		return nullptr;
+	if( !total) total = 1;  // calloc(0, *) / calloc(*, 0): libc returns
+	                        // a uniquely-freeable non-null pointer.
+	if( !g_sys_image_loaded || s_alloc_tls_off)
+		return libsystem_calloc_for_pool(n_elem, sz);
+	// Pool path.  `new_redirected` may dispatch to libsystem itself for
+	// over-bucket sizes — that branch returns libsystem-malloc'd memory
+	// which `free()` / our interpose will route back to libsystem.
+	void *p = new_redirected(total);
+	if(p) std::memset(p, 0, total);
+	return p;
+}
+
+//! Pool-aware realloc.  Three regimes by where `p` came from:
+//!   1. `p == NULL`        → equivalent to malloc(n) (via new_redirected)
+//!   2. `n == 0`           → equivalent to free(p), return NULL
+//!   3. `p` is a pool slot → if new size fits the same slot, return p
+//!                           unchanged (no copy).  Otherwise allocate
+//!                           a fresh slot, memcpy min(old, n) bytes,
+//!                           release the old slot.
+//!   4. `p` is foreign     → defer to libsystem realloc.  (Cross-
+//!                           allocator realloc would otherwise crash
+//!                           libsystem with "pointer being realloc'd
+//!                           was not allocated".)
+__attribute__((noinline))
+static void *kame_realloc(void *p, std::size_t n) {
+	if( !p) {
+		// p==NULL ⇒ malloc(n).  Pre-activate / post-cleanup must take
+		// the libsystem path — keep the explicit guard here because
+		// `new_redirected` would otherwise claim a fresh chunk on
+		// first call from a pre-main static-init thread (qmake inline
+		// mode); we want the chunk-claim deferred to `activateAllocator`.
+		if( !g_sys_image_loaded || s_alloc_tls_off)
+			return libsystem_realloc_for_pool(nullptr, n);
+		return new_redirected(n);
+	}
+	if( !n) {
+		// `realloc(p, 0)` is implementation-defined in C17 (DR 400):
+		// glibc/libc++ tend to return NULL and free `p`; some
+		// allocators return a unique freeable pointer.  We pick the
+		// "free + return NULL" semantics — same as mimalloc.
+		// `PoolAllocatorBase::deallocate` is pre-activate-safe (same
+		// rationale as `kame_free`).
+		if(PoolAllocatorBase::deallocate(p))
+			return nullptr;
+		libsystem_free_for_pool(p);
+		return nullptr;
+	}
+	// `PoolAllocatorBase::size_of` is pre-activate-safe: it walks the
+	// same `s_mmapped_spaces[]` ladder as `deallocate`, returns 0 for
+	// any pointer outside our chunks (including the pre-activate case
+	// where `s_mmapped_spaces[0] == nullptr`).  No outer
+	// `g_sys_image_loaded` guard needed.
+	std::size_t old = PoolAllocatorBase::size_of(p);
+	if(old) {
+		// In our pool.  Same-slot fit ⇒ return unchanged.
+		if(n <= old) return p;
+		void *q = new_redirected(n);
+		if( !q) return nullptr;
+		std::memcpy(q, p, old);  // old ≤ n, no overcopy
+		PoolAllocatorBase::deallocate(p);
+		return q;
+	}
+	// Foreign pointer — defer to libsystem.  Safe across the call,
+	// since libsystem realloc operates on its own allocations.
+	return libsystem_realloc_for_pool(p, n);
+}
+
+// === Why we interpose `realloc` but NOT `calloc` ===
+//
+// `realloc` is the correctness-critical one: pool pointers (from our
+// `::operator new`) are routinely realloc'd by libcxx / glibc / libsystem
+// (e.g. `std::vector` growth on a `vector<T>` whose elements were
+// originally allocated via `new`).  Without our interpose, libsystem
+// `realloc` rejects the pointer with "pointer being realloc'd was not
+// allocated" — the realloc cousin of the `_pthread_tsd_cleanup → free`
+// abort that motivated the `free` interpose.  Our `kame_realloc`
+// checks `size_of(p)` (chunk-header `SizeOfFn` dispatch); pool pointers
+// take the in-pool reshape path, foreign pointers fall through to
+// `libsystem_realloc_for_pool`.
+//
+// `calloc` is NOT interposed.  ObjC's class realization (`_objc_init`
+// → `realizeClassMaybeSwiftMaybeRelock`) calls `calloc()` to build
+// the class table, then later checks the allocation via
+// `malloc_size()` to detect dangling references.  If `calloc` is
+// interposed, the class data sits in our pool and libsystem's
+// `malloc_size()` returns 0 — ObjC reports "realized class has
+// corrupt data pointer" and aborts.  Fixing this properly requires
+// also interposing `malloc_size` / `malloc_zone_from_ptr` /
+// `malloc_good_size` — the full mimalloc compat surface — which is
+// out of scope for this work.
+//
+// `kame_calloc` stays available below as a non-interposed entry
+// point: callers who want pool-backed zero-init can call it
+// directly.  Default `calloc()` resolves to libsystem as before;
+// because we DO interpose `free`, libsystem-calloc'd pointers
+// returned by stdlib code still route back to libsystem free via
+// our `kame_free` fallback (`PoolAllocatorBase::deallocate` returns
+// false ⇒ `libsystem_free_for_pool` → `malloc_zone_free`).
+__attribute__((used))
+void *kame_pool_calloc(std::size_t n_elem, std::size_t sz) noexcept {
+	return kame_calloc(n_elem, sz);
+}
+
+#if defined(__APPLE__)
+extern "C" void *realloc(void *, std::size_t);
+
+namespace {
+__attribute__((used))
+kame_interpose_entry kame_interposers_alloc[]
+    __attribute__((section("__DATA,__interpose"))) = {
+        { reinterpret_cast<const void *>(&kame_realloc),
+          reinterpret_cast<const void *>(&realloc) },
+};
+} // namespace
+#else
+extern "C" __attribute__((noinline))
+void *realloc(void *p, std::size_t n) {
+	return kame_realloc(p, n);
 }
 #endif
 
