@@ -29,8 +29,10 @@ HEADERS += \
     ../kamepoolalloc/allocator.h \
     ../kamepoolalloc/allocator_prv.h \
     ../kamepoolalloc/atomic_mfence.h \
+    ../kamepoolalloc/atomic_prv_mfence.h \
     ../kamepoolalloc/atomic_prv_mfence_arm8.h \
     ../kamepoolalloc/atomic_prv_mfence_x86.h \
+    atomic_prv_mfence.h \
     atomic_prv_mfence_arm8.h \
     graph/graphmathfittool.h \
     graph/graphmathtool.h \
