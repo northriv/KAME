@@ -134,10 +134,17 @@ inline bool atomicDecAndTest(T *target) noexcept {
 //!               trampoline that dispatches the dealloc body
 //!               (`PoolAllocatorBase::DeallocateFn`).  Replaces
 //!               vtable dispatch on the `deallocate_<>` hot path.
-//!   [16 .. 63]: pad to a cache line.
+//!   [16 .. 23]: `SizeOfFn` — non-virtual static trampoline that
+//!               returns the slot size (in bytes) for any slot
+//!               pointer in this chunk.  Used by `realloc()` /
+//!               `pool_slot_size()` to size copies without a vtable
+//!               call.  FS=true: returns the constant ALIGN; FS=false:
+//!               reads `m_sizes[idx]>>sidx` and decodes N * ALIGN.
+//!   [24 .. 63]: pad to a cache line.
 //! Slot region (`m_mempool`) starts at `chunk_base + ALLOC_CHUNK_HEADER`.
 #define ALLOC_CHUNK_HEADER 64
-#define ALLOC_CHUNK_HEADER_FN_OFFSET 8
+#define ALLOC_CHUNK_HEADER_FN_OFFSET     8
+#define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET 16
 
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
@@ -177,10 +184,26 @@ public:
 	//! NUMA / cache-cold vtable: more.
 	using DeallocateFn = bool (*)(PoolAllocatorBase *base, char *slot);
 
+	//! Signature of the per-chunk slot-size trampoline stored at chunk-
+	//! header offset `ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET` (= 16).
+	//! Used by `pool_slot_size(p)` / `realloc()` to recover the size of
+	//! an allocated slot without a vtable call.  Per-(ALIGN,FS,DUMMY)
+	//! instantiation:
+	//!   - FS=true   → return ALIGN (compile-time constant)
+	//!   - FS=false  → decode N from `m_sizes[idx]>>sidx`, return N*ALIGN
+	using SizeOfFn = std::size_t (*)(PoolAllocatorBase *base, char *slot);
+
 	virtual ~PoolAllocatorBase() = default;
 	template <int CCNT, size_t CHUNK_SIZE>
 	static inline bool deallocate_(void *p);
 	static inline bool deallocate(void *p);
+	//! Look up the slot size (bytes) for a pointer.  Returns 0 if `p`
+	//! is not a pool slot (foreign / libsystem-malloc'd / null).  Uses
+	//! the same chunk-header pattern as `deallocate_<>` and dispatches
+	//! the slot-size lookup through the chunk's `SizeOfFn`.
+	template <int CCNT, size_t CHUNK_SIZE>
+	static inline std::size_t size_of_(void *p);
+	static inline std::size_t size_of(void *p);
 	//! Address-only chunk lookup.  Mirrors `deallocate_<>`'s
 	//! `s_chunks` index calculation but stops at the chunk pointer
 	//! — no `deallocate_pooled` call.  Returns nullptr if `p` does
@@ -358,6 +381,15 @@ public:
 	//! a direct branch.
 	static bool deallocate_pooled_static(PoolAllocatorBase *base, char *p);
 
+	//! Non-virtual static trampoline for the chunk-header `SizeOfFn`
+	//! pointer.  FS=true returns the constant ALIGN — every slot in a
+	//! fixed-size chunk has the same length.  The FS=false partial
+	//! specialisation overrides this with the `m_sizes`-based decode.
+	static std::size_t size_of_static(PoolAllocatorBase * /*base*/,
+	                                  char * /*p*/) noexcept {
+	    return ALIGN;
+	}
+
 	static void release_pools();
 	void report_leaks();
 	void report_statistics(size_t &chunk_size, size_t &used_size) override;
@@ -471,6 +503,13 @@ public:
 	//! casts to this leaf type and invokes the non-virtual
 	//! `PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled`.
 	static bool deallocate_pooled_static(PoolAllocatorBase *base, char *p);
+	//! FS=false slot-size lookup.  Decodes the slot's run length from
+	//! `m_sizes[idx]>>sidx` (same pattern as `deallocate_pooled`'s
+	//! N-bit clear).  Returns N*ALIGN bytes — the slot's exact user
+	//! capacity.  Stamped into the chunk header at offset
+	//! `ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET`; overrides the FS=true
+	//! constant returned by the base template's `size_of_static`.
+	static std::size_t size_of_static(PoolAllocatorBase *base, char *p) noexcept;
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	PoolAllocator(int count, char *addr, char *ppool);
@@ -507,6 +546,12 @@ private:
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 16)
+	//! New on 64-bit: ALIGN3 = 1024 (= 16 × 64).  Used by buckets 31..36
+	//! (sizes 3072..8192 in 1024-B step) so the FS=false machinery can
+	//! cover above 2 KiB without ballooning slot-counts/chunks at the
+	//! lower-ALIGN tiers.  Max in-pool slot size:
+	//!   ALIGN3 × FUINT_BITS = 1024 × 64 = 65536 (we cap usage at 8192).
+	#define ALLOC_ALIGN3 (ALLOC_ALIGNMENT * 64)
 	#define ALLOC_ALIGN(size) (((size) % ALLOC_ALIGN2 != 0) || ((size) == ALLOC_ALIGN1 * 64) ? ALLOC_ALIGN1 : ALLOC_ALIGN2)
 //	#define ALLOC_ALIGN(size) (((size) <= ALLOC_ALIGN1 * 64) ? ALLOC_ALIGN1 : ALLOC_ALIGN2)
 #else
@@ -632,10 +677,18 @@ static_assert(sizeof(AllocSlot) == 8,
 
 //! Bucket count.
 //!   - index 0 (size = 0): reuses bucket 1's 16-B allocator
-//!   - 1..16: sizes 16..256 in 16-B increments    (FS=true + FS=false mixed)
-//!   - 17..24: sizes 288..512 in 32-B increments  (FS=false, was previously
-//!             handled by new_redirected_large via ALLOCATE_9_16X(2, ...))
-constexpr int ALLOC_NUM_BUCKETS = 25;
+//!   - 1..16: sizes 16..256 in 16-B increments     (FS=true + FS=false mixed)
+//!   - 17..24: sizes 288..512 in 32-B increments   (FS=false, ALIGN=32)
+//!   - 25..30: sizes 768..2048 in 256-B increments (FS=false, ALIGN=ALLOC_ALIGN2 = 256)
+//!   - 31..36: sizes 3072..8192 in 1024-B increments (FS=false, ALIGN=ALLOC_ALIGN3 = 1024 on 64-bit;
+//!             on 32-bit ALIGN3 = 512, slot sizes still match)
+//!
+//! Range 513..767 is intentionally folded into bucket 25 (slot=768) —
+//! the worst-case internal frag (255/768 ≈ 33%) is paid by a thin
+//! distribution sliver in the alloc_stress histogram and avoids
+//! adding yet another tier just to shave the boundary.  STM
+//! workloads don't exercise this range at all (histogram-measured).
+constexpr int ALLOC_NUM_BUCKETS = 37;
 
 //! Size → bucket-index for both allocation (user size → bucket of the
 //! smallest slot that fits) and deallocation (slot's actual size →
@@ -643,20 +696,31 @@ constexpr int ALLOC_NUM_BUCKETS = 25;
 //! slot sizes coincide with the bucket boundary (the top of each
 //! bucket's user-size range == the slot size for that bucket):
 //!
-//!   user_size 1..16   ↘
-//!   slot_size = 16    ↗ → bucket 1
-//!   user_size 17..32  ↘
-//!   slot_size = 32    ↗ → bucket 2
+//!   user_size 1..16    ↘
+//!   slot_size = 16     ↗ → bucket 1
+//!   user_size 17..32   ↘
+//!   slot_size = 32     ↗ → bucket 2
 //!   ...
-//!   user_size 257..288  ↘
-//!   slot_size = 288     ↗ → bucket 17
+//!   user_size 257..288 ↘
+//!   slot_size = 288    ↗ → bucket 17
 //!   ...
-//!   user_size 481..512  ↘
-//!   slot_size = 512     ↗ → bucket 24
+//!   user_size 481..512 ↘
+//!   slot_size = 512    ↗ → bucket 24
+//!   user_size 513..768 ↘
+//!   slot_size = 768    ↗ → bucket 25
+//!   ...
+//!   user_size 1793..2048 ↘
+//!   slot_size = 2048     ↗ → bucket 30
+//!   user_size 2049..3072 ↘
+//!   slot_size = 3072     ↗ → bucket 31
+//!   ...
+//!   user_size 7169..8192 ↘
+//!   slot_size = 8192     ↗ → bucket 36
 //!
-//! Sizes > ALLOC_MAX_BUCKETED_SIZE (= 512 = ALLOC_SIZE16*2) are not
-//! covered; callers must check before indexing.
-constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = (std::size_t)ALLOC_SIZE16 * 2u;
+//! Sizes > ALLOC_MAX_BUCKETED_SIZE (= 8192) are not covered; callers
+//! must check before indexing — `new_redirected_large` does the test
+//! before falling through to `allocate_large_size_or_malloc`.
+constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = 8192u;
 
 inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 	// size ≤ 256: 16-B step slots.  (size+15)>>4 gives 1..16 for
@@ -666,7 +730,15 @@ inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 	// 257..512: 32-B step slots (288, 320, ..., 512).  17 + ((size-257)>>5)
 	// gives 17..24.  Works for both user size (rounding up to the
 	// next slot size) and slot size (already a multiple of 32 above 256).
-	return 17u + static_cast<unsigned int>((size - 257u) >> 5);
+	if(size <= 512u)
+		return 17u + static_cast<unsigned int>((size - 257u) >> 5);
+	// 513..2048: 256-B step slots (768, 1024, 1280, 1536, 1792, 2048).
+	// 25 + ((size-513)>>8) gives 25..30.
+	if(size <= 2048u)
+		return 25u + static_cast<unsigned int>((size - 513u) >> 8);
+	// 2049..8192: 1024-B step slots (3072, 4096, 5120, 6144, 7168, 8192).
+	// 31 + ((size-2049)>>10) gives 31..36.
+	return 31u + static_cast<unsigned int>((size - 2049u) >> 10);
 }
 
 extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
