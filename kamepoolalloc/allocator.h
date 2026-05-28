@@ -63,6 +63,19 @@
 //   x86 / x86_64 — original target, inline-asm path.
 //   ARM64 (Apple Silicon, Linux aarch64) — uses __builtin_ctzll for
 //      bit-scan and the ARM8 dmb/yield barriers from atomic_prv_mfence_arm8.h.
+//   Windows (x86_64 / ARM64) — MinGW-only.  MinGW provides
+//      `__sync_*` atomics, `__attribute__((constructor))`, and a
+//      `thread_local` runtime that drives `AllocThreadExitCleanup`'s
+//      destructor at thread exit.  MSVC support requires an
+//      `_Interlocked*` atomic shim and `__declspec(allocate(".CRT$XCB"))`
+//      for the static-init hook — out of scope for Phase 5z.
+//      Production kame.exe inline-compiles `allocator.cpp` (no DLL
+//      boundary), so the strong-symbol `free`/`realloc` interpose
+//      (Linux-glibc strategy) is NOT used on Windows — `operator new`
+//      / `operator delete` overrides plus the explicit `kame_pool_*`
+//      C API cover every legitimate code path.  CRT `free` /
+//      `realloc` stay bound to msvcrt, which is what 3rd-party DLLs
+//      expect.
 // Anything else falls back to std::allocator via USE_STD_ALLOCATOR.
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__\
     || defined __x86_64__ || defined _M_IX86 || defined _M_X64\
@@ -71,7 +84,13 @@
 #else
     #define USE_STD_ALLOCATOR
 #endif
-#if defined WINDOWS || defined _WIN32
+
+// MSVC carve-out: the pool's atomic primitives are GCC __sync builtins
+// and the constructor hook uses `__attribute__((constructor))`.  Both
+// are MinGW-supported on Windows but MSVC requires intrinsics-based
+// replacements.  Until that shim lands, MSVC-built Windows binaries
+// stay on USE_STD_ALLOCATOR.  MinGW continues onto the active path.
+#if (defined(_WIN32) || defined(WINDOWS)) && defined(_MSC_VER) && !defined(__GNUC__)
     #define USE_STD_ALLOCATOR
 #endif
 

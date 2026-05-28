@@ -62,6 +62,11 @@
 #include <type_traits>
 #if defined(__APPLE__)
     #include <malloc/malloc.h>   // for malloc_zone_from_ptr / malloc_zone_free
+#elif defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    #include <malloc.h>          // for _aligned_malloc / _aligned_free
+                                 // (over-aligned alloc fallback when
+                                 // alignment exceeds the pool's 16-B
+                                 // guarantee)
 #endif
 #if KAME_FAST_TSD
     #include <pthread.h>
@@ -2809,12 +2814,32 @@ kame_interpose_entry kame_interposers[]
           reinterpret_cast<const void *>(&free) },
 };
 } // namespace
-#else
-// Non-Darwin (Linux / Windows): emit `free` as a strong symbol so
-// our dylib's own consumers resolve to the pool-aware version.
+#elif defined(__linux__)
+// Linux: emit `free` as a strong symbol so our dylib's own consumers
+// resolve to the pool-aware version.
 extern "C" __attribute__((noinline)) void free(void *p) {
 	kame_free(p);
 }
+#else
+// Windows / others (Phase 5z): no `free` interpose.
+//
+// Rationale: on PE/COFF (Windows), a DLL exporting `free` does NOT
+// shadow other modules' bindings to msvcrt's `free` — each module
+// has its own import table.  Worse, defining `free` in a static
+// library would create a multiply-defined-symbol error against
+// msvcrt's `free`.  The production Windows kame.exe inline-compiles
+// `allocator.cpp` directly, so:
+//   - C++ `operator new` / `operator delete` overrides apply (every
+//     `new T()` / `delete p` in kame.exe is pool-routed);
+//   - the C API (`kame_pool_*`) is available for explicit use;
+//   - CRT `free` / `realloc` stay bound to msvcrt — what 3rd-party
+//     DLLs expect.
+//
+// Cross-DLL risk: a kame.exe-allocated pool pointer handed to a
+// 3rd-party DLL that calls CRT `free()` will crash with a heap-
+// corruption check.  KAME's architecture does not do this; if a
+// future call site needs it, the explicit `kame_pool_free` C API
+// or `delete` operator should be used instead.
 #endif
 
 // === calloc / realloc ============================================
@@ -3068,9 +3093,21 @@ void *kame_pool_aligned_alloc(std::size_t alignment, std::size_t size) {
 		errno = ENOMEM;
 		return nullptr;
 	}
-	// Over-aligned (> 16 B): defer to system posix_memalign.  Our
-	// pool slots are 16-B aligned by design; honouring larger
-	// alignment in-pool would require slot-internal padding.
+	// Over-aligned (> 16 B): defer to platform-native aligned-alloc.
+	// On POSIX, `posix_memalign` returns a `free()`-able pointer, so
+	// `kame_pool_free` works transparently (it falls through to
+	// `libsystem_free_for_pool` → libc `free`).  On Windows,
+	// `_aligned_malloc` requires the matching `_aligned_free` — and
+	// `kame_pool_free` has no alignment info to dispatch correctly.
+	// Phase 5z therefore restricts the C API's over-aligned path on
+	// Windows: callers needing alignment > 16 B should use
+	// `_aligned_malloc` / `_aligned_free` directly, or use C++
+	// `operator new(size, std::align_val_t{N})` which carries
+	// alignment into the matching `operator delete`.
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+	errno = EINVAL;
+	return nullptr;
+#else
 	void *p = nullptr;
 	int rc = posix_memalign(&p, alignment, size);
 	if(rc != 0) {
@@ -3078,6 +3115,7 @@ void *kame_pool_aligned_alloc(std::size_t alignment, std::size_t size) {
 		return nullptr;
 	}
 	return p;
+#endif
 }
 
 extern "C" __attribute__((noinline, used))
@@ -3095,7 +3133,12 @@ int kame_pool_posix_memalign(void **memptr, std::size_t alignment,
 		*memptr = p;
 		return 0;
 	}
+	// Same over-aligned restriction as `kame_pool_aligned_alloc`.
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+	return EINVAL;
+#else
 	return posix_memalign(memptr, alignment, size);
+#endif
 }
 
 #if defined(__APPLE__)
@@ -3109,11 +3152,15 @@ kame_interpose_entry kame_interposers_alloc[]
           reinterpret_cast<const void *>(&realloc) },
 };
 } // namespace
-#else
+#elif defined(__linux__)
 extern "C" __attribute__((noinline))
 void *realloc(void *p, std::size_t n) {
 	return kame_realloc(p, n);
 }
+#else
+// Windows / others (Phase 5z): no `realloc` interpose.  Same
+// rationale as `free` above — CRT `realloc` stays bound to msvcrt;
+// callers that need the pool path use `kame_pool_realloc()`.
 #endif
 
 // Phase 4b-final: `release_pools()` / `report_statistics()` / per-template
@@ -3276,16 +3323,38 @@ void operator delete[](void* p, std::size_t /*size*/) noexcept {
 // C++17 aligned new — route to libsystem for over-aligned allocations.
 // Our pool guarantees 16 B slot alignment (max_align_t on every
 // supported arch), so under-16B aligned allocations come from us.
-// Over-aligned (`new (std::align_val_t{64}) Foo`) goes to libsystem
-// via posix_memalign and back via free — the aligned operator
-// delete forms below route there.
+// Over-aligned (`new (std::align_val_t{64}) Foo`) goes to the
+// platform-native aligned-alloc and back via the matching free —
+// posix_memalign / free on POSIX, _aligned_malloc / _aligned_free on
+// Windows.  The aligned operator delete forms below carry the
+// alignment so dispatch is correct.
+namespace {
+inline void *kame_overaligned_alloc(std::size_t alignment,
+                                    std::size_t size) noexcept {
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    return _aligned_malloc(size, alignment);
+#else
+    void *p = nullptr;
+    if(posix_memalign(&p, alignment, size) != 0)
+        return nullptr;
+    return p;
+#endif
+}
+inline void kame_overaligned_free(void *p) noexcept {
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    _aligned_free(p);
+#else
+    std::free(p);
+#endif
+}
+} // namespace
+
 __attribute__((noinline))
 void* operator new(std::size_t size, std::align_val_t al) {
     if ((std::size_t)al <= ALLOC_ALIGNMENT)
         return new_redirected(size);
-    void *p = nullptr;
-    if (posix_memalign(&p, (std::size_t)al, size) != 0)
-        throw std::bad_alloc();
+    void *p = kame_overaligned_alloc((std::size_t)al, size);
+    if (!p) throw std::bad_alloc();
     return p;
 }
 __attribute__((noinline))
@@ -3296,9 +3365,7 @@ __attribute__((noinline))
 void* operator new(std::size_t size, std::align_val_t al, const std::nothrow_t&) noexcept {
     if ((std::size_t)al <= ALLOC_ALIGNMENT)
         return new_redirected(size);
-    void *p = nullptr;
-    posix_memalign(&p, (std::size_t)al, size);
-    return p;
+    return kame_overaligned_alloc((std::size_t)al, size);
 }
 __attribute__((noinline))
 void* operator new[](std::size_t size, std::align_val_t al, const std::nothrow_t&) noexcept {
@@ -3309,7 +3376,7 @@ void operator delete(void* p, std::align_val_t al) noexcept {
     if ((std::size_t)al <= ALLOC_ALIGNMENT)
         deallocate_pooled_or_free(p);
     else
-        std::free(p);  // came from posix_memalign
+        kame_overaligned_free(p);  // matches kame_overaligned_alloc
 }
 __attribute__((noinline))
 void operator delete[](void* p, std::align_val_t al) noexcept {

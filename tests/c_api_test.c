@@ -115,11 +115,15 @@ static void test_aligned(void) {
     EXPECT(((uintptr_t)p & 7u) == 0u, "aligned_alloc(8) not 8-aligned");
     kame_pool_free(p);
 
-    /* 64-byte alignment — over-aligned, falls back to posix_memalign */
+    /* 64-byte alignment — over-aligned, falls back to posix_memalign.
+     * Windows-restricted: the C API does not support alignment > 16 B
+     * (see kame_pool.h for rationale).  Skip the assertion on Windows. */
+#if !(defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS))
     p = kame_pool_aligned_alloc(64, 256);
     EXPECT(p != NULL, "aligned_alloc(64,256) returned NULL");
     EXPECT(((uintptr_t)p & 63u) == 0u, "aligned_alloc(64) not 64-aligned");
     kame_pool_free(p);
+#endif
 
     /* Invalid alignment (not power of two) */
     errno = 0;

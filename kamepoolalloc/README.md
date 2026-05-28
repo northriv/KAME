@@ -2,11 +2,12 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)]()
-[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)]()
+[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW)-lightgrey)]()
 
 A lock-free, per-thread bucketed pool allocator for C++ small-object workloads.
 Designed for **multi-threaded STM-style transactional workloads** but usable as a
-general-purpose drop-in `new` / `delete` replacement on macOS and Linux.
+general-purpose drop-in `new` / `delete` replacement on macOS, Linux, and
+Windows (MinGW).
 
 Carved out of the [KAME](https://github.com/northriv/KAME) measurement framework
 under **Apache 2.0** so it can be embedded into commercial / proprietary
