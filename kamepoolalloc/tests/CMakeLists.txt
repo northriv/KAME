@@ -54,13 +54,14 @@ find_package(Threads REQUIRED)
 #   - kamestm/ (atomic.h, transaction.h transitively pulled by some tests)
 #   - kamestm/tests/ (support_standalone.h — sibling library's tests
 #                     own the Qt-free test harness used here too)
-#   - kame/ (real support.h fallback when the standalone shim is not
-#            preincluded — only used on AOCC paths that lack -include)
+# Deliberately NO ../../kame on the path: kamepoolalloc and kamestm
+# sit BELOW kame in the dependency stack.  Any `#include "support.h"`
+# must resolve to the standalone harness via the preinclude below,
+# never to the Qt-aware kame/support.h.
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../../kamestm
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../kamestm/tests
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../kame)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../kamestm/tests)
 
 # Pre-include `support_standalone.h` for C++ TUs; pure-C TUs (c_api_test)
 # skip it (no C++ headers in support_standalone.h's chain).  AOCC 4.0

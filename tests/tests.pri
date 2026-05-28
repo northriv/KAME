@@ -23,7 +23,11 @@ CONFIG -= qt
 # ($$PWD = git/tests/), not the per-test .pro file's directory —
 # the latter now varies (kamepoolalloc/tests/, kamestm/tests/) so
 # $${_PRO_FILE_PWD_} would give different roots and break.
-INCLUDEPATH += $$PWD/../kame
+#
+# Deliberately NO ../kame on the path: kamestm and kamepoolalloc sit
+# BELOW kame in the dependency stack.  The standalone test harness
+# replaces `support.h` / `xtime.h` via the preinclude below, so kame/
+# never needs to be on the include path.
 INCLUDEPATH += $$PWD/../kamepoolalloc
 INCLUDEPATH += $$PWD/../kamestm
 INCLUDEPATH += $$PWD/../kamestm/tests
@@ -100,9 +104,10 @@ HEADERS += $$PWD/../kamestm/threadlocal.h
 HEADERS += $$PWD/../kamestm/atomic.h
 HEADERS += $$PWD/../kamestm/atomic_prv_basic.h
 HEADERS += $$PWD/../kamestm/atomic_prv_std.h
-HEADERS += $$PWD/../kame/atomic_prv_mfence.h
-HEADERS += $$PWD/../kame/atomic_prv_mfence_x86.h
-HEADERS += $$PWD/../kame/atomic_prv_mfence_arm8.h
+# (kame/atomic_prv_mfence{,_arm8,_x86}.h are stale duplicates of the
+# canonical kamepoolalloc/atomic_prv_mfence*.h above; intentionally
+# not listed here so the standalone test build doesn't pull in
+# kame/.)
 
 win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2

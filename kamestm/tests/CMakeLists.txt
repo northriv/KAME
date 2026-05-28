@@ -45,15 +45,18 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
 # Headers:
-#   - kamestm/tests/ (support_standalone.h — the Qt-free harness)
+#   - kamestm/tests/ (support_standalone.h — the Qt-free harness;
+#                     preincluded via -include below)
 #   - kamestm/ (atomic.h, transaction.h, etc.)
 #   - kamepoolalloc/ (allocator.h)
-#   - kame/ (real support.h fallback for the AOCC no-preinclude path)
+# Deliberately NO ../../kame on the path: kamestm sits BELOW kame in
+# the dependency stack, and any `#include "support.h"` here must
+# resolve to the standalone harness (preinclude), never to the
+# Qt-aware kame/support.h.
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../kamepoolalloc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../kame)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../kamepoolalloc)
 
 include(CheckCXXSourceCompiles)
 set(CMAKE_REQUIRED_FLAGS "-include ${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h")
