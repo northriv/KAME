@@ -660,7 +660,7 @@ public:
 	//! so the dispatcher can cache it in `g_thread_slots[bucket].chunk`
 	//! after `allocate_chunk_path` claimed a new one.
 	static PoolAllocatorBase *get_pinned_chunk_base() noexcept {
-		return static_cast<PoolAllocatorBase *>(s_my_chunk);
+		return static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
 	}
 	//! Phase 5r: public reset of this thread's DLL walk hints
 	//! (`s_dll_cursor` + `s_dll_exhausted`) for callers outside the
@@ -671,8 +671,8 @@ public:
 	//! subsequent `allocate_chunk_path`.  See the Phase 5r commit /
 	//! the call sites in `deallocate_pooled` for the full rationale.
 	static void reset_dll_walk_state() noexcept {
-		s_dll_cursor = nullptr;
-		s_dll_exhausted = false;
+		s_tls.dll_cursor = nullptr;
+		s_tls.dll_exhausted = false;
 	}
 	//! Phase 5t: public accessor for this thread's `s_dll_head` TLS
 	//! address.  Used by external code (CrossDeallocBatch::push_direct
@@ -680,7 +680,7 @@ public:
 	//! `m_owner_dll_head_addr` and identify same-thread frees for
 	//! the conditional cursor reset.
 	static void *dll_head_tls_addr() noexcept {
-		return static_cast<void *>(&s_dll_head);
+		return static_cast<void *>(&s_tls.dll_head);
 	}
 	//! Public (was protected) so the per-thread functor-table dispatcher
 	//! in allocator.cpp can call it on freelist miss without needing a
@@ -832,67 +832,56 @@ protected:
 	//! # of flags that having fully filled values.
 	int m_flags_filled_cnt;
 
-	//! Per-thread "currently owned" chunk for fast-path allocate().
-	//! When non-null, `allocate<SIZE>()` calls
-	//! `s_my_chunk->allocate_pooled()` directly without scanning the
-	//! DLL or mmaping fresh.  Type uses `<ALIGN, DUMMY, DUMMY>` so
-	//! FS=true and FS=false partial specs share the same TLS slot.
-	//! Lifetime: set on chunk-claim success; cleared in
-	//! `release_dll_chunks_for_thread` at thread exit.
-	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_my_chunk;
-	//! Per-thread, per-template DLL head / tail.  Phase 4b: this is now
-	//! the sole source of truth for "chunks this thread can allocate
-	//! from".  Chunks are appended to the tail on `allocate_chunk_path`
-	//! mmap-fresh success and unlinked on `owner_release` success
-	//! (Phase 4a's chunk-full-trigger neighbour release) or on
-	//! `release_dll_chunks_for_thread` (thread exit).  Single-writer
-	//! (this thread); no atomic ops needed on the DLL pointers.
-	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_head;
-	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_tail;
-
-	//! Phase 5n: DLL-walk cursor + exhaustion hint.  Eliminates the
-	//! O(N²) walk-all-chunks-each-fill cost on alloc-heavy workloads
-	//! with few or no frees (e.g. `alloc_minimal_bench alloc_only`).
+	//! Phase 5w: per-template per-thread state, consolidated into one
+	//! TLS struct.  Single TLS load delivers the struct base, then
+	//! all per-thread fields are at compile-time offsets — cache-line
+	//! adjacent and one indirection cheaper than the previous six
+	//! separate `ALLOC_TLS` statics.
 	//!
-	//! Semantics:
-	//!   * `s_dll_cursor`: pointer into the DLL where the next walk
-	//!     should resume.  Set to the chunk where the last successful
-	//!     `allocate_pooled` returned a slot.  Set to nullptr when
-	//!     walked-to-end (next walk starts from head) or when a chunk
-	//!     it pointed to was released.
-	//!   * `s_dll_exhausted`: if true, the previous walk reached end
-	//!     without finding a chunk with space.  `allocate_chunk_path`
-	//!     skips the DLL walk entirely and goes straight to mmap-fresh.
-	//!     Cleared when (a) a new chunk is appended to the DLL (mmap-
-	//!     fresh path) or (b) `owner_release` removes a chunk from
-	//!     DLL (an earlier-in-list chunk MAY have had cross-thread
-	//!     frees in the interim — conservatively reset).
+	//! Each PoolAllocator<ALIGN, FS, DUMMY> instantiation gets its own
+	//! `ThreadLocalState` (per-template TLS); the previous "shared TLS
+	//! slot via `<ALIGN, DUMMY, DUMMY>` type trick" is preserved by
+	//! using `PoolAllocator<ALIGN, DUMMY, DUMMY> *` for the chunk
+	//! pointers — FS=true and FS=false partial specialisations whose
+	//! DUMMY axis collapses to the same type can interoperate at the
+	//! pointer level.
 	//!
-	//! Cross-thread free that revives a chunk (decrements MASK_CNT
-	//! without dropping to 0) is NOT detected here — those chunks may
-	//! sit in the "before cursor" region and `allocate_chunk_path`
-	//! mmaps a fresh chunk instead.  Trade-off accepted: real
-	//! workloads either (a) have local frees that maintain the
-	//! per-thread freelist (no DLL walk needed) or (b) cross-thread
-	//! frees that bring MASK_CNT to 0, triggering chunk release via
-	//! `batch_return_to_bitmap` — cursor naturally skips the released
-	//! chunk.  Partial-revival under alloc pressure is rare and only
-	//! costs RSS, not correctness.
-	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_cursor;
-	static ALLOC_TLS bool s_dll_exhausted;
-
-	//! Phase 5v: cross-thread revival hint flag.  Cross-thread frees
-	//! (FS=false deallocate_pooled / FS=true push_direct) set this to
-	//! true via the chunk's `m_owner_dll_force_walk_ptr`.
-	//! `allocate_chunk_path` reads + clears it; if true, resets the
-	//! cursor and exhausted flag so the DLL walk restarts from head
-	//! and visits chunks that received bitmap clears since the last
-	//! walk.
-	//!
-	//! relaxed atomic: this is a hint, not authoritative.  False
-	//! negatives delay revival detection by one chunk-fill cycle;
-	//! false positives waste one O(DLL) walk.  Both benign.
-	static ALLOC_TLS std::atomic<bool> s_dll_force_walk_from_head;
+	//! Members:
+	//!   * `my_chunk`: currently pinned chunk for the fast allocate
+	//!     path.  Non-null after chunk-claim success; cleared at
+	//!     thread exit.
+	//!   * `dll_head` / `dll_tail`: head/tail of this thread's DLL of
+	//!     chunks owned by this template.  Sole source of truth for
+	//!     "chunks this thread can allocate from" since Phase 4b.
+	//!     Single-writer (this thread); no atomic ordering needed.
+	//!   * `dll_cursor` (Phase 5n): pointer into the DLL where the
+	//!     next walk should resume.  Set on successful claim; nulled
+	//!     on walk-to-end / chunk-release.
+	//!   * `dll_exhausted` (Phase 5n): if true, the previous walk
+	//!     reached end without finding free space — the next
+	//!     `allocate_chunk_path` skips the walk and goes straight to
+	//!     mmap-fresh.  Cleared by:
+	//!       - new chunk append (mmap-fresh path).
+	//!       - own-side `reset_dll_walk_state()` after a
+	//!         `batch_return_to_bitmap` (Phase 5r/5t).
+	//!       - cross-thread `dll_force_walk_from_head` exchange in
+	//!         `allocate_chunk_path` (Phase 5v).
+	//!   * `dll_force_walk_from_head` (Phase 5v): cross-thread
+	//!     revival hint.  `relaxed atomic`; cross-thread frees set
+	//!     true via the chunk's `m_owner_dll_force_walk_ptr` (which
+	//!     points into THIS struct).  `allocate_chunk_path`
+	//!     exchanges it back to false at entry; if it was true,
+	//!     resets cursor + exhausted so the next walk restarts from
+	//!     `dll_head` and visits revived chunks.
+	struct ThreadLocalState {
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *my_chunk;
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_head;
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_tail;
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_cursor;
+		bool dll_exhausted;
+		std::atomic<bool> dll_force_walk_from_head;
+	};
+	static ALLOC_TLS ThreadLocalState s_tls;
 
 	//! Per-thread DLL pointers.  Single-writer (the owning thread)
 	//! and single-reader (same thread).  No atomic ordering needed
