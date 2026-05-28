@@ -1982,11 +1982,69 @@ PoolAllocatorBase::deallocate_(void *p) {
 		// ICU/Foundation early startup).
 		if((uintptr_t)palloc <= (uintptr_t)1u)
 			return false;
-		// Devirtualised dispatch: load fn pointer from chunk header
-		// offset ALLOC_CHUNK_HEADER_FN_OFFSET (= 16 since Phase 5c),
-		// call directly.  Same cache line as palloc (already loaded
-		// one line above) so no extra cache miss.  Replaces a vtable
-		// load + indirect branch with a single load + indirect branch.
+		// Phase 5e — Unified inline dispatch.  Read the chunk-header
+		// SIZE info word at [0..7]:
+		//   FS=true  : low 32 b = ALIGN (= slot size, non-zero)
+		//   FS=false : 0 — read per-slot {bucket, SIZE} header at p - 8
+		// Then derive `bucket` and check ownership via the parallel TLS
+		// `g_thread_chunks[bucket]`.  When this thread is the owner
+		// (cache-hot, common case) we push to the per-thread
+		// `g_thread_slots[bucket].freelist_head` inline — no indirect
+		// call, no per-template virtual dispatch.
+		//
+		// Cross-thread / non-owner / post-teardown (g_thread_chunks
+		// cleared) all fall through to the existing `DeallocateFn` at
+		// chunk-header offset ALLOC_CHUNK_HEADER_FN_OFFSET (= 16),
+		// preserving the adaptive holding (FS=true ALIGN ≤ 48) and
+		// chunk-release plumbing already in the per-template
+		// `deallocate_pooled`.
+		std::uint64_t hdr_size_info = *reinterpret_cast<std::uint64_t *>(
+		    chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET);
+		// FS-discriminator is the LOW 32 bits of hdr_size_info (the
+		// high 32 b always carries ALIGN for BOTH FS=true and FS=false
+		// per chunk_header_size_info()).  A bare `(hdr_size_info != 0)`
+		// test mis-routes FS=false through the FS=true arm (low 32 b
+		// == 0 but high 32 b != 0).  Test the low 32 b explicitly.
+		std::uint32_t hdr_fs_size =
+		    static_cast<std::uint32_t>(hdr_size_info);
+		unsigned bucket;
+		if(hdr_fs_size != 0) {
+			// FS=true: ALIGN in low 32 b; bucket_for_size constexpr-folds
+			// to (ALIGN+15)>>4 for ALIGN ≤ 256.
+			bucket = bucket_for_size(
+			    static_cast<std::size_t>(hdr_fs_size));
+		} else {
+			// FS=false: per-slot {uint32_t bucket, uint32_t SIZE} at p - 8.
+			std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
+			    static_cast<char *>(p) - 8);
+			bucket = static_cast<unsigned>(hdr);
+			// Defensive: out-of-range bucket falls through to vtable
+			// (the slow path will further validate via owner check or
+			// cross-batch dispatch).  This protects against a stray
+			// libsystem-malloc'd pointer that happens to land inside our
+			// PROT_NONE mmap range AND has a non-zero hdr_size_info in
+			// the chunk header pad.
+			if(bucket == 0 || bucket >= (unsigned)ALLOC_NUM_BUCKETS)
+				goto vtable_dispatch;
+		}
+		{
+			PoolAllocatorBase **chunks_base = kame_chunks_base();
+			if(__builtin_expect(chunks_base[bucket] == palloc, 1)) {
+				// Owner-side inline freelist push.  No atomic, no
+				// indirect call, no template dispatch.  The slot stays
+				// "allocated" in the chunk's m_flags bitmap until the
+				// owner thread's next allocate_pooled cycle or thread-
+				// exit drain returns it via batch_return_to_bitmap.
+				kame_slots_base()[bucket].push(p);
+				return true;
+			}
+		}
+	vtable_dispatch:
+		// Cold path: cross-thread / non-pinned / post-teardown.  Falls
+		// back to the per-template DeallocateFn at chunk_base + 16,
+		// which preserves the existing adaptive-holding / cross-batch /
+		// chunk-release logic in `deallocate_pooled`.
+		{
 		DeallocateFn fn = *reinterpret_cast<DeallocateFn *>(
 		    chunk_base + ALLOC_CHUNK_HEADER_FN_OFFSET);
 #ifdef KAME_DEBUG_CHUNK_HEADER
@@ -2021,6 +2079,7 @@ PoolAllocatorBase::deallocate_(void *p) {
 			deallocate_chunk(chunk_base, CHUNK_SIZE);
 		}
 		return true;
+		}
 	}
 	if(CCNT + 1 == ALLOC_MAX_MMAP_ENTRIES)
 		return false;
