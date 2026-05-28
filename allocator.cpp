@@ -1,15 +1,20 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
+        Copyright (C) 2002-2026 Kentaro Kitagawa
+                           kitag@issp.u-tokyo.ac.jp
 
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
 
-		You should have received a copy of the GNU General
-		Public License and a list of authors along with this program;
-		see the files COPYING and AUTHORS.
+            http://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+        implied.  See the License for the specific language governing
+        permissions and limitations under the License.
+
+        SPDX-License-Identifier: Apache-2.0
 ***************************************************************************/
 
 //#define GUARDIAN 0xaaaaaaaauLL
@@ -1473,6 +1478,19 @@ PoolAllocatorBase::allocate_chunk() {
 	// Pass 2: find an unallocated region, mmap it, then claim.
 	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES; ++region) {
 		while( !s_mmapped_spaces[region]) {
+			// Phase 5u: enforce the runtime max-bytes cap (see
+			// `kame_pool_set_max_bytes` in allocator.h).  The cap is
+			// stored as "max region count" so the check is one atomic
+			// load + one comparison.  When the cap is set to 0 (the
+			// default), `s_max_regions_cap` is `INT_MAX` and the
+			// check never trips.  When exceeded, return nullptr from
+			// the chunk-claim path; the caller (`allocate_chunk_path`
+			// -> create_allocator) propagates the failure up to
+			// `operator new`, which falls back to `std::malloc`.
+			if(region >= PoolAllocatorBase::s_max_regions_cap.load(
+			       std::memory_order_relaxed)) {
+				return 0;
+			}
 			size_t mmap_size = ALLOC_MIN_MMAP_SIZE;
 			// Region alignment = ALLOC_MAX_CHUNK_SIZE so any in-region
 			// multi-unit chunk (up to CHUNK_UNITS_MAX) lands at a
@@ -3110,6 +3128,38 @@ void operator delete(void* p, std::size_t /*size*/, std::align_val_t al) noexcep
 __attribute__((noinline))
 void operator delete[](void* p, std::size_t /*size*/, std::align_val_t al) noexcept {
     ::operator delete(p, al);
+}
+
+// Phase 5u: runtime max-regions cap definition + public API.
+std::atomic<int> PoolAllocatorBase::s_max_regions_cap{ALLOC_MAX_MMAP_ENTRIES};
+
+void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept {
+    // 0 = disable cap → restore the compile-time ceiling.
+    int regions;
+    if(max_bytes == 0u) {
+        regions = ALLOC_MAX_MMAP_ENTRIES;
+    } else {
+        // Round UP to multiple of ALLOC_MIN_MMAP_SIZE (= 32 MiB).
+        std::size_t r =
+            (max_bytes + ALLOC_MIN_MMAP_SIZE - 1u) / ALLOC_MIN_MMAP_SIZE;
+        if(r > (std::size_t)ALLOC_MAX_MMAP_ENTRIES)
+            r = (std::size_t)ALLOC_MAX_MMAP_ENTRIES;
+        regions = static_cast<int>(r);
+    }
+    PoolAllocatorBase::s_max_regions_cap.store(
+        regions, std::memory_order_relaxed);
+}
+
+std::size_t kame_pool_get_max_bytes() noexcept {
+    int regions = PoolAllocatorBase::s_max_regions_cap.load(
+        std::memory_order_relaxed);
+    if(regions >= ALLOC_MAX_MMAP_ENTRIES) return SIZE_MAX;
+    return (std::size_t)regions * (std::size_t)ALLOC_MIN_MMAP_SIZE;
+}
+
+std::size_t kame_pool_reserved_bytes() noexcept {
+    return PoolAllocatorBase::populated_region_count()
+         * (std::size_t)ALLOC_MIN_MMAP_SIZE;
 }
 
 char *PoolAllocatorBase::s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];

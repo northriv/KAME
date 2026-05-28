@@ -1,15 +1,20 @@
 /***************************************************************************
         Copyright (C) 2002-2026 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
+                           kitag@issp.u-tokyo.ac.jp
 
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
 
-		You should have received a copy of the GNU General
-		Public License and a list of authors along with this program;
-		see the files COPYING and AUTHORS.
+            http://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+        implied.  See the License for the specific language governing
+        permissions and limitations under the License.
+
+        SPDX-License-Identifier: Apache-2.0
 ***************************************************************************/
 
 #ifndef ALLOCATOR_PRV_H_
@@ -431,6 +436,27 @@ public:
 	//! gate, alloc_stress's 50%-cross-thread workload paid a 10-20%
 	//! perf tax on Linux from spurious cursor resets.
 	void *m_owner_dll_head_addr = nullptr;
+
+	//! Phase 5u: runtime cap on the number of mmap regions
+	//! `allocate_chunk` may claim.  Initialised to
+	//! `ALLOC_MAX_MMAP_ENTRIES` (= no further restriction beyond the
+	//! compile-time ceiling) and overridable at runtime via
+	//! `kame_pool_set_max_bytes()` in allocator.h.  Loaded relaxed
+	//! on the cold mmap path; never read on the alloc/free hot path.
+	static std::atomic<int> s_max_regions_cap;
+
+	//! Phase 5u: read-only accessor used by `kame_pool_reserved_bytes`.
+	//! Walks `s_mmapped_spaces[]` low-to-high (the ordering invariant
+	//! preserved by `allocate_chunk`) and counts non-null entries.
+	//! O(populated_regions); intended for diagnostics / runtime
+	//! observability, not for the hot path.
+	static std::size_t populated_region_count() noexcept {
+		std::size_t n = 0;
+		for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES; ++i) {
+			if(s_mmapped_spaces[i]) ++n; else break;
+		}
+		return n;
+	}
 
 	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE};
 	static_assert(NUM_ALLOCATORS_IN_SPACE == 128,

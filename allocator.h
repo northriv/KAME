@@ -1,15 +1,20 @@
 /***************************************************************************
-		Copyright (C) 2002-2026 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
+        Copyright (C) 2002-2026 Kentaro Kitagawa
+                           kitag@issp.u-tokyo.ac.jp
 
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
 
-		You should have received a copy of the GNU General
-		Public License and a list of authors along with this program;
-		see the files COPYING and AUTHORS.
+            http://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+        implied.  See the License for the specific language governing
+        permissions and limitations under the License.
+
+        SPDX-License-Identifier: Apache-2.0
 ***************************************************************************/
 
 // =====================================================================
@@ -76,6 +81,14 @@
     //! \return always true on USE_STD_ALLOCATOR builds — no per-thread
     //! pool state to worry about.
     inline bool is_allocator_thread_active() noexcept { return true; }
+
+    //! Phase 5u: pool API stubs for USE_STD_ALLOCATOR builds (Windows
+    //! by default).  No pool → cap is meaningless; the functions
+    //! exist so consumers can call them unconditionally without
+    //! `#ifdef`.
+    inline void kame_pool_set_max_bytes(std::size_t /*max_bytes*/) noexcept {}
+    inline std::size_t kame_pool_get_max_bytes() noexcept { return ~std::size_t(0); }
+    inline std::size_t kame_pool_reserved_bytes() noexcept { return 0; }
 #else
     #include "allocator_prv.h"
 
@@ -110,6 +123,46 @@
         //! `KamePooledAllocGuard` in `main()`.
         extern void activateAllocator();
     #endif
+
+    //! Runtime memory cap (Phase 5u).  When the pool has mmap'd at
+    //! least this many bytes (counted by region count × 32 MiB region
+    //! size), `allocate_chunk` refuses to mmap fresh regions and
+    //! returns nullptr from the chunk-claim path — `allocate_pooled`
+    //! propagates `0`, and `operator new` falls back to libsystem
+    //! `std::malloc()` for the offending allocation.
+    //!
+    //! Pass `0` to disable the cap (default).  The implementation cap
+    //! `ALLOC_MAX_MMAP_ENTRIES × 32 MiB` (= 100 GiB on 64-bit, 3 GiB
+    //! on 32-bit) is still enforced — `kame_pool_set_max_bytes(N)`
+    //! lowers the effective cap further when N is smaller.
+    //!
+    //! Granularity: 32 MiB (one mmap region).  N is rounded UP to the
+    //! nearest multiple of 32 MiB internally; e.g. setting 100 MiB
+    //! actually caps at 128 MiB (4 regions).
+    //!
+    //! Thread-safety: relaxed atomic store / load.  Safe to call from
+    //! any thread at any time; changes take effect for subsequent
+    //! `allocate_chunk` calls.  Typical usage: set once early in
+    //! `main()` before allocating, then never touch.
+    //!
+    //! Use case: embedded / RTOS deployments where you want a hard
+    //! ceiling on the pool's RSS+VA reservation regardless of
+    //! workload.  Combined with `is_allocator_thread_active()`
+    //! returning true, allocations beyond the cap still succeed via
+    //! libsystem malloc — applications that need a true OOM (no
+    //! malloc fallback) should additionally trip on the OOM via
+    //! `std::set_new_handler` or by wrapping `operator new`.
+    void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept;
+
+    //! \return current effective cap in bytes (`SIZE_MAX` if unset).
+    std::size_t kame_pool_get_max_bytes() noexcept;
+
+    //! \return total bytes currently mmap'd by the pool (= region
+    //! count × 32 MiB).  Excludes external `std::malloc` fallbacks
+    //! for huge allocations.  Monotonically non-decreasing during
+    //! steady-state execution; reflects VA reservation, not RSS
+    //! (use `getrusage(RUSAGE_SELF)` for RSS).
+    std::size_t kame_pool_reserved_bytes() noexcept;
 
     //! \return true while this thread's pool allocator state is fully
     //! live (`g_sys_image_loaded && !s_alloc_tls_off`).  Returns false
