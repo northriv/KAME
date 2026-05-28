@@ -138,30 +138,56 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! reclaim is RSS-cheap without protection toggling).  Total
 //! reservation = 32 MiB × N entries.
 //!
-//!   host         |  N  | total VA reserved
-//!   -------------+-----+--------------------
-//!   64-bit       |  96 | 3 GiB
-//!   32-bit       |   5 | 160 MiB (= 32 MiB × 5, leaves headroom
-//!                |     |  under Linux 3 GiB / Win32 2 GiB user VA)
-//!   Windows      |  96 | (same as 64-bit; pool path opt-in via dylib)
+//!   host         |   N  | total VA cap
+//!   -------------+------+--------------------
+//!   64-bit       | 3200 | 100 GiB
+//!   32-bit       |   96 |   3 GiB  (= full Linux 3G/1G user VA;
+//!                |      |   lazy — only mmap'd-on-demand regions
+//!                |      |   count against the actual user VA budget,
+//!                |      |   so the cap is a ceiling not a reservation)
+//!   Windows      | 3200 | (same as 64-bit; pool path opt-in via dylib)
 //!
-//! 96 was chosen to preserve Phase 5g's effective pool capacity (≈3 GiB)
-//! after the ladder→uniform refactor.  Under the previous 2× ladder,
-//! 24 entries × up-to-128-MiB region (= chunk_size × 128 with cap) gave
-//! ≈3 GiB across the ladder; multi-template sharing per region was
-//! impossible (each ladder level was a different chunk_size).  Phase
-//! 5l unifies all templates into the same uniform regions, so the
-//! adversarial cross-thread workload (200 thr × 32 conc × 50 % cross)
-//! that previously spread ≈1500 chunks across 5+ ladder levels now
-//! competes for the same set of regions — capacity-tight at 24 × 32 MiB.
+//! Sizing rationale: a general-purpose allocator must accommodate
+//! workloads that stretch into the multi-GiB user-heap range without
+//! catastrophically aborting (Phase 5g's 3 GiB cap was first to expose
+//! this — `alloc_only` at 8192 B for 500K iters needs ~4.5 GiB pool
+//! and would hit `# of chunks exceeds the limit`).  64-bit hosts have
+//! 128 TiB of user VA on macOS / Linux / Windows so a 100 GiB cap is
+//! 0.08 % of available VA — trivial in reservation cost.  32-bit
+//! matches the practical user-VA ceiling on Linux (3G/1G split).
+//!
+//! Lazy mmap: `allocate_chunk` only mmaps a region when the previous
+//! ones are full.  A workload using 5 regions walks 5 entries in
+//! `deallocate`'s region-loop and pays RSS only for those 5 × 32 MiB.
+//! Bumping the cap doesn't accelerate steady-state allocation.
+//!
+//! Cache impact for `s_back_offset[]` (only the COLD chunk-claim /
+//! deallocate-region-miss paths touch unused regions' table entries):
+//!   * 64-bit: 3200 × 128 = 400 KiB BSS.  Unused entries stay
+//!     zero-filled in BSS pages, never paged in.  Hot subset =
+//!     populated_regions × 128 B; for typical KAME workloads (1-5
+//!     populated regions) the working set fits in 512 B = 8 cache
+//!     lines.
+//!   * 32-bit: 96 × 128 = 12 KiB BSS.  L1d-friendly.
+//!
+//! Cache impact for `s_claim_bitmap[]`:
+//!   * 64-bit: 3200 × 4 × 8 = 100 KiB.  L2 only on full scan
+//!     (allocate_chunk cold path); steady-state ops touch one word.
+//!   * 32-bit: 96 × 8 × 4 = 3 KiB.  L1d.
+//!
+//! `s_mmapped_spaces[]` (the region-base array walked by every
+//! deallocate / lookup_chunk):
+//!   * 64-bit: 3200 × 8 = 25 KiB.  First N entries (= populated
+//!     regions) hot in L1d; rest unused.
+//!   * 32-bit: 96 × 8 = 768 B.  L1d.
 #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32 MiB = 256 KiB × 128
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
-    #define ALLOC_MAX_MMAP_ENTRIES 96 //96 × 32 MiB = 3 GiB total pool VA
+    #define ALLOC_MAX_MMAP_ENTRIES 3200 //3200 × 32 MiB = 100 GiB VA cap
 #else
-    //! 32-bit host: 5 regions = 160 MiB.  Largest chunk = 1 MiB; the
-    //! pool's max bucket is 16 KiB so 1 MiB chunks hold 64+ slots — far
-    //! more than enough.
-    #define ALLOC_MAX_MMAP_ENTRIES 5
+    //! 32-bit host: 96 regions = 3 GiB cap, matching the Linux 3G/1G
+    //! user-VA ceiling.  Largest chunk = 1 MiB; the pool's max bucket
+    //! is 16 KiB so 1 MiB chunks hold 64+ slots — plenty.
+    #define ALLOC_MAX_MMAP_ENTRIES 96
 #endif
 
 //! Reserved bytes at the head of every chunk.  Layout (Phase 5d):
