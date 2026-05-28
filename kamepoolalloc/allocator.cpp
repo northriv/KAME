@@ -389,9 +389,13 @@ struct CrossDeallocBatch {
         if(c->m_owner_dll_head_addr ==
            PoolAllocator<ALIGN, true, true>::dll_head_tls_addr())
             PoolAllocator<ALIGN, true, true>::reset_dll_walk_state();
-        else if(auto *p = c->m_owner_dll_force_walk_ptr)
-            // Defensive null check: owner may have exited and
-            // nullified this pointer.
+        else if(auto *p = c->m_owner_dll_force_walk_ptr.load(
+                              std::memory_order_acquire))
+            // Phase 5x acquire load: synchronises with owner-exit's
+            // release-store of `nullptr` in
+            // `release_dll_chunks_for_thread`.  Null after owner exit
+            // → skip deref; non-null means owner's TLS storage is
+            // still live (owner-exit nullifies BEFORE thread teardown).
             p->store(true, std::memory_order_relaxed);
     }
 
@@ -654,7 +658,11 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	// allocate_chunk_path force-restarts the DLL walk and visits
 	// revived chunks (bitmap-cleared by cross-thread frees since the
 	// last walk).
-	this->m_owner_dll_force_walk_ptr = &s_tls.dll_force_walk_from_head;
+	// Phase 5x: atomic publish (relaxed — chunk not visible to other
+	// threads yet; bitmap-claim CAS that publishes the chunk has a
+	// release fence which carries this store).
+	this->m_owner_dll_force_walk_ptr.store(
+	    &s_tls.dll_force_walk_from_head, std::memory_order_relaxed);
 	for(int i = count - 1; i >= 0 ; --i)
 		m_flags[i] = 0; //zero clear.
 	// Initial coalesce hint by (FS, real-instance):
@@ -963,7 +971,8 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	if(this->m_owner_dll_head_addr ==
 	   static_cast<void *>(&PoolAllocator<ALIGN, true, false>::s_tls.dll_head))
 		PoolAllocator<ALIGN, true, false>::reset_dll_walk_state();
-	else if(auto *p = this->m_owner_dll_force_walk_ptr)
+	else if(auto *p = this->m_owner_dll_force_walk_ptr.load(
+	                      std::memory_order_acquire))
 		// Defensive null check: owner may have exited and nullified
 		// this pointer (see release_dll_chunks_for_thread).
 		p->store(true, std::memory_order_relaxed);
@@ -2003,15 +2012,21 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		auto *next = c->m_dll_next;
 		c->m_dll_prev = nullptr;
 		c->m_dll_next = nullptr;
-		// Phase 5v: nullify the owner-revival-hint pointer BEFORE
+		// Phase 5v/5x: nullify the owner-revival-hint pointer BEFORE
 		// clearing BIT_OWNED.  Once BIT_OWNED is clear, cross-thread
 		// frees may target this chunk; if our TLS storage gets
 		// reclaimed in the meantime, their `store(true)` would
-		// dereference a dangling pointer.  Setting to nullptr (plain
-		// store; ordering enforced by the atomicFetchAnd below)
-		// signals to cross-thread frees to skip the hint signal —
-		// owner is gone and no one will read the hint anyway.
-		c->m_owner_dll_force_walk_ptr = nullptr;
+		// dereference a dangling pointer.  Phase 5x: atomic
+		// release-store synchronises-with cross-thread `acquire`
+		// loads — a freer that observes nullptr is guaranteed to
+		// have ALL of this thread's TLS-state-tied operations
+		// happen-before its own (it skips the deref).  A freer that
+		// observes the old non-null pointer must have loaded BEFORE
+		// our release, in which case our TLS is still live.  This
+		// fixes the Linux 1000-thread `alloc_stress` SEGV that
+		// Phase 5v's plain pointer access exhibited.
+		c->m_owner_dll_force_walk_ptr.store(
+		    nullptr, std::memory_order_release);
 		uint32_t old = atomicFetchAnd(&c->m_flags_packed,
 		                              static_cast<uint32_t>(~BIT_OWNED));
 		uint32_t newv = old & ~BIT_OWNED;
