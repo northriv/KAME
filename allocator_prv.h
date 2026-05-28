@@ -92,34 +92,31 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 	#define ALLOC_TLS thread_local
 #endif
 
-//! Chunk size: power-of-2 with 2× growth ladder.  Power-of-2 enables
-//! O(1) chunk-base lookup from any slot via `slot & ~(chunk_size - 1)`,
-//! and the 8-byte `PoolAllocatorBase *` written at the chunk's
-//! `chunk_base` becomes addressable in one AND + one load — far
-//! cheaper than the previous `pdiff / CHUNK_SIZE + s_chunks[cidx]`
-//! sequence (integer division ~15 cycles + cold global load).
+//! Allocation unit (1 chunk = N × this).  Phase 5l: every mmap region is
+//! a uniform 32 MiB block carved into 128 fixed-size 256 KiB "units".
+//! A chunk = 1, 2, or 4 contiguous units depending on the per-template
+//! `CHUNK_UNITS` (= 1 for ALIGN < 256, = 2 for ALIGN < 1024, = 4 for
+//! ALIGN ≥ 1024 = 1024).  The unit size matches the previous Phase 5g
+//! minimum so cross-thread chunk residency under lazy commit stays
+//! tight; the buddy approach replaces the previous 2× growth ladder.
 //!
-//! 256 KiB minimum carries over the upstream choice (f58b9d08) —
-//! keeps cross-thread chunk residency tight under lazy commit (RSS
-//! scales with pages actually written; a small set of large chunks
-//! beats a large set of small chunks for write locality).  Growth is
-//! 2× (was 5/4 — non-power-of-2) so every level's chunk_size remains
-//! power-of-2 and the AND-mask lookup works uniformly across the
-//! ladder.  NUM_ALLOCATORS_IN_SPACE stays 128 chunks per mmap region.
-#define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256 KiB initial chunk (power of 2) + 2× grow
-//! Phase 5g: cap the chunk-size growth ladder.  Without a cap, the 2×
-//! growth produces 2 TiB chunks at level 23 — each region's
-//! PROT_NONE reservation is huge, and the rare case where the cross-
-//! thread alloc/free ladder kicks the level up (e.g. user-reported
-//! `alloc_stress c=32 x=50%`) drives VmPeak past 1 TiB.  Capping at
-//! 4× (= 1 MiB chunk) bounds per-region VA at 128 MiB and total VA
-//! at ≈ 3 GiB (24 regions × 128 MiB).  Per-chunk slot counts stay
-//! plenty (1 MiB / 1024 / FUINT_BITS = 16 words = 1024 bits → up
-//! to 102 slots @ N=10, 64 @ N=16 for ALIGN3=1024).
-#define ALLOC_MAX_CHUNK_SIZE (ALLOC_MIN_CHUNK_SIZE * 4)  //1 MiB cap
-// OS page size — still relevant for mprotect() granularity within a
-// chunk.  All chunk sizes are now power-of-2 ≥ 256 KiB which auto-
-// satisfies every supported arch's page size.
+//! O(1) chunk_base lookup from any slot uses `s_back_offset[]` (1 byte
+//! per unit, per region) — see `PoolAllocatorBase::s_back_offset` below.
+//! `back_offset[u] = u - base_u` for a unit `u` claimed as part of a
+//! chunk whose base is at `base_u`; reader does `base_u = u -
+//! back_offset[u]` and then `chunk_base = region + base_u * 256K`.
+#define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256 KiB unit
+//! log2(ALLOC_MIN_CHUNK_SIZE) — used for fast unit-index extraction
+//! `unit_idx = pdiff >> ALLOC_MIN_CHUNK_SHIFT`.  Compile-time constant.
+#define ALLOC_MIN_CHUNK_SHIFT 18  //log2(256 KiB)
+//! Max chunk = 4 units = 1 MiB (CHUNK_UNITS_MAX × ALLOC_MIN_CHUNK_SIZE).
+//! All allocations of size ≤ ALLOC_MAX_BUCKETED_SIZE (16376 B) fit within
+//! a 4-unit (1 MiB) chunk's slot region (= 1 MiB − 64 B = 1048512 B).
+#define ALLOC_MAX_CHUNK_UNITS 4
+#define ALLOC_MAX_CHUNK_SIZE (ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_CHUNK_UNITS)
+// OS page size — relevant for the `madvise()` granularity on chunk
+// release.  All chunk sizes are multiples of ALLOC_MIN_CHUNK_SIZE
+// (= 256 KiB) which auto-satisfies every supported arch's page size.
 #if defined(__APPLE__) && defined(__aarch64__)
     #define ALLOC_PAGE_SIZE 16384  // 16 KiB
 #elif defined(__powerpc64__) || defined(__POWERPC__)
@@ -127,44 +124,42 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 #else
     #define ALLOC_PAGE_SIZE 4096   // 4 KiB
 #endif
-//! Phase 5g: 2× growth capped at `ALLOC_MAX_CHUNK_SIZE`.  Multiple
-//! ladder levels share the cap value (= 1 MiB) once reached, which
-//! is fine for the chunk-base AND-mask lookup since every level's
-//! chunk_size is still power-of-2.  `deallocate_<>`'s recursive
-//! template walk receives `min(2x, cap)` per level — equal values at
-//! successive levels just mean the AND mask doesn't change.
-#define GROW_CHUNK_SIZE(x) \
-    (((size_t)(x) * 2u > (size_t)ALLOC_MAX_CHUNK_SIZE) \
-        ? (size_t)ALLOC_MAX_CHUNK_SIZE \
-        : (size_t)(x) * 2u)
-//! `NUM_ALLOCATORS_IN_SPACE == 128` is fixed across all targets — it's
-//! the bit count of the two-uint64_t `s_claim_bitmap[region*2..region*2+1]`
-//! per-region chunk-claim bitmap.  So `ALLOC_MIN_MMAP_SIZE` must equal
-//! `128 × ALLOC_MIN_CHUNK_SIZE = 32 MiB` regardless of host word size.
+//! Phase 5l: regions are uniform 32 MiB — no ladder, no growth.  The
+//! Phase 5g growth-cap macro `GROW_CHUNK_SIZE` is removed; chunk size
+//! is now a per-template constant (`PoolAllocator<...>::CHUNK_SIZE`).
+//! `NUM_ALLOCATORS_IN_SPACE == 128` matches the bit count of the per-
+//! region claim bitmap (BitmapWord × BITMAP_WORDS_PER_REGION ×
+//! CHUNKS_PER_BITMAP_WORD = 128 unit slots).  Every region is 32 MiB =
+//! 128 × 256 KiB regardless of host word size.
 //!
-//! `ALLOC_MAX_MMAP_ENTRIES` is the VA-budget knob — the ladder doubles
-//! chunk_size per level, so total reserved VA = 32 MiB × (2^N − 1).
-//! With anonymous PROT_NONE mmap, this only reserves VA (no physical
-//! commit), so the cost is paid in address space, not in RSS.
+//! `ALLOC_MAX_MMAP_ENTRIES` is the VA cap — each region is mmap'd
+//! `PROT_READ | PROT_WRITE` upfront (Phase 5l switches the release path
+//! from `mprotect(PROT_NONE)` to `madvise(MADV_FREE/DONTNEED)` so
+//! reclaim is RSS-cheap without protection toggling).  Total
+//! reservation = 32 MiB × N entries.
 //!
-//!   host         |  N  | top chunk           | total VA (sparse)
-//!   -------------+-----+---------------------+---------------------
-//!   64-bit       |  24 | 256 KiB × 2^23 ≈ 2 TiB | ≈ 512 TiB
-//!   32-bit       |   5 | 256 KiB × 2^4 = 4 MiB | 32 MiB × 31 = 992 MiB
-//!                |     | (5 ladder levels with 128 chunks each →
-//!                |     |  ~1 GiB usable pool memory, well within
-//!                |     |  the 3 GiB Linux 32-bit user-space VA)
-//!   Windows      |  24 | (same as 64-bit on _aligned_malloc; Windows
-//!                |     |  pool path is currently used only in tests
-//!                |     |  via the dylib build, opt-in)
+//!   host         |  N  | total VA reserved
+//!   -------------+-----+--------------------
+//!   64-bit       |  96 | 3 GiB
+//!   32-bit       |   5 | 160 MiB (= 32 MiB × 5, leaves headroom
+//!                |     |  under Linux 3 GiB / Win32 2 GiB user VA)
+//!   Windows      |  96 | (same as 64-bit; pool path opt-in via dylib)
+//!
+//! 96 was chosen to preserve Phase 5g's effective pool capacity (≈3 GiB)
+//! after the ladder→uniform refactor.  Under the previous 2× ladder,
+//! 24 entries × up-to-128-MiB region (= chunk_size × 128 with cap) gave
+//! ≈3 GiB across the ladder; multi-template sharing per region was
+//! impossible (each ladder level was a different chunk_size).  Phase
+//! 5l unifies all templates into the same uniform regions, so the
+//! adversarial cross-thread workload (200 thr × 32 conc × 50 % cross)
+//! that previously spread ≈1500 chunks across 5+ ladder levels now
+//! competes for the same set of regions — capacity-tight at 24 × 32 MiB.
 #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32 MiB = 256 KiB × 128
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
-    #define ALLOC_MAX_MMAP_ENTRIES 24 //2× ladder → up to 512 TiB VA at top level
+    #define ALLOC_MAX_MMAP_ENTRIES 96 //96 × 32 MiB = 3 GiB total pool VA
 #else
-    //! 32-bit host: cap the ladder at 5 levels so the cumulative
-    //! PROT_NONE reservation (~1 GiB) leaves headroom under the Linux
-    //! 3 GiB / Win32 2 GiB user-VA limit.  Largest chunk = 4 MiB; the
-    //! pool's max bucket is 8 KiB so 4 MiB chunks hold 512 slots — far
+    //! 32-bit host: 5 regions = 160 MiB.  Largest chunk = 1 MiB; the
+    //! pool's max bucket is 16 KiB so 1 MiB chunks hold 64+ slots — far
     //! more than enough.
     #define ALLOC_MAX_MMAP_ENTRIES 5
 #endif
@@ -271,32 +266,30 @@ public:
 	using SizeOfFn = std::size_t (*)(PoolAllocatorBase *base, char *slot);
 
 	virtual ~PoolAllocatorBase() = default;
-	template <int CCNT, size_t CHUNK_SIZE>
-	static inline bool deallocate_(void *p);
+	//! Phase 5l: regions are uniform 32 MiB, so `deallocate_<>` no longer
+	//! needs the per-level compile-time CHUNK_SIZE template parameter.
+	//! Collapsed to a single non-template function with a runtime
+	//! region-walk loop — eliminates the 24/96-level template recursion
+	//! that previously generated one inlined copy of the body per
+	//! ladder level (icache bloat scaling with ALLOC_MAX_MMAP_ENTRIES).
 	static inline bool deallocate(void *p);
 	//! Look up the slot size (bytes) for a pointer.  Returns 0 if `p`
 	//! is not a pool slot (foreign / libsystem-malloc'd / null).  Uses
-	//! the same chunk-header pattern as `deallocate_<>` and dispatches
+	//! the same chunk-header pattern as `deallocate` and dispatches
 	//! the slot-size lookup through the chunk's `SizeOfFn`.
-	template <int CCNT, size_t CHUNK_SIZE>
-	static inline std::size_t size_of_(void *p);
 	static inline std::size_t size_of(void *p);
-	//! Address-only chunk lookup.  Mirrors `deallocate_<>`'s
-	//! `s_chunks` index calculation but stops at the chunk pointer
-	//! — no `deallocate_pooled` call.  Returns nullptr if `p` does
-	//! not belong to any pool chunk (or the chunk has been released).
-	//! Used by `drain_thread_slot_freelists` to handle the case
-	//! where `g_thread_slots[bucket].freelist_head` holds slots from
-	//! multiple chunks of the same PoolType (e.g. FS=false sizes
-	//! 96/128/160/192/224/256 all share `PoolAllocator<32, false>`;
-	//! a chunk transition triggered by one bucket leaves the others'
-	//! `g_thread_chunks[]` entry stale, but the freelist may still
-	//! receive both old- and new-chunk slots through the shared
-	//! `s_my_chunk == this` owner check).  Implemented as a regular
-	//! for-loop walk of `s_mmapped_spaces[]` with the
-	//! `GROW_CHUNK_SIZE` ladder — the recursive-template
-	//! `deallocate_<>` already serves the hot dealloc path and adding
-	//! a "no-dispatch" arm there would bloat operator delete.
+	//! Address-only chunk lookup.  Returns nullptr if `p` does not
+	//! belong to any pool chunk (or the chunk has been released).
+	//! Used by `drain_thread_slot_freelists` to handle the case where
+	//! `g_thread_slots[bucket].freelist_head` holds slots from multiple
+	//! chunks of the same PoolType (e.g. FS=false sizes 96/128/160/192
+	//! all share `PoolAllocator<32, false>`; a chunk transition triggered
+	//! by one bucket leaves the others' `g_thread_chunks[]` entry stale,
+	//! but the freelist may still receive both old- and new-chunk slots
+	//! through the shared `s_my_chunk == this` owner check).  Implemented
+	//! as a for-loop walk of `s_mmapped_spaces[]` — each region is a
+	//! uniform 32 MiB (Phase 5l), and `s_back_offset[]` maps any
+	//! claimed unit back to its chunk base in O(1).
 	static inline PoolAllocatorBase *lookup_chunk(void *p) noexcept;
 	//! Total live chunks across all regions, summed from
 	//! `s_claim_bitmap[]` (popcount of set bits).  Diagnostic probe for
@@ -411,18 +404,23 @@ public:
 	//!     always-lock-free (true on every architecture this allocator
 	//!     supports).
 	//!
-	//! Phase 5h: 2-bit encoding per chunk.  Each chunk owns a pair of
-	//! bits (claimed at bit 2N, ready at bit 2N+1):
-	//!   * (0, 0): free.
-	//!   * (1, 0): claimed but chunk_header init in progress (a
-	//!     scanner must NOT dereference this chunk's memory yet — the
-	//!     mprotect to PROT_RW may not have completed, and
-	//!     chunk_header palloc / fn pointers are not yet written).
-	//!   * (1, 1): fully initialised — chunk_header is published and
-	//!     dereferenceable.  Phase 5k cross-shard reclaim scans for
-	//!     this state.
+	//! Phase 5l: 2-bit encoding per UNIT (not per chunk).  Each 256-KiB
+	//! unit owns a pair of bits (claim at bit 2N, ready at bit 2N+1):
+	//!   * (0, 0): free — unit is unclaimed.
+	//!   * (1, 0): claimed as a CONTINUATION unit of a multi-unit chunk
+	//!     (no chunk_header here — header lives at the BASE unit at
+	//!     `base_idx = unit_idx - s_back_offset[…+unit_idx]`).  Also
+	//!     used transiently for a BASE unit between claim CAS and
+	//!     post-init ready-bit publish.
+	//!   * (1, 1): claimed as the BASE unit of a chunk, chunk_header
+	//!     fully initialised and dereferenceable.
 	//!   * (0, 1): impossible (would mean "ready but not claimed").
-	//! Total bits per region: 128 chunks × 2 = 256.
+	//!
+	//! For multi-unit chunks (CHUNK_UNITS = 2 or 4), the base unit and
+	//! all continuation units carry claim=1 in a single atomic CAS at
+	//! claim time; only the base unit ever gets ready=1.  `back_offset`
+	//! tells readers which unit holds the header for any claimed unit.
+	//! Total bits per region: 128 units × 2 = 256.
 #if ATOMIC_LLONG_LOCK_FREE == 2 && !defined(KAME_FORCE_UINT32_BITMAP)
 	using BitmapWord = uint64_t;
 	static constexpr int BITMAP_WORDS_PER_REGION = 4;
@@ -453,20 +451,41 @@ public:
 private:
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
-	//! Per-mmap-region chunk-claim bitmap.  Bit i set ⇒ chunk i is
-	//! claimed (mprotect'd + initialised).  Word size selected at
-	//! compile time (see `BitmapWord` above) so the claim-CAS is
-	//! genuinely lock-free on every supported target — `uint64_t`
+	//! Per-mmap-region per-unit claim/ready bitmap.  Each 256-KiB unit
+	//! owns two bits (claim at bit 2N, ready at bit 2N+1).  Word size
+	//! selected at compile time (see `BitmapWord` above) so the claim-
+	//! CAS is genuinely lock-free on every supported target — `uint64_t`
 	//! on 64-bit hosts and 32-bit hosts with DCAS, `uint32_t` on
-	//! 32-bit hosts without DCAS.  Total bits per region stays 128.
+	//! 32-bit hosts without DCAS.  Total bits per region stays 256
+	//! (= 128 units × 2 bits).
 	//!
 	//! Lookups go via chunk-header dereference (see `deallocate_<>` /
 	//! `lookup_chunk`), so this array is only consulted on the cold
-	//! chunk-claim / release paths.  Total storage: small (24 × 16 B
-	//! = 384 B on 64-bit, 24 × 16 B = 384 B on 32-bit-with-DCAS,
-	//! 24 × 16 B = 384 B on 32-bit-without-DCAS via 4 × uint32_t).
+	//! chunk-claim / release paths.  Total storage on 64-bit:
+	//! 24 × 4 × 8 B = 768 B.
 	static std::atomic<BitmapWord>
 	    s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION];
+
+public:
+	//! Phase 5l: per-region back-offset table.  One byte per unit:
+	//!     s_back_offset[region * 128 + u] = u - base_u
+	//! where `base_u` is the unit index of the chunk whose claim covers
+	//! `u`.  For single-unit chunks the entry is 0; for the base unit of
+	//! a multi-unit chunk the entry is 0; for continuation units the
+	//! entry is 1, 2, or 3 (max CHUNK_UNITS = 4).
+	//!
+	//! Written by `allocate_chunk` BEFORE the claim-bit CAS (with
+	//! `writeBarrier` between), so any reader that observes
+	//! `claim_bit == 1` (acquire-load) is guaranteed to see the
+	//! current claimer's back_offset value.  Cleared back to 0 by
+	//! `deallocate_chunk` after the release sequence; an uninitialised
+	//! entry reads 0 from BSS, matching "single-unit chunk at this
+	//! position" — a benign default since the first claim overwrites it.
+	//!
+	//! No atomic on the back_offset slot itself (plain byte read/write):
+	//! the bitmap claim-bit CAS supplies the synchronisation point.
+	//! Total size: 24 × 128 = 3072 B on 64-bit (5 × 128 = 640 B on 32-bit).
+	static uint8_t s_back_offset[ALLOC_MAX_MMAP_ENTRIES * NUM_ALLOCATORS_IN_SPACE];
 };
 
 //! Per-thread flag — true once `AllocThreadExitCleanup::~dtor` has fired.
@@ -482,6 +501,22 @@ extern ALLOC_TLS bool s_alloc_tls_off;
 template <unsigned int ALIGN, bool FS = false, bool DUMMY = true>
 class PoolAllocator : public PoolAllocatorBase {
 public:
+	//! Phase 5l buddy tiers.  Larger ALIGN gets larger chunks so the
+	//! per-chunk slot count stays in a healthy range (>= 32 slots per
+	//! chunk for the largest ALIGN3 bucket).  Multi-unit chunks are
+	//! laid out in `s_mmapped_spaces` at unit-aligned positions; the
+	//! chunk-claim CAS sets CHUNK_UNITS contiguous claim bits in one
+	//! atomic op, and `s_back_offset[]` records the back-offset of each
+	//! continuation unit so any slot pointer resolves to its chunk base
+	//! in O(1) regardless of which unit it falls in.
+	static constexpr unsigned int CHUNK_UNITS =
+	    (ALIGN < 256u) ? 1u :
+	    (ALIGN < 1024u) ? 2u :
+	                      4u;
+	static constexpr size_t CHUNK_SIZE = (size_t)CHUNK_UNITS * (size_t)ALLOC_MIN_CHUNK_SIZE;
+	static_assert(CHUNK_UNITS <= ALLOC_MAX_CHUNK_UNITS,
+	    "CHUNK_UNITS must fit within ALLOC_MAX_CHUNK_UNITS");
+
 	//! Cold path: first-access chunk-claim + bitmap-CAS slow allocate.
 	//! `[[gnu::always_inline]]` is retained so `bucket_first_access<B>`
 	//! folds into a direct call to `allocate_chunk_path(SIZE)` per
