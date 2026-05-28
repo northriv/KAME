@@ -915,6 +915,24 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// implicit.
 	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 	this->batch_return_to_bitmap(tmp);
+	// Phase 5q-fix: the direct `batch_return_to_bitmap` just CLEARED
+	// 1 bit in `this` chunk's bitmap, which means it may now have
+	// space for a future `allocate_pooled` walk.  If this chunk is
+	// in OUR DLL and our cursor/exhausted state already passed it,
+	// we'd miss the revival without this reset — which was the
+	// observed Linux bucket34_repro regression (33.5 -> 0.24 M/s
+	// under Phase 5n; root cause: single-thread cross-bucket frees
+	// going through this very path with cursor exhausted=true
+	// causing every subsequent allocate_chunk_path to mmap fresh
+	// instead of reusing the chunk whose bit we just cleared).
+	//
+	// Cross-thread frees against another thread's chunk: `this` is
+	// NOT in our DLL, so resetting our cursor is wasted but harmless
+	// (next allocate_chunk_path on this thread re-walks own DLL
+	// from head — bounded by per-thread DLL size, typically ≤ 16
+	// per LEAVE_VACANT_CHUNKS_PER_THREAD).
+	PoolAllocator<ALIGN, true, false>::s_dll_cursor = nullptr;
+	PoolAllocator<ALIGN, true, false>::s_dll_exhausted = false;
 	return false;
 }
 
@@ -1192,6 +1210,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	if(__builtin_expect(s_alloc_tls_off, 0)) {
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 		this->batch_return_to_bitmap(tmp);
+		// Phase 5q-fix: bitmap got 1 bit cleared; reset cursor state
+		// so the next allocate_chunk_path's DLL walk can find the
+		// revived slot.  See FS=false sibling for the full rationale.
+		s_dll_cursor = nullptr;
+		s_dll_exhausted = false;
 		return false;
 	}
 	// FS=true ALIGN ≤ 48 (sizes 16/32/48): hold-and-batch path.  1
