@@ -21,6 +21,7 @@ CONFIG -= qt
 
 INCLUDEPATH += $${_PRO_FILE_PWD_}/../kame
 INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamepoolalloc
+INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamestm
 
 # Activate the dylib-mode `KAMEPOOLALLOC_DYLIB` codepath in
 # `allocator.h`: `activateAllocator()` collapses to an inline no-op
@@ -53,7 +54,7 @@ QMAKE_CXXFLAGS += -include $${_PRO_FILE_PWD_}/support_standalone.h
 #                               it via the macx/unix-specific block at
 #                               the bottom of this file.
 SOURCES += support_standalone.cpp
-SOURCES += ../kame/threadlocal.cpp
+SOURCES += ../kamestm/threadlocal.cpp
 
 # Link against libkamepoolalloc — built by ../kamepoolalloc/kamepoolalloc.pro
 # in the sibling subdir (top-level kame.pro orders this before tests via

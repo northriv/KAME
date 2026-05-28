@@ -1,15 +1,24 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
+        Copyright (C) 2002-2026 Kentaro Kitagawa
+                           kitag@issp.u-tokyo.ac.jp
 
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
+        This file is dual-licensed under your choice of EITHER:
 
-		You should have received a copy of the GNU General
-		Public License and a list of authors along with this program;
-		see the files COPYING and AUTHORS.
+          * Apache License, Version 2.0
+            (http://www.apache.org/licenses/LICENSE-2.0, or see
+            LICENSE-APACHE-2.0 in this directory)
+
+        -- OR --
+
+          * GNU General Public License, version 2 of the License,
+            or (at your option) any later version
+            (http://www.gnu.org/licenses/old-licenses/gpl-2.0.html,
+            or see LICENSE-GPL-2.0 in this directory).
+
+        Pick whichever license suits your project.  Unless required
+        by applicable law or agreed to in writing, this file is
+        distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+        CONDITIONS OF ANY KIND, either express or implied
 ***************************************************************************/
 #ifndef ATOMIC_QUEUE_H_
 #define ATOMIC_QUEUE_H_

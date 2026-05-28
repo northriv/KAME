@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../kame
-    ${CMAKE_CURRENT_SOURCE_DIR}/../kamepoolalloc)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../kamepoolalloc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../kamestm)
 
 # Standalone support: replaces support.h + xtime.h with std::chrono.
 # -include preinclude so include guards block the Qt-dependent originals.
@@ -32,7 +33,7 @@ set(support_SRCS
     # `detail::tls_storage()` is the type-erased TLS dispatcher every
     # `XThreadLocal<T, Tag>` calls into.  In the real build this lives
     # in kame.dll; the standalone test binary needs its own copy.
-    ${CMAKE_CURRENT_SOURCE_DIR}/../kame/threadlocal.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../kamestm/threadlocal.cpp)
 
 # KAME pool allocator: ON by default on Linux and macOS (incl. Apple
 # Silicon — the pool now uses __builtin_ctzll and the ARM8 dmb barriers

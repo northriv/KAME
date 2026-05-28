@@ -16,6 +16,7 @@ CONFIG += CONSOLE
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}\
     $${_PRO_FILE_PWD_}/../kamepoolalloc\
+    $${_PRO_FILE_PWD_}/../kamestm\
     $${_PRO_FILE_PWD_}/math\
     $${_PRO_FILE_PWD_}/forms\
     $${_PRO_FILE_PWD_}/thermometer\
@@ -43,21 +44,21 @@ HEADERS += \
     kame.h \
     script/xscriptingthread.h \
     script/xscriptingthreadconnector.h \
-    threadlocal.h \
-    transaction_impl.h \
-    transaction_signal.h \
-    transaction.h \
-    transaction_negotiation.h \
-    transaction_neg_impl.h \
-    transaction_definitions.h \
+    ../kamestm/threadlocal.h \
+    ../kamestm/transaction_impl.h \
+    ../kamestm/transaction_signal.h \
+    ../kamestm/transaction.h \
+    ../kamestm/transaction_negotiation.h \
+    ../kamestm/transaction_neg_impl.h \
+    ../kamestm/transaction_definitions.h \
     xthread.h \
-    xtime.h \
-    atomic_prv_std.h \
-    atomic_prv_basic.h \
+    ../kamestm/xtime.h \
+    ../kamestm/atomic_prv_std.h \
+    ../kamestm/atomic_prv_basic.h \
     atomic_prv_mfence_x86.h \
-    atomic_queue.h \
-    atomic_smart_ptr.h \
-    atomic.h \
+    ../kamestm/atomic_queue.h \
+    ../kamestm/atomic_smart_ptr.h \
+    ../kamestm/atomic.h \
     driver/driver.h \
     driver/dummydriver.h \
     driver/interface.h \
@@ -115,7 +116,7 @@ SOURCES += icons/icon.cpp \
     script/xscriptingthread.cpp \
     script/xscriptingthreadconnector.cpp \
     xthread.cpp \
-    xtime.cpp \
+    ../kamestm/xtime.cpp \
     support.cpp \
     graph/graphdialogconnector.cpp \
     graph/graphpainter.cpp \
@@ -140,7 +141,7 @@ SOURCES += icons/icon.cpp \
     script/xrubywriter.cpp \
     script/rubywrapper.cpp \
     measure.cpp \
-    threadlocal.cpp \
+    ../kamestm/threadlocal.cpp \
     xnode.cpp \
     xnodeconnector.cpp \
     driver/driver.cpp \
