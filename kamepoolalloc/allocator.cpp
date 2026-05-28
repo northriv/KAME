@@ -2034,7 +2034,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			char *cbase = c->m_mempool - ALLOC_CHUNK_HEADER;
 			size_t csz = c->m_chunk_size;
 			delete c;
-			PoolAllocatorBase::deallocate_chunk(cbase, csz);
+			// Phase 5y: skip madvise at thread-exit.  Perf showed
+			// MADV_DONTNEED here was ~30 % of bench-style alloc_only
+			// runtime (clear_page_erms + free_pages_and_swap_cache).
+			// Pages stay mapped — either the kernel reclaims them
+			// at process exit via exit_mmap (one batch syscall vs
+			// thousands of madvise) or the next thread to claim
+			// these chunk units gets warm pages back, no
+			// re-zeroing.  Bounded above by m_max_reserved_bytes
+			// (Phase 5u) which limits region count.
+			PoolAllocatorBase::deallocate_chunk(cbase, csz,
+			    /*reclaim_pages=*/false);
 		}
 		// else: chunk still has live slots (MASK_CNT > 0).
 		// Cross-thread releaser will pick it up via atomicDecAndTest.
@@ -2042,7 +2052,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 	}
 }
 inline void
-PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
+PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
+                                    bool reclaim_pages) {
 	// Phase 5l release sequence (multi-unit aware):
 	//   1. Clear `ready` bit on the BASE unit (acquire).  Readers
 	//      acquire-observing claim=1, ready=0 know the chunk_header is
@@ -2055,6 +2066,9 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 	//      allocate_chunk reclaim of these units gets zero-fault'd pages
 	//      on first write.  No mprotect / PROT_NONE — we trade SIGBUS
 	//      safety for fewer syscalls + cleaner re-allocate semantics.
+	//      Phase 5y: gated by `reclaim_pages` — `false` from the
+	//      thread-exit path skips this step (perf showed ~30 % of
+	//      bench-style alloc_only time was spent here).
 	//   4. Clear back_offset entries for ALL units of this chunk.
 	//   5. Clear the claim bits of ALL units (release).  Reclaimable.
 	//
@@ -2085,36 +2099,56 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 				*reinterpret_cast<PoolAllocatorBase **>(
 				    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = nullptr;
 				// Step 3: madvise reclaims physical pages.
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-				(void)chunk_size;
-#elif defined(__APPLE__)
-				// macOS: MADV_FREE — kernel zeros pages lazily on
-				// next access (or sooner under memory pressure).
-				// Apple libc's implementation is cheap (per-page
-				// flag flip, no LRU-list manipulation) and reuse-
-				// fast: subsequent writes to the same VA hit the
-				// preserved pages without re-faulting.
-				madvise(chunk_base, chunk_size, MADV_FREE);
-#else
-				// Linux / others: MADV_DONTNEED — eager reclaim.
 				//
-				// Phase 5n tried MADV_FREE on Linux for "lazy reclaim,
-				// fast reuse" but it REGRESSED catastrophically on
-				// reuse-heavy workloads (bucket34_repro 33.5 →
-				// 0.26 M/s, fifo:1024 3072B 3.3 → 1.6 M/s,
-				// alloc_stress c=32 x=50 % RSS 9 MiB → 698 MiB).
-				// Root cause is kernel-specific: Linux MADV_FREE
-				// adds pages to an LRU lazy-discard list (multi-
-				// thread lock contention) and reusing the VA via a
-				// fresh write triggers a minor page-fault to clear
-				// the discard flag — net cost EXCEEDS the
-				// MADV_DONTNEED + zero-fault round-trip for our
-				// alloc/free cadence, while RSS bloats because
-				// reclaim is delayed until memory pressure.  macOS
-				// MADV_FREE does not have this problem because
-				// Apple's implementation is structured differently.
-				madvise(chunk_base, chunk_size, MADV_DONTNEED);
+				// Phase 5y: gated by `reclaim_pages`.  Skipped from
+				// `release_dll_chunks_for_thread` (thread-exit) —
+				// perf showed `clear_page_erms` +
+				// `free_pages_and_swap_cache` were eating ~30 % of
+				// bench-style `alloc_only` time (2017 chunks ×
+				// ~100 µs each per Linux measurement).  Mid-run
+				// release paths (cross-thread last-slot, owner-side
+				// empty, allocate-failure cleanup) still reclaim to
+				// keep long-running-process RSS in check; thread
+				// teardown leaves pages mapped for the next thread
+				// (or for process exit, where the kernel reclaims
+				// everything in one batch via `exit_mmap`).
+				if(reclaim_pages) {
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+					(void)chunk_size;
+#elif defined(__APPLE__)
+					// macOS: MADV_FREE — kernel zeros pages lazily on
+					// next access (or sooner under memory pressure).
+					// Apple libc's implementation is cheap (per-page
+					// flag flip, no LRU-list manipulation) and reuse-
+					// fast: subsequent writes to the same VA hit the
+					// preserved pages without re-faulting.
+					madvise(chunk_base, chunk_size, MADV_FREE);
+#else
+					// Linux / others: MADV_DONTNEED — eager reclaim.
+					//
+					// Phase 5n tried MADV_FREE on Linux for "lazy
+					// reclaim, fast reuse" but it REGRESSED
+					// catastrophically on reuse-heavy workloads
+					// (bucket34_repro 33.5 → 0.26 M/s, fifo:1024
+					// 3072B 3.3 → 1.6 M/s, alloc_stress c=32 x=50 %
+					// RSS 9 MiB → 698 MiB).  Root cause is kernel-
+					// specific: Linux MADV_FREE adds pages to an LRU
+					// lazy-discard list (multi-thread lock
+					// contention) and reusing the VA via a fresh
+					// write triggers a minor page-fault to clear the
+					// discard flag — net cost EXCEEDS the
+					// MADV_DONTNEED + zero-fault round-trip for our
+					// alloc/free cadence, while RSS bloats because
+					// reclaim is delayed until memory pressure.
+					// macOS MADV_FREE does not have this problem
+					// because Apple's implementation is structured
+					// differently.
+					madvise(chunk_base, chunk_size, MADV_DONTNEED);
 #endif
+				}
+				else {
+					(void)chunk_size;
+				}
 				// Step 4: clear back_offset entries.
 				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
 				                 + (size_t)base_unit_idx;
