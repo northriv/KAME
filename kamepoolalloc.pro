@@ -45,7 +45,8 @@ HEADERS += \
     atomic_mfence.h \
     atomic_prv_mfence.h \
     atomic_prv_mfence_arm8.h \
-    atomic_prv_mfence_x86.h
+    atomic_prv_mfence_x86.h \
+    kame_pool.h
 
 macx {
     # Plant the install_name so test binaries resolve us at runtime

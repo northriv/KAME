@@ -2991,9 +2991,111 @@ static void *kame_realloc(void *p, std::size_t n) {
 // returned by stdlib code still route back to libsystem free via
 // our `kame_free` fallback (`PoolAllocatorBase::deallocate` returns
 // false ⇒ `libsystem_free_for_pool` → `malloc_zone_free`).
-__attribute__((used))
+extern "C" __attribute__((used))
 void *kame_pool_calloc(std::size_t n_elem, std::size_t sz) noexcept {
 	return kame_calloc(n_elem, sz);
+}
+
+// =====================================================================
+// Phase 5y/follow-up: public C ABI (<kame_pool.h>).
+//
+// Thin extern-C wrappers over the existing internal entry points
+// (`new_redirected` / `deallocate_pooled_or_free` / `kame_realloc` /
+// `kame_calloc` / `PoolAllocatorBase::size_of`).  Each wrapper:
+//   - is `extern "C"` so the symbol has no name mangling (`kame_pool_*`
+//     mangle-free; usable from C, Rust, Go FFI, etc.);
+//   - is `__attribute__((used))` so LTO does not strip it when no
+//     in-binary consumer exists (the dylib is the consumer);
+//   - sets `errno = ENOMEM` on allocation failure where the libc
+//     contract calls for it (`malloc`/`calloc`/`realloc`/`aligned_alloc`);
+//   - is fully reentrant — the underlying paths are lock-free per
+//     thread plus single-CAS cross-thread frees.
+//
+// Pre-activation safety: `new_redirected` (via `cold_first_access` ->
+// `new_redirected_large` fallback) and `PoolAllocatorBase::deallocate`
+// / `size_of` are all safe to call before `activateAllocator()` has
+// fired — they detect the inactive pool and route to libsystem
+// malloc/free.  C API callers never need to coordinate with the C++
+// activator.
+
+extern "C" __attribute__((noinline, used))
+void *kame_pool_malloc(std::size_t size) {
+	if(void *p = new_redirected(size))
+		return p;
+	errno = ENOMEM;
+	return nullptr;
+}
+
+extern "C" __attribute__((noinline, used))
+void kame_pool_free(void *p) {
+	deallocate_pooled_or_free(p);
+}
+
+extern "C" __attribute__((noinline, used))
+void *kame_pool_realloc(void *p, std::size_t size) {
+	void *q = kame_realloc(p, size);
+	// `kame_realloc(NULL, 0)` returns NULL legitimately (no-op); the
+	// errno-set is only for genuine ENOMEM (size > 0 path returned
+	// NULL).  Mirror glibc behaviour: errno is set only when a
+	// non-zero allocation failed.
+	if( !q && size != 0u)
+		errno = ENOMEM;
+	return q;
+}
+
+extern "C" __attribute__((noinline, used))
+std::size_t kame_pool_malloc_usable_size(const void *p) {
+	if( !p) return 0;
+	// `size_of` is read-only; cast away const safely (it does not
+	// modify the pointee — only walks `s_mmapped_spaces` and chunk
+	// headers).
+	return PoolAllocatorBase::size_of(const_cast<void *>(p));
+}
+
+extern "C" __attribute__((noinline, used))
+void *kame_pool_aligned_alloc(std::size_t alignment, std::size_t size) {
+	// C17 §7.22.3.1: alignment must be power of two; size must be
+	// integral multiple of alignment.  We accept any size (matches
+	// glibc's lenient interpretation; the strict form is easy to
+	// re-enable).
+	if(alignment == 0u || (alignment & (alignment - 1u)) != 0u) {
+		errno = EINVAL;
+		return nullptr;
+	}
+	if(alignment <= ALLOC_ALIGNMENT) {
+		if(void *p = new_redirected(size))
+			return p;
+		errno = ENOMEM;
+		return nullptr;
+	}
+	// Over-aligned (> 16 B): defer to system posix_memalign.  Our
+	// pool slots are 16-B aligned by design; honouring larger
+	// alignment in-pool would require slot-internal padding.
+	void *p = nullptr;
+	int rc = posix_memalign(&p, alignment, size);
+	if(rc != 0) {
+		errno = rc;
+		return nullptr;
+	}
+	return p;
+}
+
+extern "C" __attribute__((noinline, used))
+int kame_pool_posix_memalign(void **memptr, std::size_t alignment,
+                             std::size_t size) {
+	// POSIX: alignment must be a power of two AND a multiple of
+	// sizeof(void*).  Returns the error code; does NOT set errno.
+	if( !memptr) return EINVAL;
+	if(alignment < sizeof(void *)
+	   || (alignment & (alignment - 1u)) != 0u)
+		return EINVAL;
+	if(alignment <= ALLOC_ALIGNMENT) {
+		void *p = new_redirected(size);
+		if( !p) return ENOMEM;
+		*memptr = p;
+		return 0;
+	}
+	return posix_memalign(memptr, alignment, size);
 }
 
 #if defined(__APPLE__)
@@ -3225,7 +3327,7 @@ void operator delete[](void* p, std::size_t /*size*/, std::align_val_t al) noexc
 // Phase 5u: runtime max-regions cap definition + public API.
 std::atomic<int> PoolAllocatorBase::s_max_regions_cap{ALLOC_MAX_MMAP_ENTRIES};
 
-void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept {
+extern "C" void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept {
     // 0 = disable cap → restore the compile-time ceiling.
     int regions;
     if(max_bytes == 0u) {
@@ -3242,14 +3344,14 @@ void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept {
         regions, std::memory_order_relaxed);
 }
 
-std::size_t kame_pool_get_max_bytes() noexcept {
+extern "C" std::size_t kame_pool_get_max_bytes() noexcept {
     int regions = PoolAllocatorBase::s_max_regions_cap.load(
         std::memory_order_relaxed);
     if(regions >= ALLOC_MAX_MMAP_ENTRIES) return SIZE_MAX;
     return (std::size_t)regions * (std::size_t)ALLOC_MIN_MMAP_SIZE;
 }
 
-std::size_t kame_pool_reserved_bytes() noexcept {
+extern "C" std::size_t kame_pool_reserved_bytes() noexcept {
     return PoolAllocatorBase::populated_region_count()
          * (std::size_t)ALLOC_MIN_MMAP_SIZE;
 }
