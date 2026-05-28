@@ -437,6 +437,26 @@ public:
 	//! perf tax on Linux from spurious cursor resets.
 	void *m_owner_dll_head_addr = nullptr;
 
+	//! Phase 5v: pointer to owner thread's "force DLL re-walk" hint
+	//! flag (TLS `std::atomic<bool>` per PoolAllocator template).
+	//! Cross-thread frees set this so the owner's next
+	//! `allocate_chunk_path` notices that one of its DLL chunks got
+	//! a bitmap clear since the last walk and force-restarts the
+	//! walk from `s_dll_head` instead of resuming from a stale
+	//! `s_dll_cursor`.
+	//!
+	//! Stored as `std::atomic<bool> *` for C++-standard-conformant
+	//! cross-thread writes; `memory_order_relaxed` is sufficient
+	//! (this is purely a hint — false negatives just delay revival
+	//! detection by one chunk-fill cycle, false positives waste one
+	//! O(DLL) walk).
+	//!
+	//! Set once at chunk construction; immutable afterwards
+	//! (lifetime: ties to the owner thread; if the owner exits and
+	//! its TLS storage is reclaimed, the chunk is also released
+	//! via `release_dll_chunks_for_thread` BEFORE the TLS goes away).
+	std::atomic<bool> *m_owner_dll_force_walk_ptr = nullptr;
+
 	//! Phase 5u: runtime cap on the number of mmap regions
 	//! `allocate_chunk` may claim.  Initialised to
 	//! `ALLOC_MAX_MMAP_ENTRIES` (= no further restriction beyond the
@@ -860,6 +880,19 @@ protected:
 	//! costs RSS, not correctness.
 	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_cursor;
 	static ALLOC_TLS bool s_dll_exhausted;
+
+	//! Phase 5v: cross-thread revival hint flag.  Cross-thread frees
+	//! (FS=false deallocate_pooled / FS=true push_direct) set this to
+	//! true via the chunk's `m_owner_dll_force_walk_ptr`.
+	//! `allocate_chunk_path` reads + clears it; if true, resets the
+	//! cursor and exhausted flag so the DLL walk restarts from head
+	//! and visits chunks that received bitmap clears since the last
+	//! walk.
+	//!
+	//! relaxed atomic: this is a hint, not authoritative.  False
+	//! negatives delay revival detection by one chunk-fill cycle;
+	//! false positives waste one O(DLL) walk.  Both benign.
+	static ALLOC_TLS std::atomic<bool> s_dll_force_walk_from_head;
 
 	//! Per-thread DLL pointers.  Single-writer (the owning thread)
 	//! and single-reader (same thread).  No atomic ordering needed
