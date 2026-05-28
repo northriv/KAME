@@ -765,37 +765,26 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	const std::uint64_t hdr_word =
 	    static_cast<std::uint64_t>(bucket_idx)
 	  | (static_cast<std::uint64_t>(SIZE) << 32);
-	// Phase 5a: fragmentation cutoff.  FS=false multi-bit slots
-	// progressively fragment the bitmap (free bits scattered across
-	// the word in pieces too small for a fresh N+1-bit allocation).
-	// Once nonzero bits cross the threshold, return 0 to force the
-	// caller (allocate_chunk_path) to look elsewhere — DLL scan
-	// for a less-fragmented chunk, or mmap fresh.  Avoids burning
-	// cycles in find_training_zeros sweeps that are unlikely to
-	// succeed.  count_bits walks all m_count words; this path is
-	// the slow-path (freelist-miss), so the O(m_count) walk is
-	// acceptable.
-	//
-	// Threshold = 80%.  Higher (e.g. 90%) wastes more space; lower
-	// (e.g. 70%) raises mmap rate.  80% is a conservative pick that
-	// favours throughput over memory.  Phase 5c: m_available_bits
-	// (the previous "last failed N" sticky hint) is gone — this
-	// cutoff fires earlier and is independent of N.
-	{
-		unsigned bits_set = 0;
-		for(int i = 0; i < this->m_count; ++i)
-			bits_set += count_bits(this->m_flags[i]);
-		unsigned total_bits =
-		    (unsigned)this->m_count * (unsigned)(sizeof(FUINT) * 8);
-		if(bits_set * 5u >= total_bits * 4u)
-			return 0;
-	}
+	// Phase 5f: dropped the Phase 5a 80% fragmentation cutoff — it
+	// walked all m_count FUINT words via count_bits on every
+	// allocate_pooled call (catastrophic on high-level chunks where
+	// m_count ≈ 4096 → ~4 µs/alloc).  The walk-once-and-bail logic
+	// below is also bounded by m_count and only pays that cost when
+	// the chunk is truly out of N-contiguous-zero runs (rare; only
+	// at chunk-fill boundary).  Quick exit when all FUINT words are
+	// fully filled — `m_flags_filled_cnt` is incrementally
+	// maintained (atomicInc on word-becomes-all-ones inside the CAS
+	// below; atomicDec on word-becomes-zero in batch_return_to_bitmap).
+	if(this->m_flags_filled_cnt == this->m_count)
+		return 0;
+
 	FUINT oldv, ones, cand;
 	int idx = this->m_idx;
 	FUINT *pflag = &this->m_flags[idx];
 	int sidx = 0;
 	char *slot_start = nullptr;
-	for(FUINT *pend = &this->m_flags[this->m_count];;) {
+	int walked = 0;  // count of distinct m_flags words visited (max = m_count)
+	for(;;) {
 		oldv = *pflag;
 		cand = find_training_zeros(N, oldv);
 		if(cand) {
@@ -809,63 +798,41 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			    (size_t(idx_cand) * sizeof(FUINT) * 8 + sidx) * ALIGN];
 			// Phase 5d: write the {bucket, SIZE} header BEFORE the CAS
 			// publishes the bit.  Header lives at `slot_start - 8`:
-			//   * Bit 0 of word 0 (= slot_start == mempool):
-			//       slot_start - 8 = mempool - 8 = chunk_base + 56
-			//       = chunk_header pad area.  Confirmed unused per
-			//       Phase 5c chunk-header layout ([32..63] pad).
-			//   * Bit B > 0 (= slot_start == mempool + B*ALIGN):
-			//       slot_start - 8 lands in bit (B-1)'s last 8 bytes,
-			//       which is either:
-			//         - the LAST 8 bytes of an allocated slot whose
-			//           bitmap bit happens to be (B-1) — that slot's
-			//           user_area = N*ALIGN-8 excludes its last 8 B
-			//           (universal "reservation for next slot's
-			//           header" invariant), so writing here is safe.
-			//         - within a free bitmap region — writing to free
-			//           memory is benign; the bytes get re-claimed by
-			//           the next allocation that includes bit (B-1)
-			//           as ITS LAST bit (and that allocation will see
-			//           our slot's bit B as set, so it cannot extend
-			//           past bit B-1 → its last 8 B IS our header).
-			//
-			// The header write races against neither (1) a concurrent
-			// alloc for the SAME slot (only the CAS winner ends up
-			// owning the slot; CAS release semantics publish the
-			// header to observers via the bit transition), nor (2) a
-			// concurrent write to the same address by an OTHER slot's
-			// alloc (per the invariant above, this 8 B is owned by
-			// exactly this slot's header storage).
+			//   * Bit 0 of word 0 (slot_start == mempool):
+			//       slot_start - 8 = chunk_base + 56 (Phase 5d-3
+			//       reserved area in chunk-header pad).
+			//   * Bit B > 0: slot_start - 8 lands in bit (B-1)'s last 8
+			//       bytes, either inside an allocated slot whose
+			//       user_area excludes its last 8 B (universal
+			//       reservation invariant) or in a free bitmap region.
+			// CAS publishes the header via release semantics.
 			*reinterpret_cast<std::uint64_t *>(slot_start - 8) = hdr_word;
-			// Always-CAS path (formerly an oldv==0 non-atomic fast write
-			// existed here). See sibling allocate_pooled(FS=true) for
-			// the rationale: TLS s_my_chunk fast path in allocate()
-			// removes the bit0-lock around chunk access, so the
-			// non-atomic store would torn-write under contention.
+			// Always-CAS path (cf. FS=true sibling): TLS s_my_chunk
+			// fast path removes the bit0-lock around chunk access, so
+			// a non-atomic store would torn-write under contention.
 			FUINT newv = oldv | ones; //filling with N ones (all user bits).
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
+				// Phase 5f: maintain m_flags_filled_cnt so the quick
+				// "chunk is 100% full" check above stays accurate.
+				if(newv == ~(FUINT)0u)
+					atomicInc( &this->m_flags_filled_cnt);
 				break;
 			}
-			continue;
+			continue;  // CAS race, retry same word
 		}
-		pflag++;
-		if(pflag == pend) {
-			if((pend != &this->m_flags[this->m_count]) || (idx == 0)) {
-				if((this->m_flags_packed & this->MASK_CNT) == (uint32_t)this->m_count) {
-					readBarrier();
-					if((this->m_flags_packed & this->MASK_CNT) == (uint32_t)this->m_count) {
-						return 0;
-					}
-				}
-				pflag = &this->m_flags[idx];
-				pend = &this->m_flags[this->m_count];
-			}
-			else {
-				pflag = this->m_flags;
-				pend = &this->m_flags[idx];
-			}
+		// No N-contiguous zeros in this word — advance to next.
+		++pflag;
+		++walked;
+		if(walked >= this->m_count) {
+			// Full sweep without finding a slot.  Chunk is too
+			// fragmented for N consecutive zeros even though some
+			// words have free bits.  Bail; caller picks another chunk.
+			return 0;
 		}
+		if(pflag == &this->m_flags[this->m_count])
+			pflag = this->m_flags;  // wrap to start
 	}
 
 	idx = pflag - this->m_flags;
@@ -993,6 +960,12 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 			if(newv == 0 && oldv != 0) {
 				atomicDec( &this->m_flags_packed);
 			}
+			// Phase 5f: maintain m_flags_filled_cnt symmetric with
+			// allocate_pooled's atomicInc on word-becomes-all-ones.
+			// A clearing CAS that took the word from `~0` to anything
+			// non-`~0` un-fills the word.
+			if(oldv == ~(FUINT)0u)
+				atomicDec( &this->m_flags_filled_cnt);
 		});
 	// Chunk-release check.  Safe to delete this — the caller is on
 	// a single-slot path and won't reference this chunk again after
