@@ -399,7 +399,21 @@ protected:
 	//! + bit located via a walk over `s_mmapped_spaces[]`).  Called
 	//! both from the owner-side `deallocate_<>` last-slot release path
 	//! and from the cross-batch `batch_return_to_bitmap` suicide path.
-	static void deallocate_chunk(char *chunk_base, size_t chunk_size);
+	//!
+	//! Phase 5y: `reclaim_pages` gates the `madvise(MADV_FREE/DONTNEED)`
+	//! call.  Default `true` for the normal mid-run release paths
+	//! (cross-thread last-slot, owner-side empty, allocate-failure
+	//! cleanup) where eager page reclaim controls long-running-process
+	//! RSS.  `release_dll_chunks_for_thread()` passes `false` — at
+	//! thread-exit, `madvise(MADV_DONTNEED)` on every chunk was
+	//! consuming ~30 % of bench-style `alloc_only` time (perf-confirmed
+	//! on Linux: `clear_page_erms` + `free_pages_and_swap_cache` cost
+	//! per chunk; ~2000 chunks × ~100 µs each); skipping it lets the
+	//! kernel reclaim pages on process exit / OOM pressure rather than
+	//! eagerly on every thread teardown.  Saved pages are still
+	//! protected by the global `m_max_reserved_bytes` cap (Phase 5u).
+	static void deallocate_chunk(char *chunk_base, size_t chunk_size,
+	                             bool reclaim_pages = true);
 
 	//! A chunk, memory block.
 	char * const m_mempool;
