@@ -18,6 +18,9 @@
 // Co-Authored-By: Claude <noreply@anthropic.com>
 
 #include "support_standalone.h"
+#ifndef DISABLE_POOL_ALLOCATOR
+#  include "allocator_prv.h"   // for PoolAllocatorBase::count_live_chunks
+#endif
 
 #include <chrono>
 #include <cstdio>
@@ -91,19 +94,46 @@ int main(int argc, char **argv) {
         // memory clobber + register-clobber on the pointer forces the
         // compiler to materialise the pointer and treat the heap as
         // observable.  Zero extra instructions in the loop body.
+#ifndef DISABLE_POOL_ALLOCATOR
+        int chunks_before = PoolAllocatorBase::count_live_chunks();
+#endif
+        // Warm-up: alloc/free 1 slot to trigger chunk claim BEFORE
+        // we start counting chunks_mid.
+        { char *w = new char[size]; w[0] = 0; asm volatile("":::"memory"); delete[] w; }
+#ifndef DISABLE_POOL_ALLOCATOR
+        int chunks_warm = PoolAllocatorBase::count_live_chunks();
+        int chunks_at_1   = -1;
+        int chunks_at_100 = -1;
+        int chunks_at_10k = -1;
+#endif
         auto t0 = std::chrono::steady_clock::now();
         for(int i = 0; i < iters; ++i) {
             char *p = new char[size];
             p[0] = (char)i;
             asm volatile("" : : "r"(p) : "memory");
             delete[] p;
+#ifndef DISABLE_POOL_ALLOCATOR
+            if(i == 0)      chunks_at_1   = PoolAllocatorBase::count_live_chunks();
+            if(i == 100)    chunks_at_100 = PoolAllocatorBase::count_live_chunks();
+            if(i == 10000)  chunks_at_10k = PoolAllocatorBase::count_live_chunks();
+#endif
         }
         auto t1 = std::chrono::steady_clock::now();
         double secs = std::chrono::duration<double>(t1 - t0).count();
+#ifndef DISABLE_POOL_ALLOCATOR
+        int chunks_after = PoolAllocatorBase::count_live_chunks();
+        std::printf("[minimal] size=%5d B  hot  iters=%d  ops=%d  "
+            "time=%.3fs  rate=%.2fM ops/s  chunks=%d→%d  [i=1:%d, 100:%d, 10K:%d, end:%d]\n",
+            size, iters, iters * 2,
+            secs, iters * 2.0 / 1e6 / secs,
+            chunks_before, chunks_warm,
+            chunks_at_1, chunks_at_100, chunks_at_10k, chunks_after);
+#else
         std::printf("[minimal] size=%5d B  hot  iters=%d  ops=%d  "
             "time=%.3fs  rate=%.2fM ops/s\n",
             size, iters, iters * 2,
             secs, iters * 2.0 / 1e6 / secs);
+#endif
     }
     return 0;
 }
