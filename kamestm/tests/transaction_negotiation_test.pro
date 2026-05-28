@@ -1,9 +1,10 @@
-TARGET = transaction_payload_integrity_3level_test
+TARGET = transaction_negotiation_test
 
-include(tests.pri)
+include(../../tests/tests.pri)
 
 HEADERS += \
     ../kame/atomic_smart_ptr.h \
+    ../kame/xthread.h \
     ../kame/transaction.h \
     ../kame/transaction_impl.h \
     ../kame/transaction_definitions.h \
@@ -12,4 +13,4 @@ HEADERS += \
     ../kame/transaction_neg_impl.h
 
 SOURCES += \
-    transaction_payload_integrity_3level_test.cpp
+    transaction_negotiation_test.cpp

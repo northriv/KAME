@@ -1,6 +1,6 @@
 TARGET = atomic_queue_test
 
-include(tests.pri)
+include(../../tests/tests.pri)
 
 HEADERS += \
     ../kame/atomic_queue.h \

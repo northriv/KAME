@@ -1,6 +1,6 @@
 TARGET = mutex_test
 
-include(tests.pri)
+include(../../tests/tests.pri)
 
 HEADERS += \
     ../kame/xthread.h

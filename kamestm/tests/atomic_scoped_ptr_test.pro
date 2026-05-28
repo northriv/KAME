@@ -1,6 +1,6 @@
 TARGET = atomic_scoped_ptr_test
 
-include(tests.pri)
+include(../../tests/tests.pri)
 
 HEADERS += \
     ../kame/atomic_smart_ptr.h \

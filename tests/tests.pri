@@ -19,9 +19,14 @@ CONFIG -= app_bundle #macosx
 QT -= gui core
 CONFIG -= qt
 
-INCLUDEPATH += $${_PRO_FILE_PWD_}/../kame
-INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamepoolalloc
-INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamestm
+# Paths are relative to the directory containing THIS .pri file
+# ($$PWD = git/tests/), not the per-test .pro file's directory —
+# the latter now varies (kamepoolalloc/tests/, kamestm/tests/) so
+# $${_PRO_FILE_PWD_} would give different roots and break.
+INCLUDEPATH += $$PWD/../kame
+INCLUDEPATH += $$PWD/../kamepoolalloc
+INCLUDEPATH += $$PWD/../kamestm
+INCLUDEPATH += $$PWD/../kamestm/tests
 
 # Activate the dylib-mode `KAMEPOOLALLOC_DYLIB` codepath in
 # `allocator.h`: `activateAllocator()` collapses to an inline no-op
@@ -31,7 +36,7 @@ INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamestm
 DEFINES += KAMEPOOLALLOC_DYLIB
 
 # Preinclude standalone support header to block Qt-dependent originals
-QMAKE_CXXFLAGS += -include $${_PRO_FILE_PWD_}/support_standalone.h
+QMAKE_CXXFLAGS += -include $$PWD/../kamestm/tests/support_standalone.h
 
 # Common sources brought into every standalone test binary:
 #  - support_standalone.cpp:    Qt-free stub for `support.cpp` / `xtime.cpp`
@@ -53,8 +58,8 @@ QMAKE_CXXFLAGS += -include $${_PRO_FILE_PWD_}/support_standalone.h
 #                               `tests.depends`).  Tests `LIBS` against
 #                               it via the macx/unix-specific block at
 #                               the bottom of this file.
-SOURCES += support_standalone.cpp
-SOURCES += ../kamestm/threadlocal.cpp
+SOURCES += $$PWD/../kamestm/tests/support_standalone.cpp
+SOURCES += $$PWD/../kamestm/threadlocal.cpp
 
 # Link against libkamepoolalloc — built by ../kamepoolalloc/kamepoolalloc.pro
 # in the sibling subdir (top-level kame.pro orders this before tests via
@@ -84,20 +89,20 @@ unix:!macx {
 # than the previous `$${_PRO_FILE_PWD_}/...` form) keep Qt Creator's
 # project navigator from showing a stale `tests/..` segment in the
 # resolved path display.
-HEADERS += support_standalone.h
-HEADERS += ../kamepoolalloc/allocator.h
-HEADERS += ../kamepoolalloc/allocator_prv.h
-HEADERS += ../kamepoolalloc/atomic_mfence.h
-HEADERS += ../kamepoolalloc/atomic_prv_mfence.h
-HEADERS += ../kamepoolalloc/atomic_prv_mfence_x86.h
-HEADERS += ../kamepoolalloc/atomic_prv_mfence_arm8.h
-HEADERS += ../kame/threadlocal.h
-HEADERS += ../kame/atomic.h
-HEADERS += ../kame/atomic_prv_basic.h
-HEADERS += ../kame/atomic_prv_std.h
-HEADERS += ../kame/atomic_prv_mfence.h
-HEADERS += ../kame/atomic_prv_mfence_x86.h
-HEADERS += ../kame/atomic_prv_mfence_arm8.h
+HEADERS += $$PWD/../kamestm/tests/support_standalone.h
+HEADERS += $$PWD/../kamepoolalloc/allocator.h
+HEADERS += $$PWD/../kamepoolalloc/allocator_prv.h
+HEADERS += $$PWD/../kamepoolalloc/atomic_mfence.h
+HEADERS += $$PWD/../kamepoolalloc/atomic_prv_mfence.h
+HEADERS += $$PWD/../kamepoolalloc/atomic_prv_mfence_x86.h
+HEADERS += $$PWD/../kamepoolalloc/atomic_prv_mfence_arm8.h
+HEADERS += $$PWD/../kamestm/threadlocal.h
+HEADERS += $$PWD/../kamestm/atomic.h
+HEADERS += $$PWD/../kamestm/atomic_prv_basic.h
+HEADERS += $$PWD/../kamestm/atomic_prv_std.h
+HEADERS += $$PWD/../kame/atomic_prv_mfence.h
+HEADERS += $$PWD/../kame/atomic_prv_mfence_x86.h
+HEADERS += $$PWD/../kame/atomic_prv_mfence_arm8.h
 
 win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2

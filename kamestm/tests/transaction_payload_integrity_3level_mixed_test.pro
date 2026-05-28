@@ -1,6 +1,6 @@
-TARGET = transaction_payload_integrity_test
+TARGET = transaction_payload_integrity_3level_mixed_test
 
-include(tests.pri)
+include(../../tests/tests.pri)
 
 HEADERS += \
     ../kame/atomic_smart_ptr.h \
@@ -12,4 +12,4 @@ HEADERS += \
     ../kame/transaction_neg_impl.h
 
 SOURCES += \
-    transaction_payload_integrity_test.cpp
+    transaction_payload_integrity_3level_mixed_test.cpp
