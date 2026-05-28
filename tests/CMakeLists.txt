@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(kame_tests LANGUAGES CXX)
+project(kame_tests LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,7 +19,10 @@ set(CMAKE_REQUIRED_FLAGS "-include ${CMAKE_CURRENT_SOURCE_DIR}/support_standalon
 check_cxx_source_compiles("int main(){return 0;}" HAVE_FORCE_INCLUDE)
 unset(CMAKE_REQUIRED_FLAGS)
 if(HAVE_FORCE_INCLUDE)
-    add_compile_options(-include ${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h)
+    # CXX-only: support_standalone.h pulls in <cassert> / <chrono> etc
+    # which are C++ headers.  Pure-C test TUs (c_api_test.c) must not
+    # see this preinclude.
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-include${CMAKE_CURRENT_SOURCE_DIR}/support_standalone.h>)
 else()
     message(STATUS "Compiler does not support -include; each .cpp must #include support_standalone.h first")
 endif()
@@ -121,10 +124,22 @@ foreach(t IN LISTS test_names)
     target_link_libraries(${t} ${test_link_libs})
 endforeach()
 
+# Pure-C smoke test of the kame_pool.h public ABI.  No C++ support
+# files — exercises only the C-linkage public surface.  Only valid
+# when the pool is on (otherwise the symbols don't exist).
+if(USE_KAME_ALLOCATOR)
+    add_executable(c_api_test c_api_test.c)
+    target_link_libraries(c_api_test kamepoolalloc Threads::Threads)
+    set_property(TARGET c_api_test PROPERTY C_STANDARD 99)
+endif()
+
 # --- CTest registration ---
 
 enable_testing()
 
+if(USE_KAME_ALLOCATOR)
+    add_test(NAME c_api_test COMMAND c_api_test)
+endif()
 add_test(NAME atomic_shared_ptr_test COMMAND atomic_shared_ptr_test)
 add_test(NAME atomic_scoped_ptr_test COMMAND atomic_scoped_ptr_test)
 add_test(NAME atomic_queue_test COMMAND atomic_queue_test)

@@ -152,17 +152,20 @@
     //! libsystem malloc — applications that need a true OOM (no
     //! malloc fallback) should additionally trip on the OOM via
     //! `std::set_new_handler` or by wrapping `operator new`.
-    void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept;
+    //!
+    //! Declared with C linkage so the same symbol is usable from
+    //! both C and C++ via `<kame_pool.h>` / `<allocator.h>`.
+    extern "C" void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept;
 
     //! \return current effective cap in bytes (`SIZE_MAX` if unset).
-    std::size_t kame_pool_get_max_bytes() noexcept;
+    extern "C" std::size_t kame_pool_get_max_bytes() noexcept;
 
     //! \return total bytes currently mmap'd by the pool (= region
     //! count × 32 MiB).  Excludes external `std::malloc` fallbacks
     //! for huge allocations.  Monotonically non-decreasing during
     //! steady-state execution; reflects VA reservation, not RSS
     //! (use `getrusage(RUSAGE_SELF)` for RSS).
-    std::size_t kame_pool_reserved_bytes() noexcept;
+    extern "C" std::size_t kame_pool_reserved_bytes() noexcept;
 
     //! \return true while this thread's pool allocator state is fully
     //! live (`g_sys_image_loaded && !s_alloc_tls_off`).  Returns false
