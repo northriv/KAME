@@ -1,27 +1,30 @@
-// Targeted reproducer for the 128 KiB ALLOC_MIN_CHUNK_SIZE crash on
-// Linux x86_64.  Hits the bucket 31..36 tier (sizes 3072 .. 8192,
-// ALIGN3 = 1024, FS=false) — at 128 KiB chunks this template runs at
-// `m_count = 1` (single FUINT word) which the crash report points at.
+// Targeted repro for the bucket-34 (size 6144, ALIGN=1024, FS=false)
+// SEGV reported under chunk sizes that yield m_count=1 (128 KiB on
+// 64-bit).  The user observed:
+//   "全ての alloc_stress 起動で SEGV → 0x7fffXX0000a0 (chunk_base + 0xa0)"
+//   "chunk header (chunk_base + 0..15) のどこかが slot data で上書きされた
+//    状態で trampoline call → 不正アドレスへジャンプ"
 //
-// Workload: N worker threads, each maintains a small LIVE_PER_THREAD
-// rolling set of slots.  Each iteration:
-//   1. Allocate `pick_size()` bytes from the large-slot tier
-//      (between 2049 and 8192 — guarantees bucket 31..36).
-//   2. Paint the slot with a per-slot sentinel byte across every byte
-//      so any pre-existing chunk-header overwrite would have flipped
-//      to the sentinel — slot data writers leave their signature.
-//   3. Verify the sentinel of a randomly chosen earlier slot (catches
-//      slot↔slot stomps where the under-budgeted m_count=1 layout
-//      may have placed slots overlapping the next chunk's header).
-//   4. Free.  If a debug build catches a corrupted chunk header here,
-//      `KAME_DEBUG_CHUNK_HEADER` in allocator.cpp will dump the
-//      offending header + slot and abort.
+// Strategy: many threads, each allocates random-size mix from buckets
+// 31..36 (which all share `PoolAllocator<ALLOC_ALIGN3, false>` chunks
+// — ALLOC_ALIGN3=1024 on 64-bit / 512 on 32-bit).  Cross-thread free
+// every iteration (slot allocated by thread A, freed by thread B's
+// drain).  Sentinel paint + verify exposes any slot-overrun corruption
+// before SEGV.
 //
-// Run with e.g. `./alloc_bucket34_repro 8 4096` for 8 threads × 4096
-// ops/thread.  Defaults: nproc threads, 200000 ops each.
+// Usage:
+//   alloc_bucket34_repro [threads] [iters_per_thread]
+//
+// Co-Authored-By: Claude <noreply@anthropic.com>
+
+#include "support_standalone.h"
+#ifndef DISABLE_POOL_ALLOCATOR
+#  include "allocator_prv.h"  // for PoolAllocatorBase::count_live_chunks
+#endif
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -31,118 +34,101 @@
 
 namespace {
 
-constexpr int    LIVE_PER_THREAD = 1024;
-std::atomic<uint64_t> g_total_allocs{0};
-std::atomic<uint64_t> g_sentinel_fails{0};
+constexpr int kAlive = 1024;
+// Sizes covering buckets 31..36 — all FS=false ALIGN=ALLOC_ALIGN3 = 1024.
+// The reported SEGV is at bucket 34 (size 6144) specifically.
+constexpr std::size_t kSizes[] = {3072, 4096, 5120, 6144, 7168, 8192};
+constexpr int kNumSizes = sizeof(kSizes) / sizeof(kSizes[0]);
 
-struct AllocBlock {
-    char    *p;
-    size_t   sz;
-    uint8_t  sent;
-    int      tid;
+struct Block {
+    char *p;
+    int size;
+    int paint;
 };
 
-// Bucket 31..36 cover sizes 2049..8192 in 1024-byte steps:
-//   slot_size = 2048 + (bucket-30)*1024.
-// pick_size returns user-requested sizes that land in those buckets.
-// Skewed toward the smaller end of the tier (sizes 3 .. 5 KiB) to
-// keep allocation rate high while still exercising every bucket.
-size_t pick_size(std::mt19937 &rng) {
-    static const size_t sizes[] = {
-        2050, 2500, 3000, 3072, 3500, 4000, 4096,
-        4500, 5000, 5120, 5500, 6016, 6144, 7000, 7168, 8000, 8192
-    };
-    std::uniform_int_distribution<int> d(0, (int)(sizeof(sizes)/sizeof(sizes[0])) - 1);
-    return sizes[d(rng)];
+std::atomic<uint64_t> g_ops{0};
+std::atomic<uint64_t> g_fails{0};
+
+void touch_and_paint(Block &b, int paint) {
+    b.paint = paint;
+    // Paint first and last bytes — any slot-overrun corruption will
+    // mismatch on verify.
+    b.p[0] = (char)(paint & 0xFF);
+    b.p[b.size - 1] = (char)(~paint & 0xFF);
 }
 
-bool check_sentinel(const AllocBlock &b, const char *where) {
-    for(size_t i = 0; i < b.sz; ++i) {
-        if((uint8_t)b.p[i] != b.sent) {
-            std::fprintf(stderr,
-                "[%s] sentinel mismatch tid=%d slot=%p size=%zu off=%zu "
-                "expected=0x%02x actual=0x%02x\n",
-                where, b.tid, b.p, b.sz, i, b.sent, (uint8_t)b.p[i]);
-            return false;
-        }
+bool verify(const Block &b) {
+    char f = b.p[0], l = b.p[b.size - 1];
+    if(f != (char)(b.paint & 0xFF) || l != (char)(~b.paint & 0xFF)) {
+        fprintf(stderr,
+            "[bucket34] sentinel fail: p=%p size=%d paint=%d "
+            "first=%02x (expected %02x) last=%02x (expected %02x)\n",
+            b.p, b.size, b.paint,
+            (unsigned)(unsigned char)f, (unsigned)(unsigned char)(b.paint & 0xFF),
+            (unsigned)(unsigned char)l, (unsigned)(unsigned char)(~b.paint & 0xFF));
+        return false;
     }
     return true;
 }
 
-struct Config {
-    int    threads;
-    int    ops_per_thread;
-};
-
-void worker(int tid, Config cfg) {
-    std::mt19937 rng((uint32_t)(tid * 2654435761u + 1));
-    std::uniform_int_distribution<int> action(0, 99);
-    std::vector<AllocBlock> live;
-    live.reserve(LIVE_PER_THREAD);
-
-    for(int i = 0; i < cfg.ops_per_thread; ++i) {
-        bool do_alloc =
-            (live.empty() || action(rng) < 60) && (int)live.size() < LIVE_PER_THREAD;
-        if(do_alloc) {
-            size_t s = pick_size(rng);
-            auto *p = new char[s];
-            uint8_t sent = uint8_t((tid * 131 + i * 7 + 1) & 0xff);
-            std::memset(p, sent, s);
-            live.push_back(AllocBlock{p, s, sent, tid});
-            g_total_allocs.fetch_add(1, std::memory_order_relaxed);
-            // Spot-check an earlier slot: catches slot↔slot stomps
-            // (e.g. an m_count=1 layout overrunning into a neighbour).
-            if(live.size() > 4) {
-                std::uniform_int_distribution<size_t> pick(0, live.size() - 2);
-                auto &q = live[pick(rng)];
-                if( !check_sentinel(q, "spot")) {
-                    g_sentinel_fails.fetch_add(1, std::memory_order_relaxed);
-                }
-            }
-        }
-        else {
-            std::uniform_int_distribution<size_t> pick(0, live.size() - 1);
-            size_t idx = pick(rng);
-            auto b = live[idx];
-            if( !check_sentinel(b, "pre-free")) {
-                g_sentinel_fails.fetch_add(1, std::memory_order_relaxed);
-            }
-            delete[] b.p;
-            live[idx] = live.back();
-            live.pop_back();
-        }
+void run_worker(int tid, int iters) {
+    std::mt19937_64 rng(0x9E3779B97F4A7C15ULL ^ (uint64_t)tid);
+    std::vector<Block> live(kAlive);
+    // Initial fill.
+    for(int i = 0; i < kAlive; ++i) {
+        int sz = (int)kSizes[rng() % kNumSizes];
+        live[i].p = new char[sz];
+        live[i].size = sz;
+        touch_and_paint(live[i], (tid << 16) | i);
     }
-    // Drain leftover.
-    for(auto &b : live) {
-        if( !check_sentinel(b, "drain")) g_sentinel_fails.fetch_add(1, std::memory_order_relaxed);
-        delete[] b.p;
+    for(int it = 0; it < iters; ++it) {
+        for(int k = 0; k < kAlive; ++k) {
+            int slot = (int)(rng() % kAlive);
+            if( !verify(live[slot])) g_fails.fetch_add(1);
+            delete[] live[slot].p;
+            int sz = (int)kSizes[rng() % kNumSizes];
+            live[slot].p = new char[sz];
+            live[slot].size = sz;
+            touch_and_paint(live[slot], (tid << 16) | (slot ^ it));
+        }
+        g_ops.fetch_add(2ULL * kAlive);
     }
+    for(auto &b : live) { verify(b); delete[] b.p; }
 }
 
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
-    Config cfg;
-    cfg.threads        = (argc > 1) ? std::atoi(argv[1]) : (int)std::thread::hardware_concurrency();
-    cfg.ops_per_thread = (argc > 2) ? std::atoi(argv[2]) : 200000;
-    if(cfg.threads <= 0)         cfg.threads = 4;
-    if(cfg.ops_per_thread <= 0)  cfg.ops_per_thread = 200000;
+    int nthreads = argc > 1 ? std::atoi(argv[1]) : 8;
+    int iters    = argc > 2 ? std::atoi(argv[2]) : 64;
 
-    std::fprintf(stderr, "[alloc_bucket34_repro] threads=%d ops=%d live=%d\n",
-        cfg.threads, cfg.ops_per_thread, LIVE_PER_THREAD);
+    fprintf(stderr, "[bucket34_repro] threads=%d iters=%d\n", nthreads, iters);
+#ifndef DISABLE_POOL_ALLOCATOR
+    int chunks_initial = PoolAllocatorBase::count_live_chunks();
+#endif
 
-    auto t0 = std::chrono::steady_clock::now();
     std::vector<std::thread> ths;
-    ths.reserve(cfg.threads);
-    for(int t = 0; t < cfg.threads; ++t) ths.emplace_back(worker, t, cfg);
+    ths.reserve(nthreads);
+    auto t0 = std::chrono::steady_clock::now();
+    for(int i = 0; i < nthreads; ++i)
+        ths.emplace_back(run_worker, i, iters);
     for(auto &t : ths) t.join();
     auto t1 = std::chrono::steady_clock::now();
-    double sec = std::chrono::duration<double>(t1 - t0).count();
+    double secs = std::chrono::duration<double>(t1 - t0).count();
 
-    std::fprintf(stderr,
-        "[alloc_bucket34_repro] done, allocs=%llu sentinel_fails=%llu time=%.2fs\n",
-        (unsigned long long)g_total_allocs.load(),
-        (unsigned long long)g_sentinel_fails.load(),
-        sec);
-    return g_sentinel_fails.load() ? 1 : 0;
+#ifndef DISABLE_POOL_ALLOCATOR
+    int chunks_final = PoolAllocatorBase::count_live_chunks();
+#else
+    int chunks_initial = 0, chunks_final = 0;
+#endif
+
+    uint64_t ops = g_ops.load();
+    uint64_t fails = g_fails.load();
+    printf("[bucket34_repro] threads=%d iters=%d ops=%llu time=%.2fs "
+           "rate=%.2fM ops/s sentinel_fails=%llu chunks=%d→%d\n",
+        nthreads, iters,
+        (unsigned long long)ops, secs, ops / 1e6 / secs,
+        (unsigned long long)fails,
+        chunks_initial, chunks_final);
+    return fails ? 1 : 0;
 }

@@ -113,6 +113,7 @@ set(test_names
     transaction_payload_integrity_mixed_test
     transaction_payload_integrity_3level_mixed_test
     alloc_stress_test
+    alloc_minimal_bench
     alloc_bucket34_repro)
 
 foreach(t IN LISTS test_names)

@@ -142,25 +142,59 @@ inline bool atomicDecAndTest(T *target) noexcept {
     #define ALLOC_MAX_MMAP_ENTRIES 5
 #endif
 
-//! Reserved bytes at the head of every chunk.  Layout:
-//!   [0 .. 7]:   `PoolAllocatorBase *` (chunk owner, source of truth
-//!               for O(1) lookup from any slot via
-//!               `*(PoolAllocatorBase**)(slot & ~(chunk_size - 1))`)
-//!   [8 .. 15]:  `DeallocateFn` — pointer to a non-virtual static
-//!               trampoline that dispatches the dealloc body
-//!               (`PoolAllocatorBase::DeallocateFn`).  Replaces
-//!               vtable dispatch on the `deallocate_<>` hot path.
-//!   [16 .. 23]: `SizeOfFn` — non-virtual static trampoline that
-//!               returns the slot size (in bytes) for any slot
-//!               pointer in this chunk.  Used by `realloc()` /
-//!               `pool_slot_size()` to size copies without a vtable
-//!               call.  FS=true: returns the constant ALIGN; FS=false:
-//!               reads `m_sizes[idx]>>sidx` and decodes N * ALIGN.
-//!   [24 .. 63]: pad to a cache line.
+//! Reserved bytes at the head of every chunk.  Layout (Phase 5d):
+//!   [ 0 ..  7]: chunk-wide SIZE info — `uint64_t`:
+//!                 FS=true  (fixed-size chunk): low 32 bits = slot
+//!                          size in bytes (= ALIGN; same for every
+//!                          slot in the chunk).  Non-zero ⇒ "jump
+//!                          straight to bucket-driven dispatch
+//!                          without a per-slot header read".
+//!                 FS=false (variable-size): 0.  Distinct from FS=true
+//!                          and from chunk-released (palloc==0); the
+//!                          dealloc path reads the per-slot
+//!                          `{bucket, SIZE}` header at `p - 8`
+//!                          instead (Phase 5d "borrow" scheme).
+//!               High 32 bits: ALIGN (always — for non-templated
+//!               dispatchers; see `chunk_header_size_info()`).
+//!   [ 8 .. 15]: `PoolAllocatorBase *` palloc (chunk owner).
+//!   [16 .. 23]: `DeallocateFn` — non-virtual static trampoline
+//!               (per-template) that dispatches the dealloc body.
+//!   [24 .. 31]: `SizeOfFn` — slot-size lookup trampoline.
+//!               FS=false: reads SIZE from the per-slot
+//!               `{bucket, SIZE}` header at `p - 8` (Phase 5d).
+//!   [32 .. 55]: pad.
+//!   [56 .. 63]: RESERVED for FS=false slot 0's `{uint32_t bucket,
+//!               uint32_t SIZE}` header (Phase 5d-3 "borrow" scheme
+//!               formalisation).
+//!               The slot at bit 0 of m_flags[0] (= the slot whose
+//!               p_user == mempool == chunk_base + ALLOC_CHUNK_HEADER)
+//!               has no predecessor whose last 8 B can host its
+//!               header; this 8-byte tail of the chunk-header pad is
+//!               its dedicated home.
+//!               `allocate_pooled` writes here uniformly via
+//!               `slot_start - 8` (= chunk_base + 56) without any
+//!               special-case branch — the address math reduces
+//!               naturally.  For FS=true chunks this 8 B is just
+//!               unused pad (FS=true has no per-slot header).
 //! Slot region (`m_mempool`) starts at `chunk_base + ALLOC_CHUNK_HEADER`.
+//!
+//! TODO (Phase 5d-4 candidate): the [0..7] SIZE info enables a
+//! "unified deallocate" that branches on `(hdr[0] != 0)` instead of
+//! the indirect `DeallocateFn` call.  The high-32-b ALIGN is
+//! already available, so FS=false's `p - 8` header read needs no
+//! extra per-template dispatch.
 #define ALLOC_CHUNK_HEADER 64
-#define ALLOC_CHUNK_HEADER_FN_OFFSET     8
-#define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET 16
+#define ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET     0   // [ 0.. 7]: chunk SIZE info
+#define ALLOC_CHUNK_HEADER_PALLOC_OFFSET        8   // [ 8..15]: palloc
+#define ALLOC_CHUNK_HEADER_FN_OFFSET           16   // [16..23]: DeallocateFn
+#define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET    24   // [24..31]: SizeOfFn
+// [56..63] = slot-0 header (= ALLOC_CHUNK_HEADER - 8).  No constant
+// needed — `allocate_pooled` reaches it via the uniform
+// `slot_start - 8` math (slot 0's slot_start == m_mempool ==
+// chunk_base + ALLOC_CHUNK_HEADER).
+static_assert(ALLOC_CHUNK_HEADER >= ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET + 8 + 8,
+              "chunk header must have >= 8 B of pad between SizeOfFn "
+              "and the slot-0 reservation at chunk_header[-8..-1].");
 
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
@@ -247,11 +281,11 @@ public:
 	//! its read).
 	static int count_live_chunks() noexcept;
 	//! Null out this thread's `s_my_chunk` for this chunk's ALIGN type.
-	//! Called from `AllocPinCleanup` after freelist flush, before pin
+	//! Called from `AllocThreadExitCleanup` after freelist flush, before pin
 	//! count decrement.  Prevents stale `s_my_chunk` from pushing to
 	//! a dead freelist when later TLS destructors (e.g.
 	//! `RunnerCounterRegistration` via `pthread_key`) do heap
-	//! alloc/dealloc after `AllocPinCleanup` has already run.
+	//! alloc/dealloc after `AllocThreadExitCleanup` has already run.
 	virtual void clear_owner_tls() noexcept {}
 	//! Batch return of a contiguous run of CrossDeallocEntries whose
 	//! `chunk == this` to the bitmap.  Each override walks
@@ -294,6 +328,14 @@ public:
 	//! so the dispatch is per-(ALIGN,FS) without a separate
 	//! function-pointer table.
 	virtual void *slow_allocate(unsigned bucket, std::size_t size) noexcept = 0;
+	//! Public read-only accessor for `m_chunk_size` — used by
+	//! anonymous-namespace helpers (e.g. `drain_thread_slot_freelists`)
+	//! that need to compute `chunk_base = head & ~(chunk_size - 1)`
+	//! without a per-template dispatch (the helper iterates all
+	//! buckets and slots from all chunk-template instantiations may
+	//! coexist on its freelists).  Returns the chunk-size stamped by
+	//! `allocate_chunk()` at chunk-claim time.
+	std::size_t chunk_size() const noexcept { return m_chunk_size; }
 protected:
 	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
 	virtual bool deallocate_pooled(char *p) = 0;
@@ -377,7 +419,7 @@ private:
 	    s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION];
 };
 
-//! Per-thread flag — true once `AllocPinCleanup::~dtor` has fired.
+//! Per-thread flag — true once `AllocThreadExitCleanup::~dtor` has fired.
 //! Read by `new_redirected()` (and other allocator-TLS-aware code via
 //! `is_allocator_thread_active()`) to fall back to malloc once the
 //! pool-allocator TLS state is dead.  Defined in allocator.cpp.
@@ -440,10 +482,29 @@ public:
 	//! Non-virtual static trampoline for the chunk-header `SizeOfFn`
 	//! pointer.  FS=true returns the constant ALIGN — every slot in a
 	//! fixed-size chunk has the same length.  The FS=false partial
-	//! specialisation overrides this with the `m_sizes`-based decode.
+	//! specialisation overrides this to read SIZE from the per-slot
+	//! prefix at `p - ALIGN` (Phase 5c).
 	static std::size_t size_of_static(PoolAllocatorBase * /*base*/,
 	                                  char * /*p*/) noexcept {
 	    return ALIGN;
+	}
+
+	//! Value written to chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET
+	//! by `allocate_chunk()` (Phase 5c).  Layout:
+	//!   * Low 32 bits = FS-distinguishing "slot SIZE":
+	//!       FS=true  : ALIGN (slot size; non-zero ⇒ fixed-size chunk,
+	//!                  dispatcher can derive the bucket directly).
+	//!       FS=false : 0     (signal: read SIZE from per-slot prefix
+	//!                  at `p - ALIGN`).
+	//!   * High 32 bits = ALIGN (always — for FS=false dispatchers
+	//!       that need to convert user pointer → slot_start = p - ALIGN
+	//!       without dispatching through a per-template hook, e.g.
+	//!       `drain_thread_slot_freelists`).
+	//! Picked per-template so the chunk header carries the right
+	//! discriminator + the ALIGN needed for prefix-based dispatch.
+	static constexpr std::uint64_t chunk_header_size_info() noexcept {
+	    return static_cast<std::uint64_t>(ALIGN)
+	         | (static_cast<std::uint64_t>(ALIGN) << 32);
 	}
 
 	typedef uintptr_t FUINT;
@@ -486,7 +547,7 @@ protected:
 	static bool owner_release(PoolAllocator *palloc);
 	static bool cross_release(PoolAllocator *palloc);
 	//! Per-thread DLL teardown for thread-exit cleanup.  Called from
-	//! `AllocPinCleanup::~dtor` once per (ALIGN, FS) template the
+	//! `AllocThreadExitCleanup::~dtor` once per (ALIGN, FS) template the
 	//! thread has touched.  Walks the per-thread DLL with cached-next:
 	//! for each chunk, either claims `BIT_RELEASED` (if empty — release
 	//! it) or sets `BIT_OWNER_EXITED` (if non-empty — signal cross-
@@ -520,7 +581,7 @@ protected:
 	//   * Bit  30     — `BIT_RELEASED`: set by the winner of the
 	//     dec-to-zero / owner-release race so exactly one releaser
 	//     proceeds to `delete this; deallocate_chunk()`.
-	//   * Bit  31     — `BIT_OWNER_EXITED`: set by `AllocPinCleanup::~dtor`
+	//   * Bit  31     — `BIT_OWNER_EXITED`: set by `AllocThreadExitCleanup::~dtor`
 	//     when the owning thread exits while this chunk still holds
 	//     live slots; informs the cross-thread last-slot-returner that
 	//     the chunk has no owner pin and may be released.
@@ -583,7 +644,11 @@ protected:
 	//! Parameterised on:
 	//!   MaskFn(idx,sidx,p)→ `FUINT`   : bit-mask for one slot
 	//!                                    (FS=true: 1 bit at sidx;
-	//!                                    FS=false: N bits via m_sizes)
+	//!                                    FS=false: N+1 bits via the
+	//!                                    per-slot prefix SIZE — Phase
+	//!                                    5c.  `p` is `slot_start` (=
+	//!                                    `p_user - ALIGN`), `sidx` is
+	//!                                    the prefix bit position.)
 	//!   OnClearFn(oldv,newv)→ `void`  : per-word counter update
 	//!
 	//! Precondition: the chunk run is sorted by ascending slot pointer
@@ -616,13 +681,21 @@ public:
 	//! casts to this leaf type and invokes the non-virtual
 	//! `PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled`.
 	static bool deallocate_pooled_static(PoolAllocatorBase *base, char *p);
-	//! FS=false slot-size lookup.  Decodes the slot's run length from
-	//! `m_sizes[idx]>>sidx` (same pattern as `deallocate_pooled`'s
-	//! N-bit clear).  Returns N*ALIGN bytes — the slot's exact user
-	//! capacity.  Stamped into the chunk header at offset
+	//! FS=false slot-size lookup (Phase 5c).  Reads SIZE from the
+	//! per-slot prefix at `p - ALIGN`.  Returns the user-requested
+	//! size in bytes.  Stamped into the chunk header at offset
 	//! `ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET`; overrides the FS=true
 	//! constant returned by the base template's `size_of_static`.
 	static std::size_t size_of_static(PoolAllocatorBase *base, char *p) noexcept;
+	//! FS=false chunk-header SIZE info (Phase 5c).  Low 32 bits = 0 so
+	//! dispatchers can distinguish FS=false chunks (and read the per-
+	//! slot prefix at `p - ALIGN` instead of treating header[0..7] as
+	//! the slot size).  High 32 bits = ALIGN so non-templated callers
+	//! (e.g. `drain_thread_slot_freelists`) can recover the offset to
+	//! convert `p_user → slot_start = p - ALIGN` for FS=false slots.
+	static constexpr std::uint64_t chunk_header_size_info() noexcept {
+	    return static_cast<std::uint64_t>(ALIGN) << 32;
+	}
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	PoolAllocator(int count, char *addr, char *ppool);
@@ -651,9 +724,13 @@ private:
 
 	static PoolAllocator *create(size_t size, char *ppool);
 
-	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
-	FUINT * const m_sizes;
-	unsigned int m_available_bits;
+	// Phase 5c: m_sizes and m_available_bits dropped.  Per-slot SIZE
+	// metadata now lives in the slot's own first ALIGN bytes (the
+	// "+1 prefix" — bitmap claims N+1 bits, slot[0..3] stores SIZE as
+	// uint32_t, returned pointer is `slot_start + ALIGN`).
+	// Fragmentation cutoff (Phase 5a) at 80% bitmap fill obsoletes the
+	// `m_available_bits` "last SIZE we tried" hint; the cutoff fires
+	// earlier and is independent of SIZE.
 };
 
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
@@ -693,27 +770,13 @@ private:
 #define ALLOC_SIZE15 (ALLOC_ALIGNMENT * 15)
 #define ALLOC_SIZE16 (ALLOC_ALIGNMENT * 16)
 
+//! Sole tail of the dispatch chain for sizes > ALLOC_MAX_BUCKETED_SIZE
+//! (= 16376 bytes since Phase 5d-4).  Phase 5d-4 covers up to 16 KiB
+//! minus 8 B in 24 buckets via the 4-way exponential ladder; anything
+//! bigger goes straight to libsystem here.  The legacy `ALLOCATE_9_16X`
+//! macro and its power-of-2 PoolAllocator template explosions are
+//! removed.
 void* allocate_large_size_or_malloc(size_t size) throw();
-
-#define ALLOCATE_9_16X(X, size) {\
-	if(size <= ALLOC_SIZE16 * X) {\
-		if(size <= ALLOC_SIZE9 * X)\
-			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE9 * X)>::allocate<ALLOC_SIZE9 * X>();\
-		if(size <= ALLOC_SIZE10 * X)\
-			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE10 * X)>::allocate<ALLOC_SIZE10 * X>();\
-		if(size <= ALLOC_SIZE11 * X)\
-			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE11 * X)>::allocate<ALLOC_SIZE11 * X>();\
-		if(size <= ALLOC_SIZE12 * X)\
-			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE12 * X)>::allocate<ALLOC_SIZE12 * X>();\
-		if(size <= ALLOC_SIZE13 * X)\
-			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE13 * X)>::allocate<ALLOC_SIZE13 * X>();\
-		if(size <= ALLOC_SIZE14 * X)\
-			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE14 * X)>::allocate<ALLOC_SIZE14 * X>();\
-		if(size <= ALLOC_SIZE15 * X)\
-			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE15 * X)>::allocate<ALLOC_SIZE15 * X>();\
-		return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE16 * X)>::allocate<ALLOC_SIZE16 * X>();\
-	}\
-}
 
 extern bool g_sys_image_loaded;
 //! `s_alloc_tls_off` is forward-declared earlier in this file (just above
@@ -758,7 +821,7 @@ extern bool g_sys_image_loaded;
 //   - non-null: steady state — `chunk->slow_allocate(bucket, size)`
 //     virtual call updates `g_thread_chunks[bucket]` if `s_my_chunk`
 //     has advanced to a new chunk after a fill.
-//   - `AllocPinCleanup::~dtor` on thread exit clears all entries back
+//   - `AllocThreadExitCleanup::~dtor` on thread exit clears all entries back
 //     to `nullptr`, and the cleanup flag `s_alloc_tls_off` is set so
 //     subsequent allocations route to `std::malloc`.
 // ---------------------------------------------------------------------
@@ -789,70 +852,72 @@ static_assert(sizeof(AllocSlot) == sizeof(char *),
               "AllocSlot must be exactly one pointer wide — "
               "hot-path uses pointer-scaled indexed addressing (lsl #3 on 64-bit, lsl #2 on 32-bit)");
 
-//! Bucket count.
+//! Bucket count (Phase 5d-4 layout).
 //!   - index 0 (size = 0): reuses bucket 1's 16-B allocator
-//!   - 1..16: sizes 16..256 in 16-B increments     (FS=true + FS=false mixed)
-//!   - 17..24: sizes 288..512 in 32-B increments   (FS=false, ALIGN=32)
-//!   - 25..30: sizes 768..2048 in 256-B increments (FS=false, ALIGN=ALLOC_ALIGN2 = 256)
-//!   - 31..36: sizes 3072..8192 in 1024-B increments (FS=false, ALIGN=ALLOC_ALIGN3 = 1024 on 64-bit;
-//!             on 32-bit ALIGN3 = 512, slot sizes still match)
+//!   - 1..16: sizes 16..256 in 16-B increments         (FS=true + FS=false mixed; unchanged)
+//!   - 17..40: 4-way exponential FS=false ladder       (sizes 320..16384 total; 3 ALIGN stages)
+//!       17..24: ALIGN= 64, slot total = 320, 384, 448, 512, 640, 768, 896, 1024  (N = 5..16)
+//!       25..32: ALIGN=256, slot total = 1280, 1536, 1792, 2048, 2560, 3072, 3584, 4096  (N = 5..16)
+//!       33..40: ALIGN=1024, slot total = 5120, 6144, 7168, 8192, 10240, 12288, 14336, 16384  (N = 5..16)
 //!
-//! Range 513..767 is intentionally folded into bucket 25 (slot=768) —
-//! the worst-case internal frag (255/768 ≈ 33%) is paid by a thin
+//! `total` here = user_size + 8 (the Phase 5d "borrow" header).
+//! user_capacity = total - 8.  Each stage doubles ALIGN; the N values
+//! within a stage repeat (5, 6, 7, 8, 10, 12, 14, 16) — clean 4-way
+//! 4-octave coverage with no over-provisioning (every (ALIGN, N) pair
+//! exactly matches its bucket's slot total).
+//!
+//! ALIGN=64 (stage 1) chosen because every bucket-17..24 N value is
+//! even when expressed in ALIGN=32 units — doubling the bitmap unit
+//! halves the bit count per slot without losing size-class fidelity.
+//!
+//! Range 257..319 is intentionally folded into bucket 17 (total 320) —
+//! the worst-case internal frag (63/320 ≈ 20%) is paid by a thin
 //! distribution sliver in the alloc_stress histogram and avoids
-//! adding yet another tier just to shave the boundary.  STM
-//! workloads don't exercise this range at all (histogram-measured).
-constexpr int ALLOC_NUM_BUCKETS = 37;
+//! adding yet another sub-bucket just to shave the boundary.
+constexpr int ALLOC_NUM_BUCKETS = 41;
 
-//! Size → bucket-index for both allocation (user size → bucket of the
-//! smallest slot that fits) and deallocation (slot's actual size →
-//! its bucket).  Both ranges happen to fit the same formula because
-//! slot sizes coincide with the bucket boundary (the top of each
-//! bucket's user-size range == the slot size for that bucket):
+//! Size → bucket-index.  FS=true range (1..256) keeps the 16-byte-step
+//! formula.  FS=false range (257..16376) uses a 4-way exponential
+//! ladder via std::bit_width / __builtin_clzll:
 //!
-//!   user_size 1..16    ↘
-//!   slot_size = 16     ↗ → bucket 1
-//!   user_size 17..32   ↘
-//!   slot_size = 32     ↗ → bucket 2
-//!   ...
-//!   user_size 257..288 ↘
-//!   slot_size = 288    ↗ → bucket 17
-//!   ...
-//!   user_size 481..512 ↘
-//!   slot_size = 512    ↗ → bucket 24
-//!   user_size 513..768 ↘
-//!   slot_size = 768    ↗ → bucket 25
-//!   ...
-//!   user_size 1793..2048 ↘
-//!   slot_size = 2048     ↗ → bucket 30
-//!   user_size 2049..3072 ↘
-//!   slot_size = 3072     ↗ → bucket 31
-//!   ...
-//!   user_size 7169..8192 ↘
-//!   slot_size = 8192     ↗ → bucket 36
+//!   total      = user_size + 8                          (header overhead)
+//!   octave     = floor(log2(total))                     (msb position)
+//!   sub_index  = (total >> (octave - 2)) & 0x3          (2-bit sub-bucket)
+//!   if total has lower bits below sub_index: sub_index += 1
 //!
-//! Sizes > ALLOC_MAX_BUCKETED_SIZE (= 8192) are not covered; callers
-//! must check before indexing — `new_redirected_large` does the test
-//! before falling through to `allocate_large_size_or_malloc`.
-constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = 8192u;
+//! The resulting (octave, sub) maps to bucket 16 + (octave - 8)*4 + sub:
+//!   octave 8 (total 257..512): sub 1..3 → bucket 17..19 (sub 0 = 256,
+//!                                          handled by the FS=true path)
+//!   octave 9..14 (total 513..16384): sub 0..3 → bucket 20..40
+//!
+//! Sub overflow (e.g. octave 9 sub=4 after the lower-bits add) naturally
+//! maps to the next octave's sub=0 via the same formula.
+//!
+//! Max user_size = 16376 (= 16 KiB - 8).  Sizes > ALLOC_MAX_BUCKETED_SIZE
+//! fall through `new_redirected_large` to mmap.
+constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = 16376u;
 
 inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
-	// size ≤ 256: 16-B step slots.  (size+15)>>4 gives 1..16 for
-	// size 1..256, and 0 for size==0 (reuses bucket 0's 16-B allocator).
+	// FS=true range: 1..256, 16-B step.  (size+15)>>4 yields 1..16
+	// for size 1..256, and 0 for size==0 (reuses bucket 0's 16-B
+	// allocator).
 	if(size <= (std::size_t)ALLOC_SIZE16)
 		return static_cast<unsigned int>((size + 15u) >> 4);
-	// 257..512: 32-B step slots (288, 320, ..., 512).  17 + ((size-257)>>5)
-	// gives 17..24.  Works for both user size (rounding up to the
-	// next slot size) and slot size (already a multiple of 32 above 256).
-	if(size <= 512u)
-		return 17u + static_cast<unsigned int>((size - 257u) >> 5);
-	// 513..2048: 256-B step slots (768, 1024, 1280, 1536, 1792, 2048).
-	// 25 + ((size-513)>>8) gives 25..30.
-	if(size <= 2048u)
-		return 25u + static_cast<unsigned int>((size - 513u) >> 8);
-	// 2049..8192: 1024-B step slots (3072, 4096, 5120, 6144, 7168, 8192).
-	// 31 + ((size-2049)>>10) gives 31..36.
-	return 31u + static_cast<unsigned int>((size - 2049u) >> 10);
+	// FS=false 4-way exponential range: 257..16376.
+	std::size_t total = size + 8u;
+	// floor(log2(total)).  __builtin_clzll undefined for 0, but
+	// total >= 265 here so always > 0.
+	int msb = 63 - __builtin_clzll(static_cast<unsigned long long>(total));
+	// 2-bit sub-index for 4-way within the octave.
+	int sub = static_cast<int>((total >> (msb - 2)) & 0x3u);
+	// Any bits below the sub-index region ⇒ round up to next sub-bucket.
+	std::size_t mask = (std::size_t(1) << (msb - 2)) - 1u;
+	if(total & mask) ++sub;
+	// bucket = 16 + (octave - 8) * 4 + sub
+	// Octave 8 has FS=true at sub=0 (size 256), so FS=false starts at
+	// sub=1 → bucket 17.  Sub overflow (4) naturally lifts to next
+	// octave's sub=0 via the same formula.
+	return 16u + static_cast<unsigned int>((msb - 8) * 4 + sub);
 }
 
 extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
