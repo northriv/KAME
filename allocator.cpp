@@ -459,25 +459,13 @@ void drain_thread_slot_freelists() noexcept {
     // `batch_return_to_bitmap`'s `entries[k].chunk == this` walk
     // contract (one matching entry, then the sentinel terminates).
     //
-    // Phase 5c: FS=false slots carry a per-slot prefix at slot_start
-    // = `p_user - ALIGN`; the freelist holds `p_user` pointers, but
-    // `batch_return_to_bitmap` (and its MaskFn) reads the SIZE prefix
-    // from `entries[k].slot[0..3]` and computes the bit index from
-    // the same address.  So FS=false slots MUST be converted to
-    // slot_start before being passed to the batch — without this, the
-    // MaskFn reads user data as SIZE (garbage N_total) and clears the
-    // wrong bits, leaving m_flags_packed permanently positive and
-    // preventing chunk release (observed as runaway mmap escalation
-    // on 2000-thread alloc_stress).
-    //
-    // We're untemplated here (drain iterates all buckets), so ALIGN
-    // is recovered from the chunk header at offset
-    // `ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET`:
-    //   * Low 32 bits  = "slot SIZE word"
-    //                     FS=true: ALIGN, FS=false: 0
-    //   * High 32 bits = ALIGN (always — see `chunk_header_size_info()`)
-    // The low 32 bits identify FS=false (== 0); the high 32 bits
-    // give the offset to subtract.
+    // Phase 5d: freelists hold p_user pointers for BOTH FS=true and
+    // FS=false (the "borrow scheme" puts FS=false's user pointer at
+    // slot_start, same convention as FS=true).  `batch_return_to_bitmap`
+    // and its MaskFn both work on `entries[k].slot == p_user` directly
+    // — for FS=false they read the `{bucket, SIZE}` header from
+    // `p_user - 8` (chunk_header pad for slot 0, predecessor's
+    // reserved tail otherwise).  No per-FS conversion needed.
     CrossDeallocEntry tmp[2] = {};
     for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
         AllocSlot &slot = g_thread_slots[b];
@@ -486,23 +474,7 @@ void drain_thread_slot_freelists() noexcept {
         while(head) {
             char *next = *reinterpret_cast<char **>(head);
             if(PoolAllocatorBase *c = PoolAllocatorBase::lookup_chunk(head)) {
-                // Compute chunk_base from `head` (any pointer inside
-                // the chunk) the same way `deallocate_<>` does — round
-                // down to the chunk's alignment.  `c->m_chunk_size` was
-                // stamped by `allocate_chunk` so it's authoritative.
-                char *chunk_base = reinterpret_cast<char *>(
-                    reinterpret_cast<uintptr_t>(head)
-                    & ~(static_cast<uintptr_t>(c->chunk_size()) - 1u));
-                std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
-                    chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET);
-                std::uint32_t fs_size_word = std::uint32_t(hdr);
-                std::uint32_t align_word   = std::uint32_t(hdr >> 32);
-                // FS=true (fs_size_word != 0): p_user == slot_start.
-                // FS=false (fs_size_word == 0): slot_start = p_user - ALIGN.
-                char *batch_p = (fs_size_word != 0)
-                              ? head
-                              : (head - align_word);
-                tmp[0] = {c, batch_p};
+                tmp[0] = {c, head};
                 // tmp[1] stays {nullptr, nullptr} as the sentinel.
                 c->batch_return_to_bitmap(tmp);
             }
@@ -785,12 +757,36 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// Owner-side freelist hit is handled in `new_redirected` via the
 	// per-thread `g_thread_slots[bucket].freelist_head` — by the time
 	// we reach `allocate_pooled` the freelist has missed.  This path
-	// runs the bitmap CAS to claim N+1 consecutive free bits (Phase 5c):
-	//   * Bit at slot_start: the prefix bit (slot[0..3] stores SIZE).
-	//   * Bits at slot_start+1 .. slot_start+N: the user data area.
-	// User pointer returned = slot_start + ALIGN (skips the prefix).
-	const unsigned int N_user  = SIZE / ALIGN;
-	const unsigned int N_total = N_user + 1u; // +1 for the per-slot prefix
+	// runs the bitmap CAS to claim N contiguous free bits (Phase 5d:
+	// "borrow scheme" — the per-slot `{uint32_t bucket, uint32_t SIZE}`
+	// header lives in the LAST 8 bytes of the PREVIOUS slot's ALIGN
+	// area (or in `chunk_header[56..63]` pad for slot 0 at bit 0/word
+	// 0).  No separate "prefix bit" is claimed.
+	//
+	// User pointer p = slot_start (ALIGN-aligned ✓).
+	// Header at `p - 8`:
+	//   * For slot at bit 0 of word 0: `mempool - 8` = chunk_header
+	//     pad area (currently [56..63] of chunk_base; confirmed
+	//     unused pad in the Phase 5c chunk-header layout).
+	//   * For slot at bit B > 0: byte position `B*ALIGN - 8` = LAST
+	//     8 bytes of bit (B-1)'s ALIGN area.  Universal invariant:
+	//     every allocated slot reserves its OWN last 8 bytes as
+	//     storage for the next slot's header, so `user_area =
+	//     N*ALIGN - 8 bytes` and the reservation is never trampled
+	//     by user writes.
+	//
+	// Required N is the smallest value satisfying
+	// `N*ALIGN - 8 >= SIZE`, i.e. `N = ceil((SIZE + 8) / ALIGN)`.
+	// For the existing bucket-size schedule (SIZE = K*ALIGN), this
+	// equals `K + 1` — same bit count as Phase 5c's `N_user + 1`.
+	const unsigned int N = (SIZE + 8u + ALIGN - 1u) / ALIGN;
+	// Phase 5d header content: bucket index + SIZE packed into 8 bytes.
+	// Computed once on the cold allocate path so the dealloc hot path
+	// can read bucket directly (no `bucket_for_size` call).
+	const std::uint32_t bucket_idx = bucket_for_size(SIZE);
+	const std::uint64_t hdr_word =
+	    static_cast<std::uint64_t>(bucket_idx)
+	  | (static_cast<std::uint64_t>(SIZE) << 32);
 	// Phase 5a: fragmentation cutoff.  FS=false multi-bit slots
 	// progressively fragment the bitmap (free bits scattered across
 	// the word in pieces too small for a fresh N+1-bit allocation).
@@ -823,34 +819,51 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	char *slot_start = nullptr;
 	for(FUINT *pend = &this->m_flags[this->m_count];;) {
 		oldv = *pflag;
-		cand = find_training_zeros(N_total, oldv);
+		cand = find_training_zeros(N, oldv);
 		if(cand) {
 			ones = cand *
-				(2u * (((FUINT)1u << (N_total - 1u)) - 1u) + 1u); //N_total ones, not to overflow.
-//			assert(count_bits(ones) == N_total);
+				(2u * (((FUINT)1u << (N - 1u)) - 1u) + 1u); //N ones, not to overflow.
+//			assert(count_bits(ones) == N);
 //			assert( !(ones & oldv));
 			sidx = count_zeros_forward(cand);
 			int idx_cand = pflag - this->m_flags;
 			slot_start = &this->m_mempool[
 			    (size_t(idx_cand) * sizeof(FUINT) * 8 + sidx) * ALIGN];
-			// Phase 5c: write the per-slot SIZE prefix BEFORE the CAS
-			// publishes the bit.  The prefix lives in the slot's own
-			// first ALIGN bytes (bit `sidx` of m_flags[idx_cand]); we
-			// know that bit is currently clear (find_training_zeros
-			// picked it out of `oldv`), so no concurrent allocator
-			// can race for the same prefix address.  Other threads
-			// observing the bit transition see a valid prefix via the
-			// CAS's release semantics.
+			// Phase 5d: write the {bucket, SIZE} header BEFORE the CAS
+			// publishes the bit.  Header lives at `slot_start - 8`:
+			//   * Bit 0 of word 0 (= slot_start == mempool):
+			//       slot_start - 8 = mempool - 8 = chunk_base + 56
+			//       = chunk_header pad area.  Confirmed unused per
+			//       Phase 5c chunk-header layout ([32..63] pad).
+			//   * Bit B > 0 (= slot_start == mempool + B*ALIGN):
+			//       slot_start - 8 lands in bit (B-1)'s last 8 bytes,
+			//       which is either:
+			//         - the LAST 8 bytes of an allocated slot whose
+			//           bitmap bit happens to be (B-1) — that slot's
+			//           user_area = N*ALIGN-8 excludes its last 8 B
+			//           (universal "reservation for next slot's
+			//           header" invariant), so writing here is safe.
+			//         - within a free bitmap region — writing to free
+			//           memory is benign; the bytes get re-claimed by
+			//           the next allocation that includes bit (B-1)
+			//           as ITS LAST bit (and that allocation will see
+			//           our slot's bit B as set, so it cannot extend
+			//           past bit B-1 → its last 8 B IS our header).
 			//
-			// 32-bit store is sufficient: bucket sizes top out at
-			// 8192 B, well within uint32_t range.
-			*reinterpret_cast<std::uint32_t *>(slot_start) = SIZE;
+			// The header write races against neither (1) a concurrent
+			// alloc for the SAME slot (only the CAS winner ends up
+			// owning the slot; CAS release semantics publish the
+			// header to observers via the bit transition), nor (2) a
+			// concurrent write to the same address by an OTHER slot's
+			// alloc (per the invariant above, this 8 B is owned by
+			// exactly this slot's header storage).
+			*reinterpret_cast<std::uint64_t *>(slot_start - 8) = hdr_word;
 			// Always-CAS path (formerly an oldv==0 non-atomic fast write
 			// existed here). See sibling allocate_pooled(FS=true) for
 			// the rationale: TLS s_my_chunk fast path in allocate()
 			// removes the bit0-lock around chunk access, so the
 			// non-atomic store would torn-write under contention.
-			FUINT newv = oldv | ones; //filling with N_total ones (prefix + user).
+			FUINT newv = oldv | ones; //filling with N ones (all user bits).
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
@@ -880,28 +893,23 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	idx = pflag - this->m_flags;
 	this->m_idx = idx;
 
-	// Return the USER pointer: slot_start is where the prefix lives;
-	// skip one ALIGN to point at the user data area.
-	return slot_start + ALIGN;
+	// Return the USER pointer: slot_start is the first claimed bit's
+	// byte position, which IS the user data start (header is at
+	// slot_start - 8 in the borrow scheme).
+	return slot_start;
 }
 template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
-	// Phase 5c: per-slot SIZE lives in the slot's own first ALIGN
-	// bytes (the "+1 prefix").  `p` is the user pointer (= slot_start
-	// + ALIGN); read SIZE from `p - ALIGN`.  Replaces the previous
-	// m_sizes[idx]>>sidx decode (find_zero_forward + count_bits) with
-	// a single 32-bit load — and the load is on data the caller
-	// likely just touched, so cache-hot.
+	// Phase 5d: {bucket, SIZE} header at `p - 8` (LAST 8 bytes of the
+	// prefix bit's ALIGN area).  One 64-bit load recovers bucket
+	// directly — no `bucket_for_size(SIZE)` call on the hot path.
 	//
-	// Owner-side dealloc: compute the global bucket index for SIZE and
-	// push to the per-thread `g_thread_slots[bucket].freelist_head`
-	// — exactly the slot that `new_redirected` pops from on the next
-	// allocation of that size.  Non-owner OR bucket-out-of-range
-	// (slot's size exceeds what `new_redirected` covers, i.e.
-	// size > ALLOC_MAX_BUCKETED_SIZE) routes to the cross-thread TLS
-	// batch, which converts p→slot_start and dispatches to
-	// `batch_return_to_bitmap`'s prefix-aware N+1-bit clear.
+	// Owner-side dealloc: push to the per-thread
+	// `g_thread_slots[bucket].freelist_head` — exactly the slot that
+	// `new_redirected` pops from on the next allocation of that size.
+	// Non-owner OR slot 0 (bucket==0 sentinel reserved by 5d-3) routes
+	// to the cross-thread path which uses slot_start for batch dispatch.
 	//
 	// `s_my_chunk` has declared type `PoolAllocator<ALIGN, false, false>*`
 	// (from the base's `PoolAllocator<ALIGN, DUMMY, DUMMY>*` with
@@ -910,45 +918,32 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// same chunk object.  Compare as void* to bypass the type mismatch.
 	if(static_cast<void *>(PoolAllocator<ALIGN, true, false>::s_my_chunk)
 	    == static_cast<void *>(this)) {
-		std::size_t size_bytes = static_cast<std::size_t>(
-		    *reinterpret_cast<std::uint32_t *>(p - ALIGN));
-		// Same `bucket_for_size` as `new_redirected` — slot sizes
-		// (multiples of 16 ≤ 256 or 32 between 288..512) all land
-		// on their canonical bucket regardless of which formula
-		// branch you came through.
-		if(size_bytes >= 1 && size_bytes <= ALLOC_MAX_BUCKETED_SIZE) {
-			unsigned bucket = bucket_for_size(size_bytes);
+		std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
+		unsigned bucket = static_cast<unsigned>(hdr);
+		// Defensive bound check (bucket must be valid; misroute on
+		// stale data is detected and falls through to bitmap path).
+		if(bucket >= 1 && bucket < ALLOC_NUM_BUCKETS) {
 			kame_slots_base()[bucket].push(p);
 			return false;
 		}
 	}
-	// Cross-thread / non-owner path: pass the slot_start address to
-	// the batch so `batch_return_to_bitmap`'s MaskFn can read the
-	// SIZE prefix from `slot_start[0..3]` (== `(p - ALIGN)[0..3]`)
-	// and compute the bit position of the prefix directly (no
-	// `sidx - 1` wrap arithmetic).
-	char *slot_start = p - ALIGN;
-	// Post-teardown bypass.  `~AllocThreadExitCleanup` sets `s_alloc_tls_off`
-	// just before exiting; `~CrossDeallocBatch` ran earlier in the
-	// PerThread LIFO chain so the cross-batch storage is already
-	// `free()`d.  Later pthread_key dtors that delete pool slots must
-	// not push to it — go through `batch_return_to_bitmap` directly
-	// on a single-slot scratch + sentinel.
+	// Cross-thread / non-owner / post-teardown path: pass p_user
+	// directly.  Phase 5d "borrow" scheme: p_user == slot_start, so
+	// no `- ALIGN` conversion needed.  The cross-batch MaskFn reads
+	// the header from `p_user - 8` (= chunk_header pad for slot 0, or
+	// previous slot's reserved tail otherwise).
 	if(__builtin_expect(s_alloc_tls_off, 0)) {
-		CrossDeallocEntry tmp[2] = {{this, slot_start}, {nullptr, nullptr}};
+		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 		this->batch_return_to_bitmap(tmp);
 		return false;
 	}
 	// FS=false large slots: bypass the holding buffer by default,
-	// dispatch immediately.  Each FS=false slot consumes N+1 bits in
-	// m_flags (prefix + user data), so per-word coalescing windows
-	// are small AND large-slot chunks repeat less frequently than
-	// FS=true small-slot chunks — the holding cost wouldn't pay back.
-	// `push_direct` consults the chunk's adaptive coalescing hint to
-	// override and hold if this particular chunk has shown high
-	// recent merge factor (epsilon-greedy explores periodically to
-	// re-evaluate).
-	tls_cross_dealloc_batch.template push_direct<ALIGN, false>(this, slot_start);
+	// dispatch immediately.  Each FS=false slot consumes N bits in
+	// m_flags, so per-word coalescing windows are small AND large-
+	// slot chunks repeat less frequently than FS=true small-slot
+	// chunks — the holding cost wouldn't pay back.  (Phase 5d-2 may
+	// drop the holding-hint machinery entirely for FS=false.)
+	tls_cross_dealloc_batch.template push_direct<ALIGN, false>(this, p);
 	return false;
 }
 
@@ -963,28 +958,28 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled_static(
 	return self->PoolAllocator::deallocate_pooled(p);
 }
 
-// FS=false slot-size trampoline (Phase 5c).  Reads the user-requested
-// SIZE from the per-slot prefix at `p - ALIGN` (the slot's own first
-// ALIGN bytes; allocate_pooled wrote it there before publishing the
-// bitmap bit).  Used by `realloc()` via `PoolAllocatorBase::size_of()`
-// to recover the exact allocated byte count for a slot.
+// FS=false slot-size trampoline (Phase 5d).  Reads SIZE from the
+// `{bucket, SIZE}` header at `p - 8` (the LAST 8 bytes of the prefix
+// bit's ALIGN area; allocate_pooled wrote it there before publishing
+// the bitmap bit).  Used by `realloc()` via
+// `PoolAllocatorBase::size_of()` to recover the exact allocated byte
+// count for a slot.  The high 32 bits of the 64-bit header hold SIZE.
 template <unsigned int ALIGN, bool DUMMY>
 std::size_t
 PoolAllocator<ALIGN, false, DUMMY>::size_of_static(
     PoolAllocatorBase * /*base*/, char *p) noexcept {
 	return static_cast<std::size_t>(
-	    *reinterpret_cast<std::uint32_t *>(p - ALIGN));
+	    *reinterpret_cast<std::uint32_t *>(p - 4));
 }
 
-// FS=false batch return (Phase 5c) — multi-bit clear with N+1 bits
-// per slot (prefix + user area).  Caller (`deallocate_pooled` /
-// `push_direct`) passes `slot_start` (= p_user - ALIGN), so MaskFn's
-// `p` argument is the slot_start address; SIZE lives at slot_start[0..3]
-// and the prefix bit is at `sidx` of the same word.  Reuses the
-// inherited batch_clear_impl skeleton with a prefix-aware multi-bit
-// MaskFn and FS=false-specific OnClearFn (no filled_cnt; m_available_bits
-// is gone since Phase 5c's fragmentation cutoff in allocate_pooled
-// replaces it).
+// FS=false batch return (Phase 5d "borrow" scheme) — N-bit clear
+// where N = ceil((SIZE + 8) / ALIGN).  Caller passes `p` = p_user
+// (= slot_start in the borrow scheme).  The `{bucket, SIZE}` header
+// lives at `p - 8` (= chunk_header pad for slot 0, or previous slot's
+// reserved last-8 bytes otherwise).  Reuses the inherited
+// batch_clear_impl skeleton with a borrow-scheme MaskFn and FS=false-
+// specific OnClearFn (no filled_cnt; m_available_bits is gone since
+// Phase 5c's fragmentation cutoff in allocate_pooled replaces it).
 template <unsigned int ALIGN, bool DUMMY>
 int
 PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
@@ -993,20 +988,22 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 	// chunk's group OR the trailing {nullptr, nullptr} sentinel that
 	// `CrossDeallocBatch::flush` plants at buf[count].  No `k < n_max`
 	// test in the inner loop.  Drain / post-teardown single-slot paths
-	// pass a stack-local {this, slot_start} + sentinel pair.
+	// pass a stack-local {this, p_user} + sentinel pair.
 	int n = this->batch_clear_impl(entries,
-		// MaskFn: Phase 5c FS=false multi-bit clear.  `p` is slot_start;
-		// SIZE was written to slot_start[0..3] by allocate_pooled.
-		// Compute N+1 = SIZE/ALIGN + 1 and produce an N+1-bit mask at
-		// the prefix position `sidx`.
+		// MaskFn: Phase 5d FS=false N-bit clear (borrow scheme).
+		// `p` is p_user (= slot_start); the `{bucket, SIZE}` header
+		// is at `p - 8` (in previous slot's reserved 8 B tail OR in
+		// chunk_header pad for slot 0).  SIZE is the upper 32 bits.
+		// N = ceil((SIZE + 8) / ALIGN) bits starting at the slot's
+		// own bit position `sidx`.
 		[](int /*idx*/, unsigned sidx, char *p) -> FUINT {
-			unsigned size_bytes =
-			    *reinterpret_cast<std::uint32_t *>(p);
-			unsigned N_total = size_bytes / ALIGN + 1u;
-			FUINT slot_mask = (((FUINT(1) << N_total) - FUINT(1))) << sidx;
+			unsigned size_bytes = *reinterpret_cast<std::uint32_t *>(
+			    p - 4);
+			unsigned N = (size_bytes + 8u + ALIGN - 1u) / ALIGN;
+			FUINT slot_mask = (((FUINT(1) << N) - FUINT(1))) << sidx;
 #ifdef GUARDIAN
 			for(unsigned int j = 0;
-			    j < N_total * ALIGN / sizeof(uint64_t); ++j)
+			    j < N * ALIGN / sizeof(uint64_t); ++j)
 				reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
 #endif
 			return slot_mask;
