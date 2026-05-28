@@ -601,7 +601,13 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	m_flags(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)])),
 	m_idx(0),
 	m_count(count) {
-	m_flags_packed = 0;
+	// Phase 5j: BIT_OWNED set at construction — the chunk has an
+	// owner (the thread doing the chunk-claim and adding to its DLL).
+	// MASK_CNT = 0 initially; allocate_pooled bumps it.  BIT_OWNED is
+	// cleared by release_dll_chunks_for_thread / owner_release via
+	// atomicFetchAnd, which doubles as the release-rights check
+	// (newv == 0 ⇒ I'm the unique releaser).
+	m_flags_packed = BIT_OWNED;
 	m_flags_filled_cnt = 0;
 	for(int i = count - 1; i >= 0 ; --i)
 		m_flags[i] = 0; //zero clear.
@@ -933,6 +939,7 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 	// `CrossDeallocBatch::flush` plants at buf[count].  No `k < n_max`
 	// test in the inner loop.  Drain / post-teardown single-slot paths
 	// pass a stack-local {this, p_user} + sentinel pair.
+	bool i_am_releaser = false;
 	int n = this->batch_clear_impl(entries,
 		// MaskFn: Phase 5d FS=false N-bit clear (borrow scheme).
 		// `p` is p_user (= slot_start); the `{bucket, SIZE}` header
@@ -952,33 +959,26 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 #endif
 			return slot_mask;
 		},
-		// OnClearFn: FS=false counter only (m_available_bits dropped
-		// in Phase 5c — Phase 5a's fragmentation cutoff in
-		// allocate_pooled handles the same concern earlier and
-		// independently of N).
-		[this](FUINT oldv, FUINT newv) {
+		// OnClearFn: FS=false.  Phase 5j: use atomicDecAndTest to
+		// identify the unique releaser when MASK_CNT goes 1 → 0.  If
+		// dec returns 0, BIT_OWNED was already clear (owner is gone)
+		// AND MASK_CNT was 1 → this caller is the sole releaser.
+		[this, &i_am_releaser](FUINT oldv, FUINT newv) {
 			if(newv == 0 && oldv != 0) {
-				atomicDec( &this->m_flags_packed);
+				if(atomicDecAndTest(&this->m_flags_packed))
+					i_am_releaser = true;
 			}
 			// Phase 5f: maintain m_flags_filled_cnt symmetric with
 			// allocate_pooled's atomicInc on word-becomes-all-ones.
-			// A clearing CAS that took the word from `~0` to anything
-			// non-`~0` un-fills the word.
 			if(oldv == ~(FUINT)0u)
 				atomicDec( &this->m_flags_filled_cnt);
 		});
-	// Chunk-release check.  Safe to delete this — the caller is on
-	// a single-slot path and won't reference this chunk again after
-	// the call.  `deallocate_chunk` MUST follow `delete this` (using
-	// the pre-cached chunk_base/chunk_size) so the chunk header
-	// pointer is cleared and the mempool mprotect'd back to PROT_NONE.
-	// Without it, a subsequent `deallocate_<>` lookup on a stray
-	// pointer landing in this VA range would dereference the freed
-	// PoolAllocator instance via the chunk header.
-	if((this->m_flags_packed & this->MASK_CNT) == 0
-	        && PoolAllocator<ALIGN, true, false>::cross_release(this)) {
-		// chunk_base = m_mempool - ALLOC_CHUNK_HEADER (the slot region
-		// starts at the chunk's header-reserved offset).
+	if(i_am_releaser) {
+		// Phase 5j: atomicDecAndTest uniquely identified me as the
+		// releaser (m_flags_packed transitioned to 0 = BIT_OWNED clear,
+		// MASK_CNT == 0).  No CAS race possible — owner exit's
+		// atomicFetchAnd(~BIT_OWNED) and the dec-to-0 are mutually
+		// exclusive (only one operation brings the word to all-zero).
 		char *cbase = this->m_mempool - ALLOC_CHUNK_HEADER;
 		size_t csz = this->m_chunk_size;
 		delete this;
@@ -1101,24 +1101,26 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
 	}
 #endif
+	bool i_am_releaser = false;
 	int n = this->batch_clear_impl(entries,
 		// MaskFn: FS=true single bit
 		[](int /*idx*/, unsigned sidx, char * /*p*/) -> FUINT {
 			return ((FUINT)1u) << sidx;
 		},
-		// OnClearFn: FS=true counter updates
-		[this](FUINT oldv, FUINT newv) {
+		// OnClearFn: FS=true.  Phase 5j: use atomicDecAndTest to
+		// identify the unique releaser when MASK_CNT goes 1 → 0.
+		[this, &i_am_releaser](FUINT oldv, FUINT newv) {
 			if(oldv == ~(FUINT)0u)
 				atomicDec( &this->m_flags_filled_cnt);
-			if(newv == 0 && oldv != 0)
-				atomicDec( &this->m_flags_packed);
+			if(newv == 0 && oldv != 0) {
+				if(atomicDecAndTest(&this->m_flags_packed))
+					i_am_releaser = true;
+			}
 		});
-	// Chunk-release check.  See FS=false sibling for the rationale —
-	// `deallocate_chunk` MUST follow `delete this` so the chunk
-	// header pointer is cleared and the mempool faults on a later
-	// stray access.
-	if((this->m_flags_packed & this->MASK_CNT) == 0
-	        && PoolAllocator<ALIGN, FS, DUMMY>::cross_release(this)) {
+	if(i_am_releaser) {
+		// Phase 5j: dec brought m_flags_packed to 0 → BIT_OWNED was
+		// already clear (owner gone) AND MASK_CNT was 1.  I am
+		// uniquely the releaser.
 		char *cbase = this->m_mempool - ALLOC_CHUNK_HEADER;
 		size_t csz = this->m_chunk_size;
 		delete this;
@@ -1745,6 +1747,21 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
+	// Phase 5j release model:
+	//   - Owner thread observes a DLL-neighbour chunk that's empty
+	//     (MASK_CNT == 0).
+	//   - atomicFetchAnd(~BIT_OWNED) clears the owned bit.
+	//   - If `old & ~BIT_OWNED == 0`, owner is the unique releaser
+	//     (= the AND brought m_flags_packed to 0 because MASK_CNT was
+	//     0 and BIT_OWNED was 1).  Return true → caller deletes +
+	//     deallocate_chunks.
+	//   - Else MASK_CNT > 0 (in-flight cross-thread free that hadn't
+	//     completed when owner observed empty — very rare since
+	//     cross-thread dec is atomic and visible) → leave for cross-
+	//     thread releaser.  Return false.  BIT_OWNED is now clear so
+	//     the cross-thread releaser's subsequent atomicDecAndTest will
+	//     bring the word to 0 and identify itself as releaser.
+	//
 	// Per-thread floor check: count this thread's DLL chunks and skip
 	// release below the floor.  Cheap — DLL is single-writer (us) and
 	// typically holds 1–3 chunks per template, far below
@@ -1755,13 +1772,19 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 	for(auto *c = s_dll_head; c; c = c->m_dll_next) ++dll_len;
 	if(dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD) return false;
 
-	uint32_t old = palloc->m_flags_packed;
-	for(;;) {
-		if(old & BIT_RELEASED) return false;        // already-being-released
-		if((old & MASK_CNT) != 0) return false;     // not empty (slot came back)
-		if(atomicCompareAndSet(old, old | BIT_RELEASED, &palloc->m_flags_packed))
-			break;
-		old = palloc->m_flags_packed;
+	// Quick pre-check: bail if not empty.  Avoids the atomicFetchAnd
+	// (and the BIT_OWNED clear that'd hand release to cross-thread).
+	if((palloc->m_flags_packed & MASK_CNT) != 0) return false;
+
+	uint32_t old = atomicFetchAnd(&palloc->m_flags_packed,
+	                              static_cast<uint32_t>(~BIT_OWNED));
+	uint32_t newv = old & ~BIT_OWNED;
+	if(newv != 0) {
+		// MASK_CNT > 0 (cross-thread brought a bit back?) — no, MASK_CNT
+		// monotone non-increases on non-pinned DLL chunks.  Reaching
+		// here means the pre-check raced with our AND completion.  Not
+		// the releaser; cross-thread will handle.
+		return false;
 	}
 #ifdef GUARDIAN
 	void *ppool = palloc->m_mempool;
@@ -1775,19 +1798,19 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 	return true;
 }
 
+// Phase 5j: cross_release no longer needed as a separate path.
+// Cross-thread releaser identification is inlined in
+// batch_return_to_bitmap's OnClearFn via atomicDecAndTest — when
+// dec brings m_flags_packed to 0 (= BIT_OWNED was clear AND MASK_CNT
+// was 1), that thread is uniquely the releaser.  The function is
+// kept declared in allocator_prv.h for ABI stability across template
+// instantiations but defined as a stub here.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
-PoolAllocator<ALIGN, FS, DUMMY>::cross_release(PoolAllocator *palloc) {
-	uint32_t old = palloc->m_flags_packed;
-	for(;;) {
-		if(old & BIT_RELEASED) return false;
-		if( !(old & BIT_OWNER_EXITED)) return false;  // owner still alive
-		if((old & MASK_CNT) != 0) return false;        // re-grew
-		if(atomicCompareAndSet(old, old | BIT_RELEASED, &palloc->m_flags_packed))
-			break;
-		old = palloc->m_flags_packed;
-	}
-	return true;
+PoolAllocator<ALIGN, FS, DUMMY>::cross_release(PoolAllocator * /*palloc*/) {
+	// Legacy entry — not used in Phase 5j+.  See OnClearFn release
+	// branch in batch_return_to_bitmap.
+	return false;
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -1806,6 +1829,20 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 	// later TLS dtor that allocates (via `cold_first_access` →
 	// `is_allocator_thread_active() == false` → libsystem fallback)
 	// cannot route through a chunk we already released.
+	// Phase 5j: single atomicFetchAnd per DLL chunk.  Clears BIT_OWNED;
+	// if the resulting value is 0 (MASK_CNT was 0 → chunk was empty),
+	// owner is the unique releaser.  Otherwise the chunk has live
+	// slots — cross-thread free will identify itself as releaser via
+	// atomicDecAndTest when it brings MASK_CNT to 0.
+	//
+	// Race with concurrent cross-thread free:
+	//   Cross-thread dec from (BIT_OWNED=1, MASK_CNT=1) → (1, 0):
+	//     atomicDecAndTest returns false (newv != 0 because BIT_OWNED).
+	//     Owner's subsequent AND brings to 0 → owner releases.
+	//   Owner's AND from (1, 1) → (0, 1):
+	//     newv = 1 ≠ 0; owner not releaser.  Cross-thread dec from
+	//     (0, 1) → 0; cross-thread releases.
+	// Exactly one releaser in each interleaving.
 	auto *c = s_dll_head;
 	s_dll_head = nullptr;
 	s_dll_tail = nullptr;
@@ -1814,33 +1851,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		auto *next = c->m_dll_next;
 		c->m_dll_prev = nullptr;
 		c->m_dll_next = nullptr;
-		uint32_t old = c->m_flags_packed;
-		bool released = false;
-		for(;;) {
-			if(old & BIT_RELEASED) break;  // shouldn't happen — we still owned it
-			uint32_t newv;
-			if((old & MASK_CNT) == 0) {
-				// empty — claim BIT_RELEASED directly.
-				newv = old | BIT_RELEASED;
-				if(atomicCompareAndSet(old, newv, &c->m_flags_packed)) {
-					released = true;
-					break;
-				}
-			}
-			else {
-				// non-empty — set BIT_OWNER_EXITED, stop observing c.
-				newv = old | BIT_OWNER_EXITED;
-				if(atomicCompareAndSet(old, newv, &c->m_flags_packed))
-					break;
-			}
-			old = c->m_flags_packed;
-		}
-		if(released) {
+		uint32_t old = atomicFetchAnd(&c->m_flags_packed,
+		                              static_cast<uint32_t>(~BIT_OWNED));
+		uint32_t newv = old & ~BIT_OWNED;
+		if(newv == 0) {
 			char *cbase = c->m_mempool - ALLOC_CHUNK_HEADER;
 			size_t csz = c->m_chunk_size;
 			delete c;
 			PoolAllocatorBase::deallocate_chunk(cbase, csz);
 		}
+		// else: chunk still has live slots (MASK_CNT > 0).
+		// Cross-thread releaser will pick it up via atomicDecAndTest.
 		c = next;
 	}
 }
