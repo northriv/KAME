@@ -736,14 +736,16 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// runs the bitmap CAS to claim N contiguous free bits (Phase 5d:
 	// "borrow scheme" — the per-slot `{uint32_t bucket, uint32_t SIZE}`
 	// header lives in the LAST 8 bytes of the PREVIOUS slot's ALIGN
-	// area (or in `chunk_header[56..63]` pad for slot 0 at bit 0/word
-	// 0).  No separate "prefix bit" is claimed.
+	// area, or in `chunk_header[56..63]` for slot 0 at bit 0/word 0.
+	// No separate "prefix bit" is claimed.  See allocator_prv.h's
+	// chunk-header layout doc (Phase 5d-3) for the formal reservation.
 	//
 	// User pointer p = slot_start (ALIGN-aligned ✓).
 	// Header at `p - 8`:
-	//   * For slot at bit 0 of word 0: `mempool - 8` = chunk_header
-	//     pad area (currently [56..63] of chunk_base; confirmed
-	//     unused pad in the Phase 5c chunk-header layout).
+	//   * For slot at bit 0 of word 0: `mempool - 8` = `chunk_base +
+	//     ALLOC_CHUNK_HEADER - 8` = `chunk_header[56..63]` —
+	//     formally reserved by Phase 5d-3 (static_assert in
+	//     allocator_prv.h confirms ≥ 8 B of pad before this region).
 	//   * For slot at bit B > 0: byte position `B*ALIGN - 8` = LAST
 	//     8 bytes of bit (B-1)'s ALIGN area.  Universal invariant:
 	//     every allocated slot reserves its OWN last 8 bytes as

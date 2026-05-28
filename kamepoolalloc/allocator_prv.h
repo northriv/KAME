@@ -142,63 +142,59 @@ inline bool atomicDecAndTest(T *target) noexcept {
     #define ALLOC_MAX_MMAP_ENTRIES 5
 #endif
 
-//! Reserved bytes at the head of every chunk.  Layout (Phase 5c):
-//!   [0 .. 7]:   chunk-wide SIZE info — `uint64_t`:
+//! Reserved bytes at the head of every chunk.  Layout (Phase 5d):
+//!   [ 0 ..  7]: chunk-wide SIZE info — `uint64_t`:
 //!                 FS=true  (fixed-size chunk): low 32 bits = slot
 //!                          size in bytes (= ALIGN; same for every
 //!                          slot in the chunk).  Non-zero ⇒ "jump
 //!                          straight to bucket-driven dispatch
-//!                          without a per-slot prefix read".
+//!                          without a per-slot header read".
 //!                 FS=false (variable-size): 0.  Distinct from FS=true
 //!                          and from chunk-released (palloc==0); the
-//!                          dealloc path reads the SIZE from the
-//!                          per-slot prefix at `p - ALIGN` instead.
-//!               High 32 bits: reserved (future: bucket id / ALIGN
-//!               shift / dispatch hint for a fully-unified deallocate
-//!               that branches on `(hdr[0] != 0)` and avoids the
-//!               indirect `DeallocateFn` call).
-//!   [8 .. 15]:  `PoolAllocatorBase *` (chunk owner; source of truth
-//!               for O(1) lookup from any slot via
-//!               `*(PoolAllocatorBase**)(chunk_base + 8)`.  Moved
-//!               from [0..7] in Phase 5c to make room for the SIZE
-//!               info slot.)
-//!   [16 .. 23]: `DeallocateFn` — pointer to a non-virtual static
-//!               trampoline that dispatches the dealloc body
-//!               (`PoolAllocatorBase::DeallocateFn`).  Replaces
-//!               vtable dispatch on the `deallocate_<>` hot path.
-//!               Moved from [8..15] in Phase 5c.
-//!   [24 .. 31]: `SizeOfFn` — non-virtual static trampoline that
-//!               returns the slot size (in bytes) for any slot
-//!               pointer in this chunk.  Used by `realloc()` /
-//!               `pool_slot_size()` to size copies without a vtable
-//!               call.  FS=true: returns the constant ALIGN; FS=false:
-//!               reads the per-slot prefix at `p - ALIGN` (Phase 5c).
-//!               Moved from [16..23] in Phase 5c.
-//!   [32 .. 63]: pad to a cache line.
+//!                          dealloc path reads the per-slot
+//!                          `{bucket, SIZE}` header at `p - 8`
+//!                          instead (Phase 5d "borrow" scheme).
+//!               High 32 bits: ALIGN (always — for non-templated
+//!               dispatchers; see `chunk_header_size_info()`).
+//!   [ 8 .. 15]: `PoolAllocatorBase *` palloc (chunk owner).
+//!   [16 .. 23]: `DeallocateFn` — non-virtual static trampoline
+//!               (per-template) that dispatches the dealloc body.
+//!   [24 .. 31]: `SizeOfFn` — slot-size lookup trampoline.
+//!               FS=false: reads SIZE from the per-slot
+//!               `{bucket, SIZE}` header at `p - 8` (Phase 5d).
+//!   [32 .. 55]: pad.
+//!   [56 .. 63]: RESERVED for FS=false slot 0's `{uint32_t bucket,
+//!               uint32_t SIZE}` header (Phase 5d-3 "borrow" scheme
+//!               formalisation).
+//!               The slot at bit 0 of m_flags[0] (= the slot whose
+//!               p_user == mempool == chunk_base + ALLOC_CHUNK_HEADER)
+//!               has no predecessor whose last 8 B can host its
+//!               header; this 8-byte tail of the chunk-header pad is
+//!               its dedicated home.
+//!               `allocate_pooled` writes here uniformly via
+//!               `slot_start - 8` (= chunk_base + 56) without any
+//!               special-case branch — the address math reduces
+//!               naturally.  For FS=true chunks this 8 B is just
+//!               unused pad (FS=true has no per-slot header).
 //! Slot region (`m_mempool`) starts at `chunk_base + ALLOC_CHUNK_HEADER`.
 //!
-//! TODO (Phase 5d candidate): the [0..7] SIZE info enables a
+//! TODO (Phase 5d-4 candidate): the [0..7] SIZE info enables a
 //! "unified deallocate" that branches on `(hdr[0] != 0)` instead of
-//! the indirect `DeallocateFn` call.  Requires also storing
-//! enough metadata (ALIGN or bucket) in the header so the FS=false
-//! arm can compute `p - ALIGN` without a per-template dispatch.
-//!
-//! TODO (memo, deferred per user 2026-05-28): an alternative to the
-//! Phase 5c "+1 prefix" scheme for FS=false is the "-8 bytes" scheme:
-//!   * Bitmap claims the original N bits (no +1).
-//!   * The first 8 bytes of the slot store SIZE (uint64_t), and the
-//!     returned pointer is `slot_start + 8`.
-//!   * The user-usable area is `N * ALIGN - 8 bytes`.
-//! This avoids the +1 ALIGN of slot-level overhead at the cost of
-//! shrinking the user area by 8 bytes.  Bucket sizes would need to
-//! be retuned so each natural bucket size still fits in `N*ALIGN-8`
-//! for the chosen N.  Defer until after Phase 5c lands and has
-//! shipped benchmarks.
+//! the indirect `DeallocateFn` call.  The high-32-b ALIGN is
+//! already available, so FS=false's `p - 8` header read needs no
+//! extra per-template dispatch.
 #define ALLOC_CHUNK_HEADER 64
-#define ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET 0   // [0..7]: chunk SIZE info
-#define ALLOC_CHUNK_HEADER_PALLOC_OFFSET    8   // [8..15]: palloc (moved)
-#define ALLOC_CHUNK_HEADER_FN_OFFSET        16  // [16..23]: DeallocateFn
-#define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET 24  // [24..31]: SizeOfFn
+#define ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET     0   // [ 0.. 7]: chunk SIZE info
+#define ALLOC_CHUNK_HEADER_PALLOC_OFFSET        8   // [ 8..15]: palloc
+#define ALLOC_CHUNK_HEADER_FN_OFFSET           16   // [16..23]: DeallocateFn
+#define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET    24   // [24..31]: SizeOfFn
+// [56..63] = slot-0 header (= ALLOC_CHUNK_HEADER - 8).  No constant
+// needed — `allocate_pooled` reaches it via the uniform
+// `slot_start - 8` math (slot 0's slot_start == m_mempool ==
+// chunk_base + ALLOC_CHUNK_HEADER).
+static_assert(ALLOC_CHUNK_HEADER >= ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET + 8 + 8,
+              "chunk header must have >= 8 B of pad between SizeOfFn "
+              "and the slot-0 reservation at chunk_header[-8..-1].");
 
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
