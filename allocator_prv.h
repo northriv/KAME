@@ -445,17 +445,23 @@ public:
 	//! walk from `s_dll_head` instead of resuming from a stale
 	//! `s_dll_cursor`.
 	//!
-	//! Stored as `std::atomic<bool> *` for C++-standard-conformant
-	//! cross-thread writes; `memory_order_relaxed` is sufficient
-	//! (this is purely a hint — false negatives just delay revival
-	//! detection by one chunk-fill cycle, false positives waste one
-	//! O(DLL) walk).
+	//! Phase 5x: declared `std::atomic<std::atomic<bool> *>` (atomic
+	//! pointer to atomic bool) so that owner-exit
+	//! (`release_dll_chunks_for_thread`) and concurrent cross-thread
+	//! frees on surviving chunks do not data-race on plain pointer
+	//! access.  Owner-exit stores `nullptr` with `release` BEFORE
+	//! clearing BIT_OWNED; cross-thread freers load with `acquire`
+	//! and skip the deref when null.  The 1000-thread `alloc_stress`
+	//! Linux SEGV that Phase 5v exhibited (1000 thr × 20K × 30 %cross)
+	//! is fixed by this ordering — without atomic load/store on the
+	//! pointer, owner-exit's plain `= nullptr` racing with a cross-
+	//! thread freer's plain `->store(...)` was UB and crashed on Linux.
 	//!
-	//! Set once at chunk construction; immutable afterwards
-	//! (lifetime: ties to the owner thread; if the owner exits and
-	//! its TLS storage is reclaimed, the chunk is also released
-	//! via `release_dll_chunks_for_thread` BEFORE the TLS goes away).
-	std::atomic<bool> *m_owner_dll_force_walk_ptr = nullptr;
+	//! Inner `store(true)` (cross-thread → owner) and the owner's
+	//! `exchange(false)` in `allocate_chunk_path` remain
+	//! `memory_order_relaxed` — the hint itself doesn't require
+	//! synchronisation, only the outer pointer's lifetime does.
+	std::atomic<std::atomic<bool> *> m_owner_dll_force_walk_ptr{nullptr};
 
 	//! Phase 5u: runtime cap on the number of mmap regions
 	//! `allocate_chunk` may claim.  Initialised to
