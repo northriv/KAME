@@ -14,13 +14,34 @@
 
 //#define GUARDIAN 0xaaaaaaaauLL
 //#define FILLING_AFTER_ALLOC 0x55555555uLL
-// Phase 4b-final: per-thread floor on `owner_release`.  Stop releasing
-// when this thread's DLL has fewer than this many chunks for the given
-// (ALIGN, FS) template — avoids release / re-mmap thrashing on bursty
-// workloads.  Tuned conservatively low (2) because each thread typically
-// holds 1–3 chunks per template in steady state; the previous global
-// `LEAVE_VACANT_CHUNKS = 64` floor was scaled for an ~64-thread pool.
-#define LEAVE_VACANT_CHUNKS_PER_THREAD 2
+// Phase 4b-final / Phase 5o: per-thread floor on `owner_release`.
+// Stop releasing when this thread's DLL has fewer than this many
+// chunks for the given (ALIGN, FS) template — avoids release / re-
+// mmap thrashing on bursty workloads.
+//
+// Phase 5o bumps the floor 2 → 16 to repair the bucket34_repro
+// regression on Linux (33.5 → 0.24 M/s under Phase 5n).  Diagnosis:
+//
+//   bucket34_repro uses 6 sizes (3072..8192 B) all in the ALIGN=1024
+//   tier, which share a single per-thread DLL.  Steady-state live[]
+//   distribution is ~12 chunks per thread (170 slots × 6 buckets /
+//   113 slots/chunk).  At floor=2, owner_release fires whenever an
+//   empty neighbour appears and dll_len > 2 — i.e. any time a chunk
+//   transiently empties due to random size fluctuation (stddev ~12
+//   per bucket).  Each release → madvise → next claim faults pages
+//   anew.  Perf shows ~22 % `clear_page_erms` + ~9 % page-fault
+//   accounting on this workload.
+//
+//   floor=16 means dll_len must EXCEED 16 to release; bucket34's
+//   12-chunk DLL never triggers release in steady state, so empties
+//   stay warm for reuse.  RSS cost: 16 × ALIGN_tier_max_chunk_size
+//   per (thread, tier) — for ALIGN=1024 (CHUNK_UNITS=4 = 1 MiB) and
+//   8 threads, max 128 MiB extra resident per tier, well below the
+//   3 GiB / 100 GiB VA caps from Phase 5l-fixup.  Real workloads
+//   either stay well below the floor (no release ever fires —
+//   correct) or far above it (release still fires aggressively when
+//   dll_len > 16 — correct).
+#define LEAVE_VACANT_CHUNKS_PER_THREAD 16
 
 #include "allocator.h"
 
