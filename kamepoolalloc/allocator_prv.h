@@ -510,8 +510,36 @@ public:
 	//!
 	//! No atomic on the back_offset slot itself (plain byte read/write):
 	//! the bitmap claim-bit CAS supplies the synchronisation point.
-	//! Total size: 24 × 128 = 3072 B on 64-bit (5 × 128 = 640 B on 32-bit).
+	//! Total size: 3200 × 128 = 400 KiB on 64-bit (96 × 128 = 12 KiB on 32-bit).
 	static uint8_t s_back_offset[ALLOC_MAX_MMAP_ENTRIES * NUM_ALLOCATORS_IN_SPACE];
+
+	//! Phase 5m: per-region "has free space" hint bitmap.  Bit N set ⇒
+	//! region N has at least one free chunk slot of SOME alignment;
+	//! `allocate_chunk` scans this first and skips regions whose bit
+	//! is clear, eliminating the O(N) walk-past-full-regions cost on
+	//! workloads that allocate > 1 GiB of small slots.
+	//!
+	//! Without this, `alloc_only 8192 B × 2M` degrades to ~0.07 M
+	//! ops/s — each `allocate_chunk` scans ~550 fully-claimed regions
+	//! before finding free space.  With this, the scan is O(1) in the
+	//! steady-state and O(populated_regions / 64) in the worst case.
+	//!
+	//! Lazy hint semantics:
+	//!   * Set by `deallocate_chunk` (after the claim-bit release).
+	//!   * Set by `allocate_chunk` on fresh-region mmap (region has
+	//!     all 128 units free by construction).
+	//!   * Cleared by `allocate_chunk` when the per-region scan
+	//!     finds all `BITMAP_WORDS_PER_REGION` words have no free
+	//!     CHUNK_UNITS-aligned slot.  Race-tolerant: a concurrent
+	//!     deallocate_chunk fetch_or may re-set immediately; the next
+	//!     allocate sees the set bit and retries.  Conversely, a
+	//!     false-set bit costs one wasted scan (then gets cleared).
+	//!
+	//! Total size: 3200 / 64 = 50 × uint64_t = 400 B on 64-bit
+	//!             (96 / 64 + 1 = 2 × uint64_t = 16 B on 32-bit).
+	static constexpr int REGION_BITMAP_WORDS =
+	    (ALLOC_MAX_MMAP_ENTRIES + 63) / 64;
+	static std::atomic<uint64_t> s_region_has_free[REGION_BITMAP_WORDS];
 };
 
 //! Per-thread flag — true once `AllocThreadExitCleanup::~dtor` has fired.

@@ -1291,12 +1291,19 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 template <class ALLOC>
 inline ALLOC *
 PoolAllocatorBase::allocate_chunk() {
-	// Phase 5l: uniform 32 MiB regions, each carved into 128 × 256 KiB
+	// Phase 5l + 5m: uniform 32 MiB regions carved into 128 × 256 KiB
 	// units.  A chunk = `CHUNK_UNITS` (1, 2, or 4) contiguous units at
 	// a unit-aligned position.  Per-region claim/ready bitmap stays at
 	// 2 bits/unit (Phase 5h encoding) but is now per UNIT — multi-unit
 	// chunks set CHUNK_UNITS adjacent claim bits in a single CAS, and
 	// only the base unit ever gets `ready = 1`.
+	//
+	// Phase 5m: `s_region_has_free[]` skip-bitmap eliminates the O(N)
+	// walk-past-full-regions cost.  Two passes:
+	//   1. Walk set bits of `s_region_has_free` — try each region; on
+	//      failure (region fully claimed), clear the bit and continue.
+	//   2. If pass 1 exhausted, find an unallocated region, mmap it,
+	//      set its bit, and claim there.
 	constexpr unsigned int CHUNK_UNITS = ALLOC::CHUNK_UNITS;
 	constexpr size_t CHUNK_SIZE = ALLOC::CHUNK_SIZE;
 	constexpr unsigned int CHUNK_STRIDE_BITS = 2u * CHUNK_UNITS; // bits per chunk in bitmap
@@ -1307,6 +1314,107 @@ PoolAllocatorBase::allocate_chunk() {
 	        ? ~BitmapWord(0)
 	        : ((BitmapWord(1) << CHUNK_STRIDE_BITS) - BitmapWord(1));
 
+	// Inline-able lambda: try to claim one chunk in a specific region.
+	// Returns palloc on success, nullptr if every CHUNK_UNITS-aligned
+	// slot in the region's bitmap is already claimed.
+	auto try_claim_in_region = [&](int region) -> ALLOC * {
+		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
+			std::atomic<BitmapWord> *bm =
+			    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
+			for(;;) {
+				BitmapWord v = bm->load(std::memory_order_relaxed);
+				int free_pos = -1;
+				for(unsigned k = 0; k + CHUNK_STRIDE_BITS <= (unsigned)BITS_PER_BITMAP_WORD;
+				    k += CHUNK_STRIDE_BITS) {
+					if(((v >> k) & CHUNK_OCC_MASK) == 0) {
+						free_pos = (int)k;
+						break;
+					}
+				}
+				if(free_pos < 0) break;  // word saturated
+				BitmapWord claim_mask = 0;
+				for(unsigned u = 0; u < CHUNK_UNITS; ++u)
+					claim_mask |= BitmapWord(1) << (free_pos + 2u * u);
+				BitmapWord newv = v | claim_mask;
+				int base_unit_in_word = free_pos / 2;
+				int base_unit_idx =
+				    word * CHUNKS_PER_BITMAP_WORD + base_unit_in_word;
+
+				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
+				                 + (size_t)base_unit_idx;
+				for(unsigned u = 0; u < CHUNK_UNITS; ++u)
+					s_back_offset[bo_base + u] = (uint8_t)u;
+				writeBarrier();
+
+				if(bm->compare_exchange_weak(v, newv,
+				                             std::memory_order_acquire,
+				                             std::memory_order_relaxed)) {
+					char *addr = s_mmapped_spaces[region]
+					           + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+#if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
+					static const bool prewarm = [] {
+						const char *e = std::getenv("KAME_ALLOC_PREWARM");
+						return e && e[0] != '\0' && e[0] != '0';
+					}();
+					if(prewarm) {
+						for(size_t off = 0; off < CHUNK_SIZE; off += ALLOC_PAGE_SIZE)
+							reinterpret_cast<volatile char *>(addr)[off] = 0;
+					}
+#endif
+					ALLOC *palloc = ALLOC::create(CHUNK_SIZE - ALLOC_CHUNK_HEADER,
+					                              addr + ALLOC_CHUNK_HEADER);
+					palloc->m_chunk_size = CHUNK_SIZE;
+					*reinterpret_cast<std::uint64_t *>(
+					    addr + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) =
+					    ALLOC::chunk_header_size_info();
+					*reinterpret_cast<PoolAllocatorBase **>(
+					    addr + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = palloc;
+					*reinterpret_cast<DeallocateFn *>(
+					    addr + ALLOC_CHUNK_HEADER_FN_OFFSET) =
+					    &ALLOC::deallocate_pooled_static;
+					*reinterpret_cast<SizeOfFn *>(
+					    addr + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET) =
+					    &ALLOC::size_of_static;
+					writeBarrier();
+					BitmapWord ready_mask =
+					    BitmapWord(1) << (free_pos + 1);
+					bm->fetch_or(ready_mask, std::memory_order_release);
+					return palloc;
+				}
+				// CAS failed: concurrent claim updated v.  Retry inner
+				// loop with the new v (back_offset writes we did above
+				// are inert until the claim bit publishes).
+			}
+			// word fully claimed for THIS CHUNK_UNITS alignment.  Try
+			// the next word.
+		}
+		// All words in this region full for this CHUNK_UNITS.
+		return nullptr;
+	};
+
+	// Pass 1: walk regions whose has-free bit is set.
+	for(int rword = 0; rword < REGION_BITMAP_WORDS; ++rword) {
+		uint64_t rv =
+		    s_region_has_free[rword].load(std::memory_order_relaxed);
+		while(rv != 0) {
+			int rbit = __builtin_ctzll(rv);
+			int region = rword * 64 + rbit;
+			if(region >= ALLOC_MAX_MMAP_ENTRIES) break;
+			if(ALLOC *palloc = try_claim_in_region(region))
+				return palloc;
+			// Region is full for OUR CHUNK_UNITS.  Note that other
+			// templates with smaller CHUNK_UNITS may still find space
+			// here — so we clear the bit only relaxed-tentatively;
+			// future deallocs in this region will fetch_or it back
+			// when space genuinely opens up.
+			s_region_has_free[rword].fetch_and(
+			    ~(uint64_t(1) << rbit),
+			    std::memory_order_relaxed);
+			rv &= ~(uint64_t(1) << rbit);
+		}
+	}
+
+	// Pass 2: find an unallocated region, mmap it, then claim.
 	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES; ++region) {
 		while( !s_mmapped_spaces[region]) {
 			size_t mmap_size = ALLOC_MIN_MMAP_SIZE;
@@ -1364,116 +1472,20 @@ PoolAllocatorBase::allocate_chunk() {
 #endif
 		}
 
-		// Try to claim a chunk of CHUNK_UNITS contiguous units at a
-		// chunk-aligned bit position within one bitmap word.  All
-		// supported (CHUNK_UNITS, BITS_PER_BITMAP_WORD) combinations
-		// satisfy CHUNK_STRIDE_BITS ≤ BITS_PER_BITMAP_WORD (8 ≤ 64 / 32),
-		// so a chunk's bits never span two words.
-		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
-			std::atomic<BitmapWord> *bm =
-			    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
-			for(;;) {
-				BitmapWord v = bm->load(std::memory_order_relaxed);
-				// Scan aligned chunk slots (positions 0, CHUNK_STRIDE_BITS,
-				// 2*CHUNK_STRIDE_BITS, ...) for a slot with all zero
-				// bits in CHUNK_OCC_MASK ⇒ all CHUNK_UNITS units free.
-				int free_pos = -1;
-				for(unsigned k = 0; k + CHUNK_STRIDE_BITS <= (unsigned)BITS_PER_BITMAP_WORD;
-				    k += CHUNK_STRIDE_BITS) {
-					if(((v >> k) & CHUNK_OCC_MASK) == 0) {
-						free_pos = (int)k;
-						break;
-					}
-				}
-				if(free_pos < 0) break;  // no free aligned slot in this word
-				// claim_mask: set the claim bit (bit 0 of each unit) of
-				// all CHUNK_UNITS units; leave ready bits (bit 1) clear.
-				BitmapWord claim_mask = 0;
-				for(unsigned u = 0; u < CHUNK_UNITS; ++u)
-					claim_mask |= BitmapWord(1) << (free_pos + 2u * u);
-				BitmapWord newv = v | claim_mask;
-				int base_unit_in_word = free_pos / 2;
-				int base_unit_idx =
-				    word * CHUNKS_PER_BITMAP_WORD + base_unit_in_word;
+		// Region is freshly mmap'd: mark it has-free (idempotent OR)
+		// BEFORE attempting claim, so other allocate_chunk callers
+		// concurrently entering Pass 1 can see it.
+		s_region_has_free[region / 64].fetch_or(
+		    uint64_t(1) << (region % 64),
+		    std::memory_order_relaxed);
 
-				// Write back_offset[base..base+N-1] = 0..N-1 BEFORE the
-				// claim CAS (with writeBarrier).  Any reader observing
-				// `claim=1` after a successful CAS (acquire-ordered) is
-				// guaranteed to see the current claimer's back_offset
-				// values — synchronising chunk_base derivation in
-				// `lookup_chunk` / `deallocate_<>` / `size_of_<>`.
-				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
-				                 + (size_t)base_unit_idx;
-				for(unsigned u = 0; u < CHUNK_UNITS; ++u)
-					s_back_offset[bo_base + u] = (uint8_t)u;
-				writeBarrier();
-
-				if(bm->compare_exchange_weak(v, newv,
-				                             std::memory_order_acquire,
-				                             std::memory_order_relaxed)) {
-					char *addr = s_mmapped_spaces[region]
-					           + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
-					// No mprotect needed: regions are mmap'd RW upfront
-					// (Phase 5l).  `deallocate_chunk` uses `madvise` to
-					// reclaim physical pages without changing protection;
-					// fresh allocations get zero-fault'd pages on first
-					// write.
-#if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
-					// Optional pre-warm: one byte per OS page, on the
-					// claiming thread.  Forces the kernel's first-touch
-					// fault here (cold path) instead of in user-side
-					// writes (hot path).  Also pins NUMA placement to
-					// the claiming thread's node.  Off by default
-					// (KAME_ALLOC_PREWARM=1 to enable).
-					static const bool prewarm = [] {
-						const char *e = std::getenv("KAME_ALLOC_PREWARM");
-						return e && e[0] != '\0' && e[0] != '0';
-					}();
-					if(prewarm) {
-						for(size_t off = 0; off < CHUNK_SIZE; off += ALLOC_PAGE_SIZE)
-							reinterpret_cast<volatile char *>(addr)[off] = 0;
-					}
-#endif
-					// Chunk header layout (Phase 5l):
-					//   [0..7]   uint64_t chunk SIZE info (Phase 5c)
-					//   [8..15]  PoolAllocatorBase *palloc
-					//   [16..23] DeallocateFn deallocate_fn
-					//   [24..31] SizeOfFn sizeof_fn
-					//   [32..63] pad (slot-0 header [56..63] for FS=false)
-					//   [64..end] slot region (m_mempool)
-					// Header lives at the BASE unit only; continuation
-					// units' first 64 B are part of the slot region.
-					ALLOC *palloc = ALLOC::create(CHUNK_SIZE - ALLOC_CHUNK_HEADER,
-					                              addr + ALLOC_CHUNK_HEADER);
-					palloc->m_chunk_size = CHUNK_SIZE;
-					*reinterpret_cast<std::uint64_t *>(
-					    addr + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) =
-					    ALLOC::chunk_header_size_info();
-					*reinterpret_cast<PoolAllocatorBase **>(
-					    addr + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = palloc;
-					*reinterpret_cast<DeallocateFn *>(
-					    addr + ALLOC_CHUNK_HEADER_FN_OFFSET) =
-					    &ALLOC::deallocate_pooled_static;
-					*reinterpret_cast<SizeOfFn *>(
-					    addr + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET) =
-					    &ALLOC::size_of_static;
-					writeBarrier();
-					// Set the ready bit on the BASE unit only.  Release
-					// ordering: all chunk_header writes happen-before
-					// any reader's acquire-load of this bit.
-					BitmapWord ready_mask =
-					    BitmapWord(1) << (free_pos + 1);
-					bm->fetch_or(ready_mask, std::memory_order_release);
-					return palloc;
-				}
-				// CAS failed — concurrent claim updated v.  back_offset
-				// writes we did above are still our only writes to those
-				// entries (since claim wasn't published), so they remain
-				// safe.  Retry with the updated v.
-			}
-			// word full — fall through to next word.
-		}
-		// region full — fall through to next region.
+		if(ALLOC *palloc = try_claim_in_region(region))
+			return palloc;
+		// Shouldn't happen — a freshly mmap'd region has 128 units
+		// all free, which always satisfies any CHUNK_UNITS up to
+		// ALLOC_MAX_CHUNK_UNITS.  Defensive: fall through to the next
+		// region (race against another claimer racing us at the same
+		// region somehow).
 	}
 	fprintf(stderr, "# of chunks exceeds the limit.\n");
 	return 0;
@@ -1908,6 +1920,13 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 				for(unsigned u = 0; u < chunk_units; ++u)
 					claim_mask |= BitmapWord(1) << (base_bit + 2u * u);
 				bm->fetch_and(~claim_mask, std::memory_order_release);
+				// Step 6 (Phase 5m): set the region's has-free bit.
+				// fetch_or is idempotent; if a concurrent allocate_chunk
+				// just cleared it after finding all words full, our set
+				// re-publishes that this region now has free space.
+				s_region_has_free[region / 64].fetch_or(
+				    uint64_t(1) << (region % 64),
+				    std::memory_order_relaxed);
 				return;
 			}
 		}
@@ -2950,6 +2969,8 @@ std::atomic<PoolAllocatorBase::BitmapWord>
                                        * PoolAllocatorBase::BITMAP_WORDS_PER_REGION];
 uint8_t PoolAllocatorBase::s_back_offset[ALLOC_MAX_MMAP_ENTRIES
                                           * PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE];
+std::atomic<uint64_t>
+    PoolAllocatorBase::s_region_has_free[PoolAllocatorBase::REGION_BITMAP_WORDS];
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
     PoolAllocator<ALIGN, FS, DUMMY>::s_my_chunk;
