@@ -18,6 +18,7 @@
 #ifndef USE_STD_ALLOCATOR
 
 #include <new>
+#include <cstdint>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stddef.h>
