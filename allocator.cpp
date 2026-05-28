@@ -283,19 +283,15 @@ thread_local AllocThreadExitCleanup tls_alloc_thread_exit_cleanup;
 // Re-tune-able now that the O(n) impl removes the throughput cost
 // curve.
 struct CrossDeallocBatch {
-    // FS=true small-slot batch.  FS=true buckets are ALIGN==SIZE
+    // FS=true-only small-slot batch (Phase 5d-2: FS=false bypasses
+    // cross-batch entirely in its `deallocate_pooled` — see that
+    // function for rationale).  FS=true buckets are ALIGN==SIZE
     // (16..240 B), one bit per slot in m_flags ⇒ up to 64 slots per
     // FUINT word.  Cross-thread frees of small slots are numerous AND
     // their chunks tend to repeat (a few hot per-size-class chunks
     // serve most allocs), so a deep accumulation window catches
     // same-chunk same-word "buddies" arriving over time → at flush,
     // sort + adjacent-merge coalesces them into one CAS per word.
-    //
-    // FS=false large-slot frees (sizes 96..512, N bits / slot) bypass
-    // this buffer via `push_direct` and dispatch immediately — the
-    // per-slot bit footprint is wider so word coalescing windows are
-    // smaller, and large-slot chunks repeat less, so the holding cost
-    // doesn't pay back.
     //
     // CAP=1024 chosen for L1d-resident accumulation:
     //   16 B / entry × 1025 entries = 16.4 KiB.
@@ -321,27 +317,15 @@ struct CrossDeallocBatch {
         buf[count++] = {c, s};
     }
 
-    //! Direct/adaptive dispatch path.  Two regimes selected at
-    //! compile time by `FS`:
+    //! Direct/adaptive dispatch path — FS=true only (Phase 5d-2:
+    //! FS=false bypasses cross-batch entirely in `deallocate_pooled`
+    //! and never reaches this template).
     //!
-    //!   FS=true (ALIGN > 48 small/mid-slot, FS=false's path won't
-    //!     reach here — see below): adaptive.  Reads the chunk's
-    //!     `m_last_coalesce_x16` hint (relaxed); routes to hold
-    //!     when ≥ per-ALIGN threshold (compile-time folded), else
-    //!     direct.  Epsilon-greedy explore force-holds once per
-    //!     `EXPLORE_PERIOD` to re-measure chunks whose hint
-    //!     dropped below threshold.
-    //!
-    //!   FS=false: pure direct dispatch — no hint load, no
-    //!     explore, no threshold check.  Empirically (ohtaka)
-    //!     FS=false chunks don't recover from a low-coalescing
-    //!     measurement: even when explore force-holds for
-    //!     evaluation, the actual coalescing factor stays below
-    //!     the (already-doubled, conservative) FS=false threshold
-    //!     → next push routes direct again.  The explore-hold's
-    //!     memory pressure pays nothing back.  Skipping the whole
-    //!     adaptive machinery saves the relaxed atomic load + the
-    //!     branch overhead on the hot non-owner dealloc path.
+    //! FS=true: adaptive.  Reads the chunk's `m_last_coalesce_x16`
+    //! hint (relaxed); routes to hold when ≥ per-ALIGN threshold
+    //! (compile-time folded), else direct.  Epsilon-greedy explore
+    //! force-holds once per `EXPLORE_PERIOD` to re-measure chunks
+    //! whose hint dropped below threshold.
     //!
     //! FS=true thresholds (compile-time tiers):
     //!
@@ -355,16 +339,8 @@ struct CrossDeallocBatch {
     static constexpr int EXPLORE_PERIOD = 128;
     int explore_counter = 0;
 
-    template <unsigned ALIGN, bool FS>
+    template <unsigned ALIGN>
     void push_direct(PoolAllocatorBase *c, void *s) noexcept {
-        if constexpr ( !FS) {
-            // FS=false: always direct dispatch.  See class comment
-            // for rationale (large slots + low chunk-repeat →
-            // adaptive holding can't recover; skip the machinery).
-            CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
-            c->batch_return_to_bitmap(tmp);
-            return;
-        }
         constexpr uint8_t threshold_x16 =
             (ALIGN <=  64) ? 20 :
             (ALIGN <= 128) ? 24 :
@@ -927,23 +903,22 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			return false;
 		}
 	}
-	// Cross-thread / non-owner / post-teardown path: pass p_user
-	// directly.  Phase 5d "borrow" scheme: p_user == slot_start, so
-	// no `- ALIGN` conversion needed.  The cross-batch MaskFn reads
-	// the header from `p_user - 8` (= chunk_header pad for slot 0, or
-	// previous slot's reserved tail otherwise).
-	if(__builtin_expect(s_alloc_tls_off, 0)) {
-		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
-		this->batch_return_to_bitmap(tmp);
-		return false;
-	}
-	// FS=false large slots: bypass the holding buffer by default,
-	// dispatch immediately.  Each FS=false slot consumes N bits in
-	// m_flags, so per-word coalescing windows are small AND large-
-	// slot chunks repeat less frequently than FS=true small-slot
-	// chunks — the holding cost wouldn't pay back.  (Phase 5d-2 may
-	// drop the holding-hint machinery entirely for FS=false.)
-	tls_cross_dealloc_batch.template push_direct<ALIGN, false>(this, p);
+	// Phase 5d-2: FS=false never participates in cross-thread batch
+	// holding — large slots have small per-word coalescing windows AND
+	// large-slot chunks repeat less frequently than FS=true small-slot
+	// chunks, so holding cost wouldn't pay back.  Empirically (ohtaka)
+	// even epsilon-greedy explore couldn't recover useful coalescing
+	// factor for FS=false.  Drop the whole machinery; route every
+	// cross-thread / non-owner / post-teardown free directly to a
+	// single-entry `batch_return_to_bitmap` call.
+	//
+	// This also subsumes the `s_alloc_tls_off` post-teardown bypass
+	// (the old code had a separate branch for it because the cross-
+	// batch TLS instance had already been destroyed) — we never touch
+	// `tls_cross_dealloc_batch` here so the post-teardown case is
+	// implicit.
+	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+	this->batch_return_to_bitmap(tmp);
 	return false;
 }
 
@@ -1112,8 +1087,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	// Update adaptive coalescing hint: factor_x16 = (entries × 16) /
 	// unique_words.  16 = 1.0× = no benefit; > 16 = adjacent merges
 	// happened.  Relaxed: it's just a hint, races benign.  Skip for
-	// FS=false — `push_direct<ALIGN, false>` ignores the hint and
-	// always dispatches direct, so the store would be wasted work.
+	// FS=false — Phase 5d-2 bypasses cross-batch entirely on the
+	// FS=false dealloc path (direct single-entry batch_return_to_bitmap
+	// call), so the hint is never consulted and storing it would be
+	// wasted work.
 	if constexpr (FS) {
 		if(n_words > 0) {
 			unsigned factor = (unsigned(i) * 16u) / unsigned(n_words);
@@ -1243,7 +1220,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	if constexpr (ALIGN <= 48) {
 		tls_cross_dealloc_batch.push(this, p);
 	} else {
-		tls_cross_dealloc_batch.template push_direct<ALIGN, true>(this, p);
+		tls_cross_dealloc_batch.template push_direct<ALIGN>(this, p);
 	}
 	return false;
 }
