@@ -414,6 +414,24 @@ protected:
 	size_t m_chunk_size = 0;
 
 public:
+	//! Phase 5t: address of the OWNER thread's `s_dll_head` TLS
+	//! variable for THIS chunk's (ALIGN, FS) template.  Set by the
+	//! derived `PoolAllocator<ALIGN, FS, DUMMY>` constructor to
+	//! `(void *)&s_dll_head` taken in the owner thread's context.
+	//!
+	//! `s_dll_head` is `ALLOC_TLS` (= `__thread`); its address is
+	//! per-thread (TCB base + fixed offset per template).  Comparing
+	//! a stored value to `(void *)&s_dll_head` taken later identifies
+	//! whether the comparing thread is the original owner.
+	//!
+	//! Used by the dealloc cursor-reset paths (Phase 5r/5t) to gate
+	//! `reset_dll_walk_state()`: reset only when we are the owner —
+	//! resetting another thread's cursor would be wasteful no-op
+	//! (their DLL is unaffected by our bitmap-clear).  Without this
+	//! gate, alloc_stress's 50%-cross-thread workload paid a 10-20%
+	//! perf tax on Linux from spurious cursor resets.
+	void *m_owner_dll_head_addr = nullptr;
+
 	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE};
 	static_assert(NUM_ALLOCATORS_IN_SPACE == 128,
 		"NUM_ALLOCATORS_IN_SPACE expected to be 128 — total bit count "
@@ -609,6 +627,14 @@ public:
 	static void reset_dll_walk_state() noexcept {
 		s_dll_cursor = nullptr;
 		s_dll_exhausted = false;
+	}
+	//! Phase 5t: public accessor for this thread's `s_dll_head` TLS
+	//! address.  Used by external code (CrossDeallocBatch::push_direct
+	//! in anon namespace) to compare against a chunk's stored
+	//! `m_owner_dll_head_addr` and identify same-thread frees for
+	//! the conditional cursor reset.
+	static void *dll_head_tls_addr() noexcept {
+		return static_cast<void *>(&s_dll_head);
 	}
 	//! Public (was protected) so the per-thread functor-table dispatcher
 	//! in allocator.cpp can call it on freelist miss without needing a
