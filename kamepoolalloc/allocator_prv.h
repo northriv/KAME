@@ -766,6 +766,37 @@ protected:
 	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_head;
 	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_tail;
 
+	//! Phase 5n: DLL-walk cursor + exhaustion hint.  Eliminates the
+	//! O(N²) walk-all-chunks-each-fill cost on alloc-heavy workloads
+	//! with few or no frees (e.g. `alloc_minimal_bench alloc_only`).
+	//!
+	//! Semantics:
+	//!   * `s_dll_cursor`: pointer into the DLL where the next walk
+	//!     should resume.  Set to the chunk where the last successful
+	//!     `allocate_pooled` returned a slot.  Set to nullptr when
+	//!     walked-to-end (next walk starts from head) or when a chunk
+	//!     it pointed to was released.
+	//!   * `s_dll_exhausted`: if true, the previous walk reached end
+	//!     without finding a chunk with space.  `allocate_chunk_path`
+	//!     skips the DLL walk entirely and goes straight to mmap-fresh.
+	//!     Cleared when (a) a new chunk is appended to the DLL (mmap-
+	//!     fresh path) or (b) `owner_release` removes a chunk from
+	//!     DLL (an earlier-in-list chunk MAY have had cross-thread
+	//!     frees in the interim — conservatively reset).
+	//!
+	//! Cross-thread free that revives a chunk (decrements MASK_CNT
+	//! without dropping to 0) is NOT detected here — those chunks may
+	//! sit in the "before cursor" region and `allocate_chunk_path`
+	//! mmaps a fresh chunk instead.  Trade-off accepted: real
+	//! workloads either (a) have local frees that maintain the
+	//! per-thread freelist (no DLL walk needed) or (b) cross-thread
+	//! frees that bring MASK_CNT to 0, triggering chunk release via
+	//! `batch_return_to_bitmap` — cursor naturally skips the released
+	//! chunk.  Partial-revival under alloc pressure is rare and only
+	//! costs RSS, not correctness.
+	static ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *s_dll_cursor;
+	static ALLOC_TLS bool s_dll_exhausted;
+
 	//! Per-thread DLL pointers.  Single-writer (the owning thread)
 	//! and single-reader (same thread).  No atomic ordering needed
 	//! for these two fields in steady state.
