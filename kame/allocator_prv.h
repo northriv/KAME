@@ -118,8 +118,8 @@ inline bool atomicDecAndTest(T *target) noexcept {
         #define ALLOC_MAX_MMAP_ENTRIES 24 //~6.5 GiB approx.
     #else
         #define GROW_CHUNK_SIZE(x) ((size_t)(x / 8 * 9) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
-        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 6) //8MiB
-        #define ALLOC_MAX_MMAP_ENTRIES 32 //2.7GiB approx.
+        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 6) //6MiB
+        #define ALLOC_MAX_MMAP_ENTRIES 32 //~192 MiB baseline footprint (fits 32-bit AS)
     #endif
 #endif
 
@@ -463,12 +463,12 @@ void activateAllocator();
 // handles activation-flag / cleanup-flag checks and the (rare)
 // per-bucket first-access dispatch.
 //
-// sizeof(AllocSlot) == 8: a single `char *`, so `g_thread_slots[bucket]`
+// sizeof(AllocSlot) == sizeof(void*): a single `char *`, so `g_thread_slots[bucket]`
 // indexing is a single shifted-load addressing-mode form
-// `ldr x, [base, bucket, lsl #3]` — no separate slot-address computation
-// needed.  8 slots share a 64-B cache line.  The chunk pointer lives in
-// the parallel `g_thread_chunks[]` TLS array so the freelist-hit hot
-// path touches only one cache line.
+// `ldr x, [base, bucket, lsl #3]` (64-bit) / `ldr w, [base, bucket, lsl #2]` (32-bit)
+// — no separate slot-address computation needed.  On 64-bit, 8 slots share a
+// 64-B cache line.  The chunk pointer lives in the parallel `g_thread_chunks[]`
+// TLS array so the freelist-hit hot path touches only one cache line.
 //
 // State machine (encoded in `g_thread_chunks[bucket]`):
 //   - `nullptr`: pre-activation OR pre-first-use OR post-cleanup.
@@ -507,8 +507,8 @@ struct AllocSlot {
 		return head;
 	}
 };
-static_assert(sizeof(AllocSlot) == 8,
-              "AllocSlot must stay 8 B — hot-path uses lsl #3 indexed addressing");
+static_assert(sizeof(AllocSlot) == sizeof(void *),
+              "AllocSlot must be pointer-sized — hot-path uses power-of-2 indexed addressing");
 
 //! Bucket count.
 //!   - index 0 (size = 0): reuses bucket 1's 16-B allocator
