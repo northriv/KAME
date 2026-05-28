@@ -96,6 +96,15 @@ void   kame_pool_free(void *p);
  * kame_pool_posix_memalign() it must additionally be a multiple of
  * sizeof(void*).  Alignments <= 16 B are served by the pool;
  * larger alignments fall back to the system allocator.
+ *
+ * Windows restriction: alignments > 16 B return EINVAL.  The reason is
+ * the platform `_aligned_malloc` / `_aligned_free` pairing — pointers
+ * from `_aligned_malloc` cannot be passed to CRT `free()`, and
+ * `kame_pool_free()` does not carry alignment info to dispatch
+ * `_aligned_free` correctly.  Callers needing alignment > 16 B on
+ * Windows should use `_aligned_malloc` / `_aligned_free` directly, or
+ * use C++ `operator new(size, std::align_val_t{N})` which carries
+ * alignment into the matching `operator delete`.
  */
 void  *kame_pool_aligned_alloc(size_t alignment, size_t size);
 int    kame_pool_posix_memalign(void **memptr, size_t alignment, size_t size);
