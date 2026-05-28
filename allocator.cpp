@@ -1574,7 +1574,18 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// same trigger, or via Phase 4's thread-exit cleanup.  Own
 	// chunks emptied by the flush are visible to the Phase 2 scan
 	// directly below.
-	tls_cross_dealloc_batch.flush();
+	// Phase 5n: only reset cursor / exhausted if the batch actually
+	// had entries that we are about to flush back to chunk bitmaps.
+	// In pure-alloc workloads (alloc_only, no cross-frees), the batch
+	// stays empty, the flush is a no-op, and we keep the cursor's
+	// O(N) → O(1) advantage.  Stress workloads see real cross-frees,
+	// the count > 0 path fires, and the cursor rewinds so partial
+	// revivals are visited.
+	if(tls_cross_dealloc_batch.count != 0) {
+		tls_cross_dealloc_batch.flush();
+		s_dll_cursor = nullptr;
+		s_dll_exhausted = false;
+	}
 	// Phase 4a: own-empty-neighbour release.  Walk forward from
 	// `s_my_chunk` along the DLL: if the immediate next chunk is
 	// empty ((m_flags_packed & MASK_CNT) == 0), release it; if its successor
@@ -1633,6 +1644,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 					if(g_thread_chunks[b] == nx_pa)
 						g_thread_chunks[b] = nullptr;
 				}
+				// Phase 5n: if the cursor was pointing at the released
+				// chunk, advance past it.  Also clear the exhaustion
+				// flag — DLL was just modified; an earlier chunk
+				// (now closer to head via the unlink) might have had
+				// cross-thread frees we didn't see during the previous
+				// walk.  Conservative reset → next allocate_chunk_path
+				// rewalks from head.
+				if(s_dll_cursor == nx)
+					s_dll_cursor = nxnext;
+				s_dll_exhausted = false;
 				delete nx;
 				PoolAllocatorBase::deallocate_chunk(cbase, csz);
 				++released;
@@ -1653,30 +1674,48 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// (the per-template global chunk registry, retired in 4b-final,
 	// no longer mediates cross-thread chunk reclaim).
 	//
-	// Forward sweep from `s_dll_head` covers the full DLL: newer
-	// chunks appear later in the list (see the tail-append at the
-	// mmap-fresh path below), so iterating from head visits everything
-	// added before AND after the current `s_my_chunk`.  No atomic ops
-	// — single-writer (this thread).  Skipping `s_my_chunk` itself
-	// avoids a redundant retry of the just-failed `allocate_pooled`
-	// call above.
-	for(auto *c = s_dll_head; c; c = c->m_dll_next) {
-		if(c == s_my_chunk) continue;
-		if(void *p = c->allocate_pooled(SIZE)) {
-			s_my_chunk = c;
+	// Phase 5n: cursor-based DLL walk.  If `s_dll_exhausted` is true,
+	// the previous walk reached end without finding space — skip the
+	// walk entirely (set false again when a new chunk is added below,
+	// or when an owner_release clears it).  Otherwise resume from
+	// `s_dll_cursor` (set by the previous successful claim or end-of-
+	// walk advance), or s_dll_head on first walk after a reset.
+	//
+	// Forward sweep covers the full DLL from the cursor on: newer
+	// chunks appear later (see the tail-append at the mmap-fresh path
+	// below), so iterating from the cursor visits everything added
+	// after the cursor — including the just-mmapped chunk if the
+	// cursor was reset via mmap-fresh.  Skipping `s_my_chunk` avoids
+	// a redundant retry of the just-failed `allocate_pooled` call
+	// above.
+	if( !s_dll_exhausted) {
+		auto *c = s_dll_cursor ? s_dll_cursor : s_dll_head;
+		while(c) {
+			if(c != s_my_chunk) {
+				if(void *p = c->allocate_pooled(SIZE)) {
+					s_my_chunk = c;
+					s_dll_cursor = c;
 #ifdef GUARDIAN
-			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
-				if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
-					fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
-				}
-			}
+					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
+						if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
+							fprintf(stderr, "Memory tainted in %p:64\n", &static_cast<uint64_t *>(p)[i]);
+						}
+					}
 #endif
 #ifdef FILLING_AFTER_ALLOC
-			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
-				static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
+					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
+						static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
 #endif
-			return p;
+					return p;
+				}
+			}
+			c = c->m_dll_next;
 		}
+		// Walk reached end without finding space — mark exhausted so
+		// future allocate_chunk_path calls skip the walk until the
+		// DLL is modified (new chunk added or chunk released).
+		s_dll_cursor = nullptr;
+		s_dll_exhausted = true;
 	}
 	// All own chunks full — mmap a fresh chunk.  Phase 4b retired the
 	// previous pin-CAS scan of the global registry; chunks owned by
@@ -1701,6 +1740,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	else
 		s_dll_head = chunk;
 	s_dll_tail = chunk;
+	// Phase 5n: fresh chunk has full capacity — clear the exhaustion
+	// flag and point the cursor at it.  Next allocate_chunk_path that
+	// finds `s_my_chunk` full will resume the DLL walk from this
+	// chunk; in alloc_only workloads where this chunk is the only
+	// one with space, the walk does an O(1) skip-self-and-end instead
+	// of the O(N) walk-all-prior-full-chunks.
+	s_dll_cursor = chunk;
+	s_dll_exhausted = false;
 	void *p = chunk->allocate_pooled(SIZE);
 	// Fresh chunk always has room for the first allocation; an mmap
 	// chunk has 16K+ slots even at ALIGN=16.
@@ -1841,6 +1888,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 	s_dll_head = nullptr;
 	s_dll_tail = nullptr;
 	s_my_chunk = nullptr;
+	// Phase 5n: thread exit → cursor and exhausted flag both moot.
+	s_dll_cursor = nullptr;
+	s_dll_exhausted = false;
 	while(c) {
 		auto *next = c->m_dll_next;
 		c->m_dll_prev = nullptr;
@@ -1906,8 +1956,26 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 				(void)chunk_size;
 #elif defined(__APPLE__)
+				// macOS: MADV_FREE — kernel zeros pages lazily on
+				// next access (or sooner under memory pressure).
+				madvise(chunk_base, chunk_size, MADV_FREE);
+#elif defined(MADV_FREE)
+				// Linux 4.5+: MADV_FREE — lazy reclaim.  Pages stay
+				// mapped (RW) and committed; kernel may reclaim them
+				// under memory pressure, in which case next access
+				// gets a zeroed CoW page-fault.  Under low pressure
+				// the pages are reused in-place with NO page-fault on
+				// re-claim — closing the alloc_only cold-path gap
+				// vs glibc / mimalloc (Phase 5l with MADV_DONTNEED
+				// forced re-fault on every re-claim, ~26 % perf cost).
+				// RSS stays higher than MADV_DONTNEED until pressure
+				// fires reclaim, but the headline VmPeak cap (Phase
+				// 5l-fixup) and the multi-thread stress workload's
+				// 1/20-of-glibc RSS (Phase 5l) are preserved.
 				madvise(chunk_base, chunk_size, MADV_FREE);
 #else
+				// Older Linux: fall back to MADV_DONTNEED (eager
+				// reclaim — slower re-claim, but lower RSS).
 				madvise(chunk_base, chunk_size, MADV_DONTNEED);
 #endif
 				// Step 4: clear back_offset entries.
@@ -2982,6 +3050,13 @@ ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
     PoolAllocator<ALIGN, FS, DUMMY>::s_dll_tail;
+// Phase 5n: per-thread DLL walk cursor + exhaustion flag.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
+    PoolAllocator<ALIGN, FS, DUMMY>::s_dll_cursor;
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+ALLOC_TLS bool
+    PoolAllocator<ALIGN, FS, DUMMY>::s_dll_exhausted;
 
 // (Per-template `thread_local TlsGuard s_tls_guard` removed.
 //  AllocThreadExitCleanup::~AllocThreadExitCleanup — fired via the pthread_key dtor
