@@ -77,6 +77,14 @@ template <typename T>
 inline bool atomicDecAndTest(T *target) noexcept {
     return __sync_sub_and_fetch(target, 1) == 0;
 }
+//! Atomic fetch-and-AND.  Returns the OLD value (before AND) so the
+//! caller can compute the resulting bit pattern.  Used by Phase 5j
+//! BIT_OWNED clear to detect "I brought m_flags_packed to 0" → I'm
+//! the unique releaser.
+template <typename T>
+inline T atomicFetchAnd(T *target, T value) noexcept {
+    return __sync_fetch_and_and(target, value);
+}
 
 #if defined(__GNUC__) || defined(__clang__)
 	#define ALLOC_TLS __thread //TLS for allocations, could be better for NUMA.
@@ -612,29 +620,41 @@ protected:
 	// `atomicInc/Dec` on `m_flags_packed` by another thread does not
 	// invalidate the owner's freelist load/store cache line.
 	//
-	// Packed counter + state bits (Phase 4b — replaces the previous
-	// separate `int m_flags_nonzero_cnt` and `atomic<bool> m_owner_exited`
-	// fields):
-	//   * Bits  0..29 — nonzero-flag-word count (i.e. the same value
-	//     `m_flags_nonzero_cnt` held).  Max value = `m_count` (chunk
-	//     slot count / FUINT bits) ≤ ALLOC_CHUNK_SIZE / ALIGN / 64 ≈ 16 K
-	//     even at ALIGN=16 / chunk-size=256 KiB; 30 bits (1 G) is comfortably
-	//     over-provisioned.
-	//   * Bit  30     — `BIT_RELEASED`: set by the winner of the
-	//     dec-to-zero / owner-release race so exactly one releaser
-	//     proceeds to `delete this; deallocate_chunk()`.
-	//   * Bit  31     — `BIT_OWNER_EXITED`: set by `AllocThreadExitCleanup::~dtor`
-	//     when the owning thread exits while this chunk still holds
-	//     live slots; informs the cross-thread last-slot-returner that
-	//     the chunk has no owner pin and may be released.
+	// Packed counter + state bits (Phase 5j — inverts the old
+	// BIT_OWNER_EXITED → BIT_OWNED and drops BIT_RELEASED):
+	//   * Bits  0..30 — nonzero-flag-word count.  Max value =
+	//     `m_count` ≤ ALLOC_CHUNK_SIZE / ALIGN / 64 ≈ 16 K
+	//     even at ALIGN=16 / chunk-size=1 MiB; 31 bits (= 2 G) is
+	//     comfortably over-provisioned.
+	//   * Bit  31     — `BIT_OWNED`: set when owner thread is alive
+	//     and holds this chunk in its DLL.  Cleared atomically by
+	//     `release_dll_chunks_for_thread` / `owner_release` at owner
+	//     exit / neighbour-release.  Inverted semantics from the old
+	//     `BIT_OWNER_EXITED` so the dec-to-zero CAS uniquely
+	//     identifies the releaser without a separate `BIT_RELEASED`.
 	//
-	// `atomicInc(&m_flags_packed)` / `atomicDec(&m_flags_packed)` operate
-	// on the low 30 bits correctly because the count never overflows
-	// past bit 29.  Bit-30 / bit-31 transitions go through
-	// `atomicCompareAndSet` (CAS).
-	static constexpr uint32_t MASK_CNT         = 0x3FFFFFFFu; // bits 0..29
-	static constexpr uint32_t BIT_RELEASED     = 0x40000000u; // bit 30
-	static constexpr uint32_t BIT_OWNER_EXITED = 0x80000000u; // bit 31
+	// Release identification (no BIT_RELEASED needed):
+	//   - Cross-thread free brings MASK_CNT → 0 via atomicDecAndTest.
+	//     If returns true, m_flags_packed is now 0 → BIT_OWNED was
+	//     CLEAR (owner is gone) AND MASK_CNT was 1 → I'm the unique
+	//     releaser.  If returns false (BIT_OWNED still set, or
+	//     MASK_CNT was > 1), I'm not.
+	//   - Owner exit calls atomicFetchAnd(&m_flags_packed, ~BIT_OWNED).
+	//     If `old & ~BIT_OWNED == 0` (= MASK_CNT was 0), owner is the
+	//     unique releaser.  Else cross-thread will release on its next
+	//     dec-to-zero.
+	//   - Owner_release (Phase 4a empty-neighbour) uses the same
+	//     atomicFetchAnd: chunks observed-empty in our DLL are
+	//     released by us via the AND → newv == 0 check.
+	//
+	// The two operations (dec-to-0 vs AND-clear-BIT_OWNED) are
+	// mutually exclusive because exactly one transitions m_flags_packed
+	// to all-zero.
+	//
+	// Bit 30 is intentionally left unused (previously BIT_RELEASED);
+	// available for future ABA-counter / additional state if needed.
+	static constexpr uint32_t MASK_CNT  = 0x7FFFFFFFu; // bits 0..30
+	static constexpr uint32_t BIT_OWNED = 0x80000000u; // bit 31
 	alignas(64) uint32_t m_flags_packed;
 	//! # of flags that having fully filled values.
 	int m_flags_filled_cnt;
