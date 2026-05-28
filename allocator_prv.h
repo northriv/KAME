@@ -957,6 +957,18 @@ private:
 #define ALLOC_SIZE14 (ALLOC_ALIGNMENT * 14)
 #define ALLOC_SIZE15 (ALLOC_ALIGNMENT * 15)
 #define ALLOC_SIZE16 (ALLOC_ALIGNMENT * 16)
+// Phase 5q: extend the FS=true 16-step ladder to cover the 257..368
+// gap that Phase 5p left between bucket 16 (size 256) and FS=false
+// bucket 17's max user (376).  Zero-frag for power-of-16 requests
+// like 272, 288, 304, 320, 336, 352, 368 at the cost of 7 new
+// PoolAllocator<ALIGN=size, true> template instantiations.
+#define ALLOC_SIZE17 (ALLOC_ALIGNMENT * 17)  // 272
+#define ALLOC_SIZE18 (ALLOC_ALIGNMENT * 18)  // 288
+#define ALLOC_SIZE19 (ALLOC_ALIGNMENT * 19)  // 304
+#define ALLOC_SIZE20 (ALLOC_ALIGNMENT * 20)  // 320
+#define ALLOC_SIZE21 (ALLOC_ALIGNMENT * 21)  // 336
+#define ALLOC_SIZE22 (ALLOC_ALIGNMENT * 22)  // 352
+#define ALLOC_SIZE23 (ALLOC_ALIGNMENT * 23)  // 368
 
 //! Sole tail of the dispatch chain for sizes > ALLOC_MAX_BUCKETED_SIZE
 //! (= 16376 bytes since Phase 5d-4).  Phase 5d-4 covers up to 16 KiB
@@ -1040,72 +1052,101 @@ static_assert(sizeof(AllocSlot) == sizeof(char *),
               "AllocSlot must be exactly one pointer wide — "
               "hot-path uses pointer-scaled indexed addressing (lsl #3 on 64-bit, lsl #2 on 32-bit)");
 
-//! Bucket count (Phase 5d-4 layout).
+//! Bucket count (Phase 5q layout — extends Phase 5p N+1 shift).
 //!   - index 0 (size = 0): reuses bucket 1's 16-B allocator
-//!   - 1..16: sizes 16..256 in 16-B increments         (FS=true + FS=false mixed; unchanged)
-//!   - 17..40: 4-way exponential FS=false ladder       (sizes 320..16384 total; 3 ALIGN stages)
-//!       17..24: ALIGN= 64, slot total = 320, 384, 448, 512, 640, 768, 896, 1024  (N = 5..16)
-//!       25..32: ALIGN=256, slot total = 1280, 1536, 1792, 2048, 2560, 3072, 3584, 4096  (N = 5..16)
-//!       33..40: ALIGN=1024, slot total = 5120, 6144, 7168, 8192, 10240, 12288, 14336, 16384  (N = 5..16)
+//!   - 1..23: sizes 16..368 in 16-B increments         (FS=true + FS=false mixed; Phase 5q extends 1..16 to 1..23)
+//!   - 24..47: 4-way exponential FS=false ladder       (sizes 384..17408 slot; 3 ALIGN stages; Phase 5q shifts old 17..40 +7)
+//!       24..31: ALIGN= 64, slot = 384, 448, 512, 576, 704, 832, 960, 1088   (N = 6, 7, 8, 9, 11, 13, 15, 17)
+//!       32..39: ALIGN=256, slot = 1536, 1792, 2048, 2304, 2816, 3328, 3840, 4352
+//!       40..47: ALIGN=1024, slot = 6144, 7168, 8192, 9216, 11264, 13312, 15360, 17408
 //!
-//! `total` here = user_size + 8 (the Phase 5d "borrow" header).
-//! user_capacity = total - 8.  Each stage doubles ALIGN; the N values
-//! within a stage repeat (5, 6, 7, 8, 10, 12, 14, 16) — clean 4-way
-//! 4-octave coverage with no over-provisioning (every (ALIGN, N) pair
-//! exactly matches its bucket's slot total).
+//! Phase 5p — N+1 shift rationale:  in Phase 5d-4 (N ∈ {5..16}), a
+//! round-number user request like 1024 B routed to bucket 25
+//! (slot 1280, internal frag 256 = 25 %) because the natural fit at
+//! bucket 24 (slot 1024) had user_cap = 1024-8 = 1016 — one byte too
+//! small for the borrow header.  Bumping every bucket's N by 1 makes
+//! bucket K's user_cap = (N+1)*ALIGN - 8 = old_slot + ALIGN - 8, so
+//! 1024-byte requests now fit in bucket 24 (slot 1088, frag 64 = 6 %).
 //!
-//! ALIGN=64 (stage 1) chosen because every bucket-17..24 N value is
-//! even when expressed in ALIGN=32 units — doubling the bitmap unit
-//! halves the bit count per slot without losing size-class fidelity.
+//! Internal-frag improvement for power-of-2 round-number requests:
+//!   user 1024:  25 % → 6 %   (bucket 25 → 24)
+//!   user 2048:  25 % → 12 %  (bucket 29 → 28)
+//!   user 4096:  25 % →  6 %  (bucket 33 → 32)
+//!   user 8192:  25 % → 12 %  (bucket 37 → 36)
 //!
-//! Range 257..319 is intentionally folded into bucket 17 (total 320) —
-//! the worst-case internal frag (63/320 ≈ 20%) is paid by a thin
-//! distribution sliver in the alloc_stress histogram and avoids
-//! adding yet another sub-bucket just to shave the boundary.
-constexpr int ALLOC_NUM_BUCKETS = 41;
+//! Phase 5q rationale: Phase 5p's bucket 17 (slot 384) absorbed user
+//! requests 257..376 with up to 32 % internal frag for the smaller end.
+//! Phase 5q extends the FS=true 16-step ladder seven positions
+//! (sizes 272, 288, 304, 320, 336, 352, 368) so each gets a zero-frag
+//! template instantiation (PoolAllocator<ALIGN=size, true>).  FS=false
+//! ladder shifts +7 (old 17..40 → new 24..47).  ALLOC_NUM_BUCKETS:
+//! 41 → 48.
+//!
+//! Phase 5q frag improvements vs Phase 5p:
+//!   user  272:  32 % → 0 %   (bucket 17 slot 272)
+//!   user  320:  17 % → 0 %   (bucket 20 slot 320)
+//!   user  368:   2 % → 0 %   (bucket 23 slot 368)
+constexpr int ALLOC_NUM_BUCKETS = 48;
 
-//! Size → bucket-index.  FS=true range (1..256) keeps the 16-byte-step
-//! formula.  FS=false range (257..16376) uses a 4-way exponential
-//! ladder via std::bit_width / __builtin_clzll:
+//! Size → bucket-index.  FS=true/mixed range (1..368) uses the 16-byte
+//! step formula (Phase 5q extends 1..16 to 1..23).  FS=false range
+//! (369..17400) uses the Phase 5p N+1-shifted 4-way exponential ladder
+//! with bucket indices shifted +7.
 //!
-//!   total      = user_size + 8                          (header overhead)
-//!   octave     = floor(log2(total))                     (msb position)
-//!   sub_index  = (total >> (octave - 2)) & 0x3          (2-bit sub-bucket)
-//!   if total has lower bits below sub_index: sub_index += 1
+//! Algorithm: compute the OLD bucket via the unchanged Phase 5d-4
+//! octave/sub formula, then look up the NEW slot size of bucket K-1
+//! in a 41-entry constexpr table and step-down if it can hold the
+//! request.  The lookup replaces the inline arithmetic step-down
+//! check (5-15 cycles) with a single L1 load + compare + cmov (~3
+//! cycles), keeping `bucket_for_size` on the FS=false hot path.
+constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = 17400u;
+
+//! Phase 5q: per-bucket NEW slot size.  Indexed by bucket K.
+//!   * Buckets 1..23: 16-step (FS=true + mixed FS=false).  Slot = K*16.
+//!   * Buckets 24..47: FS=false N+1-shifted ladder, slot = (N+1)*ALIGN.
 //!
-//! The resulting (octave, sub) maps to bucket 16 + (octave - 8)*4 + sub:
-//!   octave 8 (total 257..512): sub 1..3 → bucket 17..19 (sub 0 = 256,
-//!                                          handled by the FS=true path)
-//!   octave 9..14 (total 513..16384): sub 0..3 → bucket 20..40
-//!
-//! Sub overflow (e.g. octave 9 sub=4 after the lower-bits add) naturally
-//! maps to the next octave's sub=0 via the same formula.
-//!
-//! Max user_size = 16376 (= 16 KiB - 8).  Sizes > ALLOC_MAX_BUCKETED_SIZE
-//! fall through `new_redirected_large` to mmap.
-constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = 16376u;
+//! Used by `bucket_for_size` to test `total <= kBucketNewSlot[K-1]`
+//! (= "user fits in the bucket below") on the FS=false range step-down.
+inline constexpr uint32_t kBucketNewSlot[48] = {
+    // 0..23: 16-step.  Even-K buckets in 6..16 are actually FS=false
+    // ALIGN=32 chunks (see KAME_DECL_BUCKET) but slot total = K*16
+    // from the dispatch table's view.  Buckets 17..23 (Phase 5q new)
+    // are FS=true with ALIGN=size, slot = size exactly.
+    0, 16, 32, 48, 64, 80, 96, 112, 128,
+    144, 160, 176, 192, 208, 224, 240, 256,
+    272, 288, 304, 320, 336, 352, 368,
+    // 24..31: ALIGN=64, N+1 ∈ {6, 7, 8, 9, 11, 13, 15, 17}.
+    384, 448, 512, 576, 704, 832, 960, 1088,
+    // 32..39: ALIGN=256.
+    1536, 1792, 2048, 2304, 2816, 3328, 3840, 4352,
+    // 40..47: ALIGN=1024.
+    6144, 7168, 8192, 9216, 11264, 13312, 15360, 17408,
+};
 
 inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
-	// FS=true range: 1..256, 16-B step.  (size+15)>>4 yields 1..16
-	// for size 1..256, and 0 for size==0 (reuses bucket 0's 16-B
-	// allocator).
-	if(size <= (std::size_t)ALLOC_SIZE16)
+	// FS=true / mixed range: 1..368, 16-B step.  (size+15)>>4 yields
+	// 1..23 for size 1..368, and 0 for size==0 (reuses bucket 0's 16-B
+	// allocator).  Phase 5q extended this from 1..16 (256 B max) to
+	// 1..23 (368 B max).
+	if(size <= (std::size_t)ALLOC_SIZE23)
 		return static_cast<unsigned int>((size + 15u) >> 4);
-	// FS=false 4-way exponential range: 257..16376.
+	// FS=false 4-way exponential range: 369..17400.  Bucket indices
+	// shifted +7 from Phase 5p (17..40 → 24..47).
 	std::size_t total = size + 8u;
-	// floor(log2(total)).  __builtin_clzll undefined for 0, but
-	// total >= 265 here so always > 0.
 	int msb = 63 - __builtin_clzll(static_cast<unsigned long long>(total));
-	// 2-bit sub-index for 4-way within the octave.
 	int sub = static_cast<int>((total >> (msb - 2)) & 0x3u);
-	// Any bits below the sub-index region ⇒ round up to next sub-bucket.
 	std::size_t mask = (std::size_t(1) << (msb - 2)) - 1u;
 	if(total & mask) ++sub;
-	// bucket = 16 + (octave - 8) * 4 + sub
-	// Octave 8 has FS=true at sub=0 (size 256), so FS=false starts at
-	// sub=1 → bucket 17.  Sub overflow (4) naturally lifts to next
-	// octave's sub=0 via the same formula.
-	return 16u + static_cast<unsigned int>((msb - 8) * 4 + sub);
+	// Phase 5d-4 octave/sub bucket index + Phase 5q shift +7.
+	unsigned int K = 23u + static_cast<unsigned int>((msb - 8) * 4 + sub);
+	// Phase 5p step-down: branchless via table lookup.  total fits
+	// in K-1 iff `total <= kBucketNewSlot[K-1]`.  Bound K >= 25 — the
+	// FS=true/false boundary K = 24 doesn't step down across the
+	// tier transition (bucket 23's slot 368 < bucket 24's slot 384,
+	// but bucket 23 is FS=true with no borrow header so a user
+	// requesting 369..376 cannot fit in bucket 23's 368 B slot).
+	if(K > 24u && total <= kBucketNewSlot[K - 1u]) return K - 1u;
+	return K;
 }
 
 extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
@@ -1236,18 +1277,19 @@ inline PoolAllocatorBase **kame_chunks_base() noexcept { return &g_thread_chunks
 //! tail-call it.
 void *cold_first_access(unsigned bucket, std::size_t size) noexcept;
 
-//! Out-of-line path for sizes larger than the table covers (> 256 B).
-//! Handles activation-flag check + the existing if-chain for the
-//! `ALLOCATE_9_16X(2, size)` range and the malloc fallback for very
-//! large sizes.  Hot path (size ≤ 256 B) bypasses this entirely.
+//! Out-of-line path for sizes larger than the inline 16-step range
+//! (> 368 B since Phase 5q; was > 256 B in Phase 5d-4..5p).  Handles
+//! activation-flag check + the FS=false ladder dispatch and the
+//! malloc fallback for very large sizes.  Inline hot path
+//! (size ≤ 368 B) bypasses this entirely.
 void *new_redirected_large(std::size_t size) noexcept;
 
 inline void *new_redirected(std::size_t size) {
-	// Hot path: sizes ≤ 256.  One branch + the inline `(size+15)>>4`
-	// formula (the small-range half of `bucket_for_size`).  Larger
-	// sizes go to `new_redirected_large`, which uses the full
-	// `bucket_for_size` helper for its own 257..512 dispatch.
-	if(size > (std::size_t)ALLOC_SIZE16)
+	// Hot path: sizes ≤ 368 (Phase 5q extended from ≤ 256).  One branch +
+	// the inline `(size+15)>>4` formula (the small-range half of
+	// `bucket_for_size`).  Larger sizes go to `new_redirected_large`,
+	// which uses the full `bucket_for_size` for the FS=false dispatch.
+	if(size > (std::size_t)ALLOC_SIZE23)
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
 	// Fast TSD access on macOS (arm64/x86_64); else direct TLV access.
