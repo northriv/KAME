@@ -1264,34 +1264,44 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 }
 
 // FS=false slow_allocate override.  Multiple bucket indices share one
-// PoolAllocator<ALIGN, false> instantiation (e.g. buckets 6, 8, 10, 12,
-// 14, 16 all live on PoolAllocator<16, false>), so the bucket's
-// slot size differs from ALIGN and must be derived from `bucket` at
-// runtime.  The inverse of `bucket_for_size`:
-//   bucket 1..16  →  slot_size = bucket * 16           (sizes 16..256,  16-B step)
-//   bucket 17..24 →  slot_size = 256 + (bucket-16)*32  (sizes 288..512, 32-B step)
-//   bucket 25..30 →  slot_size = 512 + (bucket-24)*256 (sizes 768..2048, 256-B step)
-//   bucket 31..36 →  slot_size = 2048 + (bucket-30)*1024 (sizes 3072..8192, 1024-B step)
-// The FS=false `allocate_pooled` uses this SIZE to compute N=SIZE/ALIGN
-// (number of consecutive ALIGN-slots to claim from the bitmap).  Each
-// branch's slot_size is an exact multiple of that tier's ALIGN:
-//   tiers 1-2 (sizes ≤ 512)  use ALLOC_ALIGN1 = 32
-//   tier   3 (768..2048)     use ALLOC_ALIGN2 = 256
-//   tier   4 (3072..8192)    use ALLOC_ALIGN3 = 1024 (64-bit) / 512 (32-bit)
+// PoolAllocator<ALIGN, false> instantiation, so the bucket's slot SIZE
+// (= max user_size) differs from ALIGN and must be derived from
+// `bucket` at runtime.  Phase 5d-4 4-way exponential layout:
+//   bucket 1..16  →  slot_size = bucket * 16        (sizes 16..256, FS=true mixed; this branch is reached
+//                                                    via the FS=false specialisation only for buckets 6, 8,
+//                                                    10, 12, 14, 16 — the FS=false-half of the mixed range)
+//   bucket 17..24 →  4-way octave 8/9/10 sub 1..3/0..3/0  (ALIGN=64, user_size = total - 8)
+//   bucket 25..32 →  4-way octave 10/11/12 sub 1..3/0..3/0 (ALIGN=256)
+//   bucket 33..40 →  4-way octave 12/13/14 sub 1..3/0..3/0 (ALIGN=1024)
+//
+// The FS=false `allocate_pooled` expects SIZE = user size (max user
+// bytes the bucket serves).  Internally it computes
+// N = ceil((SIZE + 8) / ALIGN) (Phase 5d-1 borrow scheme).
 template <unsigned int ALIGN, bool DUMMY>
 __attribute__((cold, noinline))
 void *
 PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
                                                   std::size_t /*size*/) noexcept {
+	// Phase 5d-4 inverse of `bucket_for_size`: bucket index → max
+	// user_size.  Maps {17..40} via the 4-way exponential ladder.
+	// Implementation: bucket_offset = bucket - 16; octave = 8 +
+	// bucket_offset / 4; sub = bucket_offset % 4.  total = (1<<octave) +
+	// (1<<(octave-2)) * sub.  user = total - 8.
+	//
+	// For the legacy 1..16 range (FS=true mixed + small FS=false), the
+	// formula `bucket * 16` produces the existing slot sizes
+	// 16, 32, 48, ..., 256.  Phase 5d-4 keeps these unchanged.
 	unsigned int slot_size;
-	if(bucket <= 16)
+	if(bucket <= 16) {
 		slot_size = bucket * 16u;
-	else if(bucket <= 24)
-		slot_size = 256u + (bucket - 16u) * 32u;
-	else if(bucket <= 30)
-		slot_size = 512u + (bucket - 24u) * 256u;
-	else
-		slot_size = 2048u + (bucket - 30u) * 1024u;
+	}
+	else {
+		unsigned int off    = bucket - 16u;       // 1..24
+		unsigned int octave = 8u + off / 4u;       // 8..14
+		unsigned int sub    = off % 4u;            // 0..3
+		unsigned int total  = (1u << octave) + (1u << (octave - 2u)) * sub;
+		slot_size = total - 8u;                    // user_size = total - 8 (borrow header)
+	}
 	// Inherited static; resolves to PoolAllocator<ALIGN, true, false>::
 	// allocate_chunk_path, which uses the FS=false-instantiated
 	// s_my_chunk under the hood (the DUMMY=false template trick).
@@ -2079,13 +2089,16 @@ PoolAllocatorBase::size_of(void *p) {
 	return size_of_<0, ALLOC_MIN_CHUNK_SIZE>(p);
 }
 void* allocate_large_size_or_malloc(size_t size) throw() {
-	ALLOCATE_9_16X(4, size);
-	ALLOCATE_9_16X(8, size);
-	ALLOCATE_9_16X(16, size);
-	ALLOCATE_9_16X(32, size);
-	ALLOCATE_9_16X(64, size);
-
-    return std::malloc(size);
+	// Phase 5d-4: bucket dispatch covers sizes 1..ALLOC_MAX_BUCKETED_SIZE
+	// (= 16376).  Anything bigger lands here and goes straight to
+	// libsystem.  The legacy ALLOCATE_9_16X(4, size) … (64, size) chain
+	// — which broke the size range into power-of-2 sub-tiers each
+	// dispatched through a PoolAllocator template instantiation — is no
+	// longer needed; the per-tier bucket path is more granular AND
+	// avoids the explosion of PoolAllocator template instantiations
+	// (`<256, false>`, `<512, false>`, …, `<16384, false>` etc.) those
+	// macros implied.
+	return std::malloc(size);
 }
 
 // =====================================================================
@@ -2128,38 +2141,43 @@ KAME_DECL_BUCKET(13, ALLOC_SIZE13,                 true,  ALLOC_SIZE13);
 KAME_DECL_BUCKET(14, ALLOC_ALIGN(ALLOC_SIZE14),   false,  ALLOC_SIZE14);
 KAME_DECL_BUCKET(15, ALLOC_SIZE15,                 true,  ALLOC_SIZE15);
 KAME_DECL_BUCKET(16, ALLOC_ALIGN(ALLOC_SIZE16),   false,  ALLOC_SIZE16);
-// Buckets 17..24 cover sizes 288..512 (32-B increments) — previously
-// dispatched by new_redirected_large via ALLOCATE_9_16X(2, size).  All
-// FS=false, ALIGN per ALLOC_ALIGN(size) (= 32 except for size 512 → 256).
-KAME_DECL_BUCKET(17, ALLOC_ALIGN(ALLOC_SIZE9 * 2),  false, ALLOC_SIZE9 * 2);   // size 288
-KAME_DECL_BUCKET(18, ALLOC_ALIGN(ALLOC_SIZE10 * 2), false, ALLOC_SIZE10 * 2);  // size 320
-KAME_DECL_BUCKET(19, ALLOC_ALIGN(ALLOC_SIZE11 * 2), false, ALLOC_SIZE11 * 2);  // size 352
-KAME_DECL_BUCKET(20, ALLOC_ALIGN(ALLOC_SIZE12 * 2), false, ALLOC_SIZE12 * 2);  // size 384
-KAME_DECL_BUCKET(21, ALLOC_ALIGN(ALLOC_SIZE13 * 2), false, ALLOC_SIZE13 * 2);  // size 416
-KAME_DECL_BUCKET(22, ALLOC_ALIGN(ALLOC_SIZE14 * 2), false, ALLOC_SIZE14 * 2);  // size 448
-KAME_DECL_BUCKET(23, ALLOC_ALIGN(ALLOC_SIZE15 * 2), false, ALLOC_SIZE15 * 2);  // size 480
-KAME_DECL_BUCKET(24, ALLOC_ALIGN(ALLOC_SIZE16 * 2), false, ALLOC_SIZE16 * 2);  // size 512
+// Buckets 17..40 (Phase 5d-4): 4-way exponential FS=false ladder.
+// 3 ALIGN stages, each covering 4 octaves of N values {5, 6, 7, 8, 10,
+// 12, 14, 16}.  The "borrow" header is the universal 8 B at p_user - 8
+// (Phase 5d-1).  Bucket `SIZE` is the MAX user_size the bucket serves
+// (= slot total - 8); allocate_pooled computes N = ceil((SIZE+8)/ALIGN)
+// internally.  slot_total = N * ALIGN; user_area = slot_total - 8 = SIZE.
 
-// Buckets 25..30 — sizes 768..2048 in 256-B increments.  All FS=false,
-// ALIGN=ALLOC_ALIGN2 (= 256 on 64-bit).  Slot sizes are exact multiples
-// of ALLOC_ALIGN2 (N = 3..8), so we bypass the ALLOC_ALIGN macro's
-// "is multiple of ALIGN2?" heuristic and name the tier directly.
-KAME_DECL_BUCKET(25, ALLOC_ALIGN2, false,  768u);  // ALIGN=256, N=3
-KAME_DECL_BUCKET(26, ALLOC_ALIGN2, false, 1024u);  // ALIGN=256, N=4
-KAME_DECL_BUCKET(27, ALLOC_ALIGN2, false, 1280u);  // ALIGN=256, N=5
-KAME_DECL_BUCKET(28, ALLOC_ALIGN2, false, 1536u);  // ALIGN=256, N=6
-KAME_DECL_BUCKET(29, ALLOC_ALIGN2, false, 1792u);  // ALIGN=256, N=7
-KAME_DECL_BUCKET(30, ALLOC_ALIGN2, false, 2048u);  // ALIGN=256, N=8
+// Stage 1 — ALIGN=64.  Slot totals 320..1024 (= 5..16 × 64).
+// SIZE = total - 8 (user max).  Range 257..312 folds into bucket 17.
+KAME_DECL_BUCKET(17,  64u, false,   312u);  // octave 8 sub 1, N=5,  total= 320
+KAME_DECL_BUCKET(18,  64u, false,   376u);  // octave 8 sub 2, N=6,  total= 384
+KAME_DECL_BUCKET(19,  64u, false,   440u);  // octave 8 sub 3, N=7,  total= 448
+KAME_DECL_BUCKET(20,  64u, false,   504u);  // octave 9 sub 0, N=8,  total= 512
+KAME_DECL_BUCKET(21,  64u, false,   632u);  // octave 9 sub 1, N=10, total= 640
+KAME_DECL_BUCKET(22,  64u, false,   760u);  // octave 9 sub 2, N=12, total= 768
+KAME_DECL_BUCKET(23,  64u, false,   888u);  // octave 9 sub 3, N=14, total= 896
+KAME_DECL_BUCKET(24,  64u, false,  1016u);  // octave 10 sub 0, N=16, total=1024
 
-// Buckets 31..36 — sizes 3072..8192 in 1024-B increments.  ALIGN=
-// ALLOC_ALIGN3 (= 1024 on 64-bit, = 512 on 32-bit; in both cases the
-// slot sizes 3072..8192 are exact multiples of ALIGN3).
-KAME_DECL_BUCKET(31, ALLOC_ALIGN3, false, 3072u);  // N=3 (64-bit) / N=6 (32-bit)
-KAME_DECL_BUCKET(32, ALLOC_ALIGN3, false, 4096u);  // N=4 / N=8
-KAME_DECL_BUCKET(33, ALLOC_ALIGN3, false, 5120u);  // N=5 / N=10
-KAME_DECL_BUCKET(34, ALLOC_ALIGN3, false, 6144u);  // N=6 / N=12
-KAME_DECL_BUCKET(35, ALLOC_ALIGN3, false, 7168u);  // N=7 / N=14
-KAME_DECL_BUCKET(36, ALLOC_ALIGN3, false, 8192u);  // N=8 / N=16
+// Stage 2 — ALIGN=256.  Slot totals 1280..4096 (= 5..16 × 256).
+KAME_DECL_BUCKET(25, 256u, false,  1272u);  // octave 10 sub 1, N=5,  total= 1280
+KAME_DECL_BUCKET(26, 256u, false,  1528u);  // octave 10 sub 2, N=6,  total= 1536
+KAME_DECL_BUCKET(27, 256u, false,  1784u);  // octave 10 sub 3, N=7,  total= 1792
+KAME_DECL_BUCKET(28, 256u, false,  2040u);  // octave 11 sub 0, N=8,  total= 2048
+KAME_DECL_BUCKET(29, 256u, false,  2552u);  // octave 11 sub 1, N=10, total= 2560
+KAME_DECL_BUCKET(30, 256u, false,  3064u);  // octave 11 sub 2, N=12, total= 3072
+KAME_DECL_BUCKET(31, 256u, false,  3576u);  // octave 11 sub 3, N=14, total= 3584
+KAME_DECL_BUCKET(32, 256u, false,  4088u);  // octave 12 sub 0, N=16, total= 4096
+
+// Stage 3 — ALIGN=1024.  Slot totals 5120..16384 (= 5..16 × 1024).
+KAME_DECL_BUCKET(33, 1024u, false,  5112u);  // octave 12 sub 1, N=5,  total= 5120
+KAME_DECL_BUCKET(34, 1024u, false,  6136u);  // octave 12 sub 2, N=6,  total= 6144
+KAME_DECL_BUCKET(35, 1024u, false,  7160u);  // octave 12 sub 3, N=7,  total= 7168
+KAME_DECL_BUCKET(36, 1024u, false,  8184u);  // octave 13 sub 0, N=8,  total= 8192
+KAME_DECL_BUCKET(37, 1024u, false, 10232u);  // octave 13 sub 1, N=10, total=10240
+KAME_DECL_BUCKET(38, 1024u, false, 12280u);  // octave 13 sub 2, N=12, total=12288
+KAME_DECL_BUCKET(39, 1024u, false, 14328u);  // octave 13 sub 3, N=14, total=14336
+KAME_DECL_BUCKET(40, 1024u, false, 16376u);  // octave 14 sub 0, N=16, total=16384
 #undef KAME_DECL_BUCKET
 
 //! First-access trampoline for bucket B.  Invoked from the
@@ -2241,6 +2259,10 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
         case 34:          return bucket_first_access<34>(size);
         case 35:          return bucket_first_access<35>(size);
         case 36:          return bucket_first_access<36>(size);
+        case 37:          return bucket_first_access<37>(size);
+        case 38:          return bucket_first_access<38>(size);
+        case 39:          return bucket_first_access<39>(size);
+        case 40:          return bucket_first_access<40>(size);
     }
     return std::malloc(size);  // unreachable
 }
@@ -2880,11 +2902,17 @@ ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
 //  that macOS arm64 emits for `(void)&s_tls_guard` in the allocate()
 //  hot path.)
 
-template class PoolAllocator<ALLOC_ALIGN1>;
-template class PoolAllocator<ALLOC_ALIGN2>;
-#if defined ALLOC_ALIGN3
-	template class PoolAllocator<ALLOC_ALIGN3>;
-#endif
+// FS=false PoolAllocator instantiations.
+//
+// Phase 5d-4 layout uses three stages with explicit ALIGN values (64,
+// 256, 1024).  ALLOC_ALIGN1 (= 32 on 64-bit) is retained as the ALIGN
+// of the legacy FS=false buckets 6/8/10/12/14 (slot sizes 96/128/160/
+// 192/224); bucket 16 (size 256) uses ALLOC_ALIGN(256) = ALLOC_ALIGN2
+// = 256.  So we need ALIGN=32, 64, 256, 1024 — four total instantiations.
+template class PoolAllocator<32u, false>;     // buckets 6, 8, 10, 12, 14
+template class PoolAllocator<64u, false>;     // buckets 17..24 (Phase 5d-4 stage 1)
+template class PoolAllocator<256u, false>;    // bucket 16 + buckets 25..32 (Phase 5d-4 stage 2)
+template class PoolAllocator<1024u, false>;   // buckets 33..40 (Phase 5d-4 stage 3)
 
 template class PoolAllocator<ALLOC_SIZE1, true>;
 template class PoolAllocator<ALLOC_SIZE2, true>;
