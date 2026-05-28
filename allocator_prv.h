@@ -598,6 +598,18 @@ public:
 	static PoolAllocatorBase *get_pinned_chunk_base() noexcept {
 		return static_cast<PoolAllocatorBase *>(s_my_chunk);
 	}
+	//! Phase 5r: public reset of this thread's DLL walk hints
+	//! (`s_dll_cursor` + `s_dll_exhausted`) for callers outside the
+	//! PoolAllocator class hierarchy — specifically `CrossDeallocBatch::
+	//! push_direct` (anon-namespace, no inheritance) which calls
+	//! `batch_return_to_bitmap` directly on the freeing thread and
+	//! needs to signal "DLL may have revived chunks" to this thread's
+	//! subsequent `allocate_chunk_path`.  See the Phase 5r commit /
+	//! the call sites in `deallocate_pooled` for the full rationale.
+	static void reset_dll_walk_state() noexcept {
+		s_dll_cursor = nullptr;
+		s_dll_exhausted = false;
+	}
 	//! Public (was protected) so the per-thread functor-table dispatcher
 	//! in allocator.cpp can call it on freelist miss without needing a
 	//! friend declaration.  Tries `allocate_pooled` on the pinned chunk
