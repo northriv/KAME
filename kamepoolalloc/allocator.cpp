@@ -1278,25 +1278,30 @@ __attribute__((cold, noinline))
 void *
 PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
                                                   std::size_t /*size*/) noexcept {
-	// Phase 5d-4 inverse of `bucket_for_size`: bucket index → max
-	// user_size.  Maps {17..40} via the 4-way exponential ladder.
-	// Implementation: bucket_offset = bucket - 16; octave = 8 +
-	// bucket_offset / 4; sub = bucket_offset % 4.  total = (1<<octave) +
-	// (1<<(octave-2)) * sub.  user = total - 8.
+	// Phase 5q inverse of `bucket_for_size`: bucket index → max
+	// user_size.
 	//
-	// For the legacy 1..16 range (FS=true mixed + small FS=false), the
-	// formula `bucket * 16` produces the existing slot sizes
-	// 16, 32, 48, ..., 256.  Phase 5d-4 keeps these unchanged.
+	// Buckets 1..23 (FS=true + FS=false mixed): slot_size = bucket * 16.
+	//   - 1..16: original Phase 5d-4 range (16..256 B).
+	//   - 17..23: Phase 5q FS=true extension (272..368 B).
+	//
+	// Buckets 24..47 (FS=false N+1 shift, Phase 5p): 4-way exponential.
+	//   bucket_offset = bucket - 23 (1..24).
+	//   octave = 8 + bucket_offset / 4 (8..14).
+	//   sub = bucket_offset % 4 (0..3).
+	//   OLD total = (1<<octave) + (1<<(octave-2)) * sub.
+	//   NEW slot = OLD + ALIGN_tier (Phase 5p N+1 shift).
+	//   user_size = NEW slot - 8 (Phase 5d-1 borrow header).
 	unsigned int slot_size;
-	if(bucket <= 16) {
+	if(bucket <= 23) {
 		slot_size = bucket * 16u;
 	}
 	else {
-		unsigned int off    = bucket - 16u;       // 1..24
+		unsigned int off    = bucket - 23u;       // 1..24
 		unsigned int octave = 8u + off / 4u;       // 8..14
 		unsigned int sub    = off % 4u;            // 0..3
 		unsigned int total  = (1u << octave) + (1u << (octave - 2u)) * sub;
-		slot_size = total - 8u;                    // user_size = total - 8 (borrow header)
+		slot_size = total + ALIGN - 8u;
 	}
 	// Inherited static; resolves to PoolAllocator<ALIGN, true, false>::
 	// allocate_chunk_path, which uses the FS=false-instantiated
@@ -2321,43 +2326,56 @@ KAME_DECL_BUCKET(13, ALLOC_SIZE13,                 true,  ALLOC_SIZE13);
 KAME_DECL_BUCKET(14, ALLOC_ALIGN(ALLOC_SIZE14),   false,  ALLOC_SIZE14);
 KAME_DECL_BUCKET(15, ALLOC_SIZE15,                 true,  ALLOC_SIZE15);
 KAME_DECL_BUCKET(16, ALLOC_ALIGN(ALLOC_SIZE16),   false,  ALLOC_SIZE16);
-// Buckets 17..40 (Phase 5d-4): 4-way exponential FS=false ladder.
-// 3 ALIGN stages, each covering 4 octaves of N values {5, 6, 7, 8, 10,
-// 12, 14, 16}.  The "borrow" header is the universal 8 B at p_user - 8
+// Phase 5q: extend the FS=true 16-step ladder to buckets 17..23
+// (sizes 272..368).  Each is FS=true with ALIGN = SIZE → zero
+// internal frag (one slot per ALIGN-byte region).  Closes the
+// 257..368 gap that Phase 5p's bucket 17 (slot 384) absorbed at
+// up to 32 % frag for the small end.
+KAME_DECL_BUCKET(17, ALLOC_SIZE17,                 true,  ALLOC_SIZE17);  // 272
+KAME_DECL_BUCKET(18, ALLOC_SIZE18,                 true,  ALLOC_SIZE18);  // 288
+KAME_DECL_BUCKET(19, ALLOC_SIZE19,                 true,  ALLOC_SIZE19);  // 304
+KAME_DECL_BUCKET(20, ALLOC_SIZE20,                 true,  ALLOC_SIZE20);  // 320
+KAME_DECL_BUCKET(21, ALLOC_SIZE21,                 true,  ALLOC_SIZE21);  // 336
+KAME_DECL_BUCKET(22, ALLOC_SIZE22,                 true,  ALLOC_SIZE22);  // 352
+KAME_DECL_BUCKET(23, ALLOC_SIZE23,                 true,  ALLOC_SIZE23);  // 368
+
+// Buckets 24..47 (Phase 5p N+1 shift, indices +7 from Phase 5p): 4-way
+// exponential FS=false ladder.  3 ALIGN stages × 8 (octave/sub) =
+// 24 buckets.  The "borrow" header is the universal 8 B at p_user - 8
 // (Phase 5d-1).  Bucket `SIZE` is the MAX user_size the bucket serves
-// (= slot total - 8); allocate_pooled computes N = ceil((SIZE+8)/ALIGN)
-// internally.  slot_total = N * ALIGN; user_area = slot_total - 8 = SIZE.
+// (= slot total - 8); slow_allocate / bucket_first_access pass SIZE
+// to allocate_pooled, which computes N = ceil((SIZE+8)/ALIGN).
+// Slot total uniformly = (N+1)*ALIGN per Phase 5p.
 
-// Stage 1 — ALIGN=64.  Slot totals 320..1024 (= 5..16 × 64).
-// SIZE = total - 8 (user max).  Range 257..312 folds into bucket 17.
-KAME_DECL_BUCKET(17,  64u, false,   312u);  // octave 8 sub 1, N=5,  total= 320
-KAME_DECL_BUCKET(18,  64u, false,   376u);  // octave 8 sub 2, N=6,  total= 384
-KAME_DECL_BUCKET(19,  64u, false,   440u);  // octave 8 sub 3, N=7,  total= 448
-KAME_DECL_BUCKET(20,  64u, false,   504u);  // octave 9 sub 0, N=8,  total= 512
-KAME_DECL_BUCKET(21,  64u, false,   632u);  // octave 9 sub 1, N=10, total= 640
-KAME_DECL_BUCKET(22,  64u, false,   760u);  // octave 9 sub 2, N=12, total= 768
-KAME_DECL_BUCKET(23,  64u, false,   888u);  // octave 9 sub 3, N=14, total= 896
-KAME_DECL_BUCKET(24,  64u, false,  1016u);  // octave 10 sub 0, N=16, total=1024
+// Stage 1 — ALIGN=64.  Slot totals 384..1088 (= 6..17 × 64).
+KAME_DECL_BUCKET(24,  64u, false,   376u);  // octave 8 sub 1 +ALIGN, N=6,  slot= 384
+KAME_DECL_BUCKET(25,  64u, false,   440u);  // octave 8 sub 2 +ALIGN, N=7,  slot= 448
+KAME_DECL_BUCKET(26,  64u, false,   504u);  // octave 8 sub 3 +ALIGN, N=8,  slot= 512
+KAME_DECL_BUCKET(27,  64u, false,   568u);  // octave 9 sub 0 +ALIGN, N=9,  slot= 576
+KAME_DECL_BUCKET(28,  64u, false,   696u);  // octave 9 sub 1 +ALIGN, N=11, slot= 704
+KAME_DECL_BUCKET(29,  64u, false,   824u);  // octave 9 sub 2 +ALIGN, N=13, slot= 832
+KAME_DECL_BUCKET(30,  64u, false,   952u);  // octave 9 sub 3 +ALIGN, N=15, slot= 960
+KAME_DECL_BUCKET(31,  64u, false,  1080u);  // octave 10 sub 0 +ALIGN, N=17, slot=1088
 
-// Stage 2 — ALIGN=256.  Slot totals 1280..4096 (= 5..16 × 256).
-KAME_DECL_BUCKET(25, 256u, false,  1272u);  // octave 10 sub 1, N=5,  total= 1280
-KAME_DECL_BUCKET(26, 256u, false,  1528u);  // octave 10 sub 2, N=6,  total= 1536
-KAME_DECL_BUCKET(27, 256u, false,  1784u);  // octave 10 sub 3, N=7,  total= 1792
-KAME_DECL_BUCKET(28, 256u, false,  2040u);  // octave 11 sub 0, N=8,  total= 2048
-KAME_DECL_BUCKET(29, 256u, false,  2552u);  // octave 11 sub 1, N=10, total= 2560
-KAME_DECL_BUCKET(30, 256u, false,  3064u);  // octave 11 sub 2, N=12, total= 3072
-KAME_DECL_BUCKET(31, 256u, false,  3576u);  // octave 11 sub 3, N=14, total= 3584
-KAME_DECL_BUCKET(32, 256u, false,  4088u);  // octave 12 sub 0, N=16, total= 4096
+// Stage 2 — ALIGN=256.  Slot totals 1536..4352 (= 6..17 × 256).
+KAME_DECL_BUCKET(32, 256u, false,  1528u);  // octave 10 sub 1 +ALIGN, N=6,  slot= 1536
+KAME_DECL_BUCKET(33, 256u, false,  1784u);  // octave 10 sub 2 +ALIGN, N=7,  slot= 1792
+KAME_DECL_BUCKET(34, 256u, false,  2040u);  // octave 10 sub 3 +ALIGN, N=8,  slot= 2048
+KAME_DECL_BUCKET(35, 256u, false,  2296u);  // octave 11 sub 0 +ALIGN, N=9,  slot= 2304
+KAME_DECL_BUCKET(36, 256u, false,  2808u);  // octave 11 sub 1 +ALIGN, N=11, slot= 2816
+KAME_DECL_BUCKET(37, 256u, false,  3320u);  // octave 11 sub 2 +ALIGN, N=13, slot= 3328
+KAME_DECL_BUCKET(38, 256u, false,  3832u);  // octave 11 sub 3 +ALIGN, N=15, slot= 3840
+KAME_DECL_BUCKET(39, 256u, false,  4344u);  // octave 12 sub 0 +ALIGN, N=17, slot= 4352
 
-// Stage 3 — ALIGN=1024.  Slot totals 5120..16384 (= 5..16 × 1024).
-KAME_DECL_BUCKET(33, 1024u, false,  5112u);  // octave 12 sub 1, N=5,  total= 5120
-KAME_DECL_BUCKET(34, 1024u, false,  6136u);  // octave 12 sub 2, N=6,  total= 6144
-KAME_DECL_BUCKET(35, 1024u, false,  7160u);  // octave 12 sub 3, N=7,  total= 7168
-KAME_DECL_BUCKET(36, 1024u, false,  8184u);  // octave 13 sub 0, N=8,  total= 8192
-KAME_DECL_BUCKET(37, 1024u, false, 10232u);  // octave 13 sub 1, N=10, total=10240
-KAME_DECL_BUCKET(38, 1024u, false, 12280u);  // octave 13 sub 2, N=12, total=12288
-KAME_DECL_BUCKET(39, 1024u, false, 14328u);  // octave 13 sub 3, N=14, total=14336
-KAME_DECL_BUCKET(40, 1024u, false, 16376u);  // octave 14 sub 0, N=16, total=16384
+// Stage 3 — ALIGN=1024.  Slot totals 6144..17408 (= 6..17 × 1024).
+KAME_DECL_BUCKET(40, 1024u, false,  6136u);  // octave 12 sub 1 +ALIGN, N=6,  slot= 6144
+KAME_DECL_BUCKET(41, 1024u, false,  7160u);  // octave 12 sub 2 +ALIGN, N=7,  slot= 7168
+KAME_DECL_BUCKET(42, 1024u, false,  8184u);  // octave 12 sub 3 +ALIGN, N=8,  slot= 8192
+KAME_DECL_BUCKET(43, 1024u, false,  9208u);  // octave 13 sub 0 +ALIGN, N=9,  slot= 9216
+KAME_DECL_BUCKET(44, 1024u, false, 11256u);  // octave 13 sub 1 +ALIGN, N=11, slot=11264
+KAME_DECL_BUCKET(45, 1024u, false, 13304u);  // octave 13 sub 2 +ALIGN, N=13, slot=13312
+KAME_DECL_BUCKET(46, 1024u, false, 15352u);  // octave 13 sub 3 +ALIGN, N=15, slot=15360
+KAME_DECL_BUCKET(47, 1024u, false, 17400u);  // octave 14 sub 0 +ALIGN, N=17, slot=17408
 #undef KAME_DECL_BUCKET
 
 //! First-access trampoline for bucket B.  Invoked from the
@@ -2443,6 +2461,13 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
         case 38:          return bucket_first_access<38>(size);
         case 39:          return bucket_first_access<39>(size);
         case 40:          return bucket_first_access<40>(size);
+        case 41:          return bucket_first_access<41>(size);
+        case 42:          return bucket_first_access<42>(size);
+        case 43:          return bucket_first_access<43>(size);
+        case 44:          return bucket_first_access<44>(size);
+        case 45:          return bucket_first_access<45>(size);
+        case 46:          return bucket_first_access<46>(size);
+        case 47:          return bucket_first_access<47>(size);
     }
     return std::malloc(size);  // unreachable
 }
