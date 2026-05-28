@@ -99,6 +99,16 @@ inline bool atomicDecAndTest(T *target) noexcept {
 //! power-of-2 and the AND-mask lookup works uniformly across the
 //! ladder.  NUM_ALLOCATORS_IN_SPACE stays 128 chunks per mmap region.
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256 KiB initial chunk (power of 2) + 2× grow
+//! Phase 5g: cap the chunk-size growth ladder.  Without a cap, the 2×
+//! growth produces 2 TiB chunks at level 23 — each region's
+//! PROT_NONE reservation is huge, and the rare case where the cross-
+//! thread alloc/free ladder kicks the level up (e.g. user-reported
+//! `alloc_stress c=32 x=50%`) drives VmPeak past 1 TiB.  Capping at
+//! 4× (= 1 MiB chunk) bounds per-region VA at 128 MiB and total VA
+//! at ≈ 3 GiB (24 regions × 128 MiB).  Per-chunk slot counts stay
+//! plenty (1 MiB / 1024 / FUINT_BITS = 16 words = 1024 bits → up
+//! to 102 slots @ N=10, 64 @ N=16 for ALIGN3=1024).
+#define ALLOC_MAX_CHUNK_SIZE (ALLOC_MIN_CHUNK_SIZE * 4)  //1 MiB cap
 // OS page size — still relevant for mprotect() granularity within a
 // chunk.  All chunk sizes are now power-of-2 ≥ 256 KiB which auto-
 // satisfies every supported arch's page size.
@@ -109,8 +119,16 @@ inline bool atomicDecAndTest(T *target) noexcept {
 #else
     #define ALLOC_PAGE_SIZE 4096   // 4 KiB
 #endif
-//! 2× growth.  No page-align rounding needed — both terms are power-of-2.
-#define GROW_CHUNK_SIZE(x) ((size_t)(x) * 2u)
+//! Phase 5g: 2× growth capped at `ALLOC_MAX_CHUNK_SIZE`.  Multiple
+//! ladder levels share the cap value (= 1 MiB) once reached, which
+//! is fine for the chunk-base AND-mask lookup since every level's
+//! chunk_size is still power-of-2.  `deallocate_<>`'s recursive
+//! template walk receives `min(2x, cap)` per level — equal values at
+//! successive levels just mean the AND mask doesn't change.
+#define GROW_CHUNK_SIZE(x) \
+    (((size_t)(x) * 2u > (size_t)ALLOC_MAX_CHUNK_SIZE) \
+        ? (size_t)ALLOC_MAX_CHUNK_SIZE \
+        : (size_t)(x) * 2u)
 //! `NUM_ALLOCATORS_IN_SPACE == 128` is fixed across all targets — it's
 //! the bit count of the two-uint64_t `s_claim_bitmap[region*2..region*2+1]`
 //! per-region chunk-claim bitmap.  So `ALLOC_MIN_MMAP_SIZE` must equal
