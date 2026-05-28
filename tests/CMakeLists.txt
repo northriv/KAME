@@ -100,6 +100,9 @@ target_link_libraries(transaction_payload_integrity_3level_mixed_test Threads::T
 add_executable(alloc_stress_test alloc_stress_test.cpp ${support_SRCS})
 target_link_libraries(alloc_stress_test Threads::Threads)
 
+add_executable(alloc_minimal_bench alloc_minimal_bench.cpp ${support_SRCS})
+target_link_libraries(alloc_minimal_bench Threads::Threads)
+
 # --- CTest registration ---
 
 enable_testing()

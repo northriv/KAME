@@ -146,6 +146,12 @@ public:
 	//! new-chunk slots).
 	static inline PoolAllocatorBase *lookup_chunk(void *p) noexcept;
 	static void release_chunks();
+	//! Number of currently-live chunks across all PoolAllocator<ALIGN>
+	//! instantiations.  Walks `s_chunks[]` and counts entries whose
+	//! value is neither 0 (empty) nor 1 (claim-in-progress).  Used by
+	//! tests to verify chunk release paths (a leak shows as monotonic
+	//! growth across alloc/free cycles).
+	static int count_live_chunks() noexcept;
 	virtual void report_statistics(size_t &chunk_size, size_t &used_size) = 0;
 	//! Null out this thread's `s_my_chunk` for this chunk's ALIGN type.
 	//! Called from `AllocPinCleanup` after freelist flush, before pin

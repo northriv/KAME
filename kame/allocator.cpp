@@ -1321,6 +1321,20 @@ PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 	return nullptr;
 }
 
+//! Count entries in `s_chunks[]` whose value is a real chunk pointer
+//! (not 0 = empty, not 1 = claim-in-progress).  Used by tests to verify
+//! chunk release paths (a leak shows as monotonic growth across
+//! repeated alloc/free cycles).  O(ALLOC_MAX_CHUNKS); not hot-path.
+int
+PoolAllocatorBase::count_live_chunks() noexcept {
+	int n = 0;
+	for(int cidx = 0; cidx < ALLOC_MAX_CHUNKS; ++cidx) {
+		PoolAllocatorBase *p = s_chunks[cidx];
+		if((uintptr_t)p > (uintptr_t)1u) ++n;
+	}
+	return n;
+}
+
 template <int CCNT, size_t CHUNK_SIZE>
 inline bool
 PoolAllocatorBase::deallocate_(void *p) {
