@@ -389,6 +389,10 @@ struct CrossDeallocBatch {
         if(c->m_owner_dll_head_addr ==
            PoolAllocator<ALIGN, true, true>::dll_head_tls_addr())
             PoolAllocator<ALIGN, true, true>::reset_dll_walk_state();
+        else if(auto *p = c->m_owner_dll_force_walk_ptr)
+            // Defensive null check: owner may have exited and
+            // nullified this pointer.
+            p->store(true, std::memory_order_relaxed);
     }
 
     void flush() noexcept {
@@ -645,6 +649,12 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	// address is comparable only to `&s_dll_head` taken in the same
 	// template context — which is exactly what the dealloc paths do.
 	this->m_owner_dll_head_addr = (void *)&s_dll_head;
+	// Phase 5v: also capture the owner's "force walk from head" flag
+	// pointer.  Cross-thread frees flip this so the owner's next
+	// allocate_chunk_path force-restarts the DLL walk and visits
+	// revived chunks (bitmap-cleared by cross-thread frees since the
+	// last walk).
+	this->m_owner_dll_force_walk_ptr = &s_dll_force_walk_from_head;
 	for(int i = count - 1; i >= 0 ; --i)
 		m_flags[i] = 0; //zero clear.
 	// Initial coalesce hint by (FS, real-instance):
@@ -930,20 +940,33 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// implicit.
 	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 	this->batch_return_to_bitmap(tmp);
-	// Phase 5r/5t: direct `batch_return_to_bitmap` cleared 1 bit on
-	// `this` chunk → it may now have space for a future
-	// `allocate_pooled`.  ONLY reset the DLL cursor if we are the
-	// chunk's owner — otherwise the bit-clear affects another
-	// thread's DLL, not ours, and resetting our cursor is wasted
-	// (next `allocate_chunk_path` re-walks own DLL from head with
-	// no chance of finding the revived chunk).
+	// Phase 5r/5t/5v: direct `batch_return_to_bitmap` cleared 1 bit
+	// on `this` chunk → it may now have space for a future
+	// `allocate_pooled`.  Two cases:
 	//
-	// Phase 5t identification: each chunk caches the owner thread's
-	// `&s_dll_head` (per-thread TLS address) at construction; compare
-	// against ours.  Same TLS address ↔ same thread.
+	//   * Same-thread (we are the chunk's owner):
+	//     `m_owner_dll_head_addr == &s_dll_head`.  Reset OUR cursor
+	//     directly — next allocate_chunk_path walks our DLL from
+	//     head and finds the revival.  (Phase 5r/5t)
+	//
+	//   * Cross-thread (owner is some other thread):
+	//     Bump the OWNER thread's "force walk from head" hint flag
+	//     via the chunk's `m_owner_dll_force_walk_ptr`.  Owner's
+	//     next allocate_chunk_path checks + clears the flag and
+	//     restarts its DLL walk.  (Phase 5v — replaces Phase 5t's
+	//     "skip cross-thread reset" which on Linux let cross-thread
+	//     revivals starve the owner's DLL walk → spurious mmap
+	//     bloat in alloc_stress.)
+	//
+	// `memory_order_relaxed`: hint flag, false-negative one-cycle
+	// delay acceptable.
 	if(this->m_owner_dll_head_addr ==
 	   static_cast<void *>(&PoolAllocator<ALIGN, true, false>::s_dll_head))
 		PoolAllocator<ALIGN, true, false>::reset_dll_walk_state();
+	else if(auto *p = this->m_owner_dll_force_walk_ptr)
+		// Defensive null check: owner may have exited and nullified
+		// this pointer (see release_dll_chunks_for_thread).
+		p->store(true, std::memory_order_relaxed);
 	return false;
 }
 
@@ -1762,6 +1785,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// cursor was reset via mmap-fresh.  Skipping `s_my_chunk` avoids
 	// a redundant retry of the just-failed `allocate_pooled` call
 	// above.
+	// Phase 5v: check the cross-thread revival hint.  If any cross-
+	// thread free flipped our "force walk from head" flag since the
+	// last walk, restart the walk from `s_dll_head` so we visit
+	// chunks that received bitmap clears we wouldn't see by
+	// resuming from the (possibly past-end) cursor.  `exchange`
+	// resets the flag in the same atomic; subsequent cross-thread
+	// frees re-arm it.
+	if(s_dll_force_walk_from_head.exchange(false, std::memory_order_relaxed)) {
+		s_dll_cursor = nullptr;
+		s_dll_exhausted = false;
+	}
 	if( !s_dll_exhausted) {
 		auto *c = s_dll_cursor ? s_dll_cursor : s_dll_head;
 		while(c) {
@@ -1969,6 +2003,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		auto *next = c->m_dll_next;
 		c->m_dll_prev = nullptr;
 		c->m_dll_next = nullptr;
+		// Phase 5v: nullify the owner-revival-hint pointer BEFORE
+		// clearing BIT_OWNED.  Once BIT_OWNED is clear, cross-thread
+		// frees may target this chunk; if our TLS storage gets
+		// reclaimed in the meantime, their `store(true)` would
+		// dereference a dangling pointer.  Setting to nullptr (plain
+		// store; ordering enforced by the atomicFetchAnd below)
+		// signals to cross-thread frees to skip the hint signal —
+		// owner is gone and no one will read the hint anyway.
+		c->m_owner_dll_force_walk_ptr = nullptr;
 		uint32_t old = atomicFetchAnd(&c->m_flags_packed,
 		                              static_cast<uint32_t>(~BIT_OWNED));
 		uint32_t newv = old & ~BIT_OWNED;
@@ -3188,6 +3231,10 @@ ALLOC_TLS PoolAllocator<ALIGN, DUMMY, DUMMY> *
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS bool
     PoolAllocator<ALIGN, FS, DUMMY>::s_dll_exhausted;
+// Phase 5v: per-thread cross-thread revival hint flag.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+ALLOC_TLS std::atomic<bool>
+    PoolAllocator<ALIGN, FS, DUMMY>::s_dll_force_walk_from_head;
 
 // (Per-template `thread_local TlsGuard s_tls_guard` removed.
 //  AllocThreadExitCleanup::~AllocThreadExitCleanup — fired via the pthread_key dtor
