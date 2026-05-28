@@ -1958,24 +1958,29 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 #elif defined(__APPLE__)
 				// macOS: MADV_FREE — kernel zeros pages lazily on
 				// next access (or sooner under memory pressure).
-				madvise(chunk_base, chunk_size, MADV_FREE);
-#elif defined(MADV_FREE)
-				// Linux 4.5+: MADV_FREE — lazy reclaim.  Pages stay
-				// mapped (RW) and committed; kernel may reclaim them
-				// under memory pressure, in which case next access
-				// gets a zeroed CoW page-fault.  Under low pressure
-				// the pages are reused in-place with NO page-fault on
-				// re-claim — closing the alloc_only cold-path gap
-				// vs glibc / mimalloc (Phase 5l with MADV_DONTNEED
-				// forced re-fault on every re-claim, ~26 % perf cost).
-				// RSS stays higher than MADV_DONTNEED until pressure
-				// fires reclaim, but the headline VmPeak cap (Phase
-				// 5l-fixup) and the multi-thread stress workload's
-				// 1/20-of-glibc RSS (Phase 5l) are preserved.
+				// Apple libc's implementation is cheap (per-page
+				// flag flip, no LRU-list manipulation) and reuse-
+				// fast: subsequent writes to the same VA hit the
+				// preserved pages without re-faulting.
 				madvise(chunk_base, chunk_size, MADV_FREE);
 #else
-				// Older Linux: fall back to MADV_DONTNEED (eager
-				// reclaim — slower re-claim, but lower RSS).
+				// Linux / others: MADV_DONTNEED — eager reclaim.
+				//
+				// Phase 5n tried MADV_FREE on Linux for "lazy reclaim,
+				// fast reuse" but it REGRESSED catastrophically on
+				// reuse-heavy workloads (bucket34_repro 33.5 →
+				// 0.26 M/s, fifo:1024 3072B 3.3 → 1.6 M/s,
+				// alloc_stress c=32 x=50 % RSS 9 MiB → 698 MiB).
+				// Root cause is kernel-specific: Linux MADV_FREE
+				// adds pages to an LRU lazy-discard list (multi-
+				// thread lock contention) and reusing the VA via a
+				// fresh write triggers a minor page-fault to clear
+				// the discard flag — net cost EXCEEDS the
+				// MADV_DONTNEED + zero-fault round-trip for our
+				// alloc/free cadence, while RSS bloats because
+				// reclaim is delayed until memory pressure.  macOS
+				// MADV_FREE does not have this problem because
+				// Apple's implementation is structured differently.
 				madvise(chunk_base, chunk_size, MADV_DONTNEED);
 #endif
 				// Step 4: clear back_offset entries.
