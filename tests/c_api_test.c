@@ -2,13 +2,19 @@
         Copyright (C) 2002-2026 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
-        Licensed under the Apache License, Version 2.0 (the "License");
-        you may not use this file except in compliance with the License.
-        You may obtain a copy of the License at
+        This file is dual-licensed under your choice of EITHER:
 
-            http://www.apache.org/licenses/LICENSE-2.0
+          * Apache License, Version 2.0
+            (http://www.apache.org/licenses/LICENSE-2.0, or see
+            kamepoolalloc/LICENSE-APACHE-2.0)
 
-        SPDX-License-Identifier: Apache-2.0
+        -- OR --
+
+          * GNU General Public License, version 2 of the License,
+            or (at your option) any later version
+            (see kamepoolalloc/LICENSE-GPL-2.0).
+
+        Pick whichever license suits your project.
 ***************************************************************************/
 
 /*

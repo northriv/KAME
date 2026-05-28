@@ -1,6 +1,6 @@
 # kamepoolalloc
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License: Apache-2.0 OR GPL-2.0+](https://img.shields.io/badge/License-Apache--2.0_OR_GPL--2.0%2B-blue.svg)](#license)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW)-lightgrey)]()
 
@@ -10,8 +10,9 @@ general-purpose drop-in `new` / `delete` replacement on macOS, Linux, and
 Windows (MinGW).
 
 Carved out of the [KAME](https://github.com/northriv/KAME) measurement framework
-under **Apache 2.0** so it can be embedded into commercial / proprietary
-projects without copyleft obligations.
+and **dual-licensed under Apache 2.0 OR GPL-2.0-or-later** at your choice — so
+it can be embedded into permissive / proprietary projects (Apache 2.0 path) or
+linked into GPLv2-only projects such as KAME itself (GPL path).
 
 ## Highlights
 
@@ -132,15 +133,23 @@ on 64-bit, 3 GiB on 32-bit).
 
 ## License
 
-**Apache License 2.0** — see [LICENSE](LICENSE).
+**Dual-licensed under your choice of EITHER:**
+
+- **Apache License, Version 2.0** — see [LICENSE-APACHE-2.0](LICENSE-APACHE-2.0).
+  Best for embedding into permissive / proprietary projects.
+- **GNU GPL, version 2 of the License, or (at your option) any later version**
+  — see [LICENSE-GPL-2.0](LICENSE-GPL-2.0).
+  Best for linking into GPLv2-only projects such as KAME itself.
+
+Pick whichever license suits your downstream project; see [LICENSE](LICENSE)
+for the full dual-grant statement.
 
 Copyright (C) 2002-2026 Kentaro Kitagawa &lt;kitag@issp.u-tokyo.ac.jp&gt;,
 The University of Tokyo, ISSP.
 
-The Apache-2.0 license permits commercial use, static linking, modification,
-and redistribution without source disclosure obligations.  A NOTICE file
-is **not** required by this library (no third-party Apache-2.0 NOTICE files
-are reproduced or transformed).
+Both license grants explicitly require preservation of the copyright notice
+and the choice-of-license clause when redistributing this software, in source
+or binary form.
 
 ## Roadmap
 
