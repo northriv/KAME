@@ -397,28 +397,51 @@ public:
 	//!   * Hosts where `atomic<uint64_t>` is always-lock-free
 	//!     (`ATOMIC_LLONG_LOCK_FREE == 2`) — 64-bit hosts, and 32-bit
 	//!     hosts with hardware DCAS (x86 CMPXCHG8B / ARMv7 LDREXD):
-	//!     `uint64_t`, 2 words per region.
-	//!   * Hosts without DCAS — fall back to `uint32_t`, 4 words per
+	//!     `uint64_t`, 4 words per region.
+	//!   * Hosts without DCAS — fall back to `uint32_t`, 8 words per
 	//!     region.  Requires single-word atomic<uint32_t> to be
 	//!     always-lock-free (true on every architecture this allocator
 	//!     supports).
-	//! Total bits per region stays 128 (= `NUM_ALLOCATORS_IN_SPACE`)
-	//! so the chunk-claim semantics are identical across both layouts.
+	//!
+	//! Phase 5h: 2-bit encoding per chunk.  Each chunk owns a pair of
+	//! bits (claimed at bit 2N, ready at bit 2N+1):
+	//!   * (0, 0): free.
+	//!   * (1, 0): claimed but chunk_header init in progress (a
+	//!     scanner must NOT dereference this chunk's memory yet — the
+	//!     mprotect to PROT_RW may not have completed, and
+	//!     chunk_header palloc / fn pointers are not yet written).
+	//!   * (1, 1): fully initialised — chunk_header is published and
+	//!     dereferenceable.  Phase 5k cross-shard reclaim scans for
+	//!     this state.
+	//!   * (0, 1): impossible (would mean "ready but not claimed").
+	//! Total bits per region: 128 chunks × 2 = 256.
 #if ATOMIC_LLONG_LOCK_FREE == 2 && !defined(KAME_FORCE_UINT32_BITMAP)
 	using BitmapWord = uint64_t;
-	static constexpr int BITMAP_WORDS_PER_REGION = 2;
+	static constexpr int BITMAP_WORDS_PER_REGION = 4;
 #else
 	using BitmapWord = uint32_t;
-	static constexpr int BITMAP_WORDS_PER_REGION = 4;
+	static constexpr int BITMAP_WORDS_PER_REGION = 8;
 	static_assert(ATOMIC_INT_LOCK_FREE == 2,
 		"atomic<uint32_t> must be always-lock-free as the fallback "
 		"bitmap word type — targets without 32-bit atomic CAS are "
 		"not supported.");
 #endif
 	static constexpr int BITS_PER_BITMAP_WORD = int(sizeof(BitmapWord) * 8);
-	static_assert(BITS_PER_BITMAP_WORD * BITMAP_WORDS_PER_REGION
+	static constexpr int CHUNKS_PER_BITMAP_WORD =
+	    BITS_PER_BITMAP_WORD / 2;     // 2 bits per chunk
+	static_assert(CHUNKS_PER_BITMAP_WORD * BITMAP_WORDS_PER_REGION
 	                 == NUM_ALLOCATORS_IN_SPACE,
-		"bitmap word size × word count must equal 128 chunks per region");
+		"bitmap layout (2 bits per chunk) must cover all 128 chunks per region");
+	//! Mask: bit 2N set ⇒ "claimed" bit for chunk N.  Used to test
+	//! claimed-only or count live chunks.  0x5555... on 64-bit,
+	//! 0x55555555 on 32-bit.
+	static constexpr BitmapWord CLAIM_BITS_MASK =
+	    (BITS_PER_BITMAP_WORD == 64)
+	        ? static_cast<BitmapWord>(0x5555555555555555ULL)
+	        : static_cast<BitmapWord>(0x55555555u);
+	//! Mask: bit 2N+1 set ⇒ "ready" bit for chunk N.  0xAAAA... pair.
+	static constexpr BitmapWord READY_BITS_MASK =
+	    static_cast<BitmapWord>(CLAIM_BITS_MASK << 1);
 private:
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];

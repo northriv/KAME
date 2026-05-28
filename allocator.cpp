@@ -1351,28 +1351,33 @@ PoolAllocatorBase::allocate_chunk() {
 			munmap(p, mmap_size);
 #endif
 		}
-		// Try to claim a bit in this region's bitmap.  Each region has
-		// 128 bits (NUM_ALLOCATORS_IN_SPACE) split across
-		// `BITMAP_WORDS_PER_REGION` `std::atomic<BitmapWord>` words —
-		// 2 × uint64_t on 64-bit / DCAS hosts, 4 × uint32_t on 32-bit
-		// hosts without DCAS (see allocator_prv.h).
+		// Try to claim a chunk-slot in this region's bitmap.  Phase 5h:
+		// each chunk owns a pair of bits in the bitmap word (claim at
+		// bit 2N, ready at bit 2N+1).  Free state = (0, 0).  Find a
+		// chunk N whose pair is fully clear and CAS-set just the
+		// claim bit (leaving ready=0 until init completes below).
 		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
 			std::atomic<BitmapWord> *bm =
 			    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
 			for(;;) {
 				BitmapWord v = bm->load(std::memory_order_relaxed);
-				if(v == ~BitmapWord(0)) break;  // word full, try next
-				// __builtin_ctzll on widened ull works uniformly for
-				// both uint64_t and uint32_t BitmapWord (the upper
-				// 32 bits of the widened value are zero on the
-				// uint32_t path; trailing-zero count is unchanged).
-				int bit = __builtin_ctzll(
-				              static_cast<unsigned long long>(~v));
-				BitmapWord newv = v | (BitmapWord(1) << bit);
+				// `free_pairs` has bit 2N set iff chunk N's pair is
+				// (claim=0, ready=0).  Computed as the AND of the
+				// claim bits' inverted view with the ready bits'
+				// inverted view (both 0 means free).
+				BitmapWord paired_set = (v | (v >> 1)) & CLAIM_BITS_MASK;
+				BitmapWord free_pairs = (~paired_set) & CLAIM_BITS_MASK;
+				if(free_pairs == 0) break;  // all chunks in word taken
+				// First free pair: __builtin_ctzll on widened ull
+				// returns the bit index of the claim bit (= 2N).
+				int claim_bit = __builtin_ctzll(
+				              static_cast<unsigned long long>(free_pairs));
+				int chunk_in_word = claim_bit / 2;  // 0..CHUNKS_PER_BITMAP_WORD-1
+				BitmapWord newv = v | (BitmapWord(1) << claim_bit);
 				if(bm->compare_exchange_weak(v, newv,
 				                             std::memory_order_acquire,
 				                             std::memory_order_relaxed)) {
-					int cidx_in_region = word * BITS_PER_BITMAP_WORD + bit;
+					int cidx_in_region = word * CHUNKS_PER_BITMAP_WORD + chunk_in_word;
 					char *addr = s_mmapped_spaces[region]
 					           + cidx_in_region * chunk_size;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
@@ -1468,6 +1473,16 @@ PoolAllocatorBase::allocate_chunk() {
 					    addr + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET) =
 					    &ALLOC::size_of_static;
 					writeBarrier();
+					// Phase 5h: publish "ready" — chunk_header is fully
+					// initialised and dereferenceable.  Until this OR
+					// completes, a scanner observing (claim=1, ready=0)
+					// must NOT dereference the chunk; with (claim=1,
+					// ready=1) it may safely read palloc / size_info /
+					// m_flags_packed.  Release ordering so all
+					// chunk_header stores happen-before the ready set.
+					BitmapWord ready_mask =
+					    BitmapWord(1) << (chunk_in_word * 2 + 1);
+					bm->fetch_or(ready_mask, std::memory_order_release);
 					return palloc;
 				}
 				// CAS failed — concurrent claim, retry with updated v.
@@ -1831,31 +1846,22 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 }
 inline void
 PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
-	// Clear the chunk header pointer FIRST.  A racing
-	// `lookup_chunk` / `deallocate_<>` after this store sees nullptr
-	// and treats the pointer as foreign (falls back to std::free) —
-	// safe because by definition no live slot remains in this chunk
-	// once we're here ((m_flags_packed & MASK_CNT) == 0 was the precondition).
-	// Phase 5c: palloc lives at offset PALLOC_OFFSET (= 8); SIZE info
-	// at [0..7] is also cleared so a future unified-dispatch path that
-	// branches on `(*(uint64_t*)chunk_base != 0)` will correctly route
-	// a released-chunk pointer through the palloc-null fallback.
-	*reinterpret_cast<std::uint64_t *>(
-	    chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) = 0;
-	*reinterpret_cast<PoolAllocatorBase **>(
-	    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = nullptr;
-	// mprotect the chunk back to PROT_NONE so any stray access SIGBUS's
-	// instead of silently corrupting reusable VA.
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-	(void)chunk_size;
-#else
-	mprotect(chunk_base, chunk_size, PROT_NONE);
-#endif
-
-	// Clear the claim bit in s_claim_bitmap[].  Walk s_mmapped_spaces[]
-	// to find the region whose chunk_size matches and that contains
-	// chunk_base, then atomic_fetch_and to clear the bit.  Cold path
-	// (per-chunk release is rare), walk cost acceptable.
+	// Phase 5h release sequence — strict ordering for scanner safety:
+	//   1. Clear `ready` bit in s_claim_bitmap (acquire).  Scanners
+	//      that observe (claim=1, ready=0) skip the chunk; this
+	//      ensures no new scanner dereferences chunk_header from now on.
+	//   2. Clear chunk_header palloc / size_info.  Any in-flight
+	//      dispatch via existing slot pointers gets palloc=null →
+	//      treats as foreign → libsystem free fallback.  Safe because
+	//      by definition no live slot remains here
+	//      ((m_flags_packed & MASK_CNT) == 0 was the precondition).
+	//   3. mprotect → PROT_NONE.  Memory becomes unreadable; further
+	//      access SIGBUS'es instead of silently corrupting reusable VA.
+	//   4. Clear `claim` bit (release).  The chunk-slot is now
+	//      reclaimable for a fresh allocate_chunk CAS.
+	//
+	// Find the region containing chunk_base (cold path; walk
+	// s_mmapped_spaces[] until cs == chunk_size && pdiff in range).
 	size_t cs = ALLOC_MIN_CHUNK_SIZE;
 	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES;
 	    ++region, cs = GROW_CHUNK_SIZE(cs)) {
@@ -1866,10 +1872,31 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 			if(pdiff >= 0
 			   && pdiff < (ptrdiff_t)cs * NUM_ALLOCATORS_IN_SPACE) {
 				int cidx_in_region = int((size_t)pdiff / cs);
-				int word = cidx_in_region / BITS_PER_BITMAP_WORD;
-				int bit  = cidx_in_region % BITS_PER_BITMAP_WORD;
-				s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word].fetch_and(
-				    ~(BitmapWord(1) << bit), std::memory_order_release);
+				int word = cidx_in_region / CHUNKS_PER_BITMAP_WORD;
+				int chunk_in_word =
+				    cidx_in_region % CHUNKS_PER_BITMAP_WORD;
+				int claim_bit = chunk_in_word * 2;
+				int ready_bit = claim_bit + 1;
+				std::atomic<BitmapWord> *bm =
+				    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
+				// Step 1: clear ready (with acquire so subsequent
+				// chunk_header writes are not reordered before it).
+				bm->fetch_and(~(BitmapWord(1) << ready_bit),
+				              std::memory_order_acquire);
+				// Step 2: clear chunk_header.
+				*reinterpret_cast<std::uint64_t *>(
+				    chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) = 0;
+				*reinterpret_cast<PoolAllocatorBase **>(
+				    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = nullptr;
+				// Step 3: mprotect → PROT_NONE.
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+				(void)chunk_size;
+#else
+				mprotect(chunk_base, chunk_size, PROT_NONE);
+#endif
+				// Step 4: clear claim (release).
+				bm->fetch_and(~(BitmapWord(1) << claim_bit),
+				              std::memory_order_release);
 				return;
 			}
 		}
@@ -1883,10 +1910,13 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size) {
 // monotonic growth across repeated alloc/free cycles).
 int
 PoolAllocatorBase::count_live_chunks() noexcept {
+	// Phase 5h: 2-bit encoding — count CLAIM bits only (bit 2N for
+	// chunk N).  READY bits (bit 2N+1) are auxiliary, counted
+	// together with their claim bit would double-count.
 	int n = 0;
 	for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION; ++i) {
 		BitmapWord v = s_claim_bitmap[i].load(std::memory_order_relaxed);
-		n += int(count_bits(v));
+		n += int(count_bits(v & CLAIM_BITS_MASK));
 	}
 	return n;
 }
