@@ -373,17 +373,17 @@ struct CrossDeallocBatch {
         }
         CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
         c->batch_return_to_bitmap(tmp);
-        // Phase 5r: direct bitmap return cleared a bit on `c` — this
-        // chunk may now have space.  Reset this thread's DLL walk
-        // cursor for the chunk's ALIGN template (FS=true since
-        // push_direct is only called from FS=true deallocate_pooled
-        // for ALIGN > 48).  Without this, single-thread cross-bucket
-        // frees within ALIGN=64 (bucket 4) would hit the same Phase 5n
-        // cursor-stale pathology that Phase 5r fixed for FS=false.
-        // Cross-thread case: `c` not in our DLL → harmless no-op
-        // (next allocate_chunk_path re-walks own DLL, bounded by
-        // LEAVE_VACANT_CHUNKS_PER_THREAD).
-        PoolAllocator<ALIGN, true, true>::reset_dll_walk_state();
+        // Phase 5r/5t: direct bitmap return cleared a bit on `c`.
+        // Reset cursor only if we are the chunk's owner — for
+        // cross-thread frees (the common case on push_direct, which
+        // is invoked from FS=true deallocate_pooled when
+        // `s_my_chunk != c`), the reset would waste our cursor on
+        // a DLL that doesn't contain `c`.  Phase 5t identification
+        // via per-chunk `m_owner_dll_head_addr` vs current thread's
+        // `&s_dll_head` for the FS=true ALIGN template.
+        if(c->m_owner_dll_head_addr ==
+           PoolAllocator<ALIGN, true, true>::dll_head_tls_addr())
+            PoolAllocator<ALIGN, true, true>::reset_dll_walk_state();
     }
 
     void flush() noexcept {
@@ -633,6 +633,13 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	// (newv == 0 ⇒ I'm the unique releaser).
 	m_flags_packed = BIT_OWNED;
 	m_flags_filled_cnt = 0;
+	// Phase 5t: capture this thread's `s_dll_head` TLS address.  Used
+	// by dealloc cursor-reset paths to identify same-thread frees and
+	// skip wasted resets on cross-thread frees.  Note: each (ALIGN, FS)
+	// template has its OWN s_dll_head (TLS variable), so the captured
+	// address is comparable only to `&s_dll_head` taken in the same
+	// template context — which is exactly what the dealloc paths do.
+	this->m_owner_dll_head_addr = (void *)&s_dll_head;
 	for(int i = count - 1; i >= 0 ; --i)
 		m_flags[i] = 0; //zero clear.
 	// Initial coalesce hint by (FS, real-instance):
@@ -918,15 +925,20 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// implicit.
 	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 	this->batch_return_to_bitmap(tmp);
-	// Phase 5r: direct `batch_return_to_bitmap` cleared 1 bit on
+	// Phase 5r/5t: direct `batch_return_to_bitmap` cleared 1 bit on
 	// `this` chunk → it may now have space for a future
-	// `allocate_pooled`.  Reset this thread's DLL walk cursor for
-	// the chunk's ALIGN template so the next allocate_chunk_path
-	// can find the revival.  See the FS=true post-teardown sibling
-	// and `CrossDeallocBatch::push_direct` for parallel reset sites;
-	// all three target the Phase 5n cursor pathology that produced
-	// the Linux bucket34_repro 33.5 → 0.24 M/s regression.
-	PoolAllocator<ALIGN, true, false>::reset_dll_walk_state();
+	// `allocate_pooled`.  ONLY reset the DLL cursor if we are the
+	// chunk's owner — otherwise the bit-clear affects another
+	// thread's DLL, not ours, and resetting our cursor is wasted
+	// (next `allocate_chunk_path` re-walks own DLL from head with
+	// no chance of finding the revived chunk).
+	//
+	// Phase 5t identification: each chunk caches the owner thread's
+	// `&s_dll_head` (per-thread TLS address) at construction; compare
+	// against ours.  Same TLS address ↔ same thread.
+	if(this->m_owner_dll_head_addr ==
+	   static_cast<void *>(&PoolAllocator<ALIGN, true, false>::s_dll_head))
+		PoolAllocator<ALIGN, true, false>::reset_dll_walk_state();
 	return false;
 }
 
@@ -1204,11 +1216,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	if(__builtin_expect(s_alloc_tls_off, 0)) {
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 		this->batch_return_to_bitmap(tmp);
-		// Phase 5r: bitmap got 1 bit cleared; reset cursor so the
-		// next allocate_chunk_path's DLL walk can find the revived
-		// slot.  See FS=false sibling / push_direct for the full
-		// rationale.
-		reset_dll_walk_state();
+		// Phase 5r/5t: reset cursor only if we are the chunk's owner.
+		// At post-teardown (s_alloc_tls_off), our pthread_key dtors
+		// may delete pool slots from any chunk we ever held — usually
+		// our own, but cross-thread retained references are possible.
+		if(this->m_owner_dll_head_addr == static_cast<void *>(&s_dll_head))
+			reset_dll_walk_state();
 		return false;
 	}
 	// FS=true ALIGN ≤ 48 (sizes 16/32/48): hold-and-batch path.  1
