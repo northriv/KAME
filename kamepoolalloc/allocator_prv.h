@@ -729,9 +729,15 @@ private:
 	// metadata now lives in the slot's own first ALIGN bytes (the
 	// "+1 prefix" — bitmap claims N+1 bits, slot[0..3] stores SIZE as
 	// uint32_t, returned pointer is `slot_start + ALIGN`).
-	// Fragmentation cutoff (Phase 5a) at 80% bitmap fill obsoletes the
-	// `m_available_bits` "last SIZE we tried" hint; the cutoff fires
-	// earlier and is independent of SIZE.
+	// Phase 5d-1 borrow scheme moved this to p_user - 8.
+	//
+	// Phase 5f: also dropped the Phase 5a 80% fragmentation cutoff +
+	// the brief Phase 5f-1 `m_bits_set` counter.  allocate_pooled
+	// now walks at most `m_count` FUINT words per call and bails on
+	// full sweep — same worst-case cost as the upfront `count_bits`
+	// scan was paying on EVERY call, but only when the walk genuinely
+	// fails.  Quick check via `m_flags_filled_cnt` (inherited base)
+	// catches the all-words-filled case in O(1).
 };
 
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
