@@ -51,7 +51,7 @@ HEADERS += \
     ../kamestm/transaction_negotiation.h \
     ../kamestm/transaction_neg_impl.h \
     ../kamestm/transaction_definitions.h \
-    xthread.h \
+    ../kamestm/xthread.h \
     ../kamestm/xtime.h \
     ../kamestm/atomic_prv_std.h \
     ../kamestm/atomic_prv_basic.h \
@@ -115,7 +115,7 @@ SOURCES += icons/icon.cpp \
     graph/x2dimage.cpp \
     script/xscriptingthread.cpp \
     script/xscriptingthreadconnector.cpp \
-    xthread.cpp \
+    ../kamestm/xthread.cpp \
     ../kamestm/xtime.cpp \
     support.cpp \
     graph/graphdialogconnector.cpp \
