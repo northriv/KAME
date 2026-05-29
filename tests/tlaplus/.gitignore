@@ -1,0 +1,8 @@
+# TLC tool + model-checking artifacts (jar lives in kamestm/tests/tlaplus;
+# copy it here to run, e.g.  cp ../../../kamestm/tests/tlaplus/tla2tools.jar .)
+tla2tools.jar
+states/
+*_TTrace_*.tla
+*_TTrace_*.bin
+*.st
+MC.out
