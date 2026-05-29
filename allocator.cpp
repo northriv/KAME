@@ -85,6 +85,25 @@
 // like RunnerCounterRegistration).
 ALLOC_TLS bool s_alloc_tls_off = false;
 
+// Per-thread owner id for the deallocate owner-check fast path.  A
+// chunk stamps `m_owner_id = s_tls_owner_id` at allocate_chunk; a
+// freeing thread compares its own id to decide owner-side
+// (chunk-local freelist push, no atomics) vs cross-thread (batch).
+// Assigned once per thread from a global counter on first use; 0 is
+// reserved for "unassigned" so a never-allocated thread's frees never
+// spuriously match a chunk (chunks always carry a non-zero id).
+ALLOC_TLS uint32_t s_tls_owner_id = 0;
+static std::atomic<uint32_t> s_owner_id_next{1};
+static inline uint32_t kame_owner_id() noexcept {
+    uint32_t id = s_tls_owner_id;
+    if(__builtin_expect(id == 0, 0)) {
+        do { id = s_owner_id_next.fetch_add(1, std::memory_order_relaxed); }
+        while(id == 0);   // skip the reserved 0 on 32-bit wrap
+        s_tls_owner_id = id;
+    }
+    return id;
+}
+
 #if KAME_FAST_TSD
 // Fast pthread-TSD bypass of macOS / Linux TLV thunk.  See header for
 // the design overview.  These two globals carry the discovered byte
@@ -487,21 +506,13 @@ void drain_thread_slot_freelists() noexcept {
     // — for FS=false they read the `{bucket, SIZE}` header from
     // `p_user - 8` (chunk_header pad for slot 0, predecessor's
     // reserved tail otherwise).  No per-FS conversion needed.
-    CrossDeallocEntry tmp[2] = {};
-    for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
-        AllocSlot &slot = g_thread_slots[b];
-        char *head = slot.freelist_head;
-        slot.freelist_head = nullptr;
-        while(head) {
-            char *next = *reinterpret_cast<char **>(head);
-            if(PoolAllocatorBase *c = PoolAllocatorBase::lookup_chunk(head)) {
-                tmp[0] = {c, head};
-                // tmp[1] stays {nullptr, nullptr} as the sentinel.
-                c->batch_return_to_bitmap(tmp);
-            }
-            head = next;
-        }
-    }
+    // No-op since follow-up "(1)": owner-thread freelists are now
+    // chunk-local (PoolAllocatorBase::m_freelist_head[]), not in the
+    // global g_thread_slots[] array.  Each chunk's freelist is drained
+    // by `release_dll_chunks_for_thread` (per-template DLL walk) right
+    // before that chunk's BIT_OWNED clear — see there.  Kept as an
+    // empty symbol so the ~AllocThreadExitCleanup call site and any
+    // external references stay valid; the compiler elides it.
 }
 
 } // anon namespace
@@ -671,6 +682,13 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	// release fence which carries this store).
 	this->m_owner_dll_force_walk_ptr.store(
 	    &s_tls.dll_force_walk_from_head, std::memory_order_relaxed);
+	// Owner id + chunk-local freelists for the dealloc fast path.
+	// `kame_owner_id()` is non-zero, so a foreign / never-allocated
+	// thread's `s_tls_owner_id == 0` never matches.  All heads start
+	// empty (no slot handed out yet).
+	this->m_owner_id = kame_owner_id();
+	for(int b = 0; b < 48; ++b)
+		m_freelist_head[b] = nullptr;
 	for(int i = count - 1; i >= 0 ; --i)
 		m_flags[i] = 0; //zero clear.
 	// Initial coalesce hint by (FS, real-instance):
@@ -962,7 +980,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		// Defensive bound check (bucket must be valid; misroute on
 		// stale data is detected and falls through to bitmap path).
 		if(bucket >= 1 && bucket < ALLOC_NUM_BUCKETS) {
-			kame_slots_base()[bucket].push(p);
+			this->freelist_push(bucket, p);
 			return false;
 		}
 	}
@@ -1283,8 +1301,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		// AllocThreadExitCleanup (thread exit) or the chunk's bitmap is
 		// directly returned to (allocate_pooled goes there on freelist
 		// miss).  Owner's next alloc on this bucket pops it back
-		// immediately from `g_thread_slots[kBucket].freelist_head`.
-		kame_slots_base()[kBucket].push(p);
+		// immediately from this chunk's `m_freelist_head[kBucket]`.
+		this->freelist_push(kBucket, p);
 		return false;
 	}
 	// Post-teardown bypass.  See FS=false sibling above — once
@@ -2071,6 +2089,30 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		auto *next = c->m_dll_next;
 		c->m_dll_prev = nullptr;
 		c->m_dll_next = nullptr;
+		// Drain this chunk's owner-thread freelists back to the bitmap
+		// BEFORE the BIT_OWNED clear below.  A parked freelist slot is
+		// logically free but still bit-set in m_flags, so MASK_CNT
+		// over-counts until we return it; draining first lets the
+		// empty/non-empty decision (newv == 0) see the true live count.
+		// Safe here because BIT_OWNED is still set, so
+		// batch_return_to_bitmap's dec-to-zero releaser check
+		// (atomicDecAndTest) never fires (word stays != 0) — it won't
+		// delete `c` out from under us mid-drain.  Replaces the global
+		// drain_thread_slot_freelists() (freelists are now chunk-local).
+		{
+			CrossDeallocEntry fdrain[2] = {};
+			for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
+				char *fh = c->m_freelist_head[b];
+				c->m_freelist_head[b] = nullptr;
+				while(fh) {
+					char *fnext = *reinterpret_cast<char **>(fh);
+					fdrain[0].chunk = c;
+					fdrain[0].slot = fh;
+					c->batch_return_to_bitmap(fdrain);
+					fh = fnext;
+				}
+			}
+		}
 		// an earlier change/5x: nullify the owner-revival-hint pointer BEFORE
 		// clearing BIT_OWNED.  Once BIT_OWNED is clear, cross-thread
 		// frees may target this chunk; if our TLS storage gets
@@ -2408,14 +2450,18 @@ PoolAllocatorBase::deallocate(void *p) {
 				goto vtable_dispatch;
 		}
 		{
-			PoolAllocatorBase **chunks_base = kame_chunks_base();
-			if(__builtin_expect(chunks_base[bucket] == palloc, 1)) {
-				// Owner-side inline freelist push.  No atomic, no
-				// indirect call, no template dispatch.  The slot stays
-				// "allocated" in the chunk's m_flags bitmap until the
-				// owner thread's next allocate_pooled cycle or thread-
-				// exit drain returns it via batch_return_to_bitmap.
-				kame_slots_base()[bucket].push(p);
+			// Owner-free fast path.  The chunk carries its owner
+			// thread's id; match it against ours with a SINGLE TLS
+			// read (s_tls_owner_id) — no second TLS-array index — then
+			// push to the chunk-local freelist (no atomic, no indirect
+			// call, no template dispatch).  s_tls_owner_id == 0 (a
+			// thread that never allocated) never matches a chunk's
+			// non-zero id, so it correctly falls to the cross path.
+			// The slot stays "allocated" in the chunk's m_flags bitmap
+			// until the owner's next allocate_pooled cycle or
+			// thread-exit drain returns it via batch_return_to_bitmap.
+			if(__builtin_expect(palloc->m_owner_id == s_tls_owner_id, 1)) {
+				palloc->freelist_push(bucket, p);
 				return true;
 			}
 		}
