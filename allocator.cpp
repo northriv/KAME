@@ -2323,32 +2323,38 @@ PoolAllocatorBase::count_live_chunks() noexcept {
 // the "reclaim landed between the meta load and the header load" window.
 // Returns nullptr (foreign / stale) or the validated palloc; on success
 // `*out_chunk_base` holds the chunk base.
+// Address → chunk resolution from a (presumed-live) slot pointer.
+//
+// NO seqlock.  Every caller (lookup_chunk, deallocate, size_of) is
+// passed a pointer the application still owns — a LIVE slot.  A live
+// slot keeps its bit set in m_flags, which keeps m_flags_packed != 0,
+// which is the precondition for EVERY chunk-release path.  The chunk
+// therefore cannot be released (let alone recycled into a different
+// chunk) while this resolution runs, so the reclaim+recycle race the
+// seqlock guarded against simply cannot occur on this path.  (The
+// seqlock would only matter for a DLL-walk caller holding a chunk
+// POINTER without holding any slot in it — and those paths don't go
+// through here.)  back_off's correctness against cross-stride claim
+// races is already secured by the post-CAS publish (commit
+// d2e2c32b); the embedded-PoolAllocator layout (palloc identity ==
+// chunk identity) closes the object-UAF.  So a single relaxed load
+// of the back-offset table plus a plain palloc read suffice — the
+// pre-WIP cost profile.
 static inline PoolAllocatorBase *
 resolve_chunk_seqlock(char *mp, size_t meta_base, unsigned int unit_idx,
                       char **out_chunk_base) noexcept {
 	std::atomic<uint64_t> *meta =
 	    &PoolAllocatorBase::s_unit_meta[meta_base + unit_idx];
-	uint64_t meta1 = meta->load(std::memory_order_acquire);
-	uint64_t ep1 = meta1 & PoolAllocatorBase::UNIT_META_EPOCH_MASK;
-	if(ep1 == 0) return nullptr;                  // released / foreign
+	uint64_t m = meta->load(std::memory_order_relaxed);
+	if((m & PoolAllocatorBase::UNIT_META_EPOCH_MASK) == 0)
+		return nullptr;                           // released / foreign
 	unsigned int back_off = static_cast<unsigned int>(
-	    meta1 >> PoolAllocatorBase::UNIT_META_BACKOFF_SHIFT);
+	    m >> PoolAllocatorBase::UNIT_META_BACKOFF_SHIFT);
 	unsigned int base_idx = unit_idx - back_off;
 	char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
-	// Protected data.  epoch is acquire (synchronises with the claimer's
-	// release store, making the plain palloc store before it visible);
-	// palloc is read after.
-	uint64_t ph_ep = reinterpret_cast<std::atomic<uint64_t> *>(
-	    chunk_base + ALLOC_CHUNK_HEADER_EPOCH_OFFSET)
-	    ->load(std::memory_order_acquire);
 	PoolAllocatorBase *palloc =
-	    reinterpret_cast<std::atomic<PoolAllocatorBase *> *>(
-	        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET)
-	    ->load(std::memory_order_relaxed);
-	std::atomic_thread_fence(std::memory_order_acquire);  // seqlock
-	uint64_t meta2 = meta->load(std::memory_order_relaxed);
-	if(meta1 != meta2) return nullptr;            // reclaim slipped in
-	if(ph_ep != ep1) return nullptr;              // header not for this epoch
+	    *reinterpret_cast<PoolAllocatorBase * const *>(
+	        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
 	if((uintptr_t)palloc <= (uintptr_t)1u) return nullptr;
 	*out_chunk_base = chunk_base;
 	return palloc;
@@ -2356,7 +2362,7 @@ resolve_chunk_seqlock(char *mp, size_t meta_base, unsigned int unit_idx,
 
 // Address → chunk lookup.  Walks `s_mmapped_spaces[]` (uniform 32 MiB
 // regions) to find which region contains `p`, then resolves the owning
-// chunk via the seqlock above.
+// chunk via the (seqlock-free, live-slot) resolver above.
 inline PoolAllocatorBase *
 PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 	for(int ccnt = 0; ccnt < ALLOC_MAX_MMAP_ENTRIES; ++ccnt) {
