@@ -624,10 +624,16 @@ public:
 	//!     false-set bit costs one wasted scan (then gets cleared).
 	//!
 	//! Total size: 3200 / 64 = 50 × uint64_t = 400 B on 64-bit
-	//!             (96 / 64 + 1 = 2 × uint64_t = 16 B on 32-bit).
+	//!             96 /  64 + 1 = 2 × uint64_t = 16 B on 32-bit DCAS host
+	//!             96 /  32     = 3 × uint32_t = 12 B on 32-bit no-DCAS host
+	//! Reuses the `BitmapWord` / `BITS_PER_BITMAP_WORD` selection that
+	//! `s_claim_bitmap[]` uses, so this skip-bitmap remains lock-free on
+	//! 32-bit hosts lacking CMPXCHG8B / LDREXD (e.g. i486) — see the
+	//! `BitmapWord` definition above.
 	static constexpr int REGION_BITMAP_WORDS =
-	    (ALLOC_MAX_MMAP_ENTRIES + 63) / 64;
-	static std::atomic<uint64_t> s_region_has_free[REGION_BITMAP_WORDS];
+	    (ALLOC_MAX_MMAP_ENTRIES + BITS_PER_BITMAP_WORD - 1)
+	    / BITS_PER_BITMAP_WORD;
+	static std::atomic<BitmapWord> s_region_has_free[REGION_BITMAP_WORDS];
 };
 
 //! Per-thread flag — true once `AllocThreadExitCleanup::~dtor` has fired.
