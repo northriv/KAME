@@ -121,8 +121,24 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 
 #if defined(__GNUC__) || defined(__clang__)
 	#define ALLOC_TLS __thread //TLS for allocations, could be better for NUMA.
+	// Hot-path TLS variables: marked initial-exec to bypass libc's
+	// `__tls_get_addr` thunk (~15% of total runtime under the
+	// global-dynamic default on shared libraries).  IE lowers each
+	// access to a single `mov %fs:offset(,%idx,8),%reg` op.
+	//
+	// Cost: each IE TLS variable claims space in the program's static
+	// TLS block at load time, so the library can ONLY be loaded at
+	// process start (LD_PRELOAD or normal -l link) — NOT `dlopen`'d
+	// after startup, since dlopen has limited surplus static-TLS
+	// budget.  We restrict the IE marking to the small hot variables
+	// (g_thread_freelist_ptr 384 B + s_tls_owner_id 4 B + s_alloc_tls_off
+	// 1 B ≈ 400 B); the larger cold TLS (tls_cross_dealloc_batch 16 KiB)
+	// stays on global-dynamic.  Total static-TLS demand of the IE
+	// variables fits in the default Linux surplus budget (~4 KiB).
+	#define ALLOC_TLS_IE __thread __attribute__((tls_model("initial-exec")))
 #else
 	#define ALLOC_TLS thread_local
+	#define ALLOC_TLS_IE thread_local
 #endif
 
 //! Allocation unit (1 chunk = N × this).  every mmap region is
@@ -1427,7 +1443,7 @@ extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
 //! from any freelist_ptr by `chunk_from_freelist_ptr(fp)` below (one
 //! mask + add), since chunks are ALLOC_MIN_CHUNK_SIZE-aligned and the
 //! embed object lives at `chunk_base + ALLOC_CHUNK_HEADER`.
-extern ALLOC_TLS char **g_thread_freelist_ptr[ALLOC_NUM_BUCKETS];
+extern ALLOC_TLS_IE char **g_thread_freelist_ptr[ALLOC_NUM_BUCKETS];
 
 //! (§12.3) Recover the chunk's PoolAllocator object from any pointer
 //! inside the chunk's first unit — in particular, from a
