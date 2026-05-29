@@ -674,7 +674,7 @@ void activateAllocator() {g_sys_image_loaded = true;}
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
 	PoolAllocatorBase(ppool),
-	m_flags(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)])),
+	m_flags(reinterpret_cast<FUINT *>( &addr[((sizeof(PoolAllocator) + sizeof(FUINT) - 1) / sizeof(FUINT)) * sizeof(FUINT)])),
 	m_idx(0),
 	m_count(count) {
 	// BIT_OWNED set at construction — the chunk has an
@@ -726,17 +726,41 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(size_t size, char *ppool) {
-	// Layout: [class][m_flags].  The owner-thread freelist lives on the
-	// per-thread `AllocSlot` (`g_thread_slots[bucket]`) — embedded
-	// linked list with the next-pointer stored in each free slot's
-	// first 8 bytes — so no per-chunk freelist storage follows m_flags.
-	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
-	int count = size / ALIGN / sizeof(FUINT) / 8;
-	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count));
-	if( !area)
-		return 0;
-	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool);
-	return p;
+	// Embed-into-chunk layout (the bit-state -3 PoolAllocator-object-UAF
+	// root-cure -- see tests/tlaplus/ChunkRecycle_threadepoch.tla and
+	// kamepoolalloc/tests/CHUNK_CLAIM_TLA_NOTES.md):
+	//
+	//   [chunk_base + 64 = ppool]   PoolAllocator object (placement new)
+	//   [ppool + size_alloc]        m_flags[count]
+	//   [..aligned up to ALIGN..]   slot region (the new m_mempool)
+	//
+	// `ppool` from the caller is the start of the post-chunk_header region
+	// (= chunk_base + ALLOC_CHUNK_HEADER); reinterpreted here as the embed
+	// blob.  PoolAllocator object identity equals chunk_base + 64 — so the
+	// `palloc` value `lookup_chunk` resolves to is bound to the chunk's
+	// lifecycle, eliminating the libsystem-malloc ABA on `palloc` that
+	// caused PoolAllocator::create's control-block malloc to crash on
+	// freed-then-reused heap pages.  `size` is the post-header region's
+	// byte length; `count` is derived to fit PoolAllocator + m_flags +
+	// slot region into it.
+	// `size_alloc` is the embed offset of `m_flags` from the PoolAllocator
+	// object's start; align PoolAllocator size up to FUINT alignment.
+	// (The historic `(sizeof+f-1)*f` expression was an inadvertent
+	// 8× overestimate that ate ~1 KiB of slot space; corrected to a
+	// proper round-up so `count` rises to the chunk's real capacity.)
+	constexpr size_t size_alloc =
+	    ((sizeof(PoolAllocator) + sizeof(FUINT) - 1) / sizeof(FUINT))
+	    * sizeof(FUINT);
+	constexpr unsigned FUINT_BITS = sizeof(FUINT) * 8;
+	// Solve: size_alloc + count*sizeof(FUINT) + alignment_pad + count*ALIGN*FUINT_BITS <= size
+	// Pessimistic alignment_pad = ALIGN - 1.
+	int count = static_cast<int>(
+	    (size - size_alloc - (ALIGN - 1)) / (sizeof(FUINT) + ALIGN * FUINT_BITS));
+	char *m_flags_pos = ppool + size_alloc;
+	char *slot_region = m_flags_pos + static_cast<size_t>(count) * sizeof(FUINT);
+	slot_region = reinterpret_cast<char*>(
+	    (reinterpret_cast<uintptr_t>(slot_region) + ALIGN - 1) & ~(uintptr_t(ALIGN) - 1));
+	return new(ppool) PoolAllocator(count, ppool, slot_region);
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
@@ -750,17 +774,20 @@ inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, 
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(size_t size, char *ppool) {
-	int count = size / ALIGN / sizeof(FUINT) / 8;
-	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
-	// an earlier change layout: [class][m_flags].  The previous trailing m_sizes
-	// array (count × FUINT bytes) is gone — per-slot SIZE now lives in
-	// each slot's own first ALIGN-bytes prefix, claimed from the bitmap
-	// as one extra bit alongside the user data (N+1 bits per slot).
-	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count));
-	if( !area)
-		return 0;
-	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool);
-	return p;
+	// Embed-into-chunk layout — see the FS=true `create` above for the
+	// design rationale (PoolAllocator-object-UAF root-cure: identity
+	// bound to chunk lifecycle, not libsystem malloc heap).
+	constexpr size_t size_alloc =
+	    ((sizeof(PoolAllocator) + sizeof(FUINT) - 1) / sizeof(FUINT))
+	    * sizeof(FUINT);
+	constexpr unsigned FUINT_BITS = sizeof(FUINT) * 8;
+	int count = static_cast<int>(
+	    (size - size_alloc - (ALIGN - 1)) / (sizeof(FUINT) + ALIGN * FUINT_BITS));
+	char *m_flags_pos = ppool + size_alloc;
+	char *slot_region = m_flags_pos + static_cast<size_t>(count) * sizeof(FUINT);
+	slot_region = reinterpret_cast<char*>(
+	    (reinterpret_cast<uintptr_t>(slot_region) + ALIGN - 1) & ~(uintptr_t(ALIGN) - 1));
+	return new(ppool) PoolAllocator(count, ppool, slot_region);
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
@@ -1099,9 +1126,15 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 		// MASK_CNT == 0).  No CAS race possible — owner exit's
 		// atomicFetchAnd(~BIT_OWNED) and the dec-to-0 are mutually
 		// exclusive (only one operation brings the word to all-zero).
-		char *cbase = this->m_mempool - ALLOC_CHUNK_HEADER;
+		// PoolAllocator object now lives inside chunk_base + ALLOC_CHUNK_HEADER
+		// (embed-into-chunk root-cure).  Recover chunk_base from `this`, not
+		// from m_mempool (which is offset past the embedded PoolAllocator +
+		// m_flags region inside the chunk).
+		char *cbase = reinterpret_cast<char*>(this) - ALLOC_CHUNK_HEADER;
 		size_t csz = this->m_chunk_size;
-		delete this;
+		this->~PoolAllocator();   // placement-new destructor; chunk memory
+		                          // (including this object) is released by
+		                          // `deallocate_chunk` below.
 		PoolAllocatorBase::deallocate_chunk(cbase, csz);
 	}
 	return n;
@@ -1240,10 +1273,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 	if(i_am_releaser) {
 		// dec brought m_flags_packed to 0 → BIT_OWNED was
 		// already clear (owner gone) AND MASK_CNT was 1.  I am
-		// uniquely the releaser.
-		char *cbase = this->m_mempool - ALLOC_CHUNK_HEADER;
+		// uniquely the releaser.  PoolAllocator object now embedded
+		// inside chunk_base + ALLOC_CHUNK_HEADER; recover chunk_base
+		// from `this`, not from m_mempool (which is offset past the
+		// embedded PoolAllocator + m_flags region inside the chunk).
+		char *cbase = reinterpret_cast<char*>(this) - ALLOC_CHUNK_HEADER;
 		size_t csz = this->m_chunk_size;
-		delete this;
+		this->~PoolAllocator();   // chunk memory release in deallocate_chunk
 		PoolAllocatorBase::deallocate_chunk(cbase, csz);
 	}
 	return n;
@@ -1788,7 +1824,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				else               s_tls.dll_head = nx->m_dll_next;
 				if(nx->m_dll_next) nx->m_dll_next->m_dll_prev = nx->m_dll_prev;
 				else               s_tls.dll_tail = nx->m_dll_prev;
-				char *cbase = nx->m_mempool - ALLOC_CHUNK_HEADER;
+				// PoolAllocator object now embedded inside chunk_base +
+				// ALLOC_CHUNK_HEADER; chunk_base from `nx` directly.
+				char *cbase = reinterpret_cast<char*>(nx) - ALLOC_CHUNK_HEADER;
 				size_t csz = nx->m_chunk_size;
 				// Phase-4a stale-cache invariant: multiple FS=false
 				// buckets share one PoolAllocator<ALIGN,false>
@@ -1824,7 +1862,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				if(s_tls.dll_cursor == nx)
 					s_tls.dll_cursor = nxnext;
 				s_tls.dll_exhausted = false;
-				delete nx;
+				nx->~PoolAllocator();   // placement-new destructor
 				PoolAllocatorBase::deallocate_chunk(cbase, csz);
 				++released;
 			}
@@ -2095,9 +2133,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		                              static_cast<uint32_t>(~BIT_OWNED));
 		uint32_t newv = old & ~BIT_OWNED;
 		if(newv == 0) {
-			char *cbase = c->m_mempool - ALLOC_CHUNK_HEADER;
+			// PoolAllocator object embedded inside chunk_base; recover
+			// chunk_base from `c` directly.
+			char *cbase = reinterpret_cast<char*>(c) - ALLOC_CHUNK_HEADER;
 			size_t csz = c->m_chunk_size;
-			delete c;
+			c->~PoolAllocator();   // placement-new destructor
 			// skip madvise at thread-exit.  Perf showed
 			// MADV_DONTNEED here was ~30 % of bench-style alloc_only
 			// runtime (clear_page_erms + free_pages_and_swap_cache).
