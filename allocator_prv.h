@@ -109,11 +109,10 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! minimum so cross-thread chunk residency under lazy commit stays
 //! tight; the buddy approach replaces the previous 2× growth ladder.
 //!
-//! O(1) chunk_base lookup from any slot uses `s_unit_meta[]` (one
-//! `atomic<uint64_t>` per unit, per region) — see
-//! `PoolAllocatorBase::s_unit_meta` below.  Each word packs
-//! `back_off = u - base_u` (and the recycle epoch); a reader does
-//! `base_u = u - back_off` and then `chunk_base = region + base_u * 256K`.
+//! O(1) chunk_base lookup from any slot uses `s_back_offset[]` (one
+//! byte per unit, per region) — see `PoolAllocatorBase::s_back_offset`
+//! below.  `back_off = u - base_u`; a reader does `base_u = u -
+//! back_off` and then `chunk_base = region + base_u * 256K`.
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256 KiB unit
 //! log2(ALLOC_MIN_CHUNK_SIZE) — used for fast unit-index extraction
 //! `unit_idx = pdiff >> ALLOC_MIN_CHUNK_SHIFT`.  Compile-time constant.
@@ -170,7 +169,7 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! `deallocate`'s region-loop and pays RSS only for those 5 × 32 MiB.
 //! Bumping the cap doesn't accelerate steady-state allocation.
 //!
-//! Cache impact for `s_unit_meta[]` (only the COLD chunk-claim /
+//! Cache impact for `s_back_offset[]` (only the COLD chunk-claim /
 //! deallocate-region-miss paths touch unused regions' table entries):
 //!   * 64-bit: 3200 × 128 × 8 = 3.1 MiB BSS.  Unused entries stay
 //!     zero-filled in BSS pages, never paged in.  Hot subset =
@@ -244,7 +243,8 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 #define ALLOC_CHUNK_HEADER_PALLOC_OFFSET        8   // [ 8..15]: palloc
 #define ALLOC_CHUNK_HEADER_FN_OFFSET           16   // [16..23]: DeallocateFn
 #define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET    24   // [24..31]: SizeOfFn
-#define ALLOC_CHUNK_HEADER_EPOCH_OFFSET        32   // [32..39]: recycle epoch
+// [32..55] free (was recycle epoch, retired — DLL/lookup safety comes
+//           from BIT_OWNED gating + live-slot invariant, not an epoch)
 // [56..63] = slot-0 header (= ALLOC_CHUNK_HEADER - 8).  No constant
 // needed — `allocate_pooled` reaches it via the uniform
 // `slot_start - 8` math (slot 0's slot_start == m_mempool ==
@@ -323,8 +323,8 @@ public:
 	//! but the freelist may still receive both old- and new-chunk slots
 	//! through the shared `s_my_chunk == this` owner check).  Implemented
 	//! as a for-loop walk of `s_mmapped_spaces[]` — each region is a
-	//! uniform 32 MiB, and `s_unit_meta[]` maps any claimed unit back to
-	//! its chunk base in O(1) (seqlock-validated against recycle races).
+	//! uniform 32 MiB, and `s_back_offset[]` maps any claimed unit back
+	//! to its chunk base in O(1).
 	static inline PoolAllocatorBase *lookup_chunk(void *p) noexcept;
 	//! Total live chunks across all regions, summed from
 	//! `s_claim_bitmap[]` (popcount of set bits).  Diagnostic probe for
@@ -524,8 +524,9 @@ public:
 	//! A multi-unit chunk (CHUNK_UNITS = 2 or 4) sets CHUNK_UNITS
 	//! adjacent bits in a single atomic CAS at claim time.  Which unit
 	//! holds the chunk_header — and whether the chunk is fully built —
-	//! is no longer encoded in the bitmap: `s_unit_meta[]` carries the
-	//! back-offset and the recycle epoch (epoch == 0 ⇒ released / not
+	//! is no longer encoded in the bitmap: `s_back_offset[]` carries the
+	//! back-offset, and released/foreign is read from chunk_header.palloc
+	//! (the recycle epoch and the WIP seqlock are retired; epoch == 0 was
 	//! yet built), subsuming the retired `ready` bit.  Total bits per
 	//! region: 128 units × 1 = 128.
 #if ATOMIC_LLONG_LOCK_FREE == 2 && !defined(KAME_FORCE_UINT32_BITMAP)
@@ -546,21 +547,6 @@ public:
 	                 == NUM_ALLOCATORS_IN_SPACE,
 		"bitmap layout (1 bit per unit) must cover all 128 units per region");
 
-	//! `s_unit_meta[]` packing — one `atomic<uint64_t>` per unit, read &
-	//! written as a single atomic word:
-	//!   bits 63..56  back_off  (unit → chunk-base distance, 0..CHUNK_UNITS-1)
-	//!   bits 55..16  counter   (per-thread monotonic serial, 40-bit)
-	//!   bits 15.. 0  owner_tid (allocating thread's 16-bit id)
-	//! The recycle EPOCH is the low 56 bits (counter<<16 | tid); an
-	//! all-zero word means "released / not claimed".  The same epoch is
-	//! stamped into `chunk_header.epoch` so `lookup_chunk`'s seqlock can
-	//! reject a stale resolution (the bit-state -3 root-cure).
-	static constexpr int      UNIT_META_BACKOFF_SHIFT = 56;
-	static constexpr uint64_t UNIT_META_EPOCH_MASK =
-	    (static_cast<uint64_t>(1) << 56) - 1;     // low 56 bits
-	static constexpr int      EPOCH_TID_BITS = 16;
-	static constexpr uint64_t EPOCH_COUNTER_MASK =
-	    (static_cast<uint64_t>(1) << 40) - 1;     // 40-bit per-thread counter
 private:
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
@@ -585,8 +571,7 @@ public:
 	//! also carries the recycle epoch so a CONCURRENT reclaim+recycle of
 	//! the same unit during a `lookup_chunk` is detectable.
 	//!
-	//!     s_unit_meta[region * 128 + u]  back_off = u - base_u,
-	//!                                    epoch    = chunk's recycle id.
+	//!     s_back_offset[region * 128 + u]  = u - base_u
 	//!
 	//! Written by `allocate_chunk` AFTER it wins the claim-bit CAS
 	//! (relaxed); the chunk_header.epoch release-store published right
@@ -596,9 +581,24 @@ public:
 	//! (= released), a benign default since the first claim overwrites it.
 	//! Total size: 3200 × 128 × 8 B = 3.1 MiB on 64-bit BSS (96 × 128 ×
 	//! 8 = 96 KiB on 32-bit); demand-paged, so only touched regions are
-	//! resident.
-	static std::atomic<uint64_t>
-	    s_unit_meta[ALLOC_MAX_MMAP_ENTRIES * NUM_ALLOCATORS_IN_SPACE];
+	//! per-region per-unit back-offset table.  One byte per unit:
+	//!     s_back_offset[region * 128 + u] = u - base_u
+	//! where `base_u` is the chunk's base unit covering `u`.  0 for a
+	//! single-unit chunk or a base unit; 1..3 for continuation units.
+	//!
+	//! Plain `uint8_t` (no atomic): written by `allocate_chunk` AFTER
+	//! it wins the claim-bit CAS (d2e2c32b: post-CAS publish avoids
+	//! the cross-stride clobber), and read only from a LIVE slot
+	//! (deallocate / lookup_chunk / size_of).  A live slot keeps its
+	//! chunk un-releasable (m_flags_packed != 0 ⇒ no release path
+	//! fires), so the chunk cannot recycle mid-lookup — no seqlock or
+	//! epoch needed; the slot's own publish (allocate_pooled's bitmap
+	//! CAS release) carries this byte's value to the freeing thread.
+	//! released/foreign is judged by `chunk_header.palloc == 0`.
+	//! Total size: 3200 × 128 = 400 KiB on 64-bit (96 × 128 = 12 KiB
+	//! on 32-bit); demand-paged, only touched regions resident.
+	static uint8_t
+	    s_back_offset[ALLOC_MAX_MMAP_ENTRIES * NUM_ALLOCATORS_IN_SPACE];
 
 	//! per-region "has free space" hint bitmap.  Bit N set ⇒
 	//! region N has at least one free chunk slot of SOME alignment;
@@ -653,7 +653,7 @@ public:
 	//! chunk for the largest ALIGN3 bucket).  Multi-unit chunks are
 	//! laid out in `s_mmapped_spaces` at unit-aligned positions; the
 	//! chunk-claim CAS sets CHUNK_UNITS contiguous claim bits in one
-	//! atomic op, and `s_unit_meta[]` records the back-offset of each
+	//! atomic op, and `s_back_offset[]` records the back-offset of each
 	//! continuation unit so any slot pointer resolves to its chunk base
 	//! in O(1) regardless of which unit it falls in.
 	static constexpr unsigned int CHUNK_UNITS =
