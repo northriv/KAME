@@ -419,6 +419,44 @@ protected:
 	static void deallocate_chunk(char *chunk_base, size_t chunk_size,
 	                             bool reclaim_pages = true);
 
+public:
+	//! Owner-thread id for the deallocate owner-check fast path.  Set
+	//! once by `allocate_chunk`.  A freeing thread compares this to its
+	//! `s_tls_owner_id`; on a match it pushes to the chunk-local
+	//! freelist below with no atomics and no TLS-array indirection
+	//! (the dealloc owner-free path becomes a single TLS read —
+	//! `s_tls_owner_id` — instead of two: see follow-up "(1)" in
+	//! tests/CHUNK_CLAIM_TLA_NOTES.md).  Lives in the PoolAllocator
+	//! object (chunk_base + ALLOC_CHUNK_HEADER, cache line 1+),
+	//! deliberately apart from chunk_header.palloc (cache line 0) so
+	//! the owner's frequent freelist writes don't false-share the
+	//! cross-thread-read palloc word.
+	uint32_t m_owner_id;
+	//! Chunk-local per-bucket owner-thread freelist heads (replaces the
+	//! former TLS `g_thread_slots[]`).  LIFO; each free slot's first 8
+	//! bytes hold the next pointer.  Global bucket index (sparse for any
+	//! one chunk: an FS=true chunk uses exactly one entry, an FS=false
+	//! chunk one per SIZE it hands out).  384 B/chunk — negligible
+	//! against a >=256 KiB chunk, and shares cache line 1+ with
+	//! m_owner_id so the owner-free hot path touches one extra line at
+	//! most.  Single-writer (the owner thread) — no atomics.
+	char *m_freelist_head[48];
+
+	//! Owner-thread chunk-local freelist push/pop (LIFO; the freed
+	//! slot's first 8 bytes hold the next pointer).  No atomics —
+	//! only the owner thread touches its chunk's freelists.
+	inline void freelist_push(unsigned bucket, void *p) noexcept {
+		*reinterpret_cast<char **>(p) = m_freelist_head[bucket];
+		m_freelist_head[bucket] = static_cast<char *>(p);
+	}
+	inline void *freelist_pop(unsigned bucket) noexcept {
+		char *head = m_freelist_head[bucket];
+		if(head)
+			m_freelist_head[bucket] = *reinterpret_cast<char **>(head);
+		return head;
+	}
+
+protected:
 	//! A chunk, memory block.
 	char * const m_mempool;
 
@@ -1201,6 +1239,11 @@ static_assert(sizeof(AllocSlot) == sizeof(char *),
 //!   user  320:  17 % → 0 %   (bucket 20 slot 320)
 //!   user  368:   2 % → 0 %   (bucket 23 slot 368)
 constexpr int ALLOC_NUM_BUCKETS = 48;
+// PoolAllocatorBase::m_freelist_head[] hardcodes 48 (the class is
+// defined before this constant); keep them in lock-step.
+static_assert(ALLOC_NUM_BUCKETS == 48,
+              "PoolAllocatorBase::m_freelist_head[48] must match "
+              "ALLOC_NUM_BUCKETS");
 
 //! Size → bucket-index.  FS=true/mixed range (1..368) uses the 16-byte
 //! step formula.  FS=false range
@@ -1406,22 +1449,20 @@ inline void *new_redirected(std::size_t size) {
 	if(size > (std::size_t)ALLOC_SIZE23)
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
-	// Fast TSD access on macOS (arm64/x86_64); else direct TLV access.
-	AllocSlot &slot = kame_slots_base()[bucket];
-	// Inline freelist pop — no indirect call on hit path.  Empty
+	// One TLS read: the per-thread pinned chunk for this bucket.  The
+	// freelist now lives INSIDE that chunk (m_freelist_head[bucket]),
+	// not in a parallel TLS array — so the inline pop hangs off the
+	// same `chunk` pointer the freelist-miss path already needs.  Empty
 	// sentinel: nullptr (push only ever writes the previous head into
 	// the slot's first 8 bytes, so user data is never on the link).
-	char *head = slot.freelist_head;
-	if(head) {
-		slot.freelist_head = *reinterpret_cast<char **>(head);
-		return head;
-	}
-	// Freelist miss — dispatch through the pinned chunk's vtable if
-	// the bucket has been activated on this thread, otherwise fall
-	// to `cold_first_access` for the (rare) first-time path + the
-	// pre-activation / post-cleanup malloc fallbacks.
-	if(PoolAllocatorBase *chunk = kame_chunks_base()[bucket])
+	if(PoolAllocatorBase *chunk = kame_chunks_base()[bucket]) {
+		if(void *head = chunk->freelist_pop(bucket))
+			return head;
+		// Freelist miss — dispatch through the chunk's vtable.
 		return chunk->slow_allocate(bucket, size);
+	}
+	// bucket not yet activated on this thread (rare first-time path +
+	// pre-activation / post-cleanup malloc fallbacks).
 	return cold_first_access(bucket, size);
 }
 
