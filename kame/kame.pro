@@ -30,7 +30,6 @@ HEADERS += \
     ../kamepoolalloc/allocator.h \
     ../kamepoolalloc/allocator_prv.h \
     ../kamepoolalloc/atomic_mfence.h \
-    ../kamepoolalloc/atomic_prv_mfence.h \
     graph/graphmathfittool.h \
     graph/graphmathtool.h \
     graph/graphmathtoolconnector.h \
@@ -49,8 +48,6 @@ HEADERS += \
     ../kamestm/transaction_definitions.h \
     ../kamestm/xthread.h \
     ../kamestm/xtime.h \
-    ../kamestm/atomic_prv_std.h \
-    ../kamestm/atomic_prv_basic.h \
     ../kamestm/atomic_queue.h \
     ../kamestm/atomic_smart_ptr.h \
     ../kamestm/atomic.h \

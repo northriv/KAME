@@ -23,7 +23,10 @@
 #ifndef ATOMIC_SMART_PTR_H_
 #define ATOMIC_SMART_PTR_H_
 
-#include "atomic_prv_basic.h"
+#include "atomic.h"  // integral atomic<T> specialization + atomic_mfence.h
+                     // (cyclic include — atomic.h's ATOMIC_H_ guard
+                     // is set before it #include's us; the top half
+                     // is fully expanded by then.)
 #include <functional>
 #include <utility>
 #include <type_traits>
@@ -1821,5 +1824,43 @@ local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
 #endif
     }
 }
+
+//! Atomic access for a copy-able class which does not require
+//! transactional writing.  General-case specialization of the
+//! `atomic<T>` template forward-declared in `atomic.h`.  Lives here
+//! (rather than in atomic.h) because it depends on
+//! `atomic_shared_ptr` / `local_shared_ptr` which are defined above
+//! in this file; placing the definition in atomic.h would create a
+//! cyclic include (`atomic_smart_ptr.h` already #includes `atomic.h`
+//! for the integral specialization).
+template <typename T, class Enable>
+class atomic {
+public:
+    atomic() : m_var(new T) {}
+    atomic(T t) : m_var(new T(t)) {}
+    atomic(const atomic &t) noexcept : m_var(t.m_var) {}
+    operator T() const noexcept {
+        local_shared_ptr<T> x = m_var;
+        return *x;
+    }
+    atomic &operator=(T t) {
+        m_var.reset(new T(t));
+        return *this;
+    }
+    atomic &operator=(const atomic &x) noexcept {
+        m_var = x.m_var;
+        return *this;
+    }
+    bool compare_set_strong(const T &oldv, const T &newv) {
+        local_shared_ptr<T> oldx(m_var);
+        if( *oldx != oldv)
+            return false;
+        local_shared_ptr<T> newx(new T(newv));
+        bool ret = m_var.compareAndSet(oldx, newx);
+        return ret;
+    }
+protected:
+    atomic_shared_ptr<T> m_var;
+};
 
 #endif /*ATOMIC_SMART_PTR_H_*/

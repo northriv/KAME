@@ -97,11 +97,8 @@ HEADERS += $$PWD/../kamestm/tests/support_standalone.h
 HEADERS += $$PWD/../kamepoolalloc/allocator.h
 HEADERS += $$PWD/../kamepoolalloc/allocator_prv.h
 HEADERS += $$PWD/../kamepoolalloc/atomic_mfence.h
-HEADERS += $$PWD/../kamepoolalloc/atomic_prv_mfence.h
 HEADERS += $$PWD/../kamestm/threadlocal.h
 HEADERS += $$PWD/../kamestm/atomic.h
-HEADERS += $$PWD/../kamestm/atomic_prv_basic.h
-HEADERS += $$PWD/../kamestm/atomic_prv_std.h
 
 win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2
