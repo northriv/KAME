@@ -687,6 +687,19 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	// thread's `s_tls_owner_id == 0` never matches.  All heads start
 	// empty (no slot handed out yet).
 	this->m_owner_id = kame_owner_id();
+	// Cache-line-1 copies of the chunk_header fast-path discriminators
+	// (follow-up "(1b)") so the dealloc owner-free path reads ONLY this
+	// line, never chunk_header (cache line 0):
+	//   m_fs_flag    = (FS && DUMMY): true ONLY for a real FS=true chunk
+	//                  (`<ALIGN,true,true>`); the FS=false partial spec
+	//                  constructs through the `<ALIGN,true,false>` base,
+	//                  so DUMMY=false there yields m_fs_flag=false.
+	//   m_base_bucket= the single bucket an FS=true chunk serves
+	//                  (slot size == ALIGN); constexpr-folds.  Unused for
+	//                  FS=false (its bucket comes from the slot prefix).
+	this->m_fs_flag = (FS && DUMMY);
+	this->m_base_bucket = (FS && DUMMY)
+	    ? static_cast<uint16_t>(bucket_for_size(ALIGN)) : 0;
 	for(int b = 0; b < 48; ++b)
 		m_freelist_head[b] = nullptr;
 	for(int i = count - 1; i >= 0 ; --i)
@@ -2194,15 +2207,29 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
 				                 + (size_t)base_unit_idx;
 				// Step 1: clear chunk_header.  palloc = 0 is the
-				// "released" signal that lookup's foreign-check reads;
-				// size_info = 0 too.  Plain stores — the claim-bit
-				// clear at the end (release) publishes them, so a
-				// re-claimer's CAS (acquire) observes palloc == 0
+				// "released" signal that lookup's foreign-check reads
+				// (slow path); size_info = 0 too.  Plain stores — the
+				// claim-bit clear at the end (release) publishes them, so
+				// a re-claimer's CAS (acquire) observes palloc == 0
 				// throughout its build window (no epoch needed).
 				*reinterpret_cast<std::uint64_t *>(
 				    chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) = 0;
 				*reinterpret_cast<PoolAllocatorBase **>(
 				    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = nullptr;
+				// (1b) Also clear m_owner_id on the cache-line-1 hot block
+				// — the FAST path's released signal (it never reads
+				// palloc).  A re-claimer overwrites it with its own id in
+				// the constructor; until then 0 never matches any live
+				// thread's non-zero s_tls_owner_id.  Same plain-store /
+				// claim-bit-release publication as palloc above.  The
+				// chunk is empty at release (no live slots), so the
+				// live-slot invariant guarantees no concurrent fast-path
+				// dealloc is targeting it; stray/foreign reads fall to the
+				// slow path regardless of torn state.  Addressed through
+				// the embedded object so the alignas(64) padding offset
+				// is computed by the compiler.
+				reinterpret_cast<PoolAllocatorBase *>(
+				    chunk_base + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
 				// Step 2: clear s_back_offset for ALL units of this chunk.
 				for(unsigned u = 0; u < chunk_units; ++u)
 					s_back_offset[bo_base + u] = 0;
@@ -2396,81 +2423,68 @@ PoolAllocatorBase::deallocate(void *p) {
 		unsigned int back_off = s_back_offset[meta_base + unit_idx];
 		unsigned int base_idx = unit_idx - back_off;
 		char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+		// (1b) Owner-free FAST PATH — touches ONLY chunk_obj's cache line
+		// (chunk_base + ALLOC_CHUNK_HEADER), NEVER chunk_header (cache
+		// line 0, where palloc lives at +8 and size_info at +0).  Under
+		// the embed layout the PoolAllocator object sits AT
+		// chunk_base + ALLOC_CHUNK_HEADER, so palloc (when live) always
+		// equals that address — we reach the object by pure arithmetic
+		// and skip the palloc load.  See tests/CHUNK_CLAIM_TLA_NOTES.md
+		// §12/§12.1.
+		PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
+		    chunk_base + ALLOC_CHUNK_HEADER);
+		// Single TLS read (s_tls_owner_id).  Matches iff THIS thread owns
+		// the chunk AND the chunk is live: a released chunk has
+		// m_owner_id == 0 (cleared by deallocate_chunk), and a foreign /
+		// never-allocated thread has s_tls_owner_id == 0 — neither
+		// matches a live non-zero owner id.  So this one comparison
+		// subsumes the former `palloc <= 1` released/foreign pre-filter
+		// for the fast path; palloc is read only on the slow path below
+		// (cross-thread / released / foreign / post-teardown).
+		if(__builtin_expect(chunk_obj->m_owner_id == s_tls_owner_id, 1)) {
+			// Bucket from the cache-line-1 copies, never size_info:
+			//   FS=true  : the chunk's single bucket (m_base_bucket).
+			//   FS=false : per-slot {uint32_t bucket, uint32_t SIZE}
+			//              prefix at p - 8 (on the slot's own line, not
+			//              chunk_header).
+			unsigned bucket;
+			if(chunk_obj->m_fs_flag) {
+				bucket = chunk_obj->m_base_bucket;
+			} else {
+				std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
+				    static_cast<char *>(p) - 8);
+				bucket = static_cast<unsigned>(hdr);
+				// Defensive: a stray pointer whose owner-id coincidentally
+				// matched but whose prefix is garbage — fall to the slow
+				// path (which re-validates via palloc + the vtable owner
+				// check).
+				if(bucket == 0 || bucket >= (unsigned)ALLOC_NUM_BUCKETS)
+					goto vtable_dispatch;
+			}
+			// Push to the chunk-local freelist (no atomic, no indirect
+			// call, no template dispatch).  The slot stays "allocated" in
+			// the chunk's m_flags bitmap until the owner's next
+			// allocate_pooled cycle or thread-exit drain returns it via
+			// batch_return_to_bitmap.
+			chunk_obj->freelist_push(bucket, p);
+			return true;
+		}
+	vtable_dispatch:
+		// Cold path: cross-thread / non-owner / released / post-teardown.
+		// NOW read palloc (chunk_header[8]) — the only place the fast
+		// path's missing cache-line-0 load reappears.  palloc == 0 ⇒
+		// released; foreign (libsystem-malloc pointer in our mmap range,
+		// macOS Apple Silicon early startup) reads 0 or garbage <= 1 —
+		// fall through to libsystem free.  Otherwise dispatch the
+		// per-template DeallocateFn at chunk_base + 16, which preserves
+		// the adaptive-holding / cross-batch / chunk-release logic in
+		// `deallocate_pooled`.
+		{
 		PoolAllocatorBase *palloc =
 		    *reinterpret_cast<PoolAllocatorBase * const *>(
 		        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
-		// palloc == 0 ⇒ released; foreign (libsystem-malloc pointer in
-		// our mmap range, macOS Apple Silicon early startup) also reads
-		// 0 or garbage <= 1 — fall through to libsystem free.
 		if((uintptr_t)palloc <= (uintptr_t)1u)
 			return false;
-		// an earlier change — Unified inline dispatch.  Read the chunk-header
-		// SIZE info word at [0..7]:
-		//   FS=true  : low 32 b = ALIGN (= slot size, non-zero)
-		//   FS=false : 0 — read per-slot {bucket, SIZE} header at p - 8
-		// Then derive `bucket` and check ownership via the parallel TLS
-		// `g_thread_chunks[bucket]`.  When this thread is the owner
-		// (cache-hot, common case) we push to the per-thread
-		// `g_thread_slots[bucket].freelist_head` inline — no indirect
-		// call, no per-template virtual dispatch.
-		//
-		// Cross-thread / non-owner / post-teardown (g_thread_chunks
-		// cleared) all fall through to the existing `DeallocateFn` at
-		// chunk-header offset ALLOC_CHUNK_HEADER_FN_OFFSET (= 16),
-		// preserving the adaptive holding (FS=true ALIGN ≤ 48) and
-		// chunk-release plumbing already in the per-template
-		// `deallocate_pooled`.
-		std::uint64_t hdr_size_info = *reinterpret_cast<std::uint64_t *>(
-		    chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET);
-		// FS-discriminator is the LOW 32 bits of hdr_size_info (the
-		// high 32 b always carries ALIGN for BOTH FS=true and FS=false
-		// per chunk_header_size_info()).  A bare `(hdr_size_info != 0)`
-		// test mis-routes FS=false through the FS=true arm (low 32 b
-		// == 0 but high 32 b != 0).  Test the low 32 b explicitly.
-		std::uint32_t hdr_fs_size =
-		    static_cast<std::uint32_t>(hdr_size_info);
-		unsigned bucket;
-		if(hdr_fs_size != 0) {
-			// FS=true: ALIGN in low 32 b; bucket_for_size constexpr-folds
-			// to (ALIGN+15)>>4 for ALIGN ≤ 256.
-			bucket = bucket_for_size(
-			    static_cast<std::size_t>(hdr_fs_size));
-		} else {
-			// FS=false: per-slot {uint32_t bucket, uint32_t SIZE} at p - 8.
-			std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
-			    static_cast<char *>(p) - 8);
-			bucket = static_cast<unsigned>(hdr);
-			// Defensive: out-of-range bucket falls through to vtable
-			// (the slow path will further validate via owner check or
-			// cross-batch dispatch).  This protects against a stray
-			// libsystem-malloc'd pointer that happens to land inside our
-			// PROT_NONE mmap range AND has a non-zero hdr_size_info in
-			// the chunk header pad.
-			if(bucket == 0 || bucket >= (unsigned)ALLOC_NUM_BUCKETS)
-				goto vtable_dispatch;
-		}
-		{
-			// Owner-free fast path.  The chunk carries its owner
-			// thread's id; match it against ours with a SINGLE TLS
-			// read (s_tls_owner_id) — no second TLS-array index — then
-			// push to the chunk-local freelist (no atomic, no indirect
-			// call, no template dispatch).  s_tls_owner_id == 0 (a
-			// thread that never allocated) never matches a chunk's
-			// non-zero id, so it correctly falls to the cross path.
-			// The slot stays "allocated" in the chunk's m_flags bitmap
-			// until the owner's next allocate_pooled cycle or
-			// thread-exit drain returns it via batch_return_to_bitmap.
-			if(__builtin_expect(palloc->m_owner_id == s_tls_owner_id, 1)) {
-				palloc->freelist_push(bucket, p);
-				return true;
-			}
-		}
-	vtable_dispatch:
-		// Cold path: cross-thread / non-pinned / post-teardown.  Falls
-		// back to the per-template DeallocateFn at chunk_base + 16,
-		// which preserves the existing adaptive-holding / cross-batch /
-		// chunk-release logic in `deallocate_pooled`.
-		{
 		DeallocateFn fn = *reinterpret_cast<DeallocateFn *>(
 		    chunk_base + ALLOC_CHUNK_HEADER_FN_OFFSET);
 #ifdef KAME_DEBUG_CHUNK_HEADER

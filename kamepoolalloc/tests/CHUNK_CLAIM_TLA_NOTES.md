@@ -372,3 +372,85 @@ and are immutable for the chunk's life, so no coherence cost beyond the
 initial store.  size_info / palloc / fn stay in chunk_header for the
 slow path (cross-thread / released / foreign) and for size_of's
 SizeOfFn dispatch — only the OWNER-FREE fast path is moved off line 0.
+
+### 12.2 Implementation (LANDED) — two deviations from the §12/§12.1 sketch
+
+Implemented on master.  Two corrections to the sketch were forced by the
+actual bucket layout and the embed object's placement alignment:
+
+**(a) Freelist stays GLOBAL-bucket-indexed [48], NOT local-index [8].**
+The §12/§12.1 sketch assumed each FS=false chunk's buckets form a
+contiguous span <= 8, so `bucket - m_base_bucket` would index a packed
+[8] array.  That is FALSE.  An FS=false chunk is one `PoolAllocator
+<ALIGN,false>` instantiation, and ALL same-ALIGN buckets share its one
+`s_tls.my_chunk<ALIGN>` (see allocator.cpp §"Multiple bucket indices
+share one PoolAllocator<ALIGN,false>"), so one physical chunk hands out
+EVERY bucket of its ALIGN tier:
+
+    ALIGN=32  -> buckets {6,8,10,12,14}      span 9   (6..14)
+    ALIGN=64  -> buckets {24..31}            span 8
+    ALIGN=256 -> buckets {16, 32..39}        span 24  (bucket 16, a LOW
+                 FS=false bucket, shares the 256-B template with 32..39!)
+    ALIGN=1024-> buckets {40..47}            span 8
+
+`bucket - m_base_bucket` would reach 23 for the ALIGN=256 tier — far
+past [8].  A per-tier remap (16->0, 32..39->1..8, etc.) differs per
+ALIGN and would add a dependent load on the hot path, defeating the
+cache-line win.  So the heads stay `m_freelist_head[ALLOC_NUM_BUCKETS]`
+(hardcoded 48, static_assert'd) indexed by the global bucket, exactly as
+follow-up "(1)" had them.  This costs 384 B/chunk (negligible vs 256 KiB)
+and — crucially — the high-frequency small FS=true buckets (1..6) land at
+hot-block offset 8..56, co-resident with m_owner_id on the SAME cache
+line, so the common case is still one line.  The "(1b)" win is the
+chunk_header skip (below), independent of freelist indexing.
+
+**(b) `alignas(64)`, NOT `alignas(KAME_CACHE_LINE)`.**  The embed object
+sits at `chunk_base + ALLOC_CHUNK_HEADER` (= +64) and chunk_base is
+256 KiB-aligned, so the object is EXACTLY 64-aligned.  `alignas(128)`
+(the Apple-Silicon KAME_CACHE_LINE) on a member makes the type
+128-aligned, but placement-new at a 64-aligned address is UB and the
+member would not truly be 128-aligned.  `alignas(64)` is the placement
+ceiling — and it SUFFICES: because the object already starts at +64,
+aligning the hot block to 64 lands m_owner_id at object-offset 64 =
+absolute chunk_base+128, a cache line distinct from chunk_header[0..63]
+for BOTH 64 B (line 2) and 128 B (line 1) targets.  Verified by probe:
+
+    alignof(PoolAllocatorBase)=64  sizeof=512
+    m_owner_id @64  m_fs_flag @68  m_base_bucket @70  m_freelist_head @72
+    -> absolute +128 : 64B line idx 2, 128B line idx 1 (chunk_header=line0)
+
+(256 B lines (Fujitsu) can't be cleared without 256-aligning the object,
+i.e. moving ALLOC_CHUNK_HEADER — out of scope; harmless, only a missed
+false-sharing win there.)
+
+**Released signal.**  `deallocate_chunk` now also clears
+`chunk_obj->m_owner_id = 0` (plain store, published by the same claim-bit
+release as palloc/size_info).  The fast path's owner-id compare thus
+rejects a released chunk WITHOUT reading palloc; palloc==0 stays the
+slow-path released-check.  The chunk is empty at release (live-slot
+invariant) so no concurrent fast-path dealloc can race the clear.
+
+**Resulting fast path (deallocate, allocator.cpp):**
+
+    chunk_base resolved via s_back_offset (no chunk_header read)
+    chunk_obj = (PoolAllocatorBase*)(chunk_base + ALLOC_CHUNK_HEADER)
+    if (chunk_obj->m_owner_id == s_tls_owner_id) {        // cache line 1
+        bucket = chunk_obj->m_fs_flag ? chunk_obj->m_base_bucket   // FS=true
+                                      : *(uint32_t*)(p-8);         // FS=false
+        if (FS=false && bucket out of range) goto slow;   // defensive
+        chunk_obj->freelist_push(bucket, p);              // line 1 (small b)
+        return true;
+    }
+    slow: palloc = *(chunk_base+8); if (palloc<=1) return false; vtable fn
+
+chunk_header's cache line 0 (palloc @+8, size_info @+0) is NEVER read on
+the owner-free fast path.
+
+**Verification (x86-64, Release/-O2):** probe offsets as above;
+alloc_stress cross=100 x13 (slow/cross path) + cross=0/5 x12 (owner-free
+fast path) all PASS (sentinel_fails=0, diff=0); alloc_bucket34_repro
+(FS=false ALIGN=256) PASS; c_api_test PASS.  alloc_minimal_bench hot
+alloc+free vs "(1)" baseline f3d90835: 64 B (FS=true) 159->164 M ops/s,
+**256 B (FS=false) 148->163 M ops/s (~+10%)** — the FS=false gain is the
+chunk_header size_info read removed from line 0.  (The 128 B false-share
+win is by construction; not measurable on this 64 B-line host.)

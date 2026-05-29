@@ -35,6 +35,30 @@
 #include <limits>
 #include <type_traits>
 
+// Cache-line size, architecture-dependent.  Kept as a fixed macro
+// (std::hardware_destructive_interference_size is ABI-fragile across
+// libc++/libstdc++ and warns under GCC).  Duplicated from kamestm's
+// transaction_detail.h to keep kamepoolalloc standalone-buildable.
+// Documents the per-target line sizes that motivate the
+// PoolAllocatorBase deallocate-fast-path hot block being held off
+// chunk_header's cache line (Apple-aarch64 / PPC 128 B; Fujitsu 256 B).
+// NOTE: the hot block itself is `alignas(64)`, not this value — the
+// embedded object is only 64-aligned (chunk_base+ALLOC_CHUNK_HEADER), so
+// a larger alignas would be UB; 64 still clears chunk_header's line for
+// the 64/128 B targets because the object already starts at +64.  See
+// PoolAllocatorBase::m_owner_id.
+#ifndef KAME_CACHE_LINE
+  #if defined(__APPLE__) && defined(__aarch64__)
+    #define KAME_CACHE_LINE 128
+  #elif defined(__powerpc64__) || defined(__POWERPC__)
+    #define KAME_CACHE_LINE 128
+  #elif defined(__aarch64__) && (defined(__FUJITSU) || defined(__CLANG_FUJITSU))
+    #define KAME_CACHE_LINE 256
+  #else
+    #define KAME_CACHE_LINE 64
+  #endif
+#endif
+
 // Portable atomic primitives for the custom pool allocator (formerly
 // x86-only inline asm in atomic_prv_x86.h, then inline templates in
 // allocator.cpp; hoisted here so header-inlined PoolAllocator member
@@ -420,31 +444,66 @@ protected:
 	                             bool reclaim_pages = true);
 
 public:
-	//! Owner-thread id for the deallocate owner-check fast path.  Set
-	//! once by `allocate_chunk`.  A freeing thread compares this to its
-	//! `s_tls_owner_id`; on a match it pushes to the chunk-local
-	//! freelist below with no atomics and no TLS-array indirection
-	//! (the dealloc owner-free path becomes a single TLS read —
-	//! `s_tls_owner_id` — instead of two: see follow-up "(1)" in
-	//! tests/CHUNK_CLAIM_TLA_NOTES.md).  Lives in the PoolAllocator
-	//! object (chunk_base + ALLOC_CHUNK_HEADER, cache line 1+),
-	//! deliberately apart from chunk_header.palloc (cache line 0) so
-	//! the owner's frequent freelist writes don't false-share the
-	//! cross-thread-read palloc word.
-	uint32_t m_owner_id;
-	//! Chunk-local per-bucket owner-thread freelist heads (replaces the
-	//! former TLS `g_thread_slots[]`).  LIFO; each free slot's first 8
-	//! bytes hold the next pointer.  Global bucket index (sparse for any
-	//! one chunk: an FS=true chunk uses exactly one entry, an FS=false
-	//! chunk one per SIZE it hands out).  384 B/chunk — negligible
-	//! against a >=256 KiB chunk, and shares cache line 1+ with
-	//! m_owner_id so the owner-free hot path touches one extra line at
-	//! most.  Single-writer (the owner thread) — no atomics.
-	char *m_freelist_head[48];
+	//! Cache-line-isolated hot block for the deallocate owner-free fast
+	//! path (follow-up "(1b)", tests/CHUNK_CLAIM_TLA_NOTES.md §12/§12.1).
+	//! m_owner_id / m_fs_flag / m_base_bucket are write-once at
+	//! `allocate_chunk` and immutable for the chunk's life, so the fast
+	//! path reads them with no coherence cost beyond the initial store,
+	//! and NEVER touches chunk_header's cache line (chunk_base[0..63] —
+	//! palloc at +8, size_info at +0).
+	//!
+	//! ALIGNMENT (arch-dependent cache-line sizes — see KAME_CACHE_LINE):
+	//! the embedded PoolAllocator object sits at chunk_base +
+	//! ALLOC_CHUNK_HEADER (= 64) and chunk_base is 256 KiB-aligned, so the
+	//! object is EXACTLY 64-aligned — `alignas(128)` (let alone the
+	//! KAME_CACHE_LINE=128 of Apple Silicon) is unhonorable here:
+	//! placement-new of a 128-aligned type at a 64-aligned address is UB,
+	//! and the member would not actually be 128-aligned.  So we align to
+	//! 64 — the object's placement-alignment ceiling.  Because the object
+	//! ALREADY starts at chunk_base+64, aligning the hot block to 64 lands
+	//! it at object-offset >= 64, i.e. absolute >= chunk_base+128, which
+	//! is a cache line distinct from chunk_header[0..63] for line sizes up
+	//! to 128 B — covering BOTH the 64 B (x86-64) and 128 B (Apple Silicon
+	//! aarch64) targets.  (A 256 B line (Fujitsu) can't be cleared without
+	//! 256-aligning the object, i.e. moving ALLOC_CHUNK_HEADER; harmless —
+	//! correctness is unaffected, only the false-sharing win is missed.)
+	//!
+	//!   m_owner_id    : owner-thread id; freeing thread matches its
+	//!                   `s_tls_owner_id` (0 = unassigned/released, never
+	//!                   matches a live thread).  Also the released signal:
+	//!                   `deallocate_chunk` clears it to 0 so the fast path
+	//!                   rejects a released chunk WITHOUT reading palloc.
+	//!   m_fs_flag     : redundant copy of chunk_header.size_info's
+	//!                   FS=true/false discriminator (true => FS=true), so
+	//!                   the fast path picks the bucket source (m_base_bucket
+	//!                   vs the slot prefix) without reading size_info.
+	//!   m_base_bucket : FS=true chunks serve exactly one bucket — carried
+	//!                   here so the fast path needs no `bucket_for_size`
+	//!                   call and no size_info read.  Unused for FS=false
+	//!                   (its bucket comes from the per-slot prefix at p-8).
+	//!
+	//! NOTE on freelist indexing: the heads stay GLOBAL-bucket-indexed
+	//! ([ALLOC_NUM_BUCKETS], hardcoded 48 — the class precedes the
+	//! constant; the static_assert below keeps them in lock-step), NOT the
+	//! "local index" of the original §12.1 sketch.  Local [8] packing is
+	//! infeasible here: an FS=false chunk's buckets are NOT a contiguous
+	//! span <= 8.  `PoolAllocator<256,false>` serves buckets {16, 32..39}
+	//! (bucket 16 shares the ALIGN=256 template via the common
+	//! `s_tls.my_chunk<256>`), span 24; `PoolAllocator<32,false>` serves
+	//! {6,8,10,12,14}, span 9.  A per-tier remap would add a dependent
+	//! load on the hot path, defeating the cache-line win.  Global
+	//! indexing keeps the high-frequency small FS=true buckets (1..6, the
+	//! bulk of allocations) co-resident with m_owner_id on this same cache
+	//! line — m_freelist_head[1..6] live at offset 8..56 — while FS=false
+	//! and larger FS=true buckets spill to the following lines (rarer).
+	alignas(64) uint32_t m_owner_id;
+	bool      m_fs_flag;
+	uint16_t  m_base_bucket;
+	char     *m_freelist_head[48];
 
-	//! Owner-thread chunk-local freelist push/pop (LIFO; the freed
-	//! slot's first 8 bytes hold the next pointer).  No atomics —
-	//! only the owner thread touches its chunk's freelists.
+	//! Owner-thread chunk-local freelist push/pop (LIFO; the freed slot's
+	//! first 8 bytes hold the next pointer).  Global-bucket-indexed.  No
+	//! atomics — only the owner thread touches its chunk's freelists.
 	inline void freelist_push(unsigned bucket, void *p) noexcept {
 		*reinterpret_cast<char **>(p) = m_freelist_head[bucket];
 		m_freelist_head[bucket] = static_cast<char *>(p);
