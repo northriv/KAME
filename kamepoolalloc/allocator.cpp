@@ -1443,9 +1443,9 @@ PoolAllocatorBase::allocate_chunk() {
 				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
 				                 + (size_t)base_unit_idx;
 
-				if(bm->compare_exchange_weak(v, newv,
-				                             std::memory_order_acquire,
-				                             std::memory_order_relaxed)) {
+				if(bm->compare_exchange_strong(v, newv,
+				                               std::memory_order_acquire,
+				                               std::memory_order_relaxed)) {
 					// Publish back_offset ONLY after we win the claim CAS.
 					// Writing it speculatively before the CAS (the previous
 					// design) was a correctness bug: when a template with a
