@@ -330,3 +330,45 @@ bucket-span <= 8 at instantiation.  FS=true uses index 0 only.
 
 All-or-nothing landing like (1); verify cross=100 + initial-exec +
 global-dynamic + (ideally) an aarch64 run before commit.
+
+### 12.1 The chunk_obj hot block = redundant copy of chunk_header's fast-path info
+
+Refinement (per review): for the fast path to NEVER touch cache line 0,
+copy EVERY chunk_header datum the fast path needs into the cache-line-1
+hot block.  The fast path needs exactly two things from chunk_header:
+
+  1. the FS=true/false discriminator (today: low 32 b of size_info);
+  2. the bucket (FS=true: from size_info's ALIGN; FS=false: slot prefix).
+
+So the alignas(KAME_CACHE_LINE) hot block carries BOTH as redundant
+copies, valid for FS=true AND FS=false:
+
+    alignas(KAME_CACHE_LINE) struct {
+        uint32_t m_owner_id;     // owner check
+        uint8_t  m_fs_flag;      // <- copy of size_info's FS discriminator
+        uint16_t m_base_bucket;  // <- copy of the bucket (FS=true) / base
+                                 //    bucket for local indexing (FS=false)
+        char    *m_freelist_head[8];   // local-indexed
+    };
+
+Fast path then reads ONLY the hot block (+ the slot's own prefix at p-8
+for FS=false, which lives on the slot's cache line, not chunk_header):
+
+    chunk_obj = chunk_base + ALLOC_CHUNK_HEADER;     // no palloc read
+    if (chunk_obj->m_owner_id == s_tls_owner_id) {   // cache line 1
+        unsigned b = chunk_obj->m_fs_flag ? *(uint32_t*)(p-8)
+                                          : chunk_obj->m_base_bucket;
+        chunk_obj->m_freelist_head[b - chunk_obj->m_base_bucket].push(p);
+        return true;
+    }
+    // slow path: read chunk_header (palloc released-check, vtable fn)
+
+  FS=true  : cache line 1 only.
+  FS=false : cache line 1 + slot prefix (slot's own line).
+  Neither reads chunk_header's cache line 0.
+
+These copies are written once at allocate_chunk (alongside m_owner_id)
+and are immutable for the chunk's life, so no coherence cost beyond the
+initial store.  size_info / palloc / fn stay in chunk_header for the
+slow path (cross-thread / released / foreign) and for size_of's
+SizeOfFn dispatch — only the OWNER-FREE fast path is moved off line 0.
