@@ -43,7 +43,6 @@ HEADERS += \
     allocator.h \
     allocator_prv.h \
     atomic_mfence.h \
-    atomic_prv_mfence.h \
     kame_pool.h
 
 macx {

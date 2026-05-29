@@ -23,12 +23,47 @@
 #ifndef KAMEPOOLALLOC_ATOMIC_MFENCE_H_
 #define KAMEPOOLALLOC_ATOMIC_MFENCE_H_
 
-// Unified barriers + spin-pause.  See the in-repo
-// atomic_prv_mfence.h (this directory) for full notes.  Replaces the
-// previous arch-dispatched include of atomic_prv_mfence_x86.h /
-// atomic_prv_mfence_arm8.h.  `kamepoolalloc` keeps its own copy
-// (rather than depending on kame/) since it is built as a standalone
-// dylib with no upward dependency on kame/.
-#include "atomic_prv_mfence.h"
+// Unified barrier + spin-pause helpers.  Memory barriers route through
+// `std::atomic_thread_fence` (pure C++17); `pause4spin` retains a tiny
+// per-arch hint (PAUSE on x86, YIELD on ARM64).  This replaces the
+// previous arch-dispatched scheme via atomic_prv_mfence_x86.h /
+// atomic_prv_mfence_arm8.h (deleted) and the intermediate
+// atomic_prv_mfence.h indirection (merged in-place here).
+
+#include <atomic>
+
+#if defined(_MSC_VER)
+#  include <intrin.h>   // _mm_pause (x86) / __yield (ARM64)
+#endif
+
+inline void readBarrier() noexcept {
+    std::atomic_thread_fence(std::memory_order_acquire);
+}
+inline void writeBarrier() noexcept {
+    std::atomic_thread_fence(std::memory_order_release);
+}
+inline void memoryBarrier() noexcept {
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+}
+
+inline void pause4spin() noexcept {
+#if defined(__x86_64__) || defined(__i386__) \
+    || defined(_M_IX86) || defined(_M_X64)
+#  if defined(_MSC_VER)
+    _mm_pause();
+#  else
+    __builtin_ia32_pause();
+#  endif
+#elif defined(__aarch64__) || defined(__arm64__) \
+    || defined(_M_ARM64) || defined(__arm__)
+#  if defined(_MSC_VER)
+    __yield();
+#  else
+    __asm__ __volatile__("yield" ::: "memory");
+#  endif
+#else
+    // Unknown ISA: correctness retained, throughput hint omitted.
+#endif
+}
 
 #endif /*KAMEPOOLALLOC_ATOMIC_MFENCE_H_*/
