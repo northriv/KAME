@@ -1494,11 +1494,12 @@ PoolAllocatorBase::allocate_chunk() {
 
 	// Pass 1: walk regions whose has-free bit is set.
 	for(int rword = 0; rword < REGION_BITMAP_WORDS; ++rword) {
-		uint64_t rv =
+		BitmapWord rv =
 		    s_region_has_free[rword].load(std::memory_order_relaxed);
 		while(rv != 0) {
-			int rbit = __builtin_ctzll(rv);
-			int region = rword * 64 + rbit;
+			int rbit = __builtin_ctzll(
+			    static_cast<unsigned long long>(rv));
+			int region = rword * BITS_PER_BITMAP_WORD + rbit;
 			if(region >= ALLOC_MAX_MMAP_ENTRIES) break;
 			if(ALLOC *palloc = try_claim_in_region(region))
 				return palloc;
@@ -1508,9 +1509,9 @@ PoolAllocatorBase::allocate_chunk() {
 			// future deallocs in this region will fetch_or it back
 			// when space genuinely opens up.
 			s_region_has_free[rword].fetch_and(
-			    ~(uint64_t(1) << rbit),
+			    ~(BitmapWord(1) << rbit),
 			    std::memory_order_relaxed);
-			rv &= ~(uint64_t(1) << rbit);
+			rv &= ~(BitmapWord(1) << rbit);
 		}
 	}
 
@@ -1588,8 +1589,8 @@ PoolAllocatorBase::allocate_chunk() {
 		// Region is freshly mmap'd: mark it has-free (idempotent OR)
 		// BEFORE attempting claim, so other allocate_chunk callers
 		// concurrently entering Pass 1 can see it.
-		s_region_has_free[region / 64].fetch_or(
-		    uint64_t(1) << (region % 64),
+		s_region_has_free[region / BITS_PER_BITMAP_WORD].fetch_or(
+		    BitmapWord(1) << (region % BITS_PER_BITMAP_WORD),
 		    std::memory_order_relaxed);
 
 		if(ALLOC *palloc = try_claim_in_region(region))
@@ -2170,8 +2171,8 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 				// fetch_or is idempotent; if a concurrent allocate_chunk
 				// just cleared it after finding all words full, our set
 				// re-publishes that this region now has free space.
-				s_region_has_free[region / 64].fetch_or(
-				    uint64_t(1) << (region % 64),
+				s_region_has_free[region / BITS_PER_BITMAP_WORD].fetch_or(
+				    BitmapWord(1) << (region % BITS_PER_BITMAP_WORD),
 				    std::memory_order_relaxed);
 				return;
 			}
@@ -3431,7 +3432,7 @@ std::atomic<PoolAllocatorBase::BitmapWord>
                                        * PoolAllocatorBase::BITMAP_WORDS_PER_REGION];
 uint8_t PoolAllocatorBase::s_back_offset[ALLOC_MAX_MMAP_ENTRIES
                                           * PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE];
-std::atomic<uint64_t>
+std::atomic<PoolAllocatorBase::BitmapWord>
     PoolAllocatorBase::s_region_has_free[PoolAllocatorBase::REGION_BITMAP_WORDS];
 // single consolidated TLS struct holds all per-thread state
 // for each (ALIGN, FS, DUMMY) instantiation.

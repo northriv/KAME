@@ -844,7 +844,15 @@ DECLSPEC_KAME void NegSite::dump(std::FILE *fp) noexcept {
 // for a template static `thread_local` member is not emitted in TUs
 // that only include transaction.h.
 
-STRICT_TEST(static atomic<int64_t> s_serial_abandoned = -2);
+// Diagnostic-only state for STRICT_assert (last serial abandoned by the
+// retry-cycle path).  Use `intptr_t` rather than `int64_t` so the variable
+// stays lock-free on 32-bit hosts that lack DCAS (CMPXCHG8B / LDREXD) —
+// `atomic<int64_t>` would otherwise pull in libatomic.  The store
+// `s_serial_abandoned = tr.m_serial` truncates a 64-bit serial to 32-bit
+// on ILP32; the subsequent inequality check in STRICT_assert may then
+// false-positive once per ~2^32 serials, which is acceptable for a
+// diagnostic.
+STRICT_TEST(static atomic<intptr_t> s_serial_abandoned = -2);
 
 // (popcount_u64 moved to transaction.h; retry_pause + effective_runners
 //  moved to transaction_negotiation.h.)
