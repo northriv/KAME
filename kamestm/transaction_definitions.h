@@ -76,7 +76,7 @@
 // NegotiationCounter / ScopedNegotiateLinkage / NegSite can reference
 // them.
 //
-// Defaults reflect the most recent sweep winners on iMac Pro / Apple
+// Defaults reflect the most recent sweep winners on x86_64 / ARM64
 // Silicon / Linux x86; see git history for rationale per knob.
 // =====================================================================
 
@@ -163,15 +163,15 @@
 // the gate is off, so zero runtime/code-size cost beyond the macro
 // definitions themselves.
 //
-// Default: OFF (= 0).  Originally enabled by default on iMac Pro /
+// Default: OFF (= 0).  Originally enabled by default on x86_64 /
 // Linux x86 where the per-Linkage spin gate produced a small net
 // throughput win on heavily contended bundles.  Re-benchmarked on
-// Apple Silicon M3 (2026-05-21, 4-thread payload_integrity / dyn /
+// ARM64 (4-thread payload_integrity / dyn /
 // 3level):
 //   - 2level: no measurable difference (within noise)
 //   - 3level: OFF ~5% faster (mean), lower variance
 //   - dyn:    no measurable difference
-// On M3 the gate's bookkeeping cost outweighs the saved CV-sleeps,
+// On ARM64 the gate's bookkeeping cost outweighs the saved CV-sleeps,
 // so the default is flipped to OFF.  Enable per-target with
 // `-DKAME_ENABLE_SPIN_BAND_GATE=1` if a particular workload +
 // hardware combination shows a positive A-B result.
@@ -348,7 +348,7 @@
 // Diagnostic fprintf for priv claim / timeout — default OFF.  Set to
 // 1 to enable observability for privilege-hold timeout investigations.
 // When ON, every LL-probe successful claim emits one stderr line; this
-// disrupts hot-path throughput by ~2-3% on M3 because fprintf locks
+// disrupts hot-path throughput by ~2-3% on ARM64 because fprintf locks
 // stderr and syscalls, even when the message itself is infrequent.
 #ifndef KAME_STM_PRIV_DIAG
 #define KAME_STM_PRIV_DIAG 0
@@ -411,7 +411,7 @@
 //
 // Default 0 (= digest mechanism compiled out).  K=0 fast-path then
 // pays zero atomic writes for it (the publish was a measurable
-// per-commit cost on M4 weak-memory at low N).
+// per-commit cost on ARM64 weak-memory at low N).
 //
 // Set to 1 when adding peer-judge consumers; the mechanism is
 // otherwise inert.
@@ -427,7 +427,7 @@
 // state_map hash insert at every `ScopedNegotiateLinkage` ctor, etc.).
 // The state is only CONSUMED by one of the four mechanisms below; if
 // they are all off, every NegSite write is dead instrumentation.
-// Profile (2026-05-21, M3) showed the hash insert path costing ~1.1%
+// Profile (ARM64) showed the hash insert path costing ~1.1%
 // + the forward_as_tuple plumbing another ~0.8% with all four off.
 //
 // Default: 1 iff any consumer is enabled; otherwise 0.  Set
@@ -454,13 +454,13 @@
 // m_transaction_started_time, regardless of peer kind) was previously
 // considered structurally bad at high N (spinners delay the holder).
 // Earlier sweeps with PCT=100 (1 period budget) and MAX=100 confirmed
-// this — all polled / blind variants lost at high N on M4 / M3 Air.
+// this — all polled / blind variants lost at high N on ARM64 / ARM64.
 //
 // The KAME_SPIN_BUDGET_PCT (period multiplier) and
 // KAME_THRASHING_C_MULT (over-thrashing guard) knobs added 2026-05
 // reshape the trade-off.  With a wide budget (PCT=600, ~6 periods)
 // AND thrashing-skip on a too-short period (period < sig_C * 2),
-// the spin path actually beats CV-sleep on both x86 4-core and M4.
+// the spin path actually beats CV-sleep on both x86 4-core and ARM64.
 //
 // MAX=1000 (vs the old 100) accommodates the wider PCT — the cap now
 // only kicks in for Linkages with > ~1.6 ms observed period, which is

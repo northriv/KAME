@@ -222,7 +222,7 @@ namespace detail {
     //! Replaces the previous single
     //! `alignas(64) atomic<unsigned> s_running` whose ping-pong on
     //! every Tx entry/exit was the K=0 disjoint NUMA-scaling ceiling
-    //! on 128c EPYC (≈8.3 M Tx/s × 2 atomic RMWs/Tx ≈ 16.6 M ops/s ≈
+    //! on high-core-count x86_64 (128 logical cores) (≈8.3 M Tx/s × 2 atomic RMWs/Tx ≈ 16.6 M ops/s ≈
     //! cross-socket cacheline bandwidth).
 #if KAME_ENABLE_RUNNER_DIGEST
     //! Bit-packed peer-readable digest of a thread's negotiation
@@ -287,10 +287,10 @@ namespace detail {
     //!
     //! Lifetime: heap-allocated by the owning thread on first STM
     //! use → first-touch places the allocation on that thread's
-    //! local NUMA node → `fetch_add/sub` is **local** even on EPYC
+    //! local NUMA node → `fetch_add/sub` is **local** even on high-core-count x86_64
     //! dual-socket.  This is the critical NUMA placement property
-    //! that the previous chunked-array design lost — on ohtaka1
-    //! (256-CPU dual-socket EPYC) chunked arrays mixed slots across
+    //! that the previous chunked-array design lost — on
+    //! high-core-count dual-socket NUMA x86_64 chunked arrays mixed slots across
     //! sockets and per-tx fetch_add became cross-socket (~1 µs),
     //! yielding -37% throughput vs the heap-per-thread layout.
     //!
@@ -309,13 +309,13 @@ namespace detail {
     //! drives entries to settle on threads of matching NUMA, restoring
     //! local `fetch_add/sub`.  On non-Linux (Win/Mac), single-pass
     //! blind reuse — no penalty on uniform-memory single-socket
-    //! systems where the M3 production target lives.
+    //! systems where the ARM64 production target lives.
     //!
     //! A process-exit teardown sentinel walks and deletes the list
     //! for leak-detector hygiene.
     //!
     //! Replaces the heap-vector+atomic_shared_ptr design (eliminated
-    //! the 27.8% EPYC hotspot and the TLS-teardown race) AND the
+    //! the 27.8% hotspot on x86_64 NUMA and the TLS-teardown race) AND the
     //! intermediate chunked-array design (eliminated the cross-socket
     //! NUMA pitfall of contiguous slot blocks).
     struct alignas(KAME_CACHE_LINE) RunnerCounterEntry {
@@ -431,7 +431,7 @@ namespace detail {
     //! (typically `KAME_STM_MAX_RUNNERS = 2` or `min_r = 1..2`); for
     //! those, passing the threshold as `ceiling` lets the loop bail
     //! after iterating ~ceiling entries instead of all 128 — VTune
-    //! on EPYC ohtaka1 showed the un-capped version costing 30% of
+    //! on an x86_64 NUMA server showed the un-capped version costing 30% of
     //! CPU time at 128 threads.
     //!
     //! Default `ceiling = ~0u` reproduces the original "exact sum"
@@ -1297,8 +1297,7 @@ private:
         //! priv past its timeout) and `fair_mode_blocks_me` (so peers
         //! treat a dead Reserved stamp on a per-Linkage slot as empty).
         //! Keeping all three in sync is critical — a divergence would
-        //! leave per-Linkage stamps no peer can overwrite (see
-        //! commit a0846cfd).
+        //! leave per-Linkage stamps that no peer can overwrite.
         static bool    stamp_is_expired_lowprio(cnt_t stamp) noexcept;
         static bool    try_register_privileged_tidstamp(Priority pr,
                                                         cnt_t tidstamp,
@@ -1432,7 +1431,7 @@ private:
         //! side (`num_threads_running_impl`).  On x86 this is the
         //! same instruction (LOCK XADD is intrinsically acq_rel); on
         //! ARM it adds a STLR-style barrier.  The release matters
-        //! across NUMA nodes: under `relaxed` on EPYC the v value
+        //! across NUMA nodes: under `relaxed` on multi-socket NUMA x86_64 the v value
         //! could appear stale for tens of µs across sockets, and the
         //! adaptive heuristics in `negotiate_internal` would misjudge
         //! the running count and over-fire wake/sleep transitions.
@@ -1806,7 +1805,7 @@ private:
             // Without release, the reader's acquire has no synchronizes-with
             // edge — the kind tag and timestamp in the packed word may
             // arrive out of order from the writer's other publishes
-            // (atomic_shared_ptr CAS) on weakly-ordered platforms (ARM/M4).
+            // (atomic_shared_ptr CAS) on weakly-ordered platforms (ARM64).
             m_recent_ops_state.store(new_fs, std::memory_order_release);
 #else
             (void)stamp_with_kind;

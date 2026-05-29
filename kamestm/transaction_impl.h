@@ -89,8 +89,8 @@ DECLSPEC_KAME XThreadLocal<RunnerDigest>        tls_runner_digest;
 // use (`runner_counter_register`).  Heap allocation via `new` →
 // **Linux first-touch policy places the entry on that thread's
 // local NUMA node** → subsequent per-tx `fetch_add/sub` on the
-// entry's `v` is a *local* atomic (~10 ns on EPYC, ~5 ns on M3),
-// not a cross-socket atomic (~1 µs on EPYC).
+// entry's `v` is a *local* atomic (~10 ns intra-socket on x86_64, ~5 ns on ARM64),
+// not a cross-socket atomic (~1 µs across NUMA sockets).
 //
 // Slot reuse via `claimed` flag: when a thread exits, its TLS dtor
 // (`RunnerEntryReleaseGuard`) sets `claimed=false`, leaving the
@@ -914,7 +914,7 @@ namespace detail {
     // is possible, so a CAS would be overkill.
     //
     // V0 (legacy non-adaptive) and the V0↔ADAPTIVE mode switch were
-    // removed in this revision: empirical M4 / iMac Pro comparison
+    // removed in this revision: empirical ARM64 vs x86_64 comparison
     // (paper §3.6) showed V0 to be at best on par and sometimes 5×
     // slower than the always-on adaptive path. The fair-mode
     // escape, in contrast, is orthogonal to mode and the retry-path

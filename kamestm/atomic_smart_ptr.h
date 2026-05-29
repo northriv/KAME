@@ -48,7 +48,7 @@ struct load_shared_enabled : detail_asp::load_shared_enabled_impl<T> {};
 #ifndef BACKOFF_IN_ATOMIC_SMART_PTR
 //if defined as 0, backoff by pause4spin()[=__mm_spin/yield] will be completely killed.
 //if > 0, 2^(retry) spin count will by divided by BACKOFF_IN_ATOMIC_SMART_PTR.
-    #define BACKOFF_IN_ATOMIC_SMART_PTR 0 //disabled by default, in accord with our tests for AppleSilicon M4 and EPYC 128CPU.
+    #define BACKOFF_IN_ATOMIC_SMART_PTR 0 //disabled by default, in accord with our tests for ARM64 and high-core-count x86_64.
 #endif
 
 //! \brief This is an atomic variant of \a std::unique_ptr.

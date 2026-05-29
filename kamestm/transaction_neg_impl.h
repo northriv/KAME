@@ -100,8 +100,8 @@ template <class XN>
 bool Node<XN>::NegotiationCounter::stamp_is_expired_lowprio(cnt_t stamp) noexcept {
     // Single source of truth shared by `try_register_privileged_tidstamp`,
     // `i_am_privileged_now`, and `fair_mode_blocks_me`.  All three must
-    // agree on "expired" or per-Linkage Reserved stamps go stuck (see
-    // commit a0846cfd's analysis of the fair_mode_blocks_me path).
+    // agree on "expired" or per-Linkage Reserved stamps go stuck (the
+    // failure mode is analysed in detail in fair_mode_blocks_me below).
     //
     // SCRIPTING's claim floor dominates the threshold because it is the
     // longest-tenured LOW priority — using its floor here uniformly
@@ -1883,7 +1883,7 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                     //     Reserved indefinitely and block everyone).
                     //   - `ms >= 30`: non-priv threads only escape
                     //     after a substantial wait has accumulated.
-                    //     M2 (low contention) rarely hits this; M3
+                    //     Low-contention systems rarely hit this; high-contention systems
                     //     (CAS-storm prone) reaches it during
                     //     mutual-wait cycles.  Threshold chosen so M2
                     //     fast path (ms ≤ a few ms) is unaffected.
