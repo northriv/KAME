@@ -235,3 +235,98 @@ Build breaks between edits 5–9 (hot path half-migrated), so this is an
 all-or-nothing landing — do it in one focused pass, verify with
 cross=100 (no double-payout) + alloc_minimal_bench (initial-exec) +
 alloc_stress hit-rate, then commit.
+
+---
+
+## 12. Follow-up "(1b)": chunk-header-skip + local-index freelist + cache-line-align
+
+**Status: design fixed (cache-line-aware), implementation pending.**
+Builds on "(1)" (f3d90835, chunk-local freelist, +24% global-dynamic).
+
+### Two coupled optimisations
+
+**(2) skip chunk_header in the dealloc fast path.**  The embed layout
+makes `chunk_obj = chunk_base + ALLOC_CHUNK_HEADER` a constant, so the
+fast path need NOT read `palloc` (chunk_header[8]) at all — derive the
+object address arithmetically.  But `palloc` skip alone is useless: the
+bucket is currently derived from `size_info` (chunk_header[0], SAME
+cache line 0), so the line is still touched.  To truly drop cache
+line 0, the bucket must come from elsewhere (see (1)).
+
+**(1) local-index freelist + bucket info in chunk_obj.**  Move the
+bucket determinant off chunk_header onto chunk_obj:
+  - `m_base_bucket` (chunk's lowest bucket).  FS=true: that's the one
+    bucket; FS=false: the base for local indexing.
+  - bucket at dealloc: FS=true -> m_base_bucket (no size_info read);
+    FS=false -> slot prefix at `p-8` (slot-adjacent, NOT chunk_header).
+  - `m_freelist_head[]` indexed by `bucket - m_base_bucket` (LOCAL),
+    so an FS=false chunk's few SIZEs pack into ONE cache line instead
+    of being sparse across the global-48 layout.
+  - released signal moves from `palloc==0` to `m_owner_id==0` (cleared
+    by deallocate_chunk); the owner-id check already gates the fast
+    path, so a released/foreign chunk (owner_id 0 or mismatched) falls
+    to the slow path where palloc is read for the released test.
+
+### Resulting fast path (touches cache line 0 = chunk_header NEVER)
+
+    s_back_offset[unit] -> chunk_base -> chunk_obj = chunk_base+HEADER
+    if chunk_obj->m_owner_id == s_tls_owner_id:        // chunk_obj line
+        bucket = FS ? *(p-8)prefix : chunk_obj->m_base_bucket
+        chunk_obj->m_freelist_head[bucket - m_base_bucket].push(p)
+
+Lines touched: s_back_offset + chunk_obj (its own line) + (FS=false:
+slot prefix near p).  chunk_header (palloc/size_info) is NOT read.
+
+### CACHE-LINE-AWARENESS (critical — line size is arch-dependent)
+
+chunk_obj = chunk_base + 64.  On a 64 B line, chunk_header (0..63) and
+chunk_obj (64..) are different lines already.  On a **128 B line
+(Apple Silicon aarch64)**, chunk_header (0..63) and chunk_obj (64..127)
+share line 0 — so the skip buys nothing unless chunk_obj's hot members
+are pushed to the NEXT line.
+
+Use `KAME_CACHE_LINE` (kamestm/transaction_detail.h: Apple-aarch64 128,
+PPC 128, Fujitsu-aarch64 256, else 64; copy the macro into
+kamepoolalloc for standalone independence):
+
+    struct PoolAllocatorBase {
+        // ... (vtable, etc., or keep chunk_header fully OUTSIDE the
+        //      object in chunk_base[0..63] as today)
+        alignas(KAME_CACHE_LINE) uint32_t m_owner_id;   // forced onto
+        uint16_t m_base_bucket;                          //   a fresh
+        char *m_freelist_head[8];                        //   cache line
+        // ...
+    };
+
+chunk_base is 256 KiB-aligned, so `alignas(KAME_CACHE_LINE)` lands the
+hot block on chunk_base + KAME_CACHE_LINE (128 on Apple), guaranteeing
+a line distinct from chunk_header on every target.  Cost: up to
+KAME_CACHE_LINE-64 B of pad inside the chunk (negligible vs 256 KiB).
+
+### freelist_head[8] sizing
+
+FS=false buckets 24..47 split across 4 ALIGN templates (~6-8 each);
+[8] covers the widest.  static_assert each FS=false template's
+bucket-span <= 8 at instantiation.  FS=true uses index 0 only.
+
+### Implementation order
+
+1. copy KAME_CACHE_LINE macro into allocator_prv.h.
+2. PoolAllocatorBase: `alignas(KAME_CACHE_LINE)` hot block
+   {m_owner_id, m_base_bucket, m_freelist_head[8]}; drop the global
+   m_freelist_head[48].
+3. ctor: set m_base_bucket (template-derived), zero the 8 heads.
+4. deallocate fast path: chunk_obj = chunk_base+HEADER (no palloc
+   read); owner_id check; bucket via base_bucket (FS=true) / p-8
+   (FS=false); local-index push.  No chunk_header read.
+5. new_redirected: chunk-local pop via local index (g_thread_chunks
+   gives chunk; chunk->m_base_bucket gives the offset).
+6. deallocate_chunk: m_owner_id = 0 (released signal); slow-path
+   palloc==0 test stays for the cross/foreign cases.
+7. drain: per-chunk, local-index walk (8 heads, not 48).
+8. bench: global-dynamic (expect further gain from the dropped
+   chunk_header line) AND Apple-aarch64 128 B (verify the alignas
+   actually separates the lines — perf c2c / instruments).
+
+All-or-nothing landing like (1); verify cross=100 + initial-exec +
+global-dynamic + (ideally) an aarch64 run before commit.
