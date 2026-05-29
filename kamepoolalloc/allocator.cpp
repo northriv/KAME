@@ -92,7 +92,7 @@ ALLOC_TLS bool s_alloc_tls_off = false;
 // Assigned once per thread from a global counter on first use; 0 is
 // reserved for "unassigned" so a never-allocated thread's frees never
 // spuriously match a chunk (chunks always carry a non-zero id).
-ALLOC_TLS uint32_t s_tls_owner_id = 0;
+ALLOC_TLS_IE uint32_t s_tls_owner_id = 0;
 static std::atomic<uint32_t> s_owner_id_next{1};
 static inline uint32_t kame_owner_id() noexcept {
     uint32_t id = s_tls_owner_id;
@@ -2800,7 +2800,7 @@ ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS] = {};
 // Replaces the retired `g_thread_chunks[]` parallel array — the chunk
 // pointer is recoverable from any non-null entry via
 // `chunk_from_freelist_ptr()` (single mask + add).
-ALLOC_TLS char **g_thread_freelist_ptr[ALLOC_NUM_BUCKETS] = {};
+ALLOC_TLS_IE char **g_thread_freelist_ptr[ALLOC_NUM_BUCKETS] = {};
 
 // Out-of-line large-size dispatch.  Sizes > 256 B fall here from
 // `new_redirected`.  The 257..512 range dispatches via the same

@@ -527,3 +527,58 @@ local-id) PASS; c_api_test PASS.  alloc_minimal_bench hot vs `6a355619`
 [KAME_LOCAL_BUCKETS=9] hot block + retired g_thread_chunks reduces
 cache-line touches on 128 B-line targets (Apple Silicon) by construction;
 not measurable on this 64 B-line host.
+
+### 12.4 LANDED — initial-exec TLS for the hot path (no more __tls_get_addr)
+
+Perf profile of `b428a62e` (§12.3 direct-jump compact) showed
+`__tls_get_addr` at ~15% of total runtime in BOTH `operator new[]` and
+`PoolAllocatorBase::deallocate`.  Cause: kamepoolalloc.so is built as a
+shared library, and `__thread` defaults to the **global-dynamic** TLS
+model on shared libs, which lowers each access to a libc thunk call.
+The hot-path assembly outside the thunk was already minimal (7-8
+instructions); the thunk WAS the bottleneck.
+
+Switched the small hot TLS variables to **`initial-exec`** via a new
+`ALLOC_TLS_IE` macro that adds
+`__attribute__((tls_model("initial-exec")))`:
+  - `g_thread_freelist_ptr[48]` (384 B): alloc fast path
+  - `s_tls_owner_id`           (4 B):   dealloc fast path
+  - Total IE static-TLS demand: ~400 B (well under Linux's ~4 KiB
+    surplus-static-TLS budget for shared libs).
+
+Larger cold TLS (`tls_cross_dealloc_batch` 16 KiB, per-template `s_tls`)
+stays on global-dynamic — they tolerate the thunk and would crowd out
+the static-TLS budget under IE.
+
+**Constraint:** IE-marked variables can no longer be `dlopen`'d after
+process start.  kamepoolalloc must be loaded at startup via
+`LD_PRELOAD` or normal `-l` link.
+
+**Effect on the hot path (operator new[], FS=true, 64 B):**
+
+    # Before (global-dynamic): 25+ insns including the call
+    lea     <descriptor>(%rip),%rdi
+    call    __tls_get_addr@plt        # ~15 cycles + GOT roundtrip
+    mov     (%rax,%rdx,8),%rax        # base[bucket]
+    ...
+
+    # After (initial-exec): single compound-addressing TLS load
+    mov     <offset>(%rip),%rax       # GOT-resolved IE descriptor (L1-hot)
+    mov     %fs:(%rax,%rdx,8),%rax    # ★ TLS load in ONE instruction
+
+Identical compactness for the `mov %fs:(%rax),%eax` load of
+`s_tls_owner_id` on the dealloc fast path.  No stack frame needed in
+either function.
+
+**Bench A/B (alloc_minimal_bench hot, 16-iter interleaved averages):**
+
+    size=64 B  (FS=true) : 161.79 -> 199.73 M ops/s   (+23.5 %)
+    size=256 B (FS=false): 161.29 -> 199.21 M ops/s   (+23.5 %)
+
+(Multi-thread alloc_stress also gains: cross=0 ~12 M -> ~17 M ops/s.)
+
+**Verification:** c_api_test PASS; alloc_bucket34_repro
+(sentinel_fails=0); alloc_stress cross={0,5,100} x 3 runs each, 2000
+threads, all PASS (sentinel_fails=0, diff=0).  perf annotate confirms
+zero `__tls_get_addr` calls in `operator new[]` or
+`PoolAllocatorBase::deallocate`.
