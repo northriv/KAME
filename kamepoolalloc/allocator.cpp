@@ -85,6 +85,37 @@
 // like RunnerCounterRegistration).
 ALLOC_TLS bool s_alloc_tls_off = false;
 
+// Per-thread chunk-recycle epoch generator.  Every chunk claim stamps a
+// globally-unique epoch into `s_unit_meta[]` and `chunk_header.epoch`;
+// `lookup_chunk`'s seqlock rejects any resolution whose epoch no longer
+// matches, closing the reclaim+recycle race that produced the bit-state
+// -3 double-payout (see tests/tlaplus/ChunkRecycle_threadepoch.tla).
+//
+// The epoch is `<<owner_tid:16, counter:40>>` packed as
+// `(counter << 16) | tid`.  `counter` is a per-thread monotonic serial
+// (no global atomic on the claim path); `tid` is a 16-bit id assigned
+// once per thread from a global counter.  A 40-bit counter at 1 ns per
+// allocation wraps in ~18 minutes — far longer than any in-flight lookup
+// window (microseconds) — so reuse is structurally impossible in practice.
+ALLOC_TLS uint64_t s_tls_epoch_counter = 0;
+ALLOC_TLS uint32_t s_tls_epoch_tid = 0;          // 0 = unassigned
+static std::atomic<uint32_t> s_epoch_tid_next{1}; // never hands out 0
+
+static inline uint64_t make_chunk_epoch() noexcept {
+    uint32_t tid = s_tls_epoch_tid;
+    if(__builtin_expect(tid == 0, 0)) {
+        do {
+            tid = s_epoch_tid_next.fetch_add(1, std::memory_order_relaxed)
+                  & 0xFFFFu;
+        } while(tid == 0);   // skip the reserved 0 id on 16-bit wrap
+        s_tls_epoch_tid = tid;
+    }
+    uint64_t c = (++s_tls_epoch_counter)
+                 & PoolAllocatorBase::EPOCH_COUNTER_MASK;
+    return (c << PoolAllocatorBase::EPOCH_TID_BITS)
+           | static_cast<uint64_t>(tid);
+}
+
 #if KAME_FAST_TSD
 // Fast pthread-TSD bypass of macOS / Linux TLV thunk.  See header for
 // the design overview.  These two globals carry the discovered byte
@@ -1391,12 +1422,12 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 template <class ALLOC>
 inline ALLOC *
 PoolAllocatorBase::allocate_chunk() {
-	// an earlier change + 5m: uniform 32 MiB regions carved into 128 × 256 KiB
-	// units.  A chunk = `CHUNK_UNITS` (1, 2, or 4) contiguous units at
-	// a unit-aligned position.  Per-region claim/ready bitmap stays at
-	// 2 bits/unit but is now per UNIT — multi-unit
-	// chunks set CHUNK_UNITS adjacent claim bits in a single CAS, and
-	// only the base unit ever gets `ready = 1`.
+	// Uniform 32 MiB regions carved into 128 × 256 KiB units.  A chunk =
+	// `CHUNK_UNITS` (1, 2, or 4) contiguous units at a unit-aligned
+	// position.  The per-region claim bitmap is 1 bit/unit — a multi-unit
+	// chunk sets CHUNK_UNITS adjacent bits in a single CAS.  Per-unit
+	// back-offset and recycle epoch live in `s_unit_meta[]`; the former
+	// `ready` bit is subsumed by `chunk_header.epoch != 0`.
 	//
 	// `s_region_has_free[]` skip-bitmap eliminates the O(N)
 	// walk-past-full-regions cost.  Two passes:
@@ -1406,9 +1437,9 @@ PoolAllocatorBase::allocate_chunk() {
 	//      set its bit, and claim there.
 	constexpr unsigned int CHUNK_UNITS = ALLOC::CHUNK_UNITS;
 	constexpr size_t CHUNK_SIZE = ALLOC::CHUNK_SIZE;
-	constexpr unsigned int CHUNK_STRIDE_BITS = 2u * CHUNK_UNITS; // bits per chunk in bitmap
-	// All-bits-of-this-chunk's-pairs mask, anchored at bit 0.  E.g.
-	// CHUNK_UNITS=1 → 0b11; =2 → 0b1111; =4 → 0xFF.
+	constexpr unsigned int CHUNK_STRIDE_BITS = CHUNK_UNITS; // 1 bit per unit
+	// All-bits-of-this-chunk's-units mask, anchored at bit 0.  E.g.
+	// CHUNK_UNITS=1 → 0b1; =2 → 0b11; =4 → 0b1111.
 	constexpr BitmapWord CHUNK_OCC_MASK =
 	    (CHUNK_STRIDE_BITS >= sizeof(BitmapWord) * 8u)
 	        ? ~BitmapWord(0)
@@ -1432,13 +1463,11 @@ PoolAllocatorBase::allocate_chunk() {
 					}
 				}
 				if(free_pos < 0) break;  // word saturated
-				BitmapWord claim_mask = 0;
-				for(unsigned u = 0; u < CHUNK_UNITS; ++u)
-					claim_mask |= BitmapWord(1) << (free_pos + 2u * u);
+				BitmapWord claim_mask = CHUNK_OCC_MASK << free_pos;
 				BitmapWord newv = v | claim_mask;
-				int base_unit_in_word = free_pos / 2;
+				int base_unit_in_word = free_pos;
 				int base_unit_idx =
-				    word * CHUNKS_PER_BITMAP_WORD + base_unit_in_word;
+				    word * UNITS_PER_BITMAP_WORD + base_unit_in_word;
 
 				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
 				                 + (size_t)base_unit_idx;
@@ -1446,24 +1475,25 @@ PoolAllocatorBase::allocate_chunk() {
 				if(bm->compare_exchange_weak(v, newv,
 				                             std::memory_order_acquire,
 				                             std::memory_order_relaxed)) {
-					// Publish back_offset ONLY after we win the claim CAS.
-					// Writing it speculatively before the CAS (the previous
-					// design) was a correctness bug: when a template with a
-					// DIFFERENT CHUNK_UNITS races for an overlapping unit
-					// range, the CAS *loser* had already clobbered the
-					// per-unit back_offset entries that the CAS *winner*
-					// (a different-stride chunk) legitimately owns.  A
-					// later lookup_chunk() of a slot in such a unit then
-					// resolved the wrong chunk base, and a cross-thread /
-					// drain free cleared a bit in the wrong chunk —
-					// recycling a still-live slot (observed as ~10 %
-					// sentinel-mismatch double-allocation in
-					// alloc_stress_test).  All units of OUR chunk are now
-					// exclusively ours (the CAS published the claim), so
-					// these writes can never race another winner.
+					// We won the claim CAS (acquire); all CHUNK_UNITS units
+					// are now exclusively ours.  Publish per the verified
+					// epoch+seqlock protocol (ChunkRecycle_threadepoch.tla):
+					//   step 2 — write s_unit_meta[u] = {back_off, epoch}
+					//            for every unit of the chunk (relaxed).  The
+					//            same epoch goes on every unit; back_off is
+					//            the unit's distance from the base.
+					//   step 3 — write the chunk_header, finishing with the
+					//            epoch as a single release store (below).
+					// The retired `ready` bit is subsumed by epoch != 0:
+					// until the header epoch is published, any lookup that
+					// resolves here finds chunk_header.epoch != s_unit_meta
+					// epoch and rejects.
+					uint64_t epoch = make_chunk_epoch();
 					for(unsigned u = 0; u < CHUNK_UNITS; ++u)
-						s_back_offset[bo_base + u] = (uint8_t)u;
-					writeBarrier();
+						s_unit_meta[bo_base + u].store(
+						    (static_cast<uint64_t>(u) << UNIT_META_BACKOFF_SHIFT)
+						        | epoch,
+						    std::memory_order_relaxed);
 					char *addr = s_mmapped_spaces[region]
 					           + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
 #if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
@@ -1482,18 +1512,27 @@ PoolAllocatorBase::allocate_chunk() {
 					*reinterpret_cast<std::uint64_t *>(
 					    addr + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) =
 					    ALLOC::chunk_header_size_info();
-					*reinterpret_cast<PoolAllocatorBase **>(
-					    addr + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = palloc;
+					// palloc is read speculatively by resolve_chunk_seqlock
+					// before its seqlock validates, so it must be atomic to
+					// avoid a data race with the dealloc clear.  Relaxed: the
+					// epoch release-store below is the ordering publish.
+					reinterpret_cast<std::atomic<PoolAllocatorBase *> *>(
+					    addr + ALLOC_CHUNK_HEADER_PALLOC_OFFSET)
+					    ->store(palloc, std::memory_order_relaxed);
 					*reinterpret_cast<DeallocateFn *>(
 					    addr + ALLOC_CHUNK_HEADER_FN_OFFSET) =
 					    &ALLOC::deallocate_pooled_static;
 					*reinterpret_cast<SizeOfFn *>(
 					    addr + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET) =
 					    &ALLOC::size_of_static;
-					writeBarrier();
-					BitmapWord ready_mask =
-					    BitmapWord(1) << (free_pos + 1);
-					bm->fetch_or(ready_mask, std::memory_order_release);
+					// Release-publish (step 3): the epoch store orders every
+					// plain header write above before any concurrent
+					// lookup_chunk observes a matching epoch — its seqlock
+					// acquire-loads this exact word.  This is the sole
+					// publish point now (the `ready` fetch_or is retired).
+					reinterpret_cast<std::atomic<uint64_t> *>(
+					    addr + ALLOC_CHUNK_HEADER_EPOCH_OFFSET)
+					    ->store(epoch, std::memory_order_release);
 					return palloc;
 				}
 				// CAS failed: concurrent claim updated v.  Retry inner
@@ -2079,23 +2118,23 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 inline void
 PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
                                     bool reclaim_pages) {
-	// an earlier change release sequence (multi-unit aware):
-	//   1. Clear `ready` bit on the BASE unit (acquire).  Readers
-	//      acquire-observing claim=1, ready=0 know the chunk_header is
-	//      stale; combined with the chunk_header palloc=0 write below
-	//      this provides the standard "released chunk" indicator.
-	//   2. Clear chunk_header palloc / size_info.  Any in-flight
-	//      lookup_chunk gets palloc==0 → treats as foreign.
-	//   3. madvise(MADV_FREE on macOS, MADV_DONTNEED on Linux).  Reclaims
-	//      the chunk's physical pages but leaves VA RW; subsequent
-	//      allocate_chunk reclaim of these units gets zero-fault'd pages
-	//      on first write.  No mprotect / PROT_NONE — we trade SIGBUS
-	//      safety for fewer syscalls + cleaner re-allocate semantics.
-	//      gated by `reclaim_pages` — `false` from the
-	//      thread-exit path skips this step (perf showed ~30 % of
+	// Release sequence (multi-unit aware), per the verified epoch+seqlock
+	// protocol (tests/tlaplus/ChunkRecycle_threadepoch.tla):
+	//   1. chunk_header.epoch = 0 (release).  This single store both
+	//      retires the old `ready` bit and stamps the header stale, so an
+	//      in-flight lookup_chunk seqlock rejects this chunk.
+	//   2. chunk_header.palloc / size_info = 0 (relaxed).
+	//   3. Clear s_unit_meta[] for ALL units (relaxed) — epoch 0 = released.
+	//   4. madvise the SLOT region only.  The chunk_header's page stays
+	//      resident so a concurrent lookup always reads a coherent
+	//      epoch/palloc, never an madvise-zeroed transient.  Reclaims
+	//      physical pages but leaves VA RW.  Gated by `reclaim_pages` —
+	//      `false` from the thread-exit path skips it (perf: ~30 % of
 	//      bench-style alloc_only time was spent here).
-	//   4. Clear back_offset entries for ALL units of this chunk.
-	//   5. Clear the claim bits of ALL units (release).  Reclaimable.
+	//   5. Clear the claim bits of ALL units (release).  LAST — this is
+	//      what makes the units recyclable: a re-allocator's claim CAS
+	//      (acquire) synchronises with this release and so observes the
+	//      cleared epoch/palloc/unit_meta before overwriting them.
 	//
 	// chunk_size determines the unit count (CHUNK_UNITS = chunk_size /
 	// ALLOC_MIN_CHUNK_SIZE).  Region size is uniform 32 MiB.
@@ -2110,20 +2149,28 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 			   && pdiff < (ptrdiff_t)ALLOC_MIN_MMAP_SIZE) {
 				unsigned int base_unit_idx =
 				    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
-				int word = base_unit_idx / CHUNKS_PER_BITMAP_WORD;
-				int base_in_word = base_unit_idx % CHUNKS_PER_BITMAP_WORD;
-				int base_bit = base_in_word * 2;
+				int word = base_unit_idx / UNITS_PER_BITMAP_WORD;
+				int base_in_word = base_unit_idx % UNITS_PER_BITMAP_WORD;
+				int base_bit = base_in_word;
 				std::atomic<BitmapWord> *bm =
 				    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
-				// Step 1: clear ready on base unit.
-				bm->fetch_and(~(BitmapWord(1) << (base_bit + 1)),
-				              std::memory_order_acquire);
-				// Step 2: clear chunk_header.
+				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
+				                 + (size_t)base_unit_idx;
+				// Step 1: stamp chunk_header stale (epoch = 0, release).
+				reinterpret_cast<std::atomic<uint64_t> *>(
+				    chunk_base + ALLOC_CHUNK_HEADER_EPOCH_OFFSET)
+				    ->store(0, std::memory_order_release);
+				// Step 2: clear chunk_header palloc / size_info (relaxed).
 				*reinterpret_cast<std::uint64_t *>(
 				    chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) = 0;
-				*reinterpret_cast<PoolAllocatorBase **>(
-				    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = nullptr;
-				// Step 3: madvise reclaims physical pages.
+				reinterpret_cast<std::atomic<PoolAllocatorBase *> *>(
+				    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET)
+				    ->store(nullptr, std::memory_order_relaxed);
+				// Step 3: clear s_unit_meta for ALL units (relaxed).
+				for(unsigned u = 0; u < chunk_units; ++u)
+					s_unit_meta[bo_base + u].store(
+					    0, std::memory_order_relaxed);
+				// Step 4: madvise reclaims physical pages (slot region only).
 				//
 				// gated by `reclaim_pages`.  Skipped from
 				// `release_dll_chunks_for_thread` (thread-exit) —
@@ -2146,8 +2193,11 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 					// Apple libc's implementation is cheap (per-page
 					// flag flip, no LRU-list manipulation) and reuse-
 					// fast: subsequent writes to the same VA hit the
-					// preserved pages without re-faulting.
-					madvise(chunk_base, chunk_size, MADV_FREE);
+					// preserved pages without re-faulting.  Skip the
+					// first page (holds chunk_header) so a concurrent
+					// lookup_chunk never reads an madvise-zeroed epoch.
+					madvise(chunk_base + ALLOC_PAGE_SIZE,
+					        chunk_size - ALLOC_PAGE_SIZE, MADV_FREE);
 #else
 					// Linux / others: MADV_DONTNEED — eager reclaim.
 					//
@@ -2167,22 +2217,20 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 					// reclaim is delayed until memory pressure.
 					// macOS MADV_FREE does not have this problem
 					// because Apple's implementation is structured
-					// differently.
-					madvise(chunk_base, chunk_size, MADV_DONTNEED);
+					// differently.  Skip the first page (holds
+					// chunk_header) so a concurrent lookup_chunk never
+					// reads an madvise-zeroed epoch.
+					madvise(chunk_base + ALLOC_PAGE_SIZE,
+					        chunk_size - ALLOC_PAGE_SIZE, MADV_DONTNEED);
 #endif
 				}
 				else {
 					(void)chunk_size;
 				}
-				// Step 4: clear back_offset entries.
-				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
-				                 + (size_t)base_unit_idx;
-				for(unsigned u = 0; u < chunk_units; ++u)
-					s_back_offset[bo_base + u] = 0;
-				// Step 5: clear claim bits for all units (release).
+				// Step 5: clear claim bits for all units (release) — LAST.
 				BitmapWord claim_mask = 0;
 				for(unsigned u = 0; u < chunk_units; ++u)
-					claim_mask |= BitmapWord(1) << (base_bit + 2u * u);
+					claim_mask |= BitmapWord(1) << (base_bit + u);
 				bm->fetch_and(~claim_mask, std::memory_order_release);
 				// Step 6: set the region's has-free bit.
 				// fetch_or is idempotent; if a concurrent allocate_chunk
@@ -2204,22 +2252,71 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 // monotonic growth across repeated alloc/free cycles).
 int
 PoolAllocatorBase::count_live_chunks() noexcept {
-	// 2-bit encoding — count CLAIM bits only (bit 2N for
-	// chunk N).  READY bits (bit 2N+1) are auxiliary, counted
-	// together with their claim bit would double-count.
+	// 1-bit encoding — every set bit is a claimed unit.  This counts
+	// claimed UNITS, not chunks (a multi-unit chunk contributes
+	// CHUNK_UNITS bits), which is sufficient as a leak probe: monotonic
+	// growth across repeated alloc/free cycles still signals a leak in
+	// the chunk-release path.
 	int n = 0;
 	for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION; ++i) {
 		BitmapWord v = s_claim_bitmap[i].load(std::memory_order_relaxed);
-		n += int(count_bits(v & CLAIM_BITS_MASK));
+		n += int(count_bits(v));
 	}
 	return n;
 }
 
+// Seqlock-protected chunk resolution — the bit-state -3 root-cure
+// (tests/tlaplus/ChunkRecycle_threadepoch.tla).  Given the unit `p`
+// lands in (region base `meta_base` + `unit_idx`), resolve the owning
+// chunk's `palloc` and base in O(1), rejecting any resolution that a
+// concurrent reclaim+recycle has invalidated:
+//
+//   1. meta1 = s_unit_meta[unit].load(acquire); epoch == 0 ⇒ released.
+//   2. base  = unit − meta1.back_off; read chunk_header.epoch (acquire)
+//      and palloc; then an acquire fence orders these reads before the
+//      seqlock re-read.
+//   3. meta2 = s_unit_meta[unit].load(relaxed).  Accept only if
+//      meta1 == meta2 (no reclaim slipped in) AND the chunk_header's
+//      epoch still equals meta1's epoch (header is for THIS chunk).
+//
+// A single pair-atomic read is insufficient: the re-read is what closes
+// the "reclaim landed between the meta load and the header load" window.
+// Returns nullptr (foreign / stale) or the validated palloc; on success
+// `*out_chunk_base` holds the chunk base.
+static inline PoolAllocatorBase *
+resolve_chunk_seqlock(char *mp, size_t meta_base, unsigned int unit_idx,
+                      char **out_chunk_base) noexcept {
+	std::atomic<uint64_t> *meta =
+	    &PoolAllocatorBase::s_unit_meta[meta_base + unit_idx];
+	uint64_t meta1 = meta->load(std::memory_order_acquire);
+	uint64_t ep1 = meta1 & PoolAllocatorBase::UNIT_META_EPOCH_MASK;
+	if(ep1 == 0) return nullptr;                  // released / foreign
+	unsigned int back_off = static_cast<unsigned int>(
+	    meta1 >> PoolAllocatorBase::UNIT_META_BACKOFF_SHIFT);
+	unsigned int base_idx = unit_idx - back_off;
+	char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+	// Protected data.  epoch is acquire (synchronises with the claimer's
+	// release store, making the plain palloc store before it visible);
+	// palloc is read after.
+	uint64_t ph_ep = reinterpret_cast<std::atomic<uint64_t> *>(
+	    chunk_base + ALLOC_CHUNK_HEADER_EPOCH_OFFSET)
+	    ->load(std::memory_order_acquire);
+	PoolAllocatorBase *palloc =
+	    reinterpret_cast<std::atomic<PoolAllocatorBase *> *>(
+	        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET)
+	    ->load(std::memory_order_relaxed);
+	std::atomic_thread_fence(std::memory_order_acquire);  // seqlock
+	uint64_t meta2 = meta->load(std::memory_order_relaxed);
+	if(meta1 != meta2) return nullptr;            // reclaim slipped in
+	if(ph_ep != ep1) return nullptr;              // header not for this epoch
+	if((uintptr_t)palloc <= (uintptr_t)1u) return nullptr;
+	*out_chunk_base = chunk_base;
+	return palloc;
+}
+
 // Address → chunk lookup.  Walks `s_mmapped_spaces[]` (uniform 32 MiB
-// regions since an earlier change) to find which region contains `p`, then uses
-// `s_back_offset[]` to resolve the chunk's base unit in O(1) — one
-// byte-table read and a subtract.  Reads `palloc` from the chunk
-// header at the base unit's offset 8.
+// regions) to find which region contains `p`, then resolves the owning
+// chunk via the seqlock above.
 inline PoolAllocatorBase *
 PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 	for(int ccnt = 0; ccnt < ALLOC_MAX_MMAP_ENTRIES; ++ccnt) {
@@ -2231,16 +2328,10 @@ PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 			   && pdiff < (ptrdiff_t)ALLOC_MIN_MMAP_SIZE) {
 				unsigned int unit_idx = static_cast<unsigned int>(
 				    (size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
-				unsigned int base_off =
-				    s_back_offset[ccnt * NUM_ALLOCATORS_IN_SPACE + unit_idx];
-				unsigned int base_idx = unit_idx - base_off;
-				char *chunk_base =
-				    mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
-				PoolAllocatorBase *palloc =
-				    *reinterpret_cast<PoolAllocatorBase **>(
-				        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
-				if((uintptr_t)palloc <= (uintptr_t)1u) return nullptr;
-				return palloc;
+				char *chunk_base;
+				return resolve_chunk_seqlock(
+				    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE,
+				    unit_idx, &chunk_base);
 			}
 		}
 	}
@@ -2266,32 +2357,20 @@ PoolAllocatorBase::deallocate(void *p) {
 		ptrdiff_t pdiff = static_cast<char *>(p) - mp;
 		if(pdiff < 0 || pdiff >= (ptrdiff_t)ALLOC_MIN_MMAP_SIZE)
 			continue;
-		// chunk_base via `s_back_offset[]`.  unit_idx is the
-		// 256 KiB unit within this region; back_offset gives the
-		// distance back to the chunk's base unit (0 for single-unit
-		// chunks, 1..3 for continuation units of multi-unit chunks).
-		// O(1) — one byte-table load and a subtract.  Synchronised by
-		// `allocate_chunk`'s writeBarrier before the claim CAS, so any
-		// reader observing a non-released chunk sees the current
-		// claimer's back_offset value.
+		// Resolve the owning chunk via the seqlock (s_unit_meta back_off
+		// + recycle epoch).  Rejects a stale resolution — the case where
+		// a concurrent reclaim+recycle of this unit would otherwise route
+		// the free into the WRONG chunk and clear a still-live slot's bit
+		// (the bit-state -3 double-payout).  A nullptr return means
+		// foreign / released / stale: fall through to libsystem free
+		// (also covers a libsystem-malloc'd pointer that happens to land
+		// inside our PROT_NONE mmap range on macOS Apple Silicon).
 		unsigned int unit_idx =
 		    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
-		unsigned int base_off =
-		    s_back_offset[ccnt * NUM_ALLOCATORS_IN_SPACE + unit_idx];
-		unsigned int base_idx = unit_idx - base_off;
-		char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
-		PoolAllocatorBase *palloc =
-		    *reinterpret_cast<PoolAllocatorBase **>(
-		        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
-		// Defensive: chunk header may hold nullptr (chunk released) or
-		// 1u (in-creation sentinel — unlikely to be observed past the
-		// allocate_chunk writeBarrier+s_chunks store).  Treat both as
-		// "not our pointer" so the caller falls through to std::free
-		// — same semantics as the previous s_chunks-based check,
-		// retained for libsystem-malloc pointers that happen to land
-		// inside our PROT_NONE mmap range (macOS Apple Silicon
-		// ICU/Foundation early startup).
-		if((uintptr_t)palloc <= (uintptr_t)1u)
+		char *chunk_base;
+		PoolAllocatorBase *palloc = resolve_chunk_seqlock(
+		    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE, unit_idx, &chunk_base);
+		if( !palloc)
 			return false;
 		// an earlier change — Unified inline dispatch.  Read the chunk-header
 		// SIZE info word at [0..7]:
@@ -2405,12 +2484,11 @@ PoolAllocatorBase::deallocate(void *p) {
 	return false;
 }
 
-// `size_of` — read-only sibling of `deallocate`.  Walks the same
-// per-region back_offset table and dereferences the chunk header.
-// Dispatches `SizeOfFn` at offset `ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET`
-// (= 24) and returns the slot size in bytes.  Used by `kame_realloc`
-// to size copies.  Returns 0 for any pointer not inside our pool
-// (libsystem-malloc'd, null, or chunk released).
+// `size_of` — read-only sibling of `deallocate`.  Resolves the owning
+// chunk via the same seqlock, then dispatches `SizeOfFn` at offset
+// `ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET` (= 24) and returns the slot size
+// in bytes.  Used by `kame_realloc` to size copies.  Returns 0 for any
+// pointer not inside our pool (libsystem-malloc'd, null, or released).
 inline std::size_t
 PoolAllocatorBase::size_of(void *p) {
 	if( !p) return 0;
@@ -2423,14 +2501,10 @@ PoolAllocatorBase::size_of(void *p) {
 			continue;
 		unsigned int unit_idx =
 		    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
-		unsigned int base_off =
-		    s_back_offset[ccnt * NUM_ALLOCATORS_IN_SPACE + unit_idx];
-		unsigned int base_idx = unit_idx - base_off;
-		char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
-		PoolAllocatorBase *palloc =
-		    *reinterpret_cast<PoolAllocatorBase **>(
-		        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
-		if((uintptr_t)palloc <= (uintptr_t)1u)
+		char *chunk_base;
+		PoolAllocatorBase *palloc = resolve_chunk_seqlock(
+		    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE, unit_idx, &chunk_base);
+		if( !palloc)
 			return 0;
 		SizeOfFn fn = *reinterpret_cast<SizeOfFn *>(
 		    chunk_base + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET);
@@ -3447,8 +3521,9 @@ char *PoolAllocatorBase::s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
 std::atomic<PoolAllocatorBase::BitmapWord>
     PoolAllocatorBase::s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES
                                        * PoolAllocatorBase::BITMAP_WORDS_PER_REGION];
-uint8_t PoolAllocatorBase::s_back_offset[ALLOC_MAX_MMAP_ENTRIES
-                                          * PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE];
+std::atomic<uint64_t>
+    PoolAllocatorBase::s_unit_meta[ALLOC_MAX_MMAP_ENTRIES
+                                   * PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE];
 std::atomic<PoolAllocatorBase::BitmapWord>
     PoolAllocatorBase::s_region_has_free[PoolAllocatorBase::REGION_BITMAP_WORDS];
 // single consolidated TLS struct holds all per-thread state

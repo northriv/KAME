@@ -109,11 +109,11 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! minimum so cross-thread chunk residency under lazy commit stays
 //! tight; the buddy approach replaces the previous 2× growth ladder.
 //!
-//! O(1) chunk_base lookup from any slot uses `s_back_offset[]` (1 byte
-//! per unit, per region) — see `PoolAllocatorBase::s_back_offset` below.
-//! `back_offset[u] = u - base_u` for a unit `u` claimed as part of a
-//! chunk whose base is at `base_u`; reader does `base_u = u -
-//! back_offset[u]` and then `chunk_base = region + base_u * 256K`.
+//! O(1) chunk_base lookup from any slot uses `s_unit_meta[]` (one
+//! `atomic<uint64_t>` per unit, per region) — see
+//! `PoolAllocatorBase::s_unit_meta` below.  Each word packs
+//! `back_off = u - base_u` (and the recycle epoch); a reader does
+//! `base_u = u - back_off` and then `chunk_base = region + base_u * 256K`.
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256 KiB unit
 //! log2(ALLOC_MIN_CHUNK_SIZE) — used for fast unit-index extraction
 //! `unit_idx = pdiff >> ALLOC_MIN_CHUNK_SHIFT`.  Compile-time constant.
@@ -137,9 +137,9 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! an earlier change growth-cap macro `GROW_CHUNK_SIZE` is removed; chunk size
 //! is now a per-template constant (`PoolAllocator<...>::CHUNK_SIZE`).
 //! `NUM_ALLOCATORS_IN_SPACE == 128` matches the bit count of the per-
-//! region claim bitmap (BitmapWord × BITMAP_WORDS_PER_REGION ×
-//! CHUNKS_PER_BITMAP_WORD = 128 unit slots).  Every region is 32 MiB =
-//! 128 × 256 KiB regardless of host word size.
+//! region claim bitmap (BitmapWord bits × BITMAP_WORDS_PER_REGION =
+//! UNITS_PER_BITMAP_WORD × BITMAP_WORDS_PER_REGION = 128 units).  Every
+//! region is 32 MiB = 128 × 256 KiB regardless of host word size.
 //!
 //! `ALLOC_MAX_MMAP_ENTRIES` is the VA cap — each region is mmap'd
 //! `PROT_READ | PROT_WRITE` upfront (switches the release path
@@ -170,19 +170,18 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! `deallocate`'s region-loop and pays RSS only for those 5 × 32 MiB.
 //! Bumping the cap doesn't accelerate steady-state allocation.
 //!
-//! Cache impact for `s_back_offset[]` (only the COLD chunk-claim /
+//! Cache impact for `s_unit_meta[]` (only the COLD chunk-claim /
 //! deallocate-region-miss paths touch unused regions' table entries):
-//!   * 64-bit: 3200 × 128 = 400 KiB BSS.  Unused entries stay
+//!   * 64-bit: 3200 × 128 × 8 = 3.1 MiB BSS.  Unused entries stay
 //!     zero-filled in BSS pages, never paged in.  Hot subset =
-//!     populated_regions × 128 B; for typical KAME workloads (1-5
-//!     populated regions) the working set fits in 512 B = 8 cache
-//!     lines.
-//!   * 32-bit: 96 × 128 = 12 KiB BSS.  L1d-friendly.
+//!     populated_regions × 1 KiB; for typical KAME workloads (1-5
+//!     populated regions) the working set fits in a few KiB.
+//!   * 32-bit: 96 × 128 × 8 = 96 KiB BSS.
 //!
 //! Cache impact for `s_claim_bitmap[]`:
-//!   * 64-bit: 3200 × 4 × 8 = 100 KiB.  L2 only on full scan
+//!   * 64-bit: 3200 × 2 × 8 = 50 KiB.  L2 only on full scan
 //!     (allocate_chunk cold path); steady-state ops touch one word.
-//!   * 32-bit: 96 × 8 × 4 = 3 KiB.  L1d.
+//!   * 32-bit: 96 × 4 × 4 = 1.5 KiB.  L1d.
 //!
 //! `s_mmapped_spaces[]` (the region-base array walked by every
 //! deallocate / lookup_chunk):
@@ -245,6 +244,7 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 #define ALLOC_CHUNK_HEADER_PALLOC_OFFSET        8   // [ 8..15]: palloc
 #define ALLOC_CHUNK_HEADER_FN_OFFSET           16   // [16..23]: DeallocateFn
 #define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET    24   // [24..31]: SizeOfFn
+#define ALLOC_CHUNK_HEADER_EPOCH_OFFSET        32   // [32..39]: recycle epoch
 // [56..63] = slot-0 header (= ALLOC_CHUNK_HEADER - 8).  No constant
 // needed — `allocate_pooled` reaches it via the uniform
 // `slot_start - 8` math (slot 0's slot_start == m_mempool ==
@@ -323,8 +323,8 @@ public:
 	//! but the freelist may still receive both old- and new-chunk slots
 	//! through the shared `s_my_chunk == this` owner check).  Implemented
 	//! as a for-loop walk of `s_mmapped_spaces[]` — each region is a
-	//! uniform 32 MiB, and `s_back_offset[]` maps any
-	//! claimed unit back to its chunk base in O(1).
+	//! uniform 32 MiB, and `s_unit_meta[]` maps any claimed unit back to
+	//! its chunk base in O(1) (seqlock-validated against recycle races).
 	static inline PoolAllocatorBase *lookup_chunk(void *p) noexcept;
 	//! Total live chunks across all regions, summed from
 	//! `s_claim_bitmap[]` (popcount of set bits).  Diagnostic probe for
@@ -512,94 +512,93 @@ public:
 	//!   * Hosts where `atomic<uint64_t>` is always-lock-free
 	//!     (`ATOMIC_LLONG_LOCK_FREE == 2`) — 64-bit hosts, and 32-bit
 	//!     hosts with hardware DCAS (x86 CMPXCHG8B / ARMv7 LDREXD):
-	//!     `uint64_t`, 4 words per region.
-	//!   * Hosts without DCAS — fall back to `uint32_t`, 8 words per
+	//!     `uint64_t`, 2 words per region.
+	//!   * Hosts without DCAS — fall back to `uint32_t`, 4 words per
 	//!     region.  Requires single-word atomic<uint32_t> to be
 	//!     always-lock-free (true on every architecture this allocator
 	//!     supports).
 	//!
-	//! 2-bit encoding per UNIT (not per chunk).  Each 256-KiB
-	//! unit owns a pair of bits (claim at bit 2N, ready at bit 2N+1):
-	//!   * (0, 0): free — unit is unclaimed.
-	//!   * (1, 0): claimed as a CONTINUATION unit of a multi-unit chunk
-	//!     (no chunk_header here — header lives at the BASE unit at
-	//!     `base_idx = unit_idx - s_back_offset[…+unit_idx]`).  Also
-	//!     used transiently for a BASE unit between claim CAS and
-	//!     post-init ready-bit publish.
-	//!   * (1, 1): claimed as the BASE unit of a chunk, chunk_header
-	//!     fully initialised and dereferenceable.
-	//!   * (0, 1): impossible (would mean "ready but not claimed").
-	//!
-	//! For multi-unit chunks (CHUNK_UNITS = 2 or 4), the base unit and
-	//! all continuation units carry claim=1 in a single atomic CAS at
-	//! claim time; only the base unit ever gets ready=1.  `back_offset`
-	//! tells readers which unit holds the header for any claimed unit.
-	//! Total bits per region: 128 units × 2 = 256.
+	//! 1-bit encoding per UNIT.  Each 256-KiB unit owns ONE bit:
+	//!   * 0: free — unit is unclaimed.
+	//!   * 1: claimed (base OR continuation unit of a chunk).
+	//! A multi-unit chunk (CHUNK_UNITS = 2 or 4) sets CHUNK_UNITS
+	//! adjacent bits in a single atomic CAS at claim time.  Which unit
+	//! holds the chunk_header — and whether the chunk is fully built —
+	//! is no longer encoded in the bitmap: `s_unit_meta[]` carries the
+	//! back-offset and the recycle epoch (epoch == 0 ⇒ released / not
+	//! yet built), subsuming the retired `ready` bit.  Total bits per
+	//! region: 128 units × 1 = 128.
 #if ATOMIC_LLONG_LOCK_FREE == 2 && !defined(KAME_FORCE_UINT32_BITMAP)
 	using BitmapWord = uint64_t;
-	static constexpr int BITMAP_WORDS_PER_REGION = 4;
+	static constexpr int BITMAP_WORDS_PER_REGION = 2;
 #else
 	using BitmapWord = uint32_t;
-	static constexpr int BITMAP_WORDS_PER_REGION = 8;
+	static constexpr int BITMAP_WORDS_PER_REGION = 4;
 	static_assert(ATOMIC_INT_LOCK_FREE == 2,
 		"atomic<uint32_t> must be always-lock-free as the fallback "
 		"bitmap word type — targets without 32-bit atomic CAS are "
 		"not supported.");
 #endif
 	static constexpr int BITS_PER_BITMAP_WORD = int(sizeof(BitmapWord) * 8);
-	static constexpr int CHUNKS_PER_BITMAP_WORD =
-	    BITS_PER_BITMAP_WORD / 2;     // 2 bits per chunk
-	static_assert(CHUNKS_PER_BITMAP_WORD * BITMAP_WORDS_PER_REGION
+	static constexpr int UNITS_PER_BITMAP_WORD =
+	    BITS_PER_BITMAP_WORD;         // 1 bit per unit
+	static_assert(UNITS_PER_BITMAP_WORD * BITMAP_WORDS_PER_REGION
 	                 == NUM_ALLOCATORS_IN_SPACE,
-		"bitmap layout (2 bits per chunk) must cover all 128 chunks per region");
-	//! Mask: bit 2N set ⇒ "claimed" bit for chunk N.  Used to test
-	//! claimed-only or count live chunks.  0x5555... on 64-bit,
-	//! 0x55555555 on 32-bit.
-	static constexpr BitmapWord CLAIM_BITS_MASK =
-	    (BITS_PER_BITMAP_WORD == 64)
-	        ? static_cast<BitmapWord>(0x5555555555555555ULL)
-	        : static_cast<BitmapWord>(0x55555555u);
-	//! Mask: bit 2N+1 set ⇒ "ready" bit for chunk N.  0xAAAA... pair.
-	static constexpr BitmapWord READY_BITS_MASK =
-	    static_cast<BitmapWord>(CLAIM_BITS_MASK << 1);
+		"bitmap layout (1 bit per unit) must cover all 128 units per region");
+
+	//! `s_unit_meta[]` packing — one `atomic<uint64_t>` per unit, read &
+	//! written as a single atomic word:
+	//!   bits 63..56  back_off  (unit → chunk-base distance, 0..CHUNK_UNITS-1)
+	//!   bits 55..16  counter   (per-thread monotonic serial, 40-bit)
+	//!   bits 15.. 0  owner_tid (allocating thread's 16-bit id)
+	//! The recycle EPOCH is the low 56 bits (counter<<16 | tid); an
+	//! all-zero word means "released / not claimed".  The same epoch is
+	//! stamped into `chunk_header.epoch` so `lookup_chunk`'s seqlock can
+	//! reject a stale resolution (the bit-state -3 root-cure).
+	static constexpr int      UNIT_META_BACKOFF_SHIFT = 56;
+	static constexpr uint64_t UNIT_META_EPOCH_MASK =
+	    (static_cast<uint64_t>(1) << 56) - 1;     // low 56 bits
+	static constexpr int      EPOCH_TID_BITS = 16;
+	static constexpr uint64_t EPOCH_COUNTER_MASK =
+	    (static_cast<uint64_t>(1) << 40) - 1;     // 40-bit per-thread counter
 private:
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
-	//! Per-mmap-region per-unit claim/ready bitmap.  Each 256-KiB unit
-	//! owns two bits (claim at bit 2N, ready at bit 2N+1).  Word size
-	//! selected at compile time (see `BitmapWord` above) so the claim-
-	//! CAS is genuinely lock-free on every supported target — `uint64_t`
-	//! on 64-bit hosts and 32-bit hosts with DCAS, `uint32_t` on
-	//! 32-bit hosts without DCAS.  Total bits per region stays 256
-	//! (= 128 units × 2 bits).
+	//! Per-mmap-region per-unit claim bitmap.  Each 256-KiB unit owns
+	//! ONE bit (set ⇒ claimed).  Word size selected at compile time
+	//! (see `BitmapWord` above) so the claim-CAS is genuinely lock-free
+	//! on every supported target — `uint64_t` on 64-bit hosts and 32-bit
+	//! hosts with DCAS, `uint32_t` on 32-bit hosts without DCAS.  Total
+	//! bits per region is 128 (= 128 units × 1 bit).
 	//!
 	//! Lookups go via chunk-header dereference (see `deallocate_<>` /
 	//! `lookup_chunk`), so this array is only consulted on the cold
 	//! chunk-claim / release paths.  Total storage on 64-bit:
-	//! 24 × 4 × 8 B = 768 B.
+	//! 3200 × 2 × 8 B = 50 KiB.
 	static std::atomic<BitmapWord>
 	    s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION];
 
 public:
-	//! per-region back-offset table.  One byte per unit:
-	//!     s_back_offset[region * 128 + u] = u - base_u
-	//! where `base_u` is the unit index of the chunk whose claim covers
-	//! `u`.  For single-unit chunks the entry is 0; for the base unit of
-	//! a multi-unit chunk the entry is 0; for continuation units the
-	//! entry is 1, 2, or 3 (max CHUNK_UNITS = 4).
+	//! per-region per-unit metadata — one `atomic<uint64_t>` per unit
+	//! packing {back_off, owner_tid, counter} (see the packing constants
+	//! above).  Replaces the former plain-byte `s_back_offset[]`: it now
+	//! also carries the recycle epoch so a CONCURRENT reclaim+recycle of
+	//! the same unit during a `lookup_chunk` is detectable.
 	//!
-	//! Written by `allocate_chunk` BEFORE the claim-bit CAS (with
-	//! `writeBarrier` between), so any reader that observes
-	//! `claim_bit == 1` (acquire-load) is guaranteed to see the
-	//! current claimer's back_offset value.  Cleared back to 0 by
-	//! `deallocate_chunk` after the release sequence; an uninitialised
-	//! entry reads 0 from BSS, matching "single-unit chunk at this
-	//! position" — a benign default since the first claim overwrites it.
+	//!     s_unit_meta[region * 128 + u]  back_off = u - base_u,
+	//!                                    epoch    = chunk's recycle id.
 	//!
-	//! No atomic on the back_offset slot itself (plain byte read/write):
-	//! the bitmap claim-bit CAS supplies the synchronisation point.
-	//! Total size: 3200 × 128 = 400 KiB on 64-bit (96 × 128 = 12 KiB on 32-bit).
-	static uint8_t s_back_offset[ALLOC_MAX_MMAP_ENTRIES * NUM_ALLOCATORS_IN_SPACE];
+	//! Written by `allocate_chunk` AFTER it wins the claim-bit CAS
+	//! (relaxed); the chunk_header.epoch release-store published right
+	//! after is what a reader's `lookup_chunk` seqlock acquires against.
+	//! Cleared to 0 by `deallocate_chunk` (epoch 0 ⇒ released) before the
+	//! claim bits are released.  An uninitialised entry reads 0 from BSS
+	//! (= released), a benign default since the first claim overwrites it.
+	//! Total size: 3200 × 128 × 8 B = 3.1 MiB on 64-bit BSS (96 × 128 ×
+	//! 8 = 96 KiB on 32-bit); demand-paged, so only touched regions are
+	//! resident.
+	static std::atomic<uint64_t>
+	    s_unit_meta[ALLOC_MAX_MMAP_ENTRIES * NUM_ALLOCATORS_IN_SPACE];
 
 	//! per-region "has free space" hint bitmap.  Bit N set ⇒
 	//! region N has at least one free chunk slot of SOME alignment;
@@ -654,7 +653,7 @@ public:
 	//! chunk for the largest ALIGN3 bucket).  Multi-unit chunks are
 	//! laid out in `s_mmapped_spaces` at unit-aligned positions; the
 	//! chunk-claim CAS sets CHUNK_UNITS contiguous claim bits in one
-	//! atomic op, and `s_back_offset[]` records the back-offset of each
+	//! atomic op, and `s_unit_meta[]` records the back-offset of each
 	//! continuation unit so any slot pointer resolves to its chunk base
 	//! in O(1) regardless of which unit it falls in.
 	static constexpr unsigned int CHUNK_UNITS =
