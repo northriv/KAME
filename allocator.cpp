@@ -1442,13 +1442,28 @@ PoolAllocatorBase::allocate_chunk() {
 
 				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
 				                 + (size_t)base_unit_idx;
-				for(unsigned u = 0; u < CHUNK_UNITS; ++u)
-					s_back_offset[bo_base + u] = (uint8_t)u;
-				writeBarrier();
 
 				if(bm->compare_exchange_weak(v, newv,
 				                             std::memory_order_acquire,
 				                             std::memory_order_relaxed)) {
+					// Publish back_offset ONLY after we win the claim CAS.
+					// Writing it speculatively before the CAS (the previous
+					// design) was a correctness bug: when a template with a
+					// DIFFERENT CHUNK_UNITS races for an overlapping unit
+					// range, the CAS *loser* had already clobbered the
+					// per-unit back_offset entries that the CAS *winner*
+					// (a different-stride chunk) legitimately owns.  A
+					// later lookup_chunk() of a slot in such a unit then
+					// resolved the wrong chunk base, and a cross-thread /
+					// drain free cleared a bit in the wrong chunk —
+					// recycling a still-live slot (observed as ~10 %
+					// sentinel-mismatch double-allocation in
+					// alloc_stress_test).  All units of OUR chunk are now
+					// exclusively ours (the CAS published the claim), so
+					// these writes can never race another winner.
+					for(unsigned u = 0; u < CHUNK_UNITS; ++u)
+						s_back_offset[bo_base + u] = (uint8_t)u;
+					writeBarrier();
 					char *addr = s_mmapped_spaces[region]
 					           + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
 #if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
@@ -1482,8 +1497,10 @@ PoolAllocatorBase::allocate_chunk() {
 					return palloc;
 				}
 				// CAS failed: concurrent claim updated v.  Retry inner
-				// loop with the new v (back_offset writes we did above
-				// are inert until the claim bit publishes).
+				// loop with the new v.  We wrote NOTHING to back_offset
+				// yet (it is published only inside the success branch
+				// above), so a lost CAS leaves no side effects for the
+				// winning claimer of these units to trip over.
 			}
 			// word fully claimed for THIS CHUNK_UNITS alignment.  Try
 			// the next word.
