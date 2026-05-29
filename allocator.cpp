@@ -23,21 +23,21 @@
 
 //#define GUARDIAN 0xaaaaaaaauLL
 //#define FILLING_AFTER_ALLOC 0x55555555uLL
-// Phase 4b-final: per-thread floor on `owner_release`.  Stop releasing
+// per-thread floor on `owner_release`.  Stop releasing
 // when this thread's DLL has fewer than this many chunks for the given
 // (ALIGN, FS) template — avoids release / re-mmap thrashing on bursty
 // workloads.
 //
 // Value tuning history:
-//   * Phase 4b: 2 — fine for the original `s_tls.my_chunk` + DLL design.
-//   * Phase 5o: 16 — bumped as a workaround for the bucket34_repro
+//   * 2 — fine for the original `s_tls.my_chunk` + DLL design.
+//   * 16 — bumped as a workaround for the bucket34_repro
 //     33.5 → 0.24 M/s Linux regression, on the (incorrect) theory
 //     that aggressive release / re-mmap was the cause.
-//   * Phase 5r: REAL fix landed — `s_tls.dll_cursor` / `s_tls.dll_exhausted`
+//   * REAL fix landed — `s_tls.dll_cursor` / `s_tls.dll_exhausted`
 //     was the culprit, not the floor.  Three direct
 //     `batch_return_to_bitmap` sites now reset the cursor so the
 //     next walk finds the revived chunks.
-//   * This commit: 16 → 2.  With Phase 5r the floor=16 bloat is
+//   * This commit: 16 → 2.  With an earlier change the floor=16 bloat is
 //     unnecessary; bucket34_repro 1t actually IMPROVES at floor=2
 //     (15-22 → 27 M/s) because empty chunks release sooner,
 //     improving region locality and reducing post-workers RSS.
@@ -196,7 +196,7 @@ PoolAllocatorBase **kame_chunks_cold() noexcept {
 // behind a free function defined after CrossDeallocBatch.
 namespace { void drain_thread_slot_freelists() noexcept; }
 
-// Per-thread cleanup at thread exit.  Phase 4b: chunks are no longer
+// Per-thread cleanup at thread exit.  chunks are no longer
 // pinned via atomic counters; this destructor instead walks each
 // (ALIGN, FS) template's per-thread DLL (via the registered
 // `release_dll_chunks_for_thread` callbacks) and either releases
@@ -310,7 +310,7 @@ thread_local AllocThreadExitCleanup tls_alloc_thread_exit_cleanup;
 // Re-tune-able now that the O(n) impl removes the throughput cost
 // curve.
 struct CrossDeallocBatch {
-    // FS=true-only small-slot batch (Phase 5d-2: FS=false bypasses
+    // FS=true-only small-slot batch (FS=false bypasses
     // cross-batch entirely in its `deallocate_pooled` — see that
     // function for rationale).  FS=true buckets are ALIGN==SIZE
     // (16..240 B), one bit per slot in m_flags ⇒ up to 64 slots per
@@ -344,8 +344,7 @@ struct CrossDeallocBatch {
         buf[count++] = {c, s};
     }
 
-    //! Direct/adaptive dispatch path — FS=true only (Phase 5d-2:
-    //! FS=false bypasses cross-batch entirely in `deallocate_pooled`
+    //! Direct/adaptive dispatch path — FS=true only (    //! FS=false bypasses cross-batch entirely in `deallocate_pooled`
     //! and never reaches this template).
     //!
     //! FS=true: adaptive.  Reads the chunk's `m_last_coalesce_x16`
@@ -387,12 +386,12 @@ struct CrossDeallocBatch {
         }
         CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
         c->batch_return_to_bitmap(tmp);
-        // Phase 5r/5t: direct bitmap return cleared a bit on `c`.
+        // an earlier change/5t: direct bitmap return cleared a bit on `c`.
         // Reset cursor only if we are the chunk's owner — for
         // cross-thread frees (the common case on push_direct, which
         // is invoked from FS=true deallocate_pooled when
         // `s_tls.my_chunk != c`), the reset would waste our cursor on
-        // a DLL that doesn't contain `c`.  Phase 5t identification
+        // a DLL that doesn't contain `c`.  an earlier change identification
         // via per-chunk `m_owner_dll_head_addr` vs current thread's
         // `&s_tls.dll_head` for the FS=true ALIGN template.
         if(c->m_owner_dll_head_addr ==
@@ -400,7 +399,7 @@ struct CrossDeallocBatch {
             PoolAllocator<ALIGN, true, true>::reset_dll_walk_state();
         else if(auto *p = c->m_owner_dll_force_walk_ptr.load(
                               std::memory_order_acquire))
-            // Phase 5x acquire load: synchronises with owner-exit's
+            // an earlier change acquire load: synchronises with owner-exit's
             // release-store of `nullptr` in
             // `release_dll_chunks_for_thread`.  Null after owner exit
             // → skip deref; non-null means owner's TLS storage is
@@ -471,7 +470,7 @@ thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 // dies before `~AllocThreadExitCleanup` and would corrupt freed heap (see
 // the AllocThreadExitCleanup comment).
 //
-// Phase 4b: each touched chunk still has `BIT_OWNER_EXITED == 0`
+// each touched chunk still has `BIT_OWNER_EXITED == 0`
 // at this point (the per-template DLL walk that sets it runs
 // AFTER `drain_thread_slot_freelists` in `~AllocThreadExitCleanup`), so
 // the cross_release inside batch_return_to_bitmap returns false
@@ -481,7 +480,7 @@ void drain_thread_slot_freelists() noexcept {
     // `batch_return_to_bitmap`'s `entries[k].chunk == this` walk
     // contract (one matching entry, then the sentinel terminates).
     //
-    // Phase 5d: freelists hold p_user pointers for BOTH FS=true and
+    // freelists hold p_user pointers for BOTH FS=true and
     // FS=false (the "borrow scheme" puts FS=false's user pointer at
     // slot_start, same convention as FS=true).  `batch_return_to_bitmap`
     // and its MaskFn both work on `entries[k].slot == p_user` directly
@@ -647,7 +646,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	m_flags(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)])),
 	m_idx(0),
 	m_count(count) {
-	// Phase 5j: BIT_OWNED set at construction — the chunk has an
+	// BIT_OWNED set at construction — the chunk has an
 	// owner (the thread doing the chunk-claim and adding to its DLL).
 	// MASK_CNT = 0 initially; allocate_pooled bumps it.  BIT_OWNED is
 	// cleared by release_dll_chunks_for_thread / owner_release via
@@ -655,19 +654,19 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	// (newv == 0 ⇒ I'm the unique releaser).
 	m_flags_packed = BIT_OWNED;
 	m_flags_filled_cnt = 0;
-	// Phase 5t: capture this thread's `s_tls.dll_head` TLS address.  Used
+	// capture this thread's `s_tls.dll_head` TLS address.  Used
 	// by dealloc cursor-reset paths to identify same-thread frees and
 	// skip wasted resets on cross-thread frees.  Note: each (ALIGN, FS)
 	// template has its OWN s_tls.dll_head (TLS variable), so the captured
 	// address is comparable only to `&s_tls.dll_head` taken in the same
 	// template context — which is exactly what the dealloc paths do.
 	this->m_owner_dll_head_addr = (void *)&s_tls.dll_head;
-	// Phase 5v: also capture the owner's "force walk from head" flag
+	// also capture the owner's "force walk from head" flag
 	// pointer.  Cross-thread frees flip this so the owner's next
 	// allocate_chunk_path force-restarts the DLL walk and visits
 	// revived chunks (bitmap-cleared by cross-thread frees since the
 	// last walk).
-	// Phase 5x: atomic publish (relaxed — chunk not visible to other
+	// atomic publish (relaxed — chunk not visible to other
 	// threads yet; bitmap-claim CAS that publishes the chunk has a
 	// release fence which carries this store).
 	this->m_owner_dll_force_walk_ptr.store(
@@ -711,7 +710,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
 	PoolAllocator<ALIGN, true, false>(count, addr, ppool) {
-	// Phase 5c: m_sizes and m_available_bits are gone.  Per-slot SIZE
+	// m_sizes and m_available_bits are gone.  Per-slot SIZE
 	// is stored in the slot's own first ALIGN bytes (the "+1 prefix"
 	// — see allocate_pooled below).  Nothing further to initialise
 	// here: the base ctor zero-clears m_flags, and the prefix bytes
@@ -722,7 +721,7 @@ template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(size_t size, char *ppool) {
 	int count = size / ALIGN / sizeof(FUINT) / 8;
 	size_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
-	// Phase 5c layout: [class][m_flags].  The previous trailing m_sizes
+	// an earlier change layout: [class][m_flags].  The previous trailing m_sizes
 	// array (count × FUINT bytes) is gone — per-slot SIZE now lives in
 	// each slot's own first ALIGN-bytes prefix, claimed from the bitmap
 	// as one extra bit alongside the user data (N+1 bits per slot).
@@ -802,18 +801,17 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// Owner-side freelist hit is handled in `new_redirected` via the
 	// per-thread `g_thread_slots[bucket].freelist_head` — by the time
 	// we reach `allocate_pooled` the freelist has missed.  This path
-	// runs the bitmap CAS to claim N contiguous free bits (Phase 5d:
-	// "borrow scheme" — the per-slot `{uint32_t bucket, uint32_t SIZE}`
+	// runs the bitmap CAS to claim N contiguous free bits (	// "borrow scheme" — the per-slot `{uint32_t bucket, uint32_t SIZE}`
 	// header lives in the LAST 8 bytes of the PREVIOUS slot's ALIGN
 	// area, or in `chunk_header[56..63]` for slot 0 at bit 0/word 0.
 	// No separate "prefix bit" is claimed.  See allocator_prv.h's
-	// chunk-header layout doc (Phase 5d-3) for the formal reservation.
+	// chunk-header layout doc for the formal reservation.
 	//
 	// User pointer p = slot_start (ALIGN-aligned ✓).
 	// Header at `p - 8`:
 	//   * For slot at bit 0 of word 0: `mempool - 8` = `chunk_base +
 	//     ALLOC_CHUNK_HEADER - 8` = `chunk_header[56..63]` —
-	//     formally reserved by Phase 5d-3 (static_assert in
+	//     formally reserved by an earlier change (static_assert in
 	//     allocator_prv.h confirms ≥ 8 B of pad before this region).
 	//   * For slot at bit B > 0: byte position `B*ALIGN - 8` = LAST
 	//     8 bytes of bit (B-1)'s ALIGN area.  Universal invariant:
@@ -825,16 +823,16 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// Required N is the smallest value satisfying
 	// `N*ALIGN - 8 >= SIZE`, i.e. `N = ceil((SIZE + 8) / ALIGN)`.
 	// For the existing bucket-size schedule (SIZE = K*ALIGN), this
-	// equals `K + 1` — same bit count as Phase 5c's `N_user + 1`.
+	// equals `K + 1` — same bit count as the earlier change's `N_user + 1`.
 	const unsigned int N = (SIZE + 8u + ALIGN - 1u) / ALIGN;
-	// Phase 5d header content: bucket index + SIZE packed into 8 bytes.
+	// an earlier change header content: bucket index + SIZE packed into 8 bytes.
 	// Computed once on the cold allocate path so the dealloc hot path
 	// can read bucket directly (no `bucket_for_size` call).
 	const std::uint32_t bucket_idx = bucket_for_size(SIZE);
 	const std::uint64_t hdr_word =
 	    static_cast<std::uint64_t>(bucket_idx)
 	  | (static_cast<std::uint64_t>(SIZE) << 32);
-	// Phase 5f: dropped the Phase 5a 80% fragmentation cutoff — it
+	// dropped the an earlier change 80% fragmentation cutoff — it
 	// walked all m_count FUINT words via count_bits on every
 	// allocate_pooled call (catastrophic on high-level chunks where
 	// m_count ≈ 4096 → ~4 µs/alloc).  The walk-once-and-bail logic
@@ -865,10 +863,10 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			int idx_cand = pflag - this->m_flags;
 			slot_start = &this->m_mempool[
 			    (size_t(idx_cand) * sizeof(FUINT) * 8 + sidx) * ALIGN];
-			// Phase 5d: write the {bucket, SIZE} header BEFORE the CAS
+			// write the {bucket, SIZE} header BEFORE the CAS
 			// publishes the bit.  Header lives at `slot_start - 8`:
 			//   * Bit 0 of word 0 (slot_start == mempool):
-			//       slot_start - 8 = chunk_base + 56 (Phase 5d-3
+			//       slot_start - 8 = chunk_base + 56 (an earlier change
 			//       reserved area in chunk-header pad).
 			//   * Bit B > 0: slot_start - 8 lands in bit (B-1)'s last 8
 			//       bytes, either inside an allocated slot whose
@@ -883,7 +881,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
-				// Phase 5f: maintain m_flags_filled_cnt so the quick
+				// maintain m_flags_filled_cnt so the quick
 				// "chunk is 100% full" check above stays accurate.
 				if(newv == ~(FUINT)0u)
 					atomicInc( &this->m_flags_filled_cnt);
@@ -915,7 +913,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
-	// Phase 5d: {bucket, SIZE} header at `p - 8` (LAST 8 bytes of the
+	// {bucket, SIZE} header at `p - 8` (LAST 8 bytes of the
 	// prefix bit's ALIGN area).  One 64-bit load recovers bucket
 	// directly — no `bucket_for_size(SIZE)` call on the hot path.
 	//
@@ -941,7 +939,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			return false;
 		}
 	}
-	// Phase 5d-2: FS=false never participates in cross-thread batch
+	// FS=false never participates in cross-thread batch
 	// holding — large slots have small per-word coalescing windows AND
 	// large-slot chunks repeat less frequently than FS=true small-slot
 	// chunks, so holding cost wouldn't pay back.  Empirically (ohtaka)
@@ -957,20 +955,20 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// implicit.
 	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 	this->batch_return_to_bitmap(tmp);
-	// Phase 5r/5t/5v: direct `batch_return_to_bitmap` cleared 1 bit
+	// an earlier change/5t/5v: direct `batch_return_to_bitmap` cleared 1 bit
 	// on `this` chunk → it may now have space for a future
 	// `allocate_pooled`.  Two cases:
 	//
 	//   * Same-thread (we are the chunk's owner):
 	//     `m_owner_dll_head_addr == &s_tls.dll_head`.  Reset OUR cursor
 	//     directly — next allocate_chunk_path walks our DLL from
-	//     head and finds the revival.  (Phase 5r/5t)
+	//     head and finds the revival.
 	//
 	//   * Cross-thread (owner is some other thread):
 	//     Bump the OWNER thread's "force walk from head" hint flag
 	//     via the chunk's `m_owner_dll_force_walk_ptr`.  Owner's
 	//     next allocate_chunk_path checks + clears the flag and
-	//     restarts its DLL walk.  (Phase 5v — replaces Phase 5t's
+	//     restarts its DLL walk.  (an earlier change — replaces the earlier change's
 	//     "skip cross-thread reset" which on Linux let cross-thread
 	//     revivals starve the owner's DLL walk → spurious mmap
 	//     bloat in alloc_stress.)
@@ -999,7 +997,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled_static(
 	return self->PoolAllocator::deallocate_pooled(p);
 }
 
-// FS=false slot-size trampoline (Phase 5d).  Reads SIZE from the
+// FS=false slot-size trampoline.  Reads SIZE from the
 // `{bucket, SIZE}` header at `p - 8` (the LAST 8 bytes of the prefix
 // bit's ALIGN area; allocate_pooled wrote it there before publishing
 // the bitmap bit).  Used by `realloc()` via
@@ -1013,14 +1011,14 @@ PoolAllocator<ALIGN, false, DUMMY>::size_of_static(
 	    *reinterpret_cast<std::uint32_t *>(p - 4));
 }
 
-// FS=false batch return (Phase 5d "borrow" scheme) — N-bit clear
+// FS=false batch return — N-bit clear
 // where N = ceil((SIZE + 8) / ALIGN).  Caller passes `p` = p_user
 // (= slot_start in the borrow scheme).  The `{bucket, SIZE}` header
 // lives at `p - 8` (= chunk_header pad for slot 0, or previous slot's
 // reserved last-8 bytes otherwise).  Reuses the inherited
 // batch_clear_impl skeleton with a borrow-scheme MaskFn and FS=false-
 // specific OnClearFn (no filled_cnt; m_available_bits is gone since
-// Phase 5c's fragmentation cutoff in allocate_pooled replaces it).
+// the earlier change's fragmentation cutoff in allocate_pooled replaces it).
 template <unsigned int ALIGN, bool DUMMY>
 int
 PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
@@ -1032,7 +1030,7 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 	// pass a stack-local {this, p_user} + sentinel pair.
 	bool i_am_releaser = false;
 	int n = this->batch_clear_impl(entries,
-		// MaskFn: Phase 5d FS=false N-bit clear (borrow scheme).
+		// MaskFn: an earlier change FS=false N-bit clear (borrow scheme).
 		// `p` is p_user (= slot_start); the `{bucket, SIZE}` header
 		// is at `p - 8` (in previous slot's reserved 8 B tail OR in
 		// chunk_header pad for slot 0).  SIZE is the upper 32 bits.
@@ -1050,7 +1048,7 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 #endif
 			return slot_mask;
 		},
-		// OnClearFn: FS=false.  Phase 5j: use atomicDecAndTest to
+		// OnClearFn: FS=false.  use atomicDecAndTest to
 		// identify the unique releaser when MASK_CNT goes 1 → 0.  If
 		// dec returns 0, BIT_OWNED was already clear (owner is gone)
 		// AND MASK_CNT was 1 → this caller is the sole releaser.
@@ -1059,13 +1057,13 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 				if(atomicDecAndTest(&this->m_flags_packed))
 					i_am_releaser = true;
 			}
-			// Phase 5f: maintain m_flags_filled_cnt symmetric with
+			// maintain m_flags_filled_cnt symmetric with
 			// allocate_pooled's atomicInc on word-becomes-all-ones.
 			if(oldv == ~(FUINT)0u)
 				atomicDec( &this->m_flags_filled_cnt);
 		});
 	if(i_am_releaser) {
-		// Phase 5j: atomicDecAndTest uniquely identified me as the
+		// atomicDecAndTest uniquely identified me as the
 		// releaser (m_flags_packed transitioned to 0 = BIT_OWNED clear,
 		// MASK_CNT == 0).  No CAS race possible — owner exit's
 		// atomicFetchAnd(~BIT_OWNED) and the dec-to-0 are mutually
@@ -1153,7 +1151,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	// Update adaptive coalescing hint: factor_x16 = (entries × 16) /
 	// unique_words.  16 = 1.0× = no benefit; > 16 = adjacent merges
 	// happened.  Relaxed: it's just a hint, races benign.  Skip for
-	// FS=false — Phase 5d-2 bypasses cross-batch entirely on the
+	// FS=false — an earlier change bypasses cross-batch entirely on the
 	// FS=false dealloc path (direct single-entry batch_return_to_bitmap
 	// call), so the hint is never consulted and storing it would be
 	// wasted work.
@@ -1198,7 +1196,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 		[](int /*idx*/, unsigned sidx, char * /*p*/) -> FUINT {
 			return ((FUINT)1u) << sidx;
 		},
-		// OnClearFn: FS=true.  Phase 5j: use atomicDecAndTest to
+		// OnClearFn: FS=true.  use atomicDecAndTest to
 		// identify the unique releaser when MASK_CNT goes 1 → 0.
 		[this, &i_am_releaser](FUINT oldv, FUINT newv) {
 			if(oldv == ~(FUINT)0u)
@@ -1209,7 +1207,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 			}
 		});
 	if(i_am_releaser) {
-		// Phase 5j: dec brought m_flags_packed to 0 → BIT_OWNED was
+		// dec brought m_flags_packed to 0 → BIT_OWNED was
 		// already clear (owner gone) AND MASK_CNT was 1.  I am
 		// uniquely the releaser.
 		char *cbase = this->m_mempool - ALLOC_CHUNK_HEADER;
@@ -1262,7 +1260,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	if(__builtin_expect(s_alloc_tls_off, 0)) {
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 		this->batch_return_to_bitmap(tmp);
-		// Phase 5r/5t: reset cursor only if we are the chunk's owner.
+		// an earlier change/5t: reset cursor only if we are the chunk's owner.
 		// At post-teardown (s_alloc_tls_off), our pthread_key dtors
 		// may delete pool slots from any chunk we ever held — usually
 		// our own, but cross-thread retained references are possible.
@@ -1338,7 +1336,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 // FS=false slow_allocate override.  Multiple bucket indices share one
 // PoolAllocator<ALIGN, false> instantiation, so the bucket's slot SIZE
 // (= max user_size) differs from ALIGN and must be derived from
-// `bucket` at runtime.  Phase 5d-4 4-way exponential layout:
+// `bucket` at runtime.  an earlier change 4-way exponential layout:
 //   bucket 1..16  →  slot_size = bucket * 16        (sizes 16..256, FS=true mixed; this branch is reached
 //                                                    via the FS=false specialisation only for buckets 6, 8,
 //                                                    10, 12, 14, 16 — the FS=false-half of the mixed range)
@@ -1348,26 +1346,26 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 //
 // The FS=false `allocate_pooled` expects SIZE = user size (max user
 // bytes the bucket serves).  Internally it computes
-// N = ceil((SIZE + 8) / ALIGN) (Phase 5d-1 borrow scheme).
+// N = ceil((SIZE + 8) / ALIGN).
 template <unsigned int ALIGN, bool DUMMY>
 __attribute__((cold, noinline))
 void *
 PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
                                                   std::size_t /*size*/) noexcept {
-	// Phase 5q inverse of `bucket_for_size`: bucket index → max
+	// an earlier change inverse of `bucket_for_size`: bucket index → max
 	// user_size.
 	//
 	// Buckets 1..23 (FS=true + FS=false mixed): slot_size = bucket * 16.
-	//   - 1..16: original Phase 5d-4 range (16..256 B).
-	//   - 17..23: Phase 5q FS=true extension (272..368 B).
+	//   - 1..16: original an earlier change range (16..256 B).
+	//   - 17..23: an earlier change FS=true extension (272..368 B).
 	//
-	// Buckets 24..47 (FS=false N+1 shift, Phase 5p): 4-way exponential.
+	// Buckets 24..47 (FS=false N+1 shift, an earlier change): 4-way exponential.
 	//   bucket_offset = bucket - 23 (1..24).
 	//   octave = 8 + bucket_offset / 4 (8..14).
 	//   sub = bucket_offset % 4 (0..3).
 	//   OLD total = (1<<octave) + (1<<(octave-2)) * sub.
-	//   NEW slot = OLD + ALIGN_tier (Phase 5p N+1 shift).
-	//   user_size = NEW slot - 8 (Phase 5d-1 borrow header).
+	//   NEW slot = OLD + ALIGN_tier.
+	//   user_size = NEW slot - 8.
 	unsigned int slot_size;
 	if(bucket <= 23) {
 		slot_size = bucket * 16u;
@@ -1393,14 +1391,14 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 template <class ALLOC>
 inline ALLOC *
 PoolAllocatorBase::allocate_chunk() {
-	// Phase 5l + 5m: uniform 32 MiB regions carved into 128 × 256 KiB
+	// an earlier change + 5m: uniform 32 MiB regions carved into 128 × 256 KiB
 	// units.  A chunk = `CHUNK_UNITS` (1, 2, or 4) contiguous units at
 	// a unit-aligned position.  Per-region claim/ready bitmap stays at
-	// 2 bits/unit (Phase 5h encoding) but is now per UNIT — multi-unit
+	// 2 bits/unit but is now per UNIT — multi-unit
 	// chunks set CHUNK_UNITS adjacent claim bits in a single CAS, and
 	// only the base unit ever gets `ready = 1`.
 	//
-	// Phase 5m: `s_region_has_free[]` skip-bitmap eliminates the O(N)
+	// `s_region_has_free[]` skip-bitmap eliminates the O(N)
 	// walk-past-full-regions cost.  Two passes:
 	//   1. Walk set bits of `s_region_has_free` — try each region; on
 	//      failure (region fully claimed), clear the bit and continue.
@@ -1519,7 +1517,7 @@ PoolAllocatorBase::allocate_chunk() {
 	// Pass 2: find an unallocated region, mmap it, then claim.
 	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES; ++region) {
 		while( !s_mmapped_spaces[region]) {
-			// Phase 5u: enforce the runtime max-bytes cap (see
+			// enforce the runtime max-bytes cap (see
 			// `kame_pool_set_max_bytes` in allocator.h).  The cap is
 			// stored as "max region count" so the check is one atomic
 			// load + one comparison.  When the cap is set to 0 (the
@@ -1605,7 +1603,7 @@ PoolAllocatorBase::allocate_chunk() {
 	fprintf(stderr, "# of chunks exceeds the limit.\n");
 	return 0;
 }
-// Phase 4b-final: chunk-claim is purely mmap.  No global registry —
+// chunk-claim is purely mmap.  No global registry —
 // the per-thread DLL is the sole source of truth for "chunks this
 // thread can allocate from"; per-chunk ownership is encoded in the
 // chunk header's `PoolAllocatorBase *` (visible to cross-thread frees
@@ -1642,8 +1640,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// falling all the way through to the DLL scan + mmap-fresh path.
 	// allocate_pooled() does its own per-flag atomic CAS so concurrent
 	// allocations from the same chunk by other threads are safe.
-	// Phase 4b: `s_tls.my_chunk` is a DLL member of this thread — only
-	// this thread can release it (via Phase 4a `owner_release` or
+	// `s_tls.my_chunk` is a DLL member of this thread — only
+	// this thread can release it (via an earlier change `owner_release` or
 	// thread-exit `release_dll_chunks_for_thread`), so no other-thread
 	// guard is needed.
 	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *my = s_tls.my_chunk) {
@@ -1689,7 +1687,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// same trigger, or via Phase 4's thread-exit cleanup.  Own
 	// chunks emptied by the flush are visible to the Phase 2 scan
 	// directly below.
-	// Phase 5n: only reset cursor / exhausted if the batch actually
+	// only reset cursor / exhausted if the batch actually
 	// had entries that we are about to flush back to chunk bitmaps.
 	// In pure-alloc workloads (alloc_only, no cross-frees), the batch
 	// stays empty, the flush is a no-op, and we keep the cursor's
@@ -1701,7 +1699,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		s_tls.dll_cursor = nullptr;
 		s_tls.dll_exhausted = false;
 	}
-	// Phase 4a: own-empty-neighbour release.  Walk forward from
+	// own-empty-neighbour release.  Walk forward from
 	// `s_tls.my_chunk` along the DLL: if the immediate next chunk is
 	// empty ((m_flags_packed & MASK_CNT) == 0), release it; if its successor
 	// is *also* empty, release that too — capped at two consecutive
@@ -1709,7 +1707,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// memory growth = mmap rate (one new chunk per chunk-fill); this
 	// release path balances it at the same cadence.
 	//
-	// Safety: Phase 4b `owner_release` CAS's `BIT_RELEASED` on the
+	// Safety: an earlier change `owner_release` CAS's `BIT_RELEASED` on the
 	// chunk's `m_flags_packed` — this races safely against any
 	// cross-thread `cross_release`, but cross_release additionally
 	// requires `BIT_OWNER_EXITED == 1` which only the owner's
@@ -1759,7 +1757,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 					if(g_thread_chunks[b] == nx_pa)
 						g_thread_chunks[b] = nullptr;
 				}
-				// Phase 5n: if the cursor was pointing at the released
+				// if the cursor was pointing at the released
 				// chunk, advance past it.  Also clear the exhaustion
 				// flag — DLL was just modified; an earlier chunk
 				// (now closer to head via the unlink) might have had
@@ -1785,11 +1783,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// Phase 2: forward-scan this thread's already-claimed chunks for
 	// one that has room.  Cross-thread frees on our previously-active
 	// chunks routinely empty out bits while those chunks sit older in
-	// the DLL — Phase 4b made this the SOLE chunk-reuse mechanism
+	// the DLL — an earlier change made this the SOLE chunk-reuse mechanism
 	// (the per-template global chunk registry, retired in 4b-final,
 	// no longer mediates cross-thread chunk reclaim).
 	//
-	// Phase 5n: cursor-based DLL walk.  If `s_tls.dll_exhausted` is true,
+	// cursor-based DLL walk.  If `s_tls.dll_exhausted` is true,
 	// the previous walk reached end without finding space — skip the
 	// walk entirely (set false again when a new chunk is added below,
 	// or when an owner_release clears it).  Otherwise resume from
@@ -1803,7 +1801,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// cursor was reset via mmap-fresh.  Skipping `s_tls.my_chunk` avoids
 	// a redundant retry of the just-failed `allocate_pooled` call
 	// above.
-	// Phase 5v: check the cross-thread revival hint.  If any cross-
+	// check the cross-thread revival hint.  If any cross-
 	// thread free flipped our "force walk from head" flag since the
 	// last walk, restart the walk from `s_tls.dll_head` so we visit
 	// chunks that received bitmap clears we wouldn't see by
@@ -1843,7 +1841,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 		s_tls.dll_cursor = nullptr;
 		s_tls.dll_exhausted = true;
 	}
-	// All own chunks full — mmap a fresh chunk.  Phase 4b retired the
+	// All own chunks full — mmap a fresh chunk.  an earlier change retired the
 	// previous pin-CAS scan of the global registry; chunks owned by
 	// other (live or exited) threads are no longer reclaimable here.
 	// Exited-thread chunks drain naturally via cross-thread frees +
@@ -1866,7 +1864,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	else
 		s_tls.dll_head = chunk;
 	s_tls.dll_tail = chunk;
-	// Phase 5n: fresh chunk has full capacity — clear the exhaustion
+	// fresh chunk has full capacity — clear the exhaustion
 	// flag and point the cursor at it.  Next allocate_chunk_path that
 	// finds `s_tls.my_chunk` full will resume the DLL walk from this
 	// chunk; in alloc_only workloads where this chunk is the only
@@ -1890,14 +1888,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 #endif
 	return p;
 }
-// Phase 4b-final: chunk release is a single CAS on the chunk's
+// chunk release is a single CAS on the chunk's
 // `m_flags_packed` (BIT_RELEASED).  Whoever wins the CAS is the
 // exclusive releaser; they then call `delete` + `deallocate_chunk()`.
 // The pin field, the bit-0-lock CAS on the per-template chunk
 // registry, and the registry itself are all gone — `BIT_RELEASED`
 // on the packed word is the single serialisation point across:
 //
-//   1. `owner_release(palloc)` — Phase 4a chunk-full neighbour
+//   1. `owner_release(palloc)` — an earlier change chunk-full neighbour
 //      release in `allocate_chunk_path`.  No `BIT_OWNER_EXITED`
 //      precondition (owner alive, releasing its own empty chunks);
 //      gated by `LEAVE_VACANT_CHUNKS_PER_THREAD` floor (DLL traversal
@@ -1914,7 +1912,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
-	// Phase 5j release model:
+	// an earlier change release model:
 	//   - Owner thread observes a DLL-neighbour chunk that's empty
 	//     (MASK_CNT == 0).
 	//   - atomicFetchAnd(~BIT_OWNED) clears the owned bit.
@@ -1965,7 +1963,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 	return true;
 }
 
-// Phase 5j: cross_release no longer needed as a separate path.
+// cross_release no longer needed as a separate path.
 // Cross-thread releaser identification is inlined in
 // batch_return_to_bitmap's OnClearFn via atomicDecAndTest — when
 // dec brings m_flags_packed to 0 (= BIT_OWNED was clear AND MASK_CNT
@@ -1975,7 +1973,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::cross_release(PoolAllocator * /*palloc*/) {
-	// Legacy entry — not used in Phase 5j+.  See OnClearFn release
+	// Legacy entry — not used in an earlier change+.  See OnClearFn release
 	// branch in batch_return_to_bitmap.
 	return false;
 }
@@ -1996,7 +1994,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 	// later TLS dtor that allocates (via `cold_first_access` →
 	// `is_allocator_thread_active() == false` → libsystem fallback)
 	// cannot route through a chunk we already released.
-	// Phase 5j: single atomicFetchAnd per DLL chunk.  Clears BIT_OWNED;
+	// single atomicFetchAnd per DLL chunk.  Clears BIT_OWNED;
 	// if the resulting value is 0 (MASK_CNT was 0 → chunk was empty),
 	// owner is the unique releaser.  Otherwise the chunk has live
 	// slots — cross-thread free will identify itself as releaser via
@@ -2014,18 +2012,18 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 	s_tls.dll_head = nullptr;
 	s_tls.dll_tail = nullptr;
 	s_tls.my_chunk = nullptr;
-	// Phase 5n: thread exit → cursor and exhausted flag both moot.
+	// thread exit → cursor and exhausted flag both moot.
 	s_tls.dll_cursor = nullptr;
 	s_tls.dll_exhausted = false;
 	while(c) {
 		auto *next = c->m_dll_next;
 		c->m_dll_prev = nullptr;
 		c->m_dll_next = nullptr;
-		// Phase 5v/5x: nullify the owner-revival-hint pointer BEFORE
+		// an earlier change/5x: nullify the owner-revival-hint pointer BEFORE
 		// clearing BIT_OWNED.  Once BIT_OWNED is clear, cross-thread
 		// frees may target this chunk; if our TLS storage gets
 		// reclaimed in the meantime, their `store(true)` would
-		// dereference a dangling pointer.  Phase 5x: atomic
+		// dereference a dangling pointer.  atomic
 		// release-store synchronises-with cross-thread `acquire`
 		// loads — a freer that observes nullptr is guaranteed to
 		// have ALL of this thread's TLS-state-tied operations
@@ -2033,7 +2031,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		// observes the old non-null pointer must have loaded BEFORE
 		// our release, in which case our TLS is still live.  This
 		// fixes the Linux 1000-thread `alloc_stress` SEGV that
-		// Phase 5v's plain pointer access exhibited.
+		// the earlier change's plain pointer access exhibited.
 		c->m_owner_dll_force_walk_ptr.store(
 		    nullptr, std::memory_order_release);
 		uint32_t old = atomicFetchAnd(&c->m_flags_packed,
@@ -2043,7 +2041,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			char *cbase = c->m_mempool - ALLOC_CHUNK_HEADER;
 			size_t csz = c->m_chunk_size;
 			delete c;
-			// Phase 5y: skip madvise at thread-exit.  Perf showed
+			// skip madvise at thread-exit.  Perf showed
 			// MADV_DONTNEED here was ~30 % of bench-style alloc_only
 			// runtime (clear_page_erms + free_pages_and_swap_cache).
 			// Pages stay mapped — either the kernel reclaims them
@@ -2051,7 +2049,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// thousands of madvise) or the next thread to claim
 			// these chunk units gets warm pages back, no
 			// re-zeroing.  Bounded above by m_max_reserved_bytes
-			// (Phase 5u) which limits region count.
+			// which limits region count.
 			PoolAllocatorBase::deallocate_chunk(cbase, csz,
 			    /*reclaim_pages=*/false);
 		}
@@ -2063,7 +2061,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 inline void
 PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
                                     bool reclaim_pages) {
-	// Phase 5l release sequence (multi-unit aware):
+	// an earlier change release sequence (multi-unit aware):
 	//   1. Clear `ready` bit on the BASE unit (acquire).  Readers
 	//      acquire-observing claim=1, ready=0 know the chunk_header is
 	//      stale; combined with the chunk_header palloc=0 write below
@@ -2075,7 +2073,7 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 	//      allocate_chunk reclaim of these units gets zero-fault'd pages
 	//      on first write.  No mprotect / PROT_NONE — we trade SIGBUS
 	//      safety for fewer syscalls + cleaner re-allocate semantics.
-	//      Phase 5y: gated by `reclaim_pages` — `false` from the
+	//      gated by `reclaim_pages` — `false` from the
 	//      thread-exit path skips this step (perf showed ~30 % of
 	//      bench-style alloc_only time was spent here).
 	//   4. Clear back_offset entries for ALL units of this chunk.
@@ -2109,7 +2107,7 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 				    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = nullptr;
 				// Step 3: madvise reclaims physical pages.
 				//
-				// Phase 5y: gated by `reclaim_pages`.  Skipped from
+				// gated by `reclaim_pages`.  Skipped from
 				// `release_dll_chunks_for_thread` (thread-exit) —
 				// perf showed `clear_page_erms` +
 				// `free_pages_and_swap_cache` were eating ~30 % of
@@ -2135,7 +2133,7 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 #else
 					// Linux / others: MADV_DONTNEED — eager reclaim.
 					//
-					// Phase 5n tried MADV_FREE on Linux for "lazy
+					// an earlier attempt tried MADV_FREE on Linux for "lazy
 					// reclaim, fast reuse" but it REGRESSED
 					// catastrophically on reuse-heavy workloads
 					// (bucket34_repro 33.5 → 0.26 M/s, fifo:1024
@@ -2168,7 +2166,7 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 				for(unsigned u = 0; u < chunk_units; ++u)
 					claim_mask |= BitmapWord(1) << (base_bit + 2u * u);
 				bm->fetch_and(~claim_mask, std::memory_order_release);
-				// Step 6 (Phase 5m): set the region's has-free bit.
+				// Step 6: set the region's has-free bit.
 				// fetch_or is idempotent; if a concurrent allocate_chunk
 				// just cleared it after finding all words full, our set
 				// re-publishes that this region now has free space.
@@ -2188,7 +2186,7 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 // monotonic growth across repeated alloc/free cycles).
 int
 PoolAllocatorBase::count_live_chunks() noexcept {
-	// Phase 5h: 2-bit encoding — count CLAIM bits only (bit 2N for
+	// 2-bit encoding — count CLAIM bits only (bit 2N for
 	// chunk N).  READY bits (bit 2N+1) are auxiliary, counted
 	// together with their claim bit would double-count.
 	int n = 0;
@@ -2200,7 +2198,7 @@ PoolAllocatorBase::count_live_chunks() noexcept {
 }
 
 // Address → chunk lookup.  Walks `s_mmapped_spaces[]` (uniform 32 MiB
-// regions since Phase 5l) to find which region contains `p`, then uses
+// regions since an earlier change) to find which region contains `p`, then uses
 // `s_back_offset[]` to resolve the chunk's base unit in O(1) — one
 // byte-table read and a subtract.  Reads `palloc` from the chunk
 // header at the base unit's offset 8.
@@ -2238,7 +2236,7 @@ PoolAllocatorBase::deallocate(void *p) {
 	// kame_free) falls through to its libsystem-free path, which itself
 	// short-circuits on null.
 	if( !p) return false;
-	// Phase 5l: uniform 32 MiB regions, runtime walk.  Each region is
+	// uniform 32 MiB regions, runtime walk.  Each region is
 	// either fully claimed (mp != null) or empty (mp == null).  Empty
 	// regions cluster at the tail of `s_mmapped_spaces[]` (claim grows
 	// monotonically from index 0), so the loop short-circuits on the
@@ -2250,7 +2248,7 @@ PoolAllocatorBase::deallocate(void *p) {
 		ptrdiff_t pdiff = static_cast<char *>(p) - mp;
 		if(pdiff < 0 || pdiff >= (ptrdiff_t)ALLOC_MIN_MMAP_SIZE)
 			continue;
-		// Phase 5l: chunk_base via `s_back_offset[]`.  unit_idx is the
+		// chunk_base via `s_back_offset[]`.  unit_idx is the
 		// 256 KiB unit within this region; back_offset gives the
 		// distance back to the chunk's base unit (0 for single-unit
 		// chunks, 1..3 for continuation units of multi-unit chunks).
@@ -2277,7 +2275,7 @@ PoolAllocatorBase::deallocate(void *p) {
 		// ICU/Foundation early startup).
 		if((uintptr_t)palloc <= (uintptr_t)1u)
 			return false;
-		// Phase 5e — Unified inline dispatch.  Read the chunk-header
+		// an earlier change — Unified inline dispatch.  Read the chunk-header
 		// SIZE info word at [0..7]:
 		//   FS=true  : low 32 b = ALIGN (= slot size, non-zero)
 		//   FS=false : 0 — read per-slot {bucket, SIZE} header at p - 8
@@ -2350,7 +2348,7 @@ PoolAllocatorBase::deallocate(void *p) {
 		{
 			uintptr_t fn_addr = (uintptr_t)fn;
 			uintptr_t cb      = (uintptr_t)chunk_base;
-			// Phase 5l: chunk_size is now per-template; read from palloc's
+			// chunk_size is now per-template; read from palloc's
 			// runtime field.
 			uintptr_t cb_end  = cb + palloc->chunk_size();
 			if(fn_addr >= cb && fn_addr < cb_end) {
@@ -2423,7 +2421,7 @@ PoolAllocatorBase::size_of(void *p) {
 	return 0;
 }
 void* allocate_large_size_or_malloc(size_t size) throw() {
-	// Phase 5d-4: bucket dispatch covers sizes 1..ALLOC_MAX_BUCKETED_SIZE
+	// bucket dispatch covers sizes 1..ALLOC_MAX_BUCKETED_SIZE
 	// (= 16376).  Anything bigger lands here and goes straight to
 	// libsystem.  The legacy ALLOCATE_9_16X(4, size) … (64, size) chain
 	// — which broke the size range into power-of-2 sub-tiers each
@@ -2475,10 +2473,10 @@ KAME_DECL_BUCKET(13, ALLOC_SIZE13,                 true,  ALLOC_SIZE13);
 KAME_DECL_BUCKET(14, ALLOC_ALIGN(ALLOC_SIZE14),   false,  ALLOC_SIZE14);
 KAME_DECL_BUCKET(15, ALLOC_SIZE15,                 true,  ALLOC_SIZE15);
 KAME_DECL_BUCKET(16, ALLOC_ALIGN(ALLOC_SIZE16),   false,  ALLOC_SIZE16);
-// Phase 5q: extend the FS=true 16-step ladder to buckets 17..23
+// extend the FS=true 16-step ladder to buckets 17..23
 // (sizes 272..368).  Each is FS=true with ALIGN = SIZE → zero
 // internal frag (one slot per ALIGN-byte region).  Closes the
-// 257..368 gap that Phase 5p's bucket 17 (slot 384) absorbed at
+// 257..368 gap that the earlier change's bucket 17 (slot 384) absorbed at
 // up to 32 % frag for the small end.
 KAME_DECL_BUCKET(17, ALLOC_SIZE17,                 true,  ALLOC_SIZE17);  // 272
 KAME_DECL_BUCKET(18, ALLOC_SIZE18,                 true,  ALLOC_SIZE18);  // 288
@@ -2488,13 +2486,13 @@ KAME_DECL_BUCKET(21, ALLOC_SIZE21,                 true,  ALLOC_SIZE21);  // 336
 KAME_DECL_BUCKET(22, ALLOC_SIZE22,                 true,  ALLOC_SIZE22);  // 352
 KAME_DECL_BUCKET(23, ALLOC_SIZE23,                 true,  ALLOC_SIZE23);  // 368
 
-// Buckets 24..47 (Phase 5p N+1 shift, indices +7 from Phase 5p): 4-way
+// Buckets 24..47: 4-way
 // exponential FS=false ladder.  3 ALIGN stages × 8 (octave/sub) =
 // 24 buckets.  The "borrow" header is the universal 8 B at p_user - 8
-// (Phase 5d-1).  Bucket `SIZE` is the MAX user_size the bucket serves
+//.  Bucket `SIZE` is the MAX user_size the bucket serves
 // (= slot total - 8); slow_allocate / bucket_first_access pass SIZE
 // to allocate_pooled, which computes N = ceil((SIZE+8)/ALIGN).
-// Slot total uniformly = (N+1)*ALIGN per Phase 5p.
+// Slot total uniformly = (N+1)*ALIGN per an earlier change.
 
 // Stage 1 — ALIGN=64.  Slot totals 384..1088 (= 6..17 × 64).
 KAME_DECL_BUCKET(24,  64u, false,   376u);  // octave 8 sub 1 +ALIGN, N=6,  slot= 384
@@ -2825,7 +2823,7 @@ extern "C" __attribute__((noinline)) void free(void *p) {
 	kame_free(p);
 }
 #else
-// Windows / others (Phase 5z): no `free` interpose.
+// Windows / others: no `free` interpose.
 //
 // Rationale: on PE/COFF (Windows), a DLL exporting `free` does NOT
 // shadow other modules' bindings to msvcrt's `free` — each module
@@ -3026,7 +3024,7 @@ void *kame_pool_calloc(std::size_t n_elem, std::size_t sz) noexcept {
 }
 
 // =====================================================================
-// Phase 5y/follow-up: public C ABI (<kame_pool.h>).
+// an earlier change/follow-up: public C ABI (<kame_pool.h>).
 //
 // Thin extern-C wrappers over the existing internal entry points
 // (`new_redirected` / `deallocate_pooled_or_free` / `kame_realloc` /
@@ -3103,7 +3101,7 @@ void *kame_pool_aligned_alloc(std::size_t alignment, std::size_t size) {
 	// `libsystem_free_for_pool` → libc `free`).  On Windows,
 	// `_aligned_malloc` requires the matching `_aligned_free` — and
 	// `kame_pool_free` has no alignment info to dispatch correctly.
-	// Phase 5z therefore restricts the C API's over-aligned path on
+	// an earlier change therefore restricts the C API's over-aligned path on
 	// Windows: callers needing alignment > 16 B should use
 	// `_aligned_malloc` / `_aligned_free` directly, or use C++
 	// `operator new(size, std::align_val_t{N})` which carries
@@ -3162,18 +3160,18 @@ void *realloc(void *p, std::size_t n) {
 	return kame_realloc(p, n);
 }
 #else
-// Windows / others (Phase 5z): no `realloc` interpose.  Same
+// Windows / others: no `realloc` interpose.  Same
 // rationale as `free` above — CRT `realloc` stays bound to msvcrt;
 // callers that need the pool path use `kame_pool_realloc()`.
 #endif
 
-// Phase 4b-final: `release_pools()` / `report_statistics()` / per-template
+// `release_pools()` / `report_statistics()` / per-template
 // `release_pools()` / `PoolAllocatorBase::release_chunks()` are all gone.
 // They walked the per-template `s_chunks_of_type[]` registry — itself
 // retired — and had no live callers anywhere in the tree (only a
 // commented-out comment in `kame/main.cpp:345` and an unused declaration
 // in `allocator.h`).  Memory is reclaimed naturally:
-//   * Empty chunks released by `owner_release` (Phase 4a) /
+//   * Empty chunks released by `owner_release` /
 //     `cross_release` (cross-thread last-slot) / `release_dll_chunks_for_thread`
 //     (thread exit) call `deallocate_chunk` which mprotects PROT_NONE +
 //     clears the region's claim bit, so the slot region is available
@@ -3395,7 +3393,7 @@ void operator delete[](void* p, std::size_t /*size*/, std::align_val_t al) noexc
     ::operator delete(p, al);
 }
 
-// Phase 5u: runtime max-regions cap definition + public API.
+// runtime max-regions cap definition + public API.
 std::atomic<int> PoolAllocatorBase::s_max_regions_cap{ALLOC_MAX_MMAP_ENTRIES};
 
 extern "C" void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept {
@@ -3435,7 +3433,7 @@ uint8_t PoolAllocatorBase::s_back_offset[ALLOC_MAX_MMAP_ENTRIES
                                           * PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE];
 std::atomic<uint64_t>
     PoolAllocatorBase::s_region_has_free[PoolAllocatorBase::REGION_BITMAP_WORDS];
-// Phase 5w: single consolidated TLS struct holds all per-thread state
+// single consolidated TLS struct holds all per-thread state
 // for each (ALIGN, FS, DUMMY) instantiation.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS typename PoolAllocator<ALIGN, FS, DUMMY>::ThreadLocalState
@@ -3452,15 +3450,15 @@ ALLOC_TLS typename PoolAllocator<ALIGN, FS, DUMMY>::ThreadLocalState
 
 // FS=false PoolAllocator instantiations.
 //
-// Phase 5d-4 layout uses three stages with explicit ALIGN values (64,
+// an earlier change layout uses three stages with explicit ALIGN values (64,
 // 256, 1024).  ALLOC_ALIGN1 (= 32 on 64-bit) is retained as the ALIGN
 // of the legacy FS=false buckets 6/8/10/12/14 (slot sizes 96/128/160/
 // 192/224); bucket 16 (size 256) uses ALLOC_ALIGN(256) = ALLOC_ALIGN2
 // = 256.  So we need ALIGN=32, 64, 256, 1024 — four total instantiations.
 template class PoolAllocator<32u, false>;     // buckets 6, 8, 10, 12, 14
-template class PoolAllocator<64u, false>;     // buckets 17..24 (Phase 5d-4 stage 1)
-template class PoolAllocator<256u, false>;    // bucket 16 + buckets 25..32 (Phase 5d-4 stage 2)
-template class PoolAllocator<1024u, false>;   // buckets 33..40 (Phase 5d-4 stage 3)
+template class PoolAllocator<64u, false>;     // buckets 17..24
+template class PoolAllocator<256u, false>;    // bucket 16 + buckets 25..32
+template class PoolAllocator<1024u, false>;   // buckets 33..40
 
 template class PoolAllocator<ALLOC_SIZE1, true>;
 template class PoolAllocator<ALLOC_SIZE2, true>;

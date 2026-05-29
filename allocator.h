@@ -72,7 +72,7 @@
 //      `thread_local` runtime that drives `AllocThreadExitCleanup`'s
 //      destructor at thread exit.  MSVC support requires an
 //      `_Interlocked*` atomic shim and `__declspec(allocate(".CRT$XCB"))`
-//      for the static-init hook — out of scope for Phase 5z.
+//      for the static-init hook — out of scope for an earlier change.
 //      Production kame.exe inline-compiles `allocator.cpp` (no DLL
 //      boundary), so the strong-symbol `free`/`realloc` interpose
 //      (Linux-glibc strategy) is NOT used on Windows — `operator new`
@@ -105,7 +105,7 @@
     //! pool state to worry about.
     inline bool is_allocator_thread_active() noexcept { return true; }
 
-    //! Phase 5u: pool API stubs for USE_STD_ALLOCATOR builds (Windows
+    //! pool API stubs for USE_STD_ALLOCATOR builds (Windows
     //! by default).  No pool → cap is meaningless; the functions
     //! exist so consumers can call them unconditionally without
     //! `#ifdef`.
@@ -147,7 +147,7 @@
         extern void activateAllocator();
     #endif
 
-    //! Runtime memory cap (Phase 5u).  When the pool has mmap'd at
+    //! Runtime memory cap.  When the pool has mmap'd at
     //! least this many bytes (counted by region count × 32 MiB region
     //! size), `allocate_chunk` refuses to mmap fresh regions and
     //! returns nullptr from the chunk-claim path — `allocate_pooled`
@@ -226,13 +226,13 @@
 //! which is hooked into our pool via `operator new` / `delete`.
 //! Tearing the pool's mmap regions down before those allocations
 //! would cause `operator new` to dereference unmapped memory →
-//! SIGSEGV.  (Observed in kame-2026-05-24-193408.ips: faulting
+//! SIGSEGV.  (Observed during in-house crash debugging: faulting
 //! address falls in an unmapped gap left by a torn-down chunk;
 //! stack is `main -> ~QTranslator -> removeTranslator -> sendEvent
 //! -> QApplication::event`.)
 //!
 //! Letting pool chunks live until process exit is harmless: the
-//! mmap'd regions are reclaimed by the kernel.  Phase 4b-final
+//! mmap'd regions are reclaimed by the kernel.  an earlier change
 //! removed the `release_pools()` diagnostic API entirely (no
 //! callers anywhere in the tree), so the destructor is a true
 //! no-op.

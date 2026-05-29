@@ -87,7 +87,7 @@ inline bool atomicDecAndTest(T *target) noexcept {
     return __sync_sub_and_fetch(target, 1) == 0;
 }
 //! Atomic fetch-and-AND.  Returns the OLD value (before AND) so the
-//! caller can compute the resulting bit pattern.  Used by Phase 5j
+//! caller can compute the resulting bit pattern.  Used by an earlier change
 //! BIT_OWNED clear to detect "I brought m_flags_packed to 0" → I'm
 //! the unique releaser.
 template <typename T>
@@ -101,11 +101,11 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 	#define ALLOC_TLS thread_local
 #endif
 
-//! Allocation unit (1 chunk = N × this).  Phase 5l: every mmap region is
+//! Allocation unit (1 chunk = N × this).  every mmap region is
 //! a uniform 32 MiB block carved into 128 fixed-size 256 KiB "units".
 //! A chunk = 1, 2, or 4 contiguous units depending on the per-template
 //! `CHUNK_UNITS` (= 1 for ALIGN < 256, = 2 for ALIGN < 1024, = 4 for
-//! ALIGN ≥ 1024 = 1024).  The unit size matches the previous Phase 5g
+//! ALIGN ≥ 1024 = 1024).  The unit size matches the previous an earlier change
 //! minimum so cross-thread chunk residency under lazy commit stays
 //! tight; the buddy approach replaces the previous 2× growth ladder.
 //!
@@ -133,8 +133,8 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 #else
     #define ALLOC_PAGE_SIZE 4096   // 4 KiB
 #endif
-//! Phase 5l: regions are uniform 32 MiB — no ladder, no growth.  The
-//! Phase 5g growth-cap macro `GROW_CHUNK_SIZE` is removed; chunk size
+//! regions are uniform 32 MiB — no ladder, no growth.  The
+//! an earlier change growth-cap macro `GROW_CHUNK_SIZE` is removed; chunk size
 //! is now a per-template constant (`PoolAllocator<...>::CHUNK_SIZE`).
 //! `NUM_ALLOCATORS_IN_SPACE == 128` matches the bit count of the per-
 //! region claim bitmap (BitmapWord × BITMAP_WORDS_PER_REGION ×
@@ -142,7 +142,7 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! 128 × 256 KiB regardless of host word size.
 //!
 //! `ALLOC_MAX_MMAP_ENTRIES` is the VA cap — each region is mmap'd
-//! `PROT_READ | PROT_WRITE` upfront (Phase 5l switches the release path
+//! `PROT_READ | PROT_WRITE` upfront (switches the release path
 //! from `mprotect(PROT_NONE)` to `madvise(MADV_FREE/DONTNEED)` so
 //! reclaim is RSS-cheap without protection toggling).  Total
 //! reservation = 32 MiB × N entries.
@@ -158,7 +158,7 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //!
 //! Sizing rationale: a general-purpose allocator must accommodate
 //! workloads that stretch into the multi-GiB user-heap range without
-//! catastrophically aborting (Phase 5g's 3 GiB cap was first to expose
+//! catastrophically aborting (the earlier change's 3 GiB cap was first to expose
 //! this — `alloc_only` at 8192 B for 500K iters needs ~4.5 GiB pool
 //! and would hit `# of chunks exceeds the limit`).  64-bit hosts have
 //! 128 TiB of user VA on macOS / Linux / Windows so a 100 GiB cap is
@@ -199,7 +199,7 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
     #define ALLOC_MAX_MMAP_ENTRIES 96
 #endif
 
-//! Reserved bytes at the head of every chunk.  Layout (Phase 5d):
+//! Reserved bytes at the head of every chunk.  Layout:
 //!   [ 0 ..  7]: chunk-wide SIZE info — `uint64_t`:
 //!                 FS=true  (fixed-size chunk): low 32 bits = slot
 //!                          size in bytes (= ALIGN; same for every
@@ -210,7 +210,7 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //!                          and from chunk-released (palloc==0); the
 //!                          dealloc path reads the per-slot
 //!                          `{bucket, SIZE}` header at `p - 8`
-//!                          instead (Phase 5d "borrow" scheme).
+//!                          instead.
 //!               High 32 bits: ALIGN (always — for non-templated
 //!               dispatchers; see `chunk_header_size_info()`).
 //!   [ 8 .. 15]: `PoolAllocatorBase *` palloc (chunk owner).
@@ -218,10 +218,10 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //!               (per-template) that dispatches the dealloc body.
 //!   [24 .. 31]: `SizeOfFn` — slot-size lookup trampoline.
 //!               FS=false: reads SIZE from the per-slot
-//!               `{bucket, SIZE}` header at `p - 8` (Phase 5d).
+//!               `{bucket, SIZE}` header at `p - 8`.
 //!   [32 .. 55]: pad.
 //!   [56 .. 63]: RESERVED for FS=false slot 0's `{uint32_t bucket,
-//!               uint32_t SIZE}` header (Phase 5d-3 "borrow" scheme
+//!               uint32_t SIZE}` header (an earlier change "borrow" scheme
 //!               formalisation).
 //!               The slot at bit 0 of m_flags[0] (= the slot whose
 //!               p_user == mempool == chunk_base + ALLOC_CHUNK_HEADER)
@@ -235,7 +235,7 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //!               unused pad (FS=true has no per-slot header).
 //! Slot region (`m_mempool`) starts at `chunk_base + ALLOC_CHUNK_HEADER`.
 //!
-//! TODO (Phase 5d-4 candidate): the [0..7] SIZE info enables a
+//! TODO: the [0..7] SIZE info enables a
 //! "unified deallocate" that branches on `(hdr[0] != 0)` instead of
 //! the indirect `DeallocateFn` call.  The high-32-b ALIGN is
 //! already available, so FS=false's `p - 8` header read needs no
@@ -301,7 +301,7 @@ public:
 	using SizeOfFn = std::size_t (*)(PoolAllocatorBase *base, char *slot);
 
 	virtual ~PoolAllocatorBase() = default;
-	//! Phase 5l: regions are uniform 32 MiB, so `deallocate_<>` no longer
+	//! regions are uniform 32 MiB, so `deallocate_<>` no longer
 	//! needs the per-level compile-time CHUNK_SIZE template parameter.
 	//! Collapsed to a single non-template function with a runtime
 	//! region-walk loop — eliminates the 24/96-level template recursion
@@ -323,7 +323,7 @@ public:
 	//! but the freelist may still receive both old- and new-chunk slots
 	//! through the shared `s_my_chunk == this` owner check).  Implemented
 	//! as a for-loop walk of `s_mmapped_spaces[]` — each region is a
-	//! uniform 32 MiB (Phase 5l), and `s_back_offset[]` maps any
+	//! uniform 32 MiB, and `s_back_offset[]` maps any
 	//! claimed unit back to its chunk base in O(1).
 	static inline PoolAllocatorBase *lookup_chunk(void *p) noexcept;
 	//! Total live chunks across all regions, summed from
@@ -404,7 +404,7 @@ protected:
 	//! both from the owner-side `deallocate_<>` last-slot release path
 	//! and from the cross-batch `batch_return_to_bitmap` suicide path.
 	//!
-	//! Phase 5y: `reclaim_pages` gates the `madvise(MADV_FREE/DONTNEED)`
+	//! `reclaim_pages` gates the `madvise(MADV_FREE/DONTNEED)`
 	//! call.  Default `true` for the normal mid-run release paths
 	//! (cross-thread last-slot, owner-side empty, allocate-failure
 	//! cleanup) where eager page reclaim controls long-running-process
@@ -415,7 +415,7 @@ protected:
 	//! per chunk; ~2000 chunks × ~100 µs each); skipping it lets the
 	//! kernel reclaim pages on process exit / OOM pressure rather than
 	//! eagerly on every thread teardown.  Saved pages are still
-	//! protected by the global `m_max_reserved_bytes` cap (Phase 5u).
+	//! protected by the global `m_max_reserved_bytes` cap.
 	static void deallocate_chunk(char *chunk_base, size_t chunk_size,
 	                             bool reclaim_pages = true);
 
@@ -437,7 +437,7 @@ protected:
 	size_t m_chunk_size = 0;
 
 public:
-	//! Phase 5t: address of the OWNER thread's `s_dll_head` TLS
+	//! address of the OWNER thread's `s_dll_head` TLS
 	//! variable for THIS chunk's (ALIGN, FS) template.  Set by the
 	//! derived `PoolAllocator<ALIGN, FS, DUMMY>` constructor to
 	//! `(void *)&s_dll_head` taken in the owner thread's context.
@@ -447,7 +447,7 @@ public:
 	//! a stored value to `(void *)&s_dll_head` taken later identifies
 	//! whether the comparing thread is the original owner.
 	//!
-	//! Used by the dealloc cursor-reset paths (Phase 5r/5t) to gate
+	//! Used by the dealloc cursor-reset paths to gate
 	//! `reset_dll_walk_state()`: reset only when we are the owner —
 	//! resetting another thread's cursor would be wasteful no-op
 	//! (their DLL is unaffected by our bitmap-clear).  Without this
@@ -455,7 +455,7 @@ public:
 	//! perf tax on Linux from spurious cursor resets.
 	void *m_owner_dll_head_addr = nullptr;
 
-	//! Phase 5v: pointer to owner thread's "force DLL re-walk" hint
+	//! pointer to owner thread's "force DLL re-walk" hint
 	//! flag (TLS `std::atomic<bool>` per PoolAllocator template).
 	//! Cross-thread frees set this so the owner's next
 	//! `allocate_chunk_path` notices that one of its DLL chunks got
@@ -463,14 +463,14 @@ public:
 	//! walk from `s_dll_head` instead of resuming from a stale
 	//! `s_dll_cursor`.
 	//!
-	//! Phase 5x: declared `std::atomic<std::atomic<bool> *>` (atomic
+	//! declared `std::atomic<std::atomic<bool> *>` (atomic
 	//! pointer to atomic bool) so that owner-exit
 	//! (`release_dll_chunks_for_thread`) and concurrent cross-thread
 	//! frees on surviving chunks do not data-race on plain pointer
 	//! access.  Owner-exit stores `nullptr` with `release` BEFORE
 	//! clearing BIT_OWNED; cross-thread freers load with `acquire`
 	//! and skip the deref when null.  The 1000-thread `alloc_stress`
-	//! Linux SEGV that Phase 5v exhibited (1000 thr × 20K × 30 %cross)
+	//! Linux SEGV that an earlier change exhibited (1000 thr × 20K × 30 %cross)
 	//! is fixed by this ordering — without atomic load/store on the
 	//! pointer, owner-exit's plain `= nullptr` racing with a cross-
 	//! thread freer's plain `->store(...)` was UB and crashed on Linux.
@@ -481,7 +481,7 @@ public:
 	//! synchronisation, only the outer pointer's lifetime does.
 	std::atomic<std::atomic<bool> *> m_owner_dll_force_walk_ptr{nullptr};
 
-	//! Phase 5u: runtime cap on the number of mmap regions
+	//! runtime cap on the number of mmap regions
 	//! `allocate_chunk` may claim.  Initialised to
 	//! `ALLOC_MAX_MMAP_ENTRIES` (= no further restriction beyond the
 	//! compile-time ceiling) and overridable at runtime via
@@ -489,7 +489,7 @@ public:
 	//! on the cold mmap path; never read on the alloc/free hot path.
 	static std::atomic<int> s_max_regions_cap;
 
-	//! Phase 5u: read-only accessor used by `kame_pool_reserved_bytes`.
+	//! read-only accessor used by `kame_pool_reserved_bytes`.
 	//! Walks `s_mmapped_spaces[]` low-to-high (the ordering invariant
 	//! preserved by `allocate_chunk`) and counts non-null entries.
 	//! O(populated_regions); intended for diagnostics / runtime
@@ -518,7 +518,7 @@ public:
 	//!     always-lock-free (true on every architecture this allocator
 	//!     supports).
 	//!
-	//! Phase 5l: 2-bit encoding per UNIT (not per chunk).  Each 256-KiB
+	//! 2-bit encoding per UNIT (not per chunk).  Each 256-KiB
 	//! unit owns a pair of bits (claim at bit 2N, ready at bit 2N+1):
 	//!   * (0, 0): free — unit is unclaimed.
 	//!   * (1, 0): claimed as a CONTINUATION unit of a multi-unit chunk
@@ -581,7 +581,7 @@ private:
 	    s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION];
 
 public:
-	//! Phase 5l: per-region back-offset table.  One byte per unit:
+	//! per-region back-offset table.  One byte per unit:
 	//!     s_back_offset[region * 128 + u] = u - base_u
 	//! where `base_u` is the unit index of the chunk whose claim covers
 	//! `u`.  For single-unit chunks the entry is 0; for the base unit of
@@ -601,7 +601,7 @@ public:
 	//! Total size: 3200 × 128 = 400 KiB on 64-bit (96 × 128 = 12 KiB on 32-bit).
 	static uint8_t s_back_offset[ALLOC_MAX_MMAP_ENTRIES * NUM_ALLOCATORS_IN_SPACE];
 
-	//! Phase 5m: per-region "has free space" hint bitmap.  Bit N set ⇒
+	//! per-region "has free space" hint bitmap.  Bit N set ⇒
 	//! region N has at least one free chunk slot of SOME alignment;
 	//! `allocate_chunk` scans this first and skips regions whose bit
 	//! is clear, eliminating the O(N) walk-past-full-regions cost on
@@ -643,7 +643,7 @@ extern ALLOC_TLS bool s_alloc_tls_off;
 template <unsigned int ALIGN, bool FS = false, bool DUMMY = true>
 class PoolAllocator : public PoolAllocatorBase {
 public:
-	//! Phase 5l buddy tiers.  Larger ALIGN gets larger chunks so the
+	//! an earlier change buddy tiers.  Larger ALIGN gets larger chunks so the
 	//! per-chunk slot count stays in a healthy range (>= 32 slots per
 	//! chunk for the largest ALIGN3 bucket).  Multi-unit chunks are
 	//! laid out in `s_mmapped_spaces` at unit-aligned positions; the
@@ -686,19 +686,19 @@ public:
 	static PoolAllocatorBase *get_pinned_chunk_base() noexcept {
 		return static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
 	}
-	//! Phase 5r: public reset of this thread's DLL walk hints
+	//! public reset of this thread's DLL walk hints
 	//! (`s_dll_cursor` + `s_dll_exhausted`) for callers outside the
 	//! PoolAllocator class hierarchy — specifically `CrossDeallocBatch::
 	//! push_direct` (anon-namespace, no inheritance) which calls
 	//! `batch_return_to_bitmap` directly on the freeing thread and
 	//! needs to signal "DLL may have revived chunks" to this thread's
-	//! subsequent `allocate_chunk_path`.  See the Phase 5r commit /
+	//! subsequent `allocate_chunk_path`.  See the an earlier change commit /
 	//! the call sites in `deallocate_pooled` for the full rationale.
 	static void reset_dll_walk_state() noexcept {
 		s_tls.dll_cursor = nullptr;
 		s_tls.dll_exhausted = false;
 	}
-	//! Phase 5t: public accessor for this thread's `s_dll_head` TLS
+	//! public accessor for this thread's `s_dll_head` TLS
 	//! address.  Used by external code (CrossDeallocBatch::push_direct
 	//! in anon namespace) to compare against a chunk's stored
 	//! `m_owner_dll_head_addr` and identify same-thread frees for
@@ -730,14 +730,14 @@ public:
 	//! pointer.  FS=true returns the constant ALIGN — every slot in a
 	//! fixed-size chunk has the same length.  The FS=false partial
 	//! specialisation overrides this to read SIZE from the per-slot
-	//! prefix at `p - ALIGN` (Phase 5c).
+	//! prefix at `p - ALIGN`.
 	static std::size_t size_of_static(PoolAllocatorBase * /*base*/,
 	                                  char * /*p*/) noexcept {
 	    return ALIGN;
 	}
 
 	//! Value written to chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET
-	//! by `allocate_chunk()` (Phase 5c).  Layout:
+	//! by `allocate_chunk()`.  Layout:
 	//!   * Low 32 bits = FS-distinguishing "slot SIZE":
 	//!       FS=true  : ALIGN (slot size; non-zero ⇒ fixed-size chunk,
 	//!                  dispatcher can derive the bucket directly).
@@ -763,7 +763,7 @@ protected:
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
 	//! Mmap a fresh chunk and register it in `s_chunks_of_type[]` for
 	//! diagnostic enumeration only (`release_pools` / `report_statistics`).
-	//! Mmap a fresh chunk for the current thread.  Phase 4b: no global
+	//! Mmap a fresh chunk for the current thread.  no global
 	//! registry — the per-thread DLL is the sole source of truth for
 	//! "chunks this thread can allocate from".  Called from
 	//! `allocate_chunk_path`'s slow path when the DLL scan finds no
@@ -780,7 +780,7 @@ protected:
 	//! than `LEAVE_VACANT_CHUNKS_PER_THREAD` chunks (floor — avoid
 	//! thrashing on bursty workloads).
 	//!
-	//! Phase 4b-final: `BIT_RELEASED` on the packed word is the
+	//! `BIT_RELEASED` on the packed word is the
 	//! single serialisation point across all release paths (owner-
 	//! driven neighbour release, cross-thread last-slot release,
 	//! thread-exit cleanup) — exactly one CAS wins, the winner owns
@@ -817,7 +817,7 @@ protected:
 	// `atomicInc/Dec` on `m_flags_packed` by another thread does not
 	// invalidate the owner's freelist load/store cache line.
 	//
-	// Packed counter + state bits (Phase 5j — inverts the old
+	// Packed counter + state bits (an earlier change — inverts the old
 	// BIT_OWNER_EXITED → BIT_OWNED and drops BIT_RELEASED):
 	//   * Bits  0..30 — nonzero-flag-word count.  Max value =
 	//     `m_count` ≤ ALLOC_CHUNK_SIZE / ALIGN / 64 ≈ 16 K
@@ -840,7 +840,7 @@ protected:
 	//     If `old & ~BIT_OWNED == 0` (= MASK_CNT was 0), owner is the
 	//     unique releaser.  Else cross-thread will release on its next
 	//     dec-to-zero.
-	//   - Owner_release (Phase 4a empty-neighbour) uses the same
+	//   - Owner_release uses the same
 	//     atomicFetchAnd: chunks observed-empty in our DLL are
 	//     released by us via the AND → newv == 0 check.
 	//
@@ -856,7 +856,7 @@ protected:
 	//! # of flags that having fully filled values.
 	int m_flags_filled_cnt;
 
-	//! Phase 5w: per-template per-thread state, consolidated into one
+	//! per-template per-thread state, consolidated into one
 	//! TLS struct.  Single TLS load delivers the struct base, then
 	//! all per-thread fields are at compile-time offsets — cache-line
 	//! adjacent and one indirection cheaper than the previous six
@@ -876,21 +876,21 @@ protected:
 	//!     thread exit.
 	//!   * `dll_head` / `dll_tail`: head/tail of this thread's DLL of
 	//!     chunks owned by this template.  Sole source of truth for
-	//!     "chunks this thread can allocate from" since Phase 4b.
+	//!     "chunks this thread can allocate from" since an earlier change.
 	//!     Single-writer (this thread); no atomic ordering needed.
-	//!   * `dll_cursor` (Phase 5n): pointer into the DLL where the
+	//!   * `dll_cursor`: pointer into the DLL where the
 	//!     next walk should resume.  Set on successful claim; nulled
 	//!     on walk-to-end / chunk-release.
-	//!   * `dll_exhausted` (Phase 5n): if true, the previous walk
+	//!   * `dll_exhausted`: if true, the previous walk
 	//!     reached end without finding free space — the next
 	//!     `allocate_chunk_path` skips the walk and goes straight to
 	//!     mmap-fresh.  Cleared by:
 	//!       - new chunk append (mmap-fresh path).
 	//!       - own-side `reset_dll_walk_state()` after a
-	//!         `batch_return_to_bitmap` (Phase 5r/5t).
+	//!         `batch_return_to_bitmap`.
 	//!       - cross-thread `dll_force_walk_from_head` exchange in
-	//!         `allocate_chunk_path` (Phase 5v).
-	//!   * `dll_force_walk_from_head` (Phase 5v): cross-thread
+	//!         `allocate_chunk_path`.
+	//!   * `dll_force_walk_from_head`: cross-thread
 	//!     revival hint.  `relaxed atomic`; cross-thread frees set
 	//!     true via the chunk's `m_owner_dll_force_walk_ptr` (which
 	//!     points into THIS struct).  `allocate_chunk_path`
@@ -920,7 +920,7 @@ protected:
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_prev{nullptr};
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_next{nullptr};
 
-	// Phase 4b: the previous `std::atomic<bool> m_owner_exited` lives
+	// the previous `std::atomic<bool> m_owner_exited` lives
 	// here as `BIT_OWNER_EXITED` inside `m_flags_packed` (above).
 	// Packing it together with the count lets the cross-thread
 	// last-slot-returner observe both the dec-to-zero transition AND
@@ -973,13 +973,13 @@ public:
 	//! casts to this leaf type and invokes the non-virtual
 	//! `PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled`.
 	static bool deallocate_pooled_static(PoolAllocatorBase *base, char *p);
-	//! FS=false slot-size lookup (Phase 5c).  Reads SIZE from the
+	//! FS=false slot-size lookup.  Reads SIZE from the
 	//! per-slot prefix at `p - ALIGN`.  Returns the user-requested
 	//! size in bytes.  Stamped into the chunk header at offset
 	//! `ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET`; overrides the FS=true
 	//! constant returned by the base template's `size_of_static`.
 	static std::size_t size_of_static(PoolAllocatorBase *base, char *p) noexcept;
-	//! FS=false chunk-header SIZE info (Phase 5c).  Low 32 bits = 0 so
+	//! FS=false chunk-header SIZE info.  Low 32 bits = 0 so
 	//! dispatchers can distinguish FS=false chunks (and read the per-
 	//! slot prefix at `p - ALIGN` instead of treating header[0..7] as
 	//! the slot size).  High 32 bits = ALIGN so non-templated callers
@@ -1016,14 +1016,14 @@ private:
 
 	static PoolAllocator *create(size_t size, char *ppool);
 
-	// Phase 5c: m_sizes and m_available_bits dropped.  Per-slot SIZE
+	// m_sizes and m_available_bits dropped.  Per-slot SIZE
 	// metadata now lives in the slot's own first ALIGN bytes (the
 	// "+1 prefix" — bitmap claims N+1 bits, slot[0..3] stores SIZE as
 	// uint32_t, returned pointer is `slot_start + ALIGN`).
-	// Phase 5d-1 borrow scheme moved this to p_user - 8.
+	// an earlier change borrow scheme moved this to p_user - 8.
 	//
-	// Phase 5f: also dropped the Phase 5a 80% fragmentation cutoff +
-	// the brief Phase 5f-1 `m_bits_set` counter.  allocate_pooled
+	// also dropped the an earlier change 80% fragmentation cutoff +
+	// the brief an earlier change `m_bits_set` counter.  allocate_pooled
 	// now walks at most `m_count` FUINT words per call and bails on
 	// full sweep — same worst-case cost as the upfront `count_bits`
 	// scan was paying on EVERY call, but only when the walk genuinely
@@ -1067,8 +1067,8 @@ private:
 #define ALLOC_SIZE14 (ALLOC_ALIGNMENT * 14)
 #define ALLOC_SIZE15 (ALLOC_ALIGNMENT * 15)
 #define ALLOC_SIZE16 (ALLOC_ALIGNMENT * 16)
-// Phase 5q: extend the FS=true 16-step ladder to cover the 257..368
-// gap that Phase 5p left between bucket 16 (size 256) and FS=false
+// extend the FS=true 16-step ladder to cover the 257..368
+// gap that an earlier change left between bucket 16 (size 256) and FS=false
 // bucket 17's max user (376).  Zero-frag for power-of-16 requests
 // like 272, 288, 304, 320, 336, 352, 368 at the cost of 7 new
 // PoolAllocator<ALIGN=size, true> template instantiations.
@@ -1081,7 +1081,7 @@ private:
 #define ALLOC_SIZE23 (ALLOC_ALIGNMENT * 23)  // 368
 
 //! Sole tail of the dispatch chain for sizes > ALLOC_MAX_BUCKETED_SIZE
-//! (= 16376 bytes since Phase 5d-4).  Phase 5d-4 covers up to 16 KiB
+//! (= 16376 bytes since an earlier change).  an earlier change covers up to 16 KiB
 //! minus 8 B in 24 buckets via the 4-way exponential ladder; anything
 //! bigger goes straight to libsystem here.  The legacy `ALLOCATE_9_16X`
 //! macro and its power-of-2 PoolAllocator template explosions are
@@ -1162,15 +1162,15 @@ static_assert(sizeof(AllocSlot) == sizeof(char *),
               "AllocSlot must be exactly one pointer wide — "
               "hot-path uses pointer-scaled indexed addressing (lsl #3 on 64-bit, lsl #2 on 32-bit)");
 
-//! Bucket count (Phase 5q layout — extends Phase 5p N+1 shift).
+//! Bucket count.
 //!   - index 0 (size = 0): reuses bucket 1's 16-B allocator
-//!   - 1..23: sizes 16..368 in 16-B increments         (FS=true + FS=false mixed; Phase 5q extends 1..16 to 1..23)
-//!   - 24..47: 4-way exponential FS=false ladder       (sizes 384..17408 slot; 3 ALIGN stages; Phase 5q shifts old 17..40 +7)
+//!   - 1..23: sizes 16..368 in 16-B increments         (FS=true + FS=false mixed; an earlier change extends 1..16 to 1..23)
+//!   - 24..47: 4-way exponential FS=false ladder       (sizes 384..17408 slot; 3 ALIGN stages; an earlier change shifts old 17..40 +7)
 //!       24..31: ALIGN= 64, slot = 384, 448, 512, 576, 704, 832, 960, 1088   (N = 6, 7, 8, 9, 11, 13, 15, 17)
 //!       32..39: ALIGN=256, slot = 1536, 1792, 2048, 2304, 2816, 3328, 3840, 4352
 //!       40..47: ALIGN=1024, slot = 6144, 7168, 8192, 9216, 11264, 13312, 15360, 17408
 //!
-//! Phase 5p — N+1 shift rationale:  in Phase 5d-4 (N ∈ {5..16}), a
+//! an earlier change — N+1 shift rationale:  in an earlier change (N ∈ {5..16}), a
 //! round-number user request like 1024 B routed to bucket 25
 //! (slot 1280, internal frag 256 = 25 %) because the natural fit at
 //! bucket 24 (slot 1024) had user_cap = 1024-8 = 1016 — one byte too
@@ -1184,26 +1184,25 @@ static_assert(sizeof(AllocSlot) == sizeof(char *),
 //!   user 4096:  25 % →  6 %  (bucket 33 → 32)
 //!   user 8192:  25 % → 12 %  (bucket 37 → 36)
 //!
-//! Phase 5q rationale: Phase 5p's bucket 17 (slot 384) absorbed user
+//! an earlier change rationale: the earlier change's bucket 17 (slot 384) absorbed user
 //! requests 257..376 with up to 32 % internal frag for the smaller end.
-//! Phase 5q extends the FS=true 16-step ladder seven positions
+//! an earlier change extends the FS=true 16-step ladder seven positions
 //! (sizes 272, 288, 304, 320, 336, 352, 368) so each gets a zero-frag
 //! template instantiation (PoolAllocator<ALIGN=size, true>).  FS=false
 //! ladder shifts +7 (old 17..40 → new 24..47).  ALLOC_NUM_BUCKETS:
 //! 41 → 48.
 //!
-//! Phase 5q frag improvements vs Phase 5p:
-//!   user  272:  32 % → 0 %   (bucket 17 slot 272)
+//! an earlier change frag improvements vs //!   user  272:  32 % → 0 %   (bucket 17 slot 272)
 //!   user  320:  17 % → 0 %   (bucket 20 slot 320)
 //!   user  368:   2 % → 0 %   (bucket 23 slot 368)
 constexpr int ALLOC_NUM_BUCKETS = 48;
 
 //! Size → bucket-index.  FS=true/mixed range (1..368) uses the 16-byte
-//! step formula (Phase 5q extends 1..16 to 1..23).  FS=false range
-//! (369..17400) uses the Phase 5p N+1-shifted 4-way exponential ladder
+//! step formula.  FS=false range
+//! (369..17400) uses the an earlier change N+1-shifted 4-way exponential ladder
 //! with bucket indices shifted +7.
 //!
-//! Algorithm: compute the OLD bucket via the unchanged Phase 5d-4
+//! Algorithm: compute the OLD bucket via the unchanged an earlier change
 //! octave/sub formula, then look up the NEW slot size of bucket K-1
 //! in a 41-entry constexpr table and step-down if it can hold the
 //! request.  The lookup replaces the inline arithmetic step-down
@@ -1211,7 +1210,7 @@ constexpr int ALLOC_NUM_BUCKETS = 48;
 //! cycles), keeping `bucket_for_size` on the FS=false hot path.
 constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = 17400u;
 
-//! Phase 5q: per-bucket NEW slot size.  Indexed by bucket K.
+//! per-bucket NEW slot size.  Indexed by bucket K.
 //!   * Buckets 1..23: 16-step (FS=true + mixed FS=false).  Slot = K*16.
 //!   * Buckets 24..47: FS=false N+1-shifted ladder, slot = (N+1)*ALIGN.
 //!
@@ -1220,7 +1219,7 @@ constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = 17400u;
 inline constexpr uint32_t kBucketNewSlot[48] = {
     // 0..23: 16-step.  Even-K buckets in 6..16 are actually FS=false
     // ALIGN=32 chunks (see KAME_DECL_BUCKET) but slot total = K*16
-    // from the dispatch table's view.  Buckets 17..23 (Phase 5q new)
+    // from the dispatch table's view.  Buckets 17..23
     // are FS=true with ALIGN=size, slot = size exactly.
     0, 16, 32, 48, 64, 80, 96, 112, 128,
     144, 160, 176, 192, 208, 224, 240, 256,
@@ -1236,20 +1235,20 @@ inline constexpr uint32_t kBucketNewSlot[48] = {
 inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 	// FS=true / mixed range: 1..368, 16-B step.  (size+15)>>4 yields
 	// 1..23 for size 1..368, and 0 for size==0 (reuses bucket 0's 16-B
-	// allocator).  Phase 5q extended this from 1..16 (256 B max) to
+	// allocator).  an earlier change extended this from 1..16 (256 B max) to
 	// 1..23 (368 B max).
 	if(size <= (std::size_t)ALLOC_SIZE23)
 		return static_cast<unsigned int>((size + 15u) >> 4);
 	// FS=false 4-way exponential range: 369..17400.  Bucket indices
-	// shifted +7 from Phase 5p (17..40 → 24..47).
+	// shifted +7 from an earlier change (17..40 → 24..47).
 	std::size_t total = size + 8u;
 	int msb = 63 - __builtin_clzll(static_cast<unsigned long long>(total));
 	int sub = static_cast<int>((total >> (msb - 2)) & 0x3u);
 	std::size_t mask = (std::size_t(1) << (msb - 2)) - 1u;
 	if(total & mask) ++sub;
-	// Phase 5d-4 octave/sub bucket index + Phase 5q shift +7.
+	// an earlier change octave/sub bucket index + an earlier change shift +7.
 	unsigned int K = 23u + static_cast<unsigned int>((msb - 8) * 4 + sub);
-	// Phase 5p step-down: branchless via table lookup.  total fits
+	// an earlier change step-down: branchless via table lookup.  total fits
 	// in K-1 iff `total <= kBucketNewSlot[K-1]`.  Bound K >= 25 — the
 	// FS=true/false boundary K = 24 doesn't step down across the
 	// tier transition (bucket 23's slot 368 < bucket 24's slot 384,
@@ -1388,14 +1387,14 @@ inline PoolAllocatorBase **kame_chunks_base() noexcept { return &g_thread_chunks
 void *cold_first_access(unsigned bucket, std::size_t size) noexcept;
 
 //! Out-of-line path for sizes larger than the inline 16-step range
-//! (> 368 B since Phase 5q; was > 256 B in Phase 5d-4..5p).  Handles
+//! (> 368 B since an earlier change; was > 256 B in an earlier change..5p).  Handles
 //! activation-flag check + the FS=false ladder dispatch and the
 //! malloc fallback for very large sizes.  Inline hot path
 //! (size ≤ 368 B) bypasses this entirely.
 void *new_redirected_large(std::size_t size) noexcept;
 
 inline void *new_redirected(std::size_t size) {
-	// Hot path: sizes ≤ 368 (Phase 5q extended from ≤ 256).  One branch +
+	// Hot path: sizes ≤ 368.  One branch +
 	// the inline `(size+15)>>4` formula (the small-range half of
 	// `bucket_for_size`).  Larger sizes go to `new_redirected_large`,
 	// which uses the full `bucket_for_size` for the FS=false dispatch.
