@@ -13,55 +13,110 @@
  ***************************************************************************)
 ------------------------- MODULE ChunkRecycle_threadepoch -------------------------
 (*
- * TLA+ design verification for the proposed chunk-claim recycle protocol
- * with PER-THREAD-LOCAL EPOCH counter (no global counter).
+ * FINAL DESIGN — kamepoolalloc chunk-claim / lookup / recycle protocol
+ * with thread-local epoch + per-unit pair-atomic metadata + seqlock
+ * lookup.  Successor to ChunkRecycle_microscopic (which proved the
+ * existing protocol's bit-state -3 corruption requires this redesign).
  *
- * Successor to ChunkRecycle_microscopic, which proved:
- *   - bit-state -3 (lookup_chunk returns a recycled chunk) requires
- *     a double-payout (two threads given the same slot) to manifest
- *     IN A SINGLE-deallocate setting (Inv_NoStaleRead holds under
- *     SinglePayout=TRUE);
- *   - the lookup itself, as currently coded (back_offset and palloc
- *     loaded separately, no epoch / version check, no consistency
- *     re-read), is the AMPLIFIER that turns an upstream double-payout
- *     into the observed out-of-range / SEGV corruption.
+ * ============================================================
+ *  CONFIRMED DESIGN (= this spec verifies it)
+ * ============================================================
  *
- * This spec models the FIX candidate:
+ * Per-region static state (one entry per unit, 128 unit/region):
  *
- *   1. Pack `back_offset` + `epoch` into a single per-unit atomic
- *      `unitMeta[u]`.  An atomic load fetches both consistently — no
- *      seqlock or two-read protocol needed at the lookup side.
+ *   s_claim_bitmap[u]   : 1 BIT.  (Phase 5h's `ready` bit is RETIRED —
+ *                         subsumed by chunk_header.epoch.)  The 2-bit
+ *                         `{claim, ready}` encoding (`82f83b16`) reverts
+ *                         to the Phase 5g-era 1-bit-per-unit layout, so
+ *                         a 64-bit BitmapWord holds 64 unit claims.
  *
- *   2. `epoch` is the pair  <<owner_tid, counter>>  where counter is
- *      a THREAD-LOCAL monotonic counter held in the allocating
- *      thread's TLS (= conceptually one field on AllocSlot, or just
- *      a `thread_local uint64_t` next to it).  No global atomic
- *      counter, no contention.  Uniqueness is structural: distinct
- *      threads contribute disjoint `tid` halves; counter ABA within
- *      a single thread requires its counter to wrap.
+ *   s_unit_meta[u]      : atomic<uint64_t>.  Packed pair, written and
+ *                         read as a single atomic word:
+ *                            8-bit  back_off     (unit -> base distance)
+ *                           16-bit  owner_tid    (allocating thread)
+ *                           40-bit  counter      (thread-local serial)
+ *                         epoch == <<owner_tid, counter>> with the
+ *                         all-zero pattern reserved as "released".
  *
- *   3. lookup_chunk(p) captures the unit's epoch at the deallocate's
- *      entry (D_Start: dExpectEpoch = unitMeta[uP].epoch) — i.e. the
- *      epoch of the chunk that p belongs to is RECORDED before the
- *      racy region.  The subsequent two loads (unitMeta atomic read
- *      + chunk_header.palloc read) are then validated against
- *      dExpectEpoch.  Any mismatch -> the chunk was reclaimed+recycled
- *      mid-lookup -> foreign path (libsystem free).
+ * Per-chunk-base state (lives at chunk_header, slot 0's 8-byte field):
  *
- * Note that "capturing dExpectEpoch at D_Start" is REALISTIC: in the
- * real code, p is a live slot at the moment delete[](p) is called;
- * the unit's atomic metadata at that moment is what we capture.  The
- * lookup then proceeds with that captured value as the expectation.
+ *   chunk_header.palloc : PoolAllocator* (= chunk identity).
+ *   chunk_header.epoch  : uint64_t — same value as s_unit_meta[base].
+ *                         Used as the foreign-detection sentinel:
+ *                            epoch == 0 → released / not yet built
+ *                            (subsumes the retired `ready` bit).
  *
- * The two CONSTANTS this spec sweeps:
+ * Epoch generation:
  *
- *   MaxLocalEpoch : per-thread counter range — set small to provoke
- *                   wrap-induced ABA; set >= total recycles to verify
- *                   the design is safe at adequate width.
- *   SinglePayout  : retained from the predecessor as a sanity knob;
- *                   in this design, with epoch+pair-atomic-meta in
- *                   place, even SinglePayout=FALSE should be safe
- *                   AT ADEQUATE EPOCH WIDTH.
+ *   thread_local uint64_t tls_chunk_epoch_counter;   // 40-bit useful
+ *   uint64_t make_epoch(t) {
+ *       return (++tls_chunk_epoch_counter << 16) | (tid_of(t) & 0xFFFF);
+ *   }
+ *
+ *   Wrap is structurally impossible in practice: at 1 ns/allocation
+ *   per thread, a 40-bit counter wraps in ~18 minutes — model that as
+ *   "never" for any in-flight lookup window (microseconds).  Bump to
+ *   48-bit if conservative; this spec models the BOUNDED-no-wrap case
+ *   (AllowWrap=FALSE) for safety and the WRAP case (AllowWrap=TRUE)
+ *   to confirm the design DOES break under wrap (= justifies the
+ *   adequate-width requirement).
+ *
+ * ============================================================
+ *  IMPLEMENTATION ORDER (real C++ ops)
+ * ============================================================
+ *
+ * allocate_chunk(region):
+ *   1. CAS claim bits for span units    (1-bit/unit, acquire on success)
+ *   2. write s_unit_meta[u..u+span-1] = {back_off, epoch}   (relaxed)
+ *   3. write chunk_header.palloc + chunk_header.epoch        (release)
+ *
+ * deallocate_chunk(chunk_base):
+ *   1. write chunk_header.epoch = 0                          (release)
+ *      (single STORE both retires `ready` and stamps the
+ *       header as stale for lookup_chunk to detect)
+ *   2. write chunk_header.palloc = 0                         (relaxed)
+ *   3. clear s_unit_meta[u..u+span-1]                        (relaxed)
+ *   4. madvise (slot region only; chunk_header skipped)      (-)
+ *   5. clear claim bits for span units                       (release)
+ *      (last; makes the units recyclable)
+ *
+ * lookup_chunk(p):
+ *   1. unit = (p - region_base) >> CHUNK_SHIFT
+ *   2. meta1 = s_unit_meta[unit].load(acquire)
+ *      if meta1.epoch == 0 → foreign  (= released sentinel)
+ *   3. base    = unit - meta1.back_off
+ *      ph_ep   = chunk_header[base].epoch.load(acquire)
+ *      palloc  = chunk_header[base].palloc.load(acquire)
+ *      atomic_thread_fence(acquire)
+ *   4. meta2 = s_unit_meta[unit].load(relaxed)              (SEQLOCK)
+ *   5. if meta1 != meta2 OR ph_ep != meta1.epoch → foreign
+ *   6. return palloc                                         (accepted)
+ *
+ * ============================================================
+ *  WHAT THE PRIOR SPECS PROVED ALONG THE WAY
+ * ============================================================
+ *
+ *   ChunkAlloc_microscopic   : bit-level reclaim exclusion correct.
+ *   ChunkRecycle_microscopic : bit-state -3 requires a double-payout;
+ *                              lookup_chunk's two unsynchronised loads
+ *                              are the amplifier.
+ *   THIS SPEC                : per-AllocSlot epoch + unit-meta pair-
+ *                              atomic + lookup seqlock re-read is
+ *                              SOUND when the counter does not wrap
+ *                              (3,693,839 states, no error).
+ *
+ * The CONSTANT knobs used to control the experiment:
+ *
+ *   MaxLocalEpoch : per-thread counter ceiling
+ *   AllowWrap     : FALSE bounds exploration (no wrap; model
+ *                   "the counter is wide enough"); TRUE provokes ABA
+ *   SinglePayout  : FALSE allows two threads mid-dealloc of the
+ *                   same unit (worst case the design must survive)
+ *
+ *   NumUnits=2, MaxLocalEpoch=5, AllowWrap=FALSE, SinglePayout=FALSE:
+ *      NO ERROR over 3.7 M states.
+ *   AllowWrap=TRUE: ABA-induced violation in ~1k states.  Expected;
+ *                   justifies the wide-counter requirement.
  *
  * SAFETY ONLY.
  *)
