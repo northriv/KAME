@@ -2397,19 +2397,34 @@ PoolAllocatorBase::deallocate(void *p) {
 		ptrdiff_t pdiff = static_cast<char *>(p) - mp;
 		if(pdiff < 0 || pdiff >= (ptrdiff_t)ALLOC_MIN_MMAP_SIZE)
 			continue;
-		// Resolve the owning chunk via the seqlock (s_unit_meta back_off
-		// + recycle epoch).  Rejects a stale resolution — the case where
-		// a concurrent reclaim+recycle of this unit would otherwise route
-		// the free into the WRONG chunk and clear a still-live slot's bit
-		// (the bit-state -3 double-payout).  A nullptr return means
-		// foreign / released / stale: fall through to libsystem free
-		// (also covers a libsystem-malloc'd pointer that happens to land
-		// inside our PROT_NONE mmap range on macOS Apple Silicon).
+		// `p` is a LIVE slot (the caller's contract: deallocating an
+		// already-freed pointer is undefined behaviour).  A live slot
+		// keeps its bit set in `m_flags`, which in turn keeps
+		// `m_flags_packed != 0` and so prevents any path
+		// (owner_release, cross-flush dec-to-zero, thread-exit) from
+		// releasing this chunk.  No reclaim+recycle race can therefore
+		// race this lookup -- the seqlock validation is unnecessary
+		// here.  (The seqlock is meaningful only for DLL-walk paths
+		// where a chunk POINTER is held without holding any slot in
+		// that chunk; lookup_chunk-from-slot is not such a case.)
 		unsigned int unit_idx =
 		    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
-		char *chunk_base;
-		PoolAllocatorBase *palloc = resolve_chunk_seqlock(
-		    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE, unit_idx, &chunk_base);
+		size_t meta_base = (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE;
+		uint64_t meta = s_unit_meta[meta_base + unit_idx].load(
+		    std::memory_order_relaxed);
+		if((meta & UNIT_META_EPOCH_MASK) == 0)
+			return false;     // foreign (libsystem-malloc pointer in
+		                          // our mmap range, e.g. macOS Apple
+		                          // Silicon ICU/Foundation early
+		                          // startup) — fall through to libsystem
+		                          // free
+		unsigned int back_off = static_cast<unsigned int>(
+		    meta >> UNIT_META_BACKOFF_SHIFT);
+		unsigned int base_idx = unit_idx - back_off;
+		char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+		PoolAllocatorBase *palloc =
+		    *reinterpret_cast<PoolAllocatorBase * const *>(
+		        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
 		if( !palloc)
 			return false;
 		// an earlier change — Unified inline dispatch.  Read the chunk-header
