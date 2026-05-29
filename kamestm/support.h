@@ -26,10 +26,18 @@
 // kamestm/support.h — minimal Qt-free `support.h` for downstream
 // consumers that link `libkamestm` without the rest of KAME.
 //
-// This file defines only the symbol-visibility macros that the public
+// This file defines the symbol-visibility macros that the public
 // headers (transaction.h, threadlocal.h, xtime.h, etc.) annotate
-// declarations with.  It deliberately does NOT redefine `XTime`,
-// `msecsleep`, or any other API surface — `xtime.h` etc. own those.
+// declarations with, plus the few Qt-free type aliases those headers
+// *reference* but do not own (`XString`, `shared_ptr`/`weak_ptr`).  It
+// deliberately does NOT redefine `XTime`, `msecsleep`, or any other API
+// surface — `xtime.h` etc. own those.
+//
+// The full KAME application build gets the richer, QString-aware
+// `XString` class and the `using std::shared_ptr` declarations from
+// `kame/support.h` (which wins on INCLUDEPATH); this minimal variant
+// provides only the plain-`std` equivalents libkamestm's own
+// translation units (`xtime.cpp`, `xthread.cpp`) need to compile.
 //
 // Include-path priority that selects the right `support.h`:
 //
@@ -69,5 +77,18 @@
 #else
 #  define DEBUG_XTHREAD 1
 #endif
+
+// Qt-free type aliases referenced by the public headers.  Plain-`std`
+// equivalents of the QString-aware definitions in `kame/support.h`:
+//   * XString   — return type of `XTime::getTimeStr()` (xtime.h); the
+//                 dylib is Qt-free, so a `std::string` alias is the
+//                 correct realization (matches the test harness shim).
+//   * shared_ptr / weak_ptr — `XThread`'s ctor takes `shared_ptr<X>`
+//                 (xthread.h); `transaction.h` uses both.
+#include <string>
+#include <memory>
+typedef std::string XString;
+using std::shared_ptr;
+using std::weak_ptr;
 
 #endif /* supportH */

@@ -6,6 +6,8 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame/driver\
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame/math\
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame/script\
+    $${_PRO_FILE_PWD_}/$${PRI_DIR}../kamestm\
+    $${_PRO_FILE_PWD_}/$${PRI_DIR}../kamepoolalloc\
 
 
 win32 {

@@ -23,7 +23,7 @@
 #ifndef TRANSACTION_SIGNAL_H
 #define TRANSACTION_SIGNAL_H
 
-#include "support.h"
+#include <support.h>  // angle: INCLUDEPATH-priority (kame/ full vs kamestm/ standalone) — see transaction_detail.h
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 #include "allocator.h"

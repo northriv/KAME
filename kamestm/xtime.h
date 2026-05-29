@@ -23,7 +23,7 @@
 #ifndef XTIME_H_
 #define XTIME_H_
 
-#include "support.h"
+#include <support.h>  // angle: INCLUDEPATH-priority (kame/ full vs kamestm/ standalone) — see transaction_detail.h
 #include <math.h>
 
 #include <chrono>

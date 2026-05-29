@@ -45,7 +45,14 @@
 // Snapshot / Transaction on top.  Downstream consumers should
 // keep including transaction.h.
 
-#include "support.h"
+// Angle (not "") so INCLUDEPATH order selects support.h, NOT the local
+// directory: a KAME build (kame/ first on the path) gets the full,
+// Qt-aware kame/support.h; the standalone libkamestm build (kame/ absent)
+// gets the Qt-free kamestm/support.h.  A quoted "support.h" would always
+// resolve to the kamestm/ shim first (this file lives in kamestm/) and,
+// via the shared `supportH` guard, block kame/support.h from ever loading
+// — dropping XString-the-class / QString / XKameError / enable_shared_from_this.
+#include <support.h>
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 #include <algorithm>

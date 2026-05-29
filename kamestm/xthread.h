@@ -23,7 +23,7 @@
 #ifndef threadH
 #define threadH
 //---------------------------------------------------------------------------
-#include "support.h"
+#include <support.h>  // angle: INCLUDEPATH-priority (kame/ full vs kamestm/ standalone) — see transaction_detail.h
 #include "atomic.h"
 
 #ifdef USE_QTHREAD

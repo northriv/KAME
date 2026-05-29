@@ -65,24 +65,31 @@ QMAKE_CXXFLAGS += -include $$PWD/../kamestm/tests/support_standalone.h
 SOURCES += $$PWD/../kamestm/tests/support_standalone.cpp
 SOURCES += $$PWD/../kamestm/threadlocal.cpp
 
-# Link against the two sibling dylibs that own the STM + allocator
-# machinery: `libkamepoolalloc` (../kamepoolalloc/kamepoolalloc.pro)
-# and `libkamestm` (../kamestm/kamestm.pro).  The top-level kame.pro
-# orders these before tests via `tests.depends = kamepoolalloc kamestm`.
-# Each per-test .pro builds into its own subdir under build/.../tests,
-# parallel to build/.../{kamepoolalloc,kamestm}.
-LIBS += -L$$OUT_PWD/../kamepoolalloc -lkamepoolalloc
-LIBS += -L$$OUT_PWD/../kamestm -lkamestm
+# Link against the two dylibs that own the STM + allocator machinery:
+# `libkamepoolalloc` (kamepoolalloc/kamepoolalloc.pro) and `libkamestm`
+# (kamestm/kamestm.pro).  Build ORDER is already wired in the top-level
+# kame.pro via `tests.depends = kamepoolalloc kamestm`, so both dylibs
+# exist before any test links.
+#
+# Their build dirs are NOT a flat sibling of each per-test build dir:
+# a test at `kamestm/tests/foo.pro` shadow-builds under
+# `<build>/kamestm/tests/`, while the dylibs land at
+# `<build>/kamepoolalloc` and `<build>/kamestm`.  So `$$OUT_PWD/../X`
+# resolves to the wrong place (`<build>/kamestm/X`).  Anchor the lib
+# paths at the build ROOT instead — derived from THIS .pri's source dir
+# (`<src>/tests`) via `$$shadowed`, which maps source→shadow-build for
+# the current .pro.  Correct regardless of how deep the test's OUT_PWD
+# nests (and reduces to the source tree for an in-source build).
+KAME_BUILD_ROOT = $$shadowed($$PWD/..)
+LIBS += -L$$KAME_BUILD_ROOT/kamepoolalloc -lkamepoolalloc
+LIBS += -L$$KAME_BUILD_ROOT/kamestm -lkamestm
 
-macx {
-    # rpaths: resolve both sibling dylibs relative to the test binary.
-    QMAKE_LFLAGS += -Wl,-rpath,@executable_path/../kamepoolalloc
-    QMAKE_LFLAGS += -Wl,-rpath,@executable_path/../kamestm
-}
-unix:!macx {
-    QMAKE_LFLAGS += -Wl,-rpath,\\$\$ORIGIN/../kamepoolalloc
-    QMAKE_LFLAGS += -Wl,-rpath,\\$\$ORIGIN/../kamestm
-}
+# Absolute rpaths into the build tree so the in-place test binaries
+# resolve both dylibs at runtime irrespective of their nesting depth
+# (`@executable_path`-relative paths would need a per-layout `../`
+# count).  `-Wl,-rpath,<abs>` is honoured by both ld64 and GNU ld.
+QMAKE_LFLAGS += -Wl,-rpath,$$KAME_BUILD_ROOT/kamepoolalloc
+QMAKE_LFLAGS += -Wl,-rpath,$$KAME_BUILD_ROOT/kamestm
 
 # Headers that every standalone test transitively pulls in via
 # `support_standalone.h` / `allocator.h` / `threadlocal.h`.  Listed
