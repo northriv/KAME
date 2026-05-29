@@ -65,21 +65,23 @@ QMAKE_CXXFLAGS += -include $$PWD/../kamestm/tests/support_standalone.h
 SOURCES += $$PWD/../kamestm/tests/support_standalone.cpp
 SOURCES += $$PWD/../kamestm/threadlocal.cpp
 
-# Link against libkamepoolalloc — built by ../kamepoolalloc/kamepoolalloc.pro
-# in the sibling subdir (top-level kame.pro orders this before tests via
-# `tests.depends = kamepoolalloc`).  The path is the per-test build dir's
-# `../kamepoolalloc` (each per-test .pro builds into its own subdir under
-# build/.../tests, parallel to build/.../kamepoolalloc).
+# Link against the two sibling dylibs that own the STM + allocator
+# machinery: `libkamepoolalloc` (../kamepoolalloc/kamepoolalloc.pro)
+# and `libkamestm` (../kamestm/kamestm.pro).  The top-level kame.pro
+# orders these before tests via `tests.depends = kamepoolalloc kamestm`.
+# Each per-test .pro builds into its own subdir under build/.../tests,
+# parallel to build/.../{kamepoolalloc,kamestm}.
 LIBS += -L$$OUT_PWD/../kamepoolalloc -lkamepoolalloc
+LIBS += -L$$OUT_PWD/../kamestm -lkamestm
 
 macx {
-    # rpath: search for libkamepoolalloc.dylib relative to the test
-    # binary's directory.  `@executable_path/../kamepoolalloc/` covers
-    # the `build/.../tests/<test>` → `build/.../kamepoolalloc/` hop.
+    # rpaths: resolve both sibling dylibs relative to the test binary.
     QMAKE_LFLAGS += -Wl,-rpath,@executable_path/../kamepoolalloc
+    QMAKE_LFLAGS += -Wl,-rpath,@executable_path/../kamestm
 }
 unix:!macx {
     QMAKE_LFLAGS += -Wl,-rpath,\\$\$ORIGIN/../kamepoolalloc
+    QMAKE_LFLAGS += -Wl,-rpath,\\$\$ORIGIN/../kamestm
 }
 
 # Headers that every standalone test transitively pulls in via
