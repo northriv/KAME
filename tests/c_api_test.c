@@ -154,10 +154,12 @@ static void test_posix_memalign(void) {
     EXPECT(((uintptr_t)p & 127u) == 0u, "posix_memalign(128) not aligned");
     kame_pool_free(p);
 
-    /* Invalid alignment (< sizeof(void*)) */
+    /* Invalid alignment (< sizeof(void*)).  Use 2 — it is < sizeof(void*)
+     * on both 32-bit (sizeof(void*)==4) and 64-bit (==8); 4 would be a
+     * valid alignment on ILP32 and produce a spurious failure there. */
     p = NULL;
-    rc = kame_pool_posix_memalign(&p, 4, 64);
-    EXPECT(rc == EINVAL, "posix_memalign(4,*) did not return EINVAL");
+    rc = kame_pool_posix_memalign(&p, 2, 64);
+    EXPECT(rc == EINVAL, "posix_memalign(2,*) did not return EINVAL");
 
     /* NULL memptr */
     rc = kame_pool_posix_memalign(NULL, 16, 64);
