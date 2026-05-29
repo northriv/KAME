@@ -43,6 +43,7 @@ HEADERS += \
     ../kamestm/transaction_impl.h \
     ../kamestm/transaction_signal.h \
     ../kamestm/transaction.h \
+    ../kamestm/transaction_detail.h \
     ../kamestm/transaction_negotiation.h \
     ../kamestm/transaction_neg_impl.h \
     ../kamestm/transaction_definitions.h \
