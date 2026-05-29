@@ -281,6 +281,17 @@ static_assert(ALLOC_CHUNK_HEADER >= ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET + 8 + 8,
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
 	(ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_MMAP_ENTRIES)
 
+//! Max distinct sizes a single chunk hands out — depth of its (ALIGN,FS)
+//! template's size set; sizes the compact per-chunk freelist
+//! `PoolAllocatorBase::m_freelist_head[]` (follow-up "(1b)" §12.3).
+//! FS=true chunks serve exactly 1 size (local id 0); the widest FS=false
+//! tier is ALIGN=256, which serves buckets {16, 32..39} = 9 sizes
+//! (id 0..8).  Defined here (before PoolAllocatorBase) since the class
+//! needs it for the array bound; `kBucketLocalId[]` (below) and a
+//! BucketTraits-derived static_assert (allocator.cpp) verify no
+//! (ALIGN,FS) tier exceeds this and that ids are collision-free.
+constexpr int KAME_LOCAL_BUCKETS = 9;
+
 class PoolAllocatorBase;
 //! Cross-dealloc batch entry — paired chunk + slot pointers.  Defined
 //! here so `PoolAllocatorBase::batch_return_to_bitmap` and
@@ -445,28 +456,22 @@ protected:
 
 public:
 	//! Cache-line-isolated hot block for the deallocate owner-free fast
-	//! path (follow-up "(1b)", tests/CHUNK_CLAIM_TLA_NOTES.md §12/§12.1).
-	//! m_owner_id / m_fs_flag / m_base_bucket are write-once at
-	//! `allocate_chunk` and immutable for the chunk's life, so the fast
-	//! path reads them with no coherence cost beyond the initial store,
-	//! and NEVER touches chunk_header's cache line (chunk_base[0..63] —
-	//! palloc at +8, size_info at +0).
+	//! path (follow-up "(1b)", tests/CHUNK_CLAIM_TLA_NOTES.md §12.3).  All
+	//! members are write-once at `allocate_chunk` and immutable for the
+	//! chunk's life, so the fast path reads them with no coherence cost
+	//! beyond the initial store, and NEVER touches chunk_header's cache
+	//! line (chunk_base[0..63] — palloc at +8, size_info at +0).
 	//!
-	//! ALIGNMENT (arch-dependent cache-line sizes — see KAME_CACHE_LINE):
-	//! the embedded PoolAllocator object sits at chunk_base +
+	//! ALIGNMENT: the embedded PoolAllocator object sits at chunk_base +
 	//! ALLOC_CHUNK_HEADER (= 64) and chunk_base is 256 KiB-aligned, so the
-	//! object is EXACTLY 64-aligned — `alignas(128)` (let alone the
-	//! KAME_CACHE_LINE=128 of Apple Silicon) is unhonorable here:
-	//! placement-new of a 128-aligned type at a 64-aligned address is UB,
-	//! and the member would not actually be 128-aligned.  So we align to
-	//! 64 — the object's placement-alignment ceiling.  Because the object
-	//! ALREADY starts at chunk_base+64, aligning the hot block to 64 lands
-	//! it at object-offset >= 64, i.e. absolute >= chunk_base+128, which
-	//! is a cache line distinct from chunk_header[0..63] for line sizes up
-	//! to 128 B — covering BOTH the 64 B (x86-64) and 128 B (Apple Silicon
-	//! aarch64) targets.  (A 256 B line (Fujitsu) can't be cleared without
-	//! 256-aligning the object, i.e. moving ALLOC_CHUNK_HEADER; harmless —
-	//! correctness is unaffected, only the false-sharing win is missed.)
+	//! object is EXACTLY 64-aligned — `alignas(128)` (Apple Silicon's
+	//! KAME_CACHE_LINE) would be UB here (placement-new of a 128-aligned
+	//! type at a 64-aligned address) and the member would not actually be
+	//! 128-aligned.  64 suffices because the object already starts at +64:
+	//! the hot block lands at object-offset >= 64 = absolute >=
+	//! chunk_base+128, a line distinct from chunk_header[0..63] for both
+	//! 64 B (x86-64) and 128 B (Apple Silicon) targets.  (256 B (Fujitsu)
+	//! would need moving ALLOC_CHUNK_HEADER — out of scope.)
 	//!
 	//!   m_owner_id    : owner-thread id; freeing thread matches its
 	//!                   `s_tls_owner_id` (0 = unassigned/released, never
@@ -474,44 +479,44 @@ public:
 	//!                   `deallocate_chunk` clears it to 0 so the fast path
 	//!                   rejects a released chunk WITHOUT reading palloc.
 	//!   m_fs_flag     : redundant copy of chunk_header.size_info's
-	//!                   FS=true/false discriminator (true => FS=true), so
-	//!                   the fast path picks the bucket source (m_base_bucket
-	//!                   vs the slot prefix) without reading size_info.
-	//!   m_base_bucket : FS=true chunks serve exactly one bucket — carried
-	//!                   here so the fast path needs no `bucket_for_size`
-	//!                   call and no size_info read.  Unused for FS=false
-	//!                   (its bucket comes from the per-slot prefix at p-8).
+	//!                   FS=true/false discriminator (true => FS=true).
+	//!                   On dealloc fast path it picks the local-id source:
+	//!                   FS=true => local id 0 (chunk serves 1 size);
+	//!                   FS=false => the slot prefix at p-8 carries it.
 	//!
-	//! NOTE on freelist indexing: the heads stay GLOBAL-bucket-indexed
-	//! ([ALLOC_NUM_BUCKETS], hardcoded 48 — the class precedes the
-	//! constant; the static_assert below keeps them in lock-step), NOT the
-	//! "local index" of the original §12.1 sketch.  Local [8] packing is
-	//! infeasible here: an FS=false chunk's buckets are NOT a contiguous
-	//! span <= 8.  `PoolAllocator<256,false>` serves buckets {16, 32..39}
-	//! (bucket 16 shares the ALIGN=256 template via the common
-	//! `s_tls.my_chunk<256>`), span 24; `PoolAllocator<32,false>` serves
-	//! {6,8,10,12,14}, span 9.  A per-tier remap would add a dependent
-	//! load on the hot path, defeating the cache-line win.  Global
-	//! indexing keeps the high-frequency small FS=true buckets (1..6, the
-	//! bulk of allocations) co-resident with m_owner_id on this same cache
-	//! line — m_freelist_head[1..6] live at offset 8..56 — while FS=false
-	//! and larger FS=true buckets spill to the following lines (rarer).
+	//! FREELIST INDEXING (§12.3 — design "alloc: bucket-id direct;
+	//! dealloc: local-id direct; no conversion-table on hot paths"):
+	//!   m_freelist_head[] is indexed by COMPACT per-chunk LOCAL id, not
+	//!   global bucket.  KAME_LOCAL_BUCKETS (= 9) covers the widest tier
+	//!   (ALIGN=256 FS=false serves buckets {16, 32..39}).  `kBucketLocalId[]`
+	//!   maps bucket -> local id — but the alloc fast path NEVER reads it:
+	//!   instead, TLS `g_thread_freelist_ptr[bucket]` holds a `char **`
+	//!   pointing DIRECTLY at the active chunk's m_freelist_head[local-id-
+	//!   for-this-bucket], updated at chunk-switch (slow_allocate) where
+	//!   kBucketLocalId IS read.  So alloc is `*tls[bucket]` (zero remap,
+	//!   zero chunk-pointer-deref on hit), and dealloc gets local-id from
+	//!   the chunk's m_fs_flag (FS=true) or the slot prefix (FS=false).
+	//!   Both routes converge on chunk->m_freelist_head[local], single
+	//!   storage; no consistency problem.
 	alignas(64) uint32_t m_owner_id;
 	bool      m_fs_flag;
-	uint16_t  m_base_bucket;
-	char     *m_freelist_head[48];
+	uint16_t  m_base_bucket;     // unused on hot paths; kept for diagnostics
+	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
-	//! Owner-thread chunk-local freelist push/pop (LIFO; the freed slot's
-	//! first 8 bytes hold the next pointer).  Global-bucket-indexed.  No
-	//! atomics — only the owner thread touches its chunk's freelists.
-	inline void freelist_push(unsigned bucket, void *p) noexcept {
-		*reinterpret_cast<char **>(p) = m_freelist_head[bucket];
-		m_freelist_head[bucket] = static_cast<char *>(p);
+	//! Owner-thread freelist push/pop (LIFO; freed slot's first 8 bytes
+	//! hold the next pointer).  `local` is the chunk's local-id (NOT the
+	//! global bucket).  No atomics — only the owner thread touches its
+	//! chunk's freelists.  Both push and pop reach the SAME storage that
+	//! the alloc-side TLS shortcut (`g_thread_freelist_ptr[bucket]`) is
+	//! aimed at — see slow_allocate for the maintenance of that pointer.
+	inline void freelist_push(unsigned local, void *p) noexcept {
+		*reinterpret_cast<char **>(p) = m_freelist_head[local];
+		m_freelist_head[local] = static_cast<char *>(p);
 	}
-	inline void *freelist_pop(unsigned bucket) noexcept {
-		char *head = m_freelist_head[bucket];
+	inline void *freelist_pop(unsigned local) noexcept {
+		char *head = m_freelist_head[local];
 		if(head)
-			m_freelist_head[bucket] = *reinterpret_cast<char **>(head);
+			m_freelist_head[local] = *reinterpret_cast<char **>(head);
 		return head;
 	}
 
@@ -1298,11 +1303,10 @@ static_assert(sizeof(AllocSlot) == sizeof(char *),
 //!   user  320:  17 % → 0 %   (bucket 20 slot 320)
 //!   user  368:   2 % → 0 %   (bucket 23 slot 368)
 constexpr int ALLOC_NUM_BUCKETS = 48;
-// PoolAllocatorBase::m_freelist_head[] hardcodes 48 (the class is
-// defined before this constant); keep them in lock-step.
+// kBucketLocalId[] below is hardcoded to 48 entries (the FS=false
+// prefix's local-id field width also implicitly bounds this).
 static_assert(ALLOC_NUM_BUCKETS == 48,
-              "PoolAllocatorBase::m_freelist_head[48] must match "
-              "ALLOC_NUM_BUCKETS");
+              "kBucketLocalId[48] must match ALLOC_NUM_BUCKETS");
 
 //! Size → bucket-index.  FS=true/mixed range (1..368) uses the 16-byte
 //! step formula.  FS=false range
@@ -1339,6 +1343,47 @@ inline constexpr uint32_t kBucketNewSlot[48] = {
     6144, 7168, 8192, 9216, 11264, 13312, 15360, 17408,
 };
 
+//! Global bucket -> COMPACT per-chunk local size id (§12.3).  A chunk ==
+//! one `PoolAllocator<ALIGN,FS>` template, and all same-(ALIGN,FS)
+//! buckets share its `s_tls.my_chunk`, so one chunk hands out exactly
+//! that template's size set.  The local id is a bucket's position WITHIN
+//! that set (0-based), used to index the dense
+//! `PoolAllocatorBase::m_freelist_head[KAME_LOCAL_BUCKETS]` and stored in
+//! the FS=false slot prefix.  A BucketTraits-derived static_assert in
+//! allocator.cpp VERIFIES, at compile time, that every id here equals
+//! "#lower buckets sharing my (ALIGN,FS)", which guarantees (a) two
+//! sizes in one chunk never share a freelist head and (b) every id
+//! < KAME_LOCAL_BUCKETS.  Tiers:
+//!   FS=true (each its own ALIGN=size, one size)        -> id 0
+//!   ALIGN=32  FS=false: buckets {6,8,10,12,14}         -> 0..4
+//!   ALIGN=64  FS=false: buckets {24..31}               -> 0..7
+//!   ALIGN=256 FS=false: buckets {16, 32..39}           -> 0, 1..8
+//!   ALIGN=1024 FS=false: buckets {40..47}              -> 0..7
+//!
+//! USED ONLY ON THE COLD PATH (slow_allocate / cold_first_access) to set
+//! the per-thread TLS `g_thread_freelist_ptr[bucket]` shortcut so the
+//! alloc HOT path needs no table lookup; dealloc HOT path reads the
+//! local-id directly from chunk.m_fs_flag (FS=true) or the slot prefix
+//! (FS=false).  See §12.3.
+inline constexpr uint8_t kBucketLocalId[48] = {
+    // 0      (size 0 reuses bucket 1's allocator; never an FS=false slot)
+    0,
+    // 1..5   FS=true
+    0, 0, 0, 0, 0,
+    // 6 FS=false ALIGN=32 #0 ; 7 FS=true ; 8 ALIGN=32 #1 ; 9 FS=true ;
+    // 10 #2 ; 11 FS=true ; 12 #3 ; 13 FS=true ; 14 #4 ; 15 FS=true ;
+    // 16 FS=false ALIGN=256 #0
+    0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 0,
+    // 17..23 FS=true
+    0, 0, 0, 0, 0, 0, 0,
+    // 24..31 FS=false ALIGN=64
+    0, 1, 2, 3, 4, 5, 6, 7,
+    // 32..39 FS=false ALIGN=256 (#1..8; #0 is bucket 16 above)
+    1, 2, 3, 4, 5, 6, 7, 8,
+    // 40..47 FS=false ALIGN=1024
+    0, 1, 2, 3, 4, 5, 6, 7,
+};
+
 inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 	// FS=true / mixed range: 1..368, 16-B step.  (size+15)>>4 yields
 	// 1..23 for size 1..368, and 0 for size==0 (reuses bucket 0's 16-B
@@ -1367,15 +1412,39 @@ inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 
 extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
 
-//! Parallel TLS table holding each bucket's currently pinned chunk.
-//! Initial value (and post-cleanup) is `nullptr`; the slow path in
-//! `new_redirected` treats null as "first access on this (thread,
-//! bucket)" — see `cold_first_access` in allocator.cpp.  Once
-//! populated, the slow path dispatches through the chunk's vtable
-//! (`PoolAllocatorBase::slow_allocate`), so this single parallel TLS
-//! array carries both the state-machine state AND the dispatch
-//! target — no separate function-pointer table is needed.
-extern ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS];
+//! (§12.3) Direct-jump TLS shortcut for the alloc hot path: per-bucket
+//! pointer to the active chunk's `m_freelist_head[kBucketLocalId[bucket]]`
+//! cell.  Lets `new_redirected` pop with NO conversion-table read and
+//! NO chunk-pointer indirection on a freelist hit — just one TLS read +
+//! one indirect deref.  Maintained by `slow_allocate` / `cold_first_access`
+//! (cold paths) which DO read `kBucketLocalId[]` to compute the offset.
+//! nullptr = bucket not yet activated on this thread (first access or
+//! post-cleanup) -> fast path falls to the cold path.  Cleared at thread
+//! exit / chunk release.
+//!
+//! With this TLS, the previous `g_thread_chunks[]` parallel array is no
+//! longer needed — the chunk's PoolAllocator object can be recovered
+//! from any freelist_ptr by `chunk_from_freelist_ptr(fp)` below (one
+//! mask + add), since chunks are ALLOC_MIN_CHUNK_SIZE-aligned and the
+//! embed object lives at `chunk_base + ALLOC_CHUNK_HEADER`.
+extern ALLOC_TLS char **g_thread_freelist_ptr[ALLOC_NUM_BUCKETS];
+
+//! (§12.3) Recover the chunk's PoolAllocator object from any pointer
+//! inside the chunk's first unit — in particular, from a
+//! `g_thread_freelist_ptr[bucket]` value, which points at the embed
+//! object's `m_freelist_head[local-id]` cell.  Chunks are
+//! `ALLOC_MIN_CHUNK_SIZE`-aligned (the per-region claim bitmap reserves
+//! one bit per `ALLOC_MIN_CHUNK_SIZE`-byte unit), so masking with
+//! `~(ALLOC_MIN_CHUNK_SIZE - 1)` lands on `chunk_base`; the embed object
+//! is at `chunk_base + ALLOC_CHUNK_HEADER` (= +64).  Works for both
+//! single- and multi-unit chunks because the embed object always lives
+//! in the FIRST unit, where `fp` resides.
+inline PoolAllocatorBase *
+chunk_from_freelist_ptr(char **fp) noexcept {
+    uintptr_t cb = reinterpret_cast<uintptr_t>(fp)
+        & ~(static_cast<uintptr_t>(ALLOC_MIN_CHUNK_SIZE) - 1u);
+    return reinterpret_cast<PoolAllocatorBase *>(cb + ALLOC_CHUNK_HEADER);
+}
 
 // ---------------------------------------------------------------------
 // Fast pthread-TSD bypass of the macOS TLV thunk.
@@ -1441,26 +1510,27 @@ static inline char *kame_thread_pointer() noexcept {
     #endif
 }
 
-//! Discovered TSD byte offsets.  Zero means "not yet initialised"
-//! (constructor hasn't run, or `pthread_key_create` / sentinel scan
-//! failed); hot path falls to TLV fallback in that case.
+//! Discovered TSD byte offset for `g_thread_slots`.  Zero means "not
+//! yet initialised" (constructor hasn't run, or `pthread_key_create` /
+//! sentinel scan failed); hot path falls to TLV fallback in that case.
+//! `g_thread_chunks[]` was retired in (§12.3) — its TSD slot is gone
+//! too.  `g_thread_freelist_ptr[]` uses direct TLV access.
 extern std::size_t s_kame_slots_tsd_offset;
-extern std::size_t s_kame_chunks_tsd_offset;
 
-//! Out-of-line cold paths invoked when either guard branch fails.
-//! Defined in allocator.cpp.  Plant the per-thread TSD slot if
-//! `s_kame_*_tsd_offset` is set, then return the TLV-resolved address.
+//! Out-of-line cold path invoked when either guard branch fails.
+//! Defined in allocator.cpp.  Plants the per-thread TSD slot if
+//! `s_kame_slots_tsd_offset` is set, then returns the TLV-resolved
+//! address.
 //!
 //! `[[clang::preserve_most]]`: caller-side register-spill avoidance.
-//! Without it, clang must spill the live `size` and `bucket` regs (in
-//! the caller-saved set) across the call, bloating `operator new`'s
-//! prologue with 4-6 reg saves.  preserve_most shifts the burden into
-//! the cold callee (cheap — cold).
+//! Without it, clang must spill live caller-saved regs across the call,
+//! bloating `operator new`'s prologue with 4-6 reg saves.  preserve_most
+//! shifts the burden into the cold callee (cheap — cold).
 [[clang::preserve_most]] AllocSlot *kame_slots_cold() noexcept;
-[[clang::preserve_most]] PoolAllocatorBase **kame_chunks_cold() noexcept;
 
 //! Hot accessor: returns the base of this thread's `g_thread_slots[]`.
-//! Inlined into `new_redirected` and `deallocate_pooled`.
+//! Inlined into `deallocate_pooled` (alloc hot path no longer uses it —
+//! it reads `g_thread_freelist_ptr[]` directly via TLV).
 inline AllocSlot *kame_slots_base() noexcept {
     std::size_t off = s_kame_slots_tsd_offset;
     if(__builtin_expect(off != 0, 1)) {
@@ -1470,19 +1540,8 @@ inline AllocSlot *kame_slots_base() noexcept {
     }
     return kame_slots_cold();
 }
-//! Hot accessor: returns the base of this thread's `g_thread_chunks[]`.
-inline PoolAllocatorBase **kame_chunks_base() noexcept {
-    std::size_t off = s_kame_chunks_tsd_offset;
-    if(__builtin_expect(off != 0, 1)) {
-        PoolAllocatorBase **p =
-            *reinterpret_cast<PoolAllocatorBase ***>(kame_thread_pointer() + off);
-        if(__builtin_expect(p != nullptr, 1)) return p;
-    }
-    return kame_chunks_cold();
-}
 #else  // !KAME_FAST_TSD: fall back to direct TLV access
 inline AllocSlot *kame_slots_base() noexcept { return &g_thread_slots[0]; }
-inline PoolAllocatorBase **kame_chunks_base() noexcept { return &g_thread_chunks[0]; }
 #endif
 
 //! Cold slow path: invoked when `g_thread_chunks[bucket] == nullptr`
@@ -1501,26 +1560,33 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept;
 void *new_redirected_large(std::size_t size) noexcept;
 
 inline void *new_redirected(std::size_t size) {
-	// Hot path: sizes ≤ 368.  One branch +
-	// the inline `(size+15)>>4` formula (the small-range half of
-	// `bucket_for_size`).  Larger sizes go to `new_redirected_large`,
-	// which uses the full `bucket_for_size` for the FS=false dispatch.
+	// Hot path: sizes ≤ 368.  One branch + the inline `(size+15)>>4`
+	// formula (the small-range half of `bucket_for_size`).  Larger sizes
+	// go to `new_redirected_large`, which uses the full `bucket_for_size`
+	// for the FS=false dispatch.
 	if(size > (std::size_t)ALLOC_SIZE23)
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
-	// One TLS read: the per-thread pinned chunk for this bucket.  The
-	// freelist now lives INSIDE that chunk (m_freelist_head[bucket]),
-	// not in a parallel TLS array — so the inline pop hangs off the
-	// same `chunk` pointer the freelist-miss path already needs.  Empty
-	// sentinel: nullptr (push only ever writes the previous head into
-	// the slot's first 8 bytes, so user data is never on the link).
-	if(PoolAllocatorBase *chunk = kame_chunks_base()[bucket]) {
-		if(void *head = chunk->freelist_pop(bucket))
+	// (§12.3) DIRECT-JUMP fast path: bucket -> freelist-head pointer in
+	// ONE TLS read.  `g_thread_freelist_ptr[bucket]` is a `char **` that
+	// points DIRECTLY at the active chunk's
+	// `m_freelist_head[kBucketLocalId[bucket]]` cell, maintained at
+	// chunk-switch (slow_allocate / cold_first_access — see allocator.cpp)
+	// where `kBucketLocalId[]` IS read.  So the alloc hot path needs
+	// NEITHER a bucket->local-id remap NOR a chunk-pointer-deref chain —
+	// just `*tls[bucket]` to get the head, and a normal LIFO pop.
+	if(char **head_ptr = g_thread_freelist_ptr[bucket]) {
+		if(char *head = *head_ptr) {
+			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
-		// Freelist miss — dispatch through the chunk's vtable.
-		return chunk->slow_allocate(bucket, size);
+		}
+		// Freelist empty for this bucket — chunk is still pinned (the
+		// ptr is non-null); recover the chunk's PoolAllocator object via
+		// `chunk_from_freelist_ptr` (one mask + add, NO second TLS read)
+		// and dispatch through its vtable.
+		return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
 	}
-	// bucket not yet activated on this thread (rare first-time path +
+	// bucket not yet activated on this thread (first-time path +
 	// pre-activation / post-cleanup malloc fallbacks).
 	return cold_first_access(bucket, size);
 }
