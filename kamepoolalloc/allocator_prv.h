@@ -377,6 +377,14 @@ public:
 	//! the same chunk-header pattern as `deallocate` and dispatches
 	//! the slot-size lookup through the chunk's `SizeOfFn`.
 	static inline std::size_t size_of(void *p);
+	//! Dedicated single-slot large allocation (sizes between
+	//! ALLOC_MAX_BUCKETED_SIZE and a 16-unit chunk's payload = 4 MiB − 64 B).
+	//! Claims a whole N-unit chunk (no sub-slot bitmap) and returns
+	//! chunk_base + ALLOC_CHUNK_HEADER; freed via the s_back_offset bit7
+	//! path in deallocate() / size_of().  Returns nullptr (caller falls
+	//! through to std::malloc) when the payload is too large or the region
+	//! cap is hit.
+	static void *allocate_dedicated_chunk(std::size_t size) noexcept;
 	//! Address-only chunk lookup.  Returns nullptr if `p` does not
 	//! belong to any pool chunk (or the chunk has been released).
 	//! Used by `drain_thread_slot_freelists` to handle the case where
@@ -461,6 +469,17 @@ protected:
 
 	template <class ALLOC>
 	static ALLOC *allocate_chunk();
+	//! Runtime N-unit chunk claim (1..ALLOC_MAX_CHUNK_UNITS).  Walks the
+	//! region bitmaps (two passes, incl. fresh aligned mmap), wins a
+	//! single-word CAS over `chunk_units` contiguous, chunk_units-aligned
+	//! claim bits, writes `s_back_offset[base..] = (u | back_off_flag)`,
+	//! and returns the chunk_base address (NO chunk_header / writeBarrier
+	//! — the caller writes those).  Returns nullptr if the region cap is
+	//! reached.  Used by the dedicated single-slot large path
+	//! (`allocate_dedicated_chunk`); the compile-time bucket templates
+	//! keep their own walk in `allocate_chunk<ALLOC>()` for now.
+	static char *claim_chunk(unsigned chunk_units,
+	                         std::uint8_t back_off_flag) noexcept;
 	//! Release a chunk back to PROT_NONE.  Clears the chunk header
 	//! pointer at `chunk_base`, mprotect's the chunk back to PROT_NONE,
 	//! and clears the matching claim bit in `s_claim_bitmap[]` (region

@@ -2351,7 +2351,7 @@ static inline PoolAllocatorBase *
 resolve_chunk_from_slot(char *mp, size_t meta_base, unsigned int unit_idx,
                         char **out_chunk_base) noexcept {
 	unsigned int back_off =
-	    PoolAllocatorBase::s_back_offset[meta_base + unit_idx];
+	    PoolAllocatorBase::s_back_offset[meta_base + unit_idx] & 0x7Fu; // mask dedicated bit7
 	unsigned int base_idx = unit_idx - back_off;
 	char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
 	PoolAllocatorBase *palloc =
@@ -2421,9 +2421,19 @@ PoolAllocatorBase::deallocate(void *p) {
 		unsigned int unit_idx =
 		    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
 		size_t meta_base = (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE;
-		unsigned int back_off = s_back_offset[meta_base + unit_idx];
-		unsigned int base_idx = unit_idx - back_off;
+		unsigned int back_off_raw = s_back_offset[meta_base + unit_idx];
+		unsigned int base_idx = unit_idx - (back_off_raw & 0x7Fu);
 		char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+		// Dedicated single-slot large chunk?  bit7 of the (already-loaded)
+		// back_off byte flags it — NO chunk_header read added to the hot
+		// owner-free path (preserves the (1b) cache-line discipline).
+		// Free the whole N-unit chunk (total bytes in chunk_header[32..39]).
+		if(__builtin_expect((back_off_raw & 0x80u) != 0u, 0)) {
+			size_t bytes = *reinterpret_cast<std::uint64_t *>(
+			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+			deallocate_chunk(chunk_base, bytes);
+			return true;
+		}
 		// (1b) Owner-free FAST PATH — touches ONLY chunk_obj's cache line
 		// (chunk_base + ALLOC_CHUNK_HEADER), NEVER chunk_header (cache
 		// line 0, where palloc lives at +8 and size_info at +0).  Under
@@ -2558,22 +2568,174 @@ PoolAllocatorBase::size_of(void *p) {
 		    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE, unit_idx, &chunk_base);
 		if( !palloc)
 			return 0;
+		// Dedicated single-slot large chunk has no SizeOfFn — its
+		// size_info is the DEDICATED sentinel; the total byte size lives
+		// at [32..39].  Usable payload = total − chunk_header.
+		if(static_cast<std::uint32_t>(*reinterpret_cast<std::uint64_t *>(
+		       chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET))
+		   == ALLOC_CHUNK_DEDICATED_SIZEINFO) {
+			size_t bytes = *reinterpret_cast<std::uint64_t *>(
+			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+			return bytes - (size_t)ALLOC_CHUNK_HEADER;
+		}
 		SizeOfFn fn = *reinterpret_cast<SizeOfFn *>(
 		    chunk_base + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET);
 		return fn(palloc, static_cast<char *>(p));
 	}
 	return 0;
 }
+// Runtime N-unit chunk claim — see the header declaration.  This is a
+// faithful copy of `allocate_chunk<ALLOC>()`'s region-walk generalised to
+// a *runtime* unit count and returning the raw chunk_base address (the
+// caller writes the chunk_header).  back_off_flag is OR'd into every
+// s_back_offset entry (0 for normal template chunks once they migrate
+// here, 0x80 to tag a dedicated single-slot large chunk).
+//
+// (Temporary duplication: the compile-time template path keeps its own
+// walk in allocate_chunk<ALLOC>(); de-dup is a follow-up.)
+char *
+PoolAllocatorBase::claim_chunk(unsigned chunk_units,
+                               std::uint8_t back_off_flag) noexcept {
+	const BitmapWord occ_mask =
+	    (chunk_units >= (unsigned)BITS_PER_BITMAP_WORD)
+	        ? ~BitmapWord(0)
+	        : ((BitmapWord(1) << chunk_units) - BitmapWord(1));
+	auto try_claim_in_region = [&](int region) -> char * {
+		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
+			std::atomic<BitmapWord> *bm =
+			    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
+			for(;;) {
+				BitmapWord v = bm->load(std::memory_order_relaxed);
+				int free_pos = -1;
+				for(unsigned k = 0;
+				    k + chunk_units <= (unsigned)BITS_PER_BITMAP_WORD;
+				    k += chunk_units) {
+					if(((v >> k) & occ_mask) == 0) { free_pos = (int)k; break; }
+				}
+				if(free_pos < 0) break;
+				BitmapWord newv = v | (occ_mask << free_pos);
+				int base_unit_idx = word * UNITS_PER_BITMAP_WORD + free_pos;
+				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
+				                 + (size_t)base_unit_idx;
+				if(bm->compare_exchange_strong(v, newv,
+				                               std::memory_order_acquire,
+				                               std::memory_order_relaxed)) {
+					for(unsigned u = 0; u < chunk_units; ++u)
+						s_back_offset[bo_base + u] =
+						    (std::uint8_t)u | back_off_flag;
+					return s_mmapped_spaces[region]
+					     + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+				}
+			}
+		}
+		return nullptr;
+	};
+	// Pass 1: regions with the has-free hint set.
+	for(int rword = 0; rword < REGION_BITMAP_WORDS; ++rword) {
+		BitmapWord rv = s_region_has_free[rword].load(std::memory_order_relaxed);
+		while(rv != 0) {
+			int rbit = __builtin_ctzll(static_cast<unsigned long long>(rv));
+			int region = rword * BITS_PER_BITMAP_WORD + rbit;
+			if(region >= ALLOC_MAX_MMAP_ENTRIES) break;
+			if(char *addr = try_claim_in_region(region)) return addr;
+			s_region_has_free[rword].fetch_and(~(BitmapWord(1) << rbit),
+			                                   std::memory_order_relaxed);
+			rv &= ~(BitmapWord(1) << rbit);
+		}
+	}
+	// Pass 2: find / mmap a fresh region, then claim.
+	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES; ++region) {
+		while( !s_mmapped_spaces[region]) {
+			if(region >= s_max_regions_cap.load(std::memory_order_relaxed))
+				return nullptr;
+			size_t mmap_size = ALLOC_MIN_MMAP_SIZE;
+			constexpr size_t kAlign = ALLOC_MAX_CHUNK_SIZE;
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+			char *p = static_cast<char *>(_aligned_malloc(mmap_size, kAlign));
+			if( !p) { fprintf(stderr, "_aligned_malloc(%zu, %zu) failed.\n",
+			                  mmap_size, kAlign); return nullptr; }
+#else
+			size_t total = mmap_size + kAlign;
+			char *raw = static_cast<char *>(
+			    mmap(0, total, PROT_READ | PROT_WRITE,
+			         MAP_ANON | MAP_PRIVATE, -1, 0));
+			if(raw == MAP_FAILED) { fprintf(stderr, "mmap() failed.\n");
+			                        return nullptr; }
+			uintptr_t aligned =
+			    ((uintptr_t)raw + kAlign - 1u) & ~(uintptr_t)(kAlign - 1u);
+			char *p = reinterpret_cast<char *>(aligned);
+			size_t prefix = p - raw;
+			size_t suffix = total - prefix - mmap_size;
+			if(prefix > 0) munmap(raw, prefix);
+			if(suffix > 0) munmap(p + mmap_size, suffix);
+#endif
+			writeBarrier();
+			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[region])) {
+				readBarrier();
+				fprintf(stderr,
+				    "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n",
+				    p, (unsigned long long)mmap_size);
+				break;
+			}
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+			_aligned_free(p);
+#else
+			munmap(p, mmap_size);
+#endif
+		}
+		s_region_has_free[region / BITS_PER_BITMAP_WORD].fetch_or(
+		    BitmapWord(1) << (region % BITS_PER_BITMAP_WORD),
+		    std::memory_order_relaxed);
+		if(char *addr = try_claim_in_region(region)) return addr;
+	}
+	fprintf(stderr, "# of chunks exceeds the limit.\n");
+	return nullptr;
+}
+
+void *
+PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
+	// Units needed for the 64 B chunk_header + the payload.
+	size_t total = size + (size_t)ALLOC_CHUNK_HEADER;
+	unsigned chunk_units = (unsigned)((total + (size_t)ALLOC_MIN_CHUNK_SIZE - 1)
+	                                  >> ALLOC_MIN_CHUNK_SHIFT);
+	if(chunk_units == 0) chunk_units = 1;
+	if(chunk_units > (unsigned)ALLOC_MAX_CHUNK_UNITS)
+		return nullptr;   // > 4 MiB payload — caller falls to std::malloc
+	size_t chunk_size = (size_t)chunk_units * (size_t)ALLOC_MIN_CHUNK_SIZE;
+	// Claim N units, tagging back_off with bit7 so deallocate / size_of
+	// detect the dedicated chunk from the already-loaded s_back_offset
+	// byte (no chunk_header read on the hot free path — preserves the
+	// (1b) cache-line discipline).
+	char *chunk_base = claim_chunk(chunk_units, (std::uint8_t)0x80u);
+	if( !chunk_base) return nullptr;
+	// chunk_header: DEDICATED size_info sentinel + total bytes.  palloc =
+	// chunk_base (non-null, > 1) so the foreign-pointer guard treats it as
+	// ours; the dedicated free path never dereferences it as a PoolAllocator.
+	*reinterpret_cast<std::uint64_t *>(
+	    chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) =
+	    (std::uint64_t)ALLOC_CHUNK_DEDICATED_SIZEINFO;
+	*reinterpret_cast<PoolAllocatorBase **>(
+	    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) =
+	    reinterpret_cast<PoolAllocatorBase *>(chunk_base);
+	*reinterpret_cast<std::uint64_t *>(
+	    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET) =
+	    (std::uint64_t)chunk_size;
+	writeBarrier();
+	return chunk_base + ALLOC_CHUNK_HEADER;
+}
+
 void* allocate_large_size_or_malloc(size_t size) throw() {
-	// bucket dispatch covers sizes 1..ALLOC_MAX_BUCKETED_SIZE
-	// (= 16376).  Anything bigger lands here and goes straight to
-	// libsystem.  The legacy ALLOCATE_9_16X(4, size) … (64, size) chain
-	// — which broke the size range into power-of-2 sub-tiers each
-	// dispatched through a PoolAllocator template instantiation — is no
-	// longer needed; the per-tier bucket path is more granular AND
-	// avoids the explosion of PoolAllocator template instantiations
-	// (`<256, false>`, `<512, false>`, …, `<16384, false>` etc.) those
-	// macros implied.
+	// Bucket dispatch covers sizes 1..ALLOC_MAX_BUCKETED_SIZE (= 17400).
+	// Larger sizes up to a 16-unit (4 MiB) dedicated chunk's payload
+	// (ALLOC_MAX_CHUNK_SIZE − ALLOC_CHUNK_HEADER) are served from the pool
+	// as a dedicated single-slot chunk (warm-page reuse, unified free
+	// path); anything bigger goes straight to libsystem.  Reached only
+	// when the allocator is active (new_redirected_large gates on
+	// g_sys_image_loaded / s_alloc_tls_off before calling us).
+	if(size <= (size_t)ALLOC_MAX_CHUNK_SIZE - (size_t)ALLOC_CHUNK_HEADER) {
+		if(void *p = PoolAllocatorBase::allocate_dedicated_chunk(size))
+			return p;
+	}
 	return std::malloc(size);
 }
 
