@@ -161,3 +161,77 @@ close it. Prioritised candidates for the model:
   `kamestm/tests/tlaplus`).
 - Pre-fix spec → expect **INV2** violation. Post-fix spec → INV2
   holds; then hunt **INV4** for the §7 residual.
+
+---
+
+## 11. Follow-up "(1)": chunk-local freelist (dealloc 2→1 TLS read)
+
+**Status: design fixed, implementation pending.** Current master
+(d7179d65) is stable: pre-WIP-equal perf (initial-exec 198 M ops/s),
+all race fixes in force.
+
+### Problem
+
+`deallocate`'s owner-free hot path does 2 TLS reads:
+- `g_thread_chunks[bucket]` (owner check: `== palloc`)
+- `g_thread_slots[bucket].push(p)` (freelist push)
+
+These are two distinct TLS symbols → 2 `__tls_get_addr` calls under
+global-dynamic. (Under initial-exec they are 2 plain offset loads, so
+the win is small — the real perf restore was initial-exec eliminating
+`__tls_get_addr`, not the read count.)
+
+### Design
+
+Move the per-bucket freelist head OUT of the TLS array INTO the chunk:
+
+- `PoolAllocatorBase` gains:
+  - `uint32_t m_owner_id;`  — owner-thread id (cache line 1+, i.e.
+    chunk_base+64, separate from chunk_header.palloc at chunk_base+8
+    cache line 0, so owner's frequent freelist writes don't
+    false-share the cross-thread-read palloc).
+  - `char *m_freelist_head[ALLOC_NUM_BUCKETS];` — chunk-local
+    per-bucket freelist heads. Global bucket index (sparse per chunk;
+    FS=true uses 1 entry, FS=false uses the SIZEs it hands out).
+    384 B/chunk — negligible vs 256 KiB chunk.
+- New TLS: `s_tls_owner_id` (one id per thread, global counter).
+- `deallocate` owner-free path: `palloc->m_owner_id == s_tls_owner_id`
+  (TLS 1 read: s_tls_owner_id) → `palloc->m_freelist_head[bucket]`
+  push (TLS 0 — chunk-relative). = **1 TLS read**.
+- `new_redirected` alloc: `chunk = g_thread_chunks[bucket]` (TLS 1) →
+  `chunk->m_freelist_head[bucket]` pop. = 1 TLS read (unchanged
+  count, but freelist is now chunk-local).
+- `drain_thread_slot_freelists` → walk each live chunk's
+  `m_freelist_head[]` instead of g_thread_slots.
+- Retire `g_thread_slots[]` (+ kame_slots_base, macOS TSD slot key).
+
+### Risk
+
+The freelist changes from **bucket-wide / chunk-spanning**
+(g_thread_slots[b] held free slots from ANY chunk) to **chunk-local**
+(only the active chunk's free slots for that bucket). This changes the
+freelist hit-rate: a free slot in a non-active chunk is no longer
+popped on the next alloc — it waits until that chunk is active again.
+Must bench alloc_stress wall-clock + freelist-hit before/after; if
+hit-rate drops materially, reconsider (e.g. keep g_thread_slots for
+FS=false, chunk-local only for FS=true).
+
+### Implementation order (9+ interdependent edits)
+
+1. move/forward-declare ALLOC_NUM_BUCKETS before PoolAllocatorBase
+   (or hardcode 48 with static_assert).
+2. add m_owner_id + m_freelist_head[48] to PoolAllocatorBase.
+3. s_tls_owner_id TLS + global-counter assignment.
+4. PoolAllocator ctor: init m_owner_id, m_freelist_head[].
+5. create(): embed offset += sizeof(new members) (~392 B); recompute
+   slot-region start.
+6. new_redirected: chunk-local freelist pop.
+7. deallocate (FS=true/false + the 2418/965/1287 push sites):
+   owner-id check + chunk-local push.
+8. drain_thread_slot_freelists: per-chunk freelist drain.
+9. retire g_thread_slots / kame_slots_base / macOS slot TSD.
+
+Build breaks between edits 5–9 (hot path half-migrated), so this is an
+all-or-nothing landing — do it in one focused pass, verify with
+cross=100 (no double-payout) + alloc_minimal_bench (initial-exec) +
+alloc_stress hit-rate, then commit.
