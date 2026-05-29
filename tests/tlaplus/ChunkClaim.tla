@@ -132,29 +132,40 @@ CasPre(p) ==
             /\ phase' = [phase EXCEPT ![p] = "done"]
             /\ UNCHANGED <<claim, backoff, myBase>>
 
-(* POST-FIX: the claim CAS; on success, move to "owned" to write back_offset
-   afterwards.  No back_offset write happens before this point. *)
+(* POST-FIX: win the CAS and publish back_offset together.
+   In the real code these are two instructions (CAS, then the
+   back_offset write loop), but the write is UNCONTENDED: after the CAS,
+   claim[u]=p for exactly this proc's units, owners' unit-ranges are
+   disjoint, and no other proc's ScanChoose can pick these units (not
+   free) — so no other proc ever writes these back_offset entries, and
+   no lookup observes them until create() (modelled as part of becoming
+   "claimed").  Bundling them into one transition is therefore a sound
+   reduction; it just removes the benign "won but not-yet-written"
+   transient that is unobservable in the real code. *)
 CasPost(p) ==
     /\ Speculative = FALSE
     /\ phase[p] = "scanned"
     /\ IF RangeFree(myBase[p], CUof[p])
        THEN /\ claim' = [u \in Units |->
                            IF u \in Range(myBase[p], CUof[p]) THEN p ELSE claim[u]]
-            /\ phase' = [phase EXCEPT ![p] = "owned"]
-            /\ UNCHANGED <<backoff, myBase>>
+            /\ backoff' = [u \in Units |->
+                             IF u \in Range(myBase[p], CUof[p])
+                             THEN u - myBase[p] ELSE backoff[u]]
+            /\ phase' = [phase EXCEPT ![p] = "claimed"]
+            /\ UNCHANGED myBase
        ELSE /\ phase' = [phase EXCEPT ![p] = "done"]
             /\ UNCHANGED <<claim, backoff, myBase>>
 
-(* POST-FIX: write back_offset AFTER winning.  The units are exclusively
-   ours (claim[u]=p), so this can never race another winner's entries. *)
-WriteBackoffPost(p) ==
-    /\ Speculative = FALSE
-    /\ phase[p] = "owned"
-    /\ backoff' = [u \in Units |->
-                     IF u \in Range(myBase[p], CUof[p])
-                     THEN u - myBase[p] ELSE backoff[u]]
-    /\ phase' = [phase EXCEPT ![p] = "claimed"]
-    /\ UNCHANGED <<claim, myBase>>
+(* An idle proc with no claimable run gives up (terminal).  Models "this
+   stride found no free unit-run in this region" — in the real allocator
+   it would mmap a fresh region; here it simply stops.  Keeps the bounded
+   protocol deadlock-free so TLC explores all interleavings for the
+   safety invariants. *)
+GiveUp(p) ==
+    /\ phase[p] = "idle"
+    /\ ~\E b \in Units : ValidBase(p, b) /\ RangeFree(b, CUof[p])
+    /\ phase' = [phase EXCEPT ![p] = "done"]
+    /\ UNCHANGED <<claim, backoff, myBase>>
 
 Next ==
     \E p \in Procs :
@@ -162,7 +173,7 @@ Next ==
         \/ WriteBackoffPre(p)
         \/ CasPre(p)
         \/ CasPost(p)
-        \/ WriteBackoffPost(p)
+        \/ GiveUp(p)
 
 \* Stutter when all procs are terminal (claimed/done) so TLC has no
 \* deadlock once the bounded protocol finishes.
@@ -177,7 +188,7 @@ Spec == Init /\ [][Next \/ Terminating]_vars
 TypeOK ==
     /\ claim   \in [Units -> Procs \cup {FREE}]
     /\ backoff \in [Units -> 0 .. (MaxCU - 1)]
-    /\ phase   \in [Procs -> {"idle","scanned","wrote","owned","claimed","done"}]
+    /\ phase   \in [Procs -> {"idle","scanned","wrote","claimed","done"}]
     /\ myBase  \in [Procs -> Units]
 
 \* INV1: no unit is owned by two procs.  Trivially true (claim is a
