@@ -454,3 +454,76 @@ alloc+free vs "(1)" baseline f3d90835: 64 B (FS=true) 159->164 M ops/s,
 **256 B (FS=false) 148->163 M ops/s (~+10%)** — the FS=false gain is the
 chunk_header size_info read removed from line 0.  (The 128 B false-share
 win is by construction; not measurable on this 64 B-line host.)
+
+### 12.3 LANDED — direct-jump TLS shortcut + compact local-id freelist + retired g_thread_chunks
+
+Two follow-on refinements on top of "(1b)" / §12.2 (`6a355619`):
+
+**(a) Compact LOCAL-id-indexed per-chunk freelist.**  `m_freelist_head[]`
+in the chunk is now sized `[KAME_LOCAL_BUCKETS = 9]` (down from the
+global `[48]`) and indexed by a per-chunk LOCAL id = bucket's position
+in its `(ALIGN,FS)` template's size set:
+  - FS=true:       1 size per chunk -> id 0
+  - ALIGN=32  FS=false: {6,8,10,12,14}    -> 0..4
+  - ALIGN=64  FS=false: {24..31}          -> 0..7
+  - ALIGN=256 FS=false: {16, 32..39}      -> 0, 1..8
+  - ALIGN=1024 FS=false: {40..47}         -> 0..7
+`kBucketLocalId[48]` (allocator_prv.h) is the global->local map.  On a
+128 B cache line (Apple Silicon) the whole hot block — m_owner_id,
+m_fs_flag, all 9 freelist heads — fits in ONE line.  The FS=false slot
+prefix STORES the local-id directly (low 32 b of the `{local_id, SIZE}`
+8 B header at p-8) so dealloc reads it with no remap.
+
+**(b) Direct-jump TLS shortcut: `g_thread_freelist_ptr[bucket]`.**  A
+new per-thread TLS array of `char **` — each entry points DIRECTLY at
+the active chunk's `m_freelist_head[kBucketLocalId[bucket]]` cell.
+Maintained by `slow_allocate` and `bucket_first_access` (the COLD paths)
+where `kBucketLocalId[]` IS read.  The alloc hot path becomes ONE TLS
+read + one indirect deref:
+
+    if(char **head_ptr = g_thread_freelist_ptr[bucket]) {
+        if(char *head = *head_ptr) {
+            *head_ptr = *(char**)head;
+            return head;
+        }
+        return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
+    }
+    return cold_first_access(bucket, size);
+
+— NO bucket->local-id remap on the hot path, NO chunk-pointer-deref
+chain.  Dealloc hot path is unchanged in spirit (uses local-id directly
+from `m_fs_flag` for FS=true or the slot prefix for FS=false to index
+`chunk_obj->m_freelist_head[local]`).
+
+**(c) `g_thread_chunks[]` RETIRED.**  The chunk pointer is recoverable
+from any `g_thread_freelist_ptr[bucket]` entry via a single mask:
+
+    inline PoolAllocatorBase *chunk_from_freelist_ptr(char **fp) {
+        uintptr_t cb = (uintptr_t)fp & ~(ALLOC_MIN_CHUNK_SIZE - 1);
+        return (PoolAllocatorBase*)(cb + ALLOC_CHUNK_HEADER);
+    }
+
+(chunks are `ALLOC_MIN_CHUNK_SIZE`-aligned; the embed object lives at
+`chunk_base + ALLOC_CHUNK_HEADER` in the first unit, where `fp`
+resides).  Used by new_redirected's slow branch + the chunk-release
+sweep + bucket_first_access.  Removed: `g_thread_chunks[ALLOC_NUM_BUCKETS]`
+TLS, its macOS TSD-fast setup (`s_kame_chunks_tsd_offset`,
+`s_kame_chunks_key`, `kame_chunks_cold`, `kame_chunks_base`).  Saves
+384 B / thread + half the TSD sentinel-scan work at process start.
+
+**`new_redirected_large` properly fixed.**  Its earlier
+`kame_slots_base()[bucket]` pop was ORPHAN code from before (1) — nothing
+pushed to `g_thread_slots[]` after the rework, so the freelist was
+always-empty there.  It now uses the same `g_thread_freelist_ptr[]`
+direct-jump as `new_redirected`, sharing the same storage owner-side
+dealloc writes to.
+
+**Verification (x86-64 Linux, -O2):** alloc_stress 2000 threads × 4 runs
+× cross={0,5,100} all PASS (sentinel_fails=0, diff=0); alloc_bucket34_repro
+(FS=false ALIGN=256, exercises multi-local-id-per-chunk + prefix-stores-
+local-id) PASS; c_api_test PASS.  alloc_minimal_bench hot vs `6a355619`
+(global-[48] (1b)) 16-iter interleaved A/B: 64 B FS=true delta -1.5%,
+256 B FS=false delta -1.2% — within microbench noise.  The compact
+[KAME_LOCAL_BUCKETS=9] hot block + retired g_thread_chunks reduces
+cache-line touches on 128 B-line targets (Apple Silicon) by construction;
+not measurable on this 64 B-line host.

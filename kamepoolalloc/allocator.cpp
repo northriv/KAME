@@ -111,97 +111,76 @@ static inline uint32_t kame_owner_id() noexcept {
 // our two pthread_keys' TSD slots live.  Zero means "not yet
 // initialised"; the hot accessor falls back to TLV in that state.
 std::size_t s_kame_slots_tsd_offset = 0;
-std::size_t s_kame_chunks_tsd_offset = 0;
 
 namespace {
 pthread_key_t s_kame_slots_key;
-pthread_key_t s_kame_chunks_key;
 
 // Constructor priority 101: runs early but after libc/libpthread
 // constructors at priorities <= 100.  If pthread_key_create or the
-// sentinel scan fails, the offsets stay 0 and the allocator stays on
+// sentinel scan fails, the offset stays 0 and the allocator stays on
 // the TLV path with no further runtime overhead (degraded mode).
 //
 // Inter-TU ordering: other TUs' constructor(101)s may run before this
 // one and call operator new; they hit the TLV fallback (offset == 0),
 // which is safe.  Once we run, subsequent allocations on the main
 // thread go through fast TSD.  Other threads plant their own TSD slot
-// lazily on their first allocation via `kame_*_cold` below.
+// lazily on their first allocation via `kame_slots_cold` below.
+//
+// Only g_thread_slots[] gets the TSD fast-TLV bypass; g_thread_chunks
+// was retired in (§12.3) and g_thread_freelist_ptr[] uses direct TLV
+// access (one offset load on Linux glibc; macOS TLV thunk).
 __attribute__((constructor(101)))
 void kame_tls_init_fast() noexcept {
     if(pthread_key_create(&s_kame_slots_key, nullptr) != 0) return;
-    if(pthread_key_create(&s_kame_chunks_key, nullptr) != 0) return;
 
     char *tp = kame_thread_pointer();
     if( !tp) return;
 
-    // Sentinel scan: write two distinct magic values via the POSIX
-    // API, then walk the pthread struct to find which byte offsets
-    // received them.  POSIX doesn't expose the layout, but the
-    // implementation must store the value somewhere reachable from
-    // the thread pointer for `pthread_getspecific` to be fast — we
-    // rely on it being a fixed offset, true for both Apple's libc
-    // and glibc.
+    // Sentinel scan: plant a magic value via the POSIX API, then walk
+    // the pthread struct to find which byte offset received it.  POSIX
+    // doesn't expose the layout, but the implementation must store the
+    // value somewhere reachable from the thread pointer for
+    // `pthread_getspecific` to be fast — we rely on it being a fixed
+    // offset, true for both Apple's libc and glibc.
     const uintptr_t sent1 = (uintptr_t)0xDEAD600D11AA1234ull;
-    const uintptr_t sent2 = (uintptr_t)0xDEAD600D11BB5678ull;
-    pthread_setspecific(s_kame_slots_key,  (void *)sent1);
-    pthread_setspecific(s_kame_chunks_key, (void *)sent2);
+    pthread_setspecific(s_kame_slots_key, (void *)sent1);
 
-    std::size_t off1 = 0, off2 = 0;
+    std::size_t off1 = 0;
     // 4 KiB upper bound covers all libc TSD layouts we know about
     // (Apple reserves slots 0..N, then user keys start; offsets are
     // typically < 2 KiB).  Stride 8 — slot is a pointer.
-    for(std::size_t off = 0; off < 4096 && (!off1 || !off2); off += 8) {
+    for(std::size_t off = 0; off < 4096 && !off1; off += 8) {
         uintptr_t v = *reinterpret_cast<uintptr_t *>(tp + off);
-        if(v == sent1 && !off1) off1 = off;
-        else if(v == sent2 && !off2) off2 = off;
+        if(v == sent1) off1 = off;
     }
 
-    if(off1 && off2) {
-        s_kame_slots_tsd_offset  = off1;
-        s_kame_chunks_tsd_offset = off2;
+    if(off1) {
+        s_kame_slots_tsd_offset = off1;
         // Plant THIS thread's (= typically the main thread's) TSD
-        // slots now so the next allocation hits the fast path on the
-        // first try.  Touching the __thread arrays triggers TLV lazy
-        // init for this thread; the resulting addresses are stable
-        // for this thread's lifetime.
-        pthread_setspecific(s_kame_slots_key,  &g_thread_slots[0]);
-        pthread_setspecific(s_kame_chunks_key, &g_thread_chunks[0]);
+        // slot now so the next allocation hits the fast path on the
+        // first try.  Touching the __thread array triggers TLV lazy
+        // init; the resulting address is stable for this thread's life.
+        pthread_setspecific(s_kame_slots_key, &g_thread_slots[0]);
     }
     else {
-        // Scan failed — leave offsets at 0 (degraded TLV-only mode).
-        pthread_setspecific(s_kame_slots_key,  nullptr);
-        pthread_setspecific(s_kame_chunks_key, nullptr);
+        // Scan failed — leave offset at 0 (degraded TLV-only mode).
+        pthread_setspecific(s_kame_slots_key, nullptr);
     }
 }
 } // anon namespace
 
-// Cold paths for the fast-TSD accessors in the header.  Called when
+// Cold path for the fast-TSD accessor in the header.  Called when
 // either guard branch fails (offset == 0 → pre-init, fall back to
 // TLV; or TSD slot null → first allocation on this thread, plant the
 // pointer).  `preserve_most` (matching the header decl) tells the
-// caller that this call preserves nearly all caller-saved registers,
-// so `operator new`'s hot-path prologue stays small.  cold + noinline
-// keeps the inlining budget separate.
+// caller that this call preserves nearly all caller-saved registers.
 [[clang::preserve_most]]
 __attribute__((cold, noinline))
 AllocSlot *kame_slots_cold() noexcept {
     if(s_kame_slots_tsd_offset != 0) {
-        // Post-init, per-thread first touch.  Plant the TSD slot for
-        // this thread; `&g_thread_slots[0]` is TLV-resolved here,
-        // which lazily allocates per-thread storage.  Subsequent
-        // hot-path reads will see the non-null TSD value.
         pthread_setspecific(s_kame_slots_key, &g_thread_slots[0]);
     }
     return &g_thread_slots[0];
-}
-[[clang::preserve_most]]
-__attribute__((cold, noinline))
-PoolAllocatorBase **kame_chunks_cold() noexcept {
-    if(s_kame_chunks_tsd_offset != 0) {
-        pthread_setspecific(s_kame_chunks_key, &g_thread_chunks[0]);
-    }
-    return &g_thread_chunks[0];
 }
 #endif // KAME_FAST_TSD
 
@@ -259,8 +238,12 @@ struct AllocThreadExitCleanup {
         // `new_redirected` falls to `cold_first_access`, which
         // observes `s_alloc_tls_off == true` (set a few lines below)
         // and returns `std::malloc(size)`.
+        // (§12.3) g_thread_chunks[] is retired; only the freelist-ptr
+        // TLS needs clearing.  A null entry makes new_redirected take
+        // the cold path on next access (which observes s_alloc_tls_off
+        // == true and routes to std::malloc).
         for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b)
-            g_thread_chunks[b] = nullptr;
+            g_thread_freelist_ptr[b] = nullptr;
         // Walk each registered template's per-thread DLL.  Each
         // callback wipes its own `s_tls.my_chunk` / `s_tls.dll_head` / `s_tls.dll_tail`
         // first, then iterates with cached-next, setting BIT_OWNER_EXITED
@@ -700,7 +683,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	this->m_fs_flag = (FS && DUMMY);
 	this->m_base_bucket = (FS && DUMMY)
 	    ? static_cast<uint16_t>(bucket_for_size(ALIGN)) : 0;
-	for(int b = 0; b < 48; ++b)
+	for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b)
 		m_freelist_head[b] = nullptr;
 	for(int i = count - 1; i >= 0 ; --i)
 		m_flags[i] = 0; //zero clear.
@@ -883,12 +866,13 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// For the existing bucket-size schedule (SIZE = K*ALIGN), this
 	// equals `K + 1` — same bit count as the earlier change's `N_user + 1`.
 	const unsigned int N = (SIZE + 8u + ALIGN - 1u) / ALIGN;
-	// an earlier change header content: bucket index + SIZE packed into 8 bytes.
-	// Computed once on the cold allocate path so the dealloc hot path
-	// can read bucket directly (no `bucket_for_size` call).
-	const std::uint32_t bucket_idx = bucket_for_size(SIZE);
+	// (§12.3) Per-slot prefix = { uint32_t local_id (low), uint32_t SIZE
+	// (high) }.  Stores the COMPACT per-chunk local-id (kBucketLocalId
+	// off the hot path here, on alloc) so the dealloc fast path reads
+	// the freelist index directly — no bucket_for_size, no remap.
+	const std::uint32_t local_id = kBucketLocalId[bucket_for_size(SIZE)];
 	const std::uint64_t hdr_word =
-	    static_cast<std::uint64_t>(bucket_idx)
+	    static_cast<std::uint64_t>(local_id)
 	  | (static_cast<std::uint64_t>(SIZE) << 32);
 	// dropped the an earlier change 80% fragmentation cutoff — it
 	// walked all m_count FUINT words via count_bits on every
@@ -971,15 +955,16 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
-	// {bucket, SIZE} header at `p - 8` (LAST 8 bytes of the
-	// prefix bit's ALIGN area).  One 64-bit load recovers bucket
-	// directly — no `bucket_for_size(SIZE)` call on the hot path.
+	// (§12.3) Per-slot prefix { uint32_t local_id, uint32_t SIZE } at
+	// `p - 8` (LAST 8 bytes of the prefix bit's ALIGN area).  One 64-bit
+	// load recovers the local-id directly — no bucket_for_size, no
+	// kBucketLocalId remap on the hot path.
 	//
-	// Owner-side dealloc: push to the per-thread
-	// `g_thread_slots[bucket].freelist_head` — exactly the slot that
-	// `new_redirected` pops from on the next allocation of that size.
-	// Non-owner OR slot 0 (bucket==0 sentinel reserved by 5d-3) routes
-	// to the cross-thread path which uses slot_start for batch dispatch.
+	// Owner-side dealloc: push to this chunk's
+	// `m_freelist_head[local_id]` — exactly the cell `new_redirected`
+	// pops from via `g_thread_freelist_ptr[bucket]` on the next
+	// allocation of that size.  Non-owner routes to the cross-thread
+	// path which uses slot_start for batch dispatch.
 	//
 	// `s_tls.my_chunk` has declared type `PoolAllocator<ALIGN, false, false>*`
 	// (from the base's `PoolAllocator<ALIGN, DUMMY, DUMMY>*` with
@@ -989,11 +974,11 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	if(static_cast<void *>(PoolAllocator<ALIGN, true, false>::s_tls.my_chunk)
 	    == static_cast<void *>(this)) {
 		std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
-		unsigned bucket = static_cast<unsigned>(hdr);
-		// Defensive bound check (bucket must be valid; misroute on
+		unsigned local = static_cast<unsigned>(hdr);
+		// Defensive bound check (local-id must be valid; misroute on
 		// stale data is detected and falls through to bitmap path).
-		if(bucket >= 1 && bucket < ALLOC_NUM_BUCKETS) {
-			this->freelist_push(bucket, p);
+		if(local < (unsigned)KAME_LOCAL_BUCKETS) {
+			this->freelist_push(local, p);
 			return false;
 		}
 	}
@@ -1308,14 +1293,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// one TLS read on every owner-side dealloc, and freed up space
 	// for the AllocSlot to shrink to 8 B (chunk pointer moved into
 	// the parallel `g_thread_chunks[]` array).
-	constexpr int kBucket = ALIGN / ALLOC_ALIGNMENT;
 	if(static_cast<PoolAllocatorBase *>(s_tls.my_chunk) == this) {
 		// Slot stays "allocated" in the bitmap until flushed back via
 		// AllocThreadExitCleanup (thread exit) or the chunk's bitmap is
 		// directly returned to (allocate_pooled goes there on freelist
-		// miss).  Owner's next alloc on this bucket pops it back
-		// immediately from this chunk's `m_freelist_head[kBucket]`.
-		this->freelist_push(kBucket, p);
+		// miss).  An FS=true chunk serves exactly one size, so its
+		// freelist is local-id 0 (§12.3); the owner's next alloc on this
+		// bucket pops it back immediately via the TLS shortcut at
+		// `g_thread_freelist_ptr[bucket]` -> `m_freelist_head[0]`.
+		this->freelist_push(0, p);
 		return false;
 	}
 	// Post-teardown bypass.  See FS=false sibling above — once
@@ -1395,8 +1381,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	void *p = allocate_chunk_path(ALIGN);
 	PoolAllocatorBase *new_chunk =
 	    static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
-	if(new_chunk != g_thread_chunks[bucket])
-		g_thread_chunks[bucket] = new_chunk;
+	// (§12.3) Update the alloc-fast-path TLS shortcut to point at the new
+	// chunk's m_freelist_head[local-id-for-this-bucket].  `kBucketLocalId[]`
+	// is read HERE (cold path), so the hot path (new_redirected) needs no
+	// remap.  g_thread_chunks[] is retired — `chunk_from_freelist_ptr`
+	// recovers the chunk pointer from this ptr via a single mask.
+	g_thread_freelist_ptr[bucket] =
+	    new_chunk ? &new_chunk->m_freelist_head[kBucketLocalId[bucket]]
+	              : nullptr;
 	return p;
 }
 
@@ -1450,8 +1442,10 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 	void *p = PoolAllocator<ALIGN, true, false>::allocate_chunk_path(slot_size);
 	PoolAllocatorBase *new_chunk = static_cast<PoolAllocatorBase *>(
 	    PoolAllocator<ALIGN, true, false>::s_tls.my_chunk);
-	if(new_chunk != g_thread_chunks[bucket])
-		g_thread_chunks[bucket] = new_chunk;
+	// (§12.3) cf. FS=true sibling — update the alloc-fast-path TLS shortcut.
+	g_thread_freelist_ptr[bucket] =
+	    new_chunk ? &new_chunk->m_freelist_head[kBucketLocalId[bucket]]
+	              : nullptr;
 	return p;
 }
 
@@ -1836,9 +1830,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				// (always misses) on those paths; cheap enough to keep
 				// unconditional.
 				PoolAllocatorBase *nx_pa = static_cast<PoolAllocatorBase *>(nx);
+				// (§12.3) g_thread_chunks[] is retired; walk the TLS
+				// freelist-shortcut array and clear any entry whose
+				// pointer falls into the about-to-be-released chunk.
+				// `chunk_from_freelist_ptr` recovers the chunk pointer.
 				for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
-					if(g_thread_chunks[b] == nx_pa)
-						g_thread_chunks[b] = nullptr;
+					char **fp = g_thread_freelist_ptr[b];
+					if(fp && chunk_from_freelist_ptr(fp) == nx_pa)
+						g_thread_freelist_ptr[b] = nullptr;
 				}
 				// if the cursor was pointing at the released
 				// chunk, advance past it.  Also clear the exhaustion
@@ -2114,7 +2113,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		// drain_thread_slot_freelists() (freelists are now chunk-local).
 		{
 			CrossDeallocEntry fdrain[2] = {};
-			for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
+			// (§12.3) freelists are compact LOCAL-id indexed
+			// (KAME_LOCAL_BUCKETS = 9); walk that range, not 48.
+			for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b) {
 				char *fh = c->m_freelist_head[b];
 				c->m_freelist_head[b] = nullptr;
 				while(fh) {
@@ -2442,31 +2443,32 @@ PoolAllocatorBase::deallocate(void *p) {
 		// for the fast path; palloc is read only on the slow path below
 		// (cross-thread / released / foreign / post-teardown).
 		if(__builtin_expect(chunk_obj->m_owner_id == s_tls_owner_id, 1)) {
-			// Bucket from the cache-line-1 copies, never size_info:
-			//   FS=true  : the chunk's single bucket (m_base_bucket).
-			//   FS=false : per-slot {uint32_t bucket, uint32_t SIZE}
-			//              prefix at p - 8 (on the slot's own line, not
-			//              chunk_header).
-			unsigned bucket;
+			// (§12.3) Local-id from cache-line-1 m_fs_flag, never
+			// size_info:
+			//   FS=true  : chunk serves one size -> local-id 0.
+			//   FS=false : per-slot prefix { uint32_t local_id,
+			//              uint32_t SIZE } at p - 8 (slot's own line,
+			//              not chunk_header).
+			unsigned local;
 			if(chunk_obj->m_fs_flag) {
-				bucket = chunk_obj->m_base_bucket;
+				local = 0;
 			} else {
 				std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
 				    static_cast<char *>(p) - 8);
-				bucket = static_cast<unsigned>(hdr);
+				local = static_cast<unsigned>(hdr);
 				// Defensive: a stray pointer whose owner-id coincidentally
 				// matched but whose prefix is garbage — fall to the slow
 				// path (which re-validates via palloc + the vtable owner
 				// check).
-				if(bucket == 0 || bucket >= (unsigned)ALLOC_NUM_BUCKETS)
+				if(local >= (unsigned)KAME_LOCAL_BUCKETS)
 					goto vtable_dispatch;
 			}
-			// Push to the chunk-local freelist (no atomic, no indirect
-			// call, no template dispatch).  The slot stays "allocated" in
-			// the chunk's m_flags bitmap until the owner's next
-			// allocate_pooled cycle or thread-exit drain returns it via
+			// Push to the chunk-local freelist at the local-id (no
+			// atomic, no indirect call, no template dispatch).  Slot
+			// stays "allocated" in m_flags until owner's next alloc
+			// cycle / thread-exit drain returns it via
 			// batch_return_to_bitmap.
-			chunk_obj->freelist_push(bucket, p);
+			chunk_obj->freelist_push(local, p);
 			return true;
 		}
 	vtable_dispatch:
@@ -2681,7 +2683,15 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
     using PA = typename BT::PoolType;
     void *p = PA::template allocate<BT::SIZE>();
     PoolAllocatorBase *chunk = PA::get_pinned_chunk_base();
-    if(chunk) g_thread_chunks[B] = chunk;
+    if(chunk) {
+        // (§12.3) Wire up the alloc-fast-path TLS shortcut so subsequent
+        // allocs on this bucket hit the freelist directly.  kBucketLocalId
+        // is constexpr-foldable here (B is a template parameter).
+        // g_thread_chunks[] is retired — chunk pointer is now recovered
+        // from this ptr via `chunk_from_freelist_ptr` on the slow path.
+        g_thread_freelist_ptr[B] =
+            &chunk->m_freelist_head[kBucketLocalId[B]];
+    }
     return p;
 }
 
@@ -2782,7 +2792,15 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
 // allocations don't fault: `cold_first_access`'s switch on bucket
 // pairs `case 0:` with `case 1:` into a single label.
 ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS] = {};
-ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS] = {};
+// (§12.3) Direct-jump TLS shortcut: g_thread_freelist_ptr[bucket]
+// points DIRECTLY at the active chunk's m_freelist_head[local-id-for-
+// this-bucket] cell, set at chunk-switch by slow_allocate /
+// cold_first_access (which DO read kBucketLocalId[]).  Lets
+// new_redirected pop with no remap and no chunk-pointer-deref chain.
+// Replaces the retired `g_thread_chunks[]` parallel array — the chunk
+// pointer is recoverable from any non-null entry via
+// `chunk_from_freelist_ptr()` (single mask + add).
+ALLOC_TLS char **g_thread_freelist_ptr[ALLOC_NUM_BUCKETS] = {};
 
 // Out-of-line large-size dispatch.  Sizes > 256 B fall here from
 // `new_redirected`.  The 257..512 range dispatches via the same
@@ -2795,15 +2813,21 @@ ALLOC_TLS PoolAllocatorBase *g_thread_chunks[ALLOC_NUM_BUCKETS] = {};
 // allocations).
 void *new_redirected_large(std::size_t size) noexcept {
     if(size <= ALLOC_MAX_BUCKETED_SIZE) {
+        // (§12.3) Mirror new_redirected's direct-jump fast path: the
+        // small-bucketed range uses the same `g_thread_freelist_ptr[]`
+        // TLS shortcut.  The earlier `kame_slots_base()[bucket]` pop was
+        // ORPHAN code — nothing pushed to `g_thread_slots[]` after the
+        // "(1)" rework that moved freelists into chunks; this branch was
+        // always-empty.  Now it correctly shares the same TLS storage
+        // the dealloc fast path writes to (via chunk->m_freelist_head[]).
         unsigned int bucket = bucket_for_size(size);
-        AllocSlot &slot = kame_slots_base()[bucket];
-        char *head = slot.freelist_head;
-        if(head) {
-            slot.freelist_head = *reinterpret_cast<char **>(head);
-            return head;
+        if(char **head_ptr = g_thread_freelist_ptr[bucket]) {
+            if(char *head = *head_ptr) {
+                *head_ptr = *reinterpret_cast<char **>(head);
+                return head;
+            }
+            return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
         }
-        if(PoolAllocatorBase *chunk = kame_chunks_base()[bucket])
-            return chunk->slow_allocate(bucket, size);
         return cold_first_access(bucket, size);
     }
     if( !g_sys_image_loaded || s_alloc_tls_off)
