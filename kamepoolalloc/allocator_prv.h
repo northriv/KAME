@@ -157,10 +157,14 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! log2(ALLOC_MIN_CHUNK_SIZE) — used for fast unit-index extraction
 //! `unit_idx = pdiff >> ALLOC_MIN_CHUNK_SHIFT`.  Compile-time constant.
 #define ALLOC_MIN_CHUNK_SHIFT 18  //log2(256 KiB)
-//! Max chunk = 4 units = 1 MiB (CHUNK_UNITS_MAX × ALLOC_MIN_CHUNK_SIZE).
-//! All allocations of size ≤ ALLOC_MAX_BUCKETED_SIZE (16376 B) fit within
-//! a 4-unit (1 MiB) chunk's slot region (= 1 MiB − 64 B = 1048512 B).
-#define ALLOC_MAX_CHUNK_UNITS 4
+//! Max chunk = 16 units = 4 MiB.  The compile-time bucket templates only
+//! ever use CHUNK_UNITS ∈ {1,2,4} (≤ 1 MiB — see the CHUNK_UNITS constexpr
+//! below); the larger 8/16-unit chunks are claimed only by the *runtime*
+//! N-unit path used for dedicated single-slot large allocations
+//! (allocate_dedicated_chunk).  A 16-unit chunk still fits within a 32 MiB
+//! region's 128-unit bitmap and within one BitmapWord's claim CAS (≤ 64
+//! units/word on 64-bit, ≤ 32 on 32-bit), and back_off (uint8) covers it.
+#define ALLOC_MAX_CHUNK_UNITS 16
 #define ALLOC_MAX_CHUNK_SIZE (ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_CHUNK_UNITS)
 // OS page size — relevant for the `madvise()` granularity on chunk
 // release.  All chunk sizes are multiples of ALLOC_MIN_CHUNK_SIZE
@@ -283,6 +287,15 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 #define ALLOC_CHUNK_HEADER_PALLOC_OFFSET        8   // [ 8..15]: palloc
 #define ALLOC_CHUNK_HEADER_FN_OFFSET           16   // [16..23]: DeallocateFn
 #define ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET    24   // [24..31]: SizeOfFn
+// [32..39]: dedicated-chunk total byte size (only when SIZE_INFO low-32 ==
+// ALLOC_CHUNK_DEDICATED_SIZEINFO).  Reuses the field freed by the retired
+// recycle epoch.  A "dedicated" chunk is a single large allocation that
+// occupies a whole N-unit chunk (no sub-slot bitmap); deallocate() detects
+// the sentinel BEFORE bucket_for_size and releases the whole chunk.
+#define ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET 32  // [32..39]: dedicated chunk bytes
+//! SIZE_INFO low-32 sentinel marking a dedicated single-slot large chunk.
+//! Distinct from any real ALIGN (≤ 1024) and from 0 (the FS=false marker).
+#define ALLOC_CHUNK_DEDICATED_SIZEINFO 0xFFFFFFFFu
 // [32..55] free (was recycle epoch, retired — DLL/lookup safety comes
 //           from BIT_OWNED gating + live-slot invariant, not an epoch)
 // [56..63] = slot-0 header (= ALLOC_CHUNK_HEADER - 8).  No constant
