@@ -1508,9 +1508,9 @@ PoolAllocatorBase::allocate_chunk() {
 				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
 				                 + (size_t)base_unit_idx;
 
-				if(bm->compare_exchange_weak(v, newv,
-				                             std::memory_order_acquire,
-				                             std::memory_order_relaxed)) {
+				if(bm->compare_exchange_strong(v, newv,
+				                               std::memory_order_acquire,
+				                               std::memory_order_relaxed)) {
 					// We won the claim CAS (acquire); all CHUNK_UNITS units
 					// are now exclusively ours.  Publish per the verified
 					// epoch+seqlock protocol (ChunkRecycle_threadepoch.tla):
