@@ -2686,6 +2686,14 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 			writeBarrier();
 			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[region])) {
 				readBarrier();
+				// §13: register (mp, ccnt) in the radix tree, exactly as
+				// allocate_chunk's region-mmap path does.  WITHOUT this a
+				// dedicated chunk placed in a region first claimed *here*
+				// (all earlier regions full) would be invisible to
+				// radix_lookup, so deallocate/size_of of that chunk would
+				// miss -> leak / wrong free.  Must publish after
+				// s_mmapped_spaces[region] but before any chunk is handed out.
+				radix_insert(p, region);
 				fprintf(stderr,
 				    "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n",
 				    p, (unsigned long long)mmap_size);
