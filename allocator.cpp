@@ -933,7 +933,33 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// the cold alloc path, so the dealloc fast path needs no bucket_for_size
 	// / remap).  Borrow mode stores { uint32 local_id, uint32 SIZE } at
 	// slot_start-8; full-usable mode stores (N<<8)|local_id in m_sizes[bit].
-	const std::uint32_t local_id = kBucketLocalId[bucket_for_size(SIZE)];
+	//
+	// (§17) For the FULL tier (ALIGN>=1024) we derive local_id directly
+	// from N, not via `kBucketLocalId[bucket_for_size(SIZE)]`.  Reason:
+	// bucket 49 (ALIGN=4096 N=2) and bucket 42 (ALIGN=1024 N=8) share the
+	// same slot size (8192), so `bucket_for_size(8192)` is ambiguous — it
+	// resolves to 42 (the denser plain-malloc route).  An ALIGN=4096 chunk
+	// allocating a bucket-49 slot under that lookup would tag the slot
+	// with bucket-42's local_id (2 instead of 1), routing its free to the
+	// wrong chunk-local freelist.  Direct (ALIGN,N)→local_id avoids the
+	// ambiguity and stays robust if more bucket entries land on the same
+	// slot size in future.  Borrow tier's SIZE-to-bucket lookup is
+	// bijective (user_max = N*ALIGN-8 is unique per (ALIGN,N)), so it
+	// still uses the table.
+	std::uint32_t local_id;
+	if constexpr (ALIGN >= 1024u) {
+		if constexpr (ALIGN == 1024u) {
+			// N ∈ {6,7,8,9,11,13,15,17} → 0..7 (buckets 40..47).
+			local_id = (N <= 9u) ? (N - 6u) : (4u + (N - 11u) / 2u);
+		}
+		else /* ALIGN == 4096 */ {
+			// N ∈ {1,2,4,8} (power-of-2 page tier) → ctz(N) (buckets 48..51).
+			local_id = static_cast<std::uint32_t>(__builtin_ctz(N));
+		}
+	}
+	else {
+		local_id = kBucketLocalId[bucket_for_size(SIZE)];
+	}
 	const std::uint64_t hdr_word =
 	    static_cast<std::uint64_t>(local_id)
 	  | (static_cast<std::uint64_t>(SIZE) << 32);
@@ -3092,6 +3118,59 @@ void *new_redirected_large(std::size_t size) noexcept {
     return allocate_large_size_or_malloc(size);
 }
 
+// (§17) Aligned-allocation entry point — pool-or-libc dispatch on
+// (alignment, size).  alignment is power-of-two, > ALLOC_ALIGNMENT.
+//
+// Routing:
+//   1. bucket_for_aligned(A, S) finds the smallest pool bucket with
+//      ALIGN ≥ A (A divides ALIGN) and usable ≥ S.  Hit → allocate via the
+//      bucket's freelist-or-slow_allocate path (same as new_redirected_large
+//      for that bucket), and the returned slot is ALIGN-aligned (hence
+//      A-aligned because A divides ALIGN).
+//   2. No bucket fits but A ≤ ALLOC_MIN_CHUNK_SIZE (256 KiB) and S fits in
+//      a multi-unit chunk: route to allocate_dedicated_chunk.  Its payload
+//      starts at a 256 KiB unit boundary (§15), which is A-aligned for
+//      every A up to 256 KiB.
+//   3. Otherwise → libc posix_memalign.
+//
+// Pre-activation / post-teardown: like new_redirected, fall through to
+// posix_memalign so TLS dtor-time allocs etc. stay safe.
+void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
+    // bucket_for_aligned returns ALLOC_NUM_BUCKETS when no bucket fits.
+    unsigned int bucket = bucket_for_aligned(alignment, size);
+    if(bucket < (unsigned)ALLOC_NUM_BUCKETS &&
+       g_sys_image_loaded && !s_alloc_tls_off) {
+        // Pool bucket path — mirrors new_redirected_large's freelist /
+        // slow_allocate / cold_first_access cascade.  bucket's slot is
+        // kBucketAlign[bucket]-aligned, hence alignment-aligned (alignment
+        // divides kBucketAlign[bucket] by bucket_for_aligned's contract).
+        if(char **head_ptr = g_thread_freelist_ptr[bucket]) {
+            if(char *head = *head_ptr) {
+                *head_ptr = *reinterpret_cast<char **>(head);
+                return head;
+            }
+            return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
+        }
+        return cold_first_access(bucket, size);
+    }
+    // Pool can't serve this combo (alignment > 4096, or size too big for
+    // any matching bucket, or pre-activate / post-teardown).
+    if(g_sys_image_loaded && !s_alloc_tls_off &&
+       alignment <= (std::size_t)ALLOC_MIN_CHUNK_SIZE &&
+       size <= (std::size_t)ALLOC_MAX_CHUNK_SIZE - (std::size_t)ALLOC_CHUNK_K_MAX) {
+        // Dedicated-chunk path — §15 payload starts at a 256 KiB unit
+        // boundary, satisfying any alignment up to 256 KiB.
+        if(void *p = PoolAllocatorBase::allocate_dedicated_chunk(size))
+            return p;
+    }
+    // Fall back to libc posix_memalign — handles huge sizes, very large
+    // alignments (> 256 KiB), and the pre-activate / post-teardown windows.
+    void *p = nullptr;
+    if(posix_memalign(&p, alignment, size) != 0)
+        return nullptr;
+    return p;
+}
+
 // Forward non-pool pointers to the *actual* libsystem free, bypassing
 // the `free` symbol — which our `__DATA,__interpose` redirects back to
 // `kame_free`, causing infinite recursion.
@@ -3518,28 +3597,27 @@ void *kame_pool_aligned_alloc(std::size_t alignment, std::size_t size) noexcept 
 		errno = ENOMEM;
 		return nullptr;
 	}
-	// Over-aligned (> 16 B): defer to platform-native aligned-alloc.
-	// On POSIX, `posix_memalign` returns a `free()`-able pointer, so
-	// `kame_pool_free` works transparently (it falls through to
-	// `libsystem_free_for_pool` → libc `free`).  On Windows,
-	// `_aligned_malloc` requires the matching `_aligned_free` — and
-	// `kame_pool_free` has no alignment info to dispatch correctly.
-	// an earlier change therefore restricts the C API's over-aligned path on
-	// Windows: callers needing alignment > 16 B should use
+	// Over-aligned (> 16 B): (§17) route via `new_redirected_aligned`,
+	// which pulls the slot from a matching pool bucket
+	// (ALIGN ∈ {32,64,256,1024,4096}) or from a dedicated chunk (payload
+	// starts at a 256 KiB unit boundary — alignment up to 256 KiB) before
+	// falling back to libc `posix_memalign`.  POOL pointers are freed via
+	// the ordinary pool `free` path — no `_aligned_free` pairing.
+	//
+	// Windows: `_aligned_malloc` requires `_aligned_free`, which
+	// `kame_pool_free` can't dispatch — so the Windows branch still
+	// rejects over-aligned C-API requests (callers should use
 	// `_aligned_malloc` / `_aligned_free` directly, or use C++
-	// `operator new(size, std::align_val_t{N})` which carries
-	// alignment into the matching `operator delete`.
+	// `operator new(size, std::align_val_t{N})` whose matching
+	// `operator delete` carries the alignment).
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	errno = EINVAL;
 	return nullptr;
 #else
-	void *p = nullptr;
-	int rc = posix_memalign(&p, alignment, size);
-	if(rc != 0) {
-		errno = rc;
-		return nullptr;
-	}
-	return p;
+	if(void *p = new_redirected_aligned(alignment, size))
+		return p;
+	errno = ENOMEM;
+	return nullptr;
 #endif
 }
 
@@ -3558,11 +3636,14 @@ int kame_pool_posix_memalign(void **memptr, std::size_t alignment,
 		*memptr = p;
 		return 0;
 	}
-	// Same over-aligned restriction as `kame_pool_aligned_alloc`.
+	// (§17) Same pool-or-libc routing as `kame_pool_aligned_alloc`.
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	return EINVAL;
 #else
-	return posix_memalign(memptr, alignment, size);
+	void *p = new_redirected_aligned(alignment, size);
+	if( !p) return ENOMEM;
+	*memptr = p;
+	return 0;
 #endif
 }
 
@@ -3754,22 +3835,30 @@ void operator delete[](void* p, std::size_t /*size*/) noexcept {
 // Windows.  The aligned operator delete forms below carry the
 // alignment so dispatch is correct.
 namespace {
+// (§17) On POSIX, over-aligned new is routed via `new_redirected_aligned`
+// — pool buckets up to ALIGN=4096, then dedicated chunk (256 KiB-aligned
+// payload) up to alignment=256 KiB, then libc `posix_memalign`.  Pool
+// pointers free through the ordinary pool path; libc pointers free
+// through libc free; `deallocate_pooled_or_free` already resolves both,
+// so `operator delete(align_val_t)` needs no separate aligned-free path.
+//
+// Windows keeps the platform-pair `_aligned_malloc`/`_aligned_free`
+// because `kame_pool_free` lacks alignment info to dispatch correctly.
 inline void *kame_overaligned_alloc(std::size_t alignment,
                                     std::size_t size) noexcept {
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     return _aligned_malloc(size, alignment);
 #else
-    void *p = nullptr;
-    if(posix_memalign(&p, alignment, size) != 0)
-        return nullptr;
-    return p;
+    return new_redirected_aligned(alignment, size);
 #endif
 }
 inline void kame_overaligned_free(void *p) noexcept {
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     _aligned_free(p);
 #else
-    std::free(p);
+    // POSIX path: pool slots + libc fallback both freed via the unified
+    // pool-or-libc free.  Same as `deallocate_pooled_or_free`.
+    deallocate_pooled_or_free(p);
 #endif
 }
 } // namespace
@@ -3798,10 +3887,13 @@ void* operator new[](std::size_t size, std::align_val_t al, const std::nothrow_t
 }
 __attribute__((noinline))
 void operator delete(void* p, std::align_val_t al) noexcept {
+    // (§17) POSIX: pool-or-libc unified through `kame_overaligned_free` =
+    // `deallocate_pooled_or_free`.  Windows: keep the `_aligned_free`
+    // pairing for the platform-native path.
     if ((std::size_t)al <= ALLOC_ALIGNMENT)
         deallocate_pooled_or_free(p);
     else
-        kame_overaligned_free(p);  // matches kame_overaligned_alloc
+        kame_overaligned_free(p);
 }
 __attribute__((noinline))
 void operator delete[](void* p, std::align_val_t al) noexcept {
