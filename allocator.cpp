@@ -395,26 +395,30 @@ struct CrossDeallocBatch {
             return;
         }
         CrossDeallocEntry tmp[2] = {{c, s}, {nullptr, nullptr}};
+        // (§20) Cache the dll-cursor-reset addresses BEFORE
+        // batch_return_to_bitmap.  If this is `c`'s last slot AND
+        // BIT_OWNED is clear (owner exited), batch_return releases the
+        // chunk: the placement-new destructor runs, and `c` becomes a
+        // stale pointer — accessing `c->m_owner_dll_head_addr` /
+        // `c->m_owner_dll_force_walk_ptr` afterwards is UB by C++'s
+        // object-lifetime rule (UBSAN's vptr check fires under
+        // -fsanitize=undefined).  The fields are write-once at chunk
+        // construction so the cached values are safe across the call.
+        void *cached_dll_head_addr = c->m_owner_dll_head_addr;
+        auto *cached_force_walk =
+            c->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
         c->batch_return_to_bitmap(tmp);
-        // an earlier change/5t: direct bitmap return cleared a bit on `c`.
-        // Reset cursor only if we are the chunk's owner — for
-        // cross-thread frees (the common case on push_direct, which
-        // is invoked from FS=true deallocate_pooled when
-        // `s_tls.my_chunk != c`), the reset would waste our cursor on
-        // a DLL that doesn't contain `c`.  an earlier change identification
-        // via per-chunk `m_owner_dll_head_addr` vs current thread's
-        // `&s_tls.dll_head` for the FS=true ALIGN template.
-        if(c->m_owner_dll_head_addr ==
+        // (§20) `c` may be destructed past this point — use cached values only.
+        if(cached_dll_head_addr ==
            PoolAllocator<ALIGN, true, true>::dll_head_tls_addr())
             PoolAllocator<ALIGN, true, true>::reset_dll_walk_state();
-        else if(auto *p = c->m_owner_dll_force_walk_ptr.load(
-                              std::memory_order_acquire))
-            // an earlier change acquire load: synchronises with owner-exit's
-            // release-store of `nullptr` in
+        else if(cached_force_walk)
+            // Acquire load (above) synchronises with owner-exit's
+            // release-store of nullptr in
             // `release_dll_chunks_for_thread`.  Null after owner exit
             // → skip deref; non-null means owner's TLS storage is
             // still live (owner-exit nullifies BEFORE thread teardown).
-            p->store(true, std::memory_order_relaxed);
+            cached_force_walk->store(true, std::memory_order_relaxed);
     }
 
     void flush() noexcept {
@@ -1106,36 +1110,43 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// batch TLS instance had already been destroyed) — we never touch
 	// `tls_cross_dealloc_batch` here so the post-teardown case is
 	// implicit.
+	// (§20) Cache dll-cursor-reset addresses BEFORE batch_return_to_bitmap.
+	// If this is the chunk's last live slot AND BIT_OWNED is clear
+	// (owner exited), batch_return releases `this`: the placement-new
+	// destructor runs and `this` becomes a stale pointer — accessing
+	// `this->m_owner_dll_head_addr` / `this->m_owner_dll_force_walk_ptr`
+	// afterwards is UB (UBSAN's vptr check fires).  The fields are
+	// write-once at chunk construction so the cached values stay valid
+	// across the call; the force-walk pointer's target lives in the
+	// OWNER thread's TLS (independent of this chunk's lifetime).
+	void *cached_dll_head_addr = this->m_owner_dll_head_addr;
+	auto *cached_force_walk =
+	    this->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
 	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 	this->batch_return_to_bitmap(tmp);
-	// an earlier change/5t/5v: direct `batch_return_to_bitmap` cleared 1 bit
-	// on `this` chunk → it may now have space for a future
-	// `allocate_pooled`.  Two cases:
+	// (§20) `this` may be destructed past this point — use cached values
+	// only.  Direct `batch_return_to_bitmap` cleared 1 bit on `this` chunk
+	// → it may now have space for a future `allocate_pooled` (if not
+	// released).  Two cases:
 	//
 	//   * Same-thread (we are the chunk's owner):
-	//     `m_owner_dll_head_addr == &s_tls.dll_head`.  Reset OUR cursor
+	//     cached_dll_head_addr == &s_tls.dll_head.  Reset OUR cursor
 	//     directly — next allocate_chunk_path walks our DLL from
 	//     head and finds the revival.
 	//
 	//   * Cross-thread (owner is some other thread):
-	//     Bump the OWNER thread's "force walk from head" hint flag
-	//     via the chunk's `m_owner_dll_force_walk_ptr`.  Owner's
-	//     next allocate_chunk_path checks + clears the flag and
-	//     restarts its DLL walk.  (an earlier change — replaces the earlier change's
-	//     "skip cross-thread reset" which on Linux let cross-thread
-	//     revivals starve the owner's DLL walk → spurious mmap
-	//     bloat in alloc_stress.)
+	//     Bump the OWNER thread's "force walk from head" hint flag.
+	//     The flag's storage lives in owner TLS (independent of this
+	//     chunk); cached_force_walk is null after owner-exit's
+	//     release-store, so we skip the deref.
 	//
-	// `memory_order_relaxed`: hint flag, false-negative one-cycle
-	// delay acceptable.
-	if(this->m_owner_dll_head_addr ==
+	// memory_order_relaxed on the store: hint flag, one-cycle false-
+	// negative delay acceptable.
+	if(cached_dll_head_addr ==
 	   static_cast<void *>(&PoolAllocator<ALIGN, true, false>::s_tls.dll_head))
 		PoolAllocator<ALIGN, true, false>::reset_dll_walk_state();
-	else if(auto *p = this->m_owner_dll_force_walk_ptr.load(
-	                      std::memory_order_acquire))
-		// Defensive null check: owner may have exited and nullified
-		// this pointer (see release_dll_chunks_for_thread).
-		p->store(true, std::memory_order_relaxed);
+	else if(cached_force_walk)
+		cached_force_walk->store(true, std::memory_order_relaxed);
 	return false;
 }
 
@@ -1449,13 +1460,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// + sentinel so later pthread_key dtors that delete pool slots
 	// do not touch freed heap.
 	if(__builtin_expect(s_alloc_tls_off, 0)) {
+		// (§20) Cache the dll-head address BEFORE batch_return_to_bitmap
+		// — see the FS=false sibling for the lifetime rationale.
+		void *cached_dll_head_addr = this->m_owner_dll_head_addr;
 		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
 		this->batch_return_to_bitmap(tmp);
-		// an earlier change/5t: reset cursor only if we are the chunk's owner.
-		// At post-teardown (s_alloc_tls_off), our pthread_key dtors
-		// may delete pool slots from any chunk we ever held — usually
-		// our own, but cross-thread retained references are possible.
-		if(this->m_owner_dll_head_addr == static_cast<void *>(&s_tls.dll_head))
+		// `this` may be destructed past this point — cached only.  Reset
+		// cursor only if we are the chunk's owner.  At post-teardown
+		// (s_alloc_tls_off), our pthread_key dtors may delete pool slots
+		// from any chunk we ever held — usually our own, but cross-thread
+		// retained references are possible.
+		if(cached_dll_head_addr == static_cast<void *>(&s_tls.dll_head))
 			reset_dll_walk_state();
 		return false;
 	}

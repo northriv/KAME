@@ -1319,3 +1319,47 @@ mmap overhead amortises away.  A follow-up could add a per-process /
 per-NUMA-node LIFO cache of recently-freed §19 regions (bounded depth,
 size-keyed) to recover the tight-loop pattern.  Out of scope here;
 correctness is the §19 deliverable.
+
+## 20. Cross-thread free vptr-after-release UB — caches dll-cursor fields pre-call
+
+UBSAN (-fsanitize=undefined, vptr check enabled by default) flagged
+three sites where a cross-thread free dereferenced `this` (or the
+sibling `c`) AFTER `batch_return_to_bitmap` may have released the
+chunk.  When the cross-free is the chunk's LAST live slot AND BIT_OWNED
+is already clear (owner exited), `batch_return_to_bitmap` runs the
+placement-new destructor on `*this` inside its `i_am_releaser` branch
+and immediately calls `deallocate_chunk(cbase, csz)` — the bytes are
+still mapped but the C++ object's lifetime has ended, so any access via
+the typed pointer is UB.
+
+The follow-on code reads `this->m_owner_dll_head_addr` (and an atomic
+pointer field `this->m_owner_dll_force_walk_ptr`) to decide between
+same-thread cursor reset and cross-thread force-walk hint.  These two
+fields are write-once at chunk construction so reading them BEFORE the
+batch call is sound and the cached values stay valid across destruction.
+
+Fix at three sites:
+  - `CrossDeallocBatch::push_direct(c, s)` (FS=true cross-thread).
+  - `PoolAllocator<ALIGN,false>::deallocate_pooled(p)` (FS=false default
+    path — this was the site UBSAN tripped on first in
+    alloc_stress_test).
+  - `PoolAllocator<ALIGN,true>::deallocate_pooled(p)` post-teardown
+    branch (s_alloc_tls_off).
+
+Each site now loads `m_owner_dll_head_addr` and (where used) the atomic
+acquire-load of `m_owner_dll_force_walk_ptr` into local cached variables
+BEFORE the `batch_return_to_bitmap` call.  The cached values are then
+used for the cursor-reset / force-walk dispatch, never re-touching
+`this`.  The atomic load happens-before semantics with respect to
+owner-exit's release-store of nullptr are preserved.
+
+### Verification
+
+  - **UBSAN with vptr check** (NO `-fno-sanitize=vptr`): c_api,
+    alloc_stress (2000 threads × 20K ops × 10 % cross), bucket34_repro,
+    sweep_test (39632 sizes), aligned_sweep (376 combos), §15 dedicated
+    MT, §16 full-usable MT, §17 aligned MT, §19 §19 MT — all PASS.
+    UBSAN runs clean with default flags; `-fno-sanitize=vptr` no longer
+    required.
+  - Regression: release + TSAN + ASan + 32-bit also PASS on all of
+    the above.
