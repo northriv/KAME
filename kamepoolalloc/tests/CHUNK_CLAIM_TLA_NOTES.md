@@ -1085,3 +1085,77 @@ for align > 16).
     free — same cache line as m_owner_id).  Full-usable range hot path
     145..165 M ops/s.
   - c_api + alloc_stress + bucket34_repro: PASS (64-bit and 32-bit).
+
+## 17. Pool-routed over-aligned allocation (POSIX)
+
+Every pool slot is `kBucketAlign[bucket]`-aligned because the slot region
+starts at a 256 KiB unit boundary — a multiple of every `kBucketAlign`
+entry — and slot j is at `mempool + j*ALIGN`.  So we can serve
+`posix_memalign(A, S)` / `aligned_alloc(A, S)` / `new(align_val_t{A})`
+from the existing buckets whenever some bucket's ALIGN is a multiple of A
+and its usable size covers S.  No `_aligned_free` pairing required — the
+returned pointer is an ordinary pool slot freeable via the standard
+`kame_free` path, with libc fallback handled transparently in
+`PoolAllocatorBase::deallocate`.
+
+### Routing
+
+`bucket_for_aligned(A, S)` (cold path, linear scan of 52 buckets) picks
+the smallest bucket with `kBucketAlign[b] >= A`, `kBucketAlign[b] % A == 0`,
+and `kame_bucket_usable(b) >= S`:
+  - A ∈ {32, 64, 256, 1024, 4096} → the matching ALIGN tier (32/64/256
+    mid buckets and the 1024/4096 full-usable tiers).
+  - No match (A > 4096, OR A ≤ 4096 but S exceeds every matching bucket):
+    `new_redirected_aligned` falls back to `allocate_dedicated_chunk`
+    (its §15 payload starts at a 256 KiB unit boundary — A-aligned for
+    every A up to 256 KiB), and finally to libc `posix_memalign`.
+
+### Entry points (POSIX)
+
+`new_redirected_aligned(A, S)` — pool-or-libc dispatch; mirrors
+`new_redirected_large`'s freelist / `slow_allocate` / `cold_first_access`
+cascade for the chosen bucket.
+
+  - C API: `kame_pool_aligned_alloc` and `kame_pool_posix_memalign` route
+    A > 16 through it (≤ 16 stays on `new_redirected`).
+  - C++: `operator new(size, align_val_t{A})` and its array / nothrow
+    siblings.  Matching `operator delete(p, align_val_t{A})` calls
+    `deallocate_pooled_or_free(p)`, which resolves pool pointers via
+    `PoolAllocatorBase::deallocate` and libc-fallback pointers via libc
+    `free` (same unified free as the rest of the pool).
+
+Windows keeps the platform-native `_aligned_malloc` / `_aligned_free`
+pairing because the pool free path has no alignment info to dispatch
+`_aligned_free` correctly.
+
+### Bug found during integration: `local_id` ambiguity at SIZE=8192
+
+`allocate_pooled` derived the slot's `local_id` via
+`kBucketLocalId[bucket_for_size(SIZE)]`.  For the full-usable tier this
+breaks at SIZE = 8192: bucket 49 (ALIGN=4096 N=2) and bucket 42
+(ALIGN=1024 N=8) share that slot size, and `bucket_for_size` routes a
+plain 8192-byte request to bucket 42 (denser ALIGN=1024 chunks).
+Reached via the §17 aligned path, an ALIGN=4096 chunk was tagging its
+slot with bucket-42's local_id (2 instead of 1), and the eventual free
+pushed the slot to the chunk's `m_freelist_head[2]` (bucket 50's list);
+the next bucket-50 alloc popped the WRONG-size slot and overlapped a
+neighbour — caught by the per-byte pattern verify at offset 8416 of a
+10000-byte slot.  Fix: derive `local_id` directly from (ALIGN, N) inside
+the full-usable branch of `allocate_pooled` (the borrow tier keeps the
+table lookup, which IS bijective because user_max = N*ALIGN-8 uniquely
+identifies the bucket).
+
+### Verification
+
+  - Aligned sweep — A ∈ {32, 64, 128, 256, 512, 1024, 2048, 4096} × 45
+    sizes spanning every bucket transition + 256 KiB-aligned bigger
+    cases (4 A × 4 S): every returned pointer is A-aligned, usable ≥ S,
+    full-range writes survive neighbour alloc/free.  376 combos PASS on
+    64-bit and 32-bit.
+  - Aligned MT stress: 16 threads × 20000 iter × random (A, S), 16 live
+    per thread (forces freelist-miss / slow_allocate / cross-thread
+    frees in the aligned path), per-allocation pattern verify: PASS 4/4.
+  - C++ `new (align_val_t{N}) Foo` for N ∈ {64, 256, 4096}: pointers are
+    N-aligned, delete frees through the unified pool path.  PASS.
+  - Regression: §15 dedicated, §16 full-usable, c_api, alloc_stress,
+    bucket34_repro: all PASS (64-bit and 32-bit).

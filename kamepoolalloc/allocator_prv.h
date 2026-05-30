@@ -1681,6 +1681,51 @@ inline constexpr uint8_t kBucketLocalId[52] = {
     0, 1, 2, 3,
 };
 
+//! (§17) Per-bucket pointer-alignment guarantee, in bytes.  Every slot in
+//! bucket K is `kBucketAlign[K]`-aligned because the slot region starts at
+//! a 256 KiB unit boundary (a multiple of every entry) and slot j sits at
+//! `mempool + j*ALIGN`.  Used by `bucket_for_aligned` to route an
+//! over-aligned (alignment > ALLOC_ALIGNMENT) request to the smallest
+//! bucket whose ALIGN is a multiple of the requested alignment.
+//!
+//! Power-of-two entries only matter for the aligned path; FS=true buckets
+//! with non-power-of-two ALIGN (3, 5, 7, 9, 11, 13, 15, 17..23) are still
+//! listed truthfully and are filtered out by the `(al & (A-1)) == 0`
+//! divisibility test for the (always power-of-two) caller alignment.
+inline constexpr uint16_t kBucketAlign[52] = {
+    // 0: size=0 reuses bucket 1 (ALIGN=16)
+    16,
+    // 1..5 FS=true: ALIGN = SIZE = K*16
+    16, 32, 48, 64, 80,
+    // 6 FS=false ALIGN=32 ; 7 FS=true ALIGN=112 ; 8 FS=false ALIGN=32 ;
+    // 9 FS=true ALIGN=144 ; 10 ALIGN=32 ; 11 ALIGN=176 ; 12 ALIGN=32 ;
+    // 13 ALIGN=208 ; 14 ALIGN=32 ; 15 ALIGN=240 ; 16 FS=false ALIGN=256
+    32, 112, 32, 144, 32, 176, 32, 208, 32, 240, 256,
+    // 17..23 FS=true ALIGN=SIZE (272..368)
+    272, 288, 304, 320, 336, 352, 368,
+    // 24..31 FS=false ALIGN=64
+    64, 64, 64, 64, 64, 64, 64, 64,
+    // 32..39 FS=false ALIGN=256
+    256, 256, 256, 256, 256, 256, 256, 256,
+    // 40..47 FS=false ALIGN=1024 (§16 full-usable)
+    1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
+    // 48..51 FS=false ALIGN=4096 (§16 full-usable)
+    4096, 4096, 4096, 4096,
+};
+
+//! Usable bytes of bucket K — what `malloc_usable_size` returns for a slot
+//! handed out by K.  Equals `kBucketNewSlot[K]` for FS=true (ALIGN=slot)
+//! and the §16 full-usable tier (ALIGN>=1024); `kBucketNewSlot[K] - 8` for
+//! the FS=false borrow tier (ALIGN<1024 with slot>ALIGN, i.e. the per-slot
+//! prefix steals 8 B from the slot's tail).
+inline constexpr std::size_t kame_bucket_usable(unsigned int b) noexcept {
+    std::size_t slot = (b < 52u) ? kBucketNewSlot[b] : 0u;
+    if(b == 0u || b >= 52u) return 0u;
+    if(kBucketAlign[b] >= 1024u) return slot;          // §16 full-usable
+    if((std::size_t)kBucketAlign[b] == slot) return slot;  // FS=true (ALIGN=slot)
+    return slot - 8u;                                  // FS=false borrow
+}
+
 //! (§16) 4-way exponential octave/sub ladder bucket for a "total" (the
 //! slot the request must fit into).  Returns an UN-stepped bucket index
 //! in 24..(>47).  Shared by the borrow-tier and full-tier passes of
@@ -1746,6 +1791,41 @@ inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 	// the large-alignment aligned-alloc path.)
 	if(Kf == 47u && size <= 16384u) return 50u;
 	return Kf;
+}
+
+//! (§17) Bucket for an over-aligned request (alignment > ALLOC_ALIGNMENT,
+//! always power-of-two by caller contract).  Returns the smallest bucket
+//! whose ALIGN is a multiple of `alignment` AND whose usable size covers
+//! `size`; or `ALLOC_NUM_BUCKETS` if none qualifies (caller falls back to
+//! `posix_memalign` / dedicated chunk).
+//!
+//! Soundness: every pool slot is `kBucketAlign[b]`-aligned (slot region
+//! starts at a 256 KiB unit boundary — a multiple of every kBucketAlign
+//! entry — and slot j sits at `mempool + j*ALIGN`).  Over-alignment
+//! requests up to 4096 B are served from the existing bucket tiers
+//! (ALIGN ∈ {32,64,256,1024,4096}); larger alignment OR larger size go to
+//! `allocate_dedicated_chunk` (256 KiB-aligned payload, satisfies any A
+//! up to 256 KiB) or libc `posix_memalign`.
+//!
+//! Cold path — called only from aligned-allocation entry points.  Linear
+//! scan over 52 buckets, O(N) but invoked once per allocation; not on the
+//! malloc hot path.
+inline unsigned int bucket_for_aligned(std::size_t alignment,
+                                       std::size_t size) noexcept {
+	unsigned int best = (unsigned)ALLOC_NUM_BUCKETS;
+	std::size_t best_usable = ~(std::size_t)0;
+	std::size_t mask = alignment - 1u;
+	for(unsigned int b = 1u; b < (unsigned)ALLOC_NUM_BUCKETS; ++b) {
+		std::size_t al = kBucketAlign[b];
+		// alignment must divide al (al >= alignment AND al % alignment == 0);
+		// alignment is power-of-two so `al & (alignment-1) == 0` is exact.
+		if(al < alignment) continue;
+		if((al & mask) != 0u) continue;
+		std::size_t u = kame_bucket_usable(b);
+		if(u < size) continue;
+		if(u < best_usable) { best_usable = u; best = b; }
+	}
+	return best;
 }
 
 extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
@@ -1905,6 +1985,20 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept;
 //! malloc fallback for very large sizes.  Inline hot path
 //! (size ≤ 368 B) bypasses this entirely.
 void *new_redirected_large(std::size_t size) noexcept;
+
+//! (§17) Pool-or-libc aligned-allocation entry point.  Routes to the
+//! smallest pool bucket whose ALIGN is a multiple of `alignment` and
+//! whose usable size covers `size`; falls back to `allocate_dedicated_chunk`
+//! when alignment ≤ 256 KiB and the request exceeds the bucket range; and
+//! to `posix_memalign` otherwise.  Returns nullptr on allocation failure.
+//! `alignment` must be a power of two; caller guarantees this.
+//!
+//! All pool-returned pointers are freeable via `PoolAllocatorBase::
+//! deallocate`, exactly like a normal pool slot — no separate
+//! `_aligned_free` pairing.  Libc-returned pointers (posix_memalign
+//! fallback) are freed via libc free, which `deallocate_pooled_or_free`
+//! resolves automatically.
+void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept;
 
 inline void *new_redirected(std::size_t size) {
 	// Hot path: sizes ≤ 368.  One branch + the inline `(size+15)>>4`
