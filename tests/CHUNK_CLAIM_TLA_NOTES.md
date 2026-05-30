@@ -997,3 +997,91 @@ Verification (x86-64, 4 KiB page):
   - 16-thread × 4000-iter dedicated-chunk churn (sizes 17 K..3 MiB,
     per-allocation pattern verify): PASS 3/3.
   - c_api + alloc_stress: PASS.
+
+## 16. Full-usable m_sizes mode for ALIGN >= 1024 (kill the 50 % page round-up)
+
+The FS=false "borrow scheme" (§12.3) stores each slot's `{local_id, SIZE}`
+prefix in the slot's own LAST 8 bytes, so a slot of N units has only
+`N*ALIGN - 8` usable bytes.  For a request of exactly `M*ALIGN` (a
+power-of-2 page multiple) this forces `N = M + 1` — and with the ALIGN=4096
+tier's power-of-2 bucket set (N ∈ {1,2,4,8}) the +1 rounds up to the NEXT
+power of two: a 4096-byte request lands in the 8192 slot, **50 % wasted**.
+The 8-byte theft is also why a slot is never a clean page multiple, so the
+tier could not serve page-aligned allocations efficiently.
+
+Fix: for FS=false chunks with **ALIGN >= 1024** (buckets 40..51 — the
+ALIGN=1024 and ALIGN=4096 tiers), move the per-slot metadata OUT of the
+slot into a chunk-header `m_sizes[]` array, so the full `N*ALIGN` bytes are
+user-usable and `N = ceil(SIZE/ALIGN)` (no `+8`).  Selected per template
+via `if constexpr (ALIGN >= 1024)`; ALIGN < 1024 (small, hot) keeps the
+borrow scheme and its (1b) cache discipline unchanged.
+
+### m_sizes layout & encoding
+
+- `uint16_t *m_sizes` lives in `PoolAllocatorBase`'s hot block (next to
+  `m_owner_id` / `m_fs_flag`), null for borrow-mode chunks.  `uint8_t
+  m_align_shift = log2(ALIGN)` sits beside it.
+- The array is placed right after `m_flags[count]` in the chunk metadata
+  region; `create()` reserves it in the count-selection budget
+  (`per_word_meta = sizeof(FUINT) + FUINT_BITS*sizeof(uint16)` for the
+  full tier).  For ALIGN=1024 (1 MiB chunk, count ≈ 15) that's 15×64×2 =
+  1920 B, well under the K_MAX−64 = 4032 B budget; count stays
+  slot-limited so the extra term never reduces capacity.
+- Indexed by slot START bit: `bit = (p - m_mempool) >> m_align_shift`.
+  Each entry packs `(N << 8) | local_id` — `local_id` (low byte) for the
+  freelist index on the dealloc fast path, `N` (high byte) for the
+  batch_return bit-clear and `size_of` (= `N*ALIGN`).
+
+### Touch points (all `if constexpr (ALIGN >= 1024)` in the FS=false leaf)
+
+- ctor: set `m_sizes`/`m_align_shift` (the `FS && !DUMMY` instantiation is
+  the FS=false base subobject; real FS=true is `<ALIGN,true,true>`).
+- `allocate_pooled`: `N = ceil(SIZE/ALIGN)`; write `m_sizes[bit]` instead
+  of the `slot_start-8` prefix (before the publishing CAS — same
+  release/acquire ordering carries it to a cross-thread freer).
+- `deallocate_pooled` + `PoolAllocatorBase::deallocate` fast path: read
+  `local` from `m_sizes[bit] & 0xFF` (the base path branches on the
+  runtime `m_sizes != null`; borrow chunks see null in the already-loaded
+  hot line and fall to `p-8` with no new cache line).
+- `batch_return_to_bitmap` MaskFn: `N = m_sizes[bit] >> 8`.
+- `size_of_static`: return `(m_sizes[bit] >> 8) * ALIGN`.
+- `slow_allocate`: derive `slot_size` from `kBucketNewSlot[bucket]` (the
+  4-way octave/sub formula does NOT cover the out-of-order page tier
+  48..51 — this also fixes a latent SEGV that never fired because the
+  alloc_minimal_bench freelist never misses).  Full tier passes
+  `slot_size = slot`; borrow tier `slot - 8`.
+
+### Bucket schedule & routing
+
+Buckets 40..51 are now full-usable, `SIZE = N*ALIGN` (was `N*ALIGN - 8`):
+ALIGN=1024 → 6144..17408, ALIGN=4096 → 4096/8192/16384/32768.
+`ALLOC_MAX_BUCKETED_SIZE` 32760 → 32768.
+
+`bucket_for_size` splits into two passes (`kame_ladder_bucket` helper):
+borrow tier routes with `total = size + 8`, full tier (ALIGN>=1024)
+recomputes with `total = size`.  Page-aligned overrides: 3833..4096 →
+48 (vs borrow 39); 15361..16384 → 50 (vs full 47); 17409..32768 → 51.
+Bucket 49 (8192) ties full bucket 42 (8192) — plain malloc stays on 42
+(denser ALIGN=1024 chunks); 49 is reserved for a future large-alignment
+`posix_memalign` / `aligned_alloc` path (currently those fall back to libc
+for align > 16).
+
+### Verification (x86-64 4 KiB page + 32-bit)
+
+  - Sweep of all 39 632 sizes 369..40000: usable >= request, and writing
+    the full requested range survives a neighbour alloc/free (no metadata
+    overlap).  64-bit AND 32-bit (gcc -m32): PASS.
+  - Page sizes 4096 / 8192 / 16384 / 32768 → usable EXACTLY 4096 / 8192 /
+    16384 / 32768 (full slot — the 50 % round-up is gone; was 8192 usable
+    for a 4096 request under borrow).
+  - Page-aligned buckets 48/50/51 return 4096-aligned pointers (64/64).
+  - 16-thread × 30 000-iter churn over 1 K..32 K holding 24 live/thread
+    (forces freelist-miss `slow_allocate` + bitmap CAS + cross-thread
+    frees), per-allocation pattern verify: PASS 4/4.
+  - realloc grow/shrink across 500..100000 (full-usable + dedicated
+    boundaries): data preserved.
+  - Small-alloc hot path (16/64/128/256 B, borrow mode) unchanged:
+    254..280 M ops/s (the base fast path's extra `m_sizes==null` branch is
+    free — same cache line as m_owner_id).  Full-usable range hot path
+    145..165 M ops/s.
+  - c_api + alloc_stress + bucket34_repro: PASS (64-bit and 32-bit).

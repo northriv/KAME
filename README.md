@@ -17,8 +17,10 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
 ## Highlights
 
 - **Lock-free fast path** — TLS freelist pop/push, no atomics on the hot path.
-- **Sized buckets to 16 KiB** — 47 size classes covering 1 B .. 17400 B with
-  ≤ 12 % internal fragmentation at every power-of-2 round number.
+- **Sized buckets to 32 KiB** — 51 size classes covering 1 B .. 32768 B.  The
+  ALIGN ≥ 1024 tiers are *full-usable* (per-slot metadata in a chunk-header
+  side array, not a borrow header), so power-of-2 page requests (4/8/16/32 KiB)
+  get an exact, page-aligned slot with 0 % round-up.
 - **Per-thread DLL chunks** — no global allocator lock, no contention until
   the chunk-claim slow path.
 - **Cross-thread frees** via per-thread holding batch + bit-clear coalescing.
