@@ -91,7 +91,13 @@
 // `new_redirected()` to fall back to malloc for any heap operations
 // that occur during later TLS cleanup phases (e.g. pthread_key dtors
 // like RunnerCounterRegistration).
-ALLOC_TLS bool s_alloc_tls_off = false;
+// (§23) IE-TLS: this flag is on the hot path of `new_redirected_large`
+// (every large alloc reads it).  Under default global-dynamic TLS the
+// access triggers `__tls_get_addr`, which perf-record measured at ~17 %
+// of the 65 KiB tight-loop CPU.  IE-TLS bypasses the GOT round-trip and
+// reads via fs:offset directly.  Same single-bool fits the IE budget
+// easily; updates happen exactly once per thread (at TLS teardown).
+ALLOC_TLS_IE bool s_alloc_tls_off = false;
 
 // Per-thread owner id for the deallocate owner-check fast path.  A
 // chunk stamps `m_owner_id = s_tls_owner_id` at allocate_chunk; a
@@ -4533,14 +4539,28 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 #endif
 }
 
-// (§21/§22) Per-thread LIFO recycle cache, shared by BOTH large tiers
+// (§21/§22/§23) Per-thread LIFO recycle cache, shared by BOTH large tiers
 // (LRC_CHUNK = §15 dedicated chunks, LRC_MMAP = §19 single-mmap allocs).
 // Holds a few recently-freed blocks still owned by this thread so a tight
 // alloc/free loop reuses warm VA + pages instead of paying the per-cycle
 // release.  Bounded by entry count AND total bytes; evicted / thread-exit
 // entries are released per their kind.  RSS held while cached is ≤
-// MAX_BYTES per thread that actually does large allocs (most threads never
-// touch this tier → empty cache → zero cost).
+// MAX_BYTES per thread that actually touches the large tier (most threads
+// never do → empty cache → zero cost).
+//
+// (§23) Hot-path TLS layout: the cache DATA lives in IE-TLS
+// (`tls_large_recycle_data`, POD, zero-init by `__thread` semantics) so
+// the alloc/free fast path accesses it with no `__tls_get_addr` dance
+// (perf-record on §22 showed `__tls_get_addr` consuming 35 % of the
+// 65 KiB tight-loop CPU when the cache was a plain `thread_local`).  A
+// separate tiny `thread_local LargeRecycleDrain` sentinel carries the C++
+// destructor that drains the IE-TLS data at thread exit; an IE-TLS
+// "registered" flag ensures the sentinel is odr-used exactly once per
+// thread (on the cold slow path of the first cache push), so its dtor
+// reliably runs at thread teardown without per-call TLS thunk overhead.
+// Same split-storage pattern as `tls_alloc_thread_exit_cleanup`.
+//
+// Single-block layout — kind-tagged:
 //   - LRC_MMAP : region stays mapped, radix CLEARED on push (double-free
 //                routes to libc, not a torn cache), re-registered on reuse.
 //                Release = munmap.
@@ -4548,79 +4568,112 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 //                other thread can re-claim and nothing overwrites the
 //                header), payload returned directly on reuse.  Release =
 //                deallocate_chunk (N-bit bitmap-CAS clear + madvise).
-struct LargeRecycleCache {
+struct LargeRecycleData {
 	static constexpr int    MAX_ENTRIES = 8;
 	static constexpr std::size_t MAX_BYTES = 64u * 1024u * 1024u;  // 64 MiB
 	struct Entry { char *base; std::size_t size; unsigned kind; };
 	Entry e[MAX_ENTRIES];
-	int count = 0;
-	std::size_t total = 0;
-
-	// Kind-tagged release of one cached block — called on eviction /
-	// thread-exit by the block's unique owner thread (the freeing thread
-	// won the kind's single-winner clearing CAS), hence race-free.  Both
-	// backends touch only global state (region bitmap + madvise / munmap),
-	// never allocator TLS, so this is safe in any TLS destruction order.
-	static void release(const Entry &x) noexcept {
-		if(x.kind == (unsigned)LRC_CHUNK)
-			PoolAllocatorBase::recycle_release_chunk(x.base, x.size);
-		else
-			large_va_raw_unmap(x.base, x.size);
-	}
-	// Reuse a cached block of the SAME kind whose size fits [need, 2*need]
-	// (avoids handing a 32 MiB region to a 5 MiB request).  LRC_MMAP: base
-	// still mapped + radix-cleared (caller re-registers).  LRC_CHUNK: units
-	// still claimed + header intact (caller returns the payload directly).
-	char *pop_fit(std::size_t need, unsigned kind) noexcept {
-		for(int i = count - 1; i >= 0; --i) {
-			if(e[i].kind != kind) continue;
-			std::size_t sz = e[i].size;
-			if(sz >= need && sz <= need * 2u) {
-				char *b = e[i].base;
-				for(int j = i; j + 1 < count; ++j) e[j] = e[j + 1];
-				--count; total -= sz;
-				return b;
-			}
-		}
-		return nullptr;
-	}
-	// Evict entries[0] (oldest): release per its kind.
-	void evict0() noexcept {
-		release(e[0]);
-		total -= e[0].size;
-		for(int j = 0; j + 1 < count; ++j) e[j] = e[j + 1];
-		--count;
-	}
-	// Try to cache a freed block.  Caller has already performed the kind's
-	// clearing step (LRC_MMAP: radix_clear; LRC_CHUNK: none — bits stay
-	// set).  Returns true if cached, false if the caller must release now.
-	bool push(char *base, std::size_t size, unsigned kind) noexcept {
-		if(size > MAX_BYTES) return false;  // single block over cap
-		while(count >= MAX_ENTRIES || total + size > MAX_BYTES) {
-			if(count == 0) break;
-			evict0();
-		}
-		if(count < MAX_ENTRIES && total + size <= MAX_BYTES) {
-			e[count].base = base; e[count].size = size; e[count].kind = kind;
-			++count; total += size;
-			return true;
-		}
-		return false;
-	}
-	~LargeRecycleCache() noexcept { while(count) evict0(); }
+	int count;
+	std::size_t total;
+	// (§23) POD layout — IE-TLS `__thread` zero-initialises the whole
+	// thing; default member initialisers would force dynamic init and
+	// re-introduce the `__tls_get_addr` cost.
 };
-// thread_local with dtor: release() touches only global pool state
-// (deallocate_chunk: region bitmap + madvise) or munmap — never any
-// allocator TLS — so it is safe regardless of TLS destruction order.
-thread_local LargeRecycleCache tls_large_recycle_cache;
+ALLOC_TLS_IE LargeRecycleData tls_large_recycle_data;
+// (§23) Hot-path IE-TLS flag: set on first push so the cold-path
+// odr-use of the thread_local drain sentinel is paid once per thread.
+ALLOC_TLS_IE bool tls_large_recycle_drain_registered = false;
 
+// Kind-tagged release of one cached block — called on eviction /
+// thread-exit by the block's unique owner thread (the freeing thread
+// won the kind's single-winner clearing CAS), hence race-free.  Both
+// backends touch only global state (region bitmap + madvise / munmap),
+// never allocator TLS, so this is safe in any TLS destruction order.
+inline void recycle_release(const LargeRecycleData::Entry &x) noexcept {
+	if(x.kind == (unsigned)LRC_CHUNK)
+		PoolAllocatorBase::recycle_release_chunk(x.base, x.size);
+	else
+		large_va_raw_unmap(x.base, x.size);
+}
+// Reuse a cached block of the SAME kind whose size fits [need, 2*need]
+// (avoids handing a 32 MiB region to a 5 MiB request).  LRC_MMAP: base
+// still mapped + radix-cleared (caller re-registers).  LRC_CHUNK: units
+// still claimed + header intact (caller returns the payload directly).
+inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
+	LargeRecycleData &d = tls_large_recycle_data;
+	for(int i = d.count - 1; i >= 0; --i) {
+		if(d.e[i].kind != kind) continue;
+		std::size_t sz = d.e[i].size;
+		if(sz >= need && sz <= need * 2u) {
+			char *b = d.e[i].base;
+			for(int j = i; j + 1 < d.count; ++j) d.e[j] = d.e[j + 1];
+			--d.count; d.total -= sz;
+			return b;
+		}
+	}
+	return nullptr;
+}
+// Evict entries[0] (oldest): release per its kind.
+inline void recycle_evict0(LargeRecycleData &d) noexcept {
+	recycle_release(d.e[0]);
+	d.total -= d.e[0].size;
+	for(int j = 0; j + 1 < d.count; ++j) d.e[j] = d.e[j + 1];
+	--d.count;
+}
+// Thread-exit drain — called from the LargeRecycleDrain dtor.
+void recycle_drain() noexcept {
+	LargeRecycleData &d = tls_large_recycle_data;
+	while(d.count) recycle_evict0(d);
+}
+// Drain sentinel: a single empty `thread_local` whose ONLY purpose is to
+// hold a non-trivial C++ destructor that drains the IE-TLS data on
+// thread exit.  `touch()` is an empty member used as the odr-use that
+// makes the variable's dynamic init (and dtor registration) reliable.
+struct LargeRecycleDrain {
+	void touch() noexcept {}
+	~LargeRecycleDrain() noexcept { recycle_drain(); }
+};
+thread_local LargeRecycleDrain tls_large_recycle_drain;
+
+// Try to cache a freed block.  Caller has already performed the kind's
+// clearing step (LRC_MMAP: radix_clear; LRC_CHUNK: none — bits stay
+// set).  Returns true if cached, false if the caller must release now.
+//
+// First call from this thread also odr-uses the drain sentinel (pays
+// `__tls_get_addr` ONCE) so its dtor will run at thread exit; the
+// IE-TLS `tls_large_recycle_drain_registered` flag short-circuits the
+// `__tls_get_addr` on every subsequent push.
+inline bool recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
+	if(__builtin_expect( !tls_large_recycle_drain_registered, 0)) {
+		tls_large_recycle_drain.touch();
+		tls_large_recycle_drain_registered = true;
+	}
+	LargeRecycleData &d = tls_large_recycle_data;
+	if(size > LargeRecycleData::MAX_BYTES) return false;  // single block over cap
+	while(d.count >= LargeRecycleData::MAX_ENTRIES
+	      || d.total + size > LargeRecycleData::MAX_BYTES) {
+		if(d.count == 0) break;
+		recycle_evict0(d);
+	}
+	if(d.count < LargeRecycleData::MAX_ENTRIES
+	   && d.total + size <= LargeRecycleData::MAX_BYTES) {
+		d.e[d.count].base = base; d.e[d.count].size = size;
+		d.e[d.count].kind = kind;
+		++d.count; d.total += size;
+		return true;
+	}
+	return false;
+}
+// MAX_BYTES per thread that actually does large allocs (most threads never
+// touch this tier → empty cache → zero cost).
+//   - LRC_MMAP : region stays mapped, radix CLEARED on push (double-free
 // (§22) Definitions of the forward-declared helpers used by the earlier
 // §15 dedicated-chunk paths (allocate_dedicated_chunk / deallocate).
 char *large_recycle_pop(std::size_t need, unsigned kind) noexcept {
-	return tls_large_recycle_cache.pop_fit(need, kind);
+	return recycle_pop_fit(need, kind);
 }
 bool large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
-	return tls_large_recycle_cache.push(base, size, kind);
+	return recycle_push(base, size, kind);
 }
 } // namespace
 
@@ -4660,7 +4713,7 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 	// A cache hit returns a radix-CLEARED but still-mapped region; we
 	// re-register it below.  The cached region's real size (meta->mmap_size,
 	// preserved) is ≥ mmap_size and ≤ 2× it (pop_fit's fit window).
-	char *base = tls_large_recycle_cache.pop_fit(mmap_size, LRC_MMAP);
+	char *base = recycle_pop_fit(mmap_size, LRC_MMAP);
 	bool recycled = (base != nullptr);
 	if( !recycled) {
 		base = large_va_raw_map(mmap_size);
@@ -4701,7 +4754,7 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 		s_last_region_base = 0;
 	// (§21) Try to recycle into the per-thread cache (still mapped, warm).
 	// On overflow / over-cap the cache returns false and we munmap now.
-	if( !tls_large_recycle_cache.push(base, mmap_size, LRC_MMAP))
+	if( !recycle_push(base, mmap_size, LRC_MMAP))
 		large_va_raw_unmap(base, mmap_size);
 }
 
