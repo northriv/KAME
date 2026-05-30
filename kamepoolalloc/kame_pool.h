@@ -77,6 +77,9 @@
 
 #ifdef __cplusplus
 extern "C" {
+#  define KAMEPOOLALLOC_NOEXCEPT noexcept
+#else
+#  define KAMEPOOLALLOC_NOEXCEPT
 #endif
 
 /*
@@ -90,10 +93,10 @@ extern "C" {
  *   kame_pool_realloc(p, 0)    frees p and returns NULL.
  *   kame_pool_free(NULL) is a no-op.
  */
-void  *kame_pool_malloc(size_t size);
-void  *kame_pool_calloc(size_t nmemb, size_t size);
-void  *kame_pool_realloc(void *p, size_t size);
-void   kame_pool_free(void *p);
+void  *kame_pool_malloc(size_t size) KAMEPOOLALLOC_NOEXCEPT;
+void  *kame_pool_calloc(size_t nmemb, size_t size) KAMEPOOLALLOC_NOEXCEPT;
+void  *kame_pool_realloc(void *p, size_t size) KAMEPOOLALLOC_NOEXCEPT;
+void   kame_pool_free(void *p) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
  * Aligned allocation.  `alignment` must be a power of two; for
@@ -110,8 +113,8 @@ void   kame_pool_free(void *p);
  * use C++ `operator new(size, std::align_val_t{N})` which carries
  * alignment into the matching `operator delete`.
  */
-void  *kame_pool_aligned_alloc(size_t alignment, size_t size);
-int    kame_pool_posix_memalign(void **memptr, size_t alignment, size_t size);
+void  *kame_pool_aligned_alloc(size_t alignment, size_t size) KAMEPOOLALLOC_NOEXCEPT;
+int    kame_pool_posix_memalign(void **memptr, size_t alignment, size_t size) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
  * Returns the actual allocated size of `p` (which may exceed the
@@ -123,7 +126,7 @@ int    kame_pool_posix_memalign(void **memptr, size_t alignment, size_t size);
  * vector-growth heuristic; pass the actual size to vector::reserve()
  * to avoid spurious reallocations.
  */
-size_t kame_pool_malloc_usable_size(const void *p);
+size_t kame_pool_malloc_usable_size(const void *p) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
  * Runtime memory cap.  Same semantics as the C++ declarations in
@@ -136,9 +139,59 @@ size_t kame_pool_malloc_usable_size(const void *p);
  *   kame_pool_get_max_bytes()        — current cap (`SIZE_MAX` if unset).
  *   kame_pool_reserved_bytes()       — total bytes the pool has mmap'd.
  */
-void   kame_pool_set_max_bytes(size_t max_bytes);
-size_t kame_pool_get_max_bytes(void);
-size_t kame_pool_reserved_bytes(void);
+void   kame_pool_set_max_bytes(size_t max_bytes) KAMEPOOLALLOC_NOEXCEPT;
+size_t kame_pool_get_max_bytes(void) KAMEPOOLALLOC_NOEXCEPT;
+size_t kame_pool_reserved_bytes(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
+ * Observability — snapshot of pool counters at the moment of the call.
+ *
+ * ABI versioning: callers set `version = KAME_POOL_STATS_VERSION` before
+ * calling.  Future fields are appended; older callers using an older
+ * version receive only the prefix.  `version_supported` reports the
+ * highest version the loaded library actually fills in.
+ *
+ * Cost: O(populated regions × BITMAP_WORDS_PER_REGION) (≤ ~4 K
+ * cache-cold loads at the 128 TiB ceiling); a relaxed-load walk of
+ * each region's embedded claim_bitmap.  Intended for diagnostic /
+ * tuning use, NOT the hot path.
+ */
+#define KAME_POOL_STATS_VERSION 1u
+
+typedef struct kame_pool_stats {
+    /* IN: caller-set version.  OUT: highest version this library fills. */
+    unsigned int version;
+    unsigned int version_supported;
+
+    /* --- version 1 fields --- */
+
+    /* Number of 32 MiB regions the pool has mmap'd (never decreases —
+     * regions are permanent in the current design).  Same as
+     * `kame_pool_reserved_bytes() / (32 MiB)`. */
+    size_t regions_populated;
+
+    /* Total VA reserved (= regions_populated × 32 MiB).  Note that
+     * actual RSS is far smaller: free chunks have been MADV_DONTNEED'd
+     * and the radix L2 nodes are 8 KiB each. */
+    size_t bytes_reserved;
+
+    /* Currently-live ALLOCATIONS — chunks that have at least one
+     * outstanding slot.  Each "live chunk" = one chunk_base unit (one
+     * back_offset==0 entry whose claim bit is set).  Counted by walking
+     * every region's embedded claim_bitmap + back_offset table. */
+    size_t chunks_live;
+
+    /* Currently-claimed UNITS (256 KiB each, EXCLUDING the per-region
+     * metadata unit 0 reservation).  For multi-unit chunks
+     * (CHUNK_UNITS = 2 or 4), one chunk contributes CHUNK_UNITS units.
+     * Sum of set bits across all regions' claim_bitmap, with bit 0 of
+     * word 0 of each region masked off.  Indicator of internal
+     * fragmentation: `units_live / chunks_live` ≈ average chunk size
+     * (in units).  `units_live × 256 KiB` ≈ pool's "claimed" footprint. */
+    size_t units_live;
+} kame_pool_stats_t;
+
+void kame_pool_get_stats(kame_pool_stats_t *out) KAMEPOOLALLOC_NOEXCEPT;
 
 #ifdef __cplusplus
 }  /* extern "C" */

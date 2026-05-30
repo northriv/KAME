@@ -45,6 +45,7 @@
 #define LEAVE_VACANT_CHUNKS_PER_THREAD 2
 
 #include "allocator.h"
+#include "kame_pool.h"        // C-API stats struct + version macro
 
 #ifndef USE_STD_ALLOCATOR
 
@@ -3264,7 +3265,7 @@ void *kame_pool_calloc(std::size_t n_elem, std::size_t sz) noexcept {
 // activator.
 
 extern "C" __attribute__((noinline, used))
-void *kame_pool_malloc(std::size_t size) {
+void *kame_pool_malloc(std::size_t size) noexcept {
 	if(void *p = new_redirected(size))
 		return p;
 	errno = ENOMEM;
@@ -3272,12 +3273,12 @@ void *kame_pool_malloc(std::size_t size) {
 }
 
 extern "C" __attribute__((noinline, used))
-void kame_pool_free(void *p) {
+void kame_pool_free(void *p) noexcept {
 	deallocate_pooled_or_free(p);
 }
 
 extern "C" __attribute__((noinline, used))
-void *kame_pool_realloc(void *p, std::size_t size) {
+void *kame_pool_realloc(void *p, std::size_t size) noexcept {
 	void *q = kame_realloc(p, size);
 	// `kame_realloc(NULL, 0)` returns NULL legitimately (no-op); the
 	// errno-set is only for genuine ENOMEM (size > 0 path returned
@@ -3289,7 +3290,7 @@ void *kame_pool_realloc(void *p, std::size_t size) {
 }
 
 extern "C" __attribute__((noinline, used))
-std::size_t kame_pool_malloc_usable_size(const void *p) {
+std::size_t kame_pool_malloc_usable_size(const void *p) noexcept {
 	if( !p) return 0;
 	// `size_of` is read-only; cast away const safely (it does not
 	// modify the pointee — only walks `s_mmapped_spaces` and chunk
@@ -3298,7 +3299,7 @@ std::size_t kame_pool_malloc_usable_size(const void *p) {
 }
 
 extern "C" __attribute__((noinline, used))
-void *kame_pool_aligned_alloc(std::size_t alignment, std::size_t size) {
+void *kame_pool_aligned_alloc(std::size_t alignment, std::size_t size) noexcept {
 	// C17 §7.22.3.1: alignment must be power of two; size must be
 	// integral multiple of alignment.  We accept any size (matches
 	// glibc's lenient interpretation; the strict form is easy to
@@ -3340,7 +3341,7 @@ void *kame_pool_aligned_alloc(std::size_t alignment, std::size_t size) {
 
 extern "C" __attribute__((noinline, used))
 int kame_pool_posix_memalign(void **memptr, std::size_t alignment,
-                             std::size_t size) {
+                             std::size_t size) noexcept {
 	// POSIX: alignment must be a power of two AND a multiple of
 	// sizeof(void*).  Returns the error code; does NOT set errno.
 	if( !memptr) return EINVAL;
@@ -3641,6 +3642,55 @@ extern "C" std::size_t kame_pool_get_max_bytes() noexcept {
 extern "C" std::size_t kame_pool_reserved_bytes() noexcept {
     return PoolAllocatorBase::populated_region_count()
          * (std::size_t)ALLOC_MIN_MMAP_SIZE;
+}
+
+// (§14) Diagnostic / tuning stats — walks the push-only region list
+// (since §13.3, O(populated regions × BITMAP_WORDS_PER_REGION)) reading
+// each region's embedded claim_bitmap + back_offset under relaxed loads.
+// Counters are best-effort snapshots (concurrent alloc / free may make
+// them slightly inconsistent with one another), suitable for tuning,
+// not for assertions.
+extern "C" void kame_pool_get_stats(kame_pool_stats_t *out) noexcept {
+    if( !out) return;
+    unsigned int req_ver = out->version;
+    // We currently fill version 1 fields.  Older callers (req_ver == 0
+    // from a memset, or req_ver == 1) get a v1 snapshot; future v2+
+    // callers also get v1 fields plus whatever the library actually
+    // fills (version_supported reports the cap).
+    out->version_supported = KAME_POOL_STATS_VERSION;
+    (void)req_ver;  // reserved for forward-compat gating
+
+    std::size_t regions = 0;
+    std::size_t units = 0;
+    std::size_t chunks = 0;
+    using BitmapWord = PoolAllocatorBase::BitmapWord;
+    for(auto *rm = PoolAllocatorBase::s_region_dll_head.load(
+                       std::memory_order_acquire);
+        rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+        ++regions;
+        for(int w = 0; w < PoolAllocatorBase::BITMAP_WORDS_PER_REGION; ++w) {
+            BitmapWord v =
+                rm->claim_bitmap[w].load(std::memory_order_relaxed);
+            // Mask the per-region metadata bit (bit 0 of word 0) so
+            // `units_live` reports chunk-occupied units only.
+            if(w == 0) v &= ~BitmapWord(1);
+            units += (std::size_t)count_bits(v);
+        }
+        // "Chunks live" = base units = back_offset[u]==0 entries whose
+        // claim bit is set.  Skip unit 0 (the metadata reservation).
+        for(int u = 1; u < PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE; ++u) {
+            BitmapWord bw = rm->claim_bitmap[
+                u / PoolAllocatorBase::BITS_PER_BITMAP_WORD]
+                .load(std::memory_order_relaxed);
+            bool claimed =
+                (bw >> (u % PoolAllocatorBase::BITS_PER_BITMAP_WORD)) & 1u;
+            if(claimed && rm->back_offset[u] == 0u) ++chunks;
+        }
+    }
+    out->regions_populated = regions;
+    out->bytes_reserved    = regions * (std::size_t)ALLOC_MIN_MMAP_SIZE;
+    out->chunks_live       = chunks;
+    out->units_live        = units;
 }
 
 std::atomic<RadixL2Node *> PoolAllocatorBase::s_radix_l1[RADIX_L1_SIZE];
