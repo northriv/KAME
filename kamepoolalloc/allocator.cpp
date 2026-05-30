@@ -3794,10 +3794,14 @@ __attribute__((noinline))
 int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	// Defensive: pointers above our covered VA fall back to "not our
 	// pointer".  Matches the former linear-walk behavior of missing the
-	// `s_mmapped_spaces[]` array.
-	if(__builtin_expect(
-	       (up >> (RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT)) != 0u, 0))
-		return -1;
+	// `s_mmapped_spaces[]` array.  On 32-bit hosts the radix already
+	// covers the full uintptr_t range (region index = 7 bits ≤ 32 - 25),
+	// so the bound check is vacuous and skipped (`up >> 47` is UB).
+	constexpr int kBoundShift = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT;
+	if constexpr (kBoundShift < (int)(sizeof(uintptr_t) * 8)) {
+		if(__builtin_expect((up >> kBoundShift) != 0u, 0))
+			return -1;
+	}
 	unsigned region_idx = (unsigned)(up >> ALLOC_MIN_MMAP_SHIFT);
 	unsigned l1 = region_idx >> RADIX_L2_BITS;
 	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
