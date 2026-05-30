@@ -652,7 +652,25 @@ public:
 	//!   storage; no consistency problem.
 	alignas(64) uint32_t m_owner_id;
 	bool      m_fs_flag;
+	//! (§16) m_sizes mode discriminator/shift for the dealloc fast path.
+	//!   m_sizes      : null for borrow-scheme chunks (FS=true, or FS=false
+	//!                  ALIGN<1024 — per-slot {local_id,SIZE} prefix at p-8).
+	//!                  Non-null for FS=false ALIGN>=1024 ("full-usable"
+	//!                  mode): points at the per-chunk `m_sizes[bit]` array
+	//!                  (one uint16 per bitmap bit = slot start), packed
+	//!                  `(N << 8) | local_id`.  Lets a large-slot chunk hand
+	//!                  out FULL `N*ALIGN`-byte slots (no 8-byte borrow
+	//!                  theft) so power-of-2 page-aligned requests don't
+	//!                  round up to the next size class (was 50 % waste).
+	//!   m_align_shift: log2(ALIGN); fast path computes the slot's bit index
+	//!                  `(p - m_mempool) >> m_align_shift` to index m_sizes.
+	//! Both sit in the hot block (cache line with m_owner_id) so the
+	//! borrow-mode null check is free — a borrow chunk reads m_sizes
+	//! (already-loaded line), sees null, and falls to the p-8 prefix exactly
+	//! as before, never touching m_mempool / the m_sizes array.
+	uint8_t   m_align_shift;
 	uint16_t  m_base_bucket;     // unused on hot paths; kept for diagnostics
+	uint16_t *m_sizes;
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
 	//! Owner-thread freelist push/pop (LIFO; freed slot's first 8 bytes
@@ -1584,16 +1602,15 @@ static_assert(ALLOC_NUM_BUCKETS == 52,
 //! Size → bucket-index.  FS=true/mixed range (1..368) uses the 16-byte
 //! step formula.  FS=false range
 //! (369..17400) uses the an earlier change N+1-shifted 4-way exponential ladder
-//! with bucket indices shifted +7.  Sizes 17401..32760 route to the
-//! ALIGN=4096 N=8 bucket 51 (slot 32768).
+//! with bucket indices shifted +7.  (§16) Sizes 17409..32768 route to the
+//! ALIGN=4096 N=8 bucket 51 (slot 32768), now FULL-usable so the bucket
+//! serves the entire 32768-byte slot (was 32760 under the borrow scheme).
 //!
-//! Algorithm: compute the OLD bucket via the unchanged an earlier change
-//! octave/sub formula, then look up the NEW slot size of bucket K-1
-//! in a 52-entry constexpr table and step-down if it can hold the
-//! request.  The lookup replaces the inline arithmetic step-down
-//! check (5-15 cycles) with a single L1 load + compare + cmov (~3
-//! cycles), keeping `bucket_for_size` on the FS=false hot path.
-constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = 32760u;
+//! Algorithm: compute the borrow-tier bucket, and for the full-usable
+//! tier (ALIGN>=1024) recompute with total=size; then page-aligned
+//! overrides.  `kBucketNewSlot[]` gives each bucket's slot for the
+//! step-down compare.
+constexpr std::size_t ALLOC_MAX_BUCKETED_SIZE = 32768u;
 
 //! per-bucket NEW slot size.  Indexed by bucket K.
 //!   * Buckets 1..23: 16-step (FS=true + mixed FS=false).  Slot = K*16.
@@ -1664,62 +1681,71 @@ inline constexpr uint8_t kBucketLocalId[52] = {
     0, 1, 2, 3,
 };
 
-inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
-	// FS=true / mixed range: 1..368, 16-B step.  (size+15)>>4 yields
-	// 1..23 for size 1..368, and 0 for size==0 (reuses bucket 0's 16-B
-	// allocator).  an earlier change extended this from 1..16 (256 B max) to
-	// 1..23 (368 B max).
-	if(size <= (std::size_t)ALLOC_SIZE23)
-		return static_cast<unsigned int>((size + 15u) >> 4);
-	// FS=false 4-way exponential range: 369..17400.  Bucket indices
-	// shifted +7 from an earlier change (17..40 → 24..47).
-	std::size_t total = size + 8u;
+//! (§16) 4-way exponential octave/sub ladder bucket for a "total" (the
+//! slot the request must fit into).  Returns an UN-stepped bucket index
+//! in 24..(>47).  Shared by the borrow-tier and full-tier passes of
+//! `bucket_for_size`, which differ only in `total` (size+8 vs size) and
+//! the step-down / tier handling.
+inline constexpr unsigned int kame_ladder_bucket(std::size_t total) noexcept {
 	int msb = 63 - __builtin_clzll(static_cast<unsigned long long>(total));
 	int sub = static_cast<int>((total >> (msb - 2)) & 0x3u);
 	std::size_t mask = (std::size_t(1) << (msb - 2)) - 1u;
 	if(total & mask) ++sub;
-	// an earlier change octave/sub bucket index + an earlier change shift +7.
-	unsigned int K = 23u + static_cast<unsigned int>((msb - 8) * 4 + sub);
-	// Bound K before indexing kBucketNewSlot[K-1]: formula can produce
-	// K well beyond ALLOC_NUM_BUCKETS for huge sizes (msb up to 63 →
-	// K ≈ 243).  K > 51 means total > 32768 (since K=51 is the largest
-	// the formula can hit with total ≤ 32768), so the size has no pool
-	// bucket and routes to libc malloc.
-	if(K > 51u) return ALLOC_NUM_BUCKETS;
-	// an earlier change step-down: branchless via table lookup.  total fits
-	// in K-1 iff `total <= kBucketNewSlot[K-1]`.  Bound K >= 25 — the
-	// FS=true/false boundary K = 24 doesn't step down across the
-	// tier transition (bucket 23's slot 368 < bucket 24's slot 384,
-	// but bucket 23 is FS=true with no borrow header so a user
-	// requesting 369..376 cannot fit in bucket 23's 368 B slot).
-	// Step-down also moves K=48 (formula's "octave 14 sub 1", total >
-	// 17408) down to K=47 when total ≤ 17408, since kBucketNewSlot[47]
-	// = 17408 is the next bucket below in the existing ladder.  Buckets
-	// 48..51 (page-aligned tier) sit OUTSIDE the formula's natural
-	// progression — they're inserted via explicit overrides below — so
-	// step-down crossing into K=48 from K=49+ never fires (their entries
-	// in kBucketNewSlot are out-of-order page-aligned sizes, not
-	// monotonic with K).
-	if(K > 24u && total <= kBucketNewSlot[K - 1u]) K--;
-	// K > 47 here means total exceeds the existing 4-way exponential
-	// ladder's max (slot 17408).  Sizes 17409..32768 route to bucket 51
-	// (ALIGN=4096 N=8, slot 32768, ≤ 47 % frag in the gap); larger sizes
-	// fall through to libc malloc.
-	if(K > 47u) {
-		if(total > 32768u) return ALLOC_NUM_BUCKETS;
-		return 51u;
+	return 23u + static_cast<unsigned int>((msb - 8) * 4 + sub);
+}
+
+inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
+	// FS=true / mixed range: 1..368, 16-B step.  (size+15)>>4 yields
+	// 1..23 for size 1..368, and 0 for size==0 (reuses bucket 0's 16-B
+	// allocator).
+	if(size <= (std::size_t)ALLOC_SIZE23)
+		return static_cast<unsigned int>((size + 15u) >> 4);
+
+	// FS=false range, split into two tiers (§16):
+	//   * BORROW tier  (ALIGN 64/256, buckets 24..39): the per-slot
+	//     {local_id,SIZE} prefix borrows the slot's last 8 B, so the slot
+	//     must hold `size + 8`.
+	//   * FULL-USABLE tier (ALIGN 1024/4096, buckets 40..51): metadata
+	//     lives in the chunk-header m_sizes[] array, so the slot need only
+	//     hold `size`.  Routing with total=size (not size+8) keeps exact
+	//     power-of-2 page requests in their own bucket instead of rounding
+	//     up to the next size class (the borrow scheme's 50 % waste).
+	//
+	// Decide the tier from the borrow-pass bucket: <=39 ⇒ borrow,
+	// otherwise full.  Only the 40↔39 boundary step-down matters for the
+	// split, and it needs kBucketNewSlot[39] (in-range), so the borrow
+	// pass never indexes the out-of-order page-tier slots.
+	unsigned int Kb = kame_ladder_bucket(size + 8u);
+	if(Kb <= 40u) {
+		if(Kb > 24u && (size + 8u) <= kBucketNewSlot[Kb - 1u]) --Kb;
+		if(Kb <= 39u) {
+			// Page bucket 48 (ALIGN=4096 full, usable 4096) beats borrow
+			// bucket 39 (slot 4352, usable 4344) for 3833..4096 — exact
+			// page fit + 4 KiB alignment.
+			if(Kb == 39u && size <= 4096u) return 48u;
+			return Kb;
+		}
+		// Kb == 40 → size in (4344, 6144]; fall through to the full tier.
 	}
-	// Page-aligned overrides: prefer the ALIGN=4096 power-of-2 bucket
-	// over the standard ladder when the size fits exactly.  Eliminates
-	// 6.25 % frag at sizes 3841..4096 and 15353..16384, and shadows the
-	// existing ALIGN=1024 N=8 bucket (42) with ALIGN=4096 N=2 (49) for
-	// sizes 7161..8184 (same slot size, but 4K-aligned slot region keeps
-	// the slot from straddling a page boundary on 4 K / 16 K / 32 K /
-	// 64 K page systems).
-	if(K == 47u && total <= 16384u) return 50u;
-	if(K == 42u && total <= 8192u) return 49u;
-	if(K == 39u && total <= 4096u) return 48u;
-	return K;
+
+	// FULL-USABLE tier: recompute with total = size.
+	unsigned int Kf = kame_ladder_bucket(size);
+	if(Kf > 47u) {
+		// Beyond bucket 47 (slot 17408): the page bucket 51 (slot 32768)
+		// extends the pool to 32768; larger sizes route to the dedicated
+		// chunk / libc path (ALLOC_NUM_BUCKETS = "no bucket").
+		return (size <= 32768u) ? 51u : ALLOC_NUM_BUCKETS;
+	}
+	// Full-tier step-down, bounded to stay within the full tier (Kf-1 >=
+	// 40) so it never crosses into the borrow tier (whose usable is slot-8,
+	// not slot, making a cross-tier kBucketNewSlot compare unsound).
+	if(Kf > 40u && size <= kBucketNewSlot[Kf - 1u]) --Kf;
+	// Page bucket 50 (slot 16384) beats full bucket 47 (slot 17408) for
+	// 15361..16384.  (Bucket 49 ties full bucket 42 at slot 8192; plain
+	// malloc stays on 42 for denser ALIGN=1024 chunks — 49 is reserved for
+	// the large-alignment aligned-alloc path.)
+	if(Kf == 47u && size <= 16384u) return 50u;
+	return Kf;
 }
 
 extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];

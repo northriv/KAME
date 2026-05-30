@@ -690,6 +690,24 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	this->m_fs_flag = (FS && DUMMY);
 	this->m_base_bucket = (FS && DUMMY)
 	    ? static_cast<uint16_t>(bucket_for_size(ALIGN)) : 0;
+	// (§16) "full-usable" m_sizes mode: enabled for FS=false chunks with
+	// ALIGN >= 1024.  The FS=false partial spec constructs through the
+	// `<ALIGN,true,false>` base ctor, so `FS && !DUMMY` uniquely selects an
+	// FS=false chunk here (real FS=true is `<ALIGN,true,true>` → DUMMY=true).
+	// m_sizes points just past m_flags[count]; m_align_shift = log2(ALIGN).
+	// Borrow-mode chunks (FS=true, or FS=false ALIGN<1024) leave m_sizes
+	// null so the dealloc fast path keeps reading the p-8 prefix.
+	if constexpr (FS && !DUMMY && ALIGN >= 1024u) {
+		this->m_sizes = reinterpret_cast<uint16_t *>(
+		    reinterpret_cast<char *>(m_flags)
+		    + static_cast<size_t>(count) * sizeof(FUINT));
+		this->m_align_shift =
+		    static_cast<uint8_t>(__builtin_ctz(ALIGN));
+	}
+	else {
+		this->m_sizes = nullptr;
+		this->m_align_shift = 0;
+	}
 	for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b)
 		m_freelist_head[b] = nullptr;
 	for(int i = count - 1; i >= 0 ; --i)
@@ -793,8 +811,19 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 	    "ALLOC_CHUNK_K_MAX - 64");
 	char *slot_region = ppool + (ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER);
 	size_t slot_region_size = size - kMetaBudget;
+	// (§16) Per-word metadata cost.  Borrow mode: just the FUINT bitmap
+	// word (8 B / 64 slots).  Full-usable mode (ALIGN>=1024): additionally
+	// `m_sizes[64]` = 64 × uint16 = 128 B per bitmap word, packed right
+	// after m_flags.  The count must satisfy both the metadata-fit and the
+	// slot-region-fit; for the ALIGN>=1024 tiers count is slot-limited (the
+	// 256 KiB / 1 MiB chunk holds few large slots), so the extra m_sizes
+	// term never actually reduces count — but the budget math stays honest.
+	constexpr size_t per_word_meta =
+	    (ALIGN >= 1024u)
+	        ? (sizeof(FUINT) + (size_t)FUINT_BITS * sizeof(uint16_t))
+	        : sizeof(FUINT);
 	int count_meta = static_cast<int>(
-	    (kMetaBudget - size_alloc) / sizeof(FUINT));
+	    (kMetaBudget - size_alloc) / per_word_meta);
 	int count_slots = static_cast<int>(
 	    slot_region_size / ((size_t)ALIGN * FUINT_BITS));
 	int count = count_meta < count_slots ? count_meta : count_slots;
@@ -889,19 +918,27 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	//     N*ALIGN - 8 bytes` and the reservation is never trampled
 	//     by user writes.
 	//
-	// Required N is the smallest value satisfying
-	// `N*ALIGN - 8 >= SIZE`, i.e. `N = ceil((SIZE + 8) / ALIGN)`.
-	// For the existing bucket-size schedule (SIZE = K*ALIGN), this
-	// equals `K + 1` — same bit count as the earlier change's `N_user + 1`.
-	const unsigned int N = (SIZE + 8u + ALIGN - 1u) / ALIGN;
-	// (§12.3) Per-slot prefix = { uint32_t local_id (low), uint32_t SIZE
-	// (high) }.  Stores the COMPACT per-chunk local-id (kBucketLocalId
-	// off the hot path here, on alloc) so the dealloc fast path reads
-	// the freelist index directly — no bucket_for_size, no remap.
+	// (§16) Bit count N per slot.
+	//   * Borrow mode (ALIGN<1024): N = ceil((SIZE+8)/ALIGN) — the slot's
+	//     last 8 B are borrowed for the next slot's {local_id,SIZE} prefix,
+	//     so the usable area is N*ALIGN-8.
+	//   * Full-usable mode (ALIGN>=1024): N = ceil(SIZE/ALIGN) — no borrow,
+	//     usable = N*ALIGN.  For the page-aligned bucket schedule
+	//     (SIZE = N*ALIGN exactly) this is N, one fewer unit than borrow,
+	//     eliminating the 50 % round-up at power-of-2 page sizes.
+	const unsigned int N = (ALIGN >= 1024u)
+	    ? ((SIZE + ALIGN - 1u) / ALIGN)
+	    : ((SIZE + 8u + ALIGN - 1u) / ALIGN);
+	// (§12.3) Per-chunk COMPACT local-id (kBucketLocalId resolved here on
+	// the cold alloc path, so the dealloc fast path needs no bucket_for_size
+	// / remap).  Borrow mode stores { uint32 local_id, uint32 SIZE } at
+	// slot_start-8; full-usable mode stores (N<<8)|local_id in m_sizes[bit].
 	const std::uint32_t local_id = kBucketLocalId[bucket_for_size(SIZE)];
 	const std::uint64_t hdr_word =
 	    static_cast<std::uint64_t>(local_id)
 	  | (static_cast<std::uint64_t>(SIZE) << 32);
+	const std::uint16_t msize_word = static_cast<std::uint16_t>(
+	    (N << 8) | (local_id & 0xFFu));
 	// dropped the an earlier change 80% fragmentation cutoff — it
 	// walked all m_count FUINT words via count_bits on every
 	// allocate_pooled call (catastrophic on high-level chunks where
@@ -931,19 +968,30 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 //			assert( !(ones & oldv));
 			sidx = count_zeros_forward(cand);
 			int idx_cand = pflag - this->m_flags;
-			slot_start = &this->m_mempool[
-			    (size_t(idx_cand) * sizeof(FUINT) * 8 + sidx) * ALIGN];
-			// write the {bucket, SIZE} header BEFORE the CAS
-			// publishes the bit.  Header lives at `slot_start - 8`:
-			//   * Bit 0 of word 0 (slot_start == mempool):
-			//       slot_start - 8 = chunk_base + 56 (an earlier change
-			//       reserved area in chunk-header pad).
-			//   * Bit B > 0: slot_start - 8 lands in bit (B-1)'s last 8
-			//       bytes, either inside an allocated slot whose
-			//       user_area excludes its last 8 B (universal
-			//       reservation invariant) or in a free bitmap region.
-			// CAS publishes the header via release semantics.
-			*reinterpret_cast<std::uint64_t *>(slot_start - 8) = hdr_word;
+			size_t bit_index = size_t(idx_cand) * sizeof(FUINT) * 8 + sidx;
+			slot_start = &this->m_mempool[bit_index * ALIGN];
+			// Write the per-slot metadata BEFORE the CAS publishes the bit
+			// (the CAS is the release that publishes it to a freeing
+			// thread; the freer's acquire on the bitmap word synchronises
+			// with it).
+			if constexpr (ALIGN >= 1024u) {
+				// (§16) Full-usable mode: store (N<<8)|local_id in the
+				// chunk-header m_sizes[] array indexed by slot start bit.
+				// The slot's own bytes are 100 % user-usable — no borrow.
+				this->m_sizes[bit_index] = msize_word;
+				(void)hdr_word;
+			}
+			else {
+				// Borrow scheme — header at `slot_start - 8`:
+				//   * Bit 0 of word 0 (slot_start == mempool):
+				//       slot_start - 8 = chunk_base + 56 (reserved
+				//       chunk-header pad).
+				//   * Bit B > 0: slot_start - 8 lands in bit (B-1)'s last 8
+				//       bytes (universal reservation invariant — the prior
+				//       slot's user_area excludes its own last 8 B).
+				*reinterpret_cast<std::uint64_t *>(slot_start - 8) = hdr_word;
+				(void)msize_word;
+			}
 			// Always-CAS path (cf. FS=true sibling): TLS s_tls.my_chunk
 			// fast path removes the bit0-lock around chunk access, so
 			// a non-atomic store would torn-write under contention.
@@ -1001,8 +1049,17 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// same chunk object.  Compare as void* to bypass the type mismatch.
 	if(static_cast<void *>(PoolAllocator<ALIGN, true, false>::s_tls.my_chunk)
 	    == static_cast<void *>(this)) {
-		std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
-		unsigned local = static_cast<unsigned>(hdr);
+		// (§16) local-id source: full-usable mode reads m_sizes[bit],
+		// borrow mode reads the p-8 prefix.
+		unsigned local;
+		if constexpr (ALIGN >= 1024u) {
+			size_t bit_index = static_cast<size_t>(p - this->m_mempool) >> this->m_align_shift;
+			local = this->m_sizes[bit_index] & 0xFFu;
+		}
+		else {
+			std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
+			local = static_cast<unsigned>(hdr);
+		}
 		// Defensive bound check (local-id must be valid; misroute on
 		// stale data is detected and falls through to bitmap path).
 		if(local < (unsigned)KAME_LOCAL_BUCKETS) {
@@ -1068,18 +1125,28 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled_static(
 	return self->PoolAllocator::deallocate_pooled(p);
 }
 
-// FS=false slot-size trampoline.  Reads SIZE from the
-// `{bucket, SIZE}` header at `p - 8` (the LAST 8 bytes of the prefix
-// bit's ALIGN area; allocate_pooled wrote it there before publishing
-// the bitmap bit).  Used by `realloc()` via
-// `PoolAllocatorBase::size_of()` to recover the exact allocated byte
-// count for a slot.  The high 32 bits of the 64-bit header hold SIZE.
+// FS=false slot-size trampoline.  Used by `realloc()` /
+// `malloc_usable_size` via `PoolAllocatorBase::size_of()`.
+//   * Borrow mode (ALIGN<1024): SIZE = high 32 bits of the {local_id,SIZE}
+//     header at `p - 8` (= the user-requested max the bucket serves).
+//   * (§16) Full-usable mode (ALIGN>=1024): the slot's full N*ALIGN bytes
+//     are usable; recover N from m_sizes[bit] and return N*ALIGN — the
+//     true capacity (lets realloc grow in place across the full slot).
 template <unsigned int ALIGN, bool DUMMY>
 std::size_t
 PoolAllocator<ALIGN, false, DUMMY>::size_of_static(
-    PoolAllocatorBase * /*base*/, char *p) noexcept {
-	return static_cast<std::size_t>(
-	    *reinterpret_cast<std::uint32_t *>(p - 4));
+    PoolAllocatorBase *base, char *p) noexcept {
+	if constexpr (ALIGN >= 1024u) {
+		PoolAllocator *self = static_cast<PoolAllocator *>(base);
+		size_t bit_index = static_cast<size_t>(p - self->m_mempool) >> self->m_align_shift;
+		unsigned N = static_cast<unsigned>(self->m_sizes[bit_index] >> 8);
+		return static_cast<std::size_t>(N) * ALIGN;
+	}
+	else {
+		(void)base;
+		return static_cast<std::size_t>(
+		    *reinterpret_cast<std::uint32_t *>(p - 4));
+	}
 }
 
 // FS=false batch return — N-bit clear
@@ -1101,16 +1168,24 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 	// pass a stack-local {this, p_user} + sentinel pair.
 	bool i_am_releaser = false;
 	int n = this->batch_clear_impl(entries,
-		// MaskFn: an earlier change FS=false N-bit clear (borrow scheme).
-		// `p` is p_user (= slot_start); the `{bucket, SIZE}` header
-		// is at `p - 8` (in previous slot's reserved 8 B tail OR in
-		// chunk_header pad for slot 0).  SIZE is the upper 32 bits.
-		// N = ceil((SIZE + 8) / ALIGN) bits starting at the slot's
-		// own bit position `sidx`.
-		[](int /*idx*/, unsigned sidx, char *p) -> FUINT {
-			unsigned size_bytes = *reinterpret_cast<std::uint32_t *>(
-			    p - 4);
-			unsigned N = (size_bytes + 8u + ALIGN - 1u) / ALIGN;
+		// MaskFn: FS=false N-bit clear.  `p` is p_user (= slot_start);
+		// `sidx` is the slot's own bit position within m_flags word `idx`.
+		//   * Borrow mode (ALIGN<1024): N = ceil((SIZE+8)/ALIGN), SIZE from
+		//     the {local_id,SIZE} header at p-8 (upper 32 bits at p-4).
+		//   * (§16) Full-usable mode (ALIGN>=1024): N = m_sizes[bit] >> 8,
+		//     where bit = idx*FUINT_BITS + sidx — no borrow header.
+		[this](int idx, unsigned sidx, char *p) -> FUINT {
+			unsigned N;
+			if constexpr (ALIGN >= 1024u) {
+				size_t bit_index =
+				    static_cast<size_t>(idx) * (sizeof(FUINT) * 8u) + sidx;
+				N = static_cast<unsigned>(this->m_sizes[bit_index] >> 8);
+			}
+			else {
+				unsigned size_bytes = *reinterpret_cast<std::uint32_t *>(
+				    p - 4);
+				N = (size_bytes + 8u + ALIGN - 1u) / ALIGN;
+			}
 			FUINT slot_mask = (((FUINT(1) << N) - FUINT(1))) << sidx;
 #ifdef GUARDIAN
 			for(unsigned int j = 0;
@@ -1439,30 +1514,28 @@ __attribute__((cold, noinline))
 void *
 PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
                                                   std::size_t /*size*/) noexcept {
-	// an earlier change inverse of `bucket_for_size`: bucket index → max
-	// user_size.
+	// Inverse of `bucket_for_size`: bucket index → max user_size to pass
+	// to allocate_pooled (which derives the bit count N).
 	//
 	// Buckets 1..23 (FS=true + FS=false mixed): slot_size = bucket * 16.
-	//   - 1..16: original an earlier change range (16..256 B).
-	//   - 17..23: an earlier change FS=true extension (272..368 B).
 	//
-	// Buckets 24..47 (FS=false N+1 shift, an earlier change): 4-way exponential.
-	//   bucket_offset = bucket - 23 (1..24).
-	//   octave = 8 + bucket_offset / 4 (8..14).
-	//   sub = bucket_offset % 4 (0..3).
-	//   OLD total = (1<<octave) + (1<<(octave-2)) * sub.
-	//   NEW slot = OLD + ALIGN_tier.
-	//   user_size = NEW slot - 8.
+	// Buckets 24..51 (FS=false): use the `kBucketNewSlot[]` table directly
+	// rather than the 4-way octave/sub formula.  The formula only covers
+	// the monotonic ladder 24..47; the (§16) page-aligned tier 48..51
+	// (slots 4096/8192/16384/32768) is out-of-order and the formula would
+	// produce garbage for it (the latent bug that never fired because the
+	// alloc_minimal_bench freelist never misses).  Per mode:
+	//   * Borrow (ALIGN<1024): allocate_pooled needs SIZE = slot - 8 (the
+	//     last 8 B are the borrow prefix), N = ceil((SIZE+8)/ALIGN).
+	//   * Full-usable (ALIGN>=1024, §16): SIZE = slot, N = ceil(SIZE/ALIGN).
 	unsigned int slot_size;
 	if(bucket <= 23) {
 		slot_size = bucket * 16u;
 	}
 	else {
-		unsigned int off    = bucket - 23u;       // 1..24
-		unsigned int octave = 8u + off / 4u;       // 8..14
-		unsigned int sub    = off % 4u;            // 0..3
-		unsigned int total  = (1u << octave) + (1u << (octave - 2u)) * sub;
-		slot_size = total + ALIGN - 8u;
+		slot_size = kBucketNewSlot[bucket];
+		if constexpr (ALIGN < 1024u)
+			slot_size -= 8u;
 	}
 	// Inherited static; resolves to PoolAllocator<ALIGN, true, false>::
 	// allocate_chunk_path, which uses the FS=false-instantiated
@@ -2453,15 +2526,25 @@ PoolAllocatorBase::deallocate(void *p) {
 		// for the fast path; palloc is read only on the slow path below
 		// (cross-thread / released / foreign / post-teardown).
 		if(__builtin_expect(chunk_obj->m_owner_id == s_tls_owner_id, 1)) {
-			// (§12.3) Local-id from cache-line-1 m_fs_flag, never
-			// size_info:
-			//   FS=true  : chunk serves one size -> local-id 0.
-			//   FS=false : per-slot prefix { uint32_t local_id,
-			//              uint32_t SIZE } at p - 8 (slot's own line,
-			//              not chunk_header).
+			// (§12.3 / §16) Local-id from the cache-line-1 hot block:
+			//   FS=true        : chunk serves one size -> local-id 0.
+			//   FS=false borrow: per-slot prefix { uint32 local_id,
+			//                    uint32 SIZE } at p-8 (slot's own line).
+			//   FS=false full  : m_sizes != null (ALIGN>=1024) -> local-id
+			//                    is the low byte of m_sizes[bit], bit =
+			//                    (p - m_mempool) >> m_align_shift.  m_sizes
+			//                    sits in this already-loaded hot line, so a
+			//                    borrow chunk's `!m_sizes` check is free.
 			unsigned local;
 			if(chunk_obj->m_fs_flag) {
 				local = 0;
+			} else if(chunk_obj->m_sizes) {
+				size_t bit_index =
+				    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->m_mempool)
+				    >> chunk_obj->m_align_shift;
+				local = chunk_obj->m_sizes[bit_index] & 0xFFu;
+				if(local >= (unsigned)KAME_LOCAL_BUCKETS)
+					goto vtable_dispatch;
 			} else {
 				std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
 				    static_cast<char *>(p) - 8);
@@ -2808,29 +2891,35 @@ KAME_DECL_BUCKET(37, 256u, false,  3320u);  // octave 11 sub 2 +ALIGN, N=13, slo
 KAME_DECL_BUCKET(38, 256u, false,  3832u);  // octave 11 sub 3 +ALIGN, N=15, slot= 3840
 KAME_DECL_BUCKET(39, 256u, false,  4344u);  // octave 12 sub 0 +ALIGN, N=17, slot= 4352
 
-// Stage 3 — ALIGN=1024.  Slot totals 6144..17408 (= 6..17 × 1024).
-KAME_DECL_BUCKET(40, 1024u, false,  6136u);  // octave 12 sub 1 +ALIGN, N=6,  slot= 6144
-KAME_DECL_BUCKET(41, 1024u, false,  7160u);  // octave 12 sub 2 +ALIGN, N=7,  slot= 7168
-KAME_DECL_BUCKET(42, 1024u, false,  8184u);  // octave 12 sub 3 +ALIGN, N=8,  slot= 8192
-KAME_DECL_BUCKET(43, 1024u, false,  9208u);  // octave 13 sub 0 +ALIGN, N=9,  slot= 9216
-KAME_DECL_BUCKET(44, 1024u, false, 11256u);  // octave 13 sub 1 +ALIGN, N=11, slot=11264
-KAME_DECL_BUCKET(45, 1024u, false, 13304u);  // octave 13 sub 2 +ALIGN, N=13, slot=13312
-KAME_DECL_BUCKET(46, 1024u, false, 15352u);  // octave 13 sub 3 +ALIGN, N=15, slot=15360
-KAME_DECL_BUCKET(47, 1024u, false, 17400u);  // octave 14 sub 0 +ALIGN, N=17, slot=17408
+// Stage 3 — ALIGN=1024, (§16) FULL-USABLE mode.  No borrow theft: SIZE =
+// slot = N × 1024.  allocate_pooled stores {N,local_id} in the chunk's
+// m_sizes[] array, so the whole N*1024-byte slot is user-usable.
+KAME_DECL_BUCKET(40, 1024u, false,  6144u);  // N=6,  slot= 6144
+KAME_DECL_BUCKET(41, 1024u, false,  7168u);  // N=7,  slot= 7168
+KAME_DECL_BUCKET(42, 1024u, false,  8192u);  // N=8,  slot= 8192
+KAME_DECL_BUCKET(43, 1024u, false,  9216u);  // N=9,  slot= 9216
+KAME_DECL_BUCKET(44, 1024u, false, 11264u);  // N=11, slot=11264
+KAME_DECL_BUCKET(45, 1024u, false, 13312u);  // N=13, slot=13312
+KAME_DECL_BUCKET(46, 1024u, false, 15360u);  // N=15, slot=15360
+KAME_DECL_BUCKET(47, 1024u, false, 17408u);  // N=17, slot=17408
 
-// Stage 4 — ALIGN=4096 page-aligned tier.  Power-of-2 slot sizes (4K,
-// 8K, 16K, 32K) chosen so every slot is a multiple of every common
-// page size (4 KiB / 16 KiB / 32 KiB / 64 KiB), keeping MADV_FREE
-// granularity, TLB coverage and THP behaviour clean across platforms.
-// Routing rules (see `bucket_for_size`):
-//   - bucket 48 shadows bucket 39 for sizes 3841..4088
-//   - bucket 49 shadows bucket 42 for sizes 7161..8184 (same slot size)
-//   - bucket 50 shadows bucket 47 for sizes 15353..16376
-//   - bucket 51 extends the pool from 17408 to 32760 (was libc malloc)
-KAME_DECL_BUCKET(48, 4096u, false,  4088u);  // ALIGN=4096 N=1, slot= 4096
-KAME_DECL_BUCKET(49, 4096u, false,  8184u);  // ALIGN=4096 N=2, slot= 8192
-KAME_DECL_BUCKET(50, 4096u, false, 16376u);  // ALIGN=4096 N=4, slot=16384
-KAME_DECL_BUCKET(51, 4096u, false, 32760u);  // ALIGN=4096 N=8, slot=32768
+// Stage 4 — ALIGN=4096 page-aligned tier, (§16) FULL-USABLE.  Power-of-2
+// slot sizes (4K, 8K, 16K, 32K) — every slot is a multiple of every
+// common page size (4/16/32/64 KiB), keeping MADV_FREE granularity, TLB
+// coverage and THP behaviour clean across platforms.  Full-usable: SIZE =
+// slot = N × 4096, the entire slot is user-usable (the m_sizes mode kills
+// the 50 % round-up that the borrow scheme caused at power-of-2 sizes).
+// Routing (see `bucket_for_size`):
+//   - bucket 48 catches 3833..4096   (vs borrow bucket 39 slot 4352)
+//   - bucket 50 catches 15361..16384 (vs full bucket 47 slot 17408)
+//   - bucket 51 extends the pool from 17408 to 32768 (was libc malloc)
+//   - bucket 49 (8192) ties full bucket 42 (8192); plain malloc prefers
+//     42 (denser ALIGN=1024 chunks), so 49 is reached only via a future
+//     large-alignment posix_memalign/aligned_alloc path.
+KAME_DECL_BUCKET(48, 4096u, false,  4096u);  // N=1, slot= 4096
+KAME_DECL_BUCKET(49, 4096u, false,  8192u);  // N=2, slot= 8192
+KAME_DECL_BUCKET(50, 4096u, false, 16384u);  // N=4, slot=16384
+KAME_DECL_BUCKET(51, 4096u, false, 32768u);  // N=8, slot=32768
 #undef KAME_DECL_BUCKET
 
 //! First-access trampoline for bucket B.  Invoked from the
