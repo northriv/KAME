@@ -202,6 +202,30 @@ AllocSlot *kame_slots_cold() noexcept {
 // behind a free function defined after CrossDeallocBatch.
 namespace { void drain_thread_slot_freelists() noexcept; }
 
+// (§22) Unified per-thread large-recycle cache, shared by BOTH large
+// tiers so a tight alloc/free loop of 64 KiB–32 MiB reuses warm VA+pages
+// instead of paying the per-cycle release every time:
+//   - LRC_CHUNK : §15 dedicated multi-unit chunks (64 KiB–4 MiB).  The
+//                 claim bits stay SET while cached (so no other thread can
+//                 re-claim the units); reuse returns the payload directly
+//                 with the chunk_header intact — NO claim_chunk, NO madvise.
+//                 True release (on eviction / thread-exit) = the N-bit
+//                 bitmap-CAS claim-clear + madvise inside deallocate_chunk.
+//   - LRC_MMAP  : §19 single-mmap large allocs (4 MiB–32 MiB).  The VA
+//                 stays mapped while cached (radix CLEARED for double-free
+//                 routing); reuse re-registers the radix.  Release = munmap.
+// The freeing thread wins the kind's single-winner clearing CAS (bitmap
+// N-bit for chunk, radix for mmap) and is thus the unique owner, so the
+// deferred release is race-free regardless of thread-exit ordering.  The
+// `kind` tag selects the release backend on eviction.  Cache + helpers are
+// defined far below (after deallocate_chunk / the mmap helpers); these are
+// forward decls so the earlier §15 dedicated-chunk paths can reach them.
+namespace {
+enum { LRC_MMAP = 0, LRC_CHUNK = 1 };
+char *large_recycle_pop(std::size_t need, unsigned kind) noexcept;
+bool  large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept;
+}
+
 // Per-thread cleanup at thread exit.  chunks are no longer
 // pinned via atomic counters; this destructor instead walks each
 // (ALIGN, FS) template's per-thread DLL (via the registered
@@ -2578,7 +2602,14 @@ PoolAllocatorBase::deallocate(void *p) {
 		if(__builtin_expect((back_off_raw & 0x80u) != 0u, 0)) {
 			size_t bytes = *reinterpret_cast<std::uint64_t *>(
 			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
-			deallocate_chunk(chunk_base, bytes);
+			// (§22) Recycle into the per-thread cache, keeping the units
+			// CLAIMED and the chunk_header intact for warm reuse (no
+			// bitmap clear, no madvise here).  On overflow the cache
+			// returns false and we do the real release now.  The unique
+			// owner (this thread, or whichever later evicts it) performs
+			// the N-bit bitmap-CAS clear inside deallocate_chunk.
+			if( !large_recycle_push(chunk_base, bytes, LRC_CHUNK))
+				deallocate_chunk(chunk_base, bytes);
 			return true;
 		}
 		// (1b) Owner-free FAST PATH — touches ONLY chunk_obj's cache line
@@ -2823,6 +2854,17 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 	}
 }
 
+// (§22) Public forwarder to the protected `deallocate_chunk`, used by the
+// large-recycle cache to truly release a recycled dedicated chunk on
+// eviction / thread-exit.  reclaim_pages defaults to true (madvise), so a
+// cached-then-evicted chunk returns its physical pages exactly as a normal
+// dedicated free would.
+void
+PoolAllocatorBase::recycle_release_chunk(char *chunk_base,
+                                         std::size_t chunk_size) noexcept {
+	deallocate_chunk(chunk_base, chunk_size);
+}
+
 void *
 PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	// (§15) Under the forward-shift layout, chunk_base sits K_MAX bytes
@@ -2848,6 +2890,14 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	if(chunk_units > (unsigned)ALLOC_MAX_CHUNK_UNITS)
 		return nullptr;   // > 4 MiB payload — caller falls to std::malloc
 	size_t chunk_size = (size_t)chunk_units * (size_t)ALLOC_MIN_CHUNK_SIZE;
+	// (§22) Recycle a warm cached chunk of the same size class first: its
+	// units are still claimed and its chunk_header (DEDICATED sentinel +
+	// palloc + size) is intact, so we skip claim_chunk AND the page refault
+	// entirely and hand back the payload directly.  pop_fit's [need, 2*need]
+	// window means the cached chunk's actual size (kept in DEDICATED_SIZE)
+	// is ≥ this request — size_of stays truthful via that field.
+	if(char *cached = large_recycle_pop(chunk_size, LRC_CHUNK))
+		return cached + ALLOC_CHUNK_K_MAX;
 	// Claim N units, tagging back_off with bit7 so deallocate / size_of
 	// detect the dedicated chunk from the already-loaded s_back_offset
 	// byte (no chunk_header read on the hot free path — preserves the
@@ -4483,28 +4533,48 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 #endif
 }
 
-// (§21) Per-thread LIFO recycle cache for §19 large allocs.  Holds a few
-// recently-freed regions (still mapped) so a tight alloc/free loop reuses
-// VA + warm pages instead of paying mmap+munmap syscalls every cycle.
-// Cached regions are radix-CLEARED (so a double-free routes to libc, not
-// a torn cache) and re-registered on reuse.  Bounded by entry count AND
-// total bytes; evicted / thread-exit entries are munmap'd.  RSS held while
-// cached is therefore ≤ MAX_BYTES per thread that actually does large
-// allocs (most threads never touch this tier → empty cache → zero cost).
-struct LargeVaCache {
-	static constexpr int    MAX_ENTRIES = 4;
+// (§21/§22) Per-thread LIFO recycle cache, shared by BOTH large tiers
+// (LRC_CHUNK = §15 dedicated chunks, LRC_MMAP = §19 single-mmap allocs).
+// Holds a few recently-freed blocks still owned by this thread so a tight
+// alloc/free loop reuses warm VA + pages instead of paying the per-cycle
+// release.  Bounded by entry count AND total bytes; evicted / thread-exit
+// entries are released per their kind.  RSS held while cached is ≤
+// MAX_BYTES per thread that actually does large allocs (most threads never
+// touch this tier → empty cache → zero cost).
+//   - LRC_MMAP : region stays mapped, radix CLEARED on push (double-free
+//                routes to libc, not a torn cache), re-registered on reuse.
+//                Release = munmap.
+//   - LRC_CHUNK: units stay CLAIMED + chunk_header intact on push (so no
+//                other thread can re-claim and nothing overwrites the
+//                header), payload returned directly on reuse.  Release =
+//                deallocate_chunk (N-bit bitmap-CAS clear + madvise).
+struct LargeRecycleCache {
+	static constexpr int    MAX_ENTRIES = 8;
 	static constexpr std::size_t MAX_BYTES = 64u * 1024u * 1024u;  // 64 MiB
-	struct Entry { char *base; std::size_t mmap_size; };
+	struct Entry { char *base; std::size_t size; unsigned kind; };
 	Entry e[MAX_ENTRIES];
 	int count = 0;
 	std::size_t total = 0;
 
-	// Reuse a cached region whose size fits [need, 2*need] (avoids handing
-	// a 32 MiB region to a 5 MiB request).  Returns base (still mapped,
-	// radix-cleared — caller re-registers) or nullptr.
-	char *pop_fit(std::size_t need) noexcept {
+	// Kind-tagged release of one cached block — called on eviction /
+	// thread-exit by the block's unique owner thread (the freeing thread
+	// won the kind's single-winner clearing CAS), hence race-free.  Both
+	// backends touch only global state (region bitmap + madvise / munmap),
+	// never allocator TLS, so this is safe in any TLS destruction order.
+	static void release(const Entry &x) noexcept {
+		if(x.kind == (unsigned)LRC_CHUNK)
+			PoolAllocatorBase::recycle_release_chunk(x.base, x.size);
+		else
+			large_va_raw_unmap(x.base, x.size);
+	}
+	// Reuse a cached block of the SAME kind whose size fits [need, 2*need]
+	// (avoids handing a 32 MiB region to a 5 MiB request).  LRC_MMAP: base
+	// still mapped + radix-cleared (caller re-registers).  LRC_CHUNK: units
+	// still claimed + header intact (caller returns the payload directly).
+	char *pop_fit(std::size_t need, unsigned kind) noexcept {
 		for(int i = count - 1; i >= 0; --i) {
-			std::size_t sz = e[i].mmap_size;
+			if(e[i].kind != kind) continue;
+			std::size_t sz = e[i].size;
 			if(sz >= need && sz <= need * 2u) {
 				char *b = e[i].base;
 				for(int j = i; j + 1 < count; ++j) e[j] = e[j + 1];
@@ -4514,34 +4584,44 @@ struct LargeVaCache {
 		}
 		return nullptr;
 	}
-	// Evict entries[0] (oldest): munmap it (already radix-cleared on push).
+	// Evict entries[0] (oldest): release per its kind.
 	void evict0() noexcept {
-		large_va_raw_unmap(e[0].base, e[0].mmap_size);
-		total -= e[0].mmap_size;
+		release(e[0]);
+		total -= e[0].size;
 		for(int j = 0; j + 1 < count; ++j) e[j] = e[j + 1];
 		--count;
 	}
-	// Try to cache a freed region (caller has already radix_clear'd base).
-	// Returns true if cached (keep mapped), false if caller must munmap.
-	bool push(char *base, std::size_t mmap_size) noexcept {
-		if(mmap_size > MAX_BYTES) return false;  // single region over cap
-		while(count >= MAX_ENTRIES || total + mmap_size > MAX_BYTES) {
+	// Try to cache a freed block.  Caller has already performed the kind's
+	// clearing step (LRC_MMAP: radix_clear; LRC_CHUNK: none — bits stay
+	// set).  Returns true if cached, false if the caller must release now.
+	bool push(char *base, std::size_t size, unsigned kind) noexcept {
+		if(size > MAX_BYTES) return false;  // single block over cap
+		while(count >= MAX_ENTRIES || total + size > MAX_BYTES) {
 			if(count == 0) break;
 			evict0();
 		}
-		if(count < MAX_ENTRIES && total + mmap_size <= MAX_BYTES) {
-			e[count].base = base; e[count].mmap_size = mmap_size;
-			++count; total += mmap_size;
+		if(count < MAX_ENTRIES && total + size <= MAX_BYTES) {
+			e[count].base = base; e[count].size = size; e[count].kind = kind;
+			++count; total += size;
 			return true;
 		}
 		return false;
 	}
-	~LargeVaCache() noexcept { while(count) evict0(); }
+	~LargeRecycleCache() noexcept { while(count) evict0(); }
 };
-// thread_local with dtor: the dtor only munmaps (no pool ops), so it is
-// safe regardless of TLS destruction order relative to the other
-// allocator TLS objects.
-thread_local LargeVaCache tls_large_va_cache;
+// thread_local with dtor: release() touches only global pool state
+// (deallocate_chunk: region bitmap + madvise) or munmap — never any
+// allocator TLS — so it is safe regardless of TLS destruction order.
+thread_local LargeRecycleCache tls_large_recycle_cache;
+
+// (§22) Definitions of the forward-declared helpers used by the earlier
+// §15 dedicated-chunk paths (allocate_dedicated_chunk / deallocate).
+char *large_recycle_pop(std::size_t need, unsigned kind) noexcept {
+	return tls_large_recycle_cache.pop_fit(need, kind);
+}
+bool large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
+	return tls_large_recycle_cache.push(base, size, kind);
+}
 } // namespace
 
 // =====================================================================
@@ -4580,7 +4660,7 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 	// A cache hit returns a radix-CLEARED but still-mapped region; we
 	// re-register it below.  The cached region's real size (meta->mmap_size,
 	// preserved) is ≥ mmap_size and ≤ 2× it (pop_fit's fit window).
-	char *base = tls_large_va_cache.pop_fit(mmap_size);
+	char *base = tls_large_recycle_cache.pop_fit(mmap_size, LRC_MMAP);
 	bool recycled = (base != nullptr);
 	if( !recycled) {
 		base = large_va_raw_map(mmap_size);
@@ -4621,7 +4701,7 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 		s_last_region_base = 0;
 	// (§21) Try to recycle into the per-thread cache (still mapped, warm).
 	// On overflow / over-cap the cache returns false and we munmap now.
-	if( !tls_large_va_cache.push(base, mmap_size))
+	if( !tls_large_recycle_cache.push(base, mmap_size, LRC_MMAP))
 		large_va_raw_unmap(base, mmap_size);
 }
 
