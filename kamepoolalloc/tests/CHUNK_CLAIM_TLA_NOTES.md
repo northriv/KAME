@@ -674,3 +674,94 @@ cycles per dealloc; radix stays at ~3 cycles.
 region's first 256 KiB unit (per-region metadata in the region itself).
 That + a region DLL retires `ALLOC_MAX_MMAP_ENTRIES` entirely — only VA
 limits the region count.  Radix from step 1 stays as the lookup index.
+
+## 13.2 Per-region metadata in unit 0 (HPC scaling step 2)
+
+Builds on §13's radix.  Moves the two globals that scaled with
+`ALLOC_MAX_MMAP_ENTRIES` — `s_claim_bitmap[]` and `s_back_offset[]` —
+into a `RegionMeta` block embedded at `region_base + 0` (inside unit 0
+of each mmap region).
+
+### Layout
+
+```
+class PoolAllocatorBase {
+    struct RegionMeta {
+        std::atomic<BitmapWord> claim_bitmap[BITMAP_WORDS_PER_REGION];  //  16 B
+        std::uint8_t            back_offset[NUM_ALLOCATORS_IN_SPACE];   // 128 B
+    };  // 144 B total
+    static RegionMeta *region_meta(char *mp) noexcept {
+        return reinterpret_cast<RegionMeta *>(mp);
+    }
+    // s_claim_bitmap[]  retired
+    // s_back_offset[]   retired
+};
+```
+
+Region base is `ALLOC_MIN_MMAP_SIZE`-aligned (= 32 MiB, §13's
+alignment fix), so the cast in `region_meta(mp)` is always valid for
+populated regions.  The 144 B metadata lives in the first 4 KiB page of
+unit 0; the remaining ~252 KiB of unit 0 is reserved (virtual only — no
+physical commit).
+
+### Reserved unit 0 + bit-0 hardwired
+
+Allocate_chunk's bitmap scan must NOT give out unit 0 (the metadata
+lives there).  Solution: at region init, set bit 0 of
+`claim_bitmap[0]` to `1`.  The CAS-with-stride scan in
+`try_claim_in_region` naturally skips position 0 because the bit is
+already set.
+
+Init happens BEFORE `s_mmapped_spaces[region]` is published via its
+release-CAS; the CAS's release pairs with any subsequent reader's
+acquire chain (via the radix's L1 entry release / read paths) to make
+the bit-0 store visible.
+
+Capacity cost: 1 unit per region = 0.78 %.  Additional 1 unit lost to
+stride alignment for multi-unit chunks (CHUNK_UNITS=2: 1 of 64 unit
+slots in word 0 wasted; CHUNK_UNITS=4: 3 of 64 wasted).  All trivial.
+
+### `count_live_chunks` adjustment
+
+The pre-§13.2 diagnostic counted set bits in `s_claim_bitmap`, returning
+"units occupied by chunks."  Post-§13.2 the metadata bit would inflate
+the count by one per populated region (90 regions populated would
+report ~90 even with zero chunks live).  Fix: mask off bit 0 of word 0
+in the per-region sum, restoring the original leak-probe semantics.
+
+### Changes
+
+  - `s_claim_bitmap[]` removed; access goes through `region_meta(mp)`.
+  - `s_back_offset[]` removed; same.
+  - `resolve_chunk_from_slot`: reads `rmeta->back_offset[unit_idx]`
+    instead of the global.  `meta_base` parameter is now unused (kept
+    as no-op for call-site compat).
+  - `try_claim_in_region` (allocate_chunk template): grabs
+    `rmeta = region_meta(s_mmapped_spaces[region])` once per call.
+  - `claim_chunk` (runtime variant for dedicated large chunks): same.
+  - `deallocate_chunk`: clears bits via `rmeta`.
+  - Dealloc fast path: drops the `meta_base = ccnt * NUM_ALLOCATORS`
+    multiply — `rmeta = region_meta(mp)` is a no-op cast.
+  - Region claim path (both `allocate_chunk` and `claim_chunk`):
+    initializes `rmeta->claim_bitmap[0] = 1` before publishing the
+    region.
+
+### Benefits
+
+  - **~450 KiB BSS retired**: 3200 × (16 + 128) on 64-bit.  Replaced
+    by per-region commit of 1 page (4 KiB) per populated region —
+    scales with usage, not with the cap.
+  - **Pre-step for retiring `ALLOC_MAX_MMAP_ENTRIES`**: the two
+    biggest cap-sized arrays are now per-region.  Still capped on
+    `s_mmapped_spaces[]` and `s_region_has_free[]`; step 3 handles
+    those.
+
+### Verification
+
+  - x86-64 perf (alloc_minimal_bench hot, 12-iter interleaved):
+      64 B  (FS=true,  1 region): 274 → 270 M ops/s  (−1.5 %, noise)
+      256 B (FS=false, 2 region): 282 → 284 M ops/s  (+0.7 %)
+  - x86-64 correctness: c_api_test, alloc_bucket34_repro
+    (sentinel_fails=0), alloc_stress cross={0,5,100} × 3 × 1500 threads
+    (sentinel_fails=0, diff=0), 9/9 PASS.
+  - 32-bit (gcc-multilib): clean build, c_api + stress PASS.

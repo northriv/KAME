@@ -746,6 +746,52 @@ public:
 	                 == NUM_ALLOCATORS_IN_SPACE,
 		"bitmap layout (1 bit per unit) must cover all 128 units per region");
 
+	//! (§13.2) Per-region metadata block, embedded at `region_base + 0`
+	//! (i.e. inside unit 0 of every mmap region).  Replaces two of the
+	//! `ALLOC_MAX_MMAP_ENTRIES`-sized globals — `s_claim_bitmap[]` and
+	//! `s_back_offset[]` — with a struct attached to each region.  Self-
+	//! contained per-region metadata lets the populated-region count
+	//! scale without growing fixed BSS, paving the way to retire
+	//! ALLOC_MAX_MMAP_ENTRIES entirely (HPC scaling step 3).
+	//!
+	//! Layout (144 B total on both 64- and 32-bit):
+	//!   claim_bitmap[BITMAP_WORDS_PER_REGION]  // 16 B
+	//!   back_offset [NUM_ALLOCATORS_IN_SPACE]  // 128 B
+	//!
+	//! Lives in unit 0 of the region (256 KiB virtual; only the first
+	//! page = 4 KiB is touched and committed by the kernel).  Unit 0 is
+	//! permanently marked claimed (bit 0 of claim_bitmap set at region
+	//! init), so allocate_chunk's bitmap scan naturally skips it.  Cost:
+	//! 1/128 = 0.78 % of region VA, ~4 KiB committed RSS per region —
+	//! both negligible vs the BSS savings (3200 × 144 B = 450 KiB BSS
+	//! returned to the rodata-free pool).
+	//!
+	//! Concurrency: claim_bitmap entries use atomic CAS (same as the
+	//! retired global s_claim_bitmap).  back_offset bytes are plain
+	//! (written by the claim path BEFORE the claim-bit CAS publishes
+	//! the chunk; the bit's release semantics carries them).  At region
+	//! init, mmap zero-fills the page, then `init_region_meta` sets bit
+	//! 0 of claim_bitmap before publishing the region to other threads
+	//! via the s_mmapped_spaces[ccnt] release-CAS — readers' acquire on
+	//! that slot synchronizes-with this init.
+	struct RegionMeta {
+		std::atomic<BitmapWord> claim_bitmap[BITMAP_WORDS_PER_REGION];
+		std::uint8_t            back_offset[NUM_ALLOCATORS_IN_SPACE];
+	};
+	static_assert(sizeof(RegionMeta) ==
+	              sizeof(BitmapWord) * (size_t)BITMAP_WORDS_PER_REGION
+	              + (size_t)NUM_ALLOCATORS_IN_SPACE,
+	              "RegionMeta layout must be just the two arrays — no "
+	              "implicit padding (relied upon by the static_assert on "
+	              "total size: 16 + 128 = 144 B)");
+
+	//! Recover a region's metadata block from its base pointer.  Region
+	//! base is `ALLOC_MIN_MMAP_SIZE`-aligned (= 32 MiB), so the cast is
+	//! always valid for a populated region pointer.
+	static inline RegionMeta *region_meta(char *mp) noexcept {
+		return reinterpret_cast<RegionMeta *>(mp);
+	}
+
 private:
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
@@ -808,55 +854,15 @@ private:
 	//! a real region (region base 0 is the kernel null page).
 	static ALLOC_TLS_IE uintptr_t s_last_region_base;
 	static ALLOC_TLS_IE int       s_last_region_ccnt;
-	//! Per-mmap-region per-unit claim bitmap.  Each 256-KiB unit owns
-	//! ONE bit (set ⇒ claimed).  Word size selected at compile time
-	//! (see `BitmapWord` above) so the claim-CAS is genuinely lock-free
-	//! on every supported target — `uint64_t` on 64-bit hosts and 32-bit
-	//! hosts with DCAS, `uint32_t` on 32-bit hosts without DCAS.  Total
-	//! bits per region is 128 (= 128 units × 1 bit).
-	//!
-	//! Lookups go via chunk-header dereference (see `deallocate_<>` /
-	//! `lookup_chunk`), so this array is only consulted on the cold
-	//! chunk-claim / release paths.  Total storage on 64-bit:
-	//! 3200 × 2 × 8 B = 50 KiB.
-	static std::atomic<BitmapWord>
-	    s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION];
 
 public:
-	//! per-region per-unit metadata — one `atomic<uint64_t>` per unit
-	//! packing {back_off, owner_tid, counter} (see the packing constants
-	//! above).  Replaces the former plain-byte `s_back_offset[]`: it now
-	//! also carries the recycle epoch so a CONCURRENT reclaim+recycle of
-	//! the same unit during a `lookup_chunk` is detectable.
-	//!
-	//!     s_back_offset[region * 128 + u]  = u - base_u
-	//!
-	//! Written by `allocate_chunk` AFTER it wins the claim-bit CAS
-	//! (relaxed); the chunk_header.epoch release-store published right
-	//! after is what a reader's `lookup_chunk` seqlock acquires against.
-	//! Cleared to 0 by `deallocate_chunk` (epoch 0 ⇒ released) before the
-	//! claim bits are released.  An uninitialised entry reads 0 from BSS
-	//! (= released), a benign default since the first claim overwrites it.
-	//! Total size: 3200 × 128 × 8 B = 3.1 MiB on 64-bit BSS (96 × 128 ×
-	//! 8 = 96 KiB on 32-bit); demand-paged, so only touched regions are
-	//! per-region per-unit back-offset table.  One byte per unit:
-	//!     s_back_offset[region * 128 + u] = u - base_u
-	//! where `base_u` is the chunk's base unit covering `u`.  0 for a
-	//! single-unit chunk or a base unit; 1..3 for continuation units.
-	//!
-	//! Plain `uint8_t` (no atomic): written by `allocate_chunk` AFTER
-	//! it wins the claim-bit CAS (d2e2c32b: post-CAS publish avoids
-	//! the cross-stride clobber), and read only from a LIVE slot
-	//! (deallocate / lookup_chunk / size_of).  A live slot keeps its
-	//! chunk un-releasable (m_flags_packed != 0 ⇒ no release path
-	//! fires), so the chunk cannot recycle mid-lookup — no seqlock or
-	//! epoch needed; the slot's own publish (allocate_pooled's bitmap
-	//! CAS release) carries this byte's value to the freeing thread.
-	//! released/foreign is judged by `chunk_header.palloc == 0`.
-	//! Total size: 3200 × 128 = 400 KiB on 64-bit (96 × 128 = 12 KiB
-	//! on 32-bit); demand-paged, only touched regions resident.
-	static uint8_t
-	    s_back_offset[ALLOC_MAX_MMAP_ENTRIES * NUM_ALLOCATORS_IN_SPACE];
+	//! (§13.2) The former global `s_claim_bitmap[]` and `s_back_offset[]`
+	//! are gone — both moved into per-region `RegionMeta` at
+	//! `region_base + 0` (= unit 0 of every region; bit 0 of the
+	//! bitmap permanently set to keep allocate_chunk away).  Callers
+	//! reach them via `region_meta(mp)->claim_bitmap[word]` and
+	//! `region_meta(mp)->back_offset[unit_idx]`.  BSS savings: ~450 KiB
+	//! on 64-bit (3200 × (16+128)).  Per-region commit: 1 page = 4 KiB.
 
 	//! per-region "has free space" hint bitmap.  Bit N set ⇒
 	//! region N has at least one free chunk slot of SOME alignment;
