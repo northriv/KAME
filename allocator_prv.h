@@ -498,6 +498,15 @@ public:
 	//! through to std::malloc) when the payload is too large or the region
 	//! cap is hit.
 	static void *allocate_dedicated_chunk(std::size_t size) noexcept;
+	//! (§22) Public forwarder to the protected `deallocate_chunk` (the
+	//! N-bit bitmap-CAS claim-clear + madvise that truly releases a
+	//! dedicated chunk).  Exists so the namespace-level large-recycle
+	//! cache (allocator.cpp) can release a recycled dedicated chunk on
+	//! eviction / thread-exit.  The evicting thread is the chunk's unique
+	//! owner (the claim bits stay set while cached, so no other thread can
+	//! re-claim it; the release is a single-winner CAS), hence race-free.
+	static void recycle_release_chunk(char *chunk_base,
+	                                  std::size_t chunk_size) noexcept;
 	//! Address-only chunk lookup.  Returns nullptr if `p` does not
 	//! belong to any pool chunk (or the chunk has been released).
 	//! Used by `drain_thread_slot_freelists` to handle the case where
