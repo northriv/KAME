@@ -232,6 +232,12 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //!     regions) hot in L1d; rest unused.
 //!   * 32-bit: 96 × 8 = 768 B.  L1d.
 #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32 MiB = 256 KiB × 128
+//! log2(ALLOC_MIN_MMAP_SIZE).  Used as the "region index shift" for the
+//! 2-level radix lookup (§13): any pointer's owning region is identified
+//! by its upper `64 - ALLOC_MIN_MMAP_SHIFT` bits.
+#define ALLOC_MIN_MMAP_SHIFT 25
+static_assert((1ull << ALLOC_MIN_MMAP_SHIFT) == (unsigned)ALLOC_MIN_MMAP_SIZE,
+              "ALLOC_MIN_MMAP_SHIFT must equal log2(ALLOC_MIN_MMAP_SIZE)");
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
     #define ALLOC_MAX_MMAP_ENTRIES 3200 //3200 × 32 MiB = 100 GiB VA cap
 #else
@@ -240,6 +246,49 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
     //! is 16 KiB so 1 MiB chunks hold 64+ slots — plenty.
     #define ALLOC_MAX_MMAP_ENTRIES 96
 #endif
+
+//! 2-level radix tree for O(1) pointer-to-region lookup (§13,
+//! tests/CHUNK_CLAIM_TLA_NOTES.md).  Replaces the O(N) linear walk of
+//! `s_mmapped_spaces[]` that every `lookup_chunk(p)` / `deallocate(p)` /
+//! `size_of(p)` used to do.
+//!
+//! Encoding: region index = `p >> ALLOC_MIN_MMAP_SHIFT` (upper bits of
+//! the pointer); split into RADIX_L1_BITS + RADIX_L2_BITS.  Picked 11+11
+//! = 22-bit region index, which covers 22 + 25 = 47-bit user VA — the
+//! Linux x86-64 default user-VA range.  Pointers above this range
+//! (rare: 48-bit ARM64, 5-level paging kernels) fall back via the
+//! defensive bound check in `radix_lookup` (returns -1, treated as
+//! foreign — same outcome as today's "not in `s_mmapped_spaces[]`").
+//!
+//! Storage:
+//!   L1: fixed `[1<<11 = 2048]` `atomic<RadixL2Node*>` in BSS (16 KiB).
+//!       Top level is hot-in-L1d on the lookup path.
+//!   L2: each populated node is `[1<<11 = 2048]` `atomic<uint32_t>`
+//!       slots (8 KiB = 2 pages).  Slot value 0 = unpopulated; non-zero
+//!       = ccnt + 1 (so zero-init = "empty").  L2 nodes are allocated
+//!       LAZILY via mmap from `radix_alloc_l2()` (NOT through the
+//!       interposed libc malloc — that would recurse).  Each L2 covers
+//!       `2^11 × 32 MiB = 64 GiB` of VA, so a 1-TiB workload populates
+//!       ~16 L2 nodes (128 KiB committed total).
+//!
+//! Concurrency: L1 slot install is one CAS (loser munmap's its loser
+//! leaf).  L2 slot store is `release`-paired with the reader's
+//! `acquire` load on the L1 entry that brought it into view (the L1
+//! load synchronizes-with the L2 init store).  No reclamation needed
+//! (slots are written once and live for the process lifetime — regions
+//! are never unmapped in the current design; §13.2 may revisit).
+constexpr int RADIX_L1_BITS = 11;
+constexpr int RADIX_L2_BITS = 11;
+constexpr unsigned RADIX_L1_SIZE = 1u << RADIX_L1_BITS;
+constexpr unsigned RADIX_L2_SIZE = 1u << RADIX_L2_BITS;
+constexpr int RADIX_REGION_BITS = RADIX_L1_BITS + RADIX_L2_BITS;  // 22
+
+struct RadixL2Node {
+    std::atomic<uint32_t> slots[RADIX_L2_SIZE];  // 0 = empty; non-zero = ccnt+1
+};
+static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
+              "RadixL2Node must be exactly RADIX_L2_SIZE * 4 bytes "
+              "(atomic<uint32_t>) for a clean 8 KiB layout");
 
 //! Reserved bytes at the head of every chunk.  Layout:
 //!   [ 0 ..  7]: chunk-wide SIZE info — `uint64_t`:
@@ -700,6 +749,65 @@ public:
 private:
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
+
+	//! 2-level radix tree top level (§13).  L1 indexed by upper
+	//! RADIX_L1_BITS of a pointer's region index; entries point at a
+	//! lazily-mmap'd RadixL2Node (or null).  The full layout doc is on
+	//! `RadixL2Node` above.  Used by `radix_lookup(p)` to convert any
+	//! in-pool pointer to its `ccnt` (= index into s_mmapped_spaces /
+	//! s_back_offset / s_claim_bitmap) in O(1) — replacing the former
+	//! O(populated-N) linear walk over `s_mmapped_spaces[]`.
+	static std::atomic<RadixL2Node *> s_radix_l1[RADIX_L1_SIZE];
+
+	//! Allocate a zero-init L2 node directly via mmap.  CANNOT use libc
+	//! malloc here: kamepoolalloc interposes `malloc` / `free`, and a
+	//! libc-malloc call from inside the region-claim path would
+	//! recurse back into `kame_malloc` → `allocate_chunk` →
+	//! `radix_insert` → libc malloc → ... .  Returns nullptr on OOM
+	//! (extremely unlikely; one 8-KiB mmap per ~16 GiB of populated
+	//! pool).
+	static RadixL2Node *radix_alloc_l2() noexcept;
+
+	//! Install `(mp, ccnt)` into the radix.  Called from the region-
+	//! claim path of `allocate_chunk` immediately after
+	//! `s_mmapped_spaces[ccnt] = mp` is published.  Concurrent-safe:
+	//! L1-slot install via CAS (loser munmap's its leaf); the
+	//! per-region slot store is non-racing because region claim is
+	//! already serialized by the `s_mmapped_spaces[ccnt]` CAS.
+	static void radix_insert(char *mp, int ccnt) noexcept;
+
+	//! Out-of-line full radix walk.  Called only on cache miss (rare for
+	//! locality-rich workloads).  Returns ccnt or -1.
+	static int radix_lookup_slow(uintptr_t up) noexcept;
+
+	//! O(1) lookup: return `ccnt` if `p` falls in a populated region,
+	//! else -1.  Inlined into deallocate / size_of / lookup_chunk to
+	//! keep the dealloc fast path tight.
+	//!
+	//! Fast path = 1-entry per-thread "last region" cache
+	//! (`s_last_region_base` / `s_last_region_ccnt`, IE TLS).  A
+	//! dealloc usually touches the same region as the previous one
+	//! (most workloads: alloc/dealloc bursts hit one chunk's worth of
+	//! VA; HPC: ditto, plus loop-carried locality).  Hit cost: two IE
+	//! TLS loads + bitmask + compare = ~3 cycles.  Compare against the
+	//! full radix walk (~10 cycles, two chained dependent loads).
+	//!
+	//! Cache miss: full walk via `radix_lookup_slow` (out-of-line so the
+	//! inlined version stays icache-cheap).  Misses also update the
+	//! cache.
+	static inline int radix_lookup(void *p) noexcept {
+		uintptr_t up = (uintptr_t)p;
+		uintptr_t base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
+		if(__builtin_expect(base == s_last_region_base, 1))
+			return s_last_region_ccnt;
+		return radix_lookup_slow(up);
+	}
+
+	//! Per-thread 1-entry region-lookup cache.  Updated by the slow
+	//! path on cache miss.  Initialised to {0, -1} which never matches
+	//! a real region (region base 0 is the kernel null page).
+	static ALLOC_TLS_IE uintptr_t s_last_region_base;
+	static ALLOC_TLS_IE int       s_last_region_ccnt;
 	//! Per-mmap-region per-unit claim bitmap.  Each 256-KiB unit owns
 	//! ONE bit (set ⇒ claimed).  Word size selected at compile time
 	//! (see `BitmapWord` above) so the claim-CAS is genuinely lock-free

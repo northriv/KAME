@@ -1606,13 +1606,20 @@ PoolAllocatorBase::allocate_chunk() {
 				return 0;
 			}
 			size_t mmap_size = ALLOC_MIN_MMAP_SIZE;
-			// Region alignment = ALLOC_MAX_CHUNK_SIZE so any in-region
-			// multi-unit chunk (up to CHUNK_UNITS_MAX) lands at a
-			// chunk_size-aligned absolute address — still useful for
-			// debug-dump / future AND-mask micro-opt.  back_offset[]
-			// already gives O(1) chunk_base lookup so the AND-mask
-			// trick is not on the hot path anymore.
-			constexpr size_t kAlign = ALLOC_MAX_CHUNK_SIZE;
+			// Region alignment = ALLOC_MIN_MMAP_SIZE (= 32 MiB).  Two
+			// reasons:
+			//   1. The (§13) 2-level radix tree keys on
+			//      `p >> ALLOC_MIN_MMAP_SHIFT`, so a region's WHOLE 32 MiB
+			//      VA range must fall in a SINGLE radix slot; otherwise
+			//      pointers in the upper portion of the region miss the
+			//      lookup.  Requires 32 MiB region-base alignment.
+			//   2. Multi-unit chunks (up to ALLOC_MAX_CHUNK_SIZE = 1 MiB)
+			//      still land at chunk-size-aligned absolute addresses
+			//      (32 MiB | 1 MiB), preserving the original guarantee.
+			// Cost: ≤ 32 MiB of VA wasted per region during mmap
+			// over-alloc-then-trim.  64-bit VA budget is 128+ TiB, so
+			// even thousands of regions waste a trivial slice.
+			constexpr size_t kAlign = ALLOC_MIN_MMAP_SIZE;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 			char *p = static_cast<char *>(_aligned_malloc(mmap_size, kAlign));
 			if( !p) {
@@ -1648,6 +1655,16 @@ PoolAllocatorBase::allocate_chunk() {
 			writeBarrier();
 			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[region])) {
 				readBarrier();
+				// §13: publish the (mp, ccnt) pair into the 2-level radix
+				// tree so subsequent lookup_chunk/deallocate/size_of resolve
+				// `p -> ccnt` in O(1) instead of O(populated regions).  Must
+				// happen AFTER s_mmapped_spaces[region] is published (the
+				// reader paths still consult s_mmapped_spaces[ccnt] to
+				// derive mp), but BEFORE any chunk in this region can be
+				// handed out (deallocate of those chunks would miss).  The
+				// `break` after the print returns to the chunk-claim path,
+				// which itself happens after this point.
+				radix_insert(p, region);
 				fprintf(stderr,
 				    "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n",
 				    p, (unsigned long long)mmap_size);
@@ -2365,28 +2382,28 @@ resolve_chunk_from_slot(char *mp, size_t meta_base, unsigned int unit_idx,
 	return palloc;
 }
 
-// Address → chunk lookup.  Walks `s_mmapped_spaces[]` (uniform 32 MiB
-// regions) to find which region contains `p`, then resolves the owning
-// chunk via the (seqlock-free, live-slot) resolver above.
+// Address → chunk lookup.  Two indexed atomic loads via the 2-level
+// radix tree (§13) to find `p`'s region in O(1), then resolves the
+// owning chunk via the (seqlock-free, live-slot) resolver above.
 inline PoolAllocatorBase *
 PoolAllocatorBase::lookup_chunk(void *p) noexcept {
-	for(int ccnt = 0; ccnt < ALLOC_MAX_MMAP_ENTRIES; ++ccnt) {
-		char *mp = s_mmapped_spaces[ccnt];
-		if(ccnt > 0 && !mp) break;
-		if(mp) {
-			ptrdiff_t pdiff = static_cast<char *>(p) - mp;
-			if(pdiff >= 0
-			   && pdiff < (ptrdiff_t)ALLOC_MIN_MMAP_SIZE) {
-				unsigned int unit_idx = static_cast<unsigned int>(
-				    (size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
-				char *chunk_base;
-				return resolve_chunk_from_slot(
-				    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE,
-				    unit_idx, &chunk_base);
-			}
-		}
-	}
-	return nullptr;
+	int ccnt = radix_lookup(p);
+	if(ccnt < 0) return nullptr;
+	// `mp` derived from `p` (region base is 32-MiB-aligned), avoiding
+	// an `s_mmapped_spaces[ccnt]` load.  Note: when regions become
+	// reclaimable (future §13.2), this fast path would still report
+	// non-null for a recently-unmapped region until the radix slot is
+	// cleared; the caller already validates via the chunk-header
+	// `palloc` read inside `resolve_chunk_from_slot`.
+	char *mp = reinterpret_cast<char *>(
+	    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+	ptrdiff_t pdiff = static_cast<char *>(p) - mp;
+	unsigned int unit_idx = static_cast<unsigned int>(
+	    (size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
+	char *chunk_base;
+	return resolve_chunk_from_slot(
+	    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE,
+	    unit_idx, &chunk_base);
 }
 
 inline bool
@@ -2396,18 +2413,19 @@ PoolAllocatorBase::deallocate(void *p) {
 	// kame_free) falls through to its libsystem-free path, which itself
 	// short-circuits on null.
 	if( !p) return false;
-	// uniform 32 MiB regions, runtime walk.  Each region is
-	// either fully claimed (mp != null) or empty (mp == null).  Empty
-	// regions cluster at the tail of `s_mmapped_spaces[]` (claim grows
-	// monotonically from index 0), so the loop short-circuits on the
-	// first null past index 0.
-	for(int ccnt = 0; ccnt < ALLOC_MAX_MMAP_ENTRIES; ++ccnt) {
-		char *mp = s_mmapped_spaces[ccnt];
-		if(ccnt > 0 && !mp) return false;
-		if( !mp) continue;
-		ptrdiff_t pdiff = static_cast<char *>(p) - mp;
-		if(pdiff < 0 || pdiff >= (ptrdiff_t)ALLOC_MIN_MMAP_SIZE)
-			continue;
+	// §13: O(1) p -> ccnt via the 2-level radix tree + per-thread
+	// 1-entry cache (was O(populated regions) linear walk of
+	// `s_mmapped_spaces[]`).  ccnt < 0 means the pointer is outside
+	// every populated region — pass through to libsystem free.
+	int ccnt = radix_lookup(p);
+	if(ccnt < 0) return false;
+	// `mp` derived from `p` directly (region base is
+	// ALLOC_MIN_MMAP_SIZE-aligned by the §13 alignment requirement),
+	// saving the `s_mmapped_spaces[ccnt]` load on the hot path.
+	char *mp = reinterpret_cast<char *>(
+	    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+	ptrdiff_t pdiff = static_cast<char *>(p) - mp;
+	{
 		// `p` is a LIVE slot (the caller's contract: deallocating an
 		// already-freed pointer is undefined behaviour).  A live slot
 		// keeps its bit set in `m_flags`, which in turn keeps
@@ -2554,35 +2572,31 @@ PoolAllocatorBase::deallocate(void *p) {
 inline std::size_t
 PoolAllocatorBase::size_of(void *p) {
 	if( !p) return 0;
-	for(int ccnt = 0; ccnt < ALLOC_MAX_MMAP_ENTRIES; ++ccnt) {
-		char *mp = s_mmapped_spaces[ccnt];
-		if(ccnt > 0 && !mp) return 0;
-		if( !mp) continue;
-		ptrdiff_t pdiff = static_cast<char *>(p) - mp;
-		if(pdiff < 0 || pdiff >= (ptrdiff_t)ALLOC_MIN_MMAP_SIZE)
-			continue;
-		unsigned int unit_idx =
-		    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
-		char *chunk_base;
-		PoolAllocatorBase *palloc = resolve_chunk_from_slot(
-		    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE, unit_idx, &chunk_base);
-		if( !palloc)
-			return 0;
-		// Dedicated single-slot large chunk has no SizeOfFn — its
-		// size_info is the DEDICATED sentinel; the total byte size lives
-		// at [32..39].  Usable payload = total − chunk_header.
-		if(static_cast<std::uint32_t>(*reinterpret_cast<std::uint64_t *>(
-		       chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET))
-		   == ALLOC_CHUNK_DEDICATED_SIZEINFO) {
-			size_t bytes = *reinterpret_cast<std::uint64_t *>(
-			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
-			return bytes - (size_t)ALLOC_CHUNK_HEADER;
-		}
-		SizeOfFn fn = *reinterpret_cast<SizeOfFn *>(
-		    chunk_base + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET);
-		return fn(palloc, static_cast<char *>(p));
+	// §13: O(1) p -> ccnt via the 2-level radix tree.
+	int ccnt = radix_lookup(p);
+	if(ccnt < 0) return 0;
+	char *mp = reinterpret_cast<char *>(
+	    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+	ptrdiff_t pdiff = static_cast<char *>(p) - mp;
+	unsigned int unit_idx =
+	    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
+	char *chunk_base;
+	PoolAllocatorBase *palloc = resolve_chunk_from_slot(
+	    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE, unit_idx, &chunk_base);
+	if( !palloc) return 0;
+	// Dedicated single-slot large chunk has no SizeOfFn — its size_info
+	// is the DEDICATED sentinel; the total byte size lives at [32..39].
+	// Usable payload = total − chunk_header.
+	if(static_cast<std::uint32_t>(*reinterpret_cast<std::uint64_t *>(
+	       chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET))
+	   == ALLOC_CHUNK_DEDICATED_SIZEINFO) {
+		size_t bytes = *reinterpret_cast<std::uint64_t *>(
+		    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+		return bytes - (size_t)ALLOC_CHUNK_HEADER;
 	}
-	return 0;
+	SizeOfFn fn = *reinterpret_cast<SizeOfFn *>(
+	    chunk_base + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET);
+	return fn(palloc, static_cast<char *>(p));
 }
 // Runtime N-unit chunk claim — see the header declaration.  This is a
 // faithful copy of `allocate_chunk<ALLOC>()`'s region-walk generalised to
@@ -3754,6 +3768,89 @@ extern "C" std::size_t kame_pool_reserved_bytes() noexcept {
 }
 
 char *PoolAllocatorBase::s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
+std::atomic<RadixL2Node *> PoolAllocatorBase::s_radix_l1[RADIX_L1_SIZE];
+
+// Per-thread 1-entry region-lookup cache (§13).  Initialized to {0, -1}
+// which never matches a real region (kernel null page).
+ALLOC_TLS_IE uintptr_t PoolAllocatorBase::s_last_region_base = 0;
+ALLOC_TLS_IE int       PoolAllocatorBase::s_last_region_ccnt = -1;
+
+// Out-of-line full radix walk + cache update.  Called on cache miss.
+__attribute__((noinline))
+int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
+	// Defensive: pointers above our covered VA fall back to "not our
+	// pointer".  Matches the former linear-walk behavior of missing the
+	// `s_mmapped_spaces[]` array.
+	if(__builtin_expect(
+	       (up >> (RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT)) != 0u, 0))
+		return -1;
+	unsigned region_idx = (unsigned)(up >> ALLOC_MIN_MMAP_SHIFT);
+	unsigned l1 = region_idx >> RADIX_L2_BITS;
+	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
+	RadixL2Node *leaf = s_radix_l1[l1].load(std::memory_order_acquire);
+	if(__builtin_expect(leaf == nullptr, 0)) return -1;
+	uint32_t v = leaf->slots[l2].load(std::memory_order_relaxed);
+	if(__builtin_expect(v == 0u, 0)) return -1;
+	int ccnt = (int)(v - 1u);
+	// Update the per-thread 1-entry cache.  Locality-rich workloads (the
+	// common case — bursts of alloc/dealloc on the same chunk) hit it on
+	// the very next call.
+	s_last_region_base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
+	s_last_region_ccnt = ccnt;
+	return ccnt;
+}
+
+// 2-level radix tree implementation (§13).  L2 nodes allocated lazily
+// via mmap to avoid recursion through our own interposed libc malloc.
+RadixL2Node *PoolAllocatorBase::radix_alloc_l2() noexcept {
+#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
+	void *p = VirtualAlloc(nullptr, sizeof(RadixL2Node),
+	                       MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if(!p) return nullptr;
+	return static_cast<RadixL2Node *>(p);
+#else
+	void *p = mmap(nullptr, sizeof(RadixL2Node),
+	               PROT_READ | PROT_WRITE,
+	               MAP_ANON | MAP_PRIVATE, -1, 0);
+	if(p == MAP_FAILED) return nullptr;
+	// mmap zero-fills via the kernel — slots[] is fully empty (0).
+	return static_cast<RadixL2Node *>(p);
+#endif
+}
+
+void PoolAllocatorBase::radix_insert(char *mp, int ccnt) noexcept {
+	uintptr_t up = (uintptr_t)mp;
+	// Region must be ALLOC_MIN_MMAP_SIZE-aligned (mmap claim ensures this).
+	unsigned region_idx = (unsigned)(up >> ALLOC_MIN_MMAP_SHIFT);
+	unsigned l1 = region_idx >> RADIX_L2_BITS;
+	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
+	if(__builtin_expect(l1 >= RADIX_L1_SIZE, 0))
+		return;  // Outside radix coverage; lookup will linearly miss (returns -1).
+	RadixL2Node *leaf = s_radix_l1[l1].load(std::memory_order_acquire);
+	if(leaf == nullptr) {
+		RadixL2Node *new_leaf = radix_alloc_l2();
+		if(!new_leaf) return;  // OOM; lookup will miss this region.
+		RadixL2Node *expected = nullptr;
+		if(s_radix_l1[l1].compare_exchange_strong(
+		       expected, new_leaf,
+		       std::memory_order_release, std::memory_order_acquire)) {
+			leaf = new_leaf;
+		} else {
+			// Concurrent installer won; release ours.
+#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
+			VirtualFree(new_leaf, 0, MEM_RELEASE);
+#else
+			munmap(new_leaf, sizeof(RadixL2Node));
+#endif
+			leaf = expected;
+		}
+	}
+	// Region claim is serialized by the s_mmapped_spaces[ccnt] CAS in
+	// the caller, so this slot store is non-racing.  Release-paired with
+	// the reader's acquire load that brought the L1 entry into view.
+	leaf->slots[l2].store((uint32_t)(ccnt + 1), std::memory_order_release);
+}
+
 std::atomic<PoolAllocatorBase::BitmapWord>
     PoolAllocatorBase::s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES
                                        * PoolAllocatorBase::BITMAP_WORDS_PER_REGION];
