@@ -349,6 +349,44 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //! already available, so FS=false's `p - 8` header read needs no
 //! extra per-template dispatch.
 #define ALLOC_CHUNK_HEADER 64
+
+//! (§15) Forward-shift reservation: every chunk's first byte sits
+//! K_MAX bytes BEFORE its first claimed unit's boundary.  Slot region
+//! therefore starts at the unit boundary (256 KiB-aligned), giving
+//! deterministic page / huge-page alignment for slot data.
+//!
+//!     chunk_base = unit_boundary[base_unit] - ALLOC_CHUNK_K_MAX
+//!     slot region = [chunk_base + K_MAX, chunk_base + chunk_size)
+//!                 = [unit_boundary[base_unit],
+//!                    unit_boundary[base_unit + CHUNK_UNITS] - K_MAX)
+//!
+//! The K_MAX bytes of metadata (chunk_header + PoolAllocator object +
+//! m_flags + padding) live in the PREVIOUS unit's last page.  Adjacent
+//! chunks tile end-to-end: chunk N's last K_MAX bytes are reserved for
+//! chunk N+1's metadata (if the next position is later claimed).  This
+//! means EVERY chunk's effective slot region is `chunk_size - K_MAX`
+//! bytes; one chunk's tail K_MAX is always next-chunk's metadata slot.
+//!
+//! The first chunk in a region (base_unit = 1) has its metadata in
+//! unit 0 (the RegionMeta unit) — unit 0's RegionMeta lives at the
+//! start (~150 B), and only the last K_MAX bytes are reserved for
+//! chunk 1's metadata, so no collision.
+//!
+//! K_MAX is sized so that the largest template (smallest ALIGN, biggest
+//! count) fits its PoolAllocator object + m_flags array within
+//! `K_MAX - ALLOC_CHUNK_HEADER` bytes.  Verified at compile time in the
+//! per-template `create()`:
+//!   - ALIGN=16, CHUNK_UNITS=1: PoolAllocator (~200 B) + m_flags (~2 KiB)
+//!                              + padding < 4 KiB ✓
+//!   - ALIGN=256, CHUNK_UNITS=2: PoolAllocator + m_flags (~256 B) ≪ 4 KiB
+//!   - Dedicated chunks: chunk_header only (~64 B) ≪ 4 KiB
+//!
+//! 4 KiB = one OS page on every supported target.  Convenient because
+//! the entire metadata block sits in ONE page (the previous unit's
+//! last page), so dealloc's hot-block read touches only that one
+//! extra page beyond the slot region's pages.
+#define ALLOC_CHUNK_K_MAX 4096
+
 #define ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET     0   // [ 0.. 7]: chunk SIZE info
 #define ALLOC_CHUNK_HEADER_PALLOC_OFFSET        8   // [ 8..15]: palloc
 #define ALLOC_CHUNK_HEADER_FN_OFFSET           16   // [16..23]: DeallocateFn
@@ -1663,9 +1701,18 @@ extern ALLOC_TLS_IE char **g_thread_freelist_ptr[ALLOC_NUM_BUCKETS];
 //! in the FIRST unit, where `fp` resides.
 inline PoolAllocatorBase *
 chunk_from_freelist_ptr(char **fp) noexcept {
-    uintptr_t cb = reinterpret_cast<uintptr_t>(fp)
+    // (§15) With forward shift, fp sits in the PREVIOUS unit's last page
+    // (PoolAllocator at chunk_base + 64 = unit_boundary[U] - K_MAX + 64,
+    // so fp ∈ [unit_boundary[U] - K_MAX + 64, unit_boundary[U])).
+    // Add K_MAX before masking so the round-down hits unit_boundary[U]
+    // (the slot region start of THIS chunk), not unit U-1's boundary.
+    uintptr_t unit_boundary = (reinterpret_cast<uintptr_t>(fp)
+                                + (uintptr_t)ALLOC_CHUNK_K_MAX)
         & ~(static_cast<uintptr_t>(ALLOC_MIN_CHUNK_SIZE) - 1u);
-    return reinterpret_cast<PoolAllocatorBase *>(cb + ALLOC_CHUNK_HEADER);
+    // chunk_base = unit_boundary - K_MAX;  PoolAllocator = chunk_base + 64
+    return reinterpret_cast<PoolAllocatorBase *>(
+        unit_boundary - (uintptr_t)ALLOC_CHUNK_K_MAX
+        + (uintptr_t)ALLOC_CHUNK_HEADER);
 }
 
 // ---------------------------------------------------------------------
