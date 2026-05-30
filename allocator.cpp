@@ -3826,6 +3826,40 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	size_t suffix = total - prefix - mmap_size;
 	if(prefix > 0) munmap(raw, prefix);
 	if(suffix > 0) munmap(p + mmap_size, suffix);
+	// (§14B) Opt-in transparent hugepages on the slot range (skip the
+	// metadata page at offset 0).  The region is 32 MiB / 32 MiB-aligned
+	// = 16 hugepages worth, ideal for the kernel's THP promoter on
+	// TLB-bound HPC workloads with large working sets.
+	//
+	// Opt-in (env `KAME_POOL_HUGEPAGE=1`) because the microbenchmark
+	// pattern (1-2 chunks per region, tight loop, ≤ 1 MiB working set)
+	// REGRESSES under THP: a freshly faulted hugepage zero-fills 2 MiB
+	// of physical pages even though only a few hundred KiB is touched,
+	// so the upfront cost dominates without TLB-pressure payback.
+	// Measured single-thread microbench impact (Linux x86-64, THP =
+	// madvise; pre-B vs +THP, 12-iter interleaved):
+	//     16..64 B  : neutral / +1 %
+	//     128/256 B : +5..7 %
+	//     512..4 KB : −4..−13 %   (regressed sizes)
+	//     8 KB+     : neutral
+	// Real HPC workloads typically populate many chunks per region;
+	// once the region's pages are mostly touched, THP reduces TLB
+	// misses on the application's data access — independent of (and
+	// not modeled by) the alloc/free hot path.
+	//
+	// Read the env var ONCE (atomic ifd init, region claim is rare).
+	// THP `/sys/kernel/mm/transparent_hugepage/enabled` must be
+	// `always` or `madvise` for the advise to have effect; otherwise
+	// the call is a no-op (we ignore the return regardless).
+#  if defined(__linux__) && defined(MADV_HUGEPAGE)
+	static const bool hugepage_enabled = [] {
+		const char *e = std::getenv("KAME_POOL_HUGEPAGE");
+		return e && e[0] != '\0' && e[0] != '0';
+	}();
+	if(hugepage_enabled)
+		(void)madvise(p + ALLOC_PAGE_SIZE,
+		              mmap_size - ALLOC_PAGE_SIZE, MADV_HUGEPAGE);
+#  endif
 #endif
 	// Init the embedded metadata block (mmap zero-filled the first page,
 	// so back_offset[*]=0, claim_bitmap[*]=0, dll_next=0, has_free=0).
