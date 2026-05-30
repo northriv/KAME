@@ -300,8 +300,17 @@ static_assert(ALLOC_MAX_REGIONS == (1 << RADIX_REGION_BITS),
               "(1 << RADIX_REGION_BITS)");
 #endif
 
+//! (§19) Radix slot value semantics — what kind of allocation lives at
+//! the 32-MiB-aligned base of a present slot.  Lookup returns this
+//! directly; 0 means "absent, foreign pointer".
+enum RadixKind : uint32_t {
+    KAME_RADIX_ABSENT = 0u,  // no allocation at this base
+    KAME_RADIX_POOL   = 1u,  // a PoolAllocatorBase::RegionMeta lives here
+    KAME_RADIX_LARGE  = 2u,  // a LargeAllocMeta lives here (§19 large-alloc)
+};
+
 struct RadixL2Node {
-    std::atomic<uint32_t> slots[RADIX_L2_SIZE];  // 0 = absent; non-zero = present
+    std::atomic<uint32_t> slots[RADIX_L2_SIZE];  // (§19) RadixKind values
 };
 static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
               "RadixL2Node must be exactly RADIX_L2_SIZE * 4 bytes "
@@ -889,6 +898,49 @@ public:
 	static_assert(sizeof(RegionMeta) <= 4096,
 	              "RegionMeta must fit in the first page of region unit 0");
 
+	//! (§19) Large-alloc metadata.  Lives in the first page of a §19
+	//! large-alloc's 32-MiB-aligned mmap region; the user pointer is
+	//! `base + ALLOC_PAGE_SIZE`.  The radix slot at `base >> 25` carries
+	//! KAME_RADIX_LARGE so deallocate / size_of dispatch this struct
+	//! instead of RegionMeta.
+	//!
+	//! On free: clear the radix slot (CAS), then `munmap(base, mmap_size)`.
+	//! The radix clear happens BEFORE the munmap so any racing reader on
+	//! the old base either sees the live slot (and reads valid meta) or
+	//! sees absent (and falls through to libc free) — never a torn read
+	//! against an unmapped page.
+	struct LargeAllocMeta {
+		std::uint64_t magic;       // sentinel; debug-time identity check
+		std::size_t   alloc_size;  // user-requested bytes (post-page-rounding still ≥ this)
+		std::size_t   mmap_size;   // bytes mmap'd at base (incl. meta page)
+		std::uint16_t numa_node;   // bound NUMA node (0 if none/unknown)
+	};
+	static constexpr std::uint64_t KAME_LARGE_ALLOC_MAGIC =
+	    0xCAFEBABEDEADBEEFull;
+	static_assert(sizeof(LargeAllocMeta) <= 4096,
+	              "LargeAllocMeta must fit in the first page of its mmap");
+
+	//! (§19) Recover the LargeAllocMeta from any pointer inside the
+	//! alloc.  The 32-MiB-aligned base IS the meta address (radix
+	//! lookup confirms the slot kind is KAME_RADIX_LARGE).  Caller must
+	//! have already verified `radix_lookup(p) == KAME_RADIX_LARGE`.
+	static inline LargeAllocMeta *large_alloc_meta_of(void *p) noexcept {
+		return reinterpret_cast<LargeAllocMeta *>(
+		    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+	}
+
+	//! (§19) Allocate from the §19 large-alloc tier — a single
+	//! 32-MiB-aligned mmap registered as one radix slot.  Returns the
+	//! user pointer (= mmap_base + ALLOC_PAGE_SIZE) or nullptr if the
+	//! mmap or radix insert fails.  Caller guarantees
+	//! `size <= ALLOC_MIN_MMAP_SIZE - ALLOC_PAGE_SIZE` (one slot fit).
+	static void *allocate_large_va(std::size_t size) noexcept;
+
+	//! (§19) Free a §19 large-alloc.  `p` is the user pointer; caller has
+	//! already confirmed it's a KAME_RADIX_LARGE allocation via
+	//! `radix_lookup`.  Clears the radix slot then munmap's the region.
+	static void deallocate_large_va(void *p) noexcept;
+
 	//! Recover a region's metadata block from its base pointer.  Region
 	//! base is `ALLOC_MIN_MMAP_SIZE`-aligned (= 32 MiB), so the cast is
 	//! always valid for a populated region pointer.
@@ -972,22 +1024,38 @@ private:
 	//! pool).
 	static RadixL2Node *radix_alloc_l2() noexcept;
 
-	//! Mark region base `mp` present in the radix.  Called from
-	//! `mmap_new_region` right after the region is mmap'd.  Concurrent-
-	//! safe: L1-leaf install via CAS (loser munmap's its leaf); the
-	//! per-region presence slot is set once (regions never unmap).
-	static void radix_insert(char *mp) noexcept;
+	//! Mark region base `mp` present in the radix with the given kind
+	//! (KAME_RADIX_POOL for normal pool regions from `mmap_new_region`,
+	//! KAME_RADIX_LARGE for §19 large-alloc registrations).
+	//! Concurrent-safe: L1-leaf install via CAS (loser munmap's its
+	//! leaf); the per-region presence slot is set atomically.
+	static void radix_insert(char *mp, uint32_t kind) noexcept;
 
-	//! Out-of-line full radix walk.  Called only on cache miss (rare for
-	//! locality-rich workloads).  Returns 0 if present, -1 if absent.
+	//! (§19) Clear the radix slot for base `mp` (CAS-back-to-zero).
+	//! Caller must ensure no concurrent reader can be DEREF'ing the meta
+	//! by the time this returns — for §19 large allocs, the slot is
+	//! cleared BEFORE the backing mmap is unmapped, so a racing reader
+	//! either sees the live slot+meta or sees absent and falls through
+	//! to libc free.
+	static void radix_clear(char *mp) noexcept;
+
+	//! Out-of-line full radix walk.  Called only on cache miss.  Returns
+	//! the slot's kind (KAME_RADIX_POOL / KAME_RADIX_LARGE) if present,
+	//! or KAME_RADIX_ABSENT (0) if absent.  Updates `s_last_region_base`
+	//! ONLY for pool regions so a large-alloc lookup never poisons the
+	//! cache (the large alloc's base disappears on munmap; another
+	//! thread's stale cache entry would falsely report present).
 	static int radix_lookup_slow(uintptr_t up) noexcept;
 
-	//! O(1) lookup: return 0 if `p` falls in a populated region, else -1.
+	//! O(1) lookup: return the radix slot's kind (KAME_RADIX_POOL,
+	//! KAME_RADIX_LARGE) if `p` falls in a populated region, else
+	//! KAME_RADIX_ABSENT (= 0).
 	//! Inlined into deallocate / size_of / lookup_chunk to keep the
 	//! dealloc fast path tight.
 	//!
 	//! Fast path = 1-entry per-thread "last region" cache
-	//! (`s_last_region_base` / `s_last_region_ccnt`, IE TLS).  A
+	//! (`s_last_region_base`, IE TLS).  Cache holds only pool regions
+	//! (§19), so a cache hit guarantees KAME_RADIX_POOL.  A
 	//! dealloc usually touches the same region as the previous one
 	//! (most workloads: alloc/dealloc bursts hit one chunk's worth of
 	//! VA; HPC: ditto, plus loop-carried locality).  Hit cost: two IE
@@ -996,15 +1064,15 @@ private:
 	//!
 	//! Cache miss: full walk via `radix_lookup_slow` (out-of-line so the
 	//! inlined version stays icache-cheap).  Misses also update the
-	//! cache.
+	//! cache (for pool regions only).
 	static inline int radix_lookup(void *p) noexcept {
 		uintptr_t up = (uintptr_t)p;
 		uintptr_t base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
-		// The cache only ever holds PRESENT region bases, so a hit means
-		// present (return 0).  base 0 (init) never matches (kernel null
+		// (§19) Cache holds ONLY pool region bases, so a hit means
+		// KAME_RADIX_POOL.  base 0 (init) never matches (kernel null
 		// page is never a region base).
 		if(__builtin_expect(base == s_last_region_base, 1))
-			return 0;
+			return (int)KAME_RADIX_POOL;
 		return radix_lookup_slow(up);
 	}
 

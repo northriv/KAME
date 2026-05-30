@@ -1234,3 +1234,88 @@ Standards-conformance fix:
   - **Sanitizers**: release + TSAN + UBSAN (-no-vptr) + ASan + 32-bit
     all PASS on c_api, alloc_stress, sweep, aligned_sweep, §15/§16/§17
     MT.  No regression.
+
+## 19. Large-alloc tier — radix-registered mmap with real `munmap` on free
+
+Closes the long-standing "pool never returns VA" gap.  Pool regions
+(§13.3) are push-only by design; large allocations that don't fit the
+4 MiB dedicated-chunk cap previously fell through to libc malloc.  §19
+adds a middle tier for sizes 4 MiB – 32 MiB that owns its own
+32-MiB-aligned mmap per alloc and **really `munmap`s** on free, so
+long-running processes get their VA back.
+
+### Routing
+
+Three-tier above-bucket dispatch in `allocate_large_size_or_malloc`:
+  1. `size ≤ ALLOC_MAX_CHUNK_SIZE − K_MAX` (≈ 4 MiB) → `allocate_dedicated_chunk`
+     (§15): a multi-unit single-slot chunk inside the regular 32 MiB
+     region pool.  Many such allocs share radix slots / NUMA hints / DLL
+     state with regular bucket chunks — best locality for moderate-large
+     sizes.
+  2. `size ≤ ALLOC_MIN_MMAP_SIZE − PAGE` (≈ 32 MiB) → `allocate_large_va`:
+     one `mmap` of `round_up(size + PAGE, PAGE)` at a 32-MiB-aligned
+     base, registered as a single `KAME_RADIX_LARGE` radix slot.  Pays
+     one radix slot per alloc (acceptable in the multi-MiB range) and
+     **returns VA on free** via `munmap`.
+  3. `size > 32 MiB − PAGE` → libc `malloc`.  Spanning multiple radix
+     slots is left as future work.
+
+### Radix protocol extension
+
+The radix slot value gains a third state.  Was 0/1 (absent/present), now
+0/1/2 (`KAME_RADIX_ABSENT` / `KAME_RADIX_POOL` / `KAME_RADIX_LARGE`).
+`radix_lookup` returns the kind directly (single load already; no extra
+work).  `radix_insert` takes a `kind` arg; `radix_clear` CAS-zeros the
+slot prior to munmap.  `radix_lookup_slow` updates the per-thread
+`s_last_region_base` cache **only for pool kind** so a §19 base never
+lingers in another thread's TLS after its munmap.
+
+### `LargeAllocMeta`
+
+Lives in the first page of the mmap region; user pointer is
+`base + ALLOC_PAGE_SIZE`.  Fields: magic sentinel (debug only),
+`alloc_size` (user-requested), `mmap_size` (for munmap), `numa_node`
+(reserved for future bind).
+
+`malloc_usable_size(p)` on a §19 pointer returns `mmap_size − PAGE`
+(the actual usable slack, not the originally-requested `alloc_size`),
+matching libc's `malloc_usable_size` convention so realloc-elision in
+client code can grow in place across the page-rounded tail.
+
+### Concurrency
+
+Lock-free.  Insert is a release store; clear is a release store; the
+existing radix lazy L2 allocation (CAS-install via `radix_alloc_l2`)
+covers any new L1 entries.  A racing reader either sees the live slot
+(reads valid meta — alloc/free both keep meta intact until after the
+clear) or KAME_RADIX_ABSENT (falls through to libc free, matching libc's
+behaviour for foreign pointers).
+
+### Verification
+
+  - **Range sweep** across all four tiers (bucket / dedicated / §19 /
+    libc) — every alloc returns 4 K-aligned (or 32 M-aligned for §19),
+    `malloc_usable_size ≥ requested`, full-range writes survive
+    free/realloc cycles.
+  - **`munmap` confirmed**: 1000 × 8 MiB alloc+free cycles without
+    cumulative VA growth.  `kame_pool_reserved_bytes()` shows only the
+    incidental small-alloc pool growth (32 MiB), not 8 GiB.
+  - **§19 MT** (8 threads × 500 iter × random 5–30 MiB, pattern verify
+    on first + last page): TSAN race-free, UBSAN clean, ASan clean.
+  - **Regression**: c_api, alloc_stress (2000 thread × 20K ops),
+    bucket34_repro, sweep_test (39632 sizes), aligned_sweep (376
+    combos), §15/§16/§17 MT — all PASS on release, TSAN, UBSAN
+    (−vptr), ASan, 32-bit.
+
+### Known cost: bench-pattern penalty vs libc's arena cache
+
+`alloc_minimal_bench` at size 5 MiB shows ~0.2 M ops/s for §19 vs
+~42 M ops/s for libc's mmap-arena fallback (master pre-§19).  The
+penalty is per-allocation `mmap + munmap` syscalls; libc holds an
+arena cache that reuses freed mmap regions in tight-loop micro-benches.
+
+Real workloads typically alloc, use for some time, then free — the
+mmap overhead amortises away.  A follow-up could add a per-process /
+per-NUMA-node LIFO cache of recently-freed §19 regions (bounded depth,
+size-keyed) to recover the tight-loop pattern.  Out of scope here;
+correctness is the §19 deliverable.
