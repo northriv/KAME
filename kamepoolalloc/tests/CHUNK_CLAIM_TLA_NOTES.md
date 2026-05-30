@@ -582,3 +582,95 @@ either function.
 threads, all PASS (sentinel_fails=0, diff=0).  perf annotate confirms
 zero `__tls_get_addr` calls in `operator new[]` or
 `PoolAllocatorBase::deallocate`.
+
+## 13. 2-level radix tree for O(1) pointer-to-region lookup
+
+**Status: LANDED (step 1 of the HPC-scaling plan).**  Motivation: the
+former `lookup_chunk(p)` / `deallocate(p)` / `size_of(p)` linearly
+scanned `s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES]` to find a pointer's
+owning region — O(populated regions) per call.  At the current 3200-cap
+(100 GiB VA), worst-case scans are 3200 entries / dealloc; on the road
+to HPC region counts (32K+ for ≥ 1 TiB) the linear walk would dominate.
+Replaces the walk with a 2-level radix indexed by upper bits of `p`.
+
+### Layout
+
+  region index = `p >> ALLOC_MIN_MMAP_SHIFT`   (= 22 bits for 47-bit VA)
+  L1 [11 bits, 2048 entries × 8 B = 16 KiB BSS]  atomic<RadixL2Node *>
+  L2 [11 bits, 2048 entries × 4 B = 8 KiB / node]  atomic<uint32_t>
+       (0 = unpopulated; non-zero = `ccnt + 1`)
+
+L2 nodes are allocated LAZILY via direct `mmap` (NOT libc malloc — we
+interpose it; recursing through `kame_malloc` → `allocate_chunk` →
+`radix_insert` → `libc malloc` would loop).  Each L2 node covers
+`2^11 × 32 MiB = 64 GiB` of VA, so a 1-TiB-populated pool uses ~16 L2
+nodes (128 KiB committed).
+
+### Critical correctness fix — region alignment
+
+The old mmap claim path aligned regions to `ALLOC_MAX_CHUNK_SIZE = 1 MiB`,
+NOT `ALLOC_MIN_MMAP_SIZE = 32 MiB`.  So a region's 32 MiB VA range could
+SPAN two radix slots — upper-portion pointers would miss the lookup.
+**Fix:** bump `kAlign` to `ALLOC_MIN_MMAP_SIZE`.  Cost: ≤ 32 MiB of VA
+per region (negligible).
+
+### Concurrency
+
+  - L2 leaf install: 1 CAS on the L1 slot; loser munmaps its leaf.
+  - L2 slot store: serialized (region claim winner is unique via the
+    `s_mmapped_spaces[ccnt]` CAS) so no contention.
+  - Readers: acquire on the L1 slot synchronizes-with release stores of
+    the L2 slot (and the slot's init store).  Wait-free.  No
+    reclamation — slots are persistent (regions don't unmap currently).
+
+### Per-thread 1-entry cache
+
+The radix's two chained dependent loads add ~5 cycles per dealloc vs the
+old "linear walk over 1-2 regions" hot path.  Restore most of that with
+a per-thread 1-entry cache (`s_last_region_base` / `s_last_region_ccnt`,
+IE TLS).  Updated on slow-path misses; locality-rich workloads (most
+allocators) hit it nearly every dealloc.  Hit cost: 2 IE TLS loads +
+compare = ~3 cycles.  Miss falls to out-of-line `radix_lookup_slow`.
+
+### Derived `mp` skips `s_mmapped_spaces[ccnt]`
+
+With 32-MiB region alignment, `mp = p & ~(ALLOC_MIN_MMAP_SIZE-1)`.  No
+need to load `s_mmapped_spaces[ccnt]` on the hot path — one less mem op
+per dealloc.  The array stays populated for the cold paths
+(allocate_chunk / deallocate_chunk).
+
+### Resulting fast path (deallocate, after `if(!p) return false`)
+
+    base = p & ~MMASK
+    if (base == TLS s_last_region_base)         # cache check, 2 IE TLS reads
+        ccnt = TLS s_last_region_ccnt
+    else
+        ccnt = radix_lookup_slow(p)             # full radix walk + cache update
+    if (ccnt < 0) return false
+    mp = p & ~MMASK                              # derived, no array load
+    pdiff = p - mp
+    ... (rest of dealloc body unchanged)
+
+### Bench (alloc_minimal_bench hot, 12-iter interleaved averages, x86-64)
+
+  size=64 B  (FS=true,  1 region): 269 → 252 M ops/s   (−6.3 %)
+  size=256 B (FS=false, 2 region): 262 → 267 M ops/s   (+1.9 %)
+
+The 64-B regression is the cost of adding the radix cache check to the
+hot path of a microbench that only ever touches one region (the
+worst-case for any indexing scheme — there's nothing to scan).  At HPC
+scale (1000+ regions) the old linear walk would have cost 1000 × 3
+cycles per dealloc; radix stays at ~3 cycles.
+
+### Verification
+
+`c_api_test` PASS; `alloc_bucket34_repro` PASS (`sentinel_fails=0`);
+`alloc_stress` cross={0,5,100} × 2 × 1500 threads PASS
+(`sentinel_fails=0`, `diff=0`).
+
+### Future (step 2)
+
+`s_claim_bitmap`, `s_back_offset`, `s_region_has_free` move into each
+region's first 256 KiB unit (per-region metadata in the region itself).
+That + a region DLL retires `ALLOC_MAX_MMAP_ENTRIES` entirely — only VA
+limits the region count.  Radix from step 1 stays as the lookup index.
