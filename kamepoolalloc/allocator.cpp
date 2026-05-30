@@ -2512,12 +2512,18 @@ PoolAllocatorBase::deallocate(void *p) {
 	// kame_free) falls through to its libsystem-free path, which itself
 	// short-circuits on null.
 	if( !p) return false;
-	// §13: O(1) p -> ccnt via the 2-level radix tree + per-thread
-	// 1-entry cache (was O(populated regions) linear walk of
-	// `s_mmapped_spaces[]`).  ccnt < 0 means the pointer is outside
-	// every populated region — pass through to libsystem free.
-	int ccnt = radix_lookup(p);
-	if(ccnt < 0) return false;
+	// §13: O(1) p -> radix kind via the 2-level radix tree + per-thread
+	// 1-entry cache.  kind == 0 (KAME_RADIX_ABSENT) means the pointer
+	// is outside every populated region — pass through to libsystem free.
+	// kind == 2 (KAME_RADIX_LARGE) is the §19 large-alloc tier — single
+	// mmap registered as one radix slot; dispatch to its free helper
+	// which CAS-clears the slot then munmap's the region.
+	int kind = radix_lookup(p);
+	if(kind <= (int)KAME_RADIX_ABSENT) return false;
+	if(kind == (int)KAME_RADIX_LARGE) {
+		PoolAllocatorBase::deallocate_large_va(p);
+		return true;
+	}
 	// `mp` derived from `p` directly (region base is
 	// ALLOC_MIN_MMAP_SIZE-aligned by the §13 alignment requirement),
 	// saving the `s_mmapped_spaces[ccnt]` load on the hot path.
@@ -2687,9 +2693,18 @@ PoolAllocatorBase::deallocate(void *p) {
 inline std::size_t
 PoolAllocatorBase::size_of(void *p) {
 	if( !p) return 0;
-	// §13: O(1) p -> ccnt via the 2-level radix tree.
-	int ccnt = radix_lookup(p);
-	if(ccnt < 0) return 0;
+	// §13/§19: O(1) p -> radix kind via the 2-level radix tree.
+	int kind = radix_lookup(p);
+	if(kind <= (int)KAME_RADIX_ABSENT) return 0;
+	if(kind == (int)KAME_RADIX_LARGE) {
+		// (§19) Usable = the full slot past the meta page.  Returns
+		// mmap_size - PAGE (not the user-requested alloc_size), matching
+		// malloc_usable_size's libc convention of reporting the actually-
+		// usable space — lets realloc-elision in client code grow in
+		// place across the slack rounded up to PAGE.
+		LargeAllocMeta *m = large_alloc_meta_of(p);
+		return m->mmap_size - (std::size_t)ALLOC_PAGE_SIZE;
+	}
 	char *mp = reinterpret_cast<char *>(
 	    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
 	ptrdiff_t pdiff = static_cast<char *>(p) - mp;
@@ -2697,7 +2712,7 @@ PoolAllocatorBase::size_of(void *p) {
 	    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
 	char *chunk_base;
 	PoolAllocatorBase *palloc = resolve_chunk_from_slot(
-	    mp, (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE, unit_idx, &chunk_base);
+	    mp, (size_t)kind * NUM_ALLOCATORS_IN_SPACE, unit_idx, &chunk_base);
 	if( !palloc) return 0;
 	// Dedicated single-slot large chunk has no SizeOfFn — its size_info
 	// is the DEDICATED sentinel; the total byte size lives at [32..39].
@@ -2841,20 +2856,33 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 }
 
 void* allocate_large_size_or_malloc(size_t size) throw() {
-	// Bucket dispatch covers sizes 1..ALLOC_MAX_BUCKETED_SIZE (= 32760).
-	// Larger sizes up to a 16-unit (4 MiB) dedicated chunk's payload are
-	// served from the pool as a dedicated single-slot chunk (warm-page
-	// reuse, unified free path); anything bigger goes straight to
-	// libsystem.  Reached only when the allocator is active
-	// (new_redirected_large gates on g_sys_image_loaded / s_alloc_tls_off
-	// before calling us).
+	// Three-tier above-bucket dispatch:
 	//
-	// (§15) The dedicated payload starts at the unit boundary and reserves
-	// the trailing K_MAX of its last unit for the next chunk's metadata,
-	// so the max payload of a 16-unit chunk is ALLOC_MAX_CHUNK_SIZE −
-	// K_MAX (matches allocate_dedicated_chunk's chunk_units cap).
+	//   1. size ≤ 4 MiB − K_MAX  →  `allocate_dedicated_chunk` (§15):
+	//      a multi-unit chunk inside the existing 32-MiB region pool.
+	//      Many such allocs share radix slots / NUMA hints / DLL state
+	//      with regular bucket chunks — best locality for moderate-large
+	//      sizes.
+	//
+	//   2. 4 MiB − K_MAX < size ≤ 32 MiB − PAGE  →  (§19) `allocate_large_va`:
+	//      one 32-MiB-aligned mmap per alloc, registered as a single
+	//      KAME_RADIX_LARGE radix slot.  Returns VA to the OS on free
+	//      (munmap), unlike pool regions which are push-only.  Pays one
+	//      radix slot per alloc, fine for the multi-MiB range.
+	//
+	//   3. size > 32 MiB − PAGE  →  libc malloc.  One alloc would
+	//      consume multiple 32-MiB radix slots; outside §19's
+	//      single-slot scope.  Future work could extend §19 to span
+	//      slots, or use a separate concurrent map for huge allocs.
+	//
+	// Reached only when the allocator is active (new_redirected_large
+	// gates on g_sys_image_loaded / s_alloc_tls_off before calling us).
 	if(size <= (size_t)ALLOC_MAX_CHUNK_SIZE - (size_t)ALLOC_CHUNK_K_MAX) {
 		if(void *p = PoolAllocatorBase::allocate_dedicated_chunk(size))
+			return p;
+	}
+	if(size <= (size_t)ALLOC_MIN_MMAP_SIZE - (size_t)ALLOC_PAGE_SIZE) {
+		if(void *p = PoolAllocatorBase::allocate_large_va(size))
 			return p;
 	}
 	return std::malloc(size);
@@ -4175,18 +4203,22 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	constexpr int kBoundShift = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT;
 	if constexpr (kBoundShift < (int)(sizeof(uintptr_t) * 8)) {
 		if(__builtin_expect((up >> kBoundShift) != 0u, 0))
-			return -1;
+			return (int)KAME_RADIX_ABSENT;
 	}
 	unsigned region_idx = (unsigned)(up >> ALLOC_MIN_MMAP_SHIFT);
 	unsigned l1 = region_idx >> RADIX_L2_BITS;
 	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
 	RadixL2Node *leaf = s_radix_l1[l1].load(std::memory_order_acquire);
-	if(__builtin_expect(leaf == nullptr, 0)) return -1;
+	if(__builtin_expect(leaf == nullptr, 0)) return (int)KAME_RADIX_ABSENT;
 	uint32_t v = leaf->slots[l2].load(std::memory_order_relaxed);
-	if(__builtin_expect(v == 0u, 0)) return -1;
-	// Present.  Cache the region base for the next (locality-rich) call.
-	s_last_region_base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
-	return 0;
+	if(__builtin_expect(v == 0u, 0)) return (int)KAME_RADIX_ABSENT;
+	// (§19) Cache the region base for the next (locality-rich) call —
+	// but ONLY for pool regions.  A §19 large-alloc base disappears on
+	// munmap, and a stale cache entry on a different thread would
+	// falsely report present without re-checking the slot.
+	if(v == (uint32_t)KAME_RADIX_POOL)
+		s_last_region_base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
+	return (int)v;
 }
 
 // 2-level radix tree implementation (§13).  L2 nodes allocated lazily
@@ -4207,14 +4239,14 @@ RadixL2Node *PoolAllocatorBase::radix_alloc_l2() noexcept {
 #endif
 }
 
-void PoolAllocatorBase::radix_insert(char *mp) noexcept {
+void PoolAllocatorBase::radix_insert(char *mp, uint32_t kind) noexcept {
 	uintptr_t up = (uintptr_t)mp;
 	// Region must be ALLOC_MIN_MMAP_SIZE-aligned (mmap claim ensures this).
 	unsigned region_idx = (unsigned)(up >> ALLOC_MIN_MMAP_SHIFT);
 	unsigned l1 = region_idx >> RADIX_L2_BITS;
 	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
 	if(__builtin_expect(l1 >= RADIX_L1_SIZE, 0))
-		return;  // Outside radix coverage; lookup will miss (returns -1).
+		return;  // Outside radix coverage; lookup will miss (returns 0).
 	RadixL2Node *leaf = s_radix_l1[l1].load(std::memory_order_acquire);
 	if(leaf == nullptr) {
 		RadixL2Node *new_leaf = radix_alloc_l2();
@@ -4234,11 +4266,39 @@ void PoolAllocatorBase::radix_insert(char *mp) noexcept {
 			leaf = expected;
 		}
 	}
-	// Presence token (1).  Region claim is one-shot (regions never unmap),
-	// so this store is effectively non-racing.  Release-paired with the
-	// reader's acquire load on the L1 entry, and (for cross-thread frees)
-	// with the data handoff that passes the pointer to the freeing thread.
-	leaf->slots[l2].store(1u, std::memory_order_release);
+	// Slot kind (KAME_RADIX_POOL or KAME_RADIX_LARGE).  Pool regions are
+	// one-shot (never unmap), so the store is non-racing.  §19 large
+	// allocs use the same path: a fresh base address never collides with
+	// an existing slot because munmap-then-mmap of a different alloc at
+	// the SAME base requires the prior `radix_clear` to have CAS'd the
+	// slot to 0 first — see deallocate_large_va.
+	// Release-paired with the reader's acquire load on the L1 entry, and
+	// (for cross-thread frees) with the data handoff that passes the
+	// pointer to the freeing thread.
+	leaf->slots[l2].store(kind, std::memory_order_release);
+}
+
+// (§19) Clear the radix slot for a §19 large-alloc base prior to
+// munmap.  Lock-free CAS-back-to-zero — concurrent readers either see
+// the live slot (valid meta) or absent (fall through to libc free).
+void PoolAllocatorBase::radix_clear(char *mp) noexcept {
+	uintptr_t up = (uintptr_t)mp;
+	unsigned region_idx = (unsigned)(up >> ALLOC_MIN_MMAP_SHIFT);
+	unsigned l1 = region_idx >> RADIX_L2_BITS;
+	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
+	if(__builtin_expect(l1 >= RADIX_L1_SIZE, 0)) return;
+	RadixL2Node *leaf = s_radix_l1[l1].load(std::memory_order_acquire);
+	if(__builtin_expect(leaf == nullptr, 0)) return;  // never inserted
+	// Plain release store: a racing lookup either reads the old non-zero
+	// value (and then dereferences the meta — still valid because we
+	// haven't munmap'd yet) or reads the new 0 (and falls through to
+	// libc free).  munmap below is sequenced after this clear by
+	// program order — no concurrent reader can be mid-deref past this
+	// point because the caller (deallocate_large_va) was passed a
+	// pointer into THIS alloc that no other thread should be holding
+	// after free (same single-owner-on-free contract as libc free).
+	leaf->slots[l2].store((uint32_t)KAME_RADIX_ABSENT,
+	                      std::memory_order_release);
 }
 
 // (§13.3) mmap a fresh 32-MiB-aligned region, init its RegionMeta,
@@ -4348,7 +4408,7 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	rm->numa_node = (std::uint16_t)my_node;
 	// Publish in the radix (presence) BEFORE the list push so a free of a
 	// chunk in this region can never miss the lookup.
-	radix_insert(p);
+	radix_insert(p, (uint32_t)KAME_RADIX_POOL);
 	// Push on the per-node push-only list (Treiber).  Regions never
 	// unmap, so no ABA / reclamation.
 	std::atomic<RegionMeta *> *head = &s_region_dll_heads[my_node];
@@ -4363,6 +4423,102 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	    p, (unsigned long long)mmap_size, my_node);
 	return rm;
 }
+
+// =====================================================================
+// (§19) Large-alloc tier — single-mmap, radix-registered, munmap-able.
+// =====================================================================
+// Each large_va allocation is its own 32-MiB-aligned mmap of size
+// `round_up(user_size + PAGE, PAGE)`.  The first page holds a
+// LargeAllocMeta; the user receives `base + PAGE`.  One radix slot
+// (KAME_RADIX_LARGE) covers the alloc.  On free, the slot is CAS-cleared,
+// then the entire mmap is unmap'd — VA returns to the kernel, unlike
+// pool regions which are push-only.
+//
+// Size bounds:
+//   - lower: enforced by the caller (allocate_large_size_or_malloc) —
+//     sizes that fit `allocate_dedicated_chunk` (≤ 4 MiB - K_MAX) stay
+//     in the pool to avoid radix-slot overhead for many small-large allocs.
+//   - upper: one radix slot covers 32 MiB of VA, and the meta consumes
+//     one page, so `size <= ALLOC_MIN_MMAP_SIZE - ALLOC_PAGE_SIZE`.
+//     Beyond that the request falls through to libc.
+//
+// Concurrency: lock-free.  Insert and clear are atomic CAS / release
+// stores on a single L2 slot.  A racing reader either observes the live
+// kind (and dereferences valid meta — alloc/free both keep meta intact
+// until after the slot is cleared) or KAME_RADIX_ABSENT (falls through
+// to libc free, matching libc's behaviour for foreign pointers).
+//
+// The `s_last_region_base` cache in `radix_lookup_slow` skips
+// KAME_RADIX_LARGE entries so a §19 base never lingers in another
+// thread's TLS after its munmap.
+void *
+PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
+#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
+	// Windows: VirtualAlloc with explicit 32-MiB alignment.
+	std::size_t mmap_size =
+	    (size + ALLOC_PAGE_SIZE + ALLOC_PAGE_SIZE - 1u) & ~(std::size_t)(ALLOC_PAGE_SIZE - 1u);
+	char *base = static_cast<char *>(
+	    _aligned_malloc(mmap_size, ALLOC_MIN_MMAP_SIZE));
+	if( !base) return nullptr;
+#else
+	std::size_t mmap_size =
+	    (size + ALLOC_PAGE_SIZE + ALLOC_PAGE_SIZE - 1u) & ~(std::size_t)(ALLOC_PAGE_SIZE - 1u);
+	// Over-allocate by ALLOC_MIN_MMAP_SIZE so we can trim to a 32-MiB-
+	// aligned base — same trick as `mmap_new_region`.
+	std::size_t total = mmap_size + ALLOC_MIN_MMAP_SIZE;
+	char *raw = static_cast<char *>(
+	    mmap(0, total, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0));
+	if(raw == MAP_FAILED) return nullptr;
+	uintptr_t aligned =
+	    ((uintptr_t)raw + ALLOC_MIN_MMAP_SIZE - 1u) &
+	    ~(uintptr_t)(ALLOC_MIN_MMAP_SIZE - 1u);
+	char *base = reinterpret_cast<char *>(aligned);
+	std::size_t prefix = base - raw;
+	std::size_t suffix = total - prefix - mmap_size;
+	if(prefix > 0) munmap(raw, prefix);
+	if(suffix > 0) munmap(base + mmap_size, suffix);
+#endif
+	// Write the meta IN-PLACE (no atomics — single owner before publish).
+	LargeAllocMeta *meta = reinterpret_cast<LargeAllocMeta *>(base);
+	meta->magic      = KAME_LARGE_ALLOC_MAGIC;
+	meta->alloc_size = size;
+	meta->mmap_size  = mmap_size;
+	meta->numa_node  = 0;  // (§14C-style NUMA bind could be added here)
+	writeBarrier();
+	// Publish in the radix LAST.  Any concurrent reader's
+	// `radix_lookup` either sees KAME_RADIX_ABSENT (and falls through
+	// to libc) or KAME_RADIX_LARGE (and reads the meta we just published,
+	// release-paired with this store).
+	radix_insert(base, (uint32_t)KAME_RADIX_LARGE);
+	return base + ALLOC_PAGE_SIZE;
+}
+
+void
+PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
+	char *base = reinterpret_cast<char *>(
+	    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+	LargeAllocMeta *meta = reinterpret_cast<LargeAllocMeta *>(base);
+	std::size_t mmap_size = meta->mmap_size;
+	// Clear radix slot BEFORE munmap — any racing reader now sees
+	// absent and routes to libc free; once we munmap, the VA is no
+	// longer ours and reads would fault.
+	radix_clear(base);
+	// Optimistically invalidate the per-thread cache so a same-thread
+	// subsequent lookup of the now-unmapped base doesn't false-hit.
+	// (Other threads with stale caches are harmless: their next
+	// radix_lookup_slow will see the cleared slot, OR their cache hit
+	// returns KAME_RADIX_POOL which is correct iff a new pool region
+	// later maps at this base — re-cached on its first slow lookup.)
+	if((uintptr_t)base == s_last_region_base)
+		s_last_region_base = 0;
+#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
+	(void)mmap_size;
+	_aligned_free(base);
+#else
+	munmap(base, mmap_size);
+#endif
+}
+
 // single consolidated TLS struct holds all per-thread state
 // for each (ALIGN, FS, DUMMY) instantiation.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
