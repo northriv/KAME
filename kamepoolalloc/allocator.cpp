@@ -642,8 +642,8 @@ void activateAllocator() {g_sys_image_loaded = true;}
 #endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
-	PoolAllocatorBase(ppool),
+inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
+	PoolAllocatorBase(),
 	m_flags(reinterpret_cast<FUINT *>( &addr[((sizeof(PoolAllocator) + sizeof(FUINT) - 1) / sizeof(FUINT)) * sizeof(FUINT)])),
 	m_idx(0),
 	m_count(count) {
@@ -729,7 +729,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 	}
 #ifdef GUARDIAN
 	for(unsigned int i = 0; i < count * sizeof(FUINT) * 8 * ALIGN / sizeof(uint64_t); ++i)
-		reinterpret_cast<uint64_t *>(ppool)[i] = GUARDIAN; //filling
+		reinterpret_cast<uint64_t *>(this->mempool())[i] = GUARDIAN; //filling
 #endif
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -764,10 +764,11 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	static_assert(size_alloc <= kMetaBudget,
 	    "PoolAllocator + alignment must fit in ALLOC_CHUNK_K_MAX - 64.  "
 	    "Increase K_MAX or shrink the struct.");
-	// Slot region is at chunk_base + K_MAX = ppool + (K_MAX - ALLOC_CHUNK_HEADER).
-	char *slot_region = ppool + (ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER);
-	// slot region size = chunk_size - K_MAX = (size + ALLOC_CHUNK_HEADER) - K_MAX
-	//                  = size - (K_MAX - ALLOC_CHUNK_HEADER)
+	// Slot region size = chunk_size - K_MAX = (size + ALLOC_CHUNK_HEADER)
+	// - K_MAX = size - (K_MAX - ALLOC_CHUNK_HEADER).  The slot region
+	// POINTER (`ppool + (K_MAX - HEADER)`) is no longer materialised here
+	// — `PoolAllocatorBase::mempool()` derives it from `this` at the use
+	// sites instead.
 	size_t slot_region_size = size - kMetaBudget;
 	// count must satisfy:
 	//   (i)  size_alloc + count*sizeof(FUINT) <= kMetaBudget
@@ -779,15 +780,11 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	int count_slots = static_cast<int>(
 	    slot_region_size / ((size_t)ALIGN * FUINT_BITS));
 	int count = count_meta < count_slots ? count_meta : count_slots;
-	char *m_flags_pos = ppool + size_alloc;
-	// Sanity: m_flags must end at or before slot_region.
-	// (Guaranteed by count_meta constraint above.)
-	(void)m_flags_pos;
-	return new(ppool) PoolAllocator(count, ppool, slot_region);
+	return new(ppool) PoolAllocator(count, ppool);
 }
 template <unsigned int ALIGN, bool DUMMY>
-inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
-	PoolAllocator<ALIGN, true, false>(count, addr, ppool) {
+inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr) :
+	PoolAllocator<ALIGN, true, false>(count, addr) {
 	// m_sizes and m_available_bits are gone.  Per-slot SIZE
 	// is stored in the slot's own first ALIGN bytes (the "+1 prefix"
 	// — see allocate_pooled below).  Nothing further to initialise
@@ -809,7 +806,8 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 	static_assert(size_alloc <= kMetaBudget,
 	    "PoolAllocator (FS=false) + alignment must fit in "
 	    "ALLOC_CHUNK_K_MAX - 64");
-	char *slot_region = ppool + (ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER);
+	// Slot region size = size - (K_MAX - HEADER); pointer is derived from
+	// `this` via `PoolAllocatorBase::mempool()` at use sites.
 	size_t slot_region_size = size - kMetaBudget;
 	// (§16) Per-word metadata cost.  Borrow mode: just the FUINT bitmap
 	// word (8 B / 64 slots).  Full-usable mode (ALIGN>=1024): additionally
@@ -827,7 +825,7 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 	int count_slots = static_cast<int>(
 	    slot_region_size / ((size_t)ALIGN * FUINT_BITS));
 	int count = count_meta < count_slots ? count_meta : count_slots;
-	return new(ppool) PoolAllocator(count, ppool, slot_region);
+	return new(ppool) PoolAllocator(count, ppool);
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
@@ -889,7 +887,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 
 	this->m_idx = idx;
 
-	void *p = &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
+	void *p = &this->mempool()[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
 	return p;
 }
 
@@ -995,7 +993,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			sidx = count_zeros_forward(cand);
 			int idx_cand = pflag - this->m_flags;
 			size_t bit_index = size_t(idx_cand) * sizeof(FUINT) * 8 + sidx;
-			slot_start = &this->m_mempool[bit_index * ALIGN];
+			slot_start = &this->mempool()[bit_index * ALIGN];
 			// Write the per-slot metadata BEFORE the CAS publishes the bit
 			// (the CAS is the release that publishes it to a freeing
 			// thread; the freer's acquire on the bitmap word synchronises
@@ -1079,7 +1077,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		// borrow mode reads the p-8 prefix.
 		unsigned local;
 		if constexpr (ALIGN >= 1024u) {
-			size_t bit_index = static_cast<size_t>(p - this->m_mempool) >> this->m_align_shift;
+			size_t bit_index = static_cast<size_t>(p - this->mempool()) >> this->m_align_shift;
 			local = this->m_sizes[bit_index] & 0xFFu;
 		}
 		else {
@@ -1164,7 +1162,7 @@ PoolAllocator<ALIGN, false, DUMMY>::size_of_static(
     PoolAllocatorBase *base, char *p) noexcept {
 	if constexpr (ALIGN >= 1024u) {
 		PoolAllocator *self = static_cast<PoolAllocator *>(base);
-		size_t bit_index = static_cast<size_t>(p - self->m_mempool) >> self->m_align_shift;
+		size_t bit_index = static_cast<size_t>(p - self->mempool()) >> self->m_align_shift;
 		unsigned N = static_cast<unsigned>(self->m_sizes[bit_index] >> 8);
 		return static_cast<std::size_t>(N) * ALIGN;
 	}
@@ -1300,7 +1298,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 	int n_words = 0;   // unique m_flags words touched — for coalesce hint
 	while(entries[i].chunk == this) {
 		char *p = static_cast<char *>(entries[i].slot);
-		int midx = (p - this->m_mempool) / ALIGN;
+		int midx = (p - this->mempool()) / ALIGN;
 		int idx = midx / FUINT_BITS;
 		unsigned int sidx = midx % FUINT_BITS;
 		FUINT mask = mask_fn(idx, sidx, p);
@@ -1311,7 +1309,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 		int j = i + 1;
 		while(entries[j].chunk == this) {
 			char *q = static_cast<char *>(entries[j].slot);
-			int midx_q = (q - this->m_mempool) / ALIGN;
+			int midx_q = (q - this->mempool()) / ALIGN;
 			int idx_q = midx_q / FUINT_BITS;
 			if(idx_q != idx) break;
 			unsigned int sidx_q = midx_q % FUINT_BITS;
@@ -2111,7 +2109,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 		return false;
 	}
 #ifdef GUARDIAN
-	void *ppool = palloc->m_mempool;
+	void *ppool = palloc->mempool();
 	for(unsigned int i = 0; i < palloc->m_chunk_size / sizeof(uint64_t); ++i) {
 		if(static_cast<uint64_t *>(ppool)[i] != GUARDIAN) {
 			fprintf(stderr, "Memory tainted in %p:64\n",
@@ -2578,7 +2576,7 @@ PoolAllocatorBase::deallocate(void *p) {
 				local = 0;
 			} else if(chunk_obj->m_sizes) {
 				size_t bit_index =
-				    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->m_mempool)
+				    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->mempool())
 				    >> chunk_obj->m_align_shift;
 				local = chunk_obj->m_sizes[bit_index] & 0xFFu;
 				if(local >= (unsigned)KAME_LOCAL_BUCKETS)

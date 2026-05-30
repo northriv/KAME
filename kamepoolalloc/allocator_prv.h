@@ -567,8 +567,26 @@ public:
 	//! coexist on its freelists).  Returns the chunk-size stamped by
 	//! `allocate_chunk()` at chunk-claim time.
 	std::size_t chunk_size() const noexcept { return m_chunk_size; }
+
+	//! Slot region start = `chunk_base + ALLOC_CHUNK_K_MAX` (§15
+	//! forward-shift).  Constexpr-derivable from `this` because the
+	//! PoolAllocator object is always placement-new'd at
+	//! `chunk_base + ALLOC_CHUNK_HEADER`, so the slot region is
+	//! `(char*)this + (K_MAX - HEADER)` — a 4032-byte offset shared by
+	//! every template.  This identity replaces the former `m_mempool`
+	//! field, saving 8 bytes from the cache-line-1 hot block (now packs
+	//! more of `m_freelist_head[]` into the same line) and turning the
+	//! hot-path `chunk_obj->m_mempool` load into a LEA off `this`.
+	char *mempool() noexcept {
+	    return reinterpret_cast<char *>(this)
+	         + (ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER);
+	}
+	const char *mempool() const noexcept {
+	    return reinterpret_cast<const char *>(this)
+	         + (ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER);
+	}
 protected:
-	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
+	PoolAllocatorBase() = default;
 	virtual bool deallocate_pooled(char *p) = 0;
 
 	template <class ALLOC>
@@ -691,8 +709,9 @@ public:
 	}
 
 protected:
-	//! A chunk, memory block.
-	char * const m_mempool;
+	// `m_mempool` retired — see `mempool()` accessor above.  Derived from
+	// `this` directly because §15 pins the PoolAllocator object at
+	// `chunk_base + ALLOC_CHUNK_HEADER`.
 
 	//! Chunk size for this PoolAllocator instance.  Stamped by
 	//! `allocate_chunk()` from the per-level ladder value.  Read by
@@ -1141,7 +1160,7 @@ public:
 
 	typedef uintptr_t FUINT;
 protected:
-	PoolAllocator(int count, char *addr, char *ppool);
+	PoolAllocator(int count, char *addr);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
@@ -1375,7 +1394,7 @@ public:
 	}
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
-	PoolAllocator(int count, char *addr, char *ppool);
+	PoolAllocator(int count, char *addr);
 	inline void *allocate_pooled(unsigned int SIZE);
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
