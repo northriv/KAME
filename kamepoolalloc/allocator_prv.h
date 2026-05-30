@@ -790,20 +790,23 @@ public:
 	struct RegionMeta {
 		std::atomic<BitmapWord> claim_bitmap[BITMAP_WORDS_PER_REGION];  // 16 B
 		std::uint8_t            back_offset[NUM_ALLOCATORS_IN_SPACE];   // 128 B
-		//! (§13.3) Global region list — singly-linked, PUSH-ONLY at head.
-		//! Regions are never unmapped in the current design, so the list
-		//! needs no removal / reclamation: walkers never see a freed node,
-		//! and a lock-free Treiber push (CAS on s_region_dll_head) is the
-		//! only mutation.  Replaces enumeration over the retired
-		//! `s_mmapped_spaces[]` array (and with it, ALLOC_MAX_REGIONS).
+		//! (§13.3) Per-NUMA-node region list — singly-linked, PUSH-ONLY at
+		//! head of `s_region_dll_heads[numa_node]`.  Regions are never
+		//! unmapped in the current design, so the list needs no removal /
+		//! reclamation: walkers never see a freed node, and a lock-free
+		//! Treiber push is the only mutation.
 		std::atomic<RegionMeta *> dll_next;
 		//! (§13.3) "may have a free chunk slot" hint (1 = maybe free).
-		//! Replaces the retired global `s_region_has_free[]` skip-bitmap.
 		//! Set at region init and by `deallocate_chunk`; cleared
 		//! (tentatively) by a claim path that finds no slot for ITS
-		//! CHUNK_UNITS.  Race-tolerant best-effort hint, same semantics as
-		//! the old bitmap bit.
+		//! CHUNK_UNITS.  Race-tolerant best-effort hint.
 		std::atomic<unsigned char> has_free;
+		//! (§14C) NUMA node the region is bound to (== the node of the
+		//! thread that mmap'd it).  Used by claim-side walkers to start
+		//! with their local node's list before falling back to others, and
+		//! by `mbind(MPOL_BIND, {numa_node})` at region create.  0 on
+		//! single-node systems / non-Linux (no NUMA info).
+		std::uint16_t numa_node;
 	};
 	// RegionMeta lives in the first page (4 KiB) of unit 0; it only needs
 	// to FIT, not hit an exact size.  144 B of arrays + the list/hint
@@ -825,8 +828,38 @@ public:
 
 	//! (§13.3) Head of the push-only region list, and the populated
 	//! region count (for the runtime cap + O(1) `populated_region_count`).
-	static std::atomic<RegionMeta *> s_region_dll_head;
+	//! (§14C) Compile-time cap on the number of NUMA nodes the allocator
+	//! tracks separately.  Most multi-socket HPC nodes have 1-8 NUMA
+	//! nodes; 16 covers larger Intel/AMD/Fujitsu systems with room to
+	//! spare.  The runtime detected count `s_num_numa_nodes` is clamped
+	//! to this; nodes beyond fold into node `KAME_MAX_NUMA_NODES - 1`.
+	//! Cost: `KAME_MAX_NUMA_NODES × 8 B` = 128 B of BSS for the per-node
+	//! list-head array (one cache line on a 128 B-line target).
+	static constexpr int KAME_MAX_NUMA_NODES = 16;
+
+	//! (§14C) Per-NUMA-node region list head + populated-region counter.
+	//! On non-Linux / single-node Linux, only index 0 is used (matches
+	//! the single-list §13.3 behavior).  On multi-node systems, each
+	//! region is bound to its creator thread's local node via mbind and
+	//! pushed onto that node's list, so chunk-claim Pass 1 finds the
+	//! freshest LOCAL region first (locality preserved) without touching
+	//! foreign-NUMA cache lines.
+	static std::atomic<RegionMeta *>
+	    s_region_dll_heads[KAME_MAX_NUMA_NODES];
 	static std::atomic<int>          s_region_count;
+
+	//! Number of NUMA nodes the allocator tracks (1..KAME_MAX_NUMA_NODES).
+	//! Detected at first call via `/sys/devices/system/node/` on Linux;
+	//! 1 elsewhere.  Lazily initialised by `numa_node_for_this_thread`.
+	static std::atomic<int> s_num_numa_nodes;
+
+	//! Current thread's preferred NUMA node (lazy-initialised on first
+	//! call from `sched_getcpu()` + the kernel's CPU→node mapping).  Used
+	//! by `mmap_new_region` (which mbind's the region to this node) and
+	//! by claim-path Pass 1 (which walks this node's list first).
+	//! A thread that later migrates to a different node keeps the
+	//! original assignment — slight locality drift, no correctness issue.
+	static int numa_node_for_this_thread() noexcept;
 
 	//! mmap a fresh 32-MiB-aligned region, init its RegionMeta (reserve
 	//! unit 0, has_free=1), register it in the radix tree, and push it on
