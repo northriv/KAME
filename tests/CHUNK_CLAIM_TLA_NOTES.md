@@ -836,3 +836,35 @@ advances `s_region_count` toward the cap.
   - perf (alloc_minimal_bench hot, 12-iter interleaved vs §13.2): no
     regression (64 B / 256 B both within noise, trending faster — smaller
     BSS / better cache).
+
+## §14 Follow-ups (post-HPC-scaling)
+
+### §14B — Opt-in transparent hugepages (`KAME_POOL_HUGEPAGE=1`)
+Linux `MADV_HUGEPAGE` on the slot range (skipping the metadata page) of
+every fresh 32-MiB region.  Default OFF because the single-thread
+microbenchmark regresses on FS=false sizes (the kernel zero-fills a 2
+MiB hugepage for chunks that touch only ~500 KiB, no TLB-pressure
+payback at that scale).  Real HPC workloads with large aggregate
+working sets benefit.  Verified by `/proc/$pid/smaps` `VmFlags: hg`.
+
+### §14C — NUMA-aware region claim
+- `RegionMeta` gains `numa_node` (16 b) — the node a region is bound to.
+- `s_region_dll_heads[KAME_MAX_NUMA_NODES = 16]` replaces the single
+  push-only list; each region pushes onto its creator thread's local
+  node's list.
+- `mmap_new_region` calls `mbind(MPOL_BIND, {my_node})` to bind the new
+  region to the creator's NUMA node (no libnuma dependency — direct
+  syscall).  Skipped when `s_num_numa_nodes <= 1` (no-op on single-node
+  systems and on macOS/Windows).
+- Claim-side Pass 1 walks the LOCAL node's list first, falls back to
+  other nodes ((my_node + 1) % N, etc.).  Locality preserved on
+  multi-node systems; identical traversal cost on single-node.
+- `numa_node_for_this_thread()` lazy-inits a per-thread preferred node
+  from `sched_getcpu()` + `/sys/devices/system/cpu/cpuN/nodeM`.  Marked
+  `cold, noinline` so the inlined Pass-1 walker stays compact in the
+  caller's I-cache.
+
+### §14E — `kame_pool_get_stats()` observability
+Versioned C-ABI struct returning regions_populated / bytes_reserved /
+chunks_live / units_live.  Walks the region list under relaxed loads
+(diagnostic-grade, not hot-path).

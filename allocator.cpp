@@ -46,6 +46,12 @@
 
 #include "allocator.h"
 #include "kame_pool.h"        // C-API stats struct + version macro
+#if defined(__linux__)
+#  include <dirent.h>          // /sys/devices/system/node walk (§14C)
+#  include <sched.h>           // sched_getcpu                  (§14C)
+#  include <sys/syscall.h>     // SYS_mbind                     (§14C)
+#  include <unistd.h>          // syscall                       (§14C)
+#endif
 
 #ifndef USE_STD_ALLOCATOR
 
@@ -1579,17 +1585,26 @@ PoolAllocatorBase::allocate_chunk() {
 	// nullptr on genuine cap-exceeded / mmap failure, which we propagate
 	// so the caller falls back to std::malloc.
 	for(;;) {
-		// Pass 1: freshest regions are at the head, so this usually
-		// returns within a few nodes.
-		for(RegionMeta *rm = s_region_dll_head.load(std::memory_order_acquire);
-		    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
-			if( !rm->has_free.load(std::memory_order_relaxed)) continue;
-			if(ALLOC *palloc = try_claim_in_region(rm))
-				return palloc;
-			// Full for OUR CHUNK_UNITS.  Smaller-CHUNK_UNITS templates may
-			// still fit — clear the hint only tentatively; a future
-			// dealloc in this region re-sets it.
-			rm->has_free.store(0, std::memory_order_relaxed);
+		// (§14C) Pass 1: walk LOCAL NUMA-node's list first (locality —
+		// fresh local regions are at the head and most likely to have
+		// space), then fall back to other nodes if local is full.  Cost
+		// on single-node systems: same as §13.3 (one list, one pass).
+		int my_node = numa_node_for_this_thread();
+		int total_nodes = s_num_numa_nodes.load(std::memory_order_relaxed);
+		if(total_nodes <= 0) total_nodes = 1;
+		for(int off = 0; off < total_nodes; ++off) {
+			int n = (off == 0) ? my_node : ((my_node + off) % total_nodes);
+			for(RegionMeta *rm = s_region_dll_heads[n].load(
+			        std::memory_order_acquire);
+			    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+				if( !rm->has_free.load(std::memory_order_relaxed)) continue;
+				if(ALLOC *palloc = try_claim_in_region(rm))
+					return palloc;
+				// Full for OUR CHUNK_UNITS.  Smaller-CHUNK_UNITS templates
+				// may still fit — clear the hint only tentatively; a
+				// future dealloc in this region re-sets it.
+				rm->has_free.store(0, std::memory_order_relaxed);
+			}
 		}
 		// Pass 2: mmap a fresh region, then try to claim in it.
 		RegionMeta *rm = mmap_new_region();
@@ -2246,7 +2261,11 @@ PoolAllocatorBase::count_live_chunks() noexcept {
 	// by actual chunks" — preserving the pre-§13.2 leak-probe semantics
 	// (monotonic growth = leak).
 	int n = 0;
-	for(RegionMeta *rmeta = s_region_dll_head.load(std::memory_order_acquire);
+	int total_nodes = s_num_numa_nodes.load(std::memory_order_relaxed);
+	if(total_nodes <= 0) total_nodes = 1;
+	for(int node = 0; node < total_nodes; ++node)
+	for(RegionMeta *rmeta = s_region_dll_heads[node].load(
+	        std::memory_order_acquire);
 	    rmeta; rmeta = rmeta->dll_next.load(std::memory_order_acquire)) {
 		for(int w = 0; w < BITMAP_WORDS_PER_REGION; ++w) {
 			BitmapWord v =
@@ -2568,12 +2587,20 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 	// (§13.3) Retry loop — see allocate_chunk for the rationale (a fresh
 	// region can be swarmed by other threads before our own claim).
 	for(;;) {
-		// Pass 1: walk the push-only region list (freshest first).
-		for(RegionMeta *rm = s_region_dll_head.load(std::memory_order_acquire);
-		    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
-			if( !rm->has_free.load(std::memory_order_relaxed)) continue;
-			if(char *addr = try_claim_in_region(rm)) return addr;
-			rm->has_free.store(0, std::memory_order_relaxed);
+		// (§14C) Pass 1: walk LOCAL NUMA-node's list first, fall back to
+		// other nodes.
+		int my_node = numa_node_for_this_thread();
+		int total_nodes = s_num_numa_nodes.load(std::memory_order_relaxed);
+		if(total_nodes <= 0) total_nodes = 1;
+		for(int off = 0; off < total_nodes; ++off) {
+			int n = (off == 0) ? my_node : ((my_node + off) % total_nodes);
+			for(RegionMeta *rm = s_region_dll_heads[n].load(
+			        std::memory_order_acquire);
+			    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+				if( !rm->has_free.load(std::memory_order_relaxed)) continue;
+				if(char *addr = try_claim_in_region(rm)) return addr;
+				rm->has_free.store(0, std::memory_order_relaxed);
+			}
 		}
 		// Pass 2: mmap a fresh region, then claim in it.
 		RegionMeta *rm = mmap_new_region();
@@ -3664,7 +3691,11 @@ extern "C" void kame_pool_get_stats(kame_pool_stats_t *out) noexcept {
     std::size_t units = 0;
     std::size_t chunks = 0;
     using BitmapWord = PoolAllocatorBase::BitmapWord;
-    for(auto *rm = PoolAllocatorBase::s_region_dll_head.load(
+    int total_nodes = PoolAllocatorBase::s_num_numa_nodes.load(
+        std::memory_order_relaxed);
+    if(total_nodes <= 0) total_nodes = 1;
+    for(int node = 0; node < total_nodes; ++node)
+    for(auto *rm = PoolAllocatorBase::s_region_dll_heads[node].load(
                        std::memory_order_acquire);
         rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
         ++regions;
@@ -3695,10 +3726,89 @@ extern "C" void kame_pool_get_stats(kame_pool_stats_t *out) noexcept {
 
 std::atomic<RadixL2Node *> PoolAllocatorBase::s_radix_l1[RADIX_L1_SIZE];
 
-// (§13.3) Push-only region list + populated-region count.
+// (§13.3 / §14C) Per-NUMA-node region lists + populated-region count.
 std::atomic<PoolAllocatorBase::RegionMeta *>
-    PoolAllocatorBase::s_region_dll_head{nullptr};
+    PoolAllocatorBase::s_region_dll_heads[PoolAllocatorBase::KAME_MAX_NUMA_NODES];
 std::atomic<int> PoolAllocatorBase::s_region_count{0};
+std::atomic<int> PoolAllocatorBase::s_num_numa_nodes{0};  // 0 = uninit
+
+// (§14C) Per-thread preferred NUMA node, lazy-initialized.  -1 = uninit.
+static ALLOC_TLS_IE int s_tls_numa_node = -1;
+
+// (§14C) Read the system NUMA node count.  Linux:
+// `/sys/devices/system/node/nodeN` directories; the highest N + 1 is the
+// node count (clamped to KAME_MAX_NUMA_NODES).  Non-Linux returns 1.
+// Called once via the lazy s_num_numa_nodes init in
+// `numa_node_for_this_thread()`.
+__attribute__((cold))
+static int detect_num_numa_nodes() noexcept {
+#if defined(__linux__)
+	int max_n = 0;
+	DIR *d = opendir("/sys/devices/system/node");
+	if(d) {
+		while(struct dirent *e = readdir(d)) {
+			int n;
+			if(sscanf(e->d_name, "node%d", &n) == 1 && n + 1 > max_n)
+				max_n = n + 1;
+		}
+		closedir(d);
+	}
+	if(max_n < 1) max_n = 1;
+	if(max_n > PoolAllocatorBase::KAME_MAX_NUMA_NODES)
+		max_n = PoolAllocatorBase::KAME_MAX_NUMA_NODES;
+	return max_n;
+#else
+	return 1;
+#endif
+}
+
+// (§14C) NUMA node of a specific CPU id (Linux: read
+// `/sys/devices/system/cpu/cpuN/node*/` — the only sibling node%d there
+// is the CPU's home node).  Returns 0 on failure / non-Linux.
+__attribute__((cold))
+static int numa_node_for_cpu(int cpu) noexcept {
+#if defined(__linux__)
+	char path[64];
+	snprintf(path, sizeof(path),
+	         "/sys/devices/system/cpu/cpu%d", cpu);
+	DIR *d = opendir(path);
+	if( !d) return 0;
+	int node = 0;
+	while(struct dirent *e = readdir(d)) {
+		int n;
+		if(sscanf(e->d_name, "node%d", &n) == 1) { node = n; break; }
+	}
+	closedir(d);
+	return node < PoolAllocatorBase::KAME_MAX_NUMA_NODES
+	       ? node : PoolAllocatorBase::KAME_MAX_NUMA_NODES - 1;
+#else
+	(void)cpu;
+	return 0;
+#endif
+}
+
+__attribute__((cold, noinline))
+int PoolAllocatorBase::numa_node_for_this_thread() noexcept {
+	int n = s_tls_numa_node;
+	if(__builtin_expect(n >= 0, 1)) return n;
+	// Lazy init.  First call from any thread sets the global node count
+	// (idempotent races OK — same value).
+	int total = s_num_numa_nodes.load(std::memory_order_relaxed);
+	if(total == 0) {
+		total = detect_num_numa_nodes();
+		s_num_numa_nodes.store(total, std::memory_order_relaxed);
+	}
+	if(total <= 1) { s_tls_numa_node = 0; return 0; }
+#if defined(__linux__)
+	int cpu = sched_getcpu();
+	n = cpu >= 0 ? numa_node_for_cpu(cpu) : 0;
+#else
+	n = 0;
+#endif
+	if(n >= total) n = total - 1;
+	s_tls_numa_node = n;
+	return n;
+}
 
 // Per-thread 1-entry region-lookup cache (§13).  Initialized to 0 which
 // never matches a real region base (kernel null page).
@@ -3861,6 +3971,22 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 		              mmap_size - ALLOC_PAGE_SIZE, MADV_HUGEPAGE);
 #  endif
 #endif
+	// (§14C) Bind the region to this thread's NUMA node — physical pages
+	// touched later will land on that node (instead of whichever node
+	// allocates first under the default MPOL_LOCAL).  Cross-node access
+	// stays correct; performance just degrades to remote-memory latency.
+	// Use the mbind syscall directly to avoid a libnuma dependency.
+	int my_node = numa_node_for_this_thread();
+#if defined(__linux__) && defined(SYS_mbind)
+	if(s_num_numa_nodes.load(std::memory_order_relaxed) > 1) {
+		constexpr int MPOL_BIND = 2;
+		unsigned long mask = 1ul << my_node;
+		(void)syscall(SYS_mbind, p, (unsigned long)mmap_size,
+		              MPOL_BIND, &mask, (unsigned long)(sizeof(mask) * 8),
+		              0u);
+		// Best-effort: failure (older kernel, non-NUMA build) is benign.
+	}
+#endif
 	// Init the embedded metadata block (mmap zero-filled the first page,
 	// so back_offset[*]=0, claim_bitmap[*]=0, dll_next=0, has_free=0).
 	// Reserve unit 0 (the metadata lives there) and flag has_free, BEFORE
@@ -3869,20 +3995,22 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	RegionMeta *rm = region_meta(p);
 	rm->claim_bitmap[0].store(BitmapWord(1), std::memory_order_relaxed);
 	rm->has_free.store(1, std::memory_order_relaxed);
+	rm->numa_node = (std::uint16_t)my_node;
 	// Publish in the radix (presence) BEFORE the list push so a free of a
 	// chunk in this region can never miss the lookup.
 	radix_insert(p);
-	// Push on the push-only region list (Treiber).  Regions never unmap,
-	// so no ABA / reclamation.
-	RegionMeta *old = s_region_dll_head.load(std::memory_order_relaxed);
+	// Push on the per-node push-only list (Treiber).  Regions never
+	// unmap, so no ABA / reclamation.
+	std::atomic<RegionMeta *> *head = &s_region_dll_heads[my_node];
+	RegionMeta *old = head->load(std::memory_order_relaxed);
 	do {
 		rm->dll_next.store(old, std::memory_order_relaxed);
-	} while( !s_region_dll_head.compare_exchange_weak(
+	} while( !head->compare_exchange_weak(
 	             old, rm, std::memory_order_release,
 	             std::memory_order_relaxed));
 	fprintf(stderr,
-	    "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n",
-	    p, (unsigned long long)mmap_size);
+	    "Reserve swap space starting @ %p w/ len. of 0x%llxB (node %d).\n",
+	    p, (unsigned long long)mmap_size, my_node);
 	return rm;
 }
 // single consolidated TLS struct holds all per-thread state
