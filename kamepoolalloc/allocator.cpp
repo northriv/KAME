@@ -716,40 +716,55 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, cha
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(size_t size, char *ppool) {
-	// Embed-into-chunk layout (the bit-state -3 PoolAllocator-object-UAF
-	// root-cure -- see tests/tlaplus/ChunkRecycle_threadepoch.tla and
-	// kamepoolalloc/tests/CHUNK_CLAIM_TLA_NOTES.md):
+	// (§15) Forward-shift embed layout:
 	//
-	//   [chunk_base + 64 = ppool]   PoolAllocator object (placement new)
-	//   [ppool + size_alloc]        m_flags[count]
-	//   [..aligned up to ALIGN..]   slot region (the new m_mempool)
+	//   [chunk_base + 0..63]            chunk_header (caller-written)
+	//   [chunk_base + 64 = ppool]       PoolAllocator object (placement new)
+	//   [ppool + size_alloc]            m_flags[count]
+	//   [padding]                        unused bytes up to `chunk_base + K_MAX`
+	//   [chunk_base + K_MAX]            slot region (m_mempool) — UNIT-ALIGNED
+	//   [...]                            slots × ALIGN bytes each
+	//   [chunk_base + chunk_size - K_MAX] last K_MAX bytes reserved for the
+	//                                     NEXT chunk's metadata (if any).
 	//
-	// `ppool` from the caller is the start of the post-chunk_header region
-	// (= chunk_base + ALLOC_CHUNK_HEADER); reinterpreted here as the embed
-	// blob.  PoolAllocator object identity equals chunk_base + 64 — so the
-	// `palloc` value `lookup_chunk` resolves to is bound to the chunk's
-	// lifecycle, eliminating the libsystem-malloc ABA on `palloc` that
-	// caused PoolAllocator::create's control-block malloc to crash on
-	// freed-then-reused heap pages.  `size` is the post-header region's
-	// byte length; `count` is derived to fit PoolAllocator + m_flags +
-	// slot region into it.
-	// `size_alloc` is the embed offset of `m_flags` from the PoolAllocator
-	// object's start; align PoolAllocator size up to FUINT alignment.
-	// (The historic `(sizeof+f-1)*f` expression was an inadvertent
-	// 8× overestimate that ate ~1 KiB of slot space; corrected to a
-	// proper round-up so `count` rises to the chunk's real capacity.)
+	// The fixed-position slot region (`ppool + K_MAX - 64`) makes the slot
+	// region start at chunk_base + K_MAX = unit_boundary — every chunk's
+	// slot 0 is 256 KiB-aligned regardless of template.  Trade-off: K_MAX
+	// bytes per chunk are reserved for metadata even if the actual
+	// metadata is smaller (FS=false / dedicated paths use far less).
+	//
+	// `size` from the caller is `chunk_size - ALLOC_CHUNK_HEADER`.  The
+	// usable slot region is `chunk_size - K_MAX` bytes.
 	constexpr size_t size_alloc =
 	    ((sizeof(PoolAllocator) + sizeof(FUINT) - 1) / sizeof(FUINT))
 	    * sizeof(FUINT);
 	constexpr unsigned FUINT_BITS = sizeof(FUINT) * 8;
-	// Solve: size_alloc + count*sizeof(FUINT) + alignment_pad + count*ALIGN*FUINT_BITS <= size
-	// Pessimistic alignment_pad = ALIGN - 1.
-	int count = static_cast<int>(
-	    (size - size_alloc - (ALIGN - 1)) / (sizeof(FUINT) + ALIGN * FUINT_BITS));
+	// Metadata budget within the K_MAX reservation (chunk_header occupies
+	// the first ALLOC_CHUNK_HEADER bytes; PoolAllocator + m_flags + pad
+	// must fit in the remainder).
+	constexpr size_t kMetaBudget = ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER;
+	static_assert(size_alloc <= kMetaBudget,
+	    "PoolAllocator + alignment must fit in ALLOC_CHUNK_K_MAX - 64.  "
+	    "Increase K_MAX or shrink the struct.");
+	// Slot region is at chunk_base + K_MAX = ppool + (K_MAX - ALLOC_CHUNK_HEADER).
+	char *slot_region = ppool + (ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER);
+	// slot region size = chunk_size - K_MAX = (size + ALLOC_CHUNK_HEADER) - K_MAX
+	//                  = size - (K_MAX - ALLOC_CHUNK_HEADER)
+	size_t slot_region_size = size - kMetaBudget;
+	// count must satisfy:
+	//   (i)  size_alloc + count*sizeof(FUINT) <= kMetaBudget
+	//          (m_flags fits between PoolAllocator and slot_region)
+	//   (ii) count * ALIGN * FUINT_BITS <= slot_region_size
+	//          (slots fit in the slot region)
+	int count_meta = static_cast<int>(
+	    (kMetaBudget - size_alloc) / sizeof(FUINT));
+	int count_slots = static_cast<int>(
+	    slot_region_size / ((size_t)ALIGN * FUINT_BITS));
+	int count = count_meta < count_slots ? count_meta : count_slots;
 	char *m_flags_pos = ppool + size_alloc;
-	char *slot_region = m_flags_pos + static_cast<size_t>(count) * sizeof(FUINT);
-	slot_region = reinterpret_cast<char*>(
-	    (reinterpret_cast<uintptr_t>(slot_region) + ALIGN - 1) & ~(uintptr_t(ALIGN) - 1));
+	// Sanity: m_flags must end at or before slot_region.
+	// (Guaranteed by count_meta constraint above.)
+	(void)m_flags_pos;
 	return new(ppool) PoolAllocator(count, ppool, slot_region);
 }
 template <unsigned int ALIGN, bool DUMMY>
@@ -764,19 +779,25 @@ inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, 
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(size_t size, char *ppool) {
-	// Embed-into-chunk layout — see the FS=true `create` above for the
-	// design rationale (PoolAllocator-object-UAF root-cure: identity
-	// bound to chunk lifecycle, not libsystem malloc heap).
+	// (§15) Forward-shift embed layout — see the FS=true `create` above
+	// for the full layout doc.  FS=false has a slightly different
+	// PoolAllocator size; otherwise the same kMetaBudget / dual-count
+	// constraint applies.
 	constexpr size_t size_alloc =
 	    ((sizeof(PoolAllocator) + sizeof(FUINT) - 1) / sizeof(FUINT))
 	    * sizeof(FUINT);
 	constexpr unsigned FUINT_BITS = sizeof(FUINT) * 8;
-	int count = static_cast<int>(
-	    (size - size_alloc - (ALIGN - 1)) / (sizeof(FUINT) + ALIGN * FUINT_BITS));
-	char *m_flags_pos = ppool + size_alloc;
-	char *slot_region = m_flags_pos + static_cast<size_t>(count) * sizeof(FUINT);
-	slot_region = reinterpret_cast<char*>(
-	    (reinterpret_cast<uintptr_t>(slot_region) + ALIGN - 1) & ~(uintptr_t(ALIGN) - 1));
+	constexpr size_t kMetaBudget = ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER;
+	static_assert(size_alloc <= kMetaBudget,
+	    "PoolAllocator (FS=false) + alignment must fit in "
+	    "ALLOC_CHUNK_K_MAX - 64");
+	char *slot_region = ppool + (ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER);
+	size_t slot_region_size = size - kMetaBudget;
+	int count_meta = static_cast<int>(
+	    (kMetaBudget - size_alloc) / sizeof(FUINT));
+	int count_slots = static_cast<int>(
+	    slot_region_size / ((size_t)ALIGN * FUINT_BITS));
+	int count = count_meta < count_slots ? count_meta : count_slots;
 	return new(ppool) PoolAllocator(count, ppool, slot_region);
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -1529,8 +1550,16 @@ PoolAllocatorBase::allocate_chunk() {
 					for(unsigned u = 0; u < CHUNK_UNITS; ++u)
 						rmeta->back_offset[base_unit_idx + (int)u] =
 						    (uint8_t)u;
+					// (§15) chunk_base is shifted K_MAX bytes before the
+					// unit boundary so the slot region (chunk_base + K_MAX)
+					// lands exactly on the unit boundary.  Metadata
+					// (chunk_header + PoolAllocator + m_flags) sits in the
+					// previous unit's last K_MAX bytes.  For base_unit_idx
+					// = 1, this is in unit 0's RegionMeta tail (well past
+					// the ~150 B RegionMeta head).
 					char *addr = region_base
-					           + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+					           + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE
+					           - (size_t)ALLOC_CHUNK_K_MAX;
 #if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
 					static const bool prewarm = [] {
 						const char *e = std::getenv("KAME_ALLOC_PREWARM");
@@ -2135,8 +2164,14 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 		{
 			{
 				RegionMeta *rmeta = region_meta_of(chunk_base);
+				// (§15) chunk_base = unit_boundary[base_unit] - K_MAX
+				// (shifted forward).  Add K_MAX back to recover the
+				// slot-region start, which is unit-aligned and yields
+				// the correct base_unit_idx via the mmap-size mask.
+				uintptr_t slot_region_start =
+				    (uintptr_t)chunk_base + ALLOC_CHUNK_K_MAX;
 				unsigned int base_unit_idx = static_cast<unsigned int>(
-				    ((uintptr_t)chunk_base
+				    (slot_region_start
 				     & ((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u))
 				    >> ALLOC_MIN_CHUNK_SHIFT);
 				int word = base_unit_idx / UNITS_PER_BITMAP_WORD;
@@ -2307,7 +2342,11 @@ resolve_chunk_from_slot(char *mp, size_t /*meta_base unused*/,
 	    PoolAllocatorBase::region_meta(mp);
 	unsigned int back_off = rmeta->back_offset[unit_idx] & 0x7Fu;  // mask dedicated bit7
 	unsigned int base_idx = unit_idx - back_off;
-	char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+	// (§15) chunk_base = unit_boundary[base_idx] - K_MAX (chunk's first
+	// byte sits K_MAX bytes before its claimed-units' boundary, so the
+	// slot region starts unit-aligned at chunk_base + K_MAX).
+	char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE
+	                 - (size_t)ALLOC_CHUNK_K_MAX;
 	PoolAllocatorBase *palloc =
 	    *reinterpret_cast<PoolAllocatorBase * const *>(
 	        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
@@ -2381,7 +2420,10 @@ PoolAllocatorBase::deallocate(void *p) {
 		RegionMeta *rmeta = region_meta(mp);
 		unsigned int back_off_raw = rmeta->back_offset[unit_idx];
 		unsigned int base_idx = unit_idx - (back_off_raw & 0x7Fu);
-		char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+		// (§15) chunk_base = unit_boundary[base_idx] - K_MAX (see
+		// resolve_chunk_from_slot for the layout rationale).
+		char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE
+		                 - (size_t)ALLOC_CHUNK_K_MAX;
 		// Dedicated single-slot large chunk?  bit7 of the (already-loaded)
 		// back_off byte flags it — NO chunk_header read added to the hot
 		// owner-free path (preserves the (1b) cache-line discipline).
@@ -2577,8 +2619,11 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 					for(unsigned u = 0; u < chunk_units; ++u)
 						rmeta->back_offset[base_unit_idx + (int)u] =
 						    (std::uint8_t)u | back_off_flag;
+					// (§15) chunk_base = unit_boundary - K_MAX, see
+					// allocate_chunk's sibling site for rationale.
 					return mp + (size_t)base_unit_idx
-					          * (size_t)ALLOC_MIN_CHUNK_SIZE;
+					          * (size_t)ALLOC_MIN_CHUNK_SIZE
+					     - (size_t)ALLOC_CHUNK_K_MAX;
 				}
 			}
 		}

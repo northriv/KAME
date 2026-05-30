@@ -868,3 +868,93 @@ working sets benefit.  Verified by `/proc/$pid/smaps` `VmFlags: hg`.
 Versioned C-ABI struct returning regions_populated / bytes_reserved /
 chunks_live / units_live.  Walks the region list under relaxed loads
 (diagnostic-grade, not hot-path).
+
+## 15. Forward-shift: slot region starts at 256 KiB unit boundary
+
+Shift every chunk's start by `K_MAX` (= 4 KiB, one page) bytes backwards
+from its first claimed unit boundary, so the slot region begins exactly
+at the unit boundary.  This gives every slot 0 a deterministic 256 KiB
+alignment for downstream consumers (SIMD, DMA, THP, etc.).
+
+### Layout
+
+```
+unit_boundary[base_unit] - K_MAX = chunk_base[N]
+   [chunk_base + 0..63]      chunk_header (palloc, fn, sizeof_fn, size_info, dedicated size)
+   [chunk_base + 64..]       PoolAllocator object
+   [...]                     m_flags[count]
+   [...padding...]
+unit_boundary[base_unit] = chunk_base[N] + K_MAX
+   [chunk_base + K_MAX ..]   slot region (256 KiB-aligned)
+   [...]                     slots × ALIGN bytes
+chunk_base + chunk_size - K_MAX
+   [last K_MAX of chunk]     reserved for chunk N+1's metadata (if any)
+chunk_base + chunk_size = unit_boundary[next_chunk_base_unit] - K_MAX
+```
+
+Adjacent chunks tile end-to-end — chunk N's last K_MAX bytes are
+exactly chunk N+1's metadata (if a next chunk is later claimed).
+First chunk in a region (base_unit = 1) has its metadata in unit 0's
+last K_MAX bytes (RegionMeta lives at unit 0's start, ~150 B).
+
+### Implementation
+
+- `ALLOC_CHUNK_K_MAX = 4096` (one OS page on x86-64 Linux).
+- `PoolAllocator::create()` (both FS=true and FS=false): slot region
+  position fixed at `ppool + K_MAX - ALLOC_CHUNK_HEADER` (= chunk_base
+  + K_MAX = unit_boundary).  Slot count selected to satisfy both
+  metadata-fit and slot-region-fit constraints.
+- `allocate_chunk` / `claim_chunk`: chunk_base = region_base +
+  base_unit_idx × 256 KiB − K_MAX.
+- `resolve_chunk_from_slot` / `deallocate(p)` fast path:
+  `chunk_base = mp + base_idx × 256 KiB − K_MAX`.
+- `deallocate_chunk(chunk_base, ...)`: `base_unit_idx = (chunk_base
+  + K_MAX) & MMASK >> ALLOC_MIN_CHUNK_SHIFT`.
+- `chunk_from_freelist_ptr(fp)`: needed `+ K_MAX` before masking, then
+  `− K_MAX + ALLOC_CHUNK_HEADER` to recover PoolAllocator object.  fp
+  now sits in the previous unit's last page (PoolAllocator at
+  chunk_base + 64 = unit_boundary − K_MAX + 64), so the original
+  "mask fp to 256 KiB" trick aliased to unit U-1's boundary — caught
+  in stress testing (multi-thread alloc SEGV on first dealloc).
+
+### Slot capacity
+
+Every chunk's slot region is `chunk_size − K_MAX` bytes (last K_MAX
+reserved).  Loss per chunk:
+  - 256 KiB chunk: 4 KiB / 256 KiB = 1.5 %
+  - 512 KiB chunk: 0.8 %
+  - 1 MiB chunk:   0.4 %
+  - 4 MiB dedicated: 0.1 %
+Negligible.
+
+### Verification
+
+x86-64 (Linux, 4 KiB page):
+  - All correctness tests pass (c_api, bucket34, alloc_stress
+    cross={0,5,100} × 3, 9/9 sentinel_fails=0 / diff=0).
+  - Probe confirms slot 0 of every chunk is exactly 256 KiB-aligned:
+    `kame_pool_malloc(64)` → returned pointer `mod 256K = 0`.
+  - Perf (12-iter interleaved, vs §14C 5762d409):
+      16  B: 246 → 253 M ops/s (+2.9 %)
+      64  B: 244 → 253 M ops/s (+3.7 %)
+      128 B: 243 → 252 M ops/s (+3.8 %)
+      256 B: 243 → 252 M ops/s (+3.7 %)
+      1024 B: 193 → 197 M ops/s (+2.0 %)
+      1500 B: 193 → 198 M ops/s (+2.3 %)
+      4096 B: 192 → 193 M ops/s (+0.8 %)
+      8192 B: 190 → 192 M ops/s (+1.0 %)
+    Better than the predicted "≈ 0 %".  Likely from cache-line / DC
+    miss predictability when chunk's slot region pages align with
+    natural prefetcher / page-walker assumptions.
+
+32-bit (gcc-multilib): clean build, c_api + stress 4/4 PASS.
+
+### Caveats
+
+- ALLOC_PAGE_SIZE > 4096 (Apple Silicon 16 KiB, PowerPC 64 KiB):
+  K_MAX = 4096 is smaller than a page, so the madvise in
+  `deallocate_chunk` may round up and reclaim a few extra KiB of slot
+  region's first page along with the metadata.  Correctness preserved
+  (palloc=0 is set BEFORE madvise; if madvise touches it the chunk is
+  already released).  Memory waste is < 1 page per chunk-release on
+  those platforms.
