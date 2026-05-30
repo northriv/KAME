@@ -1363,3 +1363,56 @@ owner-exit's release-store of nullptr are preserved.
     required.
   - Regression: release + TSAN + ASan + 32-bit also PASS on all of
     the above.
+
+## 21. Thread-exit page reclaim (default ON) + §19 large-alloc recycle cache
+
+Two RSS / perf refinements, no protocol change.
+
+### 21a. Thread-exit madvise default ON
+
+`release_dll_chunks_for_thread` released empty chunks with
+`reclaim_pages=false` — the ONE place the release protocol skipped the
+slot-region `madvise(MADV_DONTNEED)` (a perf optimisation: the madvise
+was ~30 % of bench-style thread-teardown).  Mid-run releases always
+madvise, so this was the only "RSS held until process exit" gap.
+
+Now gated by `s_thread_exit_reclaim` (atomic int, default 1).  Default
+behaviour madvise's on thread exit too, so a thread that allocates and
+frees a working set, then exits, returns its RSS promptly.  Measured
+(8 threads × 20000 × 200 B alloc-then-free-all-then-exit, 30 batches):
+steady-state VmRSS 26 MiB → 5 MiB with reclaim on.  The prior fast
+teardown is one call away: `kame_pool_set_thread_exit_reclaim(0)`.
+
+### 21b. §19 large-alloc per-thread recycle cache
+
+§19's per-allocation `mmap + munmap` made a tight large-alloc/free loop
+~500× slower than libc's mmap-arena cache (microbench: 5 MiB at
+~0.2 M ops/s vs libc ~42 M).  `LargeVaCache` is a per-thread LIFO of a
+few recently-freed §19 regions (still mapped) keyed by mmap_size:
+
+  - `allocate_large_va`: `pop_fit(mmap_size)` reuses a cached region
+    whose size is in `[need, 2*need]` (re-register in radix, refresh
+    meta) — zero syscalls on a hit.  Miss → `large_va_raw_map`.
+  - `deallocate_large_va`: `radix_clear` (so a double-free routes to
+    libc, never a torn cache), then `push` — keep mapped if it fits the
+    cap, else `large_va_raw_unmap` now.
+  - Bounded: `MAX_ENTRIES = 4`, `MAX_BYTES = 64 MiB` per thread.  Most
+    threads never touch the large tier → empty cache → zero cost.  RSS
+    held while cached is ≤ 64 MiB per large-allocating thread.
+  - Drained at thread exit by the `thread_local LargeVaCache` dtor
+    (munmap only — no pool ops, so TLS-destruction order is irrelevant).
+
+Cached regions are radix-CLEARED while in the cache and re-registered on
+reuse (Option B): a double-free of a cached pointer hits
+`KAME_RADIX_ABSENT` → libc free → clean error, not cache corruption.
+
+### Verification
+
+  - Perf: tight large-alloc/free loop recovered to ~35–46 M ops/s
+    (≈ libc arena), from §19's ~0.2 M ops/s.
+  - Thread-exit drain: 3200 thread×alloc cycles (16 threads × 200
+    batches × 5 × 8 MiB), VmRSS drift 0 MiB — no per-thread cache leak.
+  - §19 MT (8 threads × 500 iter × random 5–30 MiB, pattern verify):
+    TSAN race-free, ASan clean, UBSAN-full clean (release + each sanitizer).
+  - Regression: release + TSAN + ASan + UBSAN-full + 32-bit all PASS on
+    c_api, alloc_stress, sweep, aligned_sweep, §15/§16/§17/§19 MT.

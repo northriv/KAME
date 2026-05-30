@@ -789,6 +789,18 @@ public:
 	//! on the cold mmap path; never read on the alloc/free hot path.
 	static std::atomic<int> s_max_regions_cap;
 
+	//! (§21) Whether the thread-exit DLL teardown
+	//! (`release_dll_chunks_for_thread`) madvise's the slot pages of the
+	//! chunks it releases.  Default TRUE — RSS is returned promptly when a
+	//! thread exits, closing the only "advise-skip" exception in the
+	//! release protocol (mid-run releases always madvise).  Set FALSE via
+	//! `kame_pool_set_thread_exit_reclaim(0)` to restore the prior
+	//! perf-optimised behaviour (skip the ~30 % thread-exit madvise cost
+	//! and let the kernel batch-reclaim at process exit) for workloads
+	//! that spawn/exit threads rapidly and don't care about steady-state
+	//! RSS.  Loaded relaxed on the (cold) thread-exit path only.
+	static std::atomic<int> s_thread_exit_reclaim;
+
 	//! read-only accessor used by `kame_pool_reserved_bytes`.
 	//! (§13.3) O(1): returns the live populated-region counter maintained
 	//! by `mmap_new_region` (was an O(N) walk of the retired

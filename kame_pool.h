@@ -144,6 +144,19 @@ size_t kame_pool_get_max_bytes(void) KAMEPOOLALLOC_NOEXCEPT;
 size_t kame_pool_reserved_bytes(void) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
+ * Thread-exit page reclamation toggle.  Default ENABLED: when a thread
+ * exits, the pool madvise(MADV_DONTNEED)'s the slot pages of the chunks
+ * it releases, returning RSS promptly.  Pass 0 to disable (skip the
+ * thread-exit madvise — ~30% faster thread teardown, at the cost of
+ * holding the freed pages resident until the kernel reclaims them at
+ * process exit or the pages are recycled by a later allocation).  Tune
+ * for workloads that rapidly spawn/exit threads and don't track
+ * steady-state RSS.  Mid-run frees always reclaim regardless of this
+ * setting.
+ */
+void   kame_pool_set_thread_exit_reclaim(int enable) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
  * Observability — snapshot of pool counters at the moment of the call.
  *
  * ABI versioning: callers set `version = KAME_POOL_STATS_VERSION` before
