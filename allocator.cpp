@@ -2792,6 +2792,20 @@ KAME_DECL_BUCKET(44, 1024u, false, 11256u);  // octave 13 sub 1 +ALIGN, N=11, sl
 KAME_DECL_BUCKET(45, 1024u, false, 13304u);  // octave 13 sub 2 +ALIGN, N=13, slot=13312
 KAME_DECL_BUCKET(46, 1024u, false, 15352u);  // octave 13 sub 3 +ALIGN, N=15, slot=15360
 KAME_DECL_BUCKET(47, 1024u, false, 17400u);  // octave 14 sub 0 +ALIGN, N=17, slot=17408
+
+// Stage 4 — ALIGN=4096 page-aligned tier.  Power-of-2 slot sizes (4K,
+// 8K, 16K, 32K) chosen so every slot is a multiple of every common
+// page size (4 KiB / 16 KiB / 32 KiB / 64 KiB), keeping MADV_FREE
+// granularity, TLB coverage and THP behaviour clean across platforms.
+// Routing rules (see `bucket_for_size`):
+//   - bucket 48 shadows bucket 39 for sizes 3841..4088
+//   - bucket 49 shadows bucket 42 for sizes 7161..8184 (same slot size)
+//   - bucket 50 shadows bucket 47 for sizes 15353..16376
+//   - bucket 51 extends the pool from 17408 to 32760 (was libc malloc)
+KAME_DECL_BUCKET(48, 4096u, false,  4088u);  // ALIGN=4096 N=1, slot= 4096
+KAME_DECL_BUCKET(49, 4096u, false,  8184u);  // ALIGN=4096 N=2, slot= 8192
+KAME_DECL_BUCKET(50, 4096u, false, 16376u);  // ALIGN=4096 N=4, slot=16384
+KAME_DECL_BUCKET(51, 4096u, false, 32760u);  // ALIGN=4096 N=8, slot=32768
 #undef KAME_DECL_BUCKET
 
 //! First-access trampoline for bucket B.  Invoked from the
@@ -2892,6 +2906,10 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
         case 45:          return bucket_first_access<45>(size);
         case 46:          return bucket_first_access<46>(size);
         case 47:          return bucket_first_access<47>(size);
+        case 48:          return bucket_first_access<48>(size);
+        case 49:          return bucket_first_access<49>(size);
+        case 50:          return bucket_first_access<50>(size);
+        case 51:          return bucket_first_access<51>(size);
     }
     return std::malloc(size);  // unreachable
 }
