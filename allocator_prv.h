@@ -1191,6 +1191,29 @@ public:
 		s_tls.dll_cursor = nullptr;
 		s_tls.dll_exhausted = false;
 	}
+	//! (§24) Scan this thread's DLL of chunks for one whose freelist at
+	//! `local_id` is non-empty; if found, re-pin it as `s_tls.my_chunk`,
+	//! pop one slot from its freelist, and return the popped pointer.
+	//! Returns nullptr if no chunk has a freelist entry at this local id.
+	//! Inside the class so it can access the protected `m_dll_next` and
+	//! `m_freelist_head` fields of the same template's chunks.  Used by
+	//! `slow_allocate` (FS=true and FS=false) before falling through to
+	//! the bitmap-claim path — without it, freelist entries on
+	//! non-active chunks become unreachable on multi-chunk working sets.
+	static char *scan_dll_freelist(unsigned local_id) noexcept {
+		for(PoolAllocator<ALIGN, DUMMY, DUMMY> *c = s_tls.dll_head;
+		    c; c = c->m_dll_next) {
+			char *head = c->m_freelist_head[local_id];
+			if(head) {
+				s_tls.my_chunk = c;
+				c->m_freelist_head[local_id] =
+				    *reinterpret_cast<char **>(head);
+				return head;
+			}
+		}
+		return nullptr;
+	}
+
 	//! public accessor for this thread's `s_dll_head` TLS
 	//! address.  Used by external code (CrossDeallocBatch::push_direct
 	//! in anon namespace) to compare against a chunk's stored
