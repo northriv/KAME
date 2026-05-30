@@ -2258,17 +2258,20 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// FS=true batch_return_to_bitmap sibling for the rationale.
 			c->m_owner_id = 0;
 			c->~PoolAllocator();   // placement-new destructor
-			// skip madvise at thread-exit.  Perf showed
+			// (§21) madvise the slot pages on thread exit by default
+			// (`s_thread_exit_reclaim`, default TRUE) so RSS is returned
+			// promptly — the only release path that USED to skip madvise.
+			// The skip (reclaim_pages=false) was a perf optimisation:
 			// MADV_DONTNEED here was ~30 % of bench-style alloc_only
-			// runtime (clear_page_erms + free_pages_and_swap_cache).
-			// Pages stay mapped — either the kernel reclaims them
-			// at process exit via exit_mmap (one batch syscall vs
-			// thousands of madvise) or the next thread to claim
-			// these chunk units gets warm pages back, no
-			// re-zeroing.  Bounded above by m_max_reserved_bytes
-			// which limits region count.
+			// runtime (clear_page_erms + free_pages_and_swap_cache), and
+			// pages would otherwise be reclaimed by the kernel at process
+			// exit (exit_mmap, one batch) or recycled warm by the next
+			// claimer.  Workloads that spawn/exit threads rapidly and
+			// don't care about steady-state RSS can restore the skip via
+			// `kame_pool_set_thread_exit_reclaim(0)`.
 			PoolAllocatorBase::deallocate_chunk(cbase, csz,
-			    /*reclaim_pages=*/false);
+			    /*reclaim_pages=*/
+			    s_thread_exit_reclaim.load(std::memory_order_relaxed) != 0);
 		}
 		// else: chunk still has live slots (MASK_CNT > 0).
 		// Cross-thread releaser will pick it up via atomicDecAndTest.
@@ -4034,6 +4037,13 @@ void operator delete[](void* p, std::size_t /*size*/, std::align_val_t al) noexc
 
 // runtime max-regions cap definition + public API.
 std::atomic<int> PoolAllocatorBase::s_max_regions_cap{ALLOC_MAX_REGIONS};
+// (§21) thread-exit madvise default ON.
+std::atomic<int> PoolAllocatorBase::s_thread_exit_reclaim{1};
+
+extern "C" void kame_pool_set_thread_exit_reclaim(int enable) noexcept {
+    PoolAllocatorBase::s_thread_exit_reclaim.store(
+        enable ? 1 : 0, std::memory_order_relaxed);
+}
 
 extern "C" void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept {
     // 0 = disable cap → restore the compile-time ceiling.
@@ -4440,6 +4450,101 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 }
 
 // =====================================================================
+// (§19/§21) Large-alloc tier — single-mmap, radix-registered, munmap-able,
+//           with a per-thread LIFO recycle cache.
+// =====================================================================
+namespace {
+// Raw 32-MiB-aligned mmap of `mmap_size` bytes.  Returns base or nullptr.
+inline char *large_va_raw_map(std::size_t mmap_size) noexcept {
+#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
+	return static_cast<char *>(_aligned_malloc(mmap_size, ALLOC_MIN_MMAP_SIZE));
+#else
+	std::size_t total = mmap_size + ALLOC_MIN_MMAP_SIZE;
+	char *raw = static_cast<char *>(
+	    mmap(0, total, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0));
+	if(raw == MAP_FAILED) return nullptr;
+	uintptr_t aligned =
+	    ((uintptr_t)raw + ALLOC_MIN_MMAP_SIZE - 1u) &
+	    ~(uintptr_t)(ALLOC_MIN_MMAP_SIZE - 1u);
+	char *base = reinterpret_cast<char *>(aligned);
+	std::size_t prefix = base - raw;
+	std::size_t suffix = total - prefix - mmap_size;
+	if(prefix > 0) munmap(raw, prefix);
+	if(suffix > 0) munmap(base + mmap_size, suffix);
+	return base;
+#endif
+}
+inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
+#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
+	(void)mmap_size;
+	_aligned_free(base);
+#else
+	munmap(base, mmap_size);
+#endif
+}
+
+// (§21) Per-thread LIFO recycle cache for §19 large allocs.  Holds a few
+// recently-freed regions (still mapped) so a tight alloc/free loop reuses
+// VA + warm pages instead of paying mmap+munmap syscalls every cycle.
+// Cached regions are radix-CLEARED (so a double-free routes to libc, not
+// a torn cache) and re-registered on reuse.  Bounded by entry count AND
+// total bytes; evicted / thread-exit entries are munmap'd.  RSS held while
+// cached is therefore ≤ MAX_BYTES per thread that actually does large
+// allocs (most threads never touch this tier → empty cache → zero cost).
+struct LargeVaCache {
+	static constexpr int    MAX_ENTRIES = 4;
+	static constexpr std::size_t MAX_BYTES = 64u * 1024u * 1024u;  // 64 MiB
+	struct Entry { char *base; std::size_t mmap_size; };
+	Entry e[MAX_ENTRIES];
+	int count = 0;
+	std::size_t total = 0;
+
+	// Reuse a cached region whose size fits [need, 2*need] (avoids handing
+	// a 32 MiB region to a 5 MiB request).  Returns base (still mapped,
+	// radix-cleared — caller re-registers) or nullptr.
+	char *pop_fit(std::size_t need) noexcept {
+		for(int i = count - 1; i >= 0; --i) {
+			std::size_t sz = e[i].mmap_size;
+			if(sz >= need && sz <= need * 2u) {
+				char *b = e[i].base;
+				for(int j = i; j + 1 < count; ++j) e[j] = e[j + 1];
+				--count; total -= sz;
+				return b;
+			}
+		}
+		return nullptr;
+	}
+	// Evict entries[0] (oldest): munmap it (already radix-cleared on push).
+	void evict0() noexcept {
+		large_va_raw_unmap(e[0].base, e[0].mmap_size);
+		total -= e[0].mmap_size;
+		for(int j = 0; j + 1 < count; ++j) e[j] = e[j + 1];
+		--count;
+	}
+	// Try to cache a freed region (caller has already radix_clear'd base).
+	// Returns true if cached (keep mapped), false if caller must munmap.
+	bool push(char *base, std::size_t mmap_size) noexcept {
+		if(mmap_size > MAX_BYTES) return false;  // single region over cap
+		while(count >= MAX_ENTRIES || total + mmap_size > MAX_BYTES) {
+			if(count == 0) break;
+			evict0();
+		}
+		if(count < MAX_ENTRIES && total + mmap_size <= MAX_BYTES) {
+			e[count].base = base; e[count].mmap_size = mmap_size;
+			++count; total += mmap_size;
+			return true;
+		}
+		return false;
+	}
+	~LargeVaCache() noexcept { while(count) evict0(); }
+};
+// thread_local with dtor: the dtor only munmaps (no pool ops), so it is
+// safe regardless of TLS destruction order relative to the other
+// allocator TLS objects.
+thread_local LargeVaCache tls_large_va_cache;
+} // namespace
+
+// =====================================================================
 // (§19) Large-alloc tier — single-mmap, radix-registered, munmap-able.
 // =====================================================================
 // Each large_va allocation is its own 32-MiB-aligned mmap of size
@@ -4468,41 +4573,31 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 // thread's TLS after its munmap.
 void *
 PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
-#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
-	// Windows: VirtualAlloc with explicit 32-MiB alignment.
 	std::size_t mmap_size =
-	    (size + ALLOC_PAGE_SIZE + ALLOC_PAGE_SIZE - 1u) & ~(std::size_t)(ALLOC_PAGE_SIZE - 1u);
-	char *base = static_cast<char *>(
-	    _aligned_malloc(mmap_size, ALLOC_MIN_MMAP_SIZE));
-	if( !base) return nullptr;
-#else
-	std::size_t mmap_size =
-	    (size + ALLOC_PAGE_SIZE + ALLOC_PAGE_SIZE - 1u) & ~(std::size_t)(ALLOC_PAGE_SIZE - 1u);
-	// Over-allocate by ALLOC_MIN_MMAP_SIZE so we can trim to a 32-MiB-
-	// aligned base — same trick as `mmap_new_region`.
-	std::size_t total = mmap_size + ALLOC_MIN_MMAP_SIZE;
-	char *raw = static_cast<char *>(
-	    mmap(0, total, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0));
-	if(raw == MAP_FAILED) return nullptr;
-	uintptr_t aligned =
-	    ((uintptr_t)raw + ALLOC_MIN_MMAP_SIZE - 1u) &
-	    ~(uintptr_t)(ALLOC_MIN_MMAP_SIZE - 1u);
-	char *base = reinterpret_cast<char *>(aligned);
-	std::size_t prefix = base - raw;
-	std::size_t suffix = total - prefix - mmap_size;
-	if(prefix > 0) munmap(raw, prefix);
-	if(suffix > 0) munmap(base + mmap_size, suffix);
-#endif
-	// Write the meta IN-PLACE (no atomics — single owner before publish).
+	    (size + ALLOC_PAGE_SIZE + ALLOC_PAGE_SIZE - 1u) &
+	    ~(std::size_t)(ALLOC_PAGE_SIZE - 1u);
+	// (§21) Recycle a cached region first (warm VA + pages, no syscalls).
+	// A cache hit returns a radix-CLEARED but still-mapped region; we
+	// re-register it below.  The cached region's real size (meta->mmap_size,
+	// preserved) is ≥ mmap_size and ≤ 2× it (pop_fit's fit window).
+	char *base = tls_large_va_cache.pop_fit(mmap_size);
+	bool recycled = (base != nullptr);
+	if( !recycled) {
+		base = large_va_raw_map(mmap_size);
+		if( !base) return nullptr;
+	}
+	// Write/refresh the meta.  On recycle, mmap_size keeps the cached
+	// region's ACTUAL (larger-or-equal) size so a later free re-caches it
+	// at the right size and malloc_usable_size stays truthful.
 	LargeAllocMeta *meta = reinterpret_cast<LargeAllocMeta *>(base);
 	meta->magic      = KAME_LARGE_ALLOC_MAGIC;
 	meta->alloc_size = size;
-	meta->mmap_size  = mmap_size;
+	if( !recycled) meta->mmap_size = mmap_size;
 	meta->numa_node  = 0;  // (§14C-style NUMA bind could be added here)
 	writeBarrier();
-	// Publish in the radix LAST.  Any concurrent reader's
-	// `radix_lookup` either sees KAME_RADIX_ABSENT (and falls through
-	// to libc) or KAME_RADIX_LARGE (and reads the meta we just published,
+	// Publish in the radix LAST.  Any concurrent reader's `radix_lookup`
+	// either sees KAME_RADIX_ABSENT (and falls through to libc) or
+	// KAME_RADIX_LARGE (and reads the meta we just published,
 	// release-paired with this store).
 	radix_insert(base, (uint32_t)KAME_RADIX_LARGE);
 	return base + ALLOC_PAGE_SIZE;
@@ -4514,24 +4609,20 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
 	LargeAllocMeta *meta = reinterpret_cast<LargeAllocMeta *>(base);
 	std::size_t mmap_size = meta->mmap_size;
-	// Clear radix slot BEFORE munmap — any racing reader now sees
-	// absent and routes to libc free; once we munmap, the VA is no
-	// longer ours and reads would fault.
+	// Clear radix slot FIRST — any racing reader now sees absent and
+	// routes to libc free (and a double-free of this pointer lands in
+	// libc, not the cache); once cleared, the region is invisible to the
+	// radix.  Done BEFORE both the cache push and any munmap.
 	radix_clear(base);
-	// Optimistically invalidate the per-thread cache so a same-thread
-	// subsequent lookup of the now-unmapped base doesn't false-hit.
-	// (Other threads with stale caches are harmless: their next
-	// radix_lookup_slow will see the cleared slot, OR their cache hit
-	// returns KAME_RADIX_POOL which is correct iff a new pool region
-	// later maps at this base — re-cached on its first slow lookup.)
+	// Invalidate the per-thread region cache so a same-thread lookup of
+	// this base doesn't false-hit (the slot is cleared, but the fast-path
+	// cache shortcuts the slot read).
 	if((uintptr_t)base == s_last_region_base)
 		s_last_region_base = 0;
-#if defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32)
-	(void)mmap_size;
-	_aligned_free(base);
-#else
-	munmap(base, mmap_size);
-#endif
+	// (§21) Try to recycle into the per-thread cache (still mapped, warm).
+	// On overflow / over-cap the cache returns false and we munmap now.
+	if( !tls_large_va_cache.push(base, mmap_size))
+		large_va_raw_unmap(base, mmap_size);
 }
 
 // single consolidated TLS struct holds all per-thread state
