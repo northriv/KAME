@@ -2663,7 +2663,13 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 			if(region >= s_max_regions_cap.load(std::memory_order_relaxed))
 				return nullptr;
 			size_t mmap_size = ALLOC_MIN_MMAP_SIZE;
-			constexpr size_t kAlign = ALLOC_MAX_CHUNK_SIZE;
+			// MUST be ALLOC_MIN_MMAP_SIZE (32 MiB), NOT ALLOC_MAX_CHUNK_SIZE:
+			// the §13 radix tree keys on `p >> ALLOC_MIN_MMAP_SHIFT`, so the
+			// region's whole 32 MiB VA range has to sit in ONE radix slot
+			// (matches allocate_chunk's mmap).  A coarser/finer alignment
+			// would let a region straddle two radix slots and make upper-
+			// half pointers miss radix_lookup.
+			constexpr size_t kAlign = ALLOC_MIN_MMAP_SIZE;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 			char *p = static_cast<char *>(_aligned_malloc(mmap_size, kAlign));
 			if( !p) { fprintf(stderr, "_aligned_malloc(%zu, %zu) failed.\n",
