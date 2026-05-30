@@ -1159,3 +1159,78 @@ identifies the bucket).
     N-aligned, delete frees through the unified pool path.  PASS.
   - Regression: §15 dedicated, §16 full-usable, c_api, alloc_stress,
     bucket34_repro: all PASS (64-bit and 32-bit).
+
+## 18. OOM handling — noexcept-safe nullptr returns + `new_handler` retry
+
+Pre-fix `PoolAllocator::create_allocator()` did `throw std::bad_alloc()`
+on mmap region cap exhaustion / kernel mmap refusal.  The throw
+propagated through `allocate_chunk_path` / `slow_allocate` / the
+`new_redirected*` family and reached:
+
+- `kame_pool_malloc` / `_calloc` / `_realloc` / `_aligned_alloc` /
+  `_posix_memalign` — all `noexcept` C wrappers ⇒ `std::terminate()`.
+- `operator new(size, std::nothrow_t)` / over-aligned nothrow variants —
+  `noexcept` per spec ⇒ `std::terminate()`.
+
+Plain `operator new(size)` could *return* nullptr (when `new_redirected`
+landed on a non-throwing OOM path like `posix_memalign` failure), but
+the implementation didn't check the return; the caller dereferenced
+null — violation of [new.delete.single]'s "throw bad_alloc if request
+cannot be satisfied".
+
+Standards-conformance fix:
+
+  1. **`create_allocator` returns nullptr on OOM**, not throws.  Single
+     `fprintf(stderr, ...)` diagnostic kept so the OOM is observable in
+     test logs.  `allocate_chunk_path` propagates the null upward.
+
+  2. **`new_handler` retry loop helper** (anon-namespace
+     `try_alloc_with_new_handler`):
+     ```cpp
+     for(;;) {
+        if(void *p = alloc_fn()) return p;
+        std::new_handler h = std::get_new_handler();
+        if(!h) return nullptr;
+        h();  // frees memory and returns OR throws bad_alloc
+     }
+     ```
+     Per [new.delete.single] the standard `operator new` must do this.
+     `kame_alloc_with_handler(size)` and
+     `kame_aligned_alloc_with_handler(A,S)` are the size / aligned
+     wrappers used by the throwing `operator new` family.
+
+  3. **Throwing `operator new` variants** (`operator new(size)`,
+     `operator new(size, align_val_t)`, array forms):
+     - Call the `_with_handler` helper.
+     - On final nullptr, `throw std::bad_alloc()` themselves.
+
+  4. **Nothrow `operator new` variants** (`operator new(size,
+     nothrow_t)`, aligned nothrow):
+     - Wrap the throwing path in `try { ... } catch(...)` so a
+       `new_handler` that throws still produces the noexcept-contracted
+       nullptr return — the standard says nothrow new returns null if
+       the implementation cannot satisfy the request.
+
+  5. **C wrappers** (`kame_pool_malloc` etc.) keep strict libc malloc
+     semantics: no `new_handler` (that's a C++ concept), just call
+     `new_redirected` directly and set `errno = ENOMEM` on null.  Now
+     that step (1) eliminates the bad_alloc throw, no try-block is
+     needed at the noexcept boundary.
+
+### Verification
+
+  - **Pool cap exhaustion**: `kame_pool_set_max_bytes(32 MiB)` then
+    1024-byte alloc loop — OOMs at i=24003 with `errno=ENOMEM`,
+    `kame_pool_reserved_bytes() == 32 MiB`; reset cap, new alloc
+    succeeds.  Diagnostic line "kamepoolalloc: OOM — chunk-claim
+    failed for ALIGN=..." printed on stderr.
+  - **`operator new` throws**: pool exhausted → `try { ::operator new(1024); }
+    catch(std::bad_alloc &)` catches.
+  - **`operator new(nothrow)`**: pool exhausted → returns nullptr, no
+    throw.
+  - **`new_handler` loop**: install handler that disarms itself after
+    3 calls — handler is called 3 times, then `bad_alloc` thrown.
+    Confirms the retry loop honours `set_new_handler` per spec.
+  - **Sanitizers**: release + TSAN + UBSAN (-no-vptr) + ASan + 32-bit
+    all PASS on c_api, alloc_stress, sweep, aligned_sweep, §15/§16/§17
+    MT.  No regression.

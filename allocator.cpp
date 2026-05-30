@@ -65,6 +65,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>          // std::memset / std::memcpy
+#include <new>              // std::get_new_handler / std::bad_alloc (§18 OOM)
                             // (glibc's `<string.h>` puts them in the
                             //  global namespace only — libc++/Apple
                             //  pull them into `std::` transitively but
@@ -1761,10 +1762,16 @@ PoolAllocator<ALIGN, DUMMY, DUMMY> *
 PoolAllocator<ALIGN, FS, DUMMY>::create_allocator() {
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *palloc =
 		allocate_chunk<PoolAllocator<ALIGN, DUMMY, DUMMY> >();
+	// (§18) Pool OOM signals propagate as nullptr — top-level operator
+	// new / C API wrappers handle the new_handler / errno=ENOMEM dance.
+	// Throwing bad_alloc from inside a noexcept C wrapper (kame_pool_*
+	// or operator new(nothrow)) terminates the process; returning null
+	// preserves the noexcept contract.  Diagnostic stays on stderr so
+	// the OOM is observable in test logs.
 	if( !palloc) {
 		fprintf(stderr,
-		    "# of chunks for %d align. exceeds the mmap region ladder.\n", ALIGN);
-		throw std::bad_alloc();
+		    "kamepoolalloc: OOM — chunk-claim failed for ALIGN=%d "
+		    "(mmap region cap or kernel mmap refusal).\n", ALIGN);
 	}
 	return palloc;
 }
@@ -2011,6 +2018,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// (deduped inside `add`), so thread-exit walks this template's
 	// DLL.
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *chunk = create_allocator();
+	if( !chunk) {
+		// (§18) OOM — caller (operator new / C wrapper) runs the
+		// new_handler retry / errno=ENOMEM dance.  Leave s_tls.my_chunk
+		// pointing at whatever exhausted chunk it had (or nullptr); the
+		// next caller will retry the same path.
+		return nullptr;
+	}
 	tls_alloc_thread_exit_cleanup.add(
 	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
 	s_tls.my_chunk = chunk;
@@ -3557,8 +3571,45 @@ void *kame_pool_calloc(std::size_t n_elem, std::size_t sz) noexcept {
 // malloc/free.  C API callers never need to coordinate with the C++
 // activator.
 
+// (§18) OOM helpers.  `new_redirected` / `new_redirected_large` /
+// `new_redirected_aligned` return nullptr on failure (pool cap, mmap
+// refusal, or libc fallback ENOMEM); they never throw.  The helpers
+// below add the standard `std::get_new_handler()` retry loop on top.
+//
+//   `try_alloc_with_new_handler(fn)` — loop while a new_handler is
+//   installed and returns control (it may free memory and let us
+//   retry).  Returns nullptr only when no handler is installed.  If
+//   the handler throws, the exception escapes — the throwing operator
+//   new lets it propagate; the noexcept C wrappers and the
+//   nothrow / non-throwing operator new variants wrap in try/catch.
+namespace {
+template <class Fn>
+inline void *try_alloc_with_new_handler(Fn alloc_fn) {
+	if(void *p = alloc_fn()) return p;
+	for(;;) {
+		std::new_handler h = std::get_new_handler();
+		if( !h) return nullptr;
+		h();  // either frees memory and returns (we retry) or throws
+		if(void *p = alloc_fn()) return p;
+	}
+}
+
+inline void *kame_alloc_with_handler(std::size_t size) {
+	return try_alloc_with_new_handler([=]{ return new_redirected(size); });
+}
+
+inline void *kame_aligned_alloc_with_handler(std::size_t a, std::size_t s) {
+	return try_alloc_with_new_handler([=]{ return new_redirected_aligned(a, s); });
+}
+} // namespace
+
 extern "C" __attribute__((noinline, used))
 void *kame_pool_malloc(std::size_t size) noexcept {
+	// (§18) C malloc semantics: no `std::get_new_handler()` (that's a
+	// C++ operator-new concept); just call `new_redirected` and set
+	// `errno = ENOMEM` on null.  `create_allocator` returns nullptr on
+	// pool OOM (no longer throws bad_alloc), so the noexcept boundary
+	// is upheld without a try-block.
 	if(void *p = new_redirected(size))
 		return p;
 	errno = ENOMEM;
@@ -3777,12 +3828,12 @@ inline void kame_histo_record(std::size_t size) noexcept {
 __attribute__((noinline))
 void* operator new(std::size_t size) {
     KAME_HISTO_REC(size);
-    return new_redirected(size);
+    if(void *p = kame_alloc_with_handler(size)) return p;
+    throw std::bad_alloc();
 }
 __attribute__((noinline))
 void* operator new[](std::size_t size) {
-    KAME_HISTO_REC(size);
-    return new_redirected(size);
+    return ::operator new(size);
 }
 
 __attribute__((noinline))
@@ -3796,13 +3847,19 @@ void operator delete[](void* p) noexcept {
 
 __attribute__((noinline))
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+    // (§18) nothrow variant: call the same new_handler loop as throwing
+    // operator new, but catch a handler that throws (per [new.delete.single]
+    // a nothrow new must not propagate the bad_alloc to the caller).
     KAME_HISTO_REC(size);
-    return new_redirected(size);
+    try {
+        return kame_alloc_with_handler(size);
+    } catch(...) {
+        return nullptr;
+    }
 }
 __attribute__((noinline))
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
-    KAME_HISTO_REC(size);
-    return new_redirected(size);
+    return ::operator new(size, std::nothrow);
 }
 __attribute__((noinline))
 void operator delete(void* p, const std::nothrow_t&) noexcept {
@@ -3875,11 +3932,23 @@ inline void kame_overaligned_free(void *p) noexcept {
 
 __attribute__((noinline))
 void* operator new(std::size_t size, std::align_val_t al) {
-    if ((std::size_t)al <= ALLOC_ALIGNMENT)
-        return new_redirected(size);
+    // (§18) New-handler retry for the over-aligned path too.
+    if ((std::size_t)al <= ALLOC_ALIGNMENT) {
+        if(void *p = kame_alloc_with_handler(size)) return p;
+        throw std::bad_alloc();
+    }
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    // Windows over-aligned path still pairs with _aligned_free; one shot
+    // (no new_handler retry — the platform allocator handles its own
+    // OOM semantics).
     void *p = kame_overaligned_alloc((std::size_t)al, size);
     if (!p) throw std::bad_alloc();
     return p;
+#else
+    if(void *p = kame_aligned_alloc_with_handler((std::size_t)al, size))
+        return p;
+    throw std::bad_alloc();
+#endif
 }
 __attribute__((noinline))
 void* operator new[](std::size_t size, std::align_val_t al) {
@@ -3887,9 +3956,11 @@ void* operator new[](std::size_t size, std::align_val_t al) {
 }
 __attribute__((noinline))
 void* operator new(std::size_t size, std::align_val_t al, const std::nothrow_t&) noexcept {
-    if ((std::size_t)al <= ALLOC_ALIGNMENT)
-        return new_redirected(size);
-    return kame_overaligned_alloc((std::size_t)al, size);
+    try {
+        return ::operator new(size, al);
+    } catch(...) {
+        return nullptr;
+    }
 }
 __attribute__((noinline))
 void* operator new[](std::size_t size, std::align_val_t al, const std::nothrow_t&) noexcept {
