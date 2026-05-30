@@ -2568,13 +2568,15 @@ PoolAllocatorBase::size_of(void *p) {
 	if( !palloc) return 0;
 	// Dedicated single-slot large chunk has no SizeOfFn — its size_info
 	// is the DEDICATED sentinel; the total byte size lives at [32..39].
-	// Usable payload = total − chunk_header.
+	// (§15) Payload starts at chunk_base + K_MAX (the unit boundary) and
+	// ends K_MAX before the chunk's last unit boundary (reserved for the
+	// next chunk's metadata), so usable payload = total − K_MAX.
 	if(static_cast<std::uint32_t>(*reinterpret_cast<std::uint64_t *>(
 	       chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET))
 	   == ALLOC_CHUNK_DEDICATED_SIZEINFO) {
 		size_t bytes = *reinterpret_cast<std::uint64_t *>(
 		    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
-		return bytes - (size_t)ALLOC_CHUNK_HEADER;
+		return bytes - (size_t)ALLOC_CHUNK_K_MAX;
 	}
 	SizeOfFn fn = *reinterpret_cast<SizeOfFn *>(
 	    chunk_base + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET);
@@ -2657,8 +2659,23 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 
 void *
 PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
-	// Units needed for the 64 B chunk_header + the payload.
-	size_t total = size + (size_t)ALLOC_CHUNK_HEADER;
+	// (§15) Under the forward-shift layout, chunk_base sits K_MAX bytes
+	// BEFORE its first claimed unit's boundary; the payload starts at
+	// chunk_base + K_MAX = unit_boundary (256 KiB-aligned), mirroring the
+	// regular slot region.  The metadata (chunk_header) occupies the K_MAX
+	// region before the boundary, and the LAST K_MAX of the final claimed
+	// unit is reserved for the NEXT chunk's metadata (exactly as a regular
+	// chunk reserves chunk_size - K_MAX for its slots).  So the usable
+	// payload of a chunk_units-unit chunk is `chunk_units*256K - K_MAX`,
+	// and the units needed for `size` bytes is ceil((size + K_MAX)/256K).
+	//
+	// PRE-§15 used `size + ALLOC_CHUNK_HEADER` and returned
+	// `chunk_base + ALLOC_CHUNK_HEADER` (header at the start of the
+	// payload).  Returning `chunk_base + ALLOC_CHUNK_HEADER` under §15
+	// hands back a pointer in the PREVIOUS unit, which `deallocate`
+	// mis-resolves (its back_offset[unit-1] lookup lands on a neighbouring
+	// chunk) — the source of the size > 17400 free-path SEGV.
+	size_t total = size + (size_t)ALLOC_CHUNK_K_MAX;
 	unsigned chunk_units = (unsigned)((total + (size_t)ALLOC_MIN_CHUNK_SIZE - 1)
 	                                  >> ALLOC_MIN_CHUNK_SHIFT);
 	if(chunk_units == 0) chunk_units = 1;
@@ -2684,18 +2701,26 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET) =
 	    (std::uint64_t)chunk_size;
 	writeBarrier();
-	return chunk_base + ALLOC_CHUNK_HEADER;
+	// (§15) Payload starts at the unit boundary = chunk_base + K_MAX, so
+	// `deallocate` resolves unit_idx = base_unit, back_off = 0, recovering
+	// chunk_base via `unit_boundary - K_MAX`.
+	return chunk_base + ALLOC_CHUNK_K_MAX;
 }
 
 void* allocate_large_size_or_malloc(size_t size) throw() {
-	// Bucket dispatch covers sizes 1..ALLOC_MAX_BUCKETED_SIZE (= 17400).
-	// Larger sizes up to a 16-unit (4 MiB) dedicated chunk's payload
-	// (ALLOC_MAX_CHUNK_SIZE − ALLOC_CHUNK_HEADER) are served from the pool
-	// as a dedicated single-slot chunk (warm-page reuse, unified free
-	// path); anything bigger goes straight to libsystem.  Reached only
-	// when the allocator is active (new_redirected_large gates on
-	// g_sys_image_loaded / s_alloc_tls_off before calling us).
-	if(size <= (size_t)ALLOC_MAX_CHUNK_SIZE - (size_t)ALLOC_CHUNK_HEADER) {
+	// Bucket dispatch covers sizes 1..ALLOC_MAX_BUCKETED_SIZE (= 32760).
+	// Larger sizes up to a 16-unit (4 MiB) dedicated chunk's payload are
+	// served from the pool as a dedicated single-slot chunk (warm-page
+	// reuse, unified free path); anything bigger goes straight to
+	// libsystem.  Reached only when the allocator is active
+	// (new_redirected_large gates on g_sys_image_loaded / s_alloc_tls_off
+	// before calling us).
+	//
+	// (§15) The dedicated payload starts at the unit boundary and reserves
+	// the trailing K_MAX of its last unit for the next chunk's metadata,
+	// so the max payload of a 16-unit chunk is ALLOC_MAX_CHUNK_SIZE −
+	// K_MAX (matches allocate_dedicated_chunk's chunk_units cap).
+	if(size <= (size_t)ALLOC_MAX_CHUNK_SIZE - (size_t)ALLOC_CHUNK_K_MAX) {
 		if(void *p = PoolAllocatorBase::allocate_dedicated_chunk(size))
 			return p;
 	}

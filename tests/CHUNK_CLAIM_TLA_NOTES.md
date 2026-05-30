@@ -958,3 +958,42 @@ x86-64 (Linux, 4 KiB page):
   (palloc=0 is set BEFORE madvise; if madvise touches it the chunk is
   already released).  Memory waste is < 1 page per chunk-release on
   those platforms.
+
+### Follow-up fix: dedicated large chunks under §15
+
+`allocate_dedicated_chunk` (the 17 KB .. 4 MiB single-slot path from
+§04d58d06) was NOT updated when §15 shifted every chunk back by K_MAX.
+It still returned `chunk_base + ALLOC_CHUNK_HEADER` (the pre-§15 payload
+start, header-at-front layout).  Under §15 `chunk_base = unit_boundary
+- K_MAX`, so `chunk_base + 64` lands in the PREVIOUS unit; on free,
+`deallocate(p)` computes `unit_idx = (p - mp) >> 18 = base_unit - 1`,
+reads `back_offset[base_unit - 1]` (a neighbouring chunk's entry, or 0),
+and resolves a bogus chunk_base → SIGSEGV in `PoolAllocatorBase::
+deallocate`.  Reproduced by `alloc_minimal_bench 32768 100` (any size
+> ALLOC_MAX_BUCKETED_SIZE that takes the dedicated path).
+
+Fix — make the dedicated payload obey the same forward-shift layout as a
+regular chunk's slot region:
+  - payload starts at `chunk_base + K_MAX` (= unit boundary, 256 KiB-
+    aligned), so `deallocate` resolves `unit_idx = base_unit`,
+    `back_off = 0`, `base_idx = base_unit`, chunk_base correct.
+  - units needed = `ceil((size + K_MAX) / 256K)` (was `+ HEADER`):
+    payload reserves the trailing K_MAX of its last unit for the next
+    chunk's metadata, exactly as a regular chunk reserves
+    `chunk_size - K_MAX` for slots.
+  - `size_of` (malloc_usable_size) for the dedicated sentinel returns
+    `total - K_MAX` (was `- HEADER`).
+  - `allocate_large_size_or_malloc`'s pool-vs-libc cutoff is
+    `ALLOC_MAX_CHUNK_SIZE - K_MAX` (was `- HEADER`), matching the
+    chunk_units cap.
+
+Verification (x86-64, 4 KiB page):
+  - `alloc_minimal_bench` at 32761, 50000, 100000, 1M, 4M (dedicated)
+    and 4190209+ (libc fallback) — no SEGV.
+  - usable_size exact: 258048 (1u), 1044480 (4u), 4190208 (16u, max) =
+    `chunk_units*256K - K_MAX`.
+  - byte-pattern integrity test (write full requested range, verify on
+    free): PASS for all pooled dedicated sizes.
+  - 16-thread × 4000-iter dedicated-chunk churn (sizes 17 K..3 MiB,
+    per-allocation pattern verify): PASS 3/3.
+  - c_api + alloc_stress: PASS.
