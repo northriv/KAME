@@ -1480,11 +1480,11 @@ PoolAllocatorBase::allocate_chunk() {
 	// Inline-able lambda: try to claim one chunk in a specific region.
 	// Returns palloc on success, nullptr if every CHUNK_UNITS-aligned
 	// slot in the region's bitmap is already claimed.
-	auto try_claim_in_region = [&](int region) -> ALLOC * {
-		// (§13.2) claim_bitmap and back_offset now live inside the
-		// region itself at `region_base + 0`.  Recover the metadata
-		// block once per region attempt.
-		RegionMeta *rmeta = region_meta(s_mmapped_spaces[region]);
+	auto try_claim_in_region = [&](RegionMeta *rmeta) -> ALLOC * {
+		// (§13.2/§13.3) claim_bitmap and back_offset live inside the
+		// region at `region_base + 0`; the region base IS the RegionMeta
+		// pointer (32-MiB-aligned).
+		char *region_base = reinterpret_cast<char *>(rmeta);
 		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
 			std::atomic<BitmapWord> *bm = &rmeta->claim_bitmap[word];
 			for(;;) {
@@ -1522,7 +1522,7 @@ PoolAllocatorBase::allocate_chunk() {
 					for(unsigned u = 0; u < CHUNK_UNITS; ++u)
 						rmeta->back_offset[base_unit_idx + (int)u] =
 						    (uint8_t)u;
-					char *addr = s_mmapped_spaces[region]
+					char *addr = region_base
 					           + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
 #if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
 					static const bool prewarm = [] {
@@ -1567,144 +1567,36 @@ PoolAllocatorBase::allocate_chunk() {
 		return nullptr;
 	};
 
-	// Pass 1: walk regions whose has-free bit is set.
-	for(int rword = 0; rword < REGION_BITMAP_WORDS; ++rword) {
-		BitmapWord rv =
-		    s_region_has_free[rword].load(std::memory_order_relaxed);
-		while(rv != 0) {
-			int rbit = __builtin_ctzll(
-			    static_cast<unsigned long long>(rv));
-			int region = rword * BITS_PER_BITMAP_WORD + rbit;
-			if(region >= ALLOC_MAX_MMAP_ENTRIES) break;
-			if(ALLOC *palloc = try_claim_in_region(region))
+	// (§13.3) Retry loop: Pass 1 walks the push-only region list; Pass 2
+	// mmap's a fresh region.  The loop is REQUIRED for correctness under
+	// contention: a region we mmap is published to the shared list
+	// immediately, so other threads can swarm and fill its 127 units
+	// before our own try_claim runs.  On such a miss we loop back to
+	// Pass 1 (which now also sees every concurrently-created region)
+	// rather than spuriously failing.  Terminates: each Pass-2 mmap
+	// advances s_region_count toward the cap; mmap_new_region returns
+	// nullptr on genuine cap-exceeded / mmap failure, which we propagate
+	// so the caller falls back to std::malloc.
+	for(;;) {
+		// Pass 1: freshest regions are at the head, so this usually
+		// returns within a few nodes.
+		for(RegionMeta *rm = s_region_dll_head.load(std::memory_order_acquire);
+		    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+			if( !rm->has_free.load(std::memory_order_relaxed)) continue;
+			if(ALLOC *palloc = try_claim_in_region(rm))
 				return palloc;
-			// Region is full for OUR CHUNK_UNITS.  Note that other
-			// templates with smaller CHUNK_UNITS may still find space
-			// here — so we clear the bit only relaxed-tentatively;
-			// future deallocs in this region will fetch_or it back
-			// when space genuinely opens up.
-			s_region_has_free[rword].fetch_and(
-			    ~(BitmapWord(1) << rbit),
-			    std::memory_order_relaxed);
-			rv &= ~(BitmapWord(1) << rbit);
+			// Full for OUR CHUNK_UNITS.  Smaller-CHUNK_UNITS templates may
+			// still fit — clear the hint only tentatively; a future
+			// dealloc in this region re-sets it.
+			rm->has_free.store(0, std::memory_order_relaxed);
 		}
-	}
-
-	// Pass 2: find an unallocated region, mmap it, then claim.
-	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES; ++region) {
-		while( !s_mmapped_spaces[region]) {
-			// enforce the runtime max-bytes cap (see
-			// `kame_pool_set_max_bytes` in allocator.h).  The cap is
-			// stored as "max region count" so the check is one atomic
-			// load + one comparison.  When the cap is set to 0 (the
-			// default), `s_max_regions_cap` is `INT_MAX` and the
-			// check never trips.  When exceeded, return nullptr from
-			// the chunk-claim path; the caller (`allocate_chunk_path`
-			// -> create_allocator) propagates the failure up to
-			// `operator new`, which falls back to `std::malloc`.
-			if(region >= PoolAllocatorBase::s_max_regions_cap.load(
-			       std::memory_order_relaxed)) {
-				return 0;
-			}
-			size_t mmap_size = ALLOC_MIN_MMAP_SIZE;
-			// Region alignment = ALLOC_MIN_MMAP_SIZE (= 32 MiB).  Two
-			// reasons:
-			//   1. The (§13) 2-level radix tree keys on
-			//      `p >> ALLOC_MIN_MMAP_SHIFT`, so a region's WHOLE 32 MiB
-			//      VA range must fall in a SINGLE radix slot; otherwise
-			//      pointers in the upper portion of the region miss the
-			//      lookup.  Requires 32 MiB region-base alignment.
-			//   2. Multi-unit chunks (up to ALLOC_MAX_CHUNK_SIZE = 1 MiB)
-			//      still land at chunk-size-aligned absolute addresses
-			//      (32 MiB | 1 MiB), preserving the original guarantee.
-			// Cost: ≤ 32 MiB of VA wasted per region during mmap
-			// over-alloc-then-trim.  64-bit VA budget is 128+ TiB, so
-			// even thousands of regions waste a trivial slice.
-			constexpr size_t kAlign = ALLOC_MIN_MMAP_SIZE;
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-			char *p = static_cast<char *>(_aligned_malloc(mmap_size, kAlign));
-			if( !p) {
-				fprintf(stderr,
-				    "_aligned_malloc(%zu, %zu) failed.\n",
-				    mmap_size, kAlign);
-				return 0;
-			}
-#else
-			// mmap returns page-aligned (4-16 KiB), not kAlign-aligned.
-			// Over-allocate by one kAlign and munmap the head + tail
-			// so the kept region starts at a kAlign boundary.  Cost:
-			// 1 × kAlign of VA wasted per region (= 1 MiB on 64-bit).
-			// Region size 32 MiB ⇒ ~3 % overhead in VA reservation,
-			// trivial in RSS (PROT_READ|PROT_WRITE without writes ≈
-			// zero RSS until pages are first touched).
-			size_t total = mmap_size + kAlign;
-			char *raw = static_cast<char *>(
-			    mmap(0, total, PROT_READ | PROT_WRITE,
-			         MAP_ANON | MAP_PRIVATE, -1, 0));
-			if(raw == MAP_FAILED) {
-				fprintf(stderr, "mmap() failed.\n");
-				return 0;
-			}
-			uintptr_t aligned =
-			    ((uintptr_t)raw + kAlign - 1u) & ~(uintptr_t)(kAlign - 1u);
-			char *p = reinterpret_cast<char *>(aligned);
-			size_t prefix = p - raw;
-			size_t suffix = total - prefix - mmap_size;
-			if(prefix > 0) munmap(raw, prefix);
-			if(suffix > 0) munmap(p + mmap_size, suffix);
-#endif
-			// (§13.2) Initialize the region's embedded metadata block at
-			// `p + 0` BEFORE publishing the region.  mmap already zero-
-			// filled the page (claim_bitmap[*]=0, back_offset[*]=0); set
-			// bit 0 of claim_bitmap[0] so unit 0 (= this metadata) is
-			// permanently flagged claimed and `try_claim_in_region`
-			// naturally skips it.  Plain store — no other thread sees
-			// the region until the s_mmapped_spaces[region] release-CAS
-			// below, which carries this init under its release ordering.
-			region_meta(p)->claim_bitmap[0].store(
-			    BitmapWord(1), std::memory_order_relaxed);
-			writeBarrier();
-			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[region])) {
-				readBarrier();
-				// §13: publish the (mp, ccnt) pair into the 2-level radix
-				// tree so subsequent lookup_chunk/deallocate/size_of resolve
-				// `p -> ccnt` in O(1) instead of O(populated regions).  Must
-				// happen AFTER s_mmapped_spaces[region] is published (the
-				// reader paths still consult s_mmapped_spaces[ccnt] to
-				// derive mp), but BEFORE any chunk in this region can be
-				// handed out (deallocate of those chunks would miss).  The
-				// `break` after the print returns to the chunk-claim path,
-				// which itself happens after this point.
-				radix_insert(p, region);
-				fprintf(stderr,
-				    "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n",
-				    p, (unsigned long long)mmap_size);
-				break;
-			}
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-			_aligned_free(p);
-#else
-			munmap(p, mmap_size);
-#endif
-		}
-
-		// Region is freshly mmap'd: mark it has-free (idempotent OR)
-		// BEFORE attempting claim, so other allocate_chunk callers
-		// concurrently entering Pass 1 can see it.
-		s_region_has_free[region / BITS_PER_BITMAP_WORD].fetch_or(
-		    BitmapWord(1) << (region % BITS_PER_BITMAP_WORD),
-		    std::memory_order_relaxed);
-
-		if(ALLOC *palloc = try_claim_in_region(region))
+		// Pass 2: mmap a fresh region, then try to claim in it.
+		RegionMeta *rm = mmap_new_region();
+		if( !rm) return 0;
+		if(ALLOC *palloc = try_claim_in_region(rm))
 			return palloc;
-		// Shouldn't happen — a freshly mmap'd region has 128 units
-		// all free, which always satisfies any CHUNK_UNITS up to
-		// ALLOC_MAX_CHUNK_UNITS.  Defensive: fall through to the next
-		// region (race against another claimer racing us at the same
-		// region somehow).
+		// Swarmed before our claim — loop back to Pass 1.
 	}
-	fprintf(stderr, "# of chunks exceeds the limit.\n");
-	return 0;
 }
 // chunk-claim is purely mmap.  No global registry —
 // the per-thread DLL is the sole source of truth for "chunks this
@@ -2219,21 +2111,21 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 	// ALLOC_MIN_CHUNK_SIZE).  Region size is uniform 32 MiB.
 	unsigned int chunk_units =
 	    static_cast<unsigned int>(chunk_size >> ALLOC_MIN_CHUNK_SHIFT);
-	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES; ++region) {
-		char *mp = s_mmapped_spaces[region];
-		if(region > 0 && !mp) break;
-		if(mp) {
-			ptrdiff_t pdiff = chunk_base - mp;
-			if(pdiff >= 0
-			   && pdiff < (ptrdiff_t)ALLOC_MIN_MMAP_SIZE) {
-				unsigned int base_unit_idx =
-				    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
+	// (§13.3) Derive the owning region directly from chunk_base — regions
+	// are ALLOC_MIN_MMAP_SIZE-aligned, so the former O(N) scan over
+	// `s_mmapped_spaces[]` (now retired) is replaced by one mask.  The
+	// inner block keeps the original body's indentation.
+	{
+		{
+			{
+				RegionMeta *rmeta = region_meta_of(chunk_base);
+				unsigned int base_unit_idx = static_cast<unsigned int>(
+				    ((uintptr_t)chunk_base
+				     & ((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u))
+				    >> ALLOC_MIN_CHUNK_SHIFT);
 				int word = base_unit_idx / UNITS_PER_BITMAP_WORD;
 				int base_in_word = base_unit_idx % UNITS_PER_BITMAP_WORD;
 				int base_bit = base_in_word;
-				// (§13.2) per-region claim_bitmap + back_offset now live
-				// in `RegionMeta` at `mp + 0`.
-				RegionMeta *rmeta = region_meta(mp);
 				std::atomic<BitmapWord> *bm = &rmeta->claim_bitmap[word];
 				// Step 1: clear chunk_header.  palloc = 0 is the
 				// "released" signal that lookup's foreign-check reads
@@ -2324,13 +2216,11 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 				for(unsigned u = 0; u < chunk_units; ++u)
 					claim_mask |= BitmapWord(1) << (base_bit + u);
 				bm->fetch_and(~claim_mask, std::memory_order_release);
-				// Step 6: set the region's has-free bit.
-				// fetch_or is idempotent; if a concurrent allocate_chunk
-				// just cleared it after finding all words full, our set
-				// re-publishes that this region now has free space.
-				s_region_has_free[region / BITS_PER_BITMAP_WORD].fetch_or(
-				    BitmapWord(1) << (region % BITS_PER_BITMAP_WORD),
-				    std::memory_order_relaxed);
+				// Step 6: (§13.3) re-flag the region as maybe-having-free
+				// space.  A concurrent claim that just cleared the hint
+				// re-observes it; a stale set costs one wasted scan that
+				// then re-clears it.  (Was a global s_region_has_free bit.)
+				rmeta->has_free.store(1, std::memory_order_relaxed);
 				return;
 			}
 		}
@@ -2349,18 +2239,14 @@ PoolAllocatorBase::count_live_chunks() noexcept {
 	// CHUNK_UNITS bits), which is sufficient as a leak probe: monotonic
 	// growth across repeated alloc/free cycles still signals a leak in
 	// the chunk-release path.
-	// (§13.2) Walk populated regions and sum bits of each region's
-	// embedded claim_bitmap.  Subtract bit 0 of word 0 (the per-region
-	// metadata reservation) so this returns "units occupied by actual
-	// chunks" — preserving the pre-§13.2 leak-probe semantics
-	// (monotonic growth = leak).  s_mmapped_spaces is monotonically
-	// grown from index 0, so we can break on the first null past 0.
+	// (§13.3) Walk the push-only region list and sum bits of each
+	// region's embedded claim_bitmap.  Subtract bit 0 of word 0 (the
+	// per-region metadata reservation) so this returns "units occupied
+	// by actual chunks" — preserving the pre-§13.2 leak-probe semantics
+	// (monotonic growth = leak).
 	int n = 0;
-	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES; ++region) {
-		char *mp = s_mmapped_spaces[region];
-		if(region > 0 && !mp) break;
-		if( !mp) continue;
-		RegionMeta *rmeta = region_meta(mp);
+	for(RegionMeta *rmeta = s_region_dll_head.load(std::memory_order_acquire);
+	    rmeta; rmeta = rmeta->dll_next.load(std::memory_order_acquire)) {
 		for(int w = 0; w < BITMAP_WORDS_PER_REGION; ++w) {
 			BitmapWord v =
 			    rmeta->claim_bitmap[w].load(std::memory_order_relaxed);
@@ -2648,12 +2534,10 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 	    (chunk_units >= (unsigned)BITS_PER_BITMAP_WORD)
 	        ? ~BitmapWord(0)
 	        : ((BitmapWord(1) << chunk_units) - BitmapWord(1));
-	auto try_claim_in_region = [&](int region) -> char * {
-		// (§13.2) claim_bitmap + back_offset live in RegionMeta at
-		// `region_base + 0`.
-		char *mp = s_mmapped_spaces[region];
-		if( !mp) return nullptr;
-		RegionMeta *rmeta = region_meta(mp);
+	auto try_claim_in_region = [&](RegionMeta *rmeta) -> char * {
+		// (§13.2/§13.3) claim_bitmap + back_offset live in RegionMeta at
+		// `region_base + 0`; the region base IS the RegionMeta pointer.
+		char *mp = reinterpret_cast<char *>(rmeta);
 		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
 			std::atomic<BitmapWord> *bm = &rmeta->claim_bitmap[word];
 			for(;;) {
@@ -2680,86 +2564,22 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 		}
 		return nullptr;
 	};
-	// Pass 1: regions with the has-free hint set.
-	for(int rword = 0; rword < REGION_BITMAP_WORDS; ++rword) {
-		BitmapWord rv = s_region_has_free[rword].load(std::memory_order_relaxed);
-		while(rv != 0) {
-			int rbit = __builtin_ctzll(static_cast<unsigned long long>(rv));
-			int region = rword * BITS_PER_BITMAP_WORD + rbit;
-			if(region >= ALLOC_MAX_MMAP_ENTRIES) break;
-			if(char *addr = try_claim_in_region(region)) return addr;
-			s_region_has_free[rword].fetch_and(~(BitmapWord(1) << rbit),
-			                                   std::memory_order_relaxed);
-			rv &= ~(BitmapWord(1) << rbit);
+	// (§13.3) Retry loop — see allocate_chunk for the rationale (a fresh
+	// region can be swarmed by other threads before our own claim).
+	for(;;) {
+		// Pass 1: walk the push-only region list (freshest first).
+		for(RegionMeta *rm = s_region_dll_head.load(std::memory_order_acquire);
+		    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
+			if( !rm->has_free.load(std::memory_order_relaxed)) continue;
+			if(char *addr = try_claim_in_region(rm)) return addr;
+			rm->has_free.store(0, std::memory_order_relaxed);
 		}
+		// Pass 2: mmap a fresh region, then claim in it.
+		RegionMeta *rm = mmap_new_region();
+		if( !rm) return nullptr;
+		if(char *addr = try_claim_in_region(rm)) return addr;
+		// Swarmed before our claim — loop back to Pass 1.
 	}
-	// Pass 2: find / mmap a fresh region, then claim.
-	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES; ++region) {
-		while( !s_mmapped_spaces[region]) {
-			if(region >= s_max_regions_cap.load(std::memory_order_relaxed))
-				return nullptr;
-			size_t mmap_size = ALLOC_MIN_MMAP_SIZE;
-			// MUST be ALLOC_MIN_MMAP_SIZE (32 MiB), NOT ALLOC_MAX_CHUNK_SIZE:
-			// the §13 radix tree keys on `p >> ALLOC_MIN_MMAP_SHIFT`, so the
-			// region's whole 32 MiB VA range has to sit in ONE radix slot
-			// (matches allocate_chunk's mmap).  A coarser/finer alignment
-			// would let a region straddle two radix slots and make upper-
-			// half pointers miss radix_lookup.
-			constexpr size_t kAlign = ALLOC_MIN_MMAP_SIZE;
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-			char *p = static_cast<char *>(_aligned_malloc(mmap_size, kAlign));
-			if( !p) { fprintf(stderr, "_aligned_malloc(%zu, %zu) failed.\n",
-			                  mmap_size, kAlign); return nullptr; }
-#else
-			size_t total = mmap_size + kAlign;
-			char *raw = static_cast<char *>(
-			    mmap(0, total, PROT_READ | PROT_WRITE,
-			         MAP_ANON | MAP_PRIVATE, -1, 0));
-			if(raw == MAP_FAILED) { fprintf(stderr, "mmap() failed.\n");
-			                        return nullptr; }
-			uintptr_t aligned =
-			    ((uintptr_t)raw + kAlign - 1u) & ~(uintptr_t)(kAlign - 1u);
-			char *p = reinterpret_cast<char *>(aligned);
-			size_t prefix = p - raw;
-			size_t suffix = total - prefix - mmap_size;
-			if(prefix > 0) munmap(raw, prefix);
-			if(suffix > 0) munmap(p + mmap_size, suffix);
-#endif
-			// (§13.2) Initialize the embedded metadata block at p + 0
-			// (see the sibling site in `allocate_chunk` for full
-			// rationale).  Plain store; carried by the s_mmapped_spaces
-			// release-CAS below.
-			region_meta(p)->claim_bitmap[0].store(
-			    BitmapWord(1), std::memory_order_relaxed);
-			writeBarrier();
-			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[region])) {
-				readBarrier();
-				// §13: register (mp, ccnt) in the radix tree, exactly as
-				// allocate_chunk's region-mmap path does.  WITHOUT this a
-				// dedicated chunk placed in a region first claimed *here*
-				// (all earlier regions full) would be invisible to
-				// radix_lookup, so deallocate/size_of of that chunk would
-				// miss -> leak / wrong free.  Must publish after
-				// s_mmapped_spaces[region] but before any chunk is handed out.
-				radix_insert(p, region);
-				fprintf(stderr,
-				    "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n",
-				    p, (unsigned long long)mmap_size);
-				break;
-			}
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-			_aligned_free(p);
-#else
-			munmap(p, mmap_size);
-#endif
-		}
-		s_region_has_free[region / BITS_PER_BITMAP_WORD].fetch_or(
-		    BitmapWord(1) << (region % BITS_PER_BITMAP_WORD),
-		    std::memory_order_relaxed);
-		if(char *addr = try_claim_in_region(region)) return addr;
-	}
-	fprintf(stderr, "# of chunks exceeds the limit.\n");
-	return nullptr;
 }
 
 void *
@@ -3792,19 +3612,19 @@ void operator delete[](void* p, std::size_t /*size*/, std::align_val_t al) noexc
 }
 
 // runtime max-regions cap definition + public API.
-std::atomic<int> PoolAllocatorBase::s_max_regions_cap{ALLOC_MAX_MMAP_ENTRIES};
+std::atomic<int> PoolAllocatorBase::s_max_regions_cap{ALLOC_MAX_REGIONS};
 
 extern "C" void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept {
     // 0 = disable cap → restore the compile-time ceiling.
     int regions;
     if(max_bytes == 0u) {
-        regions = ALLOC_MAX_MMAP_ENTRIES;
+        regions = ALLOC_MAX_REGIONS;
     } else {
         // Round UP to multiple of ALLOC_MIN_MMAP_SIZE (= 32 MiB).
         std::size_t r =
             (max_bytes + ALLOC_MIN_MMAP_SIZE - 1u) / ALLOC_MIN_MMAP_SIZE;
-        if(r > (std::size_t)ALLOC_MAX_MMAP_ENTRIES)
-            r = (std::size_t)ALLOC_MAX_MMAP_ENTRIES;
+        if(r > (std::size_t)ALLOC_MAX_REGIONS)
+            r = (std::size_t)ALLOC_MAX_REGIONS;
         regions = static_cast<int>(r);
     }
     PoolAllocatorBase::s_max_regions_cap.store(
@@ -3814,7 +3634,7 @@ extern "C" void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept {
 extern "C" std::size_t kame_pool_get_max_bytes() noexcept {
     int regions = PoolAllocatorBase::s_max_regions_cap.load(
         std::memory_order_relaxed);
-    if(regions >= ALLOC_MAX_MMAP_ENTRIES) return SIZE_MAX;
+    if(regions >= ALLOC_MAX_REGIONS) return SIZE_MAX;
     return (std::size_t)regions * (std::size_t)ALLOC_MIN_MMAP_SIZE;
 }
 
@@ -3823,22 +3643,25 @@ extern "C" std::size_t kame_pool_reserved_bytes() noexcept {
          * (std::size_t)ALLOC_MIN_MMAP_SIZE;
 }
 
-char *PoolAllocatorBase::s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
 std::atomic<RadixL2Node *> PoolAllocatorBase::s_radix_l1[RADIX_L1_SIZE];
 
-// Per-thread 1-entry region-lookup cache (§13).  Initialized to {0, -1}
-// which never matches a real region (kernel null page).
+// (§13.3) Push-only region list + populated-region count.
+std::atomic<PoolAllocatorBase::RegionMeta *>
+    PoolAllocatorBase::s_region_dll_head{nullptr};
+std::atomic<int> PoolAllocatorBase::s_region_count{0};
+
+// Per-thread 1-entry region-lookup cache (§13).  Initialized to 0 which
+// never matches a real region base (kernel null page).
 ALLOC_TLS_IE uintptr_t PoolAllocatorBase::s_last_region_base = 0;
-ALLOC_TLS_IE int       PoolAllocatorBase::s_last_region_ccnt = -1;
 
 // Out-of-line full radix walk + cache update.  Called on cache miss.
+// Returns 0 if `up` is in a populated region, -1 otherwise.
 __attribute__((noinline))
 int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	// Defensive: pointers above our covered VA fall back to "not our
-	// pointer".  Matches the former linear-walk behavior of missing the
-	// `s_mmapped_spaces[]` array.  On 32-bit hosts the radix already
-	// covers the full uintptr_t range (region index = 7 bits ≤ 32 - 25),
-	// so the bound check is vacuous and skipped (`up >> 47` is UB).
+	// pointer".  On 32-bit hosts the radix already covers the full
+	// uintptr_t range (region index = 7 bits ≤ 32 - 25), so the bound
+	// check is vacuous and skipped (`up >> 47` is UB).
 	constexpr int kBoundShift = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT;
 	if constexpr (kBoundShift < (int)(sizeof(uintptr_t) * 8)) {
 		if(__builtin_expect((up >> kBoundShift) != 0u, 0))
@@ -3851,13 +3674,9 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	if(__builtin_expect(leaf == nullptr, 0)) return -1;
 	uint32_t v = leaf->slots[l2].load(std::memory_order_relaxed);
 	if(__builtin_expect(v == 0u, 0)) return -1;
-	int ccnt = (int)(v - 1u);
-	// Update the per-thread 1-entry cache.  Locality-rich workloads (the
-	// common case — bursts of alloc/dealloc on the same chunk) hit it on
-	// the very next call.
+	// Present.  Cache the region base for the next (locality-rich) call.
 	s_last_region_base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
-	s_last_region_ccnt = ccnt;
-	return ccnt;
+	return 0;
 }
 
 // 2-level radix tree implementation (§13).  L2 nodes allocated lazily
@@ -3878,14 +3697,14 @@ RadixL2Node *PoolAllocatorBase::radix_alloc_l2() noexcept {
 #endif
 }
 
-void PoolAllocatorBase::radix_insert(char *mp, int ccnt) noexcept {
+void PoolAllocatorBase::radix_insert(char *mp) noexcept {
 	uintptr_t up = (uintptr_t)mp;
 	// Region must be ALLOC_MIN_MMAP_SIZE-aligned (mmap claim ensures this).
 	unsigned region_idx = (unsigned)(up >> ALLOC_MIN_MMAP_SHIFT);
 	unsigned l1 = region_idx >> RADIX_L2_BITS;
 	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
 	if(__builtin_expect(l1 >= RADIX_L1_SIZE, 0))
-		return;  // Outside radix coverage; lookup will linearly miss (returns -1).
+		return;  // Outside radix coverage; lookup will miss (returns -1).
 	RadixL2Node *leaf = s_radix_l1[l1].load(std::memory_order_acquire);
 	if(leaf == nullptr) {
 		RadixL2Node *new_leaf = radix_alloc_l2();
@@ -3905,17 +3724,83 @@ void PoolAllocatorBase::radix_insert(char *mp, int ccnt) noexcept {
 			leaf = expected;
 		}
 	}
-	// Region claim is serialized by the s_mmapped_spaces[ccnt] CAS in
-	// the caller, so this slot store is non-racing.  Release-paired with
-	// the reader's acquire load that brought the L1 entry into view.
-	leaf->slots[l2].store((uint32_t)(ccnt + 1), std::memory_order_release);
+	// Presence token (1).  Region claim is one-shot (regions never unmap),
+	// so this store is effectively non-racing.  Release-paired with the
+	// reader's acquire load on the L1 entry, and (for cross-thread frees)
+	// with the data handoff that passes the pointer to the freeing thread.
+	leaf->slots[l2].store(1u, std::memory_order_release);
 }
 
-// (§13.2) s_claim_bitmap[] and s_back_offset[] retired — both now live
-// in `RegionMeta` at `region_base + 0`.  See `region_meta()` and the
-// region-init in `allocate_chunk` / `claim_chunk`.
-std::atomic<PoolAllocatorBase::BitmapWord>
-    PoolAllocatorBase::s_region_has_free[PoolAllocatorBase::REGION_BITMAP_WORDS];
+// (§13.3) mmap a fresh 32-MiB-aligned region, init its RegionMeta,
+// register it in the radix, and push it on the region list.  Shared by
+// both chunk-claim Pass-2 sites.  Returns the new region (== its base)
+// or nullptr on cap-exceeded / mmap failure.
+PoolAllocatorBase::RegionMeta *
+PoolAllocatorBase::mmap_new_region() noexcept {
+	// Runtime cap: reserve a slot first so a concurrent racer can't
+	// overshoot.  Default cap is INT_MAX (VA-limited); a tighter value
+	// comes from kame_pool_set_max_bytes.
+	int c = s_region_count.fetch_add(1, std::memory_order_relaxed);
+	if(c >= s_max_regions_cap.load(std::memory_order_relaxed)) {
+		s_region_count.fetch_sub(1, std::memory_order_relaxed);
+		return nullptr;
+	}
+	const size_t mmap_size = ALLOC_MIN_MMAP_SIZE;
+	// MUST be ALLOC_MIN_MMAP_SIZE (32 MiB)-aligned: the §13 radix keys on
+	// `p >> ALLOC_MIN_MMAP_SHIFT`, so a region's whole 32 MiB VA range
+	// must sit in ONE radix slot, and `region_meta_of(p)` recovers the
+	// base by masking off the low 25 bits.
+	constexpr size_t kAlign = ALLOC_MIN_MMAP_SIZE;
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+	char *p = static_cast<char *>(_aligned_malloc(mmap_size, kAlign));
+	if( !p) {
+		fprintf(stderr, "_aligned_malloc(%zu, %zu) failed.\n",
+		        mmap_size, kAlign);
+		s_region_count.fetch_sub(1, std::memory_order_relaxed);
+		return nullptr;
+	}
+#else
+	size_t total = mmap_size + kAlign;
+	char *raw = static_cast<char *>(
+	    mmap(0, total, PROT_READ | PROT_WRITE,
+	         MAP_ANON | MAP_PRIVATE, -1, 0));
+	if(raw == MAP_FAILED) {
+		fprintf(stderr, "mmap() failed.\n");
+		s_region_count.fetch_sub(1, std::memory_order_relaxed);
+		return nullptr;
+	}
+	uintptr_t aligned =
+	    ((uintptr_t)raw + kAlign - 1u) & ~(uintptr_t)(kAlign - 1u);
+	char *p = reinterpret_cast<char *>(aligned);
+	size_t prefix = p - raw;
+	size_t suffix = total - prefix - mmap_size;
+	if(prefix > 0) munmap(raw, prefix);
+	if(suffix > 0) munmap(p + mmap_size, suffix);
+#endif
+	// Init the embedded metadata block (mmap zero-filled the first page,
+	// so back_offset[*]=0, claim_bitmap[*]=0, dll_next=0, has_free=0).
+	// Reserve unit 0 (the metadata lives there) and flag has_free, BEFORE
+	// publishing the region via the list push (whose release carries this
+	// init to walkers' acquire).
+	RegionMeta *rm = region_meta(p);
+	rm->claim_bitmap[0].store(BitmapWord(1), std::memory_order_relaxed);
+	rm->has_free.store(1, std::memory_order_relaxed);
+	// Publish in the radix (presence) BEFORE the list push so a free of a
+	// chunk in this region can never miss the lookup.
+	radix_insert(p);
+	// Push on the push-only region list (Treiber).  Regions never unmap,
+	// so no ABA / reclamation.
+	RegionMeta *old = s_region_dll_head.load(std::memory_order_relaxed);
+	do {
+		rm->dll_next.store(old, std::memory_order_relaxed);
+	} while( !s_region_dll_head.compare_exchange_weak(
+	             old, rm, std::memory_order_release,
+	             std::memory_order_relaxed));
+	fprintf(stderr,
+	    "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n",
+	    p, (unsigned long long)mmap_size);
+	return rm;
+}
 // single consolidated TLS struct holds all per-thread state
 // for each (ALIGN, FS, DUMMY) instantiation.
 template <unsigned int ALIGN, bool FS, bool DUMMY>

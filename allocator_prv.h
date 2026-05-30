@@ -184,7 +184,7 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! UNITS_PER_BITMAP_WORD × BITMAP_WORDS_PER_REGION = 128 units).  Every
 //! region is 32 MiB = 128 × 256 KiB regardless of host word size.
 //!
-//! `ALLOC_MAX_MMAP_ENTRIES` is the VA cap — each region is mmap'd
+//! `ALLOC_MAX_REGIONS` is the VA cap — each region is mmap'd
 //! `PROT_READ | PROT_WRITE` upfront (switches the release path
 //! from `mprotect(PROT_NONE)` to `madvise(MADV_FREE/DONTNEED)` so
 //! reclaim is RSS-cheap without protection toggling).  Total
@@ -238,13 +238,22 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 #define ALLOC_MIN_MMAP_SHIFT 25
 static_assert((1ull << ALLOC_MIN_MMAP_SHIFT) == (unsigned)ALLOC_MIN_MMAP_SIZE,
               "ALLOC_MIN_MMAP_SHIFT must equal log2(ALLOC_MIN_MMAP_SIZE)");
+//! (§13.3) Region-count ceiling.  No longer an array bound — the
+//! per-region-index globals (`s_mmapped_spaces[]`, `s_region_has_free[]`)
+//! are retired; regions live on a push-only list and their metadata
+//! inside themselves.  This constant is now ONLY the default (uncapped)
+//! value of the runtime `s_max_regions_cap`, set to the radix tree's full
+//! VA coverage so the pool is effectively VA-limited (not array-capped).
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
-    #define ALLOC_MAX_MMAP_ENTRIES 3200 //3200 × 32 MiB = 100 GiB VA cap
+    //! 1 << RADIX_REGION_BITS = 4194304 regions × 32 MiB = 128 TiB — the
+    //! 47-bit user-VA range the radix covers (static_assert'd below).
+    #define ALLOC_MAX_REGIONS (1 << 22)
 #else
-    //! 32-bit host: 96 regions = 3 GiB cap, matching the Linux 3G/1G
-    //! user-VA ceiling.  Largest chunk = 1 MiB; the pool's max bucket
-    //! is 16 KiB so 1 MiB chunks hold 64+ slots — plenty.
-    #define ALLOC_MAX_MMAP_ENTRIES 96
+    //! 32-bit host: 96 regions = 3 GiB, matching the Linux 3G/1G user-VA
+    //! ceiling (mmap fails past this anyway).  Kept small so the
+    //! `regions × 32 MiB` byte math in kame_pool_get_max_bytes can't
+    //! overflow a 32-bit size_t.
+    #define ALLOC_MAX_REGIONS 96
 #endif
 
 //! 2-level radix tree for O(1) pointer-to-region lookup (§13,
@@ -265,7 +274,9 @@ static_assert((1ull << ALLOC_MIN_MMAP_SHIFT) == (unsigned)ALLOC_MIN_MMAP_SIZE,
 //!       Top level is hot-in-L1d on the lookup path.
 //!   L2: each populated node is `[1<<11 = 2048]` `atomic<uint32_t>`
 //!       slots (8 KiB = 2 pages).  Slot value 0 = unpopulated; non-zero
-//!       = ccnt + 1 (so zero-init = "empty").  L2 nodes are allocated
+//!       = present (a pure presence token since §13.3 — the region base
+//!       is derived from the pointer, not a stored index).  L2 nodes
+//!       are allocated
 //!       LAZILY via mmap from `radix_alloc_l2()` (NOT through the
 //!       interposed libc malloc — that would recurse).  Each L2 covers
 //!       `2^11 × 32 MiB = 64 GiB` of VA, so a 1-TiB workload populates
@@ -282,9 +293,15 @@ constexpr int RADIX_L2_BITS = 11;
 constexpr unsigned RADIX_L1_SIZE = 1u << RADIX_L1_BITS;
 constexpr unsigned RADIX_L2_SIZE = 1u << RADIX_L2_BITS;
 constexpr int RADIX_REGION_BITS = RADIX_L1_BITS + RADIX_L2_BITS;  // 22
+#if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
+// 64-bit: the region-count ceiling equals the radix's full VA coverage.
+static_assert(ALLOC_MAX_REGIONS == (1 << RADIX_REGION_BITS),
+              "ALLOC_MAX_REGIONS must equal the radix VA coverage "
+              "(1 << RADIX_REGION_BITS)");
+#endif
 
 struct RadixL2Node {
-    std::atomic<uint32_t> slots[RADIX_L2_SIZE];  // 0 = empty; non-zero = ccnt+1
+    std::atomic<uint32_t> slots[RADIX_L2_SIZE];  // 0 = absent; non-zero = present
 };
 static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
               "RadixL2Node must be exactly RADIX_L2_SIZE * 4 bytes "
@@ -357,7 +374,7 @@ static_assert(ALLOC_CHUNK_HEADER >= ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET + 8 + 8,
 
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
-	(ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_MMAP_ENTRIES)
+	(ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_REGIONS)
 
 //! Max distinct sizes a single chunk hands out — depth of its (ALIGN,FS)
 //! template's size set; sizes the compact per-chunk freelist
@@ -419,7 +436,7 @@ public:
 	//! Collapsed to a single non-template function with a runtime
 	//! region-walk loop — eliminates the 24/96-level template recursion
 	//! that previously generated one inlined copy of the body per
-	//! ladder level (icache bloat scaling with ALLOC_MAX_MMAP_ENTRIES).
+	//! ladder level (icache bloat scaling with ALLOC_MAX_REGIONS).
 	static inline bool deallocate(void *p);
 	//! Look up the slot size (bytes) for a pointer.  Returns 0 if `p`
 	//! is not a pool slot (foreign / libsystem-malloc'd / null).  Uses
@@ -682,23 +699,19 @@ public:
 
 	//! runtime cap on the number of mmap regions
 	//! `allocate_chunk` may claim.  Initialised to
-	//! `ALLOC_MAX_MMAP_ENTRIES` (= no further restriction beyond the
+	//! `ALLOC_MAX_REGIONS` (= no further restriction beyond the
 	//! compile-time ceiling) and overridable at runtime via
 	//! `kame_pool_set_max_bytes()` in allocator.h.  Loaded relaxed
 	//! on the cold mmap path; never read on the alloc/free hot path.
 	static std::atomic<int> s_max_regions_cap;
 
 	//! read-only accessor used by `kame_pool_reserved_bytes`.
-	//! Walks `s_mmapped_spaces[]` low-to-high (the ordering invariant
-	//! preserved by `allocate_chunk`) and counts non-null entries.
-	//! O(populated_regions); intended for diagnostics / runtime
-	//! observability, not for the hot path.
+	//! (§13.3) O(1): returns the live populated-region counter maintained
+	//! by `mmap_new_region` (was an O(N) walk of the retired
+	//! `s_mmapped_spaces[]`).
 	static std::size_t populated_region_count() noexcept {
-		std::size_t n = 0;
-		for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES; ++i) {
-			if(s_mmapped_spaces[i]) ++n; else break;
-		}
-		return n;
+		int n = s_region_count.load(std::memory_order_relaxed);
+		return n > 0 ? (std::size_t)n : 0;
 	}
 
 	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE};
@@ -748,11 +761,11 @@ public:
 
 	//! (§13.2) Per-region metadata block, embedded at `region_base + 0`
 	//! (i.e. inside unit 0 of every mmap region).  Replaces two of the
-	//! `ALLOC_MAX_MMAP_ENTRIES`-sized globals — `s_claim_bitmap[]` and
+	//! `ALLOC_MAX_REGIONS`-sized globals — `s_claim_bitmap[]` and
 	//! `s_back_offset[]` — with a struct attached to each region.  Self-
 	//! contained per-region metadata lets the populated-region count
 	//! scale without growing fixed BSS, paving the way to retire
-	//! ALLOC_MAX_MMAP_ENTRIES entirely (HPC scaling step 3).
+	//! ALLOC_MAX_REGIONS entirely (HPC scaling step 3).
 	//!
 	//! Layout (144 B total on both 64- and 32-bit):
 	//!   claim_bitmap[BITMAP_WORDS_PER_REGION]  // 16 B
@@ -775,15 +788,28 @@ public:
 	//! via the s_mmapped_spaces[ccnt] release-CAS — readers' acquire on
 	//! that slot synchronizes-with this init.
 	struct RegionMeta {
-		std::atomic<BitmapWord> claim_bitmap[BITMAP_WORDS_PER_REGION];
-		std::uint8_t            back_offset[NUM_ALLOCATORS_IN_SPACE];
+		std::atomic<BitmapWord> claim_bitmap[BITMAP_WORDS_PER_REGION];  // 16 B
+		std::uint8_t            back_offset[NUM_ALLOCATORS_IN_SPACE];   // 128 B
+		//! (§13.3) Global region list — singly-linked, PUSH-ONLY at head.
+		//! Regions are never unmapped in the current design, so the list
+		//! needs no removal / reclamation: walkers never see a freed node,
+		//! and a lock-free Treiber push (CAS on s_region_dll_head) is the
+		//! only mutation.  Replaces enumeration over the retired
+		//! `s_mmapped_spaces[]` array (and with it, ALLOC_MAX_REGIONS).
+		std::atomic<RegionMeta *> dll_next;
+		//! (§13.3) "may have a free chunk slot" hint (1 = maybe free).
+		//! Replaces the retired global `s_region_has_free[]` skip-bitmap.
+		//! Set at region init and by `deallocate_chunk`; cleared
+		//! (tentatively) by a claim path that finds no slot for ITS
+		//! CHUNK_UNITS.  Race-tolerant best-effort hint, same semantics as
+		//! the old bitmap bit.
+		std::atomic<unsigned char> has_free;
 	};
-	static_assert(sizeof(RegionMeta) ==
-	              sizeof(BitmapWord) * (size_t)BITMAP_WORDS_PER_REGION
-	              + (size_t)NUM_ALLOCATORS_IN_SPACE,
-	              "RegionMeta layout must be just the two arrays — no "
-	              "implicit padding (relied upon by the static_assert on "
-	              "total size: 16 + 128 = 144 B)");
+	// RegionMeta lives in the first page (4 KiB) of unit 0; it only needs
+	// to FIT, not hit an exact size.  144 B of arrays + the list/hint
+	// fields, well under a page.
+	static_assert(sizeof(RegionMeta) <= 4096,
+	              "RegionMeta must fit in the first page of region unit 0");
 
 	//! Recover a region's metadata block from its base pointer.  Region
 	//! base is `ALLOC_MIN_MMAP_SIZE`-aligned (= 32 MiB), so the cast is
@@ -791,18 +817,42 @@ public:
 	static inline RegionMeta *region_meta(char *mp) noexcept {
 		return reinterpret_cast<RegionMeta *>(mp);
 	}
+	//! Region base from any in-region pointer (regions are 32-MiB-aligned).
+	static inline RegionMeta *region_meta_of(void *p) noexcept {
+		return reinterpret_cast<RegionMeta *>(
+		    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+	}
+
+	//! (§13.3) Head of the push-only region list, and the populated
+	//! region count (for the runtime cap + O(1) `populated_region_count`).
+	static std::atomic<RegionMeta *> s_region_dll_head;
+	static std::atomic<int>          s_region_count;
+
+	//! mmap a fresh 32-MiB-aligned region, init its RegionMeta (reserve
+	//! unit 0, has_free=1), register it in the radix tree, and push it on
+	//! the region list.  Returns the new region's metadata (== its base
+	//! pointer) or nullptr on cap-exceeded / mmap failure.  Shared by both
+	//! chunk-claim Pass-2 sites (`allocate_chunk<ALLOC>` and `claim_chunk`).
+	static RegionMeta *mmap_new_region() noexcept;
 
 private:
-	//! Swap spaces given by anonymous mmap().
-	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
+	//! (§13.3) `s_mmapped_spaces[]` retired — region bases are derived
+	//! directly from any in-region pointer (`p & ~(ALLOC_MIN_MMAP_SIZE-1)`,
+	//! regions are 32-MiB-aligned) and enumerated via the push-only region
+	//! list (`s_region_dll_head`).  This removes the last cap-sized global
+	//! and with it ALLOC_MAX_REGIONS — the region count is now bounded
+	//! only by VA (the radix covers 47-bit = 128 TiB) and the optional
+	//! runtime cap `s_max_regions_cap`.
 
 	//! 2-level radix tree top level (§13).  L1 indexed by upper
 	//! RADIX_L1_BITS of a pointer's region index; entries point at a
 	//! lazily-mmap'd RadixL2Node (or null).  The full layout doc is on
-	//! `RadixL2Node` above.  Used by `radix_lookup(p)` to convert any
-	//! in-pool pointer to its `ccnt` (= index into s_mmapped_spaces /
-	//! s_back_offset / s_claim_bitmap) in O(1) — replacing the former
-	//! O(populated-N) linear walk over `s_mmapped_spaces[]`.
+	//! `RadixL2Node` above.  Used by `radix_lookup(p)` to test in O(1)
+	//! whether `p` falls in a populated region (slot value: 0 = absent,
+	//! non-zero = present) — replacing the former O(populated-N) linear
+	//! walk over `s_mmapped_spaces[]`.  Since §13.3 the slot is a pure
+	//! presence token (region base is derived from `p`, not from a ccnt
+	//! index), so no per-region id is stored.
 	static std::atomic<RadixL2Node *> s_radix_l1[RADIX_L1_SIZE];
 
 	//! Allocate a zero-init L2 node directly via mmap.  CANNOT use libc
@@ -814,21 +864,19 @@ private:
 	//! pool).
 	static RadixL2Node *radix_alloc_l2() noexcept;
 
-	//! Install `(mp, ccnt)` into the radix.  Called from the region-
-	//! claim path of `allocate_chunk` immediately after
-	//! `s_mmapped_spaces[ccnt] = mp` is published.  Concurrent-safe:
-	//! L1-slot install via CAS (loser munmap's its leaf); the
-	//! per-region slot store is non-racing because region claim is
-	//! already serialized by the `s_mmapped_spaces[ccnt]` CAS.
-	static void radix_insert(char *mp, int ccnt) noexcept;
+	//! Mark region base `mp` present in the radix.  Called from
+	//! `mmap_new_region` right after the region is mmap'd.  Concurrent-
+	//! safe: L1-leaf install via CAS (loser munmap's its leaf); the
+	//! per-region presence slot is set once (regions never unmap).
+	static void radix_insert(char *mp) noexcept;
 
 	//! Out-of-line full radix walk.  Called only on cache miss (rare for
-	//! locality-rich workloads).  Returns ccnt or -1.
+	//! locality-rich workloads).  Returns 0 if present, -1 if absent.
 	static int radix_lookup_slow(uintptr_t up) noexcept;
 
-	//! O(1) lookup: return `ccnt` if `p` falls in a populated region,
-	//! else -1.  Inlined into deallocate / size_of / lookup_chunk to
-	//! keep the dealloc fast path tight.
+	//! O(1) lookup: return 0 if `p` falls in a populated region, else -1.
+	//! Inlined into deallocate / size_of / lookup_chunk to keep the
+	//! dealloc fast path tight.
 	//!
 	//! Fast path = 1-entry per-thread "last region" cache
 	//! (`s_last_region_base` / `s_last_region_ccnt`, IE TLS).  A
@@ -844,16 +892,18 @@ private:
 	static inline int radix_lookup(void *p) noexcept {
 		uintptr_t up = (uintptr_t)p;
 		uintptr_t base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
+		// The cache only ever holds PRESENT region bases, so a hit means
+		// present (return 0).  base 0 (init) never matches (kernel null
+		// page is never a region base).
 		if(__builtin_expect(base == s_last_region_base, 1))
-			return s_last_region_ccnt;
+			return 0;
 		return radix_lookup_slow(up);
 	}
 
-	//! Per-thread 1-entry region-lookup cache.  Updated by the slow
-	//! path on cache miss.  Initialised to {0, -1} which never matches
-	//! a real region (region base 0 is the kernel null page).
+	//! Per-thread 1-entry region-lookup cache (the last PRESENT region
+	//! base confirmed by `radix_lookup_slow`).  Initialised to 0 which
+	//! never matches a real region base.
 	static ALLOC_TLS_IE uintptr_t s_last_region_base;
-	static ALLOC_TLS_IE int       s_last_region_ccnt;
 
 public:
 	//! (§13.2) The former global `s_claim_bitmap[]` and `s_back_offset[]`
@@ -864,39 +914,16 @@ public:
 	//! `region_meta(mp)->back_offset[unit_idx]`.  BSS savings: ~450 KiB
 	//! on 64-bit (3200 × (16+128)).  Per-region commit: 1 page = 4 KiB.
 
-	//! per-region "has free space" hint bitmap.  Bit N set ⇒
-	//! region N has at least one free chunk slot of SOME alignment;
-	//! `allocate_chunk` scans this first and skips regions whose bit
-	//! is clear, eliminating the O(N) walk-past-full-regions cost on
-	//! workloads that allocate > 1 GiB of small slots.
-	//!
-	//! Without this, `alloc_only 8192 B × 2M` degrades to ~0.07 M
-	//! ops/s — each `allocate_chunk` scans ~550 fully-claimed regions
-	//! before finding free space.  With this, the scan is O(1) in the
-	//! steady-state and O(populated_regions / 64) in the worst case.
-	//!
-	//! Lazy hint semantics:
-	//!   * Set by `deallocate_chunk` (after the claim-bit release).
-	//!   * Set by `allocate_chunk` on fresh-region mmap (region has
-	//!     all 128 units free by construction).
-	//!   * Cleared by `allocate_chunk` when the per-region scan
-	//!     finds all `BITMAP_WORDS_PER_REGION` words have no free
-	//!     CHUNK_UNITS-aligned slot.  Race-tolerant: a concurrent
-	//!     deallocate_chunk fetch_or may re-set immediately; the next
-	//!     allocate sees the set bit and retries.  Conversely, a
-	//!     false-set bit costs one wasted scan (then gets cleared).
-	//!
-	//! Total size: 3200 / 64 = 50 × uint64_t = 400 B on 64-bit
-	//!             96 /  64 + 1 = 2 × uint64_t = 16 B on 32-bit DCAS host
-	//!             96 /  32     = 3 × uint32_t = 12 B on 32-bit no-DCAS host
-	//! Reuses the `BitmapWord` / `BITS_PER_BITMAP_WORD` selection that
-	//! `s_claim_bitmap[]` uses, so this skip-bitmap remains lock-free on
-	//! 32-bit hosts lacking CMPXCHG8B / LDREXD (e.g. i486) — see the
-	//! `BitmapWord` definition above.
-	static constexpr int REGION_BITMAP_WORDS =
-	    (ALLOC_MAX_MMAP_ENTRIES + BITS_PER_BITMAP_WORD - 1)
-	    / BITS_PER_BITMAP_WORD;
-	static std::atomic<BitmapWord> s_region_has_free[REGION_BITMAP_WORDS];
+	//! (§13.3) The former global `s_region_has_free[]` skip-bitmap is
+	//! retired — the per-region "has free chunk space" hint now lives in
+	//! `RegionMeta::has_free`, and the chunk-claim Pass-1 walks the
+	//! push-only region list (`s_region_dll_head`) checking each region's
+	//! hint.  New regions are pushed at the list head, so the freshest
+	//! (most likely to have free space) are visited first and the walk
+	//! usually returns within a few nodes.  Same lazy best-effort
+	//! semantics as the old bitmap bit (set on fresh-region init + on
+	//! chunk free; tentatively cleared when a claim finds no slot for its
+	//! CHUNK_UNITS).
 };
 
 //! Per-thread flag — true once `AllocThreadExitCleanup::~dtor` has fired.
