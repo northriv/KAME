@@ -1481,9 +1481,12 @@ PoolAllocatorBase::allocate_chunk() {
 	// Returns palloc on success, nullptr if every CHUNK_UNITS-aligned
 	// slot in the region's bitmap is already claimed.
 	auto try_claim_in_region = [&](int region) -> ALLOC * {
+		// (§13.2) claim_bitmap and back_offset now live inside the
+		// region itself at `region_base + 0`.  Recover the metadata
+		// block once per region attempt.
+		RegionMeta *rmeta = region_meta(s_mmapped_spaces[region]);
 		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
-			std::atomic<BitmapWord> *bm =
-			    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
+			std::atomic<BitmapWord> *bm = &rmeta->claim_bitmap[word];
 			for(;;) {
 				BitmapWord v = bm->load(std::memory_order_relaxed);
 				int free_pos = -1;
@@ -1501,9 +1504,6 @@ PoolAllocatorBase::allocate_chunk() {
 				int base_unit_idx =
 				    word * UNITS_PER_BITMAP_WORD + base_unit_in_word;
 
-				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
-				                 + (size_t)base_unit_idx;
-
 				if(bm->compare_exchange_strong(v, newv,
 				                               std::memory_order_acquire,
 				                               std::memory_order_relaxed)) {
@@ -1520,7 +1520,8 @@ PoolAllocatorBase::allocate_chunk() {
 					// a seqlock/epoch unnecessary.  Plain stores + one
 					// writeBarrier suffice (the pre-WIP publish model).
 					for(unsigned u = 0; u < CHUNK_UNITS; ++u)
-						s_back_offset[bo_base + u] = (uint8_t)u;
+						rmeta->back_offset[base_unit_idx + (int)u] =
+						    (uint8_t)u;
 					char *addr = s_mmapped_spaces[region]
 					           + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
 #if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
@@ -1652,6 +1653,16 @@ PoolAllocatorBase::allocate_chunk() {
 			if(prefix > 0) munmap(raw, prefix);
 			if(suffix > 0) munmap(p + mmap_size, suffix);
 #endif
+			// (§13.2) Initialize the region's embedded metadata block at
+			// `p + 0` BEFORE publishing the region.  mmap already zero-
+			// filled the page (claim_bitmap[*]=0, back_offset[*]=0); set
+			// bit 0 of claim_bitmap[0] so unit 0 (= this metadata) is
+			// permanently flagged claimed and `try_claim_in_region`
+			// naturally skips it.  Plain store — no other thread sees
+			// the region until the s_mmapped_spaces[region] release-CAS
+			// below, which carries this init under its release ordering.
+			region_meta(p)->claim_bitmap[0].store(
+			    BitmapWord(1), std::memory_order_relaxed);
 			writeBarrier();
 			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[region])) {
 				readBarrier();
@@ -2220,10 +2231,10 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 				int word = base_unit_idx / UNITS_PER_BITMAP_WORD;
 				int base_in_word = base_unit_idx % UNITS_PER_BITMAP_WORD;
 				int base_bit = base_in_word;
-				std::atomic<BitmapWord> *bm =
-				    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
-				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
-				                 + (size_t)base_unit_idx;
+				// (§13.2) per-region claim_bitmap + back_offset now live
+				// in `RegionMeta` at `mp + 0`.
+				RegionMeta *rmeta = region_meta(mp);
+				std::atomic<BitmapWord> *bm = &rmeta->claim_bitmap[word];
 				// Step 1: clear chunk_header.  palloc = 0 is the
 				// "released" signal that lookup's foreign-check reads
 				// (slow path); size_info = 0 too.  Plain stores — the
@@ -2248,9 +2259,9 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 				// is computed by the compiler.
 				reinterpret_cast<PoolAllocatorBase *>(
 				    chunk_base + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
-				// Step 2: clear s_back_offset for ALL units of this chunk.
+				// Step 2: clear back_offset for ALL units of this chunk.
 				for(unsigned u = 0; u < chunk_units; ++u)
-					s_back_offset[bo_base + u] = 0;
+					rmeta->back_offset[base_unit_idx + u] = 0;
 				// Step 3: madvise reclaims physical pages (slot region only).
 				//
 				// gated by `reclaim_pages`.  Skipped from
@@ -2338,10 +2349,24 @@ PoolAllocatorBase::count_live_chunks() noexcept {
 	// CHUNK_UNITS bits), which is sufficient as a leak probe: monotonic
 	// growth across repeated alloc/free cycles still signals a leak in
 	// the chunk-release path.
+	// (§13.2) Walk populated regions and sum bits of each region's
+	// embedded claim_bitmap.  Subtract bit 0 of word 0 (the per-region
+	// metadata reservation) so this returns "units occupied by actual
+	// chunks" — preserving the pre-§13.2 leak-probe semantics
+	// (monotonic growth = leak).  s_mmapped_spaces is monotonically
+	// grown from index 0, so we can break on the first null past 0.
 	int n = 0;
-	for(int i = 0; i < ALLOC_MAX_MMAP_ENTRIES * BITMAP_WORDS_PER_REGION; ++i) {
-		BitmapWord v = s_claim_bitmap[i].load(std::memory_order_relaxed);
-		n += int(count_bits(v));
+	for(int region = 0; region < ALLOC_MAX_MMAP_ENTRIES; ++region) {
+		char *mp = s_mmapped_spaces[region];
+		if(region > 0 && !mp) break;
+		if( !mp) continue;
+		RegionMeta *rmeta = region_meta(mp);
+		for(int w = 0; w < BITMAP_WORDS_PER_REGION; ++w) {
+			BitmapWord v =
+			    rmeta->claim_bitmap[w].load(std::memory_order_relaxed);
+			if(w == 0) v &= ~BitmapWord(1);  // skip permanent metadata bit
+			n += int(count_bits(v));
+		}
 	}
 	return n;
 }
@@ -2365,10 +2390,16 @@ PoolAllocatorBase::count_live_chunks() noexcept {
 // of the back-offset table plus a plain palloc read suffice — the
 // pre-WIP cost profile.
 static inline PoolAllocatorBase *
-resolve_chunk_from_slot(char *mp, size_t meta_base, unsigned int unit_idx,
+resolve_chunk_from_slot(char *mp, size_t /*meta_base unused*/,
+                        unsigned int unit_idx,
                         char **out_chunk_base) noexcept {
-	unsigned int back_off =
-	    PoolAllocatorBase::s_back_offset[meta_base + unit_idx] & 0x7Fu; // mask dedicated bit7
+	// (§13.2) back_offset now lives inside the region (RegionMeta at
+	// mp + 0).  `meta_base` is unused — kept in the signature so call
+	// sites can keep their existing `ccnt * NUM_ALLOCATORS_IN_SPACE`
+	// computation as a no-op until that arithmetic is removed.
+	PoolAllocatorBase::RegionMeta *rmeta =
+	    PoolAllocatorBase::region_meta(mp);
+	unsigned int back_off = rmeta->back_offset[unit_idx] & 0x7Fu;  // mask dedicated bit7
 	unsigned int base_idx = unit_idx - back_off;
 	char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
 	PoolAllocatorBase *palloc =
@@ -2438,8 +2469,11 @@ PoolAllocatorBase::deallocate(void *p) {
 		// that chunk; lookup_chunk-from-slot is not such a case.)
 		unsigned int unit_idx =
 		    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
-		size_t meta_base = (size_t)ccnt * NUM_ALLOCATORS_IN_SPACE;
-		unsigned int back_off_raw = s_back_offset[meta_base + unit_idx];
+		// (§13.2) back_offset lives in `RegionMeta` at `mp + 0`, recovered
+		// in O(1) from the mp we already derived.  The former
+		// `meta_base = ccnt * NUM_ALLOCATORS_IN_SPACE` multiply is gone.
+		RegionMeta *rmeta = region_meta(mp);
+		unsigned int back_off_raw = rmeta->back_offset[unit_idx];
 		unsigned int base_idx = unit_idx - (back_off_raw & 0x7Fu);
 		char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
 		// Dedicated single-slot large chunk?  bit7 of the (already-loaded)
@@ -2615,9 +2649,13 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 	        ? ~BitmapWord(0)
 	        : ((BitmapWord(1) << chunk_units) - BitmapWord(1));
 	auto try_claim_in_region = [&](int region) -> char * {
+		// (§13.2) claim_bitmap + back_offset live in RegionMeta at
+		// `region_base + 0`.
+		char *mp = s_mmapped_spaces[region];
+		if( !mp) return nullptr;
+		RegionMeta *rmeta = region_meta(mp);
 		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
-			std::atomic<BitmapWord> *bm =
-			    &s_claim_bitmap[region * BITMAP_WORDS_PER_REGION + word];
+			std::atomic<BitmapWord> *bm = &rmeta->claim_bitmap[word];
 			for(;;) {
 				BitmapWord v = bm->load(std::memory_order_relaxed);
 				int free_pos = -1;
@@ -2629,16 +2667,14 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 				if(free_pos < 0) break;
 				BitmapWord newv = v | (occ_mask << free_pos);
 				int base_unit_idx = word * UNITS_PER_BITMAP_WORD + free_pos;
-				size_t bo_base = (size_t)region * NUM_ALLOCATORS_IN_SPACE
-				                 + (size_t)base_unit_idx;
 				if(bm->compare_exchange_strong(v, newv,
 				                               std::memory_order_acquire,
 				                               std::memory_order_relaxed)) {
 					for(unsigned u = 0; u < chunk_units; ++u)
-						s_back_offset[bo_base + u] =
+						rmeta->back_offset[base_unit_idx + (int)u] =
 						    (std::uint8_t)u | back_off_flag;
-					return s_mmapped_spaces[region]
-					     + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE;
+					return mp + (size_t)base_unit_idx
+					          * (size_t)ALLOC_MIN_CHUNK_SIZE;
 				}
 			}
 		}
@@ -2689,6 +2725,12 @@ PoolAllocatorBase::claim_chunk(unsigned chunk_units,
 			if(prefix > 0) munmap(raw, prefix);
 			if(suffix > 0) munmap(p + mmap_size, suffix);
 #endif
+			// (§13.2) Initialize the embedded metadata block at p + 0
+			// (see the sibling site in `allocate_chunk` for full
+			// rationale).  Plain store; carried by the s_mmapped_spaces
+			// release-CAS below.
+			region_meta(p)->claim_bitmap[0].store(
+			    BitmapWord(1), std::memory_order_relaxed);
 			writeBarrier();
 			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[region])) {
 				readBarrier();
@@ -3869,12 +3911,9 @@ void PoolAllocatorBase::radix_insert(char *mp, int ccnt) noexcept {
 	leaf->slots[l2].store((uint32_t)(ccnt + 1), std::memory_order_release);
 }
 
-std::atomic<PoolAllocatorBase::BitmapWord>
-    PoolAllocatorBase::s_claim_bitmap[ALLOC_MAX_MMAP_ENTRIES
-                                       * PoolAllocatorBase::BITMAP_WORDS_PER_REGION];
-uint8_t
-    PoolAllocatorBase::s_back_offset[ALLOC_MAX_MMAP_ENTRIES
-                                     * PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE];
+// (§13.2) s_claim_bitmap[] and s_back_offset[] retired — both now live
+// in `RegionMeta` at `region_base + 0`.  See `region_meta()` and the
+// region-init in `allocate_chunk` / `claim_chunk`.
 std::atomic<PoolAllocatorBase::BitmapWord>
     PoolAllocatorBase::s_region_has_free[PoolAllocatorBase::REGION_BITMAP_WORDS];
 // single consolidated TLS struct holds all per-thread state
