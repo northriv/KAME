@@ -1561,6 +1561,23 @@ __attribute__((cold, noinline))
 void *
 PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
                                                std::size_t /*size*/) noexcept {
+	// (§24) Before falling through to bitmap-claim, scan this thread's DLL
+	// for any OTHER chunk holding freelist entries at the same local id.
+	// `g_thread_freelist_ptr[bucket]` tracks only the most-recently-pinned
+	// chunk's freelist[local]; when a workload's working set spans multiple
+	// chunks (e.g. fifo:N where N > slots-per-chunk for non-power-of-2 N
+	// values), pushes are distributed across chunks but pops only see ONE.
+	// Without this scan the non-active chunks' freelist entries stay
+	// unreachable through the fast path, slow_allocate hits the bitmap
+	// (which can't find an N-zero run inside any one word for the wasted
+	// bits at word ends) and re-mmaps a fresh chunk every cycle — caught
+	// in the multi-allocator bench as a 100× regression at bucket 45
+	// (ALIGN=1024 N=13) and similarly for other non-power-of-2 N tiers.
+	if(char *head = scan_dll_freelist(/*local_id=*/0u)) {
+		g_thread_freelist_ptr[bucket] =
+		    &s_tls.my_chunk->m_freelist_head[0];
+		return head;
+	}
 	void *p = allocate_chunk_path(ALIGN);
 	PoolAllocatorBase *new_chunk =
 	    static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
@@ -1617,10 +1634,24 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 		if constexpr (ALIGN < 1024u)
 			slot_size -= 8u;
 	}
+	// (§24) Scan this thread's DLL for an OTHER chunk holding freelist
+	// entries at the SAME local id (FS=false: per-bucket local id).
+	// `g_thread_freelist_ptr[bucket]` tracks only the most-recently-pinned
+	// chunk; without this scan the non-active chunks' cached slots stay
+	// unreachable from the fast path on multi-chunk working sets, and
+	// every miss re-mmaps a fresh chunk (100× regression in the fifo:N
+	// bench at bucket 45 / ALIGN=1024 N=13, etc.).  See FS=true sibling.
+	using BaseTpl = PoolAllocator<ALIGN, true, false>;
+	const unsigned local_id = kBucketLocalId[bucket];
+	if(char *head = BaseTpl::scan_dll_freelist(local_id)) {
+		g_thread_freelist_ptr[bucket] =
+		    &BaseTpl::s_tls.my_chunk->m_freelist_head[local_id];
+		return head;
+	}
 	// Inherited static; resolves to PoolAllocator<ALIGN, true, false>::
 	// allocate_chunk_path, which uses the FS=false-instantiated
 	// s_tls.my_chunk under the hood (the DUMMY=false template trick).
-	void *p = PoolAllocator<ALIGN, true, false>::allocate_chunk_path(slot_size);
+	void *p = BaseTpl::allocate_chunk_path(slot_size);
 	PoolAllocatorBase *new_chunk = static_cast<PoolAllocatorBase *>(
 	    PoolAllocator<ALIGN, true, false>::s_tls.my_chunk);
 	// (§12.3) cf. FS=true sibling — update the alloc-fast-path TLS shortcut.
