@@ -765,3 +765,74 @@ in the per-region sum, restoring the original leak-probe semantics.
     (sentinel_fails=0), alloc_stress cross={0,5,100} × 3 × 1500 threads
     (sentinel_fails=0, diff=0), 9/9 PASS.
   - 32-bit (gcc-multilib): clean build, c_api + stress PASS.
+
+## 13.3 Retire ALLOC_MAX_MMAP_ENTRIES via a push-only region list (HPC step 3)
+
+Final step: remove the last two cap-sized globals — `s_mmapped_spaces[]`
+(8 B/region) and `s_region_has_free[]` (1 bit/region) — so the region
+count is bounded only by VA (the radix covers 47-bit = 128 TiB), not by
+a fixed array.
+
+### Key enabler: regions are permanent
+
+Regions are never unmapped in the current design, so the region list can
+be **push-only** (a lock-free Treiber push, never remove).  Walkers never
+see a freed node; no ABA, no reclamation.
+
+### Changes
+
+  - `RegionMeta` (embedded at region_base+0, §13.2) gains:
+      `std::atomic<RegionMeta*> dll_next;`   // push-only list link
+      `std::atomic<unsigned char> has_free;` // was a global bitmap bit
+  - Globals: `s_region_dll_head` (list head) + `s_region_count` (live
+    count, for the cap + O(1) populated_region_count).
+  - `s_mmapped_spaces[]` RETIRED — region base derived from any pointer
+    (`p & ~(ALLOC_MIN_MMAP_SIZE-1)`, regions are 32-MiB-aligned), via the
+    new `region_meta_of(p)`.  Enumeration walks the list.
+  - `s_region_has_free[]` RETIRED — per-region `has_free` flag + list walk.
+  - radix slot is now a pure **presence token** (1 = present); the region
+    id (`ccnt`) is gone — callers derive the base from the pointer.  The
+    per-thread cache drops its `ccnt` field (a hit just means present).
+  - `mmap_new_region()` — shared helper (was duplicated mmap blocks in
+    both claim paths): cap-reserve (atomic), 32-MiB-aligned mmap, init
+    RegionMeta (reserve unit 0, has_free=1), `radix_insert`, list push.
+  - `allocate_chunk<ALLOC>` and `claim_chunk` Pass 1 = list walk, Pass 2
+    = `mmap_new_region`.  `deallocate_chunk` derives the region directly
+    (no scan); `count_live_chunks` / `populated_region_count` walk the
+    list / read the counter.
+  - `ALLOC_MAX_MMAP_ENTRIES` -> `ALLOC_MAX_REGIONS`: no longer an array
+    bound, just the default (uncapped) `s_max_regions_cap`.  64-bit:
+    `1 << RADIX_REGION_BITS` = 4194304 (= 128 TiB, the radix ceiling,
+    static_assert'd).  32-bit: 96 (3 GiB user-VA), kept small so the
+    `regions × 32 MiB` byte math can't overflow a 32-bit size_t.
+
+### Correctness fix found in testing — fresh-region swarm
+
+A region we mmap is published to the shared list IMMEDIATELY, so under
+high thread count other threads can claim all 127 of its units before
+our own `try_claim` runs.  The first cut returned 0 on that miss →
+spurious `std::bad_alloc` (seen ~2/15 at cross=100, 1500 threads).  Fix:
+**both claim paths now loop** (Pass 1 → Pass 2 → retry), exactly as the
+old index `for`-loop implicitly retried.  Terminates because each Pass 2
+advances `s_region_count` toward the cap.
+
+### Benefits
+
+  - **Cap lifted: 100 GiB → VA-limited (128 TiB)** on 64-bit.  Stress
+    now sustains peaks > 3200 regions (the old hard cap) — verified
+    `peak=3248` where the old build would have thrown bad_alloc.
+  - Last cap-sized BSS gone; region state is fully self-contained.
+  - `populated_region_count` / `kame_pool_reserved_bytes` now O(1).
+  - `deallocate_chunk` no longer scans regions (O(N) → O(1) derive).
+
+### Verification
+
+  - x86-64: c_api_test, alloc_bucket34_repro (sentinel_fails=0,
+    chunks=0→2), alloc_stress cross={0,5,100}: 12/12 + an extra 10/10 at
+    cross=100 (the swarm case), all sentinel_fails=0 / diff=0.  Region
+    count probe via the C API: 20000×64 B → 1 region (32 MiB), stays
+    mapped after free (regions permanent), reserved_bytes correct.
+  - 32-bit (gcc-multilib): clean build, c_api + stress cross={0,100} PASS.
+  - perf (alloc_minimal_bench hot, 12-iter interleaved vs §13.2): no
+    regression (64 B / 256 B both within noise, trending faster — smaller
+    BSS / better cache).
