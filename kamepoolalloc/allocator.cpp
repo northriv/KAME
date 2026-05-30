@@ -1246,6 +1246,13 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 		// m_flags region inside the chunk).
 		char *cbase = reinterpret_cast<char*>(this) - ALLOC_CHUNK_HEADER;
 		size_t csz = this->m_chunk_size;
+		// (1b) Clear the dealloc fast path's "released" signal BEFORE the
+		// destructor runs so the store goes through a live, typed access
+		// (was previously done inside deallocate_chunk via a typed pointer
+		// to a destructed object — UB by C++'s object-lifetime rule, caught
+		// by UBSAN's vptr check).  A re-claimer overwrites m_owner_id with
+		// its own id in the constructor.
+		this->m_owner_id = 0;
 		this->~PoolAllocator();   // placement-new destructor; chunk memory
 		                          // (including this object) is released by
 		                          // `deallocate_chunk` below.
@@ -1393,6 +1400,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 		// embedded PoolAllocator + m_flags region inside the chunk).
 		char *cbase = reinterpret_cast<char*>(this) - ALLOC_CHUNK_HEADER;
 		size_t csz = this->m_chunk_size;
+		// (1b) Clear m_owner_id BEFORE the destructor — see the FS=true
+		// batch_return_to_bitmap sibling for the rationale.
+		this->m_owner_id = 0;
 		this->~PoolAllocator();   // chunk memory release in deallocate_chunk
 		PoolAllocatorBase::deallocate_chunk(cbase, csz);
 	}
@@ -1913,6 +1923,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				if(s_tls.dll_cursor == nx)
 					s_tls.dll_cursor = nxnext;
 				s_tls.dll_exhausted = false;
+				// (1b) Clear m_owner_id BEFORE the destructor — see the
+				// FS=true batch_return_to_bitmap sibling for the rationale.
+				nx->m_owner_id = 0;
 				nx->~PoolAllocator();   // placement-new destructor
 				PoolAllocatorBase::deallocate_chunk(cbase, csz);
 				++released;
@@ -2214,6 +2227,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// chunk_base from `c` directly.
 			char *cbase = reinterpret_cast<char*>(c) - ALLOC_CHUNK_HEADER;
 			size_t csz = c->m_chunk_size;
+			// (1b) Clear m_owner_id BEFORE the destructor — see the
+			// FS=true batch_return_to_bitmap sibling for the rationale.
+			c->m_owner_id = 0;
 			c->~PoolAllocator();   // placement-new destructor
 			// skip madvise at thread-exit.  Perf showed
 			// MADV_DONTNEED here was ~30 % of bench-style alloc_only
@@ -2287,20 +2303,16 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 				    chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) = 0;
 				*reinterpret_cast<PoolAllocatorBase **>(
 				    chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = nullptr;
-				// (1b) Also clear m_owner_id on the cache-line-1 hot block
-				// — the FAST path's released signal (it never reads
-				// palloc).  A re-claimer overwrites it with its own id in
-				// the constructor; until then 0 never matches any live
-				// thread's non-zero s_tls_owner_id.  Same plain-store /
-				// claim-bit-release publication as palloc above.  The
-				// chunk is empty at release (no live slots), so the
-				// live-slot invariant guarantees no concurrent fast-path
-				// dealloc is targeting it; stray/foreign reads fall to the
-				// slow path regardless of torn state.  Addressed through
-				// the embedded object so the alignas(64) padding offset
-				// is computed by the compiler.
-				reinterpret_cast<PoolAllocatorBase *>(
-				    chunk_base + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
+				// (1b) The fast path's "released" signal — `m_owner_id` —
+				// is cleared by each `deallocate_chunk` caller BEFORE
+				// running the placement-new destructor (do it through the
+				// LIVE typed object, not a typed pointer to a destructed
+				// one — UBSAN's vptr check catches the latter).  Dedicated
+				// single-slot chunks have no PoolAllocator at chunk_base +
+				// ALLOC_CHUNK_HEADER, so they neither set nor clear it; the
+				// dedicated free path is short-circuited by the back_off
+				// bit-7 check in `PoolAllocatorBase::deallocate`, never
+				// reaching the m_owner_id comparison.
 				// Step 2: clear back_offset for ALL units of this chunk.
 				for(unsigned u = 0; u < chunk_units; ++u)
 					rmeta->back_offset[base_unit_idx + u] = 0;
