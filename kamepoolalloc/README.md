@@ -394,9 +394,13 @@ or binary form.
 
 ## Roadmap
 
-See `git log kamepoolalloc/allocator.cpp` and the §-numbered design notes
+See [`design/`](design/) for the structural invariant catalogue
+([`INVARIANTS.md`](design/INVARIANTS.md) — the blast-radius map for safe
+edits) and the §-chapter → subsystem → code navigation map
+([`SUBSYSTEMS.md`](design/SUBSYSTEMS.md)).  For deeper rationale see
+`git log kamepoolalloc/allocator.cpp` and the §-numbered design notes
 ([`CHUNK_CLAIM_TLA_NOTES.md`](tests/CHUNK_CLAIM_TLA_NOTES.md),
-[`LARGE_RECYCLE_DESIGN.md`](LARGE_RECYCLE_DESIGN.md)) for rationale.
+[`LARGE_RECYCLE_DESIGN.md`](LARGE_RECYCLE_DESIGN.md)).
 
 ### Done
 
