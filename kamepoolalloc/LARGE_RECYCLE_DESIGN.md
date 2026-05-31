@@ -32,9 +32,23 @@ freeing/allocating 64 KiB → all hit the same low slots) the CAS serialises.
 - **CHUNK tier only** (`[256 KiB, 4 MiB]`, idx `[0, BND]`).  The mmap tier
   (> 4 MiB) is *cut* and always uses L2 directly — those blocks are few, large,
   contention-tolerant, and one would blow a small per-thread budget.
-- **Per-thread byte budget = `g_lrc_cap / hw_concurrency`**, so the aggregate L1
-  RSS across all threads stays within the global cap ("TLS worst = global /
-  hwconc").
+- **Per-thread bound via an INDEX CUT, no byte accounting.**  A single size
+  occupies at most one ±DELTA band (≤ `2·DELTA+1` slots), so the worst-case L1
+  bytes for the largest cached size `S` is ≈ `(2·DELTA+1)·S`.  Capping the top
+  index at `tls_l1_max_idx = lrc_idx( (g_lrc_cap / concurrency) / LRC_BAND_SLOTS )`
+  (`LRC_BAND_SLOTS ≈ 2·DELTA+1 = 41`) bounds that to ≈ `g_lrc_cap / concurrency`
+  per thread — the push path is one
+  `lrc_idx(size) <= tls_l1_max_idx` compare, **no running byte counter**.  Sizes
+  above the cut skip L1 and use the global L2 directly ("cut large sizes").
+- **`concurrency` is a portable atomic count of threads that have armed an L1**
+  (`g_lrc_l1_threads`, ++ on arm / -- on the thread-exit drain) — NOT a platform
+  CPU-count call.  `sysconf(_SC_NPROCESSORS_ONLN)` (Linux/macOS) vs
+  `GetSystemInfo` (Windows, needs the heavy `<windows.h>`) vs `sysctlbyname`
+  (macOS-idiomatic) all differ; the live-thread count avoids the lot, compiles
+  identically on every platform, and tracks REAL concurrency rather than core
+  count.  It is sloppy by design (a thread keeps the cut it computed when it
+  armed; decremented at exit so churn doesn't drive the cut to zero) — the
+  global L2 cap is the hard ceiling (plan B).
 - **push**: first empty L1 band slot → L1 (no atomics).  Band full / over budget
   / mmap kind → fall through to the L2 push.
 - **pop**: first fitting L1 band slot → L1 (no atomics).  Band empty → fall

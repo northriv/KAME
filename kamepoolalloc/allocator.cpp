@@ -4637,6 +4637,11 @@ inline void lrc_release(char *base, std::size_t size, unsigned kind) noexcept {
 }
 // Symmetric ±10 % band [s/1.1, s*1.1] in slot space, CLAMPED to this kind's
 // range so chunk (≤ boundary) and mmap (> boundary) slots never overlap.
+// (§26) Approximate ±10 % band width in slots — used ONLY by the L1
+// index-cut heuristic below (`per_thread / LRC_BAND_SLOTS`), not by the
+// runtime band, which §25.1 derives from `lrc_idx` directly.  A loose
+// constant is fine: the cut is a sloppy per-thread bound (plan B).
+constexpr int LRC_BAND_SLOTS = 41;   // ≈ 2·round(N·log2(1.1)/log2(128)) + 1
 // Band [≈0.9·s, ≈1.1·s] with its ENDS computed by the SAME integer lrc_idx()
 // used everywhere else — so the band width tracks the log2 idx's own
 // rounding/approximation instead of a separate DELTA derived from EXACT
@@ -4688,43 +4693,44 @@ static_assert(LRC_L1_N == 571 + 1, "L1 covers chunk-tier slots [0, BND]");
 
 ALLOC_TLS char *tls_l1_array[LRC_L1_N];           // GD __thread; auto-reclaimed
 ALLOC_TLS_IE char **tls_l1 = nullptr;             // cached &tls_l1_array[0] (IE, no thunk)
-ALLOC_TLS_IE std::int64_t tls_l1_bytes  = 0;      // bytes currently in L1
-ALLOC_TLS_IE std::int64_t tls_l1_budget = 0;      // = g_lrc_cap / hw_conc (lazy)
+ALLOC_TLS_IE int  tls_l1_max_idx = -1;            // highest L1-cached index (lazy; -1 = unset)
 
-// hardware_concurrency, cached (the query is done once).  Uses
-// `sysconf(_SC_NPROCESSORS_ONLN)` (POSIX) / `GetSystemInfo` (Windows)
-// rather than `std::thread::hardware_concurrency` to avoid pulling
-// <thread> into this malloc-replacement TU.
-inline int lrc_hw_conc() noexcept {
-	static std::atomic<int> hc{0};
-	int n = hc.load(std::memory_order_relaxed);
-	if(__builtin_expect(n == 0, 0)) {
-#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
-		SYSTEM_INFO si; GetSystemInfo(&si);
-		n = (int)si.dwNumberOfProcessors;
-#else
-		n = (int)sysconf(_SC_NPROCESSORS_ONLN);
-#endif
-		if(n < 1) n = 1;
-		hc.store(n, std::memory_order_relaxed);
-	}
-	return n;
-}
+// (§26) "TLS worst = global / concurrency" WITHOUT per-byte accounting.
+// The log cache's per-thread footprint is bounded purely by HOW HIGH an
+// index L1 caches: a single size occupies at most one ±DELTA band
+// (≤ 2·DELTA+1 slots), so the worst-case L1 bytes for the largest cached
+// size S is ≈ (2·DELTA+1)·S.  Capping the top index at `tls_l1_max_idx`
+// = lrc_idx( (cap / concurrency) / (2·DELTA+1) ) bounds that to ≈
+// cap/concurrency per thread — no running byte counter, just one
+// `lrc_idx(size) <= tls_l1_max_idx` compare on the push path.  Sizes above
+// the cut ("large") skip L1 and use the global L2 directly.
+//
+// `concurrency` is the count of threads that have actually armed an L1 —
+// a portable atomic, NO platform CPU-count API (sysconf / GetSystemInfo /
+// sysctl all differ across Linux/macOS/Windows; this avoids the lot and
+// also tracks REAL concurrency, not core count).  Sloppy by design: a
+// thread keeps the cut it computed when it armed; the global L2 cap is
+// the hard ceiling (plan B — the L1+L2 total is a small multiple of
+// g_lrc_cap, documented in LARGE_RECYCLE_DESIGN.md).
+std::atomic<int> g_lrc_l1_threads{0};
 
 void l1_drain() noexcept;   // fwd (defined after recycle_push)
 // Drain sentinel — empty thread_local whose dtor flushes L1 to global at
-// thread exit.  Same split-storage pattern as §23: the DATA is IE-TLS,
-// this carries only the C++ destructor.
+// thread exit AND decrements the armed-thread count.  Split-storage (§23):
+// the DATA is IE-TLS; this carries only the C++ destructor.
 struct L1Drain { void touch() noexcept {} ~L1Drain() noexcept { l1_drain(); } };
 thread_local L1Drain tls_l1_drain;
 
 // Materialise the L1 base (one-time per thread: cache the GD array address
-// into the IE-TLS pointer, set the byte budget, arm the drain dtor).
+// into the IE-TLS pointer, compute the per-thread index cut, arm drain).
 inline char **l1_base() noexcept {
 	char **l1 = tls_l1;
 	if(__builtin_expect(l1 == nullptr, 0)) {
 		l1 = tls_l1 = &tls_l1_array[0];                 // one __tls_get_addr, then cached
-		tls_l1_budget = g_lrc_cap.load(std::memory_order_relaxed) / lrc_hw_conc();
+		int n = g_lrc_l1_threads.fetch_add(1, std::memory_order_relaxed) + 1;
+		std::int64_t per_thread = g_lrc_cap.load(std::memory_order_relaxed) / n;
+		std::size_t cut_size = (std::size_t)(per_thread / LRC_BAND_SLOTS);
+		tls_l1_max_idx = lrc_idx(cut_size);             // ≤ this index → L1; above → global
 		tls_l1_drain.touch();                           // arm thread-exit drain
 	}
 	return l1;
@@ -4736,7 +4742,8 @@ inline bool l1_eligible(unsigned kind) noexcept {
 	return kind == (unsigned)LRC_CHUNK;
 }
 // Pop a fitting block from this thread's L1 band, or nullptr.  Single
-// owner ⇒ plain loads/stores, no CAS.  Same band as the global cache.
+// owner ⇒ plain loads/stores, no CAS, no byte accounting.  Same band as
+// the global cache.
 inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
 	if( !l1_eligible(kind)) return nullptr;
 	char **l1 = l1_base();
@@ -4747,7 +4754,6 @@ inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
 		std::size_t sz = lrc_block_size(b, kind);   // single-owner read
 		if(sz >= need) {                            // VERIFY size (band approx)
 			l1[s] = nullptr;
-			tls_l1_bytes -= (std::int64_t)sz;
 			return b;
 		}
 		// too small for this need — leave it; a smaller request reuses it.
@@ -4756,17 +4762,18 @@ inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
 }
 // Cache a block in this thread's L1 band's first empty slot.  Returns
 // true if cached; false ⇒ caller falls through to the global push.
-// Refused when: mmap kind, over the per-thread budget, or band full.
+// Refused when: mmap kind, the size is above this thread's index cut
+// (§26 — "TLS worst = global/concurrency" via the index, no byte count),
+// or the band is full.
 inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
 	if( !l1_eligible(kind)) return false;
 	char **l1 = l1_base();
-	if(tls_l1_bytes + (std::int64_t)size > tls_l1_budget)
-		return false;                               // per-thread budget → global
+	if(lrc_idx(size) > tls_l1_max_idx)
+		return false;                               // above the index cut → global
 	int ilo, ihi; lrc_band(size, kind, ilo, ihi);
 	for(int s = ilo; s <= ihi; s++) {
 		if( !l1[s]) {
 			l1[s] = base;
-			tls_l1_bytes += (std::int64_t)size;
 			return true;
 		}
 	}
@@ -4844,7 +4851,12 @@ void l1_drain() noexcept {
 		}
 		lrc_release(b, sz, (unsigned)LRC_CHUNK);
 	}
-	tls_l1_bytes = 0;
+	// Decrement the armed-thread count so it tracks LIVE concurrency, not
+	// cumulative spawns — otherwise a long-running process that churns
+	// short-lived threads would drive the count (and every new thread's
+	// cut) toward zero.  Sloppy (a thread keeps the cut it computed at arm
+	// time); the global L2 cap is the hard ceiling (plan B).
+	g_lrc_l1_threads.fetch_sub(1, std::memory_order_relaxed);
 }
 // (§22) Definitions of the forward-declared helpers used by the earlier
 // §15 dedicated-chunk paths (allocate_dedicated_chunk / deallocate).
