@@ -2974,16 +2974,27 @@ void* allocate_large_size_or_malloc(size_t size) throw() {
 	//      with regular bucket chunks — best locality for moderate-large
 	//      sizes.
 	//
-	//   2. 4 MiB − K_MAX < size ≤ 32 MiB − PAGE  →  (§19) `allocate_large_va`:
+	//   2. 4 MiB − K_MAX < size, mmap_size ≤ 32 MiB  →  (§19) `allocate_large_va`:
 	//      one 32-MiB-aligned mmap per alloc, registered as a single
-	//      KAME_RADIX_LARGE radix slot.  Returns VA to the OS on free
-	//      (munmap), unlike pool regions which are push-only.  Pays one
-	//      radix slot per alloc, fine for the multi-MiB range.
+	//      KAME_RADIX_LARGE radix slot, served from the §25/§26 warm
+	//      recycle cache.  Returns VA to the OS on free (munmap), unlike
+	//      pool regions which are push-only.
 	//
-	//   3. size > 32 MiB − PAGE  →  libc malloc.  One alloc would
-	//      consume multiple 32-MiB radix slots; outside §19's
-	//      single-slot scope.  Future work could extend §19 to span
-	//      slots, or use a separate concurrent map for huge allocs.
+	//   3. (§27) size so large that mmap_size > 32 MiB  →  ALSO
+	//      `allocate_large_va`, but it mmaps a multi-region span and
+	//      registers ONLY the head 32-MiB slot in the radix.  This is
+	//      safe: the alloc's sole valid user pointer is `base + PAGE`,
+	//      which always resolves to the head slot; the tail slots are
+	//      never standalone `radix_lookup` targets (interior-pointer
+	//      lookup into one alloc is UB caller-side), and the OS keeps the
+	//      whole span mapped so no other alloc can claim a tail slot's VA.
+	//      The huge tier BYPASSES the warm cache (mmap fresh / munmap on
+	//      free) — see allocate_large_va for why (cache index tops out at
+	//      32 MiB; a cached huge block would over-satisfy smaller huge
+	//      requests and pin RSS).
+	//
+	// libc malloc is reached ONLY if `allocate_large_va` returns nullptr
+	// (the mmap itself failed) — no longer the routine path for huge sizes.
 	//
 	// Reached only when the allocator is active (new_redirected_large
 	// gates on g_sys_image_loaded / s_alloc_tls_off before calling us).
@@ -2991,11 +3002,9 @@ void* allocate_large_size_or_malloc(size_t size) throw() {
 		if(void *p = PoolAllocatorBase::allocate_dedicated_chunk(size))
 			return p;
 	}
-	if(size <= (size_t)ALLOC_MIN_MMAP_SIZE - (size_t)ALLOC_PAGE_SIZE) {
-		if(void *p = PoolAllocatorBase::allocate_large_va(size))
-			return p;
-	}
-	return std::malloc(size);
+	if(void *p = PoolAllocatorBase::allocate_large_va(size))
+		return p;
+	return std::malloc(size);   // reached only if the mmap itself failed
 }
 
 // =====================================================================
@@ -4923,7 +4932,17 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 	// A cache hit returns a radix-CLEARED but still-mapped region; we
 	// re-register it below.  The cached region's real size (meta->mmap_size,
 	// preserved) is ≥ mmap_size and ≤ 2× it (pop_fit's fit window).
-	char *base = recycle_pop_fit(mmap_size, LRC_MMAP);
+	//
+	// (§27) BUT only for the ≤ 32 MiB tier.  The recycle cache's log-index
+	// space (lrc_idx) tops out at LRC_HI = ALLOC_MIN_MMAP_SIZE = 32 MiB:
+	// every size ≥ LRC_HI collapses to the single top slot, where the only
+	// pop gate is `cached_size ≥ need` with NO upper bound — so a cached
+	// huge block could satisfy (and pin the full RSS of) a much smaller
+	// huge request.  Huge allocs therefore skip the cache entirely: mmap
+	// fresh here, munmap on free (deallocate_large_va mirrors this gate).
+	// This matches how libc / jemalloc / mimalloc treat their huge class.
+	bool cacheable = (mmap_size <= LRC_HI);
+	char *base = cacheable ? recycle_pop_fit(mmap_size, LRC_MMAP) : nullptr;
 	bool recycled = (base != nullptr);
 	if( !recycled) {
 		base = large_va_raw_map(mmap_size);
@@ -4962,9 +4981,12 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	// cache shortcuts the slot read).
 	if((uintptr_t)base == s_last_region_base)
 		s_last_region_base = 0;
-	// (§21) Try to recycle into the per-thread cache (still mapped, warm).
-	// On overflow / over-cap the cache returns false and we munmap now.
-	if( !recycle_push(base, mmap_size, LRC_MMAP))
+	// (§21) Try to recycle into the warm cache (still mapped, warm).  On
+	// overflow / over-cap the cache returns false and we munmap now.
+	// (§27) Huge allocs (mmap_size > LRC_HI) bypass the cache — see
+	// allocate_large_va.  The `||` short-circuits so recycle_push (hence
+	// lrc_idx) is NEVER called with a > 32 MiB size.
+	if(mmap_size > LRC_HI || !recycle_push(base, mmap_size, LRC_MMAP))
 		large_va_raw_unmap(base, mmap_size);
 }
 
