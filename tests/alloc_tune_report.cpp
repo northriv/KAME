@@ -392,17 +392,17 @@ int main(int argc, char **argv) {
         ? (1000.0 / auto_tuned_ms) * munmap_ns / 1e9 : 0;
     std::printf("\n* §28.1 lazy drain:\n");
     std::printf("    library auto-tuned interval   : %u ms\n", auto_tuned_ms);
-    std::printf("    worst-case @ default 10 ms    : %.1f %% per-thread wallclock\n",
+    std::printf("    worst-case @ default 10 ms    : %.2f %% per-thread wallclock\n",
                 per_thread_at_default * 100);
     std::printf("    worst-case @ auto-tuned %u ms : %.2f %% per-thread wallclock\n",
                 auto_tuned_ms, per_thread_at_tuned * 100);
     if(per_thread_at_default <= 0.05) {
-        std::printf("  → default 10 ms is fine on this host; auto-tune effectively a no-op.\n");
+        std::printf("  → default 10 ms is fine on this host; auto-tune kept it (raise-only).\n");
     } else if(per_thread_at_tuned <= 0.05) {
-        std::printf("  → auto-tune brought it under 5 %% — no action needed.\n");
+        std::printf("  → auto-tune raised it; pressure now under 5 %% — no action needed.\n");
     } else {
-        std::printf("  → auto-tune clamped at 1 s ceiling; manually set higher via\n");
-        std::printf("    kame_pool_set_lazy_drain_interval_ms() if still too aggressive.\n");
+        std::printf("  → auto-tune hit the 1 s ceiling and still over budget;\n");
+        std::printf("    consider kame_pool_set_lazy_drain_interval_ms(N) manually.\n");
     }
     if(thp_per_pg > 0 && touch_per_pg / thp_per_pg > 1.5) {
         std::printf("\n* MADV_HUGEPAGE speeds up first-touch by %.1fx on this kernel\n",

@@ -5004,7 +5004,13 @@ ALLOC_TLS_IE int          tls_lazy_cursor  = 0;                     // position 
 //   per-thread tick rate = 1 / interval
 //   per-tick blocked time = munmap_ns
 //   per-thread wallclock fraction = munmap_ns / interval
-// Target ≤ 5 % ⇒ interval ≥ 20 × munmap_ns.  Clamped to [1 ms, 1 s].
+// Target ≤ 5 % ⇒ interval ≥ 20 × munmap_ns.  RAISE-ONLY: if the host's
+// munmap is fast enough that the default 10 ms already satisfies the 5 %
+// target, KEEP the default — never lower it, since a single measurement
+// can underestimate the realistic munmap cost (cold-cache, under-load
+// values typically differ by 3–5× on the same host) and an over-eager
+// down-tune below default makes pressure WORSE.  Only clamp the upward
+// direction (1 s ceiling).
 static void lrc_auto_tune_lazy_interval() noexcept {
 #if !(defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32))
     const char *env = std::getenv("KAME_POOL_AUTO_TUNE");
@@ -5028,8 +5034,8 @@ static void lrc_auto_tune_lazy_interval() noexcept {
     if(munmap_ns <= 0) return;
 
     std::int64_t interval = 20 * munmap_ns;
-    if(interval < 1000000LL)        interval = 1000000LL;        // 1 ms floor
-    if(interval > 1000000000LL)     interval = 1000000000LL;     // 1 s ceiling
+    if(interval <= LRC_LAZY_INTERVAL_DEFAULT_NS) return;            // default is already fine — keep it
+    if(interval > 1000000000LL) interval = 1000000000LL;            // 1 s ceiling
     g_lrc_lazy_interval_ns.store(interval, std::memory_order_relaxed);
 #endif
 }
