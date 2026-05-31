@@ -97,13 +97,37 @@ ship the same way).
 | 64 KiB  | 161    | 278      | 30       | **304**  |
 | 1 MiB   | 168    | 3        | 31       | **214**  |
 
+**Apple M3 (arm64, macOS), single thread, M ops/s** — current §26 build:
+
+| size    | system | mimalloc | **kame** |
+| ------- | ------ | -------- | -------- |
+| 64 B    | 90     | 251      | **277**  |
+| 1 KiB   | 76     | 178      | **255**  |
+| 16 KiB  | 82     | 133      | **239**  |
+| 64 KiB  | 24     | 137      | **161**  |
+| 256 KiB | 24     | 129      | **154**  |
+| 1 MiB   | 25     | 6.5      | **147**  |
+| 8 MiB   | 42     | 5.8      | **120**  |
+
+**Apple M3, multi-thread aggregate scaling, M ops/s (1 / 4 / 8 threads):**
+
+| size   | system          | mimalloc        | **kame**           |
+| ------ | --------------- | --------------- | ------------------ |
+| 64 KiB | 11 / 1.4 / 1.0  | 63 / 148 / 211  | **76 / 217 / 223** |
+| 1 MiB  | 8.3 / 1.4 / 1.0 | 3.2 / 3.5 / 2.5 | **72 / 199 / 230** |
+
+At large sizes kame is the only one that *scales* with threads: system
+malloc's large path is lock-serialised — it runs *backwards* (8 → 1 M ops/s as
+threads rise) — and mimalloc's large tier stalls (~3 M), while kame's
+per-thread L1 keeps climbing (72 → 230 M ops/s at 1 MiB).
+
 kame leads decisively in the **16 KiB – 4 MiB** range — where mimalloc and
 jemalloc fall back to per-call `mmap`/`munmap` (≈ 8–10 M ops/s) while the
 recycle cache keeps kame at memory-warm speed — and at multi-thread large
 sizes.  In the tiny-object hot loop (≤ 1 KiB) it matches mimalloc; jemalloc's
-tcache edges ahead on some sizes.  Cloud-VM numbers are noisy (other tenants);
-on the author's **Apple M3** the same ranking holds with ~2–3× higher absolute
-rates (e.g. 64 KiB ≈ 174 M ops/s vs mimalloc 126).
+tcache edges ahead on some sizes.  These are **no-touch** micro-benchmarks —
+for workloads that *touch* the buffers the per-op cost is dwarfed by memory
+bandwidth and the allocators converge.
 
 The point is not the micro-benchmark peak but the **flat curve**: kame has no
 size cliff and no per-thread working-set cliff, so a real mixed workload (small
