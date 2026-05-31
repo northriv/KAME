@@ -95,6 +95,14 @@ if(USE_KAME_ALLOCATOR)
     # dedicated_chunk_bytes, large_alloc_count/bytes) instrumentation test.
     add_executable(alloc_stats_test alloc_stats_test.cpp)
     target_link_libraries(alloc_stats_test kamepoolalloc Threads::Threads)
+
+    # Tuning-diagnostic — run on the target machine to characterise VMM
+    # cost / TLB shootdown / kamepoolalloc throughput, and print a
+    # recommendation block.  NOT registered as a ctest (long-running,
+    # machine-specific output meant for human reading) — invoke directly:
+    #     ./alloc_tune_report [seconds-per-bench, default 2]
+    add_executable(alloc_tune_report alloc_tune_report.cpp)
+    target_link_libraries(alloc_tune_report kamepoolalloc Threads::Threads)
 endif()
 
 # --- CTest registration ---
