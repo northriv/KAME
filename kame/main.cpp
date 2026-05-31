@@ -29,6 +29,7 @@
 #include "kame.h"
 #include "icons/icon.h"
 #include "messagebox.h"
+#include "allocator.h"  // KamePooledAllocGuard (kame/allocator.h shim → kamepoolalloc/allocator.h).  Was pulled transitively via kamestm/transaction_signal.h before the kamestm-from-kamepoolalloc decoupling.
 #include <QFile>
 #include <QTextCodec>
 #include <QTranslator>
