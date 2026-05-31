@@ -109,22 +109,6 @@ ALLOC_TLS_IE bool s_alloc_tls_off = false;
 // spuriously match a chunk (chunks always carry a non-zero id).
 ALLOC_TLS_IE uint32_t s_tls_owner_id = 0;
 static std::atomic<uint32_t> s_owner_id_next{1};
-
-// (§28.2) Tier-attribution counters for kame_pool_get_stats — O(1) at
-// snapshot time (no extra walking).  Maintained by atomic inc/dec at the
-// matching allocate/free sites:
-//   - g_dedicated_bytes_live : §15 dedicated chunk bytes held by the
-//                              program (NOT cache-parked).
-//   - g_large_alloc_count    : §19/§27 large_va live alloc count.
-//   - g_large_alloc_bytes    : §19/§27 large_va live mmap_size sum.
-// Declared high in the file so every alloc / free site below them is in
-// scope.  Cache bytes use the already-existing `g_lrc_bytes` in the
-// anonymous namespace at the §28 cache section; that one is forward-
-// declared near kame_pool_get_stats.
-static std::atomic<std::size_t> g_dedicated_bytes_live{0};
-static std::atomic<std::size_t> g_large_alloc_count{0};
-static std::atomic<std::size_t> g_large_alloc_bytes{0};
-
 static inline uint32_t kame_owner_id() noexcept {
     uint32_t id = s_tls_owner_id;
     if(__builtin_expect(id == 0, 0)) {
@@ -133,6 +117,68 @@ static inline uint32_t kame_owner_id() noexcept {
         s_tls_owner_id = id;
     }
     return id;
+}
+
+// (§28.2 / §28.4) Tier-attribution counters for kame_pool_get_stats.
+//
+// SHARDED to avoid cache-line bouncing: a naïve single std::atomic<size_t>
+// per counter (the §28.2 layout) hits the same cache line from every
+// thread's allocate/free, which under MT caused ≈ 10x MT throughput
+// regression vs §26 in the chunk and large_va tiers (bucket tier was
+// unaffected since it doesn't touch these counters).  Switch to
+// LRC_STATS_SHARDS cache-line-aligned shards; each thread picks one via
+// `kame_owner_id()` and caches the pointer in IE-TLS, so the hot inc/dec
+// is one uncontended atomic.  kame_pool_get_stats sums all shards
+// (O(LRC_STATS_SHARDS), bounded, cheap).
+//
+// Cross-thread free is naturally handled: the FREE thread does the dec
+// against its own shard.  Individual shards may go transiently negative
+// (signed int64), but the sum across shards is correct.  Sum is clamped
+// non-negative for the unsigned public API field.
+#ifndef LRC_STATS_SHARDS
+#define LRC_STATS_SHARDS 64       // power of two; ≥ typical core count
+#endif
+static_assert((LRC_STATS_SHARDS & (LRC_STATS_SHARDS - 1)) == 0,
+              "LRC_STATS_SHARDS must be a power of two");
+
+struct alignas(KAME_CACHE_LINE) LrcStatsShard {
+    std::atomic<std::int64_t> dedicated_bytes;
+    std::atomic<std::int64_t> large_count;
+    std::atomic<std::int64_t> large_bytes;
+};
+static LrcStatsShard g_lrc_stats[LRC_STATS_SHARDS];
+
+// IE-TLS cached pointer to this thread's shard.  One-time init touches
+// kame_owner_id() (already IE-TLS-cached and globally serialised on first
+// use of the allocator) then never again.  Hot path: 1 IE-TLS load.
+ALLOC_TLS_IE LrcStatsShard *tls_lrc_stats_shard = nullptr;
+
+static inline LrcStatsShard *lrc_stats_my_shard() noexcept {
+    LrcStatsShard *s = tls_lrc_stats_shard;
+    if(__builtin_expect(s == nullptr, 0)) {
+        s = tls_lrc_stats_shard =
+            &g_lrc_stats[kame_owner_id() & (LRC_STATS_SHARDS - 1u)];
+    }
+    return s;
+}
+
+static inline void stats_inc_dedicated(std::size_t bytes) noexcept {
+    lrc_stats_my_shard()->dedicated_bytes.fetch_add(
+        (std::int64_t)bytes, std::memory_order_relaxed);
+}
+static inline void stats_dec_dedicated(std::size_t bytes) noexcept {
+    lrc_stats_my_shard()->dedicated_bytes.fetch_sub(
+        (std::int64_t)bytes, std::memory_order_relaxed);
+}
+static inline void stats_inc_large(std::size_t mmap_size) noexcept {
+    LrcStatsShard *s = lrc_stats_my_shard();
+    s->large_count.fetch_add(1, std::memory_order_relaxed);
+    s->large_bytes.fetch_add((std::int64_t)mmap_size, std::memory_order_relaxed);
+}
+static inline void stats_dec_large(std::size_t mmap_size) noexcept {
+    LrcStatsShard *s = lrc_stats_my_shard();
+    s->large_count.fetch_sub(1, std::memory_order_relaxed);
+    s->large_bytes.fetch_sub((std::int64_t)mmap_size, std::memory_order_relaxed);
 }
 
 #if KAME_FAST_TSD
@@ -2710,7 +2756,7 @@ PoolAllocatorBase::deallocate(void *p) {
 			// (§28.2) Leaving the "live in program" bucket — whether the
 			// chunk lands in the cache (recycle_push success) or is fully
 			// released (deallocate_chunk), the program no longer owns it.
-			g_dedicated_bytes_live.fetch_sub(bytes, std::memory_order_relaxed);
+			stats_dec_dedicated(bytes);
 			// (§22) Recycle into the per-thread cache, keeping the units
 			// CLAIMED and the chunk_header intact for warm reuse (no
 			// bitmap clear, no madvise here).  On overflow the cache
@@ -3007,7 +3053,7 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	// is ≥ this request — size_of stays truthful via that field.
 	if(char *cached = large_recycle_pop(chunk_size, LRC_CHUNK)) {
 		// (§28.2) Leaving the cache for the program.
-		g_dedicated_bytes_live.fetch_add(chunk_size, std::memory_order_relaxed);
+		stats_inc_dedicated(chunk_size);
 		return cached + ALLOC_CHUNK_K_MAX;
 	}
 	// Claim N units, tagging back_off with bit7 so deallocate / size_of
@@ -3030,7 +3076,7 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	    (std::uint64_t)chunk_size;
 	writeBarrier();
 	// (§28.2) Fresh-claim path: also entering the "live in program" bucket.
-	g_dedicated_bytes_live.fetch_add(chunk_size, std::memory_order_relaxed);
+	stats_inc_dedicated(chunk_size);
 	// (§15) Payload starts at the unit boundary = chunk_base + K_MAX, so
 	// `deallocate` resolves unit_idx = base_unit, back_off = 0, recovering
 	// chunk_base via `unit_boundary - K_MAX`.
@@ -4310,9 +4356,18 @@ extern "C" void kame_pool_get_stats(kame_pool_stats_t *out) noexcept {
     // allocate / free sites (see §28.2 above).
     std::int64_t cb = g_lrc_bytes.load(std::memory_order_relaxed);
     out->cache_bytes           = (cb < 0) ? 0u : (std::size_t)cb;
-    out->dedicated_chunk_bytes = g_dedicated_bytes_live.load(std::memory_order_relaxed);
-    out->large_alloc_count     = g_large_alloc_count.load(std::memory_order_relaxed);
-    out->large_alloc_bytes     = g_large_alloc_bytes.load(std::memory_order_relaxed);
+    // Sum across all shards.  Cross-thread free can leave individual shards
+    // transiently negative; the SUM is correct, then clamp non-negative for
+    // the unsigned public field.
+    std::int64_t ded = 0, lcnt = 0, lbyt = 0;
+    for(int s = 0; s < LRC_STATS_SHARDS; s++) {
+        ded  += g_lrc_stats[s].dedicated_bytes.load(std::memory_order_relaxed);
+        lcnt += g_lrc_stats[s].large_count   .load(std::memory_order_relaxed);
+        lbyt += g_lrc_stats[s].large_bytes   .load(std::memory_order_relaxed);
+    }
+    out->dedicated_chunk_bytes = (ded  < 0) ? 0u : (std::size_t)ded;
+    out->large_alloc_count     = (lcnt < 0) ? 0u : (std::size_t)lcnt;
+    out->large_alloc_bytes     = (lbyt < 0) ? 0u : (std::size_t)lbyt;
 }
 
 std::atomic<RadixL2Node *> PoolAllocatorBase::s_radix_l1[RADIX_L1_SIZE];
@@ -5299,8 +5354,7 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 	// On a recycled hit we've just transferred the block out of the cache
 	// (recycle_pop_fit already did `g_lrc_bytes -= sz`) so it correctly
 	// enters the "live in program" bucket here either way.
-	g_large_alloc_count.fetch_add(1, std::memory_order_relaxed);
-	g_large_alloc_bytes.fetch_add(mmap_size, std::memory_order_relaxed);
+	stats_inc_large(mmap_size);
 	return base + ALLOC_PAGE_SIZE;
 }
 
@@ -5312,8 +5366,7 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	std::size_t mmap_size = meta->mmap_size;
 	// (§28.2) Leaving the "live in program" bucket — whether we cache-park
 	// it or release outright, the program no longer holds this block.
-	g_large_alloc_count.fetch_sub(1, std::memory_order_relaxed);
-	g_large_alloc_bytes.fetch_sub(mmap_size, std::memory_order_relaxed);
+	stats_dec_large(mmap_size);
 	// Clear radix slot FIRST — any racing reader now sees absent and
 	// routes to libc free (and a double-free of this pointer lands in
 	// libc, not the cache); once cleared, the region is invisible to the
