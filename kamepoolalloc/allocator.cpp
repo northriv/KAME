@@ -4653,11 +4653,133 @@ inline void lrc_band(std::size_t s, unsigned kind, int &ilo, int &ihi) noexcept 
 	if(ihi > LRC_N) ihi = LRC_N;
 }
 
-// Reuse: scan the kind-clamped band upward, take with ONE weak CAS per slot
+// =====================================================================
+// (§26) Per-thread L1 in front of the §25 global log-slot cache.
+// =====================================================================
+// The §25 global cache is scalable and cliff-free but every op is an
+// atomic CAS on a SHARED slot; under MT contention on a narrow size band
+// (e.g. many threads ping-ponging 64 KiB → all hit the same low slots)
+// that serialises (x86 measured 64 KiB mt:4 at ~10 M/s).  An L1 in front
+// absorbs the common same-thread ping-pong with NO atomics.
+//
+// Shape (per the design directive):
+//   - Same log density as §25 (reuses lrc_idx / lrc_band) so an L1 slot
+//     and the global slot for a size share an index — no translation.
+//   - Covers ONLY the CHUNK tier [256 KiB, 4 MiB] (idx [0, BND]); the
+//     mmap tier (>4 MiB) is "cut" and always uses the global cache
+//     directly (few, large, contention-tolerant; one mmap block would
+//     also blow a small per-thread budget).
+//   - Worst-case per-thread cached bytes ≤ g_lrc_cap / hw_concurrency
+//     (a per-thread byte budget), so the AGGREGATE L1 RSS across all
+//     threads stays within the global cap — "TLS worst = global/hwconc".
+//   - push: first empty L1 band slot → L1.  Band full / over budget /
+//     mmap kind → fall through to the global push.
+//   - pop:  first fitting L1 band slot → L1 (no atomics).  Band empty →
+//     fall through to the global pop.
+//
+// TLS model (the §23 lesson): the L1 ARRAY is plain `__thread` (GD) —
+// 572 pointers, too big for the initial-exec surplus — but its per-thread
+// base address is taken ONCE and cached in an IE-TLS pointer, so the hot
+// path is one fs:offset read + index, NEVER `__tls_get_addr`.  A
+// `thread_local` sentinel drains the L1 to the global cache at thread
+// exit (push survivors / release on refusal).
+constexpr int LRC_L1_N = 572;   // BND + 1 — the whole CHUNK tier [0, BND]
+static_assert(LRC_L1_N == 571 + 1, "L1 covers chunk-tier slots [0, BND]");
+
+ALLOC_TLS char *tls_l1_array[LRC_L1_N];           // GD __thread; auto-reclaimed
+ALLOC_TLS_IE char **tls_l1 = nullptr;             // cached &tls_l1_array[0] (IE, no thunk)
+ALLOC_TLS_IE std::int64_t tls_l1_bytes  = 0;      // bytes currently in L1
+ALLOC_TLS_IE std::int64_t tls_l1_budget = 0;      // = g_lrc_cap / hw_conc (lazy)
+
+// hardware_concurrency, cached (the query is done once).  Uses
+// `sysconf(_SC_NPROCESSORS_ONLN)` (POSIX) / `GetSystemInfo` (Windows)
+// rather than `std::thread::hardware_concurrency` to avoid pulling
+// <thread> into this malloc-replacement TU.
+inline int lrc_hw_conc() noexcept {
+	static std::atomic<int> hc{0};
+	int n = hc.load(std::memory_order_relaxed);
+	if(__builtin_expect(n == 0, 0)) {
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+		SYSTEM_INFO si; GetSystemInfo(&si);
+		n = (int)si.dwNumberOfProcessors;
+#else
+		n = (int)sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+		if(n < 1) n = 1;
+		hc.store(n, std::memory_order_relaxed);
+	}
+	return n;
+}
+
+void l1_drain() noexcept;   // fwd (defined after recycle_push)
+// Drain sentinel — empty thread_local whose dtor flushes L1 to global at
+// thread exit.  Same split-storage pattern as §23: the DATA is IE-TLS,
+// this carries only the C++ destructor.
+struct L1Drain { void touch() noexcept {} ~L1Drain() noexcept { l1_drain(); } };
+thread_local L1Drain tls_l1_drain;
+
+// Materialise the L1 base (one-time per thread: cache the GD array address
+// into the IE-TLS pointer, set the byte budget, arm the drain dtor).
+inline char **l1_base() noexcept {
+	char **l1 = tls_l1;
+	if(__builtin_expect(l1 == nullptr, 0)) {
+		l1 = tls_l1 = &tls_l1_array[0];                 // one __tls_get_addr, then cached
+		tls_l1_budget = g_lrc_cap.load(std::memory_order_relaxed) / lrc_hw_conc();
+		tls_l1_drain.touch();                           // arm thread-exit drain
+	}
+	return l1;
+}
+
+// ---- L1 (per-thread, no atomics) ----
+// L1 only serves the CHUNK tier; mmap (kind != LRC_CHUNK) skips L1.
+inline bool l1_eligible(unsigned kind) noexcept {
+	return kind == (unsigned)LRC_CHUNK;
+}
+// Pop a fitting block from this thread's L1 band, or nullptr.  Single
+// owner ⇒ plain loads/stores, no CAS.  Same band as the global cache.
+inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
+	if( !l1_eligible(kind)) return nullptr;
+	char **l1 = l1_base();
+	int ilo, ihi; lrc_band(need, kind, ilo, ihi);
+	for(int s = ilo; s <= ihi; s++) {
+		char *b = l1[s];
+		if( !b) continue;
+		std::size_t sz = lrc_block_size(b, kind);   // single-owner read
+		if(sz >= need) {                            // VERIFY size (band approx)
+			l1[s] = nullptr;
+			tls_l1_bytes -= (std::int64_t)sz;
+			return b;
+		}
+		// too small for this need — leave it; a smaller request reuses it.
+	}
+	return nullptr;
+}
+// Cache a block in this thread's L1 band's first empty slot.  Returns
+// true if cached; false ⇒ caller falls through to the global push.
+// Refused when: mmap kind, over the per-thread budget, or band full.
+inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
+	if( !l1_eligible(kind)) return false;
+	char **l1 = l1_base();
+	if(tls_l1_bytes + (std::int64_t)size > tls_l1_budget)
+		return false;                               // per-thread budget → global
+	int ilo, ihi; lrc_band(size, kind, ilo, ihi);
+	for(int s = ilo; s <= ihi; s++) {
+		if( !l1[s]) {
+			l1[s] = base;
+			tls_l1_bytes += (std::int64_t)size;
+			return true;
+		}
+	}
+	return false;                                   // band full → global
+}
+
+// Reuse: try this thread's L1 band first (no atomics); on miss, scan the
+// global kind-clamped band upward, take with ONE weak CAS per slot
 // (spurious / taken → next slot, NO retry), then VERIFY the owned block's
 // real size ≥ need.  Too small → one put-back attempt, else release.  All
 // bounded ⇒ livelock-free.  Returns a kind-appropriate base or nullptr.
 inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
+	if(char *b = l1_pop_fit(need, kind)) return b;             // L1 hot path
 	int ilo, ihi; lrc_band(need, kind, ilo, ihi);
 	for(int s = ilo; s <= ihi; s++) {
 		char *b = g_lrc_slot[s].load(std::memory_order_acquire);
@@ -4675,10 +4797,12 @@ inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
 	}
 	return nullptr;
 }
-// Cache a freed block in the first empty slot of its kind-clamped band, ONE
-// weak CAS per slot.  Sloppy single-atomic byte cap.  Returns true if cached,
-// false ⇒ caller releases.  No retry loop ⇒ livelock-free.
+// Cache a freed block: try this thread's L1 first (no atomics); on refusal
+// fall to the global first-empty-slot push (ONE weak CAS per slot, sloppy
+// single-atomic byte cap).  Returns true if cached (L1 or global), false
+// ⇒ caller releases.  No retry loop ⇒ livelock-free.
 inline bool recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
+	if(l1_push(base, size, kind)) return true;                 // L1 hot path
 	if(g_lrc_bytes.load(std::memory_order_relaxed) + (std::int64_t)size
 	   > g_lrc_cap.load(std::memory_order_relaxed))
 		return false;                                              // over cap → caller releases
@@ -4691,6 +4815,36 @@ inline bool recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
 		}                                                          // weak: spurious / occupied → next slot
 	}
 	return false;                                                  // band full → caller releases
+}
+// Thread-exit drain: flush every L1 entry to the global cache (push;
+// release on refusal).  Touches only global state + per-block release —
+// no allocator TLS — so it is safe in any TLS destruction order.
+void l1_drain() noexcept {
+	char **l1 = tls_l1;
+	if( !l1) return;                                              // L1 never used on this thread
+	for(int s = 0; s < LRC_L1_N; s++) {
+		char *b = l1[s];
+		if( !b) continue;
+		l1[s] = nullptr;
+		std::size_t sz = lrc_block_size(b, (unsigned)LRC_CHUNK);
+		// Hand the block to the global cache; if it refuses (cap/band
+		// full), release it for real.
+		if(g_lrc_bytes.load(std::memory_order_relaxed) + (std::int64_t)sz
+		       <= g_lrc_cap.load(std::memory_order_relaxed)) {
+			int ilo, ihi; lrc_band(sz, (unsigned)LRC_CHUNK, ilo, ihi);
+			bool stored = false;
+			for(int g = ilo; g <= ihi; g++) {
+				char *exp = nullptr;
+				if(g_lrc_slot[g].compare_exchange_weak(exp, b, std::memory_order_acq_rel)) {
+					g_lrc_bytes.fetch_add((std::int64_t)sz, std::memory_order_relaxed);
+					stored = true; break;
+				}
+			}
+			if(stored) continue;
+		}
+		lrc_release(b, sz, (unsigned)LRC_CHUNK);
+	}
+	tls_l1_bytes = 0;
 }
 // (§22) Definitions of the forward-declared helpers used by the earlier
 // §15 dedicated-chunk paths (allocate_dedicated_chunk / deallocate).
