@@ -4630,151 +4630,166 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 #endif
 }
 
-// (§25) Global log-indexed lock-free recycle cache — replaces the §22/§23
-// per-thread LIFO (IE-TLS) cache for BOTH large tiers.  ONE atomic slot per
-// log-spaced size index over [ALLOC_MIN_CHUNK_SIZE (256 KiB),
-// ALLOC_MIN_MMAP_SIZE (32 MiB)].  A freed block is cached in the first empty
-// slot of its symmetric ±10 % size band; reuse scans the band upward, takes
-// with ONE weak CAS per slot (spurious / occupied → next slot, NEVER a
-// retry loop), then VERIFIES the OWNED block's real size ≥ need (lrint may
-// co-locate a slightly-too-small block).  Bounded band scan + one CAS/slot
-// + deterministic miss → fresh path  ⇒  no spin  ⇒  LIVELOCK-FREE under any
-// contention (128-thread narrow-band stress completes; see proto).  Bounded
-// by a single sloppy byte cap (default ≈1 GiB, tunable via g_lrc_cap).
+// =====================================================================
+// (§28) K-line log-slot large-recycle cache.  Supersedes the §25/§26
+//       single-slot-per-band + ±10% band-scan layout.
+// =====================================================================
+// Layout: K_MAX independent K-arrays, each cache-line-aligned at the start.
+// Within one array, all (N_MAX+1) idx slots are contiguous, indexed by idx.
 //
-// Why GLOBAL (no TLS): kills the §23 `__tls_get_addr` cost ENTIRELY (no TLS
-// at all, not merely IE-TLS) AND removes the per-thread LIFO's working-set
-// cliff — the cache holds cap-many blocks across ALL threads, not 8 per
-// thread, so fifo / rotating working sets stay 100 % hit.  weak CAS (not
-// strong) keeps each slot op a single LL/SC attempt on ARM (no inner
-// retry); x86 cmpxchg is unaffected.  No per-thread state ⇒ no thread-exit
-// drain (cached blocks persist globally, released on reuse / cap / exit).
+//     g_lrc[k].slots[idx]   //  k ∈ [0, LRC_K_MAX), idx ∈ [0, LRC_N_MAX]
+//                           //  alignas(CACHE_LINE) on each LrcKArray.
 //
-// kind (CHUNK ≤4 MiB vs MMAP >4 MiB) is implied by the slot range: bands are
-// CLAMPED at the chunk/mmap boundary slot, so a chunk pop never sees an mmap
-// block and vice-versa.  The caller's `kind` therefore identifies a taken
-// block; its real size is read from the kind's meta (own-then-read after the
-// CAS-take — NOT a peek ⇒ no use-after-free).  See LARGE_RECYCLE_DESIGN.md.
+// Threads collide on the SAME (k, idx) pair only — never just from sharing a
+// cache line via different k (different k-arrays start on different lines).
+// push/pop walk K starting from `kame_owner_id() & (K-1)` so different
+// threads probe DIFFERENT k first.
+//
+// 1:1 size-class rounding (NO band scan): a size maps to exactly one idx via
+// `lrc_idx_natural`, then kind-clamped to `[0, LRC_CHUNK_BND]` for LRC_CHUNK
+// and `(LRC_CHUNK_BND, LRC_N_MAX]` for LRC_MMAP, so the two tiers never
+// share a slot — kind on pop is implied by idx alone.  The runtime
+// `sz >= need` check absorbs the slight floor-rounding within a band.
+//
+// Indexing: 4 indices per octave starting at LRC_LO (= 256 KiB).
+//   idx i ↔ nominal size 2^(i/4) × LRC_LO.
+//   With LRC_N_MAX = 32, LRC_HI = LRC_LO × 2^8 = 64 MiB.
+//   The chunk/mmap boundary is lrc_idx_natural(4 MiB) = LRC_CHUNK_BND = 16.
+//
+// Tunables (compile-time defaults; override via -D…):
+//   LRC_N_MAX     = 32   ⇒ LRC_HI = 64 MiB (top size class).
+//   LRC_K_MAX     = 256  ⇒ K slots per (idx, kind), must be a power of two.
+//   LRC_N_MAX_L1  = 24   ⇒ per-thread L1 idx ceiling (≈ 16 MiB).
+//   LRC_K_L1      = 32   ⇒ K slots per (idx, kind) in L1, power of two.
+// Static memory: global ≈ 80 KiB (64-B cache lines) / 96 KiB (128-B lines);
+// L1 ≈ 6.4 KiB / thread.  Caps above 64 MiB / per-thread > 16 MiB need a
+// rebuild with larger LRC_*_MAX.
+//
+// Block kinds (same as before):
 //   - LRC_MMAP : region stays mapped, radix CLEARED on push (double-free
 //                routes to libc), re-registered on reuse.  Release = munmap.
 //   - LRC_CHUNK: units stay CLAIMED + chunk_header intact on push, payload
 //                returned directly on reuse.  Release = deallocate_chunk.
-constexpr std::size_t LRC_LO = (std::size_t)ALLOC_MIN_CHUNK_SIZE;   // 256 KiB
-constexpr std::size_t LRC_HI = (std::size_t)ALLOC_MIN_MMAP_SIZE;    // 32 MiB
-constexpr int         LRC_N  = 1000;                               // log-index slots
-std::atomic<char *>       g_lrc_slot[LRC_N + 1];
-std::atomic<std::int64_t> g_lrc_bytes{0};
-std::atomic<std::int64_t> g_lrc_cap{1LL << 30};                    // ~1 GiB default; tunable
 
-// idx ≈ N·log2(S/LO)/log2(HI/LO), integer-only (NO libm — avoids std::log's
-// ~9 ns/op on the path).  MSB position + 8-bit linear mantissa interp; the
-// resulting ≤~12-slot approximation error is absorbed by the ±10 % band AND
-// the pop-time size verify, so a rough log2 is exact enough for bucketing.
-// log2(LO)=18, log2(HI)=25 (diff = 7 octaves).
-inline int lrc_idx(std::size_t S) noexcept {
-	if(S <= LRC_LO) return 0;
-	if(S >= LRC_HI) return LRC_N;
-	int msb = 63 - __builtin_clzll((unsigned long long)S);      // floor(log2 S); S≥256 KiB ⇒ msb≥18
-	int log2_256 = msb * 256 + (int)(((unsigned long long)S >> (msb - 8)) & 0xFFu);  // (log2 S)·256
-	long i = (long)LRC_N * (log2_256 - 18 * 256) / (7 * 256);
-	if(i < 0) i = 0;
-	if(i > LRC_N) i = LRC_N;
-	return (int)i;
+#ifndef LRC_N_MAX
+#define LRC_N_MAX 32
+#endif
+#ifndef LRC_K_MAX
+#define LRC_K_MAX 256
+#endif
+#ifndef LRC_N_MAX_L1
+#define LRC_N_MAX_L1 24
+#endif
+#ifndef LRC_K_L1
+#define LRC_K_L1 32
+#endif
+
+static_assert(LRC_N_MAX % 4 == 0,
+              "LRC_N_MAX must be a multiple of 4 (4 indices per octave)");
+static_assert((LRC_K_MAX & (LRC_K_MAX - 1)) == 0,
+              "LRC_K_MAX must be a power of two");
+static_assert((LRC_K_L1 & (LRC_K_L1 - 1)) == 0,
+              "LRC_K_L1 must be a power of two");
+static_assert(LRC_N_MAX_L1 <= LRC_N_MAX,
+              "L1 idx ceiling cannot exceed global");
+
+constexpr int    LRC_LO_LOG2 = 18;                                    // log2(256 KiB)
+constexpr std::size_t LRC_LO = (std::size_t)1 << LRC_LO_LOG2;         // = ALLOC_MIN_CHUNK_SIZE
+static_assert(LRC_LO == (std::size_t)ALLOC_MIN_CHUNK_SIZE,
+              "LRC_LO must equal ALLOC_MIN_CHUNK_SIZE");
+constexpr std::size_t LRC_HI = LRC_LO << (LRC_N_MAX / 4);              // 64 MiB at LRC_N_MAX=32
+// Chunk/mmap boundary in idx space.  lrc_idx_natural(ALLOC_MAX_CHUNK_SIZE).
+constexpr int LRC_CHUNK_BND = 4 * (22 - LRC_LO_LOG2);                  // = 16 (log2(4 MiB)=22)
+static_assert((std::size_t)1 << (LRC_LO_LOG2 + LRC_CHUNK_BND / 4)
+              == (std::size_t)ALLOC_MAX_CHUNK_SIZE,
+              "LRC_CHUNK_BND must equal lrc_idx_natural(ALLOC_MAX_CHUNK_SIZE)");
+
+// Global L2: K_MAX independent K-arrays, each cache-line-aligned at start.
+struct alignas(KAME_CACHE_LINE) LrcKArray {
+    std::atomic<char *> slots[LRC_N_MAX + 1];
+};
+LrcKArray g_lrc[LRC_K_MAX];
+
+std::atomic<std::int64_t> g_lrc_bytes{0};
+std::atomic<std::int64_t> g_lrc_cap{1LL << 30};                       // ~1 GiB default
+
+// idx = 4 * octave + 2-bit_mantissa, integer-only (no libm).
+// Sizes [LRC_LO, LRC_HI) map to [0, LRC_N_MAX); LRC_HI and above clamp to LRC_N_MAX.
+inline int lrc_idx_natural(std::size_t S) noexcept {
+    if(S <= LRC_LO) return 0;
+    if(S >= LRC_HI) return LRC_N_MAX;
+    int msb = 63 - __builtin_clzll((unsigned long long)S);             // floor(log2 S)
+    int octave = msb - LRC_LO_LOG2;                                    // ≥ 0
+    int mantissa = (int)(((unsigned long long)S >> (msb - 2)) & 0x3u); // top 2 bits below MSB
+    int i = 4 * octave + mantissa;
+    if(i < 0) i = 0;
+    if(i > LRC_N_MAX) i = LRC_N_MAX;
+    return i;
+}
+// Kind-clamped idx: LRC_CHUNK fits in [0, LRC_CHUNK_BND]; LRC_MMAP in (LRC_CHUNK_BND, LRC_N_MAX].
+// Guarantees a slot only ever holds one kind, so pop derives the meta layout
+// from idx alone (`lrc_kind_from_idx`).
+inline int lrc_idx(std::size_t S, unsigned kind) noexcept {
+    int i = lrc_idx_natural(S);
+    if(kind == (unsigned)LRC_CHUNK) { if(i > LRC_CHUNK_BND)     i = LRC_CHUNK_BND;     }
+    else                            { if(i <= LRC_CHUNK_BND)    i = LRC_CHUNK_BND + 1; }
+    return i;
+}
+// Kind implied by idx (for evict / drain — caller-passed kind absent).
+inline unsigned lrc_kind_from_idx(int i) noexcept {
+    return (i <= LRC_CHUNK_BND) ? (unsigned)LRC_CHUNK : (unsigned)LRC_MMAP;
 }
 // Real size of a cached block, read from its kind's meta.  Caller OWNS the
 // block (taken via CAS) — this is own-then-read, NOT a peek, so it cannot
 // race a concurrent release/munmap.
 inline std::size_t lrc_block_size(char *base, unsigned kind) noexcept {
-	if(kind == (unsigned)LRC_CHUNK)
-		return *reinterpret_cast<std::uint64_t *>(base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
-	return PoolAllocatorBase::large_alloc_meta_of(base)->mmap_size;
+    if(kind == (unsigned)LRC_CHUNK)
+        return *reinterpret_cast<std::uint64_t *>(base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+    return PoolAllocatorBase::large_alloc_meta_of(base)->mmap_size;
 }
 // Release a block per its kind (both touch only global state — bitmap+madvise
 // for CHUNK, munmap for MMAP — never any allocator TLS).
 inline void lrc_release(char *base, std::size_t size, unsigned kind) noexcept {
-	if(kind == (unsigned)LRC_CHUNK) PoolAllocatorBase::recycle_release_chunk(base, size);
-	else                            large_va_raw_unmap(base, size);
+    if(kind == (unsigned)LRC_CHUNK) PoolAllocatorBase::recycle_release_chunk(base, size);
+    else                            large_va_raw_unmap(base, size);
 }
-// Symmetric ±10 % band [s/1.1, s*1.1] in slot space, CLAMPED to this kind's
-// range so chunk (≤ boundary) and mmap (> boundary) slots never overlap.
-// (§26) Approximate ±10 % band width in slots — used ONLY by the L1
-// index-cut heuristic below (`per_thread / LRC_BAND_SLOTS`), not by the
-// runtime band, which §25.1 derives from `lrc_idx` directly.  A loose
-// constant is fine: the cut is a sloppy per-thread bound (plan B).
-constexpr int LRC_BAND_SLOTS = 41;   // ≈ 2·round(N·log2(1.1)/log2(128)) + 1
-// Band [≈0.9·s, ≈1.1·s] with its ENDS computed by the SAME integer lrc_idx()
-// used everywhere else — so the band width tracks the log2 idx's own
-// rounding/approximation instead of a separate DELTA derived from EXACT
-// log2 (which would disagree with the approximate idx by up to ~12 slots).
-// Three cheap integer idx calls (no libm).  Clamped to this kind's slot
-// range (chunk ≤ boundary, mmap > boundary) so the tiers never overlap.
-inline void lrc_band(std::size_t s, unsigned kind, int &ilo, int &ihi) noexcept {
-	const int bnd = lrc_idx((std::size_t)ALLOC_MAX_CHUNK_SIZE);     // chunk/mmap boundary slot
-	ilo = lrc_idx(s - s / 10);                                     // idx(≈0.9·s) — ±10 % via integer s/10
-	ihi = lrc_idx(s + s / 10);                                     // idx(≈1.1·s)
-	if(kind == (unsigned)LRC_CHUNK) { if(ihi > bnd) ihi = bnd; }            // chunk slots [0, bnd]
-	else                            { if(ilo < bnd + 1) ilo = bnd + 1; }    // mmap slots (bnd, N]
-	if(ilo < 0) ilo = 0;
-	if(ihi > LRC_N) ihi = LRC_N;
+// kstart: thread-unique starting K offset for push/pop loops.  Reuses
+// `kame_owner_id()` (already IE-TLS-cached, allocated on first allocator use
+// from a global atomic counter — see top of file) so this introduces no new
+// global state or TLS variable.
+inline int lrc_kstart_g() noexcept {
+    return (int)(kame_owner_id() & (LRC_K_MAX - 1));
+}
+inline int lrc_kstart_l1() noexcept {
+    return (int)(kame_owner_id() & (LRC_K_L1 - 1));
 }
 
 // =====================================================================
-// (§26) Per-thread L1 in front of the §25 global log-slot cache.
+// Per-thread L1 in front of the global L2 cache (§28).
 // =====================================================================
-// The §25 global cache is scalable and cliff-free but every op is an
-// atomic CAS on a SHARED slot; under MT contention on a narrow size band
-// (e.g. many threads ping-ponging 64 KiB → all hit the same low slots)
-// that serialises (x86 measured 64 KiB mt:4 at ~10 M/s).  An L1 in front
-// absorbs the common same-thread ping-pong with NO atomics.
+// Same K-major shape as the global cache, but in TLS.  Per-thread: no
+// atomics, no false-sharing concern, but the structure is symmetric for
+// readability.  Both LRC_CHUNK and LRC_MMAP enter L1 as long as their idx is
+// ≤ `tls_l1_max_idx` (the per-thread byte-budget cut, set at thread arm).
 //
-// Shape (per the design directive):
-//   - Same log density as §25 (reuses lrc_idx / lrc_band) so an L1 slot
-//     and the global slot for a size share an index — no translation.
-//   - Covers ONLY the CHUNK tier [256 KiB, 4 MiB] (idx [0, BND]); the
-//     mmap tier (>4 MiB) is "cut" and always uses the global cache
-//     directly (few, large, contention-tolerant; one mmap block would
-//     also blow a small per-thread budget).
-//   - Worst-case per-thread cached bytes ≤ g_lrc_cap / hw_concurrency
-//     (a per-thread byte budget), so the AGGREGATE L1 RSS across all
-//     threads stays within the global cap — "TLS worst = global/hwconc".
-//   - push: first empty L1 band slot → L1.  Band full / over budget /
-//     mmap kind → fall through to the global push.
-//   - pop:  first fitting L1 band slot → L1 (no atomics).  Band empty →
-//     fall through to the global pop.
-//
-// TLS model (the §23 lesson): the L1 ARRAY is plain `__thread` (GD) —
-// 572 pointers, too big for the initial-exec surplus — but its per-thread
-// base address is taken ONCE and cached in an IE-TLS pointer, so the hot
-// path is one fs:offset read + index, NEVER `__tls_get_addr`.  A
-// `thread_local` sentinel drains the L1 to the global cache at thread
-// exit (push survivors / release on refusal).
-constexpr int LRC_L1_N = 572;   // BND + 1 — the whole CHUNK tier [0, BND]
-static_assert(LRC_L1_N == 571 + 1, "L1 covers chunk-tier slots [0, BND]");
+// TLS model (§23 lesson preserved): the L1 ARRAY is plain `__thread` (GD)
+// because it is too big for the initial-exec surplus.  Its per-thread base
+// is taken once and cached in an IE-TLS pointer — hot-path access is one
+// `fs:offset` read, never `__tls_get_addr`.
 
-ALLOC_TLS char *tls_l1_array[LRC_L1_N];           // GD __thread; auto-reclaimed
-ALLOC_TLS_IE char **tls_l1 = nullptr;             // cached &tls_l1_array[0] (IE, no thunk)
-ALLOC_TLS_IE int  tls_l1_max_idx = -1;            // highest L1-cached index (lazy; -1 = unset)
+struct L1KArray {
+    char *slots[LRC_N_MAX_L1 + 1];     // 25 char* = 200 B (no alignas — TLS)
+};
+ALLOC_TLS    L1KArray  tls_l1_array[LRC_K_L1];   // 32 × 200 = 6.4 KiB / thread, GD
+ALLOC_TLS_IE L1KArray *tls_l1         = nullptr; // cached &tls_l1_array[0] (IE)
+ALLOC_TLS_IE int       tls_l1_max_idx = -1;      // per-thread idx ceiling (set lazily)
 
-// (§26) "TLS worst = global / concurrency" WITHOUT per-byte accounting.
-// The log cache's per-thread footprint is bounded purely by HOW HIGH an
-// index L1 caches: a single size occupies at most one ±DELTA band
-// (≤ 2·DELTA+1 slots), so the worst-case L1 bytes for the largest cached
-// size S is ≈ (2·DELTA+1)·S.  Capping the top index at `tls_l1_max_idx`
-// = lrc_idx( (cap / concurrency) / (2·DELTA+1) ) bounds that to ≈
-// cap/concurrency per thread — no running byte counter, just one
-// `lrc_idx(size) <= tls_l1_max_idx` compare on the push path.  Sizes above
-// the cut ("large") skip L1 and use the global L2 directly.
-//
-// `concurrency` is the count of threads that have actually armed an L1 —
-// a portable atomic, NO platform CPU-count API (sysconf / GetSystemInfo /
-// sysctl all differ across Linux/macOS/Windows; this avoids the lot and
-// also tracks REAL concurrency, not core count).  Sloppy by design: a
-// thread keeps the cut it computed when it armed; the global L2 cap is
-// the hard ceiling (plan B — the L1+L2 total is a small multiple of
-// g_lrc_cap, documented in LARGE_RECYCLE_DESIGN.md).
+// Live count of threads that have armed an L1.  Sloppy by design — each
+// thread keeps the cut it computed at arm time; the global L2 cap is the
+// hard ceiling (plan B).  Decremented at thread exit by `l1_drain`.
 std::atomic<int> g_lrc_l1_threads{0};
 
-void l1_drain() noexcept;   // fwd (defined after recycle_push)
+void l1_drain() noexcept;   // fwd (defined after global_push)
 // Drain sentinel — empty thread_local whose dtor flushes L1 to global at
 // thread exit AND decrements the armed-thread count.  Split-storage (§23):
 // the DATA is IE-TLS; this carries only the C++ destructor.
@@ -4783,140 +4798,148 @@ thread_local L1Drain tls_l1_drain;
 
 // Materialise the L1 base (one-time per thread: cache the GD array address
 // into the IE-TLS pointer, compute the per-thread index cut, arm drain).
-inline char **l1_base() noexcept {
-	char **l1 = tls_l1;
-	if(__builtin_expect(l1 == nullptr, 0)) {
-		l1 = tls_l1 = &tls_l1_array[0];                 // one __tls_get_addr, then cached
-		int n = g_lrc_l1_threads.fetch_add(1, std::memory_order_relaxed) + 1;
-		std::int64_t per_thread = g_lrc_cap.load(std::memory_order_relaxed) / n;
-		std::size_t cut_size = (std::size_t)(per_thread / LRC_BAND_SLOTS);
-		tls_l1_max_idx = lrc_idx(cut_size);             // ≤ this index → L1; above → global
-		tls_l1_drain.touch();                           // arm thread-exit drain
-	}
-	return l1;
+//
+// Cut derivation:
+//   per_thread     = g_lrc_cap / live_threads
+//   cut_size       = per_thread / LRC_K_L1   // K slots per idx; geom-sum dominated by top
+//   tls_l1_max_idx = min(lrc_idx_natural(cut_size), LRC_N_MAX_L1)
+// This bounds each thread's L1 RSS to ≈ per_thread, so the aggregate stays
+// inside g_lrc_cap.  Kind-agnostic — both LRC_CHUNK and LRC_MMAP fight for
+// the same idx budget.
+inline L1KArray *l1_base() noexcept {
+    L1KArray *l1 = tls_l1;
+    if(__builtin_expect(l1 == nullptr, 0)) {
+        l1 = tls_l1 = &tls_l1_array[0];
+        int n = g_lrc_l1_threads.fetch_add(1, std::memory_order_relaxed) + 1;
+        std::int64_t per_thread = g_lrc_cap.load(std::memory_order_relaxed) / n;
+        std::size_t cut_size = (std::size_t)(per_thread / LRC_K_L1);
+        int cut_idx = lrc_idx_natural(cut_size);
+        if(cut_idx > LRC_N_MAX_L1) cut_idx = LRC_N_MAX_L1;
+        tls_l1_max_idx = cut_idx;
+        tls_l1_drain.touch();                                          // arm thread-exit drain
+    }
+    return l1;
 }
 
 // ---- L1 (per-thread, no atomics) ----
-// L1 only serves the CHUNK tier; mmap (kind != LRC_CHUNK) skips L1.
-inline bool l1_eligible(unsigned kind) noexcept {
-	return kind == (unsigned)LRC_CHUNK;
-}
-// Pop a fitting block from this thread's L1 band, or nullptr.  Single
-// owner ⇒ plain loads/stores, no CAS, no byte accounting.  Same band as
-// the global cache.
+// Pop a fitting block from this thread's L1 at (kstart…kstart+K), or
+// nullptr.  Single owner ⇒ plain loads/stores, no CAS.
 inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
-	if( !l1_eligible(kind)) return nullptr;
-	char **l1 = l1_base();
-	int ilo, ihi; lrc_band(need, kind, ilo, ihi);
-	for(int s = ilo; s <= ihi; s++) {
-		char *b = l1[s];
-		if( !b) continue;
-		std::size_t sz = lrc_block_size(b, kind);   // single-owner read
-		if(sz >= need) {                            // VERIFY size (band approx)
-			l1[s] = nullptr;
-			return b;
-		}
-		// too small for this need — leave it; a smaller request reuses it.
-	}
-	return nullptr;
+    L1KArray *l1 = l1_base();
+    int idx = lrc_idx(need, kind);
+    if(idx > tls_l1_max_idx) return nullptr;
+    int kstart = lrc_kstart_l1();
+    for(int kk = 0; kk < LRC_K_L1; kk++) {
+        int k = (kstart + kk) & (LRC_K_L1 - 1);
+        char *b = l1[k].slots[idx];
+        if( !b) continue;
+        std::size_t sz = lrc_block_size(b, kind);
+        if(sz >= need) {                                               // VERIFY size (band approx)
+            l1[k].slots[idx] = nullptr;
+            return b;
+        }
+        // too small for this need — leave it; a smaller request reuses it.
+    }
+    return nullptr;
 }
-// Cache a block in this thread's L1 band's first empty slot.  Returns
-// true if cached; false ⇒ caller falls through to the global push.
-// Refused when: mmap kind, the size is above this thread's index cut
-// (§26 — "TLS worst = global/concurrency" via the index, no byte count),
-// or the band is full.
+// Cache a block in this thread's L1 at the first empty (k, idx) starting
+// from kstart.  Refused when idx > cut (→ global) or all K slots occupied
+// (→ global).
 inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
-	if( !l1_eligible(kind)) return false;
-	char **l1 = l1_base();
-	if(lrc_idx(size) > tls_l1_max_idx)
-		return false;                               // above the index cut → global
-	int ilo, ihi; lrc_band(size, kind, ilo, ihi);
-	for(int s = ilo; s <= ihi; s++) {
-		if( !l1[s]) {
-			l1[s] = base;
-			return true;
-		}
-	}
-	return false;                                   // band full → global
+    L1KArray *l1 = l1_base();
+    int idx = lrc_idx(size, kind);
+    if(idx > tls_l1_max_idx) return false;
+    int kstart = lrc_kstart_l1();
+    for(int kk = 0; kk < LRC_K_L1; kk++) {
+        int k = (kstart + kk) & (LRC_K_L1 - 1);
+        if( !l1[k].slots[idx]) {
+            l1[k].slots[idx] = base;
+            return true;
+        }
+    }
+    return false;
 }
 
-// Reuse: try this thread's L1 band first (no atomics); on miss, scan the
-// global kind-clamped band upward, take with ONE weak CAS per slot
-// (spurious / taken → next slot, NO retry), then VERIFY the owned block's
-// real size ≥ need.  Too small → one put-back attempt, else release.  All
-// bounded ⇒ livelock-free.  Returns a kind-appropriate base or nullptr.
+// ---- Global L2 (shared, lock-free) ----
+// Push to the global cache only (no L1 step).  Used both by `recycle_push`'s
+// L1-miss path and by `l1_drain` to flush survivors at thread exit.
+inline bool global_push(char *base, std::size_t size, unsigned kind) noexcept {
+    if(g_lrc_bytes.load(std::memory_order_relaxed) + (std::int64_t)size
+       > g_lrc_cap.load(std::memory_order_relaxed))
+        return false;                                                  // over cap → caller releases
+    int idx = lrc_idx(size, kind);
+    int kstart = lrc_kstart_g();
+    for(int kk = 0; kk < LRC_K_MAX; kk++) {
+        int k = (kstart + kk) & (LRC_K_MAX - 1);
+        char *expected = nullptr;
+        if(g_lrc[k].slots[idx].compare_exchange_weak(
+               expected, base, std::memory_order_acq_rel)) {
+            g_lrc_bytes.fetch_add((std::int64_t)size, std::memory_order_relaxed);
+            return true;
+        }
+        // weak: spurious / occupied → next k
+    }
+    return false;                                                      // all K full → caller releases
+}
+// Pop a fitting block from the global cache, weak-CAS each slot (own-then-
+// read-size) until a fit; livelock-free (bounded K iterations, no inner retry).
+inline char *global_pop_fit(std::size_t need, unsigned kind) noexcept {
+    int idx = lrc_idx(need, kind);
+    int kstart = lrc_kstart_g();
+    for(int kk = 0; kk < LRC_K_MAX; kk++) {
+        int k = (kstart + kk) & (LRC_K_MAX - 1);
+        char *b = g_lrc[k].slots[idx].load(std::memory_order_acquire);
+        if( !b) continue;
+        if( !g_lrc[k].slots[idx].compare_exchange_weak(
+                 b, nullptr, std::memory_order_acq_rel))
+            continue;                                                  // weak: spurious / taken → next k
+        std::size_t sz = lrc_block_size(b, kind);                      // own it now → safe meta read
+        g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
+        if(sz >= need) return b;                                       // VERIFY size
+        // too small (sub-band rounding): one put-back, else release
+        char *exp = nullptr;
+        if(g_lrc[k].slots[idx].compare_exchange_weak(
+               exp, b, std::memory_order_acq_rel))
+            g_lrc_bytes.fetch_add((std::int64_t)sz, std::memory_order_relaxed);
+        else
+            lrc_release(b, sz, kind);
+    }
+    return nullptr;
+}
+
+// Public entry points: L1 first, then global.
 inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
-	if(char *b = l1_pop_fit(need, kind)) return b;             // L1 hot path
-	int ilo, ihi; lrc_band(need, kind, ilo, ihi);
-	for(int s = ilo; s <= ihi; s++) {
-		char *b = g_lrc_slot[s].load(std::memory_order_acquire);
-		if( !b) continue;
-		if( !g_lrc_slot[s].compare_exchange_weak(b, nullptr, std::memory_order_acq_rel))
-			continue;                                              // weak: spurious / taken → next slot
-		std::size_t sz = lrc_block_size(b, kind);                  // own it now → safe meta read
-		g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
-		if(sz >= need) return b;                                   // VERIFY size
-		char *exp = nullptr;                                       // too small: one put-back, else release
-		if(g_lrc_slot[s].compare_exchange_weak(exp, b, std::memory_order_acq_rel))
-			g_lrc_bytes.fetch_add((std::int64_t)sz, std::memory_order_relaxed);
-		else
-			lrc_release(b, sz, kind);
-	}
-	return nullptr;
+    if(char *b = l1_pop_fit(need, kind)) return b;
+    return global_pop_fit(need, kind);
 }
-// Cache a freed block: try this thread's L1 first (no atomics); on refusal
-// fall to the global first-empty-slot push (ONE weak CAS per slot, sloppy
-// single-atomic byte cap).  Returns true if cached (L1 or global), false
-// ⇒ caller releases.  No retry loop ⇒ livelock-free.
 inline bool recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
-	if(l1_push(base, size, kind)) return true;                 // L1 hot path
-	if(g_lrc_bytes.load(std::memory_order_relaxed) + (std::int64_t)size
-	   > g_lrc_cap.load(std::memory_order_relaxed))
-		return false;                                              // over cap → caller releases
-	int ilo, ihi; lrc_band(size, kind, ilo, ihi);
-	for(int s = ilo; s <= ihi; s++) {
-		char *expected = nullptr;
-		if(g_lrc_slot[s].compare_exchange_weak(expected, base, std::memory_order_acq_rel)) {
-			g_lrc_bytes.fetch_add((std::int64_t)size, std::memory_order_relaxed);
-			return true;
-		}                                                          // weak: spurious / occupied → next slot
-	}
-	return false;                                                  // band full → caller releases
+    if(l1_push(base, size, kind)) return true;
+    return global_push(base, size, kind);
 }
+
 // Thread-exit drain: flush every L1 entry to the global cache (push;
 // release on refusal).  Touches only global state + per-block release —
 // no allocator TLS — so it is safe in any TLS destruction order.
 void l1_drain() noexcept {
-	char **l1 = tls_l1;
-	if( !l1) return;                                              // L1 never used on this thread
-	for(int s = 0; s < LRC_L1_N; s++) {
-		char *b = l1[s];
-		if( !b) continue;
-		l1[s] = nullptr;
-		std::size_t sz = lrc_block_size(b, (unsigned)LRC_CHUNK);
-		// Hand the block to the global cache; if it refuses (cap/band
-		// full), release it for real.
-		if(g_lrc_bytes.load(std::memory_order_relaxed) + (std::int64_t)sz
-		       <= g_lrc_cap.load(std::memory_order_relaxed)) {
-			int ilo, ihi; lrc_band(sz, (unsigned)LRC_CHUNK, ilo, ihi);
-			bool stored = false;
-			for(int g = ilo; g <= ihi; g++) {
-				char *exp = nullptr;
-				if(g_lrc_slot[g].compare_exchange_weak(exp, b, std::memory_order_acq_rel)) {
-					g_lrc_bytes.fetch_add((std::int64_t)sz, std::memory_order_relaxed);
-					stored = true; break;
-				}
-			}
-			if(stored) continue;
-		}
-		lrc_release(b, sz, (unsigned)LRC_CHUNK);
-	}
-	// Decrement the armed-thread count so it tracks LIVE concurrency, not
-	// cumulative spawns — otherwise a long-running process that churns
-	// short-lived threads would drive the count (and every new thread's
-	// cut) toward zero.  Sloppy (a thread keeps the cut it computed at arm
-	// time); the global L2 cap is the hard ceiling (plan B).
-	g_lrc_l1_threads.fetch_sub(1, std::memory_order_relaxed);
+    L1KArray *l1 = tls_l1;
+    if( !l1) return;                                                   // L1 never used on this thread
+    for(int k = 0; k < LRC_K_L1; k++) {
+        for(int idx = 0; idx <= LRC_N_MAX_L1; idx++) {
+            char *b = l1[k].slots[idx];
+            if( !b) continue;
+            l1[k].slots[idx] = nullptr;
+            unsigned kind = lrc_kind_from_idx(idx);
+            std::size_t sz = lrc_block_size(b, kind);
+            if( !global_push(b, sz, kind))
+                lrc_release(b, sz, kind);
+        }
+    }
+    // Track LIVE concurrency, not cumulative spawns — otherwise a long-
+    // running process that churns short-lived threads would drive the
+    // count (and every new thread's cut) toward zero.  Sloppy (a thread
+    // keeps the cut it computed at arm time); the global L2 cap is the
+    // hard ceiling (plan B).
+    g_lrc_l1_threads.fetch_sub(1, std::memory_order_relaxed);
 }
 // (§22) Definitions of the forward-declared helpers used by the earlier
 // §15 dedicated-chunk paths (allocate_dedicated_chunk / deallocate).
@@ -4928,14 +4951,37 @@ bool large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
 }
 } // namespace
 
-// (§26) Large-recycle cache RSS cap API.  `total_bytes` is the cache's
+// (§26 / §28) Large-recycle cache RSS cap API.  `total_bytes` is the cache's
 // target total resident footprint; we store HALF in g_lrc_cap because the
 // cache's resident bytes ≈ 2·g_lrc_cap (global L2 ≤ g_lrc_cap AND the
 // aggregate per-thread L1 ≈ g_lrc_cap, since each thread's L1 cut derives
 // from g_lrc_cap/concurrency).  So g_lrc_cap = total/2 ⇒ L1+L2 ≈ total.
-// One atomic store; the log index domain (LO..HI) is untouched.
+//
+// (§28) After lowering the cap, EVICT to bring g_lrc_bytes below it
+// synchronously.  Strong CAS, no age / time consultation — every populated
+// slot examined at most once; bounded by total slot count (LRC_K_MAX ·
+// (LRC_N_MAX+1)).  Walks (k, idx) order; sloppy bytes counter governs the
+// stop condition, so concurrent push/pop can interleave without causing a
+// retry loop.  Cap-LOWER is a heavy explicit user op (potentially many
+// `munmap`/`madvise` syscalls); cap-UNCHANGED or RAISE is fast (the
+// `g_lrc_bytes ≤ cap` short-circuit returns immediately).
 extern "C" void kame_pool_set_large_cache_cap(std::size_t total_bytes) noexcept {
-	g_lrc_cap.store((std::int64_t)(total_bytes / 2u), std::memory_order_relaxed);
+    std::int64_t cap = (std::int64_t)(total_bytes / 2u);
+    g_lrc_cap.store(cap, std::memory_order_relaxed);
+    for(int k = 0; k < LRC_K_MAX; k++) {
+        for(int idx = 0; idx <= LRC_N_MAX; idx++) {
+            if(g_lrc_bytes.load(std::memory_order_relaxed) <= cap) return;
+            char *b = g_lrc[k].slots[idx].load(std::memory_order_acquire);
+            if( !b) continue;
+            if( !g_lrc[k].slots[idx].compare_exchange_strong(
+                     b, nullptr, std::memory_order_acq_rel))
+                continue;                                              // racing pop took it; move on
+            unsigned kind = lrc_kind_from_idx(idx);
+            std::size_t sz = lrc_block_size(b, kind);
+            g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
+            lrc_release(b, sz, kind);
+        }
+    }
 }
 extern "C" std::size_t kame_pool_get_large_cache_cap(void) noexcept {
 	std::int64_t h = g_lrc_cap.load(std::memory_order_relaxed);
