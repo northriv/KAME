@@ -17,7 +17,6 @@
 //
 // Co-Authored-By: Claude <noreply@anthropic.com>
 
-#include "support_standalone.h"
 #ifndef DISABLE_POOL_ALLOCATOR
 #  include "allocator_prv.h"  // for PoolAllocatorBase::count_live_chunks
 #endif

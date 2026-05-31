@@ -49,39 +49,13 @@ endif()
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
-# Headers:
-#   - kamepoolalloc/ (the library itself, ../)
-#   - kamestm/ (atomic.h, transaction.h transitively pulled by some tests)
-#   - kamestm/tests/ (support_standalone.h — sibling library's tests
-#                     own the Qt-free test harness used here too)
-# Deliberately NO ../../kame on the path: kamepoolalloc and kamestm
-# sit BELOW kame in the dependency stack.  Any `#include "support.h"`
-# must resolve to the standalone harness via the preinclude below,
-# never to the Qt-aware kame/support.h.
+# Headers: only the library itself (`../`).  kamepoolalloc's tests are
+# self-contained — they no longer pull kamestm's Qt-free test harness
+# (`support_standalone.*` / `threadlocal.cpp` / `atomic_smart_ptr.h`); the
+# includes were vestigial (no symbol from them was actually used), so the
+# standalone repo builds with nothing but this directory.
 include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../kamestm
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../kamestm/tests)
-
-# Pre-include `support_standalone.h` for C++ TUs; pure-C TUs (c_api_test)
-# skip it (no C++ headers in support_standalone.h's chain).  AOCC 4.0
-# crashes on -include, fall back to per-file #include in that case.
-include(CheckCXXSourceCompiles)
-set(CMAKE_REQUIRED_FLAGS "-include ${CMAKE_CURRENT_SOURCE_DIR}/../../kamestm/tests/support_standalone.h")
-check_cxx_source_compiles("int main(){return 0;}" KAMEPOOLALLOC_TESTS_HAVE_FORCE_INCLUDE)
-unset(CMAKE_REQUIRED_FLAGS)
-if(KAMEPOOLALLOC_TESTS_HAVE_FORCE_INCLUDE)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-include${CMAKE_CURRENT_SOURCE_DIR}/../../kamestm/tests/support_standalone.h>)
-endif()
-
-# support_SRCS: shared test harness sources.  Pulled from kamestm/tests/
-# (the canonical home of `support_standalone.*`) and kamestm/
-# (threadlocal.cpp — the type-erased TLS dispatcher every `XThreadLocal`
-# call lands on; in production it lives in kame.dll, the standalone
-# test binary needs its own copy).
-set(support_SRCS
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../kamestm/tests/support_standalone.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../kamestm/threadlocal.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
 set(test_link_libs Threads::Threads)
 if(USE_KAME_ALLOCATOR)
@@ -94,7 +68,7 @@ set(kamepoolalloc_test_names
     alloc_bucket34_repro)
 
 foreach(t IN LISTS kamepoolalloc_test_names)
-    add_executable(${t} ${t}.cpp ${support_SRCS})
+    add_executable(${t} ${t}.cpp)
     target_link_libraries(${t} ${test_link_libs})
 endforeach()
 
