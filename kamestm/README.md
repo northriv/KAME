@@ -95,7 +95,7 @@ On modern compilers (GCC 5.1+, Clang, MSVC), the CAS primitives delegate to `std
 
 > **Caution:** Taking a nested `Snapshot` inside a transaction can trigger bundling, which may cause the transaction's CAS to always fail. This is not a data corruption issue but a liveness issue — the transaction retries indefinitely. This occurs when the `Snapshot` target is an ancestor of the transaction target, or when hard links exist (a child with two parents) and a `Snapshot` on one parent's tree interferes with the other. Use `tr[*node]` instead of a nested `Snapshot` in these situations.
 >
-> The hard-link case is formally modelled in `../tests/tlaplus/BundleUnbundle_hardlink_*.tla` (sibling-parents and root-with-intermediate self-collision); see `../tests/VERIFICATION.md` §5.
+> The hard-link case is formally modelled in `tests/tlaplus/BundleUnbundle_hardlink_*.tla` (sibling-parents and root-with-intermediate self-collision); see `tests/VERIFICATION.md` §5.
 
 ## Comparison with other STM designs
 
@@ -124,12 +124,12 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
-- **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](../tests/tlaplus/atomic_shared_ptr.tla))
-- **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](../tests/tlaplus/BundleUnbundle.tla))
+- **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla))
+- **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla))
 
 Slide decks: [Layer 1 — atomic_shared_ptr](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html)), [Layer 2 — Bundle/Unbundle + Commit](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
 
-C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`../tests/tlaplus/test_*.c`) and C++-derived protocol tests (`../tests/cds_atomic_shared_ptr/`).
+C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`tests/tlaplus/test_*.c`) and C++-derived protocol tests (`tests/cds_atomic_shared_ptr/`).
 
 ## Dependencies
 
@@ -157,6 +157,54 @@ target.
 
 A stand-alone `kamestm.pro` / `CMakeLists.txt` producing a
 `libkamestm.dylib` is on the roadmap.
+
+## Tests
+
+Built by the `tests/` CMake scaffold and run with `ctest`
+(`cmake -S tests -B build && cmake --build build && ctest --test-dir build`).
+Four layers, from primitive to whole-protocol:
+
+**Atomic primitives** — exercise the lock-free building blocks directly:
+
+| test | covers |
+|---|---|
+| `atomic_shared_ptr_test` | tagged-pointer `local_shared_ptr` load / store / CAS / swap under contention |
+| `atomic_scoped_ptr_test` | single-owner scoped pointer + `local_weak_ptr` promotion |
+| `atomic_queue_test` | lock-free MPMC queue |
+| `mutex_test` | the `std::mutex` / `shared_mutex` wrappers |
+
+**STM functional** — concurrent transactions on the node tree:
+
+| test | covers |
+|---|---|
+| `transaction_test` | simultaneous transactions on tree-structured objects |
+| `transaction_dynamic_node_test` | transactions that **insert / remove / swap** node links concurrently |
+| `transaction_negotiation_test` | transactions of *different periodicities* — the slow loop never commits unless the fast loop yields a proportional backoff (`negotiate()`) |
+
+**Payload-integrity stress** — Synchrobench-style mixed-contention throughput
+drivers that fill every payload with a per-writer **sentinel** and re-check it
+on each read, so any torn / lost / stale commit is caught immediately:
+
+| test | shape |
+|---|---|
+| `transaction_payload_integrity_test` | single node |
+| `transaction_payload_integrity_mixed_test` | mixed read/write contention |
+| `transaction_payload_integrity_3level_test` | `Grand → Parent → Child[N]` (one leaf per thread) |
+| `transaction_payload_integrity_3level_mixed_test` | 3-level + a tunable fraction of grand-scope (cross-level) commits |
+
+The `3level_mixed` driver takes `seconds threads max_payload cross_ratio` and
+reports commits/s; because it is dominated by small per-payload allocations it
+also doubles as the STM-workload allocator benchmark (vs `kamepoolalloc`).
+
+**Formal / memory-model verification** — see *Formal verification* above and
+[`tests/VERIFICATION.md`](tests/VERIFICATION.md).  GenMC RC11-model-checks both
+the C++ `atomic_smart_ptr` implementation directly
+([`tests/cds_atomic_shared_ptr/`](tests/cds_atomic_shared_ptr) — `cds_test_*.c`:
+load / CAS / multi-CAS / swap / scoped-weak, plus `_excess` / `_noacquire` edge
+variants that caught real refcount bugs) and the TLA+-derived C translations of
+each protocol layer ([`tests/tlaplus/`](tests/tlaplus) — `test_*.c`).  The TLA+
+specs themselves (`atomic_shared_ptr.tla`, `BundleUnbundle*.tla` incl. 2-/3-level,
+lock-free, dynamic, and hard-link variants) are checked with TLC.
 
 ## License
 
