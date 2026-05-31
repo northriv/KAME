@@ -187,7 +187,7 @@ void   kame_pool_set_thread_exit_reclaim(int enable) KAMEPOOLALLOC_NOEXCEPT;
  * each region's embedded claim_bitmap.  Intended for diagnostic /
  * tuning use, NOT the hot path.
  */
-#define KAME_POOL_STATS_VERSION 1u
+#define KAME_POOL_STATS_VERSION 2u
 
 typedef struct kame_pool_stats {
     /* IN: caller-set version.  OUT: highest version this library fills. */
@@ -220,6 +220,34 @@ typedef struct kame_pool_stats {
      * fragmentation: `units_live / chunks_live` ≈ average chunk size
      * (in units).  `units_live × 256 KiB` ≈ pool's "claimed" footprint. */
     size_t units_live;
+
+    /* --- version 2 fields (24/7 leak / RSS-attribution diagnostics) --- */
+
+    /* Total bytes currently held in the global L2 large-recycle cache
+     * (`g_lrc_bytes` snapshot).  Includes both LRC_CHUNK (256 KiB..4 MiB
+     * dedicated chunks) and LRC_MMAP (4..64 MiB large_va, including
+     * §27 huge multi-region) entries.  These bytes ARE resident but
+     * available for warm reuse — subtract from "total RSS" to attribute
+     * to actual program live data.  Drops on `kame_pool_set_large_cache_cap`
+     * tighten and on §28.1 lazy ticks. */
+    size_t cache_bytes;
+
+    /* §15 dedicated chunks (256 KiB..4 MiB) currently held by the program
+     * — does NOT include chunks parked in the recycle cache (those are in
+     * `cache_bytes`).  `dedicated_chunk_bytes` is the sum of their actual
+     * DEDICATED_SIZE values; one chunk == one alloc.  Monotone growth over
+     * time signals a leak in this tier.  Tracked by atomic inc at
+     * allocate / dec at free; O(1) accuracy regardless of region/radix
+     * walk cost. */
+    size_t dedicated_chunk_bytes;
+
+    /* §19/§27 large_va allocations (4..64 MiB single-region + > 32 MiB
+     * multi-region huge) currently held by the program — likewise excludes
+     * cache-parked entries.  `large_alloc_count` is the number of distinct
+     * allocations; `large_alloc_bytes` is the sum of their mmap_size's.
+     * Atomic inc/dec; O(1) snapshot. */
+    size_t large_alloc_count;
+    size_t large_alloc_bytes;
 } kame_pool_stats_t;
 
 void kame_pool_get_stats(kame_pool_stats_t *out) KAMEPOOLALLOC_NOEXCEPT;
