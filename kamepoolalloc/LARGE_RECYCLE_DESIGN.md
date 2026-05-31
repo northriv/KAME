@@ -43,10 +43,11 @@ idx(S) = N·log2(S/LO)/log2(HI/LO)          integer (CLZ + 8-bit mantissa interp
   in `(BND, N]`; they never collide. The caller's `kind` identifies a taken
   block; its size is read from the right meta (chunk: `DEDICATED_SIZE` field;
   mmap: `LargeAllocMeta::mmap_size`).
-- **±10 % band = a FIXED slot delta** in log space (`DELTA = round(N·log2(1.1)/
-  log2(128)) = 20`); the boundary slot is constant — both hardcoded so the hot
-  path is ONE integer `idx()` call, not three. (`static_assert` guards the
-  hardcoded `BND`/`DELTA` against param drift.)
+- **±10 % band ends are computed with the SAME integer `idx()`**
+  (`ilo=idx(s−s/10)`, `ihi=idx(s+s/10)`), so the band width tracks the log2
+  idx's own rounding/approximation rather than a separate exact-log2 `DELTA`
+  constant that could disagree by up to ~12 slots.  Three cheap integer idx
+  calls per band (no libm).
 
 ## Properties
 

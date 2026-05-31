@@ -4637,18 +4637,18 @@ inline void lrc_release(char *base, std::size_t size, unsigned kind) noexcept {
 }
 // Symmetric ±10 % band [s/1.1, s*1.1] in slot space, CLAMPED to this kind's
 // range so chunk (≤ boundary) and mmap (> boundary) slots never overlap.
-// ±10 % in SIZE is a FIXED slot delta in log space (N·log2(1.1)/log2(HI/LO)),
-// and the chunk/mmap boundary slot is constant — both hardcoded so the hot
-// path costs ONE integer lrc_idx(s) instead of three.
+// Band [≈0.9·s, ≈1.1·s] with its ENDS computed by the SAME integer lrc_idx()
+// used everywhere else — so the band width tracks the log2 idx's own
+// rounding/approximation instead of a separate DELTA derived from EXACT
+// log2 (which would disagree with the approximate idx by up to ~12 slots).
+// Three cheap integer idx calls (no libm).  Clamped to this kind's slot
+// range (chunk ≤ boundary, mmap > boundary) so the tiers never overlap.
 inline void lrc_band(std::size_t s, unsigned kind, int &ilo, int &ihi) noexcept {
-	static_assert(ALLOC_MAX_CHUNK_UNITS == 16 && LRC_N == 1000,
-	              "BND/DELTA are precomputed for ALLOC_MAX_CHUNK_UNITS==16, N==1000");
-	constexpr int BND   = 571;   // lrc_idx(4 MiB) = round(N·log2(16)/log2(128))
-	constexpr int DELTA = 20;    // round(N·log2(1.1)/log2(128))  — ±10 % ≈ ±20 slots
-	int i = lrc_idx(s);          // the ONLY index computation on the path
-	ilo = i - DELTA; ihi = i + DELTA;
-	if(kind == (unsigned)LRC_CHUNK) { if(ihi > BND) ihi = BND; }            // chunk slots [0, BND]
-	else                            { if(ilo < BND + 1) ilo = BND + 1; }    // mmap slots (BND, N]
+	const int bnd = lrc_idx((std::size_t)ALLOC_MAX_CHUNK_SIZE);     // chunk/mmap boundary slot
+	ilo = lrc_idx(s - s / 10);                                     // idx(≈0.9·s) — ±10 % via integer s/10
+	ihi = lrc_idx(s + s / 10);                                     // idx(≈1.1·s)
+	if(kind == (unsigned)LRC_CHUNK) { if(ihi > bnd) ihi = bnd; }            // chunk slots [0, bnd]
+	else                            { if(ilo < bnd + 1) ilo = bnd + 1; }    // mmap slots (bnd, N]
 	if(ilo < 0) ilo = 0;
 	if(ihi > LRC_N) ihi = LRC_N;
 }
