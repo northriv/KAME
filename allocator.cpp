@@ -2598,9 +2598,14 @@ PoolAllocatorBase::deallocate(void *p) {
 	// mmap registered as one radix slot; dispatch to its free helper
 	// which CAS-clears the slot then munmap's the region.
 	int kind = radix_lookup(p);
-	if(kind <= (int)KAME_RADIX_ABSENT) return false;
-	if(kind == (int)KAME_RADIX_LARGE) {
-		PoolAllocatorBase::deallocate_large_va(p);
+	// Single hot-path branch: the overwhelmingly common case is a POOL
+	// pointer (kind == 1).  Fold ABSENT (foreign → libc free) and LARGE
+	// (§19 mmap tier) into one cold off-ramp so a normal small/dedicated
+	// free pays ONE predicted-not-taken compare, not two (§19 originally
+	// added a second `== LARGE` test in series on every free).
+	if(__builtin_expect(kind != (int)KAME_RADIX_POOL, 0)) {
+		if(kind == (int)KAME_RADIX_ABSENT) return false;   // foreign → libsystem free
+		PoolAllocatorBase::deallocate_large_va(p);         // KAME_RADIX_LARGE
 		return true;
 	}
 	// `mp` derived from `p` directly (region base is
