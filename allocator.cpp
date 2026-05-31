@@ -5014,9 +5014,11 @@ static void lrc_auto_tune_lazy_interval() noexcept {
     void *p = mmap(nullptr, SZ, PROT_READ | PROT_WRITE,
                    MAP_ANON | MAP_PRIVATE, -1, 0);
     if(p == MAP_FAILED) return;
-    long pg = sysconf(_SC_PAGESIZE);
-    if(pg <= 0) pg = 4096;
-    for(std::size_t off = 0; off < SZ; off += (std::size_t)pg)
+    // ALLOC_PAGE_SIZE: 16 KiB on Apple arm64, 64 KiB on PPC64, 4 KiB else
+    // (allocator_prv.h §172–§177).  Compile-time constant — no <unistd.h>
+    // dependency, so the auto-tune compiles cleanly on the macOS path
+    // where `_SC_PAGESIZE` isn't directly visible from this TU.
+    for(std::size_t off = 0; off < SZ; off += (std::size_t)ALLOC_PAGE_SIZE)
         ((volatile char *)p)[off] = 1;
     auto t0 = std::chrono::steady_clock::now();
     munmap(p, SZ);
