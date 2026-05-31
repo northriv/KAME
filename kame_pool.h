@@ -162,6 +162,32 @@ void   kame_pool_set_large_cache_cap(size_t total_bytes) KAMEPOOLALLOC_NOEXCEPT;
 size_t kame_pool_get_large_cache_cap(void) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
+ * Amortised lazy drain of the global MMAP-tier cache (§28.1).  On every
+ * LRC_MMAP `free` (4..64 MiB), if at least `interval_ms` have passed since
+ * this thread's last tick, one slot is examined and (if occupied) released.
+ * Keeps the steady-state cache from growing unboundedly under sustained
+ * mmap-tier allocation, without explicit `set_large_cache_cap` calls.
+ *
+ *   kame_pool_set_lazy_drain_interval_ms(N)
+ *     Set the interval (locks out auto-tune; user wins).  N==0 is rejected
+ *     to avoid hot-ticking.  Pass a large value (e.g. 3600000 = 1 hour) to
+ *     effectively disable the lazy drain.
+ *   kame_pool_get_lazy_drain_interval_ms()
+ *     Current effective interval in ms.
+ *
+ * Default 10 ms.  On the first LRC_MMAP push the library auto-calibrates
+ * the interval from a single `munmap(32 MiB)` measurement so that the
+ * per-thread worst-case wallclock fraction spent inside lazy-tick munmaps
+ * stays ≤ 5 %.  Sites with abnormally slow munmap (containers, VMs)
+ * self-throttle to e.g. 100 ms; HPC nodes keep the responsive 10 ms.
+ * Override the calibration via env `KAME_POOL_AUTO_TUNE=0` (skip; keep
+ * the 10 ms default) or by calling `set_lazy_drain_interval_ms()` early
+ * in process startup.
+ */
+void         kame_pool_set_lazy_drain_interval_ms(unsigned int ms) KAMEPOOLALLOC_NOEXCEPT;
+unsigned int kame_pool_get_lazy_drain_interval_ms(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
  * Thread-exit page reclamation toggle.  Default ENABLED: when a thread
  * exits, the pool madvise(MADV_DONTNEED)'s the slot pages of the chunks
  * it releases, returning RSS promptly.  Pass 0 to disable (skip the

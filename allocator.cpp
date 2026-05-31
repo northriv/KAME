@@ -4980,17 +4980,76 @@ inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
 // Race safety: each tick attempts at most 1 strong CAS.  Concurrent push to
 // the same slot fails its CAS and tries the next k; concurrent pop sees
 // null after we take.  No retry loop, no chance of livelock.
-constexpr std::int64_t LRC_LAZY_INTERVAL_NS = 10LL * 1000 * 1000;   // 10 ms
+// (§28.1 / §28.3) Lazy drain interval — now runtime-tunable + auto-calibrated.
+//
+// Default 10 ms (= the original constexpr); auto-tune on the first
+// LRC_MMAP push measures the host's `munmap(32 MiB)` cost once and stores
+// `clamp(20 × munmap_ns, 1 ms .. 1 s)` so the per-thread worst-case
+// wallclock fraction spent inside lazy-tick munmaps stays ≤ 5 %.  Sites
+// with abnormally slow munmap (containers, VMs, etc.) thus self-throttle;
+// fast hosts (HPC nodes with cheap TLB shootdown) keep the responsive
+// 10 ms.  Override via `kame_pool_set_lazy_drain_interval_ms()` (user
+// takes over; auto-tune is locked out) or via env `KAME_POOL_AUTO_TUNE=0`
+// (skip the calibration entirely, keep the 10 ms default).
+constexpr std::int64_t LRC_LAZY_INTERVAL_DEFAULT_NS = 10LL * 1000 * 1000;
+std::atomic<std::int64_t> g_lrc_lazy_interval_ns{LRC_LAZY_INTERVAL_DEFAULT_NS};
+std::atomic<bool>         g_lazy_auto_tune_done{false};
 
 ALLOC_TLS_IE std::int64_t tls_lazy_last_ns = 0;                     // 0 = epoch ⇒ first tick fires
 ALLOC_TLS_IE int          tls_lazy_cursor  = 0;                     // position in the MMAP-slot sweep
 
+// (§28.3) One-shot measurement of `munmap(32 MiB after first-touch)` cost
+// on this host.  Uses raw mmap/munmap (NOT kamepoolalloc — recursion
+// safety).  Skipped when KAME_POOL_AUTO_TUNE=0.  Roughly:
+//   per-thread tick rate = 1 / interval
+//   per-tick blocked time = munmap_ns
+//   per-thread wallclock fraction = munmap_ns / interval
+// Target ≤ 5 % ⇒ interval ≥ 20 × munmap_ns.  Clamped to [1 ms, 1 s].
+static void lrc_auto_tune_lazy_interval() noexcept {
+#if !(defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32))
+    const char *env = std::getenv("KAME_POOL_AUTO_TUNE");
+    if(env && env[0] == '0' && env[1] == '\0') return;
+
+    constexpr std::size_t SZ = (std::size_t)32 * 1024 * 1024;
+    void *p = mmap(nullptr, SZ, PROT_READ | PROT_WRITE,
+                   MAP_ANON | MAP_PRIVATE, -1, 0);
+    if(p == MAP_FAILED) return;
+    long pg = sysconf(_SC_PAGESIZE);
+    if(pg <= 0) pg = 4096;
+    for(std::size_t off = 0; off < SZ; off += (std::size_t)pg)
+        ((volatile char *)p)[off] = 1;
+    auto t0 = std::chrono::steady_clock::now();
+    munmap(p, SZ);
+    std::int64_t munmap_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - t0).count();
+    if(munmap_ns <= 0) return;
+
+    std::int64_t interval = 20 * munmap_ns;
+    if(interval < 1000000LL)        interval = 1000000LL;        // 1 ms floor
+    if(interval > 1000000000LL)     interval = 1000000000LL;     // 1 s ceiling
+    g_lrc_lazy_interval_ns.store(interval, std::memory_order_relaxed);
+#endif
+}
+
 inline void lrc_lazy_mmap_one() noexcept {
+    // (§28.3) First call on this process: auto-tune the interval from the
+    // measured munmap cost.  CAS the gate so exactly one thread does the
+    // measurement; others fall through using whatever value is current
+    // (default, then the tuned value after this completes).
+    if( !g_lazy_auto_tune_done.load(std::memory_order_acquire)) {
+        bool exp = false;
+        if(g_lazy_auto_tune_done.compare_exchange_strong(
+               exp, true, std::memory_order_acq_rel))
+            lrc_auto_tune_lazy_interval();
+    }
+
     auto now = std::chrono::steady_clock::now();
     std::int64_t now_ns =
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             now.time_since_epoch()).count();
-    if(now_ns - tls_lazy_last_ns < LRC_LAZY_INTERVAL_NS) return;
+    if(now_ns - tls_lazy_last_ns
+       < g_lrc_lazy_interval_ns.load(std::memory_order_relaxed)) return;
     tls_lazy_last_ns = now_ns;
 
     // MMAP-tier slots are at idx (LRC_CHUNK_BND, LRC_N_MAX] across all K.
@@ -5141,6 +5200,25 @@ extern "C" void kame_pool_set_large_cache_cap(std::size_t total_bytes) noexcept 
 extern "C" std::size_t kame_pool_get_large_cache_cap(void) noexcept {
 	std::int64_t h = g_lrc_cap.load(std::memory_order_relaxed);
 	return (std::size_t)((h < 0 ? 0 : h) * 2);
+}
+
+// (§28.3) Lazy-drain interval runtime API.  Default is 10 ms; on first
+// LRC_MMAP push the library calibrates it from a single `munmap(32 MiB)`
+// measurement.  Calling `set` here locks out the auto-tune (user wins)
+// and stores the supplied value verbatim.  `ms == 0` is silently rejected
+// (avoids divide-by-zero / hot ticking).  `get` returns the currently
+// effective value, which may be the default, the auto-tuned, or the
+// user-set value.
+extern "C" void kame_pool_set_lazy_drain_interval_ms(unsigned int ms) noexcept {
+	if(ms == 0) return;
+	std::int64_t ns = (std::int64_t)ms * 1000000LL;
+	g_lrc_lazy_interval_ns.store(ns, std::memory_order_relaxed);
+	g_lazy_auto_tune_done.store(true, std::memory_order_release);   // lock out auto-tune
+}
+extern "C" unsigned int kame_pool_get_lazy_drain_interval_ms(void) noexcept {
+	std::int64_t ns = g_lrc_lazy_interval_ns.load(std::memory_order_relaxed);
+	if(ns <= 0) return 0;
+	return (unsigned int)(ns / 1000000LL);
 }
 
 // =====================================================================
