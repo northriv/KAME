@@ -4327,7 +4327,7 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
 	RadixL2Node *leaf = s_radix_l1[l1].load(std::memory_order_acquire);
 	if(__builtin_expect(leaf == nullptr, 0)) return (int)KAME_RADIX_ABSENT;
-	uint32_t v = leaf->slots[l2].load(std::memory_order_relaxed);
+	uint32_t v = leaf->entries[l2].load(std::memory_order_relaxed);
 	if(__builtin_expect(v == 0u, 0)) return (int)KAME_RADIX_ABSENT;
 	// (§19) Cache the region base for the next (locality-rich) call —
 	// but ONLY for pool regions.  A §19 large-alloc base disappears on
@@ -4392,7 +4392,7 @@ void PoolAllocatorBase::radix_insert(char *mp, uint32_t kind) noexcept {
 	// Release-paired with the reader's acquire load on the L1 entry, and
 	// (for cross-thread frees) with the data handoff that passes the
 	// pointer to the freeing thread.
-	leaf->slots[l2].store(kind, std::memory_order_release);
+	leaf->entries[l2].store(kind, std::memory_order_release);
 }
 
 // (§19) Clear the radix slot for a §19 large-alloc base prior to
@@ -4414,7 +4414,7 @@ void PoolAllocatorBase::radix_clear(char *mp) noexcept {
 	// point because the caller (deallocate_large_va) was passed a
 	// pointer into THIS alloc that no other thread should be holding
 	// after free (same single-owner-on-free contract as libc free).
-	leaf->slots[l2].store((uint32_t)KAME_RADIX_ABSENT,
+	leaf->entries[l2].store((uint32_t)KAME_RADIX_ABSENT,
 	                      std::memory_order_release);
 }
 
