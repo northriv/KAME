@@ -62,8 +62,10 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
   footprint, split ~half global L2 / ~half aggregate per-thread L1).
   `madvise(MADV_FREE/DONTNEED)` on chunk release — default also at thread exit,
   toggle via `kame_pool_set_thread_exit_reclaim()`.
-- **Verified** — TSAN race-free, UBSAN clean (incl. `vptr`), ASan clean, and
-  GenMC / TLA+ model-checked claim-recycle protocol.  Builds 64-bit and 32-bit.
+- **Verified** — TSAN race-free, UBSAN clean (incl. `vptr`), ASan clean; the
+  chunk-claim / chunk-recycle protocol is TLA+ model-checked and the
+  large-recycle cache's exclusive-ownership / no-premature-release (UAF /
+  double-free) safety is GenMC (RC11) model-checked.  Builds 64-bit and 32-bit.
 
 ## Status
 
@@ -267,7 +269,9 @@ See `git log kamepoolalloc/allocator.cpp` and the §-numbered design notes
 - [x] Aligned-alloc served from the pool (§17)
 - [x] User-installable OOM handler (`std::new_handler` loop + `bad_alloc`) (§18)
 - [x] Large-tier `munmap` on free — VA returned to the OS (§19)
-- [x] TSAN / UBSAN (incl. `vptr`) / ASan clean; GenMC + TLA+ model-checked
+- [x] TSAN / UBSAN (incl. `vptr`) / ASan clean; chunk-claim/recycle TLA+
+      model-checked; large-recycle cache ownership/release GenMC (RC11)-checked
+      ([`tests/cds/cds_lrc_ownership.c`](tests/cds/cds_lrc_ownership.c))
 - [x] 32-bit verified; 16 KiB-page (Apple Silicon) / 64 KiB-page (POWER)
       page-multiple slot layout (§16)
 
