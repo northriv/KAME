@@ -374,27 +374,35 @@ int main(int argc, char **argv) {
     // §28.1 fires up to ONE munmap per 10 ms per thread (only on the
     // mmap-tier push path — rare relative to alloc rate).  Worst-case
     // per-thread fraction of wallclock spent inside that munmap is
-    // (100 ticks/sec) × munmap_ns × 1e-9 — IF the workload is push-
-    // saturated.  TLB-shootdown side-effects on OTHER cores are folded
-    // into `munmap_ns` already (it was measured under the current MT
-    // load, see "MT munmap contention" above).  Target: keep per-thread
+    // (1/interval) × munmap_ns × 1e-9 — IF the workload is push-saturated.
+    // TLB-shootdown side-effects on OTHER cores are folded into
+    // `munmap_ns` already (it was measured under the current MT load,
+    // see "MT munmap contention" above).  Target: keep per-thread
     // worst case ≤ 5 % of wallclock.
-    double per_thread_worst = (100.0 * munmap_ns) / 1e9;
-    std::printf("\n* §28.1 lazy drain estimate at current LRC_LAZY_INTERVAL_NS=10 ms:\n");
-    std::printf("    worst-case per-thread munmap pressure ≈ %.1f %% of wallclock\n",
-                per_thread_worst * 100);
-    if(per_thread_worst > 0.05) {
-        // factor by which to slow ticks to land at 5%.  Round up to a
-        // tidy 10-multiple of ms.
-        double factor = per_thread_worst / 0.05;
-        int suggest_ms = (int)(10 * factor);
-        suggest_ms = ((suggest_ms + 9) / 10) * 10;
-        if(suggest_ms < 20) suggest_ms = 20;
-        std::printf("  → RAISE the lazy interval (rebuild with\n");
-        std::printf("    -DLRC_LAZY_INTERVAL_NS=%lldLL  i.e. %d ms)\n",
-                    (long long)suggest_ms * 1000000LL, suggest_ms);
+    //
+    // (§28.3) Auto-tune: trigger one LRC_MMAP push so the library's
+    // first-use calibration runs, then read back the library's picked
+    // value.  Compare against this report's own measurement.
+    void *probe = kame_pool_malloc(8u << 20);
+    if(probe) kame_pool_free(probe);
+    unsigned int auto_tuned_ms = kame_pool_get_lazy_drain_interval_ms();
+
+    double per_thread_at_default = (100.0 * munmap_ns) / 1e9;            // at 10 ms
+    double per_thread_at_tuned   = auto_tuned_ms > 0
+        ? (1000.0 / auto_tuned_ms) * munmap_ns / 1e9 : 0;
+    std::printf("\n* §28.1 lazy drain:\n");
+    std::printf("    library auto-tuned interval   : %u ms\n", auto_tuned_ms);
+    std::printf("    worst-case @ default 10 ms    : %.1f %% per-thread wallclock\n",
+                per_thread_at_default * 100);
+    std::printf("    worst-case @ auto-tuned %u ms : %.2f %% per-thread wallclock\n",
+                auto_tuned_ms, per_thread_at_tuned * 100);
+    if(per_thread_at_default <= 0.05) {
+        std::printf("  → default 10 ms is fine on this host; auto-tune effectively a no-op.\n");
+    } else if(per_thread_at_tuned <= 0.05) {
+        std::printf("  → auto-tune brought it under 5 %% — no action needed.\n");
     } else {
-        std::printf("  → current 10 ms is OK\n");
+        std::printf("  → auto-tune clamped at 1 s ceiling; manually set higher via\n");
+        std::printf("    kame_pool_set_lazy_drain_interval_ms() if still too aggressive.\n");
     }
     if(thp_per_pg > 0 && touch_per_pg / thp_per_pg > 1.5) {
         std::printf("\n* MADV_HUGEPAGE speeds up first-touch by %.1fx on this kernel\n",
