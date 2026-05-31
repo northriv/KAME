@@ -4868,6 +4868,20 @@ bool large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
 }
 } // namespace
 
+// (§26) Large-recycle cache RSS cap API.  `total_bytes` is the cache's
+// target total resident footprint; we store HALF in g_lrc_cap because the
+// cache's resident bytes ≈ 2·g_lrc_cap (global L2 ≤ g_lrc_cap AND the
+// aggregate per-thread L1 ≈ g_lrc_cap, since each thread's L1 cut derives
+// from g_lrc_cap/concurrency).  So g_lrc_cap = total/2 ⇒ L1+L2 ≈ total.
+// One atomic store; the log index domain (LO..HI) is untouched.
+extern "C" void kame_pool_set_large_cache_cap(std::size_t total_bytes) noexcept {
+	g_lrc_cap.store((std::int64_t)(total_bytes / 2u), std::memory_order_relaxed);
+}
+extern "C" std::size_t kame_pool_get_large_cache_cap(void) noexcept {
+	std::int64_t h = g_lrc_cap.load(std::memory_order_relaxed);
+	return (std::size_t)((h < 0 ? 0 : h) * 2);
+}
+
 // =====================================================================
 // (§19) Large-alloc tier — single-mmap, radix-registered, munmap-able.
 // =====================================================================
