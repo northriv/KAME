@@ -4570,134 +4570,128 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 #endif
 }
 
-// (§21/§22/§23) Per-thread LIFO recycle cache, shared by BOTH large tiers
-// (LRC_CHUNK = §15 dedicated chunks, LRC_MMAP = §19 single-mmap allocs).
-// Holds a few recently-freed blocks still owned by this thread so a tight
-// alloc/free loop reuses warm VA + pages instead of paying the per-cycle
-// release.  Bounded by entry count AND total bytes; evicted / thread-exit
-// entries are released per their kind.  RSS held while cached is ≤
-// MAX_BYTES per thread that actually touches the large tier (most threads
-// never do → empty cache → zero cost).
+// (§25) Global log-indexed lock-free recycle cache — replaces the §22/§23
+// per-thread LIFO (IE-TLS) cache for BOTH large tiers.  ONE atomic slot per
+// log-spaced size index over [ALLOC_MIN_CHUNK_SIZE (256 KiB),
+// ALLOC_MIN_MMAP_SIZE (32 MiB)].  A freed block is cached in the first empty
+// slot of its symmetric ±10 % size band; reuse scans the band upward, takes
+// with ONE weak CAS per slot (spurious / occupied → next slot, NEVER a
+// retry loop), then VERIFIES the OWNED block's real size ≥ need (lrint may
+// co-locate a slightly-too-small block).  Bounded band scan + one CAS/slot
+// + deterministic miss → fresh path  ⇒  no spin  ⇒  LIVELOCK-FREE under any
+// contention (128-thread narrow-band stress completes; see proto).  Bounded
+// by a single sloppy byte cap (default ≈1 GiB, tunable via g_lrc_cap).
 //
-// (§23) Hot-path TLS layout: the cache DATA lives in IE-TLS
-// (`tls_large_recycle_data`, POD, zero-init by `__thread` semantics) so
-// the alloc/free fast path accesses it with no `__tls_get_addr` dance
-// (perf-record on §22 showed `__tls_get_addr` consuming 35 % of the
-// 65 KiB tight-loop CPU when the cache was a plain `thread_local`).  A
-// separate tiny `thread_local LargeRecycleDrain` sentinel carries the C++
-// destructor that drains the IE-TLS data at thread exit; an IE-TLS
-// "registered" flag ensures the sentinel is odr-used exactly once per
-// thread (on the cold slow path of the first cache push), so its dtor
-// reliably runs at thread teardown without per-call TLS thunk overhead.
-// Same split-storage pattern as `tls_alloc_thread_exit_cleanup`.
+// Why GLOBAL (no TLS): kills the §23 `__tls_get_addr` cost ENTIRELY (no TLS
+// at all, not merely IE-TLS) AND removes the per-thread LIFO's working-set
+// cliff — the cache holds cap-many blocks across ALL threads, not 8 per
+// thread, so fifo / rotating working sets stay 100 % hit.  weak CAS (not
+// strong) keeps each slot op a single LL/SC attempt on ARM (no inner
+// retry); x86 cmpxchg is unaffected.  No per-thread state ⇒ no thread-exit
+// drain (cached blocks persist globally, released on reuse / cap / exit).
 //
-// Single-block layout — kind-tagged:
+// kind (CHUNK ≤4 MiB vs MMAP >4 MiB) is implied by the slot range: bands are
+// CLAMPED at the chunk/mmap boundary slot, so a chunk pop never sees an mmap
+// block and vice-versa.  The caller's `kind` therefore identifies a taken
+// block; its real size is read from the kind's meta (own-then-read after the
+// CAS-take — NOT a peek ⇒ no use-after-free).  See LARGE_RECYCLE_DESIGN.md.
 //   - LRC_MMAP : region stays mapped, radix CLEARED on push (double-free
-//                routes to libc, not a torn cache), re-registered on reuse.
-//                Release = munmap.
-//   - LRC_CHUNK: units stay CLAIMED + chunk_header intact on push (so no
-//                other thread can re-claim and nothing overwrites the
-//                header), payload returned directly on reuse.  Release =
-//                deallocate_chunk (N-bit bitmap-CAS clear + madvise).
-struct LargeRecycleData {
-	static constexpr int    MAX_ENTRIES = 8;
-	static constexpr std::size_t MAX_BYTES = 64u * 1024u * 1024u;  // 64 MiB
-	struct Entry { char *base; std::size_t size; unsigned kind; };
-	Entry e[MAX_ENTRIES];
-	int count;
-	std::size_t total;
-	// (§23) POD layout — IE-TLS `__thread` zero-initialises the whole
-	// thing; default member initialisers would force dynamic init and
-	// re-introduce the `__tls_get_addr` cost.
-};
-ALLOC_TLS_IE LargeRecycleData tls_large_recycle_data;
-// (§23) Hot-path IE-TLS flag: set on first push so the cold-path
-// odr-use of the thread_local drain sentinel is paid once per thread.
-ALLOC_TLS_IE bool tls_large_recycle_drain_registered = false;
+//                routes to libc), re-registered on reuse.  Release = munmap.
+//   - LRC_CHUNK: units stay CLAIMED + chunk_header intact on push, payload
+//                returned directly on reuse.  Release = deallocate_chunk.
+constexpr std::size_t LRC_LO = (std::size_t)ALLOC_MIN_CHUNK_SIZE;   // 256 KiB
+constexpr std::size_t LRC_HI = (std::size_t)ALLOC_MIN_MMAP_SIZE;    // 32 MiB
+constexpr int         LRC_N  = 1000;                               // log-index slots
+std::atomic<char *>       g_lrc_slot[LRC_N + 1];
+std::atomic<std::int64_t> g_lrc_bytes{0};
+std::atomic<std::int64_t> g_lrc_cap{1LL << 30};                    // ~1 GiB default; tunable
 
-// Kind-tagged release of one cached block — called on eviction /
-// thread-exit by the block's unique owner thread (the freeing thread
-// won the kind's single-winner clearing CAS), hence race-free.  Both
-// backends touch only global state (region bitmap + madvise / munmap),
-// never allocator TLS, so this is safe in any TLS destruction order.
-inline void recycle_release(const LargeRecycleData::Entry &x) noexcept {
-	if(x.kind == (unsigned)LRC_CHUNK)
-		PoolAllocatorBase::recycle_release_chunk(x.base, x.size);
-	else
-		large_va_raw_unmap(x.base, x.size);
+// idx ≈ N·log2(S/LO)/log2(HI/LO), integer-only (NO libm — avoids std::log's
+// ~9 ns/op on the path).  MSB position + 8-bit linear mantissa interp; the
+// resulting ≤~12-slot approximation error is absorbed by the ±10 % band AND
+// the pop-time size verify, so a rough log2 is exact enough for bucketing.
+// log2(LO)=18, log2(HI)=25 (diff = 7 octaves).
+inline int lrc_idx(std::size_t S) noexcept {
+	if(S <= LRC_LO) return 0;
+	if(S >= LRC_HI) return LRC_N;
+	int msb = 63 - __builtin_clzll((unsigned long long)S);      // floor(log2 S); S≥256 KiB ⇒ msb≥18
+	int log2_256 = msb * 256 + (int)(((unsigned long long)S >> (msb - 8)) & 0xFFu);  // (log2 S)·256
+	long i = (long)LRC_N * (log2_256 - 18 * 256) / (7 * 256);
+	if(i < 0) i = 0;
+	if(i > LRC_N) i = LRC_N;
+	return (int)i;
 }
-// Reuse a cached block of the SAME kind whose size fits [need, 2*need]
-// (avoids handing a 32 MiB region to a 5 MiB request).  LRC_MMAP: base
-// still mapped + radix-cleared (caller re-registers).  LRC_CHUNK: units
-// still claimed + header intact (caller returns the payload directly).
+// Real size of a cached block, read from its kind's meta.  Caller OWNS the
+// block (taken via CAS) — this is own-then-read, NOT a peek, so it cannot
+// race a concurrent release/munmap.
+inline std::size_t lrc_block_size(char *base, unsigned kind) noexcept {
+	if(kind == (unsigned)LRC_CHUNK)
+		return *reinterpret_cast<std::uint64_t *>(base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+	return PoolAllocatorBase::large_alloc_meta_of(base)->mmap_size;
+}
+// Release a block per its kind (both touch only global state — bitmap+madvise
+// for CHUNK, munmap for MMAP — never any allocator TLS).
+inline void lrc_release(char *base, std::size_t size, unsigned kind) noexcept {
+	if(kind == (unsigned)LRC_CHUNK) PoolAllocatorBase::recycle_release_chunk(base, size);
+	else                            large_va_raw_unmap(base, size);
+}
+// Symmetric ±10 % band [s/1.1, s*1.1] in slot space, CLAMPED to this kind's
+// range so chunk (≤ boundary) and mmap (> boundary) slots never overlap.
+// ±10 % in SIZE is a FIXED slot delta in log space (N·log2(1.1)/log2(HI/LO)),
+// and the chunk/mmap boundary slot is constant — both hardcoded so the hot
+// path costs ONE integer lrc_idx(s) instead of three.
+inline void lrc_band(std::size_t s, unsigned kind, int &ilo, int &ihi) noexcept {
+	static_assert(ALLOC_MAX_CHUNK_UNITS == 16 && LRC_N == 1000,
+	              "BND/DELTA are precomputed for ALLOC_MAX_CHUNK_UNITS==16, N==1000");
+	constexpr int BND   = 571;   // lrc_idx(4 MiB) = round(N·log2(16)/log2(128))
+	constexpr int DELTA = 20;    // round(N·log2(1.1)/log2(128))  — ±10 % ≈ ±20 slots
+	int i = lrc_idx(s);          // the ONLY index computation on the path
+	ilo = i - DELTA; ihi = i + DELTA;
+	if(kind == (unsigned)LRC_CHUNK) { if(ihi > BND) ihi = BND; }            // chunk slots [0, BND]
+	else                            { if(ilo < BND + 1) ilo = BND + 1; }    // mmap slots (BND, N]
+	if(ilo < 0) ilo = 0;
+	if(ihi > LRC_N) ihi = LRC_N;
+}
+
+// Reuse: scan the kind-clamped band upward, take with ONE weak CAS per slot
+// (spurious / taken → next slot, NO retry), then VERIFY the owned block's
+// real size ≥ need.  Too small → one put-back attempt, else release.  All
+// bounded ⇒ livelock-free.  Returns a kind-appropriate base or nullptr.
 inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
-	LargeRecycleData &d = tls_large_recycle_data;
-	for(int i = d.count - 1; i >= 0; --i) {
-		if(d.e[i].kind != kind) continue;
-		std::size_t sz = d.e[i].size;
-		if(sz >= need && sz <= need * 2u) {
-			char *b = d.e[i].base;
-			for(int j = i; j + 1 < d.count; ++j) d.e[j] = d.e[j + 1];
-			--d.count; d.total -= sz;
-			return b;
-		}
+	int ilo, ihi; lrc_band(need, kind, ilo, ihi);
+	for(int s = ilo; s <= ihi; s++) {
+		char *b = g_lrc_slot[s].load(std::memory_order_acquire);
+		if( !b) continue;
+		if( !g_lrc_slot[s].compare_exchange_weak(b, nullptr, std::memory_order_acq_rel))
+			continue;                                              // weak: spurious / taken → next slot
+		std::size_t sz = lrc_block_size(b, kind);                  // own it now → safe meta read
+		g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
+		if(sz >= need) return b;                                   // VERIFY size
+		char *exp = nullptr;                                       // too small: one put-back, else release
+		if(g_lrc_slot[s].compare_exchange_weak(exp, b, std::memory_order_acq_rel))
+			g_lrc_bytes.fetch_add((std::int64_t)sz, std::memory_order_relaxed);
+		else
+			lrc_release(b, sz, kind);
 	}
 	return nullptr;
 }
-// Evict entries[0] (oldest): release per its kind.
-inline void recycle_evict0(LargeRecycleData &d) noexcept {
-	recycle_release(d.e[0]);
-	d.total -= d.e[0].size;
-	for(int j = 0; j + 1 < d.count; ++j) d.e[j] = d.e[j + 1];
-	--d.count;
-}
-// Thread-exit drain — called from the LargeRecycleDrain dtor.
-void recycle_drain() noexcept {
-	LargeRecycleData &d = tls_large_recycle_data;
-	while(d.count) recycle_evict0(d);
-}
-// Drain sentinel: a single empty `thread_local` whose ONLY purpose is to
-// hold a non-trivial C++ destructor that drains the IE-TLS data on
-// thread exit.  `touch()` is an empty member used as the odr-use that
-// makes the variable's dynamic init (and dtor registration) reliable.
-struct LargeRecycleDrain {
-	void touch() noexcept {}
-	~LargeRecycleDrain() noexcept { recycle_drain(); }
-};
-thread_local LargeRecycleDrain tls_large_recycle_drain;
-
-// Try to cache a freed block.  Caller has already performed the kind's
-// clearing step (LRC_MMAP: radix_clear; LRC_CHUNK: none — bits stay
-// set).  Returns true if cached, false if the caller must release now.
-//
-// First call from this thread also odr-uses the drain sentinel (pays
-// `__tls_get_addr` ONCE) so its dtor will run at thread exit; the
-// IE-TLS `tls_large_recycle_drain_registered` flag short-circuits the
-// `__tls_get_addr` on every subsequent push.
+// Cache a freed block in the first empty slot of its kind-clamped band, ONE
+// weak CAS per slot.  Sloppy single-atomic byte cap.  Returns true if cached,
+// false ⇒ caller releases.  No retry loop ⇒ livelock-free.
 inline bool recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
-	if(__builtin_expect( !tls_large_recycle_drain_registered, 0)) {
-		tls_large_recycle_drain.touch();
-		tls_large_recycle_drain_registered = true;
+	if(g_lrc_bytes.load(std::memory_order_relaxed) + (std::int64_t)size
+	   > g_lrc_cap.load(std::memory_order_relaxed))
+		return false;                                              // over cap → caller releases
+	int ilo, ihi; lrc_band(size, kind, ilo, ihi);
+	for(int s = ilo; s <= ihi; s++) {
+		char *expected = nullptr;
+		if(g_lrc_slot[s].compare_exchange_weak(expected, base, std::memory_order_acq_rel)) {
+			g_lrc_bytes.fetch_add((std::int64_t)size, std::memory_order_relaxed);
+			return true;
+		}                                                          // weak: spurious / occupied → next slot
 	}
-	LargeRecycleData &d = tls_large_recycle_data;
-	if(size > LargeRecycleData::MAX_BYTES) return false;  // single block over cap
-	while(d.count >= LargeRecycleData::MAX_ENTRIES
-	      || d.total + size > LargeRecycleData::MAX_BYTES) {
-		if(d.count == 0) break;
-		recycle_evict0(d);
-	}
-	if(d.count < LargeRecycleData::MAX_ENTRIES
-	   && d.total + size <= LargeRecycleData::MAX_BYTES) {
-		d.e[d.count].base = base; d.e[d.count].size = size;
-		d.e[d.count].kind = kind;
-		++d.count; d.total += size;
-		return true;
-	}
-	return false;
+	return false;                                                  // band full → caller releases
 }
-// MAX_BYTES per thread that actually does large allocs (most threads never
-// touch this tier → empty cache → zero cost).
-//   - LRC_MMAP : region stays mapped, radix CLEARED on push (double-free
 // (§22) Definitions of the forward-declared helpers used by the earlier
 // §15 dedicated-chunk paths (allocate_dedicated_chunk / deallocate).
 char *large_recycle_pop(std::size_t need, unsigned kind) noexcept {
