@@ -144,6 +144,24 @@ size_t kame_pool_get_max_bytes(void) KAMEPOOLALLOC_NOEXCEPT;
 size_t kame_pool_reserved_bytes(void) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
+ * Large-recycle cache RSS cap (§25/§26 — the warm-reuse cache for large
+ * allocations, 256 KiB .. 32 MiB).  Distinct from kame_pool_set_max_bytes
+ * (which caps fresh region mmaps).  `total_bytes` is the cache's target
+ * total resident footprint; it is split internally — ~half to the shared
+ * global L2 and ~half to the aggregate per-thread L1 — so L1+L2 ≈
+ * total_bytes.  Default ≈ 2 GiB.  0 effectively disables the cache (every
+ * large free releases immediately).
+ *
+ * Cheap: a single atomic store.  The global L2 honours the new cap on the
+ * very next op.  Per-thread L1 sizing is derived once when each thread
+ * first uses the cache, so a mid-run change applies to the L2 and to
+ * threads that arm their L1 afterwards, but NOT retroactively to
+ * already-armed threads — set at startup for an exact bound.
+ */
+void   kame_pool_set_large_cache_cap(size_t total_bytes) KAMEPOOLALLOC_NOEXCEPT;
+size_t kame_pool_get_large_cache_cap(void) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
  * Thread-exit page reclamation toggle.  Default ENABLED: when a thread
  * exits, the pool madvise(MADV_DONTNEED)'s the slot pages of the chunks
  * it releases, returning RSS promptly.  Pass 0 to disable (skip the
