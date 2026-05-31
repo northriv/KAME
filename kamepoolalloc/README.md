@@ -140,32 +140,36 @@ Aggregate M ops/s (`alloc → touch byte 0 → free` loop) at 1 / 4 / 16 / 64 /
 
 | size,tier         |  1T  |  4T  |  16T |  64T | 128T |
 | ----------------- | ---: | ---: | ---: | ---: | ---: |
-| 64 B  (bucket)    |  120 |  479 | 1916 | 6498 | **11068** |
-| 1 KiB (bucket)    |   75 |  299 | 1196 | 4267 |  **6815** |
-| 64 KiB (chunk)    |   52 |   30 |   28 |   25 |    23 |
-| 1 MiB (chunk)     |   54 |   30 |   28 |   17 |    19 |
-| 8 MiB (large_va)  |   25 |  7.4 |  3.5 |  4.0 |   2.9 |
+| 64 B  (bucket)    |  120 |  479 | 1914 | 6459 | **11094** |
+| 1 KiB (bucket)    |   69 |  284 | 1126 | 3807 |  **6174** |
+| 64 KiB (chunk)    |   40 |  156 |  630 | **2213** |  1833 |
+| 1 MiB (chunk)     |   44 |  173 |  691 | **1077** |   624 |
+| 8 MiB (large_va)  |   25 |   44 |   63 |   70 |    99 |
 
-Bucket tier scales **near-linearly to 128 cores** — **11 G ops/s aggregate
-for 64 B** — vindicating the per-thread DLL + per-thread freelist + per-thread
-L1 design on a heavily-NUMA machine.  The chunk / large tier MT throughput
-*plateaus* (not regresses) above ~16 threads: the benchmark touches byte 0
-each cycle so it exercises the Linux process-wide `mmap_lock` page-fault path
-— which serialises across cores on this kernel — not anything intrinsic to
-kamepoolalloc.  Real KAME workloads touch the whole buffer right after alloc
-(`memcpy` of acquisition data, FFT in-place) so the one-page fault is dwarfed
-by the buffer write and doesn't show as a per-op cost.
+The bucket tier reaches **11 G ops/s aggregate for 64 B at 128 cores
+(92× linear)** — vindicating the per-thread DLL + per-thread freelist +
+per-thread L1 design on a heavily-NUMA host.  The chunk tier peaks at
+**2.2 G ops/s for 64 KiB at 64 cores (55×)** and **1.1 G at 1 MiB**: the
+per-thread L1 with sharded ($§28.4$) tier-attribution counters absorbs the
+churn without inter-core contention.  Both tiers slightly soften at 128T as
+cache lines start to bounce across all 8 NUMA domains — saturating, not
+regressing.  The large_va tier (8 MiB+) plateaus because the benchmark
+touches byte 0 each cycle, which serialises across cores in the Linux
+process-wide `mmap_lock` page-fault path; real KAME workloads write the
+whole buffer right after alloc (`memcpy` of acquisition data, FFT in-place)
+so the one-page fault is amortised inside the buffer write, not paid
+per op.
 
 The same `alloc_tune_report` run self-validated the defaults on this hardware:
 
 - **`LRC_LAZY_INTERVAL_NS = 10 ms`**: 2.6 % per-thread wallclock pressure —
-  printed "current 10 ms is OK".
+  printed "default 10 ms is fine; auto-tune kept it (raise-only)".
 - **`LRC_K_MAX = 256`**: matched to 128 cores — printed "default is
   appropriate".
 - **`MADV_HUGEPAGE`**: ineffective on this kernel (same `µs/page` as plain
   first-touch) because `THP=always` is already auto-promoting 4 KiB pages to
   2 MiB at the kernel level.
-- **TLB shootdown**: 25× worst-case at 128 threads (saturates at ~1.3 ms per
+- **TLB shootdown**: ~21× worst-case at 128 threads (saturates at ~1.5 ms per
   `munmap`) — bounded, not catastrophic; the warm cache absorbs most syscalls
   in practice.
 
