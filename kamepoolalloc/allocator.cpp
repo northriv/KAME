@@ -62,6 +62,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <cerrno>
+#include <chrono>           // (§28.1) lazy-drain wall clock for LRC_MMAP push
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>          // std::memset / std::memcpy
@@ -4912,9 +4913,75 @@ inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
     if(char *b = l1_pop_fit(need, kind)) return b;
     return global_pop_fit(need, kind);
 }
+
+// (§28.1) Amortised lazy drain of the global MMAP-tier cache.  Called once
+// per LRC_MMAP push (only; the chunk tier doesn't hold enough RSS per slot
+// to need this).  If at least LRC_LAZY_INTERVAL_NS has passed since this
+// thread's last tick, re-stamp the TLS clock and try ONE slot at the
+// per-thread cursor: strong-CAS-take it and release the block if occupied,
+// nothing if empty.  Cursor advances every tick whether or not a release
+// happens, so the entire MMAP-slot space is swept over time.
+//
+// Rationale: a long-running workload with frequent multi-MiB allocs would
+// otherwise pin large blocks in the cache until cap, even if they aren't
+// being reused.  Constant drain at ≈ 100 ticks/sec/thread → 100·N
+// releases/sec aggregate (where N = active threads) caps the steady-state
+// residency without explicit `kame_pool_set_large_cache_cap` calls.  Hot
+// push-pop pairs (same slot popped before the cursor reaches it) are
+// unaffected; an unlucky cursor collision steals one block per 10 ms ×
+// thread, which is millions of cycles between work — negligible.
+//
+// Cost on the LRC_MMAP push path:
+//   - 10 ms NOT elapsed: 1 steady_clock::now() (~30 ns) + 1 compare.
+//   - 10 ms elapsed: + 1 atomic load + maybe 1 CAS + munmap (~10 µs).
+// LRC_MMAP push is rare (multi-MiB free, ~1–1000/sec/thread); the per-push
+// cost is well under 1 % of normal work.
+//
+// Race safety: each tick attempts at most 1 strong CAS.  Concurrent push to
+// the same slot fails its CAS and tries the next k; concurrent pop sees
+// null after we take.  No retry loop, no chance of livelock.
+constexpr std::int64_t LRC_LAZY_INTERVAL_NS = 10LL * 1000 * 1000;   // 10 ms
+
+ALLOC_TLS_IE std::int64_t tls_lazy_last_ns = 0;                     // 0 = epoch ⇒ first tick fires
+ALLOC_TLS_IE int          tls_lazy_cursor  = 0;                     // position in the MMAP-slot sweep
+
+inline void lrc_lazy_mmap_one() noexcept {
+    auto now = std::chrono::steady_clock::now();
+    std::int64_t now_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            now.time_since_epoch()).count();
+    if(now_ns - tls_lazy_last_ns < LRC_LAZY_INTERVAL_NS) return;
+    tls_lazy_last_ns = now_ns;
+
+    // MMAP-tier slots are at idx (LRC_CHUNK_BND, LRC_N_MAX] across all K.
+    constexpr int LRC_MMAP_IDX_COUNT = LRC_N_MAX - LRC_CHUNK_BND;
+    constexpr int LRC_MMAP_SLOT_TOTAL = LRC_MMAP_IDX_COUNT * LRC_K_MAX;
+    static_assert((LRC_K_MAX & (LRC_K_MAX - 1)) == 0,
+                  "LRC_K_MAX must be a power of two for the mask below");
+
+    int pos = tls_lazy_cursor;
+    if(pos < 0 || pos >= LRC_MMAP_SLOT_TOTAL) pos = 0;
+    int idx = LRC_CHUNK_BND + 1 + (pos / LRC_K_MAX);
+    int k   = pos & (LRC_K_MAX - 1);
+    int nxt = pos + 1;
+    if(nxt >= LRC_MMAP_SLOT_TOTAL) nxt = 0;
+    tls_lazy_cursor = nxt;
+
+    char *b = g_lrc[k].slots[idx].load(std::memory_order_acquire);
+    if( !b) return;
+    if( !g_lrc[k].slots[idx].compare_exchange_strong(
+             b, nullptr, std::memory_order_acq_rel))
+        return;                                                    // racing pop/push took it
+    std::size_t sz = lrc_block_size(b, (unsigned)LRC_MMAP);
+    g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
+    lrc_release(b, sz, (unsigned)LRC_MMAP);
+}
+
 inline bool recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
     if(l1_push(base, size, kind)) return true;
-    return global_push(base, size, kind);
+    bool ok = global_push(base, size, kind);
+    if(kind == (unsigned)LRC_MMAP) lrc_lazy_mmap_one();              // §28.1 amortised drain
+    return ok;
 }
 
 // Thread-exit drain: flush every L1 entry to the global cache (push;
