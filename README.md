@@ -4,10 +4,11 @@
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW)-lightgrey)]()
 
-A lock-free, per-thread bucketed pool allocator for C++ small-object workloads.
-Designed for **multi-threaded STM-style transactional workloads** but usable as a
-general-purpose drop-in `new` / `delete` replacement on macOS, Linux, and
-Windows (MinGW).
+A lock-free, per-thread, four-tier pool allocator spanning **1 B to 32 MiB** —
+bucketed small objects, dedicated mid chunks, and `munmap`-backed large blocks,
+all freed through one uniform path.  Born for **multi-threaded STM-style
+transactional workloads** but usable as a general-purpose drop-in `new` /
+`delete` (or C `malloc`) replacement on macOS, Linux, and Windows (MinGW).
 
 Carved out of the [KAME](https://github.com/northriv/KAME) measurement framework
 and **dual-licensed under Apache 2.0 OR GPL-2.0-or-later** at your choice — so
@@ -17,56 +18,97 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
 ## Highlights
 
 - **Lock-free fast path** — TLS freelist pop/push, no atomics on the hot path.
-- **Sized buckets to 32 KiB** — 51 size classes covering 1 B .. 32768 B.  The
-  ALIGN ≥ 1024 tiers are *full-usable* (per-slot metadata in a chunk-header
-  side array, not a borrow header), so power-of-2 page requests (4/8/16/32 KiB)
-  get an exact, page-aligned slot with 0 % round-up.
+  Hot-path TLS is `initial-exec` (no `__tls_get_addr` thunk).
+- **Four allocation tiers, one `free`** — every pointer is resolved in O(1) by
+  a 2-level radix tree, so `free`/`realloc`/`malloc_usable_size` work uniformly
+  across all tiers:
+  - **Buckets** (1 B .. 32 KiB): 51 size classes.  The ALIGN ≥ 1024 tiers are
+    *full-usable* (per-slot metadata in a chunk-header side array, not a borrow
+    header), so power-of-2 page requests (4/8/16/32 KiB) get an exact,
+    page-aligned slot with **0 % round-up**.
+  - **Dedicated chunks** (32 KiB .. 4 MiB): one N-unit chunk from a 32 MiB pool
+    region.
+  - **Large mmap** (4 MiB .. 32 MiB): one 32-MiB-aligned `mmap` per allocation,
+    **`munmap`'d on free** (VA returned to the OS).
+  - **> 32 MiB**: straight to libc.
+- **Two-level recycle cache** for the large tiers (32 KiB .. 32 MiB): a
+  per-thread **L1** (no atomics, ping-pong absorbed) in front of a global
+  lock-free **L2** log-slot cache (no working-set cliff, byte-capped).  Reuses
+  warm, resident blocks — skips the `mmap`/`madvise`/re-fault cost that makes
+  every other allocator fall off a cliff above ~64 KiB.
+- **Aligned allocation served from the pool** — `posix_memalign` /
+  `aligned_alloc` / `operator new(align_val_t)` up to 4 KiB alignment route to
+  the matching bucket (slots are inherently ALIGN-aligned); larger alignments
+  use the 256 KiB-aligned dedicated/mmap tiers.  No `_aligned_free` pairing —
+  freed by the ordinary `free`.
 - **Per-thread DLL chunks** — no global allocator lock, no contention until
-  the chunk-claim slow path.
-- **Cross-thread frees** via per-thread holding batch + bit-clear coalescing.
-- **Multi-unit buddy chunks** — 1 / 2 / 4 × 256 KiB units depending on size
-  class. O(1) chunk-base lookup via back-offset table.
-- **Bounded VA** — runtime cap via `kame_pool_set_max_bytes()`; compile-time
-  ceiling 100 GiB on 64-bit (3 GiB on 32-bit).
-- **mprotect-free reclaim** — `madvise(MADV_FREE)` on macOS, `MADV_DONTNEED`
-  on Linux.  No syscall on the chunk-claim / release path other than the
-  initial 32-MiB-region mmap (one syscall per ~1000 small allocations).
-- **Strict aliasing & C++17 clean** — no UB casts, no reinterpret-cast of
-  storage-classified pointers.  Compiles under `-Wall -Wextra` clean.
-- **DCAS-free** — `uint32_t` packed counter + state bits; `compare_exchange`
-  on `uint64_t` only where the host guarantees `ATOMIC_LLONG_LOCK_FREE == 2`.
+  the chunk-claim slow path; cross-thread frees via a holding batch +
+  bit-clear coalescing.
+- **Standards-conformant OOM** — throwing `operator new` runs the installed
+  `std::new_handler` loop then throws `std::bad_alloc`; nothrow / C-API paths
+  return `nullptr` + `errno = ENOMEM`.  No `std::terminate` across the noexcept
+  C boundary.
+- **Bounded VA + prompt RSS** — two independent runtime caps:
+  `kame_pool_set_max_bytes()` (fresh-region mmap ceiling) and
+  `kame_pool_set_large_cache_cap()` (the large-recycle cache's resident
+  footprint, split ~half global L2 / ~half aggregate per-thread L1).
+  `madvise(MADV_FREE/DONTNEED)` on chunk release — default also at thread exit,
+  toggle via `kame_pool_set_thread_exit_reclaim()`.
+- **Verified** — TSAN race-free, UBSAN clean (incl. `vptr`), ASan clean, and
+  GenMC / TLA+ model-checked claim-recycle protocol.  Builds 64-bit and 32-bit.
 
 ## Status
 
 **Production-stable in KAME** (measurement framework, 24/7 operation in
-research labs since 2002).  Phase 5 family (Aug 2025 – May 2026) added the
-buddy chunk allocator, multi-tier ALIGN buckets, and the cross-thread cursor
-fix that closes the last reuse-heavy workload gap.
+research labs since 2002).  The Phase 5 / §15–§26 work (2025 – 2026) added the
+buddy chunk allocator, the full-usable page-aligned bucket tiers, the
+dedicated / large-`mmap` tiers with a two-level recycle cache, pool-routed
+aligned allocation, and standards-conformant OOM.
 
-**Embedded readiness:** WIP.  Static-buffer mode and explicit C API are
-planned (see [Roadmap](#roadmap)).  Currently requires a POSIX-ish host
-with `mmap` and `pthread`.
+**Targets:** macOS and Windows (64-bit) for KAME itself; the standalone library
+also builds and is tested on Linux (64-bit and 32-bit).  Requires a host with
+`mmap` (or `VirtualAlloc`) and threads — not an MCU / bare-metal allocator.
 
-## Benchmarks (Apple M3, 4P+4E, Phase 5t)
+## Benchmarks
 
-Alloc + free in a tight loop, one slot at a time (single thread, warm cache):
+Tight alloc/free loop, one slot at a time (`bench_multi`), median of repeated
+runs.  `kame` is `LD_PRELOAD`'d against the same binary as the others; all are
+default-Release builds (no `-flto` / `-march=native` — mimalloc and jemalloc
+ship the same way).
 
-| size      | rate           | vs glibc | vs mimalloc |
-| --------- | -------------- | -------- | ----------- |
-| 96 B      | 460 M ops/s    | 3.1×     | 2.5×        |
-| 272 B     | 485 M ops/s    | —        | —           |
-| 1024 B    | 390 M ops/s    | 2.4×     | 2.7×        |
-| 8192 B    | 390 M ops/s    | 4.6×     | 3.7×        |
+**x86-64, Intel Xeon @ 2.1 GHz (cloud VM, 4 vCPU), single thread, M ops/s:**
 
-Adversarial multi-thread (`alloc_stress 200 × 32 × 100K @ 50 % cross-thread`):
+| size    | system | mimalloc | jemalloc | **kame** |
+| ------- | ------ | -------- | -------- | -------- |
+| 64 B    | 160    | 196      | 176      | **251**  |
+| 1 KiB   | 162    | 153      | 168      | 162      |
+| 16 KiB  | 82     | 101      | 82       | **160**  |
+| 64 KiB  | 75     | 103      | 8        | **113**  |
+| 256 KiB | 76     | 10       | 9        | **81**   |
+| 1 MiB   | 78     | 9        | 9        | **82**   |
+| 4 MiB   | 75     | 9        | 9        | 46       |
 
-| metric                  | KAME    | glibc   | mimalloc |
-| ----------------------- | ------- | ------- | -------- |
-| throughput              | 18.7    | 11.8    | 12.3     |
-| RSS                     | 9 MiB   | ~200    | ~180     |
-| peak VmSize             | 3 GiB   | 2.4     | 2.5      |
+**Same box, 4 threads (`mt:4`), M ops/s:**
 
-Linux numbers are similar in throughput; RSS savings depend on workload.
+| size    | system | mimalloc | jemalloc | **kame** |
+| ------- | ------ | -------- | -------- | -------- |
+| 64 B    | 610    | 435      | 493      | **633**  |
+| 16 KiB  | 180    | 287      | 217      | **382**  |
+| 64 KiB  | 161    | 278      | 30       | **304**  |
+| 1 MiB   | 168    | 3        | 31       | **214**  |
+
+kame leads decisively in the **16 KiB – 4 MiB** range — where mimalloc and
+jemalloc fall back to per-call `mmap`/`munmap` (≈ 8–10 M ops/s) while the
+recycle cache keeps kame at memory-warm speed — and at multi-thread large
+sizes.  In the tiny-object hot loop (≤ 1 KiB) it matches mimalloc; jemalloc's
+tcache edges ahead on some sizes.  Cloud-VM numbers are noisy (other tenants);
+on the author's **Apple M3** the same ranking holds with ~2–3× higher absolute
+rates (e.g. 64 KiB ≈ 174 M ops/s vs mimalloc 126).
+
+The point is not the micro-benchmark peak but the **flat curve**: kame has no
+size cliff and no per-thread working-set cliff, so a real mixed workload (small
+objects + large arrays/waveforms — KAME's own profile) never hits the
+`mmap`-per-large-alloc wall the others do.
 
 ## Build
 
@@ -89,9 +131,12 @@ make
 ctest --output-on-failure
 ```
 
-`ctest` runs the STM transaction, atomic-shared-ptr, and concurrency
-verification suite that doubles as the allocator's correctness coverage
-(9 tests, all must pass).
+`ctest` runs the C-API conformance test.  The repo also ships manual
+correctness / perf drivers built alongside it: `alloc_stress_test`
+(adversarial multi-thread, sentinel-checked), `alloc_minimal_bench`
+(single-size hot / fifo loops), and `alloc_bucket34_repro`.  Sanitizer
+coverage (TSAN / UBSAN / ASan) is obtained by configuring the build with
+the matching `-fsanitize=` flags.
 
 ## Usage
 
@@ -133,6 +178,25 @@ int main() {
 Pass `0` to disable the cap (default = compile-time ceiling: 100 GiB
 on 64-bit, 3 GiB on 32-bit).
 
+### Explicit C API (no C++ required)
+
+When you cannot interpose `new`/`delete` (static link, sandbox, FFI),
+include `<kame_pool.h>` and call the pool directly.  Pure C linkage,
+fully reentrant; pre-activation calls transparently fall through to libc.
+
+```c
+#include <kame_pool.h>
+
+void *p = kame_pool_malloc(64);
+void *q = kame_pool_aligned_alloc(4096, 1 << 20);   // 1 MiB, page-aligned
+size_t cap = kame_pool_malloc_usable_size(p);        // bucket-rounded size
+kame_pool_free(q);
+kame_pool_free(p);
+
+kame_pool_stats_t st = { .version = KAME_POOL_STATS_VERSION };
+kame_pool_get_stats(&st);   // regions / live chunks / claimed units
+```
+
 ## License
 
 **Dual-licensed under your choice of EITHER:**
@@ -155,48 +219,56 @@ or binary form.
 
 ## Roadmap
 
-Listed in implementation order; see Phase commits in `git log` for design
-rationale on completed items.
+See `git log kamepoolalloc/allocator.cpp` and the §-numbered design notes
+([`CHUNK_CLAIM_TLA_NOTES.md`](tests/CHUNK_CLAIM_TLA_NOTES.md),
+[`LARGE_RECYCLE_DESIGN.md`](LARGE_RECYCLE_DESIGN.md)) for rationale.
 
-### Embedded readiness (in progress)
+### Done
 
-- [x] Runtime memory cap (`kame_pool_set_max_bytes`) — Phase 5u
-- [x] Apache-2.0 relicense — Phase 5u
-- [ ] Explicit C API (`kame_malloc` / `kame_free` family) for non-C++ consumers
-- [ ] Static-buffer mode (`kame_pool_init(buf, len)`) — no `mmap` dependency
-- [ ] `malloc_usable_size()` public for `std::vector` etc. compatibility
-- [ ] Statistics API (`mallinfo`-style: per-bucket usage, fragmentation)
-
-### Diagnostic / debugging
-
-- [ ] ASAN / Valgrind transparent shim
-- [ ] User-installable OOM handler
-- [ ] TSAN clean (concurrent allocator is its own test case)
+- [x] Runtime memory caps (`kame_pool_set_max_bytes` region ceiling +
+      `kame_pool_set_large_cache_cap` recycle-cache footprint)
+- [x] Apache-2.0 relicense
+- [x] Explicit C API (`kame_pool_malloc` / `_free` / `_calloc` / `_realloc` /
+      `_aligned_alloc` / `_posix_memalign` family) — `<kame_pool.h>`
+- [x] `kame_pool_malloc_usable_size()` public
+- [x] Statistics API (`kame_pool_get_stats` — regions, live chunks, units)
+- [x] Aligned-alloc served from the pool (§17)
+- [x] User-installable OOM handler (`std::new_handler` loop + `bad_alloc`) (§18)
+- [x] Large-tier `munmap` on free — VA returned to the OS (§19)
+- [x] TSAN / UBSAN (incl. `vptr`) / ASan clean; GenMC + TLA+ model-checked
+- [x] 32-bit verified; 16 KiB-page (Apple Silicon) / 64 KiB-page (POWER)
+      page-multiple slot layout (§16)
 
 ### Future / nice-to-have
 
+- [ ] Static-buffer mode (`kame_pool_init(buf, len)`) — no `mmap` dependency
+      (toward MCU / bare-metal use)
 - [ ] Multiple heap instances (per-subsystem isolation)
-- [ ] Aligned-alloc pool support (currently falls through to `posix_memalign`)
-- [ ] 32-bit ARMv7 / RISC-V verification
-- [ ] musl / uclibc verification
-- [ ] 64 KiB-page ARM64 (some Linux distros, ARM Mac under Asahi)
+- [ ] Unified `KAME_POOL_*` env / config surface (hugepages, prewarm, caps)
+- [ ] `fork()` safety (`malloc_disable` / `_enable`)
+- [ ] musl / uclibc, RISC-V verification
 
-## Phase 5 timeline (May 2026)
+## Design timeline
 
-Major refactor cycle that brought the allocator from "KAME-specific" to
-"general-purpose small-object pool":
+Carved out of KAME and generalised from "KAME-specific small-object pool" to a
+four-tier general allocator.  Selected milestones (full history in `git log`):
 
-| Phase | Commit prefix | Subject |
-| ----- | ------------- | ------- |
-| 5l    | buddy chunks  | uniform 32 MiB regions, multi-unit chunks 1/2/4 |
-| 5m    | region bitmap | s_region_has_free skip-bitmap for O(1) chunk claim |
-| 5n    | DLL cursor    | per-thread DLL walk cursor + exhausted flag |
-| 5p+5q | bucket layout | N+1 shift for round-number frag + FS=true 16-step extension to 368 B |
-| 5r    | cursor reset  | reset cursor after direct batch_return_to_bitmap (Linux bucket34_repro 33.5 → 0.24 M/s root fix) |
-| 5t    | TID-aware     | gate cursor reset by chunk-owner identification |
-| 5u    | embedded API  | runtime memory cap + Apache-2.0 relicense |
-
-See `git log kamepoolalloc/allocator.cpp` for full history.
+| §     | subject |
+| ----- | ------- |
+| 5l–5u | buddy 32 MiB regions, multi-unit chunks, bucket layout, runtime cap, Apache-2.0 |
+| 13    | O(1) `p → chunk` via 2-level radix tree (retires the O(N) region scan) |
+| 13.2/13.3 | per-region metadata in unit 0; push-only region list (retire cap-sized globals) |
+| 14    | NUMA-aware claim; opt-in hugepages; `kame_pool_get_stats` |
+| 15    | forward-shift — every chunk's slot region starts on a 256 KiB boundary |
+| 16    | full-usable ALIGN ≥ 1024 tiers — 0 % round-up at power-of-2 page sizes |
+| 17    | pool-routed `posix_memalign` / `aligned_alloc` / `operator new(align_val_t)` |
+| 18    | standards-conformant OOM (`new_handler` + `bad_alloc`; nothrow / errno) |
+| 19    | large-`mmap` tier (4–32 MiB) with real `munmap` on free |
+| 20    | fix cross-thread-free `vptr`-after-release UB (UBSAN) |
+| 21–23 | thread-exit reclaim default; recycle cache; IE-TLS hot-path slots |
+| 24    | `slow_allocate` scans DLL freelists across chunks (multi-chunk working sets) |
+| 25    | global lock-free log-slot recycle cache (no working-set cliff) |
+| 26    | per-thread L1 recycle log + global L2 — MT scaling without the cliff |
 
 ## Acknowledgements
 
