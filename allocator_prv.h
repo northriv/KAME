@@ -310,7 +310,13 @@ enum RadixKind : uint32_t {
 };
 
 struct RadixL2Node {
-    std::atomic<uint32_t> slots[RADIX_L2_SIZE];  // (§19) RadixKind values
+    // Member name is `entries`, NOT `slots` — Qt defines `slots` as an
+    // empty preprocessor token in <QtCore>, so `T slots[N];` at class
+    // scope becomes `T [N];`, which Apple Clang then mis-parses as a
+    // structured binding (illegal at class scope).  Renamed to keep the
+    // header includable from Qt-built TUs (`kame/main.cpp`, etc.)
+    // without `#undef slots` gymnastics.
+    std::atomic<uint32_t> entries[RADIX_L2_SIZE];  // (§19) RadixKind values
 };
 static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
               "RadixL2Node must be exactly RADIX_L2_SIZE * 4 bytes "
