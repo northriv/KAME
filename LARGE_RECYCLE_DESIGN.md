@@ -17,7 +17,47 @@ The recycle cache holds *freed-but-warm* blocks so a reuse skips the cold cost
 |---|---|---|
 | §21/§22 | per-thread LIFO, 8 entries / 64 MiB | working-set cliff: a rotating set > 8 blocks misses every cycle |
 | §23 | same LIFO, moved to **IE-TLS** | fixed `__tls_get_addr` (35 % CPU on a 64 KiB hot loop) but kept the 8-entry cliff |
-| **§25** | **global log-slot** (this doc) | no TLS at all, **no cliff**, lock-free, byte-capped |
+| §25 | **global log-slot** | no TLS, no cliff, lock-free, byte-capped — but every op is an atomic CAS on a SHARED slot ⇒ MT contention on a narrow band (x86 measured 64 KiB mt:4 ≈ 10 M/s) |
+| **§26** | **per-thread L1 log + global L2** (this doc) | L1 absorbs same-thread ping-pong with NO atomics; spills to / refills from the §25 global L2.  Restores MT scaling (64 KiB mt:4 ≈ 458 M/s) AND single-thread (64 KiB hot 52→121 M/s) without losing §25's no-cliff property |
+
+## §26 — per-thread L1 in front of the global log-slot
+
+The §25 global cache is scalable and cliff-free, but every op is an atomic CAS
+on a *shared* slot.  When many threads ping-pong a narrow size band (e.g. all
+freeing/allocating 64 KiB → all hit the same low slots) the CAS serialises.
+§26 adds a per-thread **L1** in front:
+
+- **Same log density** as the global L2 (reuses `lrc_idx` / `lrc_band`) — an L1
+  slot and the L2 slot for a size share an index, no translation.
+- **CHUNK tier only** (`[256 KiB, 4 MiB]`, idx `[0, BND]`).  The mmap tier
+  (> 4 MiB) is *cut* and always uses L2 directly — those blocks are few, large,
+  contention-tolerant, and one would blow a small per-thread budget.
+- **Per-thread byte budget = `g_lrc_cap / hw_concurrency`**, so the aggregate L1
+  RSS across all threads stays within the global cap ("TLS worst = global /
+  hwconc").
+- **push**: first empty L1 band slot → L1 (no atomics).  Band full / over budget
+  / mmap kind → fall through to the L2 push.
+- **pop**: first fitting L1 band slot → L1 (no atomics).  Band empty → fall
+  through to the L2 pop.
+- **thread exit**: an `L1Drain` `thread_local` dtor flushes every L1 survivor to
+  the L2 (push; release on refusal).
+
+TLS model (the §23 lesson): the L1 **array** is plain `__thread` (572 pointers,
+too big for the initial-exec surplus), but its per-thread base address is taken
+ONCE and cached in an **IE-TLS pointer** (`tls_l1`), so the hot path is one
+`fs:offset` read + index, never `__tls_get_addr`.  Single-owner ⇒ the L1
+slots are plain loads/stores, no CAS.
+
+Measured (x86 Xeon 2.1 GHz, M ops/s):
+
+| pattern        | §25  | §26  |
+|----------------|------|------|
+| hot 64 KiB     |  52  | 121  |
+| hot 1 MiB      |  47  |  91  |
+| fifo:64 64 KiB |  48  | 122  |
+| mt:4 64 KiB    |  10  | 458  |
+| mt:4 1 MiB     |  11  | 238  |
+| hot ≥ 8 MiB    |  ~46 |  ~46 (mmap tier — L1 cut, L2 only, unchanged) |
 
 ## Structure
 
