@@ -1,16 +1,20 @@
 TARGET = transaction_dynamic_node_test
 
-include(../../tests/tests.pri)
+exists(../../tests/tests.pri) {
+    include(../../tests/tests.pri)   # monorepo (kame) — full harness, links libkamepoolalloc + libkamestm
+} else {
+    include(tests.pri)                 # standalone kamestm repo — Qt-free, no kamepoolalloc, system alloc
+}
 
 HEADERS += \
-    ../kame/atomic_smart_ptr.h \
-    ../kame/xthread.h \
-    ../kame/transaction.h \
-    ../kame/transaction_impl.h \
-    ../kame/transaction_definitions.h \
-    ../kame/transaction_signal.h \
-    ../kame/transaction_negotiation.h \
-    ../kame/transaction_neg_impl.h
+    ../atomic_smart_ptr.h \
+    ../xthread.h \
+    ../transaction.h \
+    ../transaction_impl.h \
+    ../transaction_definitions.h \
+    ../transaction_signal.h \
+    ../transaction_negotiation.h \
+    ../transaction_neg_impl.h
 
 SOURCES += \
     transaction_dynamic_node_test.cpp

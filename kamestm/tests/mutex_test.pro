@@ -1,9 +1,13 @@
 TARGET = mutex_test
 
-include(../../tests/tests.pri)
+exists(../../tests/tests.pri) {
+    include(../../tests/tests.pri)   # monorepo (kame) — full harness, links libkamepoolalloc + libkamestm
+} else {
+    include(tests.pri)                 # standalone kamestm repo — Qt-free, no kamepoolalloc, system alloc
+}
 
 HEADERS += \
-    ../kame/xthread.h
+    ../xthread.h
 
 SOURCES += \
     mutex_test.cpp
