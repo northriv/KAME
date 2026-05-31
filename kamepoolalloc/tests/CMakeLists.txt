@@ -98,6 +98,19 @@ if(USE_KAME_ALLOCATOR)
     # on Linux (4 KiB == K_MAX) it self-skips and trivially passes.
     add_executable(alloc_madvise_straddle_repro alloc_madvise_straddle_repro.cpp)
     target_link_libraries(alloc_madvise_straddle_repro kamepoolalloc Threads::Threads)
+
+    # (§28.2) kame_pool_get_stats v2 tier-attribution fields (cache_bytes,
+    # dedicated_chunk_bytes, large_alloc_count/bytes) instrumentation test.
+    add_executable(alloc_stats_test alloc_stats_test.cpp)
+    target_link_libraries(alloc_stats_test kamepoolalloc Threads::Threads)
+
+    # Tuning-diagnostic — run on the target machine to characterise VMM
+    # cost / TLB shootdown / kamepoolalloc throughput, and print a
+    # recommendation block.  NOT registered as a ctest (long-running,
+    # machine-specific output meant for human reading) — invoke directly:
+    #     ./alloc_tune_report [seconds-per-bench, default 2]
+    add_executable(alloc_tune_report alloc_tune_report.cpp)
+    target_link_libraries(alloc_tune_report kamepoolalloc Threads::Threads)
 endif()
 
 # --- CTest registration ---
@@ -106,6 +119,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME c_api_test COMMAND c_api_test)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
+    add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     if(APPLE)
         # macOS-only (16 KiB pages): forces MADV_FREE reclaim via memory
         # pressure to make the straddle deterministic.  Args: objects, pressure_MiB.
