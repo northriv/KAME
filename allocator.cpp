@@ -109,6 +109,22 @@ ALLOC_TLS_IE bool s_alloc_tls_off = false;
 // spuriously match a chunk (chunks always carry a non-zero id).
 ALLOC_TLS_IE uint32_t s_tls_owner_id = 0;
 static std::atomic<uint32_t> s_owner_id_next{1};
+
+// (§28.2) Tier-attribution counters for kame_pool_get_stats — O(1) at
+// snapshot time (no extra walking).  Maintained by atomic inc/dec at the
+// matching allocate/free sites:
+//   - g_dedicated_bytes_live : §15 dedicated chunk bytes held by the
+//                              program (NOT cache-parked).
+//   - g_large_alloc_count    : §19/§27 large_va live alloc count.
+//   - g_large_alloc_bytes    : §19/§27 large_va live mmap_size sum.
+// Declared high in the file so every alloc / free site below them is in
+// scope.  Cache bytes use the already-existing `g_lrc_bytes` in the
+// anonymous namespace at the §28 cache section; that one is forward-
+// declared near kame_pool_get_stats.
+static std::atomic<std::size_t> g_dedicated_bytes_live{0};
+static std::atomic<std::size_t> g_large_alloc_count{0};
+static std::atomic<std::size_t> g_large_alloc_bytes{0};
+
 static inline uint32_t kame_owner_id() noexcept {
     uint32_t id = s_tls_owner_id;
     if(__builtin_expect(id == 0, 0)) {
@@ -2691,6 +2707,10 @@ PoolAllocatorBase::deallocate(void *p) {
 		if(__builtin_expect((back_off_raw & 0x80u) != 0u, 0)) {
 			size_t bytes = *reinterpret_cast<std::uint64_t *>(
 			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+			// (§28.2) Leaving the "live in program" bucket — whether the
+			// chunk lands in the cache (recycle_push success) or is fully
+			// released (deallocate_chunk), the program no longer owns it.
+			g_dedicated_bytes_live.fetch_sub(bytes, std::memory_order_relaxed);
 			// (§22) Recycle into the per-thread cache, keeping the units
 			// CLAIMED and the chunk_header intact for warm reuse (no
 			// bitmap clear, no madvise here).  On overflow the cache
@@ -2985,8 +3005,11 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	// entirely and hand back the payload directly.  pop_fit's [need, 2*need]
 	// window means the cached chunk's actual size (kept in DEDICATED_SIZE)
 	// is ≥ this request — size_of stays truthful via that field.
-	if(char *cached = large_recycle_pop(chunk_size, LRC_CHUNK))
+	if(char *cached = large_recycle_pop(chunk_size, LRC_CHUNK)) {
+		// (§28.2) Leaving the cache for the program.
+		g_dedicated_bytes_live.fetch_add(chunk_size, std::memory_order_relaxed);
 		return cached + ALLOC_CHUNK_K_MAX;
+	}
 	// Claim N units, tagging back_off with bit7 so deallocate / size_of
 	// detect the dedicated chunk from the already-loaded s_back_offset
 	// byte (no chunk_header read on the hot free path — preserves the
@@ -3006,6 +3029,8 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET) =
 	    (std::uint64_t)chunk_size;
 	writeBarrier();
+	// (§28.2) Fresh-claim path: also entering the "live in program" bucket.
+	g_dedicated_bytes_live.fetch_add(chunk_size, std::memory_order_relaxed);
 	// (§15) Payload starts at the unit boundary = chunk_base + K_MAX, so
 	// `deallocate` resolves unit_idx = base_unit, back_off = 0, recovering
 	// chunk_base via `unit_boundary - K_MAX`.
@@ -4222,6 +4247,13 @@ extern "C" std::size_t kame_pool_reserved_bytes() noexcept {
          * (std::size_t)ALLOC_MIN_MMAP_SIZE;
 }
 
+// (§28.2) Forward decl of anonymous-namespace g_lrc_bytes (defined inside
+// the §28 cache machinery much later in this file).  Re-opening the anon
+// namespace with `extern` resolves to the same symbol in this TU; lets
+// kame_pool_get_stats snapshot the cache bytes without rearranging the
+// cache definitions.
+namespace { extern std::atomic<std::int64_t> g_lrc_bytes; }
+
 // (§14) Diagnostic / tuning stats — walks the push-only region list
 // (since §13.3, O(populated regions × BITMAP_WORDS_PER_REGION)) reading
 // each region's embedded claim_bitmap + back_offset under relaxed loads.
@@ -4273,6 +4305,14 @@ extern "C" void kame_pool_get_stats(kame_pool_stats_t *out) noexcept {
     out->bytes_reserved    = regions * (std::size_t)ALLOC_MIN_MMAP_SIZE;
     out->chunks_live       = chunks;
     out->units_live        = units;
+
+    // v2 — O(1) snapshots of the atomic tier counters maintained at
+    // allocate / free sites (see §28.2 above).
+    std::int64_t cb = g_lrc_bytes.load(std::memory_order_relaxed);
+    out->cache_bytes           = (cb < 0) ? 0u : (std::size_t)cb;
+    out->dedicated_chunk_bytes = g_dedicated_bytes_live.load(std::memory_order_relaxed);
+    out->large_alloc_count     = g_large_alloc_count.load(std::memory_order_relaxed);
+    out->large_alloc_bytes     = g_large_alloc_bytes.load(std::memory_order_relaxed);
 }
 
 std::atomic<RadixL2Node *> PoolAllocatorBase::s_radix_l1[RADIX_L1_SIZE];
@@ -5169,6 +5209,12 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 	// KAME_RADIX_LARGE (and reads the meta we just published,
 	// release-paired with this store).
 	radix_insert(base, (uint32_t)KAME_RADIX_LARGE);
+	// (§28.2) Track live large-alloc count + bytes for kame_pool_get_stats.
+	// On a recycled hit we've just transferred the block out of the cache
+	// (recycle_pop_fit already did `g_lrc_bytes -= sz`) so it correctly
+	// enters the "live in program" bucket here either way.
+	g_large_alloc_count.fetch_add(1, std::memory_order_relaxed);
+	g_large_alloc_bytes.fetch_add(mmap_size, std::memory_order_relaxed);
 	return base + ALLOC_PAGE_SIZE;
 }
 
@@ -5178,6 +5224,10 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
 	LargeAllocMeta *meta = reinterpret_cast<LargeAllocMeta *>(base);
 	std::size_t mmap_size = meta->mmap_size;
+	// (§28.2) Leaving the "live in program" bucket — whether we cache-park
+	// it or release outright, the program no longer holds this block.
+	g_large_alloc_count.fetch_sub(1, std::memory_order_relaxed);
+	g_large_alloc_bytes.fetch_sub(mmap_size, std::memory_order_relaxed);
 	// Clear radix slot FIRST — any racing reader now sees absent and
 	// routes to libc free (and a double-free of this pointer lands in
 	// libc, not the cache); once cleared, the region is invisible to the
