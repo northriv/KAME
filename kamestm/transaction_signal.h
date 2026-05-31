@@ -26,7 +26,7 @@
 #include <support.h>  // angle: INCLUDEPATH-priority (kame/ full vs kamestm/ standalone) — see transaction_detail.h
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
-#include "allocator.h"
+#include "fast_vector.h"  // Transactional::fast_vector — kamestm-local (was kamepoolalloc/allocator.h pre-decoupling)
 #include "xtime.h"
 
 namespace Transactional {

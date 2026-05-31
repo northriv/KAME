@@ -52,6 +52,8 @@ HEADERS += \
     ../kamestm/atomic_queue.h \
     ../kamestm/atomic_smart_ptr.h \
     ../kamestm/atomic.h \
+    ../kamestm/atomic_mfence.h \
+    ../kamestm/fast_vector.h \
     driver/driver.h \
     driver/dummydriver.h \
     driver/interface.h \

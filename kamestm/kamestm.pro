@@ -15,14 +15,19 @@ TEMPLATE = lib
 # atomic_shared_ptr<T>, etc.), so the .cpp footprint of the library is
 # deliberately small.
 #
-# Depends on kamepoolalloc for the lock-free pool allocator + barrier
-# primitives.  Consumers link both:
-#   LIBS += -lkamestm -lkamepoolalloc
+# kamestm is self-contained: every header it needs (atomic_mfence.h,
+# fast_vector.h) lives in this directory.  It does NOT call any
+# libkamepoolalloc runtime symbol, so the standalone kamestm subtree
+# mirror (one-way `git subtree split`) builds with nothing under
+# kamepoolalloc/ present — when kamepoolalloc is absent, consumers run
+# against the system allocator transparently (no global `operator new`
+# override is in scope without libkamepoolalloc loaded).
 #
 # Production kame.app (kame/kame.pro) inline-compiles these same .cpp
-# files (no DLL boundary).  The standalone kamestm dylib exists for
-# tests and for downstream consumers that want to embed kamestm
-# without the rest of KAME.
+# files (no DLL boundary) AND also inline-compiles kamepoolalloc's
+# allocator.cpp; the pool override is wired up there independently of
+# kamestm.  The standalone kamestm dylib exists for tests and for
+# downstream consumers that want to embed kamestm without KAME.
 
 CONFIG += plugin
 CONFIG -= qt
@@ -36,7 +41,6 @@ contains(QMAKE_HOST.arch, x86) | contains(QMAKE_HOST.arch, x86_64) {
 }
 
 INCLUDEPATH += $${_PRO_FILE_PWD_}
-INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamepoolalloc
 
 # Qt-free `support.h` is provided right alongside the headers
 # (kamestm/support.h) — minimal macro shim, distinct from the
@@ -51,8 +55,10 @@ SOURCES += \
 
 HEADERS += \
     atomic.h \
+    atomic_mfence.h \
     atomic_queue.h \
     atomic_smart_ptr.h \
+    fast_vector.h \
     support.h \
     threadlocal.h \
     transaction.h \
@@ -71,15 +77,9 @@ macx {
     QMAKE_LFLAGS += -install_name @rpath/libkamestm.dylib
 }
 
-# Link against the sibling kamepoolalloc dylib (built by
-# ../kamepoolalloc/kamepoolalloc.pro into a parallel OUT_PWD subdir).
-LIBS += -L$$OUT_PWD/../kamepoolalloc -lkamepoolalloc
-
-macx {
-    QMAKE_LFLAGS += -Wl,-rpath,@executable_path/../kamepoolalloc
-}
-unix:!macx {
-    QMAKE_LFLAGS += -Wl,-rpath,\\$\$ORIGIN/../kamepoolalloc
-}
+# No link to libkamepoolalloc: kamestm calls zero libkamepoolalloc
+# runtime symbols.  Binaries that want pool-allocate behaviour link
+# libkamepoolalloc directly (tests/tests.pri / kame/kame.pro do so);
+# binaries that don't run against the system allocator.
 
 DESTDIR = $$OUT_PWD
