@@ -298,6 +298,25 @@ cost), raising this to 100 ms (or higher) trades drain rate for fewer
 `munmap` syscalls.  Not currently a `-D…` knob; trivial to expose if
 measurement shows it matters.
 
+### Auto-characterise the host (`alloc_tune_report`)
+
+The cmake test suite includes a runnable diagnostic that measures the
+host's `mmap` / `munmap` / `madvise` costs, sweeps multi-thread munmap
+(to expose TLB-shootdown scaling), benchmarks kamepoolalloc throughput at
+every tier, and emits a recommendation block.  Build + run:
+
+```sh
+cmake --build <build-dir> --target alloc_tune_report
+./<build-dir>/alloc_tune_report [seconds-per-bench, default 2]
+```
+
+It is NOT registered as a ctest (long-running, machine-specific output);
+intended to be run once per target and the output captured for tuning
+discussions.  Recommends concrete `-D…` rebuild flags when it detects
+that the defaults are inappropriate (e.g. munmap so expensive that
+`LRC_LAZY_INTERVAL_NS` should be raised, or `LRC_K_MAX` mis-sized for the
+host's core count).
+
 ### Notes for many-core NUMA targets
 
 - TLB shootdown on `munmap` / `madvise(MADV_DONTNEED)` scales with core count.
