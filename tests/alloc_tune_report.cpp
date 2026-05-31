@@ -304,9 +304,9 @@ int main(int argc, char **argv) {
     double madvise_ns    = bench_madvise_dontneed_ns();
     double thp_per_pg    = bench_madvise_hugepage_ns();
     std::printf("  mmap (no touch)            %8.1f us\n", mmap_ns / 1000.0);
-    std::printf("  first-touch fault          %8.2f us/page  (%.1f ms / 32 MiB)\n",
+    std::printf("  first-touch fault          %8.2f us/page  (%.2f ms / 32 MiB)\n",
                 touch_per_pg / 1000.0,
-                touch_per_pg * (kProbeSize / 4096) / 1e6);
+                touch_per_pg * (kProbeSize / e.page_size) / 1e6);
     std::printf("  munmap (after touch)       %8.1f us\n", munmap_ns / 1000.0);
 #if defined(__APPLE__)
     std::printf("  madvise(MADV_FREE)         %8.1f us\n", madvise_ns / 1000.0);
@@ -314,9 +314,9 @@ int main(int argc, char **argv) {
     std::printf("  madvise(MADV_DONTNEED)     %8.1f us\n", madvise_ns / 1000.0);
 #endif
     if(thp_per_pg > 0)
-        std::printf("  mmap + MADV_HUGEPAGE touch %8.2f us/page  (%.1f ms / 32 MiB)\n",
+        std::printf("  mmap + MADV_HUGEPAGE touch %8.2f us/page  (%.2f ms / 32 MiB)\n",
                     thp_per_pg / 1000.0,
-                    thp_per_pg * (kProbeSize / 4096) / 1e6);
+                    thp_per_pg * (kProbeSize / e.page_size) / 1e6);
     else
         std::printf("  mmap + MADV_HUGEPAGE       n/a\n");
     std::printf("\n");
@@ -346,15 +346,25 @@ int main(int argc, char **argv) {
         std::printf("%-22s %5d %12.0f %14.2f\n", r.label, r.nthreads,
                     r.ns_per_op, r.mops_per_sec);
     };
+    // Label for the 40 MiB tier depends on whether §28's raised LRC_HI
+    // catches it.  With LRC_HI=64 MiB (the default since §28), 40 MiB is
+    // cacheable through allocate_large_va; §27 huge bypass only kicks in
+    // above LRC_HI.  Adjust the label to match.
+    const char *label_40m = "40 MiB (large_va, cached)";
     int hw = e.hw_concurrency;
+    int seen_t[8] = {0}; int n_seen_t = 0;
     for(int n : {1, 4, std::min(hw, 16), std::min(hw, 64), hw}) {
-        if(n != 1 && n == hw && hw <= 4) continue;
+        if(n <= 0 || n > hw) continue;
+        bool dup = false;
+        for(int i = 0; i < n_seen_t; i++) if(seen_t[i] == n) { dup = true; break; }
+        if(dup) continue;
+        seen_t[n_seen_t++] = n;
         run("64 B (bucket)",       64,            n);
         run("1 KiB (bucket)",      1024,          n);
-        run("64 KiB (bucket)",     64u * 1024,    n);
+        run("64 KiB (chunk)",      64u * 1024,    n);
         run("1 MiB (chunk)",       1u << 20,      n);
         run("8 MiB (large_va)",    8u << 20,      n);
-        run("40 MiB (huge §27)",   40u << 20,     n);
+        run(label_40m,             40u << 20,     n);
         std::printf("\n");
     }
 
