@@ -4958,28 +4958,76 @@ bool large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
 // from g_lrc_cap/concurrency).  So g_lrc_cap = total/2 ⇒ L1+L2 ≈ total.
 //
 // (§28) After lowering the cap, EVICT to bring g_lrc_bytes below it
-// synchronously.  Strong CAS, no age / time consultation — every populated
-// slot examined at most once; bounded by total slot count (LRC_K_MAX ·
-// (LRC_N_MAX+1)).  Walks (k, idx) order; sloppy bytes counter governs the
-// stop condition, so concurrent push/pop can interleave without causing a
-// retry loop.  Cap-LOWER is a heavy explicit user op (potentially many
-// `munmap`/`madvise` syscalls); cap-UNCHANGED or RAISE is fast (the
-// `g_lrc_bytes ≤ cap` short-circuit returns immediately).
+// synchronously.  Two-phase priority — preserve SIZE COVERAGE while there
+// is surplus, only drop SIZE CLASSES when forced:
+//
+//   threshold = hw_concurrency × Σ S_i
+//             where S_i ≈ LRC_LO × 2^(i/4) is the nominal size at idx i,
+//             so the sum is the "ideal" bytes if every idx held one block
+//             per armed thread.  hw_concurrency uses g_lrc_l1_threads
+//             (live armed count — same source the L1 per-thread cut uses;
+//             no platform CPU-count API).
+//
+//   Phase 1 (g_lrc_bytes > threshold) — REDUCE K.
+//     Walk k = K_MAX-1 → 0, for each k all idxs.  Drops redundant copies
+//     uniformly while leaving every idx with at least the "1 per thread"
+//     ideal coverage.  Stops at max(cap, threshold).
+//
+//   Phase 2 (g_lrc_bytes ≤ threshold, > cap) — REDUCE N.
+//     Walk idx = N_MAX → 0, for each idx all k.  Drops the largest size
+//     classes first.  Stops at cap.
+//
+// Strong CAS so each slot is examined at most once; bounded by total slot
+// count (LRC_K_MAX × (LRC_N_MAX+1) per phase).  The sloppy g_lrc_bytes
+// counter governs the stop condition, so concurrent push/pop can interleave
+// without causing a retry loop.  Cap-LOWER is a heavy explicit user op
+// (potentially many munmap/madvise syscalls); cap-RAISE or UNCHANGED is
+// fast (the byte short-circuit returns immediately).
 extern "C" void kame_pool_set_large_cache_cap(std::size_t total_bytes) noexcept {
     std::int64_t cap = (std::int64_t)(total_bytes / 2u);
     g_lrc_cap.store(cap, std::memory_order_relaxed);
-    for(int k = 0; k < LRC_K_MAX; k++) {
+
+    int hw = g_lrc_l1_threads.load(std::memory_order_relaxed);
+    if(hw < 1) hw = 1;
+    // Σ S_i with linear interpolation within each octave: S_i = 2^(i/4)·LRC_LO
+    // ≈ (4 + i%4) / 4 · (LRC_LO << i/4).  ~5 % above the exact 2^(i/4) for
+    // i mod 4 ∈ {1,2,3}; the threshold is a heuristic so this slack is fine.
+    std::int64_t sum_S = 0;
+    for(int i = 0; i <= LRC_N_MAX; i++) {
+        int oct = i / 4, frac = i % 4;
+        sum_S += ((std::int64_t)LRC_LO << oct) * (4 + frac) / 4;
+    }
+    std::int64_t threshold = (std::int64_t)hw * sum_S;
+    std::int64_t phase1_stop = (cap > threshold) ? cap : threshold;
+
+    auto evict = [](int k, int idx) noexcept {
+        char *b = g_lrc[k].slots[idx].load(std::memory_order_acquire);
+        if( !b) return;
+        if( !g_lrc[k].slots[idx].compare_exchange_strong(
+                 b, nullptr, std::memory_order_acq_rel))
+            return;                                                    // racing pop took it; move on
+        unsigned kind = lrc_kind_from_idx(idx);
+        std::size_t sz = lrc_block_size(b, kind);
+        g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
+        lrc_release(b, sz, kind);
+    };
+
+    // Phase 1: reduce K (drop redundant duplicates uniformly across idxs).
+    for(int k = LRC_K_MAX - 1; k >= 0; k--) {
+        if(g_lrc_bytes.load(std::memory_order_relaxed) <= phase1_stop) break;
         for(int idx = 0; idx <= LRC_N_MAX; idx++) {
-            if(g_lrc_bytes.load(std::memory_order_relaxed) <= cap) return;
-            char *b = g_lrc[k].slots[idx].load(std::memory_order_acquire);
-            if( !b) continue;
-            if( !g_lrc[k].slots[idx].compare_exchange_strong(
-                     b, nullptr, std::memory_order_acq_rel))
-                continue;                                              // racing pop took it; move on
-            unsigned kind = lrc_kind_from_idx(idx);
-            std::size_t sz = lrc_block_size(b, kind);
-            g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
-            lrc_release(b, sz, kind);
+            if(g_lrc_bytes.load(std::memory_order_relaxed) <= phase1_stop) break;
+            evict(k, idx);
+        }
+    }
+    if(g_lrc_bytes.load(std::memory_order_relaxed) <= cap) return;
+    // Phase 2: reduce N (drop largest size classes first).  Only reached
+    // when cap < threshold and Phase 1 left us above cap.
+    for(int idx = LRC_N_MAX; idx >= 0; idx--) {
+        if(g_lrc_bytes.load(std::memory_order_relaxed) <= cap) break;
+        for(int k = 0; k < LRC_K_MAX; k++) {
+            if(g_lrc_bytes.load(std::memory_order_relaxed) <= cap) break;
+            evict(k, idx);
         }
     }
 }

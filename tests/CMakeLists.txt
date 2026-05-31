@@ -84,6 +84,12 @@ if(USE_KAME_ALLOCATOR)
     # pool linked in (DISABLE_POOL_ALLOCATOR has no kame_pool_malloc symbol).
     add_executable(alloc_huge_test alloc_huge_test.cpp)
     target_link_libraries(alloc_huge_test kamepoolalloc Threads::Threads)
+
+    # (§28) Cap-eviction (kame_pool_set_large_cache_cap synchronous shrink) test.
+    # Verifies the two-phase K-then-N reduction, MT race-safety, and round-trip
+    # behaviour.  Pool-only (uses the kame_pool_* C API directly).
+    add_executable(alloc_evict_test alloc_evict_test.cpp)
+    target_link_libraries(alloc_evict_test kamepoolalloc Threads::Threads)
 endif()
 
 # --- CTest registration ---
@@ -91,4 +97,5 @@ enable_testing()
 if(USE_KAME_ALLOCATOR)
     add_test(NAME c_api_test COMMAND c_api_test)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
+    add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
 endif()
