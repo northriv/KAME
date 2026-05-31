@@ -2424,41 +2424,70 @@ PoolAllocatorBase::deallocate_chunk(char *chunk_base, size_t chunk_size,
 				if(reclaim_pages) {
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 					(void)chunk_size;
-#elif defined(__APPLE__)
-					// macOS: MADV_FREE — kernel zeros pages lazily on
-					// next access (or sooner under memory pressure).
-					// Apple libc's implementation is cheap (per-page
-					// flag flip, no LRU-list manipulation) and reuse-
-					// fast: subsequent writes to the same VA hit the
-					// preserved pages without re-faulting.  Skip the
-					// first page (holds chunk_header) so a concurrent
-					// lookup never reads an madvise-zeroed palloc.
-					madvise(chunk_base + ALLOC_PAGE_SIZE,
-					        chunk_size - ALLOC_PAGE_SIZE, MADV_FREE);
 #else
-					// Linux / others: MADV_DONTNEED — eager reclaim.
+					// Reclaim only FULLY-OWNED slot pages — never any chunk's
+					// header page.
 					//
-					// an earlier attempt tried MADV_FREE on Linux for "lazy
-					// reclaim, fast reuse" but it REGRESSED
-					// catastrophically on reuse-heavy workloads
-					// (bucket34_repro 33.5 → 0.26 M/s, fifo:1024
-					// 3072B 3.3 → 1.6 M/s, alloc_stress c=32 x=50 %
-					// RSS 9 MiB → 698 MiB).  Root cause is kernel-
-					// specific: Linux MADV_FREE adds pages to an LRU
-					// lazy-discard list (multi-thread lock
-					// contention) and reusing the VA via a fresh
-					// write triggers a minor page-fault to clear the
-					// discard flag — net cost EXCEEDS the
-					// MADV_DONTNEED + zero-fault round-trip for our
-					// alloc/free cadence, while RSS bloats because
-					// reclaim is delayed until memory pressure.
-					// macOS MADV_FREE does not have this problem
-					// because Apple's implementation is structured
-					// differently.  Skip the first page (holds
-					// chunk_header) so a concurrent lookup_chunk never
-					// reads an madvise-zeroed palloc.
-					madvise(chunk_base + ALLOC_PAGE_SIZE,
-					        chunk_size - ALLOC_PAGE_SIZE, MADV_DONTNEED);
+					// §15 places this chunk's ALLOC_CHUNK_K_MAX-byte header in
+					// `[chunk_base, chunk_base + K_MAX)` = the 4 KiB *below* its
+					// 256 KiB unit boundary; the slot region starts AT the unit
+					// boundary (`chunk_base + K_MAX`), which is 256 KiB- (hence
+					// page-) aligned.  On a target whose page size > K_MAX
+					// (macOS arm64: 16 KiB), the NEXT chunk's header shares the
+					// final page of this chunk's slot region, and this chunk's
+					// header shares a page with the PREVIOUS chunk's slot tail.
+					//
+					// The previous `madvise(chunk_base + ALLOC_PAGE_SIZE,
+					// chunk_size - ALLOC_PAGE_SIZE, ...)` has page-UNALIGNED
+					// ends there; the kernel rounds advice ranges OUTWARD (XNU
+					// truncates the start / rounds up the end), so MADV_FREE
+					// bled into the adjacent chunk's header page — zeroing a
+					// LIVE neighbour's embedded PoolAllocator (vtable +
+					// m_flags), which then crashes its next virtual dispatch:
+					// `release_dll_chunks_for_thread`'s `c->~PoolAllocator()`
+					// (null vtable) or `CrossDeallocBatch::flush`'s
+					// `chunk->batch_return_to_bitmap()`.  Only a page reclaim
+					// can zero the +K_MAX-resident header object — deallocate
+					// itself never touches it — which is why this manifested as
+					// an `address=0x0` EXC_BAD_ACCESS at thread/process exit,
+					// macOS-only, and only after reclaim-on-exit became the
+					// default (cbd0462c).
+					//
+					// Fix: anchor at the slot-region start (already
+					// page-aligned by construction) and round the range INWARD,
+					// so it can never cover ANY chunk's header page.  Header
+					// pages stay resident — which also keeps the prior
+					// "concurrent lookup never reads an madvise-zeroed palloc"
+					// guarantee.  On Linux (PAGE == K_MAX == 4 KiB) both ends
+					// are already aligned, so the reclaimed range is byte-for-
+					// byte identical to before; only macOS changes (it now
+					// reclaims this chunk's lower slot pages that the old
+					// unaligned start skipped, and leaves the single top page
+					// shared with the next header resident).
+					uintptr_t slot0 = reinterpret_cast<uintptr_t>(chunk_base)
+					                  + ALLOC_CHUNK_K_MAX;
+					uintptr_t cend  = reinterpret_cast<uintptr_t>(chunk_base)
+					                  + chunk_size;
+					uintptr_t ms = (slot0 + (uintptr_t)ALLOC_PAGE_SIZE - 1u)
+					               & ~((uintptr_t)ALLOC_PAGE_SIZE - 1u);  // round UP
+					uintptr_t me = cend & ~((uintptr_t)ALLOC_PAGE_SIZE - 1u); // round DOWN
+					if(me > ms) {
+#if defined(__APPLE__)
+						// macOS: MADV_FREE — cheap per-page flag flip, fast
+						// reuse (kernel zeros lazily on next access).
+						madvise(reinterpret_cast<void *>(ms),
+						        static_cast<size_t>(me - ms), MADV_FREE);
+#else
+						// Linux/others: MADV_DONTNEED — eager reclaim.
+						// (MADV_FREE regressed reuse-heavy workloads
+						// catastrophically: bucket34_repro 33.5 → 0.26 M/s,
+						// alloc_stress RSS 9 → 698 MiB — Linux MADV_FREE's
+						// LRU lazy-discard list + minor-fault-on-reuse costs
+						// exceed the MADV_DONTNEED + zero-fault round-trip.)
+						madvise(reinterpret_cast<void *>(ms),
+						        static_cast<size_t>(me - ms), MADV_DONTNEED);
+#endif
+					}
 #endif
 				}
 				else {
