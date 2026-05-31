@@ -805,6 +805,18 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	// — `PoolAllocatorBase::mempool()` derives it from `this` at the use
 	// sites instead.
 	size_t slot_region_size = size - kMetaBudget;
+	// Page-bound the slot region: the slot region starts at the 256 KiB unit
+	// boundary (mempool() = chunk_base + K_MAX), which is OS-page-aligned, so
+	// rounding its SIZE down to a whole number of pages makes it END on a page
+	// boundary too.  This keeps every handed-out slot inside a page this chunk
+	// can fully reclaim on release.  Targets whose page size exceeds K_MAX
+	// (macOS arm64: 16 KiB) otherwise leave a partial final page that §15
+	// SHARES with the NEXT chunk's header (each header is the 4 KiB below its
+	// unit boundary); a slot there could not be MADV_FREE'd without zeroing
+	// the neighbour's live header (the straddle crash fixed in deallocate_chunk).
+	// No-op on Linux (PAGE == K_MAX == 4 KiB, and chunk_size − K_MAX is already
+	// page-aligned); costs PAGE − K_MAX (= 12 KiB) of slots per chunk on macOS.
+	slot_region_size &= ~((size_t)ALLOC_PAGE_SIZE - 1u);
 	// count must satisfy:
 	//   (i)  size_alloc + count*sizeof(FUINT) <= kMetaBudget
 	//          (m_flags fits between PoolAllocator and slot_region)
@@ -844,6 +856,11 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 	// Slot region size = size - (K_MAX - HEADER); pointer is derived from
 	// `this` via `PoolAllocatorBase::mempool()` at use sites.
 	size_t slot_region_size = size - kMetaBudget;
+	// Page-bound the slot region — see the FS=true create() above for the
+	// rationale (slots must never land in the chunk's final page, which on
+	// PAGE > K_MAX targets is shared with the next chunk's header).  No-op on
+	// Linux; −12 KiB of slots/chunk on macOS arm64.
+	slot_region_size &= ~((size_t)ALLOC_PAGE_SIZE - 1u);
 	// (§16) Per-word metadata cost.  Borrow mode: just the FUINT bitmap
 	// word (8 B / 64 slots).  Full-usable mode (ALIGN>=1024): additionally
 	// `m_sizes[64]` = 64 × uint16 = 128 B per bitmap word, packed right
