@@ -1252,13 +1252,23 @@ Three-tier above-bucket dispatch in `allocate_large_size_or_malloc`:
      region pool.  Many such allocs share radix slots / NUMA hints / DLL
      state with regular bucket chunks — best locality for moderate-large
      sizes.
-  2. `size ≤ ALLOC_MIN_MMAP_SIZE − PAGE` (≈ 32 MiB) → `allocate_large_va`:
+  2. `mmap_size ≤ ALLOC_MIN_MMAP_SIZE` (≈ 32 MiB) → `allocate_large_va`:
      one `mmap` of `round_up(size + PAGE, PAGE)` at a 32-MiB-aligned
-     base, registered as a single `KAME_RADIX_LARGE` radix slot.  Pays
-     one radix slot per alloc (acceptable in the multi-MiB range) and
-     **returns VA on free** via `munmap`.
-  3. `size > 32 MiB − PAGE` → libc `malloc`.  Spanning multiple radix
-     slots is left as future work.
+     base, registered as a single `KAME_RADIX_LARGE` radix slot, served
+     warm from the §25/§26 recycle cache.  Pays one radix slot per alloc
+     (acceptable in the multi-MiB range) and **returns VA on free** via
+     `munmap` when not recycled.
+  3. (§27) `mmap_size > 32 MiB` → STILL `allocate_large_va`, but the
+     `mmap` spans multiple 32-MiB radix regions and only the HEAD slot is
+     registered.  Safe: the alloc's sole valid user pointer (`base + PAGE`)
+     always resolves to the head slot; the tail slots are never standalone
+     `radix_lookup` targets (interior-pointer lookup into one alloc is UB
+     caller-side) and the OS keeps the whole span mapped so no other alloc
+     can claim a tail slot's VA.  The huge tier BYPASSES the recycle cache
+     (its `lrc_idx` log space tops out at 32 MiB; above that all sizes
+     collapse to one slot whose only pop gate is `cached ≥ need`, with no
+     upper bound → over-satisfaction / RSS pinning).  libc `malloc` is the
+     fallback only when the `mmap` itself fails.
 
 ### Radix protocol extension
 

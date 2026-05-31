@@ -29,8 +29,16 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
   - **Dedicated chunks** (32 KiB .. 4 MiB): one N-unit chunk from a 32 MiB pool
     region.
   - **Large mmap** (4 MiB .. 32 MiB): one 32-MiB-aligned `mmap` per allocation,
-    **`munmap`'d on free** (VA returned to the OS).
-  - **> 32 MiB**: straight to libc.
+    served warm from the recycle cache, **`munmap`'d on free** when not recycled.
+  - **Huge mmap** (> 32 MiB): a multi-region `mmap` per allocation, of which only
+    the head 32-MiB radix slot is registered — safe because the allocation's sole
+    valid pointer resolves to that slot and the tail slots are never standalone
+    lookup targets (and the OS keeps the whole span mapped, so no other allocation
+    can claim a tail slot's VA).  **`munmap`'d on free**; bypasses the recycle
+    cache (its log index tops out at 32 MiB, so a cached huge block could
+    over-satisfy a smaller huge request and pin its RSS — the reason
+    libc / jemalloc / mimalloc don't pool their huge class).  Plain libc `malloc`
+    is reached only if the `mmap` itself fails.
 - **Two-level recycle cache** for the large tiers (32 KiB .. 32 MiB): a
   per-thread **L1** (no atomics, ping-pong absorbed) in front of a global
   lock-free **L2** log-slot cache (no working-set cliff, byte-capped).  Reuses

@@ -78,10 +78,17 @@ if(USE_KAME_ALLOCATOR)
     add_executable(c_api_test c_api_test.c)
     target_link_libraries(c_api_test kamepoolalloc Threads::Threads)
     set_property(TARGET c_api_test PROPERTY C_STANDARD 99)
+
+    # (§27) Huge-alloc (> 32 MiB) round-trip / no-over-satisfy / MT test.
+    # Uses the kame_pool_* C API directly, so it is meaningful only with the
+    # pool linked in (DISABLE_POOL_ALLOCATOR has no kame_pool_malloc symbol).
+    add_executable(alloc_huge_test alloc_huge_test.cpp)
+    target_link_libraries(alloc_huge_test kamepoolalloc Threads::Threads)
 endif()
 
 # --- CTest registration ---
 enable_testing()
 if(USE_KAME_ALLOCATOR)
     add_test(NAME c_api_test COMMAND c_api_test)
+    add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
 endif()
