@@ -90,6 +90,14 @@ if(USE_KAME_ALLOCATOR)
     # behaviour.  Pool-only (uses the kame_pool_* C API directly).
     add_executable(alloc_evict_test alloc_evict_test.cpp)
     target_link_libraries(alloc_evict_test kamepoolalloc Threads::Threads)
+
+    # macOS 16 KiB-page madvise-straddle regression (fix f0d6a487).  Forces the
+    # otherwise-lazy MADV_FREE reclaim with memory pressure, then checks that a
+    # released chunk's reclaim never zeroes a live neighbour chunk's header.
+    # Meaningful only where page size > ALLOC_CHUNK_K_MAX (Apple arm64 = 16 KiB);
+    # on Linux (4 KiB == K_MAX) it self-skips and trivially passes.
+    add_executable(alloc_madvise_straddle_repro alloc_madvise_straddle_repro.cpp)
+    target_link_libraries(alloc_madvise_straddle_repro kamepoolalloc Threads::Threads)
 endif()
 
 # --- CTest registration ---
@@ -98,4 +106,10 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME c_api_test COMMAND c_api_test)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
+    if(APPLE)
+        # macOS-only (16 KiB pages): forces MADV_FREE reclaim via memory
+        # pressure to make the straddle deterministic.  Args: objects, pressure_MiB.
+        add_test(NAME alloc_madvise_straddle_repro
+                 COMMAND alloc_madvise_straddle_repro 800000 4096)
+    endif()
 endif()
