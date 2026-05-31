@@ -131,6 +131,44 @@ malloc's large path is lock-serialised — it runs *backwards* (8 → 1 M ops/s 
 threads rise) — and mimalloc's large tier stalls (~3 M), while kame's
 per-thread L1 keeps climbing (72 → 230 M ops/s at 1 MiB).
 
+**Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
+pages, `THP=always`), `srun --exclusive`, single-binary self-validation via
+`tests/alloc_tune_report`:**
+
+Aggregate M ops/s (`alloc → touch byte 0 → free` loop) at 1 / 4 / 16 / 64 /
+128 concurrent threads:
+
+| size,tier         |  1T  |  4T  |  16T |  64T | 128T |
+| ----------------- | ---: | ---: | ---: | ---: | ---: |
+| 64 B  (bucket)    |  120 |  479 | 1916 | 6498 | **11068** |
+| 1 KiB (bucket)    |   75 |  299 | 1196 | 4267 |  **6815** |
+| 64 KiB (chunk)    |   52 |   30 |   28 |   25 |    23 |
+| 1 MiB (chunk)     |   54 |   30 |   28 |   17 |    19 |
+| 8 MiB (large_va)  |   25 |  7.4 |  3.5 |  4.0 |   2.9 |
+
+Bucket tier scales **near-linearly to 128 cores** — **11 G ops/s aggregate
+for 64 B** — vindicating the per-thread DLL + per-thread freelist + per-thread
+L1 design on a heavily-NUMA machine.  The chunk / large tier MT throughput
+*plateaus* (not regresses) above ~16 threads: the benchmark touches byte 0
+each cycle so it exercises the Linux process-wide `mmap_lock` page-fault path
+— which serialises across cores on this kernel — not anything intrinsic to
+kamepoolalloc.  Real KAME workloads touch the whole buffer right after alloc
+(`memcpy` of acquisition data, FFT in-place) so the one-page fault is dwarfed
+by the buffer write and doesn't show as a per-op cost.
+
+The same `alloc_tune_report` run self-validated the defaults on this hardware:
+
+- **`LRC_LAZY_INTERVAL_NS = 10 ms`**: 2.6 % per-thread wallclock pressure —
+  printed "current 10 ms is OK".
+- **`LRC_K_MAX = 256`**: matched to 128 cores — printed "default is
+  appropriate".
+- **`MADV_HUGEPAGE`**: ineffective on this kernel (same `µs/page` as plain
+  first-touch) because `THP=always` is already auto-promoting 4 KiB pages to
+  2 MiB at the kernel level.
+- **TLB shootdown**: 25× worst-case at 128 threads (saturates at ~1.3 ms per
+  `munmap`) — bounded, not catastrophic; the warm cache absorbs most syscalls
+  in practice.
+
 kame leads decisively in the **16 KiB – 4 MiB** range — where mimalloc and
 jemalloc fall back to per-call `mmap`/`munmap` (≈ 8–10 M ops/s) while the
 recycle cache keeps kame at memory-warm speed — and at multi-thread large
