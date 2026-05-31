@@ -231,6 +231,86 @@ kame_pool_stats_t st = { .version = KAME_POOL_STATS_VERSION };
 kame_pool_get_stats(&st);   // regions / live chunks / claimed units
 ```
 
+## Tuning
+
+Most consumers don't need to touch these — the defaults are picked for a few-
+to a few-hundred-core machine.  Override via `-D…` at compile time.
+
+### `LRC_K_MAX` — slot count per (idx, kind) in the global L2 recycle cache
+
+Each `LrcKArray` is one cache line (or more) on its own — pushes from
+different threads to the same idx land on different cache lines as long as
+their `kame_owner_id() & (LRC_K_MAX − 1)` start positions differ.  K therefore
+sets the **upper bound on concurrent pushers to one size class that won't
+collide on a cache line**.
+
+The default `LRC_K_MAX = 256` is the conservative choice for many-core NUMA
+servers.  Smaller K reduces the static slot-array memory AND the cold pop scan
+length (each pop scans up to K cache lines for a fit); larger K spreads
+contention further.  K must be a power of two.
+
+| Use case | LRC_K_MAX | Static memory (global L2) | Pop cold scan worst |
+|---|---:|---:|---:|
+| Desktop / few cores | 32 | 10 KiB | 32 lines |
+| Single-socket server (~64 cores) | 64 | 20 KiB | 64 lines |
+| Multi-socket NUMA (~256 cores) — default | 256 | 80 KiB | 256 lines |
+| Huge NUMA (≥ 512 cores or many domains) | 512 | 160 KiB | 512 lines |
+
+K-major (current) over N-major: N-major would compact a band into one cache
+line (1-line pop scan) but force every concurrent pusher of that size onto a
+SHARED line — catastrophic cache-line bouncing across NUMA nodes.  K-major's
+per-K cache-line independence keeps inter-NUMA coherence traffic minimal,
+which is the dominant cost on a 256-core node.  Trade-off: pop cold scan is
+~K cache-line loads (≈ K × ~50 ns NUMA-remote / ~5 ns hot-cache).
+
+### `LRC_N_MAX` — top size class in the recycle cache
+
+The cache covers `[LRC_LO, LRC_HI]` at 4 indices per octave (= ~19% per
+step).  `LRC_LO = ALLOC_MIN_CHUNK_SIZE = 256 KiB`; `LRC_HI = LRC_LO <<
+(LRC_N_MAX / 4)`.  Default `LRC_N_MAX = 32` ⇒ `LRC_HI = 64 MiB`.  Sizes above
+`LRC_HI` bypass the cache (the index space would otherwise saturate at the
+top slot and over-satisfy smaller huge requests — see §27).  Must be a
+multiple of 4.
+
+| LRC_N_MAX | LRC_HI | Use case |
+|---:|---:|---|
+| 24 | 16 MiB | Constrained RSS; never reuse > 16 MiB |
+| 32 (default) | 64 MiB | General — covers typical "large buffer" sizes |
+| 40 | 256 MiB | Image / FFT / NN workloads with large buffer reuse |
+| 48 | 1 GiB | Massive buffer reuse (HPC) |
+
+Raising LRC_N_MAX also adds 4 more idx slots × LRC_K_MAX (`sizeof(atomic) ×
+roundup(...)`) per octave to the static slot array.
+
+### `LRC_K_L1` / `LRC_N_MAX_L1` — per-thread L1
+
+L1 is per-thread (TLS), no atomics, no false-sharing concern.  `LRC_K_L1 = 32`
+(fixed), `LRC_N_MAX_L1 = 24` covers idx up to 16 MiB.  Per-thread footprint
+= `LRC_K_L1 × (LRC_N_MAX_L1 + 1) × 8 B ≈ 6.4 KiB`.  Raise for workloads with
+many distinct per-thread sizes.
+
+### `LRC_LAZY_INTERVAL_NS` — §28.1 amortised drain interval
+
+Hardcoded at 10 ms.  Each LRC_MMAP push past this interval evicts one slot
+to keep the steady-state cache from growing unboundedly.  On platforms where
+`munmap()` is expensive (e.g. very many-core systems with TLB-shootdown
+cost), raising this to 100 ms (or higher) trades drain rate for fewer
+`munmap` syscalls.  Not currently a `-D…` knob; trivial to expose if
+measurement shows it matters.
+
+### Notes for many-core NUMA targets
+
+- TLB shootdown on `munmap` / `madvise(MADV_DONTNEED)` scales with core count.
+  The warm cache absorbs most of these — push/pop hit avoids the syscall.
+- Pool regions (the 32 MiB units holding bucket-tier + dedicated-chunk
+  allocations) are mmap'd push-only — once warmed up there is no munmap on
+  them.  The munmap cost is paid only by the §19/§27 large-tier path on cache
+  miss/eviction.
+- `madvise(MADV_HUGEPAGE)` is NOT currently requested.  If THP is enabled on
+  the system, the kernel may transparently coalesce 2 MiB huge pages anyway;
+  explicit `MADV_HUGEPAGE` could reduce page-table footprint and TLB-shootdown
+  cost.  Not yet measured.
+
 ## License
 
 **Dual-licensed under your choice of EITHER:**
