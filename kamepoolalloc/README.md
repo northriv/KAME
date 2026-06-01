@@ -107,8 +107,9 @@ ship the same way).
 | 64 KiB  | 161    | 278      | 30       | **304**  |
 | 1 MiB   | 168    | 3        | 31       | **214**  |
 
-**Apple M3 (arm64, macOS), single thread, M ops/s** — current §28.4 build,
-median of 5 runs (`mimalloc` 3.3 preloaded via `DYLD_INSERT_LIBRARIES`):
+**Apple M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
+`820c2c5f` (§28.4), median of 5 runs (`mimalloc` 3.3 preloaded via
+`DYLD_INSERT_LIBRARIES`).  Both M3 tables below were measured on this commit:
 
 | size    | system | mimalloc | **kame** |
 | ------- | ------ | -------- | -------- |
