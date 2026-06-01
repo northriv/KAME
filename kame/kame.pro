@@ -30,6 +30,7 @@ HEADERS += \
     ../kamepoolalloc/allocator.h \
     ../kamepoolalloc/allocator_prv.h \
     ../kamepoolalloc/atomic_mfence.h \
+    ../kamepoolalloc/kame_pool.h \
     graph/graphmathfittool.h \
     graph/graphmathtool.h \
     graph/graphmathtoolconnector.h \
