@@ -279,6 +279,50 @@ kame_pool_stats_t st = { .version = KAME_POOL_STATS_VERSION };
 kame_pool_get_stats(&st);   // regions / live chunks / claimed units
 ```
 
+### C API reference
+
+Quick index of every public symbol in `<kame_pool.h>`.  All are
+pure C linkage, noexcept (`KAMEPOOLALLOC_NOEXCEPT`), thread-safe, and
+transparently fall through to libc on pre-activation / post-teardown.
+See the header for full per-function semantics.
+
+**Allocation (libc-equivalent surface):**
+
+| Symbol | Purpose |
+|---|---|
+| `void *kame_pool_malloc(size_t)` | malloc; routes to the bucket/chunk/large-va/huge tier by size |
+| `void *kame_pool_calloc(size_t n, size_t sz)` | calloc; mmap'd tiers come zeroed for free |
+| `void *kame_pool_realloc(void *, size_t)` | realloc; resize-in-place when the bucket fits, else move |
+| `void  kame_pool_free(void *)` | free; libc-foreign pointers transparently pass through |
+| `void *kame_pool_aligned_alloc(size_t align, size_t sz)` | C11 aligned_alloc |
+| `int   kame_pool_posix_memalign(void **, size_t align, size_t sz)` | POSIX-style aligned malloc |
+| `size_t kame_pool_malloc_usable_size(const void *)` | bucket-rounded usable size |
+
+**Runtime caps:**
+
+| Symbol | Default | Purpose |
+|---|---:|---|
+| `void   kame_pool_set_max_bytes(size_t)` | 100 GiB / 3 GiB 32-bit | upper bound on `reserved` (region VA) |
+| `size_t kame_pool_get_max_bytes(void)` | — | current cap |
+| `size_t kame_pool_reserved_bytes(void)` | — | bytes of 32-MiB regions currently mapped |
+| `void   kame_pool_set_large_cache_cap(size_t)` | ≈ 2 GiB total | LRC_MMAP/CHUNK recycle-cache total cap |
+| `size_t kame_pool_get_large_cache_cap(void)` | — | current cap |
+
+**Background maintenance (silenceable for realtime work):**
+
+| Symbol | Default | Purpose |
+|---|---|---|
+| `void   kame_pool_set_lazy_drain_interval_ms(unsigned)` | 10 ms (auto-tuned at startup) | §28.1 lazy drain interval — bigger = fewer munmap ticks |
+| `unsigned kame_pool_get_lazy_drain_interval_ms(void)` | — | current interval |
+| `void   kame_pool_set_thread_exit_reclaim(int)` | on | §21 madvise(MADV_DONTNEED) at worker exit |
+| `void   kame_pool_set_realtime_mode(int)` | off | §30 one-shot preset: silences all three of the above |
+
+**Observability:**
+
+| Symbol | Purpose |
+|---|---|
+| `void   kame_pool_get_stats(kame_pool_stats_t *)` | snapshot of regions/units/chunks/cache/tier counters; versioned struct (`KAME_POOL_STATS_VERSION`) |
+
 ## Tuning
 
 Most consumers don't need to touch these — the defaults are picked for a few-
