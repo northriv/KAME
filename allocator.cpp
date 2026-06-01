@@ -88,6 +88,9 @@
     #  define WIN32_LEAN_AND_MEAN
     #endif
     #include <windows.h>
+    #include <intrin.h>          // __readgsqword — PEB walk in the §31
+                                 // free-redirect (loader-lock-safe module
+                                 // enumeration; see kame_patch_all_modules)
 #endif
 #if KAME_FAST_TSD
     #include <pthread.h>
@@ -806,6 +809,15 @@ bool g_sys_image_loaded = false;
 // emits the constructor record but Windows CRT init doesn't pick it up.
 [[gnu::used]] __attribute__((constructor(101)))
 static void kamepoolalloc_auto_activate() noexcept {
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    // (§31) Hook the free-family across all modules BEFORE flipping the
+    // flag, so the very first pool pointer the pool hands out is already
+    // safe to free from any module (Qt / libc++ / kamestm).  Safe to call
+    // from this constructor even when it runs in DllMain under the loader
+    // lock: the module sweep walks the PEB list (no loader re-entry) — see
+    // kame_patch_all_modules.  Idempotent + KAME_POOL_WIN_REDIRECT=0.
+    kame_pool_win_install_redirect();
+#endif
     g_sys_image_loaded = true;
 }
 // Backup: a file-scope global whose default constructor unconditionally
@@ -816,7 +828,12 @@ static void kamepoolalloc_auto_activate() noexcept {
 // `__attribute__((constructor))` record may be silently dropped.
 namespace {
 struct KamePoolAutoActivator {
-    KamePoolAutoActivator() noexcept { g_sys_image_loaded = true; }
+    KamePoolAutoActivator() noexcept {
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+        kame_pool_win_install_redirect();  // see kamepoolalloc_auto_activate
+#endif
+        g_sys_image_loaded = true;
+    }
 };
 [[gnu::used]] static KamePoolAutoActivator s_kamepool_auto_activator;
 } // namespace
@@ -4355,23 +4372,31 @@ static void kame_patch_one_module(HMODULE hmod) noexcept {
     if(patched_here) ++g_kame_redirect_mods;
 }
 
-typedef BOOL (WINAPI *kame_enum_proc_modules_fn)(HANDLE, HMODULE *, DWORD, LPDWORD);
-
 static void kame_patch_all_modules() noexcept {
-    HMODULE k32 = GetModuleHandleA("kernel32.dll");
-    if( !k32) return;
-    // K32EnumProcessModules lives in kernel32 (no psapi link dependency);
-    // resolve dynamically to avoid an import-lib gap on some toolchains.
-    auto enumMods = reinterpret_cast<kame_enum_proc_modules_fn>(
-        GetProcAddress(k32, "K32EnumProcessModules"));
-    if( !enumMods) return;
-    HMODULE mods[1024];
-    DWORD needed = 0;
-    if( !enumMods(GetCurrentProcess(), mods, sizeof(mods), &needed)) return;
-    DWORD n = needed / sizeof(HMODULE);
-    if(n > 1024) n = 1024;  // truncate a pathologically large module set
-    for(DWORD i = 0; i < n; ++i)
-        kame_patch_one_module(mods[i]);
+    // Enumerate loaded modules by walking PEB->Ldr->InMemoryOrderModuleList
+    // directly, NOT via EnumProcessModules.  EnumProcessModules re-enters
+    // the loader and deadlocks when we run under the loader lock — which is
+    // exactly the case when allocator.cpp is compiled into kamepoolalloc.dll
+    // and its `__attribute__((constructor))` installs us from DllMain.
+    // Reading the PEB list takes no lock; under the loader lock the list is
+    // stable, and the patch is idempotent + the LdrRegisterDllNotification
+    // hook covers anything loaded later, so a benign race outside the lock
+    // can at worst miss/repeat an entry harmlessly.
+    //
+    // x64 offsets: TEB+0x60 = PEB; PEB+0x18 = Ldr; PEB_LDR_DATA+0x20 =
+    // InMemoryOrderModuleList; each Flink = &entry.InMemoryOrderLinks
+    // (entry+0x10), and entry+0x30 = DllBase (so DllBase = Flink+0x20).
+    BYTE *peb = reinterpret_cast<BYTE *>(__readgsqword(0x60));
+    if( !peb) return;
+    BYTE *ldr = *reinterpret_cast<BYTE **>(peb + 0x18);
+    if( !ldr) return;
+    BYTE *head = ldr + 0x20;
+    for(BYTE *cur = *reinterpret_cast<BYTE **>(head);
+        cur && cur != head;
+        cur = *reinterpret_cast<BYTE **>(cur)) {
+        void *dllBase = *reinterpret_cast<void **>(cur + 0x20);
+        if(dllBase) kame_patch_one_module(reinterpret_cast<HMODULE>(dllBase));
+    }
 }
 
 // LdrRegisterDllNotification: ntdll calls us on every later DLL load so
@@ -4419,10 +4444,16 @@ extern "C" void kame_pool_win_install_redirect() noexcept {
         }
     }
     kame_patch_all_modules();
-    fprintf(stderr,
-        "[kamepool] Windows free-redirect installed: patched %u import "
-        "slot(s) across %u module(s).\n",
-        g_kame_redirect_slots, g_kame_redirect_mods);
+    // Quiet on success; opt in with KAME_POOL_VERBOSE for diagnostics.
+    // Always warn if we patched nothing — that means no UCRT-family
+    // module exposed a free import to redirect, i.e. cross-module frees
+    // of pool pointers are NOT reconciled (a silent regression risk).
+    if(std::getenv("KAME_POOL_VERBOSE") || g_kame_redirect_slots == 0)
+        fprintf(stderr,
+            "[kamepool] Windows free-redirect: patched %u import slot(s) "
+            "across %u module(s)%s.\n",
+            g_kame_redirect_slots, g_kame_redirect_mods,
+            g_kame_redirect_slots == 0 ? " — WARNING: nothing patched" : "");
 }
 #endif // _WIN32 IAT redirect engine
 

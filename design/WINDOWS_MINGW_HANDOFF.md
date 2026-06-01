@@ -1,227 +1,147 @@
-# Windows MinGW pool handoff
+# Windows MinGW pool — RESOLVED (free-family IAT redirect)
 
-Handoff context for a Claude Code session running locally on a MinGW64 +
-lld Windows machine.  Linux / macOS sessions have been driving the
-kamepoolalloc work; the Windows-only failures below need on-target debug
-access (build the EXE, attach a debugger, see actual error addresses /
-stack traces, iterate quickly).
+**Status: RESOLVED** (2026-06-01, commit `1a4f6ee3` + test/doc follow-up).
+The kame.exe crash and the pool-coexistence problem on MinGW64 + lld are
+fixed by a runtime free-family IAT redirect in
+`kamepoolalloc/allocator.cpp` (§31).  This doc records the root cause, the
+fix, and what remains.  The original "here are the symptoms, try these
+diagnostic prints, else fall back to `USE_STD_ALLOCATOR`" content is
+superseded — see git history (commit `83f865fb`) if you need it.
 
-This document is intentionally terse — read it once, then start
-debugging.  Nothing in here is end-user documentation.
+## Root cause
 
-## Reported symptoms (current master, MinGW64 + lld)
+PE/COFF has **no cross-module interposition** of `operator new` /
+`operator delete` / `free` — the ELF strong-symbol and Mach-O
+`__DATA,__interpose` mechanisms KAME's pool relies on elsewhere simply do
+not exist on Windows.  Each prebuilt DLL (Qt6*.dll, libc++.dll) binds
+`free` / `operator delete` to the UCRT at *its own* link time.  kame.exe
+inline-compiles `allocator.cpp`, so ITS `new`/`delete` are the pool's —
+but Qt and libc++ keep calling the UCRT.
 
-1. **`kame.exe` crashes at `kame/xnodeconnector.h:87` when the user adds
-   the test driver from the UI.**  Line 87 is just the `struct QForm`
-   declaration; the actual fault is somewhere inside QForm's constructor
-   body (lines 89–93) — `setupUi(this)` or `installEventFilter`.
-   Compiler line attribution lies for templates.
+So a widget kame.exe pool-allocates and hands to Qt is freed by Qt via the
+UCRT's `free()` → heap corruption (a pool pointer is not a CRT pointer).
 
-   The pool DOES activate in kame.exe (the `Reserve swap space ...`
-   message from `mmap_new_region` appears).  So the activator runs and
-   chunk-claim works in the EXE itself.  Something in the alloc / dealloc
-   or freed-memory state corrupts the QForm allocation.
+Confirmed on-target with lldb: the crash was **not** in QForm construction
+(this doc's original guess) but in **`~QForm` destruction** of the
+Create-Driver dialog.  Its child widgets, pool-allocated in kame.exe, are
+deleted by `QObjectPrivate::deleteChildren()` *inside Qt6Core.dll* →
+libc++ `operator delete` → `free()` → `int3` in ntdll's heap path.
+Backtrace spine: `XQButtonConnector::onClick` (xnodeconnector.cpp:150) →
+`XDriverListConnector::onCreateTouched` (driverlistconnector.cpp:227) →
+`qshared_ptr<QForm>` dtor → `sharedPtrQDeleter_` `delete` → `~QForm`.  The
+faulting object and the clobbered return address both sat inside the
+pool's reserved region.
 
-2. **Test binaries (link `libkamepoolalloc.dll`) run to completion but
-   the `Reserve swap space` message never appears.**  This means
-   `cold_first_access` is always falling through to `std::malloc` —
-   `g_sys_image_loaded` is `false` at every call.  Inside the DLL the
-   auto-activator constructor isn't taking effect.
+Symptom #2 (test binaries never printed "Reserve swap space"): they linked
+`libkamepoolalloc.dll`, whose `operator new` PE/COFF won't let consumers
+bind to — so they ran entirely on libc++ and never touched the pool.
 
-## What's been tried (don't redo these)
+## The fix
 
-| Commit | Attempt | Result |
-|---|---|---|
-| `bd92d0c7` | Drop `tls_model("initial-exec")` on Windows (allocator_prv.h) — hypothesis: IE-TLS attribute breaks across the EXE/DLL boundary on Windows ABI. | No change. |
-| `004b8aea` | Two diagnostic levers: (a) `[[gnu::used]]` + file-scope global `KamePoolAutoActivator` as a static-init backup for the dylib auto-activator, in case lld drops the `__attribute__((constructor(101)))` record.  (b) `KAME_POOL_DISABLE_PREFILL=1` env-var to disable §29 freelist pre-fill at runtime. | (a) no change — tests still skip pool.  (b) no change — kame.exe still crashes. |
+1. **Free-family IAT redirect** — `allocator.cpp` §31, all under
+   `#if defined(_WIN32)...`.  At pool activation, patch the `free` /
+   `realloc` / `_msize` import slots of every loaded UCRT-family module so
+   every `free()` in the process funnels through the pool's existing
+   pool-or-foreign dispatcher (`kame_free`).  Pool pointers get pool-freed
+   wherever Qt frees them; genuine CRT pointers forward to the real
+   ucrtbase `free`.  This is the PE/COFF analogue of the ELF strong-symbol
+   `free` shim / Mach-O `__interpose` — the approach `mimalloc-redirect.dll`
+   takes, scoped to the deallocation family.
+   - **Installed from BOTH activation paths**, so it fires no matter how a
+     binary activates the pool: `activateAllocator()` (inline-compiled
+     kame.exe) AND the dylib `__attribute__((constructor))` auto-activator
+     (`KAMEPOOLALLOC_DYLIB` builds — the standalone/inline tests, and the
+     real DLL).  Install hooks `free` BEFORE flipping `g_sys_image_loaded`,
+     so the first pool pointer handed out is already safe to free anywhere.
+     Idempotent (once-guard), so the two paths can't double-install.
+   - **Module enumeration walks the PEB loader list directly**, NOT
+     `EnumProcessModules` — the latter re-enters the loader and deadlocks
+     when the auto-activator runs inside the DLL's DllMain (loader lock
+     held).  The PEB walk takes no lock, so install is safe from both
+     CRT-startup (EXE) and DllMain (DLL) contexts.
+   - `malloc` is deliberately **not** redirected: crash-safety only needs
+     *frees* reconciled.  KAME's hot-path allocations keep coming from the
+     pool (kame.exe `operator new`), Qt's keep coming from the CRT.
+   - Later-loaded DLLs are patched via `LdrRegisterDllNotification`.
+   - Kill switch: `KAME_POOL_WIN_REDIRECT=0`.  Verbose:
+     `KAME_POOL_VERBOSE=1` prints the patched-slot count (otherwise quiet,
+     but always warns if it patched 0 slots).
+   - Two hazards handled during bring-up: **(a) recursion** — the pool's
+     own foreign-forward paths (`libsystem_*_for_pool`) and region release
+     (`free_munmap`) call genuine `g_real_*` pointers, not `std::free`,
+     since kame.exe's own `free` import is patched; **(b) cross-CRT** —
+     only `ucrtbase` / `api-ms-win-crt-heap` modules are patched, never
+     `msvcr*` (Ruby's `x64-msvcrt-ruby340.dll` lives on the legacy msvcrt
+     heap; freeing an msvcrt pointer with ucrtbase `free` corrupts).
 
-So we know:
-- §29 pre-fill is NOT the crash cause (still crashes with `KAME_POOL_DISABLE_PREFILL=1`).
-- IE-TLS attribute was not the (only) issue.
-- Static-init in the DLL is silently not flipping `g_sys_image_loaded`,
-  OR `g_sys_image_loaded` is flipping but the DLL's `operator new` /
-  `kame_pool_*` are never called from the test binary.
+2. **Symptom #2** — `kamepoolalloc/tests/alloc_stress_test.pro` now takes
+   the inline-compile path on Windows (the same one its standalone branch
+   uses) instead of linking the DLL, so the allocator test gets its own
+   pool `operator new` and actually exercises the pool.
 
-## Reproduction
+## Verified on-target (MinGW64 + lld, Qt 6.10.1 llvm-mingw)
+
+- kame.exe: clean startup; redirect patched 66 slots across 58 modules
+  (identical via PEB walk and the earlier EnumProcessModules); pool
+  activates ("Reserve swap space").  Adding the test driver no longer
+  crashes; a manual load test ran crash-free; process exits status 0.
+- `alloc_stress_test` (now inline-compiled on Windows): redirect installs
+  from the auto-activator (5 slots / 3 modules), pool activates, and the
+  full stress **PASSES** — 2000 threads, 42.6 M ops, 3.94 M ops/s,
+  allocs==frees, 0 sentinel failures, chunk count drains 1059→4.
+- `transaction_test` (links the DLL): passes with the rebuilt DLL — the
+  DllMain-context install path does not deadlock.
+
+## Still open
+
+- **STM tests** (`kamestm/tests/*`) still link the DLLs and run on libc++
+  on Windows (their `operator new` binds to libc++, not the DLL's pool —
+  the same PE/COFF export limitation).  They test STM logic, not the pool,
+  so this is low priority.  To make them exercise the pool, inline-compile
+  `allocator.cpp` into them via a `tests/tests.pri` `win32` branch (as
+  `alloc_stress_test.pro` now does); the auto-activator would then install
+  the free-redirect automatically to reconcile the `kamestm.dll` boundary.
+  Deferred — and verified harmless to leave as-is (`transaction_test`
+  passes against the rebuilt DLL).
+- **Aligned family** (`_aligned_free` / `_aligned_realloc` /
+  `_aligned_msize`) is not redirected.  A pool-allocated *over-aligned*
+  object freed by Qt via `_aligned_free` would still mismatch — but the
+  pool's C-API rejects over-aligned requests on Windows
+  (`kame_pool_aligned_alloc`), so this shouldn't arise.  First place to
+  look if a teardown crash appears with heavy SIMD/over-aligned Qt types.
+- cmake test scaffold (`tests/CMakeLists.txt`) remains Linux/macOS only.
+
+## Files / line index
+
+| File | What |
+|---|---|
+| `kamepoolalloc/allocator.cpp` (§31 blocks, `#if _WIN32`) | g_real_* bypass + resolver; `kame_iat_free/realloc/msize`; `kame_patch_one_module` / `kame_patch_all_modules`; `LdrRegisterDllNotification` hook; `kame_pool_win_install_redirect` |
+| `kamepoolalloc/allocator.cpp` `activateAllocator()` | calls `kame_pool_win_install_redirect()` before flipping `g_sys_image_loaded` |
+| `kamepoolalloc/allocator.cpp` `libsystem_*_for_pool` / `free_munmap` | Windows branches call `g_real_*` (recursion bypass) |
+| `kamepoolalloc/tests/alloc_stress_test.pro` | win32 → inline-compile path |
+| `kame/xnodeconnector.h` `QForm` / `sharedPtrQDeleter_` | the crash site (dialog teardown) |
+
+## Build & on-target debug (this machine)
 
 ```sh
-# build via qmake (MinGW64 shell)
-cd <repo>
-qmake -r
-mingw32-make -j
-
-# kame.exe crash repro
-./kame.app/kame.exe   # or wherever it lands on win
-# UI → Add test driver → SEGV at xnodeconnector.h:87
+# Build kame.exe from the Bash tool (SHELL=cmd.exe is REQUIRED — the qmake
+# recipes contain parens in -D defines that Git Bash's /usr/bin/sh chokes
+# on; cmd.exe handles them).
+export PATH="/c/Qt/Tools/llvm-mingw1706_64/bin:/c/Qt/Tools/mingw1310_64/bin:/c/Qt/6.10.1/llvm-mingw_64/bin:$PATH"
+cd build/Desktop_Qt_6_10_1_llvm_mingw_64_bit-Debug/kame
+mingw32-make -f Makefile.Debug SHELL=cmd.exe
 ```
 
 ```sh
-# test binaries
-cd kamepoolalloc/tests/<build dir>
-./alloc_stress_test.exe 2>&1 | head -5
-# Expected on Linux/macOS:  "Reserve swap space starting @ 0x... w/ len. of 0x2000000B (node 0)."
-# On Windows MinGW currently:  no Reserve message → test runs in libc fallback mode.
+# Debug a GUI crash with lldb: a stop-hook auto-prints the backtrace on any
+# stop (plain `-b -o run` drops to a prompt before the queued bt runs).
+cd build/Desktop_Qt_6_10_1_llvm_mingw_64_bit-Debug   # cwd = build root (modules/, resources/)
+# PATH per kame.bat: Qt llvm-mingw bin + tools bin + mingw_64 bin
+lldb -o 'target stop-hook add --one-liner "thread backtrace all"' -o run -- ./kame.exe
+# then add the test driver from the UI; lldb captures the crash backtrace.
 ```
 
-## First-cut diagnostic steps
-
-### (1) Confirm whether the DLL static-init runs at all
-
-Add a debug print to the auto-activator (commit 004b8aea defined both
-the `__attribute__((constructor(101)))` and a backup global `static
-KamePoolAutoActivator` — at least one of them should run):
-
-```cpp
-// kamepoolalloc/allocator.cpp around line 736
-[[gnu::used]] __attribute__((constructor(101)))
-static void kamepoolalloc_auto_activate() noexcept {
-    fprintf(stderr, "[kamepool] ctor(101) activated\n");  // ADD
-    g_sys_image_loaded = true;
-}
-```
-
-And the backup ~line 750:
-
-```cpp
-struct KamePoolAutoActivator {
-    KamePoolAutoActivator() noexcept {
-        fprintf(stderr, "[kamepool] static-init activated\n");  // ADD
-        g_sys_image_loaded = true;
-    }
-};
-```
-
-Run any test binary.  Three possible outcomes:
-
-- **Both messages print** ⇒ activation IS happening; the bug is that
-  the test binary's allocations don't reach the DLL's `operator new` /
-  `kame_pool_malloc`.  See (2).
-- **Only the static-init message prints** ⇒ lld drops the `(constructor)`
-  attribute record.  Activation still works via the backup — but the
-  user-side allocations still bypass the pool.  See (2).
-- **Neither message prints** ⇒ DLL static-init isn't running.  Check
-  DllMain emission (`-Wl,--enable-auto-import`, qmake `CONFIG += plugin`
-  vs `CONFIG += shared`).
-
-### (2) Confirm whether `operator new` is being routed through the DLL
-
-A test binary's `new T()` call should hit the DLL's
-`operator new(size_t)` (allocator.cpp:4209).  Add a print:
-
-```cpp
-__attribute__((noinline))
-void* operator new(std::size_t size) {
-    static bool s_seen = false;
-    if(!s_seen) { fprintf(stderr, "[kamepool] op new size=%zu\n", size); s_seen = true; }
-    KAME_HISTO_REC(size);
-    if(void *p = kame_alloc_with_handler(size)) return p;
-    throw std::bad_alloc();
-}
-```
-
-If the print never appears, the test binary's allocations go to
-libstdc++.dll's default `operator new`, not the DLL's override.  That
-points to the C++ replacement-function linkage issue on Windows PE/COFF
-(strong-symbol override across DLL boundaries does NOT work the way
-ELF / Mach-O symbol interposition does — each loaded module has its
-own import table for `operator new`, bound at module load time to
-libstdc++.dll's default).
-
-If that's the failure: tests need to be **inline-compiled with
-allocator.cpp**, not linked against the DLL.  See `alloc_stress_test.pro`
-for the standalone-build pattern (`else { ... }` branch); making the
-qmake test path on Windows take that same inline route is one option.
-The cmake test scaffold already builds a DLL though, so this needs to
-be solved properly for cross-build parity.
-
-### (3) The kame.exe crash
-
-kame.exe's pool activates (Reserve prints), so the `operator new`
-override there IS being called for at least some allocations.  The
-crash happens with the test driver's QForm construction.
-
-A focused diagnostic — add prints to QForm's constructor as a single
-diff:
-
-```cpp
-// kame/xnodeconnector.h:87 area
-template <class FRM, class UI>
-struct QForm : public FRM, public UI {
-    template <typename...Args>
-    QForm(Args&&...args) : FRM(std::forward<Args>(args)...), UI() {
-        fprintf(stderr, "[kame] QForm@%p ctor entry, sizeof(QForm)=%zu\n",
-                (void*)this, sizeof(*this));
-        this->setupUi(this);
-        fprintf(stderr, "[kame] QForm@%p setupUi done\n", (void*)this);
-        if(g_pFrmMain && this->isWindow())
-            this->installEventFilter(g_pFrmMain);
-        fprintf(stderr, "[kame] QForm@%p ctor done\n", (void*)this);
-    }
-};
-```
-
-The print(s) before the SEGV pinpoint the failing step.  Most likely
-candidates:
-- `setupUi(this)` — Qt's UI-generated form code does many small allocs;
-  if any go to a mismatched alloc/free path (libc-alloced, pool-freed
-  or vice versa via the radix lookup), the heap corrupts.
-- `g_pFrmMain` access — if `DECLSPEC_KAME` import doesn't resolve right,
-  this is a wild read.
-
-### (4) Hot suspects (after the prints narrow things down)
-
-- **Mismatched `operator new` / `operator delete`** across the
-  libstdc++.dll boundary.  Windows PE/COFF doesn't share the
-  replacement override across DLLs the way ELF/Mach-O does.  This is the
-  classic Windows gotcha for `operator new` overrides.
-- **TLS layout mismatch** between kame.exe's inline-compiled
-  `g_thread_freelist_ptr[]` and any reader from a Qt worker thread.
-  Currently `__thread` (no IE attribute on Windows since bd92d0c7).
-- **`__sync_*` builtins on lld** — verify they emit correct LOCK-
-  prefixed instructions, not just unordered loads/stores.
-
-### (5) Fallback: revert Windows to `USE_STD_ALLOCATOR`
-
-Pre-folder-move (`a80af9de`), Windows used `USE_STD_ALLOCATOR` for ALL
-toolchains.  Restoring that one-line carve-out gives KAME stability on
-Windows at the cost of no pool benefits there.  Tests on Windows would
-also degrade to std::allocator (so Windows tests stop exercising the
-pool — pool validation remains via Linux x86-64 / Linux m32 / macOS
-ctest).
-
-The patch is trivial (allocator.h:97):
-
-```cpp
-#if (defined(_WIN32) || defined(WINDOWS))
-    // Pool not yet validated on Windows MinGW + lld; see this handoff.
-    #define USE_STD_ALLOCATOR
-#endif
-```
-
-If on-target debug doesn't converge in a session or two, recommend this
-as the pragmatic stop-bleeding path.  KAME on Windows worked this way
-for 20+ years.
-
-## Files / line numbers index
-
-| File | Lines | Purpose |
-|---|---|---|
-| `kamepoolalloc/allocator.h` | 84–99 | `USE_STD_ALLOCATOR` arch carve-out |
-| `kamepoolalloc/allocator_prv.h` | 122–157 | `ALLOC_TLS` / `ALLOC_TLS_IE` macros (Windows path landed `bd92d0c7`) |
-| `kamepoolalloc/allocator.cpp` | 722–771 | `g_sys_image_loaded` activation paths (DYLIB ctor + static-init backup) |
-| `kamepoolalloc/allocator.cpp` | 843–931 | §29 pre-fill (toggle via `KAME_POOL_DISABLE_PREFILL`) |
-| `kamepoolalloc/allocator.cpp` | 4209+ | `operator new` / `operator new[]` overrides |
-| `kame/xnodeconnector.h` | 86–94 | `QForm` template — Windows crash site |
-| `kame/main.cpp` | 32–39 | `kame_pool_set_realtime_mode(1)` call gated by `#ifndef USE_STD_ALLOCATOR` |
-| `kame/kame.pro` | 172 | `SOURCES += ../kamepoolalloc/allocator.cpp` (inline-compile, all platforms) |
-| `kamepoolalloc/kamepoolalloc.pro` | 56–66 | `win32-*g++` `-Wl,--export-all-symbols -Wl,--out-implib,...` |
-
-## Working environment notes
-
-- Master is the development branch (declared by the user, sister sessions
-  push there).  Always `git pull --rebase origin master` before push.
-- ctest scaffold is at `kamepoolalloc/tests/CMakeLists.txt` — Linux /
-  macOS only (cmake hasn't been validated on Windows here).
-- qmake builds for Windows go through `kame.pro` → SUBDIRS chain.
-
-Good luck.
+Notes: `kame.exe <file.kam>` loads a measurement at startup, but `openMes`
+runs *before* driver modules load, so a `.kam` referencing a module driver
+is a no-op at load — the crash needs the driver added interactively.  Run
+allocator tests from `kamepoolalloc/tests/<build>/`.
