@@ -62,6 +62,9 @@ Recovered from `git log kamepoolalloc/allocator.cpp` and the in-code tags.
 | §28.2 | `kame_pool_get_stats` v2 tier-attribution fields. |
 | §28.3 | Auto-tune the lazy interval from a startup munmap probe (raise-only). |
 | §28.4 | Shard the §28.2 counters (fix the MT cache-line-bounce regression). |
+| §29 | FS=true freelist pre-fill at chunk claim (cold-path bitmap scan → O(1) pop; auto-prewarm). Runtime opt-out: `KAME_POOL_DISABLE_PREFILL=1`. |
+| §30 | `kame_pool_set_realtime_mode()` — one-call silence of lazy drain + auto-tune + thread-exit reclaim. |
+| §31 | Windows free-family IAT redirect — pool/CRT coexistence on PE/COFF (the analogue of the ELF/Mach-O `free` interpose). `#if _WIN32` only. |
 
 ## How to change this allocator safely (the AI-assisted-edit recipe)
 

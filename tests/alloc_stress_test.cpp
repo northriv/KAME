@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
             int n = PoolAllocatorBase::count_live_chunks();
             int prev = chunks_peak;
             while(n > prev
-                  && !__sync_bool_compare_and_swap(&chunks_peak, prev, n)) {
+                  && !atomicCompareAndSet(prev, n, &chunks_peak)) {
                 prev = chunks_peak;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
