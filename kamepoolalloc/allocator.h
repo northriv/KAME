@@ -112,6 +112,9 @@
     inline void kame_pool_set_max_bytes(std::size_t /*max_bytes*/) noexcept {}
     inline std::size_t kame_pool_get_max_bytes() noexcept { return ~std::size_t(0); }
     inline std::size_t kame_pool_reserved_bytes() noexcept { return 0; }
+    //! (§30) Realtime-mode toggle stub.  Pool background maintenance
+    //! doesn't exist in this build, so silencing it is a no-op.
+    inline void kame_pool_set_realtime_mode(int /*enable*/) noexcept {}
 #else
     #include "allocator_prv.h"
 
