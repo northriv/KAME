@@ -104,6 +104,12 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_stats_test alloc_stats_test.cpp)
     target_link_libraries(alloc_stats_test kamepoolalloc Threads::Threads)
 
+    # (§30) kame_pool_set_realtime_mode() preset toggle — verifies the
+    # bundled lazy-drain / auto-tune / thread-exit-reclaim knobs flip
+    # together and restore on enable=0.
+    add_executable(alloc_realtime_mode_test alloc_realtime_mode_test.cpp)
+    target_link_libraries(alloc_realtime_mode_test kamepoolalloc Threads::Threads)
+
     # Tuning-diagnostic — run on the target machine to characterise VMM
     # cost / TLB shootdown / kamepoolalloc throughput, and print a
     # recommendation block.  NOT registered as a ctest (long-running,
@@ -120,6 +126,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
+    add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)
     if(APPLE)
         # macOS-only (16 KiB pages): forces MADV_FREE reclaim via memory
         # pressure to make the straddle deterministic.  Args: objects, pressure_MiB.
