@@ -160,23 +160,27 @@ SOURCES += icons/icon.cpp \
     messagebox.cpp \
     math/tikhonovreg.cpp
 
+# (Production kame.exe inline-compiles kamepoolalloc's allocator.cpp on
+# every platform — same model as the kamestm sources xthread.cpp /
+# xtime.cpp / threadlocal.cpp listed in the top-level SOURCES above.
+# No DLL boundary at runtime: kamepoolalloc.pro's libkamepoolalloc.dll
+# exists only for the test scaffold.  The `__DATA,__interpose` section
+# emitted by allocator.cpp is dead data inside an MH_EXECUTE image —
+# dyld only honours interpose from MH_DYLIB — so the inline path is
+# functionally identical to the previous in-kame `kame/allocator.cpp`
+# layout.)
+SOURCES += ../kamepoolalloc/allocator.cpp
+
 unix {
     HEADERS += \
         math/matrix.h \
         math/freqest.h
-    # `../kamepoolalloc/allocator.cpp` was renamed from `kame/allocator.cpp`
-    # so the allocator lives in its own subdir (a standalone dylib in the
-    # tests' cmake build — see tests/CMakeLists.txt; here in qmake we
-    # keep it inline-compiled into the kame app for the non-LTO
-    # production build).  The `__DATA,__interpose` section in
-    # allocator.cpp is dead data when emitted into MH_EXECUTE — dyld
-    # only honours interpose from MH_DYLIB — so the inline build path
-    # is functionally identical to the previous `kame/allocator.cpp`
-    # layout.
+    # Boost-ublas matrix helpers, Unix-only (boost isn't part of the
+    # standard MacPorts set documented in CLAUDE.md but is provided by
+    # distro packages on Linux; not pulled in on Windows).
     SOURCES += \
         math/freqest.cpp \
-        math/matrix.cpp \
-        ../kamepoolalloc/allocator.cpp \
+        math/matrix.cpp
 }
 
 FORMS += \

@@ -230,15 +230,24 @@ the matching `-fsanitize=` flags.
 #include "allocator.h"
 
 int main() {
-    KamePooledAllocGuard guard;  // RAII: activates the pool for this process
+    KamePooledAllocGuard guard;  // static-link only — see note below
     auto *p = new char[256];     // routed to the pool's 256-B bucket
     delete[] p;                  // back to the per-thread freelist
 }
 ```
 
-Pre-`main()` allocations (dyld init, static ctors) stay on libsystem
-malloc.  The guard MUST be the first statement in `main()` for the pool
-to be active throughout the program.
+`KamePooledAllocGuard` is only needed when `allocator.cpp` is compiled
+**into the binary or a static library** (the qmake / inline-compiled
+path).  When linked as a **shared library** (`-DKAMEPOOLALLOC_DYLIB`,
+the cmake test scaffold and any standalone packaging), the dylib
+auto-activates from a `__attribute__((constructor(101)))` and the guard
+class compiles to an empty stub — write `KamePooledAllocGuard guard;`
+either way for portability, or omit it entirely in dylib-only builds.
+
+Pre-`main()` allocations (dyld init, static ctors) always stay on
+libsystem malloc regardless of mode.  For static builds the guard
+MUST be the first statement in `main()` for the pool to be active
+throughout the program.
 
 ### Runtime memory cap
 

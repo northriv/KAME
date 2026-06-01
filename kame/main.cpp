@@ -30,7 +30,13 @@
 #include "icons/icon.h"
 #include "messagebox.h"
 #include "allocator.h"  // KamePooledAllocGuard (kame/allocator.h shim → kamepoolalloc/allocator.h).  Was pulled transitively via kamestm/transaction_signal.h before the kamestm-from-kamepoolalloc decoupling.
-#include "kame_pool.h"  // (§30) kame_pool_set_realtime_mode
+                        // allocator.h also provides the §30 realtime-mode
+                        // no-op stub on USE_STD_ALLOCATOR builds (MSVC),
+                        // so we can call kame_pool_set_realtime_mode()
+                        // unconditionally below without a #ifdef guard.
+#ifndef USE_STD_ALLOCATOR
+#  include "kame_pool.h"  // (§30) kame_pool_set_realtime_mode — extern "C" decl
+#endif
 #include <QFile>
 #include <QTextCodec>
 #include <QTranslator>
