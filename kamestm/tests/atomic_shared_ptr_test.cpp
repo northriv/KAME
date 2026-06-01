@@ -180,7 +180,7 @@ static void test_local_weak_ptr_basic() {
 static void test_local_weak_ptr_race() {
     printf("test_local_weak_ptr_race\n");
     constexpr int N = 4;
-    constexpr int ITERS = 10000;
+    static constexpr int ITERS = 10000;  // static: usable in the no-capture lambda on MSVC
     int objcnt_before = objcnt;
     std::thread ths[N];
     for(int t = 0; t < N; ++t) {
@@ -233,7 +233,7 @@ static void test_local_weak_ptr_default() {
 static void test_local_weak_ptr_default_race() {
     printf("test_local_weak_ptr_default_race\n");
     constexpr int N = 4;
-    constexpr int ITERS = 10000;
+    static constexpr int ITERS = 10000;  // static: usable in the no-capture lambda on MSVC
     int objcnt_before = objcnt;
     std::thread ths[N];
     for(int t = 0; t < N; ++t) {

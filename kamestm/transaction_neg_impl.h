@@ -460,7 +460,7 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
         for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
             uint64_t word = tid_bitset.word(i);
             while(word && n > 0) {
-                int bit = __builtin_ctzll(word);
+                int bit = ctz_u64(word);
                 word &= word - 1;
                 int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
                 if (slot == priv_slot) continue;
@@ -480,7 +480,7 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
     for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
         uint64_t word = tid_bitset.word(i);
         while(word && n > 0) {
-            int bit = __builtin_ctzll(word);
+            int bit = ctz_u64(word);
             word &= word - 1;
             int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
             if (slot == priv_slot) continue;
@@ -510,7 +510,7 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
         for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
             uint64_t word = tid_bitset.word(i);
             while(word && n > 0) {
-                int bit = __builtin_ctzll(word);
+                int bit = ctz_u64(word);
                 word &= word - 1;
                 int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
                 if (is_woken(slot)) continue;
@@ -529,7 +529,7 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
     for(int i = 0; i < TidBitset::WORDS && n > 0; ++i) {
         uint64_t word = tid_bitset.word(i);
         while(word && n > 0) {
-            int bit = __builtin_ctzll(word);
+            int bit = ctz_u64(word);
             word &= word - 1;
             int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
             if (has_pref && is_woken(slot)) continue;
