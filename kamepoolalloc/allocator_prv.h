@@ -135,7 +135,26 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 	// 1 B ≈ 400 B); the larger cold TLS (tls_cross_dealloc_batch 16 KiB)
 	// stays on global-dynamic.  Total static-TLS demand of the IE
 	// variables fits in the default Linux surplus budget (~4 KiB).
-	#define ALLOC_TLS_IE __thread __attribute__((tls_model("initial-exec")))
+	//
+	// Windows carve-out: `tls_model("initial-exec")` targets the
+	// ELF/Mach-O `__tls_get_addr` thunk, which doesn't exist on the
+	// Windows ABI — TLS access there goes through the FS/GS segment
+	// pointer + `_tls_index` machinery (real `.tls` section) or
+	// `__emutls_get_address` (MinGW gcc emulated TLS) instead.  MinGW
+	// gcc + lld either silently ignores the attribute or emits a broken
+	// section layout across the EXE/DLL boundary, with the symptom that
+	// IE-marked TLS reads return garbage in modules / dlopen'd DLLs
+	// (observed: kame.exe's allocator activates correctly under inline-
+	// compile, but `operator new` from a module crashes the moment it
+	// reads `g_thread_freelist_ptr`).  Drop the attribute on Windows;
+	// the cost is one `_tls_index`-indirect read per hot-path TLS access
+	// (or one `__emutls_get_address` call on emutls builds) — measurable
+	// but tiny compared to the cost of a corrupted pool state.
+	#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+		#define ALLOC_TLS_IE __thread
+	#else
+		#define ALLOC_TLS_IE __thread __attribute__((tls_model("initial-exec")))
+	#endif
 #else
 	#define ALLOC_TLS thread_local
 	#define ALLOC_TLS_IE thread_local
