@@ -73,7 +73,8 @@ is *modelled by* the cleared-`BIT_OWNED` state, not a separate bit.
   once cleared, the owner's AND-result==0 identifies it as releaser. ·
   *batch_clear_impl, release_dll_chunks_for_thread, owner_release* · *breaks:
   double-free or leak of a chunk* · **TLA+** (ChunkRecycle_microscopic,
-  ChunkRecycle_threadepoch).
+  ChunkRecycle_threadepoch) + **GenMC** (cds_dll_exit_race.c, owner-exit vs
+  cross-free interleaving).
 
 - **INV-7** — A chunk with `MASK_CNT > 0` is never released. · *owner_release
   refuses when MASK_CNT≠0; the exit walk only releases on newv==0* · *breaks:
@@ -188,10 +189,15 @@ K-major layout: `g_lrc[k].slots[idx]`, `k ∈ [0,LRC_K_MAX)`, `idx ∈
 
 ## 7. Thread lifecycle & TLS (§20 / §23)
 
-- **INV-21** — `release_dll_chunks_for_thread` reads `next` BEFORE setting
-  BIT_OWNER_EXITED on a non-empty chunk (cached-next), because once exited a
-  cross-thread returner can delete the chunk. · *release_dll_chunks_for_thread*
-  · *breaks: walk dereferences freed `m_dll_next`* · **comment-only**.
+- **INV-21** — `release_dll_chunks_for_thread` reads `next` (and nulls the
+  chunk's links) BEFORE clearing BIT_OWNED, because once cleared a
+  cross-thread last-slot returner can release the chunk; the walk then
+  advances via the CACHED next, never a re-read of freed `m_dll_next`. ·
+  *release_dll_chunks_for_thread* · *breaks: walk dereferences freed
+  `m_dll_next` (the use-after-free class the CrossDeallocBatch flush-crash
+  investigation flagged)* · **GenMC** (cds_dll_exit_race.c — the cached-next
+  read is HB-before the cross-thread release; the post-clear-read bug is
+  caught as a data race on `live`/`dll_next`).
 
 - **INV-22** — Hot TLS (`g_thread_freelist_ptr`, `s_tls_owner_id`,
   `s_alloc_tls_off`, the L1/stats/lazy IE-TLS pointers) is `initial-exec`;
@@ -221,19 +227,20 @@ K-major layout: `g_lrc[k].slots[idx]`, `k ∈ [0,LRC_K_MAX)`, `idx ∈
 
 | subsystem | machine-checked | comment-only (Stage 2 candidates) |
 |---|---|---|
-| chunk-claim state machine (§13) | INV-6,7,8 (TLA+) | — |
+| chunk-claim state machine (§13) | INV-6 (TLA+ & GenMC), INV-7,8 (TLA+) | — |
 | chunk geometry (§15) | INV-1,2,4,5 (test) | INV-3 (compile-assert only) |
 | back_offset (§15/§22) | INV-12 (TLA+), INV-13 (test) | — |
 | radix (§13.3/§19/§27) | INV-9 install (GenMC), INV-10,11 (test) | INV-9 meta-handoff ordering (external) |
 | recycle cache (§21–§28) | INV-15,16,18 (GenMC), INV-19,20 (test) | **INV-17 (kind disjointness)** |
-| thread lifecycle (§20/§23) | INV-23 (test) | **INV-21, INV-22** |
+| thread lifecycle (§20/§23) | INV-21 (GenMC), INV-23 (test) | INV-22 (deployment constraint, not model-checkable) |
 | owner-id (§12) | INV-14 (test) | — |
 
-**Stage-2 progress**: INV-9's L2 lazy-install lock-free protocol is now
-GenMC-checked (`tests/cds/cds_radix_install.c`).
+**Stage-2 progress**: INV-9 (radix L2 lazy-install, `cds_radix_install.c`)
+and INV-6 + INV-21 (thread-exit DLL walk vs cross-thread free,
+`cds_dll_exit_race.c`) are now GenMC-checked.
 
-**Remaining Stage-2 targets** (relied-on, unchecked, high blast radius):
-INV-21 (cached-next vs cross-thread delete — this is the class the
-CrossDeallocBatch flush crash fell into), and a TLA+ / GenMC model of the
-cross-thread free batch (`CrossDeallocBatch::flush`) which is currently
-entirely comment-only.
+**Remaining Stage-2 targets** (relied-on, unchecked, high blast radius): a
+GenMC / TLA+ model of the **cross-thread free batch**
+(`CrossDeallocBatch::push`/`flush`, §-tags in `allocator.cpp`) — the held-bit
+"keeps the chunk alive" invariant, currently entirely comment-only; and
+INV-17 (LRC kind disjointness — a pure-function clamp, cheap to assert).
