@@ -81,6 +81,13 @@
                                  // (over-aligned alloc fallback when
                                  // alignment exceeds the pool's 16-B
                                  // guarantee)
+    // VirtualAlloc / VirtualFree / MEM_COMMIT etc. for the radix L2 node
+    // allocator (the Windows counterpart to mmap()).  WIN32_LEAN_AND_MEAN
+    // keeps the symbol load small; we only need the memory + handle API.
+    #ifndef WIN32_LEAN_AND_MEAN
+    #  define WIN32_LEAN_AND_MEAN
+    #endif
+    #include <windows.h>
 #endif
 #if KAME_FAST_TSD
     #include <pthread.h>
@@ -3547,10 +3554,25 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
     }
     // Fall back to libc posix_memalign — handles huge sizes, very large
     // alignments (> 256 KiB), and the pre-activate / post-teardown windows.
+    // Windows note: `new_redirected_aligned` is never called from the
+    // Windows code paths (see the `#if`-guarded callers in
+    // `kame_pool_aligned_alloc` / `kame_pool_posix_memalign` /
+    // `operator new(align_val_t)` / `kame_overaligned_alloc`, all of which
+    // route through `_aligned_malloc` on Windows — the C API rejects
+    // over-aligned requests, and the C++ aligned-new path pairs with
+    // `_aligned_free`).  We still need the function body to compile, so
+    // return nullptr on Windows instead of calling the POSIX-only
+    // `posix_memalign`.
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    (void)alignment;
+    (void)size;
+    return nullptr;
+#else
     void *p = nullptr;
     if(posix_memalign(&p, alignment, size) != 0)
         return nullptr;
     return p;
+#endif
 }
 
 // Forward non-pool pointers to the *actual* libsystem free, bypassing
