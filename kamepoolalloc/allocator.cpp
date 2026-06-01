@@ -93,6 +93,65 @@
     #include <pthread.h>
 #endif
 
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+// ===================================================================
+// (§31) Windows free-family redirect — genuine-CRT bypass pointers.
+//
+// On PE/COFF there is no cross-module interposition of the replaceable
+// `operator new` / `operator delete` (or `free`) the way ELF strong
+// symbols and Mach-O `__DATA,__interpose` provide.  Each prebuilt DLL
+// (Qt6*.dll, libc++.dll) binds `free` / `operator delete` to the UCRT
+// at *its* link time, so a Qt object that KAME pool-allocated and then
+// hands back to Qt is freed by Qt via the UCRT's `free()` — heap
+// corruption, because a pool pointer is not a CRT pointer.  (Confirmed
+// on-target: the Create-Driver dialog's child widgets, pool-allocated
+// in kame.exe, are deleted by QObjectPrivate::deleteChildren() inside
+// Qt6Core.dll → libc++ free → int3 in ntdll's heap path.)
+//
+// We close the gap the way mimalloc-redirect.dll does, but only for the
+// *deallocation* family (`free` / `realloc` / `_msize`), not `malloc`:
+// patch those imports in every module so every `free()` in the process
+// funnels through the pool's existing pool-or-foreign dispatcher
+// (`kame_free`), which already routes foreign pointers to the real CRT.
+// The pool and the CRT heap then coexist safely — KAME allocs stay in
+// the pool, Qt allocs stay in the CRT, and frees are reconciled wherever
+// they happen.  See `kame_pool_win_install_redirect` near the bottom.
+//
+// These pointers hold the *genuine* UCRT entry points, resolved once
+// from ucrtbase.dll.  The pool's own "forward a foreign pointer to the
+// real heap" paths (`libsystem_*_for_pool`) and its region release
+// (`free_munmap`) MUST call these — NOT `std::free` / `std::realloc` —
+// because once the IAT redirect is installed, kame.exe's own `free`
+// import is patched to route back into the pool; a plain `std::free`
+// would recurse forever.  Until resolution/install happens these stay
+// null and the call sites fall back to `std::*` (still genuine then,
+// since nothing is patched yet).
+typedef void        (*kame_real_free_fn)(void *);
+typedef void       *(*kame_real_realloc_fn)(void *, std::size_t);
+typedef void       *(*kame_real_calloc_fn)(std::size_t, std::size_t);
+typedef std::size_t (*kame_real_msize_fn)(void *);
+static kame_real_free_fn    g_real_free    = nullptr;
+static kame_real_realloc_fn g_real_realloc = nullptr;
+static kame_real_calloc_fn  g_real_calloc  = nullptr;
+static kame_real_msize_fn   g_real_msize   = nullptr;
+
+static void kame_resolve_real_crt() noexcept {
+    if(g_real_free) return;  // idempotent
+    HMODULE h = GetModuleHandleA("ucrtbase.dll");
+    if( !h) h = LoadLibraryA("ucrtbase.dll");
+    if( !h) h = GetModuleHandleA("msvcrt.dll");
+    if( !h) return;
+    g_real_free    = reinterpret_cast<kame_real_free_fn>   (GetProcAddress(h, "free"));
+    g_real_realloc = reinterpret_cast<kame_real_realloc_fn>(GetProcAddress(h, "realloc"));
+    g_real_calloc  = reinterpret_cast<kame_real_calloc_fn> (GetProcAddress(h, "calloc"));
+    g_real_msize   = reinterpret_cast<kame_real_msize_fn>  (GetProcAddress(h, "_msize"));
+}
+// Installed at pool activation (see `activateAllocator`).  Defined far
+// below, after the pool dispatchers (`kame_free` / `kame_realloc`) it
+// routes the patched imports to.
+extern "C" void kame_pool_win_install_redirect() noexcept;
+#endif // _WIN32 redirect bypass pointers
+
 // Per-thread flag: set to true when AllocThreadExitCleanup has run, signalling
 // that pool-allocator TLS (s_tls.my_chunk, freelists, pin counts) is no
 // longer valid.  Trivially destructible (`ALLOC_TLS` = `__thread`) so it
@@ -712,7 +771,12 @@ inline void free_munmap(void *p) {
 		size_t size = *static_cast<size_t *>(p);
 	//	fprintf(stderr, "unmmap(), %d\n", (int)size);
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-        free(p);
+        // Genuine UCRT free — NOT the redirected `free`.  This is pool-
+        // backing region memory (malloc'd in mmap_new_region); routing it
+        // through the pool dispatcher post-redirect would misclassify it.
+        // g_real_free is resolved before the redirect is ever installed.
+        if(g_real_free) g_real_free(p);
+        else free(p);
 #else
         int ret = munmap(p, size);
 		assert( !ret);
@@ -764,7 +828,18 @@ struct KamePoolAutoActivator {
 // shim in `tests/allocator.cpp`.  Both are no-ops once the dylib build
 // path is selected (which is the case for the cmake test build that
 // chases LTO interpose semantics).
-void activateAllocator() {g_sys_image_loaded = true;}
+void activateAllocator() {
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    // (§31) Patch the free-family across all loaded modules BEFORE
+    // flipping the flag, so by the time kame.exe's `operator new` hands
+    // out its first pool pointer, every `free()` in the process already
+    // routes through the pool dispatcher.  Idempotent + kill-switch
+    // guarded (KAME_POOL_WIN_REDIRECT=0).  Later-loaded DLLs are caught
+    // by the LdrRegisterDllNotification hook installed here.
+    kame_pool_win_install_redirect();
+#endif
+    g_sys_image_loaded = true;
+}
 #endif
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -3682,9 +3757,16 @@ static void libsystem_free_for_pool(void *p) {
 	// recurse forever (the call ends up tail-jumping under -O3).
 	__libc_free(p);
 #else
-	// Other platforms (musl, Windows): fall back to `::free`.  On musl
-	// the strong-symbol shadowing rule is the same as glibc, so this
-	// will recurse if KAME's pool is active — Linux non-glibc builds
+	// Other platforms (musl, Windows).
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+	// Windows: the genuine UCRT free resolved by kame_resolve_real_crt —
+	// NOT std::free, which the IAT redirect has repointed back into the
+	// pool dispatcher (would recurse).  Falls back to std::free only in
+	// the pre-install window, when nothing is patched yet.
+	if(g_real_free) { g_real_free(p); return; }
+#endif
+	// musl: the strong-symbol shadowing rule is the same as glibc, so
+	// this will recurse if KAME's pool is active — Linux non-glibc builds
 	// must add their own bypass before this branch is reachable.
 	std::free(p);
 #endif
@@ -3833,6 +3915,10 @@ static void *libsystem_realloc_for_pool(void *p, std::size_t n) {
 #elif defined(__linux__) && defined(__GLIBC__)
 	return __libc_realloc(p, n);
 #else
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+	// Genuine UCRT realloc — NOT the redirected one (would recurse).
+	if(g_real_realloc) return g_real_realloc(p, n);
+#endif
 	return std::realloc(p, n);
 #endif
 }
@@ -3845,6 +3931,10 @@ static void *libsystem_calloc_for_pool(std::size_t n_elem, std::size_t sz) {
 #elif defined(__linux__) && defined(__GLIBC__)
 	return __libc_calloc(n_elem, sz);
 #else
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+	// Genuine UCRT calloc — NOT the redirected path.
+	if(g_real_calloc) return g_real_calloc(n_elem, sz);
+#endif
 	return std::calloc(n_elem, sz);
 #endif
 }
@@ -4139,10 +4229,202 @@ void *realloc(void *p, std::size_t n) {
 	return kame_realloc(p, n);
 }
 #else
-// Windows / others: no `realloc` interpose.  Same
-// rationale as `free` above — CRT `realloc` stays bound to msvcrt;
-// callers that need the pool path use `kame_pool_realloc()`.
+// Windows: `realloc` is not interposed via a strong symbol (PE/COFF has
+// no cross-module symbol interposition).  Instead it is redirected at
+// runtime together with `free` / `_msize` by the IAT patch engine below
+// (see `kame_pool_win_install_redirect`).  Other non-Win/Linux/macOS
+// targets: callers needing the pool path use `kame_pool_realloc()`.
 #endif
+
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+// ===================================================================
+// (§31) Windows free-family IAT redirect engine.
+//
+// Patches the `free` / `realloc` / `_msize` import-address-table slots
+// of every loaded module that imports them from a CRT DLL, repointing
+// them at the pool dispatchers below.  Every `free()` in the process
+// (kame.exe, Qt6*.dll, libc++.dll, modules) then funnels through
+// `kame_free`, which frees pool pointers via the pool and forwards
+// foreign (genuine-CRT) pointers to the real UCRT free.  This is the
+// missing half of the pool's interposition story on Windows — the
+// equivalent of the ELF strong-symbol `free` shim / Mach-O
+// `__DATA,__interpose`, neither of which PE/COFF offers.
+//
+// We deliberately do NOT redirect `malloc`/`calloc`/`operator new`:
+// crash-safety only requires that *frees* be reconciled.  KAME's own
+// allocations still come from the pool (kame.exe's `operator new`);
+// Qt's still come from the CRT; the redirect just makes either side's
+// `free` land in the right allocator.
+//
+// Kill switch: set env `KAME_POOL_WIN_REDIRECT=0` to skip installation
+// (falls back to the historical "pool + unreconciled CRT" behaviour).
+// ===================================================================
+
+// --- pool-side replacement functions (CRT-compatible signatures) ---
+// On x64 every calling convention collapses to the MS x64 ABI, so these
+// plain functions match `void free(void*)` / `void* realloc(void*,size_t)`
+// / `size_t _msize(void*)` exactly when invoked through a patched slot.
+static void kame_iat_free(void *p) noexcept {
+    kame_free(p);  // pool-or-foreign dispatcher (foreign → g_real_free)
+}
+static void *kame_iat_realloc(void *p, std::size_t n) noexcept {
+    return kame_realloc(p, n);  // pool reshape, or foreign → g_real_realloc
+}
+static std::size_t kame_iat_msize(void *p) noexcept {
+    std::size_t s = PoolAllocatorBase::size_of(p);   // >0 ⇒ pool pointer
+    if(s) return s;
+    return g_real_msize ? g_real_msize(p) : 0;       // foreign ⇒ genuine
+}
+
+// case-insensitive substring (avoid locale / _stricmp dependency)
+static bool kame_ci_contains(const char *hay, const char *needle) noexcept {
+    if( !hay || !needle) return false;
+    for(; *hay; ++hay) {
+        const char *h = hay, *n = needle;
+        while(*n) {
+            char a = *h, b = *n;
+            if(a >= 'A' && a <= 'Z') a = char(a - 'A' + 'a');
+            if(b >= 'A' && b <= 'Z') b = char(b - 'A' + 'a');
+            if(a != b) break;
+            ++h; ++n;
+        }
+        if( !*n) return true;
+    }
+    return false;
+}
+static bool kame_is_crt_dll(const char *name) noexcept {
+    // Only the UCRT family that kame.exe / Qt / libc++ all share.  We
+    // forward foreign pointers to ucrtbase's `free` (g_real_free), so we
+    // must NOT patch modules on a *different* CRT heap — e.g. Ruby
+    // (x64-msvcrt-ruby340.dll → legacy msvcrt.dll) or a VC++ redist
+    // (msvcr120/140.dll).  Freeing an msvcrt-heap pointer with ucrtbase's
+    // free corrupts the heap (observed: int3 in ntdll on the Ruby thread).
+    // Those modules keep their own free; only pool pointers crossing into
+    // a UCRT module's free() are the hazard we must reconcile.
+    return kame_ci_contains(name, "ucrtbase")
+        || kame_ci_contains(name, "api-ms-win-crt-heap");
+}
+static void *kame_iat_repl_for(const char *fn) noexcept {
+    if(std::strcmp(fn, "free")    == 0) return reinterpret_cast<void *>(&kame_iat_free);
+    if(std::strcmp(fn, "realloc") == 0) return reinterpret_cast<void *>(&kame_iat_realloc);
+    if(std::strcmp(fn, "_msize")  == 0) return reinterpret_cast<void *>(&kame_iat_msize);
+    return nullptr;
+}
+
+// Diagnostics: how many import slots / modules the redirect patched.
+static unsigned g_kame_redirect_slots = 0;
+static unsigned g_kame_redirect_mods  = 0;
+
+// Patch one already-mapped module's import table in place.
+static void kame_patch_one_module(HMODULE hmod) noexcept {
+    if( !hmod) return;
+    BYTE *base = reinterpret_cast<BYTE *>(hmod);
+    auto *dos = reinterpret_cast<IMAGE_DOS_HEADER *>(base);
+    if(dos->e_magic != IMAGE_DOS_SIGNATURE) return;
+    auto *nt = reinterpret_cast<IMAGE_NT_HEADERS *>(base + dos->e_lfanew);
+    if(nt->Signature != IMAGE_NT_SIGNATURE) return;
+    IMAGE_DATA_DIRECTORY &dir =
+        nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if( !dir.VirtualAddress || !dir.Size) return;
+    auto *desc = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR *>(base + dir.VirtualAddress);
+    unsigned patched_here = 0;
+    for(; desc->Name; ++desc) {
+        const char *dll = reinterpret_cast<const char *>(base + desc->Name);
+        if( !kame_is_crt_dll(dll)) continue;
+        auto *iat = reinterpret_cast<IMAGE_THUNK_DATA *>(base + desc->FirstThunk);
+        auto *oft = desc->OriginalFirstThunk
+            ? reinterpret_cast<IMAGE_THUNK_DATA *>(base + desc->OriginalFirstThunk)
+            : iat;  // bound-import edge case: names live in the IAT itself
+        for(; oft->u1.AddressOfData; ++oft, ++iat) {
+            if(IMAGE_SNAP_BY_ORDINAL(oft->u1.Ordinal)) continue;  // by ordinal
+            auto *ibn = reinterpret_cast<IMAGE_IMPORT_BY_NAME *>(
+                base + oft->u1.AddressOfData);
+            void *repl = kame_iat_repl_for(reinterpret_cast<const char *>(ibn->Name));
+            if( !repl) continue;
+            void **slot = reinterpret_cast<void **>(&iat->u1.Function);
+            if( *slot == repl) continue;  // idempotent
+            DWORD oldProt = 0;
+            if(VirtualProtect(slot, sizeof(void *), PAGE_READWRITE, &oldProt)) {
+                *slot = repl;
+                VirtualProtect(slot, sizeof(void *), oldProt, &oldProt);
+                ++g_kame_redirect_slots;
+                ++patched_here;
+            }
+        }
+    }
+    if(patched_here) ++g_kame_redirect_mods;
+}
+
+typedef BOOL (WINAPI *kame_enum_proc_modules_fn)(HANDLE, HMODULE *, DWORD, LPDWORD);
+
+static void kame_patch_all_modules() noexcept {
+    HMODULE k32 = GetModuleHandleA("kernel32.dll");
+    if( !k32) return;
+    // K32EnumProcessModules lives in kernel32 (no psapi link dependency);
+    // resolve dynamically to avoid an import-lib gap on some toolchains.
+    auto enumMods = reinterpret_cast<kame_enum_proc_modules_fn>(
+        GetProcAddress(k32, "K32EnumProcessModules"));
+    if( !enumMods) return;
+    HMODULE mods[1024];
+    DWORD needed = 0;
+    if( !enumMods(GetCurrentProcess(), mods, sizeof(mods), &needed)) return;
+    DWORD n = needed / sizeof(HMODULE);
+    if(n > 1024) n = 1024;  // truncate a pathologically large module set
+    for(DWORD i = 0; i < n; ++i)
+        kame_patch_one_module(mods[i]);
+}
+
+// LdrRegisterDllNotification: ntdll calls us on every later DLL load so
+// lazily/explicitly-loaded modules get patched too.  Struct + typedefs
+// declared locally (not in mingw's winternl.h).
+struct KAME_LDR_NOTIFICATION_DATA {  // matches LDR_DLL_NOTIFICATION_DATA (x64)
+    ULONG       Flags;
+    const void *FullDllName;   // PCUNICODE_STRING
+    const void *BaseDllName;   // PCUNICODE_STRING
+    PVOID       DllBase;
+    ULONG       SizeOfImage;
+};
+typedef VOID (CALLBACK *kame_ldr_notify_fn)(ULONG, const void *, PVOID);
+// Return type is NTSTATUS (== LONG); WIN32_LEAN_AND_MEAN doesn't pull in
+// the NTSTATUS typedef, and we ignore the status anyway, so use LONG.
+typedef LONG (NTAPI *kame_ldr_register_fn)(ULONG, kame_ldr_notify_fn, PVOID, PVOID *);
+
+static VOID CALLBACK kame_dll_notification(ULONG reason, const void *data, PVOID) {
+    // LDR_DLL_NOTIFICATION_REASON_LOADED == 1
+    if(reason == 1 && data) {
+        auto *d = reinterpret_cast<const KAME_LDR_NOTIFICATION_DATA *>(data);
+        kame_patch_one_module(reinterpret_cast<HMODULE>(d->DllBase));
+    }
+}
+
+extern "C" void kame_pool_win_install_redirect() noexcept {
+    static bool s_done = false;          // single-threaded at activation
+    if(s_done) return;
+    s_done = true;
+    const char *killswitch = std::getenv("KAME_POOL_WIN_REDIRECT");
+    if(killswitch && killswitch[0] == '0')
+        return;  // kill switch — leave the historical behaviour in place
+    kame_resolve_real_crt();             // genuine CRT first — the forward
+                                         // paths depend on it before any
+                                         // patched free can run
+    // Register for future loads BEFORE the initial sweep so a module
+    // mapped concurrently with the sweep is still caught (patch is
+    // idempotent, so double-patching the same slot is harmless).
+    if(HMODULE ntdll = GetModuleHandleA("ntdll.dll")) {
+        auto reg = reinterpret_cast<kame_ldr_register_fn>(
+            GetProcAddress(ntdll, "LdrRegisterDllNotification"));
+        if(reg) {
+            static PVOID cookie = nullptr;
+            reg(0, &kame_dll_notification, nullptr, &cookie);
+        }
+    }
+    kame_patch_all_modules();
+    fprintf(stderr,
+        "[kamepool] Windows free-redirect installed: patched %u import "
+        "slot(s) across %u module(s).\n",
+        g_kame_redirect_slots, g_kame_redirect_mods);
+}
+#endif // _WIN32 IAT redirect engine
 
 // `release_pools()` / `report_statistics()` / per-template
 // `release_pools()` / `PoolAllocatorBase::release_chunks()` are all gone.
