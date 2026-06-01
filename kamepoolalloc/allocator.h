@@ -94,11 +94,17 @@
 // are MinGW-supported on Windows but MSVC requires intrinsics-based
 // replacements.  Until that shim lands, MSVC-built Windows binaries
 // stay on USE_STD_ALLOCATOR.  MinGW continues onto the active path.
-#if (defined(_WIN32) || defined(WINDOWS)) && defined(_MSC_VER) && !defined(__GNUC__)
+#if (defined(_WIN32) || defined(WINDOWS)) && defined(_MSC_VER) && !defined(__GNUC__) && !defined(KAME_ENABLE_POOL_MSVC)
+    // Define KAME_ENABLE_POOL_MSVC to opt the MSVC build INTO the live pool
+    // (WIP: requires the _Interlocked* / __declspec MSVC shims).  Without
+    // it, MSVC stays on std::allocator as before.
     #define USE_STD_ALLOCATOR
 #endif
 
 #if defined USE_STD_ALLOCATOR
+    #include <cstddef>   // std::size_t for the pool-API stubs below — on
+                         // MSVC <vector>/<limits> aren't pulled in until
+                         // far later in this header.
     inline void activateAllocator() {}
 
     //! \return always true on USE_STD_ALLOCATOR builds — no per-thread
@@ -108,13 +114,17 @@
     //! pool API stubs for USE_STD_ALLOCATOR builds (Windows
     //! by default).  No pool → cap is meaningless; the functions
     //! exist so consumers can call them unconditionally without
-    //! `#ifdef`.
+    //! `#ifdef`.  These MUST use C linkage to match the `extern "C"`
+    //! declarations in kame_pool.h — otherwise MSVC rejects the later
+    //! kame_pool.h declarations with C2732 (linkage-spec mismatch).
+    extern "C" {
     inline void kame_pool_set_max_bytes(std::size_t /*max_bytes*/) noexcept {}
     inline std::size_t kame_pool_get_max_bytes() noexcept { return ~std::size_t(0); }
     inline std::size_t kame_pool_reserved_bytes() noexcept { return 0; }
     //! (§30) Realtime-mode toggle stub.  Pool background maintenance
     //! doesn't exist in this build, so silencing it is a no-op.
     inline void kame_pool_set_realtime_mode(int /*enable*/) noexcept {}
+    } // extern "C"
 #else
     #include "allocator_prv.h"
 

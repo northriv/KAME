@@ -87,6 +87,10 @@
     #ifndef WIN32_LEAN_AND_MEAN
     #  define WIN32_LEAN_AND_MEAN
     #endif
+    #ifndef NOMINMAX
+    #  define NOMINMAX   // keep windows.h's min/max macros from clobbering
+    #                    // std::numeric_limits<>::max() etc. (breaks MSVC)
+    #endif
     #include <windows.h>
     #include <intrin.h>          // __readgsqword — PEB walk in the §31
                                  // free-redirect (loader-lock-safe module
