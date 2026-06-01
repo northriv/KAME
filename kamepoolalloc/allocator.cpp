@@ -747,10 +747,16 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	m_count(count) {
 	// BIT_OWNED set at construction — the chunk has an
 	// owner (the thread doing the chunk-claim and adding to its DLL).
-	// MASK_CNT = 0 initially; allocate_pooled bumps it.  BIT_OWNED is
-	// cleared by release_dll_chunks_for_thread / owner_release via
-	// atomicFetchAnd, which doubles as the release-rights check
-	// (newv == 0 ⇒ I'm the unique releaser).
+	// MASK_CNT init depends on path:
+	//   * FS=true real chunk (`FS && DUMMY`, pre-fill below): every
+	//     m_flags bit gets set to 1 and every slot is linked into the
+	//     chunk-local freelist.  MASK_CNT = count (all words non-empty).
+	//   * FS=false base ctor pass (`FS && !DUMMY`) or the GUARDIAN
+	//     debug path: bits stay 0; MASK_CNT = 0; allocate_pooled bumps
+	//     it on the first bitmap-CAS claim.
+	// BIT_OWNED is cleared by release_dll_chunks_for_thread /
+	// owner_release via atomicFetchAnd, which doubles as the release-
+	// rights check (newv == 0 ⇒ I'm the unique releaser).
 	m_flags_packed = BIT_OWNED;
 	m_flags_filled_cnt = 0;
 	// capture this thread's `s_tls.dll_head` TLS address.  Used
@@ -806,10 +812,73 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		this->m_sizes = nullptr;
 		this->m_align_shift = 0;
 	}
-	for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b)
-		m_freelist_head[b] = nullptr;
-	for(int i = count - 1; i >= 0 ; --i)
-		m_flags[i] = 0; //zero clear.
+#ifndef GUARDIAN
+	if constexpr (FS && DUMMY) {
+		// (§29) FS=true freelist pre-fill at chunk-claim.
+		//
+		// Non-atomically link ALL slots into the chunk-local freelist
+		// (LIFO; slot's first 8 B = next pointer) and set every m_flags
+		// bit to 1.  Effect on the alloc paths:
+		//   * fresh-chunk first alloc (cold path through
+		//     `allocate_chunk_path` → `allocate_pooled`): the
+		//     freelist_pop check at the head of allocate_pooled (§29)
+		//     pops slot 0 in O(1) — no bitmap-CAS find-zero scan.
+		//   * steady-state hot path (`new_redirected`): pops directly
+		//     from `g_thread_freelist_ptr[bucket] = &m_freelist_head[0]`,
+		//     same as the previous design (which populated the freelist
+		//     incrementally as slots were dealloc'd).
+		//
+		// Lifecycle invariants (INV-6, INV-7, INV-15..18) preserved:
+		// every pre-filled slot's m_flags bit IS set, so "bit set ⇔ slot
+		// live in user OR in owner freelist" holds throughout.  Cross-
+		// thread frees CAS-clear bits and dec MASK_CNT on word-empty
+		// exactly as before; owner-exit drain in
+		// release_dll_chunks_for_thread feeds each remaining freelist
+		// entry through batch_return_to_bitmap, which clears the bit and
+		// decs MASK_CNT on word-empty by the same path.
+		//
+		// Side benefit (automatic prewarm): the per-slot 8-byte next-
+		// pointer write page-faults every slot's first page, so the
+		// first user access is hot.  Matters for the cold-start path
+		// of alloc-heavy workloads.
+		//
+		// Owner-exclusive at this point — the chunk is not yet in the
+		// thread's DLL nor stamped into the radix — so non-atomic stores
+		// on m_flags, m_flags_packed, m_freelist_head[0], and slot
+		// next-pointer fields are safe.
+		//
+		// FS=true serves a single bucket per (ALIGN) instantiation, so
+		// every slot's local-id is 0 (see `kBucketLocalId[]`).
+		constexpr unsigned FUINT_BITS_PF = sizeof(FUINT) * 8;
+		const size_t N_slots =
+		    static_cast<size_t>(count) * FUINT_BITS_PF;
+		char *base = this->mempool();
+		char *prev = nullptr;
+		for(size_t i = N_slots; i-- > 0; ) {
+			char *slot = base + i * ALIGN;
+			*reinterpret_cast<char **>(slot) = prev;
+			prev = slot;
+		}
+		m_freelist_head[0] = base;
+		for(int b = 1; b < KAME_LOCAL_BUCKETS; ++b)
+			m_freelist_head[b] = nullptr;
+		for(int i = count - 1; i >= 0; --i)
+			m_flags[i] = ~(FUINT)0u;
+		m_flags_packed = BIT_OWNED | static_cast<std::uint32_t>(count);
+		m_flags_filled_cnt = count;
+	}
+	else
+#endif
+	{
+		// FS=false base ctor pass (DUMMY=false), or GUARDIAN debug path:
+		// keep zero-init.  FS=false slots are variable-size (N bits per
+		// slot), so a uniform "one slot per bit" freelist pre-fill
+		// doesn't apply.
+		for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b)
+			m_freelist_head[b] = nullptr;
+		for(int i = count - 1; i >= 0; --i)
+			m_flags[i] = 0;
+	}
 	// Initial coalesce hint by (FS, real-instance):
 	//   FS=true real chunk (FS && DUMMY): start ABOVE all FS=true
 	//     thresholds (max 35) → push_direct optimistically routes
@@ -950,6 +1019,29 @@ inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
+#ifndef GUARDIAN
+	if constexpr (FS && DUMMY) {
+		// (§29) Freelist hit — pre-filled slots from chunk-claim, or
+		// slots that came back to the chunk-local freelist via
+		// owner-side `deallocate_pooled`.  Mainline FS=true cold-path:
+		// fresh-chunk first alloc goes through here and pops slot 0 of
+		// the pre-filled freelist; subsequent allocs on the same bucket
+		// go through `new_redirected`'s freelist fast path which reads
+		// `*g_thread_freelist_ptr[bucket]` directly.
+		//
+		// `freelist_pop` is non-atomic — only the owner thread touches
+		// `m_freelist_head[0]`, and the cold path is itself owner-only
+		// (allocate_pooled is reached via allocate_chunk_path /
+		// slow_allocate, both single-threaded for this chunk).
+		// Returns nullptr if the freelist is empty; we then fall through
+		// to the existing bitmap-CAS scan, which finds bits cleared by
+		// cross-thread frees (the only mechanism that opens bits with
+		// the pre-fill design — slots returned to the OWNER stay in
+		// `m_freelist_head[0]`, not the bitmap).
+		if(void *p = this->freelist_pop(0))
+			return p;
+	}
+#endif
 	FUINT one;
 	int idx = this->m_idx;
 	for(;;) {
