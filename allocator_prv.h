@@ -35,6 +35,38 @@
 #include <limits>
 #include <type_traits>
 
+// ===== (WIP) MSVC compatibility shim for the live pool =====
+// Reached only via KAME_ENABLE_POOL_MSVC (otherwise MSVC takes the
+// USE_STD_ALLOCATOR path and never includes this header).  The pool core
+// is written for GCC/Clang; map the GCC-isms MSVC lacks.  Placed here (the
+// pool-private header) rather than allocator.h so that ANY includer — incl.
+// tests that include allocator_prv.h directly — gets the shim.  (The 5
+// __sync_* atomic wrappers below carry their own _Interlocked* branch; TLS
+// already falls to thread_local on MSVC.)
+#if defined(_MSC_VER) && !defined(__GNUC__)
+    #include <intrin.h>
+    // noinline/cold/used/tls_model are codegen hints — safe to drop on
+    // MSVC.  `section` is macOS-only; `constructor` is handled via static-
+    // init, not the attribute.  So strip every __attribute__.
+    #define __attribute__(x)
+    #ifndef __builtin_expect
+        #define __builtin_expect(expr, c) (expr)
+    #endif
+    // constexpr bit-scan (C++17 relaxed constexpr) — _BitScan* aren't
+    // constexpr, but these feed constexpr ladder-bucket math.
+    constexpr int kame_msvc_ctzll(unsigned long long v) noexcept { if(!v) return 64; int n=0; while(!(v&1ull)){v>>=1;++n;} return n; }
+    constexpr int kame_msvc_ctz(unsigned int v) noexcept { if(!v) return 32; int n=0; while(!(v&1u)){v>>=1;++n;} return n; }
+    constexpr int kame_msvc_clzll(unsigned long long v) noexcept { if(!v) return 64; int n=0; while(!(v&(1ull<<63))){v<<=1;++n;} return n; }
+    #define __builtin_ctzll(x) kame_msvc_ctzll(x)
+    #define __builtin_ctz(x)   kame_msvc_ctz(x)
+    #define __builtin_clzll(x) kame_msvc_clzll(x)
+    #define __builtin_thread_pointer() ((void *)__readgsqword(0x30)) // TEB self-ptr
+    static inline bool kame_msvc_mul_ovf(std::size_t a, std::size_t b, std::size_t *out) noexcept {
+        unsigned long long hi; *out = (std::size_t)_umul128(a, b, &hi); return hi != 0ull;
+    }
+    #define __builtin_mul_overflow(a, b, outp) kame_msvc_mul_ovf((a), (b), (outp))
+#endif
+
 // Cache-line size, architecture-dependent.  Kept as a fixed macro
 // (std::hardware_destructive_interference_size is ABI-fragile across
 // libc++/libstdc++ and warns under GCC).  Duplicated from kamestm's
@@ -93,6 +125,47 @@ inline T find_zero_forward(T x) {
     return (( ~x) & (x + 1u));
 }
 
+#if defined(_MSC_VER) && !defined(__GNUC__)
+// MSVC: the GCC __sync_* builtins don't exist.  Map to _Interlocked*
+// (full-barrier, same ordering as the legacy __sync_*), dispatched by
+// width.  Only 4- and 8-byte targets occur (ints, FUINT, pointers).
+template <typename T>
+inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
+atomicCompareAndSet(T oldv, T newv, T *target) noexcept {
+    if constexpr (sizeof(T) == 8) {
+        long long o = (long long)(std::intptr_t)oldv;
+        return _InterlockedCompareExchange64((long long volatile *)target,
+                   (long long)(std::intptr_t)newv, o) == o;
+    } else {
+        long o = (long)(std::intptr_t)oldv;
+        return _InterlockedCompareExchange((long volatile *)target,
+                   (long)(std::intptr_t)newv, o) == o;
+    }
+}
+template <typename T>
+inline void atomicInc(T *target) noexcept {
+    if constexpr (sizeof(T) == 8) _InterlockedIncrement64((long long volatile *)target);
+    else _InterlockedIncrement((long volatile *)target);
+}
+template <typename T>
+inline void atomicDec(T *target) noexcept {
+    if constexpr (sizeof(T) == 8) _InterlockedDecrement64((long long volatile *)target);
+    else _InterlockedDecrement((long volatile *)target);
+}
+template <typename T>
+inline bool atomicDecAndTest(T *target) noexcept {
+    if constexpr (sizeof(T) == 8) return _InterlockedDecrement64((long long volatile *)target) == 0;
+    else return _InterlockedDecrement((long volatile *)target) == 0;
+}
+//! Atomic fetch-and-AND.  Returns the OLD value (before AND).
+template <typename T>
+inline T atomicFetchAnd(T *target, T value) noexcept {
+    if constexpr (sizeof(T) == 8)
+        return (T)_InterlockedAnd64((long long volatile *)target, (long long)value);
+    else
+        return (T)(long)_InterlockedAnd((long volatile *)target, (long)value);
+}
+#else
 template <typename T>
 inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
 atomicCompareAndSet(T oldv, T newv, T *target) noexcept {
@@ -118,6 +191,7 @@ template <typename T>
 inline T atomicFetchAnd(T *target, T value) noexcept {
     return __sync_fetch_and_and(target, value);
 }
+#endif
 
 #if defined(__GNUC__) || defined(__clang__)
 	#define ALLOC_TLS __thread //TLS for allocations, could be better for NUMA.
