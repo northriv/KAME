@@ -2,13 +2,13 @@
 
 [![License: Apache-2.0 OR GPL-2.0+](https://img.shields.io/badge/License-Apache--2.0_OR_GPL--2.0%2B-blue.svg)](#license)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)]()
-[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW)-lightgrey)]()
+[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW%20%2B%20MSVC)-lightgrey)]()
 
 A lock-free, per-thread, four-tier pool allocator spanning **1 B to 32 MiB** —
 bucketed small objects, dedicated mid chunks, and `munmap`-backed large blocks,
 all freed through one uniform path.  Born for **multi-threaded STM-style
 transactional workloads** but usable as a general-purpose drop-in `new` /
-`delete` (or C `malloc`) replacement on macOS, Linux, and Windows (MinGW).
+`delete` (or C `malloc`) replacement on macOS, Linux, and Windows (MinGW + MSVC).
 
 Carved out of the [KAME](https://github.com/northriv/KAME) measurement framework
 and **dual-licensed under Apache 2.0 OR GPL-2.0-or-later** at your choice — so
@@ -73,7 +73,7 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
   chunk-claim / chunk-recycle protocol is TLA+ model-checked and the
   large-recycle cache's exclusive-ownership / no-premature-release (UAF /
   double-free) safety is GenMC (RC11) model-checked.  Builds 64-bit and 32-bit,
-  on macOS / Linux / Windows (MinGW; MSVC opt-in).
+  on macOS / Linux / Windows (MinGW + MSVC).
 
 ## Status
 
@@ -94,7 +94,7 @@ also builds and is tested on Linux (64-bit and 32-bit).  Requires a host with
 | macOS clang (x86-64 / arm64) | ✅ default | `__DATA,__interpose` `free` redirect; primary target |
 | Linux gcc/clang (x86-64, 32-bit) | ✅ default | strong-symbol `free` redirect; primary CI target |
 | Windows **MinGW64 + lld** | ✅ default | §31 free-family IAT redirect lets the pool coexist with Qt / libc++ (PE/COFF has no cross-module `operator new` interposition); verified on-target with Qt 6.10.1 |
-| Windows **MSVC** (cl) | ⚙️ opt-in | builds clean on the `std::allocator` path by default; define `KAME_ENABLE_POOL_MSVC` to enable the live pool (the `_Interlocked*` atomic + `<intrin.h>` bit-scan shims are in place; treat as WIP until on-target soak) |
+| Windows **MSVC** (cl) | ✅ default | runs the full live pool — the `_MSC_VER` shim in `allocator_prv.h` bridges the GCC-isms (`_Interlocked*` atomics, `<intrin.h>` bit-scan / overflow, static-init constructor hook) and the §31 redirect handles Qt/CRT coexistence; opt OUT with `KAME_DISABLE_POOL_MSVC` |
 
 ## Benchmarks
 
@@ -246,10 +246,11 @@ the matching `-fsanitize=` flags.
   `operator new`), so the test actually exercises the pool; the §31
   free-family redirect installs from the auto-activator to reconcile the
   cross-module frees.
-- **MSVC** (cl): compiles clean on the default `std::allocator` path (no
-  pool).  To opt into the live pool, define `KAME_ENABLE_POOL_MSVC` — this
-  pulls in the `_Interlocked*` atomic shim, the `<intrin.h>` bit-scan /
-  `_mul_overflow` mappings, and `NOMINMAX`.  WIP until soaked on-target.
+- **MSVC** (cl): runs the full live pool by default — the `_MSC_VER` shim
+  in `allocator_prv.h` provides the `_Interlocked*` atomics, the `<intrin.h>`
+  bit-scan / `_mul_overflow` mappings, and `NOMINMAX`.  Opt OUT with
+  `KAME_DISABLE_POOL_MSVC` to force the `std::allocator` fallback (e.g. when
+  bisecting an allocator-suspected issue).
 - Env knobs (Windows live pool): `KAME_POOL_WIN_REDIRECT=0` disables the §31
   free redirect (restores the historical unreconciled behaviour);
   `KAME_POOL_VERBOSE=1` prints the patched-slot count at activation.
@@ -512,9 +513,9 @@ edits) and the §-chapter → subsystem → code navigation map
       ([`tests/cds/cds_lrc_ownership.c`](tests/cds/cds_lrc_ownership.c))
 - [x] 32-bit verified; 16 KiB-page (Apple Silicon) / 64 KiB-page (POWER)
       page-multiple slot layout (§16)
-- [x] Windows live pool on MinGW64 + lld — free-family IAT redirect for
-      Qt / libc++ coexistence (§31); MSVC builds clean (`std::allocator`
-      default, live pool opt-in via `KAME_ENABLE_POOL_MSVC`)
+- [x] Windows live pool, default-on for both MinGW64 + lld and MSVC —
+      free-family IAT redirect for Qt / libc++ coexistence (§31), `_MSC_VER`
+      GCC-ism shim; opt out via `KAME_DISABLE_POOL_MSVC`
 
 ### Future / nice-to-have
 
