@@ -80,6 +80,19 @@ is *modelled by* the cleared-`BIT_OWNED` state, not a separate bit.
   refuses when MASK_CNT≠0; the exit walk only releases on newv==0* · *breaks:
   freeing a chunk with live slots → use-after-free* · **TLA+** (ChunkRecycle).
 
+- **INV-7b (§22, CrossDeallocBatch held-bit)** — A `{chunk, slot}` entry held
+  in a cross-dealloc batch keeps that slot's `m_flags` bit SET, so the word
+  stays non-zero and contributes ≥ 1 to `MASK_CNT`; therefore a chunk with
+  ANY slot still held in ANY batch cannot be released (INV-7 ⇒ no flush ever
+  runs `entries[k].chunk->batch_return_to_bitmap()` on a freed chunk).
+  `flush`/`batch_return_to_bitmap` decrements `MASK_CNT` only when a word
+  goes non-zero → 0. · *CrossDeallocBatch::push (defers the clear) / flush /
+  batch_return_to_bitmap* · *breaks: a held entry's chunk released early →
+  flush-time virtual-call use-after-free (the class the CrossDeallocBatch
+  flush-crash investigation centred on; that audit concluded the invariant
+  holds and the real crash was the macOS madvise straddle — this harness
+  mechanises that audit)* · **GenMC** (cds_crossbatch_heldbit.c).
+
 - **INV-8** — `BIT_OWNED` is set at chunk construction and cleared exactly
   once (by the owning thread's exit walk or owner_release). Cross-thread frees
   load it with `acquire`. · *PoolAllocator ctor, release paths* · *breaks:
@@ -227,7 +240,7 @@ K-major layout: `g_lrc[k].slots[idx]`, `k ∈ [0,LRC_K_MAX)`, `idx ∈
 
 | subsystem | machine-checked | comment-only (Stage 2 candidates) |
 |---|---|---|
-| chunk-claim state machine (§13) | INV-6 (TLA+ & GenMC), INV-7,8 (TLA+) | — |
+| chunk-claim state machine (§13) | INV-6 (TLA+ & GenMC), INV-7 (TLA+), INV-7b (GenMC), INV-8 (TLA+) | — |
 | chunk geometry (§15) | INV-1,2,4,5 (test) | INV-3 (compile-assert only) |
 | back_offset (§15/§22) | INV-12 (TLA+), INV-13 (test) | — |
 | radix (§13.3/§19/§27) | INV-9 install (GenMC), INV-10,11 (test) | INV-9 meta-handoff ordering (external) |
@@ -235,12 +248,18 @@ K-major layout: `g_lrc[k].slots[idx]`, `k ∈ [0,LRC_K_MAX)`, `idx ∈
 | thread lifecycle (§20/§23) | INV-21 (GenMC), INV-23 (test) | INV-22 (deployment constraint, not model-checkable) |
 | owner-id (§12) | INV-14 (test) | — |
 
-**Stage-2 progress**: INV-9 (radix L2 lazy-install, `cds_radix_install.c`)
-and INV-6 + INV-21 (thread-exit DLL walk vs cross-thread free,
-`cds_dll_exit_race.c`) are now GenMC-checked.
+**Stage-2 progress**: the high-blast-radius concurrency invariants are now
+GenMC-checked —
+- INV-9 (radix L2 lazy-install) — `cds_radix_install.c`
+- INV-6 + INV-21 (thread-exit DLL walk vs cross-thread free) — `cds_dll_exit_race.c`
+- INV-7b (CrossDeallocBatch held-bit, formerly entirely comment-only — the
+  flush-crash investigation's central invariant) — `cds_crossbatch_heldbit.c`
+- INV-15,16,18 (LRC exclusive-ownership / no-premature-release) — `cds_lrc_ownership.c`
+plus INV-6,7,8,12 in TLA+ (`tests/tlaplus/Chunk*.tla`) and the
+atomic_shared_ptr suite in kamestm.
 
-**Remaining Stage-2 targets** (relied-on, unchecked, high blast radius): a
-GenMC / TLA+ model of the **cross-thread free batch**
-(`CrossDeallocBatch::push`/`flush`, §-tags in `allocator.cpp`) — the held-bit
-"keeps the chunk alive" invariant, currently entirely comment-only; and
-INV-17 (LRC kind disjointness — a pure-function clamp, cheap to assert).
+**Remaining (low blast radius / not model-checkable)**: INV-17 (LRC kind
+disjointness — a pure-function clamp; a `static_assert`/runtime assert would
+suffice), INV-22 (the IE-TLS `dlopen` restriction — a deployment constraint,
+not a concurrency property), and INV-9's meta-handoff ordering (external to
+the allocator — rides the client's alloc→free synchronisation).
