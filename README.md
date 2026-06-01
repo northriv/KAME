@@ -20,7 +20,11 @@ orchestration across compatible instruments.
 
 ## Features
 
-- Transactional, lock-free node/data model (Software Transactional Memory)
+- Transactional, lock-free node/data model (Software Transactional Memory) —
+  spun out as the dual-licensed reusable libraries
+  [`kamestm/`](kamestm/) (STM core) and
+  [`kamepoolalloc/`](kamepoolalloc/) (four-tier pool allocator) — see
+  [Reusable subsystems](#reusable-subsystems)
 - Python (+Jupyter notebook) and Ruby scripting — nearly full control from scripts
 - **AI-assisted experiment automation via [MCP](https://modelcontextprotocol.io/)** — Claude and other AI assistants can read instruments, control parameters, and run measurement sequences through natural language
 - OpenGL-based 2-D / 1-D graph display; arbitrary scalar combinations (T, V, …)
@@ -80,6 +84,34 @@ Windows 64-bit binaries: [8.1](https://kitag.issp.u-tokyo.ac.jp/web/kame/src/kam
 ---
 
 ## Architecture
+
+### Reusable subsystems
+
+Two pieces of KAME's foundation are maintained as **stand-alone dual-licensed
+libraries** (Apache 2.0 OR GPL-2.0-or-later) within this monorepo, intended to
+be carved out as their own subtrees for downstream embedding:
+
+- **[`kamestm/`](kamestm/) — Lock-free software transactional memory.**
+  The snapshot / transaction core (`Node<XN>`, `Snapshot<XN>`, `Transaction<XN>`,
+  `atomic_shared_ptr<T>`) extracted as a header-only library plus one small `.cpp`.
+  TLA+ specs for the protocol; GenMC RC11-checked C translations.  Builds on
+  macOS clang / Linux gcc/clang (64+32-bit) / Windows **MinGW + MSVC** — all
+  11 standalone tests pass on each.  See [`kamestm/README.md`](kamestm/README.md).
+- **[`kamepoolalloc/`](kamepoolalloc/) — Four-tier lock-free pool allocator.**
+  1 B to multi-GiB span (buckets / dedicated chunks / large `mmap` / huge),
+  per-thread DLL + cross-thread coalescing, two-level recycle cache, TLA+ /
+  GenMC verified, drop-in `new` / `delete` replacement.  Coexists with foreign
+  allocators on every OS via the native interposition: ELF strong symbols on
+  Linux, Mach-O `__DATA,__interpose` on macOS, free-family IAT redirect on
+  Windows (§31).  Builds on the same four toolchains; MSVC live pool is
+  default-on (opt OUT with `KAME_DISABLE_POOL_MSVC`).  See
+  [`kamepoolalloc/README.md`](kamepoolalloc/README.md) and the
+  [INVARIANTS](kamepoolalloc/design/INVARIANTS.md) / [SUBSYSTEMS](kamepoolalloc/design/SUBSYSTEMS.md)
+  navigation map.
+
+The rest of this Architecture section describes how KAME itself uses these
+pieces — instrument drivers, Python integration, `.kam` serialization, and
+how the STM machinery from `kamestm/` is wired into the node tree.
 
 ### Driver / Plug-in Architecture
 
@@ -197,7 +229,8 @@ the key registered in `XTypeHolder`.
 
 ### Software Transactional Memory (STM)
 
-KAME's core data model is a lock-free, snapshot-based STM (`kame/transaction.h`).
+KAME's core data model is a lock-free, snapshot-based STM
+(`kamestm/transaction.h` — see [Reusable subsystems](#reusable-subsystems)).
 All instrument data lives in a tree of `Node<XN>` objects; reads and writes are
 expressed as **snapshots** and **transactions** rather than locks.
 
@@ -233,7 +266,7 @@ node.iterate_commit([](Transaction<NodeA> &tr) {
 
 #### Lock-free atomic shared pointer
 
-The O(1) snapshot reads and CAS-based commits above require a shared pointer that is itself lock-free. `atomic_shared_ptr` (in `kame/atomic_smart_ptr.h`, introduced in January 2006 as part of the 2.0-beta3 rewrite) provides this. It is a custom implementation of what C++20 calls `std::atomic<shared_ptr>`.
+The O(1) snapshot reads and CAS-based commits above require a shared pointer that is itself lock-free. `atomic_shared_ptr` (in `kamestm/atomic_smart_ptr.h`, introduced in January 2006 as part of the 2.0-beta3 rewrite) provides this. It is a custom implementation of what C++20 calls `std::atomic<shared_ptr>`.
 
 The core technique embeds a small **local reference counter** in the low bits of the pointer to the reference-control block — bits guaranteed zero by allocator alignment. `acquire_tag_ref_()` atomically increments this local counter via CAS to "pin" the pointer for reading; `release_tag_ref_()` decrements it. Between these two calls, even if another thread swaps the pointer, the object cannot be freed because the local count is non-zero. A separate **global reference counter** in the control block tracks long-lived ownership (copies held across scopes). Setters transfer any outstanding local count to the global counter before swapping, so `release_tag_ref_()` can fall back to decrementing the global counter if the pointer changed.
 

@@ -78,8 +78,10 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
 
 ## Status
 
-**Production-stable in KAME** (measurement framework, 24/7 operation in
-research labs since 2002).  The Phase 5 / §15–§30 work (2025 – 2026) added the
+**Production-stable in KAME** since 2008 (the lock-free pool joined the
+KAME measurement framework — itself in 24/7 research-lab operation since
+2002 — as the system allocator that year, and has been the production
+allocator on every release since).  The Phase 5 / §15–§30 work (2025 – 2026) added the
 buddy chunk allocator, the full-usable page-aligned bucket tiers, the
 dedicated / large-`mmap` / huge (> 32 MiB) tiers with a two-level recycle cache,
 pool-routed aligned allocation, and standards-conformant OOM.
@@ -480,7 +482,7 @@ host's core count).
 Pick whichever license suits your downstream project; see [LICENSE](LICENSE)
 for the full dual-grant statement.
 
-Copyright (C) 2002-2026 Kentaro Kitagawa &lt;kitag@issp.u-tokyo.ac.jp&gt;,
+Copyright (C) 2008-2026 Kentaro Kitagawa &lt;kitag@issp.u-tokyo.ac.jp&gt;,
 The University of Tokyo, ISSP.
 
 Both license grants explicitly require preservation of the copyright notice
@@ -517,6 +519,13 @@ edits) and the §-chapter → subsystem → code navigation map
 - [x] Windows live pool, default-on for both MinGW64 + lld and MSVC —
       free-family IAT redirect for Qt / libc++ coexistence (§31), `_MSC_VER`
       GCC-ism shim; opt out via `KAME_DISABLE_POOL_MSVC`
+- [x] Experimental contrib adaptors — `std::pmr::memory_resource` (covers
+      every PMR-aware container + Boost.Container / Folly / abseil),
+      `rclcpp::Allocator` for ROS 2 RT nodes, and `Eigen::aligned_allocator`-
+      style over-aligned allocator for SIMD/cacheline-aligned buffers — all
+      header-only, all concept-conformance tested via `ctest`.  See
+      [`contrib/`](contrib/) (also includes an OpenCV `cv::MatAllocator`
+      paste recipe)
 
 ### Future / nice-to-have
 

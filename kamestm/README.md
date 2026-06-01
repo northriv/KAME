@@ -2,6 +2,7 @@
 
 [![License: Apache-2.0 OR GPL-2.0+](https://img.shields.io/badge/License-Apache--2.0_OR_GPL--2.0%2B-blue.svg)](#license)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)]()
+[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW%20%2B%20MSVC)-lightgrey)]()
 
 Lock-free software transactional memory (STM) primitives — the
 snapshot/transaction core from the [KAME](https://github.com/northriv/KAME)
@@ -11,6 +12,12 @@ library plus one small `.cpp`.
 Dual-licensed under your choice of **Apache 2.0 OR GPL-2.0-or-later**
 so it embeds cleanly into permissive / proprietary projects (Apache
 path) or links into GPLv2-only projects such as KAME itself (GPL path).
+
+**Production-stable in KAME since 2008** — the STM core has been the
+foundation of the KAME node tree under 24/7 research-lab operation on
+every release from that year onwards.  Builds and passes all 11
+standalone tests on macOS clang, Linux gcc/clang (64-bit + 32-bit),
+Windows MinGW64 + lld, and Windows MSVC.
 
 ## What's in here
 
@@ -133,13 +140,24 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
 
 ## Dependencies
 
-- C++17 toolchain (gcc 9+, clang 10+, MSVC stays on `std::allocator` for now).
+- C++17 toolchain — gcc 9+, clang 10+, **and MSVC (cl)**.  All 11
+  standalone tests build and pass on macOS clang, Linux gcc/clang
+  (64-bit + 32-bit), Windows MinGW64 + lld, and Windows MSVC (cl 19.51).
+  The MSVC build needs no opt-in flag: kamestm already used
+  `std::atomic` / `thread_local` and carried `_MSC_VER` branches for
+  the few primitives (popcount, fences, rdtsc); commit `60cfc7dc`
+  added the last portable shim (`ctz_u64` mirroring `popcount_u64`)
+  and rewrote the function-local `constexpr` constants nested lambdas
+  use as `static constexpr` so MSVC accepts them inside `if constexpr`
+  (C2131 / C3493).
 - [`kamepoolalloc`](../kamepoolalloc) — sibling library providing
   `Transactional::allocator<T>` and the lock-free pool used by every
   Snapshot allocation.  The STM core includes
   `kamepoolalloc/allocator.h` via the consumer's INCLUDEPATH; falling
   back to `std::allocator` requires defining `USE_STD_ALLOCATOR`
-  before including `transaction.h`.
+  before including `transaction.h`.  (`kamepoolalloc`'s own MSVC
+  build is default-on — opt OUT via `KAME_DISABLE_POOL_MSVC` — so
+  unless explicitly disabled, MSVC users get the live pool here too.)
 
 ## Build / Use
 
@@ -219,7 +237,7 @@ lock-free, dynamic, and hard-link variants) are checked with TLC.
 Pick whichever license suits your downstream project; see [LICENSE](LICENSE)
 for the full dual-grant statement.
 
-Copyright (C) 2002-2026 Kentaro Kitagawa &lt;kitag@issp.u-tokyo.ac.jp&gt;,
+Copyright (C) 2008-2026 Kentaro Kitagawa &lt;kitag@issp.u-tokyo.ac.jp&gt;,
 The University of Tokyo, ISSP.
 
 Both license grants explicitly require preservation of the copyright
