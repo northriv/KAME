@@ -3313,6 +3313,18 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	return chunk_base + ALLOC_CHUNK_K_MAX;
 }
 
+// Forward declarations — `libsystem_malloc_for_pool` and `kame_calloc`
+// are defined further down (alongside `libsystem_free_for_pool` /
+// `libsystem_realloc_for_pool` and the rest of the libc-fallback set),
+// but several earlier fall-through paths (allocate_large_size_or_malloc,
+// cold_first_access, new_redirected_large, and our Linux strong-symbol
+// `malloc` / `calloc` shims) need to call them.  Same pattern as the
+// existing forward decl of `libsystem_free_for_pool` below.
+__attribute__((noinline))
+static void *libsystem_malloc_for_pool(std::size_t n);
+__attribute__((noinline))
+static void *kame_calloc(std::size_t n_elem, std::size_t sz);
+
 void* allocate_large_size_or_malloc(size_t size) throw() {
 	// Three-tier above-bucket dispatch:
 	//
@@ -3352,7 +3364,10 @@ void* allocate_large_size_or_malloc(size_t size) throw() {
 	}
 	if(void *p = PoolAllocatorBase::allocate_large_va(size))
 		return p;
-	return std::malloc(size);   // reached only if the mmap itself failed
+	// Last-resort libsystem fallback.  Use `libsystem_malloc_for_pool`
+	// (not `std::malloc`) because our strong-symbol `malloc` override
+	// would recurse otherwise — same pattern as libsystem_free_for_pool.
+	return libsystem_malloc_for_pool(size);   // reached only if the mmap itself failed
 }
 
 // =====================================================================
@@ -3516,7 +3531,7 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
 __attribute__((cold, noinline))
 void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
     if( !g_sys_image_loaded || s_alloc_tls_off)
-        return std::malloc(size);
+        return libsystem_malloc_for_pool(size);  // not std::malloc — would recurse under strong-symbol `malloc` override
     switch(bucket) {
         case  0: case  1: return bucket_first_access< 1>(size);
         case  2:          return bucket_first_access< 2>(size);
@@ -3570,7 +3585,7 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
         case 50:          return bucket_first_access<50>(size);
         case 51:          return bucket_first_access<51>(size);
     }
-    return std::malloc(size);  // unreachable
+    return libsystem_malloc_for_pool(size);  // unreachable
 }
 
 // The per-thread tables.  `__thread` (= `ALLOC_TLS` on GCC/Clang) so the
@@ -3633,7 +3648,7 @@ void *new_redirected_large(std::size_t size) noexcept {
         return cold_first_access(bucket, size);
     }
     if( !g_sys_image_loaded || s_alloc_tls_off)
-        return std::malloc(size);
+        return libsystem_malloc_for_pool(size);
     return allocate_large_size_or_malloc(size);
 }
 
@@ -3871,9 +3886,34 @@ kame_interpose_entry kame_interposers[]
 } // namespace
 #elif defined(__linux__)
 // Linux: emit `free` as a strong symbol so our dylib's own consumers
-// resolve to the pool-aware version.
+// resolve to the pool-aware version.  Also emit `malloc` / `calloc` here
+// so a `-l kamepoolalloc` (or LD_PRELOAD) consumer gets a *complete* pool
+// allocator — every libc malloc-family entry, including the ones inside
+// libstdc++ / libc++ / Qt / Ruby / Python, routes through the pool.
+// This matches mimalloc / jemalloc's Linux .so contract and is what
+// makes head-to-head benchmarks (mimalloc-bench / LD_PRELOAD shootout)
+// produce comparable numbers — without it, LD_PRELOAD'd consumers stay
+// on libc malloc and the pool is bypassed entirely (only direct
+// `kame_pool_*` calls land in the pool).
+//
+// Fall-through to libc: `libsystem_malloc_for_pool` uses `__libc_malloc`,
+// which is the same address libc's malloc resolves to but under a name
+// we do not shadow — preventing infinite recursion through our own
+// override.
 extern "C" __attribute__((noinline)) void free(void *p) {
 	kame_free(p);
+}
+extern "C" __attribute__((noinline)) void *malloc(std::size_t n) {
+	if(__builtin_expect(!g_sys_image_loaded || s_alloc_tls_off, 0))
+		return libsystem_malloc_for_pool(n);
+	if(void *p = new_redirected(n)) return p;
+	errno = ENOMEM;
+	return nullptr;
+}
+extern "C" __attribute__((noinline)) void *calloc(std::size_t n_elem, std::size_t sz) {
+	// `kame_calloc` is libc-spec compliant (overflow check, calloc(0,*)
+	// returns unique freeable ptr, ENOMEM on fail) — just expose it.
+	return kame_calloc(n_elem, sz);
 }
 #else
 // Windows / others: no `free` interpose.
@@ -3923,11 +3963,35 @@ extern "C" __attribute__((noinline)) void free(void *p) {
 // distribution; on calloc-heavy workloads it can matter more.
 
 #if defined(__linux__) && defined(__GLIBC__)
-// glibc internal entries — same addresses as libc's `calloc` / `realloc`
-// but under names our strong-symbol shims do not shadow.
+// glibc internal entries — same addresses as libc's `malloc` / `calloc` /
+// `realloc` but under names our strong-symbol shims do not shadow.
+extern "C" void *__libc_malloc(size_t) noexcept;
 extern "C" void *__libc_calloc(size_t, size_t) noexcept;
 extern "C" void *__libc_realloc(void *, size_t) noexcept;
 #endif
+
+__attribute__((noinline))
+static void *libsystem_malloc_for_pool(std::size_t n) {
+#if defined(__APPLE__)
+	// Zone-API direct dispatch — same rationale as libsystem_free /
+	// realloc / calloc above: dlsym(RTLD_NEXT, "malloc") would return
+	// our interposed replacement under FULL_INTERCEPT.  malloc_zone_*
+	// bypasses interposing and goes straight to the libsystem vtable.
+	return malloc_zone_malloc(malloc_default_zone(), n);
+#elif defined(__linux__) && defined(__GLIBC__)
+	// Our strong-symbol `malloc` override would recurse; __libc_malloc is
+	// the same address libc's malloc resolves to, under a name we do
+	// not shadow.  Same trick as `__libc_free` / `__libc_realloc`.
+	return __libc_malloc(n);
+#else
+	// Windows: §31 does NOT redirect malloc (only free / realloc / _msize),
+	// so `std::malloc` resolves to the genuine UCRT entry directly — no
+	// recursion risk here.
+	// Other Unix (musl, etc.): no strong-symbol malloc override is emitted
+	// below, so std::malloc is safe.
+	return std::malloc(n);
+#endif
+}
 
 __attribute__((noinline))
 static void *libsystem_realloc_for_pool(void *p, std::size_t n) {
@@ -4254,6 +4318,40 @@ kame_interpose_entry kame_interposers_alloc[]
           reinterpret_cast<const void *>(&realloc) },
 };
 } // namespace
+
+#  if defined(KAMEPOOLALLOC_FULL_INTERCEPT)
+// macOS opt-in: also interpose `malloc` so EVERY libc malloc-family call
+// (libstdc++ / libc++ / Foundation / AppKit / Qt / Ruby / Python) routes
+// through the pool — turns kamepoolalloc into a mimalloc-style "full
+// LD_PRELOAD allocator" for head-to-head benchmarking.
+//
+// DEFAULT-OFF because:
+//   - production kame.app (`kame/kame.pro`) is the macOS reference build
+//     and has 20+ years of free-only-interpose stability with Qt + ObjC;
+//   - Apple's ObjC runtime checks calloc'd class data via `malloc_size()`,
+//     which would need to be co-interposed for full compat (see comment
+//     above `kame_pool_calloc`) — out of scope for this opt-in.
+//
+// Enable for bench builds:  cmake -DKAMEPOOLALLOC_FULL_INTERCEPT=1 ...
+// or for KAME desktop after on-target soak validation.
+//
+// `calloc` is deliberately NOT added here even under FULL_INTERCEPT —
+// the documented ObjC class-realization issue makes calloc interpose
+// risky without also overriding `malloc_size` / `malloc_zone_from_ptr`
+// / `malloc_good_size`.  `free` and `realloc` interpose above stay
+// unconditional (correctness-critical for the pool's own pointers).
+extern "C" void *malloc(std::size_t);
+
+namespace {
+__attribute__((used))
+kame_interpose_entry kame_interposers_full[]
+    __attribute__((section("__DATA,__interpose"))) = {
+        { reinterpret_cast<const void *>(&kame_pool_malloc),
+          reinterpret_cast<const void *>(&malloc) },
+};
+} // namespace
+#  endif // KAMEPOOLALLOC_FULL_INTERCEPT
+
 #elif defined(__linux__)
 extern "C" __attribute__((noinline))
 void *realloc(void *p, std::size_t n) {
