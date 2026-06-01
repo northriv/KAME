@@ -4,9 +4,9 @@
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW)-lightgrey)]()
 
-A lock-free, per-thread, four-tier pool allocator spanning **1 B to 32 MiB** —
-bucketed small objects, dedicated mid chunks, and `munmap`-backed large blocks,
-all freed through one uniform path.  Born for **multi-threaded STM-style
+A lock-free, per-thread, four-tier pool allocator spanning **1 B to multi-GiB** —
+bucketed small objects, dedicated mid chunks, `munmap`-backed large blocks, and a
+multi-region huge tier for requests above 32 MiB, all freed through one uniform path.  Born for **multi-threaded STM-style
 transactional workloads** but usable as a general-purpose drop-in `new` /
 `delete` (or C `malloc`) replacement on macOS, Linux, and Windows (MinGW).
 
@@ -39,7 +39,8 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
     over-satisfy a smaller huge request and pin its RSS — the reason
     libc / jemalloc / mimalloc don't pool their huge class).  Plain libc `malloc`
     is reached only if the `mmap` itself fails.
-- **Two-level recycle cache** for the large tiers (32 KiB .. 32 MiB): a
+- **Two-level recycle cache** for the dedicated-chunk and large-`mmap` tiers
+  (32 KiB .. 32 MiB; the > 32 MiB huge tier bypasses it): a
   per-thread **L1** (no atomics, ping-pong absorbed) in front of a global
   lock-free **L2** log-slot cache (no working-set cliff, byte-capped).  Reuses
   warm, resident blocks — skips the `mmap`/`madvise`/re-fault cost that makes
@@ -70,10 +71,10 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
 ## Status
 
 **Production-stable in KAME** (measurement framework, 24/7 operation in
-research labs since 2002).  The Phase 5 / §15–§26 work (2025 – 2026) added the
+research labs since 2002).  The Phase 5 / §15–§30 work (2025 – 2026) added the
 buddy chunk allocator, the full-usable page-aligned bucket tiers, the
-dedicated / large-`mmap` tiers with a two-level recycle cache, pool-routed
-aligned allocation, and standards-conformant OOM.
+dedicated / large-`mmap` / huge (> 32 MiB) tiers with a two-level recycle cache,
+pool-routed aligned allocation, and standards-conformant OOM.
 
 **Targets:** macOS and Windows (64-bit) for KAME itself; the standalone library
 also builds and is tested on Linux (64-bit and 32-bit).  Requires a host with
