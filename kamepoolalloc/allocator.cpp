@@ -732,10 +732,30 @@ bool g_sys_image_loaded = false;
 // elided in dylib builds (see `KAMEPOOLALLOC_DYLIB` branches in
 // `allocator.h`, and the dropped `support_SRCS` entry in
 // `tests/CMakeLists.txt`).
-__attribute__((constructor(101)))
+//
+// `[[gnu::used]]` keeps the symbol against `-fdata-sections / -ffunction-
+// sections` + GC, and also against lld's static-internal-with-no-explicit-
+// reference pruning.  Reported (MinGW64 + lld): the DLL would build
+// fine, but `g_sys_image_loaded` stayed `false` at runtime — pool fell
+// through to libc malloc and no `Reserve swap space` ever printed.  The
+// backup static-init activator below also covers the case where lld
+// emits the constructor record but Windows CRT init doesn't pick it up.
+[[gnu::used]] __attribute__((constructor(101)))
 static void kamepoolalloc_auto_activate() noexcept {
     g_sys_image_loaded = true;
 }
+// Backup: a file-scope global whose default constructor unconditionally
+// flips the flag.  Static-init ordering is unspecified relative to other
+// TUs, but `g_sys_image_loaded = true;` has no other-init dependency
+// (just a plain bool store).  Static-init runs reliably on every linker
+// we care about — including the Windows path where the priority-tagged
+// `__attribute__((constructor))` record may be silently dropped.
+namespace {
+struct KamePoolAutoActivator {
+    KamePoolAutoActivator() noexcept { g_sys_image_loaded = true; }
+};
+[[gnu::used]] static KamePoolAutoActivator s_kamepool_auto_activator;
+} // namespace
 #else
 // Inline-compiled mode (qmake): the kame app and each standalone test
 // binary contain `allocator.cpp` as a TU of its own, and the activation
@@ -820,8 +840,23 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		this->m_sizes = nullptr;
 		this->m_align_shift = 0;
 	}
+	// (§29) Pre-fill runtime opt-out — set `KAME_POOL_DISABLE_PREFILL=1` to
+	// fall back to the pre-§29 zero-init code path without rebuilding.
+	// Diagnostic switch only — if you're hitting a fresh-chunk corruption
+	// only on the Windows MinGW path, toggle this to confirm whether the
+	// pre-fill is involved.  Constructed once on first chunk claim,
+	// process-lifetime; the call to `std::getenv` here recurses into our
+	// own `operator new`-overridden path only when the env value is
+	// already cached (Windows MSVCRT) or via thread-safe local storage
+	// (glibc), neither of which routes through the pool's hot path.
+	static const bool s_prefill_enabled = []{
+		const char *e = std::getenv("KAME_POOL_DISABLE_PREFILL");
+		return !(e && e[0] != '\0' && e[0] != '0');
+	}();
+	bool prefilled = false;
 #ifndef GUARDIAN
-	if constexpr (FS && DUMMY) {
+	if constexpr (FS && DUMMY) if(s_prefill_enabled) {
+		prefilled = true;
 		// (§29) FS=true freelist pre-fill at chunk-claim.
 		//
 		// Non-atomically link ALL slots into the chunk-local freelist
@@ -875,13 +910,12 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		m_flags_packed = BIT_OWNED | static_cast<std::uint32_t>(count);
 		m_flags_filled_cnt = count;
 	}
-	else
 #endif
-	{
-		// FS=false base ctor pass (DUMMY=false), or GUARDIAN debug path:
-		// keep zero-init.  FS=false slots are variable-size (N bits per
-		// slot), so a uniform "one slot per bit" freelist pre-fill
-		// doesn't apply.
+	if( !prefilled) {
+		// FS=false base ctor pass (DUMMY=false), GUARDIAN debug path,
+		// or §29 pre-fill disabled via KAME_POOL_DISABLE_PREFILL: keep
+		// zero-init.  FS=false slots are variable-size (N bits per slot),
+		// so a uniform "one slot per bit" freelist pre-fill doesn't apply.
 		for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b)
 			m_freelist_head[b] = nullptr;
 		for(int i = count - 1; i >= 0; --i)
