@@ -20,7 +20,7 @@ GENMC    ?= genmc/build/bin/genmc
 GMCFLAGS ?= --rc11 --unroll=5
 SRCDIR    = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-run: run-ownership run-radix
+run: run-ownership run-radix run-dll
 
 run-ownership:
 	@echo "=== LRC: exclusive-ownership / no-premature-release (UAF/double-free) ==="
@@ -32,6 +32,11 @@ run-radix:
 	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_radix_install.c
 	@echo ""
 
+run-dll:
+	@echo "=== thread-exit DLL walk vs cross-thread free: 1-releaser + cached-next (INV-6, INV-21) ==="
+	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_dll_exit_race.c
+	@echo ""
+
 # IMM is strictly stronger than RC11 for this code; offered for parity with
 # the kamestm harness.
 run-imm: GMCFLAGS = --imm --unroll=5
@@ -40,7 +45,7 @@ run-imm: run
 # Concrete build + run: confirms the harness compiles and the happy-path
 # logic holds.  Does NOT explore interleavings — use `make run` (GenMC) for
 # the actual verification.
-smoke: smoke-ownership smoke-radix
+smoke: smoke-ownership smoke-radix smoke-dll
 smoke-ownership:
 	@cc -std=c11 -O2 -pthread -fsanitize=thread $(SRCDIR)cds_lrc_ownership.c -o /tmp/cds_lrc_ownership_smoke \
 	  && for i in 1 2 3 4 5 6 7 8; do /tmp/cds_lrc_ownership_smoke || exit 1; done \
@@ -49,5 +54,9 @@ smoke-radix:
 	@cc -std=c11 -O2 -pthread -fsanitize=thread $(SRCDIR)cds_radix_install.c -o /tmp/cds_radix_install_smoke \
 	  && for i in 1 2 3 4 5 6 7 8; do /tmp/cds_radix_install_smoke || exit 1; done \
 	  && echo "smoke OK: cds_radix_install (8 concrete runs, TSAN-clean)"
+smoke-dll:
+	@cc -std=c11 -O2 -pthread -fsanitize=thread $(SRCDIR)cds_dll_exit_race.c -o /tmp/cds_dll_exit_race_smoke \
+	  && for i in 1 2 3 4 5 6 7 8; do /tmp/cds_dll_exit_race_smoke || exit 1; done \
+	  && echo "smoke OK: cds_dll_exit_race (8 concrete runs, TSAN-clean)"
 
-.PHONY: run run-ownership run-radix run-imm smoke smoke-ownership smoke-radix
+.PHONY: run run-ownership run-radix run-dll run-imm smoke smoke-ownership smoke-radix smoke-dll
