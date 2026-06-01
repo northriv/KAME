@@ -519,6 +519,9 @@ edits) and the §-chapter → subsystem → code navigation map
 - [x] Windows live pool, default-on for both MinGW64 + lld and MSVC —
       free-family IAT redirect for Qt / libc++ coexistence (§31), `_MSC_VER`
       GCC-ism shim; opt out via `KAME_DISABLE_POOL_MSVC`
+- [x] C++17 Allocator adaptor (`kame::pool_allocator<T>`) for ROS 2 /
+      rclcpp real-time nodes and STL containers — experimental, header-only,
+      see [`contrib/`](contrib/)
 
 ### Future / nice-to-have
 
