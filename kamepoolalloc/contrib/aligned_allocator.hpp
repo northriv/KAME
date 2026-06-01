@@ -42,22 +42,26 @@
 //     std::vector<float,
 //                 kame::pool_aligned_allocator<float, 64>> w;
 //
-// Routing:
-//   * `Align ≤ alignof(std::max_align_t)` (16 B on every supported ABI)
-//     → `kame_pool_malloc()` fast path, no per-call alignment math.
-//   * `Align > 16 B` → `kame_pool_aligned_alloc(Align, n*sizeof(T))`,
-//     served from the pool's bucket tiers (ALIGN ∈ {32, 64, 256, 1024,
-//     4096}) on POSIX.
-//
-// **Windows caveat:** `kame_pool_aligned_alloc` currently rejects over-
-// aligned requests on Windows (the libc-fallback can't be paired with
-// `kame_pool_free` without per-pointer tagging — see
-// kamepoolalloc/allocator.cpp:4029).  On Windows, over-aligned allocation
-// here throws `std::bad_alloc`.  Workarounds:
-//   - Build for POSIX (Linux / macOS) where it Just Works.
-//   - Use `Eigen::aligned_allocator<T>` (libc-backed) instead on Windows.
-//   - For 16-byte-aligned types (most uses), drop `Align` to the default
-//     16 — kamepoolalloc's normal slots are 16 B-aligned everywhere.
+// Routing (all paths pool-managed; works identically on POSIX + Windows):
+//   * `Align ≤ alignof(std::max_align_t)` (16 B) → `kame_pool_malloc()`
+//     fast path, no per-call alignment math.
+//   * `16 < Align ≤ 4096` → pool bucket (ALIGN ∈ {32, 64, 256, 1024,
+//     4096}); slot = mempool + j*ALIGN, mempool itself sits on a 256 KiB
+//     unit boundary, so the slot is naturally `Align`-aligned.
+//   * `4096 < Align ≤ 256 KiB` → dedicated-chunk path; payload starts
+//     at the chunk's 256 KiB unit boundary, satisfying any alignment up
+//     to 256 KiB.
+//   * `Align > 256 KiB` → throws `std::bad_alloc`.  This is the
+//     pool-managed ceiling: the large_va tier's mmap base is 32 MiB-
+//     aligned, but its user pointer is `base + PAGE` (the first page
+//     holds an in-band `LargeAllocMeta`), so the *exposed* alignment is
+//     only PAGE — no escalation past 256 KiB without restructuring the
+//     large_va metadata layout (deferred until a workload needs it).
+//     POSIX `posix_memalign` would still serve, but `kame_pool_free` has
+//     no way to pair with `_aligned_free` on Windows without per-pointer
+//     tagging — the C API stops here uniformly.  Use the platform-native
+//     `_aligned_malloc` / `posix_memalign` directly for those extreme
+//     cases (NUMA-domain-aligned big buffers / HugeTLB / etc.).
 
 #ifndef KAMEPOOLALLOC_CONTRIB_ALIGNED_ALLOCATOR_HPP_
 #define KAMEPOOLALLOC_CONTRIB_ALIGNED_ALLOCATOR_HPP_
@@ -132,9 +136,9 @@ public:
                 return static_cast<T *>(p);
             throw std::bad_alloc();
         }
-        // Over-aligned path.  `kame_pool_aligned_alloc` returns null on
-        // Windows (over-aligned not yet supported — see header comment);
-        // surface that as `std::bad_alloc` per the Allocator contract.
+        // Over-aligned path — pool bucket (ALIGN ≤ 4096) or dedicated
+        // chunk (ALIGN ≤ 256 KiB) on every supported OS; only > 256 KiB
+        // alignment returns null on Windows (libc-fallback unsupported).
         const std::size_t a =
             Align > alignof(T) ? Align : alignof(T);
         if (void *p = kame_pool_aligned_alloc(a, bytes))

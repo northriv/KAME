@@ -104,13 +104,21 @@ void   kame_pool_free(void *p) KAMEPOOLALLOC_NOEXCEPT;
  * sizeof(void*).  Alignments <= 16 B are served by the pool;
  * larger alignments fall back to the system allocator.
  *
- * Windows restriction: alignments > 16 B return EINVAL.  The reason is
- * the platform `_aligned_malloc` / `_aligned_free` pairing — pointers
- * from `_aligned_malloc` cannot be passed to CRT `free()`, and
- * `kame_pool_free()` does not carry alignment info to dispatch
- * `_aligned_free` correctly.  Callers needing alignment > 16 B on
- * Windows should use `_aligned_malloc` / `_aligned_free` directly, or
- * use C++ `operator new(size, std::align_val_t{N})` which carries
+ * Alignment ceiling: the pool serves alignments up to and INCLUDING
+ * `ALLOC_MIN_CHUNK_SIZE` (256 KiB) on every supported OS, including
+ * Windows — the bucket tier (alignment ≤ 4096) hands out slots from
+ * the chunk's mempool which itself sits on a 256 KiB unit boundary, and
+ * the dedicated-chunk tier (4096 < alignment ≤ 256 KiB) returns a chunk
+ * whose payload starts at that same unit boundary.  Both paths are pure
+ * pool memory and free via the ordinary `kame_pool_free` — no
+ * `_aligned_free` lifetime concern.
+ *
+ * Alignments > 256 KiB return ENOMEM (POSIX falls through to
+ * `posix_memalign` for libc-backed satisfaction; Windows returns null
+ * because `kame_pool_free` has no way to pair with `_aligned_free` for
+ * libc-aligned pointers).  Use the platform-native `_aligned_malloc` /
+ * `_aligned_free` directly for those rare cases on Windows, or C++
+ * `operator new(size, std::align_val_t{N})` which carries the
  * alignment into the matching `operator delete`.
  */
 void  *kame_pool_aligned_alloc(size_t alignment, size_t size) KAMEPOOLALLOC_NOEXCEPT;
