@@ -110,6 +110,14 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_realtime_mode_test alloc_realtime_mode_test.cpp)
     target_link_libraries(alloc_realtime_mode_test kamepoolalloc Threads::Threads)
 
+    # (contrib) C++17 Allocator concept conformance for
+    # `kame::pool_allocator<T>` — exercises rebind, propagate_on_*,
+    # equality, allocate_shared, and STL containers (vector / list /
+    # map / string).  Same Allocator surface rclcpp uses; passing here
+    # is a structural pre-flight before any ROS 2 integration.
+    add_executable(test_ros2_allocator ${CMAKE_CURRENT_SOURCE_DIR}/../contrib/test_ros2_allocator.cpp)
+    target_link_libraries(test_ros2_allocator kamepoolalloc Threads::Threads)
+
     # Tuning-diagnostic — run on the target machine to characterise VMM
     # cost / TLB shootdown / kamepoolalloc throughput, and print a
     # recommendation block.  NOT registered as a ctest (long-running,
@@ -127,6 +135,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)
+    add_test(NAME test_ros2_allocator COMMAND test_ros2_allocator)
     if(APPLE)
         # macOS-only (16 KiB pages): forces MADV_FREE reclaim via memory
         # pressure to make the straddle deterministic.  Args: objects, pressure_MiB.
