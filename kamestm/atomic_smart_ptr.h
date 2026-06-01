@@ -1540,8 +1540,14 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
 
     using OldrPlain = typename std::remove_cv<OldrT>::type;
     using NewrPlain = typename std::remove_cv<NewrT>::type;
-    constexpr bool SCOPED = std::is_same<OldrPlain, scoped_atomic_view<T>>::value;
-    constexpr bool ACQUIRE = !std::is_const<OldrT>::value && !SCOPED;
+    // `static constexpr` (not plain constexpr): these are used inside the
+    // lambdas below (`if constexpr (SCOPED)`, NEWR_ADD in new_refcnt_undo).
+    // A function-local constexpr is a constant on GCC/Clang and needs no
+    // capture, but MSVC rejects that (C2131 in `if constexpr`, C3493 "cannot
+    // be implicitly captured").  Static storage makes them true constants
+    // usable in nested lambdas on every compiler; the value is identical.
+    static constexpr bool SCOPED = std::is_same<OldrPlain, scoped_atomic_view<T>>::value;
+    static constexpr bool ACQUIRE = !std::is_const<OldrT>::value && !SCOPED;
     // SCOPED + STRONG: enabled for the privileged-thread fast path.
     // Privilege is exclusive (s_privileged_tidstamp slot) and fair_mode
     // blocks all other threads' CAS on this linkage, so the strong-spin
@@ -1559,7 +1565,7 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
         return newr.ref_ptr_();
     };
     // RETAIN_NEWR adds +1 for scoped's Owned ref on newr after CAS success.
-    constexpr Refcnt NEWR_ADD = RETAIN_NEWR ? 2u : 1u;
+    static constexpr Refcnt NEWR_ADD = RETAIN_NEWR ? 2u : 1u;  // static: see SCOPED note
     auto new_refcnt_undo = [&newr]() {
         if(newr.ref_ptr_()) {
             if constexpr ( !RETAIN_NEWR) {

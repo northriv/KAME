@@ -748,6 +748,17 @@ static inline int popcount_u64(uint64_t x) noexcept {
 #endif
 }
 
+// Portable 64-bit count-trailing-zeros.  Undefined for x == 0 (same
+// contract as __builtin_ctzll / _BitScanForward64); all call sites mask
+// to a nonzero word first.
+static inline int ctz_u64(uint64_t x) noexcept {
+#ifdef _MSC_VER
+    unsigned long i; _BitScanForward64(&i, x); return (int)i;
+#else
+    return __builtin_ctzll(x);
+#endif
+}
+
 //! Per-Transaction observation bitset for the contention estimate.
 //!
 //! Accumulates distinct ProcessCounter::id values (low 16 bits of the

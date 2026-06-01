@@ -2,13 +2,13 @@
 
 [![License: Apache-2.0 OR GPL-2.0+](https://img.shields.io/badge/License-Apache--2.0_OR_GPL--2.0%2B-blue.svg)](#license)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue)]()
-[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW)-lightgrey)]()
+[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(MinGW%20%2B%20MSVC)-lightgrey)]()
 
 A lock-free, per-thread, four-tier pool allocator spanning **1 B to multi-GiB** —
 bucketed small objects, dedicated mid chunks, `munmap`-backed large blocks, and a
 multi-region huge tier for requests above 32 MiB, all freed through one uniform path.  Born for **multi-threaded STM-style
 transactional workloads** but usable as a general-purpose drop-in `new` /
-`delete` (or C `malloc`) replacement on macOS, Linux, and Windows (MinGW).
+`delete` (or C `malloc`) replacement on macOS, Linux, and Windows (MinGW + MSVC).
 
 Carved out of the [KAME](https://github.com/northriv/KAME) measurement framework
 and **dual-licensed under Apache 2.0 OR GPL-2.0-or-later** at your choice — so
@@ -63,10 +63,18 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
   footprint, split ~half global L2 / ~half aggregate per-thread L1).
   `madvise(MADV_FREE/DONTNEED)` on chunk release — default also at thread exit,
   toggle via `kame_pool_set_thread_exit_reclaim()`.
+- **Coexists with a foreign allocator on every OS** — the pool intercepts
+  `free`/`delete` the native way per platform so a pointer it allocated is
+  pool-freed no matter which module frees it: ELF strong symbols (Linux),
+  Mach-O `__DATA,__interpose` (macOS), and a runtime free-family IAT redirect
+  on Windows (§31) — the PE/COFF analogue, scoped to the deallocation family,
+  so KAME allocations use the pool while Qt / CRT allocations stay on the CRT
+  heap and frees are reconciled wherever they happen.
 - **Verified** — TSAN race-free, UBSAN clean (incl. `vptr`), ASan clean; the
   chunk-claim / chunk-recycle protocol is TLA+ model-checked and the
   large-recycle cache's exclusive-ownership / no-premature-release (UAF /
-  double-free) safety is GenMC (RC11) model-checked.  Builds 64-bit and 32-bit.
+  double-free) safety is GenMC (RC11) model-checked.  Builds 64-bit and 32-bit,
+  on macOS / Linux / Windows (MinGW + MSVC).
 
 ## Status
 
@@ -79,6 +87,15 @@ pool-routed aligned allocation, and standards-conformant OOM.
 **Targets:** macOS and Windows (64-bit) for KAME itself; the standalone library
 also builds and is tested on Linux (64-bit and 32-bit).  Requires a host with
 `mmap` (or `VirtualAlloc`) and threads — not an MCU / bare-metal allocator.
+
+**Per-toolchain status of the live pool:**
+
+| Toolchain | Live pool | Notes |
+|---|---|---|
+| macOS clang (x86-64 / arm64) | ✅ default | `__DATA,__interpose` `free` redirect; primary target |
+| Linux gcc/clang (x86-64, 32-bit) | ✅ default | strong-symbol `free` redirect; primary CI target |
+| Windows **MinGW64 + lld** | ✅ default | §31 free-family IAT redirect lets the pool coexist with Qt / libc++ (PE/COFF has no cross-module `operator new` interposition); verified on-target with Qt 6.10.1 |
+| Windows **MSVC** (cl) | ✅ default | runs the full live pool — the `_MSC_VER` shim in `allocator_prv.h` bridges the GCC-isms (`_Interlocked*` atomics, `<intrin.h>` bit-scan / overflow, static-init constructor hook) and the §31 redirect handles Qt/CRT coexistence; opt OUT with `KAME_DISABLE_POOL_MSVC` |
 
 ## Benchmarks
 
@@ -221,6 +238,23 @@ correctness / perf drivers built alongside it: `alloc_stress_test`
 (single-size hot / fifo loops), and `alloc_bucket34_repro`.  Sanitizer
 coverage (TSAN / UBSAN / ASan) is obtained by configuring the build with
 the matching `-fsanitize=` flags.
+
+### Windows
+
+- **MinGW64 + lld** (the validated Windows toolchain): builds with the live
+  pool on by default.  The qmake test path inline-compiles `allocator.cpp`
+  into each test binary (PE/COFF won't let a test bind to the DLL's
+  `operator new`), so the test actually exercises the pool; the §31
+  free-family redirect installs from the auto-activator to reconcile the
+  cross-module frees.
+- **MSVC** (cl): runs the full live pool by default — the `_MSC_VER` shim
+  in `allocator_prv.h` provides the `_Interlocked*` atomics, the `<intrin.h>`
+  bit-scan / `_mul_overflow` mappings, and `NOMINMAX`.  Opt OUT with
+  `KAME_DISABLE_POOL_MSVC` to force the `std::allocator` fallback (e.g. when
+  bisecting an allocator-suspected issue).
+- Env knobs (Windows live pool): `KAME_POOL_WIN_REDIRECT=0` disables the §31
+  free redirect (restores the historical unreconciled behaviour);
+  `KAME_POOL_VERBOSE=1` prints the patched-slot count at activation.
 
 ## Usage
 
@@ -480,6 +514,9 @@ edits) and the §-chapter → subsystem → code navigation map
       ([`tests/cds/cds_lrc_ownership.c`](tests/cds/cds_lrc_ownership.c))
 - [x] 32-bit verified; 16 KiB-page (Apple Silicon) / 64 KiB-page (POWER)
       page-multiple slot layout (§16)
+- [x] Windows live pool, default-on for both MinGW64 + lld and MSVC —
+      free-family IAT redirect for Qt / libc++ coexistence (§31), `_MSC_VER`
+      GCC-ism shim; opt out via `KAME_DISABLE_POOL_MSVC`
 
 ### Future / nice-to-have
 
@@ -511,6 +548,11 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | 24    | `slow_allocate` scans DLL freelists across chunks (multi-chunk working sets) |
 | 25    | global lock-free log-slot recycle cache (no working-set cliff) |
 | 26    | per-thread L1 recycle log + global L2 — MT scaling without the cliff |
+| 27    | serve > 32 MiB from the pool (multi-region mmap; huge class bypasses the cache) |
+| 28    | K-line recycle cache (K-major, 1:1 size rounding); lazy drain + auto-tune; sharded stats |
+| 29    | FS=true freelist pre-fill at chunk claim (cold-path bitmap scan → O(1) pop; auto-prewarm) |
+| 30    | `kame_pool_set_realtime_mode()` — one-call silence of all background maintenance |
+| 31    | Windows free-family IAT redirect — pool coexists with Qt / libc++ on PE/COFF |
 
 ## Acknowledgements
 

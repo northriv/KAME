@@ -89,16 +89,24 @@
     #define USE_STD_ALLOCATOR
 #endif
 
-// MSVC carve-out: the pool's atomic primitives are GCC __sync builtins
-// and the constructor hook uses `__attribute__((constructor))`.  Both
-// are MinGW-supported on Windows but MSVC requires intrinsics-based
-// replacements.  Until that shim lands, MSVC-built Windows binaries
-// stay on USE_STD_ALLOCATOR.  MinGW continues onto the active path.
-#if (defined(_WIN32) || defined(WINDOWS)) && defined(_MSC_VER) && !defined(__GNUC__)
+// MSVC: the pool's GCC-isms (the `__sync_*` atomics, `__builtin_*`
+// bit-scan / overflow, the codegen-hint attributes) are bridged by the
+// `_MSC_VER` shim in allocator_prv.h, and the static-init hook replaces
+// `__attribute__((constructor))`.  With those in place the live pool
+// builds and runs on MSVC just like MinGW, so it is ON by default.
+//
+// Opt OUT with `KAME_DISABLE_POOL_MSVC` to force the std::allocator
+// fallback on MSVC (e.g. to bisect an allocator-suspected issue).  The
+// historical `KAME_ENABLE_POOL_MSVC` opt-in macro is now a no-op — the
+// pool is enabled without it — but defining it stays harmless.
+#if (defined(_WIN32) || defined(WINDOWS)) && defined(_MSC_VER) && !defined(__GNUC__) && defined(KAME_DISABLE_POOL_MSVC)
     #define USE_STD_ALLOCATOR
 #endif
 
 #if defined USE_STD_ALLOCATOR
+    #include <cstddef>   // std::size_t for the pool-API stubs below — on
+                         // MSVC <vector>/<limits> aren't pulled in until
+                         // far later in this header.
     inline void activateAllocator() {}
 
     //! \return always true on USE_STD_ALLOCATOR builds — no per-thread
@@ -108,13 +116,17 @@
     //! pool API stubs for USE_STD_ALLOCATOR builds (Windows
     //! by default).  No pool → cap is meaningless; the functions
     //! exist so consumers can call them unconditionally without
-    //! `#ifdef`.
+    //! `#ifdef`.  These MUST use C linkage to match the `extern "C"`
+    //! declarations in kame_pool.h — otherwise MSVC rejects the later
+    //! kame_pool.h declarations with C2732 (linkage-spec mismatch).
+    extern "C" {
     inline void kame_pool_set_max_bytes(std::size_t /*max_bytes*/) noexcept {}
     inline std::size_t kame_pool_get_max_bytes() noexcept { return ~std::size_t(0); }
     inline std::size_t kame_pool_reserved_bytes() noexcept { return 0; }
     //! (§30) Realtime-mode toggle stub.  Pool background maintenance
     //! doesn't exist in this build, so silencing it is a no-op.
     inline void kame_pool_set_realtime_mode(int /*enable*/) noexcept {}
+    } // extern "C"
 #else
     #include "allocator_prv.h"
 
