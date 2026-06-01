@@ -45,16 +45,20 @@ static void touch(void *p, size_t n) {
 }
 
 int main() {
-    // Baseline: cap unchanged (raise to same/larger).  Should be a no-op.
+    // Baseline: explicit small→bigger raise is non-shrinking.  Use literal
+    // values (NOT the default cap's magnitude × N) so the multiplication
+    // can't overflow `size_t` on 32-bit hosts where the default cap (2 GiB
+    // total) sits within an octave of SIZE_MAX.
     {
-        size_t cap0 = kame_pool_get_large_cache_cap();
-        kame_pool_set_large_cache_cap(cap0);     // unchanged
-        kame_pool_set_large_cache_cap(cap0 * 4); // raise
-        size_t cap1 = kame_pool_get_large_cache_cap();
-        CHECK(cap1 >= cap0, "cap RAISE: got=%zu MiB, was=%zu MiB",
-              cap1 / MiB, cap0 / MiB);
+        kame_pool_set_large_cache_cap(128 * MiB);   // small baseline
+        size_t cap_small = kame_pool_get_large_cache_cap();
+        kame_pool_set_large_cache_cap(512 * MiB);   // RAISE
+        size_t cap_big = kame_pool_get_large_cache_cap();
+        CHECK(cap_big >= cap_small,
+              "cap RAISE shrank: %zu MiB -> %zu MiB",
+              cap_small / MiB, cap_big / MiB);
         std::printf("  [ok] cap raise %zu MiB -> %zu MiB\n",
-                    cap0 / MiB, cap1 / MiB);
+                    cap_small / MiB, cap_big / MiB);
     }
 
     // Fill the cache with a representative spread (small mmap blocks across
@@ -65,7 +69,7 @@ int main() {
         std::vector<void *> ptrs;
         for(size_t sz : {6u * MiB, 10u * MiB, 16u * MiB, 24u * MiB}) {
             for(int i = 0; i < 6; i++) {
-                void *p = kame_pool_malloc(sz * MiB / MiB);
+                void *p = kame_pool_malloc(sz);
                 if(p) { touch(p, sz); ptrs.push_back(p); }
             }
         }
