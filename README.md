@@ -519,9 +519,13 @@ edits) and the §-chapter → subsystem → code navigation map
 - [x] Windows live pool, default-on for both MinGW64 + lld and MSVC —
       free-family IAT redirect for Qt / libc++ coexistence (§31), `_MSC_VER`
       GCC-ism shim; opt out via `KAME_DISABLE_POOL_MSVC`
-- [x] C++17 Allocator adaptor (`kame::pool_allocator<T>`) for ROS 2 /
-      rclcpp real-time nodes and STL containers — experimental, header-only,
-      see [`contrib/`](contrib/)
+- [x] Experimental contrib adaptors — `std::pmr::memory_resource` (covers
+      every PMR-aware container + Boost.Container / Folly / abseil),
+      `rclcpp::Allocator` for ROS 2 RT nodes, and `Eigen::aligned_allocator`-
+      style over-aligned allocator for SIMD/cacheline-aligned buffers — all
+      header-only, all concept-conformance tested via `ctest`.  See
+      [`contrib/`](contrib/) (also includes an OpenCV `cv::MatAllocator`
+      paste recipe)
 
 ### Future / nice-to-have
 
