@@ -30,6 +30,7 @@
 #include "icons/icon.h"
 #include "messagebox.h"
 #include "allocator.h"  // KamePooledAllocGuard (kame/allocator.h shim → kamepoolalloc/allocator.h).  Was pulled transitively via kamestm/transaction_signal.h before the kamestm-from-kamepoolalloc decoupling.
+#include "kame_pool.h"  // (§30) kame_pool_set_realtime_mode
 #include <QFile>
 #include <QTextCodec>
 #include <QTranslator>
@@ -345,6 +346,17 @@ int main(int argc, char *argv[]) {
     //! function return.  Replaces the historical bare `activateAllocator()`
     //! call by also handling `release_pools()` on shutdown.
     KamePooledAllocGuard pool_guard;
+
+    //! (§30) KAME is a measurement application — its hot path is tight
+    //! instrument-control loops, not a server that needs aggressive RSS
+    //! reclaim under bursty load.  Realtime-mode silences the allocator's
+    //! three background maintenance paths (§28.1 lazy drain, §28.3 auto-
+    //! tune startup probe, §21 thread-exit madvise) so they never inject
+    //! a surprise munmap/madvise into a measurement loop.  The LRC_MMAP
+    //! cap (`kame_pool_set_large_cache_cap`, default ≈ 1 GiB) still
+    //! applies — lowering it is the supported way to bound RSS in
+    //! realtime mode.
+    kame_pool_set_realtime_mode(1);
 
 #if defined __MACOSX__ || defined __APPLE__
     while(form->running()) {
