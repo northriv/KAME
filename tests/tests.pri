@@ -88,8 +88,17 @@ LIBS += -L$$KAME_BUILD_ROOT/kamestm -lkamestm
 # resolve both dylibs at runtime irrespective of their nesting depth
 # (`@executable_path`-relative paths would need a per-layout `../`
 # count).  `-Wl,-rpath,<abs>` is honoured by both ld64 and GNU ld.
-QMAKE_LFLAGS += -Wl,-rpath,$$KAME_BUILD_ROOT/kamepoolalloc
-QMAKE_LFLAGS += -Wl,-rpath,$$KAME_BUILD_ROOT/kamestm
+#
+# Windows skipped: PE/COFF has no rpath concept.  MinGW gcc + ld silently
+# accept the flag (no effect), but MinGW + lld errors with "unknown
+# argument: -rpath".  Windows DLL resolution falls back to the standard
+# search order (same dir as the EXE / PATH); the kamestm + kamepoolalloc
+# build copies the DLLs alongside the test binaries (or PATH points at
+# their build dir).
+unix {
+    QMAKE_LFLAGS += -Wl,-rpath,$$KAME_BUILD_ROOT/kamepoolalloc
+    QMAKE_LFLAGS += -Wl,-rpath,$$KAME_BUILD_ROOT/kamestm
+}
 
 # Headers that every standalone test transitively pulls in via
 # `support_standalone.h` / `allocator.h` / `threadlocal.h`.  Listed
