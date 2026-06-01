@@ -20,7 +20,7 @@ GENMC    ?= genmc/build/bin/genmc
 GMCFLAGS ?= --rc11 --unroll=5
 SRCDIR    = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-run: run-ownership run-radix run-dll
+run: run-ownership run-radix run-dll run-batch
 
 run-ownership:
 	@echo "=== LRC: exclusive-ownership / no-premature-release (UAF/double-free) ==="
@@ -37,6 +37,11 @@ run-dll:
 	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_dll_exit_race.c
 	@echo ""
 
+run-batch:
+	@echo "=== CrossDeallocBatch held-bit: chunk alive while any slot held; 1-releaser (INV-6) ==="
+	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_crossbatch_heldbit.c
+	@echo ""
+
 # IMM is strictly stronger than RC11 for this code; offered for parity with
 # the kamestm harness.
 run-imm: GMCFLAGS = --imm --unroll=5
@@ -45,7 +50,7 @@ run-imm: run
 # Concrete build + run: confirms the harness compiles and the happy-path
 # logic holds.  Does NOT explore interleavings — use `make run` (GenMC) for
 # the actual verification.
-smoke: smoke-ownership smoke-radix smoke-dll
+smoke: smoke-ownership smoke-radix smoke-dll smoke-batch
 smoke-ownership:
 	@cc -std=c11 -O2 -pthread -fsanitize=thread $(SRCDIR)cds_lrc_ownership.c -o /tmp/cds_lrc_ownership_smoke \
 	  && for i in 1 2 3 4 5 6 7 8; do /tmp/cds_lrc_ownership_smoke || exit 1; done \
@@ -58,5 +63,9 @@ smoke-dll:
 	@cc -std=c11 -O2 -pthread -fsanitize=thread $(SRCDIR)cds_dll_exit_race.c -o /tmp/cds_dll_exit_race_smoke \
 	  && for i in 1 2 3 4 5 6 7 8; do /tmp/cds_dll_exit_race_smoke || exit 1; done \
 	  && echo "smoke OK: cds_dll_exit_race (8 concrete runs, TSAN-clean)"
+smoke-batch:
+	@cc -std=c11 -O2 -pthread -fsanitize=thread $(SRCDIR)cds_crossbatch_heldbit.c -o /tmp/cds_crossbatch_heldbit_smoke \
+	  && for i in 1 2 3 4 5 6 7 8; do /tmp/cds_crossbatch_heldbit_smoke || exit 1; done \
+	  && echo "smoke OK: cds_crossbatch_heldbit (8 concrete runs, TSAN-clean)"
 
-.PHONY: run run-ownership run-radix run-dll run-imm smoke smoke-ownership smoke-radix smoke-dll
+.PHONY: run run-ownership run-radix run-dll run-batch run-imm smoke smoke-ownership smoke-radix smoke-dll smoke-batch
