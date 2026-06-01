@@ -13,6 +13,12 @@ Dual-licensed under your choice of **Apache 2.0 OR GPL-2.0-or-later**
 so it embeds cleanly into permissive / proprietary projects (Apache
 path) or links into GPLv2-only projects such as KAME itself (GPL path).
 
+**Production-stable in KAME since 2008** — the STM core has been the
+foundation of the KAME node tree under 24/7 research-lab operation on
+every release from that year onwards.  Builds and passes all 11
+standalone tests on macOS clang, Linux gcc/clang (64-bit + 32-bit),
+Windows MinGW64 + lld, and Windows MSVC.
+
 ## What's in here
 
 The library covers Layer 0 (atomic primitives) and Layer 1 (snapshot
@@ -231,7 +237,7 @@ lock-free, dynamic, and hard-link variants) are checked with TLC.
 Pick whichever license suits your downstream project; see [LICENSE](LICENSE)
 for the full dual-grant statement.
 
-Copyright (C) 2002-2026 Kentaro Kitagawa &lt;kitag@issp.u-tokyo.ac.jp&gt;,
+Copyright (C) 2008-2026 Kentaro Kitagawa &lt;kitag@issp.u-tokyo.ac.jp&gt;,
 The University of Tokyo, ISSP.
 
 Both license grants explicitly require preservation of the copyright
