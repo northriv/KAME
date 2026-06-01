@@ -3672,8 +3672,9 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
         }
         return cold_first_access(bucket, size);
     }
-    // Pool can't serve this combo (alignment > 4096, or size too big for
-    // any matching bucket, or pre-activate / post-teardown).
+    // Pool can't serve this combo via a bucket (alignment > 4096, or size
+    // too big for any matching bucket, or pre-activate / post-teardown).
+    // Try the next step — a dedicated chunk — for alignment up to 256 KiB.
     if(g_sys_image_loaded && !s_alloc_tls_off &&
        alignment <= (std::size_t)ALLOC_MIN_CHUNK_SIZE &&
        size <= (std::size_t)ALLOC_MAX_CHUNK_SIZE - (std::size_t)ALLOC_CHUNK_K_MAX) {
@@ -3682,17 +3683,26 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
         if(void *p = PoolAllocatorBase::allocate_dedicated_chunk(size))
             return p;
     }
-    // Fall back to libc posix_memalign — handles huge sizes, very large
-    // alignments (> 256 KiB), and the pre-activate / post-teardown windows.
-    // Windows note: `new_redirected_aligned` is never called from the
-    // Windows code paths (see the `#if`-guarded callers in
-    // `kame_pool_aligned_alloc` / `kame_pool_posix_memalign` /
-    // `operator new(align_val_t)` / `kame_overaligned_alloc`, all of which
-    // route through `_aligned_malloc` on Windows — the C API rejects
-    // over-aligned requests, and the C++ aligned-new path pairs with
-    // `_aligned_free`).  We still need the function body to compile, so
-    // return nullptr on Windows instead of calling the POSIX-only
-    // `posix_memalign`.
+    // Note: the large_va tier (4 MiB–32 MiB) and huge tier (> 32 MiB)
+    // are NOT a useful next step for aligned alloc, even though every
+    // large_va mmap *base* is 32 MiB-aligned.  Reason: `allocate_large_va`
+    // returns `base + ALLOC_PAGE_SIZE` to the user — the first page of
+    // every large_va block holds the in-band `LargeAllocMeta`.  The
+    // exposed user pointer is therefore only PAGE-aligned, not 32 MiB-
+    // aligned, so escalating here gives no alignment benefit beyond what
+    // the bucket tier (ALIGN=4096) already provides.  Achieving 32 MiB
+    // alignment on the user pointer would require moving LargeAllocMeta
+    // to the tail and adjusting deallocate_large_va / radix lookup /
+    // recycle cache — a non-trivial refactor that we defer until a
+    // workload actually needs alignment > 256 KiB + pool management.
+    //
+    // Fall back to libc posix_memalign — handles alignment > 256 KiB
+    // (the dedicated chunk's ceiling) and huge sizes the pool can't
+    // serve.  Windows returns null here — `kame_pool_free` has no way to
+    // pair with `_aligned_free` without per-pointer tagging, so we
+    // surface that as `errno = ENOMEM` to the caller.  Use the
+    // platform-native `_aligned_malloc` / `_aligned_free` directly for
+    // those rare cases on Windows.
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
     (void)alignment;
     (void)size;
@@ -4190,21 +4200,22 @@ void *kame_pool_aligned_alloc(std::size_t alignment, std::size_t size) noexcept 
 	// falling back to libc `posix_memalign`.  POOL pointers are freed via
 	// the ordinary pool `free` path — no `_aligned_free` pairing.
 	//
-	// Windows: `_aligned_malloc` requires `_aligned_free`, which
-	// `kame_pool_free` can't dispatch — so the Windows branch still
-	// rejects over-aligned C-API requests (callers should use
-	// `_aligned_malloc` / `_aligned_free` directly, or use C++
-	// `operator new(size, std::align_val_t{N})` whose matching
-	// `operator delete` carries the alignment).
-#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
-	errno = EINVAL;
-	return nullptr;
-#else
+	// Windows: the bucket path and dedicated-chunk path use ONLY pool
+	// memory (slots at `mempool + j*ALIGN` from a 256 KiB-aligned unit
+	// boundary, OR an entire chunk whose payload starts at a 256 KiB
+	// unit boundary) — neither path calls `_aligned_malloc`, so the
+	// `_aligned_free` pairing concern that historically blocked this
+	// API on Windows does not apply.  `new_redirected_aligned` itself
+	// returns null when forced into the libc fallback on Windows
+	// (alignment > 256 KiB OR size > a chunk's payload capacity), so
+	// that one genuinely-unsupported case correctly surfaces as
+	// `errno = ENOMEM` from the call below.  For Eigen / SIMD (Align
+	// ∈ {32, 64}), AVX-512 (64), cacheline (64), page (4096), and any
+	// alignment up to 256 KiB the Windows path now works.
 	if(void *p = new_redirected_aligned(alignment, size))
 		return p;
 	errno = ENOMEM;
 	return nullptr;
-#endif
 }
 
 extern "C" __attribute__((noinline, used))
@@ -4222,15 +4233,14 @@ int kame_pool_posix_memalign(void **memptr, std::size_t alignment,
 		*memptr = p;
 		return 0;
 	}
-	// (§17) Same pool-or-libc routing as `kame_pool_aligned_alloc`.
-#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
-	return EINVAL;
-#else
+	// (§17) Same pool-or-libc routing as `kame_pool_aligned_alloc` —
+	// bucket / dedicated-chunk paths use pool memory only and work
+	// identically on Windows; only the libc fallback (alignment > 256 KiB
+	// OR oversize) returns null on Windows, which we propagate as ENOMEM.
 	void *p = new_redirected_aligned(alignment, size);
 	if( !p) return ENOMEM;
 	*memptr = p;
 	return 0;
-#endif
 }
 
 #if defined(__APPLE__)

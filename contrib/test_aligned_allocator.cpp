@@ -102,6 +102,46 @@ int main() {
         std::printf("  [ok] Align=64 (AVX-512 / cacheline) alloc/free\n");
     }
 
+    // (4b) Align = 4096 (page) — exercises the bucket path's top ALIGN class.
+    if (over_aligned_supported) {
+        kame::pool_aligned_allocator<char, 4096> a;
+        char *p = a.allocate(8192);
+        CHECK(p != nullptr, "page-aligned alloc");
+        CHECK(aligned<4096>(p), "page-aligned: %p", (void *)p);
+        a.deallocate(p, 8192);
+        std::printf("  [ok] Align=4096 (page) alloc/free\n");
+    }
+
+    // (4c) Align = 256 KiB — exercises the dedicated-chunk path.  Pool
+    // returns a chunk whose payload starts at the chunk's 256 KiB unit
+    // boundary; the user gets the alignment "for free".
+    if (over_aligned_supported) {
+        kame::pool_aligned_allocator<char, 262144> a;  // 256 KiB
+        char *p = a.allocate(65536);                    // 64 KiB user size
+        CHECK(p != nullptr, "256 KiB-aligned alloc");
+        CHECK(aligned<262144>(p), "256 KiB-aligned: %p", (void *)p);
+        a.deallocate(p, 65536);
+        std::printf("  [ok] Align=256 KiB (dedicated chunk) alloc/free\n");
+    }
+
+    // (4d) Align > 256 KiB — pool-managed ceiling.  The aligned C API
+    // returns null (libc fallback only on POSIX, no fallback on Windows;
+    // the large_va tier's user pointer is `base + PAGE`, not 32 MiB-
+    // aligned, so it can't satisfy this).  Concept-test for graceful
+    // null-return rather than crash.
+    {
+        void *p = kame_pool_aligned_alloc(1048576, 65536);
+        if (p) {
+            // POSIX libc fallback served us — sanity check the alignment.
+            CHECK(aligned<1048576>(p),
+                  "libc posix_memalign returned mis-aligned: %p", p);
+            kame_pool_free(p);
+            std::printf("  [ok] Align=1 MiB via libc fallback (POSIX)\n");
+        } else {
+            std::printf("  [ok] Align=1 MiB returns null (Windows / pool ceiling)\n");
+        }
+    }
+
     // (5) std::vector with the allocator — the typical Eigen drop-in.
     //     This is identical to:
     //         std::vector<T, Eigen::aligned_allocator<T>>
