@@ -89,11 +89,18 @@ is *modelled by* the cleared-`BIT_OWNED` state, not a separate bit.
 2-level radix `g_lrc... ` → `s_radix_l1[L1] → RadixL2Node.entries[L2]`, slot
 value ∈ `{KAME_RADIX_ABSENT=0, KAME_RADIX_POOL=1, KAME_RADIX_LARGE=2}`.
 
-- **INV-9** — A radix slot is written once at region/large-alloc publish
-  (release store) and read with acquire; `radix_clear` CAS-zeros before any
-  munmap. · *radix_insert/radix_lookup/radix_clear* · *breaks: a reader sees
-  a stale kind and dispatches the wrong free path* · **comment-only**
-  (← Stage 2: radix publish/clear ordering GenMC harness).
+- **INV-9** — The L2 leaf is lazily mmap'd and installed into the L1 slot by
+  a **single-winner CAS** (release/acquire); a losing inserter munmaps its
+  own leaf and uses the winner's, so no reader ever dereferences a freed
+  leaf.  Slot entries are written release / read relaxed; the L1 acquire-load
+  synchronises-with the install CAS so a visible leaf is always live. ·
+  *radix_insert / radix_lookup_slow / radix_clear / radix_alloc_l2* ·
+  *breaks: a non-CAS install lets a reader hit a munmap'd loser leaf →
+  use-after-free; a lost install drops an alloc's kind* · **GenMC**
+  (`tests/cds/cds_radix_install.c`, §28-Stage2) for the install protocol +
+  per-slot kind coherence.  **comment-only** for the orthogonal meta-handoff
+  ordering (a LARGE alloc's meta visibility rides the alloc→free pointer
+  handoff, not the radix entry's relaxed load — external to the radix).
 
 - **INV-10 (§27)** — A huge alloc (> LRC_HI) spans multiple 32-MiB radix
   regions but registers **only the head slot**.  Safe because the only valid
@@ -217,13 +224,16 @@ K-major layout: `g_lrc[k].slots[idx]`, `k ∈ [0,LRC_K_MAX)`, `idx ∈
 | chunk-claim state machine (§13) | INV-6,7,8 (TLA+) | — |
 | chunk geometry (§15) | INV-1,2,4,5 (test) | INV-3 (compile-assert only) |
 | back_offset (§15/§22) | INV-12 (TLA+), INV-13 (test) | — |
-| radix (§13.3/§19/§27) | INV-10,11 (test) | **INV-9 (publish/clear ordering)** |
+| radix (§13.3/§19/§27) | INV-9 install (GenMC), INV-10,11 (test) | INV-9 meta-handoff ordering (external) |
 | recycle cache (§21–§28) | INV-15,16,18 (GenMC), INV-19,20 (test) | **INV-17 (kind disjointness)** |
 | thread lifecycle (§20/§23) | INV-23 (test) | **INV-21, INV-22** |
 | owner-id (§12) | INV-14 (test) | — |
 
-**Strongest Stage-2 targets** (relied-on, unchecked, high blast radius):
-INV-9 (radix publish/clear RC11 ordering), INV-21 (cached-next vs cross-thread
-delete — this is the class the CrossDeallocBatch flush crash fell into), and a
-TLA+ model of the cross-thread free batch (`CrossDeallocBatch::flush`) which is
-currently entirely comment-only.
+**Stage-2 progress**: INV-9's L2 lazy-install lock-free protocol is now
+GenMC-checked (`tests/cds/cds_radix_install.c`).
+
+**Remaining Stage-2 targets** (relied-on, unchecked, high blast radius):
+INV-21 (cached-next vs cross-thread delete — this is the class the
+CrossDeallocBatch flush crash fell into), and a TLA+ / GenMC model of the
+cross-thread free batch (`CrossDeallocBatch::flush`) which is currently
+entirely comment-only.
