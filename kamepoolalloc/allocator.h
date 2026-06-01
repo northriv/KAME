@@ -89,15 +89,17 @@
     #define USE_STD_ALLOCATOR
 #endif
 
-// MSVC carve-out: the pool's atomic primitives are GCC __sync builtins
-// and the constructor hook uses `__attribute__((constructor))`.  Both
-// are MinGW-supported on Windows but MSVC requires intrinsics-based
-// replacements.  Until that shim lands, MSVC-built Windows binaries
-// stay on USE_STD_ALLOCATOR.  MinGW continues onto the active path.
-#if (defined(_WIN32) || defined(WINDOWS)) && defined(_MSC_VER) && !defined(__GNUC__) && !defined(KAME_ENABLE_POOL_MSVC)
-    // Define KAME_ENABLE_POOL_MSVC to opt the MSVC build INTO the live pool
-    // (WIP: requires the _Interlocked* / __declspec MSVC shims).  Without
-    // it, MSVC stays on std::allocator as before.
+// MSVC: the pool's GCC-isms (the `__sync_*` atomics, `__builtin_*`
+// bit-scan / overflow, the codegen-hint attributes) are bridged by the
+// `_MSC_VER` shim in allocator_prv.h, and the static-init hook replaces
+// `__attribute__((constructor))`.  With those in place the live pool
+// builds and runs on MSVC just like MinGW, so it is ON by default.
+//
+// Opt OUT with `KAME_DISABLE_POOL_MSVC` to force the std::allocator
+// fallback on MSVC (e.g. to bisect an allocator-suspected issue).  The
+// historical `KAME_ENABLE_POOL_MSVC` opt-in macro is now a no-op — the
+// pool is enabled without it — but defining it stays harmless.
+#if (defined(_WIN32) || defined(WINDOWS)) && defined(_MSC_VER) && !defined(__GNUC__) && defined(KAME_DISABLE_POOL_MSVC)
     #define USE_STD_ALLOCATOR
 #endif
 

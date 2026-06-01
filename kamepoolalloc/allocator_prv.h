@@ -35,14 +35,15 @@
 #include <limits>
 #include <type_traits>
 
-// ===== (WIP) MSVC compatibility shim for the live pool =====
-// Reached only via KAME_ENABLE_POOL_MSVC (otherwise MSVC takes the
-// USE_STD_ALLOCATOR path and never includes this header).  The pool core
-// is written for GCC/Clang; map the GCC-isms MSVC lacks.  Placed here (the
-// pool-private header) rather than allocator.h so that ANY includer — incl.
-// tests that include allocator_prv.h directly — gets the shim.  (The 5
-// __sync_* atomic wrappers below carry their own _Interlocked* branch; TLS
-// already falls to thread_local on MSVC.)
+// ===== MSVC compatibility shim for the live pool =====
+// The live pool is ON by default on MSVC (opt OUT via
+// KAME_DISABLE_POOL_MSVC → USE_STD_ALLOCATOR, in which case this header
+// isn't included).  The pool core is written for GCC/Clang; map the
+// GCC-isms MSVC lacks.  Placed here (the pool-private header) rather than
+// allocator.h so that ANY includer — incl. tests that include
+// allocator_prv.h directly — gets the shim.  (The 5 __sync_* atomic
+// wrappers below carry their own _Interlocked* branch; TLS already falls
+// to thread_local on MSVC.)
 #if defined(_MSC_VER) && !defined(__GNUC__)
     #include <intrin.h>
     // noinline/cold/used/tls_model are codegen hints — safe to drop on
