@@ -66,6 +66,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>          // std::memset / std::memcpy
+#include <limits>           // (§30) numeric_limits for the realtime-mode preset
 #include <new>              // std::get_new_handler / std::bad_alloc (§18 OOM)
                             // (glibc's `<string.h>` puts them in the
                             //  global namespace only — libc++/Apple
@@ -5374,6 +5375,55 @@ extern "C" unsigned int kame_pool_get_lazy_drain_interval_ms(void) noexcept {
 	std::int64_t ns = g_lrc_lazy_interval_ns.load(std::memory_order_relaxed);
 	if(ns <= 0) return 0;
 	return (unsigned int)(ns / 1000000LL);
+}
+
+// (§30) Realtime-mode preset — silences the three background maintenance
+// paths that can inject munmap / madvise latency into a measurement loop:
+//   1. §28.1 lazy drain (per-LRC_MMAP-push tick that munmaps one cached
+//      mmap-tier block — the only path that mmaps/munmaps OUTSIDE of an
+//      explicit alloc/free call).  Set the interval to ~146 years so the
+//      `now_ns - tls_lazy_last_ns < interval` guard is always true.
+//   2. §28.3 auto-tune startup probe.  `g_lazy_auto_tune_done = true`
+//      makes the first LRC_MMAP push skip the one-shot `munmap(32 MiB)`
+//      measurement — the user has explicitly opted out of background
+//      tuning, so we trust them.  (`set_lazy_drain_interval_ms` already
+//      sets this flag for the same reason; we mirror it here for the
+//      case where the user calls realtime_mode WITHOUT also pinning the
+//      interval — keeping all three lazy/auto knobs in one place.)
+//   3. §21 thread-exit reclaim — the `madvise(MADV_DONTNEED)` issued by
+//      `release_dll_chunks_for_thread` / `deallocate_chunk` when a
+//      worker thread exits.  Real measurement programs usually keep
+//      their worker pool alive for the whole run, but if they don't, a
+//      thread teardown during the realtime section would block on per-
+//      chunk madvise calls — turning this off makes thread exit
+//      essentially free at the cost of holding RSS until process exit.
+//
+// `enable == 0` reverts to the documented defaults (10 ms / auto-tune
+// re-armed / thread-exit reclaim on), so test programs and toggling
+// callers don't need to remember the prior values.
+extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
+	if(enable) {
+		// (1) Lazy drain interval → effectively infinite.  INT64_MAX/2
+		// avoids any overflow in the `now - last < interval` compare
+		// even if `last` is 0 (epoch) and `now` is a large monotonic
+		// time_since_epoch tick.
+		g_lrc_lazy_interval_ns.store(
+		    std::numeric_limits<std::int64_t>::max() / 2,
+		    std::memory_order_relaxed);
+		// (2) Auto-tune locked out (would otherwise overwrite the
+		// interval on the first LRC_MMAP push).
+		g_lazy_auto_tune_done.store(true, std::memory_order_release);
+		// (3) Thread-exit madvise off.
+		PoolAllocatorBase::s_thread_exit_reclaim.store(
+		    0, std::memory_order_relaxed);
+	}
+	else {
+		g_lrc_lazy_interval_ns.store(
+		    LRC_LAZY_INTERVAL_DEFAULT_NS, std::memory_order_relaxed);
+		g_lazy_auto_tune_done.store(false, std::memory_order_release);
+		PoolAllocatorBase::s_thread_exit_reclaim.store(
+		    1, std::memory_order_relaxed);
+	}
 }
 
 // =====================================================================

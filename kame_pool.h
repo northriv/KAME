@@ -201,6 +201,30 @@ unsigned int kame_pool_get_lazy_drain_interval_ms(void) KAMEPOOLALLOC_NOEXCEPT;
 void   kame_pool_set_thread_exit_reclaim(int enable) KAMEPOOLALLOC_NOEXCEPT;
 
 /*
+ * Realtime-mode preset — silence all background maintenance that could
+ * inject unpredictable munmap/madvise latency into a tight measurement
+ * loop.  Call ONCE at process startup, before the realtime section
+ * begins.  Equivalent to:
+ *
+ *   kame_pool_set_lazy_drain_interval_ms(huge)   // §28.1 lazy drain
+ *                                                // off (the only path
+ *                                                // that munmaps mid-run)
+ *   (auto-tune is locked-out as a side-effect    // §28.3 — no startup
+ *    of the set above)                           //  munmap probe either
+ *   kame_pool_set_thread_exit_reclaim(0)         // §21 thread teardown
+ *                                                // madvise off
+ *
+ * Pass 0 to restore the defaults (10 ms lazy interval / auto-tune armed /
+ * thread-exit reclaim on).  Realtime mode does NOT cap allocation or
+ * change the freelist / chunk-claim hot paths; it only silences
+ * background maintenance.  Mid-run allocations still mmap fresh chunks
+ * if the pool is starved; if zero mmap latency is required, pre-allocate
+ * enough chunks at startup (e.g. by deliberately allocating + freeing a
+ * representative working-set before the realtime section).
+ */
+void   kame_pool_set_realtime_mode(int enable) KAMEPOOLALLOC_NOEXCEPT;
+
+/*
  * Observability — snapshot of pool counters at the moment of the call.
  *
  * ABI versioning: callers set `version = KAME_POOL_STATS_VERSION` before
