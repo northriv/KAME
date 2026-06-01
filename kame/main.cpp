@@ -92,7 +92,6 @@ int main(int argc, char *argv[]) {
 
 	KCmdLineOptions options;
 	options.add("logging", ki18n("log debugging info."));
-	options.add("mlockall", ki18n("never cause swapping, perhaps you need 'ulimit -l <MB>'"));
 	options.add("nomlock", ki18n("never use mlock"));
     options.add("nodr");
 	options.add("moduledir <path>", ki18n("search modules in <path> instead of the standard dirs"));
@@ -106,7 +105,6 @@ int main(int argc, char *argv[]) {
 
 	KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
 	g_bLogDbgPrint = args->isSet("logging");
-    g_bMLockAlways = args->isSet("mlockall");
 	g_bUseMLock = args->isSet("mlock");
 	QStringList  module_dir = args->getOptionList("moduledir");
 	if(module_dir.isEmpty())
@@ -129,9 +127,6 @@ int main(int argc, char *argv[]) {
 
     QCommandLineOption logOption(QStringList() << "l" << "logging", "Log debugging info.");
     parser.addOption(logOption);
-    QCommandLineOption mlockAllOption(QStringList() << "m" << "mlockall",
-          "Never cause swapping, perhaps you need 'ulimit -l <MB>'");
-    parser.addOption(mlockAllOption);
     QCommandLineOption noMLockOption(QStringList() << "n" << "nomlock", "Never use mlock");
     parser.addOption(noMLockOption);
 
@@ -145,7 +140,6 @@ int main(int argc, char *argv[]) {
     QStringList args = parser.positionalArguments();
 
     g_bLogDbgPrint = parser.isSet(logOption);
-    g_bMLockAlways = parser.isSet(mlockAllOption);
     g_bUseMLock = !parser.isSet(noMLockOption);
 	QStringList  module_dir = parser.values(moduleDirectoryOption);
 
@@ -176,16 +170,6 @@ int main(int argc, char *argv[]) {
         makeIcons(); //loads icon pixmaps.
 		{
 
-#if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
-			if(g_bMLockAlways) {
-                if(( mlockall(MCL_CURRENT) == 0)) {
-					dbgPrint("MLOCKALL succeeded.");
-				}
-				else{
-					dbgPrint(formatString("MLOCKALL failed errno=%d.", errno));
-				}
-			}
-#endif
             if(isMemLockAvailable())
                 mlock(dummy_for_mlock, sizeof(dummy_for_mlock)); //reserve stack of main thread.
 

@@ -28,7 +28,7 @@ template <class tDriver> XRealTimeAcqDSO<tDriver>::XRealTimeAcqDSO(const char *n
     });
     if(isMemLockAvailable()) {
         //Suppress swapping.
-        mlock(this, sizeof(this));
+        mlock(this, sizeof(*this));
     }
 }
 template <class tDriver>
