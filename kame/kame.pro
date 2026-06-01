@@ -178,6 +178,25 @@ unix {
         math/matrix.cpp \
         ../kamepoolalloc/allocator.cpp \
 }
+win32 {
+    # On Windows kame.exe LINKS against `libkamepoolalloc.dll` instead
+    # of inline-compiling `allocator.cpp` (mirror of the macx libkame
+    # split below).  Reasons:
+    #   * MinGW + lld doesn't auto-export symbols across the EXE/DLL
+    #     boundary the way the inline path on Unix sidesteps entirely;
+    #     piggy-backing on the existing `kamepoolalloc.pro` SUBDIRS
+    #     target keeps a single source of truth for the allocator's
+    #     global state (and the tests already link the same DLL).
+    #   * `KAMEPOOLALLOC_DYLIB` collapses `KamePooledAllocGuard` /
+    #     `activateAllocator()` to a no-op — the DLL auto-activates
+    #     via `__attribute__((constructor(101)))` before kame's static
+    #     init runs, so the guard in `main.cpp` has nothing left to do.
+    #   * `kame_pool_*` and other extern "C" symbols are exported from
+    #     the DLL via `--export-all-symbols` in `kamepoolalloc.pro`
+    #     and imported here via the standard `-lkamepoolalloc` resolve.
+    DEFINES += KAMEPOOLALLOC_DYLIB
+    LIBS += -L$$OUT_PWD/../kamepoolalloc -lkamepoolalloc
+}
 
 FORMS += \
     forms/caltableform.ui \
