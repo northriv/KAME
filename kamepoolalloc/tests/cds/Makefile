@@ -20,11 +20,16 @@ GENMC    ?= genmc/build/bin/genmc
 GMCFLAGS ?= --rc11 --unroll=5
 SRCDIR    = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-run: run-ownership
+run: run-ownership run-radix
 
 run-ownership:
 	@echo "=== LRC: exclusive-ownership / no-premature-release (UAF/double-free) ==="
 	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_lrc_ownership.c
+	@echo ""
+
+run-radix:
+	@echo "=== radix L2 lazy-install: single-winner CAS, no UAF on loser leaf (INV-9) ==="
+	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_radix_install.c
 	@echo ""
 
 # IMM is strictly stronger than RC11 for this code; offered for parity with
@@ -35,9 +40,14 @@ run-imm: run
 # Concrete build + run: confirms the harness compiles and the happy-path
 # logic holds.  Does NOT explore interleavings — use `make run` (GenMC) for
 # the actual verification.
-smoke:
+smoke: smoke-ownership smoke-radix
+smoke-ownership:
 	@cc -std=c11 -O2 -pthread -fsanitize=thread $(SRCDIR)cds_lrc_ownership.c -o /tmp/cds_lrc_ownership_smoke \
 	  && for i in 1 2 3 4 5 6 7 8; do /tmp/cds_lrc_ownership_smoke || exit 1; done \
-	  && echo "smoke OK (8 concrete runs, TSAN-clean)"
+	  && echo "smoke OK: cds_lrc_ownership (8 concrete runs, TSAN-clean)"
+smoke-radix:
+	@cc -std=c11 -O2 -pthread -fsanitize=thread $(SRCDIR)cds_radix_install.c -o /tmp/cds_radix_install_smoke \
+	  && for i in 1 2 3 4 5 6 7 8; do /tmp/cds_radix_install_smoke || exit 1; done \
+	  && echo "smoke OK: cds_radix_install (8 concrete runs, TSAN-clean)"
 
-.PHONY: run run-ownership run-imm smoke
+.PHONY: run run-ownership run-radix run-imm smoke smoke-ownership smoke-radix
