@@ -1833,14 +1833,27 @@ PoolAllocator<ALIGN, FS, DUMMY>::try_adopt_orphan(char *p, unsigned local) noexc
 	// Need a valid (non-zero) owner-id so the fast-path check
 	// `m_owner_id == s_tls_owner_id` can fire after adoption.
 	if(__builtin_expect(s_tls_owner_id == 0, 0)) return false;
-	// CAS m_owner_id: 0 → s_tls_owner_id.  p's bit is still 1 (allocated),
-	// so MASK_CNT ≥ 1 — chunk cannot be released between this CAS and
-	// the BIT_OWNED set below.
+	// CAS m_owner_id: 0 → s_tls_owner_id.  This CAS is the SOLE
+	// arbitration point — only one thread can flip m_owner_id away from
+	// 0, so concurrent adoption attempts are mutually exclusive and the
+	// winner alone proceeds to set BIT_OWNED / wire the DLL below.  (The
+	// CAS must come first for exactly this reason: setting BIT_OWNED
+	// before knowing we won would leave a chunk with BIT_OWNED set by us
+	// but m_owner_id claimed by another thread.)
 	if(!atomicCompareAndSet((uint32_t)0u, s_tls_owner_id,
 	                        &this->m_owner_id))
 		return false;
-	// Set BIT_OWNED so cross-thread dec-to-zero cannot release the chunk
-	// while we finish wiring up ownership.
+	// Set BIT_OWNED to mark the chunk as held by a live owner (this
+	// thread) now that it joins our DLL.  Note the window between the CAS
+	// above and this store is NOT protected by BIT_OWNED — it is
+	// protected by p's still-set bitmap bit: p is the slot we are about
+	// to free but have not yet returned, so its m_flags word is nonzero
+	// and MASK_CNT ≥ 1, meaning no cross-thread dec-to-zero can release
+	// the chunk regardless of BIT_OWNED.  p's protection lasts until the
+	// slot is eventually drained back to the bitmap, by which time
+	// BIT_OWNED has long been set — so the two protections chain with no
+	// gap.  BIT_OWNED's real job is to prevent a premature cross-thread
+	// release once the chunk lives in our DLL and is being walked.
 	atomicFetchOr(&this->m_flags_packed, BIT_OWNED);
 	// Wire force-walk pointer (cross-thread frees will now signal us).
 	this->m_owner_dll_head_addr = &s_tls.dll_head;
