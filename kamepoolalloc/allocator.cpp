@@ -1471,6 +1471,23 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			return false;
 		}
 	}
+	// (§orphan-adopt) FS=false orphan adoption — same rationale as the
+	// FS=true sibling in deallocate_pooled above.  Read local-id from the
+	// per-slot prefix first (mirrors the my_chunk path above).
+	if(!s_alloc_tls_off && this->m_owner_id == 0) {
+		unsigned adopt_local;
+		if constexpr (ALIGN >= 1024u) {
+			size_t bit_index =
+			    static_cast<size_t>(p - this->mempool()) >> this->m_align_shift;
+			adopt_local = this->m_sizes[bit_index] & 0xFFu;
+		} else {
+			std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
+			adopt_local = static_cast<unsigned>(hdr);
+		}
+		if(adopt_local < (unsigned)KAME_LOCAL_BUCKETS) {
+			if(this->try_adopt_orphan(p, adopt_local)) return false;
+		}
+	}
 	// FS=false never participates in cross-thread batch
 	// holding — large slots have small per-word coalescing windows AND
 	// large-slot chunks repeat less frequently than FS=true small-slot
@@ -1800,6 +1817,53 @@ PoolAllocator<ALIGN, FS, DUMMY>::clear_owner_tls() noexcept {
 	s_tls.my_chunk = nullptr;
 }
 
+// (§orphan-adopt) Claim an orphaned chunk (m_owner_id==0, BIT_OWNED==0)
+// into this thread's DLL so the freed slot becomes reachable via
+// scan_dll_freelist / Phase-2 allocate_pooled rather than silently
+// accumulating in the bitmap of a chunk no thread can walk.
+//
+// Called from deallocate_pooled when s_tls.my_chunk != this AND
+// m_owner_id == 0.  Thread-respawn workloads (e.g. larson) otherwise
+// route all frees of the exited thread's objects through the cross-
+// thread batch → bitmap path, leaving freed slots unreachable until
+// the chunk is fully drained and recycled.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+bool
+PoolAllocator<ALIGN, FS, DUMMY>::try_adopt_orphan(char *p, unsigned local) noexcept {
+	// Need a valid (non-zero) owner-id so the fast-path check
+	// `m_owner_id == s_tls_owner_id` can fire after adoption.
+	if(__builtin_expect(s_tls_owner_id == 0, 0)) return false;
+	// CAS m_owner_id: 0 → s_tls_owner_id.  p's bit is still 1 (allocated),
+	// so MASK_CNT ≥ 1 — chunk cannot be released between this CAS and
+	// the BIT_OWNED set below.
+	if(!atomicCompareAndSet((uint32_t)0u, s_tls_owner_id,
+	                        &this->m_owner_id))
+		return false;
+	// Set BIT_OWNED so cross-thread dec-to-zero cannot release the chunk
+	// while we finish wiring up ownership.
+	atomicFetchOr(&this->m_flags_packed, BIT_OWNED);
+	// Wire force-walk pointer (cross-thread frees will now signal us).
+	this->m_owner_dll_head_addr = &s_tls.dll_head;
+	this->m_owner_dll_force_walk_ptr.store(
+	    &s_tls.dll_force_walk_from_head, std::memory_order_release);
+	// Append to this thread's DLL tail.
+	auto *dll_self = static_cast<PoolAllocator<ALIGN, DUMMY, DUMMY>*>(this);
+	dll_self->m_dll_prev = s_tls.dll_tail;
+	dll_self->m_dll_next = nullptr;
+	if(s_tls.dll_tail)
+		s_tls.dll_tail->m_dll_next = dll_self;
+	else
+		s_tls.dll_head = dll_self;
+	s_tls.dll_tail = dll_self;
+	s_tls.dll_exhausted = false;
+	// Ensure thread-exit cleanup walks this template's DLL (deduped).
+	tls_alloc_thread_exit_cleanup.add(
+	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
+	// Push freed slot to freelist — no atomics, we own the chunk.
+	this->freelist_push(local, p);
+	return true;
+}
+
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
@@ -1827,6 +1891,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		// `g_thread_freelist_ptr[bucket]` -> `m_freelist_head[0]`.
 		this->freelist_push(0, p);
 		return false;
+	}
+	// (§orphan-adopt) Thread-respawn fix: if the chunk has no owner
+	// (m_owner_id==0, owner thread exited with live objects), try to
+	// adopt it into this thread's DLL so the freed slot reaches the
+	// freelist rather than silently accumulating in the bitmap of a
+	// chunk no running thread can walk.
+	if(!s_alloc_tls_off && this->m_owner_id == 0) {
+		if(this->try_adopt_orphan(p, 0u)) return false;
 	}
 	// Post-teardown bypass.  See FS=false sibling above — once
 	// `s_alloc_tls_off` is set, `tls_cross_dealloc_batch` may have
@@ -2726,9 +2798,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			PoolAllocatorBase::deallocate_chunk(cbase, csz,
 			    /*reclaim_pages=*/
 			    s_thread_exit_reclaim.load(std::memory_order_relaxed) != 0);
+		} else {
+			// Non-empty orphaned chunk: clear m_owner_id so future threads
+			// can adopt it via try_adopt_orphan (§orphan-adopt).
+			// m_owner_dll_force_walk_ptr was already nulled (release) above;
+			// atomicFetchAnd provides a full barrier ordering this store.
+			c->m_owner_id = 0;
 		}
-		// else: chunk still has live slots (MASK_CNT > 0).
-		// Cross-thread releaser will pick it up via atomicDecAndTest.
 		c = next;
 	}
 }
