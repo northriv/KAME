@@ -115,14 +115,23 @@
 // in kame.exe, are deleted by QObjectPrivate::deleteChildren() inside
 // Qt6Core.dll → libc++ free → int3 in ntdll's heap path.)
 //
-// We close the gap the way mimalloc-redirect.dll does, but only for the
-// *deallocation* family (`free` / `realloc` / `_msize`), not `malloc`:
-// patch those imports in every module so every `free()` in the process
-// funnels through the pool's existing pool-or-foreign dispatcher
-// (`kame_free`), which already routes foreign pointers to the real CRT.
-// The pool and the CRT heap then coexist safely — KAME allocs stay in
-// the pool, Qt allocs stay in the CRT, and frees are reconciled wherever
-// they happen.  See `kame_pool_win_install_redirect` near the bottom.
+// We close the gap the way mimalloc-redirect.dll does.  By default we
+// patch only the *deallocation* family (`free` / `realloc` / `_msize`),
+// matching the production-conservative model: KAME allocs stay in the
+// pool (kame.exe `operator new` override), Qt / Ruby / Python allocs
+// stay in the CRT, and frees are reconciled wherever they happen via
+// `kame_free`'s pool-or-foreign dispatcher.  See
+// `kame_pool_win_install_redirect` near the bottom.
+//
+// Opt-in extension: `-DKAMEPOOLALLOC_FULL_INTERCEPT=1` extends the IAT
+// patch table to `malloc` and `calloc`, turning kamepoolalloc into a
+// mimalloc-style full malloc-family allocator on Windows — useful for
+// benchmark comparison (mimalloc-bench equivalent) where you want EVERY
+// alloc-family call routed through the pool.  Symmetric to the same
+// macro on macOS (where it adds a `malloc` interpose to the existing
+// free / realloc set).  Default OFF: production kame.exe keeps the
+// conservative free-only redirect that has 20 years of Qt + Ruby + Python
+// + module-DLL coexistence behind it.
 //
 // These pointers hold the *genuine* UCRT entry points, resolved once
 // from ucrtbase.dll.  The pool's own "forward a foreign pointer to the
@@ -137,10 +146,12 @@ typedef void        (*kame_real_free_fn)(void *);
 typedef void       *(*kame_real_realloc_fn)(void *, std::size_t);
 typedef void       *(*kame_real_calloc_fn)(std::size_t, std::size_t);
 typedef std::size_t (*kame_real_msize_fn)(void *);
+typedef void       *(*kame_real_malloc_fn)(std::size_t);
 static kame_real_free_fn    g_real_free    = nullptr;
 static kame_real_realloc_fn g_real_realloc = nullptr;
 static kame_real_calloc_fn  g_real_calloc  = nullptr;
 static kame_real_msize_fn   g_real_msize   = nullptr;
+static kame_real_malloc_fn  g_real_malloc  = nullptr;
 
 static void kame_resolve_real_crt() noexcept {
     if(g_real_free) return;  // idempotent
@@ -152,6 +163,7 @@ static void kame_resolve_real_crt() noexcept {
     g_real_realloc = reinterpret_cast<kame_real_realloc_fn>(GetProcAddress(h, "realloc"));
     g_real_calloc  = reinterpret_cast<kame_real_calloc_fn> (GetProcAddress(h, "calloc"));
     g_real_msize   = reinterpret_cast<kame_real_msize_fn>  (GetProcAddress(h, "_msize"));
+    g_real_malloc  = reinterpret_cast<kame_real_malloc_fn> (GetProcAddress(h, "malloc"));
 }
 // Installed at pool activation (see `activateAllocator`).  Defined far
 // below, after the pool dispatchers (`kame_free` / `kame_realloc`) it
@@ -3984,9 +3996,15 @@ static void *libsystem_malloc_for_pool(std::size_t n) {
 	// not shadow.  Same trick as `__libc_free` / `__libc_realloc`.
 	return __libc_malloc(n);
 #else
-	// Windows: §31 does NOT redirect malloc (only free / realloc / _msize),
-	// so `std::malloc` resolves to the genuine UCRT entry directly — no
-	// recursion risk here.
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+	// Windows §31 by default doesn't redirect `malloc` — `std::malloc` is
+	// safe to call directly.  Under KAMEPOOLALLOC_FULL_INTERCEPT it IS
+	// patched, so use the genuine UCRT entry via `g_real_malloc` to avoid
+	// recursing into our own override.  Pre-resolution falls back to
+	// `std::malloc` (matches the §31 install-before-activation contract:
+	// the patch is installed AFTER resolve_real_crt resolves these).
+	if(g_real_malloc) return g_real_malloc(n);
+#endif
 	// Other Unix (musl, etc.): no strong-symbol malloc override is emitted
 	// below, so std::malloc is safe.
 	return std::malloc(n);
@@ -4404,6 +4422,28 @@ static std::size_t kame_iat_msize(void *p) noexcept {
     if(s) return s;
     return g_real_msize ? g_real_msize(p) : 0;       // foreign ⇒ genuine
 }
+#if defined(KAMEPOOLALLOC_FULL_INTERCEPT)
+// Opt-in: also intercept allocation entries.  Default-off because
+// production kame.exe (Qt + Ruby + Python + module DLLs) has 20+ years
+// of free-only-redirect stability — turning the malloc family ON means
+// EVERY libc malloc / calloc across Qt6Core.dll, libc++.dll, ruby340.dll
+// (already gated out by kame_is_crt_dll, but other UCRT-based modules
+// stay in scope) routes to the pool.  Symmetric to macOS's
+// KAMEPOOLALLOC_FULL_INTERCEPT.  Enable for bench / soak / measurement
+// builds; leave off for production until on-target soak validation.
+static void *kame_iat_malloc(std::size_t n) noexcept {
+    // Pre-activation falls back via g_real_malloc inside
+    // libsystem_malloc_for_pool (resolved before the patch installs).
+    if(__builtin_expect(!g_sys_image_loaded || s_alloc_tls_off, 0))
+        return libsystem_malloc_for_pool(n);
+    if(void *p = new_redirected(n)) return p;
+    errno = ENOMEM;
+    return nullptr;
+}
+static void *kame_iat_calloc(std::size_t n_elem, std::size_t sz) noexcept {
+    return kame_calloc(n_elem, sz);  // libc-spec compliant (overflow check + zero-size handling)
+}
+#endif
 
 // case-insensitive substring (avoid locale / _stricmp dependency)
 static bool kame_ci_contains(const char *hay, const char *needle) noexcept {
@@ -4437,6 +4477,10 @@ static void *kame_iat_repl_for(const char *fn) noexcept {
     if(std::strcmp(fn, "free")    == 0) return reinterpret_cast<void *>(&kame_iat_free);
     if(std::strcmp(fn, "realloc") == 0) return reinterpret_cast<void *>(&kame_iat_realloc);
     if(std::strcmp(fn, "_msize")  == 0) return reinterpret_cast<void *>(&kame_iat_msize);
+#if defined(KAMEPOOLALLOC_FULL_INTERCEPT)
+    if(std::strcmp(fn, "malloc")  == 0) return reinterpret_cast<void *>(&kame_iat_malloc);
+    if(std::strcmp(fn, "calloc")  == 0) return reinterpret_cast<void *>(&kame_iat_calloc);
+#endif
     return nullptr;
 }
 
