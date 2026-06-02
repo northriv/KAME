@@ -181,43 +181,41 @@ replaced per-variable `_tlv_get_addr` calls with a single `mrs TPIDRRO_EL0`.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
 pages, `THP=always`), `srun --exclusive`, single-binary self-validation via
-`tests/alloc_tune_report`** — kame at `b2f7a681`:
+`tests/alloc_tune_report`** — kame at `9ecc613d`:
 
 Aggregate M ops/s (`alloc → touch byte 0 → free` loop) at 1 / 4 / 16 / 64 /
 128 concurrent threads:
 
-| size,tier         |  1T  |  4T  |  16T |  64T | 128T |
-| ----------------- | ---: | ---: | ---: | ---: | ---: |
-| 64 B  (bucket)    |  120 |  479 | 1914 | 6459 | **11094** |
-| 1 KiB (bucket)    |   69 |  284 | 1126 | 3807 |  **6174** |
-| 64 KiB (chunk)    |   40 |  156 |  630 | **2213** |  1833 |
-| 1 MiB (chunk)     |   44 |  173 |  691 | **1077** |   624 |
-| 8 MiB (large_va)  |   25 |   44 |   63 |   70 |    99 |
+| size,tier                  |  1T  |  4T  |  16T |  64T | 128T |
+| -------------------------- | ---: | ---: | ---: | ---: | ---: |
+| 64 B  (bucket)             |  121 |  482 | 1893 | 6185 | **10102** |
+| 1 KiB (bucket)             |   98 |  387 | 1551 | 4878 |  **7880** |
+| 64 KiB (chunk)             |   42 |   31 |  101 |  232 |    75 |
+| 1 MiB (chunk)              |   41 |   26 |   83 |  237 | **390** |
+| 8 MiB (large_va)           |   29 |   36 |   39 |   18 |    60 |
+| 40 MiB (large_va, cached)  |   13 |    4 |    6 |    5 |     4 |
 
-The bucket tier reaches **11 G ops/s aggregate for 64 B at 128 cores
-(92× linear)** — vindicating the per-thread DLL + per-thread freelist +
-per-thread L1 design on a heavily-NUMA host.  The chunk tier peaks at
-**2.2 G ops/s for 64 KiB at 64 cores (55×)** and **1.1 G at 1 MiB**: the
-per-thread L1 with sharded ($§28.4$) tier-attribution counters absorbs the
-churn without inter-core contention.  Both tiers slightly soften at 128T as
-cache lines start to bounce across all 8 NUMA domains — saturating, not
-regressing.  The large_va tier (8 MiB+) plateaus because the benchmark
-touches byte 0 each cycle, which serialises across cores in the Linux
-process-wide `mmap_lock` page-fault path; real KAME workloads write the
-whole buffer right after alloc (`memcpy` of acquisition data, FFT in-place)
-so the one-page fault is amortised inside the buffer write, not paid
-per op.
+The bucket tier reaches **10 G ops/s aggregate for 64 B at 128 cores
+(84× linear)** — vindicating the per-thread DLL + per-thread freelist +
+per-thread `KameTlsPage` design on a heavily-NUMA host.  The 1 MiB chunk tier
+peaks at **390 M ops/s at 128T** — the per-thread L1 recycle cache absorbs
+the churn without inter-core contention.  The large_va tier (8 MiB+) plateaus
+because the benchmark touches byte 0 each cycle, which serialises across
+cores in the Linux process-wide `mmap_lock` page-fault path; real KAME
+workloads write the whole buffer right after alloc (`memcpy` of acquisition
+data, FFT in-place) so the one-page fault is amortised inside the buffer
+write, not paid per op.
 
 The same `alloc_tune_report` run self-validated the defaults on this hardware:
 
-- **`LRC_LAZY_INTERVAL_NS = 10 ms`**: 2.6 % per-thread wallclock pressure —
+- **`LRC_LAZY_INTERVAL_NS = 10 ms`**: 0.66 % per-thread wallclock pressure —
   printed "default 10 ms is fine; auto-tune kept it (raise-only)".
 - **`LRC_K_MAX = 256`**: matched to 128 cores — printed "default is
   appropriate".
 - **`MADV_HUGEPAGE`**: ineffective on this kernel (same `µs/page` as plain
   first-touch) because `THP=always` is already auto-promoting 4 KiB pages to
   2 MiB at the kernel level.
-- **TLB shootdown**: ~21× worst-case at 128 threads (saturates at ~1.5 ms per
+- **TLB shootdown**: 21.66× worst-case at 128 threads (1605 µs / 32 MiB
   `munmap`) — bounded, not catastrophic; the warm cache absorbs most syscalls
   in practice.
 
