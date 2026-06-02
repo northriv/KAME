@@ -237,7 +237,7 @@ objects + large arrays/waveforms — KAME's own profile) never hits the
 **Ohtaka — competitive comparison, mimalloc-bench suite** (`sys` = glibc,
 `mi3` = mimalloc 3, `mi` = mimalloc, `je` = jemalloc, `tc` = tcmalloc).
 Measured on the same EPYC / 128-core / 8-NUMA node as above
-(kernel `4.18.0-372.9.1.el8.x86_64`, glibc 2.28, clang 18.1.8); kame at `d7aabc90`,
+(kernel `4.18.0-372.9.1.el8.x86_64`, glibc 2.28, clang 18.1.8); kame at `9ecc613d`,
 mimalloc-bench at `941c265d` (allocator versions are whatever that
 revision of mimalloc-bench builds via its `build-bench-env.sh`).
 Bench invocations: `xmalloc-test -w N -t 5`; `mstress N 50 50`;
@@ -251,17 +251,16 @@ where a measurement thread allocates a Payload and the UI thread releases it.
 
 | workers |  sys |  mi3 |   mi |    je |   tc | **kame** |
 | ------: | ---: | ---: | ---: | ----: | ---: | -------: |
-|       1 |  3.5 | 26.5 | 22.6 |   4.8 |  2.4 |      3.0 |
-|       4 |  9.2 | 55.3 | 60.2 |  15.8 |  1.3 |      8.7 |
-|      16 | 23.0 |  142 |  178 |  64.7 | 0.76 | **39.4** |
-|      64 | 11.4 |  211 |  243 |   169 | 0.61 | **51.9** |
-|     128 |  7.7 |  200 |  175 |   163 | 0.59 | **51.0** |
+|       1 |  3.1 | 25.7 | 22.6 |   5.1 |  2.4 |      2.9 |
+|       4 |  8.1 | 48.5 | 66.0 |  15.5 |  1.0 |  **8.8** |
+|      16 | 29.0 |  119 |  169 |  63.0 | 0.82 | **35.8** |
+|      64 | 15.5 |  206 |  262 |   157 | 0.64 | **60.8** |
+|     128 |  7.6 |  201 |  176 |   159 | 0.60 | **47.3** |
 
-At ≥ 16 workers kame pulls ahead of glibc and holds a flat 51 M/s at 64–128
-workers while glibc collapses 7× (tcache reclaim serialises) and tcmalloc
-collapses entirely.  kame trails mi / mi3 / je — those are purpose-built for
-this workload — but the relevant comparison for KAME deployments is against
-the system allocator.
+At ≥ 4 workers kame pulls ahead of glibc; at 64–128 workers it leads glibc
+4–6× (glibc's tcache reclaim serialises) while tcmalloc collapses entirely.
+kame trails mi / mi3 / je — those are purpose-built for this workload — but
+the relevant comparison for KAME deployments is against the system allocator.
 
 **mstress — random object migration across threads, wall time s (lower=better):**
 
@@ -269,17 +268,19 @@ Allocations are passed between threads at random — analogous to STM
 Transactions that write a new Payload on one core and the old one is released
 on another.
 
-| threads |  sys |  mi3 |   mi |    je |    tc | **kame** |
-| ------: | ---: | ---: | ---: | ----: | ----: | -------: |
-|       1 | 0.089 | 0.052 | 0.051 | 0.057 | 0.055 | **0.084** |
-|       4 | 0.548 | 0.428 | 0.420 | 0.804 | 0.600 |    0.635 |
-|      16 |  2.42 |  1.83 |  1.83 |  2.65 |  2.02 |     2.56 |
-|      64 |  7.67 |  3.34 |  3.54 |  8.08 |  5.28 |  **6.10** |
-|     128 |  14.0 |  5.62 |  5.01 |  14.3 |  9.53 | **10.23** |
+| threads |   sys |  mi3 |   mi |    je |    tc | **kame** |
+| ------: | ----: | ---: | ---: | ----: | ----: | -------: |
+|       1 | 0.081 | 0.052 | 0.053 | 0.057 | 0.055 |    0.083 |
+|       4 | 0.557 | 0.432 | 0.419 | 0.786 | 0.536 |    0.620 |
+|      16 |  2.42 |  1.83 |  1.84 |  2.56 |  2.03 |     2.62 |
+|      64 |  7.56 |  3.67 |  3.61 |  8.03 |  6.02 | **6.22** |
+|     128 |  13.7 |  5.72 |  4.96 |  14.2 |  9.42 | **9.91** |
 
-kame beats glibc at 1 thread and at 64–128 threads (the range KAME actually
-runs at); it trails glibc slightly at 4–16 threads, where glibc's per-thread
-lock is simpler than kame's DLL adoption.  mi / mi3 lead throughout.
+kame beats glibc at 64–128 threads (the range KAME actually runs at) and
+matches it at 1 thread (0.083 vs 0.081 s — margin within run-to-run noise);
+it trails glibc at 4–16 threads where glibc's per-thread arena is simpler
+than kame's DLL adoption.  kame also beats jemalloc at 64–128T.
+mi / mi3 lead throughout.
 
 **rptest — realistic mixed workload, 8..16000 B random sizes,
 cross-thread free, long-lived threads, M ops/s (higher=better)** — kame at `9ecc613d`:
