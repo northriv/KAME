@@ -230,14 +230,17 @@ ALLOC_TLS_IE bool s_alloc_tls_off = false;
 // Assigned once per thread from a global counter on first use; 0 is
 // reserved for "unassigned" so a never-allocated thread's frees never
 // spuriously match a chunk (chunks always carry a non-zero id).
-ALLOC_TLS_IE uint32_t s_tls_owner_id = 0;
+// (§hot-tls) `s_tls_hot` (TlsHotPath: last_region_base + owner_id) is
+// defined further down at the original `s_last_region_base` site so the
+// radix machinery sits alongside its TLS storage; we just use the
+// `owner_id` member here.  See allocator_prv.h for the rationale.
 static std::atomic<uint32_t> s_owner_id_next{1};
 static inline uint32_t kame_owner_id() noexcept {
-    uint32_t id = s_tls_owner_id;
+    uint32_t id = s_tls_hot.owner_id;
     if(__builtin_expect(id == 0, 0)) {
         do { id = s_owner_id_next.fetch_add(1, std::memory_order_relaxed); }
         while(id == 0);   // skip the reserved 0 on 32-bit wrap
-        s_tls_owner_id = id;
+        s_tls_hot.owner_id = id;
     }
     return id;
 }
@@ -1923,16 +1926,16 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::try_adopt_orphan(char *p, unsigned local) noexcept {
 	// Need a valid (non-zero) owner-id so the fast-path check
-	// `m_owner_id == s_tls_owner_id` can fire after adoption.
-	if(__builtin_expect(s_tls_owner_id == 0, 0)) return false;
-	// CAS m_owner_id: 0 → s_tls_owner_id.  This CAS is the SOLE
+	// `m_owner_id == s_tls_hot.owner_id` can fire after adoption.
+	if(__builtin_expect(s_tls_hot.owner_id == 0, 0)) return false;
+	// CAS m_owner_id: 0 → s_tls_hot.owner_id.  This CAS is the SOLE
 	// arbitration point — only one thread can flip m_owner_id away from
 	// 0, so concurrent adoption attempts are mutually exclusive and the
 	// winner alone proceeds to set BIT_OWNED / wire the DLL below.  (The
 	// CAS must come first for exactly this reason: setting BIT_OWNED
 	// before knowing we won would leave a chunk with BIT_OWNED set by us
 	// but m_owner_id claimed by another thread.)
-	if(!atomicCompareAndSet((uint32_t)0u, s_tls_owner_id,
+	if(!atomicCompareAndSet((uint32_t)0u, s_tls_hot.owner_id,
 	                        &this->m_owner_id))
 		return false;
 	// Set BIT_OWNED to mark the chunk as held by a live owner (this
@@ -3271,15 +3274,19 @@ PoolAllocatorBase::deallocate(void *p) {
 		// §12/§12.1.
 		PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
 		    chunk_base + ALLOC_CHUNK_HEADER);
-		// Single TLS read (s_tls_owner_id).  Matches iff THIS thread owns
-		// the chunk AND the chunk is live: a released chunk has
-		// m_owner_id == 0 (cleared by deallocate_chunk), and a foreign /
-		// never-allocated thread has s_tls_owner_id == 0 — neither
-		// matches a live non-zero owner id.  So this one comparison
-		// subsumes the former `palloc <= 1` released/foreign pre-filter
-		// for the fast path; palloc is read only on the slow path below
-		// (cross-thread / released / foreign / post-teardown).
-		if(__builtin_expect(chunk_obj->m_owner_id == s_tls_owner_id, 1)) {
+		// Owner-id compare via `s_tls_hot.owner_id` — same TLS struct
+		// as `last_region_base` (already touched at the radix-cache hit
+		// above), so the compiler keeps the TLS base in a register and
+		// this read is just `mov %fs:OFF(%rax),...` with NO second GOT
+		// tpoff load.  Matches iff THIS thread owns the chunk AND the
+		// chunk is live: a released chunk has m_owner_id == 0 (cleared
+		// by deallocate_chunk), and a foreign / never-allocated thread
+		// has `owner_id == 0` — neither matches a live non-zero owner
+		// id.  So this one comparison subsumes the former `palloc <= 1`
+		// released/foreign pre-filter for the fast path; palloc is read
+		// only on the slow path below (cross-thread / released /
+		// foreign / post-teardown).
+		if(__builtin_expect(chunk_obj->m_owner_id == s_tls_hot.owner_id, 1)) {
 			// (§12.3 / §16) Local-id from the cache-line-1 hot block:
 			//   FS=true        : chunk serves one size -> local-id 0.
 			//   FS=false borrow: per-slot prefix { uint32 local_id,
@@ -5448,9 +5455,13 @@ int PoolAllocatorBase::numa_node_for_this_thread() noexcept {
 	return n;
 }
 
-// Per-thread 1-entry region-lookup cache (§13).  Initialized to 0 which
-// never matches a real region base (kernel null page).
-ALLOC_TLS_IE uintptr_t PoolAllocatorBase::s_last_region_base = 0;
+// (§13) Per-thread 1-entry region-lookup cache + owner-id stamp.  Both
+// init to 0 — `last_region_base = 0` never matches a real region base
+// (kernel null page), and `owner_id = 0` never matches a live chunk's
+// non-zero owner stamp.  See `TlsHotPath` in allocator_prv.h for why
+// the two are co-located (one GOT tpoff for both reads on the free hot
+// path).
+ALLOC_TLS_IE TlsHotPath s_tls_hot = {0, 0};
 
 // Out-of-line full radix walk + cache update.  Called on cache miss.
 // Returns 0 if `up` is in a populated region, -1 otherwise.
@@ -5477,7 +5488,7 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	// munmap, and a stale cache entry on a different thread would
 	// falsely report present without re-checking the slot.
 	if(v == (uint32_t)KAME_RADIX_POOL)
-		s_last_region_base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
+		s_tls_hot.last_region_base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
 	return (int)v;
 }
 
@@ -6416,8 +6427,8 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	// Invalidate the per-thread region cache so a same-thread lookup of
 	// this base doesn't false-hit (the slot is cleared, but the fast-path
 	// cache shortcuts the slot read).
-	if((uintptr_t)base == s_last_region_base)
-		s_last_region_base = 0;
+	if((uintptr_t)base == s_tls_hot.last_region_base)
+		s_tls_hot.last_region_base = 0;
 	// (§21) Try to recycle into the warm cache (still mapped, warm).  On
 	// overflow / over-cap the cache returns false and we munmap now.
 	// (§27) Huge allocs (mmap_size > LRC_HI) bypass the cache — see

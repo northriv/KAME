@@ -606,6 +606,24 @@ struct CrossDeallocEntry {
 	void              *slot;
 };
 
+//! Hot-path TLS pair — co-located so the deallocate fast path resolves
+//! ONE GOT tpoff and reads both fields off the same `%fs:` base, instead
+//! of paying a separate `mov tpoff(%rip),%rax` for each.  Used by:
+//!   - `radix_lookup` (hot) reads `.last_region_base` for the 1-entry
+//!     region cache; `radix_lookup_slow` writes it on hit insert,
+//!     `radix_remove` clears it.
+//!   - `PoolAllocatorBase::deallocate` (hot) reads `.owner_id` to compare
+//!     against `chunk_obj->m_owner_id`; `kame_owner_id()` lazily assigns
+//!     a non-zero id on first call.
+//! Both members default-zero, which never matches a real region base
+//! and never matches a real chunk owner — so an uninitialised thread
+//! falls through to the cold path naturally.
+struct TlsHotPath {
+	uintptr_t last_region_base;  // radix 1-entry cache; 0 = empty
+	uint32_t  owner_id;          // this thread's chunk-owner stamp; 0 = unassigned
+};
+extern ALLOC_TLS_IE TlsHotPath s_tls_hot;
+
 class PoolAllocatorBase {
 public:
 	//! Signature of the per-chunk dealloc trampoline stored in the
@@ -1271,15 +1289,16 @@ private:
 		// (§19) Cache holds ONLY pool region bases, so a hit means
 		// KAME_RADIX_POOL.  base 0 (init) never matches (kernel null
 		// page is never a region base).
-		if(__builtin_expect(base == s_last_region_base, 1))
+		if(__builtin_expect(base == s_tls_hot.last_region_base, 1))
 			return (int)KAME_RADIX_POOL;
 		return radix_lookup_slow(up);
 	}
 
-	//! Per-thread 1-entry region-lookup cache (the last PRESENT region
-	//! base confirmed by `radix_lookup_slow`).  Initialised to 0 which
-	//! never matches a real region base.
-	static ALLOC_TLS_IE uintptr_t s_last_region_base;
+	//! Per-thread 1-entry region-lookup cache (last PRESENT region base
+	//! confirmed by `radix_lookup_slow`).  Lives inside `s_tls_hot`
+	//! together with `owner_id`, so the deallocate hot path resolves
+	//! ONE TLS GOT tpoff and reaches both fields off the same %fs base.
+	//! Updated by `radix_lookup_slow` (insert) / `radix_remove` (clear).
 
 public:
 	//! (§13.2) The former global `s_claim_bitmap[]` and `s_back_offset[]`
