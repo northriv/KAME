@@ -3216,30 +3216,35 @@ PoolAllocatorBase::deallocate(void *p) {
 			//                    sits in this already-loaded hot line, so a
 			//                    borrow chunk's `!m_sizes` check is free.
 			//
-			// `bucket` is also extracted (where available) so we can
-			// re-aim `g_thread_freelist_ptr[bucket]` at this chunk's
-			// freelist head — the next same-size alloc on this thread
-			// then pops the slot we just freed (LIFO) instead of running
-			// `slow_allocate` → `scan_dll_freelist` on a multi-chunk
-			// working set.  ~3× win on FS=false 384..2048 churn.
-			// `bucket == 0` is the "skip-update" sentinel (used for
-			// FS=false full-usable mode where the bucket isn't encoded
-			// in m_sizes; size=0 itself never reaches the pool path).
-			unsigned local;
-			unsigned bucket;
+			// FS=true is split out as its own early-return path: a
+			// single bucket per chunk means the per-thread alloc
+			// shortcut `g_thread_freelist_ptr[bucket]` is already
+			// maintained correctly by chunk-claim / slow_allocate, so
+			// no follow-update is needed.  Keeping the branch separate
+			// stops the compiler from emitting the bucket-init + check
+			// dead code on this hottest path (5 % bench_loop regression
+			// when folded together).
 			if(chunk_obj->m_fs_flag) {
-				local = 0;
-				// FS=true chunk serves exactly one bucket — already in
-				// the hot cache line, no extra load.
-				bucket = chunk_obj->m_base_bucket;
-			} else if(chunk_obj->m_sizes) {
+				chunk_obj->freelist_push(0, p);
+				return true;
+			}
+			// FS=false owner free.  `bucket` is extracted (borrow tier
+			// only) so we can re-aim `g_thread_freelist_ptr[bucket]` at
+			// this chunk's freelist head — the next same-bucket alloc
+			// pops the slot we just freed (LIFO) instead of running
+			// `slow_allocate` → `scan_dll_freelist` on a multi-chunk
+			// working set.  ~3–6× win on FS=false 384..2048 churn.
+			// Full-usable (ALIGN>=1024) leaves bucket = 0 (skip
+			// sentinel) since the bucket isn't encoded in m_sizes[].
+			unsigned local;
+			unsigned bucket = 0;
+			if(chunk_obj->m_sizes) {
 				size_t bit_index =
 				    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->mempool())
 				    >> chunk_obj->m_align_shift;
 				local = chunk_obj->m_sizes[bit_index] & 0xFFu;
 				if(local >= (unsigned)KAME_LOCAL_BUCKETS)
 					goto vtable_dispatch;
-				bucket = 0;   // skip-update sentinel for full-usable mode
 			} else {
 				std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
 				    static_cast<char *>(p) - 8);
@@ -3255,18 +3260,8 @@ PoolAllocatorBase::deallocate(void *p) {
 				if(local >= (unsigned)KAME_LOCAL_BUCKETS)
 					goto vtable_dispatch;
 			}
-			// Push to the chunk-local freelist at the local-id (no
-			// atomic, no indirect call, no template dispatch).  Slot
-			// stays "allocated" in m_flags until owner's next alloc
-			// cycle / thread-exit drain returns it via
-			// batch_return_to_bitmap.
 			chunk_obj->freelist_push(local, p);
-			// (§freelist-follow) Re-aim the alloc-side TLS shortcut so
-			// the next same-bucket alloc pops THIS slot via the LIFO fast
-			// path, eliminating the `slow_allocate` → DLL scan that
-			// dominated FS=false churn (callgrind: 26 % Ir, 68 % D1
-			// read-misses).  Defensive bucket bound: a stale/garbage
-			// prefix could route the write off-array.
+			// (§freelist-follow) FS=false borrow only — see comment above.
 			if(bucket != 0 && bucket < (unsigned)ALLOC_NUM_BUCKETS) {
 				g_thread_freelist_ptr[bucket] =
 				    &chunk_obj->m_freelist_head[local];
