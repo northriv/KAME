@@ -611,7 +611,30 @@ struct CrossDeallocBatch {
                       if(a.chunk != b.chunk) return a.chunk < b.chunk;
                       return a.slot < b.slot;
                   });
+        // Plant the sentinel after the live count so the chunk-side
+        // walk terminates by `entries[k].chunk == this` failing,
+        // without a length check.
         buf[count] = {nullptr, nullptr};
+        // Walk chunk runs.  `batch_return_to_bitmap` consumes the run
+        // starting at `&buf[i]` (entries[k].chunk == this until
+        // sentinel / next chunk), returns the count, caller advances.
+        //
+        // For each unique chunk the batch returned slots to: signal the
+        // OWNER thread's "force walk from head" hint flag.  Without this
+        // poke, the owner's `allocate_chunk_path` Phase 2 DLL walk stays
+        // gated by its own `dll_exhausted` flag (set after the previous
+        // walk found no space) and keeps mmap'ing fresh chunks instead
+        // of reusing the slots we just returned.  The single-slot
+        // `push_direct` path already does this; the batched flush path
+        // skipped it — caught by `bench_xthread_pool -w2 -s64` where the
+        // pool inflated +32 regions (1 GiB VA) over a 5-second run.
+        //
+        // Cache `m_owner_dll_force_walk_ptr` BEFORE
+        // `batch_return_to_bitmap`: the call may release the chunk on
+        // last-slot return + owner-exit, after which `chunk` is a stale
+        // pointer.  The owner's TLS storage that the cached ptr targets
+        // lives independently of the chunk; null after owner-exit's
+        // release-store, so the post-call deref is safe-or-skipped.
         int i = 0;
         while(i < count) {
             PoolAllocatorBase *chunk = buf[i].chunk;
@@ -1029,29 +1052,6 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		for(int i = count - 1; i >= 0; --i)
 			m_flags[i] = 0;
 	}
-	// (§32) Zero-init the cross-thread return shadow bitmap storage.
-	//
-	// Layout (every real FS=true chunk — `kHasReturnShadow`):
-	//   [PoolAllocator object]
-	//   [m_flags : count * FUINT]
-	//   [align-up to 64-byte boundary]
-	//   [return shadow : count * FUINT]   ← separate cacheline from m_flags
-	//
-	// The pointer is recomputed on demand via the `return_flags()` accessor
-	// (compile-time folded per template); no `m_return_flags` field on the
-	// chunk header.  Anonymous-pool storage is already zero (mmap MAP_ANON +
-	// MADV_FREE on reuse), but explicit init keeps the invariant
-	// "no bits set in the shadow after construction" auditable and covers
-	// the §29 pre-fill path where the chunk was reused warm.
-	//
-	// For FS=false and FS=true base-ctor passes with DUMMY=false,
-	// `return_flags()` compile-time-folds to nullptr and this block
-	// elides — no behaviour change there.
-	if constexpr (kHasReturnShadow) {
-		FUINT *rf = this->return_flags();
-		for(int i = 0; i < count; ++i)
-			rf[i] = 0;
-	}
 	// Initial coalesce hint by (FS, real-instance):
 	//   FS=true real chunk (FS && DUMMY): start ABOVE all FS=true
 	//     thresholds (max 35) → push_direct optimistically routes
@@ -1104,16 +1104,6 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	static_assert(size_alloc <= kMetaBudget,
 	    "PoolAllocator + alignment must fit in ALLOC_CHUNK_K_MAX - 64.  "
 	    "Increase K_MAX or shrink the struct.");
-	// (§32) Reserve space for the cross-thread return shadow bitmap on
-	// every real FS=true chunk (including ALIGN=16, after the K_MAX bump
-	// 4 KiB → 8 KiB).  The shadow is the same word count as m_flags and
-	// lives `alignas(64)`-separated, so the worst-case storage cost is:
-	//   pad_to_next_64 (≤ 56) + count * sizeof(FUINT)
-	// FS=false buckets keep the single-bitmap layout — the cross-thread
-	// free path there already routes per-call (no batch sort), so the
-	// false-sharing hot path the shadow targets is not present.
-	constexpr bool kHasReturnShadow = FS && DUMMY;
-	constexpr size_t kReturnShadowPadMax = kHasReturnShadow ? 64u : 0u;
 	// Slot region size = chunk_size - K_MAX = (size + ALLOC_CHUNK_HEADER)
 	// - K_MAX = size - (K_MAX - ALLOC_CHUNK_HEADER).  The slot region
 	// POINTER (`ppool + (K_MAX - HEADER)`) is no longer materialised here
@@ -1133,16 +1123,12 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	// page-aligned); costs PAGE − K_MAX (= 12 KiB) of slots per chunk on macOS.
 	slot_region_size &= ~((size_t)ALLOC_PAGE_SIZE - 1u);
 	// count must satisfy:
-	//   (i)  size_alloc + count*sizeof(FUINT)
-	//        (+ pad + count*sizeof(FUINT) when kHasReturnShadow)
-	//                                            <= kMetaBudget
-	//          (m_flags [+ m_return_flags] fit between PoolAllocator and
-	//           slot_region)
+	//   (i)  size_alloc + count*sizeof(FUINT) <= kMetaBudget
+	//          (m_flags fits between PoolAllocator and slot_region)
 	//   (ii) count * ALIGN * FUINT_BITS <= slot_region_size
 	//          (slots fit in the slot region)
 	int count_meta = static_cast<int>(
-	    (kMetaBudget - size_alloc - kReturnShadowPadMax) /
-	    (kHasReturnShadow ? 2u * sizeof(FUINT) : sizeof(FUINT)));
+	    (kMetaBudget - size_alloc) / sizeof(FUINT));
 	int count_slots = static_cast<int>(
 	    slot_region_size / ((size_t)ALIGN * FUINT_BITS));
 	int count = count_meta < count_slots ? count_meta : count_slots;
@@ -1231,18 +1217,36 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 #endif
 	FUINT one;
 	int idx = this->m_idx;
-	bool swept_once = false;
 	for(;;) {
 		FUINT *pflag = &this->m_flags[idx];
 		FUINT oldv = *pflag;
 		if(oldv != ~(FUINT)0u) {
 			one = find_zero_forward(oldv);
+//			assert(count_bits(one) == SIZE / ALIGN);
+//			assert( !(one & oldv));
+			// Always-CAS path (formerly an oldv==0 non-atomic fast write
+			// existed here). Without an external lock around the chunk —
+			// which the TLS s_tls.my_chunk fast path in allocate() removes —
+			// the non-atomic store would race with another thread doing
+			// the same on the same flag word, producing torn writes that
+			// hand the same bit to two threads. CAS even at oldv==0 is
+			// only marginally slower and keeps the chunk thread-safe.
 			FUINT newv = oldv | one; //set a flag.
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
 				if(newv == ~(FUINT)0u) {
                     atomicInc( &this->m_flags_filled_cnt);
+                    // Proactive Phase 3 trigger: when this chunk hits 4/5
+                    // (80 %) of its words fully filled, flush this
+                    // thread's cross-dealloc batch.  Any batched frees
+                    // for OTHER chunks land back in their bitmaps,
+                    // letting the next chunk-full event's DLL scan
+                    // (Phase 2) find recovered space before mmaping
+                    // fresh memory.  Sampled at word-fill granularity
+                    // (~1 in FUINT_BITS = 64 allocs) so the overhead is
+                    // amortised; `flush()` is a no-op when the batch is
+                    // empty so post-cross-event calls are cheap.
                     if(this->m_flags_filled_cnt * 5 >= this->m_count * 4)
                         tls_cross_dealloc_batch.flush();
                 }
@@ -1251,31 +1255,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			}
 			continue;
 		}
-		if(this->m_flags_filled_cnt == this->m_count) {
-			// (§32) Saturation may be stale — cross-thread returns might
-			// be sitting in `return_flags[]` waiting for an owner sweep.
-			// BUT: skip sweep on pinned (producer is actively filling
-			// — `return_flags[]` cacheline is hot for consumer writes
-			// of recently-allocated slots) and on 1-back (consumer is
-			// actively draining it).  Sweeping these would cause
-			// owner↔consumer cacheline ping-pong on `return_flags`.
-			// Walk-visited 2-back+ chunks get swept normally: their
-			// returns are older and the cachelines are cool.
-			if constexpr (kHasReturnShadow) {
-				if( !swept_once
-				    && static_cast<PoolAllocatorBase *>(this)
-				       != static_cast<PoolAllocatorBase *>(s_tls.my_chunk)
-				    && static_cast<PoolAllocatorBase *>(this)
-				       != static_cast<PoolAllocatorBase *>(s_tls.dll_one_back)) {
-					swept_once = true;
-					if(this->sweep_return_shadow()) {
-						idx = 0;
-						continue;
-					}
-				}
-			}
+		if(this->m_flags_filled_cnt == this->m_count)
 			return 0;
-		}
 		idx++;
 		if(idx == this->m_count) {
 			idx = 0;
@@ -1779,47 +1760,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
 	}
 #endif
-	// (§32) Shadow path — chosen at runtime per call based on
-	// `BIT_OWNED`.  When owner alive, cross-thread frees fetch_or into
-	// the cacheline-isolated `return_flags[]` bitmap; the owner
-	// reconciles into `m_flags[]` at sweep points (allocate_pooled
-	// saturation / owner_release / thread-exit).  When BIT_OWNED is
-	// clear (owner exited), falls back to the legacy CAS-clear +
-	// atomicDecAndTest release-check path so cross-thread frees on
-	// abandoned chunks still drive chunk release.
-	// Per-word coalesce: pointer-sorted same-chunk entries land in
-	// monotone-ascending `m_flags`-word order, so adjacent same-word
-	// entries are contiguous in the input.  Merge their bits into a
-	// single `mask` and issue ONE atomicFetchOr per word — same
-	// O(n) walk shape as `batch_clear_impl`, just `|=` instead of
-	// `&= ~`.  4096 frees per batch land in 64 m_flags words at
-	// ALIGN=64, so coalescing turns 4096 atomicFetchOr calls into 64.
-	if constexpr (kHasReturnShadow) {
-		uint32_t packed = this->m_flags_packed;
-		if(packed & BIT_OWNED) {
-			constexpr int FUINT_BITS_SH = sizeof(FUINT) * 8;
-			FUINT *rf = this->return_flags();
-			int i = 0;
-			while(entries[i].chunk == this) {
-				char *p = static_cast<char *>(entries[i].slot);
-				int midx = (p - this->mempool()) / ALIGN;
-				int idx  = midx / FUINT_BITS_SH;
-				FUINT mask = (FUINT)1u << (midx % FUINT_BITS_SH);
-				int j = i + 1;
-				while(entries[j].chunk == this) {
-					char *q = static_cast<char *>(entries[j].slot);
-					int midx_q = (q - this->mempool()) / ALIGN;
-					int idx_q  = midx_q / FUINT_BITS_SH;
-					if(idx_q != idx) break;
-					mask |= (FUINT)1u << (midx_q % FUINT_BITS_SH);
-					++j;
-				}
-				atomicFetchOr(&rf[idx], mask);
-				i = j;
-			}
-			return i;
-		}
-	}
 	bool i_am_releaser = false;
 	int n = this->batch_clear_impl(entries,
 		// MaskFn: FS=true single bit
@@ -1888,44 +1828,52 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		this->freelist_push(0, p);
 		return false;
 	}
-	// (§32b) Direct cross-thread free.  CrossDeallocBatch (sort + per-
-	// chunk grouped CAS-coalesce) is retired in favour of a per-call
-	// single-entry `batch_return_to_bitmap`.  The cacheline-spread scan
-	// in `allocate_pooled` (above) keeps the producer's next CAS
-	// attempt on a DIFFERENT cacheline than the consumer's CAS-clear,
-	// removing the producer↔consumer false-sharing the batch's
-	// sort+coalesce was originally designed to amortise.  Net result:
-	//   - O(1) per-free instead of O(N log N) per CAP-fill batch
-	//   - no shadow bitmap, no sweep, no two-bitmap MASK_CNT timing race
-	//   - sort cost (~14 % of bench_xthread_pool samples pre-§32b) gone
-	//
-	// (§20) Cache `m_owner_dll_head_addr` and `m_owner_dll_force_walk_ptr`
-	// BEFORE batch_return_to_bitmap.  The call may release the chunk on
-	// last-slot dec-to-zero, after which `this` is a stale pointer.  The
-	// owner's TLS storage that the cached ptr targets lives independently
-	// of the chunk; null after owner-exit's release-store, so the post-
-	// call deref is safe-or-skipped.  Mirrors the FS=false sibling at the
-	// top of this file.
-	void *cached_dll_head_addr = this->m_owner_dll_head_addr;
-	std::atomic<bool> *cached_force_walk =
-	    this->m_owner_dll_force_walk_ptr.load(std::memory_order_acquire);
-	CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
-	this->batch_return_to_bitmap(tmp);
-	if(cached_dll_head_addr == static_cast<void *>(&s_tls.dll_head)) {
-		// Same-thread free (rare — owner-side fast path is freelist_push
-		// above; this branch is the s_alloc_tls_off post-teardown case).
-		reset_dll_walk_state();
+	// Post-teardown bypass.  See FS=false sibling above — once
+	// `s_alloc_tls_off` is set, `tls_cross_dealloc_batch` may have
+	// been destroyed; route the bit-clear through
+	// `batch_return_to_bitmap` directly with a single-slot scratch
+	// + sentinel so later pthread_key dtors that delete pool slots
+	// do not touch freed heap.
+	if(__builtin_expect(s_alloc_tls_off, 0)) {
+		// (§20) Cache the dll-head address BEFORE batch_return_to_bitmap
+		// — see the FS=false sibling for the lifetime rationale.
+		void *cached_dll_head_addr = this->m_owner_dll_head_addr;
+		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+		this->batch_return_to_bitmap(tmp);
+		// `this` may be destructed past this point — cached only.  Reset
+		// cursor only if we are the chunk's owner.  At post-teardown
+		// (s_alloc_tls_off), our pthread_key dtors may delete pool slots
+		// from any chunk we ever held — usually our own, but cross-thread
+		// retained references are possible.
+		if(cached_dll_head_addr == static_cast<void *>(&s_tls.dll_head))
+			reset_dll_walk_state();
+		return false;
 	}
-	else if(cached_force_walk) {
-		// Cross-thread free — signal owner's "force walk from head"
-		// hint so the owner's next `allocate_chunk_path` rewalks the
-		// DLL from head and finds the freshly cleared bits.  Without
-		// this, owner's `dll_exhausted` flag (set after the previous
-		// walk found nothing) would skip the walk and force a new
-		// chunk claim.  Caught by `bench_xthread_pool -w2 -s64` where
-		// the pool inflated +32 regions (1 GiB VA) over a 5-second
-		// run before the hint was propagated.
-		cached_force_walk->store(true, std::memory_order_relaxed);
+	// FS=true ALIGN ≤ 48 (sizes 16/32/48): hold-and-batch path.  1
+	// bit per slot in m_flags ⇒ up to 64 slots per FUINT word; a
+	// deep (CAP=1024) accumulation window gives same-chunk same-
+	// word "buddies" arriving over time a chance to be coalesced
+	// into one CAS per word at flush time.  The smallest buckets
+	// are picked for two reasons:
+	//
+	//   * held-bytes-per-entry = slot size.  Lowest slot sizes
+	//     minimise the "bitmap bit held" memory pressure that
+	//     delays chunk release in the owner thread (the
+	//     `ReserveSwapSpace` growth Linux Claude observed at
+	//     CAP=2048/4096 scaled with avg_held_bytes × CAP).
+	//   * Smallest ALIGN classes have the most slots per chunk
+	//     (3072 for ALIGN=16 vs 200 for ALIGN=240), so the buf's
+	//     chunk coverage is densest — buddies more likely.
+	//
+	// FS=true ALIGN > 48 (sizes 64..240) fall to the direct
+	// dispatch path: their per-entry held-bytes payback ratio is
+	// worse, and their chunks repeat less frequently in realistic
+	// STM workloads (allocation distribution is heavy-tailed
+	// toward smallest classes).
+	if constexpr (ALIGN <= 48) {
+		tls_cross_dealloc_batch.push(this, p);
+	} else {
+		tls_cross_dealloc_batch.template push_direct<ALIGN>(this, p);
 	}
 	return false;
 }
@@ -2452,12 +2400,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	if( !s_tls.dll_exhausted) {
 		auto *c = s_tls.dll_cursor ? s_tls.dll_cursor : s_tls.dll_head;
 		while(c) {
-			// (§32) Skip pinned (my_chunk — producer is filling it) and
-			// 1-back (dll_one_back — consumer is actively returning to
-			// it).  See `dll_one_back` doc for the rationale.
-			if(c != s_tls.my_chunk && c != s_tls.dll_one_back) {
+			if(c != s_tls.my_chunk) {
 				if(void *p = c->allocate_pooled(SIZE)) {
-					s_tls.dll_one_back = s_tls.my_chunk;  // (§32) shift
 					s_tls.my_chunk = c;
 					s_tls.dll_cursor = c;
 #ifdef GUARDIAN
@@ -2504,7 +2448,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	}
 	tls_alloc_thread_exit_cleanup.add(
 	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
-	s_tls.dll_one_back = s_tls.my_chunk;  // (§32) shift on fresh-mmap pin
 	s_tls.my_chunk = chunk;
 	chunk->m_dll_prev = s_tls.dll_tail;
 	chunk->m_dll_next = nullptr;
@@ -2585,11 +2528,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::owner_release(PoolAllocator *palloc) {
 	int dll_len = 0;
 	for(auto *c = s_tls.dll_head; c; c = c->m_dll_next) ++dll_len;
 	if(dll_len <= LEAVE_VACANT_CHUNKS_PER_THREAD) return false;
-
-	// (§32) Drain pending shadow returns into m_flags so MASK_CNT
-	// reflects fresh state before the empty check.  Compile-time
-	// no-op for templates without `kHasReturnShadow`.
-	palloc->sweep_return_shadow();
 
 	// Quick pre-check: bail if not empty.  Avoids the atomicFetchAnd
 	// (and the BIT_OWNED clear that'd hand release to cross-thread).
@@ -2699,13 +2637,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 				}
 			}
 		}
-		// (§32) Final shadow sweep BEFORE clearing BIT_OWNED.  Folds:
-		//   - the freelist-drain returns we just made (if BIT_OWNED is
-		//     still set, batch_return_to_bitmap took the shadow path),
-		//   - any in-flight cross-thread fetch_or's that landed earlier.
-		// After the BIT_OWNED AND-clear below, cross-thread frees take
-		// the legacy CAS-clear path, so future shadow fetch_or's stop.
-		c->sweep_return_shadow();
 		// an earlier change/5x: nullify the owner-revival-hint pointer BEFORE
 		// clearing BIT_OWNED.  Once BIT_OWNED is clear, cross-thread
 		// frees may target this chunk; if our TLS storage gets

@@ -166,32 +166,6 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
     else
         return (T)(long)_InterlockedAnd((long volatile *)target, (long)value);
 }
-//! (§32) Atomic fetch-and-OR (MSVC).  Returns the OLD value.
-template <typename T>
-inline T atomicFetchOr(T *target, T value) noexcept {
-    if constexpr (sizeof(T) == 8)
-        return (T)_InterlockedOr64((long long volatile *)target, (long long)value);
-    else
-        return (T)(long)_InterlockedOr((long volatile *)target, (long)value);
-}
-//! (§32) Atomic exchange (MSVC).  Returns the OLD value.
-template <typename T>
-inline T atomicExchange(T *target, T value) noexcept {
-    if constexpr (sizeof(T) == 8)
-        return (T)_InterlockedExchange64((long long volatile *)target, (long long)value);
-    else
-        return (T)(long)_InterlockedExchange((long volatile *)target, (long)value);
-}
-//! (§32) Atomic fetch-and-SUB (MSVC).  Returns the OLD value.
-template <typename T>
-inline T atomicFetchSub(T *target, T value) noexcept {
-    if constexpr (sizeof(T) == 8)
-        return (T)_InterlockedExchangeAdd64((long long volatile *)target,
-                                            -(long long)value);
-    else
-        return (T)(long)_InterlockedExchangeAdd((long volatile *)target,
-                                                 -(long)value);
-}
 #else
 template <typename T>
 inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
@@ -217,28 +191,6 @@ inline bool atomicDecAndTest(T *target) noexcept {
 template <typename T>
 inline T atomicFetchAnd(T *target, T value) noexcept {
     return __sync_fetch_and_and(target, value);
-}
-//! (§32) Atomic fetch-and-OR.  Returns the OLD value.  Used by the
-//! cross-thread shadow path in `batch_return_to_bitmap` (FS=true,
-//! kHasReturnShadow): bit-set into `return_flags[w]` without
-//! coordination with other cross-thread freers on the same word.
-template <typename T>
-inline T atomicFetchOr(T *target, T value) noexcept {
-    return __sync_fetch_and_or(target, value);
-}
-//! (§32) Atomic exchange.  Returns the OLD value, stores `value`.  Used
-//! by the owner sweep `sweep_return_shadow()` to drain pending returns
-//! out of `return_flags[w]` in one shot.
-template <typename T>
-inline T atomicExchange(T *target, T value) noexcept {
-    return __atomic_exchange_n(target, value, __ATOMIC_ACQ_REL);
-}
-//! (§32) Atomic fetch-and-SUB.  Returns the OLD value, subtracts
-//! `value`.  Used by the owner sweep to batch MASK_CNT decrements
-//! (popcount(swept_bits) at a time) instead of per-bit `atomicDec`.
-template <typename T>
-inline T atomicFetchSub(T *target, T value) noexcept {
-    return __sync_fetch_and_sub(target, value);
 }
 #endif
 
@@ -530,26 +482,19 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //! chunk 1's metadata, so no collision.
 //!
 //! K_MAX is sized so that the largest template (smallest ALIGN, biggest
-//! count) fits its PoolAllocator object + m_flags array + (§32) optional
-//! return shadow bitmap within `K_MAX - ALLOC_CHUNK_HEADER` bytes.
-//! Verified at compile time in the per-template `create()`:
+//! count) fits its PoolAllocator object + m_flags array within
+//! `K_MAX - ALLOC_CHUNK_HEADER` bytes.  Verified at compile time in the
+//! per-template `create()`:
 //!   - ALIGN=16, CHUNK_UNITS=1: PoolAllocator (~200 B) + m_flags (~2 KiB)
-//!                              + shadow (~2 KiB) + padding < 8 KiB ✓
-//!   - ALIGN=256, CHUNK_UNITS=2: PoolAllocator + m_flags (~256 B) +
-//!                              shadow (~256 B) ≪ 8 KiB
-//!   - Dedicated chunks: chunk_header only (~64 B) ≪ 8 KiB
+//!                              + padding < 4 KiB ✓
+//!   - ALIGN=256, CHUNK_UNITS=2: PoolAllocator + m_flags (~256 B) ≪ 4 KiB
+//!   - Dedicated chunks: chunk_header only (~64 B) ≪ 4 KiB
 //!
-//! (§32) Bumped 4 KiB → 8 KiB to admit a second `count`-word bitmap
-//! (`return_flags()` shadow) for ALL FS=true real chunks including
-//! ALIGN=16, eliminating producer↔consumer false-sharing across the
-//! whole bucket range.  On Linux/Windows (PAGE = 4 KiB) the metadata
-//! now occupies 2 pages instead of 1 — one extra TLB entry per chunk
-//! during the dealloc hot-block read.  On macOS arm64 (PAGE = 16 KiB)
-//! and POWER (PAGE = 64 KiB) the metadata still sits in 1 page.
-//! Trade-off: 4 KiB extra reservation per chunk = 1.6 % overhead on
-//! 256 KiB chunks, 0.8 % on 512 KiB, ≤ 0.4 % on 1 MiB+ — paid only by
-//! chunks that hand out slots, not by the dedicated-chunk path.
-#define ALLOC_CHUNK_K_MAX 8192
+//! 4 KiB = one OS page on every supported target.  Convenient because
+//! the entire metadata block sits in ONE page (the previous unit's
+//! last page), so dealloc's hot-block read touches only that one
+//! extra page beyond the slot region's pages.
+#define ALLOC_CHUNK_K_MAX 4096
 
 #define ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET     0   // [ 0.. 7]: chunk SIZE info
 #define ALLOC_CHUNK_HEADER_PALLOC_OFFSET        8   // [ 8..15]: palloc
@@ -1426,136 +1371,6 @@ public:
 	}
 
 	typedef uintptr_t FUINT;
-
-	//! (§32) Compile-time discriminator: does this chunk template carry a
-	//! cross-thread return shadow bitmap?  True for all real FS=true
-	//! chunks (`<ALIGN, true, true>`), now including ALIGN=16 — the K_MAX
-	//! bump (4 KiB → 8 KiB) admits the second `count`-word bitmap at the
-	//! smallest slot size where the bitmap itself is largest (~2 KiB
-	//! shadow on a 256 KiB chunk).  See `return_flags()`.
-	static constexpr bool kHasReturnShadow = FS && DUMMY;
-
-	//! (§32) Accessor for the cross-thread return shadow bitmap.  Layout
-	//! is fixed at chunk construction (`m_flags` end → align up to 64-byte
-	//! boundary), so the pointer is recomputed on demand rather than
-	//! stored on the chunk — no extra field, no extra cache line.
-	//!
-	//! Compile-time folds:
-	//!   * ALIGN >= 32, FS=true, DUMMY=true → live pointer
-	//!   * everything else (ALIGN=16, FS=false, FS=true base ctor pass) →
-	//!     `nullptr`, branch predicted away at the use sites.
-	//!
-	//! The shadow lives `alignas(64)`-separated from `m_flags` so the two
-	//! bitmaps never share a CPU cacheline.  Cross-thread frees route
-	//! through `fetch_or` on the shadow (cacheline B); the owner thread
-	//! reconciles via
-	//!   `r = return_flags()[w].exchange(0); m_flags[w] &= ~r;`
-	//! at well-defined points (allocate_pooled saturation, owner_release
-	//! empty check, thread-exit cleanup) — see those call sites.
-	//!
-	//! Placed AFTER `typedef uintptr_t FUINT;` because the return type
-	//! depends on it; placed BEFORE the `protected:` block below to keep
-	//! the accessor public for cross-template use sites in allocator.cpp.
-	inline FUINT *return_flags() noexcept {
-		if constexpr (kHasReturnShadow) {
-			char *flags_end =
-			    reinterpret_cast<char *>(m_flags)
-			    + static_cast<size_t>(m_count) * sizeof(FUINT);
-			std::uintptr_t addr = reinterpret_cast<std::uintptr_t>(flags_end);
-			std::uintptr_t aligned =
-			    (addr + std::uintptr_t(63)) & ~std::uintptr_t(63);
-			return reinterpret_cast<FUINT *>(aligned);
-		}
-		else {
-			return nullptr;
-		}
-	}
-
-	//! (§32) Owner-side sweep: fold cross-thread shadow bits into m_flags.
-	//!
-	//! Walks `return_flags[w]` for w in [0, m_count): atomically drains the
-	//! word (`exchange(0)`), ANDs the freed bit pattern out of `m_flags[w]`,
-	//! and updates the two counters that drive chunk lifecycle:
-	//!
-	//!   * `m_flags_filled_cnt` — decremented when a word transitions from
-	//!     ALL-SET (saturated) to non-saturated.  Saturation is the trigger
-	//!     used by allocate_pooled to decide "this word is exhausted, try
-	//!     the next one"; restoring it lets the allocator find slots again.
-	//!   * `m_flags_packed` MASK_CNT — decremented (batched via popcount)
-	//!     when a word transitions from non-zero to zero.  MASK_CNT==0 is
-	//!     the chunk-empty release trigger.
-	//!
-	//! Atomic semantics:
-	//!   * `return_flags[w].exchange(0, ACQ_REL)` — pairs with cross-thread
-	//!     `fetch_or` in `batch_return_to_bitmap` (RELEASE on the OR);
-	//!     ensures any user-side stores that preceded the cross-thread
-	//!     free are visible to the owner after the exchange.
-	//!   * `m_flags[w]` writes are NOT atomic — owner is the sole writer
-	//!     (the allocate-path bitmap-CAS only sets bits; sweep clears them).
-	//!     The contract is enforced by the kHasReturnShadow gating: with
-	//!     shadow on, no cross-thread CAS ever lands on m_flags.
-	//!
-	//! Returns true if any bits were drained (caller can use this as a
-	//! hint to retry an allocate-pooled scan).
-	//!
-	//! Owner-only.  Calling from a non-owner thread is UB.  Call sites:
-	//!   * `allocate_pooled` saturation fallback (per-chunk).
-	//!   * `owner_release` empty check (per-chunk).
-	//!   * `cross_release` — N/A: cross_release runs on a cross-thread
-	//!     after owner exit; the shadow path is disabled there
-	//!     (`batch_return_to_bitmap` falls back to direct CAS-clear on
-	//!     BIT_OWNED == 0).
-	//!   * `release_dll_chunks_for_thread` — pre-release final sweep on
-	//!     thread exit (per chunk in this thread's DLL).
-	bool sweep_return_shadow() noexcept {
-		if constexpr (!kHasReturnShadow) return false;
-		FUINT *rf = return_flags();
-		// Cacheline-spread CAS-based sweep — owner walks return_flags in
-		// cacheline-strided passes so the OWNER's CAS attempt and a
-		// concurrent CROSS-THREAD `fetch_or` on the same chunk's
-		// `return_flags[]` only land on the same cacheline for one
-		// inner-loop step per pass.  Strong CAS (`r → 0`) on each word;
-		// CAS-fail = consumer fetch_or modified the word between our
-		// load and our CAS — leave the bits in the shadow, the next
-		// sweep picks them up.  Sweep is "best-effort" / "drain what we
-		// can" — never blocks on contention.  Per pass: m_count /
-		// CL_WORDS words touched, one per cacheline.
-		//
-		//   pass 0 (offset=0): words   0,  8, 16, 24, …
-		//   pass 1 (offset=1): words   1,  9, 17, 25, …
-		//   …
-		//   pass 7 (offset=7): words   7, 15, 23, 31, …
-		constexpr int CL_WORDS = (64 + sizeof(FUINT) - 1) / sizeof(FUINT);
-		bool any = false;
-		uint32_t packed_dec = 0;
-		for(int offset = 0; offset < CL_WORDS; ++offset) {
-			for(int idx = offset; idx < m_count; idx += CL_WORDS) {
-				FUINT r = rf[idx];                // relaxed load
-				if(r == 0) continue;
-				// Strong CAS: expect r, set 0.  Fail ⇒ concurrent
-				// cross-thread `fetch_or` raced us; leave the bits and
-				// move on (next sweep will pick them up).  This is the
-				// "skip cacheline on CAS-fail" that pairs with the
-				// outer cacheline-spread pass — the contended cacheline
-				// is dropped from THIS pass; the next pass (different
-				// offset, different word within the same cacheline) or
-				// the next sweep call retries.
-				if( !atomicCompareAndSet(r, FUINT(0), &rf[idx]))
-					continue;
-				any = true;
-				FUINT oldv = m_flags[idx];
-				FUINT newv = oldv & ~r;
-				m_flags[idx] = newv;
-				if(oldv == ~(FUINT)0u && newv != ~(FUINT)0u)
-					atomicDec(&m_flags_filled_cnt);
-				if(newv == 0 && oldv != 0)
-					++packed_dec;
-			}
-		}
-		if(packed_dec)
-			atomicFetchSub(&m_flags_packed, packed_dec);
-		return any;
-	}
 protected:
 	PoolAllocator(int count, char *addr);
 	inline void *allocate_pooled(unsigned int SIZE);
@@ -1700,22 +1515,6 @@ protected:
 	//!     `dll_head` and visits revived chunks.
 	struct ThreadLocalState {
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *my_chunk;
-		//! (§32) The chunk that was `my_chunk` immediately before the
-		//! current pinning — "1-back".  Avoid both ALLOCATING from it
-		//! (in `allocate_chunk_path` Phase 2 DLL walk) and SWEEPING
-		//! its `return_flags[]` shadow (in `allocate_pooled`
-		//! saturation): consumer threads' cross-thread frees are
-		//! statistically concentrated on the chunk producer JUST
-		//! exhausted (slots allocated most recently are the freshest
-		//! and most likely to be in-flight to a consumer).  Sweeping
-		//! or allocating from 1-back forces the owner's cache to
-		//! grab `return_flags` cachelines that the consumer is
-		//! actively writing — the false-sharing the §32 shadow split
-		//! was meant to avoid.  Skipping 1-back leaves the cacheline
-		//! in consumer's cache; the chunk gets revisited (and swept)
-		//! after one more pinning cycle when it's "2-back" and the
-		//! cacheline is cold.
-		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_one_back;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_head;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_tail;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_cursor;
