@@ -1255,7 +1255,18 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			}
 			continue;
 		}
-		if(this->m_flags_filled_cnt == this->m_count)
+		// (§94pct-gate) FS=true: bail when ≥ 93.75 % (= 1 − 1/16) of
+		// words are already 100 % filled.  Reached only after the walk
+		// hit a fully-filled word — at that point we already KNOW the
+		// chunk is saturated enough that adjacent words are likely also
+		// full.  Bailing here hands the alloc off to a less-saturated
+		// chunk in the DLL (or a fresh mmap) instead of walking the
+		// remaining 6 % of sparse-free-bit words.  Accepted trade-off:
+		// ~6 % slot under-utilisation in exchange for cutting the
+		// worst-case walk.  The check stays inside the loop (not at the
+		// entry) so bench_loop's tight FS=true 64 hot path pays nothing.
+		if(this->m_flags_filled_cnt >=
+		   this->m_count - this->m_count / 16)
 			return 0;
 		idx++;
 		if(idx == this->m_count) {
@@ -1363,11 +1374,16 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// m_count ≈ 4096 → ~4 µs/alloc).  The walk-once-and-bail logic
 	// below is also bounded by m_count and only pays that cost when
 	// the chunk is truly out of N-contiguous-zero runs (rare; only
-	// at chunk-fill boundary).  Quick exit when all FUINT words are
-	// fully filled — `m_flags_filled_cnt` is incrementally
-	// maintained (atomicInc on word-becomes-all-ones inside the CAS
-	// below; atomicDec on word-becomes-zero in batch_return_to_bitmap).
-	if(this->m_flags_filled_cnt == this->m_count)
+	// at chunk-fill boundary).
+	//
+	// (§max-n-gate) m_flags_filled_cnt for FS=false counts words that
+	// can no longer host a MAX_N-contiguous-zero run (see the CAS
+	// success block below).  Only safe to bail here for max-N requests
+	// — a smaller-N request may still find room in those words and
+	// must walk normally.
+	constexpr unsigned int MAX_N_HERE =
+	    PoolAllocator<ALIGN, false, DUMMY>::MAX_N;
+	if(this->m_flags_filled_cnt == this->m_count && N >= MAX_N_HERE)
 		return 0;
 
 	FUINT oldv, ones, cand;
@@ -1417,9 +1433,18 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
-				// maintain m_flags_filled_cnt so the quick
-				// "chunk is 100% full" check above stays accurate.
-				if(newv == ~(FUINT)0u)
+				// (§max-n-gate) Widened m_flags_filled_cnt for FS=false:
+				// count words that can no longer host a MAX_N-contiguous-
+				// zero run (not just words at 0xFF...F).  Smaller-N
+				// requests still walk fine; max-N requests get an O(1)
+				// bail at the early-exit above when every word is in this
+				// state.  Test the transition oldv-had-room → newv-no-room
+				// so a CAS landing inside an already-saturated word
+				// doesn't double-count.
+				constexpr unsigned int MAX_N_HERE =
+				    PoolAllocator<ALIGN, false, DUMMY>::MAX_N;
+				if(find_training_zeros(MAX_N_HERE, newv) == 0 &&
+				   find_training_zeros(MAX_N_HERE, oldv) != 0)
 					atomicInc( &this->m_flags_filled_cnt);
 				break;
 			}
@@ -1649,9 +1674,14 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 				if(atomicDecAndTest(&this->m_flags_packed))
 					i_am_releaser = true;
 			}
-			// maintain m_flags_filled_cnt symmetric with
-			// allocate_pooled's atomicInc on word-becomes-all-ones.
-			if(oldv == ~(FUINT)0u)
+			// (§max-n-gate) Symmetric with the widened atomicInc in
+			// allocate_pooled — decrement when a bit-clear restores
+			// MAX_N-contiguous-zero room that the word didn't have
+			// before.
+			constexpr unsigned int MAX_N_HERE =
+			    PoolAllocator<ALIGN, false, DUMMY>::MAX_N;
+			if(find_training_zeros(MAX_N_HERE, oldv) == 0 &&
+			   find_training_zeros(MAX_N_HERE, newv) != 0)
 				atomicDec( &this->m_flags_filled_cnt);
 		});
 	if(i_am_releaser) {
