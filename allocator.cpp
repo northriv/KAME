@@ -100,6 +100,23 @@
     #include <pthread.h>
 #endif
 
+// (§32) Drop-in default: the standalone DYLIB build interposes the FULL libc
+// malloc family by default on macOS, so kamepoolalloc is a real
+// DYLD_INSERT_LIBRARIES / drop-in allocator (like mimalloc/jemalloc) out of the
+// box.  Safe because the `malloc_size` co-interpose (see the macOS FULL block
+// near the bottom) returns the true capacity of pool pointers — without it the
+// Swift runtime (`__StringStorage`) and ObjC class realization corrupt.  Soak:
+// Foundation, libswiftCore (CPython), QtCore, C++ STL, 2000-thread stress — all
+// clean.  Opt out with -DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT (free+realloc only).
+// Linux/Windows dylibs keep the explicit -DKAMEPOOLALLOC_FULL_INTERCEPT opt-in
+// pending their own soak.  The inline kame.app (MH_EXECUTE) is unaffected — dyld
+// honours __interpose only from MH_DYLIB, so its interpose set is inert either way.
+#if defined(KAMEPOOLALLOC_DYLIB) && defined(__APPLE__) \
+    && !defined(KAMEPOOLALLOC_FULL_INTERCEPT) \
+    && !defined(KAMEPOOLALLOC_CONSERVATIVE_INTERCEPT)
+#  define KAMEPOOLALLOC_FULL_INTERCEPT 1
+#endif
+
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 // ===================================================================
 // (§31) Windows free-family redirect — genuine-CRT bypass pointers.
@@ -4661,13 +4678,29 @@ kame_interpose_entry kame_interposers_alloc[]
 // / `malloc_good_size`.  `free` and `realloc` interpose above stay
 // unconditional (correctness-critical for the pool's own pointers).
 extern "C" void *malloc(std::size_t);
+extern "C" std::size_t malloc_size(const void *);
 
 namespace {
+// (FULL) Co-interpose malloc_size so macOS size-queries — Swift
+// `__StringStorage` capacity, ObjC class realization — see the TRUE capacity
+// of POOL pointers; foreign pointers fall through to their owning zone.
+// Without this, malloc_size() returns 0 for a pooled allocation and the Swift
+// runtime corrupts (verified: libswiftCore CommandLine.arguments init SEGV).
+// This is the surface mimalloc/jemalloc co-interpose on macOS.
+std::size_t kame_malloc_size(const void *p) noexcept {
+    std::size_t s = PoolAllocatorBase::size_of(const_cast<void *>(p));
+    if(s) return s;                                  // pool pointer
+    if(malloc_zone_t *z = malloc_zone_from_ptr(p))   // foreign → its owning zone
+        return z->size(z, p);
+    return 0;
+}
 __attribute__((used))
 kame_interpose_entry kame_interposers_full[]
     __attribute__((section("__DATA,__interpose"))) = {
         { reinterpret_cast<const void *>(&kame_pool_malloc),
           reinterpret_cast<const void *>(&malloc) },
+        { reinterpret_cast<const void *>(&kame_malloc_size),
+          reinterpret_cast<const void *>(&malloc_size) },
 };
 } // namespace
 #  endif // KAMEPOOLALLOC_FULL_INTERCEPT

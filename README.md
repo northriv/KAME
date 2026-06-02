@@ -70,6 +70,22 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
   on Windows (§31) — the PE/COFF analogue, scoped to the deallocation family,
   so KAME allocations use the pool while Qt / CRT allocations stay on the CRT
   heap and frees are reconciled wherever they happen.
+- **Drop-in `malloc` replacement (macOS dylib, default-on)** — when built as a
+  standalone dynamic library (`-DKAMEPOOLALLOC_DYLIB`) on macOS, the pool also
+  interposes the full `malloc` family by default, so it works as a real
+  `DYLD_INSERT_LIBRARIES=libkamepoolalloc.dylib` drop-in like mimalloc / jemalloc
+  — every `malloc`/`free`/`realloc` in the host process routes through the pool.
+  A `malloc_size` co-interpose returns the true capacity of pool pointers, which
+  is what makes this Swift- and Objective-C-safe (the Swift runtime's
+  `__StringStorage` and ObjC class realization query `malloc_size`; an allocator
+  that lies here corrupts them).  Soak-validated against Foundation, libswiftCore,
+  CPython, QtCore, and the C++ STL.  Opt out with
+  `-DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT` for the `free`/`realloc`-only behaviour.
+  Linux/Windows dylibs keep this behind the explicit `-DKAMEPOOLALLOC_FULL_INTERCEPT`
+  opt-in pending their own soak.  The inline kame.app build (an `MH_EXECUTE`
+  image) is unaffected either way — dyld honours `__interpose` only from
+  `MH_DYLIB`, so only the strong-symbol `operator new`/`delete` override is live
+  there, as before.
 - **Verified** — TSAN race-free, UBSAN clean (incl. `vptr`), ASan clean; the
   chunk-claim / chunk-recycle protocol is TLA+ model-checked and the
   large-recycle cache's exclusive-ownership / no-premature-release (UAF /
@@ -94,7 +110,7 @@ also builds and is tested on Linux (64-bit and 32-bit).  Requires a host with
 
 | Toolchain | Live pool | Notes |
 |---|---|---|
-| macOS clang (x86-64 / arm64) | ✅ default | `__DATA,__interpose` `free` redirect; primary target |
+| macOS clang (x86-64 / arm64) | ✅ default | `__DATA,__interpose` `free` redirect; dylib build also interposes the full `malloc` family + `malloc_size` by default (Swift/ObjC-safe drop-in), opt out with `-DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT`; primary target |
 | Linux gcc/clang (x86-64, 32-bit) | ✅ default | strong-symbol `free` redirect; primary CI target |
 | Windows **MinGW64 + lld** | ✅ default | §31 free-family IAT redirect lets the pool coexist with Qt / libc++ (PE/COFF has no cross-module `operator new` interposition); verified on-target with Qt 6.10.1 |
 | Windows **MSVC** (cl) | ✅ default | runs the full live pool — the `_MSC_VER` shim in `allocator_prv.h` bridges the GCC-isms (`_Interlocked*` atomics, `<intrin.h>` bit-scan / overflow, static-init constructor hook) and the §31 redirect handles Qt/CRT coexistence; opt OUT with `KAME_DISABLE_POOL_MSVC` |
