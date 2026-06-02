@@ -122,7 +122,7 @@ runs.  `kame` is `LD_PRELOAD`'d against the same binary as the others; all are
 default-Release builds (no `-flto` / `-march=native` — mimalloc and jemalloc
 ship the same way).
 
-**x86-64, Intel Xeon @ 2.1 GHz (cloud VM, 4 vCPU), single thread, M ops/s:**
+**x86-64, Intel Xeon @ 2.1 GHz (cloud VM, 4 vCPU), single thread, M ops/s** — kame at `51632d1d`:
 
 | size    | system | mimalloc | jemalloc | **kame** |
 | ------- | ------ | -------- | -------- | -------- |
@@ -134,7 +134,7 @@ ship the same way).
 | 1 MiB   | 78     | 9        | 9        | **82**   |
 | 4 MiB   | 75     | 9        | 9        | 46       |
 
-**Same box, 4 threads (`mt:4`), M ops/s:**
+**Same box, 4 threads (`mt:4`), M ops/s** — kame at `51632d1d`:
 
 | size    | system | mimalloc | jemalloc | **kame** |
 | ------- | ------ | -------- | -------- | -------- |
@@ -181,7 +181,7 @@ replaced per-variable `_tlv_get_addr` calls with a single `mrs TPIDRRO_EL0`.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
 pages, `THP=always`), `srun --exclusive`, single-binary self-validation via
-`tests/alloc_tune_report`:**
+`tests/alloc_tune_report`** — kame at `b2f7a681`:
 
 Aggregate M ops/s (`alloc → touch byte 0 → free` loop) at 1 / 4 / 16 / 64 /
 128 concurrent threads:
