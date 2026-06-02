@@ -122,26 +122,27 @@ runs.  `kame` is `LD_PRELOAD`'d against the same binary as the others; all are
 default-Release builds (no `-flto` / `-march=native` — mimalloc and jemalloc
 ship the same way).
 
-**x86-64, Intel Xeon @ 2.1 GHz (cloud VM, 4 vCPU), single thread, M ops/s** — kame at `51632d1d`:
+**x86-64, Intel Xeon @ 2.1 GHz (cloud VM, 4 vCPU), single thread, M ops/s** —
+kamepoolalloc at `9ecc613d`, median of 5 runs:
 
-| size    | system | mimalloc | jemalloc | **kame** |
-| ------- | ------ | -------- | -------- | -------- |
-| 64 B    | 160    | 196      | 176      | **251**  |
-| 1 KiB   | 162    | 153      | 168      | 162      |
-| 16 KiB  | 82     | 101      | 82       | **160**  |
-| 64 KiB  | 75     | 103      | 8        | **113**  |
-| 256 KiB | 76     | 10       | 9        | **81**   |
-| 1 MiB   | 78     | 9        | 9        | **82**   |
-| 4 MiB   | 75     | 9        | 9        | 46       |
+| size    | system   | mimalloc | jemalloc   | **kame** |
+| ------- | -------- | -------- | ---------- | -------- |
+| 64 B    | 195      | 218      | **308**    | 266      |
+| 1 KiB   | 197      | 191      | **270**    | 193      |
+| 16 KiB  | 86       | **126**  | 85         | 101      |
+| 64 KiB  | 86       | **125**  | 10         | 84       |
+| 256 KiB | **86**   | 3        | 10         | 77       |
+| 1 MiB   | **81**   | 3        | 10         | 76       |
+| 4 MiB   | **85**   | 3        | 10         | 48       |
 
-**Same box, 4 threads (`mt:4`), M ops/s** — kame at `51632d1d`:
+**Same box, 4 threads (`mt:4`), M ops/s** — kame at `9ecc613d`:
 
-| size    | system | mimalloc | jemalloc | **kame** |
-| ------- | ------ | -------- | -------- | -------- |
-| 64 B    | 610    | 435      | 493      | **633**  |
-| 16 KiB  | 180    | 287      | 217      | **382**  |
-| 64 KiB  | 161    | 278      | 30       | **304**  |
-| 1 MiB   | 168    | 3        | 31       | **214**  |
+| size    | system   | mimalloc | jemalloc   | **kame** |
+| ------- | -------- | -------- | ---------- | -------- |
+| 64 B    | 776      | 860      | **1227**   | 1066     |
+| 16 KiB  | 343      | **501**  | 340        | 403      |
+| 64 KiB  | 342      | **498**  | 39         | 323      |
+| 1 MiB   | **303**  | 12       | 39         | 298      |
 
 **Apple MacBook Air M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
 `9ecc613d`, median of 5 runs.  `mimalloc` 3.3 and `kame` preloaded /
@@ -219,13 +220,24 @@ The same `alloc_tune_report` run self-validated the defaults on this hardware:
   `munmap`) — bounded, not catastrophic; the warm cache absorbs most syscalls
   in practice.
 
-kame leads decisively in the **16 KiB – 4 MiB** range — where mimalloc and
-jemalloc fall back to per-call `mmap`/`munmap` (≈ 8–10 M ops/s) while the
-recycle cache keeps kame at memory-warm speed — and at multi-thread large
-sizes.  In the tiny-object hot loop (≤ 1 KiB) it matches mimalloc; jemalloc's
-tcache edges ahead on some sizes.  These are **no-touch** micro-benchmarks —
-for workloads that *touch* the buffers the per-op cost is dwarfed by memory
-bandwidth and the allocators converge.
+The **cliff at 256 KiB** is the headline: mimalloc drops from 218 to 3 M ops/s,
+jemalloc from 85 to 10 M ops/s — both revert to per-call `mmap`/`munmap`
+(≈ 3–10 M ops/s flat), while kame's per-thread recycle cache keeps it at
+**76–77 M ops/s** — a 7–25× lead over the others at this tier.  The system
+allocator (glibc ptmalloc) is also flat at large sizes in this particular
+tight-loop pattern because ptmalloc adaptively raises its `M_MMAP_THRESHOLD`
+when it observes repeated large alloc/free pairs; in production workloads
+with mixed sizes, that threshold is not permanently raised and large allocs
+revert to per-call `mmap`, closing the same cliff.
+
+At small-to-medium sizes (64 B – 16 KiB), jemalloc's tcache and mimalloc's
+segregated lists trade wins; kame beats the system allocator across the whole
+range.  The multi-thread picture is similar: kame scales linearly through
+4 threads at every tier while jemalloc collapses at 64 KiB (39 M ops/s) and
+mimalloc at 1 MiB (12 M ops/s).  These are **touch-first-byte** benchmarks —
+`malloc(N)`, write `p[0]`, `free(p)` — so only one page fault is issued per
+op regardless of `N`.  Workloads that *write the whole buffer* converge on
+memory bandwidth and the per-op allocator cost is amortised.
 
 The point is not the micro-benchmark peak but the **flat curve**: kame has no
 size cliff and no per-thread working-set cliff, so a real mixed workload (small
