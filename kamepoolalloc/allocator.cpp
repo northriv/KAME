@@ -4262,8 +4262,15 @@ extern "C" __attribute__((noinline)) void free(void *p) {
 	kame_free(p);
 }
 extern "C" __attribute__((noinline)) void *malloc(std::size_t n) {
-	if(__builtin_expect(!g_sys_image_loaded || s_alloc_tls_off, 0))
-		return libsystem_malloc_for_pool(n);
+	// No `!g_sys_image_loaded || s_alloc_tls_off` pre-filter here: it is
+	// redundant with the gating `new_redirected` already performs, exactly
+	// as `operator new` / `kame_pool_malloc` rely on.  Pre-activation and
+	// post-teardown both leave `g_thread_freelist_ptr[bucket]` null (the
+	// IE-TLS table is zero-initialised by the loader; thread-exit cleanup
+	// re-zeroes it), so the first miss routes to `cold_first_access`, which
+	// checks the flags and falls back to `libsystem_malloc_for_pool`.
+	// Dropping the duplicate check saves one IE-TLS read + one global load
+	// on every C `malloc` — the path the malloc/free benchmarks all take.
 	if(void *p = new_redirected(n)) return p;
 	errno = ENOMEM;
 	return nullptr;
