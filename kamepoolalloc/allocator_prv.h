@@ -2184,14 +2184,18 @@ inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 	return bucket_for_size_full(size);
 }
 
-//! (§lut) Compile-time proof that the fast `bucket_for_size` is
-//! byte-for-byte identical to `bucket_for_size_full` across the whole
-//! bucketed range.  Catches any future drift between the LUT's granule
-//! assumption (boundaries at multiples of 8) and the authoritative
-//! routine — a silent mismatch would misroute an alloc to the wrong
-//! slot size.  constexpr ⇒ a regression breaks the build, not a test.
+//! (§lut) Compile-time proof that the LUT fast path is byte-for-byte
+//! identical to `bucket_for_size_full`.  Only the LUT's own domain
+//! (369..2048) needs checking: outside it `bucket_for_size` either
+//! returns the `(size+15)>>4` formula (≤368, identical to full's first
+//! branch) or tail-calls `bucket_for_size_full` (>2048).  Restricting
+//! the loop to 369..2048 (~1680 iterations) keeps the constexpr step
+//! count well under Clang's default 2^20 evaluation-step limit — the
+//! full 1..32768 sweep (~3 M steps) overflowed it on Apple-clang while
+//! GCC accepted it.  A silent granule/boundary drift still breaks the
+//! build, not just a test.
 constexpr bool kBucketLutMatchesFull() {
-	for(std::size_t s = 1; s <= ALLOC_MAX_BUCKETED_SIZE; ++s)
+	for(std::size_t s = (std::size_t)ALLOC_SIZE23 + 1u; s <= 2048u; ++s)
 		if(bucket_for_size(s) != bucket_for_size_full(s))
 			return false;
 	return true;
