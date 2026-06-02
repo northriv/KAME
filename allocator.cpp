@@ -1215,38 +1215,43 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			return p;
 	}
 #endif
-	FUINT one;
+	FUINT mask;
 	int idx = this->m_idx;
 	for(;;) {
 		FUINT *pflag = &this->m_flags[idx];
 		FUINT oldv = *pflag;
 		if(oldv != ~(FUINT)0u) {
-			one = find_zero_forward(oldv);
-//			assert(count_bits(one) == SIZE / ALIGN);
-//			assert( !(one & oldv));
-			// Always-CAS path (formerly an oldv==0 non-atomic fast write
-			// existed here). Without an external lock around the chunk —
-			// which the TLS s_tls.my_chunk fast path in allocate() removes —
-			// the non-atomic store would race with another thread doing
-			// the same on the same flag word, producing torn writes that
-			// hand the same bit to two threads. CAS even at oldv==0 is
-			// only marginally slower and keeps the chunk thread-safe.
-			FUINT newv = oldv | one; //set a flag.
+			FUINT newv;
+			if constexpr (FS && DUMMY) {
+				// (§33 γ) Bulk-claim: set ALL clear bits of the word.
+				// One CAS claims up to FUINT_BITS slots; the lowest is
+				// returned and the rest are pushed onto the chunk's
+				// `m_freelist_head[0]` below.  Producer's hot path
+				// (inline `freelist_pop` in `new_redirected`) then
+				// services up to `popcount(mask) - 1` allocations
+				// without re-entering `slow_allocate`.
+				//
+				// Trade-off: bulk-claim saturates the word in one CAS,
+				// so `m_flags_filled_cnt` increments on every successful
+				// CAS.  Acceptable — saturation just indicates "no more
+				// bits in this word", which is what we already cause.
+				//
+				// Invariant preserved (cf. §29 pre-fill doc):
+				//   bit set ⇔ slot live in user OR in owner freelist
+				// All bits we claim go straight to the freelist (or
+				// are returned to the caller), so the invariant holds.
+				mask = ~oldv;
+				newv = ~(FUINT)0u;
+			}
+			else {
+				mask = find_zero_forward(oldv);
+				newv = oldv | mask;
+			}
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
 				if(newv == ~(FUINT)0u) {
                     atomicInc( &this->m_flags_filled_cnt);
-                    // Proactive Phase 3 trigger: when this chunk hits 4/5
-                    // (80 %) of its words fully filled, flush this
-                    // thread's cross-dealloc batch.  Any batched frees
-                    // for OTHER chunks land back in their bitmaps,
-                    // letting the next chunk-full event's DLL scan
-                    // (Phase 2) find recovered space before mmaping
-                    // fresh memory.  Sampled at word-fill granularity
-                    // (~1 in FUINT_BITS = 64 allocs) so the overhead is
-                    // amortised; `flush()` is a no-op when the batch is
-                    // empty so post-cross-event calls are cheap.
                     if(this->m_flags_filled_cnt * 5 >= this->m_count * 4)
                         tls_cross_dealloc_batch.flush();
                 }
@@ -1263,7 +1268,29 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		}
 	}
 
-	int sidx = count_zeros_forward(one);
+	int sidx = count_zeros_forward(mask);
+	if constexpr (FS && DUMMY) {
+		// (§33 γ) Push all claimed slots EXCEPT the lowest onto the
+		// chunk's freelist.  The lowest (= sidx position) is returned
+		// directly below.  Build the chain by traversing the remaining
+		// bits of `mask` in ascending position order; each new slot's
+		// next pointer is the previous head, and the final slot becomes
+		// the new freelist head.  Non-atomic — `m_freelist_head[0]` is
+		// owner-only writer (the freelist is single-thread per chunk).
+		FUINT remaining = mask & (mask - 1);   // clear lowest set bit
+		if(remaining) {
+			char *mempool = this->mempool();
+			char *chain_head = this->m_freelist_head[0];
+			do {
+				int s = count_zeros_forward(remaining);
+				remaining &= remaining - 1;
+				char *slot = &mempool[(static_cast<size_t>(idx) * sizeof(FUINT) * 8u + s) * ALIGN];
+				*reinterpret_cast<char **>(slot) = chain_head;
+				chain_head = slot;
+			} while(remaining);
+			this->m_freelist_head[0] = chain_head;
+		}
+	}
 
 	this->m_idx = idx;
 
@@ -2400,8 +2427,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	if( !s_tls.dll_exhausted) {
 		auto *c = s_tls.dll_cursor ? s_tls.dll_cursor : s_tls.dll_head;
 		while(c) {
-			if(c != s_tls.my_chunk) {
+			// (§33) Skip pinned (my_chunk) and 1-back (dll_one_back):
+			// pinned just saturated so it has no clear bits in m_flags;
+			// 1-back is hot with the consumer's cross-thread CAS-clears
+			// (slots producer JUST allocated are the freshest in the
+			// consumer's drain queue), so producer's bulk-claim CAS
+			// there would ping-pong the cacheline with the consumer.
+			// Visit 2-back+ chunks where the cacheline has cooled.
+			if(c != s_tls.my_chunk && c != s_tls.dll_one_back) {
 				if(void *p = c->allocate_pooled(SIZE)) {
+					s_tls.dll_one_back = s_tls.my_chunk;
 					s_tls.my_chunk = c;
 					s_tls.dll_cursor = c;
 #ifdef GUARDIAN
@@ -2448,6 +2483,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	}
 	tls_alloc_thread_exit_cleanup.add(
 	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
+	s_tls.dll_one_back = s_tls.my_chunk;  // (§33) shift on fresh-mmap pin
 	s_tls.my_chunk = chunk;
 	chunk->m_dll_prev = s_tls.dll_tail;
 	chunk->m_dll_next = nullptr;
