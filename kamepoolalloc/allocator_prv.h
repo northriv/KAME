@@ -1700,6 +1700,22 @@ protected:
 	//!     `dll_head` and visits revived chunks.
 	struct ThreadLocalState {
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *my_chunk;
+		//! (§32) The chunk that was `my_chunk` immediately before the
+		//! current pinning — "1-back".  Avoid both ALLOCATING from it
+		//! (in `allocate_chunk_path` Phase 2 DLL walk) and SWEEPING
+		//! its `return_flags[]` shadow (in `allocate_pooled`
+		//! saturation): consumer threads' cross-thread frees are
+		//! statistically concentrated on the chunk producer JUST
+		//! exhausted (slots allocated most recently are the freshest
+		//! and most likely to be in-flight to a consumer).  Sweeping
+		//! or allocating from 1-back forces the owner's cache to
+		//! grab `return_flags` cachelines that the consumer is
+		//! actively writing — the false-sharing the §32 shadow split
+		//! was meant to avoid.  Skipping 1-back leaves the cacheline
+		//! in consumer's cache; the chunk gets revisited (and swept)
+		//! after one more pinning cycle when it's "2-back" and the
+		//! cacheline is cold.
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_one_back;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_head;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_tail;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_cursor;
