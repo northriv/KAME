@@ -1054,7 +1054,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	}
 	// (§32) Zero-init the cross-thread return shadow bitmap storage.
 	//
-	// Layout (FS=true ALIGN>=32 real chunk only — `kHasReturnShadow`):
+	// Layout (every real FS=true chunk — `kHasReturnShadow`):
 	//   [PoolAllocator object]
 	//   [m_flags : count * FUINT]
 	//   [align-up to 64-byte boundary]
@@ -1067,9 +1067,9 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	// "no bits set in the shadow after construction" auditable and covers
 	// the §29 pre-fill path where the chunk was reused warm.
 	//
-	// For every other chunk template (ALIGN=16, FS=false, FS=true base ctor
-	// pass with DUMMY=false), `return_flags()` compile-time-folds to
-	// nullptr and this block elides — no behaviour change.
+	// For FS=false and FS=true base-ctor passes with DUMMY=false,
+	// `return_flags()` compile-time-folds to nullptr and this block
+	// elides — no behaviour change there.
 	if constexpr (kHasReturnShadow) {
 		FUINT *rf = this->return_flags();
 		for(int i = 0; i < count; ++i)
@@ -1128,20 +1128,14 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	    "PoolAllocator + alignment must fit in ALLOC_CHUNK_K_MAX - 64.  "
 	    "Increase K_MAX or shrink the struct.");
 	// (§32) Reserve space for the cross-thread return shadow bitmap on
-	// real FS=true chunks with ALIGN >= 32.  The shadow is the same word
-	// count as m_flags and lives `alignas(64)`-separated, so the
-	// worst-case storage cost is:
+	// every real FS=true chunk (including ALIGN=16, after the K_MAX bump
+	// 4 KiB → 8 KiB).  The shadow is the same word count as m_flags and
+	// lives `alignas(64)`-separated, so the worst-case storage cost is:
 	//   pad_to_next_64 (≤ 56) + count * sizeof(FUINT)
-	// ALIGN=16 chunks are excluded — at ALIGN=16 the bitmap is already
-	// large enough that adding a shadow would force count below the
-	// slot-region capacity and waste slots; and the cliff (false sharing
-	// on m_flags between producer's allocate-CAS and consumer's
-	// CrossDeallocBatch::flush CAS) does not manifest at ALIGN=16 (size
-	// 8 B is fast on every measured workload).  FS=false buckets keep
-	// the single-bitmap layout — the cross-thread free path there
-	// already routes per-call (no batch sort), so the false-sharing
-	// hot path the shadow targets is not present.
-	constexpr bool kHasReturnShadow = FS && DUMMY && ALIGN >= 32u;
+	// FS=false buckets keep the single-bitmap layout — the cross-thread
+	// free path there already routes per-call (no batch sort), so the
+	// false-sharing hot path the shadow targets is not present.
+	constexpr bool kHasReturnShadow = FS && DUMMY;
 	constexpr size_t kReturnShadowPadMax = kHasReturnShadow ? 64u : 0u;
 	// Slot region size = chunk_size - K_MAX = (size + ALLOC_CHUNK_HEADER)
 	// - K_MAX = size - (K_MAX - ALLOC_CHUNK_HEADER).  The slot region
