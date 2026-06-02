@@ -38,6 +38,17 @@ if(USE_KAME_ALLOCATOR AND NOT TARGET kamepoolalloc)
     target_include_directories(kamepoolalloc PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
     target_compile_definitions(kamepoolalloc PUBLIC KAMEPOOLALLOC_DYLIB)
+    # Hot-path codegen: hide the (inline, COMDAT/weak) internal functions so
+    # intra-DSO self-calls bind DIRECTLY instead of through the PLT.  Without
+    # `-fvisibility-inlines-hidden`, `kame_free`'s call to the inline
+    # `PoolAllocatorBase::deallocate` goes `call …@plt` on every free; with it
+    # the symbol drops to local and the call is direct.  `-fno-semantic-
+    # interposition` does the same for the non-inline self-calls
+    # (`new_redirected_large`, `radix_lookup_slow`).  Neither changes which
+    # symbols are exported — `malloc`/`free`/… stay global and interposable,
+    # so the LD_PRELOAD drop-in semantics are untouched.
+    target_compile_options(kamepoolalloc PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fvisibility-inlines-hidden;-fno-semantic-interposition>)
     set_target_properties(kamepoolalloc PROPERTIES
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)
