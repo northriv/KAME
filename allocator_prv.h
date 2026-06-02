@@ -235,6 +235,33 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 	#define ALLOC_TLS_IE thread_local
 #endif
 
+//! (§33) Opt-in "1-back skip": when the producer's chunk-search
+//! (`allocate_chunk_path` Phase 2 DLL walk) looks for an allocatable
+//! chunk, skip not only the pinned chunk but also the one that was
+//! pinned immediately before ("1-back").  In a producer→consumer
+//! hand-off the consumer's cross-thread frees concentrate on the chunk
+//! the producer JUST finished, so that chunk's `m_flags` cacheline is
+//! hot with the consumer's CAS-clears; re-pinning it to CAS-SET the
+//! same word ping-pongs the cacheline producer↔consumer.  Skipping it
+//! for one pin cycle keeps the line in the consumer's cache.
+//!
+//! DEFAULT OFF.  On single-socket boxes (shared L3) there is no
+//! expensive cross-socket cacheline transfer to avoid, so the skip is
+//! neutral-to-negative (-10..0 % on a 4-core dev box across worker
+//! counts 2/4/8 and sizes 8..1024 B — the extra chunk-search step costs
+//! more than the contention it dodges).  The intended payoff is on
+//! multi-socket NUMA (e.g. 128-core / 8-NUMA) where a cross-socket
+//! `m_flags` line bounce is genuinely expensive; enable there and
+//! measure.  Build with `-DKAME_POOL_ONEBACK_SKIP=1` to turn on.
+//!
+//! Chunk release is unaffected either way — the empty-neighbour
+//! `owner_release` path is separate from this allocate-search walk and
+//! still visits every chunk.  Memory footprint (`chunks_live`) is
+//! identical with and without the skip.
+#ifndef KAME_POOL_ONEBACK_SKIP
+	#define KAME_POOL_ONEBACK_SKIP 0
+#endif
+
 //! Allocation unit (1 chunk = N × this).  every mmap region is
 //! a uniform 32 MiB block carved into 128 fixed-size 256 KiB "units".
 //! A chunk = 1, 2, or 4 contiguous units depending on the per-template
@@ -1515,6 +1542,15 @@ protected:
 	//!     `dll_head` and visits revived chunks.
 	struct ThreadLocalState {
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *my_chunk;
+#if KAME_POOL_ONEBACK_SKIP
+		//! (§33) The chunk pinned immediately before `my_chunk` —
+		//! "1-back".  Skipped (along with `my_chunk`) in the
+		//! `allocate_chunk_path` Phase 2 DLL walk.  See
+		//! `KAME_POOL_ONEBACK_SKIP` doc above for the rationale and the
+		//! single-socket-vs-NUMA trade-off.  Only present when the
+		//! feature is compiled in — zero cost otherwise.
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_one_back;
+#endif
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_head;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_tail;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_cursor;

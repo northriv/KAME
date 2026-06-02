@@ -2348,6 +2348,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				// rewalks from head.
 				if(s_tls.dll_cursor == nx)
 					s_tls.dll_cursor = nxnext;
+#if KAME_POOL_ONEBACK_SKIP
+				// (§33) Clear dll_one_back if it pointed at the chunk
+				// we're releasing — otherwise it dangles and a chunk
+				// reused at the same address would be wrongly skipped
+				// (benign ABA, but cheap to avoid).
+				if(s_tls.dll_one_back == nx)
+					s_tls.dll_one_back = nullptr;
+#endif
 				s_tls.dll_exhausted = false;
 				// (1b) Clear m_owner_id BEFORE the destructor — see the
 				// FS=true batch_return_to_bitmap sibling for the rationale.
@@ -2400,8 +2408,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	if( !s_tls.dll_exhausted) {
 		auto *c = s_tls.dll_cursor ? s_tls.dll_cursor : s_tls.dll_head;
 		while(c) {
+			// (§33) Skip the pinned chunk always; skip "1-back" too when
+			// `KAME_POOL_ONEBACK_SKIP` is enabled — see the macro doc.
+#if KAME_POOL_ONEBACK_SKIP
+			if(c != s_tls.my_chunk && c != s_tls.dll_one_back) {
+#else
 			if(c != s_tls.my_chunk) {
+#endif
 				if(void *p = c->allocate_pooled(SIZE)) {
+#if KAME_POOL_ONEBACK_SKIP
+					s_tls.dll_one_back = s_tls.my_chunk;  // pin shift
+#endif
 					s_tls.my_chunk = c;
 					s_tls.dll_cursor = c;
 #ifdef GUARDIAN
@@ -2448,6 +2465,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	}
 	tls_alloc_thread_exit_cleanup.add(
 	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
+#if KAME_POOL_ONEBACK_SKIP
+	s_tls.dll_one_back = s_tls.my_chunk;  // (§33) pin shift on fresh-mmap
+#endif
 	s_tls.my_chunk = chunk;
 	chunk->m_dll_prev = s_tls.dll_tail;
 	chunk->m_dll_next = nullptr;
@@ -2604,6 +2624,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 	s_tls.dll_head = nullptr;
 	s_tls.dll_tail = nullptr;
 	s_tls.my_chunk = nullptr;
+#if KAME_POOL_ONEBACK_SKIP
+	s_tls.dll_one_back = nullptr;  // (§33) all chunks releasing — clear
+#endif
 	// thread exit → cursor and exhausted flag both moot.
 	s_tls.dll_cursor = nullptr;
 	s_tls.dll_exhausted = false;
