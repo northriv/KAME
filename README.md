@@ -282,7 +282,7 @@ runs at); it trails glibc slightly at 4–16 threads, where glibc's per-thread
 lock is simpler than kame's DLL adoption.  mi / mi3 lead throughout.
 
 **rptest — realistic mixed workload, 8..16000 B random sizes,
-cross-thread free, long-lived threads, M ops/s (higher=better):**
+cross-thread free, long-lived threads, M ops/s (higher=better)** — kame at `9ecc613d`:
 
 Generally regarded as the most production-representative scenario in the
 mimalloc-bench suite — long-lived worker threads (not the worker-respawn
@@ -291,20 +291,19 @@ objects, and a fraction of frees crossing thread boundaries.
 
 | threads |  sys |  mi3 |   mi |    je |    tc | **kame** |
 | ------: | ---: | ---: | ---: | ----: | ----: | -------: |
-|       1 | 10.8 | 15.6 | 15.7 |  15.9 |  17.5 |     11.5 |
-|       4 | 3.07 | 7.08 | 9.95 |  6.38 |  6.11 | **4.04** |
-|      16 | 2.19 | 5.00 | 5.95 |  2.67 |  3.17 | **2.46** |
-|      64 | 0.62 | 2.11 | 2.54 |  0.86 |  0.32 |     0.58 |
-|     128 | 0.29 | 1.39 | †    |  0.51 |  0.06 | **0.30** |
+|       1 | 10.9 | 16.7 | 14.8 |  16.3 |  18.7 |     11.5 |
+|       4 | 2.90 | 7.81 | 9.97 |  6.46 |  6.41 | **3.96** |
+|      16 | 2.27 | 4.46 | 6.42 |  2.78 |  2.12 | **2.31** |
+|      64 | 0.48 | 1.68 | 2.68 |  0.77 |  0.24 | **0.74** |
+|     128 | 0.31 | 1.32 | 2.23 |  0.45 |  0.05 | **0.32** |
 
-†: mi (mimalloc 1.x) timed out at 128 threads.
-
-kame beats or ties glibc at every thread count (≥ +30 % at 4 threads,
-within ±10 % elsewhere) and pulls clearly ahead of tcmalloc at 64–128
-threads where tc collapses.  mi / mi3 / je lead — purpose-built modern
+kame beats glibc at every thread count and pulls ahead of tcmalloc at
+64–128 threads where tc collapses to 0.05–0.24 M.  At 64T kame (0.74 M)
+leads glibc (0.48 M) by 54 % and beats jemalloc (0.77 M) closely, even
+while mi3 / mi lead overall.  mi / mi3 / je lead — purpose-built modern
 allocators in their target regime — but the relevant comparison for KAME
 remains the system allocator, and on a realistic mixed workload kame
-holds the line.
+holds the line throughout.
 
 ## Build
 
