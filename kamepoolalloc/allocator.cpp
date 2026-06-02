@@ -3249,23 +3249,15 @@ PoolAllocatorBase::deallocate(void *p) {
 		// back_off byte flags it — NO chunk_header read added to the hot
 		// owner-free path (preserves the (1b) cache-line discipline).
 		// Free the whole N-unit chunk (total bytes in chunk_header[32..39]).
-		if(__builtin_expect((back_off_raw & 0x80u) != 0u, 0)) {
-			size_t bytes = *reinterpret_cast<std::uint64_t *>(
-			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
-			// (§28.2) Leaving the "live in program" bucket — whether the
-			// chunk lands in the cache (recycle_push success) or is fully
-			// released (deallocate_chunk), the program no longer owns it.
-			stats_dec_dedicated(bytes);
-			// (§22) Recycle into the per-thread cache, keeping the units
-			// CLAIMED and the chunk_header intact for warm reuse (no
-			// bitmap clear, no madvise here).  On overflow the cache
-			// returns false and we do the real release now.  The unique
-			// owner (this thread, or whichever later evicts it) performs
-			// the N-bit bitmap-CAS clear inside deallocate_chunk.
-			if( !large_recycle_push(chunk_base, bytes, LRC_CHUNK))
-				deallocate_chunk(chunk_base, bytes);
-			return true;
-		}
+		// (§hot-tls) bit-7 (dedicated-chunk flag) check moved BELOW the
+		// owner-id compare.  `allocate_dedicated_chunk` zeros the would-be
+		// m_owner_id slot in the K_MAX gap (see allocator_prv.h chunk
+		// layout diagram), so a dedicated chunk's m_owner_id read always
+		// returns 0 — guaranteed not to match any thread's non-zero
+		// owner_id, so the chunk falls through to the cold path where the
+		// bit-7 check selects the dedicated handler.  Net: TWO INSTRUCTIONS
+		// (`test %dl,%dl; js`) gone from the hot-path prologue for the
+		// common regular-chunk free.
 		// (1b) Owner-free FAST PATH — touches ONLY chunk_obj's cache line
 		// (chunk_base + ALLOC_CHUNK_HEADER), NEVER chunk_header (cache
 		// line 0, where palloc lives at +8 and size_info at +0).  Under
@@ -3349,6 +3341,33 @@ PoolAllocatorBase::deallocate(void *p) {
 				g_thread_freelist_ptr[bucket] =
 				    &chunk_obj->m_freelist_head[local];
 			}
+			return true;
+		}
+		// Owner mismatch.  Either: dedicated chunk (m_owner_id == 0,
+		// never matches), or regular chunk being freed cross-thread /
+		// released / post-teardown.  Bit-7 of the already-loaded
+		// `back_off_raw` flags the dedicated case; check before the
+		// vtable dispatch below (which would mis-interpret a dedicated
+		// chunk's stale chunk_header.fn).  Defensive `goto vtable_dispatch`
+		// jumps from the owner-matched block above skip THIS bit-7 check
+		// (they jump to the label directly), which is correct: those gotos
+		// fire only when m_owner_id DID match, and m_owner_id never
+		// matches for dedicated.
+		if(__builtin_expect((back_off_raw & 0x80u) != 0u, 0)) {
+			size_t bytes = *reinterpret_cast<std::uint64_t *>(
+			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+			// (§28.2) Leaving the "live in program" bucket — whether the
+			// chunk lands in the cache (recycle_push success) or is fully
+			// released (deallocate_chunk), the program no longer owns it.
+			stats_dec_dedicated(bytes);
+			// (§22) Recycle into the per-thread cache, keeping the units
+			// CLAIMED and the chunk_header intact for warm reuse (no
+			// bitmap clear, no madvise here).  On overflow the cache
+			// returns false and we do the real release now.  The unique
+			// owner (this thread, or whichever later evicts it) performs
+			// the N-bit bitmap-CAS clear inside deallocate_chunk.
+			if( !large_recycle_push(chunk_base, bytes, LRC_CHUNK))
+				deallocate_chunk(chunk_base, bytes);
 			return true;
 		}
 	vtable_dispatch:
@@ -3648,6 +3667,14 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 		*reinterpret_cast<std::uint64_t *>(
 		    cached + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET) =
 		    (std::uint64_t)actual;
+		// (§hot-tls) Zero the would-be m_owner_id slot in the K_MAX gap so
+		// the deallocate hot path's owner-id compare cannot match (real
+		// owner_ids are non-zero).  Lets `deallocate` skip the bit-7 check
+		// on the hot path and detect dedicated chunks via the natural
+		// owner-id mismatch.  Bucket-origin recycled blocks may carry a
+		// stale m_owner_id here; restamp it unconditionally.
+		reinterpret_cast<PoolAllocatorBase *>(
+		    cached + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
 		writeBarrier();
 		// (§28.2) Leaving the cache for the program.
 		stats_inc_dedicated(actual);
@@ -3671,6 +3698,14 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	*reinterpret_cast<std::uint64_t *>(
 	    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET) =
 	    (std::uint64_t)chunk_size;
+	// (§hot-tls) Zero the would-be m_owner_id slot in the K_MAX gap so
+	// the deallocate hot path's owner-id compare never matches for this
+	// chunk.  `claim_chunk` returns mmap-fresh memory (zero-init) on the
+	// truly-first claim, but the unit may have been previously held by a
+	// bucket chunk that left a non-zero m_owner_id behind.  Stamp it
+	// unconditionally — single uint32 store, negligible.
+	reinterpret_cast<PoolAllocatorBase *>(
+	    chunk_base + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
 	writeBarrier();
 	// (§28.2) Fresh-claim path: also entering the "live in program" bucket.
 	stats_inc_dedicated(chunk_size);
