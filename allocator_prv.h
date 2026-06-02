@@ -1714,12 +1714,19 @@ public:
 	//! `KAME_DECL_BUCKET` block (slot/ALIGN at the highest bucket each
 	//! ALIGN serves).
 	static constexpr unsigned int MAX_N =
-	    (ALIGN == 32u)   ? 7u  :  // bucket 14 slot=224 → N=ceil((216+8)/32)
-	    (ALIGN == 64u)   ? 17u :  // bucket 31 slot=1088
-	    (ALIGN == 256u)  ? 17u :  // bucket 39 slot=4352
-	    (ALIGN == 1024u) ? 17u :  // bucket 47 slot=17408 (full-usable)
-	    (ALIGN == 4096u) ? 8u  :  // bucket 51 slot=32768 (full-usable)
+	    (ALIGN == 32u)   ? 8u  :  // bucket 14 SIZE=224 → N=ceil((224+8)/32)=8
+	    (ALIGN == 64u)   ? 17u :  // bucket 31 SIZE=1080 → N=ceil(1088/64)=17
+	    (ALIGN == 256u)  ? 17u :  // bucket 39 SIZE=4344 → N=ceil(4352/256)=17
+	    (ALIGN == 1024u) ? 17u :  // bucket 47 SIZE=17408 → N=17 (full-usable)
+	    (ALIGN == 4096u) ? 8u  :  // bucket 51 SIZE=32768 → N=8 (full-usable)
 	                       1u;
+	// Safety: an over-estimate of MAX_N is harmless — the early-exit gate
+	// `m_flags_filled_cnt == m_count && N >= MAX_N` then never fires for
+	// any real request (N can't reach an inflated MAX_N), so the chunk is
+	// always walked.  An under-estimate is also safe: bailing when no word
+	// hosts a MAX_N-run correctly implies no larger-N run exists.  Either
+	// way there is no wrong-skip and no spurious mmap; only the
+	// optimization's reach changes.
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	PoolAllocator(int count, char *addr);
