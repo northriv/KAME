@@ -143,36 +143,39 @@ ship the same way).
 | 64 KiB  | 161    | 278      | 30       | **304**  |
 | 1 MiB   | 168    | 3        | 31       | **214**  |
 
-**Apple M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
-`820c2c5f` (§28.4), median of 5 runs (`mimalloc` 3.3 preloaded via
-`DYLD_INSERT_LIBRARIES`).  Both M3 tables below were measured on this commit:
+**Apple M3 Max (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
+`b2f7a681`, median of 5 runs.  `mimalloc` 3.3 and `kame` preloaded /
+linked via `DYLD_INSERT_LIBRARIES`.  Both M3 tables below were measured
+on this commit:
 
 | size    | system | mimalloc | **kame** |
 | ------- | ------ | -------- | -------- |
-| 64 B    | 93     | 249      | **292**  |
-| 1 KiB   | 76     | 213      | **261**  |
-| 16 KiB  | 80     | 123      | **254**  |
-| 64 KiB  | 24     | **137**  | 131      |
-| 256 KiB | 25     | **136**  | 131      |
-| 1 MiB   | 25     | 6.7      | **131**  |
-| 8 MiB   | 43     | 5.9      | **99**   |
+| 64 B    | 110    | 520      | **416**  |
+| 1 KiB   | 87     | **473**  | 293      |
+| 16 KiB  | 93     | 206      | **240**  |
+| 64 KiB  | 25     | **207**  | 129      |
+| 256 KiB | 25     | **207**  | 129      |
+| 1 MiB   | 26     | 6.7      | **118**  |
+| 8 MiB   | 45     | 6.1      | **105**  |
 
-**Apple M3, multi-thread aggregate scaling, M ops/s (1 / 4 / 8 threads):**
+**Apple M3 Max, multi-thread aggregate scaling, M ops/s (1 / 4 / 8 threads):**
 
-| size   | system          | mimalloc            | **kame**           |
-| ------ | --------------- | ------------------- | ------------------ |
-| 64 KiB | 12 / 1.4 / 1.0  | 68 / 228 / **327**  | 64 / 206 / 280     |
-| 1 MiB  | 12 / 1.4 / 1.0  | 3.3 / 3.4 / 2.4     | **65 / 178 / 279** |
+| size   | system        | mimalloc              | **kame**            |
+| ------ | ------------- | --------------------- | ------------------- |
+| 64 KiB | 24 / 3 / 2    | 199 / **667 / 763**   | **127** / 76 / 59   |
+| 1 MiB  | 23 / 2 / 2    | 6 / 7 / 5             | **100 / 102** / 57  |
 
-At the **1 MiB+** chunk/large tier kame is the only allocator that *scales*
-with threads: system malloc's large path is lock-serialised — it runs
-*backwards* (12 → 1 M ops/s as threads rise) — and mimalloc's large tier stalls
-(~3 M), while kame climbs to **279 M ops/s at 1 MiB / 8 threads**.  At 64 KiB
-both kame and mimalloc scale well (mimalloc marginally ahead, 327 vs 280).
+At the **1 MiB** large tier kame leads at every thread count: system is
+lock-serialised (23 → 2), mimalloc stalls at ~6 M ops/s, and kame stays flat
+at **100–102 M ops/s** through 4 threads (17× ahead of mimalloc) before the
+per-thread L1 recycle cache saturates at 8T.  At 64 KiB kame leads
+single-threaded (**127 M** vs 199 for mimalloc and 24 for system) but mimalloc
+3.3's mmap tier scales super-linearly in aggregate to 763 M at 8T, whereas
+kame's L2 recycle cache becomes a contention point under heavy MT pressure.
 
 > The tier-attribution stats counters (§28.2) are sharded per-thread (§28.4) so
-> this MT path stays contention-free; an unsharded build collapses the large
-> tier to ~13 M ops/s at 8 threads.
+> this MT path stays contention-free at 1T/4T; an unsharded build collapses the
+> large tier to ~13 M ops/s at 8 threads.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
 pages, `THP=always`), `srun --exclusive`, single-binary self-validation via
