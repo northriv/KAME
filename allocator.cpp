@@ -4262,18 +4262,15 @@ extern "C" __attribute__((noinline)) void free(void *p) {
 	kame_free(p);
 }
 extern "C" __attribute__((noinline)) void *malloc(std::size_t n) {
-	// No `!g_sys_image_loaded || s_alloc_tls_off` pre-filter here: it is
-	// redundant with the gating `new_redirected` already performs, exactly
-	// as `operator new` / `kame_pool_malloc` rely on.  Pre-activation and
-	// post-teardown both leave `g_thread_freelist_ptr[bucket]` null (the
-	// IE-TLS table is zero-initialised by the loader; thread-exit cleanup
-	// re-zeroes it), so the first miss routes to `cold_first_access`, which
-	// checks the flags and falls back to `libsystem_malloc_for_pool`.
-	// Dropping the duplicate check saves one IE-TLS read + one global load
-	// on every C `malloc` — the path the malloc/free benchmarks all take.
-	if(void *p = new_redirected(n)) return p;
-	errno = ENOMEM;
-	return nullptr;
+	// Delegate to the canonical C-API impl, mirroring the free→kame_free /
+	// calloc→kame_calloc shims below.  Note there is deliberately no
+	// `!g_sys_image_loaded || s_alloc_tls_off` pre-filter: the activation
+	// gate lives in `new_redirected` (pre-activation / post-teardown both
+	// leave `g_thread_freelist_ptr[bucket]` null → `cold_first_access`
+	// checks the flags and falls back to libsystem), exactly as
+	// `operator new` already relies on.  This drops one IE-TLS read + one
+	// global load on every C `malloc` — the malloc/free benchmark path.
+	return kame_pool_malloc(n);
 }
 extern "C" __attribute__((noinline)) void *calloc(std::size_t n_elem, std::size_t sz) {
 	// `kame_calloc` is libc-spec compliant (overflow check, calloc(0,*)
