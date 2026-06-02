@@ -1515,6 +1515,18 @@ protected:
 	//!     `dll_head` and visits revived chunks.
 	struct ThreadLocalState {
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *my_chunk;
+		//! (§33) The chunk that was `my_chunk` immediately before the
+		//! current pin — "1-back".  Skipped by `allocate_chunk_path`
+		//! Phase 2 DLL walk: consumer threads' cross-thread frees
+		//! concentrate on the chunk producer JUST exhausted (slots
+		//! allocated most recently are freshest in the consumer's
+		//! queue), so 1-back's `m_flags` cacheline is hot with
+		//! consumer CAS-clears.  Producer's bulk-claim CAS there would
+		//! ping-pong the cacheline.  Visiting 2-back+ keeps producer
+		//! and consumer on disjoint cachelines.  1-back is revisited
+		//! after another pinning shift, by which time the cacheline
+		//! has gone cold.
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_one_back;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_head;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_tail;
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *dll_cursor;
