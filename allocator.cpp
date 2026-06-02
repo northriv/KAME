@@ -4227,6 +4227,21 @@ static void kame_free(void *p) {
 	libsystem_free_for_pool(p);
 }
 
+// Shared body for the C `malloc` strong-symbol interpose and the
+// `kame_pool_malloc` C-API entry — single source of truth for the
+// pool-or-ENOMEM logic.  `new_redirected` self-gates for pre-activation /
+// post-teardown via the null `g_thread_freelist_ptr[bucket]` path, so no
+// `!g_sys_image_loaded || s_alloc_tls_off` pre-filter is needed here (same
+// as `operator new`).  `always_inline` so BOTH callers expand it directly:
+// the hot `malloc` keeps its inlined freelist pop with NO extra call/PLT
+// hop, while the source carries one copy.
+static __attribute__((always_inline)) inline
+void *kame_malloc_impl(std::size_t n) noexcept {
+	if(void *p = new_redirected(n)) return p;
+	errno = ENOMEM;
+	return nullptr;
+}
+
 #if defined(__APPLE__)
 extern "C" void free(void *);  // libsystem prototype, for address-of
 
@@ -4262,15 +4277,11 @@ extern "C" __attribute__((noinline)) void free(void *p) {
 	kame_free(p);
 }
 extern "C" __attribute__((noinline)) void *malloc(std::size_t n) {
-	// Delegate to the canonical C-API impl, mirroring the free→kame_free /
-	// calloc→kame_calloc shims below.  Note there is deliberately no
-	// `!g_sys_image_loaded || s_alloc_tls_off` pre-filter: the activation
-	// gate lives in `new_redirected` (pre-activation / post-teardown both
-	// leave `g_thread_freelist_ptr[bucket]` null → `cold_first_access`
-	// checks the flags and falls back to libsystem), exactly as
-	// `operator new` already relies on.  This drops one IE-TLS read + one
-	// global load on every C `malloc` — the malloc/free benchmark path.
-	return kame_pool_malloc(n);
+	// Strong-symbol interpose.  Body is the shared `kame_malloc_impl`,
+	// `always_inline` so `new_redirected` expands directly here — no
+	// call, no PLT hop on the alloc hot path.  See `kame_malloc_impl`
+	// for why no activation-flag pre-filter is needed.
+	return kame_malloc_impl(n);
 }
 extern "C" __attribute__((noinline)) void *calloc(std::size_t n_elem, std::size_t sz) {
 	// `kame_calloc` is libc-spec compliant (overflow check, calloc(0,*)
@@ -4573,14 +4584,11 @@ inline void *kame_aligned_alloc_with_handler(std::size_t a, std::size_t s) {
 extern "C" __attribute__((noinline, used))
 void *kame_pool_malloc(std::size_t size) noexcept {
 	// (§18) C malloc semantics: no `std::get_new_handler()` (that's a
-	// C++ operator-new concept); just call `new_redirected` and set
-	// `errno = ENOMEM` on null.  `create_allocator` returns nullptr on
-	// pool OOM (no longer throws bad_alloc), so the noexcept boundary
-	// is upheld without a try-block.
-	if(void *p = new_redirected(size))
-		return p;
-	errno = ENOMEM;
-	return nullptr;
+	// C++ operator-new concept); the shared `kame_malloc_impl` calls
+	// `new_redirected` and sets `errno = ENOMEM` on null.  `create_allocator`
+	// returns nullptr on pool OOM (no longer throws bad_alloc), so the
+	// noexcept boundary is upheld without a try-block.
+	return kame_malloc_impl(size);
 }
 
 extern "C" __attribute__((noinline, used))
