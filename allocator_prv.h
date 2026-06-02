@@ -482,19 +482,26 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //! chunk 1's metadata, so no collision.
 //!
 //! K_MAX is sized so that the largest template (smallest ALIGN, biggest
-//! count) fits its PoolAllocator object + m_flags array within
-//! `K_MAX - ALLOC_CHUNK_HEADER` bytes.  Verified at compile time in the
-//! per-template `create()`:
+//! count) fits its PoolAllocator object + m_flags array + (§32) optional
+//! return shadow bitmap within `K_MAX - ALLOC_CHUNK_HEADER` bytes.
+//! Verified at compile time in the per-template `create()`:
 //!   - ALIGN=16, CHUNK_UNITS=1: PoolAllocator (~200 B) + m_flags (~2 KiB)
-//!                              + padding < 4 KiB ✓
-//!   - ALIGN=256, CHUNK_UNITS=2: PoolAllocator + m_flags (~256 B) ≪ 4 KiB
-//!   - Dedicated chunks: chunk_header only (~64 B) ≪ 4 KiB
+//!                              + shadow (~2 KiB) + padding < 8 KiB ✓
+//!   - ALIGN=256, CHUNK_UNITS=2: PoolAllocator + m_flags (~256 B) +
+//!                              shadow (~256 B) ≪ 8 KiB
+//!   - Dedicated chunks: chunk_header only (~64 B) ≪ 8 KiB
 //!
-//! 4 KiB = one OS page on every supported target.  Convenient because
-//! the entire metadata block sits in ONE page (the previous unit's
-//! last page), so dealloc's hot-block read touches only that one
-//! extra page beyond the slot region's pages.
-#define ALLOC_CHUNK_K_MAX 4096
+//! (§32) Bumped 4 KiB → 8 KiB to admit a second `count`-word bitmap
+//! (`return_flags()` shadow) for ALL FS=true real chunks including
+//! ALIGN=16, eliminating producer↔consumer false-sharing across the
+//! whole bucket range.  On Linux/Windows (PAGE = 4 KiB) the metadata
+//! now occupies 2 pages instead of 1 — one extra TLB entry per chunk
+//! during the dealloc hot-block read.  On macOS arm64 (PAGE = 16 KiB)
+//! and POWER (PAGE = 64 KiB) the metadata still sits in 1 page.
+//! Trade-off: 4 KiB extra reservation per chunk = 1.6 % overhead on
+//! 256 KiB chunks, 0.8 % on 512 KiB, ≤ 0.4 % on 1 MiB+ — paid only by
+//! chunks that hand out slots, not by the dedicated-chunk path.
+#define ALLOC_CHUNK_K_MAX 8192
 
 #define ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET     0   // [ 0.. 7]: chunk SIZE info
 #define ALLOC_CHUNK_HEADER_PALLOC_OFFSET        8   // [ 8..15]: palloc
@@ -1373,11 +1380,12 @@ public:
 	typedef uintptr_t FUINT;
 
 	//! (§32) Compile-time discriminator: does this chunk template carry a
-	//! cross-thread return shadow bitmap?  True only for real FS=true
-	//! chunks (`<ALIGN, true, true>`) with ALIGN >= 32 — the cliff range
-	//! where `bench_xthread_pool -w2 -sN` hit producer↔consumer false
-	//! sharing on the same `m_flags` cacheline.  See `return_flags()`.
-	static constexpr bool kHasReturnShadow = FS && DUMMY && ALIGN >= 32u;
+	//! cross-thread return shadow bitmap?  True for all real FS=true
+	//! chunks (`<ALIGN, true, true>`), now including ALIGN=16 — the K_MAX
+	//! bump (4 KiB → 8 KiB) admits the second `count`-word bitmap at the
+	//! smallest slot size where the bitmap itself is largest (~2 KiB
+	//! shadow on a 256 KiB chunk).  See `return_flags()`.
+	static constexpr bool kHasReturnShadow = FS && DUMMY;
 
 	//! (§32) Accessor for the cross-thread return shadow bitmap.  Layout
 	//! is fixed at chunk construction (`m_flags` end → align up to 64-byte
