@@ -143,7 +143,7 @@ ship the same way).
 | 64 KiB  | 161    | 278      | 30       | **304**  |
 | 1 MiB   | 168    | 3        | 31       | **214**  |
 
-**Apple M3 Max (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
+**Apple MacBook Air M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
 `9ecc613d`, median of 5 runs.  `mimalloc` 3.3 and `kame` preloaded /
 linked via `DYLD_INSERT_LIBRARIES`.  Both M3 tables below were measured
 on this commit:
@@ -158,7 +158,7 @@ on this commit:
 | 1 MiB   | 25     | 6.6      | **117**  |
 | 8 MiB   | 44     | 5.9      | **118**  |
 
-**Apple M3 Max, multi-thread aggregate scaling, M ops/s (1 / 4 / 8 threads):**
+**Apple MacBook Air M3, multi-thread aggregate scaling, M ops/s (1 / 4 / 8 threads):**
 
 | size   | system        | mimalloc              | **kame**              |
 | ------ | ------------- | --------------------- | --------------------- |
