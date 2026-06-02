@@ -1641,7 +1641,7 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 		this->~PoolAllocator();   // placement-new destructor; chunk memory
 		                          // (including this object) is released by
 		                          // `deallocate_chunk` below.
-		PoolAllocatorBase::deallocate_chunk(cbase, csz);
+		PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
 	}
 	return n;
 }
@@ -1789,7 +1789,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 		// batch_return_to_bitmap sibling for the rationale.
 		this->m_owner_id = 0;
 		this->~PoolAllocator();   // chunk memory release in deallocate_chunk
-		PoolAllocatorBase::deallocate_chunk(cbase, csz);
+		PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
 	}
 	return n;
 }
@@ -2034,6 +2034,45 @@ PoolAllocatorBase::allocate_chunk() {
 	        ? ~BitmapWord(0)
 	        : ((BitmapWord(1) << CHUNK_STRIDE_BITS) - BitmapWord(1));
 
+	// Build a PoolAllocator into a chunk whose CHUNK_UNITS units are
+	// already claimed at `addr` (= chunk_base).  Shared by the
+	// region-claim success path and the §34 LRC-pop path.  Mirrors the
+	// dedicated path's header stamp; `ALLOC::create` placement-news the
+	// PoolAllocator + m_flags + (§29) freelist pre-fill.
+	auto construct_chunk_at = [&](char *addr) -> ALLOC * {
+		ALLOC *palloc = ALLOC::create(CHUNK_SIZE - ALLOC_CHUNK_HEADER,
+		                              addr + ALLOC_CHUNK_HEADER);
+		palloc->m_chunk_size = CHUNK_SIZE;
+		*reinterpret_cast<std::uint64_t *>(
+		    addr + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) =
+		    ALLOC::chunk_header_size_info();
+		*reinterpret_cast<PoolAllocatorBase **>(
+		    addr + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = palloc;
+		*reinterpret_cast<DeallocateFn *>(
+		    addr + ALLOC_CHUNK_HEADER_FN_OFFSET) =
+		    &ALLOC::deallocate_pooled_static;
+		*reinterpret_cast<SizeOfFn *>(
+		    addr + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET) =
+		    &ALLOC::size_of_static;
+		writeBarrier();
+		return palloc;
+	};
+
+	// (§34) Unified recycle: try a warm cached chunk from the shared
+	// LRC_CHUNK size-class slot before claiming a region unit or mmap'ing.
+	// The block's CHUNK_UNITS units are still claimed (LRC keeps them so),
+	// so we skip the bitmap-CAS claim AND the page refault entirely — same
+	// win the dedicated tier already gets.  At bucket sizes (256 KiB /
+	// 512 KiB / 1 MiB) the LRC idx slot holds exactly-this-size blocks
+	// (each power-of-two unit count maps to a unique idx band whose only
+	// quantized size is itself), so the popped block is always exactly
+	// CHUNK_SIZE.  It may be DEDICATED-origin (back_off tagged 0x80) — so
+	// re-stamp back_off to the bucket tag (0) before constructing.
+	if(char *cached = large_recycle_pop(CHUNK_SIZE, LRC_CHUNK)) {
+		restamp_back_offset(cached, CHUNK_SIZE, /*back_off_flag=*/0u);
+		return construct_chunk_at(cached);
+	}
+
 	// Inline-able lambda: try to claim one chunk in a specific region.
 	// Returns palloc on success, nullptr if every CHUNK_UNITS-aligned
 	// slot in the region's bitmap is already claimed.
@@ -2099,25 +2138,11 @@ PoolAllocatorBase::allocate_chunk() {
 							reinterpret_cast<volatile char *>(addr)[off] = 0;
 					}
 #endif
-					ALLOC *palloc = ALLOC::create(CHUNK_SIZE - ALLOC_CHUNK_HEADER,
-					                              addr + ALLOC_CHUNK_HEADER);
-					palloc->m_chunk_size = CHUNK_SIZE;
-					*reinterpret_cast<std::uint64_t *>(
-					    addr + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) =
-					    ALLOC::chunk_header_size_info();
-					*reinterpret_cast<PoolAllocatorBase **>(
-					    addr + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) = palloc;
-					*reinterpret_cast<DeallocateFn *>(
-					    addr + ALLOC_CHUNK_HEADER_FN_OFFSET) =
-					    &ALLOC::deallocate_pooled_static;
-					*reinterpret_cast<SizeOfFn *>(
-					    addr + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET) =
-					    &ALLOC::size_of_static;
-					writeBarrier();  // release: orders all header +
-					                 // back_off stores before the chunk
-					                 // becomes reachable (slot handout /
-					                 // DLL append)
-					return palloc;
+					// (§34) Shared construct (header stamp + create()).
+					// back_off for these units was just published above as
+					// the bucket tag (plain `u`), exactly what
+					// construct_chunk_at expects.
+					return construct_chunk_at(addr);
 				}
 				// CAS failed: concurrent claim updated v.  Retry inner
 				// loop with the new v.  We wrote NOTHING to back_offset
@@ -2361,7 +2386,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				// FS=true batch_return_to_bitmap sibling for the rationale.
 				nx->m_owner_id = 0;
 				nx->~PoolAllocator();   // placement-new destructor
-				PoolAllocatorBase::deallocate_chunk(cbase, csz);
+				PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
 				++released;
 			}
 			else {
@@ -3308,6 +3333,47 @@ PoolAllocatorBase::recycle_release_chunk(char *chunk_base,
 	deallocate_chunk(chunk_base, chunk_size);
 }
 
+// (§34) Re-stamp back_offset[] for all units of the chunk to carry the
+// consumer tier's tag.  See header doc.
+void
+PoolAllocatorBase::restamp_back_offset(char *chunk_base,
+                                       std::size_t chunk_size,
+                                       std::uint8_t back_off_flag) noexcept {
+	RegionMeta *rmeta = region_meta_of(chunk_base);
+	// chunk_base = unit_boundary - K_MAX; +K_MAX recovers the unit-aligned
+	// slot-region start, mask to region offset, shift to unit index (same
+	// derivation as deallocate_chunk).
+	uintptr_t slot_region_start = (uintptr_t)chunk_base + ALLOC_CHUNK_K_MAX;
+	unsigned int base_unit_idx = static_cast<unsigned int>(
+	    (slot_region_start & ((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u))
+	    >> ALLOC_MIN_CHUNK_SHIFT);
+	unsigned chunk_units = static_cast<unsigned>(
+	    chunk_size >> ALLOC_MIN_CHUNK_SHIFT);
+	for(unsigned u = 0; u < chunk_units; ++u)
+		rmeta->back_offset[base_unit_idx + u] =
+		    static_cast<std::uint8_t>(u) | back_off_flag;
+}
+
+// (§34) Bucket-chunk release: park in LRC_CHUNK (units stay claimed, no
+// madvise) when possible, else true-release via deallocate_chunk.  See
+// header doc for the no-recurse contract.
+void
+PoolAllocatorBase::bucket_release_chunk(char *chunk_base,
+                                        std::size_t chunk_size) noexcept {
+	// lrc_block_size(LRC_CHUNK) reads the DEDICATED_SIZE header field, so
+	// stamp it before pushing — a bucket chunk doesn't otherwise carry it.
+	// Offset 32 lives in the [0,63] chunk-header region, separate from the
+	// (already-destructed) PoolAllocator object at chunk_base + 64, so this
+	// write is safe.
+	*reinterpret_cast<std::uint64_t *>(
+	    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET) =
+	    (std::uint64_t)chunk_size;
+	if(large_recycle_push(chunk_base, chunk_size, LRC_CHUNK))
+		return;                         // parked warm — units stay claimed
+	// Cache full / over cap → real release (bitmap-clear + madvise).
+	deallocate_chunk(chunk_base, chunk_size);
+}
+
 void *
 PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	// (§15) Under the forward-shift layout, chunk_base sits K_MAX bytes
@@ -3340,8 +3406,37 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	// window means the cached chunk's actual size (kept in DEDICATED_SIZE)
 	// is ≥ this request — size_of stays truthful via that field.
 	if(char *cached = large_recycle_pop(chunk_size, LRC_CHUNK)) {
+		// (§34) The shared LRC_CHUNK slot may now hand back a BUCKET-origin
+		// block (units claimed, but back_off tagged plain `u` and the
+		// header holding a stale PoolAllocator size_info/palloc instead of
+		// the DEDICATED sentinel).  Pre-§34 this path returned `cached +
+		// K_MAX` directly, trusting an intact dedicated header — no longer
+		// safe.  Re-stamp unconditionally (idempotent for dedicated-origin
+		// blocks, corrective for bucket-origin).
+		//
+		// Use the block's ACTUAL size (from the DEDICATED_SIZE header
+		// field, which both tiers keep truthful: dedicated writes it at
+		// alloc, bucket at release) rather than the request-derived
+		// `chunk_size` — the dedicated fit window is [need, 2*need], so the
+		// popped block can be larger than the request, and size_of must
+		// stay truthful.  (Read inline: `lrc_block_size` is defined in the
+		// anonymous namespace below this point; for LRC_CHUNK it is exactly
+		// this field read.)
+		std::size_t actual = *reinterpret_cast<std::uint64_t *>(
+		    cached + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+		restamp_back_offset(cached, actual, /*back_off_flag=*/0x80u);
+		*reinterpret_cast<std::uint64_t *>(
+		    cached + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET) =
+		    (std::uint64_t)ALLOC_CHUNK_DEDICATED_SIZEINFO;
+		*reinterpret_cast<PoolAllocatorBase **>(
+		    cached + ALLOC_CHUNK_HEADER_PALLOC_OFFSET) =
+		    reinterpret_cast<PoolAllocatorBase *>(cached);
+		*reinterpret_cast<std::uint64_t *>(
+		    cached + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET) =
+		    (std::uint64_t)actual;
+		writeBarrier();
 		// (§28.2) Leaving the cache for the program.
-		stats_inc_dedicated(chunk_size);
+		stats_inc_dedicated(actual);
 		return cached + ALLOC_CHUNK_K_MAX;
 	}
 	// Claim N units, tagging back_off with bit7 so deallocate / size_of
