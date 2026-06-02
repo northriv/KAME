@@ -235,7 +235,7 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 	#define ALLOC_TLS_IE thread_local
 #endif
 
-//! (§33) Opt-in "1-back skip": when the producer's chunk-search
+//! (§33/§34) "1-back skip": when the producer's chunk-search
 //! (`allocate_chunk_path` Phase 2 DLL walk) looks for an allocatable
 //! chunk, skip not only the pinned chunk but also the one that was
 //! pinned immediately before ("1-back").  In a producer→consumer
@@ -245,21 +245,34 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
 //! same word ping-pongs the cacheline producer↔consumer.  Skipping it
 //! for one pin cycle keeps the line in the consumer's cache.
 //!
-//! DEFAULT OFF.  On single-socket boxes (shared L3) there is no
-//! expensive cross-socket cacheline transfer to avoid, so the skip is
-//! neutral-to-negative (-10..0 % on a 4-core dev box across worker
-//! counts 2/4/8 and sizes 8..1024 B — the extra chunk-search step costs
-//! more than the contention it dodges).  The intended payoff is on
-//! multi-socket NUMA (e.g. 128-core / 8-NUMA) where a cross-socket
-//! `m_flags` line bounce is genuinely expensive; enable there and
-//! measure.  Build with `-DKAME_POOL_ONEBACK_SKIP=1` to turn on.
+//! DEFAULT ON (since §34).  The skip forces the producer to find a
+//! DIFFERENT chunk (2-back+, or acquire a new one) instead of re-pinning
+//! 1-back.  Before §34 that re-acquire was an mmap + page-fault (or
+//! bitmap-claim + madvise on release), so the skip cost more than the
+//! contention it dodged — measured -10..0 % on a single-socket 4-core
+//! box, hence the original default-OFF.  §34's unified large-recycle
+//! cache made chunk acquire/release a warm LRC pop/push (no syscall, no
+//! refault), so the re-acquire is now cheap and the false-sharing
+//! avoidance turns net-positive even on a single socket:
+//!
+//!   bench_xthread_pool -w2 (M free/sec, §34 base, OFF → ON):
+//!     8 B   28.6 → 29.9   (+5 %)     256 B  16.6 → 17.6  (+6 %)
+//!     64 B  49.8 → 50.6   (+2 %)    1024 B  10.4 → 11.1  (+6 %)
+//!                                   4096 B  11.0 → 13.0  (+18 %)
+//!   single-thread alloc_minimal_bench: parity (~232 M ops/s, the hot
+//!   freelist loop never re-enters the chunk-search path).
+//!
+//! Net win at every size, memory-neutral, and the rationale is only
+//! stronger on multi-socket NUMA (cross-socket `m_flags` bounce is far
+//! costlier than the shared-L3 case measured here).  Build with
+//! `-DKAME_POOL_ONEBACK_SKIP=0` to turn it back off.
 //!
 //! Chunk release is unaffected either way — the empty-neighbour
 //! `owner_release` path is separate from this allocate-search walk and
 //! still visits every chunk.  Memory footprint (`chunks_live`) is
-//! identical with and without the skip.
+//! identical with and without the skip (verified time-bounded in both).
 #ifndef KAME_POOL_ONEBACK_SKIP
-	#define KAME_POOL_ONEBACK_SKIP 0
+	#define KAME_POOL_ONEBACK_SKIP 1
 #endif
 
 //! Allocation unit (1 chunk = N × this).  every mmap region is
