@@ -647,41 +647,22 @@ struct CrossDeallocEntry {
 	void              *slot;
 };
 
-//! Hot-path TLS pair — co-located so the deallocate fast path resolves
-//! ONE GOT tpoff and reads both fields off the same `%fs:` base, instead
-//! of paying a separate `mov tpoff(%rip),%rax` for each.  Used by:
-//!   - `radix_lookup` (hot) reads `.last_region_base` for the 1-entry
-//!     region cache; `radix_lookup_slow` writes it on hit insert,
-//!     `radix_remove` clears it to the empty sentinel.
-//!   - `PoolAllocatorBase::deallocate` (hot) reads `.owner_id` to compare
-//!     against `chunk_obj->m_owner_id`; `kame_owner_id()` lazily assigns
-//!     a non-zero id on first call.
-//!
-//! `last_region_base` is initialised to `RADIX_CACHE_EMPTY` (all-ones)
-//! rather than 0, so it can NEVER equal any real region base (which are
-//! 32 MiB-aligned and live in low-canonical user space).  This buys the
-//! deallocate hot path a guarantee that `base = p & ~(MIN_MMAP-1) ==
-//! last_region_base` implies `p != NULL` — so the `if(!p) return false;`
-//! pre-filter can move to the cold path (where `radix_lookup_slow(0)`
-//! returns ABSENT, then `kame_free` calls `libsystem_free(NULL)` for the
-//! libc-spec no-op).  `mmap()` never returns address 0 (Linux respects
-//! `vm.mmap_min_addr ≥ 4096`; the kernel reserves the null page), so the
-//! invariant holds in steady state; any path that would set it to 0 must
-//! instead either turn the allocator OFF or retry the mmap.
-//!
-//! `owner_id` keeps its 0-default: 0 = "this thread has never allocated
-//! a chunk" (`kame_owner_id` assigns a non-zero id from a counter on
-//! first call).  Live chunks always carry a non-zero `m_owner_id`, so 0
-//! never matches a real owner.
-struct TlsHotPath {
-	uintptr_t last_region_base;  // radix 1-entry cache; RADIX_CACHE_EMPTY = unmatchable
-	uint32_t  owner_id;          // this thread's chunk-owner stamp; 0 = unassigned
-};
+//! (§hot-tls) Unified per-thread hot TLS page — forward declaration.
+//! Defined fully after AllocSlot/ALLOC_NUM_BUCKETS below.
+//! All hot alloc/dealloc state in one struct so a single fast-TSD read
+//! (macOS: mrs TPIDRRO_EL0 + one load) or one initial-exec TLS access
+//! (Linux: mov %fs:offset) covers everything.
+struct KameTlsPage;
+
 //! Sentinel for an empty radix cache slot — guaranteed not to match any
 //! real region base (real bases are 32 MiB-aligned user-space addresses;
 //! all-ones is the kernel-space top address with low bits set).
 static constexpr uintptr_t RADIX_CACHE_EMPTY = ~(uintptr_t)0;
-extern ALLOC_TLS_IE TlsHotPath s_tls_hot;
+
+//! Forward declaration of the hot TLS page accessor.  Full definition
+//! (and KameTlsPage struct) follows after AllocSlot/ALLOC_NUM_BUCKETS.
+//! Used by PoolAllocatorBase::radix_lookup and ::deallocate inlines.
+KameTlsPage *kame_page() noexcept;
 
 class PoolAllocatorBase {
 public:
@@ -1342,24 +1323,16 @@ private:
 	//! Cache miss: full walk via `radix_lookup_slow` (out-of-line so the
 	//! inlined version stays icache-cheap).  Misses also update the
 	//! cache (for pool regions only).
-	static inline int radix_lookup(void *p) noexcept {
-		uintptr_t up = (uintptr_t)p;
-		uintptr_t base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
-		// (§19) Cache holds ONLY pool region bases, so a hit means
-		// KAME_RADIX_POOL.  `last_region_base` is `RADIX_CACHE_EMPTY`
-		// (= ~0) when empty — unmatchable by any real region base AND
-		// unmatchable by `base = 0` (from `p == NULL`), so the deallocate
-		// hot path drops the `!p` pre-filter and lets a null free fall
-		// through to `radix_lookup_slow(0) → ABSENT → libsystem_free(0)`.
-		if(__builtin_expect(base == s_tls_hot.last_region_base, 1))
-			return (int)KAME_RADIX_POOL;
-		return radix_lookup_slow(up);
-	}
+	// Inline body provided AFTER KameTlsPage is fully defined (below the
+	// AllocSlot / ALLOC_NUM_BUCKETS declarations).  Declared here so
+	// callers inside PoolAllocatorBase::deallocate can see it.
+	static inline int radix_lookup(void *p) noexcept;
 
 	//! Per-thread 1-entry region-lookup cache (last PRESENT region base
-	//! confirmed by `radix_lookup_slow`).  Lives inside `s_tls_hot`
-	//! together with `owner_id`, so the deallocate hot path resolves
-	//! ONE TLS GOT tpoff and reaches both fields off the same %fs base.
+	//! confirmed by `radix_lookup_slow`).  Lives inside `KameTlsPage`
+	//! together with `owner_id` and `slots[]`, so a single `kame_page()`
+	//! call (one fast-TSD read on macOS, one IE-TLS access on Linux)
+	//! covers every hot field.
 	//! Updated by `radix_lookup_slow` (insert) / `radix_remove` (clear).
 
 public:
@@ -2320,29 +2293,73 @@ inline unsigned int bucket_for_aligned(std::size_t alignment,
 	return best;
 }
 
-extern ALLOC_TLS AllocSlot g_thread_slots[ALLOC_NUM_BUCKETS];
+// ---------------------------------------------------------------------
+// (§hot-tls) KameTlsPage — unified per-thread hot TLS page.
+//
+// All hot alloc/dealloc state in one struct so a single fast-TSD read
+// (macOS: mrs TPIDRRO_EL0 + one TSD slot load) or one initial-exec TLS
+// reference (Linux: mov %fs:offset — same as today's ALLOC_TLS_IE)
+// covers every field.
+//
+// Layout (packed, no padding gaps beyond the _pad field):
+//   last_region_base  — radix 1-entry sentinel cache (see RADIX_CACHE_EMPTY)
+//   owner_id          — this thread's chunk-owner stamp; 0 = unassigned
+//   _pad              — alignment to 8 B boundary
+//   slots[]           — per-thread freelist arrays (replaced g_thread_slots[])
+//                       slots[b].freelist_head is the owner-thread freelist
+//                       head for bucket b; &slots[b].freelist_head replaces
+//                       the old g_thread_freelist_ptr[b] shortcut.
+//
+// Size: 16 + ALLOC_NUM_BUCKETS * sizeof(AllocSlot) = 16 + 52*8 = 432 B.
+// Fits the Linux IE static-TLS surplus (4 KiB default on glibc); on
+// macOS this struct is GD TLS (too large for the IE path) and its
+// address is cached in the IE-TLS pointer `tls_page_ie`.
+//
+// Fast-TSD path (macOS arm64 / x86_64):
+//   kame_page() = mrs TPIDRRO_EL0 + load tsd_slot → one pointer chase,
+//   zero _tlv_get_addr calls on the hot path.
+// Linux:
+//   kame_page() = &g_tls_page (inlines to mov %fs:(struct_offset+field_off)
+//   — identical to the old ALLOC_TLS_IE per-field accesses).
+// ---------------------------------------------------------------------
 
-//! (§12.3) Direct-jump TLS shortcut for the alloc hot path: per-bucket
-//! pointer to the active chunk's `m_freelist_head[kBucketLocalId[bucket]]`
-//! cell.  Lets `new_redirected` pop with NO conversion-table read and
-//! NO chunk-pointer indirection on a freelist hit — just one TLS read +
-//! one indirect deref.  Maintained by `slow_allocate` / `cold_first_access`
-//! (cold paths) which DO read `kBucketLocalId[]` to compute the offset.
-//! nullptr = bucket not yet activated on this thread (first access or
-//! post-cleanup) -> fast path falls to the cold path.  Cleared at thread
-//! exit / chunk release.
-//!
-//! With this TLS, the previous `g_thread_chunks[]` parallel array is no
-//! longer needed — the chunk's PoolAllocator object can be recovered
-//! from any freelist_ptr by `chunk_from_freelist_ptr(fp)` below (one
-//! mask + add), since chunks are ALLOC_MIN_CHUNK_SIZE-aligned and the
-//! embed object lives at `chunk_base + ALLOC_CHUNK_HEADER`.
-extern ALLOC_TLS_IE char **g_thread_freelist_ptr[ALLOC_NUM_BUCKETS];
+// macOS only: the TLV thunk (`tlv_get_addr` — `adrp/add/ldr/blr`) is
+// what makes per-access `__thread` expensive on Apple platforms; this
+// fast path replaces it with `mrs TPIDRRO_EL0` + an indexed load.
+// On Linux, glibc lowers `__thread` to `%fs:0 + offset` directly with
+// no thunk call (initial-exec model), so there is no thunk to bypass
+// and adding the pthread-TSD redirection only buys glibc-layout
+// fragility.  Restricted accordingly.
+#if defined(__APPLE__) && (defined(__aarch64__) || defined(__x86_64__))
+    #define KAME_FAST_TSD 1
+#else
+    #define KAME_FAST_TSD 0
+#endif
+
+//! (§hot-tls) Unified per-thread hot TLS page.  Full definition here,
+//! after AllocSlot and ALLOC_NUM_BUCKETS.
+struct KameTlsPage {
+    uintptr_t  last_region_base;           // radix 1-entry cache; RADIX_CACHE_EMPTY = unmatchable
+    uint32_t   owner_id;                   // this thread's chunk-owner stamp; 0 = unassigned
+    uint32_t   _pad;
+    AllocSlot  slots[ALLOC_NUM_BUCKETS];   // replaces g_thread_slots[]
+};
+
+// Platform split for the TLS page storage:
+//   macOS: g_tls_page is global-dynamic (struct too large for IE budget);
+//          tls_page_ie is an IE-cached pointer planted on first thread touch.
+//   Linux: g_tls_page is initial-exec (inlines to mov %fs:offset — no thunk).
+#if KAME_FAST_TSD
+extern ALLOC_TLS    KameTlsPage  g_tls_page;     // GD — too large for IE on macOS
+extern ALLOC_TLS_IE KameTlsPage *tls_page_ie;    // IE cached pointer (one per thread)
+#else
+extern ALLOC_TLS_IE KameTlsPage  g_tls_page;     // Linux: IE → mov %fs:offset
+#endif
 
 //! (§12.3) Recover the chunk's PoolAllocator object from any pointer
 //! inside the chunk's first unit — in particular, from a
-//! `g_thread_freelist_ptr[bucket]` value, which points at the embed
-//! object's `m_freelist_head[local-id]` cell.  Chunks are
+//! `&kame_page()->slots[bucket].freelist_head` value, which points at
+//! the embed object's `m_freelist_head[local-id]` cell.  Chunks are
 //! `ALLOC_MIN_CHUNK_SIZE`-aligned (the per-region claim bitmap reserves
 //! one bit per `ALLOC_MIN_CHUNK_SIZE`-byte unit), so masking with
 //! `~(ALLOC_MIN_CHUNK_SIZE - 1)` lands on `chunk_base`; the embed object
@@ -2364,48 +2381,6 @@ chunk_from_freelist_ptr(char **fp) noexcept {
         unit_boundary - (uintptr_t)ALLOC_CHUNK_K_MAX
         + (uintptr_t)ALLOC_CHUNK_HEADER);
 }
-
-// ---------------------------------------------------------------------
-// Fast pthread-TSD bypass of the macOS TLV thunk.
-//
-// On macOS, C++ `__thread` / `thread_local` accesses lower to a TLV
-// thunk: `adrp; add; ldr; blr tlv_get_addr` — roughly 10-15 cycles
-// of dependent loads + a function call per access.  This block
-// bypasses that for the two hottest TLS arrays.  (Linux glibc lowers
-// `__thread` to a direct `%fs:0 + offset` indexed load with no thunk
-// call, so there's nothing to bypass — `KAME_FAST_TSD` is macOS-only.)
-//
-//   1. `kame_tls_init_fast` (constructor priority 101) allocates two
-//      `pthread_key_t`s, writes sentinel values into them via
-//      `pthread_setspecific`, then scans the current pthread struct
-//      (base = `kame_thread_pointer()`) byte-by-byte to find which
-//      offsets received the sentinels.  Offsets stored in
-//      `s_kame_slots_tsd_offset` / `s_kame_chunks_tsd_offset`.
-//   2. Each thread's first allocation routes through the cold path
-//      which writes `&g_thread_slots[0]` / `&g_thread_chunks[0]` (the
-//      *per-thread* TLV-resolved addresses) into its own TSD slots.
-//   3. Steady-state hot path reads `*(AllocSlot**)(TP + offset)` and
-//      indexes `[bucket]`.  Two null checks — `offset != 0` (pre-init
-//      guard) and `pointer != null` (per-thread first-touch guard) —
-//      both predict not-taken with 100% accuracy after warmup.
-//
-// On unsupported platforms (Windows; non-arm64/x86_64), the macros
-// expand to direct `&g_thread_slots[0]` / `&g_thread_chunks[0]`
-// references which keep the TLV thunk on the hot path.
-// ---------------------------------------------------------------------
-
-// macOS only: the TLV thunk (`tlv_get_addr` — `adrp/add/ldr/blr`) is
-// what makes per-access `__thread` expensive on Apple platforms; this
-// fast path replaces it with `mrs TPIDRRO_EL0` + an indexed load.
-// On Linux, glibc lowers `__thread` to `%fs:0 + offset` directly with
-// no thunk call (initial-exec model), so there is no thunk to bypass
-// and adding the pthread-TSD redirection only buys glibc-layout
-// fragility.  Restricted accordingly.
-#if defined(__APPLE__) && (defined(__aarch64__) || defined(__x86_64__))
-    #define KAME_FAST_TSD 1
-#else
-    #define KAME_FAST_TSD 0
-#endif
 
 #if KAME_FAST_TSD
 //! Architecture-specific read of the thread-pointer register (pthread
@@ -2429,39 +2404,60 @@ static inline char *kame_thread_pointer() noexcept {
     #endif
 }
 
-//! Discovered TSD byte offset for `g_thread_slots`.  Zero means "not
-//! yet initialised" (constructor hasn't run, or `pthread_key_create` /
-//! sentinel scan failed); hot path falls to TLV fallback in that case.
-//! `g_thread_chunks[]` was retired in (§12.3) — its TSD slot is gone
-//! too.  `g_thread_freelist_ptr[]` uses direct TLV access.
-extern std::size_t s_kame_slots_tsd_offset;
+//! Discovered TSD byte offset for `g_tls_page` (the KameTlsPage struct).
+//! Zero means "not yet initialised" (constructor hasn't run, or
+//! `pthread_key_create` / sentinel scan failed); hot path falls to
+//! tls_page_ie IE fallback in that case.
+extern std::size_t s_kame_page_tsd_offset;
 
 //! Out-of-line cold path invoked when either guard branch fails.
 //! Defined in allocator.cpp.  Plants the per-thread TSD slot if
-//! `s_kame_slots_tsd_offset` is set, then returns the TLV-resolved
-//! address.
+//! `s_kame_page_tsd_offset` is set, caches result in `tls_page_ie`,
+//! then returns a pointer to this thread's KameTlsPage.
 //!
 //! `[[clang::preserve_most]]`: caller-side register-spill avoidance.
 //! Without it, clang must spill live caller-saved regs across the call,
 //! bloating `operator new`'s prologue with 4-6 reg saves.  preserve_most
 //! shifts the burden into the cold callee (cheap — cold).
-[[clang::preserve_most]] AllocSlot *kame_slots_cold() noexcept;
+[[clang::preserve_most]] KameTlsPage *kame_page_cold() noexcept;
 
-//! Hot accessor: returns the base of this thread's `g_thread_slots[]`.
-//! Inlined into `deallocate_pooled` (alloc hot path no longer uses it —
-//! it reads `g_thread_freelist_ptr[]` directly via TLV).
-inline AllocSlot *kame_slots_base() noexcept {
-    std::size_t off = s_kame_slots_tsd_offset;
+//! Hot accessor: returns this thread's KameTlsPage via fast-TSD bypass.
+//! macOS arm64: mrs TPIDRRO_EL0 + one load → zero _tlv_get_addr calls.
+inline KameTlsPage *kame_page() noexcept {
+    std::size_t off = s_kame_page_tsd_offset;
     if(__builtin_expect(off != 0, 1)) {
-        AllocSlot *p =
-            *reinterpret_cast<AllocSlot **>(kame_thread_pointer() + off);
+        KameTlsPage *p = *reinterpret_cast<KameTlsPage **>(
+            kame_thread_pointer() + off);
         if(__builtin_expect(p != nullptr, 1)) return p;
+        return kame_page_cold();
     }
-    return kame_slots_cold();
+    KameTlsPage *p = tls_page_ie;
+    return p ? p : kame_page_cold();
 }
-#else  // !KAME_FAST_TSD: fall back to direct TLV access
-inline AllocSlot *kame_slots_base() noexcept { return &g_thread_slots[0]; }
-#endif
+#else   // Linux / Windows: no TLV thunk to bypass
+//! Hot accessor: returns this thread's KameTlsPage.
+//! Linux: inlines to address-of IE-TLS struct (mov %fs:offset — optimal).
+inline KameTlsPage *kame_page() noexcept {
+    return &g_tls_page;   // initial-exec: inlines to mov %fs:(offset)
+}
+#endif  // KAME_FAST_TSD
+
+// Out-of-class inline body for PoolAllocatorBase::radix_lookup.
+// Provided here so KameTlsPage is fully defined and kame_page() is
+// callable.  The declaration lives inside PoolAllocatorBase above.
+inline int PoolAllocatorBase::radix_lookup(void *p) noexcept {
+    uintptr_t up = (uintptr_t)p;
+    uintptr_t base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
+    // (§19) Cache holds ONLY pool region bases, so a hit means
+    // KAME_RADIX_POOL.  `last_region_base` is `RADIX_CACHE_EMPTY`
+    // (= ~0) when empty — unmatchable by any real region base AND
+    // unmatchable by `base = 0` (from `p == NULL`), so the deallocate
+    // hot path drops the `!p` pre-filter and lets a null free fall
+    // through to `radix_lookup_slow(0) → ABSENT → libsystem_free(0)`.
+    if(__builtin_expect(base == kame_page()->last_region_base, 1))
+        return (int)KAME_RADIX_POOL;
+    return radix_lookup_slow(up);
+}
 
 //! Cold slow path: invoked when `g_thread_chunks[bucket] == nullptr`
 //! (first access on this (thread, bucket), or post-cleanup).  Handles
@@ -2500,15 +2496,20 @@ inline void *new_redirected(std::size_t size) {
 	if(size > (std::size_t)ALLOC_SIZE23)
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
-	// (§12.3) DIRECT-JUMP fast path: bucket -> freelist-head pointer in
-	// ONE TLS read.  `g_thread_freelist_ptr[bucket]` is a `char **` that
-	// points DIRECTLY at the active chunk's
-	// `m_freelist_head[kBucketLocalId[bucket]]` cell, maintained at
-	// chunk-switch (slow_allocate / cold_first_access — see allocator.cpp)
-	// where `kBucketLocalId[]` IS read.  So the alloc hot path needs
-	// NEITHER a bucket->local-id remap NOR a chunk-pointer-deref chain —
-	// just `*tls[bucket]` to get the head, and a normal LIFO pop.
-	if(char **head_ptr = g_thread_freelist_ptr[bucket]) {
+	// (§12.3) DIRECT-JUMP fast path via KameTlsPage: kame_page() gives
+	// a pointer to the per-thread page (one fast-TSD read on macOS, one
+	// IE mov on Linux).
+	//
+	// slots[bucket].freelist_head stores the char ** value of the old
+	// g_thread_freelist_ptr[bucket] cast to char * — i.e., it holds a
+	// pointer to the active chunk's m_freelist_head[local] cell.
+	//   nullptr  → bucket not yet activated (first-access / post-cleanup)
+	//   non-null → chunk is pinned; dereference to get the freelist head
+	//
+	// This replaces BOTH g_thread_slots[] (defunct since §12.3) and
+	// g_thread_freelist_ptr[] with a single TLS page access.
+	if(char *cell_ptr_raw = kame_page()->slots[bucket].freelist_head) {
+		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
