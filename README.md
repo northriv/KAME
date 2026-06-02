@@ -144,34 +144,36 @@ ship the same way).
 | 1 MiB   | 168    | 3        | 31       | **214**  |
 
 **Apple M3 Max (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
-`b2f7a681`, median of 5 runs.  `mimalloc` 3.3 and `kame` preloaded /
+`9ecc613d`, median of 5 runs.  `mimalloc` 3.3 and `kame` preloaded /
 linked via `DYLD_INSERT_LIBRARIES`.  Both M3 tables below were measured
 on this commit:
 
 | size    | system | mimalloc | **kame** |
 | ------- | ------ | -------- | -------- |
-| 64 B    | 110    | 520      | **416**  |
-| 1 KiB   | 87     | **473**  | 293      |
-| 16 KiB  | 93     | 206      | **240**  |
-| 64 KiB  | 25     | **207**  | 129      |
-| 256 KiB | 25     | **207**  | 129      |
-| 1 MiB   | 26     | 6.7      | **118**  |
-| 8 MiB   | 45     | 6.1      | **105**  |
+| 64 B    | 107    | 506      | **515**  |
+| 1 KiB   | 86     | **473**  | 335      |
+| 16 KiB  | 92     | 202      | **304**  |
+| 64 KiB  | 25     | **203**  | 127      |
+| 256 KiB | 25     | **203**  | 125      |
+| 1 MiB   | 25     | 6.6      | **117**  |
+| 8 MiB   | 44     | 5.9      | **118**  |
 
 **Apple M3 Max, multi-thread aggregate scaling, M ops/s (1 / 4 / 8 threads):**
 
-| size   | system        | mimalloc              | **kame**            |
-| ------ | ------------- | --------------------- | ------------------- |
-| 64 KiB | 24 / 3 / 2    | 199 / **667 / 763**   | **127** / 76 / 59   |
-| 1 MiB  | 23 / 2 / 2    | 6 / 7 / 5             | **100 / 102** / 57  |
+| size   | system        | mimalloc              | **kame**              |
+| ------ | ------------- | --------------------- | --------------------- |
+| 64 KiB | 24 / 3 / 2    | 195 / **615 / 798**   | **121** / 83 / 55     |
+| 1 MiB  | 25 / 3 / 2    | 7 / 7 / 5             | **113 / 87** / 48     |
 
 At the **1 MiB** large tier kame leads at every thread count: system is
-lock-serialised (23 → 2), mimalloc stalls at ~6 M ops/s, and kame stays flat
-at **100–102 M ops/s** through 4 threads (17× ahead of mimalloc) before the
-per-thread L1 recycle cache saturates at 8T.  At 64 KiB kame leads
-single-threaded (**127 M** vs 199 for mimalloc and 24 for system) but mimalloc
-3.3's mmap tier scales super-linearly in aggregate to 763 M at 8T, whereas
-kame's L2 recycle cache becomes a contention point under heavy MT pressure.
+lock-serialised (25 → 2), mimalloc stalls at ~7 M ops/s, and kame reaches
+**113 M ops/s** at 1T (16× ahead of mimalloc) and **87 M** at 4T.  At 64 KiB
+kame leads single-threaded (**121 M** vs 195 for mimalloc and 24 for system)
+but mimalloc 3.3's mmap tier scales super-linearly in aggregate to 798 M at
+8T, whereas kame's L2 recycle cache becomes a contention point under heavy MT
+pressure.  The **64 B** bucket now reaches **515 M ops/s** — edging ahead of
+mimalloc 3.3 (506 M) after the `KameTlsPage` fast-TSD unification (§hot-tls)
+replaced per-variable `_tlv_get_addr` calls with a single `mrs TPIDRRO_EL0`.
 
 > The tier-attribution stats counters (§28.2) are sharded per-thread (§28.4) so
 > this MT path stays contention-free at 1T/4T; an unsharded build collapses the
