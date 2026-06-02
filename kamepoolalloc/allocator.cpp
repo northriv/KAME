@@ -108,10 +108,27 @@
 // Swift runtime (`__StringStorage`) and ObjC class realization corrupt.  Soak:
 // Foundation, libswiftCore (CPython), QtCore, C++ STL, 2000-thread stress — all
 // clean.  Opt out with -DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT (free+realloc only).
-// Linux/Windows dylibs keep the explicit -DKAMEPOOLALLOC_FULL_INTERCEPT opt-in
-// pending their own soak.  The inline kame.app (MH_EXECUTE) is unaffected — dyld
+// Linux dylibs keep the explicit -DKAMEPOOLALLOC_FULL_INTERCEPT opt-in pending
+// their own soak; Windows is default-on too now (soaked — see the §31 block).
+// The inline kame.app (MH_EXECUTE) is unaffected — dyld
 // honours __interpose only from MH_DYLIB, so its interpose set is inert either way.
 #if defined(KAMEPOOLALLOC_DYLIB) && defined(__APPLE__) \
+    && !defined(KAMEPOOLALLOC_FULL_INTERCEPT) \
+    && !defined(KAMEPOOLALLOC_CONSERVATIVE_INTERCEPT)
+#  define KAMEPOOLALLOC_FULL_INTERCEPT 1
+#endif
+
+// Windows: full malloc-family interception is the default too — matching
+// the macOS dylib drop-in.  NOTE there is no `KAMEPOOLALLOC_DYLIB` gate
+// here, unlike macOS: the §31 IAT redirect below patches imports of any
+// loaded module from the *inline-compiled* kame.exe, so this covers the
+// production executable (on macOS only an MH_DYLIB can interpose, so the
+// inline kame.app stays conservative).  Ruby (msvcrt heap) is excluded by
+// `kame_is_crt_dll` (ucrtbase / api-ms-win-crt-heap only), so only the
+// UCRT-family (kame.exe, Qt, libc++) is pooled; the `_msize` co-redirect
+// (the Windows analog of macOS `malloc_size`) keeps size-queries correct.
+// Opt out with -DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT (free-family only).
+#if (defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)) \
     && !defined(KAMEPOOLALLOC_FULL_INTERCEPT) \
     && !defined(KAMEPOOLALLOC_CONSERVATIVE_INTERCEPT)
 #  define KAMEPOOLALLOC_FULL_INTERCEPT 1
@@ -140,15 +157,18 @@
 // `kame_free`'s pool-or-foreign dispatcher.  See
 // `kame_pool_win_install_redirect` near the bottom.
 //
-// Opt-in extension: `-DKAMEPOOLALLOC_FULL_INTERCEPT=1` extends the IAT
-// patch table to `malloc` and `calloc`, turning kamepoolalloc into a
-// mimalloc-style full malloc-family allocator on Windows — useful for
-// benchmark comparison (mimalloc-bench equivalent) where you want EVERY
-// alloc-family call routed through the pool.  Symmetric to the same
-// macro on macOS (where it adds a `malloc` interpose to the existing
-// free / realloc set).  Default OFF: production kame.exe keeps the
-// conservative free-only redirect that has 20 years of Qt + Ruby + Python
-// + module-DLL coexistence behind it.
+// FULL interception (`KAMEPOOLALLOC_FULL_INTERCEPT`, default-ON on Windows
+// per the §32 block above) extends the IAT patch table to `malloc` and
+// `calloc`, so EVERY UCRT-family alloc-family call (kame.exe, Qt, libc++)
+// is routed through the pool — a true mimalloc-style drop-in, matching the
+// macOS dylib default.  Ruby (msvcrt heap) stays excluded by
+// `kame_is_crt_dll`, and `_msize` is co-redirected (the Windows analog of
+// macOS `malloc_size`) so size-queries see pool pointers' true capacity.
+// Soaked on-target (MinGW64 + lld): kame.exe — Qt + Ruby + Python +
+// Create-Driver dialog teardown + load test — clean exit (176 slots / 58
+// modules patched); alloc_stress_test 2000-thread / 42 M-op stress PASSES.
+// Opt OUT with `-DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT` (free-family
+// reconcile only — the prior 20-yr-stable Qt/Ruby/Python conservative model).
 //
 // These pointers hold the *genuine* UCRT entry points, resolved once
 // from ucrtbase.dll.  The pool's own "forward a foreign pointer to the
@@ -816,7 +836,14 @@ inline T find_training_zeros (int X, T x) {
 inline void *malloc_mmap(size_t size) {
 //		fprintf(stderr, "mmap(), %d\n", (int)size);
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-        void *p = malloc(size);
+        // Genuine UCRT malloc — NOT the redirected `malloc`.  This IS the
+        // pool's region-backing allocator; under KAMEPOOLALLOC_FULL_INTERCEPT
+        // a plain `malloc` is IAT-patched to route back into the pool, which
+        // would recurse infinitely here (pool → region claim → malloc_mmap →
+        // malloc → pool ...).  Mirrors free_munmap's g_real_free.
+        // g_real_malloc is resolved before the redirect installs, so the only
+        // pre-resolution callers (none on the region path) fall to std::malloc.
+        void *p = g_real_malloc ? g_real_malloc(size) : malloc(size);
 #else
 		void *p = (
 			mmap(0, size + ALLOC_ALIGNMENT, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0));
