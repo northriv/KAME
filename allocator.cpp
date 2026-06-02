@@ -1325,6 +1325,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// bijective (user_max = N*ALIGN-8 is unique per (ALIGN,N)), so it
 	// still uses the table.
 	std::uint32_t local_id;
+	std::uint32_t bucket_for_prefix = 0;
 	if constexpr (ALIGN >= 1024u) {
 		if constexpr (ALIGN == 1024u) {
 			// N ∈ {6,7,8,9,11,13,15,17} → 0..7 (buckets 40..47).
@@ -1336,10 +1337,23 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		}
 	}
 	else {
-		local_id = kBucketLocalId[bucket_for_size(SIZE)];
+		// (FS=false borrow) Also stash the bucket index in the slot prefix's
+		// upper-low-32 bits so the dealloc fast path can re-aim
+		// `g_thread_freelist_ptr[bucket]` at this chunk's freelist head
+		// without a `bucket_for_size` lookup (12 % Ir on FS=false churn).
+		// One `bucket_for_size` call here, on the cold alloc path.
+		bucket_for_prefix = bucket_for_size(SIZE);
+		local_id = kBucketLocalId[bucket_for_prefix];
 	}
+	// Slot prefix layout (FS=false borrow): bits 0..7 = local_id (max 8),
+	// bits 16..23 = bucket (max 51), bits 32..63 = SIZE.  Bucket lives in
+	// the upper byte of the low-32 half so the dealloc fast path can
+	// extract it from the same `hdr` load already done for local_id.  For
+	// full-usable mode (ALIGN>=1024) `bucket_for_prefix` stays 0 — the
+	// fast-path freelist-follow currently skips that branch.
 	const std::uint64_t hdr_word =
 	    static_cast<std::uint64_t>(local_id)
+	  | (static_cast<std::uint64_t>(bucket_for_prefix) << 16)
 	  | (static_cast<std::uint64_t>(SIZE) << 32);
 	const std::uint16_t msize_word = static_cast<std::uint16_t>(
 	    (N << 8) | (local_id & 0xFFu));
@@ -1462,7 +1476,11 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 		}
 		else {
 			std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
-			local = static_cast<unsigned>(hdr);
+			// Mask: prefix's low byte holds local_id; bits 16..23 now hold
+			// bucket (an earlier change introduced for the dealloc-fast-path
+			// freelist-follow).  Without the mask `local` would include
+			// the bucket bits and fail the KAME_LOCAL_BUCKETS bound check.
+			local = static_cast<unsigned>(hdr) & 0xFFu;
 		}
 		// Defensive bound check (local-id must be valid; misroute on
 		// stale data is detected and falls through to bitmap path).
@@ -1482,7 +1500,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			adopt_local = this->m_sizes[bit_index] & 0xFFu;
 		} else {
 			std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
-			adopt_local = static_cast<unsigned>(hdr);
+			adopt_local = static_cast<unsigned>(hdr) & 0xFFu;
 		}
 		if(adopt_local < (unsigned)KAME_LOCAL_BUCKETS) {
 			if(this->try_adopt_orphan(p, adopt_local)) return false;
@@ -3197,9 +3215,23 @@ PoolAllocatorBase::deallocate(void *p) {
 			//                    (p - m_mempool) >> m_align_shift.  m_sizes
 			//                    sits in this already-loaded hot line, so a
 			//                    borrow chunk's `!m_sizes` check is free.
+			//
+			// `bucket` is also extracted (where available) so we can
+			// re-aim `g_thread_freelist_ptr[bucket]` at this chunk's
+			// freelist head — the next same-size alloc on this thread
+			// then pops the slot we just freed (LIFO) instead of running
+			// `slow_allocate` → `scan_dll_freelist` on a multi-chunk
+			// working set.  ~3× win on FS=false 384..2048 churn.
+			// `bucket == 0` is the "skip-update" sentinel (used for
+			// FS=false full-usable mode where the bucket isn't encoded
+			// in m_sizes; size=0 itself never reaches the pool path).
 			unsigned local;
+			unsigned bucket;
 			if(chunk_obj->m_fs_flag) {
 				local = 0;
+				// FS=true chunk serves exactly one bucket — already in
+				// the hot cache line, no extra load.
+				bucket = chunk_obj->m_base_bucket;
 			} else if(chunk_obj->m_sizes) {
 				size_t bit_index =
 				    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->mempool())
@@ -3207,10 +3239,15 @@ PoolAllocatorBase::deallocate(void *p) {
 				local = chunk_obj->m_sizes[bit_index] & 0xFFu;
 				if(local >= (unsigned)KAME_LOCAL_BUCKETS)
 					goto vtable_dispatch;
+				bucket = 0;   // skip-update sentinel for full-usable mode
 			} else {
 				std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
 				    static_cast<char *>(p) - 8);
-				local = static_cast<unsigned>(hdr);
+				local  = static_cast<unsigned>(hdr) & 0xFFu;
+				// (FS=false borrow) bucket packed in bits 16..23 of the
+				// prefix's low-32 half at allocate-time — free to extract
+				// from the already-loaded `hdr`.
+				bucket = (static_cast<unsigned>(hdr) >> 16) & 0xFFu;
 				// Defensive: a stray pointer whose owner-id coincidentally
 				// matched but whose prefix is garbage — fall to the slow
 				// path (which re-validates via palloc + the vtable owner
@@ -3224,6 +3261,16 @@ PoolAllocatorBase::deallocate(void *p) {
 			// cycle / thread-exit drain returns it via
 			// batch_return_to_bitmap.
 			chunk_obj->freelist_push(local, p);
+			// (§freelist-follow) Re-aim the alloc-side TLS shortcut so
+			// the next same-bucket alloc pops THIS slot via the LIFO fast
+			// path, eliminating the `slow_allocate` → DLL scan that
+			// dominated FS=false churn (callgrind: 26 % Ir, 68 % D1
+			// read-misses).  Defensive bucket bound: a stale/garbage
+			// prefix could route the write off-array.
+			if(bucket != 0 && bucket < (unsigned)ALLOC_NUM_BUCKETS) {
+				g_thread_freelist_ptr[bucket] =
+				    &chunk_obj->m_freelist_head[local];
+			}
 			return true;
 		}
 	vtable_dispatch:
