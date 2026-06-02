@@ -24,6 +24,15 @@ CONFIG -= app_bundle
 CONFIG += c++17
 QMAKE_CXXFLAGS += -Wno-register
 
+# Hot-path codegen (see tests/CMakeLists.txt for the full rationale): hide
+# the inline/COMDAT internal functions so intra-DSO self-calls bind directly
+# instead of through the PLT — notably `kame_free`'s call to the inline
+# `PoolAllocatorBase::deallocate` on every free.  `-fno-semantic-interposition`
+# does the same for the non-inline self-calls.  Exported symbols are
+# unchanged, so the `free`/`malloc` interpose semantics are untouched.  Not
+# applicable to MSVC.
+!win32-msvc*: QMAKE_CXXFLAGS += -fvisibility-inlines-hidden -fno-semantic-interposition
+
 # Dylib-mode auto-activate + KamePooledAllocGuard / activateAllocator()
 # elision (see allocator.cpp / allocator.h).  Consumers (tests) also
 # define this so the header sees the same codepath — qmake has no
