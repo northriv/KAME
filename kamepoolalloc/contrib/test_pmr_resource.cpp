@@ -12,13 +12,14 @@
 
 #include "../kame_pool.h"
 
+#include <cstdio>     // std::printf — needed in BOTH branches (PMR-OK + SKIP)
+
 #if __has_include(<memory_resource>)
 
 #include "pmr_resource.hpp"
 
 #include <algorithm>
 #include <cassert>
-#include <cstdio>
 #include <cstring>
 #include <deque>
 #include <list>
