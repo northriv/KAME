@@ -166,6 +166,32 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
     else
         return (T)(long)_InterlockedAnd((long volatile *)target, (long)value);
 }
+//! (§32) Atomic fetch-and-OR (MSVC).  Returns the OLD value.
+template <typename T>
+inline T atomicFetchOr(T *target, T value) noexcept {
+    if constexpr (sizeof(T) == 8)
+        return (T)_InterlockedOr64((long long volatile *)target, (long long)value);
+    else
+        return (T)(long)_InterlockedOr((long volatile *)target, (long)value);
+}
+//! (§32) Atomic exchange (MSVC).  Returns the OLD value.
+template <typename T>
+inline T atomicExchange(T *target, T value) noexcept {
+    if constexpr (sizeof(T) == 8)
+        return (T)_InterlockedExchange64((long long volatile *)target, (long long)value);
+    else
+        return (T)(long)_InterlockedExchange((long volatile *)target, (long)value);
+}
+//! (§32) Atomic fetch-and-SUB (MSVC).  Returns the OLD value.
+template <typename T>
+inline T atomicFetchSub(T *target, T value) noexcept {
+    if constexpr (sizeof(T) == 8)
+        return (T)_InterlockedExchangeAdd64((long long volatile *)target,
+                                            -(long long)value);
+    else
+        return (T)(long)_InterlockedExchangeAdd((long volatile *)target,
+                                                 -(long)value);
+}
 #else
 template <typename T>
 inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
@@ -191,6 +217,28 @@ inline bool atomicDecAndTest(T *target) noexcept {
 template <typename T>
 inline T atomicFetchAnd(T *target, T value) noexcept {
     return __sync_fetch_and_and(target, value);
+}
+//! (§32) Atomic fetch-and-OR.  Returns the OLD value.  Used by the
+//! cross-thread shadow path in `batch_return_to_bitmap` (FS=true,
+//! kHasReturnShadow): bit-set into `return_flags[w]` without
+//! coordination with other cross-thread freers on the same word.
+template <typename T>
+inline T atomicFetchOr(T *target, T value) noexcept {
+    return __sync_fetch_and_or(target, value);
+}
+//! (§32) Atomic exchange.  Returns the OLD value, stores `value`.  Used
+//! by the owner sweep `sweep_return_shadow()` to drain pending returns
+//! out of `return_flags[w]` in one shot.
+template <typename T>
+inline T atomicExchange(T *target, T value) noexcept {
+    return __atomic_exchange_n(target, value, __ATOMIC_ACQ_REL);
+}
+//! (§32) Atomic fetch-and-SUB.  Returns the OLD value, subtracts
+//! `value`.  Used by the owner sweep to batch MASK_CNT decrements
+//! (popcount(swept_bits) at a time) instead of per-bit `atomicDec`.
+template <typename T>
+inline T atomicFetchSub(T *target, T value) noexcept {
+    return __sync_fetch_and_sub(target, value);
 }
 #endif
 
@@ -1421,6 +1469,92 @@ public:
 		else {
 			return nullptr;
 		}
+	}
+
+	//! (§32) Owner-side sweep: fold cross-thread shadow bits into m_flags.
+	//!
+	//! Walks `return_flags[w]` for w in [0, m_count): atomically drains the
+	//! word (`exchange(0)`), ANDs the freed bit pattern out of `m_flags[w]`,
+	//! and updates the two counters that drive chunk lifecycle:
+	//!
+	//!   * `m_flags_filled_cnt` — decremented when a word transitions from
+	//!     ALL-SET (saturated) to non-saturated.  Saturation is the trigger
+	//!     used by allocate_pooled to decide "this word is exhausted, try
+	//!     the next one"; restoring it lets the allocator find slots again.
+	//!   * `m_flags_packed` MASK_CNT — decremented (batched via popcount)
+	//!     when a word transitions from non-zero to zero.  MASK_CNT==0 is
+	//!     the chunk-empty release trigger.
+	//!
+	//! Atomic semantics:
+	//!   * `return_flags[w].exchange(0, ACQ_REL)` — pairs with cross-thread
+	//!     `fetch_or` in `batch_return_to_bitmap` (RELEASE on the OR);
+	//!     ensures any user-side stores that preceded the cross-thread
+	//!     free are visible to the owner after the exchange.
+	//!   * `m_flags[w]` writes are NOT atomic — owner is the sole writer
+	//!     (the allocate-path bitmap-CAS only sets bits; sweep clears them).
+	//!     The contract is enforced by the kHasReturnShadow gating: with
+	//!     shadow on, no cross-thread CAS ever lands on m_flags.
+	//!
+	//! Returns true if any bits were drained (caller can use this as a
+	//! hint to retry an allocate-pooled scan).
+	//!
+	//! Owner-only.  Calling from a non-owner thread is UB.  Call sites:
+	//!   * `allocate_pooled` saturation fallback (per-chunk).
+	//!   * `owner_release` empty check (per-chunk).
+	//!   * `cross_release` — N/A: cross_release runs on a cross-thread
+	//!     after owner exit; the shadow path is disabled there
+	//!     (`batch_return_to_bitmap` falls back to direct CAS-clear on
+	//!     BIT_OWNED == 0).
+	//!   * `release_dll_chunks_for_thread` — pre-release final sweep on
+	//!     thread exit (per chunk in this thread's DLL).
+	bool sweep_return_shadow() noexcept {
+		if constexpr (!kHasReturnShadow) return false;
+		FUINT *rf = return_flags();
+		// Cacheline-spread CAS-based sweep — owner walks return_flags in
+		// cacheline-strided passes so the OWNER's CAS attempt and a
+		// concurrent CROSS-THREAD `fetch_or` on the same chunk's
+		// `return_flags[]` only land on the same cacheline for one
+		// inner-loop step per pass.  Strong CAS (`r → 0`) on each word;
+		// CAS-fail = consumer fetch_or modified the word between our
+		// load and our CAS — leave the bits in the shadow, the next
+		// sweep picks them up.  Sweep is "best-effort" / "drain what we
+		// can" — never blocks on contention.  Per pass: m_count /
+		// CL_WORDS words touched, one per cacheline.
+		//
+		//   pass 0 (offset=0): words   0,  8, 16, 24, …
+		//   pass 1 (offset=1): words   1,  9, 17, 25, …
+		//   …
+		//   pass 7 (offset=7): words   7, 15, 23, 31, …
+		constexpr int CL_WORDS = (64 + sizeof(FUINT) - 1) / sizeof(FUINT);
+		bool any = false;
+		uint32_t packed_dec = 0;
+		for(int offset = 0; offset < CL_WORDS; ++offset) {
+			for(int idx = offset; idx < m_count; idx += CL_WORDS) {
+				FUINT r = rf[idx];                // relaxed load
+				if(r == 0) continue;
+				// Strong CAS: expect r, set 0.  Fail ⇒ concurrent
+				// cross-thread `fetch_or` raced us; leave the bits and
+				// move on (next sweep will pick them up).  This is the
+				// "skip cacheline on CAS-fail" that pairs with the
+				// outer cacheline-spread pass — the contended cacheline
+				// is dropped from THIS pass; the next pass (different
+				// offset, different word within the same cacheline) or
+				// the next sweep call retries.
+				if( !atomicCompareAndSet(r, FUINT(0), &rf[idx]))
+					continue;
+				any = true;
+				FUINT oldv = m_flags[idx];
+				FUINT newv = oldv & ~r;
+				m_flags[idx] = newv;
+				if(oldv == ~(FUINT)0u && newv != ~(FUINT)0u)
+					atomicDec(&m_flags_filled_cnt);
+				if(newv == 0 && oldv != 0)
+					++packed_dec;
+			}
+		}
+		if(packed_dec)
+			atomicFetchSub(&m_flags_packed, packed_dec);
+		return any;
 	}
 protected:
 	PoolAllocator(int count, char *addr);
