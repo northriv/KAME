@@ -61,32 +61,40 @@ mimalloc-bench's `xmalloc-test` (Lever & Boreham, USENIX 2000) exercises.
 
     bench_xthread -w2 -s64 -t5 (M free/sec, higher=better)
       libc      15.3
-      kame       2.7  (override)
-      kame       3.0  (direct, bench_xthread_pool)
+      kame      45    (override + direct, after force_walk fix)
       mi3       82
       je        11.1
 
-The override path adds ~10% overhead over direct (240 vs 268 in the loop
-case).  Cross-thread free is the actual bottleneck: kame is currently 5-10x
-slower than libc on small same-class cross-thread frees and ~25x slower
-than mimalloc on the same.  This is a known design trade-off — cross-thread
-free workloads are uncommon in kame's primary use case (STM Payload
-copy-on-write, instrument drivers, scientific compute), where allocation
-and release are dominated by same-thread patterns.
+The override path adds ~10 % overhead over direct (240 vs 268 in the loop
+case).  Cross-thread free is the worst case for any per-thread freelist
+design; the production-side fix introduced in the same series as this
+README closes the FS=true gap (sizes 16..368) to the point where kame
+beats libc by ~3 ×, with mimalloc still ahead on this pattern.  The
+remaining FS=false gap (sizes ≥ 1024) is a chunk-recycle issue documented
+below.
 
-### Size-class cliff observed at workers=2 (kame_pool_malloc direct)
+### Size-class profile at workers=2 (kame_pool_malloc direct)
 
-    size=    8B  free/sec: 28.42 M     ← beats libc + jemalloc
-    size=   32B  free/sec: 13.91 M     ← parity with libc
-    size=   64B  free/sec:  3.15 M     ← cliff (5x slower than libc)
-    size=  256B  free/sec: 12.06 M     ← parity with libc
-    size= 1024B  free/sec:  3.49 M     ← cliff
-    size= 4096B  free/sec:  1.79 M
+After the `CrossDeallocBatch::flush sets owner force_walk hint` commit
+in this series:
 
-The dip is workload-specific (cross-thread free × certain size classes),
-not a general weakness.  Sizes 8 / 32 / 256 are competitive even on this
-worst-case pattern; 64 / 1024 hit producer-consumer cacheline contention
-on the chunk's `m_flags` bitmap word.
+    size=    8B  free/sec: 28.4 M     ← beats libc + jemalloc
+    size=   32B  free/sec: 34.1 M     ← beats libc (2.3 ×)
+    size=   64B  free/sec: 47.2 M     ← beats libc (3.1 ×); was 3.2 M
+                                        before the force_walk fix
+    size=  256B  free/sec: 12.2 M     ← parity with libc
+    size= 1024B  free/sec:  3.5 M     ← still slow (FS=false large slot)
+    size= 4096B  free/sec:  1.8 M     ← still slow (FS=false large slot)
+
+The remaining ≥ 1024 B dip is `madvise(DONTNEED)` + page-fault thrash on
+the chunk-recycle path (per `perf record`: 27 % of samples land in kernel
+TLB flush / page-zeroing routines when consumer-drained chunks get
+released eagerly and the producer immediately needs a fresh chunk).  A
+walk-then-release reorder of `allocate_chunk_path` recovers it to ~7 M
+free/sec but regresses FS=true sizes 32/64 by 30 %, so the trade-off was
+left as documented future work.  Cross-thread free is rare in kame's
+primary use case (STM Payload copy-on-write, instrument drivers,
+scientific compute) — see CLAUDE.md.
 
 ## Comparing against mimalloc-bench's binary
 
