@@ -618,9 +618,32 @@ struct CrossDeallocBatch {
         // Walk chunk runs.  `batch_return_to_bitmap` consumes the run
         // starting at `&buf[i]` (entries[k].chunk == this until
         // sentinel / next chunk), returns the count, caller advances.
+        //
+        // For each unique chunk the batch returned slots to: signal the
+        // OWNER thread's "force walk from head" hint flag.  Without this
+        // poke, the owner's `allocate_chunk_path` Phase 2 DLL walk stays
+        // gated by its own `dll_exhausted` flag (set after the previous
+        // walk found no space) and keeps mmap'ing fresh chunks instead
+        // of reusing the slots we just returned.  The single-slot
+        // `push_direct` path already does this; the batched flush path
+        // skipped it — caught by `bench_xthread_pool -w2 -s64` where the
+        // pool inflated +32 regions (1 GiB VA) over a 5-second run.
+        //
+        // Cache `m_owner_dll_force_walk_ptr` BEFORE
+        // `batch_return_to_bitmap`: the call may release the chunk on
+        // last-slot return + owner-exit, after which `chunk` is a stale
+        // pointer.  The owner's TLS storage that the cached ptr targets
+        // lives independently of the chunk; null after owner-exit's
+        // release-store, so the post-call deref is safe-or-skipped.
         int i = 0;
         while(i < count) {
-            i += buf[i].chunk->batch_return_to_bitmap(&buf[i]);
+            PoolAllocatorBase *chunk = buf[i].chunk;
+            std::atomic<bool> *cached_force_walk =
+                chunk->m_owner_dll_force_walk_ptr.load(
+                    std::memory_order_acquire);
+            i += chunk->batch_return_to_bitmap(&buf[i]);
+            if(cached_force_walk)
+                cached_force_walk->store(true, std::memory_order_relaxed);
         }
         count = 0;
     }

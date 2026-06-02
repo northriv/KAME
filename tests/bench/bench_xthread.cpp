@@ -183,6 +183,11 @@ int main(int argc, char **argv) {
     counters   = (struct counter *)XT_MALLOC(sizeof(*counters) * num_workers);
     int *ids   = (int *)XT_MALLOC(sizeof(int) * num_workers);
     for(int i = 0; i < num_workers; ++i) counters[i].c = 0;
+#ifdef XTHREAD_USE_KAME_POOL
+    kame_pool_stats_t st_before{};
+    st_before.version = KAME_POOL_STATS_VERSION;
+    kame_pool_get_stats(&st_before);
+#endif
     gettimeofday(&begin, nullptr);
     for(int i = 0; i < num_workers; ++i) {
         ids[i] = i;
@@ -202,6 +207,20 @@ int main(int argc, char **argv) {
     std::printf("[%s] workers=%d size=%d run=%.1fs  "
                 "rtime: %.3f, free/sec: %.3f M\n",
                 kBenchName, num_workers, object_size, run_time, rtime, mfree);
+#ifdef XTHREAD_USE_KAME_POOL
+    kame_pool_stats_t st_after{};
+    st_after.version = KAME_POOL_STATS_VERSION;
+    kame_pool_get_stats(&st_after);
+    std::printf("[%s] pool: regions %zu→%zu (+%zu), units_live %zu→%zu, "
+                "chunks_live %zu→%zu, large_alloc %zu→%zu, cache %zuMiB\n",
+                kBenchName,
+                st_before.regions_populated, st_after.regions_populated,
+                st_after.regions_populated - st_before.regions_populated,
+                st_before.units_live, st_after.units_live,
+                st_before.chunks_live, st_after.chunks_live,
+                st_before.large_alloc_count, st_after.large_alloc_count,
+                st_after.cache_bytes >> 20);
+#endif
     // Drain residual batches so leak checkers don't flag the workload.
     while(batches) {
         struct batch *b = (struct batch *)batches;
