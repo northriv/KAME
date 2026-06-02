@@ -2093,7 +2093,10 @@ inline constexpr unsigned int kame_ladder_bucket(std::size_t total) noexcept {
 	return 23u + static_cast<unsigned int>((msb - 8) * 4 + sub);
 }
 
-inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((cold))
+#endif
+inline constexpr unsigned int bucket_for_size_full(std::size_t size) noexcept {
 	// FS=true / mixed range: 1..368, 16-B step.  (size+15)>>4 yields
 	// 1..23 for size 1..368, and 0 for size==0 (reuses bucket 0's 16-B
 	// allocator).
@@ -2146,6 +2149,56 @@ inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 	if(Kf == 47u && size <= 16384u) return 50u;
 	return Kf;
 }
+
+//! (§lut) Compile-time bucket lookup table for the hot FS=false borrow
+//! range 369..2048 B, the bulk of variable-size workloads (larson-style).
+//! `bucket_for_size_full`'s >368 path costs a `clzll` + sub-octave ladder
+//! arithmetic (~24 instr, ~11 % of total Ir on the variable-churn
+//! profile); glibc's tcache size→bin is a single shift.  This table
+//! restores O(1): every bucket boundary in 369..2048 is at a multiple of
+//! 8 (slot−8 for the borrow tier, slot a multiple of 16), so `(size+7)>>3`
+//! (ceil-div-8) maps each bucket to a contiguous, non-overlapping granule
+//! range.  v[i] = bucket_for_size_full(8*i), built at compile time from
+//! the authoritative routine so the two can never drift.  Indices below
+//! 47 (sizes ≤368) are unused — the formula path handles that range.
+struct BucketSizeLut {
+	uint8_t v[(2048u >> 3) + 1u];   // indices 0..256 → sizes 0..2048
+	constexpr BucketSizeLut() : v{} {
+		for(unsigned i = 0; i < (2048u >> 3) + 1u; ++i) {
+			std::size_t sz = static_cast<std::size_t>(i) << 3;
+			v[i] = static_cast<uint8_t>(
+			    bucket_for_size_full(sz == 0 ? 1u : sz));
+		}
+	}
+};
+inline constexpr BucketSizeLut kBucketSizeLut{};
+
+inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
+	// FS=true / mixed range: 1..368, 16-B step — already O(1).
+	if(size <= (std::size_t)ALLOC_SIZE23)
+		return static_cast<unsigned int>((size + 15u) >> 4);
+	// (§lut) Hot FS=false borrow range: one table load, no clzll/ladder.
+	if(size <= 2048u)
+		return kBucketSizeLut.v[(size + 7u) >> 3];
+	// Cold tail (> 2048): full ladder.  Rare in practice.
+	return bucket_for_size_full(size);
+}
+
+//! (§lut) Compile-time proof that the fast `bucket_for_size` is
+//! byte-for-byte identical to `bucket_for_size_full` across the whole
+//! bucketed range.  Catches any future drift between the LUT's granule
+//! assumption (boundaries at multiples of 8) and the authoritative
+//! routine — a silent mismatch would misroute an alloc to the wrong
+//! slot size.  constexpr ⇒ a regression breaks the build, not a test.
+constexpr bool kBucketLutMatchesFull() {
+	for(std::size_t s = 1; s <= ALLOC_MAX_BUCKETED_SIZE; ++s)
+		if(bucket_for_size(s) != bucket_for_size_full(s))
+			return false;
+	return true;
+}
+static_assert(kBucketLutMatchesFull(),
+	"bucket_for_size LUT diverged from bucket_for_size_full — the "
+	"(size+7)>>3 granule no longer aligns with a bucket boundary.");
 
 //! (§17) Bucket for an over-aligned request (alignment > ALLOC_ALIGNMENT,
 //! always power-of-two by caller contract).  Returns the smallest bucket
