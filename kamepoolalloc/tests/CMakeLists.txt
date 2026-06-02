@@ -141,6 +141,29 @@ if(USE_KAME_ALLOCATOR)
     #     ./alloc_tune_report [seconds-per-bench, default 2]
     add_executable(alloc_tune_report alloc_tune_report.cpp)
     target_link_libraries(alloc_tune_report kamepoolalloc Threads::Threads)
+
+    # Third-party-style microbenches (mimalloc-bench / glibc-bench shapes).
+    # NOT registered as ctests — perf-only.  See bench/README.md for usage.
+    #
+    # `bench_loop`         — single-thread hot malloc/free.
+    # `bench_xthread`      — cross-thread producer/consumer (xmalloc-test
+    #                        shape) routed via `malloc`/`free`.  Picks up
+    #                        whatever allocator the linker resolves first
+    #                        (LD_PRELOAD overrides apply).
+    # `bench_xthread_pool` — same workload but calls `kame_pool_malloc`
+    #                        directly.  Use the two side-by-side to
+    #                        attribute deltas to the strong-symbol override
+    #                        layer vs the pool core.
+    add_executable(bench_loop bench/bench_loop.c)
+    set_property(TARGET bench_loop PROPERTY C_STANDARD 99)
+    target_link_libraries(bench_loop Threads::Threads)
+
+    add_executable(bench_xthread bench/bench_xthread.cpp)
+    target_link_libraries(bench_xthread Threads::Threads)
+
+    add_executable(bench_xthread_pool bench/bench_xthread.cpp)
+    target_compile_definitions(bench_xthread_pool PRIVATE XTHREAD_USE_KAME_POOL)
+    target_link_libraries(bench_xthread_pool kamepoolalloc Threads::Threads)
 endif()
 
 # --- CTest registration ---
