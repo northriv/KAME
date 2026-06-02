@@ -769,6 +769,32 @@ protected:
 	static void deallocate_chunk(char *chunk_base, size_t chunk_size,
 	                             bool reclaim_pages = true);
 
+	//! (§34) Re-stamp `back_offset[]` for every unit of the chunk at
+	//! `chunk_base` (size `chunk_size`) with `u | back_off_flag`.  Used
+	//! when a chunk is popped from the large-recycle cache for reuse by
+	//! a DIFFERENT tier than it was cached as: dedicated chunks tag
+	//! back_off bit7 (0x80), bucket chunks leave it clear (0).  Because
+	//! the two tiers now share the LRC_CHUNK size-class slots (§34
+	//! unified recycle), a popped block may carry the other tier's tag;
+	//! the consumer re-stamps to its own.  `chunk_units = chunk_size /
+	//! ALLOC_MIN_CHUNK_SIZE`.  Plain stores — caller owns the block
+	//! (taken via the LRC CAS), units stay claimed, no concurrent writer.
+	static void restamp_back_offset(char *chunk_base, size_t chunk_size,
+	                                std::uint8_t back_off_flag) noexcept;
+
+	//! (§34) Bucket-chunk release entry point: try to park the empty
+	//! chunk in the large-recycle cache (LRC_CHUNK) so its units stay
+	//! claimed and its pages stay warm — skipping the `madvise` +
+	//! bitmap-clear that `deallocate_chunk` would do.  Falls through to
+	//! `deallocate_chunk` (true release) when the cache is full / over
+	//! cap.  MUST NOT be called from `deallocate_chunk` itself (that is
+	//! the LRC eviction backend — would recurse); call it from the
+	//! "chunk became empty" sites (owner_release, thread-exit,
+	//! cross-thread last-slot).  `chunk_size` is the template's
+	//! compile-time CHUNK_SIZE (256 KiB / 512 KiB / 1 MiB).
+	static void bucket_release_chunk(char *chunk_base,
+	                                 size_t chunk_size) noexcept;
+
 public:
 	//! Cache-line-isolated hot block for the deallocate owner-free fast
 	//! path (follow-up "(1b)", tests/CHUNK_CLAIM_TLA_NOTES.md §12.3).  All
