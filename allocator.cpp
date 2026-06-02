@@ -3192,11 +3192,13 @@ PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 
 inline bool
 PoolAllocatorBase::deallocate(void *p) {
-	// `delete nullptr` is well-defined as a no-op per [expr.delete]/2.
-	// Treat null as "not our pointer" so the caller (operator delete or
-	// kame_free) falls through to its libsystem-free path, which itself
-	// short-circuits on null.
-	if( !p) return false;
+	// `delete nullptr` / `free(NULL)` are well-defined no-ops.  No `!p`
+	// pre-filter here: `s_tls_hot.last_region_base` is initialised to (and
+	// only ever cleared to) `RADIX_CACHE_EMPTY` (= ~0), which is unmatchable
+	// by `base = 0` from `p == NULL`, so a null free routes through
+	// `radix_lookup_slow(0)` → ABSENT → caller's `libsystem_free(NULL)`
+	// no-op.  Two instructions (`test %rdi,%rdi; je`) shaved off the hot
+	// path's prologue.
 	// §13: O(1) p -> radix kind via the 2-level radix tree + per-thread
 	// 1-entry cache.  kind == 0 (KAME_RADIX_ABSENT) means the pointer
 	// is outside every populated region — pass through to libsystem free.
@@ -5455,13 +5457,17 @@ int PoolAllocatorBase::numa_node_for_this_thread() noexcept {
 	return n;
 }
 
-// (§13) Per-thread 1-entry region-lookup cache + owner-id stamp.  Both
-// init to 0 — `last_region_base = 0` never matches a real region base
-// (kernel null page), and `owner_id = 0` never matches a live chunk's
-// non-zero owner stamp.  See `TlsHotPath` in allocator_prv.h for why
-// the two are co-located (one GOT tpoff for both reads on the free hot
-// path).
-ALLOC_TLS_IE TlsHotPath s_tls_hot = {0, 0};
+// (§13) Per-thread 1-entry region-lookup cache + owner-id stamp.
+// `last_region_base = RADIX_CACHE_EMPTY` (= ~0) — unmatchable by any real
+// region base AND by `base = 0` (from `p == NULL`).  This lets the
+// deallocate hot path drop the `!p` pre-filter (a null free falls into
+// `radix_lookup_slow` → ABSENT → libsystem_free(NULL) no-op).  Real
+// region bases come from `mmap()`, which never returns address 0 (Linux
+// respects `vm.mmap_min_addr ≥ 4096`; kernel reserves the null page), so
+// the invariant "`last_region_base != 0`" holds in steady state.  See
+// `TlsHotPath` in allocator_prv.h.  `owner_id = 0` likewise never matches
+// a live chunk's non-zero owner stamp.
+ALLOC_TLS_IE TlsHotPath s_tls_hot = {RADIX_CACHE_EMPTY, 0};
 
 // Out-of-line full radix walk + cache update.  Called on cache miss.
 // Returns 0 if `up` is in a populated region, -1 otherwise.
@@ -6428,7 +6434,7 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 	// this base doesn't false-hit (the slot is cleared, but the fast-path
 	// cache shortcuts the slot read).
 	if((uintptr_t)base == s_tls_hot.last_region_base)
-		s_tls_hot.last_region_base = 0;
+		s_tls_hot.last_region_base = RADIX_CACHE_EMPTY;
 	// (§21) Try to recycle into the warm cache (still mapped, warm).  On
 	// overflow / over-cap the cache returns false and we munmap now.
 	// (§27) Huge allocs (mmap_size > LRC_HI) bypass the cache — see

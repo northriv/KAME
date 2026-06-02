@@ -611,17 +611,35 @@ struct CrossDeallocEntry {
 //! of paying a separate `mov tpoff(%rip),%rax` for each.  Used by:
 //!   - `radix_lookup` (hot) reads `.last_region_base` for the 1-entry
 //!     region cache; `radix_lookup_slow` writes it on hit insert,
-//!     `radix_remove` clears it.
+//!     `radix_remove` clears it to the empty sentinel.
 //!   - `PoolAllocatorBase::deallocate` (hot) reads `.owner_id` to compare
 //!     against `chunk_obj->m_owner_id`; `kame_owner_id()` lazily assigns
 //!     a non-zero id on first call.
-//! Both members default-zero, which never matches a real region base
-//! and never matches a real chunk owner — so an uninitialised thread
-//! falls through to the cold path naturally.
+//!
+//! `last_region_base` is initialised to `RADIX_CACHE_EMPTY` (all-ones)
+//! rather than 0, so it can NEVER equal any real region base (which are
+//! 32 MiB-aligned and live in low-canonical user space).  This buys the
+//! deallocate hot path a guarantee that `base = p & ~(MIN_MMAP-1) ==
+//! last_region_base` implies `p != NULL` — so the `if(!p) return false;`
+//! pre-filter can move to the cold path (where `radix_lookup_slow(0)`
+//! returns ABSENT, then `kame_free` calls `libsystem_free(NULL)` for the
+//! libc-spec no-op).  `mmap()` never returns address 0 (Linux respects
+//! `vm.mmap_min_addr ≥ 4096`; the kernel reserves the null page), so the
+//! invariant holds in steady state; any path that would set it to 0 must
+//! instead either turn the allocator OFF or retry the mmap.
+//!
+//! `owner_id` keeps its 0-default: 0 = "this thread has never allocated
+//! a chunk" (`kame_owner_id` assigns a non-zero id from a counter on
+//! first call).  Live chunks always carry a non-zero `m_owner_id`, so 0
+//! never matches a real owner.
 struct TlsHotPath {
-	uintptr_t last_region_base;  // radix 1-entry cache; 0 = empty
+	uintptr_t last_region_base;  // radix 1-entry cache; RADIX_CACHE_EMPTY = unmatchable
 	uint32_t  owner_id;          // this thread's chunk-owner stamp; 0 = unassigned
 };
+//! Sentinel for an empty radix cache slot — guaranteed not to match any
+//! real region base (real bases are 32 MiB-aligned user-space addresses;
+//! all-ones is the kernel-space top address with low bits set).
+static constexpr uintptr_t RADIX_CACHE_EMPTY = ~(uintptr_t)0;
 extern ALLOC_TLS_IE TlsHotPath s_tls_hot;
 
 class PoolAllocatorBase {
@@ -1287,8 +1305,11 @@ private:
 		uintptr_t up = (uintptr_t)p;
 		uintptr_t base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
 		// (§19) Cache holds ONLY pool region bases, so a hit means
-		// KAME_RADIX_POOL.  base 0 (init) never matches (kernel null
-		// page is never a region base).
+		// KAME_RADIX_POOL.  `last_region_base` is `RADIX_CACHE_EMPTY`
+		// (= ~0) when empty — unmatchable by any real region base AND
+		// unmatchable by `base = 0` (from `p == NULL`), so the deallocate
+		// hot path drops the `!p` pre-filter and lets a null free fall
+		// through to `radix_lookup_slow(0) → ABSENT → libsystem_free(0)`.
 		if(__builtin_expect(base == s_tls_hot.last_region_base, 1))
 			return (int)KAME_RADIX_POOL;
 		return radix_lookup_slow(up);
