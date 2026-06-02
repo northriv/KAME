@@ -1703,6 +1703,23 @@ public:
 	static constexpr std::uint64_t chunk_header_size_info() noexcept {
 	    return static_cast<std::uint64_t>(ALIGN) << 32;
 	}
+	//! (§max-n-gate) Largest N (bit-count per slot) any bucket served by
+	//! this chunk template requests.  Used to widen `m_flags_filled_cnt`'s
+	//! semantics on FS=false: a word counts as "filled" once it can no
+	//! longer host a MAX_N-contiguous-zero run, not just when every bit
+	//! is set.  Keeps `m_flags_filled_cnt == m_count` as a fast bail
+	//! signal for max-N requests even when smaller-N room remains, and
+	//! the `walked >= m_count` linear-walk path correspondingly fires less
+	//! often.  Values from the FS=false ladder in allocator.cpp's
+	//! `KAME_DECL_BUCKET` block (slot/ALIGN at the highest bucket each
+	//! ALIGN serves).
+	static constexpr unsigned int MAX_N =
+	    (ALIGN == 32u)   ? 7u  :  // bucket 14 slot=224 → N=ceil((216+8)/32)
+	    (ALIGN == 64u)   ? 17u :  // bucket 31 slot=1088
+	    (ALIGN == 256u)  ? 17u :  // bucket 39 slot=4352
+	    (ALIGN == 1024u) ? 17u :  // bucket 47 slot=17408 (full-usable)
+	    (ALIGN == 4096u) ? 8u  :  // bucket 51 slot=32768 (full-usable)
+	                       1u;
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	PoolAllocator(int count, char *addr);
