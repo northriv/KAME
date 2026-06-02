@@ -229,6 +229,64 @@ size cliff and no per-thread working-set cliff, so a real mixed workload (small
 objects + large arrays/waveforms — KAME's own profile) never hits the
 `mmap`-per-large-alloc wall the others do.
 
+**Ohtaka — competitive comparison, mimalloc-bench suite** (`sys` = glibc,
+`mi3` = mimalloc 3, `mi` = mimalloc, `je` = jemalloc, `tc` = tcmalloc):
+
+**xmalloc-test — cross-thread handoff, 64 B objects, M frees/s (higher=better):**
+
+One allocator thread, one free-er thread — the STM Snapshot handoff pattern
+where a measurement thread allocates a Payload and the UI thread releases it.
+
+| workers |  sys |  mi3 |   mi |    je |   tc | **kame** |
+| ------: | ---: | ---: | ---: | ----: | ---: | -------: |
+|       1 |  3.5 | 26.5 | 22.6 |   4.8 |  2.4 |      3.0 |
+|       4 |  9.2 | 55.3 | 60.2 |  15.8 |  1.3 |      8.7 |
+|      16 | 23.0 |  142 |  178 |  64.7 | 0.76 | **39.4** |
+|      64 | 11.4 |  211 |  243 |   169 | 0.61 | **51.9** |
+|     128 |  7.7 |  200 |  175 |   163 | 0.59 | **51.0** |
+
+At ≥ 16 workers kame pulls ahead of glibc and holds a flat 51 M/s at 64–128
+workers while glibc collapses 7× (tcache reclaim serialises) and tcmalloc
+collapses entirely.  kame trails mi / mi3 / je — those are purpose-built for
+this workload — but the relevant comparison for KAME deployments is against
+the system allocator.
+
+**mstress — random object migration across threads, wall time s (lower=better):**
+
+Allocations are passed between threads at random — analogous to STM
+Transactions that write a new Payload on one core and the old one is released
+on another.
+
+| threads |  sys |  mi3 |   mi |    je |    tc | **kame** |
+| ------: | ---: | ---: | ---: | ----: | ----: | -------: |
+|       1 | 0.089 | 0.052 | 0.051 | 0.057 | 0.055 | **0.084** |
+|       4 | 0.548 | 0.428 | 0.420 | 0.804 | 0.600 |    0.635 |
+|      16 |  2.42 |  1.83 |  1.83 |  2.65 |  2.02 |     2.56 |
+|      64 |  7.67 |  3.34 |  3.54 |  8.08 |  5.28 |  **6.10** |
+|     128 |  14.0 |  5.62 |  5.01 |  14.3 |  9.53 | **10.23** |
+
+kame beats glibc at 1 thread and at 64–128 threads (the range KAME actually
+runs at); it trails glibc slightly at 4–16 threads, where glibc's per-thread
+lock is simpler than kame's DLL adoption.  mi / mi3 lead throughout.
+
+**larson — server-style worker respawn, Mops/s (higher=better):**
+
+Threads are periodically killed and replaced; surviving threads free objects
+allocated by the dead ones.  Not a pattern in KAME's STM lifecycle, but
+included for completeness.
+
+| threads |  sys |  mi3 |    mi |    je |    tc | **kame** |
+| ------: | ---: | ---: | ----: | ----: | ----: | -------: |
+|       1 | 24.4 | 35.1 |  45.4 |  37.9 |  49.3 |     21.9 |
+|       4 | 69.3 | 66.0 |  95.3 | 101.5 | 108.8 |     59.2 |
+|      16 |  252 |  247 |   386 |   346 |   372 |      201 |
+|      64 |  899 |  821 | 1 524 | 1 305 | 1 197 |      720 |
+
+kame consistently runs 10–20 % behind glibc here: the worker-respawn pattern
+triggers repeated chunk re-ownership handoffs that kame's adoption path handles
+correctly but conservatively.  This is the one workload where kame does not
+yet match glibc.
+
 ## Build
 
 ### qmake (KAME-integrated)
