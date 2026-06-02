@@ -166,6 +166,14 @@ inline T atomicFetchAnd(T *target, T value) noexcept {
     else
         return (T)(long)_InterlockedAnd((long volatile *)target, (long)value);
 }
+//! Atomic fetch-and-OR.  Returns the OLD value (before OR).
+template <typename T>
+inline T atomicFetchOr(T *target, T value) noexcept {
+    if constexpr (sizeof(T) == 8)
+        return (T)_InterlockedOr64((long long volatile *)target, (long long)value);
+    else
+        return (T)(long)_InterlockedOr((long volatile *)target, (long)value);
+}
 #else
 template <typename T>
 inline typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value, bool>::type
@@ -191,6 +199,11 @@ inline bool atomicDecAndTest(T *target) noexcept {
 template <typename T>
 inline T atomicFetchAnd(T *target, T value) noexcept {
     return __sync_fetch_and_and(target, value);
+}
+//! Atomic fetch-and-OR.  Returns the OLD value (before OR).
+template <typename T>
+inline T atomicFetchOr(T *target, T value) noexcept {
+    return __sync_fetch_and_or(target, value);
 }
 #endif
 
@@ -1645,6 +1658,17 @@ protected:
 	template <typename MaskFn, typename OnClearFn>
 	int batch_clear_impl(const CrossDeallocEntry *entries,
 	                     MaskFn mask_fn, OnClearFn on_clear) noexcept;
+
+	//! Attempt to adopt an orphaned chunk (m_owner_id == 0) into this
+	//! thread's DLL and push the freed slot `p` (local-id `local`) to
+	//! the chunk's freelist.  Returns true iff adoption succeeded —
+	//! caller should return immediately.  Returns false if another thread
+	//! won the CAS or this thread has no valid owner-id yet.
+	//!
+	//! Safety: `p` is still marked allocated (bit=1 in m_flags), so
+	//! MASK_CNT ≥ 1; the chunk cannot be released between the CAS-win
+	//! and the BIT_OWNED set.
+	bool try_adopt_orphan(char *p, unsigned local) noexcept;
 
 protected:
 
