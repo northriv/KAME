@@ -1254,8 +1254,19 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		if(this->m_flags_filled_cnt == this->m_count) {
 			// (§32) Saturation may be stale — cross-thread returns might
 			// be sitting in `return_flags[]` waiting for an owner sweep.
+			// BUT: skip sweep on pinned (producer is actively filling
+			// — `return_flags[]` cacheline is hot for consumer writes
+			// of recently-allocated slots) and on 1-back (consumer is
+			// actively draining it).  Sweeping these would cause
+			// owner↔consumer cacheline ping-pong on `return_flags`.
+			// Walk-visited 2-back+ chunks get swept normally: their
+			// returns are older and the cachelines are cool.
 			if constexpr (kHasReturnShadow) {
-				if( !swept_once) {
+				if( !swept_once
+				    && static_cast<PoolAllocatorBase *>(this)
+				       != static_cast<PoolAllocatorBase *>(s_tls.my_chunk)
+				    && static_cast<PoolAllocatorBase *>(this)
+				       != static_cast<PoolAllocatorBase *>(s_tls.dll_one_back)) {
 					swept_once = true;
 					if(this->sweep_return_shadow()) {
 						idx = 0;
@@ -2441,8 +2452,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	if( !s_tls.dll_exhausted) {
 		auto *c = s_tls.dll_cursor ? s_tls.dll_cursor : s_tls.dll_head;
 		while(c) {
-			if(c != s_tls.my_chunk) {
+			// (§32) Skip pinned (my_chunk — producer is filling it) and
+			// 1-back (dll_one_back — consumer is actively returning to
+			// it).  See `dll_one_back` doc for the rationale.
+			if(c != s_tls.my_chunk && c != s_tls.dll_one_back) {
 				if(void *p = c->allocate_pooled(SIZE)) {
+					s_tls.dll_one_back = s_tls.my_chunk;  // (§32) shift
 					s_tls.my_chunk = c;
 					s_tls.dll_cursor = c;
 #ifdef GUARDIAN
@@ -2489,6 +2504,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	}
 	tls_alloc_thread_exit_cleanup.add(
 	    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
+	s_tls.dll_one_back = s_tls.my_chunk;  // (§32) shift on fresh-mmap pin
 	s_tls.my_chunk = chunk;
 	chunk->m_dll_prev = s_tls.dll_tail;
 	chunk->m_dll_next = nullptr;
