@@ -1052,6 +1052,29 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		for(int i = count - 1; i >= 0; --i)
 			m_flags[i] = 0;
 	}
+	// (§32) Zero-init the cross-thread return shadow bitmap storage.
+	//
+	// Layout (FS=true ALIGN>=32 real chunk only — `kHasReturnShadow`):
+	//   [PoolAllocator object]
+	//   [m_flags : count * FUINT]
+	//   [align-up to 64-byte boundary]
+	//   [return shadow : count * FUINT]   ← separate cacheline from m_flags
+	//
+	// The pointer is recomputed on demand via the `return_flags()` accessor
+	// (compile-time folded per template); no `m_return_flags` field on the
+	// chunk header.  Anonymous-pool storage is already zero (mmap MAP_ANON +
+	// MADV_FREE on reuse), but explicit init keeps the invariant
+	// "no bits set in the shadow after construction" auditable and covers
+	// the §29 pre-fill path where the chunk was reused warm.
+	//
+	// For every other chunk template (ALIGN=16, FS=false, FS=true base ctor
+	// pass with DUMMY=false), `return_flags()` compile-time-folds to
+	// nullptr and this block elides — no behaviour change.
+	if constexpr (kHasReturnShadow) {
+		FUINT *rf = this->return_flags();
+		for(int i = 0; i < count; ++i)
+			rf[i] = 0;
+	}
 	// Initial coalesce hint by (FS, real-instance):
 	//   FS=true real chunk (FS && DUMMY): start ABOVE all FS=true
 	//     thresholds (max 35) → push_direct optimistically routes
@@ -1104,6 +1127,22 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	static_assert(size_alloc <= kMetaBudget,
 	    "PoolAllocator + alignment must fit in ALLOC_CHUNK_K_MAX - 64.  "
 	    "Increase K_MAX or shrink the struct.");
+	// (§32) Reserve space for the cross-thread return shadow bitmap on
+	// real FS=true chunks with ALIGN >= 32.  The shadow is the same word
+	// count as m_flags and lives `alignas(64)`-separated, so the
+	// worst-case storage cost is:
+	//   pad_to_next_64 (≤ 56) + count * sizeof(FUINT)
+	// ALIGN=16 chunks are excluded — at ALIGN=16 the bitmap is already
+	// large enough that adding a shadow would force count below the
+	// slot-region capacity and waste slots; and the cliff (false sharing
+	// on m_flags between producer's allocate-CAS and consumer's
+	// CrossDeallocBatch::flush CAS) does not manifest at ALIGN=16 (size
+	// 8 B is fast on every measured workload).  FS=false buckets keep
+	// the single-bitmap layout — the cross-thread free path there
+	// already routes per-call (no batch sort), so the false-sharing
+	// hot path the shadow targets is not present.
+	constexpr bool kHasReturnShadow = FS && DUMMY && ALIGN >= 32u;
+	constexpr size_t kReturnShadowPadMax = kHasReturnShadow ? 64u : 0u;
 	// Slot region size = chunk_size - K_MAX = (size + ALLOC_CHUNK_HEADER)
 	// - K_MAX = size - (K_MAX - ALLOC_CHUNK_HEADER).  The slot region
 	// POINTER (`ppool + (K_MAX - HEADER)`) is no longer materialised here
@@ -1123,12 +1162,16 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	// page-aligned); costs PAGE − K_MAX (= 12 KiB) of slots per chunk on macOS.
 	slot_region_size &= ~((size_t)ALLOC_PAGE_SIZE - 1u);
 	// count must satisfy:
-	//   (i)  size_alloc + count*sizeof(FUINT) <= kMetaBudget
-	//          (m_flags fits between PoolAllocator and slot_region)
+	//   (i)  size_alloc + count*sizeof(FUINT)
+	//        (+ pad + count*sizeof(FUINT) when kHasReturnShadow)
+	//                                            <= kMetaBudget
+	//          (m_flags [+ m_return_flags] fit between PoolAllocator and
+	//           slot_region)
 	//   (ii) count * ALIGN * FUINT_BITS <= slot_region_size
 	//          (slots fit in the slot region)
 	int count_meta = static_cast<int>(
-	    (kMetaBudget - size_alloc) / sizeof(FUINT));
+	    (kMetaBudget - size_alloc - kReturnShadowPadMax) /
+	    (kHasReturnShadow ? 2u * sizeof(FUINT) : sizeof(FUINT)));
 	int count_slots = static_cast<int>(
 	    slot_region_size / ((size_t)ALIGN * FUINT_BITS));
 	int count = count_meta < count_slots ? count_meta : count_slots;

@@ -1371,6 +1371,49 @@ public:
 	}
 
 	typedef uintptr_t FUINT;
+
+	//! (§32) Compile-time discriminator: does this chunk template carry a
+	//! cross-thread return shadow bitmap?  True only for real FS=true
+	//! chunks (`<ALIGN, true, true>`) with ALIGN >= 32 — the cliff range
+	//! where `bench_xthread_pool -w2 -sN` hit producer↔consumer false
+	//! sharing on the same `m_flags` cacheline.  See `return_flags()`.
+	static constexpr bool kHasReturnShadow = FS && DUMMY && ALIGN >= 32u;
+
+	//! (§32) Accessor for the cross-thread return shadow bitmap.  Layout
+	//! is fixed at chunk construction (`m_flags` end → align up to 64-byte
+	//! boundary), so the pointer is recomputed on demand rather than
+	//! stored on the chunk — no extra field, no extra cache line.
+	//!
+	//! Compile-time folds:
+	//!   * ALIGN >= 32, FS=true, DUMMY=true → live pointer
+	//!   * everything else (ALIGN=16, FS=false, FS=true base ctor pass) →
+	//!     `nullptr`, branch predicted away at the use sites.
+	//!
+	//! The shadow lives `alignas(64)`-separated from `m_flags` so the two
+	//! bitmaps never share a CPU cacheline.  Cross-thread frees route
+	//! through `fetch_or` on the shadow (cacheline B); the owner thread
+	//! reconciles via
+	//!   `r = return_flags()[w].exchange(0); m_flags[w] &= ~r;`
+	//! at well-defined points (allocate_pooled saturation, owner_release
+	//! empty check, thread-exit cleanup) — see those call sites.
+	//!
+	//! Placed AFTER `typedef uintptr_t FUINT;` because the return type
+	//! depends on it; placed BEFORE the `protected:` block below to keep
+	//! the accessor public for cross-template use sites in allocator.cpp.
+	inline FUINT *return_flags() noexcept {
+		if constexpr (kHasReturnShadow) {
+			char *flags_end =
+			    reinterpret_cast<char *>(m_flags)
+			    + static_cast<size_t>(m_count) * sizeof(FUINT);
+			std::uintptr_t addr = reinterpret_cast<std::uintptr_t>(flags_end);
+			std::uintptr_t aligned =
+			    (addr + std::uintptr_t(63)) & ~std::uintptr_t(63);
+			return reinterpret_cast<FUINT *>(aligned);
+		}
+		else {
+			return nullptr;
+		}
+	}
 protected:
 	PoolAllocator(int count, char *addr);
 	inline void *allocate_pooled(unsigned int SIZE);
