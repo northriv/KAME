@@ -230,7 +230,13 @@ objects + large arrays/waveforms — KAME's own profile) never hits the
 `mmap`-per-large-alloc wall the others do.
 
 **Ohtaka — competitive comparison, mimalloc-bench suite** (`sys` = glibc,
-`mi3` = mimalloc 3, `mi` = mimalloc, `je` = jemalloc, `tc` = tcmalloc):
+`mi3` = mimalloc 3, `mi` = mimalloc, `je` = jemalloc, `tc` = tcmalloc).
+Measured on the same EPYC / 128-core / 8-NUMA node as above; kame at
+`d7aabc90`, mimalloc-bench at `941c265d` (allocator versions are whatever
+that revision of mimalloc-bench builds via its `build-bench-env.sh`).
+Bench invocations: `xmalloc-test -w N -t 5`; `mstress N` (default settings);
+`rptest N 0 1 2 500 1000 100 8 16000` (random size 8..16000 B, cross-thread
+free rate 2, 500 loops, 1000 allocs, 100 ops per iter):
 
 **xmalloc-test — cross-thread handoff, 64 B objects, M frees/s (higher=better):**
 
