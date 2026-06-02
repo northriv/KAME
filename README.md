@@ -269,24 +269,6 @@ kame beats glibc at 1 thread and at 64–128 threads (the range KAME actually
 runs at); it trails glibc slightly at 4–16 threads, where glibc's per-thread
 lock is simpler than kame's DLL adoption.  mi / mi3 lead throughout.
 
-**larson — server-style worker respawn, Mops/s (higher=better):**
-
-Threads are periodically killed and replaced; surviving threads free objects
-allocated by the dead ones.  Not a pattern in KAME's STM lifecycle, but
-included for completeness.
-
-| threads |  sys |  mi3 |    mi |    je |    tc | **kame** |
-| ------: | ---: | ---: | ----: | ----: | ----: | -------: |
-|       1 | 24.4 | 35.1 |  45.4 |  37.9 |  49.3 |     21.9 |
-|       4 | 69.3 | 66.0 |  95.3 | 101.5 | 108.8 |     59.2 |
-|      16 |  252 |  247 |   386 |   346 |   372 |      201 |
-|      64 |  899 |  821 | 1 524 | 1 305 | 1 197 |      720 |
-
-kame consistently runs 10–20 % behind glibc here: the worker-respawn pattern
-triggers repeated chunk re-ownership handoffs that kame's adoption path handles
-correctly but conservatively.  This is the one workload where kame does not
-yet match glibc.
-
 ## Build
 
 ### qmake (KAME-integrated)
