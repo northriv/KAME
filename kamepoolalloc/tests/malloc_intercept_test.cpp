@@ -1,3 +1,22 @@
+/***************************************************************************
+        Copyright (C) 2002-2026 Kentaro Kitagawa
+                           kitag@issp.u-tokyo.ac.jp
+
+        This file is dual-licensed under your choice of EITHER:
+
+          * Apache License, Version 2.0
+            (http://www.apache.org/licenses/LICENSE-2.0, or see
+            kamepoolalloc/LICENSE-APACHE-2.0)
+
+        -- OR --
+
+          * GNU General Public License, version 2 of the License,
+            or (at your option) any later version
+            (see kamepoolalloc/LICENSE-GPL-2.0).
+
+        Pick whichever license suits your project.
+***************************************************************************/
+
 // malloc_intercept_test — verifies the strong-symbol / interpose override
 // layer actually routes the bare libc malloc-family (and C++ operator new)
 // through the pool.
