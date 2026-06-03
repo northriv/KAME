@@ -2305,9 +2305,9 @@ inline unsigned int bucket_for_aligned(std::size_t alignment,
 //   last_region_base  — radix 1-entry sentinel cache (see RADIX_CACHE_EMPTY)
 //   owner_id          — this thread's chunk-owner stamp; 0 = unassigned
 //   _pad              — alignment to 8 B boundary
-//   slots[]           — per-thread freelist arrays (replaced g_thread_slots[])
-//                       slots[b].freelist_head is the owner-thread freelist
-//                       head for bucket b; &slots[b].freelist_head replaces
+//   m_slots[]         — per-thread freelist arrays (replaced g_thread_slots[])
+//                       m_slots[b].freelist_head is the owner-thread freelist
+//                       head for bucket b; &m_slots[b].freelist_head replaces
 //                       the old g_thread_freelist_ptr[b] shortcut.
 //
 // Size: 16 + ALLOC_NUM_BUCKETS * sizeof(AllocSlot) = 16 + 52*8 = 432 B.
@@ -2342,7 +2342,12 @@ struct KameTlsPage {
     uintptr_t  last_region_base;           // radix 1-entry cache; RADIX_CACHE_EMPTY = unmatchable
     uint32_t   owner_id;                   // this thread's chunk-owner stamp; 0 = unassigned
     uint32_t   _pad;
-    AllocSlot  slots[ALLOC_NUM_BUCKETS];   // replaces g_thread_slots[]
+    AllocSlot  m_slots[ALLOC_NUM_BUCKETS];  // replaces g_thread_slots[]
+    // Named m_slots, NOT slots — Qt defines `slots` as an empty preprocessor
+    // token in <QtCore> (the same reason RadixL2Node uses `entries` instead of
+    // `slots`), which would turn `AllocSlot slots[N]` into `AllocSlot [N]` and
+    // produce a "decomposition declaration not permitted" error when this header
+    // is included from a Qt TU (e.g. kame/main.cpp → kame/allocator.h → here).
 };
 
 // Platform split for the TLS page storage:
@@ -2358,7 +2363,7 @@ extern ALLOC_TLS_IE KameTlsPage  g_tls_page;     // Linux: IE → mov %fs:offset
 
 //! (§12.3) Recover the chunk's PoolAllocator object from any pointer
 //! inside the chunk's first unit — in particular, from a
-//! `&kame_page()->slots[bucket].freelist_head` value, which points at
+//! `&kame_page()->m_slots[bucket].freelist_head` value, which points at
 //! the embed object's `m_freelist_head[local-id]` cell.  Chunks are
 //! `ALLOC_MIN_CHUNK_SIZE`-aligned (the per-region claim bitmap reserves
 //! one bit per `ALLOC_MIN_CHUNK_SIZE`-byte unit), so masking with
@@ -2500,7 +2505,7 @@ inline void *new_redirected(std::size_t size) {
 	// a pointer to the per-thread page (one fast-TSD read on macOS, one
 	// IE mov on Linux).
 	//
-	// slots[bucket].freelist_head stores the char ** value of the old
+	// m_slots[bucket].freelist_head stores the char ** value of the old
 	// g_thread_freelist_ptr[bucket] cast to char * — i.e., it holds a
 	// pointer to the active chunk's m_freelist_head[local] cell.
 	//   nullptr  → bucket not yet activated (first-access / post-cleanup)
@@ -2508,7 +2513,7 @@ inline void *new_redirected(std::size_t size) {
 	//
 	// This replaces BOTH g_thread_slots[] (defunct since §12.3) and
 	// g_thread_freelist_ptr[] with a single TLS page access.
-	if(char *cell_ptr_raw = kame_page()->slots[bucket].freelist_head) {
+	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);

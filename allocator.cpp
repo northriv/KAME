@@ -230,7 +230,7 @@ ALLOC_TLS_IE bool s_alloc_tls_off = false;
 // Assigned once per thread from a global counter on first use; 0 is
 // reserved for "unassigned" so a never-allocated thread's frees never
 // spuriously match a chunk (chunks always carry a non-zero id).
-// (§hot-tls) `g_tls_page` (KameTlsPage: last_region_base + owner_id + slots[])
+// (§hot-tls) `g_tls_page` (KameTlsPage: last_region_base + owner_id + m_slots[])
 // is defined further down.  We use `kame_page()->owner_id` here.
 // See allocator_prv.h for the rationale.
 static std::atomic<uint32_t> s_owner_id_next{1};
@@ -449,7 +449,7 @@ struct AllocThreadExitCleanup {
             KameTlsPage *pg = &g_tls_page;
 #endif
             for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b)
-                pg->slots[b].freelist_head = nullptr;
+                pg->m_slots[b].freelist_head = nullptr;
         }
         // Walk each registered template's per-thread DLL.  Each
         // callback wipes its own `s_tls.my_chunk` / `s_tls.dll_head` / `s_tls.dll_tail`
@@ -2079,7 +2079,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	// in the multi-allocator bench as a 100× regression at bucket 45
 	// (ALIGN=1024 N=13) and similarly for other non-power-of-2 N tiers.
 	if(char *head = scan_dll_freelist(/*local_id=*/0u)) {
-		kame_page()->slots[bucket].freelist_head =
+		kame_page()->m_slots[bucket].freelist_head =
 		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[0]);
 		return head;
 	}
@@ -2091,7 +2091,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	// `kBucketLocalId[]` is read HERE (cold path), so the hot path
 	// (new_redirected) needs no remap.  chunk_from_freelist_ptr recovers
 	// the chunk pointer from this stored value via a single mask.
-	kame_page()->slots[bucket].freelist_head =
+	kame_page()->m_slots[bucket].freelist_head =
 	    new_chunk ? reinterpret_cast<char *>(
 	                    &new_chunk->m_freelist_head[kBucketLocalId[bucket]])
 	              : nullptr;
@@ -2150,7 +2150,7 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 	using BaseTpl = PoolAllocator<ALIGN, true, false>;
 	const unsigned local_id = kBucketLocalId[bucket];
 	if(char *head = BaseTpl::scan_dll_freelist(local_id)) {
-		kame_page()->slots[bucket].freelist_head =
+		kame_page()->m_slots[bucket].freelist_head =
 		    reinterpret_cast<char *>(
 		        &BaseTpl::s_tls.my_chunk->m_freelist_head[local_id]);
 		return head;
@@ -2162,7 +2162,7 @@ PoolAllocator<ALIGN, false, DUMMY>::slow_allocate(unsigned bucket,
 	PoolAllocatorBase *new_chunk = static_cast<PoolAllocatorBase *>(
 	    PoolAllocator<ALIGN, true, false>::s_tls.my_chunk);
 	// (§12.3 / §hot-tls) cf. FS=true sibling — update the KameTlsPage slot.
-	kame_page()->slots[bucket].freelist_head =
+	kame_page()->m_slots[bucket].freelist_head =
 	    new_chunk ? reinterpret_cast<char *>(
 	                    &new_chunk->m_freelist_head[kBucketLocalId[bucket]])
 	              : nullptr;
@@ -2525,9 +2525,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				{
 				KameTlsPage *pg = kame_page();
 				for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b) {
-					char **fp = reinterpret_cast<char **>(pg->slots[b].freelist_head);
+					char **fp = reinterpret_cast<char **>(pg->m_slots[b].freelist_head);
 					if(fp && chunk_from_freelist_ptr(fp) == nx_pa)
-						pg->slots[b].freelist_head = nullptr;
+						pg->m_slots[b].freelist_head = nullptr;
 				}
 				}
 				// if the cursor was pointing at the released
@@ -3324,7 +3324,7 @@ PoolAllocatorBase::deallocate(void *p) {
 			chunk_obj->freelist_push(local, p);
 			// (§freelist-follow) FS=false borrow only — see comment above.
 			if(bucket != 0 && bucket < (unsigned)ALLOC_NUM_BUCKETS) {
-				kame_page()->slots[bucket].freelist_head =
+				kame_page()->m_slots[bucket].freelist_head =
 				    reinterpret_cast<char *>(&chunk_obj->m_freelist_head[local]);
 			}
 			return true;
@@ -3892,7 +3892,7 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
         // is constexpr-foldable here (B is a template parameter).
         // chunk_from_freelist_ptr recovers the chunk pointer from the
         // stored value via a single mask on the slow path.
-        kame_page()->slots[B].freelist_head =
+        kame_page()->m_slots[B].freelist_head =
             reinterpret_cast<char *>(&chunk->m_freelist_head[kBucketLocalId[B]]);
     }
     return p;
@@ -3993,7 +3993,7 @@ void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
 //
 // `g_tls_page.last_region_base` is initialised to RADIX_CACHE_EMPTY (all-ones).
 // `g_tls_page.owner_id` defaults to 0 (unassigned).
-// `g_tls_page.slots[]` defaults to all-zeros (nullptr freelist heads).
+// `g_tls_page.m_slots[]` defaults to all-zeros (nullptr freelist heads).
 #if KAME_FAST_TSD
 ALLOC_TLS    KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 ALLOC_TLS_IE KameTlsPage *tls_page_ie = nullptr;
@@ -4013,10 +4013,10 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 void *new_redirected_large(std::size_t size) noexcept {
     if(size <= ALLOC_MAX_BUCKETED_SIZE) {
         // (§12.3 / §hot-tls) Mirror new_redirected's direct-jump fast path
-        // via the KameTlsPage slot.  slots[bucket].freelist_head stores the
+        // via the KameTlsPage slot.  m_slots[bucket].freelist_head stores the
         // char ** pointer (cast to char *) to the active chunk's freelist cell.
         unsigned int bucket = bucket_for_size(size);
-        if(char *cell_ptr_raw = kame_page()->slots[bucket].freelist_head) {
+        if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
             char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
             if(char *head = *head_ptr) {
                 *head_ptr = *reinterpret_cast<char **>(head);
@@ -4055,7 +4055,7 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
        g_sys_image_loaded && !s_alloc_tls_off) {
         // Pool bucket path — mirrors new_redirected_large's freelist /
         // slow_allocate / cold_first_access cascade via KameTlsPage.
-        if(char *cell_ptr_raw = kame_page()->slots[bucket].freelist_head) {
+        if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
             char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
             if(char *head = *head_ptr) {
                 *head_ptr = *reinterpret_cast<char **>(head);
