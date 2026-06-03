@@ -5515,7 +5515,7 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	// Defensive: pointers above our covered VA fall back to "not our
 	// pointer".  On 32-bit hosts the radix already covers the full
 	// uintptr_t range (region index = 7 bits ≤ 32 - 25), so the bound
-	// check is vacuous and skipped (`up >> 47` is UB).
+	// check is vacuous and skipped (`up >> 48` is UB).
 	constexpr int kBoundShift = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT;
 #if defined(_MSC_VER) && !defined(__GNUC__)
 #pragma warning(push)
