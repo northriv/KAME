@@ -153,9 +153,12 @@ int main() {
     }
 
     // --- (3) C++ operator new / delete interception (unconditional). ------
-    // operator new is overridden wherever the pool is linked (Linux/macOS
-    // strong symbol; on Windows it's the inline-compiled exe path, but this
-    // test isn't built there).
+    // operator new is overridden in EVERY config this test is built in: the
+    // strong-symbol override (Linux / macOS), the inline-compiled exe path
+    // (MinGW monorepo), and the live MSVC pool (`_MSC_VER` shim in
+    // allocator_prv.h).  So unlike plain malloc — whose libc-symbol takeover
+    // is platform-conditional — operator new is asserted hard: a regression
+    // in the new/delete override must fail this test, not silently skip.
     {
         int *q = new int[2000];
         CHECK(kame_pool_malloc_usable_size(q) >= 2000 * sizeof(int),
