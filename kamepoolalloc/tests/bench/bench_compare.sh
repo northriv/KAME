@@ -16,11 +16,25 @@
 #   mimalloc  : auto-detect from common system paths
 #   jemalloc  : auto-detect from common system paths
 #
+# Platforms: Linux (LD_PRELOAD, .so) and macOS (DYLD_INSERT_LIBRARIES, .dylib).
+# Requires bash 4+ (for (( )) and arrays).  macOS ships bash 3.2; install a
+# newer bash via Homebrew and invoke with `bash bench_compare.sh` if needed.
+#
 # Output format mirrors the README tables so you can paste directly.
 # Exit codes:
 #   0 success, 1 missing build, 2 missing comparator (still prints kame)
 
 set -euo pipefail
+
+# --- platform detection -------------------------------------------------------
+OS=$(uname -s)
+if [ "$OS" = "Darwin" ]; then
+    LIB_EXT="dylib"
+    PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
+else
+    LIB_EXT="so"
+    PRELOAD_VAR="LD_PRELOAD"
+fi
 
 # --- defaults ---------------------------------------------------------------
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
@@ -35,6 +49,7 @@ JE=""
 # Auto-detect comparators (first hit wins).
 for cand in \
     /usr/lib/x86_64-linux-gnu/libmimalloc.so \
+    /usr/lib/aarch64-linux-gnu/libmimalloc.so \
     /usr/local/lib/libmimalloc.so \
     /opt/local/lib/libmimalloc.dylib \
     /opt/homebrew/lib/libmimalloc.dylib ; do
@@ -42,6 +57,7 @@ for cand in \
 done
 for cand in \
     /usr/lib/x86_64-linux-gnu/libjemalloc.so.2 \
+    /usr/lib/aarch64-linux-gnu/libjemalloc.so.2 \
     /usr/local/lib/libjemalloc.so.2 \
     /opt/local/lib/libjemalloc.2.dylib \
     /opt/homebrew/lib/libjemalloc.2.dylib ; do
@@ -63,7 +79,7 @@ while [ $# -gt 0 ]; do
 done
 
 BENCH="$BUILD_DIR/bench_loop"
-KAME="$BUILD_DIR/libkamepoolalloc.so"
+KAME="$BUILD_DIR/libkamepoolalloc.$LIB_EXT"
 
 if [ ! -x "$BENCH" ] || [ ! -f "$KAME" ]; then
     echo "ERROR: missing build artifacts under $BUILD_DIR" >&2
@@ -73,6 +89,12 @@ if [ ! -x "$BENCH" ] || [ ! -f "$KAME" ]; then
 fi
 
 # --- helpers ----------------------------------------------------------------
+
+# Extract M ops/s value from bench_loop output line.
+# Uses awk instead of grep -oP (no Perl regex on macOS).
+extract_rate() {
+    awk -F'rate=' '{gsub(/M.*/, "", $2); print $2}'
+}
 
 # `python3 -c "import statistics; ..."` — used for median; fall back to a
 # pure-bash sort + middle pick if python3 is missing.
@@ -87,14 +109,15 @@ median() {
     fi
 }
 
-# Run `bench_loop SIZE ITERS` once with optional LD_PRELOAD; emit M ops/s.
+# Run `bench_loop SIZE ITERS` once with optional preload; emit M ops/s.
+# Uses the platform-appropriate preload variable (LD_PRELOAD / DYLD_INSERT_LIBRARIES).
 one_run() {
     local preload="$1" size="$2" iters="$3"
     if [ -z "$preload" ]; then
-        "$BENCH" "$size" "$iters" 2>/dev/null | grep -oP 'rate=\K[0-9.]+'
+        "$BENCH" "$size" "$iters" 2>/dev/null | extract_rate
     else
-        LD_PRELOAD="$preload" "$BENCH" "$size" "$iters" 2>/dev/null \
-            | grep -oP 'rate=\K[0-9.]+'
+        env "$PRELOAD_VAR=$preload" "$BENCH" "$size" "$iters" 2>/dev/null \
+            | extract_rate
     fi
 }
 
@@ -117,13 +140,13 @@ mt_run_sum() {
         if [ -z "$preload" ]; then
             "$BENCH" "$size" "$iters" >"$tf" 2>/dev/null &
         else
-            LD_PRELOAD="$preload" "$BENCH" "$size" "$iters" >"$tf" 2>/dev/null &
+            env "$PRELOAD_VAR=$preload" "$BENCH" "$size" "$iters" >"$tf" 2>/dev/null &
         fi
     done
     wait
     local total=0
     for tf in "${tfs[@]}"; do
-        local r; r=$(grep -oP 'rate=\K[0-9.]+' "$tf"); rm "$tf"
+        local r; r=$(extract_rate <"$tf"); rm "$tf"
         total=$(awk -v a="$total" -v b="$r" 'BEGIN{printf "%.2f", a+b}')
     done
     echo "$total"
@@ -139,55 +162,78 @@ med_mt() {
     echo "$vals" | median
 }
 
+# Human-readable size label (e.g. 65536 → "64 KiB").
+# numfmt is GNU coreutils (not available on macOS); fall back to awk.
+size_label() {
+    local sz=$1
+    if command -v numfmt >/dev/null 2>&1; then
+        numfmt --to=iec --suffix=B "$sz" 2>/dev/null || echo "${sz}B"
+    else
+        awk -v n="$sz" 'BEGIN{
+            if (n >= 1048576) printf "%.0f MiB\n", n/1048576
+            else if (n >= 1024) printf "%.0f KiB\n", n/1024
+            else printf "%dB\n", n
+        }'
+    fi
+}
+
 # --- header -----------------------------------------------------------------
 HEAD_SHA=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || echo "?")
 HOST=$(uname -mn 2>/dev/null | tr -s ' ' '/')
-echo "kamepoolalloc bench_compare: HEAD=$HEAD_SHA  host=$HOST  runs=$RUNS"
+echo "kamepoolalloc bench_compare: HEAD=$HEAD_SHA  host=$HOST  runs=$RUNS  os=$OS"
 [ -z "$MI" ] && echo "  (no mimalloc found — column will be '-')"
 [ -z "$JE" ] && echo "  (no jemalloc found — column will be '-')"
 echo
 
-# --- 1T table ---------------------------------------------------------------
-# Iteration counts chosen so each run takes ≈ 0.5 s on a 100-M-ops/s allocator.
-SIZES_1T=(64 1024 16384 65536 262144 1048576 4194304)
-declare -A ITERS_1T=(
-    [64]=10000000 [1024]=10000000 [16384]=5000000
-    [65536]=2000000 [262144]=2000000 [1048576]=2000000 [4194304]=500000
-)
+# --- iteration count lookup (replaces declare -A for bash 3 compat) ---------
+iters_1t() {
+    case "$1" in
+        64|1024)   echo 10000000 ;;
+        16384)     echo 5000000  ;;
+        4194304)   echo 500000   ;;
+        *)         echo 2000000  ;;
+    esac
+}
+iters_mt() {
+    case "$1" in
+        64)        echo 50000000 ;;
+        16384)     echo 10000000 ;;
+        65536)     echo 5000000  ;;
+        1048576)   echo 2000000  ;;
+        *)         echo 2000000  ;;
+    esac
+}
 
+# --- 1T table ---------------------------------------------------------------
 printf "## 1T (median of %d, M ops/s)\n\n" "$RUNS"
 printf "| %-9s | %7s | %8s | %8s | %8s |\n" size system mimalloc jemalloc kame
 printf "|-%-9s-|-%7s-|-%8s-|-%8s-|-%8s-|\n" \
        "---------" "-------" "--------" "--------" "--------"
-for sz in "${SIZES_1T[@]}"; do
-    iters=${ITERS_1T[$sz]}
+for sz in 64 1024 16384 65536 262144 1048576 4194304; do
+    iters=$(iters_1t "$sz")
     sys=$(med_st "" "$sz" "$iters")
     mi=$([ -n "$MI" ] && med_st "$MI" "$sz" "$iters" || echo "-")
     je=$([ -n "$JE" ] && med_st "$JE" "$sz" "$iters" || echo "-")
     km=$(med_st "$KAME" "$sz" "$iters")
-    label=$(numfmt --to=iec --suffix=B "$sz" 2>/dev/null || echo "${sz}B")
+    label=$(size_label "$sz")
     printf "| %-9s | %7s | %8s | %8s | %8s |\n" "$label" "$sys" "$mi" "$je" "$km"
 done
 echo
 
 # --- MT table ---------------------------------------------------------------
 if [ "$DO_MT" -eq 1 ]; then
-    SIZES_MT=(64 16384 65536 1048576)
-    declare -A ITERS_MT=(
-        [64]=50000000 [16384]=10000000 [65536]=5000000 [1048576]=2000000
-    )
     printf "## %d processes (aggregate, M ops/s, median of %d)\n\n" \
            "$NTHREADS" "$RUNS"
     printf "| %-9s | %7s | %8s | %8s | %8s |\n" size system mimalloc jemalloc kame
     printf "|-%-9s-|-%7s-|-%8s-|-%8s-|-%8s-|\n" \
            "---------" "-------" "--------" "--------" "--------"
-    for sz in "${SIZES_MT[@]}"; do
-        iters=${ITERS_MT[$sz]}
+    for sz in 64 16384 65536 1048576; do
+        iters=$(iters_mt "$sz")
         sys=$(med_mt "" "$sz" "$iters")
         mi=$([ -n "$MI" ] && med_mt "$MI" "$sz" "$iters" || echo "-")
         je=$([ -n "$JE" ] && med_mt "$JE" "$sz" "$iters" || echo "-")
         km=$(med_mt "$KAME" "$sz" "$iters")
-        label=$(numfmt --to=iec --suffix=B "$sz" 2>/dev/null || echo "${sz}B")
+        label=$(size_label "$sz")
         printf "| %-9s | %7s | %8s | %8s | %8s |\n" "$label" "$sys" "$mi" "$je" "$km"
     done
     echo
