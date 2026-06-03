@@ -290,20 +290,24 @@ typedef struct kame_pool_stats {
      * tighten and on §28.1 lazy ticks. */
     size_t cache_bytes;
 
-    /* §15 dedicated chunks (256 KiB..4 MiB) currently held by the program
-     * — does NOT include chunks parked in the recycle cache (those are in
-     * `cache_bytes`).  `dedicated_chunk_bytes` is the sum of their actual
-     * DEDICATED_SIZE values; one chunk == one alloc.  Monotone growth over
-     * time signals a leak in this tier.  Tracked by atomic inc at
-     * allocate / dec at free; O(1) accuracy regardless of region/radix
-     * walk cost. */
+    /* §15 dedicated chunks (256 KiB..4 MiB), sum of their DEDICATED_SIZE
+     * values.  INCLUDES chunks currently parked in the LRC_CHUNK recycle
+     * cache (their units stay claimed with bit-7 of back_offset set, so the
+     * region walk that computes this counter cannot distinguish parked from
+     * live in O(1); use `cache_bytes` for the parked subtotal across both
+     * tiers).  Monotone growth in `(dedicated_chunk_bytes - cache_bytes)`
+     * signals a leak.  Computed via region+back_offset walk inside
+     * `kame_pool_get_stats` — O(regions × NUM_ALLOCATORS_IN_SPACE), same
+     * walk that produces `chunks_live` / `units_live`; no hot-path running
+     * counter (§28.5: that ran into cache-line contention at ≥ 128T). */
     size_t dedicated_chunk_bytes;
 
     /* §19/§27 large_va allocations (4..64 MiB single-region + > 32 MiB
      * multi-region huge) currently held by the program — likewise excludes
      * cache-parked entries.  `large_alloc_count` is the number of distinct
      * allocations; `large_alloc_bytes` is the sum of their mmap_size's.
-     * Atomic inc/dec; O(1) snapshot. */
+     * Two plain global atomics; large allocs are rare (kHz/thread at most)
+     * so a single cache line has no measurable contention.  O(1) snapshot. */
     size_t large_alloc_count;
     size_t large_alloc_bytes;
 } kame_pool_stats_t;
