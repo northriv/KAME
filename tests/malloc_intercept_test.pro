@@ -1,9 +1,11 @@
 TARGET = malloc_intercept_test
 
-# Validate that §31 IAT redirect (KAMEPOOLALLOC_FULL_INTERCEPT, default-ON
-# on Windows) routes plain stdlib malloc/calloc/realloc/free through the pool.
-# Probe: kame_pool_malloc_usable_size returns 0 for foreign pointers;
-# if intercept is active every malloc result comes back as a pool pointer.
+# Validate that the strong-symbol / interpose / §31-IAT override layer routes
+# the bare libc malloc family AND C++ operator new through the pool.  Probe:
+# kame_pool_malloc_usable_size returns 0 for foreign pointers and >= the
+# requested size for pool pointers.  The C-malloc assertions self-gate on a
+# runtime probe (musl emits no strong malloc); operator-new / cross-route-free
+# / kame_pool_* assertions run unconditionally.
 #
 # Same conditional logic as alloc_stress_test.pro — see that file for the
 # rationale behind the exists()/!win32-*g++ branch.
@@ -42,4 +44,4 @@ exists(../../tests/tests.pri):!win32-*g++ {
 }
 
 SOURCES += \
-    malloc_intercept_test.c
+    malloc_intercept_test.cpp

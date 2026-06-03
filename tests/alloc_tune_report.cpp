@@ -291,7 +291,7 @@ int main(int argc, char **argv) {
     std::printf("NUMA     : %d node%s\n", e.numa_nodes, e.numa_nodes == 1 ? "" : "s");
     std::printf("Page sz  : %zu B\n", e.page_size);
     std::printf("THP      : %s\n", e.thp_state);
-    std::printf("Build    : LRC_K_MAX=256  LRC_N_MAX=32  LRC_HI=64 MiB\n");
+    std::printf("Build    : LRC_K_MAX=256  LRC_N_MAX=40  LRC_HI=256 MiB\n");
     std::printf("           (defaults — override with -DLRC_K_MAX=... etc.)\n");
     std::printf("\n");
 
@@ -346,8 +346,8 @@ int main(int argc, char **argv) {
         std::printf("%-22s %5d %12.0f %14.2f\n", r.label, r.nthreads,
                     r.ns_per_op, r.mops_per_sec);
     };
-    // Label for the 40 MiB tier depends on whether §28's raised LRC_HI
-    // catches it.  With LRC_HI=64 MiB (the default since §28), 40 MiB is
+    // Label for the 40 MiB tier depends on whether the raised LRC_HI
+    // catches it.  With LRC_HI=256 MiB (the default since §35), 40 MiB is
     // cacheable through allocate_large_va; §27 huge bypass only kicks in
     // above LRC_HI.  Adjust the label to match.
     const char *label_40m = "40 MiB (large_va, cached)";

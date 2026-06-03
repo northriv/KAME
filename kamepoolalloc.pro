@@ -72,6 +72,14 @@ win32-*g++ {
     QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,lib$${TARGET}.a
 }
 win32-msvc* {
+    # /utf-8: source files contain UTF-8 box-drawing characters and Japanese
+    # text in comments.  Without this flag MSVC reads files as the system
+    # code page (CP932 on Japanese Windows), which misinterprets the last
+    # byte of some UTF-8 sequences as a lead byte, potentially swallowing
+    # the following newline and hiding preprocessor #define directives inside
+    # comments.  Symptom: "error C2065: 'ALLOC_CHUNK_HEADER': undeclared
+    # identifier" on lines that follow box-drawing comment blocks.
+    QMAKE_CXXFLAGS += /utf-8
     # MSVC: every extern "C" / non-static C++ symbol needs an explicit
     # `__declspec(dllexport)` at definition time.  The pool's public
     # surface is annotated via a `DECLSPEC_KAMEPOOLALLOC` macro that

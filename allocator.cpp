@@ -464,6 +464,32 @@ struct AllocThreadExitCleanup {
         // dtors.  `new_redirected` itself no longer checks this flag —
         // the per-bucket slot rewrite above is its analogue.
         s_alloc_tls_off = true;
+        // (§hot-tls teardown sentinel) Point this thread's fast-TSD page
+        // slot at the static teardown sentinel.  After this, any later
+        // pthread_key dtor (e.g. libc++ ~__thread_struct) that frees a pool
+        // pointer reaches `deallocate` → owner-id mismatch (sentinel
+        // owner_id == 0) → cold `deallocate_pooled`, which identity-compares
+        // `kame_page() == &g_teardown_page` and takes a TLS-free path
+        // WITHOUT re-touching `s_tls` / `&s_tls.dll_head` — whose TLV may
+        // already be finalized, so a `_tlv_get_addr` re-instantiation would
+        // `malloc` mid-teardown and trap.  This write is value-only (a
+        // pthread TSD slot store, legal during cleanup) — no TLV deref.
+        //
+        // macOS-only: the sentinel exists solely to give the fast-TSD
+        // `kame_page()` a teardown-safe value to return.  On Linux/Windows
+        // `tls_page_ie` does not exist (the page is read directly as IE TLS)
+        // and `kame_thread_torn_down()` uses the teardown-safe `s_alloc_tls_off`
+        // flag set above — nothing to redirect here.
+#if KAME_FAST_TSD
+        tls_page_ie = &g_teardown_page;
+        if(s_kame_page_tsd_offset != 0) {
+            pthread_setspecific(s_kame_page_key, &g_teardown_page);
+            char *tp = kame_thread_pointer();
+            if(tp)
+                *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset)
+                    = &g_teardown_page;
+        }
+#endif
     }
 };
 // Raw `thread_local` — the kamepoolalloc dylib boundary already
@@ -1444,9 +1470,11 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			}
 			else {
 				// Borrow scheme — header at `slot_start - 8`:
-				//   * Bit 0 of word 0 (slot_start == mempool):
-				//       slot_start - 8 = chunk_base + 56 (reserved
-				//       chunk-header pad).
+				//   * Bit 0 of word 0 (slot_start == mempool()):
+				//       slot_start - 8 = chunk_base + K_MAX - 8, the last
+				//       8 B of the metadata region (reserved tail after
+				//       m_flags[]; §15-shifted home — was chunk_base + 56
+				//       pre-shift, when mempool sat at +ALLOC_CHUNK_HEADER).
 				//   * Bit B > 0: slot_start - 8 lands in bit (B-1)'s last 8
 				//       bytes (universal reservation invariant — the prior
 				//       slot's user_area excludes its own last 8 B).
@@ -1501,6 +1529,17 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
+	// (§hot-tls teardown) COLD path only.  If THIS thread has run its
+	// allocator cleanup, the fast-TSD page is the static teardown sentinel
+	// (pure pointer compare — no `_tlv_get_addr`, no `g_tls_page` deref).
+	// In that state `s_tls.my_chunk` (1540) and `&s_tls.dll_head` (the
+	// cursor-reset below) may be torn down; route the slot straight to the
+	// bitmap and return, touching no thread-local.
+	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+		this->batch_return_to_bitmap(tmp);
+		return false;
+	}
 	// (§12.3) Per-slot prefix { uint32_t local_id, uint32_t SIZE } at
 	// `p - 8` (LAST 8 bytes of the prefix bit's ALIGN area).  One 64-bit
 	// load recovers the local-id directly — no bucket_for_size, no
@@ -1544,7 +1583,9 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// (§orphan-adopt) FS=false orphan adoption — same rationale as the
 	// FS=true sibling in deallocate_pooled above.  Read local-id from the
 	// per-slot prefix first (mirrors the my_chunk path above).
-	if(!s_alloc_tls_off && this->m_owner_id == 0) {
+	// Teardown excluded by the sentinel check at the top, so `s_alloc_tls_off`
+	// is necessarily false here — the former `!s_alloc_tls_off` TLV read is dropped.
+	if(this->m_owner_id == 0) {
 		unsigned adopt_local;
 		if constexpr (ALIGN >= 1024u) {
 			size_t bit_index =
@@ -1955,6 +1996,20 @@ PoolAllocator<ALIGN, FS, DUMMY>::try_adopt_orphan(char *p, unsigned local) noexc
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
+	// (§hot-tls teardown) This is the COLD path — `deallocate`'s hot
+	// owner-match returns before invoking the trampoline, so nothing here
+	// affects the hot path.  If THIS thread has already run its allocator
+	// cleanup, its fast-TSD page is the static teardown sentinel; detect it
+	// with a pure pointer compare (NO `_tlv_get_addr`, NO deref of
+	// `g_tls_page`'s possibly-finalized TLV storage).  In that state `s_tls`
+	// and `&s_tls.dll_head` may be torn down, so we must touch NO thread-local:
+	// route the single slot straight to the bitmap (TLS-free, scratch +
+	// sentinel) and return.  Subsumes the former `s_alloc_tls_off` bypass.
+	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+		this->batch_return_to_bitmap(tmp);
+		return false;
+	}
 	// Two-way dispatch:
 	//
 	//   owner               → push to per-thread AllocSlot freelist (no atomic)
@@ -1985,30 +2040,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// adopt it into this thread's DLL so the freed slot reaches the
 	// freelist rather than silently accumulating in the bitmap of a
 	// chunk no running thread can walk.
-	if(!s_alloc_tls_off && this->m_owner_id == 0) {
+	// Teardown excluded by the sentinel check above, so `s_alloc_tls_off`
+	// is necessarily false here — the former `!s_alloc_tls_off` term (a TLV
+	// read) is dropped.
+	if(this->m_owner_id == 0) {
 		if(this->try_adopt_orphan(p, 0u)) return false;
 	}
-	// Post-teardown bypass.  See FS=false sibling above — once
-	// `s_alloc_tls_off` is set, `tls_cross_dealloc_batch` may have
-	// been destroyed; route the bit-clear through
-	// `batch_return_to_bitmap` directly with a single-slot scratch
-	// + sentinel so later pthread_key dtors that delete pool slots
-	// do not touch freed heap.
-	if(__builtin_expect(s_alloc_tls_off, 0)) {
-		// (§20) Cache the dll-head address BEFORE batch_return_to_bitmap
-		// — see the FS=false sibling for the lifetime rationale.
-		void *cached_dll_head_addr = this->m_owner_dll_head_addr;
-		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
-		this->batch_return_to_bitmap(tmp);
-		// `this` may be destructed past this point — cached only.  Reset
-		// cursor only if we are the chunk's owner.  At post-teardown
-		// (s_alloc_tls_off), our pthread_key dtors may delete pool slots
-		// from any chunk we ever held — usually our own, but cross-thread
-		// retained references are possible.
-		if(cached_dll_head_addr == static_cast<void *>(&s_tls.dll_head))
-			reset_dll_walk_state();
-		return false;
-	}
+	// (The former `if(s_alloc_tls_off)` post-teardown bypass is gone — the
+	// §hot-tls teardown sentinel check at the top of this function handles
+	// it without any TLV touch, including the old `&s_tls.dll_head` compare.)
 	// FS=true ALIGN ≤ 48 (sizes 16/32/48): hold-and-batch path.  1
 	// bit per slot in m_flags ⇒ up to 64 slots per FUINT word; a
 	// deep (CAP=1024) accumulation window gives same-chunk same-
@@ -3340,7 +3380,7 @@ PoolAllocatorBase::deallocate(void *p) {
 		// fire only when m_owner_id DID match, and m_owner_id never
 		// matches for dedicated.
 		if(__builtin_expect((back_off_raw & 0x80u) != 0u, 0)) {
-			size_t bytes = *reinterpret_cast<std::uint64_t *>(
+			size_t bytes = (size_t)*reinterpret_cast<std::uint64_t *>(
 			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
 			// (§28.5) dedicated_chunk_bytes is now recomputed on demand
 			// inside `kame_pool_get_stats` via region+back_offset walk; the
@@ -3458,7 +3498,7 @@ PoolAllocatorBase::size_of(void *p) {
 	if(static_cast<std::uint32_t>(*reinterpret_cast<std::uint64_t *>(
 	       chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET))
 	   == ALLOC_CHUNK_DEDICATED_SIZEINFO) {
-		size_t bytes = *reinterpret_cast<std::uint64_t *>(
+		size_t bytes = (size_t)*reinterpret_cast<std::uint64_t *>(
 		    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
 		return bytes - (size_t)ALLOC_CHUNK_K_MAX;
 	}
@@ -3641,7 +3681,7 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 		// stay truthful.  (Read inline: `lrc_block_size` is defined in the
 		// anonymous namespace below this point; for LRC_CHUNK it is exactly
 		// this field read.)
-		std::size_t actual = *reinterpret_cast<std::uint64_t *>(
+		std::size_t actual = (std::size_t)*reinterpret_cast<std::uint64_t *>(
 		    cached + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
 		restamp_back_offset(cached, actual, /*back_off_flag=*/0x80u);
 		*reinterpret_cast<std::uint64_t *>(
@@ -3724,24 +3764,26 @@ void* allocate_large_size_or_malloc(size_t size) throw() {
 	//      with regular bucket chunks — best locality for moderate-large
 	//      sizes.
 	//
-	//   2. 4 MiB − K_MAX < size, mmap_size ≤ 32 MiB  →  (§19) `allocate_large_va`:
-	//      one 32-MiB-aligned mmap per alloc, registered as a single
-	//      KAME_RADIX_LARGE radix slot, served from the §25/§26 warm
-	//      recycle cache.  Returns VA to the OS on free (munmap), unlike
-	//      pool regions which are push-only.
+	//   2. 4 MiB − K_MAX < size, mmap_size ≤ LRC_HI (= 256 MiB)  →  (§19)
+	//      `allocate_large_va`: a 32-MiB-aligned mmap per alloc (a single
+	//      32-MiB region for ≤ 32 MiB, a multi-region span up to 256 MiB),
+	//      registered as a single KAME_RADIX_LARGE radix slot (the head
+	//      32-MiB slot for spans), served from the §25/§26/§35 warm recycle
+	//      cache.  Returns VA to the OS on free (munmap), unlike pool
+	//      regions which are push-only.  Spans are safe in the radix: the
+	//      alloc's sole valid user pointer is `base + PAGE`, which always
+	//      resolves to the head slot; tail slots are never standalone
+	//      `radix_lookup` targets (interior-pointer lookup into one alloc is
+	//      UB caller-side), and the OS keeps the whole span mapped so no
+	//      other alloc can claim a tail slot's VA.
 	//
-	//   3. (§27) size so large that mmap_size > 32 MiB  →  ALSO
-	//      `allocate_large_va`, but it mmaps a multi-region span and
-	//      registers ONLY the head 32-MiB slot in the radix.  This is
-	//      safe: the alloc's sole valid user pointer is `base + PAGE`,
-	//      which always resolves to the head slot; the tail slots are
-	//      never standalone `radix_lookup` targets (interior-pointer
-	//      lookup into one alloc is UB caller-side), and the OS keeps the
-	//      whole span mapped so no other alloc can claim a tail slot's VA.
-	//      The huge tier BYPASSES the warm cache (mmap fresh / munmap on
-	//      free) — see allocate_large_va for why (cache index tops out at
-	//      32 MiB; a cached huge block would over-satisfy smaller huge
-	//      requests and pin RSS).
+	//   3. (§27/§35) size so large that mmap_size > LRC_HI (= 256 MiB)  →
+	//      ALSO `allocate_large_va` (same multi-region span), but the huge
+	//      tier BYPASSES the warm cache (mmap fresh / munmap on free) — see
+	//      allocate_large_va for why (the cache index tops out at LRC_HI;
+	//      above it every size collapses to one unbounded top slot, so a
+	//      cached huge block would over-satisfy smaller huge requests and
+	//      pin RSS).
 	//
 	// libc malloc is reached ONLY if `allocate_large_va` returns nullptr
 	// (the mmap itself failed) — no longer the routine path for huge sizes.
@@ -3920,7 +3962,7 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
 // distance budget.  The switch lowers to a jump table on arm64.
 __attribute__((cold, noinline))
 void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
-    if( !g_sys_image_loaded || s_alloc_tls_off)
+    if( !g_sys_image_loaded || kame_thread_torn_down())
         return libsystem_malloc_for_pool(size);  // not std::malloc — would recurse under strong-symbol `malloc` override
     switch(bucket) {
         case  0: case  1: return bucket_first_access< 1>(size);
@@ -4001,6 +4043,12 @@ ALLOC_TLS_IE KameTlsPage *tls_page_ie = nullptr;
 ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 #endif
 
+// (§hot-tls teardown sentinel) NOT thread-local: one process-global page,
+// never freed, owner_id == 0.  See allocator_prv.h for the two-role rationale.
+// owner_id 0 guarantees the hot owner-check never matches it; the cold dealloc
+// path identity-compares against `&g_teardown_page` to take a TLS-free route.
+KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
+
 // Out-of-line large-size dispatch.  Sizes > 256 B fall here from
 // `new_redirected`.  The 257..512 range dispatches via the same
 // g_thread_slots[] table (buckets 17..24) as the small range, just
@@ -4026,7 +4074,7 @@ void *new_redirected_large(std::size_t size) noexcept {
         }
         return cold_first_access(bucket, size);
     }
-    if( !g_sys_image_loaded || s_alloc_tls_off)
+    if( !g_sys_image_loaded || kame_thread_torn_down())
         return libsystem_malloc_for_pool(size);
     return allocate_large_size_or_malloc(size);
 }
@@ -4052,7 +4100,7 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
     // bucket_for_aligned returns ALLOC_NUM_BUCKETS when no bucket fits.
     unsigned int bucket = bucket_for_aligned(alignment, size);
     if(bucket < (unsigned)ALLOC_NUM_BUCKETS &&
-       g_sys_image_loaded && !s_alloc_tls_off) {
+       g_sys_image_loaded && !kame_thread_torn_down()) {
         // Pool bucket path — mirrors new_redirected_large's freelist /
         // slow_allocate / cold_first_access cascade via KameTlsPage.
         if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
@@ -4068,7 +4116,7 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
     // Pool can't serve this combo via a bucket (alignment > 4096, or size
     // too big for any matching bucket, or pre-activate / post-teardown).
     // Try the next step — a dedicated chunk — for alignment up to 256 KiB.
-    if(g_sys_image_loaded && !s_alloc_tls_off &&
+    if(g_sys_image_loaded && !kame_thread_torn_down() &&
        alignment <= (std::size_t)ALLOC_MIN_CHUNK_SIZE &&
        size <= (std::size_t)ALLOC_MAX_CHUNK_SIZE - (std::size_t)ALLOC_CHUNK_K_MAX) {
         // Dedicated-chunk path — §15 payload starts at a 256 KiB unit
@@ -4251,7 +4299,7 @@ static void kame_free(void *p) {
 // `kame_pool_malloc` C-API entry — single source of truth for the
 // pool-or-ENOMEM logic.  `new_redirected` self-gates for pre-activation /
 // post-teardown via the null `g_thread_freelist_ptr[bucket]` path, so no
-// `!g_sys_image_loaded || s_alloc_tls_off` pre-filter is needed here (same
+// `!g_sys_image_loaded || kame_thread_torn_down()` pre-filter is needed here (same
 // as `operator new`).  `always_inline` so BOTH callers expand it directly:
 // the hot `malloc` keeps its inlined freelist pop with NO extra call/PLT
 // hop, while the source carries one copy.
@@ -4446,7 +4494,7 @@ static void *kame_calloc(std::size_t n_elem, std::size_t sz) {
 		return nullptr;
 	if( !total) total = 1;  // calloc(0, *) / calloc(*, 0): libc returns
 	                        // a uniquely-freeable non-null pointer.
-	if( !g_sys_image_loaded || s_alloc_tls_off)
+	if( !g_sys_image_loaded || kame_thread_torn_down())
 		return libsystem_calloc_for_pool(n_elem, sz);
 	// Pool path.  `new_redirected` may dispatch to libsystem itself for
 	// over-bucket sizes — that branch returns libsystem-malloc'd memory
@@ -4475,7 +4523,7 @@ static void *kame_realloc(void *p, std::size_t n) {
 		// `new_redirected` would otherwise claim a fresh chunk on
 		// first call from a pre-main static-init thread (qmake inline
 		// mode); we want the chunk-claim deferred to `activateAllocator`.
-		if( !g_sys_image_loaded || s_alloc_tls_off)
+		if( !g_sys_image_loaded || kame_thread_torn_down())
 			return libsystem_realloc_for_pool(nullptr, n);
 		return new_redirected(n);
 	}
@@ -4828,7 +4876,7 @@ static std::size_t kame_iat_msize(void *p) noexcept {
 static void *kame_iat_malloc(std::size_t n) noexcept {
     // Pre-activation falls back via g_real_malloc inside
     // libsystem_malloc_for_pool (resolved before the patch installs).
-    if(__builtin_expect(!g_sys_image_loaded || s_alloc_tls_off, 0))
+    if(__builtin_expect(!g_sys_image_loaded || kame_thread_torn_down(), 0))
         return libsystem_malloc_for_pool(n);
     if(void *p = new_redirected(n)) return p;
     errno = ENOMEM;
@@ -4933,18 +4981,34 @@ static void kame_patch_all_modules() noexcept {
     // hook covers anything loaded later, so a benign race outside the lock
     // can at worst miss/repeat an entry harmlessly.
     //
-    // x64 offsets: TEB+0x60 = PEB; PEB+0x18 = Ldr; PEB_LDR_DATA+0x20 =
-    // InMemoryOrderModuleList; each Flink = &entry.InMemoryOrderLinks
-    // (entry+0x10), and entry+0x30 = DllBase (so DllBase = Flink+0x20).
-    BYTE *peb = reinterpret_cast<BYTE *>(__readgsqword(0x60));
+    // Struct offsets differ between 32-bit and 64-bit Windows:
+    //
+    //   x64: TEB[GS:0x60]=PEB; PEB+0x18=Ldr; Ldr+0x20=InMemoryOrderModuleList;
+    //        InMemoryOrderLinks at LDR_DATA_TABLE_ENTRY+0x10;
+    //        DllBase at entry+0x30 → Flink+0x20.
+    //
+    //   x86: TEB[FS:0x30]=PEB; PEB+0x0C=Ldr; Ldr+0x14=InMemoryOrderModuleList;
+    //        InMemoryOrderLinks at LDR_DATA_TABLE_ENTRY+0x08;
+    //        DllBase at entry+0x18 → Flink+0x10.
+#ifdef _WIN64
+    BYTE *peb   = reinterpret_cast<BYTE *>(__readgsqword(0x60));
+    const std::ptrdiff_t off_ldr  = 0x18;
+    const std::ptrdiff_t off_list = 0x20;
+    const std::ptrdiff_t off_base = 0x20;
+#else
+    BYTE *peb   = reinterpret_cast<BYTE *>(__readfsdword(0x30));
+    const std::ptrdiff_t off_ldr  = 0x0C;
+    const std::ptrdiff_t off_list = 0x14;
+    const std::ptrdiff_t off_base = 0x10;
+#endif
     if( !peb) return;
-    BYTE *ldr = *reinterpret_cast<BYTE **>(peb + 0x18);
+    BYTE *ldr = *reinterpret_cast<BYTE **>(peb + off_ldr);
     if( !ldr) return;
-    BYTE *head = ldr + 0x20;
+    BYTE *head = ldr + off_list;
     for(BYTE *cur = *reinterpret_cast<BYTE **>(head);
         cur && cur != head;
         cur = *reinterpret_cast<BYTE **>(cur)) {
-        void *dllBase = *reinterpret_cast<void **>(cur + 0x20);
+        void *dllBase = *reinterpret_cast<void **>(cur + off_base);
         if(dllBase) kame_patch_one_module(reinterpret_cast<HMODULE>(dllBase));
     }
 }
@@ -5497,10 +5561,17 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	// uintptr_t range (region index = 7 bits ≤ 32 - 25), so the bound
 	// check is vacuous and skipped (`up >> 47` is UB).
 	constexpr int kBoundShift = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT;
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(push)
+#pragma warning(disable: 4293) // MSVC warns on shift-by->=width inside discarded if constexpr
+#endif
 	if constexpr (kBoundShift < (int)(sizeof(uintptr_t) * 8)) {
 		if(__builtin_expect((up >> kBoundShift) != 0u, 0))
 			return (int)KAME_RADIX_ABSENT;
 	}
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(pop)
+#endif
 	unsigned region_idx = (unsigned)(up >> ALLOC_MIN_MMAP_SHIFT);
 	unsigned l1 = region_idx >> RADIX_L2_BITS;
 	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
@@ -5777,17 +5848,29 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 //
 // Indexing: 4 indices per octave starting at LRC_LO (= 256 KiB).
 //   idx i ↔ nominal size 2^(i/4) × LRC_LO.
-//   With LRC_N_MAX = 32, LRC_HI = LRC_LO × 2^8 = 64 MiB.
+//   With LRC_N_MAX = 40, LRC_HI = LRC_LO × 2^10 = 256 MiB.
 //   The chunk/mmap boundary is lrc_idx_natural(4 MiB) = LRC_CHUNK_BND = 16.
 //
 // Tunables (compile-time defaults; override via -D…):
-//   LRC_N_MAX     = 32   ⇒ LRC_HI = 64 MiB (top size class).
+//   LRC_N_MAX     = 40   ⇒ LRC_HI = 256 MiB (top size class).
 //   LRC_K_MAX     = 256  ⇒ K slots per (idx, kind), must be a power of two.
 //   LRC_N_MAX_L1  = 24   ⇒ per-thread L1 idx ceiling (≈ 16 MiB).
 //   LRC_K_L1      = 32   ⇒ K slots per (idx, kind) in L1, power of two.
-// Static memory: global ≈ 80 KiB (64-B cache lines) / 96 KiB (128-B lines);
-// L1 ≈ 6.4 KiB / thread.  Caps above 64 MiB / per-thread > 16 MiB need a
+// Static memory: global ≈ 96 KiB (64-B cache lines) / 112 KiB (128-B lines);
+// L1 ≈ 6.4 KiB / thread.  Caps above 256 MiB / per-thread > 16 MiB need a
 // rebuild with larger LRC_*_MAX.
+//
+// (§35) LRC_N_MAX = 40 (was 32) so kame.app's 100 MB-class (and up to
+// ~200 MB) image buffers stay in the warm recycle cache.  A 100 MB request
+// maps to idx ≈ 33, a 200 MB one to idx ≈ 37 — BOUNDED bands well below the
+// collapsing top slot (idx = LRC_N_MAX = 40, ≥ 256 MiB), so neither is
+// subject to the unbounded-fit over-satisfaction that makes the very top slot
+// pin RSS.  LRC_MMAP blocks in [32 MiB, 256 MiB] are multi-region spans (only
+// the head 32-MiB radix slot registered); the 32–64 MiB sub-band has been
+// span-cached since LRC_HI was first 64 MiB, so raising the ceiling to 256 MiB
+// only widens an already-exercised path.  RSS is bounded solely by g_lrc_cap
+// (default ~1 GiB ⇒ ~10 cached 100 MB blocks); raise it via
+// kame_pool_set_max_bytes() for image-heavy runs.
 //
 // Block kinds (same as before):
 //   - LRC_MMAP : region stays mapped, radix CLEARED on push (double-free
@@ -5796,7 +5879,7 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 //                returned directly on reuse.  Release = deallocate_chunk.
 
 #ifndef LRC_N_MAX
-#define LRC_N_MAX 32
+#define LRC_N_MAX 40
 #endif
 #ifndef LRC_K_MAX
 #define LRC_K_MAX 256
@@ -5821,7 +5904,7 @@ constexpr int    LRC_LO_LOG2 = 18;                                    // log2(25
 constexpr std::size_t LRC_LO = (std::size_t)1 << LRC_LO_LOG2;         // = ALLOC_MIN_CHUNK_SIZE
 static_assert(LRC_LO == (std::size_t)ALLOC_MIN_CHUNK_SIZE,
               "LRC_LO must equal ALLOC_MIN_CHUNK_SIZE");
-constexpr std::size_t LRC_HI = LRC_LO << (LRC_N_MAX / 4);              // 64 MiB at LRC_N_MAX=32
+constexpr std::size_t LRC_HI = LRC_LO << (LRC_N_MAX / 4);              // 256 MiB at LRC_N_MAX=40
 // Chunk/mmap boundary in idx space.  lrc_idx_natural(ALLOC_MAX_CHUNK_SIZE).
 constexpr int LRC_CHUNK_BND = 4 * (22 - LRC_LO_LOG2);                  // = 16 (log2(4 MiB)=22)
 static_assert((std::size_t)1 << (LRC_LO_LOG2 + LRC_CHUNK_BND / 4)
@@ -5868,7 +5951,7 @@ inline unsigned lrc_kind_from_idx(int i) noexcept {
 // race a concurrent release/munmap.
 inline std::size_t lrc_block_size(char *base, unsigned kind) noexcept {
     if(kind == (unsigned)LRC_CHUNK)
-        return *reinterpret_cast<std::uint64_t *>(base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+        return (std::size_t)*reinterpret_cast<std::uint64_t *>(base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
     return PoolAllocatorBase::large_alloc_meta_of(base)->mmap_size;
 }
 // Release a block per its kind (both touch only global state — bitmap+madvise
@@ -6398,14 +6481,16 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 	// re-register it below.  The cached region's real size (meta->mmap_size,
 	// preserved) is ≥ mmap_size and ≤ 2× it (pop_fit's fit window).
 	//
-	// (§27) BUT only for the ≤ 32 MiB tier.  The recycle cache's log-index
-	// space (lrc_idx) tops out at LRC_HI = ALLOC_MIN_MMAP_SIZE = 32 MiB:
-	// every size ≥ LRC_HI collapses to the single top slot, where the only
-	// pop gate is `cached_size ≥ need` with NO upper bound — so a cached
-	// huge block could satisfy (and pin the full RSS of) a much smaller
-	// huge request.  Huge allocs therefore skip the cache entirely: mmap
-	// fresh here, munmap on free (deallocate_large_va mirrors this gate).
-	// This matches how libc / jemalloc / mimalloc treat their huge class.
+	// (§27/§35) BUT only for the ≤ LRC_HI (= 256 MiB) tier.  The recycle
+	// cache's log-index space (lrc_idx) tops out at LRC_HI: every size ≥
+	// LRC_HI collapses to the single top slot, where the only pop gate is
+	// `cached_size ≥ need` with NO upper bound — so a cached huge block
+	// could satisfy (and pin the full RSS of) a much smaller huge request.
+	// Allocs ≥ LRC_HI therefore skip the cache entirely: mmap fresh here,
+	// munmap on free (deallocate_large_va mirrors this gate).  This matches
+	// how libc / jemalloc / mimalloc treat their huge class.  Sizes BELOW
+	// LRC_HI (incl. 100 MB-class image buffers ⇒ idx ≈ 33) land in a bounded
+	// band and are cached normally as multi-region spans.
 	bool cacheable = (mmap_size <= LRC_HI);
 	char *base = cacheable ? recycle_pop_fit(mmap_size, LRC_MMAP) : nullptr;
 	bool recycled = (base != nullptr);

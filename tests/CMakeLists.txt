@@ -48,7 +48,12 @@ if(USE_KAME_ALLOCATOR AND NOT TARGET kamepoolalloc)
     # symbols are exported — `malloc`/`free`/… stay global and interposable,
     # so the LD_PRELOAD drop-in semantics are untouched.
     target_compile_options(kamepoolalloc PRIVATE
-        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fvisibility-inlines-hidden;-fno-semantic-interposition>)
+        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fvisibility-inlines-hidden;-fno-semantic-interposition>
+        # MSVC on Japanese Windows (CP932 system code page) misreads UTF-8
+        # box-drawing / Japanese characters in comments, potentially swallowing
+        # newlines and hiding #define directives (symptom: C2065 on macros
+        # defined just before a box-drawing art block).  /utf-8 fixes this.
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
     set_target_properties(kamepoolalloc PROPERTIES
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)
@@ -90,14 +95,6 @@ if(USE_KAME_ALLOCATOR)
     target_link_libraries(c_api_test kamepoolalloc Threads::Threads)
     set_property(TARGET c_api_test PROPERTY C_STANDARD 99)
 
-    # Pure-C intercept smoke test: validate that stdlib malloc/calloc/realloc/free
-    # are routed through the pool (§31 IAT redirect on Windows; __interpose on
-    # macOS; strong-symbol override on Linux).  Probe: kame_pool_malloc_usable_size
-    # returns 0 for foreign pointers and >= requested_size for pool pointers.
-    add_executable(malloc_intercept_test malloc_intercept_test.c)
-    target_link_libraries(malloc_intercept_test kamepoolalloc Threads::Threads)
-    set_property(TARGET malloc_intercept_test PROPERTY C_STANDARD 99)
-
     # (§27) Huge-alloc (> 32 MiB) round-trip / no-over-satisfy / MT test.
     # Uses the kame_pool_* C API directly, so it is meaningful only with the
     # pool linked in (DISABLE_POOL_ALLOCATOR has no kame_pool_malloc symbol).
@@ -128,6 +125,17 @@ if(USE_KAME_ALLOCATOR)
     # together and restore on enable=0.
     add_executable(alloc_realtime_mode_test alloc_realtime_mode_test.cpp)
     target_link_libraries(alloc_realtime_mode_test kamepoolalloc Threads::Threads)
+
+    # (§31/§32) Strong-symbol / interpose override correctness — asserts that
+    # a bare libc malloc/calloc/realloc/free (and C++ operator new/delete)
+    # actually route through the pool when the library is linked.  Oracle is
+    # kame_pool_malloc_usable_size (non-zero ⇔ pool-owned).  Self-adapts to
+    # platforms where plain malloc isn't interposed (musl): the C-malloc
+    # assertions are gated on a runtime probe, operator-new + C-API ones run
+    # unconditionally.  This is the only correctness gate for the override
+    # layer that the bench/README head-to-head numbers depend on.
+    add_executable(malloc_intercept_test malloc_intercept_test.cpp)
+    target_link_libraries(malloc_intercept_test kamepoolalloc Threads::Threads)
 
     # (contrib) C++17 Allocator concept conformance for
     # `kame::pool_allocator<T>` — exercises rebind, propagate_on_*,
