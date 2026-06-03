@@ -61,9 +61,22 @@
     #define __builtin_ctzll(x) kame_msvc_ctzll(x)
     #define __builtin_ctz(x)   kame_msvc_ctz(x)
     #define __builtin_clzll(x) kame_msvc_clzll(x)
-    #define __builtin_thread_pointer() ((void *)__readgsqword(0x30)) // TEB self-ptr
+    // __builtin_thread_pointer: only expanded inside #if KAME_FAST_TSD (macOS only).
+    // Provided here for completeness; on Windows the code is dead.
+#ifdef _WIN64
+    #define __builtin_thread_pointer() ((void *)__readgsqword(0x30)) // x64 TEB self-ptr
+#else
+    #define __builtin_thread_pointer() ((void *)__readfsdword(0x18)) // x86 TEB self-ptr
+#endif
     static inline bool kame_msvc_mul_ovf(std::size_t a, std::size_t b, std::size_t *out) noexcept {
+#ifdef _WIN64
+        // x64: _umul128 gives the high 64 bits; overflow if non-zero.
         unsigned long long hi; *out = (std::size_t)_umul128(a, b, &hi); return hi != 0ull;
+#else
+        // x86: size_t is 32-bit; promote to 64-bit, overflow if high 32 bits set.
+        unsigned long long r = (unsigned long long)a * (unsigned long long)b;
+        *out = (std::size_t)(r & 0xFFFFFFFFULL); return (r >> 32) != 0ULL;
+#endif
     }
     #define __builtin_mul_overflow(a, b, outp) kame_msvc_mul_ovf((a), (b), (outp))
 #endif

@@ -48,7 +48,12 @@ if(USE_KAME_ALLOCATOR AND NOT TARGET kamepoolalloc)
     # symbols are exported — `malloc`/`free`/… stay global and interposable,
     # so the LD_PRELOAD drop-in semantics are untouched.
     target_compile_options(kamepoolalloc PRIVATE
-        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fvisibility-inlines-hidden;-fno-semantic-interposition>)
+        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fvisibility-inlines-hidden;-fno-semantic-interposition>
+        # MSVC on Japanese Windows (CP932 system code page) misreads UTF-8
+        # box-drawing / Japanese characters in comments, potentially swallowing
+        # newlines and hiding #define directives (symptom: C2065 on macros
+        # defined just before a box-drawing art block).  /utf-8 fixes this.
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
     set_target_properties(kamepoolalloc PROPERTIES
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)

@@ -379,6 +379,12 @@ win32-msvc* {
     DEFINES += DECLSPEC_KAME=__declspec(dllexport)
     DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
     DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
+    # /utf-8: kame.pro inline-compiles kamepoolalloc/allocator.cpp, which
+    # contains UTF-8 box-drawing characters in comments.  Without /utf-8,
+    # MSVC on Japanese Windows (CP932 system code page) may swallow newlines
+    # inside multi-byte character sequences, hiding #define directives and
+    # causing C2065 "undeclared identifier" errors on macros in those files.
+    QMAKE_CXXFLAGS += /utf-8
 }
 
 macx {
