@@ -1,0 +1,27 @@
+kamepoolalloc — dual-licensed
+==============================
+
+Copyright (C) 2002-2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+
+This software is provided under your choice of EITHER:
+
+  * Apache License, Version 2.0
+    See `LICENSE-APACHE-2.0` in this directory, or
+    http://www.apache.org/licenses/LICENSE-2.0
+
+  -- OR --
+
+  * GNU General Public License, version 2 of the License,
+    or (at your option) any later version.
+    See `LICENSE-GPL-2.0` in this directory, or
+    http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+You may pick whichever license suits your project.  Recipients
+combining this software with code under GPLv2-only must choose the
+GPLv2 option here; recipients building Apache-2.0-only / proprietary /
+permissive-licensed projects may choose the Apache 2.0 option.
+
+The copyright holder retains all rights to the software not granted
+under either license.  Both license grants explicitly require
+preservation of the copyright notice and the choice-of-license clause
+itself when redistributing this software, in source or binary form.
