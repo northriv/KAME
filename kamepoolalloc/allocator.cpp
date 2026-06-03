@@ -4933,18 +4933,34 @@ static void kame_patch_all_modules() noexcept {
     // hook covers anything loaded later, so a benign race outside the lock
     // can at worst miss/repeat an entry harmlessly.
     //
-    // x64 offsets: TEB+0x60 = PEB; PEB+0x18 = Ldr; PEB_LDR_DATA+0x20 =
-    // InMemoryOrderModuleList; each Flink = &entry.InMemoryOrderLinks
-    // (entry+0x10), and entry+0x30 = DllBase (so DllBase = Flink+0x20).
-    BYTE *peb = reinterpret_cast<BYTE *>(__readgsqword(0x60));
+    // Struct offsets differ between 32-bit and 64-bit Windows:
+    //
+    //   x64: TEB[GS:0x60]=PEB; PEB+0x18=Ldr; Ldr+0x20=InMemoryOrderModuleList;
+    //        InMemoryOrderLinks at LDR_DATA_TABLE_ENTRY+0x10;
+    //        DllBase at entry+0x30 → Flink+0x20.
+    //
+    //   x86: TEB[FS:0x30]=PEB; PEB+0x0C=Ldr; Ldr+0x14=InMemoryOrderModuleList;
+    //        InMemoryOrderLinks at LDR_DATA_TABLE_ENTRY+0x08;
+    //        DllBase at entry+0x18 → Flink+0x10.
+#ifdef _WIN64
+    BYTE *peb   = reinterpret_cast<BYTE *>(__readgsqword(0x60));
+    const std::ptrdiff_t off_ldr  = 0x18;
+    const std::ptrdiff_t off_list = 0x20;
+    const std::ptrdiff_t off_base = 0x20;
+#else
+    BYTE *peb   = reinterpret_cast<BYTE *>(__readfsdword(0x30));
+    const std::ptrdiff_t off_ldr  = 0x0C;
+    const std::ptrdiff_t off_list = 0x14;
+    const std::ptrdiff_t off_base = 0x10;
+#endif
     if( !peb) return;
-    BYTE *ldr = *reinterpret_cast<BYTE **>(peb + 0x18);
+    BYTE *ldr = *reinterpret_cast<BYTE **>(peb + off_ldr);
     if( !ldr) return;
-    BYTE *head = ldr + 0x20;
+    BYTE *head = ldr + off_list;
     for(BYTE *cur = *reinterpret_cast<BYTE **>(head);
         cur && cur != head;
         cur = *reinterpret_cast<BYTE **>(cur)) {
-        void *dllBase = *reinterpret_cast<void **>(cur + 0x20);
+        void *dllBase = *reinterpret_cast<void **>(cur + off_base);
         if(dllBase) kame_patch_one_module(reinterpret_cast<HMODULE>(dllBase));
     }
 }
