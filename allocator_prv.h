@@ -448,6 +448,35 @@ static_assert((1ull << ALLOC_MIN_MMAP_SHIFT) == (unsigned)ALLOC_MIN_MMAP_SIZE,
 //! load synchronizes-with the L2 init store).  No reclamation needed
 //! (slots are written once and live for the process lifetime — regions
 //! are never unmapped in the current design; §13.2 may revisit).
+//!
+//! Pointer decomposition (64-bit; ALLOC_MIN_MMAP_SHIFT = 25 ⇒ 32 MiB region):
+//!
+//!    63        47 46        36 35        25 24              0
+//!   ┌───────────┬────────────┬────────────┬─────────────────┐
+//!   │ must be 0 │  L1 index  │  L2 index  │  in-region off  │
+//!   │  (17 b)   │   (11 b)   │   (11 b)   │     (25 b)      │
+//!   └───────────┴────────────┴────────────┴─────────────────┘
+//!     bound       \____ region_idx = p >> 25 (22 b) ____/
+//!     check       (the 32-MiB region's identity; base = region_idx << 25)
+//!
+//!     region_idx = p >> 25;  l1 = region_idx >> 11;  l2 = region_idx & 0x7FF
+//!
+//! 2-level walk (radix_lookup):
+//!
+//!   s_radix_l1[2048]          BSS, 16 KiB, atomic<RadixL2Node*>
+//!        │  [l1]              null leaf ⇒ ABSENT
+//!        ▼
+//!   RadixL2Node               lazily mmap'd on first insert, 8 KiB
+//!     entries[2048]           atomic<uint32_t>, one slot per 32-MiB region
+//!        │  [l2]              0 slot ⇒ ABSENT
+//!        ▼
+//!   RadixKind:  0 ABSENT  foreign pointer → libc free/size
+//!               1 POOL    base → RegionMeta      (see region-header diagram)
+//!               2 LARGE   base → LargeAllocMeta  (see region-header diagram)
+//!
+//!   Coverage: each L2 spans 2^11 × 32 MiB = 64 GiB; L1 spans 2^22 × 32 MiB
+//!   = 128 TiB (the 47-bit user VA).  bits [63..47] set ⇒ ABSENT (foreign).
+//!
 constexpr int RADIX_L1_BITS = 11;
 constexpr int RADIX_L2_BITS = 11;
 constexpr unsigned RADIX_L1_SIZE = 1u << RADIX_L1_BITS;
@@ -1232,6 +1261,39 @@ public:
 		return reinterpret_cast<LargeAllocMeta *>(
 		    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
 	}
+
+	//! 32-MiB region header.  The radix kind at `base >> 25` (base = the
+	//! 32-MiB-aligned region start = `region_idx << 25`) selects which
+	//! metadata lives at offset 0:
+	//!
+	//!   KAME_RADIX_POOL  — a pool region of 128 × 256 KiB units:
+	//!     +0      ┌────────────────────────────────────────────┐
+	//!             │ RegionMeta — in the first page of unit 0:   │
+	//!             │   DLL `next`, per-unit claim bitmaps,       │
+	//!             │   `has_free` hints, `numa_node`  (≤ 4096 B) │
+	//!             ├────────────────────────────────────────────┤
+	//!             │ unit 0 tail, then units 1..127 carved into  │
+	//!             │ chunks (each chunk: see the chunk-layout    │
+	//!             │ diagram above; chunk_base = unit_bound −    │
+	//!             │ K_MAX, metadata in the previous unit's tail)│
+	//!     +32 MiB └────────────────────────────────────────────┘
+	//!
+	//!   KAME_RADIX_LARGE — a §19 large alloc / §27 huge span:
+	//!     +0      ┌────────────────────────────────────────────┐
+	//!             │ LargeAllocMeta: magic, alloc_size,          │
+	//!             │   mmap_size, numa_node    (first page)      │
+	//!     +PAGE   ├────────────────────────────────────────────┤
+	//!             │ user pointer = base + ALLOC_PAGE_SIZE       │
+	//!             │   ... contiguous user data ...              │
+	//!             │ (huge: mmap_size > 32 MiB spans             │
+	//!             │  ⌈mmap_size / 32 MiB⌉ regions; ONLY the     │
+	//!             │  head slot is radix-registered — tail slots │
+	//!             │  stay mapped, never standalone lookups)     │
+	//!  +mmap_size └────────────────────────────────────────────┘
+	//!
+	//! Both are recovered from any interior pointer by masking to the
+	//! 32-MiB boundary (`region_meta_of` / `large_alloc_meta_of`); the
+	//! radix kind disambiguates which struct to read.
 
 	//! (§19) Allocate from the §19 large-alloc tier — a single
 	//! 32-MiB-aligned mmap registered as one radix slot.  Returns the
