@@ -464,6 +464,26 @@ struct AllocThreadExitCleanup {
         // dtors.  `new_redirected` itself no longer checks this flag —
         // the per-bucket slot rewrite above is its analogue.
         s_alloc_tls_off = true;
+        // (§hot-tls teardown sentinel) Point this thread's fast-TSD page
+        // slot at the static teardown sentinel.  After this, any later
+        // pthread_key dtor (e.g. libc++ ~__thread_struct) that frees a pool
+        // pointer reaches `deallocate` → owner-id mismatch (sentinel
+        // owner_id == 0) → cold `deallocate_pooled`, which identity-compares
+        // `kame_page() == &g_teardown_page` and takes a TLS-free path
+        // WITHOUT re-touching `s_tls` / `&s_tls.dll_head` — whose TLV may
+        // already be finalized, so a `_tlv_get_addr` re-instantiation would
+        // `malloc` mid-teardown and trap.  This write is value-only (a
+        // pthread TSD slot store, legal during cleanup) — no TLV deref.
+        tls_page_ie = &g_teardown_page;
+#if KAME_FAST_TSD
+        if(s_kame_page_tsd_offset != 0) {
+            pthread_setspecific(s_kame_page_key, &g_teardown_page);
+            char *tp = kame_thread_pointer();
+            if(tp)
+                *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset)
+                    = &g_teardown_page;
+        }
+#endif
     }
 };
 // Raw `thread_local` — the kamepoolalloc dylib boundary already
@@ -1503,6 +1523,17 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 template <unsigned int ALIGN, bool DUMMY>
 bool
 PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
+	// (§hot-tls teardown) COLD path only.  If THIS thread has run its
+	// allocator cleanup, the fast-TSD page is the static teardown sentinel
+	// (pure pointer compare — no `_tlv_get_addr`, no `g_tls_page` deref).
+	// In that state `s_tls.my_chunk` (1540) and `&s_tls.dll_head` (the
+	// cursor-reset below) may be torn down; route the slot straight to the
+	// bitmap and return, touching no thread-local.
+	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+		this->batch_return_to_bitmap(tmp);
+		return false;
+	}
 	// (§12.3) Per-slot prefix { uint32_t local_id, uint32_t SIZE } at
 	// `p - 8` (LAST 8 bytes of the prefix bit's ALIGN area).  One 64-bit
 	// load recovers the local-id directly — no bucket_for_size, no
@@ -1546,7 +1577,9 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 	// (§orphan-adopt) FS=false orphan adoption — same rationale as the
 	// FS=true sibling in deallocate_pooled above.  Read local-id from the
 	// per-slot prefix first (mirrors the my_chunk path above).
-	if(!s_alloc_tls_off && this->m_owner_id == 0) {
+	// Teardown excluded by the sentinel check at the top, so `s_alloc_tls_off`
+	// is necessarily false here — the former `!s_alloc_tls_off` TLV read is dropped.
+	if(this->m_owner_id == 0) {
 		unsigned adopt_local;
 		if constexpr (ALIGN >= 1024u) {
 			size_t bit_index =
@@ -1957,6 +1990,20 @@ PoolAllocator<ALIGN, FS, DUMMY>::try_adopt_orphan(char *p, unsigned local) noexc
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
+	// (§hot-tls teardown) This is the COLD path — `deallocate`'s hot
+	// owner-match returns before invoking the trampoline, so nothing here
+	// affects the hot path.  If THIS thread has already run its allocator
+	// cleanup, its fast-TSD page is the static teardown sentinel; detect it
+	// with a pure pointer compare (NO `_tlv_get_addr`, NO deref of
+	// `g_tls_page`'s possibly-finalized TLV storage).  In that state `s_tls`
+	// and `&s_tls.dll_head` may be torn down, so we must touch NO thread-local:
+	// route the single slot straight to the bitmap (TLS-free, scratch +
+	// sentinel) and return.  Subsumes the former `s_alloc_tls_off` bypass.
+	if(__builtin_expect(kame_page() == &g_teardown_page, 0)) {
+		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
+		this->batch_return_to_bitmap(tmp);
+		return false;
+	}
 	// Two-way dispatch:
 	//
 	//   owner               → push to per-thread AllocSlot freelist (no atomic)
@@ -1987,30 +2034,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 	// adopt it into this thread's DLL so the freed slot reaches the
 	// freelist rather than silently accumulating in the bitmap of a
 	// chunk no running thread can walk.
-	if(!s_alloc_tls_off && this->m_owner_id == 0) {
+	// Teardown excluded by the sentinel check above, so `s_alloc_tls_off`
+	// is necessarily false here — the former `!s_alloc_tls_off` term (a TLV
+	// read) is dropped.
+	if(this->m_owner_id == 0) {
 		if(this->try_adopt_orphan(p, 0u)) return false;
 	}
-	// Post-teardown bypass.  See FS=false sibling above — once
-	// `s_alloc_tls_off` is set, `tls_cross_dealloc_batch` may have
-	// been destroyed; route the bit-clear through
-	// `batch_return_to_bitmap` directly with a single-slot scratch
-	// + sentinel so later pthread_key dtors that delete pool slots
-	// do not touch freed heap.
-	if(__builtin_expect(s_alloc_tls_off, 0)) {
-		// (§20) Cache the dll-head address BEFORE batch_return_to_bitmap
-		// — see the FS=false sibling for the lifetime rationale.
-		void *cached_dll_head_addr = this->m_owner_dll_head_addr;
-		CrossDeallocEntry tmp[2] = {{this, p}, {nullptr, nullptr}};
-		this->batch_return_to_bitmap(tmp);
-		// `this` may be destructed past this point — cached only.  Reset
-		// cursor only if we are the chunk's owner.  At post-teardown
-		// (s_alloc_tls_off), our pthread_key dtors may delete pool slots
-		// from any chunk we ever held — usually our own, but cross-thread
-		// retained references are possible.
-		if(cached_dll_head_addr == static_cast<void *>(&s_tls.dll_head))
-			reset_dll_walk_state();
-		return false;
-	}
+	// (The former `if(s_alloc_tls_off)` post-teardown bypass is gone — the
+	// §hot-tls teardown sentinel check at the top of this function handles
+	// it without any TLV touch, including the old `&s_tls.dll_head` compare.)
 	// FS=true ALIGN ≤ 48 (sizes 16/32/48): hold-and-batch path.  1
 	// bit per slot in m_flags ⇒ up to 64 slots per FUINT word; a
 	// deep (CAP=1024) accumulation window gives same-chunk same-
@@ -4004,6 +4036,12 @@ ALLOC_TLS_IE KameTlsPage *tls_page_ie = nullptr;
 #else
 ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 #endif
+
+// (§hot-tls teardown sentinel) NOT thread-local: one process-global page,
+// never freed, owner_id == 0.  See allocator_prv.h for the two-role rationale.
+// owner_id 0 guarantees the hot owner-check never matches it; the cold dealloc
+// path identity-compares against `&g_teardown_page` to take a TLS-free route.
+KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
 
 // Out-of-line large-size dispatch.  Sizes > 256 B fall here from
 // `new_redirected`.  The 257..512 range dispatches via the same

@@ -2407,6 +2407,24 @@ extern ALLOC_TLS_IE KameTlsPage *tls_page_ie;    // IE cached pointer (one per t
 extern ALLOC_TLS_IE KameTlsPage  g_tls_page;     // Linux: IE → mov %fs:offset
 #endif
 
+//! (§hot-tls teardown sentinel) A single process-global, never-freed,
+//! zero-initialised page (owner_id == 0).  `AllocThreadExitCleanup` points
+//! this thread's fast-TSD page slot at `&g_teardown_page` once the thread's
+//! allocator cleanup has run.  Two roles, both branchless on the hot path:
+//!   1. Hot owner-check `chunk->m_owner_id == kame_page()->owner_id` reads
+//!      owner_id 0 from the sentinel → never matches a live (non-zero) owner
+//!      → naturally routes the post-cleanup free to the cold path.  No new
+//!      hot-path instruction; the existing compare does the work.
+//!   2. The cold `deallocate_pooled` detects teardown via the pure pointer
+//!      compare `kame_page() == &g_teardown_page` — NO `_tlv_get_addr`, NO
+//!      deref of `g_tls_page`'s (possibly finalized) TLV storage — and takes
+//!      a TLS-free direct-to-bitmap path instead of touching `s_tls` /
+//!      `s_alloc_tls_off` / `&s_tls.dll_head`, any of which would re-instantiate
+//!      a torn-down TLV (→ malloc during `_pthread_tsd_cleanup` → crash).
+//! Single instance with external linkage (kame.app inline-compiles this TU;
+//! modules reach the same address through the exported deallocate path).
+extern KameTlsPage g_teardown_page;
+
 //! (§12.3) Recover the chunk's PoolAllocator object from any pointer
 //! inside the chunk's first unit — in particular, from a
 //! `&kame_page()->m_slots[bucket].freelist_head` value, which points at
