@@ -3724,24 +3724,26 @@ void* allocate_large_size_or_malloc(size_t size) throw() {
 	//      with regular bucket chunks — best locality for moderate-large
 	//      sizes.
 	//
-	//   2. 4 MiB − K_MAX < size, mmap_size ≤ 32 MiB  →  (§19) `allocate_large_va`:
-	//      one 32-MiB-aligned mmap per alloc, registered as a single
-	//      KAME_RADIX_LARGE radix slot, served from the §25/§26 warm
-	//      recycle cache.  Returns VA to the OS on free (munmap), unlike
-	//      pool regions which are push-only.
+	//   2. 4 MiB − K_MAX < size, mmap_size ≤ LRC_HI (= 256 MiB)  →  (§19)
+	//      `allocate_large_va`: a 32-MiB-aligned mmap per alloc (a single
+	//      32-MiB region for ≤ 32 MiB, a multi-region span up to 256 MiB),
+	//      registered as a single KAME_RADIX_LARGE radix slot (the head
+	//      32-MiB slot for spans), served from the §25/§26/§35 warm recycle
+	//      cache.  Returns VA to the OS on free (munmap), unlike pool
+	//      regions which are push-only.  Spans are safe in the radix: the
+	//      alloc's sole valid user pointer is `base + PAGE`, which always
+	//      resolves to the head slot; tail slots are never standalone
+	//      `radix_lookup` targets (interior-pointer lookup into one alloc is
+	//      UB caller-side), and the OS keeps the whole span mapped so no
+	//      other alloc can claim a tail slot's VA.
 	//
-	//   3. (§27) size so large that mmap_size > 32 MiB  →  ALSO
-	//      `allocate_large_va`, but it mmaps a multi-region span and
-	//      registers ONLY the head 32-MiB slot in the radix.  This is
-	//      safe: the alloc's sole valid user pointer is `base + PAGE`,
-	//      which always resolves to the head slot; the tail slots are
-	//      never standalone `radix_lookup` targets (interior-pointer
-	//      lookup into one alloc is UB caller-side), and the OS keeps the
-	//      whole span mapped so no other alloc can claim a tail slot's VA.
-	//      The huge tier BYPASSES the warm cache (mmap fresh / munmap on
-	//      free) — see allocate_large_va for why (cache index tops out at
-	//      32 MiB; a cached huge block would over-satisfy smaller huge
-	//      requests and pin RSS).
+	//   3. (§27/§35) size so large that mmap_size > LRC_HI (= 256 MiB)  →
+	//      ALSO `allocate_large_va` (same multi-region span), but the huge
+	//      tier BYPASSES the warm cache (mmap fresh / munmap on free) — see
+	//      allocate_large_va for why (the cache index tops out at LRC_HI;
+	//      above it every size collapses to one unbounded top slot, so a
+	//      cached huge block would over-satisfy smaller huge requests and
+	//      pin RSS).
 	//
 	// libc malloc is reached ONLY if `allocate_large_va` returns nullptr
 	// (the mmap itself failed) — no longer the routine path for huge sizes.
@@ -5800,17 +5802,29 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 //
 // Indexing: 4 indices per octave starting at LRC_LO (= 256 KiB).
 //   idx i ↔ nominal size 2^(i/4) × LRC_LO.
-//   With LRC_N_MAX = 32, LRC_HI = LRC_LO × 2^8 = 64 MiB.
+//   With LRC_N_MAX = 40, LRC_HI = LRC_LO × 2^10 = 256 MiB.
 //   The chunk/mmap boundary is lrc_idx_natural(4 MiB) = LRC_CHUNK_BND = 16.
 //
 // Tunables (compile-time defaults; override via -D…):
-//   LRC_N_MAX     = 32   ⇒ LRC_HI = 64 MiB (top size class).
+//   LRC_N_MAX     = 40   ⇒ LRC_HI = 256 MiB (top size class).
 //   LRC_K_MAX     = 256  ⇒ K slots per (idx, kind), must be a power of two.
 //   LRC_N_MAX_L1  = 24   ⇒ per-thread L1 idx ceiling (≈ 16 MiB).
 //   LRC_K_L1      = 32   ⇒ K slots per (idx, kind) in L1, power of two.
-// Static memory: global ≈ 80 KiB (64-B cache lines) / 96 KiB (128-B lines);
-// L1 ≈ 6.4 KiB / thread.  Caps above 64 MiB / per-thread > 16 MiB need a
+// Static memory: global ≈ 96 KiB (64-B cache lines) / 112 KiB (128-B lines);
+// L1 ≈ 6.4 KiB / thread.  Caps above 256 MiB / per-thread > 16 MiB need a
 // rebuild with larger LRC_*_MAX.
+//
+// (§35) LRC_N_MAX = 40 (was 32) so kame.app's 100 MB-class (and up to
+// ~200 MB) image buffers stay in the warm recycle cache.  A 100 MB request
+// maps to idx ≈ 33, a 200 MB one to idx ≈ 37 — BOUNDED bands well below the
+// collapsing top slot (idx = LRC_N_MAX = 40, ≥ 256 MiB), so neither is
+// subject to the unbounded-fit over-satisfaction that makes the very top slot
+// pin RSS.  LRC_MMAP blocks in [32 MiB, 256 MiB] are multi-region spans (only
+// the head 32-MiB radix slot registered); the 32–64 MiB sub-band has been
+// span-cached since LRC_HI was first 64 MiB, so raising the ceiling to 256 MiB
+// only widens an already-exercised path.  RSS is bounded solely by g_lrc_cap
+// (default ~1 GiB ⇒ ~10 cached 100 MB blocks); raise it via
+// kame_pool_set_max_bytes() for image-heavy runs.
 //
 // Block kinds (same as before):
 //   - LRC_MMAP : region stays mapped, radix CLEARED on push (double-free
@@ -5819,7 +5833,7 @@ inline void large_va_raw_unmap(char *base, std::size_t mmap_size) noexcept {
 //                returned directly on reuse.  Release = deallocate_chunk.
 
 #ifndef LRC_N_MAX
-#define LRC_N_MAX 32
+#define LRC_N_MAX 40
 #endif
 #ifndef LRC_K_MAX
 #define LRC_K_MAX 256
@@ -5844,7 +5858,7 @@ constexpr int    LRC_LO_LOG2 = 18;                                    // log2(25
 constexpr std::size_t LRC_LO = (std::size_t)1 << LRC_LO_LOG2;         // = ALLOC_MIN_CHUNK_SIZE
 static_assert(LRC_LO == (std::size_t)ALLOC_MIN_CHUNK_SIZE,
               "LRC_LO must equal ALLOC_MIN_CHUNK_SIZE");
-constexpr std::size_t LRC_HI = LRC_LO << (LRC_N_MAX / 4);              // 64 MiB at LRC_N_MAX=32
+constexpr std::size_t LRC_HI = LRC_LO << (LRC_N_MAX / 4);              // 256 MiB at LRC_N_MAX=40
 // Chunk/mmap boundary in idx space.  lrc_idx_natural(ALLOC_MAX_CHUNK_SIZE).
 constexpr int LRC_CHUNK_BND = 4 * (22 - LRC_LO_LOG2);                  // = 16 (log2(4 MiB)=22)
 static_assert((std::size_t)1 << (LRC_LO_LOG2 + LRC_CHUNK_BND / 4)
@@ -6421,14 +6435,16 @@ PoolAllocatorBase::allocate_large_va(std::size_t size) noexcept {
 	// re-register it below.  The cached region's real size (meta->mmap_size,
 	// preserved) is ≥ mmap_size and ≤ 2× it (pop_fit's fit window).
 	//
-	// (§27) BUT only for the ≤ 32 MiB tier.  The recycle cache's log-index
-	// space (lrc_idx) tops out at LRC_HI = ALLOC_MIN_MMAP_SIZE = 32 MiB:
-	// every size ≥ LRC_HI collapses to the single top slot, where the only
-	// pop gate is `cached_size ≥ need` with NO upper bound — so a cached
-	// huge block could satisfy (and pin the full RSS of) a much smaller
-	// huge request.  Huge allocs therefore skip the cache entirely: mmap
-	// fresh here, munmap on free (deallocate_large_va mirrors this gate).
-	// This matches how libc / jemalloc / mimalloc treat their huge class.
+	// (§27/§35) BUT only for the ≤ LRC_HI (= 256 MiB) tier.  The recycle
+	// cache's log-index space (lrc_idx) tops out at LRC_HI: every size ≥
+	// LRC_HI collapses to the single top slot, where the only pop gate is
+	// `cached_size ≥ need` with NO upper bound — so a cached huge block
+	// could satisfy (and pin the full RSS of) a much smaller huge request.
+	// Allocs ≥ LRC_HI therefore skip the cache entirely: mmap fresh here,
+	// munmap on free (deallocate_large_va mirrors this gate).  This matches
+	// how libc / jemalloc / mimalloc treat their huge class.  Sizes BELOW
+	// LRC_HI (incl. 100 MB-class image buffers ⇒ idx ≈ 33) land in a bounded
+	// band and are cached normally as multi-region spans.
 	bool cacheable = (mmap_size <= LRC_HI);
 	char *base = cacheable ? recycle_pop_fit(mmap_size, LRC_MMAP) : nullptr;
 	bool recycled = (base != nullptr);
