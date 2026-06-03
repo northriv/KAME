@@ -183,7 +183,49 @@ leads both single-thread and 4-process (1049 M vs 725 M mimalloc).  jemalloc
 was not available on this macOS host.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
-pages, `THP=always`), `srun --exclusive`, single-binary self-validation via
+pages, `THP=always`), `bench_compare.sh`, `srun --exclusive`** — kame at
+`0e9413a6`, mimalloc/jemalloc versions same as the competitive tables below:
+
+## 1T (median of 5, M ops/s)
+
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |     211 |      330 |      182 |      247 |
+| 1.0KB     |     212 |      210 |      159 |      176 |
+| 16KB      |      68 |       93 |       45 |   **97** |
+| 64KB      |      65 |   **93** |        4 |       78 |
+| 256KB     |      71 |   **92** |        4 |       84 |
+| 1.0MB     |      71 |        5 |        4 |   **84** |
+| 4.0MB     |      69 |        4 |        4 |   **52** |
+
+## 4 parallel processes (aggregate, M ops/s, median of 5)
+
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |     849 |   **1269** |      727 |      997 |
+| 16KB      |     274 |      371 |      178 |  **392** |
+| 64KB      |     258 |  **366** |       17 |      309 |
+| 1.0MB     |     278 |       20 |       17 |  **338** |
+
+## 128 parallel processes (aggregate, M ops/s, median of 5)
+
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |   22182 | **37386** |    20062 |    27005 |
+| 16KB      |    7798 |    11509 |     5146 | **12153** |
+| 64KB      |    7922 | **11622** |      454 |     9587 |
+| 1.0MB     |    8750 |      547 |      463 | **10523** |
+
+At **1 MiB / 128 processes** kame reaches **10523 M ops/s** (19× ahead of
+mimalloc 547 M): the two-level recycle cache keeps all 128 cores at
+memory-warm speed while mimalloc stalls at its per-call `mmap` path.
+At **16 KiB** kame edges ahead of mimalloc at both 4T and 128T
+(392 vs 371 M; 12153 vs 11509 M).  mimalloc leads at 64 B where its
+thread-local bump allocator is fastest.
+
+---
+
+**Ohtaka, `srun --exclusive`, single-binary self-validation via
 `tests/alloc_tune_report`** — kame at `9ecc613d`:
 
 Aggregate M ops/s (`alloc → touch byte 0 → free` loop) at 1 / 4 / 16 / 64 /
