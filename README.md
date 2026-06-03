@@ -226,24 +226,24 @@ thread-local bump allocator is fastest.
 ---
 
 **Ohtaka, `srun --exclusive`, single-binary self-validation via
-`tests/alloc_tune_report`** — kame at `9ecc613d`:
+`tests/alloc_tune_report`** — kame at `0e9413a6`:
 
 Aggregate M ops/s (`alloc → touch byte 0 → free` loop) at 1 / 4 / 16 / 64 /
 128 concurrent threads:
 
 | size,tier                  |  1T  |  4T  |  16T |  64T | 128T |
 | -------------------------- | ---: | ---: | ---: | ---: | ---: |
-| 64 B  (bucket)             |  121 |  482 | 1893 | 6185 | **10102** |
-| 1 KiB (bucket)             |   98 |  387 | 1551 | 4878 |  **7880** |
-| 64 KiB (chunk)             |   42 |   31 |  101 |  232 |    75 |
-| 1 MiB (chunk)              |   41 |   26 |   83 |  237 | **390** |
-| 8 MiB (large_va)           |   29 |   36 |   39 |   18 |    60 |
-| 40 MiB (large_va, cached)  |   13 |    4 |    6 |    5 |     4 |
+| 64 B  (bucket)             |  121 |  482 | 1887 | 6356 | **10596** |
+| 1 KiB (bucket)             |   95 |  389 | 1543 | 5713 |  **7831** |
+| 64 KiB (chunk)             |   42 |   27 |  116 |  195 |   **292** |
+| 1 MiB (chunk)              |   44 |   31 |   81 |  132 |   **543** |
+| 8 MiB (large_va)           |   27 |    3 |    3 |    3 |       3 |
+| 40 MiB (large_va, cached)  |   13 |    3 |    3 |    2 |       2 |
 
-The bucket tier reaches **10 G ops/s aggregate for 64 B at 128 cores
-(84× linear)** — vindicating the per-thread DLL + per-thread freelist +
+The bucket tier reaches **10.6 G ops/s aggregate for 64 B at 128 cores
+(88× linear)** — vindicating the per-thread DLL + per-thread freelist +
 per-thread `KameTlsPage` design on a heavily-NUMA host.  The 1 MiB chunk tier
-peaks at **390 M ops/s at 128T** — the per-thread L1 recycle cache absorbs
+peaks at **543 M ops/s at 128T** — the per-thread L1 recycle cache absorbs
 the churn without inter-core contention.  The large_va tier (8 MiB+) plateaus
 because the benchmark touches byte 0 each cycle, which serialises across
 cores in the Linux process-wide `mmap_lock` page-fault path; real KAME
@@ -253,14 +253,14 @@ write, not paid per op.
 
 The same `alloc_tune_report` run self-validated the defaults on this hardware:
 
-- **`LRC_LAZY_INTERVAL_NS = 10 ms`**: 0.66 % per-thread wallclock pressure —
+- **`LRC_LAZY_INTERVAL_NS = 10 ms`**: 0.63 % per-thread wallclock pressure —
   printed "default 10 ms is fine; auto-tune kept it (raise-only)".
 - **`LRC_K_MAX = 256`**: matched to 128 cores — printed "default is
   appropriate".
 - **`MADV_HUGEPAGE`**: ineffective on this kernel (same `µs/page` as plain
   first-touch) because `THP=always` is already auto-promoting 4 KiB pages to
   2 MiB at the kernel level.
-- **TLB shootdown**: 21.66× worst-case at 128 threads (1605 µs / 32 MiB
+- **TLB shootdown**: 22.01× worst-case at 128 threads (1543 µs / 32 MiB
   `munmap`) — bounded, not catastrophic; the warm cache absorbs most syscalls
   in practice.
 
