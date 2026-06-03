@@ -516,54 +516,60 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //!               special-case branch — the address math reduces
 //!               naturally.  For FS=true chunks this 8 B is just
 //!               unused pad (FS=true has no per-slot header).
-//! Slot region (`m_mempool`) starts at `chunk_base + ALLOC_CHUNK_HEADER`.
+//! Slot region (`mempool()`) starts at `chunk_base + ALLOC_CHUNK_K_MAX`
+//! (= +4096; §15 forward-shift).  The former `m_mempool` field is retired —
+//! the start is derived from `this` (`(char*)this + (K_MAX - HEADER)`).
 //!
-//! TODO: the [0..7] SIZE info enables a
-//! "unified deallocate" that branches on `(hdr[0] != 0)` instead of
-//! the indirect `DeallocateFn` call.  The high-32-b ALIGN is
-//! already available, so FS=false's `p - 8` header read needs no
-//! extra per-template dispatch.
-//!
-//! Visual chunk layout (regular vs dedicated, byte offsets from `chunk_base`):
+//! Visual chunk layout (regular vs dedicated, byte offsets from `chunk_base`,
+//! which is 256 KiB-aligned).  Metadata occupies [0, K_MAX); the slot region
+//! begins at the 256 KiB unit boundary `chunk_base + K_MAX` — the metadata
+//! physically lives in the PREVIOUS unit's last page (see §15 below).
 //!
 //!         REGULAR (FS=true / FS=false bucket chunk)
 //!         =======================================================
-//!     +0  ┌──────────────────────────────────────────┐
-//!         │ chunk_header  (size_info, palloc, fn,    │
-//!         │   sizeof_fn, ..., FS=false slot-0 prefix)│  <-- line 0
-//!     +64 ├──────────────────────────────────────────┤
-//!         │ PoolAllocator embed object                │
-//!         │   +64..+67: alignas(64) m_owner_id        │  <-- line 1 (= "1b" hot line)
-//!         │   +68: m_fs_flag, m_align_shift, ...      │
-//!         │   ..  m_freelist_head[KAME_LOCAL_BUCKETS] │
-//!         │   ..  m_sizes / m_mempool / m_flags[]     │
-//!         │                                           │
-//!         │      (slot region begins at K_MAX)        │
-//!     +K_MAX(4096) ────────────────────────────────────
-//!         │ slot[0], slot[1], ...                     │  <-- user pointers
-//!         │   (ALIGN-stride, FS=true; or              │
-//!         │    {bucket,SIZE}-prefixed, FS=false)      │
-//!         │                                           │
-//!     +chunk_size ┘
+//!     +0   ┌────────────────────────────────────────────┐
+//!          │ chunk_header (ALLOC_CHUNK_HEADER = 64 B):   │
+//!          │   [0..7] size_info   [8..15] palloc        │  <- chunk_header
+//!          │   [16..23] DeallocateFn [24..31] SizeOfFn  │     (NOT touched on
+//!          │   [32..39] dedicated_size / pad            │      the dealloc
+//!          │   [40..55] pad  [56..63] FS=false slot-0   │      fast path)
+//!          │                 {bucket,SIZE} header       │
+//!     +64  ├────────────────────────────────────────────┤
+//!          │ PoolAllocator embed object (placement-new  │
+//!          │ at +64): vptr + cold fields (m_chunk_size  │
+//!          │ …); alignas(64) pads so the hot block      │
+//!          │ starts at +128.                            │
+//!    +128  ├────────────────────────────────────────────┤
+//!          │ hot block (cache-line-isolated "1b"):      │  <- dealloc
+//!          │   m_owner_id, m_fs_flag, m_align_shift,    │     fast-path line
+//!          │   m_base_bucket, m_sizes,                  │
+//!          │   m_freelist_head[KAME_LOCAL_BUCKETS]      │
+//!          ├────────────────────────────────────────────┤
+//!          │ m_flags[] claim bitmap + padding           │
+//!          │   (all metadata fits within [0, K_MAX))    │
+//! +K_MAX   ├──────────── 256 KiB unit boundary ─────────┤
+//!  (4096)  │ slot region = mempool() = chunk_base+K_MAX │  <- user pointers
+//!          │   FS=true:  ALIGN-stride slots             │
+//!          │   FS=false: {bucket,SIZE}-prefixed slots   │
+//! +chunk_size └────────────────────────────────────────────┘
 //!
 //!         DEDICATED (single-slot large allocation, bit-7 set in back_off)
 //!         =======================================================
-//!     +0  ┌──────────────────────────────────────────┐
-//!         │ chunk_header  (size_info=DEDICATED-sentinel│
-//!         │   palloc=chunk_base, dedicated_size)      │  <-- line 0
-//!     +64 ├──────────────────────────────────────────┤
-//!         │  K_MAX GAP (4032 bytes) — pool metadata   │
-//!         │  region; NOT user-writable.  At +128 is   │
-//!         │  the would-be m_owner_id slot, which      │
-//!         │  `allocate_dedicated_chunk` stamps to 0   │
-//!         │  so the deallocate fast-path owner-id     │
-//!         │  compare never matches → naturally falls  │
-//!         │  to the bit-7 cold path.                  │
-//!     +K_MAX(4096) ────────────────────────────────────
-//!         │ user data (single contiguous slot up to   │  <-- user pointer
-//!         │   chunk_size - K_MAX bytes)               │      (= chunk_base + K_MAX)
-//!         │                                           │
-//!     +chunk_size ┘
+//!     +0   ┌────────────────────────────────────────────┐
+//!          │ chunk_header: size_info low-32 = DEDICATED  │  <- line 0
+//!          │   sentinel (0xFFFFFFFF), palloc,           │
+//!          │   [32..39] dedicated total byte size       │
+//!     +64  ├────────────────────────────────────────────┤
+//!          │ K_MAX gap (metadata region; NOT user-      │
+//!          │ writable).  At +128 the would-be hot-block │
+//!          │ m_owner_id is stamped to 0 by              │
+//!          │ allocate_dedicated_chunk, so the dealloc   │
+//!          │ fast-path owner-id compare never matches → │
+//!          │ it naturally falls to the bit-7 cold path. │
+//! +K_MAX   ├──────────── 256 KiB unit boundary ─────────┤
+//!  (4096)  │ user data: one contiguous slot, up to      │  <- user pointer
+//!          │   chunk_size - K_MAX bytes                 │   (= chunk_base+K_MAX)
+//! +chunk_size └────────────────────────────────────────────┘
 #define ALLOC_CHUNK_HEADER 64
 
 //! (§15) Forward-shift reservation: every chunk's first byte sits
