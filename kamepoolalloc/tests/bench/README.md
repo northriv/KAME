@@ -33,6 +33,23 @@ up whatever allocator the dynamic linker resolves first.  Run with
 
 `bench_xthread_pool` always uses the pool directly (no override route).
 
+### Reproducing the README's head-to-head tables
+
+`bench_compare.sh` runs the exact 1T + 4-process matrix that the
+`kamepoolalloc/README.md` "Benchmarks" section publishes — kame vs
+system / mimalloc / jemalloc across 64 B … 4 MiB, median of N runs,
+markdown-formatted so the output pastes straight in:
+
+    cd kamepoolalloc/tests/build && cmake .. && make -j
+    ../bench/bench_compare.sh                       # full table, 5 runs each
+    ../bench/bench_compare.sh --runs 1 --no-mt      # quick sanity
+    ../bench/bench_compare.sh --mimalloc /path --jemalloc /path   # explicit
+
+It auto-detects mimalloc/jemalloc in the usual MacPorts / Homebrew /
+`/usr/lib/x86_64-linux-gnu/` paths and falls back to "-" in the column
+when one is missing.  Build dir defaults to `tests/build`; override
+with `--build-dir`.
+
 ## Why these specific patterns
 
 `bench_loop` is the **best case** for any pool allocator: same-thread
