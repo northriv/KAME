@@ -502,20 +502,19 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //!   [24 .. 31]: `SizeOfFn` — slot-size lookup trampoline.
 //!               FS=false: reads SIZE from the per-slot
 //!               `{bucket, SIZE}` header at `p - 8`.
-//!   [32 .. 55]: pad.
-//!   [56 .. 63]: RESERVED for FS=false slot 0's `{uint32_t bucket,
-//!               uint32_t SIZE}` header (an earlier change "borrow" scheme
-//!               formalisation).
-//!               The slot at bit 0 of m_flags[0] (= the slot whose
-//!               p_user == mempool == chunk_base + ALLOC_CHUNK_HEADER)
-//!               has no predecessor whose last 8 B can host its
-//!               header; this 8-byte tail of the chunk-header pad is
-//!               its dedicated home.
-//!               `allocate_pooled` writes here uniformly via
-//!               `slot_start - 8` (= chunk_base + 56) without any
-//!               special-case branch — the address math reduces
-//!               naturally.  For FS=true chunks this 8 B is just
-//!               unused pad (FS=true has no per-slot header).
+//!   [32 .. 63]: pad (the low 8 B, [32..39], double as the dedicated-chunk
+//!               byte size when size_info low-32 == the DEDICATED sentinel).
+//!
+//! FS=false slot 0 (bit 0 of m_flags[0]) is the only slot with no predecessor
+//! whose last 8 B can host its `{uint32 local_id, uint32 SIZE}` borrow prefix.
+//! `allocate_pooled` reaches its prefix via the SAME uniform `slot_start - 8`
+//! math used for every slot — with no special-case branch.  Since the §15
+//! K_MAX forward-shift, slot 0 (`mempool()`) sits at `chunk_base + K_MAX`, so
+//! `slot_start - 8` = `chunk_base + K_MAX - 8` (= +4088): the LAST 8 bytes of
+//! the metadata region (reserved tail of the pad after m_flags[]), NOT the
+//! [56..63] chunk-header pad (that was the pre-§15 home, when mempool was at
+//! +ALLOC_CHUNK_HEADER).  For FS=true and FS=false-m_sizes chunks this tail is
+//! just unused pad (neither has a p-8 per-slot header).
 //! Slot region (`mempool()`) starts at `chunk_base + ALLOC_CHUNK_K_MAX`
 //! (= +4096; §15 forward-shift).  The former `m_mempool` field is retired —
 //! the start is derived from `this` (`(char*)this + (K_MAX - HEADER)`).
@@ -525,15 +524,39 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //! begins at the 256 KiB unit boundary `chunk_base + K_MAX` — the metadata
 //! physically lives in the PREVIOUS unit's last page (see §15 below).
 //!
-//!         REGULAR (FS=true / FS=false bucket chunk)
+//! The physical layout below is SHARED by four slot/metadata schemes; they
+//! differ only in three fields — size_info[0..7], the hot-block `m_sizes`
+//! pointer, and where each slot's `{local-id, SIZE}` comes from:
+//!
+//!   scheme            size_info[0..7]  m_sizes   per-slot local-id / SIZE source
+//!   ----------------  ---------------  --------  ---------------------------------
+//!   FS=true           ALIGN (≠ 0)      null      implicit: local-id 0, SIZE = ALIGN
+//!                                                (one size per chunk; no per-slot
+//!                                                data, no p-8 read)
+//!   FS=false borrow   0                null      `{uint32 local_id, uint32 SIZE}`
+//!   (ALIGN < 1024)                               at `p - 8`; slot 0's prefix lives
+//!                                                in hdr[56..63], every other slot
+//!                                                borrows its predecessor's last 8 B
+//!   FS=false m_sizes  0                non-null  `m_sizes[bit] = (N<<8)|local_id`,
+//!   ("full-usable",                              `bit = (p-mempool) >> m_align_shift`;
+//!    ALIGN ≥ 1024)                               slots are FULL N*ALIGN bytes — no
+//!                                                p-8 borrow theft (page-aligned
+//!                                                requests don't round up a class)
+//!   DEDICATED         0xFFFFFFFF       (n/a)     whole chunk = one slot; byte size
+//!                                                at hdr[32..39]; m_owner_id stamped
+//!                                                0 → dealloc takes the bit-7 cold path
+//!
+//!   (size_info high-32 = ALIGN for all three bucket schemes; n/a for DEDICATED.)
+//!
+//!         REGULAR (FS=true / FS=false bucket chunk; FS=false has the two
+//!                  sub-modes — borrow vs m_sizes — tabulated above)
 //!         =======================================================
 //!     +0   ┌────────────────────────────────────────────┐
 //!          │ chunk_header (ALLOC_CHUNK_HEADER = 64 B):   │
 //!          │   [0..7] size_info   [8..15] palloc        │  <- chunk_header
 //!          │   [16..23] DeallocateFn [24..31] SizeOfFn  │     (NOT touched on
 //!          │   [32..39] dedicated_size / pad            │      the dealloc
-//!          │   [40..55] pad  [56..63] FS=false slot-0   │      fast path)
-//!          │                 {bucket,SIZE} header       │
+//!          │   [40..63] pad                             │      fast path)
 //!     +64  ├────────────────────────────────────────────┤
 //!          │ PoolAllocator embed object (placement-new  │
 //!          │ at +64): vptr + cold fields (m_chunk_size  │
@@ -546,11 +569,15 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //!          │   m_freelist_head[KAME_LOCAL_BUCKETS]      │
 //!          ├────────────────────────────────────────────┤
 //!          │ m_flags[] claim bitmap + padding           │
-//!          │   (all metadata fits within [0, K_MAX))    │
+//!          │   (all metadata fits within [0, K_MAX);     │
+//!          │    last 8 B [K_MAX-8 .. K_MAX) = FS=false-  │
+//!          │    borrow slot-0 {local_id,SIZE} prefix)    │
 //! +K_MAX   ├──────────── 256 KiB unit boundary ─────────┤
 //!  (4096)  │ slot region = mempool() = chunk_base+K_MAX │  <- user pointers
-//!          │   FS=true:  ALIGN-stride slots             │
-//!          │   FS=false: {bucket,SIZE}-prefixed slots   │
+//!          │   FS=true        : ALIGN-stride slots      │
+//!          │   FS=false borrow: {local_id,SIZE} at p-8  │
+//!          │   FS=false m_sizes: full slots; id/SIZE in │
+//!          │                     m_sizes[] (see table)  │
 //! +chunk_size └────────────────────────────────────────────┘
 //!
 //!         DEDICATED (single-slot large allocation, bit-7 set in back_off)
