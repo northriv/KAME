@@ -337,14 +337,29 @@ int main(int argc, char *argv[]) {
     //! call by also handling `release_pools()` on shutdown.
     KamePooledAllocGuard pool_guard;
 
+#ifndef USE_STD_ALLOCATOR
+    //! (§35) KAME routinely cycles 100 MB-class image / waveform buffers
+    //! through the large-recycle cache.  Raise its target total resident
+    //! footprint to 3 GiB (from the ~2 GiB default) so a working set of a
+    //! few dozen such buffers stays warm — each reuse then skips a fresh
+    //! mmap + demand-zero fault on alloc and a munmap + TLB shootdown on
+    //! free.  `total_bytes` is split internally ~half to the shared global
+    //! L2 and ~half to the aggregate per-thread L1; set here at startup for
+    //! an exact bound (per-thread L1 sizing is derived once when a thread
+    //! first arms its cache, so a later change would not apply retroactively).
+    //! Pool-only — `kame_pool_set_large_cache_cap` is declared in kame_pool.h,
+    //! which is included solely on non-`USE_STD_ALLOCATOR` (i.e. pooled) builds.
+    kame_pool_set_large_cache_cap((size_t)3 << 30);
+#endif
+
     //! (§30) KAME is a measurement application — its hot path is tight
     //! instrument-control loops, not a server that needs aggressive RSS
     //! reclaim under bursty load.  Realtime-mode silences the allocator's
     //! three background maintenance paths (§28.1 lazy drain, §28.3 auto-
     //! tune startup probe, §21 thread-exit madvise) so they never inject
     //! a surprise munmap/madvise into a measurement loop.  The LRC_MMAP
-    //! cap (`kame_pool_set_large_cache_cap`, default ≈ 1 GiB) still
-    //! applies — lowering it is the supported way to bound RSS in
+    //! cap (`kame_pool_set_large_cache_cap`, set to 3 GiB just above) still
+    //! applies — adjusting it is the supported way to bound RSS in
     //! realtime mode.
     kame_pool_set_realtime_mode(1);
 

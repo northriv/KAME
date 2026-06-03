@@ -116,8 +116,10 @@ int main() {
                     delta / MiB);
     }
 
-    // (3) Huge alloc (> 32 MiB, §27) — same counters cover it (mmap_size > LRC_HI
-    //     bypasses cache, but the live counters track regardless).
+    // (3) Large span alloc (100 MiB, §27/§35) — same counters cover it.  Since
+    //     §35 this size is ≤ LRC_HI so it is CACHED on free, but the live
+    //     counters (large_alloc_count/bytes) track the in-program block
+    //     regardless of whether free caches or munmaps it.
     {
         auto s0 = snap();
         void *p = kame_pool_malloc(100 * MiB);

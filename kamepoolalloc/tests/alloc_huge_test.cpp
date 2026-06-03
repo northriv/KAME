@@ -1,22 +1,26 @@
-// (§27) Huge-allocation (> 32 MiB) verification.
+// (§27/§35) Large- and huge-allocation verification.
 //
 // Sizes above ALLOC_MIN_MMAP_SIZE (32 MiB) are served by allocate_large_va
 // with a MULTI-region mmap, of which only the head 32-MiB radix slot is
-// registered (the tail slots are never standalone radix_lookup targets), and
-// they BYPASS the §25/§26 warm recycle cache (whose log index tops out at
-// 32 MiB — above that all sizes collapse to one slot whose only pop gate is
-// `cached ≥ need`, which would over-satisfy a smaller huge request and pin
-// its RSS).  This test pins down:
+// registered (the tail slots are never standalone radix_lookup targets).
+// Spans up to LRC_HI (= 256 MiB since §35) are still CACHED in the §25/§26
+// warm recycle cache — a 100 MB-class image buffer maps to a bounded mid
+// band (idx ≈ 33), not the collapsing top slot.  Only sizes ABOVE LRC_HI
+// (= 256 MiB) BYPASS the cache (the log index tops out at LRC_HI — above
+// that all sizes collapse to one slot whose only pop gate is `cached ≥ need`,
+// which would over-satisfy a smaller huge request and pin its RSS).  This
+// test pins down:
 //
 //   (1) round-trip integrity across the FULL span (head + every tail slot),
-//   (2) two live huge allocs get distinct, non-overlapping bases (no radix
+//       for cacheable spans (≤ 256 MiB),
+//   (2) two live large allocs get distinct, non-overlapping bases (no radix
 //       slot collision),
-//   (3) RSS-regression / no-over-satisfy: after freeing a BIG huge block, a
-//       SMALLER huge request must NOT be satisfied from it (the cache bypass)
-//       — usable size stays tight,
-//   (4) the ≤ 32 MiB tier STILL warm-reuses through the cache (the bypass is
-//       scoped to the huge tier only),
-//   (5) a multithreaded huge alloc/free storm stays correct.
+//   (3) RSS-regression / no-over-satisfy: after freeing a > 256 MiB huge
+//       block, a SMALLER request must NOT be satisfied from it (the cache
+//       bypass) — usable size stays tight,
+//   (4) the cacheable tier (incl. 100 MB-class spans) STILL warm-reuses
+//       through the cache (the bypass is scoped to > 256 MiB only),
+//   (5) a multithreaded large alloc/free storm stays correct.
 //
 // Pool-only (uses the kame_pool_* C API directly); built when
 // USE_KAME_ALLOCATOR is ON.  kame_pool_malloc_usable_size() returns 0 for
@@ -55,7 +59,8 @@ static bool check_span(void *p, size_t n) {
 }
 
 int main() {
-    // (1) round-trip integrity for several huge sizes (all > 32 MiB)
+    // (1) round-trip integrity across the large range — all cacheable
+    //     multi-region spans (≤ LRC_HI = 256 MiB since §35).
     for(size_t mb : {40u, 64u, 100u, 200u}) {
         size_t n = mb * MiB;
         void *p = kame_pool_malloc(n);
@@ -73,11 +78,11 @@ int main() {
         std::printf("  [ok] %zu MiB round-trip, usable=%zu MiB\n", mb, us / MiB);
     }
 
-    // (2) two live huge allocs: distinct, non-overlapping, no cross-corruption
+    // (2) two live large allocs: distinct, non-overlapping, no cross-corruption
     {
         size_t n = 50 * MiB;
         void *a = kame_pool_malloc(n), *b = kame_pool_malloc(n);
-        CHECK(a && b && a != b, "two huge allocs not distinct: %p %p", a, b);
+        CHECK(a && b && a != b, "two large allocs not distinct: %p %p", a, b);
         if(a && b) {
             uintptr_t ua = (uintptr_t)a, ub = (uintptr_t)b;
             bool overlap = (ua < ub + n) && (ub < ua + n);
@@ -92,9 +97,10 @@ int main() {
         std::printf("  [ok] two 50 MiB allocs distinct & non-overlapping\n");
     }
 
-    // (3) RSS-regression: free a 512 MiB block, then request 40 MiB.  The
-    //     cache being bypassed for huge, the 40 MiB request must be a fresh
-    //     ~40 MiB mmap, NOT the recycled 512 MiB block.
+    // (3) RSS-regression: free a 512 MiB block (> LRC_HI ⇒ huge, bypassed),
+    //     then request 40 MiB.  The huge block is munmap'd on free (never
+    //     cached), so the 40 MiB request must NOT be over-satisfied from it —
+    //     usable size stays tight regardless of which tier serves it.
     {
         void *big = kame_pool_malloc(512 * MiB);
         CHECK(big != nullptr, "malloc(512 MiB) null");
@@ -112,25 +118,28 @@ int main() {
         }
     }
 
-    // (4) the cacheable tier (≤ 32 MiB) STILL warm-reuses through the cache —
-    //     the §27 bypass is scoped to the huge tier only.  Single-threaded so
-    //     the just-freed block is the obvious reuse candidate.
-    {
-        void *a = kame_pool_malloc(20 * MiB);
+    // (4) the cacheable tier STILL warm-reuses through the cache — the
+    //     bypass is scoped to > 256 MiB only.  Checks both a small span
+    //     (20 MiB) and a 100 MB-class span (the §35 motivation).  Single-
+    //     threaded so the just-freed block is the obvious reuse candidate.
+    for(size_t mb : {20u, 100u}) {
+        size_t n = mb * MiB;
+        void *a = kame_pool_malloc(n);
         kame_pool_free(a);
-        void *b = kame_pool_malloc(20 * MiB);
-        CHECK(a == b, "20 MiB tier did NOT warm-reuse (a=%p b=%p) — cache regression", a, b);
-        std::printf("  [%s] 20 MiB tier warm-reuse (cache intact for <= 32 MiB)\n",
-                    a == b ? "ok" : "BAD");
+        void *b = kame_pool_malloc(n);
+        CHECK(a == b, "%zu MiB tier did NOT warm-reuse (a=%p b=%p) — cache regression",
+              mb, a, b);
+        std::printf("  [%s] %zu MiB span warm-reuse (cache intact for <= 256 MiB)\n",
+                    a == b ? "ok" : "BAD", mb);
         kame_pool_free(b);
     }
 
-    // (5) MT: many threads hammering huge allocs — distinctness + integrity
+    // (5) MT: many threads hammering large/span allocs — distinctness + integrity
     {
         std::atomic<int> bad{0};
         auto worker = [&] {
             for(int i = 0; i < 8; i++) {
-                size_t n = (size_t)(33 + (i % 8) * 4) * MiB;  // 33..61 MiB, all huge
+                size_t n = (size_t)(33 + (i % 8) * 4) * MiB;  // 33..61 MiB spans
                 void *p = kame_pool_malloc(n);
                 if(!p) { bad++; continue; }
                 std::memset(p, 0x7E, n);
