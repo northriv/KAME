@@ -474,8 +474,14 @@ struct AllocThreadExitCleanup {
         // already be finalized, so a `_tlv_get_addr` re-instantiation would
         // `malloc` mid-teardown and trap.  This write is value-only (a
         // pthread TSD slot store, legal during cleanup) — no TLV deref.
-        tls_page_ie = &g_teardown_page;
+        //
+        // macOS-only: the sentinel exists solely to give the fast-TSD
+        // `kame_page()` a teardown-safe value to return.  On Linux/Windows
+        // `tls_page_ie` does not exist (the page is read directly as IE TLS)
+        // and `kame_thread_torn_down()` uses the teardown-safe `s_alloc_tls_off`
+        // flag set above — nothing to redirect here.
 #if KAME_FAST_TSD
+        tls_page_ie = &g_teardown_page;
         if(s_kame_page_tsd_offset != 0) {
             pthread_setspecific(s_kame_page_key, &g_teardown_page);
             char *tp = kame_thread_pointer();
