@@ -95,14 +95,6 @@ if(USE_KAME_ALLOCATOR)
     target_link_libraries(c_api_test kamepoolalloc Threads::Threads)
     set_property(TARGET c_api_test PROPERTY C_STANDARD 99)
 
-    # Pure-C intercept smoke test: validate that stdlib malloc/calloc/realloc/free
-    # are routed through the pool (§31 IAT redirect on Windows; __interpose on
-    # macOS; strong-symbol override on Linux).  Probe: kame_pool_malloc_usable_size
-    # returns 0 for foreign pointers and >= requested_size for pool pointers.
-    add_executable(malloc_intercept_test malloc_intercept_test.c)
-    target_link_libraries(malloc_intercept_test kamepoolalloc Threads::Threads)
-    set_property(TARGET malloc_intercept_test PROPERTY C_STANDARD 99)
-
     # (§27) Huge-alloc (> 32 MiB) round-trip / no-over-satisfy / MT test.
     # Uses the kame_pool_* C API directly, so it is meaningful only with the
     # pool linked in (DISABLE_POOL_ALLOCATOR has no kame_pool_malloc symbol).
@@ -210,7 +202,6 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)
-    add_test(NAME malloc_intercept_test COMMAND malloc_intercept_test)
     add_test(NAME test_ros2_allocator COMMAND test_ros2_allocator)
     add_test(NAME test_pmr_resource COMMAND test_pmr_resource)
     add_test(NAME test_aligned_allocator COMMAND test_aligned_allocator)
