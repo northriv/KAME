@@ -123,7 +123,9 @@ Tight alloc/free loop, one slot at a time (`tests/bench/bench_loop.c` —
 default-Release builds (no `-flto` / `-march=native` — mimalloc and jemalloc
 ship the same way).  Multi-thread numbers run 4 independent `bench_loop`
 processes in parallel and sum the per-process rates (true intra-process MT
-is measured separately by `bench_xthread`).
+is measured separately by `bench_xthread`).  Both tables below are
+reproducible via `tests/bench/bench_compare.sh` (see that script's
+`--help`).
 
 **x86-64, Intel Xeon @ 2.1 GHz (cloud VM, 4 vCPU), single thread, M ops/s** —
 kamepoolalloc at `37ba998c` (post-§28.5: walk-derived dedicated counter),
