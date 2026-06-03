@@ -19,6 +19,7 @@ SUBDIRS += \
     transaction_payload_integrity_mixed_test\
     transaction_payload_integrity_3level_mixed_test\
     alloc_stress_test\
+    malloc_intercept_test\
     xnode_typename_test
 
 # kamestm tests (../kamestm/tests/*.pro)
@@ -36,6 +37,7 @@ transaction_payload_integrity_3level_mixed_test.file = ../kamestm/tests/transact
 
 # kamepoolalloc tests (../kamepoolalloc/tests/*.pro)
 alloc_stress_test.file = ../kamepoolalloc/tests/alloc_stress_test.pro
+malloc_intercept_test.file = ../kamepoolalloc/tests/malloc_intercept_test.pro
 
 # kame-specific tests (stay in tests/ — XNode lives in kame/)
 xnode_typename_test.file = xnode_typename_test.pro
