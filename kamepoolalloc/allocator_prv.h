@@ -2511,6 +2511,41 @@ inline KameTlsPage *kame_page() noexcept {
 }
 #endif  // KAME_FAST_TSD
 
+//! (§hot-tls teardown) Unified "this thread has run its allocator cleanup"
+//! predicate.  Cold-path only (alloc fallbacks / C shims / dealloc cold), so
+//! the extra read never touches the alloc/free hot path.
+//!
+//!   macOS (KAME_FAST_TSD): a pure pointer compare against the static
+//!     `g_teardown_page` sentinel via the fast-TSD slot — NO `_tlv_get_addr`,
+//!     NO deref of `g_tls_page`'s (possibly finalized) TLV storage.  This is
+//!     the macOS-safe replacement for reading the `s_alloc_tls_off`
+//!     `thread_local`, whose access would lazily re-instantiate a torn-down
+//!     TLV (→ malloc mid-`_pthread_tsd_cleanup` → trap).
+//!
+//!   Linux: `s_alloc_tls_off` is initial-exec TLS — its storage lives in the
+//!     thread's static TLS block (allocated at pthread_create, freed only at
+//!     full thread termination, after all destructors), so a plain
+//!     `mov %fs:offset` read is valid throughout teardown with no malloc.  No
+//!     trick needed — read the flag directly (the standard glibc/tcmalloc/
+//!     mimalloc approach: IE-TLS thread-cache flag on Linux, OS-TLS slot on
+//!     macOS).
+//!
+//!   Windows: KAME_FAST_TSD is macOS-only, so this is the `#else` branch —
+//!     identical to the pre-existing behaviour (read `s_alloc_tls_off`).
+//!     MSVC native TLS (.tls / TEB slot) is also static-per-thread, so the
+//!     read is teardown-safe like Linux.  (MinGW gcc *emulated* TLS routes
+//!     through `__emutls_get_address`, which is lazily malloc-backed and could
+//!     in principle share the macOS hazard; not introduced here, no Windows
+//!     teardown crash observed, and the §31 IAT path differs — left as a
+//!     latent item to mirror the macOS sentinel if it ever surfaces.)
+inline bool kame_thread_torn_down() noexcept {
+#if KAME_FAST_TSD
+    return kame_page() == &g_teardown_page;
+#else
+    return s_alloc_tls_off;
+#endif
+}
+
 // Out-of-class inline body for PoolAllocatorBase::radix_lookup.
 // Provided here so KameTlsPage is fully defined and kame_page() is
 // callable.  The declaration lives inside PoolAllocatorBase above.

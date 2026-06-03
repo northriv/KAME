@@ -3956,7 +3956,7 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
 // distance budget.  The switch lowers to a jump table on arm64.
 __attribute__((cold, noinline))
 void *cold_first_access(unsigned bucket, std::size_t size) noexcept {
-    if( !g_sys_image_loaded || s_alloc_tls_off)
+    if( !g_sys_image_loaded || kame_thread_torn_down())
         return libsystem_malloc_for_pool(size);  // not std::malloc — would recurse under strong-symbol `malloc` override
     switch(bucket) {
         case  0: case  1: return bucket_first_access< 1>(size);
@@ -4068,7 +4068,7 @@ void *new_redirected_large(std::size_t size) noexcept {
         }
         return cold_first_access(bucket, size);
     }
-    if( !g_sys_image_loaded || s_alloc_tls_off)
+    if( !g_sys_image_loaded || kame_thread_torn_down())
         return libsystem_malloc_for_pool(size);
     return allocate_large_size_or_malloc(size);
 }
@@ -4094,7 +4094,7 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
     // bucket_for_aligned returns ALLOC_NUM_BUCKETS when no bucket fits.
     unsigned int bucket = bucket_for_aligned(alignment, size);
     if(bucket < (unsigned)ALLOC_NUM_BUCKETS &&
-       g_sys_image_loaded && !s_alloc_tls_off) {
+       g_sys_image_loaded && !kame_thread_torn_down()) {
         // Pool bucket path — mirrors new_redirected_large's freelist /
         // slow_allocate / cold_first_access cascade via KameTlsPage.
         if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
@@ -4110,7 +4110,7 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
     // Pool can't serve this combo via a bucket (alignment > 4096, or size
     // too big for any matching bucket, or pre-activate / post-teardown).
     // Try the next step — a dedicated chunk — for alignment up to 256 KiB.
-    if(g_sys_image_loaded && !s_alloc_tls_off &&
+    if(g_sys_image_loaded && !kame_thread_torn_down() &&
        alignment <= (std::size_t)ALLOC_MIN_CHUNK_SIZE &&
        size <= (std::size_t)ALLOC_MAX_CHUNK_SIZE - (std::size_t)ALLOC_CHUNK_K_MAX) {
         // Dedicated-chunk path — §15 payload starts at a 256 KiB unit
@@ -4293,7 +4293,7 @@ static void kame_free(void *p) {
 // `kame_pool_malloc` C-API entry — single source of truth for the
 // pool-or-ENOMEM logic.  `new_redirected` self-gates for pre-activation /
 // post-teardown via the null `g_thread_freelist_ptr[bucket]` path, so no
-// `!g_sys_image_loaded || s_alloc_tls_off` pre-filter is needed here (same
+// `!g_sys_image_loaded || kame_thread_torn_down()` pre-filter is needed here (same
 // as `operator new`).  `always_inline` so BOTH callers expand it directly:
 // the hot `malloc` keeps its inlined freelist pop with NO extra call/PLT
 // hop, while the source carries one copy.
@@ -4488,7 +4488,7 @@ static void *kame_calloc(std::size_t n_elem, std::size_t sz) {
 		return nullptr;
 	if( !total) total = 1;  // calloc(0, *) / calloc(*, 0): libc returns
 	                        // a uniquely-freeable non-null pointer.
-	if( !g_sys_image_loaded || s_alloc_tls_off)
+	if( !g_sys_image_loaded || kame_thread_torn_down())
 		return libsystem_calloc_for_pool(n_elem, sz);
 	// Pool path.  `new_redirected` may dispatch to libsystem itself for
 	// over-bucket sizes — that branch returns libsystem-malloc'd memory
@@ -4517,7 +4517,7 @@ static void *kame_realloc(void *p, std::size_t n) {
 		// `new_redirected` would otherwise claim a fresh chunk on
 		// first call from a pre-main static-init thread (qmake inline
 		// mode); we want the chunk-claim deferred to `activateAllocator`.
-		if( !g_sys_image_loaded || s_alloc_tls_off)
+		if( !g_sys_image_loaded || kame_thread_torn_down())
 			return libsystem_realloc_for_pool(nullptr, n);
 		return new_redirected(n);
 	}
@@ -4870,7 +4870,7 @@ static std::size_t kame_iat_msize(void *p) noexcept {
 static void *kame_iat_malloc(std::size_t n) noexcept {
     // Pre-activation falls back via g_real_malloc inside
     // libsystem_malloc_for_pool (resolved before the patch installs).
-    if(__builtin_expect(!g_sys_image_loaded || s_alloc_tls_off, 0))
+    if(__builtin_expect(!g_sys_image_loaded || kame_thread_torn_down(), 0))
         return libsystem_malloc_for_pool(n);
     if(void *p = new_redirected(n)) return p;
     errno = ENOMEM;
