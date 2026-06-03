@@ -3340,7 +3340,7 @@ PoolAllocatorBase::deallocate(void *p) {
 		// fire only when m_owner_id DID match, and m_owner_id never
 		// matches for dedicated.
 		if(__builtin_expect((back_off_raw & 0x80u) != 0u, 0)) {
-			size_t bytes = *reinterpret_cast<std::uint64_t *>(
+			size_t bytes = (size_t)*reinterpret_cast<std::uint64_t *>(
 			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
 			// (§28.5) dedicated_chunk_bytes is now recomputed on demand
 			// inside `kame_pool_get_stats` via region+back_offset walk; the
@@ -3458,7 +3458,7 @@ PoolAllocatorBase::size_of(void *p) {
 	if(static_cast<std::uint32_t>(*reinterpret_cast<std::uint64_t *>(
 	       chunk_base + ALLOC_CHUNK_HEADER_SIZE_INFO_OFFSET))
 	   == ALLOC_CHUNK_DEDICATED_SIZEINFO) {
-		size_t bytes = *reinterpret_cast<std::uint64_t *>(
+		size_t bytes = (size_t)*reinterpret_cast<std::uint64_t *>(
 		    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
 		return bytes - (size_t)ALLOC_CHUNK_K_MAX;
 	}
@@ -3641,7 +3641,7 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 		// stay truthful.  (Read inline: `lrc_block_size` is defined in the
 		// anonymous namespace below this point; for LRC_CHUNK it is exactly
 		// this field read.)
-		std::size_t actual = *reinterpret_cast<std::uint64_t *>(
+		std::size_t actual = (std::size_t)*reinterpret_cast<std::uint64_t *>(
 		    cached + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
 		restamp_back_offset(cached, actual, /*back_off_flag=*/0x80u);
 		*reinterpret_cast<std::uint64_t *>(
@@ -5513,10 +5513,17 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	// uintptr_t range (region index = 7 bits ≤ 32 - 25), so the bound
 	// check is vacuous and skipped (`up >> 47` is UB).
 	constexpr int kBoundShift = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT;
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(push)
+#pragma warning(disable: 4293) // MSVC warns on shift-by->=width inside discarded if constexpr
+#endif
 	if constexpr (kBoundShift < (int)(sizeof(uintptr_t) * 8)) {
 		if(__builtin_expect((up >> kBoundShift) != 0u, 0))
 			return (int)KAME_RADIX_ABSENT;
 	}
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(pop)
+#endif
 	unsigned region_idx = (unsigned)(up >> ALLOC_MIN_MMAP_SHIFT);
 	unsigned l1 = region_idx >> RADIX_L2_BITS;
 	unsigned l2 = region_idx & (RADIX_L2_SIZE - 1u);
@@ -5884,7 +5891,7 @@ inline unsigned lrc_kind_from_idx(int i) noexcept {
 // race a concurrent release/munmap.
 inline std::size_t lrc_block_size(char *base, unsigned kind) noexcept {
     if(kind == (unsigned)LRC_CHUNK)
-        return *reinterpret_cast<std::uint64_t *>(base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+        return (std::size_t)*reinterpret_cast<std::uint64_t *>(base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
     return PoolAllocatorBase::large_alloc_meta_of(base)->mmap_size;
 }
 // Release a block per its kind (both touch only global state — bitmap+madvise
