@@ -117,10 +117,13 @@ also builds and is tested on Linux (64-bit and 32-bit).  Requires a host with
 
 ## Benchmarks
 
-Tight alloc/free loop, one slot at a time (`bench_multi`), median of repeated
-runs.  `kame` is `LD_PRELOAD`'d against the same binary as the others; all are
+Tight alloc/free loop, one slot at a time (`tests/bench/bench_loop.c` —
+`malloc(N)` → write `p[0]` → `free(p)` repeated), median of repeated runs.
+`kame` is `LD_PRELOAD`'d against the same binary as the others; all are
 default-Release builds (no `-flto` / `-march=native` — mimalloc and jemalloc
-ship the same way).
+ship the same way).  Multi-thread numbers run 4 independent `bench_loop`
+processes in parallel and sum the per-process rates (true intra-process MT
+is measured separately by `bench_xthread`).
 
 **x86-64, Intel Xeon @ 2.1 GHz (cloud VM, 4 vCPU), single thread, M ops/s** —
 kamepoolalloc at `37ba998c` (post-§28.5: walk-derived dedicated counter),
@@ -136,7 +139,7 @@ median of 5 runs:
 | 1 MiB   | 86       | 3        | 9          | **115**  |
 | 4 MiB   | **87**   | 3        | 9          | 54       |
 
-**Same box, 4 threads (`mt:4`), M ops/s** — kame at `37ba998c`:
+**Same box, 4 parallel processes (aggregate M ops/s)** — kame at `37ba998c`:
 
 | size    | system   | mimalloc | jemalloc   | **kame** |
 | ------- | -------- | -------- | ---------- | -------- |
