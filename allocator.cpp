@@ -1444,9 +1444,11 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			}
 			else {
 				// Borrow scheme — header at `slot_start - 8`:
-				//   * Bit 0 of word 0 (slot_start == mempool):
-				//       slot_start - 8 = chunk_base + 56 (reserved
-				//       chunk-header pad).
+				//   * Bit 0 of word 0 (slot_start == mempool()):
+				//       slot_start - 8 = chunk_base + K_MAX - 8, the last
+				//       8 B of the metadata region (reserved tail after
+				//       m_flags[]; §15-shifted home — was chunk_base + 56
+				//       pre-shift, when mempool sat at +ALLOC_CHUNK_HEADER).
 				//   * Bit B > 0: slot_start - 8 lands in bit (B-1)'s last 8
 				//       bytes (universal reservation invariant — the prior
 				//       slot's user_area excludes its own last 8 B).
