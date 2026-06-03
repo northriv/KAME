@@ -134,6 +134,17 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_realtime_mode_test alloc_realtime_mode_test.cpp)
     target_link_libraries(alloc_realtime_mode_test kamepoolalloc Threads::Threads)
 
+    # (§31/§32) Strong-symbol / interpose override correctness — asserts that
+    # a bare libc malloc/calloc/realloc/free (and C++ operator new/delete)
+    # actually route through the pool when the library is linked.  Oracle is
+    # kame_pool_malloc_usable_size (non-zero ⇔ pool-owned).  Self-adapts to
+    # platforms where plain malloc isn't interposed (musl): the C-malloc
+    # assertions are gated on a runtime probe, operator-new + C-API ones run
+    # unconditionally.  This is the only correctness gate for the override
+    # layer that the bench/README head-to-head numbers depend on.
+    add_executable(malloc_intercept_test malloc_intercept_test.cpp)
+    target_link_libraries(malloc_intercept_test kamepoolalloc Threads::Threads)
+
     # (contrib) C++17 Allocator concept conformance for
     # `kame::pool_allocator<T>` — exercises rebind, propagate_on_*,
     # equality, allocate_shared, and STL containers (vector / list /
@@ -199,6 +210,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)
+    add_test(NAME malloc_intercept_test COMMAND malloc_intercept_test)
     add_test(NAME test_ros2_allocator COMMAND test_ros2_allocator)
     add_test(NAME test_pmr_resource COMMAND test_pmr_resource)
     add_test(NAME test_aligned_allocator COMMAND test_aligned_allocator)
