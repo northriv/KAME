@@ -26,10 +26,10 @@ The library covers Layer 0 (atomic primitives) and Layer 1 (snapshot
 
 | Header | Role |
 |---|---|
-| `atomic.h`, `atomic_prv_basic.h`, `atomic_prv_std.h` | Portable barriers + CAS over `std::atomic_thread_fence` |
+| `atomic.h`, `atomic_mfence.h` | Portable barriers + CAS over `std::atomic` / `std::atomic_thread_fence` |
 | `atomic_smart_ptr.h` | Tagged-pointer lock-free `local_shared_ptr<T>` (the engine under every Snapshot) |
 | `atomic_queue.h` | Lock-free MPMC queue |
-| `mutex.h` | Lightweight wrappers around `std::mutex` / `std::shared_mutex` |
+| `xthread.h` + `xthread.cpp` | `XMutex` / `XCondition` / `XRecursiveMutex` wrappers around `std::mutex` |
 | `threadlocal.h` + `threadlocal.cpp` | `XThreadLocal<T, Tag>` with deterministic per-thread teardown |
 | `xtime.h` + `xtime.cpp` | Monotonic time helpers used by Lamport-clock serial numbers |
 | `transaction.h`, `transaction_definitions.h`, `transaction_impl.h`, `transaction_signal.h` | The STM core: `Snapshot<XN>`, `Transaction<XN>`, `Node<XN>`, `Talker<...>` |
@@ -92,7 +92,7 @@ For types that inherit `atomic_countable` (notably `Payload`), the global refere
 | libc++ (Clang) | Not yet implemented | N/A |
 | KAME (2006–) | Tagged-pointer CAS | Yes — lock-free reads and writes |
 
-On modern compilers (GCC 5.1+, Clang, MSVC), the CAS primitives delegate to `std::atomic` (`atomic_prv_std.h`). Hand-written assembly fallbacks for x86, PowerPC, and ARM remain in the tree for older toolchains.
+The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomic_thread_fence` (`atomic.h` / `atomic_mfence.h`). The earlier hand-written x86 / PowerPC / ARM assembly fences have been removed in favour of this portable C++17 path.
 
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 

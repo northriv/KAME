@@ -281,7 +281,7 @@ For types that inherit `atomic_countable` (notably `Payload`), the global refere
 | libc++ (Clang) | Not yet implemented | N/A |
 | KAME (2006–) | Tagged-pointer CAS | Yes — lock-free reads and writes |
 
-On modern compilers (GCC 5.1+, Clang, MSVC), the CAS primitives delegate to `std::atomic` (`atomic_prv_std.h`). Hand-written assembly fallbacks for x86, PowerPC, and ARM remain in the tree for older toolchains.
+The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomic_thread_fence` (`atomic.h` / `atomic_mfence.h`). The earlier hand-written x86 / PowerPC / ARM assembly fences have been removed in favour of this portable C++17 path.
 
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
@@ -291,7 +291,7 @@ On modern compilers (GCC 5.1+, Clang, MSVC), the CAS primitives delegate to `std
 
 > **Caution:** Taking a nested `Snapshot` inside a transaction can trigger bundling, which may cause the transaction's CAS to always fail. This is not a data corruption issue but a liveness issue — the transaction retries indefinitely. This occurs when the `Snapshot` target is an ancestor of the transaction target, or when hard links exist (a child with two parents) and a `Snapshot` on one parent's tree interferes with the other. Use `tr[*node]` instead of a nested `Snapshot` in these situations.
 >
-> The hard-link case is now formally modelled in `tests/tlaplus/BundleUnbundle_hardlink_*.tla` (sibling-parents and root-with-intermediate self-collision); see `tests/VERIFICATION.md` §5.
+> The hard-link case is now formally modelled in `kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla` (sibling-parents and root-with-intermediate self-collision); see `kamestm/tests/VERIFICATION.md` §5.
 
 #### Comparison with other STM designs
 
@@ -335,12 +335,12 @@ offers three concrete benefits for this domain:
 
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
-- **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla))
-- **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla))
+- **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](kamestm/tests/tlaplus/atomic_shared_ptr.tla))
+- **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](kamestm/tests/tlaplus/BundleUnbundle.tla))
 
 Slide decks: [Layer 1 — atomic_shared_ptr](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html)), [Layer 2 — Bundle/Unbundle + Commit](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
 
-C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`tests/tlaplus/test_*.c`) and C++-derived protocol tests (`tests/cds_atomic_shared_ptr/`).
+C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`kamestm/tests/tlaplus/test_*.c`) and C++-derived protocol tests (`kamestm/tests/cds_atomic_shared_ptr/`).
 
 ---
 
