@@ -487,7 +487,19 @@ constexpr int RADIX_L1_BITS = 12;
 constexpr int RADIX_L2_BITS = 11;
 constexpr unsigned RADIX_L1_SIZE = 1u << RADIX_L1_BITS;
 constexpr unsigned RADIX_L2_SIZE = 1u << RADIX_L2_BITS;
-constexpr int RADIX_REGION_BITS = RADIX_L1_BITS + RADIX_L2_BITS;  // 22
+constexpr int RADIX_REGION_BITS = RADIX_L1_BITS + RADIX_L2_BITS;  // 23
+//! (§35) Exclusive upper bound on a radix-registrable region base.  A base
+//! at or above this has region index ≥ 1<<RADIX_REGION_BITS, which the radix
+//! cannot index (`radix_insert`'s `l1 >= RADIX_L1_SIZE` skips it, and
+//! `radix_lookup`'s bound check returns ABSENT).  = 2^48 with the 23-bit
+//! region index.  `mmap_new_region` / `large_va_raw_map` reject any base ≥
+//! this and fall back to libc, so an out-of-window kernel placement (only
+//! possible via an explicit >window mmap hint — never requested here)
+//! degrades gracefully instead of mis-routing the region's later frees.
+//! For multi-region huge spans only the HEAD base must clear this bound
+//! (tail slots are never standalone lookup targets).
+constexpr uintptr_t RADIX_VA_LIMIT =
+    (uintptr_t)1 << (RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT);
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 // 64-bit: the region-count ceiling equals the radix's full VA coverage.
 static_assert(ALLOC_MAX_REGIONS == (1 << RADIX_REGION_BITS),
