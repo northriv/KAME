@@ -151,40 +151,36 @@ median of 5 runs:
 | 1 MiB   | 338      | 12       | 34         | **455**  |
 
 **Apple MacBook Air M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
-`9ecc613d`, median of 5 runs.  `mimalloc` 3.3 and `kame` preloaded /
-linked via `DYLD_INSERT_LIBRARIES`.  Both M3 tables below were measured
-on this commit:
+`13a8c913`, median of 5 runs via `bench_compare.sh`.  Both M3 tables below were
+measured on this commit:
 
-| size    | system | mimalloc | **kame** |
-| ------- | ------ | -------- | -------- |
-| 64 B    | 107    | 506      | **515**  |
-| 1 KiB   | 86     | **473**  | 335      |
-| 16 KiB  | 92     | 202      | **304**  |
-| 64 KiB  | 25     | **203**  | 127      |
-| 256 KiB | 25     | **203**  | 125      |
-| 1 MiB   | 25     | 6.6      | **117**  |
-| 8 MiB   | 44     | 5.9      | **118**  |
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |     108 |      511 |        - |  **512** |
+| 1 KiB     |      87 |  **472** |        - |      344 |
+| 16 KiB    |      93 |      202 |        - |  **284** |
+| 64 KiB    |      25 |  **202** |        - |      159 |
+| 256 KiB   |      25 |  **202** |        - |      159 |
+| 1 MiB     |      25 |      6.7 |        - |  **143** |
+| 4 MiB     |      45 |      5.9 |        - |  **124** |
 
-**Apple MacBook Air M3, multi-thread aggregate scaling, M ops/s (1 / 4 / 8 threads):**
+**Apple MacBook Air M3, 4 processes aggregate, M ops/s** — median of 5 runs:
 
-| size   | system        | mimalloc              | **kame**              |
-| ------ | ------------- | --------------------- | --------------------- |
-| 64 KiB | 24 / 3 / 2    | 195 / **615 / 798**   | **121** / 83 / 55     |
-| 1 MiB  | 25 / 3 / 2    | 7 / 7 / 5             | **113 / 87** / 48     |
+| size      |  system | mimalloc | jemalloc |     kame |
+|-----------|---------|----------|----------|----------|
+| 64B       |     397 | **1875** |        - |     1810 |
+| 16 KiB    |     328 |      725 |        - | **1049** |
+| 64 KiB    |      87 |  **737** |        - |      575 |
+| 1 MiB     |      89 |       18 |        - |  **519** |
 
 At the **1 MiB** large tier kame leads at every thread count: system is
-lock-serialised (25 → 2), mimalloc stalls at ~7 M ops/s, and kame reaches
-**113 M ops/s** at 1T (16× ahead of mimalloc) and **87 M** at 4T.  At 64 KiB
-kame leads single-threaded (**121 M** vs 195 for mimalloc and 24 for system)
-but mimalloc 3.3's mmap tier scales super-linearly in aggregate to 798 M at
-8T, whereas kame's L2 recycle cache becomes a contention point under heavy MT
-pressure.  The **64 B** bucket now reaches **515 M ops/s** — edging ahead of
-mimalloc 3.3 (506 M) after the `KameTlsPage` fast-TSD unification (§hot-tls)
-replaced per-variable `_tlv_get_addr` calls with a single `mrs TPIDRRO_EL0`.
-
-> The tier-attribution stats counters (§28.2) are sharded per-thread (§28.4) so
-> this MT path stays contention-free at 1T/4T; an unsharded build collapses the
-> large tier to ~13 M ops/s at 8 threads.
+lock-serialised, mimalloc stalls at ~18 M aggregate, while kame reaches
+**519 M ops/s** across 4 processes (29× ahead of mimalloc).  The **64 B**
+bucket reaches **512 M ops/s** single-thread — matching mimalloc 3.3 (511 M)
+after the `KameTlsPage` fast-TSD unification (§hot-tls) replaced per-variable
+`_tlv_get_addr` calls with a single `mrs TPIDRRO_EL0`.  At **16 KiB** kame
+leads both single-thread and 4-process (1049 M vs 725 M mimalloc).  jemalloc
+was not available on this macOS host.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
 pages, `THP=always`), `srun --exclusive`, single-binary self-validation via
