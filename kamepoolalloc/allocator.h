@@ -1,15 +1,24 @@
 /***************************************************************************
-		Copyright (C) 2002-2026 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
+        Copyright (C) 2002-2026 Kentaro Kitagawa
+                           kitag@issp.u-tokyo.ac.jp
 
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
+        This file is dual-licensed under your choice of EITHER:
 
-		You should have received a copy of the GNU General
-		Public License and a list of authors along with this program;
-		see the files COPYING and AUTHORS.
+          * Apache License, Version 2.0
+            (http://www.apache.org/licenses/LICENSE-2.0, or see
+            LICENSE-APACHE-2.0 in this directory)
+
+        -- OR --
+
+          * GNU General Public License, version 2 of the License,
+            or (at your option) any later version
+            (http://www.gnu.org/licenses/old-licenses/gpl-2.0.html,
+            or see LICENSE-GPL-2.0 in this directory).
+
+        Pick whichever license suits your project.  Unless required
+        by applicable law or agreed to in writing, this file is
+        distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+        CONDITIONS OF ANY KIND, either express or implied
 ***************************************************************************/
 
 // =====================================================================
@@ -58,6 +67,19 @@
 //   x86 / x86_64 — original target, inline-asm path.
 //   ARM64 (Apple Silicon, Linux aarch64) — uses __builtin_ctzll for
 //      bit-scan and the ARM8 dmb/yield barriers from atomic_prv_mfence_arm8.h.
+//   Windows (x86_64 / ARM64) — MinGW-only.  MinGW provides
+//      `__sync_*` atomics, `__attribute__((constructor))`, and a
+//      `thread_local` runtime that drives `AllocThreadExitCleanup`'s
+//      destructor at thread exit.  MSVC support requires an
+//      `_Interlocked*` atomic shim and `__declspec(allocate(".CRT$XCB"))`
+//      for the static-init hook — out of scope for an earlier change.
+//      Production kame.exe inline-compiles `allocator.cpp` (no DLL
+//      boundary), so the strong-symbol `free`/`realloc` interpose
+//      (Linux-glibc strategy) is NOT used on Windows — `operator new`
+//      / `operator delete` overrides plus the explicit `kame_pool_*`
+//      C API cover every legitimate code path.  CRT `free` /
+//      `realloc` stay bound to msvcrt, which is what 3rd-party DLLs
+//      expect.
 // Anything else falls back to std::allocator via USE_STD_ALLOCATOR.
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__\
     || defined __x86_64__ || defined _M_IX86 || defined _M_X64\
@@ -66,16 +88,45 @@
 #else
     #define USE_STD_ALLOCATOR
 #endif
-#if defined WINDOWS || defined _WIN32
+
+// MSVC: the pool's GCC-isms (the `__sync_*` atomics, `__builtin_*`
+// bit-scan / overflow, the codegen-hint attributes) are bridged by the
+// `_MSC_VER` shim in allocator_prv.h, and the static-init hook replaces
+// `__attribute__((constructor))`.  With those in place the live pool
+// builds and runs on MSVC just like MinGW, so it is ON by default.
+//
+// Opt OUT with `KAME_DISABLE_POOL_MSVC` to force the std::allocator
+// fallback on MSVC (e.g. to bisect an allocator-suspected issue).  The
+// historical `KAME_ENABLE_POOL_MSVC` opt-in macro is now a no-op — the
+// pool is enabled without it — but defining it stays harmless.
+#if (defined(_WIN32) || defined(WINDOWS)) && defined(_MSC_VER) && !defined(__GNUC__) && defined(KAME_DISABLE_POOL_MSVC)
     #define USE_STD_ALLOCATOR
 #endif
 
 #if defined USE_STD_ALLOCATOR
+    #include <cstddef>   // std::size_t for the pool-API stubs below — on
+                         // MSVC <vector>/<limits> aren't pulled in until
+                         // far later in this header.
     inline void activateAllocator() {}
 
     //! \return always true on USE_STD_ALLOCATOR builds — no per-thread
     //! pool state to worry about.
     inline bool is_allocator_thread_active() noexcept { return true; }
+
+    //! pool API stubs for USE_STD_ALLOCATOR builds (Windows
+    //! by default).  No pool → cap is meaningless; the functions
+    //! exist so consumers can call them unconditionally without
+    //! `#ifdef`.  These MUST use C linkage to match the `extern "C"`
+    //! declarations in kame_pool.h — otherwise MSVC rejects the later
+    //! kame_pool.h declarations with C2732 (linkage-spec mismatch).
+    extern "C" {
+    inline void kame_pool_set_max_bytes(std::size_t /*max_bytes*/) noexcept {}
+    inline std::size_t kame_pool_get_max_bytes() noexcept { return ~std::size_t(0); }
+    inline std::size_t kame_pool_reserved_bytes() noexcept { return 0; }
+    //! (§30) Realtime-mode toggle stub.  Pool background maintenance
+    //! doesn't exist in this build, so silencing it is a no-op.
+    inline void kame_pool_set_realtime_mode(int /*enable*/) noexcept {}
+    } // extern "C"
 #else
     #include "allocator_prv.h"
 
@@ -110,6 +161,49 @@
         //! `KamePooledAllocGuard` in `main()`.
         extern void activateAllocator();
     #endif
+
+    //! Runtime memory cap.  When the pool has mmap'd at
+    //! least this many bytes (counted by region count × 32 MiB region
+    //! size), `allocate_chunk` refuses to mmap fresh regions and
+    //! returns nullptr from the chunk-claim path — `allocate_pooled`
+    //! propagates `0`, and `operator new` falls back to libsystem
+    //! `std::malloc()` for the offending allocation.
+    //!
+    //! Pass `0` to disable the cap (default).  The implementation cap
+    //! `ALLOC_MAX_MMAP_ENTRIES × 32 MiB` (= 100 GiB on 64-bit, 3 GiB
+    //! on 32-bit) is still enforced — `kame_pool_set_max_bytes(N)`
+    //! lowers the effective cap further when N is smaller.
+    //!
+    //! Granularity: 32 MiB (one mmap region).  N is rounded UP to the
+    //! nearest multiple of 32 MiB internally; e.g. setting 100 MiB
+    //! actually caps at 128 MiB (4 regions).
+    //!
+    //! Thread-safety: relaxed atomic store / load.  Safe to call from
+    //! any thread at any time; changes take effect for subsequent
+    //! `allocate_chunk` calls.  Typical usage: set once early in
+    //! `main()` before allocating, then never touch.
+    //!
+    //! Use case: embedded / RTOS deployments where you want a hard
+    //! ceiling on the pool's RSS+VA reservation regardless of
+    //! workload.  Combined with `is_allocator_thread_active()`
+    //! returning true, allocations beyond the cap still succeed via
+    //! libsystem malloc — applications that need a true OOM (no
+    //! malloc fallback) should additionally trip on the OOM via
+    //! `std::set_new_handler` or by wrapping `operator new`.
+    //!
+    //! Declared with C linkage so the same symbol is usable from
+    //! both C and C++ via `<kame_pool.h>` / `<allocator.h>`.
+    extern "C" void kame_pool_set_max_bytes(std::size_t max_bytes) noexcept;
+
+    //! \return current effective cap in bytes (`SIZE_MAX` if unset).
+    extern "C" std::size_t kame_pool_get_max_bytes() noexcept;
+
+    //! \return total bytes currently mmap'd by the pool (= region
+    //! count × 32 MiB).  Excludes external `std::malloc` fallbacks
+    //! for huge allocations.  Monotonically non-decreasing during
+    //! steady-state execution; reflects VA reservation, not RSS
+    //! (use `getrusage(RUSAGE_SELF)` for RSS).
+    extern "C" std::size_t kame_pool_reserved_bytes() noexcept;
 
     //! \return true while this thread's pool allocator state is fully
     //! live (`g_sys_image_loaded && !s_alloc_tls_off`).  Returns false
@@ -147,13 +241,13 @@
 //! which is hooked into our pool via `operator new` / `delete`.
 //! Tearing the pool's mmap regions down before those allocations
 //! would cause `operator new` to dereference unmapped memory →
-//! SIGSEGV.  (Observed in kame-2026-05-24-193408.ips: faulting
+//! SIGSEGV.  (Observed during in-house crash debugging: faulting
 //! address falls in an unmapped gap left by a torn-down chunk;
 //! stack is `main -> ~QTranslator -> removeTranslator -> sendEvent
 //! -> QApplication::event`.)
 //!
 //! Letting pool chunks live until process exit is harmless: the
-//! mmap'd regions are reclaimed by the kernel.  Phase 4b-final
+//! mmap'd regions are reclaimed by the kernel.  an earlier change
 //! removed the `release_pools()` diagnostic API entirely (no
 //! callers anywhere in the tree), so the destructor is a true
 //! no-op.
@@ -179,16 +273,8 @@ public:
 };
 
 
-#include <array>
 #include <vector>
 #include <limits>
-// `fast_vector` below uses `assert()` (line ~403, ~417) — explicit
-// `<cassert>` so we don't depend on `<vector>`/`<array>` transitively
-// pulling it.  MinGW64 / MSVC standard-library implementations do not
-// guarantee this transitive include and trip
-// "error: 'assert' was not declared in this scope".
-#include <cassert>
-#include <stdexcept>
 
 namespace Transactional {
 
@@ -244,194 +330,6 @@ bool operator==(const allocator<T1>&, const allocator<T2>&) throw() { return tru
 
 template <class T1, class T2>
 bool operator!=(const allocator<T1>&, const allocator<T2>&) throw() { return false; }
-
-
-template <typename T, size_t SIZE_HINT = 1>
-class fast_vector {
-    using reference = T&;
-    using const_reference = const T&;
-    using size_type = size_t;
-    using pointer = T*;
-    using const_pointer = const T*;
-    static constexpr size_t max_fixed_size = (8 * sizeof(pointer) <= sizeof(T) * SIZE_HINT) ? SIZE_HINT : (8 * sizeof(pointer) / sizeof(T));
-public:
-    using iterator = pointer;
-    using const_iterator = const_pointer;
-    fast_vector() : m_size(0) {}
-    ~fast_vector() { destroy(); }
-    fast_vector(size_type size) {
-        if(size > max_fixed_size) {
-            new (&m_vector) std::vector<T>(size);
-            m_size = HAS_STD_VECTOR;
-        }
-        else {
-            for(size_type i = 0; i < size; ++i)
-                new (m_array + i) T();
-            m_size = size;
-        }
-    }
-    fast_vector(const fast_vector &r) : m_size(0) {
-        this->operator=(r);
-    }
-    fast_vector(fast_vector &&r) : m_size(0) {
-        this->operator=(std::move(r));
-    }
-    fast_vector& operator=(const fast_vector &r) {
-        destroy();
-        if(r.is_fixed()) {
-            m_size = r.m_size;
-            for(size_type i = 0; i < m_size; ++i) {
-                new (m_array + i) T(r.m_array[i]);
-            }
-        }
-        else if(r.m_vector.size() <= max_fixed_size) {
-            m_size = r.m_vector.size();
-            for(size_type i = 0; i < m_size; ++i) {
-                new (m_array + i) T(r.m_vector[i]);
-            }
-        }
-        else {
-            m_size = HAS_STD_VECTOR;
-            new (&m_vector) std::vector<T>(r.m_vector);
-        }
-        return *this;
-    }
-    fast_vector& operator=(fast_vector &&r) {
-        destroy();
-        if(r.is_fixed()) {
-            m_size = r.m_size;
-            for(size_type i = 0; i < m_size; ++i) {
-                new (m_array + i) T(std::move(r.m_array[i]));
-            }
-            r.clear_fixed();
-        }
-        else {
-            m_size = HAS_STD_VECTOR;
-            new (&m_vector) std::vector<T>(std::move(r.m_vector));
-        }
-        return *this;
-    }
-    iterator begin() noexcept {return is_fixed() ? &m_array[0] : &m_vector[0];}
-    const_iterator begin() const noexcept {return is_fixed() ? &m_array[0] : &m_vector[0];}
-    iterator end() noexcept {return is_fixed() ? &m_array[m_size] : &m_vector[m_vector.size()];}
-    const_iterator end() const noexcept {return is_fixed() ? &m_array[m_size] : &m_vector[m_vector.size()];}
-    size_type size() const noexcept {return is_fixed() ? m_size : m_vector.size();}
-    bool empty() const noexcept {return !size();}
-    reference operator[](size_type n) {return is_fixed() ? m_array[n] : m_vector[n];}
-    const_reference operator[](size_type n) const {return is_fixed() ? m_array[n] : m_vector[n];}
-    const_reference at(size_type n) const {if(n >= size()) throw std::out_of_range(""); return (*this)[n];}
-    reference at(size_type n) {if(n >= size()) throw std::out_of_range(""); return (*this)[n];}
-    reference front() {return (*this)[0];}
-    const_reference front() const {return (*this)[0];}
-    reference back() {return (*this)[this->size() - 1];}
-    const_reference back() const {return (*this)[this->size() - 1];}
-    void push_back(const T& x) {
-        emplace_back(x);
-    }
-    void push_back(T&& x) {
-        emplace_back(std::move(x));
-    }
-    template <class... Args>
-    void emplace_back(Args&&... args) {
-        if(m_size < max_fixed_size) {
-            new (m_array + m_size) T(std::forward<Args>(args)...);
-            ++m_size;
-        }
-        else {
-            if(m_size == max_fixed_size) {
-                move_fixed_to_var(m_size);
-            }
-            m_vector.emplace_back(std::forward<Args>(args)...);
-        }
-    }
-    iterator erase(const_iterator position) {
-        if(is_fixed()) {
-            for(auto it = const_cast<iterator>(position);;) {
-                 auto nit = it + 1;
-                 if(nit == end()) {
-                     it->~T();
-                     break;
-                 }
-                 else
-                     *it = std::move(*nit);
-                 it = nit;
-            }
-            --m_size;
-            return const_cast<iterator>(position);
-        }
-        else {
-            auto it = m_vector.erase(m_vector.begin() + (position - begin()));
-            return &*it;
-        }
-    }
-//    iterator erase(const_iterator first, const_iterator last);
-    void clear() {
-        if(is_fixed()) {
-            clear_fixed();
-        }
-        else {
-            m_vector.clear();
-        }
-    }
-    void resize(size_type sz) {
-        if(is_fixed()) {
-            if(sz > max_fixed_size) {
-                move_fixed_to_var(sz);
-                m_vector.resize(sz);
-            }
-            else {
-                for(size_type i = m_size; i < sz; ++i)
-                    new (m_array + i) T();
-                for(size_type i = sz; i < m_size; ++i)
-                    m_array[i].~T();
-                m_size = sz;
-            }
-        }
-        else {
-            m_vector.resize(sz);
-//            shrink_to_fit();
-        }
-    }
-    void shrink_to_fit() {
-        if( !is_fixed()) return;
-        if(m_vector.capacity() - m_vector.size() > max_fixed_size) {
-            m_vector.shrink_to_fit();
-        }
-    }
-private:
-    void destroy() {
-        clear();
-        if(!is_fixed())
-            m_vector.~vector();
-    }
-    bool is_fixed() const noexcept {return m_size != (size_type)HAS_STD_VECTOR;}
-    void clear_fixed() noexcept {
-        assert(is_fixed());
-        for(size_type i = 0; i < m_size; ++i)
-            m_array[i].~T();
-        m_size = 0;
-    }
-    void move_fixed_to_var(size_type reserve_size) {
-        std::vector<T> tmp;
-        tmp.reserve(m_size);
-        for(size_type i = 0; i < m_size; ++i) {
-            tmp.emplace_back(std::move(m_array[i]));
-            m_array[i].~T();
-        }
-        new (&m_vector) std::vector<T>();
-        m_vector.reserve(std::max(reserve_size, (size_type)(max_fixed_size * 2)));
-        assert(reserve_size >= m_size);
-        for(auto &&x: tmp)
-            m_vector.emplace_back(std::move(x));
-        m_size = HAS_STD_VECTOR;
-    }
-    size_type m_size;
-    static constexpr size_type HAS_STD_VECTOR = (size_type)-1;
-    union {
-        T m_array[max_fixed_size];
-        std::vector<T> m_vector;
-    };
-};
 
 }
 #endif /* ALLOCATOR_H_ */

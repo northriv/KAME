@@ -24,6 +24,15 @@ CONFIG -= app_bundle
 CONFIG += c++17
 QMAKE_CXXFLAGS += -Wno-register
 
+# Hot-path codegen (see tests/CMakeLists.txt for the full rationale): hide
+# the inline/COMDAT internal functions so intra-DSO self-calls bind directly
+# instead of through the PLT — notably `kame_free`'s call to the inline
+# `PoolAllocatorBase::deallocate` on every free.  `-fno-semantic-interposition`
+# does the same for the non-inline self-calls.  Exported symbols are
+# unchanged, so the `free`/`malloc` interpose semantics are untouched.  Not
+# applicable to MSVC.
+!win32-msvc*: QMAKE_CXXFLAGS += -fvisibility-inlines-hidden -fno-semantic-interposition
+
 # Dylib-mode auto-activate + KamePooledAllocGuard / activateAllocator()
 # elision (see allocator.cpp / allocator.h).  Consumers (tests) also
 # define this so the header sees the same codepath — qmake has no
@@ -43,15 +52,35 @@ HEADERS += \
     allocator.h \
     allocator_prv.h \
     atomic_mfence.h \
-    atomic_prv_mfence.h \
-    atomic_prv_mfence_arm8.h \
-    atomic_prv_mfence_x86.h
+    kame_pool.h
 
 macx {
     # Plant the install_name so test binaries resolve us at runtime
     # via the `-Wl,-rpath,@executable_path/../kamepoolalloc` they
     # set in tests.pri.
     QMAKE_LFLAGS += -install_name @rpath/libkamepoolalloc.dylib
+}
+
+win32-*g++ {
+    # MinGW gcc / clang via lld: export every symbol from the DLL and
+    # plant the import lib next to it so consumers (kame.exe, the
+    # tests) can link via `-lkamepoolalloc`.  Mirrors `kame/kame.pro`'s
+    # win32-g++ block.  `-Wl,--export-all-symbols` is required for
+    # lld — bfd ld silently auto-exported, lld does not, so symbols
+    # like `kame_pool_set_realtime_mode` / `activateAllocator` would
+    # otherwise come up undefined at consumer link time.
+    QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,lib$${TARGET}.a
+}
+win32-msvc* {
+    # MSVC: every extern "C" / non-static C++ symbol needs an explicit
+    # `__declspec(dllexport)` at definition time.  The pool's public
+    # surface is annotated via a `DECLSPEC_KAMEPOOLALLOC` macro that
+    # picks dllexport/dllimport from this define; without the
+    # annotations the kame_pool_* C API isn't visible from the import
+    # library.  (TODO: add DECLSPEC_KAMEPOOLALLOC annotations through
+    # kame_pool.h / allocator.h to support the MSVC path; current
+    # supported Windows toolchain is MinGW.)
+    DEFINES += DECLSPEC_KAMEPOOLALLOC=__declspec(dllexport)
 }
 
 DESTDIR = $$OUT_PWD

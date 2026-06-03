@@ -3,20 +3,23 @@ TEMPLATE = subdirs
 CONFIG += kame
 
 SUBDIRS += kamepoolalloc\
+        kamestm\
         tests\
         kame\
         modules\
 
 kamepoolalloc.file = kamepoolalloc/kamepoolalloc.pro
+kamestm.file       = kamestm/kamestm.pro
 
-# `tests` link against `libkamepoolalloc` (built by the `kamepoolalloc`
-# subdir target).  qmake doesn't automatically order subdirs, so wire
-# the dependency explicitly.  In the original layout `libkame` had a
-# spurious `libkame.depends = tests` line — it's preserved for now
-# (the chain `kamepoolalloc → tests → libkame → modules → kame` runs
-# cleanly and matches the cmake graph), but tests strictly only need
-# `kamepoolalloc`.
-tests.depends = kamepoolalloc
+# qmake doesn't automatically order subdirs, so wire the deps
+# explicitly.  The dependency chain is:
+#
+#   kamepoolalloc  ->  kamestm  ->  tests  ->  libkame  ->  modules  ->  kame
+#
+# `kamestm` depends on `kamepoolalloc` (allocator + barrier headers).
+# `tests` link against both `libkamepoolalloc` and `libkamestm`.
+kamestm.depends = kamepoolalloc
+tests.depends   = kamepoolalloc kamestm
 
 macx {
     SUBDIRS += libkame #graph forms

@@ -1,0 +1,443 @@
+/***************************************************************************
+        Copyright (C) 2002-2026 Kentaro Kitagawa
+                           kitag@issp.u-tokyo.ac.jp
+
+        This file is dual-licensed under your choice of EITHER:
+
+          * Apache License, Version 2.0
+            (http://www.apache.org/licenses/LICENSE-2.0, or see
+            LICENSE-APACHE-2.0 in this directory)
+
+        -- OR --
+
+          * GNU General Public License, version 2 of the License,
+            or (at your option) any later version
+            (http://www.gnu.org/licenses/old-licenses/gpl-2.0.html,
+            or see LICENSE-GPL-2.0 in this directory).
+
+        Pick whichever license suits your project.  Unless required
+        by applicable law or agreed to in writing, this file is
+        distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+        CONDITIONS OF ANY KIND, either express or implied
+***************************************************************************/
+#ifndef TRANSACTION_SIGNAL_H
+#define TRANSACTION_SIGNAL_H
+
+#include <support.h>  // angle: INCLUDEPATH-priority (kame/ full vs kamestm/ standalone) — see transaction_detail.h
+#include "threadlocal.h"
+#include "atomic_smart_ptr.h"
+#include "fast_vector.h"  // Transactional::fast_vector — kamestm-local (was kamepoolalloc/allocator.h pre-decoupling)
+#include "xtime.h"
+
+namespace Transactional {
+
+struct DECLSPEC_KAME ProcessCounter {
+    using cnt_t = uint16_t;
+    ProcessCounter() noexcept;
+    operator cnt_t() const noexcept {return m_var;}
+    enum : cnt_t { MAINTHREADID = 1 };
+    // On Windows, id() must not be inlined: the inline body would access
+    // XThreadLocal<ProcessCounter>::m_var compiled into the caller's DLL,
+    // giving each plugin its own TLS slot.  A non-inline DECLSPEC_KAME
+    // definition in transaction_impl.h runs inside kame.dll, guaranteeing
+    // a single TLS slot per thread regardless of how many DLLs call this.
+#if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
+    DECLSPEC_KAME static cnt_t id() noexcept;
+#else
+    static cnt_t id() noexcept {return *stl_processID;}
+#endif
+private:
+    cnt_t m_var;
+    static atomic<cnt_t> s_count;
+    //! Holds the current porcess(thread) internal ID. Taking non-zero value.
+    static XThreadLocal<ProcessCounter> stl_processID;
+};
+
+inline bool isMainThread() noexcept {return ProcessCounter::id() == ProcessCounter::MAINTHREADID;}
+
+template <int N>
+struct CallByTuple {
+    template <class Func, class R, typename TPL, typename... Args>
+    CallByTuple(Func f, R &r, const TPL& t, const Args&...args) {
+        CallByTuple<N - 1>(f, r, t, std::get<N - 1>(t), args...);
+    }
+};
+template <>
+struct CallByTuple<0> {
+    template <class Func, class R, typename TPL, typename... Args>
+    CallByTuple(Func f, R &r, const TPL&, const Args&...args) {
+        (r.*f)(args...);
+    }
+};
+
+template <typename...Args>
+struct Event {
+    explicit Event(std::tuple<Args...>&& tpl) noexcept : tuple(std::move(tpl)) {}
+    Event(const Event&) = default;
+    Event(Event&&) = default;
+    Event &operator=(const Event&) = delete;
+
+    //! Returns true if this snapshot is older than \a other.
+    //! if it is not a Snapshot; true.
+    template <class SS>
+    bool isOlderThan(const SS &other) const noexcept { return _is_older(std::get<0>(tuple), other, true); }
+    //! Returns true if this event's snapshot is strictly newer than \a other (other < event_shot).
+    //! Falls back to false for non-Snapshot first args (non-Snapshot events are never "strictly newer").
+    template <class SS>
+    bool isStrictlyNewerThan(const SS &other) const noexcept {
+        return !isOlderThan(other) && !_is_same(std::get<0>(tuple), other, 0);
+    }
+private:
+    std::tuple<Args...> tuple;
+private:
+    template <class T, class SS>
+    static auto _is_older(const T &t, const SS &other, bool) -> decltype(t.isOlderThan(other)) { return t.isOlderThan(other); }
+    template <class T, class SS>
+    static bool _is_older(const T &, const SS &, ...) { return true; }
+    template <class T, class SS>
+    static auto _is_same(const T &t, const SS &other, int) -> decltype(t == other) { return t == other; }
+    template <class T, class SS>
+    static bool _is_same(const T &, const SS &, ...) { return false; }
+public:
+    template <class Func, class T>
+    void operator()(Func f, T &t) const {
+        CallByTuple<sizeof...(Args)>(f, t, tuple);
+    }
+};
+
+template <class SS, typename...Args> class Talker;
+
+//! Base class of listener, which holds pointers to object and function.
+//! Hold instances by shared_ptr.
+class DECLSPEC_KAME Listener {
+public:
+    virtual ~Listener() = default;
+    //! \return an appropriate delay for delayed events.
+    unsigned int delay_ms() const;
+
+    enum FLAGS : int {
+        FLAG_MAIN_THREAD_CALL = 0x01, FLAG_AVOID_DUP = 0x02,
+        FLAG_DELAY_SHORT = 0x100, FLAG_DELAY_ADAPTIVE = 0x200
+    };
+    int flags() const {return (int)m_flags;}
+protected:
+    template <class SS, typename...Args>
+    friend class Transactional::Talker;
+    Listener(FLAGS flags);
+    const int m_flags;
+};
+
+template <class Event>
+class ListenerBase : public Listener {
+protected:
+    explicit ListenerBase(Listener::FLAGS flags) : Listener(flags), event() {}
+public:
+    virtual void operator() (const Event&) const = 0;
+protected:
+    template <class SS, typename...Args>
+    friend class Talker;
+    atomic_unique_ptr<Event> event;
+};
+
+template<class Event, class R, class Func>
+struct ListenerRef : public ListenerBase<Event> {
+    ListenerRef(R &obj, Func f, Listener::FLAGS flags) noexcept :
+        ListenerBase<Event>(flags), m_func(f), m_obj(obj) { }
+    virtual void operator() (const Event& e) const override {
+        e(m_func, m_obj);
+    }
+private:
+    Func m_func;
+    R &m_obj;
+};
+template<class Event, class R, class Func>
+struct ListenerWeak : public ListenerBase<Event> {
+    ListenerWeak(const shared_ptr<R> &obj, Func f, Listener::FLAGS flags) noexcept :
+         ListenerBase<Event>(flags), m_func(f), m_obj(obj) { }
+    virtual void operator() (const Event& e) const override {
+        if(auto p = m_obj.lock() ) {
+            e(m_func, *p);
+        }
+    }
+private:
+    Func m_func;
+    const weak_ptr<R> m_obj;
+};
+
+template <class SS>
+struct Message_ {
+    virtual ~Message_() = default;
+    virtual void talk(const SS &shot) = 0;
+    virtual int unmark(const shared_ptr<Listener> &x) = 0;
+};
+
+struct DECLSPEC_KAME BufferedEvent {
+    BufferedEvent() : registered_time(XTime::now()) {}
+    virtual ~BufferedEvent() = default;
+    const XTime registered_time;
+    virtual bool talkBuffered() = 0;
+    static DECLSPEC_KAME void registerEvent(std::unique_ptr<BufferedEvent>);
+};
+
+//! M/M Listener and Talker model
+//! \sa Listener
+//! \p tArg: value which will be derivered
+template <class SS, typename...Args>
+class Talker {
+public:
+    virtual ~Talker() = default;
+
+    template <class R, class T, typename...ArgRefs>
+    shared_ptr<Listener> connect(R& obj, void(T::*func)(ArgRefs...), int flags = 0);
+    template <class R, class T, typename...ArgRefs>
+    shared_ptr<Listener> connectWeakly(const shared_ptr<R> &obj,
+        void (T::*func)(ArgRefs...), int flags = 0);
+
+    void connect(const shared_ptr<Listener> &x);
+    void disconnect(const shared_ptr<Listener> &);
+
+    //! Requests a talk to connected listeners.
+    //! If a listener is not mainthread model, the listener will be called later.
+    //! \param arg passing argument to all listeners
+    //! If listener avoids duplication, lock won't be passed to listener.
+    struct Message;
+    template <typename...ArgRefs>
+    shared_ptr<Message> createMessage(int64_t tr_serial, ArgRefs&&... arg) const;
+    template <typename...ArgRefs>
+    void talk(const SS &shot, ArgRefs&&...args) const {
+        Message m(m_listeners, std::forward<ArgRefs>(args)...);
+        m.talk(shot);
+    }
+
+    bool empty() const noexcept {return !m_listeners;}
+private:
+    using Event_ = Event<SS, Args...>;
+    typedef fast_vector<weak_ptr<ListenerBase<Event_>> > ListenerList;
+    typedef fast_vector<shared_ptr<Listener> > UnmarkedListenerList;
+    shared_ptr<ListenerList> m_listeners;
+
+    void connect(const shared_ptr<ListenerBase<Event_>> &);
+
+    struct EventWrapper : public BufferedEvent {
+        EventWrapper(const shared_ptr<ListenerBase<Event_>> &l) noexcept :
+            BufferedEvent(), listener(l) {}
+        virtual ~EventWrapper() = default;
+        const shared_ptr<ListenerBase<Event_>> listener;
+    };
+    struct EventWrapperAllowDup : public EventWrapper {
+        EventWrapperAllowDup(const shared_ptr<ListenerBase<Event_>> &l, const Event_ &e) noexcept :
+            EventWrapper(l), event(e) {}
+        Event_ event;
+        virtual bool talkBuffered() override {
+            ( *this->listener)(std::move(event));
+            return false;
+        }
+    };
+    struct EventWrapperAvoidDup : public EventWrapper {
+        EventWrapperAvoidDup(const shared_ptr<ListenerBase<Event_>> &l) : EventWrapper(l) {}
+            virtual bool talkBuffered() override {
+                bool skip = false;
+                if(this->listener->delay_ms()) {
+                    long elapsed_ms = XTime::now().diff_msec(this->registered_time);
+                    skip = ((long)this->listener->delay_ms() > elapsed_ms);
+                }
+                if( !skip) {
+                    atomic_unique_ptr<Event_> e;
+                    e.swap(this->listener->event);
+                    assert(e.get());
+                    ( *this->listener)( std::move(*e));
+                }
+                return skip;
+            }
+    };
+public:
+    struct Message : public Message_<SS> {
+        template <class...ArgRefs>
+        Message(const shared_ptr<ListenerList> &l, ArgRefs&&...as) noexcept :
+            Message_<SS>(), listeners(l), args(std::forward<ArgRefs>(as)...) {}
+        shared_ptr<ListenerList> listeners;
+        std::tuple<Args...> args;
+        shared_ptr<UnmarkedListenerList> listeners_unmarked;
+        virtual void talk(const SS &shot) override;
+        virtual int unmark(const shared_ptr<Listener> &x) override {
+            if( !listeners)
+                return 0;
+            int canceled = 0;
+            for(auto &&y: *listeners) {
+                if(auto listener = y.lock()) {
+                    if(listener == x) {
+                        if( !listeners_unmarked)
+                            listeners_unmarked = std::make_shared<UnmarkedListenerList>();
+                        listeners_unmarked->push_back(x);
+                        ++canceled;
+                    }
+                }
+            }
+            return canceled;
+        }
+    };
+};
+
+template <class SS, typename...Args>
+class TalkerOnce : public Talker<SS, Args...> {
+public:
+    TalkerOnce() : Talker<SS, Args...>(), m_transaction_serial(0) {}
+    TalkerOnce(const TalkerOnce &x) : Talker<SS, Args...>(x), m_transaction_serial(0) {}
+    template <typename...ArgRefs>
+    shared_ptr<typename TalkerOnce::Message> createMessage(int64_t tr_serial, ArgRefs&&...args) const {
+        if(m_transaction_serial == tr_serial) {
+            if(auto m = m_marked.lock()) {
+                m->args = std::forward_as_tuple(args...);
+                return nullptr;
+            }
+        }
+        auto m = Talker<SS, Args...>::createMessage(tr_serial, std::forward<ArgRefs>(args)...);
+        m_transaction_serial = tr_serial;
+        m_marked = m;
+        return m;
+    }
+private:
+    mutable weak_ptr<typename Talker<SS, Args...>::Message> m_marked;
+    mutable int64_t m_transaction_serial;
+};
+
+template <class SS, typename...Args>
+template <typename...ArgRefs>
+shared_ptr<typename Talker<SS, Args...>::Message> Talker<SS, Args...>::createMessage(int64_t, ArgRefs&&...args) const {
+    if( !m_listeners)
+        return nullptr;
+    return std::make_shared<Message>(m_listeners, std::forward<ArgRefs>(args)...);
+}
+
+template <class SS, typename...Args>
+template <class R, class T, typename...ArgRefs>
+shared_ptr<Listener>
+Talker<SS, Args...>::connect(R &obj, void(T::*func)(ArgRefs...), int flags) {
+    shared_ptr<ListenerBase<Event_>> listener =
+            std::make_shared<ListenerRef<Talker<SS, Args...>::Event_, T, decltype(func)>>(
+                static_cast<T&>(obj), func, (Listener::FLAGS)flags);
+    connect(listener);
+    return listener;
+}
+
+template <class SS, typename...Args>
+template <class R, class T, typename...ArgRefs>
+shared_ptr<Listener>
+Talker<SS, Args...>::connectWeakly(const shared_ptr<R> &obj,
+    void(T::*func)(ArgRefs...), int flags) {
+    shared_ptr<ListenerBase<Event_>> listener =
+            std::make_shared<ListenerWeak<Talker<SS, Args...>::Event_, T, decltype(func)>>(
+            static_pointer_cast<T>(obj), func, (Listener::FLAGS)flags);
+    connect(listener);
+    return listener;
+}
+template <class SS, typename...Args>
+void
+Talker<SS, Args...>::connect(const shared_ptr<Listener> &lx) {
+    auto listener = dynamic_pointer_cast<ListenerBase<Event_>>(lx);
+    connect(listener);
+}
+template <class SS, typename...Args>
+void
+Talker<SS, Args...>::connect(const shared_ptr<ListenerBase<Event_>> &lx) {
+    auto new_list = m_listeners ? std::make_shared<ListenerList>( *m_listeners) : std::make_shared<ListenerList>();
+    // clean-up dead listeners.
+    for(auto it = new_list->begin(); it != new_list->end();) {
+        if( !it->lock())
+            it = new_list->erase(it);
+        else
+            ++it;
+    }
+    new_list->push_back(lx);
+    new_list->shrink_to_fit();
+    m_listeners = new_list;
+}
+template <class SS, typename...Args>
+void
+Talker<SS, Args...>::disconnect(const shared_ptr<Listener> &lx) {
+    auto new_list = m_listeners ? std::make_shared<ListenerList>( *m_listeners) : std::make_shared<ListenerList>();
+    for(auto it = new_list->begin(); it != new_list->end();) {
+        if(auto listener = it->lock()) {
+            // clean dead listeners and matching one.
+            if( !listener || (lx == listener)) {
+                it = new_list->erase(it);
+                continue;
+            }
+        }
+        ++it;
+    }
+    if(new_list->empty())
+        new_list.reset();
+    else
+        new_list->shrink_to_fit();
+    m_listeners = new_list;
+}
+
+template <class SS, typename...Args>
+void
+Talker<SS, Args...>::Message::talk(const SS &shot) {
+    if( !listeners) return;
+    Event_ event(std::tuple_cat(std::forward_as_tuple(shot), std::move(args)));
+    //Writing deferred events to event pool.
+    for(auto &&x: *listeners) {
+        if(auto listener = x.lock()) {
+            if(listeners_unmarked &&
+                (std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
+                continue;
+            if(listener->flags() & Listener::FLAG_MAIN_THREAD_CALL) {
+                if(listener->flags() & Listener::FLAG_AVOID_DUP) {
+                    atomic_unique_ptr<Event_> newevent(new Event_(event) );
+                    newevent.swap(listener->event);
+                    if(newevent.get()) {
+                        // Keep old only if it is strictly newer than the new shot.
+                        // When serials are equal, prefer the new event (last-wins) to ensure
+                        // fresh event args (e.g. shot_of_list in ListChangeEvent) are delivered.
+                        if(newevent->isStrictlyNewerThan(shot)) {
+                            newevent.swap(listener->event);
+                            if( !newevent.get()) //in case older event has been already issued.
+                                BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
+                                            new EventWrapperAvoidDup(listener)));
+                        }
+                    }
+                    else
+                        BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
+                                        new EventWrapperAvoidDup(listener)));
+                }
+                else {
+                    if(isMainThread()) {
+                        try {
+                            ( *listener)(event);
+                        }
+                        catch (XKameError &e) {
+                            e.print();
+                        }
+                    }
+                    else {
+                        BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
+                                        new EventWrapperAllowDup(listener, event)));
+                    }
+                }
+            }
+        }
+    }
+    //Immediate events.
+    for(auto &&x: *listeners) {
+        if(auto listener = x.lock()) {
+            if(listeners_unmarked &&
+                (std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
+                continue;
+            if( !(listener->flags() & Listener::FLAG_MAIN_THREAD_CALL)) {
+                try {
+                    ( *listener)(event);
+                }
+                catch (XKameError &e) {
+                    e.print();
+                }
+            }
+        }
+    }
+}
+
+} //namespace Transactional
+
+#endif /*TRANSACTION_SIGNAL_H*/

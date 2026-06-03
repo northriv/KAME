@@ -16,6 +16,7 @@ CONFIG += CONSOLE
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}\
     $${_PRO_FILE_PWD_}/../kamepoolalloc\
+    $${_PRO_FILE_PWD_}/../kamestm\
     $${_PRO_FILE_PWD_}/math\
     $${_PRO_FILE_PWD_}/forms\
     $${_PRO_FILE_PWD_}/thermometer\
@@ -29,11 +30,7 @@ HEADERS += \
     ../kamepoolalloc/allocator.h \
     ../kamepoolalloc/allocator_prv.h \
     ../kamepoolalloc/atomic_mfence.h \
-    ../kamepoolalloc/atomic_prv_mfence.h \
-    ../kamepoolalloc/atomic_prv_mfence_arm8.h \
-    ../kamepoolalloc/atomic_prv_mfence_x86.h \
-    atomic_prv_mfence.h \
-    atomic_prv_mfence_arm8.h \
+    ../kamepoolalloc/kame_pool.h \
     graph/graphmathfittool.h \
     graph/graphmathtool.h \
     graph/graphmathtoolconnector.h \
@@ -43,21 +40,21 @@ HEADERS += \
     kame.h \
     script/xscriptingthread.h \
     script/xscriptingthreadconnector.h \
-    threadlocal.h \
-    transaction_impl.h \
-    transaction_signal.h \
-    transaction.h \
-    transaction_negotiation.h \
-    transaction_neg_impl.h \
-    transaction_definitions.h \
-    xthread.h \
-    xtime.h \
-    atomic_prv_std.h \
-    atomic_prv_basic.h \
-    atomic_prv_mfence_x86.h \
-    atomic_queue.h \
-    atomic_smart_ptr.h \
-    atomic.h \
+    ../kamestm/threadlocal.h \
+    ../kamestm/transaction_impl.h \
+    ../kamestm/transaction_signal.h \
+    ../kamestm/transaction.h \
+    ../kamestm/transaction_detail.h \
+    ../kamestm/transaction_negotiation.h \
+    ../kamestm/transaction_neg_impl.h \
+    ../kamestm/transaction_definitions.h \
+    ../kamestm/xthread.h \
+    ../kamestm/xtime.h \
+    ../kamestm/atomic_queue.h \
+    ../kamestm/atomic_smart_ptr.h \
+    ../kamestm/atomic.h \
+    ../kamestm/atomic_mfence.h \
+    ../kamestm/fast_vector.h \
     driver/driver.h \
     driver/dummydriver.h \
     driver/interface.h \
@@ -114,8 +111,8 @@ SOURCES += icons/icon.cpp \
     graph/x2dimage.cpp \
     script/xscriptingthread.cpp \
     script/xscriptingthreadconnector.cpp \
-    xthread.cpp \
-    xtime.cpp \
+    ../kamestm/xthread.cpp \
+    ../kamestm/xtime.cpp \
     support.cpp \
     graph/graphdialogconnector.cpp \
     graph/graphpainter.cpp \
@@ -140,7 +137,7 @@ SOURCES += icons/icon.cpp \
     script/xrubywriter.cpp \
     script/rubywrapper.cpp \
     measure.cpp \
-    threadlocal.cpp \
+    ../kamestm/threadlocal.cpp \
     xnode.cpp \
     xnodeconnector.cpp \
     driver/driver.cpp \
@@ -163,23 +160,27 @@ SOURCES += icons/icon.cpp \
     messagebox.cpp \
     math/tikhonovreg.cpp
 
+# (Production kame.exe inline-compiles kamepoolalloc's allocator.cpp on
+# every platform — same model as the kamestm sources xthread.cpp /
+# xtime.cpp / threadlocal.cpp listed in the top-level SOURCES above.
+# No DLL boundary at runtime: kamepoolalloc.pro's libkamepoolalloc.dll
+# exists only for the test scaffold.  The `__DATA,__interpose` section
+# emitted by allocator.cpp is dead data inside an MH_EXECUTE image —
+# dyld only honours interpose from MH_DYLIB — so the inline path is
+# functionally identical to the previous in-kame `kame/allocator.cpp`
+# layout.)
+SOURCES += ../kamepoolalloc/allocator.cpp
+
 unix {
     HEADERS += \
         math/matrix.h \
         math/freqest.h
-    # `../kamepoolalloc/allocator.cpp` was renamed from `kame/allocator.cpp`
-    # so the allocator lives in its own subdir (a standalone dylib in the
-    # tests' cmake build — see tests/CMakeLists.txt; here in qmake we
-    # keep it inline-compiled into the kame app for the non-LTO
-    # production build).  The `__DATA,__interpose` section in
-    # allocator.cpp is dead data when emitted into MH_EXECUTE — dyld
-    # only honours interpose from MH_DYLIB — so the inline build path
-    # is functionally identical to the previous `kame/allocator.cpp`
-    # layout.
+    # Boost-ublas matrix helpers, Unix-only (boost isn't part of the
+    # standard MacPorts set documented in CLAUDE.md but is provided by
+    # distro packages on Linux; not pulled in on Windows).
     SOURCES += \
         math/freqest.cpp \
-        math/matrix.cpp \
-        ../kamepoolalloc/allocator.cpp \
+        math/matrix.cpp
 }
 
 FORMS += \

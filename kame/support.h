@@ -148,8 +148,6 @@ private:
 
 //! If true, Log all dbgPrint().
 DECLSPEC_KAME extern bool g_bLogDbgPrint;
-//! If true, use mlockall MCL_FUTURE.
-DECLSPEC_KAME extern bool g_bMLockAlways;
 //! If true, use mlock.
 DECLSPEC_KAME extern bool g_bUseMLock;
 

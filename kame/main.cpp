@@ -29,6 +29,14 @@
 #include "kame.h"
 #include "icons/icon.h"
 #include "messagebox.h"
+#include "allocator.h"  // KamePooledAllocGuard (kame/allocator.h shim → kamepoolalloc/allocator.h).  Was pulled transitively via kamestm/transaction_signal.h before the kamestm-from-kamepoolalloc decoupling.
+                        // allocator.h also provides the §30 realtime-mode
+                        // no-op stub on USE_STD_ALLOCATOR builds (MSVC),
+                        // so we can call kame_pool_set_realtime_mode()
+                        // unconditionally below without a #ifdef guard.
+#ifndef USE_STD_ALLOCATOR
+#  include "kame_pool.h"  // (§30) kame_pool_set_realtime_mode — extern "C" decl
+#endif
 #include <QFile>
 #include <QTextCodec>
 #include <QTranslator>
@@ -84,7 +92,6 @@ int main(int argc, char *argv[]) {
 
 	KCmdLineOptions options;
 	options.add("logging", ki18n("log debugging info."));
-	options.add("mlockall", ki18n("never cause swapping, perhaps you need 'ulimit -l <MB>'"));
 	options.add("nomlock", ki18n("never use mlock"));
     options.add("nodr");
 	options.add("moduledir <path>", ki18n("search modules in <path> instead of the standard dirs"));
@@ -98,7 +105,6 @@ int main(int argc, char *argv[]) {
 
 	KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
 	g_bLogDbgPrint = args->isSet("logging");
-    g_bMLockAlways = args->isSet("mlockall");
 	g_bUseMLock = args->isSet("mlock");
 	QStringList  module_dir = args->getOptionList("moduledir");
 	if(module_dir.isEmpty())
@@ -121,9 +127,6 @@ int main(int argc, char *argv[]) {
 
     QCommandLineOption logOption(QStringList() << "l" << "logging", "Log debugging info.");
     parser.addOption(logOption);
-    QCommandLineOption mlockAllOption(QStringList() << "m" << "mlockall",
-          "Never cause swapping, perhaps you need 'ulimit -l <MB>'");
-    parser.addOption(mlockAllOption);
     QCommandLineOption noMLockOption(QStringList() << "n" << "nomlock", "Never use mlock");
     parser.addOption(noMLockOption);
 
@@ -137,7 +140,6 @@ int main(int argc, char *argv[]) {
     QStringList args = parser.positionalArguments();
 
     g_bLogDbgPrint = parser.isSet(logOption);
-    g_bMLockAlways = parser.isSet(mlockAllOption);
     g_bUseMLock = !parser.isSet(noMLockOption);
 	QStringList  module_dir = parser.values(moduleDirectoryOption);
 
@@ -168,16 +170,6 @@ int main(int argc, char *argv[]) {
         makeIcons(); //loads icon pixmaps.
 		{
 
-#if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
-			if(g_bMLockAlways) {
-                if(( mlockall(MCL_CURRENT) == 0)) {
-					dbgPrint("MLOCKALL succeeded.");
-				}
-				else{
-					dbgPrint(formatString("MLOCKALL failed errno=%d.", errno));
-				}
-			}
-#endif
             if(isMemLockAvailable())
                 mlock(dummy_for_mlock, sizeof(dummy_for_mlock)); //reserve stack of main thread.
 
@@ -344,6 +336,17 @@ int main(int argc, char *argv[]) {
     //! function return.  Replaces the historical bare `activateAllocator()`
     //! call by also handling `release_pools()` on shutdown.
     KamePooledAllocGuard pool_guard;
+
+    //! (§30) KAME is a measurement application — its hot path is tight
+    //! instrument-control loops, not a server that needs aggressive RSS
+    //! reclaim under bursty load.  Realtime-mode silences the allocator's
+    //! three background maintenance paths (§28.1 lazy drain, §28.3 auto-
+    //! tune startup probe, §21 thread-exit madvise) so they never inject
+    //! a surprise munmap/madvise into a measurement loop.  The LRC_MMAP
+    //! cap (`kame_pool_set_large_cache_cap`, default ≈ 1 GiB) still
+    //! applies — lowering it is the supported way to bound RSS in
+    //! realtime mode.
+    kame_pool_set_realtime_mode(1);
 
 #if defined __MACOSX__ || defined __APPLE__
     while(form->running()) {

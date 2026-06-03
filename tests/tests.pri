@@ -19,8 +19,18 @@ CONFIG -= app_bundle #macosx
 QT -= gui core
 CONFIG -= qt
 
-INCLUDEPATH += $${_PRO_FILE_PWD_}/../kame
-INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamepoolalloc
+# Paths are relative to the directory containing THIS .pri file
+# ($$PWD = git/tests/), not the per-test .pro file's directory —
+# the latter now varies (kamepoolalloc/tests/, kamestm/tests/) so
+# $${_PRO_FILE_PWD_} would give different roots and break.
+#
+# Deliberately NO ../kame on the path: kamestm and kamepoolalloc sit
+# BELOW kame in the dependency stack.  The standalone test harness
+# replaces `support.h` / `xtime.h` via the preinclude below, so kame/
+# never needs to be on the include path.
+INCLUDEPATH += $$PWD/../kamepoolalloc
+INCLUDEPATH += $$PWD/../kamestm
+INCLUDEPATH += $$PWD/../kamestm/tests
 
 # Activate the dylib-mode `KAMEPOOLALLOC_DYLIB` codepath in
 # `allocator.h`: `activateAllocator()` collapses to an inline no-op
@@ -30,7 +40,7 @@ INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamepoolalloc
 DEFINES += KAMEPOOLALLOC_DYLIB
 
 # Preinclude standalone support header to block Qt-dependent originals
-QMAKE_CXXFLAGS += -include $${_PRO_FILE_PWD_}/support_standalone.h
+QMAKE_CXXFLAGS += -include $$PWD/../kamestm/tests/support_standalone.h
 
 # Common sources brought into every standalone test binary:
 #  - support_standalone.cpp:    Qt-free stub for `support.cpp` / `xtime.cpp`
@@ -52,24 +62,42 @@ QMAKE_CXXFLAGS += -include $${_PRO_FILE_PWD_}/support_standalone.h
 #                               `tests.depends`).  Tests `LIBS` against
 #                               it via the macx/unix-specific block at
 #                               the bottom of this file.
-SOURCES += support_standalone.cpp
-SOURCES += ../kame/threadlocal.cpp
+SOURCES += $$PWD/../kamestm/tests/support_standalone.cpp
+SOURCES += $$PWD/../kamestm/threadlocal.cpp
 
-# Link against libkamepoolalloc — built by ../kamepoolalloc/kamepoolalloc.pro
-# in the sibling subdir (top-level kame.pro orders this before tests via
-# `tests.depends = kamepoolalloc`).  The path is the per-test build dir's
-# `../kamepoolalloc` (each per-test .pro builds into its own subdir under
-# build/.../tests, parallel to build/.../kamepoolalloc).
-LIBS += -L$$OUT_PWD/../kamepoolalloc -lkamepoolalloc
+# Link against the two dylibs that own the STM + allocator machinery:
+# `libkamepoolalloc` (kamepoolalloc/kamepoolalloc.pro) and `libkamestm`
+# (kamestm/kamestm.pro).  Build ORDER is already wired in the top-level
+# kame.pro via `tests.depends = kamepoolalloc kamestm`, so both dylibs
+# exist before any test links.
+#
+# Their build dirs are NOT a flat sibling of each per-test build dir:
+# a test at `kamestm/tests/foo.pro` shadow-builds under
+# `<build>/kamestm/tests/`, while the dylibs land at
+# `<build>/kamepoolalloc` and `<build>/kamestm`.  So `$$OUT_PWD/../X`
+# resolves to the wrong place (`<build>/kamestm/X`).  Anchor the lib
+# paths at the build ROOT instead — derived from THIS .pri's source dir
+# (`<src>/tests`) via `$$shadowed`, which maps source→shadow-build for
+# the current .pro.  Correct regardless of how deep the test's OUT_PWD
+# nests (and reduces to the source tree for an in-source build).
+KAME_BUILD_ROOT = $$shadowed($$PWD/..)
+LIBS += -L$$KAME_BUILD_ROOT/kamepoolalloc -lkamepoolalloc
+LIBS += -L$$KAME_BUILD_ROOT/kamestm -lkamestm
 
-macx {
-    # rpath: search for libkamepoolalloc.dylib relative to the test
-    # binary's directory.  `@executable_path/../kamepoolalloc/` covers
-    # the `build/.../tests/<test>` → `build/.../kamepoolalloc/` hop.
-    QMAKE_LFLAGS += -Wl,-rpath,@executable_path/../kamepoolalloc
-}
-unix:!macx {
-    QMAKE_LFLAGS += -Wl,-rpath,\\$\$ORIGIN/../kamepoolalloc
+# Absolute rpaths into the build tree so the in-place test binaries
+# resolve both dylibs at runtime irrespective of their nesting depth
+# (`@executable_path`-relative paths would need a per-layout `../`
+# count).  `-Wl,-rpath,<abs>` is honoured by both ld64 and GNU ld.
+#
+# Windows skipped: PE/COFF has no rpath concept.  MinGW gcc + ld silently
+# accept the flag (no effect), but MinGW + lld errors with "unknown
+# argument: -rpath".  Windows DLL resolution falls back to the standard
+# search order (same dir as the EXE / PATH); the kamestm + kamepoolalloc
+# build copies the DLLs alongside the test binaries (or PATH points at
+# their build dir).
+unix {
+    QMAKE_LFLAGS += -Wl,-rpath,$$KAME_BUILD_ROOT/kamepoolalloc
+    QMAKE_LFLAGS += -Wl,-rpath,$$KAME_BUILD_ROOT/kamestm
 }
 
 # Headers that every standalone test transitively pulls in via
@@ -83,20 +111,12 @@ unix:!macx {
 # than the previous `$${_PRO_FILE_PWD_}/...` form) keep Qt Creator's
 # project navigator from showing a stale `tests/..` segment in the
 # resolved path display.
-HEADERS += support_standalone.h
-HEADERS += ../kamepoolalloc/allocator.h
-HEADERS += ../kamepoolalloc/allocator_prv.h
-HEADERS += ../kamepoolalloc/atomic_mfence.h
-HEADERS += ../kamepoolalloc/atomic_prv_mfence.h
-HEADERS += ../kamepoolalloc/atomic_prv_mfence_x86.h
-HEADERS += ../kamepoolalloc/atomic_prv_mfence_arm8.h
-HEADERS += ../kame/threadlocal.h
-HEADERS += ../kame/atomic.h
-HEADERS += ../kame/atomic_prv_basic.h
-HEADERS += ../kame/atomic_prv_std.h
-HEADERS += ../kame/atomic_prv_mfence.h
-HEADERS += ../kame/atomic_prv_mfence_x86.h
-HEADERS += ../kame/atomic_prv_mfence_arm8.h
+HEADERS += $$PWD/../kamestm/tests/support_standalone.h
+HEADERS += $$PWD/../kamepoolalloc/allocator.h
+HEADERS += $$PWD/../kamepoolalloc/allocator_prv.h
+HEADERS += $$PWD/../kamepoolalloc/atomic_mfence.h
+HEADERS += $$PWD/../kamestm/threadlocal.h
+HEADERS += $$PWD/../kamestm/atomic.h
 
 win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2
