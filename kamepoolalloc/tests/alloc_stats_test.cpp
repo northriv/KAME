@@ -1,15 +1,18 @@
-// (§28.2) kame_pool_get_stats v2 fields verification.
+// (§28.2 / §28.5) kame_pool_get_stats v2 fields verification.
 //
-// Stats v2 adds three tier-attribution fields beyond v1's region/unit counts:
+// Stats v2 adds four tier-attribution fields beyond v1's region/unit counts:
 //   - cache_bytes:          bytes parked in the global L2 recycle cache
-//   - dedicated_chunk_bytes: §15 dedicated chunks held by the program
-//                            (NOT cache-parked)
-//   - large_alloc_count    : §19/§27 large_va live count (held by program)
-//   - large_alloc_bytes    : sum of their mmap_size
+//   - dedicated_chunk_bytes: §15 dedicated chunks (INCLUDING cache-parked,
+//                            §28.5: walk-derived in get_stats, no hot-path
+//                            running counter)
+//   - large_alloc_count    : §19/§27 large_va live count (held by program;
+//                            cache-parked NOT included)
+//   - large_alloc_bytes    : sum of their mmap_size (live, not parked)
 //
-// All four are maintained as O(1) atomic counters at allocate/free sites —
-// this test verifies the increments and decrements happen at the right
-// transitions and that the post-free numbers go back to where they started.
+// `cache_bytes` and `large_*` are O(1) atomic counters; `dedicated_chunk_bytes`
+// is reconstructed via the same region+back_offset walk that produces
+// `chunks_live`/`units_live`.  This test verifies the values move in the
+// expected direction at each allocate/free transition.
 //
 // Pool-only (uses the kame_pool_* C API directly).
 //
@@ -44,9 +47,14 @@ int main() {
                 base.large_alloc_bytes / MiB, base.cache_bytes / MiB);
 
     // (1) Dedicated chunk (256 KiB..4 MiB) — verify dedicated_chunk_bytes
-    //     bumps on alloc and returns on free.  cache_bytes need not move
-    //     for a single push (L1 hot path absorbs it; only L1 spill or
-    //     mmap-tier pushes hit the global L2 that `cache_bytes` tracks).
+    //     bumps on alloc.  Post-free the chunk is cache-parked (L1 hot
+    //     path), so `dedicated_chunk_bytes` STAYS bumped (§28.5: walk-derived
+    //     counter, parked chunks keep bit-7 + claim bit).  The increment
+    //     is reflected in `cache_bytes` once spilled to global L2 — see
+    //     (1b).  Note: the FIRST kame_pool_malloc can cause a cascade of
+    //     internal medium-size allocs (NUMA detection via opendir routes
+    //     through our pool), so `delta_alloc` may be larger than the user
+    //     request; only verify it bumped UP.
     {
         void *p = kame_pool_malloc(800 * 1024);   // → §15 dedicated, ~1 MiB chunk
         auto s1 = snap();
@@ -54,14 +62,16 @@ int main() {
               "dedicated alloc didn't bump dedicated_chunk_bytes: %zu → %zu",
               base.dedicated_chunk_bytes, s1.dedicated_chunk_bytes);
         size_t delta_alloc = s1.dedicated_chunk_bytes - base.dedicated_chunk_bytes;
-        CHECK(delta_alloc >= 800 * 1024 && delta_alloc <= 2 * MiB,
-              "dedicated alloc bump = %zu KiB, expected ~1 MiB", delta_alloc / 1024);
+        CHECK(delta_alloc >= 800 * 1024,
+              "dedicated alloc bump = %zu KiB, expected ≥ 800 KiB", delta_alloc / 1024);
         kame_pool_free(p);
         auto s2 = snap();
-        CHECK(s2.dedicated_chunk_bytes == base.dedicated_chunk_bytes,
-              "dedicated free didn't restore dedicated_chunk_bytes: %zu vs base %zu",
-              s2.dedicated_chunk_bytes, base.dedicated_chunk_bytes);
-        std::printf("  [ok] dedicated alloc+free: dedicated +%zu KiB then back\n",
+        // §28.5: cache-parked dedicated chunks remain counted; the chunk
+        // stays in the bitmap with bit-7 set.  Verify it's still ≥ s1.
+        CHECK(s2.dedicated_chunk_bytes >= s1.dedicated_chunk_bytes,
+              "dedicated free unexpectedly dropped dedicated_chunk_bytes: %zu → %zu",
+              s1.dedicated_chunk_bytes, s2.dedicated_chunk_bytes);
+        std::printf("  [ok] dedicated alloc: dedicated +%zu KiB (parked after free)\n",
                     delta_alloc / 1024);
     }
 

@@ -244,66 +244,36 @@ static inline uint32_t kame_owner_id() noexcept {
     return id;
 }
 
-// (§28.2 / §28.4) Tier-attribution counters for kame_pool_get_stats.
+// (§28.2 / §28.4 / §28.5) Tier-attribution counters for kame_pool_get_stats.
 //
-// SHARDED to avoid cache-line bouncing: a naïve single std::atomic<size_t>
-// per counter (the §28.2 layout) hits the same cache line from every
-// thread's allocate/free, which under MT caused ≈ 10x MT throughput
-// regression vs §26 in the chunk and large_va tiers (bucket tier was
-// unaffected since it doesn't touch these counters).  Switch to
-// LRC_STATS_SHARDS cache-line-aligned shards; each thread picks one via
-// `kame_owner_id()` and caches the pointer in IE-TLS, so the hot inc/dec
-// is one uncontended atomic.  kame_pool_get_stats sums all shards
-// (O(LRC_STATS_SHARDS), bounded, cheap).
+// HISTORY:
+//   §28.2 single global atomic per counter — 10x MT regression
+//         (cache-line bouncing on every alloc/free).
+//   §28.4 LRC_STATS_SHARDS=64 cache-line-aligned shards — fixed up to 64T,
+//         but 128T re-introduces 2-way coherence collisions on the dedicated
+//         tier's hot path (≈ 17 % drop at 64 KiB / 128T on Ohtaka).
+//   §28.5 (this commit) DROP the running counters entirely — they were pure
+//         telemetry for `kame_pool_get_stats()`, never used by allocator
+//         logic.
 //
-// Cross-thread free is naturally handled: the FREE thread does the dec
-// against its own shard.  Individual shards may go transiently negative
-// (signed int64), but the sum across shards is correct.  Sum is clamped
-// non-negative for the unsigned public API field.
-#ifndef LRC_STATS_SHARDS
-#define LRC_STATS_SHARDS 64       // power of two; ≥ typical core count
-#endif
-static_assert((LRC_STATS_SHARDS & (LRC_STATS_SHARDS - 1)) == 0,
-              "LRC_STATS_SHARDS must be a power of two");
+//   * `dedicated_chunk_bytes` is recomputed on demand by walking the region
+//     bitmap + back_offset table (already walked for `chunks_live`).  A
+//     bit-7 dedicated marker on a base-unit's back_offset selects the
+//     chunk; its DEDICATED_SIZE header field gives the size.  Includes
+//     cache-parked dedicated chunks too — see header doc.
+//   * `large_alloc_count` / `large_alloc_bytes` use 2 plain global atomics.
+//     Large allocs (4..32 MiB) are rare (multi-MiB ⇒ ~kHz/thread at most),
+//     so a single cache line is fine — no measurable contention.
+static std::atomic<std::int64_t> g_large_alloc_count{0};
+static std::atomic<std::int64_t> g_large_alloc_bytes{0};
 
-struct alignas(KAME_CACHE_LINE) LrcStatsShard {
-    std::atomic<std::int64_t> dedicated_bytes;
-    std::atomic<std::int64_t> large_count;
-    std::atomic<std::int64_t> large_bytes;
-};
-static LrcStatsShard g_lrc_stats[LRC_STATS_SHARDS];
-
-// IE-TLS cached pointer to this thread's shard.  One-time init touches
-// kame_owner_id() (already IE-TLS-cached and globally serialised on first
-// use of the allocator) then never again.  Hot path: 1 IE-TLS load.
-ALLOC_TLS_IE LrcStatsShard *tls_lrc_stats_shard = nullptr;
-
-static inline LrcStatsShard *lrc_stats_my_shard() noexcept {
-    LrcStatsShard *s = tls_lrc_stats_shard;
-    if(__builtin_expect(s == nullptr, 0)) {
-        s = tls_lrc_stats_shard =
-            &g_lrc_stats[kame_owner_id() & (LRC_STATS_SHARDS - 1u)];
-    }
-    return s;
-}
-
-static inline void stats_inc_dedicated(std::size_t bytes) noexcept {
-    lrc_stats_my_shard()->dedicated_bytes.fetch_add(
-        (std::int64_t)bytes, std::memory_order_relaxed);
-}
-static inline void stats_dec_dedicated(std::size_t bytes) noexcept {
-    lrc_stats_my_shard()->dedicated_bytes.fetch_sub(
-        (std::int64_t)bytes, std::memory_order_relaxed);
-}
 static inline void stats_inc_large(std::size_t mmap_size) noexcept {
-    LrcStatsShard *s = lrc_stats_my_shard();
-    s->large_count.fetch_add(1, std::memory_order_relaxed);
-    s->large_bytes.fetch_add((std::int64_t)mmap_size, std::memory_order_relaxed);
+    g_large_alloc_count.fetch_add(1, std::memory_order_relaxed);
+    g_large_alloc_bytes.fetch_add((std::int64_t)mmap_size, std::memory_order_relaxed);
 }
 static inline void stats_dec_large(std::size_t mmap_size) noexcept {
-    LrcStatsShard *s = lrc_stats_my_shard();
-    s->large_count.fetch_sub(1, std::memory_order_relaxed);
-    s->large_bytes.fetch_sub((std::int64_t)mmap_size, std::memory_order_relaxed);
+    g_large_alloc_count.fetch_sub(1, std::memory_order_relaxed);
+    g_large_alloc_bytes.fetch_sub((std::int64_t)mmap_size, std::memory_order_relaxed);
 }
 
 #if KAME_FAST_TSD
@@ -3372,10 +3342,10 @@ PoolAllocatorBase::deallocate(void *p) {
 		if(__builtin_expect((back_off_raw & 0x80u) != 0u, 0)) {
 			size_t bytes = *reinterpret_cast<std::uint64_t *>(
 			    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
-			// (§28.2) Leaving the "live in program" bucket — whether the
-			// chunk lands in the cache (recycle_push success) or is fully
-			// released (deallocate_chunk), the program no longer owns it.
-			stats_dec_dedicated(bytes);
+			// (§28.5) dedicated_chunk_bytes is now recomputed on demand
+			// inside `kame_pool_get_stats` via region+back_offset walk; the
+			// hot-path running counter is gone.  (§28.4 sharded counters
+			// still collided 2-way at ≥ 128T because LRC_STATS_SHARDS=64.)
 			// (§22) Recycle into the per-thread cache, keeping the units
 			// CLAIMED and the chunk_header intact for warm reuse (no
 			// bitmap clear, no madvise here).  On overflow the cache
@@ -3692,8 +3662,9 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 		reinterpret_cast<PoolAllocatorBase *>(
 		    cached + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
 		writeBarrier();
-		// (§28.2) Leaving the cache for the program.
-		stats_inc_dedicated(actual);
+		// (§28.5) dedicated_chunk_bytes is now walked on demand; no
+		// per-alloc counter to bump here.
+		(void)actual;
 		return cached + ALLOC_CHUNK_K_MAX;
 	}
 	// Claim N units, tagging back_off with bit7 so deallocate / size_of
@@ -3723,8 +3694,9 @@ PoolAllocatorBase::allocate_dedicated_chunk(std::size_t size) noexcept {
 	reinterpret_cast<PoolAllocatorBase *>(
 	    chunk_base + ALLOC_CHUNK_HEADER)->m_owner_id = 0;
 	writeBarrier();
-	// (§28.2) Fresh-claim path: also entering the "live in program" bucket.
-	stats_inc_dedicated(chunk_size);
+	// (§28.5) dedicated_chunk_bytes is now walked on demand; no per-alloc
+	// counter to bump here.
+	(void)chunk_size;
 	// (§15) Payload starts at the unit boundary = chunk_base + K_MAX, so
 	// `deallocate` resolves unit_idx = base_unit, back_off = 0, recovering
 	// chunk_base via `unit_boundary - K_MAX`.
@@ -5359,6 +5331,7 @@ extern "C" void kame_pool_get_stats(kame_pool_stats_t *out) noexcept {
     std::size_t regions = 0;
     std::size_t units = 0;
     std::size_t chunks = 0;
+    std::size_t ded_bytes = 0;
     using BitmapWord = PoolAllocatorBase::BitmapWord;
     int total_nodes = PoolAllocatorBase::s_num_numa_nodes.load(
         std::memory_order_relaxed);
@@ -5378,13 +5351,29 @@ extern "C" void kame_pool_get_stats(kame_pool_stats_t *out) noexcept {
         }
         // "Chunks live" = base units = back_offset[u]==0 entries whose
         // claim bit is set.  Skip unit 0 (the metadata reservation).
+        // (§28.5) Also accumulate dedicated_chunk_bytes here: a base unit
+        // with bit-7 of its back_offset set is a dedicated chunk's first
+        // unit, and its DEDICATED_SIZE header field gives the size.
+        // base_unit u maps to chunk_base = mp + u*ALLOC_MIN_CHUNK_SIZE -
+        // ALLOC_CHUNK_K_MAX (see §15).
+        char *mp = reinterpret_cast<char *>(rm);
         for(int u = 1; u < PoolAllocatorBase::NUM_ALLOCATORS_IN_SPACE; ++u) {
             BitmapWord bw = rm->claim_bitmap[
                 u / PoolAllocatorBase::BITS_PER_BITMAP_WORD]
                 .load(std::memory_order_relaxed);
             bool claimed =
                 (bw >> (u % PoolAllocatorBase::BITS_PER_BITMAP_WORD)) & 1u;
-            if(claimed && rm->back_offset[u] == 0u) ++chunks;
+            if( !claimed) continue;
+            std::uint8_t back_off = rm->back_offset[u];
+            if((back_off & 0x7Fu) != 0u) continue;   // not a base unit
+            ++chunks;
+            if((back_off & 0x80u) != 0u) {
+                char *chunk_base = mp + (std::size_t)u
+                    * (std::size_t)ALLOC_MIN_CHUNK_SIZE
+                    - (std::size_t)ALLOC_CHUNK_K_MAX;
+                ded_bytes += (std::size_t)*reinterpret_cast<std::uint64_t *>(
+                    chunk_base + ALLOC_CHUNK_HEADER_DEDICATED_SIZE_OFFSET);
+            }
         }
     }
     out->regions_populated = regions;
@@ -5392,20 +5381,16 @@ extern "C" void kame_pool_get_stats(kame_pool_stats_t *out) noexcept {
     out->chunks_live       = chunks;
     out->units_live        = units;
 
-    // v2 — O(1) snapshots of the atomic tier counters maintained at
-    // allocate / free sites (see §28.2 above).
+    // v2 — `cache_bytes` is the lock-free byte total maintained by the
+    // recycle cache (§28); `large_*` are 2 plain global atomics (§28.5).
+    // `dedicated_chunk_bytes` is the walk-derived total above and includes
+    // cache-parked dedicated chunks (their units stay claimed + bit-7 set;
+    // see header doc).
     std::int64_t cb = g_lrc_bytes.load(std::memory_order_relaxed);
     out->cache_bytes           = (cb < 0) ? 0u : (std::size_t)cb;
-    // Sum across all shards.  Cross-thread free can leave individual shards
-    // transiently negative; the SUM is correct, then clamp non-negative for
-    // the unsigned public field.
-    std::int64_t ded = 0, lcnt = 0, lbyt = 0;
-    for(int s = 0; s < LRC_STATS_SHARDS; s++) {
-        ded  += g_lrc_stats[s].dedicated_bytes.load(std::memory_order_relaxed);
-        lcnt += g_lrc_stats[s].large_count   .load(std::memory_order_relaxed);
-        lbyt += g_lrc_stats[s].large_bytes   .load(std::memory_order_relaxed);
-    }
-    out->dedicated_chunk_bytes = (ded  < 0) ? 0u : (std::size_t)ded;
+    out->dedicated_chunk_bytes = ded_bytes;
+    std::int64_t lcnt = g_large_alloc_count.load(std::memory_order_relaxed);
+    std::int64_t lbyt = g_large_alloc_bytes.load(std::memory_order_relaxed);
     out->large_alloc_count     = (lcnt < 0) ? 0u : (std::size_t)lcnt;
     out->large_alloc_bytes     = (lbyt < 0) ? 0u : (std::size_t)lbyt;
 }
