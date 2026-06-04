@@ -1543,23 +1543,26 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			return false;
 		}
 	}
-	// (§orphan-adopt) FS=false orphan adoption — same rationale as the
-	// FS=true sibling in deallocate_pooled above.  Read local-id from the
-	// per-slot prefix first (mirrors the my_chunk path above).
-	if(!s_alloc_tls_off && this->m_owner_id == 0) {
-		unsigned adopt_local;
-		if constexpr (ALIGN >= 1024u) {
-			size_t bit_index =
-			    static_cast<size_t>(p - this->mempool()) >> this->m_align_shift;
-			adopt_local = this->m_sizes[bit_index] & 0xFFu;
-		} else {
-			std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
-			adopt_local = static_cast<unsigned>(hdr) & 0xFFu;
-		}
-		if(adopt_local < (unsigned)KAME_LOCAL_BUCKETS) {
-			if(this->try_adopt_orphan(p, adopt_local)) return false;
-		}
-	}
+	// (§35) Orphan adoption is DISABLED on the dealloc path.  It was added
+	// (§orphan-adopt) so a thread-respawn workload (larson: same thread
+	// allocs+frees) could immediately reuse a freed orphan slot via its own
+	// DLL/freelist.  But when the FREEING thread is a long-lived, non-
+	// allocating, non-exiting consumer (e.g. KAME's main thread holding the
+	// STM tree, while a per-run driver thread did the allocation), adoption
+	// parks the freed slot on the consumer's freelist with the bitmap bit
+	// still SET — never drained (no alloc, no thread-exit) → the now-empty
+	// chunk is never recognised as empty, never released, and being owned
+	// (BIT_OWNED) is no longer an orphan the next allocator can claim either.
+	// Result: unbounded region growth across start/stop (see
+	// tests/alloc_thread_churn_test.cpp scenario 2).
+	//
+	// Letting the free fall through to `batch_return_to_bitmap` below
+	// instead CLEARS the bit and, when it brings the chunk to empty with
+	// BIT_OWNED clear, RELEASES it (warm-recycled via §34 bucket_release_
+	// chunk).  The only cost adoption used to avoid — a non-empty orphan's
+	// freed slots being unreachable until the chunk fully drains and
+	// recycles — is now cheap because that recycle path (§34/LRC) exists.
+	// So: prefer guaranteed release over speculative reuse.
 	// FS=false never participates in cross-thread batch
 	// holding — large slots have small per-word coalescing windows AND
 	// large-slot chunks repeat less frequently than FS=true small-slot
@@ -1982,14 +1985,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		this->freelist_push(0, p);
 		return false;
 	}
-	// (§orphan-adopt) Thread-respawn fix: if the chunk has no owner
-	// (m_owner_id==0, owner thread exited with live objects), try to
-	// adopt it into this thread's DLL so the freed slot reaches the
-	// freelist rather than silently accumulating in the bitmap of a
-	// chunk no running thread can walk.
-	if(!s_alloc_tls_off && this->m_owner_id == 0) {
-		if(this->try_adopt_orphan(p, 0u)) return false;
-	}
+	// (§35) Orphan adoption DISABLED here — see the FS=false sibling in the
+	// other deallocate_pooled for the full rationale.  A non-allocating,
+	// non-exiting consumer thread (KAME main) would otherwise strand the
+	// adopted chunk (freed slot parked freelist-bit-set, never drained →
+	// never released).  Falling through to the hold-and-batch path below
+	// routes the free to batch_return_to_bitmap, which releases the chunk
+	// (warm-recycled) once its last live slot is returned.
 	// Post-teardown bypass.  See FS=false sibling above — once
 	// `s_alloc_tls_off` is set, `tls_cross_dealloc_batch` may have
 	// been destroyed; route the bit-clear through
