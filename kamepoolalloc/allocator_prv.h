@@ -1791,6 +1791,27 @@ protected:
 	};
 	static ALLOC_TLS ThreadLocalState s_tls;
 
+	//! (§36) Per-(ALIGN,FS) lock-free Treiber stack of ORPHAN chunks —
+	//! chunks left non-empty by an exited owner thread (BIT_OWNED clear,
+	//! m_owner_id == 0).  Without this, such chunks sit on no list: their
+	//! free slots are unreachable to any allocating thread, so each
+	//! thread-churn cycle mmaps fresh regions → unbounded reserved growth
+	//! (alloc_thread_churn scenario 2).  Allocating threads pop+reclaim an
+	//! orphan before mmap'ing a fresh chunk.
+	//!
+	//! `std::atomic<uint64_t>`: high bits hold the biased top-chunk pointer
+	//! (low 18 bits guaranteed zero — see ORPHAN_PTR_BIAS in allocator.cpp),
+	//! low 18 bits hold an ABA counter.  0 == empty.  Stack chain reuses
+	//! the chunk's `m_dll_next` field (the chunk is off every per-thread DLL
+	//! while on the stack, so the link is free).  Orphan chunks are NEVER
+	//! released while owned by the stack, so a node deref is always valid
+	//! memory — that + the ABA tag makes the stack safe without hazard ptrs.
+	//! Helpers `orphan_push` / `orphan_pop` are static members so they share
+	//! this per-template head and can touch `m_dll_next`.
+	static std::atomic<uint64_t> s_orphan_head;
+	static void orphan_push(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
+	static PoolAllocator<ALIGN, DUMMY, DUMMY> *orphan_pop() noexcept;
+
 	//! Per-thread DLL pointers.  Single-writer (the owning thread)
 	//! and single-reader (same thread).  No atomic ordering needed
 	//! for these two fields in steady state.
