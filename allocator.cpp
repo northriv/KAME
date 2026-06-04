@@ -1580,25 +1580,32 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			return false;
 		}
 	}
-	// (§orphan-adopt) FS=false orphan adoption — same rationale as the
-	// FS=true sibling in deallocate_pooled above.  Read local-id from the
-	// per-slot prefix first (mirrors the my_chunk path above).
-	// Teardown excluded by the sentinel check at the top, so `s_alloc_tls_off`
-	// is necessarily false here — the former `!s_alloc_tls_off` TLV read is dropped.
-	if(this->m_owner_id == 0) {
-		unsigned adopt_local;
-		if constexpr (ALIGN >= 1024u) {
-			size_t bit_index =
-			    static_cast<size_t>(p - this->mempool()) >> this->m_align_shift;
-			adopt_local = this->m_sizes[bit_index] & 0xFFu;
-		} else {
-			std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
-			adopt_local = static_cast<unsigned>(hdr) & 0xFFu;
-		}
-		if(adopt_local < (unsigned)KAME_LOCAL_BUCKETS) {
-			if(this->try_adopt_orphan(p, adopt_local)) return false;
-		}
-	}
+	// (§35) Orphan adoption is DISABLED on the dealloc path.  It was added
+	// (§orphan-adopt) so a thread-respawn workload (larson: same thread
+	// allocs+frees) could immediately reuse a freed orphan slot via its own
+	// DLL/freelist.  But when the FREEING thread is a long-lived, non-
+	// allocating, non-exiting consumer (e.g. KAME's main thread holding the
+	// STM tree, while a per-run driver thread did the allocation), adoption
+	// parks the freed slot on the consumer's freelist with the bitmap bit
+	// still SET — never drained (no alloc, no thread-exit) → the now-empty
+	// chunk is never recognised as empty, never released, and being owned
+	// (BIT_OWNED) is no longer an orphan the next allocator can claim either.
+	// Result: unbounded region growth across start/stop (see
+	// tests/alloc_thread_churn_test.cpp scenario 2).
+	//
+	// Letting the free fall through to `batch_return_to_bitmap` below
+	// instead CLEARS the bit and, when it brings the chunk to empty with
+	// BIT_OWNED clear, RELEASES it (warm-recycled via §34 bucket_release_
+	// chunk).  The only cost adoption used to avoid — a non-empty orphan's
+	// freed slots being unreachable until the chunk fully drains and
+	// recycles — is now cheap because that recycle path (§34/LRC) exists.
+	// So: prefer guaranteed release over speculative reuse.
+	//
+	// (§hot-tls teardown) Thread-exit frees never reach here: the
+	// teardown-sentinel check at the TOP of this function already routed
+	// them to a TLS-free bitmap return.  So reaching this point implies the
+	// freeing thread is alive and the `&s_tls.dll_head` cursor compare below
+	// is safe.
 	// FS=false never participates in cross-thread batch
 	// holding — large slots have small per-word coalescing windows AND
 	// large-slot chunks repeat less frequently than FS=true small-slot
@@ -2035,20 +2042,21 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		this->freelist_push(0, p);
 		return false;
 	}
-	// (§orphan-adopt) Thread-respawn fix: if the chunk has no owner
-	// (m_owner_id==0, owner thread exited with live objects), try to
-	// adopt it into this thread's DLL so the freed slot reaches the
-	// freelist rather than silently accumulating in the bitmap of a
-	// chunk no running thread can walk.
-	// Teardown excluded by the sentinel check above, so `s_alloc_tls_off`
-	// is necessarily false here — the former `!s_alloc_tls_off` term (a TLV
-	// read) is dropped.
-	if(this->m_owner_id == 0) {
-		if(this->try_adopt_orphan(p, 0u)) return false;
-	}
-	// (The former `if(s_alloc_tls_off)` post-teardown bypass is gone — the
-	// §hot-tls teardown sentinel check at the top of this function handles
-	// it without any TLV touch, including the old `&s_tls.dll_head` compare.)
+	// (§35) Orphan adoption DISABLED here — see the FS=false sibling in the
+	// other deallocate_pooled for the full rationale.  A non-allocating,
+	// non-exiting consumer thread (KAME main) would otherwise strand the
+	// adopted chunk (freed slot parked freelist-bit-set, never drained →
+	// never released).  Falling through to the hold-and-batch path below
+	// routes the free to batch_return_to_bitmap, which releases the chunk
+	// (warm-recycled) once its last live slot is returned.
+	//
+	// (§hot-tls teardown) The former `if(s_alloc_tls_off)` post-teardown
+	// bypass that lived here is gone: the teardown-sentinel check at the TOP
+	// of this function already routed thread-exit frees to a TLS-free bitmap
+	// return (it also subsumed that branch's `&s_tls.dll_head` cursor reset,
+	// which is moot for a dying thread).  Reaching this point therefore
+	// implies the freeing thread is alive, so the `tls_cross_dealloc_batch`
+	// touch below is safe.
 	// FS=true ALIGN ≤ 48 (sizes 16/32/48): hold-and-batch path.  1
 	// bit per slot in m_flags ⇒ up to 64 slots per FUINT word; a
 	// deep (CAP=1024) accumulation window gives same-chunk same-
