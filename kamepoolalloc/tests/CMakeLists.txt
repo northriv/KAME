@@ -109,6 +109,10 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_huge_test alloc_huge_test.cpp)
     target_link_libraries(alloc_huge_test kamepoolalloc Threads::Threads)
 
+    # Thread-churn / orphan-reuse repro for "driver start/stop -> reserved grows".
+    add_executable(alloc_thread_churn_test alloc_thread_churn_test.cpp)
+    target_link_libraries(alloc_thread_churn_test kamepoolalloc Threads::Threads)
+
     # (§28) Cap-eviction (kame_pool_set_large_cache_cap synchronous shrink) test.
     # Verifies the two-phase K-then-N reduction, MT race-safety, and round-trip
     # behaviour.  Pool-only (uses the kame_pool_* C API directly).
