@@ -34,6 +34,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <thread>
 #include <vector>
@@ -44,11 +45,16 @@ static int g_fails = 0;
 
 static const size_t MiB = (size_t)1u << 20;
 
-// Tunables (kept modest so the whole test runs in a few seconds).
-static const int    CYCLES      = 80;       // spawn/join iterations
-static const int    WARMUP      = 10;       // cycles to reach steady-state regions
-static const int    M           = 250000;   // allocations per cycle (worker working set)
-static const int    KEEP_STRIDE = 64;       // scenario 2: keep 1 survivor per this many
+// Tunables.  Overridable from argv so the thread spawn/exit count can be
+// cranked to distinguish a TRUE per-thread leak (keeps ramping linearly) from
+// a bounded one-time overhead that only LOOKS like a ramp over a short window
+// (would flatten at higher counts).  Usage:
+//     alloc_thread_churn_test [cycles] [M] [keep_stride]
+// e.g. `alloc_thread_churn_test 1000` = 1000 thread spawn/exits per scenario.
+static int    CYCLES      = 120;      // spawn/join iterations (= thread births)
+static int    WARMUP      = 10;       // cycles to reach steady-state regions
+static int    M           = 250000;   // allocations per cycle (worker working set)
+static int    KEEP_STRIDE = 64;       // scenario 2: keep 1 survivor per this many
 
 // Small pool-tier sizes spanning several buckets (FS=true + FS=false).
 static const size_t kSizes[] = {32, 48, 64, 96, 128, 200};
@@ -103,7 +109,7 @@ static void scenario_pure_churn() {
         }).join();
 
         if(cyc == CYCLES / 2) { mid_r = reserved_mib(); mid_c = chunks_live(); }
-        if(cyc >= WARMUP && (cyc % 10 == 0 || cyc == CYCLES - 1))
+        if(cyc >= WARMUP && (cyc % (CYCLES / 10 > 0 ? CYCLES / 10 : 1) == 0 || cyc == CYCLES - 1))
             std::printf("  cyc %3d: reserved=%4zu MiB  chunks_live=%zu\n",
                         cyc, reserved_mib(), chunks_live());
     }
@@ -137,7 +143,7 @@ static void scenario_survivor_churn() {
         survivors_prev.swap(survivors_cur);
 
         if(cyc == CYCLES / 2) { mid_r = reserved_mib(); mid_c = chunks_live(); }
-        if(cyc >= WARMUP && (cyc % 10 == 0 || cyc == CYCLES - 1))
+        if(cyc >= WARMUP && (cyc % (CYCLES / 10 > 0 ? CYCLES / 10 : 1) == 0 || cyc == CYCLES - 1))
             std::printf("  cyc %3d: reserved=%4zu MiB  chunks_live=%zu  survivors=%zu\n",
                         cyc, reserved_mib(), chunks_live(), survivors_prev.size());
     }
@@ -147,7 +153,16 @@ static void scenario_survivor_churn() {
     for(void *p : survivors_prev) kame_pool_free(p);   // drain the last cycle
 }
 
-int main() {
+int main(int argc, char **argv) {
+    if(argc > 1) CYCLES      = std::atoi(argv[1]);
+    if(argc > 2) M           = std::atoi(argv[2]);
+    if(argc > 3) KEEP_STRIDE = std::atoi(argv[3]);
+    if(CYCLES < 4) CYCLES = 4;
+    if(M < 1) M = 1;
+    if(KEEP_STRIDE < 1) KEEP_STRIDE = 1;
+    if(WARMUP >= CYCLES / 2) WARMUP = CYCLES / 4;
+    std::printf("config: CYCLES=%d (thread spawn/exits) M=%d KEEP_STRIDE=%d\n",
+                CYCLES, M, KEEP_STRIDE);
     scenario_pure_churn();
     scenario_survivor_churn();
     std::printf(g_fails == 0 ? "\nPASS\n" : "\nFAIL (%d)\n", g_fails);
