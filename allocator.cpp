@@ -5559,7 +5559,7 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	// Defensive: pointers above our covered VA fall back to "not our
 	// pointer".  On 32-bit hosts the radix already covers the full
 	// uintptr_t range (region index = 7 bits ≤ 32 - 25), so the bound
-	// check is vacuous and skipped (`up >> 47` is UB).
+	// check is vacuous and skipped (`up >> 48` is UB).
 	constexpr int kBoundShift = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT;
 #if defined(_MSC_VER) && !defined(__GNUC__)
 #pragma warning(push)
@@ -5713,6 +5713,16 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	size_t suffix = total - prefix - mmap_size;
 	if(prefix > 0) munmap(raw, prefix);
 	if(suffix > 0) munmap(p + mmap_size, suffix);
+	// (§35) Radix coverage guard (see large_va_raw_map): a region base the
+	// radix can't index (≥ RADIX_VA_LIMIT = 2^48) would silently fail to
+	// register, mis-routing its chunks' frees to libc.  Never fires under a
+	// NULL-hint mmap on any known kernel; if it ever does, release the
+	// region and fail the claim so the caller degrades to libc gracefully.
+	if(__builtin_expect((uintptr_t)p >= RADIX_VA_LIMIT, 0)) {
+		munmap(p, mmap_size);
+		s_region_count.fetch_sub(1, std::memory_order_relaxed);
+		return nullptr;
+	}
 	// (§14B) Opt-in transparent hugepages on the slot range (skip the
 	// metadata page at offset 0).  The region is 32 MiB / 32 MiB-aligned
 	// = 16 hugepages worth, ideal for the kernel's THP promoter on
@@ -5813,6 +5823,17 @@ inline char *large_va_raw_map(std::size_t mmap_size) noexcept {
 	std::size_t suffix = total - prefix - mmap_size;
 	if(prefix > 0) munmap(raw, prefix);
 	if(suffix > 0) munmap(base + mmap_size, suffix);
+	// (§35) Radix coverage guard: if the kernel placed us at a base the
+	// radix can't index (≥ RADIX_VA_LIMIT = 2^48), registration would
+	// silently fail and a later free of this block would mis-route to
+	// libc.  A NULL-hint mmap stays inside the kernel DEFAULT_MAP_WINDOW
+	// (≤ 2^47 x86-64 / ≤ 2^48 arm64) on every known OS, so this never
+	// fires; if it ever did, release and let the caller fall back to libc.
+	// Only the head base matters — huge spans' tail slots are unregistered.
+	if(__builtin_expect((uintptr_t)base >= RADIX_VA_LIMIT, 0)) {
+		munmap(base, mmap_size);
+		return nullptr;
+	}
 	return base;
 #endif
 }

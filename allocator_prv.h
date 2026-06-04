@@ -405,9 +405,9 @@ static_assert((1ull << ALLOC_MIN_MMAP_SHIFT) == (unsigned)ALLOC_MIN_MMAP_SIZE,
 //! value of the runtime `s_max_regions_cap`, set to the radix tree's full
 //! VA coverage so the pool is effectively VA-limited (not array-capped).
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
-    //! 1 << RADIX_REGION_BITS = 4194304 regions × 32 MiB = 128 TiB — the
-    //! 47-bit user-VA range the radix covers (static_assert'd below).
-    #define ALLOC_MAX_REGIONS (1 << 22)
+    //! 1 << RADIX_REGION_BITS = 8388608 regions × 32 MiB = 256 TiB — the
+    //! 48-bit user-VA range the radix covers (static_assert'd below).
+    #define ALLOC_MAX_REGIONS (1 << 23)
 #else
     //! 32-bit host: 96 regions = 3 GiB, matching the Linux 3G/1G user-VA
     //! ceiling (mmap fails past this anyway).  Kept small so the
@@ -422,15 +422,21 @@ static_assert((1ull << ALLOC_MIN_MMAP_SHIFT) == (unsigned)ALLOC_MIN_MMAP_SIZE,
 //! `size_of(p)` used to do.
 //!
 //! Encoding: region index = `p >> ALLOC_MIN_MMAP_SHIFT` (upper bits of
-//! the pointer); split into RADIX_L1_BITS + RADIX_L2_BITS.  Picked 11+11
-//! = 22-bit region index, which covers 22 + 25 = 47-bit user VA — the
-//! Linux x86-64 default user-VA range.  Pointers above this range
-//! (rare: 48-bit ARM64, 5-level paging kernels) fall back via the
+//! the pointer); split into RADIX_L1_BITS + RADIX_L2_BITS.  Picked 12+11
+//! = 23-bit region index, which covers 23 + 25 = 48-bit user VA.  This
+//! spans every known 64-bit user-VA layout the allocator's own NULL-hint
+//! mmaps can land in: x86-64 macOS/Linux/Windows (47-bit), Apple Silicon
+//! arm64 (47-bit; PAC reserves the high bits), AND 48-bit aarch64 Linux
+//! (where mmap(NULL) may legitimately return [2^47, 2^48) with no hint —
+//! the case a 22-bit / 47-bit radix would silently fail to register,
+//! later mis-routing that region's frees to libc).  Pointers above 2^48
+//! (rare: 52-bit ARM64 LVA or 5-level/57-bit paging — both opt-in only
+//! via an explicit mmap hint, never requested here) fall back via the
 //! defensive bound check in `radix_lookup` (returns -1, treated as
 //! foreign — same outcome as today's "not in `s_mmapped_spaces[]`").
 //!
 //! Storage:
-//!   L1: fixed `[1<<11 = 2048]` `atomic<RadixL2Node*>` in BSS (16 KiB).
+//!   L1: fixed `[1<<12 = 4096]` `atomic<RadixL2Node*>` in BSS (32 KiB).
 //!       Top level is hot-in-L1d on the lookup path.
 //!   L2: each populated node is `[1<<11 = 2048]` `atomic<uint32_t>`
 //!       slots (8 KiB = 2 pages).  Slot value 0 = unpopulated; non-zero
@@ -451,19 +457,19 @@ static_assert((1ull << ALLOC_MIN_MMAP_SHIFT) == (unsigned)ALLOC_MIN_MMAP_SIZE,
 //!
 //! Pointer decomposition (64-bit; ALLOC_MIN_MMAP_SHIFT = 25 ⇒ 32 MiB region):
 //!
-//!    63        47 46        36 35        25 24              0
+//!    63        48 47        36 35        25 24              0
 //!   ┌───────────┬────────────┬────────────┬─────────────────┐
 //!   │ must be 0 │  L1 index  │  L2 index  │  in-region off  │
-//!   │  (17 b)   │   (11 b)   │   (11 b)   │     (25 b)      │
+//!   │  (16 b)   │   (12 b)   │   (11 b)   │     (25 b)      │
 //!   └───────────┴────────────┴────────────┴─────────────────┘
-//!     bound       \____ region_idx = p >> 25 (22 b) ____/
+//!     bound       \____ region_idx = p >> 25 (23 b) ____/
 //!     check       (the 32-MiB region's identity; base = region_idx << 25)
 //!
 //!     region_idx = p >> 25;  l1 = region_idx >> 11;  l2 = region_idx & 0x7FF
 //!
 //! 2-level walk (radix_lookup):
 //!
-//!   s_radix_l1[2048]          BSS, 16 KiB, atomic<RadixL2Node*>
+//!   s_radix_l1[4096]          BSS, 32 KiB, atomic<RadixL2Node*>
 //!        │  [l1]              null leaf ⇒ ABSENT
 //!        ▼
 //!   RadixL2Node               lazily mmap'd on first insert, 8 KiB
@@ -474,14 +480,26 @@ static_assert((1ull << ALLOC_MIN_MMAP_SHIFT) == (unsigned)ALLOC_MIN_MMAP_SIZE,
 //!               1 POOL    base → RegionMeta      (see region-header diagram)
 //!               2 LARGE   base → LargeAllocMeta  (see region-header diagram)
 //!
-//!   Coverage: each L2 spans 2^11 × 32 MiB = 64 GiB; L1 spans 2^22 × 32 MiB
-//!   = 128 TiB (the 47-bit user VA).  bits [63..47] set ⇒ ABSENT (foreign).
+//!   Coverage: each L2 spans 2^11 × 32 MiB = 64 GiB; L1 spans 2^23 × 32 MiB
+//!   = 256 TiB (the 48-bit user VA).  bits [63..48] set ⇒ ABSENT (foreign).
 //!
-constexpr int RADIX_L1_BITS = 11;
+constexpr int RADIX_L1_BITS = 12;
 constexpr int RADIX_L2_BITS = 11;
 constexpr unsigned RADIX_L1_SIZE = 1u << RADIX_L1_BITS;
 constexpr unsigned RADIX_L2_SIZE = 1u << RADIX_L2_BITS;
-constexpr int RADIX_REGION_BITS = RADIX_L1_BITS + RADIX_L2_BITS;  // 22
+constexpr int RADIX_REGION_BITS = RADIX_L1_BITS + RADIX_L2_BITS;  // 23
+//! (§35) Exclusive upper bound on a radix-registrable region base.  A base
+//! at or above this has region index ≥ 1<<RADIX_REGION_BITS, which the radix
+//! cannot index (`radix_insert`'s `l1 >= RADIX_L1_SIZE` skips it, and
+//! `radix_lookup`'s bound check returns ABSENT).  = 2^48 with the 23-bit
+//! region index.  `mmap_new_region` / `large_va_raw_map` reject any base ≥
+//! this and fall back to libc, so an out-of-window kernel placement (only
+//! possible via an explicit >window mmap hint — never requested here)
+//! degrades gracefully instead of mis-routing the region's later frees.
+//! For multi-region huge spans only the HEAD base must clear this bound
+//! (tail slots are never standalone lookup targets).
+constexpr uintptr_t RADIX_VA_LIMIT =
+    (uintptr_t)1 << (RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT);
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 // 64-bit: the region-count ceiling equals the radix's full VA coverage.
 static_assert(ALLOC_MAX_REGIONS == (1 << RADIX_REGION_BITS),
@@ -1367,7 +1385,7 @@ private:
 	//! regions are 32-MiB-aligned) and enumerated via the push-only region
 	//! list (`s_region_dll_head`).  This removes the last cap-sized global
 	//! and with it ALLOC_MAX_REGIONS — the region count is now bounded
-	//! only by VA (the radix covers 47-bit = 128 TiB) and the optional
+	//! only by VA (the radix covers 48-bit = 256 TiB) and the optional
 	//! runtime cap `s_max_regions_cap`.
 
 	//! 2-level radix tree top level (§13).  L1 indexed by upper
