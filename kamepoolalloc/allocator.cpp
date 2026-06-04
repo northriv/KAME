@@ -244,6 +244,41 @@ static inline uint32_t kame_owner_id() noexcept {
     return id;
 }
 
+// (§36) Orphan-chunk Treiber-stack packing.
+//
+// A chunk's embedded PoolAllocator object lives at `chunk_base +
+// ALLOC_CHUNK_HEADER`.  Adding `ALLOC_CHUNK_K_MAX - ALLOC_CHUNK_HEADER`
+// to that pointer yields `chunk_base + ALLOC_CHUNK_K_MAX`, i.e. the
+// chunk's first unit boundary, which is ALLOC_MIN_CHUNK_SIZE-aligned
+// (= 2^18 = 256 KiB).  So the *biased* PoolAllocator pointer has its low
+// 18 bits guaranteed zero — free real estate for an ABA tag.  We pack an
+// 18-bit monotonic counter there to defeat ABA on the lock-free head.
+//
+// pack:   biased = (uint64_t)((uintptr_t)pa + ORPHAN_PTR_BIAS);  // low18 == 0
+//         head   = biased | (counter & ORPHAN_TAG_MASK)
+// unpack: pa     = (PoolAllocatorBase*)((uintptr_t)(head & ~ORPHAN_TAG_MASK)
+//                                       - ORPHAN_PTR_BIAS)
+// empty test: (head & ~ORPHAN_TAG_MASK) == 0 — i.e. the POINTER PART is
+//             zero.  The ABA counter (low 18 bits) is kept live even while
+//             the stack is empty, so the head word itself may be nonzero
+//             when empty; do NOT test `head == 0`.  Keeping the tag across
+//             empty states prevents tag reuse on the empty→push→pop cycles
+//             that dominate the thread-churn workload.  Initial head = 0
+//             (pointer part 0, tag 0) is the natural empty start.
+//
+// Safety: orphan chunks are NEVER released while on this stack (see Edit 3
+// removing the cross-thread orphan release), so a Treiber-node deref
+// (`oc->m_dll_next`) always touches valid, never-freed memory.  That, plus
+// the 18-bit tag, makes the stack ABA-safe WITHOUT hazard pointers.
+static constexpr uintptr_t ORPHAN_PTR_BIAS =
+    (uintptr_t)ALLOC_CHUNK_K_MAX - (uintptr_t)ALLOC_CHUNK_HEADER;   // 4032
+static constexpr uint64_t  ORPHAN_TAG_MASK = ((uint64_t)1 << 18) - 1; // low 18 bits
+static_assert((size_t)ALLOC_MIN_CHUNK_SIZE >= ((size_t)1 << 18),
+              "orphan tag needs >=18 low zero bits in the biased chunk ptr");
+static_assert(((size_t)ALLOC_MIN_CHUNK_SIZE % ((size_t)1 << 18)) == 0,
+              "ALLOC_MIN_CHUNK_SIZE must be a multiple of 2^18 so the unit "
+              "boundary (= biased PoolAllocator ptr) has 18 low zero bits");
+
 // (§28.2 / §28.4 / §28.5) Tier-attribution counters for kame_pool_get_stats.
 //
 // HISTORY:
@@ -1580,25 +1615,32 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 			return false;
 		}
 	}
-	// (§orphan-adopt) FS=false orphan adoption — same rationale as the
-	// FS=true sibling in deallocate_pooled above.  Read local-id from the
-	// per-slot prefix first (mirrors the my_chunk path above).
-	// Teardown excluded by the sentinel check at the top, so `s_alloc_tls_off`
-	// is necessarily false here — the former `!s_alloc_tls_off` TLV read is dropped.
-	if(this->m_owner_id == 0) {
-		unsigned adopt_local;
-		if constexpr (ALIGN >= 1024u) {
-			size_t bit_index =
-			    static_cast<size_t>(p - this->mempool()) >> this->m_align_shift;
-			adopt_local = this->m_sizes[bit_index] & 0xFFu;
-		} else {
-			std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(p - 8);
-			adopt_local = static_cast<unsigned>(hdr) & 0xFFu;
-		}
-		if(adopt_local < (unsigned)KAME_LOCAL_BUCKETS) {
-			if(this->try_adopt_orphan(p, adopt_local)) return false;
-		}
-	}
+	// (§35) Orphan adoption is DISABLED on the dealloc path.  It was added
+	// (§orphan-adopt) so a thread-respawn workload (larson: same thread
+	// allocs+frees) could immediately reuse a freed orphan slot via its own
+	// DLL/freelist.  But when the FREEING thread is a long-lived, non-
+	// allocating, non-exiting consumer (e.g. KAME's main thread holding the
+	// STM tree, while a per-run driver thread did the allocation), adoption
+	// parks the freed slot on the consumer's freelist with the bitmap bit
+	// still SET — never drained (no alloc, no thread-exit) → the now-empty
+	// chunk is never recognised as empty, never released, and being owned
+	// (BIT_OWNED) is no longer an orphan the next allocator can claim either.
+	// Result: unbounded region growth across start/stop (see
+	// tests/alloc_thread_churn_test.cpp scenario 2).
+	//
+	// Letting the free fall through to `batch_return_to_bitmap` below
+	// instead CLEARS the bit and, when it brings the chunk to empty with
+	// BIT_OWNED clear, RELEASES it (warm-recycled via §34 bucket_release_
+	// chunk).  The only cost adoption used to avoid — a non-empty orphan's
+	// freed slots being unreachable until the chunk fully drains and
+	// recycles — is now cheap because that recycle path (§34/LRC) exists.
+	// So: prefer guaranteed release over speculative reuse.
+	//
+	// (§hot-tls teardown) Thread-exit frees never reach here: the
+	// teardown-sentinel check at the TOP of this function already routed
+	// them to a TLS-free bitmap return.  So reaching this point implies the
+	// freeing thread is alive and the `&s_tls.dll_head` cursor compare below
+	// is safe.
 	// FS=false never participates in cross-thread batch
 	// holding — large slots have small per-word coalescing windows AND
 	// large-slot chunks repeat less frequently than FS=true small-slot
@@ -1705,7 +1747,6 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 	// `CrossDeallocBatch::flush` plants at buf[count].  No `k < n_max`
 	// test in the inner loop.  Drain / post-teardown single-slot paths
 	// pass a stack-local {this, p_user} + sentinel pair.
-	bool i_am_releaser = false;
 	int n = this->batch_clear_impl(entries,
 		// MaskFn: FS=false N-bit clear.  `p` is p_user (= slot_start);
 		// `sidx` is the slot's own bit position within m_flags word `idx`.
@@ -1733,15 +1774,21 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 #endif
 			return slot_mask;
 		},
-		// OnClearFn: FS=false.  use atomicDecAndTest to
-		// identify the unique releaser when MASK_CNT goes 1 → 0.  If
-		// dec returns 0, BIT_OWNED was already clear (owner is gone)
-		// AND MASK_CNT was 1 → this caller is the sole releaser.
-		[this, &i_am_releaser](FUINT oldv, FUINT newv) {
-			if(newv == 0 && oldv != 0) {
-				if(atomicDecAndTest(&this->m_flags_packed))
-					i_am_releaser = true;
-			}
+		// OnClearFn: FS=false.  Decrement MASK_CNT via atomicDecAndTest
+		// when this slot's word goes 1 → 0 (maintains the live-word count
+		// and supplies the full barrier).  (§36) We DO NOT release the
+		// chunk on the dec-to-0-with-BIT_OWNED-clear case any more: such a
+		// chunk is an ORPHAN sitting on the per-template Treiber stack, and
+		// its memory MUST stay valid (the stack nodes are dereferenced by
+		// orphan_pop without hazard pointers).  It is reclaimed by a future
+		// orphan_pop instead of being freed here.  Distinguished from the
+		// owner-exit empty release (separate path in
+		// release_dll_chunks_for_thread, where BIT_OWNED is still SET during
+		// the drain) and from the owner-alive case (BIT_OWNED set ⇒ dec
+		// never reaches 0).  The return value is intentionally ignored.
+		[this](FUINT oldv, FUINT newv) {
+			if(newv == 0 && oldv != 0)
+				(void)atomicDecAndTest(&this->m_flags_packed);
 			// (§max-n-gate) Symmetric with the widened atomicInc in
 			// allocate_pooled — decrement when a bit-clear restores
 			// MAX_N-contiguous-zero room that the word didn't have
@@ -1752,30 +1799,6 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 			   find_training_zeros(MAX_N_HERE, newv) != 0)
 				atomicDec( &this->m_flags_filled_cnt);
 		});
-	if(i_am_releaser) {
-		// atomicDecAndTest uniquely identified me as the
-		// releaser (m_flags_packed transitioned to 0 = BIT_OWNED clear,
-		// MASK_CNT == 0).  No CAS race possible — owner exit's
-		// atomicFetchAnd(~BIT_OWNED) and the dec-to-0 are mutually
-		// exclusive (only one operation brings the word to all-zero).
-		// PoolAllocator object now lives inside chunk_base + ALLOC_CHUNK_HEADER
-		// (embed-into-chunk root-cure).  Recover chunk_base from `this`, not
-		// from m_mempool (which is offset past the embedded PoolAllocator +
-		// m_flags region inside the chunk).
-		char *cbase = reinterpret_cast<char*>(this) - ALLOC_CHUNK_HEADER;
-		size_t csz = this->m_chunk_size;
-		// (1b) Clear the dealloc fast path's "released" signal BEFORE the
-		// destructor runs so the store goes through a live, typed access
-		// (was previously done inside deallocate_chunk via a typed pointer
-		// to a destructed object — UB by C++'s object-lifetime rule, caught
-		// by UBSAN's vptr check).  A re-claimer overwrites m_owner_id with
-		// its own id in the constructor.
-		this->m_owner_id = 0;
-		this->~PoolAllocator();   // placement-new destructor; chunk memory
-		                          // (including this object) is released by
-		                          // `deallocate_chunk` below.
-		PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
-	}
 	return n;
 }
 
@@ -1893,37 +1916,24 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 			reinterpret_cast<uint64_t *>(p)[j] = GUARDIAN;
 	}
 #endif
-	bool i_am_releaser = false;
 	int n = this->batch_clear_impl(entries,
 		// MaskFn: FS=true single bit
 		[](int /*idx*/, unsigned sidx, char * /*p*/) -> FUINT {
 			return ((FUINT)1u) << sidx;
 		},
-		// OnClearFn: FS=true.  use atomicDecAndTest to
-		// identify the unique releaser when MASK_CNT goes 1 → 0.
-		[this, &i_am_releaser](FUINT oldv, FUINT newv) {
+		// OnClearFn: FS=true.  Decrement MASK_CNT via atomicDecAndTest
+		// when this word goes 1 → 0.  (§36) The dec-to-0-with-BIT_OWNED-
+		// clear case (a cross-thread free emptying an orphaned chunk) NO
+		// LONGER releases the chunk: it is on the per-template orphan
+		// Treiber stack and must stay mapped for orphan_pop's node deref.
+		// A future orphan_pop reclaims it.  See the FS=false sibling.  The
+		// dec return value is intentionally ignored.
+		[this](FUINT oldv, FUINT newv) {
 			if(oldv == ~(FUINT)0u)
 				atomicDec( &this->m_flags_filled_cnt);
-			if(newv == 0 && oldv != 0) {
-				if(atomicDecAndTest(&this->m_flags_packed))
-					i_am_releaser = true;
-			}
+			if(newv == 0 && oldv != 0)
+				(void)atomicDecAndTest(&this->m_flags_packed);
 		});
-	if(i_am_releaser) {
-		// dec brought m_flags_packed to 0 → BIT_OWNED was
-		// already clear (owner gone) AND MASK_CNT was 1.  I am
-		// uniquely the releaser.  PoolAllocator object now embedded
-		// inside chunk_base + ALLOC_CHUNK_HEADER; recover chunk_base
-		// from `this`, not from m_mempool (which is offset past the
-		// embedded PoolAllocator + m_flags region inside the chunk).
-		char *cbase = reinterpret_cast<char*>(this) - ALLOC_CHUNK_HEADER;
-		size_t csz = this->m_chunk_size;
-		// (1b) Clear m_owner_id BEFORE the destructor — see the FS=true
-		// batch_return_to_bitmap sibling for the rationale.
-		this->m_owner_id = 0;
-		this->~PoolAllocator();   // chunk memory release in deallocate_chunk
-		PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
-	}
 	return n;
 }
 
@@ -2035,20 +2045,21 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		this->freelist_push(0, p);
 		return false;
 	}
-	// (§orphan-adopt) Thread-respawn fix: if the chunk has no owner
-	// (m_owner_id==0, owner thread exited with live objects), try to
-	// adopt it into this thread's DLL so the freed slot reaches the
-	// freelist rather than silently accumulating in the bitmap of a
-	// chunk no running thread can walk.
-	// Teardown excluded by the sentinel check above, so `s_alloc_tls_off`
-	// is necessarily false here — the former `!s_alloc_tls_off` term (a TLV
-	// read) is dropped.
-	if(this->m_owner_id == 0) {
-		if(this->try_adopt_orphan(p, 0u)) return false;
-	}
-	// (The former `if(s_alloc_tls_off)` post-teardown bypass is gone — the
-	// §hot-tls teardown sentinel check at the top of this function handles
-	// it without any TLV touch, including the old `&s_tls.dll_head` compare.)
+	// (§35) Orphan adoption DISABLED here — see the FS=false sibling in the
+	// other deallocate_pooled for the full rationale.  A non-allocating,
+	// non-exiting consumer thread (KAME main) would otherwise strand the
+	// adopted chunk (freed slot parked freelist-bit-set, never drained →
+	// never released).  Falling through to the hold-and-batch path below
+	// routes the free to batch_return_to_bitmap, which releases the chunk
+	// (warm-recycled) once its last live slot is returned.
+	//
+	// (§hot-tls teardown) The former `if(s_alloc_tls_off)` post-teardown
+	// bypass that lived here is gone: the teardown-sentinel check at the TOP
+	// of this function already routed thread-exit frees to a TLS-free bitmap
+	// return (it also subsumed that branch's `&s_tls.dll_head` cursor reset,
+	// which is moot for a dying thread).  Reaching this point therefore
+	// implies the freeing thread is alive, so the `tls_cross_dealloc_batch`
+	// touch below is safe.
 	// FS=true ALIGN ≤ 48 (sizes 16/32/48): hold-and-batch path.  1
 	// bit per slot in m_flags ⇒ up to 64 slots per FUINT word; a
 	// deep (CAP=1024) accumulation window gives same-chunk same-
@@ -2686,6 +2697,92 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// callback with `tls_alloc_thread_exit_cleanup` if not already registered
 	// (deduped inside `add`), so thread-exit walks this template's
 	// DLL.
+	// (§36) Orphan reclaim: before mmap'ing a fresh chunk, try to re-own a
+	// chunk orphaned by an exited thread (its free slots are otherwise
+	// unreachable -> reserved-region growth, alloc_thread_churn scenario 2).
+	// Pop one; CAS BIT_OWNED 0->1 to claim; re-arm owner metadata exactly as
+	// create_allocator's fresh-chunk init does; splice into this thread's DLL
+	// tail.  Then allocate from it if it has room, else leave it adopted in
+	// the DLL and fall through to a fresh mmap.  After this the chunk is a
+	// normal OWNED chunk again — if its owner later exits non-empty it is
+	// pushed again (temporal reuse; never double-linked, one push at a time).
+	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *oc = orphan_pop()) {
+		// Claim: set BIT_OWNED, preserving the MASK_CNT survivors that the
+		// holding thread's cross-thread frees may still be decrementing.
+		// We are the SOLE owner of this popped pointer (it is now off the
+		// stack and no other thread can see it), so no concurrent writer can
+		// set BIT_OWNED — the only thing that races us on m_flags_packed is a
+		// cross-thread free's MASK_CNT atomicDecAndTest.  The CAS therefore
+		// retries on a MASK_CNT change (re-reading the value) and supplies
+		// the acquire barrier; it can only OBSERVE BIT_OWNED already set in
+		// the (invariant-violating) duplicate-push case, which we discard.
+		// CRITICAL: a popped orphan must NOT be left stranded — looping
+		// guarantees BIT_OWNED gets set (the chunk is re-owned) unless it
+		// was already owned (impossible under single-push, hence the
+		// defensive discard).  Read m_flags_packed non-atomically (same
+		// access style as the neighbour walk above); the CAS is the
+		// synchronisation point.
+		bool claimed = false;
+		for(;;) {
+			uint32_t of = oc->m_flags_packed;
+			if(of & PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED)
+				break;  // duplicate-owned (should never happen) -> discard
+			if(atomicCompareAndSet(of,
+			       of | PoolAllocator<ALIGN, DUMMY, DUMMY>::BIT_OWNED,
+			       &oc->m_flags_packed)) {
+				claimed = true;
+				break;  // BIT_OWNED set, MASK_CNT preserved
+			}
+			// CAS lost to a concurrent MASK_CNT dec — retry with fresh `of`.
+		}
+		if(claimed) {
+			// Re-arm owner metadata to THIS thread, mirroring
+			// create_allocator's fresh-chunk setup (PoolAllocator ctor):
+			//   m_owner_id                = kame_owner_id()
+			//   m_owner_dll_head_addr     = &s_tls.dll_head
+			//   m_owner_dll_force_walk_ptr= &s_tls.dll_force_walk_from_head
+			//                               (release store)
+			oc->m_owner_id = kame_owner_id();
+			oc->m_owner_dll_head_addr = static_cast<void *>(&s_tls.dll_head);
+			oc->m_owner_dll_force_walk_ptr.store(
+			    &s_tls.dll_force_walk_from_head, std::memory_order_release);
+			// Splice at DLL tail (mirror create_allocator's append below).
+			oc->m_dll_next = nullptr;
+			oc->m_dll_prev = s_tls.dll_tail;
+			if(s_tls.dll_tail) s_tls.dll_tail->m_dll_next = oc;
+			else               s_tls.dll_head = oc;
+			s_tls.dll_tail = oc;
+#if KAME_POOL_ONEBACK_SKIP
+			s_tls.dll_one_back = s_tls.my_chunk;  // (§33) pin shift
+#endif
+			s_tls.my_chunk = oc;
+			s_tls.dll_cursor = oc;
+			s_tls.dll_exhausted = false;
+			tls_alloc_thread_exit_cleanup.add(
+			    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
+			if(void *p = oc->allocate_pooled(SIZE)) {
+#ifdef GUARDIAN
+				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
+					if(static_cast<uint64_t *>(p)[i] != GUARDIAN)
+						fprintf(stderr, "Memory tainted in %p:64\n",
+						        &static_cast<uint64_t *>(p)[i]);
+				}
+#endif
+#ifdef FILLING_AFTER_ALLOC
+				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
+					static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC;
+#endif
+				return p;
+			}
+			// Adopted but full -> fall through to create a fresh chunk; oc
+			// stays in our DLL and is reused once a survivor is freed into it.
+		}
+		// else: BIT_OWNED was already set (single-push invariant violated —
+		// should never happen) -> discard `oc`, fall through to fresh mmap.
+		// (No stranding from a lost CAS: the claim loop above retries until
+		// it sets BIT_OWNED, so a popped orphan is always re-owned here unless
+		// it was the impossible duplicate-owned case.)
+	}
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *chunk = create_allocator();
 	if( !chunk) {
 		// (§18) OOM — caller (operator new / C wrapper) runs the
@@ -2938,6 +3035,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// m_owner_dll_force_walk_ptr was already nulled (release) above;
 			// atomicFetchAnd provides a full barrier ordering this store.
 			c->m_owner_id = 0;
+			// (§36) Push onto the per-template orphan Treiber stack so an
+			// allocating thread can re-own it and reuse its free slots,
+			// instead of mmap'ing fresh (the scenario-2 stranding leak).
+			// PUSH exactly ONCE, here, AFTER BIT_OWNED was cleared (by the
+			// atomicFetchAnd above) and m_owner_id == 0.  orphan_push
+			// overwrites m_dll_next with the stack link — fine, the chunk
+			// has just left this thread's DLL.  Empty chunks took the
+			// `newv == 0` branch above and were released directly; they are
+			// never on the stack, so the stack-only no-release invariant
+			// (Edit 3) holds.
+			orphan_push(c);
 		}
 		c = next;
 	}
@@ -3447,11 +3555,16 @@ PoolAllocatorBase::deallocate(void *p) {
 			// (would `delete palloc` and invalidate palloc->chunk_size()).
 			size_t csz = palloc->chunk_size();
 			if(fn(palloc, static_cast<char *>(p))) {
-				// Current `deallocate_pooled` always returns false (the
-				// chunk-release-on-empty path is taken inside
-				// `batch_return_to_bitmap` via the `i_am_releaser`
-				// branch).  Kept as a defensive shim in case a future
-				// trampoline opts to release at this site.
+				// Current `deallocate_pooled` always returns false.
+				// Chunk release happens elsewhere: the owner-side empty
+				// release in `release_dll_chunks_for_thread` / `owner_release`
+				// (BIT_OWNED clear → deallocate_chunk), and the neighbour
+				// release in `allocate_chunk_path`.  (§36) A cross-thread free
+				// that empties an ORPHANED chunk no longer releases it — the
+				// chunk is parked on the per-template orphan Treiber stack and
+				// reclaimed by a later orphan_pop, so `batch_return_to_bitmap`
+				// performs no release at all now.  Kept as a defensive shim in
+				// case a future trampoline opts to release at this site.
 				deallocate_chunk(chunk_base, csz);
 			}
 		}
@@ -5559,7 +5672,7 @@ int PoolAllocatorBase::radix_lookup_slow(uintptr_t up) noexcept {
 	// Defensive: pointers above our covered VA fall back to "not our
 	// pointer".  On 32-bit hosts the radix already covers the full
 	// uintptr_t range (region index = 7 bits ≤ 32 - 25), so the bound
-	// check is vacuous and skipped (`up >> 47` is UB).
+	// check is vacuous and skipped (`up >> 48` is UB).
 	constexpr int kBoundShift = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT;
 #if defined(_MSC_VER) && !defined(__GNUC__)
 #pragma warning(push)
@@ -5713,6 +5826,16 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	size_t suffix = total - prefix - mmap_size;
 	if(prefix > 0) munmap(raw, prefix);
 	if(suffix > 0) munmap(p + mmap_size, suffix);
+	// (§35) Radix coverage guard (see large_va_raw_map): a region base the
+	// radix can't index (≥ RADIX_VA_LIMIT = 2^48) would silently fail to
+	// register, mis-routing its chunks' frees to libc.  Never fires under a
+	// NULL-hint mmap on any known kernel; if it ever does, release the
+	// region and fail the claim so the caller degrades to libc gracefully.
+	if(__builtin_expect((uintptr_t)p >= RADIX_VA_LIMIT, 0)) {
+		munmap(p, mmap_size);
+		s_region_count.fetch_sub(1, std::memory_order_relaxed);
+		return nullptr;
+	}
 	// (§14B) Opt-in transparent hugepages on the slot range (skip the
 	// metadata page at offset 0).  The region is 32 MiB / 32 MiB-aligned
 	// = 16 hugepages worth, ideal for the kernel's THP promoter on
@@ -5813,6 +5936,17 @@ inline char *large_va_raw_map(std::size_t mmap_size) noexcept {
 	std::size_t suffix = total - prefix - mmap_size;
 	if(prefix > 0) munmap(raw, prefix);
 	if(suffix > 0) munmap(base + mmap_size, suffix);
+	// (§35) Radix coverage guard: if the kernel placed us at a base the
+	// radix can't index (≥ RADIX_VA_LIMIT = 2^48), registration would
+	// silently fail and a later free of this block would mis-route to
+	// libc.  A NULL-hint mmap stays inside the kernel DEFAULT_MAP_WINDOW
+	// (≤ 2^47 x86-64 / ≤ 2^48 arm64) on every known OS, so this never
+	// fires; if it ever did, release and let the caller fall back to libc.
+	// Only the head base matters — huge spans' tail slots are unregistered.
+	if(__builtin_expect((uintptr_t)base >= RADIX_VA_LIMIT, 0)) {
+		munmap(base, mmap_size);
+		return nullptr;
+	}
 	return base;
 #endif
 }
@@ -6553,6 +6687,70 @@ PoolAllocatorBase::deallocate_large_va(void *p) noexcept {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 ALLOC_TLS typename PoolAllocator<ALIGN, FS, DUMMY>::ThreadLocalState
     PoolAllocator<ALIGN, FS, DUMMY>::s_tls;
+
+// (§36) Orphan Treiber-stack head — one per (ALIGN, FS, DUMMY)
+// instantiation, shared by every thread.  0 == empty.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+std::atomic<uint64_t> PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_head{0};
+
+// (§36) Push an orphaned (BIT_OWNED clear, m_owner_id == 0) NON-empty
+// chunk onto the per-template Treiber stack.  Called exactly once per
+// chunk at owner-exit (release_dll_chunks_for_thread, non-empty branch).
+// `m_dll_next` becomes the single stack link (the chunk has already left
+// the owner's DLL; m_dll_prev is unused while on the stack).  No chunk
+// memory is ever freed here — that is the invariant that lets the matching
+// orphan_pop dereference `top->m_dll_next` safely without hazard pointers.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void
+PoolAllocator<ALIGN, FS, DUMMY>::orphan_push(
+    PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept {
+	uint64_t oldh = s_orphan_head.load(std::memory_order_relaxed);
+	for(;;) {
+		// Emptiness is the POINTER PART being zero, NOT the whole word:
+		// the ABA tag lives in the low 18 bits and is kept live even when
+		// the stack is empty (so an empty→push→pop cycle never reuses a
+		// stale tag value — critical for the thread-churn workload that
+		// oscillates the stack around empty).
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *oldptr =
+		    ((oldh & ~ORPHAN_TAG_MASK) == 0) ? nullptr
+		    : (PoolAllocator<ALIGN, DUMMY, DUMMY> *)
+		          ((uintptr_t)(oldh & ~ORPHAN_TAG_MASK) - ORPHAN_PTR_BIAS);
+		c->m_dll_next = oldptr;                       // single stack link
+		uint64_t newh = (uint64_t)((uintptr_t)c + ORPHAN_PTR_BIAS)
+		              | (((oldh & ORPHAN_TAG_MASK) + 1) & ORPHAN_TAG_MASK);
+		// release: publish c->m_dll_next + the chunk's prior bitmap clears
+		// to the popping thread's acquire.
+		if(s_orphan_head.compare_exchange_weak(oldh, newh,
+		        std::memory_order_release, std::memory_order_relaxed))
+			return;
+	}
+}
+
+// (§36) Pop one orphan chunk off the per-template Treiber stack, or
+// nullptr if empty.  The 18-bit ABA tag on the head plus the never-freed
+// invariant (orphan chunks stay mapped while on the stack) make the
+// `top->m_dll_next` read safe even if `top` was concurrently re-pushed.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+PoolAllocator<ALIGN, DUMMY, DUMMY> *
+PoolAllocator<ALIGN, FS, DUMMY>::orphan_pop() noexcept {
+	uint64_t oldh = s_orphan_head.load(std::memory_order_acquire);
+	for(;;) {
+		// Empty iff the pointer part is zero (tag bits may be nonzero —
+		// see orphan_push).  Only then is there no node to deref/return.
+		if((oldh & ~ORPHAN_TAG_MASK) == 0) return nullptr;
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *top =
+		    (PoolAllocator<ALIGN, DUMMY, DUMMY> *)
+		        ((uintptr_t)(oldh & ~ORPHAN_TAG_MASK) - ORPHAN_PTR_BIAS);
+		PoolAllocator<ALIGN, DUMMY, DUMMY> *nxt = top->m_dll_next; // safe: never freed
+		// New head keeps the (incremented) ABA tag; pointer part is the
+		// next node, or 0 when the stack becomes empty.
+		uint64_t newh = (nxt ? (uint64_t)((uintptr_t)nxt + ORPHAN_PTR_BIAS) : 0)
+		              | (((oldh & ORPHAN_TAG_MASK) + 1) & ORPHAN_TAG_MASK);
+		if(s_orphan_head.compare_exchange_weak(oldh, newh,
+		        std::memory_order_acquire, std::memory_order_acquire))
+			return top;
+	}
+}
 
 // (Per-template `thread_local TlsGuard s_tls_guard` removed.
 //  AllocThreadExitCleanup::~AllocThreadExitCleanup — fired via the pthread_key dtor
