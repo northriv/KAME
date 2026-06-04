@@ -123,32 +123,13 @@ Tight alloc/free loop, one slot at a time (`tests/bench/bench_loop.c` —
 default-Release builds (no `-flto` / `-march=native` — mimalloc and jemalloc
 ship the same way).  Multi-thread numbers run 4 independent `bench_loop`
 processes in parallel and sum the per-process rates (true intra-process MT
-is measured separately by `bench_xthread`).  Both tables below are
+is measured separately by `bench_xthread`).  All tables below are
 reproducible via `tests/bench/bench_compare.sh` (see that script's
-`--help`).
-
-**x86-64, Intel Xeon @ 2.1 GHz (cloud VM, 4 vCPU), single thread, M ops/s** —
-kamepoolalloc at `37ba998c` (post-§28.5: walk-derived dedicated counter),
-median of 5 runs:
-
-| size    | system   | mimalloc | jemalloc   | **kame** |
-| ------- | -------- | -------- | ---------- | -------- |
-| 64 B    | 210      | 190      | 175        | **278**  |
-| 1 KiB   | 206      | 150      | 167        | **212**  |
-| 16 KiB  | 79       | 105      | 86         | **114**  |
-| 64 KiB  | 81       | 107      | 9          | **135**  |
-| 256 KiB | 87       | 3        | 9          | **126**  |
-| 1 MiB   | 86       | 3        | 9          | **115**  |
-| 4 MiB   | **87**   | 3        | 9          | 54       |
-
-**Same box, 4 parallel processes (aggregate M ops/s)** — kame at `37ba998c`:
-
-| size    | system   | mimalloc | jemalloc   | **kame** |
-| ------- | -------- | -------- | ---------- | -------- |
-| 64 B    | 808      | 760      | 697        | **1154** |
-| 16 KiB  | 324      | 412      | 326        | **454**  |
-| 64 KiB  | 323      | 419      | 34         | **527**  |
-| 1 MiB   | 338      | 12       | 34         | **455**  |
+`--help`).  The x86-64 reference machine is **Ohtaka** (ISSP supercomputer,
+AMD EPYC bare metal — single-tenant, `srun --exclusive`); cloud VM numbers
+were intentionally dropped because shared-tenant scheduling jitter on a
+single allocator could swing 3× between sessions and made any absolute
+comparison unreliable.
 
 **Apple MacBook Air M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
 `13a8c913`, median of 5 runs via `bench_compare.sh`.  Both M3 tables below were
