@@ -61,16 +61,36 @@ static size_t chunks_live() {
     return s.chunks_live;
 }
 
-// True if `cur` exceeds `base` by more than `slack_regions` 32-MiB regions —
-// i.e. the high-water mark is still climbing well past the warm-up plateau.
-static bool grew(size_t base_mib, size_t cur_mib, int slack_regions) {
-    return cur_mib > base_mib + (size_t)slack_regions * 32u;
+// Platform-robust plateau check.  Compares the SECOND-HALF growth (mid ->
+// end), NOT an absolute level.  A healthy allocator is flat once the bounded
+// working set reaches steady state; the stranding bug ramps LINEARLY, so its
+// tail growth is enormous (hundreds of MiB / thousands of chunks) on EVERY
+// platform, while a healthy tail is ~0.  This sidesteps macOS-specific
+// absolute-level differences (16 KiB pages, lazy MADV_FREE, thread scheduling)
+// that would make an absolute-MiB threshold flaky on Mac but pass on Linux.
+// Both metrics are computed identically on all platforms and are immune to
+// MADV_FREE laziness (they count VA regions / claimed units, not RSS).
+static void check_plateau(const char *name,
+                          size_t mid_r, size_t end_r,    // reserved MiB
+                          size_t mid_c, size_t end_c) {  // chunks_live
+    // reserved (32-MiB regions, monotone non-decreasing): allow 1 region jitter.
+    bool r_ramp = end_r > mid_r + 32u;
+    // chunks_live: allow 20% + a small absolute margin for steady-state churn.
+    bool c_ramp = end_c > mid_c + (mid_c / 5u) + 64u;
+    CHECK(!r_ramp && !c_ramp,
+          "%s: NOT a plateau — back-half growth reserved %zu->%zu MiB, "
+          "chunks_live %zu->%zu (stranding/leak: the tail is still ramping)",
+          name, mid_r, end_r, mid_c, end_c);
+    std::printf("  [%s] %s tail (mid->end): reserved %zu->%zu MiB, "
+                "chunks_live %zu->%zu\n",
+                (r_ramp || c_ramp) ? "BAD" : "ok", name,
+                mid_r, end_r, mid_c, end_c);
 }
 
 // ---- Scenario 1: pure churn (worker frees everything) ----
 static void scenario_pure_churn() {
     std::printf("[scenario 1] pure churn (worker frees all before exit)\n");
-    size_t base = 0;
+    size_t mid_r = 0, mid_c = 0;
     for(int cyc = 0; cyc < CYCLES; cyc++) {
         std::thread([&] {
             std::vector<void *> v;
@@ -82,24 +102,19 @@ static void scenario_pure_churn() {
             for(void *p : v) kame_pool_free(p);
         }).join();
 
-        if(cyc == WARMUP) base = reserved_mib();
+        if(cyc == CYCLES / 2) { mid_r = reserved_mib(); mid_c = chunks_live(); }
         if(cyc >= WARMUP && (cyc % 10 == 0 || cyc == CYCLES - 1))
             std::printf("  cyc %3d: reserved=%4zu MiB  chunks_live=%zu\n",
                         cyc, reserved_mib(), chunks_live());
     }
-    size_t end = reserved_mib();
-    CHECK(!grew(base, end, 1),
-          "pure churn: reserved grew %zu -> %zu MiB across %d cycles "
-          "(regions NOT recycled across thread exit)", base, end, CYCLES - WARMUP);
-    std::printf("  [%s] pure churn plateau: %zu -> %zu MiB\n",
-                grew(base, end, 1) ? "BAD" : "ok", base, end);
+    check_plateau("pure churn", mid_r, reserved_mib(), mid_c, chunks_live());
 }
 
 // ---- Scenario 2: survivor churn (KAME-like) ----
 static void scenario_survivor_churn() {
     std::printf("[scenario 2] survivor churn (K scattered survivors held by main)\n");
     std::vector<void *> survivors_prev;   // held across the join boundary by main
-    size_t base = 0;
+    size_t mid_r = 0, mid_c = 0;
     for(int cyc = 0; cyc < CYCLES; cyc++) {
         std::vector<void *> survivors_cur;  // filled by worker, read by main after join
         std::thread([&] {
@@ -117,26 +132,19 @@ static void scenario_survivor_churn() {
         }).join();
 
         // main frees the PREVIOUS cycle's survivors (cross-thread free into the
-        // now-orphaned chunks -> should adopt/release & make them reusable).
+        // now-orphaned chunks -> should reuse/release & make them reusable).
         for(void *p : survivors_prev) kame_pool_free(p);
         survivors_prev.swap(survivors_cur);
 
-        if(cyc == WARMUP) base = reserved_mib();
+        if(cyc == CYCLES / 2) { mid_r = reserved_mib(); mid_c = chunks_live(); }
         if(cyc >= WARMUP && (cyc % 10 == 0 || cyc == CYCLES - 1))
             std::printf("  cyc %3d: reserved=%4zu MiB  chunks_live=%zu  survivors=%zu\n",
                         cyc, reserved_mib(), chunks_live(), survivors_prev.size());
     }
+    // Measure the steady-state tail BEFORE draining the last cycle's survivors
+    // (net-live is bounded throughout, so this is the true plateau sample).
+    check_plateau("survivor churn", mid_r, reserved_mib(), mid_c, chunks_live());
     for(void *p : survivors_prev) kame_pool_free(p);   // drain the last cycle
-
-    size_t end = reserved_mib();
-    // Allow a little slack (2 regions) for fragmentation jitter; a real
-    // stranding bug shows steady multi-region growth far beyond that.
-    CHECK(!grew(base, end, 2),
-          "survivor churn: reserved grew %zu -> %zu MiB across %d cycles "
-          "(orphaned partially-used chunks STRANDED, not reused)",
-          base, end, CYCLES - WARMUP);
-    std::printf("  [%s] survivor churn plateau: %zu -> %zu MiB\n",
-                grew(base, end, 2) ? "BAD" : "ok", base, end);
 }
 
 int main() {
