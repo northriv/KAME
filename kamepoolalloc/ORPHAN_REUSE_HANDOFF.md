@@ -122,7 +122,11 @@ are released the moment their last survivor is freed.
 ## 5. OPEN — unresolved races (this is why TLA is needed)
 
 With all three fixes above, `alloc_stress` (2000 threads, concurrent=32,
-cross_pct=10%, K=32) still fails at **~1.7 % per run** with **two** modes:
+cross_pct=10%, K=32) still fails. Final tally: **5 / 300 runs (1.67 %)** —
+**4× `ORPHAN_RELEASE_BAD` + 1× `sentinel mismatch`**. (Before the per-slot
+version it was 5/220 = 2.27 %, *all* `ORPHAN_RELEASE_BAD`; the version cut the
+ABA mode to ~1.3 % but did **not** eliminate it, and the sentinel mode is
+new-or-newly-exposed.) The **two** modes:
 
 * **`ORPHAN_RELEASE_BAD` (ABA) — REDUCED by versioning but NOT eliminated.**
   e.g. run 116/300: `flags=8000_0001` (BIT_OWNED set + MASK_CNT 1) at
