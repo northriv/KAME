@@ -120,3 +120,98 @@ design is the complete root-cure: it makes `lookup_chunk` *reject* a
 stale/recycled resolution, so any residual double-payout source can no
 longer be amplified into out-of-range corruption — it degrades to a
 safe fallthrough.
+
+---
+
+## §36b orphan-reuse array — TLA+ verification (June 2026)
+
+`OrphanReuse_36b*.tla` models the candidate §36b design from
+`kamepoolalloc/ORPHAN_REUSE_HANDOFF.md` (versioned per-template slot
+array + `m_orphan_disp` arbiter), commissioned to fix the §36
+orphan-chunk LEAK without re-introducing corruption.  The C++ prototype
+on branch `claude/youthful-mayer-FUhq2` plateaus the leak but
+stress-tests show **5/300 (1.67 %) corruption** = 4× ABA-style
+`ORPHAN_RELEASE_BAD` + 1× sentinel mismatch.  This TLA+ work pins down
+both modes.
+
+| Spec | Configuration | Result |
+|---|---|---|
+| `OrphanReuse_36b.tla` | as-documented design | **VIOLATION** (`Inv_NoBadRelease`) at depth 6 |
+| `OrphanReuse_36b_REOWNED.tla` | + PoP2 stores REOWNED (not OWNED) | **VIOLATION** at depth 9 — deeper race |
+| `OrphanReuse_optC.tla` | drop the array, restore release-on-empty | **clean** (6 states) |
+
+### Race 1 — ABA at PoP2 (`OrphanReuse_36b.tla`, depth 6)
+
+Reproduces the 1.3 % `ORPHAN_RELEASE_BAD` mode.
+
+```
+1. Init             chunk on slot 0, mask_cnt=1, bit_owned=F
+2. PopP0(t1, 0)     slot 0 emptied, reown_pc[t1]=got_c
+                    (disp still 1 — STALE)
+3. FreeDecToZero    bit_owned=F at this instant → pending_claim[t1]=TRUE
+4. PopP1(t1)        bit_owned=TRUE  ← popper re-acquires ownership
+5. PopP2(t1)        disp = OWNED
+6. ClaimOWNED(t1)   disp==OWNED → CAS OWNED→RELEASED succeeds
+                    bad_release because bit_owned=TRUE  💥
+```
+
+**Root cause:** `disp = OWNED` is overloaded — it means BOTH
+"never-pushed, ready for orphan_push" AND "popped + re-armed".  The
+freer's claim-for-release CAS can't tell them apart.
+
+### Race 2 — life-cycle-spanning ABA (`OrphanReuse_36b_REOWNED.tla`, depth 9)
+
+The naïve fix (PoP2 stores REOWNED instead of OWNED) closes Race 1
+but exposes the underlying *temporal* defect:
+
+```
+1-4. (as before, with disp = 1 stale, pending_claim[t1]=TRUE,
+                       bit_owned=TRUE)
+5.  ReownAllocSlot(t1)    mask_cnt 0→1 (allocator hands out a fresh slot)
+6.  PopP2(t1)             disp = REOWNED
+7.  OwnerExit_NonEmpty    bit_owned=F, disp=PUSHING
+8.  PushP1(t1, 0)         slot 0 = (C, ver=3), disp = 1
+9.  ClaimSLOT(t1, 0)      reads (C, v=3), CAS succeeds → RELEASE
+                          bad_release because mask_cnt=1 (live!)  💥
+```
+
+The slot version went 1 → 2 (PopP0) → 3 (PushP1).  The freer's
+`pending_claim[t1]` was set at step 3 but never carried a captured
+slot version — at step 9 it just reads `(C, *)` and matches whatever
+is there.  This matches the stress-test's sentinel-mismatch mode.
+
+**Fundamental defect:** the per-slot version protects against a
+same-slot ABA between *adjacent* push/pop ops, but cannot detect a
+*full life-cycle* (`pop → re-own → exit → re-push`) since the freer's
+`atomicDecAndTest()==true` return value carries no chunk-generation /
+captured-version with it.  The §36b design needs an additional epoch
+or generation captured at dec instant, matched at claim CAS — non-
+trivial.
+
+### Verdict
+
+`OrphanReuse_optC.tla` confirms the handoff's §8 recommendation: drop
+the array entirely; restore pre-§36 release-on-empty in the cross-
+thread dec-to-0 path.  This is **provably free of `bad_release`** in
+the model, matches the on-branch `1e65bdd` ("option B") prototype's
+empirical leak-plateau on Linux churn, and gives up only the in-place
+reuse of non-empty orphans (their free slots drain + recycle warm
+instead of being re-handed-out by a new owner).
+
+If §36b reuse is later judged essential, the model points at the only
+sound completion: capture `<chunk_gen, slot_ver>` at the dec-and-test
+instant (snapshot returned by `atomicDecAndTest`'s extended variant)
+and require the claim CAS to match BOTH the disp slot AND the captured
+generation.  Without that, the freer cannot distinguish "release the
+chunk I just decremented to 0" from "release whatever chunk happens to
+sit at this disp now".
+
+### Running
+```
+java -cp tla2tools.jar tlc2.TLC -config OrphanReuse_36b_2thr_mc.cfg OrphanReuse_36b.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanReuse_36b_REOWNED_2thr_mc.cfg OrphanReuse_36b_REOWNED.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanReuse_optC_2thr_mc.cfg OrphanReuse_optC.tla
+```
+
+All three terminate in <1s on a single core.  No model-checker tuning
+required — the state space is small (≤ a few hundred distinct states).
