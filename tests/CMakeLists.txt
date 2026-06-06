@@ -94,6 +94,14 @@ endforeach()
 add_executable(atomic_intrusive_dispose_test atomic_intrusive_dispose_test.cpp)
 target_link_libraries(atomic_intrusive_dispose_test Threads::Threads)
 
+# (§36b) Self-referential INTRUSIVE node in a lock-free orphan list — the
+# prototype for the pool's orphan-chunk reuse.  Proves the explicit ref_traits
+# specialisation forces intrusive on a self-referential type and that push /
+# pop / mid-unlink are memory-safe under SMR + the custom disposer.  Header-only
+# + std::thread (no libkamepoolalloc, no pool).
+add_executable(atomic_intrusive_dll_test atomic_intrusive_dll_test.cpp)
+target_link_libraries(atomic_intrusive_dll_test Threads::Threads)
+
 # Pure-C smoke test of the kame_pool.h public ABI.  No C++ support
 # files — exercises only the C-linkage public surface.
 if(USE_KAME_ALLOCATOR)
@@ -210,6 +218,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME malloc_intercept_test COMMAND malloc_intercept_test)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
     add_test(NAME atomic_intrusive_dispose_test COMMAND atomic_intrusive_dispose_test)
+    add_test(NAME atomic_intrusive_dll_test COMMAND atomic_intrusive_dll_test)
     # alloc_thread_churn scenario 2 asserts the reserved-region count PLATEAUS
     # across thread-churn cycles.  `reserved` = populated_region_count × 32 MiB
     # and is a monotonic high-water mark (regions are not munmap'd at runtime),
