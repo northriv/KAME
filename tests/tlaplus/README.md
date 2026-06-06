@@ -215,3 +215,97 @@ java -cp tla2tools.jar tlc2.TLC -config OrphanReuse_optC_2thr_mc.cfg OrphanReuse
 
 All three terminate in <1s on a single core.  No model-checker tuning
 required — the state space is small (≤ a few hundred distinct states).
+
+---
+
+## OrphanChain_atomicshared — refcount-as-generation, the sound completion (June 2026)
+
+`OrphanChain_atomicshared.tla` is the successor to §36b.  The §36b verdict
+above said in-place orphan reuse is only sound if a `<chunk_gen, slot_ver>`
+generation is *captured* at the dec-and-test instant and matched at the
+claim CAS.  This spec realises exactly that — but with the **verified
+atomic_shared_ptr REFCOUNT as the captured generation**, instead of a
+hand-rolled version/disp word.  The intrusive singly-linked orphan/reuse
+chain is `atomic_shared_ptr` (head) / `atomic_shared_ptr` next; the
+local_shared_ptr pin held across the dec/claim *is* the generation capture,
+and `try_promote` (acquire-if-nonzero) is the generation-matched claim.
+
+Layer 0 (`../../../kamestm/tests/tlaplus/atomic_shared_ptr.tla`) already
+proves the refcount/CAS primitive.  This spec **abstracts** it and verifies
+the chain protocol + the lifetime gate that sit on top:
+
+- **Self-ref on `m_filled`** — a chunk holds one structural ref to itself
+  while it has live slots, dropped at the `m_filled -> 0` edge (one bump per
+  non-empty/empty edge, *not* per slot — the hot path never refcounts).
+  This **decouples chunk lifetime from chain membership**.
+- **Multiple sweepers, safe-side only** — any thread may relink past a dead
+  successor (CAS, reachability-preserving) or idempotently null a dead
+  node's own `next`.  Because lifetime is decoupled, every structural race
+  (lost update, tail-loss, a live node falling off the chain, a dead node
+  surviving a round) costs only a *reuse hint* — never a leak or a UAF.  No
+  single-sweeper serialization.
+- **Release vs revival** — the one non-safe-side edge.  Revive (reuse) is
+  gated by `StructRefs > 0` (try_promote success); Release fires at
+  `StructRefs = 0`.  Mutually exclusive in every state ⇒ a revived chunk is
+  never released, a released chunk never revived.  The atomicity of the
+  try_promote-vs-final-unref boundary is Layer 0's, cited not re-proved.
+  This single atomic gate is what §36b's 3-step (PoP0/1/2) re-own could not
+  give — and is why this spec is **CLEAN where `OrphanReuse_36b` is not**.
+
+Microscopic model: one chain `head -> N1 -> N2(dead) -> N3 -> NIL`,
+`m_filled ∈ {0,1}` (only the zero boundary drives the protocol), revivals
+bounded by `MaxGen` (precondition counter — no `StateConstraint`).  Threads
+are not modelled: every op is a single atomic memory access with no
+thread-local pc, so interleaving node-indexed steps already covers N
+concurrent sweepers (the multi-step §36b re-own collapses to one atomic
+`try_promote`).
+
+| Cfg | `SelfRef` | Result |
+|---|---|---|
+| `OrphanChain_atomicshared_selfref_mc.cfg`   | TRUE  | **CLEAN** — 269 distinct; `Inv_NoBadRelease`, `Inv_LiveNeverReleased`, `Inv_NoDanglingNext`, `Inv_HeadAlive`, `Inv_ReleasedNoIncoming`, `Inv_Acyclic` all hold |
+| `OrphanChain_atomicshared_noselfref_mc.cfg` | FALSE | **VIOLATION** (`Inv_NoBadRelease`, depth 3) — proves the self-ref is load-bearing |
+| `OrphanChain_atomicshared_live_mc.cfg`      | TRUE  | **Liveness HOLDS** (no leak) under WF on the reclaim actions |
+| `OrphanChain_atomicshared_push_mc.cfg`      | TRUE  | + head insert (`MaxPush=1`): **CLEAN**, 541 distinct — the Push × HeadAdvance race preserves every invariant |
+
+### Head insert (Push) — covered, and why it is mostly Layer 0
+Owner-exit re-publishes a non-empty orphan by CASing it at the head
+(Treiber push).  Its races decompose as: **Push-vs-Push and the head-cell
+ABA are Layer 0** (`atomic_shared_ptr.tla` — the refcount/pin kills the
+ABA); **Push vs interior sweep is disjoint** (Push touches only
+`{head, new->next}`); and **Push only ADDS refs / forward links
+(monotone)**, so it cannot of itself produce a bad release, a dangling
+link, or a cycle.  The one genuinely new interleaving — **Push vs
+HeadAdvance, both CAS `head`** — is modelled in `*_push_mc.cfg`
+(`MaxPush=1`) and is CLEAN (541 distinct), confirming the protocol
+invariants survive that combination.  Re-pushing a fallen-off LIVE orphan
+also shows fall-off is recoverable.
+
+### Why the `SelfRef=FALSE` knob violates (the load-bearing proof)
+```
+1. Init                head -> N1(live) -> N2(dead) -> N3(live) -> NIL
+2. SelfResetNext(N2)    N2 nulls its own next  (N2 -> NIL)
+                        => N3's only incoming ref (from N2) is gone
+3. Release(N3)          StructRefs(N3)=0 (no chain-in, no self-ref since
+                        SelfRef=FALSE) -> deleter fires while m_filled=1  💥
+```
+A live successor that falls off the chain is released with live slots.
+With `SelfRef=TRUE` the self-ref keeps `StructRefs(N3) ≥ 1`, so the same
+trace is *safe-side* (N3 lives off-chain until it drains, then releases).
+
+### Verdict
+The §36b array (`OrphanReuse_36b`) **violates**; `OrphanReuse_optC` is
+**clean but gives up reuse**; `OrphanChain_atomicshared` **recovers reuse
+and is clean** — the refcount is the generation capture the §36b verdict
+demanded, and the self-ref on `m_filled` is what makes the whole multi-
+sweeper chain safe-side.  This is the formal backing for the
+"orphan-atomicshared" chunk-release redesign.
+
+### Running
+```
+cp ../../../kamestm/tests/tlaplus/tla2tools.jar .
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_atomicshared_selfref_mc.cfg   OrphanChain_atomicshared.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_atomicshared_noselfref_mc.cfg OrphanChain_atomicshared.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_atomicshared_live_mc.cfg      OrphanChain_atomicshared.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_atomicshared_push_mc.cfg      OrphanChain_atomicshared.tla
+```
+All terminate in <1s on a single core.
