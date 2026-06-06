@@ -51,7 +51,9 @@ SOURCES += allocator.cpp
 HEADERS += \
     allocator.h \
     allocator_prv.h \
+    atomic.h \
     atomic_mfence.h \
+    atomic_smart_ptr.h \
     kame_pool.h
 
 macx {
