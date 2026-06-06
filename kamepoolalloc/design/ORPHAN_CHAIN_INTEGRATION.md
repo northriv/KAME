@@ -20,6 +20,12 @@ Branch: continuation of `orphan-atomicshared` (which already provides the
   `released  <=>  StructRefs = 0  <=>  no chain ref AND no pin AND MASK_CNT==0`.
 - **Multiple sweepers, safe-side only**; **revival vs release** mutually
   exclusive via try_promote (`StructRefs>0`) vs release (`StructRefs=0`).
+- **All chain ops are single-node / in-place** — push 1 at head, **pop 1 at
+  head** (reuse adopts ONE chunk, never the whole list), `scrub` relinks
+  in place.  No detach-and-reprocess / whole-list steal.  Reclaim
+  completeness of mid-chain empties comes from `scrub`'s full walk, not from
+  pop.  (The model's `Revive` is unconstrained — adopt any node, keep or
+  unlink — so head-only pop is a verified-clean subset, a fortiori.)
 - TLC: `selfref` CLEAN (269), `noselfref` VIOLATION depth 3 (self-ref is
   load-bearing), `live` no-leak, `push` (head insert) CLEAN (541).
 
@@ -75,10 +81,15 @@ final flip.
   chunk released when refcount hits 0.  *Gate:* reserved plateau (macOS
   too — re-check the churn gate `tests/CMakeLists.txt`).
 
-- **Stage 5 — reuse adopt.**  Replace `orphan_pop` + `BIT_OWNED` claim with
-  `try_promote` adopt from the chain (acquire-if-nonzero = the revival
-  gate).  Non-empty orphans adopted whole; the per-thread DLL re-splice as
-  today.  *Gate:* alloc_stress + bench.
+- **Stage 5 — reuse adopt (single head node).**  Replace `orphan_pop` +
+  `BIT_OWNED` claim with a single Treiber **head pop** + `try_promote`
+  (acquire-if-nonzero = the revival gate).  Pops exactly ONE node — the
+  whole chunk with its surviving slots — **NOT the whole list**; the rest
+  stay on the chain for other adopters / `scrub`.  The adopted node leaves
+  the chain and re-splices into the per-thread DLL as today.  Reclaim
+  completeness of mid-chain empties is `scrub`'s job (Stage 6), not pop's.
+  (Matches the PoC `pop_head()`; detach-and-reprocess / whole-list steal is
+  NOT used.)  *Gate:* alloc_stress + bench.
 
 - **Stage 6 — sweep compaction.**  `orphan_scrub()`: walk the chain holding
   `local_shared_ptr` pins, CAS `pred->m_orphan_next` past empty nodes,
