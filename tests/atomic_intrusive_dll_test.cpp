@@ -66,18 +66,15 @@ struct Node;   // forward declaration so the explicit ref_traits spec below
                // atomic_shared_ptr<Node> (which would otherwise take the
                // incomplete-T → non-intrusive SFINAE fallback).
 
-// (1) EXPLICIT ref_traits specialisation — force INTRUSIVE for the
-// self-referential `Node`.  Hard-codes the categories (no `is_base_of`, which
-// would need `Node` complete) and `Ref = Node`.  This is the template the
-// allocator mirrors with `ref_traits<PoolAllocator<A,F,D>>`.
+// (1) force_intrusive_ref opt-in — force INTRUSIVE for the self-referential
+// `Node` WITHOUT a `sizeof(Node)` completeness probe (which would be a hard
+// error mid-definition).  This is the exact mechanism the allocator uses for
+// the chunk via `force_intrusive_ref<PoolAllocator<A,F,D>>`.  (A full
+// `ref_traits<Node>` specialisation would also work for a concrete type, but
+// the allocator's chunk is a class TEMPLATE — only the opt-in trait composes
+// there, so the PoC exercises the opt-in path.)
 template <>
-struct ref_traits<Node> {
-    static constexpr bool is_intrusive = true;
-    static constexpr bool is_emplaced  = false;
-    static constexpr bool is_strict    = false;
-    using Ref = Node;
-    static constexpr bool has_weak = false;
-};
+struct force_intrusive_ref<Node> : std::true_type {};
 
 //! Self-referential intrusive (atomic_countable) stand-in for a pool chunk.
 struct Node : atomic_countable {
