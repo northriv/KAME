@@ -339,6 +339,23 @@ struct ref_traits<T, std::void_t<decltype(sizeof(T))>> {
     static constexpr bool has_weak = !is_intrusive && !is_strict;
 };
 
+//! (§36b) Opt-in custom disposer for the INTRUSIVE mode (`atomic_countable`).
+//! If `T` provides a static `T::atomic_intrusive_dispose(T*)`, the `deleter`
+//! calls it — with the object still LIVE (so it can read members, e.g. a
+//! region/chunk size) — INSTEAD of the heap `delete p` when the intrusive
+//! refcnt reaches 0.  This lets a placement-new'd pool-region object dispose
+//! via its own teardown (run `~T()` + `deallocate_chunk`) rather than
+//! `::operator delete`.  It affects ONLY the terminal, single-threaded release
+//! leaf (the unique last releaser) — it does NOT touch the lock-free
+//! refcount / CAS / tagged-local-ref protocol, so the GenMC/TLA verification
+//! of the concurrency core is unchanged.
+template <typename T, typename = void>
+struct has_intrusive_dispose : std::false_type {};
+template <typename T>
+struct has_intrusive_dispose<
+    T, std::void_t<decltype(T::atomic_intrusive_dispose(std::declval<T*>()))>>
+    : std::true_type {};
+
 //! \brief Single base class for atomic_shared_ptr / local_shared_ptr.
 //! Mode is driven by `ref_traits<T>`; all four paths
 //! (default / strict / emplaced / intrusive) share this template.
@@ -365,8 +382,14 @@ protected:
 
     static int deleter(Ref *p) noexcept {
         if constexpr (Traits::is_intrusive) {
-            //!< T's dtor runs (incl. ~atomic_countable's `assert(refcnt == 0)`).
-            delete p;
+            if constexpr (has_intrusive_dispose<T>::value) {
+                //!< (§36b) custom region disposer — object still LIVE so it
+                //!< can read its size etc., then run ~T() + deallocate_chunk.
+                T::atomic_intrusive_dispose(p);
+            } else {
+                //!< T's dtor runs (incl. ~atomic_countable's `assert(refcnt == 0)`).
+                delete p;
+            }
         } else if constexpr (Traits::has_weak) {
             //!< Two-counter release: destroy T, drop implicit weak.
             Ref::release_strong_zero(p);
