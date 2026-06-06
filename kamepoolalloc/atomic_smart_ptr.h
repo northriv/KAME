@@ -301,14 +301,45 @@ template <typename X> class local_weak_ptr;
 //!
 //! Trade-off: self-referential types lose the intrusive/emplaced/
 //! strict optimisations.  Intrusive (`atomic_countable`) is naturally
-//! incompatible — the user-side refcount member needs T complete —
-//! and `atomic_emplaced` just saves the second allocation, so the
-//! pay-back is bounded.  The first instantiation of `ref_traits<T>`
-//! wins (template-instantiation caching is per-args), so any other
-//! user of `local_shared_ptr<T>` in the same TU sees the same
-//! "treat as non-intrusive" decision.
+//! incompatible via AUTO-detection — the `is_base_of` marker probe needs T
+//! complete — but a SELF-REFERENTIAL intrusive type (one that embeds an
+//! `atomic_shared_ptr<T>` link inside itself, e.g. a lock-free list/DLL node)
+//! can OPT IN explicitly via `force_intrusive_ref<T>` (below), which is
+//! consulted WITHOUT requiring T complete.  `atomic_emplaced` just saves the
+//! second allocation, so its pay-back is bounded.  The first instantiation of
+//! `ref_traits<T>` wins (template-instantiation caching is per-args), so any
+//! other user of `local_shared_ptr<T>` in the same TU sees the same decision.
+
+//! (§36b) Opt-in to force the INTRUSIVE control block for a type that the
+//! auto-detection cannot see as intrusive because it is INCOMPLETE at the
+//! point of first use — specifically a SELF-REFERENTIAL intrusive type holding
+//! an `atomic_shared_ptr<T>` link inside itself.  Specialise to `std::true_type`
+//! (before the first use of `atomic_shared_ptr<T>` / `local_shared_ptr<T>`):
+//!
+//!     template <...> struct force_intrusive_ref<MyNode<...>> : std::true_type {};
+//!
+//! The forced type then takes the intrusive `Ref = T` path (no separate control
+//! block; disposal via `T::atomic_intrusive_dispose` if present, else `delete`),
+//! and `local_weak_ptr<T>` is disabled (`has_weak == false`).  T must supply the
+//! intrusive contract — a `typedef ... Refcnt;` and an `atomic<Refcnt> refcnt;`
+//! member — exactly as `atomic_countable` would; it need NOT inherit
+//! `atomic_countable` (so it can avoid that base's `~assert(refcnt==0)` when the
+//! type has non-refcount disposal paths of its own).
+//!
+//! This is a COMPILE-TIME trait-dispatch hook only; it does NOT touch the
+//! lock-free refcount / CAS / tagged-local-ref SMR core (its GenMC/TLA
+//! verification is unaffected).
+template <typename T> struct force_intrusive_ref : std::false_type {};
+
+//! AUTO-detection traits (used only for NON-forced types).  A `sizeof(T)`
+//! completeness gate distinguishes the two: incomplete T → non-intrusive
+//! gref_<T> fallback; complete T → marker-base (`is_base_of`) detection.
+//! Kept SEPARATE from the dispatcher `ref_traits` below so that the
+//! `sizeof(T)` probe is NEVER substituted for a force-intrusive type (which is
+//! typically self-referential and INCOMPLETE at first use — a `sizeof` there is
+//! a hard error, not soft SFINAE, because it happens mid-definition).
 template <typename T, typename = void>
-struct ref_traits {
+struct ref_traits_auto {
     //! Incomplete T: default to plain non-intrusive gref_<T>.
     static constexpr bool is_intrusive = false;
     static constexpr bool is_emplaced  = false;
@@ -318,7 +349,7 @@ struct ref_traits {
 };
 
 template <typename T>
-struct ref_traits<T, std::void_t<decltype(sizeof(T))>> {
+struct ref_traits_auto<T, std::void_t<decltype(sizeof(T))>> {
     //! Complete T: full marker-base detection.
     static constexpr bool is_intrusive
         = std::is_base_of<atomic_countable, T>::value;
@@ -337,6 +368,26 @@ struct ref_traits<T, std::void_t<decltype(sizeof(T))>> {
     //!< Whether `local_weak_ptr<T>` is allowed (gref_weak_base_ is in
     //!< the Ref chain).  Intrusive and strict opt out.
     static constexpr bool has_weak = !is_intrusive && !is_strict;
+};
+
+//! Dispatcher.  The `bool Forced` second parameter — defaulted from
+//! `force_intrusive_ref<T>` (which needs only T's template-id, NOT a complete
+//! T) — picks between the forced-intrusive partial spec (NO `sizeof` anywhere,
+//! safe for incomplete self-referential types) and the auto-detection path.
+template <typename T, bool Forced = force_intrusive_ref<T>::value>
+struct ref_traits : ref_traits_auto<T> {};
+
+//! (§36b) Forced-intrusive — `Ref = T` (no separate control block; disposal via
+//! `T::atomic_intrusive_dispose` if present, else `delete`), `local_weak_ptr<T>`
+//! disabled.  Reached WITHOUT a `sizeof(T)` probe, so it is valid even when T is
+//! incomplete (a self-referential intrusive list/DLL node).
+template <typename T>
+struct ref_traits<T, true> {
+    static constexpr bool is_intrusive = true;
+    static constexpr bool is_emplaced  = false;
+    static constexpr bool is_strict    = false;
+    using Ref = T;
+    static constexpr bool has_weak = false;
 };
 
 //! (§36b) Opt-in custom disposer for the INTRUSIVE mode (`atomic_countable`).
