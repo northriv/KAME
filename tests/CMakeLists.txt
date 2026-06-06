@@ -88,6 +88,12 @@ foreach(t IN LISTS kamepoolalloc_test_names)
     target_link_libraries(${t} ${test_link_libs})
 endforeach()
 
+# (§36b) Intrusive atomic_shared_ptr + custom-disposer mode test.  Header-only
+# (atomic_smart_ptr.h, relocated here) + std::thread; the intrusive mode
+# allocates NO control block, so it needs neither libkamepoolalloc nor the pool.
+add_executable(atomic_intrusive_dispose_test atomic_intrusive_dispose_test.cpp)
+target_link_libraries(atomic_intrusive_dispose_test Threads::Threads)
+
 # Pure-C smoke test of the kame_pool.h public ABI.  No C++ support
 # files — exercises only the C-linkage public surface.
 if(USE_KAME_ALLOCATOR)
@@ -203,6 +209,7 @@ if(USE_KAME_ALLOCATOR)
     add_test(NAME c_api_test COMMAND c_api_test)
     add_test(NAME malloc_intercept_test COMMAND malloc_intercept_test)
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
+    add_test(NAME atomic_intrusive_dispose_test COMMAND atomic_intrusive_dispose_test)
     # alloc_thread_churn scenario 2 asserts the reserved-region count PLATEAUS
     # across thread-churn cycles.  `reserved` = populated_region_count × 32 MiB
     # and is a monotonic high-water mark (regions are not munmap'd at runtime),
