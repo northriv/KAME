@@ -943,9 +943,11 @@ protected:
 	//! claim bits, writes `s_back_offset[base..] = (u | back_off_flag)`,
 	//! and returns the chunk_base address (NO chunk_header / writeBarrier
 	//! — the caller writes those).  Returns nullptr if the region cap is
-	//! reached.  Used by the dedicated single-slot large path
-	//! (`allocate_dedicated_chunk`); the compile-time bucket templates
-	//! keep their own walk in `allocate_chunk<ALLOC>()` for now.
+	//! reached.  (§74) The SINGLE region-walk + mmap + bitmap-claim site:
+	//! used by both the dedicated single-slot large path
+	//! (`allocate_dedicated_chunk`, back_off_flag 0x80) AND the compile-time
+	//! bucket templates (`allocate_chunk<ALLOC>()`, back_off_flag 0, calling
+	//! with `chunk_units = ALLOC::CHUNK_UNITS`).
 	static char *claim_chunk(unsigned chunk_units,
 	                         std::uint8_t back_off_flag) noexcept;
 	//! Release a chunk back to PROT_NONE.  Clears the chunk header
