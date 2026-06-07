@@ -268,6 +268,48 @@ identical; full alloc_stress at step 4.  **Risk: highest of all steps**
 (core field type change across the DLL subsystem) — execute as a focused unit
 with build iteration, not rushed.
 
+## Step 3 BLOCKER (found by build) — owner-ref TLS home vs trivial-TLS
+
+Attempted step 3 (m_dll_next / dll_head → local_shared_ptr).  Most errors were
+mechanical (`.get()` for reads, local_shared_ptr `=` for the ~8 mutation
+sites), BUT one is a genuine design blocker:
+
+```
+allocator.cpp:6693: error: type of thread-local variable has non-trivial destruction
+```
+
+Making `dll_head` a `local_shared_ptr` gives `ThreadLocalState s_tls`
+(`ALLOC_TLS` = `__thread`) a non-trivial destructor — illegal for `__thread`
+(and entangled with KAME_FAST_TSD + the teardown-crash machinery already fixed
+in 8dd6365d/§ teardown).  The head chunk's owner-ref needs a per-thread
+`local_shared_ptr` home, which hits the trivial-TLS constraint.
+
+Why the obvious escapes don't work:
+- **Spin-drain pins at adopt** (pop, wait until refcnt==1, then re-own raw):
+  UNRELIABLE — a manual read of the global `refcnt` can't see pins parked in
+  atomic_smart_ptr cell local-tags (the same split-refcount issue that killed
+  the manual self-ref).  Only `release_tag_ref_` knows the true count.
+- **Keep dll_head raw + owner-ref elsewhere**: the owner-ref is fundamentally
+  a per-thread persistent `local_shared_ptr` — its natural home IS the TLS.
+- **Fresh chunks don't need it** (no residual pins, owner-managed) — true, but
+  ADOPTED chunks (from the chain, may carry residual pins) DO, and that ref
+  must persist while owned ⇒ per-thread home ⇒ TLS.
+
+Leading resolution (needs a decision + careful verification):
+- Change `ALLOC_TLS s_tls` to C++ `thread_local` (non-trivial type allowed),
+  and **explicitly drop the owner-refs (clear dll_head / walk-drop m_dll_next)
+  in the registered `AllocThreadExitCleanup` callback** — which runs BEFORE
+  the dangerous teardown phase — so the TLS dtor is a runtime no-op (dll_head
+  already null).  MUST verify the KAME_FAST_TSD fast path (which reads s_tls
+  via a TSD-slot offset assuming the current layout) still works, and that no
+  owner-ref drop disposes a chunk during teardown (bucket_release_chunk at
+  teardown = the crash territory).
+- Alternative: a separate `thread_local` just for the owner-ref handles,
+  drained explicitly at owner-exit, keeping the hot `s_tls` `__thread` + raw.
+
+Until decided, step 3 is BLOCKED; steps 1–2 (chain push) stand.  The flag-OFF
+shipping path is unaffected throughout (all behind KAME_ORPHAN_CHAIN).
+
 ## Risks / watch-items
 
 - **Hot path**: Stage 2's boundary branch must NOT add an atomic to the
