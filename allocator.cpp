@@ -1322,7 +1322,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			FUINT newv = oldv | one; //set a flag.
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
-					this->inc_live_slots();   // (orphan-chain) MASK_CNT++ w/ self-ref edge
+					atomicInc( &this->m_flags_packed);
 				if(newv == ~(FUINT)0u) {
                     atomicInc( &this->m_flags_filled_cnt);
                     // Proactive Phase 3 trigger: when this chunk hits 4/5
@@ -1522,7 +1522,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			FUINT newv = oldv | ones; //filling with N ones (all user bits).
 			if(atomicCompareAndSet(oldv, newv, pflag)) {
 				if(oldv == 0)
-					this->inc_live_slots();   // (orphan-chain) MASK_CNT++ w/ self-ref edge
+					atomicInc( &this->m_flags_packed);
 				// (§max-n-gate) Widened m_flags_filled_cnt for FS=false:
 				// count words that can no longer host a MAX_N-contiguous-
 				// zero run (not just words at 0xFF...F).  Smaller-N
@@ -1788,7 +1788,7 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 		// never reaches 0).  The return value is intentionally ignored.
 		[this](FUINT oldv, FUINT newv) {
 			if(newv == 0 && oldv != 0)
-				(void)this->dec_live_slots();   // (orphan-chain) MASK_CNT-- w/ self-ref drop on 1->0
+				(void)atomicDecAndTest(&this->m_flags_packed);
 			// (§max-n-gate) Symmetric with the widened atomicInc in
 			// allocate_pooled — decrement when a bit-clear restores
 			// MAX_N-contiguous-zero room that the word didn't have
@@ -1932,7 +1932,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(
 			if(oldv == ~(FUINT)0u)
 				atomicDec( &this->m_flags_filled_cnt);
 			if(newv == 0 && oldv != 0)
-				(void)this->dec_live_slots();   // (orphan-chain) MASK_CNT-- w/ self-ref drop on 1->0
+				(void)atomicDecAndTest(&this->m_flags_packed);
 		});
 	return n;
 }

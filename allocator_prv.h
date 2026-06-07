@@ -171,20 +171,6 @@ inline bool atomicDecAndTest(T *target) noexcept {
     if constexpr (sizeof(T) == 8) return _InterlockedDecrement64((long long volatile *)target) == 0;
     else return _InterlockedDecrement((long volatile *)target) == 0;
 }
-//! Atomic fetch-and-add / fetch-and-sub.  Returns the OLD value (before the
-//! op) so a caller can detect an exactly-once value-boundary crossing (e.g.
-//! MASK_CNT 0->1 / 1->0 for the orphan-chain self-ref) atomically.
-template <typename T>
-inline T atomicFetchAdd(T *target, T value) noexcept {
-    if constexpr (sizeof(T) == 8)
-        return (T)_InterlockedExchangeAdd64((long long volatile *)target, (long long)value);
-    else
-        return (T)(long)_InterlockedExchangeAdd((long volatile *)target, (long)value);
-}
-template <typename T>
-inline T atomicFetchSub(T *target, T value) noexcept {
-    return atomicFetchAdd(target, (T)(~value + (T)1));   // add two's-complement(-value)
-}
 //! Atomic fetch-and-AND.  Returns the OLD value (before AND).
 template <typename T>
 inline T atomicFetchAnd(T *target, T value) noexcept {
@@ -218,17 +204,6 @@ inline void atomicDec(T *target) noexcept {
 template <typename T>
 inline bool atomicDecAndTest(T *target) noexcept {
     return __sync_sub_and_fetch(target, 1) == 0;
-}
-//! Atomic fetch-and-add / fetch-and-sub.  Returns the OLD value (before the
-//! op) so a caller can detect an exactly-once value-boundary crossing (e.g.
-//! MASK_CNT 0->1 / 1->0 for the orphan-chain self-ref) atomically.
-template <typename T>
-inline T atomicFetchAdd(T *target, T value) noexcept {
-    return __sync_fetch_and_add(target, value);
-}
-template <typename T>
-inline T atomicFetchSub(T *target, T value) noexcept {
-    return __sync_fetch_and_sub(target, value);
 }
 //! Atomic fetch-and-AND.  Returns the OLD value (before AND) so the
 //! caller can compute the resulting bit pattern.  Used by an earlier change
@@ -1873,38 +1848,6 @@ protected:
 	//! aligns with the per-thread DLL head/tail above.
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_prev{nullptr};
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_next{nullptr};
-
-	// (Orphan-chain Stage 2) live-slot count inc/dec with self-ref accounting.
-	// Flag-OFF: an inline wrapper that folds to the prior atomicInc /
-	// atomicDecAndTest (identical codegen, same discarded result).  Flag-ON:
-	// fetch-and-return detects the MASK_CNT 0<->nonzero edge EXACTLY ONCE
-	// (BIT_OWNED in bit31 is preserved by +/-1; masked off) and adds/drops the
-	// chunk's self-ref on refcnt, so a non-empty chunk's refcnt never reaches 0
-	// via a chain-only unref.  The edge is independent of BIT_OWNED.  (In
-	// Stage 2 the self-ref is instrumentation only — it does not yet drive the
-	// deleter; that is wired in Stage 4.)
-	inline void inc_live_slots() noexcept {
-#if KAME_ORPHAN_CHAIN
-		std::uint32_t oldp = atomicFetchAdd(&this->m_flags_packed, (std::uint32_t)1u);
-		if((oldp & MASK_CNT) == 0u)
-			this->refcnt.fetch_add(1, std::memory_order_relaxed);
-#else
-		atomicInc(&this->m_flags_packed);
-#endif
-	}
-	//! Returns true iff this dec took the chunk empty (MASK_CNT 1->0).
-	inline bool dec_live_slots() noexcept {
-#if KAME_ORPHAN_CHAIN
-		std::uint32_t oldp = atomicFetchSub(&this->m_flags_packed, (std::uint32_t)1u);
-		if((oldp & MASK_CNT) == 1u) {
-			this->refcnt.fetch_sub(1, std::memory_order_acq_rel);
-			return true;
-		}
-		return false;
-#else
-		return atomicDecAndTest(&this->m_flags_packed);
-#endif
-	}
 
 #if KAME_ORPHAN_CHAIN
 public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
