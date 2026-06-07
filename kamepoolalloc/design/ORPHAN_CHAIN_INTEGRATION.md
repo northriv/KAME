@@ -76,6 +76,31 @@ self-reset) and needs its own small model proving: a non-empty node never
 loses its last incoming ref, `released ⟹ MASK_CNT==0`, no double-release, no
 leak.
 
+## Link fields — SEPARATE (decided)
+
+The per-thread DLL link and the orphan-chain link are **separate fields**,
+NOT unified into one `next` (rejected):
+
+- **chain-next** = `m_orphan_next` (`atomic_shared_ptr`), touched ONLY in the
+  ORPHAN role.  Concurrent sweepers/`load_shared` readers walk it.
+- **DLL-next** = its own field; **DLL-prev** stays raw (back-link for O(1)
+  middle removal; chain is singly-linked).
+- **owner-ref** lives on the DLL **forward** link as a `local_shared_ptr`
+  (predecessor / `dll_head` holds the successor's owner-ref — a chain, no
+  self-cycle).  Single-thread `local_shared_ptr` (local-tag, not atomic):
+  the owner's DLL walk pays a refcount op per step, acceptable on the
+  cold-ish chunk-claim walk / AllocPinCleanup.
+
+Why not unify (even though a chunk is OWNED xor ORPHAN, so §36 reused
+`m_dll_next`): Path B's chain has **concurrent middle-traversal** (sweepers),
+unlike §36's head-only stack.  A unified field would (1) force `atomic`
+(not just local) on the single-thread DLL → traversal atomic tax, and (2)
+create a **transition race**: at owner-exit / adopt the field's role flips
+single-thread↔shared, and a stale chain-walker could read it as chain-next
+while the owner reinterprets it as DLL-next → corruption.  Separate fields
+make a stale chain-walker read a valid (merely stale) chain-next = safe-side.
+Cost of separating = 8 B/chunk, negligible (chunk ≥ 256 KiB).
+
 ## Design recap (what the model proved)
 
 - **Self-ref on `m_filled`** (= `MASK_CNT`): a chunk holds ONE refcount to
