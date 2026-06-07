@@ -124,6 +124,54 @@ static_assert(!ref_traits<Node>::has_weak,
               "intrusive opts out of weak refs — prev is a raw hint, not weak");
 
 // ---------------------------------------------------------------------------
+// Regression guard — self-referential intrusive CLASS TEMPLATE.
+//
+// The allocator's chunk (`PoolAllocator<ALIGN,FS,DUMMY>`) is a class TEMPLATE
+// whose embedded object holds an `atomic_shared_ptr<self>` orphan-chain link.
+// That triggers a circularity the concrete `Node` above does NOT exercise:
+// instantiating `atomic_shared_ptr<TNode<...>>` needs the refcount type, and
+// taking it from `Ref::Refcnt` would force a qualified-name lookup that
+// INSTANTIATES the still-incomplete specialisation → completes it → lays out
+// its own `atomic_shared_ptr<self>` member → circular.  GCC rejects this as a
+// hard error (clang is lenient); the fix takes `Refcnt` from the (complete)
+// trait instead.  This template node keeps that path covered on GCC so the
+// chunk integration cannot regress it again.  (Concrete intrusive types escape
+// via a complete base's `Refcnt`, so `Node` alone would not have caught it.)
+template <int K> struct TNode;
+template <int K> struct force_intrusive_ref<TNode<K>> : std::true_type {};
+template <int K>
+struct TNode {
+    typedef uintptr_t Refcnt;
+    atomic<Refcnt> refcnt{1};                 // own member (no complete base);
+                                              // 1 = adoptable by local_shared_ptr(new)
+    atomic_shared_ptr<TNode> m_next;          // injected-class-name self-ref
+    long v = 0;
+    static void atomic_intrusive_dispose(TNode *p) noexcept {
+        p->~TNode();
+        ::operator delete(static_cast<void *>(p));
+    }
+};
+static_assert(ref_traits<TNode<1>>::is_intrusive, "template node forced intrusive");
+static_assert(std::is_same<ref_traits<TNode<1>>::Ref, TNode<1>>::value,
+              "template node Ref is itself");
+static_assert(has_intrusive_dispose<TNode<1>>::value, "template node has disposer");
+
+//! Exercise the template path at runtime (so it is not dead code the compiler
+//! could skip instantiating): push two onto a chain head, then drain.
+static int template_self_ref_smoke() {
+    atomic_shared_ptr<TNode<1>> head;
+    head.reset(new TNode<1>());
+    {
+        local_shared_ptr<TNode<1>> a(head);
+        local_shared_ptr<TNode<1>> b(new TNode<1>());
+        b->m_next = a;
+        head.compareAndSwap(a, b);
+    }
+    head.reset();
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
 // Lock-free orphan list — head atomic, intrusive next, raw prev hint.
 // ---------------------------------------------------------------------------
 
@@ -268,6 +316,7 @@ int main(int argc, char **argv) {
     if(argc > 2) ITERS = atoi(argv[2]);
 
     int fails = single_thread_sanity();
+    fails += template_self_ref_smoke();   // self-referential intrusive TEMPLATE
 
     std::printf("[mt] threads=%d iters=%d\n", T, ITERS);
     std::vector<std::thread> ts;

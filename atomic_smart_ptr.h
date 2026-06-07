@@ -381,12 +381,24 @@ struct ref_traits : ref_traits_auto<T> {};
 //! `T::atomic_intrusive_dispose` if present, else `delete`), `local_weak_ptr<T>`
 //! disabled.  Reached WITHOUT a `sizeof(T)` probe, so it is valid even when T is
 //! incomplete (a self-referential intrusive list/DLL node).
+//!
+//! Provides `Refcnt` HERE (in the trait, which is complete) so that
+//! `atomic_shared_ptr_base` can take the refcount type from the trait rather
+//! than from `Ref::Refcnt`.  For a self-referential intrusive class TEMPLATE,
+//! `Ref::Refcnt` would force a qualified-name lookup that INSTANTIATES (and so
+//! completes) the still-incomplete chunk specialisation → circular with its
+//! own `atomic_shared_ptr<chunk>` member → a hard error on GCC (clang is
+//! lenient).  A concrete intrusive type escapes this because its `Refcnt` is
+//! reachable via a complete base (e.g. `atomic_countable`) without instantiating
+//! the type; a template specialisation has no such escape.  All control blocks
+//! in this header use `uintptr_t` for the count, so the trait fixes it here.
 template <typename T>
 struct ref_traits<T, true> {
     static constexpr bool is_intrusive = true;
     static constexpr bool is_emplaced  = false;
     static constexpr bool is_strict    = false;
     using Ref = T;
+    using Refcnt = uintptr_t;
     static constexpr bool has_weak = false;
 };
 
@@ -429,7 +441,18 @@ struct atomic_shared_ptr_base {
 protected:
     using Traits = ref_traits<T>;
     using Ref = typename Traits::Ref;
-    using Refcnt = typename Ref::Refcnt;
+    // Take `Refcnt` from the TRAIT when it provides one, else from `Ref`.  The
+    // trait is always complete, whereas `Ref::Refcnt` on a self-referential
+    // intrusive class TEMPLATE forces the chunk's instantiation → circular with
+    // its own `atomic_shared_ptr<chunk>` member (hard error on GCC).  See the
+    // forced-intrusive `ref_traits<T,true>` spec (which sets `Refcnt`).
+    template <typename TR, typename = void>
+    struct refcnt_of_ { using type = typename Ref::Refcnt; };
+    template <typename TR>
+    struct refcnt_of_<TR, std::void_t<typename TR::Refcnt>> {
+        using type = typename TR::Refcnt;
+    };
+    using Refcnt = typename refcnt_of_<Traits>::type;
 
     static int deleter(Ref *p) noexcept {
         if constexpr (Traits::is_intrusive) {
