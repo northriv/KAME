@@ -2706,6 +2706,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// the DLL and fall through to a fresh mmap.  After this the chunk is a
 	// normal OWNED chunk again — if its owner later exits non-empty it is
 	// pushed again (temporal reuse; never double-linked, one push at a time).
+#if KAME_ORPHAN_CHAIN
+	// (Path B step 4) Reclaim empty orphans from the atomic_shared_ptr chain
+	// before mmap'ing fresh — frees their region units so the fresh claim
+	// reuses them (bounds `reserved`).  The §36 orphan_pop below is DORMANT
+	// under the flag: the §36 stack is never pushed to (owner-exit pushes the
+	// chain instead), so it returns null and we fall through to a fresh claim.
+	// In-place reuse of NON-empty orphans (adopt) is deferred.
+	orphan_chain_scrub();
+#endif
 	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *oc = orphan_pop()) {
 		// Claim: set BIT_OWNED, preserving the MASK_CNT survivors that the
 		// holding thread's cross-thread frees may still be decrementing.
@@ -6719,6 +6728,34 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
 	for(;;) {
 		n->m_orphan_next = old;
 		if(s_orphan_chain_head.compareAndSwap(old, n)) break;
+	}
+}
+
+//! (Path B step 4) Reclaim pass — see allocator_prv.h.  Walks the orphan chain
+//! holding local_shared_ptr pins; CAS-unlinks each DEAD (empty, MASK_CNT==0)
+//! node from its predecessor (or the head).  Unlinking drops the chain-ref;
+//! when this pass releases its own pin on the node (next iteration) refcnt
+//! hits 0 → atomic_intrusive_dispose → bucket_release_chunk frees the region.
+//! Orphans never refill (adopt deferred) so MASK_CNT==0 is stable; a plain
+//! read of m_flags_packed can only be stale-HIGH (skip now, reclaim next
+//! pass) = safe-side.  Dead-only + reachability-preserving relink; a lost CAS
+//! restarts from head — multiple scrubbers are safe-side.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
+	local_shared_ptr<PoolAllocator> pred;                      // empty ⇒ pred is head
+	local_shared_ptr<PoolAllocator> cur(s_orphan_chain_head);
+	while(cur) {
+		local_shared_ptr<PoolAllocator> nxt(cur->m_orphan_next);
+		if((cur->m_flags_packed & MASK_CNT) == 0u) {           // dead orphan → unlink
+			bool ok = pred ? pred->m_orphan_next.compareAndSet(cur, nxt)
+			               : s_orphan_chain_head.compareAndSet(cur, nxt);
+			if(ok) { cur = nxt; continue; }                    // unlinked; pred unchanged
+			pred.reset();                                      // CAS lost → restart from head
+			cur = local_shared_ptr<PoolAllocator>(s_orphan_chain_head);
+			continue;
+		}
+		pred = cur;                                            // live orphan → keep, advance
+		cur = nxt;
 	}
 }
 #endif
