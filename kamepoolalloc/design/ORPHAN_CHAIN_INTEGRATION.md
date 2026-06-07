@@ -268,7 +268,35 @@ identical; full alloc_stress at step 4.  **Risk: highest of all steps**
 (core field type change across the DLL subsystem) — execute as a focused unit
 with build iteration, not rushed.
 
-## Step 3 BLOCKER (found by build) — owner-ref TLS home vs trivial-TLS
+## DECISION (resolves the step-3 blocker) — owner DLL stays RAW
+
+Because the chain link (`m_orphan_next`) and the DLL link (`m_dll_next`) are
+SEPARATE fields, **owned chunks need NOT enter the smart_ptr world at all**:
+
+- **Owned chunks: RAW DLL, owner-managed** (existing release path), exactly as
+  today.  NOT refcounted, NO owner-ref.  `m_dll_next`/`m_dll_prev`/`dll_head`
+  stay raw → the trivial-`__thread` TLS is preserved → **step 3 (DLL →
+  local_shared_ptr) is CANCELLED, the TLS blocker is gone, and the 3-ref
+  "owner-ref" model is dropped** (it was unnecessary).
+- **refcnt / the chain manage ORPHANS ONLY**: `refcnt = chain-ref + pins`.
+  A chunk enters the smart_ptr world at owner-exit-push (refcnt 0→1, step 1 —
+  already consistent: it stores 1 on a previously-raw/refcnt-0 chunk) and
+  leaves it at dispose (refcnt 0).
+- Owner-exit-empty: release directly (deallocate_chunk), as today.
+
+Revised plan:
+- **step 3 — CANCELLED** (DLL raw).
+- **step 4 — scrub-reclaim** (dispose empty orphans off the chain): needs NO
+  owner-ref (orphans only) ⇒ makes flag-ON FUNCTIONAL (push + reclaim → no
+  leak, reserved bounded).  This is the verified Path-B chain-reclaim core.
+- **adopt (reuse of NON-empty orphans into the raw DLL) — DEFERRED**: the one
+  spot with a residual-pin hazard (a concurrent sweeper's load_shared pin
+  could dispose the chunk after it is re-owned raw — no owner-ref to hold it).
+  push + scrub-reclaim already bounds `reserved` (the primary goal); in-place
+  reuse is a later optimization needing a defined pin-safe re-own protocol
+  (transient hold / quiescence) — NOT the TLS-DLL change.
+
+## (historical) Step 3 BLOCKER (found by build) — owner-ref TLS home vs trivial-TLS
 
 Attempted step 3 (m_dll_next / dll_head → local_shared_ptr).  Most errors were
 mechanical (`.get()` for reads, local_shared_ptr `=` for the ~8 mutation
