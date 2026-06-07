@@ -338,6 +338,33 @@ Leading resolution (needs a decision + careful verification):
 Until decided, step 3 is BLOCKED; steps 1–2 (chain push) stand.  The flag-OFF
 shipping path is unaffected throughout (all behind KAME_ORPHAN_CHAIN).
 
+## Step-4 measurements (flag-ON, MacBook Air M3) — and what they reveal
+
+- **bench_loop 64B (hot path): NON-REGRESSED.**  flag-OFF median ~106 M/s vs
+  flag-ON median ~106 M/s (high run-to-run variance, no systematic gap) —
+  scrub is on the cold claim path, the hot freelist path is untouched.
+- **alloc_stress flag-ON: PASS**, diff=0, chunks final 16087 ≈ flag-OFF 16086
+  — empty-orphan reclaim works, no leak.
+- **alloc_thread_churn (survivor churn, scenario 2): flag-ON FAILs ≈ §36.**
+  flag-OFF(§36) reserved 256→384 MiB; flag-ON(chain) 288→416 MiB.  FAIL reason
+  is "orphaned partially-used chunks STRANDED, not reused": the growth is from
+  NON-EMPTY orphans (survivors=3907 held by main), which `scrub` does NOT
+  reclaim (it only frees EMPTY orphans).  Reusing them needs **adopt**
+  (deferred) — and **even §36's adopt (orphan_pop) does not bound it on
+  macOS** (why the churn test is Linux-only-gated).
+
+**Implication:** scrub-reclaim alone does NOT deliver the macOS reserved
+improvement — it matches §36.  The survivor-churn growth needs (a) effective
+**adopt** (reuse of non-empty orphans' free slots) AND likely (b)
+**region-level munmap** (bucket regions are never munmap'd → `reserved` is a
+monotonic high-water; even perfect reuse can't shrink it — the "real fix"
+flagged early).  §36's adopt failing on macOS points at (b).
+
+**So the flip (step 5) is PREMATURE**: flag-ON is verified, hot-path-clean,
+and reclaims empties, but does not beat §36 on macOS `reserved`.  Flipping now
+would leave the macOS churn Linux-only-gated as today.  Next: implement adopt
+(needs the pin-safe re-own protocol) and investigate region munmap.
+
 ## Risks / watch-items
 
 - **Hot path**: Stage 2's boundary branch must NOT add an atomic to the
