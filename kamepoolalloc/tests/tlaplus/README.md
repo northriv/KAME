@@ -490,3 +490,26 @@ java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_nogate_mc.cfg   Orphan
 java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_ownerref_mc.cfg OrphanChain_adopt.tla
 ```
 All terminate in <1s on a single core.
+
+## Regression guard — `run_orphan_chain.sh`
+
+`./run_orphan_chain.sh` runs every `OrphanChain_*` model with each cfg and
+ASSERTS the expected outcome (CLEAN, or a specific invariant VIOLATION).  It is
+a true gate, not a smoke test: a cfg that is *supposed* to violate (a gate or
+self-ref knob turned off, or the shipped raw-DLL design under
+`OrphanChain_adopt`) must STILL violate, else the model has silently weakened.
+
+```
+$ ./run_orphan_chain.sh            # all 10 checks (<10s total)
+$ ./run_orphan_chain.sh adopt      # only the adopt cfgs
+$ STRICT=1 ./run_orphan_chain.sh   # missing tla2tools.jar → hard fail (CI)
+```
+
+**Keep this as a standing regression guard — including after the
+`KAME_ORPHAN_CHAIN` Stage-7 flip.**  The owner-free vs residual-scrub-pin race
+(`Inv_NoBadOwnerFree`, closed by the chunk self-ref owner-ref) is a narrow
+timing-dependent UAF that runtime stress **cannot** reproduce: 21.32M-op
+ASan/TSan on the pre-fix code did not trip it.  This model is the *only* guard
+for that class. Re-run it on any change to `allocator.cpp`'s orphan-chain /
+adopt / owner-free paths.  Requires `tla2tools.jar` in this directory (gitignored
+— `cp ../../../kamestm/tests/tlaplus/tla2tools.jar .`).
