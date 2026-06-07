@@ -234,6 +234,40 @@ Step-1 wiring (chain head + push), then, is:
 - flag-ON is INCOMPLETE until step 4 (no pop/scrub ⇒ orphans accumulate =
   leak, but no corruption); full alloc_stress gate lands at step 4–5.
 
+## Step 3 plan — owner-ref via DLL forward = local_shared_ptr (MOST INVASIVE)
+
+DLL access surface (allocator.cpp), to convert under `#if KAME_ORPHAN_CHAIN`:
+
+| site | role | flag-ON handling |
+|---|---|---|
+| create_allocator / allocate_chunk append (1990–96, 2800–05) | tail append | `refcnt.store(1)` (owner-private) then `tail->m_dll_next = local_shared_ptr(adopt, chunk)` — establishes owner-ref |
+| owner_release neighbour unlink (2532–47) | remove a chunk | move the link: `pred->m_dll_next = move(nx->m_dll_next)` (transfers nx's successor's owner-ref); dropping nx's incoming link drops nx's owner-ref → dispose if 0 |
+| owner-exit walk (2951–64) | drop the whole DLL | dropping each `m_dll_next` drops owner-refs; empties dispose; non-empties were `orphan_chain_push`'d FIRST (transfer owner→chain) |
+| §36 adopt re-splice (2750–54) | orphan_pop adoption | flag-OFF only — replaced by step 4's chain adopt under flag-ON |
+| traversal reads (2680, 2877, 2651) | walk | `cur->m_dll_next.get()` (raw read, zero-cost) |
+
+**§36 `orphan_push`/`orphan_pop` (6748, 6774) reuse `m_dll_next` as the stack
+link** with raw `=`.  Type-changing `m_dll_next` breaks them, so they must be
+flag-gated too (flag-ON never calls them — the chain replaces the stack).
+
+**DllLink abstraction** to localize the flag-conditional:
+- `m_dll_next` type: `#if KAME_ORPHAN_CHAIN local_shared_ptr<PoolAllocator> #else PoolAllocator* #endif`.
+- `m_dll_prev`, `dll_tail`: stay RAW (back-hint / cursor, non-owning) in both.
+- `dll_head` (in ThreadLocalState): becomes `local_shared_ptr<PoolAllocator>`
+  under the flag (holds the first chunk's owner-ref).
+- accessors: `dll_next_raw(c)` → raw read (`.get()` / direct); link-move /
+  link-set helpers for the mutation sites so the per-site bodies stay uniform.
+- `m_owner_dll_head_addr` compares (`&s_tls.dll_head`) — still valid (address
+  of the TLS handle); the handle's TYPE changed but its address is stable.
+
+Owner-ref lifecycle: established on append (refcnt 0→1) / transferred on
+adopt (chain-ref→owner-ref, step 4) and owner-exit-nonempty (owner→chain);
+dropped on owner_release / owner-exit-empty (→ dispose if refcnt 0).  NOT
+functionally testable until step 4 (no adopt/scrub) — gate is build + flag-OFF
+identical; full alloc_stress at step 4.  **Risk: highest of all steps**
+(core field type change across the DLL subsystem) — execute as a focused unit
+with build iteration, not rushed.
+
 ## Risks / watch-items
 
 - **Hot path**: Stage 2's boundary branch must NOT add an atomic to the
