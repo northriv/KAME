@@ -1900,6 +1900,21 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	//! the PoC's `atomic_shared_ptr<Node> m_next`); an FS=false chunk links
 	//! through its FS=true base subobject.
 	atomic_shared_ptr<PoolAllocator> m_orphan_next;
+	//! (Path B owner-ref) The OWNER-REF: a local_shared_ptr the re-owned chunk
+	//! holds to ITSELF (a deliberate self-cycle), SEPARATE from the raw DLL.
+	//! Set at adopt (orphan_chain_pop's oc_hold is MOVED in here instead of
+	//! dropped), reset at owner-free (release_dll_chunks_for_thread /
+	//! owner_release) and re-pushed (orphan_chain_push MOVES it onto the chain).
+	//! It makes every owner-side free refcnt-mediated: the owner DROPS this ref
+	//! (m_owner_self_ref.reset()) rather than calling deallocate_chunk directly,
+	//! so a residual scrub `load_shared` pin cannot be freed out from under — the
+	//! chunk is reclaimed by whoever takes refcnt to 0 (the owner if no pins
+	//! remain, else the last pin) via the disposer.  Closes the Inv_NoBadOwnerFree
+	//! gap (kamepoolalloc/tests/tlaplus/OrphanChain_adopt, OwnerRef=TRUE CLEAN).
+	//! A PROPER local_shared_ptr (split-tag release verified at Layer 0), NOT the
+	//! reverted manual refcnt.fetch_* self-ref.  Empty/null on fresh (never-
+	//! adopted) chunks, which keep the direct deallocate_chunk path.
+	local_shared_ptr<PoolAllocator> m_owner_self_ref;
 	//! Custom intrusive disposer, invoked when refcnt -> 0 (the deleter in
 	//! atomic_smart_ptr.h routes here via has_intrusive_dispose).  The chunk
 	//! object is STILL LIVE on entry (so it can read its own size), then runs
@@ -1908,12 +1923,13 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	//! bucket_release_chunk.  NEVER frees the object: it is placement-new'd
 	//! in the chunk; the chunk memory is owned by the region claim-bitmap.
 	static void atomic_intrusive_dispose(PoolAllocator *p) noexcept {
-		// (Path B adopt) If the chunk was RE-OWNED off the chain (adopt set
-		// BIT_OWNED while holding the popped ref), this refcnt→0 is a residual
-		// scrub pin draining AFTER re-own — the chunk is now owner-managed (raw
-		// DLL), NOT an orphan to reclaim.  No-op: the owner releases it via
-		// deallocate_chunk on empty (refcnt then stays 0, off every smart_ptr).
-		// Empty orphans reach here with BIT_OWNED CLEAR ⇒ they release below.
+		// Defensive backstop.  With the owner-ref (m_owner_self_ref) an owned
+		// chunk always has refcnt >= 1 (the self-ref), so refcnt reaches 0 only
+		// AFTER the owner has both cleared BIT_OWNED and reset the self-ref —
+		// i.e. this is reached with BIT_OWNED already CLEAR for owner-freed
+		// chunks, and for scrub-reclaimed empty orphans likewise.  The check
+		// thus never fires under the owner-ref design; it is kept as cheap
+		// insurance against a stray refcnt→0 while a chunk is still owned.
 		if(p->m_flags_packed & BIT_OWNED) return;
 		char *cbase = reinterpret_cast<char *>(p) - ALLOC_CHUNK_HEADER;
 		p->~PoolAllocator();
