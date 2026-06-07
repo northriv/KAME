@@ -2602,8 +2602,20 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 				// (1b) Clear m_owner_id BEFORE the destructor — see the
 				// FS=true batch_return_to_bitmap sibling for the rationale.
 				nx->m_owner_id = 0;
-				nx->~PoolAllocator();   // placement-new destructor
-				PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
+#if KAME_ORPHAN_CHAIN
+				if(nx->m_owner_self_ref) {
+					// (Path B owner-ref) Adopted neighbour: it may still be
+					// pinned by a concurrent scrubber.  DROP the self-ref —
+					// owner_release already cleared BIT_OWNED, so the disposer
+					// reclaims it when refcnt hits 0 (now, or at the last pin
+					// drop).  Don't touch `nx` after this; it may be freed.
+					nx->m_owner_self_ref.reset();
+				} else
+#endif
+				{
+					nx->~PoolAllocator();   // placement-new destructor
+					PoolAllocatorBase::bucket_release_chunk(cbase, csz);  // (§34) park warm
+				}
 				++released;
 			}
 			else {
@@ -2777,6 +2789,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 			s_tls.dll_exhausted = false;
 			tls_alloc_thread_exit_cleanup.add(
 			    &PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread);
+#if KAME_ORPHAN_CHAIN
+			// (Path B owner-ref) MOVE oc_hold into the chunk's self-ref instead
+			// of dropping it: the chunk now holds a local_shared_ptr to ITSELF
+			// (the owner-ref), so refcnt = self-ref + any residual scrub pins and
+			// every owner-side free becomes a refcnt-mediated reset() rather than
+			// a direct deallocate_chunk.  No refcnt change (the popped chain-ref
+			// becomes the self-ref); oc_hold goes null.  Closes Inv_NoBadOwnerFree.
+			// (This block is shared with the §36 #else path above, where there is
+			// no oc_hold/self-ref — hence the guard.)
+			oc->m_owner_self_ref = std::move(oc_hold);
+#endif
 			if(void *p = oc->allocate_pooled(SIZE)) {
 #ifdef GUARDIAN
 				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
@@ -3024,28 +3047,43 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		                              static_cast<uint32_t>(~BIT_OWNED));
 		uint32_t newv = old & ~BIT_OWNED;
 		if(newv == 0) {
-			// PoolAllocator object embedded inside chunk_base; recover
-			// chunk_base from `c` directly.
-			char *cbase = reinterpret_cast<char*>(c) - ALLOC_CHUNK_HEADER;
-			size_t csz = c->m_chunk_size;
 			// (1b) Clear m_owner_id BEFORE the destructor — see the
 			// FS=true batch_return_to_bitmap sibling for the rationale.
 			c->m_owner_id = 0;
-			c->~PoolAllocator();   // placement-new destructor
-			// (§21) madvise the slot pages on thread exit by default
-			// (`s_thread_exit_reclaim`, default TRUE) so RSS is returned
-			// promptly — the only release path that USED to skip madvise.
-			// The skip (reclaim_pages=false) was a perf optimisation:
-			// MADV_DONTNEED here was ~30 % of bench-style alloc_only
-			// runtime (clear_page_erms + free_pages_and_swap_cache), and
-			// pages would otherwise be reclaimed by the kernel at process
-			// exit (exit_mmap, one batch) or recycled warm by the next
-			// claimer.  Workloads that spawn/exit threads rapidly and
-			// don't care about steady-state RSS can restore the skip via
-			// `kame_pool_set_thread_exit_reclaim(0)`.
-			PoolAllocatorBase::deallocate_chunk(cbase, csz,
-			    /*reclaim_pages=*/
-			    s_thread_exit_reclaim.load(std::memory_order_relaxed) != 0);
+#if KAME_ORPHAN_CHAIN
+			if(c->m_owner_self_ref) {
+				// (Path B owner-ref) Re-owned (adopted) chunk: it may still be
+				// pinned by a concurrent scrubber's load_shared.  DROP the
+				// self-ref rather than freeing directly — the disposer reclaims
+				// it when refcnt hits 0 (now, if no pin remains; else when the
+				// last pin drops).  BIT_OWNED was already cleared by the
+				// atomicFetchAnd above, so the disposer will not no-op.  `next`
+				// was cached before this, so disposing `c` here is safe.
+				c->m_owner_self_ref.reset();
+			} else
+#endif
+			{
+				// Fresh chunk (never on the chain, no scrub pin possible) —
+				// direct free is safe.  PoolAllocator object embedded inside
+				// chunk_base; recover chunk_base from `c` directly.
+				char *cbase = reinterpret_cast<char*>(c) - ALLOC_CHUNK_HEADER;
+				size_t csz = c->m_chunk_size;
+				c->~PoolAllocator();   // placement-new destructor
+				// (§21) madvise the slot pages on thread exit by default
+				// (`s_thread_exit_reclaim`, default TRUE) so RSS is returned
+				// promptly — the only release path that USED to skip madvise.
+				// The skip (reclaim_pages=false) was a perf optimisation:
+				// MADV_DONTNEED here was ~30 % of bench-style alloc_only
+				// runtime (clear_page_erms + free_pages_and_swap_cache), and
+				// pages would otherwise be reclaimed by the kernel at process
+				// exit (exit_mmap, one batch) or recycled warm by the next
+				// claimer.  Workloads that spawn/exit threads rapidly and
+				// don't care about steady-state RSS can restore the skip via
+				// `kame_pool_set_thread_exit_reclaim(0)`.
+				PoolAllocatorBase::deallocate_chunk(cbase, csz,
+				    /*reclaim_pages=*/
+				    s_thread_exit_reclaim.load(std::memory_order_relaxed) != 0);
+			}
 		} else {
 			// Non-empty orphaned chunk: clear m_owner_id so future threads
 			// can adopt it via try_adopt_orphan (§orphan-adopt).
@@ -6730,8 +6768,23 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
     PoolAllocator<ALIGN, DUMMY, DUMMY> *craw) noexcept {
 	PoolAllocator *c = static_cast<PoolAllocator *>(craw);  // upcast to FS=true base (chain node type)
-	c->refcnt.store(1, std::memory_order_relaxed);
-	local_shared_ptr<PoolAllocator> n(c);                   // adopt the refcnt=1
+	local_shared_ptr<PoolAllocator> n;
+	if(c->m_owner_self_ref) {
+		// (Path B owner-ref) Re-owned chunk being re-orphaned at owner-exit:
+		// MOVE its self-ref onto the chain (self-ref → chain-ref), preserving
+		// refcnt — INCLUDING any residual scrub pin.  A `refcnt.store(1)` here
+		// would CLOBBER that pin's count, so a later pin-drop would dispose the
+		// chunk while it is back on the chain (premature free).  Move keeps the
+		// true count; oc's self-ref goes null.
+		n = std::move(c->m_owner_self_ref);
+	}
+	else {
+		// Fresh chunk's FIRST orphaning: refcnt is 0 (never refcounted) and no
+		// scrub pin can exist (it was never on the chain) — establish 1 and
+		// adopt.  (Owner-private off every DLL here, so the plain store is safe.)
+		c->refcnt.store(1, std::memory_order_relaxed);
+		n = local_shared_ptr<PoolAllocator>(c);
+	}
 	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head);
 	for(;;) {
 		n->m_orphan_next = old;
