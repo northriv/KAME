@@ -48,13 +48,23 @@
 
 EXTENDS Integers, FiniteSets, TLC
 
-CONSTANTS N1, N2, N3, NIL, GateOnOwned, MaxGen
+CONSTANTS N1, N2, N3, NIL, GateOnOwned, OwnerRef, MaxGen
 
 Nodes == { N1, N2, N3 }
 
 ASSUME NIL \notin Nodes
 ASSUME GateOnOwned \in BOOLEAN
+ASSUME OwnerRef \in BOOLEAN
 ASSUME MaxGen \in Nat
+
+\* OwnerRef knob — the proposed FIX (the pathB owner-ref, reconsidered after the
+\* Inv_NoBadOwnerFree finding).  TRUE = a re-owned chunk carries an OWNER-REF
+\* (a `local_shared_ptr` the owner holds in its DLL: oc_hold transferred into the
+\* DLL at claim rather than dropped).  Then refcnt = chain + pins + owner-ref, and
+\* the owner does NOT call deallocate_chunk directly: it DROPS the owner-ref, and
+\* the chunk is freed by whoever takes refcnt to 0 (the owner, or the last scrub
+\* pin) via the disposer — unifying every free through the refcnt.  FALSE = the
+\* shipped raw-DLL design (owner frees directly on MASK_CNT, ignoring refcnt).
 
 VARIABLES
     head,        \* Nodes \cup {NIL}
@@ -71,20 +81,24 @@ VARIABLES
 vars == << head, nxt, filled, owned, released, pop_ref, scrub_pin, gen,
            bad_release, bad_ownerfree >>
 
-\* refcnt = chain-in + pins.  NO owner-ref (raw DLL): a re-owned chunk the owner
-\* holds is NOT counted here — exactly why the owner's free can't consult it.
+\* refcnt = chain-in + pins [+ owner-ref iff OwnerRef].  Under the shipped design
+\* (OwnerRef=FALSE) a re-owned chunk the owner holds is NOT counted — exactly why
+\* the owner's direct free can't consult it.
+OwnerRefTerm(n, ownd) == IF OwnerRef /\ ownd[n] THEN 1 ELSE 0
 ChainIn(n) == Cardinality({ m \in Nodes : nxt[m] = n }) + (IF head = n THEN 1 ELSE 0)
 Refcnt(n)  == ChainIn(n)
               + (IF pop_ref   = n THEN 1 ELSE 0)
               + (IF scrub_pin = n THEN 1 ELSE 0)
+              + OwnerRefTerm(n, owned)
 
-\* Post-state refcnt of node n under a hypothetical (h, nx, pr, sp) — used to
-\* decide synchronous disposal INSIDE the action that drops n's last reference.
-RefcntAt(n, h, nx, pr, sp) ==
+\* Post-state refcnt of node n under a hypothetical (h, nx, pr, sp, ownd) — used
+\* to decide synchronous disposal INSIDE the action that drops n's last reference.
+RefcntAt(n, h, nx, pr, sp, ownd) ==
     Cardinality({ m \in Nodes : m # n /\ nx[m] = n })
     + (IF h  = n THEN 1 ELSE 0)
     + (IF pr = n THEN 1 ELSE 0)
     + (IF sp = n THEN 1 ELSE 0)
+    + OwnerRefTerm(n, ownd)
 
 TypeOK ==
     /\ head \in Nodes \cup {NIL}
@@ -137,7 +151,7 @@ ScrubPin(n) ==
 ScrubUnpin ==
     /\ scrub_pin /= NIL
     /\ LET n   == scrub_pin
-           rc  == RefcntAt(n, head, nxt, pop_ref, NIL)   \* pin removed
+           rc  == RefcntAt(n, head, nxt, pop_ref, NIL, owned)   \* pin removed
            rel == (rc = 0) /\ (GateOnOwned => ~owned[n])
        IN /\ scrub_pin' = NIL
           /\ released'    = IF rel THEN [released EXCEPT ![n] = TRUE] ELSE released
@@ -153,7 +167,7 @@ ScrubUnlink(p) ==
     /\ ~released[p] /\ ~released[nxt[p]]
     /\ LET c        == nxt[p]
            relinked == [nxt EXCEPT ![p] = nxt[c]]
-           rc       == RefcntAt(c, head, relinked, pop_ref, scrub_pin)
+           rc       == RefcntAt(c, head, relinked, pop_ref, scrub_pin, owned)
            rel      == (rc = 0)   \* c empty & unowned by precondition
        IN /\ nxt'      = IF rel THEN [relinked EXCEPT ![c] = NIL] ELSE relinked
           /\ released' = IF rel THEN [released EXCEPT ![c] = TRUE] ELSE released
@@ -166,7 +180,7 @@ HeadAdvance ==
     /\ head \in Nodes /\ filled[head] = 0 /\ ~owned[head] /\ ~released[head]
     /\ LET h   == head
            s   == nxt[head]
-           rc  == RefcntAt(h, s, nxt, pop_ref, scrub_pin)   \* head moved to s
+           rc  == RefcntAt(h, s, nxt, pop_ref, scrub_pin, owned)   \* head moved to s
            rel == (rc = 0)
        IN /\ head'     = s
           /\ nxt'      = IF rel THEN [nxt EXCEPT ![h] = NIL] ELSE nxt
@@ -195,7 +209,7 @@ AdoptClaim(n) ==
 \* (3) drop oc_hold AFTER claim.  THIS IS THE smart_ptr DISPOSAL/GATE SITE.
 AdoptDropRef(n) ==
     /\ pop_ref = n /\ owned[n]
-    /\ LET rc  == RefcntAt(n, head, nxt, NIL, scrub_pin)   \* oc_hold removed
+    /\ LET rc  == RefcntAt(n, head, nxt, NIL, scrub_pin, owned)   \* oc_hold removed
            rel == (rc = 0) /\ (GateOnOwned => ~owned[n])
        IN /\ pop_ref'    = NIL
           /\ released'    = IF rel THEN [released EXCEPT ![n] = TRUE] ELSE released
@@ -210,12 +224,23 @@ AdoptDropRef(n) ==
 \* residual smart_ptr (scrub pin / lingering pinned predecessor) still references
 \* n at this moment: that pointer becomes dangling and later corrupts the freed/
 \* recycled chunk's control block.  (Refcnt here excludes pop_ref by precondition.)
+\* OwnerRef=FALSE (shipped): owner frees DIRECTLY on MASK_CNT==0, ignoring refcnt
+\*   => bad_ownerfree if a residual smart_ptr still references n.
+\* OwnerRef=TRUE  (fix): owner DROPS its owner-ref (owned->FALSE); the chunk is
+\*   released here ONLY if refcnt then hits 0 (no residual pins), else a residual
+\*   pin keeps it alive and that pin's later drop disposes it.  No direct free,
+\*   so bad_ownerfree can never be set.
 OwnerExitEmpty(n) ==
     /\ owned[n] /\ filled[n] = 0 /\ ~released[n] /\ pop_ref /= n
-    /\ released' = [released EXCEPT ![n] = TRUE]
-    /\ owned' = [owned EXCEPT ![n] = FALSE]
-    /\ bad_ownerfree' = (bad_ownerfree \/ (Refcnt(n) > 0))
-    /\ UNCHANGED << head, nxt, filled, pop_ref, scrub_pin, gen, bad_release >>
+    /\ LET ownd2 == [owned EXCEPT ![n] = FALSE]
+           rc    == RefcntAt(n, head, nxt, pop_ref, scrub_pin, ownd2)  \* owner-ref dropped
+           rel   == IF OwnerRef THEN (rc = 0) ELSE TRUE   \* FALSE: always frees directly
+       IN /\ owned' = ownd2
+          /\ released'    = IF rel THEN [released EXCEPT ![n] = TRUE] ELSE released
+          /\ nxt'         = IF rel /\ OwnerRef THEN [nxt EXCEPT ![n] = NIL] ELSE nxt
+          /\ bad_ownerfree' = IF OwnerRef THEN bad_ownerfree
+                              ELSE (bad_ownerfree \/ (Refcnt(n) > 0))
+    /\ UNCHANGED << head, filled, pop_ref, scrub_pin, gen, bad_release >>
 \* non-empty branch: re-push to the chain (orphan_chain_push); chunk stays alive.
 OwnerExitNonEmpty(n) ==
     /\ owned[n] /\ filled[n] = 1 /\ ~released[n] /\ pop_ref /= n /\ ChainIn(n) = 0
