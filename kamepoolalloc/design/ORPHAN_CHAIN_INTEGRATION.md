@@ -8,6 +8,42 @@ Branch: continuation of `orphan-atomicshared` (which already provides the
 `force_intrusive_ref` / `atomic_intrusive_dispose` primitives in
 `atomic_smart_ptr.h` and the `atomic_intrusive_dll_test.cpp` PoC).
 
+## Refcount model (refined during Stage 3 design)
+
+`refcnt = owner-ref + chain-ref + self-ref`, released when it hits 0:
+
+- **owner-ref** (+1 while the chunk is in an owner's per-thread DLL): set at
+  chunk creation / adoption, dropped at owner-exit.  Distinguishes
+  *empty-but-owned* (owner keeps it for reuse — must NOT release) from
+  *empty-orphan* (must release).  Self-ref alone cannot make this
+  distinction.
+- **self-ref** (+1 while MASK_CNT>0): Stage 2, the empty<->nonempty edge.
+- **chain-ref** (+1 while on the orphan chain): the head / a predecessor's
+  `m_orphan_next` (smart_ptr-managed).
+
+Every decrement is a unified unref `if(refcnt.fetch_sub(1,acq_rel)==1)
+atomic_intrusive_dispose(this)` — the SAME path the smart_ptr deleter uses,
+so the manual (owner-ref, self-ref) and smart_ptr (chain-ref, pin) drops
+compose on one counter.  Lifecycle:
+
+| event | refcnt move |
+|---|---|
+| create (empty, owned) | owner=1 → **1** |
+| first alloc | +self → **2** |
+| owner frees all (still owned) | −self → **1** (owner keeps it) |
+| owner-exit, non-empty | −owner(→1) then push +chain → **2** |
+| owner-exit, empty | −owner → **0** ⇒ release |
+| orphan drains to empty | −self → chain only |
+| orphan swept off chain | −chain → **0** ⇒ release |
+| orphan adopted (non-empty) | −chain, +owner → owned again |
+| non-empty orphan falls off chain | −chain → self-ref keeps it alive; later drain −self → **0** ⇒ release |
+
+This matches the TLA+ `StructRefs` (chain-in + self-ref) plus the pre-orphan
+owner-ref; the model's CLEAN result covers the orphan phase, owner-ref is the
+pre-push state dropped at owner-exit.  **OPEN:** verify the manual fetch_add/
+sub on `refcnt` composes with atomic_smart_ptr's local/global tagged-pointer
+counting (the smart_ptr's global count must equal `refcnt`).
+
 ## Design recap (what the model proved)
 
 - **Self-ref on `m_filled`** (= `MASK_CNT`): a chunk holds ONE refcount to
