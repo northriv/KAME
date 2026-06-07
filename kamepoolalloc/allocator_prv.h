@@ -1846,6 +1846,12 @@ protected:
 	//! so a drained orphan stays here until swept/adopted (steps 4-5).
 	static atomic_shared_ptr<PoolAllocator> s_orphan_chain_head;
 	static void orphan_chain_push(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
+	//! (Path B step 4) reclaim pass: CAS-unlink every DEAD (empty) orphan from
+	//! the chain → its chain-ref drops → refcnt 0 → dispose →
+	//! bucket_release_chunk frees the region units.  Owner DLL is raw, so this
+	//! touches ORPHANS ONLY (no owner-ref).  Multiple scrubbers safe: dead-only
+	//! + reachability-preserving relink, lost-CAS restart = safe-side.
+	static void orphan_chain_scrub() noexcept;
 #endif
 
 	//! Per-thread DLL pointers.  Single-writer (the owning thread)
