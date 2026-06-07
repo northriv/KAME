@@ -301,6 +301,30 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 	#define KAME_POOL_ONEBACK_SKIP 1
 #endif
 
+//! (Orphan-chain) Opt-in: replace the §36 orphan Treiber stack + BIT_OWNED
+//! arbitration with the TLA+-verified atomic_shared_ptr-refcounted intrusive
+//! orphan chain (design/ORPHAN_CHAIN_INTEGRATION.md;
+//! tests/tlaplus/OrphanChain_atomicshared.tla).  Default 0 — the shipping
+//! path stays the orphan stack until the staged flip (Stage 7).  All
+//! orphan-chain code is guarded by this flag, so flag=0 is byte-identical
+//! to the pre-integration build.
+#ifndef KAME_ORPHAN_CHAIN
+	#define KAME_ORPHAN_CHAIN 0
+#endif
+#if KAME_ORPHAN_CHAIN
+#include "atomic_smart_ptr.h"
+//! (Orphan-chain Stage 1) The chunk's embedded PoolAllocator IS the intrusive
+//! node of the lock-free orphan chain.  Opt in to the intrusive
+//! atomic_shared_ptr path (Ref = T, custom disposer) WITHOUT a sizeof
+//! completeness probe — the type is self-referential (holds an
+//! atomic_shared_ptr<PoolAllocator>) hence incomplete at first use.  Mirrors
+//! tests/atomic_intrusive_dll_test.cpp's Node.  (Forward decl carries NO
+//! default args — they live on the primary template below.)
+template <unsigned int ALIGN, bool FS, bool DUMMY> class PoolAllocator;
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+struct force_intrusive_ref<PoolAllocator<ALIGN, FS, DUMMY> > : std::true_type {};
+#endif
+
 //! Allocation unit (1 chunk = N × this).  every mmap region is
 //! a uniform 32 MiB block carved into 128 fixed-size 256 KiB "units".
 //! A chunk = 1, 2, or 4 contiguous units depending on the per-template
@@ -1824,6 +1848,47 @@ protected:
 	//! aligns with the per-thread DLL head/tail above.
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_prev{nullptr};
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_next{nullptr};
+
+#if KAME_ORPHAN_CHAIN
+public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
+	// (Orphan-chain Stage 1) Intrusive atomic_shared_ptr contract — the
+	// embedded PoolAllocator is its own control block (no separate alloc).
+	// refcnt is added MANUALLY (not via the `atomic_countable` base, whose
+	// ctor=1 / dtor `assert(refcnt==0)` would fire on every manual chunk
+	// teardown until the full refcount wiring lands in Stages 2–7).  It is
+	// initialised 0 and left UNMANAGED in Stage 1 (the chunk is not yet put
+	// into any atomic_shared_ptr), so no assert can fire.
+	typedef uintptr_t Refcnt;
+	atomic<Refcnt> refcnt{0};
+	//! Forward link of the lock-free orphan chain — DISTINCT from
+	//! `m_dll_next` (the per-thread DLL link).  An orphan may be chain-linked
+	//! while also transiently pin-walked by a sweeper, so the two links must
+	//! not alias (the §36 stack reused `m_dll_next`; the chain cannot).
+	//!
+	//! Typed as the SELF / FS=true-base type (injected-class-name
+	//! `PoolAllocator` = `<ALIGN,true,DUMMY>`), NOT the `<ALIGN,DUMMY,DUMMY>`
+	//! erasure the raw DLL pointers use: `atomic_shared_ptr<T>` instantiates
+	//! the intrusive contract (needs `T::Refcnt`), and the erasure's
+	//! `<ALIGN,false,DUMMY>` form would require the FS=false partial spec
+	//! complete WHILE its FS=true base is mid-definition → "base class has
+	//! incomplete type".  Self-reference is fine (incomplete-but-self, exactly
+	//! the PoC's `atomic_shared_ptr<Node> m_next`); an FS=false chunk links
+	//! through its FS=true base subobject.
+	atomic_shared_ptr<PoolAllocator> m_orphan_next;
+	//! Custom intrusive disposer, invoked when refcnt -> 0 (the deleter in
+	//! atomic_smart_ptr.h routes here via has_intrusive_dispose).  The chunk
+	//! object is STILL LIVE on entry (so it can read its own size), then runs
+	//! ~PoolAllocator() (which drops `m_orphan_next`, releasing the
+	//! successor's structural ref) and routes the region reclaim through
+	//! bucket_release_chunk.  NEVER frees the object: it is placement-new'd
+	//! in the chunk; the chunk memory is owned by the region claim-bitmap.
+	static void atomic_intrusive_dispose(PoolAllocator *p) noexcept {
+		char *cbase = reinterpret_cast<char *>(p) - ALLOC_CHUNK_HEADER;
+		p->~PoolAllocator();
+		PoolAllocatorBase::bucket_release_chunk(cbase, (std::size_t)CHUNK_SIZE);
+	}
+protected:   // restore the section access in effect before this block
+#endif
 
 	// the previous `std::atomic<bool> m_owner_exited` lives
 	// here as `BIT_OWNER_EXITED` inside `m_flags_packed` (above).
