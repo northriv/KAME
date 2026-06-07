@@ -365,6 +365,48 @@ and reclaims empties, but does not beat §36 on macOS `reserved`.  Flipping now
 would leave the macOS churn Linux-only-gated as today.  Next: implement adopt
 (needs the pin-safe re-own protocol) and investigate region munmap.
 
+## Adopt design (Linux confirmed it is REQUIRED) — Option B: in-place pinned alloc
+
+Linux churn (g++ 13.3) confirmed scenario 2 needs adopt (scrub reclaims only
+EMPTY orphans; survivor churn needs reuse of NON-empty orphans).  The GCC
+self-ref-template Refcnt build fix landed via merge of orphan-atomicshared
+(0972eed9: ref_traits<T,true>::Refcnt = uintptr_t; atomic_shared_ptr_base
+takes Refcnt from the trait).
+
+Two adopt shapes were considered:
+- **A (exclusive re-own, §36-style):** pop a non-empty orphan, re-own it into
+  the DLL.  Needs an owner-ref to survive residual sweeper pins after re-own
+  (a sweeper's load_shared pin could dispose it once owned) → a per-thread
+  local_shared_ptr home → conflicts with the raw `__thread` s_tls (the step-3
+  blocker) or needs a separate thread_local store.  Heavy.
+- **B (in-place pinned alloc) — CHOSEN:** do NOT re-own.  When the owner's DLL
+  is exhausted, before mmap'ing fresh, walk the chain, `load_shared` an orphan
+  with free slots (transient PIN), bitmap-allocate a slot from it while pinned,
+  drop the pin.  The orphan STAYS on the chain (chain-ref keeps it alive); the
+  transient pin blocks scrub from disposing it mid-alloc; when it drains empty
+  scrub reclaims it.  **No re-own, no owner-ref, no TLS change — respects raw
+  DLL and has no residual-pin hazard.**  Shared reuse: several threads may
+  bitmap-allocate from one chain orphan (the bitmap CAS already serialises).
+
+  Cost: a chain walk on the cold (DLL-exhausted) claim path + bitmap contention
+  on shared orphans.  Hot path (owner freelist) untouched.
+
+Implementation sketch (flag-ON, at the chunk-claim site, alongside the
+existing scrub call):
+- `orphan_chain_alloc(bucket)`: walk `s_orphan_chain_head` via load_shared;
+  for the first orphan whose bitmap has a free slot of the bucket, allocate it
+  in place (reuse the existing bitmap-CAS path on that chunk, NOT the owner
+  freelist) while holding the pin; return the slot.  Null if none → fresh mmap.
+- The allocated slot frees normally (radix → bitmap dec → MASK_CNT); when
+  MASK_CNT→0 scrub reclaims the orphan.
+- Open detail: make the bitmap-allocate path callable on a non-owned chunk
+  (it currently assumes the owner's `my_chunk`/TLS) — factor a
+  `bitmap_alloc_one(chunk, bucket)` that does only the CAS, no TLS.
+
+TLA+: model adopt as the model's `Adopt` but WITHOUT re-own — a slot alloc
+from a still-on-chain orphan + a transient pin; verify scrub-vs-in-place-alloc
+(pin blocks dispose) and that MASK_CNT inc/dec + scrub stay safe-side.
+
 ## Risks / watch-items
 
 - **Hot path**: Stage 2's boundary branch must NOT add an atomic to the
