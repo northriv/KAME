@@ -309,3 +309,51 @@ java -cp tla2tools.jar tlc2.TLC -config OrphanChain_atomicshared_live_mc.cfg    
 java -cp tla2tools.jar tlc2.TLC -config OrphanChain_atomicshared_push_mc.cfg      OrphanChain_atomicshared.tla
 ```
 All terminate in <1s on a single core.
+
+---
+
+## OrphanChain_pathB — separate-counts variant (the decided design)
+
+`OrphanChain_pathB.tla` is the SEPARATE-COUNTS successor to
+`OrphanChain_atomicshared.tla`.  Designing the C++ integration revealed that
+a count-based self-ref (manual `refcnt.fetch_add/sub` at the MASK_CNT edge)
+races atomic_smart_ptr's split (local-tag) reference counting — a manual
+`fetch_sub` to 0 while a `load_shared` reader's ref sits in a cell's local
+tag → premature dispose / UAF.  So MASK_CNT and the intrusive refcnt are kept
+SEPARATE: the refcnt is managed EXCLUSIVELY by atomic_smart_ptr
+(`refcnt = owner-ref + chain-ref [+ pins]`, **no manual ops**, never touched
+by alloc/free), and "don't release a non-empty chunk" is **structural** —
+the sweeper removes ONLY dead nodes and relink preserves successors, so a
+non-empty node never loses its incoming chain-ref; an owned chunk has an
+owner-ref (a `local_shared_ptr` in the per-thread DLL).  Hence
+`refcnt→0 ⟹ MASK_CNT==0`; the disposer asserts it.  No self-reset (an
+unlinked dead node's dtor drops its `m_orphan_next`).
+
+| Cfg | knob | Result |
+|---|---|---|
+| `OrphanChain_pathB_mc.cfg`          | `AllowLiveRemoval=FALSE` (design) | **CLEAN** — 1944 distinct; `Inv_NoBadRelease`, `Inv_NonEmptyHasRef`, `Inv_NoDanglingNext`, `Inv_HeadAlive`, `Inv_ReleasedNoRefs`, `Inv_Acyclic` all hold |
+| `OrphanChain_pathB_liveremoval_mc.cfg` | `AllowLiveRemoval=TRUE` | **VIOLATION** (`Inv_NoBadRelease`, depth 4) — proves dead-only removal is load-bearing |
+| `OrphanChain_pathB_live_mc.cfg`     | design + fairness | **Liveness HOLDS** (no leak) |
+
+### Why the `AllowLiveRemoval=TRUE` knob violates
+```
+1. Init                      N1 owned, non-empty
+2. OwnerExitNonEmpty(N1)     owner-ref → chain-ref (pushed at head)
+3. HeadAdvance (live!)       drops the non-empty head N1 off the chain
+                             (only allowed under the knob)
+4. Release(N1)               N1 now unowned + off-chain → refcnt 0 → dispose
+                             while filled=1  💥
+```
+With dead-only removal (`FALSE`) step 3 cannot fire on a non-empty node, so a
+non-empty orphan keeps its chain-ref until it drains — the structural
+replacement for the self-ref.  This is the Path-B analogue of
+`OrphanChain_atomicshared`'s `SelfRef=FALSE` violation; both pin down the one
+load-bearing rule of their respective design.
+
+### Running
+```
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_pathB_mc.cfg             OrphanChain_pathB.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_pathB_liveremoval_mc.cfg OrphanChain_pathB.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_pathB_live_mc.cfg        OrphanChain_pathB.tla
+```
+All terminate in <1s on a single core.
