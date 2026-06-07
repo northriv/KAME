@@ -57,14 +57,23 @@ ASSUME GateOnOwned \in BOOLEAN
 ASSUME OwnerRef \in BOOLEAN
 ASSUME MaxGen \in Nat
 
-\* OwnerRef knob — the proposed FIX (the pathB owner-ref, reconsidered after the
-\* Inv_NoBadOwnerFree finding).  TRUE = a re-owned chunk carries an OWNER-REF
-\* (a `local_shared_ptr` the owner holds in its DLL: oc_hold transferred into the
-\* DLL at claim rather than dropped).  Then refcnt = chain + pins + owner-ref, and
-\* the owner does NOT call deallocate_chunk directly: it DROPS the owner-ref, and
-\* the chunk is freed by whoever takes refcnt to 0 (the owner, or the last scrub
-\* pin) via the disposer — unifying every free through the refcnt.  FALSE = the
-\* shipped raw-DLL design (owner frees directly on MASK_CNT, ignoring refcnt).
+\* OwnerRef knob — the proposed FIX, reconsidered after the Inv_NoBadOwnerFree
+\* finding.  TRUE = a re-owned chunk carries an OWNER-REF: a `local_shared_ptr`
+\* the CHUNK HOLDS TO ITSELF (`m_owner_self_ref`), SEPARATE from the raw DLL —
+\* the DLL is untouched.  At adopt, `oc_hold` (the popped local_shared_ptr, which
+\* points at the chunk) is moved into `m_owner_self_ref` instead of dropped; at
+\* owner-free / thread-exit cleanup the owner `m_owner_self_ref.reset()`s it.
+\* Then refcnt = chain + pins + owner-ref, and the owner does NOT call
+\* deallocate_chunk directly: the reset drops the self-ref, and the chunk is freed
+\* by whoever takes refcnt to 0 (the owner, or the last scrub pin) via the
+\* disposer — unifying every free through the refcnt.  This is a PROPER
+\* local_shared_ptr self-ref (the split local-tag counting is handled by
+\* atomic_smart_ptr, verified at Layer 0), NOT the reverted MANUAL refcnt.fetch_*
+\* self-ref that raced a load_shared reader's parked tag.  The self-ref is a
+\* chunk->self cycle, broken explicitly by the reset (modelled as the owner-free
+\* drop below).  The model is AGNOSTIC to where the +1 lives (self vs DLL): it
+\* accounts only "owned => +1 refcnt", so this result verifies the self-ref design.
+\* FALSE = the shipped design (owner frees directly on MASK_CNT, ignoring refcnt).
 
 VARIABLES
     head,        \* Nodes \cup {NIL}
