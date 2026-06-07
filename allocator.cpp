@@ -2240,13 +2240,6 @@ PoolAllocatorBase::allocate_chunk() {
 	//      set its bit, and claim there.
 	constexpr unsigned int CHUNK_UNITS = ALLOC::CHUNK_UNITS;
 	constexpr size_t CHUNK_SIZE = ALLOC::CHUNK_SIZE;
-	constexpr unsigned int CHUNK_STRIDE_BITS = CHUNK_UNITS; // 1 bit per unit
-	// All-bits-of-this-chunk's-units mask, anchored at bit 0.  E.g.
-	// CHUNK_UNITS=1 → 0b1; =2 → 0b11; =4 → 0b1111.
-	constexpr BitmapWord CHUNK_OCC_MASK =
-	    (CHUNK_STRIDE_BITS >= sizeof(BitmapWord) * 8u)
-	        ? ~BitmapWord(0)
-	        : ((BitmapWord(1) << CHUNK_STRIDE_BITS) - BitmapWord(1));
 
 	// Build a PoolAllocator into a chunk whose CHUNK_UNITS units are
 	// already claimed at `addr` (= chunk_base).  Shared by the
@@ -2287,129 +2280,32 @@ PoolAllocatorBase::allocate_chunk() {
 		return construct_chunk_at(cached);
 	}
 
-	// Inline-able lambda: try to claim one chunk in a specific region.
-	// Returns palloc on success, nullptr if every CHUNK_UNITS-aligned
-	// slot in the region's bitmap is already claimed.
-	auto try_claim_in_region = [&](RegionMeta *rmeta) -> ALLOC * {
-		// (§13.2/§13.3) claim_bitmap and back_offset live inside the
-		// region at `region_base + 0`; the region base IS the RegionMeta
-		// pointer (32-MiB-aligned).
-		char *region_base = reinterpret_cast<char *>(rmeta);
-		for(int word = 0; word < BITMAP_WORDS_PER_REGION; ++word) {
-			std::atomic<BitmapWord> *bm = &rmeta->claim_bitmap[word];
-			for(;;) {
-				BitmapWord v = bm->load(std::memory_order_relaxed);
-				int free_pos = -1;
-				for(unsigned k = 0; k + CHUNK_STRIDE_BITS <= (unsigned)BITS_PER_BITMAP_WORD;
-				    k += CHUNK_STRIDE_BITS) {
-					if(((v >> k) & CHUNK_OCC_MASK) == 0) {
-						free_pos = (int)k;
-						break;
-					}
-				}
-				if(free_pos < 0) break;  // word saturated
-				BitmapWord claim_mask = CHUNK_OCC_MASK << free_pos;
-				BitmapWord newv = v | claim_mask;
-				int base_unit_in_word = free_pos;
-				int base_unit_idx =
-				    word * UNITS_PER_BITMAP_WORD + base_unit_in_word;
-
-				if(bm->compare_exchange_strong(v, newv,
-				                               std::memory_order_acquire,
-				                               std::memory_order_relaxed)) {
-					// We won the claim CAS (acquire); all CHUNK_UNITS units
-					// are now exclusively ours.  Publish back_off (post-CAS
-					// — d2e2c32b avoids the cross-stride clobber) and the
-					// chunk_header, then a release barrier.  No epoch:
-					// the chunk is invisible to any lookup until
-					// allocate_pooled hands out a slot (whose bitmap-CAS
-					// release republishes these writes to the freeing
-					// thread) and invisible to any DLL walk until the
-					// caller appends it; combined with BIT_OWNED gating
-					// (only the owner can release while alive) this makes
-					// a seqlock/epoch unnecessary.  Plain stores + one
-					// writeBarrier suffice (the pre-WIP publish model).
-					for(unsigned u = 0; u < CHUNK_UNITS; ++u)
-						rmeta->back_offset[base_unit_idx + (int)u] =
-						    (uint8_t)u;
-					// (§15) chunk_base is shifted K_MAX bytes before the
-					// unit boundary so the slot region (chunk_base + K_MAX)
-					// lands exactly on the unit boundary.  Metadata
-					// (chunk_header + PoolAllocator + m_flags) sits in the
-					// previous unit's last K_MAX bytes.  For base_unit_idx
-					// = 1, this is in unit 0's RegionMeta tail (well past
-					// the ~150 B RegionMeta head).
-					char *addr = region_base
-					           + (size_t)base_unit_idx * (size_t)ALLOC_MIN_CHUNK_SIZE
-					           - (size_t)ALLOC_CHUNK_K_MAX;
+	// (§74) Fresh claim via the SINGLE shared region-walk: claim_chunk runs
+	// the two-pass NUMA region walk + the fresh aligned mmap + the unit-
+	// aligned bitmap-CAS + the post-CAS back_offset publish — the runtime-
+	// unit-count generalisation of the inline walk that used to live here
+	// (now the one mmap+radix-claim site, shared with allocate_dedicated_chunk).
+	// back_off_flag = 0 = the bucket tag (plain `u`), exactly what
+	// construct_chunk_at expects; the CHUNK_OCC_MASK / CHUNK_STRIDE_BITS logic,
+	// the d2e2c32b post-CAS publish, and the cap/swarm retry loop are all
+	// inside claim_chunk and bit-for-bit identical for CHUNK_UNITS.
+	char *addr = claim_chunk(CHUNK_UNITS, /*back_off_flag=*/0u);
+	if( !addr)
+		return nullptr;   // region cap / mmap refusal → caller falls to malloc
 #if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
-					static const bool prewarm = [] {
-						const char *e = std::getenv("KAME_ALLOC_PREWARM");
-						return e && e[0] != '\0' && e[0] != '0';
-					}();
-					if(prewarm) {
-						for(size_t off = 0; off < CHUNK_SIZE; off += ALLOC_PAGE_SIZE)
-							reinterpret_cast<volatile char *>(addr)[off] = 0;
-					}
-#endif
-					// (§34) Shared construct (header stamp + create()).
-					// back_off for these units was just published above as
-					// the bucket tag (plain `u`), exactly what
-					// construct_chunk_at expects.
-					return construct_chunk_at(addr);
-				}
-				// CAS failed: concurrent claim updated v.  Retry inner
-				// loop with the new v.  We wrote NOTHING to back_offset
-				// yet (it is published only inside the success branch
-				// above), so a lost CAS leaves no side effects for the
-				// winning claimer of these units to trip over.
-			}
-			// word fully claimed for THIS CHUNK_UNITS alignment.  Try
-			// the next word.
-		}
-		// All words in this region full for this CHUNK_UNITS.
-		return nullptr;
-	};
-
-	// (§13.3) Retry loop: Pass 1 walks the push-only region list; Pass 2
-	// mmap's a fresh region.  The loop is REQUIRED for correctness under
-	// contention: a region we mmap is published to the shared list
-	// immediately, so other threads can swarm and fill its 127 units
-	// before our own try_claim runs.  On such a miss we loop back to
-	// Pass 1 (which now also sees every concurrently-created region)
-	// rather than spuriously failing.  Terminates: each Pass-2 mmap
-	// advances s_region_count toward the cap; mmap_new_region returns
-	// nullptr on genuine cap-exceeded / mmap failure, which we propagate
-	// so the caller falls back to std::malloc.
-	for(;;) {
-		// (§14C) Pass 1: walk LOCAL NUMA-node's list first (locality —
-		// fresh local regions are at the head and most likely to have
-		// space), then fall back to other nodes if local is full.  Cost
-		// on single-node systems: same as §13.3 (one list, one pass).
-		int my_node = numa_node_for_this_thread();
-		int total_nodes = s_num_numa_nodes.load(std::memory_order_relaxed);
-		if(total_nodes <= 0) total_nodes = 1;
-		for(int off = 0; off < total_nodes; ++off) {
-			int n = (off == 0) ? my_node : ((my_node + off) % total_nodes);
-			for(RegionMeta *rm = s_region_dll_heads[n].load(
-			        std::memory_order_acquire);
-			    rm; rm = rm->dll_next.load(std::memory_order_acquire)) {
-				if( !rm->has_free.load(std::memory_order_relaxed)) continue;
-				if(ALLOC *palloc = try_claim_in_region(rm))
-					return palloc;
-				// Full for OUR CHUNK_UNITS.  Smaller-CHUNK_UNITS templates
-				// may still fit — clear the hint only tentatively; a
-				// future dealloc in this region re-sets it.
-				rm->has_free.store(0, std::memory_order_relaxed);
-			}
-		}
-		// Pass 2: mmap a fresh region, then try to claim in it.
-		RegionMeta *rm = mmap_new_region();
-		if( !rm) return 0;
-		if(ALLOC *palloc = try_claim_in_region(rm))
-			return palloc;
-		// Swarmed before our claim — loop back to Pass 1.
+	static const bool prewarm = [] {
+		const char *e = std::getenv("KAME_ALLOC_PREWARM");
+		return e && e[0] != '\0' && e[0] != '0';
+	}();
+	if(prewarm) {
+		for(size_t off = 0; off < CHUNK_SIZE; off += ALLOC_PAGE_SIZE)
+			reinterpret_cast<volatile char *>(addr)[off] = 0;
 	}
+#endif
+	// (§34) Shared construct (header stamp + create() + writeBarrier).  The
+	// units' back_off was published as the bucket tag (plain `u`) by
+	// claim_chunk, exactly what construct_chunk_at expects.
+	return construct_chunk_at(addr);
 }
 // chunk-claim is purely mmap.  No global registry —
 // the per-thread DLL is the sole source of truth for "chunks this
@@ -3678,15 +3574,12 @@ PoolAllocatorBase::size_of(void *p) {
 	    chunk_base + ALLOC_CHUNK_HEADER_SIZEOF_FN_OFFSET);
 	return fn(palloc, static_cast<char *>(p));
 }
-// Runtime N-unit chunk claim — see the header declaration.  This is a
-// faithful copy of `allocate_chunk<ALLOC>()`'s region-walk generalised to
-// a *runtime* unit count and returning the raw chunk_base address (the
-// caller writes the chunk_header).  back_off_flag is OR'd into every
-// s_back_offset entry (0 for normal template chunks once they migrate
-// here, 0x80 to tag a dedicated single-slot large chunk).
-//
-// (Temporary duplication: the compile-time template path keeps its own
-// walk in allocate_chunk<ALLOC>(); de-dup is a follow-up.)
+// Runtime N-unit chunk claim — see the header declaration.  The SINGLE
+// region-walk + mmap + bitmap-claim site (§74): returns the raw chunk_base
+// address (the caller writes the chunk_header).  back_off_flag is OR'd into
+// every s_back_offset entry — 0 for the compile-time bucket templates
+// (`allocate_chunk<ALLOC>()` calls with chunk_units = ALLOC::CHUNK_UNITS),
+// 0x80 to tag a dedicated single-slot large chunk (`allocate_dedicated_chunk`).
 char *
 PoolAllocatorBase::claim_chunk(unsigned chunk_units,
                                std::uint8_t back_off_flag) noexcept {
