@@ -439,21 +439,27 @@ walk-coupled lifetime.  The general trace therefore over-approximates, but the
 the adopt's `local_shared_ptr` adoption).
 
 ### Result (3): the owner-ref fix closes the gap — `OwnerRef=TRUE` CLEAN
-The `OwnerRef=TRUE` knob models the fix: a re-owned chunk carries an OWNER-REF
-(a `local_shared_ptr` the owner holds in its DLL — the adopt's `oc_hold`
-transferred into the DLL at claim instead of dropped).  Then
-`refcnt = chain + pins + owner-ref`, and the owner-exit empty branch DROPS the
-owner-ref rather than calling `deallocate_chunk`; the chunk is freed by whoever
-takes refcnt to 0 — the owner if no pins remain, else the last scrub pin — via
-the disposer.  **Every free is refcnt-mediated.**  Under `OwnerRef=TRUE` all
-safety invariants are **CLEAN** (1715 distinct):
+The `OwnerRef=TRUE` knob models the fix: a re-owned chunk carries an OWNER-REF —
+a `local_shared_ptr<PoolAllocator>` the CHUNK HOLDS TO ITSELF
+(`m_owner_self_ref`), **separate from the raw DLL (which is untouched)**.  At
+adopt the popped `oc_hold` (which already points at the chunk) is moved into
+`m_owner_self_ref` instead of dropped; at owner-free / thread-exit the owner
+`m_owner_self_ref.reset()`s it.  Then `refcnt = chain + pins + owner-ref`, and the
+owner does NOT call `deallocate_chunk` directly — the reset drops the self-ref and
+the chunk is freed by whoever takes refcnt to 0 (the owner if no pins remain, else
+the last scrub pin) via the disposer.  **Every free is refcnt-mediated.**  Under
+`OwnerRef=TRUE` all safety invariants are **CLEAN** (1715 distinct):
 `Inv_NoBadOwnerFree` is never set (no direct free), and `Inv_ReleasedNoRefs` /
 `Inv_NoDanglingNext` hold (a chunk a pin still references is kept alive until the
-pin drops, exactly as in `OrphanChain_pathB.tla` — this is the owner-ref design
-that pathB already verified, now reconfirmed against the faithful 2-step adopt).
-With the owner-ref, an owned chunk always has `refcnt ≥ 1`, so disposal never
-fires while owned — the `BIT_OWNED` gate becomes **redundant** (it was the
-raw-DLL workaround) and the disposer can instead `assert(MASK_CNT == 0)`.
+pin drops).  With the owner-ref an owned chunk always has `refcnt ≥ 1`, so
+disposal never fires while owned — the `BIT_OWNED` gate becomes **redundant** and
+the disposer can instead `assert(MASK_CNT == 0)`.
+
+The model is **agnostic to where the +1 owner-ref lives** — it accounts only
+"owned ⇒ +1 refcnt, dropped at owner-free" — so this CLEAN result verifies the
+self-ref realization (and equally the DLL-held owner-ref of `OrphanChain_pathB`).
+The self-ref is a chunk→self cycle, broken explicitly by the `reset`, modelled as
+the owner-free drop.
 
 `Inv_OwnedNotChained` ("owned ⇒ not chained") is intentionally NOT checked: a
 pin'd predecessor's stale `m_orphan_next` can transiently point at an owned node
@@ -462,17 +468,20 @@ only without the owner-ref (a free-while-referenced, caught by
 `Inv_NoBadOwnerFree`); with the owner-ref the extra incoming ref merely keeps the
 chunk alive — harmless.
 
-**Implementation note (the `__thread` blocker the fix must clear):** `s_tls` is
-`ALLOC_TLS ThreadLocalState` with `ALLOC_TLS == __thread` on macOS
-(`allocator_prv.h:224,1816`).  `__thread` (the GCC/Clang extension, not C++11
-`thread_local`) requires trivially-destructible storage, so `s_tls.dll_head`
-cannot directly be a `local_shared_ptr`.  The in-chunk forward link
-`m_dll_next → local_shared_ptr<PoolAllocator>` is fine (chunks are heap objects).
-For the DLL head's owner-ref, hold it in a small per-thread HEAP anchor reached
-by a raw `__thread` pointer (trivial), constructed lazily and torn down by the
-existing `AllocThreadExitCleanup` pthread-key destructor — sidestepping the
-triviality rule while preserving the `KAME_FAST_TSD` fast path.  This revives the
-earlier-cancelled "step 3" (DLL→`local_shared_ptr`), now justified by Result (2).
+**Implementation note (separate from the DLL; no `__thread` blocker).** The
+owner-ref is a self-held member `local_shared_ptr<PoolAllocator> m_owner_self_ref`
+INSIDE the heap chunk object — so it is unaffected by the `s_tls` `__thread`
+triviality rule (`allocator_prv.h:224,1816`), needs no heap anchor, and does NOT
+touch the raw DLL (`m_dll_next`/`dll_head` stay raw pointers).  It is set at the
+adopt claim (move `oc_hold` in) and `reset()` at owner-free and in
+`AllocThreadExitCleanup` (cache the next DLL pointer BEFORE the reset, since a
+`reset` that takes refcnt to 0 disposes the chunk synchronously; `~PoolAllocator`
+then sees `m_owner_self_ref` already null — no double decrement).  Crucially this
+is a PROPER `local_shared_ptr` self-ref, NOT the reverted MANUAL
+`refcnt.fetch_add/sub` self-ref (commit `7db53986`) that raced a `load_shared`
+reader's parked local tag: set/`reset` go through atomic_smart_ptr's split-tag
+release protocol, whose safety is verified at Layer 0
+(`OrphanChain_atomicshared.tla` / the GenMC `cds_atomic_shared_ptr` tests).
 
 ### Running
 ```
