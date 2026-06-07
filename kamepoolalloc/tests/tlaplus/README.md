@@ -382,8 +382,9 @@ distinct free mechanisms**:
 
 | Cfg | knob | Result |
 |---|---|---|
-| `OrphanChain_adopt_mc.cfg`        | `GateOnOwned=TRUE` (design) | `Inv_NoBadRelease` **CLEAN** (1978 distinct) — gate (1) is correct; but `Inv_NoBadOwnerFree` **VIOLATION** (depth 7) — see below |
-| `OrphanChain_adopt_nogate_mc.cfg` | `GateOnOwned=FALSE`         | `Inv_NoBadRelease` **VIOLATION** (depth 5) — proves the `BIT_OWNED` disposal gate is load-bearing |
+| `OrphanChain_adopt_mc.cfg`          | `GateOnOwned=TRUE, OwnerRef=FALSE` (shipped) | `Inv_NoBadRelease` **CLEAN** (1978 distinct) — gate (1) is correct; but `Inv_NoBadOwnerFree` **VIOLATION** (depth 7) — see below |
+| `OrphanChain_adopt_nogate_mc.cfg`   | `GateOnOwned=FALSE`         | `Inv_NoBadRelease` **VIOLATION** (depth 5) — proves the `BIT_OWNED` disposal gate is load-bearing |
+| `OrphanChain_adopt_ownerref_mc.cfg` | `OwnerRef=TRUE` (the fix)   | **CLEAN** (1715 distinct) — `Inv_NoBadRelease`, `Inv_NoBadOwnerFree`, `Inv_ReleasedNoRefs`, `Inv_NoDanglingNext`, `Inv_Acyclic` all hold |
 
 ### Result (1): the disposal gate is correct and load-bearing
 `Inv_NoBadRelease` (smart_ptr disposal never frees an owned/non-empty chunk) is
@@ -437,9 +438,46 @@ walk-coupled lifetime.  The general trace therefore over-approximates, but the
 (verified by grep: `refcnt` appears only in `orphan_chain_push`'s `store(1)` and
 the adopt's `local_shared_ptr` adoption).
 
+### Result (3): the owner-ref fix closes the gap — `OwnerRef=TRUE` CLEAN
+The `OwnerRef=TRUE` knob models the fix: a re-owned chunk carries an OWNER-REF
+(a `local_shared_ptr` the owner holds in its DLL — the adopt's `oc_hold`
+transferred into the DLL at claim instead of dropped).  Then
+`refcnt = chain + pins + owner-ref`, and the owner-exit empty branch DROPS the
+owner-ref rather than calling `deallocate_chunk`; the chunk is freed by whoever
+takes refcnt to 0 — the owner if no pins remain, else the last scrub pin — via
+the disposer.  **Every free is refcnt-mediated.**  Under `OwnerRef=TRUE` all
+safety invariants are **CLEAN** (1715 distinct):
+`Inv_NoBadOwnerFree` is never set (no direct free), and `Inv_ReleasedNoRefs` /
+`Inv_NoDanglingNext` hold (a chunk a pin still references is kept alive until the
+pin drops, exactly as in `OrphanChain_pathB.tla` — this is the owner-ref design
+that pathB already verified, now reconfirmed against the faithful 2-step adopt).
+With the owner-ref, an owned chunk always has `refcnt ≥ 1`, so disposal never
+fires while owned — the `BIT_OWNED` gate becomes **redundant** (it was the
+raw-DLL workaround) and the disposer can instead `assert(MASK_CNT == 0)`.
+
+`Inv_OwnedNotChained` ("owned ⇒ not chained") is intentionally NOT checked: a
+pin'd predecessor's stale `m_orphan_next` can transiently point at an owned node
+in BOTH designs, so it is simply not an invariant.  Its *consequence* is harmful
+only without the owner-ref (a free-while-referenced, caught by
+`Inv_NoBadOwnerFree`); with the owner-ref the extra incoming ref merely keeps the
+chunk alive — harmless.
+
+**Implementation note (the `__thread` blocker the fix must clear):** `s_tls` is
+`ALLOC_TLS ThreadLocalState` with `ALLOC_TLS == __thread` on macOS
+(`allocator_prv.h:224,1816`).  `__thread` (the GCC/Clang extension, not C++11
+`thread_local`) requires trivially-destructible storage, so `s_tls.dll_head`
+cannot directly be a `local_shared_ptr`.  The in-chunk forward link
+`m_dll_next → local_shared_ptr<PoolAllocator>` is fine (chunks are heap objects).
+For the DLL head's owner-ref, hold it in a small per-thread HEAP anchor reached
+by a raw `__thread` pointer (trivial), constructed lazily and torn down by the
+existing `AllocThreadExitCleanup` pthread-key destructor — sidestepping the
+triviality rule while preserving the `KAME_FAST_TSD` fast path.  This revives the
+earlier-cancelled "step 3" (DLL→`local_shared_ptr`), now justified by Result (2).
+
 ### Running
 ```
-java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_mc.cfg        OrphanChain_adopt.tla
-java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_nogate_mc.cfg OrphanChain_adopt.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_mc.cfg          OrphanChain_adopt.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_nogate_mc.cfg   OrphanChain_adopt.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_ownerref_mc.cfg OrphanChain_adopt.tla
 ```
-Both terminate in <1s on a single core.
+All terminate in <1s on a single core.
