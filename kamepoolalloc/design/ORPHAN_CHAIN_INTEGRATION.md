@@ -207,6 +207,33 @@ final flip.
 4. adopt (`Revive`) only via successful `try_promote` (refcnt was >0).
 5. chain stays acyclic; relinks reachability-preserving + dead-only.
 
+## Implementation note — cross-free already defers (no conflict)
+
+Confirmed in `deallocate_pooled`'s OnClearFn (allocator.cpp ~1787): the
+current §36 code **does NOT release a chunk on the cross-free dec-to-0 when
+BIT_OWNED is clear** — such a chunk is an orphan whose memory must stay valid
+for `orphan_pop`; cross-free only decrements MASK_CNT (result ignored).  This
+means **replacing `orphan_push` (the §36 stack) with the atomic_shared_ptr
+chain push at owner-exit (allocator.cpp:3048) needs NO change to the
+cross-free path** — a drained orphan simply stays on the chain (chain-ref
+held) until swept/adopted.  No release-vs-chain conflict.  (Distinguished
+from owner-exit-empty, a separate path where BIT_OWNED is still set during
+the drain.)
+
+Step-1 wiring (chain head + push), then, is:
+- `static atomic_shared_ptr<PoolAllocator> s_orphan_chain_head;` in the FS=true
+  primary (next to `s_orphan_head`), same injected-class-name type as
+  `m_orphan_next` (NOT the `<ALIGN,DUMMY,DUMMY>` erasure — that re-triggers the
+  Stage-1 circular incomplete-type).
+- `orphan_chain_push(c)`: `c->refcnt.store(1, relaxed)` (owner-private,
+  pre-publish — no race) → adopt `local_shared_ptr` → Treiber push via
+  `m_orphan_next` + `s_orphan_chain_head.compareAndSwap` (mirror the PoC
+  `push_head`).  At the call site, `#if KAME_ORPHAN_CHAIN` selects
+  `orphan_chain_push(c)` else `orphan_push(c)` (upcast c to the FS=true-base
+  type for the chain).
+- flag-ON is INCOMPLETE until step 4 (no pop/scrub ⇒ orphans accumulate =
+  leak, but no corruption); full alloc_stress gate lands at step 4–5.
+
 ## Risks / watch-items
 
 - **Hot path**: Stage 2's boundary branch must NOT add an atomic to the
