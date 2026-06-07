@@ -8,6 +8,44 @@ Branch: continuation of `orphan-atomicshared` (which already provides the
 `force_intrusive_ref` / `atomic_intrusive_dispose` primitives in
 `atomic_smart_ptr.h` and the `atomic_intrusive_dll_test.cpp` PoC).
 
+## POST-IMPLEMENTATION RECONCILIATION (read this first — current truth)
+
+The sections below are the *planning* narrative and are partly superseded by
+what was actually built (flag still default OFF).  Current state:
+
+- **Adopt: Option A (exclusive re-own) was implemented, NOT Option B.**  The
+  "Adopt design" section calls Option B (in-place pinned alloc) "CHOSEN" and
+  rejects A because A "needs an owner-ref ⇒ per-thread TLS home ⇒ the
+  trivial-`__thread` step-3 blocker".  Implementation went with A anyway
+  (`orphan_chain_pop` + `BIT_OWNED` claim, allocator.cpp ~2722).
+- **The residual-pin hazard A was rejected for is REAL — and now formally
+  pinned down.**  `tests/tlaplus/OrphanChain_adopt.tla` models the actual 2-step
+  pop→claim and finds **`Inv_NoBadOwnerFree` VIOLATION** under the raw-DLL design:
+  the owner's direct `deallocate_chunk` (empty branch) ignores the intrusive
+  refcnt, so a concurrent scrubber's `load_shared` pin on a re-owned-then-emptied
+  chunk can be freed out from under it (UAF / recycled-control-block corruption).
+- **Resolution — owner-ref as a CHUNK SELF-REF, NOT a TLS home** (commit
+  `89641da6`).  The step-3 blocker analysis below concluded "the owner-ref is
+  fundamentally a per-thread `local_shared_ptr` ⇒ its home IS the TLS"; that
+  assumption is what the fix breaks.  The owner-ref's natural home is the **chunk
+  itself**: a `local_shared_ptr<PoolAllocator> m_owner_self_ref` member (a
+  deliberate self-cycle) set at adopt (move `oc_hold` in) and `reset()` at
+  owner-free / `orphan_chain_push`.  It persists exactly while the chunk is owned,
+  lives in heap chunk memory (no TLS, sidesteps trivial-`__thread`), and is a
+  PROPER `local_shared_ptr` (sidesteps the manual-refcount split-tag hazard that
+  killed the spin-drain and the Stage-2 manual self-ref).  Every owner-side free
+  becomes refcnt-mediated (`reset()` → disposer at refcnt 0), so a residual pin is
+  honoured.  `OrphanChain_adopt.tla` with `OwnerRef=TRUE` is **CLEAN** (all safety
+  invariants).  ⇒ **Option A is viable after all**; the DLL stays raw AND the
+  owner-ref exists — they are simply separate (DLL = raw membership list,
+  self-ref = the keep-alive).
+- **Stage status:** S1 (embed) done; S2 (manual MASK_CNT self-ref) reverted →
+  replaced by separate counts + the chunk self-ref; S3 (owner-exit push + empty
+  drop-self-ref) done; S5 (single-head adopt) done; **S6** scrub runs at ONE site
+  only (adopt-time, allocator.cpp ~2732 — owner-exit/opportunistic triggers TODO);
+  **S7** (retire §36 stack + flip default ON) PENDING (full gate).  Linux
+  verification of the self-ref fix (TSan + churn plateau + ctest) is in flight.
+
 ## Refcount model — SEPARATE counts (Path B, decided)
 
 MASK_CNT (live-slot count, in `m_flags_packed`) and the atomic_shared_ptr
@@ -152,6 +190,13 @@ All work behind `#if KAME_ORPHAN_CHAIN` (default **0**), so every stage
 leaves the shipping path (orphan stack) intact and the build green until the
 final flip.
 
+> **Status (see POST-IMPLEMENTATION RECONCILIATION):** S1 done · S2 reverted
+> (→ separate counts + chunk self-ref) · S3 done · S4 N/A (cross-free already
+> defers; eager-madvise folded into thread-exit) · S5 done (single-head adopt,
+> Option A) · **S6 partial** (scrub at adopt-time only; owner-exit/opportunistic
+> triggers TODO) · **S7 pending** (retire §36 + flip ON, full gate).  The adopt
+> owner-ref is the chunk `m_owner_self_ref`, verified by `OrphanChain_adopt.tla`.
+
 - **Stage 1 — intrusive-node embed (scaffolding, flag OFF, unused).**
   `force_intrusive_ref<PoolAllocator<...>>`; add `Refcnt`/`refcnt` +
   `m_orphan_next` (atomic_shared_ptr) + `atomic_intrusive_dispose` ->
@@ -270,6 +315,13 @@ with build iteration, not rushed.
 
 ## DECISION (resolves the step-3 blocker) — owner DLL stays RAW
 
+> **PARTLY SUPERSEDED** (see POST-IMPLEMENTATION RECONCILIATION).  The DLL did
+> stay raw — correct.  But "owned chunks need NOT enter the smart_ptr world /
+> NO owner-ref" held only until *adopt* was implemented (Option A): a re-owned
+> chunk DOES need an owner-ref (the `Inv_NoBadOwnerFree` hazard).  That owner-ref
+> is the chunk's `m_owner_self_ref` (a self-cycle), SEPARATE from the still-raw
+> DLL — so "DLL raw" and "owner-ref exists" coexist.
+
 Because the chain link (`m_orphan_next`) and the DLL link (`m_dll_next`) are
 SEPARATE fields, **owned chunks need NOT enter the smart_ptr world at all**:
 
@@ -297,6 +349,17 @@ Revised plan:
   (transient hold / quiescence) — NOT the TLS-DLL change.
 
 ## (historical) Step 3 BLOCKER (found by build) — owner-ref TLS home vs trivial-TLS
+
+> **RESOLVED** (see POST-IMPLEMENTATION RECONCILIATION).  The blocker rests on
+> one wrong premise — the bullet below, *"the owner-ref is fundamentally a
+> per-thread persistent `local_shared_ptr` ⇒ its natural home IS the TLS"*.  It
+> is not: the owner-ref's home is the **chunk itself** (`m_owner_self_ref`, a
+> self-cycle), which persists exactly while the chunk is owned, lives in heap
+> chunk memory (no `__thread`, no trivial-TLS constraint), and is a proper
+> `local_shared_ptr` (so the split-tag hazard that killed the spin-drain does
+> not apply).  Step 3 (DLL→`local_shared_ptr`) stays CANCELLED; the owner-ref is
+> the SELF-REF instead, separate from the raw DLL.  Adopt (Option A) is thus
+> safe — verified `OrphanChain_adopt.tla` `OwnerRef=TRUE` CLEAN.
 
 Attempted step 3 (m_dll_next / dll_head → local_shared_ptr).  Most errors were
 mechanical (`.get()` for reads, local_shared_ptr `=` for the ~8 mutation
@@ -367,6 +430,14 @@ would leave the macOS churn Linux-only-gated as today.  Next: implement adopt
 
 ## Adopt design (Linux confirmed it is REQUIRED) — Option B: in-place pinned alloc
 
+> **SUPERSEDED — Option A was implemented, not B** (see POST-IMPLEMENTATION
+> RECONCILIATION).  A's downside listed below ("needs an owner-ref ⇒ TLS home ⇒
+> step-3 blocker") was dissolved by homing the owner-ref in the chunk itself
+> (`m_owner_self_ref` self-cycle), so A re-own is pin-safe with no TLS change.
+> The `Inv_NoBadOwnerFree` TLA finding + the `OwnerRef=TRUE` CLEAN fix justify A.
+> Option B (in-place pinned alloc, no re-own) remains a valid alternative but was
+> not built; keep this section as the comparison record.
+
 Linux churn (g++ 13.3) confirmed scenario 2 needs adopt (scrub reclaims only
 EMPTY orphans; survivor churn needs reuse of NON-empty orphans).  The GCC
 self-ref-template Refcnt build fix landed via merge of orphan-atomicshared
@@ -419,3 +490,22 @@ from a still-on-chain orphan + a transient pin; verify scrub-vs-in-place-alloc
   must not allocate (it doesn't) and must run the madvise/claim-clear once.
 - **LOCAL_REF_CAPACITY contention** on the hot `g_orphan_head` under many
   concurrent adopters — measure.
+- **[RESOLVED] Owner-free vs residual scrub pin** (`Inv_NoBadOwnerFree`): the
+  owner's direct `deallocate_chunk` ignored the intrusive refcnt → could free a
+  chunk a scrubber still `load_shared`-pins.  Closed by the chunk self-ref
+  owner-ref (`m_owner_self_ref`): owner-free is now `reset()` → disposer at
+  refcnt 0.  Verified `OrphanChain_adopt.tla` (`OwnerRef=TRUE` CLEAN; `FALSE`
+  VIOLATION).  Implemented in commit `89641da6`.
+- **[NEW] Self-ref reset re-entrancy / DLL-walk**: `m_owner_self_ref.reset()`
+  that takes refcnt to 0 disposes the chunk SYNCHRONOUSLY (runs `~PoolAllocator`
+  + `bucket_release_chunk`).  Release sites MUST cache the next DLL pointer
+  BEFORE the reset (they do); `~PoolAllocator` then sees `m_owner_self_ref`
+  already null (no double-decrement).  BIT_OWNED must be cleared BEFORE the reset
+  so the disposer does not no-op (it is: `atomicFetchAnd(~BIT_OWNED)` /
+  `owner_release` precede the reset).
+- **[NEW] Disposer free-path & size for adopted chunks**: routing adopted-chunk
+  frees through `atomic_intrusive_dispose` uses `bucket_release_chunk(cbase,
+  CHUNK_SIZE)` (warm-park), not `deallocate_chunk(reclaim)`.  Consistent with the
+  pre-existing scrub-reclaim path; preserves §21 thread-exit madvise only for
+  FRESH chunks (direct path).  Verify `CHUNK_SIZE` matches actual chunk size if a
+  multi-unit (Stage A/B large) chunk can ever reach the orphan chain.
