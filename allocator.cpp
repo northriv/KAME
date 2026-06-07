@@ -3045,7 +3045,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// `newv == 0` branch above and were released directly; they are
 			// never on the stack, so the stack-only no-release invariant
 			// (Edit 3) holds.
+#if KAME_ORPHAN_CHAIN
+			orphan_chain_push(c);   // (Path B) push onto the atomic_shared_ptr chain
+#else
 			orphan_push(c);
+#endif
 		}
 		c = next;
 	}
@@ -6692,6 +6696,32 @@ ALLOC_TLS typename PoolAllocator<ALIGN, FS, DUMMY>::ThreadLocalState
 // instantiation, shared by every thread.  0 == empty.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 std::atomic<uint64_t> PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_head{0};
+
+#if KAME_ORPHAN_CHAIN
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+atomic_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> >
+    PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_chain_head;
+
+//! (Path B Stage 1) Treiber push onto the atomic_shared_ptr orphan chain.
+//! `refcnt` is established to 1 BEFORE publish — at owner-exit the chunk is
+//! still owner-private (off every per-thread DLL; not yet on the chain), so
+//! no concurrent `load_shared` can have pinned it, making the plain store
+//! race-free.  Adopt into a local_shared_ptr (which takes that 1) and CAS it
+//! onto the head (mirrors atomic_intrusive_dll_test.cpp's push_head); head +
+//! the chunk's m_orphan_next hold the chain-ref.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
+    PoolAllocator<ALIGN, DUMMY, DUMMY> *craw) noexcept {
+	PoolAllocator *c = static_cast<PoolAllocator *>(craw);  // upcast to FS=true base (chain node type)
+	c->refcnt.store(1, std::memory_order_relaxed);
+	local_shared_ptr<PoolAllocator> n(c);                   // adopt the refcnt=1
+	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head);
+	for(;;) {
+		n->m_orphan_next = old;
+		if(s_orphan_chain_head.compareAndSwap(old, n)) break;
+	}
+}
+#endif
 
 // (§36) Push an orphaned (BIT_OWNED clear, m_owner_id == 0) NON-empty
 // chunk onto the per-template Treiber stack.  Called exactly once per

@@ -1836,6 +1836,18 @@ protected:
 	static void orphan_push(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
 	static PoolAllocator<ALIGN, DUMMY, DUMMY> *orphan_pop() noexcept;
 
+#if KAME_ORPHAN_CHAIN
+	//! (Path B Stage 1) atomic_shared_ptr orphan chain — replaces the §36
+	//! Treiber stack (s_orphan_head) under the flag.  Same node type as
+	//! `m_orphan_next` (injected-class-name = the FS=true base), NOT the
+	//! `<ALIGN,DUMMY,DUMMY>` erasure (which re-triggers the Stage-1 circular
+	//! incomplete-type).  chain-ref = this head + each chunk's m_orphan_next.
+	//! Cross-free already defers orphan release (deallocate_pooled OnClearFn),
+	//! so a drained orphan stays here until swept/adopted (steps 4-5).
+	static atomic_shared_ptr<PoolAllocator> s_orphan_chain_head;
+	static void orphan_chain_push(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
+#endif
+
 	//! Per-thread DLL pointers.  Single-writer (the owning thread)
 	//! and single-reader (same thread).  No atomic ordering needed
 	//! for these two fields in steady state.
