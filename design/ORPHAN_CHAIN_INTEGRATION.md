@@ -8,41 +8,73 @@ Branch: continuation of `orphan-atomicshared` (which already provides the
 `force_intrusive_ref` / `atomic_intrusive_dispose` primitives in
 `atomic_smart_ptr.h` and the `atomic_intrusive_dll_test.cpp` PoC).
 
-## Refcount model (refined during Stage 3 design)
+## Refcount model — SEPARATE counts (Path B, decided)
 
-`refcnt = owner-ref + chain-ref + self-ref`, released when it hits 0:
+MASK_CNT (live-slot count, in `m_flags_packed`) and the atomic_shared_ptr
+intrusive `refcnt` are **two independent counters** — NOT unified.  Unifying
+them (Stage 2's manual self-ref, reverted in 7db53986) raced
+atomic_smart_ptr's split (local-tag) counting: a manual `fetch_sub` to 0
+while a `load_shared` reader's ref sits in a cell's local tag → premature
+dispose / UAF.
 
-- **owner-ref** (+1 while the chunk is in an owner's per-thread DLL): set at
-  chunk creation / adoption, dropped at owner-exit.  Distinguishes
-  *empty-but-owned* (owner keeps it for reuse — must NOT release) from
-  *empty-orphan* (must release).  Self-ref alone cannot make this
-  distinction.
-- **self-ref** (+1 while MASK_CNT>0): Stage 2, the empty<->nonempty edge.
-- **chain-ref** (+1 while on the orphan chain): the head / a predecessor's
-  `m_orphan_next` (smart_ptr-managed).
+So the intrusive `refcnt` is managed **EXCLUSIVELY by atomic_smart_ptr — no
+manual ops**:
 
-Every decrement is a unified unref `if(refcnt.fetch_sub(1,acq_rel)==1)
-atomic_intrusive_dispose(this)` — the SAME path the smart_ptr deleter uses,
-so the manual (owner-ref, self-ref) and smart_ptr (chain-ref, pin) drops
-compose on one counter.  Lifecycle:
+- **owner-ref** = a `local_shared_ptr<PoolAllocator>` the owner's per-thread
+  DLL holds for each owned chunk (your original "相互参照DLLは local_shared_ptr
+  ベース").  Keeps owned chunks alive (empty or not).  Dropped at owner-exit.
+- **chain-ref** = head / a predecessor's `m_orphan_next` (`atomic_shared_ptr`).
+  Keeps an orphan alive while on the chain.
+- **pins** = transient `load_shared` handles (local-tag).
 
-| event | refcnt move |
-|---|---|
-| create (empty, owned) | owner=1 → **1** |
-| first alloc | +self → **2** |
-| owner frees all (still owned) | −self → **1** (owner keeps it) |
-| owner-exit, non-empty | −owner(→1) then push +chain → **2** |
-| owner-exit, empty | −owner → **0** ⇒ release |
-| orphan drains to empty | −self → chain only |
-| orphan swept off chain | −chain → **0** ⇒ release |
-| orphan adopted (non-empty) | −chain, +owner → owned again |
-| non-empty orphan falls off chain | −chain → self-ref keeps it alive; later drain −self → **0** ⇒ release |
+`refcnt -> 0` fires `atomic_intrusive_dispose`.  "Don't release a non-empty
+chunk" is enforced **structurally**, not by a self-ref: an owned non-empty
+chunk has an owner-ref; a non-empty orphan keeps its chain-ref (the sweeper
+removes only DEAD nodes and relink preserves successors, so a non-empty node
+never loses its incoming link).  Therefore `refcnt -> 0  ⟹  MASK_CNT == 0`;
+the disposer **asserts** `MASK_CNT == 0` as a safety net.  No `self-reset`
+either — an unlinked dead node's dtor drops its `m_orphan_next`, releasing
+the forward ref.
 
-This matches the TLA+ `StructRefs` (chain-in + self-ref) plus the pre-orphan
-owner-ref; the model's CLEAN result covers the orphan phase, owner-ref is the
-pre-push state dropped at owner-exit.  **OPEN:** verify the manual fetch_add/
-sub on `refcnt` composes with atomic_smart_ptr's local/global tagged-pointer
-counting (the smart_ptr's global count must equal `refcnt`).
+**Intrusive-refcnt location = accessor hook (not a `refcnt` member, not a
+template offset).**  Add to atomic_smart_ptr (mirroring `has_intrusive_dispose`):
+if `T` provides `static atomic<Refcnt>& T::atomic_intrusive_refcnt(T*)`, the
+smart_ptr uses it; else falls back to `p->refcnt`.  Rationale: the chunk type
+is self-referential/incomplete at the trait point (a member-pointer template
+param can't be taken there; an integer-offset param is a fragile magic
+constant with no compiler check), whereas an accessor body is instantiated
+late (T complete) like the dispose hook, is compiler-checked, zero-cost
+inlined, and lets `refcnt` live in the chunk HEADER (free bytes [40..63],
+chunk-relative — uniform across ALIGN, reachable from `chunk_base` in
+cross-thread paths) cleanly separate from MASK_CNT.  Small, consistent
+addition for the atomic_smart_ptr owner (other session); does not touch their
+GenMC model.
+
+Lifecycle (separate counts; refcnt = owner-ref + chain-ref + pins):
+
+| event | refcnt | MASK_CNT | note |
+|---|---|---|---|
+| create (empty, owned) | owner=1 → **1** | 0 | |
+| first alloc | **1** (unchanged) | 0→1 | refcnt untouched by alloc |
+| owner frees all (still owned) | **1** (unchanged) | 1→0 | owner-ref keeps it; reusable |
+| owner-exit, non-empty | −owner, +chain → **1** | >0 | push transfers owner-ref→chain-ref |
+| owner-exit, empty | −owner → **0** ⇒ release | 0 | assert MASK_CNT==0 ✓ |
+| orphan drains to empty (cross-free) | **1** (unchanged) | →0 | stays on chain until swept |
+| orphan swept off chain (empty) | −chain → **0** ⇒ release | 0 | assert MASK_CNT==0 ✓ |
+| orphan adopted (non-empty) | −chain, +owner → **1** | >0 | back to owned |
+
+`refcnt` moves ONLY on owner-ref (DLL local_shared_ptr) / chain-ref
+(head/m_orphan_next) / pin transitions — never on alloc/free.  The structural
+invariant (sweeper removes only DEAD nodes; relink preserves successors; no
+self-reset) guarantees a non-empty chunk never loses its last ref, so
+`refcnt→0 ⟹ MASK_CNT==0`.
+
+**Re-verify in TLA+:** the committed `OrphanChain_atomicshared.tla` modelled
+the self-ref + self-reset variant.  Path B is a *different* mechanism
+(separate counts, chain-ref+owner-ref only, dead-only removal, no
+self-reset) and needs its own small model proving: a non-empty node never
+loses its last incoming ref, `released ⟹ MASK_CNT==0`, no double-release, no
+leak.
 
 ## Design recap (what the model proved)
 
