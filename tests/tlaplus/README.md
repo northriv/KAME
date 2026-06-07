@@ -357,3 +357,89 @@ java -cp tla2tools.jar tlc2.TLC -config OrphanChain_pathB_liveremoval_mc.cfg Orp
 java -cp tla2tools.jar tlc2.TLC -config OrphanChain_pathB_live_mc.cfg        OrphanChain_pathB.tla
 ```
 All terminate in <1s on a single core.
+
+## OrphanChain_adopt — the implemented adopt mechanism (the Linux-review watch-item)
+
+`OrphanChain_adopt.tla` models the ACTUAL adopt code shipped behind
+`KAME_ORPHAN_CHAIN` (commit `bb6d691d`), closing the watch-item raised in the
+Linux review: *"adopt is a non-atomic 2-step `pop (remove from chain) →
+BIT_OWNED CAS`; confirm the TLA model covers it together with the residual scrub
+pin drain."*  Earlier chain models (`pathB`, `atomicshared`) modelled adopt as a
+single atomic step and used the since-dropped owner-ref; this one is faithful to
+the raw-DLL design and splits adopt into its three real atomic steps
+(`orphan_chain_pop` → claim `BIT_OWNED` → drop `oc_hold`), with disposal folded
+into each reference-dropping action so `refcnt=0 ⟺ released` (matching
+`atomic_shared_ptr`'s synchronous deleter — no node lingers at refcnt 0 still
+pointing at its successor).
+
+It verifies **two independent safety properties**, because the code has **two
+distinct free mechanisms**:
+
+| Free mechanism | Code | Gated by |
+|---|---|---|
+| (1) smart_ptr disposal | `atomic_intrusive_dispose` (`allocator_prv.h:1917`) | **`BIT_OWNED`** (`if(BIT_OWNED) return;`) |
+| (2) owner direct free | `release_dll_chunks_for_thread` empty branch (`allocator.cpp:3026`, `newv==0`) | **`MASK_CNT==0` only — does NOT read `refcnt`** |
+
+| Cfg | knob | Result |
+|---|---|---|
+| `OrphanChain_adopt_mc.cfg`        | `GateOnOwned=TRUE` (design) | `Inv_NoBadRelease` **CLEAN** (1978 distinct) — gate (1) is correct; but `Inv_NoBadOwnerFree` **VIOLATION** (depth 7) — see below |
+| `OrphanChain_adopt_nogate_mc.cfg` | `GateOnOwned=FALSE`         | `Inv_NoBadRelease` **VIOLATION** (depth 5) — proves the `BIT_OWNED` disposal gate is load-bearing |
+
+### Result (1): the disposal gate is correct and load-bearing
+`Inv_NoBadRelease` (smart_ptr disposal never frees an owned/non-empty chunk) is
+**CLEAN** under `GateOnOwned=TRUE` and **VIOLATED** under `FALSE`.  The 2-step
+`pop → claim` window is safe: `oc_hold` keeps the chunk alive through the claim,
+and after `BIT_OWNED` is set a residual pin draining to refcnt 0 hits the gated
+disposer, which no-ops.  This is exactly the watch-item's named concern, and the
+gate handles it.
+
+### Result (2): the OWNER's direct free does NOT honour the refcnt — `Inv_NoBadOwnerFree` VIOLATION
+The disposer comment (`allocator_prv.h:1915`) states the design's **precondition**
+for free mechanism (2): *"the owner releases it via deallocate_chunk on empty
+(refcnt then stays 0, off every smart_ptr)."*  `Inv_NoBadOwnerFree` tests whether
+that precondition is **enforced** or merely **timing-based**.  It is **VIOLATED**:
+```
+1. Free(n1)         n1 drains (MASK_CNT→0) while still an orphan on the chain
+2. ScrubPin(n1)     a concurrent scrubber load_shared-pins n1   (refcnt += 1)
+                    — the real `local_shared_ptr cur(s_orphan_chain_head)`
+3. AdoptPop(n1)     another thread pops n1 (head→n2, oc_hold=n1)
+4. AdoptClaim(n1)   sets BIT_OWNED  (re-owned, raw)
+5. AdoptDropRef(n1) drops oc_hold; refcnt = scrub pin only = 1; disposal GATED
+                    (no-op) — Result (1) holds here
+6. OwnerExitEmpty(n1)  owner deallocate_chunk's n1 (empty) — but the scrub pin
+                       is STILL outstanding (refcnt=1)  💥  bad_ownerfree
+```
+The minimal scenario does not depend on scrub-walk subtleties: a scrubber that is
+preempted **immediately after** `local_shared_ptr cur(s_orphan_chain_head)` pins
+the head holds a strong ref while another thread runs the entire
+adopt → drain → owner-exit; the owner's `deallocate_chunk` ignores that ref, so
+the pin dangles and the scrubber's later `cur` deref / `release_tag_ref_`
+corrupts the freed-and-recycled chunk's control block.  The `BIT_OWNED` gate
+covers *pin-drains-before-owner-free* (disposal no-ops); it does **not** cover
+*owner-free-before-pin-drains*, and no happens-before forces the former ordering.
+
+**Status:** Path B is flag-OFF by default (`KAME_ORPHAN_CHAIN=0`), so shipping
+code (§36, which leaks rather than scrubs and has no smart_ptr pins) is
+unaffected.  This gap is specific to the new scrub+adopt path and must be closed
+before flipping the flag (Stage 7).  Candidate fixes: (a) the owner empty-free
+branch consults `refcnt.load(acquire)` after clearing `BIT_OWNED` and, when
+`>0`, defers to the (now-ungated) disposer instead of calling `deallocate_chunk`
+— with a single-writer claim to avoid an owner-vs-disposer double free; or
+(b) document it as a timing-based precondition (the pin window is a few
+instructions; an owner-free requires a full adopt+drain+exit) — weaker, and
+formally a UAF under arbitrary preemption.
+
+**Note on the abstraction:** `ScrubPin`/`ScrubUnpin` model the pin lifetime
+liberally (held until an independent unpin), over-approximating the real
+walk-coupled lifetime.  The general trace therefore over-approximates, but the
+**minimal preempt-after-head-pin scenario above is exact** — the pin is a real
+`load_shared` strong ref and the owner-free path provably never reads `refcnt`
+(verified by grep: `refcnt` appears only in `orphan_chain_push`'s `store(1)` and
+the adopt's `local_shared_ptr` adoption).
+
+### Running
+```
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_mc.cfg        OrphanChain_adopt.tla
+java -cp tla2tools.jar tlc2.TLC -config OrphanChain_adopt_nogate_mc.cfg OrphanChain_adopt.tla
+```
+Both terminate in <1s on a single core.
