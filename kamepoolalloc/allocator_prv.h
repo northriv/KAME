@@ -1852,6 +1852,13 @@ protected:
 	//! touches ORPHANS ONLY (no owner-ref).  Multiple scrubbers safe: dead-only
 	//! + reachability-preserving relink, lost-CAS restart = safe-side.
 	static void orphan_chain_scrub() noexcept;
+	//! (Path B adopt) Treiber-pop ONE head node from the chain; returns the
+	//! held local_shared_ptr (empty if the chain is empty).  The CALLER keeps
+	//! it through the BIT_OWNED claim (re-own) so the chunk can't be disposed
+	//! mid-re-own; once BIT_OWNED is set, a residual scrub pin draining →
+	//! refcnt 0 → atomic_intrusive_dispose no-ops (it checks BIT_OWNED).  The
+	//! popped node's own m_orphan_next is cleared (it has left the chain).
+	static local_shared_ptr<PoolAllocator> orphan_chain_pop() noexcept;
 #endif
 
 	//! Per-thread DLL pointers.  Single-writer (the owning thread)
@@ -1901,6 +1908,13 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	//! bucket_release_chunk.  NEVER frees the object: it is placement-new'd
 	//! in the chunk; the chunk memory is owned by the region claim-bitmap.
 	static void atomic_intrusive_dispose(PoolAllocator *p) noexcept {
+		// (Path B adopt) If the chunk was RE-OWNED off the chain (adopt set
+		// BIT_OWNED while holding the popped ref), this refcnt→0 is a residual
+		// scrub pin draining AFTER re-own — the chunk is now owner-managed (raw
+		// DLL), NOT an orphan to reclaim.  No-op: the owner releases it via
+		// deallocate_chunk on empty (refcnt then stays 0, off every smart_ptr).
+		// Empty orphans reach here with BIT_OWNED CLEAR ⇒ they release below.
+		if(p->m_flags_packed & BIT_OWNED) return;
 		char *cbase = reinterpret_cast<char *>(p) - ALLOC_CHUNK_HEADER;
 		p->~PoolAllocator();
 		PoolAllocatorBase::bucket_release_chunk(cbase, (std::size_t)CHUNK_SIZE);
