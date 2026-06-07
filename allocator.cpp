@@ -2707,15 +2707,23 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_chunk_path(unsigned int SIZE) {
 	// normal OWNED chunk again — if its owner later exits non-empty it is
 	// pushed again (temporal reuse; never double-linked, one push at a time).
 #if KAME_ORPHAN_CHAIN
-	// (Path B step 4) Reclaim empty orphans from the atomic_shared_ptr chain
-	// before mmap'ing fresh — frees their region units so the fresh claim
-	// reuses them (bounds `reserved`).  The §36 orphan_pop below is DORMANT
-	// under the flag: the §36 stack is never pushed to (owner-exit pushes the
-	// chain instead), so it returns null and we fall through to a fresh claim.
-	// In-place reuse of NON-empty orphans (adopt) is deferred.
+	// (Path B) Before mmap'ing fresh: (1) scrub — reclaim EMPTY orphans from
+	// the chain (frees their region units); (2) ADOPT — pop ONE head orphan
+	// and re-own it (reuse §36's re-own body below), reusing its free slots so
+	// SURVIVOR (non-empty) orphans are not stranded.  Pop from the CHAIN (the
+	// §36 stack is empty under the flag — owner-exit pushes the chain).  HOLD
+	// oc_hold through the BIT_OWNED claim: that keeps the chunk alive until
+	// BIT_OWNED is set, after which a residual scrub pin draining → refcnt 0 →
+	// atomic_intrusive_dispose no-ops (it checks BIT_OWNED).  oc_hold is the
+	// FS=true-base type (the chain's node type); downcast reverses the upcast
+	// orphan_chain_push applied at owner-exit.
 	orphan_chain_scrub();
-#endif
+	local_shared_ptr<PoolAllocator<ALIGN, true, DUMMY> > oc_hold = orphan_chain_pop();
+	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *oc =
+	       static_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(oc_hold.get())) {
+#else
 	if(PoolAllocator<ALIGN, DUMMY, DUMMY> *oc = orphan_pop()) {
+#endif
 		// Claim: set BIT_OWNED, preserving the MASK_CNT survivors that the
 		// holding thread's cross-thread frees may still be decrementing.
 		// We are the SOLE owner of this popped pointer (it is now off the
@@ -6756,6 +6764,24 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
 		}
 		pred = cur;                                            // live orphan → keep, advance
 		cur = nxt;
+	}
+}
+
+//! (Path B adopt) Treiber-pop the head node off the orphan chain — see
+//! allocator_prv.h.  Returns the held local_shared_ptr (the caller keeps it
+//! through the BIT_OWNED claim); clears the popped node's m_orphan_next.
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+local_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> >
+PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_pop() noexcept {
+	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head);
+	for(;;) {
+		if( !old) return local_shared_ptr<PoolAllocator>();   // chain empty
+		local_shared_ptr<PoolAllocator> nxt(old->m_orphan_next);
+		if(s_orphan_chain_head.compareAndSwap(old, nxt)) {
+			old->m_orphan_next = local_shared_ptr<PoolAllocator>();  // off the chain
+			return old;
+		}
+		// old reloaded by compareAndSwap on failure → retry
 	}
 }
 #endif
