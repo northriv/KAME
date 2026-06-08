@@ -1839,7 +1839,21 @@ protected:
 	//! circular incomplete-type).  chain-ref = this head + each chunk's m_orphan_next.
 	//! Cross-free already defers orphan release (deallocate_pooled OnClearFn),
 	//! so a drained orphan stays here until swept/adopted (steps 4-5).
-	static atomic_shared_ptr<PoolAllocator> s_orphan_chain_head;
+	//!
+	//! NOTE: an ACCESSOR returning a reference to a NEVER-DESTROYED instance,
+	//! not a plain `static` member object.  A static `atomic_shared_ptr`
+	//! member would run its destructor at process exit, dropping the chain-ref
+	//! on the head node OUTSIDE the scrub gate; a still-non-empty orphan would
+	//! then hit refcnt 0 → `atomic_intrusive_dispose` → `~PoolAllocator()` +
+	//! reclaim, destroying a chunk whose slots are still live.  A later
+	//! atexit `free()` of one of those slots resolves the destructed
+	//! PoolAllocator and calls the now-pure-virtual `deallocate_pooled`
+	//! (observed: 12/14 Linux ctest abort with "pure virtual method called"
+	//! after the §S7 chain flip).  Leaking the head (the allocator never
+	//! unmaps regions at teardown anyway — see `mmap_new_region`) keeps every
+	//! orphan chunk's PoolAllocator live through process exit.  See the
+	//! definition in allocator.cpp for the placement-new leak idiom.
+	static atomic_shared_ptr<PoolAllocator> &s_orphan_chain_head() noexcept;
 	static void orphan_chain_push(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
 	//! (Path B step 4) reclaim pass: CAS-unlink every DEAD (empty) orphan from
 	//! the chain → its chain-ref drops → refcnt 0 → dispose →
@@ -1924,6 +1938,17 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 		// thus never fires under the owner-ref design; it is kept as cheap
 		// insurance against a stray refcnt→0 while a chunk is still owned.
 		if(p->m_flags_packed & BIT_OWNED) return;
+		// Live-slot backstop: NEVER reclaim a chunk that still has allocated
+		// slots (MASK_CNT != 0).  At runtime this never fires — scrub only
+		// unlinks DRAINED (MASK_CNT==0) orphans, and the chain-ref keeps a
+		// non-empty orphan's refcnt >= 1 — but it makes a stray refcnt→0 on a
+		// non-empty chunk LEAK (safe: the region is never unmapped) rather
+		// than destruct a chunk whose live slots a later free() still
+		// resolves.  Without it, the §S7 chain head's process-exit destructor
+		// (now leaked — see s_orphan_chain_head) or any future refcnt bug
+		// would `~PoolAllocator()` a live chunk → pure-virtual on the next
+		// free().  Belt to the never-destroyed-head's braces.
+		if(p->m_flags_packed & MASK_CNT) return;
 		char *cbase = reinterpret_cast<char *>(p) - ALLOC_CHUNK_HEADER;
 		p->~PoolAllocator();
 		PoolAllocatorBase::bucket_release_chunk(cbase, (std::size_t)CHUNK_SIZE);
