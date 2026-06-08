@@ -6071,6 +6071,16 @@ struct L1KArray {
 ALLOC_TLS    L1KArray  tls_l1_array[LRC_K_L1];   // 32 × 200 = 6.4 KiB / thread, GD
 ALLOC_TLS_IE L1KArray *tls_l1         = nullptr; // cached &tls_l1_array[0] (IE)
 ALLOC_TLS_IE int       tls_l1_max_idx = -1;      // per-thread idx ceiling (set lazily)
+// (teardown) Set true by `l1_drain()` once this thread's L1 has been flushed
+// to the global L2 at thread exit.  A large/dedicated free arriving AFTER the
+// drain — e.g. from a pthread_key destructor freeing an XThreadLocal buffer,
+// which glibc runs AFTER the C++ thread_local `l1_drain` dtor — must NOT
+// repopulate the L1: nothing will flush it again, so the block's units stay
+// claimed forever (unbounded thread-exit stranding, see
+// tests/alloc_thread_exit_free_test.cpp scenario B).  When set, `l1_push`
+// refuses and `recycle_push` falls through to `global_push` (global L2 —
+// touches no TLS, safe at teardown) or, on refusal, a direct release.
+ALLOC_TLS_IE bool      s_l1_drained   = false;
 
 // Live count of threads that have armed an L1.  Sloppy by design — each
 // thread keeps the cut it computed at arm time; the global L2 cap is the
@@ -6134,6 +6144,8 @@ inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
 // from kstart.  Refused when idx > cut (→ global) or all K slots occupied
 // (→ global).
 inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
+    // (teardown) Post-drain frees must not refill the L1 — see s_l1_drained.
+    if(__builtin_expect(s_l1_drained, 0)) return false;
     L1KArray *l1 = l1_base();
     int idx = lrc_idx(size, kind);
     if(idx > tls_l1_max_idx) return false;
@@ -6355,6 +6367,12 @@ void l1_drain() noexcept {
                 lrc_release(b, sz, kind);
         }
     }
+    // (teardown) Block any later l1_push from this thread (e.g. a pthread_key
+    // dtor's large/dedicated free, which runs after this C++ thread_local
+    // dtor): the L1 will not be drained again, so a refill would strand the
+    // block.  Post-drain frees route to global_push / direct release.
+    s_l1_drained = true;
+    tls_l1 = nullptr;          // defensive: force l1_base re-arm if ever re-used
     // Track LIVE concurrency, not cumulative spawns — otherwise a long-
     // running process that churns short-lived threads would drive the
     // count (and every new thread's cut) toward zero.  Sloppy (a thread
