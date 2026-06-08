@@ -53,6 +53,16 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
 - **Per-thread DLL chunks** — no global allocator lock, no contention until
   the chunk-claim slow path; cross-thread frees via a holding batch +
   bit-clear coalescing.
+- **Lock-free orphan-chunk reclaim (`atomic_shared_ptr`)** — a chunk left
+  non-empty by an exited owner thread (its slots still draining via cross-thread
+  frees) is pushed onto a per-template lock-free orphan **chain** instead of
+  being stranded: another thread later *adopts* it (reuses its free slots) and a
+  sweep pass *reclaims* it once drained, so churned worker threads don't grow
+  reserved memory.  The chain is built on KAME's `atomic_smart_ptr` (the same
+  lock-free reference-counted smart pointer as the STM) — that refcount is what
+  makes adopt-vs-reclaim safe without hazard pointers, and a re-owned chunk holds
+  a self-referential owner-ref so a concurrent sweeper can't free it mid-reuse.
+  Replaces an earlier ABA-tagged Treiber stack that leaked drained orphans.
 - **Standards-conformant OOM** — throwing `operator new` runs the installed
   `std::new_handler` loop then throws `std::bad_alloc`; nothrow / C-API paths
   return `nullptr` + `errno = ENOMEM`.  No `std::terminate` across the noexcept
@@ -89,7 +99,12 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
 - **Verified** — TSAN race-free, UBSAN clean (incl. `vptr`), ASan clean; the
   chunk-claim / chunk-recycle protocol is TLA+ model-checked and the
   large-recycle cache's exclusive-ownership / no-premature-release (UAF /
-  double-free) safety is GenMC (RC11) model-checked.  Builds 64-bit and 32-bit,
+  double-free) safety is GenMC (RC11) model-checked.  The orphan-chunk
+  reclaim/adopt chain is TLA+ model-checked too
+  ([`tests/tlaplus/OrphanChain_*.tla`](tests/tlaplus/), run by
+  `run_orphan_chain.sh`) — its owner-free-vs-concurrent-sweeper-pin race is a
+  model-only catch (runtime stress can't reproduce it), kept as a standing
+  regression guard.  Builds 64-bit and 32-bit,
   on macOS / Linux / Windows (MinGW + MSVC).
 
 ## Status
@@ -689,6 +704,7 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | 29    | FS=true freelist pre-fill at chunk claim (cold-path bitmap scan → O(1) pop; auto-prewarm) |
 | 30    | `kame_pool_set_realtime_mode()` — one-call silence of all background maintenance |
 | 31    | Windows free-family IAT redirect — pool coexists with Qt / libc++ on PE/COFF |
+| 36 / S7 | lock-free orphan-chunk reclaim — `atomic_shared_ptr` chain (owner-exit push, sweep-reclaim, adopt + chunk self-ref owner-ref) replaces the leak-prone ABA Treiber stack; TLA+-verified, now the default |
 
 ## Acknowledgements
 
