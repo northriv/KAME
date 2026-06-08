@@ -521,8 +521,19 @@ constexpr int RADIX_REGION_BITS = RADIX_L1_BITS + RADIX_L2_BITS;  // 23
 //! degrades gracefully instead of mis-routing the region's later frees.
 //! For multi-region huge spans only the HEAD base must clear this bound
 //! (tail slots are never standalone lookup targets).
+//!
+//! Width-aware: the radix spans `RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT`
+//! (= 48) VA bits.  On a platform whose pointers are NARROWER than that — ILP32
+//! (`sizeof(uintptr_t)*8 == 32 < 48`) — the radix already covers the ENTIRE
+//! address space (every 32-bit base has region index `p>>25` < 2^7, well within
+//! the 2^23 table — sparse but correct), so the bound is the whole space and
+//! nothing is ever out-of-window.  Computing `1 << 48` directly would be UB on
+//! a 32-bit `uintptr_t` (shift count ≥ width), so clamp to `~0` there.
+constexpr unsigned RADIX_VA_BITS = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT; // 48
 constexpr uintptr_t RADIX_VA_LIMIT =
-    (uintptr_t)1 << (RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT);
+    (RADIX_VA_BITS >= sizeof(uintptr_t) * 8u)
+        ? ~(uintptr_t)0                          // pointers ⊆ radix span (ILP32)
+        : ((uintptr_t)1 << RADIX_VA_BITS);       // 2^48 on LP64/LLP64
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 // 64-bit: the region-count ceiling equals the radix's full VA coverage.
 static_assert(ALLOC_MAX_REGIONS == (1 << RADIX_REGION_BITS),
