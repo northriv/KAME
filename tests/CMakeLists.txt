@@ -19,10 +19,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Reuse parent USE_KAME_ALLOCATOR if defined; otherwise compute the
 # default (same logic as the historic top-level tests/CMakeLists.txt).
 if(NOT DEFINED USE_KAME_ALLOCATOR)
-    if(WIN32)
-        set(USE_KAME_ALLOCATOR OFF)
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
-        set(USE_KAME_ALLOCATOR OFF)
+    # Default ON wherever the pool builds — matches production (kame.pri
+    # removes USE_STD_ALLOCATOR; the pool ships on every platform, Windows
+    # included).  See tests/CMakeLists.txt for the full rationale.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+        set(USE_KAME_ALLOCATOR OFF)   # pre-GCC-10 lacks the pool's C++17 atomics
     else()
         set(USE_KAME_ALLOCATOR ON)
     endif()
@@ -130,8 +131,12 @@ if(USE_KAME_ALLOCATOR)
     # released chunk's reclaim never zeroes a live neighbour chunk's header.
     # Meaningful only where page size > ALLOC_CHUNK_K_MAX (Apple arm64 = 16 KiB);
     # on Linux (4 KiB == K_MAX) it self-skips and trivially passes.
-    add_executable(alloc_madvise_straddle_repro alloc_madvise_straddle_repro.cpp)
-    target_link_libraries(alloc_madvise_straddle_repro kamepoolalloc Threads::Threads)
+    # POSIX-only: uses sysconf(_SC_PAGESIZE) + madvise, so it does not compile
+    # on Windows — exclude it there (the add_test below is already APPLE-gated).
+    if(NOT WIN32)
+        add_executable(alloc_madvise_straddle_repro alloc_madvise_straddle_repro.cpp)
+        target_link_libraries(alloc_madvise_straddle_repro kamepoolalloc Threads::Threads)
+    endif()
 
     # (§28.2) kame_pool_get_stats v2 tier-attribution fields (cache_bytes,
     # dedicated_chunk_bytes, large_alloc_count/bytes) instrumentation test.
