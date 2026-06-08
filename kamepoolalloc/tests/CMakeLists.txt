@@ -120,6 +120,13 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_thread_churn_test alloc_thread_churn_test.cpp)
     target_link_libraries(alloc_thread_churn_test kamepoolalloc Threads::Threads)
 
+    # Thread-EXIT free leak: frees a pooled buffer from a pthread_key dtor (i.e.
+    # during thread teardown, KAME's XThreadLocal pattern).  Asserts on
+    # units_live / chunks_live (madvise-INDEPENDENT), so it is a valid leak gate
+    # on macOS too (unlike the reserved-based alloc_thread_churn_test).
+    add_executable(alloc_thread_exit_free_test alloc_thread_exit_free_test.cpp)
+    target_link_libraries(alloc_thread_exit_free_test kamepoolalloc Threads::Threads)
+
     # (§28) Cap-eviction (kame_pool_set_large_cache_cap synchronous shrink) test.
     # Verifies the two-phase K-then-N reduction, MT race-safety, and round-trip
     # behaviour.  Pool-only (uses the kame_pool_* C API directly).
@@ -240,6 +247,8 @@ if(USE_KAME_ALLOCATOR)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         add_test(NAME alloc_thread_churn_test COMMAND alloc_thread_churn_test)
     endif()
+    # Valid on all platforms: asserts on madvise-INDEPENDENT units_live/chunks_live.
+    add_test(NAME alloc_thread_exit_free_test COMMAND alloc_thread_exit_free_test)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)

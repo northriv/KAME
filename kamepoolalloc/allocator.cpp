@@ -3322,7 +3322,22 @@ PoolAllocatorBase::deallocate(void *p) {
 		// released/foreign pre-filter for the fast path; palloc is read
 		// only on the slow path below (cross-thread / released /
 		// foreign / post-teardown).
-		if(__builtin_expect(chunk_obj->m_owner_id == kame_page()->owner_id, 1)) {
+		// (teardown) The "owner_id == 0 never matches a live owner" reasoning
+		// above holds only while the FREEING thread is live.  During this
+		// thread's own exit, AllocThreadExitCleanup orphans its chunks
+		// (m_owner_id = 0) AND repoints kame_page() at g_teardown_page
+		// (owner_id = 0); a later free (e.g. a pthread_key dtor releasing an
+		// XThreadLocal buffer) would then match 0 == 0 here, take the fast
+		// owner path, and freelist_push WITHOUT decrementing MASK_CNT — the
+		// orphan never reaches MASK_CNT == 0 so orphan_chain_scrub never
+		// reclaims it (unbounded thread-exit stranding; see
+		// tests/alloc_thread_exit_free_test.cpp).  kame_owner_id() never
+		// returns 0, so requiring a non-zero page owner routes every
+		// post-teardown free to the cold cross-free path, which decrements
+		// MASK_CNT and reclaims correctly.
+		uint32_t page_owner_id = kame_page()->owner_id;
+		if(__builtin_expect(chunk_obj->m_owner_id == page_owner_id
+		                    && page_owner_id != 0, 1)) {
 			// (§12.3 / §16) Local-id from the cache-line-1 hot block:
 			//   FS=true        : chunk serves one size -> local-id 0.
 			//   FS=false borrow: per-slot prefix { uint32 local_id,
