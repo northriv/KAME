@@ -355,12 +355,39 @@ void kame_tls_init_fast() noexcept {
 [[clang::preserve_most]]
 __attribute__((cold, noinline))
 KameTlsPage *kame_page_cold() noexcept {
+    // (dylib TLV-bootstrap leak fix) Park the fast-TSD slot at the teardown
+    // sentinel BEFORE the general-dynamic `&g_tls_page` access below.
+    //
+    // In a DYLIB build, that first thread_local touch makes dyld lazily
+    // instantiate this image's per-thread TLV block (all our thread_locals:
+    // g_tls_page + tls_cross_dealloc_batch (16 KiB) + the per-ALIGN s_tls +
+    // tls_alloc_thread_exit_cleanup, ~32 KiB) via a single `malloc` — which the
+    // dylib interposes.  Routed into the pool, that malloc claims a ~32 KiB
+    // chunk to hold the process's OWN per-thread TLS; at thread exit dyld frees
+    // the block off the pool's per-thread reclaim discipline, so the chunk is
+    // never returned -> ~8 units leaked PER THREAD (unbounded across thread
+    // churn).  Confirmed by lldb: deallocate -> kame_page() -> kame_page_cold ->
+    // _tlv_get_addr -> dyld instantiateVariable -> malloc -> kame_pool_malloc.
+    //
+    // Parking the slot at g_teardown_page makes that re-entrant malloc observe
+    // kame_thread_torn_down()==true in cold_first_access / new_redirected_large,
+    // so it falls to libsystem_malloc_for_pool (the real heap) instead of the
+    // pool.  The TLV block is then never pooled, and its eventual free passes
+    // straight through (radix ABSENT -> libsystem free).  The slot is restored
+    // to the real page before returning, so the outer caller is unaffected.
+    //
+    // Inline/static builds (production kame.app / kame.exe) reach g_tls_page via
+    // initial-exec / static TLS — the block is allocated by the kernel at thread
+    // creation, NOT via malloc — so no re-entry occurs and this parking is inert.
+    char *tp = (s_kame_page_tsd_offset != 0) ? kame_thread_pointer() : nullptr;
+    if(tp)
+        *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = &g_teardown_page;
     KameTlsPage *p = &g_tls_page;   // one GD TLV — cold, paid once per thread
     tls_page_ie = p;
     if(s_kame_page_tsd_offset != 0) {
         pthread_setspecific(s_kame_page_key, p);
-        char *tp = kame_thread_pointer();
-        if(tp) *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = p;
+        if(tp)
+            *reinterpret_cast<KameTlsPage **>(tp + s_kame_page_tsd_offset) = p;
     }
     return p;
 }
