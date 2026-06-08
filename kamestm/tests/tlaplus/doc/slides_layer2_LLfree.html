@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TLA+ Layer 2 (LLfree バリアント) 解説</title>
+<title>TLA+ Layer 2 (LLfree variant)</title>
 <style>
 body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
 .slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
@@ -18,7 +18,7 @@ pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;ov
 .box-orange{background:#3d2800;border:1px solid #d97706}
 .arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
 table{border-collapse:collapse;width:100%;margin:1em 0}
-th,td{border:1px solid #475569;padding:8px 12px;text-align:left}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
 th{background:#334155}
 .tree{font-family:monospace;font-size:1.3em;color:#fbbf24;margin:1em 0}
 p{line-height:1.8}
@@ -27,140 +27,140 @@ p{line-height:1.8}
 </style>
 </head>
 <body>
+<a href="slides_overview_en.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ Overview</a>
 
 <!-- ============================================================ SLIDE 0 -->
 <div class="slide">
-<h1>Slide 0 — 記法の差分 (元 2level → LLfree)</h1>
+<h1>Slide 0 — Notation diff (base 2-level → LLfree)</h1>
 <p style="color:#94a3b8">
-<code>BundleUnbundle_2level_LLfree.tla</code> は元の 2-level spec に
-<strong>privileged-TID negotiate 機構</strong>を追加した変種。
-livelock-freeness を TLC で <em>形式的に</em> 検証可能にすることが目的。
-本ページは差分のみ — 共通部分は <code>slides_layer2.html</code> 参照。
+<code>BundleUnbundle_2level_LLfree.tla</code> is a variant of the base 2-level spec that adds
+a <strong>privileged-TID negotiate mechanism</strong>, making livelock-freedom
+<em>formally checkable</em> by TLC. This deck only describes the delta — see
+<code>slides_layer2_en.html</code> for the shared base.
 </p>
 
 <div class="box-orange">
-<p><strong>本バリアントの位置付け:</strong>
-KAME の TLA+ 仕様は有限性をどう確保するかで <strong>3 世代</strong>に分かれる。
-LLfree は最新の Gen 3 にあたり、CONSTRAINT に依存せず priority 機構で
-<em>構造的</em> に状態空間を有限化することで、TLC が実行する <strong>完全 exhaustion</strong>
-そのものが livelock-free 性の形式証明となる。実装の
-<code>m_link-&gt;negotiate()</code> / <code>release_privileged_tidstamp()</code> を
-spec 上に直接写している。</p>
-<p style="margin-top:0.4em"><strong>Privilege = FALSE</strong> で priority 機構をすべて無効化すると
-状態空間が発散し TLC が終了しない — これが「privilege 機構は必須」を示す
-最も直接的な反証である (Slide 7 で詳述)。</p>
+<p><strong>Where this variant sits:</strong>
+KAME's TLA+ specs split into <strong>three generations</strong> by how they bound finiteness.
+LLfree is the latest, Gen 3: it does not rely on CONSTRAINT and instead bounds the state space
+<em>structurally</em> via the priority mechanism. That means TLC's full exhaustion <em>itself</em>
+is the formal proof of livelock-freedom. The spec directly mirrors
+<code>m_link-&gt;negotiate()</code> / <code>release_privileged_tidstamp()</code> from the C++.</p>
+<p style="margin-top:0.4em">Setting <strong><code>Privilege = FALSE</code></strong> disables the priority machinery,
+the state space diverges, and TLC fails to terminate — the most direct counter-example showing
+the priority mechanism is required (detailed in Slide 7).</p>
 </div>
 
-<h2>新規追加 — variables, operators, actions, properties</h2>
+<h2>New — variables, operators, actions, properties</h2>
 <table>
-<tr><th>記号</th><th>意味</th><th>定義 (要約)</th></tr>
+<tr><th>Symbol</th><th>Meaning</th><th>Definition (summary)</th></tr>
 <tr><td class="add"><code>priorityTag[n]</code></td>
-    <td>ノード n の privileged-TID タグ</td>
+    <td>Privileged-TID tag for node n</td>
     <td><code>Null | &lt;&lt;iter, tid&gt;&gt;</code> per node</td></tr>
 <tr><td class="add"><code>iter(t)</code></td>
-    <td>スレッド t の transaction 年齢 (派生量)</td>
+    <td>Transaction age for thread t (derived quantity)</td>
     <td><code>MaxCommits - iterBudget[t]</code></td></tr>
 <tr><td class="add"><code>MyTag(t)</code></td>
-    <td>t の現在のタグ値</td>
+    <td>t's current tag value</td>
     <td><code>&lt;&lt;iter(t), t&gt;&gt;</code></td></tr>
 <tr><td class="add"><code>TagOlder(a, b)</code></td>
-    <td>a が b より古い (= 優先される)</td>
-    <td><code>(a[1], a[2])</code> の lex 順序で a が小</td></tr>
+    <td>a is older than b (= takes priority)</td>
+    <td>Lexicographic on <code>(a[1], a[2])</code>, a smaller</td></tr>
 <tr><td class="add"><code>CanProceed(t, n)</code></td>
-    <td>t が n で CAS 実行可能か</td>
-    <td>tag が Null または自分のタグ (C++ <code>tag_as_contender()</code> と同じ 2 条件)</td></tr>
+    <td>Can t execute a CAS at node n?</td>
+    <td>Tag is Null or matches mine (same 2 conditions as C++ <code>tag_as_contender()</code>)</td></tr>
 <tr><td class="add"><code>TagAfterFail(t, n)</code></td>
-    <td>CAS 失敗後の priorityTag[n]</td>
-    <td>3 段階のラダー (Null→mine, mine→refresh, older-wins 上書き)</td></tr>
+    <td><code>priorityTag[n]</code> after CAS fail</td>
+    <td>3-stage ladder (Null→mine, mine→refresh, older-wins overwrite)</td></tr>
 <tr><td class="add"><code>TagAfterSuccess(t, n)</code></td>
-    <td>CAS 成功後の priorityTag[n]</td>
-    <td><code>priorityTag[n]</code> ← 不変 (Transaction-scope persistence)</td></tr>
+    <td><code>priorityTag[n]</code> after CAS success</td>
+    <td><code>priorityTag[n]</code> ← unchanged (Transaction-scope persistence)</td></tr>
 <tr><td class="add"><code>ClearMyTags(t)</code></td>
-    <td>コミット<strong>成功時</strong>の解放 (失敗時はタグ保持)</td>
-    <td>全ノードで自分のタグ → Null (C++ <code>finalizeCommitment→drop_tags</code>)</td></tr>
+    <td>Release tags on commit <strong>success</strong> only (held across retries)</td>
+    <td>All my tags → Null (C++ <code>finalizeCommitment → drop_tags</code>)</td></tr>
 <tr><td class="add"><code>PreemptTag(t, n)</code></td>
-    <td>新規 action: 古い t が若い tag を奪う</td>
-    <td>独立アクション (CanProceed 経路と並行)</td></tr>
+    <td>New action: an older t steals a younger tag</td>
+    <td>Independent action (parallel to the CanProceed path)</td></tr>
 <tr><td class="add"><code>PROPERTY EventuallyAllDone</code></td>
-    <td>liveness check (新規)</td>
-    <td><code>&lt;&gt;AllDone</code> — 全スレッド到達保証</td></tr>
+    <td>Liveness check (new)</td>
+    <td><code>&lt;&gt;AllDone</code> — every thread reaches termination</td></tr>
 </table>
 
-<h2>削除 / 緩和されたもの</h2>
+<h2>Removed / relaxed</h2>
 <table>
-<tr><th>項目</th><th>元 2level</th><th>LLfree</th></tr>
+<tr><th>Item</th><th>Base 2-level</th><th>LLfree</th></tr>
 <tr><td>CONSTRAINT SerialBound</td>
-    <td>必要 (自然数 serial が無限増加するため)</td>
-    <td class="del">不使用 (priorityTag 機構で有限性が構造保証)</td></tr>
+    <td>Required (Nat serial grows unboundedly otherwise)</td>
+    <td class="del">Not used (priorityTag mechanism guarantees finiteness structurally)</td></tr>
 <tr><td>SYMMETRY ThreadSymmetry</td>
-    <td>適用</td>
-    <td class="del">削除 (TLC が liveness で symmetry 警告; Threads は順序付き Nat が必要)</td></tr>
-<tr><td>Threads の型</td>
+    <td>Applied</td>
+    <td class="del">Removed (TLC warns on liveness + symmetry; Threads must be ordered Nat anyway)</td></tr>
+<tr><td>Threads type</td>
     <td>model values <code>{t1, t2}</code></td>
-    <td><code>{1, 2}</code> (Nat — TagOlder の <code>a[2] &lt; b[2]</code> 型整合)</td></tr>
+    <td><code>{1, 2}</code> (Nat — type-compatible with <code>TagOlder</code>'s <code>a[2] &lt; b[2]</code>)</td></tr>
 <tr><td>MaxSerial / MaxPayload</td>
-    <td>cfg で指定</td>
-    <td class="del">廃止 — serial は Lamport 方式 (Nat; 演算子本体で未参照)、payload は単調 Nat カウンタ</td></tr>
+    <td>Set in cfg</td>
+    <td class="del">Removed — serial is Lamport (Nat; never referenced inside ops); payload is a monotone Nat counter</td></tr>
 <tr><td>DebugSerialBound</td>
-    <td>未定義</td>
-    <td><code>== TRUE</code> (常に通過。Lamport serial は無界のため数値チェックを廃止)</td></tr>
+    <td>Undefined</td>
+    <td><code>== TRUE</code> (always passes; Lamport serial is unbounded so the numeric check is removed)</td></tr>
 </table>
 
 <div class="box">
-<p><strong>共通点 (元 spec から不変):</strong>
-ツリー構造 (Parent + Child1 + Child2)、4-phase bundle protocol、commit pipeline、
-unbundle、coarse / fine / superfine 三段構成、safety INVARIANT
+<p><strong>Unchanged from the base spec:</strong>
+tree structure (Parent + Child1 + Child2), 4-phase bundle protocol, commit pipeline,
+unbundle, coarse / fine / superfine triples, safety invariants
 (SnapshotConsistency, NoPriorityLoss, BundleRefConsistency, MissingPropagation,
-TerminalPayloadCheck) — これらは元 spec と完全同一。LLfree が追加するのは
-<strong>livelock-free 性を保証する gating 層</strong>のみ。</p>
+TerminalPayloadCheck) — identical to the base. LLfree adds only a <strong>gating layer</strong>
+that guarantees livelock-freedom.</p>
 </div>
 </div>
 
 <!-- ============================================================ SLIDE 1 -->
 <div class="slide">
-<h1>Slide 1 — Overview: 3世代の検証アプローチ</h1>
+<h1>Slide 1 — Overview: three generations of verification</h1>
 <p style="color:#94a3b8">
-KAME の bundle/unbundle 系 TLA+ 仕様は、有限性をどう確保するかで <strong>3 世代</strong>に分かれる。
-LLfree は Gen 3 にあたり、本バリアントが CONSTRAINT なしで完全 exhaustion できることが
-livelock-free 性の構造的証明となる。
+KAME's bundle/unbundle TLA+ specs split into <strong>three generations</strong> based on how
+they bound finiteness. LLfree is Gen 3; that this variant exhausts <em>without</em> CONSTRAINT
+constitutes a structural proof of livelock-freedom.
 </p>
 
-<h2>3 世代の対比</h2>
+<h2>Three generations compared</h2>
 <table>
-<tr><th>世代</th><th>Serial</th><th>CONSTRAINT</th><th>Priority 機構</th><th>TLC の動作</th><th>何を示すか</th></tr>
+<tr><th>Generation</th><th>Serial</th><th>CONSTRAINT</th><th>Priority mechanism</th><th>TLC behavior</th><th>What it proves</th></tr>
 <tr><td>Gen 1 (modular)</td>
-    <td><code>% MaxSerial</code> で wrap</td>
-    <td>なし</td>
-    <td>なし</td>
-    <td><code>SerialWrapAround</code> violation で<strong>落ちる</strong></td>
-    <td>privilege 機構なしの破綻を反例として示す</td></tr>
+    <td><code>% MaxSerial</code> wrap</td>
+    <td>None</td>
+    <td>None</td>
+    <td><strong>Fails</strong> on <code>SerialWrapAround</code> violation</td>
+    <td>The need for LL-free machinery, as a counter-example</td></tr>
 <tr><td>Gen 2 (Nat+CONSTRAINT)</td>
-    <td><code>Nat</code> 単調増加</td>
-    <td><code>SerialBound</code> で打ち切り</td>
-    <td>なし</td>
-    <td>終了するが探索打ち切り依存</td>
-    <td>制限付き探索内の safety のみ</td></tr>
+    <td>Nat monotone</td>
+    <td>Cut off at <code>SerialBound</code></td>
+    <td>None</td>
+    <td>Terminates but relies on bound</td>
+    <td>Safety within a bounded search</td></tr>
 <tr><td class="add"><strong>Gen 3 (LLfree)</strong></td>
-    <td class="add">Lamport 方式 (unbounded Nat)</td>
-    <td class="add"><strong>なし</strong></td>
-    <td class="add"><strong>常時 ON</strong> (<code>priorityTag</code>)</td>
-    <td class="add">構造的有限が成立し exhaustion 完走、liveness PASS</td>
-    <td class="add">safety + <strong>livelock-free を構造的に証明</strong></td></tr>
+    <td class="add">Lamport (unbounded Nat)</td>
+    <td class="add"><strong>None</strong></td>
+    <td class="add"><strong>Always on</strong> (<code>priorityTag</code>)</td>
+    <td class="add">Finiteness holds structurally; TLC exhausts; liveness PASS</td>
+    <td class="add">Safety + <strong>livelock-freedom proven structurally</strong></td></tr>
 </table>
 
-<h2>ツリー構造 (元 spec と同じ)</h2>
+<h2>Tree structure (same as base)</h2>
 <div class="tree">
 &nbsp;&nbsp;&nbsp;&nbsp;Parent<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── Child1<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
 </div>
 <p style="color:#94a3b8;font-size:0.92em">
-2-level tree。bundle/unbundle protocol そのもの・4-phase / commit pipeline / coarse-fine-superfine 三段
-構成は元 <code>BundleUnbundle_2level.tla</code> と <strong>完全同一</strong>。LLfree が追加するのは
-livelock-free 性を保証する <strong>gating 層</strong>のみ。
+2-level tree. The bundle/unbundle protocol itself, the 4 phases, the commit pipeline, and the
+coarse/fine/superfine triple are <strong>identical</strong> to the base spec. LLfree only adds the
+<strong>gating layer</strong> that ensures livelock-freedom.
 </p>
 
-<h2>モジュールヘッダ (引用)</h2>
+<h2>Module header (excerpt)</h2>
 <pre><code><span class="comment">\* Variant of BundleUnbundle_2level that mirrors KAME's livelock-free</span>
 <span class="comment">\* negotiate mechanism explicitly so TLC's exhaustive search reaches a</span>
 <span class="comment">\* finite state space without modular-serial wraparound.</span>
@@ -175,237 +175,188 @@ livelock-free 性を保証する <strong>gating 層</strong>のみ。
 <span class="comment">\*   - Tag cleared at Transaction boundaries via ClearMyTags —</span>
 <span class="comment">\*     mirroring C++ release_privileged_tidstamp().</span></code></pre>
 
-<h2>TLC verification の結果</h2>
+<h2>TLC verification results</h2>
 <div class="box-green">
-<p><strong>665,218 distinct states / depth 89 / 28 秒 / queue 0 (exhaustion)</strong></p>
+<p><strong>665,218 distinct states / depth 89 / 28 s / queue 0 (exhaustion)</strong></p>
 <ul style="margin:0.3em 0 0 1.2em">
 <li>Config: <code>BundleUnbundle_2level_LLfree_micro_mc.cfg</code></li>
 <li><code>MaxCommits = 1</code>, <code>|Threads| = 2</code>, fine atomicity</li>
-<li><strong>CONSTRAINT なし</strong>— 状態空間有限性は priorityTag 機構が構造的に保証</li>
-<li><strong>SYMMETRY なし</strong>— Threads は順序付き Nat; liveness 検査と SYMMETRY は非両立</li>
-<li>Safety invariant 全 PASS + <code>EventuallyAllDone == &lt;&gt;AllDone</code> liveness <strong>PASS</strong></li>
+<li><strong>No CONSTRAINT</strong> — finiteness held by priorityTag structurally</li>
+<li><strong>No SYMMETRY</strong> — Threads are ordered Nat; SYMMETRY + liveness don't compose</li>
+<li>All safety invariants PASS + <code>EventuallyAllDone == &lt;&gt;AllDone</code> liveness <strong>PASS</strong></li>
 </ul>
 </div>
 
-<h2>superfine 構成でも完走</h2>
+<h2>Superfine also terminates</h2>
 <p style="color:#94a3b8;font-size:0.92em">
 <code>BundleUnbundle_2level_LLfree_superfine_mc.cfg</code> (Phase 1 prestamp CAS + Phase 3
-DISTURBED 検出) でも同様に完走。C++ の最も忠実なミラーが動作することを示す。
+DISTURBED detection) likewise exhausts. The most C++-faithful mirror works.
 </p>
 </div>
 
 <!-- ============================================================ SLIDE 2 -->
 <div class="slide">
-<h1>Slide 2 — <code>priorityTag</code> 変数 + 補助オペレータ</h1>
+<h1>Slide 2 — <code>priorityTag</code> variable + helper operators</h1>
 <p style="color:#94a3b8">
-LLfree が導入する唯一の新変数 <code>priorityTag[n]</code> と、それを操作する補助オペレータ。
-これらは全て C++ の <code>m_priority_tidstamp</code> / <code>negotiate()</code> を直接ミラーする。
+LLfree's single new variable <code>priorityTag[n]</code> and the helpers that manipulate it.
+They mirror C++'s <code>m_priority_tidstamp</code> / <code>negotiate()</code> directly.
 </p>
 
-<h2>変数宣言と Init</h2>
+<h2>Variable declaration and Init</h2>
 <pre><code><span class="keyword">VARIABLES</span>
     serial, linkage, pc, op, target, local,
     iterBudget, childQueue,
     <span class="add">priorityTag</span>   <span class="comment">\* [Nodes -> Null | <<iter, tid>>]</span>
 
-<span class="comment">\* globalSerial は廃止 (C++ に対応物なし)。serial は Lamport 方式。</span>
+<span class="comment">\* globalSerial is gone (no C++ counterpart). serial uses Lamport encoding.</span>
 vars == &lt;&lt;serial, linkage, pc, op, target, local,
          iterBudget, childQueue, <span class="add">priorityTag</span>&gt;&gt;
 
 <span class="comment">\* Serial encoding: EncodeSerial(cnt, tid) = cnt * SerialBase + tid</span>
 <span class="comment">\*   SerialBase = 1 + |Threads|  (> max TID)</span>
 <span class="op">Init</span> ==
-    /\ ...  <span class="comment">\* 元 2level と同じ初期化</span>
-    /\ serial = [t \in Threads |-&gt; EncodeSerial(<span class="num">0</span>, t)]  <span class="comment">\* TID 埋め込み</span>
+    /\ ...  <span class="comment">\* same init as base 2-level</span>
+    /\ serial = [t \in Threads |-&gt; EncodeSerial(<span class="num">0</span>, t)]  <span class="comment">\* TID embedded</span>
     /\ <span class="add">priorityTag = [n \in Nodes |-&gt; Null]</span></code></pre>
 
-<h2>派生量と補助オペレータ</h2>
-<pre><code><span class="comment">\* iter(t): 完了したフル iteration 数。t と組み合わせて</span>
-<span class="comment">\* <<iter, tid>> の全順序を作る (smaller = older = 優先)。</span>
+<h2>Derived quantities and helpers</h2>
+<pre><code><span class="comment">\* iter(t): number of completed iterations; combined with t to form</span>
+<span class="comment">\* a total order on <<iter, tid>> (smaller = older = wins).</span>
 <span class="op">iter</span>(t) == MaxCommits - iterBudget[t]
 
 <span class="op">MyTag</span>(t) == &lt;&lt;<span class="op">iter</span>(t), t&gt;&gt;
 
-<span class="comment">\* a が b より older。(iter, tid) の lex 順序で a が小。</span>
+<span class="comment">\* a is older than b. lex order on (iter, tid) with a smaller.</span>
 <span class="op">TagOlder</span>(a, b) ==
     \/ a[<span class="num">1</span>] &lt; b[<span class="num">1</span>]
     \/ (a[<span class="num">1</span>] = b[<span class="num">1</span>] /\ a[<span class="num">2</span>] &lt; b[<span class="num">2</span>])
 
-<span class="comment">\* Lamport serial helpers (C++ transaction.h:547-576 に対応)</span>
+<span class="comment">\* Lamport serial helpers (C++ transaction.h:547-576)</span>
 SerialBase == <span class="num">1</span> + Cardinality(Threads)
 SerialCounter(s) == s \div SerialBase
 SerialTID(s)     == s % SerialBase
 EncodeSerial(cnt, tid) == cnt * SerialBase + tid</code></pre>
 
-<h2>各オペレータの意味と C++ 対応</h2>
+<h2>Each operator's meaning and C++ counterpart</h2>
 <table>
-<tr><th>オペレータ</th><th>意味</th><th>C++ 対応</th></tr>
+<tr><th>Operator</th><th>Meaning</th><th>C++ counterpart</th></tr>
 <tr><td><code>priorityTag[n]</code></td>
-    <td>ノード n の登録 tag (<code>Null | &lt;&lt;iter, tid&gt;&gt;</code>)</td>
+    <td>Registered tag for node n (<code>Null | &lt;&lt;iter, tid&gt;&gt;</code>)</td>
     <td><code>Linkage::m_priority_tidstamp</code></td></tr>
 <tr><td><code>iter(t)</code></td>
-    <td>派生量: 完了 iteration 数 (= 別変数を持たない)</td>
-    <td><code>now_us_tagged()</code> Lamport stamp の粗い近似</td></tr>
+    <td>Derived: number of completed iterations (no extra variable)</td>
+    <td>Coarse approximation of the Lamport stamp from <code>now_us_tagged()</code></td></tr>
 <tr><td><code>MyTag(t)</code></td>
-    <td>t が今登録すべきタグ値</td>
+    <td>The tag t should register right now</td>
     <td><code>Transaction::priority_tidstamp()</code></td></tr>
 <tr><td><code>TagOlder(a, b)</code></td>
-    <td>a が古い (= 競合時に勝つ)</td>
-    <td>C++ 側の lex 比較 (<code>iter</code>, <code>tid</code>)</td></tr>
+    <td>a is older (= wins contention)</td>
+    <td>C++ lex compare (<code>iter</code>, <code>tid</code>)</td></tr>
 </table>
 
-<h2><code>iter(t)</code> が <em>派生量</em> である理由</h2>
+<h2>Why <code>iter(t)</code> is a derived quantity</h2>
 <div class="box">
-<p>新変数を増やさずに <code>iterBudget[t]</code> から計算できるため、状態空間は <strong>変わらない</strong>。
-TLC は <code>iter(t)</code> を毎回 <code>MaxCommits - iterBudget[t]</code> と評価するだけで、
-新しい状態軸を生まない。<br>
-結果: tag 機構を加えても主要な状態爆発は <code>priorityTag</code>(値の組み合わせ)のみ。</p>
+<p>It is computed from <code>iterBudget[t]</code> without adding a new variable, so the state space
+is <strong>unchanged</strong>. TLC simply evaluates <code>iter(t)</code> as
+<code>MaxCommits - iterBudget[t]</code>; no new state axis is introduced.</p>
 </div>
 
-<h2>なぜ Threads は <em>Nat</em> でなければならないか</h2>
+<h2>Why Threads must be Nat</h2>
 <div class="box-orange">
-<p><strong>cfg からの制約:</strong> <code>Threads = {1, 2}</code> のように Nat で定義する必要がある。</p>
+<p><strong>cfg requirement:</strong> Threads must be defined as Nat (e.g. <code>{1, 2}</code>).</p>
 <ul style="margin:0.3em 0 0 1.2em">
-<li><code>TagOlder(a, b)</code> 内の <code>a[<span class="num">2</span>] &lt; b[<span class="num">2</span>]</code> で
-    Threads 要素同士を順序比較するため、Nat (整数) 型でなければ型整合しない。
-    元 2level の <code>{t1, t2}</code> (model values) は使えない。</li>
-<li><code>SYMMETRY ThreadSymmetry</code> も <strong>削除</strong>。Threads が順序付き Nat なので
-    `Permutations(Threads)` は意味を保てず、また TLC は liveness 検査と SYMMETRY の併用で
-    違反検出漏れを警告する。LLfree は exhaustion が高速なので SYMMETRY 不要。</li>
+<li><code>TagOlder(a, b)</code> compares <code>a[2] &lt; b[2]</code> over Threads, which requires
+    the elements to be ordered numbers. Model-values like <code>{t1, t2}</code> don't compose.</li>
+<li><code>SYMMETRY ThreadSymmetry</code> is also removed: with ordered Nat,
+    <code>Permutations(Threads)</code> isn't meaningful, and TLC warns that liveness + SYMMETRY
+    risks missed violations. LLfree's exhaustion is fast enough without SYMMETRY anyway.</li>
 </ul>
 </div>
-
-<h2>状態空間への寄与</h2>
-<table>
-<tr><th>変数</th><th>取りうる値の数</th></tr>
-<tr><td><code>priorityTag[n]</code> (1ノード)</td>
-    <td><code>1 + (MaxCommits+1) × |Threads|</code> 値<br>
-        (= Null + すべての <code>&lt;&lt;iter, tid&gt;&gt;</code> ペア)</td></tr>
-<tr><td>全ノード (3 nodes = Parent + Child1 + Child2)</td>
-    <td>上記の 3 乗 (独立)</td></tr>
-<tr><td>micro cfg (MaxCommits=1, |Threads|=2)</td>
-    <td>1 + 2×2 = 5 値 / ノード → 5³ = 125 通り (priorityTag 部分のみ)</td></tr>
-</table>
-<p style="color:#94a3b8;font-size:0.9em">
-proof_semantics.md §1 によれば、micro cfg 全体での distinct states は <strong>665,218</strong>。
-priorityTag が掛け算で効くものの、retry 数を有界に保つことで他変数の爆発を抑え、
-全体としては <em>有限</em> に収まる。
-</p>
 </div>
 
 <!-- ============================================================ SLIDE 3 -->
 <div class="slide">
-<h1>Slide 3 — <code>CanProceed(t, n)</code> — CAS の前提条件</h1>
+<h1>Slide 3 — <code>CanProceed(t, n)</code> — the CAS precondition</h1>
 <p style="color:#94a3b8">
-LLfree の中核 gate。元 spec のすべての CAS 試行に <code>CanProceed(t, n) /\ ...</code> が前置され、
-登録 tag が許可しなければ <em>その thread は進めない</em>。これが priority 機構の中心。
+The core gate. Every CAS attempt in the base spec is preceded by
+<code>CanProceed(t, n) /\ ...</code>; if the registered tag forbids it, <em>that thread cannot
+proceed</em>. This is the heart of the priority mechanism.
 </p>
 
-<h2>定義</h2>
+<h2>Definition</h2>
 <pre><code><span class="comment">\* CanProceed: gate for any CAS attempt at node n by thread t.</span>
 <span class="comment">\* Matches C++ tag_as_contender(): a thread proceeds when:</span>
 <span class="comment">\*   (a) no privileged tidstamp registered, OR</span>
 <span class="comment">\*   (b) the registered tidstamp's tid is mine.</span>
-<span class="comment">\* No zombie-tag check: tags are cleared only on commit success</span>
-<span class="comment">\* (ClearMyTags), so inactive state is reached exclusively via success.</span>
 <span class="op">CanProceed</span>(t, n) ==
     <span class="keyword">LET</span> tag == priorityTag[n] <span class="keyword">IN</span>
     \/ tag = Null
     \/ tag /= Null /\ tag[<span class="num">2</span>] = t</code></pre>
 
-<h2>2 つの disjunct</h2>
+<h2>Two disjuncts</h2>
 <table>
-<tr><th>条件</th><th>意味</th><th>C++ 対応</th></tr>
+<tr><th>Condition</th><th>Meaning</th><th>C++ counterpart</th></tr>
 <tr><td><code>tag = Null</code></td>
-    <td>誰も tag を登録していない — 自由参入</td>
+    <td>No tag registered — free entry</td>
     <td><code>m_priority_tidstamp.load() == 0</code></td></tr>
 <tr><td><code>tag[2] = t</code></td>
-    <td>自分の tag (any iter) — 同一トランザクションの再試行や以前のリトライの遺留</td>
-    <td><code>== priority_tidstamp()</code> (自分のスタンプと一致)</td></tr>
+    <td>My own tag (any iter) — same Tx retry or a leftover from earlier</td>
+    <td><code>== priority_tidstamp()</code></td></tr>
 </table>
-<p style="color:#94a3b8;font-size:0.9em">
-旧版にあった <code>~ActiveThread(tag[2])</code> (zombie tag 判定) は削除。
-タグはコミット<strong>成功時</strong>にのみ解放されるため、非アクティブ状態は必ず成功経路を経る
-→ stale tag が残ることはなく、このケースは不要。
-</p>
 
-<h2>適用箇所 (priority-gated CAS site)</h2>
-<p>proof_semantics.md §8: <strong>8/8 priority-gated CAS site で C++ 1:1 対応検証済み</strong>。
-spec 側の主な call site は以下 10 箇所:</p>
+<h2>Where it applies (priority-gated CAS sites)</h2>
+<p>proof_semantics.md §8: <strong>verified 1:1 against C++ at all 8 priority-gated CAS sites</strong>.
+The 10 spec call sites:</p>
 <table>
-<tr><th>アクション</th><th>ノード</th><th>意味</th></tr>
-<tr><td><code>BundlePhase1</code> (superfine prestamp)</td><td><code>Parent</code></td><td>束ね開始時の serial bump</td></tr>
-<tr><td><code>BundlePhase2</code></td><td><code>Parent</code></td><td>parent missing=TRUE で CAS</td></tr>
-<tr><td><code>BundlePhase3</code> coarse</td><td>各 <code>c \in Children</code></td><td>全 child を一括 BundledRef 化</td></tr>
-<tr><td><code>BundlePhase3</code> fine 成功</td><td>各 <code>c</code></td><td>1 child / step で BundledRef 化</td></tr>
-<tr><td><code>BundlePhase3</code> fine 失敗</td><td>各 <code>c</code></td><td>失敗時の rollback + restart</td></tr>
-<tr><td><code>BundlePhase4</code></td><td><code>Parent</code></td><td>missing=FALSE で最終 CAS</td></tr>
-<tr><td><code>CommitParent</code></td><td><code>Parent</code></td><td>parent payload commit</td></tr>
-<tr><td><code>CommitTryCAS</code></td><td><code>target[t]</code></td><td>child 直接 commit</td></tr>
-<tr><td><code>UnbundleCASAncestors</code></td><td><code>Parent</code></td><td>parent missing=TRUE への戻し</td></tr>
-<tr><td><code>UnbundleCASChild</code></td><td><code>target[t]</code></td><td>child を priority に復帰</td></tr>
+<tr><th>Action</th><th>Node</th><th>Meaning</th></tr>
+<tr><td><code>BundlePhase1</code> (superfine prestamp)</td><td><code>Parent</code></td><td>Serial bump at bundle start</td></tr>
+<tr><td><code>BundlePhase2</code></td><td><code>Parent</code></td><td>CAS parent to missing=TRUE</td></tr>
+<tr><td><code>BundlePhase3</code> coarse</td><td>each <code>c \in Children</code></td><td>Convert all children to BundledRef in one step</td></tr>
+<tr><td><code>BundlePhase3</code> fine success</td><td>each <code>c</code></td><td>One child per step → BundledRef</td></tr>
+<tr><td><code>BundlePhase3</code> fine fail</td><td>each <code>c</code></td><td>Rollback + restart on failure</td></tr>
+<tr><td><code>BundlePhase4</code></td><td><code>Parent</code></td><td>Final CAS to missing=FALSE</td></tr>
+<tr><td><code>CommitParent</code></td><td><code>Parent</code></td><td>Parent payload commit</td></tr>
+<tr><td><code>CommitTryCAS</code></td><td><code>target[t]</code></td><td>Direct child commit</td></tr>
+<tr><td><code>UnbundleCASAncestors</code></td><td><code>Parent</code></td><td>Restore parent to missing=TRUE</td></tr>
+<tr><td><code>UnbundleCASChild</code></td><td><code>target[t]</code></td><td>Restore child to priority</td></tr>
 </table>
 
-<h2>典型的な CAS パターン</h2>
-<pre><code><span class="comment">\* CommitParent を例に</span>
+<h2>Typical CAS pattern</h2>
+<pre><code><span class="comment">\* CommitParent as example</span>
 <span class="op">CommitParent</span>(t) ==
     /\ pc[t] = <span class="type">"commit_parent"</span>
     /\ ...
-    /\ <span class="add">CanProceed(t, Parent)</span>                  <span class="comment">\* ★ gate: tag が許可しない限り進めない</span>
+    /\ <span class="add">CanProceed(t, Parent)</span>                  <span class="comment">\* ★ gate: blocked unless allowed</span>
     /\ <span class="keyword">LET</span> ser == GenSerial(t, pw.serial)    <span class="comment">\* Lamport serial</span>
        <span class="keyword">IN</span>
-       \/ <span class="comment">\* CAS 成功</span>
+       \/ <span class="comment">\* CAS success</span>
           /\ ...
           /\ priorityTag' = [priorityTag <span class="keyword">EXCEPT</span> ![Parent] = <span class="op">TagAfterSuccess</span>(t, Parent)]
           /\ ...
-       \/ <span class="comment">\* CAS 失敗</span>
+       \/ <span class="comment">\* CAS fail</span>
           /\ ...
-          /\ priorityTag' = [priorityTag <span class="keyword">EXCEPT</span> ![Parent] = <span class="op">TagAfterFail</span>(t, Parent)]
-          /\ ...</code></pre>
-<p style="color:#94a3b8;font-size:0.92em">
-全アクションで <code>CanProceed</code> を前置し、CAS の成否分岐ごとに
-<code>TagAfterSuccess</code> / <code>TagAfterFail</code> で <code>priorityTag</code> を更新する。
-これにより「進めない thread は登録だけして待つ」「進めた thread は tag を保持
-(Transaction-scope persistence)」という C++ <code>negotiate()</code> 動作を表現する。
-</p>
-
-<h2>「進めない」場合の挙動</h2>
-<div class="box">
-<p><code>CanProceed(t, n)</code> が <code>FALSE</code> の場合、そのアクションは <strong>enabled でない</strong>
-(TLA+ の意味で「取れない」) → 当該 step では別の thread が動く。
-これにより:</p>
-<ul style="margin:0.3em 0 0 1.2em">
-<li>古い thread が tag を保持していれば、若い thread は他のノードで作業できる場合のみ進む</li>
-<li>古い thread が <code>PreemptTag</code> で若い tag を奪うことで膠着を打開 (Slide 5 で詳述)</li>
-<li><code>WF_vars(NextStep)</code> の下で必ず古い thread が前進し、最終的に tag を release する</li>
-</ul>
-</div>
+          /\ priorityTag' = [priorityTag <span class="keyword">EXCEPT</span> ![Parent] = <span class="op">TagAfterFail</span>(t, Parent)]</code></pre>
 
 <div class="box-green">
-<p><strong>proof_semantics.md §4 より直接引用:</strong>
-「他スレッドは tag が Null か自分のものでなければ <em>待つ</em> (CanProceed 否定)」「各時点で
-"優先される 1 スレッド" が必ずいる」「そのスレッドの retry 回数は他スレッドの数に対して
-有界」「全スレッドの累積 retry 数も有界」「→ serial 増加が有界 → 状態空間が有限 → TLC 終了」。
-この論証チェーンが livelock-free 性の構造的証明 (§2 の議論) の核。</p>
+<p><strong>Directly from proof_semantics.md §4:</strong>
+"Other threads <em>wait</em> when the tag is neither Null nor mine (CanProceed negation)";
+"there is always exactly one 'preferred' thread at every moment"; "that thread's retry count
+is bounded by the number of other threads"; "the cumulative retry across all threads is
+bounded too"; "→ serial growth is bounded → state space finite → TLC terminates."
+This chain is the structural proof of livelock-freedom (§2).</p>
 </div>
 </div>
 
 <!-- ============================================================ SLIDE 4 -->
 <div class="slide">
-<h1>Slide 4 — <code>TagAfterFail</code> / <code>TagAfterSuccess</code> — タグ更新規則</h1>
+<h1>Slide 4 — <code>TagAfterFail</code> / <code>TagAfterSuccess</code></h1>
 <p style="color:#94a3b8">
-CAS の成否ごとに <code>priorityTag[n]</code> をどう更新するかを定義する 2 つの関数。
-失敗時は 4 段階のラダー、成功時は <strong>不変</strong> (Transaction-scope persistence)。
+Two functions that decide how <code>priorityTag[n]</code> updates after CAS success or failure.
+Fail = 4-step ladder; success = <strong>unchanged</strong> (Transaction-scope persistence).
 </p>
 
-<h2><code>TagAfterFail(t, n)</code> — CAS 失敗時のタグ更新</h2>
-<pre><code><span class="comment">\* TagAfterFail(t, n): the value priorityTag[n] should hold after thread t's</span>
-<span class="comment">\* CAS at n fails. Mirrors C++ tag_as_contender():</span>
-<span class="comment">\*   - No tag (slot empty): register mine.</span>
-<span class="comment">\*   - My own tag: refresh to current MyTag(t).</span>
-<span class="comment">\*   - Other thread's tag, I'm older: overwrite with mine.</span>
-<span class="comment">\*   - Other thread's tag, I'm younger: keep theirs (defer to older).</span>
-<span class="op">TagAfterFail</span>(t, n) ==
+<h2><code>TagAfterFail(t, n)</code> — CAS fail update</h2>
+<pre><code><span class="op">TagAfterFail</span>(t, n) ==
     <span class="keyword">IF</span>   priorityTag[n] = Null
     <span class="keyword">THEN</span> <span class="op">MyTag</span>(t)
     <span class="keyword">ELSE IF</span> priorityTag[n][<span class="num">2</span>] = t
@@ -414,94 +365,61 @@ CAS の成否ごとに <code>priorityTag[n]</code> をどう更新するかを�
               <span class="keyword">THEN</span> <span class="op">MyTag</span>(t)
               <span class="keyword">ELSE</span> priorityTag[n]</code></pre>
 
-<h2>3 段階のラダー</h2>
+<h2>3-step ladder</h2>
 <table>
-<tr><th>条件</th><th>動作</th><th>意図</th></tr>
-<tr><td>tag が <code>Null</code></td>
-    <td><code>MyTag(t)</code> を登録</td>
-    <td>新規登録 (CAS が混んでいるシグナル)</td></tr>
-<tr><td>tag は自分 (任意の iter)</td>
-    <td><code>MyTag(t)</code> に更新 (refresh)</td>
-    <td>iter が進んでいれば最新値に</td></tr>
-<tr><td>holder が <em>自分より若い</em></td>
-    <td><code>MyTag(t)</code> に上書き (older-wins)</td>
-    <td>C++ <code>tag_as_contender()</code> と同じ: 古い tx が若い tag を奪う</td></tr>
-<tr><td>holder が <em>自分より古い</em></td>
-    <td>そのまま (priorityTag[n] を維持)</td>
-    <td>古い thread の登録を奪わない</td></tr>
+<tr><th>Condition</th><th>Action</th><th>Intent</th></tr>
+<tr><td>tag = <code>Null</code></td>
+    <td>Register <code>MyTag(t)</code></td>
+    <td>New registration (signal of contention)</td></tr>
+<tr><td>tag is mine (any iter)</td>
+    <td>Refresh to <code>MyTag(t)</code></td>
+    <td>If iter advanced, refresh to the latest</td></tr>
+<tr><td>holder is <em>younger</em></td>
+    <td>Overwrite with <code>MyTag(t)</code> (older-wins)</td>
+    <td>Mirrors C++ <code>tag_as_contender()</code> — older Tx steals younger tags</td></tr>
+<tr><td>holder is <em>older</em></td>
+    <td>Leave it alone</td>
+    <td>Don't steal older threads' registrations</td></tr>
 </table>
-<p style="color:#94a3b8;font-size:0.9em">
-旧版にあった「holder が inactive (zombie)」ケースは削除。
-タグはコミット成功時のみ解放され、非アクティブ = 必ず成功済み → zombie tag は存在しない。
-</p>
 
-<h2><code>TagAfterSuccess(t, n)</code> — CAS 成功時の更新</h2>
-<pre><code><span class="comment">\* TagAfterSuccess(t, n): on CAS success at n, KEEP the tag — Transaction-</span>
-<span class="comment">\* scope persistence (matches C++ ScopedNegotiateLinkage outer-scope which</span>
-<span class="comment">\* releases only at scope end, not at each inner CAS). Per-CAS clearing</span>
-<span class="comment">\* allows a peer Transaction to race in between CAS phases of the holding</span>
-<span class="comment">\* Transaction and force endless re-bundling. The actual release happens</span>
-<span class="comment">\* at Transaction boundaries via ClearMyTags below.</span>
-<span class="op">TagAfterSuccess</span>(t, n) == priorityTag[n]   <span class="comment">\* ← 不変 (KEEP)</span></code></pre>
+<h2><code>TagAfterSuccess(t, n)</code> — CAS success update</h2>
+<pre><code><span class="op">TagAfterSuccess</span>(t, n) == priorityTag[n]   <span class="comment">\* ← unchanged (KEEP)</span></code></pre>
 
 <div class="box-orange">
-<p><strong>per-CAS clearing が livelock を引き起こす理由:</strong>
-「CAS が成功するたびに自分の tag を Null に戻す」と、CAS フェーズの合間で
-別 Transaction が tag のない隙に<strong>同じノードへ割り込む</strong>ことができる。
-その Thread が bundle/unbundle を起こすと、最初の Transaction は再び Phase 1 からやり直しになり、
-この ping-pong が無限に繰り返される。</p>
-<p><strong>正しい設計:</strong> tag は CAS 単位で clear せず、コミット<strong>成功時</strong>
-(<code>CommitParent</code> 成功 / <code>CommitDone</code> 成功) でのみ release する。
-失敗・リトライ時はタグを保持したまま次の snapshot へ (C++ <code>operator++</code> が
-<code>drop_tags_n_privilege()</code> を呼ばない動作に対応)。</p>
+<p><strong>Why per-CAS clearing would cause livelock:</strong>
+"Clear my tag back to Null on every CAS success" lets another Transaction <strong>squeeze in</strong>
+between phase CASes of the holding Transaction. That peer's bundle/unbundle reset the first
+Transaction back to Phase 1, and the ping-pong repeats indefinitely.</p>
+<p><strong>The right design:</strong> tags are not cleared per-CAS, but only on commit
+<strong>success</strong> (<code>CommitParent</code> success / <code>CommitDone</code> success).
+On failure/retry, tags persist into the next snapshot (matching C++ <code>operator++</code>
+not calling <code>drop_tags_n_privilege()</code>).</p>
 </div>
 
-<h2>C++ <code>ScopedNegotiateLinkage</code> との対応</h2>
+<h2>Correspondence with C++ <code>ScopedNegotiateLinkage</code></h2>
 <table>
 <tr><th>C++</th><th>TLA+ LLfree</th></tr>
-<tr><td><code>ScopedNegotiateLinkage tag(*link)</code> in commit_xxx() outer scope</td>
-    <td>SnapCheck / CommitParent / CommitTryCAS の前段で <code>CanProceed</code> 判定</td></tr>
+<tr><td><code>ScopedNegotiateLinkage tag(*link)</code> at commit_xxx() outer scope</td>
+    <td><code>CanProceed</code> check at the head of SnapCheck / CommitParent / CommitTryCAS</td></tr>
 <tr><td><code>m_priority_tidstamp.store(my_stamp)</code> on CAS fail</td>
     <td><code>priorityTag' = [priorityTag EXCEPT ![n] = TagAfterFail(t, n)]</code></td></tr>
-<tr><td>CAS 成功時はストア <strong>しない</strong></td>
+<tr><td>No store on CAS success</td>
     <td><code>TagAfterSuccess(t, n) == priorityTag[n]</code> (no-op)</td></tr>
-<tr><td>scope 脱出時 (デストラクタ) で <code>release_privileged_tidstamp()</code></td>
+<tr><td>Destructor: <code>release_privileged_tidstamp()</code></td>
     <td><code>ClearMyTags(t)</code> at Transaction-end (Slide 5)</td></tr>
 </table>
-
-<h2>「自分より若い tag を上書きしない」の意味</h2>
-<div class="box">
-<p>失敗時に「holder が active で自分が若い」場合、<strong>priorityTag は変えない</strong>。
-これは「古い thread が登録した tag を若い thread が誤って奪う」のを防ぐ。<br>
-ただし、若い thread が <em>先に tag を取った後で</em> 古い thread が来た場合は逆転が必要 →
-これを担うのが独立アクション <code>PreemptTag</code> (次スライド)。</p>
-</div>
-
-<div class="box-green">
-<p><strong>不変条件:</strong>
-任意のノード <code>n</code> で <code>priorityTag[n] /= Null</code> ならば、
-登録された <code>&lt;&lt;iter, tid&gt;&gt;</code> はその瞬間で「最も古い (活性) thread の値」。
-zombie tag はコミット成功経路でのみ非アクティブになるため構造的に存在しない。
-これが livelock-free 性の局所不変条件 (proof_semantics §4)。</p>
-</div>
 </div>
 
 <!-- ============================================================ SLIDE 5 -->
 <div class="slide">
-<h1>Slide 5 — <code>PreemptTag</code> action + <code>ClearMyTags</code></h1>
+<h1>Slide 5 — <code>PreemptTag</code> + <code>ClearMyTags</code></h1>
 <p style="color:#94a3b8">
-LLfree が追加する独立アクション (CAS と並行) と Transaction-end での tag 一括解放。
-これらが揃って初めて「古い thread が永久 lockout されない」性質が成立する。
+LLfree's independent action (parallel to CAS) and the bulk tag release at Transaction-end.
+Both are required for the "older threads are never permanently locked out" property.
 </p>
 
-<h2><code>PreemptTag(t, n)</code> — 独立アクション</h2>
-<pre><code><span class="comment">\* @c11_action PreemptTag(t, n):</span>
-<span class="comment">\*   An older thread can replace a younger thread's tag at a node, allowing</span>
-<span class="comment">\*   it to subsequently proceed via CanProceed. Mirrors C++</span>
-<span class="comment">\*   try_register_privileged_tidstamp() succeeding for an older Transaction.</span>
-<span class="comment">\*   Without this action, a younger thread that grabbed the tag first could</span>
-<span class="comment">\*   permanently lock out an older thread.</span>
-<span class="op">PreemptTag</span>(t, n) ==
+<h2><code>PreemptTag(t, n)</code> — independent action</h2>
+<pre><code><span class="op">PreemptTag</span>(t, n) ==
     /\ priorityTag[n] /= Null
     /\ priorityTag[n][<span class="num">2</span>] /= t              <span class="comment">\* not already mine</span>
     /\ <span class="op">TagOlder</span>(<span class="op">MyTag</span>(t), priorityTag[n])
@@ -509,44 +427,21 @@ LLfree が追加する独立アクション (CAS と並行) と Transaction-end 
     /\ <span class="keyword">UNCHANGED</span> &lt;&lt;serial, linkage, pc, op, target,
                  local, iterBudget, childQueue&gt;&gt;</code></pre>
 
-<h2><code>PreemptTag</code> の 3 つの enabling 条件</h2>
-<table>
-<tr><th>条件</th><th>意味</th></tr>
-<tr><td><code>priorityTag[n] /= Null</code></td>
-    <td>preempt 対象の tag が存在 (Null なら CAS 経路で取得できる)</td></tr>
-<tr><td><code>priorityTag[n][2] /= t</code></td>
-    <td>自分の tag を preempt する意味なし</td></tr>
-<tr><td><code>TagOlder(MyTag(t), priorityTag[n])</code></td>
-    <td><strong>自分の方が古い</strong>場合のみ preempt 可</td></tr>
-</table>
-<p style="color:#94a3b8;font-size:0.9em">
-旧版にあった <code>ActiveThread(t)</code> (自分が活性) と
-<code>ActiveThread(holder)</code> (holder が活性) の 2 条件は削除。
-zombie tag が存在しないため「inactive holder → CanProceed 経路で進める」
-という分岐が不要になった。
-</p>
-
-<h2>なぜ独立アクションが必要か</h2>
+<h2>Why an independent action is needed</h2>
 <div class="box-orange">
-<p><strong>シナリオ:</strong> 若い thread t<sub>young</sub> が CAS 失敗で tag を取った。直後に
-古い thread t<sub>old</sub> が登場、t<sub>old</sub> の CAS は <code>CanProceed</code> 失敗で進めない。
-<br>
-<code>TagAfterFail</code> は <em>CAS 試行をした側</em> しか tag を更新しない (CAS が enabled
-でないのに Fail にもならないため)。<br>
-→ 独立アクション <code>PreemptTag</code> が <em>CAS とは別経路で</em> tag を奪取する必要がある。</p>
-<p><strong>これがないとどうなるか:</strong>
-proof_semantics.md §4 に記述されているとおり、若い thread が tag を持ったまま
-進めば古い thread の retry が無限になる可能性が出る。<code>PreemptTag</code> は
-TLC の状態空間内で「古い thread が tag を奪う step」を必ず生成するため、
-<code>WF_vars(NextStep)</code> の下で前進が保証される。</p>
+<p><strong>Scenario:</strong> A younger thread t<sub>young</sub> grabs the tag on a CAS fail.
+Then an older thread t<sub>old</sub> appears; its CAS is gated out by <code>CanProceed</code>.
+But <code>TagAfterFail</code> updates the tag only on actually <em>attempted</em> CAS — and if the
+CAS isn't enabled, no Fail fires either. So an <em>independent</em> action
+<code>PreemptTag</code> is needed to let t<sub>old</sub> steal the tag without trying CAS.</p>
+<p><strong>Without it:</strong> as proof_semantics.md §4 explains, a younger thread holding the
+tag could push an older thread's retry count to infinity. <code>PreemptTag</code> ensures
+TLC's state graph always contains "older steals tag," and under <code>WF_vars(NextStep)</code>
+progress is guaranteed.</p>
 </div>
 
-<h2><code>ClearMyTags(t)</code> — Transaction-end での一括解放</h2>
-<pre><code><span class="comment">\* ClearMyTags(t): release ALL of thread t's tags at every node. Called only</span>
-<span class="comment">\* on commit SUCCESS (CommitParent success, CommitDone success) — matches</span>
-<span class="comment">\* C++ finalizeCommitment → drop_tags_n_privilege. On failure, tags are</span>
-<span class="comment">\* preserved across retries (C++ operator++ does not call drop_tags).</span>
-<span class="op">ClearMyTags</span>(t) ==
+<h2><code>ClearMyTags(t)</code> — bulk release at Transaction-end</h2>
+<pre><code><span class="op">ClearMyTags</span>(t) ==
     [n \in Nodes |-&gt;
         <span class="keyword">IF</span> priorityTag[n] = Null
         <span class="keyword">THEN</span> priorityTag[n]
@@ -554,77 +449,44 @@ TLC の状態空間内で「古い thread が tag を奪う step」を必ず生�
              <span class="keyword">THEN</span> Null
              <span class="keyword">ELSE</span> priorityTag[n]]</code></pre>
 
-<h2>呼び出し箇所 (コミット成功時のみ)</h2>
+<h2>Where it fires (only on commit success)</h2>
 <table>
-<tr><th>アクション</th><th>priorityTag 更新</th><th>意味</th></tr>
-<tr><td><code>CommitParent</code> 成功</td>
+<tr><th>Action</th><th>priorityTag update</th><th>Meaning</th></tr>
+<tr><td><code>CommitParent</code> success</td>
     <td><code>ClearMyTags(t)</code></td>
-    <td>commit 完了 → 全 tag 解放 (C++ <code>finalizeCommitment</code>)</td></tr>
-<tr><td><code>CommitParent</code> 失敗</td>
+    <td>Commit done → release all tags (C++ <code>finalizeCommitment</code>)</td></tr>
+<tr><td><code>CommitParent</code> fail</td>
     <td><code>[priorityTag EXCEPT ![Parent] = TagAfterFail(t, Parent)]</code></td>
-    <td>タグ保持のままリトライ; Parent tag のみ更新 (C++ <code>operator++</code>)</td></tr>
-<tr><td><code>CommitDone</code> 成功</td>
+    <td>Tags persist into retry; only Parent's tag updated</td></tr>
+<tr><td><code>CommitDone</code> success</td>
     <td><code>ClearMyTags(t)</code></td>
-    <td>per-child commit 終了 → 全 tag 解放</td></tr>
-<tr><td><code>CommitDone</code> 失敗</td>
+    <td>Per-child commit done → release all tags</td></tr>
+<tr><td><code>CommitDone</code> fail</td>
     <td><code>UNCHANGED priorityTag</code></td>
-    <td>タグ保持のままリトライ (C++ <code>operator++</code>)</td></tr>
+    <td>Tags persist into retry</td></tr>
 </table>
-
-<h2>C++ 対応</h2>
-<table>
-<tr><th>C++</th><th>TLA+ LLfree</th></tr>
-<tr><td><code>try_register_privileged_tidstamp(my_stamp)</code> succeeding for older transaction</td>
-    <td><code>PreemptTag(t, n)</code></td></tr>
-<tr><td><code>finalizeCommitment() → drop_tags_n_privilege()</code> (commit success)</td>
-    <td><code>ClearMyTags(t)</code> at CommitParent success / CommitDone success</td></tr>
-<tr><td><code>~Transaction() → drop_tags_n_privilege()</code> (abort/RAII)</td>
-    <td>TLA+ では Transaction は明示的に終了する設計のため対応物なし</td></tr>
-<tr><td><code>operator++() — drop_tags NOT called on retry</code></td>
-    <td>CommitParent/CommitDone 失敗: <code>UNCHANGED priorityTag</code> or <code>EXCEPT</code></td></tr>
-</table>
-
-<div class="box-green">
-<p><strong>proof_semantics.md §4 「older-wins 規律」直接引用:</strong></p>
-<ul style="margin:0.3em 0 0 1.2em">
-<li>各時点で「優先される 1 スレッド」が必ずいる</li>
-<li>そのスレッドの retry 回数は他スレッドの数に対して有界</li>
-<li>全スレッドの累積 retry 数も有界</li>
-<li>→ serial 増加が有界 → 状態空間が有限 → TLC が終了</li>
-<li>→ §2 の議論で CONSTRAINT なしの終了が LL-free の証明になる</li>
-</ul>
-<p style="margin-top:0.5em">
-これが <code>PreemptTag</code> + <code>ClearMyTags</code> の存在で初めて成立する。
-両者を欠くと、若い thread の lockout または stale tag による前進阻害で
-論証チェーンが破綻する。
-</p>
-</div>
 </div>
 
 <!-- ============================================================ SLIDE 6 -->
 <div class="slide">
-<h1>Slide 6 — <code>EventuallyAllDone</code> PROPERTY と構造的 LL-free 性</h1>
+<h1>Slide 6 — <code>EventuallyAllDone</code> PROPERTY + structural LL-freedom</h1>
 <p style="color:#94a3b8">
-LLfree が形式検証で示すべきものは何か。proof_semantics.md §2 の論証チェーンが
-livelock-free 性の証明である理由を確認する。
+What does LLfree formally prove? And why is the chain of argument in proof_semantics.md §2
+the proof of livelock-freedom?
 </p>
 
-<h2>Spec 全体の構造</h2>
-<pre><code><span class="comment">\* AllDone: terminal condition — every thread has consumed its full</span>
-<span class="comment">\* iteration budget and returned to idle.</span>
+<h2>Spec structure</h2>
+<pre><code><span class="comment">\* AllDone: terminal condition — every thread consumed its full budget and returned to idle.</span>
 <span class="op">AllDone</span> == \A t \in Threads : pc[t] = <span class="type">"idle"</span> /\ iterBudget[t] = <span class="num">0</span>
 
-<span class="comment">\* NextStep: every action that can make real progress.</span>
 <span class="op">NextStep</span> ==
     \E t \in Threads :
         \/ <span class="op">SnapRead</span>(t) \/ <span class="op">SnapCheck</span>(t)
         \/ <span class="op">BundlePhase1</span>(t) \/ ... \/ <span class="op">BundlePhase4</span>(t)
         \/ <span class="op">CommitParent</span>(t) \/ ... \/ <span class="op">CommitDone</span>(t)
         \/ <span class="op">UnbundleWalk</span>(t) \/ ... \/ <span class="op">UnbundleCASChild</span>(t)
-        \/ \E n \in Nodes : <span class="op">PreemptTag</span>(t, n)   <span class="comment">\* ★ tag preempt も progress</span>
+        \/ \E n \in Nodes : <span class="op">PreemptTag</span>(t, n)   <span class="comment">\* ★ also a progress step</span>
 
-<span class="comment">\* Terminating: self-loop at AllDone — deadlock detection を有効のまま</span>
-<span class="comment">\* 真の deadlock を見逃さないためのイディオム (proof_semantics §6)</span>
 <span class="op">Terminating</span> ==
     /\ <span class="op">AllDone</span>
     /\ <span class="keyword">UNCHANGED</span> vars
@@ -632,208 +494,156 @@ livelock-free 性の証明である理由を確認する。
 <span class="op">Next</span> == <span class="op">NextStep</span> \/ <span class="op">Terminating</span>
 
 <span class="op">Spec</span> == <span class="op">Init</span> /\ [][<span class="op">Next</span>]_vars /\ <span class="keyword">WF</span>_vars(<span class="op">NextStep</span>)
-                              <span class="comment">\* ↑ Terminating は WF 外。さもなくば</span>
-                              <span class="comment">\* "永遠にスタッターすればよい" になり</span>
-                              <span class="comment">\* 活性が無意味化 (proof_semantics §6)</span></code></pre>
+                              <span class="comment">\* ↑ Terminating is outside WF: otherwise</span>
+                              <span class="comment">\* "stutter forever" trivially satisfies it</span>
+                              <span class="comment">\* and liveness becomes meaningless</span></code></pre>
 
 <h2><code>EventuallyAllDone</code> PROPERTY</h2>
-<pre><code><span class="comment">\* EventuallyAllDone: under WF, every execution eventually reaches AllDone.</span>
-<span class="comment">\* This is the key LL-free property — if priority gating is correct, no</span>
-<span class="comment">\* thread can be starved indefinitely, so all threads eventually finish.</span>
-<span class="op">EventuallyAllDone</span> == &lt;&gt;<span class="op">AllDone</span></code></pre>
-<p style="color:#94a3b8;font-size:0.92em">
-TLA+ の <code>&lt;&gt;P</code> は「P が <em>いつか</em> 真になる」(eventually)。<code>WF_vars(NextStep)</code>
-で「enabled な NextStep 遷移は永遠に無視されない」を仮定すれば、priority 機構が正しい限り
-全スレッドが必ず <code>AllDone</code> に到達することを TLC が verify する。
-</p>
+<pre><code><span class="op">EventuallyAllDone</span> == &lt;&gt;<span class="op">AllDone</span></code></pre>
 
-<h2>論証チェーン (proof_semantics.md §2)</h2>
+<h2>Argument chain (proof_semantics.md §2)</h2>
 <div class="box">
-<p><strong>「終了 + CONSTRAINT なし + Nat serial 単調増加 → livelock-free 自動」</strong></p>
+<p><strong>"Termination + no CONSTRAINT + Nat serial monotone → livelock-free automatically"</strong></p>
 <table style="margin-top:0.5em">
 <tr><td><strong>(1)</strong></td>
-    <td>TLC が exhaustion 完走 (queue 0) ⇒ 状態空間が <strong>真に有限</strong>であることの証明<br>
-        (CONSTRAINT で打ち切ったのではなく、全到達状態を列挙し終えた)</td></tr>
+    <td>TLC exhausts (queue 0) ⇒ the state space is <strong>genuinely finite</strong>
+        (not artificially cut off — every reachable state was enumerated)</td></tr>
 <tr><td><strong>(2)</strong></td>
-    <td>Serial が <code>Nat</code> で単調増加 (modular wrap なし)</td></tr>
+    <td>Serial is <code>Nat</code>, monotone (no modular wrap)</td></tr>
 <tr><td><strong>(3)</strong></td>
-    <td>livelock 候補となる全アクション (retry を含む) が必ず serial を bump する</td></tr>
+    <td>Every livelock-candidate action (including retries) must bump the serial</td></tr>
 <tr><td><strong>(4)</strong></td>
-    <td>状態グラフ上のサイクル ⇒ 同じ状態に戻る ⇒ serial も同じ値に戻る ⇒
-        単調増加と矛盾 ⇒ <strong>サイクル不可能</strong></td></tr>
+    <td>A cycle in the state graph ⇒ returns to the same state ⇒ same serial ⇒
+        contradicts monotonicity ⇒ <strong>no cycle exists</strong></td></tr>
 <tr><td><strong>(5)</strong></td>
-    <td>サイクルなし ⇒ 無限挙動が存在しない ⇒ <strong>livelock-free</strong></td></tr>
+    <td>No cycle ⇒ no infinite behavior ⇒ <strong>livelock-free</strong></td></tr>
 </table>
-<p style="margin-top:0.5em">この論証で、<code>EventuallyAllDone</code> が CONSTRAINT 依存ではなく
-<em>構造的</em> に成立することが示される。priority 機構が正しい設計であれば、
-retry 回数が有界 → serial 有界 → 状態空間有限 → 上記論証が走る。</p>
 </div>
 
-<h2>cfg の差分 (元 2level vs LLfree)</h2>
-<table>
-<tr><th></th><th>元 2level</th><th>LLfree</th></tr>
-<tr><td>CONSTRAINT</td>
-    <td><code>SerialBound</code> (探索打ち切り)</td>
-    <td class="del">なし — 状態空間有限性は priorityTag が保証</td></tr>
-<tr><td>SYMMETRY</td>
-    <td><code>ThreadSymmetry</code></td>
-    <td class="del">削除 (Threads は Nat / liveness 検査と非両立)</td></tr>
-<tr><td>Threads</td>
-    <td><code>{t1, t2}</code> (model values)</td>
-    <td><code>{1, 2}</code> (Nat — TagOlder の型整合)</td></tr>
-<tr><td>MaxSerial / MaxPayload</td>
-    <td>cfg で指定</td>
-    <td class="del">廃止</td></tr>
-<tr><td>INVARIANT</td>
-    <td>Safety 系 5 つ</td>
-    <td>同じ Safety 系 + <code>TerminalPayloadCheck</code> + <code>QuiescentCheck</code></td></tr>
-<tr><td>PROPERTY</td>
-    <td>なし</td>
-    <td class="add"><code>EventuallyAllDone == &lt;&gt;AllDone</code> (新規)</td></tr>
-<tr><td>CHECK_DEADLOCK</td>
-    <td><code>-deadlock</code> flag で抑制</td>
-    <td>デフォルト TRUE (Terminating disjunct で正規終端を吸収)</td></tr>
-</table>
-
-<h2>検証結果</h2>
+<h2>Verification results (current, 2-level LLfree)</h2>
 <div class="box-green">
 <table>
-<tr><th>項目</th><th>値</th></tr>
-<tr><td>Distinct states</td><td><strong>665,218</strong></td></tr>
-<tr><td>Depth</td><td>89</td></tr>
-<tr><td>Wall time</td><td>28 秒</td></tr>
-<tr><td>Queue</td><td>0 (exhaustion)</td></tr>
-<tr><td>Safety invariants</td><td>全て PASS</td></tr>
-<tr><td><code>EventuallyAllDone</code></td><td class="add"><strong>PASS</strong></td></tr>
-<tr><td>Config</td><td>MaxCommits=1, |Threads|=2, fine atomicity, CONSTRAINT なし</td></tr>
+<tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
+<tr><td>coarse micro (MaxCommits=1)</td><td>2</td><td><strong>665,218</strong></td><td>89</td><td>28s</td><td><strong>Pass + liveness</strong> (laptop)</td></tr>
+<tr><td>superfine</td><td>2</td><td>2,676,196</td><td>129</td><td>3:12</td><td><strong>Pass + liveness</strong></td></tr>
+<tr><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>6:35</td><td><strong>Pass</strong> (ohtaka)</td></tr>
+<tr><td>MaxCommits=2 superfine</td><td>2</td><td>127,586,599</td><td>311</td><td>4:40</td><td><strong>Pass</strong> (ohtaka)</td></tr>
+<tr><td>dynamic release superfine live</td><td>2</td><td>413,884,516</td><td>320</td><td>7:13</td><td><strong>Pass + liveness</strong> (ohtaka)</td></tr>
 </table>
-<p style="margin-top:0.5em"><strong>結論:</strong> micro config の範囲で
-<em>safety + livelock-free 性</em>が構造的に証明された。</p>
+<p style="margin-top:0.5em"><strong>Conclusion:</strong> across all configs,
+<em>safety + livelock-freedom</em> are proven structurally. Details:
+<code>kamestm/tests/VERIFICATION.md §3</code>, <code>doc/verification_log.md</code>.</p>
 </div>
+
+<h2>Related variants</h2>
+<table>
+<tr><th>Spec</th><th>Difference</th><th>Deck</th></tr>
+<tr><td><code>BundleUnbundle_3level_LLfree.tla</code></td><td>3-level tree (Grand → Parent → Child); recursive inner bundle; multi-level unbundle walk</td><td><code>slides_layer2_LLfree_3level_en.html</code></td></tr>
+<tr><td><code>BundleUnbundle_2level_LLfree_dynamic.tla</code><br><code>BundleUnbundle_3level_LLfree_dynamic.tla</code></td><td>Online <code>insert(online=true)</code> / release; <code>InsertThreads</code> / <code>ReleaseThreads</code> role config</td><td><code>slides_layer2_LLfree_dynamic_en.html</code></td></tr>
+<tr><td><code>BundleUnbundle_hardlink_*.tla</code> (5 specs)</td><td>2-parent / 1-child hard-link topologies; Phase 4 reachability gate; bug repro + fix; per-action fairness</td><td><code>slides_hardlink_en.html</code></td></tr>
+</table>
 </div>
 
 <!-- ============================================================ SLIDE 7 -->
 <div class="slide">
-<h1>Slide 7 — 旧世代の保存意義 + wait-free との区別</h1>
+<h1>Slide 7 — Why preserve older generations + wait-free distinction</h1>
 <p style="color:#94a3b8">
-LLfree が完成したからといって旧世代仕様を消去すべきではない理由 (proof_semantics §5)、
-および「livelock-free」と「wait-free」の混同を防ぐ整理 (proof_semantics §7)。
+Why the old-generation specs should not be deleted (proof_semantics §5),
+and how to distinguish "livelock-free" from "wait-free" (proof_semantics §7).
 </p>
 
-<h2>旧世代を保存している理由 (proof_semantics §5)</h2>
+<h2>Why keep older generations (proof_semantics §5)</h2>
 <div class="box-purple">
-<h3>Gen 1 (最古, modular serial) — <code>SerialWrapAround</code> violation で落ちる</h3>
+<h3>Gen 1 (oldest, modular serial) — fails on <code>SerialWrapAround</code></h3>
 <ul style="margin:0.3em 0 0 1.2em">
-<li>privilege 機構なしでは retry が無制限に発生</li>
-<li>modular な serial counter が wrap し、異なる時刻の serial が同値となり、
-    <code>ModGT</code> 比較が破綻する</li>
-<li>これを動的な反例として実演</li>
+<li>Without the priority mechanism, retries are unbounded</li>
+<li>The modular serial counter wraps; different times collide on the same serial,
+    and <code>ModGT</code> compare breaks</li>
+<li>This is the dynamic counter-example</li>
 </ul>
-<p><strong>意義:</strong> 「LL-free 機構が必要であること」自体を violation として証明している
-貴重な反例。Gen 3 がなぜ必要かの最も説得力ある根拠 (proof_semantics §5)。</p>
+<p><strong>Why it matters:</strong> An empirical violation proves the LL-free mechanism is
+necessary. The strongest argument for Gen 3 (proof_semantics §5).</p>
 </div>
 
 <div class="box-purple">
-<h3>Gen 2 (Nat + CONSTRAINT) — 状態数発散</h3>
+<h3>Gen 2 (Nat + CONSTRAINT) — state-space divergence</h3>
 <ul style="margin:0.3em 0 0 1.2em">
-<li>wrap は起きないが、CONSTRAINT (<code>SerialBound</code>) を外すと状態数が発散</li>
-<li>これは「Nat にしただけでは LL-free にならない」ことを示す</li>
-<li>privilege 機構の必要性を補強する第二の証拠</li>
+<li>No wrap, but removing CONSTRAINT (<code>SerialBound</code>) makes the state count diverge</li>
+<li>Shows "switching to Nat alone is not LL-free"</li>
+<li>The second piece of evidence for needing the priority mechanism</li>
 </ul>
-<p><strong>意義:</strong> Gen 3 への動機を明示する役割。CONSTRAINT 付きの終了は「打ち切られた領域に
-入る前の safety」しか保証せず、liveness は出ない (proof_semantics §3)。</p>
+<p><strong>Why it matters:</strong> Provides Gen 3's motivation. CONSTRAINT termination only
+guarantees safety inside the cut-off, not liveness (proof_semantics §3).</p>
 </div>
 
-<h2>3 世代の対応関係 (まとめ)</h2>
-<table>
-<tr><th>世代</th><th>仕様 file</th><th>動作</th><th>証明できるもの</th></tr>
-<tr><td>Gen 1 (modular)</td>
-    <td>(古い <code>BundleUnbundle_2level.tla</code>)</td>
-    <td><code>SerialWrapAround</code> violation</td>
-    <td>「priority 機構なしでは破綻する」を動的に</td></tr>
-<tr><td>Gen 2 (Nat+CONSTRAINT)</td>
-    <td>現 <code>BundleUnbundle_2level.tla</code></td>
-    <td>終了するが状態数発散傾向</td>
-    <td>制限付き探索内の safety</td></tr>
-<tr><td class="add"><strong>Gen 3 (LLfree)</strong></td>
-    <td class="add"><code>BundleUnbundle_2level_LLfree.tla</code></td>
-    <td class="add">CONSTRAINT なし完全 exhaustion</td>
-    <td class="add"><strong>safety + livelock-free 性 (構造的)</strong></td></tr>
-</table>
-
-<h2>Privilege=FALSE — priority 機構を無効化した場合</h2>
+<h2>Privilege=FALSE — disabling the priority mechanism</h2>
 <p style="color:#94a3b8">
-3-level spec (<code>BundleUnbundle_3level_LLfree.tla</code>) では <code>Privilege</code> が
-明示的な CONSTANT として存在する。<code>Privilege=FALSE</code> に設定すると priority 機構が
-すべて無効化され、元の non-LL-free 挙動と等価になる。
+The 3-level spec (<code>BundleUnbundle_3level_LLfree.tla</code>) has an explicit CONSTANT
+<code>Privilege</code>. Setting <code>Privilege=FALSE</code> disables the priority mechanism
+entirely, equivalent to the original non-LL-free behavior.
 </p>
 <table>
 <tr><th></th><th><code>Privilege=TRUE</code> (LLfree)</th><th><code>Privilege=FALSE</code> (non-LL-free)</th></tr>
 <tr><td><code>CanProceed(t, n)</code></td>
-    <td>tag に基づく gate — 若い thread を止める</td>
-    <td class="del">常に <code>TRUE</code> — gate なし</td></tr>
+    <td>Tag-based gate — blocks younger threads</td>
+    <td class="del">Always <code>TRUE</code> — no gate</td></tr>
 <tr><td><code>TagAfterFail(t, n)</code></td>
-    <td>4 段階ラダーで tag を登録/更新</td>
-    <td class="del">no-op — tag は変わらない</td></tr>
-<tr><td><code>ClearMyTags(t)</code></td>
-    <td>Transaction 境界で自分の tag を Null に</td>
-    <td class="del">no-op</td></tr>
-<tr><td><code>PreemptTag(t, n)</code></td>
-    <td>独立 action として有効</td>
-    <td class="del">disabled (条件が成立しない)</td></tr>
-<tr><td>状態空間</td>
-    <td>有限 → TLC exhaustion 完走</td>
-    <td class="del"><strong>発散</strong> — retry が無限に増え TLC が終了しない</td></tr>
+    <td>4-step ladder, registers/refreshes tag</td>
+    <td class="del">no-op — tag unchanged</td></tr>
+<tr><td>State space</td>
+    <td>Finite → TLC exhausts</td>
+    <td class="del"><strong>Diverges</strong> — retries unbounded</td></tr>
 <tr><td><code>EventuallyAllDone</code></td>
     <td class="add"><strong>PASS</strong></td>
-    <td class="del">violation (livelock 存在)</td></tr>
+    <td class="del">Violation (livelock present)</td></tr>
 </table>
 <div class="box-orange">
-<p><code>Privilege=FALSE</code> で実際に TLC を動かすと状態空間が発散することで、
-「priority 機構は必須であり、単に Nat serial に切り替えるだけでは LL-free にならない」
-ことが <em>直接</em> 確認できる。</p>
+<p>Running TLC with <code>Privilege=FALSE</code> directly confirms that switching to Nat serial
+alone is not LL-free — the priority mechanism is essential.</p>
 </div>
 
-<h2>Wait-free は別問題</h2>
+<h2>Wait-free is a separate question</h2>
 <table>
 <tr><th></th><th>Lock-free / LL-free (KAME)</th><th>Wait-free</th></tr>
-<tr><td>定義</td>
-    <td>fairness 仮定下で全スレッドが eventually 進む</td>
-    <td><strong>他スレッドに依存せず</strong>有界ステップ数で完了</td></tr>
-<tr><td>fairness 依存</td>
-    <td>WF の下でのみ活性が出る</td>
-    <td>fairness 非依存</td></tr>
-<tr><td>CAS retry ベース</td>
-    <td>OK (優先スレッドが進む間、他は有界回数 retry)</td>
-    <td><strong>本質的に出ない</strong></td></tr>
-<tr><td>TLA+ で示すには</td>
-    <td><code>&lt;&gt;AllDone</code> + WF で十分</td>
-    <td>スレッドごとの有界ステップ数 invariant が必要</td></tr>
+<tr><td>Definition</td>
+    <td>Under fairness, every thread eventually progresses</td>
+    <td>Bounded steps to completion, <strong>independent of other threads</strong></td></tr>
+<tr><td>Fairness dependence</td>
+    <td>Liveness requires WF</td>
+    <td>Independent of fairness</td></tr>
+<tr><td>CAS-retry-based</td>
+    <td>OK (preferred thread progresses, others retry bounded times)</td>
+    <td><strong>Not possible by design</strong></td></tr>
+<tr><td>How to prove in TLA+</td>
+    <td><code>&lt;&gt;AllDone</code> + WF suffices</td>
+    <td>Per-thread bounded-step invariant needed</td></tr>
 </table>
 <div class="box-orange">
-<p>KAME が示すのは <strong>lock-free + livelock-free</strong>。
-wait-free は CAS retry 設計の本質から成立しない (設計通り)。</p>
+<p>KAME proves <strong>lock-free + livelock-free</strong>. Wait-free does not follow from a
+CAS-retry design (by intent).</p>
 </div>
 
-<h2>形式検証で示せること・示せないこと</h2>
+<h2>What formal verification can and cannot show</h2>
 <table>
-<tr><th>性質</th><th>形式検証</th><th>C++ 実装</th></tr>
+<tr><th>Property</th><th>Formal verification</th><th>C++ implementation</th></tr>
 <tr><td>Safety</td>
-    <td class="add">CONSTRAINT なし完全 exhaustion で証明</td>
-    <td>大規模ストレステストで未破綻</td></tr>
+    <td class="add">Proven by CONSTRAINT-free exhaustion</td>
+    <td>No violation observed under large stress tests</td></tr>
 <tr><td>LL-free</td>
-    <td class="add"><code>EventuallyAllDone</code> PASS (+ Privilege=FALSE で発散確認)</td>
-    <td>livelock 観測なし</td></tr>
+    <td class="add"><code>EventuallyAllDone</code> PASS (+ Privilege=FALSE divergence as counter-example)</td>
+    <td>No livelock observed</td></tr>
 <tr><td>Wait-free</td>
-    <td>証明する設計でない</td>
-    <td>CAS retry ベースなので本質的に出ない</td></tr>
+    <td>Not designed to prove</td>
+    <td>Not achievable via CAS-retry</td></tr>
 </table>
 
 <div class="box" style="margin-top:1.5em;font-size:0.88em;color:#94a3b8">
-<strong>参考資料:</strong>
-仕様本体 → <code>BundleUnbundle_2level_LLfree.tla</code> /
+<strong>References:</strong>
+spec source → <code>BundleUnbundle_2level_LLfree.tla</code> /
 <code>BundleUnbundle_3level_LLfree.tla</code> |
-元 spec の解説 → <code>slides_layer2.html</code>
+base spec → <code>slides_layer2_en.html</code> |
+3-level / dynamic → <code>slides_layer2_LLfree_3level_en.html</code> / <code>slides_layer2_LLfree_dynamic_en.html</code> |
+hardlink → <code>slides_hardlink_en.html</code>
 </div>
 </div>
 

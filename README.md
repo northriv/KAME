@@ -335,12 +335,13 @@ offers three concrete benefits for this domain:
 
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
-- **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](kamestm/tests/tlaplus/atomic_shared_ptr.tla))
-- **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](kamestm/tests/tlaplus/BundleUnbundle.tla))
+- **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](kamestm/tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](kamestm/tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Proven **safe + livelock-free** without `CONSTRAINT`, exhausted to >1.1 billion states on the ISSP ohtaka supercomputer.
+- **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate (`kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
-Slide decks: [Layer 1 — atomic_shared_ptr](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html)), [Layer 2 — Bundle/Unbundle + Commit](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
+**Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).
 
-C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`kamestm/tests/tlaplus/test_*.c`) and C++-derived protocol tests (`kamestm/tests/cds_atomic_shared_ptr/`).
+C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`kamestm/tests/tlaplus/test_*.c`) and C++-derived protocol tests (`kamestm/tests/cds_atomic_shared_ptr/`). Full results: [`kamestm/tests/VERIFICATION.md`](kamestm/tests/VERIFICATION.md).
 
 ---
 

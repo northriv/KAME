@@ -27,6 +27,7 @@ p{line-height:1.8}
 </style>
 </head>
 <body>
+<a href="slides_overview_en.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ Overview</a>
 
 <!-- ===== Slide 0: TLA+ Notation Guide ===== -->
 <div class="slide">
@@ -129,45 +130,70 @@ is a declaration: "when these conditions hold, change variables as follows."
 
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
-<h1>Layer 1: atomic_shared_ptr</h1>
-<h3>TLA+ Model Walkthrough — atomic_shared_ptr.tla (340 lines)</h3>
+<h1>Layer 1: atomic_shared_ptr + commit primitives</h1>
+<h3>TLA+ Model Walkthrough — atomic_shared_ptr.tla</h3>
 
 <div class="box-orange">
-<p><strong>Role in the 2-layer architecture:</strong> This deck was previously titled "Layer 0" (now renamed to slides_layer1.html).
-It has been renamed to <strong>Layer 1</strong> to match the paper's 2-layer model
-(Layer 1: atomic_shared_ptr / Layer 2: bundle/unbundle + commit). Content unchanged.</p>
+<p><strong>2-layer architecture:</strong> KAME's TLA+ verification is two layers.
+Layer 1 = <code>atomic_shared_ptr</code> (tagged-pointer protocol) <em>plus</em> commit-style primitives
+(<code>compareAndSet_impl_</code>, <code>scoped_atomic_view</code>, drain <code>release_tag_ref_</code>).
+The former "stm_commit" layer has been merged into the modern API (commit <code>fd5b2522</code>).<br>
+Layer 2 = bundle/unbundle + LL-free negotiate. Layer 1 is <strong>safety only</strong>;
+liveness (livelock-freedom) is supplied by Layer 2's older-wins mechanism — see end of deck.</p>
 </div>
 
 <div class="box">
 <h2>What is modeled</h2>
-<p><code>kame/atomic_smart_ptr.h</code> : the entire reference counting protocol.<br>
-Exhaustive TLA+ verification of the lock-free C++ atomic_shared_ptr.</p>
+<p>The <strong>full vocabulary</strong> of <code>kamepoolalloc/atomic_smart_ptr.h</code> under sequential consistency.
+Complements GenMC (memory-ordering checks) by exhausting all thread interleavings:</p>
+<ul style="margin:0.3em 0 0 1.2em">
+<li>Tagged-pointer reference counting (<code>acquire_tag_ref_</code> / <code>load_shared_</code> / <code>release_tag_ref_</code>)</li>
+<li><strong>Drain release</strong>: <code>release_tag_ref_(pref, added_global_rcnt)</code> with <code>cas_rcnt</code> — frees K tags in a single CAS</li>
+<li><strong>Bulk-transfer <code>load_shared_</code></strong>: <code>refcnt.fetch_add(rcnt)</code> + drain steals concurrent threads' tag IOUs</li>
+<li>Unified <code>compareAndSet_impl_&lt;OldrT, NewrT, false, RETAIN_NEWR&gt;</code> template (Set / Swap)</li>
+<li><strong><code>scoped_atomic_view&lt;T&gt;</code> RAII</strong>: acquire → TagHeld → CAS set (SCOPED, <code>fetch_sub(2)</code>) / dtor</li>
+</ul>
 </div>
 
 <h2>Model Components</h2>
 <table>
 <tr><th>Element</th><th>TLA+ Representation</th><th>C++ Counterpart</th></tr>
-<tr><td>Shared pointer</td><td><code>ptr</code> + <code>local_rc</code></td><td><code>m_ref</code> (uintptr_t)</td></tr>
+<tr><td>Shared pointer</td><td><code>ptr</code> + <code>local_rc</code></td><td><code>m_ref</code> (uintptr_t; upper=ptr, lower=tag)</td></tr>
 <tr><td>Objects</td><td><code>Objects</code> (Finite set)</td><td>Ref struct</td></tr>
-<tr><td>Reference count</td><td><code>global_rc[o]</code></td><td>Inside Ref:<code>atomic&lt;int&gt;</code></td></tr>
+<tr><td>Reference count</td><td><code>global_rc[o]</code></td><td>Intrusive <code>o-&gt;refcnt</code> (atomic)</td></tr>
 <tr><td>Freed state</td><td><code>freed[o]</code></td><td>delete call</td></tr>
-<tr><td>Thread state</td><td><code>pc[t]</code>, <code>thr_*</code></td><td>Local variables in functions</td></tr>
+<tr><td>Thread state</td><td><code>pc[t]</code>, <code>thr_*</code>, <code>scope_*[t]</code></td><td>Local variables + scope object</td></tr>
 </table>
 
-<h2>Variables (12 total)</h2>
+<h2>Variables (18 total, current spec)</h2>
 <pre><code><span class="keyword">VARIABLES</span>
-    ptr,            <span class="comment">\* Pointer (Object or NULL)</span>
-    local_rc,       <span class="comment">\* Local reference counter (lower 3 bits)</span>
-    global_rc,      <span class="comment">\* global_rc[o]: Global RC for each object</span>
+    ptr,            <span class="comment">\* Shared pointer (Object or NULL)</span>
+    local_rc,       <span class="comment">\* Local reference counter (tag)</span>
+    global_rc,      <span class="comment">\* global_rc[o]: Global RC per object</span>
     freed,          <span class="comment">\* freed[o]: Freed flag</span>
-    pc,             <span class="comment">\* Per-thread program counter (22 states)</span>
-    thr_op,         <span class="comment">\* "scan", "cas", "idle"</span>
+    pc,             <span class="comment">\* Per-thread program counter</span>
+    thr_op,         <span class="comment">\* "load", "cas", "idle"</span>
     thr_pref,       <span class="comment">\* Pointer read by acquire_tag_ref_</span>
     thr_rcnt,       <span class="comment">\* Local RC read by acquire_tag_ref_</span>
-    thr_old,        <span class="comment">\* CAS: Expected old object</span>
-    thr_new,        <span class="comment">\* CAS: New object</span>
+    thr_old,        <span class="comment">\* CAS: expected old object</span>
+    thr_new,        <span class="comment">\* CAS: new object</span>
     thr_holds,      <span class="comment">\* Objects held via local_shared_ptr</span>
-    thr_ls_ctx      <span class="comment">\* Return target for release_tag_ref_</span></code></pre>
+    thr_rtr_ctx,    <span class="comment">\* release_tag_ref_ return target (load_done / cas_retry / scope_release / ...)</span>
+    iterBudget,     <span class="comment">\* Per-thread remaining-operations count</span>
+    <span class="comment">(* drain parameters for release_tag_ref_(pref, added_global_rcnt) *)</span>
+    thr_cas_rcnt,   <span class="comment">\* Tag count to drain in one CAS</span>
+    thr_added_grc,  <span class="comment">\* Global rcnt the caller pre-added</span>
+    thr_drained,    <span class="comment">\* Output: how many tags were actually drained</span>
+    <span class="comment">(* scoped_atomic_view RAII *)</span>
+    scope_state,    <span class="comment">\* scope_state[t] ∈ {"none", "tagheld"}</span>
+    scope_pref      <span class="comment">\* The scope's m_pref</span></code></pre>
+
+<div class="box-green">
+<p><strong>Modeling decisions:</strong>
+(1) WEAK CAS spurious failure not modeled — strong-CAS covers a superset; weak is checked separately by GenMC RC11.
+(2) ABA-by-recycling not modeled — the <code>oldr-&gt;refcnt &ge; 1</code> shared-pointer ownership contract makes it structurally impossible.
+(3) Scope "empty" / "owned" sub-states collapse to <code>"none"</code> — observationally equivalent.</p>
+</div>
 </div>
 
 <!-- ===== Slide 2: acquire_tag_ref_ ===== -->
@@ -329,93 +355,151 @@ exercised when swap and load run concurrently.</p>
 </div>
 </div>
 
-<!-- ===== Slide 5: ABA Recycling ===== -->
+<!-- ===== Slide 5: scoped_atomic_view + drain release ===== -->
 <div class="slide">
-<h1>ABA Recycling</h1>
+<h1>scoped_atomic_view&lt;T&gt; RAII (new)</h1>
+<h3>Commit primitives subsumed: former stm_commit layer is now part of Layer 1 (<code>fd5b2522</code>)</h3>
 
-<pre><code><span class="op">Recycle</span>(t) ==
-    /\ EnableRecycle             <span class="comment">\* Controlled by enable/disable flag</span>
-    /\ pc[t] \in {<span class="type">"idle"</span>, <span class="type">"done"</span>}
-    /\ \E o \in Objects :
-       /\ freed[o] = TRUE       <span class="comment">\* freed object</span>
-       /\ global_rc[o] = <span class="num">0</span>
-       /\ freed' = [freed <span class="keyword">EXCEPT</span> ![o] = FALSE]   <span class="comment">\* recycled!</span>
-       /\ global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![o] = <span class="num">1</span>]
-       /\ thr_holds' = [thr_holds <span class="keyword">EXCEPT</span> ![t] = @ \cup {o}]</code></pre>
+<div class="box">
+<p>RAII type that holds an external scope's <strong>+1 tag ref</strong> on <code>oldr</code> for the lifetime of the scope.
+Inside the scope, <code>compareAndSet_impl_&lt;scoped, ...&gt;</code> skips acquire (the scope already guarantees +1),
+and on CAS success <code>fetch_sub(2)</code> absorbs both the <code>m_ref</code> release <em>and</em> the scope's tag-share.</p>
+</div>
+
+<h2>State transitions (2-state TagHeld model)</h2>
+<pre><code><span class="op">ScopeAcquire</span>(t) ==                <span class="comment">\* scoped_atomic_view ctor</span>
+    /\ scope_state[t] = <span class="type">"none"</span>
+    /\ <span class="comment">\* run acquire_tag_ref_ to grab a single tag</span>
+    /\ scope_state' = [scope_state <span class="keyword">EXCEPT</span> ![t] = <span class="type">"tagheld"</span>]
+    /\ scope_pref' = [scope_pref <span class="keyword">EXCEPT</span> ![t] = thr_pref[t]]
+
+<span class="op">ScopeCASConsume</span>(t) ==          <span class="comment">\* compareAndSet_impl_&lt;scoped&gt; success</span>
+    /\ scope_state[t] = <span class="type">"tagheld"</span>
+    /\ <span class="comment">\* step4 = +T (full add); on CAS success fetch_sub(2) consumes tag+ref simultaneously</span>
+    /\ local_rc' = local_rc - <span class="num">2</span>
+    /\ scope_state' = [scope_state <span class="keyword">EXCEPT</span> ![t] = <span class="type">"none"</span>]
+
+<span class="op">ScopeDestruct</span>(t) ==            <span class="comment">\* scoped_atomic_view dtor</span>
+    /\ scope_state[t] = <span class="type">"tagheld"</span>
+    /\ <span class="comment">\* invoke release_tag_ref_(scope_pref, 1)</span>
+    /\ thr_cas_rcnt' = <span class="num">1</span>
+    /\ pc' = [pc <span class="keyword">EXCEPT</span> ![t] = <span class="type">"rtr_read"</span>]</code></pre>
+
+<h2>Drain release_tag_ref_ pattern</h2>
+<pre><code><span class="comment">\* release_tag_ref_(pref, T) — drain min(local_rc, T) tags in one CAS</span>
+<span class="op">ReleaseTagRefCAS</span>(t) ==
+    /\ pc[t] = <span class="type">"rtr_cas"</span>
+    /\ \/ <span class="comment">\* CAS success: ptr/local_rc match the read values</span>
+          /\ ptr = thr_pref[t] /\ local_rc = thr_rcnt[t]
+          /\ <span class="keyword">LET</span> drained == <span class="op">Min</span>(thr_rcnt[t], thr_cas_rcnt[t]) <span class="keyword">IN</span>
+             /\ local_rc' = thr_rcnt[t] - drained
+             /\ thr_drained' = drained
+       \/ <span class="comment">\* CAS failure → retry or fallback to global path</span>
+          /\ ~(ptr = thr_pref[t] /\ local_rc = thr_rcnt[t])
+
+<span class="comment">\* After drain: cancel excess global rcnt with fetch_sub</span>
+<span class="op">ReleaseTagRefExcess</span>(t) ==
+    /\ <span class="keyword">LET</span> excess == thr_added_grc[t] - thr_drained[t] <span class="keyword">IN</span>
+       global_rc' = [global_rc <span class="keyword">EXCEPT</span> ![pref] = @ - excess]</code></pre>
+
+<div class="box-green">
+<p><strong>Why this matters:</strong> Drain release enables the <strong>bulk-transfer</strong> path of <code>load_shared_</code>.
+Instead of releasing one tag at a time, the caller does <code>refcnt.fetch_add(rcnt)</code> to pre-secure global RCs,
+then <code>release_tag_ref_(pref, rcnt)</code> drains multiple tags in one CAS — stealing concurrent threads' tag IOUs.
+This shifts contention from <code>m_ref</code> to <code>refcnt</code> and improves throughput substantially (commit <code>d93fc7de</code>, +23%).</p>
+</div>
 
 <div class="box-orange">
-<p><strong>Sound over-approximation:</strong> Recycling allowed for all operations (in practice impossible for <code>compareAndSwap_</code>).
-If safety is proven under over-approximation, it also holds for the actual program.</p>
-<p><strong>Background:</strong> Author judged safety as obvious. AI proposed over-approximation modeling; author agreed.</p>
+<p><strong>ABA is out of scope:</strong> The old <code>Recycle</code> action and <code>EnableRecycle</code> flag have been removed
+(<code>686460d5</code>). The shared-pointer ownership contract (<code>oldr-&gt;refcnt &ge; 1</code>) keeps <code>oldr</code> alive,
+making ABA-by-recycling structurally impossible for the tagged-pointer protocol. We declare it out of scope explicitly.</p>
 </div>
 </div>
 
 <!-- ===== Slide 6: Invariants ===== -->
 <div class="slide">
-<h1>Verified Invariants (7)</h1>
+<h1>Verified Invariants (10)</h1>
 
 <table>
 <tr><th>#</th><th>Invariant</th><th>Meaning</th></tr>
-<tr><td>1</td><td><code>MemorySafety</code></td><td>Pinned object is not freed</td></tr>
-<tr><td>2</td><td><code>NoUseAfterFree</code></td><td>Objects in <code>thr_holds</code> are not freed</td></tr>
-<tr><td>3</td><td><code>GlobalRCNonNeg</code></td><td>For live objects: <code>global_rc ≥ 0</code></td></tr>
-<tr><td>4</td><td><code>FreedImpliesZeroRC</code></td><td>If freed then <code>global_rc = 0</code></td></tr>
-<tr><td>5</td><td><code>InstalledNotFreed</code></td><td>Object pointed by <code>ptr</code> is not freed</td></tr>
-<tr><td>6</td><td><code>LocalRCBounded</code></td><td><code>local_rc ≤ number of threads</code></td></tr>
-<tr><td>7</td><td><code>TypeOK</code></td><td>Type invariant</td></tr>
+<tr><td>1</td><td><code>TypeOK</code></td><td>Type invariant</td></tr>
+<tr><td>2</td><td><code>MemorySafety</code></td><td>Object held with tag/ref is not freed</td></tr>
+<tr><td>3</td><td><code>NoUseAfterFree</code></td><td>Objects in <code>local_shared_ptr</code> hands are not freed</td></tr>
+<tr><td>4</td><td><code>GlobalRCNonNeg</code></td><td>For live objects: <code>global_rc &ge; 0</code></td></tr>
+<tr><td>5</td><td><code>FreedImpliesZeroRC</code></td><td>If freed then <code>global_rc = 0</code></td></tr>
+<tr><td>6</td><td><code>InstalledNotFreed</code></td><td>Object referenced by <code>ptr</code> is not freed</td></tr>
+<tr><td>7</td><td><code>LocalRCBounded</code></td><td><code>local_rc &le; 2 &times; |Threads|</code> (each thread: 1 scope tag + 1 in-flight acquire)</td></tr>
+<tr><td>8</td><td><code>QuiescentCheck</code></td><td>All-threads-idle implies <code>freed[o] = (global_rc[o] = 0)</code></td></tr>
+<tr><td>9</td><td><code>TerminalCheck</code></td><td>iterBudget=0 + no held refs + scope none → <code>ptr</code> has rc=1, others freed</td></tr>
+<tr><td>10</td><td><code>ScopeConsistent</code></td><td><code>scope_state</code> and <code>scope_pref</code> agree; tagheld → <code>scope_pref</code> not freed</td></tr>
 </table>
 
-<pre><code><span class="op">MemorySafety</span> ==
+<pre><code><span class="op">ScopeConsistent</span> ==
     \A t \in Threads :
-        (pc[t] \in {<span class="type">"scan_inc"</span>, <span class="type">"scan_leave"</span>,
-                     <span class="type">"ls_read"</span>, <span class="type">"ls_cas"</span>, <span class="type">"ls_global"</span>,
-                     <span class="type">"cas_check"</span>, ..., <span class="type">"cas_cleanup"</span>}
-         /\ thr_pref[t] /= NULL)
-        => freed[thr_pref[t]] = FALSE</code></pre>
+        \/ scope_state[t] = <span class="type">"none"</span> /\ scope_pref[t] = NULL
+        \/ scope_state[t] = <span class="type">"tagheld"</span>
+           /\ scope_pref[t] /= NULL
+           /\ freed[scope_pref[t]] = FALSE</code></pre>
 
-<h2>Verification Results (no StateConstraint)</h2>
+<h2>Liveness: <strong style="color:#f87171">intentionally violated</strong></h2>
+<div class="box-orange">
+<p><code>EventuallyAllDone == &lt;&gt;AllDone</code> <strong>fails</strong> at Layer 1.
+TLC finds a lasso where two threads enter mutual CAS retry
+(<code>cas_retry</code> → <code>cas_acquire</code> → <code>atr_cas</code> → ...).
+Internal CAS retries do not consume <code>iterBudget</code>, so an adversarial scheduler can
+sustain the loop indefinitely. <strong>This is the intended outcome:</strong>
+livelock-freedom is supplied by Layer 2's priority older-wins (LL-free negotiate) mechanism,
+not by the bare tagged-pointer protocol.</p>
+</div>
+
+<h2>Verification Results (no CONSTRAINT, SYMMETRY enabled)</h2>
 <table>
-<tr><th>Config</th><th>Threads</th><th>States</th><th>Time</th><th>Result</th></tr>
-<tr><td>scan only</td><td>3</td><td>40,934</td><td>1s</td><td style="color:#4ade80">✅ Pass</td></tr>
-<tr><td>scan+CAS (no ABA)</td><td>2</td><td>3,549,304</td><td>12s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
-<tr><td>full (CAS+ABA)</td><td>2</td><td>8,719,367</td><td>28s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
-<tr><td>swap+load (no ABA)</td><td>2</td><td>—</td><td>—</td><td style="color:#93c5fd">ohtaka running</td></tr>
-<tr><td>swap+CAS+ABA</td><td>2</td><td>6.6×10⁹+</td><td>18h+</td><td style="color:#93c5fd">partial, no violation (I/O limited)</td></tr>
+<tr><th>cfg</th><th>Threads</th><th>MaxOps</th><th>Ops</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
+<tr><td><code>1thr_mc.cfg</code></td><td>1</td><td>3</td><td>load+CAS+swap+scope</td><td>4,014</td><td>33</td><td>&lt;1s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td><code>small_mc.cfg</code></td><td>2</td><td>2</td><td>load+CAS+scope</td><td>613,990</td><td>69</td><td>12s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td><code>all_mc.cfg</code></td><td>2</td><td>3</td><td>load+CAS+swap+scope (full)</td><td><strong>66,537,058</strong></td><td>84</td><td>1h 30min</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
+<tr><td><code>3thr_cas_mc.cfg</code></td><td>3</td><td>2</td><td>load+CAS+scope</td><td>—</td><td>—</td><td>—</td><td style="color:#93c5fd">local run in progress</td></tr>
+<tr><td><code>live_mc.cfg</code></td><td>2</td><td>2</td><td><code>&lt;&gt;AllDone</code> liveness</td><td>(lasso)</td><td>—</td><td>40s</td><td style="color:#f87171">❌ Fail (expected)</td></tr>
 </table>
+<p style="color:#94a3b8;font-size:0.9em;margin-top:0.5em">Details: <code>kamestm/tests/VERIFICATION.md §2</code></p>
 </div>
 
 <!-- ===== Slide 7: TLA+ ↔ C11 Correspondence ===== -->
 <div class="slide">
 <h1>C++ ↔ TLA+ ↔ Generated C11 Correspondence</h1>
-<h3>For author's C++ ↔ TLA+ cross-reference and C11 translation review (continues in <strong>Layer 2 slides</strong> / slides_layer2_en.html)</h3>
+<h3>Author's C++ ↔ TLA+ cross-reference and TLA+ → generated C11 verification (continues in <strong>Layer 2 LLfree slides</strong> / <code>slides_layer2_LLfree.html</code>)</h3>
 
 <h2>Variable Mapping</h2>
 <table>
-<tr><th>TLA+ Variable</th><th>C++ (atomic_smart_ptr.h)</th><th>Generated C11 (test_atomic_shared_ptr.c)</th></tr>
-<tr><td><code>ptr</code> + <code>local_rc</code></td><td><code>m_ref</code> (uintptr_t)<br>upper=ptr, lower=tag</td><td><code>_Atomic(uintptr_t) g_ref</code><br><code>get_ptr()</code> / <code>get_tag()</code></td></tr>
-<tr><td><code>global_rc[o]</code></td><td><code>o->refcnt</code> (intrusive atomic)</td><td><code>_Atomic(uintptr_t) obj_refcnt[NUM_OBJECTS]</code></td></tr>
-<tr><td><code>freed[o]</code></td><td>delete call</td><td><code>int obj_freed[NUM_OBJECTS]</code></td></tr>
-<tr><td><code>thr_pref[t]</code></td><td><code>Ref* pref</code> (local)</td><td><code>uintptr_t pref</code> (local)</td></tr>
-<tr><td><code>thr_rcnt[t]</code></td><td><code>Refcnt rcnt</code> (local)</td><td><code>unsigned rcnt</code> (local)</td></tr>
-<tr><td><code>thr_holds[t][o]</code></td><td><code>local_shared_ptr</code>reference count</td><td>thread-local <code>hold</code> index</td></tr>
+<tr><th>TLA+ Variable</th><th>C++ (atomic_smart_ptr.h)</th><th>Generated C11 / GenMC test</th></tr>
+<tr><td><code>ptr</code> + <code>local_rc</code></td><td><code>m_ref</code> (uintptr_t; upper=ptr, lower=tag)</td><td><code>_Atomic(uintptr_t) g_ref</code></td></tr>
+<tr><td><code>global_rc[o]</code></td><td><code>o-&gt;refcnt</code> (intrusive atomic)</td><td><code>_Atomic(uintptr_t) obj_refcnt[]</code></td></tr>
+<tr><td><code>freed[o]</code></td><td>delete call</td><td><code>int obj_freed[]</code></td></tr>
+<tr><td><code>thr_pref[t]</code> / <code>thr_rcnt[t]</code></td><td><code>Ref* pref</code> / <code>Refcnt rcnt</code> (local)</td><td>locals</td></tr>
+<tr><td><code>thr_holds[t][o]</code></td><td><code>local_shared_ptr</code> reference count</td><td>thread-local hold index</td></tr>
+<tr><td><code>thr_cas_rcnt</code> / <code>thr_added_grc</code> / <code>thr_drained</code></td><td><code>release_tag_ref_(pref, added_global_rcnt)</code> <code>cas_rcnt</code> arg</td><td><code>cds_test_multi_cas_excess.c</code></td></tr>
+<tr><td><code>scope_state[t]</code> / <code>scope_pref[t]</code></td><td><code>scoped_atomic_view&lt;T&gt;</code> <code>m_pref</code> + state</td><td><code>cds_test_scoped_weak.c</code></td></tr>
 </table>
 
 <h2>Action Mapping</h2>
 <table>
-<tr><th>TLA+ Action</th><th>C++ Function</th><th>Generated C11</th><th>memory_order</th></tr>
-<tr><td><code>AcquireTagRefRead</code><br>+ <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code></td><td><code>acquire_tag_ref()</code></td><td>relaxed → acq_rel</td></tr>
-<tr><td><code>LoadSharedIncGlobal</code></td><td><code>load_shared_()</code> (inside)</td><td><code>load_shared()</code> (inside)<br><code>fetch_add(refcnt, 1)</code></td><td>relaxed</td></tr>
-<tr><td><code>ReleaseTagRefCAS</code><br>/ <code>ReleaseTagRefGlobal</code></td><td><code>release_tag_ref_()</code></td><td><code>release_tag_ref()</code></td><td>acq_rel / acq_rel</td></tr>
-<tr><td><code>CASPreInc</code> → <code>CASSwap</code><br>→ <code>CASCleanup</code></td><td><code>compareAndSwap_()</code></td><td><code>compare_and_swap()</code></td><td>relaxed / acq_rel</td></tr>
-<tr><td><code>StartSwap</code> → <code>CASTransfer</code><br>→ <code>CASSwap</code></td><td><code>swap()</code></td><td><code>swap_exchange()</code></td><td>acq_rel</td></tr>
-<tr><td><code>Reset</code></td><td><code>local_shared_ptr::reset()</code></td><td><code>local_reset()</code></td><td>acq_rel (decAndTest)</td></tr>
+<tr><th>TLA+ Action</th><th>C++ Function (atomic_smart_ptr.h)</th><th>memory_order</th></tr>
+<tr><td><code>AcquireTagRefRead</code> + <code>AcquireTagRefCAS</code></td><td><code>acquire_tag_ref_()</code> (lines 1058-1108)</td><td>relaxed → acq_rel</td></tr>
+<tr><td><code>LoadSharedBulkAdd</code> (new)</td><td><code>load_shared_()</code> bulk transfer<br><code>refcnt.fetch_add(rcnt)</code> + drain (lines 1116-1128)</td><td>relaxed</td></tr>
+<tr><td><code>ReleaseTagRefCAS</code> + <code>ReleaseTagRefExcess</code></td><td><code>release_tag_ref_(pref, T)</code> drain (lines 1158-1206)<br>min(local_rc, T) tags in one CAS + excess <code>fetch_sub</code></td><td>acq_rel</td></tr>
+<tr><td><code>CASPreInc</code> → <code>CASSwap</code> → <code>CASCleanup</code></td><td><code>compareAndSwap_()</code> 6 phases (legacy, lines 550-650)</td><td>relaxed / acq_rel</td></tr>
+<tr><td><code>compareAndSet_impl_</code> path</td><td><strong>Unified template</strong> <code>compareAndSet_impl_&lt;OldrT, NewrT, false, RETAIN_NEWR&gt;</code> (lines 1240-1450)<br>One implementation for both Set and Swap</td><td>relaxed / acq_rel</td></tr>
+<tr><td><code>compareAndSet_impl_&lt;SCOPED&gt;</code> path</td><td>Scope hold avoids acquire; step4 = +T (full add); on success <code>fetch_sub(2)</code></td><td>acq_rel</td></tr>
+<tr><td><code>ScopeAcquire</code> → <code>ScopeCASConsume</code> / <code>ScopeDestruct</code></td><td><code>scoped_atomic_view</code> ctor / CAS / dtor (lines 598-845)</td><td>acq_rel</td></tr>
+<tr><td><code>Reset</code></td><td><code>local_shared_ptr::reset()</code> <code>fetch_sub(1)</code> + delete check (lines 433-444)</td><td>acq_rel</td></tr>
 </table>
 
 <div class="box-green">
-<p><strong>Verification Triangle:</strong><br>
-C++ implementation (written by author) ← author cross-references independently → TLA+ spec<br>
-TLA+ → generated C11 (produced in independent session without C++ access) → GenMC verification (RC11)<br>
-Closing this triangle confirms TLA+ model fidelity.</p>
+<p><strong>Verification triangle:</strong><br>
+C++ implementation (written by author) ← author cross-references independently → TLA+ spec (sequential consistency)<br>
+TLA+ → generated C11 (<code>tests/tlaplus/test_*.c</code>) → GenMC (RC11 memory order)<br>
+Plus author-written C++-derived tests (<code>tests/cds_atomic_shared_ptr/cds_test_*.c</code>) verified independently by GenMC.<br>
+The triangle plus the independent tests together confirm TLA+ model fidelity.</p>
 </div>
 </div>
 

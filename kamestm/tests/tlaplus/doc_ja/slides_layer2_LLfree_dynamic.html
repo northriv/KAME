@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 2 LLfree Dynamic 解説</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.2em;color:#fbbf24;margin:1em 0;line-height:1.6}
+.add{color:#34d399;font-weight:bold}
+p{line-height:1.7}
+</style>
+</head>
+<body>
+<a href="slides_overview.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ 俯瞰</a>
+
+<!-- ============================================================ Slide 0 -->
+<div class="slide">
+<h1>Dynamic LL-free — オンライン insert / release</h1>
+<h3><code>BundleUnbundle_2level_LLfree_dynamic.tla</code> / <code>_3level_LLfree_dynamic.tla</code></h3>
+
+<div class="box-purple">
+<p>静的 LLfree (<code>BundleUnbundle_2level_LLfree.tla</code>) を拡張し、
+ランタイムでの<strong>子ノード挿入 (<code>insert(online=true)</code>) と解放 (<code>release</code>)</strong>
+を加える。木構造は固定ではなく、各イテレーションで動的に変化する。</p>
+<p style="margin-top:0.4em">priority gating (CanProceed / TagAfterFail / TagAfterSuccess / PreemptTag / ClearMyTags) は
+2-level LLfree と同一 — <code>slides_layer2_LLfree.html</code> 参照。</p>
+</div>
+
+<h2>木構造 (dynamic)</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;Parent<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── DynChild1&nbsp;&nbsp;<span style="color:#64748b">(挿入/解放はランタイムで)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── DynChild2&nbsp;&nbsp;<span style="color:#64748b">(同上)</span>
+</div>
+<p>両子ノードは初期状態では未挿入 (own priority wrapper)。
+Phase 1 で <code>insert</code> によって Parent に attach し、Phase 2 で commit + release を交互に実行。</p>
+
+<h2>Per-thread role 構成</h2>
+<table>
+<tr><th>役割 (CONSTANT)</th><th>動作</th></tr>
+<tr><td><code>InsertThreads</code></td><td><code>insert(online=true)</code> を実行 — 未挿入の子を選んで Parent に attach</td></tr>
+<tr><td><code>RootThreads</code></td><td><code>CommitParent</code> — Parent snapshot を取り、見つかった子の payload を全部 +1</td></tr>
+<tr><td><code>LeafThreads</code></td><td><code>CommitChild</code> — snapshot で discover した各子を 1 つずつ direct commit</td></tr>
+<tr><td><code>ReleaseThreads</code></td><td>子を release (自分の commit が完了してから)</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>動的 discovery が要点:</strong> 子ノードは hardcode せず、snapshot で見つけたものをコミット対象にする。
+これにより「挿入直後の半構成状態でのコミット」「解放直前の最終コミット」など、
+動的フェーズ間の境界 race を網羅。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 1 -->
+<div class="slide">
+<h1>insert(online=true) と release のモデル化</h1>
+
+<h2>InsertOnline アクション</h2>
+<pre><code><span class="op">InsertOnline</span>(t) ==
+    /\ t \in InsertThreads
+    /\ pc[t] = <span class="type">"idle"</span>
+    /\ \E c \in <span class="op">UninsertedChildren</span> :
+        /\ <span class="comment">\* ① 親の wrapper を読む</span>
+        /\ <span class="op">CanProceed</span>(t, Parent)              <span class="comment">\* ★ priority gate</span>
+        /\ <span class="comment">\* ② 子のパケットを親の sub[c] に書き込んだ新 wrapper を CAS</span>
+        /\ <span class="keyword">LET</span> newSubs == [Parent.sub <span class="keyword">EXCEPT</span> ![c] = childPacket]
+               newW == <span class="op">PriorityWrapper</span>(<span class="op">MakePacket</span>(Parent, payload, newSubs, <span class="type">FALSE</span>), ser)
+           <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = newW,
+                                       ![c] = <span class="op">BundledRefWrapper</span>(Parent, ser)]
+    /\ <span class="op">ClearMyTags</span>(t)                       <span class="comment">\* commit success と同じく tag 解放</span></code></pre>
+
+<h2>Release アクション</h2>
+<pre><code><span class="op">Release</span>(t) ==
+    /\ t \in ReleaseThreads
+    /\ \E c \in <span class="op">InsertedChildren</span> :
+        /\ <span class="comment">\* 親の sub[c] を Null にし、子を own priority wrapper に戻す</span>
+        /\ <span class="op">CanProceed</span>(t, Parent)
+        /\ <span class="op">CanProceed</span>(t, c)
+        /\ ...
+        /\ linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = parentWithNullSlot,
+                                   ![c] = <span class="op">PriorityWrapper</span>(originalChildPkt, ser)]</code></pre>
+
+<div class="box-orange">
+<p><strong>insert と bundle/commit の干渉:</strong>
+他スレッドが <code>bundle(Parent)</code> 中に <code>insert(c)</code> が走ると、
+Phase 4 の <code>m_missing=false</code> finalise が Phase 4 reachability gate を発動して
+DISTURBED retry → bundling thread が見える「新しい子が増えた」状態で再収集。
+priority gating により、insert 側が old/young の関係で待たされる/勝つ。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 2 -->
+<div class="slide">
+<h1>Static spec との差分 + 検証結果</h1>
+
+<h2>差分まとめ</h2>
+<table>
+<tr><th>項目</th><th>static (<code>_LLfree.tla</code>)</th><th>dynamic (<code>_LLfree_dynamic.tla</code>)</th></tr>
+<tr><td>子ノード集合</td><td>初期から固定 (Child1, Child2)</td><td>動的に挿入/解放 (DynChild1, DynChild2)</td></tr>
+<tr><td>追加アクション</td><td>—</td><td><code>InsertOnline</code> / <code>Release</code></td></tr>
+<tr><td>thread role</td><td>全 thread 同等</td><td><code>InsertThreads</code> / <code>RootThreads</code> / <code>LeafThreads</code> / <code>ReleaseThreads</code> で構成</td></tr>
+<tr><td>commit ターゲット</td><td>hardcode</td><td>snapshot で動的 discovery</td></tr>
+<tr><td>不変条件</td><td>SnapshotConsistency 等 5 件</td><td>+ insert/release 整合性チェック</td></tr>
+</table>
+
+<h2>検証結果</h2>
+<table>
+<tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>結果</th></tr>
+<tr><td>2-level dynamic 2-thread superfine</td><td>2</td><td>(~M)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-level dynamic release superfine live</td><td>2</td><td><strong>413,884,516</strong></td><td>320</td><td>7:13</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
+<tr><td>3-level dynamic 2-thread coarse</td><td>2</td><td>(M~)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-level dynamic 3-thread release</td><td>3</td><td>(大規模)</td><td>—</td><td>—</td><td style="color:#fbbf24">ohtaka 待ち</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>413M state の意義:</strong> 2-level dynamic で release を含む superfine の liveness 検証は
+<strong>本仕様体系の最大規模 verification</strong> の一つ。
+動的 insert/release を含む全インターリーブで safety + liveness が成立することを exhaustion で確認。
+priority gating + dynamic discovery + bounded variable domain の組み合わせで CONSTRAINT なし完走。</p>
+</div>
+
+<h2>大規模 cfg 実行コマンド</h2>
+<pre><code><span class="comment"># 2-level dynamic release superfine (ohtaka 推奨)</span>
+java -XX:+UseParallelGC -Xmx32g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_2level_LLfree_dynamic_3thr_B_live_mc.cfg \
+  BundleUnbundle_2level_LLfree_dynamic.tla</code></pre>
+
+<h2>関連 spec / スライド</h2>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><code>slides_layer2_LLfree.html</code> — Gen 3 LLfree 基本仕様</li>
+<li><code>slides_layer2_LLfree_3level.html</code> — 3-level LLfree 差分</li>
+<li><code>slides_hardlink.html</code> — hard-link topology (sibling parents の dynamic 版を含む)</li>
+<li><code>kamestm/tests/VERIFICATION.md §3</code> — 最新結果</li>
+</ul>
+</div>
+
+</body>
+</html>

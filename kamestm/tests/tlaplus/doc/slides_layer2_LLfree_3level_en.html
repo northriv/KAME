@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 2 LLfree 3-level</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.2em;color:#fbbf24;margin:1em 0;line-height:1.6}
+.add{color:#34d399;font-weight:bold}
+p{line-height:1.7}
+</style>
+</head>
+<body>
+<a href="slides_overview_en.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ Overview</a>
+
+<div class="slide">
+<h1>3-level LL-free (Gen 3) — diff from 2-level</h1>
+<h3><code>BundleUnbundle_3level_LLfree.tla</code></h3>
+
+<div class="box-purple">
+<p>This deck builds on <code>slides_layer2_LLfree.html</code> (2-level LL-free). The 3-level spec
+<strong>inherits the privilege-TID mechanism unchanged</strong> and adds one level of tree depth:
+<code>Grand → Parent → {Child1, Child2}</code>.</p>
+<p style="margin-top:0.4em">Priority gating (<code>CanProceed</code> / <code>TagAfterFail</code> /
+<code>TagAfterSuccess</code> / <code>PreemptTag</code> / <code>ClearMyTags</code>) and the
+<code>EventuallyAllDone</code> liveness property are identical — see the 2-level deck.</p>
+</div>
+
+<h2>Tree</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;Grand<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Parent<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── Child1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
+</div>
+
+<h2>Additional coverage vs the 2-level spec</h2>
+<table>
+<tr><th>Item</th><th>2-level</th><th>3-level (this spec)</th></tr>
+<tr><td>commit root</td><td><code>CommitParent</code></td><td><code>CommitGrand</code> (Grand scope: +1 on all grandchild payloads)</td></tr>
+<tr><td>recursive bundle</td><td>(none)</td><td><code>InnerPhase2</code>/<code>3</code>/<code>4</code>: <code>snapshot(Grand)</code> bundles Parent <em>inside</em></td></tr>
+<tr><td>unbundle walk</td><td>1 hop (<code>UnbundleCASAncestors</code>)</td><td>2 hops (<code>UnbundleCASLoop</code>): Child → Parent → Grand</td></tr>
+<tr><td>chain navigation</td><td>(trivial)</td><td><code>WalkUpChain</code> / <code>SnapshotForUnbundle</code> walk <code>bundledBy</code> upward</td></tr>
+<tr><td>new invariants</td><td>—</td><td><code>BundleChainValid</code> / <code>BundledByCorrect</code> / <code>GrandAlwaysPriority</code></td></tr>
+</table>
+</div>
+
+<div class="slide">
+<h1>Recursive inner bundle</h1>
+<h3><code>InnerPhase2</code> / <code>InnerPhase3</code> / <code>InnerPhase4</code></h3>
+
+<div class="box">
+<p>When <code>snapshot(Grand)</code> encounters Parent with <code>missing=TRUE</code>,
+it triggers <strong>an inner bundle of Parent</strong> (recursive bundling). The 4-phase
+protocol body is identical to the outer bundle, but the inner pass is modelled as
+separate actions (<code>InnerPhase2/3/4</code>) to control state-space forking.</p>
+</div>
+
+<h2>InnerPhase structure (superfine splits phases; fine folds into <code>BundlePhase1</code>)</h2>
+<pre><code><span class="op">InnerPhase2</span>(t) ==
+    <span class="comment">\* CAS Parent to missing=TRUE wrapper</span>
+    /\ <span class="op">CanProceed</span>(t, Parent)         <span class="comment">\* ★ priority gate</span>
+    /\ <span class="keyword">LET</span> newW == <span class="op">PriorityWrapper</span>(<span class="op">MakePacket</span>(Parent, _, _, <span class="type">TRUE</span>), ser)
+       <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = newW]
+
+<span class="op">InnerPhase3</span>(t) ==
+    <span class="comment">\* CAS every Child to BundledRefWrapper(Parent, ser)</span>
+    /\ \A c \in {Child1, Child2} : <span class="op">CanProceed</span>(t, c)
+    /\ ...
+
+<span class="op">InnerPhase4</span>(t) ==
+    <span class="comment">\* Final CAS: Parent to missing=FALSE</span>
+    /\ <span class="op">CanProceed</span>(t, Parent)
+    /\ ...</code></pre>
+
+<div class="box-orange">
+<p><strong>InnerPhase restart history:</strong> Subtle bugs found and fixed during spec development (commit history):</p>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><code>1d9820bc</code>: <code>InnerPhase3</code> restart with stale subpackets caused lost increments</li>
+<li><code>8d6026e3</code>: <code>InnerPhase4</code> restart failed to clear outer bundle state</li>
+<li><code>73bcef3a</code>: <code>InnerPhase2</code> restart fix</li>
+</ul>
+<p>All these were model-only issues — the corresponding C++ paths were already correct.
+TLA+ modelling at finer granularity surfaced them.</p>
+</div>
+</div>
+
+<div class="slide">
+<h1>Multi-level unbundle walk</h1>
+<h3><code>UnbundleWalk</code> + <code>UnbundleCASLoop</code> + <code>UnbundleCASChild</code></h3>
+
+<div class="box">
+<p>If a Child is <strong>bundled two levels deep</strong> (Child → Parent → Grand), committing
+that child requires marking <strong>both ancestors</strong> on the <code>bundledBy</code> chain
+as <code>missing=TRUE</code> before restoring the child to priority.</p>
+</div>
+
+<h2>Step 1: UnbundleWalk — build the chain</h2>
+<pre><code><span class="op">UnbundleWalk</span>(t) ==
+    <span class="comment">\* Walk from child upward via bundledBy and build casTargets</span>
+    <span class="comment">\* casTargets = &lt;&lt;Grand, Parent&gt;&gt;  (root-first)</span>
+    /\ local' = [local <span class="keyword">EXCEPT</span> ![t].casTargets = chain]
+    <span class="comment">\* superfine #5: 3-level uses root-first order (matches C++ traversal)</span></code></pre>
+
+<h2>Step 2: UnbundleCASLoop — mark each ancestor missing=TRUE</h2>
+<pre><code><span class="op">UnbundleCASLoop</span>(t) ==
+    <span class="comment">\* For each ancestor in casTargets, CAS its wrapper to a missing=TRUE PriorityWrapper</span>
+    <span class="comment">\* sub[c] is preserved (Phase 3 rollback / recovery still uses it; not nulled)</span>
+    /\ <span class="op">CanProceed</span>(t, anc)
+    /\ <span class="keyword">LET</span> newW == <span class="op">PriorityWrapper</span>(<span class="op">MakePacket</span>(anc, _, anc.sub, <span class="type">TRUE</span>), ser)
+       <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![anc] = newW]
+    <span class="comment">\* coarse: all ancestors in one step; fine: per-ancestor step</span></code></pre>
+
+<h2>Step 3: UnbundleCASChild — restore Child to priority with new payload</h2>
+<pre><code><span class="op">UnbundleCASChild</span>(t) ==
+    /\ <span class="keyword">LET</span> newChildW == <span class="op">PriorityWrapper</span>(newpacket, ser)
+       <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newChildW]</code></pre>
+
+<h2>Added invariants</h2>
+<table>
+<tr><th>Invariant</th><th>Meaning</th></tr>
+<tr><td><code>BundleChainValid</code></td><td>A bundled node's <code>bundledBy</code> target is either priority or itself bundled</td></tr>
+<tr><td><code>BundledByCorrect</code></td><td><code>bundledBy</code> always points to the structural parent</td></tr>
+<tr><td><code>GrandAlwaysPriority</code></td><td>The root (Grand) always has priority</td></tr>
+</table>
+</div>
+
+<div class="slide">
+<h1>Verification results + related specs</h1>
+
+<h2>3-level LL-free results</h2>
+<table>
+<tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
+<tr><td>1-thread superfine</td><td>1</td><td>(small)</td><td>—</td><td>&lt;1s</td><td style="color:#4ade80">✅ Pass (sanity)</td></tr>
+<tr><td>2-thread coarse</td><td>2</td><td>1,497,098</td><td>98</td><td>1:35</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread superfine</td><td>2</td><td>14,109,731</td><td>148</td><td>19:13</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-thread superfine confC (all-root)</td><td>3</td><td>640,894,951</td><td>88</td><td>15:25</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>What this proves:</strong> All interleavings of 3 threads concurrently running
+snapshot / commit / bundle / unbundle in a 3-level tree preserve both safety and liveness.
+LL-free priority gating structurally finitizes the state space even with depth-2
+bundle/unbundle chaining. Details: <code>kamestm/tests/VERIFICATION.md §4</code>.</p>
+</div>
+
+<h2>Related specs / decks</h2>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><code>BundleUnbundle_2level_LLfree.tla</code> + <code>slides_layer2_LLfree.html</code> — base spec (Gen 3 LLfree)</li>
+<li><code>BundleUnbundle_3level_LLfree_dynamic.tla</code> + <code>slides_layer2_LLfree_dynamic_en.html</code> — online insert/release extension</li>
+<li><code>BundleUnbundle_hardlink_*.tla</code> + <code>slides_hardlink_en.html</code> — hard-link topologies</li>
+</ul>
+
+<h2>Running larger configs</h2>
+<pre><code><span class="comment"># 1-thread sanity (&lt; 1 s)</span>
+java -XX:+UseParallelGC -Xmx8g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_3level_LLfree_1thr_superfine_mc.cfg \
+  BundleUnbundle_3level_LLfree.tla
+
+<span class="comment"># 2-thread coarse with liveness (~2 min)</span>
+java -XX:+UseParallelGC -Xmx14g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_3level_LLfree_coarse_mc.cfg \
+  BundleUnbundle_3level_LLfree.tla</code></pre>
+<p style="color:#94a3b8;font-size:0.9em;margin-top:0.5em">
+3-thread superfine etc. require ohtaka. See <code>doc/ohtaka_handoff.md</code>.
+</p>
+</div>
+
+</body>
+</html>
