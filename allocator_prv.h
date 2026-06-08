@@ -301,15 +301,20 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 	#define KAME_POOL_ONEBACK_SKIP 1
 #endif
 
-//! (Orphan-chain) Opt-in: replace the §36 orphan Treiber stack + BIT_OWNED
-//! arbitration with the TLA+-verified atomic_shared_ptr-refcounted intrusive
-//! orphan chain (design/ORPHAN_CHAIN_INTEGRATION.md;
-//! tests/tlaplus/OrphanChain_atomicshared.tla).  Default 0 — the shipping
-//! path stays the orphan stack until the staged flip (Stage 7).  All
-//! orphan-chain code is guarded by this flag, so flag=0 is byte-identical
-//! to the pre-integration build.
+//! (Orphan-chain) The orphan reclaim mechanism: a TLA+-verified
+//! atomic_shared_ptr-refcounted intrusive orphan chain (push at owner-exit,
+//! scrub-reclaim drained orphans, adopt survivors with a chunk self-ref
+//! owner-ref) — see design/ORPHAN_CHAIN_INTEGRATION.md and
+//! tests/tlaplus/OrphanChain_*.tla.  (§S7) FLIPPED to the default and the §36
+//! orphan Treiber stack (s_orphan_head / orphan_push / orphan_pop) RETIRED.
+//! Pinned to 1: the flag survives only as a guard marking the chain machinery
+//! (a follow-up may drop the now-always-true guards); building with 0 is no
+//! longer supported (the §36 fallback is gone).  Verified race-free on Linux
+//! (TSan/ASan) with churn plateau; the regression guard is the TLA model
+//! (tests/tlaplus/run_orphan_chain.sh) — the owner-free vs scrub-pin race it
+//! caught (Inv_NoBadOwnerFree) is not reproducible by runtime stress.
 #ifndef KAME_ORPHAN_CHAIN
-	#define KAME_ORPHAN_CHAIN 0
+	#define KAME_ORPHAN_CHAIN 1
 #endif
 #if KAME_ORPHAN_CHAIN
 #include "atomic_smart_ptr.h"
@@ -1817,26 +1822,9 @@ protected:
 	};
 	static ALLOC_TLS ThreadLocalState s_tls;
 
-	//! (§36) Per-(ALIGN,FS) lock-free Treiber stack of ORPHAN chunks —
-	//! chunks left non-empty by an exited owner thread (BIT_OWNED clear,
-	//! m_owner_id == 0).  Without this, such chunks sit on no list: their
-	//! free slots are unreachable to any allocating thread, so each
-	//! thread-churn cycle mmaps fresh regions → unbounded reserved growth
-	//! (alloc_thread_churn scenario 2).  Allocating threads pop+reclaim an
-	//! orphan before mmap'ing a fresh chunk.
-	//!
-	//! `std::atomic<uint64_t>`: high bits hold the biased top-chunk pointer
-	//! (low 18 bits guaranteed zero — see ORPHAN_PTR_BIAS in allocator.cpp),
-	//! low 18 bits hold an ABA counter.  0 == empty.  Stack chain reuses
-	//! the chunk's `m_dll_next` field (the chunk is off every per-thread DLL
-	//! while on the stack, so the link is free).  Orphan chunks are NEVER
-	//! released while owned by the stack, so a node deref is always valid
-	//! memory — that + the ABA tag makes the stack safe without hazard ptrs.
-	//! Helpers `orphan_push` / `orphan_pop` are static members so they share
-	//! this per-template head and can touch `m_dll_next`.
-	static std::atomic<uint64_t> s_orphan_head;
-	static void orphan_push(PoolAllocator<ALIGN, DUMMY, DUMMY> *c) noexcept;
-	static PoolAllocator<ALIGN, DUMMY, DUMMY> *orphan_pop() noexcept;
+	// (§S7) The §36 orphan Treiber stack (s_orphan_head / orphan_push /
+	// orphan_pop, reusing m_dll_next as the stack link) is RETIRED — the
+	// atomic_shared_ptr orphan chain below replaces it.
 
 #if KAME_ORPHAN_CHAIN
 	//! (Path B Stage 1) atomic_shared_ptr orphan chain — replaces the §36
