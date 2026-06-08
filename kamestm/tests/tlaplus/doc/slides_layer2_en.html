@@ -27,30 +27,6 @@ p{line-height:1.8}
 <body>
 <a href="slides_overview_en.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ Overview</a>
 
-<!-- ===== Slide 0: Notation ===== -->
-<div class="slide">
-<h1>TLA+ Notation (See Layer 1)</h1>
-<div class="box">
-<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 1 slides</strong> (slides_layer1_en.html).<br>
-New notation introduced in these slides:</p>
-</div>
-<table>
-<tr><th>Notation</th><th>Meaning</th></tr>
-<tr><td><code>MakePacket(node, payload, sub, miss)</code></td><td>Record construction function. Returns <code>[payload |-> ..., sub |-> ..., missing |-> ..., node |-> ...]</code>.</td></tr>
-<tr><td><code>PriorityWrapper(packet, ser)</code></td><td>PacketWrapper record. <code>hasPriority=TRUE</code>.</td></tr>
-<tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>Wrapper in bundled state. <code>hasPriority=FALSE, bundledBy=parentNode</code>.</td></tr>
-<tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>Conditional function definition. Sets different initial values per node.</td></tr>
-<tr><td><code>r.field</code></td><td>Record field access. Examples: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
-<tr><td><code>% MaxSerial</code></td><td>Modular arithmetic. The serial wraps around at <code>MaxSerial</code>, making the state space structurally finite. This model does not use StateConstraint.</td></tr>
-<tr><td><code>ModGT(a, b)</code></td><td>Modular comparison. <code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>. Corresponds to signed difference comparison in C++.</td></tr>
-</table>
-
-<div class="box-green">
-<p><strong>Characteristics of this model:</strong> The variable <code>local</code> has a nested record structure (<code>local[t].wrapper.packet.sub[c]</code>, etc.).
-This corresponds to nested structs in C++. In TLA+, nested fields are updated with <code>[local EXCEPT ![t].wrapper = w]</code>.</p>
-</div>
-</div>
-
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
 <h1>Layer 2: Bundle/Unbundle + Commit (Base Spec)</h1>
@@ -127,6 +103,30 @@ counted children already bundled by another thread as "done." Fixed by matching 
 <code>BundledRefWrapper(node, ser)</code> for the current thread. The C++ implementation
 runs CAS on every child without a "skip if already bundled" optimization, so it never
 exhibited this bug — it was a TLA+ model-only issue.</p>
+</div>
+</div>
+
+<!-- ===== Notation (moved below Overview / fidelity tiers) ===== -->
+<div class="slide">
+<h1>TLA+ Notation (See Layer 1)</h1>
+<div class="box">
+<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 1 slides</strong> (slides_layer1_en.html).<br>
+New notation introduced in these slides:</p>
+</div>
+<table>
+<tr><th>Notation</th><th>Meaning</th></tr>
+<tr><td><code>MakePacket(node, payload, sub, miss)</code></td><td>Record construction function. Returns <code>[payload |-> ..., sub |-> ..., missing |-> ..., node |-> ...]</code>.</td></tr>
+<tr><td><code>PriorityWrapper(packet, ser)</code></td><td>PacketWrapper record. <code>hasPriority=TRUE</code>.</td></tr>
+<tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>Wrapper in bundled state. <code>hasPriority=FALSE, bundledBy=parentNode</code>.</td></tr>
+<tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>Conditional function definition. Sets different initial values per node.</td></tr>
+<tr><td><code>r.field</code></td><td>Record field access. Examples: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
+<tr><td><code>% MaxSerial</code></td><td>Modular arithmetic. The serial wraps around at <code>MaxSerial</code>, making the state space structurally finite. This model does not use StateConstraint.</td></tr>
+<tr><td><code>ModGT(a, b)</code></td><td>Modular comparison. <code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>. Corresponds to signed difference comparison in C++.</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Characteristics of this model:</strong> The variable <code>local</code> has a nested record structure (<code>local[t].wrapper.packet.sub[c]</code>, etc.).
+This corresponds to nested structs in C++. In TLA+, nested fields are updated with <code>[local EXCEPT ![t].wrapper = w]</code>.</p>
 </div>
 </div>
 

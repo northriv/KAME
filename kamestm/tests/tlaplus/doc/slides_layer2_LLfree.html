@@ -29,9 +29,44 @@ p{line-height:1.8}
 <body>
 <a href="slides_overview_en.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ Overview</a>
 
-<!-- ============================================================ SLIDE 0 -->
+<!-- ============================================================ TITLE -->
 <div class="slide">
-<h1>Slide 0 — Notation diff (base 2-level → LLfree)</h1>
+<h1>Layer 2 LL-free (Gen 3)</h1>
+<h3>Making the STM bundle/unbundle protocol livelock-free — with a formal proof</h3>
+
+<div class="box-purple">
+<p>KAME's STM commits optimistically while bundling / unbundling subtrees of the node tree.
+This deck explains its <strong>livelock-free (LL-free) variant</strong> (the third-generation
+spec <code>BundleUnbundle_2level_LLfree.tla</code>). The core idea is
+<strong>"older transactions win" priority arbitration (privileged-TID negotiate)</strong>:
+on CAS contention the older transaction is given priority, so retry counts are structurally
+bounded and TLC can <strong>exhaust the entire state space without any CONSTRAINT</strong> —
+which is itself the formal proof of livelock-freedom.</p>
+</div>
+
+<div class="box">
+<h2>Where this deck fits</h2>
+<ul>
+<li><strong>Prerequisite:</strong> the bundle/unbundle protocol itself is shared with the base spec —
+reading the <a href="slides_layer2_en.html">Layer 2 base deck</a> first helps.</li>
+<li><strong>What this deck adds:</strong> only the gating layer that guarantees LL-freedom
+(<code>priorityTag</code> / <code>CanProceed</code> / <code>PreemptTag</code> / <code>ClearMyTags</code>).</li>
+<li><strong>Related decks:</strong> the 3-level, dynamic, and hard-link variants are reachable from the
+<a href="slides_overview_en.html">coverage overview</a>.</li>
+</ul>
+</div>
+
+<div class="box-green">
+<p><strong>Roadmap:</strong> notation &amp; new elements → three generations of verification →
+<code>priorityTag</code> → <code>CanProceed</code> → tag-update rules →
+<code>PreemptTag</code>/<code>ClearMyTags</code> →
+<code>EventuallyAllDone</code> (liveness proof) → older generations &amp; the wait-free distinction.</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE: notation -->
+<div class="slide">
+<h1>Notation &amp; new elements — delta from the base 2-level spec</h1>
 <p style="color:#94a3b8">
 <code>BundleUnbundle_2level_LLfree.tla</code> is a variant of the base 2-level spec that adds
 a <strong>privileged-TID negotiate mechanism</strong>, making livelock-freedom
@@ -48,7 +83,7 @@ is the formal proof of livelock-freedom. The spec directly mirrors
 <code>m_link-&gt;negotiate()</code> / <code>release_privileged_tidstamp()</code> from the C++.</p>
 <p style="margin-top:0.4em">Setting <strong><code>Privilege = FALSE</code></strong> disables the priority machinery,
 the state space diverges, and TLC fails to terminate — the most direct counter-example showing
-the priority mechanism is required (detailed in Slide 7).</p>
+the priority mechanism is required (detailed in the final slide).</p>
 </div>
 
 <h2>New — variables, operators, actions, properties</h2>
@@ -118,7 +153,7 @@ that guarantees livelock-freedom.</p>
 
 <!-- ============================================================ SLIDE 1 -->
 <div class="slide">
-<h1>Slide 1 — Overview: three generations of verification</h1>
+<h1>Overview: three generations of verification</h1>
 <p style="color:#94a3b8">
 KAME's bundle/unbundle TLA+ specs split into <strong>three generations</strong> based on how
 they bound finiteness. LLfree is Gen 3; that this variant exhausts <em>without</em> CONSTRAINT
@@ -196,7 +231,7 @@ DISTURBED detection) likewise exhausts. The most C++-faithful mirror works.
 
 <!-- ============================================================ SLIDE 2 -->
 <div class="slide">
-<h1>Slide 2 — <code>priorityTag</code> variable + helper operators</h1>
+<h1><code>priorityTag</code> variable + helper operators</h1>
 <p style="color:#94a3b8">
 LLfree's single new variable <code>priorityTag[n]</code> and the helpers that manipulate it.
 They mirror C++'s <code>m_priority_tidstamp</code> / <code>negotiate()</code> directly.
@@ -276,7 +311,7 @@ is <strong>unchanged</strong>. TLC simply evaluates <code>iter(t)</code> as
 
 <!-- ============================================================ SLIDE 3 -->
 <div class="slide">
-<h1>Slide 3 — <code>CanProceed(t, n)</code> — the CAS precondition</h1>
+<h1><code>CanProceed(t, n)</code> — the CAS precondition</h1>
 <p style="color:#94a3b8">
 The core gate. Every CAS attempt in the base spec is preceded by
 <code>CanProceed(t, n) /\ ...</code>; if the registered tag forbids it, <em>that thread cannot
@@ -349,7 +384,7 @@ This chain is the structural proof of livelock-freedom (§2).</p>
 
 <!-- ============================================================ SLIDE 4 -->
 <div class="slide">
-<h1>Slide 4 — <code>TagAfterFail</code> / <code>TagAfterSuccess</code></h1>
+<h1><code>TagAfterFail</code> / <code>TagAfterSuccess</code> — tag-update rules</h1>
 <p style="color:#94a3b8">
 Two functions that decide how <code>priorityTag[n]</code> updates after CAS success or failure.
 Fail = 4-step ladder; success = <strong>unchanged</strong> (Transaction-scope persistence).
@@ -406,13 +441,13 @@ not calling <code>drop_tags_n_privilege()</code>).</p>
 <tr><td>No store on CAS success</td>
     <td><code>TagAfterSuccess(t, n) == priorityTag[n]</code> (no-op)</td></tr>
 <tr><td>Destructor: <code>release_privileged_tidstamp()</code></td>
-    <td><code>ClearMyTags(t)</code> at Transaction-end (Slide 5)</td></tr>
+    <td><code>ClearMyTags(t)</code> at Transaction-end (see the <code>PreemptTag</code> / <code>ClearMyTags</code> slide)</td></tr>
 </table>
 </div>
 
 <!-- ============================================================ SLIDE 5 -->
 <div class="slide">
-<h1>Slide 5 — <code>PreemptTag</code> + <code>ClearMyTags</code></h1>
+<h1><code>PreemptTag</code> + <code>ClearMyTags</code></h1>
 <p style="color:#94a3b8">
 LLfree's independent action (parallel to CAS) and the bulk tag release at Transaction-end.
 Both are required for the "older threads are never permanently locked out" property.
@@ -469,7 +504,7 @@ progress is guaranteed.</p>
 
 <!-- ============================================================ SLIDE 6 -->
 <div class="slide">
-<h1>Slide 6 — <code>EventuallyAllDone</code> PROPERTY + structural LL-freedom</h1>
+<h1><code>EventuallyAllDone</code> PROPERTY + structural LL-freedom</h1>
 <p style="color:#94a3b8">
 What does LLfree formally prove? And why is the chain of argument in proof_semantics.md §2
 the proof of livelock-freedom?
@@ -546,7 +581,7 @@ the proof of livelock-freedom?
 
 <!-- ============================================================ SLIDE 7 -->
 <div class="slide">
-<h1>Slide 7 — Why preserve older generations + wait-free distinction</h1>
+<h1>Why preserve older generations + the wait-free distinction</h1>
 <p style="color:#94a3b8">
 Why the old-generation specs should not be deleted (proof_semantics §5),
 and how to distinguish "livelock-free" from "wait-free" (proof_semantics §7).

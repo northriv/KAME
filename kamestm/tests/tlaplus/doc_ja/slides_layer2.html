@@ -27,30 +27,6 @@ p{line-height:1.8}
 <body>
 <a href="slides_overview.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ 俯瞰</a>
 
-<!-- ===== Slide 0: 記法 ===== -->
-<div class="slide">
-<h1>TLA+ 記法（Layer 1参照）</h1>
-<div class="box">
-<p>TLA+の基本記法は <strong>Layer 1スライドの冒頭</strong> (slides_layer1.html) を参照。<br>
-本スライドで新たに登場する記法:</p>
-</div>
-<table>
-<tr><th>記法</th><th>意味</th></tr>
-<tr><td><code>MakePacket(node, payload, sub, miss)</code></td><td>レコード構築関数。<code>[payload |-> ..., sub |-> ..., missing |-> ..., node |-> ...]</code> を返す。</td></tr>
-<tr><td><code>PriorityWrapper(packet, ser)</code></td><td>PacketWrapperレコード。<code>hasPriority=TRUE</code>。</td></tr>
-<tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>bundleされた状態のwrapper。<code>hasPriority=FALSE, bundledBy=parentNode</code>。</td></tr>
-<tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>条件付き関数定義。ノードごとに異なる初期値を設定。</td></tr>
-<tr><td><code>r.field</code></td><td>レコードのフィールドアクセス。例: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
-<tr><td><code>% MaxSerial</code></td><td>モジュラー算術。シリアルが<code>MaxSerial</code>で周回し、状態空間を構造的に有限にする。StateConstraintは使用しない。</td></tr>
-<tr><td><code>ModGT(a, b)</code></td><td>モジュラー大小比較。<code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>。C++の符号付き差分比較に対応。</td></tr>
-</table>
-
-<div class="box-green">
-<p><strong>このモデルの特徴:</strong> 変数<code>local</code>はレコードの入れ子構造（<code>local[t].wrapper.packet.sub[c]</code>等）。
-C++の構造体のネストに対応する。TLA+では<code>[local EXCEPT ![t].wrapper = w]</code>でネストしたフィールドを更新。</p>
-</div>
-</div>
-
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
 <h1>Layer 2: Bundle/Unbundle + Commit (基本仕様)</h1>
@@ -124,6 +100,30 @@ Grand ── Parent ──┬── Child1<br>
 <code>BundledRefWrapper(node, ser)</code> との一致で判定するようモデルを修正。
 C++実装では全子に対してCASを実行し「既にbundled済みならスキップ」という最適化がないため、
 この問題は発生しない。TLA+モデル固有のバグであった。</p>
+</div>
+</div>
+
+<!-- ===== 記法（概要・忠実度の後ろに移動） ===== -->
+<div class="slide">
+<h1>TLA+ 記法（Layer 1参照）</h1>
+<div class="box">
+<p>TLA+の基本記法は <strong>Layer 1スライドの冒頭</strong> (slides_layer1.html) を参照。<br>
+本スライドで新たに登場する記法:</p>
+</div>
+<table>
+<tr><th>記法</th><th>意味</th></tr>
+<tr><td><code>MakePacket(node, payload, sub, miss)</code></td><td>レコード構築関数。<code>[payload |-> ..., sub |-> ..., missing |-> ..., node |-> ...]</code> を返す。</td></tr>
+<tr><td><code>PriorityWrapper(packet, ser)</code></td><td>PacketWrapperレコード。<code>hasPriority=TRUE</code>。</td></tr>
+<tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>bundleされた状態のwrapper。<code>hasPriority=FALSE, bundledBy=parentNode</code>。</td></tr>
+<tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>条件付き関数定義。ノードごとに異なる初期値を設定。</td></tr>
+<tr><td><code>r.field</code></td><td>レコードのフィールドアクセス。例: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
+<tr><td><code>% MaxSerial</code></td><td>モジュラー算術。シリアルが<code>MaxSerial</code>で周回し、状態空間を構造的に有限にする。StateConstraintは使用しない。</td></tr>
+<tr><td><code>ModGT(a, b)</code></td><td>モジュラー大小比較。<code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>。C++の符号付き差分比較に対応。</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>このモデルの特徴:</strong> 変数<code>local</code>はレコードの入れ子構造（<code>local[t].wrapper.packet.sub[c]</code>等）。
+C++の構造体のネストに対応する。TLA+では<code>[local EXCEPT ![t].wrapper = w]</code>でネストしたフィールドを更新。</p>
 </div>
 </div>
 
