@@ -99,7 +99,25 @@ The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomi
 
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
-**Collision backoff:** `Linkage::negotiate()` uses a `m_transaction_started_time` timestamp to impose a proportional wait on detected collisions, preventing live-lock under high write contention.
+**Collision negotiation (livelock-free, priority/age-ordered):** when two
+transactions repeatedly collide, `Linkage::negotiate()` elects a single
+*privileged* transaction that the others yield to, rather than letting them
+busy-retry against each other. Each transaction carries a `m_started_time`
+tidstamp (start time packed with its thread id); a global
+`s_privileged_tidstamp` slot holds the current winner. A contender registers
+via **age-ordered preemption** — an older transaction takes privilege from a
+younger holder (`try_register_privileged_tidstamp`), with a small
+`PRIV_PREEMPT_WINDOW_US` hysteresis to stop contemporaneous threads from
+cycling, and an initial-claim age floor scaled by ≈`numThreadsRunning()/4`
+to suppress churn at high thread counts. Priority bands modulate it: only
+LOW-priority holders (LOWEST / UI_DEFERRABLE / SCRIPTING) can be expired or
+evicted; NORMAL / HIGHEST (measurement / driver-critical) are immune.
+Non-privileged contenders **park** (`negotiate_sleep` / yield to the
+privileged Tx) instead of spinning, so the oldest/highest-priority
+transaction always makes progress — proven livelock-free in TLA+ (the
+Layer-2 `BundleUnbundle_*_LLfree` specs below, which model exactly this
+privileged-TID negotiate). This replaces the earlier
+proportional-timestamp-wait backoff.
 
 `iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
 
@@ -120,11 +138,11 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Consistency scope | Variables listed explicitly | Entire subtree, guaranteed by bundling |
 | Commit log | Redo log or write set | Copy-on-write + CAS on single `Linkage` |
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
-| Blocking | `retry` suspends on read-set change | No blocking; backoff via timestamp |
+| Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
 | Hard real-time suitability | Limited (GC pauses) | Good (no GC, bounded CAS retries) |
 
-**Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to software backoff rather than falling back to a global lock.
+**Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
 **Compared to TinySTM / NOrec (C libraries):** These use a global version clock and per-object version stamps with a full read/write log per transaction. KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction are truly zero-overhead. The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
 
@@ -205,7 +223,7 @@ Four layers, from primitive to whole-protocol:
 |---|---|
 | `transaction_test` | simultaneous transactions on tree-structured objects |
 | `transaction_dynamic_node_test` | transactions that **insert / remove / swap** node links concurrently |
-| `transaction_negotiation_test` | transactions of *different periodicities* — the slow loop never commits unless the fast loop yields a proportional backoff (`negotiate()`) |
+| `transaction_negotiation_test` | transactions of *different periodicities* — the slow loop never commits unless the fast loop yields to it via the privileged-Tx negotiation (`negotiate()`: the older/starved Tx is elected privileged and the fast loop parks) |
 
 **Payload-integrity stress** — Synchrobench-style mixed-contention throughput
 drivers that fill every payload with a per-writer **sentinel** and re-check it
