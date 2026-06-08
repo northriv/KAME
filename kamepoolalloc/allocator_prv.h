@@ -305,18 +305,13 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 //! atomic_shared_ptr-refcounted intrusive orphan chain (push at owner-exit,
 //! scrub-reclaim drained orphans, adopt survivors with a chunk self-ref
 //! owner-ref) — see design/ORPHAN_CHAIN_INTEGRATION.md and
-//! tests/tlaplus/OrphanChain_*.tla.  (§S7) FLIPPED to the default and the §36
-//! orphan Treiber stack (s_orphan_head / orphan_push / orphan_pop) RETIRED.
-//! Pinned to 1: the flag survives only as a guard marking the chain machinery
-//! (a follow-up may drop the now-always-true guards); building with 0 is no
-//! longer supported (the §36 fallback is gone).  Verified race-free on Linux
-//! (TSan/ASan) with churn plateau; the regression guard is the TLA model
+//! tests/tlaplus/OrphanChain_*.tla.  (§S7) It is the sole orphan mechanism: the
+//! §36 orphan Treiber stack (s_orphan_head / orphan_push / orphan_pop) is
+//! retired and the former KAME_ORPHAN_CHAIN opt-in flag is removed — the chain
+//! code below is UNCONDITIONAL.  Verified race-free on Linux (TSan/ASan) with
+//! churn plateau; the regression guard is the TLA model
 //! (tests/tlaplus/run_orphan_chain.sh) — the owner-free vs scrub-pin race it
 //! caught (Inv_NoBadOwnerFree) is not reproducible by runtime stress.
-#ifndef KAME_ORPHAN_CHAIN
-	#define KAME_ORPHAN_CHAIN 1
-#endif
-#if KAME_ORPHAN_CHAIN
 #include "atomic_smart_ptr.h"
 //! (Orphan-chain Stage 1) The chunk's embedded PoolAllocator IS the intrusive
 //! node of the lock-free orphan chain.  Opt in to the intrusive
@@ -328,7 +323,6 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 template <unsigned int ALIGN, bool FS, bool DUMMY> class PoolAllocator;
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 struct force_intrusive_ref<PoolAllocator<ALIGN, FS, DUMMY> > : std::true_type {};
-#endif
 
 //! Allocation unit (1 chunk = N × this).  every mmap region is
 //! a uniform 32 MiB block carved into 128 fixed-size 256 KiB "units".
@@ -1826,7 +1820,6 @@ protected:
 	// orphan_pop, reusing m_dll_next as the stack link) is RETIRED — the
 	// atomic_shared_ptr orphan chain below replaces it.
 
-#if KAME_ORPHAN_CHAIN
 	//! (Path B Stage 1) atomic_shared_ptr orphan chain — replaces the §36
 	//! Treiber stack (s_orphan_head) under the flag.  Same node type as
 	//! `m_orphan_next` (injected-class-name = the FS=true base), NOT the
@@ -1849,7 +1842,6 @@ protected:
 	//! refcnt 0 → atomic_intrusive_dispose no-ops (it checks BIT_OWNED).  The
 	//! popped node's own m_orphan_next is cleared (it has left the chain).
 	static local_shared_ptr<PoolAllocator> orphan_chain_pop() noexcept;
-#endif
 
 	//! Per-thread DLL pointers.  Single-writer (the owning thread)
 	//! and single-reader (same thread).  No atomic ordering needed
@@ -1864,7 +1856,6 @@ protected:
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_prev{nullptr};
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_next{nullptr};
 
-#if KAME_ORPHAN_CHAIN
 public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 	// (Orphan-chain Stage 1) Intrusive atomic_shared_ptr contract — the
 	// embedded PoolAllocator is its own control block (no separate alloc).
@@ -1926,7 +1917,6 @@ public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
 		PoolAllocatorBase::bucket_release_chunk(cbase, (std::size_t)CHUNK_SIZE);
 	}
 protected:   // restore the section access in effect before this block
-#endif
 
 	// the previous `std::atomic<bool> m_owner_exited` lives
 	// here as `BIT_OWNER_EXITED` inside `m_flags_packed` (above).

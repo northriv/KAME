@@ -1749,15 +1749,13 @@ PoolAllocator<ALIGN, false, DUMMY>::batch_return_to_bitmap(
 		},
 		// OnClearFn: FS=false.  Decrement MASK_CNT via atomicDecAndTest
 		// when this slot's word goes 1 → 0 (maintains the live-word count
-		// and supplies the full barrier).  (§36) We DO NOT release the
-		// chunk on the dec-to-0-with-BIT_OWNED-clear case any more: such a
-		// chunk is an ORPHAN sitting on the per-template Treiber stack, and
-		// its memory MUST stay valid (the stack nodes are dereferenced by
-		// orphan_pop without hazard pointers).  It is reclaimed by a future
-		// orphan_pop instead of being freed here.  Distinguished from the
-		// owner-exit empty release (separate path in
-		// release_dll_chunks_for_thread, where BIT_OWNED is still SET during
-		// the drain) and from the owner-alive case (BIT_OWNED set ⇒ dec
+		// and supplies the full barrier).  We DO NOT release the chunk on the
+		// dec-to-0-with-BIT_OWNED-clear case: such a chunk is an ORPHAN on the
+		// atomic_shared_ptr chain (its chain-ref keeps it mapped), reclaimed by
+		// orphan_chain_scrub (unlink → refcnt 0 → dispose) once drained — not
+		// freed here.  Distinguished from the owner-exit empty release (separate
+		// path in release_dll_chunks_for_thread, where BIT_OWNED is still SET
+		// during the drain) and from the owner-alive case (BIT_OWNED set ⇒ dec
 		// never reaches 0).  The return value is intentionally ignored.
 		[this](FUINT oldv, FUINT newv) {
 			if(newv == 0 && oldv != 0)
@@ -2947,16 +2945,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// m_owner_dll_force_walk_ptr was already nulled (release) above;
 			// atomicFetchAnd provides a full barrier ordering this store.
 			c->m_owner_id = 0;
-			// (§36) Push onto the per-template orphan Treiber stack so an
-			// allocating thread can re-own it and reuse its free slots,
-			// instead of mmap'ing fresh (the scenario-2 stranding leak).
-			// PUSH exactly ONCE, here, AFTER BIT_OWNED was cleared (by the
-			// atomicFetchAnd above) and m_owner_id == 0.  orphan_push
-			// overwrites m_dll_next with the stack link — fine, the chunk
-			// has just left this thread's DLL.  Empty chunks took the
-			// `newv == 0` branch above and were released directly; they are
-			// never on the stack, so the stack-only no-release invariant
-			// (Edit 3) holds.
+			// Push onto the atomic_shared_ptr orphan chain so an allocating
+			// thread can re-own it and reuse its free slots, instead of
+			// mmap'ing fresh (the scenario-2 stranding leak).  PUSH exactly
+			// ONCE, here, AFTER BIT_OWNED was cleared (by the atomicFetchAnd
+			// above) and m_owner_id == 0.  Empty chunks took the `newv == 0`
+			// branch above and were released directly (self-ref reset); they
+			// are never on the chain, so the chain-only no-release invariant
+			// holds.
 			orphan_chain_push(c);   // (Path B) push onto the atomic_shared_ptr chain
 		}
 		c = next;
@@ -3471,12 +3467,12 @@ PoolAllocatorBase::deallocate(void *p) {
 				// Chunk release happens elsewhere: the owner-side empty
 				// release in `release_dll_chunks_for_thread` / `owner_release`
 				// (BIT_OWNED clear → deallocate_chunk), and the neighbour
-				// release in `allocate_chunk_path`.  (§36) A cross-thread free
-				// that empties an ORPHANED chunk no longer releases it — the
-				// chunk is parked on the per-template orphan Treiber stack and
-				// reclaimed by a later orphan_pop, so `batch_return_to_bitmap`
-				// performs no release at all now.  Kept as a defensive shim in
-				// case a future trampoline opts to release at this site.
+				// release in `allocate_chunk_path`.  A cross-thread free that
+				// empties an ORPHANED chunk no longer releases it — the chunk is
+				// on the atomic_shared_ptr chain and reclaimed by
+				// orphan_chain_scrub, so `batch_return_to_bitmap` performs no
+				// release at all now.  Kept as a defensive shim in case a future
+				// trampoline opts to release at this site.
 				deallocate_chunk(chunk_base, csz);
 			}
 		}
