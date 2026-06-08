@@ -214,6 +214,11 @@ if(USE_KAME_ALLOCATOR)
     # NOT registered as ctests — perf-only.  See bench/README.md for usage.
     #
     # `bench_loop`         — single-thread hot malloc/free.
+    # `bench_loop_pool`    — same loop but calls `kame_pool_malloc` directly.
+    #                        This is the Windows "kame" route for the
+    #                        bench_compare table: PE/COFF has no LD_PRELOAD and
+    #                        llvm-mingw resolves `malloc` statically, so the
+    #                        plain bench_loop stays at libc speed on Windows.
     # `bench_xthread`      — cross-thread producer/consumer (xmalloc-test
     #                        shape) routed via `malloc`/`free`.  Picks up
     #                        whatever allocator the linker resolves first
@@ -225,6 +230,11 @@ if(USE_KAME_ALLOCATOR)
     add_executable(bench_loop bench/bench_loop.c)
     set_property(TARGET bench_loop PROPERTY C_STANDARD 99)
     target_link_libraries(bench_loop Threads::Threads)
+
+    add_executable(bench_loop_pool bench/bench_loop.c)
+    set_property(TARGET bench_loop_pool PROPERTY C_STANDARD 99)
+    target_compile_definitions(bench_loop_pool PRIVATE LOOP_USE_KAME_POOL)
+    target_link_libraries(bench_loop_pool kamepoolalloc Threads::Threads)
 
     add_executable(bench_xthread bench/bench_xthread.cpp)
     target_link_libraries(bench_xthread Threads::Threads)
