@@ -28,6 +28,9 @@
 #include "kame_pool.h"
 
 #include <atomic>
+// int_cas_max = widest LOCK-FREE int (atomic.h) — keeps total_ops below
+// libatomic-free on `-march=i486`.  See alloc_stress_test.cpp for rationale.
+#include "atomic.h"
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -206,7 +209,11 @@ static double bench_madvise_hugepage_ns() {
 #if defined(__linux__) || defined(__APPLE__)
 static double bench_mt_munmap_ns(int nthreads, int iters_per_thread = 4) {
     std::atomic<bool> go{false};
-    std::atomic<double> total_ns{0};
+    // Per-thread result slots summed after join — no shared atomic<double>
+    // (which on i486 lowers to __atomic_*_8 / libatomic, and contended a CAS
+    // loop besides).  Each thread writes only its own slot; the join is the
+    // synchronisation, so the post-join read is race-free.
+    std::vector<double> per_thread(nthreads, 0.0);
     std::vector<std::thread> ts;
     for(int t = 0; t < nthreads; t++) {
         ts.emplace_back([&, t] {
@@ -221,13 +228,14 @@ static double bench_mt_munmap_ns(int nthreads, int iters_per_thread = 4) {
                 munmap(p, kProbeSize);
                 sum += ns_since(t0);
             }
-            double exp = total_ns.load(std::memory_order_relaxed);
-            while(!total_ns.compare_exchange_weak(exp, exp + sum)) ;
+            per_thread[t] = sum;
         });
     }
     go.store(true, std::memory_order_release);
     for(auto &t : ts) t.join();
-    return total_ns.load() / (nthreads * iters_per_thread);
+    double total_ns = 0;
+    for(double v : per_thread) total_ns += v;
+    return total_ns / (nthreads * iters_per_thread);
 }
 #endif
 
@@ -245,7 +253,7 @@ static ThroughputResult bench_alloc_free(const char *label, size_t size,
                                          int nthreads, int seconds) {
     std::atomic<bool> go{false};
     std::atomic<bool> stop{false};
-    std::atomic<int64_t> total_ops{0};
+    std::atomic<int_cas_max> total_ops{0};
     std::vector<std::thread> ts;
     for(int t = 0; t < nthreads; t++) {
         ts.emplace_back([&] {
