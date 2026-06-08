@@ -22,10 +22,11 @@ CONFIG += c++17
 #For ruby.h
 QMAKE_CXXFLAGS += -Wno-register
 
-# Use std::allocator instead of the legacy lock-free pool allocator
-# (kame/allocator.h). The pool predates the current STM design; std
-# is preferred for portability and correctness. Comment out / pass
-# `DEFINES -= USE_STD_ALLOCATOR` to re-enable the pool path.
+# Run the kamepoolalloc pool allocator (NOT std::allocator) in production.
+# `-= USE_STD_ALLOCATOR` clears any inherited definition so the pool path in
+# allocator.h / allocator.cpp is active on every platform (macOS, Windows).
+# The test suites mirror this via USE_KAME_ALLOCATOR=ON (tests/CMakeLists.txt).
+# To fall back to std::allocator, add `DEFINES += USE_STD_ALLOCATOR` instead.
 DEFINES -= USE_STD_ALLOCATOR
 
 

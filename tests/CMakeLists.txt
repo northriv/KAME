@@ -20,10 +20,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Shared option resolved once here so kamepoolalloc/tests/ and
 # kamestm/tests/ see the same value.
 if(NOT DEFINED USE_KAME_ALLOCATOR)
-    if(WIN32)
-        set(USE_KAME_ALLOCATOR OFF)
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
-        set(USE_KAME_ALLOCATOR OFF)
+    # Default ON wherever the pool builds — matches production: kame.pri
+    # removes USE_STD_ALLOCATOR, so kame.exe runs the pool on every platform
+    # (Windows included).  Keeping the test default ON exercises the pool on
+    # the same platform it ships on.  Windows pool support (§31 IAT
+    # free-redirect + operator-new override) is verified by the full
+    # kamepoolalloc/kamestm test suites under llvm-mingw/clang.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+        set(USE_KAME_ALLOCATOR OFF)   # pre-GCC-10 lacks the pool's C++17 atomics
     else()
         set(USE_KAME_ALLOCATOR ON)
     endif()

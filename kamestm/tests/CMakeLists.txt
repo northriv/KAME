@@ -14,10 +14,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Reuse parent USE_KAME_ALLOCATOR if defined; otherwise compute default.
 if(NOT DEFINED USE_KAME_ALLOCATOR)
-    if(WIN32)
-        set(USE_KAME_ALLOCATOR OFF)
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
-        set(USE_KAME_ALLOCATOR OFF)
+    # Default ON wherever the pool builds — matches production (kame.pri
+    # removes USE_STD_ALLOCATOR; the pool ships on every platform, Windows
+    # included).  See tests/CMakeLists.txt for the full rationale.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+        set(USE_KAME_ALLOCATOR OFF)   # pre-GCC-10 lacks the pool's C++17 atomics
     else()
         set(USE_KAME_ALLOCATOR ON)
     endif()
