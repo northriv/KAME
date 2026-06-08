@@ -178,6 +178,39 @@ after the `KameTlsPage` fast-TSD unification (§hot-tls) replaced per-variable
 leads both single-thread and 4-process (1049 M vs 725 M mimalloc).  jemalloc
 was not available on this macOS host.
 
+**Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
+M ops/s** — kame at `84f97566`, llvm-mingw clang 17, median of 5 via
+`bench_compare.sh`.  On Windows the `kame` column is the **direct pool route**
+(`bench_loop_pool` → `kame_pool_malloc`): PE/COFF has no `LD_PRELOAD`, and
+llvm-mingw resolves the plain `malloc` statically (no IAT entry for the §31
+redirect to patch), so — unlike the macOS/Linux tables — this measures the
+pool core only, not the malloc-override layer.  mimalloc/jemalloc are not
+standard on Windows (columns omitted):
+
+| size      |  system |     kame |
+|-----------|---------|----------|
+| 64B       |      37 |  **191** |
+| 1 KiB     |      37 |  **147** |
+| 16 KiB    |      36 |   **90** |
+| 64 KiB    |      10 |   **51** |
+| 256 KiB   |      11 |   **50** |
+| 1 MiB     |      ~0 |   **57** |
+| 4 MiB     |      ~0 |   **34** |
+
+**Same host, 4 processes aggregate, M ops/s** — median of 5:
+
+| size      |  system |     kame |
+|-----------|---------|----------|
+| 64B       |     107 |  **618** |
+| 16 KiB    |     107 |  **302** |
+| 64 KiB    |      32 |  **205** |
+| 1 MiB     |      ~0 |  **178** |
+
+The **system ~0 at ≥ 1 MiB** is the Windows UCRT per-call `VirtualAlloc` /
+`VirtualFree` cliff (the same shape mimalloc / jemalloc hit at this tier on
+Linux): a tight 1 MiB `malloc`/`free` loop drops below 0.5 M ops/s, while
+kame's two-level recycle cache stays memory-warm at 50–180 M ops/s.
+
 **Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
 pages, `THP=always`), `bench_compare.sh`, `srun --exclusive`** — kame at
 `0e9413a6`, mimalloc/jemalloc versions same as the competitive tables below:
