@@ -153,6 +153,27 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_thread_exit_free_test_dynamic alloc_thread_exit_free_test.cpp)
     target_link_libraries(alloc_thread_exit_free_test_dynamic kamepoolalloc Threads::Threads)
 
+    # Narrow-gap regression for the post-3145e139 L1 teardown guard.
+    # `alloc_thread_exit_free_test` scenario B covers the SAME-thread
+    # teardown free (the freer also allocated), so it arms `tls_l1` first
+    # and `s_l1_drained` alone (the 30ea1daa guard) suffices.  This test
+    # covers the second case: a consumer thread that NEVER armed its L1
+    # recycle cache frees a CROSS-THREAD-origin > 32 KiB block from its own
+    # pthread_key destructor.  Pre-3145e139 the dying consumer's
+    # `recycle_push → l1_push` armed a fresh L1 that nothing drains →
+    # +1 chunk/cycle permanent stranding.  Both linkages exercised, same
+    # rationale as the sibling test.
+    add_executable(alloc_thread_exit_unarmed_test
+        alloc_thread_exit_unarmed_test.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../allocator.cpp)
+    target_compile_definitions(alloc_thread_exit_unarmed_test PRIVATE KAMEPOOLALLOC_DYLIB)
+    target_include_directories(alloc_thread_exit_unarmed_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..)
+    target_link_libraries(alloc_thread_exit_unarmed_test Threads::Threads)
+
+    add_executable(alloc_thread_exit_unarmed_test_dynamic alloc_thread_exit_unarmed_test.cpp)
+    target_link_libraries(alloc_thread_exit_unarmed_test_dynamic kamepoolalloc Threads::Threads)
+
     # (§28) Cap-eviction (kame_pool_set_large_cache_cap synchronous shrink) test.
     # Verifies the two-phase K-then-N reduction, MT race-safety, and round-trip
     # behaviour.  Pool-only (uses the kame_pool_* C API directly).
@@ -286,6 +307,8 @@ if(USE_KAME_ALLOCATOR)
     # Valid on all platforms: asserts on madvise-INDEPENDENT units_live/chunks_live.
     add_test(NAME alloc_thread_exit_free_test COMMAND alloc_thread_exit_free_test)
     add_test(NAME alloc_thread_exit_free_test_dynamic COMMAND alloc_thread_exit_free_test_dynamic)
+    add_test(NAME alloc_thread_exit_unarmed_test COMMAND alloc_thread_exit_unarmed_test)
+    add_test(NAME alloc_thread_exit_unarmed_test_dynamic COMMAND alloc_thread_exit_unarmed_test_dynamic)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)
