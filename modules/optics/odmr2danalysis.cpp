@@ -523,7 +523,7 @@ XODMR2DAnalysis::visualize(const Snapshot &shot) {
     }
     //colorbar
     processed = reinterpret_cast<uint16_t*>(cbimage->bits());
-    for(unsigned int i  = 0; i < cbimage->width(); ++i) {
+    for(int i = 0; i < cbimage->width(); ++i) {
         int64_t dcog = (double)i / (cbimage->width() - 1) * (cmap_max - cmap_min) / vstep * coeff_vstep;
         const auto &color_gain = (dcog > thres) ? colorgain_high : colorgain_low;
         const auto &coloroffsets = (dcog > thres) ? coloroffsets_high : coloroffsets_low;
