@@ -147,39 +147,38 @@ single allocator could swing 3× between sessions and made any absolute
 comparison unreliable.
 
 **Apple MacBook Air M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
-`04c17904`, median of 5 runs via `bench_compare.sh` (mimalloc 3.3 via Homebrew;
-no jemalloc on this host).  Both M3 tables below were measured on this commit:
+`3145e139`, median of 5 runs via `bench_compare.sh` (mimalloc 3.3 + jemalloc 5.3.0
+via Homebrew).  Both M3 tables below were measured on this commit:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     110 |  **517** |        - |      511 |
-| 1 KiB     |      89 |  **482** |        - |      357 |
-| 16 KiB    |      94 |      205 |        - |  **281** |
-| 64 KiB    |      25 |  **204** |        - |      156 |
-| 256 KiB   |      25 |  **206** |        - |      153 |
-| 1 MiB     |      25 |        7 |        - |  **138** |
-| 4 MiB     |      46 |        6 |        - |  **121** |
+| 64B       |     107 |  **515** |      130 |      496 |
+| 1 KiB     |      84 |  **475** |      121 |      340 |
+| 16 KiB    |      92 |      200 |       72 |  **223** |
+| 64 KiB    |      25 |  **200** |       18 |      148 |
+| 256 KiB   |      25 |  **206** |       18 |      137 |
+| 1 MiB     |      24 |        7 |       18 |  **128** |
+| 4 MiB     |      45 |        6 |       18 |  **108** |
 
 **Apple MacBook Air M3, 4 processes aggregate, M ops/s** — median of 5 runs:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     416 | **1940** |        - |     1824 |
-| 16 KiB    |     339 |      750 |        - | **1057** |
-| 64 KiB    |      90 |  **755** |        - |      567 |
-| 1 MiB     |      92 |       21 |        - |  **514** |
+| 64B       |     393 | **1871** |      445 |     1731 |
+| 16 KiB    |     295 |      719 |      250 |  **758** |
+| 64 KiB    |      83 |  **713** |       60 |      499 |
+| 1 MiB     |      85 |       18 |       61 |  **455** |
 
 At the **1 MiB** large tier kame leads at every thread count: system is
-lock-serialised, mimalloc stalls at ~21 M aggregate, while kame reaches
-**514 M ops/s** across 4 processes (24× ahead of mimalloc).  The **64 B**
-bucket runs at **511 M ops/s** single-thread — within run-to-run noise of
-mimalloc 3.3 (517 M) — thanks to the `KameTlsPage` fast-TSD unification
+lock-serialised, mimalloc stalls at ~18 M aggregate, while kame reaches
+**455 M ops/s** across 4 processes (25× ahead of mimalloc).  The **64 B**
+bucket runs at **496 M ops/s** single-thread — within run-to-run noise of
+mimalloc 3.3 (515 M) — thanks to the `KameTlsPage` fast-TSD unification
 (§hot-tls), which replaced per-variable `_tlv_get_addr` calls with a single
-`mrs TPIDRRO_EL0`.  At **16 KiB** kame leads both single-thread (281 vs 205)
-and 4-process (1057 vs 750 mimalloc).  jemalloc was not available on this
-macOS host.  (Numbers re-measured at `04c17904`, which carries the dylib
-thread-exit-leak fix; that fix is cold-path only, so hot-loop throughput is
-unchanged from the prior `13a8c913` table within noise.)
+`mrs TPIDRRO_EL0`.  At **16 KiB** kame leads both single-thread (223 vs 200)
+and 4-process (758 vs 719 mimalloc).  (Numbers re-measured at `3145e139`; the
+dylib/teardown fixes since the prior `13a8c913`/`04c17904` tables are cold-path
+only, so hot-loop throughput is unchanged within noise.)
 
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
 M ops/s** — kame at `84f97566`, llvm-mingw clang 17, median of 5 via
