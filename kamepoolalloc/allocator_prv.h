@@ -318,7 +318,7 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 //! atomic_shared_ptr path (Ref = T, custom disposer) WITHOUT a sizeof
 //! completeness probe — the type is self-referential (holds an
 //! atomic_shared_ptr<PoolAllocator>) hence incomplete at first use.  Mirrors
-//! tests/atomic_intrusive_dll_test.cpp's Node.  (Forward decl carries NO
+//! tests/atomic_intrusive_chain_test.cpp's Node.  (Forward decl carries NO
 //! default args — they live on the primary template below.)
 template <unsigned int ALIGN, bool FS, bool DUMMY> class PoolAllocator;
 template <unsigned int ALIGN, bool FS, bool DUMMY>

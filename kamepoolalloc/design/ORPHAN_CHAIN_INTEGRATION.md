@@ -6,7 +6,7 @@ singly-linked orphan chain** (`tests/tlaplus/OrphanChain_atomicshared.tla`).
 
 Branch: continuation of `orphan-atomicshared` (which already provides the
 `force_intrusive_ref` / `atomic_intrusive_dispose` primitives in
-`atomic_smart_ptr.h` and the `atomic_intrusive_dll_test.cpp` PoC).
+`atomic_smart_ptr.h` and the `atomic_intrusive_chain_test.cpp` PoC).
 
 ## POST-IMPLEMENTATION RECONCILIATION (read this first — current truth)
 

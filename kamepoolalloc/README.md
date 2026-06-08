@@ -594,7 +594,7 @@ struct MyNode {
 
 Full trait reference: the **USAGE** header block + `ref_traits` / `force_intrusive_ref`
 in `atomic_smart_ptr.h`.  Working self-referential examples:
-`tests/atomic_intrusive_dispose_test.cpp` and `tests/atomic_intrusive_dll_test.cpp`.
+`tests/atomic_intrusive_dispose_test.cpp` and `tests/atomic_intrusive_chain_test.cpp`.
 
 ## Tuning
 

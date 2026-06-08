@@ -197,7 +197,7 @@ struct atomic_shared_ptr_gref_ : gref_weak_base_ {
 //!
 //!  The per-mode cost/feature MATRIX is the table just below (next to
 //!  `atomic_emplaced`).  Worked examples: tests/atomic_intrusive_dispose_test.cpp
-//!  and tests/atomic_intrusive_dll_test.cpp (self-referential).
+//!  and tests/atomic_intrusive_chain_test.cpp (self-referential).
 //! ===========================================================================
 
 //! Opt-out marker: T uses strict reference counting only (no

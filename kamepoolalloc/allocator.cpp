@@ -6714,7 +6714,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_chain_head() noexcept {
 //! still owner-private (off every per-thread DLL; not yet on the chain), so
 //! no concurrent `load_shared` can have pinned it, making the plain store
 //! race-free.  Adopt into a local_shared_ptr (which takes that 1) and CAS it
-//! onto the head (mirrors atomic_intrusive_dll_test.cpp's push_head); head +
+//! onto the head (mirrors atomic_intrusive_chain_test.cpp's push_head); head +
 //! the chunk's m_orphan_next hold the chain-ref.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
