@@ -120,16 +120,28 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_thread_churn_test alloc_thread_churn_test.cpp)
     target_link_libraries(alloc_thread_churn_test kamepoolalloc Threads::Threads)
 
-    # Thread-EXIT free leak (owner-id==0 collision): frees a pooled buffer from a
-    # pthread_key destructor during thread teardown (KAME's XThreadLocal pattern).
-    # Built STATICALLY (allocator.cpp compiled IN, NOT linked to the shared
-    # kamepoolalloc) on purpose, so it matches PRODUCTION: kame.app static-links
-    # the allocator, so its operator-new override interposes ALL allocations.  In
-    # the shared-lib link that override does not interpose the test exe (macOS
-    # two-level namespace), which BOTH hides this teardown bug (cross-image TLS
-    # teardown ordering differs) AND adds an unrelated adopt-time-scrub starvation
-    # leak under C-API-only churn — neither representative of production.  Asserts
-    # on units_live/chunks_live (madvise-INDEPENDENT), so it is valid on macOS.
+    # Thread-EXIT free leak: frees a pooled buffer from a pthread_key destructor
+    # during thread teardown (KAME's XThreadLocal pattern).  Asserts on
+    # units_live/chunks_live (madvise-INDEPENDENT), valid on macOS.  Built BOTH
+    # ways — the two linkages exercise genuinely different, both-shipping paths:
+    #
+    #   * STATIC (`alloc_thread_exit_free_test`) — allocator.cpp compiled IN,
+    #     matching PRODUCTION (kame.app/kame.exe static-link the allocator so its
+    #     operator-new override interposes ALL allocations).  Faithful repro of
+    #     the owner-id==0 teardown leak (335c53b8): scenario B grows 340->1696
+    #     unfixed, plateaus ~58 fixed; the in-body control stays flat.
+    #
+    #   * DYNAMIC (`alloc_thread_exit_free_test_dynamic`) — links the shared
+    #     libkamepoolalloc (the LD_PRELOAD / macOS interpose drop-in, e.g. used by
+    #     bench_compare.sh).  This linkage surfaced a SEPARATE, real dylib bug —
+    #     NOT a test artifact: with malloc interposed, macOS instantiating the
+    #     dylib's OWN per-thread thread_local TLV block (~32 KiB) went through the
+    #     pool and leaked ~8 units/thread at thread exit (lldb root cause:
+    #     kame_page_cold -> _tlv_get_addr -> dyld instantiateVariable -> malloc ->
+    #     kame_pool_malloc).  Fixed in allocator.cpp (kame_page_cold parks the
+    #     fast-TSD slot at the teardown sentinel so that re-entrant TLV-block
+    #     malloc falls to the real heap).  This variant guards the fix: units now
+    #     plateau (was unbounded, ~4 GB over hours of driver start/stop churn).
     add_executable(alloc_thread_exit_free_test
         alloc_thread_exit_free_test.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../allocator.cpp)
@@ -137,6 +149,9 @@ if(USE_KAME_ALLOCATOR)
     target_include_directories(alloc_thread_exit_free_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
     target_link_libraries(alloc_thread_exit_free_test Threads::Threads)
+
+    add_executable(alloc_thread_exit_free_test_dynamic alloc_thread_exit_free_test.cpp)
+    target_link_libraries(alloc_thread_exit_free_test_dynamic kamepoolalloc Threads::Threads)
 
     # (§28) Cap-eviction (kame_pool_set_large_cache_cap synchronous shrink) test.
     # Verifies the two-phase K-then-N reduction, MT race-safety, and round-trip
@@ -270,6 +285,7 @@ if(USE_KAME_ALLOCATOR)
     endif()
     # Valid on all platforms: asserts on madvise-INDEPENDENT units_live/chunks_live.
     add_test(NAME alloc_thread_exit_free_test COMMAND alloc_thread_exit_free_test)
+    add_test(NAME alloc_thread_exit_free_test_dynamic COMMAND alloc_thread_exit_free_test_dynamic)
     add_test(NAME alloc_evict_test COMMAND alloc_evict_test)
     add_test(NAME alloc_stats_test COMMAND alloc_stats_test)
     add_test(NAME alloc_realtime_mode_test COMMAND alloc_realtime_mode_test)
