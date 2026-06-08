@@ -120,12 +120,23 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_thread_churn_test alloc_thread_churn_test.cpp)
     target_link_libraries(alloc_thread_churn_test kamepoolalloc Threads::Threads)
 
-    # Thread-EXIT free leak: frees a pooled buffer from a pthread_key dtor (i.e.
-    # during thread teardown, KAME's XThreadLocal pattern).  Asserts on
-    # units_live / chunks_live (madvise-INDEPENDENT), so it is a valid leak gate
-    # on macOS too (unlike the reserved-based alloc_thread_churn_test).
-    add_executable(alloc_thread_exit_free_test alloc_thread_exit_free_test.cpp)
-    target_link_libraries(alloc_thread_exit_free_test kamepoolalloc Threads::Threads)
+    # Thread-EXIT free leak (owner-id==0 collision): frees a pooled buffer from a
+    # pthread_key destructor during thread teardown (KAME's XThreadLocal pattern).
+    # Built STATICALLY (allocator.cpp compiled IN, NOT linked to the shared
+    # kamepoolalloc) on purpose, so it matches PRODUCTION: kame.app static-links
+    # the allocator, so its operator-new override interposes ALL allocations.  In
+    # the shared-lib link that override does not interpose the test exe (macOS
+    # two-level namespace), which BOTH hides this teardown bug (cross-image TLS
+    # teardown ordering differs) AND adds an unrelated adopt-time-scrub starvation
+    # leak under C-API-only churn — neither representative of production.  Asserts
+    # on units_live/chunks_live (madvise-INDEPENDENT), so it is valid on macOS.
+    add_executable(alloc_thread_exit_free_test
+        alloc_thread_exit_free_test.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../allocator.cpp)
+    target_compile_definitions(alloc_thread_exit_free_test PRIVATE KAMEPOOLALLOC_DYLIB)
+    target_include_directories(alloc_thread_exit_free_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..)
+    target_link_libraries(alloc_thread_exit_free_test Threads::Threads)
 
     # (§28) Cap-eviction (kame_pool_set_large_cache_cap synchronous shrink) test.
     # Verifies the two-phase K-then-N reduction, MT race-safety, and round-trip
