@@ -313,8 +313,8 @@ inline T atomicFetchOr(T *target, T value) noexcept {
 //! (tests/tlaplus/run_orphan_chain.sh) — the owner-free vs scrub-pin race it
 //! caught (Inv_NoBadOwnerFree) is not reproducible by runtime stress.
 #include "atomic_smart_ptr.h"
-//! (Orphan-chain Stage 1) The chunk's embedded PoolAllocator IS the intrusive
-//! node of the lock-free orphan chain.  Opt in to the intrusive
+//! (Orphan-chain) The chunk's embedded PoolAllocator IS the intrusive
+//! node of the lock-free orphan chain — it uses the intrusive
 //! atomic_shared_ptr path (Ref = T, custom disposer) WITHOUT a sizeof
 //! completeness probe — the type is self-referential (holds an
 //! atomic_shared_ptr<PoolAllocator>) hence incomplete at first use.  Mirrors
@@ -848,12 +848,12 @@ public:
 	//! Address-only chunk lookup.  Returns nullptr if `p` does not
 	//! belong to any pool chunk (or the chunk has been released).
 	//! Used by `drain_thread_slot_freelists` to handle the case where
-	//! `g_thread_slots[bucket].freelist_head` holds slots from multiple
+	//! `m_slots[bucket].freelist_head` holds slots from multiple
 	//! chunks of the same PoolType (e.g. FS=false sizes 96/128/160/192
 	//! all share `PoolAllocator<32, false>`; a chunk transition triggered
-	//! by one bucket leaves the others' `g_thread_chunks[]` entry stale,
-	//! but the freelist may still receive both old- and new-chunk slots
-	//! through the shared `s_my_chunk == this` owner check).  Implemented
+	//! by one bucket can leave another bucket's freelist pointing into the
+	//! old chunk, yet both old- and new-chunk slots land on the same
+	//! freelist through the shared `s_tls.my_chunk == this` owner check).  Implemented
 	//! as a for-loop walk of `s_mmapped_spaces[]` — each region is a
 	//! uniform 32 MiB, and `s_back_offset[]` maps any claimed unit back
 	//! to its chunk base in O(1).
@@ -910,8 +910,9 @@ public:
 	//! cold path through this chunk's vtable; runs the bitmap-CAS /
 	//! chunk-claim / create_allocator path with this template
 	//! instantiation's compile-time ALIGN.  `bucket` is the table
-	//! index of the freelist that missed, used to mirror an advanced
-	//! `s_my_chunk` back into `g_thread_chunks[bucket]`.  Pure virtual
+	//! index of the freelist that missed, used to refresh
+	//! `m_slots[bucket].freelist_head` to the (possibly advanced)
+	//! `s_tls.my_chunk`'s freelist cell.  Pure virtual
 	//! so the dispatch is per-(ALIGN,FS) without a separate
 	//! function-pointer table.
 	virtual void *slow_allocate(unsigned bucket, std::size_t size) noexcept = 0;
@@ -1044,7 +1045,7 @@ public:
 	//!   global bucket.  KAME_LOCAL_BUCKETS (= 9) covers the widest tier
 	//!   (ALIGN=256 FS=false serves buckets {16, 32..39}).  `kBucketLocalId[]`
 	//!   maps bucket -> local id — but the alloc fast path NEVER reads it:
-	//!   instead, TLS `g_thread_freelist_ptr[bucket]` holds a `char **`
+	//!   instead, TLS `m_slots[bucket].freelist_head` holds a `char **`
 	//!   pointing DIRECTLY at the active chunk's m_freelist_head[local-id-
 	//!   for-this-bucket], updated at chunk-switch (slow_allocate) where
 	//!   kBucketLocalId IS read.  So alloc is `*tls[bucket]` (zero remap,
@@ -1079,7 +1080,7 @@ public:
 	//! hold the next pointer).  `local` is the chunk's local-id (NOT the
 	//! global bucket).  No atomics — only the owner thread touches its
 	//! chunk's freelists.  Both push and pop reach the SAME storage that
-	//! the alloc-side TLS shortcut (`g_thread_freelist_ptr[bucket]`) is
+	//! the alloc-side TLS shortcut (`m_slots[bucket].freelist_head`) is
 	//! aimed at — see slow_allocate for the maintenance of that pointer.
 	inline void freelist_push(unsigned local, void *p) noexcept {
 		*reinterpret_cast<char **>(p) = m_freelist_head[local];
@@ -1569,8 +1570,8 @@ public:
 	//! Public accessor for the per-thread functor-table dispatcher
 	//! (anon-namespace helpers in allocator.cpp).  Returns the
 	//! currently-pinned chunk for this thread as a `PoolAllocatorBase*`
-	//! so the dispatcher can cache it in `g_thread_slots[bucket].chunk`
-	//! after `allocate_chunk_path` claimed a new one.
+	//! so the dispatcher can refresh `m_slots[bucket].freelist_head` to the
+	//! new chunk's freelist cell after `allocate_chunk_path` claimed one.
 	static PoolAllocatorBase *get_pinned_chunk_base() noexcept {
 		return static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
 	}
@@ -1831,11 +1832,11 @@ protected:
 	// orphan_pop, reusing m_dll_next as the stack link) is RETIRED — the
 	// atomic_shared_ptr orphan chain below replaces it.
 
-	//! (Path B Stage 1) atomic_shared_ptr orphan chain — replaces the §36
-	//! Treiber stack (s_orphan_head) under the flag.  Same node type as
-	//! `m_orphan_next` (injected-class-name = the FS=true base), NOT the
-	//! `<ALIGN,DUMMY,DUMMY>` erasure (which re-triggers the Stage-1 circular
-	//! incomplete-type).  chain-ref = this head + each chunk's m_orphan_next.
+	//! (Orphan-chain) atomic_shared_ptr orphan chain head — the sole orphan
+	//! mechanism (the §36 s_orphan_head Treiber stack it replaced is retired).
+	//! Same node type as `m_orphan_next` (injected-class-name = the FS=true
+	//! base), NOT the `<ALIGN,DUMMY,DUMMY>` erasure (which re-triggers the
+	//! circular incomplete-type).  chain-ref = this head + each chunk's m_orphan_next.
 	//! Cross-free already defers orphan release (deallocate_pooled OnClearFn),
 	//! so a drained orphan stays here until swept/adopted (steps 4-5).
 	static atomic_shared_ptr<PoolAllocator> s_orphan_chain_head;
@@ -1868,13 +1869,13 @@ protected:
 	PoolAllocator<ALIGN, DUMMY, DUMMY> *m_dll_next{nullptr};
 
 public:   // the intrusive contract must be reachable by atomic_smart_ptr.h
-	// (Orphan-chain Stage 1) Intrusive atomic_shared_ptr contract — the
-	// embedded PoolAllocator is its own control block (no separate alloc).
-	// refcnt is added MANUALLY (not via the `atomic_countable` base, whose
-	// ctor=1 / dtor `assert(refcnt==0)` would fire on every manual chunk
-	// teardown until the full refcount wiring lands in Stages 2–7).  It is
-	// initialised 0 and left UNMANAGED in Stage 1 (the chunk is not yet put
-	// into any atomic_shared_ptr), so no assert can fire.
+	// (Orphan-chain) Intrusive atomic_shared_ptr contract — the embedded
+	// PoolAllocator is its own control block (no separate alloc).  refcnt is a
+	// plain `atomic<uintptr_t>` (NOT the `atomic_countable` base, whose ctor=1 /
+	// dtor `assert(refcnt==0)` would fire on the raw chunk teardown of
+	// never-orphaned chunks).  Initialised 0 while owner-private; orphan_chain_push
+	// establishes 1 and hands the chunk to a local_shared_ptr, and adopt / dispose
+	// manage it thereafter (refcnt = chain-ref + scrub pins + the owner self-ref).
 	typedef uintptr_t Refcnt;
 	atomic<Refcnt> refcnt{0};
 	//! Forward link of the lock-free orphan chain — DISTINCT from
@@ -2045,10 +2046,10 @@ protected:
 	// fs_try_bucket_pop, FS_MAX_BUCKETS, FS_BUCKET_CAP, and the
 	// flush_owner_freelist override) is removed: dealloc now pushes
 	// to the per-thread AllocSlot freelist at
-	// `g_thread_slots[bucket_for_size(N * ALIGN)]`, identically to
+	// `m_slots[bucket_for_size(N * ALIGN)]`, identically to
 	// FS=true.  Allocations get a freelist hit via the inline pop in
 	// `new_redirected` and never reach `allocate_pooled` on that
-	// path.  Drain at thread exit sweeps `g_thread_slots[*]` and
+	// path.  Drain at thread exit sweeps `m_slots[*]` and
 	// routes slots through `tls_cross_dealloc_batch` →
 	// `batch_return_to_bitmap`, whose FS=false override decodes N
 	// from m_sizes and clears N bits per slot.
@@ -2150,31 +2151,33 @@ extern bool g_sys_image_loaded;
 // free slot.
 //
 // Hot path: `new_redirected` inlines the freelist pop directly on the
-// AllocSlot.  No indirect call on the freelist-hit path.  On miss, the
-// slow path reads `g_thread_chunks[bucket]`; if non-null it dispatches
-// through the chunk's vtable (`slow_allocate(bucket, size)`), which
-// per-(ALIGN,FS) override runs the chunk-claim / bitmap CAS path.  If
-// null, it falls through to `cold_first_access(bucket, size)` which
-// handles activation-flag / cleanup-flag checks and the (rare)
-// per-bucket first-access dispatch.
+// AllocSlot.  No indirect call, and NO second TLS read, on the
+// freelist-hit path.  On miss, the slow path recovers the OWNING chunk
+// from the freelist-cell pointer via `chunk_from_freelist_ptr()` (a
+// mask+add — there is NO parallel chunk-pointer TLS array) and dispatches
+// `chunk->slow_allocate(bucket, size)` (the per-(ALIGN,FS) override runs
+// the chunk-claim / bitmap-CAS path).  If the per-bucket head is null it
+// falls through to `cold_first_access(bucket, size)`, which handles the
+// activation-flag / cleanup-flag checks and the (rare) per-bucket
+// first-access dispatch.
 //
-// sizeof(AllocSlot) == 8: a single `char *`, so `g_thread_slots[bucket]`
-// indexing is a single shifted-load addressing-mode form
-// `ldr x, [base, bucket, lsl #3]` — no separate slot-address computation
-// needed.  8 slots share a 64-B cache line.  The chunk pointer lives in
-// the parallel `g_thread_chunks[]` TLS array so the freelist-hit hot
-// path touches only one cache line.
+// sizeof(AllocSlot) == 8: a single `char *`, so the per-thread
+// `KameTlsPage::m_slots[bucket]` indexing is a single shifted-load
+// addressing-mode form `ldr x, [base, bucket, lsl #3]` — no separate
+// slot-address computation needed.  8 slots share a 64-B cache line, and
+// the chunk is derived from the freelist pointer (above) rather than
+// cached separately, so the freelist-hit hot path touches one cache line.
 //
-// State machine (encoded in `g_thread_chunks[bucket]`):
+// State machine (the per-bucket `m_slots[bucket].freelist_head`):
 //   - `nullptr`: pre-activation OR pre-first-use OR post-cleanup.
 //     Slow path goes to `cold_first_access`, which checks the
 //     activation flag (`g_sys_image_loaded`) and the cleanup flag
 //     (`s_alloc_tls_off`) and either returns `std::malloc(size)` or
 //     dispatches per-bucket to `PoolAllocator<ALIGN,FS>::allocate<SIZE>()`
-//     (which sets `g_thread_chunks[bucket]` as a side effect).
-//   - non-null: steady state — `chunk->slow_allocate(bucket, size)`
-//     virtual call updates `g_thread_chunks[bucket]` if `s_my_chunk`
-//     has advanced to a new chunk after a fill.
+//     (which seeds `m_slots[bucket].freelist_head` from the claimed chunk).
+//   - non-null: steady state — the freelist pop, or on exhaustion a
+//     `chunk->slow_allocate(bucket, size)` that refills the head from
+//     `s_tls.my_chunk` (re-pointed if a fill advanced to a new chunk).
 //   - `AllocThreadExitCleanup::~dtor` on thread exit clears all entries back
 //     to `nullptr`, and the cleanup flag `s_alloc_tls_off` is set so
 //     subsequent allocations route to `std::malloc`.
@@ -2315,7 +2318,7 @@ inline constexpr uint32_t kBucketNewSlot[52] = {
 //!   ALIGN=4096 FS=false: buckets {48..51}              -> 0..3
 //!
 //! USED ONLY ON THE COLD PATH (slow_allocate / cold_first_access) to set
-//! the per-thread TLS `g_thread_freelist_ptr[bucket]` shortcut so the
+//! the per-thread TLS `m_slots[bucket].freelist_head` shortcut so the
 //! alloc HOT path needs no table lookup; dealloc HOT path reads the
 //! local-id directly from chunk.m_fs_flag (FS=true) or the slot prefix
 //! (FS=false).  See §12.3.
@@ -2768,7 +2771,7 @@ inline int PoolAllocatorBase::radix_lookup(void *p) noexcept {
     return radix_lookup_slow(up);
 }
 
-//! Cold slow path: invoked when `g_thread_chunks[bucket] == nullptr`
+//! Cold slow path: invoked when `m_slots[bucket].freelist_head == nullptr`
 //! (first access on this (thread, bucket), or post-cleanup).  Handles
 //! activation-flag / cleanup-flag checks, then dispatches per bucket
 //! to the matching `PoolAllocator<ALIGN,FS>::allocate<SIZE>()`.
