@@ -8,7 +8,7 @@
 // driver thread stops.  KAME starts/stops such threads constantly (driver
 // start/stop), so any per-thread-exit stranding accumulates without bound.
 //
-// Two scenarios, IDENTICAL except for WHERE the free happens:
+// Scenarios (A and B differ only in WHERE the free happens; C adds concurrency):
 //
 //   (A) FREE-IN-BODY  — the worker frees everything before it returns, while it
 //       still owns its chunks.  Baseline: MUST plateau (proves the harness is
@@ -124,10 +124,61 @@ static void scenario(bool free_at_exit, const char *name) {
                 base_u, end_u, base_c, end_c);
 }
 
+// (C) CONCURRENT churn — T worker threads alive SIMULTANEOUSLY each round, each
+//     freeing in-body before exit, repeated for ROUNDS rounds.  Models KAME's
+//     real driver pool: many threads start/stop with overlapping lifetimes,
+//     stressing the orphan-chain / recycle-cache / claim paths under SIMULTANEOUS
+//     thread-exit that the one-at-a-time scenarios A/B cannot.  units_live is
+//     sampled at the quiescent point between rounds (all joined), so the count is
+//     clean.  MUST plateau — the dylib TLV-bootstrap leak (the per-thread
+//     thread_local block pooled via interposed malloc, fixed in kame_page_cold)
+//     manifested here as ~8 units PER THREAD, i.e. ~8*T per round.
+static void scenario_concurrent(const char *name) {
+    const int T      = 12;    // threads alive at once
+    const int ROUNDS = 100;
+    const int Mc     = 800;   // allocations per worker (modest for speed)
+    std::printf("[%s] %d threads concurrent x %d rounds, free in body\n",
+                name, T, ROUNDS);
+    size_t base_u = 0, base_c = 0;
+    for(int r = 0; r < ROUNDS; r++) {
+        std::vector<std::thread> v;
+        v.reserve(T);
+        for(int i = 0; i < T; i++)
+            v.emplace_back([] {
+                std::vector<void *> ps; ps.reserve(Mc);
+                for(int k = 0; k < Mc; k++) {
+                    size_t sz = pick_size(k);
+                    void *p = kame_pool_malloc(sz);
+                    if(p) { std::memset(p, 0xCD, sz > 64 ? 64 : sz); ps.push_back(p); }
+                }
+                for(void *p : ps) kame_pool_free(p);
+            });
+        for(auto &t : v) t.join();
+        if(r == WARMUP) { base_u = units_live(); base_c = chunks_live(); }
+        if(r >= WARMUP && (r % 20 == 0 || r == ROUNDS - 1))
+            std::printf("  round %3d: units_live=%6zu chunks_live=%6zu\n",
+                        r, units_live(), chunks_live());
+    }
+    size_t end_u = units_live(), end_c = chunks_live();
+    // Slack a touch larger than A/B for T threads' transient set + recycle cache;
+    // a per-thread-exit leak is ~8*T units PER ROUND (thousands over the run).
+    CHECK(!grew(base_u, end_u, 64),
+          "%s: units_live grew %zu -> %zu over %d rounds "
+          "(concurrent thread-exit STRANDED)",
+          name, base_u, end_u, ROUNDS - WARMUP);
+    CHECK(!grew(base_c, end_c, 64),
+          "%s: chunks_live grew %zu -> %zu over %d rounds",
+          name, base_c, end_c, ROUNDS - WARMUP);
+    std::printf("  [%s] %s plateau: units %zu -> %zu, chunks %zu -> %zu\n",
+                grew(base_u, end_u, 64) ? "BAD" : "ok", name,
+                base_u, end_u, base_c, end_c);
+}
+
 int main() {
     pthread_key_create(&g_tsd_key, tsd_free_dtor);
     scenario(false, "scenario A (control)");
     scenario(true,  "scenario B (thread-exit free)");
+    scenario_concurrent("scenario C (concurrent churn)");
     std::printf(g_fails == 0 ? "\nPASS\n" : "\nFAIL (%d)\n", g_fails);
     return g_fails ? 1 : 0;
 }
