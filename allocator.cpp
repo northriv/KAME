@@ -6133,6 +6133,11 @@ inline L1KArray *l1_base() noexcept {
 // Pop a fitting block from this thread's L1 at (kstart…kstart+K), or
 // nullptr.  Single owner ⇒ plain loads/stores, no CAS.
 inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
+    // (teardown) Symmetric with l1_push: a torn-down thread must not re-arm its
+    // L1 here either — l1_base() would bump g_lrc_l1_threads again (live-thread
+    // counter drift → undersized L1 cuts for the threads that remain).  Fall to
+    // the global L2 / fresh claim instead.
+    if(__builtin_expect(kame_thread_torn_down(), 0)) return nullptr;
     L1KArray *l1 = l1_base();
     int idx = lrc_idx(need, kind);
     if(idx > tls_l1_max_idx) return nullptr;
@@ -6155,7 +6160,17 @@ inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
 // (→ global).
 inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
     // (teardown) Post-drain frees must not refill the L1 — see s_l1_drained.
-    if(__builtin_expect(s_l1_drained, 0)) return false;
+    // ALSO refuse once this thread is torn down: a thread that NEVER armed its
+    // L1 (consumes only sub-32 KiB, or is a pure non-allocating consumer) has
+    // `s_l1_drained == false` because l1_drain()'s thread_local dtor never ran
+    // (it is only armed by l1_base()).  A cross-thread-origin large/dedicated
+    // (>32 KiB) block freed in such a thread's pthread_key destructor would
+    // otherwise re-arm a fresh L1 here that nothing ever drains → +1 chunk/cycle
+    // permanent stranding (a narrow re-opening of the 30ea1daa leak class).
+    // kame_thread_torn_down() catches it for ALL threads, armed or not, and
+    // mirrors the bucket-tier sentinel guard; recycle_push then falls to
+    // global_push (L2, no allocator TLS) — safe at teardown.
+    if(__builtin_expect(s_l1_drained || kame_thread_torn_down(), 0)) return false;
     L1KArray *l1 = l1_base();
     int idx = lrc_idx(size, kind);
     if(idx > tls_l1_max_idx) return false;
