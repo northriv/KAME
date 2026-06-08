@@ -42,9 +42,16 @@ what was actually built (flag still default OFF).  Current state:
 - **Stage status:** S1 (embed) done; S2 (manual MASK_CNT self-ref) reverted →
   replaced by separate counts + the chunk self-ref; S3 (owner-exit push + empty
   drop-self-ref) done; S5 (single-head adopt) done; **S6** scrub runs at ONE site
-  only (adopt-time, allocator.cpp ~2732 — owner-exit/opportunistic triggers TODO);
-  **S7** (retire §36 stack + flip default ON) PENDING (full gate).  Linux
-  verification of the self-ref fix (TSan + churn plateau + ctest) is in flight.
+  only (adopt-time — owner-exit/opportunistic triggers TODO); **S7 (a) flip +
+  (b) retire §36** DONE on macOS (`§S7` commit: KAME_ORPHAN_CHAIN pinned to 1;
+  s_orphan_head / orphan_push / orphan_pop / ORPHAN_*_TAG packing deleted) —
+  pending the Linux full gate (TSan/ASan + churn plateau + STM 3level_mixed +
+  bench non-regression vs §36).  **S7 (c) (retire the BIT_OWNED arbitration) is
+  NOT done and is split off**: that arbitration serialises owner-free against
+  in-flight cross-thread frees via the shared `m_flags_packed` atomic, which the
+  separate intrusive refcnt cannot replace without cross-free taking a refcnt pin
+  on every free (a hot-path cost).  Fresh chunks keep the direct BIT_OWNED free;
+  only adopted chunks carry a self-ref.
 
 ## Refcount model — SEPARATE counts (Path B, decided)
 
