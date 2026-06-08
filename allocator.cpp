@@ -6637,9 +6637,28 @@ ALLOC_TLS typename PoolAllocator<ALIGN, FS, DUMMY>::ThreadLocalState
 
 // (§S7) The §36 s_orphan_head Treiber stack is retired — the
 // atomic_shared_ptr orphan chain below is the sole orphan mechanism.
+//
+// NEVER-DESTROYED accessor (not a plain static member).  The head holds a
+// chain-ref on the first orphan node; a static member's process-exit
+// destructor would drop that ref outside the scrub gate and dispose a
+// still-non-empty orphan, destructing a live chunk's PoolAllocator (then an
+// atexit free() of one of its slots hits the now-pure-virtual
+// `deallocate_pooled` — the 12/14 Linux ctest "pure virtual method called"
+// abort after the chain flip).  Placement-new into a function-local static
+// byte buffer: the atomic_shared_ptr is constructed once (thread-safe init
+// guard) and its destructor is NEVER registered, so it leaks at exit —
+// exactly as every region mmap does (`mmap_new_region`: "Regions never
+// unmap").  The two backing statics (`buf`, `head`) are trivially
+// destructible, so they add no atexit work either.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-atomic_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> >
-    PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_chain_head;
+atomic_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> > &
+PoolAllocator<ALIGN, FS, DUMMY>::s_orphan_chain_head() noexcept {
+	alignas(atomic_shared_ptr<PoolAllocator>)
+	    static unsigned char buf[sizeof(atomic_shared_ptr<PoolAllocator>)];
+	static atomic_shared_ptr<PoolAllocator> *head =
+	    ::new (static_cast<void *>(buf)) atomic_shared_ptr<PoolAllocator>();
+	return *head;
+}
 
 //! (Path B Stage 1) Treiber push onto the atomic_shared_ptr orphan chain.
 //! `refcnt` is established to 1 BEFORE publish — at owner-exit the chunk is
@@ -6669,10 +6688,10 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
 		c->refcnt.store(1, std::memory_order_relaxed);
 		n = local_shared_ptr<PoolAllocator>(c);
 	}
-	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head);
+	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head());
 	for(;;) {
 		n->m_orphan_next = old;
-		if(s_orphan_chain_head.compareAndSwap(old, n)) break;
+		if(s_orphan_chain_head().compareAndSwap(old, n)) break;
 	}
 }
 
@@ -6688,15 +6707,15 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_push(
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
 	local_shared_ptr<PoolAllocator> pred;                      // empty ⇒ pred is head
-	local_shared_ptr<PoolAllocator> cur(s_orphan_chain_head);
+	local_shared_ptr<PoolAllocator> cur(s_orphan_chain_head());
 	while(cur) {
 		local_shared_ptr<PoolAllocator> nxt(cur->m_orphan_next);
 		if((cur->m_flags_packed & MASK_CNT) == 0u) {           // dead orphan → unlink
 			bool ok = pred ? pred->m_orphan_next.compareAndSet(cur, nxt)
-			               : s_orphan_chain_head.compareAndSet(cur, nxt);
+			               : s_orphan_chain_head().compareAndSet(cur, nxt);
 			if(ok) { cur = nxt; continue; }                    // unlinked; pred unchanged
 			pred.reset();                                      // CAS lost → restart from head
-			cur = local_shared_ptr<PoolAllocator>(s_orphan_chain_head);
+			cur = local_shared_ptr<PoolAllocator>(s_orphan_chain_head());
 			continue;
 		}
 		pred = cur;                                            // live orphan → keep, advance
@@ -6710,11 +6729,11 @@ void PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_scrub() noexcept {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 local_shared_ptr<PoolAllocator<ALIGN, FS, DUMMY> >
 PoolAllocator<ALIGN, FS, DUMMY>::orphan_chain_pop() noexcept {
-	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head);
+	local_shared_ptr<PoolAllocator> old(s_orphan_chain_head());
 	for(;;) {
 		if( !old) return local_shared_ptr<PoolAllocator>();   // chain empty
 		local_shared_ptr<PoolAllocator> nxt(old->m_orphan_next);
-		if(s_orphan_chain_head.compareAndSwap(old, nxt)) {
+		if(s_orphan_chain_head().compareAndSwap(old, nxt)) {
 			old->m_orphan_next = local_shared_ptr<PoolAllocator>();  // off the chain
 			return old;
 		}
