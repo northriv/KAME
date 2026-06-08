@@ -1,5 +1,16 @@
-// §36b orphan-list prototype — a SELF-REFERENTIAL INTRUSIVE node in a
-// lock-free list, the structure the pool's orphan-chunk reuse will become.
+// §36b orphan-chain prototype — a SELF-REFERENTIAL INTRUSIVE node in a
+// lock-free SINGLY-LINKED chain, the structure the pool's orphan-chunk
+// reuse became (`m_orphan_next` in PoolAllocator).
+//
+// NAMING NOTE: this file was originally `atomic_intrusive_dll_test.cpp`
+// (DLL = doubly-linked) carrying a `m_prev` field as a "raw revalidated
+// back-hint".  In practice nothing ever READ that field — it was dead
+// store weight — and the production orphan chain has no prev at all:
+// Treiber-style push at head, forward-walking scrub, no back-traversal.
+// The only real DLL in the allocator is the per-thread owner-mode chunk
+// list (`m_dll_prev`/`m_dll_next`), a separate single-thread structure
+// unrelated to this PoC.  Renamed + `m_prev` removed so the prototype
+// mirrors the production singly-linked chain exactly.
 //
 // This is the standalone, stress-testable proof-of-concept (mirrors
 // atomic_intrusive_dispose_test.cpp's role for the disposer) that pins down
@@ -21,14 +32,15 @@
 //       This is exactly what the pool's chunk (`PoolAllocator<...>`) will do via
 //       a partial `ref_traits<PoolAllocator<A,F,D>>` specialisation.
 //
-//   (2) LOCK-FREE LIST under SMR + CUSTOM DISPOSER.  Nodes are pushed at head,
-//       popped (claimed) at head, and UNLINKED FROM THE MIDDLE when they go
-//       "empty" — the orphan structure's three operations.  `prev` is a RAW
-//       revalidated hint (NOT ownership; intrusive opts out of weak refs, so a
-//       weak back-link is unavailable — Sundell-Tsigas style).  The tagged-ref
-//       SMR of `atomic_shared_ptr` keeps every node mapped while any thread
-//       still references it, so a concurrent unlink can never free a node out
-//       from under a traversing/popping thread.
+//   (2) LOCK-FREE SINGLY-LINKED CHAIN under SMR + CUSTOM DISPOSER.  Nodes are
+//       pushed at head (Treiber), popped (claimed) at head, and UNLINKED FROM
+//       THE MIDDLE when they go "empty" — the orphan structure's three
+//       operations.  No back-link: intrusive opts out of weak refs, and the
+//       scrub walks forward only (restarting from head on a lost CAS), so a
+//       raw prev would be a pure dead store.  The tagged-ref SMR of
+//       `atomic_shared_ptr` keeps every node mapped while any thread still
+//       references it, so a concurrent unlink can never free a node out from
+//       under a traversing/popping thread.
 //
 // SCOPE OF THIS TEST: MEMORY SAFETY of (1)+(2), not list LINEARIZABILITY.
 // It asserts, at quiescence after a final drain:
@@ -79,7 +91,6 @@ struct force_intrusive_ref<Node> : std::true_type {};
 //! Self-referential intrusive (atomic_countable) stand-in for a pool chunk.
 struct Node : atomic_countable {
     atomic_shared_ptr<Node> m_next;        //!< intrusive self-link (SMR-managed)
-    std::atomic<Node *>     m_prev{nullptr};   //!< RAW back-hint, revalidated
     std::atomic<int>        m_marked{0};       //!< logical-delete ("emptied")
     std::uint64_t           magic;
     long                    x;
@@ -121,7 +132,7 @@ static_assert(std::is_same<ref_traits<Node>::Ref, Node>::value,
 static_assert(has_intrusive_dispose<Node>::value,
               "Node must expose the custom atomic_intrusive_dispose hook");
 static_assert(!ref_traits<Node>::has_weak,
-              "intrusive opts out of weak refs — prev is a raw hint, not weak");
+              "intrusive opts out of weak refs — chain has no back-link by design");
 
 // ---------------------------------------------------------------------------
 // Regression guard — self-referential intrusive CLASS TEMPLATE.
@@ -172,7 +183,7 @@ static int template_self_ref_smoke() {
 }
 
 // ---------------------------------------------------------------------------
-// Lock-free orphan list — head atomic, intrusive next, raw prev hint.
+// Lock-free orphan chain — head atomic, intrusive forward next, no back-link.
 // ---------------------------------------------------------------------------
 
 static atomic_shared_ptr<Node> g_head;
@@ -182,23 +193,17 @@ static void push_head(const local_shared_ptr<Node> &n) {
     local_shared_ptr<Node> old(g_head);
     for(;;) {
         n->m_next = old;                       // n.next = current head
-        if(old) old->m_prev.store(n.get(), std::memory_order_relaxed);
-        n->m_prev.store(nullptr, std::memory_order_relaxed);
         if(g_head.compareAndSwap(old, n)) break;   // old reloaded on failure
     }
 }
 
-//! Treiber pop at head (claim).  Returns null when empty.  Skips/threads
-//! through marked heads (help-unlink at head).
+//! Treiber pop at head (claim).  Returns null when empty.
 static local_shared_ptr<Node> pop_head() {
     local_shared_ptr<Node> old(g_head);
     for(;;) {
         if(!old) return local_shared_ptr<Node>();
         local_shared_ptr<Node> nxt(old->m_next);
-        if(g_head.compareAndSwap(old, nxt)) {
-            if(nxt) nxt->m_prev.store(nullptr, std::memory_order_relaxed);
-            return old;                        // claimed
-        }
+        if(g_head.compareAndSwap(old, nxt)) return old;   // claimed
         // old reloaded by compareAndSwap on failure; loop.
     }
 }
@@ -224,7 +229,6 @@ static void scrub() {
             else
                 ok = pred->m_next.compareAndSet(cur, nxt);
             if(ok) {
-                if(nxt) nxt->m_prev.store(pred.get(), std::memory_order_relaxed);
                 cur = nxt;                     // advance; pred unchanged
                 continue;
             }
