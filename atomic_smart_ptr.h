@@ -166,6 +166,40 @@ struct atomic_shared_ptr_gref_ : gref_weak_base_ {
     atomic_shared_ptr_gref_(const atomic_shared_ptr_gref_ &) = delete;
 };
 
+//! ===========================================================================
+//!  USAGE — picking a control-block mode for atomic_shared_ptr<T> /
+//!  local_shared_ptr<T>.  You inherit an (optional) MARKER on T; ref_traits<T>
+//!  (further down) reads it and selects the layout.  Nothing else to wire up.
+//!
+//!    default (inherit nothing) : 2 allocations (T + control block), weak OK
+//!        struct T { ... };
+//!        local_shared_ptr<T> p(new T(...));
+//!
+//!    : atomic_emplaced   (== atomic_weakable) : 1 allocation (T embedded), weak OK
+//!        struct T : atomic_emplaced { ... };
+//!        auto p = make_local_shared<T>(args...);
+//!        // emplaced T MUST use make_local_shared(), NOT local_shared_ptr<T>(new T)
+//!
+//!    : atomic_strictrefonly : 2 allocations, NO weak (saves 8 B + 1 atomic op)
+//!        struct T : atomic_strictrefonly { ... };
+//!        local_shared_ptr<T> p(new T(...));
+//!
+//!    : atomic_countable : intrusive — refcnt lives INSIDE T, no separate
+//!        control block, fastest hot path, NO weak.  Auto-detected when T is
+//!        complete at first use.
+//!        struct T : atomic_countable { ... };
+//!
+//!    self-referential intrusive node (T embeds an atomic_shared_ptr<T> link, so
+//!    T is INCOMPLETE at first use -> marker auto-detection cannot see it):
+//!    opt in explicitly with `force_intrusive_ref<T>` (below), and give T the
+//!    intrusive contract -- `typedef ... Refcnt;` + `atomic<Refcnt> refcnt;`
+//!    (and, optionally, a `void atomic_intrusive_dispose() noexcept` method).
+//!
+//!  The per-mode cost/feature MATRIX is the table just below (next to
+//!  `atomic_emplaced`).  Worked examples: tests/atomic_intrusive_dispose_test.cpp
+//!  and tests/atomic_intrusive_dll_test.cpp (self-referential).
+//! ===========================================================================
+
 //! Opt-out marker: T uses strict reference counting only (no
 //! `weak_refcnt`).  Inherit from this to suppress `local_weak_ptr<T>`
 //! support — saves 8 bytes per control block and one atomic op at

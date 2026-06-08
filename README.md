@@ -547,6 +547,55 @@ See the header for full per-function semantics.
 |---|---|
 | `void   kame_pool_get_stats(kame_pool_stats_t *)` | snapshot of regions/units/chunks/cache/tier counters; versioned struct (`KAME_POOL_STATS_VERSION`) |
 
+### Lock-free shared / weak pointer (`atomic_shared_ptr` / `local_shared_ptr`)
+
+`atomic_smart_ptr.h` (an installed public header) provides a lock-free
+`atomic_shared_ptr<T>` (atomic, CAS-able shared owner), `local_shared_ptr<T>`
+(thread-local owner), and `local_weak_ptr<T>`.  It underpins KAME's STM and the
+pool's own orphan-chunk reclaim chain, and is usable on its own.
+
+The control-block layout is chosen at compile time from `ref_traits<T>`, driven
+by an **opt-in marker you inherit on `T`** — no other wiring:
+
+| Inherit on `T`           | Alloc          | `weak_ptr` | Construct with                  | Use for        |
+|--------------------------|----------------|------------|---------------------------------|----------------|
+| *(nothing — default)*    | 2×             | yes        | `local_shared_ptr<T>(new T(…))` | anything       |
+| `atomic_emplaced`        | 1×             | yes        | `make_local_shared<T>(args…)`   | weakable + hot |
+| `atomic_strictrefonly`   | 2×             | no         | `local_shared_ptr<T>(new T(…))` | small / cold   |
+| `atomic_countable`       | 1× (intrusive) | no         | `local_shared_ptr<T>(new T(…))` | hottest        |
+
+`atomic_weakable` is a back-compat alias for `atomic_emplaced`.
+
+```cpp
+#include "atomic_smart_ptr.h"          // on the include path via find_package(kamepoolalloc)
+
+struct Plain { int x; };               // default mode
+local_shared_ptr<Plain> a(new Plain{1});
+atomic_shared_ptr<Plain> shared; shared.swap(a);   // atomic / CAS-able
+
+struct Hot : atomic_emplaced { int x; };           // 1 allocation; weak_ptr OK
+auto h = make_local_shared<Hot>();     // emplaced T: NOT local_shared_ptr<Hot>(new Hot)
+```
+
+**Self-referential intrusive node** — a lock-free list/DLL node that embeds an
+`atomic_shared_ptr<T>` link is *incomplete* at first use, so the marker cannot be
+auto-detected.  Opt in explicitly (before the first use of the pointer) and give
+`T` the intrusive contract:
+
+```cpp
+template <…> struct force_intrusive_ref<MyNode<…>> : std::true_type {};
+struct MyNode {
+    typedef uintptr_t Refcnt;
+    atomic<Refcnt> refcnt{1};
+    atomic_shared_ptr<MyNode> next;     // the self-reference
+    // optional: void atomic_intrusive_dispose() noexcept { … }  (else: delete)
+};
+```
+
+Full trait reference: the **USAGE** header block + `ref_traits` / `force_intrusive_ref`
+in `atomic_smart_ptr.h`.  Working self-referential examples:
+`tests/atomic_intrusive_dispose_test.cpp` and `tests/atomic_intrusive_dll_test.cpp`.
+
 ## Tuning
 
 Most consumers don't need to touch these — the defaults are picked for a few-
