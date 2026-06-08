@@ -272,16 +272,22 @@ static_assert(((size_t)ALLOC_MIN_CHUNK_SIZE % ((size_t)1 << 18)) == 0,
 //   * `large_alloc_count` / `large_alloc_bytes` use 2 plain global atomics.
 //     Large allocs (4..32 MiB) are rare (multi-MiB ⇒ ~kHz/thread at most),
 //     so a single cache line is fine — no measurable contention.
-static std::atomic<std::int64_t> g_large_alloc_count{0};
-static std::atomic<std::int64_t> g_large_alloc_bytes{0};
+// Pointer-width counters so i486 (no CMPXCHG8B) doesn't need libatomic.
+// Live values are bounded by VA size on 32-bit (≤ 4 GiB), so size_t fits;
+// the 32-bit "transiently negative" concern is replaced by unsigned-wrap
+// semantics — a fetch_sub that briefly underflows produces ~SIZE_MAX, which
+// the "> cap" pre-push gate naturally rejects (push refused), exactly the
+// effect the prior signed `int64_t` clamp produced.
+static std::atomic<size_t> g_large_alloc_count{0};
+static std::atomic<size_t> g_large_alloc_bytes{0};
 
 static inline void stats_inc_large(std::size_t mmap_size) noexcept {
     g_large_alloc_count.fetch_add(1, std::memory_order_relaxed);
-    g_large_alloc_bytes.fetch_add((std::int64_t)mmap_size, std::memory_order_relaxed);
+    g_large_alloc_bytes.fetch_add(mmap_size, std::memory_order_relaxed);
 }
 static inline void stats_dec_large(std::size_t mmap_size) noexcept {
     g_large_alloc_count.fetch_sub(1, std::memory_order_relaxed);
-    g_large_alloc_bytes.fetch_sub((std::int64_t)mmap_size, std::memory_order_relaxed);
+    g_large_alloc_bytes.fetch_sub(mmap_size, std::memory_order_relaxed);
 }
 
 #if KAME_FAST_TSD
@@ -5434,7 +5440,7 @@ extern "C" std::size_t kame_pool_reserved_bytes() noexcept {
 // namespace with `extern` resolves to the same symbol in this TU; lets
 // kame_pool_get_stats snapshot the cache bytes without rearranging the
 // cache definitions.
-namespace { extern std::atomic<std::int64_t> g_lrc_bytes; }
+namespace { extern std::atomic<size_t> g_lrc_bytes; }
 
 // (§14) Diagnostic / tuning stats — walks the push-only region list
 // (since §13.3, O(populated regions × BITMAP_WORDS_PER_REGION)) reading
@@ -5510,13 +5516,14 @@ extern "C" void kame_pool_get_stats(kame_pool_stats_t *out) noexcept {
     // `dedicated_chunk_bytes` is the walk-derived total above and includes
     // cache-parked dedicated chunks (their units stay claimed + bit-7 set;
     // see header doc).
-    std::int64_t cb = g_lrc_bytes.load(std::memory_order_relaxed);
-    out->cache_bytes           = (cb < 0) ? 0u : (std::size_t)cb;
+    // size_t-typed atomics (i486-clean: no CMPXCHG8B); unsigned-wrap
+    // transients on a racing fetch_sub produce ~SIZE_MAX, which clamps
+    // below to 0-style behavior is no longer needed — the public field
+    // is already size_t and a true negative is unreachable.
+    out->cache_bytes           = g_lrc_bytes.load(std::memory_order_relaxed);
     out->dedicated_chunk_bytes = ded_bytes;
-    std::int64_t lcnt = g_large_alloc_count.load(std::memory_order_relaxed);
-    std::int64_t lbyt = g_large_alloc_bytes.load(std::memory_order_relaxed);
-    out->large_alloc_count     = (lcnt < 0) ? 0u : (std::size_t)lcnt;
-    out->large_alloc_bytes     = (lbyt < 0) ? 0u : (std::size_t)lbyt;
+    out->large_alloc_count     = g_large_alloc_count.load(std::memory_order_relaxed);
+    out->large_alloc_bytes     = g_large_alloc_bytes.load(std::memory_order_relaxed);
 }
 
 std::atomic<RadixL2Node *> PoolAllocatorBase::s_radix_l1[RADIX_L1_SIZE];
@@ -5998,8 +6005,11 @@ struct alignas(KAME_CACHE_LINE) LrcKArray {
 };
 LrcKArray g_lrc[LRC_K_MAX];
 
-std::atomic<std::int64_t> g_lrc_bytes{0};
-std::atomic<std::int64_t> g_lrc_cap{1LL << 30};                       // ~1 GiB default
+// Pointer-width atomics so i486 (no CMPXCHG8B) doesn't need libatomic.
+// On 32-bit, size_t = uint32_t = 4 GiB ceiling; the README's documented
+// 32-bit cap is 3 GiB, so it fits with headroom.  64-bit unchanged.
+std::atomic<size_t> g_lrc_bytes{0};
+std::atomic<size_t> g_lrc_cap{(size_t)1 << 30};                       // ~1 GiB default
 
 // idx = 4 * octave + 2-bit_mantissa, integer-only (no libm).
 // Sizes [LRC_LO, LRC_HI) map to [0, LRC_N_MAX); LRC_HI and above clamp to LRC_N_MAX.
@@ -6109,8 +6119,8 @@ inline L1KArray *l1_base() noexcept {
     if(__builtin_expect(l1 == nullptr, 0)) {
         l1 = tls_l1 = &tls_l1_array[0];
         int n = g_lrc_l1_threads.fetch_add(1, std::memory_order_relaxed) + 1;
-        std::int64_t per_thread = g_lrc_cap.load(std::memory_order_relaxed) / n;
-        std::size_t cut_size = (std::size_t)(per_thread / LRC_K_L1);
+        size_t per_thread = g_lrc_cap.load(std::memory_order_relaxed) / (size_t)n;
+        std::size_t cut_size = per_thread / LRC_K_L1;
         int cut_idx = lrc_idx_natural(cut_size);
         if(cut_idx > LRC_N_MAX_L1) cut_idx = LRC_N_MAX_L1;
         tls_l1_max_idx = cut_idx;
@@ -6164,7 +6174,7 @@ inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
 // Push to the global cache only (no L1 step).  Used both by `recycle_push`'s
 // L1-miss path and by `l1_drain` to flush survivors at thread exit.
 inline bool global_push(char *base, std::size_t size, unsigned kind) noexcept {
-    if(g_lrc_bytes.load(std::memory_order_relaxed) + (std::int64_t)size
+    if(g_lrc_bytes.load(std::memory_order_relaxed) + size
        > g_lrc_cap.load(std::memory_order_relaxed))
         return false;                                                  // over cap → caller releases
     int idx = lrc_idx(size, kind);
@@ -6174,7 +6184,7 @@ inline bool global_push(char *base, std::size_t size, unsigned kind) noexcept {
         char *expected = nullptr;
         if(g_lrc[k].slots[idx].compare_exchange_weak(
                expected, base, std::memory_order_acq_rel)) {
-            g_lrc_bytes.fetch_add((std::int64_t)size, std::memory_order_relaxed);
+            g_lrc_bytes.fetch_add(size, std::memory_order_relaxed);
             return true;
         }
         // weak: spurious / occupied → next k
@@ -6194,13 +6204,13 @@ inline char *global_pop_fit(std::size_t need, unsigned kind) noexcept {
                  b, nullptr, std::memory_order_acq_rel))
             continue;                                                  // weak: spurious / taken → next k
         std::size_t sz = lrc_block_size(b, kind);                      // own it now → safe meta read
-        g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
+        g_lrc_bytes.fetch_sub(sz, std::memory_order_relaxed);
         if(sz >= need) return b;                                       // VERIFY size
         // too small (sub-band rounding): one put-back, else release
         char *exp = nullptr;
         if(g_lrc[k].slots[idx].compare_exchange_weak(
                exp, b, std::memory_order_acq_rel))
-            g_lrc_bytes.fetch_add((std::int64_t)sz, std::memory_order_relaxed);
+            g_lrc_bytes.fetch_add(sz, std::memory_order_relaxed);
         else
             lrc_release(b, sz, kind);
     }
@@ -6251,7 +6261,15 @@ inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
 // takes over; auto-tune is locked out) or via env `KAME_POOL_AUTO_TUNE=0`
 // (skip the calibration entirely, keep the 10 ms default).
 constexpr std::int64_t LRC_LAZY_INTERVAL_DEFAULT_NS = 10LL * 1000 * 1000;
-std::atomic<std::int64_t> g_lrc_lazy_interval_ns{LRC_LAZY_INTERVAL_DEFAULT_NS};
+// Lazy-drain interval (ns) — plain int64 + volatile, NOT std::atomic.  ns
+// magnitude needs 64 bits but the value is read once per LRC_MMAP push
+// (millisecond-scale interval) and stored only at startup / set_realtime_mode
+// — extreme cold path on both sides.  An atomic<int64_t> would force a
+// CMPXCHG8B (i486: libatomic call) on every read; a torn read here is
+// benign — at worst one tick's lazy-drain interval is misread for one cycle.
+// Storing as 32-bit pieces in declaration order also keeps any natural
+// 32-bit-aligned load-tearing window contained to the low/high half.
+volatile std::int64_t g_lrc_lazy_interval_ns = LRC_LAZY_INTERVAL_DEFAULT_NS;
 std::atomic<bool>         g_lazy_auto_tune_done{false};
 
 ALLOC_TLS_IE std::int64_t tls_lazy_last_ns = 0;                     // 0 = epoch ⇒ first tick fires
@@ -6295,7 +6313,7 @@ static void lrc_auto_tune_lazy_interval() noexcept {
     std::int64_t interval = 20 * munmap_ns;
     if(interval <= LRC_LAZY_INTERVAL_DEFAULT_NS) return;            // default is already fine — keep it
     if(interval > 1000000000LL) interval = 1000000000LL;            // 1 s ceiling
-    g_lrc_lazy_interval_ns.store(interval, std::memory_order_relaxed);
+    g_lrc_lazy_interval_ns = interval;
 #endif
 }
 
@@ -6316,7 +6334,7 @@ inline void lrc_lazy_mmap_one() noexcept {
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             now.time_since_epoch()).count();
     if(now_ns - tls_lazy_last_ns
-       < g_lrc_lazy_interval_ns.load(std::memory_order_relaxed)) return;
+       < g_lrc_lazy_interval_ns) return;
     tls_lazy_last_ns = now_ns;
 
     // MMAP-tier slots are at idx (LRC_CHUNK_BND, LRC_N_MAX] across all K.
@@ -6339,7 +6357,7 @@ inline void lrc_lazy_mmap_one() noexcept {
              b, nullptr, std::memory_order_acq_rel))
         return;                                                    // racing pop/push took it
     std::size_t sz = lrc_block_size(b, (unsigned)LRC_MMAP);
-    g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
+    g_lrc_bytes.fetch_sub(sz, std::memory_order_relaxed);
     lrc_release(b, sz, (unsigned)LRC_MMAP);
 }
 
@@ -6423,7 +6441,7 @@ bool large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
 // (potentially many munmap/madvise syscalls); cap-RAISE or UNCHANGED is
 // fast (the byte short-circuit returns immediately).
 extern "C" void kame_pool_set_large_cache_cap(std::size_t total_bytes) noexcept {
-    std::int64_t cap = (std::int64_t)(total_bytes / 2u);
+    size_t cap = total_bytes / 2u;
     g_lrc_cap.store(cap, std::memory_order_relaxed);
 
     int hw = g_lrc_l1_threads.load(std::memory_order_relaxed);
@@ -6431,13 +6449,13 @@ extern "C" void kame_pool_set_large_cache_cap(std::size_t total_bytes) noexcept 
     // Σ S_i with linear interpolation within each octave: S_i = 2^(i/4)·LRC_LO
     // ≈ (4 + i%4) / 4 · (LRC_LO << i/4).  ~5 % above the exact 2^(i/4) for
     // i mod 4 ∈ {1,2,3}; the threshold is a heuristic so this slack is fine.
-    std::int64_t sum_S = 0;
+    size_t sum_S = 0;
     for(int i = 0; i <= LRC_N_MAX; i++) {
         int oct = i / 4, frac = i % 4;
-        sum_S += ((std::int64_t)LRC_LO << oct) * (4 + frac) / 4;
+        sum_S += ((size_t)LRC_LO << oct) * (4 + frac) / 4;
     }
-    std::int64_t threshold = (std::int64_t)hw * sum_S;
-    std::int64_t phase1_stop = (cap > threshold) ? cap : threshold;
+    size_t threshold = (size_t)hw * sum_S;
+    size_t phase1_stop = (cap > threshold) ? cap : threshold;
 
     auto evict = [](int k, int idx) noexcept {
         char *b = g_lrc[k].slots[idx].load(std::memory_order_acquire);
@@ -6447,7 +6465,7 @@ extern "C" void kame_pool_set_large_cache_cap(std::size_t total_bytes) noexcept 
             return;                                                    // racing pop took it; move on
         unsigned kind = lrc_kind_from_idx(idx);
         std::size_t sz = lrc_block_size(b, kind);
-        g_lrc_bytes.fetch_sub((std::int64_t)sz, std::memory_order_relaxed);
+        g_lrc_bytes.fetch_sub(sz, std::memory_order_relaxed);
         lrc_release(b, sz, kind);
     };
 
@@ -6485,11 +6503,11 @@ extern "C" std::size_t kame_pool_get_large_cache_cap(void) noexcept {
 extern "C" void kame_pool_set_lazy_drain_interval_ms(unsigned int ms) noexcept {
 	if(ms == 0) return;
 	std::int64_t ns = (std::int64_t)ms * 1000000LL;
-	g_lrc_lazy_interval_ns.store(ns, std::memory_order_relaxed);
+	g_lrc_lazy_interval_ns = ns;
 	g_lazy_auto_tune_done.store(true, std::memory_order_release);   // lock out auto-tune
 }
 extern "C" unsigned int kame_pool_get_lazy_drain_interval_ms(void) noexcept {
-	std::int64_t ns = g_lrc_lazy_interval_ns.load(std::memory_order_relaxed);
+	std::int64_t ns = g_lrc_lazy_interval_ns;
 	if(ns <= 0) return 0;
 	return (unsigned int)(ns / 1000000LL);
 }
@@ -6524,9 +6542,8 @@ extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
 		// avoids any overflow in the `now - last < interval` compare
 		// even if `last` is 0 (epoch) and `now` is a large monotonic
 		// time_since_epoch tick.
-		g_lrc_lazy_interval_ns.store(
-		    std::numeric_limits<std::int64_t>::max() / 2,
-		    std::memory_order_relaxed);
+		g_lrc_lazy_interval_ns =
+		    std::numeric_limits<std::int64_t>::max() / 2;
 		// (2) Auto-tune locked out (would otherwise overwrite the
 		// interval on the first LRC_MMAP push).
 		g_lazy_auto_tune_done.store(true, std::memory_order_release);
@@ -6535,8 +6552,7 @@ extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
 		    0, std::memory_order_relaxed);
 	}
 	else {
-		g_lrc_lazy_interval_ns.store(
-		    LRC_LAZY_INTERVAL_DEFAULT_NS, std::memory_order_relaxed);
+		g_lrc_lazy_interval_ns = LRC_LAZY_INTERVAL_DEFAULT_NS;
 		g_lazy_auto_tune_done.store(false, std::memory_order_release);
 		PoolAllocatorBase::s_thread_exit_reclaim.store(
 		    1, std::memory_order_relaxed);
