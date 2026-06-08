@@ -21,13 +21,16 @@ Windows MinGW64 + lld, and Windows MSVC.
 
 ## What's in here
 
-The library covers Layer 0 (atomic primitives) and Layer 1 (snapshot
-+ transaction commit) of the KAME STM design:
+The library provides **Layer 1** (snapshot + transaction commit) of the KAME
+STM design.  It builds on the **Layer 0 atomic primitives — `atomic.h`,
+`atomic_mfence.h`, and `atomic_smart_ptr.h` (the tagged-pointer lock-free
+`atomic_shared_ptr` / `local_shared_ptr` that is the engine under every
+Snapshot) — which live in [`kamepoolalloc/`](../kamepoolalloc)**, their single
+shared home (shared with the pool allocator), and are included header-only here
+(no `libkamepoolalloc` link; see [Dependencies](#dependencies)).
 
 | Header | Role |
 |---|---|
-| `atomic.h`, `atomic_mfence.h` | Portable barriers + CAS over `std::atomic` / `std::atomic_thread_fence` |
-| `atomic_smart_ptr.h` | Tagged-pointer lock-free `local_shared_ptr<T>` (the engine under every Snapshot) |
 | `atomic_queue.h` | Lock-free MPMC queue |
 | `xthread.h` + `xthread.cpp` | `XMutex` / `XCondition` / `XRecursiveMutex` wrappers around `std::mutex` |
 | `threadlocal.h` + `threadlocal.cpp` | `XThreadLocal<T, Tag>` with deterministic per-thread teardown |
@@ -77,7 +80,7 @@ node.iterate_commit([](Transaction<NodeA> &tr) {
 
 ## Lock-free atomic shared pointer
 
-The O(1) snapshot reads and CAS-based commits above require a shared pointer that is itself lock-free. `atomic_shared_ptr` (in `atomic_smart_ptr.h`, introduced in January 2006 as part of the 2.0-beta3 rewrite) provides this. It is a custom implementation of what C++20 calls `std::atomic<shared_ptr>`.
+The O(1) snapshot reads and CAS-based commits above require a shared pointer that is itself lock-free. `atomic_shared_ptr` (in `kamepoolalloc/atomic_smart_ptr.h`, introduced in January 2006 as part of the 2.0-beta3 rewrite) provides this. It is a custom implementation of what C++20 calls `std::atomic<shared_ptr>`.
 
 The core technique embeds a small **local reference counter** in the low bits of the pointer to the reference-control block — bits guaranteed zero by allocator alignment. `acquire_tag_ref_()` atomically increments this local counter via CAS to "pin" the pointer for reading; `release_tag_ref_()` decrements it. Between these two calls, even if another thread swaps the pointer, the object cannot be freed because the local count is non-zero. A separate **global reference counter** in the control block tracks long-lived ownership (copies held across scopes). Setters transfer any outstanding local count to the global counter before swapping, so `release_tag_ref_()` can fall back to decrementing the global counter if the pointer changed.
 
@@ -92,7 +95,7 @@ For types that inherit `atomic_countable` (notably `Payload`), the global refere
 | libc++ (Clang) | Not yet implemented | N/A |
 | KAME (2006–) | Tagged-pointer CAS | Yes — lock-free reads and writes |
 
-The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomic_thread_fence` (`atomic.h` / `atomic_mfence.h`). The earlier hand-written x86 / PowerPC / ARM assembly fences have been removed in favour of this portable C++17 path.
+The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomic_thread_fence` (`kamepoolalloc/atomic.h` / `atomic_mfence.h`). The earlier hand-written x86 / PowerPC / ARM assembly fences have been removed in favour of this portable C++17 path.
 
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
@@ -153,7 +156,11 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
   (C2131 / C3493).
 - [`kamepoolalloc`](../kamepoolalloc) — sibling library providing
   `Transactional::allocator<T>` and the lock-free pool used by every
-  Snapshot allocation.  The STM core includes
+  Snapshot allocation.  It is **also the single home of the Layer-0 atomic
+  primitives** (`atomic.h` / `atomic_mfence.h` / `atomic_smart_ptr.h` —
+  `atomic_shared_ptr` / `local_shared_ptr`), which `transaction.h` includes
+  HEADER-ONLY (no `libkamepoolalloc` runtime link is needed for them).  The
+  STM core includes
   `kamepoolalloc/allocator.h` via the consumer's INCLUDEPATH; falling
   back to `std::allocator` requires defining `USE_STD_ALLOCATOR`
   before including `transaction.h`.  (`kamepoolalloc`'s own MSVC
