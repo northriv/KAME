@@ -285,7 +285,15 @@ The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomi
 
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
-**Collision backoff:** `Linkage::negotiate()` uses a `m_transaction_started_time` timestamp to impose a proportional wait on detected collisions, preventing live-lock under high write contention.
+**Collision negotiation:** when concurrent transactions repeatedly collide,
+`Linkage::negotiate()` elects a single *privileged* transaction (age-ordered
+preemption + priority bands; non-privileged contenders **park** until the
+privileged one commits), so the oldest/highest-priority Tx always makes
+progress. Proven livelock-free in TLA+. Full details + the comparison
+against other STMs (Haskell `TVar` / Clojure `Ref` / ScalaSTM, HTM TSX/RTM,
+TinySTM / NOrec) live in [`kamestm/README.md`](kamestm/README.md) — KAME's
+STM core is dual-licensed and maintained as a standalone library, with its
+own design doc to avoid duplicating it here.
 
 `iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
 
@@ -293,34 +301,13 @@ The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomi
 >
 > The hard-link case is now formally modelled in `kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla` (sibling-parents and root-with-intermediate self-collision); see `kamestm/tests/VERIFICATION.md` §5.
 
-#### Comparison with other STM designs
+#### Why STM in a measurement framework
 
-*The following comparison was written by Claude (Anthropic) based on analysis of the source code.*
-
-Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are **flat**: the unit of transaction is a set of independent transactional variables. KAME's STM is instead **tree-structured** — the entire instrument node tree is the shared state, and snapshots are always subtree-consistent. This difference drives several design choices:
-
-| Aspect | Flat STMs (Haskell, Clojure, ScalaSTM) | KAME STM |
-|---|---|---|
-| Conflict granularity | Per-variable | Per-packet (subtree root) |
-| Read model | `readTVar` / `deref` inside transaction | `Snapshot` (outside) or `tr[*node]` (inside) |
-| Consistency scope | Variables listed explicitly | Entire subtree, guaranteed by bundling |
-| Commit log | Redo log or write set | Copy-on-write + CAS on single `Linkage` |
-| Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
-| Blocking | `retry` suspends on read-set change | No blocking; backoff via timestamp |
-| Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
-| Hard real-time suitability | Limited (GC pauses) | Good (no GC, bounded CAS retries) |
-
-**Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to software backoff rather than falling back to a global lock.
-
-**Compared to TinySTM / NOrec (C libraries):** These use a global version clock and per-object version stamps with a full read/write log per transaction. KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction are truly zero-overhead. The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
-
-**What makes KAME's design distinctive** is the *bundling* protocol: rather than tracking which variables a transaction touched, it tracks whether the packet at the subtree root has been replaced since the transaction started. This is efficient for KAME's access pattern (many readers of a stable tree, infrequent writes from acquisition threads) but would be coarser than necessary for workloads with many independent fine-grained variables.
-
-**Why STM?** Laboratory software must acquire data on tight hardware timings while
-simultaneously updating a UI and running user scripts — all from different threads.
-Traditional mutex-based designs either serialize too aggressively (dropping samples)
-or require intricate lock ordering that is error-prone to extend. The STM approach
-offers three concrete benefits for this domain:
+Laboratory software must acquire data on tight hardware timings while
+simultaneously updating a UI and running user scripts — all from different
+threads. Traditional mutex-based designs either serialize too aggressively
+(dropping samples) or require intricate lock ordering that is error-prone
+to extend. The STM approach offers three concrete benefits for this domain:
 
 - **Deadlock-free by design.** No locks are held across hardware I/O or UI redraws.
   A slow UI thread can never stall a fast acquisition thread.
@@ -330,6 +317,10 @@ offers three concrete benefits for this domain:
 - **Safe scripting from Python/Ruby.** Scripts read and write the node tree through
   the same transaction API as C++ code, so user scripts cannot corrupt instrument
   state regardless of when they run.
+
+For *what makes KAME's STM distinctive* among STMs (tree-structured /
+per-packet conflict granularity / bundling instead of read-write logs),
+see the [comparison tables in `kamestm/README.md`](kamestm/README.md#comparison-with-other-stm-designs).
 
 #### Formal verification (TLA+)
 
