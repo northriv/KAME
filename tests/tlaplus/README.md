@@ -121,6 +121,29 @@ stale/recycled resolution, so any residual double-payout source can no
 longer be amplified into out-of-range corruption — it degrades to a
 safe fallthrough.
 
+### GenMC C11 memory-ordering complement (`../cds/`)
+
+TLC verifies the **logical** protocol but assumes SC and collapses the
+writer (claim + meta-write + data-write) into ONE atomic step. The
+weak-memory (RC11) realizability of the C11 orderings is checked
+separately by the GenMC suite under [`../cds/`](../cds) (`make run`):
+
+| Test | Checks | Result (GenMC v0.17, `--rc11 --unroll=5`) |
+|---|---|---|
+| `cds_seqlock_recycle.c` | the candidate seqlock `lookup_chunk` re-read with a **multi-store writer** — the reader's acquire fence the atomic-writer TLC model cannot exercise | **clean, 81 exec**; negative control `make run-seqlock-nofence` (fence removed) → **torn-read Safety violation** (fence is load-bearing) |
+| `cds_radix_install.c` | §13 radix L2 lazy-install single-winner CAS (INV-9) | **clean, 42 exec** |
+
+Two findings from this pass worth recording: (1) GenMC/RC11 does **not**
+treat a failed `compare_exchange_strong`'s `failure=acquire` as
+synchronising with a release-CAS writer (it keys the RMW read order off
+the *success* order) — harmless for `radix_insert` (its loser only
+`entries[].store()`s into an all-atomic, mmap-zeroed leaf and reads no
+winner-initialised non-atomic state), but a sharp edge for any future
+CAS whose loser dereferences winner-initialised data. (2) The shipped
+`lookup_chunk` is **seqlock-free** (live-slot invariant; covered by the
+`ChunkClaim` GenMC test) — `cds_seqlock_recycle.c` verifies the
+*candidate* epoch+seqlock root-cure's fence, not shipped code.
+
 ---
 
 ## §36b orphan-reuse array — TLA+ verification (June 2026)
