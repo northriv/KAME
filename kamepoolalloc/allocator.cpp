@@ -3301,7 +3301,20 @@ PoolAllocatorBase::deallocate(void *p) {
 	// kind == 2 (KAME_RADIX_LARGE) is the §19 large-alloc tier — single
 	// mmap registered as one radix slot; dispatch to its free helper
 	// which CAS-clears the slot then munmap's the region.
-	int kind = radix_lookup(p);
+	// (hoist) Read this thread's KameTlsPage ONCE for the whole hot path:
+	// the radix region-cache check, the owner-id compare below, and the
+	// freelist push after an owner match all live in the same page.  The
+	// design always intended a single kame_page() (see KameTlsPage doc),
+	// but as separate `radix_lookup()` + `kame_page()->owner_id` calls the
+	// compiler emitted TWO fast-TSD reads (offset load + mrs + indexed load
+	// + guard, twice — confirmed by otool).  Inline radix_lookup's hot
+	// region-cache check here against `pg` so the whole free shares one read.
+	KameTlsPage *pg = kame_page();
+	const uintptr_t up = (uintptr_t)p;
+	const uintptr_t region_base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
+	int kind = __builtin_expect(region_base == pg->last_region_base, 1)
+	               ? (int)KAME_RADIX_POOL
+	               : radix_lookup_slow(up);
 	// Single hot-path branch: the overwhelmingly common case is a POOL
 	// pointer (kind == 1).  Fold ABSENT (foreign → libc free) and LARGE
 	// (§19 mmap tier) into one cold off-ramp so a normal small/dedicated
@@ -3312,11 +3325,11 @@ PoolAllocatorBase::deallocate(void *p) {
 		PoolAllocatorBase::deallocate_large_va(p);         // KAME_RADIX_LARGE
 		return true;
 	}
-	// `mp` derived from `p` directly (region base is
-	// ALLOC_MIN_MMAP_SIZE-aligned by the §13 alignment requirement),
-	// saving the `s_mmapped_spaces[ccnt]` load on the hot path.
-	char *mp = reinterpret_cast<char *>(
-	    (uintptr_t)p & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u));
+	// `mp` is the region base — already computed as `region_base` for the
+	// radix cache check above (region is ALLOC_MIN_MMAP_SIZE-aligned by the
+	// §13 alignment requirement), so reuse it (no `s_mmapped_spaces[ccnt]`
+	// load, no recompute).
+	char *mp = reinterpret_cast<char *>(region_base);
 	ptrdiff_t pdiff = static_cast<char *>(p) - mp;
 	{
 		// `p` is a LIVE slot (the caller's contract: deallocating an
@@ -3389,7 +3402,7 @@ PoolAllocatorBase::deallocate(void *p) {
 		// returns 0, so requiring a non-zero page owner routes every
 		// post-teardown free to the cold cross-free path, which decrements
 		// MASK_CNT and reclaims correctly.
-		uint32_t page_owner_id = kame_page()->owner_id;
+		uint32_t page_owner_id = pg->owner_id;   // (hoist) reuse the page read at fn entry
 		if(__builtin_expect(chunk_obj->m_owner_id == page_owner_id
 		                    && page_owner_id != 0, 1)) {
 			// (§12.3 / §16) Local-id from the cache-line-1 hot block:
