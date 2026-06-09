@@ -2878,41 +2878,40 @@ void *new_redirected_large(std::size_t size) noexcept;
 //! resolves automatically.
 void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept;
 
+//! Cold off-ramp for `new_redirected` — freelist-empty (slow_allocate via the
+//! chunk vtable) and first-access / post-cleanup.  Takes the already-computed
+//! `bucket` (small range only; the large §19 tier is routed DIRECTLY to
+//! new_redirected_large from the lean path, not through here).  noinline so
+//! the lean `new_redirected` hot path tail-calls it WITHOUT a stack frame: on
+//! Linux (IE-TLS `mov %fs:`) the freelist-pop fast path then has no prologue
+//! spill and no `bl` — matching mimalloc's shrink-wrapped frameless
+//! `_mi_page_malloc`.  (On macOS the kame_page() runtime-offset cold-init
+//! still forces a frame, but the lean body is smaller — measured +12% at 64 B.)
+void *new_redirected_cold(unsigned int bucket, std::size_t size);
+
 inline void *new_redirected(std::size_t size) {
-	// Hot path: sizes ≤ 368.  One branch + the inline `(size+15)>>4`
-	// formula (the small-range half of `bucket_for_size`).  Larger sizes
-	// go to `new_redirected_large`, which uses the full `bucket_for_size`
-	// for the FS=false dispatch.
-	if(size > (std::size_t)ALLOC_SIZE23)
+	// LEAN hot path: small size + owner-freelist HIT — a leaf (kame_page()
+	// + freelist pop, no call), so no prologue on Linux.  Both off-ramps are
+	// TAIL-CALLS to keep the hot path frame-free:
+	//   • size > ALLOC_SIZE23  → new_redirected_large  (§19 mmap tier, DIRECT
+	//     — not via the small cold, to avoid an extra hop on the 1 KiB+ band)
+	//   • freelist empty / bucket not yet activated → new_redirected_cold
+	//
+	// m_slots[bucket].freelist_head holds a pointer to the active chunk's
+	// m_freelist_head[local] cell (nullptr = bucket not yet activated); the
+	// FS=true free pushes onto that cell directly, so this pop sees freed
+	// slots with no slot write on the free side.
+	if(__builtin_expect(size > (std::size_t)ALLOC_SIZE23, 0))
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
-	// (§12.3) DIRECT-JUMP fast path via KameTlsPage: kame_page() gives
-	// a pointer to the per-thread page (one fast-TSD read on macOS, one
-	// IE mov on Linux).
-	//
-	// m_slots[bucket].freelist_head stores the char ** value of the old
-	// g_thread_freelist_ptr[bucket] cast to char * — i.e., it holds a
-	// pointer to the active chunk's m_freelist_head[local] cell.
-	//   nullptr  → bucket not yet activated (first-access / post-cleanup)
-	//   non-null → chunk is pinned; dereference to get the freelist head
-	//
-	// This replaces BOTH g_thread_slots[] (defunct since §12.3) and
-	// g_thread_freelist_ptr[] with a single TLS page access.
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
 		}
-		// Freelist empty for this bucket — chunk is still pinned (the
-		// ptr is non-null); recover the chunk's PoolAllocator object via
-		// `chunk_from_freelist_ptr` (one mask + add, NO second TLS read)
-		// and dispatch through its vtable.
-		return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
 	}
-	// bucket not yet activated on this thread (first-time path +
-	// pre-activation / post-cleanup malloc fallbacks).
-	return cold_first_access(bucket, size);
+	return new_redirected_cold(bucket, size);
 }
 
 //void* operator new(std::size_t size) throw(std::bad_alloc);
