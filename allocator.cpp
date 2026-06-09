@@ -4855,24 +4855,66 @@ void *kame_pool_calloc(std::size_t n_elem, std::size_t sz) noexcept {
 //   the handler throws, the exception escapes — the throwing operator
 //   new lets it propagate; the noexcept C wrappers and the
 //   nothrow / non-throwing operator new variants wrap in try/catch.
+//
+// HOT/COLD split (mirrors the deallocate split — see KAME_ALWAYS_INLINE /
+// KAME_NOINLINE_COLD in allocator_prv.h).  The previous shape was
+//
+//     inline void *try_alloc_with_new_handler(Fn fn) {
+//         if(void *p = fn()) return p;
+//         for(;;) { /* handler loop */ }
+//     }
+//     inline void *kame_alloc_with_handler(std::size_t s) {
+//         return try_alloc_with_new_handler([=]{ return new_redirected(s); });
+//     }
+//
+// which forced GCC to spill r12/r13/rbp across the cold handler loop and
+// the lambda capture, fattening every `operator new` hot prologue from
+// the `malloc` shim's `push %rbx` (2 inst) to push r13/r12/rbp/rbx + sub 8
+// (5 inst).  Disassembly: operator new hot path 22 inst vs malloc 12 inst.
+//
+// New shape: the hot direct call stays in the (always-inlined) `..._hot`
+// helper; the handler retry loop is split off to a `KAME_NOINLINE_COLD`
+// function so the hot path's register pressure does not see it.  Each
+// `operator new` variant calls hot first, hands off to cold only on the
+// initial null.
 namespace {
-template <class Fn>
-inline void *try_alloc_with_new_handler(Fn alloc_fn) {
-	if(void *p = alloc_fn()) return p;
-	for(;;) {
-		std::new_handler h = std::get_new_handler();
-		if( !h) return nullptr;
-		h();  // either frees memory and returns (we retry) or throws
-		if(void *p = alloc_fn()) return p;
-	}
+KAME_NOINLINE_COLD
+void *try_alloc_with_new_handler_cold(void *(*alloc_fn)(std::size_t),
+                                      std::size_t arg) noexcept(false) {
+    for(;;) {
+        std::new_handler h = std::get_new_handler();
+        if( !h) return nullptr;
+        h();  // may throw — propagates to caller
+        if(void *p = alloc_fn(arg)) return p;
+    }
+}
+KAME_NOINLINE_COLD
+void *try_alloc_with_new_handler_aligned_cold(void *(*alloc_fn)(std::size_t,
+                                                                 std::size_t),
+                                              std::size_t a, std::size_t s)
+                                              noexcept(false) {
+    for(;;) {
+        std::new_handler h = std::get_new_handler();
+        if( !h) return nullptr;
+        h();
+        if(void *p = alloc_fn(a, s)) return p;
+    }
 }
 
-inline void *kame_alloc_with_handler(std::size_t size) {
-	return try_alloc_with_new_handler([=]{ return new_redirected(size); });
+// Hot wrappers — pure pass-through to the underlying alloc, then cold
+// dispatch on null.  The plain function-pointer cold path means GCC
+// no longer sees a lambda-captured `size` flowing across the cold call
+// (the spills that bloated the hot prologue go away).
+KAME_ALWAYS_INLINE
+void *kame_alloc_with_handler(std::size_t size) {
+    if(void *p = new_redirected(size)) return p;
+    return try_alloc_with_new_handler_cold(&new_redirected, size);
 }
-
-inline void *kame_aligned_alloc_with_handler(std::size_t a, std::size_t s) {
-	return try_alloc_with_new_handler([=]{ return new_redirected_aligned(a, s); });
+KAME_ALWAYS_INLINE
+void *kame_aligned_alloc_with_handler(std::size_t a, std::size_t s) {
+    if(void *p = new_redirected_aligned(a, s)) return p;
+    return try_alloc_with_new_handler_aligned_cold(&new_redirected_aligned,
+                                                    a, s);
 }
 } // namespace
 
