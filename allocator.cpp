@@ -337,6 +337,25 @@ void kame_tls_init_fast() noexcept {
         if(v == sent1) off1 = off;
     }
 
+#if defined(KAME_FIXED_TSD_SLOT) && (KAME_FIXED_TSD_SLOT)
+    // Fixed-slot build (opt-in, see kame_page()): the hot path baked
+    // KAME_FIXED_TSD_SLOT as the TSD byte offset — no runtime
+    // `s_kame_page_tsd_offset` load, no degraded-mode fallback.  If the
+    // scan disagrees with the constant (different macOS / libc TSD
+    // layout, or scan failed → off1 == 0), the baked hot path would read
+    // the WRONG pthread slot — a silent use-after-… corruption.  Convert
+    // that latent crash into a loud, actionable abort at startup.
+    if(off1 != (std::size_t)(KAME_FIXED_TSD_SLOT)) {
+        fprintf(stderr,
+            "kamepoolalloc FATAL: built with -DKAME_FIXED_TSD_SLOT=%zu, but "
+            "this runtime's pthread TSD slot offset is %zu (scan %s). "
+            "Rebuild with -DKAME_FIXED_TSD_SLOT=%zu, or drop the flag for "
+            "the robust runtime-offset build.\n",
+            (std::size_t)(KAME_FIXED_TSD_SLOT), off1,
+            off1 ? "succeeded" : "FAILED", off1);
+        abort();
+    }
+#endif
     if(off1) {
         s_kame_page_tsd_offset = off1;
         // Plant THIS thread's (= typically the main thread's) TSD slot

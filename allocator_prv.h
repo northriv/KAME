@@ -2724,6 +2724,19 @@ extern std::size_t s_kame_page_tsd_offset;
 //! Hot accessor: returns this thread's KameTlsPage via fast-TSD bypass.
 //! macOS arm64: mrs TPIDRRO_EL0 + one load → zero _tlv_get_addr calls.
 inline KameTlsPage *kame_page() noexcept {
+#if defined(KAME_FIXED_TSD_SLOT) && (KAME_FIXED_TSD_SLOT)
+    // mimalloc-parity hot read: the pthread-TSD slot byte offset is a
+    // COMPILE-TIME constant, so the hot path drops the runtime
+    // `s_kame_page_tsd_offset` global load AND the `off != 0` guard —
+    // `mrs TPIDRRO_EL0; ldr [x, #CONST]; cbz`.  The constant is validated
+    // ONCE at init (the priority-101 ctor sentinel-scan must equal it, else
+    // it aborts loudly): this trades the runtime degraded-mode fallback for
+    // ~3 fewer hot-path instructions.  Build-time opt-in only.
+    KameTlsPage *p = *reinterpret_cast<KameTlsPage **>(
+        kame_thread_pointer() + (std::size_t)(KAME_FIXED_TSD_SLOT));
+    if(__builtin_expect(p != nullptr, 1)) return p;
+    return kame_page_cold();
+#else
     std::size_t off = s_kame_page_tsd_offset;
     if(__builtin_expect(off != 0, 1)) {
         KameTlsPage *p = *reinterpret_cast<KameTlsPage **>(
@@ -2733,6 +2746,7 @@ inline KameTlsPage *kame_page() noexcept {
     }
     KameTlsPage *p = tls_page_ie;
     return p ? p : kame_page_cold();
+#endif
 }
 #else   // Linux / Windows: no TLV thunk to bypass
 //! Hot accessor: returns this thread's KameTlsPage.
