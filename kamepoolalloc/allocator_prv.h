@@ -842,20 +842,28 @@ public:
 	//! region-walk loop — eliminates the 24/96-level template recursion
 	//! that previously generated one inlined copy of the body per
 	//! ladder level (icache bloat scaling with ALLOC_MAX_REGIONS).
-	static inline bool deallocate(void *p);
-	//! Cold off-ramp for `deallocate`.  Handles every case the lean
-	//! `deallocate` hot path does NOT inline: region-cache miss (foreign
-	//! / large / first-touch), FS=false owner-free, and owner-mismatch
-	//! (cross-thread / released / dedicated / post-teardown).  Marked
-	//! noinline+cold so its function-calls (deallocate_large_va, the
-	//! per-template DeallocateFn, deallocate_chunk, large_recycle_push)
-	//! do NOT force callee-saved spills into the call-free hot path.
-	static bool deallocate_cold(void *p);
+	//! Free `p` (pool slot or, for a foreign pointer, via libsystem).
+	//! VOID + self-contained: the foreign fallback lives INSIDE
+	//! `deallocate_cold`, so every caller is a pure tail-call and the lean
+	//! FS=true hot path needs NO stack frame (no prologue spill, no `bl`).
+	//! `always_inline` (see the def) expands it into free / operator
+	//! delete / kame_pool_free.
+	static inline void deallocate(void *p);
+	//! Cold off-ramp for `deallocate` — VOID + self-contained: a foreign /
+	//! released pointer is libsystem-freed in place (no caller-side
+	//! fallback, no wrapper hop).  Handles every case the lean hot path
+	//! does NOT inline: region-cache miss (foreign / large / first-touch),
+	//! and owner-mismatch (cross-thread / released / dedicated /
+	//! post-teardown).  noinline+cold so its calls (deallocate_large_va,
+	//! the per-template DeallocateFn, deallocate_chunk, large_recycle_push,
+	//! libsystem_free_for_pool) never spill into the hot path.
+	static void deallocate_cold(void *p);
 	//! FS=false owner-free helper for `deallocate`.  Split out (noinline)
 	//! so the FS=true 64 B hot path in `deallocate` stays lean/inlinable.
 	//! `chunk_base` is pre-resolved by the caller; only this-thread-owned
-	//! FS=false chunks reach here.
-	static bool deallocate_fs_false_owner(char *chunk_base, void *p);
+	//! FS=false chunks reach here.  Void: a garbage local-id tail-calls
+	//! `deallocate_cold`.
+	static void deallocate_fs_false_owner(char *chunk_base, void *p);
 	//! Look up the slot size (bytes) for a pointer.  Returns 0 if `p`
 	//! is not a pool slot (foreign / libsystem-malloc'd / null).  Uses
 	//! the same chunk-header pattern as `deallocate` and dispatches

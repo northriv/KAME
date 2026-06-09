@@ -3308,7 +3308,7 @@ PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 // inline makes the hot free deterministic.  The cold off-ramps stay
 // out-of-line (their own `noinline`), so this only duplicates the lean
 // ~20-instruction hot path per call site.
-KAME_ALWAYS_INLINE bool
+KAME_ALWAYS_INLINE void
 PoolAllocatorBase::deallocate(void *p) {
 	// (hoist) Read this thread's KameTlsPage ONCE: the region-cache
 	// check and the owner-id compare below share it.  `free(NULL)` needs
@@ -3319,7 +3319,7 @@ PoolAllocatorBase::deallocate(void *p) {
 	const uintptr_t up = (uintptr_t)p;
 	const uintptr_t region_base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
 	if(__builtin_expect(region_base != pg->last_region_base, 0))
-		return deallocate_cold(p);     // miss: foreign / large / first-touch POOL
+		return deallocate_cold(p);  // miss: foreign / large / first-touch
 	// Region-cache HIT ⇒ this is a populated POOL region.  Resolve the
 	// owning chunk by pure arithmetic off the (§13.2) RegionMeta
 	// back_offset — no chunk_header (cache-line 0) read, same discipline
@@ -3352,7 +3352,7 @@ PoolAllocatorBase::deallocate(void *p) {
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
 			chunk_obj->freelist_push(0, p);
-			return true;
+			return;
 		}
 		// FS=false owner free.  Routed to a dedicated noinline helper —
 		// NOT inlined here, and NOT folded into the FS=true return above:
@@ -3364,7 +3364,7 @@ PoolAllocatorBase::deallocate(void *p) {
 		// full pg/region/chunk_base re-derivation (≈ the 1 KiB churn win).
 		return deallocate_fs_false_owner(chunk_base, p);
 	}
-	return deallocate_cold(p);         // owner-mismatch / dedicated / cross / released
+	return deallocate_cold(p);  // owner-mismatch / dedicated / cross / released
 }
 
 // FS=false owner-free helper — split out of the lean `deallocate` so the
@@ -3373,7 +3373,7 @@ PoolAllocatorBase::deallocate(void *p) {
 // by the caller (no re-derivation).  A garbage local-id (corruption /
 // coincidental owner match) tail-calls the full cold resolver, which
 // re-validates via palloc + the vtable owner check.
-KAME_NOINLINE bool
+KAME_NOINLINE void
 PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) {
 	PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
 	    chunk_base + ALLOC_CHUNK_HEADER);
@@ -3400,10 +3400,19 @@ PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) {
 	if(bucket != 0 && bucket < (unsigned)ALLOC_NUM_BUCKETS)
 		kame_page()->m_slots[bucket].freelist_head =
 		    reinterpret_cast<char *>(&chunk_obj->m_freelist_head[local]);
-	return true;
+	return;
 }
 
-KAME_NOINLINE_COLD bool
+// Forward decl (real declaration with __attribute__((noinline)) sits next to
+// the definition further down this TU) so `deallocate_cold` can call it.  The
+// foreign-pointer fallback now lives INSIDE `deallocate_cold` (it is void +
+// self-contained: a foreign / released pointer is libsystem-freed in place),
+// so the lean `deallocate` TAIL-CALLS `deallocate_cold` frame-free — no
+// separate wrapper, and no extra hop on the large/cold path (the wrapper hop
+// previously cost ~10 % on the 64 KiB–256 KiB free band).
+static void libsystem_free_for_pool(void *p);
+
+KAME_NOINLINE_COLD void
 PoolAllocatorBase::deallocate_cold(void *p) {
 	// COLD off-ramp (split out of `deallocate` so the hot path stays
 	// call-free / prologue-free; see the lean `deallocate` just above).
@@ -3446,9 +3455,12 @@ PoolAllocatorBase::deallocate_cold(void *p) {
 	// free pays ONE predicted-not-taken compare, not two (§19 originally
 	// added a second `== LARGE` test in series on every free).
 	if(__builtin_expect(kind != (int)KAME_RADIX_POOL, 0)) {
-		if(kind == (int)KAME_RADIX_ABSENT) return false;   // foreign → libsystem free
+		if(kind == (int)KAME_RADIX_ABSENT) {               // foreign → libsystem free
+			libsystem_free_for_pool(p);
+			return;
+		}
 		PoolAllocatorBase::deallocate_large_va(p);         // KAME_RADIX_LARGE
-		return true;
+		return;
 	}
 	// `mp` is the region base — already computed as `region_base` for the
 	// radix cache check above (region is ALLOC_MIN_MMAP_SIZE-aligned by the
@@ -3550,7 +3562,7 @@ PoolAllocatorBase::deallocate_cold(void *p) {
 			// when folded together).
 			if(chunk_obj->m_fs_flag) {
 				chunk_obj->freelist_push(0, p);
-				return true;
+				return;
 			}
 			// FS=false owner free.  `bucket` is extracted (borrow tier
 			// only) so we can re-aim `g_thread_freelist_ptr[bucket]` at
@@ -3590,7 +3602,7 @@ PoolAllocatorBase::deallocate_cold(void *p) {
 				kame_page()->m_slots[bucket].freelist_head =
 				    reinterpret_cast<char *>(&chunk_obj->m_freelist_head[local]);
 			}
-			return true;
+			return;
 		}
 		// Owner mismatch.  Either: dedicated chunk (m_owner_id == 0,
 		// never matches), or regular chunk being freed cross-thread /
@@ -3617,7 +3629,7 @@ PoolAllocatorBase::deallocate_cold(void *p) {
 			// the N-bit bitmap-CAS clear inside deallocate_chunk.
 			if( !large_recycle_push(chunk_base, bytes, LRC_CHUNK))
 				deallocate_chunk(chunk_base, bytes);
-			return true;
+			return;
 		}
 	vtable_dispatch:
 		// Cold path: cross-thread / non-owner / released / post-teardown.
@@ -3633,8 +3645,10 @@ PoolAllocatorBase::deallocate_cold(void *p) {
 		PoolAllocatorBase *palloc =
 		    *reinterpret_cast<PoolAllocatorBase * const *>(
 		        chunk_base + ALLOC_CHUNK_HEADER_PALLOC_OFFSET);
-		if((uintptr_t)palloc <= (uintptr_t)1u)
-			return false;
+		if((uintptr_t)palloc <= (uintptr_t)1u) {   // released / foreign
+			libsystem_free_for_pool(p);
+			return;
+		}
 		DeallocateFn fn = *reinterpret_cast<DeallocateFn *>(
 		    chunk_base + ALLOC_CHUNK_HEADER_FN_OFFSET);
 #ifdef KAME_DEBUG_CHUNK_HEADER
@@ -3683,10 +3697,10 @@ PoolAllocatorBase::deallocate_cold(void *p) {
 				deallocate_chunk(chunk_base, csz);
 			}
 		}
-		return true;
+		return;
 		}
 	}
-	return false;
+	libsystem_free_for_pool(p);  // unreachable (LIVE block returns); defensive foreign-free
 }
 
 // `size_of` — read-only sibling of `deallocate`.  Resolves the owning
@@ -4429,9 +4443,10 @@ inline void deallocate_pooled_or_free(void* p) throw() {
 	// `libsystem_free_for_pool(p)` — same outcome as an explicit
 	// `!g_sys_image_loaded` early-out, which previously guarded this
 	// path but was redundant.
-	if(PoolAllocatorBase::deallocate(p))
-		return;
-	libsystem_free_for_pool(p);
+	// `deallocate` is now void + self-contained: a foreign pointer is
+	// libsystem-freed inside `deallocate_cold`, so there is no caller-side
+	// fallback (and the tail-call keeps the hot path frame-free).
+	PoolAllocatorBase::deallocate(p);
 }
 
 #if defined(__linux__) && defined(__GLIBC__)
@@ -4516,10 +4531,9 @@ static void kame_free(void *p) {
 	// `s_mmapped_spaces[0] == nullptr` (zero-initialised pre-pool-use)
 	// trivially fails its range check.  No outer `g_sys_image_loaded`
 	// guard needed — the natural state of `s_mmapped_spaces[]` covers
-	// the same fast-out.
-	if(PoolAllocatorBase::deallocate(p))
-		return;
-	libsystem_free_for_pool(p);
+	// the same fast-out.  `deallocate` is void + self-contained (a foreign
+	// pointer is libsystem-freed inside it), so no caller-side fallback.
+	PoolAllocatorBase::deallocate(p);
 }
 
 // Shared body for the C `malloc` strong-symbol interpose and the
@@ -4760,10 +4774,9 @@ static void *kame_realloc(void *p, std::size_t n) {
 		// allocators return a unique freeable pointer.  We pick the
 		// "free + return NULL" semantics — same as mimalloc.
 		// `PoolAllocatorBase::deallocate` is pre-activate-safe (same
-		// rationale as `kame_free`).
-		if(PoolAllocatorBase::deallocate(p))
-			return nullptr;
-		libsystem_free_for_pool(p);
+		// rationale as `kame_free`).  `deallocate` is void + self-contained
+		// (a foreign pointer is libsystem-freed inside it).
+		PoolAllocatorBase::deallocate(p);
 		return nullptr;
 	}
 	// `PoolAllocatorBase::size_of` is pre-activate-safe: it walks the
