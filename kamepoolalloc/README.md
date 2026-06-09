@@ -147,38 +147,42 @@ single allocator could swing 3× between sessions and made any absolute
 comparison unreliable.
 
 **Apple MacBook Air M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
-`3145e139`, median of 5 runs via `bench_compare.sh` (mimalloc 3.3 + jemalloc 5.3.0
+`60971013`, median of 7 runs via `bench_compare.sh` (mimalloc 3.3.2 + jemalloc 5.3.0
 via Homebrew).  Both M3 tables below were measured on this commit:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     107 |  **515** |      130 |      496 |
-| 1 KiB     |      84 |  **475** |      121 |      340 |
-| 16 KiB    |      92 |      200 |       72 |  **223** |
-| 64 KiB    |      25 |  **200** |       18 |      148 |
-| 256 KiB   |      25 |  **206** |       18 |      137 |
-| 1 MiB     |      24 |        7 |       18 |  **128** |
-| 4 MiB     |      45 |        6 |       18 |  **108** |
+| 64B       |     106 |      503 |      128 |  **651** |
+| 1 KiB     |      86 |  **447** |      124 |      428 |
+| 16 KiB    |      91 |      198 |       72 |  **346** |
+| 64 KiB    |      25 |  **199** |       18 |      142 |
+| 256 KiB   |      25 |  **202** |       18 |      131 |
+| 1 MiB     |      25 |        7 |       18 |  **121** |
+| 4 MiB     |      45 |        6 |       18 |  **112** |
 
-**Apple MacBook Air M3, 4 processes aggregate, M ops/s** — median of 5 runs:
+**Apple MacBook Air M3, 4 processes aggregate, M ops/s** — median of 7 runs:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     393 | **1871** |      445 |     1731 |
-| 16 KiB    |     295 |      719 |      250 |  **758** |
-| 64 KiB    |      83 |  **713** |       60 |      499 |
-| 1 MiB     |      85 |       18 |       61 |  **455** |
+| 64B       |     376 |     1857 |      432 | **2088** |
+| 16 KiB    |     306 |      682 |      246 | **1209** |
+| 64 KiB    |      82 |  **684** |       60 |      474 |
+| 1 MiB     |      83 |       16 |       58 |  **402** |
 
-At the **1 MiB** large tier kame leads at every thread count: system is
-lock-serialised, mimalloc stalls at ~18 M aggregate, while kame reaches
-**455 M ops/s** across 4 processes (25× ahead of mimalloc).  The **64 B**
-bucket runs at **496 M ops/s** single-thread — within run-to-run noise of
-mimalloc 3.3 (515 M) — thanks to the `KameTlsPage` fast-TSD unification
-(§hot-tls), which replaced per-variable `_tlv_get_addr` calls with a single
-`mrs TPIDRRO_EL0`.  At **16 KiB** kame leads both single-thread (223 vs 200)
-and 4-process (758 vs 719 mimalloc).  (Numbers re-measured at `3145e139`; the
-dylib/teardown fixes since the prior `13a8c913`/`04c17904` tables are cold-path
-only, so hot-loop throughput is unchanged within noise.)
+The **64 B** bucket now **leads** mimalloc 3.3 — 651 vs 503 M ops/s
+single-thread, 2088 vs 1857 across 4 processes — after the `deallocate` and
+`operator new` hot/cold splits: a lean `always_inline` FS=true fast path with
+no prologue spill and no out-of-line call, on top of the `KameTlsPage` fast-TSD
+unification (§hot-tls, a single `mrs TPIDRRO_EL0` instead of per-variable
+`_tlv_get_addr`).  At **16 KiB** kame leads decisively — 346 vs 198
+single-thread, 1209 vs 682 4-process — helped by the void / tail-call FS=false
+free path.  At the **1 MiB** large tier kame leads at every thread count:
+system is lock-serialised, mimalloc collapses to ~7 M single-thread / ~16 M
+aggregate, while kame stays memory-warm at 121 / 402 M ops/s (25× ahead).  The
+one band where mimalloc still leads is the **64–256 KiB** §19 large tier
+(kame ~140 vs ~200): there the per-free radix lookup plus recycle-cache
+bookkeeping cost more than mimalloc's segment scheme — an already-known weaker
+tier, not a regression.  (Re-measured at `60971013`.)
 
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
 M ops/s** — kame at `84f97566`, llvm-mingw clang 17, median of 5 via
@@ -215,44 +219,51 @@ kame's two-level recycle cache stays memory-warm at 50–180 M ops/s.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
 pages, `THP=always`), `bench_compare.sh`, `srun --exclusive`** — kame at
-`0e9413a6`, mimalloc/jemalloc versions same as the competitive tables below:
+`60971013` for the 1T, 4-process and 128-process tables below (the
+`alloc_tune_report` table further down was not re-run and remains at the
+earlier `0e9413a6`).  mimalloc/jemalloc versions same as the competitive tables:
 
 ## 1T (median of 5, M ops/s)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     211 |      330 |      182 |      247 |
-| 1.0KB     |     212 |      210 |      159 |      176 |
-| 16KB      |      68 |       93 |       45 |   **97** |
-| 64KB      |      65 |   **93** |        4 |       78 |
-| 256KB     |      71 |   **92** |        4 |       84 |
-| 1.0MB     |      71 |        5 |        4 |   **84** |
-| 4.0MB     |      69 |        4 |        4 |   **52** |
+| 64B       |     212 |  **303** |      182 |      256 |
+| 1.0KB     |     211 |      206 |      159 |  **221** |
+| 16KB      |      67 |       94 |       44 |       94 |
+| 64KB      |      65 |   **95** |        4 |       82 |
+| 256KB     |      69 |   **95** |        4 |       84 |
+| 1.0MB     |      71 |        5 |        4 |   **82** |
+| 4.0MB     |      67 |        4 |        4 |   **61** |
 
 ## 4 parallel processes (aggregate, M ops/s, median of 5)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     849 |   **1269** |      727 |      997 |
-| 16KB      |     274 |      371 |      178 |  **392** |
-| 64KB      |     258 |  **366** |       17 |      309 |
-| 1.0MB     |     278 |       20 |       17 |  **338** |
+| 64B       |     846 |  **1226** |      727 |     1088 |
+| 16KB      |     274 |  **381** |      179 |      374 |
+| 64KB      |     257 |  **376** |       17 |      328 |
+| 1.0MB     |     282 |       20 |       17 |  **325** |
 
 ## 128 parallel processes (aggregate, M ops/s, median of 5)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |   22182 | **37386** |    20062 |    27005 |
-| 16KB      |    7798 |    11509 |     5146 | **12153** |
-| 64KB      |    7922 | **11622** |      454 |     9587 |
-| 1.0MB     |    8750 |      547 |      463 | **10523** |
+| 64B       |   22633 | **38306** |    21122 |    32265 |
+| 16KB      |    7768 |    11699 |     5290 | **11898** |
+| 64KB      |    8091 | **11873** |      466 |    10331 |
+| 1.0MB     |    8912 |      558 |      481 | **10302** |
 
-At **1 MiB / 128 processes** kame reaches **10523 M ops/s** (19× ahead of
-mimalloc 547 M): the two-level recycle cache keeps all 128 cores at
-memory-warm speed while mimalloc stalls at its per-call `mmap` path.
-At **16 KiB** kame edges ahead of mimalloc at both 4T and 128T
-(392 vs 371 M; 12153 vs 11509 M).  mimalloc leads at 64 B where its
-thread-local bump allocator is fastest.
+At **1 MiB / 128 processes** kame reaches **10302 M ops/s** (18× ahead of
+mimalloc 558 M): the two-level recycle cache keeps all 128 cores at
+memory-warm speed while mimalloc stalls at its per-call `mmap` path.  At
+**16 KiB / 128T** kame edges ahead (11898 vs 11699 M), and at **1 KiB**
+single-thread the void / tail-call FS=false free path now puts kame ahead of
+mimalloc (221 vs 206 M, up from 176 at `0e9413a6`).  mimalloc still leads at
+**64 B** on x86-64 — 303 vs 256 M single-thread, 38306 vs 32265 at 128T:
+unlike arm64/M3, where the `deallocate` / `operator new` hot/cold splits put
+kame ahead at 64 B, on x86-64 mimalloc's thread-local bump allocator keeps the
+edge on the smallest bucket (the splits narrowed the gap from 247 → 256 M but
+did not close it).
 
 ---
 
