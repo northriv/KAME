@@ -1469,7 +1469,35 @@ public:
             return shared_ptr<typename Node<XN>::NodeList>();
         return packet->subnodes();
     }
-    //! Whether \a lower is a child of this or not.
+    //! True iff this Snapshot directly contains the node \a lower as a child
+    //! of its target (i.e. \a lower appears in the target's `NodeList`).
+    //!
+    //! **The recommended O(1) containment predicate** for "is this node in
+    //! the snapshot's coverage?" — use it INSTEAD OF
+    //! `try { shot.at(\a lower); } catch(NodeNotFoundError&) {}`.  The
+    //! try/catch idiom (1) does an exception-driven walk for a fast-path
+    //! question, and (2) an inner catch silently masks any
+    //! `NodeNotFoundError` an outer catch block was meant to handle —
+    //! a real bug source in nested transaction handlers.
+    //!
+    //! Typical use sites (Talker / Listener / onVisualization callbacks
+    //! whose Snapshot may not contain a transiently-removed node, or list
+    //! teardown races where `list->release(node)` must be skipped after
+    //! the list already cleared it at shutdown):
+    //! @code
+    //!     // Skip nodes the firing snapshot no longer covers.
+    //!     if(!shot.isUpperOf(*node)) return;
+    //!     ... use shot[*node] safely ...
+    //!
+    //!     // Avoid double-release at shutdown.
+    //!     Snapshot shot(*list);
+    //!     if(shot.isUpperOf(*node)) list->release(node);
+    //! @endcode
+    //!
+    //! Note: this is a DIRECT-child check on the snapshot's target, not a
+    //! recursive subtree search; the typical pattern takes the snapshot on
+    //! the EXPECTED PARENT list / driver and then queries.  For deeper
+    //! coverage, take the snapshot at the appropriate ancestor.
     bool isUpperOf(const XN &lower) const noexcept {
         const shared_ptr<const typename Node<XN>::NodeList> lx(list());
         if( !lx)
