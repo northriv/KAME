@@ -314,10 +314,70 @@ pthread_key_t s_kame_page_key;
 // lazily on their first allocation via `kame_page_cold` below.
 __attribute__((constructor(101)))
 void kame_tls_init_fast() noexcept {
-    if(pthread_key_create(&s_kame_page_key, nullptr) != 0) return;
-
     char *tp = kame_thread_pointer();
-    if( !tp) return;
+    if( !tp) {
+#if defined(KAME_FIXED_TSD_SLOT) && (KAME_FIXED_TSD_SLOT)
+        fprintf(stderr, "kamepoolalloc FATAL: KAME_FIXED_TSD_SLOT build but "
+            "no thread pointer at init.\n");
+        abort();
+#else
+        return;
+#endif
+    }
+
+#if defined(KAME_FIXED_TSD_SLOT) && (KAME_FIXED_TSD_SLOT)
+    // Fixed-slot build (opt-in; see kame_page()).  The hot path baked
+    // KAME_FIXED_TSD_SLOT as the TSD byte offset (no runtime
+    // `s_kame_page_tsd_offset` load, no offset guard — mimalloc-parity).
+    // Force OUR OWN pthread key to land exactly at that slot: allocate
+    // keys until the sentinel scan reports the baked offset.  Held probe
+    // keys must NOT be deleted mid-spin — `pthread_key_create` hands out
+    // the lowest free slot, so deleting one would let the next create
+    // reuse it and never advance; delete them only AFTER the hit, to
+    // return them to the PTHREAD_KEYS_MAX budget.  No runtime fallback
+    // exists (a graceful fast/slow switch costs the hot path, and a
+    // dlopen'd interposer does NOT retroactively rebind malloc — both
+    // measured), so on overshoot / key exhaustion, fail loudly.
+    {
+        const std::size_t WANT = (std::size_t)(KAME_FIXED_TSD_SLOT);
+        enum { MAX_SPIN = 480 };               // < PTHREAD_KEYS_MAX (512)
+        pthread_key_t held[MAX_SPIN];
+        int  nheld = 0;
+        bool hit = false;
+        for(int i = 0; i < (int)MAX_SPIN; ++i) {
+            pthread_key_t k;
+            if(pthread_key_create(&k, nullptr) != 0) break;   // key exhaustion
+            // Unique sentinel per iteration so the scan can never match a
+            // previously-held key's slot.
+            const uintptr_t sent =
+                (uintptr_t)0xDEAD600D11AA0000ull ^ (uintptr_t)(unsigned)i;
+            pthread_setspecific(k, (void *)sent);
+            std::size_t off = 0; bool got = false;
+            for(std::size_t o = 0; o < 4096; o += 8)
+                if(*reinterpret_cast<uintptr_t *>(tp + o) == sent) {
+                    off = o; got = true; break;
+                }
+            if(got && off == WANT) { s_kame_page_key = k; hit = true; break; }
+            held[nheld++] = k;                 // hold to advance the allocator
+            if(got && off > WANT) break;        // overshot — cannot go back
+        }
+        for(int i = 0; i < nheld; ++i) pthread_key_delete(held[i]);
+        if( !hit) {
+            fprintf(stderr,
+                "kamepoolalloc FATAL: built with -DKAME_FIXED_TSD_SLOT=%zu, but "
+                "could not place a pthread TSD key at that slot (overshoot or "
+                "key exhaustion) on this runtime. Rebuild with a reachable "
+                "KAME_FIXED_TSD_SLOT (probe s_kame_page_tsd_offset for this "
+                "OS), or drop the flag for the robust runtime-offset build.\n",
+                WANT);
+            abort();
+        }
+        s_kame_page_tsd_offset = WANT;          // cold-path readers (teardown) use it
+        pthread_setspecific(s_kame_page_key, &g_tls_page);
+        tls_page_ie = &g_tls_page;
+    }
+#else
+    if(pthread_key_create(&s_kame_page_key, nullptr) != 0) return;
 
     // Sentinel scan: plant a magic value via the POSIX API, then walk
     // the pthread struct to find which byte offset received it.  POSIX
@@ -337,25 +397,6 @@ void kame_tls_init_fast() noexcept {
         if(v == sent1) off1 = off;
     }
 
-#if defined(KAME_FIXED_TSD_SLOT) && (KAME_FIXED_TSD_SLOT)
-    // Fixed-slot build (opt-in, see kame_page()): the hot path baked
-    // KAME_FIXED_TSD_SLOT as the TSD byte offset — no runtime
-    // `s_kame_page_tsd_offset` load, no degraded-mode fallback.  If the
-    // scan disagrees with the constant (different macOS / libc TSD
-    // layout, or scan failed → off1 == 0), the baked hot path would read
-    // the WRONG pthread slot — a silent use-after-… corruption.  Convert
-    // that latent crash into a loud, actionable abort at startup.
-    if(off1 != (std::size_t)(KAME_FIXED_TSD_SLOT)) {
-        fprintf(stderr,
-            "kamepoolalloc FATAL: built with -DKAME_FIXED_TSD_SLOT=%zu, but "
-            "this runtime's pthread TSD slot offset is %zu (scan %s). "
-            "Rebuild with -DKAME_FIXED_TSD_SLOT=%zu, or drop the flag for "
-            "the robust runtime-offset build.\n",
-            (std::size_t)(KAME_FIXED_TSD_SLOT), off1,
-            off1 ? "succeeded" : "FAILED", off1);
-        abort();
-    }
-#endif
     if(off1) {
         s_kame_page_tsd_offset = off1;
         // Plant THIS thread's (= typically the main thread's) TSD slot
@@ -369,6 +410,7 @@ void kame_tls_init_fast() noexcept {
         // Scan failed — leave offset at 0 (degraded TLV-only mode).
         pthread_setspecific(s_kame_page_key, nullptr);
     }
+#endif
 }
 } // anon namespace
 
