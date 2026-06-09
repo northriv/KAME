@@ -3308,7 +3308,7 @@ PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 // inline makes the hot free deterministic.  The cold off-ramps stay
 // out-of-line (their own `noinline`), so this only duplicates the lean
 // ~20-instruction hot path per call site.
-__attribute__((always_inline)) inline bool
+KAME_ALWAYS_INLINE bool
 PoolAllocatorBase::deallocate(void *p) {
 	// (hoist) Read this thread's KameTlsPage ONCE: the region-cache
 	// check and the owner-id compare below share it.  `free(NULL)` needs
@@ -3373,7 +3373,7 @@ PoolAllocatorBase::deallocate(void *p) {
 // by the caller (no re-derivation).  A garbage local-id (corruption /
 // coincidental owner match) tail-calls the full cold resolver, which
 // re-validates via palloc + the vtable owner check.
-__attribute__((noinline)) bool
+KAME_NOINLINE bool
 PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) {
 	PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
 	    chunk_base + ALLOC_CHUNK_HEADER);
@@ -3403,7 +3403,7 @@ PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) {
 	return true;
 }
 
-__attribute__((noinline, cold)) bool
+KAME_NOINLINE_COLD bool
 PoolAllocatorBase::deallocate_cold(void *p) {
 	// COLD off-ramp (split out of `deallocate` so the hot path stays
 	// call-free / prologue-free; see the lean `deallocate` just above).

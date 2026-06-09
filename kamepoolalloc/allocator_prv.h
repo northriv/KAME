@@ -81,6 +81,26 @@
     #define __builtin_mul_overflow(a, b, outp) kame_msvc_mul_ovf((a), (b), (outp))
 #endif
 
+// Forced-inline / no-inline that survive MSVC.  The generic
+// `#define __attribute__(x)` above strips EVERY GNU attribute on MSVC —
+// fine for pure codegen hints (cold/used/tls_model), but it would also
+// silently drop the `always_inline` / `noinline` that pin the `deallocate`
+// hot/cold split (the lean FS=true free MUST inline into operator delete /
+// free; deallocate_cold / deallocate_fs_false_owner MUST stay out-of-line,
+// else the cold bulk bloats the hot frame back to the 6-stp prologue this
+// split removes).  Map to MSVC's `__forceinline` / `__declspec(noinline)`
+// so the split is honoured there too — not just on GCC/Clang/llvm-mingw.
+// (`cold` has no MSVC analogue and is a layout-only hint, so it is dropped.)
+#if defined(_MSC_VER) && !defined(__GNUC__)
+    #define KAME_ALWAYS_INLINE  __forceinline
+    #define KAME_NOINLINE       __declspec(noinline)
+    #define KAME_NOINLINE_COLD  __declspec(noinline)
+#else
+    #define KAME_ALWAYS_INLINE  __attribute__((always_inline)) inline
+    #define KAME_NOINLINE       __attribute__((noinline))
+    #define KAME_NOINLINE_COLD  __attribute__((noinline, cold))
+#endif
+
 // Cache-line size, architecture-dependent.  Kept as a fixed macro
 // (std::hardware_destructive_interference_size is ABI-fragile across
 // libc++/libstdc++ and warns under GCC).  Duplicated from kamestm's
