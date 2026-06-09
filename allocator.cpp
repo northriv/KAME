@@ -399,14 +399,12 @@ KameTlsPage *kame_page_cold() noexcept {
 }
 #endif // KAME_FAST_TSD
 
-// Forward decl — the post-thread-exit functor used by AllocThreadExitCleanup
-// to overwrite every slot of `g_thread_slots[]` before chunks are
-// released.  Defined later in this TU.
-
-// Forward decl: AllocThreadExitCleanup's dtor needs to drain each per-bucket
-// AllocSlot freelist back to the bitmap via the cross-thread TLS batch
-// (CrossDeallocBatch is defined further down).  Hide the dependency
-// behind a free function defined after CrossDeallocBatch.
+// Forward decl for `drain_thread_slot_freelists` — now a retained no-op
+// stub (see its definition).  Owner-thread freelists are no longer in a
+// global `g_thread_slots[]` array; each chunk's freelist is chunk-local
+// (`m_freelist_head[]`) and is drained per-chunk by
+// `release_dll_chunks_for_thread` before that chunk's BIT_OWNED clear.
+// Kept as a symbol so the `~AllocThreadExitCleanup` call site stays valid.
 namespace { void drain_thread_slot_freelists() noexcept; }
 
 // (§22) Unified per-thread large-recycle cache, shared by BOTH large
@@ -766,7 +764,7 @@ thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 // land in one FS=true bucket.)
 //
 // Fix: per-slot `PoolAllocatorBase::lookup_chunk(p)` (address-only
-// `s_chunks[cidx]` lookup) gives the slot's true owner.  Per-slot
+// radix + chunk-header resolve) gives the slot's true owner.  Per-slot
 // CAS is slower than batched but drain is rare (thread exit only).
 // Direct `batch_return_to_bitmap` call — must NOT route through
 // `tls_cross_dealloc_batch`, which in PerThread's LIFO TLS chain
@@ -1380,8 +1378,8 @@ template <unsigned int ALIGN, bool DUMMY>
 inline void *
 PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	// Owner-side freelist hit is handled in `new_redirected` via the
-	// per-thread `g_thread_slots[bucket].freelist_head` — by the time
-	// we reach `allocate_pooled` the freelist has missed.  This path
+	// per-thread per-bucket freelist — by the time we reach
+	// `allocate_pooled` the freelist has missed.  This path
 	// runs the bitmap CAS to claim N contiguous free bits (	// "borrow scheme" — the per-slot `{uint32_t bucket, uint32_t SIZE}`
 	// header lives in the LAST 8 bytes of the PREVIOUS slot's ALIGN
 	// area, or in `chunk_header[56..63]` for slot 0 at bit 0/word 0.
@@ -1898,14 +1896,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::batch_clear_impl(
 
 // Bitmap clear of slots passed via argument array.  All slots must
 // belong to THIS chunk (callers always pass single-chunk groups —
-// `CrossDeallocBatch::push` issues `&one, 1`,
-// `drain_thread_slot_freelists` `lookup_chunk`s each slot and dispatches
-// per chunk, and the post-teardown bypass in `deallocate_pooled` issues
+// `CrossDeallocBatch::push` issues `&one, 1`, the per-chunk owner-exit
+// drain `release_dll_chunks_for_thread` issues each chunk's freelist as
+// one group, and the post-teardown bypass in `deallocate_pooled` issues
 // `&one, 1`).  Single-chunk invariant lets us share one direct-map
-// scratch.  Sole remaining consumer of `batch_clear_impl` (the
-// chunk-private freelist drain that previously also used it has been
-// folded into the per-thread AllocSlot drain in
-// `drain_thread_slot_freelists`).
+// scratch.  Sole remaining consumer of `batch_clear_impl`
+// (`drain_thread_slot_freelists` is now a retained no-op — see its
+// definition).
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 int
 PoolAllocator<ALIGN, FS, DUMMY>::batch_return_to_bitmap(

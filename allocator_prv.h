@@ -1673,8 +1673,6 @@ protected:
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
-	//! Mmap a fresh chunk and register it in `s_chunks_of_type[]` for
-	//! diagnostic enumeration only (`release_pools` / `report_statistics`).
 	//! Mmap a fresh chunk for the current thread.  no global
 	//! registry — the per-thread DLL is the sole source of truth for
 	//! "chunks this thread can allocate from".  Called from
