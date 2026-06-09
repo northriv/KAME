@@ -96,6 +96,7 @@ XQGraph::activatePlaneSelectionTool(XAxis::AxisDirection dirx, XAxis::AxisDirect
 }
 void
 XQGraph::mousePressEvent ( QMouseEvent* e) {
+    e->accept();
 	if( !m_painter ) return;
 	XQGraphPainter::SelectionMode mode;
 	switch (e->button()) {
@@ -132,6 +133,7 @@ XQGraph::mousePressEvent ( QMouseEvent* e) {
 }
 void
 XQGraph::mouseMoveEvent ( QMouseEvent* e) {
+    e->accept();
     static XTime lasttime = XTime::now();
 	if(XTime::now() - lasttime < 0.033) return;
 	if( !m_painter ) return;
@@ -141,6 +143,7 @@ XQGraph::mouseMoveEvent ( QMouseEvent* e) {
 }
 void
 XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
+    e->accept();
 	if( !m_painter ) return;
     makeCurrent();
     auto [r1, r2] = m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelFinish, XQGraphPainter::SelectionMode::SelNone, m_toolDesc);
