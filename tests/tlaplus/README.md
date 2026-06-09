@@ -113,13 +113,29 @@ Counter width: 40-bit at ≥1 ns/alloc wraps in centuries — safe in
 practice; the `wrap` cfg only violates because it forces wrap at
 `MaxLocalEpoch=1` to demonstrate the bound is real.
 
-### Relation to the shipped ad-hoc fix
-The `ChunkClaim` back_offset-after-CAS fix (committed) removed the
-*dominant* double-payout source (~40 % → ~0.24 %). The epoch+seqlock
-design is the complete root-cure: it makes `lookup_chunk` *reject* a
-stale/recycled resolution, so any residual double-payout source can no
-longer be amplified into out-of-range corruption — it degrades to a
-safe fallthrough.
+### Relation to the shipped fix
+Two committed changes close the slot-resolution race in shipped code,
+*without* the epoch+seqlock:
+
+1. The `ChunkClaim` back_offset-after-CAS publish (commit `d2e2c32b`)
+   removed the dominant double-payout source (the ~40 % → ~0.24 % step).
+2. The current live-slot resolver (`resolve_chunk_from_slot` / `deallocate`,
+   "NO seqlock, NO epoch") makes the reclaim+recycle race **structurally
+   impossible** on the lookup/free path: the pointer being resolved is a
+   LIVE slot, which keeps `m_flags_packed != 0`, which is the precondition
+   for EVERY chunk-release path (owner_release, cross-flush dec-to-zero,
+   thread-exit).  The chunk therefore cannot be released — let alone
+   recycled into a *different* chunk — while the resolution runs, so the
+   two-unsynchronised-loads window the model exploited cannot open.  The
+   seqlock validation is unnecessary here.
+
+So the residual the ad-hoc fix left is closed in shipped code by (2), not
+by amplification-prevention.  The epoch+seqlock (`ChunkRecycle_threadepoch`)
+remains the verified root-cure for the *other* caller class — a DLL-walk
+holding a chunk POINTER without holding any slot in it (those paths gate on
+BIT_OWNED instead) — and as the complete-coverage alternative; it is not
+needed for slot resolution.  See also the GenMC `cds_seqlock_recycle.c`
+fence check above and `cds/cds_radix_install.c`.
 
 ### GenMC C11 memory-ordering complement (`../cds/`)
 
