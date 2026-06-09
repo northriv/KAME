@@ -4290,6 +4290,27 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 // path identity-compares against `&g_teardown_page` to take a TLS-free route.
 KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
 
+// Cold off-ramp for `new_redirected` (declared in allocator_prv.h) — the
+// SMALL-range cold cases only: an empty owner freelist (re-resolve the chunk
+// and slow_allocate via its vtable) or a not-yet-activated bucket (first
+// access / post-cleanup).  `bucket` is pre-computed by the lean caller; the
+// large §19 tier is routed DIRECTLY to new_redirected_large from the lean
+// path (no extra hop on the 1 KiB+ band).  KAME_NOINLINE so the lean
+// `new_redirected` TAIL-CALLS it — keeping the freelist-pop hot path
+// frame-free (Linux IE-TLS: no prologue, no `bl`).
+KAME_NOINLINE
+void *new_redirected_cold(unsigned int bucket, std::size_t size) {
+	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
+		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
+		if(char *head = *head_ptr) {
+			*head_ptr = *reinterpret_cast<char **>(head);
+			return head;
+		}
+		return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
+	}
+	return cold_first_access(bucket, size);
+}
+
 // Out-of-line large-size dispatch.  Sizes > 256 B fall here from
 // `new_redirected`.  The 257..512 range dispatches via the same
 // g_thread_slots[] table (buckets 17..24) as the small range, just
