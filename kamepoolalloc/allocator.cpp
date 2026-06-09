@@ -459,13 +459,12 @@ struct AllocThreadExitCleanup {
         if(count < MAX) release_fns[count++] = fn;
     }
     ~AllocThreadExitCleanup() noexcept {
-        // Drain each per-bucket AllocSlot freelist back to the bitmap
-        // FIRST.  Slots on the linked list inside the slot pool would
-        // become unreachable after the per-template DLL walk below
-        // (which may release the very chunk a slot belongs to).
-        // `drain_thread_slot_freelists` issues a per-slot
-        // `batch_return_to_bitmap(&one, 1)` via `lookup_chunk` (handles
-        // FS=false bucket-share invariant).
+        // `drain_thread_slot_freelists()` is a retained no-op stub now
+        // (see its definition); the per-chunk freelist drain has been
+        // folded into the per-template DLL walk below
+        // (`release_dll_chunks_for_thread`), which drains each chunk's
+        // freelist right before clearing its BIT_OWNED.  Call kept for
+        // call-site / ABI stability.
         drain_thread_slot_freelists();
         // Clear every per-thread bucket chunk pointer BEFORE the DLL
         // teardown walk.  Otherwise a later TLS destructor that
