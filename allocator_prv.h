@@ -823,6 +823,19 @@ public:
 	//! that previously generated one inlined copy of the body per
 	//! ladder level (icache bloat scaling with ALLOC_MAX_REGIONS).
 	static inline bool deallocate(void *p);
+	//! Cold off-ramp for `deallocate`.  Handles every case the lean
+	//! `deallocate` hot path does NOT inline: region-cache miss (foreign
+	//! / large / first-touch), FS=false owner-free, and owner-mismatch
+	//! (cross-thread / released / dedicated / post-teardown).  Marked
+	//! noinline+cold so its function-calls (deallocate_large_va, the
+	//! per-template DeallocateFn, deallocate_chunk, large_recycle_push)
+	//! do NOT force callee-saved spills into the call-free hot path.
+	static bool deallocate_cold(void *p);
+	//! FS=false owner-free helper for `deallocate`.  Split out (noinline)
+	//! so the FS=true 64 B hot path in `deallocate` stays lean/inlinable.
+	//! `chunk_base` is pre-resolved by the caller; only this-thread-owned
+	//! FS=false chunks reach here.
+	static bool deallocate_fs_false_owner(char *chunk_base, void *p);
 	//! Look up the slot size (bytes) for a pointer.  Returns 0 if `p`
 	//! is not a pool slot (foreign / libsystem-malloc'd / null).  Uses
 	//! the same chunk-header pattern as `deallocate` and dispatches
