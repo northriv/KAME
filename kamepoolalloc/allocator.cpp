@@ -3286,8 +3286,133 @@ PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 	    unit_idx, &chunk_base);
 }
 
-inline bool
+// LEAN hot path: the ONLY case inlined here is an FS=true owner-free
+// (the small fixed-size buckets — e.g. the 64 B bench hot loop).  That
+// case is pure pointer arithmetic + an inlined `freelist_push`, so the
+// whole function is CALL-FREE: the compiler needs no callee-saved
+// registers, and the 5–6×`stp`/`ldp` prologue/epilogue spill that the
+// cold function-calls used to force onto every free is gone.  On Linux
+// (IE-TLS `mov %fs:`, where the TSD read is already a single cheap
+// instruction) the prologue was the dominant remaining 64 B free cost,
+// so removing it is the lever there; on macOS it shaves the same spill.
+// Every other case (region-cache miss → foreign/large/first-touch,
+// FS=false owner-free, owner-mismatch → cross/released/dedicated)
+// tail-calls `deallocate_cold` — out-of-line, so its calls never taint
+// this frame.
+//
+// `always_inline`: every caller (free interpose, operator delete and its
+// sized/aligned variants, kame_pool_free — all in this TU, all after this
+// definition) expands the lean path directly.  Without forcing it the
+// compiler's inline heuristic flip-flopped as the function's size changed
+// (64 B throughput swung 568–662 Mops/s build-to-build); pinning the
+// inline makes the hot free deterministic.  The cold off-ramps stay
+// out-of-line (their own `noinline`), so this only duplicates the lean
+// ~20-instruction hot path per call site.
+__attribute__((always_inline)) inline bool
 PoolAllocatorBase::deallocate(void *p) {
+	// (hoist) Read this thread's KameTlsPage ONCE: the region-cache
+	// check and the owner-id compare below share it.  `free(NULL)` needs
+	// no `!p` pre-filter — `last_region_base` is RADIX_CACHE_EMPTY (~0),
+	// unmatchable by base==0, so a null free misses the cache and routes
+	// to `deallocate_cold` → radix_lookup_slow(0) → ABSENT → libc no-op.
+	KameTlsPage *pg = kame_page();
+	const uintptr_t up = (uintptr_t)p;
+	const uintptr_t region_base = up & ~((uintptr_t)ALLOC_MIN_MMAP_SIZE - 1u);
+	if(__builtin_expect(region_base != pg->last_region_base, 0))
+		return deallocate_cold(p);     // miss: foreign / large / first-touch POOL
+	// Region-cache HIT ⇒ this is a populated POOL region.  Resolve the
+	// owning chunk by pure arithmetic off the (§13.2) RegionMeta
+	// back_offset — no chunk_header (cache-line 0) read, same discipline
+	// as the original hot path.
+	char *mp = reinterpret_cast<char *>(region_base);
+	ptrdiff_t pdiff = static_cast<char *>(p) - mp;
+	unsigned int unit_idx =
+	    static_cast<unsigned int>((size_t)pdiff >> ALLOC_MIN_CHUNK_SHIFT);
+	RegionMeta *rmeta = region_meta(mp);
+	unsigned int back_off_raw = rmeta->back_offset[unit_idx];
+	unsigned int base_idx = unit_idx - (back_off_raw & 0x7Fu);
+	char *chunk_base = mp + (size_t)base_idx * (size_t)ALLOC_MIN_CHUNK_SIZE
+	                 - (size_t)ALLOC_CHUNK_K_MAX;
+	PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
+	    chunk_base + ALLOC_CHUNK_HEADER);
+	uint32_t page_owner_id = pg->owner_id;
+	// Owner-free fast path: a live chunk THIS thread owns.  A released
+	// chunk (m_owner_id==0), a foreign / post-teardown thread
+	// (page_owner_id==0) and a dedicated chunk (m_owner_id zeroed → never
+	// matches a non-zero owner) all FAIL this test and tail-call the cold
+	// off-ramp.  BOTH FS=true (single-size, the 64 B hot loop) and
+	// FS=false (borrow / full-usable size classes) are handled inline and
+	// CALL-FREE — keeping FS=false here too means the 384..2048 B churn
+	// pays neither the `bl deallocate_cold` nor cold's full re-derivation
+	// of pg/region/chunk_base (which it already has in registers).  Only a
+	// garbage local-id (corruption / coincidental owner match on a stray
+	// pointer) tail-calls cold, which re-validates via palloc + the vtable
+	// owner check.
+	if(__builtin_expect(chunk_obj->m_owner_id == page_owner_id
+	                    && page_owner_id != 0, 1)) {
+		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
+			chunk_obj->freelist_push(0, p);
+			return true;
+		}
+		// FS=false owner free.  Routed to a dedicated noinline helper —
+		// NOT inlined here, and NOT folded into the FS=true return above:
+		// the original code (and a re-measurement) shows ~5–9 % bench_loop
+		// regression on the 64 B FS=true path when the FS=false local-id /
+		// bucket-re-aim code shares its function (bigger frame, worse
+		// inlining into `operator delete`).  The helper still receives the
+		// already-resolved `chunk_base`, so FS=false avoids `deallocate_cold`'s
+		// full pg/region/chunk_base re-derivation (≈ the 1 KiB churn win).
+		return deallocate_fs_false_owner(chunk_base, p);
+	}
+	return deallocate_cold(p);         // owner-mismatch / dedicated / cross / released
+}
+
+// FS=false owner-free helper — split out of the lean `deallocate` so the
+// FS=true (64 B) hot path stays maximally lean / inlinable.  Reached only
+// for a this-thread-owned FS=false chunk; `chunk_base` is already resolved
+// by the caller (no re-derivation).  A garbage local-id (corruption /
+// coincidental owner match) tail-calls the full cold resolver, which
+// re-validates via palloc + the vtable owner check.
+__attribute__((noinline)) bool
+PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) {
+	PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
+	    chunk_base + ALLOC_CHUNK_HEADER);
+	unsigned local;
+	unsigned bucket = 0;
+	if(chunk_obj->m_sizes) {
+		size_t bit_index =
+		    static_cast<size_t>(static_cast<char *>(p) - chunk_obj->mempool())
+		    >> chunk_obj->m_align_shift;
+		local = chunk_obj->m_sizes[bit_index] & 0xFFu;
+		if(local >= (unsigned)KAME_LOCAL_BUCKETS)
+			return deallocate_cold(p);
+	} else {
+		std::uint64_t hdr = *reinterpret_cast<std::uint64_t *>(
+		    static_cast<char *>(p) - 8);
+		local  = static_cast<unsigned>(hdr) & 0xFFu;
+		bucket = (static_cast<unsigned>(hdr) >> 16) & 0xFFu;
+		if(local >= (unsigned)KAME_LOCAL_BUCKETS)
+			return deallocate_cold(p);
+	}
+	chunk_obj->freelist_push(local, p);
+	// (§freelist-follow) re-aim this thread's per-bucket alloc shortcut at
+	// the slot we just freed (LIFO) — borrow tier only (bucket != 0).
+	if(bucket != 0 && bucket < (unsigned)ALLOC_NUM_BUCKETS)
+		kame_page()->m_slots[bucket].freelist_head =
+		    reinterpret_cast<char *>(&chunk_obj->m_freelist_head[local]);
+	return true;
+}
+
+__attribute__((noinline, cold)) bool
+PoolAllocatorBase::deallocate_cold(void *p) {
+	// COLD off-ramp (split out of `deallocate` so the hot path stays
+	// call-free / prologue-free; see the lean `deallocate` just above).
+	// This is the original full resolver: it re-derives everything from
+	// `p` (region cache may have just been populated by the slow lookup)
+	// and handles foreign/large, FS=false owner-free, and every
+	// owner-mismatch case (cross-thread / released / dedicated /
+	// post-teardown).  Reached on a region-cache MISS, or after the lean
+	// path declines (not an FS=true owner-free).
 	// `delete nullptr` / `free(NULL)` are well-defined no-ops.  No `!p`
 	// pre-filter here: `s_tls_hot.last_region_base` is initialised to (and
 	// only ever cleared to) `RADIX_CACHE_EMPTY` (= ~0), which is unmatchable
