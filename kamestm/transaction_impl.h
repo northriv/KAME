@@ -1591,15 +1591,54 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
     return foundpacket;
 }
 
+// Builds an actionable diagnostic for a failed payload lookup and throws
+// NodeNotFoundError.  Runs only on the (cold) failure path, so the formatting
+// cost never touches the hot found-path.
+//
+// Caller file:line is deliberately NOT captured here: the user-facing entry
+// point is Transaction/Snapshot::operator[], and in C++17 operator[] must take
+// exactly one parameter ([over.sub]), so __builtin_FILE()/__builtin_LINE()
+// default arguments cannot be threaded through the subscript syntax.  Instead
+// we report the runtime identity that actually pinpoints the footgun: the
+// dynamic type of the unreachable node and of the snapshot/transaction root.
+// (e.g. "node<XComboNode> not reachable from root<XMeasure>" immediately shows
+// the node was created/inserted outside this transaction's scope.)
+//
+// Security: the raw pointers are emitted only in debug builds — under NDEBUG
+// they are suppressed to avoid leaking heap addresses (ASLR) into an exception
+// message that may surface in a user-visible dialog.  The type names come from
+// RTTI string literals already present in the binary, so they leak nothing new.
+template <class XN>
+[[noreturn]] inline void throwSTMLookupFailure_(const Node<XN> &node,
+    const Node<XN> &root, int64_t tr_serial) {
+    const char *ntype = typeid(node).name();
+    const char *rtype = typeid(root).name();
+    char buf[640];
+#ifdef NDEBUG
+    std::snprintf(buf, sizeof buf,
+        "STM lookup failed: payload for node<%s> is not reachable from the "
+        "snapshot/transaction rooted at <%s> (tr_serial=%lld). The node was "
+        "likely created or inserted outside this transaction's scope.",
+        ntype, rtype, (long long)tr_serial);
+#else
+    std::snprintf(buf, sizeof buf,
+        "STM lookup failed: payload for node<%s>@%p is not reachable from the "
+        "snapshot/transaction rooted at <%s>@%p (tr_serial=%lld). The node was "
+        "likely created or inserted outside this transaction's scope.",
+        ntype, (const void *)&node, rtype, (const void *)&root,
+        (long long)tr_serial);
+#endif
+    std::fprintf(stderr, "%s\n", buf);
+    throw typename Node<XN>::NodeNotFoundError(buf);
+}
+
 template <class XN>
 local_shared_ptr<typename Node<XN>::Packet>&
 Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
     bool copy_branch, int64_t tr_serial, bool set_missing) {
     local_shared_ptr<Packet> *foundpacket = reverseLookup(superpacket, copy_branch, tr_serial, set_missing, 0);
-    if( !foundpacket) {
-        fprintf(stderr, "Node not found during a lookup.\n");
-        throw NodeNotFoundError("Lookup failure.");
-    }
+    if( !foundpacket)
+        throwSTMLookupFailure_<XN>( *this, superpacket->node(), tr_serial);
     return *foundpacket;
 }
 
@@ -1608,10 +1647,8 @@ const local_shared_ptr<typename Node<XN>::Packet> &
 Node<XN>::reverseLookup(const local_shared_ptr<Packet> &superpacket) const {
     local_shared_ptr<Packet> *foundpacket = const_cast<Node*>(this)->reverseLookup(
         const_cast<local_shared_ptr<Packet> &>(superpacket), false, 0, false, 0);
-    if( !foundpacket) {
-        fprintf(stderr, "Node not found during a lookup.\n");
-        throw NodeNotFoundError("Lookup failure.");
-    }
+    if( !foundpacket)
+        throwSTMLookupFailure_<XN>( *this, superpacket->node(), 0);
     return *foundpacket;
 }
 
