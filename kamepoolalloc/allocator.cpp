@@ -2930,6 +2930,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// Return them via the bitmap path and null the cells BEFORE
 			// the generic per-local walk below, which would otherwise
 			// misread an entry as a list head and walk user data.
+#if KAME_FS_CHUNK_FIFO
 			if(c->m_fs_flag) {
 				// Null-marking ring: parked entries are exactly the
 				// non-null cells [1..4].  Return each as a SINGLE slot
@@ -2946,6 +2947,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 				c->m_fifo.r = 0;
 				c->m_fifo.w = 0;
 			}
+#endif /* KAME_FS_CHUNK_FIFO */
 			// (§12.3) freelists are compact LOCAL-id indexed
 			// (KAME_LOCAL_BUCKETS = 9); walk that range, not 48.
 			for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b) {
@@ -3372,13 +3374,12 @@ PoolAllocatorBase::deallocate(void *p) {
 	if(__builtin_expect(chunk_obj->m_owner_id == page_owner_id
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
-			// (§L0-FIFO) Park into the chunk's depth-4 ring instead of
-			// the freelist: no store into the block itself (its lines
-			// stay untouched, still warm for the next user), and the
-			// matching alloc-side take is a same-line read of a slot
-			// parked >= 2 frees ago.  Ring full -> plain freelist push
-			// (keeps the parked entries maximally stale).
-			// Null-marking ring park: the park side owns `w` exclusively;
+#if KAME_FS_CHUNK_FIFO
+			// (§L0-FIFO) Park into the chunk's depth-4 null-marking ring
+			// instead of the freelist: no store into the block itself
+			// (its lines stay untouched, still warm for the next user),
+			// and the matching alloc-side take returns a slot parked
+			// >= 2 frees ago.  The park side owns `w` exclusively;
 			// "ring full" is read off the cell content (non-null), which
 			// was nulled by a take >= 2 ops ago — branch-feeding only,
 			// no data-chain stall.  Full -> plain freelist push.
@@ -3389,6 +3390,7 @@ PoolAllocatorBase::deallocate(void *p) {
 				chunk_obj->m_fifo.w = fw + 1;
 				return;
 			}
+#endif /* KAME_FS_CHUNK_FIFO */
 			chunk_obj->freelist_push(0, p);
 			return;
 		}

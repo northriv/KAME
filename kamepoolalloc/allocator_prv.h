@@ -1125,6 +1125,19 @@ public:
 		uint16_t *m_sizes;
 		struct { uint32_t r, w; } m_fifo;
 	};
+	//! Compile-time gate for the FS=true free-slot ring above.  Default:
+	//! ON for Apple (memory renaming hides the ring's extra instructions
+	//! and the untouched-block-lines property is pure profit — pending
+	//! M3 bench), OFF elsewhere (on Zen 2 the ring's ~+12 insns/pair
+	//! cost more than the freelist hop it removes: ring slots>=2
+	//! 302 -> 255 M ops/s).  Override with -DKAME_FS_CHUNK_FIFO=0/1.
+#ifndef KAME_FS_CHUNK_FIFO
+ #if defined(__APPLE__)
+  #define KAME_FS_CHUNK_FIFO 1
+ #else
+  #define KAME_FS_CHUNK_FIFO 0
+ #endif
+#endif
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
 	//! Owner-thread freelist push/pop (LIFO; freed slot's first 8 bytes
@@ -3017,6 +3030,7 @@ inline void *new_redirected(std::size_t size) {
 		// cache line; the m_fs_flag gate keeps FS=false chunks (whose
 		// m_sizes aliases the counters) off this path.  On a miss this
 		// adds one same-line load + a predicted branch.
+#if KAME_FS_CHUNK_FIFO
 		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
 		if(ck->m_fs_flag) {
 			// Null-marking ring: the take side owns `r` exclusively and
@@ -3037,6 +3051,7 @@ inline void *new_redirected(std::size_t size) {
 				return b0;
 			}
 		}
+#endif /* KAME_FS_CHUNK_FIFO */
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
