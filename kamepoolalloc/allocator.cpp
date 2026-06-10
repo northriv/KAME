@@ -5843,6 +5843,16 @@ __attribute__((cold, noinline))
 int PoolAllocatorBase::numa_node_for_this_thread() noexcept {
 	int n = s_tls_numa_node;
 	if(__builtin_expect(n >= 0, 1)) return n;
+	// REENTRANCY GUARD: the sysfs probes below (`opendir` in
+	// detect_num_numa_nodes / numa_node_for_cpu) malloc a ~32 KiB DIR
+	// buffer inside libc; under the malloc redirect that allocation
+	// re-enters this allocator, reaches claim_chunk, and lands back
+	// here — with the lazy init still in flight, an unbounded
+	// opendir→malloc→claim_chunk→opendir recursion (stack overflow at
+	// startup).  Pre-publish node 0 so the nested call short-circuits;
+	// the real node overwrites it below.  The nested allocation may be
+	// placed on node 0's region list once — harmless.
+	s_tls_numa_node = 0;
 	// Lazy init.  First call from any thread sets the global node count
 	// (idempotent races OK — same value).
 	int total = s_num_numa_nodes.load(std::memory_order_relaxed);
@@ -5850,7 +5860,7 @@ int PoolAllocatorBase::numa_node_for_this_thread() noexcept {
 		total = detect_num_numa_nodes();
 		s_num_numa_nodes.store(total, std::memory_order_relaxed);
 	}
-	if(total <= 1) { s_tls_numa_node = 0; return 0; }
+	if(total <= 1) return 0;
 #if defined(__linux__)
 	int cpu = sched_getcpu();
 	n = cpu >= 0 ? numa_node_for_cpu(cpu) : 0;

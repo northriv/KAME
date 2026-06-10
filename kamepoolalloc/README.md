@@ -217,9 +217,10 @@ The **system ~0 at ≥ 1 MiB** is the Windows UCRT per-call `VirtualAlloc` /
 Linux): a tight 1 MiB `malloc`/`free` loop drops below 0.5 M ops/s, while
 kame's two-level recycle cache stays memory-warm at 50–180 M ops/s.
 
-**Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
-pages, `THP=always`), `bench_compare.sh`, `srun --exclusive`** — kame at
-`60971013` for the 1T, 4-process and 128-process tables below (the
+**Ohtaka (ISSP supercomputer — AMD EPYC 7702, 128-core / 8-NUMA-node, Linux
+4 KiB pages, `THP=always`), `bench_compare.sh`, `srun --exclusive`** — kame at
+`efbe6dcb` (allocator code `5e127eb5`) for the 1T, 4-process and 128-process
+tables below, all measured on the same `i8cpu` node `c15u01n1` (the
 `alloc_tune_report` table further down was not re-run and remains at the
 earlier `0e9413a6`).  mimalloc/jemalloc versions same as the competitive tables:
 
@@ -227,43 +228,48 @@ earlier `0e9413a6`).  mimalloc/jemalloc versions same as the competitive tables:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     212 |  **303** |      182 |      256 |
-| 1.0KB     |     211 |      206 |      159 |  **221** |
-| 16KB      |      67 |       94 |       44 |       94 |
+| 64B       |     212 |  **331** |      182 |      260 |
+| 1.0KB     |     214 |      203 |      160 |  **236** |
+| 16KB      |      69 |       93 |       45 |  **168** |
 | 64KB      |      65 |   **95** |        4 |       82 |
-| 256KB     |      69 |   **95** |        4 |       84 |
-| 1.0MB     |      71 |        5 |        4 |   **82** |
-| 4.0MB     |      67 |        4 |        4 |   **61** |
+| 256KB     |      70 |   **95** |        4 |       87 |
+| 1.0MB     |      71 |        5 |        4 |   **84** |
+| 4.0MB     |      67 |        4 |        4 |   **62** |
 
 ## 4 parallel processes (aggregate, M ops/s, median of 5)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     846 |  **1226** |      727 |     1088 |
-| 16KB      |     274 |  **381** |      179 |      374 |
-| 64KB      |     257 |  **376** |       17 |      328 |
-| 1.0MB     |     282 |       20 |       17 |  **325** |
+| 64B       |     845 |  **1261** |      727 |     1045 |
+| 16KB      |     274 |      381 |      177 |  **666** |
+| 64KB      |     259 |  **371** |       18 |      321 |
+| 1.0MB     |     277 |       20 |       17 |  **335** |
 
 ## 128 parallel processes (aggregate, M ops/s, median of 5)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |   22633 | **38306** |    21122 |    32265 |
-| 16KB      |    7768 |    11699 |     5290 | **11898** |
-| 64KB      |    8091 | **11873** |      466 |    10331 |
-| 1.0MB     |    8912 |      558 |      481 | **10302** |
+| 64B       |   22634 | **39572** |    21280 |    29044 |
+| 16KB      |    7920 |    11808 |     5282 | **21496** |
+| 64KB      |    8128 | **11866** |      465 |    10352 |
+| 1.0MB     |    8908 |      566 |      475 | **10703** |
 
-At **1 MiB / 128 processes** kame reaches **10302 M ops/s** (18× ahead of
-mimalloc 558 M): the two-level recycle cache keeps all 128 cores at
+At **16 KiB** kame now leads decisively at every thread count — 168 vs 93 M
+single-thread, 666 vs 381 at 4 processes, 21496 vs 11808 at 128 (1.8×) —
+after the `bucket_for_size` LUT extension to the full 32 KiB bucketed range
+(`9b65ce42`) plus the force-inlined size→bucket fold (`0e43ee82`).  At
+**1 MiB / 128 processes** kame reaches **10703 M ops/s** (19× ahead of
+mimalloc 566 M): the two-level recycle cache keeps all 128 cores at
 memory-warm speed while mimalloc stalls at its per-call `mmap` path.  At
-**16 KiB / 128T** kame edges ahead (11898 vs 11699 M), and at **1 KiB**
-single-thread the void / tail-call FS=false free path now puts kame ahead of
-mimalloc (221 vs 206 M, up from 176 at `0e9413a6`).  mimalloc still leads at
-**64 B** on x86-64 — 303 vs 256 M single-thread, 38306 vs 32265 at 128T:
-unlike arm64/M3, where the `deallocate` / `operator new` hot/cold splits put
-kame ahead at 64 B, on x86-64 mimalloc's thread-local bump allocator keeps the
-edge on the smallest bucket (the splits narrowed the gap from 247 → 256 M but
-did not close it).
+**1 KiB** single-thread kame widens its lead over mimalloc (236 vs 203 M, up
+from 221) after `5e127eb5` restricted the `new_redirected` large-branch
+unlikely-hint to Apple targets — on linux-x86/clang the hint had cost 1 KiB
+−15% and 64 B −8% (same-node interleaved A/B) for a +23% gain only at
+16 KiB, which the LUT already dominates.  mimalloc still leads at **64 B** on
+x86-64 — 331 vs 260 M single-thread, 39572 vs 29044 at 128T: unlike
+arm64/M3, where the `deallocate` / `operator new` hot/cold splits put kame
+ahead at 64 B, on x86-64 mimalloc's thread-local bump allocator keeps the
+edge on the smallest bucket.
 
 ---
 
