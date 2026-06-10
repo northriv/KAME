@@ -22,7 +22,7 @@ The primary build method on macOS is via **Qt Creator** using `kame.pro` (qmake)
 - Use genuine Qt (not from MacPorts); Qt5 compatibility module required for Qt 6
 - Do NOT enable "Add build library search path..." in Qt Creator's executable environment pane — this causes crashes
 
-Tests live in `kamestm/tests/` and cover the core STM framework: `atomic_shared_ptr_test`, `atomic_scoped_ptr_test`, `atomic_queue_test`, `mutex_test`, `transaction_test`, `transaction_negotiation_test`, `transaction_dynamic_node_test`, and the `transaction_payload_integrity_*` family. Pool-allocator tests live in `kamepoolalloc/tests/` (`alloc_*`).
+Tests live in `kamestm/tests/` and cover the core STM framework: `atomic_shared_ptr_test`, `atomic_scoped_ptr_test`, `atomic_queue_test`, `mutex_test`, `transaction_test`, `transaction_negotiation_test`, `transaction_dynamic_node_test`, `transaction_lookup_memo_test`, and the `transaction_payload_integrity_*` family. `transaction_lookup_bench` (not a testcase) measures the `Snapshot::at()` / `Transaction::operator[]` lookup-memo speedup. Pool-allocator tests live in `kamepoolalloc/tests/` (`alloc_*`).
 
 **Memory-model verification (C++-derived)** (`kamestm/tests/cds_atomic_shared_ptr/`): GenMC model-checker tests derived from the C++ implementation in `kamepoolalloc/atomic_smart_ptr.h` (relocated from `kamestm/`). Three tests cover `load_shared_`/`release_tag_ref_` concurrency, `load_shared_` vs `compareAndSwap_` races, and multi-thread `compareAndSet` contention. Verifies reference counting safety but not payload values. Requires GenMC v0.16+ built against LLVM 20; see `Makefile` for build instructions. Run with `make run` from the test directory.
 
