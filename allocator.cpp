@@ -1160,7 +1160,8 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		// freelist-held one.
 		{
 			constexpr size_t K_slots =
-			    (2048u / ALIGN) < 4u ? 4u : (2048u / ALIGN);
+			    (KAME_FS_TWOLIST_WINDOW / ALIGN) < 4u
+			        ? 4u : (KAME_FS_TWOLIST_WINDOW / ALIGN);
 			for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b)
 				m_freelist_head[b] = nullptr;
 			m_freelist_head[2] = base;                       // reserve cur
