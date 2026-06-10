@@ -4290,14 +4290,15 @@ ALLOC_TLS_IE KameTlsPage  g_tls_page  = {RADIX_CACHE_EMPTY, 0, 0, {}};
 // path identity-compares against `&g_teardown_page` to take a TLS-free route.
 KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
 
-// Cold off-ramp for `new_redirected` (declared in allocator_prv.h) — the
-// SMALL-range cold cases only: an empty owner freelist (re-resolve the chunk
-// and slow_allocate via its vtable) or a not-yet-activated bucket (first
-// access / post-cleanup).  `bucket` is pre-computed by the lean caller; the
-// large §19 tier is routed DIRECTLY to new_redirected_large from the lean
-// path (no extra hop on the 1 KiB+ band).  KAME_NOINLINE so the lean
-// `new_redirected` TAIL-CALLS it — keeping the freelist-pop hot path
-// frame-free (Linux IE-TLS: no prologue, no `bl`).
+// Cold off-ramp for the lean freelist-pop entries (`new_redirected` and
+// `new_redirected_large`; declared in allocator_prv.h): an empty owner
+// freelist (re-resolve the chunk and slow_allocate via its vtable), a
+// not-yet-activated bucket (first access / post-cleanup), or a
+// first-touch thread (kame_page_or_null() bailed — the kame_page() call
+// below runs the full TSD cold-init).  `bucket` is pre-computed by the
+// lean caller and may be any bucketed class (small formula range or the
+// 369..32768 LUT range).  KAME_NOINLINE so the lean callers TAIL-CALL it —
+// keeping their freelist-pop hot paths frame-free.
 KAME_NOINLINE
 void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
@@ -4311,34 +4312,46 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 	return cold_first_access(bucket, size);
 }
 
-// Out-of-line large-size dispatch.  Sizes > 256 B fall here from
-// `new_redirected`.  The 257..512 range dispatches via the same
-// g_thread_slots[] table (buckets 17..24) as the small range, just
-// from this colder function instead of inline — keeps the hot
-// path (sizes ≤ 256) lean (single branch + inline freelist pop).
-// Sizes > 512 fall through to allocate_large_size_or_malloc (the
-// X=4 / X=8 / ... ALIGN doublings).  Activation-flag check lives
-// here too (cold path is the right place — only paid by larger
-// allocations).
+// Cold tail for `new_redirected_large`: sizes above the bucketed pool
+// ceiling (> 32 KiB) — activation gate + dedicated/large_va/libc routing.
+// Out-of-line so the lean entry below tail-calls it.
+KAME_NOINLINE_COLD
+static void *new_redirected_large_tail(std::size_t size) noexcept {
+    if( !g_sys_image_loaded || kame_thread_torn_down())
+        return libsystem_malloc_for_pool(size);
+    return allocate_large_size_or_malloc(size);
+}
+
+// Out-of-line FS=false-and-up dispatch.  Sizes > 368 B fall here from
+// `new_redirected`.  LEAN body: the whole bucketed range (369..32768)
+// resolves via bucket_for_size (formula / one LUT byte — no ladder call
+// since the 32 KiB LUT extension) and pops the per-thread freelist.  Every
+// off-ramp is a TAIL-CALL and the page read is the no-cold-init
+// `kame_page_or_null()`, so the hit path is CALL-FREE — no callee-saved
+// spill, no frame (the former body shared a 2×stp frame with its
+// slow_allocate/cold_first_access calls on every steady-state hit).
+//   • > 32768                  → new_redirected_large_tail (gate + large_va)
+//   • first touch / slot empty → new_redirected_cold(bucket, size), which
+//     runs the full kame_page() init, the activation-gated
+//     cold_first_access, or the chunk-vtable slow_allocate.
 void *new_redirected_large(std::size_t size) noexcept {
-    if(size <= ALLOC_MAX_BUCKETED_SIZE) {
-        // (§12.3 / §hot-tls) Mirror new_redirected's direct-jump fast path
-        // via the KameTlsPage slot.  m_slots[bucket].freelist_head stores the
-        // char ** pointer (cast to char *) to the active chunk's freelist cell.
-        unsigned int bucket = bucket_for_size(size);
-        if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
+    if(__builtin_expect(size > ALLOC_MAX_BUCKETED_SIZE, 0))
+        return new_redirected_large_tail(size);
+    // (§12.3 / §hot-tls) Mirror new_redirected's direct-jump fast path
+    // via the KameTlsPage slot.  m_slots[bucket].freelist_head stores the
+    // char ** pointer (cast to char *) to the active chunk's freelist cell.
+    unsigned int bucket = bucket_for_size(size);
+    KameTlsPage *pg = kame_page_or_null();
+    if(__builtin_expect(pg != nullptr, 1)) {
+        if(char *cell_ptr_raw = pg->m_slots[bucket].freelist_head) {
             char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
             if(char *head = *head_ptr) {
                 *head_ptr = *reinterpret_cast<char **>(head);
                 return head;
             }
-            return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
         }
-        return cold_first_access(bucket, size);
     }
-    if( !g_sys_image_loaded || kame_thread_torn_down())
-        return libsystem_malloc_for_pool(size);
-    return allocate_large_size_or_malloc(size);
+    return new_redirected_cold(bucket, size);
 }
 
 // (§17) Aligned-allocation entry point — pool-or-libc dispatch on

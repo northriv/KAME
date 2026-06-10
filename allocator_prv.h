@@ -2833,11 +2833,43 @@ inline KameTlsPage *kame_page() noexcept {
     return p ? p : kame_page_cold();
 #endif
 }
+//! Fast-read-only sibling of `kame_page()`: returns nullptr where
+//! kame_page() would call kame_page_cold() (TSD offset not yet discovered /
+//! slot empty, i.e. this thread's very first touch).  Lets a lean hot path
+//! keep ALL of its off-ramps as TAIL-CALLS — no call, hence no stack frame —
+//! by bailing to its own cold function, which then runs the full kame_page()
+//! init.  (kame_page_cold is [[clang::preserve_most]], but a call is still a
+//! call: lr must be spilled, erecting exactly the frame this avoids.)
+inline KameTlsPage *kame_page_or_null() noexcept {
+#if defined(KAME_FIXED_TSD_SLOT) && (KAME_FIXED_TSD_SLOT)
+    return *reinterpret_cast<KameTlsPage **>(
+        kame_thread_pointer() + (std::size_t)(KAME_FIXED_TSD_SLOT));
+#else
+    std::size_t off = s_kame_page_tsd_offset;
+    if(__builtin_expect(off != 0, 1))
+        return *reinterpret_cast<KameTlsPage **>(
+            kame_thread_pointer() + off);
+    // off == 0 (pre-discovery startup, or the degraded no-fast-slot mode):
+    // bail.  Do NOT read `tls_page_ie` here — on macOS a dylib __thread
+    // access goes through the TLV descriptor thunk (`blr _tlv_get_addr`),
+    // which is a CALL and would erect in the caller exactly the frame this
+    // accessor exists to avoid.  The caller's cold off-ramp runs the full
+    // kame_page(), which handles the tls_page_ie fallback (degraded mode
+    // is permanently cold here — an accepted trade for the hot frameless
+    // path on healthy setups).
+    return nullptr;
+#endif
+}
 #else   // Linux / Windows: no TLV thunk to bypass
 //! Hot accessor: returns this thread's KameTlsPage.
 //! Linux: inlines to address-of IE-TLS struct (mov %fs:offset — optimal).
 inline KameTlsPage *kame_page() noexcept {
     return &g_tls_page;   // initial-exec: inlines to mov %fs:(offset)
+}
+//! Sibling of the macOS variant above; an IE-TLS struct address is always
+//! valid, so this never returns null and the caller's null-bail folds away.
+inline KameTlsPage *kame_page_or_null() noexcept {
+    return &g_tls_page;
 }
 #endif  // KAME_FAST_TSD
 
