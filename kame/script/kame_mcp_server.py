@@ -15,6 +15,7 @@ Usage (stdio transport, launched by Claude Code):
 import base64
 import json
 import os
+import re
 import sys
 import queue
 import time
@@ -35,12 +36,18 @@ except ImportError:
 
 CONN_INFO_PATH = Path.home() / ".kame_kernel_connection.json"
 API_DOC_PATH = Path(__file__).parent / "kame_python_api.md"
+MANUAL_DOC_PATHS = [
+    Path(__file__).parent / "kame-8-en.md",  # deployed (e.g. Contents/Resources)
+    Path(__file__).parent.parent.parent / "doc" / "manual" / "kame-8-en.md",  # source tree
+]
 
 server = FastMCP("kame", instructions="""You are connected to a running KAME measurement application
 via its embedded IPython kernel. The `kame` module is pre-imported:
 Root(), Snapshot(), Transaction() are available directly.
 
 IMPORTANT: Call kame_api first to learn the Python API before writing code.
+For end-user topics (UI operation, driver-specific settings, NMR measurement
+workflow, installation), consult kame_manual.
 
 Key patterns:
 - Read: shot = Snapshot(node); float(shot[node]) or str(shot[node])
@@ -186,6 +193,51 @@ def kame_api() -> str:
     if API_DOC_PATH.exists():
         return API_DOC_PATH.read_text()
     return "API documentation not found at " + str(API_DOC_PATH)
+
+
+@server.tool()
+def kame_manual(section: str = "") -> str:
+    """Return the KAME user's manual (Markdown), whole-section at a time.
+
+    The manual covers installation, basic UI operation, driver-specific
+    settings (DMM, DSO, lock-in amplifier, magnet power supply, temperature
+    controller, NMR pulser, ...), NMR measurement workflow, scripting, and
+    STM internals.
+
+    Args:
+        section: Heading to retrieve, case-insensitive substring match
+                 (e.g. "Lock-in", "NMR Pulser", "Script Control").
+                 Empty string returns the table of contents.
+    """
+    path = next((p for p in MANUAL_DOC_PATHS if p.exists()), None)
+    if path is None:
+        return "Manual not found: " + ", ".join(str(p) for p in MANUAL_DOC_PATHS)
+    lines = path.read_text().splitlines()
+    headings = []  # (level, title, line_idx)
+    in_fence = False
+    for i, ln in enumerate(lines):
+        if ln.startswith("```"):
+            in_fence = not in_fence
+            continue
+        m = re.match(r"^(#{1,6})\s+(.+?)\s*$", ln)
+        if m and not in_fence:
+            headings.append((len(m.group(1)), m.group(2), i))
+    if not section.strip():
+        toc = ["Table of contents — call kame_manual(section=<heading>) to read one:"]
+        toc += ["  " * (lvl - 1) + "- " + title for lvl, title, _ in headings]
+        return "\n".join(toc)
+    sec = section.strip().lower()
+    idx = next((k for k, h in enumerate(headings) if h[1].lower() == sec), None)
+    if idx is None:
+        idx = next((k for k, h in enumerate(headings) if sec in h[1].lower()), None)
+    if idx is None:
+        return f"Section {section!r} not found. Call kame_manual() for the table of contents."
+    lvl, _, start = headings[idx]
+    end = next((h[2] for h in headings[idx + 1:] if h[0] <= lvl), len(lines))
+    body = "\n".join(lines[start:end]).strip()
+    # Image references are dead weight over MCP (text-only consumers)
+    body = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", body)
+    return body
 
 
 @server.tool()
