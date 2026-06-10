@@ -2468,7 +2468,19 @@ inline constexpr unsigned int kame_ladder_bucket(std::size_t total) noexcept {
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((cold))
 #endif
-inline constexpr unsigned int bucket_for_size_full(std::size_t size) noexcept {
+// KAME_ALWAYS_INLINE (not plain `inline`): GCC emitted this out-of-line at
+// -O3 despite the `inline` keyword, so `new_redirected_large`'s >2048-byte
+// path (FS=false full-usable tier — e.g. 16 KiB) paid a `call
+// bucket_for_size_full` + ret on every allocation (perf: ~11 % of the 16 KiB
+// alloc samples landed in this symbol).  Its sole RUNTIME caller is
+// `bucket_for_size`'s >2048 tail (the ≤2048 range uses the LUT inline), which
+// is itself inlined into new_redirected_large / new_redirected_aligned — so
+// forcing the inline folds the ladder into those two hot paths with no
+// call boundary.  The two COMPILE-TIME callers (the kBucketSizeLut builder
+// and the divergence static_assert) are unaffected — always_inline coexists
+// with constexpr (the attribute governs runtime emission; constant
+// evaluation ignores it).
+KAME_ALWAYS_INLINE constexpr unsigned int bucket_for_size_full(std::size_t size) noexcept {
 	// FS=true / mixed range: 1..368, 16-B step.  (size+15)>>4 yields
 	// 1..23 for size 1..368, and 0 for size==0 (reuses bucket 0's 16-B
 	// allocator).
@@ -2545,7 +2557,15 @@ struct BucketSizeLut {
 };
 inline constexpr BucketSizeLut kBucketSizeLut{};
 
-inline constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
+// KAME_ALWAYS_INLINE: this is THE size→bucket dispatcher on the alloc hot
+// path (new_redirected / new_redirected_large / new_redirected_aligned).
+// Inlining bucket_for_size_full into its >2048 tail (above) grew this body
+// enough that GCC's -O3 inliner started emitting bucket_for_size itself
+// out-of-line — re-introducing a `call bucket_for_size` on the >2048 path it
+// was meant to remove.  Force it inline so the ≤368 formula, the 369..2048
+// LUT load, AND the >2048 ladder all land directly in the caller.  Same
+// constexpr-coexistence note as bucket_for_size_full.
+KAME_ALWAYS_INLINE constexpr unsigned int bucket_for_size(std::size_t size) noexcept {
 	// FS=true / mixed range: 1..368, 16-B step — already O(1).
 	if(size <= (std::size_t)ALLOC_SIZE23)
 		return static_cast<unsigned int>((size + 15u) >> 4);
