@@ -4671,15 +4671,32 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 	if(__builtin_expect(pg != nullptr, 1)) {
 		if(char *cell_ptr_raw = pg->m_slots[bucket].freelist_head) {
 			char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
-#if KAME_FS_CHUNK_STASH
-			// (§L0-STASH take) restored after the 526e1819 lean split
-			// dropped it (the park side at deallocate kept running,
-			// stranding the parked slot until the owner-exit drain).
-			// Prefer the parked slot: one load on the already-hot
-			// chunk line, and NO dereference of the block itself.
-			// Lean-path only — new_redirected / _cold / _aligned still
-			// go straight to the plain pop (parked slots there wait
-			// for the drain), acceptable for the experiment gate.
+			// (gate experiments) The 526e1819 lean split detached malloc
+			// from `new_redirected`, which silently DROPPED the gated
+			// ring/stash TAKE from the C-malloc path while the park side
+			// (in `deallocate`) survived — parked slots were stranded
+			// until the owner-exit drain (found on Ohtaka; 14c4f889
+			// restored the STASH side, this adds the FIFO side so a ring
+			// re-test needs no re-plumbing).  Prefer the parked slot: a
+			// load on the already-hot chunk line, NO dereference of the
+			// block itself.  Lean-path only — new_redirected / _cold /
+			// _aligned still go straight to the plain pop (parked slots
+			// there wait for the drain), acceptable for experiment gates.
+			// With both gates OFF (the default) the preprocessor removes
+			// this block and the body is bit-identical.
+#if KAME_FS_CHUNK_FIFO
+			PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+			if(ck->m_fs_flag) {
+				std::uint32_t fr = ck->m_fifo.r;
+				char *b0 = head_ptr[1 + (fr & 3u)];
+				char *b1 = head_ptr[1 + ((fr + 1u) & 3u)];
+				if(b0 && b1) {
+					head_ptr[1 + (fr & 3u)] = nullptr;
+					ck->m_fifo.r = fr + 1;
+					return b0;
+				}
+			}
+#elif KAME_FS_CHUNK_STASH
 			if(chunk_from_freelist_ptr(head_ptr)->m_fs_flag) {
 				if(char *b = head_ptr[1]) {
 					head_ptr[1] = nullptr;
