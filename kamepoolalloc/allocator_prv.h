@@ -1249,6 +1249,42 @@ public:
 #if KAME_FS_TWOLIST_AGED && !KAME_FS_TWOLIST
   #error "KAME_FS_TWOLIST_AGED requires KAME_FS_TWOLIST"
 #endif
+	//! (§two-list BMWIN) Window backend swap: instead of pre-reserving the
+	//! WHOLE virgin chunk as an address range (all bits set at claim, ctor
+	//! range markers, bump inventory dead once the virgins run out), the
+	//! chunk starts ZERO-INIT (the supported KAME_POOL_DISABLE_PREFILL
+	//! semantics) and each cold CLAIMS a window as a 1..K-slot contiguous
+	//! zero-bit run via find-run + ONE CAS — the FS=false claim discipline
+	//! applied to FS=true's 1-bit slots.  What this buys:
+	//!   * RENEWABLE bump inventory: cross-thread frees CAS-clear bits, and
+	//!     a later window claim recovers them K-at-a-time (the range
+	//!     backend recovers them one CAS per alloc via the legacy
+	//!     allocate_pooled walk — which this backend RETIRES for FS=true).
+	//!   * "Chunk full" judgment a la FS=false: when no run is claimable
+	//!     (or the §94pct saturation gate trips) the chunk is handed to the
+	//!     DLL / fresh-chunk path; sparse leftover bits are the same
+	//!     accepted few-% idle trade as FS=false, picked up when cross
+	//!     frees coalesce runs.
+	//!   * Cheaper owner-exit drain (<= K outstanding window slots instead
+	//!     of the whole un-consumed reserve) and honest chunk emptiness
+	//!     (clear bits visible to release paths).
+	//! Requires KAME_FS_TWOLIST; composes with AGED.
+	//!
+	//! Lifecycle note (the bug this design shipped with, fixed): the
+	//! owner-exit drain nulls the marker cells [2..5] so the generic
+	//! per-local walk can't misread them as list heads — but an ADOPTED
+	//! chunk then claims fresh windows, and with the stride cell [5]
+	//! still null the lean bump advanced by 0 and served the same slot
+	//! forever (deterministic double-serve: alloc_stress 16/1/20000/10).
+	//! The claim therefore RE-SEEDS [5] on every window claim.  The
+	//! range backend never hit this because its window dies with the
+	//! reserve at first adoption (the very limitation BMWIN removes).
+#ifndef KAME_FS_TWOLIST_BMWIN
+  #define KAME_FS_TWOLIST_BMWIN 0
+#endif
+#if KAME_FS_TWOLIST_BMWIN && !KAME_FS_TWOLIST
+  #error "KAME_FS_TWOLIST_BMWIN requires KAME_FS_TWOLIST"
+#endif
 	//! Bump-window byte size for the two-list gate: K = max(4,
 	//! WINDOW/ALIGN) slots per epoch — also the steady-state circulation
 	//! cap (the "walk").  Tunable for the K-sweep (smaller = hotter
@@ -1300,6 +1336,7 @@ public:
 		// re-accumulates ~K nodes — segment length self-recovers to ~K
 		// within one cycle, still with no counter.  One store, bounded by
 		// the reserve.
+#if !KAME_FS_TWOLIST_BMWIN
 		{
 			char *cur = m_freelist_head[2];
 			char *end = m_freelist_head[3];
@@ -1313,6 +1350,7 @@ public:
 				m_freelist_head[4] = w;
 			}
 		}
+#endif /* !KAME_FS_TWOLIST_BMWIN */
 #if KAME_FS_TWOLIST_AGED
 		// ① rotate epochs: consume the chain aged one epoch in [6]; the
 		// current free side becomes the next aging chain.  Four pointer
@@ -1341,6 +1379,9 @@ public:
 			    reinterpret_cast<uintptr_t>(m_freelist_head[5]);
 			return cur;
 		}
+		// (§BMWIN) Under the bitmap-window backend the next window is
+		// claimed in allocate_pooled (the bitmap fields live in the
+		// derived template) — reached via the normal slow_allocate hop.
 		return nullptr;
 	}
 #endif /* KAME_FS_TWOLIST */

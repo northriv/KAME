@@ -1108,8 +1108,21 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	}();
 	bool prefilled = false;
 #ifndef GUARDIAN
+#if KAME_FS_TWOLIST_BMWIN
+	// (§BMWIN) FS=true starts ZERO-INIT (the supported
+	// KAME_POOL_DISABLE_PREFILL semantics): bits clear = claimable by the
+	// windowed run-CAS in fs_twolist_bmwin_claim.  Only the stride cell is
+	// seeded; everything else takes the !prefilled path below.
+	if constexpr (FS && DUMMY) {
+		(void)s_prefill_enabled;
+		m_freelist_head[5] =
+		    reinterpret_cast<char *>(static_cast<uintptr_t>(ALIGN));
+	}
+	if(false) {
+#else
 	if constexpr (FS && DUMMY) if(s_prefill_enabled) {
 		prefilled = true;
+#endif
 		// (§29) FS=true freelist pre-fill at chunk-claim.
 		//
 		// Non-atomically link ALL slots into the chunk-local freelist
@@ -1201,6 +1214,13 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 			m_freelist_head[b] = nullptr;
 		for(int i = count - 1; i >= 0; --i)
 			m_flags[i] = 0;
+#if KAME_FS_TWOLIST_BMWIN
+		// (§BMWIN) re-seed the stride cell — the generic head-null loop
+		// above just cleared it.
+		if constexpr (FS && DUMMY)
+			m_freelist_head[5] = reinterpret_cast<char *>(
+			    static_cast<uintptr_t>(ALIGN));
+#endif
 	}
 	// Initial coalesce hint by (FS, real-instance):
 	//   FS=true real chunk (FS && DUMMY): start ABOVE all FS=true
@@ -1369,6 +1389,78 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			return p;
 		if(void *p = this->fs_twolist_refill_take())
 			return p;
+#if KAME_FS_TWOLIST_BMWIN
+		// (§BMWIN) Claim the next bump window as a 1..K contiguous
+		// zero-bit run: ONE CAS per window — FS=false's claim discipline
+		// on FS=true's 1-bit slots.  Returns the first slot; the window
+		// cells [2]/[4] feed the lean bump for the rest.  Nothing
+		// claimable (§94pct saturation or no zero run in one pass) ->
+		// the chunk is FULL for this owner (FS=false-style judgment) and
+		// the caller falls to the DLL / fresh-chunk path.  The legacy
+		// one-bit-per-alloc CAS walk below is retired under this
+		// backend; sparse leftover bits wait for cross-frees to coalesce
+		// into claimable runs (the same accepted few-% idle trade as the
+		// §94pct gate).  Accounting mirrors the legacy claim
+		// (m_flags_packed on word 0->nonzero, m_flags_filled_cnt on word
+		// full; the 80% cross-batch flush trigger is not replicated —
+		// cold-path heuristic only).
+		{
+			if(this->m_flags_filled_cnt >=
+			   this->m_count - this->m_count / 16)
+				return nullptr;                   // §94: saturated
+			constexpr unsigned WBITS = sizeof(FUINT) * 8;
+			constexpr size_t kmax0 = KAME_FS_TWOLIST_WINDOW / ALIGN;
+			constexpr size_t kmax = kmax0 < 4u ? 4u : kmax0;
+			int idx = this->m_idx;
+			for(int walked = 0; walked < this->m_count; ++walked) {
+				FUINT *pflag = &this->m_flags[idx];
+				for(;;) {
+					FUINT oldv = *pflag;
+					if(oldv == ~(FUINT)0u) break;     // word full
+					unsigned s0 = (unsigned)__builtin_ctzll(
+					    (unsigned long long)~oldv);
+					FUINT above = (s0 + 1u >= WBITS)
+					    ? (FUINT)0u : (FUINT)(oldv >> s0);
+					unsigned run = above
+					    ? (unsigned)__builtin_ctzll(
+					          (unsigned long long)above)
+					    : (WBITS - s0);
+					if(run > kmax) run = (unsigned)kmax;
+					FUINT mask = (run >= WBITS)
+					    ? ~(FUINT)0u
+					    : (FUINT)(((((FUINT)1u) << run) - 1u) << s0);
+					FUINT newv = oldv | mask;
+					if(atomicCompareAndSet(oldv, newv, pflag)) {
+						if(oldv == 0)
+							atomicInc(&this->m_flags_packed);
+						if(newv == ~(FUINT)0u)
+							atomicInc(&this->m_flags_filled_cnt);
+						writeBarrier();
+						this->m_idx = idx;
+						size_t bit0 = (size_t)idx * WBITS + s0;
+						char *base = this->mempool() + bit0 * ALIGN;
+						// Re-seed the stride cell [5] on EVERY claim — the
+						// owner-exit drain nulls [2..5] (so the generic
+						// per-local walk can't misread the marker cells as
+						// list heads), and an ADOPTED chunk then claims
+						// fresh windows with [5] still null: the lean bump
+						// would advance by stride 0 and serve the SAME slot
+						// forever (the deterministic double-serve caught by
+						// alloc_stress 16/1/20000/10).
+						this->m_freelist_head[5] = reinterpret_cast<char *>(
+						    static_cast<uintptr_t>(ALIGN));
+						this->m_freelist_head[2] = base + ALIGN;
+						this->m_freelist_head[4] =
+						    base + (size_t)run * ALIGN;
+						return base;
+					}
+					// CAS lost to a cross-thread clear: re-read.
+				}
+				if(++idx == this->m_count) idx = 0;
+			}
+			return nullptr;                       // no zeros -> full
+		}
+#endif
 #endif
 		if(void *p = this->freelist_pop(0))
 			return p;
@@ -2987,7 +3079,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 				// misread them as list heads).  [0]/[1] are real
 				// lists — the generic walk drains them as-is.
 				char *cur = c->m_freelist_head[2];
+#if KAME_FS_TWOLIST_BMWIN
+					// (§BMWIN) only the CLAIMED window remainder has set
+				// bits to return — [2]..[4]; everything beyond is
+				// clear (= already free in the bitmap).
+				char *end = c->m_freelist_head[4];
+#else
 				char *end = c->m_freelist_head[3];
+#endif
 				uintptr_t a = reinterpret_cast<uintptr_t>(
 				    c->m_freelist_head[5]);
 				for(; cur < end; cur += a) {
