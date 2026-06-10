@@ -1154,8 +1154,22 @@ public:
 	//! earlier — unlike the ring there is no >= 2-ops spacing — but it
 	//! replaces the freelist pop's CHAINED two loads (head, then *head)
 	//! with a single load, so the steady-state data chain is strictly
-	//! shorter than base on every core.  Default 0 (experiment);
-	//! -DKAME_FS_CHUNK_STASH=1.  Mutually exclusive with the ring.
+	//! shorter than base on every core.
+	//!
+	//! VERDICT (2026-06-10; 64 B FS=true target; interleaved flag-only
+	//! A/B on three microarchitectures): REJECTED — default stays OFF.
+	//!   M3 (load-store renaming)   : +1 % sub-noise (and -5 % mid-size
+	//!                                code-layout collateral, gate-ON only)
+	//!   Cascade Lake-SP (cloud VM) : +3..4 % (28/30 pairs positive)
+	//!   Zen 2 (Ohtaka bare metal,  : -4.1 % — 8/9 runs pinned at 277.x
+	//!     srun --exclusive)          vs base 289.x; very stable loss
+	//! The "shorter data chain wins on no-renaming cores" hypothesis
+	//! fails on the no-renaming core it was aimed at (Zen 2) — same
+	//! direction as the depth-4 ring, just milder.  The lone VM win is
+	//! likely virtualization-specific (EPT making the untouched-block-
+	//! line property worth more under nested paging).  Kept, gated, for
+	//! reference / future cores: -DKAME_FS_CHUNK_STASH=1.  Mutually
+	//! exclusive with the ring.
 #ifndef KAME_FS_CHUNK_STASH
   #define KAME_FS_CHUNK_STASH 0
 #endif
