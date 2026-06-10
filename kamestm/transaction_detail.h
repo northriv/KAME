@@ -100,6 +100,8 @@ template <class XN>
 class Transaction;
 template <class XN>
 class ScopedNegotiateLinkage;
+template <class XN>
+struct ScopedLookupMemoInvalidate;
 
 //! Per-Tx priority used by the privilege ("fair-mode oldest-Tx
 //! escape") mechanism in `negotiate_internal`.
