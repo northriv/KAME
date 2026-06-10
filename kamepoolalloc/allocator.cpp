@@ -2925,6 +2925,29 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 		// drain_thread_slot_freelists() (freelists are now chunk-local).
 		{
 			CrossDeallocEntry fdrain[2] = {};
+			// (§L0-FIFO) FS=true: m_freelist_head[1..4] hold depth-4
+			// ring ENTRIES — individual parked slots, NOT list heads.
+			// Return them via the bitmap path and null the cells BEFORE
+			// the generic per-local walk below, which would otherwise
+			// misread an entry as a list head and walk user data.
+#if KAME_FS_CHUNK_FIFO
+			if(c->m_fs_flag) {
+				// Null-marking ring: parked entries are exactly the
+				// non-null cells [1..4].  Return each as a SINGLE slot
+				// (not a list head!) and null the cell before the
+				// generic per-local walk below.
+				for(int i = 1; i <= 4; ++i) {
+					if(char *blk = c->m_freelist_head[i]) {
+						c->m_freelist_head[i] = nullptr;
+						fdrain[0].chunk = c;
+						fdrain[0].slot = blk;
+						c->batch_return_to_bitmap(fdrain);
+					}
+				}
+				c->m_fifo.r = 0;
+				c->m_fifo.w = 0;
+			}
+#endif /* KAME_FS_CHUNK_FIFO */
 			// (§12.3) freelists are compact LOCAL-id indexed
 			// (KAME_LOCAL_BUCKETS = 9); walk that range, not 48.
 			for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b) {
@@ -3351,6 +3374,23 @@ PoolAllocatorBase::deallocate(void *p) {
 	if(__builtin_expect(chunk_obj->m_owner_id == page_owner_id
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
+#if KAME_FS_CHUNK_FIFO
+			// (§L0-FIFO) Park into the chunk's depth-4 null-marking ring
+			// instead of the freelist: no store into the block itself
+			// (its lines stay untouched, still warm for the next user),
+			// and the matching alloc-side take returns a slot parked
+			// >= 2 frees ago.  The park side owns `w` exclusively;
+			// "ring full" is read off the cell content (non-null), which
+			// was nulled by a take >= 2 ops ago — branch-feeding only,
+			// no data-chain stall.  Full -> plain freelist push.
+			std::uint32_t fw = chunk_obj->m_fifo.w;
+			char **rcell = &chunk_obj->m_freelist_head[1 + (fw & 3u)];
+			if(*rcell == nullptr) {
+				*rcell = static_cast<char *>(p);
+				chunk_obj->m_fifo.w = fw + 1;
+				return;
+			}
+#endif /* KAME_FS_CHUNK_FIFO */
 			chunk_obj->freelist_push(0, p);
 			return;
 		}
