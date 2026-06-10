@@ -1270,6 +1270,30 @@ public:
 	//! to the existing slow_allocate / chunk-claim path).  Owner-thread
 	//! only, like every freelist op here.
 	inline void *fs_twolist_refill_take() noexcept {
+		// (§two-list pump) Refresh the virgin bump window UNCONDITIONALLY
+		// on every cold entry — not only when the swap finds nothing.
+		// Without this, a live set that swallows the whole initial window
+		// before the first free ever lands (live set ~ K) locks the chunk
+		// into 1-NODE segments forever: swap 1 node -> drained next pair
+		// -> cold again -> swap 1 node ... (the Ohtaka ring slots=32 -31%
+		// cliff).  With the pump, a short-segment episode is followed by
+		// up to K bump-served pairs, during which the free side [0]
+		// re-accumulates ~K nodes — segment length self-recovers to ~K
+		// within one cycle, still with no counter.  One store, bounded by
+		// the reserve.
+		{
+			char *cur = m_freelist_head[2];
+			char *end = m_freelist_head[3];
+			if(cur < end) {
+				uintptr_t a =
+				    reinterpret_cast<uintptr_t>(m_freelist_head[5]);
+				size_t kb = KAME_FS_TWOLIST_WINDOW / a;
+				if(kb < 4u) kb = 4u;
+				char *w = cur + kb * a;
+				if(w > end) w = end;
+				m_freelist_head[4] = w;
+			}
+		}
 		if(char *seg = m_freelist_head[0]) {        // ① swap free side in
 			m_freelist_head[0] = nullptr;
 			m_freelist_head[1] = *reinterpret_cast<char **>(seg);
@@ -1277,15 +1301,9 @@ public:
 			              // ONCE per epoch (amortized 1/K) — mi's swap.
 		}
 		char *cur = m_freelist_head[2];             // ② virgin window
-		char *end = m_freelist_head[3];
-		if(cur < end) {
-			uintptr_t a =
+		if(cur < m_freelist_head[4]) {
+			m_freelist_head[2] = cur +
 			    reinterpret_cast<uintptr_t>(m_freelist_head[5]);
-			size_t kb = KAME_FS_TWOLIST_WINDOW / a; if(kb < 4u) kb = 4u;
-			char *w = cur + kb * a;
-			if(w > end) w = end;
-			m_freelist_head[4] = w;
-			m_freelist_head[2] = cur + a;
 			return cur;
 		}
 		return nullptr;
