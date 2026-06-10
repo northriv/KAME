@@ -2534,21 +2534,28 @@ KAME_ALWAYS_INLINE constexpr unsigned int bucket_for_size_full(std::size_t size)
 	return Kf;
 }
 
-//! (§lut) Compile-time bucket lookup table for the hot FS=false borrow
-//! range 369..2048 B, the bulk of variable-size workloads (larson-style).
+//! (§lut) Compile-time bucket lookup table for the ENTIRE bucketed
+//! FS=false range 369..ALLOC_MAX_BUCKETED_SIZE (32768).
 //! `bucket_for_size_full`'s >368 path costs a `clzll` + sub-octave ladder
 //! arithmetic (~24 instr, ~11 % of total Ir on the variable-churn
-//! profile); glibc's tcache size→bin is a single shift.  This table
-//! restores O(1): every bucket boundary in 369..2048 is at a multiple of
-//! 8 (slot−8 for the borrow tier, slot a multiple of 16), so `(size+7)>>3`
+//! profile) — and worse, above the LUT's former 2048 ceiling every
+//! steady-state medium alloc (e.g. the 16 KiB band) paid an out-of-line
+//! `bl bucket_for_size_full` CALL on top of the ladder (~35 instructions
+//! total, measured in the dylib disassembly).  glibc's tcache size→bin
+//! is a single shift.  This table restores O(1) for the whole bucketed
+//! range: every bucket boundary in 369..32768 is at a multiple of 8
+//! (borrow tier: slot−8 with slot a multiple of 16; full/page tiers:
+//! ladder and page boundaries are multiples of 256), so `(size+7)>>3`
 //! (ceil-div-8) maps each bucket to a contiguous, non-overlapping granule
 //! range.  v[i] = bucket_for_size_full(8*i), built at compile time from
-//! the authoritative routine so the two can never drift.  Indices below
-//! 47 (sizes ≤368) are unused — the formula path handles that range.
+//! the authoritative routine so the two can never drift.  4 KiB of
+//! rodata; the single-size hot loop touches one line of it.  Indices
+//! below 47 (sizes ≤368) are unused — the formula path handles that
+//! range.
 struct BucketSizeLut {
-	uint8_t v[(2048u >> 3) + 1u];   // indices 0..256 → sizes 0..2048
+	uint8_t v[(ALLOC_MAX_BUCKETED_SIZE >> 3) + 1u];  // 0..4096 → sizes 0..32768
 	constexpr BucketSizeLut() : v{} {
-		for(unsigned i = 0; i < (2048u >> 3) + 1u; ++i) {
+		for(unsigned i = 0; i < (ALLOC_MAX_BUCKETED_SIZE >> 3) + 1u; ++i) {
 			std::size_t sz = static_cast<std::size_t>(i) << 3;
 			v[i] = static_cast<uint8_t>(
 			    bucket_for_size_full(sz == 0 ? 1u : sz));
@@ -2569,32 +2576,49 @@ KAME_ALWAYS_INLINE constexpr unsigned int bucket_for_size(std::size_t size) noex
 	// FS=true / mixed range: 1..368, 16-B step — already O(1).
 	if(size <= (std::size_t)ALLOC_SIZE23)
 		return static_cast<unsigned int>((size + 15u) >> 4);
-	// (§lut) Hot FS=false borrow range: one table load, no clzll/ladder.
-	if(size <= 2048u)
+	// (§lut) Whole bucketed FS=false range: one table load, no
+	// clzll/ladder, no out-of-line call.
+	if(size <= ALLOC_MAX_BUCKETED_SIZE)
 		return kBucketSizeLut.v[(size + 7u) >> 3];
-	// Cold tail (> 2048): full ladder.  Rare in practice.
+	// > 32768: full ladder's tail returns the page bucket 51 only for
+	// <= 32768, so this resolves to ALLOC_NUM_BUCKETS ("no bucket") /
+	// the dedicated-chunk / large_va routing.  Rare; keep out of line.
 	return bucket_for_size_full(size);
 }
 
 //! (§lut) Compile-time proof that the LUT fast path is byte-for-byte
-//! identical to `bucket_for_size_full`.  Only the LUT's own domain
-//! (369..2048) needs checking: outside it `bucket_for_size` either
-//! returns the `(size+15)>>4` formula (≤368, identical to full's first
-//! branch) or tail-calls `bucket_for_size_full` (>2048).  Restricting
-//! the loop to 369..2048 (~1680 iterations) keeps the constexpr step
-//! count well under Clang's default 2^20 evaluation-step limit — the
-//! full 1..32768 sweep (~3 M steps) overflowed it on Apple-clang while
-//! GCC accepted it.  A silent granule/boundary drift still breaks the
-//! build, not just a test.
-constexpr bool kBucketLutMatchesFull() {
-	for(std::size_t s = (std::size_t)ALLOC_SIZE23 + 1u; s <= 2048u; ++s)
+//! identical to `bucket_for_size_full` over the LUT's whole domain
+//! (369..32768).  Outside it `bucket_for_size` either returns the
+//! `(size+15)>>4` formula (≤368, identical to full's first branch) or
+//! tail-calls `bucket_for_size_full` (>32768).  The sweep is EXHAUSTIVE
+//! but split into sub-range constexpr evaluations: each static_assert is
+//! a separate constant-expression evaluation with its own step budget,
+//! so no single evaluation approaches Clang's default 2^20 step limit
+//! (the former single-loop full sweep overflowed it on Apple-clang).
+//! A silent granule/boundary drift still breaks the build, not a test.
+constexpr bool kBucketLutMatchesFull(std::size_t lo, std::size_t hi) {
+	for(std::size_t s = lo; s <= hi; ++s)
 		if(bucket_for_size(s) != bucket_for_size_full(s))
 			return false;
 	return true;
 }
-static_assert(kBucketLutMatchesFull(),
-	"bucket_for_size LUT diverged from bucket_for_size_full — the "
-	"(size+7)>>3 granule no longer aligns with a bucket boundary.");
+// NOTE: each static_assert below is its OWN constant-expression evaluation
+// with a fresh step budget — do NOT merge them with `&&` (a single chained
+// condition shares one budget and re-creates the overflow).
+#define KAME_LUT_PROOF(lo, hi) \
+	static_assert(kBucketLutMatchesFull((lo), (hi)), \
+	    "bucket_for_size LUT diverged from bucket_for_size_full in " \
+	    "[" #lo ", " #hi "] — a (size+7)>>3 granule no longer aligns " \
+	    "with a bucket boundary.")
+KAME_LUT_PROOF((std::size_t)ALLOC_SIZE23 + 1u, 4096u);
+KAME_LUT_PROOF( 4097u,  8192u);
+KAME_LUT_PROOF( 8193u, 12288u);
+KAME_LUT_PROOF(12289u, 16384u);
+KAME_LUT_PROOF(16385u, 20480u);
+KAME_LUT_PROOF(20481u, 24576u);
+KAME_LUT_PROOF(24577u, 28672u);
+KAME_LUT_PROOF(28673u, ALLOC_MAX_BUCKETED_SIZE);
+#undef KAME_LUT_PROOF
 
 //! (§17) Bucket for an over-aligned request (alignment > ALLOC_ALIGNMENT,
 //! always power-of-two by caller contract).  Returns the smallest bucket
