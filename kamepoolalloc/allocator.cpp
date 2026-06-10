@@ -2930,13 +2930,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// Return them via the bitmap path and null the cells BEFORE
 			// the generic per-local walk below, which would otherwise
 			// misread an entry as a list head and walk user data.
-#if KAME_FS_CHUNK_FIFO
+#if KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH
 			if(c->m_fs_flag) {
-				// Null-marking ring: parked entries are exactly the
-				// non-null cells [1..4].  Return each as a SINGLE slot
-				// (not a list head!) and null the cell before the
-				// generic per-local walk below.
-				for(int i = 1; i <= 4; ++i) {
+				// Null-marking park cells: entries are exactly the
+				// non-null cells [1..4] (ring) / [1] (depth-1 stash).
+				// Return each as a SINGLE slot (not a list head!) and
+				// null the cell before the generic per-local walk
+				// below, which would otherwise misread an entry as a
+				// list head and walk user data.
+				constexpr int kParkCells = KAME_FS_CHUNK_FIFO ? 4 : 1;
+				for(int i = 1; i <= kParkCells; ++i) {
 					if(char *blk = c->m_freelist_head[i]) {
 						c->m_freelist_head[i] = nullptr;
 						fdrain[0].chunk = c;
@@ -2944,10 +2947,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 						c->batch_return_to_bitmap(fdrain);
 					}
 				}
+#if KAME_FS_CHUNK_FIFO
 				c->m_fifo.r = 0;
 				c->m_fifo.w = 0;
+#endif
 			}
-#endif /* KAME_FS_CHUNK_FIFO */
+#endif /* KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH */
 			// (§12.3) freelists are compact LOCAL-id indexed
 			// (KAME_LOCAL_BUCKETS = 9); walk that range, not 48.
 			for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b) {
@@ -3332,7 +3337,7 @@ PoolAllocatorBase::lookup_chunk(void *p) noexcept {
 // out-of-line (their own `noinline`), so this only duplicates the lean
 // ~20-instruction hot path per call site.
 KAME_ALWAYS_INLINE void
-PoolAllocatorBase::deallocate(void *p) {
+PoolAllocatorBase::deallocate(void *p) noexcept {
 	// (hoist) Read this thread's KameTlsPage ONCE: the region-cache
 	// check and the owner-id compare below share it.  `free(NULL)` needs
 	// no `!p` pre-filter — `last_region_base` is RADIX_CACHE_EMPTY (~0),
@@ -3390,7 +3395,18 @@ PoolAllocatorBase::deallocate(void *p) {
 				chunk_obj->m_fifo.w = fw + 1;
 				return;
 			}
-#endif /* KAME_FS_CHUNK_FIFO */
+#elif KAME_FS_CHUNK_STASH
+			// (§L0-STASH) Depth-1 park: stash `p` in the single cell
+			// m_freelist_head[1] when empty — one load + one store on
+			// the already-hot chunk line, NO store into the block itself
+			// (its lines stay warm for the next user), no counters.
+			// Occupied -> plain freelist push.
+			char **scell = &chunk_obj->m_freelist_head[1];
+			if(*scell == nullptr) {
+				*scell = static_cast<char *>(p);
+				return;
+			}
+#endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
 			chunk_obj->freelist_push(0, p);
 			return;
 		}
@@ -3414,7 +3430,7 @@ PoolAllocatorBase::deallocate(void *p) {
 // coincidental owner match) tail-calls the full cold resolver, which
 // re-validates via palloc + the vtable owner check.
 KAME_NOINLINE void
-PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) {
+PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) noexcept {
 	PoolAllocatorBase *chunk_obj = reinterpret_cast<PoolAllocatorBase *>(
 	    chunk_base + ALLOC_CHUNK_HEADER);
 	unsigned local;
@@ -3450,10 +3466,10 @@ PoolAllocatorBase::deallocate_fs_false_owner(char *chunk_base, void *p) {
 // so the lean `deallocate` TAIL-CALLS `deallocate_cold` frame-free — no
 // separate wrapper, and no extra hop on the large/cold path (the wrapper hop
 // previously cost ~10 % on the 64 KiB–256 KiB free band).
-static void libsystem_free_for_pool(void *p);
+static void libsystem_free_for_pool(void *p) noexcept;
 
 KAME_NOINLINE_COLD void
-PoolAllocatorBase::deallocate_cold(void *p) {
+PoolAllocatorBase::deallocate_cold(void *p) noexcept {
 	// COLD off-ramp (split out of `deallocate` so the hot path stays
 	// call-free / prologue-free; see the lean `deallocate` just above).
 	// This is the original full resolver: it re-derives everything from
@@ -4503,7 +4519,7 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
 // loop (under -O3 + noinline the inner call is tail-jumped, so no stack
 // overflow ever fires — the process just hangs).
 __attribute__((noinline))
-static void libsystem_free_for_pool(void *p);
+static void libsystem_free_for_pool(void *p) noexcept;
 
 inline void deallocate_pooled_or_free(void* p) throw() {
 	// `PoolAllocatorBase::deallocate(p)` is safe to call pre-
@@ -4530,7 +4546,7 @@ inline void deallocate_pooled_or_free(void* p) throw() {
 extern "C" void __libc_free(void *) noexcept;
 #endif
 
-static void libsystem_free_for_pool(void *p) {
+static void libsystem_free_for_pool(void *p) noexcept {
 #if defined(__APPLE__)
 	// Zone-API direct dispatch — skips the interposed `free` symbol.
 	// `malloc_zone_from_ptr` may return NULL for pointers libsystem
@@ -4599,7 +4615,7 @@ static void libsystem_free_for_pool(void *p) {
 // any pointer outside our mmap regions and we fall through to
 // libsystem free.  Safe.
 __attribute__((noinline))
-static void kame_free(void *p) {
+static void kame_free(void *p) noexcept {
 	// `PoolAllocatorBase::deallocate(p)` is itself pre-activation-safe:
 	// it early-returns false on null `p`, and the CCNT=0 lookup against
 	// `s_mmapped_spaces[0] == nullptr` (zero-initialised pre-pool-use)
@@ -4618,11 +4634,66 @@ static void kame_free(void *p) {
 // as `operator new`).  `always_inline` so BOTH callers expand it directly:
 // the hot `malloc` keeps its inlined freelist pop with NO extra call/PLT
 // hop, while the source carries one copy.
+// Cold continuation for `kame_malloc_impl`: the full size dispatch PLUS
+// the C-malloc ENOMEM contract.  Folding the `errno` assignment in HERE —
+// instead of null-checking in the caller — is what lets the lean malloc
+// below tail-call on every miss: with no post-call work the hot path
+// needs no frame at all (the VTune Zen 2 audit measured the former
+// null-check + errno shape as a `push %rax`/`pop` pair plus a call that
+// stayed on the hot side — ~2-3 of the ~10 glue insns/pair behind the
+// 64 B gap vs mimalloc).
+KAME_NOINLINE static void *kame_malloc_slow(std::size_t n) noexcept {
+	void *p = (n > (std::size_t)ALLOC_SIZE23)
+	              ? new_redirected_large(n)
+	              : new_redirected_cold(
+	                    static_cast<unsigned int>((n + 15u) >> 4), n);
+	if(__builtin_expect(p == nullptr, 0))
+		errno = ENOMEM;
+	return p;
+}
+
 static __attribute__((always_inline)) inline
 void *kame_malloc_impl(std::size_t n) noexcept {
-	if(void *p = new_redirected(n)) return p;
-	errno = ENOMEM;
-	return nullptr;
+	// LEAN: only the owner-freelist HIT is inlined (a leaf —
+	// kame_page_or_null + pop, no call, no frame); EVERY miss (large
+	// size, first touch, empty freelist, pre-activation / post-teardown
+	// via the null slot or null page) tail-calls `kame_malloc_slow`,
+	// which re-dispatches and owns the ENOMEM contract.  The large-size
+	// branch hint mirrors `new_redirected`'s Apple-only policy (5e127eb5).
+#if defined(__APPLE__)
+	if(__builtin_expect(n > (std::size_t)ALLOC_SIZE23, 0))
+#else
+	if(n > (std::size_t)ALLOC_SIZE23)
+#endif
+		return kame_malloc_slow(n);
+	unsigned int bucket = (static_cast<unsigned int>(n) + 15u) >> 4;
+	KameTlsPage *pg = kame_page_or_null();
+	if(__builtin_expect(pg != nullptr, 1)) {
+		if(char *cell_ptr_raw = pg->m_slots[bucket].freelist_head) {
+			char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
+#if KAME_FS_CHUNK_STASH
+			// (§L0-STASH take) restored after the 526e1819 lean split
+			// dropped it (the park side at deallocate kept running,
+			// stranding the parked slot until the owner-exit drain).
+			// Prefer the parked slot: one load on the already-hot
+			// chunk line, and NO dereference of the block itself.
+			// Lean-path only — new_redirected / _cold / _aligned still
+			// go straight to the plain pop (parked slots there wait
+			// for the drain), acceptable for the experiment gate.
+			if(chunk_from_freelist_ptr(head_ptr)->m_fs_flag) {
+				if(char *b = head_ptr[1]) {
+					head_ptr[1] = nullptr;
+					return b;
+				}
+			}
+#endif
+			if(char *head = *head_ptr) {
+				*head_ptr = *reinterpret_cast<char **>(head);
+				return head;
+			}
+		}
+	}
+	return kame_malloc_slow(n);
 }
 
 #if defined(__APPLE__)
@@ -4656,17 +4727,23 @@ kame_interpose_entry kame_interposers[]
 // which is the same address libc's malloc resolves to but under a name
 // we do not shadow — preventing infinite recursion through our own
 // override.
-extern "C" __attribute__((noinline)) void free(void *p) {
+extern "C" __attribute__((noinline)) void free(void *p) noexcept {
+	// noexcept end-to-end (free -> kame_free -> deallocate chain): no EH
+	// barrier, so this compiles to a bare `jmp kame_free` tail-call — no
+	// push/pop/ret, no __clang_call_terminate pad (the VTune Zen 2 audit
+	// measured the former call-wrapper shape as ~5-6 of the ~10 glue
+	// insns/pair behind the 64 B gap vs mimalloc, whose `vfree` is the
+	// same tail-jump).
 	kame_free(p);
 }
-extern "C" __attribute__((noinline)) void *malloc(std::size_t n) {
+extern "C" __attribute__((noinline)) void *malloc(std::size_t n) noexcept {
 	// Strong-symbol interpose.  Body is the shared `kame_malloc_impl`,
 	// `always_inline` so `new_redirected` expands directly here — no
 	// call, no PLT hop on the alloc hot path.  See `kame_malloc_impl`
 	// for why no activation-flag pre-filter is needed.
 	return kame_malloc_impl(n);
 }
-extern "C" __attribute__((noinline)) void *calloc(std::size_t n_elem, std::size_t sz) {
+extern "C" __attribute__((noinline)) void *calloc(std::size_t n_elem, std::size_t sz) noexcept {
 	// `kame_calloc` is libc-spec compliant (overflow check, calloc(0,*)
 	// returns unique freeable ptr, ENOMEM on fail) — just expose it.
 	return kame_calloc(n_elem, sz);

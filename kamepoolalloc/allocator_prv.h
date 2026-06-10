@@ -54,10 +54,36 @@
         #define __builtin_expect(expr, c) (expr)
     #endif
     // constexpr bit-scan (C++17 relaxed constexpr) — _BitScan* aren't
-    // constexpr, but these feed constexpr ladder-bucket math.
-    constexpr int kame_msvc_ctzll(unsigned long long v) noexcept { if(!v) return 64; int n=0; while(!(v&1ull)){v>>=1;++n;} return n; }
-    constexpr int kame_msvc_ctz(unsigned int v) noexcept { if(!v) return 32; int n=0; while(!(v&1u)){v>>=1;++n;} return n; }
-    constexpr int kame_msvc_clzll(unsigned long long v) noexcept { if(!v) return 64; int n=0; while(!(v&(1ull<<63))){v<<=1;++n;} return n; }
+    // constexpr, but these feed constexpr ladder-bucket math.  Branch/shift
+    // binary search (O(log width), ~6 ops) rather than an O(width) bit-walk:
+    // the per-call constexpr step count matters because kame_ladder_bucket
+    // runs inside the compile-time bucket_for_size LUT build AND its
+    // EXHAUSTIVE 369..32768 KAME_LUT_PROOF sweeps — an O(width) walk there
+    // blew MSVC's default `/constexpr:steps` (2^20) ceiling once the LUT was
+    // extended to the full 32 KiB range (C2131 at the LUT/proofs).
+    constexpr int kame_msvc_ctzll(unsigned long long v) noexcept {
+        if(!v) return 64; int n = 0;
+        if(!(unsigned)(v))         { n += 32; v >>= 32; }
+        if(!(unsigned short)(v))   { n += 16; v >>= 16; }
+        if(!(unsigned char)(v))    { n += 8;  v >>= 8;  }
+        if(!(v & 0xfull))          { n += 4;  v >>= 4;  }
+        if(!(v & 0x3ull))          { n += 2;  v >>= 2;  }
+        if(!(v & 0x1ull))          { n += 1; }
+        return n;
+    }
+    constexpr int kame_msvc_ctz(unsigned int v) noexcept {
+        return v ? kame_msvc_ctzll((unsigned long long)v) : 32;
+    }
+    constexpr int kame_msvc_clzll(unsigned long long v) noexcept {
+        if(!v) return 64; int n = 0;
+        if(!(v >> 32)) { n += 32; v <<= 32; }
+        if(!(v >> 48)) { n += 16; v <<= 16; }
+        if(!(v >> 56)) { n += 8;  v <<= 8;  }
+        if(!(v >> 60)) { n += 4;  v <<= 4;  }
+        if(!(v >> 62)) { n += 2;  v <<= 2;  }
+        if(!(v >> 63)) { n += 1; }
+        return n;
+    }
     #define __builtin_ctzll(x) kame_msvc_ctzll(x)
     #define __builtin_ctz(x)   kame_msvc_ctz(x)
     #define __builtin_clzll(x) kame_msvc_clzll(x)
@@ -550,10 +576,17 @@ constexpr int RADIX_REGION_BITS = RADIX_L1_BITS + RADIX_L2_BITS;  // 23
 //! nothing is ever out-of-window.  Computing `1 << 48` directly would be UB on
 //! a 32-bit `uintptr_t` (shift count ≥ width), so clamp to `~0` there.
 constexpr unsigned RADIX_VA_BITS = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT; // 48
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(push)
+#pragma warning(disable: 4293) // MSVC warns on the dead ILP32 shift arm (1<<48); clamped to ~0 below
+#endif
 constexpr uintptr_t RADIX_VA_LIMIT =
     (RADIX_VA_BITS >= sizeof(uintptr_t) * 8u)
         ? ~(uintptr_t)0                          // pointers ⊆ radix span (ILP32)
         : ((uintptr_t)1 << RADIX_VA_BITS);       // 2^48 on LP64/LLP64
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(pop)
+#endif
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 // 64-bit: the region-count ceiling equals the radix's full VA coverage.
 static_assert(ALLOC_MAX_REGIONS == (1 << RADIX_REGION_BITS),
@@ -848,7 +881,7 @@ public:
 	//! FS=true hot path needs NO stack frame (no prologue spill, no `bl`).
 	//! `always_inline` (see the def) expands it into free / operator
 	//! delete / kame_pool_free.
-	static inline void deallocate(void *p);
+	static inline void deallocate(void *p) noexcept;
 	//! Cold off-ramp for `deallocate` — VOID + self-contained: a foreign /
 	//! released pointer is libsystem-freed in place (no caller-side
 	//! fallback, no wrapper hop).  Handles every case the lean hot path
@@ -857,13 +890,13 @@ public:
 	//! post-teardown).  noinline+cold so its calls (deallocate_large_va,
 	//! the per-template DeallocateFn, deallocate_chunk, large_recycle_push,
 	//! libsystem_free_for_pool) never spill into the hot path.
-	static void deallocate_cold(void *p);
+	static void deallocate_cold(void *p) noexcept;
 	//! FS=false owner-free helper for `deallocate`.  Split out (noinline)
 	//! so the FS=true 64 B hot path in `deallocate` stays lean/inlinable.
 	//! `chunk_base` is pre-resolved by the caller; only this-thread-owned
 	//! FS=false chunks reach here.  Void: a garbage local-id tail-calls
 	//! `deallocate_cold`.
-	static void deallocate_fs_false_owner(char *chunk_base, void *p);
+	static void deallocate_fs_false_owner(char *chunk_base, void *p) noexcept;
 	//! Look up the slot size (bytes) for a pointer.  Returns 0 if `p`
 	//! is not a pool slot (foreign / libsystem-malloc'd / null).  Uses
 	//! the same chunk-header pattern as `deallocate` and dispatches
@@ -1126,17 +1159,55 @@ public:
 		struct { uint32_t r, w; } m_fifo;
 	};
 	//! Compile-time gate for the FS=true free-slot ring above.  Default:
-	//! ON for Apple (memory renaming hides the ring's extra instructions
-	//! and the untouched-block-lines property is pure profit — pending
-	//! M3 bench), OFF elsewhere (on Zen 2 the ring's ~+12 insns/pair
-	//! cost more than the freelist hop it removes: ring slots>=2
-	//! 302 -> 255 M ops/s).  Override with -DKAME_FS_CHUNK_FIFO=0/1.
+	//! OFF everywhere — the ring lost on BOTH measured microarchitectures.
+	//! Zen 2 (Ohtaka EPYC 7702): the ring's ~+12 insns/pair cost more than
+	//! the freelist forwarding hop it removes (ring slots>=2 302 -> 255
+	//! M ops/s).  M3 (the provisional Apple-on hypothesis, now REFUTED by
+	//! the confirming bench, runs=9 x 3 interleaved rounds): 64 B
+	//! 668-733 -> 522-563 (-22 %), with collateral 1 KiB -7 % / 16 KiB
+	//! -9 % — Apple's memory renaming does NOT hide the ring's extra
+	//! work; the freelist's single store-to-load hop was never the
+	//! bottleneck there.  The gate (and the ring implementation) is kept
+	//! for experimentation on future cores: override with
+	//! -DKAME_FS_CHUNK_FIFO=1.  With the gate off the compiled hot paths
+	//! are bit-identical to the pre-ring base (verified on M3: the OFF
+	//! build reproduces the base numbers exactly).
 #ifndef KAME_FS_CHUNK_FIFO
- #if defined(__APPLE__)
-  #define KAME_FS_CHUNK_FIFO 1
- #else
   #define KAME_FS_CHUNK_FIFO 0
- #endif
+#endif
+	//! (§L0-STASH) Depth-1 variant of the ring above: ONE parked slot in
+	//! m_freelist_head[1], NO counters — the cell's null/non-null IS the
+	//! whole protocol (m_fifo / m_sizes union untouched).  Keeps the
+	//! ring's key property (the freed block's own cache lines are never
+	//! touched by the allocator: park writes the chunk cell, take reads
+	//! it — no `*p = head` store, no dependent `*head` load) while
+	//! shedding the depth-4 bookkeeping (~+12 insns/pair) that made the
+	//! ring a measured loss on BOTH Zen 2 and M3.  Cost: ~2 same-line
+	//! ops/side.  The take's load may forward from a park one op
+	//! earlier — unlike the ring there is no >= 2-ops spacing — but it
+	//! replaces the freelist pop's CHAINED two loads (head, then *head)
+	//! with a single load, so the steady-state data chain is strictly
+	//! shorter than base on every core.
+	//!
+	//! VERDICT (2026-06-10; 64 B FS=true target; interleaved flag-only
+	//! A/B on three microarchitectures): REJECTED — default stays OFF.
+	//!   M3 (load-store renaming)   : +1 % sub-noise (and -5 % mid-size
+	//!                                code-layout collateral, gate-ON only)
+	//!   Cascade Lake-SP (cloud VM) : +3..4 % (28/30 pairs positive)
+	//!   Zen 2 (Ohtaka bare metal,  : -4.1 % — 8/9 runs pinned at 277.x
+	//!     srun --exclusive)          vs base 289.x; very stable loss
+	//! The "shorter data chain wins on no-renaming cores" hypothesis
+	//! fails on the no-renaming core it was aimed at (Zen 2) — same
+	//! direction as the depth-4 ring, just milder.  The lone VM win is
+	//! likely virtualization-specific (EPT making the untouched-block-
+	//! line property worth more under nested paging).  Kept, gated, for
+	//! reference / future cores: -DKAME_FS_CHUNK_STASH=1.  Mutually
+	//! exclusive with the ring.
+#ifndef KAME_FS_CHUNK_STASH
+  #define KAME_FS_CHUNK_STASH 0
+#endif
+#if KAME_FS_CHUNK_FIFO && KAME_FS_CHUNK_STASH
+  #error "KAME_FS_CHUNK_FIFO and KAME_FS_CHUNK_STASH are mutually exclusive"
 #endif
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
@@ -3051,7 +3122,21 @@ inline void *new_redirected(std::size_t size) {
 				return b0;
 			}
 		}
-#endif /* KAME_FS_CHUNK_FIFO */
+#elif KAME_FS_CHUNK_STASH
+		// (§L0-STASH) Depth-1 take: if the chunk parked a slot in
+		// m_freelist_head[1] (same hot line as [0] / m_fs_flag), return
+		// it — one load + one store, and the block's own lines stay
+		// untouched.  Unlike the freelist pop there is NO second
+		// dependent load (`*head`): the data chain is one hop.  Miss
+		// (cell null) falls to the plain pop below.
+		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+		if(ck->m_fs_flag) {
+			if(char *b = head_ptr[1]) {
+				head_ptr[1] = nullptr;
+				return b;
+			}
+		}
+#endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
