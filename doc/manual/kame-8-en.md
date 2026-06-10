@@ -1194,6 +1194,9 @@ KAME’s MCP server connects to the embedded IPython kernel via jupyter_client, 
 | `stop_job` | Request a cooperative stop of a running asynchronous job |
 | `tree` | Browse the node tree (names, types, values) to a given depth |
 | `kame_status` | Check KAME status and list active drivers |
+| `notebook_status` | Open notebooks, kernel busy/idle, currently executing cell |
+| `notebook_read` | Read notebook cells with indices |
+| `notebook_edit` | Replace/insert/delete a cell on disk (reload the browser tab afterwards) |
 
 ## Usage Examples
 

@@ -15,6 +15,12 @@ If you reach this doc through MCP, the relevant tools are:
   the only point where a `stop_job` request can terminate the job.
   KAME STM is thread-safe; read the job's result variables only after
   status is "done" or "stopped".
+- **`notebook_status` / `notebook_read` / `notebook_edit`** — read and
+  edit the user's measurement notebook cells (Jupyter contents API,
+  file on disk). Check `notebook_status` first: while the kernel is
+  busy running a cell, `execute_code` queues behind it, and the
+  currently executing cell must not be edited. After every edit, tell
+  the user to reload the notebook browser tab.
 
 Anti-pattern (will MCP-timeout):
 ```python

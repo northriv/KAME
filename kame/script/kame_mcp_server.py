@@ -18,7 +18,12 @@ import os
 import re
 import sys
 import queue
+import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
 from pathlib import Path
 
 try:
@@ -54,6 +59,13 @@ functors receive the raw uint32 count matrix (see kame_api, "2D Math
 Tools"). to_png() is the gamma-encoded display image: fine for viewing
 and for binary segmentation / mask generation (rank-based thresholds,
 1:1 pixel coordinates), but never read signal values from its pixels.
+
+Notebook cell editing: the user's measurements live in notebook cells.
+Workflow: notebook_status (kernel busy? which cell is running?) →
+notebook_read → notebook_edit. Edits change the .ipynb on disk only —
+never a running execution — and after EVERY edit you must relay the
+reload instruction to the user. While the kernel is busy executing a
+cell, execute_code queues behind it; the notebook_* tools keep working.
 
 Key patterns:
 - Read: shot = Snapshot(node); float(shot[node]) or str(shot[node])
@@ -448,6 +460,293 @@ for _d in _dshot.list(_drivers):
         return _execute_text(code, timeout=10)
     except Exception as e:
         return f"KAME kernel error: {e}"
+
+
+# ---------- Jupyter notebook document access (contents API) ----------
+# The kernel (ZMQ) knows nothing about the notebook *document*; cells are
+# read/edited through the Jupyter server's REST API. KAME generates the
+# server token itself and records it (with the workspace dir) in
+# ~/.kame_kernel_connection.json, so the server can be located among the
+# Jupyter runtime info files.
+
+_nb_server_cache = None
+
+
+def _conn_info() -> dict:
+    if not CONN_INFO_PATH.exists():
+        raise RuntimeError(
+            "KAME is not running (no ~/.kame_kernel_connection.json). "
+            "Start KAME and use Script → Launch Jupyter notebook.")
+    with open(CONN_INFO_PATH) as f:
+        return json.load(f)
+
+
+def _match_server_file(runtime_dir: Path, want_token, want_dir):
+    """Pick KAME's notebook server among Jupyter runtime info files.
+
+    Match by the token KAME generated, or by the workspace dir; always
+    authenticate with the token found in the runtime file itself."""
+    candidates = []
+    for p in list(runtime_dir.glob("jpserver-*.json")) \
+            + list(runtime_dir.glob("nbserver-*.json")):
+        try:
+            with open(p) as f:
+                s = json.load(f)
+            mtime = p.stat().st_mtime
+        except (OSError, ValueError):
+            continue
+        root = s.get("root_dir") or s.get("notebook_dir")
+        if (want_token and s.get("token") == want_token) \
+                or (want_dir and root == want_dir):
+            candidates.append((mtime, s))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda c: c[0])[1]
+
+
+def _notebook_server():
+    """(base_url, token) of KAME's Jupyter notebook server."""
+    global _nb_server_cache
+    if _nb_server_cache is not None:
+        return _nb_server_cache
+    info = _conn_info()
+    from jupyter_core.paths import jupyter_runtime_dir
+    s = _match_server_file(Path(jupyter_runtime_dir()),
+                           info.get("notebook_token"), info.get("notebook_dir"))
+    if s is None:
+        raise RuntimeError(
+            "KAME's Jupyter notebook server was not found. Is the notebook "
+            "running? (Older KAME builds don't record notebook_token — "
+            "relaunch the notebook from a current build.)")
+    url = s.get("url") or \
+        f"http://127.0.0.1:{s.get('port', 8888)}{s.get('base_url', '/')}"
+    _nb_server_cache = (url.rstrip("/"), s.get("token", ""))
+    return _nb_server_cache
+
+
+def _nb_api(path: str, method: str = "GET", body=None):
+    global _nb_server_cache
+    base, token = _notebook_server()
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(
+        base + path, data=data, method=method,
+        headers={"Authorization": f"token {token}",
+                 "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read()
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(
+            f"Jupyter API {method} {path}: HTTP {e.code} {e.read()[:300]!r}")
+    except urllib.error.URLError as e:
+        _nb_server_cache = None  # stale port — rediscover on next call
+        raise RuntimeError(f"Jupyter server unreachable ({e}); retry once.")
+    return json.loads(raw) if raw else {}
+
+
+# Watch the kernel's iopub broadcasts on a dedicated ZMQ connection.
+# A busy kernel cannot answer execute_code, but iopub still broadcasts
+# execute_input/status for cells started from the notebook browser — this
+# is the only way to see WHAT is running during a measurement cell.
+_activity = {"state": "unknown", "execution_count": None, "code": "",
+             "since": None}
+_watcher_lock = threading.Lock()
+_watcher_started = False
+
+
+def _start_activity_watcher():
+    global _watcher_started
+    with _watcher_lock:
+        if _watcher_started:
+            return
+        info = _conn_info()
+        client = jupyter_client.BlockingKernelClient()
+        client.load_connection_file(info["connection_file"])
+        client.start_channels()
+
+        def run():
+            while True:
+                try:
+                    msg = client.get_iopub_msg(timeout=60)
+                except queue.Empty:
+                    continue
+                except Exception:
+                    time.sleep(2)
+                    continue
+                typ, content = msg["msg_type"], msg["content"]
+                if typ == "status":
+                    _activity["state"] = content.get("execution_state",
+                                                     "unknown")
+                elif typ == "execute_input":
+                    _activity["execution_count"] = content.get(
+                        "execution_count")
+                    _activity["code"] = content.get("code", "")
+                    _activity["since"] = time.time()
+
+        threading.Thread(target=run, daemon=True).start()
+        _watcher_started = True
+
+
+def _cell_source(cell) -> str:
+    src = cell.get("source", "")
+    return "".join(src) if isinstance(src, list) else src
+
+
+def _default_notebook(path: str) -> str:
+    if path.strip():
+        return path.strip().lstrip("/")
+    sessions = [s for s in _nb_api("/api/sessions")
+                if s.get("type", "notebook") == "notebook"]
+    if len(sessions) == 1:
+        return sessions[0]["path"]
+    names = ", ".join(s.get("path", "?") for s in sessions) or "(none)"
+    raise RuntimeError(f"Specify the notebook path; open sessions: {names}")
+
+
+def _kernel_busy() -> bool:
+    try:
+        return any(k.get("execution_state") == "busy"
+                   for k in _nb_api("/api/kernels"))
+    except RuntimeError:
+        return False
+
+
+RELOAD_NOTICE = (
+    "⚠️ The edit is saved to the .ipynb on disk only. TELL THE USER NOW to "
+    "reload the notebook browser tab before touching it — the open tab "
+    "still holds the old version, and saving from it would silently "
+    "overwrite this edit. The change does NOT affect any execution already "
+    "in progress.")
+
+
+@server.tool()
+def notebook_status() -> str:
+    """KAME notebook overview: open notebooks, kernel busy/idle, and the
+    currently (or last) started cell.
+
+    ALWAYS call this before notebook_edit. If the kernel is busy, the
+    shown cell is probably still running: do not edit that cell, and any
+    execute_code call would queue behind it until it finishes (KAME's
+    sleep() inside the cell does not release the kernel).
+    """
+    watcher_note = ""
+    try:
+        _start_activity_watcher()
+    except Exception as e:
+        watcher_note = f"(cell watcher unavailable: {e})"
+    sessions = _nb_api("/api/sessions")
+    kernels = {k.get("id"): k for k in _nb_api("/api/kernels")}
+    lines = []
+    for s in sessions:
+        kid = (s.get("kernel") or {}).get("id")
+        k = kernels.get(kid, s.get("kernel") or {})
+        lines.append(f"notebook: {s.get('path')}  "
+                     f"kernel: {k.get('execution_state', '?')}")
+    a = dict(_activity)
+    if a["execution_count"] is not None:
+        ago = f", started {int(time.time() - a['since'])}s ago" \
+            if a["since"] else ""
+        code = a["code"] if len(a["code"]) <= 2000 \
+            else a["code"][:2000] + "\n...[truncated]"
+        lines.append(f"last started cell: In[{a['execution_count']}] "
+                     f"(kernel now {a['state']}{ago}):")
+        lines.append(code)
+    else:
+        lines.append("(cell watcher sees only cells started after it "
+                     "attaches — the busy/idle state above is authoritative)")
+    if watcher_note:
+        lines.append(watcher_note)
+    return "\n".join(lines) if lines else "No notebook sessions."
+
+
+@server.tool()
+def notebook_read(path: str = "", with_outputs: bool = False) -> str:
+    """Read a notebook's cells with indices (for notebook_edit).
+
+    Args:
+        path: Path relative to the Jupyter workspace (see notebook_status).
+              Empty: the single open notebook session.
+        with_outputs: include trimmed text outputs.
+    """
+    path = _default_notebook(path)
+    model = _nb_api("/api/contents/" + urllib.parse.quote(path))
+    cells = (model.get("content") or {}).get("cells", [])
+    out = [f"{path} — {len(cells)} cells"]
+    for i, c in enumerate(cells):
+        ec = c.get("execution_count")
+        out.append(f"--- cell {i} [{c.get('cell_type')}]"
+                   + (f" In[{ec}]" if ec else "") + " ---")
+        out.append(_cell_source(c))
+        if with_outputs:
+            for o in c.get("outputs", [])[:5]:
+                txt = o.get("text") or (o.get("data") or {}).get(
+                    "text/plain") or ""
+                txt = "".join(txt) if isinstance(txt, list) else str(txt)
+                if txt:
+                    out.append("  out: " + (txt[:500] + "...[truncated]"
+                                            if len(txt) > 500 else txt))
+    return "\n".join(out)
+
+
+@server.tool()
+def notebook_edit(path: str, index: int, source: str = "",
+                  mode: str = "replace", cell_type: str = "code") -> str:
+    """Replace/insert/delete a notebook cell on disk via the Jupyter API.
+
+    Args:
+        path: notebook path ("" = the single open notebook).
+        index: cell index from notebook_read. For insert, the new cell is
+               placed at this index (-1 = append).
+        source: new cell source (replace/insert).
+        mode: "replace", "insert", or "delete".
+        cell_type: for insert: "code" or "markdown".
+
+    Check notebook_status first; never edit the cell that is currently
+    executing. After a successful edit, relay the reload notice in the
+    response to the user — this is mandatory, not optional.
+    """
+    path = _default_notebook(path)
+    model = _nb_api("/api/contents/" + urllib.parse.quote(path))
+    content = model.get("content") or {}
+    cells = content.get("cells", [])
+    busy = _kernel_busy()
+    if mode == "insert":
+        cell = {"cell_type": cell_type, "metadata": {}, "source": source}
+        if cell_type == "code":
+            cell["outputs"] = []
+            cell["execution_count"] = None
+        if any("id" in c for c in cells):
+            cell["id"] = uuid.uuid4().hex[:8]
+        pos = len(cells) if index == -1 else index
+        if not 0 <= pos <= len(cells):
+            return f"Bad index {index}; notebook has {len(cells)} cells."
+        cells.insert(pos, cell)
+        action = f"Inserted {cell_type} cell at index {pos}."
+    elif mode in ("replace", "delete"):
+        if not 0 <= index < len(cells):
+            return f"Bad index {index}; notebook has {len(cells)} cells."
+        old_src = _cell_source(cells[index])
+        if busy and _activity.get("code") \
+                and old_src.strip() == _activity["code"].strip():
+            return (f"REFUSED: cell {index} appears to be the one currently "
+                    "executing (kernel busy). Wait for it to finish or have "
+                    "the user stop it first.")
+        if mode == "delete":
+            cells.pop(index)
+            action = f"Deleted cell {index}."
+        else:
+            cells[index]["source"] = source
+            if cells[index].get("cell_type") == "code":
+                cells[index]["outputs"] = []
+                cells[index]["execution_count"] = None
+            action = f"Replaced source of cell {index}."
+    else:
+        return f"Unknown mode {mode!r} (use replace/insert/delete)."
+    _nb_api("/api/contents/" + urllib.parse.quote(path), method="PUT",
+            body={"type": "notebook", "content": content})
+    note = ("\nNOTE: the kernel is BUSY — a cell is still executing; this "
+            "edit does not affect it.") if busy else ""
+    return f"{action} ({path}){note}\n\n{RELOAD_NOTICE}"
 
 
 def _run_http_with_token(server, host, port, token):

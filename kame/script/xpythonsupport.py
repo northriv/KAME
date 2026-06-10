@@ -518,7 +518,11 @@ def launchJupyterConsole(prog, argv):
 		_kame_conn_info = os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')
 		try:
 			with open(_kame_conn_info, 'w') as _f:
-				_json.dump({'connection_file': _conn_file, 'pid': os.getpid()}, _f)
+				# notebook_token / notebook_dir let the MCP server locate the
+				# notebook server (contents API) among Jupyter runtime files.
+				_json.dump({'connection_file': _conn_file, 'pid': os.getpid(),
+							'notebook_token': token,
+							'notebook_dir': os.path.abspath(console[1])}, _f)
 		except OSError:
 			pass
 		# Write .mcp.json pointing to the MCP server script.
