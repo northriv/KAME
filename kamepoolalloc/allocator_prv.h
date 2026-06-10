@@ -1230,6 +1230,14 @@ public:
 #ifndef KAME_FS_TWOLIST
   #define KAME_FS_TWOLIST 0
 #endif
+	//! Bump-window byte size for the two-list gate: K = max(4,
+	//! WINDOW/ALIGN) slots per epoch — also the steady-state circulation
+	//! cap (the "walk").  Tunable for the K-sweep (smaller = hotter
+	//! circulation but more frequent refill swaps, and the live-set ≈ K
+	//! resonance moves with it).
+#ifndef KAME_FS_TWOLIST_WINDOW
+  #define KAME_FS_TWOLIST_WINDOW 2048u
+#endif
 #if (KAME_FS_CHUNK_FIFO && KAME_FS_CHUNK_STASH) || \
     (KAME_FS_TWOLIST && (KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH))
   #error "KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH / KAME_FS_TWOLIST are mutually exclusive"
@@ -1273,7 +1281,7 @@ public:
 		if(cur < end) {
 			uintptr_t a =
 			    reinterpret_cast<uintptr_t>(m_freelist_head[5]);
-			size_t kb = 2048u / a; if(kb < 4u) kb = 4u;
+			size_t kb = KAME_FS_TWOLIST_WINDOW / a; if(kb < 4u) kb = 4u;
 			char *w = cur + kb * a;
 			if(w > end) w = end;
 			m_freelist_head[4] = w;
