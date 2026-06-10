@@ -1160,6 +1160,11 @@ public:
 	//! as before, never touching m_mempool / the m_sizes array.
 	uint8_t   m_align_shift;
 	uint16_t  m_base_bucket;     // unused on hot paths; kept for diagnostics
+#if KAME_FS_PINGPONG
+	//! (§ping-pong) owner-only free-side toggle: pushes alternate
+	//! [0]/[1].  Lives on the hot line with m_fs_flag; no atomics.
+	uint8_t   m_pp_toggle;
+#endif
 	//! (§L0-FIFO) m_sizes is null for every FS=true chunk, so its 8 bytes
 	//! are reused as the {r, w} counters of a depth-4 free-slot ring kept
 	//! in the (equally unused for FS=true) m_freelist_head[1..4] cells —
@@ -1331,6 +1336,26 @@ public:
 #if KAME_FS_TWOLIST_TOPUP && !KAME_FS_TWOLIST_BMWIN_NOBUMP
   #error "KAME_FS_TWOLIST_TOPUP requires KAME_FS_TWOLIST_BMWIN_NOBUMP"
 #endif
+	//! (§ping-pong) FS=true two-cell interleave — the STM-friendly
+	//! dependency cut.  Free pushes alternate between [0] and [1] (a
+	//! per-chunk owner-only toggle byte); the alloc pop serves the cell
+	//! the TLS slot aims at, then re-aims the slot at the PARTNER cell
+	//! (one XOR-8 on the stored cell pointer).  Consecutive pairs thus
+	//! run on two independent chains — the single-head store->load
+	//! recurrence halves (the two-list pipelining) — while the float
+	//! stays at ~1 node and the served block is the one freed ~2 pairs
+	//! ago, still L1-hot (the OFF-like locality/pollution profile that
+	//! the STM workload rewards; the two-list/AGED K..3K idle float is
+	//! what it punishes).  §29 prefill splits slots by parity into the
+	//! two chains.  Cross-thread frees / bitmap invariants untouched.
+	//! Default 0; -DKAME_FS_PINGPONG=1.  Mutually exclusive with the
+	//! TWOLIST / FIFO / STASH families.
+#ifndef KAME_FS_PINGPONG
+  #define KAME_FS_PINGPONG 0
+#endif
+#if KAME_FS_PINGPONG && (KAME_FS_TWOLIST || KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH)
+  #error "KAME_FS_PINGPONG is mutually exclusive with TWOLIST / FIFO / STASH"
+#endif
 	//! Bump-window byte size for the two-list gate: K = max(4,
 	//! WINDOW/ALIGN) slots per epoch — also the steady-state circulation
 	//! cap (the "walk").  Tunable for the K-sweep (smaller = hotter
@@ -1343,7 +1368,13 @@ public:
     (KAME_FS_TWOLIST && (KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH))
   #error "KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH / KAME_FS_TWOLIST are mutually exclusive"
 #endif
+#if KAME_FS_PINGPONG
+	// (§ping-pong) 16-byte alignment makes [0]/[1] an XOR-8 partner
+	// pair for the TLS cell-pointer toggle.
+	alignas(16) char *m_freelist_head[KAME_LOCAL_BUCKETS];
+#else
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
+#endif
 
 	//! Owner-thread freelist push/pop (LIFO; freed slot's first 8 bytes
 	//! hold the next pointer).  `local` is the chunk's local-id (NOT the
@@ -3343,8 +3374,37 @@ inline void *new_redirected(std::size_t size) {
 #endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
+#if KAME_FS_PINGPONG
+			// (§ping-pong) AFTER the pop is decided (off the critical
+			// path — the return value does not depend on it), re-aim
+			// the TLS slot at the PARTNER cell ([0]<->[1], XOR 8) for
+			// an FS=true chunk so consecutive pops alternate chains.
+			// One mask + one chunk-line load + one TLS store, all
+			// retire-side; FS=false skips the store.
+			if(chunk_from_freelist_ptr(head_ptr)->m_fs_flag)
+				kame_page()->m_slots[bucket].freelist_head =
+				    reinterpret_cast<char *>(
+				        reinterpret_cast<uintptr_t>(cell_ptr_raw)
+				        ^ 8u);
+#endif
 			return head;
 		}
+#if KAME_FS_PINGPONG
+		// (§ping-pong) aimed cell empty: serve the partner once
+		// (without re-aim — the slot keeps pointing at the empty cell,
+		// so the next free lands there first) before the cold.
+		{
+			PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+			if(ck->m_fs_flag) {
+				char **other = reinterpret_cast<char **>(
+				    reinterpret_cast<uintptr_t>(head_ptr) ^ 8u);
+				if(char *head = *other) {
+					*other = *reinterpret_cast<char **>(head);
+					return head;
+				}
+			}
+		}
+#endif
 #if KAME_FS_TWOLIST && !KAME_FS_TWOLIST_BMWIN_NOBUMP
 		// (§two-list) Alloc-side miss: for an FS=true chunk (cell aims at
 		// the [1] segment under this gate) try the virgin bump window —
