@@ -426,14 +426,21 @@ plt.gcf()  # ← last expression returns the Figure; MCP `execute_code`
 
 ### X2DImagePlot (2D images) — display only
 
-`to_png()` returns the *rendered display image*: gamma-encoded, possibly
-colormapped/scaled. Use it **only to show a picture to the human**.
+`to_png()` returns the *display image*: the bare camera frame,
+gamma-encoded for display. Two legitimate uses:
 
-**Anti-pattern: never decode `to_png()` bytes (plt.imread etc.) for
-analysis.** PNG pixel values are not raw counts; thresholds, averages and
-masks derived from them are quantitatively wrong. For ROI statistics,
-masks and raw frames use **2D Math Tools** (below) — their functors
-receive the true uint32 count matrix before any display rendering.
+1. **Showing a picture to the human.**
+2. **Binary segmentation / mask generation** (finding the sample
+   region): display gamma is monotonic, so bright/dark separation with
+   rank-based thresholds (median / percentile / Otsu) works on the PNG,
+   and no math tool needs to exist yet. Pixel coordinates map **1:1**
+   onto math-tool ROI coordinates — do NOT crop any "axes margins".
+
+**Anti-pattern: reading *quantitative values* from PNG pixels**
+(averages, contrasts, ODMR signal amplitudes). PNG values are
+gamma-encoded display levels, not counts. Take numbers from
+**2D Math Tools** (below) — their functors receive the true uint32
+count matrix before any display rendering.
 
 To reach `to_png()`, navigate: X2DImage → Graph child → Plots → ImagePlot.
 
@@ -562,9 +569,23 @@ their scalar entries at each sweep point. No PNG is involved anywhere.
 
 ### Creating a mask from image analysis
 
-Helper that builds a clean bright-area mask from a **raw frame** captured
-by a functor tool (see above), with morphological cleanup and connected
-component filtering. Requires `scipy`.
+Helper that builds a clean bright-area mask from a 2D grayscale frame,
+with morphological cleanup and connected component filtering. Requires
+`scipy`. All thresholds are rank-based, so the frame may come from either
+source:
+
+```python
+# (a) raw counts captured by a FrameGrabber functor (see above)
+frame = latest["frame"]
+
+# (b) the display PNG — fine for segmentation (rank-based thresholds);
+#     convenient because no tool needs to be created first.
+import io, numpy as np, matplotlib.pyplot as plt
+shot = Snapshot(imgplot)
+img = plt.imread(io.BytesIO(shot[imgplot].to_png()))
+frame = img[..., :3].mean(axis=2) if img.ndim == 3 else img
+# Pixel coordinates map 1:1 onto ROI coordinates — no margin cropping.
+```
 
 ```python
 import numpy as np
@@ -577,8 +598,9 @@ def make_bright_mask(frame,
                      min_area=500,       # discard components smaller than this
                      morph_close=5,      # morphological closing kernel size (0=skip)
                      morph_open=3):      # morphological opening kernel size (0=skip)
-    """frame: 2D array of raw counts (full image), e.g. latest["frame"]
-    captured by the FrameGrabber recipe with the ROI covering the frame.
+    """frame: 2D grayscale array covering the full image — raw counts
+    from a FrameGrabber, or grayscale decoded from the display PNG
+    (gamma is harmless here: thresholding is rank-based).
     Returns (mask_bytes, fx, fy, lx, ly, img_w, img_h); mask_bytes is a
     flat list of uint8 with dimensions (lx-fx+1) * (ly-fy+1)."""
     plot_area = np.asarray(frame, dtype=float)
@@ -627,7 +649,7 @@ def make_bright_mask(frame,
 
 Usage:
 ```python
-mask_bytes, fx, fy, lx, ly, img_w, img_h = make_bright_mask(latest["frame"])
+mask_bytes, fx, fy, lx, ly, img_w, img_h = make_bright_mask(frame)
 
 ch0 = Root()["Drivers"]["JAI"]["LiveImage"]["CH0"]
 dc = ch0.dynamic_cast()

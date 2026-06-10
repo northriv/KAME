@@ -49,10 +49,11 @@ IMPORTANT: Call kame_api first to learn the Python API before writing code.
 For end-user topics (UI operation, driver-specific settings, NMR measurement
 workflow, installation), consult kame_manual.
 
-Camera/2D images: quantitative analysis goes through 2D math tools, whose
+Camera/2D images: read quantitative values through 2D math tools, whose
 functors receive the raw uint32 count matrix (see kame_api, "2D Math
-Tools"). to_png() is display-only (gamma-encoded) — never decode it for
-analysis.
+Tools"). to_png() is the gamma-encoded display image: fine for viewing
+and for binary segmentation / mask generation (rank-based thresholds,
+1:1 pixel coordinates), but never read signal values from its pixels.
 
 Key patterns:
 - Read: shot = Snapshot(node); float(shot[node]) or str(shot[node])
