@@ -1121,6 +1121,18 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 #endif
 	}
 	if(false) {
+#elif KAME_FS_TWOLIST
+	// (§two-list) The range-init below is ALREADY the no-prefill form —
+	// four marker cells + the m_flags set, NO per-slot store — so the
+	// KAME_POOL_DISABLE_PREFILL intent (skip the 8-byte-per-slot link
+	// walk at ctor) is satisfied unconditionally.  Honouring the env by
+	// skipping the block entirely would null the virgin reserve
+	// [2]/[3]: the pump no-ops, every refill swaps a 1-node segment,
+	// and the chunk locks into one-cold-per-pair forever (Zen 2 128T
+	// ring 350 -> 74 M ops/s; M3 single-thread bench_loop 640 -> 155M).
+	if constexpr (FS && DUMMY) if(true) {
+		(void)s_prefill_enabled;
+		prefilled = true;
 #else
 	if constexpr (FS && DUMMY) if(s_prefill_enabled) {
 		prefilled = true;
@@ -1392,184 +1404,11 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		if(void *p = this->fs_twolist_refill_take())
 			return p;
 #if KAME_FS_TWOLIST_BMWIN
-		// (§BMWIN) Claim K zero bits — contiguous or scattered, across as
-		// many words as it takes — one CAS per word: FS=false's claim
-		// discipline on FS=true's 1-bit slots.  The first word probed
-		// donates a contiguous run ANYWHERE in the word (located with
-		// the same find_training_zeros fold FS=false uses, halving the
-		// target length until a run is found) to the lean bump window
-		// ([2]/[4]; zero-touch — no slot writes); every other claimed
-		// bit is chained into the alloc-side LIFO [1] (next ptr in
-		// slot[0], owner-only — same node format the swap-refill
-		// produces).  The walk keeps CASing words until K slots are
-		// banked, so the cold-entry frequency stays 1/K regardless of
-		// how badly cross-frees fragment the bitmap — the
-		// one-word/run-only variants degenerated to ~popcount(word) or
-		// 1 slot per claim+walk under steady ring float (Ohtaka s>=32
-		// collapse) and burned fresh chunks (§94 declared fragmented
-		// chunks FULL while most bits were claimable).  In effect each
-		// cold entry restocks one bump-window's worth of inventory.
-		// Nothing claimable (§94pct saturation or no zero bit in one
-		// pass) -> the chunk is FULL for this owner and the caller
-		// falls to the DLL / fresh-chunk path; the legacy
-		// one-bit-per-alloc CAS walk below stays retired under this
-		// backend.  Accounting mirrors the legacy claim
-		// (m_flags_packed on word 0->nonzero, m_flags_filled_cnt on
-		// word full; the 80% cross-batch flush trigger is not
-		// replicated — cold-path heuristic only).
-		{
-			if(this->m_flags_filled_cnt >=
-			   this->m_count - this->m_count / 16)
-				return nullptr;                   // §94: saturated
-			constexpr unsigned WBITS = sizeof(FUINT) * 8;
-			constexpr size_t kmax0 = KAME_FS_TWOLIST_WINDOW / ALIGN;
-			constexpr size_t kmax = kmax0 < 4u ? 4u : kmax0;
-			int idx = this->m_idx;
-			char *ret = nullptr;
-			size_t got = 0;
-			char *head = this->m_freelist_head[1];
-			for(int walked = 0;
-			    walked < this->m_count && got < kmax; ++walked) {
-				FUINT *pflag = &this->m_flags[idx];
-				for(;;) {
-					FUINT oldv = *pflag;
-					if(oldv == ~(FUINT)0u) break;     // word full
-					FUINT zeros = (FUINT)~oldv;
-					size_t want = kmax - got;
-					FUINT mask;
-#if !KAME_FS_TWOLIST_BMWIN_NOBUMP
-					FUINT runmask = 0;
-					unsigned pos = 0, run = 0;
-					if(!ret) {
-						// First word: pick a contiguous run
-						// anywhere for the bump window.  Probe with
-						// find_training_zeros, halving the target
-						// length until a run turns up (a single
-						// zero always exists here).
-						size_t L = want < (size_t)WBITS
-						    ? want : (size_t)WBITS;
-						FUINT b = 0;
-						while(L > 1 &&
-						      !(b = find_training_zeros(
-						            (int)L, oldv)))
-							L >>= 1;
-						if(!b)
-							b = find_zero_forward(oldv);
-						pos = count_zeros_forward(b);
-						// Greedy extension: the actual run at
-						// `pos` may exceed the probe length.
-						FUINT shifted = (FUINT)(zeros >> pos);
-						FUINT inv = (FUINT)~shifted;
-						run = inv
-						    ? (unsigned)__builtin_ctzll(
-						          (unsigned long long)inv)
-						    : (WBITS - pos);
-						if((size_t)run > want)
-							run = (unsigned)want;
-						runmask = (run >= WBITS)
-						    ? ~(FUINT)0u
-						    : (FUINT)(((((FUINT)1u) << run) - 1u)
-						          << pos);
-						// Top up with the lowest scattered zeros
-						// outside the run.
-						FUINT others = (FUINT)(zeros & ~runmask);
-						size_t need = want - run;
-						if(need && others) {
-							if((size_t)count_bits(others) > need) {
-								FUINT t = others;
-								for(size_t k = 0; k < need; ++k)
-									t &= t - 1;
-								others ^= t;
-							}
-							mask = (FUINT)(runmask | others);
-						}
-						else
-							mask = runmask;
-					}
-					else
-#endif /* !KAME_FS_TWOLIST_BMWIN_NOBUMP */
-					{
-						// Chain-only: the lowest `want` zeros of
-						// this word.  (Every word under §NOBUMP;
-						// words after the bump donor otherwise.)
-						if((size_t)count_bits(zeros) <= want)
-							mask = zeros;
-						else {
-							FUINT t = zeros;
-							for(size_t k = 0; k < want; ++k)
-								t &= t - 1;
-							mask = (FUINT)(zeros ^ t);
-						}
-					}
-					FUINT newv = oldv | mask;
-					if(atomicCompareAndSet(oldv, newv, pflag)) {
-						if(oldv == 0)
-							atomicInc(&this->m_flags_packed);
-						if(newv == ~(FUINT)0u)
-							atomicInc(&this->m_flags_filled_cnt);
-						writeBarrier();
-						this->m_idx = idx;
-						FUINT rest;
-						if(!ret) {
-#if KAME_FS_TWOLIST_BMWIN_NOBUMP
-							// Serve the lowest claimed bit; chain
-							// the rest — no window cells.
-							unsigned pos0 = (unsigned)__builtin_ctzll(
-							    (unsigned long long)mask);
-							ret = this->mempool() +
-							    ((size_t)idx * WBITS + pos0) * ALIGN;
-							got += 1;
-							rest = (FUINT)(mask & (mask - 1u));
-#else
-							size_t bit0 =
-							    (size_t)idx * WBITS + pos;
-							ret = this->mempool() + bit0 * ALIGN;
-							// Re-seed the stride cell [5] on EVERY
-							// claim — the owner-exit drain nulls
-							// [2..5] (so the generic per-local walk
-							// can't misread the marker cells as list
-							// heads), and an ADOPTED chunk then
-							// claims fresh windows with [5] still
-							// null: the lean bump would advance by
-							// stride 0 and serve the SAME slot
-							// forever (the deterministic double-serve
-							// caught by alloc_stress 16/1/20000/10).
-							this->m_freelist_head[5] =
-							    reinterpret_cast<char *>(
-							        static_cast<uintptr_t>(ALIGN));
-							this->m_freelist_head[2] = ret + ALIGN;
-							this->m_freelist_head[4] =
-							    ret + (size_t)run * ALIGN;
-							got += run;
-							rest = (FUINT)(mask & ~runmask);
-#endif /* KAME_FS_TWOLIST_BMWIN_NOBUMP */
-						}
-						else
-							rest = mask;
-						if(rest) {
-							char *mp = this->mempool() +
-							    (size_t)idx * WBITS * ALIGN;
-							got += (size_t)count_bits(rest);
-							do {
-								unsigned s = (unsigned)__builtin_ctzll(
-								    (unsigned long long)rest);
-								rest &= rest - 1;
-								char *slot = mp + (size_t)s * ALIGN;
-								*reinterpret_cast<char **>(slot) = head;
-								head = slot;
-							} while(rest);
-						}
-						break;                    // word done
-					}
-					// CAS lost to a cross-thread clear: re-read.
-				}
-				if(++idx == this->m_count) idx = 0;
-			}
-			this->m_freelist_head[1] = head;
-			if(ret)
-				return ret;
-			return nullptr;                       // no zeros -> full
-		}
+		// (§BMWIN / §TOPUP) banked-claim / steal-walk-topup cold — the
+		// body lives in fs_topup_take() so the LEAN cold
+		// (new_redirected_cold) reaches it in one virtual hop without
+		// paying slow_allocate's scan_dll + chunk path every 1/K.
+		return this->fs_topup_take();
 #endif
 #endif
 		if(void *p = this->freelist_pop(0))
@@ -2370,6 +2209,288 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled_static(
 	PoolAllocator *self = static_cast<PoolAllocator *>(base);
 	return self->PoolAllocator::deallocate_pooled(p);
 }
+
+#if KAME_FS_TWOLIST_BMWIN
+// (§BMWIN / §TOPUP) The bitmap-backend cold inventory acquisition —
+// the body is the §BMWIN banked claim (bank K bits across words, the
+// first word's run-anywhere donation to the bump window, remainder
+// chained to [1]) or, under §TOPUP, the steal-walk-topup variant
+// (steal [0] wholesale, walk at most K, top up with WHOLE-word
+// claims).  Virtual so new_redirected_cold reaches it in ONE hop right
+// after the [1]-pop miss — without a lean inventory source there,
+// every 1/K cold pays slow_allocate's scan_dll + chunk path (the
+// §TOPUP plumbing collapse bench_loop 715M -> 258M; the suspected
+// Zen 2 BMWIN ring s>=32 83M).  Nothing claimable -> nullptr; the
+// caller proceeds to slow_allocate / DLL / fresh-chunk.  Also called
+// from allocate_pooled's cold (slow path entry).
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+__attribute__((cold, noinline))
+void *
+PoolAllocator<ALIGN, FS, DUMMY>::fs_topup_take() noexcept {
+	if constexpr (FS && DUMMY) {
+#if KAME_FS_TWOLIST_TOPUP
+		constexpr unsigned WBITS = sizeof(FUINT) * 8;
+		constexpr size_t kmax0 = KAME_FS_TWOLIST_WINDOW / ALIGN;
+		constexpr size_t kmax = kmax0 < 4u ? 4u : kmax0;
+		// ① steal the free side — links already written by the frees,
+		// zero extra stores.
+		char *head = this->m_freelist_head[0];
+		this->m_freelist_head[0] = nullptr;
+		size_t got = 0;
+		if(head) {
+			// ② walk to size it, capped at K (the loads are the
+			// upcoming pops' loads, issued early).
+			char *n = head;
+			got = 1;
+			while(got < kmax) {
+				char *nx = *reinterpret_cast<char **>(n);
+				if(!nx)
+					break;
+				n = nx;
+				++got;
+			}
+		}
+		// ③ top up from the bitmap until >= K (whole words; §94pct
+		// saturation skips the claim).
+		if(got < kmax &&
+		   this->m_flags_filled_cnt <
+		       this->m_count - this->m_count / 16) {
+			int idx = this->m_idx;
+			for(int walked = 0;
+			    walked < this->m_count && got < kmax; ++walked) {
+				FUINT *pflag = &this->m_flags[idx];
+				for(;;) {
+					FUINT oldv = *pflag;
+					if(oldv == ~(FUINT)0u)
+						break;            // word full
+					FUINT mask = (FUINT)~oldv;
+					if(atomicCompareAndSet(
+					       oldv, ~(FUINT)0u, pflag)) {
+						if(oldv == 0)
+							atomicInc(&this->m_flags_packed);
+						atomicInc(&this->m_flags_filled_cnt);
+						writeBarrier();
+						this->m_idx = idx;
+						char *mp = this->mempool() +
+						    (size_t)idx * WBITS * ALIGN;
+						got += (size_t)count_bits(mask);
+						do {
+							unsigned s = (unsigned)__builtin_ctzll(
+							    (unsigned long long)mask);
+							mask &= mask - 1;
+							char *slot = mp + (size_t)s * ALIGN;
+							*reinterpret_cast<char **>(slot) = head;
+							head = slot;
+						} while(mask);
+						break;            // word done
+					}
+					// CAS lost to a cross-thread clear: re-read.
+				}
+				if(++idx == this->m_count) idx = 0;
+			}
+		}
+		if(head) {
+			this->m_freelist_head[1] =
+			    *reinterpret_cast<char **>(head);
+			return head;
+		}
+		return nullptr;                           // chunk full
+#else /* !KAME_FS_TWOLIST_TOPUP — the §BMWIN banked claim */
+		// (§BMWIN) Claim K zero bits — contiguous or scattered, across as
+		// many words as it takes — one CAS per word: FS=false's claim
+		// discipline on FS=true's 1-bit slots.  The first word probed
+		// donates a contiguous run ANYWHERE in the word (located with
+		// the same find_training_zeros fold FS=false uses, halving the
+		// target length until a run is found) to the lean bump window
+		// ([2]/[4]; zero-touch — no slot writes); every other claimed
+		// bit is chained into the alloc-side LIFO [1] (next ptr in
+		// slot[0], owner-only — same node format the swap-refill
+		// produces).  The walk keeps CASing words until K slots are
+		// banked, so the cold-entry frequency stays 1/K regardless of
+		// how badly cross-frees fragment the bitmap — the
+		// one-word/run-only variants degenerated to ~popcount(word) or
+		// 1 slot per claim+walk under steady ring float (Ohtaka s>=32
+		// collapse) and burned fresh chunks (§94 declared fragmented
+		// chunks FULL while most bits were claimable).  In effect each
+		// cold entry restocks one bump-window's worth of inventory.
+		// Nothing claimable (§94pct saturation or no zero bit in one
+		// pass) -> the chunk is FULL for this owner and the caller
+		// falls to the DLL / fresh-chunk path; the legacy
+		// one-bit-per-alloc CAS walk below stays retired under this
+		// backend.  Accounting mirrors the legacy claim
+		// (m_flags_packed on word 0->nonzero, m_flags_filled_cnt on
+		// word full; the 80% cross-batch flush trigger is not
+		// replicated — cold-path heuristic only).
+		{
+#ifndef KAME_FS_BMWIN_NOSAT94
+			// (§94) NOTE: with a steady ring float of s slots, the s
+			// cross-freed bits scatter over at most s words — when
+			// s <= m_count/16 the threshold below stays TRIPPED
+			// forever (the freed bits can never re-open the chunk),
+			// every cold burns a fresh chunk, and the DLL of
+			// saturated chunks grows without bound (suspected Zen 2
+			// ring s>=32 collapse; M3 xthread units_live 299 vs
+			// TWOLIST 131 is the same burn).  -DKAME_FS_BMWIN_NOSAT94
+			// disables the gate for the A/B.
+			if(this->m_flags_filled_cnt >=
+			   this->m_count - this->m_count / 16)
+				return nullptr;                   // §94: saturated
+#endif
+			constexpr unsigned WBITS = sizeof(FUINT) * 8;
+			constexpr size_t kmax0 = KAME_FS_TWOLIST_WINDOW / ALIGN;
+			constexpr size_t kmax = kmax0 < 4u ? 4u : kmax0;
+			int idx = this->m_idx;
+			char *ret = nullptr;
+			size_t got = 0;
+			char *head = this->m_freelist_head[1];
+			for(int walked = 0;
+			    walked < this->m_count && got < kmax; ++walked) {
+				FUINT *pflag = &this->m_flags[idx];
+				for(;;) {
+					FUINT oldv = *pflag;
+					if(oldv == ~(FUINT)0u) break;     // word full
+					FUINT zeros = (FUINT)~oldv;
+					size_t want = kmax - got;
+					FUINT mask;
+#if !KAME_FS_TWOLIST_BMWIN_NOBUMP
+					FUINT runmask = 0;
+					unsigned pos = 0, run = 0;
+					if(!ret) {
+						// First word: pick a contiguous run
+						// anywhere for the bump window.  Probe with
+						// find_training_zeros, halving the target
+						// length until a run turns up (a single
+						// zero always exists here).
+						size_t L = want < (size_t)WBITS
+						    ? want : (size_t)WBITS;
+						FUINT b = 0;
+						while(L > 1 &&
+						      !(b = find_training_zeros(
+						            (int)L, oldv)))
+							L >>= 1;
+						if(!b)
+							b = find_zero_forward(oldv);
+						pos = count_zeros_forward(b);
+						// Greedy extension: the actual run at
+						// `pos` may exceed the probe length.
+						FUINT shifted = (FUINT)(zeros >> pos);
+						FUINT inv = (FUINT)~shifted;
+						run = inv
+						    ? (unsigned)__builtin_ctzll(
+						          (unsigned long long)inv)
+						    : (WBITS - pos);
+						if((size_t)run > want)
+							run = (unsigned)want;
+						runmask = (run >= WBITS)
+						    ? ~(FUINT)0u
+						    : (FUINT)(((((FUINT)1u) << run) - 1u)
+						          << pos);
+						// Top up with the lowest scattered zeros
+						// outside the run.
+						FUINT others = (FUINT)(zeros & ~runmask);
+						size_t need = want - run;
+						if(need && others) {
+							if((size_t)count_bits(others) > need) {
+								FUINT t = others;
+								for(size_t k = 0; k < need; ++k)
+									t &= t - 1;
+								others ^= t;
+							}
+							mask = (FUINT)(runmask | others);
+						}
+						else
+							mask = runmask;
+					}
+					else
+#endif /* !KAME_FS_TWOLIST_BMWIN_NOBUMP */
+					{
+						// Chain-only: the lowest `want` zeros of
+						// this word.  (Every word under §NOBUMP;
+						// words after the bump donor otherwise.)
+						if((size_t)count_bits(zeros) <= want)
+							mask = zeros;
+						else {
+							FUINT t = zeros;
+							for(size_t k = 0; k < want; ++k)
+								t &= t - 1;
+							mask = (FUINT)(zeros ^ t);
+						}
+					}
+					FUINT newv = oldv | mask;
+					if(atomicCompareAndSet(oldv, newv, pflag)) {
+						if(oldv == 0)
+							atomicInc(&this->m_flags_packed);
+						if(newv == ~(FUINT)0u)
+							atomicInc(&this->m_flags_filled_cnt);
+						writeBarrier();
+						this->m_idx = idx;
+						FUINT rest;
+						if(!ret) {
+#if KAME_FS_TWOLIST_BMWIN_NOBUMP
+							// Serve the lowest claimed bit; chain
+							// the rest — no window cells.
+							unsigned pos0 = (unsigned)__builtin_ctzll(
+							    (unsigned long long)mask);
+							ret = this->mempool() +
+							    ((size_t)idx * WBITS + pos0) * ALIGN;
+							got += 1;
+							rest = (FUINT)(mask & (mask - 1u));
+#else
+							size_t bit0 =
+							    (size_t)idx * WBITS + pos;
+							ret = this->mempool() + bit0 * ALIGN;
+							// Re-seed the stride cell [5] on EVERY
+							// claim — the owner-exit drain nulls
+							// [2..5] (so the generic per-local walk
+							// can't misread the marker cells as list
+							// heads), and an ADOPTED chunk then
+							// claims fresh windows with [5] still
+							// null: the lean bump would advance by
+							// stride 0 and serve the SAME slot
+							// forever (the deterministic double-serve
+							// caught by alloc_stress 16/1/20000/10).
+							this->m_freelist_head[5] =
+							    reinterpret_cast<char *>(
+							        static_cast<uintptr_t>(ALIGN));
+							this->m_freelist_head[2] = ret + ALIGN;
+							this->m_freelist_head[4] =
+							    ret + (size_t)run * ALIGN;
+							got += run;
+							rest = (FUINT)(mask & ~runmask);
+#endif /* KAME_FS_TWOLIST_BMWIN_NOBUMP */
+						}
+						else
+							rest = mask;
+						if(rest) {
+							char *mp = this->mempool() +
+							    (size_t)idx * WBITS * ALIGN;
+							got += (size_t)count_bits(rest);
+							do {
+								unsigned s = (unsigned)__builtin_ctzll(
+								    (unsigned long long)rest);
+								rest &= rest - 1;
+								char *slot = mp + (size_t)s * ALIGN;
+								*reinterpret_cast<char **>(slot) = head;
+								head = slot;
+							} while(rest);
+						}
+						break;                    // word done
+					}
+					// CAS lost to a cross-thread clear: re-read.
+				}
+				if(++idx == this->m_count) idx = 0;
+			}
+			this->m_freelist_head[1] = head;
+			if(ret)
+				return ret;
+			return nullptr;                       // no zeros -> full
+		}
+#endif /* KAME_FS_TWOLIST_TOPUP */
+	}
+	else
+		return nullptr;       // FS=false / DUMMY=false: not applicable
+}
+#endif /* KAME_FS_TWOLIST_BMWIN */
 
 // FS=true slow_allocate override.  Called from `new_redirected`'s cold
 // path through this chunk's vtable.  ALIGN comes from the template
@@ -4655,11 +4776,27 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 		}
 		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
 #if KAME_FS_TWOLIST
-		// (§two-list) refill before the slow path: swap the free side in
-		// as the next segment / extend the virgin window.
-		if(ck->m_fs_flag)
+		// (§two-list) refill before the slow path: swap/rotate the free
+		// side in as the next segment / extend the virgin window; then
+		// — under the bitmap backends — the banked claim via the
+		// fs_topup_take() virtual (one hop).  WITHOUT a lean inventory
+		// source here every cold falls to slow_allocate, whose §24
+		// scan_dll_freelist + chunk path dominate the 1/K cold: the
+		// §TOPUP plumbing bug collapsed bench_loop 715M -> 258M this
+		// way, and under §BMWIN a pure-cross ring (owner [0] never
+		// fills, so the rotate serves nothing and there is no window
+		// pump) paid it on EVERY cold (suspected Zen 2 BMWIN ring
+		// s>=32 83 M ops/s).
+		if(ck->m_fs_flag) {
+#if !KAME_FS_TWOLIST_TOPUP
 			if(void *p = ck->fs_twolist_refill_take())
 				return p;
+#endif
+#if KAME_FS_TWOLIST_BMWIN
+			if(void *p = ck->fs_topup_take())
+				return p;
+#endif
+		}
 #endif
 		return ck->slow_allocate(bucket, size);
 	}

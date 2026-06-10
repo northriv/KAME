@@ -990,6 +990,19 @@ public:
 	//! so the dispatch is per-(ALIGN,FS) without a separate
 	//! function-pointer table.
 	virtual void *slow_allocate(unsigned bucket, std::size_t size) noexcept = 0;
+#if KAME_FS_TWOLIST_BMWIN
+	//! (§TOPUP) Lean-cold steal-walk-topup hook: called from
+	//! `new_redirected_cold` right after the [1]-pop miss — ONE virtual
+	//! hop, replacing the inline AGED rotate (the steal needs ALIGN for
+	//! the walk target K and the bitmap fields for the whole-word
+	//! top-up, both of which live in the derived template).  WITHOUT
+	//! this hook every §TOPUP cold would fall through to slow_allocate,
+	//! whose §24 scan_dll_freelist pops the accumulating [0] one node
+	//! per cold and the steal block in allocate_pooled is never reached
+	//! (bench_loop 64B collapsed 715M -> 258M exactly this way).
+	//! Default: nothing (GUARDIAN / non-FS chunks).
+	virtual void *fs_topup_take() noexcept { return nullptr; }
+#endif
 	//! Public read-only accessor for `m_chunk_size` — used by
 	//! anonymous-namespace helpers (e.g. `drain_thread_slot_freelists`)
 	//! that need to compute `chunk_base = head & ~(chunk_size - 1)`
@@ -1295,6 +1308,29 @@ public:
 #if KAME_FS_TWOLIST_BMWIN_NOBUMP && !KAME_FS_TWOLIST_BMWIN
   #error "KAME_FS_TWOLIST_BMWIN_NOBUMP requires KAME_FS_TWOLIST_BMWIN"
 #endif
+	//! (§TOPUP) Steal-walk-topup cold, on NOBUMP: the cold STEALS the
+	//! free side [0] wholesale (no epoch parking — links were written by
+	//! the frees, zero extra stores), WALKS the stolen chain at most K
+	//! nodes to size it (the loads are the same ones the upcoming pops
+	//! would issue — an effective prefetch, capped at K even when a
+	//! burst left a longer chain), and if short of K TOPS UP from the
+	//! bitmap by claiming WHOLE words (one CAS per word, all zero bits,
+	//! K-1+word overshoot accepted — no lowest-K trimming) chained onto
+	//! the same inventory.  One acquisition path replaces the pump, the
+	//! bump window, and the AGED rotation: the short-segment lock-in is
+	//! cured by the top-up guarantee (>= K slots per cold, cold
+	//! frequency <= 1/K), the marker cells [2..5] are entirely unused
+	//! (the adopted-chunk stride hazard class vanishes), and the float
+	//! returns to ~2 epochs (no AGED 3rd chain — recovers the
+	//! oversubscribed-STM cost).  Componentwise never slower than
+	//! gate-off: pops are identical, the claim is one CAS per 64 bits
+	//! instead of one per bit.  Requires KAME_FS_TWOLIST_BMWIN_NOBUMP.
+#ifndef KAME_FS_TWOLIST_TOPUP
+  #define KAME_FS_TWOLIST_TOPUP 0
+#endif
+#if KAME_FS_TWOLIST_TOPUP && !KAME_FS_TWOLIST_BMWIN_NOBUMP
+  #error "KAME_FS_TWOLIST_TOPUP requires KAME_FS_TWOLIST_BMWIN_NOBUMP"
+#endif
 	//! Bump-window byte size for the two-list gate: K = max(4,
 	//! WINDOW/ALIGN) slots per epoch — also the steady-state circulation
 	//! cap (the "walk").  Tunable for the K-sweep (smaller = hotter
@@ -1361,6 +1397,7 @@ public:
 			}
 		}
 #endif /* !KAME_FS_TWOLIST_BMWIN */
+#if !KAME_FS_TWOLIST_TOPUP
 		// ① rotate epochs (AGED — standard): consume the chain aged one
 		// epoch in [6]; the current free side becomes the next aging
 		// chain.  Four pointer moves, no fresh-line dereference (seg's
@@ -1374,6 +1411,9 @@ public:
 				return seg;
 			}
 		}
+#endif /* !KAME_FS_TWOLIST_TOPUP — §TOPUP steals [0] inside the
+          allocate_pooled cold (it needs ALIGN for the walk target K
+          and the bitmap fields for the top-up). */
 #if !KAME_FS_TWOLIST_BMWIN_NOBUMP
 		char *cur = m_freelist_head[2];             // ② virgin window
 		if(cur < m_freelist_head[4]) {
@@ -1969,6 +2009,9 @@ protected:
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
+#if KAME_FS_TWOLIST_BMWIN
+	void *fs_topup_take() noexcept override;
+#endif
 	//! Mmap a fresh chunk for the current thread.  no global
 	//! registry — the per-thread DLL is the sole source of truth for
 	//! "chunks this thread can allocate from".  Called from
