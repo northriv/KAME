@@ -1149,6 +1149,32 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		const size_t N_slots =
 		    static_cast<size_t>(count) * FUINT_BITS_PF;
 		char *base = this->mempool();
+#if KAME_FS_TWOLIST
+		// (§two-list) Range-init replaces the link-prefill: the virgin
+		// inventory is the address range [2]=cur .. [3]=end, bump-served
+		// through the K-capped window [4] — no 8-byte next-pointer store
+		// per slot (and no prewarm side effect), no [0] mega-list.  The
+		// m_flags/_packed/_filled init below is IDENTICAL to the linked
+		// prefill, so every lifecycle invariant (INV-6/7/15..18) is
+		// unchanged: a reserve-range slot is "owner-held", exactly like a
+		// freelist-held one.
+		{
+			constexpr size_t K_slots =
+			    (2048u / ALIGN) < 4u ? 4u : (2048u / ALIGN);
+			for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b)
+				m_freelist_head[b] = nullptr;
+			m_freelist_head[2] = base;                       // reserve cur
+			m_freelist_head[3] = base + N_slots * ALIGN;     // reserve end
+			size_t w = K_slots < N_slots ? K_slots : N_slots;
+			m_freelist_head[4] = base + w * ALIGN;           // window end
+			// FS=true ALIGN is NOT always a power of two (16..368 step
+			// 16), so the bump increment can't be recovered from
+			// m_align_shift — park the byte stride in the (equally
+			// unused) cell [5].
+			m_freelist_head[5] =
+			    reinterpret_cast<char *>(static_cast<uintptr_t>(ALIGN));
+		}
+#else
 		char *prev = nullptr;
 		for(size_t i = N_slots; i-- > 0; ) {
 			char *slot = base + i * ALIGN;
@@ -1158,6 +1184,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		m_freelist_head[0] = base;
 		for(int b = 1; b < KAME_LOCAL_BUCKETS; ++b)
 			m_freelist_head[b] = nullptr;
+#endif
 		for(int i = count - 1; i >= 0; --i)
 			m_flags[i] = ~(FUINT)0u;
 		m_flags_packed = BIT_OWNED | static_cast<std::uint32_t>(count);
@@ -1333,6 +1360,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		// cross-thread frees (the only mechanism that opens bits with
 		// the pre-fill design — slots returned to the OWNER stay in
 		// `m_freelist_head[0]`, not the bitmap).
+#if KAME_FS_TWOLIST
+		// (§two-list) fresh-chunk / cold entry: alloc side first ([1]
+		// segment, then refill = swap [0] / bump window).  The bitmap
+		// scan below still serves cross-thread-cleared bits.
+		if(void *p = this->freelist_pop(1))
+			return p;
+		if(void *p = this->fs_twolist_refill_take())
+			return p;
+#endif
 		if(void *p = this->freelist_pop(0))
 			return p;
 	}
@@ -2157,7 +2193,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	// (ALIGN=1024 N=13) and similarly for other non-power-of-2 N tiers.
 	if(char *head = scan_dll_freelist(/*local_id=*/0u)) {
 		kame_page()->m_slots[bucket].freelist_head =
+#if KAME_FS_TWOLIST
+		    // (§two-list) the lean pops the [1] segment; aim there.
+		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[1]);
+#else
 		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[0]);
+#endif
 		return head;
 	}
 	void *p = allocate_chunk_path(ALIGN);
@@ -2170,7 +2211,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	// the chunk pointer from this stored value via a single mask.
 	kame_page()->m_slots[bucket].freelist_head =
 	    new_chunk ? reinterpret_cast<char *>(
+#if KAME_FS_TWOLIST
+	                    // (§two-list) FS=true lean pops the [1] segment.
+	                    &new_chunk->m_freelist_head[1])
+#else
 	                    &new_chunk->m_freelist_head[kBucketLocalId[bucket]])
+#endif
 	              : nullptr;
 	return p;
 }
@@ -2930,6 +2976,28 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// Return them via the bitmap path and null the cells BEFORE
 			// the generic per-local walk below, which would otherwise
 			// misread an entry as a list head and walk user data.
+#if KAME_FS_TWOLIST
+			if(c->m_fs_flag) {
+				// (§two-list) [2]..[3] hold the un-consumed virgin
+				// RANGE (addresses, not list heads) and [5] the byte
+				// stride — return every remaining range slot through
+				// the bitmap path, then null the marker cells BEFORE
+				// the generic per-local walk below (which would
+				// misread them as list heads).  [0]/[1] are real
+				// lists — the generic walk drains them as-is.
+				char *cur = c->m_freelist_head[2];
+				char *end = c->m_freelist_head[3];
+				uintptr_t a = reinterpret_cast<uintptr_t>(
+				    c->m_freelist_head[5]);
+				for(; cur < end; cur += a) {
+					fdrain[0].chunk = c;
+					fdrain[0].slot = cur;
+					c->batch_return_to_bitmap(fdrain);
+				}
+				for(int i = 2; i <= 5; ++i)
+					c->m_freelist_head[i] = nullptr;
+			}
+#endif
 #if KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH
 			if(c->m_fs_flag) {
 				// Null-marking park cells: entries are exactly the
@@ -4363,7 +4431,15 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
 		}
-		return chunk_from_freelist_ptr(head_ptr)->slow_allocate(bucket, size);
+		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+#if KAME_FS_TWOLIST
+		// (§two-list) refill before the slow path: swap the free side in
+		// as the next segment / extend the virgin window.
+		if(ck->m_fs_flag)
+			if(void *p = ck->fs_twolist_refill_take())
+				return p;
+#endif
+		return ck->slow_allocate(bucket, size);
 	}
 	return cold_first_access(bucket, size);
 }
@@ -4708,6 +4784,20 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 				*head_ptr = *reinterpret_cast<char **>(head);
 				return head;
 			}
+#if KAME_FS_TWOLIST
+			// (§two-list) mirror of new_redirected's bump-window tier.
+			{
+				PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+				if(ck->m_fs_flag) {
+					char *cur = ck->m_freelist_head[2];
+					if(cur < ck->m_freelist_head[4]) {
+						ck->m_freelist_head[2] = cur +
+						    reinterpret_cast<uintptr_t>(ck->m_freelist_head[5]);
+						return cur;
+					}
+				}
+			}
+#endif
 		}
 	}
 	return kame_malloc_slow(n);
