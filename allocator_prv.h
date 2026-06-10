@@ -1230,25 +1230,21 @@ public:
 #ifndef KAME_FS_TWOLIST
   #define KAME_FS_TWOLIST 0
 #endif
-	//! (§two-list AGED) Sub-variant: double-buffered EPOCHS.  Instead of
-	//! consuming the just-swapped free side immediately (whose head is the
-	//! newest free — one forwarded block-line read per epoch), the rotate
-	//! is: consume the chain saved ONE EPOCH AGO ([6]), park the current
-	//! [0] as the next aging chain, null [0].  Every link the alloc side
-	//! ever reads is then >= 1 epoch (~K pairs) old — settled lines, zero
-	//! cross-side forwarding, and the cold itself is four pointer moves
-	//! with NO dereference of fresh memory (NUMA-friendly: the allocator
-	//! never touches a cache line in a transitional coherence state).
-	//! Cost: the in-flight float grows from ~2 to ~3 epochs (~3K slots) —
-	//! measure the oversubscribed-STM impact before adopting.  [6] is a
+	//! (§two-list AGED epochs — STANDARD, the immediate-swap variant is
+	//! retired.)  The refill is double-buffered: instead of consuming the
+	//! just-swapped free side immediately (whose head is the newest free —
+	//! one forwarded block-line read per epoch), the rotate is: consume
+	//! the chain saved ONE EPOCH AGO ([6]), park the current [0] as the
+	//! next aging chain, null [0].  Every link the alloc side ever reads
+	//! is then >= 1 epoch (~K pairs) old — settled lines, zero cross-side
+	//! forwarding, and the cold itself is four pointer moves with NO
+	//! dereference of fresh memory (NUMA-friendly: the allocator never
+	//! touches a cache line in a transitional coherence state).  Cost:
+	//! the in-flight float grows from ~2 to ~3 epochs (~3K slots);
+	//! measured on Zen 2 (Ohtaka, 2026-06): +5~16% over immediate swap
+	//! across ring slots 1..128, STM parity on physical cores.  [6] is a
 	//! REAL list, so the owner-exit generic per-local walk drains it with
-	//! no extra code.  Requires KAME_FS_TWOLIST.
-#ifndef KAME_FS_TWOLIST_AGED
-  #define KAME_FS_TWOLIST_AGED 0
-#endif
-#if KAME_FS_TWOLIST_AGED && !KAME_FS_TWOLIST
-  #error "KAME_FS_TWOLIST_AGED requires KAME_FS_TWOLIST"
-#endif
+	//! no extra code.
 	//! (§two-list BMWIN) Window backend swap: instead of pre-reserving the
 	//! WHOLE virgin chunk as an address range (all bits set at claim, ctor
 	//! range markers, bump inventory dead once the virgins run out), the
@@ -1284,6 +1280,20 @@ public:
 #endif
 #if KAME_FS_TWOLIST_BMWIN && !KAME_FS_TWOLIST
   #error "KAME_FS_TWOLIST_BMWIN requires KAME_FS_TWOLIST"
+#endif
+	//! (§BMWIN NOBUMP) A/B sub-variant: retire the bump window entirely.
+	//! The claim CASes words until K bits are banked and chains EVERY
+	//! claimed slot into the alloc-side LIFO [1]; the lean path is pop(1)
+	//! only (no [2]/[4]/[5] marker cells, no stride re-seed, no window
+	//! tier in the hot path).  Trades the zero-touch virgin bump (no slot
+	//! writes for contiguous runs) for one uniform code path — measures
+	//! whether the bump machinery still pays once the multi-word chain
+	//! claim exists.  Requires KAME_FS_TWOLIST_BMWIN.
+#ifndef KAME_FS_TWOLIST_BMWIN_NOBUMP
+  #define KAME_FS_TWOLIST_BMWIN_NOBUMP 0
+#endif
+#if KAME_FS_TWOLIST_BMWIN_NOBUMP && !KAME_FS_TWOLIST_BMWIN
+  #error "KAME_FS_TWOLIST_BMWIN_NOBUMP requires KAME_FS_TWOLIST_BMWIN"
 #endif
 	//! Bump-window byte size for the two-list gate: K = max(4,
 	//! WINDOW/ALIGN) slots per epoch — also the steady-state circulation
@@ -1351,11 +1361,10 @@ public:
 			}
 		}
 #endif /* !KAME_FS_TWOLIST_BMWIN */
-#if KAME_FS_TWOLIST_AGED
-		// ① rotate epochs: consume the chain aged one epoch in [6]; the
-		// current free side becomes the next aging chain.  Four pointer
-		// moves, no fresh-line dereference (seg's link line is >= 1
-		// epoch old when read).
+		// ① rotate epochs (AGED — standard): consume the chain aged one
+		// epoch in [6]; the current free side becomes the next aging
+		// chain.  Four pointer moves, no fresh-line dereference (seg's
+		// link line is >= 1 epoch old when read).
 		{
 			char *seg = m_freelist_head[6];
 			m_freelist_head[6] = m_freelist_head[0];
@@ -1365,20 +1374,14 @@ public:
 				return seg;
 			}
 		}
-#else
-		if(char *seg = m_freelist_head[0]) {        // ① swap free side in
-			m_freelist_head[0] = nullptr;
-			m_freelist_head[1] = *reinterpret_cast<char **>(seg);
-			return seg;   // segment head = newest free; 1 forwarded load
-			              // ONCE per epoch (amortized 1/K) — mi's swap.
-		}
-#endif
+#if !KAME_FS_TWOLIST_BMWIN_NOBUMP
 		char *cur = m_freelist_head[2];             // ② virgin window
 		if(cur < m_freelist_head[4]) {
 			m_freelist_head[2] = cur +
 			    reinterpret_cast<uintptr_t>(m_freelist_head[5]);
 			return cur;
 		}
+#endif
 		// (§BMWIN) Under the bitmap-window backend the next window is
 		// claimed in allocate_pooled (the bitmap fields live in the
 		// derived template) — reached via the normal slow_allocate hop.
@@ -3299,12 +3302,13 @@ inline void *new_redirected(std::size_t size) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
 		}
-#if KAME_FS_TWOLIST
+#if KAME_FS_TWOLIST && !KAME_FS_TWOLIST_BMWIN_NOBUMP
 		// (§two-list) Alloc-side miss: for an FS=true chunk (cell aims at
 		// the [1] segment under this gate) try the virgin bump window —
 		// pure arithmetic, NO load of the block, NO touch of the free
 		// side [0] (the recurrence cell).  Window empty -> cold (swap /
-		// extend / slow_allocate).
+		// extend / slow_allocate).  (§NOBUMP retires this tier — pop(1)
+		// above is the whole lean path.)
 		{
 			PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
 			if(ck->m_fs_flag) {
