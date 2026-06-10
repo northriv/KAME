@@ -2982,7 +2982,19 @@ inline void *new_redirected(std::size_t size) {
 	// m_freelist_head[local] cell (nullptr = bucket not yet activated); the
 	// FS=true free pushes onto that cell directly, so this pop sees freed
 	// slots with no slot write on the free side.
+	// The "unlikely" hint on the large-size off-ramp (8a734b13) is
+	// APPLE-ONLY — its layout effect inverts between targets:
+	//   • M3/clang (separate A/B): hint = 64 B +8-10%, 1 KiB/16 KiB −6%.
+	//     Small-size-first policy → keep the hint.
+	//   • Ohtaka linux-x86/clang (same-node interleaved A/B, c15u06n4,
+	//     median of 5): NO-hint = 64 B +8% (254→274 M ops/s), 1 KiB +15%
+	//     (202→232); hint = 16 KiB +23% (168→207).  Same policy → 64 B
+	//     and 1 KiB win, so NO hint (16 KiB stays ~2× mimalloc either way).
+#if defined(__APPLE__)
 	if(__builtin_expect(size > (std::size_t)ALLOC_SIZE23, 0))
+#else
+	if(size > (std::size_t)ALLOC_SIZE23)
+#endif
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
