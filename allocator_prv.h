@@ -990,19 +990,6 @@ public:
 	//! so the dispatch is per-(ALIGN,FS) without a separate
 	//! function-pointer table.
 	virtual void *slow_allocate(unsigned bucket, std::size_t size) noexcept = 0;
-#if KAME_FS_TWOLIST_BMWIN
-	//! (§TOPUP) Lean-cold steal-walk-topup hook: called from
-	//! `new_redirected_cold` right after the [1]-pop miss — ONE virtual
-	//! hop, replacing the inline AGED rotate (the steal needs ALIGN for
-	//! the walk target K and the bitmap fields for the whole-word
-	//! top-up, both of which live in the derived template).  WITHOUT
-	//! this hook every §TOPUP cold would fall through to slow_allocate,
-	//! whose §24 scan_dll_freelist pops the accumulating [0] one node
-	//! per cold and the steal block in allocate_pooled is never reached
-	//! (bench_loop 64B collapsed 715M -> 258M exactly this way).
-	//! Default: nothing (GUARDIAN / non-FS chunks).
-	virtual void *fs_topup_take() noexcept { return nullptr; }
-#endif
 	//! Public read-only accessor for `m_chunk_size` — used by
 	//! anonymous-namespace helpers (e.g. `drain_thread_slot_freelists`)
 	//! that need to compute `chunk_base = head & ~(chunk_size - 1)`
@@ -1160,11 +1147,6 @@ public:
 	//! as before, never touching m_mempool / the m_sizes array.
 	uint8_t   m_align_shift;
 	uint16_t  m_base_bucket;     // unused on hot paths; kept for diagnostics
-#if KAME_FS_PINGPONG
-	//! (§ping-pong) owner-only free-side toggle: pushes alternate
-	//! [0]/[1].  Lives on the hot line with m_fs_flag; no atomics.
-	uint8_t   m_pp_toggle;
-#endif
 	//! (§L0-FIFO) m_sizes is null for every FS=true chunk, so its 8 bytes
 	//! are reused as the {r, w} counters of a depth-4 free-slot ring kept
 	//! in the (equally unused for FS=true) m_freelist_head[1..4] cells —
@@ -1224,157 +1206,10 @@ public:
 #ifndef KAME_FS_CHUNK_STASH
   #define KAME_FS_CHUNK_STASH 0
 #endif
-	//! (§two-list) FS=true two-list + virgin bump window — the dependency-cut
-	//! design that the ring/stash post-mortems point at (see the liveset-1
-	//! analysis: any single shared list has a 2-deep serial store->load
-	//! recurrence per pair; mimalloc's two independent lists pipeline to an
-	//! effective 1 hop, at the cost of circulating the whole page through
-	//! cache).  This gate reproduces mi's structure at ~2 KiB granularity:
-	//!   [0] = FREE side (deallocate pushes; free path UNCHANGED)
-	//!   [1] = ALLOC side segment list (lean pops; refilled by SWAPPING the
-	//!         whole of [0] — no walk, no counter, no guard)
-	//!   [2]/[3] = virgin reserve {cur, end} (addresses, NOT list heads —
-	//!         the §29 link-prefill is skipped under this gate)
-	//!   [4] = bump window end = min(cur + K*ALIGN, end); the window cap is
-	//!         what bounds the cold-to-cold interval to <= 2K pairs, which
-	//!         in turn bounds [0]'s accumulation and hence every swapped
-	//!         segment to <= 2K slots (~4 KiB) — the L1 cap falls out of the
-	//!         construction with NO length counter.
-	//! Steady recycle: pure K-circulation (L1-resident); virgin slots are
-	//! consumed only when recycling can't keep up (one-time chunk warmup).
-	//! Cross-thread frees / bitmap invariants untouched (all m_flags bits
-	//! still SET at claim: "bit set <=> slot with user or owner-held" now
-	//! includes the reserve range).  Default 0; -DKAME_FS_TWOLIST=1.
-#ifndef KAME_FS_TWOLIST
-  #define KAME_FS_TWOLIST 0
+#if KAME_FS_CHUNK_FIFO && KAME_FS_CHUNK_STASH
+  #error "KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH are mutually exclusive"
 #endif
-	//! (§two-list AGED epochs — STANDARD, the immediate-swap variant is
-	//! retired.)  The refill is double-buffered: instead of consuming the
-	//! just-swapped free side immediately (whose head is the newest free —
-	//! one forwarded block-line read per epoch), the rotate is: consume
-	//! the chain saved ONE EPOCH AGO ([6]), park the current [0] as the
-	//! next aging chain, null [0].  Every link the alloc side ever reads
-	//! is then >= 1 epoch (~K pairs) old — settled lines, zero cross-side
-	//! forwarding, and the cold itself is four pointer moves with NO
-	//! dereference of fresh memory (NUMA-friendly: the allocator never
-	//! touches a cache line in a transitional coherence state).  Cost:
-	//! the in-flight float grows from ~2 to ~3 epochs (~3K slots);
-	//! measured on Zen 2 (Ohtaka, 2026-06): +5~16% over immediate swap
-	//! across ring slots 1..128, STM parity on physical cores.  [6] is a
-	//! REAL list, so the owner-exit generic per-local walk drains it with
-	//! no extra code.
-	//! (§two-list BMWIN) Window backend swap: instead of pre-reserving the
-	//! WHOLE virgin chunk as an address range (all bits set at claim, ctor
-	//! range markers, bump inventory dead once the virgins run out), the
-	//! chunk starts ZERO-INIT (the supported KAME_POOL_DISABLE_PREFILL
-	//! semantics) and each cold CLAIMS a window as a 1..K-slot contiguous
-	//! zero-bit run via find-run + ONE CAS — the FS=false claim discipline
-	//! applied to FS=true's 1-bit slots.  What this buys:
-	//!   * RENEWABLE bump inventory: cross-thread frees CAS-clear bits, and
-	//!     a later window claim recovers them K-at-a-time (the range
-	//!     backend recovers them one CAS per alloc via the legacy
-	//!     allocate_pooled walk — which this backend RETIRES for FS=true).
-	//!   * "Chunk full" judgment a la FS=false: when no run is claimable
-	//!     (or the §94pct saturation gate trips) the chunk is handed to the
-	//!     DLL / fresh-chunk path; sparse leftover bits are the same
-	//!     accepted few-% idle trade as FS=false, picked up when cross
-	//!     frees coalesce runs.
-	//!   * Cheaper owner-exit drain (<= K outstanding window slots instead
-	//!     of the whole un-consumed reserve) and honest chunk emptiness
-	//!     (clear bits visible to release paths).
-	//! Requires KAME_FS_TWOLIST; composes with AGED.
-	//!
-	//! Lifecycle note (the bug this design shipped with, fixed): the
-	//! owner-exit drain nulls the marker cells [2..5] so the generic
-	//! per-local walk can't misread them as list heads — but an ADOPTED
-	//! chunk then claims fresh windows, and with the stride cell [5]
-	//! still null the lean bump advanced by 0 and served the same slot
-	//! forever (deterministic double-serve: alloc_stress 16/1/20000/10).
-	//! The claim therefore RE-SEEDS [5] on every window claim.  The
-	//! range backend never hit this because its window dies with the
-	//! reserve at first adoption (the very limitation BMWIN removes).
-#ifndef KAME_FS_TWOLIST_BMWIN
-  #define KAME_FS_TWOLIST_BMWIN 0
-#endif
-#if KAME_FS_TWOLIST_BMWIN && !KAME_FS_TWOLIST
-  #error "KAME_FS_TWOLIST_BMWIN requires KAME_FS_TWOLIST"
-#endif
-	//! (§BMWIN NOBUMP) A/B sub-variant: retire the bump window entirely.
-	//! The claim CASes words until K bits are banked and chains EVERY
-	//! claimed slot into the alloc-side LIFO [1]; the lean path is pop(1)
-	//! only (no [2]/[4]/[5] marker cells, no stride re-seed, no window
-	//! tier in the hot path).  Trades the zero-touch virgin bump (no slot
-	//! writes for contiguous runs) for one uniform code path — measures
-	//! whether the bump machinery still pays once the multi-word chain
-	//! claim exists.  Requires KAME_FS_TWOLIST_BMWIN.
-#ifndef KAME_FS_TWOLIST_BMWIN_NOBUMP
-  #define KAME_FS_TWOLIST_BMWIN_NOBUMP 0
-#endif
-#if KAME_FS_TWOLIST_BMWIN_NOBUMP && !KAME_FS_TWOLIST_BMWIN
-  #error "KAME_FS_TWOLIST_BMWIN_NOBUMP requires KAME_FS_TWOLIST_BMWIN"
-#endif
-	//! (§TOPUP) Steal-walk-topup cold, on NOBUMP: the cold STEALS the
-	//! free side [0] wholesale (no epoch parking — links were written by
-	//! the frees, zero extra stores), WALKS the stolen chain at most K
-	//! nodes to size it (the loads are the same ones the upcoming pops
-	//! would issue — an effective prefetch, capped at K even when a
-	//! burst left a longer chain), and if short of K TOPS UP from the
-	//! bitmap by claiming WHOLE words (one CAS per word, all zero bits,
-	//! K-1+word overshoot accepted — no lowest-K trimming) chained onto
-	//! the same inventory.  One acquisition path replaces the pump, the
-	//! bump window, and the AGED rotation: the short-segment lock-in is
-	//! cured by the top-up guarantee (>= K slots per cold, cold
-	//! frequency <= 1/K), the marker cells [2..5] are entirely unused
-	//! (the adopted-chunk stride hazard class vanishes), and the float
-	//! returns to ~2 epochs (no AGED 3rd chain — recovers the
-	//! oversubscribed-STM cost).  Componentwise never slower than
-	//! gate-off: pops are identical, the claim is one CAS per 64 bits
-	//! instead of one per bit.  Requires KAME_FS_TWOLIST_BMWIN_NOBUMP.
-#ifndef KAME_FS_TWOLIST_TOPUP
-  #define KAME_FS_TWOLIST_TOPUP 0
-#endif
-#if KAME_FS_TWOLIST_TOPUP && !KAME_FS_TWOLIST_BMWIN_NOBUMP
-  #error "KAME_FS_TWOLIST_TOPUP requires KAME_FS_TWOLIST_BMWIN_NOBUMP"
-#endif
-	//! (§ping-pong) FS=true two-cell interleave — the STM-friendly
-	//! dependency cut.  Free pushes alternate between [0] and [1] (a
-	//! per-chunk owner-only toggle byte); the alloc pop serves the cell
-	//! the TLS slot aims at, then re-aims the slot at the PARTNER cell
-	//! (one XOR-8 on the stored cell pointer).  Consecutive pairs thus
-	//! run on two independent chains — the single-head store->load
-	//! recurrence halves (the two-list pipelining) — while the float
-	//! stays at ~1 node and the served block is the one freed ~2 pairs
-	//! ago, still L1-hot (the OFF-like locality/pollution profile that
-	//! the STM workload rewards; the two-list/AGED K..3K idle float is
-	//! what it punishes).  §29 prefill splits slots by parity into the
-	//! two chains.  Cross-thread frees / bitmap invariants untouched.
-	//! Default 0; -DKAME_FS_PINGPONG=1.  Mutually exclusive with the
-	//! TWOLIST / FIFO / STASH families.
-#ifndef KAME_FS_PINGPONG
-  #define KAME_FS_PINGPONG 0
-#endif
-#if KAME_FS_PINGPONG && (KAME_FS_TWOLIST || KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH)
-  #error "KAME_FS_PINGPONG is mutually exclusive with TWOLIST / FIFO / STASH"
-#endif
-	//! Bump-window byte size for the two-list gate: K = max(4,
-	//! WINDOW/ALIGN) slots per epoch — also the steady-state circulation
-	//! cap (the "walk").  Tunable for the K-sweep (smaller = hotter
-	//! circulation but more frequent refill swaps, and the live-set ≈ K
-	//! resonance moves with it).
-#ifndef KAME_FS_TWOLIST_WINDOW
-  #define KAME_FS_TWOLIST_WINDOW 2048u
-#endif
-#if (KAME_FS_CHUNK_FIFO && KAME_FS_CHUNK_STASH) || \
-    (KAME_FS_TWOLIST && (KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH))
-  #error "KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH / KAME_FS_TWOLIST are mutually exclusive"
-#endif
-#if KAME_FS_PINGPONG
-	// (§ping-pong) 16-byte alignment makes [0]/[1] an XOR-8 partner
-	// pair for the TLS cell-pointer toggle.
-	alignas(16) char *m_freelist_head[KAME_LOCAL_BUCKETS];
-#else
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
-#endif
 
 	//! Owner-thread freelist push/pop (LIFO; freed slot's first 8 bytes
 	//! hold the next pointer).  `local` is the chunk's local-id (NOT the
@@ -1392,73 +1227,6 @@ public:
 			m_freelist_head[local] = *reinterpret_cast<char **>(head);
 		return head;
 	}
-#if KAME_FS_TWOLIST
-	//! (§two-list) Cold refill-and-take for an FS=true chunk whose alloc
-	//! side ([1] segment + bump window) ran dry.  Priority: ① swap the
-	//! whole FREE side [0] in as the next segment (no walk — its length is
-	//! bounded <= ~2K by construction, since this refill runs at least
-	//! every 2K pairs); ② extend the virgin bump window by K and take from
-	//! it.  Returns nullptr when both inventories are empty (caller falls
-	//! to the existing slow_allocate / chunk-claim path).  Owner-thread
-	//! only, like every freelist op here.
-	inline void *fs_twolist_refill_take() noexcept {
-		// (§two-list pump) Refresh the virgin bump window UNCONDITIONALLY
-		// on every cold entry — not only when the swap finds nothing.
-		// Without this, a live set that swallows the whole initial window
-		// before the first free ever lands (live set ~ K) locks the chunk
-		// into 1-NODE segments forever: swap 1 node -> drained next pair
-		// -> cold again -> swap 1 node ... (the Ohtaka ring slots=32 -31%
-		// cliff).  With the pump, a short-segment episode is followed by
-		// up to K bump-served pairs, during which the free side [0]
-		// re-accumulates ~K nodes — segment length self-recovers to ~K
-		// within one cycle, still with no counter.  One store, bounded by
-		// the reserve.
-#if !KAME_FS_TWOLIST_BMWIN
-		{
-			char *cur = m_freelist_head[2];
-			char *end = m_freelist_head[3];
-			if(cur < end) {
-				uintptr_t a =
-				    reinterpret_cast<uintptr_t>(m_freelist_head[5]);
-				size_t kb = KAME_FS_TWOLIST_WINDOW / a;
-				if(kb < 4u) kb = 4u;
-				char *w = cur + kb * a;
-				if(w > end) w = end;
-				m_freelist_head[4] = w;
-			}
-		}
-#endif /* !KAME_FS_TWOLIST_BMWIN */
-#if !KAME_FS_TWOLIST_TOPUP
-		// ① rotate epochs (AGED — standard): consume the chain aged one
-		// epoch in [6]; the current free side becomes the next aging
-		// chain.  Four pointer moves, no fresh-line dereference (seg's
-		// link line is >= 1 epoch old when read).
-		{
-			char *seg = m_freelist_head[6];
-			m_freelist_head[6] = m_freelist_head[0];
-			m_freelist_head[0] = nullptr;
-			if(seg) {
-				m_freelist_head[1] = *reinterpret_cast<char **>(seg);
-				return seg;
-			}
-		}
-#endif /* !KAME_FS_TWOLIST_TOPUP — §TOPUP steals [0] inside the
-          allocate_pooled cold (it needs ALIGN for the walk target K
-          and the bitmap fields for the top-up). */
-#if !KAME_FS_TWOLIST_BMWIN_NOBUMP
-		char *cur = m_freelist_head[2];             // ② virgin window
-		if(cur < m_freelist_head[4]) {
-			m_freelist_head[2] = cur +
-			    reinterpret_cast<uintptr_t>(m_freelist_head[5]);
-			return cur;
-		}
-#endif
-		// (§BMWIN) Under the bitmap-window backend the next window is
-		// claimed in allocate_pooled (the bitmap fields live in the
-		// derived template) — reached via the normal slow_allocate hop.
-		return nullptr;
-	}
-#endif /* KAME_FS_TWOLIST */
 
 protected:
 	// `m_mempool` retired — see `mempool()` accessor above.  Derived from
@@ -2040,9 +1808,6 @@ protected:
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
 	void *slow_allocate(unsigned bucket, std::size_t size) noexcept override;
-#if KAME_FS_TWOLIST_BMWIN
-	void *fs_topup_take() noexcept override;
-#endif
 	//! Mmap a fresh chunk for the current thread.  no global
 	//! registry — the per-thread DLL is the sole source of truth for
 	//! "chunks this thread can allocate from".  Called from
@@ -3101,27 +2866,6 @@ chunk_from_freelist_ptr(char **fp) noexcept {
         + (uintptr_t)ALLOC_CHUNK_HEADER);
 }
 
-#if KAME_FS_PINGPONG
-//! (§ping-pong v2) FS=true-ness is encoded as BIT0 of the TLS cell
-//! pointer (cells are 8-aligned), so the lean pop needs NO chunk-header
-//! line to decide the partner re-aim — the literal one-instruction
-//! interleave.  `kame_pp_cell` strips the tag for the dereference;
-//! `kame_pp_advance` toggles to the partner cell only when tagged
-//! (XOR of (tag << 3): untagged values pass through unchanged);
-//! `kame_pp_tag` is used at every FS=true aim site.
-inline char **kame_pp_cell(char *raw) noexcept {
-	return reinterpret_cast<char **>(
-	    reinterpret_cast<uintptr_t>(raw) & ~(uintptr_t)1u);
-}
-inline char *kame_pp_advance(char *raw) noexcept {
-	uintptr_t r = reinterpret_cast<uintptr_t>(raw);
-	return reinterpret_cast<char *>(r ^ ((r & 1u) << 3));
-}
-inline char *kame_pp_tag(char **cell) noexcept {
-	return reinterpret_cast<char *>(
-	    reinterpret_cast<uintptr_t>(cell) | 1u);
-}
-#endif
 
 #if KAME_FAST_TSD
 //! Architecture-specific read of the thread-pointer register (pthread
@@ -3349,12 +3093,7 @@ inline void *new_redirected(std::size_t size) {
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
-#if KAME_FS_PINGPONG
-		// (§ping-pong v2) strip the FS=true tag bit for the deref.
-		char **head_ptr = kame_pp_cell(cell_ptr_raw);
-#else
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
-#endif
 		// (§L0-FIFO) Depth-4 ring hit: take the OLDEST parked slot, and
 		// only when occupancy >= 2 — the slot returned was then parked
 		// >= 2 frees ago, so the store that parked it is out of the
@@ -3401,47 +3140,8 @@ inline void *new_redirected(std::size_t size) {
 #endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
-#if KAME_FS_PINGPONG
-			// (§ping-pong v2) retire-side partner re-aim straight off
-			// the TAG BIT — no chunk-header line: untagged (FS=false)
-			// values pass through kame_pp_advance unchanged.
-			kame_page()->m_slots[bucket].freelist_head =
-			    kame_pp_advance(cell_ptr_raw);
-#endif
 			return head;
 		}
-#if KAME_FS_PINGPONG
-		// (§ping-pong) aimed cell empty: tagged pairs serve the partner
-		// once (without re-aim — the slot keeps pointing at the empty
-		// cell, so the next free lands there first) before the cold.
-		if(reinterpret_cast<uintptr_t>(cell_ptr_raw) & 1u) {
-			char **other = reinterpret_cast<char **>(
-			    reinterpret_cast<uintptr_t>(head_ptr) ^ 8u);
-			if(char *head = *other) {
-				*other = *reinterpret_cast<char **>(head);
-				return head;
-			}
-		}
-#endif
-#if KAME_FS_TWOLIST && !KAME_FS_TWOLIST_BMWIN_NOBUMP
-		// (§two-list) Alloc-side miss: for an FS=true chunk (cell aims at
-		// the [1] segment under this gate) try the virgin bump window —
-		// pure arithmetic, NO load of the block, NO touch of the free
-		// side [0] (the recurrence cell).  Window empty -> cold (swap /
-		// extend / slow_allocate).  (§NOBUMP retires this tier — pop(1)
-		// above is the whole lean path.)
-		{
-			PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
-			if(ck->m_fs_flag) {
-				char *cur = ck->m_freelist_head[2];
-				if(cur < ck->m_freelist_head[4]) {
-					ck->m_freelist_head[2] = cur +
-					    reinterpret_cast<uintptr_t>(ck->m_freelist_head[5]);
-					return cur;
-				}
-			}
-		}
-#endif
 	}
 	return new_redirected_cold(bucket, size);
 }
