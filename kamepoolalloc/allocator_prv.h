@@ -1114,7 +1114,17 @@ public:
 	//! as before, never touching m_mempool / the m_sizes array.
 	uint8_t   m_align_shift;
 	uint16_t  m_base_bucket;     // unused on hot paths; kept for diagnostics
-	uint16_t *m_sizes;
+	//! (§L0-FIFO) m_sizes is null for every FS=true chunk, so its 8 bytes
+	//! are reused as the {r, w} counters of a depth-4 free-slot ring kept
+	//! in the (equally unused for FS=true) m_freelist_head[1..4] cells —
+	//! all on the SAME already-hot cache line as m_owner_id / the [0]
+	//! cell.  Zero-init (= null m_sizes) means an empty ring.  FS=false
+	//! chunks never touch m_fifo (the hot paths gate on m_fs_flag), so
+	//! the real m_sizes pointer is never aliased.
+	union {
+		uint16_t *m_sizes;
+		struct { uint32_t r, w; } m_fifo;
+	};
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
 	//! Owner-thread freelist push/pop (LIFO; freed slot's first 8 bytes
@@ -2999,6 +3009,34 @@ inline void *new_redirected(std::size_t size) {
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
+		// (§L0-FIFO) Depth-4 ring hit: take the OLDEST parked slot, and
+		// only when occupancy >= 2 — the slot returned was then parked
+		// >= 2 frees ago, so the store that parked it is out of the
+		// store-to-load forwarding window (the Zen 2 latency wall; see
+		// kamepoolalloc/README).  Counters + entries share the cell's
+		// cache line; the m_fs_flag gate keeps FS=false chunks (whose
+		// m_sizes aliases the counters) off this path.  On a miss this
+		// adds one same-line load + a predicted branch.
+		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+		if(ck->m_fs_flag) {
+			// Null-marking ring: the take side owns `r` exclusively and
+			// communicates with the park side only through cell CONTENTS
+			// (non-null = parked).  Occupancy >= 2 is tested as "this
+			// entry AND the next are both present" — the next entry may
+			// be the just-parked one (a forwarded load), but it feeds a
+			// PREDICTED BRANCH, not the data chain; the entry actually
+			// returned was parked >= 2 frees ago, so no store-to-load
+			// stall in steady state (cf. v1, where shared r/w counters
+			// re-created the forwarding hop this ring exists to kill).
+			std::uint32_t fr = ck->m_fifo.r;
+			char *b0 = head_ptr[1 + (fr & 3u)];
+			char *b1 = head_ptr[1 + ((fr + 1u) & 3u)];
+			if(b0 && b1) {
+				head_ptr[1 + (fr & 3u)] = nullptr;
+				ck->m_fifo.r = fr + 1;
+				return b0;
+			}
+		}
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
