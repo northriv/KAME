@@ -4298,8 +4298,20 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
         // is constexpr-foldable here (B is a template parameter).
         // chunk_from_freelist_ptr recovers the chunk pointer from the
         // stored value via a single mask on the slow path.
+#if KAME_FS_TWOLIST
+        // (§two-list) First-touch activation runs BEFORE any slow_allocate
+        // re-aim, so without this gate the slot stays on [0] forever (free
+        // feeds [0], pops from [0] always succeed, the [1]/bump/refill
+        // tiers never execute) and the gate measures bit-identical to OFF
+        // — caught on Ohtaka when 4 benches matched gate-off to 0.1%.
+        kame_page()->m_slots[B].freelist_head =
+            reinterpret_cast<char *>(
+                chunk->m_fs_flag ? &chunk->m_freelist_head[1]
+                                 : &chunk->m_freelist_head[kBucketLocalId[B]]);
+#else
         kame_page()->m_slots[B].freelist_head =
             reinterpret_cast<char *>(&chunk->m_freelist_head[kBucketLocalId[B]]);
+#endif
     }
     return p;
 }
