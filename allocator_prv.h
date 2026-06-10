@@ -855,7 +855,7 @@ public:
 	//! FS=true hot path needs NO stack frame (no prologue spill, no `bl`).
 	//! `always_inline` (see the def) expands it into free / operator
 	//! delete / kame_pool_free.
-	static inline void deallocate(void *p);
+	static inline void deallocate(void *p) noexcept;
 	//! Cold off-ramp for `deallocate` — VOID + self-contained: a foreign /
 	//! released pointer is libsystem-freed in place (no caller-side
 	//! fallback, no wrapper hop).  Handles every case the lean hot path
@@ -864,13 +864,13 @@ public:
 	//! post-teardown).  noinline+cold so its calls (deallocate_large_va,
 	//! the per-template DeallocateFn, deallocate_chunk, large_recycle_push,
 	//! libsystem_free_for_pool) never spill into the hot path.
-	static void deallocate_cold(void *p);
+	static void deallocate_cold(void *p) noexcept;
 	//! FS=false owner-free helper for `deallocate`.  Split out (noinline)
 	//! so the FS=true 64 B hot path in `deallocate` stays lean/inlinable.
 	//! `chunk_base` is pre-resolved by the caller; only this-thread-owned
 	//! FS=false chunks reach here.  Void: a garbage local-id tail-calls
 	//! `deallocate_cold`.
-	static void deallocate_fs_false_owner(char *chunk_base, void *p);
+	static void deallocate_fs_false_owner(char *chunk_base, void *p) noexcept;
 	//! Look up the slot size (bytes) for a pointer.  Returns 0 if `p`
 	//! is not a pool slot (foreign / libsystem-malloc'd / null).  Uses
 	//! the same chunk-header pattern as `deallocate` and dispatches
