@@ -270,43 +270,69 @@ def execute_code_async(code: str) -> str:
     relaxation measurements). The code runs in a background thread on the
     kernel while the kernel remains responsive for other tool calls.
 
+    Inside the code, call mcp_checkpoint(progress) at every loop
+    iteration. It (a) publishes a progress string readable via
+    get_result, and (b) terminates the job (status "stopped") if
+    stop_job was called — code that never checkpoints cannot be
+    stopped. Prefer short sleeps inside a loop over one long sleep so
+    checkpoints are reached promptly.
+
     Store results in global variables so you can read them afterward
     with execute_code. Example:
 
         execute_code_async('''
         results = []
-        for field in [0, 1, 2, 3, 4, 5]:
+        fields = [0, 1, 2, 3, 4, 5]
+        for i, field in enumerate(fields):
+            mcp_checkpoint(f"{i}/{len(fields)} field={field} T")
             dc_source["Value"] = field
             sleep(1.0)
             snap = Snapshot(root)
             results.append({"field": field, "signal": float(snap[nmr_val])})
         ''')
 
-    Then check status with get_result(job_id), and when done, use
-    execute_code to read and plot the results variable.
+    Then check status/progress with get_result(job_id), stop early with
+    stop_job(job_id), and when done, use execute_code to read and plot
+    the results variable.
 
     CAUTION: The background thread shares globals() with the kernel.
     KAME node operations (Snapshot, Transaction, node[]=) are thread-safe,
-    but avoid reading Python variables from other tools while the async
-    job is still writing to them. Wait for "done" status before reading
-    result variables.
+    but report progress via mcp_checkpoint rather than reading the job's
+    Python variables from other tools while it is still writing to them.
+    Wait for "done" or "stopped" status before reading result variables.
 
-    Returns a job_id string for use with get_result().
+    Returns a job_id string for use with get_result() / stop_job().
     """
     job_id = f"_mcp_{int(time.time() * 1000)}"
     wrapper = f"""
 import threading as _th, traceback as _tb
 _mcp_jobs = globals().setdefault("_mcp_jobs", {{}})
-_mcp_jobs[{repr(job_id)}] = {{"status": "running"}}
+_mcp_tls = globals().setdefault("_mcp_tls", _th.local())
+if "_McpStopped" not in globals():
+    class _McpStopped(Exception):
+        pass
+if "mcp_checkpoint" not in globals():
+    def mcp_checkpoint(progress=None):
+        _job = getattr(_mcp_tls, "job", None)
+        if _job is None:
+            return
+        if progress is not None:
+            _job["progress"] = str(progress)
+        if _job.get("stop"):
+            raise _McpStopped()
+_mcp_jobs[{job_id!r}] = {{"status": "running", "progress": ""}}
 def _mcp_run():
+    _mcp_tls.job = _mcp_jobs[{job_id!r}]
     try:
-        exec({repr(code)}, globals())
-        _mcp_jobs[{repr(job_id)}]["status"] = "done"
+        exec({code!r}, globals())
+        _mcp_jobs[{job_id!r}]["status"] = "done"
+    except _McpStopped:
+        _mcp_jobs[{job_id!r}]["status"] = "stopped"
     except Exception:
-        _mcp_jobs[{repr(job_id)}]["status"] = "error"
-        _mcp_jobs[{repr(job_id)}]["error"] = _tb.format_exc()
+        _mcp_jobs[{job_id!r}]["status"] = "error"
+        _mcp_jobs[{job_id!r}]["error"] = _tb.format_exc()
 _th.Thread(target=_mcp_run, daemon=True).start()
-{repr(job_id)}
+{job_id!r}
 """
     return _execute_text(wrapper)
 
@@ -318,12 +344,39 @@ def get_result(job_id: str) -> str:
     Args:
         job_id: The job ID returned by execute_code_async.
 
-    Returns JSON with "status" ("running", "done", or "error").
+    Returns JSON with "status" ("running", "done", "stopped", or "error")
+    and "progress" (the latest string the job passed to mcp_checkpoint).
     If error, includes "error" with the traceback.
     """
     code = f"""
 import json as _json
 _json.dumps(_mcp_jobs.get({repr(job_id)}, {{"status": "unknown"}}))
+"""
+    return _execute_text(code)
+
+
+@server.tool()
+def stop_job(job_id: str) -> str:
+    """Request a cooperative stop of an async job.
+
+    Sets the job's stop flag; the job terminates (status "stopped") at
+    its next mcp_checkpoint() call. Code that never calls
+    mcp_checkpoint cannot be stopped this way.
+
+    Args:
+        job_id: The job ID returned by execute_code_async.
+
+    Returns JSON with the job's status at the time of the request.
+    """
+    code = f"""
+import json as _json
+_job = globals().get("_mcp_jobs", {{}}).get({job_id!r})
+if _job is None:
+    _r = {{"status": "unknown"}}
+else:
+    _job["stop"] = True
+    _r = {{"status": _job["status"], "stop_requested": True}}
+_json.dumps(_r)
 """
     return _execute_text(code)
 

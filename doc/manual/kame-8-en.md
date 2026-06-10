@@ -1190,7 +1190,8 @@ KAME’s MCP server connects to the embedded IPython kernel via jupyter_client, 
 | `kame_manual` | Retrieve this manual — table of contents or a specific section |
 | `execute_code` | Execute arbitrary Python code in KAME's interpreter; returns text and matplotlib plots |
 | `execute_code_async` | Run long experiments in a background thread; returns a job id |
-| `get_result` | Check the status/result of an asynchronous job |
+| `get_result` | Check the status/progress of an asynchronous job |
+| `stop_job` | Request a cooperative stop of a running asynchronous job |
 | `tree` | Browse the node tree (names, types, values) to a given depth |
 | `kame_status` | Check KAME status and list active drivers |
 

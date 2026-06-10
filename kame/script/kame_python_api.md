@@ -7,11 +7,14 @@ If you reach this doc through MCP, the relevant tools are:
 - **`execute_code`** — synchronous; the kernel blocks the MCP response
   until the code returns. **Hard timeout ≈ 30 s.** Use only for *quick*
   reads, single transactions, plotting a snapshot.
-- **`execute_code_async` + `get_result`** — runs the code in a daemon
-  thread on the kernel; returns a job id immediately. **Use this for
-  anything that loops, sleeps, samples over time, or polls hardware.**
-  KAME STM is thread-safe; just don't share Python-level state with
-  other code until the job completes.
+- **`execute_code_async` + `get_result` + `stop_job`** — runs the code
+  in a daemon thread on the kernel; returns a job id immediately.
+  **Use this for anything that loops, sleeps, samples over time, or
+  polls hardware.** Call `mcp_checkpoint("i/N ...")` at every loop
+  iteration: it publishes progress (returned by `get_result`) and is
+  the only point where a `stop_job` request can terminate the job.
+  KAME STM is thread-safe; read the job's result variables only after
+  status is "done" or "stopped".
 
 Anti-pattern (will MCP-timeout):
 ```python
