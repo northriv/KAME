@@ -1126,17 +1126,21 @@ public:
 		struct { uint32_t r, w; } m_fifo;
 	};
 	//! Compile-time gate for the FS=true free-slot ring above.  Default:
-	//! ON for Apple (memory renaming hides the ring's extra instructions
-	//! and the untouched-block-lines property is pure profit — pending
-	//! M3 bench), OFF elsewhere (on Zen 2 the ring's ~+12 insns/pair
-	//! cost more than the freelist hop it removes: ring slots>=2
-	//! 302 -> 255 M ops/s).  Override with -DKAME_FS_CHUNK_FIFO=0/1.
+	//! OFF everywhere — the ring lost on BOTH measured microarchitectures.
+	//! Zen 2 (Ohtaka EPYC 7702): the ring's ~+12 insns/pair cost more than
+	//! the freelist forwarding hop it removes (ring slots>=2 302 -> 255
+	//! M ops/s).  M3 (the provisional Apple-on hypothesis, now REFUTED by
+	//! the confirming bench, runs=9 x 3 interleaved rounds): 64 B
+	//! 668-733 -> 522-563 (-22 %), with collateral 1 KiB -7 % / 16 KiB
+	//! -9 % — Apple's memory renaming does NOT hide the ring's extra
+	//! work; the freelist's single store-to-load hop was never the
+	//! bottleneck there.  The gate (and the ring implementation) is kept
+	//! for experimentation on future cores: override with
+	//! -DKAME_FS_CHUNK_FIFO=1.  With the gate off the compiled hot paths
+	//! are bit-identical to the pre-ring base (verified on M3: the OFF
+	//! build reproduces the base numbers exactly).
 #ifndef KAME_FS_CHUNK_FIFO
- #if defined(__APPLE__)
-  #define KAME_FS_CHUNK_FIFO 1
- #else
   #define KAME_FS_CHUNK_FIFO 0
- #endif
 #endif
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
