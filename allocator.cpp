@@ -2930,13 +2930,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 			// Return them via the bitmap path and null the cells BEFORE
 			// the generic per-local walk below, which would otherwise
 			// misread an entry as a list head and walk user data.
-#if KAME_FS_CHUNK_FIFO
+#if KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH
 			if(c->m_fs_flag) {
-				// Null-marking ring: parked entries are exactly the
-				// non-null cells [1..4].  Return each as a SINGLE slot
-				// (not a list head!) and null the cell before the
-				// generic per-local walk below.
-				for(int i = 1; i <= 4; ++i) {
+				// Null-marking park cells: entries are exactly the
+				// non-null cells [1..4] (ring) / [1] (depth-1 stash).
+				// Return each as a SINGLE slot (not a list head!) and
+				// null the cell before the generic per-local walk
+				// below, which would otherwise misread an entry as a
+				// list head and walk user data.
+				constexpr int kParkCells = KAME_FS_CHUNK_FIFO ? 4 : 1;
+				for(int i = 1; i <= kParkCells; ++i) {
 					if(char *blk = c->m_freelist_head[i]) {
 						c->m_freelist_head[i] = nullptr;
 						fdrain[0].chunk = c;
@@ -2944,10 +2947,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 						c->batch_return_to_bitmap(fdrain);
 					}
 				}
+#if KAME_FS_CHUNK_FIFO
 				c->m_fifo.r = 0;
 				c->m_fifo.w = 0;
+#endif
 			}
-#endif /* KAME_FS_CHUNK_FIFO */
+#endif /* KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH */
 			// (§12.3) freelists are compact LOCAL-id indexed
 			// (KAME_LOCAL_BUCKETS = 9); walk that range, not 48.
 			for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b) {
@@ -3390,7 +3395,18 @@ PoolAllocatorBase::deallocate(void *p) {
 				chunk_obj->m_fifo.w = fw + 1;
 				return;
 			}
-#endif /* KAME_FS_CHUNK_FIFO */
+#elif KAME_FS_CHUNK_STASH
+			// (§L0-STASH) Depth-1 park: stash `p` in the single cell
+			// m_freelist_head[1] when empty — one load + one store on
+			// the already-hot chunk line, NO store into the block itself
+			// (its lines stay warm for the next user), no counters.
+			// Occupied -> plain freelist push.
+			char **scell = &chunk_obj->m_freelist_head[1];
+			if(*scell == nullptr) {
+				*scell = static_cast<char *>(p);
+				return;
+			}
+#endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
 			chunk_obj->freelist_push(0, p);
 			return;
 		}
