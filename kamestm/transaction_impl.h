@@ -1161,6 +1161,22 @@ Node<XN>::insert(const shared_ptr<XN> &var) {
         return insert(tr, var);
     });
 }
+//! Clears a Snapshot/Transaction's lookup memo on scope entry AND exit.
+//! Structural mutators (insert/release/swap on a Transaction) wrap their
+//! bodies with this: entry-clear kills a memo cached before the packet
+//! rebuild (a stale hit after release would silently address a detached
+//! packet), exit-clear kills any memo set by event callbacks
+//! (catchEvent/listChangeEvent may run tr[] mid-rebuild).  Cold path only.
+template <class XN>
+struct ScopedLookupMemoInvalidate {
+    explicit ScopedLookupMemoInvalidate(Snapshot<XN> &s) noexcept
+        : m_snap(s) { m_snap.m_lookup_memo.clear(); }
+    ~ScopedLookupMemoInvalidate() { m_snap.m_lookup_memo.clear(); }
+    ScopedLookupMemoInvalidate(const ScopedLookupMemoInvalidate &) = delete;
+private:
+    Snapshot<XN> &m_snap;
+};
+
 //=============================================================================
 // insert() — add a child node to the tree within a transaction
 //   (Comments by Claude Opus — based on source code analysis)
@@ -1175,6 +1191,7 @@ Node<XN>::insert(const shared_ptr<XN> &var) {
 template <class XN>
 bool
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion) {
+    ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
     packet->subpackets() = packet->size() ? std::make_shared<PacketList>( *packet->subpackets()) : std::make_shared<PacketList>();
     packet->subpackets()->m_serial = tr.m_serial;
@@ -1306,6 +1323,7 @@ Node<XN>::lookupFailure() const {
 template <class XN>
 bool
 Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
+    ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
     assert(packet->size());
     packet->subpackets().reset(new PacketList( *packet->subpackets()));
@@ -1433,6 +1451,7 @@ Node<XN>::swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
 template <class XN>
 bool
 Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
+    ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
     packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
     packet->subpackets()->m_serial = tr.m_serial;
@@ -2024,6 +2043,10 @@ template <class XN>
 void
 Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                    scoped_atomic_view<PacketWrapper> &&initial_view) const {
+    // All snapshot/refill paths funnel here (Snapshot ctor, Transaction
+    // ctor, operator++ retry): m_packet is about to be replaced, so any
+    // memoized lookup into the previous tree must go first.
+    snapshot.m_lookup_memo.clear();
     auto &started_time = snapshot.m_started_time;
     auto &tid_bitset = snapshot.m_tid_bitset;
     struct GuardSnapshotRetryCount {
