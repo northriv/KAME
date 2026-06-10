@@ -183,3 +183,19 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
       });
   }
   ```
+
+## Ohtaka (ISSP supercomputer) operating rules
+
+When this Claude session is running on the Ohtaka login node (System B at ISSP, U-Tokyo), the login node is a **shared resource** and benchmarks/long jobs must NOT execute there directly. The pool allocator and STM stress / soak tests are the workloads most likely to harm shared interactivity if mis-run.
+
+- **Working directory** — confine all work to `~/kame-claude/` (clone, builds, scratch). Do not touch other users' files or the system module tree.
+- **Never run bench/test workloads on the login node** — wrap with `srun --exclusive` (or the appropriate `sbatch` job script) on a compute node. This applies to `ctest`, `bench_compare.sh`, `alloc_*_test`, the STM transaction tests, and any multi-threaded soak. The login node is fine for `cmake -B`, `cmake --build` (small parallelism), `git`, file edits, and reading test output.
+- **Benchmark methodology** — for any number reported back to the user or written into a README:
+  - Run on a compute node via `srun --exclusive` (one job per measurement).
+  - Take **median of 5+ runs**; record min/max alongside.
+  - Confirm node sanity before measuring: `lscpu --extended`, `dmesg | tail`, `numactl --hardware`.
+  - Note the SLURM partition, node ID, governor (`/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor`) and turbo state in the commit message or README footnote — Ohtaka results are only meaningful with that provenance.
+- **perf / PMU** — Ohtaka compute nodes have a real PMU; `perf stat -e cycles,instructions,...` and `perf record -e cycles` work. Run profiling **inside** the `srun --exclusive` allocation. Long sampling runs (`perf record` for minutes) belong on compute nodes only.
+- **No destructive ops on shared paths** — never `rm -rf` outside `~/kame-claude/`. No `module load`/`module unload` chains that leak environment to the user's shell — wrap each session in its own subshell.
+- **Multi-Claude coordination** — when an Ohtaka Claude session runs in parallel with a cloud Claude session, the Ohtaka session specializes in: (a) absolute-number benchmarks, (b) perf-event profiling, (c) long soak / many-thread STM tests, (d) updating READMEs/tables with the resulting numbers. The cloud session keeps doing code edits, TLA+, GenMC, doc structure. Both rebase frequently from `origin/master` to keep merges trivial; flag any in-flight feature branch in the commit message.
+- **Local environment specifics (write here after first Ohtaka session)** — Claude on Ohtaka should append the actual module names (`gcc/...`, `cmake/...`), the right SLURM partition name, the per-user scratch quota, and any site-specific firewall / proxy notes here, replacing this placeholder, so future sessions don't have to re-discover them.
