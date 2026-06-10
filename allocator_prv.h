@@ -550,10 +550,17 @@ constexpr int RADIX_REGION_BITS = RADIX_L1_BITS + RADIX_L2_BITS;  // 23
 //! nothing is ever out-of-window.  Computing `1 << 48` directly would be UB on
 //! a 32-bit `uintptr_t` (shift count ≥ width), so clamp to `~0` there.
 constexpr unsigned RADIX_VA_BITS = RADIX_REGION_BITS + ALLOC_MIN_MMAP_SHIFT; // 48
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(push)
+#pragma warning(disable: 4293) // MSVC warns on the dead ILP32 shift arm (1<<48); clamped to ~0 below
+#endif
 constexpr uintptr_t RADIX_VA_LIMIT =
     (RADIX_VA_BITS >= sizeof(uintptr_t) * 8u)
         ? ~(uintptr_t)0                          // pointers ⊆ radix span (ILP32)
         : ((uintptr_t)1 << RADIX_VA_BITS);       // 2^48 on LP64/LLP64
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#pragma warning(pop)
+#endif
 #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 // 64-bit: the region-count ceiling equals the radix's full VA coverage.
 static_assert(ALLOC_MAX_REGIONS == (1 << RADIX_REGION_BITS),
