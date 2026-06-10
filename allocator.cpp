@@ -1075,6 +1075,9 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	this->m_fs_flag = (FS && DUMMY);
 	this->m_base_bucket = (FS && DUMMY)
 	    ? static_cast<uint16_t>(bucket_for_size(ALIGN)) : 0;
+#if KAME_FS_PINGPONG
+	this->m_pp_toggle = 0;
+#endif
 	// (§16) "full-usable" m_sizes mode: enabled for FS=false chunks with
 	// ALIGN >= 1024.  The FS=false partial spec constructs through the
 	// `<ALIGN,true,false>` base ctor, so `FS && !DUMMY` uniquely selects an
@@ -1203,6 +1206,28 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 			    reinterpret_cast<char *>(static_cast<uintptr_t>(ALIGN));
 		}
 #else
+#if KAME_FS_PINGPONG
+		// (§ping-pong) split the prefill into the two partner chains by
+		// slot parity — both cells start stocked so the alternating
+		// pops never miss during the virgin phase.
+		char *prev0 = nullptr, *prev1 = nullptr;
+		for(size_t i = N_slots; i-- > 0; ) {
+			char *slot = base + i * ALIGN;
+			if(i & 1u) {
+				*reinterpret_cast<char **>(slot) = prev1;
+				prev1 = slot;
+			}
+			else {
+				*reinterpret_cast<char **>(slot) = prev0;
+				prev0 = slot;
+			}
+		}
+		m_freelist_head[0] = prev0;
+		m_freelist_head[1] = prev1;
+		for(int b = 2; b < KAME_LOCAL_BUCKETS; ++b)
+			m_freelist_head[b] = nullptr;
+		m_pp_toggle = 0;
+#else
 		char *prev = nullptr;
 		for(size_t i = N_slots; i-- > 0; ) {
 			char *slot = base + i * ALIGN;
@@ -1212,6 +1237,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		m_freelist_head[0] = base;
 		for(int b = 1; b < KAME_LOCAL_BUCKETS; ++b)
 			m_freelist_head[b] = nullptr;
+#endif /* KAME_FS_PINGPONG */
 #endif
 		for(int i = count - 1; i >= 0; --i)
 			m_flags[i] = ~(FUINT)0u;
@@ -1410,6 +1436,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		// paying slow_allocate's scan_dll + chunk path every 1/K.
 		return this->fs_topup_take();
 #endif
+#endif
+#if KAME_FS_PINGPONG
+		// (§ping-pong) the partner chain too — either cell may hold the
+		// inventory when this cold is reached.
+		if(void *p = this->freelist_pop(1))
+			return p;
 #endif
 		if(void *p = this->freelist_pop(0))
 			return p;
@@ -2148,7 +2180,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 		// freelist is local-id 0 (§12.3); the owner's next alloc on this
 		// bucket pops it back immediately via the TLS shortcut at
 		// `g_thread_freelist_ptr[bucket]` -> `m_freelist_head[0]`.
+#if KAME_FS_PINGPONG
+		{
+			unsigned t = this->m_pp_toggle ^ 1u;
+			this->m_pp_toggle = (uint8_t)t;
+			this->freelist_push(t, p);
+		}
+#else
 		this->freelist_push(0, p);
+#endif
 		return false;
 	}
 	// (§35) Orphan adoption DISABLED here — see the FS=false sibling in the
@@ -2525,6 +2565,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 #endif
 		return head;
 	}
+#if KAME_FS_PINGPONG
+	// (§ping-pong) frees alternate into [0]/[1]; salvage the partner
+	// chain too before paying a fresh chunk.
+	if(char *head = scan_dll_freelist(/*local_id=*/1u)) {
+		kame_page()->m_slots[bucket].freelist_head =
+		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[1]);
+		return head;
+	}
+#endif
 	void *p = allocate_chunk_path(ALIGN);
 	PoolAllocatorBase *new_chunk =
 	    static_cast<PoolAllocatorBase *>(s_tls.my_chunk);
@@ -3806,7 +3855,17 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 				return;
 			}
 #endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
+#if KAME_FS_PINGPONG
+			// (§ping-pong) alternate pushes between [0]/[1] — the
+			// toggle byte lives on the already-hot chunk line.
+			{
+				unsigned t = chunk_obj->m_pp_toggle ^ 1u;
+				chunk_obj->m_pp_toggle = (uint8_t)t;
+				chunk_obj->freelist_push(t, p);
+			}
+#else
 			chunk_obj->freelist_push(0, p);
+#endif
 			return;
 		}
 		// FS=false owner free.  Routed to a dedicated noinline helper —
@@ -5141,8 +5200,31 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 #endif
 			if(char *head = *head_ptr) {
 				*head_ptr = *reinterpret_cast<char **>(head);
+#if KAME_FS_PINGPONG
+				// (§ping-pong) retire-side re-aim — mirror of
+				// new_redirected.
+				if(chunk_from_freelist_ptr(head_ptr)->m_fs_flag)
+					pg->m_slots[bucket].freelist_head =
+					    reinterpret_cast<char *>(
+					        reinterpret_cast<uintptr_t>(
+					            cell_ptr_raw) ^ 8u);
+#endif
 				return head;
 			}
+#if KAME_FS_PINGPONG
+			// (§ping-pong) aimed cell empty: serve the partner once.
+			{
+				PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+				if(ck->m_fs_flag) {
+					char **other = reinterpret_cast<char **>(
+					    reinterpret_cast<uintptr_t>(head_ptr) ^ 8u);
+					if(char *head = *other) {
+						*other = *reinterpret_cast<char **>(head);
+						return head;
+					}
+				}
+			}
+#endif
 #if KAME_FS_TWOLIST && !KAME_FS_TWOLIST_BMWIN_NOBUMP
 			// (§two-list) mirror of new_redirected's bump-window tier.
 			// (§NOBUMP retires it.)
