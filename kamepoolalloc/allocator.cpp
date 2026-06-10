@@ -1115,8 +1115,10 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	// seeded; everything else takes the !prefilled path below.
 	if constexpr (FS && DUMMY) {
 		(void)s_prefill_enabled;
+#if !KAME_FS_TWOLIST_BMWIN_NOBUMP
 		m_freelist_head[5] =
 		    reinterpret_cast<char *>(static_cast<uintptr_t>(ALIGN));
+#endif
 	}
 	if(false) {
 #else
@@ -1214,9 +1216,9 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 			m_freelist_head[b] = nullptr;
 		for(int i = count - 1; i >= 0; --i)
 			m_flags[i] = 0;
-#if KAME_FS_TWOLIST_BMWIN
+#if KAME_FS_TWOLIST_BMWIN && !KAME_FS_TWOLIST_BMWIN_NOBUMP
 		// (§BMWIN) re-seed the stride cell — the generic head-null loop
-		// above just cleared it.
+		// above just cleared it.  (§NOBUMP has no marker cells.)
 		if constexpr (FS && DUMMY)
 			m_freelist_head[5] = reinterpret_cast<char *>(
 			    static_cast<uintptr_t>(ALIGN));
@@ -1434,7 +1436,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 					if(oldv == ~(FUINT)0u) break;     // word full
 					FUINT zeros = (FUINT)~oldv;
 					size_t want = kmax - got;
-					FUINT mask, runmask = 0;
+					FUINT mask;
+#if !KAME_FS_TWOLIST_BMWIN_NOBUMP
+					FUINT runmask = 0;
 					unsigned pos = 0, run = 0;
 					if(!ret) {
 						// First word: pick a contiguous run
@@ -1482,9 +1486,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 						else
 							mask = runmask;
 					}
-					else {
-						// Bump already established: chain the
-						// lowest `want` zeros of this word.
+					else
+#endif /* !KAME_FS_TWOLIST_BMWIN_NOBUMP */
+					{
+						// Chain-only: the lowest `want` zeros of
+						// this word.  (Every word under §NOBUMP;
+						// words after the bump donor otherwise.)
 						if((size_t)count_bits(zeros) <= want)
 							mask = zeros;
 						else {
@@ -1504,6 +1511,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 						this->m_idx = idx;
 						FUINT rest;
 						if(!ret) {
+#if KAME_FS_TWOLIST_BMWIN_NOBUMP
+							// Serve the lowest claimed bit; chain
+							// the rest — no window cells.
+							unsigned pos0 = (unsigned)__builtin_ctzll(
+							    (unsigned long long)mask);
+							ret = this->mempool() +
+							    ((size_t)idx * WBITS + pos0) * ALIGN;
+							got += 1;
+							rest = (FUINT)(mask & (mask - 1u));
+#else
 							size_t bit0 =
 							    (size_t)idx * WBITS + pos;
 							ret = this->mempool() + bit0 * ALIGN;
@@ -1525,6 +1542,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 							    ret + (size_t)run * ALIGN;
 							got += run;
 							rest = (FUINT)(mask & ~runmask);
+#endif /* KAME_FS_TWOLIST_BMWIN_NOBUMP */
 						}
 						else
 							rest = mask;
@@ -4988,8 +5006,9 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 				*head_ptr = *reinterpret_cast<char **>(head);
 				return head;
 			}
-#if KAME_FS_TWOLIST
+#if KAME_FS_TWOLIST && !KAME_FS_TWOLIST_BMWIN_NOBUMP
 			// (§two-list) mirror of new_redirected's bump-window tier.
+			// (§NOBUMP retires it.)
 			{
 				PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
 				if(ck->m_fs_flag) {
