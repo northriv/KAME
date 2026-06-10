@@ -1142,6 +1142,26 @@ public:
 #ifndef KAME_FS_CHUNK_FIFO
   #define KAME_FS_CHUNK_FIFO 0
 #endif
+	//! (§L0-STASH) Depth-1 variant of the ring above: ONE parked slot in
+	//! m_freelist_head[1], NO counters — the cell's null/non-null IS the
+	//! whole protocol (m_fifo / m_sizes union untouched).  Keeps the
+	//! ring's key property (the freed block's own cache lines are never
+	//! touched by the allocator: park writes the chunk cell, take reads
+	//! it — no `*p = head` store, no dependent `*head` load) while
+	//! shedding the depth-4 bookkeeping (~+12 insns/pair) that made the
+	//! ring a measured loss on BOTH Zen 2 and M3.  Cost: ~2 same-line
+	//! ops/side.  The take's load may forward from a park one op
+	//! earlier — unlike the ring there is no >= 2-ops spacing — but it
+	//! replaces the freelist pop's CHAINED two loads (head, then *head)
+	//! with a single load, so the steady-state data chain is strictly
+	//! shorter than base on every core.  Default 0 (experiment);
+	//! -DKAME_FS_CHUNK_STASH=1.  Mutually exclusive with the ring.
+#ifndef KAME_FS_CHUNK_STASH
+  #define KAME_FS_CHUNK_STASH 0
+#endif
+#if KAME_FS_CHUNK_FIFO && KAME_FS_CHUNK_STASH
+  #error "KAME_FS_CHUNK_FIFO and KAME_FS_CHUNK_STASH are mutually exclusive"
+#endif
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
 	//! Owner-thread freelist push/pop (LIFO; freed slot's first 8 bytes
@@ -3055,7 +3075,21 @@ inline void *new_redirected(std::size_t size) {
 				return b0;
 			}
 		}
-#endif /* KAME_FS_CHUNK_FIFO */
+#elif KAME_FS_CHUNK_STASH
+		// (§L0-STASH) Depth-1 take: if the chunk parked a slot in
+		// m_freelist_head[1] (same hot line as [0] / m_fs_flag), return
+		// it — one load + one store, and the block's own lines stay
+		// untouched.  Unlike the freelist pop there is NO second
+		// dependent load (`*head`): the data chain is one hop.  Miss
+		// (cell null) falls to the plain pop below.
+		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+		if(ck->m_fs_flag) {
+			if(char *b = head_ptr[1]) {
+				head_ptr[1] = nullptr;
+				return b;
+			}
+		}
+#endif /* KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH */
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
