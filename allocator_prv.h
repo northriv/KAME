@@ -54,10 +54,36 @@
         #define __builtin_expect(expr, c) (expr)
     #endif
     // constexpr bit-scan (C++17 relaxed constexpr) — _BitScan* aren't
-    // constexpr, but these feed constexpr ladder-bucket math.
-    constexpr int kame_msvc_ctzll(unsigned long long v) noexcept { if(!v) return 64; int n=0; while(!(v&1ull)){v>>=1;++n;} return n; }
-    constexpr int kame_msvc_ctz(unsigned int v) noexcept { if(!v) return 32; int n=0; while(!(v&1u)){v>>=1;++n;} return n; }
-    constexpr int kame_msvc_clzll(unsigned long long v) noexcept { if(!v) return 64; int n=0; while(!(v&(1ull<<63))){v<<=1;++n;} return n; }
+    // constexpr, but these feed constexpr ladder-bucket math.  Branch/shift
+    // binary search (O(log width), ~6 ops) rather than an O(width) bit-walk:
+    // the per-call constexpr step count matters because kame_ladder_bucket
+    // runs inside the compile-time bucket_for_size LUT build AND its
+    // EXHAUSTIVE 369..32768 KAME_LUT_PROOF sweeps — an O(width) walk there
+    // blew MSVC's default `/constexpr:steps` (2^20) ceiling once the LUT was
+    // extended to the full 32 KiB range (C2131 at the LUT/proofs).
+    constexpr int kame_msvc_ctzll(unsigned long long v) noexcept {
+        if(!v) return 64; int n = 0;
+        if(!(unsigned)(v))         { n += 32; v >>= 32; }
+        if(!(unsigned short)(v))   { n += 16; v >>= 16; }
+        if(!(unsigned char)(v))    { n += 8;  v >>= 8;  }
+        if(!(v & 0xfull))          { n += 4;  v >>= 4;  }
+        if(!(v & 0x3ull))          { n += 2;  v >>= 2;  }
+        if(!(v & 0x1ull))          { n += 1; }
+        return n;
+    }
+    constexpr int kame_msvc_ctz(unsigned int v) noexcept {
+        return v ? kame_msvc_ctzll((unsigned long long)v) : 32;
+    }
+    constexpr int kame_msvc_clzll(unsigned long long v) noexcept {
+        if(!v) return 64; int n = 0;
+        if(!(v >> 32)) { n += 32; v <<= 32; }
+        if(!(v >> 48)) { n += 16; v <<= 16; }
+        if(!(v >> 56)) { n += 8;  v <<= 8;  }
+        if(!(v >> 60)) { n += 4;  v <<= 4;  }
+        if(!(v >> 62)) { n += 2;  v <<= 2;  }
+        if(!(v >> 63)) { n += 1; }
+        return n;
+    }
     #define __builtin_ctzll(x) kame_msvc_ctzll(x)
     #define __builtin_ctz(x)   kame_msvc_ctz(x)
     #define __builtin_clzll(x) kame_msvc_clzll(x)
