@@ -2560,6 +2560,12 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 #if KAME_FS_TWOLIST
 		    // (§two-list) the lean pops the [1] segment; aim there.
 		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[1]);
+#elif KAME_FS_PINGPONG
+		    // (§ping-pong v2) FS=true pairs carry the bit0 tag.
+		    (FS && DUMMY)
+		        ? kame_pp_tag(&s_tls.my_chunk->m_freelist_head[0])
+		        : reinterpret_cast<char *>(
+		              &s_tls.my_chunk->m_freelist_head[0]);
 #else
 		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[0]);
 #endif
@@ -2570,7 +2576,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	// chain too before paying a fresh chunk.
 	if(char *head = scan_dll_freelist(/*local_id=*/1u)) {
 		kame_page()->m_slots[bucket].freelist_head =
-		    reinterpret_cast<char *>(&s_tls.my_chunk->m_freelist_head[1]);
+		    (FS && DUMMY)
+		        ? kame_pp_tag(&s_tls.my_chunk->m_freelist_head[1])
+		        : reinterpret_cast<char *>(
+		              &s_tls.my_chunk->m_freelist_head[1]);
 		return head;
 	}
 #endif
@@ -2582,6 +2591,16 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	// `kBucketLocalId[]` is read HERE (cold path), so the hot path
 	// (new_redirected) needs no remap.  chunk_from_freelist_ptr recovers
 	// the chunk pointer from this stored value via a single mask.
+#if KAME_FS_PINGPONG
+	kame_page()->m_slots[bucket].freelist_head =
+	    new_chunk ? ((FS && DUMMY)
+	                     ? kame_pp_tag(&new_chunk->m_freelist_head[
+	                           kBucketLocalId[bucket]])
+	                     : reinterpret_cast<char *>(
+	                           &new_chunk->m_freelist_head[
+	                               kBucketLocalId[bucket]]))
+	              : nullptr;
+#else
 	kame_page()->m_slots[bucket].freelist_head =
 	    new_chunk ? reinterpret_cast<char *>(
 #if KAME_FS_TWOLIST
@@ -2591,6 +2610,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::slow_allocate(unsigned bucket,
 	                    &new_chunk->m_freelist_head[kBucketLocalId[bucket]])
 #endif
 	              : nullptr;
+#endif /* KAME_FS_PINGPONG */
 	return p;
 }
 
@@ -4698,6 +4718,13 @@ void *bucket_first_access(std::size_t /*size*/) noexcept {
             reinterpret_cast<char *>(
                 chunk->m_fs_flag ? &chunk->m_freelist_head[1]
                                  : &chunk->m_freelist_head[kBucketLocalId[B]]);
+#elif KAME_FS_PINGPONG
+        // (§ping-pong v2) FS=true chunks get the bit0 tag at activation.
+        kame_page()->m_slots[B].freelist_head =
+            chunk->m_fs_flag
+                ? kame_pp_tag(&chunk->m_freelist_head[kBucketLocalId[B]])
+                : reinterpret_cast<char *>(
+                      &chunk->m_freelist_head[kBucketLocalId[B]]);
 #else
         kame_page()->m_slots[B].freelist_head =
             reinterpret_cast<char *>(&chunk->m_freelist_head[kBucketLocalId[B]]);
@@ -4828,7 +4855,11 @@ KameTlsPage g_teardown_page = {RADIX_CACHE_EMPTY, 0, 0, {}};
 KAME_NOINLINE
 void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
+#if KAME_FS_PINGPONG
+		char **head_ptr = kame_pp_cell(cell_ptr_raw);
+#else
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
+#endif
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
@@ -4894,7 +4925,11 @@ void *new_redirected_large(std::size_t size) noexcept {
     KameTlsPage *pg = kame_page_or_null();
     if(__builtin_expect(pg != nullptr, 1)) {
         if(char *cell_ptr_raw = pg->m_slots[bucket].freelist_head) {
+#if KAME_FS_PINGPONG
+            char **head_ptr = kame_pp_cell(cell_ptr_raw);
+#else
             char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
+#endif
             if(char *head = *head_ptr) {
                 *head_ptr = *reinterpret_cast<char **>(head);
                 return head;
@@ -4929,7 +4964,11 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
         // Pool bucket path — mirrors new_redirected_large's freelist /
         // slow_allocate / cold_first_access cascade via KameTlsPage.
         if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
+#if KAME_FS_PINGPONG
+            char **head_ptr = kame_pp_cell(cell_ptr_raw);
+#else
             char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
+#endif
             if(char *head = *head_ptr) {
                 *head_ptr = *reinterpret_cast<char **>(head);
                 return head;
@@ -5164,7 +5203,11 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 	KameTlsPage *pg = kame_page_or_null();
 	if(__builtin_expect(pg != nullptr, 1)) {
 		if(char *cell_ptr_raw = pg->m_slots[bucket].freelist_head) {
+#if KAME_FS_PINGPONG
+			char **head_ptr = kame_pp_cell(cell_ptr_raw);
+#else
 			char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
+#endif
 			// (gate experiments) The 526e1819 lean split detached malloc
 			// from `new_redirected`, which silently DROPPED the gated
 			// ring/stash TAKE from the C-malloc path while the park side
@@ -5201,27 +5244,20 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 			if(char *head = *head_ptr) {
 				*head_ptr = *reinterpret_cast<char **>(head);
 #if KAME_FS_PINGPONG
-				// (§ping-pong) retire-side re-aim — mirror of
-				// new_redirected.
-				if(chunk_from_freelist_ptr(head_ptr)->m_fs_flag)
-					pg->m_slots[bucket].freelist_head =
-					    reinterpret_cast<char *>(
-					        reinterpret_cast<uintptr_t>(
-					            cell_ptr_raw) ^ 8u);
+				// (§ping-pong v2) tag-driven re-aim, no header line.
+				pg->m_slots[bucket].freelist_head =
+				    kame_pp_advance(cell_ptr_raw);
 #endif
 				return head;
 			}
 #if KAME_FS_PINGPONG
-			// (§ping-pong) aimed cell empty: serve the partner once.
-			{
-				PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
-				if(ck->m_fs_flag) {
-					char **other = reinterpret_cast<char **>(
-					    reinterpret_cast<uintptr_t>(head_ptr) ^ 8u);
-					if(char *head = *other) {
-						*other = *reinterpret_cast<char **>(head);
-						return head;
-					}
+			// (§ping-pong) tagged pair: serve the partner once.
+			if(reinterpret_cast<uintptr_t>(cell_ptr_raw) & 1u) {
+				char **other = reinterpret_cast<char **>(
+				    reinterpret_cast<uintptr_t>(head_ptr) ^ 8u);
+				if(char *head = *other) {
+					*other = *reinterpret_cast<char **>(head);
+					return head;
 				}
 			}
 #endif

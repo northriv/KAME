@@ -3101,6 +3101,28 @@ chunk_from_freelist_ptr(char **fp) noexcept {
         + (uintptr_t)ALLOC_CHUNK_HEADER);
 }
 
+#if KAME_FS_PINGPONG
+//! (§ping-pong v2) FS=true-ness is encoded as BIT0 of the TLS cell
+//! pointer (cells are 8-aligned), so the lean pop needs NO chunk-header
+//! line to decide the partner re-aim — the literal one-instruction
+//! interleave.  `kame_pp_cell` strips the tag for the dereference;
+//! `kame_pp_advance` toggles to the partner cell only when tagged
+//! (XOR of (tag << 3): untagged values pass through unchanged);
+//! `kame_pp_tag` is used at every FS=true aim site.
+inline char **kame_pp_cell(char *raw) noexcept {
+	return reinterpret_cast<char **>(
+	    reinterpret_cast<uintptr_t>(raw) & ~(uintptr_t)1u);
+}
+inline char *kame_pp_advance(char *raw) noexcept {
+	uintptr_t r = reinterpret_cast<uintptr_t>(raw);
+	return reinterpret_cast<char *>(r ^ ((r & 1u) << 3));
+}
+inline char *kame_pp_tag(char **cell) noexcept {
+	return reinterpret_cast<char *>(
+	    reinterpret_cast<uintptr_t>(cell) | 1u);
+}
+#endif
+
 #if KAME_FAST_TSD
 //! Architecture-specific read of the thread-pointer register (pthread
 //! struct base).  Used as the base for the byte-offset TSD read.
@@ -3327,7 +3349,12 @@ inline void *new_redirected(std::size_t size) {
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
+#if KAME_FS_PINGPONG
+		// (§ping-pong v2) strip the FS=true tag bit for the deref.
+		char **head_ptr = kame_pp_cell(cell_ptr_raw);
+#else
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
+#endif
 		// (§L0-FIFO) Depth-4 ring hit: take the OLDEST parked slot, and
 		// only when occupancy >= 2 — the slot returned was then parked
 		// >= 2 frees ago, so the store that parked it is out of the
@@ -3375,33 +3402,24 @@ inline void *new_redirected(std::size_t size) {
 		if(char *head = *head_ptr) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 #if KAME_FS_PINGPONG
-			// (§ping-pong) AFTER the pop is decided (off the critical
-			// path — the return value does not depend on it), re-aim
-			// the TLS slot at the PARTNER cell ([0]<->[1], XOR 8) for
-			// an FS=true chunk so consecutive pops alternate chains.
-			// One mask + one chunk-line load + one TLS store, all
-			// retire-side; FS=false skips the store.
-			if(chunk_from_freelist_ptr(head_ptr)->m_fs_flag)
-				kame_page()->m_slots[bucket].freelist_head =
-				    reinterpret_cast<char *>(
-				        reinterpret_cast<uintptr_t>(cell_ptr_raw)
-				        ^ 8u);
+			// (§ping-pong v2) retire-side partner re-aim straight off
+			// the TAG BIT — no chunk-header line: untagged (FS=false)
+			// values pass through kame_pp_advance unchanged.
+			kame_page()->m_slots[bucket].freelist_head =
+			    kame_pp_advance(cell_ptr_raw);
 #endif
 			return head;
 		}
 #if KAME_FS_PINGPONG
-		// (§ping-pong) aimed cell empty: serve the partner once
-		// (without re-aim — the slot keeps pointing at the empty cell,
-		// so the next free lands there first) before the cold.
-		{
-			PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
-			if(ck->m_fs_flag) {
-				char **other = reinterpret_cast<char **>(
-				    reinterpret_cast<uintptr_t>(head_ptr) ^ 8u);
-				if(char *head = *other) {
-					*other = *reinterpret_cast<char **>(head);
-					return head;
-				}
+		// (§ping-pong) aimed cell empty: tagged pairs serve the partner
+		// once (without re-aim — the slot keeps pointing at the empty
+		// cell, so the next free lands there first) before the cold.
+		if(reinterpret_cast<uintptr_t>(cell_ptr_raw) & 1u) {
+			char **other = reinterpret_cast<char **>(
+			    reinterpret_cast<uintptr_t>(head_ptr) ^ 8u);
+			if(char *head = *other) {
+				*other = *reinterpret_cast<char **>(head);
+				return head;
 			}
 		}
 #endif
