@@ -1206,8 +1206,33 @@ public:
 #ifndef KAME_FS_CHUNK_STASH
   #define KAME_FS_CHUNK_STASH 0
 #endif
-#if KAME_FS_CHUNK_FIFO && KAME_FS_CHUNK_STASH
-  #error "KAME_FS_CHUNK_FIFO and KAME_FS_CHUNK_STASH are mutually exclusive"
+	//! (§two-list) FS=true two-list + virgin bump window — the dependency-cut
+	//! design that the ring/stash post-mortems point at (see the liveset-1
+	//! analysis: any single shared list has a 2-deep serial store->load
+	//! recurrence per pair; mimalloc's two independent lists pipeline to an
+	//! effective 1 hop, at the cost of circulating the whole page through
+	//! cache).  This gate reproduces mi's structure at ~2 KiB granularity:
+	//!   [0] = FREE side (deallocate pushes; free path UNCHANGED)
+	//!   [1] = ALLOC side segment list (lean pops; refilled by SWAPPING the
+	//!         whole of [0] — no walk, no counter, no guard)
+	//!   [2]/[3] = virgin reserve {cur, end} (addresses, NOT list heads —
+	//!         the §29 link-prefill is skipped under this gate)
+	//!   [4] = bump window end = min(cur + K*ALIGN, end); the window cap is
+	//!         what bounds the cold-to-cold interval to <= 2K pairs, which
+	//!         in turn bounds [0]'s accumulation and hence every swapped
+	//!         segment to <= 2K slots (~4 KiB) — the L1 cap falls out of the
+	//!         construction with NO length counter.
+	//! Steady recycle: pure K-circulation (L1-resident); virgin slots are
+	//! consumed only when recycling can't keep up (one-time chunk warmup).
+	//! Cross-thread frees / bitmap invariants untouched (all m_flags bits
+	//! still SET at claim: "bit set <=> slot with user or owner-held" now
+	//! includes the reserve range).  Default 0; -DKAME_FS_TWOLIST=1.
+#ifndef KAME_FS_TWOLIST
+  #define KAME_FS_TWOLIST 0
+#endif
+#if (KAME_FS_CHUNK_FIFO && KAME_FS_CHUNK_STASH) || \
+    (KAME_FS_TWOLIST && (KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH))
+  #error "KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH / KAME_FS_TWOLIST are mutually exclusive"
 #endif
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
@@ -1227,6 +1252,37 @@ public:
 			m_freelist_head[local] = *reinterpret_cast<char **>(head);
 		return head;
 	}
+#if KAME_FS_TWOLIST
+	//! (§two-list) Cold refill-and-take for an FS=true chunk whose alloc
+	//! side ([1] segment + bump window) ran dry.  Priority: ① swap the
+	//! whole FREE side [0] in as the next segment (no walk — its length is
+	//! bounded <= ~2K by construction, since this refill runs at least
+	//! every 2K pairs); ② extend the virgin bump window by K and take from
+	//! it.  Returns nullptr when both inventories are empty (caller falls
+	//! to the existing slow_allocate / chunk-claim path).  Owner-thread
+	//! only, like every freelist op here.
+	inline void *fs_twolist_refill_take() noexcept {
+		if(char *seg = m_freelist_head[0]) {        // ① swap free side in
+			m_freelist_head[0] = nullptr;
+			m_freelist_head[1] = *reinterpret_cast<char **>(seg);
+			return seg;   // segment head = newest free; 1 forwarded load
+			              // ONCE per epoch (amortized 1/K) — mi's swap.
+		}
+		char *cur = m_freelist_head[2];             // ② virgin window
+		char *end = m_freelist_head[3];
+		if(cur < end) {
+			uintptr_t a =
+			    reinterpret_cast<uintptr_t>(m_freelist_head[5]);
+			size_t kb = 2048u / a; if(kb < 4u) kb = 4u;
+			char *w = cur + kb * a;
+			if(w > end) w = end;
+			m_freelist_head[4] = w;
+			m_freelist_head[2] = cur + a;
+			return cur;
+		}
+		return nullptr;
+	}
+#endif /* KAME_FS_TWOLIST */
 
 protected:
 	// `m_mempool` retired — see `mempool()` accessor above.  Derived from
@@ -3141,6 +3197,24 @@ inline void *new_redirected(std::size_t size) {
 			*head_ptr = *reinterpret_cast<char **>(head);
 			return head;
 		}
+#if KAME_FS_TWOLIST
+		// (§two-list) Alloc-side miss: for an FS=true chunk (cell aims at
+		// the [1] segment under this gate) try the virgin bump window —
+		// pure arithmetic, NO load of the block, NO touch of the free
+		// side [0] (the recurrence cell).  Window empty -> cold (swap /
+		// extend / slow_allocate).
+		{
+			PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+			if(ck->m_fs_flag) {
+				char *cur = ck->m_freelist_head[2];
+				if(cur < ck->m_freelist_head[4]) {
+					ck->m_freelist_head[2] = cur +
+					    reinterpret_cast<uintptr_t>(ck->m_freelist_head[5]);
+					return cur;
+				}
+			}
+		}
+#endif
 	}
 	return new_redirected_cold(bucket, size);
 }
