@@ -424,7 +424,16 @@ plt.gcf()  # ← last expression returns the Figure; MCP `execute_code`
            #    captures it as inline image content. Don't `plt.show()`.
 ```
 
-### X2DImagePlot (2D images)
+### X2DImagePlot (2D images) — display only
+
+`to_png()` returns the *rendered display image*: gamma-encoded, possibly
+colormapped/scaled. Use it **only to show a picture to the human**.
+
+**Anti-pattern: never decode `to_png()` bytes (plt.imread etc.) for
+analysis.** PNG pixel values are not raw counts; thresholds, averages and
+masks derived from them are quantitatively wrong. For ROI statistics,
+masks and raw frames use **2D Math Tools** (below) — their functors
+receive the true uint32 count matrix before any display rendering.
 
 To reach `to_png()`, navigate: X2DImage → Graph child → Plots → ImagePlot.
 
@@ -446,12 +455,6 @@ h = shot[imgplot].imageHeight()
 # Display via IPython (returned as image through MCP)
 from IPython.display import display, Image
 display(Image(data=png_bytes, format='png'))
-
-# Or load into matplotlib for further analysis
-import matplotlib.pyplot as plt, io
-img = plt.imread(io.BytesIO(png_bytes))
-plt.imshow(img)
-plt.gcf()  # last-expression Figure → captured by MCP as image
 ```
 
 ## 2D Math Tools
@@ -510,45 +513,76 @@ mask = shot[tool].mask()  # list[uint8]
 **Important:** Clamp ROI to actual image dimensions to avoid display offset.
 Use `shot[imgplot].imageWidth()` and `shot[imgplot].imageHeight()` to get bounds.
 
+### Python functor tools — direct raw-frame access
+
+Math-tool functors are the **only quantitative pixel access**: on every
+frame the tool receives the raw uint32 count matrix of its ROI
+(zero-copy, before any display rendering or gamma). Subclass
+`XPythonGraph2DMathTool`, register with `exportClass`, then create it via
+`createByTypename` exactly like the C++ tools.
+
+The functor takes 7 arguments:
+`f(matrix, width, stride, numlines, coefficient, offset, mask)`
+- `matrix` — `(numlines, width)` uint32 array, raw ROI counts
+- `coefficient`, `offset` — physical calibration: value = coefficient*count + offset
+- `mask` — `(numlines, width)` uint8, 1 = included (all-ones for Rectangle)
+
+Return one value per entry as `np.array` (entry names are the
+semicolon-separated fields of the exportClass label).
+
+**CAUTION:** `matrix` and `mask` are views of transient C++ buffers,
+valid only during the call — `np.array(..., copy=True)` anything you keep.
+
+```python
+import numpy as np
+latest = {}
+
+class FrameGrabber(XPythonGraph2DMathTool):
+    def __init__(self, name, runtime, tr, entries, driver, plot, parent, entryname):
+        XPythonGraph2DMathTool.__init__(self, name, runtime, tr, entries,
+            driver, plot, parent, entryname)  # super().__init__ cannot be used
+        self.setFunctor(self.func)
+    def func(self, matrix, width, stride, numlines, coefficient, offset, mask):
+        frame = coefficient * np.array(matrix, dtype=np.float64, copy=True) + offset
+        latest["frame"] = frame
+        latest["mask"] = np.array(mask, copy=True)
+        return np.array([float(frame.mean())])
+
+XPythonGraph2DMathTool.exportClass("FrameGrabber", FrameGrabber, "Mean")
+
+ch0 = Root()["Drivers"]["JAI"]["LiveImage"]["CH0"]
+tool = ch0.dynamic_cast().createByTypename("FrameGrabber", "Grab")
+# Set the ROI to the full frame, wait for the next frame, then read
+# latest["frame"] (true counts) from a later execute_code call.
+```
+
+For simple ROI statistics (e.g. ODMR signal/reference regions) you do not
+need a functor at all: create two `Graph2DMathToolAverage` tools and read
+their scalar entries at each sweep point. No PNG is involved anywhere.
+
 ### Creating a mask from image analysis
 
-Helper function to create a clean bright-area mask with morphological cleanup
-and connected component filtering. Requires `scipy` and `PIL`.
+Helper that builds a clean bright-area mask from a **raw frame** captured
+by a functor tool (see above), with morphological cleanup and connected
+component filtering. Requires `scipy`.
 
 ```python
 import numpy as np
 from scipy import ndimage
-from PIL import Image as PILImage
 
-def make_bright_mask(imgplot_path="Drivers/JAI/LiveImage",
+def make_bright_mask(frame,
                      method="median",    # "median", "otsu", or "percentile"
                      threshold_frac=0.5, # for median: fraction between median and p99
                      percentile=90,      # for percentile method
                      min_area=500,       # discard components smaller than this
                      morph_close=5,      # morphological closing kernel size (0=skip)
                      morph_open=3):      # morphological opening kernel size (0=skip)
-    """Analyze image and return (mask_bytes, fx, fy, lx, ly, img_w, img_h).
-    mask_bytes is a flat list of uint8 with dimensions (lx-fx+1) * (ly-fy+1)."""
-    import io, matplotlib.pyplot as plt
-
-    # Get image
-    parts = imgplot_path.strip("/").split("/")
-    node = Root()
-    for p in parts:
-        node = node[p]
-    plot = node["LiveImage"]["Plots"]["ImagePlot"]  # X2DImagePlot
-    shot = Snapshot(plot)
-    img_w, img_h = shot[plot].imageWidth(), shot[plot].imageHeight()
-    png = shot[plot].to_png()
-    img = plt.imread(io.BytesIO(png))
-    gray = np.mean(img[:,:,:3], axis=2) if img.ndim == 3 else img
-
-    # Extract plot area (skip axes margins in rendered image)
-    h, w = gray.shape
-    px_x0, px_x1 = int(0.02 * w), int(0.98 * w)
-    px_y0, px_y1 = int(0.055 * h), int(0.945 * h)
-    plot_area = gray[px_y0:px_y1, px_x0:px_x1]
-    ph, pw = plot_area.shape
+    """frame: 2D array of raw counts (full image), e.g. latest["frame"]
+    captured by the FrameGrabber recipe with the ROI covering the frame.
+    Returns (mask_bytes, fx, fy, lx, ly, img_w, img_h); mask_bytes is a
+    flat list of uint8 with dimensions (lx-fx+1) * (ly-fy+1)."""
+    plot_area = np.asarray(frame, dtype=float)
+    img_h, img_w = plot_area.shape
 
     # Threshold
     if method == "otsu":
@@ -582,25 +616,18 @@ def make_bright_mask(imgplot_path="Drivers/JAI/LiveImage",
             if ndimage.sum(binary, labeled, i) < min_area:
                 binary[labeled == i] = 0
 
-    # Map to image pixel coordinates and clamp
     rows, cols = np.where(binary)
     if len(rows) == 0:
         return [], 0, 0, 0, 0, img_w, img_h
-    fx = max(0, int((cols.min() / pw) * img_w))
-    lx = min(img_w - 1, int((cols.max() / pw) * img_w))
-    fy = max(0, int((rows.min() / ph) * img_h))
-    ly = min(img_h - 1, int((rows.max() / ph) * img_h))
-    roi_w, roi_h = lx - fx + 1, ly - fy + 1
-
-    # Resize mask to ROI dimensions
-    mask_resized = np.array(PILImage.fromarray(binary * 255).resize(
-        (roi_w, roi_h), PILImage.NEAREST)) > 127
-    return mask_resized.astype(np.uint8).flatten().tolist(), fx, fy, lx, ly, img_w, img_h
+    fx, lx = int(cols.min()), int(cols.max())
+    fy, ly = int(rows.min()), int(rows.max())
+    mask = binary[fy:ly + 1, fx:lx + 1]   # already in image pixel coordinates
+    return mask.flatten().tolist(), fx, fy, lx, ly, img_w, img_h
 ```
 
 Usage:
 ```python
-mask_bytes, fx, fy, lx, ly, img_w, img_h = make_bright_mask()
+mask_bytes, fx, fy, lx, ly, img_w, img_h = make_bright_mask(latest["frame"])
 
 ch0 = Root()["Drivers"]["JAI"]["LiveImage"]["CH0"]
 dc = ch0.dynamic_cast()
