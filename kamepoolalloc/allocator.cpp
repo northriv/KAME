@@ -4671,6 +4671,22 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 	if(__builtin_expect(pg != nullptr, 1)) {
 		if(char *cell_ptr_raw = pg->m_slots[bucket].freelist_head) {
 			char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
+#if KAME_FS_CHUNK_STASH
+			// (§L0-STASH take) restored after the 526e1819 lean split
+			// dropped it (the park side at deallocate kept running,
+			// stranding the parked slot until the owner-exit drain).
+			// Prefer the parked slot: one load on the already-hot
+			// chunk line, and NO dereference of the block itself.
+			// Lean-path only — new_redirected / _cold / _aligned still
+			// go straight to the plain pop (parked slots there wait
+			// for the drain), acceptable for the experiment gate.
+			if(chunk_from_freelist_ptr(head_ptr)->m_fs_flag) {
+				if(char *b = head_ptr[1]) {
+					head_ptr[1] = nullptr;
+					return b;
+				}
+			}
+#endif
 			if(char *head = *head_ptr) {
 				*head_ptr = *reinterpret_cast<char **>(head);
 				return head;
