@@ -286,6 +286,26 @@ tables below, all measured on the same `i8cpu` node `c15u01n1` (the
 `alloc_tune_report` table further down was not re-run and remains at the
 earlier `0e9413a6`).  mimalloc/jemalloc versions same as the competitive tables:
 
+**Architecture note — memory renaming**: kamepoolalloc's LIFO freelist
+creates a tight store-then-load chain on every alloc/free pair
+(`free`: `*p = head; head = p` → next `malloc`: `head = *head`).  On
+CPUs with **memory renaming** — Intel Sunny Cove (Ice Lake, 2019) and
+AMD Zen 3 (Milan, 2020) onward, plus Apple A12+ / M-series — the
+rename stage forwards the just-stored value to the load via the
+register file, dispatch-free.  AMD Zen 2 (Ohtaka's EPYC 7702)
+**predates this optimization** and pays store-to-load forwarding
+latency (~5 cycles) per hot iteration instead.  This is the
+structural reason the Ohtaka margins over `mimalloc` / `jemalloc` are
+smaller than the M3 figures — most visible at the **64 B tier** where
+the freelist hot path dominates (Ohtaka kame 260 vs mi 331, M3 kame
+651 vs mi 503 — a 50 % flip in relative position).  Larger tiers
+where the freelist is not the bottleneck (16 KiB, 1 MiB+) are not
+affected and kame retains its lead on both CPUs.  The 64 B gap is
+expected to narrow on Zen 3 / Zen 4 (Milan, Genoa, Bergamo) and on
+Sapphire Rapids / Granite Rapids Intel parts; Cascade Lake-SP cloud
+VMs (e.g. AWS C5 / GCP N2) inherit the same Skylake-derived non-
+renaming microarchitecture and behave like Zen 2 in this respect.
+
 ## 1T (median of 5, M ops/s)
 
 | size      |  system | mimalloc | jemalloc |     kame |
