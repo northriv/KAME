@@ -21,10 +21,8 @@
         CONDITIONS OF ANY KIND, either express or implied
 ***************************************************************************/
 #include "threadlocal.h"
-#include "transaction_detail.h"  // FastClockCalib / fast_clock_cycles()
 
 #include <cassert>
-#include <chrono>
 #include <cstdlib>
 #include <new>
 
@@ -158,50 +156,6 @@ PerThread &get_per_thread() noexcept {
 #endif
 
 } // anonymous namespace
-
-#if KAME_STM_FAST_CLOCK
-//! Process-global anchor + scale for detail::fast_now_us() — defined in
-//! this TU for the same reason as tls_storage(): every plugin DLL must
-//! see ONE instance.  Stamps cross DLL boundaries through Linkage slots;
-//! per-DLL calibration anchors would skew cross-DLL age comparisons.
-//!
-//! aarch64 reads the architectural counter frequency (exact).  x86-64
-//! calibrates rdtsc against steady_clock over ~1 ms, paid once at the
-//! first Snapshot/Transaction of the process; a relative error ε merely
-//! scales all stamp differences by (1+ε) (see transaction_detail.h).
-DECLSPEC_KAME const FastClockCalib &fast_clock_calib() noexcept {
-    static const FastClockCalib s_calib = []() noexcept -> FastClockCalib {
-        uint64_t freq;
-#if defined(__aarch64__) || defined(_M_ARM64)
-  #ifdef _MSC_VER
-        freq = _ReadStatusReg(ARM64_SYSREG(3, 3, 14, 0, 0));  // cntfrq_el0
-  #else
-        asm volatile("mrs %0, cntfrq_el0" : "=r"(freq));
-  #endif
-#else
-        using clk = std::chrono::steady_clock;
-        const auto t0 = clk::now();
-        const uint64_t a = fast_clock_cycles();
-        while(std::chrono::duration_cast<std::chrono::microseconds>(
-                  clk::now() - t0).count() < 1000)
-            ;
-        const uint64_t b = fast_clock_cycles();
-        const int64_t ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            clk::now() - t0).count();
-        freq = (uint64_t)((long double)(b - a) * 1e9L / (long double)ns);
-#endif
-        if( !freq)
-            freq = 1000000;  // defensive: keep mult finite
-        FastClockCalib c;
-        c.c0 = fast_clock_cycles();
-        c.us0 = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count();
-        c.mult = (1000000ull << 32) / freq;  // 1e6*2^32 < 2^63: no overflow
-        return c;
-    }();
-    return s_calib;
-}
-#endif // KAME_STM_FAST_CLOCK
 
 DECLSPEC_KAME void *
 tls_storage(const void *key, void *(*ctor)(), void (*dtor)(void *)) noexcept {
