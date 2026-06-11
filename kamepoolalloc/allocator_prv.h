@@ -1209,6 +1209,23 @@ public:
 #if KAME_FS_CHUNK_FIFO && KAME_FS_CHUNK_STASH
   #error "KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH are mutually exclusive"
 #endif
+	//! (§word-cache) The successor to the retired two-list family: the
+	//! owner serves FS=true allocs from a TLS-held CLAIMED-WORD mask.
+	//! Tier order (alloc): ① wc.inv ctz serve (~5 instr, ONE TLS line,
+	//! no dependent loads, never touches the block or the chunk),
+	//! ② freelist pop (unchanged), ③ whole-word grab — ONE CAS claims
+	//! every zero bit of a bitmap word into wc.inv (allocate_pooled
+	//! cold).  Free: an in-range free sets the bit back in wc.inv
+	//! (pure TLS arithmetic — no next-pointer store into the block);
+	//! out-of-range frees keep the freelist push.  The word is replaced
+	//! only when inv reaches 0 AND the freelist is dry, so no
+	//! switch-time bit return exists; the only return is the
+	//! thread-exit drain (one batch).  CAS cost 1/64 amortized; zero
+	//! per-slot stores (the Zen 2 plateau cause); float = 64 slots.
+	//! Default 0; -DKAME_FS_WORDCACHE=1.
+#ifndef KAME_FS_WORDCACHE
+  #define KAME_FS_WORDCACHE 0
+#endif
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
 	//! Owner-thread freelist push/pop (LIFO; freed slot's first 8 bytes
@@ -2799,11 +2816,49 @@ inline unsigned int bucket_for_aligned(std::size_t alignment,
 
 //! (§hot-tls) Unified per-thread hot TLS page.  Full definition here,
 //! after AllocSlot and ALLOC_NUM_BUCKETS.
+#if KAME_FS_WORDCACHE
+// (§word-cache) per-bucket TLS word cache.  `inv` = claimed-but-
+// undistributed bits of the cached word; `base` = the word's first
+// slot; `ck` = owning chunk (for the thread-exit drain only).
+// FS=true lean buckets are 1..23 (sizes 16..368).
+enum { ALLOC_WC_BUCKETS = 24 };
+struct WcSlot {
+    std::uint64_t inv;
+    char *base;
+    PoolAllocatorBase *ck;
+};
+// Exact division by ALIGN = bucket*16 for the free-side bit index:
+// off / (odd(b) << (4+tz(b))) = (off >> shift[b]) * magic[b] (mod 2^64,
+// exact because off is a multiple of ALIGN; magic = odd part's modular
+// inverse).
+struct WcDiv {
+    std::uint8_t shift[ALLOC_WC_BUCKETS];
+    std::uint64_t magic[ALLOC_WC_BUCKETS];
+};
+constexpr WcDiv kame_make_wcdiv() {
+    WcDiv d{};
+    for(unsigned b = 1; b < ALLOC_WC_BUCKETS; ++b) {
+        unsigned t = 0, o = b;
+        while(!(o & 1u)) { o >>= 1; ++t; }
+        std::uint64_t x = o;
+        for(int i = 0; i < 6; ++i)
+            x *= 2u - (std::uint64_t)o * x;
+        d.shift[b] = (std::uint8_t)(4 + t);
+        d.magic[b] = x;
+    }
+    return d;
+}
+inline constexpr WcDiv kWcDiv = kame_make_wcdiv();
+#endif /* KAME_FS_WORDCACHE */
+
 struct KameTlsPage {
     uintptr_t  last_region_base;           // radix 1-entry cache; RADIX_CACHE_EMPTY = unmatchable
     uint32_t   owner_id;                   // this thread's chunk-owner stamp; 0 = unassigned
     uint32_t   _pad;
     AllocSlot  m_slots[ALLOC_NUM_BUCKETS];  // replaces g_thread_slots[]
+#if KAME_FS_WORDCACHE
+    WcSlot     m_wc[ALLOC_WC_BUCKETS];      // (§word-cache) zero-init
+#endif
     // Named m_slots, NOT slots — Qt defines `slots` as an empty preprocessor
     // token in <QtCore> (the same reason RadixL2Node uses `entries` instead of
     // `slots`), which would turn `AllocSlot slots[N]` into `AllocSlot [N]` and
@@ -3092,6 +3147,18 @@ inline void *new_redirected(std::size_t size) {
 #endif
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
+#if KAME_FS_WORDCACHE
+	// (§word-cache) tier ①: serve from the TLS claimed-word mask —
+	// ctz + clear-lowest + madd, one TLS line, no block touch.
+	{
+		WcSlot &wc = kame_page()->m_wc[bucket];
+		if(wc.inv) {
+			unsigned b = (unsigned)__builtin_ctzll(wc.inv);
+			wc.inv &= wc.inv - 1u;
+			return wc.base + (((size_t)b * bucket) << 4);
+		}
+	}
+#endif
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 		// (§L0-FIFO) Depth-4 ring hit: take the OLDEST parked slot, and

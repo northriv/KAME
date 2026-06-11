@@ -549,6 +549,30 @@ struct AllocThreadExitCleanup {
 #endif
             for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b)
                 pg->m_slots[b].freelist_head = nullptr;
+#if KAME_FS_WORDCACHE
+            // (§word-cache) return every undistributed cached-word bit
+            // to its chunk's bitmap — the ONLY return point by design
+            // (the word is otherwise consumed to 0 before replacement).
+            for(int b = 1; b < ALLOC_WC_BUCKETS; ++b) {
+                WcSlot &wc = pg->m_wc[b];
+                if(!wc.inv || !wc.ck) { wc.inv = 0; continue; }
+                CrossDeallocEntry tmp[65];
+                int n = 0;
+                std::uint64_t iv = wc.inv;
+                size_t align = (size_t)b << 4;
+                do {
+                    unsigned bit = (unsigned)__builtin_ctzll(iv);
+                    iv &= iv - 1u;
+                    tmp[n].chunk = wc.ck;
+                    tmp[n].slot = wc.base + (size_t)bit * align;
+                    ++n;
+                } while(iv);
+                tmp[n].chunk = nullptr;
+                tmp[n].slot = nullptr;
+                wc.ck->batch_return_to_bitmap(tmp);
+                wc.inv = 0; wc.base = nullptr; wc.ck = nullptr;
+            }
+#endif
         }
         // Walk each registered template's per-thread DLL.  Each
         // callback wipes its own `s_tls.my_chunk` / `s_tls.dll_head` / `s_tls.dll_tail`
@@ -1335,6 +1359,44 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		// `m_freelist_head[0]`, not the bitmap).
 		if(void *p = this->freelist_pop(0))
 			return p;
+#if KAME_FS_WORDCACHE
+		// (§word-cache) tier ③: inv==0 AND the freelist is dry (this
+		// cold is reached exactly then) — claim EVERY zero bit of one
+		// bitmap word in ONE CAS straight into the TLS mask.  No list
+		// conversion, no per-slot store.  The word is consumed to 0
+		// before the next grab, so no switch-time bit return exists
+		// (thread-exit drain is the only return).
+		{
+			int widx = this->m_idx;
+			for(int walked = 0; walked < this->m_count; ++walked) {
+				FUINT *pflag = &this->m_flags[widx];
+				for(;;) {
+					FUINT oldv = *pflag;
+					if(oldv == ~(FUINT)0u)
+						break;                    // word full
+					FUINT mask = (FUINT)~oldv;
+					if(atomicCompareAndSet(oldv, ~(FUINT)0u, pflag)) {
+						if(oldv == 0)
+							atomicInc(&this->m_flags_packed);
+						atomicInc(&this->m_flags_filled_cnt);
+						writeBarrier();
+						this->m_idx = widx;
+						constexpr unsigned WBITS = sizeof(FUINT) * 8;
+						WcSlot &wc = kame_page()->m_wc[this->m_base_bucket];
+						unsigned b = (unsigned)__builtin_ctzll(
+						    (unsigned long long)mask);
+						wc.inv = mask & (mask - 1u);
+						wc.base = this->mempool() +
+						    (size_t)widx * WBITS * ALIGN;
+						wc.ck = this;
+						return wc.base + (size_t)b * ALIGN;
+					}
+					// CAS lost to a cross-thread clear: re-read.
+				}
+				if(++widx == this->m_count) widx = 0;
+			}
+		}
+#endif
 	}
 #endif
 	FUINT one;
@@ -3380,6 +3442,23 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	if(__builtin_expect(chunk_obj->m_owner_id == page_owner_id
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
+#if KAME_FS_WORDCACHE
+			// (§word-cache) in-range free: set the bit back in the TLS
+			// mask — pure register/TLS arithmetic, NO store into the
+			// block.  Out-of-range falls to the freelist push.
+			{
+				unsigned bkt = chunk_obj->m_base_bucket;
+				WcSlot &wc = pg->m_wc[bkt];
+				size_t off = (size_t)(static_cast<char *>(p) - wc.base);
+				if(off < ((size_t)bkt << 10)) {        // 64 * bkt*16
+					unsigned bit = (unsigned)(
+					    (std::uint64_t)(off >> kWcDiv.shift[bkt])
+					    * kWcDiv.magic[bkt]);
+					wc.inv |= 1ull << bit;
+					return;
+				}
+			}
+#endif
 #if KAME_FS_CHUNK_FIFO
 			// (§L0-FIFO) Park into the chunk's depth-4 null-marking ring
 			// instead of the freelist: no store into the block itself
@@ -4671,6 +4750,17 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 	unsigned int bucket = (static_cast<unsigned int>(n) + 15u) >> 4;
 	KameTlsPage *pg = kame_page_or_null();
 	if(__builtin_expect(pg != nullptr, 1)) {
+#if KAME_FS_WORDCACHE
+		// (§word-cache) tier ① — mirror of new_redirected.
+		{
+			WcSlot &wc = pg->m_wc[bucket];
+			if(wc.inv) {
+				unsigned b = (unsigned)__builtin_ctzll(wc.inv);
+				wc.inv &= wc.inv - 1u;
+				return wc.base + (((size_t)b * bucket) << 4);
+			}
+		}
+#endif
 		if(char *cell_ptr_raw = pg->m_slots[bucket].freelist_head) {
 			char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 			// (gate experiments) The 526e1819 lean split detached malloc
