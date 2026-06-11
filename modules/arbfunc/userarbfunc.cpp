@@ -56,14 +56,16 @@ XArbFuncGenSCPI::changePulseCond() {
     if(shot[ *burst()]) {
     //    changeOutput(shot[ *output()]);
         interface()->sendf("BURS:PHAS %g", (double)shot[ *burstPhase()]);
+        unsigned int cyc = shot[ *burstCycles()];
+        if(cyc == 0)
+            interface()->send("BURS:NCYC INF");
+        else
+            interface()->sendf("BURS:NCYC %u", cyc);
         interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
         interface()->send("BURST:STAT ON");
-        if(shot[ *output()]) {
-            interface()->query("BURST:NCYC?");
-            if((interface()->toStrSimplified() == "INF") || (interface()->toDouble() > 1e20)) {
-                if(shot[ *trigSrc()].to_str() == "BUS") {
-                    interface()->send("*OPC;*TRG"); //issue a trigger
-                }
+        if(shot[ *output()] && (cyc == 0)) {
+            if(shot[ *trigSrc()].to_str() == "BUS") {
+                interface()->send("*OPC;*TRG"); //issue a trigger
             }
         }
     }
@@ -84,6 +86,13 @@ XArbFuncGenSCPI::open() {
         __burst = true;
     interface()->query("BURST:PHASE?");
     __burstphase = interface()->toDouble();
+    unsigned int __cycles = 0; //0 = INFinity
+    interface()->query("BURST:NCYC?");
+    if(interface()->toStrSimplified() != "INF") {
+        double __ncyc = interface()->toDouble();
+        if((__ncyc > 0.5) && (__ncyc < 1e9))
+            __cycles = (unsigned int)(__ncyc + 0.5);
+    }
     interface()->query("FUNC?");
     __func = interface()->toStrSimplified();
     interface()->query("TRIG:SOUR?");
@@ -107,6 +116,7 @@ XArbFuncGenSCPI::open() {
     iterate_commit([=](Transaction &tr){
         tr[ *burst()] = __burst;
         tr[ *burstPhase()] = __burstphase;
+        tr[ *burstCycles()] = __cycles;
         tr[ *freq()] = __freq;
         tr[ *ampl()] = __ampl;
         tr[ *offset()] = __offset;
