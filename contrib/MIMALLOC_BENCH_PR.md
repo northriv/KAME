@@ -30,7 +30,7 @@ and allocator implementations -- please do so!"
 ### 1. `build-bench-env.sh` — version pin (in the version block)
 
 ```sh
-readonly version_kp=v1.0.0
+readonly version_kp=v1.0.1
 ```
 
 ### 2. `build-bench-env.sh` — flag plumbing + help + build section
@@ -77,9 +77,11 @@ regenerates results himself), no benchmark changes.
 
 ## Notes / open items before submitting
 
-* Tag a release containing BOTH the dylib banner gating and the Linux
-  `malloc_usable_size` co-interpose, and pin `version_kp` to it — v1.0.0
-  predates both (its redis run would crash).
+* DONE: `v1.0.1` is tagged and contains BOTH the dylib banner gating
+  and the Linux `malloc_usable_size` co-interpose (v1.0.0 predates both
+  — its redis run would crash), so `version_kp` is pinned to `v1.0.1`
+  in hunk 1 above.  It also carries the word-cache FS=true cold path
+  (default ON).
 * Optional: one `./bench.sh kp allt` pass on a normal-network Linux host
   to exercise the suite's own result-parsing wrappers (the benches
   themselves are all soaked); rocksdb if desired.
