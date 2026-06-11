@@ -72,9 +72,9 @@ regenerates results himself), no benchmark changes.
 * Re-soak via the unmodified `./build-bench-env.sh kp bench` +
   `./bench.sh kp allt` on a normal-network Linux host (covers redis, lean,
   sh6/sh8bench and the suite's own result parsing).
-* The activation banner ("Reserve swap space ... ") goes to **stderr** only
-  (documented sanity check in `allocator.h`); it does not disturb the
-  suite's stdout parsing.  If upstream prefers silence, gate it behind an
-  env var in a follow-up tag.
+* The activation banner ("Reserve swap space ... ") is **silent in the
+  dylib build** (gated on `KAMEPOOLALLOC_DYLIB`; re-enable with
+  `KAME_POOL_VERBOSE=1`), so the suite sees a quiet allocator.  Pin the
+  tag that contains this gating (v1.0.1 or later), not v1.0.0.
 * `out/libkamepoolalloc.so` is a symlink to `libkamepoolalloc.so.8`
   (SOVERSION); `LD_PRELOAD` through the symlink is fine.
