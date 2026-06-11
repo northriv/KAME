@@ -57,6 +57,9 @@
 //      "Reserve swap space starting @ 0x... w/ len. of 0x......B."
 //  to stderr (from `allocate_chunk` after the first mmap).  No such
 //  message ⇒ pool is inactive ⇒ check your activator wiring.
+//  NOTE: the standalone dylib (KAMEPOOLALLOC_DYLIB) is silent by
+//  default — set KAME_POOL_VERBOSE=1 to see the banner there.  Inline
+//  builds (kame.app, Windows inline-compiled tests) always print.
 //
 // =====================================================================
 

@@ -1233,6 +1233,23 @@ public:
 #ifndef KAME_FS_WORDCACHE
   #define KAME_FS_WORDCACHE 1
 #endif
+#if KAME_FS_WORDCACHE && (KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH)
+  // Cell overlap: the word-cache stores its mask/base in
+  // m_freelist_head[1]/[2], the very cells FIFO/STASH park slots in.
+  #error "KAME_FS_WORDCACHE is mutually exclusive with KAME_FS_CHUNK_FIFO / KAME_FS_CHUNK_STASH (pass -DKAME_FS_WORDCACHE=0)"
+#endif
+	//! Per-chunk owner-side cells, indexed by compact LOCAL id (§12.3):
+	//!   FS=false: [0..8] = owner freelist heads, one per local id.
+	//!   FS=true : [0] = the owner freelist head (single size class).
+	//!     Under §word-cache (default ON) [1] holds the claimed-word
+	//!     MASK (a uintptr_t bit mask, NOT a list head!) and [2] the
+	//!     word's base address — deliberately on the same cache line
+	//!     as [0] / m_fs_flag that the lean-cold pop just touched.
+	//!     The owner-exit drain converts and nulls [1]/[2] BEFORE the
+	//!     generic per-local walk (which would misread the mask as a
+	//!     list head).  The gated FIFO/STASH experiments park single
+	//!     slots in [1..4] / [1] instead — hence the cell-overlap
+	//!     #error above.
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
 	//! Owner-thread freelist push/pop (LIFO; freed slot's first 8 bytes

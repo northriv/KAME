@@ -109,6 +109,13 @@ be carved out as their own subtrees for downstream embedding:
   [INVARIANTS](kamepoolalloc/design/INVARIANTS.md) / [SUBSYSTEMS](kamepoolalloc/design/SUBSYSTEMS.md)
   navigation map.
 
+<p align="center">
+<a href="kamepoolalloc/README.md#benchmarks"><img src="kamepoolalloc/doc/bench/bench_loop_m3_1t.svg" width="72%" alt="kamepoolalloc bench_loop, 1 thread, Apple M3 — kame leads at 64 B and has no mmap-per-call cliff at the 1 MiB+ tier"></a><br>
+<i>kamepoolalloc vs system / mimalloc / jemalloc — single-thread malloc/free
+sweep on Apple M3.  No size cliff; <a href="kamepoolalloc/README.md#benchmarks">full benchmarks</a>
+(x86-64 bare metal, 128-core scaling, mimalloc-bench suite).</i>
+</p>
+
 The rest of this Architecture section describes how KAME itself uses these
 pieces — instrument drivers, Python integration, `.kam` serialization, and
 how the STM machinery from `kamestm/` is wired into the node tree.

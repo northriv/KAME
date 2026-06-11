@@ -50,11 +50,34 @@ static const char *kBenchName = "bench_loop_pool";
 static const char *kBenchName = "bench_loop";
 #endif
 
+/* Monotonic wall clock.  clock_gettime(CLOCK_MONOTONIC) on POSIX
+ * (incl. llvm-mingw); QueryPerformanceCounter under genuine MSVC,
+ * whose UCRT has neither clock_gettime nor CLOCK_MONOTONIC. */
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+static double now_s(void) {
+    LARGE_INTEGER f, c;
+    QueryPerformanceFrequency(&f);
+    QueryPerformanceCounter(&c);
+    return (double)c.QuadPart / (double)f.QuadPart;
+}
+#else
 static double now_s(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
+#endif
+
+/* Compiler barrier so the alloc/free pair can't be elided.  GNU inline
+ * asm on GCC/clang; _ReadWriteBarrier (MSVC intrinsic) under cl. */
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#  include <intrin.h>
+#  define BL_CLOBBER(p) do { (void)(p); _ReadWriteBarrier(); } while(0)
+#else
+#  define BL_CLOBBER(p) __asm__ __volatile__("" : : "r"(p) : "memory")
+#endif
 
 int main(int argc, char **argv) {
     size_t size  = (argc > 1) ? (size_t)atoi(argv[1]) : 64;
@@ -71,7 +94,7 @@ int main(int argc, char **argv) {
         char *p = (char *)BL_MALLOC(size);
         p[0] = (char)i;
         /* Memory clobber so the compiler can't elide the alloc/free pair. */
-        __asm__ __volatile__("" : : "r"(p) : "memory");
+        BL_CLOBBER(p);
         BL_FREE(p);
     }
     double t1 = now_s();

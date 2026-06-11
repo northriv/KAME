@@ -709,12 +709,26 @@ private:
         //! With release/acquire pairing the staleness window collapses
         //! to the hardware cache coherency RTT (sub-µs).
         struct DECLSPEC_KAME AcquireOneCount {
-            AcquireOneCount() {
+            // Move-aware so this can live as a value member (inside
+            // std::optional<>) of Transaction without paying a per-Tx
+            // heap alloc. A moved-from instance must skip the
+            // s_tx_nest decrement in its dtor; m_active=false marks
+            // that ownership has been transferred.
+            bool m_active;
+            AcquireOneCount() : m_active(true) {
                 if(++*detail::s_tx_nest == 1 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
                         .fetch_add(1, std::memory_order_release);
             }
+            AcquireOneCount(AcquireOneCount&& other) noexcept
+                : m_active(other.m_active) {
+                other.m_active = false;
+            }
+            AcquireOneCount(const AcquireOneCount&) = delete;
+            AcquireOneCount& operator=(const AcquireOneCount&) = delete;
+            AcquireOneCount& operator=(AcquireOneCount&&) = delete;
             ~AcquireOneCount() {
+                if( !m_active) return;
                 if(--*detail::s_tx_nest == 0 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
                         .fetch_sub(1, std::memory_order_release);
@@ -1958,7 +1972,7 @@ public:
         // `now_us_tagged()` auto-folds the lowprio bit — see
         // Snapshot ctor above for the priority-gated timeout rationale.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
+        m_oneup.emplace();
         node.snapshot( *this, multi_nodal);
         assert( &m_packet->node() == &node);
         assert( &m_oldpacket->node() == &node);
@@ -1968,7 +1982,7 @@ public:
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
+        m_oneup.emplace();
     }
     Transaction(Transaction&&x) = default;
     //! Releases any tagged linkages (clearing m_transaction_started_time
@@ -2111,7 +2125,10 @@ private:
     // Transaction-specific members below.
     using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
-    std::unique_ptr<typename Node<XN>::NegotiationCounter::AcquireOneCount> m_oneup;
+    // std::optional avoids the per-Tx heap alloc that the old
+    // std::unique_ptr<> demanded; AcquireOneCount is now move-aware
+    // so the defaulted Transaction(Transaction&&) stays correct.
+    std::optional<typename Node<XN>::NegotiationCounter::AcquireOneCount> m_oneup;
 };
 
 //! \brief Transaction which does not care of contents (Payload) of subnodes.\n

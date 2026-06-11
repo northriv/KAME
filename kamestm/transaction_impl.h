@@ -1253,7 +1253,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
             packet->subpackets()->back() = subpacket_new;
             if(has_failed)
                 return false;
-            if( !scope.compareAndSetWithHint(newwrapper)) {
+            if( !scope.compareAndSetWithHint(newwrapper, tr.m_started_time)) {
                 tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket);
                 return false;
             }
@@ -1421,7 +1421,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
     ScopedNegotiateLinkage<XN> scope(var->m_link, tr, -1,
         std::move(nullsubwrapper),
         ScopedNegotiateLinkage<XN>::TagMode::OnExit);
-    if( !scope.compareAndSetWithHint(newsubwrapper)) {
+    if( !scope.compareAndSetWithHint(newsubwrapper, tr.m_started_time)) {
         tr.m_oldpacket = make_local_shared<Packet>( *tr.m_oldpacket); //Following commitment should fail.
         return false; // destructor tags
     }
