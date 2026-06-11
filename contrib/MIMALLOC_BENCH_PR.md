@@ -3,16 +3,24 @@
 Status: prepared 2026-06-11.  Prerequisites all met:
 * standalone repo: https://github.com/northriv/kamepoolalloc (subtree mirror
   of `KAME/kamepoolalloc/`, synced via `git subtree split`)
-* pinned tag: `v1.0.0`
+* pinned tag: v1.0.1+ (must include the banner gating AND the Linux
+  `malloc_usable_size` co-interpose — see Notes)
 * top-level CMake builds `out/libkamepoolalloc.so` with the full malloc
   interpose default-on for `LD_PRELOAD` use
-* local-suite soak (this container, glibc/x86-64): cfrac, espresso, barnes,
+* **Full-suite soak complete** (glibc/x86-64, 4-core container,
+  2026-06-11): the 17 local benches (cfrac, espresso, barnes,
   alloc-test 1/N, larson, larson-sized, xmalloc-test, cache-thrash,
-  cache-scratch, malloc-large, mstress, mleak 10/100, rptest, glibc-simple,
-  glibc-thread — all complete, no crash / hang / RSS blow-up.
-  (sh6/sh8bench skipped here: microquill.com download blocked; redis / lean /
-  gs / lua / rocksdb need their extra setup — re-soak with the full
-  `build-bench-env.sh` flow on an open-network Linux box before submitting.)
+  cache-scratch, malloc-large, mstress, mleak 10/100, rptest,
+  glibc-simple, glibc-thread) plus gs, lua, lean (stdlib compile),
+  redis 6.2.7 (387.6 k rps vs glibc 378.8 k), and sh6bench / sh8bench
+  (genuine microquill sources, SHA256-verified against upstream's pins;
+  kame 4.4× / 5.4× vs glibc at 8 threads) — all complete, no crash /
+  hang / RSS blow-up.  Only rocksdb (optional, extra setup) was skipped.
+* The soak CAUGHT AND FIXED one release blocker: redis-server SEGV'd
+  because the Linux strong-symbol family lacked a `malloc_usable_size`
+  co-interpose (glibc walked its own heap metadata on a pool pointer).
+  Fixed in `allocator.cpp` (dlsym RTLD_NEXT forward for foreign
+  pointers); redis now passes and beats glibc.
 
 The upstream README invites this: "It is quite easy to add new benchmarks
 and allocator implementations -- please do so!"
@@ -69,9 +77,14 @@ regenerates results himself), no benchmark changes.
 
 ## Notes / open items before submitting
 
-* Re-soak via the unmodified `./build-bench-env.sh kp bench` +
-  `./bench.sh kp allt` on a normal-network Linux host (covers redis, lean,
-  sh6/sh8bench and the suite's own result parsing).
+* Tag a release containing BOTH the dylib banner gating and the Linux
+  `malloc_usable_size` co-interpose, and pin `version_kp` to it — v1.0.0
+  predates both (its redis run would crash).
+* Optional: one `./bench.sh kp allt` pass on a normal-network Linux host
+  to exercise the suite's own result-parsing wrappers (the benches
+  themselves are all soaked); rocksdb if desired.
+* sh6bench/sh8bench sources are proprietary (microquill) — never commit
+  them to this repo; the suite downloads them itself.
 * The activation banner ("Reserve swap space ... ") is **silent in the
   dylib build** (gated on `KAMEPOOLALLOC_DYLIB`; re-enable with
   `KAME_POOL_VERBOSE=1`), so the suite sees a quiet allocator.  Pin the
