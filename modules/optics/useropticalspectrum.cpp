@@ -144,6 +144,7 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     uint16_t pixels = 2048u;
     uint8_t usb_speed = 0u;
     bool acq_ready = true;
+    bool dev_freerun = true;
     uint32_t integration_time_us = 0;
     std::vector<uint8_t> status;
     if(interface()->hasStatusQuery()) {
@@ -154,10 +155,27 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     //        uint8_t packets_in_ep = status[11];
         usb_speed = status[14]; //0x80 if highspeed
         acq_ready = isusb2000 ? (status[8] != 0) : (status[8] == 0);
+        dev_freerun = (status[7] == 0); //trigger mode as reported by the device itself.
 
         integration_time_us = isusb2000 ? (status[2] * 0x100u + status[3]) * 1000u:
                     status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
     }
+
+    if( !isusb2000 && !dev_freerun) {
+        // In an external/software trigger mode the spectrometer yields data only when a
+        // trigger fires. Arming it (requestSpectrum) and then issuing the blocking bulk read
+        // with no trigger makes the read time out: libusb cancels the in-flight transfer,
+        // which holds the interface lock ~6 s (freezing the UI) AND leaves the HR4000 wedged
+        // at status[8]==9 — unrecoverable by SET_TRIG_MODE or CMD::INIT, only by a USB reset.
+        // So never arm-and-read speculatively here; just poll and skip.
+        // TODO: actually reading a triggered spectrum needs (1) a USB read path that waits
+        // for the trigger without the fixed cancel-on-timeout in
+        // CyFXLibUSBDevice::AsyncIO::waitFor(), and (2) the "spectrum ready" status signature
+        // after a real trigger (no trigger source was available to characterize it).
+        msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+
     if( !acq_ready) {
 //            //waits for completion
         msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
