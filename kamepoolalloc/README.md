@@ -14,6 +14,12 @@ Carved out of the [KAME](https://github.com/northriv/KAME) measurement framework
 and **dual-licensed under Apache 2.0 OR GPL-2.0-or-later** at your choice — so
 it can be embedded into permissive / proprietary projects (Apache 2.0 path) or
 linked into GPLv2-only projects such as KAME itself (GPL path).
+Its sibling library
+[**kamestm**](https://github.com/northriv/KAME/tree/master/kamestm) — the
+lock-free software transactional memory this allocator was born to serve —
+is maintained the same way (dual-licensed, TLA+/GenMC verified) and shares
+the `atomic_smart_ptr.h` lock-free smart-pointer header that ships with
+this library.
 
 ## Highlights
 
@@ -606,8 +612,13 @@ See the header for full per-function semantics.
 
 `atomic_smart_ptr.h` (an installed public header) provides a lock-free
 `atomic_shared_ptr<T>` (atomic, CAS-able shared owner), `local_shared_ptr<T>`
-(thread-local owner), and `local_weak_ptr<T>`.  It underpins KAME's STM and the
-pool's own orphan-chunk reclaim chain, and is usable on its own.
+(thread-local owner), and `local_weak_ptr<T>`.  It underpins
+[KAME's STM (kamestm)](https://github.com/northriv/KAME/tree/master/kamestm) and the
+pool's own orphan-chunk reclaim chain, and is usable on its own.  A technique
+deep-dive (local + global refcount, the intrusive `atomic_countable` path, and
+a comparison against the libstdc++ / MSVC / libc++ `std::atomic<shared_ptr>`
+implementations) lives in
+[`kamestm/README.md` § Lock-free atomic shared pointer](https://github.com/northriv/KAME/blob/master/kamestm/README.md#lock-free-atomic-shared-pointer).
 
 The control-block layout is chosen at compile time from `ref_traits<T>`, driven
 by an **opt-in marker you inherit on `T`** — no other wiring:
