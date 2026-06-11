@@ -6338,6 +6338,19 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	} while( !head->compare_exchange_weak(
 	             old, rm, std::memory_order_release,
 	             std::memory_order_relaxed));
+	// Activation banner (the allocator.h "sanity check").  Inline builds
+	// (kame.app & the Windows inline-compiled tests) always print — KAME
+	// developers rely on it to confirm the pool is live.  The standalone
+	// drop-in dylib stays SILENT by default: LD_PRELOAD consumers
+	// (mimalloc-bench, scripted A/Bs) expect allocator silence on stderr.
+	// KAME_POOL_VERBOSE=1 re-enables it there.
+#ifdef KAMEPOOLALLOC_DYLIB
+	static const bool s_banner = [] {
+		const char *e = getenv("KAME_POOL_VERBOSE");
+		return e && *e && *e != '0';
+	}();
+	if(s_banner)
+#endif
 	fprintf(stderr,
 	    "Reserve swap space starting @ %p w/ len. of 0x%llxB (node %d).\n",
 	    p, (unsigned long long)mmap_size, my_node);
