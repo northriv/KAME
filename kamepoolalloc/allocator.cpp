@@ -1132,7 +1132,18 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	}();
 	bool prefilled = false;
 #ifndef GUARDIAN
+#if KAME_FS_WORDCACHE
+	// (§word-cache) NO prefill — the prepay this design eliminates.
+	// Chunks start zero-init; tier-3 whole-word grabs are the only
+	// claim path, and the freelist begins empty (it only ever holds
+	// out-of-range frees).  Without this the freelist never runs dry,
+	// tier 3 never fires, and the cache is pure dead-weight checks
+	// (measured: bench_loop -9%, STM -5.3% on M3).
+	if(false) {
+		(void)s_prefill_enabled;
+#else
 	if constexpr (FS && DUMMY) if(s_prefill_enabled) {
+#endif
 		prefilled = true;
 		// (§29) FS=true freelist pre-fill at chunk-claim.
 		//
