@@ -28,8 +28,6 @@ XArbFuncGenSCPI::XArbFuncGenSCPI(const char *name, bool runtime,
     interface()->setGPIBWaitBeforeWrite(50);
     interface()->setGPIBWaitBeforeRead(50);
     interface()->setEOS("\n");
-    pulseWidth()->disable();
-    pulsePeriod()->disable();
 }
 void
 XArbFuncGenSCPI::changeOutput(bool active) {
@@ -50,20 +48,27 @@ XArbFuncGenSCPI::changePulseCond() {
         (double)shot[ *ampl()],
         (double)shot[ *offset()]);
     interface()->sendf("FUNC:SQU:DCYC %g", (double)shot[ *duty()]);
-//    interface()->sendf("PULSE:PER %g", (double)shot[ *pulsePeriod()]);
-//    interface()->sendf("FUNC:PULSE:WIDTH %g", (double)shot[ *pulseWidth()]);
-    interface()->sendf("FUNC:PULSE:DCYC %g", (double)shot[ *duty()]);
+    double period = shot[ *pulsePeriod()];
+    if(period > 0)
+        interface()->sendf("PULSE:PER %g", period); //overrides period given by 1/Freq
+    double width = shot[ *pulseWidth()];
+    if(width > 0)
+        interface()->sendf("FUNC:PULSE:WIDTH %g", width); //width and duty are exclusive; width takes over
+    else
+        interface()->sendf("FUNC:PULSE:DCYC %g", (double)shot[ *duty()]); //width = 0: specify by duty
     if(shot[ *burst()]) {
     //    changeOutput(shot[ *output()]);
         interface()->sendf("BURS:PHAS %g", (double)shot[ *burstPhase()]);
+        unsigned int cyc = shot[ *burstCycles()];
+        if(cyc == 0)
+            interface()->send("BURS:NCYC INF");
+        else
+            interface()->sendf("BURS:NCYC %u", cyc);
         interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
         interface()->send("BURST:STAT ON");
-        if(shot[ *output()]) {
-            interface()->query("BURST:NCYC?");
-            if((interface()->toStrSimplified() == "INF") || (interface()->toDouble() > 1e20)) {
-                if(shot[ *trigSrc()].to_str() == "BUS") {
-                    interface()->send("*OPC;*TRG"); //issue a trigger
-                }
+        if(shot[ *output()] && (cyc == 0)) {
+            if(shot[ *trigSrc()].to_str() == "BUS") {
+                interface()->send("*OPC;*TRG"); //issue a trigger
             }
         }
     }
@@ -84,6 +89,13 @@ XArbFuncGenSCPI::open() {
         __burst = true;
     interface()->query("BURST:PHASE?");
     __burstphase = interface()->toDouble();
+    unsigned int __cycles = 0; //0 = INFinity
+    interface()->query("BURST:NCYC?");
+    if(interface()->toStrSimplified() != "INF") {
+        double __ncyc = interface()->toDouble();
+        if((__ncyc > 0.5) && (__ncyc < 1e9))
+            __cycles = (unsigned int)(__ncyc + 0.5);
+    }
     interface()->query("FUNC?");
     __func = interface()->toStrSimplified();
     interface()->query("TRIG:SOUR?");
@@ -99,14 +111,16 @@ XArbFuncGenSCPI::open() {
     else
         interface()->query("FUNC:PULSE:DCYC?");
     __duty = interface()->toDouble();
-    interface()->query("FUNC:PULSE:WIDTH?");
-    __width = interface()->toDouble();
-    interface()->query("PULSE:PER?");
-    __period = interface()->toDouble();
+    //Node conventions: PulseWidth 0 = specify the pulse shape by Duty;
+    //PulsePeriod 0 = follow Freq (period = 1/Freq). Start in the legacy
+    //duty/Freq-driven mode; entering a value takes over.
+    __width = 0.0;
+    __period = 0.0;
 
     iterate_commit([=](Transaction &tr){
         tr[ *burst()] = __burst;
         tr[ *burstPhase()] = __burstphase;
+        tr[ *burstCycles()] = __cycles;
         tr[ *freq()] = __freq;
         tr[ *ampl()] = __ampl;
         tr[ *offset()] = __offset;
