@@ -177,7 +177,7 @@ def sleep(sec):
 					raise RuntimeError("Kill")
 			if str(xpythread["Action"]) == "wakeup":
 				xpythread["Action"] = ""
-				xpythread["Status"] = "run"
+				xpythread["Status"] = getattr(TLS, 'cell_status', None) or "run"
 				return #ignores remaining time
 			if str(xpythread["Action"]) == "suspend":
 				xpythread["Action"] = ""
@@ -187,7 +187,8 @@ def sleep(sec):
 			else:
 				fback = inspect.currentframe().f_back
 				if HasIPython and 'ipykernel' in fback.f_code.co_filename: #sleep() in IPython kernel
-					fback = "Cell In[{}]:line {} in {}".format(get_ipython().execution_count, fback.f_lineno, fback.f_code.co_name)
+					#During cell N, IPython has already advanced execution_count to N+1.
+					fback = "Cell In[{}]:line {} in {}".format(get_ipython().execution_count - 1, fback.f_lineno, fback.f_code.co_name)
 				xpythread["Status"] = "{}s sleep @{}".format(int(remain), str(fback))
 		if remain < 0:
 			break
@@ -203,7 +204,7 @@ def sleep(sec):
 			raise
 	if TLS.xscrthread:
 		xpythread = TLS.xscrthread
-		xpythread["Status"] = "run"
+		xpythread["Status"] = getattr(TLS, 'cell_status', None) or "run"
 
 class _KamFakeNode:
 	"""Silent placeholder for nodes missing due to version skew."""
@@ -518,7 +519,11 @@ def launchJupyterConsole(prog, argv):
 		_kame_conn_info = os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')
 		try:
 			with open(_kame_conn_info, 'w') as _f:
-				_json.dump({'connection_file': _conn_file, 'pid': os.getpid()}, _f)
+				# notebook_token / notebook_dir let the MCP server locate the
+				# notebook server (contents API) among Jupyter runtime files.
+				_json.dump({'connection_file': _conn_file, 'pid': os.getpid(),
+							'notebook_token': token,
+							'notebook_dir': os.path.abspath(console[1])}, _f)
 		except OSError:
 			pass
 		# Write .mcp.json pointing to the MCP server script.
@@ -847,6 +852,37 @@ else:
 				sys.stderr.write("sys.exit(0) from python.\n")
 				sys.exit(0) #I could not find better way to exit normally.
 				# raise IPython.terminal.embed.KillEmbedded('') #exits loop, magic %exit_raise no more exists.
+
+		#Publish the executing cell into the kernel's XScriptingThread "Status",
+		#reusing the very events that feed the iopub execute_input broadcast —
+		#so the Script tab shows the running cell even when the code is not
+		#inside sleep(). During cell N, IPython has already advanced
+		#execution_count to N+1, hence the -1. The label is kept in
+		#TLS.cell_status so sleep() can restore it on wakeup/exit.
+		def _kame_pre_run_cell(info):
+			try:
+				if TLS.xscrthread:
+					lines = (getattr(info, 'raw_cell', '') or '').strip().splitlines()
+					head = lines[0][:60] if lines else ''
+					label = "run Cell In[{}]: {}".format(get_ipython().execution_count - 1, head)
+					TLS.cell_status = label
+					TLS.xscrthread["Action"] = "" #discard stale wakeup/suspend/kill armed while idle
+					TLS.xscrthread["Status"] = label
+			except Exception:
+				pass
+		def _kame_post_run_cell(result):
+			try:
+				TLS.cell_status = None
+				if TLS.xscrthread:
+					ok = "done" if getattr(result, 'success', True) else "ERROR"
+					n = getattr(result, 'execution_count', None)
+					if n is None:
+						n = get_ipython().execution_count - 1
+					TLS.xscrthread["Status"] = "idle (Cell In[{}] {})".format(n, ok)
+			except Exception:
+				pass
+		kernel.shell.events.register('pre_run_cell', _kame_pre_run_cell)
+		kernel.shell.events.register('post_run_cell', _kame_post_run_cell)
 
 		kernel.timer = Timer(kernel.do_one_iteration)
 		kernel.timer.start()
