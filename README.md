@@ -209,37 +209,41 @@ construction the design carries none of the per-slot stores that capped the
 earlier dependency-cut experiments at ~300 M ops/s on that core.
 
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
-M ops/s** — kame at `84f97566`, llvm-mingw clang 17, median of 5 via
-`bench_compare.sh`.  On Windows the `kame` column is the **direct pool route**
-(`bench_loop_pool` → `kame_pool_malloc`): PE/COFF has no `LD_PRELOAD`, and
-llvm-mingw resolves the plain `malloc` statically (no IAT entry for the §31
-redirect to patch), so — unlike the macOS/Linux tables — this measures the
-pool core only, not the malloc-override layer.  mimalloc/jemalloc are not
-standard on Windows (columns omitted):
+M ops/s** — kame at `8f2e6980` (post hot/cold-split + 32 KiB bucket LUT +
+word-cache), llvm-mingw clang 17, median of 5 via `bench_compare.sh`.  On
+Windows the `kame` column is the **direct pool route** (`bench_loop_pool` →
+`kame_pool_malloc`): PE/COFF has no `LD_PRELOAD`, and llvm-mingw resolves the
+plain `malloc` statically (no IAT entry for the §31 redirect to patch), so —
+unlike the macOS/Linux tables — this measures the pool core only, not the
+malloc-override layer.  mimalloc/jemalloc are not standard on Windows
+(columns omitted):
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |      37 |  **191** |
-| 1 KiB     |      37 |  **147** |
-| 16 KiB    |      36 |   **90** |
-| 64 KiB    |      10 |   **51** |
-| 256 KiB   |      11 |   **50** |
-| 1 MiB     |      ~0 |   **57** |
-| 4 MiB     |      ~0 |   **34** |
+| 64B       |      37 |  **301** |
+| 1 KiB     |      40 |  **223** |
+| 16 KiB    |      39 |  **191** |
+| 64 KiB    |       9 |   **71** |
+| 256 KiB   |      10 |   **68** |
+| 1 MiB     |      ~0 |   **64** |
+| 4 MiB     |      ~0 |   **35** |
 
 **Same host, 4 processes aggregate, M ops/s** — median of 5:
 
 | size      |  system |     kame |
 |-----------|---------|----------|
-| 64B       |     107 |  **618** |
-| 16 KiB    |     107 |  **302** |
-| 64 KiB    |      32 |  **205** |
-| 1 MiB     |      ~0 |  **178** |
+| 64B       |     144 | **1055** |
+| 16 KiB    |     134 |  **687** |
+| 64 KiB    |      37 |  **238** |
+| 1 MiB     |      ~1 |  **231** |
 
 The **system ~0 at ≥ 1 MiB** is the Windows UCRT per-call `VirtualAlloc` /
 `VirtualFree` cliff (the same shape mimalloc / jemalloc hit at this tier on
 Linux): a tight 1 MiB `malloc`/`free` loop drops below 0.5 M ops/s, while
-kame's two-level recycle cache stays memory-warm at 50–180 M ops/s.
+kame's two-level recycle cache stays memory-warm at 35–231 M ops/s.  The
+16 KiB jump (90 → 191 single-thread, 302 → 687 4-process vs the prior
+`84f97566` numbers) is the full-range bucket LUT + word-cache landing; no
+size regressed.
 
 **Ohtaka (ISSP supercomputer — AMD EPYC 7702, 128-core / 8-NUMA-node, Linux
 4 KiB pages, `THP=always`), `bench_compare.sh`, `srun --exclusive`** — kame at
