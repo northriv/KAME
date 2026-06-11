@@ -486,6 +486,9 @@
           <height>32767</height>
          </size>
         </property>
+        <property name="toolTip">
+         <string>Pulse period [s]. 0 = follow Freq (period = 1/Freq).</string>
+        </property>
        </widget>
       </item>
       <item>
@@ -546,6 +549,9 @@
           <width>200</width>
           <height>32767</height>
          </size>
+        </property>
+        <property name="toolTip">
+         <string>Pulse width [s] for PULS waveform. 0 = specify by Duty.</string>
         </property>
        </widget>
       </item>

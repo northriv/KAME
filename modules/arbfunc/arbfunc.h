@@ -39,8 +39,8 @@ public:
     const shared_ptr<XDoubleNode> ampl() const {return m_ampl;} //!< [V]
     const shared_ptr<XDoubleNode> offset() const {return m_offset;} //!< [V]
     const shared_ptr<XDoubleNode> duty() const {return m_duty;} //!< [%]
-    const shared_ptr<XDoubleNode> pulseWidth() const {return m_pulseWidth;} //!< [s]
-    const shared_ptr<XDoubleNode> pulsePeriod() const {return m_pulsePeriod;} //!< [s]
+    const shared_ptr<XDoubleNode> pulseWidth() const {return m_pulseWidth;} //!< [s], 0 = specify by Duty instead
+    const shared_ptr<XDoubleNode> pulsePeriod() const {return m_pulsePeriod;} //!< [s], 0 = follow Freq (period = 1/Freq)
 
 protected:
     //! This function will be called when raw data are written.
