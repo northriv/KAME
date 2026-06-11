@@ -28,6 +28,37 @@ Tests live in `kamestm/tests/` and cover the core STM framework: `atomic_shared_
 
 **Memory-model verification (TLA+-derived)** (`kamestm/tests/tlaplus/test_*.c`): GenMC tests mechanically generated from the TLA+ specifications. `test_atomic_shared_ptr.c` (Layer 0), `test_stm_commit.c` (Layer 1), `test_bundle_2level.c` and `test_bundle_3level.c` (Layer 2). These verify that the formal specs are realizable under the RC11 memory model.
 
+## Standalone `kamepoolalloc` repository (subtree mirror)
+
+The pool allocator is also published as a self-contained repo,
+[`northriv/kamepoolalloc`](https://github.com/northriv/kamepoolalloc) — a
+**read-only downstream mirror** of `KAME/kamepoolalloc/`, not an independent
+fork.  **Always edit on KAME `master`** (the monorepo is the single source of
+truth, including `kamepoolalloc/contrib/MIMALLOC_BENCH_PR.md` and the README
+that ships standalone); never commit directly to the standalone repo.
+
+Sync procedure (after the `kamepoolalloc/` changes are on KAME `master`):
+
+```bash
+# 1. (Re)generate the subtree-split branch on KAME from the prefix.
+git subtree split --prefix=kamepoolalloc -b standalone/kamepoolalloc
+git push GitHub standalone/kamepoolalloc       # publish the split on KAME
+
+# 2. Mirror that branch onto the standalone repo's master.
+git fetch https://github.com/northriv/KAME.git \
+    standalone/kamepoolalloc:standalone/kamepoolalloc
+git push https://github.com/northriv/kamepoolalloc.git \
+    standalone/kamepoolalloc:master
+```
+
+Then tag a release on the standalone repo when cutting a version (e.g.
+`v1.0.1` must carry the dylib banner gating, the Linux
+`malloc_usable_size` co-interpose, and word-cache default ON — the
+mimalloc-bench `version_kp` pin tracks this; see
+`kamepoolalloc/contrib/MIMALLOC_BENCH_PR.md`).  The standalone top-level
+`CMakeLists.txt` builds `out/libkamepoolalloc.{so,dylib}` with the full
+malloc interpose default-on for `LD_PRELOAD` / `DYLD_INSERT_LIBRARIES` use.
+
 ## Architecture
 
 ### Software Transactional Memory (STM) Framework
