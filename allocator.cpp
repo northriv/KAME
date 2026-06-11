@@ -549,30 +549,6 @@ struct AllocThreadExitCleanup {
 #endif
             for(int b = 0; b < ALLOC_NUM_BUCKETS; ++b)
                 pg->m_slots[b].freelist_head = nullptr;
-#if KAME_FS_WORDCACHE
-            // (§word-cache) return every undistributed cached-word bit
-            // to its chunk's bitmap — the ONLY return point by design
-            // (the word is otherwise consumed to 0 before replacement).
-            for(int b = 1; b < ALLOC_WC_BUCKETS; ++b) {
-                WcSlot &wc = pg->m_wc[b];
-                if(!wc.inv || !wc.ck) { wc.inv = 0; continue; }
-                CrossDeallocEntry tmp[65];
-                int n = 0;
-                std::uint64_t iv = wc.inv;
-                size_t align = (size_t)b << 4;
-                do {
-                    unsigned bit = (unsigned)__builtin_ctzll(iv);
-                    iv &= iv - 1u;
-                    tmp[n].chunk = wc.ck;
-                    tmp[n].slot = wc.base + (size_t)bit * align;
-                    ++n;
-                } while(iv);
-                tmp[n].chunk = nullptr;
-                tmp[n].slot = nullptr;
-                wc.ck->batch_return_to_bitmap(tmp);
-                wc.inv = 0; wc.base = nullptr; wc.ck = nullptr;
-            }
-#endif
         }
         // Walk each registered template's per-thread DLL.  Each
         // callback wipes its own `s_tls.my_chunk` / `s_tls.dll_head` / `s_tls.dll_tail`
@@ -1382,14 +1358,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 						writeBarrier();
 						this->m_idx = widx;
 						constexpr unsigned WBITS = sizeof(FUINT) * 8;
-						WcSlot &wc = kame_page()->m_wc[this->m_base_bucket];
 						unsigned b = (unsigned)__builtin_ctzll(
 						    (unsigned long long)mask);
-						wc.inv = mask & (mask - 1u);
-						wc.base = this->mempool() +
+						char *base = this->mempool() +
 						    (size_t)widx * WBITS * ALIGN;
-						wc.ck = this;
-						return wc.base + (size_t)b * ALIGN;
+						this->m_freelist_head[1] =
+						    reinterpret_cast<char *>(
+						        (uintptr_t)(mask & (mask - 1u)));
+						this->m_freelist_head[2] = base;
+						return base + (size_t)b * ALIGN;
 					}
 					// CAS lost to a cross-thread clear: re-read.
 				}
@@ -3016,6 +2993,27 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_dll_chunks_for_thread() noexcept {
 #endif
 			}
 #endif /* KAME_FS_CHUNK_FIFO || KAME_FS_CHUNK_STASH */
+#if KAME_FS_WORDCACHE
+			// (§word-cache) cells [1]/[2] hold the word MASK and its
+			// base — not list heads.  Return each undistributed bit
+			// via the bitmap path and null both cells BEFORE the
+			// generic walk below (which would misread them).
+			if(c->m_fs_flag) {
+				uintptr_t inv = reinterpret_cast<uintptr_t>(
+				    c->m_freelist_head[1]);
+				char *wbase = c->m_freelist_head[2];
+				c->m_freelist_head[1] = nullptr;
+				c->m_freelist_head[2] = nullptr;
+				while(inv) {
+					unsigned bit = (unsigned)__builtin_ctzll(
+					    (unsigned long long)inv);
+					inv &= inv - 1u;
+					fdrain[0].chunk = c;
+					fdrain[0].slot = wbase + (size_t)bit * ALIGN;
+					c->batch_return_to_bitmap(fdrain);
+				}
+			}
+#endif
 			// (§12.3) freelists are compact LOCAL-id indexed
 			// (KAME_LOCAL_BUCKETS = 9); walk that range, not 48.
 			for(int b = 0; b < KAME_LOCAL_BUCKETS; ++b) {
@@ -4428,16 +4426,22 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 		}
 		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
 #if KAME_FS_WORDCACHE
-		// (§word-cache B) freelist dry: serve from the TLS word mask —
-		// the hot paths are UNTOUCHED (this runs only on the lean
-		// cold); the whole-word grab in allocate_pooled refills it
-		// when this too is empty.
-		if(bucket < (unsigned)ALLOC_WC_BUCKETS) {
-			WcSlot &wc = kame_page()->m_wc[bucket];
-			if(wc.inv) {
-				unsigned b = (unsigned)__builtin_ctzll(wc.inv);
-				wc.inv &= wc.inv - 1u;
-				return wc.base + (((size_t)b * bucket) << 4);
+		// (§word-cache) freelist dry: serve from the chunk's word mask
+		// — cells [1] (inv) / [2] (word base), unused under FS=true
+		// and on the SAME hot line as [0] / m_fs_flag that the pop
+		// above just touched.  Hot paths are UNTOUCHED (this runs only
+		// on the lean cold); the whole-word grab in allocate_pooled
+		// refills the pair when this too is empty.
+		if(ck->m_fs_flag) {
+			uintptr_t inv = reinterpret_cast<uintptr_t>(
+			    ck->m_freelist_head[1]);
+			if(inv) {
+				unsigned b = (unsigned)__builtin_ctzll(
+				    (unsigned long long)inv);
+				ck->m_freelist_head[1] =
+				    reinterpret_cast<char *>(inv & (inv - 1u));
+				return ck->m_freelist_head[2] +
+				    (((size_t)b * bucket) << 4);
 			}
 		}
 #endif

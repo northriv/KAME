@@ -2816,49 +2816,11 @@ inline unsigned int bucket_for_aligned(std::size_t alignment,
 
 //! (§hot-tls) Unified per-thread hot TLS page.  Full definition here,
 //! after AllocSlot and ALLOC_NUM_BUCKETS.
-#if KAME_FS_WORDCACHE
-// (§word-cache) per-bucket TLS word cache.  `inv` = claimed-but-
-// undistributed bits of the cached word; `base` = the word's first
-// slot; `ck` = owning chunk (for the thread-exit drain only).
-// FS=true lean buckets are 1..23 (sizes 16..368).
-enum { ALLOC_WC_BUCKETS = 24 };
-struct WcSlot {
-    std::uint64_t inv;
-    char *base;
-    PoolAllocatorBase *ck;
-};
-// Exact division by ALIGN = bucket*16 for the free-side bit index:
-// off / (odd(b) << (4+tz(b))) = (off >> shift[b]) * magic[b] (mod 2^64,
-// exact because off is a multiple of ALIGN; magic = odd part's modular
-// inverse).
-struct WcDiv {
-    std::uint8_t shift[ALLOC_WC_BUCKETS];
-    std::uint64_t magic[ALLOC_WC_BUCKETS];
-};
-constexpr WcDiv kame_make_wcdiv() {
-    WcDiv d{};
-    for(unsigned b = 1; b < ALLOC_WC_BUCKETS; ++b) {
-        unsigned t = 0, o = b;
-        while(!(o & 1u)) { o >>= 1; ++t; }
-        std::uint64_t x = o;
-        for(int i = 0; i < 6; ++i)
-            x *= 2u - (std::uint64_t)o * x;
-        d.shift[b] = (std::uint8_t)(4 + t);
-        d.magic[b] = x;
-    }
-    return d;
-}
-inline constexpr WcDiv kWcDiv = kame_make_wcdiv();
-#endif /* KAME_FS_WORDCACHE */
-
 struct KameTlsPage {
     uintptr_t  last_region_base;           // radix 1-entry cache; RADIX_CACHE_EMPTY = unmatchable
     uint32_t   owner_id;                   // this thread's chunk-owner stamp; 0 = unassigned
     uint32_t   _pad;
     AllocSlot  m_slots[ALLOC_NUM_BUCKETS];  // replaces g_thread_slots[]
-#if KAME_FS_WORDCACHE
-    WcSlot     m_wc[ALLOC_WC_BUCKETS];      // (§word-cache) zero-init
-#endif
     // Named m_slots, NOT slots — Qt defines `slots` as an empty preprocessor
     // token in <QtCore> (the same reason RadixL2Node uses `entries` instead of
     // `slots`), which would turn `AllocSlot slots[N]` into `AllocSlot [N]` and
