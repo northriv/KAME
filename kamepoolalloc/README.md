@@ -224,6 +224,24 @@ STM regression.  Zen 2 (Ohtaka) numbers pending machine maintenance — by
 construction the design carries none of the per-slot stores that capped the
 earlier dependency-cut experiments at ~300 M ops/s on that core.
 
+### Third-party suite cross-check (mimalloc-bench, M3)
+
+An independent run of the contention-heavy multi-thread benches from
+[mimalloc-bench](https://github.com/daanx/mimalloc-bench) (M3, median of 5,
+mimalloc 3.3.2 / jemalloc 5.3.0).  kame is the FS=true word-cache build.
+
+| bench (M ops/s, ↑) | system | mimalloc | jemalloc |      kame |
+|--------------------|--------|----------|----------|-----------|
+| larson             |   21.4 |    108.3 |    108.6 | **113.0** |
+| xmalloc-test       |    150 |  **245** |      118 |       210 |
+| rptest             |   2.86 | **3.95** |     3.97 |      2.75 |
+
+kame leads `larson` (the alloc-on-one-thread / free-on-another pattern that
+mirrors the STM Snapshot handoff — kame's design target) and clears system /
+jemalloc on `xmalloc-test`.  On `rptest`'s mixed cross-thread churn the
+segment-based allocators (mimalloc / jemalloc) still lead, and kame sits with
+system malloc — the same contention tier flagged as a weaker spot on x86.
+
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
 M ops/s** — kame at `8f2e6980` (post hot/cold-split + 32 KiB bucket LUT +
 word-cache), llvm-mingw clang 17, median of 5 via `bench_compare.sh`.  On
