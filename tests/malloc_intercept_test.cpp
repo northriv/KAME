@@ -39,8 +39,13 @@
 //   - macOS dylib : __DATA,__interpose, FULL by default → intercepted.
 //   - musl / other: NO strong-symbol malloc → plain malloc is NOT pooled
 //                   (only operator new and the kame_pool_* API are).
-//   - Windows     : USE_KAME_ALLOCATOR is OFF in this CMake, so the test is
-//                   not built there at all.
+//   - Windows     : USE_KAME_ALLOCATOR now defaults ON; the §31 IAT redirect
+//                   patches the free-family (FULL: + malloc/calloc) across
+//                   UCRT-family modules.  Whether a *given* exe's plain malloc
+//                   routes through the pool depends on its CRT linkage (an
+//                   llvm-mingw exe that statically resolves malloc has no IAT
+//                   entry to patch), so the C-malloc check is probe-gated here.
+//                   operator new is always overridden within the linked image.
 // The C-malloc assertions are therefore made conditional on a runtime probe
 // (`g_malloc_intercepted`); the operator-new and C-API assertions run
 // unconditionally (those routes are active wherever the pool is linked).

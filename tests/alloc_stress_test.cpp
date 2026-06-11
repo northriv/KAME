@@ -35,6 +35,14 @@
 #include <thread>
 #include <vector>
 
+// uint_cas_max = the project's widest LOCK-FREE integer (atomic.h).  Used for
+// the cross-thread op counters below so the test links WITHOUT libatomic on
+// `-march=i486` (where std::atomic<uint64_t> lowers to __atomic_*_8 libcalls,
+// i486 having no CMPXCHG8B): on i486 uint_cas_max is 32-bit (lock-free), on
+// i586+/x86-64/ARM64/ARMv7 it stays 64-bit.  The library itself is already
+// pointer-width-clean; this makes the whole i486 test build libatomic-free.
+#include "atomic.h"
+
 namespace {
 
 struct Config {
@@ -68,10 +76,13 @@ size_t pick_size(std::mt19937 &rng) {
     return 513 + (rng() % 7680);                 // 513..8192
 }
 
-// Global counters — atomic, no allocation.
-std::atomic<uint64_t> g_total_allocs{0};
-std::atomic<uint64_t> g_total_frees{0};
-std::atomic<uint64_t> g_sentinel_fails{0};
+// Global counters — atomic, no allocation.  uint_cas_max (not uint64_t) so
+// the fetch_add lowers to a native lock-free op on every target incl. i486
+// (no libatomic).  Monotonic, well under 2^31 even for large configs (default
+// 2000×20000 = 40 M); loaded into uint64_t locals for printing.
+std::atomic<uint_cas_max> g_total_allocs{0};
+std::atomic<uint_cas_max> g_total_frees{0};
+std::atomic<uint_cas_max> g_sentinel_fails{0};
 
 // Start-barrier: workers register themselves into `g_workers_ready`
 // after their per-thread setup (mt19937, vector::reserve, etc.) and

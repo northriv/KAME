@@ -53,6 +53,16 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
 - **Per-thread DLL chunks** — no global allocator lock, no contention until
   the chunk-claim slow path; cross-thread frees via a holding batch +
   bit-clear coalescing.
+- **Lock-free orphan-chunk reclaim (`atomic_shared_ptr`)** — a chunk left
+  non-empty by an exited owner thread (its slots still draining via cross-thread
+  frees) is pushed onto a per-template lock-free orphan **chain** instead of
+  being stranded: another thread later *adopts* it (reuses its free slots) and a
+  sweep pass *reclaims* it once drained, so churned worker threads don't grow
+  reserved memory.  The chain is built on KAME's `atomic_smart_ptr` (the same
+  lock-free reference-counted smart pointer as the STM) — that refcount is what
+  makes adopt-vs-reclaim safe without hazard pointers, and a re-owned chunk holds
+  a self-referential owner-ref so a concurrent sweeper can't free it mid-reuse.
+  Replaces an earlier ABA-tagged Treiber stack that leaked drained orphans.
 - **Standards-conformant OOM** — throwing `operator new` runs the installed
   `std::new_handler` loop then throws `std::bad_alloc`; nothrow / C-API paths
   return `nullptr` + `errno = ENOMEM`.  No `std::terminate` across the noexcept
@@ -89,7 +99,12 @@ linked into GPLv2-only projects such as KAME itself (GPL path).
 - **Verified** — TSAN race-free, UBSAN clean (incl. `vptr`), ASan clean; the
   chunk-claim / chunk-recycle protocol is TLA+ model-checked and the
   large-recycle cache's exclusive-ownership / no-premature-release (UAF /
-  double-free) safety is GenMC (RC11) model-checked.  Builds 64-bit and 32-bit,
+  double-free) safety is GenMC (RC11) model-checked.  The orphan-chunk
+  reclaim/adopt chain is TLA+ model-checked too
+  ([`tests/tlaplus/OrphanChain_*.tla`](tests/tlaplus/), run by
+  `run_orphan_chain.sh`) — its owner-free-vs-concurrent-sweeper-pin race is a
+  model-only catch (runtime stress can't reproduce it), kept as a standing
+  regression guard.  Builds 64-bit and 32-bit,
   on macOS / Linux / Windows (MinGW + MSVC).
 
 ## Status
@@ -123,105 +138,142 @@ Tight alloc/free loop, one slot at a time (`tests/bench/bench_loop.c` —
 default-Release builds (no `-flto` / `-march=native` — mimalloc and jemalloc
 ship the same way).  Multi-thread numbers run 4 independent `bench_loop`
 processes in parallel and sum the per-process rates (true intra-process MT
-is measured separately by `bench_xthread`).  Both tables below are
+is measured separately by `bench_xthread`).  All tables below are
 reproducible via `tests/bench/bench_compare.sh` (see that script's
-`--help`).
-
-**x86-64, Intel Xeon @ 2.1 GHz (cloud VM, 4 vCPU), single thread, M ops/s** —
-kamepoolalloc at `37ba998c` (post-§28.5: walk-derived dedicated counter),
-median of 5 runs:
-
-| size    | system   | mimalloc | jemalloc   | **kame** |
-| ------- | -------- | -------- | ---------- | -------- |
-| 64 B    | 210      | 190      | 175        | **278**  |
-| 1 KiB   | 206      | 150      | 167        | **212**  |
-| 16 KiB  | 79       | 105      | 86         | **114**  |
-| 64 KiB  | 81       | 107      | 9          | **135**  |
-| 256 KiB | 87       | 3        | 9          | **126**  |
-| 1 MiB   | 86       | 3        | 9          | **115**  |
-| 4 MiB   | **87**   | 3        | 9          | 54       |
-
-**Same box, 4 parallel processes (aggregate M ops/s)** — kame at `37ba998c`:
-
-| size    | system   | mimalloc | jemalloc   | **kame** |
-| ------- | -------- | -------- | ---------- | -------- |
-| 64 B    | 808      | 760      | 697        | **1154** |
-| 16 KiB  | 324      | 412      | 326        | **454**  |
-| 64 KiB  | 323      | 419      | 34         | **527**  |
-| 1 MiB   | 338      | 12       | 34         | **455**  |
+`--help`).  The x86-64 reference machine is **Ohtaka** (ISSP supercomputer,
+AMD EPYC bare metal — single-tenant, `srun --exclusive`); cloud VM numbers
+were intentionally dropped because shared-tenant scheduling jitter on a
+single allocator could swing 3× between sessions and made any absolute
+comparison unreliable.
 
 **Apple MacBook Air M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
-`13a8c913`, median of 5 runs via `bench_compare.sh`.  Both M3 tables below were
-measured on this commit:
+`60971013`, median of 7 runs via `bench_compare.sh` (mimalloc 3.3.2 + jemalloc 5.3.0
+via Homebrew).  Both M3 tables below were measured on this commit:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     108 |      511 |        - |  **512** |
-| 1 KiB     |      87 |  **472** |        - |      344 |
-| 16 KiB    |      93 |      202 |        - |  **284** |
-| 64 KiB    |      25 |  **202** |        - |      159 |
-| 256 KiB   |      25 |  **202** |        - |      159 |
-| 1 MiB     |      25 |      6.7 |        - |  **143** |
-| 4 MiB     |      45 |      5.9 |        - |  **124** |
+| 64B       |     106 |      503 |      128 |  **651** |
+| 1 KiB     |      86 |  **447** |      124 |      428 |
+| 16 KiB    |      91 |      198 |       72 |  **346** |
+| 64 KiB    |      25 |  **199** |       18 |      142 |
+| 256 KiB   |      25 |  **202** |       18 |      131 |
+| 1 MiB     |      25 |        7 |       18 |  **121** |
+| 4 MiB     |      45 |        6 |       18 |  **112** |
 
-**Apple MacBook Air M3, 4 processes aggregate, M ops/s** — median of 5 runs:
+**Apple MacBook Air M3, 4 processes aggregate, M ops/s** — median of 7 runs:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     397 | **1875** |        - |     1810 |
-| 16 KiB    |     328 |      725 |        - | **1049** |
-| 64 KiB    |      87 |  **737** |        - |      575 |
-| 1 MiB     |      89 |       18 |        - |  **519** |
+| 64B       |     376 |     1857 |      432 | **2088** |
+| 16 KiB    |     306 |      682 |      246 | **1209** |
+| 64 KiB    |      82 |  **684** |       60 |      474 |
+| 1 MiB     |      83 |       16 |       58 |  **402** |
 
-At the **1 MiB** large tier kame leads at every thread count: system is
-lock-serialised, mimalloc stalls at ~18 M aggregate, while kame reaches
-**519 M ops/s** across 4 processes (29× ahead of mimalloc).  The **64 B**
-bucket reaches **512 M ops/s** single-thread — matching mimalloc 3.3 (511 M)
-after the `KameTlsPage` fast-TSD unification (§hot-tls) replaced per-variable
-`_tlv_get_addr` calls with a single `mrs TPIDRRO_EL0`.  At **16 KiB** kame
-leads both single-thread and 4-process (1049 M vs 725 M mimalloc).  jemalloc
-was not available on this macOS host.
+The **64 B** bucket now **leads** mimalloc 3.3 — 651 vs 503 M ops/s
+single-thread, 2088 vs 1857 across 4 processes — after the `deallocate` and
+`operator new` hot/cold splits: a lean `always_inline` FS=true fast path with
+no prologue spill and no out-of-line call, on top of the `KameTlsPage` fast-TSD
+unification (§hot-tls, a single `mrs TPIDRRO_EL0` instead of per-variable
+`_tlv_get_addr`).  At **16 KiB** kame leads decisively — 346 vs 198
+single-thread, 1209 vs 682 4-process — helped by the void / tail-call FS=false
+free path.  At the **1 MiB** large tier kame leads at every thread count:
+system is lock-serialised, mimalloc collapses to ~7 M single-thread / ~16 M
+aggregate, while kame stays memory-warm at 121 / 402 M ops/s (25× ahead).  The
+one band where mimalloc still leads is the **64–256 KiB** §19 large tier
+(kame ~140 vs ~200): there the per-free radix lookup plus recycle-cache
+bookkeeping cost more than mimalloc's segment scheme — an already-known weaker
+tier, not a regression.  (Re-measured at `60971013`.)
 
-**Ohtaka (ISSP supercomputer — AMD EPYC, 128-core / 8-NUMA-node, Linux 4 KiB
-pages, `THP=always`), `bench_compare.sh`, `srun --exclusive`** — kame at
-`0e9413a6`, mimalloc/jemalloc versions same as the competitive tables below:
+**Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
+M ops/s** — kame at `8f2e6980` (post hot/cold-split + 32 KiB bucket LUT +
+word-cache), llvm-mingw clang 17, median of 5 via `bench_compare.sh`.  On
+Windows the `kame` column is the **direct pool route** (`bench_loop_pool` →
+`kame_pool_malloc`): PE/COFF has no `LD_PRELOAD`, and llvm-mingw resolves the
+plain `malloc` statically (no IAT entry for the §31 redirect to patch), so —
+unlike the macOS/Linux tables — this measures the pool core only, not the
+malloc-override layer.  mimalloc/jemalloc are not standard on Windows
+(columns omitted):
+
+| size      |  system |     kame |
+|-----------|---------|----------|
+| 64B       |      37 |  **301** |
+| 1 KiB     |      40 |  **223** |
+| 16 KiB    |      39 |  **191** |
+| 64 KiB    |       9 |   **71** |
+| 256 KiB   |      10 |   **68** |
+| 1 MiB     |      ~0 |   **64** |
+| 4 MiB     |      ~0 |   **35** |
+
+**Same host, 4 processes aggregate, M ops/s** — median of 5:
+
+| size      |  system |     kame |
+|-----------|---------|----------|
+| 64B       |     144 | **1055** |
+| 16 KiB    |     134 |  **687** |
+| 64 KiB    |      37 |  **238** |
+| 1 MiB     |      ~1 |  **231** |
+
+The **system ~0 at ≥ 1 MiB** is the Windows UCRT per-call `VirtualAlloc` /
+`VirtualFree` cliff (the same shape mimalloc / jemalloc hit at this tier on
+Linux): a tight 1 MiB `malloc`/`free` loop drops below 0.5 M ops/s, while
+kame's two-level recycle cache stays memory-warm at 35–231 M ops/s.  The
+16 KiB jump (90 → 191 single-thread, 302 → 687 4-process vs the prior
+`84f97566` numbers) is the full-range bucket LUT + word-cache landing; no
+size regressed.
+
+**Ohtaka (ISSP supercomputer — AMD EPYC 7702, 128-core / 8-NUMA-node, Linux
+4 KiB pages, `THP=always`), `bench_compare.sh`, `srun --exclusive`** — kame at
+`efbe6dcb` (allocator code `5e127eb5`) for the 1T, 4-process and 128-process
+tables below, all measured on the same `i8cpu` node `c15u01n1` (the
+`alloc_tune_report` table further down was not re-run and remains at the
+earlier `0e9413a6`).  mimalloc/jemalloc versions same as the competitive tables:
 
 ## 1T (median of 5, M ops/s)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     211 |      330 |      182 |      247 |
-| 1.0KB     |     212 |      210 |      159 |      176 |
-| 16KB      |      68 |       93 |       45 |   **97** |
-| 64KB      |      65 |   **93** |        4 |       78 |
-| 256KB     |      71 |   **92** |        4 |       84 |
+| 64B       |     212 |  **331** |      182 |      260 |
+| 1.0KB     |     214 |      203 |      160 |  **236** |
+| 16KB      |      69 |       93 |       45 |  **168** |
+| 64KB      |      65 |   **95** |        4 |       82 |
+| 256KB     |      70 |   **95** |        4 |       87 |
 | 1.0MB     |      71 |        5 |        4 |   **84** |
-| 4.0MB     |      69 |        4 |        4 |   **52** |
+| 4.0MB     |      67 |        4 |        4 |   **62** |
 
 ## 4 parallel processes (aggregate, M ops/s, median of 5)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     849 |   **1269** |      727 |      997 |
-| 16KB      |     274 |      371 |      178 |  **392** |
-| 64KB      |     258 |  **366** |       17 |      309 |
-| 1.0MB     |     278 |       20 |       17 |  **338** |
+| 64B       |     845 |  **1261** |      727 |     1045 |
+| 16KB      |     274 |      381 |      177 |  **666** |
+| 64KB      |     259 |  **371** |       18 |      321 |
+| 1.0MB     |     277 |       20 |       17 |  **335** |
 
 ## 128 parallel processes (aggregate, M ops/s, median of 5)
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |   22182 | **37386** |    20062 |    27005 |
-| 16KB      |    7798 |    11509 |     5146 | **12153** |
-| 64KB      |    7922 | **11622** |      454 |     9587 |
-| 1.0MB     |    8750 |      547 |      463 | **10523** |
+| 64B       |   22634 | **39572** |    21280 |    29044 |
+| 16KB      |    7920 |    11808 |     5282 | **21496** |
+| 64KB      |    8128 | **11866** |      465 |    10352 |
+| 1.0MB     |    8908 |      566 |      475 | **10703** |
 
-At **1 MiB / 128 processes** kame reaches **10523 M ops/s** (19× ahead of
-mimalloc 547 M): the two-level recycle cache keeps all 128 cores at
-memory-warm speed while mimalloc stalls at its per-call `mmap` path.
-At **16 KiB** kame edges ahead of mimalloc at both 4T and 128T
-(392 vs 371 M; 12153 vs 11509 M).  mimalloc leads at 64 B where its
-thread-local bump allocator is fastest.
+At **16 KiB** kame now leads decisively at every thread count — 168 vs 93 M
+single-thread, 666 vs 381 at 4 processes, 21496 vs 11808 at 128 (1.8×) —
+after the `bucket_for_size` LUT extension to the full 32 KiB bucketed range
+(`9b65ce42`) plus the force-inlined size→bucket fold (`0e43ee82`).  At
+**1 MiB / 128 processes** kame reaches **10703 M ops/s** (19× ahead of
+mimalloc 566 M): the two-level recycle cache keeps all 128 cores at
+memory-warm speed while mimalloc stalls at its per-call `mmap` path.  At
+**1 KiB** single-thread kame widens its lead over mimalloc (236 vs 203 M, up
+from 221) after `5e127eb5` restricted the `new_redirected` large-branch
+unlikely-hint to Apple targets — on linux-x86/clang the hint had cost 1 KiB
+−15% and 64 B −8% (same-node interleaved A/B) for a +23% gain only at
+16 KiB, which the LUT already dominates.  mimalloc still leads at **64 B** on
+x86-64 — 331 vs 260 M single-thread, 39572 vs 29044 at 128T: unlike
+arm64/M3, where the `deallocate` / `operator new` hot/cold splits put kame
+ahead at 64 B, on x86-64 mimalloc's thread-local bump allocator keeps the
+edge on the smallest bucket.
 
 ---
 
@@ -516,6 +568,55 @@ See the header for full per-function semantics.
 |---|---|
 | `void   kame_pool_get_stats(kame_pool_stats_t *)` | snapshot of regions/units/chunks/cache/tier counters; versioned struct (`KAME_POOL_STATS_VERSION`) |
 
+### Lock-free shared / weak pointer (`atomic_shared_ptr` / `local_shared_ptr`)
+
+`atomic_smart_ptr.h` (an installed public header) provides a lock-free
+`atomic_shared_ptr<T>` (atomic, CAS-able shared owner), `local_shared_ptr<T>`
+(thread-local owner), and `local_weak_ptr<T>`.  It underpins KAME's STM and the
+pool's own orphan-chunk reclaim chain, and is usable on its own.
+
+The control-block layout is chosen at compile time from `ref_traits<T>`, driven
+by an **opt-in marker you inherit on `T`** — no other wiring:
+
+| Inherit on `T`           | Alloc          | `weak_ptr` | Construct with                  | Use for        |
+|--------------------------|----------------|------------|---------------------------------|----------------|
+| *(nothing — default)*    | 2×             | yes        | `local_shared_ptr<T>(new T(…))` | anything       |
+| `atomic_emplaced`        | 1×             | yes        | `make_local_shared<T>(args…)`   | weakable + hot |
+| `atomic_strictrefonly`   | 2×             | no         | `local_shared_ptr<T>(new T(…))` | small / cold   |
+| `atomic_countable`       | 1× (intrusive) | no         | `local_shared_ptr<T>(new T(…))` | hottest        |
+
+`atomic_weakable` is a back-compat alias for `atomic_emplaced`.
+
+```cpp
+#include "atomic_smart_ptr.h"          // on the include path via find_package(kamepoolalloc)
+
+struct Plain { int x; };               // default mode
+local_shared_ptr<Plain> a(new Plain{1});
+atomic_shared_ptr<Plain> shared; shared.swap(a);   // atomic / CAS-able
+
+struct Hot : atomic_emplaced { int x; };           // 1 allocation; weak_ptr OK
+auto h = make_local_shared<Hot>();     // emplaced T: NOT local_shared_ptr<Hot>(new Hot)
+```
+
+**Self-referential intrusive node** — a lock-free list/DLL node that embeds an
+`atomic_shared_ptr<T>` link is *incomplete* at first use, so the marker cannot be
+auto-detected.  Opt in explicitly (before the first use of the pointer) and give
+`T` the intrusive contract:
+
+```cpp
+template <…> struct force_intrusive_ref<MyNode<…>> : std::true_type {};
+struct MyNode {
+    typedef uintptr_t Refcnt;
+    atomic<Refcnt> refcnt{1};
+    atomic_shared_ptr<MyNode> next;     // the self-reference
+    // optional: void atomic_intrusive_dispose() noexcept { … }  (else: delete)
+};
+```
+
+Full trait reference: the **USAGE** header block + `ref_traits` / `force_intrusive_ref`
+in `atomic_smart_ptr.h`.  Working self-referential examples:
+`tests/atomic_intrusive_dispose_test.cpp` and `tests/atomic_intrusive_chain_test.cpp`.
+
 ## Tuning
 
 Most consumers don't need to touch these — the defaults are picked for a few-
@@ -708,6 +809,7 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | 29    | FS=true freelist pre-fill at chunk claim (cold-path bitmap scan → O(1) pop; auto-prewarm) |
 | 30    | `kame_pool_set_realtime_mode()` — one-call silence of all background maintenance |
 | 31    | Windows free-family IAT redirect — pool coexists with Qt / libc++ on PE/COFF |
+| 36 / S7 | lock-free orphan-chunk reclaim — `atomic_shared_ptr` chain (owner-exit push, sweep-reclaim, adopt + chunk self-ref owner-ref) replaces the leak-prone ABA Treiber stack; TLA+-verified, now the default |
 
 ## Acknowledgements
 

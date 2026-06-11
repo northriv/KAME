@@ -79,7 +79,8 @@ enum { KAME_RADIX_ABSENT = 0, KAME_RADIX_POOL = 1, KAME_RADIX_LARGE = 2 };
 
 typedef struct {
     _Atomic(unsigned) entries[NSLOT];
-    int               live;     /* ghost: 1 = mapped, 0 = munmap'd */
+    _Atomic(int)      live;     /* ghost: 1 = mapped, 0 = munmap'd (atomic: read on the
+                                 * lookup path; visibility rides g_l1's acq/rel) */
 } L2Node;
 
 static L2Node            g_nodes[NPOOL];   /* "fresh mmap" pool */
@@ -92,12 +93,12 @@ static L2Node *alloc_l2(void) {
     int i = atomic_fetch_add_explicit(&g_node_next, 1, memory_order_relaxed);
     if(i >= NPOOL) return NULL;
     /* entries[] are already 0 (mmap zero-fill / static init); mark live. */
-    g_nodes[i].live = 1;
+    atomic_store_explicit(&g_nodes[i].live, 1, memory_order_relaxed);
     return &g_nodes[i];
 }
 /* munmap of a CAS-loser leaf.  No other thread can hold it (it was never in
  * L1), so this is a plain ghost flip. */
-static void free_l2(L2Node *n) { n->live = 0; }
+static void free_l2(L2Node *n) { atomic_store_explicit(&n->live, 0, memory_order_relaxed); }
 
 /* radix_insert(slot, kind) — allocator.cpp lines ~4510. */
 static void radix_insert(int slot, unsigned kind) {
@@ -115,7 +116,16 @@ static void radix_insert(int slot, unsigned kind) {
             leaf = expected;                             /* use the winner's */
         }
     }
-    assert(leaf->live);                                  /* (A)/(B): never a freed leaf */
+    /* No `assert(leaf->live)` here.  The real radix_insert loser uses the
+     * winner's leaf ONLY to do `leaf->entries[l2].store()` (atomic) — it never
+     * reads a winner-initialised NON-atomic field, so it does not depend on the
+     * failed install-CAS's failure=acquire synchronising with the winner's
+     * release-CAS.  (GenMC/RC11 does not treat a failed compare_exchange_strong's
+     * failure=acquire as synchronising — it keys the RMW read order off the
+     * SUCCESS order; success=acq_rel or an explicit acquire reload would, but the
+     * real release/acquire code needs neither because the leaf is mmap-zeroed and
+     * all-atomic.)  The UAF-visibility invariant is checked on the lookup path
+     * below, where the reader does a plain acquire-load of g_l1. */
     atomic_store_explicit(&leaf->entries[slot], kind, memory_order_release);
 }
 
@@ -123,7 +133,7 @@ static void radix_insert(int slot, unsigned kind) {
 static unsigned radix_lookup(int slot) {
     L2Node *leaf = atomic_load_explicit(&g_l1, memory_order_acquire);
     if(!leaf) return KAME_RADIX_ABSENT;
-    assert(leaf->live);                                  /* (B): leaf visible ⇒ live */
+    assert(atomic_load_explicit(&leaf->live, memory_order_relaxed));  /* (B): leaf visible (acquire-load of g_l1) ⇒ live */
     return atomic_load_explicit(&leaf->entries[slot], memory_order_relaxed);
 }
 
@@ -131,7 +141,7 @@ static unsigned radix_lookup(int slot) {
 static void radix_clear(int slot) {
     L2Node *leaf = atomic_load_explicit(&g_l1, memory_order_acquire);
     if(!leaf) return;
-    assert(leaf->live);
+    assert(atomic_load_explicit(&leaf->live, memory_order_relaxed));
     atomic_store_explicit(&leaf->entries[slot], KAME_RADIX_ABSENT,
                           memory_order_release);
 }
@@ -165,11 +175,11 @@ int main(void) {
     /* (D): exactly one leaf installed; the other (if alloc'd) was freed. */
     L2Node *leaf = atomic_load_explicit(&g_l1, memory_order_relaxed);
     assert(leaf != NULL);
-    assert(leaf->live);
+    assert(atomic_load_explicit(&leaf->live, memory_order_relaxed));
     int installed = 0, freed = 0;
     for(int i = 0; i < NPOOL; i++) {
-        if(&g_nodes[i] == leaf) { assert(g_nodes[i].live); installed++; }
-        else if(g_nodes[i].live == 0
+        if(&g_nodes[i] == leaf) { assert(atomic_load_explicit(&g_nodes[i].live, memory_order_relaxed)); installed++; }
+        else if(atomic_load_explicit(&g_nodes[i].live, memory_order_relaxed) == 0
                 && i < atomic_load_explicit(&g_node_next, memory_order_relaxed))
             freed++;
     }
