@@ -3147,18 +3147,6 @@ inline void *new_redirected(std::size_t size) {
 #endif
 		return new_redirected_large(size);
 	unsigned int bucket = (static_cast<unsigned int>(size) + 15u) >> 4;
-#if KAME_FS_WORDCACHE
-	// (§word-cache) tier ①: serve from the TLS claimed-word mask —
-	// ctz + clear-lowest + madd, one TLS line, no block touch.
-	{
-		WcSlot &wc = kame_page()->m_wc[bucket];
-		if(wc.inv) {
-			unsigned b = (unsigned)__builtin_ctzll(wc.inv);
-			wc.inv &= wc.inv - 1u;
-			return wc.base + (((size_t)b * bucket) << 4);
-		}
-	}
-#endif
 	if(char *cell_ptr_raw = kame_page()->m_slots[bucket].freelist_head) {
 		char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 		// (§L0-FIFO) Depth-4 ring hit: take the OLDEST parked slot, and

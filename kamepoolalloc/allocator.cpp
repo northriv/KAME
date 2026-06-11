@@ -1132,18 +1132,7 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	}();
 	bool prefilled = false;
 #ifndef GUARDIAN
-#if KAME_FS_WORDCACHE
-	// (§word-cache) NO prefill — the prepay this design eliminates.
-	// Chunks start zero-init; tier-3 whole-word grabs are the only
-	// claim path, and the freelist begins empty (it only ever holds
-	// out-of-range frees).  Without this the freelist never runs dry,
-	// tier 3 never fires, and the cache is pure dead-weight checks
-	// (measured: bench_loop -9%, STM -5.3% on M3).
-	if(false) {
-		(void)s_prefill_enabled;
-#else
 	if constexpr (FS && DUMMY) if(s_prefill_enabled) {
-#endif
 		prefilled = true;
 		// (§29) FS=true freelist pre-fill at chunk-claim.
 		//
@@ -3453,23 +3442,6 @@ PoolAllocatorBase::deallocate(void *p) noexcept {
 	if(__builtin_expect(chunk_obj->m_owner_id == page_owner_id
 	                    && page_owner_id != 0, 1)) {
 		if(__builtin_expect(chunk_obj->m_fs_flag != 0, 1)) {  // FS=true — 64 B hot
-#if KAME_FS_WORDCACHE
-			// (§word-cache) in-range free: set the bit back in the TLS
-			// mask — pure register/TLS arithmetic, NO store into the
-			// block.  Out-of-range falls to the freelist push.
-			{
-				unsigned bkt = chunk_obj->m_base_bucket;
-				WcSlot &wc = pg->m_wc[bkt];
-				size_t off = (size_t)(static_cast<char *>(p) - wc.base);
-				if(off < ((size_t)bkt << 10)) {        // 64 * bkt*16
-					unsigned bit = (unsigned)(
-					    (std::uint64_t)(off >> kWcDiv.shift[bkt])
-					    * kWcDiv.magic[bkt]);
-					wc.inv |= 1ull << bit;
-					return;
-				}
-			}
-#endif
 #if KAME_FS_CHUNK_FIFO
 			// (§L0-FIFO) Park into the chunk's depth-4 null-marking ring
 			// instead of the freelist: no store into the block itself
@@ -4455,6 +4427,20 @@ void *new_redirected_cold(unsigned int bucket, std::size_t size) {
 			return head;
 		}
 		PoolAllocatorBase *ck = chunk_from_freelist_ptr(head_ptr);
+#if KAME_FS_WORDCACHE
+		// (§word-cache B) freelist dry: serve from the TLS word mask —
+		// the hot paths are UNTOUCHED (this runs only on the lean
+		// cold); the whole-word grab in allocate_pooled refills it
+		// when this too is empty.
+		if(bucket < (unsigned)ALLOC_WC_BUCKETS) {
+			WcSlot &wc = kame_page()->m_wc[bucket];
+			if(wc.inv) {
+				unsigned b = (unsigned)__builtin_ctzll(wc.inv);
+				wc.inv &= wc.inv - 1u;
+				return wc.base + (((size_t)b * bucket) << 4);
+			}
+		}
+#endif
 		return ck->slow_allocate(bucket, size);
 	}
 	return cold_first_access(bucket, size);
@@ -4761,17 +4747,6 @@ void *kame_malloc_impl(std::size_t n) noexcept {
 	unsigned int bucket = (static_cast<unsigned int>(n) + 15u) >> 4;
 	KameTlsPage *pg = kame_page_or_null();
 	if(__builtin_expect(pg != nullptr, 1)) {
-#if KAME_FS_WORDCACHE
-		// (§word-cache) tier ① — mirror of new_redirected.
-		{
-			WcSlot &wc = pg->m_wc[bucket];
-			if(wc.inv) {
-				unsigned b = (unsigned)__builtin_ctzll(wc.inv);
-				wc.inv &= wc.inv - 1u;
-				return wc.base + (((size_t)b * bucket) << 4);
-			}
-		}
-#endif
 		if(char *cell_ptr_raw = pg->m_slots[bucket].freelist_head) {
 			char **head_ptr = reinterpret_cast<char **>(cell_ptr_raw);
 			// (gate experiments) The 526e1819 lean split detached malloc
