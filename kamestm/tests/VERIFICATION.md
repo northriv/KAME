@@ -138,6 +138,51 @@ genmc/build/genmc --rc11 --unroll=5 /full/path/to/cds_test_multi_cas.c
 **Note:** GenMC compiles source files directly via its LLVM frontend. Pass absolute paths.
 The `--unroll=5` flag bounds CAS retry loops. Increase if GenMC warns about insufficient unrolling.
 
+### Reproduction audit (2026-06-09, GenMC v0.17.0 / LLVM 20.1.8, Apple M3)
+
+The full suite was re-run on a freshly built GenMC v0.17.0 to confirm the
+numbers above are reproducible on current toolchains. **Every documented
+complete-execution count was reproduced to the digit:**
+
+| Test | Re-run complete | Doc | Wall | |
+|---|---|---|---|---|
+| 1: `cds_test_load` | 5,757 | 5,757 | 1s | ✅ |
+| 2: `cds_test_cas` | 240 | 240 | <1s | ✅ |
+| 3: `cds_test_multi_cas` | 464,164 | 464,164 | 275s | ✅ |
+| 4: `cds_test_swap` | 4 | 4 | <1s | ✅ |
+| 5: `cds_test_multi_cas_excess` | 410,364 | (large) | 271s | ✅ pass |
+| 6: `cds_test_cas_excess` | 240 | (large) | 1s | ✅ pass |
+| 7: `cds_test_swap_excess` | 120,118 | 120,118 | 117s | ✅ |
+| 8: `cds_test_cas_noacquire` | 74 | 74 | <1s | ✅ |
+| 9: `cds_test_scoped_weak` | 85 | 85 | <1s | ✅ |
+| TLA+ `test_scoped_atomic_view.c` | 96 | 96 | <1s | ✅ |
+
+Because the **complete**-execution counts match the recorded values exactly,
+the `--unroll=5` bound is *complete* for these tests — every CAS-retry loop
+terminates within the bound, so no execution is truncated and the
+verification is not vacuous. (Contrast: a test whose loops exceed the unroll
+reports `complete executions: 0` with all paths *blocked* — a vacuous pass.
+Always confirm `complete executions > 0`.)
+
+`test_atomic_shared_ptr.c` (the monolithic 3-thread load+CAS+swap union of
+tests 1/2/4) is verification-heavy — it did **not** finish a local 25-minute
+run (`>1551s`, no result), consistent with the 66.5M-state scale of the
+analogous TLC `atomic_shared_ptr_all_mc.cfg`. The focused decomposition in
+the table above plus that TLA+/TLC config (§2) are the tractable,
+authoritative coverage of the full protocol.
+
+**macOS build note (GenMC v0.17.0):** on macOS 26 SDK + Homebrew `llvm@20`,
+building GenMC *itself* with the keg's `clang++`/`libc++` (as the recipe
+above implies) fails to link with an unresolved weak symbol
+`operator new[](size_t, std::__type_descriptor_t)` (a type-aware-allocation
+ABI symbol the prebuilt keg `libc++.dylib` does not export). Building GenMC
+with **Apple `clang++` (system libc++)** while still pointing
+`-DLLVM_DIR=$(brew --prefix llvm@20)/lib/cmake/llvm` at the keg (for
+`libLLVM.dylib` + the frontend `clang`) resolves it — GenMC's own objects no
+longer emit that symbol, and the LLVM C-API boundary is unaffected. Also
+add `hwloc` to the link path (`-L$(brew --prefix hwloc)/lib`), and note the
+v0.17.0 binary installs at `build/bin/genmc/genmc` (nested).
+
 ---
 
 ## 2. TLA+ Layer 1: `atomic_shared_ptr` + Commit Primitives Verification

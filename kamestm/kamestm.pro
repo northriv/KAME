@@ -15,13 +15,17 @@ TEMPLATE = lib
 # atomic_shared_ptr<T>, etc.), so the .cpp footprint of the library is
 # deliberately small.
 #
-# kamestm is self-contained: every header it needs (atomic_mfence.h,
-# fast_vector.h) lives in this directory.  It does NOT call any
-# libkamepoolalloc runtime symbol, so the standalone kamestm subtree
-# mirror (one-way `git subtree split`) builds with nothing under
-# kamepoolalloc/ present — when kamepoolalloc is absent, consumers run
-# against the system allocator transparently (no global `operator new`
-# override is in scope without libkamepoolalloc loaded).
+# (§36b) The lock-free atomic primitives (atomic.h / atomic_smart_ptr.h /
+# atomic_mfence.h) were RELOCATED to kamepoolalloc/ so they have a single home
+# and a single GenMC/TLA verification, shared by both the allocator and kamestm
+# (the allocator's §36b orphan reuse uses atomic_shared_ptr).  kamestm now
+# sources these HEADERS from kamepoolalloc/ (added to INCLUDEPATH below) — they
+# are header-only, so this is a COMPILE-time include dependency, NOT a link
+# dependency: kamestm still calls no libkamepoolalloc runtime symbol.  The
+# standalone kamestm subtree-split therefore needs kamepoolalloc/'s atomic
+# headers present (header-only); when libkamepoolalloc is not LOADED, consumers
+# still run against the system allocator transparently (no global `operator
+# new` override is in scope without libkamepoolalloc loaded).
 #
 # Production kame.app (kame/kame.pro) inline-compiles these same .cpp
 # files (no DLL boundary) AND also inline-compiles kamepoolalloc's
@@ -41,6 +45,12 @@ contains(QMAKE_HOST.arch, x86) | contains(QMAKE_HOST.arch, x86_64) {
 }
 
 INCLUDEPATH += $${_PRO_FILE_PWD_}
+# (§36b) atomic.h / atomic_smart_ptr.h / atomic_mfence.h were relocated to
+# kamepoolalloc/ so the lock-free atomic primitives have a single home (and a
+# single GenMC/TLA verification) shared by both the allocator and kamestm.
+# kamestm now sources them from there.  Standalone kamestm therefore depends on
+# kamepoolalloc's atomic headers (header-only; no libkamepoolalloc link needed).
+INCLUDEPATH += $${_PRO_FILE_PWD_}/../kamepoolalloc
 
 # Qt-free `support.h` is provided right alongside the headers
 # (kamestm/support.h) — minimal macro shim, distinct from the
@@ -54,10 +64,7 @@ SOURCES += \
     xtime.cpp
 
 HEADERS += \
-    atomic.h \
-    atomic_mfence.h \
     atomic_queue.h \
-    atomic_smart_ptr.h \
     fast_vector.h \
     support.h \
     threadlocal.h \

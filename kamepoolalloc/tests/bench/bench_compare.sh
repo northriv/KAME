@@ -28,13 +28,22 @@ set -euo pipefail
 
 # --- platform detection -------------------------------------------------------
 OS=$(uname -s)
-if [ "$OS" = "Darwin" ]; then
-    LIB_EXT="dylib"
-    PRELOAD_VAR="DYLD_INSERT_LIBRARIES"
-else
-    LIB_EXT="so"
-    PRELOAD_VAR="LD_PRELOAD"
-fi
+IS_WINDOWS=0
+EXE=""
+case "$OS" in
+    Darwin)
+        LIB_EXT="dylib"; PRELOAD_VAR="DYLD_INSERT_LIBRARIES" ;;
+    MINGW*|MSYS*|CYGWIN*)
+        # PE/COFF has no LD_PRELOAD.  The "kame" column runs a SEPARATE
+        # binary — bench_loop_pool (built -DLOOP_USE_KAME_POOL), which calls
+        # kame_pool_malloc directly — because llvm-mingw resolves the plain
+        # `malloc` statically (no IAT entry for the §31 redirect to patch),
+        # so preloading the DLL cannot reroute bench_loop's malloc the way
+        # LD_PRELOAD does on ELF / DYLD_INSERT_LIBRARIES on Mach-O.
+        IS_WINDOWS=1; LIB_EXT="dll"; PRELOAD_VAR=""; EXE=".exe" ;;
+    *)
+        LIB_EXT="so"; PRELOAD_VAR="LD_PRELOAD" ;;
+esac
 
 # --- defaults ---------------------------------------------------------------
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
@@ -78,14 +87,32 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-BENCH="$BUILD_DIR/bench_loop"
-KAME="$BUILD_DIR/libkamepoolalloc.$LIB_EXT"
+BENCH="$BUILD_DIR/bench_loop$EXE"
 
-if [ ! -x "$BENCH" ] || [ ! -f "$KAME" ]; then
-    echo "ERROR: missing build artifacts under $BUILD_DIR" >&2
-    echo "       expected $BENCH and $KAME" >&2
-    echo "       cd $TESTS_DIR/build && cmake .. && make -j" >&2
-    exit 1
+if [ "$IS_WINDOWS" -eq 1 ]; then
+    # Windows kame route = the direct-pool binary; no preloaded lib.  The
+    # pool DLL must be resolvable at load time, so put the build dir on PATH.
+    KAME="$BUILD_DIR/bench_loop_pool$EXE"
+    export PATH="$BUILD_DIR:$PATH"
+    # mimalloc / jemalloc are not standard on Windows and there is no
+    # preload mechanism here, so the comparison is system-vs-kame only.
+    [ -n "$MI" ] && echo "  (note: --mimalloc ignored on Windows — no preload)" >&2
+    [ -n "$JE" ] && echo "  (note: --jemalloc ignored on Windows — no preload)" >&2
+    MI=""; JE=""
+    if [ ! -f "$BENCH" ] || [ ! -f "$KAME" ]; then
+        echo "ERROR: missing build artifacts under $BUILD_DIR" >&2
+        echo "       expected $BENCH and $KAME" >&2
+        echo "       cmake --build $BUILD_DIR --target bench_loop bench_loop_pool" >&2
+        exit 1
+    fi
+else
+    KAME="$BUILD_DIR/libkamepoolalloc.$LIB_EXT"
+    if [ ! -x "$BENCH" ] || [ ! -f "$KAME" ]; then
+        echo "ERROR: missing build artifacts under $BUILD_DIR" >&2
+        echo "       expected $BENCH and $KAME" >&2
+        echo "       cd $TESTS_DIR/build && cmake .. && make -j" >&2
+        exit 1
+    fi
 fi
 
 # --- helpers ----------------------------------------------------------------
@@ -97,9 +124,12 @@ extract_rate() {
 }
 
 # `python3 -c "import statistics; ..."` — used for median; fall back to a
-# pure-bash sort + middle pick if python3 is missing.
+# pure-bash sort + middle pick if python3 is missing.  The guard runs python3
+# and checks its OUTPUT (not just `command -v`): on Windows `python3` is
+# usually an App-Execution-Alias stub that exists on PATH but only prints an
+# "install from the Store" message, so a presence test would wrongly select it.
 median() {
-    if command -v python3 >/dev/null 2>&1; then
+    if [ "$(python3 -c 'print(7)' 2>/dev/null)" = "7" ]; then
         python3 -c "import sys,statistics; d=[float(x) for x in sys.stdin.read().split()]; print(f'{statistics.median(d):.0f}')"
     else
         # bash fallback (works for odd-N samples; rounds toward zero)
@@ -113,6 +143,16 @@ median() {
 # Uses the platform-appropriate preload variable (LD_PRELOAD / DYLD_INSERT_LIBRARIES).
 one_run() {
     local preload="$1" size="$2" iters="$3"
+    if [ "$IS_WINDOWS" -eq 1 ]; then
+        # No preload on Windows.  Empty -> system bench_loop; otherwise
+        # $preload is the kame pool binary ($KAME) — run it directly.
+        if [ -z "$preload" ]; then
+            "$BENCH" "$size" "$iters" 2>/dev/null | extract_rate
+        else
+            "$preload" "$size" "$iters" 2>/dev/null | extract_rate
+        fi
+        return
+    fi
     if [ -z "$preload" ]; then
         "$BENCH" "$size" "$iters" 2>/dev/null | extract_rate
     else
@@ -137,7 +177,13 @@ mt_run_sum() {
     local tfs=()
     for ((i=0; i<NTHREADS; i++)); do
         local tf; tf=$(mktemp); tfs+=("$tf")
-        if [ -z "$preload" ]; then
+        if [ "$IS_WINDOWS" -eq 1 ]; then
+            if [ -z "$preload" ]; then
+                "$BENCH" "$size" "$iters" >"$tf" 2>/dev/null &
+            else
+                "$preload" "$size" "$iters" >"$tf" 2>/dev/null &
+            fi
+        elif [ -z "$preload" ]; then
             "$BENCH" "$size" "$iters" >"$tf" 2>/dev/null &
         else
             env "$PRELOAD_VAR=$preload" "$BENCH" "$size" "$iters" >"$tf" 2>/dev/null &

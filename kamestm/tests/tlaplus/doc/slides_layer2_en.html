@@ -25,35 +25,22 @@ p{line-height:1.8}
 </style>
 </head>
 <body>
-
-<!-- ===== Slide 0: Notation ===== -->
-<div class="slide">
-<h1>TLA+ Notation (See Layer 1)</h1>
-<div class="box">
-<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 1 slides</strong> (slides_layer1_en.html).<br>
-New notation introduced in these slides:</p>
-</div>
-<table>
-<tr><th>Notation</th><th>Meaning</th></tr>
-<tr><td><code>MakePacket(node, payload, sub, miss)</code></td><td>Record construction function. Returns <code>[payload |-> ..., sub |-> ..., missing |-> ..., node |-> ...]</code>.</td></tr>
-<tr><td><code>PriorityWrapper(packet, ser)</code></td><td>PacketWrapper record. <code>hasPriority=TRUE</code>.</td></tr>
-<tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>Wrapper in bundled state. <code>hasPriority=FALSE, bundledBy=parentNode</code>.</td></tr>
-<tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>Conditional function definition. Sets different initial values per node.</td></tr>
-<tr><td><code>r.field</code></td><td>Record field access. Examples: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
-<tr><td><code>% MaxSerial</code></td><td>Modular arithmetic. The serial wraps around at <code>MaxSerial</code>, making the state space structurally finite. This model does not use StateConstraint.</td></tr>
-<tr><td><code>ModGT(a, b)</code></td><td>Modular comparison. <code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>. Corresponds to signed difference comparison in C++.</td></tr>
-</table>
-
-<div class="box-green">
-<p><strong>Characteristics of this model:</strong> The variable <code>local</code> has a nested record structure (<code>local[t].wrapper.packet.sub[c]</code>, etc.).
-This corresponds to nested structs in C++. In TLA+, nested fields are updated with <code>[local EXCEPT ![t].wrapper = w]</code>.</p>
-</div>
-</div>
+<a href="slides_overview_en.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ Overview</a>
 
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
-<h1>Layer 2: Bundle/Unbundle + Commit</h1>
+<h1>Layer 2: Bundle/Unbundle + Commit (Base Spec)</h1>
 <h3>TLA+ Model — BundleUnbundle_2level.tla / BundleUnbundle.tla (3-level)</h3>
+
+<div class="box" style="background:#3b0000;border:1px solid #dc2626">
+<p><strong>This deck explains the Gen 1/2 (modular-serial) base specification.</strong>
+The current reference is <strong>Gen 3 LLfree</strong> — the variant that structurally proves
+livelock-freedom via a privileged-TID negotiate mechanism. The bundle/unbundle/commit
+protocol itself is identical in both generations, so this deck is still useful as a base
+explanation, but <strong>for current verification results and the canonical model see
+<code>slides_layer2_LLfree.html</code></strong>.</p>
+<p style="margin-top:0.5em">Related decks: LLfree (Gen 3) / 3-level LLfree / dynamic LLfree / hard-link topologies (<code>slides_hardlink_en.html</code> — separate).</p>
+</div>
 
 <div class="box-purple">
 <p><strong>The most complex model.</strong> Integrated verification of 4-phase bundle, multi-level unbundle,
@@ -116,6 +103,30 @@ counted children already bundled by another thread as "done." Fixed by matching 
 <code>BundledRefWrapper(node, ser)</code> for the current thread. The C++ implementation
 runs CAS on every child without a "skip if already bundled" optimization, so it never
 exhibited this bug — it was a TLA+ model-only issue.</p>
+</div>
+</div>
+
+<!-- ===== Notation (moved below Overview / fidelity tiers) ===== -->
+<div class="slide">
+<h1>TLA+ Notation (See Layer 1)</h1>
+<div class="box">
+<p>For basic TLA+ notation, refer to the <strong>beginning of the Layer 1 slides</strong> (slides_layer1_en.html).<br>
+New notation introduced in these slides:</p>
+</div>
+<table>
+<tr><th>Notation</th><th>Meaning</th></tr>
+<tr><td><code>MakePacket(node, payload, sub, miss)</code></td><td>Record construction function. Returns <code>[payload |-> ..., sub |-> ..., missing |-> ..., node |-> ...]</code>.</td></tr>
+<tr><td><code>PriorityWrapper(packet, ser)</code></td><td>PacketWrapper record. <code>hasPriority=TRUE</code>.</td></tr>
+<tr><td><code>BundledRefWrapper(parentNode, ser)</code></td><td>Wrapper in bundled state. <code>hasPriority=FALSE, bundledBy=parentNode</code>.</td></tr>
+<tr><td><code>[n \in AllNodes |-> IF ... THEN ... ELSE ...]</code></td><td>Conditional function definition. Sets different initial values per node.</td></tr>
+<tr><td><code>r.field</code></td><td>Record field access. Examples: <code>w.hasPriority</code>, <code>w.packet.sub[c]</code></td></tr>
+<tr><td><code>% MaxSerial</code></td><td>Modular arithmetic. The serial wraps around at <code>MaxSerial</code>, making the state space structurally finite. This model does not use StateConstraint.</td></tr>
+<tr><td><code>ModGT(a, b)</code></td><td>Modular comparison. <code>LET diff == (a - b + MaxSerial) % MaxSerial IN diff > 0 /\ diff < MaxSerial \div 2</code>. Corresponds to signed difference comparison in C++.</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Characteristics of this model:</strong> The variable <code>local</code> has a nested record structure (<code>local[t].wrapper.packet.sub[c]</code>, etc.).
+This corresponds to nested structs in C++. In TLA+, nested fields are updated with <code>[local EXCEPT ![t].wrapper = w]</code>.</p>
 </div>
 </div>
 
@@ -308,23 +319,28 @@ another thread," adopt the new child packet, and retry the CAS. This reduces was
 <span class="op">GrandAlwaysPriority</span> ==
     linkage[Grand].hasPriority</code></pre>
 
-<h2>Verification Results (No StateConstraint, Modular Arithmetic)</h2>
+<h2>Verification Results (Gen 3 LLfree, CONSTRAINT-free exhaustion)</h2>
 <table>
-<tr><th>Model</th><th>Fidelity</th><th>Threads</th><th>MaxCommits</th><th>States</th><th>Time</th><th>Result</th></tr>
-<tr><td>2-level</td><td>coarse</td><td>2</td><td>1</td><td>906K</td><td>12s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
-<tr><td>2-level</td><td>coarse</td><td>2</td><td>5</td><td>~3.2M</td><td>—</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
-<tr><td>3-level</td><td>coarse</td><td>2</td><td>1</td><td>110K</td><td>3s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
-<tr><td>3-level</td><td>coarse</td><td>2</td><td>5</td><td>~8.5M</td><td>—</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
-<tr><td>3-level</td><td>all-fine</td><td>2</td><td>1</td><td>1.2M</td><td>22s</td><td style="color:#4ade80">✅ Pass (complete)</td></tr>
-<tr><td>2/3-level</td><td>fine/superfine (deep)</td><td>2–3</td><td>5</td><td>—</td><td>—</td><td style="color:#fbbf24">pending ohtaka</td></tr>
-<tr><td colspan="7" style="font-size:0.85em; color:#94a3b8;">Serial finitized via modular arithmetic; no StateConstraint used. Production configs: MaxSerial=512 (2-level) / 1024 (3-level).</td></tr>
+<tr><th>Model</th><th>Fidelity</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
+<tr><td>2-level LLfree</td><td>coarse</td><td>2</td><td>665,218</td><td>89</td><td>28s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-level LLfree</td><td>superfine</td><td>2</td><td>2,676,196</td><td>129</td><td>3:12</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>6:35</td><td style="color:#4ade80">✅ Pass (ohtaka)</td></tr>
+<tr><td>2-level LLfree</td><td>MaxCommits=2 superfine</td><td>2</td><td>127,586,599</td><td>311</td><td>4:40</td><td style="color:#4ade80">✅ Pass (ohtaka)</td></tr>
+<tr><td>2-level dynamic LLfree</td><td>release superfine live</td><td>2</td><td>413,884,516</td><td>320</td><td>7:13</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
+<tr><td>3-level LLfree</td><td>coarse</td><td>2</td><td>1,497,098</td><td>98</td><td>1:35</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-level LLfree</td><td>superfine</td><td>2</td><td>14,109,731</td><td>148</td><td>19:13</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>640,894,951</td><td>88</td><td>15:25</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
+<tr><td colspan="7" style="font-size:0.85em; color:#94a3b8;">Old Gen 1/2 (modular serial) numbers (906K, 3.2M, ...) have been removed from this table. The LLfree spec replaces modular wrapping with a priority-TID negotiate mechanism that makes the state space structurally finite and verifies liveness at the same time. Details: <code>VERIFICATION.md §3, §4</code>.</td></tr>
 </table>
 
 <div class="box-purple">
-<p><strong>What is covered:</strong> Across all 2-thread interleavings of
-snapshot/commit/bundle/unbundle, all 5 invariants are preserved. Coarse collapses phases
-into single steps (fastest); fine separates per-child CAS; superfine models the 5
-C++ optimization paths faithfully.</p>
+<p><strong>What is covered:</strong> Across all 2–3 thread interleavings of
+snapshot/commit/bundle/unbundle, all invariants are preserved — proven by TLC exhaustion.
+Coarse collapses phases into single steps (fastest); fine separates per-child CAS;
+superfine faithfully models the C++ optimization paths.
+Gen 3 (LLfree) replaces modular wrapping with the priority-TID mechanism, finitizing
+the state space <strong>structurally</strong> so that <strong>safety + liveness
+(<code>EventuallyAllDone</code>) are verified at the same time</strong>.</p>
 </div>
 
 <div class="box-green">
@@ -335,26 +351,52 @@ counted children already bundled by another thread as "done." Fixed by matching 
 runs CAS on every child without a "skip if already bundled" optimization, so it never
 exhibited the bug.)</p>
 </div>
+
+<h2>Phase 4 reachability gate (hard-link safeguard; no impact on this spec)</h2>
+<div class="box-orange">
+<p>Commits <code>87892b35</code> / <code>92b15f62</code> / <code>404fa137</code> / <code>b12e1895</code>
+added a <strong>reachability gate</strong> (<code>Packet::allSubReachable</code>) to bundle Phase 4:
+under <code>is_bundle_root=true</code>, before <code>m_missing</code> is cleared, every Null sub-slot
+must be <code>reverseLookup</code>-able from the global root, otherwise Phase 4 returns
+<code>BundledStatus::DISTURBED</code> and the outer <code>snapshot()</code> retries.</p>
+<p style="margin-top:0.4em"><strong>This 2-level / 3-level spec needs no update.</strong>
+In the standard non-hard-link topology, every child has exactly one parent, so any Null sub-slot
+encountered at Phase 4 is always <code>reverseLookup</code>-able. The existing
+<code>SnapshotConsistency</code> invariant — one of this spec's five — already captures the gate's
+precondition. The gate is only effectful in hard-link topologies, covered separately by the
+<strong>BundleUnbundle_hardlink_*</strong> family (see <code>slides_hardlink_en.html</code>).</p>
+</div>
 </div>
 
 <!-- ===== Slide 6: Summary ===== -->
 <div class="slide">
-<h1>Two-Layer Overview</h1>
+<h1>Two-Layer Overview (Current Status)</h1>
 
 <table>
-<tr><th>Layer</th><th>What It Abstracts</th><th>What It Verifies</th><th>States</th></tr>
-<tr><td style="color:#0891b2"><strong>Layer 1</strong><br><small>(atomic_shared_ptr)</small></td><td>— (hardware directly)</td><td>Reference counting, ABA, memory safety</td><td>8.7M (2thr complete)</td></tr>
-<tr><td style="color:#7c3aed"><strong>Layer 2</strong><br><small>(Bundle/Unbundle + Commit)</small></td><td>atomic_shared_ptr as correct CAS register</td><td>Bundle/Unbundle + optimistic commit, subtree consistency</td><td>906K–8.5M (coarse/fine complete; superfine pending)</td></tr>
+<tr><th>Layer</th><th>Spec</th><th>What It Verifies</th><th>States (largest confirmed)</th></tr>
+<tr><td style="color:#0891b2"><strong>Layer 1</strong></td><td><code>atomic_shared_ptr.tla</code><br>+ commit primitives</td><td>Tagged-pointer reference counting, drain release, <code>scoped_atomic_view</code>; safety only</td><td>66.5M (2-thread MaxOps=3 full)</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong> (LLfree)</td><td><code>BundleUnbundle_2level_LLfree</code><br><code>BundleUnbundle_3level_LLfree</code><br>+ <code>_dynamic</code> variants</td><td>4-phase bundle / unbundle / commit + LL-free priority gating; <strong>safety + liveness</strong></td><td>2L: 413M (dynamic release superfine)<br>3L: 640M (3-thread superfine confC)</td></tr>
+<tr><td style="color:#dc2626"><strong>Layer 2</strong> (hard-link)</td><td><code>BundleUnbundle_hardlink_*</code><br>(5 topologies)</td><td>Multi-parent / 1-child; Phase 4 reachability gate; bug repro + fix; per-action fairness</td><td>~1k–10k (small-scale, complete)</td></tr>
 </table>
 
 <div class="box">
 <p><strong>Why only 2 layers:</strong> The former "Layer 1 (stm_commit)" single-node CAS commit
-integrates naturally into Layer 2's <code>CommitTryCAS</code> direct path (single-node CAS commit),
-so a separate layer was redundant. Verifying bundle/unbundle together with optimistic commit
-in the same spec improves coverage of interference patterns.<br>
-Layer 1 is fully explored; Layer 2 coarse/all-fine are complete; superfine and deep fine
-runs are pending on ohtaka.</p>
+integrates naturally into Layer 2's <code>CommitTryCAS</code> direct path, so a separate layer
+was redundant. Verifying bundle/unbundle together with optimistic commit in the same spec
+improves coverage of interference patterns.</p>
+<p style="margin-top:0.4em"><strong>Why Gen 3 (LLfree):</strong> The old Gen 1 (modular serial) had no structural
+guarantee of livelock-freedom; Gen 2 (Nat + CONSTRAINT) relied on an artificial search cutoff.
+Gen 3 LLfree introduces <code>priorityTag</code> + <code>PreemptTag</code> + <code>ClearMyTags</code>
+to structure older-wins arbitration, letting TLC exhaust without CONSTRAINT and structurally
+prove liveness (details: <code>doc/proof_semantics.md</code>).</p>
 </div>
+
+<h2>Related Decks</h2>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><strong>Layer 2 LLfree (2-level)</strong> — <code>slides_layer2_LLfree.html</code> (Gen 3 LLfree core)</li>
+<li><strong>Hard-link family</strong> — <code>slides_hardlink_en.html</code> (5 topologies + Phase 4 reachability gate)</li>
+<li><strong>3-level / dynamic LLfree</strong> — <code>slides_layer2_LLfree_3level_en.html</code> / <code>slides_layer2_LLfree_dynamic_en.html</code></li>
+</ul>
 </div>
 
 <!-- ===== Slide 7: C++ ↔ TLA+ ↔ Generated C11 Correspondence Table ===== -->

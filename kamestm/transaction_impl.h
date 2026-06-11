@@ -1161,6 +1161,22 @@ Node<XN>::insert(const shared_ptr<XN> &var) {
         return insert(tr, var);
     });
 }
+//! Clears a Snapshot/Transaction's lookup memo on scope entry AND exit.
+//! Structural mutators (insert/release/swap on a Transaction) wrap their
+//! bodies with this: entry-clear kills a memo cached before the packet
+//! rebuild (a stale hit after release would silently address a detached
+//! packet), exit-clear kills any memo set by event callbacks
+//! (catchEvent/listChangeEvent may run tr[] mid-rebuild).  Cold path only.
+template <class XN>
+struct ScopedLookupMemoInvalidate {
+    explicit ScopedLookupMemoInvalidate(Snapshot<XN> &s) noexcept
+        : m_snap(s) { m_snap.m_lookup_memo.clear(); }
+    ~ScopedLookupMemoInvalidate() { m_snap.m_lookup_memo.clear(); }
+    ScopedLookupMemoInvalidate(const ScopedLookupMemoInvalidate &) = delete;
+private:
+    Snapshot<XN> &m_snap;
+};
+
 //=============================================================================
 // insert() — add a child node to the tree within a transaction
 //   (Comments by Claude Opus — based on source code analysis)
@@ -1175,6 +1191,7 @@ Node<XN>::insert(const shared_ptr<XN> &var) {
 template <class XN>
 bool
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion) {
+    ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
     packet->subpackets() = packet->size() ? std::make_shared<PacketList>( *packet->subpackets()) : std::make_shared<PacketList>();
     packet->subpackets()->m_serial = tr.m_serial;
@@ -1306,6 +1323,7 @@ Node<XN>::lookupFailure() const {
 template <class XN>
 bool
 Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
+    ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
     assert(packet->size());
     packet->subpackets().reset(new PacketList( *packet->subpackets()));
@@ -1433,6 +1451,7 @@ Node<XN>::swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
 template <class XN>
 bool
 Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
+    ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
     packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
     packet->subpackets()->m_serial = tr.m_serial;
@@ -1591,15 +1610,54 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
     return foundpacket;
 }
 
+// Builds an actionable diagnostic for a failed payload lookup and throws
+// NodeNotFoundError.  Runs only on the (cold) failure path, so the formatting
+// cost never touches the hot found-path.
+//
+// Caller file:line is deliberately NOT captured here: the user-facing entry
+// point is Transaction/Snapshot::operator[], and in C++17 operator[] must take
+// exactly one parameter ([over.sub]), so __builtin_FILE()/__builtin_LINE()
+// default arguments cannot be threaded through the subscript syntax.  Instead
+// we report the runtime identity that actually pinpoints the footgun: the
+// dynamic type of the unreachable node and of the snapshot/transaction root.
+// (e.g. "node<XComboNode> not reachable from root<XMeasure>" immediately shows
+// the node was created/inserted outside this transaction's scope.)
+//
+// Security: the raw pointers are emitted only in debug builds — under NDEBUG
+// they are suppressed to avoid leaking heap addresses (ASLR) into an exception
+// message that may surface in a user-visible dialog.  The type names come from
+// RTTI string literals already present in the binary, so they leak nothing new.
+template <class XN>
+[[noreturn]] inline void throwSTMLookupFailure_(const Node<XN> &node,
+    const Node<XN> &root, int64_t tr_serial) {
+    const char *ntype = typeid(node).name();
+    const char *rtype = typeid(root).name();
+    char buf[640];
+#ifdef NDEBUG
+    std::snprintf(buf, sizeof buf,
+        "STM lookup failed: payload for node<%s> is not reachable from the "
+        "snapshot/transaction rooted at <%s> (tr_serial=%lld). The node was "
+        "likely created or inserted outside this transaction's scope.",
+        ntype, rtype, (long long)tr_serial);
+#else
+    std::snprintf(buf, sizeof buf,
+        "STM lookup failed: payload for node<%s>@%p is not reachable from the "
+        "snapshot/transaction rooted at <%s>@%p (tr_serial=%lld). The node was "
+        "likely created or inserted outside this transaction's scope.",
+        ntype, (const void *)&node, rtype, (const void *)&root,
+        (long long)tr_serial);
+#endif
+    std::fprintf(stderr, "%s\n", buf);
+    throw typename Node<XN>::NodeNotFoundError(buf);
+}
+
 template <class XN>
 local_shared_ptr<typename Node<XN>::Packet>&
 Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
     bool copy_branch, int64_t tr_serial, bool set_missing) {
     local_shared_ptr<Packet> *foundpacket = reverseLookup(superpacket, copy_branch, tr_serial, set_missing, 0);
-    if( !foundpacket) {
-        fprintf(stderr, "Node not found during a lookup.\n");
-        throw NodeNotFoundError("Lookup failure.");
-    }
+    if( !foundpacket)
+        throwSTMLookupFailure_<XN>( *this, superpacket->node(), tr_serial);
     return *foundpacket;
 }
 
@@ -1608,10 +1666,8 @@ const local_shared_ptr<typename Node<XN>::Packet> &
 Node<XN>::reverseLookup(const local_shared_ptr<Packet> &superpacket) const {
     local_shared_ptr<Packet> *foundpacket = const_cast<Node*>(this)->reverseLookup(
         const_cast<local_shared_ptr<Packet> &>(superpacket), false, 0, false, 0);
-    if( !foundpacket) {
-        fprintf(stderr, "Node not found during a lookup.\n");
-        throw NodeNotFoundError("Lookup failure.");
-    }
+    if( !foundpacket)
+        throwSTMLookupFailure_<XN>( *this, superpacket->node(), 0);
     return *foundpacket;
 }
 
@@ -1987,6 +2043,10 @@ template <class XN>
 void
 Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal,
                    scoped_atomic_view<PacketWrapper> &&initial_view) const {
+    // All snapshot/refill paths funnel here (Snapshot ctor, Transaction
+    // ctor, operator++ retry): m_packet is about to be replaced, so any
+    // memoized lookup into the previous tree must go first.
+    snapshot.m_lookup_memo.clear();
     auto &started_time = snapshot.m_started_time;
     auto &tid_bitset = snapshot.m_tid_bitset;
     struct GuardSnapshotRetryCount {

@@ -266,26 +266,34 @@ node.iterate_commit([](Transaction<NodeA> &tr) {
 
 #### Lock-free atomic shared pointer
 
-The O(1) snapshot reads and CAS-based commits above require a shared pointer that is itself lock-free. `atomic_shared_ptr` (in `kamestm/atomic_smart_ptr.h`, introduced in January 2006 as part of the 2.0-beta3 rewrite) provides this. It is a custom implementation of what C++20 calls `std::atomic<shared_ptr>`.
+The O(1) snapshot reads and CAS-based commits above require a shared
+pointer that is itself lock-free.  `atomic_shared_ptr` (introduced in
+January 2006 as part of the 2.0-beta3 rewrite) provides this — a custom
+implementation of what C++20 calls `std::atomic<shared_ptr>`, built on
+tagged-pointer CAS with a small local reference counter packed into the
+pointer's low bits.  It lives in
+[`kamepoolalloc/atomic_smart_ptr.h`](kamepoolalloc/atomic_smart_ptr.h),
+the **single shared home** for the lock-free primitives that BOTH the STM
+and the pool allocator rely on.
 
-The core technique embeds a small **local reference counter** in the low bits of the pointer to the reference-control block — bits guaranteed zero by allocator alignment. `acquire_tag_ref_()` atomically increments this local counter via CAS to "pin" the pointer for reading; `release_tag_ref_()` decrements it. Between these two calls, even if another thread swaps the pointer, the object cannot be freed because the local count is non-zero. A separate **global reference counter** in the control block tracks long-lived ownership (copies held across scopes). Setters transfer any outstanding local count to the global counter before swapping, so `release_tag_ref_()` can fall back to decrementing the global counter if the pointer changed.
-
-For types that inherit `atomic_countable` (notably `Payload`), the global reference counter is stored inside the object itself (**intrusive counting**), eliminating a separate heap allocation per shared-pointer instance. Non-intrusive types get an external control block (`atomic_shared_ptr_gref_`).
-
-**Comparison with standard-library implementations (as of late 2024):**
-
-| Implementation | Technique | Lock-free? |
-|---|---|---|
-| libstdc++ (GCC) | Spinlock on internal table | No — vulnerable to priority inversion |
-| MSVC | Lock bit + `WaitOnAddress` | No — blocking under contention |
-| libc++ (Clang) | Not yet implemented | N/A |
-| KAME (2006–) | Tagged-pointer CAS | Yes — lock-free reads and writes |
-
-The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomic_thread_fence` (`atomic.h` / `atomic_mfence.h`). The earlier hand-written x86 / PowerPC / ARM assembly fences have been removed in favour of this portable C++17 path.
+Technique deep-dive (local + global refcount, intrusive
+`atomic_countable` path, comparison against the libstdc++ / MSVC / libc++
+`std::atomic<shared_ptr>` implementations) lives in
+[`kamestm/README.md` § Lock-free atomic shared pointer](kamestm/README.md#lock-free-atomic-shared-pointer)
+— single source of truth, shared with the standalone kamestm library
+release.
 
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
-**Collision backoff:** `Linkage::negotiate()` uses a `m_transaction_started_time` timestamp to impose a proportional wait on detected collisions, preventing live-lock under high write contention.
+**Collision negotiation:** when concurrent transactions repeatedly collide,
+`Linkage::negotiate()` elects a single *privileged* transaction (age-ordered
+preemption + priority bands; non-privileged contenders **park** until the
+privileged one commits), so the oldest/highest-priority Tx always makes
+progress. Proven livelock-free in TLA+. Full details + the comparison
+against other STMs (Haskell `TVar` / Clojure `Ref` / ScalaSTM, HTM TSX/RTM,
+TinySTM / NOrec) live in [`kamestm/README.md`](kamestm/README.md) — KAME's
+STM core is dual-licensed and maintained as a standalone library, with its
+own design doc to avoid duplicating it here.
 
 `iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
 
@@ -293,34 +301,13 @@ The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomi
 >
 > The hard-link case is now formally modelled in `kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla` (sibling-parents and root-with-intermediate self-collision); see `kamestm/tests/VERIFICATION.md` §5.
 
-#### Comparison with other STM designs
+#### Why STM in a measurement framework
 
-*The following comparison was written by Claude (Anthropic) based on analysis of the source code.*
-
-Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are **flat**: the unit of transaction is a set of independent transactional variables. KAME's STM is instead **tree-structured** — the entire instrument node tree is the shared state, and snapshots are always subtree-consistent. This difference drives several design choices:
-
-| Aspect | Flat STMs (Haskell, Clojure, ScalaSTM) | KAME STM |
-|---|---|---|
-| Conflict granularity | Per-variable | Per-packet (subtree root) |
-| Read model | `readTVar` / `deref` inside transaction | `Snapshot` (outside) or `tr[*node]` (inside) |
-| Consistency scope | Variables listed explicitly | Entire subtree, guaranteed by bundling |
-| Commit log | Redo log or write set | Copy-on-write + CAS on single `Linkage` |
-| Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
-| Blocking | `retry` suspends on read-set change | No blocking; backoff via timestamp |
-| Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
-| Hard real-time suitability | Limited (GC pauses) | Good (no GC, bounded CAS retries) |
-
-**Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to software backoff rather than falling back to a global lock.
-
-**Compared to TinySTM / NOrec (C libraries):** These use a global version clock and per-object version stamps with a full read/write log per transaction. KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction are truly zero-overhead. The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
-
-**What makes KAME's design distinctive** is the *bundling* protocol: rather than tracking which variables a transaction touched, it tracks whether the packet at the subtree root has been replaced since the transaction started. This is efficient for KAME's access pattern (many readers of a stable tree, infrequent writes from acquisition threads) but would be coarser than necessary for workloads with many independent fine-grained variables.
-
-**Why STM?** Laboratory software must acquire data on tight hardware timings while
-simultaneously updating a UI and running user scripts — all from different threads.
-Traditional mutex-based designs either serialize too aggressively (dropping samples)
-or require intricate lock ordering that is error-prone to extend. The STM approach
-offers three concrete benefits for this domain:
+Laboratory software must acquire data on tight hardware timings while
+simultaneously updating a UI and running user scripts — all from different
+threads. Traditional mutex-based designs either serialize too aggressively
+(dropping samples) or require intricate lock ordering that is error-prone
+to extend. The STM approach offers three concrete benefits for this domain:
 
 - **Deadlock-free by design.** No locks are held across hardware I/O or UI redraws.
   A slow UI thread can never stall a fast acquisition thread.
@@ -331,16 +318,21 @@ offers three concrete benefits for this domain:
   the same transaction API as C++ code, so user scripts cannot corrupt instrument
   state regardless of when they run.
 
+For *what makes KAME's STM distinctive* among STMs (tree-structured /
+per-packet conflict granularity / bundling instead of read-write logs),
+see the [comparison tables in `kamestm/README.md`](kamestm/README.md#comparison-with-other-stm-designs).
+
 #### Formal verification (TLA+)
 
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
-- **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](kamestm/tests/tlaplus/atomic_shared_ptr.tla))
-- **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](kamestm/tests/tlaplus/BundleUnbundle.tla))
+- **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](kamestm/tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](kamestm/tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Proven **safe + livelock-free** without `CONSTRAINT`, exhausted to >1.1 billion states on the ISSP ohtaka supercomputer.
+- **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate (`kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
-Slide decks: [Layer 1 — atomic_shared_ptr](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html)), [Layer 2 — Bundle/Unbundle + Commit](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
+**Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).
 
-C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`kamestm/tests/tlaplus/test_*.c`) and C++-derived protocol tests (`kamestm/tests/cds_atomic_shared_ptr/`).
+C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`kamestm/tests/tlaplus/test_*.c`) and C++-derived protocol tests (`kamestm/tests/cds_atomic_shared_ptr/`). Full results: [`kamestm/tests/VERIFICATION.md`](kamestm/tests/VERIFICATION.md).
 
 ---
 

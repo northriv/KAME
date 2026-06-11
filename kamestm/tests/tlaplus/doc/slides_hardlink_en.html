@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 2: Hard-link Verification</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+.box-red{background:#3b0000;border:1px solid #dc2626}
+.arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.2em;color:#fbbf24;margin:1em 0;line-height:1.6}
+.add{color:#34d399;font-weight:bold}
+.del{color:#f87171;text-decoration:line-through}
+p{line-height:1.7}
+</style>
+</head>
+<body>
+<a href="slides_overview_en.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ Overview</a>
+
+<!-- ============================================================ Slide 0 -->
+<div class="slide">
+<h1>Hard-link TLA+ Verification — Overview</h1>
+<h3>5 topologies + a non-atomic test pattern + per-action fairness</h3>
+
+<div class="box-purple">
+<p><strong>Background:</strong> "Hard-link" = a single child node referenced from <em>two distinct parents</em>.
+Previously called out informally in <code>CLAUDE.md</code> / <code>README.md</code> as a
+"<em>transactions may always fail and retry</em>" liveness caveat. Production reports of
+low-frequency <code>dyn_node</code> aborts ("30/30 abort on another env") prompted formal
+modelling of the protocol under hard-link topologies.</p>
+</div>
+
+<h2>The 5 topologies + non-atomic variant</h2>
+<table>
+<tr><th>Spec</th><th>Topology</th><th>Bug surface</th></tr>
+<tr><td><code>_hardlink_dynamic</code></td><td>Parent1 ‖ Parent2 → DynChild1 (sibling parents)</td><td>Migration race when one parent's bundle pulls the child from the other parent's <code>sub[]</code></td></tr>
+<tr><td><code>_hardlink_self_collision</code></td><td>R → A → C and R → C (root is also a direct parent)</td><td>bundle(R) walks both R → C and R → A → C; the <code>is_bundle_root</code> Phase 4 <code>m_missing=false</code> override interferes with the doubled path</td></tr>
+<tr><td><code>_hardlink_4node</code></td><td>Root → A, Root → B, A → C, B → C (C shared between A and B)</td><td>bundle(Root) Phase 4 reachability gating + outer <code>DISTURBED</code> retry; <strong>reproduces a production race</strong></td></tr>
+<tr><td><code>_hardlink_external</code></td><td>GN1 → P2 (hardlink), P1 → P2 (P2's packet lives in P1's tree)</td><td>bundle(GN1) finalises <code>GN1 ~missing</code> while <code>GN2.sub[P2] = Null</code> is unreachable from GN1 → SnapshotConsistency violation without the Phase 4 gate</td></tr>
+<tr><td><code>_hardlink_external_migration</code></td><td>As above, but the bundle migrates P2 from P1's tree into GN2</td><td>bundle(GN1) must atomically pull P2 out of P1's <code>sub[]</code> and into GN2's <code>sub[]</code> while a peer races on P1</td></tr>
+<tr><td><code>_hardlink_nonatomic</code></td><td>Non-transactional <code>p1-&gt;insert(p2)</code> / <code>release(p2)</code> interleaved with transactional ops</td><td>Finalising in a "limbo" state where <code>bundledBy = A</code> but A no longer references C. Compares master's chain walk vs b23fa954's self-promote</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Where this layer sits:</strong> Standard (non-hard-link) topology verification is completed by
+<code>slides_layer2_LLfree.html</code> + <code>slides_layer2_LLfree_3level_en.html</code> / <code>_dynamic_en.html</code>.
+<strong>Hard-link is a separate verification layer</strong> covered by this deck and the 6 specs.</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 1 -->
+<div class="slide">
+<h1>Self-collision (R-A-C) — bug repro + fix</h1>
+<h3><code>BundleUnbundle_hardlink_self_collision.tla</code></h3>
+
+<h2>Topology</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;R<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── A ── C&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b">(R → A → C)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;└── C&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b">(R → C is the hard-link; C is both R's direct child <em>and</em> A's child)</span>
+</div>
+
+<h2>Bug surface (reproduced from a real production trace)</h2>
+<div class="box-red">
+<p>① <code>bundle(R)</code> Phase 2 starts: R is missing=TRUE, sub-packets being collected<br>
+② Peer thread's <code>insert(R, C)</code> (hard-link registration) CAS overwrites R's wrapper with missing=FALSE<br>
+③ Bundling thread's Phase 4 CAS fails → retry<br>
+④ Phase 1 re-collects C via a now-stale <em><code>bundledBy=A</code> branch</em><br>
+⑤ Writes <code>R.sub[A].sub[C] = Null</code> → <strong>packet loss</strong><br>
+⑥ <code>SnapshotConsistency</code> violated (mirrors C++ <code>Packet::checkConsistensy</code> at
+   transaction_impl.h:870-871)</p>
+</div>
+
+<h2>Proposed fix (confirmed via TLA+)</h2>
+<pre><code><span class="comment">// bundle() Phase 3 — pseudo-diff</span>
+<span class="keyword">for</span> (child <span class="keyword">in</span> subnodes) {
+    <span class="keyword">if</span> (local.subpackets[child] == <span class="type">nullptr</span>) <span class="keyword">continue</span>;  <span class="comment">// ← NEW</span>
+    <span class="comment">// existing CAS to BundledRef(this)</span>
+}</code></pre>
+<p>Hard-link references (i.e. "<code>parent.sub[c] = Null</code> indicates the packet lives elsewhere")
+must <em>not</em> be CAS-tagged in Phase 3. After the fix, bundle completes without losing packets.</p>
+
+<div class="box-orange">
+<p><strong>Rejected alternative:</strong> Gating <code>insert(R, C)</code> on <code>~R.missing</code>
+(wait for in-flight bundle to clear) — breaks lock-freedom and risks deadlock at 3+ threads.
+The Phase 3 skip lives entirely inside the bundle protocol and needs no external coordination.</p>
+</div>
+
+<h2>Results</h2>
+<table>
+<tr><th>cfg</th><th>States</th><th>Result</th></tr>
+<tr><td>2-thread (before fix)</td><td>222</td><td style="color:#f87171">❌ FAIL — SnapshotConsistency violated</td></tr>
+<tr><td>2-thread (after Phase 3 skip-Null fix)</td><td>114</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-thread (after fix)</td><td>760</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ Slide 2 -->
+<div class="slide">
+<h1>4-node — production race reproduction</h1>
+<h3><code>BundleUnbundle_hardlink_4node.tla</code> (gold standard)</h3>
+
+<h2>Topology</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;Root<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── A ──┐<br>
+&nbsp;&nbsp;&nbsp;&nbsp;└── B ──┴── C&nbsp;&nbsp;<span style="color:#64748b">(C shared between A and B)</span>
+</div>
+
+<h2>Race pattern</h2>
+<table>
+<tr><th>Step</th><th>Action</th></tr>
+<tr><td>T1</td><td><code>bundle(Root)</code> Phase 4 attempts <code>m_missing=false</code> finalise</td></tr>
+<tr><td>T2.❶</td><td>Non-atomic release: writes <code>B.sub[C] = Null</code> (<code>ReleaseBCNoMigrate</code>)</td></tr>
+<tr><td>T2.❷</td><td><code>MigrateCToA</code>: transfers C's parent info to A; re-establishes <code>A.sub[C]</code></td></tr>
+</table>
+<p>If T2 pauses between ❶ and ❷ while Root's Phase 4 runs, C is
+<strong>unreachable from <em>either</em> parent's <code>sub[]</code></strong> (the production race).</p>
+
+<h2>Fix = C++ Phase 4 reachability gate</h2>
+<pre><code><span class="comment">// transaction_impl.h Phase 4 (commits 87892b35, 92b15f62, 404fa137, b12e1895)</span>
+newpacket-&gt;m_missing = <span class="type">false</span>;             <span class="comment">// clear FIRST (avoid mid-bundle short-circuit)</span>
+<span class="keyword">if</span> (! newpacket-&gt;allSubReachable(...)) {
+    newpacket-&gt;m_missing = <span class="type">true</span>;          <span class="comment">// restore</span>
+    <span class="keyword">return</span> BundledStatus::<span class="type">DISTURBED</span>;     <span class="comment">// outer snapshot() retries</span>
+}</code></pre>
+
+<h2>Results</h2>
+<table>
+<tr><th>cfg</th><th>States</th><th>Result</th></tr>
+<tr><td>2-thread (before fix)</td><td>97</td><td style="color:#f87171">❌ FAIL — SnapshotConsistency violated</td></tr>
+<tr><td>2-thread (Phase 4 gate + DISTURBED retry + <code>WF(MigrateCToA)</code>)</td><td>531</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>4-node state-space bounding policy:</strong>
+No retryCount, no CONSTRAINT, no MOD wrap-around. The <code>"in_release"</code> pc state
+binds the 2-step release into a single atomic-from-caller API call (mirrors the C++
+<code>release(B, C)</code> shape). All other variables have finite domains, so TLC
+exhausts naturally.</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 3 -->
+<div class="slide">
+<h1>External / External-migration — cross-tree races</h1>
+
+<h2>External (<code>_hardlink_external.tla</code>)</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;GN1 ── P2&nbsp;&nbsp;<span style="color:#64748b">(hardlink)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;P1 &nbsp;── P2&nbsp;&nbsp;<span style="color:#64748b">(P2's packet lives in P1's tree)</span>
+</div>
+<p>The moment <code>bundle(GN1)</code> finalises GN1 as <code>~missing</code>, the slot
+<code>GN2.sub[P2] = Null</code> is no longer <code>reverseLookup</code>-able from GN1
+→ <strong>SnapshotConsistency violation</strong>. The Phase 4 reachability gate directly prevents this.</p>
+<table>
+<tr><th>cfg</th><th>States</th><th>Result</th></tr>
+<tr><td>1-thread (with gate)</td><td>15</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread (with gate)</td><td>136</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+</table>
+
+<h2>External migration (<code>_hardlink_external_migration.tla</code>)</h2>
+<p>Same topology, but the bundle <strong>atomically migrates</strong> P2 from P1's tree into
+<code>GN2.sub[P2]</code>. Models every step of the bundle pipeline competing with a peer thread
+racing on P1.</p>
+<table>
+<tr><th>cfg</th><th>States</th><th>Result</th></tr>
+<tr><td>1-thread</td><td>8</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread</td><td>~hundreds</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-thread</td><td>1,202</td><td style="color:#4ade80">✅ Pass + liveness (per-action WF on every progress step)</td></tr>
+</table>
+
+<div class="box-orange">
+<p><strong>Why external migration needs per-action fairness:</strong>
+This spec attaches <code>WF_vars(...)</code> to each step of the bundle pipeline
+(BundlePhase1 → BundlePullP1 → BundleCASP2 → BundleUpdateGN1 → BundlePhase4 → BundlePhase5).
+See next slide.</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 4 -->
+<div class="slide">
+<h1>Per-action fairness — a first in the KAME corpus</h1>
+<h3><code>_hardlink_4node</code> / <code>_hardlink_external_migration</code></h3>
+
+<h2>Typical spec pattern</h2>
+<pre><code><span class="comment">\* 4-node:</span>
+<span class="op">Spec</span> == <span class="op">Init</span> /\ [][<span class="op">Next</span>]_vars
+        /\ WF_vars(<span class="op">NextStep</span>)
+        /\ \A t \in <span class="type">Threads</span> : <span class="add">WF_vars(MigrateCToA(t))</span>
+
+<span class="comment">\* external_migration: per-action WF on every progress step</span>
+<span class="op">Spec</span> == <span class="op">Init</span> /\ [][<span class="op">Next</span>]_vars
+        /\ WF_vars(<span class="op">NextStep</span>)
+        /\ \A t \in <span class="type">Threads</span> :
+            /\ <span class="add">WF_vars(BundlePhase1(t))</span>
+            /\ <span class="add">WF_vars(BundlePullP1(t))</span>
+            /\ <span class="add">WF_vars(BundleCASP2(t))</span>
+            /\ <span class="add">WF_vars(BundleUpdateGN1(t))</span>
+            /\ <span class="add">WF_vars(BundlePhase4(t))</span>
+            /\ <span class="add">WF_vars(BundlePhase5(t))</span></code></pre>
+
+<h2>Why blanket <code>WF_vars(NextStep)</code> is too weak</h2>
+<div class="box">
+<p>With the production-faithful retry semantics (Phase 4 reachability failure → return to
+<code>bundle_phase1</code>, matching the C++ <code>BundledStatus::DISTURBED</code> outer
+<code>snapshot()</code> retry loop), executions are admitted where the bundling thread retries
+arbitrarily many times. The retry terminates only after the peer's <code>MigrateCToA</code> fires.</p>
+<p style="margin-top:0.4em">WF on a disjunction only requires that "some enabled action fires." A trace that
+fires only <code>BundlePhase1/2/4</code> infinitely still satisfies the property, but this trace
+violates the production fairness assumption. <strong>Per-action WF</strong> forces
+<code>MigrateCToA</code> to fire as long as it stays continuously enabled.</p>
+</div>
+
+<h2>Doesn't "older-wins" subsume this fairness?</h2>
+<div class="box-purple">
+<p>LL-free <code>negotiate</code> arbitrates <strong>CAS contention on the same linkage</strong>.
+The race here spans <strong>three different linkages</strong> (T1: Root, T2.❶: B, T2.❷: A);
+T1 and T2 never CAS the same linkage, so older-wins has nothing to arbitrate.
+T2's progress depends on <strong>OS-level thread scheduling</strong>.
+In TLA+, <code>WF_vars(MigrateCToA)</code> abstracts that OS guarantee.</p>
+</div>
+
+<div class="box-green">
+<p><strong>Why the other hardlink specs don't need per-action WF:</strong>
+the race surface of <code>_hardlink_2level_LLfree</code>, <code>_3level_LLfree</code>,
+<code>_dynamic</code> variants, <code>atomic_shared_ptr.tla</code>, and the other hardlink specs
+sits on a <strong>single linkage chain</strong>, where LL-free priority gating structurally bounds
+retries and <code>WF_vars(NextStep)</code> suffices.</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 5 -->
+<div class="slide">
+<h1>Non-atomic test pattern</h1>
+<h3><code>BundleUnbundle_hardlink_nonatomic.tla</code></h3>
+
+<h2>Motivation</h2>
+<p>Decide whether the test pattern restored by remote branch
+<code>claude/refactor-negotiate-scoped-f7de2</code> commit <code>b23fa954</code> — non-Tx
+<code>p1-&gt;insert(p2)</code> / <code>release(p2)</code> interleaved with transactional ops —
+exposes a real liveness gap on master, or is merely a scheduler artefact.</p>
+
+<h2>Modeling</h2>
+<table>
+<tr><th>Step</th><th>Action</th></tr>
+<tr><td>❶ <code>NonTxInsertAC</code></td><td>Non-tx insert of A → C hard-link</td></tr>
+<tr><td>❷ <code>TxInsertHardlink</code></td><td>Transactional hard-link registration</td></tr>
+<tr><td>❸ <code>NonTxReleaseAC</code></td><td>Non-tx release of A → C. Leaves C in <strong>limbo</strong>: <code>bundledBy = A</code> but A no longer references C</td></tr>
+<tr><td>❹ <code>TxReleaseHardlink</code></td><td>Transactional hard-link release</td></tr>
+<tr><td>dtor</td><td>Destructor finalises A and C out of limbo</td></tr>
+</table>
+
+<h2>Two finalize variants (CONSTANT <code>UseFixVariant</code>)</h2>
+<table>
+<tr><th>Variant</th><th>Meaning</th></tr>
+<tr><td><code>FALSE</code> (master)</td><td>Bundle fall-through; walks <code>bundledBy</code> chain → requires scope on Root (heavily contended by peer Tx)</td></tr>
+<tr><td><code>TRUE</code> (b23fa954)</td><td>Direct self-promote CAS on C's linkage only — no chain walk, no Root contention</td></tr>
+</table>
+
+<h2>Results (all four configurations)</h2>
+<table>
+<tr><th>Spec / Variant</th><th>States</th><th>Result</th></tr>
+<tr><td><code>Spec</code> (per-action WF) + master</td><td>308</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td><code>Spec</code> + fix</td><td>308</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td><code>WeakSpec</code> (blanket WF) + master</td><td>308</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td><code>WeakSpec</code> + fix</td><td>308</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Conclusion:</strong> at this modeling abstraction both paths are theoretically live.
+The b23fa954 self-promote is a <strong>CAS-count optimization</strong> — it reduces the chain
+walk's <code>O(chain × retry)</code> CASes to <code>O(1)</code>, but the master fall-through
+is not livelocked in principle. The ~10% residual hang reported on the remote branch is
+consistent with real-OS scheduling artefacts (real schedulers do not strictly meet WF in
+finite time), not a logic gap.</p>
+<p style="margin-top:0.4em">The optimization is gated by <code>KAME_STM_OPTIONAL_OPTIMIZATION</code>
+(default 1 in <code>kame/transaction_definitions.h</code>). Build with
+<code>-DKAME_STM_OPTIONAL_OPTIMIZATION=0</code> to disable the self-promote shortcut and obtain
+a build that matches the strictly TLA+-modeled master path.</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 6 -->
+<div class="slide">
+<h1>Dynamic (sibling parents) + State-space policy</h1>
+<h3><code>BundleUnbundle_hardlink_dynamic.tla</code></h3>
+
+<h2>Topology</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;Parent1&nbsp;&nbsp;&nbsp;Parent2<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\&nbsp;&nbsp;&nbsp;/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DynChild1&nbsp;&nbsp;<span style="color:#64748b">(child has both parents)</span>
+</div>
+
+<h2>Coverage</h2>
+<p>The most <em>basic</em> hard-link structure: two sibling parents sharing one child.
+Exhausts the migration race where one parent's bundle should pull DynChild1 from the other
+parent's <code>sub[]</code> while a peer thread races.</p>
+
+<h2>Results</h2>
+<table>
+<tr><th>cfg</th><th>States</th><th>Result</th></tr>
+<tr><td>1-thread (MaxCommits=1)</td><td>7</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread (MaxCommits=1)</td><td>62</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread (MaxCommits=2)</td><td>703</td><td style="color:#4ade80">✅ Pass</td></tr>
+</table>
+
+<h2>State-space bounding policy (uniform across all hardlink specs)</h2>
+<div class="box">
+<p>Per user feedback (2026-05-20), all hardlink models follow a uniform policy:
+<strong>no retryCount, no CONSTRAINT, no MOD wrap-around</strong>. Artificial cutoffs can
+false-negative liveness verdicts. Every spec terminates naturally on bounded variable domains.</p>
+</div>
+
+<table>
+<tr><th>Model</th><th>Retry bound</th><th>Bounding mechanism</th></tr>
+<tr><td><code>_hardlink_4node</code></td><td><strong>removed</strong> (gold standard)</td><td><code>"in_release"</code> pc state binds the 2-step release into one atomic-from-caller call</td></tr>
+<tr><td><code>_hardlink_self_collision</code></td><td>removed</td><td>Finite by bounded domains</td></tr>
+<tr><td><code>_hardlink_external</code></td><td>removed</td><td>Finite by bounded domains</td></tr>
+<tr><td><code>_hardlink_external_migration</code></td><td>removed</td><td>Per-action WF on every progress step</td></tr>
+<tr><td><code>_hardlink_dynamic</code></td><td>never had one</td><td>Bounded domains + <code>MaxCommits=1</code></td></tr>
+</table>
+</div>
+
+<!-- ============================================================ Slide 7 -->
+<div class="slide">
+<h1>Shared invariants + impact on other models</h1>
+
+<h2>Verified invariants / property</h2>
+<table>
+<tr><th>Invariant / Property</th><th>Meaning</th></tr>
+<tr><td><code>SnapshotConsistency</code></td><td>Mirrors C++ <code>Packet::checkConsistensy</code> — a <code>Null</code> sub-slot is consistent only if reachable via <code>reverseLookup</code> (hard-link path)</td></tr>
+<tr><td><code>HardlinkExclusive</code></td><td>At most one parent's <code>sub[]</code> holds the child's packet (no duplicate homing)</td></tr>
+<tr><td><code>BundleRefConsistency</code></td><td>The <code>bundledBy</code> parent has priority and either holds the packet or the child wrapper carries an <code>InsertedRef</code></td></tr>
+<tr><td><code>NoPriorityLoss</code> / <code>NoMissingHole</code> / <code>MissingPropagation</code></td><td>Structural sanity</td></tr>
+<tr><td><code>EventuallyAllDone</code> (PROPERTY)</td><td>All threads eventually complete — uniform safety+liveness coverage across all hardlink cfgs as of 2026-05-20</td></tr>
+</table>
+
+<h2>C++-side commit history for the Phase 4 reachability gate</h2>
+<table>
+<tr><th>Commit</th><th>Content</th></tr>
+<tr><td><code>87892b35</code></td><td>Introduces reachability gate (<code>Packet::allSubReachable</code>)</td></tr>
+<tr><td><code>92b15f62</code></td><td>Also adds <code>checkConsistensy</code> handling; mid-bundle short-circuit handling</td></tr>
+<tr><td><code>404fa137</code></td><td>Order-of-operations: clear <code>m_missing</code> first</td></tr>
+<tr><td><code>b12e1895</code></td><td>Restores order-of-operations subtlety from the global-root parameter introduction</td></tr>
+<tr><td><code>1ffd8dce</code></td><td>Adds optional <code>globalroot</code> parameter to <code>allSubReachable</code> / <code>checkConsistensy</code> for hard-link Case B</td></tr>
+</table>
+
+<h2>Impact on non-hard-link models: <span style="color:#4ade80">none</span></h2>
+<div class="box-green">
+<p><strong>The 2-level / 3-level LL-free (static + dynamic) TLA+ models do not need updating.</strong>
+In non-hard-link topology each child has exactly one parent. When <code>bundle(P)</code> Phase 4
+encounters a Null sub-slot for an active child, <code>reverseLookup</code> always succeeds
+(it is structurally impossible for the packet to live outside P's subtree).<br>
+The existing <code>SnapshotConsistency</code> invariant
+(<code>2level_LLfree_dynamic.tla:1093-1096</code>, <code>3level_LLfree_dynamic.tla:1831-1835</code>)
+captures exactly the gate's precondition. The 413 M-state <code>dynamic release superfine live</code>
+run found no violations, so the C++ <code>else { return DISTURBED }</code> branch is
+provably unreachable in non-hard-link topologies.</p>
+</div>
+
+<h2>Effect on the C++ test suite</h2>
+<table>
+<tr><th>Test</th><th>Effect</th></tr>
+<tr><td><code>dyn_node_test</code> / <code>3level_mixed_test</code> / <code>payload_integrity_*</code></td><td>Every inserted child's packet lives in exactly one parent's <code>sub[]</code> — no Null sub-slot in steady state — so the fix is a no-op</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ Slide 8 -->
+<div class="slide">
+<h1>Summary + references</h1>
+
+<table>
+<tr><th>Spec</th><th>States</th><th>Result</th></tr>
+<tr><td><code>_hardlink_dynamic</code> (sibling parents, superfine)</td><td>7 / 62 / 703</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_self_collision</code> (R-A-C, after fix)</td><td>114 / 760</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_4node</code> (R+A+B+shared C, Phase 4 gate + DISTURBED retry)</td><td>531</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_external</code></td><td>15 / 136</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_external_migration</code> (3-thread, per-action WF)</td><td>1,202</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_nonatomic</code> (master/fix × Spec/WeakSpec)</td><td>308 (each of 4)</td><td>✅ Pass + liveness</td></tr>
+</table>
+
+<h2>Significance</h2>
+<div class="box-purple">
+<p>This layer achieves several KAME-corpus firsts:</p>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><strong>Production-race TLA+ reproduction + predictive fix</strong> (4-node) — the C++ fix (Phase 4 reachability gate) was verified in TLA+ <em>before</em> commit</li>
+<li><strong>First per-action fairness</strong> (4-node / external_migration) — abstracts OS-level thread scheduling on top of TLA+</li>
+<li><strong>Separating CAS-count optimization from liveness</strong> (non-atomic) — quantitatively distinguishes a logic gap from a scheduler artefact</li>
+<li><strong>Phase 4 gate is active only here</strong> — non-hard-link models stay verified, unchanged</li>
+</ul>
+</div>
+
+<h2>References</h2>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><code>kamestm/tests/VERIFICATION.md §5</code> — full results + per-cfg runs</li>
+<li><code>kamestm/tests/tlaplus/doc/verification_log.md</code> — run log</li>
+<li><code>kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla</code> — spec files (6 files)</li>
+<li><code>slides_layer2_LLfree.html</code> — base spec (LL-free Gen 3)</li>
+</ul>
+</div>
+
+</body>
+</html>

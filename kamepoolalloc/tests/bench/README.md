@@ -20,8 +20,19 @@ Targets produced (all under `bench/`):
 | Binary               | Workload              | Allocator route         |
 |----------------------|-----------------------|-------------------------|
 | `bench_loop`         | single-thread hot     | `malloc`/`free`         |
+| `bench_loop_pool`    | single-thread hot     | `kame_pool_malloc`/free |
 | `bench_xthread`      | producer/consumer x-T | `malloc`/`free`         |
 | `bench_xthread_pool` | producer/consumer x-T | `kame_pool_malloc`/free |
+
+`bench_loop_pool` is the single-thread analog of `bench_xthread_pool`: the
+same hot loop, but calling `kame_pool_malloc`/`kame_pool_free` directly.  It
+is the **Windows "kame" route** for `bench_compare.sh` — PE/COFF has no
+`LD_PRELOAD`, and llvm-mingw resolves the plain `malloc` statically (no IAT
+entry for the §31 redirect to patch), so on Windows `bench_compare.sh` runs
+`bench_loop_pool` for the kame column instead of preloading the DLL onto
+`bench_loop`.  On Linux/macOS the preload path is still used (so the kame
+column there measures malloc-override **+** pool; on Windows it measures the
+pool core only).
 
 `bench_loop` and `bench_xthread` route through `malloc/free`, so they pick
 up whatever allocator the dynamic linker resolves first.  Run with

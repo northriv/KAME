@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 2: Hard-link Verification 解説</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+.box-red{background:#3b0000;border:1px solid #dc2626}
+.arrow{color:#60a5fa;font-size:1.5em;text-align:center;margin:0.5em 0}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.2em;color:#fbbf24;margin:1em 0;line-height:1.6}
+.add{color:#34d399;font-weight:bold}
+.del{color:#f87171;text-decoration:line-through}
+p{line-height:1.7}
+</style>
+</head>
+<body>
+<a href="slides_overview.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ 俯瞰</a>
+
+<!-- ============================================================ Slide 0 -->
+<div class="slide">
+<h1>Hard-link 系 TLA+ 検証 — 概要</h1>
+<h3>5 つの topology + 非アトミックテストパターン + per-action fairness</h3>
+
+<div class="box-purple">
+<p><strong>背景:</strong> 「hard-link」=「1 つの子ノードが <em>2 つの異なる親</em>から参照される」topology。
+従来 <code>CLAUDE.md</code> / <code>README.md</code> では「<em>transactions may always fail and retry</em>」
+という活性 caveat として informal に言及されていた。本番環境からの低頻度
+<code>dyn_node abort</code> 報告 (「30/30 abort on another env」) を契機に
+プロトコルを形式モデル化した。</p>
+</div>
+
+<h2>5 つの topology + 非アトミック版</h2>
+<table>
+<tr><th>仕様</th><th>topology</th><th>バグサーフェス</th></tr>
+<tr><td><code>_hardlink_dynamic</code></td><td>Parent1 ‖ Parent2 → DynChild1 (sibling parents)</td><td>一方の親の bundle が他方の <code>sub[]</code> から子を pull する migration race</td></tr>
+<tr><td><code>_hardlink_self_collision</code></td><td>R → A → C と R → C (root が直接子の親も兼ねる)</td><td>bundle(R) が R→C と R→A→C の両経路を歩く。<code>is_bundle_root</code> Phase 4 の <code>m_missing=false</code> override と二重経路が干渉</td></tr>
+<tr><td><code>_hardlink_4node</code></td><td>Root → A, Root → B, A → C, B → C (C を A/B が共有)</td><td>bundle(Root) Phase 4 reachability gating + outer <code>DISTURBED</code> retry; <strong>本番 race の再現</strong></td></tr>
+<tr><td><code>_hardlink_external</code></td><td>GN1 → P2 (hardlink), P1 → P2 (P2 の packet は P1 の tree)</td><td>bundle(GN1) が <code>GN1 ~missing</code> を finalise する瞬間に GN2.sub[P2]=Null が GN1 から unreachable → SnapshotConsistency 違反 (Phase 4 gate なしの場合)</td></tr>
+<tr><td><code>_hardlink_external_migration</code></td><td>↑同じ、ただし bundle が P2 を P1 の tree から GN2 へ migrate する</td><td>bundle(GN1) が P2 を atomic に P1 の <code>sub[]</code> から抜いて GN2 の <code>sub[]</code> に挿入する間、ピアが P1 上で race</td></tr>
+<tr><td><code>_hardlink_nonatomic</code></td><td>非トランザクション <code>p1->insert(p2)</code> / <code>release(p2)</code> をトランザクション操作と交互に走らせる</td><td><code>bundledBy=A</code> 状態のまま A が C を参照しない「limbo」状態でのファイナライズ。master の chain walk vs b23fa954 self-promote 比較</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>本層の位置づけ:</strong> 通常 (non-hard-link) topology は
+<code>slides_layer2_LLfree.html</code> + <code>slides_layer2_LLfree_3level.html</code> / <code>_dynamic.html</code>
+で完結。<strong>hard-link は別個の verification layer</strong>として、本スライド + 上記 6 spec で扱う。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 1 -->
+<div class="slide">
+<h1>Self-collision (R-A-C) — bug repro + fix</h1>
+<h3><code>BundleUnbundle_hardlink_self_collision.tla</code></h3>
+
+<h2>Topology</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;R<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── A ── C&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b">(R → A → C)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;└── C&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b">(R → C は hard-link; C は R の直接子<em>と</em> A の子の両方)</span>
+</div>
+
+<h2>バグサーフェス (本番 trace からの再現)</h2>
+<div class="box-red">
+<p>① <code>bundle(R)</code> Phase 2 開始: R は missing=TRUE、子 sub-packet 収集中<br>
+② ピア thread の <code>insert(R, C)</code> (hard-link 登録) が R の wrapper を CAS で
+   missing=FALSE に上書き<br>
+③ bundling thread の Phase 4 CAS が失敗、リトライへ<br>
+④ Phase 1 で C を <em>stale bundledBy=A 経由</em> で再収集<br>
+⑤ <code>R.sub[A].sub[C] = Null</code> と書き込み → <strong>パケット消失</strong><br>
+⑥ <code>SnapshotConsistency</code> 違反 (C++ <code>Packet::checkConsistensy</code>
+   transaction_impl.h:870-871 に対応)</p>
+</div>
+
+<h2>提案される修正 (TLA+ で確認)</h2>
+<pre><code><span class="comment">// bundle() Phase 3 — pseudo-diff</span>
+<span class="keyword">for</span> (child <span class="keyword">in</span> subnodes) {
+    <span class="keyword">if</span> (local.subpackets[child] == <span class="type">nullptr</span>) <span class="keyword">continue</span>;  <span class="comment">// ← NEW</span>
+    <span class="comment">// existing CAS to BundledRef(this)</span>
+}</code></pre>
+<p>Hard-link 参照 (=「<code>parent.sub[c] = Null</code> は packet が他所にある印」) は
+Phase 3 で CAS-tag しない。修正後、bundle はパケットを消失させずに完了する。</p>
+
+<div class="box-orange">
+<p><strong>却下された代替案:</strong> <code>insert(R, C)</code> を <code>~R.missing</code> で gating
+(進行中 bundle が完了するまで待つ) する案 — lock-freedom が壊れ、3+ thread で deadlock リスク。
+Phase 3 skip は bundle protocol 内部だけで完結する。</p>
+</div>
+
+<h2>検証結果</h2>
+<table>
+<tr><th>cfg</th><th>States</th><th>結果</th></tr>
+<tr><td>2-thread (修正前)</td><td>222</td><td style="color:#f87171">❌ FAIL — SnapshotConsistency 違反</td></tr>
+<tr><td>2-thread (Phase 3 skip-Null 修正後)</td><td>114</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-thread (修正後)</td><td>760</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ Slide 2 -->
+<div class="slide">
+<h1>4-node — production race repro</h1>
+<h3><code>BundleUnbundle_hardlink_4node.tla</code> (gold standard)</h3>
+
+<h2>Topology</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;Root<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── A ──┐<br>
+&nbsp;&nbsp;&nbsp;&nbsp;└── B ──┴── C&nbsp;&nbsp;<span style="color:#64748b">(C を A と B が共有)</span>
+</div>
+
+<h2>race パターン</h2>
+<table>
+<tr><th>Step</th><th>動作</th></tr>
+<tr><td>T1</td><td><code>bundle(Root)</code> Phase 4 で <code>m_missing=false</code> finalise を試みる</td></tr>
+<tr><td>T2.❶</td><td>非アトミック release: <code>B.sub[C] = Null</code> に書く (<code>ReleaseBCNoMigrate</code>)</td></tr>
+<tr><td>T2.❷</td><td><code>MigrateCToA</code>: C の親情報を A に移し、<code>A.sub[C]</code> を再確立</td></tr>
+</table>
+<p>T2 が ❶ と ❷ の間で停止した瞬間、Root の Phase 4 が走ると C が
+<strong>どちらの親の <code>sub[]</code> にも届かない</strong>状態 (production race)。</p>
+
+<h2>修正 = C++ Phase 4 reachability gate</h2>
+<pre><code><span class="comment">// transaction_impl.h Phase 4 (commits 87892b35, 92b15f62, 404fa137, b12e1895)</span>
+newpacket-&gt;m_missing = <span class="type">false</span>;             <span class="comment">// 先にクリア (mid-bundle 短絡を回避)</span>
+<span class="keyword">if</span> (! newpacket-&gt;allSubReachable(...)) {
+    newpacket-&gt;m_missing = <span class="type">true</span>;          <span class="comment">// 戻す</span>
+    <span class="keyword">return</span> BundledStatus::<span class="type">DISTURBED</span>;     <span class="comment">// outer snapshot() retry</span>
+}</code></pre>
+
+<h2>検証結果</h2>
+<table>
+<tr><th>cfg</th><th>States</th><th>結果</th></tr>
+<tr><td>2-thread (修正前)</td><td>97</td><td style="color:#f87171">❌ FAIL — SnapshotConsistency 違反</td></tr>
+<tr><td>2-thread (Phase 4 gate + DISTURBED retry + <code>WF(MigrateCToA)</code>)</td><td>531</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>4-node の State-space bounding policy:</strong>
+retryCount や CONSTRAINT なし、MOD wrap なしで有限化。<code>"in_release"</code> pc state が
+2-step release を 1 つの atomic-from-caller API call に束ねる (C++ <code>release(B, C)</code>
+の API 構造に対応)。これによって他の変数の有限ドメインだけで TLC が exhaustion 完走できる。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 3 -->
+<div class="slide">
+<h1>External / External migration — cross-tree races</h1>
+
+<h2>External (<code>_hardlink_external.tla</code>)</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;GN1 ── P2&nbsp;&nbsp;<span style="color:#64748b">(hardlink)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;P1 &nbsp;── P2&nbsp;&nbsp;<span style="color:#64748b">(P2 の packet は P1 の tree 内に住む)</span>
+</div>
+<p><code>bundle(GN1)</code> が GN1 を <code>~missing</code> finalise する瞬間に
+<code>GN2.sub[P2] = Null</code> が GN1 から reverseLookup できない →
+<strong>SnapshotConsistency 違反</strong>。Phase 4 reachability gate が直接これを防ぐ。</p>
+<table>
+<tr><th>cfg</th><th>States</th><th>結果</th></tr>
+<tr><td>1-thread (gate あり)</td><td>15</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread (gate あり)</td><td>136</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+</table>
+
+<h2>External migration (<code>_hardlink_external_migration.tla</code>)</h2>
+<p>↑ 同じ topology だが、bundle が P2 を P1 の tree から <code>GN2.sub[P2]</code> に
+<strong>atomic に migrate</strong> する。bundle pipeline の各 step を peer thread が
+P1 上で race する状況を full モデル化。</p>
+<table>
+<tr><th>cfg</th><th>States</th><th>結果</th></tr>
+<tr><td>1-thread</td><td>8</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread</td><td>~hundreds</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-thread</td><td>1,202</td><td style="color:#4ade80">✅ Pass + liveness (per-action WF on every progress step)</td></tr>
+</table>
+
+<div class="box-orange">
+<p><strong>External migration が per-action fairness を必要とする理由:</strong>
+本 spec はバンドル pipeline (BundlePhase1 → BundlePullP1 → BundleCASP2 → BundleUpdateGN1 → BundlePhase4 → BundlePhase5)
+の各 step に <code>WF_vars(...)</code> を付ける。理由は次スライド。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 4 -->
+<div class="slide">
+<h1>Per-action fairness — KAME corpus 初導入</h1>
+<h3><code>_hardlink_4node</code> / <code>_hardlink_external_migration</code></h3>
+
+<h2>典型的な spec 書き方</h2>
+<pre><code><span class="comment">\* 4-node:</span>
+<span class="op">Spec</span> == <span class="op">Init</span> /\ [][<span class="op">Next</span>]_vars
+        /\ WF_vars(<span class="op">NextStep</span>)
+        /\ \A t \in <span class="type">Threads</span> : <span class="add">WF_vars(MigrateCToA(t))</span>
+
+<span class="comment">\* external_migration: あらゆる progress step に WF を付与</span>
+<span class="op">Spec</span> == <span class="op">Init</span> /\ [][<span class="op">Next</span>]_vars
+        /\ WF_vars(<span class="op">NextStep</span>)
+        /\ \A t \in <span class="type">Threads</span> :
+            /\ <span class="add">WF_vars(BundlePhase1(t))</span>
+            /\ <span class="add">WF_vars(BundlePullP1(t))</span>
+            /\ <span class="add">WF_vars(BundleCASP2(t))</span>
+            /\ <span class="add">WF_vars(BundleUpdateGN1(t))</span>
+            /\ <span class="add">WF_vars(BundlePhase4(t))</span>
+            /\ <span class="add">WF_vars(BundlePhase5(t))</span></code></pre>
+
+<h2>blanket <code>WF_vars(NextStep)</code> が弱すぎる理由</h2>
+<div class="box">
+<p>本番忠実な retry セマンティクス (Phase 4 reachability 失敗 → <code>bundle_phase1</code> に戻る、
+C++ の <code>BundledStatus::DISTURBED</code> 返し → outer <code>snapshot()</code> retry loop)
+の下で、bundling thread が任意回 retry し続ける execution が許容される。
+そのリトライは peer の <code>MigrateCToA</code> が発火しない限り終わらない。</p>
+<p style="margin-top:0.4em">disjunction 上の WF は「enabled なアクションのどれか」が永遠に無視されない
+ことしか保証しない。<code>BundlePhase1/2/4</code> ばかり無限に発火する trace でも条件を満たすが、
+これは production の fairness 仮定に反する。<strong>per-action WF</strong> なら
+<code>MigrateCToA</code> が継続的に enabled な限り必ず発火することを強制できる。</p>
+</div>
+
+<h2>"older-wins" がこの fairness を吸収しないのはなぜか</h2>
+<div class="box-purple">
+<p>LL-free <code>negotiate</code> は <strong>同じ linkage 上での CAS contention</strong>に対する arbitration。
+本 race は<strong>3 つの異なる linkage</strong> (T1: Root, T2.❶: B, T2.❷: A) にまたがるため、
+T1/T2 は同じ linkage を CAS しない → older-wins は arbitrate するものがない。
+T2 の進行は <strong>OS-level スレッドスケジューリング</strong>に依存する。
+TLA+ では <code>WF_vars(MigrateCToA)</code> がこの OS 保証を抽象化する。</p>
+</div>
+
+<div class="box-green">
+<p><strong>他の hardlink spec はなぜ per-action WF 不要か:</strong>
+<code>_hardlink_2level_LLfree</code>, <code>_3level_LLfree</code>, <code>_dynamic</code> 系,
+<code>atomic_shared_ptr.tla</code>, その他 hardlink spec の race surface は
+<strong>1 本の linkage chain 上</strong>にあり、LL-free priority gating が retry 数を
+構造的に bounded にする。<code>WF_vars(NextStep)</code> で十分。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 5 -->
+<div class="slide">
+<h1>非アトミックテストパターン</h1>
+<h3><code>BundleUnbundle_hardlink_nonatomic.tla</code></h3>
+
+<h2>動機</h2>
+<p>リモートブランチ <code>claude/refactor-negotiate-scoped-f7de2</code> commit <code>b23fa954</code> が
+復元したテストパターン — 非 Tx <code>p1-&gt;insert(p2)</code> / <code>release(p2)</code> を
+Tx 操作と交互に走らせる — が master で本物の活性ギャップを露呈しているのか、
+それともスケジューラアーティファクトか、を判定する。</p>
+
+<h2>モデル化</h2>
+<table>
+<tr><th>Step</th><th>動作</th></tr>
+<tr><td>❶ <code>NonTxInsertAC</code></td><td>非 Tx で A → C の hard-link を挿入</td></tr>
+<tr><td>❷ <code>TxInsertHardlink</code></td><td>Tx で hard-link を登録</td></tr>
+<tr><td>❸ <code>NonTxReleaseAC</code></td><td>非 Tx で A → C を release。C は <code>bundledBy = A</code> のまま A は C を参照しない (<strong>limbo</strong>)</td></tr>
+<tr><td>❹ <code>TxReleaseHardlink</code></td><td>Tx で hard-link 解放</td></tr>
+<tr><td>dtor</td><td>destructor が A と C を limbo から finalize</td></tr>
+</table>
+
+<h2>2 つの finalize variants (CONSTANT <code>UseFixVariant</code>)</h2>
+<table>
+<tr><th>variant</th><th>意味</th></tr>
+<tr><td><code>FALSE</code> (master)</td><td>bundle fall-through; <code>bundledBy</code> chain を walk → Root に scope が必要 (peer Tx と重競合)</td></tr>
+<tr><td><code>TRUE</code> (b23fa954)</td><td>C の linkage に直接 self-promote CAS — chain walk なし、Root contention なし</td></tr>
+</table>
+
+<h2>検証結果 (全 4 構成)</h2>
+<table>
+<tr><th>Spec / Variant</th><th>States</th><th>結果</th></tr>
+<tr><td><code>Spec</code> (per-action WF) + master</td><td>308</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td><code>Spec</code> + fix</td><td>308</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td><code>WeakSpec</code> (blanket WF) + master</td><td>308</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td><code>WeakSpec</code> + fix</td><td>308</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>結論:</strong> このモデル化抽象度の下では両 path とも理論的に活性。
+b23fa954 self-promote は <strong>CAS 数の最適化</strong>であって、master fall-through が
+原理的に livelocked というわけではない。リモートブランチで報告された ~10% 残留ハングは
+real-OS スケジューラのアーティファクト (real schedulers do not strictly meet WF in finite time)
+として整合的。</p>
+<p style="margin-top:0.4em">最適化は <code>KAME_STM_OPTIONAL_OPTIMIZATION</code>
+(<code>kame/transaction_definitions.h</code> でデフォルト 1) でゲート。
+<code>-DKAME_STM_OPTIONAL_OPTIMIZATION=0</code> で無効化すると、
+strictly TLA+-modelled master path に合致したビルドになる。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 6 -->
+<div class="slide">
+<h1>Dynamic (sibling parents) + 他の topology との関係</h1>
+<h3><code>BundleUnbundle_hardlink_dynamic.tla</code></h3>
+
+<h2>Topology</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;Parent1&nbsp;&nbsp;&nbsp;Parent2<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\&nbsp;&nbsp;&nbsp;/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DynChild1&nbsp;&nbsp;<span style="color:#64748b">(両方の親を持つ)</span>
+</div>
+
+<h2>カバー範囲</h2>
+<p>最も <em>基本的な</em> hard-link 構造: 兄弟の 2 親が同じ子を共有する。
+一方の親の bundle が他方の親の <code>sub[]</code> から DynChild1 を pull すべきタイミングで
+peer thread と race する migration race を網羅。</p>
+
+<h2>検証結果</h2>
+<table>
+<tr><th>cfg</th><th>States</th><th>結果</th></tr>
+<tr><td>1-thread (MaxCommits=1)</td><td>7</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread (MaxCommits=1)</td><td>62</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread (MaxCommits=2)</td><td>703</td><td style="color:#4ade80">✅ Pass</td></tr>
+</table>
+
+<h2>State-space bounding policy (全 hardlink 共通)</h2>
+<div class="box">
+<p>2026-05-20 のユーザフィードバック以降、全 hardlink モデル統一方針:
+<strong>retryCount なし、CONSTRAINT なし、MOD wrap-around なし</strong>。
+人為的な打ち切りは活性検査で false-negative を生じうるため。
+全 spec が bounded variable domain だけで TLC が自然に終了する。</p>
+</div>
+
+<table>
+<tr><th>Model</th><th>retry bound</th><th>bounding 機構</th></tr>
+<tr><td><code>_hardlink_4node</code></td><td><strong>削除</strong> (gold standard)</td><td><code>"in_release"</code> pc state で 2-step release を atomic-from-caller に束ねる</td></tr>
+<tr><td><code>_hardlink_self_collision</code></td><td>削除</td><td>変数ドメインが有限</td></tr>
+<tr><td><code>_hardlink_external</code></td><td>削除</td><td>変数ドメインが有限</td></tr>
+<tr><td><code>_hardlink_external_migration</code></td><td>削除</td><td>per-action WF on every progress step</td></tr>
+<tr><td><code>_hardlink_dynamic</code></td><td>初出から無し</td><td>変数ドメイン有限 + <code>MaxCommits=1</code></td></tr>
+</table>
+</div>
+
+<!-- ============================================================ Slide 7 -->
+<div class="slide">
+<h1>共通の不変条件 + Phase 4 gate と他モデルへの影響</h1>
+
+<h2>検証対象の不変条件 / property</h2>
+<table>
+<tr><th>Invariant / Property</th><th>意味</th></tr>
+<tr><td><code>SnapshotConsistency</code></td><td>C++ <code>Packet::checkConsistensy</code> に対応。<code>Null</code> sub-slot は <code>reverseLookup</code> で hard-link 経路を通じて到達可能でなければならない</td></tr>
+<tr><td><code>HardlinkExclusive</code></td><td>子の packet を <code>sub[]</code> に持つ親は同時に 1 つだけ (no duplicate homing)</td></tr>
+<tr><td><code>BundleRefConsistency</code></td><td>子の <code>bundledBy</code> 親は priority を持ち、packet か <code>InsertedRef</code> のいずれかを持つ</td></tr>
+<tr><td><code>NoPriorityLoss</code> / <code>NoMissingHole</code> / <code>MissingPropagation</code></td><td>構造的健全性</td></tr>
+<tr><td><code>EventuallyAllDone</code> (PROPERTY)</td><td>全 thread が eventually 完了 (2026-05-20 以降、全 hardlink cfg で safety+liveness uniform カバー)</td></tr>
+</table>
+
+<h2>Phase 4 reachability gate の C++ 側コミット履歴</h2>
+<table>
+<tr><th>Commit</th><th>内容</th></tr>
+<tr><td><code>87892b35</code></td><td>初回 reachability gate 導入 (<code>Packet::allSubReachable</code>)</td></tr>
+<tr><td><code>92b15f62</code></td><td><code>checkConsistensy</code> も対応; mid-bundle 短絡対応</td></tr>
+<tr><td><code>404fa137</code></td><td>呼び出し順序の見直し (<code>m_missing</code> を先にクリア)</td></tr>
+<tr><td><code>b12e1895</code></td><td>global root parameter 導入による order-of-operations 修正</td></tr>
+<tr><td><code>1ffd8dce</code></td><td><code>allSubReachable</code> / <code>checkConsistensy</code> に optional <code>globalroot</code> 引数; hard-link Case B 対応</td></tr>
+</table>
+
+<h2>non-hard-link モデルへの影響: <span style="color:#4ade80">なし</span></h2>
+<div class="box-green">
+<p><strong>2-level / 3-level LL-free (static + dynamic) の TLA+ モデルには更新不要。</strong>
+non-hard-link topology では子の親は常に 1 つ。<code>bundle(P)</code> Phase 4 で
+Null sub-slot が出現したら <code>reverseLookup</code> は必ず成功する
+(packet が P のサブツリー外に住むことが構造的に不可能)。<br>
+既存の <code>SnapshotConsistency</code> 不変条件
+(<code>2level_LLfree_dynamic.tla:1093-1096</code>, <code>3level_LLfree_dynamic.tla:1831-1835</code>) が
+gate の precondition そのものを表現しており、
+413M state の <code>dynamic release superfine live</code> 実行で違反 0 回。
+C++ 側の <code>else { return DISTURBED }</code> 分岐は non-hard-link で
+provably unreachable。</p>
+</div>
+
+<h2>C++ 側 implementation の影響</h2>
+<table>
+<tr><th>テスト</th><th>影響</th></tr>
+<tr><td><code>dyn_node_test</code> / <code>3level_mixed_test</code> / <code>payload_integrity_*</code></td><td>各 child packet は親 1 つの <code>sub[]</code> に住む。Null sub-slot が steady state で発生しない → fix は no-op</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ Slide 8 -->
+<div class="slide">
+<h1>まとめ + 参考資料</h1>
+
+<table>
+<tr><th>仕様</th><th>State数</th><th>結果</th></tr>
+<tr><td><code>_hardlink_dynamic</code> (sibling parents, superfine)</td><td>7 / 62 / 703</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_self_collision</code> (R-A-C, after fix)</td><td>114 / 760</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_4node</code> (R+A+B+shared C, Phase 4 gate + DISTURBED retry)</td><td>531</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_external</code></td><td>15 / 136</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_external_migration</code> (3-thread, per-action WF)</td><td>1,202</td><td>✅ Pass + liveness</td></tr>
+<tr><td><code>_hardlink_nonatomic</code> (master/fix × Spec/WeakSpec)</td><td>308 (各 4)</td><td>✅ Pass + liveness</td></tr>
+</table>
+
+<h2>意義</h2>
+<div class="box-purple">
+<p>本層は KAME の TLA+ 検証体系で初めて以下を達成:</p>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><strong>本番 race の TLA+ 再現と修正の予測</strong> (4-node) — C++ 修正 (Phase 4 reachability gate) を TLA+ で検証してから commit</li>
+<li><strong>per-action fairness の導入</strong> (4-node / external_migration) — OS スケジューリングを TLA+ 上で抽象化</li>
+<li><strong>CAS 数最適化 vs 活性の切り分け</strong> (non-atomic) — 残留ハングが logic gap か scheduler artefact かを定量的に判定</li>
+<li><strong>本層のみで Phase 4 gate が active</strong> — non-hard-link モデルは更新不要、既存 verify 結果のまま</li>
+</ul>
+</div>
+
+<h2>参考資料</h2>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><code>kamestm/tests/VERIFICATION.md §5</code> — full results + per-cfg runs</li>
+<li><code>kamestm/tests/tlaplus/doc/verification_log.md</code> — run log</li>
+<li><code>kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla</code> — spec 本体 (6 ファイル)</li>
+<li><code>slides_layer2_LLfree.html</code> — base spec の説明 (LL-free Gen 3)</li>
+</ul>
+</div>
+
+</body>
+</html>

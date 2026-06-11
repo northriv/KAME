@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAME STM Formal Verification — Coverage Overview</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2.1em;color:#60a5fa;margin-bottom:0.2em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.4em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+.box-red{background:#3b0000;border:1px solid #dc2626}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+p{line-height:1.7}
+a{color:#60a5fa}
+.stack{font-family:monospace;font-size:1.05em;line-height:1.7;color:#e2e8f0}
+.card{display:inline-block;width:calc(50% - 1.2em);vertical-align:top;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:1em 1.2em;margin:0.5em 0.4em;box-sizing:border-box}
+.card h3{margin-top:0}
+.card a{font-weight:bold;font-size:1.05em}
+.pill{display:inline-block;font-size:0.72em;padding:1px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.pill-l0{background:#0e7490;color:#fff}.pill-l1{background:#1d4ed8;color:#fff}.pill-l2{background:#7c3aed;color:#fff}.pill-hl{background:#dc2626;color:#fff}.pill-rt{background:#15803d;color:#fff}
+.big{font-size:1.4em;color:#fbbf24;font-weight:bold}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ Slide 0 -->
+<div class="slide">
+<h1>KAME STM — Formal Verification Coverage Overview</h1>
+<h3>A lock-free STM core verified end-to-end by three complementary methods</h3>
+
+<div class="box-purple">
+<p>KAME's lock-free software-transactional-memory core is verified by <strong>three complementary methods
+that together close the gap between an abstract protocol and the shipping binary</strong>.
+At the foundation, <strong>GenMC</strong> exhaustively model-checks the tagged-pointer
+<code>atomic_shared_ptr</code> reference-counting primitive under the C/C++ RC11 weak-memory model
+(18 programs, up to ~1.17M executions), proving every <code>memory_order</code> annotation safe
+against use-after-free, double-free, and leaks. Above it, <strong>TLA+/TLC</strong> exhaustively
+explores all thread interleavings: Layer 1 proves <code>atomic_shared_ptr</code> plus commit
+primitives memory-safe across tens of millions of states (66.5M at 2 threads) and deliberately
+shows the bare primitive is <em>NOT livelock-free</em>; Layer 2 proves the multi-phase
+bundle/unbundle STM protocol for 2- and 3-level trees, static and dynamic, both <strong>safe AND
+livelock-free</strong> via Lamport-clock priority arbitration, scaling past 1.1 billion states.
+A hard-link family of six topologies reproduces and fixes the real-world "30/30 abort"
+production race. Finally, <strong>seven C++ stress tests</strong> (~27M iterations, 4-8 threads)
+run the actual implementation on real hardware to catch compiler-, layout-, and timing-dependent
+bugs the abstract models cannot. <strong>The result: the protocol is mathematically guaranteed and
+the implementation is empirically hardened, with no daylight between them.</strong></p>
+</div>
+
+<h2>Three-method stack (bottom-up)</h2>
+<div class="box">
+<div class="stack">
+┌──────────────────────────────────────────────────────────────┐<br>
+│ <span class="type">C++ runtime stress</span>  — real hardware / probabilistic / 7 tests, ~27M iter │<br>
+├──────────────────────────────────────────────────────────────┤<br>
+│ <span style="color:#c084fc">TLA+ / TLC</span>  — all interleavings exhaustively / seq. consistency    │<br>
+│ &nbsp;&nbsp;Layer 2  bundle/unbundle STM (safety + livelock-free)            │<br>
+│ &nbsp;&nbsp;Layer 1  atomic_shared_ptr + commit (safety; LL-free = counter-ex) │<br>
+├──────────────────────────────────────────────────────────────┤<br>
+│ <span style="color:#22d3ee">GenMC (RC11)</span>  — weak-memory model exhaustively / atomic_shared_ptr  │<br>
+└──────────────────────────────────────────────────────────────┘<br>
+<span class="comment">Each layer's guarantee feeds the next (bottom-up).</span>
+</div>
+</div>
+
+<p style="color:#94a3b8;font-size:0.9em">This overview is a hub linking each layer's detail deck. Canonical data:
+<a href="../../VERIFICATION.md"><code>kamestm/tests/VERIFICATION.md</code></a> /
+<a href="verification_log.md"><code>doc/verification_log.md</code></a> /
+<a href="proof_semantics.md"><code>doc/proof_semantics.md</code></a>.</p>
+</div>
+
+<!-- ============================================================ Slide 1: master matrix -->
+<div class="slide">
+<h1>Coverage Matrix</h1>
+<h3>Every layer × target × tool × largest verified run × deck</h3>
+
+<table>
+<tr><th>Layer</th><th>Spec / test</th><th>Tool</th><th>What it verifies</th><th>Largest verified run</th><th>Result</th><th>Deck</th></tr>
+
+<tr>
+<td><span class="pill pill-l0">L0</span></td>
+<td><code>cds_test_*.c</code> (9)<br><code>tlaplus/test_*.c</code> (9)</td>
+<td>GenMC v0.17<br>(RC11)</td>
+<td>Tagged-pointer reference counting; <code>memory_order</code> safety under weak memory</td>
+<td>multi_cas: 464,164 complete + 705,296 blocked (~270s)</td>
+<td style="color:#4ade80">All Pass</td>
+<td>—（<a href="../../VERIFICATION.md">VERIFICATION.md §1</a>）</td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l1">L1</span></td>
+<td><code>atomic_shared_ptr.tla</code></td>
+<td>TLC</td>
+<td>atomic_shared_ptr + commit primitives (drain release, scoped_atomic_view); 10 safety invariants</td>
+<td>66,537,058 / depth 84 / 1h30m (2t full)</td>
+<td style="color:#4ade80">Pass<br><span style="color:#f87171">liveness intentionally FAIL</span></td>
+<td><a href="slides_layer1_en.html">slides_layer1_en.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l2">L2</span></td>
+<td><code>BundleUnbundle_2level_LLfree.tla</code></td>
+<td>TLC</td>
+<td>2-level bundle/unbundle + LL-free priority gating</td>
+<td>137,333,348 (3t confC live, 2:53)<br>127,586,599 (MaxCommits=2, 4:40)</td>
+<td style="color:#4ade80">Pass + liveness</td>
+<td><a href="slides_layer2_LLfree.html">slides_layer2_LLfree.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l2">L2</span></td>
+<td><code>BundleUnbundle_2level_LLfree_dynamic.tla</code></td>
+<td>TLC</td>
+<td>+ online insert/release</td>
+<td><span class="big">413,884,516</span> (release superfine live, 7:13)</td>
+<td style="color:#4ade80">Pass + liveness</td>
+<td><a href="slides_layer2_LLfree_dynamic_en.html">slides_layer2_LLfree_dynamic_en.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l2">L2</span></td>
+<td><code>BundleUnbundle_3level_LLfree.tla</code></td>
+<td>TLC</td>
+<td>3-level tree, recursive inner bundle, multi-level unbundle walk</td>
+<td><span class="big">1,154,807,632</span> (3t confC safety, 4:09)<br>640,894,951 (confC live, 15:25)</td>
+<td style="color:#4ade80">Pass (+ liveness on live cfg)</td>
+<td><a href="slides_layer2_LLfree_3level_en.html">slides_layer2_LLfree_3level_en.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l2">L2</span></td>
+<td><code>BundleUnbundle_3level_LLfree_dynamic.tla</code></td>
+<td>TLC</td>
+<td>3-level + online insert/release</td>
+<td>921,351,233 (release superfine, 3h24m, safety)<br>6.8M (coarse 2t live)</td>
+<td style="color:#4ade80">Pass</td>
+<td><a href="slides_layer2_LLfree_dynamic_en.html">slides_layer2_LLfree_dynamic_en.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-hl">HL</span></td>
+<td><code>BundleUnbundle_hardlink_*.tla</code> (6)</td>
+<td>TLC</td>
+<td>2-parent / 1-child hard-link topologies; Phase 4 reachability gate; per-action fairness</td>
+<td>self_collision FAIL→114; 4node FAIL→531; external_migration 3t 1,202</td>
+<td style="color:#4ade80">Pass + liveness<br>(after fix)</td>
+<td><a href="slides_hardlink_en.html">slides_hardlink_en.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-rt">RT</span></td>
+<td>7 C++ tests (<code>tests/</code>)</td>
+<td>C++ on HW</td>
+<td>High-contention stress on the implementation: lifecycle balance, snapshot consistency, empirical starvation-freedom</td>
+<td>negotiation 6t (2 slow + 4 fast × 5M); ~27M iter total</td>
+<td style="color:#4ade80">All Pass</td>
+<td>—（<a href="../../VERIFICATION.md">VERIFICATION.md §6</a>）</td>
+</tr>
+</table>
+
+<div class="box-orange">
+<p><strong>Largest-run highlight:</strong> the largest state space across all verification is
+<span class="big">1,154,807,632</span> states (3-level static confC, safety-only, ohtaka 4:09).
+The largest including safety+liveness is <strong>640,894,951</strong> (3-level confC live, 15:25).
+The largest dynamic-spec run is <strong>921,351,233</strong> (3L-dyn release superfine, 3h24m).
+All are CONSTRAINT-free full exhaustions.</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 2: deck directory -->
+<div class="slide">
+<h1>Deck Directory</h1>
+<h3>Detail slides per layer (click to navigate)</h3>
+
+<div class="card">
+<h3><span class="pill pill-l1">L1</span> Layer 1: atomic_shared_ptr</h3>
+<p><a href="slides_layer1_en.html">slides_layer1_en.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">Tagged-pointer reference counting, drain release, scoped_atomic_view RAII, 10 invariants, intentionally-violated liveness.</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-l2">L2</span> Layer 2: base spec (Gen 1/2)</h3>
+<p><a href="slides_layer2_en.html">slides_layer2_en.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">bundle/unbundle + commit base explanation. Pointers to Gen 3 LLfree. Historical modular-serial framing.</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-l2">L2</span> Layer 2 LLfree (Gen 3 core)</h3>
+<p><a href="slides_layer2_LLfree.html">slides_layer2_LLfree.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">priority-TID negotiate, CanProceed / TagAfterFail / PreemptTag / ClearMyTags, CONSTRAINT-free structural LL-free proof.</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-l2">L2</span> 3-level LLfree</h3>
+<p><a href="slides_layer2_LLfree_3level_en.html">slides_layer2_LLfree_3level_en.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">Grand→Parent→Child, recursive inner bundle (InnerPhase2/3/4), multi-level unbundle walk.</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-l2">L2</span> Dynamic LLfree</h3>
+<p><a href="slides_layer2_LLfree_dynamic_en.html">slides_layer2_LLfree_dynamic_en.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">online insert(online=true) / release, thread-role config, 413M-state verification.</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-hl">HL</span> Hard-link family</h3>
+<p><a href="slides_hardlink_en.html">slides_hardlink_en.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">5 topologies + non-atomic, production-race repro + fix, first per-action fairness, Phase 4 reachability gate.</p>
+</div>
+
+<div class="card" style="background:#0a1929">
+<h3><span class="pill pill-l0">L0</span> GenMC RC11 (no deck yet)</h3>
+<p><a href="../../VERIFICATION.md">VERIFICATION.md §1 →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">18 programs (cds_test_*.c 9 + test_*.c 9), reference-counting safety under weak memory. No slide deck yet (raw data only).</p>
+</div>
+
+<div class="card" style="background:#0a1929">
+<h3><span class="pill pill-rt">RT</span> Runtime stress (no deck yet)</h3>
+<p><a href="../../VERIFICATION.md">VERIFICATION.md §6 →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">7 C++ tests, real hardware / real binary. The bridge from proven protocol to hardened binary. No slide deck yet.</p>
+</div>
+
+<div class="box-green" style="margin-top:1em">
+<p><strong>Japanese decks:</strong> an identically structured Japanese set lives in <code>../doc_ja/</code>
+(<code>slides_layer1.html</code>, <code>slides_layer2.html</code>, <code>slides_layer2_LLfree.html</code>,
+<code>slides_layer2_LLfree_3level.html</code>, <code>slides_layer2_LLfree_dynamic.html</code>,
+<code>slides_hardlink.html</code>). Japanese overview: <code>../doc_ja/slides_overview.html</code>.</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 3: complementarity + appendix -->
+<div class="slide">
+<h1>Method complementarity + appendix</h1>
+
+<h2>Division of labor: formal methods × stress tests</h2>
+<table>
+<tr><th>Property</th><th>C++ stress</th><th>GenMC (L0)</th><th>TLA+ (L1/L2)</th></tr>
+<tr><td>Memory-ordering correctness</td><td>Probabilistic (timing)</td><td><strong>Exhaustive (RC11)</strong></td><td>N/A (seq. consistency)</td></tr>
+<tr><td>Protocol logic (refcount/drain/scope)</td><td>Probabilistic</td><td>Assertion-based</td><td><strong>Exhaustive (L1)</strong></td></tr>
+<tr><td>STM commit correctness</td><td><code>gn2 &le; gn3</code> invariant</td><td>N/A</td><td><strong>Exhaustive (L1+L2)</strong></td></tr>
+<tr><td>bundle/unbundle protocol</td><td>Implicit (via STM tests)</td><td>N/A</td><td><strong>Exhaustive (L2, up to 1.15B states)</strong></td></tr>
+<tr><td>livelock-freedom</td><td>Asymmetric stress</td><td>N/A</td><td><strong>Exhaustive (L2; L1 counter-example)</strong></td></tr>
+<tr><td>fairness / starvation</td><td><code>transaction_negotiation_test</code></td><td>N/A</td><td>Modeled via per-action WF in hard-link</td></tr>
+<tr><td>Real compiler/hardware bugs</td><td><strong>Yes (actual binary)</strong></td><td>No (abstract)</td><td>No (abstract)</td></tr>
+</table>
+<p style="color:#94a3b8;font-size:0.88em">Note: the §6 complementarity table cites a stale "622M states"; the current largest is 1,154,807,632 (3L static confC).</p>
+
+<h2>Appendix: superseded specs (footnote for full coverage)</h2>
+<div class="box">
+<table>
+<tr><th>Spec</th><th>Status</th></tr>
+<tr><td><code>BundleUnbundle.tla</code> (3-level)<br><code>BundleUnbundle_2level.tla</code></td><td>Gen 1/2 non-LL-free versions, superseded by LLfree (Gen 3). Rely on modular serial / CONSTRAINT. Pass, but kept as baselines.</td></tr>
+<tr><td><code>MC.tla</code> / <code>MC_2level.tla</code> / <code>MC_3level.tla</code></td><td>Old-style model-checker config modules; now use <code>*_mc.cfg</code> directly.</td></tr>
+<tr><td><code>test_stm_commit.c</code> / <code>test_bundle_2level.c</code> / <code>test_bundle_3level.c</code></td><td>Non-LL-free TLA+-derived C11 tests (legacy), superseded by the LLfree variants.</td></tr>
+</table>
+</div>
+
+<h2>References (paper-ready)</h2>
+<ul style="margin:0.3em 0 0 1.2em;font-size:0.9em">
+<li><strong>GenMC:</strong> Kokologiannakis, Raad, Vafeiadis. "Model Checking for Weakly Consistent Libraries." PLDI 2019.</li>
+<li><strong>RC11:</strong> Lahav, Vafeiadis, Kang, Hur, Dreyer. "Repairing Sequential Consistency in C/C++11." PLDI 2017.</li>
+<li><strong>TLA+ / TLC:</strong> Lamport. "Specifying Systems." Addison-Wesley, 2002. / Yu, Manolios, Lamport. CHARME 1999.</li>
+</ul>
+</div>
+
+</body>
+</html>

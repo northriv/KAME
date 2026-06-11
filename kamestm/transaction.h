@@ -1401,6 +1401,7 @@ T *Node<XN>::create(Args&&... args) {
 template <class XN>
 class DECLSPEC_KAME Snapshot {
     template <class> friend class ScopedNegotiateLinkage;
+    template <class> friend struct ScopedLookupMemoInvalidate;
 public:
     // Defaulted copy/move handle all members including the C-array
     // m_tid_bitset (implicit memcpy). Transaction<XN>-accepting ctors
@@ -1415,6 +1416,10 @@ public:
         // then redirect m_packet to the node-local view. m_serial /
         // m_started_time / m_tid_bitset stay identical to x.
         m_packet = node.reverseLookup(x.m_packet);
+        // The inherited memo may name a node outside the projected
+        // subtree; a hit would mask the NodeNotFoundError that at()
+        // must raise for such nodes.  Drop it.
+        m_lookup_memo.clear();
     }
     explicit Snapshot(const Transaction<XN>&x) noexcept
         : Snapshot(static_cast<const Snapshot&>(x)) {}
@@ -1446,7 +1451,15 @@ public:
     //! may raise NodeNotFoundError;
     template <class T>
     const typename T::Payload &at(const T &node) const {
+        // Memo hit: revalidate the pair via the packet's back-pointer —
+        // see the LookupMemo doc-block for validity and tear-safety.
+        typename Node<XN>::Packet *cp =
+            m_lookup_memo.packet.load(std::memory_order_relaxed);
+        if((m_lookup_memo.node.load(std::memory_order_relaxed) == &node)
+                && cp && ( &cp->node() == &node)) [[likely]]
+            return *static_cast<const typename T::Payload*>(cp->payload().get());
         const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
+        m_lookup_memo.set( &node, packet.get());
         const local_shared_ptr<typename Node<XN>::Payload> &payload(packet->payload());
         return *static_cast<const typename T::Payload*>(payload.get());
     }
@@ -1469,7 +1482,35 @@ public:
             return shared_ptr<typename Node<XN>::NodeList>();
         return packet->subnodes();
     }
-    //! Whether \a lower is a child of this or not.
+    //! True iff this Snapshot directly contains the node \a lower as a child
+    //! of its target (i.e. \a lower appears in the target's `NodeList`).
+    //!
+    //! **The recommended O(1) containment predicate** for "is this node in
+    //! the snapshot's coverage?" — use it INSTEAD OF
+    //! `try { shot.at(\a lower); } catch(NodeNotFoundError&) {}`.  The
+    //! try/catch idiom (1) does an exception-driven walk for a fast-path
+    //! question, and (2) an inner catch silently masks any
+    //! `NodeNotFoundError` an outer catch block was meant to handle —
+    //! a real bug source in nested transaction handlers.
+    //!
+    //! Typical use sites (Talker / Listener / onVisualization callbacks
+    //! whose Snapshot may not contain a transiently-removed node, or list
+    //! teardown races where `list->release(node)` must be skipped after
+    //! the list already cleared it at shutdown):
+    //! @code
+    //!     // Skip nodes the firing snapshot no longer covers.
+    //!     if(!shot.isUpperOf(*node)) return;
+    //!     ... use shot[*node] safely ...
+    //!
+    //!     // Avoid double-release at shutdown.
+    //!     Snapshot shot(*list);
+    //!     if(shot.isUpperOf(*node)) list->release(node);
+    //! @endcode
+    //!
+    //! Note: this is a DIRECT-child check on the snapshot's target, not a
+    //! recursive subtree search; the typical pattern takes the snapshot on
+    //! the EXPECTED PARENT list / driver and then queries.  For deeper
+    //! coverage, take the snapshot at the appropriate ancestor.
     bool isUpperOf(const XN &lower) const noexcept {
         const shared_ptr<const typename Node<XN>::NodeList> lx(list());
         if( !lx)
@@ -1727,6 +1768,48 @@ public:
 
 protected:
     friend class Node<XN>;
+    //! 1-entry memoization of the last successful payload lookup, shared by
+    //! Snapshot::at() and Transaction::operator[].  Skips the per-access
+    //! reverseLookup hint walk (one tag-ref RMW on a *live* Linkage per
+    //! ancestry level — cross-core traffic on cache lines writers contend
+    //! on, degrading to an O(tree) forwardLookup scan once the live tree
+    //! has moved past this snapshot).
+    //!
+    //! Validity: a node found in this snapshot is owned by the snapshot's
+    //! packet tree (NodeList holds shared_ptr), so a cached {node, packet}
+    //! pair can neither dangle nor suffer address reuse while the snapshot
+    //! lives.  For a Transaction, structural mutators (insert/release/swap)
+    //! invalidate via ScopedLookupMemoInvalidate, and the snapshot-refill
+    //! entry (Node::snapshot) clears before replacing m_packet.
+    //!
+    //! Tear-safety: one Snapshot instance may be read from two threads at
+    //! once (e.g. a Talker message processed by a direct listener while a
+    //! main-thread-deferred listener holds the same object).  The two
+    //! fields are relaxed atomics; a torn pair (node from one at() call,
+    //! packet from another) is rejected by the &packet->node() == &node
+    //! revalidation on the hit path, degrading to a plain miss.
+    struct LookupMemo {
+        std::atomic<const Node<XN>*> node{nullptr};
+        std::atomic<typename Node<XN>::Packet*> packet{nullptr};
+        LookupMemo() noexcept = default;
+        //! Copy carries the memo over — the copy shares m_packet's tree.
+        LookupMemo(const LookupMemo &x) noexcept
+            : node(x.node.load(std::memory_order_relaxed)),
+              packet(x.packet.load(std::memory_order_relaxed)) {}
+        LookupMemo &operator=(const LookupMemo &x) noexcept {
+            packet.store(x.packet.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            node.store(x.node.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            return *this;
+        }
+        void clear() noexcept { node.store(nullptr, std::memory_order_relaxed); }
+        //! \a p stored before \a n so a racing reader matching on \a n
+        //! likely sees the paired packet; mismatches fail revalidation.
+        void set(const Node<XN> *n, typename Node<XN>::Packet *p) noexcept {
+            packet.store(p, std::memory_order_relaxed);
+            node.store(n, std::memory_order_relaxed);
+        }
+    };
+    mutable LookupMemo m_lookup_memo;
     //! The snapshot.
     local_shared_ptr<typename Node<XN>::Packet> m_packet;
     int64_t m_serial;
@@ -1907,15 +1990,25 @@ public:
     template <class T>
     typename T::Payload &operator[](T &node) {
         assert(isMultiNodal() || ( &node == &this->m_packet->node()));
-        auto &payload(
-            node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
-        if(payload->m_serial != this->m_serial) {
-            payload = payload->clone( *this, this->m_serial);
-            auto &p( *static_cast<typename T::Payload *>(payload.get()));
-            return p;
+        // Memo hit: only when the payload was already cloned for THIS
+        // transaction (serial match) — a serial mismatch means the
+        // copy-on-write below must run.  Validity/tear notes on
+        // Snapshot::LookupMemo.  Transactions are single-threaded, so
+        // unlike at() there is no concurrent-reader subtlety here.
+        typename Node<XN>::Packet *cp =
+            this->m_lookup_memo.packet.load(std::memory_order_relaxed);
+        if((this->m_lookup_memo.node.load(std::memory_order_relaxed) == &node)
+                && cp && ( &cp->node() == &node)) {
+            auto &payload(cp->payload());
+            if(payload->m_serial == this->m_serial) [[likely]]
+                return *static_cast<typename T::Payload *>(payload.get());
         }
-        auto &p( *static_cast<typename T::Payload *>(payload.get()));
-        return p;
+        auto &packet(node.reverseLookup(this->m_packet, true, this->m_serial));
+        auto &payload(packet->payload());
+        if(payload->m_serial != this->m_serial)
+            payload = payload->clone( *this, this->m_serial);
+        this->m_lookup_memo.set( &node, packet.get());
+        return *static_cast<typename T::Payload *>(payload.get());
     }
     bool isMultiNodal() const noexcept {return m_multi_nodal;}
 

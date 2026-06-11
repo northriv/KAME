@@ -238,6 +238,21 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
     if(state == SelectionState::SelFinish) {
         if(tool_desc.empty() && (abs(x - m_selStartPos[0]) < 3) && (abs(y - m_selStartPos[1]) < 3)) {
             //mouse movement was nearly zero.
+            //macOS trackpad "two-finger click" as right-click synthesises an
+            //extra press+release pair on finger-lift; that pair has movement<3
+            //and would otherwise re-enable autoscale, undoing the just-applied
+            //drag-zoom. Skip if this SelFinish is suspiciously close in time
+            //and position to the previous drag-zoom SelFinish.
+            if(m_lastDragZoomFinishTime.isSet()
+                && (XTime::now() - m_lastDragZoomFinishTime < 0.2)
+                && (abs(x - m_lastDragZoomFinishPos[0]) < 5)
+                && (abs(y - m_lastDragZoomFinishPos[1]) < 5)) {
+                if((state !=SelectionState::Selecting) && (state != SelectionState::SelStart))
+                    requestRepaint();
+                else
+                    m_pItem->update();
+                return ret;
+            }
 			switch(mode) {
             case SelectionMode::SelPlane:
 				break;
@@ -288,6 +303,7 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 			}
 	    }
 	    else {
+            bool applied_zoom = false;
             m_graph->iterate_commit([&](Transaction &tr){
 				switch(mode) {
                 case SelectionMode::SelPlane:
@@ -314,7 +330,7 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 							tr[ *m_foundPlaneAxis2->maxValue()] = double(max(src2, dst2));
 						if(tr[ *m_foundPlaneAxis2->autoScale()].isUIEnabled())
 							tr[ *m_foundPlaneAxis2->autoScale()] = false;
-
+                        applied_zoom = true;
 					}
 					break;
                 case SelectionMode::SelAxis:
@@ -333,12 +349,18 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 							tr[ *m_foundAxis->maxValue()] = _max;
 						if(tr[ *m_foundAxis->autoScale()].isUIEnabled())
 							tr[ *m_foundAxis->autoScale()] = false;
+                        applied_zoom = true;
 					}
 					break;
 				default:
 					break;
                 }
             });
+            if(applied_zoom) {
+                m_lastDragZoomFinishTime = XTime::now();
+                m_lastDragZoomFinishPos[0] = x;
+                m_lastDragZoomFinishPos[1] = y;
+            }
         }
 	}
     if((state !=SelectionState::Selecting) && (state != SelectionState::SelStart))

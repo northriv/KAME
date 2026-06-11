@@ -18,6 +18,7 @@ SUBDIRS += \
     transaction_payload_integrity_3level_test\
     transaction_payload_integrity_mixed_test\
     transaction_payload_integrity_3level_mixed_test\
+    transaction_lookup_memo_test\
     alloc_stress_test\
     malloc_intercept_test\
     xnode_typename_test
@@ -34,6 +35,7 @@ transaction_payload_integrity_test.file           = ../kamestm/tests/transaction
 transaction_payload_integrity_3level_test.file    = ../kamestm/tests/transaction_payload_integrity_3level_test.pro
 transaction_payload_integrity_mixed_test.file     = ../kamestm/tests/transaction_payload_integrity_mixed_test.pro
 transaction_payload_integrity_3level_mixed_test.file = ../kamestm/tests/transaction_payload_integrity_3level_mixed_test.pro
+transaction_lookup_memo_test.file                 = ../kamestm/tests/transaction_lookup_memo_test.pro
 
 # kamepoolalloc tests (../kamepoolalloc/tests/*.pro)
 alloc_stress_test.file = ../kamepoolalloc/tests/alloc_stress_test.pro

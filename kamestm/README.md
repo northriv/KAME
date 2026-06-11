@@ -21,13 +21,16 @@ Windows MinGW64 + lld, and Windows MSVC.
 
 ## What's in here
 
-The library covers Layer 0 (atomic primitives) and Layer 1 (snapshot
-+ transaction commit) of the KAME STM design:
+The library provides **Layer 1** (snapshot + transaction commit) of the KAME
+STM design.  It builds on the **Layer 0 atomic primitives — `atomic.h`,
+`atomic_mfence.h`, and `atomic_smart_ptr.h` (the tagged-pointer lock-free
+`atomic_shared_ptr` / `local_shared_ptr` that is the engine under every
+Snapshot) — which live in [`kamepoolalloc/`](../kamepoolalloc)**, their single
+shared home (shared with the pool allocator), and are included header-only here
+(no `libkamepoolalloc` link; see [Dependencies](#dependencies)).
 
 | Header | Role |
 |---|---|
-| `atomic.h`, `atomic_mfence.h` | Portable barriers + CAS over `std::atomic` / `std::atomic_thread_fence` |
-| `atomic_smart_ptr.h` | Tagged-pointer lock-free `local_shared_ptr<T>` (the engine under every Snapshot) |
 | `atomic_queue.h` | Lock-free MPMC queue |
 | `xthread.h` + `xthread.cpp` | `XMutex` / `XCondition` / `XRecursiveMutex` wrappers around `std::mutex` |
 | `threadlocal.h` + `threadlocal.cpp` | `XThreadLocal<T, Tag>` with deterministic per-thread teardown |
@@ -77,7 +80,7 @@ node.iterate_commit([](Transaction<NodeA> &tr) {
 
 ## Lock-free atomic shared pointer
 
-The O(1) snapshot reads and CAS-based commits above require a shared pointer that is itself lock-free. `atomic_shared_ptr` (in `atomic_smart_ptr.h`, introduced in January 2006 as part of the 2.0-beta3 rewrite) provides this. It is a custom implementation of what C++20 calls `std::atomic<shared_ptr>`.
+The O(1) snapshot reads and CAS-based commits above require a shared pointer that is itself lock-free. `atomic_shared_ptr` (in `kamepoolalloc/atomic_smart_ptr.h`, introduced in January 2006 as part of the 2.0-beta3 rewrite) provides this. It is a custom implementation of what C++20 calls `std::atomic<shared_ptr>`.
 
 The core technique embeds a small **local reference counter** in the low bits of the pointer to the reference-control block — bits guaranteed zero by allocator alignment. `acquire_tag_ref_()` atomically increments this local counter via CAS to "pin" the pointer for reading; `release_tag_ref_()` decrements it. Between these two calls, even if another thread swaps the pointer, the object cannot be freed because the local count is non-zero. A separate **global reference counter** in the control block tracks long-lived ownership (copies held across scopes). Setters transfer any outstanding local count to the global counter before swapping, so `release_tag_ref_()` can fall back to decrementing the global counter if the pointer changed.
 
@@ -92,11 +95,29 @@ For types that inherit `atomic_countable` (notably `Payload`), the global refere
 | libc++ (Clang) | Not yet implemented | N/A |
 | KAME (2006–) | Tagged-pointer CAS | Yes — lock-free reads and writes |
 
-The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomic_thread_fence` (`atomic.h` / `atomic_mfence.h`). The earlier hand-written x86 / PowerPC / ARM assembly fences have been removed in favour of this portable C++17 path.
+The CAS primitives and memory barriers delegate to `std::atomic` and `std::atomic_thread_fence` (`kamepoolalloc/atomic.h` / `atomic_mfence.h`). The earlier hand-written x86 / PowerPC / ARM assembly fences have been removed in favour of this portable C++17 path.
 
 **Multi-node consistency** is achieved through a *bundling* protocol: a parent packet absorbs child packets via multi-phase CAS protocol, making the entire subtree consistent under a single atomic pointer. A `m_missing` flag marks packets with stale children, driving re-bundling on demand.
 
-**Collision backoff:** `Linkage::negotiate()` uses a `m_transaction_started_time` timestamp to impose a proportional wait on detected collisions, preventing live-lock under high write contention.
+**Collision negotiation (livelock-free, priority/age-ordered):** when two
+transactions repeatedly collide, `Linkage::negotiate()` elects a single
+*privileged* transaction that the others yield to, rather than letting them
+busy-retry against each other. Each transaction carries a `m_started_time`
+tidstamp (start time packed with its thread id); a global
+`s_privileged_tidstamp` slot holds the current winner. A contender registers
+via **age-ordered preemption** — an older transaction takes privilege from a
+younger holder (`try_register_privileged_tidstamp`), with a small
+`PRIV_PREEMPT_WINDOW_US` hysteresis to stop contemporaneous threads from
+cycling, and an initial-claim age floor scaled by ≈`numThreadsRunning()/4`
+to suppress churn at high thread counts. Priority bands modulate it: only
+LOW-priority holders (LOWEST / UI_DEFERRABLE / SCRIPTING) can be expired or
+evicted; NORMAL / HIGHEST (measurement / driver-critical) are immune.
+Non-privileged contenders **park** (`negotiate_sleep` / yield to the
+privileged Tx) instead of spinning, so the oldest/highest-priority
+transaction always makes progress — proven livelock-free in TLA+ (the
+Layer-2 `BundleUnbundle_*_LLfree` specs below, which model exactly this
+privileged-TID negotiate). This replaces the earlier
+proportional-timestamp-wait backoff.
 
 `iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
 
@@ -117,11 +138,11 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 | Consistency scope | Variables listed explicitly | Entire subtree, guaranteed by bundling |
 | Commit log | Redo log or write set | Copy-on-write + CAS on single `Linkage` |
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
-| Blocking | `retry` suspends on read-set change | No blocking; backoff via timestamp |
+| Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
 | Hard real-time suitability | Limited (GC pauses) | Good (no GC, bounded CAS retries) |
 
-**Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to software backoff rather than falling back to a global lock.
+**Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
 **Compared to TinySTM / NOrec (C libraries):** These use a global version clock and per-object version stamps with a full read/write log per transaction. KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction are truly zero-overhead. The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
 
@@ -131,10 +152,11 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
-- **`atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting ([spec](tests/tlaplus/atomic_shared_ptr.tla))
-- **`BundleUnbundle`:** subtree bundling/unbundling with modular serial arithmetic ([spec](tests/tlaplus/BundleUnbundle.tla))
+- **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Proven **safe + livelock-free** without `CONSTRAINT`, exhausted to >1.1 billion states on the ISSP ohtaka supercomputer.
+- **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate (`tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
-Slide decks: [Layer 1 — atomic_shared_ptr](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer1_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer1.html)), [Layer 2 — Bundle/Unbundle + Commit](https://northriv.github.io/KAME/tests/tlaplus/doc/slides_layer2_en.html) ([JA](https://northriv.github.io/KAME/tests/tlaplus/doc_ja/slides_layer2.html))
+**Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).
 
 C11 translations of each layer are verified with [GenMC](https://github.com/MPI-SWS/genmc) under the RC11 memory model: TLA+-derived tests (`tests/tlaplus/test_*.c`) and C++-derived protocol tests (`tests/cds_atomic_shared_ptr/`).
 
@@ -152,7 +174,11 @@ C11 translations of each layer are verified with [GenMC](https://github.com/MPI-
   (C2131 / C3493).
 - [`kamepoolalloc`](../kamepoolalloc) — sibling library providing
   `Transactional::allocator<T>` and the lock-free pool used by every
-  Snapshot allocation.  The STM core includes
+  Snapshot allocation.  It is **also the single home of the Layer-0 atomic
+  primitives** (`atomic.h` / `atomic_mfence.h` / `atomic_smart_ptr.h` —
+  `atomic_shared_ptr` / `local_shared_ptr`), which `transaction.h` includes
+  HEADER-ONLY (no `libkamepoolalloc` runtime link is needed for them).  The
+  STM core includes
   `kamepoolalloc/allocator.h` via the consumer's INCLUDEPATH; falling
   back to `std::allocator` requires defining `USE_STD_ALLOCATOR`
   before including `transaction.h`.  (`kamepoolalloc`'s own MSVC
@@ -197,7 +223,7 @@ Four layers, from primitive to whole-protocol:
 |---|---|
 | `transaction_test` | simultaneous transactions on tree-structured objects |
 | `transaction_dynamic_node_test` | transactions that **insert / remove / swap** node links concurrently |
-| `transaction_negotiation_test` | transactions of *different periodicities* — the slow loop never commits unless the fast loop yields a proportional backoff (`negotiate()`) |
+| `transaction_negotiation_test` | transactions of *different periodicities* — the slow loop never commits unless the fast loop yields to it via the privileged-Tx negotiation (`negotiate()`: the older/starved Tx is elected privileged and the fast loop parks) |
 
 **Payload-integrity stress** — Synchrobench-style mixed-contention throughput
 drivers that fill every payload with a per-writer **sentinel** and re-check it

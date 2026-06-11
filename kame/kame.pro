@@ -29,7 +29,9 @@ INCLUDEPATH += \
 HEADERS += \
     ../kamepoolalloc/allocator.h \
     ../kamepoolalloc/allocator_prv.h \
+    ../kamepoolalloc/atomic.h \
     ../kamepoolalloc/atomic_mfence.h \
+    ../kamepoolalloc/atomic_smart_ptr.h \
     ../kamepoolalloc/kame_pool.h \
     graph/graphmathfittool.h \
     graph/graphmathtool.h \
@@ -51,9 +53,6 @@ HEADERS += \
     ../kamestm/xthread.h \
     ../kamestm/xtime.h \
     ../kamestm/atomic_queue.h \
-    ../kamestm/atomic_smart_ptr.h \
-    ../kamestm/atomic.h \
-    ../kamestm/atomic_mfence.h \
     ../kamestm/fast_vector.h \
     driver/driver.h \
     driver/dummydriver.h \

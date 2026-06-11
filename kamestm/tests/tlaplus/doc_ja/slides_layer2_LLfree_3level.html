@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 2 LLfree 3-level 解説</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.2em;color:#fbbf24;margin:1em 0;line-height:1.6}
+.add{color:#34d399;font-weight:bold}
+p{line-height:1.7}
+</style>
+</head>
+<body>
+<a href="slides_overview.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ 俯瞰</a>
+
+<!-- ============================================================ Slide 0 -->
+<div class="slide">
+<h1>3-level LL-free (Gen 3) — 2-level からの差分</h1>
+<h3><code>BundleUnbundle_3level_LLfree.tla</code></h3>
+
+<div class="box-purple">
+<p>本スライドは <code>slides_layer2_LLfree.html</code> (2-level LL-free) の続編。
+2-level spec の <strong>privilege-TID 機構をそのまま継承</strong>し、木の深さを 1 段増やす:
+<code>Grand → Parent → {Child1, Child2}</code>。</p>
+<p style="margin-top:0.4em">priority gating の動作 (<code>CanProceed</code> / <code>TagAfterFail</code> /
+<code>TagAfterSuccess</code> / <code>PreemptTag</code> / <code>ClearMyTags</code>) と
+<code>EventuallyAllDone</code> による liveness 検証は完全に同じ — 2-level スライド参照。</p>
+</div>
+
+<h2>木構造</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;Grand<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Parent<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── Child1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
+</div>
+
+<h2>2-level からの追加カバレッジ</h2>
+<table>
+<tr><th>項目</th><th>2-level</th><th>3-level (本仕様)</th></tr>
+<tr><td>commit root</td><td><code>CommitParent</code></td><td><code>CommitGrand</code> (Grand スコープで全 grandchild payload を +1)</td></tr>
+<tr><td>recursive bundle</td><td>(なし)</td><td><code>InnerPhase2</code>/<code>3</code>/<code>4</code>: <code>snapshot(Grand)</code> が Parent を <em>内側で</em> bundle する</td></tr>
+<tr><td>unbundle walk</td><td>1 ホップ (<code>UnbundleCASAncestors</code>)</td><td>2 ホップ (<code>UnbundleCASLoop</code>): Child → Parent → Grand</td></tr>
+<tr><td>chain navigation</td><td>(自明)</td><td><code>WalkUpChain</code> / <code>SnapshotForUnbundle</code> が <code>bundledBy</code> を上向きに辿る</td></tr>
+<tr><td>新規不変条件</td><td>—</td><td><code>BundleChainValid</code> / <code>BundledByCorrect</code> / <code>GrandAlwaysPriority</code></td></tr>
+</table>
+</div>
+
+<!-- ============================================================ Slide 1 -->
+<div class="slide">
+<h1>Recursive inner bundle</h1>
+<h3><code>InnerPhase2</code> / <code>InnerPhase3</code> / <code>InnerPhase4</code></h3>
+
+<div class="box">
+<p><code>snapshot(Grand)</code> で Parent が <code>missing=TRUE</code> に出会うと、
+<strong>その中で Parent の bundle を起動</strong>する (recursive bundle)。
+4-phase プロトコル本体は外側と同一だが、状態空間の forking を抑えるため
+inner は別アクション (<code>InnerPhase2/3/4</code>) としてモデル化する。</p>
+</div>
+
+<h2>InnerPhase の構造 (superfine では Phase 分割; fine では <code>BundlePhase1</code> に畳む)</h2>
+<pre><code><span class="op">InnerPhase2</span>(t) ==
+    <span class="comment">\* Parent の missing=TRUE wrapper を CAS で立てる</span>
+    /\ <span class="op">CanProceed</span>(t, Parent)         <span class="comment">\* ★ priority gate</span>
+    /\ <span class="keyword">LET</span> newW == <span class="op">PriorityWrapper</span>(<span class="op">MakePacket</span>(Parent, _, _, <span class="type">TRUE</span>), ser)
+       <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = newW]
+
+<span class="op">InnerPhase3</span>(t) ==
+    <span class="comment">\* 全 Child を BundledRefWrapper(Parent, ser) に CAS</span>
+    /\ \A c \in {Child1, Child2} : <span class="op">CanProceed</span>(t, c)
+    /\ ...
+
+<span class="op">InnerPhase4</span>(t) ==
+    <span class="comment">\* Parent の missing=FALSE を最終 CAS で立てる</span>
+    /\ <span class="op">CanProceed</span>(t, Parent)
+    /\ ...</code></pre>
+
+<div class="box-orange">
+<p><strong>InnerPhase restart の歴史:</strong>
+仕様開発中に発見・修正された subtle なバグ群 (コミット履歴より):
+<ul style="margin:0.3em 0 0 1.2em">
+<li><code>1d9820bc</code>: <code>InnerPhase3</code> restart で stale subpackets が lost increment を引き起こす</li>
+<li><code>8d6026e3</code>: <code>InnerPhase4</code> restart で outer bundle state を clear し忘れる</li>
+<li><code>73bcef3a</code>: <code>InnerPhase2</code> restart の修正</li>
+</ul>
+いずれも C++ 側の対応 path は元々正しく、TLA+ モデル化過程で見つかったモデル固有の bug。
+TLA+ 化が C++ より細かい粒度で動作を追ったことの副産物。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 2 -->
+<div class="slide">
+<h1>Multi-level unbundle walk</h1>
+<h3><code>UnbundleWalk</code> + <code>UnbundleCASLoop</code> + <code>UnbundleCASChild</code></h3>
+
+<div class="box">
+<p>Child が <strong>2 段深く bundle されている</strong> (Child → Parent → Grand) 状態で
+<code>commit(Child)</code> を実行する場合、Child を priority に復元する前に
+<code>bundledBy</code> chain 上の<strong>祖先 2 つ</strong>を全て <code>missing=TRUE</code> にする必要がある。</p>
+</div>
+
+<h2>Step 1: UnbundleWalk — chain 構築</h2>
+<pre><code><span class="op">UnbundleWalk</span>(t) ==
+    <span class="comment">\* 子から bundledBy を辿って祖先 chain を構築</span>
+    <span class="comment">\* casTargets = &lt;&lt;Grand, Parent&gt;&gt;  (root-first)</span>
+    /\ local' = [local <span class="keyword">EXCEPT</span> ![t].casTargets = chain]
+    <span class="comment">\* superfine #5: 3-level では root-first 順 (C++ 走査順と一致)</span></code></pre>
+
+<h2>Step 2: UnbundleCASLoop — 祖先を順に missing=TRUE に</h2>
+<pre><code><span class="op">UnbundleCASLoop</span>(t) ==
+    <span class="comment">\* casTargets の各祖先について、wrapper を新しい missing=TRUE PriorityWrapper に CAS</span>
+    <span class="comment">\* sub[c] は保持 (Phase 3 ロールバックや復旧のため Null 化しない)</span>
+    /\ <span class="op">CanProceed</span>(t, anc)
+    /\ <span class="keyword">LET</span> newW == <span class="op">PriorityWrapper</span>(<span class="op">MakePacket</span>(anc, _, anc.sub, <span class="type">TRUE</span>), ser)
+       <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![anc] = newW]
+    <span class="comment">\* coarse: 全祖先を 1 ステップで; fine: 1 ノードずつ</span></code></pre>
+
+<h2>Step 3: UnbundleCASChild — Child を priority + 新 payload で復元</h2>
+<pre><code><span class="op">UnbundleCASChild</span>(t) ==
+    /\ <span class="keyword">LET</span> newChildW == <span class="op">PriorityWrapper</span>(newpacket, ser)
+       <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![node] = newChildW]</code></pre>
+
+<h2>追加された不変条件</h2>
+<table>
+<tr><th>不変条件</th><th>意味</th></tr>
+<tr><td><code>BundleChainValid</code></td><td>bundled ノードの <code>bundledBy</code> 先は priority か、それ自身が bundled</td></tr>
+<tr><td><code>BundledByCorrect</code></td><td><code>bundledBy</code> は常に構造上の親を指す</td></tr>
+<tr><td><code>GrandAlwaysPriority</code></td><td>Root (Grand) は常に priority を持つ</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ Slide 3 -->
+<div class="slide">
+<h1>検証結果 + 関連 spec</h1>
+
+<h2>3-level LL-free 検証結果</h2>
+<table>
+<tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>結果</th></tr>
+<tr><td>1-thread superfine</td><td>1</td><td>(small)</td><td>—</td><td>&lt;1s</td><td style="color:#4ade80">✅ Pass (sanity)</td></tr>
+<tr><td>2-thread coarse</td><td>2</td><td>1,497,098</td><td>98</td><td>1:35</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-thread superfine</td><td>2</td><td>14,109,731</td><td>148</td><td>19:13</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-thread superfine confC (all-root)</td><td>3</td><td>640,894,951</td><td>88</td><td>15:25</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>意味:</strong> 3 段の木で 3 スレッドが同時に snapshot / commit / bundle / unbundle を実行する
+全インターリーブで safety + liveness が成立。LL-free priority 機構が depth-2 の bundle/unbundle 連鎖でも
+構造的に有限化を保証している。詳細: <code>kamestm/tests/VERIFICATION.md §4</code>。</p>
+</div>
+
+<h2>関連 spec / スライド</h2>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><code>BundleUnbundle_2level_LLfree.tla</code> + <code>slides_layer2_LLfree.html</code> — 基本仕様 (Gen 3 LLfree)</li>
+<li><code>BundleUnbundle_3level_LLfree_dynamic.tla</code> + <code>slides_layer2_LLfree_dynamic.html</code> — オンライン insert/release 拡張</li>
+<li><code>BundleUnbundle_hardlink_*.tla</code> + <code>slides_hardlink.html</code> — hard-link topology 群</li>
+</ul>
+
+<h2>大規模 cfg の実行</h2>
+<pre><code><span class="comment"># 1-thread sanity (&lt; 1 s)</span>
+java -XX:+UseParallelGC -Xmx8g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_3level_LLfree_1thr_superfine_mc.cfg \
+  BundleUnbundle_3level_LLfree.tla
+
+<span class="comment"># 2-thread coarse with liveness (~2 min)</span>
+java -XX:+UseParallelGC -Xmx14g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_3level_LLfree_coarse_mc.cfg \
+  BundleUnbundle_3level_LLfree.tla</code></pre>
+<p style="color:#94a3b8;font-size:0.9em;margin-top:0.5em">
+3-thread superfine 等の大規模構成は ohtaka が必須。<code>doc/ohtaka_handoff.md</code> 参照。
+</p>
+</div>
+
+</body>
+</html>

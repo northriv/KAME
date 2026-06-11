@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAME STM 形式検証 — 全体カバレッジ俯瞰</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2.1em;color:#60a5fa;margin-bottom:0.2em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.4em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+.box-red{background:#3b0000;border:1px solid #dc2626}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+p{line-height:1.7}
+a{color:#60a5fa}
+.stack{font-family:monospace;font-size:1.05em;line-height:1.7;color:#e2e8f0}
+.card{display:inline-block;width:calc(50% - 1.2em);vertical-align:top;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:1em 1.2em;margin:0.5em 0.4em;box-sizing:border-box}
+.card h3{margin-top:0}
+.card a{font-weight:bold;font-size:1.05em}
+.pill{display:inline-block;font-size:0.72em;padding:1px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.pill-l0{background:#0e7490;color:#fff}.pill-l1{background:#1d4ed8;color:#fff}.pill-l2{background:#7c3aed;color:#fff}.pill-hl{background:#dc2626;color:#fff}.pill-rt{background:#15803d;color:#fff}
+.big{font-size:1.4em;color:#fbbf24;font-weight:bold}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ Slide 0 -->
+<div class="slide">
+<h1>KAME STM — 形式検証 全体カバレッジ俯瞰</h1>
+<h3>ロックフリー STM コアを 3 つの相補的手法でエンドツーエンドに検証</h3>
+
+<div class="box-purple">
+<p>KAME のロックフリー Software-Transactional-Memory コアは、<strong>抽象プロトコルから実行バイナリまでの隙間を埋める 3 手法</strong>で検証されている。
+最下層で <strong>GenMC</strong> がタグ付きポインタ <code>atomic_shared_ptr</code> 参照カウントを C/C++ RC11 弱メモリモデル下で網羅的にモデル検査
+(18 プログラム、最大 ~117 万実行) し、全 <code>memory_order</code> 注釈が use-after-free / double-free / leak に対し安全であることを証明する。
+その上で <strong>TLA+/TLC</strong> が全スレッドインターリーブを網羅探索する: Layer 1 は <code>atomic_shared_ptr</code> + commit プリミティブを
+数千万状態 (2 スレッドで 6,653 万) でメモリ安全と証明し、<em>裸のプリミティブが livelock-free でないこと</em>を意図的に示す。
+Layer 2 は 2/3 レベル木の多段 bundle/unbundle STM プロトコルを、静的・動的の両方で <strong>safety かつ livelock-free</strong> と証明し、
+Lamport クロック優先度調停で 11.5 億状態超まで検証する。さらに hard-link 系 6 topology が
+本番 race「30/30 abort」を <strong>再現・修正</strong>する。最後に <strong>C++ ストレステスト 7 本</strong> (~2,700 万反復、4-8 スレッド)
+が実装を実機で走らせ、抽象モデルでは捉えられないコンパイラ・レイアウト・タイミング依存バグを検出する。
+<strong>結論: プロトコルは数学的に保証され、実装は経験的に堅牢化されており、両者の間に隙間はない。</strong></p>
+</div>
+
+<h2>3 手法スタック (下から上へ)</h2>
+<div class="box">
+<div class="stack">
+┌──────────────────────────────────────────────────────────────┐<br>
+│ <span class="type">C++ ランタイムストレス</span>  — 実機・実バイナリ / 確率的 / 7 tests, ~27M iter │<br>
+├──────────────────────────────────────────────────────────────┤<br>
+│ <span style="color:#c084fc">TLA+ / TLC</span>  — 全インターリーブ網羅 / 逐次一貫性                       │<br>
+│ &nbsp;&nbsp;Layer 2  bundle/unbundle STM (safety + livelock-free)            │<br>
+│ &nbsp;&nbsp;Layer 1  atomic_shared_ptr + commit (safety; LL-free は反例)     │<br>
+├──────────────────────────────────────────────────────────────┤<br>
+│ <span style="color:#22d3ee">GenMC (RC11)</span>  — 弱メモリモデル網羅 / atomic_shared_ptr 基盤        │<br>
+└──────────────────────────────────────────────────────────────┘<br>
+<span class="comment">各層の保証が上の層の前提になる (bottom-up)。</span>
+</div>
+</div>
+
+<p style="color:#94a3b8;font-size:0.9em">本俯瞰スライドは各層の詳細デッキへのハブです。下のスライドのリンクから個別デッキへ移動できます。
+正本データ: <a href="../../VERIFICATION.md"><code>kamestm/tests/VERIFICATION.md</code></a> /
+<a href="../doc/verification_log.md"><code>doc/verification_log.md</code></a> /
+<a href="../doc/proof_semantics.md"><code>doc/proof_semantics.md</code></a>。</p>
+</div>
+
+<!-- ============================================================ Slide 1: master matrix -->
+<div class="slide">
+<h1>カバレッジ・マトリクス</h1>
+<h3>全層 × 検証対象 × ツール × 最大検証規模 × デッキ</h3>
+
+<table>
+<tr><th>層</th><th>仕様 / テスト</th><th>ツール</th><th>検証対象</th><th>最大検証規模</th><th>結果</th><th>デッキ</th></tr>
+
+<tr>
+<td><span class="pill pill-l0">L0</span></td>
+<td><code>cds_test_*.c</code> (9)<br><code>tlaplus/test_*.c</code> (9)</td>
+<td>GenMC v0.17<br>(RC11)</td>
+<td>タグ付きポインタ参照カウント、memory_order 安全性 (弱メモリ)</td>
+<td>multi_cas: 464,164 完了 + 705,296 blocked (~270s)</td>
+<td style="color:#4ade80">全 Pass</td>
+<td>—（<a href="../../VERIFICATION.md">VERIFICATION.md §1</a>）</td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l1">L1</span></td>
+<td><code>atomic_shared_ptr.tla</code></td>
+<td>TLC</td>
+<td>atomic_shared_ptr + commit プリミティブ (drain release, scoped_atomic_view)、10 safety 不変条件</td>
+<td>66,537,058 / depth 84 / 1h30m (2t full)</td>
+<td style="color:#4ade80">Pass<br><span style="color:#f87171">liveness 意図的 FAIL</span></td>
+<td><a href="slides_layer1.html">slides_layer1.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l2">L2</span></td>
+<td><code>BundleUnbundle_2level_LLfree.tla</code></td>
+<td>TLC</td>
+<td>2-level bundle/unbundle + LL-free priority gating</td>
+<td>137,333,348 (3t confC live, 2:53)<br>127,586,599 (MaxCommits=2, 4:40)</td>
+<td style="color:#4ade80">Pass + liveness</td>
+<td><a href="slides_layer2_LLfree.html">slides_layer2_LLfree.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l2">L2</span></td>
+<td><code>BundleUnbundle_2level_LLfree_dynamic.tla</code></td>
+<td>TLC</td>
+<td>↑ + オンライン insert/release</td>
+<td><span class="big">413,884,516</span> (release superfine live, 7:13)</td>
+<td style="color:#4ade80">Pass + liveness</td>
+<td><a href="slides_layer2_LLfree_dynamic.html">slides_layer2_LLfree_dynamic.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l2">L2</span></td>
+<td><code>BundleUnbundle_3level_LLfree.tla</code></td>
+<td>TLC</td>
+<td>3-level 木、再帰的 inner bundle、多段 unbundle walk</td>
+<td><span class="big">1,154,807,632</span> (3t confC safety, 4:09)<br>640,894,951 (confC live, 15:25)</td>
+<td style="color:#4ade80">Pass (+ liveness on live cfg)</td>
+<td><a href="slides_layer2_LLfree_3level.html">slides_layer2_LLfree_3level.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-l2">L2</span></td>
+<td><code>BundleUnbundle_3level_LLfree_dynamic.tla</code></td>
+<td>TLC</td>
+<td>3-level + オンライン insert/release</td>
+<td>921,351,233 (release superfine, 3h24m, safety)<br>6.8M (coarse 2t live)</td>
+<td style="color:#4ade80">Pass</td>
+<td><a href="slides_layer2_LLfree_dynamic.html">slides_layer2_LLfree_dynamic.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-hl">HL</span></td>
+<td><code>BundleUnbundle_hardlink_*.tla</code> (6)</td>
+<td>TLC</td>
+<td>2-親/1-子 hard-link 6 topology、Phase 4 reachability gate、per-action fairness</td>
+<td>self_collision FAIL→114、4node FAIL→531、external_migration 3t 1,202</td>
+<td style="color:#4ade80">Pass + liveness<br>(修正後)</td>
+<td><a href="slides_hardlink.html">slides_hardlink.html</a></td>
+</tr>
+
+<tr>
+<td><span class="pill pill-rt">RT</span></td>
+<td>C++ 7 tests (<code>tests/</code>)</td>
+<td>C++ 実機</td>
+<td>実装の高競合ストレス: lifecycle balance、snapshot 整合性、starvation-freedom 経験的</td>
+<td>negotiation 6t (2 slow + 4 fast × 5M)、~27M iter 合計</td>
+<td style="color:#4ade80">全 Pass</td>
+<td>—（<a href="../../VERIFICATION.md">VERIFICATION.md §6</a>）</td>
+</tr>
+</table>
+
+<div class="box-orange">
+<p><strong>最大規模ハイライト:</strong> 全検証中の最大状態空間は <span class="big">1,154,807,632</span> 状態
+(3-level static confC, safety-only, ohtaka 4:09)。safety+liveness 込みの最大は <strong>640,894,951</strong>
+(3-level confC live, 15:25)。動的仕様の最大は <strong>921,351,233</strong> (3L-dyn release superfine, 3h24m)。
+いずれも CONSTRAINT なし完全 exhaustion。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 2: deck directory -->
+<div class="slide">
+<h1>デッキ・ディレクトリ</h1>
+<h3>各層の詳細スライド（クリックで移動）</h3>
+
+<div class="card">
+<h3><span class="pill pill-l1">L1</span> Layer 1: atomic_shared_ptr</h3>
+<p><a href="slides_layer1.html">slides_layer1.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">タグ付きポインタ参照カウント、drain release、scoped_atomic_view RAII、10 不変条件、liveness 意図的違反。</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-l2">L2</span> Layer 2: 基本仕様 (Gen 1/2)</h3>
+<p><a href="slides_layer2.html">slides_layer2.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">bundle/unbundle + commit の基本解説。Gen 3 LLfree への導線。modular serial 系の歴史的記述。</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-l2">L2</span> Layer 2 LLfree (Gen 3 中核)</h3>
+<p><a href="slides_layer2_LLfree.html">slides_layer2_LLfree.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">priority-TID negotiate、CanProceed / TagAfterFail / PreemptTag / ClearMyTags、CONSTRAINT なし構造的 LL-free 証明。</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-l2">L2</span> 3-level LLfree</h3>
+<p><a href="slides_layer2_LLfree_3level.html">slides_layer2_LLfree_3level.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">Grand→Parent→Child、再帰的 inner bundle (InnerPhase2/3/4)、多段 unbundle walk。</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-l2">L2</span> Dynamic LLfree</h3>
+<p><a href="slides_layer2_LLfree_dynamic.html">slides_layer2_LLfree_dynamic.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">オンライン insert(online=true) / release、thread role 構成、413M state 検証。</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-hl">HL</span> Hard-link 系</h3>
+<p><a href="slides_hardlink.html">slides_hardlink.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">5 topology + 非アトミック、本番 race 再現・修正、per-action fairness 初導入、Phase 4 reachability gate。</p>
+</div>
+
+<div class="card" style="background:#0a1929">
+<h3><span class="pill pill-l0">L0</span> GenMC RC11（デッキ未作成）</h3>
+<p><a href="../../VERIFICATION.md">VERIFICATION.md §1 →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">18 プログラム (cds_test_*.c 9 + test_*.c 9)、弱メモリモデル下の参照カウント安全性。スライド未作成（生データのみ）。</p>
+</div>
+
+<div class="card" style="background:#0a1929">
+<h3><span class="pill pill-rt">RT</span> ランタイムストレス（デッキ未作成）</h3>
+<p><a href="../../VERIFICATION.md">VERIFICATION.md §6 →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">C++ 7 tests、実機・実バイナリ。プロトコル証明と実装堅牢化の橋渡し。スライド未作成。</p>
+</div>
+
+<div class="box-green" style="margin-top:1em">
+<p><strong>英語版:</strong> 同一構成の英語デッキが <code>../doc/</code> にあります（<code>slides_layer1_en.html</code>,
+<code>slides_layer2_en.html</code>, <code>slides_layer2_LLfree.html</code>,
+<code>slides_layer2_LLfree_3level_en.html</code>, <code>slides_layer2_LLfree_dynamic_en.html</code>,
+<code>slides_hardlink_en.html</code>）。英語俯瞰図: <code>../doc/slides_overview_en.html</code>。</p>
+</div>
+</div>
+
+<!-- ============================================================ Slide 3: complementarity + appendix -->
+<div class="slide">
+<h1>手法の相補性 + 補遺</h1>
+
+<h2>形式手法 × ストレステストの役割分担</h2>
+<table>
+<tr><th>性質</th><th>C++ ストレス</th><th>GenMC (L0)</th><th>TLA+ (L1/L2)</th></tr>
+<tr><td>メモリ順序の正しさ</td><td>確率的 (timing 依存)</td><td><strong>網羅 (RC11)</strong></td><td>N/A (逐次一貫)</td></tr>
+<tr><td>プロトコル論理 (refcount/drain/scope)</td><td>確率的</td><td>assertion ベース</td><td><strong>網羅 (L1)</strong></td></tr>
+<tr><td>STM commit 整合性</td><td><code>gn2 &le; gn3</code> 不変条件</td><td>N/A</td><td><strong>網羅 (L1+L2)</strong></td></tr>
+<tr><td>bundle/unbundle プロトコル</td><td>STM テスト経由 (暗黙)</td><td>N/A</td><td><strong>網羅 (L2、最大 1.15B states)</strong></td></tr>
+<tr><td>livelock-freedom</td><td>非対称ストレス</td><td>N/A</td><td><strong>網羅 (L2; L1 は反例)</strong></td></tr>
+<tr><td>fairness / starvation</td><td><code>transaction_negotiation_test</code></td><td>N/A</td><td>hard-link で per-action WF モデル化</td></tr>
+<tr><td>実コンパイラ/実機バグ</td><td><strong>Yes (実バイナリ)</strong></td><td>No (抽象)</td><td>No (抽象)</td></tr>
+</table>
+<p style="color:#94a3b8;font-size:0.88em">※ VERIFICATION.md §6 の相補性表は「622M states」と古い値を記載。最新の最大は 1,154,807,632 (3L static confC)。</p>
+
+<h2>補遺: superseded 仕様 (完全カバレッジのための脚注)</h2>
+<div class="box">
+<table>
+<tr><th>仕様</th><th>位置づけ</th></tr>
+<tr><td><code>BundleUnbundle.tla</code> (3-level)<br><code>BundleUnbundle_2level.tla</code></td><td>Gen 1/2 非 LL-free 版。LLfree (Gen 3) に置換済。modular serial / CONSTRAINT に依存。検証は pass するが baseline として保存。</td></tr>
+<tr><td><code>MC.tla</code> / <code>MC_2level.tla</code> / <code>MC_3level.tla</code></td><td>旧スタイルの model-checker config モジュール。現在は <code>*_mc.cfg</code> を直接使用。</td></tr>
+<tr><td><code>test_stm_commit.c</code> / <code>test_bundle_2level.c</code> / <code>test_bundle_3level.c</code></td><td>非 LL-free path の TLA+-derived C11 テスト (legacy)。LLfree 版に置換。</td></tr>
+</table>
+</div>
+
+<h2>参考文献 (paper-ready)</h2>
+<ul style="margin:0.3em 0 0 1.2em;font-size:0.9em">
+<li><strong>GenMC:</strong> Kokologiannakis, Raad, Vafeiadis. "Model Checking for Weakly Consistent Libraries." PLDI 2019.</li>
+<li><strong>RC11:</strong> Lahav, Vafeiadis, Kang, Hur, Dreyer. "Repairing Sequential Consistency in C/C++11." PLDI 2017.</li>
+<li><strong>TLA+ / TLC:</strong> Lamport. "Specifying Systems." Addison-Wesley, 2002. / Yu, Manolios, Lamport. CHARME 1999.</li>
+</ul>
+</div>
+
+</body>
+</html>

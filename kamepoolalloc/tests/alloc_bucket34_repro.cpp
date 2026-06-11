@@ -31,6 +31,11 @@
 #include <thread>
 #include <vector>
 
+// uint_cas_max = widest LOCK-FREE int (atomic.h) — keeps this repro's op
+// counters libatomic-free on `-march=i486` (std::atomic<uint64_t> would pull
+// __atomic_*_8 there).  See alloc_stress_test.cpp for the full rationale.
+#include "atomic.h"
+
 namespace {
 
 constexpr int kAlive = 1024;
@@ -45,8 +50,8 @@ struct Block {
     int paint;
 };
 
-std::atomic<uint64_t> g_ops{0};
-std::atomic<uint64_t> g_fails{0};
+std::atomic<uint_cas_max> g_ops{0};
+std::atomic<uint_cas_max> g_fails{0};
 
 void touch_and_paint(Block &b, int paint) {
     b.paint = paint;

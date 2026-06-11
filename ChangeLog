@@ -1,3 +1,36 @@
+* Mon Jun  8 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc: the atomic_shared_ptr orphan-chunk reclaim chain is now the
+  default chunk-recycle mechanism; the §36 raw Treiber stack is retired.
+
+  A chunk left non-empty by an exited owner thread is pushed onto a per-template
+  lock-free atomic_shared_ptr orphan chain (orphan_chain_push); an allocating
+  thread later adopts it (orphan_chain_pop + re-own, reusing its free slots) and
+  a sweep pass (orphan_chain_scrub) reclaims it once fully drained. This replaces
+  the §36 ABA-tagged Treiber stack, which leaked drained orphans (never freed
+  while stacked). The chain is built on kamepoolalloc/atomic_smart_ptr.h — the
+  same lock-free reference-counted smart pointer as the STM, relocated there
+  (§36b) as the shared home for both subsystems.
+
+  Adopt safety (TLA+): a re-owned chunk carries an owner-ref — a self-referential
+  local_shared_ptr the chunk holds to itself (m_owner_self_ref) — so the owner's
+  free becomes refcount-mediated (reset the self-ref → disposer) instead of a
+  direct deallocate_chunk that ignored outstanding refs. OrphanChain_adopt.tla
+  pinned down the gap this closes (Inv_NoBadOwnerFree: the owner could free a
+  chunk a concurrent sweeper still load_shared-pinned — a UAF that 21.3M-op
+  ASan/TSan stress could NOT reproduce; only the model catches it). Kept as a
+  standing regression guard: tests/tlaplus/run_orphan_chain.sh (10 OrphanChain_*
+  model/cfg checks; the BIT_OWNED disposer gate is proven load-bearing).
+
+  Also: §74 — allocate_chunk<ALLOC>() de-duplicated onto the shared claim_chunk()
+  (the single region-walk + mmap + bitmap-claim site, shared with the dedicated
+  large path). Width-aware RADIX_VA_LIMIT (32-bit clean). Verified on Linux
+  (g++ 13.3): TSAN/ASan race- and UAF-free, alloc_thread_churn reserved plateau,
+  full ctest; macOS build + ctest + alloc_stress (residual 0) + 64 B hot-path
+  bench unchanged (the orphan machinery is entirely cold-path). kame.pro /
+  tests.pri now reference the relocated atomic_*.h from kamepoolalloc/
+  (atomic_smart_ptr.h added — the inline-compiled allocator includes it
+  unconditionally now that the chain is the default).
+
 * Sat May  3 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - TLA+ formal models: three fixes and ohtaka verification results.
 

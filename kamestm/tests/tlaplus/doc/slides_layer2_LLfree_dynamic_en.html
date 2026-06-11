@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Layer 2 LLfree Dynamic</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.5em;color:#93c5fd;margin-top:1.5em}
+h3{font-size:1.2em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.2em;color:#fbbf24;margin:1em 0;line-height:1.6}
+.add{color:#34d399;font-weight:bold}
+p{line-height:1.7}
+</style>
+</head>
+<body>
+<a href="slides_overview_en.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ Overview</a>
+
+<div class="slide">
+<h1>Dynamic LL-free — online insert / release</h1>
+<h3><code>BundleUnbundle_2level_LLfree_dynamic.tla</code> / <code>_3level_LLfree_dynamic.tla</code></h3>
+
+<div class="box-purple">
+<p>Extends the static LLfree spec (<code>BundleUnbundle_2level_LLfree.tla</code>) with runtime
+<strong>child insertion (<code>insert(online=true)</code>) and release (<code>release</code>)</strong>.
+The tree structure is no longer fixed; it mutates dynamically each iteration.</p>
+<p style="margin-top:0.4em">Priority gating (CanProceed / TagAfterFail / TagAfterSuccess / PreemptTag / ClearMyTags)
+is identical to 2-level LLfree — see <code>slides_layer2_LLfree.html</code>.</p>
+</div>
+
+<h2>Dynamic tree</h2>
+<div class="tree">
+&nbsp;&nbsp;&nbsp;&nbsp;Parent<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── DynChild1&nbsp;&nbsp;<span style="color:#64748b">(inserted / released at runtime)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── DynChild2&nbsp;&nbsp;<span style="color:#64748b">(ditto)</span>
+</div>
+<p>Both children start unattached (their own priority wrappers).
+Phase 1 attaches via <code>insert</code>; Phase 2 interleaves commit + release.</p>
+
+<h2>Per-thread role configuration</h2>
+<table>
+<tr><th>Role (CONSTANT)</th><th>Behavior</th></tr>
+<tr><td><code>InsertThreads</code></td><td>Run <code>insert(online=true)</code> — pick an uninserted child and attach to Parent</td></tr>
+<tr><td><code>RootThreads</code></td><td>Run <code>CommitParent</code> — snapshot Parent, increment every discovered child's payload</td></tr>
+<tr><td><code>LeafThreads</code></td><td>Run <code>CommitChild</code> — direct commit per child discovered in the snapshot</td></tr>
+<tr><td><code>ReleaseThreads</code></td><td>Release children (only after own commits are done)</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>Dynamic discovery is key:</strong> children are not hardcoded; commit targets come
+from the snapshot. This covers boundary races such as "commit while a half-constructed insert
+is in flight" and "commit just before release."</p>
+</div>
+</div>
+
+<div class="slide">
+<h1>insert(online=true) and release</h1>
+
+<h2>InsertOnline action</h2>
+<pre><code><span class="op">InsertOnline</span>(t) ==
+    /\ t \in InsertThreads
+    /\ pc[t] = <span class="type">"idle"</span>
+    /\ \E c \in <span class="op">UninsertedChildren</span> :
+        /\ <span class="comment">\* ① read parent's wrapper</span>
+        /\ <span class="op">CanProceed</span>(t, Parent)              <span class="comment">\* ★ priority gate</span>
+        /\ <span class="comment">\* ② CAS a new wrapper that writes the child's packet into parent.sub[c]</span>
+        /\ <span class="keyword">LET</span> newSubs == [Parent.sub <span class="keyword">EXCEPT</span> ![c] = childPacket]
+               newW == <span class="op">PriorityWrapper</span>(<span class="op">MakePacket</span>(Parent, payload, newSubs, <span class="type">FALSE</span>), ser)
+           <span class="keyword">IN</span> linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = newW,
+                                       ![c] = <span class="op">BundledRefWrapper</span>(Parent, ser)]
+    /\ <span class="op">ClearMyTags</span>(t)                       <span class="comment">\* same tag release as commit success</span></code></pre>
+
+<h2>Release action</h2>
+<pre><code><span class="op">Release</span>(t) ==
+    /\ t \in ReleaseThreads
+    /\ \E c \in <span class="op">InsertedChildren</span> :
+        /\ <span class="comment">\* Set parent.sub[c] to Null and restore the child to its own priority wrapper</span>
+        /\ <span class="op">CanProceed</span>(t, Parent)
+        /\ <span class="op">CanProceed</span>(t, c)
+        /\ ...
+        /\ linkage' = [linkage <span class="keyword">EXCEPT</span> ![Parent] = parentWithNullSlot,
+                                   ![c] = <span class="op">PriorityWrapper</span>(originalChildPkt, ser)]</code></pre>
+
+<div class="box-orange">
+<p><strong>Interference between insert and bundle/commit:</strong>
+If another thread runs <code>bundle(Parent)</code> while <code>insert(c)</code> fires,
+the Phase 4 <code>m_missing=false</code> finalise triggers the Phase 4 reachability gate
+→ DISTURBED retry; the bundling thread sees the newly inserted child on re-collect.
+Priority gating arbitrates between the inserter and the bundler by transaction age.</p>
+</div>
+</div>
+
+<div class="slide">
+<h1>Diff vs static spec + verification results</h1>
+
+<h2>Summary of differences</h2>
+<table>
+<tr><th>Item</th><th>Static (<code>_LLfree.tla</code>)</th><th>Dynamic (<code>_LLfree_dynamic.tla</code>)</th></tr>
+<tr><td>Child set</td><td>Fixed from init (Child1, Child2)</td><td>Dynamically inserted / released (DynChild1, DynChild2)</td></tr>
+<tr><td>New actions</td><td>—</td><td><code>InsertOnline</code> / <code>Release</code></td></tr>
+<tr><td>Thread roles</td><td>All threads symmetric</td><td>Configured via <code>InsertThreads</code> / <code>RootThreads</code> / <code>LeafThreads</code> / <code>ReleaseThreads</code></td></tr>
+<tr><td>Commit targets</td><td>Hardcoded</td><td>Discovered dynamically from snapshot</td></tr>
+<tr><td>Invariants</td><td>5 (SnapshotConsistency etc.)</td><td>+ insert/release consistency checks</td></tr>
+</table>
+
+<h2>Verification results</h2>
+<table>
+<tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
+<tr><td>2-level dynamic 2-thread superfine</td><td>2</td><td>(~M)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-level dynamic release superfine live</td><td>2</td><td><strong>413,884,516</strong></td><td>320</td><td>7:13</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
+<tr><td>3-level dynamic 2-thread coarse</td><td>2</td><td>(M~)</td><td>—</td><td>—</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>3-level dynamic 3-thread release</td><td>3</td><td>(large)</td><td>—</td><td>—</td><td style="color:#fbbf24">ohtaka pending</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>What the 413M-state run proves:</strong> The 2-level dynamic release superfine liveness
+run is one of the <strong>largest verifications in the corpus</strong>. All interleavings that
+include dynamic insert/release satisfy safety + liveness — proven by exhaustion. Priority gating
++ dynamic discovery + bounded variable domains achieve CONSTRAINT-free termination.</p>
+</div>
+
+<h2>Running large configs</h2>
+<pre><code><span class="comment"># 2-level dynamic release superfine (ohtaka recommended)</span>
+java -XX:+UseParallelGC -Xmx32g -cp tla2tools.jar tlc2.TLC \
+  -workers auto -config BundleUnbundle_2level_LLfree_dynamic_3thr_B_live_mc.cfg \
+  BundleUnbundle_2level_LLfree_dynamic.tla</code></pre>
+
+<h2>Related specs / decks</h2>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><code>slides_layer2_LLfree.html</code> — Gen 3 LLfree base spec</li>
+<li><code>slides_layer2_LLfree_3level_en.html</code> — 3-level LLfree diff</li>
+<li><code>slides_hardlink_en.html</code> — hard-link topologies (incl. the sibling-parents dynamic variant)</li>
+<li><code>kamestm/tests/VERIFICATION.md §3</code> — latest results</li>
+</ul>
+</div>
+
+</body>
+</html>

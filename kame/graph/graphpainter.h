@@ -187,6 +187,14 @@ public:
      int m_tiltLastPos[2];
      int m_pointerLastPos[2];
 
+     //! Debounce against macOS trackpad two-finger right-click synthesizing
+     //! an extra press/release pair immediately after a real drag-zoom finish:
+     //! that synthesized release hits the "single click on axis = autoscale"
+     //! branch and undoes the zoom. Recorded only when a drag-zoom actually
+     //! commits new min/max.
+     XTime m_lastDragZoomFinishTime;
+     int m_lastDragZoomFinishPos[2] = {-9999, -9999};
+
      //\return depth, class, object id, screen coord., sdx,sdy diff. by 1 pixe
      //If select buffer is used, object class and id are zero.
      std::tuple<double, ObjClassColorR, int, XGraph::ScrPoint, XGraph::ScrPoint, XGraph::ScrPoint>
