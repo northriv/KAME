@@ -1222,9 +1222,16 @@ public:
 	//! switch-time bit return exists; the only return is the
 	//! thread-exit drain (one batch).  CAS cost 1/64 amortized; zero
 	//! per-slot stores (the Zen 2 plateau cause); float = 64 slots.
-	//! Default 0; -DKAME_FS_WORDCACHE=1.
+	//! The mask lives in the chunk's own cells [1] (mask) / [2] (word
+	//! base) — unused under FS=true and on the same hot line as [0] /
+	//! m_fs_flag the lean-cold pop just touched.
+	//! Default ON (2026-06-11): M3 — bench_loop parity, SPSC ring
+	//! s=32 +125%, xthread +23%, STM 3level K=10 +1.3% (first gate to
+	//! beat gate-off on the production-shaped workload); Cascade
+	//! Lake-SP — 3level mixed STM no regression.  Opt out with
+	//! -DKAME_FS_WORDCACHE=0.
 #ifndef KAME_FS_WORDCACHE
-  #define KAME_FS_WORDCACHE 0
+  #define KAME_FS_WORDCACHE 1
 #endif
 	char     *m_freelist_head[KAME_LOCAL_BUCKETS];
 
