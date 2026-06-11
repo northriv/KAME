@@ -157,42 +157,66 @@ The four charts above are plotted from the tables that follow
 near-linear scaling to 128 cores.
 
 **Apple MacBook Air M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
-`60971013`, median of 7 runs via `bench_compare.sh` (mimalloc 3.3.2 + jemalloc 5.3.0
-via Homebrew).  Both M3 tables below were measured on this commit:
+`8f2e6980` (word-cache default ON), median of 7 runs via `bench_compare.sh`
+(mimalloc 3.3.2 + jemalloc 5.3.0 via Homebrew).  Both M3 tables below were
+measured on this commit:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     106 |      503 |      128 |  **651** |
-| 1 KiB     |      86 |  **447** |      124 |      428 |
-| 16 KiB    |      91 |      198 |       72 |  **346** |
-| 64 KiB    |      25 |  **199** |       18 |      142 |
-| 256 KiB   |      25 |  **202** |       18 |      131 |
-| 1 MiB     |      25 |        7 |       18 |  **121** |
-| 4 MiB     |      45 |        6 |       18 |  **112** |
+| 64B       |     112 |      544 |      133 |  **739** |
+| 1 KiB     |      89 |      485 |      128 |  **500** |
+| 16 KiB    |      95 |      208 |       75 |  **573** |
+| 64 KiB    |      25 |  **206** |       19 |      154 |
+| 256 KiB   |      25 |  **202** |       19 |      142 |
+| 1 MiB     |      25 |        7 |       19 |  **130** |
+| 4 MiB     |      45 |        6 |       19 |  **119** |
 
 **Apple MacBook Air M3, 4 processes aggregate, M ops/s** — median of 7 runs:
 
 | size      |  system | mimalloc | jemalloc |     kame |
 |-----------|---------|----------|----------|----------|
-| 64B       |     376 |     1857 |      432 | **2088** |
-| 16 KiB    |     306 |      682 |      246 | **1209** |
-| 64 KiB    |      82 |  **684** |       60 |      474 |
-| 1 MiB     |      83 |       16 |       58 |  **402** |
+| 64B       |     420 |     1879 |      477 | **2548** |
+| 16 KiB    |     337 |      768 |      269 | **2091** |
+| 64 KiB    |      90 |  **781** |       66 |      552 |
+| 1 MiB     |      91 |       21 |       67 |  **493** |
 
-The **64 B** bucket now **leads** mimalloc 3.3 — 651 vs 503 M ops/s
-single-thread, 2088 vs 1857 across 4 processes — after the `deallocate` and
-`operator new` hot/cold splits: a lean `always_inline` FS=true fast path with
-no prologue spill and no out-of-line call, on top of the `KameTlsPage` fast-TSD
-unification (§hot-tls, a single `mrs TPIDRRO_EL0` instead of per-variable
-`_tlv_get_addr`).  At **16 KiB** kame leads decisively — 346 vs 198
-single-thread, 1209 vs 682 4-process — helped by the void / tail-call FS=false
-free path.  At the **1 MiB** large tier kame leads at every thread count:
-system is lock-serialised, mimalloc collapses to ~7 M single-thread / ~16 M
-aggregate, while kame stays memory-warm at 121 / 402 M ops/s (25× ahead).  The
-one band where mimalloc still leads is the **64–256 KiB** §19 large tier
-(kame ~140 vs ~200): there the per-free radix lookup plus recycle-cache
-bookkeeping cost more than mimalloc's segment scheme — an already-known weaker
-tier, not a regression.  (Re-measured at `60971013`.)
+kame now leads every band except 64–256 KiB.  The **64 B** bucket leads
+mimalloc 3.3 — 739 vs 544 M ops/s single-thread, 2548 vs 1879 across 4
+processes — after the `deallocate` / `operator new` hot/cold splits (lean
+`always_inline` FS=true fast path, no prologue spill), the `KameTlsPage`
+fast-TSD unification (§hot-tls, a single `mrs TPIDRRO_EL0` instead of
+per-variable `_tlv_get_addr`), and the §word-cache cold path below.  **1 KiB**
+flipped to a kame lead (500 vs 485; was 428 vs 447).  At **16 KiB** kame
+leads decisively — 573 vs 208 single-thread, 2091 vs 768 4-process — helped
+by the void / tail-call FS=false free path.  At the **1 MiB** large tier kame
+leads at every thread count: system is lock-serialised, mimalloc collapses to
+~7 M single-thread / ~21 M aggregate, while kame stays memory-warm at
+130 / 493 M ops/s.  The one band where mimalloc still leads is the
+**64–256 KiB** §19 large tier (kame ~150 vs ~205): there the per-free radix
+lookup plus recycle-cache bookkeeping cost more than mimalloc's segment
+scheme — an already-known weaker tier, not a regression.
+
+### §word-cache — the FS=true cold path (default ON)
+
+Since `8a4d2622` the owner-side recovery of small fixed-size slots runs
+through a **claimed-word mask** instead of per-slot work: when the owner
+freelist runs dry, ONE bitmap CAS claims every zero bit of a word straight
+into the chunk's own cells `[1]` (the mask) / `[2]` (the word base) — unused
+under FS=true and on the same cache line as the freelist head the pop just
+touched — and each subsequent lean-cold alloc serves a slot with a `ctz` +
+clear-lowest + one multiply-add.  No per-slot next-pointer store, no
+dependent block-line load, CAS amortised 1/64; the only bit return is the
+thread-exit drain.  Hot paths (freelist pop/push) are byte-identical to the
+opt-out build (`-DKAME_FS_WORDCACHE=0`).
+
+Measured deltas on M3 (default ON vs opt-out, interleaved medians of 5):
+`bench_loop` 1 KiB / 16 KiB and STM `3level_mixed` N=128 (K=10 and K=0)
+unchanged; 64 B +25 % (part of which is the known ±10 % build-to-build
+layout swing); SPSC producer/consumer ring +29 % at 4 slots in flight and
+**+74 %** at 32; `bench_xthread` free-side +10 %.  Cascade Lake-SP shows no
+STM regression.  Zen 2 (Ohtaka) numbers pending machine maintenance — by
+construction the design carries none of the per-slot stores that capped the
+earlier dependency-cut experiments at ~300 M ops/s on that core.
 
 **Intel Xeon E5-1630 v4 (x86-64, 4-core / 8-thread, Windows), single thread,
 M ops/s** — kame at `8f2e6980` (post hot/cold-split + 32 KiB bucket LUT +
