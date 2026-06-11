@@ -74,6 +74,11 @@
                             //  libstdc++ does not.  `<cstring>` is the
                             //  portable C++ way.)
 #include <type_traits>
+#if defined(__linux__)
+    #include <dlfcn.h>           // RTLD_NEXT resolve of libc
+                                 // malloc_usable_size (strong-symbol
+                                 // co-interpose forwards foreign pointers)
+#endif
 #if defined(__APPLE__)
     #include <malloc/malloc.h>   // for malloc_zone_from_ptr / malloc_zone_free
 #elif defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
@@ -5348,6 +5353,28 @@ kame_interpose_entry kame_interposers_full[]
 extern "C" __attribute__((noinline))
 void *realloc(void *p, std::size_t n) {
 	return kame_realloc(p, n);
+}
+// Linux mirror of the macOS `malloc_size` co-interpose above.  glibc
+// consumers — redis `zmalloc`, systemd, BIND — call
+// `malloc_usable_size(p)` right after `malloc(p)`; with our strong-symbol
+// `malloc` those are POOL pointers, and glibc's `__malloc_usable_size`
+// walks its own heap metadata on them → SEGV (reproduced: redis-server
+// 6.2.7 crashes in initServerConfig's first zstrdup).  Serve pool
+// pointers from `size_of` (the same "non-zero ⇔ pool-owned" oracle as
+// `kame_pool_malloc_usable_size`); forward foreign pointers to the real
+// libc implementation.  glibc does NOT export a `__`-prefixed alias for
+// this one (unlike `__libc_free`), so resolve it once via
+// `dlsym(RTLD_NEXT, ...)` — safe on Linux (no dyld-style bind-time
+// interposing; see the `libsystem_free_for_pool` comment block).
+extern "C" __attribute__((noinline))
+std::size_t malloc_usable_size(void *p) noexcept {
+	if( !p) return 0;
+	if(std::size_t s = PoolAllocatorBase::size_of(p))
+		return s;
+	using usable_fn_t = std::size_t (*)(void *);
+	static usable_fn_t s_libc_usable = reinterpret_cast<usable_fn_t>(
+	    dlsym(RTLD_NEXT, "malloc_usable_size"));
+	return s_libc_usable ? s_libc_usable(p) : 0;
 }
 #else
 // Windows: `realloc` is not interposed via a strong symbol (PE/COFF has
