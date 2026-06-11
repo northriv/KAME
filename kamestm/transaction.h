@@ -346,14 +346,12 @@ private:
             return (uint16_t)((uint32_t)ProcessCounter::id() & STAMP_TID_MASK_VAL);
         }
 
-        //! Monotonic µs counter (anchored to steady_clock's epoch, so the
-        //! µs fit comfortably in STAMP_US_BITS — ~9 years headroom).
-        //! Backed by detail::fast_now_us(): one raw cycle-counter read +
-        //! multiply-shift (~8 ns) instead of a steady_clock call (~22 ns),
-        //! the largest single line item of an uncontended Snapshot ctor.
-        //! See the rationale block in transaction_detail.h.
+        //! Monotonic µs counter. Uses steady_clock (not wall-clock
+        //! gettimeofday) so the µs since program start fit comfortably
+        //! in STAMP_US_BITS (~9 years headroom).
         static cnt_t now_us() noexcept {
-            return detail::fast_now_us();
+            return std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
         }
         //! Sub-µs companion to now_us() — same steady_clock backend, ns
         //! resolution.  Used by `_neg_spin_block` for the spin-budget /
