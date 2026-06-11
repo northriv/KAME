@@ -36,7 +36,9 @@ XScriptingThread::XScriptingThread(const char *name, bool runtime, const XString
  
 bool
 XScriptingThread::isRunning() const {
-    return (( **m_status)->to_str() == SCRIPTING_THREAD_STATUS_RUN);
+    //Exact "run", or "run Cell In[N]: ..." published by xpythonsupport.py
+    //while a notebook cell is executing outside sleep().
+    return (( **m_status)->to_str().find(SCRIPTING_THREAD_STATUS_RUN) == 0);
 }
 bool
 XScriptingThread::isAlive() const {

@@ -203,6 +203,7 @@ scriptfile.files = script/rubylineshell.rb \
     script/pythonlineshell.py \
     script/kame_mcp_server.py \
     script/kame_python_api.md \
+    ../doc/manual/kame-8-en.md \
     script/notebook/jupyter_notebook_config.py \
     script/notebook/notebook_kame_kernel_manager.py
 
@@ -229,6 +230,7 @@ else {
             script/pythonlineshell.py \
             script/kame_mcp_server.py \
             script/kame_python_api.md \
+            ../doc/manual/kame-8-en.md \
             script/notebook/jupyter_notebook_config.py \
             script/notebook/notebook_kame_kernel_manager.py
     }

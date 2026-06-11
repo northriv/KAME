@@ -23,6 +23,7 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
     m_output(create<XBoolNode>("Output", true)),
     m_burst(create<XBoolNode>("Burst", true)),
     m_burstPhase(create<XDoubleNode>("BurstPhase", true)),
+    m_burstCycles(create<XUIntNode>("BurstCycles", true)),
     m_trigSrc(create<XComboNode>("TrigSrc", true)),
     m_waveform(create<XComboNode>("Waveform", true)),
     m_freq(create<XDoubleNode>("Freq", true)),
@@ -37,6 +38,7 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
         xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput),
         xqcon_create<XQToggleButtonConnector>(m_burst, m_form->m_ckbBurst),
         xqcon_create<XQLineEditConnector>(m_burstPhase, m_form->m_edBurstPhase),
+        xqcon_create<XQLineEditConnector>(m_burstCycles, m_form->m_edBurstCycles),
         xqcon_create<XQComboBoxConnector>(m_trigSrc, m_form->m_cmbTrigSrc, Snapshot( *m_trigSrc)),
         xqcon_create<XQComboBoxConnector>(m_waveform, m_form->m_cmbWaveform, Snapshot( *m_waveform)),
         xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq),
@@ -49,7 +51,7 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
 
     iterate_commit([=](Transaction &tr){
         std::vector<shared_ptr<XNode>> runtime_ui{
-            m_output, m_burst, m_burstPhase, m_trigSrc, m_waveform, m_freq, m_ampl, m_offset, m_duty,
+            m_output, m_burst, m_burstPhase, m_burstCycles, m_trigSrc, m_waveform, m_freq, m_ampl, m_offset, m_duty,
             m_pulseWidth, m_pulsePeriod
         };
         for(auto &&x: runtime_ui)
@@ -93,7 +95,7 @@ void XArbFuncGen::visualize(const Snapshot &shot) {
 void
 XArbFuncGen::start() {
     std::vector<shared_ptr<XNode>> runtime_ui{
-        m_output, m_burst, m_burstPhase, m_trigSrc, m_waveform, m_freq, m_ampl, m_offset, m_duty,
+        m_output, m_burst, m_burstPhase, m_burstCycles, m_trigSrc, m_waveform, m_freq, m_ampl, m_offset, m_duty,
         m_pulseWidth, m_pulsePeriod
     };
     iterate_commit([=](Transaction &tr){
@@ -107,6 +109,7 @@ XArbFuncGen::start() {
             shared_from_this(), &XArbFuncGen::onCondChanged);
         tr[ *m_burst].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_burstPhase].onValueChanged().connect(m_lsnOnCondChanged);
+        tr[ *m_burstCycles].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_trigSrc].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_ampl].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_offset].onValueChanged().connect(m_lsnOnCondChanged);

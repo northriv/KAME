@@ -112,6 +112,47 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QLabel" name="textLabelBurstCycles">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Cycles</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="m_edBurstCycles">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>120</width>
+          <height>32767</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Burst cycle count. 0 = INFinity.</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
     <item row="2" column="0" colspan="2">
@@ -445,6 +486,9 @@
           <height>32767</height>
          </size>
         </property>
+        <property name="toolTip">
+         <string>Pulse period [s]. 0 = follow Freq (period = 1/Freq).</string>
+        </property>
        </widget>
       </item>
       <item>
@@ -505,6 +549,9 @@
           <width>200</width>
           <height>32767</height>
          </size>
+        </property>
+        <property name="toolTip">
+         <string>Pulse width [s] for PULS waveform. 0 = specify by Duty.</string>
         </property>
        </widget>
       </item>
