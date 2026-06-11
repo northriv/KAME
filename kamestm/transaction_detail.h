@@ -694,6 +694,97 @@ inline NegSite::AutoMergeStats& NegSite::auto_merge_stats() noexcept {
 }
 #endif
 
+// ---------------------------------------------------------------------
+// Fast monotonic µs for negotiation stamps.
+//
+// std::chrono::steady_clock::now() costs ~22 ns per call (vDSO /
+// libsystem) and is the single largest line item in an uncontended
+// Snapshot constructor (~18% of 123 ns).  A raw cycle-counter read plus
+// a multiply-shift costs ~8 ns.
+//
+// Correctness envelope: the negotiation / fairness layer consumes these
+// stamps only as DIFFERENCES between fast_now_us() readings (age
+// windows, preempt thresholds, lease spans), so the requirements are
+// monotonicity and one uniform scale shared by every thread:
+//   - aarch64: cntvct_el0 is architecturally constant-frequency and
+//     synchronized across cores; the exact frequency comes from
+//     cntfrq_el0 — no calibration.
+//   - x86-64: rdtsc is invariant on every CPU KAME supports (constant
+//     TSC, post-2008); the frequency is calibrated once at first use
+//     against steady_clock over ~1 ms.  A relative calibration error ε
+//     scales ALL stamp differences uniformly by (1+ε); the fairness
+//     windows (100 µs .. 1 s granularity) are insensitive to ε ~ 1e-3.
+//   - other architectures, or -DKAME_STM_FAST_CLOCK=0: steady_clock.
+//
+// The calibration lives behind the DECLSPEC_KAME accessor
+// fast_clock_calib() defined in threadlocal.cpp — ONE instance per
+// process (same pattern as tls_storage).  A per-DLL magic static would
+// give each plugin DLL its own anchor/scale and the cross-DLL stamp
+// skew would grow with uptime; stamps cross DLLs via Linkage slots, so
+// the time base must be process-global.
+//
+// STM safety is never affected: stamps drive heuristics (who yields
+// first); the CAS protocol alone guarantees consistency.  Worst case on
+// exotic hardware (non-invariant TSC) is transiently unfair scheduling.
+// ---------------------------------------------------------------------
+#ifndef KAME_STM_FAST_CLOCK
+#  if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
+#    define KAME_STM_FAST_CLOCK 1
+#  else
+#    define KAME_STM_FAST_CLOCK 0
+#  endif
+#endif
+
+namespace detail {
+#if KAME_STM_FAST_CLOCK
+inline uint64_t fast_clock_cycles() noexcept {
+#if defined(__aarch64__) || defined(_M_ARM64)
+  #ifdef _MSC_VER
+    return _ReadStatusReg(ARM64_SYSREG(3, 3, 14, 0, 2));  // cntvct_el0
+  #else
+    uint64_t v;
+    asm volatile("mrs %0, cntvct_el0" : "=r"(v));
+    return v;
+  #endif
+#else
+  #ifdef _MSC_VER
+    return __rdtsc();
+  #else
+    return __builtin_ia32_rdtsc();
+  #endif
+#endif
+}
+//! Anchor + scale: µs = us0 + ((cycles - c0) * mult >> 32).
+struct FastClockCalib {
+    uint64_t c0;
+    int64_t  us0;
+    uint64_t mult;   //!< µs-per-tick × 2^32
+};
+//! One calibration per process; defined in threadlocal.cpp.
+DECLSPEC_KAME const FastClockCalib &fast_clock_calib() noexcept;
+
+inline int64_t fast_now_us() noexcept {
+    const FastClockCalib &c = fast_clock_calib();
+    uint64_t dt = fast_clock_cycles() - c.c0;
+    // 128-bit product: dt*mult overflows 64 bits within ~50 days at
+    // 3 GHz; the high:low >> 32 form is good for centuries.
+  #ifdef _MSC_VER
+    uint64_t hi;
+    uint64_t lo = _umul128(dt, c.mult, &hi);
+    return c.us0 + (int64_t)((lo >> 32) | (hi << 32));
+  #else
+    return c.us0 + (int64_t)(
+        (uint64_t)(((unsigned __int128)dt * c.mult) >> 32));
+  #endif
+}
+#else  // !KAME_STM_FAST_CLOCK
+inline int64_t fast_now_us() noexcept {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+#endif
+} // namespace detail
+
 //! Livelock observation probe (always on).
 //!
 //! Per-thread rolling-window observer for the LIVELOCK verdict that
@@ -730,10 +821,10 @@ public:
     };
     //! TLS accessor — one slot per thread, one symbol per program.
     DECLSPEC_KAME static State& state() noexcept;
-    //! steady_clock µs (wraps the std::chrono boilerplate).
+    //! Monotonic µs — same fast time base as NegotiationCounter::now_us()
+    //! (stamps from the two are compared against each other).
     static inline int64_t now_us() noexcept {
-        return std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count();
+        return detail::fast_now_us();
     }
 
     LivelockProbe()  = delete;
