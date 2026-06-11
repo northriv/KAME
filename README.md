@@ -146,6 +146,16 @@ were intentionally dropped because shared-tenant scheduling jitter on a
 single allocator could swing 3× between sessions and made any absolute
 comparison unreliable.
 
+<p align="center">
+<img src="doc/bench/bench_loop_m3_1t.svg" width="49%" alt="bench_loop 1T, Apple M3"> <img src="doc/bench/bench_loop_ohtaka_1t.svg" width="49%" alt="bench_loop 1T, AMD EPYC 7702">
+<img src="doc/bench/bench_loop_ohtaka_128p.svg" width="49%" alt="bench_loop 128 processes, AMD EPYC 7702"> <img src="doc/bench/scaling_ohtaka.svg" width="49%" alt="kame thread scaling, AMD EPYC 7702">
+</p>
+
+The four charts above are plotted from the tables that follow
+(regenerate with `tests/bench/plots/make_plots.py`).  The story is the
+**flat red curve**: no mmap-per-call cliff at the ≥ 1 MiB tier, and
+near-linear scaling to 128 cores.
+
 **Apple MacBook Air M3 (arm64, macOS), single thread, M ops/s** — kamepoolalloc at
 `60971013`, median of 7 runs via `bench_compare.sh` (mimalloc 3.3.2 + jemalloc 5.3.0
 via Homebrew).  Both M3 tables below were measured on this commit:
