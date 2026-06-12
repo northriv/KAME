@@ -709,30 +709,33 @@ private:
         //! With release/acquire pairing the staleness window collapses
         //! to the hardware cache coherency RTT (sub-µs).
         struct DECLSPEC_KAME AcquireOneCount {
-            // Move-aware so this can live as a value member (inside
-            // std::optional<>) of Transaction without paying a per-Tx
-            // heap alloc. A moved-from instance must skip the
-            // s_tx_nest decrement in its dtor; m_active=false marks
-            // that ownership has been transferred.
-            bool m_active;
-            AcquireOneCount() : m_active(true) {
+            AcquireOneCount() {
                 if(++*detail::s_tx_nest == 1 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
                         .fetch_add(1, std::memory_order_release);
             }
-            AcquireOneCount(AcquireOneCount&& other) noexcept
-                : m_active(other.m_active) {
-                other.m_active = false;
+            //! Move disarms the source so the running-slot release fires
+            //! exactly once.  This lets Transaction hold an AcquireOneCount
+            //! BY VALUE (no per-Tx heap allocation) yet stay movable.
+            AcquireOneCount(AcquireOneCount &&o) noexcept : m_armed(o.m_armed) {
+                o.m_armed = false;
             }
-            AcquireOneCount(const AcquireOneCount&) = delete;
-            AcquireOneCount& operator=(const AcquireOneCount&) = delete;
-            AcquireOneCount& operator=(AcquireOneCount&&) = delete;
-            ~AcquireOneCount() {
-                if( !m_active) return;
+            ~AcquireOneCount() { release(); }
+            //! Release the running slot now (idempotent).  finalizeCommitment
+            //! calls this to yield the slot before the post-commit messaging,
+            //! the way it formerly reset the unique_ptr.
+            void release() noexcept {
+                if( !m_armed) return;
+                m_armed = false;
                 if(--*detail::s_tx_nest == 0 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
                         .fetch_sub(1, std::memory_order_release);
             }
+            AcquireOneCount(const AcquireOneCount &) = delete;
+            AcquireOneCount &operator=(const AcquireOneCount &) = delete;
+            AcquireOneCount &operator=(AcquireOneCount &&) = delete;
+        private:
+            bool m_armed = true;
         };
         //! RAII yield of the running slot for the duration of a sleep
         //! inside negotiate_internal. Pairs with the TLS nest counters
@@ -1820,17 +1823,19 @@ protected:
     //! rotation to ~40 % hits.)
     //!
     //! Concurrency: the memo is single-threaded, so its members are PLAIN
-    //! (non-atomic).  In KAME a non-trivial object crosses threads only where
-    //! sharing is EXPLICITLY sanctioned, and a Snapshot is not such an
-    //! object: it is copied at every thread handoff — Talker stores the
-    //! Snapshot BY VALUE in its Event and re-copies it for each deferred
-    //! listener (transaction_signal.h) — so one Snapshot object is never
-    //! reached by two threads, and the `mutable` write-during-const-read
-    //! (find populates the memo) is owned by a single thread.  Atomics were
-    //! deliberately NOT used: they would imply a cross-thread sharing that
-    //! the no-sharing rule forbids, misleading future readers, while the
-    //! relaxed loads/stores also blocked the compiler from caching the memo
-    //! across repeated subscripts.
+    //! (non-atomic).  This is not a new constraint — a Snapshot is ALREADY
+    //! single-threaded by construction: m_packet is a `local_shared_ptr`,
+    //! the non-atomic smart pointer whose embedded local refcount is unsafe
+    //! to touch from two threads (the whole reason `atomic_shared_ptr`
+    //! exists as the separate cross-thread variant).  One Snapshot object
+    //! has therefore never been usable from two threads; the plain memo
+    //! merely matches what the enclosing type already is.  (Talker confirms
+    //! this in practice: it stores the Snapshot BY VALUE in its Event and
+    //! re-copies it for each deferred listener — transaction_signal.h — so
+    //! each thread holds its own copy.)  Atomics were deliberately NOT used:
+    //! they would imply a cross-thread sharing the type does not support,
+    //! misleading future readers, while the relaxed loads/stores also
+    //! blocked the compiler from caching the memo across repeated subscripts.
     //!
     //! find() recovers identity from the payload itself: a hit requires
     //! &payload->node() == node (tier 0 stores no node; m_node is immutable —
@@ -2118,7 +2123,8 @@ public:
         // `now_us_tagged()` auto-folds the lowprio bit — see
         // Snapshot ctor above for the priority-gated timeout rationale.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        m_oneup.emplace();
+        // m_oneup (the running-slot acquire) is a by-value member, bumped in
+        // the member-init list above — no per-Tx heap allocation.
         node.snapshot( *this, multi_nodal);
         assert( &m_packet->node() == &node);
         assert( &m_oldpacket->node() == &node);
@@ -2128,7 +2134,7 @@ public:
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        m_oneup.emplace();
+        // m_oneup bumped by its by-value member-init — no heap allocation.
     }
     Transaction(Transaction&&x) = default;
     //! Releases any tagged linkages (clearing m_transaction_started_time
@@ -2267,10 +2273,11 @@ private:
     // Transaction-specific members below.
     using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
-    // std::optional avoids the per-Tx heap alloc that the old
-    // std::unique_ptr<> demanded; AcquireOneCount is now move-aware
-    // so the defaulted Transaction(Transaction&&) stays correct.
-    std::optional<typename Node<XN>::NegotiationCounter::AcquireOneCount> m_oneup;
+    //! Running-slot RAII held BY VALUE (movable, disarm-on-move) — formerly
+    //! a std::unique_ptr, which cost one heap allocation per Transaction
+    //! (~26 % of a single-node commit's instructions were malloc/free in a
+    //! system-allocator profile; this removes one alloc/free pair).
+    typename Node<XN>::NegotiationCounter::AcquireOneCount m_oneup;
 };
 
 //! \brief Transaction which does not care of contents (Payload) of subnodes.\n
@@ -2303,7 +2310,7 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // zeroing m_started_time; drop_tags_n_privilege() matches on the current value.
     this->drop_tags_n_privilege();
     m_started_time = 0;
-    m_oneup.reset();
+    m_oneup.release();   // yield the running slot before messaging
 
     m_oldpacket.reset();
     //Messaging.
