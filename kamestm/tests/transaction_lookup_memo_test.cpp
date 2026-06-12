@@ -187,6 +187,39 @@ int main() {
             VERIFY(mismatches == 0);
         }
 
+        // --- 7. multi-slot: const view must see the clone, not a stale
+        // committed payload left in another slot (set() uniqueness).
+        root->iterate_commit([&](Transaction &tr) {
+            const Snapshot &shot(tr);
+            long before = shot[ *a].m_x;     // caches the COMMITTED payload
+            tr[ *a].m_x = before + 5000;     // clone; set() must overwrite, not append
+            VERIFY(shot[ *a].m_x == before + 5000);  // stale-slot regression
+        });
+
+        // --- 8. multi-slot: rotations within and beyond capacity ---------
+        {
+            shared_ptr<LongNode> more[6];
+            for(int i = 0; i < 6; ++i) {
+                more[i] = shared_ptr<LongNode>(LongNode::create<LongNode>());
+                root->insert(more[i]);
+            }
+            root->iterate_commit([&](Transaction &tr) {
+                for(int rep = 0; rep < 3; ++rep)      // 6 nodes > SLOTS: evictions
+                    for(int i = 0; i < 6; ++i)
+                        tr[ *more[i]].m_x = 10 * (i + 1) + rep;
+            });
+            Snapshot shot( *root);
+            for(int rep = 0; rep < 3; ++rep)          // reads through evictions
+                for(int i = 0; i < 6; ++i)
+                    VERIFY(shot[ *more[i]].m_x == 10 * (i + 1) + 2);
+            // 4-node rotation (== SLOTS) must stay coherent across repeats
+            for(int rep = 0; rep < 8; ++rep)
+                for(int i = 0; i < 4; ++i)
+                    VERIFY(shot[ *more[i]].m_x == 10 * (i + 1) + 2);
+            for(int i = 0; i < 6; ++i)
+                root->release(more[i]);
+        }
+
         (void)outside;
     }
 
