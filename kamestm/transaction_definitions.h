@@ -354,6 +354,17 @@
 #define KAME_STM_PRIV_DIAG 0
 #endif
 
+// Cold-path outlining hint.  Used to keep rarely-executed bodies (e.g.
+// the lookup memo's tier-1 scan/archive) out of the inline expansion of
+// hot call sites: leaving them inline measurably degraded the commit
+// cycle (~12 ns, ~2.5%) through code bloat alone, even when the cold
+// branch never executed.
+#if defined(_MSC_VER) && !defined(__GNUC__)
+#  define KAME_STM_NOINLINE __declspec(noinline)
+#else
+#  define KAME_STM_NOINLINE __attribute__((noinline))
+#endif
+
 // Per-Priority retry threshold for the livelock probe's verdict (NORMAL
 // row; HIGHEST/UI_DEFERRABLE/LOWEST are hard-coded in
 // priority_probe_info()).
