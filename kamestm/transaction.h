@@ -1462,13 +1462,12 @@ public:
     const typename T::Payload &at(const T &node) const {
         // Memo hit: the cached Payload self-identifies its node via the
         // immutable m_node — see the LookupMemo doc-block.
-        typename Node<XN>::Payload *p =
-            m_lookup_memo.payload.load(std::memory_order_relaxed);
+        typename Node<XN>::Payload *p = m_lookup_memo.find( &node);
         if(p && ( &p->node() == &node)) [[likely]]
             return *static_cast<const typename T::Payload*>(p);
         const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
         const local_shared_ptr<typename Node<XN>::Payload> &payload(packet->payload());
-        m_lookup_memo.set(payload.get());
+        m_lookup_memo.set( &node, payload.get());
         return *static_cast<const typename T::Payload*>(payload.get());
     }
     //! # of child nodes.
@@ -1755,14 +1754,29 @@ protected:
     //! on, degrading to an O(tree) forwardLookup scan once the live tree
     //! has moved past this snapshot).
     //!
-    //! A single atomic Payload* is sufficient: a Payload self-identifies its
-    //! owning node via the immutable m_node (set once at construction, copied
-    //! verbatim by clone()), so the hit path validates the cached pointer with
-    //! &p->node() == &node — no separate node field, and being one atomic it
-    //! cannot tear.
+    //! Fully associative, FIFO-replaced, SLOTS entries: a linear scan over
+    //! {node, payload} pairs packed into one cache line, so a working set of
+    //! up to SLOTS alternating nodes — the dominant driver idiom, e.g.
+    //! consecutive tr[*a]/tr[*b] field assignments — stays fully memoized
+    //! regardless of node addresses.  (A direct-mapped address hash was
+    //! rejected: pool-allocator size-class strides make it brittle, and with
+    //! 4 keys in 4 slots the birthday collisions drop a 4-node rotation to
+    //! ~40 % hits.)
+    //!
+    //! Each slot self-validates: a hit additionally requires
+    //! &payload->node() == &node (m_node is immutable, set once at
+    //! construction and copied verbatim by clone()), so a torn {node,
+    //! payload} pair observed by a concurrent reader of a shared Snapshot
+    //! degrades to a plain miss.  set() OVERWRITES an existing slot for the
+    //! same node rather than appending (uniqueness invariant) — otherwise a
+    //! Transaction's copy-on-write clone could leave the stale committed
+    //! payload in another slot, and a later scan could return it.  Races on
+    //! the FIFO cursor are harmless (replacement policy only; a duplicate
+    //! created by two concurrent misses on a shared Snapshot is benign since
+    //! both cache the same frozen payload).
     //!
     //! Validity: a node found in this snapshot is owned by the snapshot's
-    //! packet tree (NodeList holds shared_ptr), so the cached Payload can
+    //! packet tree (NodeList holds shared_ptr), so a cached Payload can
     //! neither dangle nor see address reuse while the snapshot lives.  For a
     //! Transaction, structural mutators (insert/release/swap) invalidate via
     //! ScopedLookupMemoInvalidate, and the snapshot-refill entry
@@ -1771,18 +1785,61 @@ protected:
     //! transaction's clone is returned without a lookup; m_serial is reset
     //! in place only by eraseSerials() inside release(), which is memo-guarded.
     struct LookupMemo {
-        std::atomic<typename Node<XN>::Payload*> payload{nullptr};
+        enum : unsigned {SLOTS = 4};   //!< 4 × 2 ptrs = 64 B, one cache line.
+        struct Slot {
+            std::atomic<const Node<XN>*> node{nullptr};
+            std::atomic<typename Node<XN>::Payload*> payload{nullptr};
+        };
+        Slot slots[SLOTS];
+        std::atomic<unsigned> cursor{0};
         LookupMemo() noexcept = default;
         //! Copy carries the memo over — the copy shares m_packet's tree.
-        LookupMemo(const LookupMemo &x) noexcept
-            : payload(x.payload.load(std::memory_order_relaxed)) {}
+        //! Per-slot pairs may copy torn; the hit-path revalidation gates them.
+        LookupMemo(const LookupMemo &x) noexcept { copy_(x); }
         LookupMemo &operator=(const LookupMemo &x) noexcept {
-            payload.store(x.payload.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            copy_(x);
             return *this;
         }
-        void clear() noexcept { payload.store(nullptr, std::memory_order_relaxed); }
-        void set(typename Node<XN>::Payload *p) noexcept {
-            payload.store(p, std::memory_order_relaxed);
+        void copy_(const LookupMemo &x) noexcept {
+            for(unsigned i = 0; i < SLOTS; ++i) {
+                slots[i].payload.store(
+                    x.slots[i].payload.load(std::memory_order_relaxed),
+                    std::memory_order_relaxed);
+                slots[i].node.store(
+                    x.slots[i].node.load(std::memory_order_relaxed),
+                    std::memory_order_relaxed);
+            }
+        }
+        void clear() noexcept {
+            for(auto &s: slots)
+                s.node.store(nullptr, std::memory_order_relaxed);
+        }
+        //! \return Candidate payload for \a n, or nullptr.  The caller MUST
+        //! revalidate via &p->node() == n (the tear gate).
+        typename Node<XN>::Payload *find(const Node<XN> *n) const noexcept {
+            for(auto &s: slots)
+                if(s.node.load(std::memory_order_relaxed) == n)
+                    return s.payload.load(std::memory_order_relaxed);
+            return nullptr;
+        }
+        void set(const Node<XN> *n, typename Node<XN>::Payload *p) noexcept {
+            for(auto &s: slots) {
+                if(s.node.load(std::memory_order_relaxed) == n) {
+                    s.payload.store(p, std::memory_order_relaxed);
+                    return;   // in-place: keeps one entry per node.
+                }
+            }
+            // Replacement cursor: plain load+store, NOT fetch_add — an
+            // atomic RMW would cost ~5 ns on every capacity miss for
+            // nothing.  Lost increments merely repeat a slot; duplicates
+            // from concurrent misses on a shared Snapshot are benign
+            // (see doc-block).
+            unsigned i = cursor.load(std::memory_order_relaxed);
+            cursor.store(i + 1, std::memory_order_relaxed);
+            auto &s = slots[i % SLOTS];
+            s.node.store(nullptr, std::memory_order_relaxed); // gate readers while the pair is written
+            s.payload.store(p, std::memory_order_relaxed);
+            s.node.store(n, std::memory_order_relaxed);
         }
     };
     mutable LookupMemo m_lookup_memo;
@@ -1969,15 +2026,14 @@ public:
         // Memo hit only when the cached Payload is THIS transaction's clone
         // (serial match) — a mismatch means the copy-on-write below must run.
         // See Snapshot::LookupMemo for validity notes.
-        typename Node<XN>::Payload *p =
-            this->m_lookup_memo.payload.load(std::memory_order_relaxed);
+        typename Node<XN>::Payload *p = this->m_lookup_memo.find( &node);
         if(p && ( &p->node() == &node) && (p->serial() == this->m_serial)) [[likely]]
             return *static_cast<typename T::Payload *>(p);
         auto &packet(node.reverseLookup(this->m_packet, true, this->m_serial));
         auto &payload(packet->payload());
         if(payload->m_serial != this->m_serial)
             payload = payload->clone( *this, this->m_serial);
-        this->m_lookup_memo.set(payload.get());
+        this->m_lookup_memo.set( &node, payload.get());
         return *static_cast<typename T::Payload *>(payload.get());
     }
     bool isMultiNodal() const noexcept {return m_multi_nodal;}

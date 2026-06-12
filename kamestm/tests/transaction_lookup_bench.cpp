@@ -88,6 +88,16 @@ int main() {
             for(long i = 0; i < n; ++i)
                 s_sink += shot[ *(i & 1 ? a : b)].m_x;
         });
+        bench_ns("snap/alt4", N_READ, [&](long n) {
+            // 4-node rotation == LookupMemo::SLOTS: should stay memoized.
+            for(long i = 0; i < n; ++i)
+                s_sink += shot[ *children[(i & 3) * 4]].m_x;
+        });
+        bench_ns("snap/rr8", N_READ / 4, [&](long n) {
+            // 8-node rotation > SLOTS: every access evicts — true-miss cost.
+            for(long i = 0; i < n; ++i)
+                s_sink += shot[ *children[(i & 7) * 2]].m_x;
+        });
         bench_ns("snap/root", N_READ, [&](long n) {
             for(long i = 0; i < n; ++i)
                 s_sink += shot[ *root].m_x;
@@ -119,6 +129,10 @@ int main() {
         bench_ns("tr/alt2", N_WRITE, [&](long n) {
             for(long i = 0; i < n; ++i)
                 tr[ *(i & 1 ? a : b)].m_x += 1;
+        });
+        bench_ns("tr/alt4", N_WRITE, [&](long n) {
+            for(long i = 0; i < n; ++i)
+                tr[ *children[(i & 3) * 4]].m_x += 1;
         });
         // transaction intentionally dropped without commit
     }
