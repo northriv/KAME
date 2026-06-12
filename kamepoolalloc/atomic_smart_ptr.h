@@ -365,6 +365,27 @@ template <typename X> class local_weak_ptr;
 //! verification is unaffected).
 template <typename T> struct force_intrusive_ref : std::false_type {};
 
+//! (§36c) Opt-out of marker AUTO-detection for a NON-intrusive type that is
+//! INCOMPLETE — or whose instantiation would be CIRCULAR — at the first use of
+//! `local_shared_ptr<T>` / `atomic_shared_ptr<T>`.  The `sizeof(T)` completeness
+//! probe in `ref_traits_auto` instantiates `T`; for a plain incomplete class
+//! (`struct N;`) that soft-fails and the incomplete fallback is chosen, but for
+//! a not-yet-instantiated class TEMPLATE id (e.g. `Holder<A>` used while `A` is
+//! still being defined, where `Holder<A>` transitively needs `A` complete) the
+//! probe forces `Holder<A>`'s instantiation and the resulting error is a HARD
+//! error, NOT soft SFINAE — so `local_shared_ptr<Holder<A>>` cannot be a member
+//! of `A` the way `std::shared_ptr<Holder<A>>` can.  Specialise this to
+//! `std::true_type` (before that first use) to skip the probe and take the
+//! default non-intrusive two-alloc `gref_<T>` control block — identical to the
+//! auto-detected incomplete fallback, and the only `T` usage is `T *ptr;` which
+//! is valid on an incomplete T.  `local_weak_ptr<T>` stays available.
+//!
+//!     template <class X> struct force_incomplete_ref<Holder<X>> : std::true_type {};
+//!
+//! Mutually exclusive with `force_intrusive_ref<T>` (intrusive wins).  Pure
+//! compile-time trait dispatch — does NOT touch the lock-free SMR core.
+template <typename T> struct force_incomplete_ref : std::false_type {};
+
 //! AUTO-detection traits (used only for NON-forced types).  A `sizeof(T)`
 //! completeness gate distinguishes the two: incomplete T → non-intrusive
 //! gref_<T> fallback; complete T → marker-base (`is_base_of`) detection.
@@ -404,11 +425,19 @@ struct ref_traits_auto<T, std::void_t<decltype(sizeof(T))>> {
     static constexpr bool has_weak = !is_intrusive && !is_strict;
 };
 
-//! Dispatcher.  The `bool Forced` second parameter — defaulted from
-//! `force_intrusive_ref<T>` (which needs only T's template-id, NOT a complete
-//! T) — picks between the forced-intrusive partial spec (NO `sizeof` anywhere,
-//! safe for incomplete self-referential types) and the auto-detection path.
-template <typename T, bool Forced = force_intrusive_ref<T>::value>
+//! Dispatcher.  The `int Mode` second parameter — defaulted from the two
+//! force traits (each needs only T's template-id, NOT a complete T) — picks:
+//!   0 = AUTO-detection (`sizeof(T)` marker probe; requires T completable),
+//!   1 = forced INTRUSIVE   (`force_intrusive_ref<T>`; NO `sizeof` anywhere),
+//!   2 = forced INCOMPLETE  (`force_incomplete_ref<T>`; non-intrusive gref_<T>
+//!       fallback, NO `sizeof` — for circular/incomplete template-id members).
+//! Intrusive wins if both are (mis)specialised.
+template <typename T>
+constexpr int ref_force_mode() noexcept {
+    return force_intrusive_ref<T>::value ? 1
+         : (force_incomplete_ref<T>::value ? 2 : 0);
+}
+template <typename T, int Mode = ref_force_mode<T>()>
 struct ref_traits : ref_traits_auto<T> {};
 
 //! (§36b) Forced-intrusive — `Ref = T` (no separate control block; disposal via
@@ -427,13 +456,26 @@ struct ref_traits : ref_traits_auto<T> {};
 //! the type; a template specialisation has no such escape.  All control blocks
 //! in this header use `uintptr_t` for the count, so the trait fixes it here.
 template <typename T>
-struct ref_traits<T, true> {
+struct ref_traits<T, 1> {
     static constexpr bool is_intrusive = true;
     static constexpr bool is_emplaced  = false;
     static constexpr bool is_strict    = false;
     using Ref = T;
     using Refcnt = uintptr_t;
     static constexpr bool has_weak = false;
+};
+
+//! (§36c) Forced-incomplete — default non-intrusive two-alloc `gref_<T>`
+//! control block (its only T usage is `T *ptr;`, valid on incomplete T), NO
+//! `sizeof(T)` probe.  Mirrors the auto-detected incomplete fallback so a
+//! circular/incomplete template-id can be a `local_shared_ptr<T>` member.
+template <typename T>
+struct ref_traits<T, 2> {
+    static constexpr bool is_intrusive = false;
+    static constexpr bool is_emplaced  = false;
+    static constexpr bool is_strict    = false;
+    using Ref = atomic_shared_ptr_gref_<T>;
+    static constexpr bool has_weak = true;
 };
 
 //! (§36b) Opt-in custom disposer for the INTRUSIVE mode (`atomic_countable`).
