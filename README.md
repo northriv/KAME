@@ -696,9 +696,26 @@ struct MyNode {
 };
 ```
 
-Full trait reference: the **USAGE** header block + `ref_traits` / `force_intrusive_ref`
-in `atomic_smart_ptr.h`.  Working self-referential examples:
-`tests/atomic_intrusive_dispose_test.cpp` and `tests/atomic_intrusive_chain_test.cpp`.
+**Circular / incomplete template-id member** — `local_shared_ptr<T>` resolves
+its control-block category (`ref_traits<T>`) at *member-declaration* time, since
+the method signatures reference the chosen `Ref` (unlike `std::shared_ptr`, which
+type-erases the deleter at construction).  The `sizeof(T)` marker probe then
+*instantiates* `T`.  A plain incomplete class (`struct N;`) soft-fails to the
+non-intrusive fallback, but a not-yet-instantiated class **template-id** —
+`local_shared_ptr<Holder<A>>` as a member of `A`, where `Holder<A>` transitively
+needs `A` complete — makes the probe force `Holder<A>`'s instantiation, and the
+failure is a *hard* error, not soft SFINAE.  Opt out of the probe (the type then
+takes the default non-intrusive control block, `local_weak_ptr<T>` still works):
+
+```cpp
+template <class X> struct force_incomplete_ref<Holder<X>> : std::true_type {};
+struct A { local_shared_ptr<Holder<A>> m; };   // now compiles, like std::shared_ptr
+```
+
+Full trait reference: the **USAGE** header block + `ref_traits` /
+`force_intrusive_ref` / `force_incomplete_ref` in `atomic_smart_ptr.h`.  Working
+self-referential examples: `tests/atomic_intrusive_dispose_test.cpp` and
+`tests/atomic_intrusive_chain_test.cpp`.
 
 ## Tuning
 

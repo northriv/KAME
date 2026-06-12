@@ -182,6 +182,34 @@ static int template_self_ref_smoke() {
     return 0;
 }
 
+// (§36c) force_incomplete_ref regression: a NON-intrusive class template-id
+// used as a `local_shared_ptr<>` member of an enclosing class that the
+// template-id itself transitively needs complete.  Without the opt-out the
+// `sizeof(T)` marker probe instantiates `IncHolder<IncA>` while `IncA` is still
+// being defined → HARD error (base class incomplete).  With the opt-out the
+// probe is skipped and the default non-intrusive control block is chosen — the
+// member compiles the way `std::shared_ptr<IncHolder<IncA>>` would.
+template <class X> struct IncHolder : X { long extra = 0; };
+template <class X> struct force_incomplete_ref<IncHolder<X>> : std::true_type {};
+struct IncA {
+    local_shared_ptr<IncHolder<IncA>> m;   // was a hard error pre-fix
+    long w = 0;
+};
+static_assert( !ref_traits<IncHolder<IncA>>::is_intrusive,
+              "force_incomplete_ref → non-intrusive control block");
+static_assert(ref_traits<IncHolder<IncA>>::has_weak,
+              "force_incomplete_ref keeps local_weak_ptr available");
+//! Runtime exercise so the control block actually constructs/destroys.
+static int incomplete_member_smoke() {
+    IncA a;
+    a.m = make_local_shared<IncHolder<IncA>>();
+    a.m->extra = 42;
+    local_weak_ptr<IncHolder<IncA>> w(a.m);   // weak must be usable
+    int ok = (a.m && a.m->extra == 42 && !!w.lock()) ? 0 : 1;
+    a.m.reset();
+    return ok + (w.lock() ? 1 : 0);           // expired after reset → +0
+}
+
 // ---------------------------------------------------------------------------
 // Lock-free orphan chain — head atomic, intrusive forward next, no back-link.
 // ---------------------------------------------------------------------------
@@ -321,6 +349,7 @@ int main(int argc, char **argv) {
 
     int fails = single_thread_sanity();
     fails += template_self_ref_smoke();   // self-referential intrusive TEMPLATE
+    fails += incomplete_member_smoke();   // (§36c) force_incomplete_ref circular member
 
     std::printf("[mt] threads=%d iters=%d\n", T, ITERS);
     std::vector<std::thread> ts;
