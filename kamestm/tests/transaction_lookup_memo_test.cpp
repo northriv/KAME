@@ -55,6 +55,24 @@ static int s_failures = 0;
 
 int main() {
     {
+        // --- 0. local_weak_ptr::same_control_block primitive -----------
+        // (Underpins reverseLookupWithHint's promotion-free fast path.)
+        {
+            struct W { int v = 0; };
+            local_shared_ptr<W> p(make_local_shared<W>());
+            local_shared_ptr<W> q(make_local_shared<W>());
+            local_weak_ptr<W> wp(p);
+            VERIFY(wp.same_control_block(p));        // same CB
+            local_shared_ptr<W> p2(p);               // shares p's CB
+            VERIFY(wp.same_control_block(p2));        // identity, not handle eq
+            VERIFY( !wp.same_control_block(q));       // distinct CB
+            local_shared_ptr<W> empty;
+            VERIFY( !wp.same_control_block(empty));    // live weak vs null
+            local_weak_ptr<W> empty_wp;
+            VERIFY( !empty_wp.same_control_block(p));  // null weak vs live
+            VERIFY(empty_wp.same_control_block(empty)); // null == null
+        }
+
         shared_ptr<LongNode> root(LongNode::create<LongNode>());
         shared_ptr<LongNode> a(LongNode::create<LongNode>());
         shared_ptr<LongNode> b(LongNode::create<LongNode>());

@@ -768,6 +768,25 @@ public:
         }
     }
 
+    //! Control-block identity test against a LIVE \a sp WITHOUT a
+    //! weak->strong promotion — zero refcount traffic (lock() costs a
+    //! try_promote + a release RMW).  This never dereferences the weak
+    //! side; it only compares control-block addresses.  m_ref is a bare
+    //! CB pointer (the weak handle carries no local-count tag) and
+    //! sp.ref_ptr_() returns sp's masked CB pointer, so equality is
+    //! exact for any tag layout of \a sp.
+    //!
+    //! Correctness contract: the caller must pass a sp that is KNOWN
+    //! ALIVE (refcnt >= 1).  A live CB's address is occupied, so a true
+    //! result means genuine identity — no freed-and-reused-CB ABA.  A
+    //! dead-but-weakly-pinned CB on THIS side simply won't match a
+    //! distinct live CB, degrading to a normal miss.  Returns false when
+    //! either side is empty (null != a live CB; matches only null==null).
+    template <typename Z>
+    bool same_control_block(const local_shared_ptr<T, Z> &sp) const noexcept {
+        return m_ref == static_cast<const gref_weak_base_ *>(sp.ref_ptr_());
+    }
+
     //! Promote to `local_shared_ptr<T>`; returns empty when expired.
     //! T must be complete when instantiated.
     local_shared_ptr<T> lock() const noexcept {

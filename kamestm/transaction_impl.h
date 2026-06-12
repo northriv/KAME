@@ -1498,13 +1498,22 @@ Node<XN>::reverseLookupWithHint(local_shared_ptr<Linkage> &linkage,
     if( !wrapper) return nullptr;
     if(wrapper->hasPriority())
         return nullptr;
-    local_shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
-    if( !linkage_upper)
-        return nullptr;
     local_shared_ptr<Packet> *foundpacket;
-    if(linkage_upper == superpacket->node().m_link)
+    // Fast path: when the back-reference already names the lookup root's
+    // linkage we need only its identity, not a live reference — skip the
+    // weak->strong promotion (try_promote + release RMW pair).  Safe: the
+    // comparison target (the root linkage) is held alive by the caller's
+    // Snapshot/Transaction, and on a match we use `superpacket` and never
+    // touch the upper linkage.  See PacketWrapper::bundledBySameAs.
+    if(wrapper->bundledBySameAs(superpacket->node().m_link)) {
         foundpacket = &superpacket;
+    }
     else {
+        // Parent is an intermediate node: the recursion dereferences it,
+        // so a genuine owning reference is required here.
+        local_shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
+        if( !linkage_upper)
+            return nullptr;
         foundpacket = reverseLookupWithHint(linkage_upper,
             superpacket, copy_branch, tr_serial, set_missing, nullptr, nullptr);
         if( !foundpacket)
