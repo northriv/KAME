@@ -196,6 +196,24 @@ int main() {
             VERIFY(shot[ *a].m_x == before + 5000);  // stale-slot regression
         });
 
+        // --- 7b. displacement archive must not resurface a pre-clone
+        // payload: a stale tier-1 entry is shadowed by the MRU and must be
+        // OVERWRITTEN (not duplicated) when the clone gets displaced.
+        {
+            shared_ptr<LongNode> c(LongNode::create<LongNode>());
+            root->insert(c);
+            root->iterate_commit([&](Transaction &tr) {
+                const Snapshot &shot(tr);
+                long a0 = shot[ *a].m_x;       // MRU := committed(a)
+                (void)shot[ *b].m_x;           // displace: tier 1 archives committed(a)
+                tr[ *a].m_x = a0 + 70;         // clone; MRU := clone(a); tier-1 entry now stale
+                VERIFY(shot[ *a].m_x == a0 + 70);  // MRU shadows the stale entry
+                (void)tr[ *c];                 // displace clone(a): archive must overwrite in place
+                VERIFY(shot[ *a].m_x == a0 + 70);  // now served from tier 1 — must be the clone
+            });
+            root->release(c);
+        }
+
         // --- 8. multi-slot: rotations within and beyond capacity ---------
         {
             shared_ptr<LongNode> more[6];

@@ -1460,10 +1460,10 @@ public:
     //! may raise NodeNotFoundError;
     template <class T>
     const typename T::Payload &at(const T &node) const {
-        // Memo hit: the cached Payload self-identifies its node via the
-        // immutable m_node — see the LookupMemo doc-block.
+        // Memo hit: find() validates via the payload's immutable m_node
+        // back-pointer — see the LookupMemo doc-block.
         typename Node<XN>::Payload *p = m_lookup_memo.find( &node);
-        if(p && ( &p->node() == &node)) [[likely]]
+        if(p) [[likely]]
             return *static_cast<const typename T::Payload*>(p);
         const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
         const local_shared_ptr<typename Node<XN>::Payload> &payload(packet->payload());
@@ -1754,26 +1754,39 @@ protected:
     //! on, degrading to an O(tree) forwardLookup scan once the live tree
     //! has moved past this snapshot).
     //!
-    //! Fully associative, FIFO-replaced, SLOTS entries: a linear scan over
-    //! {node, payload} pairs packed into one cache line, so a working set of
-    //! up to SLOTS alternating nodes — the dominant driver idiom, e.g.
-    //! consecutive tr[*a]/tr[*b] field assignments — stays fully memoized
-    //! regardless of node addresses.  (A direct-mapped address hash was
-    //! rejected: pool-allocator size-class strides make it brittle, and with
-    //! 4 keys in 4 slots the birthday collisions drop a 4-node rotation to
-    //! ~40 % hits.)
+    //! Two tiers.  Tier 0 (`mru`) is byte-identical to the original
+    //! single-slot memo: one atomic Payload*, hit = 1 load + the immutable
+    //! m_node back-pointer compare.  Repeated same-node access — and, just
+    //! as importantly, the miss-dominated commit workload (a fresh
+    //! Transaction whose every subscript misses) — costs exactly what the
+    //! single-slot design did.  A naive flat 4-slot scan regressed the
+    //! payload-integrity commit stress by ~5 %: with one subscript per
+    //! transaction the memo never hits, so the extra scan/clear/copy/init
+    //! traffic was pure overhead.
     //!
-    //! Each slot self-validates: a hit additionally requires
-    //! &payload->node() == &node (m_node is immutable, set once at
-    //! construction and copied verbatim by clone()), so a torn {node,
-    //! payload} pair observed by a concurrent reader of a shared Snapshot
-    //! degrades to a plain miss.  set() OVERWRITES an existing slot for the
-    //! same node rather than appending (uniqueness invariant) — otherwise a
-    //! Transaction's copy-on-write clone could leave the stale committed
-    //! payload in another slot, and a later scan could return it.  Races on
-    //! the FIFO cursor are harmless (replacement policy only; a duplicate
-    //! created by two concurrent misses on a shared Snapshot is benign since
-    //! both cache the same frozen payload).
+    //! Tier 1 (`slots`) is a fully associative, FIFO-replaced history that
+    //! is populated ONLY when a different node displaces the MRU (set()
+    //! archives the outgoing payload).  The `used` flag gates the tier-1
+    //! scan, clear() and copy_(), so single-node transactions never touch
+    //! it.  Together the tiers memoize a working set of up to 1 + SLOTS
+    //! alternating nodes — the dominant driver idiom, e.g. consecutive
+    //! tr[*a]/tr[*b] field assignments.  (A direct-mapped address hash was
+    //! rejected: pool-allocator size-class strides make it brittle, and
+    //! with 4 keys in 4 slots the birthday collisions drop a 4-node
+    //! rotation to ~40 % hits.)
+    //!
+    //! find() validates internally: a hit requires &payload->node() ==
+    //! node (m_node is immutable, set once at construction and copied
+    //! verbatim by clone()), so a torn {node, payload} pair observed by a
+    //! concurrent reader of a shared Snapshot degrades to a plain miss.
+    //! Staleness invariant: a node's tier-1 entry can lag its latest
+    //! payload only while the MRU holds that latest payload (find checks
+    //! tier 0 first, shadowing the stale entry), and the next displacement
+    //! archives the latest payload over the stale slot (archive_ overwrites
+    //! in place — one entry per node).  Races on the FIFO cursor / `used` /
+    //! duplicate slots from concurrent misses on a shared Snapshot are
+    //! benign: every cached payload is the unique payload for its node in
+    //! this snapshot's frozen tree.
     //!
     //! Validity: a node found in this snapshot is owned by the snapshot's
     //! packet tree (NodeList holds shared_ptr), so a cached Payload can
@@ -1785,61 +1798,106 @@ protected:
     //! transaction's clone is returned without a lookup; m_serial is reset
     //! in place only by eraseSerials() inside release(), which is memo-guarded.
     struct LookupMemo {
-        enum : unsigned {SLOTS = 4};   //!< 4 × 2 ptrs = 64 B, one cache line.
+        enum : unsigned {SLOTS = 4};
+        //! Tier 0 — the original single-slot memo, checked first.
+        std::atomic<typename Node<XN>::Payload*> mru{nullptr};
+        //! Tier 1 — displacement history; meaningful only while `used`.
+        //! Members are still null-initialised: a concurrent reader that
+        //! observes `used` mid-archive must find null (miss), never an
+        //! indeterminate pointer.
         struct Slot {
             std::atomic<const Node<XN>*> node{nullptr};
             std::atomic<typename Node<XN>::Payload*> payload{nullptr};
         };
         Slot slots[SLOTS];
+        std::atomic<bool> used{false};
         std::atomic<unsigned> cursor{0};
         LookupMemo() noexcept = default;
         //! Copy carries the memo over — the copy shares m_packet's tree.
-        //! Per-slot pairs may copy torn; the hit-path revalidation gates them.
+        //! Per-slot pairs may copy torn; find()'s revalidation gates them.
         LookupMemo(const LookupMemo &x) noexcept { copy_(x); }
         LookupMemo &operator=(const LookupMemo &x) noexcept {
             copy_(x);
             return *this;
         }
         void copy_(const LookupMemo &x) noexcept {
-            for(unsigned i = 0; i < SLOTS; ++i) {
-                slots[i].payload.store(
-                    x.slots[i].payload.load(std::memory_order_relaxed),
-                    std::memory_order_relaxed);
-                slots[i].node.store(
-                    x.slots[i].node.load(std::memory_order_relaxed),
-                    std::memory_order_relaxed);
+            mru.store(x.mru.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+            if(x.used.load(std::memory_order_relaxed)) {
+                for(unsigned i = 0; i < SLOTS; ++i) {
+                    slots[i].payload.store(
+                        x.slots[i].payload.load(std::memory_order_relaxed),
+                        std::memory_order_relaxed);
+                    slots[i].node.store(
+                        x.slots[i].node.load(std::memory_order_relaxed),
+                        std::memory_order_relaxed);
+                }
+                used.store(true, std::memory_order_relaxed);
+            }
+            else if(used.load(std::memory_order_relaxed)) {
+                // Assignment over a used memo from an unused source: wipe,
+                // or our old slots would resurface at the next archive_.
+                for(auto &s: slots)
+                    s.node.store(nullptr, std::memory_order_relaxed);
+                used.store(false, std::memory_order_relaxed);
             }
         }
         void clear() noexcept {
-            for(auto &s: slots)
-                s.node.store(nullptr, std::memory_order_relaxed);
+            mru.store(nullptr, std::memory_order_relaxed);
+            if(used.load(std::memory_order_relaxed)) {
+                for(auto &s: slots)
+                    s.node.store(nullptr, std::memory_order_relaxed);
+                used.store(false, std::memory_order_relaxed);
+            }
         }
-        //! \return Candidate payload for \a n, or nullptr.  The caller MUST
-        //! revalidate via &p->node() == n (the tear gate).
+        //! \return The memoized payload for \a n (validated against the
+        //! payload's own node back-pointer), or nullptr.
         typename Node<XN>::Payload *find(const Node<XN> *n) const noexcept {
-            for(auto &s: slots)
-                if(s.node.load(std::memory_order_relaxed) == n)
-                    return s.payload.load(std::memory_order_relaxed);
+            auto *p = mru.load(std::memory_order_relaxed);
+            if(p && ( &p->node() == n)) [[likely]]
+                return p;                       // tier 0: the old fast path
+            if( !used.load(std::memory_order_relaxed))
+                return nullptr;                 // single-node Tx: 2 loads total
+            for(auto &s: slots) {
+                if(s.node.load(std::memory_order_relaxed) == n) {
+                    p = s.payload.load(std::memory_order_relaxed);
+                    if(p && ( &p->node() == n)) // tear gate
+                        return p;
+                    return nullptr;
+                }
+            }
             return nullptr;
         }
         void set(const Node<XN> *n, typename Node<XN>::Payload *p) noexcept {
+            auto *old = mru.load(std::memory_order_relaxed);
+            mru.store(p, std::memory_order_relaxed);
+            // Archive the displaced payload so alternating working sets
+            // stay memoized.  Same-node replacement (e.g. committed ->
+            // clone) must NOT archive: the outgoing payload is outdated
+            // for that node and tier 1 may hold no fresher entry.
+            if(old && ( &old->node() != n))
+                archive_(old);
+        }
+    private:
+        void archive_(typename Node<XN>::Payload *old) noexcept {
+            const Node<XN> *on = &old->node();
             for(auto &s: slots) {
-                if(s.node.load(std::memory_order_relaxed) == n) {
-                    s.payload.store(p, std::memory_order_relaxed);
+                if(s.node.load(std::memory_order_relaxed) == on) {
+                    s.payload.store(old, std::memory_order_relaxed);
                     return;   // in-place: keeps one entry per node.
                 }
             }
             // Replacement cursor: plain load+store, NOT fetch_add — an
-            // atomic RMW would cost ~5 ns on every capacity miss for
-            // nothing.  Lost increments merely repeat a slot; duplicates
-            // from concurrent misses on a shared Snapshot are benign
-            // (see doc-block).
+            // atomic RMW would cost ~5 ns here for nothing.  Lost
+            // increments merely repeat a slot; duplicates from concurrent
+            // misses on a shared Snapshot are benign (see doc-block).
             unsigned i = cursor.load(std::memory_order_relaxed);
             cursor.store(i + 1, std::memory_order_relaxed);
             auto &s = slots[i % SLOTS];
             s.node.store(nullptr, std::memory_order_relaxed); // gate readers while the pair is written
-            s.payload.store(p, std::memory_order_relaxed);
-            s.node.store(n, std::memory_order_relaxed);
+            s.payload.store(old, std::memory_order_relaxed);
+            s.node.store(on, std::memory_order_relaxed);
+            used.store(true, std::memory_order_relaxed);
         }
     };
     mutable LookupMemo m_lookup_memo;
@@ -2025,9 +2083,9 @@ public:
         assert(isMultiNodal() || ( &node == &this->m_packet->node()));
         // Memo hit only when the cached Payload is THIS transaction's clone
         // (serial match) — a mismatch means the copy-on-write below must run.
-        // See Snapshot::LookupMemo for validity notes.
+        // find() validates node identity; see Snapshot::LookupMemo.
         typename Node<XN>::Payload *p = this->m_lookup_memo.find( &node);
-        if(p && ( &p->node() == &node) && (p->serial() == this->m_serial)) [[likely]]
+        if(p && (p->serial() == this->m_serial)) [[likely]]
             return *static_cast<typename T::Payload *>(p);
         auto &packet(node.reverseLookup(this->m_packet, true, this->m_serial));
         auto &payload(packet->payload());
