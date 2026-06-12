@@ -1777,18 +1777,33 @@ protected:
     //! with 4 keys in 4 slots the birthday collisions drop a 4-node
     //! rotation to ~40 % hits.)
     //!
-    //! find() validates internally: a hit requires &payload->node() ==
-    //! node (m_node is immutable, set once at construction and copied
-    //! verbatim by clone()), so a torn {node, payload} pair observed by a
-    //! concurrent reader of a shared Snapshot degrades to a plain miss.
-    //! Staleness invariant: a node's tier-1 entry can lag its latest
-    //! payload only while the MRU holds that latest payload (find checks
-    //! tier 0 first, shadowing the stale entry), and the next displacement
-    //! archives the latest payload over the stale slot (archive_ overwrites
-    //! in place — one entry per node).  Races on the FIFO cursor / `used` /
-    //! duplicate slots from concurrent misses on a shared Snapshot are
-    //! benign: every cached payload is the unique payload for its node in
-    //! this snapshot's frozen tree.
+    //! Concurrency: the memo is single-threaded.  In KAME a non-trivial
+    //! object crosses threads only where sharing is EXPLICITLY sanctioned,
+    //! and a Snapshot is not such an object: it is copied at every thread
+    //! handoff — Talker stores the Snapshot BY VALUE in its Event and
+    //! re-copies it for each deferred listener (transaction_signal.h) — so
+    //! one Snapshot object is never read by two threads at once, and the
+    //! mutable write-during-const-read never races.  The fields are
+    //! nonetheless relaxed atomics: a fence-free, zero-runtime-cost guard
+    //! (plain mov on x86/ARM) that keeps the mutable write well-defined under
+    //! the C++ memory model.  This is defence-in-depth, NOT a response to an
+    //! existing sharing pattern; the properties below describe how it would
+    //! behave were the no-sharing rule ever violated.
+    //!
+    //! find() validates internally: a hit requires &payload->node() == node.
+    //! This is primarily the functional key match (tier 0 stores no node, so
+    //! identity is recovered from the payload's immutable m_node — set once
+    //! at construction, copied verbatim by clone()); it also doubles as a
+    //! tear gate, so under the hypothetical shared-Snapshot case a torn
+    //! {node, payload} pair would degrade to a plain miss.  Staleness
+    //! invariant: a node's tier-1 entry can lag its latest payload only while
+    //! the MRU holds that latest payload (find checks tier 0 first, shadowing
+    //! the stale entry), and the next displacement archives the latest
+    //! payload over the stale slot (archive_ overwrites in place — one entry
+    //! per node).  Were cross-thread sharing ever introduced, the races on
+    //! the FIFO cursor / `used` / duplicate slots would be benign: every
+    //! cached payload is the unique payload for its node in this snapshot's
+    //! frozen tree.
     //!
     //! Validity: a node found in this snapshot is owned by the snapshot's
     //! packet tree (NodeList holds shared_ptr), so a cached Payload can

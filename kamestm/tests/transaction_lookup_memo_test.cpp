@@ -161,7 +161,13 @@ int main() {
             VERIFY(thrown);
         }
 
-        // --- 6. one Snapshot instance, many concurrent readers ----------
+        // --- 6. DEFENSIVE-GUARD verification, NOT a sanctioned pattern.
+        // KAME never shares one Snapshot object across threads (sharing is
+        // explicit-only; Snapshots are copied at every handoff), so this
+        // never happens in practice.  It exists solely to prove the relaxed-
+        // atomic memo stays tear-safe IF the no-sharing rule were violated:
+        // every read returns a payload for the queried node, never a torn
+        // pair.  Do not treat it as an example of supported usage.
         root->iterate_commit([&](Transaction &tr) {
             tr[ *a].m_x = 0x0a0a;
             tr[ *b].m_x = 0x0b0b;
