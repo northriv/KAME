@@ -162,11 +162,10 @@ int main() {
         }
 
         // (No concurrent-shared-Snapshot test: the lookup memo is plain,
-        // non-atomic, by design.  A Snapshot is an ordinary non-thread-safe
-        // C++ object — and its const subscript even mutates the memo — so
-        // reading one instance from two threads is a data race, i.e. caller
-        // misuse, not behaviour to verify.  KAME copies a Snapshot at every
-        // thread handoff, so this never arises in practice.)
+        // non-atomic, by design.  A Snapshot is single-threaded by
+        // construction — m_packet is a local_shared_ptr (non-atomic) — so
+        // reading one instance from two threads is a data race regardless of
+        // the memo, i.e. caller misuse, not behaviour to verify.)
 
         // --- 7. multi-slot: const view must see the clone, not a stale
         // committed payload left in another slot (set() uniqueness).

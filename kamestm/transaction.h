@@ -1778,19 +1778,19 @@ protected:
     //! rotation to ~40 % hits.)
     //!
     //! Concurrency: the memo is single-threaded, so its members are PLAIN
-    //! (non-atomic).  This is the ordinary C++ contract, not a KAME special
-    //! case: a non-trivial type that does not document thread-safety is
-    //! single-owner, and concurrent access to one instance is undefined by
-    //! default — the more so here because the const subscript MUTATES the
-    //! memo (a memoizing const method, like std::shared_ptr's refcount or a
-    //! std::string SSO write, is not a concurrent-read-safe operation).  KAME
-    //! never relies on such sharing anyway: Talker stores the Snapshot BY
-    //! VALUE in its Event and re-copies it for each deferred listener
-    //! (transaction_signal.h), so each thread holds its own copy.  Atomics
-    //! were deliberately NOT used: they would imply a cross-thread sharing
-    //! the contract forbids, misleading future readers, while the relaxed
-    //! loads/stores also blocked the compiler from caching the memo across
-    //! repeated subscripts.
+    //! (non-atomic).  This is not a new constraint — a Snapshot is ALREADY
+    //! single-threaded by construction: m_packet is a `local_shared_ptr`,
+    //! the non-atomic smart pointer whose embedded local refcount is unsafe
+    //! to touch from two threads (the whole reason `atomic_shared_ptr`
+    //! exists as the separate cross-thread variant).  One Snapshot object
+    //! has therefore never been usable from two threads; the plain memo
+    //! merely matches what the enclosing type already is.  (Talker confirms
+    //! this in practice: it stores the Snapshot BY VALUE in its Event and
+    //! re-copies it for each deferred listener — transaction_signal.h — so
+    //! each thread holds its own copy.)  Atomics were deliberately NOT used:
+    //! they would imply a cross-thread sharing the type does not support,
+    //! misleading future readers, while the relaxed loads/stores also
+    //! blocked the compiler from caching the memo across repeated subscripts.
     //!
     //! find() recovers identity from the payload itself: a hit requires
     //! &payload->node() == node (tier 0 stores no node; m_node is immutable —
