@@ -803,6 +803,15 @@ private:
 
         //! Points to the upper node that should have the up-to-date Packet when this lacks priority.
         local_shared_ptr<Linkage> bundledBy() const noexcept {return m_bundledBy.lock();}
+        //! True iff the bundled-by back-reference names \a l's control
+        //! block, tested WITHOUT a weak->strong promotion (see
+        //! local_weak_ptr::same_control_block).  \a l must be a live
+        //! handle (refcnt >= 1); the reverseLookupWithHint fast path uses
+        //! this to recognise "parent is the lookup root" and short-circuit
+        //! to the root packet without paying the promote/release RMW pair.
+        bool bundledBySameAs(const local_shared_ptr<Linkage> &l) const noexcept {
+            return m_bundledBy.same_control_block(l);
+        }
         //! The index for this node in the list of the upper node.
         int reverseIndex() const noexcept {return m_reverse_index;}
         void setReverseIndex(int i) noexcept {m_reverse_index = i;}
