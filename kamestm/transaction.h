@@ -1777,33 +1777,27 @@ protected:
     //! with 4 keys in 4 slots the birthday collisions drop a 4-node
     //! rotation to ~40 % hits.)
     //!
-    //! Concurrency: the memo is single-threaded.  In KAME a non-trivial
-    //! object crosses threads only where sharing is EXPLICITLY sanctioned,
-    //! and a Snapshot is not such an object: it is copied at every thread
-    //! handoff — Talker stores the Snapshot BY VALUE in its Event and
-    //! re-copies it for each deferred listener (transaction_signal.h) — so
-    //! one Snapshot object is never read by two threads at once, and the
-    //! mutable write-during-const-read never races.  The fields are
-    //! nonetheless relaxed atomics: a fence-free, zero-runtime-cost guard
-    //! (plain mov on x86/ARM) that keeps the mutable write well-defined under
-    //! the C++ memory model.  This is defence-in-depth, NOT a response to an
-    //! existing sharing pattern; the properties below describe how it would
-    //! behave were the no-sharing rule ever violated.
+    //! Concurrency: the memo is single-threaded, so its members are PLAIN
+    //! (non-atomic).  In KAME a non-trivial object crosses threads only where
+    //! sharing is EXPLICITLY sanctioned, and a Snapshot is not such an
+    //! object: it is copied at every thread handoff — Talker stores the
+    //! Snapshot BY VALUE in its Event and re-copies it for each deferred
+    //! listener (transaction_signal.h) — so one Snapshot object is never
+    //! reached by two threads, and the `mutable` write-during-const-read
+    //! (find populates the memo) is owned by a single thread.  Atomics were
+    //! deliberately NOT used: they would imply a cross-thread sharing that
+    //! the no-sharing rule forbids, misleading future readers, while the
+    //! relaxed loads/stores also blocked the compiler from caching the memo
+    //! across repeated subscripts.
     //!
-    //! find() validates internally: a hit requires &payload->node() == node.
-    //! This is primarily the functional key match (tier 0 stores no node, so
-    //! identity is recovered from the payload's immutable m_node — set once
-    //! at construction, copied verbatim by clone()); it also doubles as a
-    //! tear gate, so under the hypothetical shared-Snapshot case a torn
-    //! {node, payload} pair would degrade to a plain miss.  Staleness
+    //! find() recovers identity from the payload itself: a hit requires
+    //! &payload->node() == node (tier 0 stores no node; m_node is immutable —
+    //! set once at construction, copied verbatim by clone()).  Staleness
     //! invariant: a node's tier-1 entry can lag its latest payload only while
     //! the MRU holds that latest payload (find checks tier 0 first, shadowing
     //! the stale entry), and the next displacement archives the latest
     //! payload over the stale slot (archive_ overwrites in place — one entry
-    //! per node).  Were cross-thread sharing ever introduced, the races on
-    //! the FIFO cursor / `used` / duplicate slots would be benign: every
-    //! cached payload is the unique payload for its node in this snapshot's
-    //! frozen tree.
+    //! per node), so a tier-1 hit always returns the node's current payload.
     //!
     //! Validity: a node found in this snapshot is owned by the snapshot's
     //! packet tree (NodeList holds shared_ptr), so a cached Payload can
@@ -1814,130 +1808,116 @@ protected:
     //! path additionally checks p->serial() == m_serial so only this
     //! transaction's clone is returned without a lookup; m_serial is reset
     //! in place only by eraseSerials() inside release(), which is memo-guarded.
-    //! Layout note: the 16-byte tier-0 head (mru / used / cursor) is the
-    //! FIRST Snapshot member, so on a miss-dominated commit cycle every memo
-    //! access lands on the same cache line as m_packet / m_serial /
-    //! m_started_time — exactly like the original 8-byte single-slot memo,
-    //! whose "free ride" on the hot head line turned out to matter more than
-    //! the operation counts (giving the memo its own line cost ~10 ns per
-    //! commit).  The cold tier-1 slot array is a SEPARATE member
-    //! (m_lookup_slots) placed at the tail of Snapshot; thanks to the lazy
-    //! initialisation its cache line is never touched unless a displacement
-    //! actually occurs.  Tier 1 deliberately does NOT survive Snapshot
-    //! copies (Slot's copy/assign are no-ops; copy_() drops `used`): copies
-    //! re-warm on their first displacement, and copying 64 B of slots would
-    //! tax every message/return-value Snapshot copy on the commit path.
+    //! Layout note: the tier-0 head (mru / used / cursor) is the FIRST
+    //! Snapshot member, so on a miss-dominated commit cycle every memo access
+    //! lands on the same cache line as m_packet / m_serial / m_started_time —
+    //! exactly like the original single-slot memo, whose "free ride" on the
+    //! hot head line turned out to matter more than the operation counts
+    //! (giving the memo its own line cost ~10 ns per commit).  The cold
+    //! tier-1 slot array is a SEPARATE member (m_lookup_slots) placed at the
+    //! tail of Snapshot; thanks to the lazy initialisation its cache line is
+    //! never touched unless a displacement actually occurs.  Tier 1
+    //! deliberately does NOT survive Snapshot copies (Slot's copy/assign are
+    //! no-ops; copy_() drops `used`): copies re-warm on their first
+    //! displacement, and copying the slots would tax every message /
+    //! return-value Snapshot copy on the commit path.
     struct LookupMemo {
         enum : unsigned {SLOTS = 4};
         //! Tier 0 — the original single-slot memo, checked first.
-        std::atomic<typename Node<XN>::Payload*> mru{nullptr};
-        std::atomic<bool> used{false};
-        std::atomic<unsigned> cursor{0};
+        typename Node<XN>::Payload *mru = nullptr;
+        bool used = false;
+        unsigned cursor = 0;
         //! One tier-1 entry.  Members are deliberately NOT initialised:
-        //! zeroing 64 B would tax every Snapshot/Transaction construction
-        //! for a tier most transactions never touch.  Lifecycle discipline
+        //! zeroing them would tax every Snapshot/Transaction construction for
+        //! a tier most transactions never touch.  Lifecycle discipline
         //! instead: find() reads the slots only when `used` is set, and
-        //! `used` is published only after archive_() has null-initialised
-        //! every node gate (first use after construction, clear() or copy)
-        //! and fully written its entry — so no indeterminate value is ever
-        //! read.  Copy/assign are no-ops (see the layout note).
+        //! `used` is set only after archive_() has null-initialised every
+        //! node gate (first use after construction, clear() or copy) and
+        //! written its entry — so no indeterminate value is ever read.
+        //! Copy/assign are no-ops (see the layout note).
         struct Slot {
-            std::atomic<const Node<XN>*> node;                  // no init — see above
-            std::atomic<typename Node<XN>::Payload*> payload;   // no init — see above
+            const Node<XN> *node;                  // no init — see above
+            typename Node<XN>::Payload *payload;   // no init — see above
             Slot() noexcept {}
             Slot(const Slot &) noexcept {}
             Slot &operator=(const Slot &) noexcept { return *this; }
         };
         LookupMemo() noexcept = default;
         //! Copy carries tier 0 over (the copy shares m_packet's tree); the
-        //! tier-1 slots are NOT copied, so `used` must drop — the copy's
-        //! own (indeterminate or stale) slots stay unreachable until its
-        //! first archive_() re-initialises them.
+        //! tier-1 slots are NOT copied, so `used` drops — the copy's own
+        //! (indeterminate or stale) slots stay unreachable until its first
+        //! archive_() re-initialises them.
         LookupMemo(const LookupMemo &x) noexcept { copy_(x); }
         LookupMemo &operator=(const LookupMemo &x) noexcept {
             copy_(x);
             return *this;
         }
         void copy_(const LookupMemo &x) noexcept {
-            mru.store(x.mru.load(std::memory_order_relaxed),
-                std::memory_order_relaxed);
-            used.store(false, std::memory_order_relaxed);
+            mru = x.mru;
+            used = false;
         }
-        //! O(1): stale slots are left in place but unreachable (`used`
-        //! gates them) and re-initialised by the next archive_().
+        //! O(1): stale slots are left in place but unreachable (`used` gates
+        //! them) and re-initialised by the next archive_().
         void clear() noexcept {
-            mru.store(nullptr, std::memory_order_relaxed);
-            used.store(false, std::memory_order_relaxed);
+            mru = nullptr;
+            used = false;
         }
-        //! Tier-0 fast path — kept tiny so it inlines into operator[] /
-        //! at() byte-identically to the original single-slot memo: one
-        //! relaxed load + the immutable m_node back-pointer compare.  A
-        //! miss (including single-node transactions, which never set
-        //! `used`) returns nullptr; the caller then consults find_slow_().
+        //! Tier-0 fast path — kept tiny so it inlines into operator[] / at()
+        //! byte-identically to the original single-slot memo: one load + the
+        //! immutable m_node back-pointer compare.  A miss (including
+        //! single-node transactions, which never set `used`) returns nullptr;
+        //! the caller then consults find_slow_().
         typename Node<XN>::Payload *find_mru(const Node<XN> *n) const noexcept {
-            auto *p = mru.load(std::memory_order_relaxed);
+            auto *p = mru;
             if(p && ( &p->node() == n))
                 return p;
             return nullptr;
         }
         //! Tier-1 path — outlined so its scan never bloats the inlined hot
-        //! site.  `used` gates it: an unused memo (the common
-        //! single-node-Tx case) returns after one load.
+        //! site.  `used` gates it: an unused memo (the common single-node-Tx
+        //! case) returns after one load.  A slot whose node matches yields
+        //! its payload directly: the uniqueness + staleness invariants
+        //! guarantee it is the node's current payload (see doc-block).
         KAME_STM_NOINLINE typename Node<XN>::Payload *find_slow_(
             const Node<XN> *n, const Slot *slots) const noexcept {
-            if( !used.load(std::memory_order_relaxed))
+            if( !used)
                 return nullptr;
-            for(unsigned i = 0; i < SLOTS; ++i) {
-                if(slots[i].node.load(std::memory_order_relaxed) == n) {
-                    auto *p = slots[i].payload.load(std::memory_order_relaxed);
-                    if(p && ( &p->node() == n)) // tear gate
-                        return p;
-                    return nullptr;
-                }
-            }
+            for(unsigned i = 0; i < SLOTS; ++i)
+                if(slots[i].node == n)
+                    return slots[i].payload;
             return nullptr;
         }
         void set(const Node<XN> *n, typename Node<XN>::Payload *p,
             Slot *slots) noexcept {
-            auto *old = mru.load(std::memory_order_relaxed);
-            mru.store(p, std::memory_order_relaxed);
-            // Archive the displaced payload so alternating working sets
-            // stay memoized.  Same-node replacement (e.g. committed ->
-            // clone) must NOT archive: the outgoing payload is outdated
-            // for that node and tier 1 may hold no fresher entry.
+            auto *old = mru;
+            mru = p;
+            // Archive the displaced payload so alternating working sets stay
+            // memoized.  Same-node replacement (e.g. committed -> clone) must
+            // NOT archive: the outgoing payload is outdated for that node and
+            // tier 1 may hold no fresher entry.
             if(old && ( &old->node() != n))
                 archive_(old, slots);
         }
     private:
         KAME_STM_NOINLINE void archive_(typename Node<XN>::Payload *old, Slot *slots) noexcept {
             const Node<XN> *on = &old->node();
-            if( !used.load(std::memory_order_relaxed)) {
+            if( !used) {
                 // First use since construction, clear() or copy: the slots
-                // are indeterminate or stale.  Null every node gate BEFORE
-                // publishing via `used` below.  Concurrent first-archives
-                // on a shared Snapshot may both run this; the redundant
-                // null stores are benign (a racing peer's fresh entry may
-                // be wiped — that is merely a future miss).
+                // are indeterminate or stale.  Null every node gate before
+                // matching/inserting below.
                 for(unsigned i = 0; i < SLOTS; ++i)
-                    slots[i].node.store(nullptr, std::memory_order_relaxed);
+                    slots[i].node = nullptr;
             }
             for(unsigned i = 0; i < SLOTS; ++i) {
-                if(slots[i].node.load(std::memory_order_relaxed) == on) {
-                    slots[i].payload.store(old, std::memory_order_relaxed);
+                if(slots[i].node == on) {
+                    slots[i].payload = old;
                     return;   // in-place: keeps one entry per node.
                 }
             }
-            // Replacement cursor: plain load+store, NOT fetch_add — an
-            // atomic RMW would cost ~5 ns here for nothing.  Lost
-            // increments merely repeat a slot; duplicates from concurrent
-            // misses on a shared Snapshot are benign (see doc-block).
-            unsigned i = cursor.load(std::memory_order_relaxed);
-            cursor.store(i + 1, std::memory_order_relaxed);
-            auto &s = slots[i % SLOTS];
-            s.node.store(nullptr, std::memory_order_relaxed); // gate readers while the pair is written
-            s.payload.store(old, std::memory_order_relaxed);
-            s.node.store(on, std::memory_order_relaxed);
-            used.store(true, std::memory_order_relaxed);
+            auto &s = slots[cursor++ % SLOTS];   // FIFO replacement
+            s.payload = old;
+            s.node = on;
+            used = true;
         }
     };
     //! Tier-0 memo head — FIRST member, sharing the hot cache line with
