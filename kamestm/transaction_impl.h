@@ -1193,7 +1193,7 @@ bool
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion) {
     ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-    packet->subpackets() = packet->size() ? std::make_shared<PacketList>( *packet->subpackets()) : std::make_shared<PacketList>();
+    packet->subpackets() = packet->size() ? make_local_shared<PacketList>( *packet->subpackets()) : make_local_shared<PacketList>(SerialGenerator::gen());
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
     packet->subnodes() = packet->size() ? std::make_shared<NodeList>( *packet->subnodes()) : std::make_shared<NodeList>();
@@ -1453,7 +1453,7 @@ bool
 Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
     ScopedLookupMemoInvalidate<XN> _memo_guard(tr);
     local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-    packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
+    packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList(SerialGenerator::gen())));
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
     packet->subnodes().reset(packet->size() ? (new NodeList( *packet->subnodes())) : (new NodeList));
@@ -2450,7 +2450,7 @@ Node<XN>::bundle(ScopedNegotiateLinkage<XN> &supscope,
 
         //--- Phase 1: collect sub-packets from child nodes ---
         newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));
-        shared_ptr<PacketList> &subpackets(newpacket->subpackets());
+        local_shared_ptr<PacketList> &subpackets(newpacket->subpackets());
         shared_ptr<NodeList> &subnodes(newpacket->subnodes());
 
         bool missing = false;

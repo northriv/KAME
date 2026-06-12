@@ -83,6 +83,38 @@ namespace Transactional {
 //! \tparam XN a class type used in the smart pointers of NodeList. \a XN must be a derived class of Node<XN> itself.
 //! \sa Snapshot, Transaction.
 //! \sa XNode.
+
+//! (§8B) Top-level so `force_intrusive_ref` can target it (a nested type is a
+//! non-deduced context; a deducible template-id skips the `sizeof` marker probe
+//! that would otherwise force `Packet` to complete mid-definition).  INTRUSIVE
+//! control block (refcnt + dispose from the `atomic_countable` base) ⇒
+//! `local_shared_ptr<PacketList>` is one tagged pointer (8 B) instead of
+//! `std::shared_ptr`'s 16 B, shrinking `Packet`.  Parameterised on the Packet /
+//! NodeList types (used only as smart-pointer targets) so it needs NO access to
+//! `Node`'s private nested types — hence no `friend`.  The serial is passed in
+//! (callers have `SerialGenerator`), keeping this type Node-agnostic.
+template <class PacketT, class NodeListT>
+struct DECLSPEC_KAME PacketList_
+    : public fast_vector<local_shared_ptr<PacketT>>,
+      public atomic_countable {
+    shared_ptr<NodeListT> m_subnodes;
+    int64_t m_serial;
+    explicit PacketList_(int64_t serial) noexcept
+        : fast_vector<local_shared_ptr<PacketT>>(), m_serial(serial) {}
+    PacketList_(const PacketList_ &) = default;   //!< refcnt=1 via atomic_countable copy ctor
+    ~PacketList_() { this->clear(); }             //!< destroys payloads prior to nodes.
+};
+} // namespace Transactional
+
+//! `force_intrusive_ref` is global; this deducible spec selects the intrusive
+//! (Ref = PacketList_) block with NO `sizeof` probe — safe while Packet is
+//! incomplete.
+template <class PacketT, class NodeListT>
+struct force_intrusive_ref<Transactional::PacketList_<PacketT, NodeListT>>
+    : std::true_type {};
+
+namespace Transactional {
+
 template <class XN>
 class DECLSPEC_KAME Node {
     template <class> friend class ScopedNegotiateLinkage;
@@ -179,13 +211,9 @@ public:
 private:
     struct Packet;
 
-    struct DECLSPEC_KAME PacketList : public fast_vector<local_shared_ptr<Packet> > {
-        shared_ptr<NodeList> m_subnodes;
-        PacketList() : fast_vector<local_shared_ptr<Packet>>(), m_serial(SerialGenerator::gen()) {}
-        ~PacketList() {this->clear();} //destroys payloads prior to nodes.
-        //! Serial number of the transaction.
-        int64_t m_serial;
-    };
+    //! (§8B) The top-level intrusive PacketList_ (above), bound to this Node's
+    //! Packet / NodeList.  Internal code keeps using the name `PacketList`.
+    using PacketList = PacketList_<Packet, NodeList>;
 
     template <class P>
     struct PayloadWrapper : public P::Payload {
@@ -215,9 +243,9 @@ private:
         local_shared_ptr<Payload> &payload() noexcept { return m_payload;}
         const local_shared_ptr<Payload> &payload() const noexcept { return m_payload;}
         shared_ptr<NodeList> &subnodes() noexcept { return subpackets()->m_subnodes;}
-        shared_ptr<PacketList> &subpackets() noexcept { return m_subpackets;}
+        local_shared_ptr<PacketList> &subpackets() noexcept { return m_subpackets;}
         const shared_ptr<NodeList> &subnodes() const noexcept { return subpackets()->m_subnodes;}
-        const shared_ptr<PacketList> &subpackets() const noexcept { return m_subpackets;}
+        const local_shared_ptr<PacketList> &subpackets() const noexcept { return m_subpackets;}
 
         //! Points to the corresponding node.
         Node &node() noexcept {return payload()->node();}
@@ -256,7 +284,7 @@ private:
                              const local_shared_ptr<Packet> &globalroot = {}) const;
 
         local_shared_ptr<Payload> m_payload;
-        shared_ptr<PacketList> m_subpackets;
+        local_shared_ptr<PacketList> m_subpackets;
         bool m_missing;
     };
 
