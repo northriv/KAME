@@ -1778,17 +1778,19 @@ protected:
     //! rotation to ~40 % hits.)
     //!
     //! Concurrency: the memo is single-threaded, so its members are PLAIN
-    //! (non-atomic).  In KAME a non-trivial object crosses threads only where
-    //! sharing is EXPLICITLY sanctioned, and a Snapshot is not such an
-    //! object: it is copied at every thread handoff — Talker stores the
-    //! Snapshot BY VALUE in its Event and re-copies it for each deferred
-    //! listener (transaction_signal.h) — so one Snapshot object is never
-    //! reached by two threads, and the `mutable` write-during-const-read
-    //! (find populates the memo) is owned by a single thread.  Atomics were
-    //! deliberately NOT used: they would imply a cross-thread sharing that
-    //! the no-sharing rule forbids, misleading future readers, while the
-    //! relaxed loads/stores also blocked the compiler from caching the memo
-    //! across repeated subscripts.
+    //! (non-atomic).  This is the ordinary C++ contract, not a KAME special
+    //! case: a non-trivial type that does not document thread-safety is
+    //! single-owner, and concurrent access to one instance is undefined by
+    //! default — the more so here because the const subscript MUTATES the
+    //! memo (a memoizing const method, like std::shared_ptr's refcount or a
+    //! std::string SSO write, is not a concurrent-read-safe operation).  KAME
+    //! never relies on such sharing anyway: Talker stores the Snapshot BY
+    //! VALUE in its Event and re-copies it for each deferred listener
+    //! (transaction_signal.h), so each thread holds its own copy.  Atomics
+    //! were deliberately NOT used: they would imply a cross-thread sharing
+    //! the contract forbids, misleading future readers, while the relaxed
+    //! loads/stores also blocked the compiler from caching the memo across
+    //! repeated subscripts.
     //!
     //! find() recovers identity from the payload itself: a hit requires
     //! &payload->node() == node (tier 0 stores no node; m_node is immutable —
