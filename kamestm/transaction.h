@@ -714,11 +714,28 @@ private:
                     detail::my_runner_counter().v
                         .fetch_add(1, std::memory_order_release);
             }
-            ~AcquireOneCount() {
+            //! Move disarms the source so the running-slot release fires
+            //! exactly once.  This lets Transaction hold an AcquireOneCount
+            //! BY VALUE (no per-Tx heap allocation) yet stay movable.
+            AcquireOneCount(AcquireOneCount &&o) noexcept : m_armed(o.m_armed) {
+                o.m_armed = false;
+            }
+            ~AcquireOneCount() { release(); }
+            //! Release the running slot now (idempotent).  finalizeCommitment
+            //! calls this to yield the slot before the post-commit messaging,
+            //! the way it formerly reset the unique_ptr.
+            void release() noexcept {
+                if( !m_armed) return;
+                m_armed = false;
                 if(--*detail::s_tx_nest == 0 && *detail::s_sleep_nest == 0)
                     detail::my_runner_counter().v
                         .fetch_sub(1, std::memory_order_release);
             }
+            AcquireOneCount(const AcquireOneCount &) = delete;
+            AcquireOneCount &operator=(const AcquireOneCount &) = delete;
+            AcquireOneCount &operator=(AcquireOneCount &&) = delete;
+        private:
+            bool m_armed = true;
         };
         //! RAII yield of the running slot for the duration of a sleep
         //! inside negotiate_internal. Pairs with the TLS nest counters
@@ -2078,7 +2095,8 @@ public:
         // `now_us_tagged()` auto-folds the lowprio bit — see
         // Snapshot ctor above for the priority-gated timeout rationale.
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
+        // m_oneup (the running-slot acquire) is a by-value member, bumped in
+        // the member-init list above — no per-Tx heap allocation.
         node.snapshot( *this, multi_nodal);
         assert( &m_packet->node() == &node);
         assert( &m_oldpacket->node() == &node);
@@ -2088,7 +2106,7 @@ public:
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(m_packet), m_multi_nodal(multi_nodal) {
         m_started_time = Node<XN>::NegotiationCounter::now_us_tagged();
-        m_oneup = std::make_unique<typename Node<XN>::NegotiationCounter::AcquireOneCount>();
+        // m_oneup bumped by its by-value member-init — no heap allocation.
     }
     Transaction(Transaction&&x) = default;
     //! Releases any tagged linkages (clearing m_transaction_started_time
@@ -2227,7 +2245,11 @@ private:
     // Transaction-specific members below.
     using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
-    std::unique_ptr<typename Node<XN>::NegotiationCounter::AcquireOneCount> m_oneup;
+    //! Running-slot RAII held BY VALUE (movable, disarm-on-move) — formerly
+    //! a std::unique_ptr, which cost one heap allocation per Transaction
+    //! (~26 % of a single-node commit's instructions were malloc/free in a
+    //! system-allocator profile; this removes one alloc/free pair).
+    typename Node<XN>::NegotiationCounter::AcquireOneCount m_oneup;
 };
 
 //! \brief Transaction which does not care of contents (Payload) of subnodes.\n
@@ -2260,7 +2282,7 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     // zeroing m_started_time; drop_tags_n_privilege() matches on the current value.
     this->drop_tags_n_privilege();
     m_started_time = 0;
-    m_oneup.reset();
+    m_oneup.release();   // yield the running slot before messaging
 
     m_oldpacket.reset();
     //Messaging.
