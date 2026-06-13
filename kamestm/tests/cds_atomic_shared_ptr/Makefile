@@ -21,7 +21,7 @@ GMCFLAGS ?= --rc11 --unroll=5
 
 SRCDIR = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-run: run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9
+run: run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9 run-test10
 
 run-test1:
 	@echo "=== Test 1: load_shared_ / release_tag_ref_ safety ==="
@@ -68,8 +68,13 @@ run-test9:
 	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_scoped_weak.c
 	@echo ""
 
+run-test10:
+	@echo "=== Test 10: biased refcount private→shared DIRECT publish (KAME_LSP_BIASED) ==="
+	$(GENMC) $(GMCFLAGS) $(SRCDIR)cds_test_biased_publish.c
+	@echo ""
+
 # Run with IMM memory model
 run-imm: GMCFLAGS = --imm --unroll=5
 run-imm: run
 
-.PHONY: run run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9 run-imm
+.PHONY: run run-test1 run-test2 run-test3 run-test4 run-test5 run-test6 run-test7 run-test8 run-test9 run-test10 run-imm
