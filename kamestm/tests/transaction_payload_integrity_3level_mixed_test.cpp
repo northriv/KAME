@@ -131,6 +131,14 @@ int main(int argc, char** argv) {
             }
 
             bool do_grand = (CrossRatio > 0) && ((iter % CrossRatio) == 0);
+            // KAME_GRAND_ONLY_REPLACE_LEAF=1: replace leaf branch with a
+            // grand-scope tx that touches only this thread's leaf — same
+            // child-update count as the leaf path (1), but goes through
+            // the 3-level bundle. Isolates the bundle-CAS cost from the
+            // leaf-vs-grand interleave behaviour.
+            static const bool grand_only =
+                std::getenv("KAME_GRAND_ONLY_REPLACE_LEAF") &&
+                std::getenv("KAME_GRAND_ONLY_REPLACE_LEAF")[0] == '1';
             if(do_grand) {
                 // Grand-scope tx — 3-level bundle: bundle Parent + all
                 // children up into Grand, CAS Grand, unbundle back.
@@ -142,6 +150,14 @@ int main(int argc, char** argv) {
                 });
                 ++my_grand;
                 if(!warming) ++my_grand_t;
+            } else if(grand_only) {
+                // Hypothetical: leaf-replacement using grand bundle but
+                // only touching this thread's own leaf (1 child-update).
+                grand->iterate_commit([&](Tr& tr) {
+                    tr[*my_leaf_node].m_x = (tr[*my_leaf_node].m_x + 1) % mp;
+                });
+                ++my_leaf;
+                if(!warming) ++my_leaf_t;
             } else {
                 my_leaf_node->iterate_commit([&](Tr& tr) {
                     tr[*my_leaf_node].m_x = (tr[*my_leaf_node].m_x + 1) % mp;
