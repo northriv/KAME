@@ -1815,9 +1815,29 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
         // hot-spinning the CAS, which loses the alternation; yield
         // gives the OS scheduler the opportunity to swap to the
         // other contender, allowing it to commit cleanly.
-        if(NegotiationCounter::numThreadsRunning(3) <= 2 && ms <= 1) {
-            typename NegotiationCounter::ReleaseOneCount onedown;
-            std::this_thread::yield();
+        const unsigned _nrun_y = NegotiationCounter::numThreadsRunning(3);
+        if(_nrun_y <= 2 && ms <= 1) {
+            if(_nrun_y <= 1) {
+                // Sole runner: every other contender is CV-asleep, so a
+                // yield hands the core to no STM-runnable thread AND the
+                // ReleaseOneCount would drop the running count to 0 —
+                // risking a scheduler gap where nobody makes progress
+                // (the asleep peers only wake on a notify we are not
+                // sending here, or on their ~1 ms CV timeout).  We are
+                // the only thread that can make forward progress, so keep
+                // the running slot and stay on-CPU with a brief pause,
+                // then retry the CAS — no voluntary yield.  (This does
+                // NOT defend against the OS *involuntarily* time-slicing
+                // the sole runner; that stall is bounded only by the
+                // sleepers' CV-chunk timeout / privilege expiry.)
+                pause4spin();
+            }
+            else {
+                // Genuine 2-thread alternation: yield so the OS can swap
+                // to the other runnable contender, which then commits.
+                typename NegotiationCounter::ReleaseOneCount onedown;
+                std::this_thread::yield();
+            }
         }
         else {
             int ms_actual = ms;
