@@ -103,59 +103,49 @@ private:
 //! `gref_weakable_<T>` (emplaced) inherit from this, enabling
 //! `local_weak_ptr<T>` to store a type-erased `gref_weak_base_*`
 //! without needing T to be complete at class-definition time.
-//! (§biased-refcount, gated -DKAME_LSP_BIASED=1) NEGATED-count private encoding.
-//! While a control block has only ever been reached via local_shared_ptr on its
-//! owning thread (never published into an atomic_shared_ptr slot), its strong
-//! count is stored NEGATED — `refcnt = -count` (so a fresh CB is -1) — and
-//! copy/reset mutate it NON-ATOMICALLY (relaxed load+store; plain ldr/str on
-//! arm64).  PUBLISH negates it back to `+count` ("shared"): the word is then a
-//! plain positive count and every existing atomic path (fetch_add /
-//! decAndTest==fetch_sub==1, try_promote, use_count) is unchanged.  A dead CB is
-//! 0 in both regimes.  `sign(refcnt)` is the mode bit (it IS the MSB — the same
-//! single-instruction test as a bit flag), but the magnitude check in reset is a
-//! 1-instruction `cmn`(==-1) instead of mask+cmp, ~15% faster on the private
-//! churn than the earlier PRIV-bit encoding (measured, M3).  When the gate is OFF
-//! every `if constexpr (KAME_LSP_BIASED)` arm is discarded, KAME_LSP_INIT==1 and
-//! kame_lsp_cnt() is the identity, so the codegen is byte-identical to the
-//! pre-patch path.
-//!
-//! *** SOUNDNESS BOUNDARY — read before ever enabling the gate ***
-//! This is the single-word (no owner-thread-id) variant of biased refcounting.
-//! It is sound *only* for control blocks whose entire cross-thread sharing
-//! happens through a DIRECT publish, i.e. the CB pointer is itself installed as
-//! the value of an atomic_shared_ptr slot.  Every such direct-publish site
-//! negates -count→+count (>=release, sequenced-before the install):
-//! swap(atomic_shared_ptr&), compareAndSet_impl_, the value/copy atomic_shared_ptr
-//! constructors (publish_clear_priv_()), and taking a local_weak_ptr (which is
-//! designed to be promoted cross-thread).  The negate is conditional (only if the
-//! CB is still private/negative) so it is idempotent on an already-shared CB.
-//!
-//! It is NOT sound for a CB that escapes to another thread by TRANSITIVE
-//! CONTAINMENT — i.e. a `local_shared_ptr<U>` held as a *member* of some payload
-//! whose (different) CB is the one published.  Publishing the container negates
-//! only the container's CB, never the nested U CB, so a reader that snapshots the
-//! container and copies the nested local_shared_ptr<U> does a NON-atomic refcnt
-//! store racing the owner.  In the KAME STM the only atomic slot is
-//! atomic_shared_ptr<PacketWrapper>; Packet, PacketList and Linkage CBs reach
-//! other threads purely by containment inside a published PacketWrapper and are
-//! therefore NOT made safe by this scheme.  Enabling KAME_LSP_BIASED for such
-//! types requires either a transitive publish (negate all nested CBs at container
-//! publish) or the full owner-thread-id biased-RC design.  Until then the gate
-//! must stay OFF for transitively-shared types.  See the workflow audit
-//! (D1/D2/D3 findings) and [[project_biased_refcount_planA]].
-#ifndef KAME_LSP_BIASED
-  #define KAME_LSP_BIASED 0
-#endif
-#if KAME_LSP_BIASED
-static constexpr uintptr_t KAME_LSP_INIT = (uintptr_t)(-(intptr_t)1);  //!< -1: born private, count 1
-//! Magnitude (the count), regardless of private(-)/shared(+) sign.
-static inline uintptr_t kame_lsp_cnt(uintptr_t v) noexcept {
+//=============================================================================
+// §biased refcount  —  OPT-IN, PER-TYPE.  ***Auditing the lock-free core?  SKIP
+// this whole section and every `if constexpr (is_biased_directpublish<T>::value)`
+// one-liner below — they fold to NOTHING for every type that does not inherit the
+// marker (i.e. ALL types today; nothing opts in), leaving the plain atomic path.***
+//
+// A type T that inherits `atomic_biased_directpublish` stores its strong refcount
+// NEGATED while owner-private (born -1; copy/reset mutate it non-atomically via
+// relaxed load+store), and PUBLISH negates it to +count.  ~3.3× on owner-private
+// churn (micro).  CONTRACT — sound ONLY for a DIRECT-PUBLISH control block: one
+// that is exclusively the value of an `atomic_shared_ptr<T>` slot and is NEVER
+// transitively contained in another control block (a `local_shared_ptr<T>` member
+// of some other CB).  Marking a transitively-shared type (e.g. the STM's Packet /
+// PacketList / Linkage) is UNSOUND (a reader copying the nested handle races the
+// owner's non-atomic store).  Verified by GenMC test 10; see
+// [[project_biased_refcount_planA]].  No KAME type opts in (measured: no net win).
+struct atomic_biased_directpublish {};
+template<class T> struct is_biased_directpublish : std::is_base_of<atomic_biased_directpublish, T> {};
+
+//! All biased refcount logic lives here so the hot paths stay a single skippable
+//! `if constexpr` line each.  `rc` is the control block's strong refcnt.
+static inline void biased_born_(atomic<uintptr_t> &rc) noexcept {                 //!< fresh CB → private -1
+    rc.store((uintptr_t)(-(intptr_t)1), std::memory_order_relaxed);
+}
+static inline void biased_inc_(atomic<uintptr_t> &rc) noexcept {                  //!< copy: ++count
+    uintptr_t v = rc.load(std::memory_order_relaxed);
+    if((intptr_t)v < 0) rc.store(v - 1, std::memory_order_relaxed);   //!< private: non-atomic
+    else                rc.fetch_add(1, std::memory_order_relaxed);   //!< shared: atomic
+}
+static inline bool biased_dec_is_dead_(atomic<uintptr_t> &rc) noexcept {          //!< reset: --count → dead?
+    uintptr_t v = rc.load(std::memory_order_relaxed);
+    if((intptr_t)v < 0) { uintptr_t nv = v + 1;                       //!< private: branchless add+cbz
+        rc.store(nv, std::memory_order_relaxed); return nv == 0; }
+    return rc.decAndTest();                                           //!< shared: atomic acq_rel
+}
+static inline void biased_publish_(atomic<uintptr_t> &rc) noexcept {              //!< publish: -count → +count
+    uintptr_t v = rc.load(std::memory_order_relaxed);
+    if((intptr_t)v < 0) rc.store((uintptr_t)(-(intptr_t)v), std::memory_order_release); //!< idempotent on +
+}
+static inline uintptr_t biased_count_(uintptr_t v) noexcept {                     //!< magnitude (use_count)
     return (intptr_t)v < 0 ? (uintptr_t)(-(intptr_t)v) : v;
 }
-#else
-static constexpr uintptr_t KAME_LSP_INIT = uintptr_t(1);               //!< born count 1 (shipped path)
-static inline uintptr_t kame_lsp_cnt(uintptr_t v) noexcept { return v; }
-#endif
+//=============================================================================
 
 struct gref_weak_base_ {
     typedef uintptr_t Refcnt;
@@ -175,7 +165,7 @@ struct gref_weak_base_ {
         }
     }
 protected:
-    gref_weak_base_() noexcept : refcnt(KAME_LSP_INIT), weak_refcnt(1) {}
+    gref_weak_base_() noexcept : refcnt(1), weak_refcnt(1) {}
 };
 
 //! Non-intrusive control block with weak support (DEFAULT mode): T
@@ -188,7 +178,7 @@ template <typename T>
 struct atomic_shared_ptr_gref_ : gref_weak_base_ {
     explicit atomic_shared_ptr_gref_(T *p) noexcept : ptr(p) {}
     ~atomic_shared_ptr_gref_() noexcept {
-        assert(kame_lsp_cnt(refcnt) == 0);
+        assert(refcnt == 0);
         //!< Fast path in `release_strong_zero` deletes without decrementing
         //!< when weak_refcnt == 1 (no live weak_ptr).  Slow path leaves 0.
         //!< Both are valid pre-delete states.
@@ -266,12 +256,12 @@ struct atomic_strictrefonly {};
 //! \sa atomic_shared_ptr
 template <typename T>
 struct atomic_shared_ptr_gref_strictrefonly_ {
-    explicit atomic_shared_ptr_gref_strictrefonly_(T *p) noexcept : ptr(p), refcnt(KAME_LSP_INIT) {}
+    explicit atomic_shared_ptr_gref_strictrefonly_(T *p) noexcept : ptr(p), refcnt(1) {}
     //!< Polymorphic T's dispatch via virtual destructor on T* (e.g.
     //!< Payload : virtual ~Payload).  Non-polymorphic T's are
     //!< constructed only with Y == T (static_assert in
     //!< local_shared_ptr).
-    ~atomic_shared_ptr_gref_strictrefonly_() noexcept { assert(kame_lsp_cnt(refcnt) == 0); delete ptr; }
+    ~atomic_shared_ptr_gref_strictrefonly_() noexcept { assert(refcnt == 0); delete ptr; }
     //! The pointer to the object.
     T *ptr;
     typedef uintptr_t Refcnt;
@@ -305,9 +295,9 @@ struct atomic_weakable : atomic_emplaced {};
 //! sizeof(T) includes the refcnt; `local_shared_ptr<T>` stores T*
 //! directly (no separate control block).  Fastest hot path.
 struct atomic_countable {
-    atomic_countable() noexcept : refcnt(KAME_LSP_INIT) {}
-    atomic_countable(const atomic_countable &) noexcept : refcnt(KAME_LSP_INIT) {}
-    ~atomic_countable() { assert(kame_lsp_cnt(refcnt) == 0); }
+    atomic_countable() noexcept : refcnt(1) {}
+    atomic_countable(const atomic_countable &) noexcept : refcnt(1) {}
+    ~atomic_countable() { assert(refcnt == 0); }
 
     atomic_countable &operator=(const atomic_countable &) = delete;
 
@@ -332,7 +322,7 @@ struct atomic_shared_ptr_gref_weakable_ : gref_weak_base_ {
         new ( &data_storage) T(std::forward<Args>(args)...);
     }
     ~atomic_shared_ptr_gref_weakable_() noexcept {
-        assert(kame_lsp_cnt(refcnt) == 0);
+        assert(refcnt == 0);
         //!< Fast path in `release_strong_zero` deletes without decrementing
         //!< when weak_refcnt == 1 (no live weak_ptr).  Slow path leaves 0.
         //!< Both are valid pre-delete states.
@@ -591,7 +581,7 @@ protected:
                 //!< can read its size etc., then run ~T() + deallocate_chunk.
                 T::atomic_intrusive_dispose(p);
             } else {
-                //!< T's dtor runs (incl. ~atomic_countable's `assert(kame_lsp_cnt(refcnt) == 0)`).
+                //!< T's dtor runs (incl. ~atomic_countable's `assert(refcnt == 0)`).
                 delete p;
             }
         } else if constexpr (Traits::has_weak) {
@@ -615,6 +605,8 @@ protected:
         } else {
             m_ref = (reflocal_t)new Ref(y);           //!< Wrap y in a fresh CB.
         }
+        if constexpr (is_biased_directpublish<T>::value)   //!< §biased — skippable: born private (-1)
+            biased_born_(((Ref*)(reflocal_t)m_ref)->refcnt);
     }
 
     T *get() noexcept {
@@ -633,7 +625,9 @@ protected:
     }
 
     int _use_count_() const noexcept {
-        return (int)kame_lsp_cnt(((const Ref*)(reflocal_t)this->m_ref)->refcnt);
+        uintptr_t v = ((const Ref*)(reflocal_t)this->m_ref)->refcnt;
+        if constexpr (is_biased_directpublish<T>::value) return (int)biased_count_(v); //!< §biased — skippable
+        return (int)v;
     }
 
     reflocal_var_t m_ref;
@@ -811,18 +805,9 @@ public:
             m_ref = static_cast<gref_weak_base_ *>(
                 reinterpret_cast<Ref *>(static_cast<uintptr_t>(sp.m_ref)));
             m_ref->weak_refcnt.fetch_add(1, std::memory_order_acq_rel);
-            if constexpr (KAME_LSP_BIASED) {
-                // (§biased) PUBLISH: a weak handle is designed to be copied /
-                // moved to other threads and promoted there via try_promote()
-                // (an atomic RMW on refcnt).  A still-PRIVATE CB would then see
-                // the owner's NON-atomic copy/reset store race that RMW.  So
-                // taking a weak ref is a publish point: negate -count→+count
-                // (release) — owner-side, before the weak_ptr escapes — so all
-                // subsequent strong copy/reset/promote use the atomic path.
-                uintptr_t v = m_ref->refcnt.load(std::memory_order_relaxed);
-                if((intptr_t)v < 0)
-                    m_ref->refcnt.store((uintptr_t)(-(intptr_t)v), std::memory_order_release);
-            }
+            //!< §biased — skippable: taking a weak handle (promotable cross-thread)
+            //!< is a publish point, so a biased CB is negated -count→+count here.
+            if constexpr (is_biased_directpublish<T>::value) biased_publish_(m_ref->refcnt);
         }
     }
 
@@ -1053,13 +1038,8 @@ protected:
     //! base copy-ctor's owner-side bump preceding this is sound.  Folds away
     //! (empty) when the gate is OFF — off-path codegen stays byte-identical.
     void publish_clear_priv_() noexcept {
-        if constexpr (KAME_LSP_BIASED) {
-            if(Ref *p = ref_ptr_()) {
-                uintptr_t v = p->refcnt.load(std::memory_order_relaxed);
-                if((intptr_t)v < 0)
-                    p->refcnt.store((uintptr_t)(-(intptr_t)v), std::memory_order_release);
-            }
-        }
+        if constexpr (is_biased_directpublish<T>::value)         //!< §biased — skippable
+            if(Ref *p = ref_ptr_()) biased_publish_(p->refcnt);
     }
     //! Single atomic load returning both the pointer and the local refcount.
     std::pair<Ref*, Refcnt> load_tagged_() const noexcept {
@@ -1581,16 +1561,8 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
     static_assert(sizeof(static_cast<const T*>(y.get())), "");
     this->m_ref = (TaggedPtr)y.m_ref;
     if(Ref *p = ref_ptr_()) {
-        if constexpr (KAME_LSP_BIASED) {
-            // (§biased) private CB は所有スレッドのみ到達可 ⇒ 非atomic ++。
-            // 符号判定は sticky なので relaxed で確定的(copy は acquire 不要)。
-            // private は -count ゆえ ++count は store(v-1)。shared(+) は fetch_add。
-            uintptr_t v = p->refcnt.load(std::memory_order_relaxed);
-            if((intptr_t)v < 0) p->refcnt.store(v - 1, std::memory_order_relaxed);
-            else                p->refcnt.fetch_add(1, std::memory_order_relaxed);
-        }
-        else
-            p->refcnt.fetch_add(1, std::memory_order_relaxed);
+        if constexpr (is_biased_directpublish<T>::value) biased_inc_(p->refcnt); //!< §biased — skippable
+        else p->refcnt.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -1600,16 +1572,8 @@ inline local_shared_ptr<T, reflocal_var_t>::local_shared_ptr(const local_shared_
     static_assert(sizeof(static_cast<const T*>(y.get())), "");
     this->m_ref = (TaggedPtr)y.m_ref;
     if(Ref *p = ref_ptr_()) {
-        if constexpr (KAME_LSP_BIASED) {
-            // (§biased) private CB は所有スレッドのみ到達可 ⇒ 非atomic ++。
-            // 符号判定は sticky なので relaxed で確定的(copy は acquire 不要)。
-            // private は -count ゆえ ++count は store(v-1)。shared(+) は fetch_add。
-            uintptr_t v = p->refcnt.load(std::memory_order_relaxed);
-            if((intptr_t)v < 0) p->refcnt.store(v - 1, std::memory_order_relaxed);
-            else                p->refcnt.fetch_add(1, std::memory_order_relaxed);
-        }
-        else
-            p->refcnt.fetch_add(1, std::memory_order_relaxed);
+        if constexpr (is_biased_directpublish<T>::value) biased_inc_(p->refcnt); //!< §biased — skippable
+        else p->refcnt.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -1623,20 +1587,10 @@ inline void
 local_shared_ptr<T, reflocal_var_t>::reset() noexcept {
     Ref *pref = ref_ptr_();
     if( !pref) return;
-    if constexpr (KAME_LSP_BIASED) {
-        // (§biased) 符号判定 relaxed。private(-count) は owner-only ⇒ 完全非atomic。
-        // shared 経路の acquire は下の decAndTest(acq_rel) に内包される。
-        // branchless: --count は store(v+1)、唯一所有(-1)なら結果 0 ⇒ cbz で破棄。
-        uintptr_t v = pref->refcnt.load(std::memory_order_relaxed);
-        if((intptr_t)v < 0) {
-            uintptr_t nv = v + 1;                   // -count の --magnitude
-            pref->refcnt.store(nv, std::memory_order_relaxed);
-            if(nv == 0)                             // 直前 -1 (唯一所有) → 破棄
-                this->deleter(pref);
-            this->m_ref = (TaggedPtr)nullptr;
-            return;
-        }
-        // shared(+count): 既存 atomic 経路へ落ちる。
+    if constexpr (is_biased_directpublish<T>::value) {        //!< §biased — skippable block
+        if(biased_dec_is_dead_(pref->refcnt)) this->deleter(pref);
+        this->m_ref = (TaggedPtr)nullptr;
+        return;
     }
     // decreases global reference counter.
     if(unique()) {
@@ -1886,18 +1840,10 @@ atomic_shared_ptr<T>::compareAndSet_impl_(
         }
     };
 
-    if constexpr (KAME_LSP_BIASED) {
-        // (§biased) PUBLISH: newr will be installed into this atomic slot ⇒
-        // shared.  Negate a still-private (-count) newr to +count (release)
-        // BEFORE the optimistic count bump below, so all subsequent count
-        // accounting sees a plain positive word and a loader's acquire observes
-        // it.  Idempotent on an already-shared (+) newr.
-        if(Ref *np = newr_pref()) {
-            uintptr_t v = np->refcnt.load(std::memory_order_relaxed);
-            if((intptr_t)v < 0)
-                np->refcnt.store((uintptr_t)(-(intptr_t)v), std::memory_order_release);
-        }
-    }
+    //!< §biased — skippable: newr is about to be installed into this atomic slot,
+    //!< so a biased CB is negated -count→+count BEFORE the optimistic count bump.
+    if constexpr (is_biased_directpublish<T>::value)
+        if(Ref *np = newr_pref()) biased_publish_(np->refcnt);
     // Optimistic +NEWR_ADD for m_ref's implicit ref (+ scoped's Owned
     // ref when RETAIN_NEWR) on success; will undo on WEAK-failure or
     // pointer-mismatch.
@@ -2127,17 +2073,10 @@ local_shared_ptr<T, reflocal_var_t>::swap(local_shared_ptr &r) noexcept {
 template <typename T, typename reflocal_var_t>
 void
 local_shared_ptr<T, reflocal_var_t>::swap(atomic_shared_ptr<T> &r) noexcept {
-    if constexpr (KAME_LSP_BIASED) {
-        // (§biased) PUBLISH: this の CB が atomic スロット r へ入る ⇒ shared 化。
-        // CAS(release) より前に private(-count) を +count へ negate(release)し、
-        // loader の acquire に「shared 化＋private 期の非atomic 書込」を可視化。
-        // 既に shared(+) なら no-op（冪等）。
-        if(Ref *sp = ref_ptr_()) {
-            uintptr_t v = sp->refcnt.load(std::memory_order_relaxed);
-            if((intptr_t)v < 0)
-                sp->refcnt.store((uintptr_t)(-(intptr_t)v), std::memory_order_release);
-        }
-    }
+    //!< §biased — skippable: this's CB is about to enter the atomic slot r, so a
+    //!< biased CB is negated -count→+count (release) before the install CAS.
+    if constexpr (is_biased_directpublish<T>::value)
+        if(Ref *sp = ref_ptr_()) biased_publish_(sp->refcnt);
     for(int spins = 1;; spins *= 2) {
         Refcnt rcnt_old, rcnt_new;
         auto [pref, success] = r.acquire_tag_ref_( &rcnt_old);

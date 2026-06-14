@@ -14,7 +14,8 @@
 /*
  * GenMC test 10: biased reference counting — private→shared DIRECT publish.
  *
- * Models the gated `-DKAME_LSP_BIASED=1` path of kamepoolalloc/atomic_smart_ptr.h
+ * Models the per-type biased path (a type inheriting `atomic_biased_directpublish`)
+ * of kamepoolalloc/atomic_smart_ptr.h
  * for the ONLY configuration the scheme is sound in: a control block that is
  * born PRIVATE on its owner thread, churned NON-atomically (relaxed load+store)
  * while private, then DIRECTLY published — its pointer installed as the value of
@@ -50,7 +51,7 @@
 #define CAPACITY 8u
 #define PTR_MASK (~(uintptr_t)(CAPACITY - 1))
 
-/* NEGATED-count private encoding (matches atomic_smart_ptr.h KAME_LSP_BIASED):
+/* NEGATED-count private encoding (matches atomic_smart_ptr.h biased helpers):
  * private => refcnt = -count (sign(refcnt) < 0); shared => +count; dead => 0. */
 #define IS_PRIVATE(v) ((intptr_t)(v) < 0)
 
