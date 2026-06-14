@@ -55,10 +55,25 @@ typedef Transactional::Snapshot<MyNode> Shot;
 typedef Transactional::Transaction<MyNode> Tr;
 
 int main(int argc, char** argv) {
-    int StressSeconds = (argc > 1) ? std::atoi(argv[1]) : 0;
-    int NumThreads    = (argc > 2) ? std::atoi(argv[2]) : 4;
-    int MaxPayload    = (argc > 3) ? std::atoi(argv[3]) : 3;
-    int CrossRatio    = (argc > 4) ? std::atoi(argv[4]) : 0;   // 0 = pure disjoint
+    // Strict arg-count guard: accept ONLY no args (quick 1s+1s defaults)
+    // or EXACTLY 4 args.  1-3 args are rejected so a mistyped / quoted
+    // invocation — a single "128 128 1" string collapsing to
+    // NumThreads-only, or a forgotten CrossRatio — fails loudly instead
+    // of silently running the wrong workload (CrossRatio=0 pure-leaf).
+    if(argc != 1 && argc != 5) {
+        std::fprintf(stderr,
+            "usage: %s [StressSeconds NumThreads MaxPayload CrossRatio]\n"
+            "  no args        : defaults (StressSeconds=1 => 1s warmup + 1s timed,\n"
+            "                   NumThreads=4, MaxPayload=3, CrossRatio=0)\n"
+            "  EXACTLY 4 args : StressSeconds NumThreads MaxPayload CrossRatio\n"
+            "  (1-3 args are rejected to avoid silent wrong-default runs)\n",
+            argv[0]);
+        return 2;
+    }
+    int StressSeconds = (argc == 5) ? std::atoi(argv[1]) : 1;
+    int NumThreads    = (argc == 5) ? std::atoi(argv[2]) : 4;
+    int MaxPayload    = (argc == 5) ? std::atoi(argv[3]) : 3;
+    int CrossRatio    = (argc == 5) ? std::atoi(argv[4]) : 0;   // 0 = pure disjoint
     int MaxCommits    = (StressSeconds > 0) ? 0x7fffffff : 10000;
 
     if(NumThreads < 1) NumThreads = 1;
