@@ -37,6 +37,14 @@ if(USE_KAME_ALLOCATOR AND NOT TARGET kamepoolalloc)
     set_target_properties(kamepoolalloc PROPERTIES
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)
+    # CMAKE_DL_LIBS: empty on glibc >= 2.34 (dlsym in libc); -ldl on
+    # older glibc — needed by the Linux malloc_usable_size co-interpose's
+    # RTLD_NEXT (allocator.cpp:5376).  Mirrors the same link in the
+    # standalone kamepoolalloc/CMakeLists.txt:54.  Threads pulled in
+    # for the Linux pthread_atfork / pthread_key_create path.
+    set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+    find_package(Threads REQUIRED)
+    target_link_libraries(kamepoolalloc PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 endif()
 if(NOT USE_KAME_ALLOCATOR)
     add_compile_definitions(DISABLE_POOL_ALLOCATOR)

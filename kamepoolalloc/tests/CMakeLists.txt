@@ -58,6 +58,11 @@ if(USE_KAME_ALLOCATOR AND NOT TARGET kamepoolalloc)
     set_target_properties(kamepoolalloc PROPERTIES
         INSTALL_NAME_DIR "@rpath"
         BUILD_WITH_INSTALL_RPATH TRUE)
+    # CMAKE_DL_LIBS: empty on glibc >= 2.34 (dlsym in libc); -ldl on
+    # older glibc — needed by the Linux malloc_usable_size co-interpose's
+    # RTLD_NEXT (allocator.cpp:5376).  Mirrors the same link in the
+    # standalone kamepoolalloc/CMakeLists.txt:54.
+    target_link_libraries(kamepoolalloc PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 endif()
 if(NOT USE_KAME_ALLOCATOR)
     add_compile_definitions(DISABLE_POOL_ALLOCATOR)
@@ -148,7 +153,7 @@ if(USE_KAME_ALLOCATOR)
     target_compile_definitions(alloc_thread_exit_free_test PRIVATE KAMEPOOLALLOC_DYLIB)
     target_include_directories(alloc_thread_exit_free_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
-    target_link_libraries(alloc_thread_exit_free_test Threads::Threads)
+    target_link_libraries(alloc_thread_exit_free_test Threads::Threads ${CMAKE_DL_LIBS})
 
     add_executable(alloc_thread_exit_free_test_dynamic alloc_thread_exit_free_test.cpp)
     target_link_libraries(alloc_thread_exit_free_test_dynamic kamepoolalloc Threads::Threads)
@@ -169,7 +174,7 @@ if(USE_KAME_ALLOCATOR)
     target_compile_definitions(alloc_thread_exit_unarmed_test PRIVATE KAMEPOOLALLOC_DYLIB)
     target_include_directories(alloc_thread_exit_unarmed_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
-    target_link_libraries(alloc_thread_exit_unarmed_test Threads::Threads)
+    target_link_libraries(alloc_thread_exit_unarmed_test Threads::Threads ${CMAKE_DL_LIBS})
 
     add_executable(alloc_thread_exit_unarmed_test_dynamic alloc_thread_exit_unarmed_test.cpp)
     target_link_libraries(alloc_thread_exit_unarmed_test_dynamic kamepoolalloc Threads::Threads)
