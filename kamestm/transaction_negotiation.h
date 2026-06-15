@@ -180,6 +180,48 @@ namespace Transactional {
 //! friend declarations in Node<XN> / Snapshot<XN> for the assert path.
 template <class XN>
 class ScopedNegotiateLinkage {
+    //! Diagnostic env knob: `KAME_STM_CAS_BOUNDED_RETRY=1` enables
+    //! bounded retry of the WEAK CAS in `compareAndSet*` below.
+    //!
+    //! Current default (knob off): 1-shot WEAK CAS → on any failure
+    //! (including spurious LL/SC retry or transient tag-slot acquire
+    //! contention) sets `m_contention_observed` → dtor tags → caller
+    //! enters the negotiate slow path (ms-scale CV park at high
+    //! thread count). This is conservative; spurious failures pay
+    //! a slow-path penalty they didn't earn.
+    //!
+    //! Knob on: retry WEAK CAS up to `KAME_STM_CAS_RETRY_BOUND` (= 8)
+    //! times before declaring contention. Each iteration is cheap
+    //! (atomic load + compare); a real pointer mismatch resets
+    //! `m_view.m_pref` to nullptr — we exit early so the loop adds no
+    //! measurable cost on the real-conflict path. Spurious failures
+    //! get retried, possibly succeeding within the cap.
+    //!
+    //! Bound rationale: fixed value 8 (not `hardware_concurrency()`).
+    //! Spurious failures arise from LL/SC weak-CAS retry (ARM) or
+    //! tag-slot acquire collision; both are bounded by cache-line
+    //! ping-pong frequency, empirically ≤ a few iterations. A bound
+    //! of 8 covers practical spurious chains with margin while
+    //! capping worst-case CPU at O(8) atomic loads even on a
+    //! many-core host (128-core Ohtaka would otherwise sit on a
+    //! 128-iteration retry budget that real spurious patterns never
+    //! consume).
+    //!
+    //! Default-off because: (a) production workloads (CR→∞, no
+    //! contention) see zero benefit, and (b) Ohtaka (128 physical
+    //! cores) has not yet been A/B tested with the bounded variant.
+    //! Cascade Lake-SP VM (4 vCPU) A/B showed +2.16% Δ at N=128
+    //! CR=10, ±1% at extremes — small per-iteration refcnt traffic
+    //! cost (each WEAK call undoes/re-bumps newr) trades against
+    //! spurious savings.
+    enum { KAME_STM_CAS_RETRY_BOUND = 8 };
+    static int _cas_retry_cap_() noexcept {
+        static const int v = []() {
+            const char *e = std::getenv("KAME_STM_CAS_BOUNDED_RETRY");
+            return (e && e[0] == '1') ? (int)KAME_STM_CAS_RETRY_BOUND : 1;
+        }();
+        return v;
+    }
     using LinkagePtr = local_shared_ptr<typename Node<XN>::Linkage>;
     using PacketWrapper = typename Node<XN>::PacketWrapper;
     LinkagePtr      m_link;
@@ -731,12 +773,25 @@ public:
     //! scopes use the WEAK fast path; conservative dtor tag on
     //! spurious failure (m_contention_observed).
     bool compareAndSet(const local_shared_ptr<PacketWrapper> &desired) noexcept {
-        bool ok = m_strong_mode
-            ? m_link->compareAndSetStrong(m_view, desired)
-            : m_link->compareAndSetWeak(m_view, desired);
-        if(ok) {
-            _on_cas_success();
-            return true;
+        if (m_strong_mode) {
+            if (m_link->compareAndSetStrong(m_view, desired)) {
+                _on_cas_success();
+                return true;
+            }
+            _on_cas_fail();
+            return false;
+        }
+        // Non-privileged: bounded WEAK retry. cap=1 (default) → 1-shot
+        // = identical to prior behaviour. cap>1 (KAME_STM_CAS_BOUNDED_RETRY=1)
+        // → retry on spurious failures up to hardware_concurrency().
+        // Real pointer mismatch nulls m_view.m_pref — exit early.
+        const int cap = _cas_retry_cap_();
+        for (int i = 0; i < cap; ++i) {
+            if (m_link->compareAndSetWeak(m_view, desired)) {
+                _on_cas_success();
+                return true;
+            }
+            if (m_view.ref_ptr_() == nullptr) break;
         }
         _on_cas_fail();
         return false;
@@ -744,17 +799,28 @@ public:
 
     //! compareAndSet + tags_successful_cas() priority/lease hint on
     //! success.  `started_time = 0` (default) makes `tags_successful_cas`
-    //! use now_us().  Strong/weak dispatch as in compareAndSet.
+    //! use now_us().  Strong/weak dispatch as in compareAndSet; bounded
+    //! retry for non-privileged WEAK (see _cas_retry_cap_).
     bool compareAndSetWithHint(const local_shared_ptr<PacketWrapper> &desired,
                                 typename Node<XN>::NegotiationCounter::cnt_t
                                     started_time = 0) noexcept {
-        bool ok = m_strong_mode
-            ? m_link->compareAndSetStrong(m_view, desired)
-            : m_link->compareAndSetWeak(m_view, desired);
-        if(ok) {
-            m_link->tags_successful_cas(started_time);
-            _on_cas_success();
-            return true;
+        if (m_strong_mode) {
+            if (m_link->compareAndSetStrong(m_view, desired)) {
+                m_link->tags_successful_cas(started_time);
+                _on_cas_success();
+                return true;
+            }
+            _on_cas_fail();
+            return false;
+        }
+        const int cap = _cas_retry_cap_();
+        for (int i = 0; i < cap; ++i) {
+            if (m_link->compareAndSetWeak(m_view, desired)) {
+                m_link->tags_successful_cas(started_time);
+                _on_cas_success();
+                return true;
+            }
+            if (m_view.ref_ptr_() == nullptr) break;
         }
         _on_cas_fail();
         return false;
@@ -773,12 +839,21 @@ public:
     //! failure undo is fetch_sub(2) (same op count).
     //! Strong/weak dispatch as in compareAndSet.
     bool compareAndSetRetain(const local_shared_ptr<PacketWrapper> &desired) noexcept {
-        bool ok = m_strong_mode
-            ? m_link->compareAndSetStrongRetain(m_view, desired)
-            : m_link->compareAndSetWeakRetain(m_view, desired);
-        if(ok) {
-            _on_cas_success();
-            return true;
+        if (m_strong_mode) {
+            if (m_link->compareAndSetStrongRetain(m_view, desired)) {
+                _on_cas_success();
+                return true;
+            }
+            _on_cas_fail();
+            return false;
+        }
+        const int cap = _cas_retry_cap_();
+        for (int i = 0; i < cap; ++i) {
+            if (m_link->compareAndSetWeakRetain(m_view, desired)) {
+                _on_cas_success();
+                return true;
+            }
+            if (m_view.ref_ptr_() == nullptr) break;
         }
         _on_cas_fail();
         return false;
@@ -788,13 +863,23 @@ public:
     bool compareAndSetRetainWithHint(const local_shared_ptr<PacketWrapper> &desired,
                                 typename Node<XN>::NegotiationCounter::cnt_t
                                     started_time = 0) noexcept {
-        bool ok = m_strong_mode
-            ? m_link->compareAndSetStrongRetain(m_view, desired)
-            : m_link->compareAndSetWeakRetain(m_view, desired);
-        if(ok) {
-            m_link->tags_successful_cas(started_time);
-            _on_cas_success();
-            return true;
+        if (m_strong_mode) {
+            if (m_link->compareAndSetStrongRetain(m_view, desired)) {
+                m_link->tags_successful_cas(started_time);
+                _on_cas_success();
+                return true;
+            }
+            _on_cas_fail();
+            return false;
+        }
+        const int cap = _cas_retry_cap_();
+        for (int i = 0; i < cap; ++i) {
+            if (m_link->compareAndSetWeakRetain(m_view, desired)) {
+                m_link->tags_successful_cas(started_time);
+                _on_cas_success();
+                return true;
+            }
+            if (m_view.ref_ptr_() == nullptr) break;
         }
         _on_cas_fail();
         return false;
