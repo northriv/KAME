@@ -667,24 +667,32 @@ private:
         //! correct on x86 and Apple Silicon but oversized for x86 and
         //! undersized for A64FX.
         struct alignas(KAME_CACHE_LINE) NegotiateSleepSlot {
-            std::mutex mtx;
-            std::condition_variable cv;
-            bool notified = false;
+            //! Futex-style timed wait-on-address (mutex-less on macOS;
+            //! std mutex+condvar fallback elsewhere).  Replaces the
+            //! former {std::mutex + std::condition_variable + bool
+            //! notified} trio: the kernel value-compare on the cell's
+            //! generation closes the lost-wakeup window the mutex used
+            //! to guard, and the generation subsumes the `notified`
+            //! flag (no reset race).  See xwaitcell.h and
+            //! negotiate_sleep for the gen()/wait()/wake_one() protocol.
+            XWaitCell cell;
             //! Kind (0=NONE/Reserved, 1=BUNDLE, 2=UNBUNDLE, 3=Reserved)
-            //! the sleeping thread is going to commit.  Stored under
-            //! the lock right before sleeping; read under the lock by
+            //! the sleeping thread is going to commit.  Published right
+            //! before sleeping; read (lock-free, best-effort) by
             //! `notify_n_contenders` to bias wake-up toward the same
             //! kind as the linkage's most recent commit.
-            uint8_t op_kind = 0;
+            std::atomic<uint8_t> op_kind{0};
             //! Tenant verification stamp = sleeper's started_time
-            //! (tid+kind+us packed).  Set under the lock right before
-            //! `cv.wait_for`, cleared to 0 right after.  Wakers compare
+            //! (tid+kind+us packed).  Published right before
+            //! `cell.wait`, cleared to 0 right after.  Wakers compare
             //! this against their intended target (the linkage slot
             //! value for targeted wake, or the tid bit for bitset wake)
             //! to avoid notifying the wrong thread on `tid % N_SLOTS`
-            //! hash collisions.  On mismatch we skip the notify and
-            //! accept the intended target's natural 1 ms timeout.
-            uint64_t stamp = 0;
+            //! hash collisions.  Read lock-free: a racy mismatch only
+            //! mis-targets a wake (the intended thread falls back to its
+            //! natural timeout), never corrupts state — exactly the
+            //! tolerance the mutex'd version already accepted.
+            std::atomic<uint64_t> stamp{0};
         };
         static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
         static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};

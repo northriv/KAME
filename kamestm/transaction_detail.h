@@ -60,6 +60,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include "xwaitcell.h"   // XWaitCell — futex-style sleep-slot primitive (Qt-free, header-only)
 #include <optional>
 #include <unordered_map>
 #include <vector>

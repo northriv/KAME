@@ -44,6 +44,7 @@
 #endif
 
 #include "threadlocal.h"
+#include "xwaitcell.h"  // XWaitCell — futex-style timed wait-on-address, sibling of XCondition
 
 //! Lock mutex during its life time.
 template <class Mutex>

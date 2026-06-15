@@ -51,6 +51,7 @@ HEADERS += \
     ../kamestm/transaction_neg_impl.h \
     ../kamestm/transaction_definitions.h \
     ../kamestm/xthread.h \
+    ../kamestm/xwaitcell.h \
     ../kamestm/xtime.h \
     ../kamestm/atomic_queue.h \
     ../kamestm/fast_vector.h \

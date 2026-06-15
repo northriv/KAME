@@ -407,24 +407,27 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
     int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
     auto &st = s_sleep_slots[slot];
     // Snapshot the kind this thread is about to commit; the notifier
-    // reads this field under the slot lock to bias wake-up toward the
-    // same kind as the linkage's most recent commit (see
-    // `notify_n_contenders` preferred_kind argument).
+    // reads this field (lock-free) to bias wake-up toward the same kind
+    // as the linkage's most recent commit (see `notify_n_contenders`
+    // preferred_kind argument).
     const uint8_t my_kind = (uint8_t)*detail::s_current_op_kind & 0x3u;
-    std::unique_lock<std::mutex> lock(st.mtx);
-    st.op_kind = my_kind;
-    // Publish the tenant stamp under the lock so wakers (also holding
-    // the lock) can verify they are notifying the intended thread on a
-    // `tid % N_SLOTS` hash collision.
-    st.stamp = my_stamp;
-    // Reset under the lock so a notify delivered between the previous
-    // call's wake and this reset is not silently consumed.
-    st.notified = false;
-    st.cv.wait_for(lock, std::chrono::milliseconds(ms_timeout),
-                   [&]{ return st.notified; });
-    // Clear the tenant stamp on exit so the next sleeper's stamp
-    // is not preceded by a stale value that could match a target.
-    st.stamp = 0;
+    // Read the cell generation BEFORE publishing op_kind/stamp.  A
+    // wake_one() racing in after this read advances the generation, so
+    // the value-compare in cell.wait() returns at once — the
+    // lost-wakeup window is closed without a mutex, and the generation
+    // subsumes the former `notified` flag + its reset race.
+    uint32_t g = st.cell.gen();
+    // Publish op_kind/stamp for the waker's lock-free, best-effort
+    // tenant/kind targeting.  A racy read only changes WHICH sleeper a
+    // waker picks (mis-target → natural timeout; spurious wake →
+    // re-check + re-sleep), never correctness.
+    st.op_kind.store(my_kind, std::memory_order_relaxed);
+    st.stamp.store(my_stamp, std::memory_order_release);
+    unsigned us = (ms_timeout > 0) ? (unsigned)ms_timeout * 1000u : 0u;
+    st.cell.wait(g, us);
+    // Clear the tenant stamp on exit so the next sleeper's stamp is not
+    // preceded by a stale value that could match a target.
+    st.stamp.store(0, std::memory_order_relaxed);
 }
 
 template <class XN>
@@ -439,9 +442,7 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
     int priv_slot = -1;
     if (priv_tid != 0 && n > 0) {
         priv_slot = (int)(((unsigned)priv_tid) % NEGOTIATE_SLEEP_SLOTS);
-        auto &st = s_sleep_slots[priv_slot];
-        { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
-        st.cv.notify_one();
+        s_sleep_slots[priv_slot].cell.wake_one();
         --n;
     }
     // Two-pass walk when a preferred kind is supplied: pass 1 wakes
@@ -466,12 +467,9 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
                 if (slot == priv_slot) continue;
                 if (is_woken(slot)) continue;
                 auto &st = s_sleep_slots[slot];
-                {
-                    std::lock_guard<std::mutex> lk(st.mtx);
-                    if(st.op_kind != preferred_kind) continue;
-                    st.notified = true;
-                }
-                st.cv.notify_one();
+                if(st.op_kind.load(std::memory_order_relaxed) != preferred_kind)
+                    continue;
+                st.cell.wake_one();
                 mark_woken(slot);
                 --n;
             }
@@ -485,15 +483,21 @@ void Node<XN>::NegotiationCounter::notify_n_contenders(
             int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
             if (slot == priv_slot) continue;
             if (has_pref && is_woken(slot)) continue;
-            auto &st = s_sleep_slots[slot];
-            { std::lock_guard<std::mutex> lk(st.mtx); st.notified = true; }
-            st.cv.notify_one();
+            s_sleep_slots[slot].cell.wake_one();
             if(has_pref) mark_woken(slot);
             --n;
         }
     }
 }
 
+// Historically `try_*` differed from notify_n_contenders by taking the
+// slot lock with std::try_to_lock and SKIPPING any slot whose lock was
+// momentarily held (to keep the notifier off the critical path).  With
+// the mutex-less XWaitCell wake_one() that distinction is gone — the
+// wake never blocks — so this now reliably delivers every wake the
+// kind/bitset selects (an improvement: it no longer drops wakes on lock
+// contention).  Kept as a distinct entry point (no privileged-TID first
+// pass) for its call sites.
 template <class XN>
 void Node<XN>::NegotiationCounter::try_notify_n_contenders(
     const TidBitset &tid_bitset, int n, uint8_t preferred_kind) noexcept
@@ -515,12 +519,9 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
                 int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
                 if (is_woken(slot)) continue;
                 auto &st = s_sleep_slots[slot];
-                std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
-                if( !lk.owns_lock()) continue;
-                if(st.op_kind != preferred_kind) continue;
-                st.notified = true;
-                lk.unlock();
-                st.cv.notify_one();
+                if(st.op_kind.load(std::memory_order_relaxed) != preferred_kind)
+                    continue;
+                st.cell.wake_one();
                 mark_woken(slot);
                 --n;
             }
@@ -533,12 +534,7 @@ void Node<XN>::NegotiationCounter::try_notify_n_contenders(
             word &= word - 1;
             int slot = (int)(((unsigned)(i * 64 + bit)) % NEGOTIATE_SLEEP_SLOTS);
             if (has_pref && is_woken(slot)) continue;
-            auto &st = s_sleep_slots[slot];
-            std::unique_lock<std::mutex> lk(st.mtx, std::try_to_lock);
-            if( !lk.owns_lock()) continue;
-            st.notified = true;
-            lk.unlock();
-            st.cv.notify_one();
+            s_sleep_slots[slot].cell.wake_one();
             if(has_pref) mark_woken(slot);
             --n;
         }
@@ -1918,18 +1914,20 @@ ScopedNegotiateLinkage<XN>::_negotiate_internal() noexcept {
                         int _idx = (int)((unsigned)_blocker_tid
                             % NegotiationCounter::NEGOTIATE_SLEEP_SLOTS);
                         auto &_st = NegotiationCounter::s_sleep_slots[_idx];
-                        std::lock_guard<std::mutex> _lk(_st.mtx);
                         // Tenant verification: only wake when the slot's
                         // current tenant matches the blocker (same tid +
                         // same started_us).  Comparison strips the kind
                         // bits because the linkage slot is stamped via
                         // `with_kind(started_time, op_kind)` in
                         // `tag_as_contender` while the sleep slot stores
-                        // the bare `started_time` (kind=NONE).
-                        if(NegotiationCounter::strip_kind(_st.stamp)
+                        // the bare `started_time` (kind=NONE).  The stamp
+                        // is read lock-free (acquire) — a racy mismatch
+                        // only mis-targets this wake; the blocker falls
+                        // back to its natural timeout.
+                        if(NegotiationCounter::strip_kind(
+                               _st.stamp.load(std::memory_order_acquire))
                            == NegotiationCounter::strip_kind(_slot_val)) {
-                            _st.notified = true;
-                            _st.cv.notify_one();
+                            _st.cell.wake_one();
                         }
                     }
                 }
