@@ -123,8 +123,21 @@ def _get_client() -> jupyter_client.BlockingKernelClient:
     except RuntimeError:
         client.stop_channels()
         raise RuntimeError("KAME kernel is not responding.")
-    # Enable inline matplotlib so plots produce image/png
+    # Enable inline matplotlib so plots produce image/png. Pin the format
+    # to PNG at a modest dpi with a tight bbox so figures come back crisp
+    # but compact (fast over MCP); a bare `plt.plot(...)` in a cell is
+    # captured automatically at cell end — no explicit display() needed.
     client.execute("%matplotlib inline")
+    client.execute(
+        "try:\n"
+        "    import matplotlib as _mpl\n"
+        "    _mpl.rcParams['figure.dpi'] = 100\n"
+        "    _mpl.rcParams['savefig.bbox'] = 'tight'\n"
+        "    get_ipython().run_line_magic('config', "
+        "\"InlineBackend.figure_formats = {'png'}\")\n"
+        "except Exception:\n"
+        "    pass\n"
+    )
     # MCP-driven Tx are external scripting — should yield to the
     # measurement loop for the first ~1 s of any contention before
     # claiming privilege.  Falls back silently on older KAME builds

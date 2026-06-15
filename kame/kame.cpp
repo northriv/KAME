@@ -28,6 +28,9 @@
 #include <QEvent>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QTextBrowser>
+#include <QDesktopServices>
+#include <QUrl>
 #ifdef WITH_KDE
 	#include <kstandarddirs.h>
 #else
@@ -563,6 +566,13 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
     m_conScriptThreadList.push_back(xqcon_create<XScriptingThreadConnector>(
                                       scriptthread, form, threadlist));
 	addDockableWindow(m_pMdiCentral, form, true);
+    //Make hyperlinks in the script / IPython output pane actionable.
+    //The pane has setOpenLinks(false), so clicks emit anchorClicked:
+    //"kame:" links route to the Python dispatcher (Jupyter / Claude
+    //launch); anything else (http/file, e.g. the log or notebook
+    //links) opens in the system default handler.
+    connect(form->m_ptxtDefout, &QTextBrowser::anchorClicked,
+            this, &FrmKameMain::onScriptLinkClicked);
 
 	// erase unused xqcon_ptr
     for(auto it = m_conScriptThreadList.begin(); it != m_conScriptThreadList.end(); ) {
@@ -574,6 +584,36 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
 		}
 	}
     return scriptthread;
+}
+void FrmKameMain::onScriptLinkClicked(const QUrl &url) {
+    if(url.scheme() == "kame") {
+#ifdef USE_PYBIND11
+        if( !m_measure->python())
+            return;
+        QString action = url.path();
+        if(action == "notebook") {
+            //Prompt for the workspace dir (same as the Script menu) so the
+            //notebook is never rooted in the application binary's folder.
+            auto progs = m_measure->python()->listOfJupyterPrograms();
+            if(progs.empty()) {
+                gMessagePrint(i18n("No Jupyter program found."));
+                return;
+            }
+            gMessagePrint(i18n("Choose root directory of notebook."));
+            QString dir = QFileDialog::getExistingDirectory(
+                this, i18n("Open Notebook Workspace"));
+            if(dir.length())
+                m_measure->python()->launchJupyterConsole(
+                    progs.front(), ("notebook " + dir).toUtf8().data());
+        }
+        else {
+            m_measure->python()->handleLink(action.toUtf8().constData());
+        }
+#endif
+    }
+    else {
+        QDesktopServices::openUrl(url);
+    }
 }
 void FrmKameMain::scriptRunAction_activated() {
     QString filename = QFileDialog::getOpenFileName (

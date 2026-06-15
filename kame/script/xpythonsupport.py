@@ -58,7 +58,7 @@ TLS = threading.local()
 if HasIPython:
 	XScriptingThreads()[0].setLabel("IPython kernel")
 	XScriptingThreads()[0]["Action"] = ""
-	XScriptingThreads()[0]["Status"] = "No connection"
+	XScriptingThreads()[0]["Status"] = "idle"
 	XScriptingThreads()[0]["Filename"] = "#Launch Jupyter client from \"Script\" menu."
 	TLS.xscrthread = XScriptingThreads()[0]
 else:
@@ -162,10 +162,15 @@ event = threading.Event()
 def sleep(sec):
 	start = time.time()
 	fback = ""
+	# Resolve the scripting-thread context once. It is absent on threads
+	# KAME did not start as scripting threads (e.g. execute_code_async
+	# worker threads); there sleep() degrades to a plain interruptible
+	# wait instead of raising AttributeError on a missing TLS.xscrthread.
+	xthr = getattr(TLS, 'xscrthread', None)
 	while True:
 		remain = sec - (time.time() - start)
-		if TLS.xscrthread:
-			xpythread = TLS.xscrthread
+		if xthr:
+			xpythread = xthr
 			if str(xpythread["Action"]) == "kill":
 				xpythread["Action"] = ""
 				xpythread["Status"] = "killed @{}s @{}".format(int(remain), str(fback))
@@ -197,13 +202,13 @@ def sleep(sec):
 		except KeyboardInterrupt:
 			#Jupyter stop button (or any SIGINT) interrupted the wait;
 			#update KAME status and re-raise so the cell stops normally
-			if TLS.xscrthread:
-				xpythread = TLS.xscrthread
+			if xthr:
+				xpythread = xthr
 				remain = sec - (time.time() - start)
 				xpythread["Status"] = "killed @{}s @{}".format(int(remain), str(fback))
 			raise
-	if TLS.xscrthread:
-		xpythread = TLS.xscrthread
+	if xthr:
+		xpythread = xthr
 		xpythread["Status"] = getattr(TLS, 'cell_status', None) or "run"
 
 class _KamFakeNode:
@@ -534,29 +539,70 @@ def launchJupyterConsole(prog, argv):
 		import subprocess as _sp, shutil as _sh
 		python_cmd = None
 		_candidates = []
-		# 1. Python next to the jupyter executable
+		# 1. The interpreter that actually runs `prog` (the Jupyter
+		#    launcher). Its shebang names the Python whose environment has
+		#    jupyter_client — and almost always where the user pip-installed
+		#    `mcp`. Try it FIRST: on Homebrew, dirname(prog)/python3 can be a
+		#    DIFFERENT Python (e.g. python@3.14, no `mcp`) than jupyter's own
+		#    shebang interpreter (python@3.13), and launching the MCP server
+		#    against the wrong one makes it exit immediately at `import mcp`.
+		def _shebang_interp(_path):
+			try:
+				with open(_path, 'rb') as _shf:
+					_first = _shf.readline(512)
+			except OSError:
+				return None
+			if not _first.startswith(b'#!'):
+				return None  # e.g. a Windows .exe launcher — no shebang
+			_parts = _first[2:].decode('utf-8', 'replace').split()
+			if not _parts:
+				return None
+			# `#!/usr/bin/env python3` → resolve the named interpreter.
+			if os.path.basename(_parts[0]) == 'env' and len(_parts) > 1:
+				return _sh.which(_parts[1])
+			return _parts[0] if os.path.isfile(_parts[0]) else None
+		_jpy = _shebang_interp(prog)
+		if _jpy:
+			_candidates.append(_jpy)
+		# 2. Python next to the jupyter executable
 		_bin_dir = os.path.dirname(prog)
-		for _name in ('python3', 'python'):
+		for _name in ('python3', 'python', 'python3.exe', 'python.exe'):
 			_c = os.path.join(_bin_dir, _name)
 			if os.path.isfile(_c):
 				_candidates.append(_c)
-		# 2. Common venv location for KAME MCP (sibling of the build directory)
+		# 3. Common venv location for KAME MCP (sibling of the build directory)
 		import platform as _pf
 		_venv_subdir = ('Scripts', 'python.exe') if _pf.system() == 'Windows' else ('bin', 'python3')
 		for _depth in range(3, 7):  # search up from Resources to find kame-mcp-venv
 			_venv_base = os.path.join(KAME_ResourceDir, *(['..'] * _depth), 'kame-mcp-venv', *_venv_subdir)
 			_venv_py = os.path.normpath(_venv_base)
 			if os.path.isfile(_venv_py):
-				_candidates.insert(0, _venv_py)  # prefer venv
+				_candidates.insert(0, _venv_py)  # prefer an explicit venv
 				break
-		# 3. System python3
+		# 4. System python3
 		_sys_py = _sh.which('python3')
 		if _sys_py:
 			_candidates.append(_sys_py)
+		# De-duplicate by resolved path, preserving priority order.
+		_seen = set()
+		_uniq = []
+		for _c in _candidates:
+			_rp = os.path.realpath(_c)
+			if _rp not in _seen:
+				_seen.add(_rp)
+				_uniq.append(_c)
+		_candidates = _uniq
+		# Probe each candidate with the EXACT imports kame_mcp_server.py runs
+		# at module load. A bare `import mcp` is not enough: a Python carrying
+		# a stale/partial `mcp` (top-level import OK but no mcp.server.fastmcp)
+		# would pass and then crash the server at startup.
 		for _c in _candidates:
 			try:
-				_sp.check_call([_c, '-c', 'import mcp, jupyter_client'],
-					stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=5)
+				_sp.check_call(
+					[_c, '-c',
+					 'import jupyter_client; '
+					 'from mcp.server.fastmcp import FastMCP, Image'],
+					stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, timeout=10)
 				python_cmd = _c
 				break
 			except Exception:
@@ -603,13 +649,78 @@ def launchJupyterConsole(prog, argv):
 				import secrets as _secrets, socket as _socket
 				import subprocess as _sp
 				import tempfile as _tf
-				_token = _secrets.token_urlsafe(32)
-				# Pick a free port up-front so we can write the URL
-				# atomically before launching the server.
-				_sk = _socket.socket()
-				_sk.bind(('127.0.0.1', 0))
-				_port = _sk.getsockname()[1]
-				_sk.close()
+				import signal as _signal
+				# Stable endpoint across restarts: reuse the previous
+				# port+token (or an explicit KAME_MCP_PORT / KAME_MCP_TOKEN)
+				# when the port is reclaimable, so .mcp.json does not change
+				# on every launch — a client that connected once keeps working
+				# after a KAME restart without a manual MCP reconnect.
+				_url_file = os.path.join(os.path.expanduser('~'), '.kame_mcp_url')
+				_prev = {}
+				try:
+					with open(_url_file) as _pf2:
+						_prev = _json.load(_pf2)
+				except (OSError, ValueError):
+					_prev = {}
+				_env_port = os.environ.get('KAME_MCP_PORT', '').strip()
+				_port = None
+				_token = None
+				if _env_port.isdigit():
+					_port = int(_env_port)
+					_token = (os.environ.get('KAME_MCP_TOKEN', '').strip()
+							  or _prev.get('token') or _secrets.token_urlsafe(32))
+				elif _prev.get('port') and _prev.get('token'):
+					_port = int(_prev['port'])
+					_token = _prev['token']
+				# A stale MCP server from a previous KAME run still holds the
+				# old port but points at a now-dead kernel. If we recorded its
+				# pid and can confirm (POSIX) it is our server, terminate it so
+				# the port/token can be reused — verifying the command line so
+				# we never kill an unrelated, pid-recycled process.
+				_prev_pid = _prev.get('server_pid')
+				if _port and _prev_pid:
+					try:
+						_pid = int(_prev_pid)
+						if _pf.system() == 'Windows':
+							# No ps on Windows: confirm the pid is a python
+							# process, then force-kill (best effort).
+							_tl = _sp.check_output(
+								['tasklist', '/FI', 'PID eq {}'.format(_pid),
+								 '/FO', 'CSV', '/NH'], text=True, timeout=5)
+							if 'python' in _tl.lower():
+								_sp.run(['taskkill', '/F', '/PID', str(_pid)],
+										stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+										timeout=5)
+								time.sleep(0.4)
+						else:
+							# Verify the command line before SIGTERM so a
+							# pid-recycled, unrelated process is never killed.
+							_cmd = _sp.check_output(
+								['ps', '-p', str(_pid), '-o', 'command='],
+								text=True, timeout=3)
+							if 'kame_mcp_server' in _cmd:
+								os.kill(_pid, _signal.SIGTERM)
+								time.sleep(0.4)
+					except Exception:
+						pass
+				# Confirm the chosen port is bindable now; otherwise fall back
+				# to a fresh OS-assigned port (and mint a token if we lack one).
+				def _port_free(_p):
+					_t = _socket.socket()
+					try:
+						_t.bind(('127.0.0.1', _p))
+						return True
+					except OSError:
+						return False
+					finally:
+						_t.close()
+				if not _port or not _port_free(_port):
+					_sk = _socket.socket()
+					_sk.bind(('127.0.0.1', 0))
+					_port = _sk.getsockname()[1]
+					_sk.close()
+				if not _token:
+					_token = _secrets.token_urlsafe(32)
 				# Capture server stderr/stdout to a tempfile so we can
 				# surface a real error message if Popen fails — DEVNULL
 				# would leave the user staring at "MCP didn't start"
@@ -627,11 +738,45 @@ def launchJupyterConsole(prog, argv):
 					stdout=_logf, stderr=_sp.STDOUT,
 				)
 				_logf.close()  # child still holds the fd
-				time.sleep(0.5)
-				_ret = NOTEBOOK_MCP_HTTP_PROC.poll()
-				if _ret is not None:
-					# HTTP server died within 0.5 s → translate output
-					# into something actionable and fall back to stdio.
+				# Confirm the server actually LISTENS before declaring
+				# success. A single 0.5 s poll is too short: a cold
+				# `import mcp` + uvicorn startup can exceed it, so a server
+				# that crashes a moment later (wrong Python, missing `mcp`)
+				# would be mis-reported as "started" and a .mcp.json written
+				# pointing at a dead port.
+				_deadline = time.time() + 8.0
+				_ret = None
+				_listening = False
+				while time.time() < _deadline:
+					_ret = NOTEBOOK_MCP_HTTP_PROC.poll()
+					if _ret is not None:
+						break  # process exited — read its log below
+					_probe = _socket.socket()
+					_probe.settimeout(0.25)
+					try:
+						_probe.connect(('127.0.0.1', _port))
+						_listening = True
+					except OSError:
+						pass
+					finally:
+						_probe.close()
+					if _listening:
+						break
+					time.sleep(0.2)
+				if not _listening:
+					# Either it exited, or it never bound the port in time.
+					# Reap it (so it cannot linger as a <defunct> zombie that
+					# KAME never waits on), then surface the captured output
+					# and fall back to stdio.
+					if _ret is None:
+						try:
+							NOTEBOOK_MCP_HTTP_PROC.terminate()
+						except Exception:
+							pass
+					try:
+						_ret = NOTEBOOK_MCP_HTTP_PROC.wait(timeout=3)
+					except Exception:
+						pass
 					try:
 						with open(NOTEBOOK_MCP_HTTP_LOG, 'r',
 								  errors='replace') as _lf:
@@ -692,7 +837,7 @@ def launchJupyterConsole(prog, argv):
 					os.path.expanduser('~'), '.kame_mcp_url')
 				with open(NOTEBOOK_MCP_URL_FILE, 'w') as _f:
 					_json.dump({'url': _url, 'token': _token,
-								'pid': os.getpid()}, _f)
+								'port': _port, 'pid': os.getpid(), 'server_pid': NOTEBOOK_MCP_HTTP_PROC.pid}, _f)
 				_gui_log(
 					f"#MCP HTTP server started.\n"
 					f"#  URL  : {_url}\n"
@@ -717,6 +862,60 @@ def launchJupyterConsole(prog, argv):
 			pass
 
 	XScriptingThreads()[0]["Filename"] = ' '.join(args)
+
+def _kame_workspace_dir():
+	"""Best-guess workspace dir holding .mcp.json (where Claude should start)."""
+	_m = globals().get('NOTEBOOK_MCP_JSON')
+	if _m:
+		return os.path.dirname(_m)
+	try:
+		import json as _j
+		with open(os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')) as _f:
+			return _j.load(_f).get('notebook_dir') or os.path.expanduser('~')
+	except Exception:
+		return os.path.expanduser('~')
+
+def kame_handle_link(action):
+	"""Dispatch clicks on kame: links in the IPython/script pane (Jupyter / Claude launch)."""
+	import subprocess as _sp, shlex as _shlex, platform as _pf
+	try:
+		if action == 'notebook':
+			_progs = listOfJupyterPrograms()
+			if not _progs:
+				MYDEFOUT.write_html('<font color="#cc0000">No Jupyter program found '
+					'(install jupyter, or use the Script menu).</font>')
+				return
+			_wd = _kame_workspace_dir()
+			MYDEFOUT.write("#Launching Jupyter notebook ({}) in {} ...".format(_progs[0], _wd))
+			launchJupyterConsole(_progs[0], 'notebook ' + _wd)
+		elif action == 'claude-app':
+			_sys = _pf.system()
+			if _sys == 'Darwin':
+				_sp.Popen(['open', '-a', 'Claude'])
+			elif _sys == 'Windows':
+				_sp.Popen(['cmd', '/c', 'start', '', 'Claude'])
+			else:
+				_sp.Popen(['claude'])
+			MYDEFOUT.write("#Launched Claude app.")
+		elif action == 'claude-cli':
+			_wd = _kame_workspace_dir()
+			_sys = _pf.system()
+			if _sys == 'Darwin':
+				_osa = 'tell application "Terminal" to do script "cd {} && claude"'.format(_shlex.quote(_wd))
+				_sp.Popen(['osascript', '-e', _osa,
+						   '-e', 'tell application "Terminal" to activate'])
+			elif _sys == 'Windows':
+				_sp.Popen(['cmd', '/c', 'start', 'cmd', '/k', 'cd /d "{}" && claude'.format(_wd)])
+			else:
+				_inner = 'cd {} && claude; exec bash'.format(_shlex.quote(_wd))
+				_sp.Popen(['x-terminal-emulator', '-e', 'bash', '-lc', _inner])
+			MYDEFOUT.write("#Launching Claude Code (terminal) in {} ...".format(_wd))
+		else:
+			MYDEFOUT.write_html('<font color="#cc0000">Unknown link action: {}</font>'.format(
+				html.escape(str(action))))
+	except Exception:
+		MYDEFOUT.write_html('<font color="#cc0000">Link action "{}" failed:<br/>{}</font>'.format(
+			html.escape(str(action)), html.escape(traceback.format_exc())))
 
 import linecache
 linecache.clearcache() #suppress lengthy traceback inside REPL.
@@ -747,6 +946,7 @@ else:
 				connection_file = ipykernel.connect.get_connection_file()
 				MYDEFOUT.write("#KAME IPython binding")
 				MYDEFOUT.write("#Use sleep() instead of time.sleep().")
+				MYDEFOUT.write_html(r'<font color="#0066cc">Quick launch:&nbsp; <a href="kame:notebook">&#9654; Jupyter notebook</a> &nbsp;&nbsp; <a href="kame:claude-cli">&#9654; Claude Code (terminal)</a> &nbsp;&nbsp; <a href="kame:claude-app">&#9654; Claude app</a></font>')
 				self.logfilename = os.path.splitext(connection_file)[0] + "-log" + os.extsep + "txt"
 				self._initial_logfilename = self.logfilename
 				MYDEFOUT.write_html(r'<font color="#008800">Logging console output to <a href="file:///'
