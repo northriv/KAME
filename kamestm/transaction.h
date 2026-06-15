@@ -1962,16 +1962,20 @@ protected:
         //! its payload directly: the uniqueness + staleness invariants
         //! guarantee it is the node's current payload (see doc-block).
         KAME_STM_NOINLINE typename Node<XN>::Payload *find_slow_(
-            const Node<XN> *n, const Slot *slots) const noexcept {
+            const Node<XN> *n, const Slot *slotv) const noexcept {
+            // NOTE: parameter is `slotv`, NOT `slots` — `slots` is a Qt
+            // moc macro (`#define slots`); using it as an identifier here
+            // makes `slots[i]` expand to `[i]` (a stray lambda) and breaks
+            // every Qt TU that transitively includes this header.
             if( !used)
                 return nullptr;
             for(unsigned i = 0; i < SLOTS; ++i)
-                if(slots[i].node == n)
-                    return slots[i].payload;
+                if(slotv[i].node == n)
+                    return slotv[i].payload;
             return nullptr;
         }
         void set(const Node<XN> *n, typename Node<XN>::Payload *p,
-            Slot *slots) noexcept {
+            Slot *slotv) noexcept {
             auto *old = mru;
             mru = p;
             // Archive the displaced payload so alternating working sets stay
@@ -1979,25 +1983,26 @@ protected:
             // NOT archive: the outgoing payload is outdated for that node and
             // tier 1 may hold no fresher entry.
             if(old && ( &old->node() != n))
-                archive_(old, slots);
+                archive_(old, slotv);
         }
     private:
-        KAME_STM_NOINLINE void archive_(typename Node<XN>::Payload *old, Slot *slots) noexcept {
+        // `slotv` (not `slots`): see find_slow_ — `slots` is a Qt macro.
+        KAME_STM_NOINLINE void archive_(typename Node<XN>::Payload *old, Slot *slotv) noexcept {
             const Node<XN> *on = &old->node();
             if( !used) {
                 // First use since construction, clear() or copy: the slots
                 // are indeterminate or stale.  Null every node gate before
                 // matching/inserting below.
                 for(unsigned i = 0; i < SLOTS; ++i)
-                    slots[i].node = nullptr;
+                    slotv[i].node = nullptr;
             }
             for(unsigned i = 0; i < SLOTS; ++i) {
-                if(slots[i].node == on) {
-                    slots[i].payload = old;
+                if(slotv[i].node == on) {
+                    slotv[i].payload = old;
                     return;   // in-place: keeps one entry per node.
                 }
             }
-            auto &s = slots[cursor++ % SLOTS];   // FIFO replacement
+            auto &s = slotv[cursor++ % SLOTS];   // FIFO replacement
             s.payload = old;
             s.node = on;
             used = true;

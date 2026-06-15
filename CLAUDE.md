@@ -190,6 +190,7 @@ Nodes communicate via `Talker<T>` / `Listener<T>` (in `kame/xnode.h` area). List
 ## Code Conventions
 
 - All exported symbols use `DECLSPEC_KAME` macro
+- **Never use `slots`, `signals`, or `emit` as C++ identifiers** (variable / parameter / member / function names) in any header reachable from a Qt translation unit — i.e. anything `kame/` includes, which includes the entire `kamestm/` STM core (`transaction.h` etc.). Qt's `<QObject>` does `#define slots`, `#define signals public`, `#define emit`, so a parameter named `slots` makes `slots[i]` expand to `[i]` — parsed as a stray lambda → `error: expected body of lambda expression`. These build fine in the Qt-free standalone `kamestm/tests/` harness, so the breakage only surfaces when a Qt module (e.g. `modules/levelmeter/`) is compiled. Use a distinct name (e.g. `slotv` for a slot array — see `Snapshot::LookupMemo::find_slow_`/`set`/`archive_`). The uppercase `SLOTS` constant and prefixed names like `s_sleep_slots` / `m_lookup_slots` / `NEGOTIATE_SLEEP_SLOTS` are safe (the macro is the bare lowercase token). To check a header in isolation: `clang++ -fsyntax-only -D slots= -D 'signals=public' -D emit= ...`.
 - Node payload fields are public members of the nested `Payload` struct inside each node class
 - Prefer `iterate_commit` / `iterate_commit_if` over manual retry loops for transactions
 - Time-stamping: use `XTime` from `kamestm/xtime.h`; `m_recordTime` is set by the driver when data is captured
