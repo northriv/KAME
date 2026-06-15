@@ -423,7 +423,11 @@ void Node<XN>::NegotiationCounter::negotiate_sleep(
     // re-check + re-sleep), never correctness.
     st.op_kind.store(my_kind, std::memory_order_relaxed);
     st.stamp.store(my_stamp, std::memory_order_release);
-    unsigned us = (ms_timeout > 0) ? (unsigned)ms_timeout * 1000u : 0u;
+    // Physical chunk length = ms_timeout * KAME_NEG_SLEEP_US_PER_MS µs
+    // (default 1000 → the original 1 ms; smaller tightens the re-check /
+    // notify cadence now that __ulock makes sub-ms waits cheap).
+    unsigned us = (ms_timeout > 0)
+        ? (unsigned)ms_timeout * (unsigned)KAME_NEG_SLEEP_US_PER_MS : 0u;
     st.cell.wait(g, us);
     // Clear the tenant stamp on exit so the next sleeper's stamp is not
     // preceded by a stale value that could match a target.

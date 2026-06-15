@@ -108,6 +108,30 @@
 #define KAME_STM_OPTIONAL_OPTIMIZATION 1
 #endif
 
+// --- Negotiate sleep-chunk granularity -------------------------------
+
+// Microseconds of actual sleep per nominal millisecond requested of
+// negotiate_sleep().  The adaptive negotiate loop sleeps in nominal
+// "1 ms" (or 2 ms jittered) chunks until a wall-clock deadline
+// (t_end = now + ms_actual*1000 µs), re-checking runner count and
+// re-issuing targeted/min-runner notifies between chunks.  The PHYSICAL
+// chunk length is `ms_timeout * KAME_NEG_SLEEP_US_PER_MS` µs.
+//
+// Historically this was a hard 1000 (1 ms) because the sleep ran on
+// std::condition_variable -> __psynch_cvwait, whose per-wait syscall is
+// expensive and whose practical granularity is milliseconds — sub-ms
+// chunks were pointless (heavy syscall, coarse timer).  With XWaitCell's
+// __ulock wait-on-address (microsecond timeout, cheap syscall) a shorter
+// chunk is viable: it tightens the re-check / notify cadence and cuts a
+// missed targeted-wake's recovery latency from ~1 ms to this value,
+// without changing t_end (total wait is still bounded by ms_actual).
+// The trade-off is more wakeups/syscalls per unit time; sweep to find
+// the knee.  Default 1000 reproduces the original 1 ms chunk exactly.
+// Override e.g. -DKAME_NEG_SLEEP_US_PER_MS=100 for a 100 µs chunk.
+#ifndef KAME_NEG_SLEEP_US_PER_MS
+#define KAME_NEG_SLEEP_US_PER_MS 1000u
+#endif
+
 // --- Per-Linkage priority / lease ------------------------------------
 
 // Initial per-Linkage lease (ns). Stored as µs in the packed priority
