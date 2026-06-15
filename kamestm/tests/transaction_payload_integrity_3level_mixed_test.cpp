@@ -116,8 +116,8 @@ int main(int argc, char** argv) {
     // when no warmup is done).
     std::vector<long long> leaf_count(NumThreads, 0);
     std::vector<long long> leaf_count_timed(NumThreads, 0);
-    std::atomic<long long> grand_count_total{0};
-    std::atomic<long long> grand_count_timed{0};
+    std::atomic<int_cas_max> grand_count_total{0};
+    std::atomic<int_cas_max> grand_count_timed{0};
 
     auto worker = [&](int tid) {
         if(FirstTouch) {

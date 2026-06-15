@@ -402,7 +402,7 @@ bool Node<XN>::NegotiationCounter::livelock_probe_tx_tick(
 
 template <class XN>
 void Node<XN>::NegotiationCounter::negotiate_sleep(
-    int ms_timeout, uint64_t my_stamp) noexcept
+    int ms_timeout, cnt_t my_stamp) noexcept
 {
     int slot = (int)((unsigned)ProcessCounter::id() % NEGOTIATE_SLEEP_SLOTS);
     auto &st = s_sleep_slots[slot];

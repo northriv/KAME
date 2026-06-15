@@ -97,8 +97,8 @@ int main(int argc, char** argv) {
     std::atomic<bool> stop{false};
     std::vector<long long> leaf_count(NumThreads, 0);
     std::vector<long long> leaf_count_timed(NumThreads, 0);
-    std::atomic<long long> parent_count_total{0};
-    std::atomic<long long> parent_count_timed{0};
+    std::atomic<int_cas_max> parent_count_total{0};
+    std::atomic<int_cas_max> parent_count_timed{0};
 
     auto worker = [&](int tid) {
         barrier.fetch_add(1);

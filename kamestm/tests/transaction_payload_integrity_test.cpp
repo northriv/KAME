@@ -75,8 +75,8 @@ int main(int argc, char** argv) {
 
     std::atomic<int> barrier{0};
     std::atomic<bool> stop{false};
-    std::atomic<long long> total_child1_commits{0};
-    std::atomic<long long> total_child2_commits{0};
+    std::atomic<int_cas_max> total_child1_commits{0};
+    std::atomic<int_cas_max> total_child2_commits{0};
 
     auto worker = [&](int tid) {
         (void)tid;

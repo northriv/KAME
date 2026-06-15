@@ -692,12 +692,20 @@ private:
             //! mis-targets a wake (the intended thread falls back to its
             //! natural timeout), never corrupts state — exactly the
             //! tolerance the mutex'd version already accepted.
-            std::atomic<uint64_t> stamp{0};
+            //!
+            //! Type is `cnt_t` (NOT a fixed uint64_t): in
+            //! KAME_STM_COMPACT_STATE mode cnt_t is int32_t, so this
+            //! atomic is lock-free on i486 (no CMPXCHG8B).  A hardcoded
+            //! atomic<uint64_t> here would emit __atomic_store_8 /
+            //! __atomic_load_8 libcalls on i486 and break the
+            //! libatomic-free build (the stamp only ever holds a
+            //! `started_time`, which is cnt_t, so no range is lost).
+            std::atomic<cnt_t> stamp{0};
         };
         static constexpr int NEGOTIATE_SLEEP_SLOTS = 512;
         static inline NegotiateSleepSlot s_sleep_slots[NEGOTIATE_SLEEP_SLOTS]{};
 
-        static void negotiate_sleep(int ms_timeout, uint64_t my_stamp) noexcept;
+        static void negotiate_sleep(int ms_timeout, cnt_t my_stamp) noexcept;
 
         //! Wake up to `n` sleeping threads whose TIDs are set in
         //! `tid_bitset`.  When `preferred_kind` is in {1,2}, prefer
