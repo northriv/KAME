@@ -30,6 +30,7 @@
 #include <functional>
 #include <utility>
 #include <type_traits>
+#include <cstdint>   // uintptr_t — tagged-pointer local refcount (not transitive under libstdc++ 14+)
 #include <assert.h>
 
 //! Trait to disable load_shared_() for specific types at compile time.
