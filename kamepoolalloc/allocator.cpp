@@ -4647,8 +4647,22 @@ static void libsystem_free_for_pool(void *p) noexcept {
 	// `std::free` / `::free` lookup re-binds to `kame_free` and we
 	// recurse forever (the call ends up tail-jumping under -O3).
 	__libc_free(p);
+#elif defined(__linux__)
+	// Non-glibc Linux (musl): there is no `__libc_free` alias, so resolve
+	// the real libc `free` once via dlsym(RTLD_NEXT, ...) — the same
+	// mechanism `malloc_usable_size` (below) uses, and which the comment
+	// there documents as safe on Linux (ELF has no dyld-style bind-time
+	// interposing).  Without this bypass the old `std::free` fallback
+	// re-bound to our own strong-symbol `free` and tail-recursed forever
+	// under -O3 — the Alpine/musl CI hang (job ran to the 6 h timeout).
+	// dlsym's own (tiny) allocations are served by the pool, not libc, so
+	// resolving here does not recurse.
+	using free_fn_t = void (*)(void *);
+	static free_fn_t s_libc_free =
+	    reinterpret_cast<free_fn_t>(dlsym(RTLD_NEXT, "free"));
+	if(s_libc_free) s_libc_free(p);   // unresolved (never): leak, don't recurse
 #else
-	// Other platforms (musl, Windows).
+	// Windows / other.
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	// Windows: the genuine UCRT free resolved by kame_resolve_real_crt —
 	// NOT std::free, which the IAT redirect has repointed back into the
@@ -4656,9 +4670,6 @@ static void libsystem_free_for_pool(void *p) noexcept {
 	// the pre-install window, when nothing is patched yet.
 	if(g_real_free) { g_real_free(p); return; }
 #endif
-	// musl: the strong-symbol shadowing rule is the same as glibc, so
-	// this will recurse if KAME's pool is active — Linux non-glibc builds
-	// must add their own bypass before this branch is reachable.
 	std::free(p);
 #endif
 }
@@ -4920,6 +4931,17 @@ static void *libsystem_malloc_for_pool(std::size_t n) {
 	// the same address libc's malloc resolves to, under a name we do
 	// not shadow.  Same trick as `__libc_free` / `__libc_realloc`.
 	return __libc_malloc(n);
+#elif defined(__linux__)
+	// Non-glibc Linux (musl): the strong-symbol `malloc` override IS
+	// emitted (the block below is gated on `__linux__`, not `__GLIBC__`),
+	// so `std::malloc` would recurse — resolve the real libc malloc via
+	// dlsym(RTLD_NEXT) instead (mirrors the free path above).  This is the
+	// fallback only for sizes the pool does not bucket; dlsym's own tiny
+	// allocations are pool-served, so no recursion through here.
+	using malloc_fn_t = void *(*)(std::size_t);
+	static malloc_fn_t s_libc_malloc =
+	    reinterpret_cast<malloc_fn_t>(dlsym(RTLD_NEXT, "malloc"));
+	return s_libc_malloc ? s_libc_malloc(n) : nullptr;
 #else
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	// Windows §31 by default doesn't redirect `malloc` — `std::malloc` is
@@ -4930,8 +4952,6 @@ static void *libsystem_malloc_for_pool(std::size_t n) {
 	// the patch is installed AFTER resolve_real_crt resolves these).
 	if(g_real_malloc) return g_real_malloc(n);
 #endif
-	// Other Unix (musl, etc.): no strong-symbol malloc override is emitted
-	// below, so std::malloc is safe.
 	return std::malloc(n);
 #endif
 }
@@ -4952,6 +4972,13 @@ static void *libsystem_realloc_for_pool(void *p, std::size_t n) {
 	return malloc_zone_realloc(zone, p, n);
 #elif defined(__linux__) && defined(__GLIBC__)
 	return __libc_realloc(p, n);
+#elif defined(__linux__)
+	// Non-glibc Linux (musl): real libc realloc via dlsym(RTLD_NEXT) —
+	// `std::realloc` would re-bind to our own strong symbol and recurse.
+	using realloc_fn_t = void *(*)(void *, std::size_t);
+	static realloc_fn_t s_libc_realloc =
+	    reinterpret_cast<realloc_fn_t>(dlsym(RTLD_NEXT, "realloc"));
+	return s_libc_realloc ? s_libc_realloc(p, n) : nullptr;
 #else
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	// Genuine UCRT realloc — NOT the redirected one (would recurse).
@@ -4968,6 +4995,18 @@ static void *libsystem_calloc_for_pool(std::size_t n_elem, std::size_t sz) {
 	return malloc_zone_calloc(zone, n_elem, sz);
 #elif defined(__linux__) && defined(__GLIBC__)
 	return __libc_calloc(n_elem, sz);
+#elif defined(__linux__)
+	// Non-glibc Linux (musl): deliberately NOT dlsym(RTLD_NEXT,"calloc") —
+	// a dlsym implementation may itself call calloc, which would
+	// recursively re-enter this function's local static initialiser and
+	// deadlock.  Compose from the (separately resolved) real malloc +
+	// zero-fill.  Overflow-checked multiply mirrors libc's contract
+	// (return NULL on wrap, no errno).
+	std::size_t total;
+	if(__builtin_mul_overflow(n_elem, sz, &total)) return nullptr;
+	void *m = libsystem_malloc_for_pool(total);
+	if(m) std::memset(m, 0, total);
+	return m;
 #else
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
 	// Genuine UCRT calloc — NOT the redirected path.
