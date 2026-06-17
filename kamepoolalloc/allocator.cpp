@@ -63,6 +63,7 @@
 #include <assert.h>
 #include <cerrno>
 #include <chrono>           // (§28.1) lazy-drain wall clock for LRC_MMAP push
+#include <cstdint>          // uint8_t/uint32_t/uintptr_t (not transitive under libstdc++ 14+)
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>          // std::memset / std::memcpy

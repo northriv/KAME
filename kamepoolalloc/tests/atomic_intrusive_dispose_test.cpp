@@ -31,6 +31,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>   // atoi (argv parsing) — libstdc++ 14+ no longer pulls it in transitively
 #include <thread>
 #include <vector>
 
