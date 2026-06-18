@@ -4569,8 +4569,23 @@ void *new_redirected_aligned(std::size_t alignment, std::size_t size) noexcept {
     return nullptr;
 #else
     void *p = nullptr;
+#  if defined(__linux__)
+    // On Linux we now emit a strong-symbol `posix_memalign` (routes to the
+    // pool) — calling the plain name here would recurse
+    // posix_memalign -> kame_pool_posix_memalign -> new_redirected_aligned
+    // -> here -> ... forever.  Resolve the REAL libc entry via RTLD_NEXT.
+    // (This huge / >256 KiB-aligned fallback is essentially unreached by
+    // normal workloads — the bucket and dedicated-chunk tiers above cover
+    // every alignment up to 256 KiB and every poolable size.)
+    using pma_t = int (*)(void **, std::size_t, std::size_t);
+    static pma_t real_pma =
+        reinterpret_cast<pma_t>(dlsym(RTLD_NEXT, "posix_memalign"));
+    if( !real_pma || real_pma(&p, alignment, size) != 0)
+        return nullptr;
+#  else
     if(posix_memalign(&p, alignment, size) != 0)
         return nullptr;
+#  endif
     return p;
 #endif
 }
@@ -5420,6 +5435,20 @@ kame_interpose_entry kame_interposers_full[]
 extern "C" __attribute__((noinline))
 void *realloc(void *p, std::size_t n) {
 	return kame_realloc(p, n);
+}
+// `reallocarray` (glibc 2.26+, musl): realloc with an overflow-checked
+// nmemb*size.  MUST be intercepted alongside `realloc` — otherwise a
+// pool pointer handed to libc's reallocarray is reallocated against
+// libc heap metadata it does not own (same hazard as an un-intercepted
+// realloc).  Overflow → NULL + ENOMEM, ptr untouched (POSIX contract).
+extern "C" __attribute__((noinline))
+void *reallocarray(void *p, std::size_t nmemb, std::size_t size) noexcept {
+	std::size_t total;
+	if(__builtin_mul_overflow(nmemb, size, &total)) {
+		errno = ENOMEM;
+		return nullptr;
+	}
+	return kame_realloc(p, total);
 }
 // Linux mirror of the macOS `malloc_size` co-interpose above.  glibc
 // consumers — redis `zmalloc`, systemd, BIND — call
