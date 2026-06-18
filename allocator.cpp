@@ -4864,6 +4864,33 @@ extern "C" __attribute__((noinline)) void *calloc(std::size_t n_elem, std::size_
 	// returns unique freeable ptr, ENOMEM on fail) — just expose it.
 	return kame_calloc(n_elem, sz);
 }
+// Aligned-allocation family.  MUST be intercepted whenever `malloc` is:
+// on musl, `memalign` / `aligned_alloc` / `posix_memalign` are implemented
+// *on top of the public `malloc`* — so under LD_PRELOAD they call OUR
+// `malloc`, get a pool pointer, then musl wraps it with libc-style header
+// bookkeeping and hands back a pointer the pool does not own → the
+// returned block is corrupt and the next free()/realloc() SIGSEGVs.
+// (glibc's variants use internal arena entries, not the public `malloc`,
+// which is why this only crashed on Alpine/musl — rptest + rocksdb, which
+// allocate via `memalign`.)  Routing them through the pool's own aligned
+// path keeps ownership consistent (pool pointers freed via the pool free),
+// exactly as mimalloc / tcmalloc do.  Helpers declared in kame_pool.h,
+// defined later in this TU.
+extern "C" __attribute__((noinline))
+int posix_memalign(void **memptr, std::size_t al, std::size_t sz) noexcept {
+	return kame_pool_posix_memalign(memptr, al, sz);
+}
+extern "C" __attribute__((noinline))
+void *aligned_alloc(std::size_t al, std::size_t sz) noexcept {
+	return kame_pool_aligned_alloc(al, sz);
+}
+extern "C" __attribute__((noinline))
+void *memalign(std::size_t al, std::size_t sz) noexcept {
+	// Legacy GNU memalign: same (alignment, size) order as aligned_alloc,
+	// no size-multiple-of-alignment requirement — kame_pool_aligned_alloc
+	// is already lenient about size, so route straight to it.
+	return kame_pool_aligned_alloc(al, sz);
+}
 #else
 // Windows / others: no `free` interpose.
 //
