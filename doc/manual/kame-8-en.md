@@ -624,6 +624,33 @@ LXI 3390 arbitrary function generator (LAN)
 
 ![](media/image15.png)
 
+Control parameters (node names for scripting in parentheses):
+
+- Output (`Output`) — turn the output on/off.
+- Waveform (`Waveform`) — `SIN`, `SQU`, `RAMP`, `PULS`, `NOIS`, `DC`, `USER`, `PATT`.
+- Frequency (`Freq`) [Hz], Amplitude (`Ampl`) [V], Offset (`Offset`) [V].
+- Duty (`Duty`) [%] — duty cycle for the square wave, and for the pulse
+  wave when Pulse Width is left at 0 (see below).
+- Pulse Width (`PulseWidth`) [s] — for the `PULS` waveform. Width and
+  Duty are two mutually exclusive ways to specify the pulse shape, so a
+  **sentinel applies: `PulseWidth = 0` means “specify the shape by Duty
+  instead.”** Enter a non-zero width to drive the pulse by width.
+- Pulse Period (`PulsePeriod`) [s] — for the `PULS` waveform.
+  **`PulsePeriod = 0` means “follow Frequency” (period = 1/Freq);** enter
+  a non-zero value to override the period independently of Freq.
+- Burst (`Burst`) — enable burst mode. Burst Phase (`BurstPhase`) [deg].
+- Burst Cycles (`BurstCycles`) — number of cycles per burst.
+  **`BurstCycles = 0` means INFinity** (continuous). With a BUS trigger
+  source and infinite cycles, KAME issues a software trigger when the
+  output is enabled.
+- Trigger Source (`TrigSrc`) — `IMM`, `EXT`, `BUS`.
+
+On connection KAME reads the instrument’s current waveform, frequency,
+amplitude, offset, duty, burst state/phase/cycles and trigger source back
+into these nodes; Pulse Width and Pulse Period start at 0 (the
+Duty/Frequency-driven defaults) so that later Frequency changes keep
+taking effect.
+
 ## Level Meter
 
 Oxford ILM Helium levelmeter (GPIB, SerialPort)
