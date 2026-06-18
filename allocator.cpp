@@ -751,7 +751,20 @@ struct CrossDeallocBatch {
             cached_force_walk->store(true, std::memory_order_relaxed);
     }
 
-    void flush() noexcept {
+    // `at_teardown`: set by the dtor (we are running inside this thread's
+    // TLS-destructor chain).  When true, SKIP the owner-`force_walk` poke
+    // below.  That poke dereferences `chunk->m_owner_dll_force_walk_ptr`,
+    // a raw pointer into the OWNER thread's TLS.  Its safety relies on the
+    // owner nullifying that pointer (release-store) before its TLS storage
+    // is reclaimed.  glibc honours that ordering; **musl's
+    // `__pthread_tsd_run_dtors` reclaims a thread's dynamic TLS on a
+    // schedule that can free the owner's `force_walk` slot before the
+    // nullification lands** — so at process/thread shutdown (rocksdb joins
+    // its whole thread pool at exit) the cached pointer dangles and the
+    // store SIGSEGVs (observed only on Alpine/musl; glibc CI is clean).
+    // The poke is a pure slot-reuse hint, worthless at teardown, so we
+    // simply drop it there — the slots are still returned to the bitmap.
+    void flush(bool at_teardown = false) noexcept {
         if(count == 0) return;
         // Sort by (chunk, slot) lex — chunk primary key for grouping,
         // slot pointer secondary key so each chunk run is pointer-
@@ -789,7 +802,11 @@ struct CrossDeallocBatch {
         int i = 0;
         while(i < count) {
             PoolAllocatorBase *chunk = buf[i].chunk;
-            std::atomic<bool> *cached_force_walk =
+            // At teardown, do NOT load/deref the owner's TLS force-walk
+            // pointer (it may dangle under musl's TSD-dtor ordering — see
+            // the function comment).  Returning the slots is all that
+            // matters there.
+            std::atomic<bool> *cached_force_walk = at_teardown ? nullptr :
                 chunk->m_owner_dll_force_walk_ptr.load(
                     std::memory_order_acquire);
             i += chunk->batch_return_to_bitmap(&buf[i]);
@@ -798,7 +815,7 @@ struct CrossDeallocBatch {
         }
         count = 0;
     }
-    ~CrossDeallocBatch() noexcept { flush(); }
+    ~CrossDeallocBatch() noexcept { flush(/*at_teardown=*/true); }
 };
 thread_local CrossDeallocBatch tls_cross_dealloc_batch;
 
