@@ -124,15 +124,17 @@ dedicated / large-`mmap` / huge (> 32 MiB) tiers with a two-level recycle cache,
 pool-routed aligned allocation, and standards-conformant OOM.
 
 **Targets:** macOS and Windows (64-bit) for KAME itself; the standalone library
-also builds and is tested on Linux (64-bit and 32-bit).  Requires a host with
-`mmap` (or `VirtualAlloc`) and threads — not an MCU / bare-metal allocator.
+also builds and is tested on Linux (64-bit and 32-bit) under both **glibc and
+musl** — continuously build-and-run-checked on **Ubuntu, Fedora, and
+Alpine/musl** (the mimalloc-bench CI matrix).  Requires a host with `mmap`
+(or `VirtualAlloc`) and threads — not an MCU / bare-metal allocator.
 
 **Per-toolchain status of the live pool:**
 
 | Toolchain | Live pool | Notes |
 |---|---|---|
 | macOS clang (x86-64 / arm64) | ✅ default | `__DATA,__interpose` `free` redirect; dylib build also interposes the full `malloc` family + `malloc_size` by default (Swift/ObjC-safe drop-in), opt out with `-DKAMEPOOLALLOC_CONSERVATIVE_INTERCEPT`; primary target |
-| Linux gcc/clang (x86-64, 32-bit) | ✅ default | strong-symbol `free` redirect; primary CI target |
+| Linux gcc/clang (x86-64, 32-bit), **glibc & musl** | ✅ default | strong-symbol redirect of the full family — `free` / `malloc` / `calloc` / `realloc` / `reallocarray` and the aligned set (`memalign` / `posix_memalign` / `aligned_alloc`); on musl the aligned/teardown paths get explicit handling (musl implements `memalign` on the public `malloc`, and frees TLS during `__pthread_tsd_run_dtors`).  mimalloc-bench CI runs the full suite (incl. rptest / rocksdb) crash-free (`signal 11` = 0) on **Ubuntu, Fedora, and Alpine/musl**; primary CI target |
 | Windows **MinGW64 + lld** | ✅ default | §31 free-family IAT redirect lets the pool coexist with Qt / libc++ (PE/COFF has no cross-module `operator new` interposition); verified on-target with Qt 6.10.1 |
 | Windows **MSVC** (cl) | ✅ default | runs the full live pool — the `_MSC_VER` shim in `allocator_prv.h` bridges the GCC-isms (`_Interlocked*` atomics, `<intrin.h>` bit-scan / overflow, static-init constructor hook) and the §31 redirect handles Qt/CRT coexistence; opt OUT with `KAME_DISABLE_POOL_MSVC` |
 
