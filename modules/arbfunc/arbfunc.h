@@ -41,6 +41,7 @@ public:
     const shared_ptr<XDoubleNode> duty() const {return m_duty;} //!< [%]
     const shared_ptr<XDoubleNode> pulseWidth() const {return m_pulseWidth;} //!< [s], 0 = specify by Duty instead
     const shared_ptr<XDoubleNode> pulsePeriod() const {return m_pulsePeriod;} //!< [s], 0 = follow Freq (period = 1/Freq)
+    const shared_ptr<XTouchableNode> softwareTrig() const {return m_softwareTrig;} //!< sends a bus/software trigger (*TRG)
 
 protected:
     //! This function will be called when raw data are written.
@@ -59,6 +60,9 @@ protected:
 
     virtual void changeOutput(bool active) = 0;
     virtual void changePulseCond() = 0;
+    //! Issues a single software/bus trigger (e.g. SCPI "*TRG"). Effective when the trigger
+    //! source is BUS; arms a burst on demand from the UI button or from a script.
+    virtual void sendSoftwareTrigger() = 0;
 private:
     const shared_ptr<XBoolNode> m_output;
     const shared_ptr<XBoolNode> m_burst;
@@ -67,11 +71,13 @@ private:
     const shared_ptr<XComboNode> m_trigSrc, m_waveform;
     const shared_ptr<XDoubleNode> m_freq, m_ampl, m_offset, m_duty;
     const shared_ptr<XDoubleNode> m_pulseWidth, m_pulsePeriod;
+    const shared_ptr<XTouchableNode> m_softwareTrig;
 
-    shared_ptr<Listener> m_lsnOnCondChanged, m_lsnOnOutputChanged;
+    shared_ptr<Listener> m_lsnOnCondChanged, m_lsnOnOutputChanged, m_lsnOnSoftTrigTouched;
 
     void onOutputChanged(const Snapshot &shot, XValueNodeBase *);
     void onCondChanged(const Snapshot &shot, XValueNodeBase *);
+    void onSoftTrigTouched(const Snapshot &shot, XTouchableNode *);
 
     const qshared_ptr<FrmArbFuncGen> m_form;
 

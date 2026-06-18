@@ -573,7 +573,17 @@
       </item>
      </layout>
     </item>
-    <item row="10" column="0">
+    <item row="10" column="0" colspan="2">
+     <widget class="QPushButton" name="m_btnSoftTrig">
+      <property name="toolTip">
+       <string>Send a software (bus) trigger (*TRG). Effective when Trigger Source = BUS.</string>
+      </property>
+      <property name="text">
+       <string>Software Trigger</string>
+      </property>
+     </widget>
+    </item>
+    <item row="11" column="0">
      <spacer name="verticalSpacer">
       <property name="orientation">
        <enum>Qt::Vertical</enum>

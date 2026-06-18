@@ -16,6 +16,7 @@
 #include "charinterface.h"
 
 REGISTER_TYPE(XDriverList, ArbFuncGenSCPI, "LXI 3390 arbitrary function generator");
+REGISTER_TYPE(XDriverList, Agilent33250A, "Agilent/Keysight 33250A arbitrary function generator");
 
 XArbFuncGenSCPI::XArbFuncGenSCPI(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XCharDeviceDriver<XArbFuncGen>(name, runtime, ref(tr_meas), meas) {
@@ -28,6 +29,62 @@ XArbFuncGenSCPI::XArbFuncGenSCPI(const char *name, bool runtime,
     interface()->setGPIBWaitBeforeWrite(50);
     interface()->setGPIBWaitBeforeRead(50);
     interface()->setEOS("\n");
+}
+XAgilent33250A::XAgilent33250A(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XArbFuncGenSCPI(name, runtime, ref(tr_meas), meas) {
+    //33250A shares most of the Agilent 33xxx SCPI command set with the 3390; only the
+    //per-update command sequence (changePulseCond) needs 33250A-specific care.
+}
+void
+XAgilent33250A::changePulseCond() {
+    XScopedLock<XInterface> lock( *interface());
+    Snapshot shot( *this);
+    interface()->send("*CLS"); //clear stale errors so the front-panel ERR reflects this update only
+    interface()->send("BURST:STAT OFF");
+    XString wave = shot[ *waveform()].to_str();
+    interface()->sendf("APPL:%s %g, %g, %g", wave.c_str(),
+        (double)shot[ *freq()], (double)shot[ *ampl()], (double)shot[ *offset()]);
+    //Send shape parameters only for the active function. The 33250A does NOT implement the
+    //33220A/3390 commands FUNC:PULSe:DCYCle / FUNC:PULSe:WIDTh, nor a stand-alone PHASe, so
+    //sending them (as the base driver does) makes the 33250A queue SCPI errors even though
+    //freq/ampl/etc. take effect. Use the 33250A's own PULSe:* commands instead.
+    if(wave == "SQU")
+        interface()->sendf("FUNC:SQU:DCYC %g", (double)shot[ *duty()]);
+    else if(wave == "PULS") {
+        double period = shot[ *pulsePeriod()];
+        if(period > 0)
+            interface()->sendf("PULS:PER %g", period);
+        double width = shot[ *pulseWidth()];
+        if(width > 0)
+            interface()->sendf("PULS:WIDT %g", width);
+    }
+    if(shot[ *burst()]) {
+        interface()->sendf("BURS:PHAS %g", (double)shot[ *burstPhase()]);
+        unsigned int cyc = shot[ *burstCycles()];
+        if(cyc == 0)
+            interface()->send("BURS:NCYC INF");
+        else
+            interface()->sendf("BURS:NCYC %u", cyc);
+        interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
+        interface()->send("BURST:STAT ON");
+        if(shot[ *output()] && (cyc == 0) && (shot[ *trigSrc()].to_str() == "BUS"))
+            interface()->send("*OPC;*TRG");
+    }
+    //Drain the error queue: clears the front-panel ERR and surfaces any command the 33250A
+    //still rejects (so an incompatibility shows up here instead of silently).
+    for(int i = 0; i < 8; ++i) {
+        interface()->query("SYST:ERR?");
+        XString e = interface()->toStrSimplified();
+        if(e.empty() || (e[0] == '+' && e.size() >= 2 && e[1] == '0') || (e[0] == '0'))
+            break;
+        gWarnPrint(getLabel() + " 33250A SCPI: " + e);
+    }
+}
+void
+XArbFuncGenSCPI::sendSoftwareTrigger() {
+    //Standard IEEE-488.2 bus trigger; fires a burst when TRIG:SOUR is BUS.
+    interface()->send("*TRG");
 }
 void
 XArbFuncGenSCPI::changeOutput(bool active) {
