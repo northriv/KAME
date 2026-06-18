@@ -43,6 +43,21 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
     virtual void open() override;
     virtual void close() override;
 
+    virtual void clearHalt(uint8_t ep) override {
+        if(handle)
+            libusb_clear_halt(handle, LIBUSB_ENDPOINT_IN | ep);
+    }
+
+    virtual void resetDevice() override {
+        //A bare libusb_reset_device leaves the OceanOptics FPGA acquisition latched
+        //(status[8] stuck at 3 after leaving a trigger mode). Fully closing and reopening the
+        //handle — reset + release + close, then open + claim + set-alt — clears it. This is
+        //the USB-level equivalent of a manual interface Control off/on, which is known to
+        //recover the device.
+        close(); //does libusb_reset_device + release_interface + libusb_close.
+        open();  //does libusb_open(dev) + claim_interface + set_interface_alt_setting.
+    }
+
     XString virtual getString(int descid) override;
 
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32

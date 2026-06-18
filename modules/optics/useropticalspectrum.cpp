@@ -111,9 +111,26 @@ XOceanOpticsSpectrometer::onStrobeCondChnaged(const Snapshot &, XValueNodeBase *
     }
 }
 void
-XOceanOpticsSpectrometer::onTrigCondChnaged(const Snapshot &shot, XValueNodeBase *) {
+XOceanOpticsSpectrometer::onTrigCondChnaged(const Snapshot &, XValueNodeBase *) {
     try {
         Snapshot shot( *this);
+        if( !interface()->isUSB2000()) {
+            //HR4000-class only. Leaving a trigger mode can latch the FPGA acquisition state
+            //(status[8] stuck at 3 "acquiring", so Free Run never reports ready). Neither
+            //SET_TRIG_MODE nor CMD::INIT clears that — only a USB port reset does (the same as
+            //a manual interface Control off/on). So on any trigger-mode change: reset the
+            //device (close+reopen the handle), re-init, then re-apply the current settings
+            //before applying the new trigger mode. OceanOptics firmware is persistent, so the
+            //reset does not require a firmware reload. USB2000 lacks these FPGA registers and
+            //is left to the original (no-op-ish) path below.
+            interface()->resetDevice();
+            msecsleep(100); //let the port reset settle before talking to the device again.
+            interface()->initDevice();
+            interface()->clearSpectrumEndpoints();
+            interface()->setIntegrationTime(lrint(shot[ *integrationTime()] * 1e6));
+            interface()->enableStrobe(shot[ *enableStrobe()]);
+            interface()->setupStrobeCond(shot[ *timeToStrobeSignal()], shot[ *strobeSignalDuration()]);
+        }
         interface()->setupTrigCond((XOceanOpticsUSBInterface::TrigMode)(unsigned int)shot[ *trigMode()],
             shot[ *delayFromExtTrig()]);
     }
@@ -134,7 +151,7 @@ XOceanOpticsSpectrometer::onAnalogOutputChnaged(const Snapshot &shot, XValueNode
 
 
 void
-XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
+XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer, const atomic<bool> &terminated) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
     bool isusb2000 = interface()->isUSB2000();
 
@@ -161,23 +178,16 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
                     status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
     }
 
-    if( !isusb2000 && !dev_freerun) {
-        // In an external/software trigger mode the spectrometer yields data only when a
-        // trigger fires. Arming it (requestSpectrum) and then issuing the blocking bulk read
-        // with no trigger makes the read time out: libusb cancels the in-flight transfer,
-        // which holds the interface lock ~6 s (freezing the UI) AND leaves the HR4000 wedged
-        // at status[8]==9 — unrecoverable by SET_TRIG_MODE or CMD::INIT, only by a USB reset.
-        // So never arm-and-read speculatively here; just poll and skip.
-        // TODO: actually reading a triggered spectrum needs (1) a USB read path that waits
-        // for the trigger without the fixed cancel-on-timeout in
-        // CyFXLibUSBDevice::AsyncIO::waitFor(), and (2) the "spectrum ready" status signature
-        // after a real trigger (no trigger source was available to characterize it).
-        msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
-        throw XSkippedRecordError(__FILE__, __LINE__);
-    }
-
-    if( !acq_ready) {
-//            //waits for completion
+    // External/software trigger mode (HR4000-class): the spectrometer yields a spectrum only
+    // after a trigger edge. We arm (requestSpectrum) and then read with an *interruptible*,
+    // polled async read (readSpectrumInterruptible). While triggers keep arriving the read
+    // completes as soon as data is ready — no transfer is cancelled, so the device is not
+    // wedged and the UI is not frozen. The read aborts immediately on thread termination, or
+    // after a long no-trigger timeout (the record is then skipped; if triggers never resume,
+    // the device may need a USB reconnect, i.e. toggling the interface Control off/on).
+    bool trig_mode = !isusb2000 && !dev_freerun;
+    if( !trig_mode && !acq_ready) {
+        //waits for completion
         msecsleep(std::min(100.0, integration_time_us * 1e-3 / 4));
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
@@ -199,7 +209,17 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     for(double x:  m_nonlinCorrCoeffs)
         writer->push(x);
 
-    int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
+    int len;
+    if(trig_mode) {
+        //Wait for the next external trigger; thread stop aborts immediately. Keep this
+        //modest so a trigger-mode change (which serializes on the interface lock) is not
+        //delayed long while a read is pending.
+        double trig_timeout = std::max(2.0, integration_time_us * 1e-6 * 4 + 1.0);
+        len = interface()->readSpectrumInterruptible(m_spectrumBuffer, pixels,
+            usb_speed == 0x80u, terminated, trig_timeout);
+    }
+    else
+        len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
     if( !len)
         throw XSkippedRecordError(__FILE__, __LINE__);
     writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).

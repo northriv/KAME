@@ -115,7 +115,7 @@ protected:
     virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
     virtual void convertRawAndAccum(RawDataReader &reader, Transaction &tr) = 0;
 
-    virtual void acquireSpectrum(shared_ptr<RawData> &) = 0;
+    virtual void acquireSpectrum(shared_ptr<RawData> &, const atomic<bool> &terminated) = 0;
 
     const shared_ptr<XScalarEntry> m_marker1X;
     const shared_ptr<XScalarEntry> m_marker1Y;

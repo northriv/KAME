@@ -47,7 +47,24 @@ public:
     void setAnalogOutput(double);
 
     void requestSpectrum();
+    //! Clears any halt/stall left on the spectrum bulk-in endpoint(s), e.g. after a
+    //! cancelled triggered read or when the trigger mode changes, so a subsequent read
+    //! (free-run or triggered) is not blocked by a stale endpoint state.
+    void clearSpectrumEndpoints();
+    //! USB port reset to clear a latched acquisition state (e.g. status[8] stuck at 3
+    //! "acquiring" after leaving a trigger mode, which neither SET_TRIG_MODE nor CMD::INIT
+    //! clears). Mirrors a manual interface Control off/on; safe because OceanOptics firmware
+    //! is persistent (no firmware download). Caller must re-apply settings afterwards.
+    void resetDevice();
     int readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed);
+    //! Like readSpectrum() but reads via interruptible async polling, so it can wait an
+    //! arbitrary time for an external trigger edge without the fixed cancel-on-timeout of
+    //! the synchronous path (which wedges HR4000-class devices). While triggers keep
+    //! arriving no transfer is ever cancelled. Returns 0 if aborted — either \a terminated
+    //! became true (thread stop) or no trigger arrived within \a timeout_sec — leaving the
+    //! device in a clean state.
+    int readSpectrumInterruptible(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed,
+        const atomic<bool> &terminated, double timeout_sec);
 
     std::vector<uint8_t> readInstrumStatus();
     struct InstrumConfig {

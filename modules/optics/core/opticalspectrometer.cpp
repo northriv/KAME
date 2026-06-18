@@ -347,7 +347,7 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
 		auto writer = std::make_shared<RawData>();
 		// try/catch exception of communication errors
 		try {
-            acquireSpectrum(writer);
+            acquireSpectrum(writer, terminated);
 		}
 		catch (XDriver::XSkippedRecordError&) {
 			msecsleep(10);

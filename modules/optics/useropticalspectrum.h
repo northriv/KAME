@@ -42,7 +42,7 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() override;
 
-    virtual void acquireSpectrum(shared_ptr<RawData> &) override;
+    virtual void acquireSpectrum(shared_ptr<RawData> &, const atomic<bool> &terminated) override;
 private:
     std::vector<double> m_wavelenCalibCoeffs; //polynominal func. coeff.
     std::vector<double> m_nonlinCorrCoeffs; //polynominal func. coeff.
