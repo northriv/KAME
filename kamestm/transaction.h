@@ -146,6 +146,16 @@ public:
     //! Removes all links to the subnodes.
     //! \sa insert(), release(), swap().
     void releaseAll();
+    //! Number of successful Transactions committed at this node's own
+    //! linkage (\sa Linkage::m_tx_commit_count, bumped once per committed
+    //! Transaction in finalizeCommitment()). Summing this over the whole
+    //! node tree gives the aggregate STM commit count; differencing two
+    //! readings against wall-clock time yields the commit throughput
+    //! (commits/s). Read is a plain load of a mutable counter — racy by
+    //! design, adequate for coarse-grained monitoring.
+    uint64_t numTransactionsCommitted() const noexcept {
+        return m_link->m_tx_commit_count;
+    }
     //! Swaps orders in the subnode list.
     //! \return True if succeeded.
     //! \sa insert(), release(), releaseAll().

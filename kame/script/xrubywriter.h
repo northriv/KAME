@@ -25,7 +25,8 @@ private:
     void write(const shared_ptr<XNode> &node,
 			   const Snapshot &shot, bool ghost, int level);
     shared_ptr<XNode> m_root;
-    std::ofstream &m_ofs;    
+    std::ofstream &m_ofs;
+    uint64_t m_totalCommits = 0;   //!< running sum of Node::numTransactionsCommitted()
 };
 
 
