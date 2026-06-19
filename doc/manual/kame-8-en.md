@@ -713,7 +713,7 @@ Similarly, conditions for the persistent switch can be added.
 
 <span dir="rtl">Enter the switch heater wait times in “Wait after Heater ON/OFF”.
 
-Scripting nodes: setpoints `TargetField`, `SweepRate`, `AllowPersistent`, `Approach` (`Linear`/`Oscillating`); readbacks `MagnetField`, `OutpuField` (sic — typo in the source node name), `OutputCurrent`, `OutputVolt`, `Stabilized`, `PCSHeater`, `Persistent`, `Aborting`. To sweep the field from a script, set `TargetField` and poll `Stabilized` (its magnitude is the time-averaged error).</span>
+Scripting nodes: setpoints `TargetField`, `SweepRate`, `AllowPersistent`, `Approach` (`Linear`/`Oscillating`); readbacks `MagnetField`, `OutputField`, `OutputCurrent`, `OutputVolt`, `Stabilized`, `PCSHeater`, `Persistent`, `Aborting`. To sweep the field from a script, set `TargetField` and poll `Stabilized` (its magnitude is the time-averaged error).</span>
 
 ## Signal Generator (SG)
 
@@ -875,9 +875,9 @@ JAI camera via Euresys Grablink CameraLink (PCIe)
 
 OceanOptics/Insight USB spectrometer HR2000+/4000 (USB)
 
-Camera scripting nodes: `CameraGain`, `BlackLevelOffset`, `ExposureTime`, `FrameRate`, `VideoMode`, `TriggerMode`, `TriggerSrc`; dark-frame handling `StoreDark`, `SubtractDark`, `AntiShakePixels`; display-only `AutoGainForDisp`, `GainForDisp` (these affect the displayed image, not the raw counts read by 2D math tools). (The EM-gain node is also created with the name `CameraGain`, colliding with the analog-gain node — name lookup returns the first; prefer driving it from the UI until renamed.) Quantitative pixel data is obtained through 2D math tools, not `to_png()` — see Graph Math Tools / the API reference.
+Camera scripting nodes: `CameraGain` (analog gain), `EMGain`, `BlackLevelOffset`, `ExposureTime`, `FrameRate`, `VideoMode`, `TriggerMode`, `TriggerSrc`; dark-frame handling `StoreDark`, `SubtractDark`, `AntiShakePixels`; display-only `AutoGainForDisp`, `GainForDisp` (these affect the displayed image, not the raw counts read by 2D math tools). Quantitative pixel data is obtained through 2D math tools, not `to_png()` — see Graph Math Tools / the API reference.
 
-Spectrometer scripting nodes: `StartWavelen`, `StopWavelen`, `IntegrationTime`, `Average`, `TrigMode`, `DelayFromExtTrig`, `EnableStrobe`, `TimeTorStrobeSignal` (sic), `StrobeSignalDuration`, `AnalogOutput`; dark handling `StoreDark`, `SubtractDark`.
+Spectrometer scripting nodes: `StartWavelen`, `StopWavelen`, `IntegrationTime`, `Average`, `TrigMode`, `DelayFromExtTrig`, `EnableStrobe`, `TimeToStrobeSignal`, `StrobeSignalDuration`, `AnalogOutput`; dark handling `StoreDark`, `SubtractDark`.
 
 ## Laser Module
 
