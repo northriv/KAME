@@ -41,8 +41,12 @@ PyDriverExporter<XDigitalCamera, XPrimaryDriver> digitalcamera([](auto node, aut
         .def("rawCounts", [](XDigitalCamera::Payload &self){
             using namespace Eigen;
             using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
+            auto counts = self.rawCounts();
+            if( !counts || self.width() == 0 || self.height() == 0 ||
+                counts->size() < self.firstPixel() + (size_t)self.stride() * self.height())
+                throw std::runtime_error("rawCounts: no frame captured yet");
             auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
-                &self.rawCounts()->at(self.firstPixel()),
+                &counts->at(self.firstPixel()),
                 self.height(), self.width(),
                 Stride<Dynamic, 1>(self.stride(), 1));
             return Ref<const RMatrixXu32>(cmatrix);
@@ -50,8 +54,12 @@ PyDriverExporter<XDigitalCamera, XPrimaryDriver> digitalcamera([](auto node, aut
         .def("darkCounts", [](XDigitalCamera::Payload &self){
             using namespace Eigen;
             using RMatrixXu32 = Matrix<uint32_t, Dynamic, Dynamic, RowMajor>;
+            auto counts = self.darkCounts();
+            if( !counts || self.width() == 0 || self.height() == 0 ||
+                counts->size() < self.firstPixel() + (size_t)self.stride() * self.height())
+                throw std::runtime_error("darkCounts: no frame captured yet");
             auto cmatrix = Map<const RMatrixXu32, 0, Stride<Dynamic, 1>>(
-                &self.darkCounts()->at(self.firstPixel()),
+                &counts->at(self.firstPixel()),
                 self.height(), self.width(),
                 Stride<Dynamic, 1>(self.stride(), 1));
             return Ref<const RMatrixXu32>(cmatrix);
