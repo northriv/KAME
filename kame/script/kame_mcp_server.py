@@ -68,7 +68,11 @@ return from. Never jump a motor to an arbitrary Target from generated
 code: confirm axis/direction/magnitude/safe-range with the user, then
 step in small increments while watching another driver's response as
 feedback. For LC tuning prefer the Auto LC Tuner driver over commanding
-motors directly. See kame_manual("Motor Controller").
+motors directly. NEVER issue GoHomeMotor unprompted: homing with no
+home sensor spins the motor forever, and neither KAME nor the hardware
+knows whether a sensor exists — only the user — so ask the user to
+confirm a home sensor is present on that axis first.
+See kame_manual("Motor Controller").
 
 Notebook cell editing: the user's measurements live in notebook cells.
 Workflow: notebook_status (kernel busy? which cell is running?) →

@@ -263,8 +263,14 @@ for full STM consistency guarantees.
 > increments**, checking another driver's response (reflection, signal
 > amplitude, optical reading) as feedback after each step, and stop the
 > moment it diverges. For LC tuning prefer the Auto LC Tuner driver
-> (closed loop on a VNA) over commanding the motors directly. See the
-> manual's "Motor Controller" section (`kame_manual`).
+> (closed loop on a VNA) over commanding the motors directly.
+>
+> **Never touch `GoHomeMotor` unprompted.** Homing runs until a home
+> sensor triggers; with **no home sensor it spins forever**, and neither
+> KAME nor the hardware knows whether a sensor exists — only the user.
+> Always ask the user to confirm a home sensor is present on that axis
+> before issuing `GoHomeMotor`. See the manual's "Motor Controller"
+> section (`kame_manual`).
 
 ```python
 # List all drivers
