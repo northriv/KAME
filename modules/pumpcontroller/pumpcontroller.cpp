@@ -32,7 +32,7 @@ XPumpControl::XPumpControl(const char *name, bool runtime,
     m_warning(create<XBoolNode>("Warning", true)),
     m_error(create<XBoolNode>("Error", true)),
     m_rotationSpeed(create<XDoubleNode>("RotationSpeed", true)),
-    m_runtime(create<XDoubleNode>("RotationSpeed", true)),
+    m_runtime(create<XDoubleNode>("Runtime", true)),
     m_standbyRotationSpeed(create<XDoubleNode>("StandbyRotationSpeed", true)),
     m_maxDrivePower(create<XDoubleNode>("MaxDriverPower", true)),
     m_form(new FrmPumpControl) {

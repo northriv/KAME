@@ -60,6 +60,36 @@ Tools"). to_png() is the gamma-encoded display image: fine for viewing
 and for binary segmentation / mask generation (rank-based thresholds,
 1:1 pixel coordinates), but never read signal values from its pixels.
 
+Motion safety: writing a motor/positioner driver's `Target` starts a
+physical move that may be IRREVERSIBLE — many stages report only an
+open-loop estimated position (or none, for piezo positioners) and a
+probe/coil/sample/tuning-capacitor can be driven somewhere it cannot
+return from. Never jump a motor to an arbitrary Target from generated
+code: confirm axis/direction/magnitude/safe-range with the user, then
+step in small increments while watching another driver's response as
+feedback. For LC tuning prefer the Auto LC Tuner driver over commanding
+motors directly. NEVER issue GoHomeMotor unprompted: homing with no
+home sensor spins the motor forever, and neither KAME nor the hardware
+knows whether a sensor exists — only the user — so ask the user to
+confirm a home sensor is present on that axis first.
+See kame_manual("Motor Controller").
+
+Temperature safety: in a cryogenic setup, raising a controller's
+TargetTemp above ~295 K (room temperature) needs explicit user
+confirmation (warming a cold cryostat can boil off cryogen or exceed
+limits). The loop can overshoot >=10% (a 300 K target may peak ~330 K),
+so leave margin below any threshold. Only approach higher temperatures
+by monitoring the real temperature (Scalar Entry / poll Stabilized)
+while waiting — step TargetTemp up gradually — never set a high target
+and walk away.
+
+NMR RF-power safety: excess average RF power destroys the amplifier/
+probe. Unless the user directs otherwise, keep pulser pulse widths
+PW1/PW2/CombPW <= min(Tau*0.3, 15) us (<=30% of Tau, max 15 us) and
+never set RT below 15 ms (Tau/PW in us, RT in ms). On a Thamway PROT,
+once OutputLevel is >=100 do not raise it past the most-recently-used
+value without confirming with the user.
+
 Notebook cell editing: the user's measurements live in notebook cells.
 Workflow: notebook_status (kernel busy? which cell is running?) →
 notebook_read → notebook_edit. Edits change the .ipynb on disk only —
