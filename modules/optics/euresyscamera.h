@@ -55,8 +55,19 @@ private:
 
     static XRecursiveMutex s_mutex;
     shared_ptr<Camera> m_camera;
-    static unique_ptr<Euresys::EGenTL> s_gentl;
-    static unique_ptr<Euresys::EGrabberDiscovery> s_discovery;
+    //! eGrabber's GenTL close (EGenTL::ifClose -> GenTLImpl::chk) can throw.
+    //! These singletons may be torn down during static destruction at exit()
+    //! (when the driver tree is not released on quit), where an escaping
+    //! exception aborts the whole app via std::terminate. Swallow it.
+    template <class T>
+    struct NoThrowDeleter {
+        void operator()(T *p) const noexcept {
+            try { delete p; }
+            catch(...) {} //must not throw across a destructor / atexit handler.
+        }
+    };
+    static unique_ptr<Euresys::EGenTL, NoThrowDeleter<Euresys::EGenTL>> s_gentl;
+    static unique_ptr<Euresys::EGrabberDiscovery, NoThrowDeleter<Euresys::EGrabberDiscovery>> s_discovery;
     static int s_refcnt;
 
     XString m_serialTCPIPEOS;

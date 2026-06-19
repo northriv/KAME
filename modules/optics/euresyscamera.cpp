@@ -16,8 +16,8 @@
 
 #if defined USE_EURESYS_EGRABBER
 
-unique_ptr<Euresys::EGenTL> XEGrabberInterface::s_gentl;
-unique_ptr<Euresys::EGrabberDiscovery> XEGrabberInterface::s_discovery;
+unique_ptr<Euresys::EGenTL, XEGrabberInterface::NoThrowDeleter<Euresys::EGenTL>> XEGrabberInterface::s_gentl;
+unique_ptr<Euresys::EGrabberDiscovery, XEGrabberInterface::NoThrowDeleter<Euresys::EGrabberDiscovery>> XEGrabberInterface::s_discovery;
 int XEGrabberInterface::s_refcnt = 0;
 XRecursiveMutex XEGrabberInterface::s_mutex;
 
@@ -39,10 +39,10 @@ XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const sha
     if(s_refcnt++ == 0) {
         try {
             using namespace Euresys;
-            s_gentl = grablink ?
-                        std::make_unique<EGenTL>(Grablink()) :
-                        std::make_unique<EGenTL>(Coaxlink());
-            s_discovery = std::make_unique<EGrabberDiscovery>( *s_gentl);
+            s_gentl = decltype(s_gentl)(grablink ?
+                        new EGenTL(Grablink()) :
+                        new EGenTL(Coaxlink()));
+            s_discovery = decltype(s_discovery)(new EGrabberDiscovery( *s_gentl));
         }
         catch (const std::exception &e) {                                                 // 7
             gErrPrint(XString("error: ") + e.what());
