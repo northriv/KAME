@@ -272,6 +272,16 @@ for full STM consistency guarantees.
 > before issuing `GoHomeMotor`. See the manual's "Motor Controller"
 > section (`kame_manual`).
 
+> ⚠️ **Temperature safety (cryogenic setups).** Raising a temperature
+> controller's `TargetTemp` **above ~295 K (room temperature) needs
+> explicit user confirmation** — warming a cold cryostat can boil off
+> cryogen or exceed equipment limits. The loop **can overshoot ≥10%**
+> (a 300 K target may peak near 330 K), so leave margin below any
+> threshold. Only approach higher temperatures by **monitoring the real
+> temperature** (read the Scalar Entry / poll `Stabilized`) while
+> waiting — step `TargetTemp` up gradually and watch it converge —
+> never set a high target and walk away.
+
 ```python
 # List all drivers
 drivers = Root()["Drivers"]

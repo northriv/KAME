@@ -74,6 +74,15 @@ knows whether a sensor exists — only the user — so ask the user to
 confirm a home sensor is present on that axis first.
 See kame_manual("Motor Controller").
 
+Temperature safety: in a cryogenic setup, raising a controller's
+TargetTemp above ~295 K (room temperature) needs explicit user
+confirmation (warming a cold cryostat can boil off cryogen or exceed
+limits). The loop can overshoot >=10% (a 300 K target may peak ~330 K),
+so leave margin below any threshold. Only approach higher temperatures
+by monitoring the real temperature (Scalar Entry / poll Stabilized)
+while waiting — step TargetTemp up gradually — never set a high target
+and walk away.
+
 Notebook cell editing: the user's measurements live in notebook cells.
 Workflow: notebook_status (kernel busy? which cell is running?) →
 notebook_read → notebook_edit. Edits change the .ipynb on disk only —
