@@ -569,6 +569,8 @@ When using the 7651, it is safer to start it before other instruments.
 
 ![](media/image12.png)
 
+Scripting nodes: `Output` (on/off), `Value` (output setting), `Function`, `Range`, `Channel` (combo choices are model-specific — read them from the node tree).
+
 ## Digital Multimeter (DMM)
 
 Keithley 2000/2001 DMM (GPIB)
@@ -589,6 +591,8 @@ SANWA PC500/510/520M/PC5000 DMM (IR SerialPort)
 “Wait” sets the readout interval.
 
 Values are sent to Scalar Entry.
+
+Scripting nodes: `Function` (combo, model-specific), `WaitInms` (readout interval [ms]). Readings are read from the driver’s Scalar Entry, not a node.
 
 ## Digital Storage Oscilloscope (DSO)
 
@@ -615,6 +619,8 @@ Setting “Single Sequence” repeats accumulating the number of “Averages” 
 Setting “Display Mode” to “Averaging” is convenient as it updates the display as appropriate, but places a heavy load on GPIB and CPU. In “Single Sequence” mode, setting it to “Sequence” only displays when the specified number of averages is reached.
 
 “Digital Filter” applies an FIR (Finite Impulse Response) filter. It applies the band specified by “Center Frequency” (fc) and “Band Width” (bw) to each channel, passing frequencies from fc−bw/2 to fc+bw/2. FIR processing is performed quickly via convolution.
+
+Scripting nodes: `Average` (count), `SingleSequence`, `TrigSource`, `TrigFalling`, `TrigPos`, `TrigLevel`, `TimeWidth` (total horizontal width [s]), `VFullScale1`…`VFullScale4` (full scale, not /div), `VOffset1`…`VOffset4`, `RecordLength`, `Trace1`…`Trace4`, `FetchMode`, `ForceTrigger`/`Restart` (touchables), and the FIR set `FIREnabled`, `FIRBandWidth`, `FIRCenterFreq`, `FIRSharpness`.
 
 ## Function Generator
 
@@ -681,6 +687,8 @@ Andeen-Hagerling 2500A capacitance bridge (GPIB)
 
 X/Y values are sent to Scalar Entry.
 
+Scripting nodes: `Output` (reference oscillator output), `Frequency`, `Sensitivity`, `TimeConst` (combos), `AutoScaleX`, `AutoScaleY`, `FetchFreq` (the “Acquisition Frequency”). The measured X/Y are read from the Scalar Entry.
+
 ## Superconducting Magnet Power Supply
 
 Oxford PS/IPS-120 magnet power supply (GPIB, SerialPort)
@@ -703,7 +711,9 @@ To set limits on sweep rate and maximum field, enter “Maximum Field” – “
 
 Similarly, conditions for the persistent switch can be added.
 
-<span dir="rtl">Enter the switch heater wait times in “Wait after Heater ON/OFF”.</span>
+<span dir="rtl">Enter the switch heater wait times in “Wait after Heater ON/OFF”.
+
+Scripting nodes: setpoints `TargetField`, `SweepRate`, `AllowPersistent`, `Approach` (`Linear`/`Oscillating`); readbacks `MagnetField`, `OutpuField` (sic — typo in the source node name), `OutputCurrent`, `OutputVolt`, `Stabilized`, `PCSHeater`, `Persistent`, `Aborting`. To sweep the field from a script, set `TargetField` and poll `Stabilized` (its magnitude is the time-averaged error).</span>
 
 ## Signal Generator (SG)
 
@@ -725,6 +735,8 @@ LibreVNA signal generator (USB)
 
 For PROT, NMR settings such as gain can be controlled.
 
+Scripting nodes: `RFON` (output on/off), `Freq` [Hz], `OutputLevel`, `FMON`/`AMON` with `FMDev`, `AMDepth`, `FMIntSrcFreq`, `AMIntSrcFreq`; sweep control `SweepMode`, `SweepFreqStart`/`SweepFreqStop`, `SweepAmplStart`/`SweepAmplStop`, `SweepDwellTime`, `SweepPoints`.
+
 ## Network Analyzer
 
 HP/Agilent 8711/8712/8713/8714 network analyzer (GPIB)
@@ -742,6 +754,8 @@ LibreVNA network analyser (USB)
 ![](media/image20.png)
 
 Outputs marker values to Scalar Entry.
+
+Scripting nodes: `StartFreq`, `StopFreq`, `Points` (combo), `Average`, `Power`; calibration touchables `CalOpen`, `CalShort`, `CalTerm`, `CalThru`. Marker values are read from the Scalar Entry.
 
 ## Thermometer / Temperature Controller
 
@@ -781,6 +795,8 @@ Values (resistance values etc. and temperature) are sent to Scalar Entry.
 
 Although not displayed, the “Stabilized” node stores the time-averaged error of “Current Temperature” from “Set Temperature”.
 
+Scripting nodes are grouped per control loop (each loop is a direct child node of the driver) and per sensor under the `Channels` list; the loop and channel node names are model-specific (a single-loop unit names its loop `Loop`, multi-loop units use names like `Loop1`/`Loop2` or `Loop#1`/`Loop#2`, and channel names follow the instrument, e.g. `A`/`B` or `1`/`2`) — read them from the node tree. Each loop exposes `TargetTemp`, `ManualPower`, `P`, `I`, `D`, `HeaterMode`, `PowerRange`, `Stabilized`, and `ExtDevice`/`ExtDCSourceChannel`/`ExtIsPositive` for control through an external DC source or flow valve. Each channel exposes its `Thermometer` selection, `Excitation`, and `Enabled`. To regulate temperature from a script, set the loop’s `TargetTemp` and poll `Stabilized`; temperatures and raw values are read from the Scalar Entry.
+
 ## Counter
 
 Mutoh NPS digital counter (SerialPort)
@@ -798,6 +814,8 @@ Fujikin FCST1000 Series Mass Flow Controllers (Serial Port 38400bps)
 This is a mass flow controller driver.
 
 Values are sent to Scalar Entry.
+
+Scripting nodes: `Target` (flow setpoint), `Valve` (valve opening), `RampTime`, `Control` (regulation on/off), `OpenValve`/`CloseValve` (touchables), `Warning`/`Alarm` (status). The measured flow is read from the Scalar Entry.
 
 ## Motor Controller
 
@@ -823,6 +841,8 @@ This is a stepper motor driver.
 
 Values are sent to Scalar Entry.
 
+Scripting nodes: `Target` (target position), `Active` (excitation on/off), `Speed`, `TimeAcc`/`TimeDec` (accel/decel), `CurrentRunning`/`CurrentStopping`, `StepMotor`/`StepEncoder` (steps per rev), `MicroStep`, `Round`/`RoundBy`, `PushingMode`; status `Ready`, `Slipping`; touchables `ForwardMotor`, `ReverseMotor`, `StopMotor`, `GoHomeMotor`, `Clear`, `Store`. The current position is read from the Scalar Entry.
+
 ## Vacuum Gauge
 
 Pfeiffer TPG361/362 vacuum gauge (Serial Port)
@@ -830,6 +850,8 @@ Pfeiffer TPG361/362 vacuum gauge (Serial Port)
 ## Turbomolecular Pump Controller
 
 Pfeiffer Turbo molecular pump controller TC110 (Serial Port)
+
+Scripting nodes: `Activate` (pump on/off), `Heating`, `Standby`, `StandbyRotationSpeed`, `MaxDriverPower`; status `RotationSpeed`, `Warning`, `Error`.
 
 ## PPMS Controller
 
@@ -861,6 +883,8 @@ Newport/ILX LDX-3200 laser diode driver (Serial Port)
 
 Newport/ILX LDC-3700(C) laser diode controller (Serial Port)
 
+Scripting nodes: `Enabled` (emission on/off), `SetCurrent`, `SetPower`, `SetTemp`, and `Status` (readback). Not every model honours every setpoint (current- vs. power- vs. temperature-controlled).
+
 ## NMR Pulser
 
 NMR pulser on NI-DAQ M series (NI-DAQmx)
@@ -878,6 +902,8 @@ NMR pulser Thamway N210-1026S/T (GPIB, TCP/IP: experimental)
 Also see the appendix for DAQmx.
 
 ![](media/image25.png)
+
+Scripting nodes (times are in this driver’s display units — match what the UI shows): `Output` (gate the sequence on/off), `RTMode` + `RT` (repetition/rest time, see below), `Tau`, `PW1`/`PW2` (π/2 and π pulse widths), `CombMode` + `CombNum`, `CombPW`, `CombPT`, `CombP1`/`CombP1Alt` (saturation comb), `EchoNum` (≥2 makes a CPMG train), `DrivenEquilibrium`, `ConserveStEPhase`. Phase cycling: `NumPhaseCycle`, `FirstPhase`, `InvertPhase`. QAM/level controls (QAM-capable pulsers only): `MasterLevel`, `P1Level`/`P2Level`/`CombLevel`, `QAMOffset1`/`QAMOffset2`, `QAMLevel1`/`QAMLevel2`, `QAMDelay1`/`QAMDelay2`, `DIFFreq`. Q-switch: `QSWDelay`, `QSWWidth`, `QSWSoftSWOff`, `QSWPiPulseOnly`. The per-port function assignment and the additional QAM settings live behind `MoreConfigShow` (a touchable that opens the extra panel in the UI). `PulseAnalyzerMode` and the `ODMR*` nodes (`ODMRSaturationPW`, `ODMRReadPulseSetupTime`, `ODMRReadPulseHoldTime`, `ODMRReadTimeOriginShift`) configure ODMR read pulses.
 
 For standard pulsers not supporting QAM, the relevant parts (intensity, waveform, etc.) cannot be changed.
 
