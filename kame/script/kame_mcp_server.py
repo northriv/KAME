@@ -60,6 +60,16 @@ Tools"). to_png() is the gamma-encoded display image: fine for viewing
 and for binary segmentation / mask generation (rank-based thresholds,
 1:1 pixel coordinates), but never read signal values from its pixels.
 
+Motion safety: writing a motor/positioner driver's `Target` starts a
+physical move that may be IRREVERSIBLE — many stages report only an
+open-loop estimated position (or none, for piezo positioners) and a
+probe/coil/sample/tuning-capacitor can be driven somewhere it cannot
+return from. Never jump a motor to an arbitrary Target from generated
+code: confirm axis/direction/magnitude/safe-range with the user, then
+step in small increments while watching another driver's response as
+feedback. For LC tuning prefer the Auto LC Tuner driver over commanding
+motors directly. See kame_manual("Motor Controller").
+
 Notebook cell editing: the user's measurements live in notebook cells.
 Workflow: notebook_status (kernel busy? which cell is running?) →
 notebook_read → notebook_edit. Edits change the .ipynb on disk only —

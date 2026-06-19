@@ -252,6 +252,20 @@ for full STM consistency guarantees.
 
 ## Driver Patterns
 
+> ⚠️ **Motion safety (motor / positioner / LC tuner).** Writing a motor
+> driver's `Target` *starts a physical move*, and the move may be
+> **irreversible**: many stages report only an open-loop estimated
+> position (`HasEncoder` false) or none at all (piezo positioners), and
+> a probe, coil, sample, or tuning capacitor can be driven somewhere it
+> cannot be brought back from. Do **not** jump a motor to an arbitrary
+> `Target` from generated code. First confirm the axis, direction,
+> magnitude, and safe range with the user; then move in **small
+> increments**, checking another driver's response (reflection, signal
+> amplitude, optical reading) as feedback after each step, and stop the
+> moment it diverges. For LC tuning prefer the Auto LC Tuner driver
+> (closed loop on a VNA) over commanding the motors directly. See the
+> manual's "Motor Controller" section (`kame_manual`).
+
 ```python
 # List all drivers
 drivers = Root()["Drivers"]
