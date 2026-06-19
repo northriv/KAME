@@ -16,21 +16,6 @@
 #include "xitemnode.h"
 #include "xlistnode.h"
 
-// Opt-in STM commit logging: when KAME_STM_LOG_COMMITS=1 is set in the
-// environment, the .kam save path sums per-node m_tx_commit_count over
-// the whole tree, emits it as a footer comment, and surfaces it in the
-// message log.  Default off — bit-for-bit identical to the
-// pre-instrumentation .kam output (no footer, no gMessagePrint call,
-// no tree-walk overhead of the extra load-per-node).  Lambda-static
-// caches the env lookup at first save.
-static bool _kame_log_commits_enabled() noexcept {
-    static const bool v = []() {
-        const char *e = std::getenv("KAME_STM_LOG_COMMITS");
-        return e && e[0] == '1';
-    }();
-    return v;
-}
-
 XRubyWriter::XRubyWriter(const shared_ptr<XNode> &root, std::ofstream &ofs)
 	: m_root(root), m_ofs(ofs)
 {
@@ -57,9 +42,10 @@ XRubyWriter::write()
     // Aggregate STM commit count over the whole tree, paired with the
     // "# date:" header stamp so that two saved .kam files give commits/s
     // = Delta(stm_total_tx_commits) / Delta(date).
-    // Gated on KAME_STM_LOG_COMMITS=1 so production saves stay bit-for-bit
-    // identical (no extra footer, no log message).
-    if(_kame_log_commits_enabled()) {
+    // Gated on g_bLogDbgPrint (the existing CLI --logging / View > Log
+    // toggle) so production saves stay bit-for-bit identical (no footer,
+    // no log message) unless logging mode is explicitly enabled.
+    if(g_bLogDbgPrint) {
         m_ofs << "# stm_total_tx_commits: " << m_totalCommits << std::endl;
         gMessagePrint(formatString("STM total committed transactions: %llu",
                                    (unsigned long long)m_totalCommits));
@@ -71,10 +57,12 @@ XRubyWriter::write(
     bool ghost, int level)
 {
 	int size = shot.size(node);
-    // Skip the per-node m_tx_commit_count load entirely in the
-    // common (logging-disabled) path so non-instrumented saves pay
-    // zero extra cost on the tree walk.
-    if(_kame_log_commits_enabled())
+    // Skip the per-node m_tx_commit_count load entirely when logging
+    // mode is off so non-instrumented saves pay zero extra cost on
+    // the tree walk.  g_bLogDbgPrint is read at the START of the
+    // recursive walk (in XRubyWriter::write()), so a mid-walk toggle
+    // is fine — we just check the same global here.
+    if(g_bLogDbgPrint)
         m_totalCommits += node->numTransactionsCommitted();
     ghost = ghost || shot[ *node].isRuntime();
     auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
