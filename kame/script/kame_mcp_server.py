@@ -83,6 +83,13 @@ by monitoring the real temperature (Scalar Entry / poll Stabilized)
 while waiting — step TargetTemp up gradually — never set a high target
 and walk away.
 
+NMR RF-power safety: excess average RF power destroys the amplifier/
+probe. Unless the user directs otherwise, keep pulser pulse widths
+PW1/PW2/CombPW <= min(Tau*0.3, 15) us (<=30% of Tau, max 15 us) and
+never set RT below 15 ms (Tau/PW in us, RT in ms). On a Thamway PROT,
+once OutputLevel is >=100 do not raise it past the most-recently-used
+value without confirming with the user.
+
 Notebook cell editing: the user's measurements live in notebook cells.
 Workflow: notebook_status (kernel busy? which cell is running?) →
 notebook_read → notebook_edit. Edits change the .ipynb on disk only —

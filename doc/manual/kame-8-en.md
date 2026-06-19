@@ -737,6 +737,8 @@ For PROT, NMR settings such as gain can be controlled.
 
 Scripting nodes: `RFON` (output on/off), `Freq` [Hz], `OutputLevel`, `FMON`/`AMON` with `FMDev`, `AMDepth`, `FMIntSrcFreq`, `AMIntSrcFreq`; sweep control `SweepMode`, `SweepFreqStart`/`SweepFreqStop`, `SweepAmplStart`/`SweepAmplStop`, `SweepDwellTime`, `SweepPoints`.
 
+**Safety — PROT output level (RF amplifier protection).** On the Thamway PROT, `OutputLevel` (the “Level”) drives the RF power amplifier. Once it is at **100 or above**, an automated agent must **not raise it past the most-recently-used value without confirming with the user** — track the last value actually used this session and treat any increase beyond it, in the ≥100 regime, as requiring explicit confirmation.
+
 ## Network Analyzer
 
 HP/Agilent 8711/8712/8713/8714 network analyzer (GPIB)
@@ -916,6 +918,10 @@ Also see the appendix for DAQmx.
 ![](media/image25.png)
 
 Scripting nodes (times are in this driver’s display units — match what the UI shows): `Output` (gate the sequence on/off), `RTMode` + `RT` (repetition/rest time, see below), `Tau`, `PW1`/`PW2` (π/2 and π pulse widths), `CombMode` + `CombNum`, `CombPW`, `CombPT`, `CombP1`/`CombP1Alt` (saturation comb), `EchoNum` (≥2 makes a CPMG train), `DrivenEquilibrium`, `ConserveStEPhase`. Phase cycling: `NumPhaseCycle`, `FirstPhase`, `InvertPhase`. QAM/level controls (QAM-capable pulsers only): `MasterLevel`, `P1Level`/`P2Level`/`CombLevel`, `QAMOffset1`/`QAMOffset2`, `QAMLevel1`/`QAMLevel2`, `QAMDelay1`/`QAMDelay2`, `DIFFreq`. Q-switch: `QSWDelay`, `QSWWidth`, `QSWSoftSWOff`, `QSWPiPulseOnly`. The per-port function assignment and the additional QAM settings live behind `MoreConfigShow` (a touchable that opens the extra panel in the UI). `PulseAnalyzerMode` and the `ODMR*` nodes (`ODMRSaturationPW`, `ODMRReadPulseSetupTime`, `ODMRReadPulseHoldTime`, `ODMRReadTimeOriginShift`) configure ODMR read pulses.
+
+**Safety — RF amplifier / probe protection.** Unless the user explicitly directs otherwise, an automated agent must keep within these duty limits (excess average RF power can destroy the power amplifier or the probe). Node units: `Tau`, `PW1`, `PW2`, `CombPW` are in **µs**; `RT` is in **ms**.
+- **Pulse widths** (`PW1`, `PW2`, `CombPW`) must not exceed `min(Tau × 0.3, 15)` µs — i.e. at most 30 % of `Tau`, and never more than 15 µs.
+- **Repetition time** (`RT`) must not be set **below 15 ms**.
 
 For standard pulsers not supporting QAM, the relevant parts (intensity, waveform, etc.) cannot be changed.
 

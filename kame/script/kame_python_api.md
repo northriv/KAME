@@ -282,6 +282,14 @@ for full STM consistency guarantees.
 > waiting — step `TargetTemp` up gradually and watch it converge —
 > never set a high target and walk away.
 
+> ⚠️ **NMR RF-power safety (pulser & PROT).** Excess average RF power
+> destroys the power amplifier/probe. Unless the user directs otherwise:
+> keep pulser pulse widths `PW1`/`PW2`/`CombPW` ≤ `min(Tau*0.3, 15)` µs
+> (≤30 % of `Tau`, max 15 µs), and never set `RT` below 15 ms (`Tau`/PW
+> in µs, `RT` in ms). On a Thamway PROT, once `OutputLevel` is ≥100 do
+> not raise it past the most-recently-used value without confirming with
+> the user. See the manual's "NMR Pulser" / "Signal Generator" sections.
+
 ```python
 # List all drivers
 drivers = Root()["Drivers"]
