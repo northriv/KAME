@@ -25,7 +25,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_cameraGain(create<XDoubleNode>("CameraGain", true)),
-    m_emGain(create<XDoubleNode>("CameraGain", true)),
+    m_emGain(create<XDoubleNode>("EMGain", true)),
     m_blackLvlOffset(create<XUIntNode>("BlackLevelOffset", true)),
     m_exposureTime(create<XDoubleNode>("ExposureTime", true)),
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
