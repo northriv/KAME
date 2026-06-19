@@ -39,6 +39,12 @@ XRubyWriter::write()
 		  << std::endl;
 	Snapshot shot( *m_root);
     write(m_root, shot, false, 0);
+    // Aggregate STM commit count over the whole tree, paired with the
+    // "# date:" header stamp so that two saved .kam files give commits/s
+    // = Delta(stm_total_tx_commits) / Delta(date).
+    m_ofs << "# stm_total_tx_commits: " << m_totalCommits << std::endl;
+    gMessagePrint(formatString("STM total committed transactions: %llu",
+                               (unsigned long long)m_totalCommits));
 }
 void 
 XRubyWriter::write(
@@ -46,6 +52,7 @@ XRubyWriter::write(
     bool ghost, int level)
 {
 	int size = shot.size(node);
+    m_totalCommits += node->numTransactionsCommitted();
     ghost = ghost || shot[ *node].isRuntime();
     auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
     if(vnode) {
