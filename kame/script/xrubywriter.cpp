@@ -16,6 +16,21 @@
 #include "xitemnode.h"
 #include "xlistnode.h"
 
+// Opt-in STM commit logging: when KAME_STM_LOG_COMMITS=1 is set in the
+// environment, the .kam save path sums per-node m_tx_commit_count over
+// the whole tree, emits it as a footer comment, and surfaces it in the
+// message log.  Default off — bit-for-bit identical to the
+// pre-instrumentation .kam output (no footer, no gMessagePrint call,
+// no tree-walk overhead of the extra load-per-node).  Lambda-static
+// caches the env lookup at first save.
+static bool _kame_log_commits_enabled() noexcept {
+    static const bool v = []() {
+        const char *e = std::getenv("KAME_STM_LOG_COMMITS");
+        return e && e[0] == '1';
+    }();
+    return v;
+}
+
 XRubyWriter::XRubyWriter(const shared_ptr<XNode> &root, std::ofstream &ofs)
 	: m_root(root), m_ofs(ofs)
 {
@@ -42,9 +57,13 @@ XRubyWriter::write()
     // Aggregate STM commit count over the whole tree, paired with the
     // "# date:" header stamp so that two saved .kam files give commits/s
     // = Delta(stm_total_tx_commits) / Delta(date).
-    m_ofs << "# stm_total_tx_commits: " << m_totalCommits << std::endl;
-    gMessagePrint(formatString("STM total committed transactions: %llu",
-                               (unsigned long long)m_totalCommits));
+    // Gated on KAME_STM_LOG_COMMITS=1 so production saves stay bit-for-bit
+    // identical (no extra footer, no log message).
+    if(_kame_log_commits_enabled()) {
+        m_ofs << "# stm_total_tx_commits: " << m_totalCommits << std::endl;
+        gMessagePrint(formatString("STM total committed transactions: %llu",
+                                   (unsigned long long)m_totalCommits));
+    }
 }
 void 
 XRubyWriter::write(
@@ -52,7 +71,11 @@ XRubyWriter::write(
     bool ghost, int level)
 {
 	int size = shot.size(node);
-    m_totalCommits += node->numTransactionsCommitted();
+    // Skip the per-node m_tx_commit_count load entirely in the
+    // common (logging-disabled) path so non-instrumented saves pay
+    // zero extra cost on the tree walk.
+    if(_kame_log_commits_enabled())
+        m_totalCommits += node->numTransactionsCommitted();
     ghost = ghost || shot[ *node].isRuntime();
     auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
     if(vnode) {
