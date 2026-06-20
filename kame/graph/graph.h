@@ -458,10 +458,10 @@ public:
     struct DECLSPEC_KAME Payload : public XNode::Payload {
         Payload() : XNode::Payload() {}
         //! image dimensions in screen coordinate.
-        shared_ptr<QImage> image() const {return m_image;}
+        shared_ptr<const QImage> image() const {return m_image;}
     private:
         friend class X2DImagePlot;
-        shared_ptr<QImage> m_image;
+        shared_ptr<const QImage> m_image;
     };
 protected:
     virtual int drawPlot(const Snapshot &shot, XQGraphPainter *painter) override;
@@ -471,7 +471,7 @@ protected:
     virtual bool isColorBarPlot() const {return false;}
 private:
     friend class XGraph;
-    shared_ptr<QImage> m_image; //, m_image_textured;
+    shared_ptr<const QImage> m_image; //, m_image_textured;
 //    shared_ptr<OnScreenTexture> m_texture;
 };
 class DECLSPEC_KAME XColorBarImagePlot : public X2DImagePlot {

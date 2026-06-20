@@ -181,7 +181,7 @@ static const std::map<QImage::Format, GLenum> s_texture_data_fmts = {{QImage::Fo
                                               {QImage::Format_RGBA64, GL_UNSIGNED_SHORT}};
 
 void
-OnScreenTexture::repaint(const shared_ptr<QImage> &image) {
+OnScreenTexture::repaint(const shared_ptr<const QImage> &image) {
 //    auto image = std::make_shared<QImage>(256, 256, QImage::Format_RGB888);
 //    QRgb value;
 //    value = qRgb(0, 0x40, 0x40);
@@ -208,7 +208,7 @@ OnScreenTexture::repaint(const shared_ptr<QImage> &image) {
     qimage = image;
 }
 weak_ptr<OnScreenTexture>
-XQGraphPainter::createTextureDuringListing(const shared_ptr<QImage> &image) {
+XQGraphPainter::createTextureDuringListing(const shared_ptr<const QImage> &image) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
     glActiveTexture(GL_TEXTURE1);
     glEnable(GL_TEXTURE_2D);
@@ -670,7 +670,7 @@ OnScreenTextObject::selectFont(const XString &str, const XGraph::ScrPoint &start
 void
 OnPlotMaskObject::setMask(const shared_ptr<XPlot> &plot,
                            const XGraph::ValPoint corners[4],
-                           const shared_ptr<std::vector<uint8_t>> &mask,
+                           const shared_ptr<const std::vector<uint8_t>> &mask,
                            unsigned int width, unsigned int height,
                            XGraph::ScrPoint offset) {
     XScopedLock<XMutex> lock(m_mutex);

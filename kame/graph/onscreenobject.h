@@ -170,11 +170,11 @@ using OnPlotRectObject = OnPlotObject<OnScreenRectObject>;
 #include <QImage>
 class DECLSPEC_KAME OnScreenTexture : public OnScreenPickableObject {
 public:
-   OnScreenTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<QImage> &image, const shared_ptr<XNode> &pickable_node)
+   OnScreenTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<const QImage> &image, const shared_ptr<XNode> &pickable_node)
        : OnScreenPickableObject(item, pickable_node), id(tid), qimage(image) {}
    virtual ~OnScreenTexture();
    //! update texture by new image.
-   void repaint(const shared_ptr<QImage> &image);
+   void repaint(const shared_ptr<const QImage> &image);
    //! draws in OpenGL.
    virtual void drawNative(bool colorpicking) override;
    //! draws by QPainter.
@@ -182,7 +182,7 @@ public:
    virtual bool hasTexture() const override {return true;}
 private:
    const GLuint id = {};
-   shared_ptr<QImage> qimage;
+   shared_ptr<const QImage> qimage;
    static XMutex garbagemutex;
    static std::deque<GLuint> unusedIDs;
 };
@@ -269,7 +269,7 @@ public:
     //! \a width, \a height: mask dimensions.
     void setMask(const shared_ptr<XPlot> &plot,
                  const XGraph::ValPoint corners[4],
-                 const shared_ptr<std::vector<uint8_t>> &mask,
+                 const shared_ptr<const std::vector<uint8_t>> &mask,
                  unsigned int width, unsigned int height,
                  XGraph::ScrPoint offset = {});
 
@@ -285,7 +285,7 @@ private:
     weak_ptr<XPlot> m_plot;
     XGraph::ValPoint m_corners[4];
     XGraph::ScrPoint m_offset;
-    shared_ptr<std::vector<uint8_t>> m_mask;
+    shared_ptr<const std::vector<uint8_t>> m_mask;
     unsigned int m_width = 0, m_height = 0;
     bool m_highlighted = false;
 };
