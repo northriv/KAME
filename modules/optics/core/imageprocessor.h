@@ -83,7 +83,7 @@ public:
             return *std::min_element(m_accumulated, m_accumulated + 3);
         }
         unsigned int m_filterIndice[3];
-        shared_ptr<QImage> m_qimage;
+        shared_ptr<const QImage> m_qimage;
     };
 protected:
     //! This function is called when a connected driver emit a signal

@@ -133,7 +133,7 @@ public:
             }
             return 0;
         }
-        shared_ptr<QImage> m_qimage;
+        shared_ptr<const QImage> m_qimage;
         //maps existing MathTools to ScalarEntries, be synced inside analyze()
         std::map<XNode*, shared_ptr<XScalarEntry>> m_samplePLEntries, m_sampleDPLoPLEntries;
         //to be released from entrylist.

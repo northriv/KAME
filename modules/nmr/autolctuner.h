@@ -89,7 +89,8 @@ public:
             for(int i: {0,1})
                 stmDelta[i] = lastDirection(i) * 1e-10;
         }
-        shared_ptr<LCRFit> fitOrig, fitRotated;
+        shared_ptr<const LCRFit> fitOrig; //snapshot-immutable: only rebuilt via make_shared and read via const accessors.
+        shared_ptr<LCRFit> fitRotated;
         std::array<double, 2> stmBacklash; //[deg]
         std::array<double, 2> stmTrustArea; //[deg]
         XTime timeSTMChanged; //STM positions will move to \a targetSTMValues.

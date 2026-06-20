@@ -116,7 +116,7 @@ public:
         Method m_method;
         XTime m_timeClearRequested = {};
         unsigned int m_width, m_height;
-        shared_ptr<QImage> m_qimage;
+        shared_ptr<const QImage> m_qimage;
         double m_dfreq; //fmin [MHz]
         double m_freq_mid; //for second moment calc. [MHz]
     };
