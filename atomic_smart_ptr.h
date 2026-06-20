@@ -688,8 +688,13 @@ public:
         return *this;
     }
     template<typename Y, typename Z> local_shared_ptr &operator=(local_shared_ptr<Y, Z> &&y) noexcept {
-        y.swap( *this);
-        y.reset();
+        //! Build a destination-typed temporary from \a y (move-converting
+        //! ctor, nulls \a y), then same-type swap — mirrors the copy
+        //! converting assignment above. A direct `y.swap(*this)` only
+        //! compiles for Y==T, but that case uses the non-template overload;
+        //! this enables qualification-converting moves such as
+        //! `local_shared_ptr<const T> = make_local_shared<T>(...)`.
+        local_shared_ptr(std::move(y)).swap( *this);
         return *this;
     }
     //! \param[in] t The pointer held by this instance is replaced with that of \a t.
@@ -951,8 +956,12 @@ public:
         return *this;
     }
     template<typename Y> atomic_shared_ptr &operator=(local_shared_ptr<Y> &&y) noexcept {
-        y.swap( *this);
-        y.reset();
+        //! Mirror the copy converting assignment above: build a
+        //! local_shared_ptr<T> from \a y (move-converting ctor, nulls \a y)
+        //! then atomic-swap. A direct `y.swap(*this)` only binds for Y==T
+        //! (handled by the non-template overload), so this enables
+        //! qualification-converting moves like atomic_shared_ptr<const T> = make_local_shared<T>().
+        local_shared_ptr<T>(std::move(y)).swap( *this);
         return *this;
     }
     //! The pointer held by this instance is atomically reset to null pointer.
