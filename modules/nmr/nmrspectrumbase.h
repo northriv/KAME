@@ -75,7 +75,7 @@ public:
 
 		std::deque<std::pair<double, double> > m_peaks;
 
-		shared_ptr<FFT> m_ift, m_preFFT;
+		shared_ptr<const FFT> m_ift, m_preFFT;
 
 		XTime m_timeClearRequested;
 	};

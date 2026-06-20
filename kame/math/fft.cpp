@@ -90,102 +90,109 @@ double FFTBase::windowFuncHalfSin(double x) {
 
 FFTBase::FFTBase(int length) {
 	m_fftlen = length;
-	m_fftplan.reset(new fftw_plan);
 }
 FFTBase::~FFTBase() {
-	fftw_destroy_plan(*m_fftplan);
 }
 FFT::FFT(int sign, int length) : FFTBase(length) {
-	m_pBufin = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * length);
-	m_pBufout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * length);
-	*m_fftplan = fftw_plan_dft_1d(length, m_pBufin, m_pBufout,
-		(sign > 0) ? FFTW_BACKWARD : FFTW_FORWARD, FFTW_ESTIMATE);
-}
-FFT::~FFT() {
-	fftw_free(m_pBufin);
-	fftw_free(m_pBufout);
+	//Plan creation uses scratch buffers only for addressing/alignment
+	//(FFTW_ESTIMATE never reads them); freed right after.  exec() then runs
+	//the plan on per-call buffers of matching (fftw_malloc) alignment.
+	fftw_complex *pbufin = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * length);
+	fftw_complex *pbufout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * length);
+	m_fftplan.reset(fftw_plan_dft_1d(length, pbufin, pbufout,
+		(sign > 0) ? FFTW_BACKWARD : FFTW_FORWARD, FFTW_ESTIMATE), fftw_destroy_plan);
+	fftw_free(pbufin);
+	fftw_free(pbufout);
 }
 void
 FFT::exec(const std::vector<std::complex<double> >& wavein,
-		std::vector<std::complex<double> >& waveout) {
+		std::vector<std::complex<double> >& waveout) const {
 	int size = wavein.size();
 	assert(size == length());
 	waveout.resize(size);
+	fftw_complex *pbufin = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
+	fftw_complex *pbufout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
 	const std::complex<double> *pin = &wavein[0];
-	fftw_complex *pout = m_pBufin;
+	fftw_complex *pout = pbufin;
 	for(int i = 0; i < size; i++) {
 		( *pout)[0] = pin->real();
 		( *pout)[1] = pin->imag();
 		pout++;
 		pin++;
 	}
-	fftw_execute( *m_fftplan);
-	const fftw_complex *pin2 = m_pBufout;
+	fftw_execute_dft( m_fftplan.get(), pbufin, pbufout);
+	const fftw_complex *pin2 = pbufout;
 	std::complex<double> *pout2 = &waveout[0];
 	for(int i = 0; i < size; i++) {
 		*pout2 = std::complex<double>(( *pin2)[0], ( *pin2)[1]);
 		pout2++;
 		pin2++;
 	}
+	fftw_free(pbufin);
+	fftw_free(pbufout);
 }
 
 RFFT::RFFT(int length) : FFTBase(length) {
-	m_pBufin = (double*)fftw_malloc(sizeof(double) * length);
-	m_pBufout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (length / 2 + 1));
-	*m_fftplan = fftw_plan_dft_r2c_1d(length, m_pBufin, m_pBufout, FFTW_ESTIMATE);
-}
-RFFT::~RFFT() {
-	fftw_free(m_pBufin);
-	fftw_free(m_pBufout);
+	double *pbufin = (double*)fftw_malloc(sizeof(double) * length);
+	fftw_complex *pbufout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (length / 2 + 1));
+	m_fftplan.reset(fftw_plan_dft_r2c_1d(length, pbufin, pbufout, FFTW_ESTIMATE), fftw_destroy_plan);
+	fftw_free(pbufin);
+	fftw_free(pbufout);
 }
 void
 RFFT::exec(const std::vector<double>& wavein,
-		std::vector<std::complex<double> >& waveout) {
+		std::vector<std::complex<double> >& waveout) const {
 	int size = wavein.size();
 	assert(size == length());
 	waveout.resize(size / 2 + 1);
+	double *pbufin = (double*)fftw_malloc(sizeof(double) * size);
+	fftw_complex *pbufout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (size / 2 + 1));
 	const double *pin = &wavein[0];
-	double *pout = m_pBufin;
+	double *pout = pbufin;
 	for(int i = 0; i < size; i++) {
 		*pout++ = *pin++;
 	}
-	fftw_execute(*m_fftplan);
-	const fftw_complex *pin2 = m_pBufout;
+	fftw_execute_dft_r2c( m_fftplan.get(), pbufin, pbufout);
+	const fftw_complex *pin2 = pbufout;
 	std::complex<double> *pout2 = &waveout[0];
 	for(int i = 0; i < size / 2 + 1; i++) {
 		*pout2 = std::complex<double>(( *pin2)[0], ( *pin2)[1]);
 		pout2++;
 		pin2++;
 	}
+	fftw_free(pbufin);
+	fftw_free(pbufout);
 }
 
 RIFFT::RIFFT(int length) : FFTBase(length) {
-	m_pBufin = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (length / 2 + 1));
-	m_pBufout = (double*)fftw_malloc(sizeof(double) * length);
-	*m_fftplan = fftw_plan_dft_c2r_1d(length, m_pBufin, m_pBufout, FFTW_ESTIMATE);
-}
-RIFFT::~RIFFT() {
-	fftw_free(m_pBufin);
-	fftw_free(m_pBufout);
+	fftw_complex *pbufin = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (length / 2 + 1));
+	double *pbufout = (double*)fftw_malloc(sizeof(double) * length);
+	m_fftplan.reset(fftw_plan_dft_c2r_1d(length, pbufin, pbufout, FFTW_ESTIMATE), fftw_destroy_plan);
+	fftw_free(pbufin);
+	fftw_free(pbufout);
 }
 void
 RIFFT::exec(const std::vector<std::complex<double> >& wavein,
-		std::vector<double>& waveout) {
+		std::vector<double>& waveout) const {
 	int size = length();
 	assert((int)wavein.size() == length() / 2 + 1);
 	waveout.resize(size);
+	fftw_complex *pbufin = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (size / 2 + 1));
+	double *pbufout = (double*)fftw_malloc(sizeof(double) * size);
 	const std::complex<double> *pin = &wavein[0];
-	fftw_complex *pout = m_pBufin;
+	fftw_complex *pout = pbufin;
 	for(int i = 0; i < size / 2 + 1; i++) {
 		( *pout)[0] = pin->real();
 		( *pout)[1] = pin->imag();
 		pout++;
 		pin++;
 	}
-	fftw_execute( *m_fftplan);
-	const double *pin2 = m_pBufout;
+	fftw_execute_dft_c2r( m_fftplan.get(), pbufin, pbufout);
+	const double *pin2 = pbufout;
 	double *pout2 = &waveout[0];
 	for(int i = 0; i < size; i++) {
 		*pout2++ = *pin2++;
 	}
+	fftw_free(pbufin);
+	fftw_free(pbufout);
 }

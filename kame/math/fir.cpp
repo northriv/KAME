@@ -27,45 +27,46 @@ FIR::FIR(int taps, double bandwidth, double center) :
 	int fftlen = lrint(pow(2.0, ceil(log(taplen * 5) / log(2.0))));
 	fftlen = std::max(64, fftlen);
 	m_fftLen = fftlen;
-	m_pBufR = (double*)fftw_malloc(sizeof(double) * fftlen);
-	m_pBufC = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (fftlen / 2 + 1));
+	//Scratch for plan creation and the one-off coefficient FFT; freed at the
+	//end of the ctor.  exec() later runs these immutable plans on its own
+	//per-call buffers (matching fftw_malloc alignment).
+	double *pbufR = (double*)fftw_malloc(sizeof(double) * fftlen);
+	fftw_complex *pbufC = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (fftlen / 2 + 1));
 	m_firWnd.resize(fftlen / 2 + 1);
-	m_rdftplan = fftw_plan_dft_r2c_1d(fftlen, m_pBufR, m_pBufC, FFTW_ESTIMATE);
-	m_ridftplan = fftw_plan_dft_c2r_1d(fftlen, m_pBufC, m_pBufR, FFTW_ESTIMATE);
-	
+	m_rdftplan.reset(fftw_plan_dft_r2c_1d(fftlen, pbufR, pbufC, FFTW_ESTIMATE), fftw_destroy_plan);
+	m_ridftplan.reset(fftw_plan_dft_c2r_1d(fftlen, pbufC, pbufR, FFTW_ESTIMATE), fftw_destroy_plan);
+
 	double omega = M_PI * bandwidth;
 	for(int i = 0; i < fftlen; i++)
-		m_pBufR[i] = 0.0;
+		pbufR[i] = 0.0;
 	double z = 0.0;
 	for(int i = -taps; i <= taps; i++) {
 		double x = i * omega;
 		//sinc(x) * Hamming window
 		double y = (i == 0) ? 1.0 : (sin(x)/x);
 		y *= 0.54 + 0.46*cos(M_PI*(double)i/taps);
-		m_pBufR[(fftlen + i) % fftlen] = y;
+		pbufR[(fftlen + i) % fftlen] = y;
 		z += y;
 	}
 	//scaling sum into unity
 	//shift center freq
 	double omega_c = 2 * M_PI * center;
 	for(int i = -taps; i <= taps; i++) {
-		m_pBufR[(fftlen + i) % fftlen] *= cos(omega_c * i) / (z * (double)(fftlen));
+		pbufR[(fftlen + i) % fftlen] *= cos(omega_c * i) / (z * (double)(fftlen));
 	}
-	
-	fftw_execute(m_rdftplan);
-	
+
+	fftw_execute_dft_r2c(m_rdftplan.get(), pbufR, pbufC);
+
 	for(int i = 0; i < (int)m_firWnd.size(); i++) {
-		m_firWnd[i] = m_pBufC[i][0];
+		m_firWnd[i] = pbufC[i][0];
 	}
-}
-FIR::~FIR() {
-	fftw_destroy_plan(m_rdftplan);
-	fftw_destroy_plan(m_ridftplan);
-	fftw_free(m_pBufR);
-	fftw_free(m_pBufC);
+	fftw_free(pbufR);
+	fftw_free(pbufC);
 }
 void
-FIR::exec(const double *src, double *dst, int len) {
+FIR::exec(const double *src, double *dst, int len) const {
+	double *pbufR = (double*)fftw_malloc(sizeof(double) * m_fftLen);
+	fftw_complex *pbufC = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * (m_fftLen / 2 + 1));
 	for(int ss = 0; ss < len; ss += (int)m_fftLen - m_tapLen * 2) {
 		for(int i = 0; i < m_fftLen; i++) {
 			int j = ss + i - m_tapLen;
@@ -73,20 +74,22 @@ FIR::exec(const double *src, double *dst, int len) {
 				j = std::min(-j - 1, len - 1);
 			if(j >= len)
 				j = std::max(2 * len - 1 - j, 0);
-			m_pBufR[i] = src[j];
+			pbufR[i] = src[j];
 		}
-		fftw_execute(m_rdftplan);
+		fftw_execute_dft_r2c(m_rdftplan.get(), pbufR, pbufC);
 		for(int i = 0; i < (int)m_firWnd.size(); i++) {
-			m_pBufC[i][0] = m_pBufC[i][0] * m_firWnd[i];
-			m_pBufC[i][1] = m_pBufC[i][1] * m_firWnd[i];
+			pbufC[i][0] = pbufC[i][0] * m_firWnd[i];
+			pbufC[i][1] = pbufC[i][1] * m_firWnd[i];
 		}
-		fftw_execute(m_ridftplan);
+		fftw_execute_dft_c2r(m_ridftplan.get(), pbufC, pbufR);
 		for(int i = m_tapLen; i < m_fftLen - m_tapLen; i++) {
 			int j = ss + i - m_tapLen;
 			if((j < 0) || (j >= len))
 				continue;
 			else
-				dst[j] = m_pBufR[i];
+				dst[j] = pbufR[i];
 		}
 	}
+	fftw_free(pbufR);
+	fftw_free(pbufC);
 }

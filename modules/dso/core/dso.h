@@ -120,8 +120,8 @@ public:
 		double m_timeIntervalDisp; //! [sec]
 		std::vector<double> m_wavesDisp;
 
-		shared_ptr<FIR> m_fir;
-		shared_ptr<std::vector<std::complex<double> > > m_dRFRefWave; ///< exp(i omega t)
+		shared_ptr<const FIR> m_fir;
+		shared_ptr<const std::vector<std::complex<double> > > m_dRFRefWave; ///< exp(i omega t)
 	};
 protected:
 	virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *) = 0;

@@ -468,13 +468,17 @@ XDSO::demodulateDisp(Transaction &tr) {
 	unsigned int num_channels = shot[ *this].numChannelsDisp();
 	unsigned int length = shot[ *this].lengthDisp();
 	if( !shot[ *this].m_dRFRefWave) {
-		tr[ *this].m_dRFRefWave.reset(new std::vector<std::complex<double> >(length));
-		auto *vec = &shot[ *this].m_dRFRefWave->at(0);
+		//Build the reference wave in a local, then store it as shared_ptr<const>:
+		//snapshots then share an immutable buffer instead of one that could be
+		//mutated in place through the Payload pointer.
+		auto refwave = std::make_shared<std::vector<std::complex<double> > >(length);
+		auto *vec = &refwave->at(0);
 		double omega = phaseOfRF(shot, 1, shot[ *this].timeIntervalDisp());
 		double trigpos = shot[ *this].trigPosDisp();
 		for(int i = 0; i < length; ++i) {
 			vec[i] = std::polar(1.0, - omega * (i - trigpos)); // exp( -i omega t)
 		}
+		tr[ *this].m_dRFRefWave = std::move(refwave);
 	}
 
 	auto *wave_ref = &shot[ *this].m_dRFRefWave->at(0);
