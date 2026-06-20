@@ -522,6 +522,7 @@ Wait-free is not claimed at either layer — CAS-retry-based with fairness
 - `BundleUnbundle_hardlink_4node.tla` — Root-A-B-C topology with C hard-linked under both A and B (production-race repro, mirrors the C++ Phase 4 reachability-gating fix)
 - `BundleUnbundle_hardlink_external.tla` — minimal 4-node external-parent repro (`P2` hard-linked external to `P1`, `bundle(GN1)` triggers `SnapshotConsistency` violation without the fix)
 - `BundleUnbundle_hardlink_external_migration.tla` — cross-tree migration (bundle on `GN1` reaches into `P1`'s tree to pull `P2` into `GN2.sub[P2]`)
+- `BundleUnbundle_hardlink_nonatomic.tla` — *not a new topology*: a liveness investigation of the non-transactional `insert`/`release` test pattern (b23fa954) interleaved with transactional ops, comparing the master fall-through vs the self-promote fix under two fairness levels (see its own subsection below)
 
 ### Background
 
@@ -531,7 +532,9 @@ The "hard-link" case — one child node referenced from two distinct parents
 reports of low-frequency dyn_node aborts ("30/30 abort on another env")
 prompted formal modelling of the protocol under hard-link topologies.
 
-Five complementary topologies are modelled:
+Five complementary topologies are modelled (a sixth spec,
+`_hardlink_nonatomic`, is a non-transactional-pattern liveness
+investigation rather than a topology — covered in its own subsection):
 
 | Spec | Topology | Bug surface |
 |---|---|---|
@@ -592,13 +595,19 @@ no `Null` sub-slot occurs in steady state — so the fix is a no-op.
 
 ### Results
 
-`_hardlink_dynamic` (sibling parents, superfine):
+`_hardlink_dynamic` (sibling parents, superfine) — liveness re-verified
+2026-06-20 (TLC / OpenJDK 24, `EventuallyAllDone` checked on every row):
 
-| Config | Threads | Distinct states | Result |
-|---|---|---|---|
-| 1-thread, MaxCommits=1 | 1 | 7 | **Pass** + liveness |
-| 2-thread, MaxCommits=1 | 2 | 62 | **Pass** + liveness |
-| 2-thread, MaxCommits=2 | 2 | 703 | **Pass** |
+| Config | Threads | Generated | Distinct | Depth | Result |
+|---|---|---|---|---|---|
+| MaxCommits=1 (`_1thr_mc.cfg`) | 1 | 10 | 7 | 4 | **Pass + liveness** |
+| MaxCommits=1 (`_2thr_mc.cfg`) | 2 | 152 | 62 | 9 | **Pass + liveness** |
+| MaxCommits=2 (`_2thr_commits2_mc.cfg`) | 2 | 1,818 | 703 | 16 | **Pass + liveness** |
+
+The MaxCommits=2 row was previously recorded safety-only ("Pass"); the
+dedicated `_2thr_commits2_mc.cfg` (added 2026-06-20) reproduces the same
+703 distinct states / depth 16 and confirms `<>AllDone` holds, so every
+dynamic config now carries the uniform safety+liveness verdict.
 
 `_hardlink_self_collision` (R-A-C, before fix):
 
@@ -777,14 +786,27 @@ The spec models:
 * Two fairness levels: `Spec` (per-action WF on every progress
   step) and `WeakSpec` (only blanket `WF_vars(NextStep)`).
 
-Result (all four configurations):
+Result (all four configurations — re-verified 2026-06-20, TLC on
+OpenJDK 24, 2 threads, `MaxIter = 2`, no `CONSTRAINT`):
 
-| Spec / Variant | Distinct states | Result |
-|---|---|---|
-| `Spec` + master | 308 | **Pass + liveness** |
-| `Spec` + fix | 308 | **Pass + liveness** |
-| `WeakSpec` + master | 308 | **Pass + liveness** |
-| `WeakSpec` + fix | 308 | **Pass + liveness** |
+| Spec / Variant | States generated | Distinct | Depth | `RootMutex` | `EventuallyAllDone` | Time |
+|---|---|---|---|---|---|---|
+| `Spec` (per-action WF) + master | 534 | 308 | 35 | ✅ holds | ✅ PASS | <1 s |
+| `Spec` (per-action WF) + fix | 550 | 308 | 35 | ✅ holds | ✅ PASS | <1 s |
+| `WeakSpec` (blanket WF) + master | 534 | 308 | 35 | ✅ holds | ✅ PASS | <1 s |
+| `WeakSpec` (blanket WF) + fix | 550 | 308 | 35 | ✅ holds | ✅ PASS | <1 s |
+
+All four exhaust completely (queue 0). The reachable state graph is
+**identical across fairness levels** — 308 distinct states at depth 35
+whether `Spec` (per-action WF) or `WeakSpec` (blanket WF), because the
+fairness constraint affects only the liveness check, not the set of
+reachable states. `master` vs `fix` differ only in *generated* states
+(534 vs 550), reflecting the variant's distinct finalize transitions
+(`fin_*_walk` chain-walk vs `fin_*_cas` self-promote), and converge to
+the same 308 distinct states. Crucially, **even `WeakSpec` + master**
+(the weakest fairness on the unoptimised path) satisfies
+`<>AllDone` — so the master path is live at this modelling abstraction
+under blanket weak fairness alone.
 
 **Conclusion:** at this modelling abstraction, both paths are
 theoretically live.  The b23fa954 self-promote is a **CAS-count
@@ -846,18 +868,19 @@ java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
   -workers auto -config BundleUnbundle_hardlink_external_migration_3thr_mc.cfg \
   BundleUnbundle_hardlink_external_migration.tla
 
-# Dynamic 2-thread (sibling parents, with liveness)
-java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
-  -workers auto -config BundleUnbundle_hardlink_dynamic_2thr_mc.cfg \
-  BundleUnbundle_hardlink_dynamic.tla
+# Dynamic (sibling parents, with liveness) — MaxCommits=1 and =2
+for cfg in dynamic_1thr dynamic_2thr dynamic_2thr_commits2; do
+  java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+    -workers auto -config BundleUnbundle_hardlink_${cfg}_mc.cfg \
+    BundleUnbundle_hardlink_dynamic.tla
+done
 
-# Non-atomic test pattern — master vs b23fa954 fix comparison
-java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
-  -workers auto -config BundleUnbundle_hardlink_nonatomic_master_mc.cfg \
-  BundleUnbundle_hardlink_nonatomic.tla
-java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
-  -workers auto -config BundleUnbundle_hardlink_nonatomic_fix_mc.cfg \
-  BundleUnbundle_hardlink_nonatomic.tla
+# Non-atomic test pattern — all four configs (master/fix × Spec/WeakSpec, each <1 s)
+for cfg in master fix weak_master weak_fix; do
+  java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC \
+    -workers auto -config BundleUnbundle_hardlink_nonatomic_${cfg}_mc.cfg \
+    BundleUnbundle_hardlink_nonatomic.tla
+done
 ```
 
 To reproduce the original bug, revert the Phase 3 `subpackets[c] == Null`
