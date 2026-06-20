@@ -212,7 +212,7 @@ coarse/fine/superfine triple are <strong>identical</strong> to the base spec. LL
 
 <h2>TLC verification results</h2>
 <div class="box-green">
-<p><strong>665,218 distinct states / depth 89 / 28 s / queue 0 (exhaustion)</strong></p>
+<p><strong>867,696 distinct states / depth 89 / ~35 s / queue 0 (exhaustion)</strong></p>
 <ul style="margin:0.3em 0 0 1.2em">
 <li>Config: <code>BundleUnbundle_2level_LLfree_micro_mc.cfg</code></li>
 <li><code>MaxCommits = 1</code>, <code>|Threads| = 2</code>, fine atomicity</li>
@@ -559,7 +559,7 @@ the proof of livelock-freedom?
 <div class="box-green">
 <table>
 <tr><th>cfg</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
-<tr><td>coarse micro (MaxCommits=1)</td><td>2</td><td><strong>665,218</strong></td><td>89</td><td>28s</td><td><strong>Pass + liveness</strong> (laptop)</td></tr>
+<tr><td>micro / fine (MaxCommits=1)</td><td>2</td><td><strong>867,696</strong></td><td>89</td><td>~35s</td><td><strong>Pass + liveness</strong> (laptop)</td></tr>
 <tr><td>superfine</td><td>2</td><td>2,676,196</td><td>129</td><td>3:12</td><td><strong>Pass + liveness</strong></td></tr>
 <tr><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>6:35</td><td><strong>Pass</strong> (ohtaka)</td></tr>
 <tr><td>MaxCommits=2 superfine</td><td>2</td><td>127,586,599</td><td>311</td><td>4:40</td><td><strong>Pass</strong> (ohtaka)</td></tr>

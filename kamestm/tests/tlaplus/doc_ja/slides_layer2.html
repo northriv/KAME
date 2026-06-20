@@ -316,7 +316,7 @@ payload が自分の期待値と同じなら、子スロットだけが他スレ
 <h2>検証結果 (Gen 3 LLfree、CONSTRAINT なし完全 exhaustion)</h2>
 <table>
 <tr><th>モデル</th><th>粒度</th><th>スレッド</th><th>状態数</th><th>Depth</th><th>時間</th><th>結果</th></tr>
-<tr><td>2-level LLfree</td><td>coarse</td><td>2</td><td>665,218</td><td>89</td><td>28s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
+<tr><td>2-level LLfree</td><td>micro (fine)</td><td>2</td><td>867,696</td><td>89</td><td>~35s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>2-level LLfree</td><td>superfine</td><td>2</td><td>2,676,196</td><td>129</td><td>3:12</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>2-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>137,333,348</td><td>96</td><td>6:35</td><td style="color:#4ade80">✅ Pass (ohtaka)</td></tr>
 <tr><td>2-level LLfree</td><td>MaxCommits=2 superfine</td><td>2</td><td>127,586,599</td><td>311</td><td>4:40</td><td style="color:#4ade80">✅ Pass (ohtaka)</td></tr>

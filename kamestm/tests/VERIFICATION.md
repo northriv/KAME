@@ -349,13 +349,18 @@ Thread roles configurable via `InsertThreads`, `RootThreads`, `LeafThreads`, `Re
 
 | Config | Threads | Distinct states | Depth | Time | Result |
 |---|---|---|---|---|---|
-| 2-thread coarse | 2 | 665,218 | 89 | 28 s | **Pass + liveness** |
+| 2-thread micro (fine) | 2 | 867,696 | 89 | ~35 s | **Pass + liveness** |
 | 2-thread superfine | 2 | 2,676,196 | 129 | 3:12 | **Pass + liveness** |
 | 3-thread superfine confC (all-root) | 3 | 137,333,348 | 96 | 6:35 | **Pass** (ohtaka) |
 | MaxCommits=2 superfine | 2 | 127,586,599 | 311 | 4:40 | **Pass** (ohtaka) |
 | dynamic release superfine live | 2 | 413,884,516 | 320 | 7:13 | **Pass + liveness** (ohtaka) |
 
-Full results: `tests/tlaplus/doc/verification_log.md`
+The micro/fine row is `BundleUnbundle_2level_LLfree_micro_mc.cfg` (re-run
+2026-06-20: 2,083,827 generated / 867,696 distinct / depth 89, queue 0,
+`EventuallyAllDone` PASS). It was **665,218** at the first LL-free proof
+(commit `a35c4310`, see `verification_log.md`); the spec has since gained
+reachable interleavings at the same depth 89, so the current figure is
+867,696. Full / historical results: `tests/tlaplus/doc/verification_log.md`.
 
 ### Equivalence of the existing models with the new C++ Phase 4 reachability gate
 
