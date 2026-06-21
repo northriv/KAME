@@ -349,11 +349,11 @@ Thread roles configurable via `InsertThreads`, `RootThreads`, `LeafThreads`, `Re
 
 | Config | Threads | Distinct states | Depth | Time | Result |
 |---|---|---|---|---|---|
-| 2-thread micro (fine) | 2 | 867,696 | 89 | ~35 s | **Pass + liveness** |
-| 2-thread superfine | 2 | 2,676,196 | 129 | 3:12 | **Pass + liveness** |
-| 3-thread superfine confC (all-root) | 3 | 137,333,348 | 96 | 6:35 | **Pass** (ohtaka) |
-| MaxCommits=2 superfine | 2 | 127,586,599 | 311 | 4:40 | **Pass** (ohtaka) |
-| dynamic release superfine live | 2 | 413,884,516 | 320 | 7:13 | **Pass + liveness** (ohtaka) |
+| 2-thread micro (fine) | 2 | 867,696 | 89 | ~35s | **Pass + liveness** |
+| 2-thread superfine | 2 | 2,676,196 | 129 | 3m 12s | **Pass + liveness** |
+| 3-thread superfine confC (all-root) | 3 | 137,333,348 | 96 | 6m 35s | **Pass** (ohtaka) |
+| MaxCommits=2 superfine | 2 | 127,586,599 | 311 | 4m 40s | **Pass** (ohtaka) |
+| dynamic release superfine live | 2 | 413,884,516 | 320 | 7m 13s | **Pass + liveness** (ohtaka) |
 
 The micro/fine row is `BundleUnbundle_2level_LLfree_micro_mc.cfg` (re-run
 2026-06-20: 2,083,827 generated / 867,696 distinct / depth 89, queue 0,
@@ -475,9 +475,15 @@ multi-level unbundle walk.
 
 | Config | Threads | Distinct states | Depth | Time | Result |
 |---|---|---|---|---|---|
-| 2-thread coarse | 2 | 1,497,098 | 98 | 1:35 | **Pass + liveness** |
-| 2-thread superfine | 2 | 14,109,731 | 148 | 19:13 | **Pass + liveness** |
-| 3-thread superfine confC (all-root) | 3 | 640,894,951 | 88 | 15:25 | **Pass + liveness** (ohtaka) |
+| 2-thread coarse | 2 | 1,497,098 | 98 | 1m 35s | **Pass + liveness** |
+| 2-thread superfine | 2 | 15,094,117 | 146 | 15m 11s | **Pass + liveness** (ohtaka, /dev/shm) |
+| 3-thread superfine confC (all-root) | 3 | 640,894,951 | 88 | 15m 25s | **Pass + liveness** (ohtaka) |
+
+The 2-thread superfine row is a 2026-06-21 re-run (`/dev/shm`, 126 workers):
+35,271,006 generated / 15,094,117 distinct / depth 146, queue 0,
+`EventuallyAllDone` PASS. It was 14,109,731 / depth 148 earlier; the spec
+has since gained reachable interleavings at ~the same depth (the same
+drift as the 2-level micro 665,218 → 867,696), not a regression.
 
 Full results: `tests/tlaplus/doc/verification_log.md`
 
