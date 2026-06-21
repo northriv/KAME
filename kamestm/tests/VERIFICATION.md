@@ -351,9 +351,19 @@ Thread roles configurable via `InsertThreads`, `RootThreads`, `LeafThreads`, `Re
 |---|---|---|---|---|---|
 | 2-thread micro (fine) | 2 | 867,696 | 89 | ~35s | **Pass + liveness** |
 | 2-thread superfine | 2 | 2,676,196 | 129 | 3m 12s | **Pass + liveness** |
-| 3-thread superfine confC (all-root) | 3 | 137,333,348 | 96 | 6m 35s | **Pass** (ohtaka) |
-| MaxCommits=2 superfine | 2 | 127,586,599 | 311 | 4m 40s | **Pass** (ohtaka) |
-| dynamic release superfine live | 2 | 413,884,516 | 320 | 7m 13s | **Pass + liveness** (ohtaka) |
+| 3-thread superfine confC (all-root) | 3 | 137,333,348 | 96 | 2h 57min | **Pass + liveness** (ohtaka, /dev/shm) |
+| MaxCommits=2 superfine | 2 | 127,586,599 | 311 | 4h 40min | **Pass** (ohtaka) |
+| dynamic release superfine live | 2 | 413,884,516 | 320 | 7h 13min | **Pass + liveness** (ohtaka) |
+
+The 3-thread confC (all-root) row is now a full **liveness** pass
+(`BundleUnbundle_2level_LLfree_3thr_superfine_C_live_mc.cfg`, 2026-06-22,
+/dev/shm 126 workers): 443,332,503 generated / 137,333,348 distinct /
+depth 96, `EventuallyAllDone` PASS, temporal SCC 20min 19s, 2h 57min
+total.  This matches the 3-level confC liveness (640 M, below), so
+**3-thread liveness (all-root) holds at both the 2- and 3-level tree**.
+The leaf-containing 3-thread splits (confA/B/D) remain safety-frontier
+only — intractable for liveness in the 12–24 h budget (CommitChild
+interleavings blow the state count past the all-root 137 M / 640 M).
 
 The micro/fine row is `BundleUnbundle_2level_LLfree_micro_mc.cfg` (re-run
 2026-06-20: 2,083,827 generated / 867,696 distinct / depth 89, queue 0,
@@ -477,7 +487,7 @@ multi-level unbundle walk.
 |---|---|---|---|---|---|
 | 2-thread coarse | 2 | 1,497,098 | 98 | 1m 35s | **Pass + liveness** |
 | 2-thread superfine | 2 | 15,094,117 | 146 | 15m 11s | **Pass + liveness** (ohtaka, /dev/shm) |
-| 3-thread superfine confC (all-root) | 3 | 640,894,951 | 88 | 15m 25s | **Pass + liveness** (ohtaka) |
+| 3-thread superfine confC (all-root) | 3 | 640,894,951 | 88 | 15h 25min | **Pass + liveness** (ohtaka) |
 
 The 2-thread superfine row is a 2026-06-21 re-run (`/dev/shm`, 126 workers):
 35,271,006 generated / 15,094,117 distinct / depth 146, queue 0,
