@@ -187,13 +187,29 @@ behaviour uses `≤ k` threads and still violates Φ. Contrapositive: **Φ at
 `T = k` ⇒ Φ at all `T`.**
 
 **The cutoff constant `k`.** `k` is the largest antichain of
-*footprint-overlapping, simultaneously-poised commit roles* on the cutoff tree —
-not a function of `T`. On the 2-level tree (`Parent → {C₁,C₂}`) a root-commit of
-the `Parent` bundle (footprint `{Parent,C₁,C₂}`) contends with a leaf-commit on
-each child (footprint `{Cᵢ,Parent}`) ⇒ `k = 3`; the 3-level tree adds the
-internal node's role but no new *overlap* pattern ⇒ still `k = 3`. This is
-exactly why **`T = 3` with thread `SYMMETRY` is the checked cutoff**, matching
-the `3thr_*` configs in `VERIFICATION.md`.
+*footprint-overlapping, simultaneously in-flight commit transactions* on the
+cutoff tree — equivalently, the number of distinct **commit-target nodes** whose
+footprints overlap. This is a tree-determined constant, **not** a function of
+`T`, and it is governed by *which nodes are commit targets*, not by the tree's
+node count. In the verified model the commit targets are exactly the **root and
+the leaves**: a root transaction (`CommitGrand`, target `Grand`) bundles the
+whole subtree in one transaction, and each leaf transaction (`CommitChild`,
+target `Cᵢ`) commits a leaf directly. The interior node `Parent` is **never a
+direct commit target** — it is a pure fold-intermediate, touched only as a phase
+of the root's downward bundle or a leaf's upward unbundle (spec comment, "Parent
+is not targeted here"). Hence the overlapping-commit antichain is
+`{root-commit, leaf-commit C₁, leaf-commit C₂}` ⇒ **`k = 3`**, and — because the
+interior carries no independent commit role — this is the same `k = 3` at
+2-level, 3-level, *and every greater depth* (deeper trees only lengthen each
+transaction's fold, adding no new concurrent commit target). This is exactly why
+**`T = 3` with thread `SYMMETRY` is the checked cutoff**, matching the `3thr_*`
+configs in `VERIFICATION.md`.
+
+*(Were the workload extended so that interior nodes are themselves commit
+targets, `k` would grow to the number of mutually-overlapping committed nodes on
+a root-to-leaf path of the cutoff tree — still a small constant bounded by the
+cutoff tree, independent of `T`. The essential claim is unchanged: `k` is
+tree-bounded, never a function of the thread count.)*
 
 **Status (honest).** Facts A–C are checked by inspection of the spec; the
 reduction's one sketch-step — "re-assign the cone of influence onto `k` threads,
