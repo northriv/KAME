@@ -107,10 +107,56 @@ threads working on *different* children. A third child only repeats them.
   uniform step (Lemma 1) at additional internal nodes, introducing no new
   role-interaction.
 - *Width.* Lemma 2 reduces any `N` to 2.
-- *Threads.* The footprint locality of Lemma 1 confines interference to
-  contention on a single linkage word; such contention is pairwise, so `k`
-  threads (one per role at the contended node) realise every interference
-  pattern. ∎
+- *Threads.* See §5.1: under `Privilege` the gate serializes the
+  safety-relevant (linkage-mutating) CASes at each node, reducing thread
+  interference to cross-node concurrency, which is bounded by the depth-3 /
+  width-2 tree cutoff. ∎
+
+## 5.1 The thread axis in detail
+
+The depth and width cutoffs are clean (Lemmas 1–2). The *thread* axis is the
+hard one — the generic obstacle of parameterized verification — so we treat it
+explicitly rather than wave at "pairwise contention."
+
+**Observation (gate serialization).** The safety invariants constrain only the
+*linkage* state (`packet`, `serial`, `bundledBy`, `hasPriority`); none mentions
+`priorityTag`. Linkage changes only on a **successful** CAS. Under `Privilege`,
+`CanProceed` admits a successful CAS at a node `n` only from the current
+tag-holder; gated peers may fail, re-read, and rewrite `priorityTag[n]`, but
+cannot alter `n`'s linkage. Hence **the safety-relevant transitions at any one
+node are serialized** into a sequence of tag-holder commits — not a concurrent
+free-for-all.
+
+**Consequence.** Cross-thread interference *for safety* reduces to
+- the *serialized sequence* of commits at each node — repeated commits at one
+  node, bounded per node by `MaxCommits`; and
+- *cross-node* concurrency — concurrent commits at distinct nodes, whose
+  pattern is exactly the tree-shape interaction already bounded by the
+  depth-3 / width-2 cutoff.
+
+The thread count needed to realise every such pattern is therefore bounded by
+the number of *concurrently-committing roles* on the cutoff tree — a small
+constant (≈ one per node of the 3-level / 2-child instance), independent of the
+total `T`.
+
+**Status (honest).** This is an environment-abstraction argument; turning it
+into a theorem needs the abstraction lemma that gated peers collapse, from any
+thread's view, to "at most one tag-holder competitor per node." We state it as
+the thread-axis cutoff and discharge it two complementary ways:
+
+1. *Exhaustively up to `T = 3`* with full thread `SYMMETRY` (the spec is
+   invariant under permutation of `Threads`), covering all interleavings of 3
+   contenders at the cutoff tree (`VERIFICATION.md`, the `3thr_*` configs).
+2. *Structurally* via the gate-serialization observation above, which bounds
+   the safety-relevant concurrency by tree structure, not by `T`.
+
+The §7 liveness ranking and this §5.1 safety argument spring from the **same**
+privilege mechanism (`priorityTag` / `CanProceed`) yet are independent: §7 uses
+it for *progress* (the oldest always advances); §5.1 uses it for *serialization*
+(only the tag-holder mutates linkage). Closing the §5.1 abstraction lemma would
+remove the last bound on the thread axis, making the safety claim fully ∀`T`;
+until then the safety statement is "∀ tree shape, `T ≤ 3` (+ symmetry)", while
+liveness is already ∀`N` (§7).
 
 ## 6. Consequence for the model-checking results
 
@@ -220,8 +266,10 @@ the orthogonal `priorityTag` / `CanProceed` / `TagAfterFail` tagging.)*
 
 ## 9. One-line summary for the paper
 
-> Safety is proved for all trees and all thread counts by a structural-cutoff
-> theorem (bundle and unbundle are height/width-uniform catamorphisms ⇒ depth-3,
-> width-2 cutoff); livelock-freedom is proved for all `N` by an
-> oldest-priority ranking function. Exhaustive TLC at the cutoff discharges the
-> finite base cases (`VERIFICATION.md`).
+> **Safety**: ∀ tree shape (arbitrary depth and width) via a structural-cutoff
+> theorem — bundle and unbundle are height/width-uniform catamorphisms ⇒ a
+> depth-3, width-2 cutoff. The thread axis is checked exhaustively to `T ≤ 3`
+> with thread symmetry, with a gate-serialization route (§5.1) toward ∀`T`.
+> **Liveness** (livelock-freedom): ∀`N` via an oldest-tag ranking function — no
+> thread cutoff required. Exhaustive TLC at the cutoff (`VERIFICATION.md`)
+> discharges the finite base cases.
