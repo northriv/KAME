@@ -248,9 +248,9 @@ the orthogonal `priorityTag` / `CanProceed` / `TagAfterFail` tagging.)*
 ## 8. Proof obligations and threats to validity
 
 1. **Footprint discharge.** The Lemma 1 footprint claim must be verified for
-   *every* action (mechanical, finitely many actions). Confirmed by inspection
-   for `BundlePhase1–4` / `CollectSubpacket` (downward) and `UnbundleWalk` /
-   `SnapshotForUnbundle` / `UnbundleCAS*` (upward).
+   *every* action (mechanical, finitely many actions). **Discharged by the
+   per-action table in §8.1** (all 12 `NextStep` actions of the 3-level spec):
+   each footprint ⊆ `{self} ∪ {immediate fold-neighbours} ∪ {root anchor}`.
 2. **Atomicity model.** The cutoff is stated for the **fine/superfine** spec,
    in which the fold is decomposed per level/child — the most-interleaved,
    C++-faithful model and the one we check. The `coarse` mode collapses the
@@ -263,6 +263,45 @@ the orthogonal `priorityTag` / `CanProceed` / `TagAfterFail` tagging.)*
 4. **Serial arithmetic.** Priority comparison is the pairwise unsigned-
    difference of Lamport serials, independent of `N`; wraparound is bounded far
    below `2^47`, so enlarging `N` cannot induce a spurious ordering.
+
+## 8.1 Footprint table (discharges obligation #1)
+
+The `linkage` footprint of every `NextStep` action of
+`BundleUnbundle_3level_LLfree.tla`, in fine/superfine mode (the per-level
+decomposition). "self" = the action's focus node; "child"/"parent" = its
+*immediate* tree neighbours; "root" = the priority root, which holds the
+authoritative nested bundled packet (a node's bundled summary σ is materialised
+in the root's `packet.sub[…]`).
+
+| Action | `linkage` reads | `linkage` writes | role |
+|---|---|---|---|
+| `BundlePhase1` (collect) | self + each immediate child | grandchildren only via the recursive inner-bundle of a non-leaf child | bundle↓ step |
+| `BundlePhase2` (set-missing CAS) | self | self | local |
+| `BundlePhase3` (per-child ref CAS) | self + immediate children | one immediate child / action | bundle↓ step |
+| `BundlePhase4` (finalize CAS) | self | self | local |
+| `CommitGrand` | self (subtree lives in `Grand`'s nested packet) | self | local at root anchor |
+| `CommitStart` | — | — | control only |
+| `CommitRead` | self (target) | — | local (read) |
+| `CommitTryCAS` | self (target) | self (+ `priorityTag[target]`) | local |
+| `UnbundleWalk` | self + immediate parent / step; `SnapshotForUnbundle` folds self→root | — (thread-local only) | unbundle↑ step (read) |
+| `UnbundleCASLoop` | one ancestor + root anchor / step | one ancestor / step (whole chain in coarse) | unbundle↑ step (write) |
+| `UnbundleCASChild` | self + immediate parent | self + immediate parent | leaf+parent (2-level) |
+| `CommitDone` | — | — | control only |
+
+**Reading.** Every action's `linkage` footprint is contained in
+`{self} ∪ {immediate fold-neighbours} ∪ {root anchor}`. No action reaches a node
+off the `target`→root chain (unbundle) or outside the recursively-descended
+subtree (bundle). The cross-level accesses are exactly the catamorphism: the
+bundle↓ descent into a non-leaf child, and the unbundle↑ read of the parent's σ
+— which, when bundled, is materialised in the root's nested packet, hence the
+"root anchor" read. In fine/superfine mode each action performs **one** fold
+step touching at most `{self, one immediate fold-neighbour}` (plus the root
+anchor read for unbundle). This is the mechanical discharge of Lemma 1's
+footprint premise across all 12 actions; obligation #1 holds.
+
+*(`coarse` mode collapses a whole fold into one action — a coarsening with
+fewer interleavings; the cutoff is stated on the fine/superfine model, §8
+obligation 2.)*
 
 ## 9. One-line summary for the paper
 
