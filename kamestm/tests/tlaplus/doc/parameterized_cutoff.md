@@ -107,56 +107,104 @@ threads working on *different* children. A third child only repeats them.
   uniform step (Lemma 1) at additional internal nodes, introducing no new
   role-interaction.
 - *Width.* Lemma 2 reduces any `N` to 2.
-- *Threads.* See §5.1: under `Privilege` the gate serializes the
-  safety-relevant (linkage-mutating) CASes at each node, reducing thread
-  interference to cross-node concurrency, which is bounded by the depth-3 /
-  width-2 tree cutoff. ∎
+- *Threads.* See §5.1: the safety predicates are gate- and serial-free
+  structural invariants (Fact A), per-node linkage history is CAS-serialized
+  independently of the gate (Fact B), and the protocol is thread-ID
+  data-independent (Fact C); a data-independence + locality reduction therefore
+  bounds the thread axis by the constant `k = 3` — the largest antichain of
+  footprint-overlapping commit roles — checked exhaustively with thread
+  `SYMMETRY`. ∎
 
 ## 5.1 The thread axis in detail
 
 The depth and width cutoffs are clean (Lemmas 1–2). The *thread* axis is the
-hard one — the generic obstacle of parameterized verification — so we treat it
-explicitly rather than wave at "pairwise contention."
+generic hard case of parameterized verification, so we treat it explicitly. The
+organising observation is that **the priority gate (`priorityTag` /
+`CanProceed`) plays no role in safety** — it is a liveness device (§7) — so the
+thread cutoff rests on three *gate-independent* structural facts, A–C.
 
-**Observation (gate serialization).** The safety invariants constrain only the
-*linkage* state (`packet`, `serial`, `bundledBy`, `hasPriority`); none mentions
-`priorityTag`. Linkage changes only on a **successful** CAS. Under `Privilege`,
-`CanProceed` admits a successful CAS at a node `n` only from the current
-tag-holder; gated peers may fail, re-read, and rewrite `priorityTag[n]`, but
-cannot alter `n`'s linkage. Hence **the safety-relevant transitions at any one
-node are serialized** into a sequence of tag-holder commits — not a concurrent
-free-for-all.
+**Fact A — the safety predicates are structural (no thread identity).** Every
+checked safety invariant — `SnapshotConsistency`, `NoPriorityLoss`,
+`BundleRefConsistency`, `MissingPropagation`, `TerminalPayloadCheck` — is a
+predicate over the **bundle-tree linkage** (the `hasPriority` / `bundledBy` /
+`sub[·]` edges and `missing` flags) and the **payload counters**. By inspection
+of the invariant bodies (`BundleUnbundle_*_LLfree.tla`), *none mentions
+`priorityTag`, and none even mentions `serial`.* Hence the safety state-predicate
+Φ contains **no thread identity whatsoever**; its thread-symmetry is trivial, and
+`T` enters only through (i) the transitions that build the tree and (ii) the
+*additive* expected count `MaxCommits·(|RootThreads|+|LeafThreads|)` in
+`TerminalPayloadCheck` — a "no lost / double update" property witnessed by any
+two concurrent committers on one child.
 
-**Consequence.** Cross-thread interference *for safety* reduces to
-- the *serialized sequence* of commits at each node — repeated commits at one
-  node, bounded per node by `MaxCommits`; and
-- *cross-node* concurrency — concurrent commits at distinct nodes, whose
-  pattern is exactly the tree-shape interaction already bounded by the
-  depth-3 / width-2 cutoff.
+**Fact B — per-node CAS serialization (gate-free).** `linkage[n]` is mutated
+only by a **successful** CAS, and CAS is atomic; so for *any* `T` the projection
+`linkage[n]` is a totally-ordered value sequence `v₀ → v₁ → …`, each `vᵢ₊₁`
+produced by one thread reading `vᵢ` and the committed linkage of its `O(1)`
+immediate fold-neighbours (§8.1). This is the semantics of CAS, with no appeal
+to the gate. The gate only ever *restricts which* thread attempts a CAS, and its
+bookkeeping writes `priorityTag`, never `linkage`; therefore the reachable
+**linkage** states under the gate are a **subset** of those without it. The gate
+cannot manufacture a safety violation, and the cutoff argument is sound on the
+gated reference model.
 
-The thread count needed to realise every such pattern is therefore bounded by
-the number of *concurrently-committing roles* on the cutoff tree — a small
-constant (≈ one per node of the 3-level / 2-child instance), independent of the
-total `T`.
+**Fact C — thread-ID data-independence.** Thread identities enter the
+`linkage`/`serial` state in exactly one place: `serial = EncodeSerial(counter,
+tid) = counter·SerialBase + tid`, with `tid` the low-order residue and `counter`
+the quotient; `GenSerial` advances `counter` strictly past every observed serial
+(a Lamport step). Therefore (i) the value a CAS writes into `linkage` — packet
+contents, edges, flags — is a function of the committing thread's local snapshot
+and its neighbours' linkage, **not** of its `tid`; and (ii) the only
+`tid`-dependence anywhere is the serial *uniquifier*, which Φ does not read
+(Fact A) and which influences transition guards only through the
+**counter-dominated** order `isOlderThan` — fixed by `counter` for any
+causally-ordered pair, and order-consistent under any tie-break for concurrent
+(equal-counter) events. The protocol is thus *data-independent* in thread
+identities in the sense of Wolper (identities used by equality only) — exactly
+the `SYMMETRY` already declared in every config.
 
-**Status (honest).** This is an environment-abstraction argument; turning it
-into a theorem needs the abstraction lemma that gated peers collapse, from any
-thread's view, to "at most one tag-holder competitor per node." We state it as
-the thread-axis cutoff and discharge it two complementary ways:
+**The reduction (thread-axis cutoff).** Suppose Φ is violated by a behaviour
+with `T` threads. The violating state is reached by a finite prefix; take its
+*cone of influence* `C` — the successful CASes whose written values feed
+(transitively) the linkage that Φ evaluates. By §8.1 locality `C` is **bounded
+in breadth** (each CAS touches `{self} ∪ immediate neighbours ∪ root anchor`),
+though it may be long (per node bounded by `MaxCommits`). Re-assign the threads
+performing `C` onto a pool of `k`: CASes at one node are already serialized
+(Fact B) and replay on a reused pool member across iterations; CASes on
+causally-independent footprint regions take distinct pool members. By Fact C the
+*values* are unchanged under the re-assignment (no CAS value depends on `tid`,
+and Φ is insensitive to the re-uniquified serial, Fact A). The re-assigned
+behaviour uses `≤ k` threads and still violates Φ. Contrapositive: **Φ at
+`T = k` ⇒ Φ at all `T`.**
 
-1. *Exhaustively up to `T = 3`* with full thread `SYMMETRY` (the spec is
-   invariant under permutation of `Threads`), covering all interleavings of 3
-   contenders at the cutoff tree (`VERIFICATION.md`, the `3thr_*` configs).
-2. *Structurally* via the gate-serialization observation above, which bounds
-   the safety-relevant concurrency by tree structure, not by `T`.
+**The cutoff constant `k`.** `k` is the largest antichain of
+*footprint-overlapping, simultaneously-poised commit roles* on the cutoff tree —
+not a function of `T`. On the 2-level tree (`Parent → {C₁,C₂}`) a root-commit of
+the `Parent` bundle (footprint `{Parent,C₁,C₂}`) contends with a leaf-commit on
+each child (footprint `{Cᵢ,Parent}`) ⇒ `k = 3`; the 3-level tree adds the
+internal node's role but no new *overlap* pattern ⇒ still `k = 3`. This is
+exactly why **`T = 3` with thread `SYMMETRY` is the checked cutoff**, matching
+the `3thr_*` configs in `VERIFICATION.md`.
 
-The §7 liveness ranking and this §5.1 safety argument spring from the **same**
-privilege mechanism (`priorityTag` / `CanProceed`) yet are independent: §7 uses
-it for *progress* (the oldest always advances); §5.1 uses it for *serialization*
-(only the tag-holder mutates linkage). Closing the §5.1 abstraction lemma would
-remove the last bound on the thread axis, making the safety claim fully ∀`T`;
-until then the safety statement is "∀ tree shape, `T ≤ 3` (+ symmetry)", while
-liveness is already ∀`N` (§7).
+**Status (honest).** Facts A–C are checked by inspection of the spec; the
+reduction's one sketch-step — "re-assign the cone of influence onto `k` threads,
+values unchanged" — is the classical **data-independence reduction** (Wolper
+1986; Lazić 1999) specialised to this protocol, whose hypothesis (Fact C) holds.
+Two standard routes make it a machine-checked theorem: **(a)** a TLAPS
+simulation proof; or **(b)** a *saturation check* — verify the reachable
+*linkage-projection* state set is identical at `T = k` and `T = k+1` (no
+`(k+1)`-th thread enlarges it), which by `SYMMETRY` + the simulation lifts to
+all `T`. We have run `T ≤ 3` exhaustively with full `SYMMETRY` (no violation —
+the empirical face of saturation). Closing (a) or (b) makes safety fully ∀`T`;
+until then it is "∀ tree shape, `T ≤ 3` (+ symmetry), with a concrete
+data-independence route to ∀`T` (cutoff `k = 3`)".
+
+**Safety vs. liveness, cleanly separated.** §5.1 (safety) never invokes the gate
+— Facts A–C are gate-free, and the gate only *shrinks* the reachable linkage set
+— whereas §7 (liveness) uses the gate for *progress* (the oldest transaction
+always advances). The priority mechanism is thus precisely the part that makes
+the *already-safe* protocol additionally livelock-free; safety and liveness rest
+on disjoint structure (CAS-serialization + data-independence vs. the oldest-tag
+ranking).
 
 ## 6. Consequence for the model-checking results
 
@@ -263,6 +311,18 @@ the orthogonal `priorityTag` / `CanProceed` / `TagAfterFail` tagging.)*
 4. **Serial arithmetic.** Priority comparison is the pairwise unsigned-
    difference of Lamport serials, independent of `N`; wraparound is bounded far
    below `2^47`, so enlarging `N` cannot induce a spurious ordering.
+5. **Thread-axis data-independence simulation (the main open safety lemma).**
+   The thread cutoff (§5.1) rests on Facts A–C — all checked by inspection — plus
+   one sketch step: that the cone of influence of any violation re-assigns onto
+   `k = 3` threads with unchanged linkage values. This is the standard
+   data-independence reduction (Wolper 1986; Lazić 1999); its hypothesis (Fact C,
+   thread IDs used by equality only) holds here. Discharge route **(a)** a TLAPS
+   simulation `Spec(T) ⊑ Spec(k)` on the linkage projection, or **(b)** a TLC
+   *saturation* check that the reachable linkage-projection state set is equal at
+   `T = k` and `T = k+1`. Until then safety is ∀ tree shape × (`T ≤ 3` +
+   symmetry); this is the one obligation between that and fully ∀`T`. (The gate
+   is *not* on this list: it only shrinks the reachable linkage set, §5.1
+   Fact B.)
 
 ## 8.1 Footprint table (discharges obligation #1)
 
@@ -307,8 +367,12 @@ obligation 2.)*
 
 > **Safety**: ∀ tree shape (arbitrary depth and width) via a structural-cutoff
 > theorem — bundle and unbundle are height/width-uniform catamorphisms ⇒ a
-> depth-3, width-2 cutoff. The thread axis is checked exhaustively to `T ≤ 3`
-> with thread symmetry, with a gate-serialization route (§5.1) toward ∀`T`.
-> **Liveness** (livelock-freedom): ∀`N` via an oldest-tag ranking function — no
-> thread cutoff required. Exhaustive TLC at the cutoff (`VERIFICATION.md`)
-> discharges the finite base cases.
+> depth-3, width-2 cutoff. The thread axis reduces by data-independence +
+> locality (the safety predicates are gate- and serial-free structural
+> invariants; per-node linkage is CAS-serialized; thread IDs enter only a
+> Lamport-serial uniquifier) to a constant cutoff `k = 3`, checked exhaustively
+> with thread symmetry (§5.1), with a concrete TLAPS/saturation route to ∀`T`.
+> **Liveness** (livelock-freedom): ∀`N` via an oldest-tag ranking function on the
+> priority gate — no thread cutoff required. The gate is a pure liveness device,
+> disjoint from the safety argument. Exhaustive TLC at the cutoff
+> (`VERIFICATION.md`) discharges the finite base cases.
