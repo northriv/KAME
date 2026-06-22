@@ -147,20 +147,30 @@ bookkeeping writes `priorityTag`, never `linkage`; therefore the reachable
 cannot manufacture a safety violation, and the cutoff argument is sound on the
 gated reference model.
 
-**Fact C — thread-ID data-independence.** Thread identities enter the
-`linkage`/`serial` state in exactly one place: `serial = EncodeSerial(counter,
-tid) = counter·SerialBase + tid`, with `tid` the low-order residue and `counter`
-the quotient; `GenSerial` advances `counter` strictly past every observed serial
-(a Lamport step). Therefore (i) the value a CAS writes into `linkage` — packet
-contents, edges, flags — is a function of the committing thread's local snapshot
-and its neighbours' linkage, **not** of its `tid`; and (ii) the only
-`tid`-dependence anywhere is the serial *uniquifier*, which Φ does not read
-(Fact A) and which influences transition guards only through the
-**counter-dominated** order `isOlderThan` — fixed by `counter` for any
-causally-ordered pair, and order-consistent under any tie-break for concurrent
-(equal-counter) events. The protocol is thus *data-independent* in thread
-identities in the sense of Wolper (identities used by equality only) — exactly
-the `SYMMETRY` already declared in every config.
+**Fact C — thread-ID data-independence (order-sensitive).** Thread identities
+enter the `linkage`/`serial` state in exactly one place: `serial =
+EncodeSerial(counter, tid) = counter·SerialBase + tid`, with `tid` the low-order
+residue and `counter` the quotient; `GenSerial` advances `counter` strictly past
+every observed serial (a Lamport step). Therefore (i) the value a CAS writes into
+`linkage` — packet contents, edges, flags — is a function of the committing
+thread's local snapshot and its neighbours' linkage, **not** of its `tid`; and
+(ii) the only `tid`-dependence anywhere is the serial *uniquifier*, which Φ does
+not read (Fact A) and which reaches transition guards only through the order
+`isOlderThan`.
+
+We must be precise here, because `isOlderThan` (like `TagOlder`) compares `tid`
+by **`<`, not equality** — so this is *not* Wolper's equality-only data
+independence. It is the **order-sensitive** variant (Lazić 1999): `tid` is a
+totally-ordered datum, used only as the low-order **tie-break** of the Lamport
+serial. The saving structure is that `GenSerial` makes `counter` *strictly
+dominate causal order* — any two causally-dependent events get distinct counters,
+so `isOlderThan` between them is fixed by `counter` alone, *independent of
+`tid`*. The `tid` tie-break can therefore only adjudicate **causally-concurrent**
+(equal-counter) events; and for concurrent events either ordering is consistent
+with some valid sequentialization, so the choice of tie-break cannot create a
+state unreachable under a different thread set. This restricted, tie-break-only
+use of the `tid` order is exactly what the order-sensitive reduction needs, and
+is the semantic content of the `SYMMETRY` declared in every config.
 
 **The reduction (thread-axis cutoff).** Suppose Φ is violated by a behaviour
 with `T` threads. The violating state is reached by a finite prefix; take its
@@ -187,15 +197,19 @@ the `3thr_*` configs in `VERIFICATION.md`.
 
 **Status (honest).** Facts A–C are checked by inspection of the spec; the
 reduction's one sketch-step — "re-assign the cone of influence onto `k` threads,
-values unchanged" — is the classical **data-independence reduction** (Wolper
-1986; Lazić 1999) specialised to this protocol, whose hypothesis (Fact C) holds.
-Two standard routes make it a machine-checked theorem: **(a)** a TLAPS
-simulation proof; or **(b)** a *saturation check* — verify the reachable
-*linkage-projection* state set is identical at `T = k` and `T = k+1` (no
-`(k+1)`-th thread enlarges it), which by `SYMMETRY` + the simulation lifts to
-all `T`. We have run `T ≤ 3` exhaustively with full `SYMMETRY` (no violation —
-the empirical face of saturation). Closing (a) or (b) makes safety fully ∀`T`;
-until then it is "∀ tree shape, `T ≤ 3` (+ symmetry), with a concrete
+values unchanged" — is the **order-sensitive data-independence reduction**
+(Lazić 1999; the equality-only case is Wolper 1986) specialised to this protocol.
+Its hypothesis is the *tie-break-only* use of the `tid` order established in
+Fact C (the `tid` total order touches the safety-relevant state only as the
+low-order Lamport tie-break, and only between causally-concurrent events). Two
+standard routes make it a machine-checked theorem: **(a)** a TLAPS simulation
+proof `Spec(T) ⊑ Spec(k)` on the linkage projection; or **(b)** a *saturation
+check* — add `VIEW linkage` and verify the reachable *linkage-projection* state
+set is identical at `T = k` and `T = k+1` (no `(k+1)`-th thread enlarges it),
+which by `SYMMETRY` + the reduction lifts to all `T`. We have run `T ≤ 3`
+exhaustively with full `SYMMETRY` (no violation — the empirical face of
+saturation). Closing (a) or (b) makes safety fully ∀`T`; until then it is "∀
+tree shape, `T ≤ 3` (+ symmetry), with a concrete order-sensitive
 data-independence route to ∀`T` (cutoff `k = 3`)".
 
 **Safety vs. liveness, cleanly separated.** §5.1 (safety) never invokes the gate
@@ -314,15 +328,18 @@ the orthogonal `priorityTag` / `CanProceed` / `TagAfterFail` tagging.)*
 5. **Thread-axis data-independence simulation (the main open safety lemma).**
    The thread cutoff (§5.1) rests on Facts A–C — all checked by inspection — plus
    one sketch step: that the cone of influence of any violation re-assigns onto
-   `k = 3` threads with unchanged linkage values. This is the standard
-   data-independence reduction (Wolper 1986; Lazić 1999); its hypothesis (Fact C,
-   thread IDs used by equality only) holds here. Discharge route **(a)** a TLAPS
+   `k = 3` threads with unchanged linkage values. This is the *order-sensitive*
+   data-independence reduction (Lazić 1999; the equality-only case is Wolper
+   1986); its hypothesis is Fact C's *tie-break-only* use of the `tid` order (the
+   `tid` total order reaches safety-relevant state only as the low-order Lamport
+   tie-break, decided between causally-concurrent events alone, since `GenSerial`
+   makes `counter` dominate causal order). Discharge route **(a)** a TLAPS
    simulation `Spec(T) ⊑ Spec(k)` on the linkage projection, or **(b)** a TLC
-   *saturation* check that the reachable linkage-projection state set is equal at
-   `T = k` and `T = k+1`. Until then safety is ∀ tree shape × (`T ≤ 3` +
-   symmetry); this is the one obligation between that and fully ∀`T`. (The gate
-   is *not* on this list: it only shrinks the reachable linkage set, §5.1
-   Fact B.)
+   *saturation* check (`VIEW linkage`) that the reachable linkage-projection state
+   set is equal at `T = k` and `T = k+1`. Until then safety is ∀ tree shape ×
+   (`T ≤ 3` + symmetry); this is the one obligation between that and fully ∀`T`.
+   (The gate is *not* on this list: it only shrinks the reachable linkage set,
+   §5.1 Fact B.)
 
 ## 8.1 Footprint table (discharges obligation #1)
 
