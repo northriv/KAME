@@ -121,27 +121,83 @@ proof of the safety invariants for the unbounded family of trees and thread
 counts**, not merely for the instances checked. The bounded runs are the base
 case of the cutoff, not the whole argument.
 
-## 7. Liveness (livelock-freedom) — ranking argument  *[TO COMPLETE]*
+## 7. Liveness (livelock-freedom): an oldest-tag ranking function
 
-Safety invariants do not parameterize liveness. Livelock-freedom
-(`EventuallyAllDone`) is argued instead by a well-founded **ranking function**,
-independent of §§3–5:
+Safety invariants do not parameterize liveness. We prove `EventuallyAllDone`
+(`<>AllDone`; every thread eventually reaches `idle` with no remaining
+iterations) by a well-founded **ranking function** built on the spec's
+livelock-free *tagging* mechanism. The argument is independent of §§3–6 **and of
+the thread count `N`**.
 
-- The globally-oldest in-flight transaction's priority — the Lamport `serial`
-  carried in `linkage[·]` — is never overtaken (`NoPriorityLoss`,
-  `GrandAlwaysPriority`). Hence the oldest transaction's CAS cannot fail
-  forever; it commits within a bounded number of its own steps, after which
-  the next-oldest becomes the oldest. The rank (number of transactions older
-  than a given one, with serial order as the well-founded measure) strictly
-  decreases, so some transaction always makes progress ⇒ no livelock, for all
-  `N`.
-- The bounded `EventuallyAllDone` checks (2-thread all-roles superfine, the
-  3-thread all-root confC at both 2- and 3-level, the 413 M-state dynamic
-  release run) discharge the base case / corroborate the measure.
+### 7.1 The progress mechanism (spec facts)
 
-*To do:* state the ranking function formally over the spec variables, prove it
-strictly decreases under `NextStep` while fairness holds, and prove the
-oldest-priority-preservation lemma.
+- Each thread `t` carries a tag `MyTag(t) = ⟨iter(t), t⟩`, totally ordered by
+  `TagOlder` (lexicographic; smaller = older).
+- On a CAS failure at node `n`, `priorityTag[n]` becomes the *older* of its
+  current value and `MyTag(t)` (`TagAfterFail`): a younger tag never displaces
+  an older one. Hence, until cleared, `priorityTag[n]` is **monotone
+  non-increasing** in the tag order.
+- `CanProceed(t, n)` (under `Privilege`) permits a CAS at `n` only when
+  `priorityTag[n]` is `Null` or held by `t`. Once a tag is installed, only its
+  holder may CAS `n`; strictly-younger contenders are gated out.
+- A tag is cleared only on its holder's commit **success** (`ClearMyTags`); a
+  tag's lifetime lies inside its holder's active commit (no zombie tags).
+
+### 7.2 Ranking function
+
+Let `Active ≜ { t : pc[t] ≠ "idle" ∨ iterBudget[t] ≠ 0 }`. Define the
+lexicographic rank `R(s) = (M(s), d(s))`:
+
+- **Outer** `M(s)`: the finite multiset `⟦ MyTag(t) : t ∈ Active ⟧` under the
+  Dershowitz–Manna multiset extension of the (well-founded) tag order.
+- **Inner** `d(s)`: for the globally-oldest active thread
+  `t★ = argmin_{Active} MyTag`, the length of the remaining path from `pc[t★]`
+  to `"done"` in the (finite, acyclic) single-transaction control-flow graph.
+
+`R` ranges over a well-founded set (a finite multiset over a well-founded order,
+then a bounded `Nat`).
+
+### 7.3 Lemmas
+
+- **(monotone)** At any node `t★` contends on, `priorityTag[n]` reaches
+  `MyTag(t★)` and is never afterwards replaced by a younger tag — `t★` is the
+  global minimum and `TagAfterFail` installs only strictly-older tags.
+- **(gate)** Once `priorityTag[n] = MyTag(t★)`, `CanProceed(t′, n) = FALSE` for
+  every younger `t′ ≠ t★` contending `n`: the oldest's CAS at `n` is eventually
+  uncontended *by peers*.
+- **(progress)** Under `WF_vars(NextStep)`, `t★`'s enabled step is eventually
+  taken; being privileged, its peer-contended CAS succeeds and advances
+  `pc[t★]` along its acyclic chain — so `d` strictly decreases and `t★ ⤳ done`.
+- **(rank)** When `t★` reaches `done` it leaves `Active`, removing the minimum
+  of `M`; `M` strictly decreases in the multiset order. Well-founded induction
+  on `R` gives `Active ⤳ ∅`, i.e. `<>AllDone`.
+
+### 7.4 Theorem (livelock-freedom, ∀N)
+
+> Under `WF_vars(NextStep)` and `Privilege = TRUE`, `EventuallyAllDone` holds
+> for every finite `Threads`, independent of `|Threads|`.
+
+Because the rank quantifies over the *global* oldest — which exists for any
+finite `Active` — **liveness needs no thread cutoff**, unlike the safety thread
+axis (§5). This is the cleaner half of the parameterized result.
+
+### 7.5 Remaining obligation (the real gap)
+
+Lemma *(progress)* assumes the privileged `t★` completes **without unbounded
+retry**. Peers are gated out of `t★`'s contended node, but a peer operating on a
+*different* node (an ancestor or child in the chain) can still raise a
+`DISTURBED` / `COLLIDED` on `t★` through the bundle chain. The parameterized
+proof must therefore show such structural disturbances on the privileged
+transaction are **bounded** — each is caused by a peer commit that itself
+removes a (younger) element from `M`, so they cannot recur forever. The bounded
+`EventuallyAllDone` runs (`VERIFICATION.md`: 2-thread all-roles superfine,
+3-thread confC at both levels, the 413 M dynamic-release run) discharge this at
+the cutoff; the general bound is the one open liveness lemma.
+
+*(Note: this supersedes an earlier sketch that attributed progress to
+`NoPriorityLoss` / `GrandAlwaysPriority`. Those are structural **safety**
+invariants on the `hasPriority`/`bundledBy` chain; the liveness measure rests on
+the orthogonal `priorityTag` / `CanProceed` / `TagAfterFail` tagging.)*
 
 ## 8. Proof obligations and threats to validity
 
