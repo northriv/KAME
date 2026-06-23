@@ -1,10 +1,13 @@
 # Parameterized correctness of the bundle/unbundle STM via a structural cutoff
 
-*Draft methodology section (2026-06-22). Captures the argument that lifts the
-finite TLC results in `VERIFICATION.md` to an unbounded (∀ tree shape, ∀ thread
-count) correctness claim. Lemma/Theorem statements are paper-ready; the marked
-proofs are sketches to be expanded. English to match the other `doc/` material;
-translate as needed.*
+*Draft methodology section (2026-06-22; thread axis revised 2026-06-23).
+Captures the argument that lifts the finite TLC results in `VERIFICATION.md`
+toward an unbounded claim. The **tree axis** (∀ height, ∀ width) is a
+structural-cutoff theorem (catamorphism reduction). The **thread axis** is
+deliberately scoped: not a ∀`T` theorem, but exhaustive checking to the
+contention bound plus a measured structural-saturation result, with ∀`T` as a
+strongly-evidenced conjecture (§5.1). Lemma/Theorem statements are paper-ready;
+marked proofs are sketches. English to match the other `doc/` material.*
 
 ## 1. Why "check a bigger instance" is not a proof
 
@@ -14,12 +17,20 @@ Enlarging the instance — more threads, deeper or wider trees — never reaches
 universally-quantified ("for all `T`, all trees") statement; it is an unbounded
 regress in which one can always run "one more, larger" configuration.
 
-We therefore do not argue "we checked enough cases." We prove a **cutoff
-theorem**: correctness on *every* instance reduces to correctness on a single
-small fixed instance, which we then discharge exhaustively with TLC. The
-reduction rests on one structural property — that every operation is a
+For the **tree axis** we therefore do not argue "we checked enough cases": we
+prove a **cutoff theorem** — correctness on a tree of *any* height and width
+reduces to correctness on one small fixed tree, discharged exhaustively with
+TLC. The reduction rests on one structural property — that every operation is a
 *catamorphism* (a structural fold) over the tree, whose per-node step is local
-and uniform in both the tree's height and its width.
+and uniform in both height and width (§§3–6).
+
+The **thread axis** is harder and we are honest about it: there is no clean
+mechanical ∀`T` proof (parameterized verification is undecidable in general), so
+we do *not* claim one. We instead establish sound thread symmetry, check
+exhaustively to the contention bound, and *measure* that the safety-relevant
+state space saturates — presenting ∀`T` as a strongly-evidenced conjecture
+(§5.1). The reader should read "∀ tree shape, all thread counts" as "proven for
+trees; conjectured-with-strong-evidence for threads."
 
 ## 2. Model and notation
 
@@ -92,10 +103,11 @@ threads working on *different* children. A third child only repeats them.
 
 > The safety invariants — `SnapshotConsistency`, `BundleChainValid`,
 > `NoPriorityLoss`, `GrandAlwaysPriority`, `MissingPropagation`,
-> `TerminalPayloadCheck`, … — hold on a tree of arbitrary height `H`, arbitrary
-> width `N`, and under arbitrary thread count `T`, **iff** they hold on the
-> instance with `H = 3` (root + one internal node + leaves), `N = 2` children,
-> and `T = k` threads (the contention cutoff).
+> `TerminalPayloadCheck`, … — hold on a tree of arbitrary height `H` and
+> arbitrary width `N` **iff** they hold on the instance with `H = 3` (root + one
+> internal node + leaves) and `N = 2` children (the structural cutoff, Lemmas
+> 1–2). The **thread** axis is not closed to a theorem: we verify it up to the
+> contention bound and present ∀`T` as a conjecture (§5.1).
 
 **Proof (sketch).**
 - *Depth.* Induction on `H` via Lemma 1. The only node roles are *leaf*,
@@ -107,126 +119,96 @@ threads working on *different* children. A third child only repeats them.
   uniform step (Lemma 1) at additional internal nodes, introducing no new
   role-interaction.
 - *Width.* Lemma 2 reduces any `N` to 2.
-- *Threads.* See §5.1: the safety predicates are gate- and serial-free
-  structural invariants (Fact A), per-node linkage history is CAS-serialized
-  independently of the gate (Fact B), and the protocol is thread-ID
-  data-independent (Fact C); a data-independence + locality reduction therefore
-  bounds the thread axis by the constant `k = 3` — the largest antichain of
-  footprint-overlapping commit roles — checked exhaustively with thread
-  `SYMMETRY`. ∎
+- *Threads.* Not reduced to a theorem (§5.1). The safety predicates are gate-
+  and serial-free structural invariants (Fact A), per-node linkage is
+  CAS-serialized (Fact B), and thread identity enters only as a serial
+  uniquifier (Fact C) — so thread `SYMMETRY` is *sound* but, being permutation
+  only, does **not** reduce the thread count. We instead verify exhaustively to
+  the contention bound (`T ≤ 3` full / `T = 4` core) and observe that the
+  identity-free bundle-structure saturates (set-identical `T = 2 ≡ T = 3`),
+  giving ∀`T` as a strongly-evidenced conjecture. ∎
 
-## 5.1 The thread axis in detail
+## 5.1 The thread axis: exhaustive checking + structural saturation (∀`T` as a conjecture)
 
-The depth and width cutoffs are clean (Lemmas 1–2). The *thread* axis is the
-generic hard case of parameterized verification, so we treat it explicitly. The
-organising observation is that **the priority gate (`priorityTag` /
-`CanProceed`) plays no role in safety** — it is a liveness device (§7) — so the
-thread cutoff rests on three *gate-independent* structural facts, A–C.
+The depth and width axes admit clean structural reductions (Lemmas 1–2). The
+**thread axis does not**, and we are deliberate about scope: *we do not claim a
+∀`T` theorem.* Parameterized verification is undecidable in general
+(Apt–Kozen 1986); a sound mechanical ∀`T` proof for this protocol would require a
+guided TLAPS development or a separately-validated thread-free abstraction,
+neither of which we mechanize. Instead we establish the thread axis by three
+machine-checkable ingredients — **sound symmetry**, **exhaustive checking to the
+contention bound**, and a **measured structural-saturation** result — and present
+∀`T` safety as a strongly-evidenced **conjecture**. The priority gate
+(`priorityTag` / `CanProceed`) plays no role here — it is a liveness device (§7);
+the three facts below are gate-independent.
 
-**Fact A — the safety predicates are structural (no thread identity).** Every
-checked safety invariant — `SnapshotConsistency`, `NoPriorityLoss`,
-`BundleRefConsistency`, `MissingPropagation`, `TerminalPayloadCheck` — is a
-predicate over the **bundle-tree linkage** (the `hasPriority` / `bundledBy` /
-`sub[·]` edges and `missing` flags) and the **payload counters**. By inspection
-of the invariant bodies (`BundleUnbundle_*_LLfree.tla`), *none mentions
-`priorityTag`, and none even mentions `serial`.* Hence the safety state-predicate
-Φ contains **no thread identity whatsoever**; its thread-symmetry is trivial, and
-`T` enters only through (i) the transitions that build the tree and (ii) the
-*additive* expected count `MaxCommits·(|RootThreads|+|LeafThreads|)` in
-`TerminalPayloadCheck` — a "no lost / double update" property witnessed by any
-two concurrent committers on one child.
+**Why the safety state carries no thread identity (Facts A–C).**
+- **A — structural predicates.** Every checked safety invariant
+  (`SnapshotConsistency`, `NoPriorityLoss`, `BundleChainValid` /
+  `BundleRefConsistency`, `BundledByCorrect`, `GrandAlwaysPriority`,
+  `MissingPropagation`, `TerminalPayloadCheck`) is a predicate over the
+  **bundle-tree linkage** (`hasPriority` / `bundledBy` / `sub[·]` edges, `missing`
+  flags) and **payload counts**. By inspection of the invariant bodies, *none
+  reads `priorityTag` or `serial`* — none mentions a thread.
+- **B — per-node CAS serialization.** `linkage[n]` is mutated only by a
+  *successful* atomic CAS, so its history at each node is a single serialized
+  value-sequence for any `T`. The gate only restricts *which* thread attempts a
+  CAS (it writes `priorityTag`, never `linkage`), so it cannot manufacture a
+  safety violation.
+- **C — identity enters only as a uniquifier.** Thread identities appear in the
+  state in exactly one place: the Lamport serial `serial = counter·Base + tid`,
+  where `tid` is a low-order **uniquifier** (it makes serials distinct).
+  `GenSerial` makes `counter` dominate causal order; `tid` only tie-breaks
+  causally-*concurrent* events, where any consistent tie-break is sound (this is
+  the order-sensitive data-independence of Lazić 1999, not Wolper's
+  equality-only case). The safety-relevant behaviour is thus invariant under any
+  permutation of thread identities.
 
-**Fact B — per-node CAS serialization (gate-free).** `linkage[n]` is mutated
-only by a **successful** CAS, and CAS is atomic; so for *any* `T` the projection
-`linkage[n]` is a totally-ordered value sequence `v₀ → v₁ → …`, each `vᵢ₊₁`
-produced by one thread reading `vᵢ` and the committed linkage of its `O(1)`
-immediate fold-neighbours (§8.1). This is the semantics of CAS, with no appeal
-to the gate. The gate only ever *restricts which* thread attempts a CAS, and its
-bookkeeping writes `priorityTag`, never `linkage`; therefore the reachable
-**linkage** states under the gate are a **subset** of those without it. The gate
-cannot manufacture a safety violation, and the cutoff argument is sound on the
-gated reference model.
+**(i) Sound symmetry.** By A–C the system is symmetric under
+`Permutations(Threads)`, so TLC's `SYMMETRY` reduction is **sound** for the
+safety invariants. Crucially, symmetry reduces the state space at a *fixed* `T`;
+it does **not** reduce `T` itself — collapsing thread *permutations* never maps a
+`T`-thread run to a `(T-1)`-thread run. **Symmetry ≠ cutoff**; it makes the
+bounded checks below sound and faster, nothing more.
 
-**Fact C — thread-ID data-independence (order-sensitive).** Thread identities
-enter the `linkage`/`serial` state in exactly one place: `serial =
-EncodeSerial(counter, tid) = counter·SerialBase + tid`, with `tid` the low-order
-residue and `counter` the quotient; `GenSerial` advances `counter` strictly past
-every observed serial (a Lamport step). Therefore (i) the value a CAS writes into
-`linkage` — packet contents, edges, flags — is a function of the committing
-thread's local snapshot and its neighbours' linkage, **not** of its `tid`; and
-(ii) the only `tid`-dependence anywhere is the serial *uniquifier*, which Φ does
-not read (Fact A) and which reaches transition guards only through the order
-`isOlderThan`.
+**(ii) Exhaustive checking to the contention bound.** On the cutoff tree the
+commit targets are just the root and the two leaves — the interior node is never
+a direct commit target ("Parent is not targeted here", spec) — so the genuinely
+concurrent contention is ≈ 3. We model-check the full **superfine** protocol
+exhaustively at `T ≤ 3` with symmetry, and the coarse 2-level contention core at
+`T = 4`: **136,366,732 distinct states, all safety invariants hold** (28 min, no
+error). A dangerous `N`-thread CAS interleaving within these bounds would surface
+as an invariant violation with a concrete counterexample trace; none does.
 
-We must be precise here, because `isOlderThan` (like `TagOlder`) compares `tid`
-by **`<`, not equality** — so this is *not* Wolper's equality-only data
-independence. It is the **order-sensitive** variant (Lazić 1999): `tid` is a
-totally-ordered datum, used only as the low-order **tie-break** of the Lamport
-serial. The saving structure is that `GenSerial` makes `counter` *strictly
-dominate causal order* — any two causally-dependent events get distinct counters,
-so `isOlderThan` between them is fixed by `counter` alone, *independent of
-`tid`*. The `tid` tie-break can therefore only adjudicate **causally-concurrent**
-(equal-counter) events; and for concurrent events either ordering is consistent
-with some valid sequentialization, so the choice of tie-break cannot create a
-state unreachable under a different thread set. This restricted, tie-break-only
-use of the `tid` order is exactly what the order-sensitive reduction needs, and
-is the semantic content of the `SYMMETRY` declared in every config.
+**(iii) Structural saturation (measured).** Project each reachable state onto its
+**identity-free bundle structure** — per node ⟨`hasPriority`, `bundledBy`,
+`missing`, which `sub` slots are populated⟩, dropping `serial` and payload value
+(exactly the fields the structural invariants read). Computed from the exhaustive
+dumps, this projection is a small finite set that **saturates**: it is
+**set-identical at `T = 2` and `T = 3`** (verified by diff) — **4** structures
+for the bundle-only workload, **6** once unbundle is exercised (the extra two are
+the partial-unbundle intermediates: one child detached while the other is still
+bundled) — even though the raw reachable-state count **explodes**
+`1,093 → 339,744 → 136,366,732` across `T = 2,3,4`. More threads multiply
+interleavings, serials, and increment counts but reach **no new safety-relevant
+tree structure**. The one quantity that *does* scale with `T` is the payload
+increment count; its **correctness** (no lost or doubled update) is a per-node
+CAS-serialization property, and `TerminalPayloadCheck` passes at every checked
+`T`, including the 136 M-state `T = 4` run. (Numbers: `VERIFICATION.md`, the
+thread-saturation table.)
 
-**The reduction (thread-axis cutoff).** Suppose Φ is violated by a behaviour
-with `T` threads. The violating state is reached by a finite prefix; take its
-*cone of influence* `C` — the successful CASes whose written values feed
-(transitively) the linkage that Φ evaluates. By §8.1 locality `C` is **bounded
-in breadth** (each CAS touches `{self} ∪ immediate neighbours ∪ root anchor`),
-though it may be long (per node bounded by `MaxCommits`). Re-assign the threads
-performing `C` onto a pool of `k`: CASes at one node are already serialized
-(Fact B) and replay on a reused pool member across iterations; CASes on
-causally-independent footprint regions take distinct pool members. By Fact C the
-*values* are unchanged under the re-assignment (no CAS value depends on `tid`,
-and Φ is insensitive to the re-uniquified serial, Fact A). The re-assigned
-behaviour uses `≤ k` threads and still violates Φ. Contrapositive: **Φ at
-`T = k` ⇒ Φ at all `T`.**
-
-**The cutoff constant `k`.** `k` is the largest antichain of
-*footprint-overlapping, simultaneously in-flight commit transactions* on the
-cutoff tree — equivalently, the number of distinct **commit-target nodes** whose
-footprints overlap. This is a tree-determined constant, **not** a function of
-`T`, and it is governed by *which nodes are commit targets*, not by the tree's
-node count. In the verified model the commit targets are exactly the **root and
-the leaves**: a root transaction (`CommitGrand`, target `Grand`) bundles the
-whole subtree in one transaction, and each leaf transaction (`CommitChild`,
-target `Cᵢ`) commits a leaf directly. The interior node `Parent` is **never a
-direct commit target** — it is a pure fold-intermediate, touched only as a phase
-of the root's downward bundle or a leaf's upward unbundle (spec comment, "Parent
-is not targeted here"). Hence the overlapping-commit antichain is
-`{root-commit, leaf-commit C₁, leaf-commit C₂}` ⇒ **`k = 3`**, and — because the
-interior carries no independent commit role — this is the same `k = 3` at
-2-level, 3-level, *and every greater depth* (deeper trees only lengthen each
-transaction's fold, adding no new concurrent commit target). This is exactly why
-**`T = 3` with thread `SYMMETRY` is the checked cutoff**, matching the `3thr_*`
-configs in `VERIFICATION.md`.
-
-*(Were the workload extended so that interior nodes are themselves commit
-targets, `k` would grow to the number of mutually-overlapping committed nodes on
-a root-to-leaf path of the cutoff tree — still a small constant bounded by the
-cutoff tree, independent of `T`. The essential claim is unchanged: `k` is
-tree-bounded, never a function of the thread count.)*
-
-**Status (honest).** Facts A–C are checked by inspection of the spec; the
-reduction's one sketch-step — "re-assign the cone of influence onto `k` threads,
-values unchanged" — is the **order-sensitive data-independence reduction**
-(Lazić 1999; the equality-only case is Wolper 1986) specialised to this protocol.
-Its hypothesis is the *tie-break-only* use of the `tid` order established in
-Fact C (the `tid` total order touches the safety-relevant state only as the
-low-order Lamport tie-break, and only between causally-concurrent events). Two
-standard routes make it a machine-checked theorem: **(a)** a TLAPS simulation
-proof `Spec(T) ⊑ Spec(k)` on the linkage projection; or **(b)** a *saturation
-check* — add `VIEW linkage` and verify the reachable *linkage-projection* state
-set is identical at `T = k` and `T = k+1` (no `(k+1)`-th thread enlarges it),
-which by `SYMMETRY` + the reduction lifts to all `T`. We have run `T ≤ 3`
-exhaustively with full `SYMMETRY` (no violation — the empirical face of
-saturation). Closing (a) or (b) makes safety fully ∀`T`; until then it is "∀
-tree shape, `T ≤ 3` (+ symmetry), with a concrete order-sensitive
-data-independence route to ∀`T` (cutoff `k = 3`)".
+**Status (honest).** Safety is *mechanically verified* for all tree shapes
+(Lemmas 1–2) and for thread counts up to the contention bound (`T ≤ 3` full
+protocol; `T = 4` contention core, 136 M states), with sound symmetry (i) and
+observed structural saturation (iii). We present **∀`T` safety as a conjecture**,
+not a mechanized theorem — supported by (a) the safety-relevant structure being
+finite and *observed* stable across `T` (set-identical `T=2 ≡ T=3`), and (b) the
+identity-free, CAS-serialized structure of the protocol (Facts A–C). This scoping
+is deliberate: parameterized verification is undecidable in general, and we do
+not rest any claim on an unmechanized cutoff. Promoting the conjecture to a
+theorem — a guided TLAPS simulation `Spec(T) ⊑ Spec(3)`, or a separately-validated
+thread-free abstract CAS model whose reachable structure is checked equal to the
+saturated projection — is future work.
 
 **Safety vs. liveness, cleanly separated.** §5.1 (safety) never invokes the gate
 — Facts A–C are gate-free, and the gate only *shrinks* the reachable linkage set
@@ -240,10 +222,13 @@ ranking).
 
 The exhaustive TLC runs at `H = 3`, `N = 2`, superfine atomicity (the
 `*_3thr_superfine_*` and 2-thread superfine configurations in
-`VERIFICATION.md` §"3-level"/"2-level") therefore constitute a **complete
-proof of the safety invariants for the unbounded family of trees and thread
-counts**, not merely for the instances checked. The bounded runs are the base
-case of the cutoff, not the whole argument.
+`VERIFICATION.md` §"3-level"/"2-level") therefore constitute, **for the tree
+axis**, a complete proof of the safety invariants on the unbounded family of
+trees — not merely the instances checked: they are the base case of the
+structural cutoff (§§3–5), and Lemmas 1–2 lift them to all `H`, `N`. **For the
+thread axis** these same runs are the exhaustive base (up to the contention
+bound) plus the structural-saturation measurement that *support the ∀`T`
+conjecture* (§5.1) — they are not, and we do not present them as, a ∀`T` proof.
 
 ## 7. Liveness (livelock-freedom): an oldest-tag ranking function
 
@@ -341,21 +326,17 @@ the orthogonal `priorityTag` / `CanProceed` / `TagAfterFail` tagging.)*
 4. **Serial arithmetic.** Priority comparison is the pairwise unsigned-
    difference of Lamport serials, independent of `N`; wraparound is bounded far
    below `2^47`, so enlarging `N` cannot induce a spurious ordering.
-5. **Thread-axis data-independence simulation (the main open safety lemma).**
-   The thread cutoff (§5.1) rests on Facts A–C — all checked by inspection — plus
-   one sketch step: that the cone of influence of any violation re-assigns onto
-   `k = 3` threads with unchanged linkage values. This is the *order-sensitive*
-   data-independence reduction (Lazić 1999; the equality-only case is Wolper
-   1986); its hypothesis is Fact C's *tie-break-only* use of the `tid` order (the
-   `tid` total order reaches safety-relevant state only as the low-order Lamport
-   tie-break, decided between causally-concurrent events alone, since `GenSerial`
-   makes `counter` dominate causal order). Discharge route **(a)** a TLAPS
-   simulation `Spec(T) ⊑ Spec(k)` on the linkage projection, or **(b)** a TLC
-   *saturation* check (`VIEW linkage`) that the reachable linkage-projection state
-   set is equal at `T = k` and `T = k+1`. Until then safety is ∀ tree shape ×
-   (`T ≤ 3` + symmetry); this is the one obligation between that and fully ∀`T`.
-   (The gate is *not* on this list: it only shrinks the reachable linkage set,
-   §5.1 Fact B.)
+5. **Thread axis is a conjecture, not a theorem (deliberate scope).** Safety is
+   mechanically verified to the contention bound (`T ≤ 3` full protocol; `T = 4`
+   contention core, 136 M states) under sound symmetry, and the identity-free
+   bundle-structure is *observed* to saturate (set-identical `T = 2 ≡ T = 3`;
+   §5.1). ∀`T` is presented as a strongly-evidenced conjecture — not proven —
+   consistent with the general undecidability of parameterized verification. No
+   claim in this document rests on an unmechanized ∀`T` cutoff. Promoting it to a
+   theorem (a guided TLAPS simulation `Spec(T) ⊑ Spec(3)`, or a
+   separately-validated thread-free abstract CAS model checked equal to the
+   saturated projection) is future work. (The gate is irrelevant here: it only
+   shrinks the reachable linkage set, §5.1 Fact B.)
 
 ## 8.1 Footprint table (discharges obligation #1)
 
@@ -398,14 +379,17 @@ obligation 2.)*
 
 ## 9. One-line summary for the paper
 
-> **Safety**: ∀ tree shape (arbitrary depth and width) via a structural-cutoff
-> theorem — bundle and unbundle are height/width-uniform catamorphisms ⇒ a
-> depth-3, width-2 cutoff. The thread axis reduces by data-independence +
-> locality (the safety predicates are gate- and serial-free structural
-> invariants; per-node linkage is CAS-serialized; thread IDs enter only a
-> Lamport-serial uniquifier) to a constant cutoff `k = 3`, checked exhaustively
-> with thread symmetry (§5.1), with a concrete TLAPS/saturation route to ∀`T`.
-> **Liveness** (livelock-freedom): ∀`N` via an oldest-tag ranking function on the
-> priority gate — no thread cutoff required. The gate is a pure liveness device,
-> disjoint from the safety argument. Exhaustive TLC at the cutoff
-> (`VERIFICATION.md`) discharges the finite base cases.
+> **Safety, tree axis**: ∀ tree shape (arbitrary depth and width) via a
+> structural-cutoff theorem — bundle and unbundle are height/width-uniform
+> catamorphisms ⇒ a depth-3, width-2 cutoff, discharged exhaustively by TLC.
+> **Safety, thread axis**: *not* claimed as a ∀`T` theorem. Thread symmetry is
+> sound (IDs enter only a Lamport-serial uniquifier) but, being permutation only,
+> does not reduce the thread count. We verify exhaustively to the contention
+> bound (`T ≤ 3` full protocol; `T = 4` core = 136 M states, all pass) and
+> *measure* that the identity-free bundle-structure saturates (set-identical
+> `T = 2 ≡ T = 3`: 4 structures bundle-only, 6 with unbundle; raw states explode
+> 1k→340k→136 M). ∀`T` is a strongly-evidenced **conjecture**, consistent with
+> the undecidability of parameterized verification. **Liveness**
+> (livelock-freedom): ∀`N` via an oldest-tag ranking-function argument on the
+> priority gate — no thread cutoff required, a sketch verified exhaustively at
+> small `T` (§7). The gate is a pure liveness device, disjoint from safety.

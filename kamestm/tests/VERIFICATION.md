@@ -372,6 +372,41 @@ The micro/fine row is `BundleUnbundle_2level_LLfree_micro_mc.cfg` (re-run
 reachable interleavings at the same depth 89, so the current figure is
 867,696. Full / historical results: `tests/tlaplus/doc/verification_log.md`.
 
+### Thread-axis saturation (T-scaling experiment, 2026-06-23)
+
+A direct probe of the thread-axis cutoff *conjecture*
+(`tests/tlaplus/doc/parameterized_cutoff.md` §5.1): do more threads create new
+safety-relevant behaviour, or only more interleavings? Coarse 2-level,
+`MaxCommits=1`, **no** symmetry (raw reachable sets), TLC on Apple M-series. Each
+config reports the **raw** distinct-state count and the **structural** count —
+the reachable set projected onto the identity-free bundle structure (per node:
+`hasPriority`/`bundledBy`/`missing`/which `sub` slots are populated; `serial` and
+payload value dropped — exactly the fields the structural invariants read).
+
+| Workload | T | Raw distinct states | Structural states | Safety |
+|---|---|---|---|---|
+| all-root (bundle contention) | 2 | 1,093 | 4 | Pass |
+| all-root | 3 | 339,744 | 4 — **set-identical to T=2** (`diff` empty) | Pass |
+| all-root | 4 | 136,366,732 | — (136 M, not dumped) | **Pass** (28 min, no error) |
+| both-roles (bundle + unbundle) | 2 | 350,281 | 6 (= the 4 + 2 partial-unbundle) | Pass |
+
+- **Raw state count explodes** with `T` (1k → 340k → 136 M): the combinatorial
+  interleaving/serial/payload growth that makes brute-force ∀`T` hopeless.
+- **The safety-relevant structure saturates**: the 4 all-root structures at `T=2`
+  and `T=3` are the *same set* (`diff` empty), not merely the same count — a third
+  thread reaches **no new tree structure**.
+- The `T=4` all-root run (all 4-thread interleavings, 136 M states) finds **no
+  invariant violation**: a direct check that no dangerous 4-thread CAS pattern
+  exists at this instance (TLC would emit a counterexample trace otherwise).
+- The 6 both-roles structures are the 4 bundle structures plus 2 partial-unbundle
+  intermediates (one child detached, the other still bundled).
+
+This **supports the ∀`T` conjecture** (§5.1) — a measurement that the identity-free
+safety structure is finite and stable across checked thread counts, **not** a ∀`T`
+proof. (3-level coarse `T=2` reaches ≥ 9 structures; full 3-level/superfine
+saturation and an exhaustive `T=4` both-roles run were not completed — the latter's
+state space exceeds budget, ~195 M distinct in 40 min without exhausting.)
+
 ### Equivalence of the existing models with the new C++ Phase 4 reachability gate
 
 The hard-link work (§5) introduced a `Packet::allSubReachable` gate
