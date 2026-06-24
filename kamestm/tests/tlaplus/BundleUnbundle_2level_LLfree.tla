@@ -917,6 +917,59 @@ MissingPropagation ==
 Safety == SnapshotConsistency /\ NoPriorityLoss /\ BundleRefConsistency
           /\ NoSerialWrapAround /\ MissingPropagation
 
+\* --------------------------------------------------------------------------
+\* Candidate structural inductive-invariant conjuncts (parameterized-cutoff
+\* §7 / sigma_closure memo). Each is LOCAL (one parent + its immediate
+\* children) and level-uniform; together with the four safety invariants they
+\* characterize EXACTLY the reachable structural σ-set (diag_B.py: the
+\* permitted set B shrinks 40→20→13→10→6 as these are added, and the last
+\* equals the measured reachable set A=6 for 2-level all-root superfine).
+\* Phase 2: prove the conjunction inductive (TLC inductive mode / TLAPS) to
+\* lift structural safety from conjecture to ∀H,∀T theorem.
+\*
+\* These reference linkage[Parent].packet, well-defined because Parent is the
+\* always-priority root in the 2-level tree (same assumption as Snapshot-
+\* Consistency / MissingPropagation above). The `sub[c] /= Null =>` guards
+\* make the nested-field reads safe (TLC short-circuits the implication).
+\* --------------------------------------------------------------------------
+
+\* WF1: any present sub-copy is non-missing. (Unconditional strengthening of
+\* MissingPropagation's inner clause: 2-level sub copies are leaf packets,
+\* which carry no children and are therefore never `missing`.)
+SubNeverMissing ==
+    \A c \in Children :
+        linkage[Parent].packet.sub[c] /= Null
+            => ~linkage[Parent].packet.sub[c].missing
+
+\* WF2: a bundled child has its copy materialised in the parent packet
+\* (bundling sets the back-ref and the parent sub slot together).
+BundledHasCopy ==
+    \A c \in Children :
+        ~linkage[c].hasPriority => linkage[Parent].packet.sub[c] /= Null
+
+\* Staleness: a child that holds its own priority packet cannot coexist with a
+\* finalized (non-missing) parent still advertising a sub copy for it — the
+\* parent must be `missing` while a child's authoritative copy lives in the
+\* child. (Excludes the invariant-satisfying-but-unreachable "finalized parent
+\* + freshly-unbundled child" σ.)
+StaleParentExcluded ==
+    \A c \in Children :
+        ( linkage[c].hasPriority /\ linkage[Parent].packet.sub[c] /= Null )
+            => linkage[Parent].packet.missing
+
+\* Sub-presence uniformity: Phase-1 collects every child's sub-packet and
+\* Phase-2 installs them into the parent atomically, so the parent's sub slots
+\* are populated all-together or not-at-all — never an asymmetric subset.
+SubPresenceUniform ==
+    \A c1, c2 \in Children :
+        (linkage[Parent].packet.sub[c1] /= Null)
+            <=> (linkage[Parent].packet.sub[c2] /= Null)
+
+\* The candidate structural inductive invariant (safety ∧ the four conjuncts).
+InductiveStruct ==
+    Safety /\ SubNeverMissing /\ BundledHasCopy
+          /\ StaleParentExcluded /\ SubPresenceUniform
+
 \* DebugSerialBound: NEUTERED — Lamport-style GenSerial (TID-encoded
 \* counter, mirrors C++ SerialGenerator) advances unboundedly per wrapper
 \* allocation. LL-free priority gating now guarantees termination. Kept

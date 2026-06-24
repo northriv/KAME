@@ -1718,6 +1718,57 @@ Safety ==
     /\ MissingPropagation
     /\ NoSerialWrapAround
 
+\* --------------------------------------------------------------------------
+\* Candidate structural inductive-invariant conjuncts, level-uniform form
+\* (parameterized-cutoff §7). Each quantifies over every inner node n and its
+\* immediate children ChildrenOf(n), guarded by linkage[n].hasPriority so the
+\* packet read is well-defined when n is itself bundled. These are the
+\* 3-level generalizations of the 2-level conjuncts (which characterized the
+\* reachable σ-set exactly). Validity here (no violation on reachable states)
+\* is the σ-closure check for the 3-level tree; tightness is a separate
+\* (diag) question.
+\* --------------------------------------------------------------------------
+
+\* Staleness: a child holding its own priority packet cannot coexist with a
+\* finalized (non-missing) inner node still advertising a sub copy for it.
+StaleParentExcluded ==
+    \A n \in InnerNodes :
+        linkage[n].hasPriority =>
+            \A c \in ChildrenOf(n) :
+                ( linkage[c].hasPriority /\ linkage[n].packet.sub[c] /= Null )
+                    => linkage[n].packet.missing
+
+\* Sub-presence uniformity: an inner node's child sub-slots are populated
+\* all-together or not-at-all (Phase-1/2 install them atomically).
+SubPresenceUniform ==
+    \A n \in InnerNodes :
+        linkage[n].hasPriority =>
+            \A c1, c2 \in ChildrenOf(n) :
+                (linkage[n].packet.sub[c1] /= Null)
+                    <=> (linkage[n].packet.sub[c2] /= Null)
+
+\* A bundled child has its copy materialised in its parent's packet.
+BundledHasCopy ==
+    \A n \in InnerNodes :
+        linkage[n].hasPriority =>
+            \A c \in ChildrenOf(n) :
+                ~linkage[c].hasPriority => linkage[n].packet.sub[c] /= Null
+
+\* Leaf sub-copies are never missing (leaves carry no children). Restricted to
+\* leaf children — an inner child (Parent under Grand) CAN be missing, so this
+\* does not apply there (MissingPropagation governs that case).
+SubNeverMissing ==
+    \A n \in InnerNodes :
+        linkage[n].hasPriority =>
+            \A c \in ChildrenOf(n) \cap LeafNodes :
+                linkage[n].packet.sub[c] /= Null
+                    => ~linkage[n].packet.sub[c].missing
+
+\* The candidate structural inductive invariant (3-level), σ-closure predicate.
+InductiveStruct ==
+    Safety /\ SubNeverMissing /\ BundledHasCopy
+          /\ StaleParentExcluded /\ SubPresenceUniform
+
 \* ChildPayload(c): extract the effective payload for a ParentChild c,
 \* regardless of whether it is currently priority (unbundled), bundled
 \* under Parent, or transitively bundled under Grand (when Parent itself
