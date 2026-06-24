@@ -405,6 +405,12 @@ CyFXLibUSBDevice::getString(int descid) {
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms) {
+    if( !handle)
+        //Device was closed (e.g. USB link lost / interface stopped) concurrently with a write.
+        //Throw a catchable error here instead of submitting a transfer on a null dev_handle,
+        //which makes libusb_submit_transfer() hit an internal assertion and abort() the whole
+        //process (observed via the XThamwayPROT status-poll thread).
+        throw XInterface::XInterfaceError("USB: bulk write attempted on a closed device handle.\n", __FILE__, __LINE__);
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     std::memcpy( &async->buf[0], buf, len);
@@ -421,6 +427,12 @@ CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsign
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int timeout_ms) {
+    if( !handle)
+        //Device was closed (e.g. USB link lost / interface stopped) concurrently with a read.
+        //Throw a catchable error here instead of submitting a transfer on a null dev_handle,
+        //which makes libusb_submit_transfer() hit an internal assertion and abort() the whole
+        //process (observed via the XThamwayPROT status-poll thread).
+        throw XInterface::XInterfaceError("USB: bulk read attempted on a closed device handle.\n", __FILE__, __LINE__);
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     async->rdbuf = buf;

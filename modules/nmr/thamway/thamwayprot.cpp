@@ -236,6 +236,8 @@ XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool singl
         }
         catch (XInterface::XInterfaceError &e) {
             e.print();
+            if( !single && !terminated)
+                msecsleep(1000); //back off on error (e.g. USB link lost) so a closed device is not hammered.
         }
         if(single || terminated)
             break;
