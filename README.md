@@ -296,7 +296,8 @@ release.
 `Linkage::negotiate()` elects a single *privileged* transaction (age-ordered
 preemption + priority bands; non-privileged contenders **park** until the
 privileged one commits), so the oldest/highest-priority Tx always makes
-progress. Proven livelock-free in TLA+. Full details + the comparison
+progress. Model-checked livelock-free in TLA+ (exhaustively for the checked
+thread counts and tree shapes). Full details + the comparison
 against other STMs (Haskell `TVar` / Clojure `Ref` / ScalaSTM, HTM TSX/RTM,
 TinySTM / NOrec) live in [`kamestm/README.md`](kamestm/README.md) — KAME's
 STM core is dual-licensed and maintained as a standalone library, with its
@@ -334,7 +335,7 @@ see the [comparison tables in `kamestm/README.md`](kamestm/README.md#comparison-
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](kamestm/tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
-- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](kamestm/tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Proven **safe + livelock-free** without `CONSTRAINT`, exhausted to >1.1 billion states on the ISSP ohtaka supercomputer.
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](kamestm/tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](kamestm/tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
 - **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate (`kamestm/tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
 **Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).

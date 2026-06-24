@@ -114,9 +114,10 @@ LOW-priority holders (LOWEST / UI_DEFERRABLE / SCRIPTING) can be expired or
 evicted; NORMAL / HIGHEST (measurement / driver-critical) are immune.
 Non-privileged contenders **park** (`negotiate_sleep` / yield to the
 privileged Tx) instead of spinning, so the oldest/highest-priority
-transaction always makes progress — proven livelock-free in TLA+ (the
-Layer-2 `BundleUnbundle_*_LLfree` specs below, which model exactly this
-privileged-TID negotiate). This replaces the earlier
+transaction always makes progress — model-checked livelock-free in TLA+
+(the Layer-2 `BundleUnbundle_*_LLfree` specs below, which model exactly this
+privileged-TID negotiate; exhaustive for the checked thread counts and tree
+shapes). This replaces the earlier
 proportional-timestamp-wait backoff.
 
 `iterate_commit_while(lambda)` lets the caller abort the retry loop (return `false` from the lambda to stop), enabling conditional transactions.
@@ -135,16 +136,16 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 |---|---|---|
 | Conflict granularity | Per-variable | Per-packet (subtree root) |
 | Read model | `readTVar` / `deref` inside transaction | `Snapshot` (outside) or `tr[*node]` (inside) |
-| Consistency scope | Variables listed explicitly | Entire subtree, guaranteed by bundling |
+| Consistency scope | The read/write set actually accessed, tracked dynamically (not declared up front) | Entire subtree, guaranteed by bundling |
 | Commit log | Redo log or write set | Copy-on-write + CAS on single `Linkage` |
 | Retry primitive | `retry` / `orElse` (Haskell) | `iterate_commit` / `iterate_commit_while` |
 | Blocking | `retry` suspends on read-set change | No data-structure locks; a repeatedly-colliding Tx yields/parks to the privileged (oldest / highest-priority) Tx |
 | Memory management | GC | Lock-free `atomic_shared_ptr` (ref-counted) |
-| Hard real-time suitability | Limited (GC pauses) | Good (no GC, bounded CAS retries) |
+| Hard real-time suitability | Limited (GC pauses) | Better (no GC pauses); livelock-free negotiation keeps the oldest Tx progressing — though CAS retry *counts* are not hard-bounded, so not hard-RT in a strict WCET sense |
 
 **Compared to Hardware Transactional Memory (Intel TSX/RTM):** HTM aborts on cache-line conflicts regardless of logical independence, and has strict capacity limits. KAME's STM aborts only on semantic conflicts (packet identity change), tolerates large read sets, and degrades gracefully to age-ordered privileged-Tx negotiation (the colliding losers yield to the oldest transaction) rather than falling back to a global lock.
 
-**Compared to TinySTM / NOrec (C libraries):** These use a global version clock and per-object version stamps with a full read/write log per transaction. KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction are truly zero-overhead. The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
+**Compared to TinySTM / NOrec (C libraries):** Both use a global version clock and keep a read/write log per transaction, but differ on per-object metadata — TinySTM uses per-object version locks, whereas NOrec deliberately keeps *none* (it validates the read set by value against the global clock; the name is "No Ownership Records"). KAME avoids the read log entirely — a `Snapshot` is just an immutable pointer, so reads outside a transaction are truly zero-overhead. The trade-off is that KAME's write path must clone the payload upfront (copy-on-write), whereas log-based STMs defer that cost to commit time.
 
 **What makes KAME's design distinctive** is the *bundling* protocol: rather than tracking which variables a transaction touched, it tracks whether the packet at the subtree root has been replaced since the transaction started. This is efficient for KAME's access pattern (many readers of a stable tree, infrequent writes from acquisition threads) but would be coarser than necessary for workloads with many independent fine-grained variables.
 
@@ -153,7 +154,7 @@ Most widely-used STMs (GHC/Haskell `TVar`, Clojure `Ref`/`dosync`, ScalaSTM) are
 The STM protocol is formally specified and model-checked with TLA+ / TLC:
 
 - **Layer 1 — `atomic_shared_ptr`:** tagged-pointer CAS protocol with local/global reference counting, drain release, and `scoped_atomic_view` ([spec](tests/tlaplus/atomic_shared_ptr.tla)). Safety only — the bare primitive is intentionally *not* livelock-free.
-- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Proven **safe + livelock-free** without `CONSTRAINT`, exhausted to >1.1 billion states on the ISSP ohtaka supercomputer.
+- **Layer 2 — bundle/unbundle + commit:** 2-/3-level subtree bundling with a livelock-free privileged-TID negotiate mechanism, static and dynamic (online insert/release) ([2-level](tests/tlaplus/BundleUnbundle_2level_LLfree.tla), [3-level](tests/tlaplus/BundleUnbundle_3level_LLfree.tla), [dynamic](tests/tlaplus/BundleUnbundle_2level_LLfree_dynamic.tla)). Exhaustively model-checked **safe + livelock-free** without `CONSTRAINT` (the LL-free design makes the state space naturally finite — no artificial bound); the largest single exhaustive run reaches **641 M distinct states** (3-level all-root, 15 h on the ISSP ohtaka supercomputer), over a billion across the LL-free configurations combined. These are exhaustive results for the checked configurations (fixed thread counts and tree shapes), not an unbounded ∀-thread proof.
 - **Hard-link topologies:** multi-parent / one-child races that reproduce and fix a production abort via a Phase-4 reachability gate (`tests/tlaplus/BundleUnbundle_hardlink_*.tla`).
 
 **Slide decks** — start at the **coverage overview** ([EN](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_overview_en.html) · [JA](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc_ja/slides_overview.html)), a hub linking every layer with a full coverage matrix. Individual decks (each with a Japanese counterpart under `doc_ja/`): [Layer 1](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer1_en.html), [Layer 2 base](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_en.html), [Layer 2 LLfree](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree.html), [3-level](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_3level_en.html), [dynamic](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_layer2_LLfree_dynamic_en.html), [hard-link](https://northriv.github.io/KAME/kamestm/tests/tlaplus/doc/slides_hardlink_en.html).
