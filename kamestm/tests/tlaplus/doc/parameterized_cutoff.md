@@ -26,10 +26,11 @@ and uniform in both height and width (§§3–6).
 
 The **thread axis** is harder and we are honest about it: there is no clean
 mechanical ∀`T` proof (parameterized verification is undecidable in general), so
-we do *not* claim one. We instead establish sound thread symmetry, check
-exhaustively to the contention bound, and *measure* that the safety-relevant
-state space saturates — presenting ∀`T` as a strongly-evidenced conjecture
-(§5.1). The reader should read "∀ tree shape, all thread counts" as "proven for
+we do *not* claim one. We instead rely on the identity-free safety state (thread
+symmetry holds *semantically*, though TLC cannot apply it as a reduction — §5.1),
+check exhaustively to the contention bound, and *measure* that the safety-relevant
+state space saturates in the faithful superfine model — presenting ∀`T` as a
+strongly-evidenced conjecture (§5.1). The reader should read "∀ tree shape, all thread counts" as "proven for
 trees; conjectured-with-strong-evidence for threads."
 
 ## 2. Model and notation
@@ -122,11 +123,14 @@ threads working on *different* children. A third child only repeats them.
 - *Threads.* Not reduced to a theorem (§5.1). The safety predicates are gate-
   and serial-free structural invariants (Fact A), per-node linkage is
   CAS-serialized (Fact B), and thread identity enters only as a serial
-  uniquifier (Fact C) — so thread `SYMMETRY` is *sound* but, being permutation
-  only, does **not** reduce the thread count. We instead verify exhaustively to
-  the contention bound (`T ≤ 3` full / `T = 4` core) and observe that the
-  identity-free bundle-structure saturates (set-identical `T = 2 ≡ T = 3`),
-  giving ∀`T` as a strongly-evidenced conjecture. ∎
+  uniquifier (Fact C) — so thread symmetry holds *semantically*, though TLC
+  cannot apply it (the `TagOlder` tid-`<` tie-break needs ordered-natural ids,
+  which TLC `SYMMETRY` rejects) and it is permutation-only anyway, so it would
+  never reduce the thread count. We instead verify exhaustively to the contention
+  bound (full superfine `T ≤ 3` / coarse `T = 4`) and observe that the
+  identity-free bundle-structure saturates in the faithful superfine model
+  (set-identical `T = 2 ≡ T = 3`, 6 structures), giving ∀`T` as a
+  strongly-evidenced conjecture. ∎
 
 ## 5.1 The thread axis: exhaustive checking + structural saturation (∀`T` as a conjecture)
 
@@ -136,8 +140,9 @@ The depth and width axes admit clean structural reductions (Lemmas 1–2). The
 (Apt–Kozen 1986); a sound mechanical ∀`T` proof for this protocol would require a
 guided TLAPS development or a separately-validated thread-free abstraction,
 neither of which we mechanize. Instead we establish the thread axis by three
-machine-checkable ingredients — **sound symmetry**, **exhaustive checking to the
-contention bound**, and a **measured structural-saturation** result — and present
+machine-checkable ingredients — the **identity-free safety state** (Facts A–C),
+**exhaustive checking to the contention bound**, and a **measured
+structural-saturation** result in the faithful superfine model — and present
 ∀`T` safety as a strongly-evidenced **conjecture**. The priority gate
 (`priorityTag` / `CanProceed`) plays no role here — it is a liveness device (§7);
 the three facts below are gate-independent.
@@ -164,43 +169,58 @@ the three facts below are gate-independent.
   equality-only case). The safety-relevant behaviour is thus invariant under any
   permutation of thread identities.
 
-**(i) Sound symmetry.** By A–C the system is symmetric under
-`Permutations(Threads)`, so TLC's `SYMMETRY` reduction is **sound** for the
-safety invariants. Crucially, symmetry reduces the state space at a *fixed* `T`;
-it does **not** reduce `T` itself — collapsing thread *permutations* never maps a
-`T`-thread run to a `(T-1)`-thread run. **Symmetry ≠ cutoff**; it makes the
-bounded checks below sound and faster, nothing more.
+**(i) Thread symmetry — semantic, but not applied as a TLC reduction.** By A–C
+the safety state is identity-free, hence invariant under any permutation of
+`Threads`: thread symmetry holds *semantically*. It is **not**, however, applied
+as a TLC `SYMMETRY` reduction. The LL-free `TagOlder` compares thread ids by `<`
+(the Lamport tie-break), which forces `Threads` to be **ordered naturals**;
+TLC's `SYMMETRY` requires a **model-value** set as its domain — the two are
+mutually exclusive (TLC rejects `SYMMETRY Permutations(Threads)` outright:
+*"Symmetry function must have model values as domain and range"*). The runs below
+are therefore **full, with no symmetry reduction**. This costs state-space but
+nothing in soundness — and in any case **symmetry ≠ cutoff**: it would only
+shrink the count at a *fixed* `T`, never reduce the thread count.
 
 **(ii) Exhaustive checking to the contention bound.** On the cutoff tree the
 commit targets are just the root and the two leaves — the interior node is never
 a direct commit target ("Parent is not targeted here", spec) — so the genuinely
-concurrent contention is ≈ 3. We model-check the full **superfine** protocol
-exhaustively at `T ≤ 3` with symmetry, and the coarse 2-level contention core at
-`T = 4`: **136,366,732 distinct states, all safety invariants hold** (28 min, no
-error). A dangerous `N`-thread CAS interleaving within these bounds would surface
-as an invariant violation with a concrete counterexample trace; none does.
+concurrent contention is ≈ 3. We exhaustively model-check the full **superfine**
+protocol (the most-interleaved, C++-faithful atomicity) at `T ≤ 3` (full, no
+symmetry per (i)): the `T = 3` all-root configuration is **137,333,348 distinct
+states** (ISSP ohtaka, ~5 h), all safety invariants hold. As a larger-`T`
+cross-check the *coarse* 2-level core at `T = 4` is **136,366,732 distinct
+states**, also all-pass. A dangerous `N`-thread CAS interleaving within these
+bounds would surface as an invariant violation with a concrete counterexample
+trace; none does.
 
-**(iii) Structural saturation (measured).** Project each reachable state onto its
-**identity-free bundle structure** — per node ⟨`hasPriority`, `bundledBy`,
-`missing`, which `sub` slots are populated⟩, dropping `serial` and payload value
-(exactly the fields the structural invariants read). Computed from the exhaustive
-dumps, this projection is a small finite set that **saturates**: it is
-**set-identical at `T = 2` and `T = 3`** (verified by diff) — **4** structures
-for the bundle-only workload, **6** once unbundle is exercised (the extra two are
-the partial-unbundle intermediates: one child detached while the other is still
-bundled) — even though the raw reachable-state count **explodes**
-`1,093 → 339,744 → 136,366,732` across `T = 2,3,4`. More threads multiply
-interleavings, serials, and increment counts but reach **no new safety-relevant
-tree structure**. The one quantity that *does* scale with `T` is the payload
-increment count; its **correctness** (no lost or doubled update) is a per-node
-CAS-serialization property, and `TerminalPayloadCheck` passes at every checked
-`T`, including the 136 M-state `T = 4` run. (Numbers: `VERIFICATION.md`, the
-thread-saturation table.)
+**(iii) Structural saturation (measured, in the faithful superfine model).**
+Project each reachable state onto its **identity-free bundle structure** — per
+node ⟨`hasPriority`, `bundledBy`, `missing`, which `sub` slots are populated⟩,
+dropping `serial` and payload value (exactly the fields the structural invariants
+read). In the **superfine** model — which exposes every per-step interleaving,
+*including the within-operation intermediates* (e.g. Phase-3 with one child
+re-pointed to a bundled-ref and the other not yet) — the all-root reachable
+projection is a **6-element set that saturates at `T = 2`**: dumping the complete
+`T = 3` exhaustion (137,333,348 states, 736 GB) and projecting shows the
+structural set is **set-identical at `T = 2` and `T = 3`** (verified by `diff`;
+σ = 6 held constant across all 137 M states). So *even in the faithful model,
+where the genuinely-concurrent interleavings live*, a third thread reaches **no
+new safety-relevant tree structure**. (The cheaper *coarse* model sees only 4 of
+these structures — it collapses each operation into one atomic step and so skips
+the two within-operation Phase-3 intermediates; it too is set-identical
+`T = 2 ≡ T = 3`, raw count `1,093 → 339,744`.) Meanwhile the raw reachable-state
+count **explodes** (`T = 2` is ~10⁵, `T = 3` is 1.37×10⁸) — more threads multiply
+interleavings, serials, and increment counts but add no new structure. The one
+quantity that *does* scale with `T` is the payload increment count; its
+**correctness** (no lost or doubled update) is a per-node CAS-serialization
+property that `TerminalPayloadCheck` confirms at every checked `T`. (Numbers:
+`VERIFICATION.md`, the thread-saturation table.)
 
 **Status (honest).** Safety is *mechanically verified* for all tree shapes
-(Lemmas 1–2) and for thread counts up to the contention bound (`T ≤ 3` full
-protocol; `T = 4` contention core, 136 M states), with sound symmetry (i) and
-observed structural saturation (iii). We present **∀`T` safety as a conjecture**,
+(Lemmas 1–2) and for thread counts up to the contention bound (full **superfine**
+`T ≤ 3` = 137 M states; coarse `T = 4` = 136 M states), and the safety-relevant
+structure is *observed to saturate in the faithful superfine model*
+(set-identical `T = 2 ≡ T = 3`, iii). We present **∀`T` safety as a conjecture**,
 not a mechanized theorem — supported by (a) the safety-relevant structure being
 finite and *observed* stable across `T` (set-identical `T=2 ≡ T=3`), and (b) the
 identity-free, CAS-serialized structure of the protocol (Facts A–C). This scoping
@@ -327,10 +347,10 @@ the orthogonal `priorityTag` / `CanProceed` / `TagAfterFail` tagging.)*
    difference of Lamport serials, independent of `N`; wraparound is bounded far
    below `2^47`, so enlarging `N` cannot induce a spurious ordering.
 5. **Thread axis is a conjecture, not a theorem (deliberate scope).** Safety is
-   mechanically verified to the contention bound (`T ≤ 3` full protocol; `T = 4`
-   contention core, 136 M states) under sound symmetry, and the identity-free
-   bundle-structure is *observed* to saturate (set-identical `T = 2 ≡ T = 3`;
-   §5.1). ∀`T` is presented as a strongly-evidenced conjecture — not proven —
+   mechanically verified to the contention bound (full superfine `T ≤ 3`, 137 M
+   states; coarse `T = 4`, 136 M states — full, no symmetry reduction, §5.1 (i)),
+   and the identity-free bundle-structure is *observed* to saturate in the
+   faithful superfine model (set-identical `T = 2 ≡ T = 3`, 6 structures; §5.1). ∀`T` is presented as a strongly-evidenced conjecture — not proven —
    consistent with the general undecidability of parameterized verification. No
    claim in this document rests on an unmechanized ∀`T` cutoff. Promoting it to a
    theorem (a guided TLAPS simulation `Spec(T) ⊑ Spec(3)`, or a
@@ -382,14 +402,16 @@ obligation 2.)*
 > **Safety, tree axis**: ∀ tree shape (arbitrary depth and width) via a
 > structural-cutoff theorem — bundle and unbundle are height/width-uniform
 > catamorphisms ⇒ a depth-3, width-2 cutoff, discharged exhaustively by TLC.
-> **Safety, thread axis**: *not* claimed as a ∀`T` theorem. Thread symmetry is
-> sound (IDs enter only a Lamport-serial uniquifier) but, being permutation only,
-> does not reduce the thread count. We verify exhaustively to the contention
-> bound (`T ≤ 3` full protocol; `T = 4` core = 136 M states, all pass) and
-> *measure* that the identity-free bundle-structure saturates (set-identical
-> `T = 2 ≡ T = 3`: 4 structures bundle-only, 6 with unbundle; raw states explode
-> 1k→340k→136 M). ∀`T` is a strongly-evidenced **conjecture**, consistent with
-> the undecidability of parameterized verification. **Liveness**
+> **Safety, thread axis**: *not* claimed as a ∀`T` theorem. Thread symmetry holds
+> semantically (IDs enter only a Lamport-serial uniquifier) but TLC cannot apply
+> it (the tid tie-break needs ordered-natural ids) and is permutation-only anyway,
+> so it would not reduce the thread count. We verify exhaustively to the contention
+> bound (full **superfine** `T = 3` = 137 M states; coarse `T = 4` = 136 M, all
+> pass) and *measure*, in the faithful superfine model, that the identity-free
+> bundle-structure **saturates** (set-identical `T = 2 ≡ T = 3`, 6 structures,
+> over the complete 137 M-state `T = 3` exhaustion) — while the raw state count
+> explodes (~10⁵ → 1.37×10⁸). ∀`T` is a strongly-evidenced **conjecture**,
+> consistent with the undecidability of parameterized verification. **Liveness**
 > (livelock-freedom): ∀`N` via an oldest-tag ranking-function argument on the
 > priority gate — no thread cutoff required, a sketch verified exhaustively at
 > small `T` (§7). The gate is a pure liveness device, disjoint from safety.

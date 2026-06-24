@@ -372,40 +372,54 @@ The micro/fine row is `BundleUnbundle_2level_LLfree_micro_mc.cfg` (re-run
 reachable interleavings at the same depth 89, so the current figure is
 867,696. Full / historical results: `tests/tlaplus/doc/verification_log.md`.
 
-### Thread-axis saturation (T-scaling experiment, 2026-06-23)
+### Thread-axis saturation (T-scaling experiment, 2026-06-23/24)
 
 A direct probe of the thread-axis cutoff *conjecture*
 (`tests/tlaplus/doc/parameterized_cutoff.md` §5.1): do more threads create new
-safety-relevant behaviour, or only more interleavings? Coarse 2-level,
-`MaxCommits=1`, **no** symmetry (raw reachable sets), TLC on Apple M-series. Each
-config reports the **raw** distinct-state count and the **structural** count —
-the reachable set projected onto the identity-free bundle structure (per node:
+safety-relevant behaviour, or only more interleavings? 2-level, `MaxCommits=1`,
+**no** symmetry (raw reachable sets — the LL-free `TagOlder` tid-`<` forces
+ordered-natural thread ids, which TLC `SYMMETRY` rejects, §5.1 (i)). Each config
+reports the **raw** distinct-state count and the **structural σ** count — the
+reachable set projected onto the identity-free bundle structure (per node:
 `hasPriority`/`bundledBy`/`missing`/which `sub` slots are populated; `serial` and
-payload value dropped — exactly the fields the structural invariants read).
+payload value dropped — exactly the fields the structural invariants read). The
+headline result is in the **superfine** (most-interleaved, C++-faithful) model.
 
-| Workload | T | Raw distinct states | Structural states | Safety |
-|---|---|---|---|---|
-| all-root (bundle contention) | 2 | 1,093 | 4 | Pass |
-| all-root | 3 | 339,744 | 4 — **set-identical to T=2** (`diff` empty) | Pass |
-| all-root | 4 | 136,366,732 | — (136 M, not dumped) | **Pass** (28 min, no error) |
-| both-roles (bundle + unbundle) | 2 | 350,281 | 6 (= the 4 + 2 partial-unbundle) | Pass |
+| Atomicity | Workload | T | Raw distinct states | Structural σ | Safety |
+|---|---|---|---|---|---|
+| **superfine** | all-root | 2 | 124,244 | **6** | Pass |
+| **superfine** | all-root | 3 | **137,333,348** | **6 — set-identical to T=2** (`diff` empty; σ=6 across all 137 M) | **Pass** (ohtaka F1cpu: TLC 5h08m + 736 GB dump + projection 3h08m) |
+| coarse | all-root | 2 | 1,093 | 4 | Pass |
+| coarse | all-root | 3 | 339,744 | 4 — set-identical to T=2 (`diff` empty) | Pass |
+| coarse | all-root | 4 | 136,366,732 | — (136 M, not dumped) | **Pass** (28 min) |
+| coarse | both-roles | 2 | 350,281 | 6 (4 bundle + 2 partial-unbundle) | Pass |
 
-- **Raw state count explodes** with `T` (1k → 340k → 136 M): the combinatorial
-  interleaving/serial/payload growth that makes brute-force ∀`T` hopeless.
-- **The safety-relevant structure saturates**: the 4 all-root structures at `T=2`
-  and `T=3` are the *same set* (`diff` empty), not merely the same count — a third
-  thread reaches **no new tree structure**.
-- The `T=4` all-root run (all 4-thread interleavings, 136 M states) finds **no
-  invariant violation**: a direct check that no dangerous 4-thread CAS pattern
-  exists at this instance (TLC would emit a counterexample trace otherwise).
-- The 6 both-roles structures are the 4 bundle structures plus 2 partial-unbundle
-  intermediates (one child detached, the other still bundled).
+- **Superfine saturation — the faithful result.** In the most-interleaved,
+  C++-faithful model the all-root structural set is **6** and is **set-identical
+  at `T = 2` and `T = 3`**, verified by dumping the *complete* 137 M-state `T = 3`
+  exhaustion (736 GB) and projecting — σ held at 6 across all 137,333,348 states.
+  The superfine 6 = the coarse 4 **plus the two within-operation Phase-3
+  intermediates** (one child re-pointed to a bundled-ref, the other not yet) that
+  coarse's atomic Phase-3 collapses away — i.e. exactly the genuinely-concurrent
+  interleavings where a hazard could hide. They saturate at `T = 2` as well, so a
+  third thread reaches **no new safety-relevant structure even in the faithful
+  model**.
+- **Raw state count explodes** with `T` (superfine all-root ~10⁵ → 1.37×10⁸): the
+  combinatorial interleaving/serial/payload growth that makes brute-force ∀`T`
+  hopeless; the safety-relevant *structure* does not grow.
+- The `T = 4` *coarse* all-root run (all 4-thread interleavings, 136 M states)
+  finds **no invariant violation**: a direct larger-`T` check that no dangerous
+  4-thread CAS pattern exists at that instance (TLC would emit a counterexample
+  trace otherwise).
 
-This **supports the ∀`T` conjecture** (§5.1) — a measurement that the identity-free
-safety structure is finite and stable across checked thread counts, **not** a ∀`T`
-proof. (3-level coarse `T=2` reaches ≥ 9 structures; full 3-level/superfine
-saturation and an exhaustive `T=4` both-roles run were not completed — the latter's
-state space exceeds budget, ~195 M distinct in 40 min without exhausting.)
+This **supports the ∀`T` conjecture** (§5.1) — a *faithful-model* measurement that
+the identity-free safety structure is finite and stable across checked thread
+counts, **not** a ∀`T` proof. Scope: 2-level, all-root (bundle-side; the
+multi-level *unbundle* structures need a leaf workload, and superfine `T = 4` /
+3-level superfine saturation are intractable to dump). The 3-level case is reached
+by extrapolation via the tree-independence of the commit-role structure (§5.1
+Facts A–C). (3-level *coarse* `T = 2` already reaches ≥ 9 structures; its
+exhaustion was not completed.)
 
 ### Equivalence of the existing models with the new C++ Phase 4 reachability gate
 
