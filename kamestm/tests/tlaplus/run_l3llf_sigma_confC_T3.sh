@@ -17,48 +17,50 @@
 #   - NO -dump (we only need the yes/no closure result, not the state set)
 #   - NO liveness PROPERTY (safety/invariant checking only -> no SCC pass)
 #
-# >>> OHTAKA SESSION: please validate the 5 env knobs below against the
-# >>> WORKING confC-T3 *liveness* sbatch script (the one that produced
-# >>> ~640M states / ~15h25m). Mirror its paths exactly; nothing else here
-# >>> should differ from that run. Checklist:
-# >>>   1. TLA_TOOLS  -- path to tla2tools.jar
-# >>>   2. java       -- on PATH? need a `module load` first?
-# >>>   3. SCRATCH    -- large writable fs for TLC metadir (the liveness run's
-# >>>                    /work path; $HOME likely has a quota too small for the
-# >>>                    ~tens-of-GB fingerprint/queue files). /work/$USER is
-# >>>                    NOT writable -- use the group/project path that run used.
-# >>>   4. partition + --time  (F1cpu/24h default; adjust to what's free)
-# >>>   5. -Xmx       -- match the liveness run's heap vs node RAM
+# Env is aligned to the liveness PHASE=1 run by the Ohtaka session:
+# $SLURM_SUBMIT_DIR-based cwd, tla_preflight.sh (java/module), and a /work
+# scratch probe. tla2tools.jar resolved relative to the submit dir.
 # ===========================================================================
 set -e
-WORK=$HOME/kameSTMpaper
-cd "$WORK"
+cd "$SLURM_SUBMIT_DIR"
+. "$SLURM_SUBMIT_DIR/tla_preflight.sh"
 
 SPEC=BundleUnbundle_3level_LLfree
 CFG=${SPEC}_Is_confC_T3_mc.cfg
 
-# --- env knobs (Ohtaka session: confirm/adjust to match the liveness run) ---
-TLA_TOOLS="$WORK/tla2tools.jar"
-HEAP="-Xmx200g"
-SCRATCH="${SCRATCH:-}"          # <-- set to the liveness run's /work scratch path
-# ----------------------------------------------------------------------------
+HEAP="${HEAP:--Xmx200g -Xms100g}"
+
+# Probe for a writable large scratch fs for the TLC metadir (fingerprint/queue
+# files run to tens of GB at ~640M states; $HOME quota is likely too small).
+GROUP=$(id -gn 2>/dev/null)
+SCRATCH=""
+for candidate in \
+        "${GROUP:+/work/$GROUP/$USER}" \
+        "/work/$USER" \
+        "$HOME" ; do
+    [ -z "$candidate" ] && continue
+    if mkdir -p "$candidate/tlc-sigma" 2>/dev/null; then
+        SCRATCH="$candidate/tlc-sigma/l3_sigma_${SLURM_JOB_ID:-local}"
+        break
+    fi
+done
 
 WORKERS=$(( ${SLURM_CPUS_ON_NODE:-$(nproc)} - 2 ))
 
 if [ -n "$SCRATCH" ]; then
-    METADIR="$SCRATCH/tlc_${SLURM_JOB_ID:-local}"
+    METADIR="$SCRATCH"
     mkdir -p "$METADIR"
     METADIR_ARG=(-metadir "$METADIR")
 else
     METADIR_ARG=()              # fall back to TLC default (states/ under CWD)
-    echo "WARN: SCRATCH unset -> TLC metadir defaults under $WORK (watch \$HOME quota)"
+    echo "WARN: no writable scratch found -> TLC metadir defaults under CWD"
 fi
 
 echo "node=$(hostname)  workers=$WORKERS  cfg=$CFG  metadir=${METADIR:-<default>}"
 lscpu --extended | head -3 || true
 
 java -XX:+UseParallelGC $HEAP \
-     -cp "$TLA_TOOLS" tlc2.TLC \
+     -cp tla2tools.jar tlc2.TLC \
      -workers "$WORKERS" \
      "${METADIR_ARG[@]}" \
      -config "$CFG" \
