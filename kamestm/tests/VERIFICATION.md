@@ -421,6 +421,61 @@ by extrapolation via the tree-independence of the commit-role structure (§5.1
 Facts A–C). (3-level *coarse* `T = 2` already reaches ≥ 9 structures; its
 exhaustion was not completed.)
 
+#### Scope of the saturation / structural-invariant argument
+
+The saturation result — and the candidate *local structural invariant* that
+characterizes the saturated σ-set (the conjuncts `SubNeverMissing`,
+`BundledHasCopy`, `StaleParentExcluded`, `SubPresenceUniform`, validated with no
+violation up to **3-level superfine `T = 3` all-root** and **3-level superfine
+`T = 2` both-roles**, i.e. the most-interleaved model on both the bundle and the
+multi-level-unbundle paths) — are stated for a **static, single-parent rooted
+tree**: `Next` has no node-insert/remove action and `ParentOf` is single-valued.
+Two regimes lie outside this argument and are verified *separately*, not by
+extension of it:
+
+- **Dynamic topology** (online insertion/release). Covered by the dynamic specs
+  (`BundleUnbundle_{2,3}level_LLfree_dynamic.tla` and their `*_dynamic_*` cfgs —
+  e.g. the 413 M-state *dynamic-release superfine liveness* run above) and the
+  `transaction_dynamic_node_test` C++ stress (§6). `SubPresenceUniform` (a node's
+  child-slots present-or-absent together) is an invariant of a *fixed* topology
+  only: inserting a child into an already-bundled parent leaves the new slot
+  `Null` while its siblings are non-`Null`, breaking it transiently.
+- **Hard links / DAG** (a child with ≥ 2 parents). Covered by §5
+  (`BundleUnbundle_hardlink_*`) and the bundle-Phase-3 fix. The conjuncts that
+  name *the* parent (`StaleParentExcluded`, `BundledHasCopy`) are ill-formed when
+  `ParentOf` is multi-valued, and `SubPresenceUniform` can be broken by an
+  independent second parent's unbundle; they are not claimed on a DAG.
+
+#### Raw state counts are spec-version-specific (determinism / provenance)
+
+Raw distinct-state counts are **not comparable across spec versions**. TLC's
+breadth-first search is a *deterministic* exhaustion: for a fixed (`.tla`, cfg)
+the reachable set — and hence every reported count and each variable's maximum
+(e.g. `PrintTerminalMaxCounter`) — is reproducible exactly; fingerprint seed and
+worker count change only *discovery order* and a negligible *collision
+probability* (≈ `N²/2⁶⁵`, < 1 collided state at `5×10⁸`). A changed count
+therefore signals a **changed model**, never run-to-run nondeterminism. Over this
+project's development the same confC superfine `T = 3` configuration (3-level,
+*identical* cfg constants throughout — `MaxCommits=1`, all-`superfine`,
+`Privilege=TRUE`, all-root) moved as protocol fixes landed in the `.tla`:
+
+| Date | Distinct | Depth | maxctr | Coinciding `.tla` fix (git) |
+|---|---:|:--:|:--:|---|
+| 2026-05-02 | 514,070,136 | 76 | 12 | `1d9820bc` Fix InnerPhase3 restart |
+| 2026-05-02 | 1,154,807,632 | 89 | 15 | `8d6026e3` Fix InnerPhase4 restart |
+| 2026-05-03 | 640,894,951 | 88 | 15 | `73bcef3a` Fix InnerPhase2 restart |
+| 2026-06-26 | 540,782,047 | 88 | — | `924b6e63` Fix for TLA+ model (current) |
+
+(Per-run HEAD inferred from commit vs run dates; each `Fix …` commit changed
+`Init`/`Next`, hence the reachable set and the counter.) **Only same-version runs
+are cross-comparable**; the paper reports current-spec numbers, and the
+version-independent quantity is the σ-projection (the saturated structure set),
+not any raw count. The current-spec `540,782,047` is the safety + structural-conjunct
+σ-closure run (this session, dump-free); a matching current-spec **liveness** run
+is in flight, expected to report the same `540,782,047` distinct (liveness adds
+only a temporal pass over the same graph — confirmed at 2-thread, where the
+3-level superfine liveness count equals the safety+conjunct count exactly).
+
 ### Equivalence of the existing models with the new C++ Phase 4 reachability gate
 
 The hard-link work (§5) introduced a `Packet::allSubReachable` gate

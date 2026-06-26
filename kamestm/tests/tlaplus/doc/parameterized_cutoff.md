@@ -250,6 +250,18 @@ thread axis** these same runs are the exhaustive base (up to the contention
 bound) plus the structural-saturation measurement that *support the ∀`T`
 conjecture* (§5.1) — they are not, and we do not present them as, a ∀`T` proof.
 
+**Raw counts are spec-version-specific.** The distinct-state counts here are a
+deterministic function of (`.tla`, cfg): TLC's BFS reproduces the reachable set
+exactly for a fixed model, so a changed count reflects a *changed model*, not
+run-to-run nondeterminism (seed and worker count affect only discovery order and
+a negligible collision probability, ≈ `N²/2⁶⁵` < 1 state at `5×10⁸`). Counts are
+therefore **not comparable across spec versions**: over this project's
+development the same confC superfine `T = 3` configuration moved through
+`514 M → 1.155 G → 640 M → 540 M` as successive protocol fixes landed in `Next`
+(identical cfg constants throughout; the per-version table is in
+`VERIFICATION.md`, thread-axis-saturation §). The version-independent quantity is
+the σ-projection (the saturated structure set), never the raw count.
+
 ## 7. Liveness (livelock-freedom): an oldest-tag ranking function
 
 Safety invariants do not parameterize liveness. We prove `EventuallyAllDone`
@@ -357,6 +369,26 @@ the orthogonal `priorityTag` / `CanProceed` / `TagAfterFail` tagging.)*
    separately-validated thread-free abstract CAS model checked equal to the
    saturated projection) is future work. (The gate is irrelevant here: it only
    shrinks the reachable linkage set, §5.1 Fact B.)
+6. **Static, single-parent topology (deliberate scope).** The cutoff (§§3–5) and
+   the saturation argument (§5.1) — and any *local structural invariant* derived
+   from the saturated σ-set (the candidate conjuncts `SubNeverMissing`,
+   `BundledHasCopy`, `StaleParentExcluded`, `SubPresenceUniform`; see
+   `VERIFICATION.md`) — are stated for a **fixed, single-parent rooted tree**:
+   `Next` has no node-insert/remove action and `ParentOf` is single-valued. Two
+   regimes fall outside and are verified *separately*, not by extension of this
+   argument:
+   - **Dynamic topology** (online insertion/release): the `*_dynamic_*`
+     specs/cfgs (e.g. the 413 M-state dynamic-release superfine-liveness run,
+     `VERIFICATION.md`) and the `transaction_dynamic_node_test` C++ stress. A
+     conjunct like `SubPresenceUniform` (a node's child-slots present-or-absent
+     together) holds at fixed topology only — inserting a child into an
+     already-bundled parent leaves the new slot `Null` while its siblings are
+     non-`Null`, breaking it transiently.
+   - **Hard links / DAG** (a child with ≥ 2 parents): obligation #3 +
+     `BundleUnbundle_hardlink_*` + the bundle-Phase-3 fix. The conjuncts that
+     name *the* parent (`StaleParentExcluded`, `BundledHasCopy`) are ill-formed
+     under a multi-valued `ParentOf`, and `SubPresenceUniform` can be broken by a
+     second parent's independent unbundle; they are not claimed on a DAG.
 
 ## 8.1 Footprint table (discharges obligation #1)
 
