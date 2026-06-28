@@ -27,7 +27,7 @@ a{color:#60a5fa}
 .card h3{margin-top:0}
 .card a{font-weight:bold;font-size:1.05em}
 .pill{display:inline-block;font-size:0.72em;padding:1px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
-.pill-l0{background:#0e7490;color:#fff}.pill-l1{background:#1d4ed8;color:#fff}.pill-l2{background:#7c3aed;color:#fff}.pill-hl{background:#dc2626;color:#fff}.pill-rt{background:#15803d;color:#fff}
+.pill-l0{background:#0e7490;color:#fff}.pill-l1{background:#1d4ed8;color:#fff}.pill-l2{background:#7c3aed;color:#fff}.pill-hl{background:#dc2626;color:#fff}.pill-rt{background:#15803d;color:#fff}.pill-pf{background:#b45309;color:#fff}
 .big{font-size:1.4em;color:#fbbf24;font-weight:bold}
 </style>
 </head>
@@ -158,6 +158,16 @@ the implementation is empirically hardened, with no daylight between them.</stro
 </tr>
 
 <tr>
+<td><span class="pill pill-pf">PF</span></td>
+<td>Parameterized correctness<br>(<code>doc/parameterized_cutoff.md</code>)</td>
+<td>TLC + hand proof</td>
+<td>Lifts bounded TLC toward ∀: tree axis = structural-cutoff theorem, thread axis = σ-saturation, liveness = ∀N ranking</td>
+<td>cutoff H=3/N=2; σ=6 saturates T=2≡T=3 (verified over all 137M superfine states)</td>
+<td style="color:#fbbf24">tree: theorem / thread: conjecture / liveness: ∀N</td>
+<td><a href="slides_parameterized_en.html">slides_parameterized_en.html</a></td>
+</tr>
+
+<tr>
 <td><span class="pill pill-rt">RT</span></td>
 <td>7 C++ tests (<code>tests/</code>)</td>
 <td>C++ on HW</td>
@@ -210,6 +220,12 @@ All are CONSTRAINT-free full exhaustions.</p>
 <h3><span class="pill pill-l2">L2</span> Dynamic LLfree</h3>
 <p><a href="slides_layer2_LLfree_dynamic_en.html">slides_layer2_LLfree_dynamic_en.html →</a></p>
 <p style="font-size:0.9em;color:#94a3b8">online insert(online=true) / release, thread-role config, 413M-state verification.</p>
+</div>
+
+<div class="card">
+<h3><span class="pill pill-pf">PF</span> Parameterized correctness</h3>
+<p><a href="slides_parameterized_en.html">slides_parameterized_en.html →</a></p>
+<p style="font-size:0.9em;color:#94a3b8">Lifting bounded TLC toward "∀ tree shape, all thread counts": the structural-cutoff theorem (catamorphism), σ-saturation (T=2≡T=3), ∀N liveness via an oldest-tag ranking, and spec-version provenance.</p>
 </div>
 
 <div class="card">

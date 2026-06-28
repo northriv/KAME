@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ パラメータ化正当性 — 構造カットオフ + σ-飽和</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.45em;color:#93c5fd;margin-top:1.4em}
+h3{font-size:1.15em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+.box-red{background:#3b0000;border:1px solid #dc2626}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.15em;color:#fbbf24;margin:1em 0;line-height:1.6}
+.thm{background:#0f172a;border-left:4px solid #60a5fa;padding:0.8em 1em;margin:1em 0;border-radius:0 6px 6px 0}
+p{line-height:1.7}
+.big{font-size:1.3em;color:#fbbf24;font-weight:bold}
+.ok{color:#4ade80}.warn{color:#fbbf24}.bad{color:#f87171}
+</style>
+</head>
+<body>
+<a href="slides_overview.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ 俯瞰</a>
+
+<!-- ============================================================ TITLE -->
+<div class="slide">
+<h1>パラメータ化正当性</h1>
+<h3>有界 TLC を「∀ 木形・全スレッド」へ持ち上げる — 構造カットオフ + σ-飽和 + ∀N 活性</h3>
+
+<div class="box-purple">
+<p>TLC は<strong>与えた有限インスタンス</strong>（固定スレッド数 <code>T</code>、固定木 高さ <code>H</code>・幅 <code>N</code>、固定 <code>MaxCommits</code>）に対してのみ exhaustive。
+インスタンスを大きくし続けても「∀<code>T</code>・∀木」には到達しない（無限後退）。
+本デッキは、有限 TLC 結果を<strong>無限族の主張へ持ち上げる</strong>議論をまとめる
+（出典: <code>doc/parameterized_cutoff.md</code>）。</p>
+</div>
+
+<h2>3 つの軸 — 正直なスコープ</h2>
+<table>
+<tr><th>軸</th><th>到達点</th><th>機構</th></tr>
+<tr><td><strong>木（高さ・幅）</strong></td><td class="ok">∀ 木形の<strong>定理</strong></td><td>構造カットオフ（catamorphism 簡約）: H=3, N=2 へ簡約 → TLC で網羅放電</td></tr>
+<tr><td><strong>スレッド <code>T</code></strong></td><td class="warn">∀<code>T</code> は<strong>強根拠つき予想</strong>（定理にしない）</td><td>恒等フリー safety + contention bound まで網羅 + σ-飽和の測定</td></tr>
+<tr><td><strong>活性 (livelock-free)</strong></td><td class="ok">∀<code>N</code> の<strong>ranking 論証</strong></td><td>oldest-tag ランキング関数（スレッドカットオフ不要）+ 残存 1 補題</td></tr>
+</table>
+
+<div class="box-orange">
+<p><strong>読み方:</strong> 「∀ 木形・全スレッド数」は <strong>「木については証明済み／スレッドについては強根拠つき予想」</strong>と読む。
+パラメータ化検証は一般に決定不能（Apt–Kozen 1986）なので、機械化していない ∀<code>T</code> 定理は主張しない。</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 1: Lemma 1 -->
+<div class="slide">
+<h1>Lemma 1 — catamorphism（構造的局所性）</h1>
+<p>すべての bundle / unbundle 遷移は木上の<strong>畳み込み (catamorphism)</strong>である。</p>
+
+<pre><code><span class="comment">(* bundle は部分木を ↓ 下向きに畳む *)</span>
+<span class="op">bundle</span>(n) = collect( linkage[n], { <span class="op">bundle</span>(c) : c ∈ children(n) } )
+
+<span class="comment">(* unbundle は祖先鎖を ↑ 上向きに畳む（priority root が base case）*)</span>
+<span class="op">unbundle</span>(n) = extract( linkage[n], <span class="op">unbundle</span>(parent(n)) )</code></pre>
+
+<div class="thm">
+各ノードのステップが読み書きするのは <code>{linkage[n]}</code> と、<strong>直接の畳み込み近傍</strong>
+（bundle なら子、unbundle なら親）の畳み込み結果のみ。結合関数は<strong>木の高さ・子の個数に依存しない</strong>。
+子は対称集約（<code>[c ↦ linkage[c]]</code>, <code>∀ c …</code>）と単調な「全子完了」閾値を通じてのみ現れる。
+</div>
+
+<div class="box">
+<p><strong>要点:</strong> 「アクションが2レベルしか触らない」ではない（<code>SnapshotForUnbundle</code> は
+祖先鎖全体を一度に読む；inner bundle は孫に届く）。要点は、その層越えアクセスが
+<strong>高さ一様な局所ステップを持つ畳み込み</strong>であること。だから下の深さ帰納がアルゴリズム再構成なしで通る。</p>
+</div>
+
+<h2>footprint 放電（§8.1、全12アクション）</h2>
+<table>
+<tr><th>アクション</th><th>linkage footprint</th><th>役割</th></tr>
+<tr><td><code>BundlePhase1</code> (collect)</td><td>self + 各直接子（孫は非葉子の再帰 inner-bundle 経由のみ）</td><td>bundle↓</td></tr>
+<tr><td><code>BundlePhase3</code> (per-child CAS)</td><td>self + 直接子（1アクション1子）</td><td>bundle↓</td></tr>
+<tr><td><code>UnbundleWalk</code> / <code>CASLoop</code> / <code>CASChild</code></td><td>self + 直接親 / 1祖先 + root anchor / self + 直接親</td><td>unbundle↑</td></tr>
+<tr><td><code>BundlePhase2/4</code>, <code>CommitTryCAS</code>, <code>CommitGrand</code></td><td>self のみ（root anchor 読みを含む）</td><td>local</td></tr>
+</table>
+<p style="color:#94a3b8;font-size:0.9em">全アクションの footprint ⊆ <code>{self} ∪ {直接畳み込み近傍} ∪ {root anchor}</code>。obligation #1 放電済。</p>
+</div>
+
+<!-- ============================================================ SLIDE 2: cutoff theorem -->
+<div class="slide">
+<h1>構造カットオフ定理（木軸）</h1>
+
+<h2>Lemma 2 — 子対称性と幅閾値</h2>
+<div class="thm">
+仕様は子の置換に対して不変；異なる子の per-child CAS は可換（footprint 互いに素）；
+親の集約述語（<code>is_bundle_root</code> ⇔ 全子 bundled）は子集合上の単調閾値。
+ゆえに <code>N ≥ 2</code> 子の任意挙動は、子 <code>3..N</code> を子 2 に潰すことで <strong>2 子挙動でシミュレート</strong>できる。
+</div>
+<p style="color:#94a3b8;font-size:0.92em">2 子で幅依存の 3 パターンが既に出る: 一方完了/他方保留・同一子で 2 スレッド競合・別々の子で 2 スレッド。3 子目は反復のみ。</p>
+
+<h2>定理（構造カットオフ）</h2>
+<div class="thm">
+safety 不変条件（<code>SnapshotConsistency</code>, <code>BundleChainValid</code>, <code>NoPriorityLoss</code>,
+<code>GrandAlwaysPriority</code>, <code>MissingPropagation</code>, <code>TerminalPayloadCheck</code>, …）は、
+<strong>任意の高さ <code>H</code>・任意の幅 <code>N</code></strong> の木で成立 ⇔ <strong><code>H=3</code>（root + 内部 1 + 葉）かつ <code>N=2</code></strong> のインスタンスで成立。
+</div>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><strong>深さ:</strong> Lemma 1 による <code>H</code> 帰納。役割は leaf / internal / root の 3 種のみで、H=3 が全役割と両畳み込み方向を内部ノードで行使。H≥4 は同じ一様ステップの追加だけで新規役割相互作用なし。</li>
+<li><strong>幅:</strong> Lemma 2 が任意 <code>N</code> を 2 に簡約。</li>
+</ul>
+
+<div class="box-green">
+<p><strong>帰結:</strong> <code>H=3, N=2, superfine</code> の網羅 TLC 実行は、<strong>木軸については</strong>
+無限木族に対する safety 不変条件の<strong>完全な証明</strong>を構成する（単に検査した個別インスタンスではなく、
+カットオフの base case として Lemma 1–2 が全 <code>H, N</code> へ持ち上げる）。</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 3a: thread axis — no theorem + Facts A-C -->
+<div class="slide">
+<h1>スレッド軸 (1) — なぜ ∀<code>T</code> 定理にしないか + 恒等フリー safety</h1>
+
+<div class="box-red">
+<p><strong>∀<code>T</code> 定理は主張しない（意図的スコープ）。</strong> パラメータ化検証は一般に<strong>決定不能</strong>（Apt–Kozen 1986）。
+機械化した ∀<code>T</code> 証明（guided TLAPS の <code>Spec(T) ⊑ Spec(3)</code> simulation、または別途検証したスレッドフリー抽象 CAS モデル）は将来課題。
+代わりに 3 つの機械検査可能な要素で <strong>強根拠つき予想</strong>として支える: ① 恒等フリー safety（本スライド）、② contention bound まで網羅、③ σ-飽和の測定（次スライド）。</p>
+</div>
+
+<h2>① 恒等フリー safety（Facts A–C）— 安全状態になぜスレッド恒等が乗らないか</h2>
+<table>
+<tr><td><strong>A</strong></td><td><strong>構造述語.</strong> 全 safety 不変条件（<code>SnapshotConsistency</code>, <code>NoPriorityLoss</code>, <code>BundleChainValid</code>, <code>BundledByCorrect</code>, <code>GrandAlwaysPriority</code>, <code>MissingPropagation</code>, <code>TerminalPayloadCheck</code>）は <strong>bundle-tree linkage</strong>（<code>hasPriority</code>/<code>bundledBy</code>/<code>sub[·]</code>/<code>missing</code>）と <strong>payload count</strong> 上の述語。<code>priorityTag</code> も <code>serial</code> も読まない＝スレッドに言及しない。</td></tr>
+<tr><td><strong>B</strong></td><td><strong>per-node CAS 直列化.</strong> <code>linkage[n]</code> は<strong>成功 CAS でのみ</strong>変化 → 任意 <code>T</code> で各ノードの履歴は単一の直列値列。gate は <em>どのスレッドが CAS を試みるか</em>を制限するだけ（<code>priorityTag</code> を書く、<code>linkage</code> は書かない）→ 安全違反を作り出せない。</td></tr>
+<tr><td><strong>C</strong></td><td><strong>恒等は uniquifier のみ.</strong> スレッド恒等は <strong>Lamport serial <code>= counter·Base + tid</code> の低位 uniquifier</strong> としてのみ状態に現れる。<code>GenSerial</code> で <code>counter</code> が因果順を支配、<code>tid</code> は因果的に<em>並行</em>なイベントの tie-break のみ（順序依存データ独立性, Lazić 1999）。</td></tr>
+</table>
+
+<div class="box">
+<p><strong>⇒ スレッド対称性は意味論的に成立</strong>（安全状態は恒等の任意置換で不変）。
+<strong>ただし TLC <code>SYMMETRY</code> 縮約としては適用不可:</strong> <code>TagOlder</code> の tid-<code>&lt;</code>（Lamport tie-break）は <code>Threads</code> を<strong>順序付き自然数</strong>に強制するが、
+TLC <code>SYMMETRY</code> は<strong>model-value 集合</strong>を要求し、両者は排他（TLC は <code>SYMMETRY Permutations(Threads)</code> を拒否）。
+ゆえに下の実行はすべて <strong>symmetry 縮約なしの raw</strong>。なお対称性は置換のみで<strong>スレッド数を減らさない</strong>（symmetry ≠ cutoff）。</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 3b: thread axis — exhaustive + saturation (2-level) -->
+<div class="slide">
+<h1>スレッド軸 (2) — 網羅 + σ-飽和（測定は <strong>2-level・all-root</strong>）</h1>
+
+<div class="box-orange">
+<p><strong>測定スコープを明示:</strong> 下の飽和測定はすべて
+<strong>2-level tree（Parent → {Child1, Child2}）・<code>MaxCommits=1</code>・symmetry なし（raw 到達集合）</strong>。
+headline は <strong>all-root</strong> ワークロード（コミット対象 = root、<strong>bundle 側</strong>の構造を露出）。
+葉コミットを含む <strong>both-roles</strong> は<strong>多段 unbundle 側</strong>の構造を別途露出する。</p>
+</div>
+
+<h2>② contention bound まで網羅 ＋ ③ σ-飽和（superfine = 最忠実モデル）</h2>
+<table>
+<tr><th>Tree</th><th>Atomicity</th><th>Workload</th><th>T</th><th>Raw distinct states</th><th>構造 σ</th><th>Safety</th></tr>
+<tr><td>2-level</td><td><strong>superfine</strong></td><td>all-root</td><td>2</td><td>124,244</td><td><strong>6</strong></td><td class="ok">Pass</td></tr>
+<tr><td>2-level</td><td><strong>superfine</strong></td><td>all-root</td><td>3</td><td><span class="big">137,333,348</span></td><td><strong>6 — T=2 と set-identical</strong>（<code>diff</code> 空, 全 137M で σ=6 一定）</td><td class="ok">Pass (ohtaka 5h08m + 736GB dump)</td></tr>
+<tr><td>2-level</td><td>coarse</td><td>all-root</td><td>4</td><td>136,366,732</td><td>—（未 dump、larger-<code>T</code> 違反チェック）</td><td class="ok">Pass (28min)</td></tr>
+<tr><td>2-level</td><td>coarse</td><td>all-root</td><td>2 / 3</td><td>1,093 / 339,744</td><td>4 / 4（set-identical）</td><td class="ok">Pass</td></tr>
+<tr><td>2-level</td><td>coarse</td><td><strong>both-roles</strong></td><td>2</td><td>350,281</td><td>6（4 bundle ＋ 2 partial-unbundle）</td><td class="ok">Pass</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>飽和の意味:</strong> 各到達状態を<strong>恒等フリー bundle 構造</strong>へ射影（ノードごと ⟨hasPriority, bundledBy, missing, どの sub スロットが埋まるか⟩、serial・payload 値は捨てる＝構造不変条件が読むフィールドそのもの）。
+最忠実 superfine all-root の構造集合は <strong>6 要素で <code>T=2</code> で飽和</strong>し、完全な <code>T=3</code> 網羅（137,333,348 状態）を dump→射影して <code>T=2 ≡ T=3</code> が set-identical。
+superfine の 6 ＝ coarse の 4（bundle 構造）＋ <strong>Phase-3 within-operation 中間 2</strong>（片方の子だけ bundled-ref に張り替わった瞬間 — まさに並行ハザードが隠れうる箇所）。
+both-roles の 6 ＝ 4 bundle ＋ 2 partial-unbundle（unbundle 側構造）。
+<strong>3 スレッド目は新しい safety 関連構造に到達しない。</strong>一方 raw 状態数は爆発（~10⁵ → 1.37×10⁸）— スレッドが増えても構造は増えない。</p>
+</div>
+
+<div class="box-red">
+<p><strong>3-level は外挿（正直なスコープ）:</strong> 3-level superfine の σ-飽和の<strong>直接 dump は不能</strong>（intractable; superfine <code>T=4</code> / 3-level superfine の dump は手に負えない）。
+3-level へは <strong>commit-role 構造の tree-independence（Facts A–C）による外挿</strong>で到達する — 直接測定ではない。
+（3-level coarse <code>T=2</code> は既に <strong>≥9 構造</strong>に達し、その exhaustion は未完了。）
+派生する局所構造不変条件（<code>SubNeverMissing</code> / <code>BundledHasCopy</code> / <code>StaleParentExcluded</code> / <code>SubPresenceUniform</code>）は
+<strong>3-level superfine <code>T=3</code> all-root ＋ <code>T=2</code> both-roles</strong>（両畳み込み経路の最忠実モデル）まで<strong>無違反</strong>検証済。</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 4: liveness ranking -->
+<div class="slide">
+<h1>活性 (livelock-free) — oldest-tag ランキング (∀<code>N</code>)</h1>
+<p>safety は活性をパラメータ化しない。<code>EventuallyAllDone</code> (<code>&lt;&gt;AllDone</code>) を
+well-founded <strong>ランキング関数</strong>で証明。論証は §§木軸 とも<strong>スレッド数 <code>N</code> とも独立</strong>。</p>
+
+<h2>進行機構（spec facts）</h2>
+<ul style="margin:0.3em 0 0 1.2em">
+<li>各スレッド <code>t</code> はタグ <code>MyTag(t)=⟨iter(t), t⟩</code>（<code>TagOlder</code> 全順序、小=古）。</li>
+<li>CAS 失敗時 <code>priorityTag[n]</code> は現値と <code>MyTag(t)</code> の<strong>古い方</strong>に（<code>TagAfterFail</code>）→ tag 順で単調非増加。</li>
+<li><code>CanProceed(t,n)</code> は <code>priorityTag[n]</code> が Null か自分の時のみ CAS 許可 → 若い競合者は gate される。</li>
+<li>tag はコミット<strong>成功時のみ</strong>解放（zombie tag なし）。</li>
+</ul>
+
+<h2>ランキング関数</h2>
+<pre><code><span class="op">R(s)</span> = ( <span class="op">M(s)</span>, <span class="op">d(s)</span> )   <span class="comment">-- 辞書式、well-founded</span>
+  <span class="op">M(s)</span> : Active スレッドの MyTag 多重集合（Dershowitz–Manna 多重集合拡張）
+  <span class="op">d(s)</span> : 大域最古 t★ = argmin MyTag の pc[t★]→"done" 残距離（有限・非循環 CFG）</code></pre>
+
+<div class="thm">
+<strong>定理（livelock-free, ∀N）:</strong> <code>WF_vars(NextStep)</code> ＋ <code>Privilege=TRUE</code> の下、
+<code>EventuallyAllDone</code> は<strong>任意の有限 <code>Threads</code> で、<code>|Threads|</code> に依らず</strong>成立。
+ランクが<strong>大域最古</strong>を量化し、それは任意有限 Active に存在する ⇒ <strong>活性にスレッドカットオフ不要</strong>。
+</div>
+
+<div class="box-orange">
+<p><strong>残存 obligation（§7.5、唯一の open lemma）:</strong> 補題(progress) は特権 <code>t★</code> が
+<strong>無限 retry なし</strong>で完了すると仮定。ピアは <code>t★</code> の競合ノードから gate されるが、
+<em>別ノード</em>（鎖上の祖先/子）で動くピアが bundle 鎖越しに <code>DISTURBED</code>/<code>COLLIDED</code> を起こしうる。
+これら構造的擾乱が<strong>有界</strong>であること（各擾乱は若い要素を <code>M</code> から除くピアコミットに起因 → 無限反復不可）の一般証明が残る。
+有界 <code>EventuallyAllDone</code> 実行（2-thread all-roles superfine・3-thread confC・413M dynamic-release）がカットオフで放電済。</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 5: scope + provenance -->
+<div class="slide">
+<h1>スコープ + provenance + まとめ</h1>
+
+<h2>スコープ境界（静的・単一親木）</h2>
+<p>カットオフ（木軸）・飽和（スレッド軸）・派生する局所構造不変条件
+（<code>SubNeverMissing</code> / <code>BundledHasCopy</code> / <code>StaleParentExcluded</code> / <code>SubPresenceUniform</code>、
+3-level superfine <code>T=3</code> all-root ＋ <code>T=2</code> both-roles まで無違反検証）は
+<strong>固定・単一親の rooted tree</strong> 前提（<code>Next</code> にノード挿入/削除なし、<code>ParentOf</code> 単一値）。
+以下 2 領域は<strong>別途検証</strong>（本論証の拡張ではない）:</p>
+<table>
+<tr><th>領域</th><th>担当</th></tr>
+<tr><td><strong>動的トポロジ</strong>（online insert/release）</td><td><code>*_dynamic_*</code> 仕様（413M dynamic-release 等）＋ <code>transaction_dynamic_node_test</code>。<code>SubPresenceUniform</code> は挿入時に一時破れる</td></tr>
+<tr><td><strong>hard-link / DAG</strong>（子が ≥2 親）</td><td>§5 <code>BundleUnbundle_hardlink_*</code> ＋ Phase-3 fix。<em>the</em> 親を名指す conjunct は多値 <code>ParentOf</code> で ill-formed</td></tr>
+</table>
+
+<h2>raw 状態数は spec-version 依存</h2>
+<div class="box">
+<p>distinct-state 数は (<code>.tla</code>, cfg) の<strong>決定的関数</strong>（TLC BFS は固定モデルで到達集合を厳密再現；seed/worker は発見順のみ）。
+ゆえに<strong>spec 版を跨いで比較不可</strong>: 同一 confC superfine <code>T=3</code> 構成は開発を通じて
+<code>514M → 1.155G → 640M → 540M</code> と推移（cfg 定数は不変、<code>Next</code> の protocol fix 反映）。
+<strong>版非依存量は σ-射影（飽和構造集合）であって raw 数ではない。</strong></p>
+</div>
+
+<h2>一行サマリ</h2>
+<div class="box-purple">
+<p><strong>Safety／木軸:</strong> ∀ 木形を構造カットオフ<strong>定理</strong>で（catamorphism ⇒ depth-3/width-2 カットオフ、TLC 網羅放電）。
+<strong>Safety／スレッド軸:</strong> ∀<code>T</code> 定理は<strong>非</strong>主張 — 対称性は意味論的だが TLC 適用不可かつ置換のみ。
+contention bound まで網羅（superfine <code>T=3</code>=137M, coarse <code>T=4</code>=136M）＋ σ-飽和測定（<code>T=2 ≡ T=3</code>、6 構造）→ <strong>強根拠つき予想</strong>。
+<strong>Liveness:</strong> ∀<code>N</code> を oldest-tag ranking で（スレッドカットオフ不要、小 <code>T</code> で網羅検証）。gate は純活性デバイスで safety と素。</p>
+</div>
+
+<p style="color:#94a3b8;font-size:0.9em">出典: <code>doc/parameterized_cutoff.md</code>（§1–§9）/ <code>VERIFICATION.md</code> Thread-axis saturation §。関連: <a href="slides_layer2_LLfree.html">LL-free 仕様</a> / <a href="slides_overview.html">全体カバレッジ俯瞰</a>。</p>
+</div>
+
+</body>
+</html>

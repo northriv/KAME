@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLA+ Parameterized Correctness — structural cutoff + σ-saturation</title>
+<style>
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
+.slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
+h1{font-size:2em;color:#60a5fa;margin-bottom:0.3em}
+h2{font-size:1.45em;color:#93c5fd;margin-top:1.4em}
+h3{font-size:1.15em;color:#fbbf24}
+pre{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:1em;overflow-x:auto;font-size:0.85em;line-height:1.5}
+.keyword{color:#c084fc}.comment{color:#64748b}.type{color:#34d399}.op{color:#fbbf24}.num{color:#f472b6}
+.box{background:#1e3a5f;border:1px solid #3b82f6;border-radius:8px;padding:1em;margin:1em 0}
+.box-purple{background:#2e1065;border:1px solid #7c3aed}
+.box-green{background:#052e16;border:1px solid #16a34a}
+.box-orange{background:#3d2800;border:1px solid #d97706}
+.box-red{background:#3b0000;border:1px solid #dc2626}
+table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #475569;padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#334155}
+.tree{font-family:monospace;font-size:1.15em;color:#fbbf24;margin:1em 0;line-height:1.6}
+.thm{background:#0f172a;border-left:4px solid #60a5fa;padding:0.8em 1em;margin:1em 0;border-radius:0 6px 6px 0}
+p{line-height:1.7}
+.big{font-size:1.3em;color:#fbbf24;font-weight:bold}
+.ok{color:#4ade80}.warn{color:#fbbf24}.bad{color:#f87171}
+</style>
+</head>
+<body>
+<a href="slides_overview_en.html" style="position:fixed;top:8px;right:10px;z-index:1000;background:#7c3aed;color:#fff;padding:5px 11px;border-radius:6px;font-size:0.8em;text-decoration:none">▲ Overview</a>
+
+<!-- ============================================================ TITLE -->
+<div class="slide">
+<h1>Parameterized correctness</h1>
+<h3>Lifting bounded TLC toward "∀ tree shape, all thread counts" — structural cutoff + σ-saturation + ∀N liveness</h3>
+
+<div class="box-purple">
+<p>TLC is exhaustive only for the <strong>finite instance it is given</strong> (a fixed thread count <code>T</code>,
+a fixed tree of height <code>H</code> / width <code>N</code>, a fixed <code>MaxCommits</code>).
+Enlarging the instance never reaches "∀<code>T</code>, ∀ tree" — it is an unbounded regress.
+This deck captures the argument that lifts the finite TLC results toward a claim over the
+<strong>unbounded family</strong> (source: <code>doc/parameterized_cutoff.md</code>).</p>
+</div>
+
+<h2>Three axes — an honest scope</h2>
+<table>
+<tr><th>Axis</th><th>Reaches</th><th>Mechanism</th></tr>
+<tr><td><strong>Tree (height &amp; width)</strong></td><td class="ok">a <strong>theorem</strong> ∀ tree shape</td><td>structural cutoff (catamorphism reduction): reduce to H=3, N=2 → discharge exhaustively with TLC</td></tr>
+<tr><td><strong>Thread <code>T</code></strong></td><td class="warn">∀<code>T</code> as a <strong>strongly-evidenced conjecture</strong> (not a theorem)</td><td>identity-free safety + exhaustive to the contention bound + measured σ-saturation</td></tr>
+<tr><td><strong>Liveness (livelock-free)</strong></td><td class="ok">a <strong>ranking argument</strong> ∀<code>N</code></td><td>oldest-tag ranking function (no thread cutoff) + one remaining lemma</td></tr>
+</table>
+
+<div class="box-orange">
+<p><strong>How to read it:</strong> "∀ tree shape, all thread counts" means <strong>"proven for trees;
+conjectured-with-strong-evidence for threads."</strong> Parameterized verification is undecidable in
+general (Apt–Kozen 1986), so we do <em>not</em> claim an unmechanized ∀<code>T</code> theorem.</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 1: Lemma 1 -->
+<div class="slide">
+<h1>Lemma 1 — catamorphism (structural locality)</h1>
+<p>Every bundle and unbundle transition is a <strong>fold (catamorphism)</strong> over the tree.</p>
+
+<pre><code><span class="comment">(* bundle folds DOWNWARD over the subtree *)</span>
+<span class="op">bundle</span>(n) = collect( linkage[n], { <span class="op">bundle</span>(c) : c ∈ children(n) } )
+
+<span class="comment">(* unbundle folds UPWARD over the ancestor chain (priority root = base case) *)</span>
+<span class="op">unbundle</span>(n) = extract( linkage[n], <span class="op">unbundle</span>(parent(n)) )</code></pre>
+
+<div class="thm">
+Each per-node step reads/writes only <code>{linkage[n]}</code> together with the fold result of the
+<strong>immediate fold-neighbour(s)</strong> — children for bundle, the parent for unbundle. The combining
+function is <strong>independent of the tree's height and of the number of children</strong> beyond the one
+slot it indexes. Children enter only through symmetric aggregates (<code>[c ↦ linkage[c]]</code>, <code>∀ c …</code>)
+and monotone "all-children-done" thresholds.
+</div>
+
+<div class="box">
+<p><strong>Key point:</strong> it is <em>not</em> that an action touches only two levels (it does not —
+<code>SnapshotForUnbundle</code> reads the whole ancestor chain in one evaluation; an inner bundle reaches a
+grandchild). It is that the cross-level access is a <strong>fold with a height-uniform local step</strong> —
+a catamorphism — so the depth induction goes through without restructuring the algorithm.</p>
+</div>
+
+<h2>Footprint discharge (§8.1, all 12 actions)</h2>
+<table>
+<tr><th>Action</th><th>linkage footprint</th><th>role</th></tr>
+<tr><td><code>BundlePhase1</code> (collect)</td><td>self + each immediate child (grandchildren only via the recursive inner-bundle of a non-leaf child)</td><td>bundle↓</td></tr>
+<tr><td><code>BundlePhase3</code> (per-child CAS)</td><td>self + immediate children (one child / action)</td><td>bundle↓</td></tr>
+<tr><td><code>UnbundleWalk</code> / <code>CASLoop</code> / <code>CASChild</code></td><td>self + immediate parent / one ancestor + root anchor / self + immediate parent</td><td>unbundle↑</td></tr>
+<tr><td><code>BundlePhase2/4</code>, <code>CommitTryCAS</code>, <code>CommitGrand</code></td><td>self only (incl. root-anchor read)</td><td>local</td></tr>
+</table>
+<p style="color:#94a3b8;font-size:0.9em">Every action's footprint ⊆ <code>{self} ∪ {immediate fold-neighbours} ∪ {root anchor}</code>. Obligation #1 discharged.</p>
+</div>
+
+<!-- ============================================================ SLIDE 2: cutoff theorem -->
+<div class="slide">
+<h1>Structural cutoff theorem (tree axis)</h1>
+
+<h2>Lemma 2 — child symmetry &amp; width threshold</h2>
+<div class="thm">
+The spec is invariant under permutation of a node's children; per-child CAS steps of distinct children
+commute (disjoint footprints); the parent's aggregate predicate (<code>is_bundle_root</code> ⇔ all children
+bundled) is a monotone threshold over the child set. Hence every behaviour over <code>N ≥ 2</code> children is
+<strong>simulated by a 2-children behaviour</strong>, collapsing children <code>3..N</code> onto child 2.
+</div>
+<p style="color:#94a3b8;font-size:0.92em">Two children already realise the three width-sensitive patterns: one done / one pending; two threads contending the <em>same</em> child; two threads on <em>different</em> children. A third only repeats them.</p>
+
+<h2>Theorem (structural cutoff)</h2>
+<div class="thm">
+The safety invariants (<code>SnapshotConsistency</code>, <code>BundleChainValid</code>, <code>NoPriorityLoss</code>,
+<code>GrandAlwaysPriority</code>, <code>MissingPropagation</code>, <code>TerminalPayloadCheck</code>, …) hold on a tree
+of <strong>arbitrary height <code>H</code> and arbitrary width <code>N</code></strong> <strong>iff</strong> they hold
+on the instance with <strong><code>H=3</code></strong> (root + one internal node + leaves) and <strong><code>N=2</code></strong> children.
+</div>
+<ul style="margin:0.3em 0 0 1.2em">
+<li><strong>Depth:</strong> induction on <code>H</code> via Lemma 1. Node roles are only leaf / internal / root; H=3 instantiates all three and exercises both fold directions at the internal node. Any H≥4 adds only further applications of the same uniform step — no new role-interaction.</li>
+<li><strong>Width:</strong> Lemma 2 reduces any <code>N</code> to 2.</li>
+</ul>
+
+<div class="box-green">
+<p><strong>Consequence:</strong> the exhaustive <code>H=3, N=2, superfine</code> TLC runs constitute, <strong>for the tree axis</strong>,
+a <strong>complete proof</strong> of the safety invariants on the unbounded family of trees — not merely the
+instances checked: they are the base case of the cutoff, and Lemmas 1–2 lift them to all <code>H, N</code>.</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 3a: thread axis — no theorem + Facts A-C -->
+<div class="slide">
+<h1>Thread axis (1) — why not a ∀<code>T</code> theorem + identity-free safety</h1>
+
+<div class="box-red">
+<p><strong>We do NOT claim a ∀<code>T</code> theorem (deliberate scope).</strong> Parameterized verification is
+<strong>undecidable in general</strong> (Apt–Kozen 1986). A mechanized ∀<code>T</code> proof (a guided TLAPS
+<code>Spec(T) ⊑ Spec(3)</code> simulation, or a separately-validated thread-free abstract CAS model) is future work.
+Instead we support ∀<code>T</code> as a <strong>strongly-evidenced conjecture</strong> via three machine-checkable
+ingredients: ① identity-free safety (this slide), ② exhaustive checking to the contention bound, ③ a measured
+σ-saturation (next slide).</p>
+</div>
+
+<h2>① Identity-free safety (Facts A–C) — why the safety state carries no thread identity</h2>
+<table>
+<tr><td><strong>A</strong></td><td><strong>Structural predicates.</strong> Every safety invariant (<code>SnapshotConsistency</code>, <code>NoPriorityLoss</code>, <code>BundleChainValid</code>, <code>BundledByCorrect</code>, <code>GrandAlwaysPriority</code>, <code>MissingPropagation</code>, <code>TerminalPayloadCheck</code>) is a predicate over the <strong>bundle-tree linkage</strong> (<code>hasPriority</code>/<code>bundledBy</code>/<code>sub[·]</code>/<code>missing</code>) and <strong>payload counts</strong>. It reads neither <code>priorityTag</code> nor <code>serial</code> — it never mentions a thread.</td></tr>
+<tr><td><strong>B</strong></td><td><strong>Per-node CAS serialization.</strong> <code>linkage[n]</code> is mutated only by a <strong>successful CAS</strong> → for any <code>T</code> its per-node history is a single serialized value-sequence. The gate only restricts <em>which</em> thread attempts a CAS (writes <code>priorityTag</code>, never <code>linkage</code>) → it cannot manufacture a safety violation.</td></tr>
+<tr><td><strong>C</strong></td><td><strong>Identity is only a uniquifier.</strong> Thread identity appears in the state only as the <strong>low-order uniquifier in the Lamport serial <code>= counter·Base + tid</code></strong>. <code>GenSerial</code> makes <code>counter</code> dominate causal order; <code>tid</code> only tie-breaks causally-<em>concurrent</em> events (order-sensitive data-independence, Lazić 1999).</td></tr>
+</table>
+
+<div class="box">
+<p><strong>⇒ Thread symmetry holds semantically</strong> (the safety state is invariant under any permutation of identities).
+<strong>But it is not applicable as a TLC <code>SYMMETRY</code> reduction:</strong> <code>TagOlder</code>'s tid-<code>&lt;</code> (the Lamport tie-break)
+forces <code>Threads</code> to be <strong>ordered naturals</strong>, whereas TLC <code>SYMMETRY</code> needs a <strong>model-value set</strong> —
+mutually exclusive (TLC rejects <code>SYMMETRY Permutations(Threads)</code>). So the runs below are <strong>full, with no symmetry reduction</strong>.
+And symmetry is permutation-only — it would <strong>never reduce the thread count</strong> (symmetry ≠ cutoff).</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 3b: thread axis — exhaustive + saturation (2-level) -->
+<div class="slide">
+<h1>Thread axis (2) — exhaustive + σ-saturation (measured on the <strong>2-level tree, all-root</strong>)</h1>
+
+<div class="box-orange">
+<p><strong>Measurement scope, stated explicitly:</strong> all the saturation measurements below are on the
+<strong>2-level tree (Parent → {Child1, Child2}), <code>MaxCommits=1</code>, no symmetry (raw reachable sets)</strong>.
+The headline is the <strong>all-root</strong> workload (commit target = root, exposing the <strong>bundle-side</strong> structures);
+the <strong>both-roles</strong> workload (with leaf commits) separately exposes the <strong>multi-level unbundle-side</strong> structures.</p>
+</div>
+
+<h2>② Exhaustive to the contention bound + ③ σ-saturation (superfine = faithful model)</h2>
+<table>
+<tr><th>Tree</th><th>Atomicity</th><th>Workload</th><th>T</th><th>Raw distinct states</th><th>Structural σ</th><th>Safety</th></tr>
+<tr><td>2-level</td><td><strong>superfine</strong></td><td>all-root</td><td>2</td><td>124,244</td><td><strong>6</strong></td><td class="ok">Pass</td></tr>
+<tr><td>2-level</td><td><strong>superfine</strong></td><td>all-root</td><td>3</td><td><span class="big">137,333,348</span></td><td><strong>6 — set-identical to T=2</strong> (<code>diff</code> empty; σ=6 across all 137 M)</td><td class="ok">Pass (ohtaka 5h08m + 736 GB dump)</td></tr>
+<tr><td>2-level</td><td>coarse</td><td>all-root</td><td>4</td><td>136,366,732</td><td>— (not dumped; larger-<code>T</code> violation check)</td><td class="ok">Pass (28 min)</td></tr>
+<tr><td>2-level</td><td>coarse</td><td>all-root</td><td>2 / 3</td><td>1,093 / 339,744</td><td>4 / 4 (set-identical)</td><td class="ok">Pass</td></tr>
+<tr><td>2-level</td><td>coarse</td><td><strong>both-roles</strong></td><td>2</td><td>350,281</td><td>6 (4 bundle + 2 partial-unbundle)</td><td class="ok">Pass</td></tr>
+</table>
+
+<div class="box-green">
+<p><strong>What saturation means:</strong> project each reachable state onto its <strong>identity-free bundle structure</strong>
+(per node ⟨hasPriority, bundledBy, missing, which sub slots are populated⟩; drop serial &amp; payload value — exactly the fields the structural invariants read).
+In the faithful superfine all-root model the structural set is <strong>6 and saturates at <code>T=2</code></strong>: dumping the complete <code>T=3</code> exhaustion (137,333,348 states) and projecting shows it is <code>T=2 ≡ T=3</code> set-identical.
+superfine's 6 = coarse's 4 (bundle structures) + the <strong>two within-operation Phase-3 intermediates</strong> (one child re-pointed to a bundled-ref, the other not yet — exactly where a concurrency hazard could hide).
+The both-roles 6 = 4 bundle + 2 partial-unbundle (the unbundle-side structures).
+<strong>A third thread reaches no new safety-relevant structure.</strong> Meanwhile the raw count explodes (~10⁵ → 1.37×10⁸) — more threads, no new structure.</p>
+</div>
+
+<div class="box-red">
+<p><strong>3-level is by extrapolation (honest scope):</strong> the 3-level superfine σ-saturation is <strong>intractable to dump directly</strong>
+(superfine <code>T=4</code> and 3-level superfine dumps are out of reach). The 3-level case is reached by <strong>extrapolation via the tree-independence of the commit-role structure (Facts A–C)</strong> — not a direct measurement.
+(3-level coarse <code>T=2</code> already reaches <strong>≥9 structures</strong>; its exhaustion was not completed.)
+The derived local structural invariants (<code>SubNeverMissing</code> / <code>BundledHasCopy</code> / <code>StaleParentExcluded</code> / <code>SubPresenceUniform</code>) are validated with
+<strong>no violation up to 3-level superfine <code>T=3</code> all-root + <code>T=2</code> both-roles</strong> (the most-interleaved model on both fold paths).</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 4: liveness ranking -->
+<div class="slide">
+<h1>Liveness (livelock-free) — oldest-tag ranking (∀<code>N</code>)</h1>
+<p>Safety invariants do not parameterize liveness. We prove <code>EventuallyAllDone</code>
+(<code>&lt;&gt;AllDone</code>) by a well-founded <strong>ranking function</strong>. The argument is independent
+of the tree axes <strong>and of the thread count <code>N</code></strong>.</p>
+
+<h2>Progress mechanism (spec facts)</h2>
+<ul style="margin:0.3em 0 0 1.2em">
+<li>Each thread <code>t</code> carries <code>MyTag(t)=⟨iter(t), t⟩</code> (<code>TagOlder</code> total order; smaller = older).</li>
+<li>On CAS failure, <code>priorityTag[n]</code> becomes the <strong>older</strong> of its value and <code>MyTag(t)</code> (<code>TagAfterFail</code>) → monotone non-increasing in tag order.</li>
+<li><code>CanProceed(t,n)</code> permits a CAS only when <code>priorityTag[n]</code> is Null or held by <code>t</code> → younger contenders are gated out.</li>
+<li>A tag is cleared only on its holder's commit <strong>success</strong> (no zombie tags).</li>
+</ul>
+
+<h2>Ranking function</h2>
+<pre><code><span class="op">R(s)</span> = ( <span class="op">M(s)</span>, <span class="op">d(s)</span> )   <span class="comment">-- lexicographic, well-founded</span>
+  <span class="op">M(s)</span> : multiset ⟦ MyTag(t) : t ∈ Active ⟧ (Dershowitz–Manna multiset extension)
+  <span class="op">d(s)</span> : for the global-oldest t★ = argmin MyTag, remaining pc[t★]→"done" path length
+          (finite, acyclic single-transaction CFG)</code></pre>
+
+<div class="thm">
+<strong>Theorem (livelock-freedom, ∀N):</strong> under <code>WF_vars(NextStep)</code> and <code>Privilege=TRUE</code>,
+<code>EventuallyAllDone</code> holds for <strong>every finite <code>Threads</code>, independent of <code>|Threads|</code></strong>.
+Because the rank quantifies over the <strong>global oldest</strong> — which exists for any finite Active —
+<strong>liveness needs no thread cutoff</strong> (the cleaner half of the parameterized result).
+</div>
+
+<div class="box-orange">
+<p><strong>Remaining obligation (§7.5, the one open lemma):</strong> Lemma <em>(progress)</em> assumes the privileged
+<code>t★</code> completes <strong>without unbounded retry</strong>. Peers are gated out of <code>t★</code>'s contended node,
+but a peer on a <em>different</em> node (an ancestor/child in the chain) can still raise a <code>DISTURBED</code>/<code>COLLIDED</code>
+through the bundle chain. The proof must show these structural disturbances are <strong>bounded</strong> (each is caused
+by a peer commit that itself removes a younger element from <code>M</code> → cannot recur forever). The bounded
+<code>EventuallyAllDone</code> runs (2-thread all-roles superfine, 3-thread confC both levels, the 413 M dynamic-release)
+discharge this at the cutoff; the general bound is the open liveness lemma.</p>
+</div>
+</div>
+
+<!-- ============================================================ SLIDE 5: scope + provenance -->
+<div class="slide">
+<h1>Scope + provenance + summary</h1>
+
+<h2>Scope boundary (static, single-parent tree)</h2>
+<p>The cutoff (tree axis), the saturation (thread axis), and any derived local structural invariant
+(<code>SubNeverMissing</code> / <code>BundledHasCopy</code> / <code>StaleParentExcluded</code> / <code>SubPresenceUniform</code>,
+validated with no violation up to 3-level superfine <code>T=3</code> all-root + <code>T=2</code> both-roles) are stated for a
+<strong>fixed, single-parent rooted tree</strong> (<code>Next</code> has no node-insert/remove; <code>ParentOf</code> is single-valued).
+Two regimes lie outside and are verified <strong>separately</strong>, not by extension of this argument:</p>
+<table>
+<tr><th>Regime</th><th>Covered by</th></tr>
+<tr><td><strong>Dynamic topology</strong> (online insert/release)</td><td><code>*_dynamic_*</code> specs (e.g. the 413 M dynamic-release run) + <code>transaction_dynamic_node_test</code>. <code>SubPresenceUniform</code> breaks transiently on insert into an already-bundled parent</td></tr>
+<tr><td><strong>Hard links / DAG</strong> (a child with ≥ 2 parents)</td><td>§5 <code>BundleUnbundle_hardlink_*</code> + the Phase-3 fix. Conjuncts naming <em>the</em> parent are ill-formed under a multi-valued <code>ParentOf</code></td></tr>
+</table>
+
+<h2>Raw state counts are spec-version-specific</h2>
+<div class="box">
+<p>The distinct-state count is a <strong>deterministic function</strong> of (<code>.tla</code>, cfg): TLC's BFS reproduces the
+reachable set exactly for a fixed model (seed/worker count affect only discovery order). So counts are
+<strong>not comparable across spec versions</strong>: the same confC superfine <code>T=3</code> configuration moved through
+<code>514 M → 1.155 G → 640 M → 540 M</code> as successive protocol fixes landed in <code>Next</code> (identical cfg constants throughout).
+<strong>The version-independent quantity is the σ-projection (the saturated structure set), never the raw count.</strong></p>
+</div>
+
+<h2>One-line summary</h2>
+<div class="box-purple">
+<p><strong>Safety, tree axis:</strong> ∀ tree shape via a structural-cutoff <strong>theorem</strong> (catamorphism ⇒ depth-3/width-2 cutoff, discharged exhaustively by TLC).
+<strong>Safety, thread axis:</strong> <em>not</em> a ∀<code>T</code> theorem — symmetry is semantic but TLC can't apply it and is permutation-only.
+Verify exhaustively to the contention bound (superfine <code>T=3</code>=137 M, coarse <code>T=4</code>=136 M) + <em>measure</em> σ-saturation (<code>T=2 ≡ T=3</code>, 6 structures) ⇒ a strongly-evidenced <strong>conjecture</strong>.
+<strong>Liveness:</strong> ∀<code>N</code> via an oldest-tag ranking-function argument (no thread cutoff; verified exhaustively at small <code>T</code>). The gate is a pure liveness device, disjoint from safety.</p>
+</div>
+
+<p style="color:#94a3b8;font-size:0.9em">Source: <code>doc/parameterized_cutoff.md</code> (§1–§9) / <code>VERIFICATION.md</code> Thread-axis saturation §. Related: <a href="slides_layer2_LLfree.html">LL-free specification</a> / <a href="slides_overview_en.html">coverage overview</a>.</p>
+</div>
+
+</body>
+</html>
