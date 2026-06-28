@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TLA+ Layer 2 (LLfree variant)</title>
+<title>TLA+ Layer 2: LL-free specification</title>
 <style>
 body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#1e293b;color:#e2e8f0}
 .slide{min-height:100vh;padding:3em 4em;border-bottom:3px solid #334155;page-break-after:always}
@@ -31,13 +31,13 @@ p{line-height:1.8}
 
 <!-- ============================================================ TITLE -->
 <div class="slide">
-<h1>Layer 2 LL-free (Gen 3)</h1>
+<h1>Layer 2: LL-free specification</h1>
 <h3>Making the STM bundle/unbundle protocol livelock-free — with a formal proof</h3>
 
 <div class="box-purple">
 <p>KAME's STM commits optimistically while bundling / unbundling subtrees of the node tree.
-This deck explains its <strong>livelock-free (LL-free) variant</strong> (the third-generation
-spec <code>BundleUnbundle_2level_LLfree.tla</code>). The core idea is
+This deck explains its Layer 2 spec
+<code>BundleUnbundle_2level_LLfree.tla</code>. The core idea is
 <strong>"older transactions win" priority arbitration (privileged-TID negotiate)</strong>:
 on CAS contention the older transaction is given priority, so retry counts are structurally
 bounded and TLC can <strong>exhaust the entire state space without any CONSTRAINT</strong> —
@@ -47,42 +47,41 @@ which is itself the formal proof of livelock-freedom.</p>
 <div class="box">
 <h2>Where this deck fits</h2>
 <ul>
-<li><strong>Prerequisite:</strong> the bundle/unbundle protocol itself is shared with the base spec —
-reading the <a href="slides_layer2_en.html">Layer 2 base deck</a> first helps.</li>
-<li><strong>What this deck adds:</strong> only the gating layer that guarantees LL-freedom
+<li><strong>What this deck covers:</strong> the priority-arbitration gating layer that guarantees LL-freedom
 (<code>priorityTag</code> / <code>CanProceed</code> / <code>PreemptTag</code> / <code>ClearMyTags</code>).</li>
-<li><strong>Related decks:</strong> the 3-level, dynamic, and hard-link variants are reachable from the
+<li><strong>Related decks:</strong> for the bundle/unbundle tree structure and protocol detail, see also the
+<a href="slides_layer2_en.html">Layer 2 protocol deck</a>.
+The 3-level, dynamic, and hard-link specs are reachable from the
 <a href="slides_overview_en.html">coverage overview</a>.</li>
 </ul>
 </div>
 
 <div class="box-green">
-<p><strong>Roadmap:</strong> notation &amp; new elements → three generations of verification →
+<p><strong>Roadmap:</strong> notation &amp; core elements → spec &amp; verification results →
 <code>priorityTag</code> → <code>CanProceed</code> → tag-update rules →
 <code>PreemptTag</code>/<code>ClearMyTags</code> →
-<code>EventuallyAllDone</code> (liveness proof) → older generations &amp; the wait-free distinction.</p>
+<code>EventuallyAllDone</code> (liveness proof) → the wait-free distinction.</p>
 </div>
 </div>
 
 <!-- ============================================================ SLIDE: notation -->
 <div class="slide">
-<h1>Notation &amp; new elements — delta from the base 2-level spec</h1>
+<h1>Notation &amp; core elements</h1>
 <p style="color:#94a3b8">
-<code>BundleUnbundle_2level_LLfree.tla</code> is a variant of the base 2-level spec that adds
+<code>BundleUnbundle_2level_LLfree.tla</code> is the 2-level spec equipped with
 a <strong>privileged-TID negotiate mechanism</strong>, making livelock-freedom
-<em>formally checkable</em> by TLC. This deck only describes the delta — see
-<code>slides_layer2_en.html</code> for the shared base.
+<em>formally checkable</em> by TLC. For the bundle/unbundle tree structure and protocol detail,
+see also <code>slides_layer2_en.html</code>.
 </p>
 
 <div class="box-orange">
-<p><strong>Where this variant sits:</strong>
-KAME's TLA+ specs split into <strong>three generations</strong> by how they bound finiteness.
-LLfree is the latest, Gen 3: it does not rely on CONSTRAINT and instead bounds the state space
+<p><strong>Key property:</strong>
+LLfree does not rely on CONSTRAINT and instead bounds the state space
 <em>structurally</em> via the priority mechanism. That means TLC's full exhaustion <em>itself</em>
 is the formal proof of livelock-freedom. The spec directly mirrors
 <code>m_link-&gt;negotiate()</code> / <code>release_privileged_tidstamp()</code> from the C++.</p>
 <p style="margin-top:0.4em">Setting <strong><code>Privilege = FALSE</code></strong> disables the priority machinery,
-the state space diverges, and TLC fails to terminate — the most direct counter-example showing
+the state space diverges, and TLC fails to terminate — the most direct validation that
 the priority mechanism is required (detailed in the final slide).</p>
 </div>
 
@@ -121,77 +120,49 @@ the priority mechanism is required (detailed in the final slide).</p>
     <td><code>&lt;&gt;AllDone</code> — every thread reaches termination</td></tr>
 </table>
 
-<h2>Removed / relaxed</h2>
+<h2>Finiteness-related setup</h2>
 <table>
-<tr><th>Item</th><th>Base 2-level</th><th>LLfree</th></tr>
+<tr><th>Item</th><th>How LLfree handles it</th></tr>
 <tr><td>CONSTRAINT SerialBound</td>
-    <td>Required (Nat serial grows unboundedly otherwise)</td>
-    <td class="del">Not used (priorityTag mechanism guarantees finiteness structurally)</td></tr>
+    <td>Not used (priorityTag mechanism guarantees finiteness structurally)</td></tr>
 <tr><td>SYMMETRY ThreadSymmetry</td>
-    <td>Applied</td>
-    <td class="del">Removed (TLC warns on liveness + symmetry; Threads must be ordered Nat anyway)</td></tr>
+    <td>Not used (TLC warns on liveness + symmetry; Threads must be ordered Nat anyway)</td></tr>
 <tr><td>Threads type</td>
-    <td>model values <code>{t1, t2}</code></td>
     <td><code>{1, 2}</code> (Nat — type-compatible with <code>TagOlder</code>'s <code>a[2] &lt; b[2]</code>)</td></tr>
 <tr><td>MaxSerial / MaxPayload</td>
-    <td>Set in cfg</td>
-    <td class="del">Removed — serial is Lamport (Nat; never referenced inside ops); payload is a monotone Nat counter</td></tr>
+    <td>Unused — serial is Lamport (Nat; never referenced inside ops); payload is a monotone Nat counter</td></tr>
 <tr><td>DebugSerialBound</td>
-    <td>Undefined</td>
-    <td><code>== TRUE</code> (always passes; Lamport serial is unbounded so the numeric check is removed)</td></tr>
+    <td><code>== TRUE</code> (always passes; Lamport serial is unbounded so there is no numeric check)</td></tr>
 </table>
 
 <div class="box">
-<p><strong>Unchanged from the base spec:</strong>
+<p><strong>Safety-related setup:</strong>
 tree structure (Parent + Child1 + Child2), 4-phase bundle protocol, commit pipeline,
 unbundle, coarse / fine / superfine triples, safety invariants
 (SnapshotConsistency, NoPriorityLoss, BundleRefConsistency, MissingPropagation,
-TerminalPayloadCheck) — identical to the base. LLfree adds only a <strong>gating layer</strong>
+TerminalPayloadCheck). On top of these, LLfree carries a <strong>gating layer</strong>
 that guarantees livelock-freedom.</p>
 </div>
 </div>
 
 <!-- ============================================================ SLIDE 1 -->
 <div class="slide">
-<h1>Overview: three generations of verification</h1>
+<h1>Overview: spec &amp; verification results</h1>
 <p style="color:#94a3b8">
-KAME's bundle/unbundle TLA+ specs split into <strong>three generations</strong> based on how
-they bound finiteness. LLfree is Gen 3; that this variant exhausts <em>without</em> CONSTRAINT
-constitutes a structural proof of livelock-freedom.
+That LLfree exhausts <em>without</em> CONSTRAINT
+constitutes a structural proof of livelock-freedom. Below: the tree structure and protocol body
+carrying the priority mechanism (<code>priorityTag</code>).
 </p>
 
-<h2>Three generations compared</h2>
-<table>
-<tr><th>Generation</th><th>Serial</th><th>CONSTRAINT</th><th>Priority mechanism</th><th>TLC behavior</th><th>What it proves</th></tr>
-<tr><td>Gen 1 (modular)</td>
-    <td><code>% MaxSerial</code> wrap</td>
-    <td>None</td>
-    <td>None</td>
-    <td><strong>Fails</strong> on <code>SerialWrapAround</code> violation</td>
-    <td>The need for LL-free machinery, as a counter-example</td></tr>
-<tr><td>Gen 2 (Nat+CONSTRAINT)</td>
-    <td>Nat monotone</td>
-    <td>Cut off at <code>SerialBound</code></td>
-    <td>None</td>
-    <td>Terminates but relies on bound</td>
-    <td>Safety within a bounded search</td></tr>
-<tr><td class="add"><strong>Gen 3 (LLfree)</strong></td>
-    <td class="add">Lamport (unbounded Nat)</td>
-    <td class="add"><strong>None</strong></td>
-    <td class="add"><strong>Always on</strong> (<code>priorityTag</code>)</td>
-    <td class="add">Finiteness holds structurally; TLC exhausts; liveness PASS</td>
-    <td class="add">Safety + <strong>livelock-freedom proven structurally</strong></td></tr>
-</table>
-
-<h2>Tree structure (same as base)</h2>
+<h2>Tree structure</h2>
 <div class="tree">
 &nbsp;&nbsp;&nbsp;&nbsp;Parent<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── Child1<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── Child2
 </div>
 <p style="color:#94a3b8;font-size:0.92em">
-2-level tree. The bundle/unbundle protocol itself, the 4 phases, the commit pipeline, and the
-coarse/fine/superfine triple are <strong>identical</strong> to the base spec. LLfree only adds the
+2-level tree. On top of the bundle/unbundle protocol body, the 4 phases, the commit pipeline, and the
+coarse/fine/superfine triple, LLfree carries the
 <strong>gating layer</strong> that ensures livelock-freedom.
 </p>
 
@@ -250,7 +221,7 @@ vars == &lt;&lt;serial, linkage, pc, op, target, local,
 <span class="comment">\* Serial encoding: EncodeSerial(cnt, tid) = cnt * SerialBase + tid</span>
 <span class="comment">\*   SerialBase = 1 + |Threads|  (> max TID)</span>
 <span class="op">Init</span> ==
-    /\ ...  <span class="comment">\* same init as base 2-level</span>
+    /\ ...  <span class="comment">\* tree / linkage / pc initialization</span>
     /\ serial = [t \in Threads |-&gt; EncodeSerial(<span class="num">0</span>, t)]  <span class="comment">\* TID embedded</span>
     /\ <span class="add">priorityTag = [n \in Nodes |-&gt; Null]</span></code></pre>
 
@@ -313,7 +284,7 @@ is <strong>unchanged</strong>. TLC simply evaluates <code>iter(t)</code> as
 <div class="slide">
 <h1><code>CanProceed(t, n)</code> — the CAS precondition</h1>
 <p style="color:#94a3b8">
-The core gate. Every CAS attempt in the base spec is preceded by
+The core gate. Every CAS attempt is preceded by
 <code>CanProceed(t, n) /\ ...</code>; if the registered tag forbids it, <em>that thread cannot
 proceed</em>. This is the heart of the priority mechanism.
 </p>
@@ -570,7 +541,7 @@ the proof of livelock-freedom?
 <code>kamestm/tests/VERIFICATION.md §3</code>, <code>doc/verification_log.md</code>.</p>
 </div>
 
-<h2>Related variants</h2>
+<h2>Related specs</h2>
 <table>
 <tr><th>Spec</th><th>Difference</th><th>Deck</th></tr>
 <tr><td><code>BundleUnbundle_3level_LLfree.tla</code></td><td>3-level tree (Grand → Parent → Child); recursive inner bundle; multi-level unbundle walk</td><td><code>slides_layer2_LLfree_3level_en.html</code></td></tr>
@@ -581,41 +552,18 @@ the proof of livelock-freedom?
 
 <!-- ============================================================ SLIDE 7 -->
 <div class="slide">
-<h1>Why preserve older generations + the wait-free distinction</h1>
+<h1>Privilege=FALSE validation + the wait-free distinction</h1>
 <p style="color:#94a3b8">
-Why the old-generation specs should not be deleted (proof_semantics §5),
-and how to distinguish "livelock-free" from "wait-free" (proof_semantics §7).
+The <code>Privilege=FALSE</code> validation showing the priority mechanism is essential
+(proof_semantics §5), and how to distinguish "livelock-free" from "wait-free" (proof_semantics §7).
 </p>
-
-<h2>Why keep older generations (proof_semantics §5)</h2>
-<div class="box-purple">
-<h3>Gen 1 (oldest, modular serial) — fails on <code>SerialWrapAround</code></h3>
-<ul style="margin:0.3em 0 0 1.2em">
-<li>Without the priority mechanism, retries are unbounded</li>
-<li>The modular serial counter wraps; different times collide on the same serial,
-    and <code>ModGT</code> compare breaks</li>
-<li>This is the dynamic counter-example</li>
-</ul>
-<p><strong>Why it matters:</strong> An empirical violation proves the LL-free mechanism is
-necessary. The strongest argument for Gen 3 (proof_semantics §5).</p>
-</div>
-
-<div class="box-purple">
-<h3>Gen 2 (Nat + CONSTRAINT) — state-space divergence</h3>
-<ul style="margin:0.3em 0 0 1.2em">
-<li>No wrap, but removing CONSTRAINT (<code>SerialBound</code>) makes the state count diverge</li>
-<li>Shows "switching to Nat alone is not LL-free"</li>
-<li>The second piece of evidence for needing the priority mechanism</li>
-</ul>
-<p><strong>Why it matters:</strong> Provides Gen 3's motivation. CONSTRAINT termination only
-guarantees safety inside the cut-off, not liveness (proof_semantics §3).</p>
-</div>
 
 <h2>Privilege=FALSE — disabling the priority mechanism</h2>
 <p style="color:#94a3b8">
 The 3-level spec (<code>BundleUnbundle_3level_LLfree.tla</code>) has an explicit CONSTANT
 <code>Privilege</code>. Setting <code>Privilege=FALSE</code> disables the priority mechanism
-entirely, equivalent to the original non-LL-free behavior.
+entirely. It is the switch that validates the priority mechanism is essential: with it disabled,
+the state space diverges.
 </p>
 <table>
 <tr><th></th><th><code>Privilege=TRUE</code> (LLfree)</th><th><code>Privilege=FALSE</code> (non-LL-free)</th></tr>
@@ -676,7 +624,7 @@ CAS-retry design (by intent).</p>
 <strong>References:</strong>
 spec source → <code>BundleUnbundle_2level_LLfree.tla</code> /
 <code>BundleUnbundle_3level_LLfree.tla</code> |
-base spec → <code>slides_layer2_en.html</code> |
+protocol detail → <code>slides_layer2_en.html</code> |
 3-level / dynamic → <code>slides_layer2_LLfree_3level_en.html</code> / <code>slides_layer2_LLfree_dynamic_en.html</code> |
 hardlink → <code>slides_hardlink_en.html</code>
 </div>

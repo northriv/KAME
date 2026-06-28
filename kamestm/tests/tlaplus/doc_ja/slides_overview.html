@@ -59,7 +59,7 @@ Lamport クロック優先度調停で 11.5 億状態超まで検証する。さ
 ├──────────────────────────────────────────────────────────────┤<br>
 │ <span style="color:#c084fc">TLA+ / TLC</span>  — 全インターリーブ網羅 / 逐次一貫性                       │<br>
 │ &nbsp;&nbsp;Layer 2  bundle/unbundle STM (safety + livelock-free)            │<br>
-│ &nbsp;&nbsp;Layer 1  atomic_shared_ptr + commit (safety; LL-free は反例)     │<br>
+│ &nbsp;&nbsp;Layer 1  atomic_shared_ptr + commit (safety proven; L1 では livelock-free 非保証) │<br>
 ├──────────────────────────────────────────────────────────────┤<br>
 │ <span style="color:#22d3ee">GenMC (RC11)</span>  — 弱メモリモデル網羅 / atomic_shared_ptr 基盤        │<br>
 └──────────────────────────────────────────────────────────────┘<br>
@@ -182,13 +182,13 @@ Lamport クロック優先度調停で 11.5 億状態超まで検証する。さ
 </div>
 
 <div class="card">
-<h3><span class="pill pill-l2">L2</span> Layer 2: 基本仕様 (Gen 1/2)</h3>
+<h3><span class="pill pill-l2">L2</span> Layer 2: プロトコル基礎 (bundle/unbundle)</h3>
 <p><a href="slides_layer2.html">slides_layer2.html →</a></p>
-<p style="font-size:0.9em;color:#94a3b8">bundle/unbundle + commit の基本解説。Gen 3 LLfree への導線。modular serial 系の歴史的記述。</p>
+<p style="font-size:0.9em;color:#94a3b8">STM の中核プロトコル仕様。bundle/unbundle + commit の木構造・段階の基本解説。</p>
 </div>
 
 <div class="card">
-<h3><span class="pill pill-l2">L2</span> Layer 2 LLfree (Gen 3 中核)</h3>
+<h3><span class="pill pill-l2">L2</span> Layer 2 LLfree (中核)</h3>
 <p><a href="slides_layer2_LLfree.html">slides_layer2_LLfree.html →</a></p>
 <p style="font-size:0.9em;color:#94a3b8">priority-TID negotiate、CanProceed / TagAfterFail / PreemptTag / ClearMyTags、CONSTRAINT なし構造的 LL-free 証明。</p>
 </div>
@@ -252,9 +252,9 @@ Lamport クロック優先度調停で 11.5 億状態超まで検証する。さ
 <div class="box">
 <table>
 <tr><th>仕様</th><th>位置づけ</th></tr>
-<tr><td><code>BundleUnbundle.tla</code> (3-level)<br><code>BundleUnbundle_2level.tla</code></td><td>Gen 1/2 非 LL-free 版。LLfree (Gen 3) に置換済。modular serial / CONSTRAINT に依存。検証は pass するが baseline として保存。</td></tr>
+<tr><td><code>BundleUnbundle.tla</code> (3-level)<br><code>BundleUnbundle_2level.tla</code></td><td>アーカイブされたベースライン仕様 (参考用)。機能は現行 LLfree スイートでカバー済。検証は pass するが日常実行しない。</td></tr>
 <tr><td><code>MC.tla</code> / <code>MC_2level.tla</code> / <code>MC_3level.tla</code></td><td>旧スタイルの model-checker config モジュール。現在は <code>*_mc.cfg</code> を直接使用。</td></tr>
-<tr><td><code>test_stm_commit.c</code> / <code>test_bundle_2level.c</code> / <code>test_bundle_3level.c</code></td><td>非 LL-free path の TLA+-derived C11 テスト (legacy)。LLfree 版に置換。</td></tr>
+<tr><td><code>test_stm_commit.c</code> / <code>test_bundle_2level.c</code> / <code>test_bundle_3level.c</code></td><td>アーカイブされた TLA+-derived C11 テスト (参考用)。機能は現行 LLfree スイートでカバー済。</td></tr>
 </table>
 </div>
 

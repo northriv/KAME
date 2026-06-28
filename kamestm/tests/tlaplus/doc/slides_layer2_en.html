@@ -29,17 +29,12 @@ p{line-height:1.8}
 
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
-<h1>Layer 2: Bundle/Unbundle + Commit (Base Spec)</h1>
+<h1>Layer 2: Bundle/Unbundle + Commit</h1>
 <h3>TLA+ Model — BundleUnbundle_2level.tla / BundleUnbundle.tla (3-level)</h3>
 
-<div class="box" style="background:#3b0000;border:1px solid #dc2626">
-<p><strong>This deck explains the Gen 1/2 (modular-serial) base specification.</strong>
-The current reference is <strong>Gen 3 LLfree</strong> — the variant that structurally proves
-livelock-freedom via a privileged-TID negotiate mechanism. The bundle/unbundle/commit
-protocol itself is identical in both generations, so this deck is still useful as a base
-explanation, but <strong>for current verification results and the canonical model see
-<code>slides_layer2_LLfree.html</code></strong>.</p>
-<p style="margin-top:0.5em">Related decks: LLfree (Gen 3) / 3-level LLfree / dynamic LLfree / hard-link topologies (<code>slides_hardlink_en.html</code> — separate).</p>
+<div class="box">
+<p>This deck covers the bundle/unbundle/commit protocol itself (LLfree assumed).
+The hard-link, dynamic, and 3-level topics are covered in separate decks.</p>
 </div>
 
 <div class="box-purple">
@@ -319,7 +314,7 @@ another thread," adopt the new child packet, and retry the CAS. This reduces was
 <span class="op">GrandAlwaysPriority</span> ==
     linkage[Grand].hasPriority</code></pre>
 
-<h2>Verification Results (Gen 3 LLfree, CONSTRAINT-free exhaustion)</h2>
+<h2>Verification Results (CONSTRAINT-free exhaustion)</h2>
 <table>
 <tr><th>Model</th><th>Fidelity</th><th>Threads</th><th>States</th><th>Depth</th><th>Time</th><th>Result</th></tr>
 <tr><td>2-level LLfree</td><td>micro (fine)</td><td>2</td><td>867,696</td><td>89</td><td>~35s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
@@ -330,7 +325,6 @@ another thread," adopt the new child packet, and retry the CAS. This reduces was
 <tr><td>3-level LLfree</td><td>coarse</td><td>2</td><td>1,497,098</td><td>98</td><td>1:35</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-level LLfree</td><td>superfine</td><td>2</td><td>14,109,731</td><td>148</td><td>19:13</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>640,894,951</td><td>88</td><td>15:25</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
-<tr><td colspan="7" style="font-size:0.85em; color:#94a3b8;">Old Gen 1/2 (modular serial) numbers (906K, 3.2M, ...) have been removed from this table. The LLfree spec replaces modular wrapping with a priority-TID negotiate mechanism that makes the state space structurally finite and verifies liveness at the same time. Details: <code>VERIFICATION.md §3, §4</code>.</td></tr>
 </table>
 
 <div class="box-purple">
@@ -338,8 +332,8 @@ another thread," adopt the new child packet, and retry the CAS. This reduces was
 snapshot/commit/bundle/unbundle, all invariants are preserved — proven by TLC exhaustion.
 Coarse collapses phases into single steps (fastest); fine separates per-child CAS;
 superfine faithfully models the C++ optimization paths.
-Gen 3 (LLfree) replaces modular wrapping with the priority-TID mechanism, finitizing
-the state space <strong>structurally</strong> so that <strong>safety + liveness
+LLfree finitizes the state space <strong>structurally</strong> via the priority-TID
+mechanism (no CONSTRAINT) so that <strong>safety + liveness
 (<code>EventuallyAllDone</code>) are verified at the same time</strong>.</p>
 </div>
 
@@ -375,7 +369,7 @@ precondition. The gate is only effectful in hard-link topologies, covered separa
 <table>
 <tr><th>Layer</th><th>Spec</th><th>What It Verifies</th><th>States (largest confirmed)</th></tr>
 <tr><td style="color:#0891b2"><strong>Layer 1</strong></td><td><code>atomic_shared_ptr.tla</code><br>+ commit primitives</td><td>Tagged-pointer reference counting, drain release, <code>scoped_atomic_view</code>; safety only</td><td>66.5M (2-thread MaxOps=3 full)</td></tr>
-<tr><td style="color:#7c3aed"><strong>Layer 2</strong> (LLfree)</td><td><code>BundleUnbundle_2level_LLfree</code><br><code>BundleUnbundle_3level_LLfree</code><br>+ <code>_dynamic</code> variants</td><td>4-phase bundle / unbundle / commit + LL-free priority gating; <strong>safety + liveness</strong></td><td>2L: 413M (dynamic release superfine)<br>3L: 640M (3-thread superfine confC)</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td><code>BundleUnbundle_2level_LLfree</code><br><code>BundleUnbundle_3level_LLfree</code><br>+ <code>_dynamic</code> specs</td><td>4-phase bundle / unbundle / commit + LL-free priority gating; <strong>safety + liveness</strong></td><td>2L: 413M (dynamic release superfine)<br>3L: 640M (3-thread superfine confC)</td></tr>
 <tr><td style="color:#dc2626"><strong>Layer 2</strong> (hard-link)</td><td><code>BundleUnbundle_hardlink_*</code><br>(5 topologies)</td><td>Multi-parent / 1-child; Phase 4 reachability gate; bug repro + fix; per-action fairness</td><td>~1k–10k (small-scale, complete)</td></tr>
 </table>
 
@@ -384,16 +378,15 @@ precondition. The gate is only effectful in hard-link topologies, covered separa
 integrates naturally into Layer 2's <code>CommitTryCAS</code> direct path, so a separate layer
 was redundant. Verifying bundle/unbundle together with optimistic commit in the same spec
 improves coverage of interference patterns.</p>
-<p style="margin-top:0.4em"><strong>Why Gen 3 (LLfree):</strong> The old Gen 1 (modular serial) had no structural
-guarantee of livelock-freedom; Gen 2 (Nat + CONSTRAINT) relied on an artificial search cutoff.
-Gen 3 LLfree introduces <code>priorityTag</code> + <code>PreemptTag</code> + <code>ClearMyTags</code>
+<p style="margin-top:0.4em"><strong>LLfree priority mechanism:</strong> the Layer 2 spec introduces
+<code>priorityTag</code> + <code>PreemptTag</code> + <code>ClearMyTags</code>
 to structure older-wins arbitration, letting TLC exhaust without CONSTRAINT and structurally
 prove liveness (details: <code>doc/proof_semantics.md</code>).</p>
 </div>
 
 <h2>Related Decks</h2>
 <ul style="margin:0.3em 0 0 1.2em">
-<li><strong>Layer 2 LLfree (2-level)</strong> — <code>slides_layer2_LLfree.html</code> (Gen 3 LLfree core)</li>
+<li><strong>Layer 2 LLfree (2-level)</strong> — <code>slides_layer2_LLfree.html</code> (the LLfree priority mechanism + verification)</li>
 <li><strong>Hard-link family</strong> — <code>slides_hardlink_en.html</code> (5 topologies + Phase 4 reachability gate)</li>
 <li><strong>3-level / dynamic LLfree</strong> — <code>slides_layer2_LLfree_3level_en.html</code> / <code>slides_layer2_LLfree_dynamic_en.html</code></li>
 </ul>

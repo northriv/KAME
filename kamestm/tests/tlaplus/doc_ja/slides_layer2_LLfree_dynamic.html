@@ -33,11 +33,10 @@ p{line-height:1.7}
 <h3><code>BundleUnbundle_2level_LLfree_dynamic.tla</code> / <code>_3level_LLfree_dynamic.tla</code></h3>
 
 <div class="box-purple">
-<p>静的 LLfree (<code>BundleUnbundle_2level_LLfree.tla</code>) を拡張し、
-ランタイムでの<strong>子ノード挿入 (<code>insert(online=true)</code>) と解放 (<code>release</code>)</strong>
-を加える。木構造は固定ではなく、各イテレーションで動的に変化する。</p>
+<p>LLfree の Layer 2 仕様にランタイムでの<strong>子ノード挿入 (<code>insert(online=true)</code>) と解放 (<code>release</code>)</strong>
+を加えた動的モード。木構造は固定ではなく、各イテレーションで動的に変化する。</p>
 <p style="margin-top:0.4em">priority gating (CanProceed / TagAfterFail / TagAfterSuccess / PreemptTag / ClearMyTags) は
-2-level LLfree と同一 — <code>slides_layer2_LLfree.html</code> 参照。</p>
+2-level LLfree と同一 — 木構造の詳細は <code>slides_layer2_LLfree.html</code> も参照。</p>
 </div>
 
 <h2>木構造 (dynamic)</h2>
@@ -105,9 +104,9 @@ priority gating により、insert 側が old/young の関係で待たされる/
 
 <!-- ============================================================ Slide 2 -->
 <div class="slide">
-<h1>Static spec との差分 + 検証結果</h1>
+<h1>static モードとの対比 + 検証結果</h1>
 
-<h2>差分まとめ</h2>
+<h2>static / dynamic モードの対比</h2>
 <table>
 <tr><th>項目</th><th>static (<code>_LLfree.tla</code>)</th><th>dynamic (<code>_LLfree_dynamic.tla</code>)</th></tr>
 <tr><td>子ノード集合</td><td>初期から固定 (Child1, Child2)</td><td>動的に挿入/解放 (DynChild1, DynChild2)</td></tr>
@@ -141,7 +140,7 @@ java -XX:+UseParallelGC -Xmx32g -cp tla2tools.jar tlc2.TLC \
 
 <h2>関連 spec / スライド</h2>
 <ul style="margin:0.3em 0 0 1.2em">
-<li><code>slides_layer2_LLfree.html</code> — Gen 3 LLfree 基本仕様</li>
+<li><code>slides_layer2_LLfree.html</code> — LLfree 基本仕様</li>
 <li><code>slides_layer2_LLfree_3level.html</code> — 3-level LLfree 差分</li>
 <li><code>slides_hardlink.html</code> — hard-link topology (sibling parents の dynamic 版を含む)</li>
 <li><code>kamestm/tests/VERIFICATION.md §3</code> — 最新結果</li>

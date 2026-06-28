@@ -29,16 +29,12 @@ p{line-height:1.8}
 
 <!-- ===== Slide 1: Overview ===== -->
 <div class="slide">
-<h1>Layer 2: Bundle/Unbundle + Commit (基本仕様)</h1>
+<h1>Layer 2: Bundle/Unbundle + Commit</h1>
 <h3>TLA+モデル解説 — BundleUnbundle_2level.tla / BundleUnbundle.tla (3-level)</h3>
 
-<div class="box-red">
-<p><strong>本スライドは Gen 1/2 (modular serial 系) の基本仕様解説です。</strong>
-現行の参照仕様は <strong>Gen 3 LLfree</strong> — privilege-TID negotiate 機構で livelock-free を
-構造的に証明する版に移行済。bundle/unbundle/commit プロトコル本体は両世代で完全同一なので、
-本スライドは現在も基本仕様の解説として有効ですが、
-<strong>検証結果と参照モデルは <code>slides_layer2_LLfree.html</code> を見てください</strong>。</p>
-<p style="margin-top:0.5em">関連スライド: LLfree (Gen 3) / 3-level LLfree / dynamic LLfree / hard-link 系 (slides_hardlink.html — 別途公開)。</p>
+<div class="box">
+<p>本スライドは bundle/unbundle/commit プロトコル本体を解説します（LLfree 前提）。
+hard-link / dynamic / 3-level の各トピックは別スライドで扱います。</p>
 </div>
 
 <div class="box-purple">
@@ -313,7 +309,7 @@ payload が自分の期待値と同じなら、子スロットだけが他スレ
 <span class="op">GrandAlwaysPriority</span> ==
     linkage[Grand].hasPriority</code></pre>
 
-<h2>検証結果 (Gen 3 LLfree、CONSTRAINT なし完全 exhaustion)</h2>
+<h2>検証結果 (CONSTRAINT なし完全 exhaustion)</h2>
 <table>
 <tr><th>モデル</th><th>粒度</th><th>スレッド</th><th>状態数</th><th>Depth</th><th>時間</th><th>結果</th></tr>
 <tr><td>2-level LLfree</td><td>micro (fine)</td><td>2</td><td>867,696</td><td>89</td><td>~35s</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
@@ -324,15 +320,13 @@ payload が自分の期待値と同じなら、子スロットだけが他スレ
 <tr><td>3-level LLfree</td><td>coarse</td><td>2</td><td>1,497,098</td><td>98</td><td>1:35</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-level LLfree</td><td>superfine</td><td>2</td><td>14,109,731</td><td>148</td><td>19:13</td><td style="color:#4ade80">✅ Pass + liveness</td></tr>
 <tr><td>3-level LLfree</td><td>superfine confC (all-root)</td><td>3</td><td>640,894,951</td><td>88</td><td>15:25</td><td style="color:#4ade80">✅ Pass + liveness (ohtaka)</td></tr>
-<tr><td colspan="7" style="font-size:0.85em; color:#94a3b8;">Gen 1/2 (modular serial) 時代の旧 BundleUnbundle_2level.tla の結果 (906K, 3.2M 等) は本表から外しました。
-LLfree で priority-TID 機構を組み込むことで CONSTRAINT 不要かつ liveness 込みで verify 可能になっています。詳細: <code>VERIFICATION.md §3, §4</code>。</td></tr>
 </table>
 
 <div class="box-purple">
 <p><strong>検証の意味:</strong> 2〜3 スレッドが同時に snapshot / commit / bundle / unbundle を任意の組み合わせで
 実行するすべてのインターリーブで、不変条件が保持されることを TLC が exhaustion で証明。
 coarse は単一ステップで最速、fine は子ごとに CAS 分離、superfine は C++ 最適化パスを忠実に再現する。
-Gen 3 (LLfree) は CONSTRAINT を使わず priority-TID 機構で構造的に状態空間を有限化することで、
+LLfree は CONSTRAINT を使わず priority-TID 機構で構造的に状態空間を有限化することで、
 <strong>safety + liveness (<code>EventuallyAllDone</code>) が同時に証明</strong>される。</p>
 </div>
 
@@ -367,7 +361,7 @@ gate が効くのは hard-link topology のみで、その検証は別途
 <table>
 <tr><th>層</th><th>仕様</th><th>何を検証</th><th>状態数 (最大確認済)</th></tr>
 <tr><td style="color:#0891b2"><strong>Layer 1</strong></td><td><code>atomic_shared_ptr.tla</code><br>+ commit primitives</td><td>tagged-pointer 参照カウント, drain release, <code>scoped_atomic_view</code>; safety only</td><td>66.5M (2-thread MaxOps=3 full)</td></tr>
-<tr><td style="color:#7c3aed"><strong>Layer 2</strong> (LLfree)</td><td><code>BundleUnbundle_2level_LLfree</code><br><code>BundleUnbundle_3level_LLfree</code><br>+ <code>_dynamic</code> variants</td><td>4-phase bundle / unbundle / commit + LL-free priority gating; <strong>safety + liveness</strong></td><td>2L: 413M (dynamic release superfine)<br>3L: 640M (3-thread superfine confC)</td></tr>
+<tr><td style="color:#7c3aed"><strong>Layer 2</strong></td><td><code>BundleUnbundle_2level_LLfree</code><br><code>BundleUnbundle_3level_LLfree</code><br>+ <code>_dynamic</code> 系</td><td>4-phase bundle / unbundle / commit + LL-free priority gating; <strong>safety + liveness</strong></td><td>2L: 413M (dynamic release superfine)<br>3L: 640M (3-thread superfine confC)</td></tr>
 <tr><td style="color:#dc2626"><strong>Layer 2</strong> (hard-link)</td><td><code>BundleUnbundle_hardlink_*</code><br>(5 topologies)</td><td>multi-parent / 1-child; Phase 4 reachability gate; bug repro + fix; per-action fairness</td><td>~1k–10k (small-scale, complete)</td></tr>
 </table>
 
@@ -376,16 +370,15 @@ gate が効くのは hard-link topology のみで、その検証は別途
 Layer 2 の <code>CommitTryCAS</code> 直接パス（単一ノードCASコミット）に自然に統合できるため、
 独立層としては不要と判断。bundle/unbundleと楽観的commitを同じ仕様内で検証することで、
 干渉パターンの網羅性が向上した。</p>
-<p style="margin-top:0.4em"><strong>Gen 3 (LLfree) への移行:</strong> 旧 Gen 1 (modular serial) 系には livelock-free 性を保証する
-構造が無く、Gen 2 (Nat+CONSTRAINT) では人為的な探索打ち切りに依存していた。
-Gen 3 LLfree は <code>priorityTag</code> + <code>PreemptTag</code> + <code>ClearMyTags</code> で
+<p style="margin-top:0.4em"><strong>LLfree priority 機構:</strong> Layer 2 仕様は
+<code>priorityTag</code> + <code>PreemptTag</code> + <code>ClearMyTags</code> で
 older-wins を構造化し、CONSTRAINT なしで TLC が exhaustion 完走 → liveness を構造的に証明する
 (詳細: <code>doc/proof_semantics.md</code>)。</p>
 </div>
 
 <h2>関連スライド</h2>
 <ul style="margin:0.3em 0 0 1.2em">
-<li><strong>Layer 2 LLfree (2-level)</strong> — <code>../doc/slides_layer2_LLfree.html</code> (Gen 3 LLfree の中核解説)</li>
+<li><strong>Layer 2 LLfree (2-level)</strong> — <code>../doc/slides_layer2_LLfree.html</code> (LLfree priority 機構 + 検証結果の解説)</li>
 <li><strong>Hardlink 系</strong> — <code>slides_hardlink.html</code> (5 topology + Phase 4 reachability gate)</li>
 <li><strong>3-level / dynamic LLfree</strong> — <code>slides_layer2_LLfree_3level.html</code> / <code>slides_layer2_LLfree_dynamic.html</code></li>
 </ul>

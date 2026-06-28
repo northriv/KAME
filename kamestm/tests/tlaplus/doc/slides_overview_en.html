@@ -65,7 +65,7 @@ the implementation is empirically hardened, with no daylight between them.</stro
 ├──────────────────────────────────────────────────────────────┤<br>
 │ <span style="color:#c084fc">TLA+ / TLC</span>  — all interleavings exhaustively / seq. consistency    │<br>
 │ &nbsp;&nbsp;Layer 2  bundle/unbundle STM (safety + livelock-free)            │<br>
-│ &nbsp;&nbsp;Layer 1  atomic_shared_ptr + commit (safety; LL-free = counter-ex) │<br>
+│ &nbsp;&nbsp;Layer 1  atomic_shared_ptr + commit (safety proven; livelock-freedom NOT guaranteed at L1) │<br>
 ├──────────────────────────────────────────────────────────────┤<br>
 │ <span style="color:#22d3ee">GenMC (RC11)</span>  — weak-memory model exhaustively / atomic_shared_ptr  │<br>
 └──────────────────────────────────────────────────────────────┘<br>
@@ -189,13 +189,13 @@ All are CONSTRAINT-free full exhaustions.</p>
 </div>
 
 <div class="card">
-<h3><span class="pill pill-l2">L2</span> Layer 2: base spec (Gen 1/2)</h3>
+<h3><span class="pill pill-l2">L2</span> Layer 2: protocol essentials (bundle/unbundle)</h3>
 <p><a href="slides_layer2_en.html">slides_layer2_en.html →</a></p>
-<p style="font-size:0.9em;color:#94a3b8">bundle/unbundle + commit base explanation. Pointers to Gen 3 LLfree. Historical modular-serial framing.</p>
+<p style="font-size:0.9em;color:#94a3b8">The core STM protocol spec. Base explanation of the bundle/unbundle + commit tree structure and phases.</p>
 </div>
 
 <div class="card">
-<h3><span class="pill pill-l2">L2</span> Layer 2 LLfree (Gen 3 core)</h3>
+<h3><span class="pill pill-l2">L2</span> Layer 2 LLfree (core)</h3>
 <p><a href="slides_layer2_LLfree.html">slides_layer2_LLfree.html →</a></p>
 <p style="font-size:0.9em;color:#94a3b8">priority-TID negotiate, CanProceed / TagAfterFail / PreemptTag / ClearMyTags, CONSTRAINT-free structural LL-free proof.</p>
 </div>
@@ -259,9 +259,9 @@ All are CONSTRAINT-free full exhaustions.</p>
 <div class="box">
 <table>
 <tr><th>Spec</th><th>Status</th></tr>
-<tr><td><code>BundleUnbundle.tla</code> (3-level)<br><code>BundleUnbundle_2level.tla</code></td><td>Gen 1/2 non-LL-free versions, superseded by LLfree (Gen 3). Rely on modular serial / CONSTRAINT. Pass, but kept as baselines.</td></tr>
+<tr><td><code>BundleUnbundle.tla</code> (3-level)<br><code>BundleUnbundle_2level.tla</code></td><td>Archived baseline specs (reference only); functionality covered by the current LLfree suite. Pass, but not run day-to-day.</td></tr>
 <tr><td><code>MC.tla</code> / <code>MC_2level.tla</code> / <code>MC_3level.tla</code></td><td>Old-style model-checker config modules; now use <code>*_mc.cfg</code> directly.</td></tr>
-<tr><td><code>test_stm_commit.c</code> / <code>test_bundle_2level.c</code> / <code>test_bundle_3level.c</code></td><td>Non-LL-free TLA+-derived C11 tests (legacy), superseded by the LLfree variants.</td></tr>
+<tr><td><code>test_stm_commit.c</code> / <code>test_bundle_2level.c</code> / <code>test_bundle_3level.c</code></td><td>Archived TLA+-derived C11 tests (reference only); functionality covered by the current LLfree suite.</td></tr>
 </table>
 </div>
 
