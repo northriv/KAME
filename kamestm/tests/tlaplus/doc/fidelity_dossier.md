@@ -594,3 +594,37 @@ Hence the asymmetric cfgs need **no** TLC `SYMMETRY` reduction (which is unavail
 priority directions. The `iter`-axis relabelings (rank changing as a Tx advances) are unrolled by
 TLC within `MaxCommits`. (This supersedes the earlier "asymmetric cfgs check only one labelling"
 caveat — confA's placement closes it for the priority axis.)
+
+### Inner-bundle restart-point correspondence (🟠4) — EXAMINED (AI cross-check), accepted
+
+*AI cross-check of `InnerPhase2/3/4` (3level spec :579–696) ↔ the recursive C++ `bundle()`.*
+Confirmed: the C++ "inner bundle" is `bundle_subpacket()` (transaction_impl.h:2226) recursively
+calling `subnode->bundle(... , false)` (~:2300) when a child is `missing`; so `InnerPhaseN` is the
+recursive `bundle()`'s own Phase 2/3/4, flattened into separate TLA+ actions.
+
+**Phase structure matches** (Inner2 = CAS child `missing=TRUE`; Inner3 = CAS each grandchild to
+`BundledRefWrapper`, one per step; Inner4 = finalize `missing=FALSE`; success → outer Phase 1).
+
+**One real difference — restart *granularity* (not a soundness bug):**
+- **TLA+:** any `InnerPhaseN` failure → unconditional `snap_check`, **clearing all** outer
+  `wrapper`/`subwrappers`/`subpackets` and re-collecting **every** child (:606-614, :662-670, :693-).
+- **C++** (:2480-2490): on inner `DISTURBED`, `if(supscope == *supernode.m_link) continue;` retries
+  **only the disturbed child** (keeping siblings' collected `subwrappers_org[i]`); it bails to the
+  caller (`return DISTURBED`) **only if the outer parent changed**. I.e. the C++ does a finer,
+  per-child restart that the TLA+ collapses into a coarse full re-collect.
+
+**Author decision: accepted as a sound abstraction — no additional model-checking run.**
+Rationale (a): the C++ re-validates everything before committing — Phase 2 parent CAS
+(`compareAndSetRetain`, :2525) and Phase 3 per-child CAS (:2530) fail → `DISTURBED` if any kept
+sibling view went stale, so no inconsistent bundle can *commit*; the reachable **committed** states
+therefore coincide with the TLA+'s coarse-restart model. The only thing the coarse model does not
+represent is the C++ *intermediate* "stale sibling carried into Phase 3" — and although the
+σ-saturation that would directly exercise such intermediates was measured on 2-level all-root and
+only *extrapolated* to 3-level (§5.1), the Phase-2/3 re-validation argument is deemed sufficient.
+Option (b) — a targeted 3-level inner-bundle Phase-3-with-stale-sibling run — was **considered and
+declined** as unnecessary.
+
+*Minor (record only):* the `InnerPhase2/3/4` `\*`-comments in `BundleUnbundle_3level_LLfree.tla`
+still cite `bundle()` at lines `1249-1258 / 1260-1282 / 1286-1299 / 2487-2511`; current anchors are
+`bundle()` :2355, parent CAS :2525, Phase 3 :2530, `bundle_subpacket` :2226. (Spec-comment drift,
+not checked code — fix opportunistically.)
