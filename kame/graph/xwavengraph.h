@@ -53,14 +53,25 @@ public:
 
 		void setLabel(unsigned int col, const char *label);
         const std::vector<XString> &labels() const {return m_labels;}
-        unsigned int precision(unsigned int col) const {return m_cols.at(col)->precision;}
+        unsigned int precision(unsigned int col) const {
+            //!< returns the column's stored precision, falling back to m_precisions
+            //!< when the column has not been filled yet (m_cols slot may hold a null
+            //!< pointer between setCols()/setColCount() and setColumn()).
+            if((col < m_cols.size()) && m_cols[col]) return m_cols[col]->precision;
+            return m_precisions.at(col);
+        }
         void setRowCount(unsigned int rowcnt);
         void setCols(const std::initializer_list<std::string> &labels);
         void setColCount(unsigned int colcnt, const char** labels);
         unsigned int rowCount() const {return m_rowCount; }
         unsigned int colCount() const {return m_cols.size();}
         const std::vector<XGraph::VFloat> &getColumn(unsigned int n, std::vector<XGraph::VFloat> &buf) const {
-            return m_cols.at(n)->fillOrPointToGraphPoints(buf);
+            //!< A column slot exists from setCols()/setColCount() on, but holds a null
+            //!< pointer until setColumn() fills it. Reading such a column (e.g. an NMR
+            //!< spectrum probed from Python/MCP before a scan completes) must not
+            //!< dereference null — return an empty buffer instead of crashing.
+            if((n >= m_cols.size()) || !m_cols[n]) { buf.clear(); return buf; }
+            return m_cols[n]->fillOrPointToGraphPoints(buf);
         }
         unsigned int numPlots() const { return m_plots.size();}
 
